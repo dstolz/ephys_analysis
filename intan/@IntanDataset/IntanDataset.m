@@ -143,6 +143,7 @@ classdef IntanDataset < handle
         X      = readChunkUV(obj, chunk)
         X      = filterContinuous(obj, X, opts)
         [mask, intervals, stats] = detectArtifacts(obj, X, opts)
+        [ts, wf, info] = detectSpikes(obj, X, opts)
         summary = analyzeArtifacts(obj, opts)
         X      = blankArtifacts(obj, X, mask, opts)
         mask   = manualArtifactMask(obj, nSamp, sampleOffset, Fs)

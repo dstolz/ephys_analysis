@@ -2,8 +2,8 @@ function test_IntanDataset()
 %test_IntanDataset  Verification suite for the Intan -> Kilosort4 backend.
 %   Builds synthetic *.rhd fixtures (valid magic + header + known data blocks),
 %   then exercises parseIntanHeader, refreshMetadata, readData, toBin,
-%   matrixToBin, filterContinuous, detectArtifacts, IntanKilosortProject
-%   discovery and runKilosort(DryRun=true). Section 10 builds split-format
+%   matrixToBin, filterContinuous, detectArtifacts, detectSpikes,
+%   IntanKilosortProject discovery and runKilosort(DryRun=true). Section 10 builds split-format
 %   fixtures (info.rhd + flat .dat files) for the one-file-per-signal and
 %   one-file-per-channel layouts and checks metadata, readData and a byte-correct
 %   toBin for both. No real Intan files or Kilosort4 install are required.
@@ -286,6 +286,124 @@ check(~cfgSI.preprocessing.filter.enabled, 'SI bandpass off by default');
 check(contains(resSI.command, 'run_si_ks4.py'), 'command references the script');
 check(endsWith(char(resSI.resultsDir), 'kilosort4'), 'results dir is the kilosort4 run folder');
 
+fprintf('\n== 13. detectSpikes (voltage thresholding) ==\n');
+FsSpk = ds.Fs;                      % 30000
+rng(7);
+noiseSD = 5;                                    % uV white noise
+Xs = noiseSD * randn(2*FsSpk, 2);               % 2 s, 2 channels
+% Spike template: sharp negative trough (sigma 1.5 samples) + slower positive
+% lobe. Element 11 (tw == 0) is the trough, 291.9 uV deep.
+tw   = (-10:20).';
+tmpl = -300*exp(-0.5*(tw/1.5).^2) + 60*exp(-0.5*((tw-8)/4).^2);
+spkIdx = round((0.1:0.05:1.9).' * FsSpk);       % 37 troughs, 50 ms apart
+Xs = injectSpikes(Xs, spkIdx,      1, tmpl, 11);
+Xs = injectSpikes(Xs, spkIdx(1:10), 2, tmpl, 11);
+
+% Threshold=8 robust SDs keeps false crossings of the 5 uV noise out of the
+% exact-index checks (4 SDs over 60000 samples would let a couple through).
+[tsS, wfS, infoS] = ds.detectSpikes(Xs, Filter=false, Threshold=8);
+check(iscell(tsS) && numel(tsS) == 2, 'detectSpikes returns {1 x nChan} timestamps');
+check(isequal(infoS.count, [numel(spkIdx) 10]), 'per-channel spike counts');
+check(isequal(infoS.index{1}, spkIdx), 'trough-aligned sample indices exact (ch 1)');
+check(max(abs(tsS{1} - (spkIdx-1)/FsSpk)) < 1e-12, 'timestamps = (row-1)/Fs');
+check(abs(infoS.threshold(1) - 8*noiseSD) < 0.05*8*noiseSD, 'MAD threshold ~ 8 robust SDs');
+check(all(infoS.amplitude{1} < -250), 'amplitudes are the signed trough values');
+
+% Waveforms (requested by asking for a second output)
+check(isequal(size(wfS{1}), [numel(spkIdx) 61]), 'waveform matrix [nSpikes x nWin]');
+check(abs(infoS.waveformTimeMs(1) + 0.5) < 1e-12 && ...
+      abs(infoS.waveformTimeMs(end) - 1.5) < 1e-12, 'default window spans -0.5 to 1.5 ms');
+zc = find(infoS.waveformTimeMs == 0);
+check(isscalar(zc) && max(abs(wfS{1}(:,zc) - infoS.amplitude{1})) < 1e-12, ...
+    'waveforms centered on the aligned sample');
+[~, wmin] = min(wfS{1}, [], 2);
+check(all(wmin == zc), 'every waveform troughs at the center column');
+
+% Default threshold (4 robust SDs) still finds every injected trough
+[~, ~, info4] = ds.detectSpikes(Xs, Filter=false);
+check(all(arrayfun(@(k) min(abs(info4.index{1} - k)), spkIdx) == 0), ...
+    'default 4-SD MAD threshold finds every injected trough');
+
+% Default band-pass path
+[~, ~, infoF] = ds.detectSpikes(Xs, Threshold=8);
+check(infoF.filterApplied && isequal(infoF.band, [500 5000]), 'default band 500-5000 Hz');
+check(all(arrayfun(@(k) min(abs(infoF.index{1} - k)), spkIdx) <= 3), ...
+    'band-pass detection within 3 samples of each true trough');
+
+% Polarity / alignment
+[~, ~, infoP] = ds.detectSpikes(-Xs, Filter=false, Threshold=8, ...
+    Polarity="positive", Align="peak");
+check(isequal(infoP.index{1}, spkIdx), 'positive polarity + peak alignment (inverted signal)');
+[~, ~, infoB] = ds.detectSpikes(Xs, Filter=false, Threshold=8, ...
+    Polarity="both", Align="extremum");
+check(isequal(infoB.index{1}, spkIdx), 'polarity "both" + extremum alignment');
+[~, ~, infoN] = ds.detectSpikes(Xs, Filter=false, Threshold=8, Align="none");
+check(isequal(infoN.count, infoS.count) && ...
+      all(infoN.index{1} <= spkIdx & infoN.index{1} >= spkIdx-3), ...
+    'Align="none" timestamps the first threshold crossing');
+
+% Minimum detection period: two troughs 0.5 ms (15 samples) apart
+twP   = (-6:6).';
+tmplP = -300*exp(-0.5*(twP/1.5).^2);
+Xp = injectSpikes(noiseSD*randn(3000,1), [1000; 1015], 1, tmplP, 7);
+[~, ~, iMin1] = ds.detectSpikes(Xp, Filter=false, Threshold=8, ...
+    AlignWindowMs=0.2, MinPeriodMs=1);
+check(isequal(iMin1.index{1}, 1000), 'MinPeriodMs=1 keeps only the first of two troughs 0.5 ms apart');
+check(abs(iMin1.minPeriodMs - 1) < 1e-12 && iMin1.minPeriodSamples == 30, ...
+    'min period reported in ms and samples');
+[~, ~, iMin2] = ds.detectSpikes(Xp, Filter=false, Threshold=8, ...
+    AlignWindowMs=0.2, MinPeriodMs=0.2);
+check(isequal(iMin2.index{1}, [1000; 1015]), 'MinPeriodMs=0.2 keeps both troughs');
+
+% Edge handling: an extra trough at sample 5, whose window runs off the start
+Xe = injectSpikes(Xs, 5, 1, tmplP, 7);
+tsE1          = ds.detectSpikes(Xe, Filter=false, Threshold=8, EdgeHandling="drop");
+[tsE2, wfE2]  = ds.detectSpikes(Xe, Filter=false, Threshold=8, EdgeHandling="drop");
+[tsE3, wfE3]  = ds.detectSpikes(Xe, Filter=false, Threshold=8, EdgeHandling="nan");
+check(numel(tsE1{1}) == numel(spkIdx)+1, 'timestamps-only call keeps the edge spike');
+check(numel(tsE2{1}) == numel(spkIdx) && size(wfE2{1},1) == numel(tsE2{1}), ...
+    'EdgeHandling="drop" drops the edge spike from ts and wf together');
+check(numel(tsE3{1}) == numel(spkIdx)+1 && all(isnan(wfE3{1}(1,1:10))), ...
+    'EdgeHandling="nan" keeps the spike and pads the truncated window');
+
+% TimeOffset
+tsO = ds.detectSpikes(Xs, Filter=false, Threshold=8, TimeOffset=10);
+check(max(abs(tsO{1} - (tsS{1} + 10))) < 1e-12, 'TimeOffset shifts every timestamp');
+
+% Other threshold methods
+[~, ~, iAbs] = ds.detectSpikes(Xs, Filter=false, ThresholdMethod="absolute", Threshold=100);
+check(iAbs.threshold(1) == 100 && isnan(iAbs.noise(1)), 'absolute threshold in microvolts');
+check(isequal(iAbs.index{1}, spkIdx), 'absolute threshold detects the injected troughs');
+[~, ~, iStd] = ds.detectSpikes(Xs, Filter=false, ThresholdMethod="std");
+check(iStd.noise(1) > infoS.noise(1), 'STD noise estimate inflated by spikes (MAD is robust)');
+[~, ~, iPct] = ds.detectSpikes(Xs, Filter=false, ThresholdMethod="percentile", Threshold=99.9);
+check(iPct.threshold(1) > 0 && iPct.count(1) > 0, 'percentile threshold detects spikes');
+
+% Input / option guards
+errId = '';
+try
+    ds.detectSpikes(randn(1,64), Filter=false);
+catch ME
+    errId = ME.identifier;
+end
+check(strcmp(errId, 'IntanDataset:detectSpikes:RowVector'), 'row-vector input rejected');
+
+errId = '';
+try
+    ds.detectSpikes(Xs, Filter=false, ThresholdMethod="absolute");
+catch ME
+    errId = ME.identifier;
+end
+check(strcmp(errId, 'IntanDataset:detectSpikes:NoThreshold'), 'absolute method requires a Threshold');
+
+errId = '';
+try
+    ds.detectSpikes(Xs, Band=[500 FsSpk]);
+catch ME
+    errId = ME.identifier;
+end
+check(strcmp(errId, 'IntanDataset:detectSpikes:BandAboveNyquist'), 'band above Nyquist rejected');
+
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0
     error('test_IntanDataset:Failures', '%d checks failed.', nFail);
@@ -433,4 +551,18 @@ function bytes = readBin(ffn)
 fid = fopen(ffn, 'r', 'ieee-le');
 bytes = fread(fid, inf, '*uint8');
 fclose(fid);
+end
+
+
+% =========================================================================
+function X = injectSpikes(X, idx, chan, tmpl, peakPos)
+%injectSpikes  Add tmpl to column chan of X, tmpl(peakPos) landing on each idx.
+%   Samples of the template that fall outside X are clipped.
+n = size(X, 1);
+m = numel(tmpl);
+for k = 1:numel(idx)
+    rows = idx(k) - peakPos + (1:m).';
+    ok = rows >= 1 & rows <= n;
+    X(rows(ok), chan) = X(rows(ok), chan) + tmpl(ok);
+end
 end

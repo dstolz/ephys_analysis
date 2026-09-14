@@ -14,6 +14,7 @@ An `IntanDataset` can:
 - stream the recording one bounded chunk at a time (for `.bin` writing, artifact
   screening and plotting) so peak memory does not scale with recording length;
 - filter, screen for artifacts, and blank artifacts;
+- detect spikes by voltage thresholding, with waveforms;
 - write a Kilosort4 `.bin` file (streaming or in-memory);
 - launch Kilosort4, either directly on a `.bin` (`runKilosort`) or through
   SpikeInterface on the raw recording (`runSpikeInterface`, the path the GUI uses);
@@ -354,6 +355,109 @@ default it detects on the broadband signal (`Filter=false`).
 `normalizeArtifactConfig(cfg)` fills missing fields from these defaults and
 drops unknown fields.
 
+### Spike detection
+
+**`[ts, wf, info] = detectSpikes(X, Name=Value)`** detects spikes in an
+in-memory `[nSamples x nChan]` microvolt block by **simple voltage
+thresholding**, each channel independently. `X` is never modified.
+
+- `ts` is a `{1 x nChan}` cell array of spike times in **seconds** — always a
+  cell array, one column vector per channel, also for a single channel.
+- `wf{c}` is `[nSpikes x nWin]` microvolts around each spike, rows in the same
+  order as `ts{c}`. **Waveforms are extracted only when a second output is
+  requested or `Waveforms=true`** — timestamps only is the default.
+- `info` reports the parameters actually used plus the per-channel thresholds,
+  noise estimates, sample indices, amplitudes and counts (see below).
+
+The pipeline is: band-pass filter → per-channel threshold → threshold crossings
+→ align each crossing to its extremum → enforce the minimum detection period →
+optional amplitude ceiling → optional waveform extraction.
+
+| Option | Default | Meaning |
+| --- | --- | --- |
+| `Filter` | `true` | band-pass first (through `filterContinuous`) |
+| `Band` | `[500 5000]` | band-pass edges in Hz; the upper edge must be below Nyquist |
+| `FilterOrder` | `4` | Butterworth order |
+| `Polarity` | `"negative"` | cross when `x < -thr`; `"positive"` uses `x > thr`, `"both"` uses \|x\| > thr |
+| `ThresholdMethod` | `"mad"` | see the table below |
+| `Threshold` | method-dependent | the number that goes with the method |
+| `Align` | `"trough"` | `"peak"`, `"extremum"` (largest \|x\|) or `"none"` (the crossing sample) |
+| `AlignWindowMs` | `1` | extremum search window, starting at the crossing |
+| `MinPeriodMs` | `1` | minimum detection period (dead time after a kept event) |
+| `MaxAmplitudeUV` | `Inf` | reject events whose amplitude exceeds this in absolute value |
+| `Waveforms` | `false` | force waveform extraction even with one output |
+| `WindowMs` | `[-0.5 1.5]` | waveform window relative to the aligned sample, `before <= after` |
+| `WaveformSource` | `"filtered"` | or `"raw"` — which trace the snippets are cut from |
+| `EdgeHandling` | `"nan"` | a window past the start/end of `X` is NaN-padded; `"drop"` removes the event from **both** `wf` and `ts` |
+| `Fs` | `ds.Fs` | sample rate (Hz) |
+| `TimeOffset` | `0` | seconds added to every timestamp (for detecting on one chunk of a longer recording) |
+
+Thresholds are computed **per channel on the filtered trace** and are always
+applied as a positive magnitude — `Polarity`, not the sign of `Threshold`, sets
+the direction.
+
+| `ThresholdMethod` | Threshold value | `Threshold` default |
+| --- | --- | --- |
+| `"mad"` | `Threshold` × robust SD, median(\|x − median(x)\|)/0.6745 | `4` |
+| `"std"` | `Threshold` × `std(x)` | `4` |
+| `"rms"` | `Threshold` × `sqrt(mean(x²))` | `4` |
+| `"percentile"` | the `Threshold`-th percentile of \|x\|, in (0 100] | `99.9` |
+| `"absolute"` | `Threshold` microvolts | none — **required** |
+
+`"mad"` is the default because large spikes inflate `std` (and `rms`) and so
+raise the threshold they should be measured against.
+
+**Alignment.** For each crossing, the extremum is taken over the run of
+above-threshold samples, extended to at least `AlignWindowMs` from the crossing.
+That sample becomes both the timestamp and the waveform center. Two crossings
+that align to one extremum collapse into a single event (the minimum detection
+period is floored at one sample, so exact duplicates are always removed). The
+minimum detection period is then applied greedily, keeping the **earlier** of
+two events closer than `MinPeriodMs`.
+
+**Timestamps** are `t = (row − 1)/Fs + TimeOffset`: the convention used by
+`readData`'s `t` vector and by Kilosort/phy sample indices, and one sample
+earlier than the `t = row/Fs` convention of `detectArtifacts` intervals and
+digital-input events. `info.index` holds the 1-based rows of `X`.
+
+**Noise and threshold estimates use the whole block**, so detect on windows long
+enough to characterize the noise (a second or more) and expect chunk-to-chunk
+variation if you stream. Non-finite samples (for example NaN from
+`blankArtifacts(Fill="nan")`) are excluded from the estimates and never cross
+threshold. A channel whose threshold works out non-positive or non-finite (flat
+or empty signal) gets `Inf` instead, so nothing is detected there rather than
+everything; it is flagged in `info.degenerate` and warned about
+(`IntanDataset:detectSpikes:DegenerateThreshold`).
+
+`info` fields: `fs`, `nSamples`, `nChan`, `durationSec`, `channelNames` (when
+`ChannelNames` matches the column count), `filterApplied`, `band`,
+`filterOrder`, `polarity`, `thresholdMethod`, `thresholdInput`, `threshold`
+`[1 x nChan]`, `noise` `[1 x nChan]` (NaN for `percentile` / `absolute`),
+`degenerate`, `align`, `alignWindowMs`, `alignWindowSamples`, `minPeriodMs`,
+`minPeriodSamples`, `windowMs`, `windowSamples`, `waveformTimeMs` `[1 x nWin]`,
+`waveformSource`, `waveformsExtracted`, `edgeHandling`, `count` `[1 x nChan]`,
+`rate` `[1 x nChan]` (Hz over `durationSec`), `index` `{1 x nChan}`,
+`amplitude` `{1 x nChan}` (signed filtered microvolts at each aligned sample),
+`nEdgeWindows`, `nRejectedAmplitude`, `maxAmplitudeUV`, `timeOffset`. The
+millisecond fields report the values **after** rounding to samples.
+
+```matlab
+d  = ds.readData();
+ts = ds.detectSpikes(d.amplifier);                       % timestamps only
+[ts, wf, info] = ds.detectSpikes(d.amplifier, ...        % + waveforms
+    Band=[300 6000], Threshold=4.5, MinPeriodMs=1.5);
+plot(info.waveformTimeMs, wf{1}(1:50,:).');
+```
+
+Any microvolt matrix works, with or without a real recording folder:
+
+```matlab
+ts = IntanDataset().detectSpikes(X, Fs=30000);
+```
+
+This is a threshold detector, not a sorter: it does not cluster, and a spike
+seen on several channels is detected once per channel.
+
 ### Writing a Kilosort4 `.bin`
 
 **`info = toBin(Name=Value)`** streams the recording to `BinFile` (or `BinFile=`
@@ -583,6 +687,9 @@ The manifest is a JSON state file at `<Folder>/<Name>_manifest.json`, i.e. in th
 | `IntanDataset:readData:NoFiles`, `IntanDataset:toBin:NoFiles` | no Intan files |
 | `IntanDataset:readData:BadKeepChannels`, `IntanDataset:toBin:BadChannelOrder` | channel index out of range |
 | `IntanDataset:filterContinuous:CutoffAboveNyquist` | cutoff ≥ Fs/2 |
+| `IntanDataset:detectSpikes:BandAboveNyquist` | spike-detection band upper edge ≥ Fs/2 |
+| `IntanDataset:detectSpikes:NoThreshold` / `BadThreshold` / `BadPercentile` | `Threshold` missing or out of range for the chosen `ThresholdMethod` |
+| `IntanDataset:detectSpikes:RowVector` / `BadWindow` / `BadBand` | `X` passed as a row vector, or a reversed `WindowMs` / `Band` |
 | `IntanDataset:runKilosort:NoPython` / `NoProbe` / `ProbeMissing` / `BinMissing` | run prerequisites missing |
 | `IntanDataset:runSpikeInterface:NoPython` / `NoProbe` / `ProbeMissing` | run prerequisites missing |
 | `IntanDataset:toMat:Exists` / `SaveWarning` / `SaveIncomplete` | `.mat` output refused or discarded |
@@ -605,6 +712,7 @@ and split-layout fixtures in a temp folder and deletes them afterwards. It cover
 | 10 | split layouts (metadata, `readData`, byte-correct `toBin`) |
 | 11 | `artifactIntervals` (manual merge + automatic streaming) |
 | 12 | `runSpikeInterface(DryRun=true)` |
+| 13 | `detectSpikes` (injected troughs: alignment, thresholds, polarity, minimum period, waveforms, edges, guards) |
 
 It needs no real Intan data and no Kilosort4 install. (These tests were not run
 as part of writing this documentation.)

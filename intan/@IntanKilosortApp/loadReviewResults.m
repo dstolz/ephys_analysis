@@ -6,9 +6,9 @@ function loadReviewResults(obj)
 %   summary label and units table, and draws the plots. Selecting a unit later
 %   only re-renders from the cache (see renderReviewPlots).
 %
-%   .npy files are read with a small built-in reader (readNPY, below); no
-%   external toolbox is required. Numeric arrays are assumed little-endian,
-%   which is what Kilosort4 writes on x86.
+%   .npy files are read with the repository's small reader (READNPY, in
+%   intan/); no external toolbox is required. Numeric arrays are assumed
+%   little-endian, which is what Kilosort4 writes on x86.
 
 folder = strtrim(obj.ReviewFolderField.Value);
 if isempty(folder)
@@ -284,67 +284,3 @@ function closeIfValid(dlg)
 if ~isempty(dlg) && isvalid(dlg); close(dlg); end
 end
 
-
-%% --- minimal NumPy .npy reader --------------------------------------------
-function [data, shape] = readNPY(filename)
-%readNPY  Read a little-endian NumPy .npy array (numeric or bool).
-%   Supports the common KS4 dtypes (int/uint 8..64, float32/64, bool) in either
-%   C or Fortran order and returns a MATLAB array of matching shape.
-fid = fopen(filename, 'r', 'l');
-if fid < 0; error('readNPY:open', 'Cannot open %s', filename); end
-closer = onCleanup(@() fclose(fid));
-
-magic = fread(fid, 6, '*uint8')';
-if ~isequal(magic, uint8([147 78 85 77 80 89]))   % \x93NUMPY
-    error('readNPY:magic', 'Not a .npy file: %s', filename);
-end
-verMajor = fread(fid, 1, 'uint8');
-fread(fid, 1, 'uint8');   % minor version (unused)
-if verMajor >= 2
-    headerLen = fread(fid, 1, 'uint32');
-else
-    headerLen = fread(fid, 1, 'uint16');
-end
-header = fread(fid, headerLen, '*char')';
-
-descrTok = regexp(header, '''descr''\s*:\s*''([^'']+)''', 'tokens', 'once');
-descr = descrTok{1};
-fortran = ~isempty(regexp(header, '''fortran_order''\s*:\s*True', 'once'));
-shapeTok = regexp(header, '''shape''\s*:\s*\(([^)]*)\)', 'tokens', 'once');
-shape = sscanf(strrep(shapeTok{1}, ',', ' '), '%g')';
-if isempty(shape)
-    shape = [1 1];
-elseif isscalar(shape)
-    shape = [shape 1];
-end
-
-mtype = npyType(descr);
-data = fread(fid, prod(shape), ['*' mtype]);
-if descr(2) == 'b'; data = logical(data); end
-
-if fortran
-    data = reshape(data, shape);
-else
-    data = reshape(data, fliplr(shape));
-    data = permute(data, numel(shape):-1:1);
-end
-end
-
-
-function mtype = npyType(descr)
-%npyType  Map a NumPy dtype string (e.g. '<f4', '|b1') to a MATLAB class name.
-kind  = descr(2);
-bytes = str2double(descr(3:end));
-switch kind
-    case 'f'
-        if bytes == 8; mtype = 'double'; else; mtype = 'single'; end
-    case 'i'
-        mtype = sprintf('int%d', bytes * 8);
-    case 'u'
-        mtype = sprintf('uint%d', bytes * 8);
-    case 'b'
-        mtype = 'uint8';   % bool stored as one byte; caller casts to logical
-    otherwise
-        error('readNPY:dtype', 'Unsupported NumPy dtype: %s', descr);
-end
-end

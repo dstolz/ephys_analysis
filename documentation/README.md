@@ -3,7 +3,8 @@
 This folder is the reference for the Intan code in
 [`intan`](../intan). That code reads Intan RHD recordings in MATLAB,
 prepares them for **Kilosort4** (directly, or through **SpikeInterface**),
-reviews the sorted units, and exports LFP / MUA / spike-band signals.
+reviews the sorted units, exports LFP / MUA / spike-band signals, and connects
+those signals and the sorted spike trains to the **Chronux** toolbox.
 
 > Written 2026-09-11 from the source in the working tree, including changes not
 > yet committed at the time (`deriveSignals.m` and `toMat.m` were untracked
@@ -21,6 +22,7 @@ reviews the sorted units, and exports LFP / MUA / spike-band signals.
 | [IntanKilosortApp](IntanKilosortApp.md) | the GUI, tab by tab |
 | [ProbeDesignerApp](ProbeDesignerApp.md) | building a Kilosort4 probe `.json` from probeinterface |
 | [intan2matlab](intan2matlab.md) | `intan2matlab` / `deriveSignals` / `toMat`: LFP, MUA, SPIKE and digital events |
+| [ChronuxDataset](ChronuxDataset.md) | connector that hands recordings, trials and spike trains to the Chronux toolbox |
 | [Python drivers](python-drivers.md) | `run_si_ks4.py`, `run_ks4.py`, `probe_tool.py` |
 | [Files on disk](file-formats.md) | folder layout and every JSON / `.bin` / `.mat` schema |
 
@@ -39,6 +41,7 @@ flowchart LR
         DS --> DT[DatasetTracker<br/>file inventory]
         PRJ -. discovery .-> DT
         I2M[intan2matlab] --> DS
+        CX[ChronuxDataset<br/>Chronux connector] --> DS
     end
     subgraph Python["Python (conda env, via system())"]
         SI[run_si_ks4.py<br/>SpikeInterface + KS4]
@@ -52,6 +55,9 @@ flowchart LR
     SI --> OUT[(kilosort4/si/sorter_output<br/>phy files)]
     KS --> OUT2[(kilosort4/<br/>phy files)]
     DS -- toMat --> MAT[(.mat: Y, events, info)]
+    OUT -. spike times .-> CX
+    MAT -. derived signals .-> CX
+    CX --> CHX[/Chronux<br/>mtspectrumc, mtspectrumpt, .../]
 ```
 
 There are **two Kilosort4 engines**:
@@ -84,6 +90,15 @@ Script, derived signals:
 
 ```matlab
 [Y, events, info] = intan2matlab("D:\rec\subj1_day1", dataTypeOut=["LFP" "MUA"]);
+```
+
+Script, Chronux spectra (needs [Chronux](http://chronux.org) on the path):
+
+```matlab
+cx = ChronuxDataset("D:\rec\subj1_day1", Signal="LFP");
+cx.Tapers = ChronuxDataset.tapersFor(2, 10);          % +/-2 Hz over 10 s
+[data, params] = cx.continuous(Channels=1, TimeRange=[0 10]);
+[S, f] = mtspectrumc(data, params);
 ```
 
 ## Conventions
@@ -162,6 +177,8 @@ Collected from the code. Each is explained on the linked page.
 | Background runs | automatic artifact detection runs synchronously in MATLAB before each launch; closing the app does not stop running Python processes | [App → Kilosort](IntanKilosortApp.md#kilosort) |
 | Manifest `kilosort.state` | for the SpikeInterface engine it is the tracker's fallback `"done"` whenever results exist; the true state is in `kilosort4/ks4_status.json` | [Files on disk](file-formats.md#dataset-manifest) |
 | Derived-signal bad channels | interpolation is across neighboring **columns**, not probe geometry | [intan2matlab](intan2matlab.md#processing-order) |
+| Chronux trial onsets | a dig-in onset maps to sample `round(t·Fs)` of the signal being epoched, so at a derived rate it is accurate to ±1 sample; Chronux's own `createdatamatc` indexes one sample later | [ChronuxDataset](ChronuxDataset.md#trial-sample-alignment) |
+| Chronux point-process grid | left to itself `mtspectrumpt` normalizes by the span of the spikes, not the recording; pass the `t` the connector returns | [ChronuxDataset](ChronuxDataset.md#why-t-matters-for-point-processes) |
 | MATLAB version | [INSTALL.md](../intan/INSTALL.md) says R2021a+, but the Visualize tab uses `xregion` (R2023a+) | [App → Visualize](IntanKilosortApp.md#visualize) |
 
 ## Dependencies
@@ -188,6 +205,11 @@ Collected from the code. Each is explained on the linked page.
 **Python**: a conda environment with spikeinterface, kilosort, probeinterface,
 neo and torch, plus an optional separate `phy` environment. See
 [INSTALL.md](../intan/INSTALL.md) for known-good versions.
+
+**Optional external MATLAB toolbox**: [Chronux](http://chronux.org), only for
+running the analyses `ChronuxDataset` prepares data for. It is not bundled here;
+add it with `addpath(genpath(...))`. Preparing the data never calls it
+(`ChronuxDataset.hasChronux` reports whether it is on the path).
 
 ## Notes for maintainers
 

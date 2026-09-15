@@ -6,7 +6,9 @@ function test_EphysDataset()
 %   EphysProject discovery and runKilosort(DryRun=true). Section 10 builds split-format
 %   fixtures (info.rhd + flat .dat files) for the one-file-per-signal and
 %   one-file-per-channel layouts and checks metadata, readData and a byte-correct
-%   toBin for both. No real Intan files or Kilosort4 install are required.
+%   toBin for both; section 14 streams detectSpikes over a whole (split) recording
+%   and requires it to match the single-block result exactly. No real Intan files
+%   or Kilosort4 install are required.
 %
 %   Usage:  test_EphysDataset
 %
@@ -29,6 +31,11 @@ nPass = 0; nFail = 0;
             nFail = nFail + 1;
             fprintf(2, '  FAIL: %s\n', msg);
         end
+    end
+
+nProg = 0;
+    function progTick(~, ~, ~)
+        nProg = nProg + 1;
     end
 
 rng(42);
@@ -403,6 +410,106 @@ catch ME
     errId = ME.identifier;
 end
 check(strcmp(errId, 'EphysDataset:detectSpikes:BandAboveNyquist'), 'band above Nyquist rejected');
+
+fprintf('\n== 14. detectSpikes over a whole recording (streaming) ==\n');
+% One-file-per-signal fixture with known troughs, detected chunk by chunk. The
+% streamed result must match detecting on the whole recording in one block.
+spkFolder = fullfile(root, 'split_spikes');
+mkdir(spkFolder);
+nChanSpk = 2;
+nSampRec = 12000;                                % 0.4 s at 30 kHz
+rng(11);
+XuV  = 5 * randn(nSampRec, nChanSpk);            % microvolts
+twR   = (-10:20).';
+tmplR = -300*exp(-0.5*(twR/1.5).^2) + 60*exp(-0.5*((twR-8)/4).^2);
+% Troughs: near the very start, straddling the 2000-sample chunk boundaries
+% (1990 / 4010 / 7999), and running past the end of the recording (11960).
+recIdx = [6; 500; 1990; 2060; 4010; 6000; 7999; 9000; 10000; 11960];
+XuV = injectSpikes(XuV, recIdx,      1, tmplR, 11);
+XuV = injectSpikes(XuV, recIdx(1:4), 2, tmplR, 11);
+ampI16spk = int16(round(XuV.' / 0.195));         % [nChan x nSamp] stored codes
+writeInfoRHD(fullfile(spkFolder, 'info.rhd'), nChanSpk, Fs);
+writeDat(fullfile(spkFolder, 'amplifier.dat'), ampI16spk, 'int16');
+writeDat(fullfile(spkFolder, 'time.dat'), int32(0:nSampRec-1), 'int32');
+writeDat(fullfile(spkFolder, 'digitalin.dat'), uint16(zeros(1,nSampRec)), 'uint16');
+
+dsSpk = EphysDataset(spkFolder);
+datRec = dsSpk.readData();
+Xrec   = datRec.amplifier;                       % the same microvolts, in one block
+
+% Reference: the whole recording detected as a single block.
+absArgs = {'Filter', false, 'ThresholdMethod', "absolute", 'Threshold', 100};
+[tsBlk, wfBlk, iBlk] = dsSpk.detectSpikes(Xrec, absArgs{:});
+check(isequal(iBlk.index{1}, recIdx), 'block reference finds every injected trough');
+
+% Streamed over 6 chunks of 2000 samples.
+[tsStr, wfStr, iStr] = dsSpk.detectSpikes(MaxChunkSamples=2000, absArgs{:});
+check(numel(iStr.chunks) == 6 && isequal([iStr.chunks.sampleOffset], 0:2000:10000), ...
+    'recording streamed in 6 chunks with contiguous sample offsets');
+check(iStr.source == "recording" && iStr.thresholdScope == "chunk", ...
+    'info flags whole-recording mode and per-chunk thresholds');
+check(isequal(size(iStr.threshold), [6 nChanSpk]), 'threshold reported per chunk x channel');
+check(iStr.nSamples == nSampRec && abs(iStr.durationSec - nSampRec/Fs) < 1e-12, ...
+    'nSamples / durationSec cover the whole recording');
+check(isequal(iStr.index{1}, recIdx) && isequal(iStr.index{2}, recIdx(1:4)), ...
+    'streamed indices are recording-global and exact, across chunk boundaries');
+check(isequal(iStr.index, iBlk.index) && isequal(iStr.count, iBlk.count), ...
+    'streamed detection == single-block detection (indices and counts)');
+check(max(abs(tsStr{1} - (recIdx-1)/Fs)) < 1e-12, 'timestamps = (index-1)/Fs');
+check(isequal(tsStr, tsBlk), 'streamed timestamps == single-block timestamps');
+check(isequaln(wfStr{1}, wfBlk{1}) && isequaln(wfStr{2}, wfBlk{2}), ...
+    'streamed waveforms == single-block waveforms (NaN padding included)');
+% Chunk boundaries must not truncate a waveform; only the recording edges do.
+bnd = find(recIdx == 1990);
+check(all(isfinite(wfStr{1}(bnd,:))), 'waveform straddling a chunk boundary is complete');
+check(any(isnan(wfStr{1}(1,:))) && any(isnan(wfStr{1}(end,:))), ...
+    'waveforms past the start/end of the recording are NaN-padded');
+check(isequal(iStr.nEdgeWindows, iBlk.nEdgeWindows), ...
+    'edge-window count matches the single-block result');
+
+% A subset/reorder of channels applies to every chunk.
+[~, ~, iCh] = dsSpk.detectSpikes(MaxChunkSamples=2000, ChannelOrder=2, absArgs{:});
+check(iCh.nChan == 1 && isequal(iCh.index{1}, recIdx(1:4)), ...
+    'ChannelOrder subsets the channels detected on');
+
+% Default (band-pass + MAD) path over the recording.
+[~, ~, iDef] = dsSpk.detectSpikes(MaxChunkSamples=2000, Threshold=8);
+check(all(arrayfun(@(k) min(abs(iDef.index{1} - k)), recIdx) <= 3), ...
+    'band-pass streaming detects every injected trough within 3 samples');
+check(iDef.edgePadSamples >= round(0.010*Fs), 'edge padding at least EdgePadMs');
+
+% Progress reporting runs once per chunk.
+nProg = 0;
+dsSpk.detectSpikes(MaxChunkSamples=2000, absArgs{:}, 'ProgressFcn', @progTick);
+check(nProg == 6, 'ProgressFcn called once per chunk');
+
+% Guards
+errId = '';
+try
+    ds.detectSpikes(Xs, Filter=false, ChannelOrder=1);
+catch ME
+    errId = ME.identifier;
+end
+check(strcmp(errId, 'EphysDataset:detectSpikes:BlockOption'), ...
+    'streaming-only options rejected for a data block');
+
+errId = '';
+try
+    dsSpk.detectSpikes(Fs=30000);
+catch ME
+    errId = ME.identifier;
+end
+check(strcmp(errId, 'EphysDataset:detectSpikes:FsNotAllowed'), ...
+    'Fs cannot be overridden over a whole recording');
+
+errId = '';
+try
+    EphysDataset().detectSpikes();
+catch ME
+    errId = ME.identifier;
+end
+check(strcmp(errId, 'EphysDataset:detectSpikes:NoData'), ...
+    'no data block and no recording folder is an error');
 
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0

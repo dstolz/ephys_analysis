@@ -1,19 +1,19 @@
-function test_IntanDataset()
-%test_IntanDataset  Verification suite for the Intan -> Kilosort4 backend.
+function test_EphysDataset()
+%test_EphysDataset  Verification suite for the Intan -> Kilosort4 backend.
 %   Builds synthetic *.rhd fixtures (valid magic + header + known data blocks),
 %   then exercises parseIntanHeader, refreshMetadata, readData, toBin,
-%   matrixToBin, filterContinuous, detectArtifacts, IntanKilosortProject
+%   matrixToBin, filterContinuous, detectArtifacts, EphysProject
 %   discovery and runKilosort(DryRun=true). Section 10 builds split-format
 %   fixtures (info.rhd + flat .dat files) for the one-file-per-signal and
 %   one-file-per-channel layouts and checks metadata, readData and a byte-correct
 %   toBin for both. No real Intan files or Kilosort4 install are required.
 %
-%   Usage:  test_IntanDataset
+%   Usage:  test_EphysDataset
 %
 %   The fixtures live in a temp folder which is deleted on completion.
 
 here = fileparts(mfilename('fullpath'));
-addpath(here);                          % @IntanDataset / @IntanKilosortProject
+addpath(here);                          % @EphysDataset / @EphysProject
 addpath(fileparts(here));               % matrix2kilosort.m (ephys/)
 
 root = fullfile(tempdir, sprintf('IntanDS_test_%s', datestr(now,'yyyymmdd_HHMMSSFFF'))); %#ok<TNOW1,DATST>
@@ -57,7 +57,7 @@ java.io.File(f1).setLastModified(int64(1.0e12));
 java.io.File(f2).setLastModified(int64(1.0e12 + 60000));
 
 fprintf('\n== 1-2. refreshMetadata + header-only parse (via PerFile) ==\n');
-ds = IntanDataset(dsFolder);   % AutoMetadata=true -> parseIntanHeader per file
+ds = EphysDataset(dsFolder);   % AutoMetadata=true -> parseIntanHeader per file
 check(ds.NumFiles == 2, 'discovered 2 files');
 check(ds.Files(1) == "rec_001.rhd", 'chronological sort (file 1)');
 check(ds.NumChannels == numAmp, 'NumChannels');
@@ -92,7 +92,7 @@ check(info.nChan == numAmp && info.nSamples == totalSamples, 'toBin nChan/nSampl
 check(info.nBytes == numAmp * totalSamples * 2, 'byte invariant nBytes = nChan*nSamples*2');
 
 % In-memory write of the same data via matrixToBin
-ds2 = IntanDataset(dsFolder);
+ds2 = EphysDataset(dsFolder);
 ds2.OutputDir = fullfile(root, 'out_mem');
 info2 = ds2.matrixToBin(data.amplifier);   % uses Scale=1/0.195, Dtype int16
 b1 = readBin(info.filename);
@@ -118,14 +118,14 @@ check(size(intervals,1) >= 1 && intervals(1,1) <= 100/Fs, 'artifact interval ons
 Xb = ds.blankArtifacts(X, mask, Fill="zero");
 check(all(all(Xb(mask,:) == 0)), 'blankArtifacts zeroes flagged rows');
 
-fprintf('\n== 7. IntanKilosortProject discovery ==\n');
+fprintf('\n== 7. EphysProject discovery ==\n');
 % nested tree: 2 real dataset folders + 1 empty decoy
 mkdir(fullfile(root, 'proj', 'mouse1', 'sess1'));
 mkdir(fullfile(root, 'proj', 'mouse2', 'sess1'));
 mkdir(fullfile(root, 'proj', 'empty_decoy'));
 writeSyntheticRHD(fullfile(root,'proj','mouse1','sess1','a.rhd'), ampRaw(:,1:spb), digRaw(1:spb), Fs, spb);
 writeSyntheticRHD(fullfile(root,'proj','mouse2','sess1','b.rhd'), ampRaw(:,1:spb), digRaw(1:spb), Fs, spb);
-P = IntanKilosortProject(fullfile(root,'proj'));
+P = EphysProject(fullfile(root,'proj'));
 check(P.NumDatasets == 2, 'discover finds exactly 2 dataset folders (decoy ignored)');
 T = P.gatherMetadata();
 check(height(T) == 2 && all(T.NumChannels == numAmp), 'gatherMetadata table');
@@ -194,7 +194,7 @@ writeDat(fullfile(sigFolder, 'amplifier.dat'), ampI16, 'int16');      % channel-
 writeDat(fullfile(sigFolder, 'time.dat'), int32(0:nSampSplit-1), 'int32');
 writeDat(fullfile(sigFolder, 'digitalin.dat'), uint16(digSplit), 'uint16');
 
-dsig = IntanDataset(sigFolder);
+dsig = EphysDataset(sigFolder);
 check(dsig.RecordingFormat == "one-file-per-signal", 'detect one-file-per-signal');
 check(dsig.NumChannels == numAmp, 'signal: NumChannels from info.rhd');
 check(dsig.Fs == Fs, 'signal: Fs from info.rhd');
@@ -222,7 +222,7 @@ end
 writeDat(fullfile(chanFolder, 'time.dat'), int32(0:nSampSplit-1), 'int32');
 writeDat(fullfile(chanFolder, 'board-DIN-00.dat'), uint16(digSplit), 'uint16');
 
-dchan = IntanDataset(chanFolder);
+dchan = EphysDataset(chanFolder);
 check(dchan.RecordingFormat == "one-file-per-channel", 'detect one-file-per-channel');
 check(dchan.NumChannels == numAmp, 'channel: NumChannels');
 check(dchan.NumSamples == nSampSplit, 'channel: NumSamples from amp-A-000.dat size');
@@ -237,13 +237,13 @@ rawChan = reshape(typecast(readBin(ic.filename), 'int16'), numAmp, nSampSplit);
 check(max(abs(double(rawChan) - double(ampI16)), [], 'all') <= 1, 'channel: .bin int16 == source int16');
 
 % Split toBin must match the in-memory matrixToBin on the same microvolts.
-dsig2 = IntanDataset(sigFolder); dsig2.OutputDir = fullfile(root, 'out_split_mem');
+dsig2 = EphysDataset(sigFolder); dsig2.OutputDir = fullfile(root, 'out_split_mem');
 imem = dsig2.matrixToBin(expSigUV);
 check(isequal(readBin(isig.filename), readBin(imem.filename)), ...
     'signal: streaming toBin == matrix2kilosort (byte-identical)');
 
 fprintf('\n== 11. artifactIntervals (manual merge + auto streaming) ==\n');
-dsi = IntanDataset(dsFolder);
+dsi = EphysDataset(dsFolder);
 % Manual-only: two overlapping periods merge into one; auto disabled by default.
 dsi.ManualArtifacts = [0.001 0.003; 0.0025 0.004];
 ivm = dsi.artifactIntervals();
@@ -265,7 +265,7 @@ check(all(iva(:,2) >= iva(:,1)), 'auto intervals are well-formed');
 check(max(iva(:,2)) <= dsi.Duration + 1e-6, 'auto intervals lie within the recording');
 
 fprintf('\n== 12. runSpikeInterface(DryRun=true) ==\n');
-dsr = IntanDataset(dsFolder);
+dsr = EphysDataset(dsFolder);
 dsr.OutputDir = fullfile(root, 'out_si');
 dsr.ProbeFile = probeFile;                 % from section 8
 dsr.PythonExe = "C:\envs\kilosort\python.exe";
@@ -288,7 +288,7 @@ check(endsWith(char(resSI.resultsDir), 'kilosort4'), 'results dir is the kilosor
 
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0
-    error('test_IntanDataset:Failures', '%d checks failed.', nFail);
+    error('test_EphysDataset:Failures', '%d checks failed.', nFail);
 end
 end
 

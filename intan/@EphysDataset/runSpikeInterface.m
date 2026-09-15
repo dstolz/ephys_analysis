@@ -43,11 +43,11 @@ function result = runSpikeInterface(obj, opts)
 %   resultsDir, runDir, probeFile, excludeChannels, dryRun, wait, statusFile,
 %   background.
 %
-%   See also IntanDataset.runKilosort, IntanDataset.artifactIntervals,
-%   IntanDataset.kilosortResultsDir.
+%   See also EphysDataset.runKilosort, EphysDataset.artifactIntervals,
+%   EphysDataset.kilosortResultsDir.
 
 arguments
-    obj (1,1) IntanDataset
+    obj (1,1) EphysDataset
     opts.PythonExe (1,1) string = ""
     opts.CondaEnv (1,1) string = ""
     opts.ProbeFile (1,1) string = ""
@@ -69,15 +69,15 @@ condaEnv  = firstNonEmpty(opts.CondaEnv,  obj.CondaEnv);
 probeFile = firstNonEmpty(opts.ProbeFile, obj.ProbeFile);
 
 if pythonExe == ""
-    error('IntanDataset:runSpikeInterface:NoPython', ...
+    error('EphysDataset:runSpikeInterface:NoPython', ...
         'No python executable configured (set ds.PythonExe or pass PythonExe).');
 end
 if probeFile == ""
-    error('IntanDataset:runSpikeInterface:NoProbe', ...
+    error('EphysDataset:runSpikeInterface:NoProbe', ...
         'No probe file configured (set ds.ProbeFile or pass ProbeFile).');
 end
 if ~isfile(probeFile)
-    error('IntanDataset:runSpikeInterface:ProbeMissing', 'Probe file not found: %s', probeFile);
+    error('EphysDataset:runSpikeInterface:ProbeMissing', 'Probe file not found: %s', probeFile);
 end
 
 % Metadata (Fs / NumChannels / files) drives the config.
@@ -94,7 +94,7 @@ nChan = opts.NChan; if isnan(nChan); nChan = obj.NumChannels; end
 fileList = opts.Files;
 if isempty(fileList); fileList = obj.Files; end
 if isempty(fileList)
-    error('IntanDataset:runSpikeInterface:NoFiles', 'No Intan files in %s', obj.Folder);
+    error('EphysDataset:runSpikeInterface:NoFiles', 'No Intan files in %s', obj.Folder);
 end
 
 % Run folder (bookkeeping) and the run_sorter output folder inside it.
@@ -114,13 +114,13 @@ probeAbs = absPath(probeFile);
 % Per-recording channel exclusions -> 0-based recording indices for Python.
 excludeCh = opts.ExcludeChannels;
 if isempty(excludeCh); excludeCh = obj.ExcludeChannels; end
-excludeCh = IntanDataset.parseChannelList(excludeCh);
+excludeCh = EphysDataset.parseChannelList(excludeCh);
 exclude0  = excludeCh - 1;   % 1-based .bin row -> 0-based recording index
 
 % Preprocessing config (per-call override -> dataset).
-sicfg = IntanDataset.normalizeSIConfig(obj.SIConfig);
+sicfg = EphysDataset.normalizeSIConfig(obj.SIConfig);
 if ~isempty(fieldnames(opts.SIConfig))
-    sicfg = IntanDataset.normalizeSIConfig(opts.SIConfig);
+    sicfg = EphysDataset.normalizeSIConfig(opts.SIConfig);
 end
 
 % Artifact periods to silence (manual + auto when enabled), in seconds.
@@ -220,7 +220,7 @@ if opts.Wait
         fclose(fid);
     end
     if status ~= 0
-        warning('IntanDataset:runSpikeInterface:NonZeroExit', ...
+        warning('EphysDataset:runSpikeInterface:NonZeroExit', ...
             'Pipeline exited with status %d. See log: %s', status, stdoutLog);
     end
 else
@@ -230,7 +230,7 @@ else
     result.status = status;       % launcher status, not the pipeline exit code
     result.background = true;
     if status ~= 0
-        warning('IntanDataset:runSpikeInterface:LaunchFailed', ...
+        warning('EphysDataset:runSpikeInterface:LaunchFailed', ...
             'Background launch returned status %d. See log: %s', status, stdoutLog);
     end
 end
@@ -306,7 +306,7 @@ catch
 end
 fid = fopen(file, 'w');
 if fid < 0
-    error('IntanDataset:runSpikeInterface:ConfigWriteFailed', ...
+    error('EphysDataset:runSpikeInterface:ConfigWriteFailed', ...
         'Could not write %s', file);
 end
 fwrite(fid, txt, 'char');
@@ -321,7 +321,7 @@ function writeRunScript(scriptPath)
 %   each run's config so run_sorter's folder wipe never touches the source.
 template = fullfile(fileparts(mfilename('fullpath')), 'run_si_ks4.py');
 if ~isfile(template)
-    error('IntanDataset:runSpikeInterface:ScriptMissing', ...
+    error('EphysDataset:runSpikeInterface:ScriptMissing', ...
         'Could not find %s', template);
 end
 copyfile(template, scriptPath, 'f');

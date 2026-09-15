@@ -1,6 +1,6 @@
-# Installing `IntanKilosortApp` on Windows 11
+# Installing `EphysPreprocessingApp` on Windows 11
 
-`IntanKilosortApp` is a MATLAB App Designer-style GUI (`intan/@IntanKilosortApp`)
+`EphysPreprocessingApp` is a MATLAB App Designer-style GUI (`intan/@EphysPreprocessingApp`)
 that scans Intan `.rhd` recordings, previews/filters them, and hands them off to
 **SpikeInterface + Kilosort4** (running in a separate Python/conda environment) for
 spike sorting, with **phy** as the optional curation viewer at the end. This guide
@@ -23,7 +23,7 @@ covers everything needed to get a clean Windows 11 machine running the app end t
    `arguments`-block validation, and string arrays that need a reasonably
    recent release).
 2. In the Add-On Explorer / installer, make sure **Signal Processing Toolbox**
-   is included — `IntanDataset.filterContinuous` calls `butter`/`filtfilt`
+   is included — `EphysDataset.filterContinuous` calls `butter`/`filtfilt`
    directly and the Visualize tab's filtering options depend on it.
 
 ## 2. Get the repository onto your MATLAB path
@@ -60,7 +60,7 @@ PyTorch instead — everything still works, just slower.
 1. Install [Miniconda for Windows](https://docs.conda.io/en/latest/miniconda.html)
    (the 64-bit installer). Default install location is fine
    (`%USERPROFILE%\miniconda3` or `%LOCALAPPDATA%\miniconda3` — the app's
-   "Browse Python exe" picker and `IntanKilosortApp.defaultPythonExe()` both
+   "Browse Python exe" picker and `EphysPreprocessingApp.defaultPythonExe()` both
    look for these paths automatically).
 2. Open **Anaconda Prompt (miniconda3)** from the Start menu and create the
    environment the app expects, named `kilosort`:
@@ -110,7 +110,7 @@ still runs and writes phy-format output either way.
 
 1. Launch the app in MATLAB:
    ```matlab
-   IntanKilosortApp
+   EphysPreprocessingApp
    ```
 2. Go to the **Kilosort** tab:
    - **Python exe** — should auto-fill with
@@ -130,12 +130,12 @@ Kilosort tab, saving your configuration and running the generated
 `run_si_ks4.py` with `--check` will read a recording, attach the probe, and
 build the preprocessing chain **without** running Kilosort4 — the fastest way
 to confirm the environment and a given recording format are compatible. See
-`IntanDataset.runSpikeInterface` for how this is invoked from MATLAB.
+`EphysDataset.runSpikeInterface` for how this is invoked from MATLAB.
 
 ## Troubleshooting
 
 - **"No python executable configured"** — set the Python exe field on the
-  Kilosort tab (or `ds.PythonExe` if scripting `IntanDataset` directly).
+  Kilosort tab (or `ds.PythonExe` if scripting `EphysDataset` directly).
 - **`neo`/`read_intan` errors about a missing `.dat` file** — split-format
   Intan recordings need every declared stream's `.dat` file present (e.g.
   `digitalin.dat`), even if you don't use that stream.

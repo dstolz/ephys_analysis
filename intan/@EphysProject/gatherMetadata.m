@@ -12,18 +12,18 @@ function T = gatherMetadata(obj, opts)
 %   T = P.gatherMetadata(Force=true) re-parses even datasets that already have
 %   metadata.
 %
-%   See also IntanDataset.refreshMetadata, IntanDataset.tracker,
-%   IntanKilosortProject.discover.
+%   See also EphysDataset.refreshMetadata, EphysDataset.tracker,
+%   EphysProject.discover.
 
 arguments
-    obj (1,1) IntanKilosortProject
+    obj (1,1) EphysProject
     opts.Force (1,1) logical = false
 end
 
 n = obj.NumDatasets;
 if n == 0
     T = table();
-    warning('IntanKilosortProject:NoDatasets', 'No datasets to summarize.');
+    warning('EphysProject:NoDatasets', 'No datasets to summarize.');
     return
 end
 

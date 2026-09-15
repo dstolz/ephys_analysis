@@ -15,10 +15,10 @@ reviews the sorted units, and exports LFP / MUA / spike-band signals.
 
 | Page | Covers |
 | --- | --- |
-| [IntanDataset](IntanDataset.md) | one recording: layouts, metadata, reading, streaming, filtering, artifacts, `.bin` writing, both Kilosort4 engines, derived signals, manifest |
-| [IntanKilosortProject](IntanKilosortProject.md) | discovering many recordings and batch operations |
+| [EphysDataset](EphysDataset.md) | one recording: layouts, metadata, reading, streaming, filtering, artifacts, `.bin` writing, both Kilosort4 engines, derived signals, manifest |
+| [EphysProject](EphysProject.md) | discovering many recordings and batch operations |
 | [DatasetTracker](DatasetTracker.md) | read-only filesystem inventory (recordings, probe maps, `.bin` files, Kilosort4 runs) |
-| [IntanKilosortApp](IntanKilosortApp.md) | the GUI, tab by tab |
+| [EphysPreprocessingApp](EphysPreprocessingApp.md) | the GUI, tab by tab |
 | [ProbeDesignerApp](ProbeDesignerApp.md) | building a Kilosort4 probe `.json` from probeinterface |
 | [intan2matlab](intan2matlab.md) | `intan2matlab` / `deriveSignals` / `toMat`: LFP, MUA, SPIKE and digital events |
 | [Python drivers](python-drivers.md) | `run_si_ks4.py`, `run_ks4.py`, `probe_tool.py` |
@@ -33,9 +33,9 @@ setup, conda environments, GPU) and
 ```mermaid
 flowchart LR
     subgraph MATLAB
-        APP[IntanKilosortApp<br/>GUI] --> PRJ[IntanKilosortProject<br/>many recordings]
+        APP[EphysPreprocessingApp<br/>GUI] --> PRJ[EphysProject<br/>many recordings]
         APP --> PDA[ProbeDesignerApp]
-        PRJ --> DS[IntanDataset<br/>one recording]
+        PRJ --> DS[EphysDataset<br/>one recording]
         DS --> DT[DatasetTracker<br/>file inventory]
         PRJ -. discovery .-> DT
         I2M[intan2matlab] --> DS
@@ -58,8 +58,8 @@ There are **two Kilosort4 engines**:
 
 | Engine | Method | Writes a `.bin`? | Used by |
 | --- | --- | --- | --- |
-| SpikeInterface | `IntanDataset.runSpikeInterface` | no; SpikeInterface reads the raw files | the GUI's **Run Kilosort4** |
-| legacy `.bin` | `IntanDataset.toBin` + `runKilosort` | yes | scripts, `IntanKilosortProject.toBinAll` / `runKilosortAll` |
+| SpikeInterface | `EphysDataset.runSpikeInterface` | no; SpikeInterface reads the raw files | the GUI's **Run Kilosort4** |
+| legacy `.bin` | `EphysDataset.toBin` + `runKilosort` | yes | scripts, `EphysProject.toBinAll` / `runKilosortAll` |
 
 ## Quick start
 
@@ -67,13 +67,13 @@ GUI:
 
 ```matlab
 addpath_nogit('C:\src\ephys_analysis')   % once per session (see INSTALL.md)
-IntanKilosortApp
+EphysPreprocessingApp
 ```
 
 Script, SpikeInterface engine:
 
 ```matlab
-ds = IntanDataset("D:\rec\subj1_day1");
+ds = EphysDataset("D:\rec\subj1_day1");
 ds.ProbeFile = "C:\src\ephys_analysis\intan\probes\H64LP_4x16lin_probemap.json";
 ds.PythonExe = "C:\Users\me\miniconda3\envs\kilosort\python.exe";
 res = ds.runSpikeInterface();        % blocks until Kilosort4 finishes
@@ -97,7 +97,7 @@ Script, derived signals:
 | one-file-per-channel | `info.rhd` + `amp-*.dat` |
 
 All three read identically through `streamPlan` / `readChunkUV`. See
-[IntanDataset → Supported recording layouts](IntanDataset.md#supported-recording-layouts).
+[EphysDataset → Supported recording layouts](EphysDataset.md#supported-recording-layouts).
 
 ### Units
 
@@ -149,20 +149,20 @@ Collected from the code. Each is explained on the linked page.
 
 | Topic | Behavior | Page |
 | --- | --- | --- |
-| Manual artifact periods | kept only in memory (`ManualArtifacts`); not in the manifest or preferences, lost on re-scan / close. The periods a run used are recorded in its `si_config.json` | [App → Visualize](IntanKilosortApp.md#visualize) |
-| Artifacts tab threshold | the GUI always sends the Threshold field. With *Absolute microvolts* / *Common-mode* the default 9 means 9 µV, despite the "(SD)" label | [App → Artifacts](IntanKilosortApp.md#artifacts) |
-| Artifacts preview filter | "High-pass before detecting" affects the preview only; run-time silencing detects on broadband data | [App → Artifacts](IntanKilosortApp.md#artifacts) |
-| Visualize overlay | orange auto-detections are computed on the display-processed (and possibly decimated) data, so they may differ from what a run silences | [App → Visualize](IntanKilosortApp.md#visualize) |
-| Visualize decimation | tail samples of each chunk that do not fill a bin are dropped, so displayed time can lag true time by up to (factor−1) samples per chunk | [App → Visualize](IntanKilosortApp.md#visualize) |
-| Review firing rates | spike count ÷ time of the **last spike**, not the recording duration. Sample rate falls back to 30 kHz silently if not found | [App → Review](IntanKilosortApp.md#review) |
-| Review waveforms | templates × median amplitude (unwhitened when possible), not raw-spike averages | [App → Review](IntanKilosortApp.md#review) |
-| Review dataset dropdown | only populated when a scan finds no datasets; after a normal scan use Browse... | [App → Review](IntanKilosortApp.md#review) |
-| SpikeInterface exclusions | manual exclusions are unioned with auto bad channels and follow `BadChannelAction`, so they are interpolated when the action is "interpolate" | [IntanDataset → Channel exclusions](IntanDataset.md#channel-exclusions) |
+| Manual artifact periods | kept only in memory (`ManualArtifacts`); not in the manifest or preferences, lost on re-scan / close. The periods a run used are recorded in its `si_config.json` | [App → Visualize](EphysPreprocessingApp.md#visualize) |
+| Artifacts tab threshold | the GUI always sends the Threshold field. With *Absolute microvolts* / *Common-mode* the default 9 means 9 µV, despite the "(SD)" label | [App → Artifacts](EphysPreprocessingApp.md#artifacts) |
+| Artifacts preview filter | "High-pass before detecting" affects the preview only; run-time silencing detects on broadband data | [App → Artifacts](EphysPreprocessingApp.md#artifacts) |
+| Visualize overlay | orange auto-detections are computed on the display-processed (and possibly decimated) data, so they may differ from what a run silences | [App → Visualize](EphysPreprocessingApp.md#visualize) |
+| Visualize decimation | tail samples of each chunk that do not fill a bin are dropped, so displayed time can lag true time by up to (factor−1) samples per chunk | [App → Visualize](EphysPreprocessingApp.md#visualize) |
+| Review firing rates | spike count ÷ time of the **last spike**, not the recording duration. Sample rate falls back to 30 kHz silently if not found | [App → Review](EphysPreprocessingApp.md#review) |
+| Review waveforms | templates × median amplitude (unwhitened when possible), not raw-spike averages | [App → Review](EphysPreprocessingApp.md#review) |
+| Review dataset dropdown | only populated when a scan finds no datasets; after a normal scan use Browse... | [App → Review](EphysPreprocessingApp.md#review) |
+| SpikeInterface exclusions | manual exclusions are unioned with auto bad channels and follow `BadChannelAction`, so they are interpolated when the action is "interpolate" | [EphysDataset → Channel exclusions](EphysDataset.md#channel-exclusions) |
 | SpikeInterface probe mapping | `chanMap` is matched by channel-ID number; multi-port recordings (`A-000` and `B-000`) collide | [Python drivers](python-drivers.md#channel-numbering-caveat) |
-| Background runs | automatic artifact detection runs synchronously in MATLAB before each launch; closing the app does not stop running Python processes | [App → Kilosort](IntanKilosortApp.md#kilosort) |
+| Background runs | automatic artifact detection runs synchronously in MATLAB before each launch; closing the app does not stop running Python processes | [App → Kilosort](EphysPreprocessingApp.md#kilosort) |
 | Manifest `kilosort.state` | for the SpikeInterface engine it is the tracker's fallback `"done"` whenever results exist; the true state is in `kilosort4/ks4_status.json` | [Files on disk](file-formats.md#dataset-manifest) |
 | Derived-signal bad channels | interpolation is across neighboring **columns**, not probe geometry | [intan2matlab](intan2matlab.md#processing-order) |
-| MATLAB version | [INSTALL.md](../intan/INSTALL.md) says R2021a+, but the Visualize tab uses `xregion` (R2023a+) | [App → Visualize](IntanKilosortApp.md#visualize) |
+| MATLAB version | [INSTALL.md](../intan/INSTALL.md) says R2021a+, but the Visualize tab uses `xregion` (R2023a+) | [App → Visualize](EphysPreprocessingApp.md#visualize) |
 
 ## Dependencies
 
@@ -179,7 +179,7 @@ Collected from the code. Each is explained on the linked page.
 | Function | Used by |
 | --- | --- |
 | [`read_Intan_RHD2000_file_modified`](../intan/read_Intan_RHD2000_file_modified.m) | traditional `*.rhd` reader |
-| [`matrix2kilosort`](../matrix2kilosort.m) | `IntanDataset.matrixToBin` |
+| [`matrix2kilosort`](../matrix2kilosort.m) | `EphysDataset.matrixToBin` |
 | [`MultiChannelViewer`](../vendor/plotting/@MultiChannelViewer/MultiChannelViewer.m) | GUI Visualize tab |
 | [`Manifest`](../vendor/tools/Manifest.m) | optional provenance log |
 | [`parfor_progress`](../vendor/compute/parfor_progress.m) | `intan2matlab` console progress |
@@ -194,7 +194,7 @@ neo and torch, plus an optional separate `phy` environment. See
 These are places where comments or older notes in the source no longer match the
 code:
 
-- `IntanKilosortApp.m`'s header describes the Kilosort tab as "(.bin then KS4)".
+- `EphysPreprocessingApp.m`'s header describes the Kilosort tab as "(.bin then KS4)".
   The batch now runs `runSpikeInterface` only and writes no `.bin`.
 - `buildArtifactsTab.m` refers to a "Blank artifacts in .bin" checkbox. The
   control is **Silence artifacts (manual always; auto-detect when ticked)** on
@@ -204,5 +204,5 @@ code:
   code.
 - INSTALL.md's troubleshooting mentions `conda run -n phy2 phy`, while the
   default command and the setup steps use an env named `phy`.
-- `IntanDataset.parseChannelList` uses `str2num`, which evaluates the field text
+- `EphysDataset.parseChannelList` uses `str2num`, which evaluates the field text
   as a MATLAB expression.

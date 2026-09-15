@@ -1,20 +1,20 @@
-# IntanKilosortProject
+# EphysProject
 
-`IntanKilosortProject` ([source](../intan/@IntanKilosortProject/IntanKilosortProject.m))
+`EphysProject` ([source](../intan/@EphysProject/EphysProject.m))
 is a `handle` class that discovers **many recordings** under one root folder,
-wraps each one as an [`IntanDataset`](IntanDataset.md), and runs batch
+wraps each one as an [`EphysDataset`](EphysDataset.md), and runs batch
 operations over them. It holds shared configuration (probe, Python/conda, output
 root, scale, dtype) and pushes it down into every dataset.
 
-The GUI ([`IntanKilosortApp`](IntanKilosortApp.md)) builds one of these on every
+The GUI ([`EphysPreprocessingApp`](EphysPreprocessingApp.md)) builds one of these on every
 **Scan**.
 
 ## Construction
 
 ```matlab
-P = IntanKilosortProject(root)
-P = IntanKilosortProject(root, ProbeFile=..., PythonExe=..., OutputRoot=...)
-P = IntanKilosortProject(root, AutoDiscover=false)   % set config, call P.discover() later
+P = EphysProject(root)
+P = EphysProject(root, ProbeFile=..., PythonExe=..., OutputRoot=...)
+P = EphysProject(root, AutoDiscover=false)   % set config, call P.discover() later
 ```
 
 | Option | Default | Meaning |
@@ -26,15 +26,15 @@ P = IntanKilosortProject(root, AutoDiscover=false)   % set config, call P.discov
 | `Manifest` | `[]` | optional shared provenance `Manifest` |
 | `AutoDiscover` | `true` | run `discover()` in the constructor |
 
-The constructor errors (`IntanKilosortProject:NoRoot`) if `root` does not exist.
-`IntanKilosortProject()` with no arguments returns an empty object.
+The constructor errors (`EphysProject:NoRoot`) if `root` does not exist.
+`EphysProject()` with no arguments returns an empty object.
 
 ## Properties
 
 | Property | Meaning |
 | --- | --- |
 | `Root` | root folder that was scanned |
-| `Datasets` | `IntanDataset` row array, one per recording folder |
+| `Datasets` | `EphysDataset` row array, one per recording folder |
 | `ProbeFile`, `PythonExe`, `CondaEnv`, `OutputRoot`, `Scale`, `Dtype`, `Manifest` | shared defaults |
 | `NumDatasets` (dependent) | `numel(Datasets)` |
 
@@ -47,10 +47,10 @@ datasets by itself. Call `pushConfig(d)` for each dataset (or re-`discover()`).
 contains at least one `*.rhd` file, using
 [`DatasetTracker.findRecordingFolders`](DatasetTracker.md#static-helpers). This
 matches traditional recordings and split recordings, since `info.rhd` matches
-`*.rhd`. One `IntanDataset` is created per folder with `AutoMetadata=false`
+`*.rhd`. One `EphysDataset` is created per folder with `AutoMetadata=false`
 (headers are not parsed yet), and `pushConfig` is applied to each. If nothing
 is found, `Datasets` is emptied and a warning is issued
-(`IntanKilosortProject:NoData`).
+(`EphysProject:NoData`).
 
 **`pushConfig(d)`** copies `ProbeFile`, `PythonExe`, `CondaEnv`, `Scale`,
 `Dtype`, `Manifest`, and (when `OutputRoot` is set) `OutputDir = OutputRoot/<Name>`
@@ -59,7 +59,7 @@ deliberately avoids calling it after scanning so per-dataset probe assignments
 survive.
 
 **`d = dataset(idxOrName)`** returns one dataset by index or by `Name`
-(`IntanKilosortProject:NoSuchDataset` if the name is not found).
+(`EphysProject:NoSuchDataset` if the name is not found).
 
 **`dt = tracker(idxOrName)`** returns `dataset(idxOrName).tracker()`, the
 [`DatasetTracker`](DatasetTracker.md) inventory of that dataset's output folder.
@@ -75,21 +75,21 @@ table row per dataset with these columns:
 - `HasKilosort`: the dataset's tracker has a run with `spike_clusters.npy`
 
 **`infos = toBinAll(Name=Value...)`** calls `toBin` on every dataset, passing
-all arguments through to `IntanDataset.toBin`. An error on one dataset is caught,
-reported as a warning (`IntanKilosortProject:toBinFailed`), and the batch
+all arguments through to `EphysDataset.toBin`. An error on one dataset is caught,
+reported as a warning (`EphysProject:toBinFailed`), and the batch
 continues. Each element of `infos` has `Name`, `info` (the `toBin` struct, or
 `[]` on failure) and `error` (`""` on success).
 
 **`results = runKilosortAll(Name=Value...)`** calls the legacy
-`IntanDataset.runKilosort` on every dataset with the same error handling
-(`IntanKilosortProject:runKilosortFailed`). Each element has `Name`, `result`
+`EphysDataset.runKilosort` on every dataset with the same error handling
+(`EphysProject:runKilosortFailed`). Each element has `Name`, `result`
 and `error`. There is **no** project-level wrapper for `runSpikeInterface`; loop
 over `P.Datasets` to use that engine (see below).
 
 ## Example
 
 ```matlab
-P = IntanKilosortProject("D:\experiments", ...
+P = EphysProject("D:\experiments", ...
     ProbeFile="C:\src\ephys_analysis\intan\probes\H64LP_4x16lin_probemap.json", ...
     PythonExe="C:\Users\me\miniconda3\envs\kilosort\python.exe", ...
     OutputRoot="D:\sorted");

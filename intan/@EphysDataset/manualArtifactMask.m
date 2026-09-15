@@ -10,10 +10,10 @@ function mask = manualArtifactMask(obj, nSamp, sampleOffset, Fs)
 %   toBin streams one *.rhd file at a time and calls this per file (with the
 %   running sample offset) to build the mask it passes to blankArtifacts.
 %
-%   See also IntanDataset.addArtifact, IntanDataset.blankArtifacts, IntanDataset.toBin.
+%   See also EphysDataset.addArtifact, EphysDataset.blankArtifacts, EphysDataset.toBin.
 
 arguments
-    obj (1,1) IntanDataset
+    obj (1,1) EphysDataset
     nSamp (1,1) double {mustBeInteger, mustBeNonnegative}
     sampleOffset (1,1) double {mustBeInteger, mustBeNonnegative}
     Fs (1,1) double {mustBePositive}

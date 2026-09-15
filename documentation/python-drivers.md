@@ -14,9 +14,9 @@ the exact script it used.
 
 | Script | Called by | Environment needs |
 | --- | --- | --- |
-| [`run_si_ks4.py`](../intan/@IntanDataset/run_si_ks4.py) | `IntanDataset.runSpikeInterface` (the GUI's Run Kilosort4) | spikeinterface, probeinterface, neo, kilosort, torch |
-| [`run_ks4.py`](../intan/@IntanDataset/run_ks4.py) | `IntanDataset.runKilosort` (legacy `.bin` engine) | kilosort, torch |
-| [`probe_tool.py`](../intan/@IntanKilosortApp/probe_tool.py) | `IntanKilosortApp.runProbeTool` / `ProbeDesignerApp` | probeinterface |
+| [`run_si_ks4.py`](../intan/@EphysDataset/run_si_ks4.py) | `EphysDataset.runSpikeInterface` (the GUI's Run Kilosort4) | spikeinterface, probeinterface, neo, kilosort, torch |
+| [`run_ks4.py`](../intan/@EphysDataset/run_ks4.py) | `EphysDataset.runKilosort` (legacy `.bin` engine) | kilosort, torch |
+| [`probe_tool.py`](../intan/@EphysPreprocessingApp/probe_tool.py) | `EphysPreprocessingApp.runProbeTool` / `ProbeDesignerApp` | probeinterface |
 
 Versions known to work are listed in [INSTALL.md](../intan/INSTALL.md):
 spikeinterface 0.104.5, kilosort 4.1.7, probeinterface 0.3.2, neo 0.14.4,
@@ -156,6 +156,6 @@ The conversion to KS4 JSON (`pi_probe_to_ks4`) works as follows:
 - `n_chan` defaults to `max(n, max(chanMap)+1)`.
 
 On failure the script prints `PROBE_TOOL_ERROR: ...` and exits 1.
-`runProbeTool` raises `IntanKilosortApp:runProbeTool:Failed` on a non-zero exit
+`runProbeTool` raises `EphysPreprocessingApp:runProbeTool:Failed` on a non-zero exit
 or that marker. On success it `jsondecode`s the **last** stdout line that parses
 as JSON.

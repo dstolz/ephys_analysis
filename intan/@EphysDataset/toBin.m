@@ -42,10 +42,10 @@ function info = toBin(obj, opts)
 %   GUARD: every file must have the same amplifier channel count as the first;
 %   a flat int16 .bin cannot represent a mid-dataset channel-count change.
 %
-%   See also MATRIX2KILOSORT, IntanDataset.matrixToBin, IntanDataset.filterContinuous.
+%   See also MATRIX2KILOSORT, EphysDataset.matrixToBin, EphysDataset.filterContinuous.
 
 arguments
-    obj (1,1) IntanDataset
+    obj (1,1) EphysDataset
     opts.Files (1,:) string = string.empty(1,0)
     opts.ChannelOrder (1,:) double {mustBeInteger, mustBePositive} = []
     opts.Scale (1,1) double = NaN
@@ -72,7 +72,7 @@ if obj.NumFiles == 0
     obj.discoverFiles();
 end
 if obj.NumFiles == 0
-    error('IntanDataset:toBin:NoFiles', 'No Intan files in %s', obj.Folder);
+    error('EphysDataset:toBin:NoFiles', 'No Intan files in %s', obj.Folder);
 end
 % Header metadata (Fs, sample counts) drives the stream plan and is needed up
 % front for the .bin sidecar; parse it now if it has not been parsed yet.
@@ -87,7 +87,7 @@ binFile = opts.BinFile; if binFile == ""; binFile = obj.BinFile; end
 
 % Resolve automatic artifact-blanking config (per-call -> ds.ArtifactConfig).
 % Blanking runs when the Blank option is set OR the dataset config is enabled.
-acfg = IntanDataset.normalizeArtifactConfig(obj.ArtifactConfig);
+acfg = EphysDataset.normalizeArtifactConfig(obj.ArtifactConfig);
 doBlank   = opts.Blank || acfg.Enabled;
 artMethod = opts.ArtifactMethod;        if artMethod == "";       artMethod = acfg.Method;      end
 artThr    = opts.ArtifactThreshold;     if isnan(artThr);         artThr    = acfg.Threshold;   end
@@ -102,7 +102,7 @@ artPadMs  = opts.ArtifactPadMs;         if isnan(artPadMs);       artPadMs  = ac
 % microvolt matrix from readChunkUV.
 plan = obj.streamPlan(Files=opts.Files);
 if isempty(plan)
-    error('IntanDataset:toBin:NoFiles', 'No readable Intan data in %s', obj.Folder);
+    error('EphysDataset:toBin:NoFiles', 'No readable Intan data in %s', obj.Folder);
 end
 
 % Ensure output folder exists
@@ -123,7 +123,7 @@ useOverlap = opts.Filter && opts.FilterEdgeMode == "overlap" && opts.OverlapSamp
 
 fid = fopen(binFile, 'w', 'ieee-le');
 if fid < 0
-    error('IntanDataset:toBin:OpenFailed', 'Could not open %s for writing.', binFile);
+    error('EphysDataset:toBin:OpenFailed', 'Could not open %s for writing.', binFile);
 end
 cleaner = onCleanup(@() closeIfOpen(fid));
 
@@ -144,7 +144,7 @@ for i = 1:numel(plan)
     X = obj.readChunkUV(plan(i));  % [nSamples x nChan], microvolts (all channels)
 
     if isempty(X)
-        warning('IntanDataset:toBin:NoData', 'No amplifier data in %s; skipping.', plan(i).name);
+        warning('EphysDataset:toBin:NoData', 'No amplifier data in %s; skipping.', plan(i).name);
         continue
     end
 
@@ -154,7 +154,7 @@ for i = 1:numel(plan)
     if isnan(firstNumChan)
         firstNumChan = thisNumChan;
     elseif thisNumChan ~= firstNumChan
-        error('IntanDataset:toBin:ChannelMismatch', ...
+        error('EphysDataset:toBin:ChannelMismatch', ...
             ['Amplifier channel count changed mid-dataset (%d -> %d) at %s. ', ...
              'A flat int16 .bin cannot represent this.'], ...
             firstNumChan, thisNumChan, plan(i).name);
@@ -163,7 +163,7 @@ for i = 1:numel(plan)
     % Channel reorder/subset
     if ~isempty(opts.ChannelOrder)
         if max(opts.ChannelOrder) > thisNumChan
-            error('IntanDataset:toBin:BadChannelOrder', ...
+            error('EphysDataset:toBin:BadChannelOrder', ...
                 'ChannelOrder references channel %d but file has %d.', ...
                 max(opts.ChannelOrder), thisNumChan);
         end
@@ -233,7 +233,7 @@ end
 clear cleaner;  % closes fid
 
 if isnan(nChanOut)
-    error('IntanDataset:toBin:NoDataWritten', 'No data was written (all files empty?).');
+    error('EphysDataset:toBin:NoDataWritten', 'No data was written (all files empty?).');
 end
 
 d = dir(binFile);
@@ -278,7 +278,7 @@ if nManualBlanked > 0
 end
 
 if nClipped > 0
-    warning('IntanDataset:toBin:Clipping', ...
+    warning('EphysDataset:toBin:Clipping', ...
         '%d sample(s) (%.4f%%) saturated the %s range and were clipped.', ...
         nClipped, 100*nClipped/(nChanOut*max(nSamples,1)), dtype);
 end
@@ -325,7 +325,7 @@ switch dtype
     case {"single","float32"}
         targetClass = 'single'; isFloat = true;  lo = -inf;        hi = inf;
     otherwise
-        error('IntanDataset:toBin:BadDtype', 'Unsupported dtype "%s".', dtype);
+        error('EphysDataset:toBin:BadDtype', 'Unsupported dtype "%s".', dtype);
 end
 end
 
@@ -338,7 +338,7 @@ catch
 end
 fid = fopen(file, 'w');
 if fid < 0
-    warning('IntanDataset:toBin:MetaWriteFailed', 'Could not write %s', file);
+    warning('EphysDataset:toBin:MetaWriteFailed', 'Could not write %s', file);
     return
 end
 fwrite(fid, txt, 'char');

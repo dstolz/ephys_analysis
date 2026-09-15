@@ -25,11 +25,11 @@ function iv = artifactIntervals(obj, opts)
 %       (default broadband, matching analyzeArtifacts/toBin)
 %     ProgressFcn  function handle  ProgressFcn(i, nChunks, chunkName)
 %
-%   See also IntanDataset.detectArtifacts, IntanDataset.analyzeArtifacts,
-%   IntanDataset.runSpikeInterface, IntanDataset.ManualArtifacts.
+%   See also EphysDataset.detectArtifacts, EphysDataset.analyzeArtifacts,
+%   EphysDataset.runSpikeInterface, EphysDataset.ManualArtifacts.
 
 arguments
-    obj (1,1) IntanDataset
+    obj (1,1) EphysDataset
     opts.IncludeAuto = []           % [] -> ds.ArtifactConfig.Enabled
     opts.Files (1,:) string = string.empty(1,0)
     opts.Method (1,1) string = ""
@@ -45,7 +45,7 @@ arguments
     opts.ProgressFcn = []
 end
 
-acfg = IntanDataset.normalizeArtifactConfig(obj.ArtifactConfig);
+acfg = EphysDataset.normalizeArtifactConfig(obj.ArtifactConfig);
 
 includeAuto = opts.IncludeAuto;
 if isempty(includeAuto)

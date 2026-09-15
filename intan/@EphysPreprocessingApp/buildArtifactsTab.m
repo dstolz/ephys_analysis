@@ -3,14 +3,14 @@ function buildArtifactsTab(obj)
 %   Configure the automatic amplitude-deviation detector (running-RMS by
 %   default, threshold in robust standard deviations) and preview how much of a
 %   recording it would zero. The "Detect" button streams the dataset one file at
-%   a time (IntanDataset.analyzeArtifacts) and fills the per-channel table and
+%   a time (EphysDataset.analyzeArtifacts) and fills the per-channel table and
 %   summary. The same settings are stored on every scanned dataset's
 %   ArtifactConfig; when "Blank artifacts in .bin" (Kilosort tab) is ticked,
 %   zeros the detected samples on every channel as the Kilosort .bin is written
 %   (the original *.rhd files are never modified).
 %
-%   See also IntanDataset.detectArtifacts, IntanDataset.analyzeArtifacts,
-%   IntanDataset.toBin, onDetectArtifacts.
+%   See also EphysDataset.detectArtifacts, EphysDataset.analyzeArtifacts,
+%   EphysDataset.toBin, onDetectArtifacts.
 
 g = uigridlayout(obj.TabArtifacts, [1 2]);
 g.ColumnWidth = {340, '1x'};

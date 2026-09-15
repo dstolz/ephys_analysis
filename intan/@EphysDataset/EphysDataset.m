@@ -1,6 +1,6 @@
-classdef IntanDataset < handle
-    % IntanDataset  One folder of Intan recordings -> Kilosort4 .bin + run.
-    %   An IntanDataset represents a single recording: one folder of Intan data
+classdef EphysDataset < handle
+    % EphysDataset  One folder of Intan recordings -> Kilosort4 .bin + run.
+    %   An EphysDataset represents a single recording: one folder of Intan data
     %   recorded contiguously, in any of the layouts Intan acquisition software
     %   writes (see RecordingFormat / detectFormat):
     %     "traditional"          one or more *.rhd files with embedded data
@@ -19,13 +19,13 @@ classdef IntanDataset < handle
     %
     %   Construction
     %   ------------
-    %     ds = IntanDataset(folder)                       % auto-refresh metadata
-    %     ds = IntanDataset(folder, AutoMetadata=false)   % cheap; defer parsing
-    %     ds = IntanDataset(folder, ProbeFile=..., PythonExe=..., OutputDir=...)
+    %     ds = EphysDataset(folder)                       % auto-refresh metadata
+    %     ds = EphysDataset(folder, AutoMetadata=false)   % cheap; defer parsing
+    %     ds = EphysDataset(folder, ProbeFile=..., PythonExe=..., OutputDir=...)
     %
     %   Typical workflow
     %   ----------------
-    %     ds = IntanDataset("D:\rec\subj1_day1");
+    %     ds = EphysDataset("D:\rec\subj1_day1");
     %     T  = ds.PerFile;                 % per-file header summary
     %     info = ds.toBin();               % stream raw broadband int16 .bin
     %     ds.ProbeFile = "probe.json";
@@ -38,7 +38,7 @@ classdef IntanDataset < handle
     %     out = ds.toMat(File="D:\out\subj1.mat", ...
     %                    SignalOptions=struct('dataTypeOut', "LFP"));
     %
-    %   See also INTANKILOSORTPROJECT, READ_INTAN_RHD2000_FILE_MODIFIED,
+    %   See also EPHYSPROJECT, READ_INTAN_RHD2000_FILE_MODIFIED,
     %   MATRIX2KILOSORT, EXTRACT_TRIALS, INTAN2MATLAB.
 
     properties
@@ -49,7 +49,7 @@ classdef IntanDataset < handle
 
     properties (SetAccess = protected)
         % Intan acquisition file layout for this folder, detected from its
-        % contents (see IntanDataset.detectFormat):
+        % contents (see EphysDataset.detectFormat):
         %   "traditional"         one or more *.rhd files with embedded data
         %   "one-file-per-signal" info.rhd + amplifier.dat (+ other signal .dat)
         %   "one-file-per-channel" info.rhd + amp-*.dat (one file per channel)
@@ -73,7 +73,7 @@ classdef IntanDataset < handle
     end
 
     properties
-        % Configuration (also pushed down from IntanKilosortProject)
+        % Configuration (also pushed down from EphysProject)
         ProbeFile (1,1) string = ""              % existing KS4 probe .json (validated, never generated)
 
         % Amplifier channels to exclude from Kilosort4 sorting, as 1-based
@@ -107,7 +107,7 @@ classdef IntanDataset < handle
         % tab. RmsWindowMs/MergeGapMs/PadMs are in milliseconds (converted to
         % samples with Fs). See detectArtifacts, analyzeArtifacts, toBin and
         % defaultArtifactConfig.
-        ArtifactConfig struct = IntanDataset.defaultArtifactConfig()
+        ArtifactConfig struct = EphysDataset.defaultArtifactConfig()
 
         % SpikeInterface preprocessing configuration used by runSpikeInterface
         % when the recording is converted for Kilosort4 through SpikeInterface
@@ -116,7 +116,7 @@ classdef IntanDataset < handle
         % bad-channel detection/removal. Artifact silencing is driven separately
         % by ManualArtifacts + ArtifactConfig (see artifactIntervals). Set from
         % the Kilosort tab. See defaultSIConfig / normalizeSIConfig.
-        SIConfig struct = IntanDataset.defaultSIConfig()
+        SIConfig struct = EphysDataset.defaultSIConfig()
     end
 
     properties (Access = private, Transient)
@@ -155,8 +155,8 @@ classdef IntanDataset < handle
         [Y, ev, info] = deriveSignals(obj, opts)   % "events" is reserved in classdef
         out    = toMat(obj, opts)
 
-        function obj = IntanDataset(folder, opts)
-            %IntanDataset  Construct from a folder of *.rhd files.
+        function obj = EphysDataset(folder, opts)
+            %EphysDataset  Construct from a folder of *.rhd files.
             arguments
                 folder (1,1) string = ""
                 opts.AutoMetadata (1,1) logical = true
@@ -174,7 +174,7 @@ classdef IntanDataset < handle
                 return  % allow empty default object (arrays, preallocation)
             end
             if ~isfolder(folder)
-                error('IntanDataset:NoFolder', 'Folder does not exist: %s', folder);
+                error('EphysDataset:NoFolder', 'Folder does not exist: %s', folder);
             end
 
             obj.Folder    = string(folder);
@@ -208,7 +208,7 @@ classdef IntanDataset < handle
             %   the single info.rhd header stands in as the one "file", and the
             %   amplifier sample count comes from the .dat file(s) at metadata time
             %   (see refreshMetadata / splitLayout), not from header data blocks.
-            obj.RecordingFormat = IntanDataset.detectFormat(obj.Folder);
+            obj.RecordingFormat = EphysDataset.detectFormat(obj.Folder);
             obj.pSplitLayout = [];   % invalidate cached split layout on re-scan
 
             switch obj.RecordingFormat
@@ -270,7 +270,7 @@ classdef IntanDataset < handle
             %   re-implementing the scans. Returns a point-in-time snapshot; call
             %   again (or dt.refresh) after writing new outputs.
             %
-            %   See also DATASETTRACKER, IntanDataset.toBin, IntanDataset.runKilosort.
+            %   See also DATASETTRACKER, EphysDataset.toBin, EphysDataset.runKilosort.
             out = obj.outputFolder();
             if out == "" || ~isfolder(out)
                 % Output folder not created yet (e.g. a configured OutputRoot
@@ -370,7 +370,7 @@ classdef IntanDataset < handle
             end
             m.probe = probe;
 
-            m.exclude_channels = IntanDataset.formatChannelList(obj.ExcludeChannels);
+            m.exclude_channels = EphysDataset.formatChannelList(obj.ExcludeChannels);
 
             m.bin = struct('file', obj.BinFile, 'exists', isfile(obj.BinFile));
 
@@ -387,7 +387,7 @@ classdef IntanDataset < handle
 
             % SpikeInterface preprocessing provenance (engine + config snapshot).
             m.engine        = "spikeinterface";
-            m.preprocessing = IntanDataset.normalizeSIConfig(obj.SIConfig);
+            m.preprocessing = EphysDataset.normalizeSIConfig(obj.SIConfig);
         end
 
         function writeManifest(obj)
@@ -406,7 +406,7 @@ classdef IntanDataset < handle
                 closer = onCleanup(@() fclose(fid));
                 fwrite(fid, txt);
             catch ME
-                warning('IntanDataset:writeManifest:Failed', ...
+                warning('EphysDataset:writeManifest:Failed', ...
                     'Could not write manifest for %s: %s', obj.Name, ME.message);
             end
         end
@@ -426,7 +426,7 @@ classdef IntanDataset < handle
                 if pf ~= "" && isfile(pf); obj.ProbeFile = pf; end
             end
             if isfield(m, 'exclude_channels')
-                obj.ExcludeChannels = IntanDataset.parseChannelList(string(m.exclude_channels));
+                obj.ExcludeChannels = EphysDataset.parseChannelList(string(m.exclude_channels));
             end
             tf = true;
         end
@@ -476,7 +476,7 @@ classdef IntanDataset < handle
             %   saved before a field such as RmsWindowMs was added) by merging
             %   the given struct onto defaultArtifactConfig; unknown extra
             %   fields are dropped.
-            def = IntanDataset.defaultArtifactConfig();
+            def = EphysDataset.defaultArtifactConfig();
             if isempty(cfg) || ~isstruct(cfg)
                 cfg = def;
                 return
@@ -521,7 +521,7 @@ classdef IntanDataset < handle
             %   Tolerates partial/stale SIConfig structs (e.g. a project saved
             %   before a field was added) by merging onto defaultSIConfig; unknown
             %   extra fields are dropped.
-            def = IntanDataset.defaultSIConfig();
+            def = EphysDataset.defaultSIConfig();
             if isempty(cfg) || ~isstruct(cfg)
                 cfg = def;
                 return
@@ -554,7 +554,7 @@ classdef IntanDataset < handle
 
         function s = formatChannelList(ch)
             %formatChannelList  Compact a channel vector to "1,3,5-8" form.
-            ch = IntanDataset.parseChannelList(ch);
+            ch = EphysDataset.parseChannelList(ch);
             if isempty(ch); s = ""; return; end
             d = [true, diff(ch) ~= 1];          % run starts
             starts = ch(d);

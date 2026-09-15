@@ -1,7 +1,7 @@
 # Kilosort4 probe maps
 
-This folder stores Kilosort4 probe map `.json` files used by `IntanKilosortApp`
-and `IntanDataset.runKilosort`. The app scans this folder (by default) to populate
+This folder stores Kilosort4 probe map `.json` files used by `EphysPreprocessingApp`
+and `EphysDataset.runKilosort`. The app scans this folder (by default) to populate
 its probe list, but you can point it at any folder.
 
 ## Format
@@ -34,9 +34,9 @@ Kilosort4 probe `.json` files have the shape produced by
 
 The app does a *simple* check: it compares the probe's channel count
 (`n_chan`, else `numel(chanMap)`) against the selected dataset's amplifier
-channel count (`IntanDataset.NumChannels`). A mismatch is flagged but never
+channel count (`EphysDataset.NumChannels`). A mismatch is flagged but never
 blocks you — Kilosort4 itself will also warn at run time
-(`IntanDataset.runKilosort` calls `checkProbeChannels`).
+(`EphysDataset.runKilosort` calls `checkProbeChannels`).
 
 Drop your probe `.json` files in this folder to have them appear automatically.
 
@@ -52,7 +52,7 @@ probeinterface (library / generate)..."**. The designer (`ProbeDesignerApp`) can
 - **Wire** — map each contact to an Intan amplifier channel (the `chanMap`),
   with Identity / Reverse / load-from-file presets.
 
-It shells out to `@IntanKilosortApp/probe_tool.py` in the configured sorting
+It shells out to `@EphysPreprocessingApp/probe_tool.py` in the configured sorting
 conda env (probeinterface is already installed there; the library needs internet
 on first fetch, then caches) and **writes a plain Kilosort4 `.json` in the schema
 above** into this folder — so everything downstream is unchanged. Editing the

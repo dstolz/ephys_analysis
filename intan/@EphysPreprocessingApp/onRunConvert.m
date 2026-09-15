@@ -1,9 +1,9 @@
 function onRunConvert(obj)
-%onRunConvert  Batch IntanDataset.toMat over the selected datasets; one .mat each.
+%onRunConvert  Batch EphysDataset.toMat over the selected datasets; one .mat each.
 %   For each dataset ticked on the Datasets tab (none ticked = all), calls
-%   IntanDataset.toMat with the Convert-tab options: the dataset reads its
+%   EphysDataset.toMat with the Convert-tab options: the dataset reads its
 %   recording (any supported layout), derives the signals with
-%   IntanDataset.deriveSignals (the intan2matlab processing) and saves Y,
+%   EphysDataset.deriveSignals (the intan2matlab processing) and saves Y,
 %   events, info and a "conversion" provenance struct to
 %   <Output folder>/<Name><Suffix>.mat. A blank Output folder writes next to
 %   the raw data (the dataset folder). The recording files are only read.
@@ -23,7 +23,7 @@ function onRunConvert(obj)
 %   toMat/deriveSignals ProgressFcn; Cancel stops at the next step boundary
 %   (between files / processing stages / before the save).
 %
-%   See also IntanDataset.toMat, IntanDataset.deriveSignals, buildConvertTab,
+%   See also EphysDataset.toMat, EphysDataset.deriveSignals, buildConvertTab,
 %   gatherConvertConfig.
 
 if obj.ConvRunning; return; end
@@ -83,7 +83,7 @@ cleanup = onCleanup(@() finishRun(obj));
 obj.ConvTargetsTable.Data = T(:, {'Dataset', 'Format', 'OutputFile', 'Status'});
 touched = false(1, n);   % rows whose status this run has set
 
-obj.convLog("=== Convert batch (IntanDataset.toMat): %d dataset(s) ===", n);
+obj.convLog("=== Convert batch (EphysDataset.toMat): %d dataset(s) ===", n);
 obj.convLog("Signal options: %s", formatOptions(sigOpts));
 obj.convLog("Saving with %s; overwrite existing = %s", cfg.MatVersion, string(cfg.Overwrite));
 obj.setStatus(sprintf("Convert: deriving signals for %d dataset(s)...", n), "");
@@ -126,7 +126,7 @@ for j = 1:n
         setRowStatus(obj, j, "done");
         nOK = nOK + 1;
     catch ME
-        if strcmp(ME.identifier, 'IntanKilosortApp:ConvertCancelled')
+        if strcmp(ME.identifier, 'EphysPreprocessingApp:ConvertCancelled')
             cancelled = true;
             setRowStatus(obj, j, "cancelled (nothing written)");
             obj.convLog("    CANCELLED during %s; no output written for it.", d.Name);
@@ -164,7 +164,7 @@ function onProgress(obj, j, n, name, done, total, msg)
 %   Per-file read steps update the bars only (they can number in the
 %   thousands); the first read and every processing stage are also logged.
 if ~isvalid(obj) || isempty(obj.Fig) || ~isvalid(obj.Fig)
-    error('IntanKilosortApp:ConvertCancelled', 'The app was closed.');
+    error('EphysPreprocessingApp:ConvertCancelled', 'The app was closed.');
 end
 msg = string(msg);
 showProgress(obj, j, n, done, total, name + ": " + msg);
@@ -173,7 +173,7 @@ if done == 0 || ~startsWith(msg, "Reading file")
 end
 drawnow;   % render, and let a pending Cancel click run
 if obj.ConvCancelRequested
-    error('IntanKilosortApp:ConvertCancelled', 'Cancelled by user.');
+    error('EphysPreprocessingApp:ConvertCancelled', 'Cancelled by user.');
 end
 end
 
@@ -219,14 +219,14 @@ end
 %% ---- options ----------------------------------------------------------
 
 function s = signalOptions(cfg)
-%signalOptions  Convert a Convert config into IntanDataset.deriveSignals options.
+%signalOptions  Convert a Convert config into EphysDataset.deriveSignals options.
 %   Returns the struct passed to toMat as SignalOptions. Only the options
 %   relevant to the ticked signals are set; everything else stays at
 %   deriveSignals' defaults. Errors with a readable message on invalid input.
 types = ["LFP" "MUA" "SPIKE"];
 sel = [cfg.LFP cfg.MUA cfg.SPIKE];
 if ~any(sel)
-    error('IntanKilosortApp:ConvertNoSignals', ...
+    error('EphysPreprocessingApp:ConvertNoSignals', ...
         'Tick at least one signal to compute (LFP, MUA or SPIKE).');
 end
 s = struct();
@@ -242,17 +242,17 @@ switch string(cfg.BadMode)
     case "manual"
         bad = parseOrderedList(cfg.BadList, "Bad channel list");
         if isempty(bad)
-            error('IntanKilosortApp:ConvertBadList', ...
+            error('EphysPreprocessingApp:ConvertBadList', ...
                 'Bad channels is set to "Manual list" but the list is empty.');
         end
         s.badChannels = bad;
     case "auto"
         if ~cfg.LFP
-            error('IntanKilosortApp:ConvertAutoBadNeedsLFP', ...
+            error('EphysPreprocessingApp:ConvertAutoBadNeedsLFP', ...
                 'Automatic bad-channel detection is computed from the LFP; tick LFP.');
         end
         if ~(cfg.BadThreshold > 0)
-            error('IntanKilosortApp:ConvertBadThreshold', ...
+            error('EphysPreprocessingApp:ConvertBadThreshold', ...
                 'The |z(RMS)| threshold must be greater than 0.');
         end
         s.badChannels = -abs(cfg.BadThreshold);   % negative = auto
@@ -273,7 +273,7 @@ if cfg.LFP
     if cfg.LFP_HighpassOn || cfg.LFP_LowpassOn
         checkBand(lohi, "LFP high-pass / low-pass");
         if lohi(1) >= nyq || (isfinite(lohi(2)) && lohi(2) >= nyq)
-            error('IntanKilosortApp:ConvertLFPNyquist', ...
+            error('EphysPreprocessingApp:ConvertLFPNyquist', ...
                 'LFP filter cut-offs must be below LFP_Fs / 2 (%g Hz).', nyq);
         end
         s.LFP_bpLoHi = lohi;
@@ -281,13 +281,13 @@ if cfg.LFP
     if cfg.LFP_NotchOn
         f0 = parseFreqList(cfg.LFP_NotchHz, "LFP notch");
         if isempty(f0)
-            error('IntanKilosortApp:ConvertLFPNotch', ...
+            error('EphysPreprocessingApp:ConvertLFPNotch', ...
                 'LFP notch is ticked but no frequency is given.');
         end
         bw = cfg.LFP_NotchBW;
         bad = f0(f0 - bw/2 <= 0 | f0 + bw/2 >= nyq);
         if ~isempty(bad)
-            error('IntanKilosortApp:ConvertLFPNotch', ...
+            error('EphysPreprocessingApp:ConvertLFPNotch', ...
                 ['LFP notch %s Hz with width %g Hz does not fit inside ' ...
                  '(0, LFP_Fs / 2 = %g Hz).'], mat2str(bad), bw, nyq);
         end
@@ -315,7 +315,7 @@ end
 
 function checkBand(lohi, what)
 if ~(lohi(1) < lohi(2))
-    error('IntanKilosortApp:ConvertBand', ...
+    error('EphysPreprocessingApp:ConvertBand', ...
         '%s: low edge (%g Hz) must be below the high edge (%g Hz).', what, lohi(1), lohi(2));
 end
 end
@@ -323,7 +323,7 @@ end
 
 function v = parseOrderedList(txt, what)
 %parseOrderedList  "1-4, 8, 12-10" -> [1 2 3 4 8 12 11 10].
-%   Order and repeats are preserved (unlike IntanDataset.parseChannelList,
+%   Order and repeats are preserved (unlike EphysDataset.parseChannelList,
 %   which sorts) because keepAmpChannels and channelRemap are order-sensitive.
 %   A descending range (12-10) counts down. Anything unparseable is an error,
 %   never silently dropped.
@@ -346,12 +346,12 @@ for k = 1:numel(toks)
         a = str2double(mRange{1});
         b = str2double(mRange{2});
     else
-        error('IntanKilosortApp:ConvertIndexList', ...
+        error('EphysPreprocessingApp:ConvertIndexList', ...
             '%s: cannot parse "%s". Use 1-based integers and ranges, e.g. 1-16, 20, 32-17.', ...
             what, toks{k});
     end
     if a < 1 || b < 1
-        error('IntanKilosortApp:ConvertIndexList', ...
+        error('EphysPreprocessingApp:ConvertIndexList', ...
             '%s: channel indices are 1-based ("%s").', what, toks{k});
     end
     if b >= a
@@ -374,7 +374,7 @@ toks = toks(~cellfun(@isempty, toks));
 v = str2double(toks);
 badTok = toks(~(isfinite(v) & v > 0));
 if ~isempty(badTok)
-    error('IntanKilosortApp:ConvertFreqList', ...
+    error('EphysPreprocessingApp:ConvertFreqList', ...
         '%s: cannot parse "%s". Use positive frequencies in Hz, e.g. 60, 120, 180.', ...
         what, strjoin(badTok, '", "'));
 end
@@ -383,7 +383,7 @@ end
 
 function validateSuffix(sfx)
 if ~isempty(regexp(char(sfx), '[\\/:*?"<>|]', 'once'))
-    error('IntanKilosortApp:ConvertBadSuffix', ...
+    error('EphysPreprocessingApp:ConvertBadSuffix', ...
         'File suffix contains characters not allowed in file names: \\ / : * ? " < > |');
 end
 end

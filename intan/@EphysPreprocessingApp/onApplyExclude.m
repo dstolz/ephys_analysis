@@ -7,14 +7,14 @@ function onApplyExclude(obj, scope)
 %   The field holds 1-based channels to drop from Kilosort4 sorting (e.g.
 %   "1,5,32-40"). Channels are validated against each dataset's NumChannels;
 %   out-of-range entries are dropped with a warning in the status label. The
-%   exclusions live on IntanDataset.ExcludeChannels and are applied as a derived
-%   probe at run time (see IntanDataset.runKilosort); nothing on disk changes here.
+%   exclusions live on EphysDataset.ExcludeChannels and are applied as a derived
+%   probe at run time (see EphysDataset.runKilosort); nothing on disk changes here.
 
 if isempty(obj.Project) || obj.Project.NumDatasets == 0
     return
 end
 
-ch = IntanDataset.parseChannelList(obj.ExcludeChannelsField.Value);
+ch = EphysDataset.parseChannelList(obj.ExcludeChannelsField.Value);
 
 switch scope
     case "selected"

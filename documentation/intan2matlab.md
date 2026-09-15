@@ -6,10 +6,10 @@ derives LFP, MUA and/or spike-band signals.
 
 | Entry point | What it is |
 | --- | --- |
-| [`intan2matlab(folder, ...)`](../intan/intan2matlab.m) | standalone function, a thin wrapper: `IntanDataset(folder)` then `deriveSignals(...)`. With no `ProgressFcn`, it prints a `parfor_progress` bar and a summary of auto-flagged bad channels |
-| [`ds.deriveSignals(...)`](../intan/@IntanDataset/deriveSignals.m) | the implementation (an `IntanDataset` method) |
-| [`ds.toMat(...)`](../intan/@IntanDataset/toMat.m) | `deriveSignals` + an atomic save to one `.mat` (see [IntanDataset](IntanDataset.md#derived-signals-the-intan2matlab-processing)) |
-| GUI **Convert** tab | `toMat` over the selected datasets (see [IntanKilosortApp](IntanKilosortApp.md#convert)) |
+| [`intan2matlab(folder, ...)`](../intan/intan2matlab.m) | standalone function, a thin wrapper: `EphysDataset(folder)` then `deriveSignals(...)`. With no `ProgressFcn`, it prints a `parfor_progress` bar and a summary of auto-flagged bad channels |
+| [`ds.deriveSignals(...)`](../intan/@EphysDataset/deriveSignals.m) | the implementation (an `EphysDataset` method) |
+| [`ds.toMat(...)`](../intan/@EphysDataset/toMat.m) | `deriveSignals` + an atomic save to one `.mat` (see [EphysDataset](EphysDataset.md#derived-signals-the-intan2matlab-processing)) |
+| GUI **Convert** tab | `toMat` over the selected datasets (see [EphysPreprocessingApp](EphysPreprocessingApp.md#convert)) |
 
 > These files were edited (LFP band-limit and notch options added) while this
 > documentation was being written. This page reflects the code as of that
@@ -20,7 +20,7 @@ derives LFP, MUA and/or spike-band signals.
 [Y, events, info] = intan2matlab("D:\rec\subj1_day1", dataTypeOut=["LFP" "MUA"], ...
     LFP_bpLoHi=[1 300], LFP_NotchHz=[60 120 180]);
 
-ds = IntanDataset("D:\rec\subj1_day1");
+ds = EphysDataset("D:\rec\subj1_day1");
 out = ds.toMat(SignalOptions=struct('dataTypeOut', ["LFP" "SPIKE"]));
 ```
 
@@ -75,7 +75,7 @@ out = ds.toMat(SignalOptions=struct('dataTypeOut', ["LFP" "SPIKE"]));
 
 All options are validated before any data is read. Band edges are checked
 against the header sample rate, and checked again against the rate actually read
-if the two differ. Errors use `IntanDataset:deriveSignals:*` identifiers.
+if the two differ. Errors use `EphysDataset:deriveSignals:*` identifiers.
 `intan2matlab` adds `INTAN2MATLAB:NoFiles`.
 
 The help text notes that `filtfilt` IIR filtering leaves **edge transients** at

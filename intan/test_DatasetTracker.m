@@ -11,7 +11,7 @@ function test_DatasetTracker()
 %   The fixtures live in a temp folder which is deleted on completion.
 
 here = fileparts(mfilename('fullpath'));
-addpath(here);   % @DatasetTracker / @IntanDataset
+addpath(here);   % @DatasetTracker / @EphysDataset
 
 root = fullfile(tempdir, sprintf('DSTrack_test_%s', ...
     datestr(now, 'yyyymmdd_HHMMSSFFF'))); %#ok<TNOW1,DATST>
@@ -38,7 +38,7 @@ touch(fullfile(recA, 'a_001.rhd'));
 touch(fullfile(recA, 'a_002.rhd'));
 touch(fullfile(recB, 'b_001.rhd'));
 
-% A streamed .bin + JSON sidecar (mirrors IntanDataset.toBin output).
+% A streamed .bin + JSON sidecar (mirrors EphysDataset.toBin output).
 binFile = fullfile(recA, 'rec_morning.bin');
 touch(binFile);
 writeJson(struct('n_chan_bin', 64, 'fs', 30000, 'n_samples', 900000, ...
@@ -120,7 +120,7 @@ check(latest.HasResults, 'latestKilosortRun prefers a run with results');
 % ---- 5. Accessors / tables ----------------------------------------------
 fprintf('\n== 5. accessors + tabular views ==\n');
 ds = dt.recording("rec_morning");
-check(isa(ds, 'IntanDataset') && ds.NumFiles == 2, 'recording() returns an IntanDataset');
+check(isa(ds, 'EphysDataset') && ds.NumFiles == 2, 'recording() returns an EphysDataset');
 T = dt.recordingTable();
 check(height(T) == 2 && any(T.NumRhdFiles == 2), 'recordingTable shape');
 K = dt.kilosortTable();

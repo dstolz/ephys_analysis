@@ -18,10 +18,10 @@ function X = readSplitWindow(obj, sampleOffset, nSamp)
 %   A short final window (fewer samples on disk than requested) returns only the
 %   rows actually present.
 %
-%   See also IntanDataset.splitLayout, IntanDataset.readChunkUV, IntanDataset.toBin.
+%   See also EphysDataset.splitLayout, EphysDataset.readChunkUV, EphysDataset.toBin.
 
 arguments
-    obj (1,1) IntanDataset
+    obj (1,1) EphysDataset
     sampleOffset (1,1) double {mustBeInteger, mustBeNonnegative}
     nSamp (1,1) double {mustBeInteger, mustBeNonnegative}
 end
@@ -38,12 +38,12 @@ switch L.format
     case "one-file-per-signal"
         fid = fopen(char(L.ampFile), 'r', 'ieee-le');
         if fid < 0
-            error('IntanDataset:readSplitWindow:OpenFailed', ...
+            error('EphysDataset:readSplitWindow:OpenFailed', ...
                 'Could not open %s', L.ampFile);
         end
         closer = onCleanup(@() fclose(fid));
         if fseek(fid, sampleOffset * nChan * 2, 'bof') ~= 0
-            error('IntanDataset:readSplitWindow:SeekFailed', ...
+            error('EphysDataset:readSplitWindow:SeekFailed', ...
                 'Could not seek to sample %d in %s', sampleOffset, L.ampFile);
         end
         raw = fread(fid, [nChan, nSamp], 'int16=>double');  % [nChan x got]
@@ -55,12 +55,12 @@ switch L.format
         for k = 1:nChan
             fid = fopen(char(L.ampFiles(k)), 'r', 'ieee-le');
             if fid < 0
-                error('IntanDataset:readSplitWindow:OpenFailed', ...
+                error('EphysDataset:readSplitWindow:OpenFailed', ...
                     'Could not open %s', L.ampFiles(k));
             end
             if fseek(fid, sampleOffset * 2, 'bof') ~= 0
                 fclose(fid);
-                error('IntanDataset:readSplitWindow:SeekFailed', ...
+                error('EphysDataset:readSplitWindow:SeekFailed', ...
                     'Could not seek to sample %d in %s', sampleOffset, L.ampFiles(k));
             end
             col = fread(fid, nSamp, 'int16=>double');
@@ -73,7 +73,7 @@ switch L.format
         end
 
     otherwise
-        error('IntanDataset:readSplitWindow:NotSplit', ...
+        error('EphysDataset:readSplitWindow:NotSplit', ...
             'readSplitWindow only applies to split formats (got "%s").', L.format);
 end
 end

@@ -11,8 +11,8 @@ folder or a parent that contains many recording sub-folders.
 The other classes use it so that they share one definition of "a recording",
 "a probe map", "a `.bin`" and "a Kilosort4 run":
 
-- `IntanKilosortProject.discover` uses `findRecordingFolders`.
-- `IntanDataset.tracker()` / `manifestStruct()` use `latestKilosortRun`.
+- `EphysProject.discover` uses `findRecordingFolders`.
+- `EphysDataset.tracker()` / `manifestStruct()` use `latestKilosortRun`.
 - The GUI's Probe tab uses `probeMeta` / `readJson`.
 - The GUI's Review tab uses `latestKilosortRun`.
 
@@ -29,7 +29,7 @@ dt = DatasetTracker.fromDataset(ds)              % tracks ds.Folder (not ds.Outp
 It errors (`DatasetTracker:NoFolder`) if the folder does not exist.
 `DatasetTracker()` returns an empty object.
 
-`IntanDataset.tracker()` constructs a tracker of the dataset's `outputFolder()`,
+`EphysDataset.tracker()` constructs a tracker of the dataset's `outputFolder()`,
 and returns an empty tracker if that folder does not exist yet.
 `DatasetTracker.fromDataset(ds)` tracks `ds.Folder`. The two differ when
 `OutputDir` is set.
@@ -85,7 +85,7 @@ Only those classified as `"probe"` are kept.
 ### Bin files (`emptyBins` schema)
 
 Every `*.bin` is listed. The `<name>.json` sidecar written by
-`IntanDataset.toBin` is read when present.
+`EphysDataset.toBin` is read when present.
 
 | Field | Meaning |
 | --- | --- |
@@ -122,7 +122,7 @@ recognized marker.
 | Method | Returns |
 | --- | --- |
 | `refresh()` | re-scan and rebuild every inventory |
-| `ds = recording(idxOrName, AutoMetadata=false)` | an `IntanDataset` for one tracked recording |
+| `ds = recording(idxOrName, AutoMetadata=false)` | an `EphysDataset` for one tracked recording |
 | `probeFile(idx)`, `binFile(idx)` | full path of the idx-th item (default 1) |
 | `kilosortRun(idx)` | the idx-th run struct |
 | `latestKilosortRun()` | most recently modified run, **preferring runs with results**; `[]` if none |
@@ -143,7 +143,7 @@ These are public so the other Intan classes can reuse one implementation.
 | --- | --- |
 | `listFiles(root, pattern, recursive)` | `dir` matches, excluding directories |
 | `findRecordings(root, recursive)` | the `Recordings` struct array |
-| `findRecordingFolders(root, recursive)` | folder paths only (used by `IntanKilosortProject.discover`) |
+| `findRecordingFolders(root, recursive)` | folder paths only (used by `EphysProject.discover`) |
 | `readJson(path)` | `jsondecode(fileread(path))`, or `[]` on any failure |
 | `classifyJson(s)` | see the rules below |
 | `probeMeta(s)` | `nChan`, `nShank`, `depth`, `notes` from a decoded probe |

@@ -1,7 +1,7 @@
 function applyVizChannelColor(obj)
 %applyVizChannelColor  Apply or clear the Viewer's "color by shank" trace
 %   coloring per the "Color channels by shank" checkbox, using the probe
-%   assigned to the currently-loaded Visualize dataset (IntanDataset.ProbeFile)
+%   assigned to the currently-loaded Visualize dataset (EphysDataset.ProbeFile)
 %   and the channel list last plotted (obj.VizChannels). Safe to call any time
 %   -- a no-op when there is no live Viewer -- and never re-reads or
 %   re-filters data, so it can run directly off the checkbox as well as after

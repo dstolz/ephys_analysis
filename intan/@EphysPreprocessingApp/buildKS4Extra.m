@@ -2,7 +2,7 @@ function [extra, errMsg] = buildKS4Extra(obj)
 %buildKS4Extra  Build the Kilosort4 settings struct from the tab controls.
 %   [EXTRA, ERRMSG] = obj.buildKS4Extra() reads every control in
 %   obj.ParamControls (per kilosortParamSpec), converts each to its JSON type,
-%   and returns a scalar struct EXTRA suitable for IntanDataset.runKilosort's
+%   and returns a scalar struct EXTRA suitable for EphysDataset.runKilosort's
 %   ExtraSettings. The free-form "Extra settings (JSON)" block is merged last
 %   and overrides the named fields. ERRMSG is "" on success or a message
 %   describing the first parse failure.

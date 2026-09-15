@@ -31,10 +31,10 @@ function summary = analyzeArtifacts(obj, opts)
 %     nIntervals     number of contiguous artifact intervals (summed per file)
 %     files          files analyzed
 %
-%   See also IntanDataset.detectArtifacts, IntanDataset.toBin.
+%   See also EphysDataset.detectArtifacts, EphysDataset.toBin.
 
 arguments
-    obj (1,1) IntanDataset
+    obj (1,1) EphysDataset
     opts.Files (1,:) string = string.empty(1,0)
     opts.ChannelOrder (1,:) double {mustBeInteger, mustBePositive} = []
     opts.Method (1,1) string = ""
@@ -54,14 +54,14 @@ if obj.NumFiles == 0
     obj.discoverFiles();
 end
 if obj.NumFiles == 0
-    error('IntanDataset:analyzeArtifacts:NoFiles', 'No Intan files in %s', obj.Folder);
+    error('EphysDataset:analyzeArtifacts:NoFiles', 'No Intan files in %s', obj.Folder);
 end
 if isnan(obj.Fs) || isempty(obj.PerFile)
     obj.refreshMetadata();
 end
 
 % Resolve detection params (per-call overrides ds.ArtifactConfig).
-cfg = IntanDataset.normalizeArtifactConfig(obj.ArtifactConfig);
+cfg = EphysDataset.normalizeArtifactConfig(obj.ArtifactConfig);
 method   = opts.Method;        if method == "";         method   = cfg.Method;       end
 thr      = opts.Threshold;     if isnan(thr);           thr      = cfg.Threshold;    end
 rmsWinMs = opts.RmsWindowMs;   if isnan(rmsWinMs);      rmsWinMs = cfg.RmsWindowMs;  end
@@ -103,7 +103,7 @@ for i = 1:nChunks
 
     if ~isempty(opts.ChannelOrder)
         if max(opts.ChannelOrder) > size(X, 2)
-            error('IntanDataset:analyzeArtifacts:BadChannelOrder', ...
+            error('EphysDataset:analyzeArtifacts:BadChannelOrder', ...
                 'ChannelOrder references channel %d but recording has %d.', ...
                 max(opts.ChannelOrder), size(X, 2));
         end

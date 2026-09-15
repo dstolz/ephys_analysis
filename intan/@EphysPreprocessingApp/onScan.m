@@ -1,5 +1,5 @@
 function onScan(obj)
-%onScan  Build an IntanKilosortProject from the parent dir, gather metadata.
+%onScan  Build an EphysProject from the parent dir, gather metadata.
 
 root = string(obj.RootPathField.Value);
 if root == "" || ~isfolder(root)
@@ -17,7 +17,7 @@ drawnow;
 
 try
     % Discovery is cheap (AutoMetadata=false per folder inside discover()).
-    P = IntanKilosortProject(root);
+    P = EphysProject(root);
 
     % Push shared config (probe/python/etc) from current UI before metadata.
     obj.applyConfigToProject(P);
@@ -45,7 +45,7 @@ try
         try
             P.Datasets(i).refreshMetadata();
         catch ME
-            warning('IntanKilosortApp:MetaFailed', ...
+            warning('EphysPreprocessingApp:MetaFailed', ...
                 'Metadata failed for %s: %s', P.Datasets(i).Name, ME.message);
         end
     end
@@ -60,7 +60,7 @@ try
             P.Datasets(i).applyManifest();
             P.Datasets(i).writeManifest();
         catch ME
-            warning('IntanKilosortApp:ManifestFailed', ...
+            warning('EphysPreprocessingApp:ManifestFailed', ...
                 'Manifest update failed for %s: %s', P.Datasets(i).Name, ME.message);
         end
     end

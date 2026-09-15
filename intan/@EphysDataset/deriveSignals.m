@@ -1,7 +1,7 @@
 function [Y, ev, info] = deriveSignals(obj, opts)
 %deriveSignals  Read the recording and derive LFP, MUA and/or spike-band signals.
 %   [Y, EVENTS, INFO] = ds.deriveSignals(Name=Value) reads the whole recording
-%   through IntanDataset.readData -- so every supported layout works
+%   through EphysDataset.readData -- so every supported layout works
 %   (traditional *.rhd, one-file-per-signal, one-file-per-channel) -- then
 %   derives the requested continuous signals and the digital-input events.
 %   This is the implementation behind INTAN2MATLAB, which is a thin wrapper
@@ -85,10 +85,10 @@ function [Y, ev, info] = deriveSignals(obj, opts)
 %
 %   Requires the Signal Processing Toolbox (BUTTER, FILTFILT, RESAMPLE).
 %
-%   See also INTAN2MATLAB, IntanDataset.toMat, IntanDataset.readData.
+%   See also INTAN2MATLAB, EphysDataset.toMat, EphysDataset.readData.
 
 arguments
-    obj (1,1) IntanDataset
+    obj (1,1) EphysDataset
     opts.channelRemap (1,:) double {mustBeInteger, mustBePositive} = []
     opts.badChannels double = []
     opts.keepAmpChannels double {mustBeInteger, mustBePositive} = []
@@ -108,7 +108,7 @@ arguments
 end
 
 if ~isempty(opts.ProgressFcn) && ~isa(opts.ProgressFcn, 'function_handle')
-    error('IntanDataset:deriveSignals:ProgressFcn', ...
+    error('EphysDataset:deriveSignals:ProgressFcn', ...
         'ProgressFcn must be a function handle or [].');
 end
 progressFcn = opts.ProgressFcn;
@@ -117,20 +117,20 @@ opts = rmfield(opts, 'ProgressFcn');   % never stored in info.importOptions
 % --- validate options (before reading anything) ---
 badType = setdiff(opts.dataTypeOut, ["LFP" "MUA" "SPIKE"]);
 if ~isempty(badType)
-    error('IntanDataset:deriveSignals:dataTypeOut', ...
+    error('EphysDataset:deriveSignals:dataTypeOut', ...
         'Unknown dataTypeOut value(s): %s. Use "LFP", "MUA" and/or "SPIKE".', ...
         strjoin(badType, ', '));
 end
 if opts.MUA_bpLoHi(1) >= opts.MUA_bpLoHi(2)
-    error('IntanDataset:deriveSignals:MUA_bpLoHiOrder', ...
+    error('EphysDataset:deriveSignals:MUA_bpLoHiOrder', ...
         'MUA_bpLoHi must be [low high] with low < high.');
 end
 if opts.SPIKE_bpLoHi(1) >= opts.SPIKE_bpLoHi(2)
-    error('IntanDataset:deriveSignals:SPIKE_bpLoHiOrder', ...
+    error('EphysDataset:deriveSignals:SPIKE_bpLoHiOrder', ...
         'SPIKE_bpLoHi must be [low high] with low < high.');
 end
 if ~isfinite(opts.LFP_bpLoHi(1)) || opts.LFP_bpLoHi(1) >= opts.LFP_bpLoHi(2)
-    error('IntanDataset:deriveSignals:LFP_bpLoHiOrder', ...
+    error('EphysDataset:deriveSignals:LFP_bpLoHiOrder', ...
         ['LFP_bpLoHi must be [low high] with a finite low < high ' ...
          '(low = 0: no high-pass, high = Inf: no low-pass).']);
 end
@@ -148,7 +148,7 @@ end
 
 autoBad = isscalar(opts.badChannels) && opts.badChannels < 0;
 if autoBad && ~has.LFP
-    error('IntanDataset:deriveSignals:AutoBadChannelsNeedLFP', ...
+    error('EphysDataset:deriveSignals:AutoBadChannelsNeedLFP', ...
         ['Automatic bad-channel detection (negative scalar badChannels) is ' ...
          'computed from the LFP; include "LFP" in dataTypeOut.']);
 end
@@ -157,7 +157,7 @@ if obj.NumFiles == 0
     obj.discoverFiles();
 end
 if obj.NumFiles == 0
-    error('IntanDataset:deriveSignals:NoFiles', 'No Intan files in %s', obj.Folder);
+    error('EphysDataset:deriveSignals:NoFiles', 'No Intan files in %s', obj.Folder);
 end
 if isnan(obj.Fs) || isempty(obj.PerFile)
     obj.refreshMetadata();
@@ -184,7 +184,7 @@ nDone = nRead;
 AMPSIG = data.amplifier;
 data.amplifier = [];
 if isempty(AMPSIG)
-    error('IntanDataset:deriveSignals:NoData', 'No amplifier data read from %s', obj.Folder);
+    error('EphysDataset:deriveSignals:NoData', 'No amplifier data read from %s', obj.Folder);
 end
 origFs = data.Fs;
 if origFs ~= obj.Fs
@@ -327,18 +327,18 @@ nyq = opts.LFP_Fs / 2;
 lo = opts.LFP_bpLoHi(1);
 hi = opts.LFP_bpLoHi(2);
 if lo >= nyq
-    error('IntanDataset:deriveSignals:LFP_bpNyquist', ...
+    error('EphysDataset:deriveSignals:LFP_bpNyquist', ...
         'LFP_bpLoHi low edge (%g Hz) must be below LFP_Fs/2 (%g Hz).', lo, nyq);
 end
 if isfinite(hi) && hi >= nyq
-    error('IntanDataset:deriveSignals:LFP_bpNyquist', ...
+    error('EphysDataset:deriveSignals:LFP_bpNyquist', ...
         ['LFP_bpLoHi high edge (%g Hz) must be below LFP_Fs/2 (%g Hz); ' ...
          'use Inf for no low-pass.'], hi, nyq);
 end
 bw = opts.LFP_NotchBW;
 for f = opts.LFP_NotchHz
     if f - bw/2 <= 0 || f + bw/2 >= nyq
-        error('IntanDataset:deriveSignals:LFP_Notch', ...
+        error('EphysDataset:deriveSignals:LFP_Notch', ...
             ['LFP notch %g Hz with width %g Hz spans [%g %g] Hz, which must lie ' ...
              'inside (0, LFP_Fs/2 = %g Hz).'], f, bw, f - bw/2, f + bw/2, nyq);
     end
@@ -414,7 +414,7 @@ function validateRates(opts, has, origFs)
 %validateRates  Check band edges against the Nyquist rate of the data they
 %   are applied to.
 if has.MUA && opts.MUA_bpLoHi(2) >= origFs/2
-    error('IntanDataset:deriveSignals:MUA_bpNyquist', ...
+    error('EphysDataset:deriveSignals:MUA_bpNyquist', ...
         'MUA_bpLoHi high edge (%g Hz) must be below origFs/2 (%g Hz).', ...
         opts.MUA_bpLoHi(2), origFs/2);
 end
@@ -422,7 +422,7 @@ if has.SPIKE
     spikeFs = opts.SPIKE_Fs;
     if isinf(spikeFs), spikeFs = origFs; end
     if opts.SPIKE_bpLoHi(2) >= spikeFs/2
-        error('IntanDataset:deriveSignals:SPIKE_bpNyquist', ...
+        error('EphysDataset:deriveSignals:SPIKE_bpNyquist', ...
             'SPIKE_bpLoHi high edge (%g Hz) must be below SPIKE_Fs/2 (%g Hz).', ...
             opts.SPIKE_bpLoHi(2), spikeFs/2);
     end

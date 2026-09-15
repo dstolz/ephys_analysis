@@ -11,17 +11,17 @@ function X = blankArtifacts(obj, X, mask, opts)
 %
 %   The mask length must equal size(X,1).
 %
-%   See also IntanDataset.detectArtifacts.
+%   See also EphysDataset.detectArtifacts.
 
 arguments
-    obj (1,1) IntanDataset %#ok<INUSA>
+    obj (1,1) EphysDataset %#ok<INUSA>
     X double
     mask (:,1) logical
     opts.Fill (1,1) string {mustBeMember(opts.Fill, ["zero","hold","nan"])} = "zero"
 end
 
 if numel(mask) ~= size(X, 1)
-    error('IntanDataset:blankArtifacts:SizeMismatch', ...
+    error('EphysDataset:blankArtifacts:SizeMismatch', ...
         'mask length (%d) must equal size(X,1) (%d).', numel(mask), size(X, 1));
 end
 

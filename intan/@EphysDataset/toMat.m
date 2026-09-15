@@ -1,6 +1,6 @@
 function out = toMat(obj, opts)
 %toMat  Derive LFP / MUA / SPIKE signals and save them to a .mat file.
-%   OUT = ds.toMat(Name=Value) runs IntanDataset.deriveSignals and saves its
+%   OUT = ds.toMat(Name=Value) runs EphysDataset.deriveSignals and saves its
 %   outputs -- variables Y, events and info, plus a small "conversion"
 %   provenance struct -- to one MAT-file. The recording files are only read.
 %
@@ -29,10 +29,10 @@ function out = toMat(obj, opts)
 %   (struct array: name, count), badChannels (the channels actually
 %   interpolated, from info.importOptions).
 %
-%   See also IntanDataset.deriveSignals, INTAN2MATLAB.
+%   See also EphysDataset.deriveSignals, INTAN2MATLAB.
 
 arguments
-    obj (1,1) IntanDataset
+    obj (1,1) EphysDataset
     opts.File (1,1) string = ""
     opts.SignalOptions (1,1) struct = struct()
     opts.MatVersion (1,1) string {mustBeMember(opts.MatVersion, ["-v7.3", "-v7"])} = "-v7.3"
@@ -45,18 +45,18 @@ if file == ""
     file = string(fullfile(obj.outputFolder(), obj.Name + "_extract.mat"));
 end
 if isfile(file) && ~opts.Overwrite
-    error('IntanDataset:toMat:Exists', ...
+    error('EphysDataset:toMat:Exists', ...
         '%s already exists (pass Overwrite=true to replace it).', file);
 end
 outDir = fileparts(file);
 if strlength(outDir) > 0 && ~isfolder(outDir)
     [ok, msg] = mkdir(outDir);
     if ~ok
-        error('IntanDataset:toMat:MkdirFailed', 'Could not create %s: %s', outDir, msg);
+        error('EphysDataset:toMat:MkdirFailed', 'Could not create %s: %s', outDir, msg);
     end
 end
 if isfield(opts.SignalOptions, 'ProgressFcn')
-    error('IntanDataset:toMat:ProgressFcn', ...
+    error('EphysDataset:toMat:ProgressFcn', ...
         'Pass ProgressFcn to toMat itself, not inside SignalOptions.');
 end
 
@@ -77,7 +77,7 @@ S.Y = Y;
 S.events = ev;
 S.info = info;
 S.conversion = struct( ...
-    'tool',            "IntanDataset.toMat (deriveSignals / intan2matlab)", ...
+    'tool',            "EphysDataset.toMat (deriveSignals / intan2matlab)", ...
     'created',         string(datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss')), ...
     'dataset',         obj.Name, ...
     'sourceFolder',    obj.Folder, ...
@@ -138,18 +138,18 @@ try
     save(tmp, '-struct', 'S', char(matVersion));
     [wmsg, wid] = lastwarn;
     if ~isempty(wmsg)
-        error('IntanDataset:toMat:SaveWarning', ...
+        error('EphysDataset:toMat:SaveWarning', ...
             'save() raised a warning, so the output was discarded (%s): %s', wid, wmsg);
     end
     w = whos('-file', tmp);
     missing = setdiff(fieldnames(S), {w.name});
     if ~isempty(missing)
-        error('IntanDataset:toMat:SaveIncomplete', ...
+        error('EphysDataset:toMat:SaveIncomplete', ...
             'Saved file is missing variable(s): %s', strjoin(missing, ', '));
     end
     [ok, msg] = movefile(tmp, outFile, 'f');
     if ~ok
-        error('IntanDataset:toMat:MoveFailed', ...
+        error('EphysDataset:toMat:MoveFailed', ...
             'Could not rename %s to %s: %s', tmp, outFile, msg);
     end
 catch ME

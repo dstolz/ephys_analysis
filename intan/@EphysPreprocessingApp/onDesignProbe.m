@@ -9,8 +9,8 @@ function onDesignProbe(obj)
 %   Passes the selected dataset's channel count (when any) purely as a soft
 %   count-check hint.
 %
-%   See also ProbeDesignerApp, IntanKilosortApp.runProbeTool,
-%   IntanKilosortApp.refreshProbeList.
+%   See also ProbeDesignerApp, EphysPreprocessingApp.runProbeTool,
+%   EphysPreprocessingApp.refreshProbeList.
 
 nChanHint = NaN;
 d = obj.currentDataset();

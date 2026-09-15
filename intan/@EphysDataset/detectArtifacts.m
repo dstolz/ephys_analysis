@@ -39,10 +39,10 @@ function [mask, intervals, stats] = detectArtifacts(obj, X, opts)
 %   exceeded its threshold (before the MinChannels combination), used to
 %   summarize artifacts per channel.
 %
-%   See also IntanDataset.blankArtifacts, IntanDataset.toBin, IntanDataset.analyzeArtifacts.
+%   See also EphysDataset.blankArtifacts, EphysDataset.toBin, EphysDataset.analyzeArtifacts.
 
 arguments
-    obj (1,1) IntanDataset
+    obj (1,1) EphysDataset
     X double
     opts.Method (1,1) string {mustBeMember(opts.Method, ...
         ["rms","mad","microvolts","commonmode"])} = "rms"
@@ -57,7 +57,7 @@ end
 Fs = opts.Fs;
 if isnan(Fs); Fs = obj.Fs; end
 if isnan(Fs) || Fs <= 0
-    error('IntanDataset:detectArtifacts:NoFs', ...
+    error('EphysDataset:detectArtifacts:NoFs', ...
         'Sample rate unknown; pass opts.Fs or run refreshMetadata first.');
 end
 

@@ -6,11 +6,11 @@ classdef DatasetTracker < handle
     %   re-implement the same `dir`/`jsondecode` scans. It tracks:
     %
     %     Recordings   folders that directly contain >=1 *.rhd file (one
-    %                  IntanDataset's worth of raw data each)
+    %                  EphysDataset's worth of raw data each)
     %     ProbeFiles   Kilosort4 probe .json maps (chanMap/xc/yc), including any
     %                  derived *_excluded.json written next to a sort
     %     BinFiles     streamed *.bin files plus their JSON sidecars
-    %                  (n_chan_bin / fs / n_samples, written by IntanDataset.toBin)
+    %                  (n_chan_bin / fs / n_samples, written by EphysDataset.toBin)
     %     KilosortRuns kilosort4 output folders (params.py / run_ks4.py /
     %                  spike_clusters.npy / ks4_status.json), with run state
     %
@@ -31,7 +31,7 @@ classdef DatasetTracker < handle
     %   -----------
     %     dt = DatasetTracker("D:\rec\subj1_day1");
     %     T  = dt.recordingTable();        % one row per recording (for a uigridtable)
-    %     ds = dt.recording(1);            % an IntanDataset for further work
+    %     ds = dt.recording(1);            % an EphysDataset for further work
     %     if dt.hasKilosort
     %         r = dt.latestKilosortRun();  % most recent sort with results
     %         resultsDir = r.Dir;          % hand to the Review tab / phy / loaders
@@ -41,7 +41,7 @@ classdef DatasetTracker < handle
     %   callers); refresh re-scans the tree and refreshes them all. The struct
     %   field schemas are documented on each emptyX template below.
     %
-    %   See also INTANDATASET, INTANKILOSORTPROJECT, INTANKILOSORTAPP.
+    %   See also EPHYSDATASET, EPHYSPROJECT, EPHYSPREPROCESSINGAPP.
 
     properties
         Root      (1,1) string  = ""      % the dataset directory being tracked
@@ -125,7 +125,7 @@ classdef DatasetTracker < handle
 
         %% Accessors -------------------------------------------------------
         function ds = recording(obj, idxOrName, opts)
-            %recording  Return an IntanDataset for a tracked recording folder.
+            %recording  Return an EphysDataset for a tracked recording folder.
             %   ds = dt.recording(i) or dt.recording("name"). Constructed with
             %   AutoMetadata=false (cheap); pass AutoMetadata=true to parse
             %   headers immediately. This is how other classes obtain a working
@@ -136,7 +136,7 @@ classdef DatasetTracker < handle
                 opts.AutoMetadata (1,1) logical = false
             end
             rec = obj.pickRecording(idxOrName);
-            ds = IntanDataset(rec.Folder, AutoMetadata=opts.AutoMetadata, Name=rec.Name);
+            ds = EphysDataset(rec.Folder, AutoMetadata=opts.AutoMetadata, Name=rec.Name);
         end
 
         function p = probeFile(obj, idx)
@@ -254,7 +254,7 @@ classdef DatasetTracker < handle
         function rec = discoverRecordings(obj)
             %discoverRecordings  Group *.rhd files by their containing folder.
             %   Thin wrapper over the shared static DatasetTracker.findRecordings
-            %   so this class and IntanKilosortProject agree on what a recording
+            %   so this class and EphysProject agree on what a recording
             %   is (a folder directly containing >=1 *.rhd file).
             rec = DatasetTracker.findRecordings(obj.Root, obj.Recursive);
         end
@@ -264,7 +264,7 @@ classdef DatasetTracker < handle
             %   Every *.json is parsed once and classified; only those that are
             %   probe maps (chanMap or xc/yc, not a .bin sidecar / KS settings /
             %   status file) are kept. Channel/shank/depth/notes are read like
-            %   IntanKilosortApp.refreshProbeList.
+            %   EphysPreprocessingApp.refreshProbeList.
             D = obj.findFiles('*.json');
             probes = DatasetTracker.emptyProbes();
             k = 0;
@@ -290,7 +290,7 @@ classdef DatasetTracker < handle
 
         function bins = discoverBinFiles(obj)
             %discoverBinFiles  Find *.bin files and read their JSON sidecars.
-            %   The sidecar (<name>.json, written by IntanDataset.toBin) carries
+            %   The sidecar (<name>.json, written by EphysDataset.toBin) carries
             %   n_chan_bin / fs / n_samples / source_folder; absent or unreadable
             %   sidecars leave those NaN/"" but the .bin is still listed.
             D = obj.findFiles('*.bin');
@@ -408,15 +408,15 @@ classdef DatasetTracker < handle
 
     methods (Static)
         function dt = fromDataset(ds)
-            %fromDataset  Build a tracker for an existing IntanDataset's folder.
+            %fromDataset  Build a tracker for an existing EphysDataset's folder.
             arguments
-                ds (1,1) IntanDataset
+                ds (1,1) EphysDataset
             end
             dt = DatasetTracker(ds.Folder);
         end
 
         %% Shared discovery / parsing helpers ------------------------------
-        %  Public so IntanDataset / IntanKilosortProject / IntanKilosortApp can
+        %  Public so EphysDataset / EphysProject / EphysPreprocessingApp can
         %  reuse one implementation of the scans they used to each hand-roll.
         function D = listFiles(root, pattern, recursive)
             %listFiles  Files matching PATTERN under ROOT (recursive or top-level).
@@ -443,7 +443,7 @@ classdef DatasetTracker < handle
             %   per folder that directly contains >=1 *.rhd file, files listed
             %   chronologically by datenum. This is the single definition of "a
             %   recording" shared by DatasetTracker.refresh and
-            %   IntanKilosortProject.discover.
+            %   EphysProject.discover.
             arguments
                 root (1,1) string
                 recursive (1,1) logical = true
@@ -473,7 +473,7 @@ classdef DatasetTracker < handle
         function folders = findRecordingFolders(root, recursive)
             %findRecordingFolders  Folders directly containing >=1 *.rhd file.
             %   Stable order. Convenience over findRecordings for callers (e.g.
-            %   IntanKilosortProject.discover) that only need the folder paths.
+            %   EphysProject.discover) that only need the folder paths.
             arguments
                 root (1,1) string
                 recursive (1,1) logical = true
@@ -519,7 +519,7 @@ classdef DatasetTracker < handle
         function m = probeMeta(s)
             %probeMeta  Channel/shank/depth/notes from a parsed probe struct.
             %   Single source of truth for probe-map metadata, reused by the
-            %   app's Probe tab (see IntanKilosortApp.refreshProbeList).
+            %   app's Probe tab (see EphysPreprocessingApp.refreshProbeList).
             m = struct('nChan', NaN, 'nShank', NaN, 'depth', NaN, 'notes', "");
             if isempty(s) || ~isstruct(s)
                 return

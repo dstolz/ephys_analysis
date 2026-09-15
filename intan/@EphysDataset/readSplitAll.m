@@ -2,7 +2,7 @@ function data = readSplitAll(obj, opts)
 %readSplitAll  readData implementation for the split Intan recording formats.
 %   DATA = ds.readSplitAll(opts) reads a "one-file-per-signal" or "one-file-per-
 %   channel" recording into the SAME output struct shape produced by
-%   IntanDataset.readData for the traditional format, so callers do not care
+%   EphysDataset.readData for the traditional format, so callers do not care
 %   which layout a folder uses. readData delegates here whenever the recording is
 %   not traditional; see readData for the option and field documentation.
 %
@@ -15,11 +15,11 @@ function data = readSplitAll(obj, opts)
 %     events for one-file-per-channel are read from board-DIN-<order>.dat when
 %     those files are present, and are otherwise empty.
 %
-%   See also IntanDataset.readData, IntanDataset.splitLayout,
-%   IntanDataset.readSplitWindow.
+%   See also EphysDataset.readData, EphysDataset.splitLayout,
+%   EphysDataset.readSplitWindow.
 
 arguments
-    obj (1,1) IntanDataset
+    obj (1,1) EphysDataset
     opts.Files (1,:) string = string.empty(1,0)  %#ok<INUSA> (no per-file split units)
     opts.KeepChannels (1,:) double {mustBeInteger, mustBePositive} = []
     opts.IncludeADC (1,1) logical = false
@@ -49,7 +49,7 @@ end
 keep = opts.KeepChannels;
 if ~isempty(keep)
     if max(keep) > size(X, 2)
-        error('IntanDataset:readSplitAll:BadKeepChannels', ...
+        error('EphysDataset:readSplitAll:BadKeepChannels', ...
             'KeepChannels references channel %d but recording has %d.', ...
             max(keep), size(X, 2));
     end

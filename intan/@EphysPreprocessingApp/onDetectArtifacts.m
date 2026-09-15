@@ -2,11 +2,11 @@ function onDetectArtifacts(obj)
 %onDetectArtifacts  Run the artifact detector over a dataset and show the summary.
 %   Pushes the current detection settings onto every scanned dataset, then
 %   streams the selected dataset one *.rhd file at a time
-%   (IntanDataset.analyzeArtifacts) and fills the per-channel table and summary
+%   (EphysDataset.analyzeArtifacts) and fills the per-channel table and summary
 %   label with the number of samples flagged per channel and the percent of the
 %   recording that would be blanked. Read-only: nothing is written to disk.
 %
-%   See also IntanDataset.analyzeArtifacts, buildArtifactsTab.
+%   See also EphysDataset.analyzeArtifacts, buildArtifactsTab.
 
 d = obj.currentArtifactDataset();
 if isempty(d)

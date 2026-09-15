@@ -10,7 +10,7 @@ cfg.PythonExe   = char(obj.PythonExeField.Value);
 cfg.CondaEnv    = char(obj.CondaEnvField.Value);
 cfg.OutputRoot  = char(obj.OutputRootField.Value);
 
-% SpikeInterface preprocessing config (see IntanDataset.SIConfig).
+% SpikeInterface preprocessing config (see EphysDataset.SIConfig).
 cfg.SIConfig    = obj.gatherSIConfig();
 
 % KS4 parameters, raw as entered in the controls.

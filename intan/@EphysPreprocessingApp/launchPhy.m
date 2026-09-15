@@ -6,10 +6,10 @@ function launchPhy(obj, resultsDir, label)
 %   command" field; phy lives in its own conda env (see INSTALL.md), so the
 %   default (when the field is blank) runs it via `conda run -n phy phy`,
 %   the same "conda run -n <env>" dispatch used for Kilosort4/SpikeInterface
-%   (see IntanDataset.runKilosort). phy reads params.py relative to its
+%   (see EphysDataset.runKilosort). phy reads params.py relative to its
 %   working directory, so the launcher cd's into the results dir first.
 %
-%   See also IntanKilosortApp.onLaunchPhy, IntanKilosortApp.onReviewOpenPhy.
+%   See also EphysPreprocessingApp.onLaunchPhy, EphysPreprocessingApp.onReviewOpenPhy.
 
 resultsDir = char(resultsDir);
 paramsPy   = fullfile(resultsDir, 'params.py');

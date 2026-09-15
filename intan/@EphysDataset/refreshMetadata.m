@@ -4,7 +4,7 @@ function refreshMetadata(obj)
 %   formats it parses info.rhd and sizes the recording from the .dat file(s) (see
 %   refreshSplitMetadata / splitLayout). The traditional path below:
 %   ds.refreshMetadata() parses the header of every file in ds.Files via
-%   IntanDataset.parseIntanHeader (header-only; no amplifier matrix is
+%   EphysDataset.parseIntanHeader (header-only; no amplifier matrix is
 %   allocated) and populates Fs, NumChannels, ChannelNames, NativeNames,
 %   DigInNames, Duration, AcqDate, NumFiles and the PerFile struct array.
 %
@@ -13,10 +13,10 @@ function refreshMetadata(obj)
 %   tolerate a mid-dataset channel-count change. Dig-in channel counts follow
 %   the first-file policy used by intan2matlab (later extra lines ignored).
 %
-%   See also IntanDataset.parseIntanHeader, IntanDataset.readData.
+%   See also EphysDataset.parseIntanHeader, EphysDataset.readData.
 
 arguments
-    obj (1,1) IntanDataset
+    obj (1,1) EphysDataset
 end
 
 obj.discoverFiles();  % re-scan in case files changed on disk
@@ -31,7 +31,7 @@ if obj.RecordingFormat == "one-file-per-signal" || ...
 end
 
 if obj.NumFiles == 0
-    warning('IntanDataset:refreshMetadata:NoFiles', ...
+    warning('EphysDataset:refreshMetadata:NoFiles', ...
         'No *.rhd files found in %s', obj.Folder);
     return
 end
@@ -44,7 +44,7 @@ pf = struct('name', {}, 'bytesPerBlock', {}, 'numDataBlocks', {}, ...
 firstNumChan = NaN;
 for i = 1:obj.NumFiles
     ffn = fullfile(obj.Folder, obj.Files(i));
-    hdr = IntanDataset.parseIntanHeader(ffn);
+    hdr = EphysDataset.parseIntanHeader(ffn);
 
     if i == 1
         firstNumChan = hdr.numAmplifierChannels;
@@ -54,14 +54,14 @@ for i = 1:obj.NumFiles
         obj.NativeNames  = hdr.nativeNames;
         obj.DigInNames   = hdr.digInNames;
     elseif hdr.numAmplifierChannels ~= firstNumChan
-        error('IntanDataset:refreshMetadata:ChannelMismatch', ...
+        error('EphysDataset:refreshMetadata:ChannelMismatch', ...
             ['Amplifier channel count changed mid-dataset (%d -> %d) at %s. ', ...
              'A flat int16 .bin cannot represent this; split the recording.'], ...
             firstNumChan, hdr.numAmplifierChannels, obj.Files(i));
     end
 
     if hdr.partialBlock
-        warning('IntanDataset:refreshMetadata:PartialBlock', ...
+        warning('EphysDataset:refreshMetadata:PartialBlock', ...
             'Truncated trailing data block in %s; only whole blocks counted.', obj.Files(i));
     end
 

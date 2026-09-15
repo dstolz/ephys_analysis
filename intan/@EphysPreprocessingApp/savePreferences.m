@@ -41,6 +41,6 @@ setpref(g, 'ExecBlocking', logical(obj.ExecModeDropDown.Value));
 % --- kilosort config ---
 setpref(g, 'KilosortConfig', obj.gatherKilosortConfig());
 
-% --- Convert tab (IntanDataset.toMat) options ---
+% --- Convert tab (EphysDataset.toMat) options ---
 setpref(g, 'ConvertConfig', obj.gatherConvertConfig());
 end

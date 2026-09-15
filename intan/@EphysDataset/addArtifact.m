@@ -5,10 +5,10 @@ function addArtifact(obj, t0, t1)
 %   overlapping or touching periods so the list stays minimal. Negative times
 %   are clamped to 0; a zero-width period is ignored.
 %
-%   See also IntanDataset.manualArtifactMask, IntanDataset.ManualArtifacts.
+%   See also EphysDataset.manualArtifactMask, EphysDataset.ManualArtifacts.
 
 arguments
-    obj (1,1) IntanDataset
+    obj (1,1) EphysDataset
     t0 (1,1) double {mustBeFinite}
     t1 (1,1) double {mustBeFinite}
 end

@@ -5,7 +5,7 @@ function onPlotVisualization(obj)
 %
 %   Memory strategy
 %   ---------------
-%   Rather than loading the whole recording with IntanDataset.readData (which
+%   Rather than loading the whole recording with EphysDataset.readData (which
 %   concatenates every file into one big double matrix and then makes several
 %   more full-array copies while preprocessing - the source of out-of-memory
 %   errors on long recordings), this:
@@ -124,7 +124,7 @@ try
             continue
         end
         if max(chans) > size(Xi, 2)
-            error('IntanKilosortApp:Visualize:BadChannels', ...
+            error('EphysPreprocessingApp:Visualize:BadChannels', ...
                 'Channel %d requested but %s has %d amplifier channels.', ...
                 max(chans), plan(i).name, size(Xi, 2));
         end
@@ -149,7 +149,7 @@ try
 
     X = X(1:row, :);                        % trim unused capacity
     if isempty(X)
-        error('IntanKilosortApp:Visualize:Empty', 'No samples were read.');
+        error('EphysPreprocessingApp:Visualize:Empty', 'No samples were read.');
     end
 
     Fs    = FsTrue / decim;                 % effective (cached) sample rate
@@ -247,7 +247,7 @@ function iv = computeDetectedIntervals(d, X, Fs)
 %   the .bin write use). Returns 0x2 on any failure or when nothing is flagged.
 iv = zeros(0, 2); %#ok<PREALL>  default when detection fails or flags nothing
 try
-    cfg = IntanDataset.normalizeArtifactConfig(d.ArtifactConfig);
+    cfg = EphysDataset.normalizeArtifactConfig(d.ArtifactConfig);
     [~, iv] = d.detectArtifacts(double(X), Method=cfg.Method, ...
         Threshold=cfg.Threshold, RmsWindowMs=cfg.RmsWindowMs, ...
         MinChannels=cfg.MinChannels, MergeGapMs=cfg.MergeGapMs, ...

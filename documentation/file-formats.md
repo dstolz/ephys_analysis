@@ -14,9 +14,9 @@ its schema. MATLAB `jsonencode` writes `NaN` as `null`.
 └─ <Name><Suffix>.mat                   GUI Convert tab output when its Output folder is blank
 
 <outputFolder>/                         = Folder, or OutputDir, or <OutputRoot>/<Name>
-├─ <Name>.bin                           IntanDataset.toBin (legacy engine only)
+├─ <Name>.bin                           EphysDataset.toBin (legacy engine only)
 ├─ <Name>.json                          .bin sidecar
-├─ <Name>_extract.mat                   IntanDataset.toMat default target
+├─ <Name>_extract.mat                   EphysDataset.toMat default target
 └─ kilosort4/                           kilosortDir()
    ├─ si_config.json                    SpikeInterface engine config
    ├─ run_si_ks4.py                     copy of the driver used for this run
@@ -38,7 +38,7 @@ written **into the raw recording folder**.
 
 ## Dataset manifest
 
-Path: `<Folder>/<Name>_manifest.json`. Written by `IntanDataset.writeManifest`;
+Path: `<Folder>/<Name>_manifest.json`. Written by `EphysDataset.writeManifest`;
 the GUI writes it on scan, probe assignment, exclusion change, and each batch
 run/completion.
 
@@ -117,7 +117,7 @@ the shape `kilosort.io.load_probe` accepts:
 ## `.bin` JSON sidecar
 
 Path: `<outputFolder>/<Name>.json`, next to the `.bin`. Written by
-`IntanDataset.toBin` (`WriteMeta=true`). Kilosort4 does not read it.
+`EphysDataset.toBin` (`WriteMeta=true`). Kilosort4 does not read it.
 `runKilosort` reads `n_chan_bin` / `fs` from it, and `DatasetTracker` reads
 `n_chan_bin`, `fs`, `n_samples` and `source_folder`.
 
@@ -138,7 +138,7 @@ writes its own sidecar. See that function's help for its fields.
 ## `si_config.json`
 
 Path: `<kilosort4>/si_config.json`. Written by
-`IntanDataset.runSpikeInterface` and consumed by `run_si_ks4.py`.
+`EphysDataset.runSpikeInterface` and consumed by `run_si_ks4.py`.
 
 Schema (placeholders in `<...>`; all paths use forward slashes):
 
@@ -210,7 +210,7 @@ needed.
 
 ---
 
-## Derived-signal `.mat` (`IntanDataset.toMat`)
+## Derived-signal `.mat` (`EphysDataset.toMat`)
 
 The file holds these variables:
 
@@ -234,7 +234,7 @@ Written by **Kilosort tab → Save config...** (default folder
 | Field | Meaning |
 | --- | --- |
 | `PythonExe`, `CondaEnv`, `OutputRoot` | connection paths |
-| `SIConfig` | SpikeInterface preprocessing (see [IntanDataset](IntanDataset.md#default-spikeinterface-configuration)) |
+| `SIConfig` | SpikeInterface preprocessing (see [EphysDataset](EphysDataset.md#default-spikeinterface-configuration)) |
 | `Params` | every Kilosort4 control **as typed**. Text kinds stay strings, e.g. `"tmax": "Infinity"`, `"dmin": ""` |
 | `ExtraSettings` | the free-form JSON text block, as a string |
 

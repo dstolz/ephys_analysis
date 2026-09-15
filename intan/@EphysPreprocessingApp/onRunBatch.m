@@ -1,6 +1,6 @@
 function onRunBatch(obj, mode)
 %onRunBatch  Batch SpikeInterface -> Kilosort4 over the selected datasets.
-%   For each selected dataset, IntanDataset.runSpikeInterface reads the recording
+%   For each selected dataset, EphysDataset.runSpikeInterface reads the recording
 %   with SpikeInterface, attaches the probe, applies the SIConfig preprocessing
 %   chain (bad-channel detection, artifact silencing, optional CMR/filter), and
 %   runs Kilosort4 through run_sorter. There is no separate .bin step: the

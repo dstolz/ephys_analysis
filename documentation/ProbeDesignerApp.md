@@ -17,17 +17,17 @@ consumes only that JSON.
 
 The designer is normally opened from the GUI: **Probe tab → "Design probe from
 probeinterface (library / generate)..."**
-([`IntanKilosortApp.onDesignProbe`](../intan/@IntanKilosortApp/onDesignProbe.m)).
+([`EphysPreprocessingApp.onDesignProbe`](../intan/@EphysPreprocessingApp/onDesignProbe.m)).
 Programmatically:
 
 ```matlab
-app = IntanKilosortApp;
+app = EphysPreprocessingApp;
 ProbeDesignerApp(app)          % or ProbeDesignerApp(app, nChanHint)
 ```
 
 | Argument | Meaning |
 | --- | --- |
-| `app` | the parent `IntanKilosortApp`. The designer uses its `runProbeTool` (Python/conda from the Kilosort tab), `ProbeFolderField` / `defaultProbeFolder()` (save location) and `refreshProbeList()` (called after saving) |
+| `app` | the parent `EphysPreprocessingApp`. The designer uses its `runProbeTool` (Python/conda from the Kilosort tab), `ProbeFolderField` / `defaultProbeFolder()` (save location) and `refreshProbeList()` (called after saving) |
 | `nChanHint` | optional. The selected dataset's channel count. It is used only to append a note to the status line when the contact count differs; it does not block anything |
 
 ## Workflow

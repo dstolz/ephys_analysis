@@ -29,7 +29,7 @@ end
 
 nProbe = localProbeCount(pf);
 mismatch = 0;
-ch = IntanDataset.parseChannelList(obj.ExcludeChannelsField.Value);
+ch = EphysDataset.parseChannelList(obj.ExcludeChannelsField.Value);
 nTrim = 0;
 for k = 1:numel(targets)
     targets(k).ProbeFile = pf;

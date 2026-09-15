@@ -16,10 +16,10 @@ function X = filterContinuous(obj, X, opts)
 %
 %   Requires the Signal Processing Toolbox (BUTTER, FILTFILT).
 %
-%   See also BUTTER, FILTFILT, IntanDataset.toBin.
+%   See also BUTTER, FILTFILT, EphysDataset.toBin.
 
 arguments
-    obj (1,1) IntanDataset
+    obj (1,1) EphysDataset
     X double
     opts.Type (1,1) string {mustBeMember(opts.Type, ["highpass","lowpass","bandpass"])} = "highpass"
     opts.Cutoff (1,:) double {mustBePositive} = 300
@@ -32,7 +32,7 @@ if isnan(Fs)
     Fs = obj.Fs;
 end
 if isnan(Fs) || Fs <= 0
-    error('IntanDataset:filterContinuous:NoFs', ...
+    error('EphysDataset:filterContinuous:NoFs', ...
         'Sample rate unknown; pass opts.Fs or run refreshMetadata first.');
 end
 
@@ -41,37 +41,37 @@ nyq = Fs / 2;
 switch opts.Type
     case "highpass"
         if ~isscalar(opts.Cutoff)
-            error('IntanDataset:filterContinuous:BadCutoff', ...
+            error('EphysDataset:filterContinuous:BadCutoff', ...
                 'highpass requires a scalar Cutoff.');
         end
         if opts.Cutoff >= nyq
-            error('IntanDataset:filterContinuous:CutoffAboveNyquist', ...
+            error('EphysDataset:filterContinuous:CutoffAboveNyquist', ...
                 'Cutoff (%g Hz) must be below Nyquist (%g Hz).', opts.Cutoff, nyq);
         end
         [b, a] = butter(opts.Order, opts.Cutoff / nyq, 'high');
 
     case "lowpass"
         if ~isscalar(opts.Cutoff)
-            error('IntanDataset:filterContinuous:BadCutoff', ...
+            error('EphysDataset:filterContinuous:BadCutoff', ...
                 'lowpass requires a scalar Cutoff.');
         end
         if opts.Cutoff >= nyq
-            error('IntanDataset:filterContinuous:CutoffAboveNyquist', ...
+            error('EphysDataset:filterContinuous:CutoffAboveNyquist', ...
                 'Cutoff (%g Hz) must be below Nyquist (%g Hz).', opts.Cutoff, nyq);
         end
         [b, a] = butter(opts.Order, opts.Cutoff / nyq, 'low');
 
     case "bandpass"
         if numel(opts.Cutoff) ~= 2
-            error('IntanDataset:filterContinuous:BadCutoff', ...
+            error('EphysDataset:filterContinuous:BadCutoff', ...
                 'bandpass requires Cutoff = [low high].');
         end
         if opts.Cutoff(1) >= opts.Cutoff(2)
-            error('IntanDataset:filterContinuous:BadBand', ...
+            error('EphysDataset:filterContinuous:BadBand', ...
                 'bandpass Cutoff must be [low high] with low < high.');
         end
         if opts.Cutoff(2) >= nyq
-            error('IntanDataset:filterContinuous:CutoffAboveNyquist', ...
+            error('EphysDataset:filterContinuous:CutoffAboveNyquist', ...
                 'Upper cutoff (%g Hz) must be below Nyquist (%g Hz).', opts.Cutoff(2), nyq);
         end
         [b, a] = butter(opts.Order, opts.Cutoff / nyq, 'bandpass');

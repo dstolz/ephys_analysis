@@ -39,11 +39,11 @@ function L = splitLayout(obj)
 %     adcFile      analogin.dat path (one-file-per-signal) or ""
 %     auxFile      auxiliary.dat path (one-file-per-signal) or ""
 %
-%   See also IntanDataset.detectFormat, IntanDataset.readSplitWindow,
-%   IntanDataset.readSplitAll, IntanDataset.parseIntanHeader.
+%   See also EphysDataset.detectFormat, EphysDataset.readSplitWindow,
+%   EphysDataset.readSplitAll, EphysDataset.parseIntanHeader.
 
 arguments
-    obj (1,1) IntanDataset
+    obj (1,1) EphysDataset
 end
 
 if ~isempty(obj.pSplitLayout)
@@ -53,17 +53,17 @@ end
 
 fmt = obj.RecordingFormat;
 if fmt ~= "one-file-per-signal" && fmt ~= "one-file-per-channel"
-    error('IntanDataset:splitLayout:NotSplit', ...
+    error('EphysDataset:splitLayout:NotSplit', ...
         'splitLayout only applies to split formats (got "%s").', fmt);
 end
 
 folder  = char(obj.Folder);
 hdrFile = fullfile(folder, 'info.rhd');
 if ~isfile(hdrFile)
-    error('IntanDataset:splitLayout:NoHeader', ...
+    error('EphysDataset:splitLayout:NoHeader', ...
         'No info.rhd header found in %s', folder);
 end
-hdr = IntanDataset.parseIntanHeader(hdrFile);
+hdr = EphysDataset.parseIntanHeader(hdrFile);
 
 L = struct();
 L.format      = fmt;
@@ -93,11 +93,11 @@ switch fmt
     case "one-file-per-signal"
         L.ampFile = string(fullfile(folder, 'amplifier.dat'));
         if ~isfile(L.ampFile)
-            error('IntanDataset:splitLayout:NoAmplifier', ...
+            error('EphysDataset:splitLayout:NoAmplifier', ...
                 'Missing amplifier.dat in %s', folder);
         end
         if L.nChan <= 0
-            error('IntanDataset:splitLayout:NoChannels', ...
+            error('EphysDataset:splitLayout:NoChannels', ...
                 'info.rhd in %s reports no amplifier channels.', folder);
         end
         d = dir(char(L.ampFile));
@@ -109,7 +109,7 @@ switch fmt
 
     case "one-file-per-channel"
         if L.nChan <= 0
-            error('IntanDataset:splitLayout:NoChannels', ...
+            error('EphysDataset:splitLayout:NoChannels', ...
                 'info.rhd in %s reports no amplifier channels.', folder);
         end
         files = strings(1, L.nChan);
@@ -117,7 +117,7 @@ switch fmt
             files(k) = string(fullfile(folder, "amp-" + L.ampNative(k) + ".dat"));
         end
         if ~isfile(files(1))
-            error('IntanDataset:splitLayout:NoAmplifier', ...
+            error('EphysDataset:splitLayout:NoAmplifier', ...
                 'Missing per-channel amplifier file %s', files(1));
         end
         L.ampFiles = files;

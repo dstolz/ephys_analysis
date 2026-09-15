@@ -14,7 +14,7 @@ end
 % Compare against the currently selected dataset.
 d = obj.currentDataset();
 exclude = double.empty(1,0);
-if ~isempty(d); exclude = IntanDataset.parseChannelList(d.ExcludeChannels); end
+if ~isempty(d); exclude = EphysDataset.parseChannelList(d.ExcludeChannels); end
 
 showNumbers = ~isempty(obj.ShowChanNumbersCheckBox) ...
     && isvalid(obj.ShowChanNumbersCheckBox) ...

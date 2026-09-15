@@ -58,7 +58,7 @@ for i = 1:n
     if isempty(d.ExcludeChannels)
         Exclude(i) = "-";
     else
-        Exclude(i) = IntanDataset.formatChannelList(d.ExcludeChannels);
+        Exclude(i) = EphysDataset.formatChannelList(d.ExcludeChannels);
     end
     % Cheap Kilosort4 status from the canonical results dir (no recursive scan
     % in this hot path; the manifest carries the full inventory). "results" when

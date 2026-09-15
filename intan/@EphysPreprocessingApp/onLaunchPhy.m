@@ -4,8 +4,8 @@ function onLaunchPhy(obj)
 %   the Datasets tab and hands it to launchPhy, which checks for params.py and
 %   launches phy detached so the app stays responsive.
 %
-%   See also IntanKilosortApp.launchPhy, IntanKilosortApp.onRunBatch,
-%   IntanDataset.runKilosort.
+%   See also EphysPreprocessingApp.launchPhy, EphysPreprocessingApp.onRunBatch,
+%   EphysDataset.runKilosort.
 
 d = obj.currentDataset();
 if isempty(d)

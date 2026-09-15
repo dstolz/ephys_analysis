@@ -1,6 +1,6 @@
-# IntanKilosortApp
+# EphysPreprocessingApp
 
-`IntanKilosortApp` ([source](../intan/@IntanKilosortApp/IntanKilosortApp.m)) is
+`EphysPreprocessingApp` ([source](../intan/@EphysPreprocessingApp/EphysPreprocessingApp.m)) is
 a programmatic `uifigure` GUI (a `handle` class, not an App Designer `.mlapp`).
 It is used to:
 
@@ -12,8 +12,8 @@ It is used to:
 - review the sorted units;
 - export LFP / MUA / spike-band `.mat` files.
 
-It is a front end over [`IntanKilosortProject`](IntanKilosortProject.md) and
-[`IntanDataset`](IntanDataset.md). Reading, filtering, sorting and conversion all
+It is a front end over [`EphysProject`](EphysProject.md) and
+[`EphysDataset`](EphysDataset.md). Reading, filtering, sorting and conversion all
 happen in those classes; the app orchestrates them and shows progress.
 
 Installation (MATLAB, conda environments, GPU) is covered in
@@ -22,8 +22,8 @@ Installation (MATLAB, conda environments, GPU) is covered in
 ## Launching
 
 ```matlab
-IntanKilosortApp            % open the window
-app = IntanKilosortApp;     % open and keep a handle (app.Project, app.Fig, ...)
+EphysPreprocessingApp            % open the window
+app = EphysPreprocessingApp;     % open and keep a handle (app.Project, app.Fig, ...)
 ```
 
 The constructor builds the UI, restores saved preferences (see
@@ -89,7 +89,7 @@ Controls:
 
 **Scan** does the following:
 
-1. Builds `IntanKilosortProject(root)`. This recursively finds every folder that
+1. Builds `EphysProject(root)`. This recursively finds every folder that
    directly contains a `*.rhd` (split recordings are found via their
    `info.rhd`).
 2. Pushes the Kilosort-tab Python / conda / output root / SpikeInterface
@@ -97,7 +97,7 @@ Controls:
 3. Parses headers for each dataset, with a progress dialog. **Cancel** stops
    header parsing; datasets not yet parsed keep `NaN` metadata. A dataset whose
    headers fail to parse stays in the table, and a warning
-   (`IntanKilosortApp:MetaFailed`) is printed to the MATLAB command window.
+   (`EphysPreprocessingApp:MetaFailed`) is printed to the MATLAB command window.
 4. For every dataset, calls `applyManifest()` (restores the saved probe and
    channel exclusions from `<Folder>/<Name>_manifest.json`) and then
    `writeManifest()`.
@@ -111,7 +111,7 @@ Table columns:
 | Column | Source |
 | --- | --- |
 | Select | tick to include in batch actions (ticks are kept across refreshes, matched by name) |
-| Name, Acq date, # files, # chan, Fs (Hz), Duration (min), Format | `IntanDataset` metadata |
+| Name, Acq date, # files, # chan, Fs (Hz), Duration (min), Format | `EphysDataset` metadata |
 | Probe | probe file name, or `-` |
 | Exclude | `ExcludeChannels` as `1,3,5-8`, or `-` |
 | Kilosort | `results` (results folder has `spike_clusters.npy`), `ready` (only `params.py`), or `-` |
@@ -145,7 +145,7 @@ Probe maps are Kilosort4 probe `.json` files
   applies the list to the **last-clicked** dataset. Entries above that dataset's
   channel count are dropped, and the status line reports how many. The list is
   written to the dataset manifest. How exclusions reach Kilosort4 is described in
-  [IntanDataset → Channel exclusions](IntanDataset.md#channel-exclusions).
+  [EphysDataset → Channel exclusions](EphysDataset.md#channel-exclusions).
 - **Assign to selected dataset** sets `ProbeFile` on the last-clicked dataset.
 - **Assign to all datasets** sets `ProbeFile` on every dataset **and** applies
   the Exclude-channels field to every dataset (trimmed per dataset).
@@ -156,7 +156,7 @@ mismatches in the status line.
 ## Artifacts
 
 This tab configures the automatic artifact detector
-([`IntanDataset.detectArtifacts`](IntanDataset.md#artifact-detection-and-blanking))
+([`EphysDataset.detectArtifacts`](EphysDataset.md#artifact-detection-and-blanking))
 and previews it.
 
 | Control | Maps to | GUI default |
@@ -266,8 +266,8 @@ Connection fields:
 | Output root | optional. Each dataset writes to `<root>/<Name>`; blank = the dataset folder |
 | Phy command | blank = `conda run -n phy phy` |
 
-Preprocessing (SpikeInterface) maps to `IntanDataset.SIConfig`
-([defaults](IntanDataset.md#default-spikeinterface-configuration)):
+Preprocessing (SpikeInterface) maps to `EphysDataset.SIConfig`
+([defaults](EphysDataset.md#default-spikeinterface-configuration)):
 
 | Control | GUI default |
 | --- | --- |
@@ -279,11 +279,11 @@ Preprocessing (SpikeInterface) maps to `IntanDataset.SIConfig`
 | Bandpass filter in SpikeInterface, Filter min/max | off, 300 / 6000 Hz |
 
 Note that the GUI's *Silence artifacts* default (on) differs from
-`IntanDataset.defaultArtifactConfig().Enabled` (off). Saved preferences override
+`EphysDataset.defaultArtifactConfig().Enabled` (off). Saved preferences override
 both.
 
 **Kilosort4 parameters** are generated from
-[`kilosortParamSpec`](../intan/@IntanKilosortApp/kilosortParamSpec.m) in five
+[`kilosortParamSpec`](../intan/@EphysPreprocessingApp/kilosortParamSpec.m) in five
 groups: Data, Preprocessing, Drift correction, Spike detection, and Clustering &
 postproc. The spec defaults include `nblocks` 0 (no drift correction),
 `Th_universal` 7, `Th_learned` 8, `batch_size` 120000 and `highpass_cutoff`
@@ -316,13 +316,13 @@ is `intan/ks4_configs`.
   1. Saves preferences and pushes paths, SpikeInterface settings and artifact
      settings to every dataset.
   2. Validates the Kilosort4 parameters.
-  3. Calls `IntanDataset.runSpikeInterface` for each selected dataset.
+  3. Calls `EphysDataset.runSpikeInterface` for each selected dataset.
 
   The GUI **always** uses the SpikeInterface engine and writes no `.bin`. Errors
   are logged per dataset and the batch continues. Each dataset's manifest is
   rewritten after its launch.
 
-**Background runs** are handed to a MATLAB `timer` (`IntanKilosortAppMonitor`,
+**Background runs** are handed to a MATLAB `timer` (`EphysPreprocessingAppMonitor`,
 every 3 s). On each tick it:
 
 - appends new whole lines of each run's `ks4_run.log` to the log box (lines
@@ -395,7 +395,7 @@ to choose the results folder.
 
 ## Convert
 
-This tab exports derived signals with `IntanDataset.toMat`: the
+This tab exports derived signals with `EphysDataset.toMat`: the
 [`intan2matlab` processing](intan2matlab.md), for any recording layout, one
 `.mat` per dataset. It is independent of the Kilosort path.
 
@@ -462,7 +462,7 @@ the table above.
 ## Preferences
 
 Preferences are stored with `setpref` / `getpref` under the group
-`'IntanKilosortApp'`. They are saved on close and after most changes.
+`'EphysPreprocessingApp'`. They are saved on close and after most changes.
 
 | Key(s) | Contents |
 | --- | --- |
@@ -474,7 +474,7 @@ Preferences are stored with `setpref` / `getpref` under the group
 | `KilosortConfig` | the Kilosort tab snapshot (`gatherKilosortConfig`) |
 | `ConvertConfig` | the Convert tab snapshot (`gatherConvertConfig`) |
 
-To reset everything: `rmpref('IntanKilosortApp')` (with the app closed).
+To reset everything: `rmpref('EphysPreprocessingApp')` (with the app closed).
 
 ## What the app writes to disk
 
@@ -493,10 +493,10 @@ Raw `*.rhd` / `*.dat` files are only read.
 The handle exposes the live objects, for example:
 
 ```matlab
-app = IntanKilosortApp;
+app = EphysPreprocessingApp;
 % ... scan in the GUI ...
-P  = app.Project;                 % IntanKilosortProject
-ds = P.Datasets(1);               % IntanDataset (probe, exclusions, manual artifacts)
+P  = app.Project;                 % EphysProject
+ds = P.Datasets(1);               % EphysDataset (probe, exclusions, manual artifacts)
 ds.ManualArtifacts                % periods marked on the Visualize tab
 app.KSRuns                        % background runs being monitored
 ```
@@ -505,7 +505,7 @@ app.KSRuns                        % background runs being monitored
 
 | File | Role |
 | --- | --- |
-| `IntanKilosortApp.m` | properties, constructor, small inline handlers, status bar, background monitor, dataset menu, Convert/Artifacts/Probe helpers |
+| `EphysPreprocessingApp.m` | properties, constructor, small inline handlers, status bar, background monitor, dataset menu, Convert/Artifacts/Probe helpers |
 | `buildUI.m`, `build*Tab.m` | UI construction |
 | `onScan.m`, `refreshDatasetsTable.m`, `onDatasetCellSelection.m`, `onRefreshMetadata.m` | Datasets tab |
 | `refreshProbeList.m`, `onProbeSelected.m`, `onImportProbe.m`, `onDesignProbe.m`, `runProbeTool.m`, `onAssignProbe.m`, `onApplyExclude.m`, `probe_tool.py` | Probe tab |

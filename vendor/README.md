@@ -13,8 +13,8 @@ fix.
 
 | File here | Origin in `helper_fnc` | Used by |
 | --- | --- | --- |
-| [`plotting/@MultiChannelViewer`](plotting/@MultiChannelViewer) | `plotting/@MultiChannelViewer` | `IntanKilosortApp`'s Visualize tab (`onPlotVisualization.m`) |
+| [`plotting/@MultiChannelViewer`](plotting/@MultiChannelViewer) | `plotting/@MultiChannelViewer` | `EphysPreprocessingApp`'s Visualize tab (`onPlotVisualization.m`) |
 | [`gui/KeyMap.m`](gui/KeyMap.m) | `gui/KeyMap.m` | `MultiChannelViewer` (keyboard shortcuts) |
-| [`tools/Manifest.m`](tools/Manifest.m) | `tools/Manifest.m` | `IntanDataset.Manifest` (optional provenance log) |
+| [`tools/Manifest.m`](tools/Manifest.m) | `tools/Manifest.m` | `EphysDataset.Manifest` (optional provenance log) |
 | [`compute/parfor_progress.m`](compute/parfor_progress.m) | `compute/parfor_progress.m` | `intan2matlab` console progress bar |
 | [`function_helpers/ternary.m`](function_helpers/ternary.m) | `function_helpers/ternary.m` | `DatasetTracker` |

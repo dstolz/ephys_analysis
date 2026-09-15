@@ -17,10 +17,10 @@ function info = matrixToBin(obj, X, opts)
 %     ChannelsAreRows logical      true if X is [nChan x nSamples] (default false)
 %     WriteMeta      logical       default true
 %
-%   See also MATRIX2KILOSORT, IntanDataset.toBin, IntanDataset.readData.
+%   See also MATRIX2KILOSORT, EphysDataset.toBin, EphysDataset.readData.
 
 arguments
-    obj (1,1) IntanDataset
+    obj (1,1) EphysDataset
     X {mustBeReal, mustBeNonempty}
     opts.BinFile (1,1) string = ""
     opts.Scale (1,1) double = NaN

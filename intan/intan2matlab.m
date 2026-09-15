@@ -4,11 +4,11 @@ function [Y, events, info] = intan2matlab(RHDroot, options)
 %   folder RHDroot, concatenates it in time, extracts digital line events,
 %   and returns the requested continuous signals and metadata.
 %
-%   This function is a thin wrapper around IntanDataset:
-%       ds = IntanDataset(RHDroot);
+%   This function is a thin wrapper around EphysDataset:
+%       ds = EphysDataset(RHDroot);
 %       [Y, EVENTS, INFO] = ds.deriveSignals(options...);
 %   so reading, processing and file discovery are shared with the rest of the
-%   Intan pipeline, and every layout IntanDataset reads is supported:
+%   Intan pipeline, and every layout EphysDataset reads is supported:
 %   traditional *.rhd files (sorted chronologically by file timestamp),
 %   one-file-per-signal and one-file-per-channel.
 %
@@ -153,12 +153,12 @@ function [Y, events, info] = intan2matlab(RHDroot, options)
 %   Notes
 %   -----
 %   • Traditional *.rhd data are read with READ_INTAN_RHD2000_FILE_MODIFIED;
-%     split layouts with IntanDataset's .dat readers (see IntanDataset.readData).
+%     split layouts with EphysDataset's .dat readers (see EphysDataset.readData).
 %   • Digital events are identified by labeling contiguous high segments of
 %     the concatenated digital input samples; event times are returned in
 %     seconds at origFs.
 %   • Output signals are stored as SINGLE to reduce memory footprint.
-%   • Errors are raised with IntanDataset:deriveSignals:* identifiers.
+%   • Errors are raised with EphysDataset:deriveSignals:* identifiers.
 %
 %   Requirements
 %   ------------
@@ -166,7 +166,7 @@ function [Y, events, info] = intan2matlab(RHDroot, options)
 %   Processing Toolbox) is used for events when available, with an equivalent
 %   fallback otherwise.
 %
-%   See also INTANDATASET, IntanDataset.deriveSignals, IntanDataset.toMat,
+%   See also EPHYSDATASET, EphysDataset.deriveSignals, EphysDataset.toMat,
 %   READ_INTAN_RHD2000_FILE_MODIFIED, RESAMPLE, BUTTER, FILTFILT, FILLMISSING
 
 arguments
@@ -188,7 +188,7 @@ arguments
     options.ProgressFcn = []
 end
 
-ds = IntanDataset(RHDroot);
+ds = EphysDataset(RHDroot);
 if ds.NumFiles == 0
     error('INTAN2MATLAB:NoFiles', 'No Intan recording files found in %s', RHDroot);
 end

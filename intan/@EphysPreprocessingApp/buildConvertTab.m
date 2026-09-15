@@ -1,14 +1,14 @@
 function buildConvertTab(obj)
 %buildConvertTab  Derived-signal conversions (LFP / MUA / SPIKE -> .mat).
-%   The left panel exposes every IntanDataset.deriveSignals option (the
+%   The left panel exposes every EphysDataset.deriveSignals option (the
 %   intan2matlab options) plus where and how the results are saved; the right
 %   panel lists the datasets a run would convert (those ticked on the Datasets
 %   tab, or all when none are ticked) with their output file and status, and
 %   shows run progress (overall + per-step bars, current step, log). The
-%   conversion itself is onRunConvert -> IntanDataset.toMat; the recording
+%   conversion itself is onRunConvert -> EphysDataset.toMat; the recording
 %   files are only read, never modified.
 %
-%   See also IntanDataset.toMat, IntanDataset.deriveSignals, onRunConvert,
+%   See also EphysDataset.toMat, EphysDataset.deriveSignals, onRunConvert,
 %   gatherConvertConfig, applyConvertConfig.
 
 g = uigridlayout(obj.TabConvert, [1 2]);
@@ -16,7 +16,7 @@ g.ColumnWidth = {560, '1x'};
 g.Padding     = [10 10 10 10];
 
 % =================== left: signal options ===================
-opt = uipanel(g, "Title", "Signal options (IntanDataset.deriveSignals / intan2matlab)");
+opt = uipanel(g, "Title", "Signal options (EphysDataset.deriveSignals / intan2matlab)");
 opt.Layout.Column = 1;
 
 nRows = 26;
@@ -265,7 +265,7 @@ rg.ColumnWidth = {'fit', '1x', 110};
 
 hint = uilabel(rg, "WordWrap", "on", "FontColor", [0.4 0.4 0.4], "Text", ...
     ["Converts the datasets ticked on the Datasets tab (none ticked = all). " ...
-     "Each dataset reads its own recording through IntanDataset, so " ...
+     "Each dataset reads its own recording through EphysDataset, so " ...
      "traditional *.rhd, one-file-per-signal and one-file-per-channel " ...
      "folders are all supported."]);
 hint.Layout.Row = 1; hint.Layout.Column = [1 3];

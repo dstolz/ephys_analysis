@@ -1,28 +1,28 @@
-classdef IntanKilosortProject < handle
-    % IntanKilosortProject  Discover and batch many Intan recordings to Kilosort4.
+classdef EphysProject < handle
+    % EphysProject  Discover and batch many Intan recordings to Kilosort4.
     %   A project scans a root directory for folders containing *.rhd files,
-    %   wraps each as an IntanDataset, and provides batch operations: gather
+    %   wraps each as an EphysDataset, and provides batch operations: gather
     %   metadata into a table, write all .bin files, and launch Kilosort4 for
     %   every dataset. Shared configuration (probe, python/conda, output root,
-    %   scale, dtype) is pushed down into each IntanDataset.
+    %   scale, dtype) is pushed down into each EphysDataset.
     %
     %   Construction
     %   ------------
-    %     P = IntanKilosortProject(root)
-    %     P = IntanKilosortProject(root, ProbeFile=..., PythonExe=..., OutputRoot=...)
+    %     P = EphysProject(root)
+    %     P = EphysProject(root, ProbeFile=..., PythonExe=..., OutputRoot=...)
     %
     %   Workflow
     %   --------
-    %     P = IntanKilosortProject("D:\experiments");
+    %     P = EphysProject("D:\experiments");
     %     T = P.gatherMetadata();        % one row per dataset
     %     P.toBinAll();                  % stream every dataset's .bin
     %     P.runKilosortAll();            % spawn Kilosort4 for each
     %
-    %   See also INTANDATASET.
+    %   See also EPHYSDATASET.
 
     properties
         Root (1,1) string = ""
-        Datasets (1,:) IntanDataset = IntanDataset.empty(1,0)
+        Datasets (1,:) EphysDataset = EphysDataset.empty(1,0)
 
         % Shared defaults pushed into each dataset
         ProbeFile  (1,1) string = ""
@@ -44,7 +44,7 @@ classdef IntanKilosortProject < handle
         infos   = toBinAll(obj, opts)
         results = runKilosortAll(obj, opts)
 
-        function obj = IntanKilosortProject(root, opts)
+        function obj = EphysProject(root, opts)
             arguments
                 root (1,1) string = ""
                 opts.ProbeFile  (1,1) string = ""
@@ -61,7 +61,7 @@ classdef IntanKilosortProject < handle
                 return
             end
             if ~isfolder(root)
-                error('IntanKilosortProject:NoRoot', 'Root does not exist: %s', root);
+                error('EphysProject:NoRoot', 'Root does not exist: %s', root);
             end
 
             obj.Root       = string(root);
@@ -82,21 +82,21 @@ classdef IntanKilosortProject < handle
 
         function discover(obj)
             %discover  Find every folder under Root containing >=1 *.rhd file.
-            %   One IntanDataset is created per folder with AutoMetadata=false
+            %   One EphysDataset is created per folder with AutoMetadata=false
             %   (cheap); shared config is pushed into each. Folder discovery is
             %   delegated to DatasetTracker.findRecordingFolders so the project
             %   and DatasetTracker agree on what counts as a recording.
             folders = DatasetTracker.findRecordingFolders(obj.Root, true);
             if isempty(folders)
-                obj.Datasets = IntanDataset.empty(1,0);
-                warning('IntanKilosortProject:NoData', ...
+                obj.Datasets = EphysDataset.empty(1,0);
+                warning('EphysProject:NoData', ...
                     'No *.rhd files found under %s', obj.Root);
                 return
             end
 
-            ds = IntanDataset.empty(1, 0);
+            ds = EphysDataset.empty(1, 0);
             for i = 1:numel(folders)
-                d = IntanDataset(folders(i), AutoMetadata=false);
+                d = EphysDataset(folders(i), AutoMetadata=false);
                 obj.pushConfig(d);
                 ds(end+1) = d; %#ok<AGROW>
             end
@@ -106,10 +106,10 @@ classdef IntanKilosortProject < handle
         end
 
         function pushConfig(obj, d)
-            %pushConfig  Copy shared defaults into one IntanDataset.
+            %pushConfig  Copy shared defaults into one EphysDataset.
             arguments
-                obj (1,1) IntanKilosortProject
-                d (1,1) IntanDataset
+                obj (1,1) EphysProject
+                d (1,1) EphysDataset
             end
             d.ProbeFile = obj.ProbeFile;
             d.PythonExe = obj.PythonExe;
@@ -127,7 +127,7 @@ classdef IntanKilosortProject < handle
         function d = dataset(obj, idxOrName)
             %dataset  Return one dataset by index or by Name.
             arguments
-                obj (1,1) IntanKilosortProject
+                obj (1,1) EphysProject
                 idxOrName
             end
             if isnumeric(idxOrName)
@@ -136,7 +136,7 @@ classdef IntanKilosortProject < handle
                 names = [obj.Datasets.Name];
                 ix = find(names == string(idxOrName), 1);
                 if isempty(ix)
-                    error('IntanKilosortProject:NoSuchDataset', ...
+                    error('EphysProject:NoSuchDataset', ...
                         'No dataset named "%s".', string(idxOrName));
                 end
                 d = obj.Datasets(ix);
@@ -145,11 +145,11 @@ classdef IntanKilosortProject < handle
 
         function dt = tracker(obj, idxOrName)
             %tracker  DatasetTracker inventory for one dataset (by index or Name).
-            %   Convenience wrapper over IntanDataset.tracker so GUIs/scripts can
+            %   Convenience wrapper over EphysDataset.tracker so GUIs/scripts can
             %   ask the project for a dataset's *.bin / probe / kilosort4
-            %   inventory in one call. See also IntanDataset.tracker, DATASETTRACKER.
+            %   inventory in one call. See also EphysDataset.tracker, DATASETTRACKER.
             arguments
-                obj (1,1) IntanKilosortProject
+                obj (1,1) EphysProject
                 idxOrName
             end
             dt = obj.dataset(idxOrName).tracker();

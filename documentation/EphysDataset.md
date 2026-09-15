@@ -1,11 +1,11 @@
-# IntanDataset
+# EphysDataset
 
-`IntanDataset` ([source](../intan/@IntanDataset/IntanDataset.m)) is a `handle`
+`EphysDataset` ([source](../intan/@EphysDataset/EphysDataset.m)) is a `handle`
 class that represents **one recording**: one folder of Intan data recorded
 contiguously. It is the core of the Intan pipeline. The project, tracker and GUI
 classes all act on recordings through it.
 
-An `IntanDataset` can:
+An `EphysDataset` can:
 
 - detect which Intan file layout the folder uses and inventory its files;
 - parse header metadata cheaply (no amplifier data read);
@@ -28,7 +28,7 @@ new file: `.bin`, JSON sidecar, manifest, Kilosort4 run folder, or `.mat`.
 
 ## Supported recording layouts
 
-`IntanDataset.detectFormat(folder)` classifies a folder by checking for these
+`EphysDataset.detectFormat(folder)` classifies a folder by checking for these
 files, **in this order**. The first match wins.
 
 | `RecordingFormat` | Detected when the folder contains | Amplifier data on disk |
@@ -66,10 +66,10 @@ Otherwise there are no events. Board ADC and aux are **not** read for that layou
 ## Construction
 
 ```matlab
-ds = IntanDataset(folder)                        % discover files + parse headers
-ds = IntanDataset(folder, AutoMetadata=false)    % discover files only (cheap)
-ds = IntanDataset(folder, ProbeFile=..., PythonExe=..., OutputDir=...)
-ds = IntanDataset()                              % empty object (arrays/preallocation)
+ds = EphysDataset(folder)                        % discover files + parse headers
+ds = EphysDataset(folder, AutoMetadata=false)    % discover files only (cheap)
+ds = EphysDataset(folder, ProbeFile=..., PythonExe=..., OutputDir=...)
+ds = EphysDataset()                              % empty object (arrays/preallocation)
 ```
 
 | Option | Default | Meaning |
@@ -84,7 +84,7 @@ ds = IntanDataset()                              % empty object (arrays/prealloc
 | `OutputDir` | `""` | output folder; `""` means the recording folder |
 | `Manifest` | `[]` | optional `Manifest` object ([vendor/tools/Manifest.m](../vendor/tools/Manifest.m)) that receives provenance entries |
 
-The constructor errors (`IntanDataset:NoFolder`) if the folder does not exist.
+The constructor errors (`EphysDataset:NoFolder`) if the folder does not exist.
 
 ---
 
@@ -139,7 +139,7 @@ The constructor errors (`IntanDataset:NoFolder`) if the folder does not exist.
 ## Typical use
 
 ```matlab
-ds = IntanDataset("D:\rec\subj1_day1");
+ds = EphysDataset("D:\rec\subj1_day1");
 ds.PerFile                                   % per-file header summary
 
 % --- Kilosort4 via SpikeInterface (what the GUI does) ---
@@ -174,15 +174,15 @@ layout. The constructor calls it, and so does `refreshMetadata`.
   `parseIntanHeader` (header only, no amplifier matrix allocated). Channel names,
   `Fs` and `NumChannels` come from the first file. Two checks apply to later files:
   - A different amplifier channel count raises
-    `IntanDataset:refreshMetadata:ChannelMismatch`, because a flat `.bin`
+    `EphysDataset:refreshMetadata:ChannelMismatch`, because a flat `.bin`
     cannot represent a mid-recording channel change.
   - A truncated trailing data block warns
-    (`IntanDataset:refreshMetadata:PartialBlock`), and only whole blocks are
+    (`EphysDataset:refreshMetadata:PartialBlock`), and only whole blocks are
     counted.
 - **split layouts**: parses `info.rhd` and derives the sample count from the
   `.dat` size (`splitLayout`). `PerFile` gets a single entry named `"info.rhd"`.
 
-With no files it warns (`IntanDataset:refreshMetadata:NoFiles`) and returns.
+With no files it warns (`EphysDataset:refreshMetadata:NoFiles`) and returns.
 
 **`L = splitLayout()`** (split layouts only) returns and caches a struct
 describing the split recording. Fields: `format`, `folder`, `headerFile`, `Fs`,
@@ -228,7 +228,7 @@ line, `[k x 2]` `[t_on t_off]` seconds); `digInNames`; `digInNativeNames`;
 Behavior worth knowing:
 
 - A traditional file with no amplifier data is skipped with a warning
-  (`IntanDataset:readData:NoData`).
+  (`EphysDataset:readData:NoData`).
 - The digital-input line count is fixed by the **first** file. Extra lines in
   later files are ignored (the same policy as the original `intan2matlab`).
 - Events are contiguous high runs of each line, found with `bwlabel` when the
@@ -339,7 +339,7 @@ default it detects on the broadband signal (`Filter=false`).
 
 #### Default artifact configuration
 
-`IntanDataset.defaultArtifactConfig()`:
+`EphysDataset.defaultArtifactConfig()`:
 
 | Field | Default | Meaning |
 | --- | --- | --- |
@@ -361,7 +361,7 @@ override). The file has no header, is little-endian, and has the channel index
 varying fastest. It holds one chunk in memory at a time. Per chunk, in order:
 
 1. read µV (`readChunkUV`);
-2. check the channel count (error `IntanDataset:toBin:ChannelMismatch` if it
+2. check the channel count (error `EphysDataset:toBin:ChannelMismatch` if it
    changes);
 3. reorder/subset (`ChannelOrder`);
 4. filter, if `Filter=true` (default **off**; Kilosort4 filters internally);
@@ -384,7 +384,7 @@ varying fastest. It holds one chunk in memory at a time. Per chunk, in order:
 With the default scale `1/0.195`, µV are converted back to native int16 ADC
 units. For integer dtypes, values outside the class range are **clipped** by the
 cast. Clipping is counted (`info.nClipped`) and reported by a warning
-(`IntanDataset:toBin:Clipping`).
+(`EphysDataset:toBin:Clipping`).
 
 `info` fields: `filename`, `dtype`, `nChan`, `nSamples`, `fs`, `scale`,
 `offset`, `byteOrder`, `nClipped`, `nManualArtifacts`, `nManualBlanked`,
@@ -398,13 +398,13 @@ schema is in [file-formats.md](file-formats.md#bin-json-sidecar).
 `Scale`/`Dtype`/`Fs`. Options: `BinFile`, `Scale`, `Offset`, `Dtype`, `Fs`,
 `ChannelOrder`, `ChannelsAreRows`, `WriteMeta`. The code comments state that,
 for the same data and options, it produces a file byte-identical to `toBin`;
-`test_IntanDataset` section 4 checks this.
+`test_EphysDataset` section 4 checks this.
 
 ### Running Kilosort4
 
 There are two engines. The GUI uses **`runSpikeInterface`**. `runKilosort` is
 the older `.bin`-based path, kept for scripting and batch use
-(`IntanKilosortProject.runKilosortAll`).
+(`EphysProject.runKilosortAll`).
 
 Both launch Python through `system()` (not MATLAB's `pyenv`) as either
 `"<PythonExe>" "<script>" "<config>"` or
@@ -424,7 +424,7 @@ Kilosort4's exit code. Either way the Python script writes `ks4_status.json`
 #### `result = runSpikeInterface(Name=Value)`
 
 This path writes no `.bin`. It writes `si_config.json` and a copy of
-[`run_si_ks4.py`](../intan/@IntanDataset/run_si_ks4.py) into `kilosortDir()`
+[`run_si_ks4.py`](../intan/@EphysDataset/run_si_ks4.py) into `kilosortDir()`
 (`<outputFolder>/kilosort4`) and runs it. The script reads the raw recording with
 SpikeInterface, attaches the probe, applies the `SIConfig` preprocessing plus
 artifact silencing, and runs Kilosort4 via `run_sorter` into `<kilosort4>/si`.
@@ -455,7 +455,7 @@ described step by step in [python-drivers.md](python-drivers.md#run_si_ks4py).
 
 #### Default SpikeInterface configuration
 
-`IntanDataset.defaultSIConfig()` (the fields map to `si_config.json`
+`EphysDataset.defaultSIConfig()` (the fields map to `si_config.json`
 `preprocessing`):
 
 | Field | Default | Meaning |
@@ -474,7 +474,7 @@ described step by step in [python-drivers.md](python-drivers.md#run_si_ks4py).
 
 This requires an existing `.bin` (run `toBin` first) unless `DryRun=true`. It
 writes `settings.json` and a copy of
-[`run_ks4.py`](../intan/@IntanDataset/run_ks4.py) into `ResultsDir` (default
+[`run_ks4.py`](../intan/@EphysDataset/run_ks4.py) into `ResultsDir` (default
 `<outputFolder>/kilosort4`), then calls `kilosort.run_kilosort`. The phy output
 lands directly in that folder.
 
@@ -483,7 +483,7 @@ lands directly in that folder.
 - `data_dtype` in `settings.json` is `ds.Dtype`. If you wrote the `.bin` with a
   `Dtype=` override, pass a matching dataset `Dtype`.
 - The probe channel count is compared with `n_chan_bin`. A mismatch only warns
-  (`IntanDataset:runKilosort:ProbeChannelMismatch`).
+  (`EphysDataset:runKilosort:ProbeChannelMismatch`).
 - Options: `PythonExe`, `CondaEnv`, `ProbeFile`, `ExcludeChannels`, `BinFile`,
   `ResultsDir`, `NChanBin`, `Fs`, `ExtraSettings` (merged into `settings.json`),
   `DryRun`, `Wait`.
@@ -535,7 +535,7 @@ order and outputs are documented in [intan2matlab.md](intan2matlab.md).
 | `File` | `<outputFolder>/<Name>_extract.mat` |
 | `SignalOptions` | `struct()`: `deriveSignals` options |
 | `MatVersion` | `"-v7.3"` (or `"-v7"`) |
-| `Overwrite` | `false`: error `IntanDataset:toMat:Exists` if the file exists |
+| `Overwrite` | `false`: error `EphysDataset:toMat:Exists` if the file exists |
 | `ProgressFcn` | none: `ProgressFcn(nDone, nTotal, message)`, with the save counted as one extra step |
 
 The data is saved to `~<name>.partial.mat` first. The file is renamed to the
@@ -556,7 +556,7 @@ The manifest is a JSON state file at `<Folder>/<Name>_manifest.json`, i.e. in th
 - `manifestStruct()` builds the snapshot: metadata, probe, exclusions, `.bin`
   state, latest Kilosort4 run from `tracker()`, and the SpikeInterface config.
 - `writeManifest()` writes it. Failures only warn
-  (`IntanDataset:writeManifest:Failed`).
+  (`EphysDataset:writeManifest:Failed`).
 - `applyManifest()` restores **only** `ProbeFile` (if the file still exists) and
   `ExcludeChannels`. Header metadata is always re-parsed; `ManualArtifacts`,
   `ArtifactConfig` and `SIConfig` are not stored or restored.
@@ -567,9 +567,9 @@ The manifest is a JSON state file at `<Folder>/<Name>_manifest.json`, i.e. in th
 | --- | --- |
 | `outputFolder()` | `OutputDir`, or `Folder` when `OutputDir` is `""` |
 | `tracker()` | a [`DatasetTracker`](DatasetTracker.md) of `outputFolder()` (an empty tracker if the folder does not exist yet) |
-| `IntanDataset.detectFormat(folder)` | layout string (static) |
-| `IntanDataset.parseChannelList(s)` | sorted, unique, positive integer row vector from `"1,3,5-8"`, `"1 3 5:8"` or a numeric vector. Hyphens become colons and the text goes through `str2num` |
-| `IntanDataset.formatChannelList(ch)` | compact `"1,3,5-8"` string |
+| `EphysDataset.detectFormat(folder)` | layout string (static) |
+| `EphysDataset.parseChannelList(s)` | sorted, unique, positive integer row vector from `"1,3,5-8"`, `"1 3 5:8"` or a numeric vector. Hyphens become colons and the text goes through `str2num` |
+| `EphysDataset.formatChannelList(ch)` | compact `"1,3,5-8"` string |
 
 ---
 
@@ -577,19 +577,19 @@ The manifest is a JSON state file at `<Folder>/<Name>_manifest.json`, i.e. in th
 
 | Identifier | Raised when |
 | --- | --- |
-| `IntanDataset:NoFolder` | constructor folder missing |
-| `IntanDataset:refreshMetadata:ChannelMismatch`, `IntanDataset:toBin:ChannelMismatch` | amplifier channel count changes between files |
-| `IntanDataset:splitLayout:NoHeader` / `NoAmplifier` / `NoChannels` | split recording incomplete |
-| `IntanDataset:readData:NoFiles`, `IntanDataset:toBin:NoFiles` | no Intan files |
-| `IntanDataset:readData:BadKeepChannels`, `IntanDataset:toBin:BadChannelOrder` | channel index out of range |
-| `IntanDataset:filterContinuous:CutoffAboveNyquist` | cutoff ≥ Fs/2 |
-| `IntanDataset:runKilosort:NoPython` / `NoProbe` / `ProbeMissing` / `BinMissing` | run prerequisites missing |
-| `IntanDataset:runSpikeInterface:NoPython` / `NoProbe` / `ProbeMissing` | run prerequisites missing |
-| `IntanDataset:toMat:Exists` / `SaveWarning` / `SaveIncomplete` | `.mat` output refused or discarded |
+| `EphysDataset:NoFolder` | constructor folder missing |
+| `EphysDataset:refreshMetadata:ChannelMismatch`, `EphysDataset:toBin:ChannelMismatch` | amplifier channel count changes between files |
+| `EphysDataset:splitLayout:NoHeader` / `NoAmplifier` / `NoChannels` | split recording incomplete |
+| `EphysDataset:readData:NoFiles`, `EphysDataset:toBin:NoFiles` | no Intan files |
+| `EphysDataset:readData:BadKeepChannels`, `EphysDataset:toBin:BadChannelOrder` | channel index out of range |
+| `EphysDataset:filterContinuous:CutoffAboveNyquist` | cutoff ≥ Fs/2 |
+| `EphysDataset:runKilosort:NoPython` / `NoProbe` / `ProbeMissing` / `BinMissing` | run prerequisites missing |
+| `EphysDataset:runSpikeInterface:NoPython` / `NoProbe` / `ProbeMissing` | run prerequisites missing |
+| `EphysDataset:toMat:Exists` / `SaveWarning` / `SaveIncomplete` | `.mat` output refused or discarded |
 
 ## Tests
 
-[`test_IntanDataset.m`](../intan/test_IntanDataset.m) builds synthetic `*.rhd`
+[`test_EphysDataset.m`](../intan/test_EphysDataset.m) builds synthetic `*.rhd`
 and split-layout fixtures in a temp folder and deletes them afterwards. It covers:
 
 | Section (as printed by the test) | Covers |
@@ -599,7 +599,7 @@ and split-layout fixtures in a temp folder and deletes them afterwards. It cover
 | 4 | `toBin` streaming vs `matrix2kilosort` byte identity |
 | 5 | `.bin` → microvolts round-trip |
 | 6 | `filterContinuous` + `detectArtifacts` |
-| 7 | `IntanKilosortProject` discovery |
+| 7 | `EphysProject` discovery |
 | 8 | `runKilosort(DryRun=true)` |
 | 9 | `DatasetTracker` integration |
 | 10 | split layouts (metadata, `readData`, byte-correct `toBin`) |

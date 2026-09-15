@@ -37,10 +37,10 @@ function result = runKilosort(obj, opts)
 %   RESULT struct: status, command, stdoutLog, scriptPath, settingsPath,
 %   resultsDir, binFile, probeFile, dryRun, wait, statusFile, background.
 %
-%   See also IntanDataset.toBin, INTANKILOSORTPROJECT.
+%   See also EphysDataset.toBin, EPHYSPROJECT.
 
 arguments
-    obj (1,1) IntanDataset
+    obj (1,1) EphysDataset
     opts.PythonExe (1,1) string = ""
     opts.CondaEnv (1,1) string = ""
     opts.ProbeFile (1,1) string = ""
@@ -61,18 +61,18 @@ probeFile = firstNonEmpty(opts.ProbeFile, obj.ProbeFile);
 binFile   = firstNonEmpty(opts.BinFile,   obj.BinFile);
 
 if pythonExe == ""
-    error('IntanDataset:runKilosort:NoPython', ...
+    error('EphysDataset:runKilosort:NoPython', ...
         'No python executable configured (set ds.PythonExe or pass PythonExe).');
 end
 if probeFile == ""
-    error('IntanDataset:runKilosort:NoProbe', ...
+    error('EphysDataset:runKilosort:NoProbe', ...
         'No probe file configured (set ds.ProbeFile or pass ProbeFile).');
 end
 if ~isfile(probeFile)
-    error('IntanDataset:runKilosort:ProbeMissing', 'Probe file not found: %s', probeFile);
+    error('EphysDataset:runKilosort:ProbeMissing', 'Probe file not found: %s', probeFile);
 end
 if ~opts.DryRun && ~isfile(binFile)
-    error('IntanDataset:runKilosort:BinMissing', ...
+    error('EphysDataset:runKilosort:BinMissing', ...
         '.bin not found: %s (run ds.toBin first).', binFile);
 end
 
@@ -102,13 +102,13 @@ checkProbeChannels(probeFile, nChanBin);
 % map to a derived probe in the results dir; never touch the original .json.
 excludeCh = opts.ExcludeChannels;
 if isempty(excludeCh); excludeCh = obj.ExcludeChannels; end
-excludeCh = IntanDataset.parseChannelList(excludeCh);
+excludeCh = EphysDataset.parseChannelList(excludeCh);
 nExcluded = 0;
 if ~isempty(excludeCh)
     [probeFile, nExcluded] = writeExcludedProbe(probeFile, excludeCh, resultsDir, nChanBin);
     if nExcluded > 0
         fprintf('Excluding %d channel(s) from sorting: %s\n', ...
-            nExcluded, char(IntanDataset.formatChannelList(excludeCh)));
+            nExcluded, char(EphysDataset.formatChannelList(excludeCh)));
     end
 end
 
@@ -181,7 +181,7 @@ if opts.Wait
     end
 
     if status ~= 0
-        warning('IntanDataset:runKilosort:NonZeroExit', ...
+        warning('EphysDataset:runKilosort:NonZeroExit', ...
             'Kilosort4 exited with status %d. See log: %s', status, stdoutLog);
     end
 else
@@ -191,7 +191,7 @@ else
     result.status = status;       % launcher status, not Kilosort4 exit code
     result.background = true;
     if status ~= 0
-        warning('IntanDataset:runKilosort:LaunchFailed', ...
+        warning('EphysDataset:runKilosort:LaunchFailed', ...
             'Background launch returned status %d. See log: %s', status, stdoutLog);
     end
 end
@@ -273,7 +273,7 @@ end
 if isnan(nChanBin); nChanBin = obj.NumChannels; end
 if isnan(fsVal);    fsVal    = obj.Fs;          end
 if isnan(nChanBin) || isnan(fsVal)
-    error('IntanDataset:runKilosort:UnknownBinMeta', ...
+    error('EphysDataset:runKilosort:UnknownBinMeta', ...
         'Could not determine n_chan_bin/fs; pass NChanBin/Fs or write the .bin sidecar.');
 end
 end
@@ -283,7 +283,7 @@ function checkProbeChannels(probeFile, nChanBin)
 try
     probe = jsondecode(fileread(probeFile));
 catch ME
-    error('IntanDataset:runKilosort:BadProbeJson', ...
+    error('EphysDataset:runKilosort:BadProbeJson', ...
         'Probe file is not valid JSON: %s (%s)', probeFile, ME.message);
 end
 nProbe = NaN;
@@ -294,7 +294,7 @@ if isfield(probe, 'chanMap'); nMap = numel(probe.chanMap); end
 if isfield(probe, 'n_chan');  nProbe = double(probe.n_chan); end
 if ~isnan(nMap); nProbe = max([nProbe, nMap], [], 'omitnan'); end
 if ~isnan(nProbe) && nProbe ~= nChanBin
-    warning('IntanDataset:runKilosort:ProbeChannelMismatch', ...
+    warning('EphysDataset:runKilosort:ProbeChannelMismatch', ...
         'Probe channel count (%d) differs from n_chan_bin (%d).', nProbe, nChanBin);
 end
 end
@@ -310,7 +310,7 @@ nExcluded   = 0;
 try
     probe = jsondecode(fileread(probeFile));
 catch ME
-    error('IntanDataset:runKilosort:BadProbeJson', ...
+    error('EphysDataset:runKilosort:BadProbeJson', ...
         'Probe file is not valid JSON: %s (%s)', probeFile, ME.message);
 end
 
@@ -319,7 +319,7 @@ if isfield(probe, 'chanMap') && ~isempty(probe.chanMap)
 elseif isfield(probe, 'xc')
     cm = (0:numel(probe.xc)-1).';   % KS4 defaults chanMap to 0..n-1
 else
-    warning('IntanDataset:runKilosort:NoChanMap', ...
+    warning('EphysDataset:runKilosort:NoChanMap', ...
         'Probe has no chanMap/xc; cannot exclude channels. Using full probe.');
     return
 end
@@ -362,7 +362,7 @@ catch
 end
 fid = fopen(settingsPath, 'w');
 if fid < 0
-    error('IntanDataset:runKilosort:SettingsWriteFailed', ...
+    error('EphysDataset:runKilosort:SettingsWriteFailed', ...
         'Could not write %s', settingsPath);
 end
 fwrite(fid, txt, 'char');
@@ -377,7 +377,7 @@ function writeRunScript(scriptPath)
 %   each run's settings for provenance.
 template = fullfile(fileparts(mfilename('fullpath')), 'run_ks4.py');
 if ~isfile(template)
-    error('IntanDataset:runKilosort:ScriptMissing', ...
+    error('EphysDataset:runKilosort:ScriptMissing', ...
         'Could not find %s', template);
 end
 copyfile(template, scriptPath, 'f');

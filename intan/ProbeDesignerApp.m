@@ -9,15 +9,15 @@ classdef ProbeDesignerApp < handle
 %   plain KS4 JSON this designer writes, so the whole downstream pipeline is
 %   unchanged.
 %
-%   APP is the parent IntanKilosortApp (supplies the Python/conda config via
+%   APP is the parent EphysPreprocessingApp (supplies the Python/conda config via
 %   runProbeTool, the target probe folder via ProbeFolderField, and
 %   refreshProbeList on save). Optional NChanHint is the selected dataset's
 %   channel count, used only for a soft channel-count warning.
 %
-%   See also IntanKilosortApp.onDesignProbe, IntanKilosortApp.runProbeTool.
+%   See also EphysPreprocessingApp.onDesignProbe, EphysPreprocessingApp.runProbeTool.
 
     properties
-        App                          % parent IntanKilosortApp
+        App                          % parent EphysPreprocessingApp
         NChanHint (1,1) double = NaN
 
         Fig

@@ -1,6 +1,7 @@
 function loadPreferences(obj)
 %loadPreferences  Restore paths, Kilosort config, and figure geometry.
-%   Uses getpref under the 'IntanKilosortApp' group so choices persist between
+%   Uses getpref under the 'IntanKilosortApp' group (see PrefGroup; kept at
+%   the old name for preference continuity) so choices persist between
 %   sessions. Anything missing is left at its built-in default.
 
 g = obj.PrefGroup;
@@ -75,7 +76,7 @@ if ispref(g, 'KilosortConfig')
     end
 end
 
-% --- Convert tab (IntanDataset.toMat) options ---
+% --- Convert tab (EphysDataset.toMat) options ---
 if ispref(g, 'ConvertConfig')
     cfg = getpref(g, 'ConvertConfig');
     if isstruct(cfg)

@@ -4,7 +4,7 @@ function plan = streamPlan(obj, opts)
 %   the recording should be read one-at-a-time, so the callers that stream the
 %   data (toBin, analyzeArtifacts, the Visualize tab) can share a single loop
 %   regardless of the on-disk layout. Each element is read with
-%   IntanDataset.readChunkUV.
+%   EphysDataset.readChunkUV.
 %
 %   For the traditional embedded-data format each *.rhd file is one chunk (the
 %   long-standing one-file-in-memory invariant). For the split formats
@@ -27,10 +27,10 @@ function plan = streamPlan(obj, opts)
 %     sampleOffset  0-based recording-global sample offset (0 for rhd chunks)
 %     nSamples      amplifier samples in this chunk (NaN if header not parsed)
 %
-%   See also IntanDataset.readChunkUV, IntanDataset.toBin, IntanDataset.readSplitWindow.
+%   See also EphysDataset.readChunkUV, EphysDataset.toBin, EphysDataset.readSplitWindow.
 
 arguments
-    obj (1,1) IntanDataset
+    obj (1,1) EphysDataset
     opts.Files (1,:) string = string.empty(1,0)
     opts.MaxChunkSamples (1,1) double = NaN
 end

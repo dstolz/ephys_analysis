@@ -1,7 +1,7 @@
-classdef IntanKilosortApp < handle
-    %INTANKILOSORTAPP  GUI for discovering Intan recordings and running Kilosort4.
-    %   IntanKilosortApp is a thin front end over IntanKilosortProject and
-    %   IntanDataset. It does not duplicate any of their logic: scanning,
+classdef EphysPreprocessingApp < handle
+    %EPHYSPREPROCESSINGAPP  GUI for discovering Intan recordings and running Kilosort4.
+    %   EphysPreprocessingApp is a thin front end over EphysProject and
+    %   EphysDataset. It does not duplicate any of their logic: scanning,
     %   metadata, reading, filtering, .bin streaming and the Kilosort4 spawn all
     %   happen through those classes. The app only orchestrates them and shows
     %   progress.
@@ -24,21 +24,23 @@ classdef IntanKilosortApp < handle
     %                   and batch-process selected datasets (.bin then KS4) with
     %                   per-dataset progress.
     %     6. Convert    Derive LFP / MUA / SPIKE + digital events for the
-    %                   selected datasets via IntanDataset.toMat (the
+    %                   selected datasets via EphysDataset.toMat (the
     %                   intan2matlab processing, any recording layout) with
     %                   every option exposed, and save one .mat per dataset
     %                   (default: next to the raw data), with in-tab progress,
     %                   status and a Cancel button.
     %
     %   User preferences (paths, config, and the figure position/size) persist
-    %   across sessions via getpref/setpref under the 'IntanKilosortApp' group.
+    %   across sessions via getpref/setpref under the 'IntanKilosortApp'
+    %   group (kept at the old name so existing preferences survive the
+    %   rename to EphysPreprocessingApp).
     %
     %   Usage
     %   -----
-    %     IntanKilosortApp;            % launch
-    %     app = IntanKilosortApp;      % launch and keep a handle
+    %     EphysPreprocessingApp;            % launch
+    %     app = EphysPreprocessingApp;      % launch and keep a handle
     %
-    %   See also INTANKILOSORTPROJECT, INTANDATASET.
+    %   See also EPHYSPROJECT, EPHYSDATASET.
 
     properties
         Fig   matlab.ui.Figure
@@ -174,7 +176,7 @@ classdef IntanKilosortApp < handle
         ReviewAmpAxes       matlab.ui.control.UIAxes
         ReviewRateAxes      matlab.ui.control.UIAxes
 
-        % --- Convert tab (IntanDataset.toMat; see buildConvertTab / onRunConvert) ---
+        % --- Convert tab (EphysDataset.toMat; see buildConvertTab / onRunConvert) ---
         ConvOutputDirField      matlab.ui.control.EditField
         ConvBrowseOutputButton  matlab.ui.control.Button
         ConvSuffixField         matlab.ui.control.EditField
@@ -219,7 +221,7 @@ classdef IntanKilosortApp < handle
     end
 
     properties
-        Project IntanKilosortProject = IntanKilosortProject.empty
+        Project EphysProject = EphysProject.empty
         SelectedRow (1,1) double = 0   % last-clicked datasets-table row (0 = none)
 
         % Probe tab selection state. ProbeTable shows one row per probe .json;
@@ -267,7 +269,7 @@ classdef IntanKilosortApp < handle
         % --- Manual artifact marking (Visualize tab) ---
         % When VizArtMode is on, a plain left-drag on the plot defines an
         % artifact period and a left-click inside a marked region removes it.
-        % Periods live on the dataset (IntanDataset.ManualArtifacts) and are
+        % Periods live on the dataset (EphysDataset.ManualArtifacts) and are
         % blanked by toBin; the data on disk is never altered. They are drawn
         % with xregion (handles in VizArtPatches; VizArtPreview is the live
         % rubber-band during a drag).
@@ -283,7 +285,7 @@ classdef IntanKilosortApp < handle
         ReviewData = struct([])
         ReviewSelectedUnit (1,1) double = 0   % row index into ReviewData unit list (0 = all)
 
-        % --- Convert (IntanDataset.toMat) run state ---
+        % --- Convert (EphysDataset.toMat) run state ---
         % ConvRunning guards against re-entry and freezes the targets table;
         % ConvCancelRequested is set by the Cancel button and checked by the
         % toMat/deriveSignals ProgressFcn at each step boundary (see onRunConvert).
@@ -296,7 +298,7 @@ classdef IntanKilosortApp < handle
     end
 
     methods
-        function obj = IntanKilosortApp()
+        function obj = EphysPreprocessingApp()
             % Construct, build the UI, restore preferences.
             obj.buildUI();
             obj.loadPreferences();
@@ -369,7 +371,7 @@ classdef IntanKilosortApp < handle
             end
             obj.stopKSMonitor();   % clear any stale, stopped timer
             obj.KSMonitorTimer = timer( ...
-                "Name", "IntanKilosortAppMonitor", ...
+                "Name", "EphysPreprocessingAppMonitor", ...
                 "ExecutionMode", "fixedSpacing", "Period", 3, "BusyMode", "drop", ...
                 "TimerFcn", @(~,~) obj.pollKSRuns());
             start(obj.KSMonitorTimer);
@@ -536,10 +538,10 @@ classdef IntanKilosortApp < handle
             obj.renderReviewPlots();
         end
 
-        %% --- Convert tab (IntanDataset.toMat / deriveSignals) ------------
+        %% --- Convert tab (EphysDataset.toMat / deriveSignals) ------------
         function cfg = defaultConvertConfig(~)
             % Convert-tab defaults. The signal options mirror the defaults
-            % of IntanDataset.deriveSignals (= intan2matlab): dataTypeOut
+            % of EphysDataset.deriveSignals (= intan2matlab): dataTypeOut
             % "LFP", LFP_Fs 1000, no LFP filtering (LFP_bpLoHi [0 Inf], no
             % notch), MUA_Fs 2000, MUA_IntegrationHz 1000, band edges
             % [300 5000], SPIKE_Fs Inf, labelField custom_channel_name, no
@@ -707,7 +709,7 @@ classdef IntanKilosortApp < handle
             try
                 obj.savePreferences();
             catch ME
-                warning('IntanKilosortApp:SavePrefsFailed', ...
+                warning('EphysPreprocessingApp:SavePrefsFailed', ...
                     'Could not save preferences: %s', ME.message);
             end
             delete(obj.Fig);
@@ -845,7 +847,7 @@ classdef IntanKilosortApp < handle
                 obj.ExcludeChannelsField.Value = '';
             else
                 obj.ExcludeChannelsField.Value = ...
-                    char(IntanDataset.formatChannelList(d.ExcludeChannels));
+                    char(EphysDataset.formatChannelList(d.ExcludeChannels));
             end
         end
 
@@ -904,7 +906,7 @@ classdef IntanKilosortApp < handle
 
         function p = defaultProbeFolder(~)
             % Repository probe folder: intan/probes (next to this @-folder).
-            here = fileparts(mfilename('fullpath'));        % .../@IntanKilosortApp
+            here = fileparts(mfilename('fullpath'));        % .../@EphysPreprocessingApp
             p = fullfile(fileparts(here), 'probes');         % .../intan/probes
         end
 
@@ -915,11 +917,11 @@ classdef IntanKilosortApp < handle
         end
 
         function d = currentDataset(obj)
-            % Return the IntanDataset for the last-selected table row ([] if none).
+            % Return the EphysDataset for the last-selected table row ([] if none).
             % Looked up via the row's DatasetIdx (not the row number itself),
             % since sorting the table reorders rows independently of
             % obj.Project.Datasets.
-            d = IntanDataset.empty;
+            d = EphysDataset.empty;
             if isempty(obj.Project) || obj.SelectedRow < 1; return; end
             T = obj.DatasetsTable.Data;
             if ~istable(T) || obj.SelectedRow > height(T) ...
@@ -964,9 +966,9 @@ classdef IntanKilosortApp < handle
         end
 
         function cfg = gatherSIConfig(obj)
-            % Build an IntanDataset SIConfig struct from the Kilosort-tab
-            % SpikeInterface preprocessing controls (see IntanDataset.SIConfig).
-            cfg = IntanDataset.defaultSIConfig();
+            % Build an EphysDataset SIConfig struct from the Kilosort-tab
+            % SpikeInterface preprocessing controls (see EphysDataset.SIConfig).
+            cfg = EphysDataset.defaultSIConfig();
             if isempty(obj.SIFilterCheckBox) || ~isvalid(obj.SIFilterCheckBox)
                 return   % controls not built yet; return defaults
             end
@@ -983,7 +985,7 @@ classdef IntanKilosortApp < handle
         function applySIConfig(obj, cfg)
             % Push an SIConfig struct into the preprocessing controls.
             if isempty(obj.SIFilterCheckBox) || ~isvalid(obj.SIFilterCheckBox); return; end
-            cfg = IntanDataset.normalizeSIConfig(cfg);
+            cfg = EphysDataset.normalizeSIConfig(cfg);
             obj.SIFilterCheckBox.Value    = logical(cfg.Filter);
             obj.SIFilterMinField.Value    = cfg.FilterFreqMin;
             obj.SIFilterMaxField.Value    = cfg.FilterFreqMax;
@@ -1138,7 +1140,7 @@ classdef IntanKilosortApp < handle
         %% --- Manual artifact marking (Visualize tab) ---------------------
         function d = currentVizDataset(obj)
             % Dataset handle backing the currently cached Visualize data ([] none).
-            d = IntanDataset.empty;
+            d = EphysDataset.empty;
             i = obj.VizDatasetIndex;
             if i >= 1 && ~isempty(obj.Project) && i <= obj.Project.NumDatasets
                 d = obj.Project.Datasets(i);
@@ -1275,7 +1277,7 @@ classdef IntanKilosortApp < handle
 
         function d = currentArtifactDataset(obj)
             % Dataset selected on the Artifacts tab ([] if none).
-            d = IntanDataset.empty;
+            d = EphysDataset.empty;
             idx = obj.ArtDatasetDropDown.Value;
             if isempty(idx) || ~isnumeric(idx) || isempty(obj.Project) ...
                     || idx > obj.Project.NumDatasets
@@ -1288,7 +1290,7 @@ classdef IntanKilosortApp < handle
             % Build an ArtifactConfig struct from the tab controls. All timing
             % parameters are in milliseconds; detectArtifacts converts them to
             % samples with each dataset's Fs at run time.
-            cfg = IntanDataset.defaultArtifactConfig();
+            cfg = EphysDataset.defaultArtifactConfig();
             cfg.Enabled     = logical(obj.ArtEnableCheckBox.Value);
             cfg.Method      = string(obj.ArtMethodDropDown.Value);
             cfg.Threshold   = obj.ArtThresholdField.Value;

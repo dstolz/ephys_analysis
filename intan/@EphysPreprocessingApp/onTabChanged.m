@@ -1,5 +1,6 @@
 function onTabChanged(obj)
-%onTabChanged  Refresh the status hint (and per-tab previews) on tab change.
+%onTabChanged  Refresh the tab strip, the status hint and per-tab previews on tab change.
+obj.syncTabStrip();
 switch obj.Tabs.SelectedTab
     case obj.TabProject
         msg = "Project: set the root and Scan; tick rows to select datasets (none = all).";

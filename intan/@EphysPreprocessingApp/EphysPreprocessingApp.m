@@ -12,13 +12,15 @@ classdef EphysPreprocessingApp < handle
     %     Project    config name, project root / output root, dataset table
     %                (the Select column is the config's dataset selection),
     %                Epsych2 behavior associations
-    %     Trials     pair Epsych2 trials with the trial digital line, per-line
-    %                TTL polarity, review / edit / approve the pairing
+    %     Trials     pair Epsych2 trials in order with the trial digital line,
+    %                per-line TTL polarity, resolve a trial / interval count
+    %                mismatch by cutting from either end, approve the pairing
     %     Probe      probe library, preview, assignment, per-dataset channel
     %                exclusions, the config's default probe
     %     Artifacts  automatic detection settings + preview, manual periods
-    %     Sorting    SpikeInterface + Kilosort4 settings, sorted-output
-    %                association, Run this step, background-run log
+    %     Sorting    SpikeInterface + Kilosort4 settings (Optimize for probe,
+    %                Reset to defaults), sorted-output association, Run this
+    %                step, background-run log
     %     Signals    derived LFP / MUA / SPIKE / AUX (.mat) settings, plan, Run
     %     Spikes     threshold detection / sorted units (.mat), preview, Run
     %     Export     Chronux / FieldTrip files, plan, Run
@@ -28,8 +30,10 @@ classdef EphysPreprocessingApp < handle
     %     Review     inspect sorted units
     %
     %   File menu: New / Open / Open recent / Save / Save As / Export copy /
-    %   Generate script (compact | standalone) / Close. The title shows "*"
-    %   while the config has unsaved changes.
+    %   Generate script (compact | standalone) / Create synthetic test
+    %   project (makeSyntheticProject: recordings with Epsych2 sessions and
+    %   ground-truth sorted output, opened and scanned at once) / Close. The
+    %   title shows "*" while the config has unsaved changes.
     %
     %   Preferences (getpref group 'EphysPreprocessingApp') hold only what is
     %   not part of a config: figure geometry, probe folder, phy command,
@@ -45,6 +49,10 @@ classdef EphysPreprocessingApp < handle
     properties
         Fig   matlab.ui.Figure
         Tabs  matlab.ui.container.TabGroup
+        TabHost       matlab.ui.container.Panel      % clips the tab group's own headers
+        TabList       matlab.ui.container.Tab        % tabs in strip order
+        TabButtons    matlab.ui.control.Button       % coloured status strip (one per tab)
+        TabMarks      matlab.ui.container.Panel      % selected-tab underline (one per tab)
 
         % --- Menu bar ---
         FileMenu         matlab.ui.container.Menu
@@ -98,15 +106,16 @@ classdef EphysPreprocessingApp < handle
         % --- Trials tab ---
         TrialsDatasetDropDown matlab.ui.control.DropDown
         TrialsLoadButton      matlab.ui.control.Button
-        TrialsAutoButton      matlab.ui.control.Button
+        TrialsResetButton     matlab.ui.control.Button
         TrialsApproveButton   matlab.ui.control.Button
         TrialsRevokeButton    matlab.ui.control.Button
         TrialsWriteButton     matlab.ui.control.Button
         TrialsSummaryLabel    matlab.ui.control.Label
         TrialsPairCheckBox    matlab.ui.control.CheckBox
         TrialsLineDropDown    matlab.ui.control.DropDown
-        TrialsToleranceField  matlab.ui.control.NumericEditField
         TrialsLinesTable      matlab.ui.control.Table
+        TrialsCutSpinners     % 2 x 2 matlab.ui.control.Spinner: rows trials / intervals, columns start / end
+        TrialsCutIntervalsLabel matlab.ui.control.Label
         TrialsTable           matlab.ui.control.Table
         TrialsAxes            matlab.ui.control.UIAxes
 
@@ -193,6 +202,8 @@ classdef EphysPreprocessingApp < handle
         SIDetectBadCheckBox  matlab.ui.control.CheckBox
         SIBadMethodDropDown  matlab.ui.control.DropDown
         SIBadActionDropDown  matlab.ui.control.DropDown
+        KSOptimizeButton  matlab.ui.control.Button
+        KSResetButton     matlab.ui.control.Button
         % Kilosort4 parameter controls keyed by settings name (kilosortParamSpec).
         ParamControls struct = struct()
         ExtraSettingsArea matlab.ui.control.TextArea
@@ -427,6 +438,8 @@ classdef EphysPreprocessingApp < handle
         onConfigChanged(obj)
         updateTitle(obj)
         syncStepEnableStates(obj)
+        syncTabStrip(obj)
+        selectTab(obj, tab)
         P = gatherProjectSection(obj)
         applyProjectSection(obj, P)
         applySelectionToTable(obj, P)
@@ -451,6 +464,8 @@ classdef EphysPreprocessingApp < handle
         ok = onSaveConfigAs(obj)
         onExportConfigCopy(obj)
         onGenerateScript(obj, kind)
+        onCreateSyntheticProject(obj)
+        S = createSyntheticProject(obj, root, opts)
         ok = confirmDiscard(obj)
         addRecentConfig(obj, file)
         refreshRecentMenu(obj)
@@ -490,13 +505,14 @@ classdef EphysPreprocessingApp < handle
         populateTrialsDatasets(obj)
         d = currentTrialsDataset(obj)
         onTrialsLoad(obj, mode)
-        repairTrials(obj, assignment)
+        repairTrials(obj, cuts)
         refreshTrialsView(obj)
         clearTrialsView(obj)
         fillTrialsLines(obj)
         setTrialsLineItems(obj, names, trialLine)
         syncTrialsButtons(obj)
-        onTrialsCellEdit(obj, evt)
+        syncTrialsCuts(obj)
+        onTrialsCutsChanged(obj)
         onTrialsApprove(obj, status)
         onTrialsWriteBehavior(obj)
         onTrialsSettingsChanged(obj)
@@ -557,6 +573,8 @@ classdef EphysPreprocessingApp < handle
         setDropIfMember(obj, dd, value)
         syncSIEnableStates(obj)
         onSIControlsChanged(obj)
+        onOptimizeKS4ForProbe(obj)
+        onResetKS4Params(obj)
         p = defaultPythonExe(obj)
         onUseSortingFolder(obj)
         onUseAutoSorting(obj)

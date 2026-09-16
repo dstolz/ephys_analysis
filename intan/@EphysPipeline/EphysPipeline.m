@@ -265,13 +265,16 @@ classdef EphysPipeline < handle
             %   afterwards (matched now or kept) also gets
             %   <outputFolder>/<Name>_behavior.mat (behaviorToMat), rewritten
             %   each run: the one file that carries the behavior data.
-            %   With Behavior.PairTrials the trials are first paired with the
-            %   TrialLine intervals (EphysDataset.pairTrials; the digital events
-            %   are read once and cached). A reviewed pairing recorded in the
-            %   manifest is reused while it still matches; anything else is
-            %   recorded as "unreviewed" and reported as "needs review" (a
-            %   "behavior:pairing" result row). The pairing columns are written
-            %   into the behavior file either way.
+            %   With Behavior.PairTrials the trials are first paired, in
+            %   order, with the TrialLine intervals (EphysDataset.pairTrials;
+            %   the digital events are read once and cached). A reviewed
+            %   pairing recorded in the manifest (its cuts) is reused while it
+            %   still matches; anything else is recorded as "unreviewed" and
+            %   reported as "needs review", or "count mismatch" when the
+            %   numbers of trials and intervals differ (a "behavior:pairing"
+            %   result row, and a WARNING log line; resolve it on the app's
+            %   Trials tab). The pairing columns are written into the
+            %   behavior file either way.
             arguments
                 obj (1,1) EphysPipeline
                 opts.Datasets (1,:) double = []
@@ -325,7 +328,7 @@ classdef EphysPipeline < handle
             try
                 cb = @(i, nFiles, name) obj.progress("behavior", d.Name, k, n, i - 1, nFiles, ...
                     "reading digital events: " + string(name));
-                P = d.pairTrials(ProgressFcn=cb);
+                P = d.pairTrials(ProgressFcn=cb, Warn=false);
                 if P.recorded
                     st = P.status;
                     if st ~= "approved"; st = "needs review"; end
@@ -335,7 +338,12 @@ classdef EphysPipeline < handle
                 end
                 msg = P.summary;
                 if P.stale
-                    msg = msg + " (the recorded pairing no longer matched and was re-aligned)";
+                    msg = msg + " (the recorded pairing no longer matched and its cuts were dropped)";
+                end
+                if P.countMismatch
+                    if st ~= "approved"; st = "count mismatch"; end
+                    obj.log("[behavior] %s: WARNING %s", d.Name, strjoin(P.warnings, " "));
+                    msg = msg + " - " + strjoin(P.warnings, " ");
                 end
                 obj.log("[behavior] %s: pairing %s - %s", d.Name, st, msg);
                 obj.addResult("behavior:pairing", d.Name, st, msg, d.manifestFile(), toc(t0));

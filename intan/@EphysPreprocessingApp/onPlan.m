@@ -11,8 +11,9 @@ catch ME
     uialert(obj.Fig, "Plan failed:" + newline + string(ME.message), "Plan");
     return
 end
-obj.Tabs.SelectedTab = obj.TabRun;
+obj.selectTab(obj.TabRun);
 obj.RunResultsTable.ColumnName = {'Step', 'Dataset', 'Key', 'Output', 'Status', 'Note'};
+obj.RunResultsTable.ColumnWidth = {80, 'fit', 'fit', '2x', 130, '1x'};
 obj.RunResultsTable.Data = T;
 nBlock = nnz(startsWith(T.Status, "duplicate") | startsWith(T.Status, "error"));
 obj.setStatus(sprintf("Plan: %d row(s), %d blocking.", height(T), nBlock), "");

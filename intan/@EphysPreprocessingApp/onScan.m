@@ -35,35 +35,14 @@ try
         return
     end
 
-    % Header-only metadata, one dataset at a time, with progress.
+    % Header-only metadata + manifest restore/refresh, one dataset at a time,
+    % with progress (EphysProject.refresh is what scripts and the pipeline
+    % call too, so the app and headless runs agree on what a scan does).
     dlg.Indeterminate = "off";
     n = P.NumDatasets;
-    for i = 1:n
-        if dlg.CancelRequested; break; end
-        dlg.Value = i / n;
-        dlg.Message = sprintf("Reading headers %d/%d: %s", i, n, P.Datasets(i).Name);
-        try
-            P.Datasets(i).refreshMetadata();
-        catch ME
-            warning('EphysPreprocessingApp:MetaFailed', ...
-                'Metadata failed for %s: %s', P.Datasets(i).Name, ME.message);
-        end
-    end
+    P.refresh(ProgressFcn=@(i, n, name) showScanProgress(dlg, i, n, name), ...
+        CancelFcn=@() dlg.CancelRequested);
     close(dlg);
-
-    % Restore each dataset's saved probe / channel-exclusion assignments from
-    % its on-disk manifest (if any), then refresh the manifest so it reflects
-    % the freshly parsed metadata and current Kilosort4 output state. The
-    % Datasets table is then built from this restored state.
-    for i = 1:n
-        try
-            P.Datasets(i).applyManifest();
-            P.Datasets(i).writeManifest();
-        catch ME
-            warning('EphysPreprocessingApp:ManifestFailed', ...
-                'Manifest update failed for %s: %s', P.Datasets(i).Name, ME.message);
-        end
-    end
 
     obj.Project = P;
     obj.refreshDatasetsTable();
@@ -78,4 +57,11 @@ catch ME
     obj.setStatus("Scan failed: " + string(ME.message), ...
         "Check the parent folder path and try Scan again.");
 end
+end
+
+
+function showScanProgress(dlg, i, n, name)
+if ~isvalid(dlg); return; end
+dlg.Value = i / n;
+dlg.Message = sprintf("Reading headers %d/%d: %s", i, n, name);
 end

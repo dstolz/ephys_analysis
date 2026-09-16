@@ -244,11 +244,17 @@ function iv = computeDetectedIntervals(d, X, Fs)
 %computeDetectedIntervals  Run the automatic artifact detector on the loaded
 %   window and return its intervals [k x 2] in window-relative seconds. Uses the
 %   dataset's current ArtifactConfig (the same settings the Artifacts tab and
-%   the .bin write use). Returns 0x2 on any failure or when nothing is flagged.
+%   the runs use), including its optional pre-detection filter. Returns 0x2 on
+%   any failure or when nothing is flagged.
 iv = zeros(0, 2); %#ok<PREALL>  default when detection fails or flags nothing
 try
     cfg = EphysDataset.normalizeArtifactConfig(d.ArtifactConfig);
-    [~, iv] = d.detectArtifacts(double(X), Method=cfg.Method, ...
+    X = double(X);
+    if logical(cfg.Filter)
+        X = d.filterContinuous(X, Type=cfg.FilterType, ...
+            Cutoff=cfg.FilterCutoff, Order=cfg.FilterOrder, Fs=Fs);
+    end
+    [~, iv] = d.detectArtifacts(X, Method=cfg.Method, ...
         Threshold=cfg.Threshold, RmsWindowMs=cfg.RmsWindowMs, ...
         MinChannels=cfg.MinChannels, MergeGapMs=cfg.MergeGapMs, ...
         PadMs=cfg.PadMs, Fs=Fs);

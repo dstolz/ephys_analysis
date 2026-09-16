@@ -1169,6 +1169,7 @@ classdef EphysPreprocessingApp < handle
                 return
             end
             d.ManualArtifacts = zeros(0, 2);
+            d.writeManifest();                 % periods persist in the manifest
             if ~isempty(obj.Viewer) && isvalid(obj.Viewer); obj.Viewer.render(); end
             obj.updateVizArtStatus();
         end
@@ -1208,8 +1209,10 @@ classdef EphysPreprocessingApp < handle
             tWin = 1;
             if ~isempty(obj.Viewer) && isvalid(obj.Viewer); tWin = obj.Viewer.TimeWindowDuration; end
             secPerPix = tWin / max(D.axPix(3), 1);
+            changed = false;
             if abs(x1 - x0) >= 4 * secPerPix
                 d.addArtifact(min(x0, x1) + tOff, max(x0, x1) + tOff);
+                changed = true;
             else
                 iv = d.ManualArtifacts;
                 if ~isempty(iv)
@@ -1217,8 +1220,12 @@ classdef EphysPreprocessingApp < handle
                     if ~isempty(hit)
                         iv(hit, :) = [];
                         d.ManualArtifacts = iv;
+                        changed = true;
                     end
                 end
+            end
+            if changed
+                d.writeManifest();             % periods persist in the manifest
             end
             if ~isempty(obj.Viewer) && isvalid(obj.Viewer); obj.Viewer.render(); end
             obj.updateVizArtStatus();
@@ -1303,6 +1310,12 @@ classdef EphysPreprocessingApp < handle
             else
                 cfg.RmsWindowMs = NaN;   % auto (~1 ms) resolved at run time
             end
+            % Pre-detection filter: part of the config so runs, the preview
+            % and the Visualize overlay all detect on the same view.
+            cfg.Filter       = logical(obj.ArtFilterCheckBox.Value);
+            cfg.FilterType   = "highpass";
+            cfg.FilterCutoff = max(obj.ArtHighpassField.Value, eps);
+            cfg.FilterOrder  = 4;
         end
 
         function applyArtifactConfigToProject(obj)

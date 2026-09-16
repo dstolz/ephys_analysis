@@ -92,6 +92,18 @@ classdef EphysDataset < handle
         Dtype     (1,1) string {mustBeMember(Dtype, ...
             ["int16","uint16","int32","single","float32"])} = "int16"
         OutputDir (1,1) string = ""              % output dir for .bin / KS4 results (default = Folder)
+
+        % Sorted-output association. "" = auto-discover the Kilosort4/phy
+        % results under outputFolder() (see kilosortResultsDir); a non-empty
+        % folder pins the association explicitly (e.g. results sorted elsewhere
+        % or a phy-curated copy). Persisted in the manifest as sorting.source
+        % "manual". See sortingResultsDir, readSortedUnits.
+        SortingDir (1,1) string = ""
+
+        % Epsych2 behavioral session file (.mat with Data + Info) associated
+        % with this recording. "" = none. Persisted in the manifest under
+        % behavior.file. See readBehavior, readEpsychSession.
+        BehaviorFile (1,1) string = ""
         Manifest                                  % optional Manifest for provenance
 
         % Manually defined artifact periods to blank before writing the .bin.
@@ -130,6 +142,14 @@ classdef EphysDataset < handle
     properties (Dependent)
         BinFile     % full path to the .bin (OutputDir/Name.bin)
         NumSamples  % total amplifier samples across files (sum of PerFile)
+    end
+
+    properties (Constant)
+        % Dataset manifest schema written by manifestStruct. /2 adds
+        % manual_artifacts, sorting and behavior to /1; applyManifest reads
+        % both (v2 is a strict superset, so no migration is needed).
+        ManifestSchema = "intan-dataset-manifest/2"
+        ManifestSchemasAccepted = ["intan-dataset-manifest/1", "intan-dataset-manifest/2"]
     end
 
     methods
@@ -317,17 +337,31 @@ classdef EphysDataset < handle
             p = base;
         end
 
+        function p = sortingResultsDir(obj)
+            %sortingResultsDir  Folder holding the sorted units for this dataset.
+            %   Returns SortingDir when it is set (an explicit association, e.g.
+            %   a phy-curated copy or results sorted on another machine), else
+            %   the auto-discovered kilosortResultsDir(). Every consumer of
+            %   sorted output (Review tab, phy launch, readSortedUnits,
+            %   ChronuxDataset.spikes) goes through this accessor.
+            if obj.SortingDir ~= ""
+                p = char(obj.SortingDir);
+            else
+                p = obj.kilosortResultsDir();
+            end
+        end
+
         function tf = hasPhyOutput(obj)
-            %hasPhyOutput  True when a KS4 results dir holds a params.py (what phy
-            %   needs to open). Cheap; resolves the engine-specific results dir
-            %   (see kilosortResultsDir). For a full inventory use tracker().
-            tf = isfile(fullfile(obj.kilosortResultsDir(), 'params.py'));
+            %hasPhyOutput  True when the sorting results dir holds a params.py
+            %   (what phy needs to open). Cheap; see sortingResultsDir. For a
+            %   full inventory use tracker().
+            tf = isfile(fullfile(obj.sortingResultsDir(), 'params.py'));
         end
 
         function tf = hasKilosortResults(obj)
-            %hasKilosortResults  True when a KS4 results dir holds spike output
-            %   (spike_clusters.npy). Cheap; see also tracker().hasKilosort.
-            tf = isfile(fullfile(obj.kilosortResultsDir(), 'spike_clusters.npy'));
+            %hasKilosortResults  True when the sorting results dir holds spike
+            %   output (spike_clusters.npy). Cheap; see sortingResultsDir.
+            tf = isfile(fullfile(obj.sortingResultsDir(), 'spike_clusters.npy'));
         end
 
         %% --- Dataset manifest (JSON state file in the dataset folder) ----
@@ -344,7 +378,7 @@ classdef EphysDataset < handle
             dt = obj.tracker();
 
             m = struct();
-            m.schema           = "intan-dataset-manifest/1";
+            m.schema           = EphysDataset.ManifestSchema;
             m.name             = obj.Name;
             m.folder           = obj.Folder;
             m.recording_format = obj.RecordingFormat;
@@ -373,6 +407,12 @@ classdef EphysDataset < handle
 
             m.exclude_channels = EphysDataset.formatChannelList(obj.ExcludeChannels);
 
+            % Manual artifact periods ([k x 2] seconds, recording-relative) so
+            % periods marked on the Visualize tab survive a rescan / restart.
+            ma = obj.ManualArtifacts;
+            if isempty(ma); ma = zeros(0, 2); end
+            m.manual_artifacts = ma;
+
             m.bin = struct('file', obj.BinFile, 'exists', isfile(obj.BinFile));
 
             ks = struct('has_results', false, 'results_dir', "", ...
@@ -386,6 +426,12 @@ classdef EphysDataset < handle
             end
             m.kilosort = ks;
 
+            % Sorted-output association (see sortingResultsDir / SortingDir).
+            m.sorting = obj.sortingStruct();
+
+            % Epsych2 behavioral session association (see BehaviorFile).
+            m.behavior = struct('file', obj.BehaviorFile);
+
             % SpikeInterface preprocessing provenance (engine + config snapshot).
             m.engine        = "spikeinterface";
             m.preprocessing = EphysDataset.normalizeSIConfig(obj.SIConfig);
@@ -398,14 +444,7 @@ classdef EphysDataset < handle
             %   caller (the manifest is a convenience, not the source of truth).
             if obj.Folder == "" || ~isfolder(obj.Folder); return; end
             try
-                txt = jsonencode(obj.manifestStruct(), 'PrettyPrint', true);
-                f   = obj.manifestFile();
-                fid = fopen(f, 'w');
-                if fid < 0
-                    error('cannot open %s for writing', f);
-                end
-                closer = onCleanup(@() fclose(fid));
-                fwrite(fid, txt);
+                writeJsonFile(obj.manifestFile(), obj.manifestStruct());
             catch ME
                 warning('EphysDataset:writeManifest:Failed', ...
                     'Could not write manifest for %s: %s', obj.Name, ME.message);
@@ -413,15 +452,25 @@ classdef EphysDataset < handle
         end
 
         function tf = applyManifest(obj)
-            %applyManifest  Restore probe + channel-exclusion assignments from the
-            %   on-disk manifest (if present) so a re-scan recovers prior work.
-            %   Returns true when a manifest was found and read. Only the editable
-            %   assignments are restored; header metadata is always re-parsed.
+            %applyManifest  Restore the editable per-dataset state from the
+            %   on-disk manifest (if present) so a re-scan recovers prior work:
+            %   probe file, channel exclusions, manual artifact periods, an
+            %   explicit ("manual") sorting folder and the behavior file.
+            %   Returns true when a manifest was found and read. Header metadata
+            %   is always re-parsed. Schema /1 (probe + exclusions only) and /2
+            %   are accepted; any other schema is ignored with a warning.
             tf = false;
             f = obj.manifestFile();
             if ~isfile(f); return; end
-            m = DatasetTracker.readJson(f);
+            m = readJsonFile(f, ErrorOnFail=false);
             if isempty(m) || ~isstruct(m); return; end
+            schema = "";
+            if isfield(m, 'schema'); schema = string(m.schema); end
+            if ~ismember(schema, EphysDataset.ManifestSchemasAccepted)
+                warning('EphysDataset:applyManifest:Schema', ...
+                    'Ignoring manifest %s with unknown schema "%s".', f, schema);
+                return
+            end
             if isfield(m, 'probe') && isstruct(m.probe) && isfield(m.probe, 'file')
                 pf = string(m.probe.file);
                 if pf ~= "" && isfile(pf); obj.ProbeFile = pf; end
@@ -429,7 +478,65 @@ classdef EphysDataset < handle
             if isfield(m, 'exclude_channels')
                 obj.ExcludeChannels = EphysDataset.parseChannelList(string(m.exclude_channels));
             end
+            if isfield(m, 'manual_artifacts')
+                ma = m.manual_artifacts;
+                if isempty(ma)
+                    ma = zeros(0, 2);
+                elseif isnumeric(ma) && isvector(ma) && numel(ma) == 2
+                    ma = double(ma(:)).';           % jsondecode collapsed 1x2
+                elseif isnumeric(ma)
+                    ma = double(ma);
+                else
+                    ma = zeros(0, 2);
+                end
+                if size(ma, 2) == 2
+                    obj.ManualArtifacts = ma;
+                end
+            end
+            if isfield(m, 'sorting') && isstruct(m.sorting) ...
+                    && isfield(m.sorting, 'source') && isfield(m.sorting, 'results_dir')
+                if string(m.sorting.source) == "manual"
+                    sd = string(m.sorting.results_dir);
+                    if sd ~= "" && isfile(fullfile(sd, 'params.py'))
+                        obj.SortingDir = sd;
+                    end
+                end
+            end
+            if isfield(m, 'behavior') && isstruct(m.behavior) && isfield(m.behavior, 'file')
+                bf = string(m.behavior.file);
+                if bf ~= "" && isfile(bf); obj.BehaviorFile = bf; end
+            end
             tf = true;
+        end
+
+        function s = sortingStruct(obj)
+            %sortingStruct  Manifest block describing the sorted-output association.
+            %   results_dir  folder holding params.py ("" when none exists yet)
+            %   source       "manual" when SortingDir is set, else "auto"
+            %   curated      true when a phy cluster_group.tsv is present
+            %   num_units    rows of the label table (NaN when none)
+            %   updated      modification time of spike_clusters.npy ("" if none)
+            s = struct('results_dir', "", 'source', "auto", 'curated', false, ...
+                'num_units', NaN, 'updated', "");
+            if obj.SortingDir ~= ""; s.source = "manual"; end
+            p = obj.sortingResultsDir();
+            if ~isfile(fullfile(p, 'params.py')); return; end
+            s.results_dir = string(p);
+            grp = fullfile(p, 'cluster_group.tsv');
+            s.curated = isfile(grp);
+            if ~s.curated; grp = fullfile(p, 'cluster_KSLabel.tsv'); end
+            if isfile(grp)
+                try
+                    lines = splitlines(strtrim(string(fileread(grp))));
+                    s.num_units = max(numel(lines) - 1, 0);   % minus header
+                catch
+                end
+            end
+            spk = dir(fullfile(p, 'spike_clusters.npy'));
+            if ~isempty(spk)
+                s.updated = string(datetime(spk.datenum, 'ConvertFrom', 'datenum', ...
+                    'Format', 'yyyy-MM-dd HH:mm:ss'));
+            end
         end
     end
 
@@ -461,14 +568,22 @@ classdef EphysDataset < handle
             %   Used to initialize ArtifactConfig. RmsWindowMs/MergeGapMs/PadMs
             %   are in milliseconds (converted to samples with Fs at run time);
             %   RmsWindowMs NaN means "auto" (~1 ms).
+            %   Filter/FilterType/FilterCutoff/FilterOrder make the detector run
+            %   on a filtered view of each chunk (e.g. high-pass 300 Hz) instead
+            %   of broadband; they apply everywhere the config is consulted
+            %   (artifactIntervals, analyzeArtifacts, the Visualize overlay).
             cfg = struct( ...
-                'Enabled',     false, ...   % toBin blanks only when true
-                'Method',      "rms", ...   % running-RMS amplitude deviation
-                'Threshold',   9, ...       % robust SDs above per-channel baseline
-                'RmsWindowMs', NaN, ...     % ms; NaN = auto (~1 ms)
-                'MergeGapMs',  0, ...       % ms; stitch gaps <= this
-                'MinChannels', 2, ...       % channels exceeding simultaneously
-                'PadMs',       0);          % ms to expand each flagged run
+                'Enabled',      false, ...   % toBin blanks only when true
+                'Method',       "rms", ...   % running-RMS amplitude deviation
+                'Threshold',    9, ...       % robust SDs above per-channel baseline
+                'RmsWindowMs',  NaN, ...     % ms; NaN = auto (~1 ms)
+                'MergeGapMs',   0, ...       % ms; stitch gaps <= this
+                'MinChannels',  2, ...       % channels exceeding simultaneously
+                'PadMs',        0, ...       % ms to expand each flagged run
+                'Filter',       false, ...   % detect on a filtered view
+                'FilterType',   "highpass", ...
+                'FilterCutoff', 300, ...     % Hz (scalar, or [lo hi] for bandpass)
+                'FilterOrder',  4);
         end
 
         function cfg = normalizeArtifactConfig(cfg)
@@ -489,6 +604,25 @@ classdef EphysDataset < handle
                 end
             end
             cfg = def;
+        end
+
+        function [useFilter, fType, fCut, fOrd] = resolveFilterOptions(cfg, filt, fType, fCut, fOrd)
+            %resolveFilterOptions  Per-call filter options falling back to a config.
+            %   Empty / "" / NaN inputs take the ArtifactConfig values, so a
+            %   config with Filter=true is honored unless the caller overrides.
+            cfg = EphysDataset.normalizeArtifactConfig(cfg);
+            if isempty(filt);   useFilter = logical(cfg.Filter); else; useFilter = logical(filt); end
+            if fType == "";    fType = string(cfg.FilterType);   end
+            if isempty(fCut);   fCut  = cfg.FilterCutoff;          end
+            if isnan(fOrd);     fOrd  = cfg.FilterOrder;           end
+            if useFilter && (isempty(fCut) || any(~isfinite(fCut)) || any(fCut <= 0))
+                error('EphysDataset:resolveFilterOptions:Cutoff', ...
+                    'FilterCutoff must be positive and finite when Filter is enabled.');
+            end
+            if useFilter && (~isfinite(fOrd) || fOrd < 1 || fOrd ~= round(fOrd))
+                error('EphysDataset:resolveFilterOptions:Order', ...
+                    'FilterOrder must be a positive integer when Filter is enabled.');
+            end
         end
 
         function cfg = defaultSIConfig()

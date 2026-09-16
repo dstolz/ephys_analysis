@@ -14,6 +14,7 @@ classdef EphysProject < handle
     %   Workflow
     %   --------
     %     P = EphysProject("D:\experiments");
+    %     P.refresh();                   % headers + per-dataset manifests
     %     T = P.gatherMetadata();        % one row per dataset
     %     P.toBinAll();                  % stream every dataset's .bin
     %     P.runKilosortAll();            % spawn Kilosort4 for each
@@ -43,6 +44,7 @@ classdef EphysProject < handle
         T       = gatherMetadata(obj, opts)
         infos   = toBinAll(obj, opts)
         results = runKilosortAll(obj, opts)
+        report  = refresh(obj, opts)
 
         function obj = EphysProject(root, opts)
             arguments
@@ -124,6 +126,41 @@ classdef EphysProject < handle
             end
         end
 
+        function key = datasetKey(obj, idx)
+            %datasetKey  Stable key for dataset IDX: its folder relative to Root.
+            %   Names (folder leaves) are not unique across a project tree, so
+            %   selections saved to a pipeline config use these keys. Forward
+            %   slashes, no leading separator; the Root itself is ".".
+            arguments
+                obj (1,1) EphysProject
+                idx (1,1) double {mustBeInteger, mustBePositive}
+            end
+            key = EphysProject.relativeKey(obj.Root, obj.Datasets(idx).Folder);
+        end
+
+        function keys = datasetKeys(obj)
+            %datasetKeys  Relative-path keys of every dataset (1 x N string).
+            n = obj.NumDatasets;
+            keys = strings(1, n);
+            for i = 1:n
+                keys(i) = obj.datasetKey(i);
+            end
+        end
+
+        function idx = findByKey(obj, keys)
+            %findByKey  Dataset indices for relative keys (0 where not found).
+            arguments
+                obj (1,1) EphysProject
+                keys (1,:) string
+            end
+            all = obj.datasetKeys();
+            idx = zeros(1, numel(keys));
+            for k = 1:numel(keys)
+                ix = find(all == EphysProject.normalizeKey(keys(k)), 1);
+                if ~isempty(ix); idx(k) = ix; end
+            end
+        end
+
         function d = dataset(obj, idxOrName)
             %dataset  Return one dataset by index or by Name.
             arguments
@@ -157,6 +194,30 @@ classdef EphysProject < handle
 
         function n = get.NumDatasets(obj)
             n = numel(obj.Datasets);
+        end
+    end
+
+    methods (Static)
+        function key = relativeKey(root, folder)
+            %relativeKey  FOLDER relative to ROOT as a forward-slash key.
+            %   Returns "." when FOLDER is ROOT, and the absolute folder (with
+            %   forward slashes) when FOLDER is not under ROOT.
+            r = EphysProject.normalizeKey(root);
+            f = EphysProject.normalizeKey(folder);
+            if strcmpi(f, r)
+                key = ".";
+            elseif startsWith(f, r + "/", 'IgnoreCase', ispc)
+                key = extractAfter(f, strlength(r) + 1);
+            else
+                key = f;
+            end
+        end
+
+        function s = normalizeKey(s)
+            %normalizeKey  Forward slashes, no trailing slash.
+            s = string(s);
+            s = replace(s, "\", "/");
+            s = regexprep(s, "/+$", "");
         end
     end
 end

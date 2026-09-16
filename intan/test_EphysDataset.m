@@ -7,8 +7,11 @@ function test_EphysDataset()
 %   fixtures (info.rhd + flat .dat files) for the one-file-per-signal and
 %   one-file-per-channel layouts and checks metadata, readData and a byte-correct
 %   toBin for both; section 14 streams detectSpikes over a whole (split) recording
-%   and requires it to match the single-block result exactly. No real Intan files
-%   or Kilosort4 install are required.
+%   and requires it to match the single-block result exactly. Sections 15-16
+%   cover the JSON helpers, the v2 manifest (manual artifacts, sorting and
+%   behavior associations), EphysProject.refresh / relative keys, and the
+%   ArtifactConfig pre-detection filter. No real Intan files or Kilosort4
+%   install are required.
 %
 %   Usage:  test_EphysDataset
 %
@@ -526,6 +529,158 @@ catch ME
 end
 check(strcmp(errId, 'EphysDataset:detectSpikes:NoData'), ...
     'no data block and no recording folder is an error');
+
+fprintf('\n== 15. JSON helpers, manifest v2, sorting/behavior association ==\n');
+% writeJsonFile / readJsonFile
+jf = fullfile(root, 'json_test.json');
+js = struct('a', Inf, 'b', NaN, 'c', [1 -Inf 3], 'd', "x", 'e', struct('f', 2));
+writeJsonFile(jf, js, NonFinite="string");
+jr = readJsonFile(jf);
+check(strcmp(jr.a, 'Inf') && strcmp(jr.b, 'NaN') && iscell(jr.c) && strcmp(jr.c{2}, '-Inf') ...
+    && jr.c{1} == 1 && strcmp(jr.d, 'x') && jr.e.f == 2, ...
+    'writeJsonFile(NonFinite="string") writes Inf/-Inf/NaN as strings');
+check(isempty(dir(fullfile(root, '~*.partial'))), 'writeJsonFile leaves no partial file behind');
+writeJsonFile(jf, struct('a', NaN, 'b', 3));
+jr = readJsonFile(jf);
+check(isempty(jr.a) && jr.b == 3, 'default NonFinite="null" writes NaN as null');
+check(isempty(readJsonFile(fullfile(root, 'nope.json'), ErrorOnFail=false)), ...
+    'readJsonFile(ErrorOnFail=false) returns [] for a missing file');
+errId = '';
+try
+    readJsonFile(fullfile(root, 'nope.json'));
+catch ME
+    errId = ME.identifier;
+end
+check(strcmp(errId, 'readJsonFile:NotFound'), 'readJsonFile errors on a missing file by default');
+
+% Manifest v2 round trip on a copy of the two-file dataset.
+mdsDir = fullfile(root, 'mds');
+mkdir(mdsDir);
+copyfile(fullfile(dsFolder, '*.rhd'), mdsDir);
+sortDir = fullfile(root, 'phy_manual');
+mkdir(sortDir);
+fidp = fopen(fullfile(sortDir, 'params.py'), 'w'); fprintf(fidp, 'sample_rate = %g\n', Fs); fclose(fidp);
+fidp = fopen(fullfile(sortDir, 'spike_clusters.npy'), 'w'); fwrite(fidp, 0); fclose(fidp);
+fidp = fopen(fullfile(sortDir, 'cluster_group.tsv'), 'w');
+fprintf(fidp, 'cluster_id\tgroup\n0\tgood\n1\tmua\n'); fclose(fidp);
+behFile = fullfile(root, 'beh_session.mat');
+Data = struct('TrialIndex', {1, 2}); Info = struct('Subject', 'subjA'); %#ok<NASGU>
+save(behFile, 'Data', 'Info');
+
+dsm = EphysDataset(mdsDir);
+dsm.ProbeFile = probeFile;
+dsm.ExcludeChannels = [2 3];
+dsm.ManualArtifacts = [0.001 0.002; 0.005 0.006];
+dsm.SortingDir = sortDir;
+dsm.BehaviorFile = behFile;
+dsm.writeManifest();
+m = readJsonFile(dsm.manifestFile());
+check(strcmp(m.schema, 'intan-dataset-manifest/2'), 'manifest schema is v2');
+check(isequal(size(m.manual_artifacts), [2 2]), 'manifest stores manual_artifacts');
+check(strcmp(m.sorting.source, 'manual') && m.sorting.curated && m.sorting.num_units == 2 ...
+    && strcmp(m.sorting.results_dir, sortDir), 'manifest sorting block (manual, curated, 2 units)');
+check(strcmp(m.behavior.file, behFile), 'manifest behavior file');
+
+ds2 = EphysDataset(mdsDir);
+tf2 = ds2.applyManifest();
+check(tf2 && isequal(ds2.ExcludeChannels, [2 3]) && ds2.ProbeFile == string(probeFile), ...
+    'applyManifest restores probe + exclusions');
+check(isequal(ds2.ManualArtifacts, [0.001 0.002; 0.005 0.006]), 'applyManifest restores manual artifacts');
+check(ds2.SortingDir == string(sortDir) && strcmp(ds2.sortingResultsDir(), sortDir) ...
+    && ds2.hasKilosortResults() && ds2.hasPhyOutput(), ...
+    'applyManifest restores a manual sorting dir; accessors follow it');
+check(ds2.BehaviorFile == string(behFile), 'applyManifest restores the behavior file');
+
+dsm.ManualArtifacts = [0.003 0.004];
+dsm.writeManifest();
+ds3 = EphysDataset(mdsDir);
+ds3.applyManifest();
+check(isequal(ds3.ManualArtifacts, [0.003 0.004]), 'a single manual period survives the jsondecode collapse');
+ds3.SortingDir = "";
+check(strcmp(ds3.sortingResultsDir(), ds3.kilosortResultsDir()) && ~ds3.hasKilosortResults(), ...
+    'sortingResultsDir falls back to kilosortResultsDir when SortingDir is empty');
+s3 = ds3.sortingStruct();
+check(strcmp(s3.source, 'auto') && s3.results_dir == "" && isnan(s3.num_units), ...
+    'sortingStruct reports auto / no results when nothing is sorted');
+
+% Auto-discovered sorting is reported without pinning it.
+autoDir = fullfile(ds3.kilosortDir(), 'si', 'sorter_output');
+mkdir(autoDir);
+copyfile(fullfile(sortDir, 'params.py'), autoDir);
+copyfile(fullfile(sortDir, 'spike_clusters.npy'), autoDir);
+fidp = fopen(fullfile(autoDir, 'cluster_KSLabel.tsv'), 'w');
+fprintf(fidp, 'cluster_id\tKSLabel\n0\tgood\n'); fclose(fidp);
+s3 = ds3.sortingStruct();
+check(strcmp(s3.source, 'auto') && strcmp(s3.results_dir, autoDir) && ~s3.curated && s3.num_units == 1, ...
+    'sortingStruct reports an auto-discovered, uncurated run');
+ds3.writeManifest();
+ds3b = EphysDataset(mdsDir);
+ds3b.applyManifest();
+check(ds3b.SortingDir == "", 'an auto sorting association is not pinned on restore');
+
+% v1 manifests still yield probe + exclusions.
+m1 = struct('schema', "intan-dataset-manifest/1", 'probe', struct('file', probeFile), ...
+    'exclude_channels', "4");
+writeJsonFile(dsm.manifestFile(), m1);
+ds4 = EphysDataset(mdsDir);
+tf4 = ds4.applyManifest();
+check(tf4 && isequal(ds4.ExcludeChannels, 4) && isempty(ds4.ManualArtifacts) && ds4.SortingDir == "", ...
+    'v1 manifest: probe + exclusions restored, nothing else');
+writeJsonFile(dsm.manifestFile(), struct('schema', "something/9", 'exclude_channels', "5"));
+ds5 = EphysDataset(mdsDir);
+ws = warning('off', 'EphysDataset:applyManifest:Schema');
+tf5 = ds5.applyManifest();
+warning(ws);
+check(~tf5 && isempty(ds5.ExcludeChannels), 'a manifest with an unknown schema is ignored');
+
+% EphysProject.refresh + relative keys (tree from section 7).
+Pm = EphysProject(fullfile(root, 'proj'));
+i1 = Pm.findByKey("mouse1/sess1");
+check(i1 > 0 && Pm.findByKey("mouse2/sess1") > 0 && Pm.findByKey("nope") == 0, 'findByKey');
+check(isequal(sort(Pm.datasetKeys()), ["mouse1/sess1" "mouse2/sess1"]), ...
+    'datasetKeys are root-relative with forward slashes');
+check(Pm.findByKey("mouse1\sess1\") == i1, 'findByKey normalizes backslashes / trailing slash');
+Pm.Datasets(i1).ManualArtifacts = [0.001 0.002];
+Pm.Datasets(i1).writeManifest();
+Pr = EphysProject(fullfile(root, 'proj'));
+rep = Pr.refresh();
+check(height(rep) == 2 && all(rep.Metadata) && all(rep.Manifest), 'EphysProject.refresh report');
+j1 = Pr.findByKey("mouse1/sess1");
+check(isequal(Pr.Datasets(j1).ManualArtifacts, [0.001 0.002]) && ~isnan(Pr.Datasets(j1).Fs), ...
+    'refresh parses headers and restores manifest state');
+rep2 = Pr.refresh(CancelFcn=@() true);
+check(all(rep2.Message == "cancelled"), 'refresh honours CancelFcn');
+
+fprintf('\n== 16. ArtifactConfig pre-detection filter ==\n');
+% A slow 5 Hz, 4000 uV oscillation trips the absolute-microvolts detector
+% on broadband data but vanishes after the configured 300 Hz high-pass.
+fdir = fullfile(root, 'filt_ds');
+mkdir(fdir);
+Fsf = 20000; nf = 128 * 200;          % v2 files use 128 samples per block
+tt = (0:nf-1) / Fsf;
+sig = 4000 * sin(2 * pi * 5 * tt);
+rawf = uint16(round(repmat(sig, 4, 1) / 0.195) + 32768);
+writeSyntheticRHD(fullfile(fdir, 'f.rhd'), rawf, zeros(1, nf), Fsf, 128);
+dsf = EphysDataset(fdir);
+dsf.ArtifactConfig.Enabled = true;
+dsf.ArtifactConfig.Method = "microvolts";
+dsf.ArtifactConfig.Threshold = 3000;
+dsf.ArtifactConfig.MinChannels = 1;
+ivB = dsf.artifactIntervals();
+check(~isempty(ivB), 'broadband: the slow oscillation trips the microvolts detector');
+dsf.ArtifactConfig.Filter = true;
+dsf.ArtifactConfig.FilterCutoff = 300;
+ivH = dsf.artifactIntervals();
+check(isempty(ivH), 'ArtifactConfig.Filter=true is honoured by artifactIntervals');
+ivO = dsf.artifactIntervals(Filter=false);
+check(~isempty(ivO), 'a per-call Filter=false overrides the config');
+sumH = dsf.analyzeArtifacts();
+check(sumH.nBlanked == 0, 'analyzeArtifacts honours the config filter');
+sumB = dsf.analyzeArtifacts(Filter=false);
+check(sumB.nBlanked > 0, 'analyzeArtifacts per-call override');
+cfgN = EphysDataset.normalizeArtifactConfig(struct('Threshold', 5));
+check(cfgN.Filter == false && cfgN.FilterType == "highpass" && cfgN.FilterCutoff == 300 ...
+    && cfgN.FilterOrder == 4 && cfgN.Threshold == 5, 'normalizeArtifactConfig fills the filter fields');
 
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0

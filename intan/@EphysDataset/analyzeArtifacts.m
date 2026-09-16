@@ -14,9 +14,9 @@ function summary = analyzeArtifacts(obj, opts)
 %     ChannelOrder   (1,:) double  1-based reorder/subset of amplifier channels
 %     Method/Threshold/RmsWindowMs/MergeGapMs/MinChannels/PadMs  detection params
 %       (see detectArtifacts; RmsWindowMs/MergeGapMs/PadMs in milliseconds)
-%     Filter         (1,1) logical  high/band-pass before detecting (default false,
-%                    matching toBin's default broadband write)
-%     FilterType/FilterCutoff/FilterOrder   filter params (see toBin)
+%     Filter         (1,1) logical  high/band-pass before detecting (default:
+%                    ds.ArtifactConfig.Filter, so preview and runs agree)
+%     FilterType/FilterCutoff/FilterOrder   filter params (default: ArtifactConfig)
 %     ProgressFcn    function handle  ProgressFcn(i, nFiles, fileName)
 %
 %   Output SUMMARY struct
@@ -43,10 +43,10 @@ arguments
     opts.MergeGapMs (1,1) double = NaN
     opts.MinChannels (1,1) double = NaN
     opts.PadMs (1,1) double = NaN
-    opts.Filter (1,1) logical = false
-    opts.FilterType (1,1) string {mustBeMember(opts.FilterType, ["highpass","lowpass","bandpass"])} = "highpass"
-    opts.FilterCutoff (1,:) double {mustBePositive} = 300
-    opts.FilterOrder (1,1) double {mustBeInteger, mustBePositive} = 4
+    opts.Filter = []                % [] -> ds.ArtifactConfig.Filter
+    opts.FilterType (1,1) string {mustBeMember(opts.FilterType, ["","highpass","lowpass","bandpass"])} = ""
+    opts.FilterCutoff (1,:) double {mustBePositive} = []
+    opts.FilterOrder (1,1) double = NaN
     opts.ProgressFcn = []
 end
 
@@ -68,6 +68,8 @@ rmsWinMs = opts.RmsWindowMs;   if isnan(rmsWinMs);      rmsWinMs = cfg.RmsWindow
 mergeGapMs = opts.MergeGapMs;  if isnan(mergeGapMs);    mergeGapMs = cfg.MergeGapMs; end
 minCh    = opts.MinChannels;   if isnan(minCh);         minCh    = cfg.MinChannels;  end
 padMs    = opts.PadMs;         if isnan(padMs);         padMs    = cfg.PadMs;        end
+[useFilter, fType, fCut, fOrd] = EphysDataset.resolveFilterOptions(cfg, ...
+    opts.Filter, opts.FilterType, opts.FilterCutoff, opts.FilterOrder);
 
 % Streaming plan (per *.rhd file for traditional; bounded sample windows for the
 % split formats). The loop body is format-agnostic via readChunkUV.
@@ -110,9 +112,8 @@ for i = 1:nChunks
         X = X(:, opts.ChannelOrder);
     end
 
-    if opts.Filter
-        X = obj.filterContinuous(X, Type=opts.FilterType, ...
-            Cutoff=opts.FilterCutoff, Order=opts.FilterOrder, Fs=Fs);
+    if useFilter
+        X = obj.filterContinuous(X, Type=fType, Cutoff=fCut, Order=fOrd, Fs=Fs);
     end
 
     [mask, ~, st] = obj.detectArtifacts(X, Method=method, Threshold=thr, ...

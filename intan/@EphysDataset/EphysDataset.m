@@ -164,6 +164,7 @@ classdef EphysDataset < handle
         X      = filterContinuous(obj, X, opts)
         [mask, intervals, stats] = detectArtifacts(obj, X, opts)
         [ts, wf, info] = detectSpikes(obj, X, opts)
+        [units, info] = readSortedUnits(obj, opts)
         summary = analyzeArtifacts(obj, opts)
         X      = blankArtifacts(obj, X, mask, opts)
         mask   = manualArtifactMask(obj, nSamp, sampleOffset, Fs)
@@ -604,6 +605,33 @@ classdef EphysDataset < handle
                 end
             end
             cfg = def;
+        end
+
+        [units, info] = readPhyUnits(resultsDir, opts)
+
+        function p = resolvePhyDir(folder)
+            %resolvePhyDir  Folder that actually holds params.py under FOLDER.
+            %   Accepts the results folder itself, a kilosort4 run folder or a
+            %   dataset output folder: the SpikeInterface engine nests the phy
+            %   output under kilosort4/si/sorter_output, the legacy engine
+            %   writes it into kilosort4/ directly. Returns FOLDER unchanged
+            %   when no candidate holds a params.py.
+            folder = char(folder);
+            if isfile(fullfile(folder, 'params.py'))
+                p = folder;
+                return
+            end
+            cands = { fullfile(folder, 'kilosort4', 'si', 'sorter_output'), ...
+                      fullfile(folder, 'si', 'sorter_output'), ...
+                      fullfile(folder, 'sorter_output'), ...
+                      fullfile(folder, 'kilosort4') };
+            for k = 1:numel(cands)
+                if isfile(fullfile(cands{k}, 'params.py'))
+                    p = cands{k};
+                    return
+                end
+            end
+            p = folder;
         end
 
         function [useFilter, fType, fCut, fOrd] = resolveFilterOptions(cfg, filt, fType, fCut, fOrd)

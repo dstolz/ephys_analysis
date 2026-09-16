@@ -17,8 +17,8 @@ end
 % results path matches what Kilosort4 actually wrote.
 obj.applyConfigToProject();
 
-% Resolve the folder that actually holds params.py. For the SpikeInterface
-% engine this is <kilosort4>/si/sorter_output (see kilosortResultsDir); for the
-% legacy engine it is <kilosort4> directly.
-obj.launchPhy(d.kilosortResultsDir(), d.Name);
+% Resolve the folder that actually holds params.py: the dataset's explicit
+% SortingDir when set, else the auto-discovered run (<kilosort4>/si/sorter_output
+% for the SpikeInterface engine, <kilosort4> for the legacy engine).
+obj.launchPhy(d.sortingResultsDir(), d.Name);
 end

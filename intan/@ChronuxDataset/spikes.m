@@ -20,7 +20,8 @@ function [data, params, t, info] = spikes(obj, opts)
 %   -------------------------------
 %     Source="kilosort"  spike_times.npy + spike_clusters.npy from a Kilosort4
 %                        / phy results folder (ResultsDir, or the attached
-%                        EphysDataset's kilosortResultsDir). Sample indices are
+%                        EphysDataset's sortingResultsDir), read through
+%                        EphysDataset.readPhyUnits. Sample indices are
 %                        divided by the sample rate in params.py, giving
 %                        recording-relative seconds on the same clock as the
 %                        continuous data. One struct element per cluster.
@@ -203,88 +204,35 @@ end
 
 
 function [S, unitIds, labels, out] = fromKilosort(obj, opts)
-%fromKilosort  Read spike_times/spike_clusters from a Kilosort4/phy folder.
+%fromKilosort  Sorted units from a Kilosort4/phy folder via readPhyUnits.
+%   Every cluster is kept (IncludeNoise=true) unless Groups narrows it, so
+%   the unit list matches what phy shows. Templates are skipped: this source
+%   only needs times.
 dir0 = opts.ResultsDir;
 if dir0 == ""
     if isempty(obj.Dataset)
         error('ChronuxDataset:NoResultsDir', ...
             'Source="kilosort" needs ResultsDir (no EphysDataset is attached).');
     end
-    dir0 = string(obj.Dataset.kilosortResultsDir());
+    dir0 = string(obj.Dataset.sortingResultsDir());
 end
 if ~isfolder(dir0)
     error('ChronuxDataset:NoResultsDir', 'Not a folder: %s', dir0);
 end
-fTimes = fullfile(dir0, 'spike_times.npy');
-fClu   = fullfile(dir0, 'spike_clusters.npy');
-for f = [fTimes fClu]
-    if ~isfile(f)
-        error('ChronuxDataset:NoKilosortOutput', ...
-            'No Kilosort4 output in %s (missing %s).', dir0, f);
-    end
+
+if ~isempty(obj.Dataset)
+    units = obj.Dataset.readSortedUnits(ResultsDir=dir0, Groups=opts.Groups, ...
+        IncludeNoise=true, Templates=false);
+else
+    units = EphysDataset.readPhyUnits(dir0, Groups=opts.Groups, ...
+        IncludeNoise=true, Templates=false);
 end
 
-fs = readPhySampleRate(dir0);
-if isnan(fs)
-    if ~isempty(obj.Dataset) && ~isnan(obj.Dataset.Fs)
-        fs = obj.Dataset.Fs;
-        warning('ChronuxDataset:NoParamsPy', ...
-            ['No sample_rate in %s; using the recording rate %g Hz. Spike times ' ...
-             'are wrong if the sorter ran at another rate.'], dir0, fs);
-    else
-        error('ChronuxDataset:NoSampleRate', ...
-            ['Cannot read sample_rate from %s (no params.py) and no recording is ' ...
-             'attached, so spike sample indices cannot be converted to seconds.'], dir0);
-    end
-end
-
-samples = double(readNPY(fTimes));    % 0-based sample indices
-clu     = double(readNPY(fClu));
-samples = samples(:);
-clu     = clu(:);
-if numel(samples) ~= numel(clu)
-    error('ChronuxDataset:KilosortMismatch', ...
-        'spike_times.npy has %d entries but spike_clusters.npy has %d.', ...
-        numel(samples), numel(clu));
-end
-times = samples / fs;                 % t = sample/fs, the readData time base
-
-unitIds = unique(clu).';
-labels  = "unit" + string(unitIds);
-
-% phy / Kilosort cluster labels (curation first, then Kilosort's own). They are
-% kept apart from the unit names: "good"/"mua"/"noise" identify a group, not a
-% unit.
-groupLabels = strings(1, numel(unitIds));
-[lblIds, lblTxt, lblFile] = readClusterLabels(dir0);
-if ~isempty(lblIds)
-    [tf, loc] = ismember(unitIds, lblIds);
-    groupLabels(tf) = lblTxt(loc(tf));
-end
-if ~isempty(opts.Groups)
-    if isempty(lblIds)
-        error('ChronuxDataset:NoClusterLabels', ...
-            ['Groups filtering needs cluster_group.tsv or cluster_KSLabel.tsv ' ...
-             'in %s; neither is there.'], dir0);
-    end
-    keep = ismember(groupLabels, opts.Groups);
-    if ~any(keep)
-        error('ChronuxDataset:NoGroupMatch', ...
-            'No cluster in %s is labelled %s (labels present: %s).', lblFile, ...
-            strjoin(opts.Groups, ', '), strjoin(unique(groupLabels), ', '));
-    end
-    unitIds     = unitIds(keep);
-    labels      = labels(keep);
-    groupLabels = groupLabels(keep);
-end
-
-S = struct('times', cell(1, numel(unitIds)));
-for k = 1:numel(unitIds)
-    S(k).times = sort(times(clu == unitIds(k)));
-end
-
-out = struct('resultsDir', string(dir0), 'sampleRate', fs, 'labelFile', lblFile, ...
-    'groupLabels', groupLabels);
+S       = ChronuxDataset.toPointProcess(units.times);
+unitIds = double(units.unitId(:)).';
+labels  = string(units.label(:)).';
+out = struct('resultsDir', units.resultsDir, 'sampleRate', units.fs, ...
+    'labelFile', units.labelFile, 'groupLabels', string(units.group(:)).');
 end
 
 
@@ -349,35 +297,3 @@ if ~(tr(2) > tr(1))
 end
 end
 
-
-function fs = readPhySampleRate(folder)
-%readPhySampleRate  sample_rate from params.py, else NaN (never a guess).
-fs = NaN;
-pp = fullfile(folder, 'params.py');
-if ~isfile(pp); return; end
-tok = regexp(fileread(pp), 'sample_rate\s*=\s*([\d.eE+-]+)', 'tokens', 'once');
-if ~isempty(tok); fs = str2double(tok{1}); end
-if ~isfinite(fs) || fs <= 0; fs = NaN; end
-end
-
-
-function [ids, labels, file] = readClusterLabels(folder)
-%readClusterLabels  cluster ids + labels from the phy .tsv files.
-%   cluster_group.tsv (manual curation) wins over cluster_KSLabel.tsv
-%   (Kilosort's own call), matching what phy shows.
-ids = []; labels = string.empty(0,1); file = "";
-for f = ["cluster_group.tsv", "cluster_KSLabel.tsv"]
-    fp = fullfile(folder, f);
-    if ~isfile(fp); continue; end
-    try
-        T = readtable(fp, 'FileType', 'text', 'Delimiter', '\t');
-    catch
-        continue
-    end
-    if width(T) < 2 || height(T) == 0; continue; end
-    ids    = double(T{:, 1}).';
-    labels = string(T{:, 2}).';
-    file   = string(fp);
-    return
-end
-end

@@ -1,0 +1,439 @@
+function [units, info] = readPhyUnits(resultsDir, opts)
+%readPhyUnits  Read sorted units from a Kilosort4 / phy results folder.
+%   UNITS = EphysDataset.readPhyUnits(resultsDir) is the one canonical reader
+%   of phy-format sorter output (spike_times.npy, spike_clusters.npy, the
+%   cluster_*.tsv label tables, templates.npy, ...). It needs no EphysDataset;
+%   ds.readSortedUnits wraps it with the dataset's own defaults. The Review
+%   tab, ChronuxDataset.spikes, spikesToMat and the Chronux / FieldTrip
+%   exporters all read through here, so they agree on labels, times and
+%   channels.
+%
+%   RESULTSDIR may be the folder holding params.py, or a dataset / kilosort4
+%   run folder above it (see EphysDataset.resolvePhyDir).
+%
+%   Options
+%   -------
+%     Groups        keep only clusters with these labels, e.g. ["good" "mua"]
+%                   ([] = all). Errors when no label table exists.
+%     IncludeNoise  keep clusters labelled "noise" (default false)
+%     Templates     read templates.npy for peak channel + waveform (default true)
+%     FullTemplates also return every unit's [nS x nChan] template (default false)
+%     ChannelMap    [1 x nChanSorted] 1-based RECORDING channel for each sorted
+%                   channel (overrides the mapping worked out from the run)
+%     ChannelNames  recording channel native names ("A-000", ...), used to map
+%                   SpikeInterface runs back to recording channels
+%     ProbeFile     probe .json used for the run (SpikeInterface mapping)
+%     FsFallback    sample rate to use, with a warning, when params.py has no
+%                   sample_rate (default NaN = error instead; never 30 kHz)
+%
+%   UNITS is one scalar struct with column-aligned fields (one row per unit):
+%     unitId            cluster id (as in spike_clusters.npy)
+%     label             "unit<id>"
+%     group             "good" | "mua" | "noise" | "unsorted" | other phy label
+%     nSpikes
+%     samples           {nU x 1} 0-based int64 sample indices, sorted
+%     times             {nU x 1} seconds: samples / fs (recording-relative,
+%                       the same clock as readData's t)
+%     ksChannel         1-based peak channel among the SORTED channels
+%     channel           1-based peak channel of the RECORDING (see channelMap)
+%     shank             from channel_shanks.npy (0 when absent)
+%     amplitude         cluster_Amplitude.tsv, else median amplitudes.npy
+%     contamPct         cluster_ContamPct.tsv (NaN when absent)
+%     templateWaveform  {nU x 1} [nS x 1] peak-channel template, unwhitened
+%                       when whitening_mat_inv.npy exists, scaled by the
+%                       unit's median amplitude (what the Review tab plots)
+%     templateFull      [nS x nChanSorted x nU] (FullTemplates) else []
+%     templateTimeMs    [1 x nS]
+%   and per-run scalars: fs, resultsDir, engine ("spikeinterface" | "legacy" |
+%   "unknown"), groupSource ("phy" | "kilosort" | "none"), curated, labelFile,
+%   durationSec (last spike), nChannelsSorted, channelMap ([nChanSorted x 1]
+%   1-based recording channels), channelMapSource ("manual" | "probe" |
+%   "channel_map.npy" | "identity"), readAt.
+%
+%   INFO carries the per-spike arrays for plotting: spikeSamples,
+%   spikeClusters, spikeAmplitudes, spikeUnitIdx (row into UNITS, 0 when the
+%   cluster was dropped by the filters), chanShanks, chanPos.
+%
+%   Error identifiers: EphysDataset:readPhyUnits:NoResultsDir, :NoOutput,
+%   :NoSampleRate, :Mismatch, :NoClusterLabels, :NoGroupMatch.
+%
+%   See also EphysDataset.readSortedUnits, EphysDataset.resolvePhyDir,
+%   ChronuxDataset.spikes, readNPY.
+
+arguments
+    resultsDir (1,1) string
+    opts.Groups (1,:) string = string.empty(1,0)
+    opts.IncludeNoise (1,1) logical = false
+    opts.Templates (1,1) logical = true
+    opts.FullTemplates (1,1) logical = false
+    opts.ChannelMap (1,:) double = []
+    opts.ChannelNames (1,:) string = string.empty(1,0)
+    opts.ProbeFile (1,1) string = ""
+    opts.FsFallback (1,1) double = NaN
+end
+
+dir0 = EphysDataset.resolvePhyDir(resultsDir);
+if ~isfolder(dir0)
+    error('EphysDataset:readPhyUnits:NoResultsDir', 'Not a folder: %s', resultsDir);
+end
+fTimes = fullfile(dir0, 'spike_times.npy');
+fClu   = fullfile(dir0, 'spike_clusters.npy');
+for f = [string(fTimes) string(fClu)]
+    if ~isfile(f)
+        error('EphysDataset:readPhyUnits:NoOutput', ...
+            'No Kilosort4 / phy output in %s (missing %s).', dir0, f);
+    end
+end
+
+% --- sample rate: params.py, else the caller's fallback, never a guess ----
+fs = readPhySampleRate(dir0);
+if isnan(fs)
+    if isfinite(opts.FsFallback) && opts.FsFallback > 0
+        fs = opts.FsFallback;
+        warning('EphysDataset:readPhyUnits:FsFallback', ...
+            ['No sample_rate in %s; using %g Hz. Spike times are wrong if the ' ...
+             'sorter ran at another rate.'], dir0, fs);
+    else
+        error('EphysDataset:readPhyUnits:NoSampleRate', ...
+            ['Cannot read sample_rate from %s (no params.py) and no fallback ' ...
+             'rate was given, so sample indices cannot be converted to seconds.'], dir0);
+    end
+end
+
+% --- per-spike arrays -----------------------------------------------------
+spikeSamples = int64(readNPY(fTimes));
+spikeSamples = spikeSamples(:);
+spikeClu     = double(readNPY(fClu));
+spikeClu     = spikeClu(:);
+if numel(spikeSamples) ~= numel(spikeClu)
+    error('EphysDataset:readPhyUnits:Mismatch', ...
+        'spike_times.npy has %d entries but spike_clusters.npy has %d.', ...
+        numel(spikeSamples), numel(spikeClu));
+end
+spikeAmp = readOptionalNPY(fullfile(dir0, 'amplitudes.npy'), nan(numel(spikeClu), 1));
+spikeAmp = double(spikeAmp(:));
+if numel(spikeAmp) ~= numel(spikeClu); spikeAmp = nan(numel(spikeClu), 1); end
+
+unitId = unique(spikeClu);
+unitId = unitId(:);
+nU = numel(unitId);
+[~, spikeUnitIdx] = ismember(spikeClu, unitId);
+nSpikes = accumarray(spikeUnitIdx, 1, [nU 1]);
+
+% --- labels: phy curation first, then Kilosort's own call ------------------
+[lblIds, lblTxt, labelFile, groupSource] = readClusterLabels(dir0);
+group = repmat("unsorted", nU, 1);
+if ~isempty(lblIds)
+    [tf, loc] = ismember(unitId, lblIds);
+    group(tf) = lblTxt(loc(tf));
+end
+group = lower(strtrim(group));
+group(group == "") = "unsorted";
+
+% --- amplitude / contamination side tables ---------------------------------
+ampTsv    = lookupByID(dir0, 'cluster_Amplitude.tsv', unitId);
+contamTsv = lookupByID(dir0, 'cluster_ContamPct.tsv', unitId);
+medAmp = nan(nU, 1);
+for u = 1:nU
+    medAmp(u) = median(spikeAmp(spikeUnitIdx == u), 'omitnan');
+end
+amplitude = ampTsv;
+amplitude(~isfinite(amplitude)) = medAmp(~isfinite(amplitude));
+
+% --- templates: peak channel + waveform ------------------------------------
+ksChannel = nan(nU, 1);
+wfPeak    = cell(nU, 1);
+wfFull    = [];
+tms       = zeros(1, 0);
+nChSorted = NaN;
+fTmpl = fullfile(dir0, 'templates.npy');
+if opts.Templates && isfile(fTmpl)
+    templates = double(readNPY(fTmpl));                    % [nT nS nC]
+    nT = size(templates, 1); nS = size(templates, 2); nChSorted = size(templates, 3);
+    spikeTmpl = readOptionalNPY(fullfile(dir0, 'spike_templates.npy'), spikeClu);
+    spikeTmpl = double(spikeTmpl(:));
+    if numel(spikeTmpl) ~= numel(spikeClu); spikeTmpl = spikeClu; end
+    Winv = readOptionalNPY(fullfile(dir0, 'whitening_mat_inv.npy'), []);
+    canUnwhiten = ~isempty(Winv) && isequal(size(Winv), [nChSorted nChSorted]);
+    tms = (0:nS-1) / fs * 1000;
+    if opts.FullTemplates; wfFull = zeros(nS, nChSorted, nU); end
+    for u = 1:nU
+        sel = spikeUnitIdx == u;
+        tIdx = mode(spikeTmpl(sel)) + 1;                   % robust to KS reindexing
+        if ~(tIdx >= 1 && tIdx <= nT)
+            tIdx = min(max(unitId(u) + 1, 1), nT);
+        end
+        wf = reshape(templates(tIdx, :, :), nS, nChSorted);
+        if canUnwhiten; wf = wf * Winv; end
+        a = medAmp(u);
+        if ~isfinite(a) || a == 0; a = 1; end
+        wf = wf * a;
+        p2p = max(wf, [], 1) - min(wf, [], 1);
+        [~, pk] = max(p2p);
+        ksChannel(u) = pk;
+        wfPeak{u} = wf(:, pk);
+        if opts.FullTemplates; wfFull(:, :, u) = wf; end
+    end
+end
+
+chanShanks = readOptionalNPY(fullfile(dir0, 'channel_shanks.npy'), []);
+chanShanks = double(chanShanks(:));
+chanPos = readOptionalNPY(fullfile(dir0, 'channel_positions.npy'), []);
+cm0 = readOptionalNPY(fullfile(dir0, 'channel_map.npy'), []);
+cm0 = double(cm0(:));
+if isnan(nChSorted)
+    nChSorted = max([numel(cm0), numel(chanShanks), size(chanPos, 1)]);
+    if nChSorted == 0; nChSorted = NaN; end
+end
+if isfinite(nChSorted)
+    if numel(chanShanks) < nChSorted; chanShanks(end+1:nChSorted, 1) = 0; end
+    chanShanks = chanShanks(1:nChSorted);
+end
+shank = zeros(nU, 1);
+ok = isfinite(ksChannel) & ksChannel >= 1 & ksChannel <= numel(chanShanks);
+shank(ok) = chanShanks(ksChannel(ok));
+
+% --- sorted channel -> recording channel -----------------------------------
+[engine, channelMap, channelMapSource] = resolveChannelMap(dir0, nChSorted, cm0, opts);
+channel = nan(nU, 1);
+ok = isfinite(ksChannel) & ksChannel >= 1 & ksChannel <= numel(channelMap);
+channel(ok) = channelMap(ksChannel(ok));
+
+% --- filters ---------------------------------------------------------------
+keep = true(nU, 1);
+if ~opts.IncludeNoise
+    keep = keep & group ~= "noise";
+end
+if ~isempty(opts.Groups)
+    if isempty(lblIds)
+        error('EphysDataset:readPhyUnits:NoClusterLabels', ...
+            ['Groups filtering needs cluster_group.tsv or cluster_KSLabel.tsv ' ...
+             'in %s; neither is there.'], dir0);
+    end
+    keep = keep & ismember(group, lower(strtrim(opts.Groups)));
+    if ~any(keep)
+        error('EphysDataset:readPhyUnits:NoGroupMatch', ...
+            'No cluster in %s is labelled %s (labels present: %s).', labelFile, ...
+            strjoin(opts.Groups, ', '), strjoin(unique(group).', ', '));
+    end
+end
+keptIdx = find(keep);
+[~, spikeUnitIdxKept] = ismember(spikeUnitIdx, keptIdx);   % 0 for dropped units
+
+samples = cell(numel(keptIdx), 1);
+times   = cell(numel(keptIdx), 1);
+for k = 1:numel(keptIdx)
+    s = sort(spikeSamples(spikeUnitIdx == keptIdx(k)));
+    samples{k} = s;
+    times{k}   = double(s) / fs;
+end
+
+durationSec = NaN;
+if ~isempty(spikeSamples)
+    durationSec = double(max(spikeSamples)) / fs;
+end
+
+units = struct();
+units.unitId           = unitId(keptIdx);
+units.label            = "unit" + string(units.unitId);
+units.group            = group(keptIdx);
+units.nSpikes          = nSpikes(keptIdx);
+units.samples          = samples;
+units.times            = times;
+units.ksChannel        = ksChannel(keptIdx);
+units.channel          = channel(keptIdx);
+units.shank            = shank(keptIdx);
+units.amplitude        = amplitude(keptIdx);
+units.contamPct        = contamTsv(keptIdx);
+units.templateWaveform = wfPeak(keptIdx);
+if isempty(wfFull); units.templateFull = []; else; units.templateFull = wfFull(:, :, keptIdx); end
+units.templateTimeMs   = tms;
+units.fs               = fs;
+units.resultsDir       = string(dir0);
+units.engine           = engine;
+units.groupSource      = groupSource;
+units.curated          = groupSource == "phy";
+units.labelFile        = labelFile;
+units.durationSec      = durationSec;
+units.nChannelsSorted  = nChSorted;
+units.channelMap       = channelMap(:);
+units.channelMapSource = channelMapSource;
+units.readAt           = string(datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss'));
+
+info = struct();
+info.spikeSamples    = spikeSamples;
+info.spikeClusters   = spikeClu;
+info.spikeAmplitudes = spikeAmp;
+info.spikeUnitIdx    = spikeUnitIdxKept;
+info.chanShanks      = chanShanks;
+info.chanPos         = chanPos;
+info.nUnitsInFile    = nU;
+end
+
+
+%% ---------------------------------------------------------------------------
+function fs = readPhySampleRate(folder)
+%readPhySampleRate  sample_rate from params.py, else NaN (never a guess).
+fs = NaN;
+pp = fullfile(folder, 'params.py');
+if ~isfile(pp); return; end
+tok = regexp(fileread(pp), 'sample_rate\s*=\s*([\d.eE+-]+)', 'tokens', 'once');
+if ~isempty(tok); fs = str2double(tok{1}); end
+if ~isfinite(fs) || fs <= 0; fs = NaN; end
+end
+
+
+function [ids, labels, file, source] = readClusterLabels(folder)
+%readClusterLabels  cluster ids + labels; cluster_group.tsv (phy curation)
+%   wins over cluster_KSLabel.tsv (Kilosort's own call), as phy shows them.
+ids = []; labels = strings(0, 1); file = ""; source = "none";
+cands = ["cluster_group.tsv", "cluster_KSLabel.tsv"];
+srcs  = ["phy", "kilosort"];
+for k = 1:numel(cands)
+    fp = fullfile(folder, cands(k));
+    if ~isfile(fp); continue; end
+    try
+        T = readtable(fp, 'FileType', 'text', 'Delimiter', '\t', ...
+            'TextType', 'string', 'VariableNamingRule', 'preserve');
+    catch
+        continue
+    end
+    if width(T) < 2 || height(T) == 0; continue; end
+    ids    = double(T{:, 1});
+    labels = string(T{:, 2});
+    labels = labels(:);
+    file   = string(fp);
+    source = srcs(k);
+    return
+end
+end
+
+
+function v = lookupByID(folder, fname, ids)
+%lookupByID  Numeric column 2 of a phy .tsv aligned to IDS (NaN when absent).
+v = nan(numel(ids), 1);
+fp = fullfile(folder, fname);
+if ~isfile(fp); return; end
+try
+    T = readtable(fp, 'FileType', 'text', 'Delimiter', '\t', ...
+        'VariableNamingRule', 'preserve');
+catch
+    return
+end
+if width(T) < 2 || height(T) == 0; return; end
+tid = double(T{:, 1});
+[tf, loc] = ismember(ids, tid);
+vals = double(T{:, 2});
+v(tf) = vals(loc(tf));
+end
+
+
+function out = readOptionalNPY(fn, fallback)
+if isfile(fn)
+    out = double(readNPY(fn));
+else
+    out = fallback;
+end
+end
+
+
+function [engine, channelMap, source] = resolveChannelMap(dir0, nChSorted, cm0, opts)
+%resolveChannelMap  1-based recording channel for each sorted channel.
+%   Legacy run_ks4.py runs sort the .bin directly, whose rows ARE recording
+%   channels, so channel_map.npy + 1 is the answer. SpikeInterface runs sort a
+%   recording reordered into probe-site order (minus sites missing from the
+%   recording and minus removed bad channels), so the mapping goes through the
+%   probe's chanMap, matched to recording channels by the trailing number of
+%   the channel id exactly as run_si_ks4.py does. When that cannot be
+%   reconstructed, the identity mapping is returned with a warning.
+engine = "unknown";
+runDir = dir0;
+siCfg = "";
+for up = 0:2
+    if isfile(fullfile(runDir, 'si_config.json')); siCfg = fullfile(runDir, 'si_config.json'); break; end
+    if isfile(fullfile(runDir, 'settings.json')) && up == 0; engine = "legacy"; break; end
+    runDir = fileparts(runDir);
+end
+if siCfg ~= ""; engine = "spikeinterface"; end
+if isnan(nChSorted) || nChSorted < 1
+    channelMap = zeros(0, 1); source = "identity";
+    return
+end
+
+if ~isempty(opts.ChannelMap)
+    channelMap = double(opts.ChannelMap(:));
+    source = "manual";
+    if numel(channelMap) ~= nChSorted
+        warning('EphysDataset:readPhyUnits:ChannelMapSize', ...
+            'ChannelMap has %d entries but the run has %d sorted channels.', ...
+            numel(channelMap), nChSorted);
+    end
+    return
+end
+
+identity = (1:nChSorted).';
+if engine == "spikeinterface"
+    try
+        cfg = readJsonFile(siCfg);
+        probeFile = opts.ProbeFile;
+        if probeFile == "" && isfield(cfg, 'probe'); probeFile = string(cfg.probe); end
+        if probeFile == "" || ~isfile(probeFile)
+            error('no probe file');
+        end
+        probe = readJsonFile(probeFile);
+        chanMap = double(probe.chanMap(:));          % nominal channel numbers
+        % Recording channel positions by trailing number of the native id.
+        names = opts.ChannelNames;
+        if isempty(names) && isfield(cfg, 'n_chan')
+            names = "A-" + string(compose('%03d', (0:double(cfg.n_chan)-1).'));
+        end
+        posByNum = containers.Map('KeyType', 'double', 'ValueType', 'double');
+        for p = 1:numel(names)
+            tok = regexp(char(names(p)), '([0-9]+)$', 'tokens', 'once');
+            if ~isempty(tok); posByNum(str2double(tok{1})) = p; end
+        end
+        keep = arrayfun(@(v) isKey(posByNum, v), chanMap);
+        rec = arrayfun(@(v) posByNum(v), chanMap(keep));   % 1-based positions, site order
+        % Bad channels removed before sorting (status file lists channel ids).
+        st = readJsonFile(fullfile(fileparts(siCfg), 'ks4_status.json'), ErrorOnFail=false);
+        if ~isempty(st) && isstruct(st) && isfield(st, 'bad_channels') && ~isempty(st.bad_channels)
+            bad = string(st.bad_channels);
+            badPos = [];
+            for b = 1:numel(bad)
+                tok = regexp(char(bad(b)), '([0-9]+)$', 'tokens', 'once');
+                if ~isempty(tok) && isKey(posByNum, str2double(tok{1}))
+                    badPos(end+1) = posByNum(str2double(tok{1})); %#ok<AGROW>
+                end
+            end
+            rec = rec(~ismember(rec, badPos));
+        end
+        if ~isempty(cm0) && numel(cm0) == nChSorted && all(cm0 + 1 >= 1 & cm0 + 1 <= numel(rec))
+            rec = rec(cm0 + 1);
+        end
+        if numel(rec) ~= nChSorted
+            error('kept %d sites but %d sorted channels', numel(rec), nChSorted);
+        end
+        channelMap = rec(:);
+        source = "probe";
+        return
+    catch ME
+        warning('EphysDataset:readPhyUnits:ChannelMapFallback', ...
+            ['Could not map SpikeInterface sorted channels back to recording ' ...
+             'channels (%s); using the identity mapping. Pass ChannelMap= to fix.'], ME.message);
+        channelMap = identity; source = "identity";
+        return
+    end
+end
+
+if ~isempty(cm0) && numel(cm0) == nChSorted
+    channelMap = cm0 + 1;
+    source = "channel_map.npy";
+else
+    if engine ~= "legacy"
+        warning('EphysDataset:readPhyUnits:ChannelMapFallback', ...
+            'No usable channel_map.npy in %s; using the identity channel mapping.', dir0);
+    end
+    channelMap = identity;
+    source = "identity";
+end
+end

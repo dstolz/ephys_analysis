@@ -682,9 +682,168 @@ cfgN = EphysDataset.normalizeArtifactConfig(struct('Threshold', 5));
 check(cfgN.Filter == false && cfgN.FilterType == "highpass" && cfgN.FilterCutoff == 300 ...
     && cfgN.FilterOrder == 4 && cfgN.Threshold == 5, 'normalizeArtifactConfig fills the filter fields');
 
+fprintf('\n== 17. readPhyUnits / readSortedUnits (sorted units loader) ==\n');
+% Legacy-engine layout: phy files directly in kilosort4/, channel_map.npy
+% reversed so sorted channel k is recording channel 5-k.
+phyFs = 30000;
+legDir = fullfile(root, 'phy_legacy', 'kilosort4');
+makePhyFixture(legDir, phyFs, ChannelMap=[3 2 1 0], Legacy=true);
+[U, ui] = EphysDataset.readPhyUnits(legDir);
+check(isequal(U.unitId, [0; 1]) && isequal(U.group, ["good"; "mua"]) && U.groupSource == "phy" && U.curated, ...
+    'noise cluster dropped by default; phy labels win over KSLabel');
+check(isequal(U.times{1}, double(int64([300; 600; 30000])) / phyFs) && isequal(U.samples{1}, int64([300; 600; 30000])), ...
+    'times are samples / params.py sample_rate');
+check(U.fs == phyFs && U.nSpikes(1) == 3 && U.nSpikes(2) == 2, 'fs and per-unit counts');
+check(isequal(U.ksChannel, [2; 4]) && isequal(U.channel, [3; 1]), ...
+    'peak channel from templates; recording channel via channel_map.npy (legacy engine)');
+check(U.channelMapSource == "channel_map.npy" && U.engine == "legacy", 'legacy engine detected');
+check(numel(U.templateWaveform{1}) == 8 && isempty(U.templateFull) && numel(U.templateTimeMs) == 8, ...
+    'peak-channel template waveform, no full templates by default');
+check(abs(U.templateWaveform{1}(3) - (-50 * 1.5)) < 1e-9, 'template scaled by the unit median amplitude');
+check(isequal(U.amplitude, [1.5; 2]) && isnan(U.contamPct(1)), 'amplitude from amplitudes.npy; contam NaN when absent');
+check(numel(ui.spikeSamples) == 6 && isequal(ui.spikeUnitIdx(:).', [1 1 2 2 1 0]), ...
+    'info carries per-spike arrays; dropped clusters map to 0');
+Ua = EphysDataset.readPhyUnits(legDir, IncludeNoise=true, FullTemplates=true);
+check(isequal(Ua.unitId, [0; 1; 2]) && isequal(size(Ua.templateFull), [8 4 3]), 'IncludeNoise + FullTemplates');
+Ug = EphysDataset.readPhyUnits(legDir, Groups="mua");
+check(isequal(Ug.unitId, 1), 'Groups filter');
+Um = EphysDataset.readPhyUnits(legDir, ChannelMap=[10 20 30 40]);
+check(isequal(Um.channel, [20; 40]) && Um.channelMapSource == "manual", 'ChannelMap override');
+check(strcmp(EphysDataset.resolvePhyDir(fullfile(root, 'phy_legacy')), legDir), 'resolvePhyDir finds kilosort4/ below a dataset folder');
+Ur = EphysDataset.readPhyUnits(fullfile(root, 'phy_legacy'));
+check(isequal(Ur.unitId, U.unitId), 'readPhyUnits accepts the folder above the results');
+errId = '';
+try
+    EphysDataset.readPhyUnits(legDir, Groups="nothing");
+catch ME
+    errId = ME.identifier;
+end
+check(strcmp(errId, 'EphysDataset:readPhyUnits:NoGroupMatch'), 'unmatched Groups errors');
+errId = '';
+try
+    EphysDataset.readPhyUnits(fullfile(root, 'proj'));
+catch ME
+    errId = ME.identifier;
+end
+check(strcmp(errId, 'EphysDataset:readPhyUnits:NoOutput'), 'a folder without phy output errors');
+
+% No params.py: fallback rate with a warning, error without one.
+noFsDir = fullfile(root, 'phy_nofs');
+makePhyFixture(noFsDir, phyFs, ChannelMap=[0 1 2 3], Legacy=true);
+delete(fullfile(noFsDir, 'params.py'));
+errId = '';
+try
+    EphysDataset.readPhyUnits(noFsDir);
+catch ME
+    errId = ME.identifier;
+end
+check(strcmp(errId, 'EphysDataset:readPhyUnits:NoSampleRate'), 'no params.py and no fallback is an error');
+lastwarn('');
+ws = warning('off', 'EphysDataset:readPhyUnits:FsFallback');
+Uf = EphysDataset.readPhyUnits(noFsDir, FsFallback=20000);
+warning(ws);
+check(Uf.fs == 20000 && abs(Uf.times{1}(1) - 300 / 20000) < 1e-12, 'FsFallback is used when params.py is missing');
+
+% SpikeInterface layout: probe-site order, one bad channel removed, so the
+% 3 sorted channels map back to recording channels through the probe.
+siRun = fullfile(root, 'phy_si', 'kilosort4');
+siDir = fullfile(siRun, 'si', 'sorter_output');
+makePhyFixture(siDir, phyFs, ChannelMap=[0 1 2], NChan=3, Legacy=false);
+siProbe = fullfile(root, 'si_probe.json');
+writeJsonFile(siProbe, struct('chanMap', [3 0 2 1], 'xc', zeros(1, 4), 'yc', (0:3) * 20, ...
+    'kcoords', zeros(1, 4), 'n_chan', 4));
+writeJsonFile(fullfile(siRun, 'si_config.json'), struct('schema', "intan-si-ks4/1", ...
+    'probe', siProbe, 'n_chan', 4, 'exclude_channels', []));
+writeJsonFile(fullfile(siRun, 'ks4_status.json'), struct('state', "done", 'bad_channels', {{'A-002'}}));
+Us = EphysDataset.readPhyUnits(siDir);
+% sites in probe order: A-003, A-000, A-002, A-001 -> drop A-002 -> [4 1 2]
+check(Us.engine == "spikeinterface" && Us.channelMapSource == "probe" && isequal(Us.channelMap, [4; 1; 2]), ...
+    'SpikeInterface run maps sorted channels back through the probe minus bad channels');
+check(isequal(Us.ksChannel, [2; 3]) && isequal(Us.channel, [1; 2]), 'unit recording channels follow that map');
+wsI = warning('off', 'EphysDataset:readPhyUnits:ChannelMapFallback');
+Us2 = EphysDataset.readPhyUnits(siDir, ChannelNames=["B-000" "B-001" "B-002" "B-003"]);
+warning(wsI);
+check(Us2.channelMapSource == "probe" && isequal(Us2.channelMap, [4; 1; 2]), ...
+    'channel names are matched by trailing number, as run_si_ks4.py does');
+
+% Instance wrapper: dataset defaults + SortingDir association.
+dsu = EphysDataset(dsFolder);
+dsu.SortingDir = legDir;
+[Ud, ~] = dsu.readSortedUnits(Groups=["good" "mua"]);
+check(isequal(Ud.unitId, [0; 1]) && Ud.resultsDir == string(legDir), 'readSortedUnits reads from SortingDir');
+dsu.SortingDir = "";
+errId = '';
+try
+    dsu.readSortedUnits();
+catch ME
+    errId = ME.identifier;
+end
+check(startsWith(errId, 'EphysDataset:readPhyUnits:No'), 'readSortedUnits errors when nothing is sorted');
+dsu.SortingDir = noFsDir;
+ws = warning('off', 'EphysDataset:readPhyUnits:FsFallback');
+Un = dsu.readSortedUnits();
+warning(ws);
+check(Un.fs == dsu.Fs, 'readSortedUnits falls back to the recording rate');
+
+% writeNPY round trips N-D arrays in C order.
+npyF = fullfile(root, 'nd.npy');
+A = reshape(single(1:24), [2 3 4]);
+writeNPY(npyF, A);
+[B, shp] = readNPY(npyF);
+check(isequal(B, A) && isa(B, 'single') && isequal(shp, [2 3 4]), 'writeNPY/readNPY N-D round trip');
+writeNPY(npyF, int64([5 6 7]));
+check(isequal(readNPY(npyF), int64([5; 6; 7])), 'writeNPY 1-D round trip');
+
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0
     error('test_EphysDataset:Failures', '%d checks failed.', nFail);
+end
+end
+
+
+% =========================================================================
+function makePhyFixture(dir0, fs, opts)
+%makePhyFixture  Write a small Kilosort4/phy results folder.
+%   Three clusters: 0 (good, spikes at 300/600/30000), 1 (mua, 900/1500),
+%   2 (noise, 45000). cluster_group.tsv labels them good/mua/noise while
+%   cluster_KSLabel.tsv says mua/good/good (so curation must win). Templates
+%   [3 x 8 x NChan] put cluster 0's peak on sorted channel 2, cluster 1's on
+%   the last channel, cluster 2's on channel 1; amplitudes give cluster 0 a
+%   median of 1.5 and cluster 1 a median of 2.
+arguments
+    dir0 (1,1) string
+    fs (1,1) double
+    opts.ChannelMap (1,:) double = [0 1 2 3]
+    opts.NChan (1,1) double = 4
+    opts.Legacy (1,1) logical = true
+end
+if ~isfolder(dir0); mkdir(dir0); end
+nC = opts.NChan;
+samples  = int64([300; 600; 900; 1500; 30000; 45000]);
+clusters = int32([0; 0; 1; 1; 0; 2]);
+amps     = [1; 1.5; 2; 2; 3; 1];
+writeNPY(fullfile(dir0, 'spike_times.npy'), samples);
+writeNPY(fullfile(dir0, 'spike_clusters.npy'), clusters);
+writeNPY(fullfile(dir0, 'spike_templates.npy'), clusters);
+writeNPY(fullfile(dir0, 'amplitudes.npy'), amps);
+T = zeros(3, 8, nC);
+T(1, 3, 2)  = -50;  T(1, 5, 2)  = 20;
+T(2, 3, nC) = -80;  T(2, 6, nC) = 30;
+T(3, 4, 1)  = -10;
+writeNPY(fullfile(dir0, 'templates.npy'), single(T));
+writeNPY(fullfile(dir0, 'channel_map.npy'), int32(opts.ChannelMap(:)));
+writeNPY(fullfile(dir0, 'channel_shanks.npy'), int32(zeros(nC, 1)));
+fid = fopen(fullfile(dir0, 'params.py'), 'w');
+fprintf(fid, 'dat_path = "x.bin"\nn_channels_dat = %d\ndtype = "int16"\nsample_rate = %g.\n', nC, fs);
+fclose(fid);
+fid = fopen(fullfile(dir0, 'cluster_group.tsv'), 'w');
+fprintf(fid, 'cluster_id\tgroup\n0\tgood\n1\tmua\n2\tnoise\n');
+fclose(fid);
+fid = fopen(fullfile(dir0, 'cluster_KSLabel.tsv'), 'w');
+fprintf(fid, 'cluster_id\tKSLabel\n0\tmua\n1\tgood\n2\tgood\n');
+fclose(fid);
+if opts.Legacy
+    writeJsonFile(fullfile(dir0, 'settings.json'), struct('n_chan_bin', nC, 'fs', fs));
 end
 end
 

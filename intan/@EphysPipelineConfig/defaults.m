@@ -33,9 +33,8 @@ switch section
             'MaxStartOffsetMin', 30, ...
             'Overwrite',         false, ...   % re-match datasets that already have a file
             'WriteFile',         true, ...    % save <Name>_behavior.mat for associated datasets
-            'PairTrials',        true, ...    % pair trials with TrialLine intervals (needs review)
-            'TrialLine',         "InTrial", ...  % digital line that is on during each trial
-            'AlignToleranceS',   0.5);        % timestamp agreement tolerance (s)
+            'PairTrials',        true, ...    % pair trials in order with TrialLine intervals (needs review)
+            'TrialLine',         "InTrial");  % digital line that is on during each trial
 
     case "Artifacts"
         a = EphysDataset.defaultArtifactConfig();

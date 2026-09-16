@@ -1,36 +1,44 @@
 function P = pairTrials(obj, opts)
-%pairTrials  Pair the associated Epsych2 trials with the trial digital line.
+%pairTrials  Pair the associated Epsych2 trials, in order, with the trial digital line.
 %   P = ds.pairTrials() loads BehaviorFile (readBehavior) and the digital
 %   events (digitalEvents, cached) and runs pairEpsychTrials with
-%   TrialConfig. When the manifest holds a recorded pairing (TrialPairing)
-%   for the same session and the same trial-line intervals, its assignment
-%   is reused, so a reviewed pairing stays exactly as approved. Nothing is
-%   written; see setTrialPairing to record or approve a result.
+%   TrialConfig: trial 1 with the first interval of the trial line, trial 2
+%   with the second, and so on. When the manifest holds a recorded pairing
+%   (TrialPairing) for the same session and the same trial-line intervals,
+%   its cuts (trials / intervals dropped from the start or the end, the
+%   resolution of a count mismatch) are reused, so a reviewed pairing stays
+%   exactly as approved. Nothing is written; see setTrialPairing to record or
+%   approve a result.
 %
 %   P is the pairEpsychTrials struct plus
 %     status       "approved" | "unreviewed" (recorded or new)
-%     recorded     true when the assignment came from TrialPairing
-%     stale        true when a recorded pairing no longer matches (the
-%                  session or the recording changed) and was re-aligned
+%     recorded     true when the cuts came from TrialPairing
+%     stale        true when a recorded pairing no longer matched (the
+%                  session or the recording changed) and its cuts were dropped
 %     fingerprint  identifies the session + trial-line intervals
-%     digInNames, nSamples, eventsSource
+%     digInNames, eventsSource
 %
 %   Options
-%     Assignment   "recorded" (default: TrialPairing when it matches, else
-%                  automatic) | "auto" | [nTrials x 1] interval indices
+%     Cuts         "recorded" (default: TrialPairing's cuts when it matches,
+%                  else none) | "none" | struct with fields trials and
+%                  intervals, each [fromStart fromEnd]
 %     Events       a digitalEvents struct to use instead of reading one
+%     Warn         true (default): a count mismatch also raises
+%                  pairEpsychTrials:CountMismatch
 %     ProgressFcn  forwarded to digitalEvents
 %
 %   Errors with EphysDataset:readBehavior:NoFile when no session is
-%   associated and pairEpsychTrials:NoTrialLine when the line is missing.
+%   associated, pairEpsychTrials:NoTrialLine when the line is missing and
+%   pairEpsychTrials:Cuts when the cuts drop more than there is.
 %
 %   See also pairEpsychTrials, EphysDataset.setTrialPairing,
 %   EphysDataset.behaviorToMat.
 
 arguments
     obj (1,1) EphysDataset
-    opts.Assignment = "recorded"
+    opts.Cuts = "recorded"
     opts.Events = []
+    opts.Warn (1,1) logical = true
     opts.ProgressFcn = []
 end
 
@@ -53,24 +61,31 @@ end
 
 rec = obj.TrialPairing;
 recorded = false; stale = false;
-assignment = [];
-if isnumeric(opts.Assignment)
-    assignment = opts.Assignment;
-elseif string(opts.Assignment) == "recorded" && ~isempty(rec)
-    if rec.fingerprint == fp && numel(rec.assignment) == height(trials)
-        assignment = rec.assignment;
-        recorded = true;
-    else
-        stale = true;
+cutT = [0 0]; cutI = [0 0];
+if isstruct(opts.Cuts)
+    cutT = double(opts.Cuts.trials);
+    cutI = double(opts.Cuts.intervals);
+else
+    mode = string(opts.Cuts);
+    if ~ismember(mode, ["recorded" "none"])
+        error('EphysDataset:pairTrials:Cuts', ...
+            'Cuts must be "recorded", "none" or a struct with fields trials and intervals.');
+    end
+    if mode == "recorded" && ~isempty(rec)
+        if rec.fingerprint == fp
+            cutT = rec.cut_trials;
+            cutI = rec.cut_intervals;
+            recorded = true;
+        else
+            stale = true;
+        end
     end
 end
 
 P = pairEpsychTrials(trials, E.events, E.Fs, TrialLine=trialLine, ...
     InvertedLines=string(tc.InvertedLines), NumSamples=E.nSamples, ...
-    ToleranceS=tc.ToleranceS, SignalFs=tc.SignalFs, Assignment=assignment);
+    CutTrials=cutT, CutIntervals=cutI, SignalFs=tc.SignalFs, Warn=opts.Warn);
 if recorded
-    P.summary = replace(P.summary, "(" + P.method + ")", "(recorded " + rec.status + ", " + rec.method + ")");
-    P.method = rec.method;
     P.status = rec.status;
 else
     P.status = "unreviewed";
@@ -79,7 +94,6 @@ P.recorded = recorded;
 P.stale = stale;
 P.fingerprint = fp;
 P.digInNames = E.digInNames;
-P.nSamples = E.nSamples;
 P.eventsSource = "";
 if isfield(E, 'source'); P.eventsSource = E.source; end
 end

@@ -55,9 +55,6 @@ if B.Enabled
     if B.PairTrials && strtrim(B.TrialLine) == ""
         add("behavior", "TrialLine", "error", "TrialLine must name the digital line that is on during trials.");
     end
-    if B.PairTrials && ~(B.AlignToleranceS > 0 && isfinite(B.AlignToleranceS))
-        add("behavior", "AlignToleranceS", "error", "AlignToleranceS must be a positive number of seconds.");
-    end
 end
 
 % --- Artifacts -------------------------------------------------------------------

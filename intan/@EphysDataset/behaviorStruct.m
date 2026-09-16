@@ -12,11 +12,12 @@ function b = behaviorStruct(obj, opts)
 %
 %   B = ds.behaviorStruct(Pairing=P) with P from pairTrials also appends the
 %   pairing columns to trials (TrialOnset / TrialOffset seconds, sample rows
-%   at the recording rate and per derived signal, TrialEvents, ... see
-%   pairEpsychTrials) and sets pairing to the summary: status, method,
-%   trialLine, invertedLines, Fs, signalFs, nTrials, nIntervals, nPaired,
-%   nTimestampOff, unpairedTrials, unpairedIntervals, clockOffsetS,
-%   fingerprint, summary and conventions (how times and samples are counted).
+%   at the recording rate and per derived signal, PairingFlag, TrialEvents,
+%   ... see pairEpsychTrials) and sets pairing to the summary: status,
+%   trialLine, invertedLines, Fs, nSamples, signalFs, nTrials, nIntervals,
+%   nPaired, cutTrials, cutIntervals, countMismatch, warnings,
+%   partialIntervals, unpairedTrials, unpairedIntervals, fingerprint, summary
+%   and conventions (how times and samples are counted).
 %
 %   See also EphysDataset.readBehavior, EphysDataset.behaviorToMat,
 %   EphysDataset.pairTrials, readEpsychSession.
@@ -45,13 +46,15 @@ if ~isempty(P)
     end
     trials = [trials, P.columns];
     pairing = struct();
-    for f = ["status" "method" "trialLine" "invertedLines" "Fs" "signalFs" "nTrials" ...
-            "nIntervals" "nPaired" "nTimestampOff" "unpairedTrials" "unpairedIntervals" ...
-            "clockOffsetS" "fingerprint" "summary"]
+    for f = ["status" "trialLine" "invertedLines" "Fs" "nSamples" "signalFs" "nTrials" ...
+            "nIntervals" "nPaired" "cutTrials" "cutIntervals" "countMismatch" "warnings" ...
+            "partialIntervals" "unpairedTrials" "unpairedIntervals" "fingerprint" "summary"]
         pairing.(f) = P.(f);
     end
-    pairing.conventions = "seconds: t = row/Fs on the recording clock; *Sample: 1-based row at Fs; " + ...
-        "*Sample_<SIG>: round(t * signalFs.<SIG>); TrialEvents: intervals of other lines overlapping the trial";
+    pairing.conventions = "trials pair in order with the trial line's intervals after the cuts; " + ...
+        "seconds: t = row/Fs on the recording clock; *Sample: 1-based row at Fs; " + ...
+        "*Sample_<SIG>: round(t * signalFs.<SIG>); PairingFlag partial: the interval touches the recording start or end; " + ...
+        "TrialEvents: intervals of other lines overlapping the trial";
 end
 b = struct('trials', trials, 'info', info, 'meta', meta, 'file', obj.BehaviorFile, ...
     'subject', meta.subject, 'startTime', meta.startTime, 'nTrials', meta.nTrials, ...

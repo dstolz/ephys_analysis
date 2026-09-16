@@ -113,17 +113,17 @@ classdef EphysDataset < handle
         BehaviorFile (1,1) string = ""
 
         % How Epsych2 trials are paired with a digital line (pairTrials):
-        % TrialLine, InvertedLines, ToleranceS, SignalFs (derived-signal
-        % rates for sample columns) and LabelField. Pushed from the config's
-        % Behavior section. See defaultTrialConfig.
+        % TrialLine, InvertedLines, SignalFs (derived-signal rates for
+        % sample columns) and LabelField. Pushed from the config's Behavior
+        % section. See defaultTrialConfig.
         TrialConfig struct = EphysDataset.defaultTrialConfig()
 
         % The reviewed trial pairing, persisted in the manifest under
         % behavior.pairing; struct([]) until one is recorded. Fields: status
-        % ("unreviewed" | "approved"), assignment (interval index per trial,
-        % NaN = unpaired), fingerprint (behavior session + trial line
-        % intervals it applies to), method, trial_line, summary, updated.
-        % See pairTrials, setTrialPairing.
+        % ("unreviewed" | "approved"), cut_trials and cut_intervals ([start
+        % end] counts dropped before pairing in order), fingerprint (behavior
+        % session + trial line intervals it applies to), trial_line, summary,
+        % updated. See pairTrials, setTrialPairing.
         TrialPairing struct = struct([])
         Manifest                                  % optional Manifest for provenance
 
@@ -723,34 +723,39 @@ classdef EphysDataset < handle
             %   TrialLine       digital line held high during each trial
             %   InvertedLines   lines with inverted polarity: on while low,
             %                   onset = falling edge (default none)
-            %   ToleranceS      timestamp agreement tolerance (s)
             %   SignalFs        struct of derived-signal rates (e.g. LFP: 1000)
             %                   for per-signal sample columns
             %   LabelField      dig-in name used as the line name
             cfg = struct('TrialLine', "InTrial", 'InvertedLines', string.empty(1,0), ...
-                'ToleranceS', 0.5, 'SignalFs', struct(), 'LabelField', "custom_channel_name");
+                'SignalFs', struct(), 'LabelField', "custom_channel_name");
         end
 
         function p = normalizeTrialPairing(p)
             %normalizeTrialPairing  A TrialPairing record from a manifest block.
-            %   Returns struct([]) for anything that is not a usable record.
+            %   Returns struct([]) for anything that is not a usable record
+            %   (status, fingerprint and the two [start end] cut counts).
             if isempty(p) || ~isstruct(p) || ~isscalar(p) ...
-                    || ~all(isfield(p, {'status', 'assignment', 'fingerprint'}))
+                    || ~all(isfield(p, {'status', 'fingerprint', 'cut_trials', 'cut_intervals'}))
                 p = struct([]);
                 return
             end
-            a = p.assignment;
-            if iscell(a)                       % jsondecode keeps nulls as [] in a cell
-                v = NaN(numel(a), 1);
-                for k = 1:numel(a)
-                    if isnumeric(a{k}) && isscalar(a{k}); v(k) = a{k}; end
+            cuts = {p.cut_trials, p.cut_intervals};       % each [1x2] non-negative integers
+            for k = 1:2
+                v = cuts{k};
+                if ~isnumeric(v) || numel(v) ~= 2
+                    p = struct([]);
+                    return
                 end
-                a = v;
+                v = double(reshape(v, 1, 2));
+                if ~all(isfinite(v) & v >= 0 & v == round(v))
+                    p = struct([]);
+                    return
+                end
+                cuts{k} = v;
             end
-            q = struct('status', string(p.status), 'assignment', {double(a(:))}, ...
-                'fingerprint', string(p.fingerprint), 'method', "", 'trial_line', "", ...
-                'summary', "", 'updated', "");
-            for f = ["method" "trial_line" "summary" "updated"]
+            q = struct('status', string(p.status), 'cut_trials', cuts{1}, 'cut_intervals', cuts{2}, ...
+                'fingerprint', string(p.fingerprint), 'trial_line', "", 'summary', "", 'updated', "");
+            for f = ["trial_line" "summary" "updated"]
                 if isfield(p, f) && ~isempty(p.(f)); q.(f) = string(p.(f)); end
             end
             p = q;

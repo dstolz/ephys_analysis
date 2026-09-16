@@ -10,7 +10,7 @@ classdef EphysPipelineConfig
     %     Project    Root, OutputRoot, Selection "all"|"list", Datasets (keys)
     %     Probe      DefaultProbeFile, WriteDefaultToManifest
     %     Behavior   Enabled, SearchDirs, Match, MaxStartOffsetMin, Overwrite,
-    %                WriteFile, PairTrials, TrialLine, AlignToleranceS
+    %                WriteFile, PairTrials, TrialLine
     %     Artifacts  Enabled + detector / filter settings, ApplyTo*, CacheIntervals
     %     Sorting    Enabled, PythonExe, CondaEnv, Execution, DryRun,
     %                SkipExisting, SI (SpikeInterface), KS4 (typed per
@@ -143,6 +143,7 @@ classdef EphysPipelineConfig
         s     = defaults(section)
         [s, unknown] = normalizeSection(section, s)
         [ks4, errMsg] = ks4Settings(sorting)
+        [sorting, report] = ks4ForProbe(sorting, probe, opts)
         s     = signalOptions(signals, opts)
         v     = parseOrderedList(txt, what)
         v     = parseFreqList(txt, what)
@@ -227,7 +228,6 @@ classdef EphysPipelineConfig
             tc = EphysDataset.defaultTrialConfig();
             tc.TrialLine      = B.TrialLine;
             tc.InvertedLines  = S.InvertedLines;
-            tc.ToleranceS     = B.AlignToleranceS;
             tc.SignalFs       = fs;
             tc.LabelField     = S.LabelField;
         end

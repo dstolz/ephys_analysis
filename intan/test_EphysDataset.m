@@ -978,6 +978,112 @@ ws = warning('off', 'EphysReader:ReaderFailed');
 check(isempty(EphysReader.forFolder(fullfile(root, 'bad_rec'))), 'an invalid descriptor is reported, not claimed');
 warning(ws);
 
+fprintf('\n== 20. exportChronux / exportFieldTrip / behavior ==\n');
+% A toMat-shaped extract built in memory (no Signal Processing Toolbox needed).
+nX = 256;
+Sx = struct();
+Sx.Y = struct('LFP', single(Xsrc(1:nX, :)), 'MUA', single([]), 'SPIKE', single([]));
+Sx.events = src.events;
+Sx.info = struct('LFP', struct('Fs', Fs), 'labels', ds.ChannelNames, 'origFs', Fs);
+expOut = fullfile(root, 'export_out');
+dsx = EphysDataset(dsFolder);
+dsx.OutputDir = expOut;
+dsx.SortingDir = legDir;
+dsx.BehaviorFile = behFile;
+check(dsx.hasKilosortResults(), 'export fixture dataset has sorted units');
+
+% behavior helpers on the minimal section-15 session file
+[bt, bi, bm] = dsx.readBehavior();
+check(height(bt) == 2 && strcmp(bi.Subject, 'subjA') && bm.subject == "subjA" && isnat(bm.startTime), ...
+    'readBehavior loads the associated Epsych2 file');
+bs = dsx.behaviorStruct();
+check(isstruct(bs) && bs.nTrials == 2 && bs.file == string(behFile), 'behaviorStruct packs trials + info + meta');
+dsx.writeManifest();
+mx = readJsonFile(dsx.manifestFile());
+check(strcmp(mx.behavior.subject, 'subjA') && mx.behavior.n_trials == 2, 'manifest behavior block carries subject / n_trials');
+dsx.BehaviorFile = "";
+check(isempty(dsx.behaviorStruct()), 'behaviorStruct is [] without an associated file');
+errId = '';
+try
+    dsx.readBehavior();
+catch ME
+    errId = ME.identifier;
+end
+check(strcmp(errId, 'EphysDataset:readBehavior:NoFile'), 'readBehavior errors without a file');
+dsx.BehaviorFile = behFile;
+
+% detected spikes for the exports
+dsx.spikesToMat(DetectOptions=struct('Filter', false, 'ThresholdMethod', "absolute", 'Threshold', 100));
+
+oC = dsx.exportChronux(Extract=Sx);
+check(endsWith(oC.file, '_chronux.mat') && isfile(oC.file), 'exportChronux writes <Name>_chronux.mat');
+C = load(oC.file);
+check(all(isfield(C, {'LFP', 'sp', 'spDetected', 'units', 'detected', 'events', 'behavior', 'export'})) ...
+    && ~isfield(C, 'MUA'), 'chronux file variables (only signals present)');
+check(isa(C.LFP.data, 'double') && isequal(size(C.LFP.data), [nX numAmp]) ...
+    && isequal(C.LFP.data, double(single(Xsrc(1:nX, :)))) ...
+    && C.LFP.params.Fs == Fs && C.LFP.t(1) == 0 && abs(C.LFP.t(2) - 1/Fs) < 1e-12 ...
+    && isequal(C.LFP.labels, ds.ChannelNames), 'LFP data / params / t / labels through ChronuxDataset.continuous');
+check(numel(C.sp) == 2 && isequal(fieldnames(C.sp), {'times'}) && isequal(C.units.unitId, [0; 1]) ...
+    && isequal(C.sp(1).times, C.units.times{1}), 'sp is the toPointProcess form of the sorted units');
+check(numel(C.spDetected) == numAmp && ~isempty(C.detected) && isequal(C.spDetected(1).times, C.detected.ts{1}(:)), ...
+    'spDetected from the spikes file');
+check(isequal(C.events.din0, src.events.din0) && C.behavior.nTrials == 2 && C.export.tool == "EphysDataset.exportChronux", ...
+    'events, behavior and provenance');
+oC2 = dsx.exportChronux(Extract=Sx, Units=false, Detected=false, Behavior=false, Overwrite=true, ...
+    File=fullfile(expOut, 'c2.mat'));
+C2 = load(oC2.file);
+check(isempty(C2.sp) && isempty(C2.units) && isempty(C2.spDetected) && isempty(C2.behavior) && oC2.nUnits == 0, ...
+    'Units / Detected / Behavior = false leave those empty');
+errId = '';
+try
+    dsx.exportChronux(Extract=Sx);
+catch ME
+    errId = ME.identifier;
+end
+check(strcmp(errId, 'EphysDataset:exportChronux:Exists'), 'existing chronux file is not overwritten by default');
+errId = '';
+try
+    dsx.exportChronux(Extract=Sx, Signals="MUA", Overwrite=true);
+catch ME
+    errId = ME.identifier;
+end
+check(strcmp(errId, 'EphysDataset:exportChronux:SignalMissing'), 'asking for a signal the extract lacks errors');
+errId = '';
+try
+    dsx.exportChronux(Overwrite=true);
+catch ME
+    errId = ME.identifier;
+end
+check(strcmp(errId, 'EphysDataset:exportChronux:NoExtract'), 'no extract file -> clear error');
+
+oF = dsx.exportFieldTrip(Extract=Sx);
+check(endsWith(oF.file, '_fieldtrip.mat') && isfile(oF.file), 'exportFieldTrip writes <Name>_fieldtrip.mat');
+F = load(oF.file);
+check(all(isfield(F, {'data_LFP', 'spike', 'spikeDetected', 'event', 'behavior', 'export'})) && ~isfield(F, 'data_MUA'), ...
+    'fieldtrip file variables');
+check(isequal(size(F.data_LFP.trial{1}), [numAmp nX]) && isequal(F.data_LFP.label, cellstr(ds.ChannelNames(:))) ...
+    && F.data_LFP.fsample == Fs && F.data_LFP.hdr.TimeStampPerSample == 1, 'data_LFP is a FieldTrip raw structure');
+check(numel(F.data_LFP.cfg.event) == size(src.events.din0, 1) && F.data_LFP.cfg.event(1).sample == round(src.events.din0(1, 1) * Fs), ...
+    'each data struct carries its events at its own rate in cfg.event');
+check(isequal(F.spike.label, {'unit0', 'unit1'}) && isequal(F.spike.timestamp{1}, [300 600 30000]) && F.spike.hdr.Fs == 30000, ...
+    'spike structure from the sorted units');
+check(numel(F.spikeDetected.label) == numAmp && F.spikeDetected.hdr.Fs == Fs, 'spikeDetected from the spikes file');
+check(numel(F.event) == size(src.events.din0, 1) && F.export.eventFs == Fs && F.behavior.nTrials == 2, ...
+    'event at the recording rate; behavior + provenance');
+check(isempty(dir(fullfile(expOut, '~*.partial.mat'))), 'no partial files left by the exporters');
+
+% Extract from the file written by toMat (needs the Signal Processing Toolbox).
+if license('test', 'Signal_Toolbox')
+    oM = dsx.toMat(SignalOptions=struct('dataTypeOut', ["LFP" "MUA"], 'LFP_Fs', 1000, 'MUA_Fs', 2000));
+    oF2 = dsx.exportFieldTrip(Overwrite=true);
+    F2 = load(oF2.file);
+    check(isfile(oM.file) && isequal(sort(oF2.signals), ["LFP" "MUA"]) && isfield(F2, 'data_MUA') ...
+        && F2.data_MUA.hdr.TimeStampPerSample == Fs / 2000, 'default Extract is the toMat file; origFs sets TimeStampPerSample');
+else
+    fprintf('  (toMat-based export check skipped: no Signal Processing Toolbox)\n');
+end
+
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0
     error('test_EphysDataset:Failures', '%d checks failed.', nFail);

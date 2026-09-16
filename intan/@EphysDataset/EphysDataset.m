@@ -160,6 +160,10 @@ classdef EphysDataset < handle
         [ts, wf, info] = detectSpikes(obj, X, opts)
         [units, info] = readSortedUnits(obj, opts)
         out    = spikesToMat(obj, opts)
+        out    = exportChronux(obj, opts)
+        out    = exportFieldTrip(obj, opts)
+        [trials, info, meta] = readBehavior(obj)
+        b      = behaviorStruct(obj)
         summary = analyzeArtifacts(obj, opts)
         X      = blankArtifacts(obj, X, mask, opts)
         mask   = manualArtifactMask(obj, nSamp, sampleOffset, Fs)
@@ -506,7 +510,7 @@ classdef EphysDataset < handle
             m.sorting = obj.sortingStruct();
 
             % Epsych2 behavioral session association (see BehaviorFile).
-            m.behavior = struct('file', obj.BehaviorFile);
+            m.behavior = obj.behaviorManifest();
 
             % SpikeInterface preprocessing provenance (engine + config snapshot).
             m.engine        = "spikeinterface";
@@ -583,6 +587,23 @@ classdef EphysDataset < handle
                 if bf ~= "" && isfile(bf); obj.BehaviorFile = bf; end
             end
             tf = true;
+        end
+
+        function s = behaviorManifest(obj)
+            %behaviorManifest  Manifest block for the associated Epsych2 session.
+            %   file, subject, start_time, n_trials (only Info is read; any
+            %   read failure leaves the summary fields empty).
+            s = struct('file', obj.BehaviorFile, 'subject', "", 'start_time', "", 'n_trials', NaN);
+            if obj.BehaviorFile == "" || ~isfile(obj.BehaviorFile); return; end
+            try
+                meta = epsychSessionMeta(obj.BehaviorFile);
+                s.subject  = meta.subject;
+                s.n_trials = meta.nTrials;
+                if ~isnat(meta.startTime)
+                    s.start_time = string(datetime(meta.startTime, 'Format', 'yyyy-MM-dd HH:mm:ss'));
+                end
+            catch
+            end
         end
 
         function s = sortingStruct(obj)

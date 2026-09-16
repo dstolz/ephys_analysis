@@ -4,6 +4,12 @@ addpath_nogit('c:\src\ephys_analysis')
 
 %%
 
+EphysPreprocessingApp
+
+
+
+%%
+
 P = EphysProject("D:\EPHYS", ...
     ProbeFile="C:\src\ephys_analysis\intan\probes\H64LP_4x16lin_probemap.json");
 P.refresh();                     % headers + per-dataset manifests

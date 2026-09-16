@@ -86,7 +86,7 @@ rg = uigridlayout(runPanel, [2 3]);
 rg.RowHeight   = {'1x', 'fit'};
 rg.ColumnWidth = {'fit', '1x', 'fit'};
 obj.ExpTargetsTable = uitable(rg, "ColumnName", {'Step', 'Dataset', 'Output file', 'Status', 'Note'}, ...
-    "ColumnWidth", {110, 120, '1x', 150, 170}, "RowName", {});
+    "ColumnWidth", {80, 'fit', '2x', 140, '1x'}, "RowName", {});
 obj.ExpTargetsTable.Layout.Row = 1; obj.ExpTargetsTable.Layout.Column = [1 3];
 obj.RunStepExportButton = uibutton(rg, "Text", "Run this step", "FontWeight", "bold", ...
     "ButtonPushedFcn", @(~,~) obj.onRunStep("export"));

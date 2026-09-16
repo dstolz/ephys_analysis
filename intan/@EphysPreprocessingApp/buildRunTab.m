@@ -1,7 +1,7 @@
 function buildRunTab(obj)
 %buildRunTab  Run the whole pipeline: step checklist, validate / plan,
-%   run / dry run / cancel, progress bars, results, merged log and the
-%   background Kilosort4 runs being monitored.
+%   run / dry run / cancel, progress bars, validation issues, results,
+%   merged log and the background Kilosort4 runs being monitored.
 
 g = uigridlayout(obj.TabRun, [2 2]);
 g.RowHeight   = {'fit', '1x'};
@@ -31,14 +31,11 @@ obj.RunButton = uibutton(bg, "Text", "Run pipeline", "FontWeight", "bold", ...
 obj.RunDryButton = uibutton(bg, "Text", "Dry run", "ButtonPushedFcn", @(~,~) obj.runPipeline(DryRun=true));
 obj.RunCancelButton = uibutton(bg, "Text", "Cancel", "Enable", "off", ...
     "ButtonPushedFcn", @(~,~) obj.onCancelRun());
-obj.RunIssuesTable = uitable(sg, "ColumnName", {'Step', 'Field', 'Severity', 'Message'}, ...
-    "ColumnWidth", {60, 90, 60, '1x'}, "RowName", {});
-obj.RunIssuesTable.Layout.Row = 12;
 
 % --- progress + results + log -------------------------------------------------
-right = uigridlayout(g, [7 3]);
+right = uigridlayout(g, [9 3]);
 right.Layout.Row = [1 2]; right.Layout.Column = 2;
-right.RowHeight   = {20, 20, 'fit', '1x', 'fit', '1x', 'fit'};
+right.RowHeight   = {20, 20, 'fit', 'fit', 110, '1x', 'fit', '1x', 'fit'};
 right.ColumnWidth = {'fit', '1x', 120};
 right.Padding = [0 0 0 0];
 
@@ -53,16 +50,21 @@ obj.RunStepText.Layout.Row = 2; obj.RunStepText.Layout.Column = 3;
 obj.RunStepLabel = uilabel(right, "Text", "Idle.", "FontColor", [0.4 0.4 0.4]);
 obj.RunStepLabel.Layout.Row = 3; obj.RunStepLabel.Layout.Column = [1 3];
 
-obj.RunResultsTable = uitable(right, "ColumnName", {'Step', 'Dataset', 'Key', 'Output', 'Status', 'Note'}, ...
-    "ColumnWidth", {95, 110, 130, '1x', 150, 200}, "RowName", {});
-obj.RunResultsTable.Layout.Row = 4; obj.RunResultsTable.Layout.Column = [1 3];
+l = uilabel(right, "Text", "Issues (Validate)", "FontWeight", "bold"); l.Layout.Row = 4; l.Layout.Column = [1 3];
+obj.RunIssuesTable = uitable(right, "ColumnName", {'Step', 'Field', 'Severity', 'Message'}, ...
+    "ColumnWidth", {80, 140, 70, '1x'}, "RowName", {});
+obj.RunIssuesTable.Layout.Row = 5; obj.RunIssuesTable.Layout.Column = [1 3];
 
-l = uilabel(right, "Text", "Log", "FontWeight", "bold"); l.Layout.Row = 5; l.Layout.Column = [1 3];
+obj.RunResultsTable = uitable(right, "ColumnName", {'Step', 'Dataset', 'Key', 'Output', 'Status', 'Note'}, ...
+    "ColumnWidth", {80, 'fit', 'fit', '2x', 130, '1x'}, "RowName", {});
+obj.RunResultsTable.Layout.Row = 6; obj.RunResultsTable.Layout.Column = [1 3];
+
+l = uilabel(right, "Text", "Log", "FontWeight", "bold"); l.Layout.Row = 7; l.Layout.Column = [1 3];
 obj.RunLogArea = uitextarea(right, "Editable", "off");
-obj.RunLogArea.Layout.Row = 6; obj.RunLogArea.Layout.Column = [1 3];
+obj.RunLogArea.Layout.Row = 8; obj.RunLogArea.Layout.Column = [1 3];
 
 obj.RunKSLabel = uilabel(right, "Text", "Background Kilosort4 runs: none.", "FontColor", [0.4 0.4 0.4]);
-obj.RunKSLabel.Layout.Row = 7; obj.RunKSLabel.Layout.Column = [1 3];
+obj.RunKSLabel.Layout.Row = 9; obj.RunKSLabel.Layout.Column = [1 3];
 end
 
 

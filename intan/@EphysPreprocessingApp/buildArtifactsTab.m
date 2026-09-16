@@ -11,7 +11,7 @@ function buildArtifactsTab(obj)
 %   EphysDataset.artifactIntervals, onDetectArtifacts.
 
 g = uigridlayout(obj.TabArtifacts, [1 2]);
-g.ColumnWidth = {360, '1x'};
+g.ColumnWidth = {400, '1x'};
 g.Padding     = [10 10 10 10];
 changed = @(~,~) obj.onArtifactControlsChanged();
 
@@ -25,8 +25,9 @@ cg.RowHeight   = [repmat({'fit'}, 1, nRows - 1), {'1x'}];
 cg.ColumnWidth = {'fit', '1x'};
 
 row = 1;
-obj.ArtEnableCheckBox = uicheckbox(cg, "Text", "Enable automatic detection (manual periods always apply)", ...
-    "FontWeight", "bold", "Value", false, "ValueChangedFcn", changed);
+obj.ArtEnableCheckBox = uicheckbox(cg, "Text", "Enable automatic detection", "FontWeight", "bold", "Value", false, ...
+    "Tooltip", "Manual periods (marked on the Visualize tab) always apply, whether or not this is on.", ...
+    "ValueChangedFcn", changed);
 obj.ArtEnableCheckBox.Layout.Row = row; obj.ArtEnableCheckBox.Layout.Column = [1 2];
 
 row = row + 1;
@@ -136,10 +137,10 @@ mg = uigridlayout(right, [1 3]);
 mg.Layout.Row = 4; mg.Padding = [0 0 0 0]; mg.ColumnWidth = {'1x', 'fit', 'fit'};
 obj.ArtManualLabel = uilabel(mg, "Text", "Manual periods of the selected dataset (saved in its manifest)", "FontWeight", "bold");
 obj.ArtEditVizButton = uibutton(mg, "Text", "Edit in Visualize", ...
-    "ButtonPushedFcn", @(~,~) set(obj.Tabs, 'SelectedTab', obj.TabVisualize));
+    "ButtonPushedFcn", @(~,~) obj.selectTab(obj.TabVisualize));
 obj.ArtManualClearButton = uibutton(mg, "Text", "Clear", "ButtonPushedFcn", @(~,~) obj.onClearManualArtifacts());
 obj.ArtManualTable = uitable(right, "ColumnName", {'Start (s)', 'End (s)', 'Duration (s)'}, ...
-    "ColumnWidth", {110, 110, 110}, "RowName", {});
+    "ColumnWidth", {'1x', '1x', '1x'}, "RowName", {});
 obj.ArtManualTable.Layout.Row = 5;
 end
 

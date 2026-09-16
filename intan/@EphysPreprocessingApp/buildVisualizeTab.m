@@ -6,7 +6,7 @@ function buildVisualizeTab(obj)
 %   touching disk. See onPlotVisualization and plotting/@MultiChannelViewer.
 
 g = uigridlayout(obj.TabVisualize, [1 2]);
-g.ColumnWidth = {320, '1x'};
+g.ColumnWidth = {400, '1x'};
 g.Padding     = [10 10 10 10];
 
 % --- left: controls panel ---

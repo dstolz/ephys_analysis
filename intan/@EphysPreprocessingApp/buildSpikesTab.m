@@ -7,7 +7,7 @@ function buildSpikesTab(obj)
 %   runs the step.
 
 g = uigridlayout(obj.TabSpikes, [1 2]);
-g.ColumnWidth = {560, '1x'};
+g.ColumnWidth = {660, '1x'};
 g.Padding     = [10 10 10 10];
 changed = @(~,~) obj.onSpikesControlsChanged();
 
@@ -17,7 +17,7 @@ nRows = 24;
 cg = uigridlayout(opt, [nRows 5]);
 cg.Scrollable  = "on";
 cg.RowHeight   = repmat({26}, 1, nRows);
-cg.ColumnWidth = {135, '1x', 120, '1x', 30};
+cg.ColumnWidth = {135, '1x', 130, 95, 95};
 
 r = 1;
 obj.SpkEnableCheckBox = uicheckbox(cg, "Text", "Enable the Spikes step", "FontWeight", "bold", ...
@@ -42,7 +42,6 @@ obj.SpkBandLoField = numField(cg, 500, "Band(1): low edge of the zero-phase Butt
 obj.SpkBandLoField.Layout.Row = r; obj.SpkBandLoField.Layout.Column = 4;
 obj.SpkBandHiField = numField(cg, 5000, "Band(2): high edge (below Fs/2).", changed);
 obj.SpkBandHiField.Layout.Row = r; obj.SpkBandHiField.Layout.Column = 5;
-cg.ColumnWidth{5} = 80;
 r = r + 1;
 lab(cg, "Filter order:", r);
 obj.SpkFilterOrderField = uieditfield(cg, "numeric", "Value", 4, "Limits", [1 Inf], ...
@@ -64,7 +63,7 @@ obj.SpkThreshMethodDropDown.Layout.Row = r; obj.SpkThreshMethodDropDown.Layout.C
 r = r + 1;
 l = lab(cg, "Threshold:", r);
 l.Tooltip = "Multiplier (or microvolts for 'absolute'). Blank = the method's default.";
-obj.SpkThresholdField = uieditfield(cg, "text", "Placeholder", "blank = method default", ...
+obj.SpkThresholdField = uieditfield(cg, "text", "Placeholder", "blank = default", ...
     "ValueChangedFcn", changed);
 obj.SpkThresholdField.Layout.Row = r; obj.SpkThresholdField.Layout.Column = 2;
 l = lab(cg, "Max amplitude (uV):", r); l.Layout.Column = 3;
@@ -135,8 +134,8 @@ obj.SpkChunkField = uieditfield(cg, "text", "Placeholder", "blank = auto", ...
     "Tooltip", "Cap on samples per streamed chunk (readers with random access).", "ValueChangedFcn", changed);
 obj.SpkChunkField.Layout.Row = r; obj.SpkChunkField.Layout.Column = 2;
 l = lab(cg, "Edge pad (ms):", r); l.Layout.Column = 3;
-obj.SpkEdgePadField = uieditfield(cg, "text", "Placeholder", "blank = auto (10 ms)", ...
-    "Tooltip", "Context carried across chunk boundaries.", "ValueChangedFcn", changed);
+obj.SpkEdgePadField = uieditfield(cg, "text", "Placeholder", "blank = auto", ...
+    "Tooltip", "Context carried across chunk boundaries. Blank = auto (10 ms).", "ValueChangedFcn", changed);
 obj.SpkEdgePadField.Layout.Row = r; obj.SpkEdgePadField.Layout.Column = 4;
 obj.SpkParallelCheckBox = uicheckbox(cg, "Text", "Parallel", "Value", false, ...
     "Tooltip", "Detect chunks on the parallel pool (Parallel Computing Toolbox).", "ValueChangedFcn", changed);
@@ -175,11 +174,13 @@ obj.SpkMatVersionDropDown = uidropdown(cg, "Items", {'-v7.3', '-v7'}, "Value", '
 obj.SpkMatVersionDropDown.Layout.Row = r; obj.SpkMatVersionDropDown.Layout.Column = [4 5];
 
 % =================== right: preview + run ===================
-right = uigridlayout(g, [4 1]);
+right = uigridlayout(g, [4 2]);
 right.Layout.Column = 2;
+right.ColumnWidth = {'fit', '1x'};
 right.RowHeight = {'fit', 'fit', '1x', 'fit'};
 right.Padding = [0 0 0 0];
 pp = uigridlayout(right, [1 3]);
+pp.Layout.Column = [1 2];
 pp.RowHeight = {'fit'}; pp.ColumnWidth = {'fit', 'fit', '1x'}; pp.Padding = [0 0 0 0];
 obj.SpkPreviewButton = uibutton(pp, "Text", "Preview on the Dataset-menu dataset", ...
     "Tooltip", "Detect on the first seconds of the dataset picked in the Dataset menu with the settings on the left.", ...
@@ -187,13 +188,14 @@ obj.SpkPreviewButton = uibutton(pp, "Text", "Preview on the Dataset-menu dataset
 obj.SpkPreviewSecondsField = uieditfield(pp, "numeric", "Value", 10, "Limits", [0.1 Inf], ...
     "ValueDisplayFormat", "%g s", "Tooltip", "Length of the preview window.");
 obj.SpkPreviewLabel = uilabel(pp, "Text", "", "FontColor", [0.4 0.4 0.4], "WordWrap", "on");
-uilabel(right, "Text", "Preview: per-channel rates and thresholds", "FontWeight", "bold");
+l = uilabel(right, "Text", "Preview: per-channel rates and thresholds", "FontWeight", "bold");
+l.Layout.Row = 2; l.Layout.Column = [1 2];
 obj.SpkPreviewTable = uitable(right, "ColumnName", {'Ch', 'Name', 'Threshold (uV)', 'Events', 'Rate (Hz)'}, ...
     "ColumnWidth", {44, '1x', 110, 80, 90}, "RowName", {});
-obj.SpkPreviewTable.Layout.Row = 3;
+obj.SpkPreviewTable.Layout.Row = 3; obj.SpkPreviewTable.Layout.Column = [1 2];
 obj.RunStepSpikesButton = uibutton(right, "Text", "Run this step", "FontWeight", "bold", ...
     "ButtonPushedFcn", @(~,~) obj.onRunStep("spikes"));
-obj.RunStepSpikesButton.Layout.Row = 4;
+obj.RunStepSpikesButton.Layout.Row = 4; obj.RunStepSpikesButton.Layout.Column = 1;
 
 obj.syncSpikesEnableStates();
 end

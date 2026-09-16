@@ -5,7 +5,7 @@ classdef DatasetTracker < handle
     %   a uniform, read-only form so other classes and GUIs do not each have to
     %   re-implement the same `dir`/`jsondecode` scans. It tracks:
     %
-    %     Recordings   folders that directly contain >=1 *.rhd file (one
+    %     Recordings   folders a registered EphysReader recognises (one
     %                  EphysDataset's worth of raw data each)
     %     ProbeFiles   Kilosort4 probe .json maps (chanMap/xc/yc), including any
     %                  derived *_excluded.json written next to a sort
@@ -64,7 +64,7 @@ classdef DatasetTracker < handle
         NumProbeFiles    % number of probe .json maps found
         NumBinFiles      % number of *.bin files found
         NumKilosortRuns  % number of kilosort4 output folders found
-        NumRhdFiles      % total *.rhd files across all recordings
+        NumRecordingFiles % total recording files across all recordings
     end
 
     methods
@@ -115,11 +115,11 @@ classdef DatasetTracker < handle
         function n = get.NumProbeFiles(obj);   n = numel(obj.ProbeFiles);   end
         function n = get.NumBinFiles(obj);     n = numel(obj.BinFiles);     end
         function n = get.NumKilosortRuns(obj); n = numel(obj.KilosortRuns); end
-        function n = get.NumRhdFiles(obj)
+        function n = get.NumRecordingFiles(obj)
             if isempty(obj.Recordings)
                 n = 0;
             else
-                n = sum([obj.Recordings.NumRhdFiles]);
+                n = sum([obj.Recordings.NumFiles]);
             end
         end
 
@@ -194,17 +194,17 @@ classdef DatasetTracker < handle
 
         %% Tabular views (for GUI tables) ---------------------------------
         function T = recordingTable(obj)
-            %recordingTable  One row per recording (Name, NumRhdFiles, AcqDate, ...).
+            %recordingTable  One row per recording (Name, Format, NumFiles, AcqDate, ...).
             if isempty(obj.Recordings)
-                T = table('Size', [0 5], ...
-                    'VariableTypes', {'string','string','double','datetime','double'}, ...
-                    'VariableNames', {'Name','Folder','NumRhdFiles','AcqDate','SizeMB'});
+                T = table('Size', [0 6], ...
+                    'VariableTypes', {'string','string','string','double','datetime','double'}, ...
+                    'VariableNames', {'Name','Folder','Format','NumFiles','AcqDate','SizeMB'});
                 return
             end
             R = obj.Recordings;
-            T = table([R.Name].', [R.Folder].', [R.NumRhdFiles].', ...
+            T = table([R.Name].', [R.Folder].', [R.Format].', [R.NumFiles].', ...
                 [R.AcqDate].', round([R.Bytes].'/1e6, 1), ...
-                'VariableNames', {'Name','Folder','NumRhdFiles','AcqDate','SizeMB'});
+                'VariableNames', {'Name','Folder','Format','NumFiles','AcqDate','SizeMB'});
         end
 
         function T = kilosortTable(obj)
@@ -234,8 +234,8 @@ classdef DatasetTracker < handle
             end
             fprintf('  DatasetTracker "%s"\n', obj.Name);
             fprintf('    Root            : %s\n', obj.Root);
-            fprintf('    Recordings      : %d (%d *.rhd file(s))\n', ...
-                obj.NumRecordings, obj.NumRhdFiles);
+            fprintf('    Recordings      : %d (%d recording file(s))\n', ...
+                obj.NumRecordings, obj.NumRecordingFiles);
             fprintf('    Probe files     : %d\n', obj.NumProbeFiles);
             fprintf('    Bin files       : %d\n', obj.NumBinFiles);
             nDone = 0;
@@ -252,10 +252,10 @@ classdef DatasetTracker < handle
 
     methods (Access = private)
         function rec = discoverRecordings(obj)
-            %discoverRecordings  Group *.rhd files by their containing folder.
+            %discoverRecordings  Recording folders under Root (any reader).
             %   Thin wrapper over the shared static DatasetTracker.findRecordings
             %   so this class and EphysProject agree on what a recording
-            %   is (a folder directly containing >=1 *.rhd file).
+            %   is (a folder claimed by a registered EphysReader).
             rec = DatasetTracker.findRecordings(obj.Root, obj.Recursive);
         end
 
@@ -438,40 +438,41 @@ classdef DatasetTracker < handle
         end
 
         function rec = findRecordings(root, recursive)
-            %findRecordings  Group *.rhd files under ROOT by containing folder.
-            %   Returns a Recordings struct array (see emptyRecordings): one row
-            %   per folder that directly contains >=1 *.rhd file, files listed
-            %   chronologically by datenum. This is the single definition of "a
-            %   recording" shared by DatasetTracker.refresh and
-            %   EphysProject.discover.
+            %findRecordings  One row per recording folder under ROOT.
+            %   A recording is any folder claimed by a registered EphysReader
+            %   (Intan *.rhd / info.rhd layouts, the universal recording.json
+            %   format, ...); see EphysReader.findAllRecordingFolders. This is
+            %   the single definition of "a recording" shared by
+            %   DatasetTracker.refresh and EphysProject.discover.
             arguments
                 root (1,1) string
                 recursive (1,1) logical = true
             end
-            D = DatasetTracker.listFiles(root, '*.rhd', recursive);
             rec = DatasetTracker.emptyRecordings();
-            if isempty(D)
-                return
-            end
-            allFolders = string({D.folder});
-            folders = unique(allFolders, 'stable');
+            folders = EphysReader.findAllRecordingFolders(root, recursive);
             for i = 1:numel(folders)
-                Di = D(allFolders == folders(i));
-                [~, ix] = sort([Di.datenum]);
-                Di = Di(ix);
-                [~, leaf] = fileparts(char(folders(i)));
-                rec(i).Name        = string(leaf);
-                rec(i).Folder      = folders(i);
-                rec(i).RhdFiles    = string({Di.name});
-                rec(i).NumRhdFiles = numel(Di);
-                rec(i).AcqDate     = datetime(min([Di.datenum]), 'ConvertFrom', 'datenum');
-                rec(i).Bytes       = sum([Di.bytes]);
-                rec(i).IsRoot      = folders(i) == root;
+                r = EphysReader.forFolder(folders(i));
+                if isempty(r) || r.NumFiles == 0; continue; end
+                bytes = 0;
+                for f = r.Files
+                    s = dir(fullfile(folders(i), f));
+                    if ~isempty(s); bytes = bytes + sum([s.bytes]); end
+                end
+                k = numel(rec) + 1;
+                rec(k).Name     = r.Name;
+                rec(k).Folder   = folders(i);
+                rec(k).Files    = r.Files;
+                rec(k).NumFiles = r.NumFiles;
+                rec(k).Format   = r.RecordingFormat;
+                rec(k).Reader   = string(r.Kind);
+                rec(k).AcqDate  = r.AcqDate;
+                rec(k).Bytes    = bytes;
+                rec(k).IsRoot   = folders(i) == root;
             end
         end
 
         function folders = findRecordingFolders(root, recursive)
-            %findRecordingFolders  Folders directly containing >=1 *.rhd file.
+            %findRecordingFolders  Folders holding a recording (any reader).
             %   Stable order. Convenience over findRecordings for callers (e.g.
             %   EphysProject.discover) that only need the folder paths.
             arguments
@@ -507,6 +508,8 @@ classdef DatasetTracker < handle
             end
             if isfield(s, 'results_dir') && isfield(s, 'probe')
                 kind = "ks-settings";
+            elseif isfield(s, 'schema') && string(s.schema) == "ephys-recording/1"
+                kind = "recording-descriptor";
             elseif isfield(s, 'bin_file') || isfield(s, 'source_folder')
                 kind = "bin-sidecar";
             elseif isfield(s, 'state')
@@ -547,8 +550,8 @@ classdef DatasetTracker < handle
         %% Empty struct templates (define the inventory field schemas) -----
         function s = emptyRecordings()
             %emptyRecordings  0x0 struct array; one element per recording folder.
-            s = struct('Name', {}, 'Folder', {}, 'RhdFiles', {}, ...
-                'NumRhdFiles', {}, 'AcqDate', {}, 'Bytes', {}, 'IsRoot', {});
+            s = struct('Name', {}, 'Folder', {}, 'Files', {}, 'NumFiles', {}, ...
+                'Format', {}, 'Reader', {}, 'AcqDate', {}, 'Bytes', {}, 'IsRoot', {});
         end
 
         function s = emptyProbes()

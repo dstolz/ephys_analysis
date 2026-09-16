@@ -58,6 +58,9 @@ nTot  = numel(obj.KSRuns);
 nDone = sum([obj.KSRuns.done]);
 obj.KSProgressLabel.Text = sprintf("Background Kilosort4: %d/%d complete (%d running).", ...
     nDone, nTot, pending);
+if ~isempty(obj.RunKSLabel) && isvalid(obj.RunKSLabel)
+    obj.RunKSLabel.Text = obj.KSProgressLabel.Text;
+end
 
 % Refresh the datasets table so the Bin/results columns reflect new outputs.
 obj.refreshDatasetsTable();

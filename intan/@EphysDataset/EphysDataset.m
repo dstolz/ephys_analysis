@@ -1,8 +1,10 @@
 classdef EphysDataset < handle
-    % EphysDataset  One folder of Intan recordings -> Kilosort4 .bin + run.
-    %   An EphysDataset represents a single recording: one folder of Intan data
-    %   recorded contiguously, in any of the layouts Intan acquisition software
-    %   writes (see RecordingFormat / detectFormat):
+    % EphysDataset  One recording folder -> processing, sorting and exports.
+    %   An EphysDataset represents a single recording. All raw-data access goes
+    %   through an EphysReader chosen for the folder (see Reader): IntanReader
+    %   for the Intan layouts below, BinaryReader for the universal
+    %   recording.json + flat binary format, or any registered reader, so
+    %   nothing above this class depends on the acquisition system.
     %     "traditional"          one or more *.rhd files with embedded data
     %     "one-file-per-signal"  info.rhd + amplifier.dat (+ other signal .dat)
     %     "one-file-per-channel" info.rhd + amp-<native>.dat (one file per channel)
@@ -92,6 +94,18 @@ classdef EphysDataset < handle
         Dtype     (1,1) string {mustBeMember(Dtype, ...
             ["int16","uint16","int32","single","float32"])} = "int16"
         OutputDir (1,1) string = ""              % output dir for .bin / KS4 results (default = Folder)
+
+        % Sorted-output association. "" = auto-discover the Kilosort4/phy
+        % results under outputFolder() (see kilosortResultsDir); a non-empty
+        % folder pins the association explicitly (e.g. results sorted elsewhere
+        % or a phy-curated copy). Persisted in the manifest as sorting.source
+        % "manual". See sortingResultsDir, readSortedUnits.
+        SortingDir (1,1) string = ""
+
+        % Epsych2 behavioral session file (.mat with Data + Info) associated
+        % with this recording. "" = none. Persisted in the manifest under
+        % behavior.file. See readBehavior, readEpsychSession.
+        BehaviorFile (1,1) string = ""
         Manifest                                  % optional Manifest for provenance
 
         % Manually defined artifact periods to blank before writing the .bin.
@@ -119,12 +133,11 @@ classdef EphysDataset < handle
         SIConfig struct = EphysDataset.defaultSIConfig()
     end
 
-    properties (Access = private, Transient)
-        % Cached split-format layout (info.rhd header + .dat file map + sample
-        % count) so the per-window readers do not re-parse on every chunk. Built
-        % lazily by splitLayout; cleared by discoverFiles when the folder is
-        % re-scanned. Always empty for the traditional format.
-        pSplitLayout = []
+    properties (SetAccess = protected)
+        % The acquisition reader for Folder (an EphysReader subclass such as
+        % IntanReader or BinaryReader), chosen by EphysReader.forFolder in
+        % discoverFiles. [] when no registered reader recognises the folder.
+        Reader = []
     end
 
     properties (Dependent)
@@ -132,18 +145,25 @@ classdef EphysDataset < handle
         NumSamples  % total amplifier samples across files (sum of PerFile)
     end
 
+    properties (Constant)
+        % Dataset manifest schema written by manifestStruct. /2 adds
+        % manual_artifacts, sorting and behavior to /1; applyManifest reads
+        % both (v2 is a strict superset, so no migration is needed).
+        ManifestSchema = "intan-dataset-manifest/2"
+        ManifestSchemasAccepted = ["intan-dataset-manifest/1", "intan-dataset-manifest/2"]
+    end
+
     methods
         % --- methods defined in separate files in this @-folder ---
-        refreshMetadata(obj)
-        data   = readData(obj, opts)
-        data   = readSplitAll(obj, opts)
-        L      = splitLayout(obj)
-        X      = readSplitWindow(obj, sampleOffset, nSamp)
-        plan   = streamPlan(obj, opts)
-        X      = readChunkUV(obj, chunk)
         X      = filterContinuous(obj, X, opts)
         [mask, intervals, stats] = detectArtifacts(obj, X, opts)
         [ts, wf, info] = detectSpikes(obj, X, opts)
+        [units, info] = readSortedUnits(obj, opts)
+        out    = spikesToMat(obj, opts)
+        out    = exportChronux(obj, opts)
+        out    = exportFieldTrip(obj, opts)
+        [trials, info, meta] = readBehavior(obj)
+        b      = behaviorStruct(obj)
         summary = analyzeArtifacts(obj, opts)
         X      = blankArtifacts(obj, X, mask, opts)
         mask   = manualArtifactMask(obj, nSamp, sampleOffset, Fs)
@@ -157,7 +177,7 @@ classdef EphysDataset < handle
         out    = toMat(obj, opts)
 
         function obj = EphysDataset(folder, opts)
-            %EphysDataset  Construct from a folder of *.rhd files.
+            %EphysDataset  Construct from a recording folder (any registered reader).
             arguments
                 folder (1,1) string = ""
                 opts.AutoMetadata (1,1) logical = true
@@ -203,42 +223,110 @@ classdef EphysDataset < handle
         end
 
         function discoverFiles(obj)
-            %discoverFiles  Inventory the recording folder for the detected format.
-            %   Traditional: every *.rhd data file, sorted chronologically by
-            %   datenum. Split formats (one-file-per-signal / one-file-per-channel):
-            %   the single info.rhd header stands in as the one "file", and the
-            %   amplifier sample count comes from the .dat file(s) at metadata time
-            %   (see refreshMetadata / splitLayout), not from header data blocks.
-            obj.RecordingFormat = EphysDataset.detectFormat(obj.Folder);
-            obj.pSplitLayout = [];   % invalidate cached split layout on re-scan
-
-            switch obj.RecordingFormat
-                case {"one-file-per-signal", "one-file-per-channel"}
-                    obj.Files = "info.rhd";
-                    obj.NumFiles = 1;
-                    d = dir(fullfile(obj.Folder, 'info.rhd'));
-                    if ~isempty(d)
-                        obj.AcqDate = datetime(d.datenum, 'ConvertFrom', 'datenum');
-                    end
-                    return
-
-                case "traditional"
-                    D = dir(fullfile(obj.Folder, '*.rhd'));
-                    if isempty(D)
-                        obj.Files = string.empty(1,0);
-                        obj.NumFiles = 0;
-                        return
-                    end
-                    [~, ix] = sort([D.datenum]);
-                    D = D(ix);
-                    obj.Files = string({D.name});
-                    obj.NumFiles = numel(D);
-                    obj.AcqDate = datetime(min([D.datenum]), 'ConvertFrom', 'datenum');
-
-                otherwise   % "unknown" - no recognized Intan files
-                    obj.Files = string.empty(1,0);
-                    obj.NumFiles = 0;
+            %discoverFiles  Pick the reader for Folder and inventory its files.
+            %   The registered EphysReader classes (IntanReader, BinaryReader,
+            %   ...) are asked in turn; the first that claims the folder becomes
+            %   obj.Reader and supplies RecordingFormat / Files / NumFiles.
+            obj.Reader = EphysReader.forFolder(obj.Folder);
+            if isempty(obj.Reader)
+                obj.RecordingFormat = "unknown";
+                obj.Files = string.empty(1,0);
+                obj.NumFiles = 0;
+                return
             end
+            obj.RecordingFormat = obj.Reader.RecordingFormat;
+            obj.Files    = obj.Reader.Files;
+            obj.NumFiles = obj.Reader.NumFiles;
+            if ~isnat(obj.Reader.AcqDate); obj.AcqDate = obj.Reader.AcqDate; end
+        end
+
+        function refreshMetadata(obj)
+            %refreshMetadata  Fill header metadata for the recording (no data read).
+            %   Re-scans the folder, then asks the reader for Fs, channel names,
+            %   duration and the per-file summary (PerFile). Header-only: no
+            %   amplifier data is read.
+            obj.discoverFiles();
+            if isempty(obj.Reader) || obj.NumFiles == 0
+                warning('EphysDataset:refreshMetadata:NoFiles', ...
+                    'No recording files found in %s', obj.Folder);
+                return
+            end
+            r = obj.Reader;
+            r.refreshMetadata();
+            obj.Fs           = r.Fs;
+            obj.NumChannels  = r.NumChannels;
+            obj.ChannelNames = r.ChannelNames;
+            obj.NativeNames  = r.NativeNames;
+            obj.DigInNames   = r.DigInNames;
+            obj.Duration     = r.Duration;
+            obj.PerFile      = r.PerFile;
+            obj.Files        = r.Files;
+            obj.NumFiles     = r.NumFiles;
+            if ~isnat(r.AcqDate); obj.AcqDate = r.AcqDate; end
+
+            if ~isempty(obj.Manifest) && isa(obj.Manifest, 'Manifest')
+                obj.Manifest.add("metadata", "Parsed recording headers", ...
+                    struct('folder', obj.Folder, 'reader', string(r.Kind), ...
+                    'format', obj.RecordingFormat, 'numFiles', obj.NumFiles, ...
+                    'fs', obj.Fs, 'numChannels', obj.NumChannels, ...
+                    'duration', obj.Duration));
+            end
+        end
+
+        function plan = streamPlan(obj, opts)
+            %streamPlan  Reader-agnostic list of streaming chunks (see EphysReader).
+            %   Each element (kind, name, file, sampleOffset, nSamples) is read
+            %   with readChunkUV, so every streaming caller (toBin, artifacts,
+            %   detectSpikes, the Visualize tab) shares one loop.
+            arguments
+                obj (1,1) EphysDataset
+                opts.Files (1,:) string = string.empty(1,0)
+                opts.MaxChunkSamples (1,1) double = NaN
+            end
+            if isnan(obj.Fs) || isempty(obj.PerFile)
+                obj.refreshMetadata();
+            end
+            if isempty(obj.Reader)
+                plan = repmat(struct('kind', "", 'name', "", 'file', "", ...
+                    'sampleOffset', 0, 'nSamples', 0), 1, 0);
+                return
+            end
+            plan = obj.Reader.streamPlan(Files=opts.Files, MaxChunkSamples=opts.MaxChunkSamples);
+        end
+
+        function X = readChunkUV(obj, chunk)
+            %readChunkUV  One streamPlan chunk as [nSamp x nChan] double microvolts.
+            obj.requireReader('readChunkUV');
+            X = obj.Reader.readChunkUV(chunk);
+        end
+
+        function X = readWindowUV(obj, sampleOffset, nSamp)
+            %readWindowUV  Bounded random-access read (readers that support it).
+            obj.requireReader('readWindowUV');
+            X = obj.Reader.readWindowUV(sampleOffset, nSamp);
+        end
+
+        function tf = supportsRandomAccess(obj)
+            %supportsRandomAccess  True when readWindowUV works for this recording.
+            tf = ~isempty(obj.Reader) && obj.Reader.supportsRandomAccess();
+        end
+
+        function data = readData(obj, varargin)
+            %readData  The whole recording as the universal data struct.
+            %   DATA = ds.readData(Name=Value) forwards to the reader: Files,
+            %   KeepChannels, IncludeADC, IncludeAux, Concatenate, ProgressFcn,
+            %   Precision ("double"|"single"), EventLabelField. The struct
+            %   (amplifier in microvolts [nSamples x nChan], Fs, t, channel
+            %   names, dig-in events, ...) is the same for every reader; see
+            %   EphysReader for the field list.
+            if obj.NumFiles == 0
+                obj.discoverFiles();
+            end
+            if isempty(obj.Reader) || obj.NumFiles == 0
+                error('EphysDataset:readData:NoFiles', 'No recording files in %s', obj.Folder);
+            end
+            data = obj.Reader.readData(varargin{:});
+            data.source = struct('Folder', obj.Folder, 'Name', obj.Name);
         end
 
         %% Dependent getters
@@ -252,6 +340,16 @@ classdef EphysDataset < handle
                 return
             end
             n = sum([obj.PerFile.numAmplifierSamples]);
+        end
+
+        function requireReader(obj, what)
+            if isempty(obj.Reader)
+                obj.discoverFiles();
+            end
+            if isempty(obj.Reader)
+                error('EphysDataset:NoReader', ...
+                    '%s: no registered reader recognises %s.', what, obj.Folder);
+            end
         end
 
         function p = outputFolder(obj)
@@ -317,17 +415,31 @@ classdef EphysDataset < handle
             p = base;
         end
 
+        function p = sortingResultsDir(obj)
+            %sortingResultsDir  Folder holding the sorted units for this dataset.
+            %   Returns SortingDir when it is set (an explicit association, e.g.
+            %   a phy-curated copy or results sorted on another machine), else
+            %   the auto-discovered kilosortResultsDir(). Every consumer of
+            %   sorted output (Review tab, phy launch, readSortedUnits,
+            %   ChronuxDataset.spikes) goes through this accessor.
+            if obj.SortingDir ~= ""
+                p = char(obj.SortingDir);
+            else
+                p = obj.kilosortResultsDir();
+            end
+        end
+
         function tf = hasPhyOutput(obj)
-            %hasPhyOutput  True when a KS4 results dir holds a params.py (what phy
-            %   needs to open). Cheap; resolves the engine-specific results dir
-            %   (see kilosortResultsDir). For a full inventory use tracker().
-            tf = isfile(fullfile(obj.kilosortResultsDir(), 'params.py'));
+            %hasPhyOutput  True when the sorting results dir holds a params.py
+            %   (what phy needs to open). Cheap; see sortingResultsDir. For a
+            %   full inventory use tracker().
+            tf = isfile(fullfile(obj.sortingResultsDir(), 'params.py'));
         end
 
         function tf = hasKilosortResults(obj)
-            %hasKilosortResults  True when a KS4 results dir holds spike output
-            %   (spike_clusters.npy). Cheap; see also tracker().hasKilosort.
-            tf = isfile(fullfile(obj.kilosortResultsDir(), 'spike_clusters.npy'));
+            %hasKilosortResults  True when the sorting results dir holds spike
+            %   output (spike_clusters.npy). Cheap; see sortingResultsDir.
+            tf = isfile(fullfile(obj.sortingResultsDir(), 'spike_clusters.npy'));
         end
 
         %% --- Dataset manifest (JSON state file in the dataset folder) ----
@@ -344,10 +456,12 @@ classdef EphysDataset < handle
             dt = obj.tracker();
 
             m = struct();
-            m.schema           = "intan-dataset-manifest/1";
+            m.schema           = EphysDataset.ManifestSchema;
             m.name             = obj.Name;
             m.folder           = obj.Folder;
             m.recording_format = obj.RecordingFormat;
+            m.reader           = "";
+            if ~isempty(obj.Reader); m.reader = string(obj.Reader.Kind); end
             m.updated          = string(datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss'));
 
             acq = "";
@@ -373,6 +487,12 @@ classdef EphysDataset < handle
 
             m.exclude_channels = EphysDataset.formatChannelList(obj.ExcludeChannels);
 
+            % Manual artifact periods ([k x 2] seconds, recording-relative) so
+            % periods marked on the Visualize tab survive a rescan / restart.
+            ma = obj.ManualArtifacts;
+            if isempty(ma); ma = zeros(0, 2); end
+            m.manual_artifacts = ma;
+
             m.bin = struct('file', obj.BinFile, 'exists', isfile(obj.BinFile));
 
             ks = struct('has_results', false, 'results_dir', "", ...
@@ -386,6 +506,12 @@ classdef EphysDataset < handle
             end
             m.kilosort = ks;
 
+            % Sorted-output association (see sortingResultsDir / SortingDir).
+            m.sorting = obj.sortingStruct();
+
+            % Epsych2 behavioral session association (see BehaviorFile).
+            m.behavior = obj.behaviorManifest();
+
             % SpikeInterface preprocessing provenance (engine + config snapshot).
             m.engine        = "spikeinterface";
             m.preprocessing = EphysDataset.normalizeSIConfig(obj.SIConfig);
@@ -398,14 +524,7 @@ classdef EphysDataset < handle
             %   caller (the manifest is a convenience, not the source of truth).
             if obj.Folder == "" || ~isfolder(obj.Folder); return; end
             try
-                txt = jsonencode(obj.manifestStruct(), 'PrettyPrint', true);
-                f   = obj.manifestFile();
-                fid = fopen(f, 'w');
-                if fid < 0
-                    error('cannot open %s for writing', f);
-                end
-                closer = onCleanup(@() fclose(fid));
-                fwrite(fid, txt);
+                writeJsonFile(obj.manifestFile(), obj.manifestStruct());
             catch ME
                 warning('EphysDataset:writeManifest:Failed', ...
                     'Could not write manifest for %s: %s', obj.Name, ME.message);
@@ -413,15 +532,25 @@ classdef EphysDataset < handle
         end
 
         function tf = applyManifest(obj)
-            %applyManifest  Restore probe + channel-exclusion assignments from the
-            %   on-disk manifest (if present) so a re-scan recovers prior work.
-            %   Returns true when a manifest was found and read. Only the editable
-            %   assignments are restored; header metadata is always re-parsed.
+            %applyManifest  Restore the editable per-dataset state from the
+            %   on-disk manifest (if present) so a re-scan recovers prior work:
+            %   probe file, channel exclusions, manual artifact periods, an
+            %   explicit ("manual") sorting folder and the behavior file.
+            %   Returns true when a manifest was found and read. Header metadata
+            %   is always re-parsed. Schema /1 (probe + exclusions only) and /2
+            %   are accepted; any other schema is ignored with a warning.
             tf = false;
             f = obj.manifestFile();
             if ~isfile(f); return; end
-            m = DatasetTracker.readJson(f);
+            m = readJsonFile(f, ErrorOnFail=false);
             if isempty(m) || ~isstruct(m); return; end
+            schema = "";
+            if isfield(m, 'schema'); schema = string(m.schema); end
+            if ~ismember(schema, EphysDataset.ManifestSchemasAccepted)
+                warning('EphysDataset:applyManifest:Schema', ...
+                    'Ignoring manifest %s with unknown schema "%s".', f, schema);
+                return
+            end
             if isfield(m, 'probe') && isstruct(m.probe) && isfield(m.probe, 'file')
                 pf = string(m.probe.file);
                 if pf ~= "" && isfile(pf); obj.ProbeFile = pf; end
@@ -429,30 +558,99 @@ classdef EphysDataset < handle
             if isfield(m, 'exclude_channels')
                 obj.ExcludeChannels = EphysDataset.parseChannelList(string(m.exclude_channels));
             end
+            if isfield(m, 'manual_artifacts')
+                ma = m.manual_artifacts;
+                if isempty(ma)
+                    ma = zeros(0, 2);
+                elseif isnumeric(ma) && isvector(ma) && numel(ma) == 2
+                    ma = double(ma(:)).';           % jsondecode collapsed 1x2
+                elseif isnumeric(ma)
+                    ma = double(ma);
+                else
+                    ma = zeros(0, 2);
+                end
+                if size(ma, 2) == 2
+                    obj.ManualArtifacts = ma;
+                end
+            end
+            if isfield(m, 'sorting') && isstruct(m.sorting) ...
+                    && isfield(m.sorting, 'source') && isfield(m.sorting, 'results_dir')
+                if string(m.sorting.source) == "manual"
+                    sd = string(m.sorting.results_dir);
+                    if sd ~= "" && isfile(fullfile(sd, 'params.py'))
+                        obj.SortingDir = sd;
+                    end
+                end
+            end
+            if isfield(m, 'behavior') && isstruct(m.behavior) && isfield(m.behavior, 'file')
+                bf = string(m.behavior.file);
+                if bf ~= "" && isfile(bf); obj.BehaviorFile = bf; end
+            end
             tf = true;
+        end
+
+        function s = behaviorManifest(obj)
+            %behaviorManifest  Manifest block for the associated Epsych2 session.
+            %   file, subject, start_time, n_trials (only Info is read; any
+            %   read failure leaves the summary fields empty).
+            s = struct('file', obj.BehaviorFile, 'subject', "", 'start_time', "", 'n_trials', NaN);
+            if obj.BehaviorFile == "" || ~isfile(obj.BehaviorFile); return; end
+            try
+                meta = epsychSessionMeta(obj.BehaviorFile);
+                s.subject  = meta.subject;
+                s.n_trials = meta.nTrials;
+                if ~isnat(meta.startTime)
+                    s.start_time = string(datetime(meta.startTime, 'Format', 'yyyy-MM-dd HH:mm:ss'));
+                end
+            catch
+            end
+        end
+
+        function s = sortingStruct(obj)
+            %sortingStruct  Manifest block describing the sorted-output association.
+            %   results_dir  folder holding params.py ("" when none exists yet)
+            %   source       "manual" when SortingDir is set, else "auto"
+            %   curated      true when a phy cluster_group.tsv is present
+            %   num_units    rows of the label table (NaN when none)
+            %   updated      modification time of spike_clusters.npy ("" if none)
+            s = struct('results_dir', "", 'source', "auto", 'curated', false, ...
+                'num_units', NaN, 'updated', "");
+            if obj.SortingDir ~= ""; s.source = "manual"; end
+            p = obj.sortingResultsDir();
+            if ~isfile(fullfile(p, 'params.py')); return; end
+            s.results_dir = string(p);
+            grp = fullfile(p, 'cluster_group.tsv');
+            s.curated = isfile(grp);
+            if ~s.curated; grp = fullfile(p, 'cluster_KSLabel.tsv'); end
+            if isfile(grp)
+                try
+                    lines = splitlines(strtrim(string(fileread(grp))));
+                    s.num_units = max(numel(lines) - 1, 0);   % minus header
+                catch
+                end
+            end
+            spk = dir(fullfile(p, 'spike_clusters.npy'));
+            if ~isempty(spk)
+                s.updated = string(datetime(spk.datenum, 'ConvertFrom', 'datenum', ...
+                    'Format', 'yyyy-MM-dd HH:mm:ss'));
+            end
         end
     end
 
     methods (Static)
         function fmt = detectFormat(folder)
-            %detectFormat  Classify a folder's Intan acquisition file layout.
-            %   "one-file-per-signal"  info.rhd + amplifier.dat
-            %   "one-file-per-channel" info.rhd + amp-*.dat
-            %   "traditional"          one or more *.rhd files with embedded data
-            %   "unknown"              none of the above
-            folder = char(folder);
-            if folder == "" || ~isfolder(folder)
-                fmt = "unknown";
-                return
+            %detectFormat  RecordingFormat of the reader that claims FOLDER.
+            %   "traditional" | "one-file-per-signal" | "one-file-per-channel"
+            %   (IntanReader), "binary" (BinaryReader), or "unknown" when no
+            %   registered reader recognises the folder.
+            arguments
+                folder (1,1) string
             end
-            if isfile(fullfile(folder, 'amplifier.dat'))
-                fmt = "one-file-per-signal";
-            elseif ~isempty(dir(fullfile(folder, 'amp-*.dat')))
-                fmt = "one-file-per-channel";
-            elseif ~isempty(dir(fullfile(folder, '*.rhd')))
-                fmt = "traditional";
-            else
+            r = EphysReader.forFolder(folder);
+            if isempty(r)
                 fmt = "unknown";
+            else
+                fmt = r.RecordingFormat;
             end
         end
 
@@ -461,14 +659,22 @@ classdef EphysDataset < handle
             %   Used to initialize ArtifactConfig. RmsWindowMs/MergeGapMs/PadMs
             %   are in milliseconds (converted to samples with Fs at run time);
             %   RmsWindowMs NaN means "auto" (~1 ms).
+            %   Filter/FilterType/FilterCutoff/FilterOrder make the detector run
+            %   on a filtered view of each chunk (e.g. high-pass 300 Hz) instead
+            %   of broadband; they apply everywhere the config is consulted
+            %   (artifactIntervals, analyzeArtifacts, the Visualize overlay).
             cfg = struct( ...
-                'Enabled',     false, ...   % toBin blanks only when true
-                'Method',      "rms", ...   % running-RMS amplitude deviation
-                'Threshold',   9, ...       % robust SDs above per-channel baseline
-                'RmsWindowMs', NaN, ...     % ms; NaN = auto (~1 ms)
-                'MergeGapMs',  0, ...       % ms; stitch gaps <= this
-                'MinChannels', 2, ...       % channels exceeding simultaneously
-                'PadMs',       0);          % ms to expand each flagged run
+                'Enabled',      false, ...   % toBin blanks only when true
+                'Method',       "rms", ...   % running-RMS amplitude deviation
+                'Threshold',    9, ...       % robust SDs above per-channel baseline
+                'RmsWindowMs',  NaN, ...     % ms; NaN = auto (~1 ms)
+                'MergeGapMs',   0, ...       % ms; stitch gaps <= this
+                'MinChannels',  2, ...       % channels exceeding simultaneously
+                'PadMs',        0, ...       % ms to expand each flagged run
+                'Filter',       false, ...   % detect on a filtered view
+                'FilterType',   "highpass", ...
+                'FilterCutoff', 300, ...     % Hz (scalar, or [lo hi] for bandpass)
+                'FilterOrder',  4);
         end
 
         function cfg = normalizeArtifactConfig(cfg)
@@ -489,6 +695,102 @@ classdef EphysDataset < handle
                 end
             end
             cfg = def;
+        end
+
+        [units, info] = readPhyUnits(resultsDir, opts)
+
+        function saveAtomically(outFile, S, matVersion)
+            %saveAtomically  save() the fields of S to a temp file, verify, rename.
+            %   EphysDataset.saveAtomically(file, S, "-v7.3") writes
+            %   "~<name>.partial.mat" next to FILE and renames it into place only
+            %   after save() finished without warnings and every field of S is
+            %   confirmed present, so a failed or cancelled run never leaves a
+            %   complete-looking file behind. (save() reports a variable it could
+            %   not store, e.g. over 2 GB with -v7, as a warning and omits it;
+            %   that is treated as a failure here.) Shared by toMat, spikesToMat
+            %   and the Chronux / FieldTrip exporters.
+            arguments
+                outFile (1,1) string
+                S (1,1) struct
+                matVersion (1,1) string {mustBeMember(matVersion, ["-v7.3", "-v7"])} = "-v7.3"
+            end
+            [outDir, base] = fileparts(outFile);
+            if strlength(outDir) > 0 && ~isfolder(outDir)
+                [ok, msg] = mkdir(outDir);
+                if ~ok
+                    error('EphysDataset:saveAtomically:MkdirFailed', ...
+                        'Could not create %s: %s', outDir, msg);
+                end
+            end
+            tmp = fullfile(outDir, "~" + base + ".partial.mat");
+            if isfile(tmp); delete(tmp); end
+            lastwarn('');
+            try
+                save(tmp, '-struct', 'S', char(matVersion));
+                [wmsg, wid] = lastwarn;
+                if ~isempty(wmsg)
+                    error('EphysDataset:saveAtomically:SaveWarning', ...
+                        'save() raised a warning, so the output was discarded (%s): %s', wid, wmsg);
+                end
+                w = whos('-file', tmp);
+                missing = setdiff(fieldnames(S), {w.name});
+                if ~isempty(missing)
+                    error('EphysDataset:saveAtomically:SaveIncomplete', ...
+                        'Saved file is missing variable(s): %s', strjoin(missing, ', '));
+                end
+                [ok, msg] = movefile(tmp, outFile, 'f');
+                if ~ok
+                    error('EphysDataset:saveAtomically:MoveFailed', ...
+                        'Could not rename %s to %s: %s', tmp, outFile, msg);
+                end
+            catch ME
+                if isfile(tmp); delete(tmp); end
+                rethrow(ME);
+            end
+        end
+
+        function p = resolvePhyDir(folder)
+            %resolvePhyDir  Folder that actually holds params.py under FOLDER.
+            %   Accepts the results folder itself, a kilosort4 run folder or a
+            %   dataset output folder: the SpikeInterface engine nests the phy
+            %   output under kilosort4/si/sorter_output, the legacy engine
+            %   writes it into kilosort4/ directly. Returns FOLDER unchanged
+            %   when no candidate holds a params.py.
+            folder = char(folder);
+            if isfile(fullfile(folder, 'params.py'))
+                p = folder;
+                return
+            end
+            cands = { fullfile(folder, 'kilosort4', 'si', 'sorter_output'), ...
+                      fullfile(folder, 'si', 'sorter_output'), ...
+                      fullfile(folder, 'sorter_output'), ...
+                      fullfile(folder, 'kilosort4') };
+            for k = 1:numel(cands)
+                if isfile(fullfile(cands{k}, 'params.py'))
+                    p = cands{k};
+                    return
+                end
+            end
+            p = folder;
+        end
+
+        function [useFilter, fType, fCut, fOrd] = resolveFilterOptions(cfg, filt, fType, fCut, fOrd)
+            %resolveFilterOptions  Per-call filter options falling back to a config.
+            %   Empty / "" / NaN inputs take the ArtifactConfig values, so a
+            %   config with Filter=true is honored unless the caller overrides.
+            cfg = EphysDataset.normalizeArtifactConfig(cfg);
+            if isempty(filt);   useFilter = logical(cfg.Filter); else; useFilter = logical(filt); end
+            if fType == "";    fType = string(cfg.FilterType);   end
+            if isempty(fCut);   fCut  = cfg.FilterCutoff;          end
+            if isnan(fOrd);     fOrd  = cfg.FilterOrder;           end
+            if useFilter && (isempty(fCut) || any(~isfinite(fCut)) || any(fCut <= 0))
+                error('EphysDataset:resolveFilterOptions:Cutoff', ...
+                    'FilterCutoff must be positive and finite when Filter is enabled.');
+            end
+            if useFilter && (~isfinite(fOrd) || fOrd < 1 || fOrd ~= round(fOrd))
+                error('EphysDataset:resolveFilterOptions:Order', ...
+                    'FilterOrder must be a positive integer when Filter is enabled.');
+            end
         end
 
         function cfg = defaultSIConfig()
@@ -572,7 +874,4 @@ classdef EphysDataset < handle
         end
     end
 
-    methods (Static, Access = private)
-        hdr = parseIntanHeader(ffn)
-    end
 end

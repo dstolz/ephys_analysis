@@ -173,6 +173,12 @@ check(~cm.Loaded, 'a .mat source is not read until it is needed');
 check(isequal(size(d), [2000 2]) && pm.Fs == 1000 && cm.Fs == 1000, ...
     'the .mat source loads Y.LFP at info.LFP.Fs');
 check(isequal(cm.ChannelLabels, ["A-000" "A-001"]), 'channel labels come from info.labels');
+Sx = load(matFile);
+cxs = ChronuxDataset(Sx, Signal="LFP");
+check(cxs.SourceType == "struct" && isequal(cxs.continuous(), cm.continuous()) ...
+    && isequal(cxs.Events, cm.Events) && isequal(cxs.ChannelLabels, cm.ChannelLabels), ...
+    'a toMat-shaped struct source behaves exactly like the file source');
+check(threw(@() ChronuxDataset(struct('Y', 1), Signal="LFP")), 'a struct without Y and info is refused');
 check(threw(@() subsrefSignal(matFile, "MUA")), ...
     'asking for a signal the .mat does not hold errors');
 
@@ -297,7 +303,9 @@ check(numel(sp) == 1 && isequal(ki.unitIds, 1) && numel(sp(1).times) == 2, ...
     'Units selects clusters by id');
 check(threw(@() ck.spikes(Source="kilosort", ResultsDir=ksDir, TimeRange=[0 2], Units=7)), ...
     'an unknown unit id errors');
-check(threw(@() ck.spikes(Source="kilosort", ResultsDir=root, TimeRange=[0 2])), ...
+emptyDir = fullfile(root, 'no_sorting_here');
+mkdir(emptyDir);
+check(threw(@() ck.spikes(Source="kilosort", ResultsDir=emptyDir, TimeRange=[0 2])), ...
     'a folder without Kilosort output errors');
 
 %% =====================================================================
@@ -343,30 +351,3 @@ cx = ChronuxDataset(matFile, Signal=sig);
 cx.loadSignal();
 end
 
-
-function writeNPY(ffn, data, descr)
-%writeNPY  Minimal little-endian .npy writer for a 1-D array (test fixture).
-%   Mirrors what NumPy (and therefore Kilosort4) writes: the magic string,
-%   version 1.0, a padded header dict, then C-order data.
-switch descr
-    case '<i8', prec = 'int64';
-    case '<i4', prec = 'int32';
-    case '<f8', prec = 'double';
-    case '<f4', prec = 'single';
-    otherwise,  error('writeNPY:dtype', 'Unsupported test dtype %s', descr);
-end
-h = sprintf('{''descr'': ''%s'', ''fortran_order'': False, ''shape'': (%d,), }', ...
-    descr, numel(data));
-total = 10 + numel(h) + 1;                  % magic(6) + version(2) + len(2) + h + \n
-pad = mod(64 - mod(total, 64), 64);
-h = [h repmat(' ', 1, pad) newline];
-
-fid = fopen(ffn, 'w', 'ieee-le');
-assert(fid >= 0, 'cannot open %s', ffn);
-fwrite(fid, uint8([147 78 85 77 80 89]), 'uint8');   % \x93NUMPY
-fwrite(fid, uint8([1 0]), 'uint8');                  % version 1.0
-fwrite(fid, uint16(numel(h)), 'uint16');
-fwrite(fid, h, 'char');
-fwrite(fid, data, prec);
-fclose(fid);
-end

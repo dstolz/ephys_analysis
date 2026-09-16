@@ -12,15 +12,16 @@ obj.ScanButton.Enable = "off";
 cleanup = onCleanup(@() set(obj.ScanButton, "Enable", "on"));
 
 dlg = uiprogressdlg(obj.Fig, "Title", "Scanning", ...
-    "Message", "Discovering *.rhd folders...", "Indeterminate", "on");
+    "Message", "Discovering recording folders...", "Indeterminate", "on");
 drawnow;
 
 try
     % Discovery is cheap (AutoMetadata=false per folder inside discover()).
     P = EphysProject(root);
 
-    % Push shared config (probe/python/etc) from current UI before metadata.
-    obj.applyConfigToProject(P);
+    % Push the config's shared settings (python / output root / SI / artifacts).
+    obj.Config = obj.gatherConfig();
+    EphysPipeline.applyConfigToDatasets(obj.Config, P);
 
     if P.NumDatasets == 0
         close(dlg);
@@ -29,47 +30,30 @@ try
         obj.populateDatasetMenu();
         obj.populateArtifactDatasets();
         obj.populateReviewDatasets();
-        obj.ScanStatusLabel.Text = sprintf("No *.rhd folders found under %s", root);
-        obj.setStatus(sprintf("Scan complete: no *.rhd recordings found under %s.", root), ...
+        obj.ScanStatusLabel.Text = sprintf("No recordings found under %s", root);
+        obj.setStatus(sprintf("Scan complete: no recordings found under %s.", root), ...
             "Pick a different parent folder and Scan again.");
         return
     end
 
-    % Header-only metadata, one dataset at a time, with progress.
+    % Header-only metadata + manifest restore/refresh, one dataset at a time,
+    % with progress (EphysProject.refresh is what scripts and the pipeline
+    % call too, so the app and headless runs agree on what a scan does).
     dlg.Indeterminate = "off";
     n = P.NumDatasets;
-    for i = 1:n
-        if dlg.CancelRequested; break; end
-        dlg.Value = i / n;
-        dlg.Message = sprintf("Reading headers %d/%d: %s", i, n, P.Datasets(i).Name);
-        try
-            P.Datasets(i).refreshMetadata();
-        catch ME
-            warning('EphysPreprocessingApp:MetaFailed', ...
-                'Metadata failed for %s: %s', P.Datasets(i).Name, ME.message);
-        end
-    end
+    P.refresh(ProgressFcn=@(i, n, name) showScanProgress(dlg, i, n, name), ...
+        CancelFcn=@() dlg.CancelRequested);
     close(dlg);
-
-    % Restore each dataset's saved probe / channel-exclusion assignments from
-    % its on-disk manifest (if any), then refresh the manifest so it reflects
-    % the freshly parsed metadata and current Kilosort4 output state. The
-    % Datasets table is then built from this restored state.
-    for i = 1:n
-        try
-            P.Datasets(i).applyManifest();
-            P.Datasets(i).writeManifest();
-        catch ME
-            warning('EphysPreprocessingApp:ManifestFailed', ...
-                'Manifest update failed for %s: %s', P.Datasets(i).Name, ME.message);
-        end
-    end
 
     obj.Project = P;
     obj.refreshDatasetsTable();
+    obj.applySelectionToTable(obj.Config.Project);
     obj.populateDatasetMenu();
     obj.populateArtifactDatasets();
-    obj.applyArtifactConfigToProject();   % seed every dataset with the tab's config
+    obj.populateReviewDatasets();
+    obj.syncStepEnableStates();
+    obj.refreshSortingLabel();
+    obj.refreshManualArtifactsTable();
     obj.ScanStatusLabel.Text = sprintf("Found %d dataset(s) under %s", n, root);
     obj.setStatus(sprintf("Scanned %s: found %d dataset(s).", root, n));
 catch ME
@@ -78,4 +62,11 @@ catch ME
     obj.setStatus("Scan failed: " + string(ME.message), ...
         "Check the parent folder path and try Scan again.");
 end
+end
+
+
+function showScanProgress(dlg, i, n, name)
+if ~isvalid(dlg); return; end
+dlg.Value = i / n;
+dlg.Message = sprintf("Reading headers %d/%d: %s", i, n, name);
 end

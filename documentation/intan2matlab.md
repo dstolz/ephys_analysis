@@ -9,7 +9,7 @@ derives LFP, MUA and/or spike-band signals.
 | [`intan2matlab(folder, ...)`](../intan/intan2matlab.m) | standalone function, a thin wrapper: `EphysDataset(folder)` then `deriveSignals(...)`. With no `ProgressFcn`, it prints a `parfor_progress` bar and a summary of auto-flagged bad channels |
 | [`ds.deriveSignals(...)`](../intan/@EphysDataset/deriveSignals.m) | the implementation (an `EphysDataset` method) |
 | [`ds.toMat(...)`](../intan/@EphysDataset/toMat.m) | `deriveSignals` + an atomic save to one `.mat` (see [EphysDataset](EphysDataset.md#derived-signals-the-intan2matlab-processing)) |
-| GUI **Convert** tab | `toMat` over the selected datasets (see [EphysPreprocessingApp](EphysPreprocessingApp.md#convert)) |
+| the **Signals** step ([EphysPipeline](EphysPipeline.md), GUI **Signals** tab) | `toMat` over the selected datasets with a config's `Signals` section (see [EphysPreprocessingApp](EphysPreprocessingApp.md#signals)) |
 
 > These files were edited (LFP band-limit and notch options added) while this
 > documentation was being written. This page reflects the code as of that

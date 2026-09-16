@@ -7,8 +7,11 @@ function test_EphysDataset()
 %   fixtures (info.rhd + flat .dat files) for the one-file-per-signal and
 %   one-file-per-channel layouts and checks metadata, readData and a byte-correct
 %   toBin for both; section 14 streams detectSpikes over a whole (split) recording
-%   and requires it to match the single-block result exactly. No real Intan files
-%   or Kilosort4 install are required.
+%   and requires it to match the single-block result exactly. Sections 15-16
+%   cover the JSON helpers, the v2 manifest (manual artifacts, sorting and
+%   behavior associations), EphysProject.refresh / relative keys, and the
+%   ArtifactConfig pre-detection filter. No real Intan files or Kilosort4
+%   install are required.
 %
 %   Usage:  test_EphysDataset
 %
@@ -443,7 +446,7 @@ absArgs = {'Filter', false, 'ThresholdMethod', "absolute", 'Threshold', 100};
 check(isequal(iBlk.index{1}, recIdx), 'block reference finds every injected trough');
 
 % Streamed over 6 chunks of 2000 samples.
-[tsStr, wfStr, iStr] = dsSpk.detectSpikes(MaxChunkSamples=2000, absArgs{:});
+[tsStr, wfStr, iStr] = dsSpk.detectSpikes('MaxChunkSamples', 2000, absArgs{:});
 check(numel(iStr.chunks) == 6 && isequal([iStr.chunks.sampleOffset], 0:2000:10000), ...
     'recording streamed in 6 chunks with contiguous sample offsets');
 check(iStr.source == "recording" && iStr.thresholdScope == "chunk", ...
@@ -468,7 +471,7 @@ check(isequal(iStr.nEdgeWindows, iBlk.nEdgeWindows), ...
     'edge-window count matches the single-block result');
 
 % A subset/reorder of channels applies to every chunk.
-[~, ~, iCh] = dsSpk.detectSpikes(MaxChunkSamples=2000, ChannelOrder=2, absArgs{:});
+[~, ~, iCh] = dsSpk.detectSpikes('MaxChunkSamples', 2000, 'ChannelOrder', 2, absArgs{:});
 check(iCh.nChan == 1 && isequal(iCh.index{1}, recIdx(1:4)), ...
     'ChannelOrder subsets the channels detected on');
 
@@ -480,8 +483,24 @@ check(iDef.edgePadSamples >= round(0.010*Fs), 'edge padding at least EdgePadMs')
 
 % Progress reporting runs once per chunk.
 nProg = 0;
-dsSpk.detectSpikes(MaxChunkSamples=2000, absArgs{:}, 'ProgressFcn', @progTick);
+dsSpk.detectSpikes('MaxChunkSamples', 2000, absArgs{:}, 'ProgressFcn', @progTick);
 check(nProg == 6, 'ProgressFcn called once per chunk');
+
+% UseParallel must give exactly the serial result (or fall back to serial with
+% a warning where no pool is available).
+[tsPar, wfPar, iPar] = dsSpk.detectSpikes('MaxChunkSamples', 2000, absArgs{:}, ...
+    'UseParallel', true);
+check(isequal(tsPar, tsStr) && isequaln(wfPar, wfStr), ...
+    'UseParallel timestamps and waveforms == serial (split format)');
+check(isequaln(iPar, iStr), 'UseParallel info == serial (split format)');
+[~, ~, iParDef] = dsSpk.detectSpikes(MaxChunkSamples=2000, Threshold=8, UseParallel=true);
+check(isequaln(iParDef, iDef), 'UseParallel == serial with band-pass + MAD thresholds');
+[~, wfSerT, iSerT] = ds.detectSpikes(Filter=false, ThresholdMethod="percentile", ...
+    Threshold=99, Waveforms=true);
+[~, wfParT, iParT] = ds.detectSpikes(Filter=false, ThresholdMethod="percentile", ...
+    Threshold=99, Waveforms=true, UseParallel=true);
+check(isequaln(iParT, iSerT) && isequaln(wfParT, wfSerT) && numel(iParT.chunks) == 2, ...
+    'UseParallel == serial across traditional *.rhd files');
 
 % Guards
 errId = '';
@@ -511,6 +530,560 @@ end
 check(strcmp(errId, 'EphysDataset:detectSpikes:NoData'), ...
     'no data block and no recording folder is an error');
 
+fprintf('\n== 15. JSON helpers, manifest v2, sorting/behavior association ==\n');
+% writeJsonFile / readJsonFile
+jf = fullfile(root, 'json_test.json');
+js = struct('a', Inf, 'b', NaN, 'c', [1 -Inf 3], 'd', "x", 'e', struct('f', 2));
+writeJsonFile(jf, js, NonFinite="string");
+jr = readJsonFile(jf);
+check(strcmp(jr.a, 'Inf') && strcmp(jr.b, 'NaN') && iscell(jr.c) && strcmp(jr.c{2}, '-Inf') ...
+    && jr.c{1} == 1 && strcmp(jr.d, 'x') && jr.e.f == 2, ...
+    'writeJsonFile(NonFinite="string") writes Inf/-Inf/NaN as strings');
+check(isempty(dir(fullfile(root, '~*.partial'))), 'writeJsonFile leaves no partial file behind');
+writeJsonFile(jf, struct('a', NaN, 'b', 3));
+jr = readJsonFile(jf);
+check(isempty(jr.a) && jr.b == 3, 'default NonFinite="null" writes NaN as null');
+check(isempty(readJsonFile(fullfile(root, 'nope.json'), ErrorOnFail=false)), ...
+    'readJsonFile(ErrorOnFail=false) returns [] for a missing file');
+errId = '';
+try
+    readJsonFile(fullfile(root, 'nope.json'));
+catch ME
+    errId = ME.identifier;
+end
+check(strcmp(errId, 'readJsonFile:NotFound'), 'readJsonFile errors on a missing file by default');
+
+% Manifest v2 round trip on a copy of the two-file dataset.
+mdsDir = fullfile(root, 'mds');
+mkdir(mdsDir);
+copyfile(fullfile(dsFolder, '*.rhd'), mdsDir);
+sortDir = fullfile(root, 'phy_manual');
+mkdir(sortDir);
+fidp = fopen(fullfile(sortDir, 'params.py'), 'w'); fprintf(fidp, 'sample_rate = %g\n', Fs); fclose(fidp);
+fidp = fopen(fullfile(sortDir, 'spike_clusters.npy'), 'w'); fwrite(fidp, 0); fclose(fidp);
+fidp = fopen(fullfile(sortDir, 'cluster_group.tsv'), 'w');
+fprintf(fidp, 'cluster_id\tgroup\n0\tgood\n1\tmua\n'); fclose(fidp);
+behFile = fullfile(root, 'beh_session.mat');
+Data = struct('TrialIndex', {1, 2}); Info = struct('Subject', 'subjA'); %#ok<NASGU>
+save(behFile, 'Data', 'Info');
+
+dsm = EphysDataset(mdsDir);
+dsm.ProbeFile = probeFile;
+dsm.ExcludeChannels = [2 3];
+dsm.ManualArtifacts = [0.001 0.002; 0.005 0.006];
+dsm.SortingDir = sortDir;
+dsm.BehaviorFile = behFile;
+dsm.writeManifest();
+m = readJsonFile(dsm.manifestFile());
+check(strcmp(m.schema, 'intan-dataset-manifest/2'), 'manifest schema is v2');
+check(isequal(size(m.manual_artifacts), [2 2]), 'manifest stores manual_artifacts');
+check(strcmp(m.sorting.source, 'manual') && m.sorting.curated && m.sorting.num_units == 2 ...
+    && strcmp(m.sorting.results_dir, sortDir), 'manifest sorting block (manual, curated, 2 units)');
+check(strcmp(m.behavior.file, behFile), 'manifest behavior file');
+
+ds2 = EphysDataset(mdsDir);
+tf2 = ds2.applyManifest();
+check(tf2 && isequal(ds2.ExcludeChannels, [2 3]) && ds2.ProbeFile == string(probeFile), ...
+    'applyManifest restores probe + exclusions');
+check(isequal(ds2.ManualArtifacts, [0.001 0.002; 0.005 0.006]), 'applyManifest restores manual artifacts');
+check(ds2.SortingDir == string(sortDir) && strcmp(ds2.sortingResultsDir(), sortDir) ...
+    && ds2.hasKilosortResults() && ds2.hasPhyOutput(), ...
+    'applyManifest restores a manual sorting dir; accessors follow it');
+check(ds2.BehaviorFile == string(behFile), 'applyManifest restores the behavior file');
+
+dsm.ManualArtifacts = [0.003 0.004];
+dsm.writeManifest();
+ds3 = EphysDataset(mdsDir);
+ds3.applyManifest();
+check(isequal(ds3.ManualArtifacts, [0.003 0.004]), 'a single manual period survives the jsondecode collapse');
+ds3.SortingDir = "";
+check(strcmp(ds3.sortingResultsDir(), ds3.kilosortResultsDir()) && ~ds3.hasKilosortResults(), ...
+    'sortingResultsDir falls back to kilosortResultsDir when SortingDir is empty');
+s3 = ds3.sortingStruct();
+check(strcmp(s3.source, 'auto') && s3.results_dir == "" && isnan(s3.num_units), ...
+    'sortingStruct reports auto / no results when nothing is sorted');
+
+% Auto-discovered sorting is reported without pinning it.
+autoDir = fullfile(ds3.kilosortDir(), 'si', 'sorter_output');
+mkdir(autoDir);
+copyfile(fullfile(sortDir, 'params.py'), autoDir);
+copyfile(fullfile(sortDir, 'spike_clusters.npy'), autoDir);
+fidp = fopen(fullfile(autoDir, 'cluster_KSLabel.tsv'), 'w');
+fprintf(fidp, 'cluster_id\tKSLabel\n0\tgood\n'); fclose(fidp);
+s3 = ds3.sortingStruct();
+check(strcmp(s3.source, 'auto') && strcmp(s3.results_dir, autoDir) && ~s3.curated && s3.num_units == 1, ...
+    'sortingStruct reports an auto-discovered, uncurated run');
+ds3.writeManifest();
+ds3b = EphysDataset(mdsDir);
+ds3b.applyManifest();
+check(ds3b.SortingDir == "", 'an auto sorting association is not pinned on restore');
+
+% v1 manifests still yield probe + exclusions.
+m1 = struct('schema', "intan-dataset-manifest/1", 'probe', struct('file', probeFile), ...
+    'exclude_channels', "4");
+writeJsonFile(dsm.manifestFile(), m1);
+ds4 = EphysDataset(mdsDir);
+tf4 = ds4.applyManifest();
+check(tf4 && isequal(ds4.ExcludeChannels, 4) && isempty(ds4.ManualArtifacts) && ds4.SortingDir == "", ...
+    'v1 manifest: probe + exclusions restored, nothing else');
+writeJsonFile(dsm.manifestFile(), struct('schema', "something/9", 'exclude_channels', "5"));
+ds5 = EphysDataset(mdsDir);
+ws = warning('off', 'EphysDataset:applyManifest:Schema');
+tf5 = ds5.applyManifest();
+warning(ws);
+check(~tf5 && isempty(ds5.ExcludeChannels), 'a manifest with an unknown schema is ignored');
+
+% EphysProject.refresh + relative keys (tree from section 7).
+Pm = EphysProject(fullfile(root, 'proj'));
+i1 = Pm.findByKey("mouse1/sess1");
+check(i1 > 0 && Pm.findByKey("mouse2/sess1") > 0 && Pm.findByKey("nope") == 0, 'findByKey');
+check(isequal(sort(Pm.datasetKeys()), ["mouse1/sess1" "mouse2/sess1"]), ...
+    'datasetKeys are root-relative with forward slashes');
+check(Pm.findByKey("mouse1\sess1\") == i1, 'findByKey normalizes backslashes / trailing slash');
+Pm.Datasets(i1).ManualArtifacts = [0.001 0.002];
+Pm.Datasets(i1).writeManifest();
+Pr = EphysProject(fullfile(root, 'proj'));
+rep = Pr.refresh();
+check(height(rep) == 2 && all(rep.Metadata) && all(rep.Manifest), 'EphysProject.refresh report');
+j1 = Pr.findByKey("mouse1/sess1");
+check(isequal(Pr.Datasets(j1).ManualArtifacts, [0.001 0.002]) && ~isnan(Pr.Datasets(j1).Fs), ...
+    'refresh parses headers and restores manifest state');
+rep2 = Pr.refresh(CancelFcn=@() true);
+check(all(rep2.Message == "cancelled"), 'refresh honours CancelFcn');
+
+fprintf('\n== 16. ArtifactConfig pre-detection filter ==\n');
+% A slow 5 Hz, 4000 uV oscillation trips the absolute-microvolts detector
+% on broadband data but vanishes after the configured 300 Hz high-pass.
+fdir = fullfile(root, 'filt_ds');
+mkdir(fdir);
+Fsf = 20000; nf = 128 * 200;          % v2 files use 128 samples per block
+tt = (0:nf-1) / Fsf;
+sig = 4000 * sin(2 * pi * 5 * tt);
+rawf = uint16(round(repmat(sig, 4, 1) / 0.195) + 32768);
+writeSyntheticRHD(fullfile(fdir, 'f.rhd'), rawf, zeros(1, nf), Fsf, 128);
+dsf = EphysDataset(fdir);
+dsf.ArtifactConfig.Enabled = true;
+dsf.ArtifactConfig.Method = "microvolts";
+dsf.ArtifactConfig.Threshold = 3000;
+dsf.ArtifactConfig.MinChannels = 1;
+ivB = dsf.artifactIntervals();
+check(~isempty(ivB), 'broadband: the slow oscillation trips the microvolts detector');
+dsf.ArtifactConfig.Filter = true;
+dsf.ArtifactConfig.FilterCutoff = 300;
+ivH = dsf.artifactIntervals();
+check(isempty(ivH), 'ArtifactConfig.Filter=true is honoured by artifactIntervals');
+ivO = dsf.artifactIntervals(Filter=false);
+check(~isempty(ivO), 'a per-call Filter=false overrides the config');
+sumH = dsf.analyzeArtifacts();
+check(sumH.nBlanked == 0, 'analyzeArtifacts honours the config filter');
+sumB = dsf.analyzeArtifacts(Filter=false);
+check(sumB.nBlanked > 0, 'analyzeArtifacts per-call override');
+cfgN = EphysDataset.normalizeArtifactConfig(struct('Threshold', 5));
+check(cfgN.Filter == false && cfgN.FilterType == "highpass" && cfgN.FilterCutoff == 300 ...
+    && cfgN.FilterOrder == 4 && cfgN.Threshold == 5, 'normalizeArtifactConfig fills the filter fields');
+
+fprintf('\n== 17. readPhyUnits / readSortedUnits (sorted units loader) ==\n');
+% Legacy-engine layout: phy files directly in kilosort4/, channel_map.npy
+% reversed so sorted channel k is recording channel 5-k.
+phyFs = 30000;
+legDir = fullfile(root, 'phy_legacy', 'kilosort4');
+makePhyFixture(legDir, phyFs, ChannelMap=[3 2 1 0], Legacy=true);
+[U, ui] = EphysDataset.readPhyUnits(legDir);
+check(isequal(U.unitId, [0; 1]) && isequal(U.group, ["good"; "mua"]) && U.groupSource == "phy" && U.curated, ...
+    'noise cluster dropped by default; phy labels win over KSLabel');
+check(isequal(U.times{1}, double(int64([300; 600; 30000])) / phyFs) && isequal(U.samples{1}, int64([300; 600; 30000])), ...
+    'times are samples / params.py sample_rate');
+check(U.fs == phyFs && U.nSpikes(1) == 3 && U.nSpikes(2) == 2, 'fs and per-unit counts');
+check(isequal(U.ksChannel, [2; 4]) && isequal(U.channel, [3; 1]), ...
+    'peak channel from templates; recording channel via channel_map.npy (legacy engine)');
+check(U.channelMapSource == "channel_map.npy" && U.engine == "legacy", 'legacy engine detected');
+check(numel(U.templateWaveform{1}) == 8 && isempty(U.templateFull) && numel(U.templateTimeMs) == 8, ...
+    'peak-channel template waveform, no full templates by default');
+check(abs(U.templateWaveform{1}(3) - (-50 * 1.5)) < 1e-9, 'template scaled by the unit median amplitude');
+check(isequal(U.amplitude, [1.5; 2]) && isnan(U.contamPct(1)), 'amplitude from amplitudes.npy; contam NaN when absent');
+check(numel(ui.spikeSamples) == 6 && isequal(ui.spikeUnitIdx(:).', [1 1 2 2 1 0]), ...
+    'info carries per-spike arrays; dropped clusters map to 0');
+Ua = EphysDataset.readPhyUnits(legDir, IncludeNoise=true, FullTemplates=true);
+check(isequal(Ua.unitId, [0; 1; 2]) && isequal(size(Ua.templateFull), [8 4 3]), 'IncludeNoise + FullTemplates');
+Ug = EphysDataset.readPhyUnits(legDir, Groups="mua");
+check(isequal(Ug.unitId, 1), 'Groups filter');
+Um = EphysDataset.readPhyUnits(legDir, ChannelMap=[10 20 30 40]);
+check(isequal(Um.channel, [20; 40]) && Um.channelMapSource == "manual", 'ChannelMap override');
+check(strcmp(EphysDataset.resolvePhyDir(fullfile(root, 'phy_legacy')), legDir), 'resolvePhyDir finds kilosort4/ below a dataset folder');
+Ur = EphysDataset.readPhyUnits(fullfile(root, 'phy_legacy'));
+check(isequal(Ur.unitId, U.unitId), 'readPhyUnits accepts the folder above the results');
+errId = '';
+try
+    EphysDataset.readPhyUnits(legDir, Groups="nothing");
+catch ME
+    errId = ME.identifier;
+end
+check(strcmp(errId, 'EphysDataset:readPhyUnits:NoGroupMatch'), 'unmatched Groups errors');
+errId = '';
+try
+    EphysDataset.readPhyUnits(fullfile(root, 'proj'));
+catch ME
+    errId = ME.identifier;
+end
+check(strcmp(errId, 'EphysDataset:readPhyUnits:NoOutput'), 'a folder without phy output errors');
+
+% No params.py: fallback rate with a warning, error without one.
+noFsDir = fullfile(root, 'phy_nofs');
+makePhyFixture(noFsDir, phyFs, ChannelMap=[0 1 2 3], Legacy=true);
+delete(fullfile(noFsDir, 'params.py'));
+errId = '';
+try
+    EphysDataset.readPhyUnits(noFsDir);
+catch ME
+    errId = ME.identifier;
+end
+check(strcmp(errId, 'EphysDataset:readPhyUnits:NoSampleRate'), 'no params.py and no fallback is an error');
+lastwarn('');
+ws = warning('off', 'EphysDataset:readPhyUnits:FsFallback');
+Uf = EphysDataset.readPhyUnits(noFsDir, FsFallback=20000);
+warning(ws);
+check(Uf.fs == 20000 && abs(Uf.times{1}(1) - 300 / 20000) < 1e-12, 'FsFallback is used when params.py is missing');
+
+% SpikeInterface layout: probe-site order, one bad channel removed, so the
+% 3 sorted channels map back to recording channels through the probe.
+siRun = fullfile(root, 'phy_si', 'kilosort4');
+siDir = fullfile(siRun, 'si', 'sorter_output');
+makePhyFixture(siDir, phyFs, ChannelMap=[0 1 2], NChan=3, Legacy=false);
+siProbe = fullfile(root, 'si_probe.json');
+writeJsonFile(siProbe, struct('chanMap', [3 0 2 1], 'xc', zeros(1, 4), 'yc', (0:3) * 20, ...
+    'kcoords', zeros(1, 4), 'n_chan', 4));
+writeJsonFile(fullfile(siRun, 'si_config.json'), struct('schema', "intan-si-ks4/1", ...
+    'probe', siProbe, 'n_chan', 4, 'exclude_channels', []));
+writeJsonFile(fullfile(siRun, 'ks4_status.json'), struct('state', "done", 'bad_channels', {{'A-002'}}));
+Us = EphysDataset.readPhyUnits(siDir);
+% sites in probe order: A-003, A-000, A-002, A-001 -> drop A-002 -> [4 1 2]
+check(Us.engine == "spikeinterface" && Us.channelMapSource == "probe" && isequal(Us.channelMap, [4; 1; 2]), ...
+    'SpikeInterface run maps sorted channels back through the probe minus bad channels');
+check(isequal(Us.ksChannel, [2; 3]) && isequal(Us.channel, [1; 2]), 'unit recording channels follow that map');
+wsI = warning('off', 'EphysDataset:readPhyUnits:ChannelMapFallback');
+Us2 = EphysDataset.readPhyUnits(siDir, ChannelNames=["B-000" "B-001" "B-002" "B-003"]);
+warning(wsI);
+check(Us2.channelMapSource == "probe" && isequal(Us2.channelMap, [4; 1; 2]), ...
+    'channel names are matched by trailing number, as run_si_ks4.py does');
+
+% Instance wrapper: dataset defaults + SortingDir association.
+dsu = EphysDataset(dsFolder);
+dsu.SortingDir = legDir;
+[Ud, ~] = dsu.readSortedUnits(Groups=["good" "mua"]);
+check(isequal(Ud.unitId, [0; 1]) && Ud.resultsDir == string(legDir), 'readSortedUnits reads from SortingDir');
+dsu.SortingDir = "";
+errId = '';
+try
+    dsu.readSortedUnits();
+catch ME
+    errId = ME.identifier;
+end
+check(startsWith(errId, 'EphysDataset:readPhyUnits:No'), 'readSortedUnits errors when nothing is sorted');
+dsu.SortingDir = noFsDir;
+ws = warning('off', 'EphysDataset:readPhyUnits:FsFallback');
+Un = dsu.readSortedUnits();
+warning(ws);
+check(Un.fs == dsu.Fs, 'readSortedUnits falls back to the recording rate');
+
+% writeNPY round trips N-D arrays in C order.
+npyF = fullfile(root, 'nd.npy');
+A = reshape(single(1:24), [2 3 4]);
+writeNPY(npyF, A);
+[B, shp] = readNPY(npyF);
+check(isequal(B, A) && isa(B, 'single') && isequal(shp, [2 3 4]), 'writeNPY/readNPY N-D round trip');
+writeNPY(npyF, int64([5 6 7]));
+check(isequal(readNPY(npyF), int64([5; 6; 7])), 'writeNPY 1-D round trip');
+
+fprintf('\n== 18. spikesToMat (detected + sorted, artifact rejection) ==\n');
+spkOut = fullfile(root, 'spikes_out');
+dsSpk.OutputDir = spkOut;
+dopt = struct('Filter', false, 'ThresholdMethod', "absolute", 'Threshold', 100);
+o1 = dsSpk.spikesToMat(DetectOptions=dopt);
+check(isfile(o1.file) && endsWith(o1.file, '_spikes.mat') && startsWith(o1.file, spkOut), ...
+    'spikesToMat default file <outputFolder>/<Name>_spikes.mat');
+M = load(o1.file);
+check(all(isfield(M, {'detected', 'units', 'behavior', 'conversion'})), ...
+    'file holds detected / units / behavior / conversion');
+check(isequal(M.detected.info.index{1}, recIdx) && isempty(M.units) && isempty(M.detected.wf), ...
+    'detected indices match detectSpikes; no units and no waveforms by default');
+check(isequal(M.detected.channels, [1 2]) && isequal(M.detected.channelNames, ["amp0" "amp1"]), ...
+    'detected channels + names');
+check(isequal(o1.nDetected, [10 4]) && isequal(o1.nRejectedArtifact, [0 0]) && o1.nUnits == 0, 'out counts');
+[~, wfN, ~] = dsSpk.detectSpikes(absArgs{:}, 'Waveforms', false);
+check(isempty(wfN) || all(cellfun(@isempty, wfN)), 'Waveforms=false suppresses extraction even with three outputs');
+
+% Events inside a manual artifact period are rejected (indices 4010, 6000).
+dsSpk.ManualArtifacts = [4000 6100] / Fs;
+o2 = dsSpk.spikesToMat(DetectOptions=dopt, Overwrite=true, Channels=1);
+M2 = load(o2.file);
+check(isequal(o2.nRejectedArtifact, 2) && numel(M2.detected.ts{1}) == 8 ...
+    && ~any(M2.detected.ts{1} >= 4000/Fs & M2.detected.ts{1} <= 6100/Fs), ...
+    'events inside a manual artifact period are rejected');
+check(numel(M2.detected.info.index{1}) == 8 && M2.detected.info.count(1) == 8, ...
+    'info arrays are filtered consistently');
+check(isequal(size(M2.detected.detection.artifactIntervals), [1 2]), 'artifact intervals are recorded');
+o3 = dsSpk.spikesToMat(DetectOptions=dopt, Overwrite=true, Channels=1, RejectArtifacts=false);
+check(isequal(o3.nDetected, 10), 'RejectArtifacts=false keeps every event');
+o3b = dsSpk.spikesToMat(DetectOptions=dopt, Overwrite=true, Channels=1, ArtifactIntervals=[0 0.0001]);
+check(isequal(o3b.nRejectedArtifact, 0) && isequal(o3b.nDetected, 10), 'explicit ArtifactIntervals override the manual periods');
+dopt2 = dopt; dopt2.Waveforms = true;
+o4 = dsSpk.spikesToMat(DetectOptions=dopt2, Overwrite=true, Channels=1);
+M4 = load(o4.file);
+check(iscell(M4.detected.wf) && size(M4.detected.wf{1}, 1) == 8, 'waveforms saved on request, rows filtered too');
+errId = '';
+try
+    dsSpk.spikesToMat(DetectOptions=dopt);
+catch ME
+    errId = ME.identifier;
+end
+check(strcmp(errId, 'EphysDataset:spikesToMat:Exists'), 'an existing file is not overwritten by default');
+errId = '';
+try
+    dsSpk.spikesToMat(DetectOptions=struct('ChannelOrder', 1), Overwrite=true);
+catch ME
+    errId = ME.identifier;
+end
+check(strcmp(errId, 'EphysDataset:spikesToMat:DetectOption'), 'ChannelOrder inside DetectOptions is rejected');
+
+% Sorted units and both sources.
+dsSpk.SortingDir = legDir;
+o5 = dsSpk.spikesToMat(Source="sorted", Overwrite=true);
+M5 = load(o5.file);
+check(isempty(M5.detected) && isequal(M5.units.unitId, [0; 1]) && o5.nUnits == 2, ...
+    'Source="sorted" writes the units only');
+o6 = dsSpk.spikesToMat(Source="both", DetectOptions=dopt, Overwrite=true, ...
+    Behavior=struct('x', 1), Groups="good");
+M6 = load(o6.file);
+check(~isempty(M6.detected) && isequal(M6.units.unitId, 0) && M6.behavior.x == 1 ...
+    && M6.conversion.source == "both", 'Source="both" + Groups + behavior');
+check(isempty(dir(fullfile(spkOut, '~*.partial.mat'))), 'no partial file is left behind');
+dsSpk.ManualArtifacts = zeros(0, 2);
+
+% toMat carries the behavior variable too (needs the Signal Processing Toolbox).
+if license('test', 'Signal_Toolbox')
+    oM = dsSpk.toMat(File=fullfile(spkOut, 'x_extract.mat'), ...
+        SignalOptions=struct('dataTypeOut', "LFP", 'LFP_Fs', 1000), Behavior=struct('trials', 3));
+    MM = load(oM.file);
+    check(MM.behavior.trials == 3 && isfield(MM, 'Y') && isfield(MM, 'events') && isfield(MM, 'info'), ...
+        'toMat saves the behavior variable next to Y / events / info');
+else
+    fprintf('  (toMat behavior check skipped: no Signal Processing Toolbox)\n');
+end
+
+fprintf('\n== 19. acquisition readers: registry, BinaryReader, discovery ==\n');
+check(isa(ds.Reader, 'IntanReader') && ds.Reader.Kind == "intan" && ds.RecordingFormat == "traditional", ...
+    'EphysDataset picks IntanReader for a *.rhd folder');
+check(isa(dsig.Reader, 'IntanReader') && dsig.supportsRandomAccess() && ~ds.supportsRandomAccess(), ...
+    'random access only for the split layouts');
+check(isequal(sort(EphysReader.readerClasses()), sort(["IntanReader" "BinaryReader"])), 'built-in reader registry');
+check(isempty(EphysReader.forFolder(fullfile(root, 'proj', 'empty_decoy'))), 'no reader claims an empty folder');
+check(strcmp(DatasetTracker.classifyJson(struct('schema', "ephys-recording/1")), 'recording-descriptor'), ...
+    'classifyJson recognises a recording descriptor');
+
+% A universal recording built from the traditional dataset: toBin + descriptor.
+binDir = fullfile(root, 'universal_rec');
+mkdir(binDir);
+dsb = EphysDataset(dsFolder);
+dsb.OutputDir = binDir;
+infoB = dsb.toBin();                        % int16 = round(uV / 0.195), no offset
+src = ds.readData();
+Xsrc = src.amplifier;
+BinaryReader.writeDescriptor(binDir, struct( ...
+    'name', "universal", 'data_file', string([char(dsb.Name) '.bin']), 'dtype', "int16", ...
+    'n_chan', numAmp, 'fs', Fs, 'gain_to_uV', 0.195, 'offset', 0, ...
+    'channel_names', {cellstr(ds.ChannelNames)}, 'native_names', {cellstr(ds.NativeNames)}, ...
+    'dig_in_names', {{'din0'}}, 'events', src.events, 'acq_date', "2026-01-02 03:04:05"));
+check(isfile(fullfile(binDir, 'recording.json')) && isfile(infoB.filename), 'descriptor + binary written');
+
+dsu = EphysDataset(binDir);
+check(isa(dsu.Reader, 'BinaryReader') && dsu.RecordingFormat == "binary" && dsu.Name == "universal_rec" ...
+    && dsu.Reader.Name == "universal", 'BinaryReader claims a recording.json folder (dataset name = folder leaf)');
+check(dsu.Fs == Fs && dsu.NumChannels == numAmp && dsu.NumSamples == totalSamples ...
+    && isequal(dsu.ChannelNames, ds.ChannelNames) && isequal(dsu.NativeNames, ds.NativeNames), ...
+    'binary metadata from the descriptor + file size');
+check(dsu.AcqDate == datetime(2026, 1, 2, 3, 4, 5), 'acq_date parsed');
+du = dsu.readData();
+check(isequal(size(du.amplifier), size(Xsrc)) && max(abs(du.amplifier(:) - Xsrc(:))) < 1e-9, ...
+    'readData microvolts round-trip through the universal binary');
+check(isequal(du.events.din0, src.events.din0) && isequal(du.channelNames, ds.ChannelNames) ...
+    && abs(du.t(2) - 1/Fs) < 1e-12, 'events, names and t from the descriptor');
+du1 = dsu.readData(KeepChannels=[3 1], Precision="single");
+check(isa(du1.amplifier, 'single') && isequal(du1.channelOrder, [3 1]) ...
+    && isequal(du1.channelNames, ds.ChannelNames([3 1])), 'KeepChannels / Precision honoured');
+planU = dsu.streamPlan(MaxChunkSamples=100);
+check(numel(planU) == ceil(totalSamples / 100) && planU(1).kind == "window" && planU(2).sampleOffset == 100, ...
+    'binary streamPlan windows');
+Xw = dsu.readChunkUV(planU(2));
+check(isequal(size(Xw), [100 numAmp]) && max(abs(Xw(:) - reshape(Xsrc(101:200, :), [], 1))) < 1e-9, 'readChunkUV window');
+check(dsu.supportsRandomAccess() && max(abs(reshape(dsu.readWindowUV(5, 3) - Xsrc(6:8, :), [], 1))) < 1e-9, 'readWindowUV');
+check(isequal(size(dsu.readWindowUV(totalSamples, 10)), [0 numAmp]), 'readWindowUV past the end is empty');
+check(EphysDataset.detectFormat(binDir) == "binary" && EphysDataset.detectFormat(dsFolder) == "traditional" ...
+    && EphysDataset.detectFormat(fullfile(root, 'proj', 'empty_decoy')) == "unknown", 'detectFormat via the registry');
+
+% Discovery through the registry.
+fAll = EphysReader.findAllRecordingFolders(root, true);
+check(any(fAll == string(binDir)) && any(fAll == string(dsFolder)), 'findAllRecordingFolders finds both kinds');
+dtU = DatasetTracker(binDir);
+check(dtU.NumRecordings == 1 && dtU.Recordings(1).Format == "binary" && dtU.Recordings(1).Reader == "binary" ...
+    && dtU.Recordings(1).NumFiles == 1, 'DatasetTracker inventories a binary recording');
+Pu = EphysProject(binDir);
+check(Pu.NumDatasets == 1 && Pu.Datasets(1).RecordingFormat == "binary", 'EphysProject discovers a binary recording');
+
+% Processing on the universal format gives the same answers as on the source.
+dsu.ArtifactConfig.Enabled = true;
+dsu.ArtifactConfig.Method = "microvolts";
+dsu.ArtifactConfig.Threshold = 3000;
+dsu.ArtifactConfig.MinChannels = 1;
+dsu.ManualArtifacts = dsi.ManualArtifacts;   % section 11's manual periods are part of iva
+ivU = dsu.artifactIntervals();
+% The chunking differs (two *.rhd files vs one window), so runs that touch a
+% file boundary may split differently; compare the flagged duration instead.
+check(abs(sum(diff(ivU, 1, 2)) - sum(diff(iva, 1, 2))) <= 4 / Fs && abs(size(ivU, 1) - size(iva, 1)) <= 2, ...
+    'artifactIntervals flag the same span on the universal format');
+tsS = ds.detectSpikes(absArgs{:});
+tsU = dsu.detectSpikes(absArgs{:});
+check(isequal(tsS, tsU), 'detectSpikes identical on the universal format');
+dsu.writeManifest();
+mU = readJsonFile(dsu.manifestFile());
+check(strcmp(mU.reader, 'binary') && strcmp(mU.recording_format, 'binary'), 'manifest records the reader');
+spU = dsu.Reader.siRecordingSpec();
+check(spU.reader == "binary" && spU.gain_to_uV == 0.195 && spU.n_chan == numAmp && spU.dtype == "int16", ...
+    'siRecordingSpec carries dtype / gain / offset');
+dsu.ProbeFile = probeFile;
+dsu.PythonExe = "C:\envs\kilosort\python.exe";
+rU = dsu.runSpikeInterface(DryRun=true);
+cU = readJsonFile(rU.settingsPath);
+check(strcmp(cU.recording.reader, 'binary') && strcmp(cU.recording.dtype, 'int16') && cU.recording.n_chan == numAmp, ...
+    'si_config.json carries the recording spec');
+spI = ds.Reader.siRecordingSpec();
+check(spI.reader == "intan" && iscell(spI.files) && numel(spI.files) == 2, 'Intan siRecordingSpec lists the files');
+
+% Digital input from a per-sample uint16 file instead of the events map.
+writeDat(fullfile(binDir, 'digitalin.dat'), uint16(digRaw), 'uint16');
+BinaryReader.writeDescriptor(binDir, struct('data_file', string([char(dsb.Name) '.bin']), 'dtype', "int16", ...
+    'n_chan', numAmp, 'fs', Fs, 'gain_to_uV', 0.195, 'dig_in_names', {{'din0'}}, 'dig_in_file', "digitalin.dat"));
+dsu2 = EphysDataset(binDir);
+du2 = dsu2.readData();
+check(isequal(du2.events.din0, src.events.din0) && dsu2.Name == "universal_rec", ...
+    'events from dig_in_file; name defaults to the folder leaf');
+errId = '';
+try
+    BinaryReader.writeDescriptor(binDir, struct('data_file', "nope.bin", 'dtype', "int16", 'n_chan', 1, 'fs', 1));
+catch ME
+    errId = ME.identifier;
+end
+check(strcmp(errId, 'BinaryReader:NoDataFile'), 'writeDescriptor refuses a missing data file');
+writeJsonFile(fullfile(root, 'bad_rec', 'recording.json'), struct('schema', "ephys-recording/1", 'dtype', "int16"));
+ws = warning('off', 'EphysReader:ReaderFailed');
+check(isempty(EphysReader.forFolder(fullfile(root, 'bad_rec'))), 'an invalid descriptor is reported, not claimed');
+warning(ws);
+
+fprintf('\n== 20. exportChronux / exportFieldTrip / behavior ==\n');
+% A toMat-shaped extract built in memory (no Signal Processing Toolbox needed).
+nX = 256;
+Sx = struct();
+Sx.Y = struct('LFP', single(Xsrc(1:nX, :)), 'MUA', single([]), 'SPIKE', single([]));
+Sx.events = src.events;
+Sx.info = struct('LFP', struct('Fs', Fs), 'labels', ds.ChannelNames, 'origFs', Fs);
+expOut = fullfile(root, 'export_out');
+dsx = EphysDataset(dsFolder);
+dsx.OutputDir = expOut;
+dsx.SortingDir = legDir;
+dsx.BehaviorFile = behFile;
+check(dsx.hasKilosortResults(), 'export fixture dataset has sorted units');
+
+% behavior helpers on the minimal section-15 session file
+[bt, bi, bm] = dsx.readBehavior();
+check(height(bt) == 2 && strcmp(bi.Subject, 'subjA') && bm.subject == "subjA" && isnat(bm.startTime), ...
+    'readBehavior loads the associated Epsych2 file');
+bs = dsx.behaviorStruct();
+check(isstruct(bs) && bs.nTrials == 2 && bs.file == string(behFile), 'behaviorStruct packs trials + info + meta');
+dsx.writeManifest();
+mx = readJsonFile(dsx.manifestFile());
+check(strcmp(mx.behavior.subject, 'subjA') && mx.behavior.n_trials == 2, 'manifest behavior block carries subject / n_trials');
+dsx.BehaviorFile = "";
+check(isempty(dsx.behaviorStruct()), 'behaviorStruct is [] without an associated file');
+errId = '';
+try
+    dsx.readBehavior();
+catch ME
+    errId = ME.identifier;
+end
+check(strcmp(errId, 'EphysDataset:readBehavior:NoFile'), 'readBehavior errors without a file');
+dsx.BehaviorFile = behFile;
+
+% detected spikes for the exports
+dsx.spikesToMat(DetectOptions=struct('Filter', false, 'ThresholdMethod', "absolute", 'Threshold', 100));
+
+oC = dsx.exportChronux(Extract=Sx);
+check(endsWith(oC.file, '_chronux.mat') && isfile(oC.file), 'exportChronux writes <Name>_chronux.mat');
+C = load(oC.file);
+check(all(isfield(C, {'LFP', 'sp', 'spDetected', 'units', 'detected', 'events', 'behavior', 'export'})) ...
+    && ~isfield(C, 'MUA'), 'chronux file variables (only signals present)');
+check(isa(C.LFP.data, 'double') && isequal(size(C.LFP.data), [nX numAmp]) ...
+    && isequal(C.LFP.data, double(single(Xsrc(1:nX, :)))) ...
+    && C.LFP.params.Fs == Fs && C.LFP.t(1) == 0 && abs(C.LFP.t(2) - 1/Fs) < 1e-12 ...
+    && isequal(C.LFP.labels, ds.ChannelNames), 'LFP data / params / t / labels through ChronuxDataset.continuous');
+check(numel(C.sp) == 2 && isequal(fieldnames(C.sp), {'times'}) && isequal(C.units.unitId, [0; 1]) ...
+    && isequal(C.sp(1).times, C.units.times{1}), 'sp is the toPointProcess form of the sorted units');
+check(numel(C.spDetected) == numAmp && ~isempty(C.detected) && isequal(C.spDetected(1).times, C.detected.ts{1}(:)), ...
+    'spDetected from the spikes file');
+check(isequal(C.events.din0, src.events.din0) && C.behavior.nTrials == 2 && C.export.tool == "EphysDataset.exportChronux", ...
+    'events, behavior and provenance');
+oC2 = dsx.exportChronux(Extract=Sx, Units=false, Detected=false, Behavior=false, Overwrite=true, ...
+    File=fullfile(expOut, 'c2.mat'));
+C2 = load(oC2.file);
+check(isempty(C2.sp) && isempty(C2.units) && isempty(C2.spDetected) && isempty(C2.behavior) && oC2.nUnits == 0, ...
+    'Units / Detected / Behavior = false leave those empty');
+errId = '';
+try
+    dsx.exportChronux(Extract=Sx);
+catch ME
+    errId = ME.identifier;
+end
+check(strcmp(errId, 'EphysDataset:exportChronux:Exists'), 'existing chronux file is not overwritten by default');
+errId = '';
+try
+    dsx.exportChronux(Extract=Sx, Signals="MUA", Overwrite=true);
+catch ME
+    errId = ME.identifier;
+end
+check(strcmp(errId, 'EphysDataset:exportChronux:SignalMissing'), 'asking for a signal the extract lacks errors');
+errId = '';
+try
+    dsx.exportChronux(Overwrite=true);
+catch ME
+    errId = ME.identifier;
+end
+check(strcmp(errId, 'EphysDataset:exportChronux:NoExtract'), 'no extract file -> clear error');
+
+oF = dsx.exportFieldTrip(Extract=Sx);
+check(endsWith(oF.file, '_fieldtrip.mat') && isfile(oF.file), 'exportFieldTrip writes <Name>_fieldtrip.mat');
+F = load(oF.file);
+check(all(isfield(F, {'data_LFP', 'spike', 'spikeDetected', 'event', 'behavior', 'export'})) && ~isfield(F, 'data_MUA'), ...
+    'fieldtrip file variables');
+check(isequal(size(F.data_LFP.trial{1}), [numAmp nX]) && isequal(F.data_LFP.label, cellstr(ds.ChannelNames(:))) ...
+    && F.data_LFP.fsample == Fs && F.data_LFP.hdr.TimeStampPerSample == 1, 'data_LFP is a FieldTrip raw structure');
+check(numel(F.data_LFP.cfg.event) == size(src.events.din0, 1) && F.data_LFP.cfg.event(1).sample == round(src.events.din0(1, 1) * Fs), ...
+    'each data struct carries its events at its own rate in cfg.event');
+check(isequal(F.spike.label, {'unit0', 'unit1'}) && isequal(F.spike.timestamp{1}, [300 600 30000]) && F.spike.hdr.Fs == 30000, ...
+    'spike structure from the sorted units');
+check(numel(F.spikeDetected.label) == numAmp && F.spikeDetected.hdr.Fs == Fs, 'spikeDetected from the spikes file');
+check(numel(F.event) == size(src.events.din0, 1) && F.export.eventFs == Fs && F.behavior.nTrials == 2, ...
+    'event at the recording rate; behavior + provenance');
+check(isempty(dir(fullfile(expOut, '~*.partial.mat'))), 'no partial files left by the exporters');
+
+% Extract from the file written by toMat (needs the Signal Processing Toolbox).
+if license('test', 'Signal_Toolbox')
+    oM = dsx.toMat(SignalOptions=struct('dataTypeOut', ["LFP" "MUA"], 'LFP_Fs', 1000, 'MUA_Fs', 2000));
+    oF2 = dsx.exportFieldTrip(Overwrite=true);
+    F2 = load(oF2.file);
+    check(isfile(oM.file) && isequal(sort(oF2.signals), ["LFP" "MUA"]) && isfield(F2, 'data_MUA') ...
+        && F2.data_MUA.hdr.TimeStampPerSample == Fs / 2000, 'default Extract is the toMat file; origFs sets TimeStampPerSample');
+else
+    fprintf('  (toMat-based export check skipped: no Signal Processing Toolbox)\n');
+end
+
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0
     error('test_EphysDataset:Failures', '%d checks failed.', nFail);
@@ -519,157 +1092,8 @@ end
 
 
 % =========================================================================
-function writeSyntheticRHD(ffn, ampRaw, digRaw, Fs, spb)
-%writeSyntheticRHD  Write a minimal valid v2.0 RHD2000 file.
-%   ampRaw [numAmp x nSamples] uint16 raw codes; digRaw [1 x nSamples] (bit 0).
-%   numAmp amplifier channels, 1 dig-in line, no aux/adc/supply/temp/dig-out.
-%   nSamples must be a multiple of spb.
-
-numAmp = size(ampRaw,1);
-nSamples = size(ampRaw,2);
-nBlocks = nSamples / spb;
-assert(mod(nSamples, spb) == 0, 'nSamples must be a multiple of spb');
-
-fid = fopen(ffn, 'w', 'ieee-le');
-assert(fid >= 0, 'cannot open %s', ffn);
-
-% --- Header ---
-fwrite(fid, hex2dec('c6912702'), 'uint32');   % magic
-fwrite(fid, 2, 'int16');                       % main version (>1 => 128 spb, int32 ts)
-fwrite(fid, 0, 'int16');                       % secondary version
-fwrite(fid, Fs, 'single');                     % sample_rate
-fwrite(fid, 1, 'int16');                        % dsp_enabled
-fwrite(fid, [1 1 7500], 'single');              % actual dsp cutoff, lower, upper bw
-fwrite(fid, [1 1 7500], 'single');              % desired dsp cutoff, lower, upper bw
-fwrite(fid, 0, 'int16');                        % notch_filter_mode
-fwrite(fid, [1000 1000], 'single');             % desired/actual impedance test freq
-writeQString(fid, '');                          % note1
-writeQString(fid, '');                          % note2
-writeQString(fid, '');                          % note3
-fwrite(fid, 0, 'int16');                        % num_temp_sensor_channels (v1.1+/v>1)
-fwrite(fid, 0, 'int16');                        % board_mode (v1.3+/v>1)
-writeQString(fid, '');                          % reference_channel (v>1)
-
-% One signal group holding numAmp amplifier channels + 1 dig-in
-fwrite(fid, 1, 'int16');                        % number_of_signal_groups
-writeQString(fid, 'PortA');                     % group name
-writeQString(fid, 'A');                         % group prefix
-fwrite(fid, 1, 'int16');                        % group enabled
-fwrite(fid, numAmp + 1, 'int16');               % group num channels
-fwrite(fid, numAmp, 'int16');                   % group num amp channels
-
-for c = 1:numAmp
-    writeChannel(fid, sprintf('A-%03d', c-1), sprintf('amp%d', c-1), c-1, 0); % signal_type 0
-end
-% dig-in line, native_order 0
-writeChannel(fid, 'DIN-00', 'din0', 0, 4);      % signal_type 4
-
-% --- Data blocks (channel-major amplifier per block, matching the reader) ---
-for blk = 1:nBlocks
-    cols = (blk-1)*spb + (1:spb);
-    fwrite(fid, cols - 1, 'int32');             % timestamps (int32 for v>1)
-    % amplifier: fread reads [spb, numAmp] column-major => write channel-major
-    ampBlock = ampRaw(:, cols).';               % [spb x numAmp]
-    fwrite(fid, ampBlock, 'uint16');            % column-major => ch1 spb samples, ch2...
-    % dig-in raw uint16 (bit 0 carries the line)
-    fwrite(fid, digRaw(cols), 'uint16');
-end
-
-fclose(fid);
-end
-
-
-function writeChannel(fid, nativeName, customName, nativeOrder, signalType)
-writeQString(fid, nativeName);
-writeQString(fid, customName);
-fwrite(fid, nativeOrder, 'int16');   % native_order
-fwrite(fid, 0, 'int16');             % custom_order
-fwrite(fid, signalType, 'int16');    % signal_type
-fwrite(fid, 1, 'int16');             % channel_enabled
-fwrite(fid, 0, 'int16');             % chip_channel
-fwrite(fid, 0, 'int16');             % board_stream
-fwrite(fid, 0, 'int16');             % voltage_trigger_mode
-fwrite(fid, 0, 'int16');             % voltage_threshold
-fwrite(fid, 0, 'int16');             % digital_trigger_channel
-fwrite(fid, 0, 'int16');             % digital_edge_polarity
-fwrite(fid, 0, 'single');            % electrode_impedance_magnitude
-fwrite(fid, 0, 'single');            % electrode_impedance_phase
-end
-
-
-function writeQString(fid, str)
-% Qt QString: uint32 length in BYTES, then uint16 per char.
-fwrite(fid, numel(str) * 2, 'uint32');
-for i = 1:numel(str)
-    fwrite(fid, double(str(i)), 'uint16');
-end
-end
-
-
-function writeInfoRHD(ffn, numAmp, Fs)
-%writeInfoRHD  Write a header-only v2.0 info.rhd (no data blocks) for the split
-%   formats. Declares numAmp amplifier channels (native names A-000..A-00N, so
-%   amp-A-00x.dat filenames line up) plus one bit-0 dig-in line; no aux/adc.
-
-fid = fopen(ffn, 'w', 'ieee-le');
-assert(fid >= 0, 'cannot open %s', ffn);
-
-fwrite(fid, hex2dec('c6912702'), 'uint32');   % magic
-fwrite(fid, 2, 'int16');                       % main version (>1)
-fwrite(fid, 0, 'int16');                       % secondary version
-fwrite(fid, Fs, 'single');                     % sample_rate
-fwrite(fid, 1, 'int16');                        % dsp_enabled
-fwrite(fid, [1 1 7500], 'single');              % actual dsp cutoff, lower, upper bw
-fwrite(fid, [1 1 7500], 'single');              % desired dsp cutoff, lower, upper bw
-fwrite(fid, 0, 'int16');                        % notch_filter_mode
-fwrite(fid, [1000 1000], 'single');             % desired/actual impedance test freq
-writeQString(fid, '');                          % note1
-writeQString(fid, '');                          % note2
-writeQString(fid, '');                          % note3
-fwrite(fid, 0, 'int16');                        % num_temp_sensor_channels
-fwrite(fid, 0, 'int16');                        % board_mode
-writeQString(fid, '');                          % reference_channel (v>1)
-
-fwrite(fid, 1, 'int16');                        % number_of_signal_groups
-writeQString(fid, 'PortA');                     % group name
-writeQString(fid, 'A');                         % group prefix
-fwrite(fid, 1, 'int16');                        % group enabled
-fwrite(fid, numAmp + 1, 'int16');               % group num channels
-fwrite(fid, numAmp, 'int16');                   % group num amp channels
-for c = 1:numAmp
-    writeChannel(fid, sprintf('A-%03d', c-1), sprintf('amp%d', c-1), c-1, 0);
-end
-writeChannel(fid, 'DIN-00', 'din0', 0, 4);      % dig-in, native_order 0
-
-fclose(fid);   % header only - no data blocks follow
-end
-
-
-function writeDat(ffn, data, prec)
-%writeDat  Write a flat little-endian binary .dat file (split-format data file).
-fid = fopen(ffn, 'w', 'ieee-le');
-assert(fid >= 0, 'cannot open %s', ffn);
-fwrite(fid, data, prec);
-fclose(fid);
-end
-
-
 function bytes = readBin(ffn)
 fid = fopen(ffn, 'r', 'ieee-le');
 bytes = fread(fid, inf, '*uint8');
 fclose(fid);
-end
-
-
-% =========================================================================
-function X = injectSpikes(X, idx, chan, tmpl, peakPos)
-%injectSpikes  Add tmpl to column chan of X, tmpl(peakPos) landing on each idx.
-%   Samples of the template that fall outside X are clipped.
-n = size(X, 1);
-m = numel(tmpl);
-for k = 1:numel(idx)
-    rows = idx(k) - peakPos + (1:m).';
-    ok = rows >= 1 & rows <= n;
-    X(rows(ok), chan) = X(rows(ok), chan) + tmpl(ok);
-end
 end

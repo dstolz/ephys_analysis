@@ -6,8 +6,9 @@ wraps each one as an [`EphysDataset`](EphysDataset.md), and runs batch
 operations over them. It holds shared configuration (probe, Python/conda, output
 root, scale, dtype) and pushes it down into every dataset.
 
-The GUI ([`EphysPreprocessingApp`](EphysPreprocessingApp.md)) builds one of these on every
-**Scan**.
+The GUI ([`EphysPreprocessingApp`](EphysPreprocessingApp.md)) builds one on
+every **Scan**; [`EphysPipeline`](EphysPipeline.md) builds one from a config's
+`Project.Root`. Both then call `refresh()`.
 
 ## Construction
 
@@ -43,65 +44,89 @@ datasets by itself. Call `pushConfig(d)` for each dataset (or re-`discover()`).
 
 ## Methods
 
-**`discover()`** finds every folder under `Root` (recursively) that **directly**
-contains at least one `*.rhd` file, using
-[`DatasetTracker.findRecordingFolders`](DatasetTracker.md#static-helpers). This
-matches traditional recordings and split recordings, since `info.rhd` matches
-`*.rhd`. One `EphysDataset` is created per folder with `AutoMetadata=false`
-(headers are not parsed yet), and `pushConfig` is applied to each. If nothing
-is found, `Datasets` is emptied and a warning is issued
-(`EphysProject:NoData`).
+**`discover()`** finds every folder under `Root` (recursively) that a
+registered acquisition reader claims
+(`EphysReader.findAllRecordingFolders`): folders that directly contain a
+`*.rhd` file (Intan traditional and split layouts, since `info.rhd` matches)
+and folders holding a `recording.json` descriptor (the
+[universal binary format](file-formats.md#universal-recording-format-recordingjson)).
+One `EphysDataset` is created per folder with `AutoMetadata=false` (headers are
+not parsed yet), and `pushConfig` is applied to each. If nothing is found,
+`Datasets` is emptied and a warning is issued (`EphysProject:NoData`).
+
+**`report = refresh(Name=Value)`** runs, for every dataset:
+
+1. `refreshMetadata()`: header-only metadata (Fs, channels, duration);
+2. `applyManifest()`: restore the probe, channel exclusions, manual artifact
+   periods, sorting and behavior associations from
+   `<Folder>/<Name>_manifest.json`;
+3. `writeManifest()`: rewrite the manifest with the fresh metadata.
+
+This is what the GUI's Scan does and what `EphysPipeline` and generated scripts
+call, so headless runs and the app agree on the state of each dataset. Options:
+`ApplyManifest`, `WriteManifest` (default true), `Force` (re-parse cached
+headers), `ProgressFcn(i, n, name)`, `CancelFcn()`. Failures warn and are
+recorded in the returned table (`Dataset`, `Key`, `Metadata`, `Manifest`,
+`Message`) instead of interrupting the loop.
 
 **`pushConfig(d)`** copies `ProbeFile`, `PythonExe`, `CondaEnv`, `Scale`,
 `Dtype`, `Manifest`, and (when `OutputRoot` is set) `OutputDir = OutputRoot/<Name>`
-into one dataset. This **overwrites** that dataset's `ProbeFile`. The GUI
-deliberately avoids calling it after scanning so per-dataset probe assignments
-survive.
+into one dataset. This **overwrites** that dataset's `ProbeFile`. The GUI and
+the pipeline deliberately avoid calling it after scanning so per-dataset probe
+assignments survive (`EphysPipeline.applyConfigToDatasets` sets everything
+except `ProbeFile`, `SortingDir` and `BehaviorFile`).
 
-**`d = dataset(idxOrName)`** returns one dataset by index or by `Name`
-(`EphysProject:NoSuchDataset` if the name is not found).
+### Dataset keys
 
-**`dt = tracker(idxOrName)`** returns `dataset(idxOrName).tracker()`, the
-[`DatasetTracker`](DatasetTracker.md) inventory of that dataset's output folder.
+Dataset names are folder leaves and need not be unique (`mouse1/sess1` and
+`mouse2/sess1`). Every place that has to name a dataset durably (the pipeline
+config's selection, the refresh report, the GUI table) uses the
+**root-relative key** with forward slashes instead.
+
+| Method | Returns |
+| --- | --- |
+| `datasetKey(i)` | the key of dataset `i` (`"mouse1/sess1"`) |
+| `datasetKeys()` | every key, in `Datasets` order |
+| `findByKey(keys)` | the index of each key (0 when not found) |
+| `EphysProject.relativeKey(root, folder)`, `EphysProject.normalizeKey(s)` | statics: build / normalize a key |
+| `d = dataset(idxOrName)` | one dataset by index or by `Name` (the **first** match; `EphysProject:NoSuchDataset` if the name is not found) |
+| `dt = tracker(idxOrName)` | `dataset(idxOrName).tracker()`, the [`DatasetTracker`](DatasetTracker.md) inventory of that dataset's output folder |
+
+### Batch operations
 
 **`T = gatherMetadata(Force=false)`** calls `refreshMetadata` on every dataset
 whose `Fs` is still `NaN` (or on all of them with `Force=true`). It returns one
-table row per dataset with these columns:
-
-- `Name`, `Folder`, `NumFiles`, `NumChannels`, `Fs`, `Duration`, `AcqDate`,
-  `ChannelNames`
-- `HasProbe`: `ProbeFile` is set and exists
-- `BinExists`: `BinFile` exists
-- `HasKilosort`: the dataset's tracker has a run with `spike_clusters.npy`
+table row per dataset with `Name`, `Folder`, `NumFiles`, `NumChannels`, `Fs`,
+`Duration`, `AcqDate`, `ChannelNames`, `HasProbe` (`ProbeFile` is set and
+exists), `BinExists`, `HasKilosort` (the dataset's tracker has a run with
+`spike_clusters.npy`).
 
 **`infos = toBinAll(Name=Value...)`** calls `toBin` on every dataset, passing
 all arguments through to `EphysDataset.toBin`. An error on one dataset is caught,
-reported as a warning (`EphysProject:toBinFailed`), and the batch
-continues. Each element of `infos` has `Name`, `info` (the `toBin` struct, or
-`[]` on failure) and `error` (`""` on success).
+reported as a warning (`EphysProject:toBinFailed`), and the batch continues.
+Each element of `infos` has `Name`, `info` (the `toBin` struct, or `[]` on
+failure) and `error` (`""` on success).
 
 **`results = runKilosortAll(Name=Value...)`** calls the legacy
 `EphysDataset.runKilosort` on every dataset with the same error handling
-(`EphysProject:runKilosortFailed`). Each element has `Name`, `result`
-and `error`. There is **no** project-level wrapper for `runSpikeInterface`; loop
-over `P.Datasets` to use that engine (see below).
+(`EphysProject:runKilosortFailed`).
+
+For everything else (sorting through SpikeInterface, derived signals, spikes,
+exports) use [`EphysPipeline`](EphysPipeline.md), which loops over the
+project's selected datasets with a config, or loop over `P.Datasets` yourself.
 
 ## Example
 
 ```matlab
-P = EphysProject("D:\experiments", ...
-    ProbeFile="C:\src\ephys_analysis\intan\probes\H64LP_4x16lin_probemap.json", ...
-    PythonExe="C:\Users\me\miniconda3\envs\kilosort\python.exe", ...
-    OutputRoot="D:\sorted");
+P = EphysProject("D:\experiments", OutputRoot="D:\sorted");
+P.refresh();                              % headers + manifests
+T = P.gatherMetadata();                   % one row per dataset
+i = P.findByKey("mouse1/sess1");
+P.Datasets(i).ProbeFile = "C:\src\ephys_analysis\intan\probes\H64LP_4x16lin_probemap.json";
+P.Datasets(i).writeManifest();
 
-T = P.gatherMetadata();          % header-only, one row per dataset
-
-% Legacy engine: .bin then Kilosort4
-infos   = P.toBinAll();
-results = P.runKilosortAll(Wait=false);
-
-% SpikeInterface engine (what the GUI runs): no project wrapper, loop instead
-for d = P.Datasets
-    d.runSpikeInterface(Wait=false);
-end
+% run a config over the project (see EphysPipeline.md)
+cfg = EphysPipelineConfig.load("D:\experiments\pipeline.json");
+pipe = EphysPipeline(cfg, Project=P, Refresh=false);
+pipe.run(Steps=["signals" "spikes"]);
 ```

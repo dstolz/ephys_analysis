@@ -94,7 +94,7 @@ nChan = opts.NChan; if isnan(nChan); nChan = obj.NumChannels; end
 fileList = opts.Files;
 if isempty(fileList); fileList = obj.Files; end
 if isempty(fileList)
-    error('EphysDataset:runSpikeInterface:NoFiles', 'No Intan files in %s', obj.Folder);
+    error('EphysDataset:runSpikeInterface:NoFiles', 'No recording files in %s', obj.Folder);
 end
 
 % Run folder (bookkeeping) and the run_sorter output folder inside it.
@@ -143,6 +143,7 @@ cfg.recording_format = obj.RecordingFormat;
 cfg.files            = cellstr(fileList(:).');
 cfg.fs               = fsVal;
 cfg.n_chan           = nChan;
+cfg.recording        = obj.Reader.siRecordingSpec();   % how run_si_ks4.py loads it
 cfg.probe            = fwdslash(probeAbs);
 cfg.exclude_channels = num2cell(double(exclude0(:).'));    % JSON array (even if scalar/empty)
 cfg.results_dir      = fwdslash(sorterDir);

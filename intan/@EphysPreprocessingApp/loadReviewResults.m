@@ -16,22 +16,11 @@ if isempty(folder)
     return
 end
 % Tolerate pointing at the dataset folder or the kilosort4 run folder instead of
-% the exact results dir. The SpikeInterface engine nests the phy output under
-% kilosort4/si/sorter_output; the legacy engine writes it into kilosort4/
-% directly. Probe a few candidate subpaths for params.py.
-if ~isfile(fullfile(folder, 'params.py'))
-    candidates = { ...
-        fullfile(folder, 'kilosort4', 'si', 'sorter_output'), ...
-        fullfile(folder, 'si', 'sorter_output'), ...
-        fullfile(folder, 'sorter_output'), ...
-        fullfile(folder, 'kilosort4') };
-    for ci = 1:numel(candidates)
-        if isfile(fullfile(candidates{ci}, 'params.py'))
-            folder = candidates{ci};
-            obj.ReviewFolderField.Value = folder;
-            break
-        end
-    end
+% the exact results dir (see EphysDataset.resolvePhyDir).
+resolved = EphysDataset.resolvePhyDir(folder);
+if ~strcmp(resolved, folder)
+    folder = resolved;
+    obj.ReviewFolderField.Value = folder;
 end
 if ~isfolder(folder)
     uialert(obj.Fig, sprintf("Not a folder:\n%s", folder), "Review");
@@ -50,75 +39,22 @@ drawnow;
 cleanup = onCleanup(@() closeIfValid(dlg));
 
 try
-    fs = readSampleRate(folder);
+    % One canonical reader for every consumer of sorted output. Every cluster
+    % is shown here (IncludeNoise), labels prefer the phy curation file.
+    [U0, ui] = EphysDataset.readPhyUnits(folder, IncludeNoise=true, FullTemplates=true);
+    fs = U0.fs;
+    U  = numel(U0.unitId);
+    durSec = U0.durationSec;
+    if ~(durSec > 0); durSec = NaN; end
 
-    spikeClu = double(readNPY(fullfile(folder, 'spike_clusters.npy')));
-    spikeSamp = double(readNPY(fullfile(folder, 'spike_times.npy')));
-    spikeSec  = spikeSamp / fs;
-    spikeAmp  = double(readNPY(fullfile(folder, 'amplitudes.npy')));
-    templates = double(readNPY(fullfile(folder, 'templates.npy')));   % [nT nS nC]
-    spikeTmpl = readOptionalNPY(fullfile(folder, 'spike_templates.npy'), spikeClu);
+    nCh = U0.nChannelsSorted;
+    if ~isfinite(nCh); nCh = numel(ui.chanShanks); end
+    chanShanks = ui.chanShanks;
+    if numel(chanShanks) < nCh; chanShanks(end+1:nCh, 1) = 0; end
 
-    nT   = size(templates, 1);
-    nS   = size(templates, 2);
-    nCh  = size(templates, 3);
-
-    chanShanks = readOptionalNPY(fullfile(folder, 'channel_shanks.npy'), zeros(nCh, 1));
-    chanShanks = double(chanShanks(:));
-    if numel(chanShanks) < nCh; chanShanks(end+1:nCh) = 0; end
-    chanPos = readOptionalNPY(fullfile(folder, 'channel_positions.npy'), []);
-    Winv = readOptionalNPY(fullfile(folder, 'whitening_mat_inv.npy'), []);
-    canUnwhiten = ~isempty(Winv) && size(Winv, 1) == nCh && size(Winv, 2) == nCh;
-
-    durSec = max(spikeSec, [], 'omitnan');
-    if isempty(durSec) || durSec <= 0; durSec = NaN; end
-
-    % --- per-unit aggregation over the clusters actually present in spikes ---
-    clusterID = unique(spikeClu);
-    clusterID = clusterID(:);
-    U = numel(clusterID);
-
-    % phy/KS tsv side tables (aligned to clusterID order).
-    labels = lookupByID(folder, 'cluster_KSLabel.tsv', clusterID, true);
-    if all(labels == "")
-        labels = lookupByID(folder, 'cluster_group.tsv', clusterID, true);
-    end
-    labels(labels == "") = "unsorted";
-    ampTsv    = lookupByID(folder, 'cluster_Amplitude.tsv', clusterID, false);
-    contamTsv = lookupByID(folder, 'cluster_ContamPct.tsv', clusterID, false);
-
-    [~, spikeUnitIdx] = ismember(spikeClu, clusterID);   % spike -> row in clusterID
-
-    nSpikes   = accumarray(spikeUnitIdx, 1, [U 1]);
-    firingRate = nSpikes / durSec;
-
-    peakChan = zeros(U, 1);
-    shank    = zeros(U, 1);
-    ampUnit  = zeros(U, 1);
-    tms      = (0:nS-1) / fs * 1000;   % waveform time axis (ms)
-    wfPeak   = zeros(nS, U);
-    wfFull   = zeros(nS, nCh, U);
-
+    wfPeak = zeros(numel(U0.templateTimeMs), U);
     for u = 1:U
-        sel = spikeUnitIdx == u;
-        % Representative template for this cluster (robust to KS reindexing).
-        tIdx = mode(spikeTmpl(sel)) + 1;
-        if ~(tIdx >= 1 && tIdx <= nT)
-            tIdx = min(max(clusterID(u) + 1, 1), nT);
-        end
-        wf = squeeze(templates(tIdx, :, :));   % [nS x nC]
-        if canUnwhiten; wf = wf * Winv; end
-        medAmp = median(spikeAmp(sel), 'omitnan');
-        if ~isfinite(medAmp) || medAmp == 0; medAmp = 1; end
-        wf = wf * medAmp;                       % scale to this unit's amplitude
-
-        wfFull(:, :, u) = wf;
-        p2p = max(wf, [], 1) - min(wf, [], 1);
-        [~, pk] = max(p2p);
-        peakChan(u) = pk;
-        shank(u) = chanShanks(min(pk, numel(chanShanks)));
-        wfPeak(:, u) = wf(:, pk);
-        if isfinite(ampTsv(u)); ampUnit(u) = ampTsv(u); else; ampUnit(u) = medAmp; end
+        if ~isempty(U0.templateWaveform{u}); wfPeak(:, u) = U0.templateWaveform{u}; end
     end
 
     R = struct();
@@ -127,25 +63,28 @@ try
     R.durSec   = durSec;
     R.nChan    = nCh;
     R.chanShanks = chanShanks;
-    R.chanPos  = chanPos;
+    R.chanPos  = ui.chanPos;
     R.shankIDs = unique(chanShanks);
     R.nShank   = numel(R.shankIDs);
-    R.clusterID = clusterID;
-    R.label    = labels;
-    R.nSpikes  = nSpikes;
-    R.firingRate = firingRate;
-    R.peakChan = peakChan;
-    R.shank    = shank;
-    R.ampUnit  = ampUnit;
-    R.contam   = contamTsv;
-    R.tms      = tms;
+    R.clusterID = U0.unitId;
+    R.label    = U0.group;
+    R.labelSource = U0.groupSource;
+    R.nSpikes  = U0.nSpikes;
+    R.firingRate = U0.nSpikes / durSec;
+    R.peakChan = U0.ksChannel;
+    R.recChan  = U0.channel;
+    R.shank    = U0.shank;
+    R.ampUnit  = U0.amplitude;
+    R.contam   = U0.contamPct;
+    R.tms      = U0.templateTimeMs;
     R.wfPeak   = wfPeak;
-    R.wfFull   = wfFull;
-    R.spikeSec = spikeSec;
-    R.spikeAmp = spikeAmp;
-    R.spikeUnitIdx = spikeUnitIdx;
-    R.nGood    = sum(labels == "good");
-    R.nMua     = sum(labels == "mua");
+    R.wfFull   = U0.templateFull;
+    R.spikeSec = double(ui.spikeSamples) / fs;
+    R.spikeAmp = ui.spikeAmplitudes;
+    R.spikeUnitIdx = ui.spikeUnitIdx;
+    R.nGood    = sum(R.label == "good");
+    R.nMua     = sum(R.label == "mua");
+    R.units    = U0;
 
     obj.ReviewData = R;
     obj.ReviewSelectedUnit = 0;
@@ -216,60 +155,6 @@ end
 
 
 %% --- small helpers ---------------------------------------------------------
-function fs = readSampleRate(folder)
-%readSampleRate  Read sample_rate from params.py, falling back to settings.json.
-fs = 30000;
-pp = fullfile(folder, 'params.py');
-if isfile(pp)
-    txt = fileread(pp);
-    tok = regexp(txt, 'sample_rate\s*=\s*([\d.eE+]+)', 'tokens', 'once');
-    if ~isempty(tok); fs = str2double(tok{1}); return; end
-end
-sj = fullfile(folder, 'settings.json');
-if isfile(sj)
-    try
-        s = jsondecode(fileread(sj));
-        if isfield(s, 'fs'); fs = double(s.fs); end
-    catch
-    end
-end
-end
-
-
-function v = lookupByID(folder, fname, clusterID, isText)
-%lookupByID  Read a 2-column phy .tsv and align column 2 to clusterID order.
-n = numel(clusterID);
-if isText; v = strings(n, 1); else; v = nan(n, 1); end
-fp = fullfile(folder, fname);
-if ~isfile(fp); return; end
-try
-    T = readtable(fp, 'FileType', 'text', 'Delimiter', '\t');
-catch
-    return
-end
-if width(T) < 2 || height(T) == 0; return; end
-ids = double(T{:, 1});
-[tf, loc] = ismember(clusterID, ids);
-if isText
-    vals = string(T{:, 2});
-    v(tf) = vals(loc(tf));
-else
-    vals = double(T{:, 2});
-    v(tf) = vals(loc(tf));
-end
-end
-
-
-function out = readOptionalNPY(fn, fallback)
-%readOptionalNPY  readNPY if the file exists, else return the fallback value.
-if isfile(fn)
-    out = double(readNPY(fn));
-else
-    out = fallback;
-end
-end
-
-
 function s = durStr(sec)
 s = char(string(seconds(sec), 'hh:mm:ss'));
 end

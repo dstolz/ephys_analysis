@@ -119,9 +119,23 @@ function [ts, wf, info] = detectSpikes(obj, X, opts)
 %                      (default 10 ms; always at least the waveform window, the
 %                      alignment window and the minimum detection period)
 %     ProgressFcn      function handle  ProgressFcn(i, nChunks, chunkName),
-%                      called before each chunk
+%                      called before each chunk (serial) or on the client as
+%                      each chunk finishes (UseParallel, completion order)
+%     UseParallel      (1,1) logical  detect the chunks in parallel on the
+%                      current parallel pool, starting the default pool if none
+%                      is open (default false). The result is identical to the
+%                      serial one. Needs the Parallel Computing Toolbox and the
+%                      sample count of every chunk up front (always known for
+%                      the split formats; from the *.rhd headers otherwise);
+%                      when either is missing a warning is issued and the
+%                      chunks run serially. Each worker reads its own chunk plus
+%                      the context before it: for the split formats that is a
+%                      small window, but for traditional *.rhd files it means
+%                      also reading the preceding file, so expect about twice
+%                      the I/O and up to two files in memory per worker.
 %
-%   Memory: one chunk plus the padding is held at a time, but the returned
+%   Memory: one chunk plus the padding is held at a time (per worker with
+%   UseParallel), but the returned
 %   timestamps - and the waveforms, when asked for - accumulate for the whole
 %   recording.
 %
@@ -174,6 +188,7 @@ function [ts, wf, info] = detectSpikes(obj, X, opts)
 %     ts = ds.detectSpikes();                                  % whole recording
 %     [ts, wf, info] = ds.detectSpikes(ThresholdMethod="absolute", ...
 %         Threshold=60, ChannelOrder=1:16);
+%     ts = ds.detectSpikes(UseParallel=true);                  % chunks on a pool
 %
 %     d  = ds.readData();                                      % one block
 %     ts = ds.detectSpikes(d.amplifier);                       % times only
@@ -206,7 +221,7 @@ arguments
     opts.AlignWindowMs (1,1) double {mustBeNonnegative} = 1
     opts.MinPeriodMs (1,1) double {mustBeNonnegative} = 1
     opts.MaxAmplitudeUV (1,1) double {mustBePositive} = Inf
-    opts.Waveforms (1,1) logical = false
+    opts.Waveforms = []          % [] -> extract when a second output is requested
     opts.WindowMs (1,2) double = [-0.5 1.5]
     opts.WaveformSource (1,1) string {mustBeMember(opts.WaveformSource, ...
         ["filtered","raw"])} = "filtered"
@@ -218,19 +233,25 @@ arguments
     opts.Files (1,:) string = string.empty(1,0)
     opts.ChannelOrder (1,:) double {mustBeInteger, mustBePositive} = []
     opts.MaxChunkSamples (1,1) double = NaN
-    opts.EdgePadMs (1,1) double {mustBeNonnegative} = NaN
+    opts.EdgePadMs (1,1) double = NaN
     opts.ProgressFcn = []
+    opts.UseParallel (1,1) logical = false
 end
 
-doWave = opts.Waveforms || nargout >= 2;
+if isempty(opts.Waveforms)
+    doWave = nargout >= 2;
+else
+    doWave = logical(opts.Waveforms);
+end
 
-streamOnly = ["Files" "ChannelOrder" "MaxChunkSamples" "EdgePadMs" "ProgressFcn"];
+streamOnly = ["Files" "ChannelOrder" "MaxChunkSamples" "EdgePadMs" "ProgressFcn" ...
+              "UseParallel"];
 
 if ~isempty(X)
     % ---- block mode: detect on the matrix the caller handed us -------------
     given = streamOnly([~isempty(opts.Files), ~isempty(opts.ChannelOrder), ...
         ~isnan(opts.MaxChunkSamples), ~isnan(opts.EdgePadMs), ...
-        ~isempty(opts.ProgressFcn)]);
+        ~isempty(opts.ProgressFcn), opts.UseParallel]);
     if ~isempty(given)
         error('EphysDataset:detectSpikes:BlockOption', ...
             ['%s appl%s only when detecting over a whole recording ' ...
@@ -283,6 +304,7 @@ blockOpts.TimeOffset = 0;
 % period need, so a boundary never truncates any of them.
 padMs = opts.EdgePadMs;
 if isnan(padMs); padMs = 10; end
+mustBeNonnegative(padMs)
 w0 = round(opts.WindowMs(1) * 1e-3 * Fs);
 w1 = round(opts.WindowMs(2) * 1e-3 * Fs);
 minPerSamp = max(1, round(opts.MinPeriodMs * 1e-3 * Fs));
@@ -297,115 +319,106 @@ nChunks = numel(plan);
 wstate = warning('off', 'EphysDataset:detectSpikes:DegenerateThreshold');
 restoreWarning = onCleanup(@() warning(wstate));
 
-nChan      = 0;
-nProcessed = 0;
-consumed   = 0;     % samples read so far = 0-based index of the next sample
-reported0  = 0;     % 0-based index of the first sample not yet finalized
-tail       = [];    % trailing samples of the previous chunk, kept as context
-idxAcc = {}; ampAcc = {}; wfAcc = {};
-pendIdx = {}; pendAmp = {}; pendWf = {};
-pendRej = []; pendDrop = []; nRejAmp = []; nDropEdge = [];
-thrAll = []; noiseAll = []; degAll = [];
-infoRef = struct();
-chunkInfo = struct('name', {}, 'sampleOffset', {}, 'nSamples', {});
-
-for i = 1:nChunks
-    if ~isempty(opts.ProgressFcn)
-        opts.ProgressFcn(i, nChunks, plan(i).name);
+useParallel = false;
+if opts.UseParallel && nChunks > 1
+    [useParallel, whyNot] = parallelAvailable(plan);
+    if ~useParallel
+        warning('EphysDataset:detectSpikes:SerialFallback', ...
+            'UseParallel ignored (%s); detecting chunks serially.', whyNot);
     end
-
-    Xc = obj.readChunkUV(plan(i));      % [nSamp x nChan] microvolts, all channels
-    if isempty(Xc)
-        continue
-    end
-    if ~isempty(opts.ChannelOrder)
-        if max(opts.ChannelOrder) > size(Xc, 2)
-            error('EphysDataset:detectSpikes:BadChannelOrder', ...
-                'ChannelOrder references channel %d but the recording has %d.', ...
-                max(opts.ChannelOrder), size(Xc, 2));
-        end
-        Xc = Xc(:, opts.ChannelOrder);
-    end
-
-    if nProcessed == 0
-        nChan   = size(Xc, 2);
-        idxAcc  = repmat({{}}, 1, nChan);
-        ampAcc  = repmat({{}}, 1, nChan);
-        wfAcc   = repmat({{}}, 1, nChan);
-        pendIdx = repmat({zeros(0,1)}, 1, nChan);
-        pendAmp = repmat({zeros(0,1)}, 1, nChan);
-        pendWf  = repmat({[]}, 1, nChan);
-        [pendRej, pendDrop, nRejAmp, nDropEdge] = deal(zeros(1, nChan));
-        tail = zeros(0, nChan);
-    elseif size(Xc, 2) ~= nChan
-        error('EphysDataset:detectSpikes:ChannelMismatch', ...
-            'Chunk "%s" has %d channels; earlier chunks had %d.', ...
-            plan(i).name, size(Xc, 2), nChan);
-    end
-
-    n = size(Xc, 1);
-    B = [tail; Xc];
-    blockFirst0 = consumed - size(tail, 1);   % 0-based index of B(1) in the recording
-    total0 = consumed + n;                    % samples read including this chunk
-    defer  = min(pad, total0);                % held back as context for the next chunk
-    rowLo  = reported0 - blockFirst0 + 1;     % rows of B finalized by this pass
-    rowHi  = total0 - defer - blockFirst0;
-
-    [~, wfB, infoB] = detectBlock(obj, B, blockOpts, doWave);
-
-    nProcessed = nProcessed + 1;
-    if nProcessed == 1
-        infoRef = infoB;
-    end
-    thrAll(nProcessed, :)   = infoB.threshold;      %#ok<AGROW>
-    noiseAll(nProcessed, :) = infoB.noise;          %#ok<AGROW>
-    degAll(nProcessed, :)   = infoB.degenerate;     %#ok<AGROW>
-    chunkInfo(nProcessed) = struct('name', plan(i).name, ...
-        'sampleOffset', consumed, 'nSamples', n);   %#ok<AGROW>
-
-    for c = 1:nChan
-        iB  = infoB.index{c};
-        rep = iB >= rowLo & iB <= rowHi;            % finalized now
-        pen = iB > rowHi;                           % deferred to the next chunk
-        idxAcc{c}{end+1} = iB(rep) + blockFirst0;   %#ok<AGROW>
-        ampAcc{c}{end+1} = infoB.amplitude{c}(rep); %#ok<AGROW>
-        pendIdx{c} = iB(pen) + blockFirst0;
-        pendAmp{c} = infoB.amplitude{c}(pen);
-        if doWave
-            wfAcc{c}{end+1} = wfB{c}(rep, :);       %#ok<AGROW>
-            pendWf{c}       = wfB{c}(pen, :);
-        end
-        rj = infoB.rejectedIndex{c};
-        nRejAmp(c) = nRejAmp(c) + nnz(rj >= rowLo & rj <= rowHi);
-        pendRej(c) = nnz(rj > rowHi);
-        dp = infoB.droppedEdgeIndex{c};
-        nDropEdge(c) = nDropEdge(c) + nnz(dp >= rowLo & dp <= rowHi);
-        pendDrop(c)  = nnz(dp > rowHi);
-    end
-
-    reported0 = total0 - defer;
-    tail      = B(max(1, size(B,1) - 2*pad + 1):end, :);
-    consumed  = total0;
 end
 
+% One result per chunk (empty for chunks that held no amplifier data), in
+% recording order. Each holds the events that chunk finalized plus the events it
+% held back for the next chunk; only the last chunk's held-back events are kept.
+R = cell(1, nChunks);
+
+if useParallel
+    % Every chunk's position in the recording is known from the plan, so each
+    % worker reads its own context (the up-to-2*pad samples before the chunk)
+    % instead of receiving it from the previous iteration. The blocks, and hence
+    % the result, are identical to the serial loop below.
+    starts = [0 cumsum([plan.nSamples])];
+    progQ  = [];
+    if ~isempty(opts.ProgressFcn)
+        progQ = parallel.pool.DataQueue;
+        progFcn = opts.ProgressFcn;
+        afterEach(progQ, @(i) progFcn(i, nChunks, plan(i).name));
+    end
+    chanOrder = opts.ChannelOrder;
+    parfor i = 1:nChunks
+        R{i} = parallelChunk(obj, plan, i, starts(i), pad, chanOrder, ...
+            blockOpts, doWave);
+        if ~isempty(progQ)
+            send(progQ, i); %#ok<PFBNS>
+        end
+    end
+else
+    consumed = 0;       % samples read so far = 0-based index of the next sample
+    tail     = [];      % trailing samples of the previous chunk, kept as context
+    nChan    = NaN;
+    for i = 1:nChunks
+        if ~isempty(opts.ProgressFcn)
+            opts.ProgressFcn(i, nChunks, plan(i).name);
+        end
+
+        Xc = readChunk(obj, plan(i), opts.ChannelOrder);
+        if isempty(Xc)
+            continue
+        end
+        if isnan(nChan)
+            nChan = size(Xc, 2);
+            tail  = zeros(0, nChan);
+        elseif size(Xc, 2) ~= nChan
+            error('EphysDataset:detectSpikes:ChannelMismatch', ...
+                'Chunk "%s" has %d channels; earlier chunks had %d.', ...
+                plan(i).name, size(Xc, 2), nChan);
+        end
+
+        B = [tail; Xc];
+        R{i} = detectChunk(obj, B, plan(i).name, consumed, size(tail, 1), ...
+            pad, blockOpts, doWave);
+
+        consumed = consumed + size(Xc, 1);
+        tail     = B(max(1, size(B,1) - 2*pad + 1):end, :);
+    end
+end
+
+R = [R{:}];
+nProcessed = numel(R);
 if nProcessed == 0
     error('EphysDataset:detectSpikes:NoAmplifierData', ...
         'No amplifier data was read from %s.', obj.Folder);
 end
+nChan = R(1).nChan;
+bad = find([R.nChan] ~= nChan, 1);
+if ~isempty(bad)
+    error('EphysDataset:detectSpikes:ChannelMismatch', ...
+        'Chunk "%s" has %d channels; earlier chunks had %d.', ...
+        R(bad).name, R(bad).nChan, nChan);
+end
+
+infoRef   = R(1).info;
+thrAll    = vertcat(R.threshold);
+noiseAll  = vertcat(R.noise);
+degAll    = vertcat(R.degenerate);
+chunkInfo = struct('name', {R.name}, 'sampleOffset', {R.sampleOffset}, ...
+    'nSamples', {R.nSamples});
 
 % The last chunk's held-back tail has no following chunk to give it right-hand
 % context - the recording ends there - so it is reported as detected.
+lastR = R(end);
+nRejAmp   = sum(vertcat(R.nRej), 1)  + lastR.pendRej;
+nDropEdge = sum(vertcat(R.nDrop), 1) + lastR.pendDrop;
+idxAcc = cell(1, nChan); ampAcc = cell(1, nChan); wfAcc = cell(1, nChan);
 for c = 1:nChan
-    idxAcc{c}{end+1} = pendIdx{c};
-    ampAcc{c}{end+1} = pendAmp{c};
+    idxAcc{c} = [arrayfun(@(r) r.idx{c}, R, 'UniformOutput', false), lastR.pendIdx(c)];
+    ampAcc{c} = [arrayfun(@(r) r.amp{c}, R, 'UniformOutput', false), lastR.pendAmp(c)];
     if doWave
-        wfAcc{c}{end+1} = pendWf{c};
+        wfAcc{c} = [arrayfun(@(r) r.wf{c}, R, 'UniformOutput', false), lastR.pendWf(c)];
     end
-    nRejAmp(c)   = nRejAmp(c)   + pendRej(c);
-    nDropEdge(c) = nDropEdge(c) + pendDrop(c);
 end
-
-nSamplesTotal = consumed;
+nSamplesTotal = lastR.sampleOffset + lastR.nSamples;
 ts    = cell(1, nChan);
 wf    = cell(1, nChan);
 sIdx  = cell(1, nChan);
@@ -503,6 +516,146 @@ end
 function s = ternaryStr(cond, a, b)
 %ternaryStr  Pick one of two strings (plural agreement in the option guard).
 if cond; s = a; else; s = b; end
+end
+
+
+function X = readChunk(obj, chunk, chanOrder)
+%readChunk  One streaming chunk in microvolts, with ChannelOrder applied.
+X = obj.readChunkUV(chunk);      % [nSamp x nChan] microvolts, all channels
+if isempty(X) || isempty(chanOrder)
+    return
+end
+if max(chanOrder) > size(X, 2)
+    error('EphysDataset:detectSpikes:BadChannelOrder', ...
+        'ChannelOrder references channel %d but the recording has %d.', ...
+        max(chanOrder), size(X, 2));
+end
+X = X(:, chanOrder);
+end
+
+
+function R = detectChunk(obj, B, name, chunkFirst0, nCtx, pad, blockOpts, doWave)
+%detectChunk  Detect on one context-prefixed chunk and split its events.
+%   B is [nCtx rows of the preceding recording; the chunk], chunkFirst0 the
+%   0-based recording index of the chunk's first sample. Events in rows this
+%   chunk finalizes go to idx/amp/wf/nRej/nDrop; events in the last pad samples
+%   (held back as the next chunk's context) go to the pend* fields, which the
+%   caller keeps only for the final chunk. Indices are recording-global 1-based.
+n       = size(B, 1) - nCtx;
+nChan   = size(B, 2);
+first0  = chunkFirst0 - nCtx;                    % 0-based index of B(1)
+total0  = chunkFirst0 + n;                       % samples read including this chunk
+rep0    = chunkFirst0 - min(pad, chunkFirst0);   % first sample not yet finalized
+rowLo   = rep0 - first0 + 1;                     % rows of B finalized by this chunk
+rowHi   = total0 - min(pad, total0) - first0;
+
+[~, wfB, infoB] = detectBlock(obj, B, blockOpts, doWave);
+
+R = struct('name', name, 'sampleOffset', chunkFirst0, 'nSamples', n, ...
+    'nChan', nChan, 'threshold', infoB.threshold, 'noise', infoB.noise, ...
+    'degenerate', infoB.degenerate);
+[R.idx, R.amp, R.wf, R.pendIdx, R.pendAmp, R.pendWf] = deal(cell(1, nChan));
+[R.nRej, R.nDrop, R.pendRej, R.pendDrop] = deal(zeros(1, nChan));
+for c = 1:nChan
+    iB  = infoB.index{c};
+    fin = iB >= rowLo & iB <= rowHi;             % finalized now
+    pen = iB > rowHi;                            % deferred to the next chunk
+    R.idx{c}     = iB(fin) + first0;
+    R.amp{c}     = infoB.amplitude{c}(fin);
+    R.pendIdx{c} = iB(pen) + first0;
+    R.pendAmp{c} = infoB.amplitude{c}(pen);
+    if doWave
+        R.wf{c}     = wfB{c}(fin, :);
+        R.pendWf{c} = wfB{c}(pen, :);
+    end
+    rj = infoB.rejectedIndex{c};
+    R.nRej(c)    = nnz(rj >= rowLo & rj <= rowHi);
+    R.pendRej(c) = nnz(rj > rowHi);
+    dp = infoB.droppedEdgeIndex{c};
+    R.nDrop(c)    = nnz(dp >= rowLo & dp <= rowHi);
+    R.pendDrop(c) = nnz(dp > rowHi);
+end
+
+% Keep the chunk-independent info (the per-event fields are rebuilt at the end).
+[infoB.index, infoB.amplitude, infoB.rejectedIndex, infoB.droppedEdgeIndex] = ...
+    deal({});
+R.info = infoB;
+end
+
+
+function R = parallelChunk(obj, plan, i, chunkFirst0, pad, chanOrder, blockOpts, doWave)
+%parallelChunk  Worker body for UseParallel: read chunk i and its context.
+%   The context is the last min(2*pad, chunkFirst0) samples before the chunk -
+%   exactly the tail the serial loop would carry in - read from the split .dat
+%   window directly, or from as many preceding *.rhd files as it spans.
+wstate = warning('off', 'EphysDataset:detectSpikes:DegenerateThreshold');
+restoreWarning = onCleanup(@() warning(wstate)); %#ok<NASGU>
+
+R = [];
+Xc = readChunk(obj, plan(i), chanOrder);
+if isempty(Xc)
+    return
+end
+if size(Xc, 1) ~= plan(i).nSamples
+    error('EphysDataset:detectSpikes:ChunkSizeMismatch', ...
+        ['Chunk "%s" holds %d samples but its header says %d, so chunk ' ...
+         'positions cannot be computed up front. Use UseParallel=false.'], ...
+        plan(i).name, size(Xc, 1), plan(i).nSamples);
+end
+
+nCtx = min(2*pad, chunkFirst0);
+if nCtx == 0
+    ctx = zeros(0, size(Xc, 2));
+elseif obj.supportsRandomAccess()
+    ctx = obj.readWindowUV(plan(i).sampleOffset - nCtx, nCtx);
+    if ~isempty(chanOrder); ctx = ctx(:, chanOrder); end
+else
+    parts = {};
+    got = 0;
+    for j = i-1:-1:1
+        if plan(j).nSamples == 0; continue; end
+        Xj = readChunk(obj, plan(j), chanOrder);
+        if isempty(Xj); continue; end
+        parts = [{Xj} parts]; %#ok<AGROW>
+        got = got + size(Xj, 1);
+        if got >= nCtx; break; end
+    end
+    ctx = vertcat(parts{:});
+    if size(ctx, 2) ~= size(Xc, 2)
+        error('EphysDataset:detectSpikes:ChannelMismatch', ...
+            'Chunk "%s" has %d channels; earlier chunks had %d.', ...
+            plan(i).name, size(Xc, 2), size(ctx, 2));
+    end
+    ctx = ctx(end-nCtx+1:end, :);
+end
+
+R = detectChunk(obj, [ctx; Xc], plan(i).name, chunkFirst0, nCtx, pad, ...
+    blockOpts, doWave);
+end
+
+
+function [ok, why] = parallelAvailable(plan)
+%parallelAvailable  Whether the chunks of PLAN can be detected on a pool.
+ok = false;
+why = "";
+if any(isnan([plan.nSamples]))
+    why = "chunk sample counts are unknown";
+    return
+end
+if ~(license('test', 'Distrib_Computing_Toolbox') && exist('gcp', 'file'))
+    why = "Parallel Computing Toolbox is not available";
+    return
+end
+try
+    if isempty(gcp())
+        why = "no parallel pool could be opened";
+        return
+    end
+catch ME
+    why = "no parallel pool could be opened: " + ME.message;
+    return
+end
+ok = true;
 end
 
 

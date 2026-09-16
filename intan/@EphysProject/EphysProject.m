@@ -1,6 +1,6 @@
 classdef EphysProject < handle
     % EphysProject  Discover and batch many Intan recordings to Kilosort4.
-    %   A project scans a root directory for folders containing *.rhd files,
+    %   A project scans a root directory for recording folders (any reader),
     %   wraps each as an EphysDataset, and provides batch operations: gather
     %   metadata into a table, write all .bin files, and launch Kilosort4 for
     %   every dataset. Shared configuration (probe, python/conda, output root,
@@ -14,6 +14,7 @@ classdef EphysProject < handle
     %   Workflow
     %   --------
     %     P = EphysProject("D:\experiments");
+    %     P.refresh();                   % headers + per-dataset manifests
     %     T = P.gatherMetadata();        % one row per dataset
     %     P.toBinAll();                  % stream every dataset's .bin
     %     P.runKilosortAll();            % spawn Kilosort4 for each
@@ -43,6 +44,7 @@ classdef EphysProject < handle
         T       = gatherMetadata(obj, opts)
         infos   = toBinAll(obj, opts)
         results = runKilosortAll(obj, opts)
+        report  = refresh(obj, opts)
 
         function obj = EphysProject(root, opts)
             arguments
@@ -81,16 +83,16 @@ classdef EphysProject < handle
         end
 
         function discover(obj)
-            %discover  Find every folder under Root containing >=1 *.rhd file.
+            %discover  Find every recording folder under Root (any reader).
             %   One EphysDataset is created per folder with AutoMetadata=false
             %   (cheap); shared config is pushed into each. Folder discovery is
-            %   delegated to DatasetTracker.findRecordingFolders so the project
-            %   and DatasetTracker agree on what counts as a recording.
-            folders = DatasetTracker.findRecordingFolders(obj.Root, true);
+            %   delegated to the EphysReader registry (as in DatasetTracker) so
+            %   the project and the tracker agree on what counts as a recording.
+            folders = EphysReader.findAllRecordingFolders(obj.Root, true);
             if isempty(folders)
                 obj.Datasets = EphysDataset.empty(1,0);
                 warning('EphysProject:NoData', ...
-                    'No *.rhd files found under %s', obj.Root);
+                    'No recordings found under %s', obj.Root);
                 return
             end
 
@@ -121,6 +123,41 @@ classdef EphysProject < handle
             end
             if obj.OutputRoot ~= ""
                 d.OutputDir = fullfile(obj.OutputRoot, d.Name);
+            end
+        end
+
+        function key = datasetKey(obj, idx)
+            %datasetKey  Stable key for dataset IDX: its folder relative to Root.
+            %   Names (folder leaves) are not unique across a project tree, so
+            %   selections saved to a pipeline config use these keys. Forward
+            %   slashes, no leading separator; the Root itself is ".".
+            arguments
+                obj (1,1) EphysProject
+                idx (1,1) double {mustBeInteger, mustBePositive}
+            end
+            key = EphysProject.relativeKey(obj.Root, obj.Datasets(idx).Folder);
+        end
+
+        function keys = datasetKeys(obj)
+            %datasetKeys  Relative-path keys of every dataset (1 x N string).
+            n = obj.NumDatasets;
+            keys = strings(1, n);
+            for i = 1:n
+                keys(i) = obj.datasetKey(i);
+            end
+        end
+
+        function idx = findByKey(obj, keys)
+            %findByKey  Dataset indices for relative keys (0 where not found).
+            arguments
+                obj (1,1) EphysProject
+                keys (1,:) string
+            end
+            all = obj.datasetKeys();
+            idx = zeros(1, numel(keys));
+            for k = 1:numel(keys)
+                ix = find(all == EphysProject.normalizeKey(keys(k)), 1);
+                if ~isempty(ix); idx(k) = ix; end
             end
         end
 
@@ -157,6 +194,30 @@ classdef EphysProject < handle
 
         function n = get.NumDatasets(obj)
             n = numel(obj.Datasets);
+        end
+    end
+
+    methods (Static)
+        function key = relativeKey(root, folder)
+            %relativeKey  FOLDER relative to ROOT as a forward-slash key.
+            %   Returns "." when FOLDER is ROOT, and the absolute folder (with
+            %   forward slashes) when FOLDER is not under ROOT.
+            r = EphysProject.normalizeKey(root);
+            f = EphysProject.normalizeKey(folder);
+            if strcmpi(f, r)
+                key = ".";
+            elseif startsWith(f, r + "/", 'IgnoreCase', ispc)
+                key = extractAfter(f, strlength(r) + 1);
+            else
+                key = f;
+            end
+        end
+
+        function s = normalizeKey(s)
+            %normalizeKey  Forward slashes, no trailing slash.
+            s = string(s);
+            s = replace(s, "\", "/");
+            s = regexprep(s, "/+$", "");
         end
     end
 end

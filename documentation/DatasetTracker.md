@@ -2,16 +2,18 @@
 
 `DatasetTracker` ([source](../intan/@DatasetTracker/DatasetTracker.m)) is a
 `handle` class that takes a **read-only filesystem inventory** of one directory:
-every file the Intan → Kilosort4 pipeline produces or consumes.
+every file the pipeline produces or consumes.
 
 Discovery only lists files and decodes JSON. It reads no amplifier data and
-parses no `*.rhd` header, so it is cheap. The directory can be a single recording
+parses no recording header, so it is cheap. The directory can be a single recording
 folder or a parent that contains many recording sub-folders.
 
 The other classes use it so that they share one definition of "a recording",
 "a probe map", "a `.bin`" and "a Kilosort4 run":
 
-- `EphysProject.discover` uses `findRecordingFolders`.
+- `EphysProject.discover` and `findRecordings` both use the reader registry
+  (`EphysReader.findAllRecordingFolders`), so a folder is a recording for the
+  tracker exactly when a reader claims it.
 - `EphysDataset.tracker()` / `manifestStruct()` use `latestKilosortRun`.
 - The GUI's Probe tab uses `probeMeta` / `readJson`.
 - The GUI's Review tab uses `latestKilosortRun`.
@@ -43,7 +45,7 @@ and returns an empty tracker if that folder does not exist yet.
 | `Recursive` | public | scan sub-folders (default `true`) |
 | `Recordings`, `ProbeFiles`, `BinFiles`, `KilosortRuns` | read-only | inventory struct arrays (schemas below) |
 | `LastRefreshed` | read-only | time of the last successful scan |
-| `NumRecordings`, `NumProbeFiles`, `NumBinFiles`, `NumKilosortRuns`, `NumRhdFiles` | dependent | counts |
+| `NumRecordings`, `NumProbeFiles`, `NumBinFiles`, `NumKilosortRuns`, `NumRecordingFiles` | dependent | counts |
 
 The inventory is a **snapshot**. Call `dt.refresh()` after new outputs are
 written.
@@ -52,21 +54,25 @@ written.
 
 ### Recordings (`emptyRecordings` schema)
 
-A recording is any folder that **directly** contains at least one `*.rhd` file.
-Files are listed in `datenum` order.
+A recording is any folder that a registered [acquisition reader](EphysDataset.md#acquisition-readers)
+claims: one that **directly** contains a `*.rhd` file (Intan), or a
+`recording.json` descriptor (the universal binary format). Files are listed in
+`datenum` order.
 
 | Field | Meaning |
 | --- | --- |
 | `Name` | folder leaf |
 | `Folder` | full path |
-| `RhdFiles` | file names |
-| `NumRhdFiles` | count |
+| `Files` | file names |
+| `NumFiles` | count |
+| `Format` | the reader's `RecordingFormat` (`traditional`, `one-file-per-signal`, `one-file-per-channel`, `binary`) |
+| `Reader` | `"intan"` or `"binary"` |
 | `AcqDate` | earliest `datenum` |
-| `Bytes` | total `*.rhd` bytes |
+| `Bytes` | total bytes of the listed files |
 | `IsRoot` | the folder is the tracker root |
 
-For split layouts only `info.rhd` is counted, so `Bytes` does not include the
-`.dat` files.
+For Intan split layouts only `info.rhd` is counted, so `Bytes` does not include
+the `.dat` files.
 
 ### Probe files (`emptyProbes` schema)
 
@@ -128,7 +134,7 @@ recognized marker.
 | `latestKilosortRun()` | most recently modified run, **preferring runs with results**; `[]` if none |
 | `hasBin()`, `hasProbe()` | at least one of each found |
 | `hasKilosort()` | at least one run has `spike_clusters.npy` |
-| `recordingTable()` | table: `Name`, `Folder`, `NumRhdFiles`, `AcqDate`, `SizeMB` |
+| `recordingTable()` | table: `Name`, `Folder`, `Format`, `NumFiles`, `AcqDate`, `SizeMB` |
 | `kilosortTable()` | table: `Name`, `State`, `HasResults`, `NumUnits`, `Modified` |
 | `disp(dt)` | concise text summary |
 
@@ -142,8 +148,8 @@ These are public so the other Intan classes can reuse one implementation.
 | Helper | Purpose |
 | --- | --- |
 | `listFiles(root, pattern, recursive)` | `dir` matches, excluding directories |
-| `findRecordings(root, recursive)` | the `Recordings` struct array |
-| `findRecordingFolders(root, recursive)` | folder paths only (used by `EphysProject.discover`) |
+| `findRecordings(root, recursive)` | the `Recordings` struct array (through the reader registry) |
+| `findRecordingFolders(root, recursive)` | folder paths only |
 | `readJson(path)` | `jsondecode(fileread(path))`, or `[]` on any failure |
 | `classifyJson(s)` | see the rules below |
 | `probeMeta(s)` | `nChan`, `nShank`, `depth`, `notes` from a decoded probe |
@@ -155,7 +161,8 @@ These are public so the other Intan classes can reuse one implementation.
 2. has `bin_file` or `source_folder` → `"bin-sidecar"`
 3. has `state` → `"ks-status"`
 4. has `chanMap`, or has both `xc` and `yc` → `"probe"`
-5. otherwise → `"other"`
+5. has `schema` starting with `ephys-recording/` → `"recording-descriptor"`
+6. otherwise → `"other"`
 
 ## Example
 
@@ -175,4 +182,3 @@ ds = dt.recording(1, AutoMetadata=true);
 (empty `*.rhd` files, a `.bin` + sidecar, a probe `.json` plus a decoy `.json`,
 two `kilosort4` folders) and checks recordings, probe classification, bin
 sidecars, Kilosort4 runs, accessors/tables, and non-recursive/empty behavior.
-(Not run as part of writing this documentation.)

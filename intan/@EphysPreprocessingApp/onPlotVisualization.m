@@ -53,7 +53,7 @@ end
 % the selection is ignored and the whole recording is streamed in bounded
 % sample-window chunks. Either way readChunkUV yields one [m x nChanAll] chunk.
 fileSel = string(obj.VizFileDropDown.Value);
-if d.RecordingFormat == "traditional" && fileSel ~= "(all)" && fileSel ~= ""
+if d.NumFiles > 1 && fileSel ~= "(all)" && fileSel ~= ""
     planFiles = fileSel;
 else
     planFiles = string.empty(1,0);
@@ -161,7 +161,7 @@ try
     % relative (matching toBin) so artifacts marked here map correctly. Uses the
     % TRUE sample rate. "(all)" -> 0; a single file -> duration of files before it.
     tOffset = 0;
-    if d.RecordingFormat == "traditional" && fileSel ~= "(all)" && fileSel ~= "" ...
+    if d.NumFiles > 1 && fileSel ~= "(all)" && fileSel ~= "" ...
             && ~isempty(d.Files)
         fi = find(d.Files == fileSel, 1);
         if ~isempty(fi) && fi > 1 && ~isempty(d.PerFile) ...
@@ -244,11 +244,17 @@ function iv = computeDetectedIntervals(d, X, Fs)
 %computeDetectedIntervals  Run the automatic artifact detector on the loaded
 %   window and return its intervals [k x 2] in window-relative seconds. Uses the
 %   dataset's current ArtifactConfig (the same settings the Artifacts tab and
-%   the .bin write use). Returns 0x2 on any failure or when nothing is flagged.
+%   the runs use), including its optional pre-detection filter. Returns 0x2 on
+%   any failure or when nothing is flagged.
 iv = zeros(0, 2); %#ok<PREALL>  default when detection fails or flags nothing
 try
     cfg = EphysDataset.normalizeArtifactConfig(d.ArtifactConfig);
-    [~, iv] = d.detectArtifacts(double(X), Method=cfg.Method, ...
+    X = double(X);
+    if logical(cfg.Filter)
+        X = d.filterContinuous(X, Type=cfg.FilterType, ...
+            Cutoff=cfg.FilterCutoff, Order=cfg.FilterOrder, Fs=Fs);
+    end
+    [~, iv] = d.detectArtifacts(X, Method=cfg.Method, ...
         Threshold=cfg.Threshold, RmsWindowMs=cfg.RmsWindowMs, ...
         MinChannels=cfg.MinChannels, MergeGapMs=cfg.MergeGapMs, ...
         PadMs=cfg.PadMs, Fs=Fs);
@@ -275,9 +281,10 @@ if size(Xc, 2) > 1
     end
 end
 if pp.type ~= ""
-    % filterContinuous casts to double internally; bounded here to one file.
-    Xc = single(d.filterContinuous(Xc, Type=pp.type, Cutoff=pp.cutoff, ...
-        Order=pp.order, Fs=Fs));
+    % filterContinuous filters in double internally and returns single here;
+    % the temporary double copy is bounded to one file.
+    Xc = d.filterContinuous(Xc, Type=pp.type, Cutoff=pp.cutoff, ...
+        Order=pp.order, Fs=Fs);
 end
 end
 

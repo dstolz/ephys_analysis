@@ -14,13 +14,18 @@ function X = filterContinuous(obj, X, opts)
 %   friendly: it uses only X, opts and ds.Fs, so it can be applied per file in
 %   the streaming toBin path or to an in-memory matrix.
 %
+%   Filtering is done in double; Y is returned in the class of X. Integer
+%   inputs are rounded and saturated on the way back, so filter unsigned
+%   integer data as a signed or floating-point type (high-pass output is
+%   bipolar and would clip at zero).
+%
 %   Requires the Signal Processing Toolbox (BUTTER, FILTFILT).
 %
 %   See also BUTTER, FILTFILT, EphysDataset.toBin.
 
 arguments
     obj (1,1) EphysDataset
-    X double
+    X {mustBeNumeric}
     opts.Type (1,1) string {mustBeMember(opts.Type, ["highpass","lowpass","bandpass"])} = "highpass"
     opts.Cutoff (1,:) double {mustBePositive} = 300
     opts.Order (1,1) double {mustBeInteger, mustBePositive} = 4
@@ -77,6 +82,8 @@ switch opts.Type
         [b, a] = butter(opts.Order, opts.Cutoff / nyq, 'bandpass');
 end
 
-% filtfilt operates column-wise -> [nSamples x nChan] is already correct
-X = filtfilt(b, a, double(X));
+% filtfilt operates column-wise -> [nSamples x nChan] is already correct.
+% Filter in double for numerical stability, then return in the input class.
+inClass = class(X);
+X = cast(filtfilt(b, a, double(X)), inClass);
 end

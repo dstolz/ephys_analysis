@@ -1,79 +1,98 @@
 classdef EphysPreprocessingApp < handle
-    %EPHYSPREPROCESSINGAPP  GUI for discovering Intan recordings and running Kilosort4.
-    %   EphysPreprocessingApp is a thin front end over EphysProject and
-    %   EphysDataset. It does not duplicate any of their logic: scanning,
-    %   metadata, reading, filtering, .bin streaming and the Kilosort4 spawn all
-    %   happen through those classes. The app only orchestrates them and shows
-    %   progress.
+    %EPHYSPREPROCESSINGAPP  GUI for the config-driven ephys preprocessing pipeline.
+    %   EphysPreprocessingApp edits one EphysPipelineConfig and runs it with
+    %   EphysPipeline over an EphysProject. It duplicates none of their logic:
+    %   scanning, metadata, reading, artifacts, sorting, derived signals, spike
+    %   detection and the exports all happen in EphysDataset / EphysPipeline;
+    %   the app only edits the config, chooses datasets, shows progress and
+    %   keeps per-dataset associations (probe, exclusions, manual artifacts,
+    %   sorted output, Epsych2 session) in each dataset's manifest.
     %
-    %   Features
-    %   --------
-    %     1. Datasets   Pick a parent directory, scan recursively for *.rhd
-    %                   folders, and view per-dataset metadata in a table.
-    %     2. Visualize  Quick time-domain plots of a short window with optional
-    %                   filtering / CAR / detrend. Display-only: the underlying
-    %                   recording is never modified.
-    %     3. Artifacts  Configure the automatic amplitude-deviation detector
-    %                   (running-RMS, threshold in robust SDs, with stitching),
-    %                   preview per-channel counts and the percent of the
-    %                   recording it would zero, and enable blanking on .bin write.
-    %     4. Probe      Pick a Kilosort4 probe .json (stored under
-    %                   intan/probes by default), with a simple channel-
-    %                   count check, and assign it to one or all datasets.
-    %     5. Kilosort   Expose Kilosort4 / .bin configuration, save & reload it,
-    %                   and batch-process selected datasets (.bin then KS4) with
-    %                   per-dataset progress.
-    %     6. Convert    Derive LFP / MUA / SPIKE + digital events for the
-    %                   selected datasets via EphysDataset.toMat (the
-    %                   intan2matlab processing, any recording layout) with
-    %                   every option exposed, and save one .mat per dataset
-    %                   (default: next to the raw data), with in-tab progress,
-    %                   status and a Cancel button.
+    %   Tabs, in workflow order
+    %     Project    config name, project root / output root, dataset table
+    %                (the Select column is the config's dataset selection),
+    %                Epsych2 behavior associations
+    %     Probe      probe library, preview, assignment, per-dataset channel
+    %                exclusions, the config's default probe
+    %     Artifacts  automatic detection settings + preview, manual periods
+    %     Sorting    SpikeInterface + Kilosort4 settings, sorted-output
+    %                association, Run this step, background-run log
+    %     Signals    derived LFP / MUA / SPIKE (.mat) settings, plan, Run
+    %     Spikes     threshold detection / sorted units (.mat), preview, Run
+    %     Export     Chronux / FieldTrip files, plan, Run
+    %     Run        step checklist, validate, plan, run / dry run / cancel,
+    %                progress, results, log
+    %     Visualize  plot a window, mark manual artifact periods
+    %     Review     inspect sorted units
     %
-    %   User preferences (paths, config, and the figure position/size) persist
-    %   across sessions via getpref/setpref under the 'IntanKilosortApp'
-    %   group (kept at the old name so existing preferences survive the
-    %   rename to EphysPreprocessingApp).
+    %   File menu: New / Open / Open recent / Save / Save As / Export copy /
+    %   Generate script (compact | standalone) / Close. The title shows "*"
+    %   while the config has unsaved changes.
+    %
+    %   Preferences (getpref group 'EphysPreprocessingApp') hold only what is
+    %   not part of a config: figure geometry, probe folder, phy command,
+    %   Review folder, last / recent config files, script folder and the
+    %   Visualize display options.
     %
     %   Usage
-    %   -----
     %     EphysPreprocessingApp;            % launch
     %     app = EphysPreprocessingApp;      % launch and keep a handle
     %
-    %   See also EPHYSPROJECT, EPHYSDATASET.
+    %   See also EPHYSPIPELINECONFIG, EPHYSPIPELINE, EPHYSPROJECT, EPHYSDATASET.
 
     properties
         Fig   matlab.ui.Figure
         Tabs  matlab.ui.container.TabGroup
 
         % --- Menu bar ---
-        % "Dataset" is the app-wide single-dataset picker (it replaces the
-        % per-tab dataset dropdown); one checkable item per scanned dataset.
-        DatasetMenu      matlab.ui.container.Menu
+        FileMenu         matlab.ui.container.Menu
+        RecentMenu       matlab.ui.container.Menu
+        DatasetMenu      matlab.ui.container.Menu   % app-wide single-dataset picker
         DatasetMenuItems matlab.ui.container.Menu
+        RunMenu          matlab.ui.container.Menu
 
-        % --- Global status bar (bottom strip; see buildUI/setStatus) ---
-        StatusBar  matlab.ui.control.Label   % last action / current state
-        StatusHint matlab.ui.control.Label   % suggested next action
+        % --- Global status bar ---
+        StatusBar  matlab.ui.control.Label
+        StatusHint matlab.ui.control.Label
 
-        TabDatasets  matlab.ui.container.Tab
-        TabVisualize matlab.ui.container.Tab
-        TabArtifacts matlab.ui.container.Tab
+        TabProject   matlab.ui.container.Tab
         TabProbe     matlab.ui.container.Tab
-        TabKilosort  matlab.ui.container.Tab
+        TabArtifacts matlab.ui.container.Tab
+        TabSorting   matlab.ui.container.Tab
+        TabSignals   matlab.ui.container.Tab
+        TabSpikes    matlab.ui.container.Tab
+        TabExport    matlab.ui.container.Tab
+        TabRun       matlab.ui.container.Tab
+        TabVisualize matlab.ui.container.Tab
         TabReview    matlab.ui.container.Tab
-        TabConvert   matlab.ui.container.Tab
 
-        % --- Datasets tab ---
-        RootPathField    matlab.ui.control.EditField
-        BrowseRootButton matlab.ui.control.Button
-        ScanButton       matlab.ui.control.Button
+        % --- Project tab ---
+        ConfigNameField   matlab.ui.control.EditField
+        ConfigDescField   matlab.ui.control.EditField
+        RootPathField     matlab.ui.control.EditField
+        BrowseRootButton  matlab.ui.control.Button
+        ScanButton        matlab.ui.control.Button
         RefreshMetaButton matlab.ui.control.Button
-        DatasetsTable    matlab.ui.control.Table
-        ScanStatusLabel  matlab.ui.control.Label
+        LaunchPhyButton   matlab.ui.control.Button
+        SelectAllButton   matlab.ui.control.Button
+        SelectNoneButton  matlab.ui.control.Button
+        OutputRootField   matlab.ui.control.EditField
+        BrowseOutputButton matlab.ui.control.Button
+        DatasetsTable     matlab.ui.control.Table
+        ScanStatusLabel   matlab.ui.control.Label
+        BehEnableCheckBox    matlab.ui.control.CheckBox
+        BehSearchDirsField   matlab.ui.control.EditField
+        BehBrowseButton      matlab.ui.control.Button
+        BehMatchDropDown     matlab.ui.control.DropDown
+        BehMaxOffsetField    matlab.ui.control.NumericEditField
+        BehFindButton        matlab.ui.control.Button
+        BehStatusLabel       matlab.ui.control.Label
+        BehOverwriteCheckBox matlab.ui.control.CheckBox
+        BehAssociateButton   matlab.ui.control.Button
+        BehClearButton       matlab.ui.control.Button
 
         % --- Visualize tab ---
-        VizDatasetLabel    matlab.ui.control.Label   % mirrors the Dataset menu
+        VizDatasetLabel    matlab.ui.control.Label
         VizFileDropDown    matlab.ui.control.DropDown
         VizChannelsField   matlab.ui.control.EditField
         VizStartField      matlab.ui.control.NumericEditField
@@ -107,10 +126,17 @@ classdef EphysPreprocessingApp < handle
         ArtPadField         matlab.ui.control.NumericEditField
         ArtFilterCheckBox   matlab.ui.control.CheckBox
         ArtHighpassField    matlab.ui.control.NumericEditField
+        ArtApplySortingCheckBox matlab.ui.control.CheckBox
+        ArtApplySpikesCheckBox  matlab.ui.control.CheckBox
+        ArtCacheCheckBox    matlab.ui.control.CheckBox
         ArtDetectButton     matlab.ui.control.Button
         ArtSummaryLabel     matlab.ui.control.Label
         ArtChannelTable     matlab.ui.control.Table
         ArtStatusLabel      matlab.ui.control.Label
+        ArtManualLabel      matlab.ui.control.Label
+        ArtEditVizButton    matlab.ui.control.Button
+        ArtManualClearButton matlab.ui.control.Button
+        ArtManualTable      matlab.ui.control.Table
 
         % --- Probe tab ---
         ProbeFolderField    matlab.ui.control.EditField
@@ -127,16 +153,19 @@ classdef EphysPreprocessingApp < handle
         AssignAllButton     matlab.ui.control.Button
         ExcludeChannelsField matlab.ui.control.EditField
         ShowChanNumbersCheckBox matlab.ui.control.CheckBox
+        ProbeDefaultField   matlab.ui.control.EditField
+        ProbeUseSelectedButton matlab.ui.control.Button
+        ProbeWriteDefaultCheckBox matlab.ui.control.CheckBox
 
-        % --- Kilosort tab ---
+        % --- Sorting tab ---
+        SortEnableCheckBox  matlab.ui.control.CheckBox
+        SortSkipExistingCheckBox matlab.ui.control.CheckBox
         PythonExeField    matlab.ui.control.EditField
         BrowsePythonButton matlab.ui.control.Button
         CondaEnvField     matlab.ui.control.EditField
-        OutputRootField   matlab.ui.control.EditField
-        BrowseOutputButton matlab.ui.control.Button
         PhyCmdField       matlab.ui.control.EditField
-
-        % --- SpikeInterface preprocessing controls (see gatherSIConfig) ---
+        ExecModeDropDown  matlab.ui.control.DropDown
+        DryRunCheckBox    matlab.ui.control.CheckBox
         SIFilterCheckBox     matlab.ui.control.CheckBox
         SIFilterMinField     matlab.ui.control.NumericEditField
         SIFilterMaxField     matlab.ui.control.NumericEditField
@@ -145,19 +174,16 @@ classdef EphysPreprocessingApp < handle
         SIDetectBadCheckBox  matlab.ui.control.CheckBox
         SIBadMethodDropDown  matlab.ui.control.DropDown
         SIBadActionDropDown  matlab.ui.control.DropDown
-
-        % Kilosort4 parameter controls, keyed by KS4 settings name. Built from
-        % kilosortParamSpec(); see buildKilosortTab / buildKS4Extra.
+        % Kilosort4 parameter controls keyed by settings name (kilosortParamSpec).
         ParamControls struct = struct()
         ExtraSettingsArea matlab.ui.control.TextArea
-        ExecModeDropDown  matlab.ui.control.DropDown
-        DryRunCheckBox    matlab.ui.control.CheckBox
-        SaveConfigButton  matlab.ui.control.Button
-        LoadConfigButton  matlab.ui.control.Button
         KSDocsLink        matlab.ui.control.Hyperlink
         SIDocsLink        matlab.ui.control.Hyperlink
-        RunKilosortButton matlab.ui.control.Button
-        LaunchPhyButton   matlab.ui.control.Button
+        SortResultsLabel  matlab.ui.control.Label
+        SortUseFolderButton matlab.ui.control.Button
+        SortUseAutoButton matlab.ui.control.Button
+        SortPhyButton     matlab.ui.control.Button
+        RunStepSortingButton matlab.ui.control.Button
         KSProgressLabel   matlab.ui.control.Label
         KSLogArea         matlab.ui.control.TextArea
 
@@ -176,12 +202,14 @@ classdef EphysPreprocessingApp < handle
         ReviewAmpAxes       matlab.ui.control.UIAxes
         ReviewRateAxes      matlab.ui.control.UIAxes
 
-        % --- Convert tab (EphysDataset.toMat; see buildConvertTab / onRunConvert) ---
+        % --- Signals tab (config Signals; gather/applyConvertConfig) ---
+        SigEnableCheckBox       matlab.ui.control.CheckBox
         ConvOutputDirField      matlab.ui.control.EditField
         ConvBrowseOutputButton  matlab.ui.control.Button
         ConvSuffixField         matlab.ui.control.EditField
         ConvMatVersionDropDown  matlab.ui.control.DropDown
         ConvOverwriteCheckBox   matlab.ui.control.CheckBox
+        ConvIncludeBehaviorCheckBox matlab.ui.control.CheckBox
         ConvLFPCheckBox         matlab.ui.control.CheckBox
         ConvMUACheckBox         matlab.ui.control.CheckBox
         ConvSPIKECheckBox       matlab.ui.control.CheckBox
@@ -202,6 +230,7 @@ classdef EphysPreprocessingApp < handle
         ConvSpikeLoField        matlab.ui.control.NumericEditField
         ConvSpikeHiField        matlab.ui.control.NumericEditField
         ConvLabelFieldDropDown  matlab.ui.control.DropDown
+        ConvExcludeHandlingDropDown matlab.ui.control.DropDown
         ConvKeepChannelsField   matlab.ui.control.EditField
         ConvBadModeDropDown     matlab.ui.control.DropDown
         ConvBadThresholdField   matlab.ui.control.NumericEditField
@@ -209,130 +238,260 @@ classdef EphysPreprocessingApp < handle
         ConvRemapField          matlab.ui.control.EditField
         ConvResetButton         matlab.ui.control.Button
         ConvTargetsTable        matlab.ui.control.Table
-        ConvRunButton           matlab.ui.control.Button
-        ConvCancelButton        matlab.ui.control.Button
+        RunStepSignalsButton    matlab.ui.control.Button
         ConvRefreshButton       matlab.ui.control.Button
-        ConvOverallBar          matlab.ui.container.GridLayout   % see setConvertBar
-        ConvOverallText         matlab.ui.control.Label
-        ConvStepBar             matlab.ui.container.GridLayout
-        ConvStepText            matlab.ui.control.Label
-        ConvStepLabel           matlab.ui.control.Label
-        ConvLogArea             matlab.ui.control.TextArea
+
+        % --- Spikes tab ---
+        SpkEnableCheckBox    matlab.ui.control.CheckBox
+        SpkSourceDropDown    matlab.ui.control.DropDown
+        SpkFilterCheckBox    matlab.ui.control.CheckBox
+        SpkBandLoField       matlab.ui.control.NumericEditField
+        SpkBandHiField       matlab.ui.control.NumericEditField
+        SpkFilterOrderField  matlab.ui.control.NumericEditField
+        SpkPolarityDropDown  matlab.ui.control.DropDown
+        SpkThreshMethodDropDown matlab.ui.control.DropDown
+        SpkThresholdField    matlab.ui.control.EditField
+        SpkMaxAmpField       matlab.ui.control.EditField
+        SpkAlignDropDown     matlab.ui.control.DropDown
+        SpkAlignWindowField  matlab.ui.control.NumericEditField
+        SpkMinPeriodField    matlab.ui.control.NumericEditField
+        SpkWaveformsCheckBox matlab.ui.control.CheckBox
+        SpkWinBeforeField    matlab.ui.control.NumericEditField
+        SpkWinAfterField     matlab.ui.control.NumericEditField
+        SpkWaveSourceDropDown matlab.ui.control.DropDown
+        SpkEdgeDropDown      matlab.ui.control.DropDown
+        SpkChannelsDropDown  matlab.ui.control.DropDown
+        SpkChannelListField  matlab.ui.control.EditField
+        SpkRejectArtifactsCheckBox matlab.ui.control.CheckBox
+        SpkChunkField        matlab.ui.control.EditField
+        SpkEdgePadField      matlab.ui.control.EditField
+        SpkParallelCheckBox  matlab.ui.control.CheckBox
+        SpkGroupsField       matlab.ui.control.EditField
+        SpkIncludeNoiseCheckBox matlab.ui.control.CheckBox
+        SpkTemplatesCheckBox matlab.ui.control.CheckBox
+        SpkOutputDirField    matlab.ui.control.EditField
+        SpkBrowseOutputButton matlab.ui.control.Button
+        SpkSuffixField       matlab.ui.control.EditField
+        SpkOverwriteCheckBox matlab.ui.control.CheckBox
+        SpkMatVersionDropDown matlab.ui.control.DropDown
+        SpkPreviewButton     matlab.ui.control.Button
+        SpkPreviewSecondsField matlab.ui.control.NumericEditField
+        SpkPreviewLabel      matlab.ui.control.Label
+        SpkPreviewTable      matlab.ui.control.Table
+        RunStepSpikesButton  matlab.ui.control.Button
+
+        % --- Export tab ---
+        ExpEnableCheckBox    matlab.ui.control.CheckBox
+        ExpChronuxCheckBox   matlab.ui.control.CheckBox
+        ExpFieldTripCheckBox matlab.ui.control.CheckBox
+        ExpSignalsField      matlab.ui.control.EditField
+        ExpUnitsCheckBox     matlab.ui.control.CheckBox
+        ExpGroupsField       matlab.ui.control.EditField
+        ExpDetectedCheckBox  matlab.ui.control.CheckBox
+        ExpEventsCheckBox    matlab.ui.control.CheckBox
+        ExpBehaviorCheckBox  matlab.ui.control.CheckBox
+        ExpValidateCheckBox  matlab.ui.control.CheckBox
+        ExpOutputDirField    matlab.ui.control.EditField
+        ExpBrowseOutputButton matlab.ui.control.Button
+        ExpOverwriteCheckBox matlab.ui.control.CheckBox
+        ExpMatVersionDropDown matlab.ui.control.DropDown
+        ExpTargetsTable      matlab.ui.control.Table
+        RunStepExportButton  matlab.ui.control.Button
+        ExpRefreshButton     matlab.ui.control.Button
+
+        % --- Run tab ---
+        RunBehaviorCheckBox  matlab.ui.control.CheckBox
+        RunArtifactsCheckBox matlab.ui.control.CheckBox
+        RunSortingCheckBox   matlab.ui.control.CheckBox
+        RunSignalsCheckBox   matlab.ui.control.CheckBox
+        RunSpikesCheckBox    matlab.ui.control.CheckBox
+        RunExportCheckBox    matlab.ui.control.CheckBox
+        RunSelectionLabel    matlab.ui.control.Label
+        RunValidateButton    matlab.ui.control.Button
+        RunPlanButton        matlab.ui.control.Button
+        RunButton            matlab.ui.control.Button
+        RunDryButton         matlab.ui.control.Button
+        RunCancelButton      matlab.ui.control.Button
+        RunIssuesTable       matlab.ui.control.Table
+        RunOverallBar        matlab.ui.container.GridLayout   % see setRunBar
+        RunOverallText       matlab.ui.control.Label
+        RunStepBar           matlab.ui.container.GridLayout
+        RunStepText          matlab.ui.control.Label
+        RunStepLabel         matlab.ui.control.Label
+        RunResultsTable      matlab.ui.control.Table
+        RunLogArea           matlab.ui.control.TextArea
+        RunKSLabel           matlab.ui.control.Label
     end
 
     properties
         Project EphysProject = EphysProject.empty
         SelectedRow (1,1) double = 0   % last-clicked datasets-table row (0 = none)
 
-        % Probe tab selection state. ProbeTable shows one row per probe .json;
-        % ProbePaths holds the matching full paths (the table itself only shows
-        % file names + parsed metadata), and SelectedProbeRow is the active row.
+        % --- config model ---
+        Config EphysPipelineConfig = EphysPipelineConfig()   % working copy
+        SavedConfigStruct struct = struct()                   % last saved / opened state
+        Applying (1,1) logical = false     % true while applyConfig pushes values (suppresses onConfigChanged)
+        RecentConfigs (1,:) string = string.empty(1,0)
+        ScriptFolder (1,1) string = ""
+
+        % --- run state ---
+        Pipe = []                          % the EphysPipeline being run (for Cancel)
+        RunActive (1,1) logical = false
+
+        % Probe tab selection state.
         ProbePaths (1,:) string = string.empty(1,0)
-        SelectedProbeRow (1,1) double = 0   % selected ProbeTable row (0 = none)
+        SelectedProbeRow (1,1) double = 0
 
         % Background Kilosort4 runs awaiting completion + the polling timer.
-        % logFile/logPos let the monitor tail each run's ks4_run.log into the
-        % status box: logPos is the byte offset already shown.
         KSRuns struct = struct('Name', {}, 'statusFile', {}, 'resultsDir', {}, ...
             'logFile', {}, 'logPos', {}, 'done', {})
         KSMonitorTimer = []
 
         % --- Visualize interaction state (display-only, in-memory) ---
-        % Viewer is the MultiChannelViewer (plotting/@MultiChannelViewer) that
-        % owns the cached data, viewport, graphics, and pan/zoom/scroll
-        % interaction for the Visualize axes. Constructed on the first Plot
-        % press and reused (via Viewer.loadData) on subsequent presses, so its
-        % attached KeyMap/mouse callbacks are never re-installed.
         Viewer = []
-        % Detected-artifact intervals (window-relative seconds) and the
-        % recording-relative time offset of the currently loaded window -- the
-        % two pieces of app-specific bookkeeping that don't belong on the
-        % generic Viewer. Read by drawVizArtifacts/finishVizArtDrag.
         VizDetectedIntervals = zeros(0, 2)
         VizTimeOffset (1,1) double = 0
-        VizDatasetIndex (1,1) double = 0   % index into obj.Project.Datasets
-        % Dataset picked in the figure's "Dataset" menu (0 = none). This is the
-        % single-dataset target for Visualize; VizDatasetIndex above is the one
-        % whose data is actually cached in the Viewer.
+        VizDatasetIndex (1,1) double = 0
         SelectedDatasetIdx (1,1) double = 0
-        % 1-based amplifier channels currently loaded into Viewer, in their
-        % original (as-typed) order -- i.e. Viewer's data-column order before
-        % any probe-depth sort. Read by applyVizChannelOrder to map the
-        % Viewer's data columns back to physical .bin channels.
         VizChannels (1,:) double = double.empty(1,0)
-        % Byte budget for the cached single-precision Visualize matrix. The
-        % loader streams files one at a time and, when the full-resolution span
-        % would exceed this, peak-decimates on load so RAM stays bounded
-        % regardless of recording length. 0 = auto (see autoMemoryBudget).
         VizMemoryBudget (1,1) double = 0
-
-        % --- Manual artifact marking (Visualize tab) ---
-        % When VizArtMode is on, a plain left-drag on the plot defines an
-        % artifact period and a left-click inside a marked region removes it.
-        % Periods live on the dataset (EphysDataset.ManualArtifacts) and are
-        % blanked by toBin; the data on disk is never altered. They are drawn
-        % with xregion (handles in VizArtPatches; VizArtPreview is the live
-        % rubber-band during a drag).
         VizArtMode (1,1) logical = false
         VizArtDrag = struct('active', false)
         VizArtPatches = gobjects(0,1)
         VizArtPreview = gobjects(0,1)
 
         % --- Review (Kilosort4 output) state ---
-        % ReviewData caches everything parsed from a kilosort4/ results folder so
-        % unit selection re-plots without re-reading .npy files. See
-        % loadReviewResults / renderReviewPlots.
         ReviewData = struct([])
-        ReviewSelectedUnit (1,1) double = 0   % row index into ReviewData unit list (0 = all)
-
-        % --- Convert (EphysDataset.toMat) run state ---
-        % ConvRunning guards against re-entry and freezes the targets table;
-        % ConvCancelRequested is set by the Cancel button and checked by the
-        % toMat/deriveSignals ProgressFcn at each step boundary (see onRunConvert).
-        ConvRunning (1,1) logical = false
-        ConvCancelRequested (1,1) logical = false
+        ReviewSelectedUnit (1,1) double = 0
     end
 
     properties (Constant)
-        PrefGroup = 'IntanKilosortApp'
+        PrefGroup = 'EphysPreprocessingApp'
     end
 
     methods
         function obj = EphysPreprocessingApp()
-            % Construct, build the UI, restore preferences.
+            % Construct, build the UI, restore preferences and the last config.
             obj.buildUI();
             obj.loadPreferences();
             obj.refreshProbeList();
+            obj.updateTitle();
 
             if nargout == 0
                 clear obj
             end
         end
 
-        % --- declared in separate files in this @-folder ---
+        % --- UI construction ---
         buildUI(obj)
-        buildDatasetsTab(obj)
-        buildVisualizeTab(obj)
-        buildArtifactsTab(obj)
+        buildMenus(obj)
+        buildProjectTab(obj)
         buildProbeTab(obj)
-        buildKilosortTab(obj)
+        buildArtifactsTab(obj)
+        buildSortingTab(obj)
+        buildSignalsTab(obj)
+        buildSpikesTab(obj)
+        buildExportTab(obj)
+        buildRunTab(obj)
+        buildVisualizeTab(obj)
         buildReviewTab(obj)
-        buildConvertTab(obj)
 
+        % --- config model ---
+        cfg = gatherConfig(obj)
+        applyConfig(obj, cfg, opts)
+        onConfigChanged(obj)
+        updateTitle(obj)
+        syncStepEnableStates(obj)
+        P = gatherProjectSection(obj)
+        applyProjectSection(obj, P)
+        applySelectionToTable(obj, P)
+        S = gatherProbeSection(obj)
+        applyProbeSection(obj, S)
+        B = gatherBehaviorSection(obj)
+        applyBehaviorSection(obj, B)
+        A = gatherArtifactsSection(obj)
+        applyArtifactsSection(obj, A)
+        [S, errMsg] = gatherSortingSection(obj)
+        applySortingSection(obj, S)
+        cfg = gatherConvertConfig(obj)
+        applyConvertConfig(obj, cfg)
+        K = gatherSpikesSection(obj)
+        applySpikesSection(obj, K)
+        E = gatherExportSection(obj)
+        applyExportSection(obj, E)
+        onNewConfig(obj)
+        onOpenConfig(obj)
+        ok = openConfigFile(obj, file)
+        ok = onSaveConfig(obj)
+        ok = onSaveConfigAs(obj)
+        onExportConfigCopy(obj)
+        onGenerateScript(obj, kind)
+        ok = confirmDiscard(obj)
+        addRecentConfig(obj, file)
+        refreshRecentMenu(obj)
+        p = defaultConfigFolder(obj)
+
+        % --- running ---
+        pipe = buildPipeline(obj)
+        runPipeline(obj, opts)
+        onPipelineProgress(obj, evt)
+        onRunStep(obj, step)
+        onCancelRun(obj)
+        onValidate(obj)
+        showIssues(obj, issues)
+        onPlan(obj)
+        refreshStepPlan(obj, step)
+        runLog(obj, fmt, varargin)
+        setRunBar(obj, bar, frac)
+
+        % --- Project tab ---
         onScan(obj)
         refreshDatasetsTable(obj)
         onDatasetCellSelection(obj, evt)
         onRefreshMetadata(obj)
+        onSelectDatasets(obj, mode)
+        onBrowseRoot(obj)
+        onBrowseOutput(obj)
+        onBrowseBehaviorDir(obj)
+        onAssociateBehavior(obj)
+        onClearBehavior(obj)
+        d = currentDataset(obj)
+        updatePhyButtonState(obj)
+        idx = selectedDatasetIndices(obj)
+        applyConfigToProject(obj, P)
+        applyArtifactConfigToProject(obj)
 
+        % --- Artifacts tab ---
         onDetectArtifacts(obj)
+        populateArtifactDatasets(obj)
+        d = currentArtifactDataset(obj)
+        onArtifactControlsChanged(obj)
+        refreshManualArtifactsTable(obj)
+        onClearManualArtifacts(obj)
 
+        % --- Visualize tab ---
         onPlotVisualization(obj)
         onVizButtonDown(obj)
         onVizButtonUp(obj)
         drawVizArtifacts(obj)
         applyVizChannelOrder(obj)
         applyVizChannelColor(obj)
+        onVizModeChanged(obj)
+        onVizColormapChanged(obj)
+        tf = vizActive(obj)
+        tf = cursorOverAxes(obj)
+        d = currentVizDataset(obj)
+        onVizArtToggle(obj, val)
+        onVizArtClear(obj)
+        onVizArtMotion(obj)
+        finishVizArtDrag(obj)
+        updateVizArtStatus(obj)
+        populateVizFiles(obj)
+        populateDatasetMenu(obj)
+        selectDataset(obj, idx)
+        updateDatasetMenuCheck(obj)
 
+        % --- Probe tab ---
         refreshProbeList(obj)
         onProbeSelected(obj)
         onImportProbe(obj)
@@ -340,1008 +499,66 @@ classdef EphysPreprocessingApp < handle
         result = runProbeTool(obj, varargin)
         onAssignProbe(obj, scope)
         onApplyExclude(obj, scope)
+        onBrowseProbeFolder(obj)
+        pf = selectedProbeFile(obj)
+        onProbeRowSelected(obj, evt)
+        onEditProbeJSON(obj)
+        syncExcludeField(obj)
+        selectProbeRow(obj, row)
+        onProbeNotesEdited(obj, evt)
+        saveProbeNotes(obj, pf, notes)
+        p = defaultProbeFolder(obj)
+        onUseSelectedProbeAsDefault(obj)
 
-        spec = kilosortParamSpec(obj)
-        [extra, errMsg] = buildKS4Extra(obj)
-        cfg = gatherKilosortConfig(obj)
-        applyKilosortConfig(obj, cfg)
-        onSaveConfig(obj)
-        onLoadConfig(obj)
-
-        onRunBatch(obj, mode)
+        % --- Sorting tab ---
+        onBrowsePython(obj)
+        cfg = gatherSIConfig(obj)
+        applySIConfig(obj, cfg)
+        setDropIfMember(obj, dd, value)
+        syncSIEnableStates(obj)
+        onSIControlsChanged(obj)
+        p = defaultPythonExe(obj)
+        onUseSortingFolder(obj)
+        onUseAutoSorting(obj)
+        refreshSortingLabel(obj)
         onLaunchPhy(obj)
         launchPhy(obj, resultsDir, label)
+        startKSMonitor(obj)
+        stopKSMonitor(obj)
         pollKSRuns(obj)
+        log(obj, fmt, varargin)
+        appendLogLines(obj, lines)
 
+        % --- Signals tab ---
+        syncConvertEnableStates(obj)
+        onConvertControlsChanged(obj)
+        onResetConvertConfig(obj)
+        onBrowseConvertOutput(obj)
+
+        % --- Spikes / Export tabs ---
+        syncSpikesEnableStates(obj)
+        onSpikesControlsChanged(obj)
+        onSpikesPreview(obj)
+        onBrowseSpikesOutput(obj)
+        onBrowseExportOutput(obj)
+
+        % --- Review tab ---
         loadReviewResults(obj)
         renderReviewPlots(obj)
+        onBrowseReviewFolder(obj)
+        onOpenReviewFolder(obj)
+        onReviewOpenPhy(obj)
+        populateReviewDatasets(obj)
+        onReviewDatasetChanged(obj)
+        onReviewUnitSelected(obj, evt)
+        onReviewAllUnits(obj)
 
-        onRunConvert(obj)
-        cfg = gatherConvertConfig(obj)
-        applyConvertConfig(obj, cfg)
-
+        % --- app-wide ---
         loadPreferences(obj)
         savePreferences(obj)
-
-        function startKSMonitor(obj)
-            % Start (or leave running) the timer that polls background KS4 runs.
-            t = obj.KSMonitorTimer;
-            if ~isempty(t) && isvalid(t) && strcmp(t.Running, 'on')
-                return   % already polling; it will pick up newly-added runs
-            end
-            obj.stopKSMonitor();   % clear any stale, stopped timer
-            obj.KSMonitorTimer = timer( ...
-                "Name", "EphysPreprocessingAppMonitor", ...
-                "ExecutionMode", "fixedSpacing", "Period", 3, "BusyMode", "drop", ...
-                "TimerFcn", @(~,~) obj.pollKSRuns());
-            start(obj.KSMonitorTimer);
-        end
-
-        function stopKSMonitor(obj)
-            % Stop and delete the polling timer if present.
-            t = obj.KSMonitorTimer;
-            if ~isempty(t) && isvalid(t)
-                try
-                    stop(t);
-                catch
-                end
-                try
-                    delete(t);
-                catch
-                end
-            end
-            obj.KSMonitorTimer = [];
-        end
-
-        %% --- small inline handlers --------------------------------------
-        function onBrowseRoot(obj)
-            % Prompt for the parent directory to scan.
-            start = obj.RootPathField.Value;
-            if isempty(start) || ~isfolder(start); start = pwd; end
-            d = uigetdir(start, "Select parent directory to scan for *.rhd recordings");
-            figure(obj.Fig);  % restore focus after modal dialog
-            if isequal(d, 0); return; end
-            obj.RootPathField.Value = d;
-            obj.savePreferences();
-        end
-
-        function onBrowseProbeFolder(obj)
-            % Prompt for the folder that holds probe .json files.
-            start = obj.ProbeFolderField.Value;
-            if isempty(start) || ~isfolder(start); start = obj.defaultProbeFolder(); end
-            d = uigetdir(start, "Select folder containing Kilosort4 probe .json files");
-            figure(obj.Fig);
-            if isequal(d, 0); return; end
-            obj.ProbeFolderField.Value = d;
-            obj.refreshProbeList();
-            obj.savePreferences();
-        end
-
-        function onBrowsePython(obj)
-            % Prompt for the python/conda executable.
-            [f, p] = uigetfile({'*.exe;python*', 'Executable'}, "Select python executable");
-            figure(obj.Fig);
-            if isequal(f, 0); return; end
-            obj.PythonExeField.Value = fullfile(p, f);
-            obj.savePreferences();
-        end
-
-        function onBrowseOutput(obj)
-            % Prompt for the output root for .bin / Kilosort4 results.
-            start = obj.OutputRootField.Value;
-            if isempty(start) || ~isfolder(start); start = pwd; end
-            d = uigetdir(start, "Select output root (per-dataset results go under <root>/<Name>)");
-            figure(obj.Fig);
-            if isequal(d, 0); return; end
-            obj.OutputRootField.Value = d;
-            obj.savePreferences();
-        end
-
-        %% --- Review tab handlers -----------------------------------------
-        function onBrowseReviewFolder(obj)
-            % Prompt for a Kilosort4 results folder to review.
-            start = obj.ReviewFolderField.Value;
-            if isempty(start) || ~isfolder(start); start = pwd; end
-            d = uigetdir(start, "Select a Kilosort4 results folder (contains params.py)");
-            figure(obj.Fig);
-            if isequal(d, 0); return; end
-            obj.ReviewFolderField.Value = d;
-            obj.savePreferences();
-            obj.loadReviewResults();
-        end
-
-        function onOpenReviewFolder(obj)
-            % Open the current results folder in the system file browser.
-            f = strtrim(obj.ReviewFolderField.Value);
-            if isempty(f) || ~isfolder(f)
-                uialert(obj.Fig, "Select a valid results folder first.", "Review");
-                return
-            end
-            if ispc; winopen(f); else; system(sprintf('open "%s" &', f)); end
-        end
-
-        function onReviewOpenPhy(obj)
-            % Open the Review tab's results folder in phy's template-gui.
-            % Load/Browse/dataset-pick rewrite the field to the resolved folder
-            % holding params.py, so the field is what gets launched.
-            f = strtrim(obj.ReviewFolderField.Value);
-            if isempty(f) || ~isfolder(f)
-                uialert(obj.Fig, "Select a valid results folder first.", "phy");
-                return
-            end
-            obj.launchPhy(f, f);
-        end
-
-        function populateReviewDatasets(obj)
-            % Fill the Review dataset dropdown from scanned datasets that have a
-            % kilosort4 run with spike results. Discovery is delegated to each
-            % dataset's DatasetTracker (latestKilosortRun), so the dropdown finds
-            % results even in non-default result dirs and gates on the same
-            % spike_clusters.npy that loadReviewResults requires.
-            obj.ReviewDatasetDropDown.Items = {'(pick folder, or scan first)'};
-            obj.ReviewDatasetDropDown.ItemsData = {};
-            if isempty(obj.Project) || obj.Project.NumDatasets == 0; return; end
-            obj.applyConfigToProject();
-            names = {};
-            dirs  = {};
-            for k = 1:obj.Project.NumDatasets
-                d = obj.Project.Datasets(k);
-                run = d.tracker().latestKilosortRun();
-                if ~isempty(run) && run.HasResults
-                    names{end+1} = char(d.Name);    %#ok<AGROW>
-                    dirs{end+1}  = char(run.Dir);   %#ok<AGROW>
-                end
-            end
-            if isempty(names)
-                obj.ReviewDatasetDropDown.Items = {'(no kilosort4 results found)'};
-            else
-                obj.ReviewDatasetDropDown.Items = names;
-                obj.ReviewDatasetDropDown.ItemsData = dirs;
-            end
-        end
-
-        function onReviewDatasetChanged(obj)
-            % Point the folder field at the chosen dataset's results and load.
-            rd = obj.ReviewDatasetDropDown.Value;
-            if isempty(rd) || ~ischar(rd) || ~isfolder(rd); return; end
-            obj.ReviewFolderField.Value = rd;
-            obj.savePreferences();
-            obj.loadReviewResults();
-        end
-
-        function onReviewUnitSelected(obj, evt)
-            % Table row click -> focus the plots on that single unit.
-            % Look up by cluster ID so column-sort doesn't break the mapping.
-            if isempty(obj.ReviewData) || isempty(evt.Indices)
-                return
-            end
-            row = evt.Indices(1);
-            T = obj.ReviewUnitsTable.Data;
-            if iscell(T) && size(T, 1) >= row
-                cid = T{row, 1};
-            else
-                return
-            end
-            unitIdx = find(obj.ReviewData.clusterID == cid, 1);
-            if isempty(unitIdx); return; end
-            obj.ReviewSelectedUnit = unitIdx;
-            obj.renderReviewPlots();
-        end
-
-        function onReviewAllUnits(obj)
-            % Clear the unit selection and show all units again.
-            if isempty(obj.ReviewData); return; end
-            obj.ReviewSelectedUnit = 0;
-            if ~isempty(obj.ReviewUnitsTable.Selection)
-                obj.ReviewUnitsTable.Selection = [];
-            end
-            obj.renderReviewPlots();
-        end
-
-        %% --- Convert tab (EphysDataset.toMat / deriveSignals) ------------
-        function cfg = defaultConvertConfig(~)
-            % Convert-tab defaults. The signal options mirror the defaults
-            % of EphysDataset.deriveSignals (= intan2matlab): dataTypeOut
-            % "LFP", LFP_Fs 1000, no LFP filtering (LFP_bpLoHi [0 Inf], no
-            % notch), MUA_Fs 2000, MUA_IntegrationHz 1000, band edges
-            % [300 5000], SPIKE_Fs Inf, labelField custom_channel_name, no
-            % channel selection / bad channels / remap. The LFP cut-off /
-            % notch values below are only used once their box is ticked.
-            % OutputDir "" = each dataset's folder.
-            cfg = struct( ...
-                'OutputDir',          "", ...
-                'Suffix',             "_extract", ...
-                'MatVersion',         "-v7.3", ...
-                'Overwrite',          false, ...
-                'LFP',                true, ...
-                'MUA',                false, ...
-                'SPIKE',              false, ...
-                'LFP_Fs',             1000, ...
-                'LFP_HighpassOn',     false, ...
-                'LFP_HighpassHz',     1, ...
-                'LFP_LowpassOn',      false, ...
-                'LFP_LowpassHz',      300, ...
-                'LFP_NotchOn',        false, ...
-                'LFP_NotchHz',        "60", ...    % list text, e.g. "60, 120, 180"
-                'LFP_NotchBW',        2, ...
-                'MUA_Fs',             2000, ...
-                'MUA_IntegrationHz',  1000, ...
-                'MUA_bpLoHi',         [300 5000], ...
-                'SPIKE_KeepOriginal', true, ...
-                'SPIKE_Fs',           20000, ...   % used only when KeepOriginal is off
-                'SPIKE_bpLoHi',       [300 5000], ...
-                'LabelField',         "custom_channel_name", ...
-                'KeepChannels',       "", ...
-                'BadMode',            "none", ...  % "none" | "manual" | "auto"
-                'BadThreshold',       3, ...       % auto: |zscore(RMS)| threshold
-                'BadList',            "", ...
-                'ChannelRemap',       "");
-        end
-
-        function syncConvertEnableStates(obj)
-            % Enable each option only when the signal/mode it belongs to is on.
-            if isempty(obj.ConvLFPCheckBox) || ~isvalid(obj.ConvLFPCheckBox); return; end
-            onOff = @(tf) matlab.lang.OnOffSwitchState(logical(tf));
-            lfp = obj.ConvLFPCheckBox.Value;
-            mua = obj.ConvMUACheckBox.Value;
-            spk = obj.ConvSPIKECheckBox.Value;
-            obj.ConvLFPFsField.Enable = onOff(lfp);
-            set([obj.ConvLFPHighpassCheckBox, obj.ConvLFPLowpassCheckBox, ...
-                obj.ConvLFPNotchCheckBox], 'Enable', onOff(lfp));
-            obj.ConvLFPHighpassField.Enable = onOff(lfp && obj.ConvLFPHighpassCheckBox.Value);
-            obj.ConvLFPLowpassField.Enable  = onOff(lfp && obj.ConvLFPLowpassCheckBox.Value);
-            set([obj.ConvLFPNotchField, obj.ConvLFPNotchBWField], ...
-                'Enable', onOff(lfp && obj.ConvLFPNotchCheckBox.Value));
-            set([obj.ConvMUAFsField, obj.ConvMUAIntegrationField, ...
-                obj.ConvMUALoField, obj.ConvMUAHiField], 'Enable', onOff(mua));
-            obj.ConvSpikeOrigCheckBox.Enable = onOff(spk);
-            obj.ConvSpikeFsField.Enable = onOff(spk && ~obj.ConvSpikeOrigCheckBox.Value);
-            set([obj.ConvSpikeLoField, obj.ConvSpikeHiField], 'Enable', onOff(spk));
-            mode = string(obj.ConvBadModeDropDown.Value);
-            obj.ConvBadThresholdField.Enable = onOff(mode == "auto");
-            obj.ConvBadListField.Enable = onOff(mode == "manual");
-        end
-
-        function onConvertControlsChanged(obj)
-            % Sync enable states, refresh the output-file preview, persist.
-            obj.syncConvertEnableStates();
-            obj.refreshConvertTargets();
-            obj.savePreferences();
-        end
-
-        function onResetConvertConfig(obj)
-            % Restore the Convert tab to its defaults.
-            obj.applyConvertConfig(obj.defaultConvertConfig());
-            obj.onConvertControlsChanged();
-        end
-
-        function onBrowseConvertOutput(obj)
-            % Prompt for the folder that receives the derived-signal .mat files.
-            start = obj.ConvOutputDirField.Value;
-            if isempty(start) || ~isfolder(start); start = obj.RootPathField.Value; end
-            if isempty(start) || ~isfolder(start); start = pwd; end
-            d = uigetdir(start, "Select output folder for the converted .mat files");
-            figure(obj.Fig);
-            if isequal(d, 0); return; end
-            obj.ConvOutputDirField.Value = d;
-            obj.onConvertControlsChanged();
-        end
-
-        function onCancelConvert(obj)
-            % Ask a running conversion to stop at the next step boundary.
-            if ~obj.ConvRunning; return; end
-            obj.ConvCancelRequested = true;
-            obj.ConvCancelButton.Enable = "off";
-            obj.ConvStepLabel.Text = "Cancelling after the current step...";
-        end
-
-        function T = convertTargets(obj, cfg)
-            % One row per dataset a Convert run would process (Datasets-tab
-            % ticks, or all), with its output file and a pre-run status.
-            T = table('Size', [0 5], ...
-                'VariableTypes', {'double', 'string', 'string', 'string', 'string'}, ...
-                'VariableNames', {'DatasetIdx', 'Dataset', 'Format', 'OutputFile', 'Status'});
-            if isempty(obj.Project) || obj.Project.NumDatasets == 0; return; end
-            outRoot = strtrim(string(cfg.OutputDir));
-            for k = obj.selectedDatasetIndices()
-                d = obj.Project.Datasets(k);
-                if strlength(outRoot) == 0
-                    outDir = d.Folder;   % default: next to the raw data
-                else
-                    outDir = outRoot;
-                end
-                f = string(fullfile(outDir, d.Name + string(cfg.Suffix) + ".mat"));
-                if d.RecordingFormat == "unknown"
-                    st = "will skip: no Intan files";
-                elseif isfile(f) && cfg.Overwrite
-                    st = "exists: will overwrite";
-                elseif isfile(f)
-                    st = "exists: will skip";
-                else
-                    st = "ready";
-                end
-                T(end+1, :) = {k, d.Name, d.RecordingFormat, f, st}; %#ok<AGROW>
-            end
-        end
-
-        function refreshConvertTargets(obj)
-            % Rebuild the targets table (not while a run is updating it).
-            if obj.ConvRunning || isempty(obj.ConvTargetsTable) ...
-                    || ~isvalid(obj.ConvTargetsTable)
-                return
-            end
-            T = obj.convertTargets(obj.gatherConvertConfig());
-            obj.ConvTargetsTable.Data = T(:, {'Dataset', 'Format', 'OutputFile', 'Status'});
-        end
-
-        function setConvertBar(~, bar, frac)
-            % Show FRAC (0..1) on a Convert-tab progress bar by weighting its
-            % two grid columns (filled | empty); integer weights, 0.1% steps.
-            if isempty(bar) || ~isvalid(bar); return; end
-            w = round(1000 * min(max(frac, 0), 1));
-            if w <= 0
-                bar.ColumnWidth = {0, '1x'};
-            elseif w >= 1000
-                bar.ColumnWidth = {'1x', 0};
-            else
-                bar.ColumnWidth = {sprintf('%dx', w), sprintf('%dx', 1000 - w)};
-            end
-        end
-
-        function convLog(obj, fmt, varargin)
-            % Append a timestamped line to the Convert log area.
-            if isempty(obj.ConvLogArea) || ~isvalid(obj.ConvLogArea); return; end
-            line = string(datetime('now', 'Format', 'HH:mm:ss')) + "  " + ...
-                string(sprintf(fmt, varargin{:}));
-            cur = obj.ConvLogArea.Value;
-            if isscalar(cur) && strlength(string(cur{1})) == 0
-                cur = cell(0, 1);   % drop the default blank line
-            end
-            obj.ConvLogArea.Value = [cur; cellstr(line)];
-            scroll(obj.ConvLogArea, 'bottom');
-            drawnow limitrate;
-        end
-
-        function onClose(obj)
-            % Persist preferences (incl. figure geometry) and close.
-            obj.ConvCancelRequested = true;   % stop a running conversion
-            obj.stopKSMonitor();
-            try
-                obj.savePreferences();
-            catch ME
-                warning('EphysPreprocessingApp:SavePrefsFailed', ...
-                    'Could not save preferences: %s', ME.message);
-            end
-            delete(obj.Fig);
-        end
-
-        %% --- Global status bar -------------------------------------------
-        function setStatus(obj, message, hint)
-            % Update the bottom status bar. MESSAGE describes the last action or
-            % current state; the optional HINT (shown italic, on the right) is a
-            % suggested next step. Pass HINT = "" or omit it to clear the hint;
-            % omit BOTH the hint arg and let suggestNextStep supply a contextual
-            % one by passing the sentinel [] (see callers).
-            if isempty(obj.StatusBar) || ~isvalid(obj.StatusBar); return; end
-            obj.StatusBar.Text = char(string(message));
-            if nargin < 3
-                hint = obj.suggestNextStep();
-            end
-            hint = string(hint);
-            if strlength(hint) == 0
-                obj.StatusHint.Text = "";
-            else
-                obj.StatusHint.Text = char("Next: " + hint);
-            end
-            drawnow limitrate;
-        end
-
-        function hint = suggestNextStep(obj)
-            % Suggest the next useful action from the current project state:
-            % scan -> assign a probe -> run Kilosort4 (SpikeInterface) -> review.
-            P = obj.Project;
-            if isempty(P) || P.NumDatasets == 0
-                hint = "Browse to a parent folder and click Scan.";
-                return
-            end
-            ds = P.Datasets;
-            n  = numel(ds);
-            nProbe = 0; nKS = 0;
-            for k = 1:n
-                pf = string(ds(k).ProbeFile);
-                if strlength(pf) > 0 && isfile(char(pf)); nProbe = nProbe + 1; end
-                if ds(k).hasPhyOutput(); nKS = nKS + 1; end
-            end
-            if nProbe < n
-                hint = sprintf("Assign a probe on the Probe tab (%d/%d have one).", nProbe, n);
-            elseif nKS >= n
-                hint = "All datasets sorted - open the Review tab to inspect units.";
-            else
-                hint = sprintf("Set up the Kilosort tab, then Run Kilosort4 (%d/%d sorted).", nKS, n);
-            end
-        end
-
-        function onTabChanged(obj)
-            % Refresh the status bar when the active tab changes: describe what
-            % the tab is for and re-evaluate the suggested next step.
-            switch obj.Tabs.SelectedTab
-                case obj.TabDatasets
-                    msg = "Datasets: scan a folder, then tick rows to include in batch actions.";
-                case obj.TabProbe
-                    msg = "Probe: pick a probe .json and assign it to the selected or all datasets.";
-                case obj.TabArtifacts
-                    msg = "Artifacts: tune the detector and preview what would be silenced.";
-                case obj.TabVisualize
-                    msg = "Visualize: plot a short window; drag to mark manual artifacts.";
-                case obj.TabKilosort
-                    msg = "Kilosort: set paths + SpikeInterface preprocessing, then Run Kilosort4.";
-                case obj.TabReview
-                    msg = "Review: load a results folder to inspect sorted units.";
-                case obj.TabConvert
-                    msg = "Convert: derive LFP / MUA / SPIKE for the ticked datasets and save .mat files.";
-                    obj.refreshConvertTargets();
-                otherwise
-                    msg = "Ready.";
-            end
-            obj.setStatus(msg);
-        end
-
-        function log(obj, fmt, varargin)
-            % Append a timestamped line to the Kilosort log area.
-            line = sprintf("%s  %s", datetime('now', 'Format', 'HH:mm:ss'), ...
-                string(sprintf(fmt, varargin{:})));
-            obj.appendLogLines(line);
-        end
-
-        function appendLogLines(obj, lines)
-            % Append a block of pre-formatted lines to the Kilosort log area in
-            % a single update (cheaper than calling log() per line when tailing
-            % a run's ks4_run.log). Empty input is a no-op.
-            lines = cellstr(string(lines(:)));
-            if isempty(lines); return; end
-            cur = obj.KSLogArea.Value;
-            if isscalar(cur) && strlength(string(cur{1})) == 0
-                cur = cell(0, 1);   % drop the default blank line
-            end
-            obj.KSLogArea.Value = [cur; lines];
-            scroll(obj.KSLogArea, 'bottom');
-            drawnow limitrate;
-        end
-
-        %% --- Probe tab handlers ------------------------------------------
-        function pf = selectedProbeFile(obj)
-            % Full path of the probe in the currently selected ProbeTable row
-            % ("" if none). The table shows names + metadata; paths live here.
-            pf = "";
-            r = obj.SelectedProbeRow;
-            if r >= 1 && r <= numel(obj.ProbePaths)
-                pf = obj.ProbePaths(r);
-            end
-        end
-
-        function onProbeRowSelected(obj, evt)
-            % ProbeTable row click -> update the active probe and its info/plot.
-            if isempty(evt.Indices); return; end
-            obj.SelectedProbeRow = evt.Indices(1);
-            obj.onProbeSelected();
-        end
-
-        function onEditProbeJSON(obj)
-            % Open the selected probe .json in the MATLAB editor (or system default).
-            pf = obj.selectedProbeFile();
-            if pf == "" || ~isfile(pf)
-                uialert(obj.Fig, "Select a probe first.", "Edit Probe JSON");
-                return
-            end
-            matlab.desktop.editor.openDocument(char(pf));
-        end
-
-        function syncExcludeField(obj)
-            % Mirror the active dataset's ExcludeChannels into the edit field.
-            % No-op for the field's enable; just reflects the per-recording list.
-            if isempty(obj.ExcludeChannelsField) || ~isvalid(obj.ExcludeChannelsField)
-                return
-            end
-            d = obj.currentDataset();
-            if isempty(d)
-                obj.ExcludeChannelsField.Value = '';
-            else
-                obj.ExcludeChannelsField.Value = ...
-                    char(EphysDataset.formatChannelList(d.ExcludeChannels));
-            end
-        end
-
-        function selectProbeRow(obj, row)
-            % Programmatically focus a ProbeTable row (highlight + info panel).
-            if row < 1 || row > numel(obj.ProbePaths); return; end
-            obj.SelectedProbeRow = row;
-            try
-                obj.ProbeTable.Selection = row;   % R2023a+ row highlight
-            catch
-            end
-            obj.onProbeSelected();
-        end
-
-        function onProbeNotesEdited(obj, evt)
-            % Persist an edited Notes cell back into the probe .json file.
-            if isempty(evt.Indices); return; end
-            row = evt.Indices(1);
-            if row < 1 || row > numel(obj.ProbePaths); return; end
-            pf = obj.ProbePaths(row);
-            try
-                obj.saveProbeNotes(pf, string(evt.NewData));
-            catch ME
-                uialert(obj.Fig, "Could not save notes: " + string(ME.message), ...
-                    "Probe notes");
-                T = obj.ProbeTable.Data;   % revert the displayed value
-                if istable(T) && row <= height(T)
-                    T.Notes(row) = string(evt.PreviousData);
-                    obj.ProbeTable.Data = T;
-                end
-            end
-        end
-
-        function saveProbeNotes(obj, pf, notes) %#ok<INUSL>
-            % Write the optional "notes" field into a probe .json with a minimal
-            % textual edit (replace in place if present, otherwise insert as the
-            % first field) so the file's hand-formatting is preserved.
-            txt = fileread(pf);
-            enc = jsonencode(string(notes));   % quoted, JSON-escaped literal
-            if ~isempty(regexp(txt, '"notes"\s*:', 'once'))
-                escRep = regexprep(['"notes": ' enc], '([\\$])', '\\$1');
-                txt = regexprep(txt, ...
-                    '"notes"\s*:\s*("(?:[^"\\]|\\.)*"|null|true|false|-?[0-9.eE+]+)', ...
-                    escRep, 'once');
-            else
-                b = strfind(txt, '{');
-                if isempty(b); error('not a JSON object'); end
-                ins = [newline '  "notes": ' enc ','];
-                txt = [txt(1:b(1)) ins txt(b(1)+1:end)];
-            end
-            fid = fopen(pf, 'w');
-            if fid < 0; error('cannot open %s for writing', pf); end
-            closer = onCleanup(@() fclose(fid));
-            fwrite(fid, txt);
-        end
-
-        function p = defaultProbeFolder(~)
-            % Repository probe folder: intan/probes (next to this @-folder).
-            here = fileparts(mfilename('fullpath'));        % .../@EphysPreprocessingApp
-            p = fullfile(fileparts(here), 'probes');         % .../intan/probes
-        end
-
-        function p = defaultConfigFolder(~)
-            % Repository config folder: intan/ks4_configs.
-            here = fileparts(mfilename('fullpath'));
-            p = fullfile(fileparts(here), 'ks4_configs');
-        end
-
-        function d = currentDataset(obj)
-            % Return the EphysDataset for the last-selected table row ([] if none).
-            % Looked up via the row's DatasetIdx (not the row number itself),
-            % since sorting the table reorders rows independently of
-            % obj.Project.Datasets.
-            d = EphysDataset.empty;
-            if isempty(obj.Project) || obj.SelectedRow < 1; return; end
-            T = obj.DatasetsTable.Data;
-            if ~istable(T) || obj.SelectedRow > height(T) ...
-                    || ~any(strcmp('DatasetIdx', T.Properties.VariableNames))
-                return
-            end
-            di = T.DatasetIdx(obj.SelectedRow);
-            if di >= 1 && di <= obj.Project.NumDatasets
-                d = obj.Project.Datasets(di);
-            end
-        end
-
-        function updatePhyButtonState(obj)
-            % Enable "Open in phy" only when the selected dataset has Kilosort4
-            % output (a params.py phy can open); disabled otherwise.
-            if isempty(obj.LaunchPhyButton) || ~isvalid(obj.LaunchPhyButton); return; end
-            d = obj.currentDataset();
-            ok = ~isempty(d) && d.hasPhyOutput();
-            obj.LaunchPhyButton.Enable = matlab.lang.OnOffSwitchState(ok);
-        end
-
-        function applyConfigToProject(obj, P)
-            % Push shared run config (python/conda/output + SpikeInterface
-            % preprocessing) into a project so it propagates to every dataset.
-            if nargin < 2 || isempty(P); P = obj.Project; end
-            if isempty(P); return; end
-            P.PythonExe  = string(obj.PythonExeField.Value);
-            P.CondaEnv   = string(obj.CondaEnvField.Value);
-            P.OutputRoot = string(obj.OutputRootField.Value);
-            sicfg = obj.gatherSIConfig();
-            % Set fields directly (NOT pushConfig) so per-dataset ProbeFile
-            % assignments made on the Probe tab are preserved.
-            for k = 1:P.NumDatasets
-                d = P.Datasets(k);
-                d.PythonExe = P.PythonExe;
-                d.CondaEnv  = P.CondaEnv;
-                d.SIConfig  = sicfg;
-                if P.OutputRoot ~= ""
-                    d.OutputDir = fullfile(P.OutputRoot, d.Name);
-                end
-            end
-        end
-
-        function cfg = gatherSIConfig(obj)
-            % Build an EphysDataset SIConfig struct from the Kilosort-tab
-            % SpikeInterface preprocessing controls (see EphysDataset.SIConfig).
-            cfg = EphysDataset.defaultSIConfig();
-            if isempty(obj.SIFilterCheckBox) || ~isvalid(obj.SIFilterCheckBox)
-                return   % controls not built yet; return defaults
-            end
-            cfg.Filter            = logical(obj.SIFilterCheckBox.Value);
-            cfg.FilterFreqMin     = obj.SIFilterMinField.Value;
-            cfg.FilterFreqMax     = obj.SIFilterMaxField.Value;
-            cfg.CommonReference   = logical(obj.SICommonRefCheckBox.Value);
-            cfg.ReferenceOperator = string(obj.SIRefOperatorDropDown.Value);
-            cfg.DetectBadChannels = logical(obj.SIDetectBadCheckBox.Value);
-            cfg.BadChannelMethod  = string(obj.SIBadMethodDropDown.Value);
-            cfg.BadChannelAction  = string(obj.SIBadActionDropDown.Value);
-        end
-
-        function applySIConfig(obj, cfg)
-            % Push an SIConfig struct into the preprocessing controls.
-            if isempty(obj.SIFilterCheckBox) || ~isvalid(obj.SIFilterCheckBox); return; end
-            cfg = EphysDataset.normalizeSIConfig(cfg);
-            obj.SIFilterCheckBox.Value    = logical(cfg.Filter);
-            obj.SIFilterMinField.Value    = cfg.FilterFreqMin;
-            obj.SIFilterMaxField.Value    = cfg.FilterFreqMax;
-            obj.SICommonRefCheckBox.Value = logical(cfg.CommonReference);
-            obj.setDropIfMember(obj.SIRefOperatorDropDown, cfg.ReferenceOperator);
-            obj.SIDetectBadCheckBox.Value = logical(cfg.DetectBadChannels);
-            obj.setDropIfMember(obj.SIBadMethodDropDown, cfg.BadChannelMethod);
-            obj.setDropIfMember(obj.SIBadActionDropDown, cfg.BadChannelAction);
-            obj.syncSIEnableStates();
-        end
-
-        function setDropIfMember(~, dd, value)
-            % Set a dropdown's Value only if VALUE is one of its Items (safe for
-            % restoring a possibly-stale saved config).
-            v = char(string(value));
-            if ismember(v, dd.Items)
-                dd.Value = v;
-            end
-        end
-
-        function syncSIEnableStates(obj)
-            % Enable the filter-band + reference-operator + bad-channel controls
-            % only when their master checkbox is ticked.
-            if isempty(obj.SIFilterCheckBox) || ~isvalid(obj.SIFilterCheckBox); return; end
-            onFilter = logical(obj.SIFilterCheckBox.Value);
-            obj.SIFilterMinField.Enable = matlab.lang.OnOffSwitchState(onFilter);
-            obj.SIFilterMaxField.Enable = matlab.lang.OnOffSwitchState(onFilter);
-            obj.SIRefOperatorDropDown.Enable = ...
-                matlab.lang.OnOffSwitchState(logical(obj.SICommonRefCheckBox.Value));
-            onBad = logical(obj.SIDetectBadCheckBox.Value);
-            obj.SIBadMethodDropDown.Enable = matlab.lang.OnOffSwitchState(onBad);
-            obj.SIBadActionDropDown.Enable = matlab.lang.OnOffSwitchState(onBad);
-        end
-
-        function onSIControlsChanged(obj)
-            % Sync enable states, push the config onto every scanned dataset, and
-            % persist it whenever a preprocessing control changes.
-            obj.syncSIEnableStates();
-            if ~isempty(obj.Project) && obj.Project.NumDatasets > 0
-                sicfg = obj.gatherSIConfig();
-                for k = 1:obj.Project.NumDatasets
-                    obj.Project.Datasets(k).SIConfig = sicfg;
-                end
-            end
-            obj.savePreferences();
-        end
-
-        function p = defaultPythonExe(~)
-            % Best-guess python for the SpikeInterface + Kilosort4 pipeline: the
-            % "kilosort" conda env python when present, else "". Used to seed the
-            % Python-exe field on first launch (the user can override).
-            p = "";
-            cands = string(fullfile(getenv('LOCALAPPDATA'), 'miniconda3', 'envs', 'kilosort', 'python.exe'));
-            cands(end+1) = string(fullfile(getenv('USERPROFILE'), 'miniconda3', 'envs', 'kilosort', 'python.exe'));
-            cands(end+1) = string(fullfile(getenv('USERPROFILE'), 'anaconda3', 'envs', 'kilosort', 'python.exe'));
-            for c = cands
-                if isfile(c); p = c; return; end
-            end
-        end
-
-        function populateDatasetMenu(obj)
-            % Rebuild the figure's "Dataset" menu from the scanned project.
-            %   One checkable item per dataset; picking one calls selectDataset.
-            %   Keeps whatever was selected before if it still exists.
-            old = obj.DatasetMenuItems;
-            delete(old(isvalid(old)));
-            obj.DatasetMenuItems = matlab.ui.container.Menu.empty(1, 0);
-
-            if isempty(obj.Project) || obj.Project.NumDatasets == 0
-                obj.SelectedDatasetIdx = 0;
-                obj.DatasetMenuItems = uimenu(obj.DatasetMenu, ...
-                    "Text", "(scan first)", "Enable", "off");
-                obj.VizFileDropDown.Items = {'(all)'};
-                obj.updateDatasetMenuCheck();
-                return
-            end
-
-            names = [obj.Project.Datasets.Name];
-            items = matlab.ui.container.Menu.empty(1, 0);
-            for k = 1:numel(names)
-                % Double any '&' so it shows literally instead of underlining
-                % the next character as a mnemonic.
-                items(k) = uimenu(obj.DatasetMenu, ...
-                    "Text", strrep(names(k), "&", "&&"), ...
-                    "MenuSelectedFcn", @(~,~) obj.selectDataset(k));
-            end
-            obj.DatasetMenuItems = items;
-
-            idx = obj.SelectedDatasetIdx;
-            if idx < 1 || idx > numel(names); idx = 1; end
-            obj.selectDataset(idx);
-        end
-
-        function selectDataset(obj, idx)
-            % Make dataset IDX the app-wide single-dataset target (Dataset menu).
-            if isempty(obj.Project) || idx < 1 || idx > obj.Project.NumDatasets
-                obj.SelectedDatasetIdx = 0;
-            else
-                obj.SelectedDatasetIdx = idx;
-            end
-            obj.updateDatasetMenuCheck();
-            obj.populateVizFiles();
-        end
-
-        function updateDatasetMenuCheck(obj)
-            % Tick the active menu item and mirror its name onto the Visualize tab.
-            items = obj.DatasetMenuItems;
-            for k = 1:numel(items)
-                if isvalid(items(k))
-                    items(k).Checked = (k == obj.SelectedDatasetIdx);
-                end
-            end
-            if isempty(obj.VizDatasetLabel) || ~isvalid(obj.VizDatasetLabel)
-                return
-            end
-            if obj.SelectedDatasetIdx >= 1
-                obj.VizDatasetLabel.Text = obj.Project.Datasets(obj.SelectedDatasetIdx).Name;
-                obj.VizDatasetLabel.FontColor = [0.15 0.15 0.15];
-            else
-                obj.VizDatasetLabel.Text = "(none - scan, then pick from the Dataset menu)";
-                obj.VizDatasetLabel.FontColor = [0.5 0.5 0.5];
-            end
-        end
-
-        function onVizModeChanged(obj)
-            % Switch traces <-> heatmap without re-reading/re-filtering.
-            if isempty(obj.Viewer) || ~isvalid(obj.Viewer); return; end
-            obj.Viewer.setMode(string(obj.VizModeDropDown.Value));
-        end
-
-        function onVizColormapChanged(obj)
-            % Re-render so a new heatmap colormap takes effect immediately.
-            if isempty(obj.Viewer) || ~isvalid(obj.Viewer); return; end
-            obj.Viewer.Colormap = string(obj.VizColormapDropDown.Value);
-            obj.Viewer.render();
-        end
-
-        function tf = vizActive(obj)
-            % True when there is a cached viewer and the Visualize tab is showing.
-            tf = ~isempty(obj.Viewer) && isvalid(obj.Viewer) ...
-                && isvalid(obj.Fig) && obj.Tabs.SelectedTab == obj.TabVisualize;
-        end
-
-        function tf = cursorOverAxes(obj)
-            % True when the pointer is inside the Visualize axes (pixel coords).
-            pp = getpixelposition(obj.VizAxes, true);
-            cp = obj.Fig.CurrentPoint;
-            tf = cp(1) >= pp(1) && cp(1) <= pp(1) + pp(3) ...
-                && cp(2) >= pp(2) && cp(2) <= pp(2) + pp(4);
-        end
-
-        %% --- Manual artifact marking (Visualize tab) ---------------------
-        function d = currentVizDataset(obj)
-            % Dataset handle backing the currently cached Visualize data ([] none).
-            d = EphysDataset.empty;
-            i = obj.VizDatasetIndex;
-            if i >= 1 && ~isempty(obj.Project) && i <= obj.Project.NumDatasets
-                d = obj.Project.Datasets(i);
-            end
-        end
-
-        function onVizArtToggle(obj, val)
-            % Enter/leave artifact-marking mode (drives the left-drag gesture).
-            obj.VizArtMode = logical(val);
-            if obj.VizArtMode
-                obj.VizArtButton.Text = "Mark Artifacts: ON (drag to mark)";
-                obj.VizArtButton.FontWeight = "bold";
-                if isvalid(obj.Fig); obj.Fig.Pointer = "crosshair"; end
-            else
-                obj.VizArtButton.Text = "Mark Artifacts: off";
-                obj.VizArtButton.FontWeight = "normal";
-                if isvalid(obj.Fig); obj.Fig.Pointer = "arrow"; end
-            end
-        end
-
-        function onVizArtClear(obj)
-            % Remove all manual artifact periods for the current dataset.
-            d = obj.currentVizDataset();
-            if isempty(d) || isempty(d.ManualArtifacts)
-                obj.updateVizArtStatus();
-                return
-            end
-            d.ManualArtifacts = zeros(0, 2);
-            if ~isempty(obj.Viewer) && isvalid(obj.Viewer); obj.Viewer.render(); end
-            obj.updateVizArtStatus();
-        end
-
-        function onVizArtMotion(obj)
-            % Stretch the rubber-band region while an artifact drag is active.
-            D = obj.VizArtDrag;
-            if ~isstruct(D) || ~isfield(D, 'active') || ~D.active; return; end
-            x1 = obj.VizAxes.CurrentPoint(1, 1);
-            lo = min(D.x0, x1); hi = max(D.x0, x1);
-            if isempty(obj.VizArtPreview) || ~isvalid(obj.VizArtPreview)
-                obj.VizArtPreview = xregion(obj.VizAxes, lo, hi, ...
-                    'FaceColor', [0.85 0.2 0.2], 'FaceAlpha', 0.15);
-            else
-                obj.VizArtPreview.Value = [lo hi];
-            end
-        end
-
-        function finishVizArtDrag(obj)
-            % End an artifact gesture: a drag defines a period, a click deletes one.
-            D = obj.VizArtDrag;
-            obj.VizArtDrag = struct('active', false);
-            if isvalid(obj.Fig); obj.Fig.WindowButtonMotionFcn = ''; end
-            if ~isempty(obj.VizArtPreview) && isvalid(obj.VizArtPreview)
-                delete(obj.VizArtPreview);
-            end
-            obj.VizArtPreview = gobjects(0, 1);
-
-            d = obj.currentVizDataset();
-            if isempty(d); return; end
-
-            x0 = D.x0;
-            x1 = obj.VizAxes.CurrentPoint(1, 1);
-            tOff = obj.VizTimeOffset;
-
-            % Treat a sub-few-pixel move as a click (delete) rather than a drag.
-            tWin = 1;
-            if ~isempty(obj.Viewer) && isvalid(obj.Viewer); tWin = obj.Viewer.TimeWindowDuration; end
-            secPerPix = tWin / max(D.axPix(3), 1);
-            if abs(x1 - x0) >= 4 * secPerPix
-                d.addArtifact(min(x0, x1) + tOff, max(x0, x1) + tOff);
-            else
-                iv = d.ManualArtifacts;
-                if ~isempty(iv)
-                    hit = find((x0 + tOff) >= iv(:, 1) & (x0 + tOff) <= iv(:, 2), 1);
-                    if ~isempty(hit)
-                        iv(hit, :) = [];
-                        d.ManualArtifacts = iv;
-                    end
-                end
-            end
-            if ~isempty(obj.Viewer) && isvalid(obj.Viewer); obj.Viewer.render(); end
-            obj.updateVizArtStatus();
-        end
-
-        function updateVizArtStatus(obj)
-            % Refresh the artifact-count label under the Visualize controls,
-            % reporting both auto-detected (orange) and manual (red) periods.
-            if isempty(obj.VizArtStatusLabel) || ~isvalid(obj.VizArtStatusLabel); return; end
-
-            nDet = size(obj.VizDetectedIntervals, 1);
-            detTxt = "";
-            if nDet > 0
-                detTxt = sprintf("%d detected (orange). ", nDet);
-            end
-
-            d = obj.currentVizDataset();
-            if isempty(d) || isempty(d.ManualArtifacts)
-                if nDet > 0
-                    obj.VizArtStatusLabel.Text = detTxt + "No manual artifacts.";
-                else
-                    obj.VizArtStatusLabel.Text = "No artifacts detected or defined.";
-                end
-                return
-            end
-            iv = d.ManualArtifacts;
-            obj.VizArtStatusLabel.Text = detTxt + sprintf( ...
-                "%d manual period(s), %.3f s total (blanked on .bin write).", ...
-                size(iv, 1), sum(iv(:, 2) - iv(:, 1)));
-        end
-
-        function populateVizFiles(obj)
-            % Fill the Visualize file dropdown for the chosen dataset.
-            idx = obj.SelectedDatasetIdx;
-            if idx < 1 || isempty(obj.Project) || idx > obj.Project.NumDatasets
-                obj.VizFileDropDown.Items = {'(all)'};
-                return
-            end
-            d = obj.Project.Datasets(idx);
-            if d.NumFiles == 0; d.discoverFiles(); end
-            obj.VizFileDropDown.Items = ['(all)'; cellstr(d.Files(:))];
-        end
-
-        %% --- Artifacts tab -----------------------------------------------
-        function populateArtifactDatasets(obj)
-            % Fill the Artifacts dataset dropdown from the scanned project.
-            if isempty(obj.Project) || obj.Project.NumDatasets == 0
-                obj.ArtDatasetDropDown.Items = {'(scan first)'};
-                obj.ArtDatasetDropDown.ItemsData = {};
-                return
-            end
-            names = cellstr([obj.Project.Datasets.Name]);
-            obj.ArtDatasetDropDown.Items = names;
-            obj.ArtDatasetDropDown.ItemsData = num2cell(1:numel(names));
-        end
-
-        function d = currentArtifactDataset(obj)
-            % Dataset selected on the Artifacts tab ([] if none).
-            d = EphysDataset.empty;
-            idx = obj.ArtDatasetDropDown.Value;
-            if isempty(idx) || ~isnumeric(idx) || isempty(obj.Project) ...
-                    || idx > obj.Project.NumDatasets
-                return
-            end
-            d = obj.Project.Datasets(idx);
-        end
-
-        function cfg = artifactConfigFromControls(obj)
-            % Build an ArtifactConfig struct from the tab controls. All timing
-            % parameters are in milliseconds; detectArtifacts converts them to
-            % samples with each dataset's Fs at run time.
-            cfg = EphysDataset.defaultArtifactConfig();
-            cfg.Enabled     = logical(obj.ArtEnableCheckBox.Value);
-            cfg.Method      = string(obj.ArtMethodDropDown.Value);
-            cfg.Threshold   = obj.ArtThresholdField.Value;
-            cfg.MergeGapMs  = obj.ArtMergeGapField.Value;
-            cfg.MinChannels = max(1, round(obj.ArtMinChannelsField.Value));
-            cfg.PadMs       = obj.ArtPadField.Value;
-            winMs = obj.ArtRmsWindowField.Value;
-            if winMs > 0
-                cfg.RmsWindowMs = winMs;
-            else
-                cfg.RmsWindowMs = NaN;   % auto (~1 ms) resolved at run time
-            end
-        end
-
-        function applyArtifactConfigToProject(obj)
-            % Push the tab's detection config onto every scanned dataset so the
-            % .bin write (onRunBatch) blanks consistently across the batch.
-            if isempty(obj.Project) || obj.Project.NumDatasets == 0; return; end
-            cfg = obj.artifactConfigFromControls();
-            for k = 1:obj.Project.NumDatasets
-                obj.Project.Datasets(k).ArtifactConfig = cfg;
-            end
-        end
-
-        function onArtifactControlsChanged(obj)
-            % Sync RMS-only field enable state and persist the config to disk
-            % whenever a detection control changes.
-            isRms = string(obj.ArtMethodDropDown.Value) == "rms";
-            obj.ArtRmsWindowField.Enable = matlab.lang.OnOffSwitchState(isRms);
-            obj.ArtFilterCheckBox.Enable = "on";
-            obj.ArtHighpassField.Enable  = matlab.lang.OnOffSwitchState( ...
-                logical(obj.ArtFilterCheckBox.Value));
-            obj.applyArtifactConfigToProject();
-            obj.savePreferences();
-        end
-
-        function idx = selectedDatasetIndices(obj)
-            % Indices into obj.Project.Datasets ticked in the table's "Select"
-            % column, resolved through each row's DatasetIdx (not the row
-            % number) since sorting reorders table rows independently of
-            % obj.Project.Datasets. Falls back to all datasets when none ticked.
-            idx = [];
-            if isempty(obj.Project) || obj.Project.NumDatasets == 0; return; end
-            T = obj.DatasetsTable.Data;
-            if istable(T) && any(strcmp('Select', T.Properties.VariableNames)) ...
-                    && any(strcmp('DatasetIdx', T.Properties.VariableNames))
-                idx = T.DatasetIdx(T.Select(:))';
-            end
-            if isempty(idx)
-                idx = 1:obj.Project.NumDatasets;
-            end
-        end
+        onClose(obj)
+        setStatus(obj, message, hint)
+        hint = suggestNextStep(obj)
+        onTabChanged(obj)
     end
 end

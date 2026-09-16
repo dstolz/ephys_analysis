@@ -23,4 +23,5 @@ close(dlg);
 
 obj.refreshDatasetsTable();
 obj.populateDatasetMenu();
+obj.refreshSortingLabel();
 end

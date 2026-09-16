@@ -18,7 +18,7 @@ function loadSignal(obj, opts)
 %         honoured from SignalOptions (mapped to KeepChannels /
 %         EventLabelField); any other field is an error, because the derived-
 %         signal options have no meaning here.
-%     .mat written by EphysDataset.toMat
+%     .mat written by EphysDataset.toMat, or a toMat-shaped struct
 %         Variables Y, events and info; Data is Y.(Signal), which must have
 %         been requested in that conversion's dataTypeOut. "RAW" is not stored
 %         in such a file.
@@ -49,6 +49,9 @@ switch obj.SourceType
 
     case "mat"
         loadFromMat(obj);
+
+    case "struct"
+        loadFromToMatStruct(obj, obj.SourceStruct, "struct", "");
 
     case "dataset"
         loadFromDataset(obj);
@@ -88,16 +91,33 @@ if ~isempty(missing)
 end
 sel = cellstr(intersect(["Y" "events" "info"], vars));
 S = load(obj.SourceFile, sel{:});
+loadFromToMatStruct(obj, S, "mat", obj.SourceFile);
+end
+
+
+function loadFromToMatStruct(obj, S, sourceLabel, file)
+%loadFromToMatStruct  Populate from a toMat-shaped struct (Y, info, events).
+%   Shared by the .mat and in-memory struct sources so both behave identically.
+if obj.Signal == "RAW"
+    error('ChronuxDataset:RawFromMat', ...
+        ['Signal "RAW" is not stored in toMat output (it holds the derived ' ...
+         'LFP/MUA/SPIKE signals). Point this connector at the recording folder ' ...
+         'instead.']);
+end
+where = file;
+if where == ""; where = "the struct source"; end
+if ~isstruct(S) || ~all(isfield(S, {'Y', 'info'}))
+    error('ChronuxDataset:BadMat', '%s has no Y / info; is it an EphysDataset.toMat output?', where);
+end
 sig = obj.Signal;
 if ~isfield(S.Y, sig) || isempty(S.Y.(sig))
     error('ChronuxDataset:SignalMissing', ...
         ['%s holds no %s signal (it was not in that conversion''s dataTypeOut). ' ...
-         'Available: %s.'], obj.SourceFile, sig, availableSignals(S.Y));
+         'Available: %s.'], where, sig, availableSignals(S.Y));
 end
 if ~isfield(S.info, sig) || ~isfield(S.info.(sig), 'Fs')
     error('ChronuxDataset:SignalMissing', ...
-        '%s has no info.%s.Fs, so the %s sample rate is unknown.', ...
-        obj.SourceFile, sig, sig);
+        '%s has no info.%s.Fs, so the %s sample rate is unknown.', where, sig, sig);
 end
 
 obj.Data = S.Y.(sig);
@@ -108,7 +128,7 @@ end
 if isfield(S, 'events') && isstruct(S.events)
     obj.Events = S.events;
 end
-obj.Info = struct('source', "mat", 'file', obj.SourceFile, 'signal', sig, ...
+obj.Info = struct('source', sourceLabel, 'file', file, 'signal', sig, ...
     'fs', obj.Fs, 'units', "microvolts", 'derived', S.info);
 obj.Loaded = true;
 end

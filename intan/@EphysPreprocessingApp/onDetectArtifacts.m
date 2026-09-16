@@ -29,13 +29,8 @@ dlg = uiprogressdlg(obj.Fig, "Title", "Detecting artifacts", ...
     "Message", "Reading data...", "Value", 0, "Cancelable", "off");
 
 try
-    useFilter = logical(obj.ArtFilterCheckBox.Value);
-    hp = obj.ArtHighpassField.Value;
-
     progress = @(i, n, name) updateProgress(dlg, i, n, name);
-    summary = d.analyzeArtifacts( ...
-        Filter=useFilter, FilterType="highpass", FilterCutoff=max(hp, eps), ...
-        ProgressFcn=progress);
+    summary = d.analyzeArtifacts(ProgressFcn=progress);   % settings from d.ArtifactConfig
 
     if isvalid(dlg); close(dlg); end
 
@@ -46,9 +41,9 @@ try
         d.Name, numel(summary.files));
 
     if logical(obj.ArtEnableCheckBox.Value)
-        artHint = "Silencing is enabled; Run Kilosort4 to apply it.";
+        artHint = "Automatic detection is enabled; it applies on the next run.";
     else
-        artHint = "Tick 'Silence artifacts' (Kilosort tab) to apply on the run.";
+        artHint = "Enable automatic detection above to apply it on a run.";
     end
     obj.setStatus(sprintf("Analyzed %s: %.3f%% flagged in %d interval(s).", ...
         d.Name, summary.pctDuration, summary.nIntervals), artHint);

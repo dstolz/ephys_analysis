@@ -22,7 +22,8 @@ function iv = artifactIntervals(obj, opts)
 %     Files        (1,:) string  subset/order of files (default: all)
 %     Method/Threshold/RmsWindowMs/MergeGapMs/MinChannels/PadMs   detection params
 %     Filter/FilterType/FilterCutoff/FilterOrder   detect on a filtered view
-%       (default broadband, matching analyzeArtifacts/toBin)
+%       (default: ds.ArtifactConfig.Filter etc., so a config with Filter=true
+%       is honored by runs, the preview and the Visualize overlay alike)
 %     ProgressFcn  function handle  ProgressFcn(i, nChunks, chunkName)
 %
 %   See also EphysDataset.detectArtifacts, EphysDataset.analyzeArtifacts,
@@ -38,14 +39,16 @@ arguments
     opts.MergeGapMs (1,1) double = NaN
     opts.MinChannels (1,1) double = NaN
     opts.PadMs (1,1) double = NaN
-    opts.Filter (1,1) logical = false
-    opts.FilterType (1,1) string {mustBeMember(opts.FilterType, ["highpass","lowpass","bandpass"])} = "highpass"
-    opts.FilterCutoff (1,:) double {mustBePositive} = 300
-    opts.FilterOrder (1,1) double {mustBeInteger, mustBePositive} = 4
+    opts.Filter = []                % [] -> ds.ArtifactConfig.Filter
+    opts.FilterType (1,1) string {mustBeMember(opts.FilterType, ["","highpass","lowpass","bandpass"])} = ""
+    opts.FilterCutoff (1,:) double {mustBePositive} = []
+    opts.FilterOrder (1,1) double = NaN
     opts.ProgressFcn = []
 end
 
 acfg = EphysDataset.normalizeArtifactConfig(obj.ArtifactConfig);
+[useFilter, fType, fCut, fOrd] = EphysDataset.resolveFilterOptions(acfg, ...
+    opts.Filter, opts.FilterType, opts.FilterCutoff, opts.FilterOrder);
 
 includeAuto = opts.IncludeAuto;
 if isempty(includeAuto)
@@ -98,9 +101,8 @@ for i = 1:nChunks
         continue
     end
 
-    if opts.Filter
-        X = obj.filterContinuous(X, Type=opts.FilterType, ...
-            Cutoff=opts.FilterCutoff, Order=opts.FilterOrder, Fs=Fs);
+    if useFilter
+        X = obj.filterContinuous(X, Type=fType, Cutoff=fCut, Order=fOrd, Fs=Fs);
     end
 
     [~, chunkIv] = obj.detectArtifacts(X, Method=method, Threshold=thr, ...

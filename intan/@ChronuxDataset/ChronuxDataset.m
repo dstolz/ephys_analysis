@@ -115,8 +115,9 @@ classdef ChronuxDataset < handle
 
     properties (SetAccess = protected)
         Dataset                              % EphysDataset, or [] for other sources
-        SourceType (1,1) string = "none"     % "dataset" | "mat" | "matrix" | "none"
+        SourceType (1,1) string = "none"     % "dataset" | "mat" | "struct" | "matrix" | "none"
         SourceFile (1,1) string = ""         % .mat path (SourceType "mat")
+        SourceStruct struct = struct()       % toMat-shaped struct (SourceType "struct")
 
         Data          = []                   % [nSamples x nChan], microvolts
         Fs (1,1) double = NaN                % sample rate of Data (Hz)
@@ -175,6 +176,16 @@ classdef ChronuxDataset < handle
             if isa(source, 'EphysDataset')
                 obj.Dataset    = source;
                 obj.SourceType = "dataset";
+            elseif isstruct(source)
+                % A toMat-shaped struct (Y, info, optional events) already in
+                % memory, e.g. load("<Name>_extract.mat") or a fresh
+                % deriveSignals result packed the same way.
+                if ~isscalar(source) || ~all(isfield(source, {'Y', 'info'}))
+                    error('ChronuxDataset:BadSource', ...
+                        'A struct source must have the toMat fields Y and info.');
+                end
+                obj.SourceStruct = source;
+                obj.SourceType   = "struct";
             elseif isnumeric(source)
                 if ~ismatrix(source)
                     error('ChronuxDataset:MatrixSource', ...
@@ -214,12 +225,14 @@ classdef ChronuxDataset < handle
                 else
                     error('ChronuxDataset:BadSource', ...
                         ['Source must be an EphysDataset, a recording folder, a ' ...
-                         '.mat written by toMat, or a numeric matrix; got "%s".'], src);
+                         '.mat written by toMat, a toMat-shaped struct, or a numeric ' ...
+                         'matrix; got "%s".'], src);
                 end
             else
                 error('ChronuxDataset:BadSource', ...
                     ['Source must be an EphysDataset, a recording folder, a .mat ' ...
-                     'written by toMat, or a numeric matrix; got %s.'], class(source));
+                     'written by toMat, a toMat-shaped struct, or a numeric matrix; ' ...
+                     'got %s.'], class(source));
             end
 
             if ~isempty(opts.ChannelLabels)

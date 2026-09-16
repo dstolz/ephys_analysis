@@ -1,10 +1,13 @@
 # Installing `EphysPreprocessingApp` on Windows 11
 
-`EphysPreprocessingApp` is a MATLAB App Designer-style GUI (`intan/@EphysPreprocessingApp`)
-that scans Intan `.rhd` recordings, previews/filters them, and hands them off to
-**SpikeInterface + Kilosort4** (running in a separate Python/conda environment) for
-spike sorting, with **phy** as the optional curation viewer at the end. This guide
-covers everything needed to get a clean Windows 11 machine running the app end to end.
+`EphysPreprocessingApp` is a MATLAB `uifigure` GUI (`intan/@EphysPreprocessingApp`)
+that scans recordings (Intan `.rhd`, or the universal binary format),
+previews/filters them, optionally hands them off to **SpikeInterface +
+Kilosort4** (running in a separate Python/conda environment) for spike sorting
+with **phy** as the curation viewer, and writes derived-signal, spike, Chronux
+and FieldTrip `.mat` files. This guide covers everything needed to get a clean
+Windows 11 machine running the app end to end. Only MATLAB is required for
+everything except sorting and probe design.
 
 ## What you need, at a glance
 
@@ -12,16 +15,18 @@ covers everything needed to get a clean Windows 11 machine running the app end t
 | --- | --- | --- |
 | MATLAB + Signal Processing Toolbox | Runs the app, reads/filters Intan data | Yes |
 | Miniconda (Windows) | Hosts the Python environments below | Yes |
-| `kilosort` conda env (spikeinterface, kilosort, probeinterface, neo, torch) | Runs the sorting pipeline | Yes |
+| `kilosort` conda env (spikeinterface, kilosort, probeinterface, neo, torch) | Runs the sorting step and the probe designer | Only for sorting / probe design |
 | NVIDIA GPU + driver | Kilosort4 runs dramatically faster on GPU | Recommended, not required |
-| `phy2` conda env (phy) | Manual curation of sorting results | Optional |
+| `phy` conda env (phy) | Manual curation of sorting results | Optional |
+| [FieldTrip](https://www.fieldtriptoolbox.org/) on the MATLAB path | Validates the FieldTrip export; analysing it | Optional |
+| [Chronux](http://chronux.org) (bundled in `toolboxes/chronux`) | Analysing the Chronux export | Optional |
 | This repository (`ephys_analysis`) | Contains the app and MATLAB path helpers | Yes |
 
 ## 1. Install MATLAB
 
-1. Install MATLAB R2021a or later (the app uses App Designer grid layouts,
-   `arguments`-block validation, and string arrays that need a reasonably
-   recent release).
+1. Install MATLAB R2023a or later (the Visualize tab uses `xregion`; the code
+   also relies on `arguments`-block validation and string arrays). The code
+   is developed and tested on R2025a.
 2. In the Add-On Explorer / installer, make sure **Signal Processing Toolbox**
    is included — `EphysDataset.filterContinuous` calls `butter`/`filtfilt`
    directly and the Visualize tab's filtering options depend on it.
@@ -112,10 +117,12 @@ still runs and writes phy-format output either way.
    ```matlab
    EphysPreprocessingApp
    ```
-2. Go to the **Kilosort** tab:
-   - **Python exe** — should auto-fill with
-     `...\miniconda3\envs\kilosort\python.exe` if it's in a standard location;
-     otherwise browse to it with the `...` button.
+2. Go to the **Sorting** tab:
+   - **Python exe** — a new config is seeded with
+     `...\miniconda3\envs\kilosort\python.exe` when it exists in a standard
+     location; otherwise browse to it with the `...` button. The path is part
+     of the pipeline config (`Sorting.PythonExe`), so save the config
+     (**File → Save config**).
    - **Conda env** — leave blank (the Python exe above already points inside
      the `kilosort` env).
    - **Phy command** — leave blank to use the default, `conda run -n phy
@@ -125,17 +132,29 @@ still runs and writes phy-format output either way.
 
 ## 7. Verify everything works
 
-Before running a full dataset, use the pipeline's built-in dry run: on the
-Kilosort tab, saving your configuration and running the generated
-`run_si_ks4.py` with `--check` will read a recording, attach the probe, and
-build the preprocessing chain **without** running Kilosort4 — the fastest way
-to confirm the environment and a given recording format are compatible. See
-`EphysDataset.runSpikeInterface` for how this is invoked from MATLAB.
+Run the MATLAB test suites first; they need no Python and no real data:
+
+```matlab
+cd C:\src\ephys_analysis\intan
+run_all_tests
+```
+
+Then use the pipeline's built-in dry run: tick **Dry run** on the Sorting tab
+(or **Run → Dry run**) to write `si_config.json` + `run_si_ks4.py` without
+launching, and run the driver with `--check` in the conda environment. That
+reads a recording, attaches the probe and builds the preprocessing chain
+**without** running Kilosort4 — the fastest way to confirm the environment and
+a given recording format are compatible:
+
+```bat
+"<PythonExe>" "<output>\kilosort4\run_si_ks4.py" "<output>\kilosort4\si_config.json" --check
+```
 
 ## Troubleshooting
 
 - **"No python executable configured"** — set the Python exe field on the
-  Kilosort tab (or `ds.PythonExe` if scripting `EphysDataset` directly).
+  Sorting tab (`Sorting.PythonExe` in the config, or `ds.PythonExe` if
+  scripting `EphysDataset` directly).
 - **`neo`/`read_intan` errors about a missing `.dat` file** — split-format
   Intan recordings need every declared stream's `.dat` file present (e.g.
   `digitalin.dat`), even if you don't use that stream.
@@ -145,4 +164,4 @@ to confirm the environment and a given recording format are compatible. See
   in step 3 is current.
 - **phy fails to launch** — confirm `params.py` exists in the dataset's
   Kilosort4 results folder, and that the "Phy command" field matches how you
-  installed phy (base env vs. `conda run -n phy2 phy`).
+  installed phy (base env vs. `conda run -n phy phy`).

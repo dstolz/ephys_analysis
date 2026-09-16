@@ -2,7 +2,8 @@ function test_EphysPipelineConfig()
 %test_EphysPipelineConfig  Verification suite for the pipeline config class.
 %   Covers defaults, normalization on set, exact JSON round trips (Inf, NaN,
 %   [] nullables, one-element string lists, 1x2 bands), schema checks, the
-%   Kilosort4 settings builder, the derived-signal options builder (every
+%   Kilosort4 settings builder, tuning Kilosort4 to a probe map on synthetic
+%   layouts, the derived-signal options builder (every
 %   error id and each ExcludeHandling mode), the detection option builders
 %   and validate(). No recordings or toolboxes are needed.
 %
@@ -134,6 +135,74 @@ check(EphysPipelineConfig.ks4ParamText('floatinf', Inf) == "Infinity" && EphysPi
 [v3, ok3] = EphysPipelineConfig.ks4ParamFromText('vector', '1, 2 3');
 [~, ok4] = EphysPipelineConfig.ks4ParamFromText('float', 'abc');
 check(isinf(v1) && ok1 && isempty(v2) && ok2 && isequal(v3, [1 2 3]) && ok3 && ~ok4, 'ks4ParamFromText parses edit-field text');
+
+fprintf('\n== 3b. ks4ForProbe ==\n');
+S0 = EphysPipelineConfig.defaults("Sorting");
+S = S0;
+S.KS4.Th_learned = 7;
+S.KS4.max_channel_distance = 8;
+S.KS4ExtraJSON = "{""nblocks"": 2}";
+% 4 shanks x 16 sites in two staggered columns 17.32 um apart, rows 10 um apart
+[xs, ys, kc] = deal([]);
+for s = 0:3
+    xs = [xs; 150*s + repmat([-8.66; 8.66], 8, 1)]; %#ok<AGROW>
+    ys = [ys; (0:10:150).']; %#ok<AGROW>
+    kc = [kc; repmat(s, 16, 1)]; %#ok<AGROW>
+end
+poly = struct('chanMap', (0:63).', 'xc', xs, 'yc', ys, 'kcoords', kc);
+pf = fullfile(root, 'poly2.json');
+writeJsonFile(pf, poly);
+[S1, r1] = EphysPipelineConfig.ks4ForProbe(S, pf);
+G = r1.Geometry;
+check(r1.Probe == string(pf) && G.NumSites == 64 && G.NumShanks == 4 && G.RowPitchUm == 10 ...
+    && G.LateralPitchUm == 17.32 && G.NearestSiteUm == 20, 'geometry of a 4-shank staggered probe read from its file');
+check(S1.KS4.nblocks == 0 && S1.KS4.dmin == 10 && S1.KS4.dminx == 17.32 && S1.KS4.nearest_chans == 10 ...
+    && S1.KS4.nearest_templates == 58 && S1.KS4.min_template_size == 15 && S1.KS4.x_centers == 4, ...
+    '64 sites on 4 shanks: no drift correction, row / column spacing, one x center per shank');
+check(S1.KS4.Th_learned == 7 && S1.KS4.max_channel_distance == 8 && S1.KS4ExtraJSON == S.KS4ExtraJSON, ...
+    'untuned parameters and the extra JSON are kept');
+check(isequal(r1.Changes.Parameter.', ["nblocks" "dmin" "dminx" "nearest_chans" "nearest_templates" "min_template_size" "x_centers"]) ...
+    && isequal(r1.Changes.Changed.', [false true true false false false false]) ...
+    && r1.Changes.Old(2) == "" && r1.Changes.New(3) == "17.32" && all(r1.Changes.Reason ~= ""), ...
+    'the report lists every tuned parameter with old / new text and a reason');
+check(isscalar(r1.Notes) && contains(r1.Notes, "nblocks"), 'an extra JSON entry overriding a tuned value is noted');
+S2 = S1;
+S2.KS4.nblocks = 3; S2.KS4.x_centers = 9; S2.KS4.dmin = []; S2.KS4.nearest_chans = 2;
+[S3, r3] = EphysPipelineConfig.ks4ForProbe(S2, poly);
+check(isequaln(S3.KS4, S1.KS4) && r3.Probe == "" && nnz(r3.Changes.Changed) == 4, ...
+    'the result depends on the probe only (a decoded struct works too)');
+[S4, r4] = EphysPipelineConfig.ks4ForProbe(S0, poly, ExcludeChannels=[1 2 17 18 33 34 49 50]);
+check(r4.Geometry.NumSites == 56 && r4.Geometry.NumExcluded == 8 && S4.KS4.nearest_templates == 56 && isempty(r4.Notes), ...
+    'excluded channels (chanMap + 1) are dropped before counting sites');
+site = (0:383).';
+xp = [43 11 59 27];
+[S5, r5] = EphysPipelineConfig.ks4ForProbe(S0, struct('xc', xp(mod(site, 4) + 1).', 'yc', 20 * floor(site / 2)));
+check(S5.KS4.nblocks == 5 && S5.KS4.dmin == 20 && S5.KS4.dminx == 32 && S5.KS4.x_centers == 1 ...
+    && S5.KS4.nearest_templates == 58 && r5.Geometry.NumShanks == 1, ...
+    'a Neuropixels-like shank: non-rigid drift correction, dminx from same-row pairs (32 um)');
+[xs, ys, kc] = deal([]);
+for s = 0:3
+    xs = [xs; 250*s + repmat([0; 32], 16, 1)]; %#ok<AGROW>
+    ys = [ys; kron(15*(0:15).', [1; 1])]; %#ok<AGROW>
+    kc = [kc; repmat(s, 32, 1)]; %#ok<AGROW>
+end
+S6 = EphysPipelineConfig.ks4ForProbe(S0, struct('xc', xs, 'yc', ys, 'kcoords', kc));
+check(S6.KS4.nblocks == 1 && S6.KS4.dmin == 15 && S6.KS4.dminx == 32 && S6.KS4.x_centers == 4, ...
+    'a dense 128-site 4-shank probe: rigid drift correction');
+[S7, r7] = EphysPipelineConfig.ks4ForProbe(S0, struct('xc', zeros(8, 1), 'yc', 100 * (0:7).'));
+check(S7.KS4.dmin == 100 && S7.KS4.dminx == 32 && S7.KS4.min_template_size == 50 && S7.KS4.nearest_chans == 8 ...
+    && S7.KS4.nearest_templates == 8 && S7.KS4.x_centers == 1 && isnan(r7.Geometry.LateralPitchUm), ...
+    'a sparse single column: wider templates, neighbour counts capped at the site count, dminx left at the default');
+[gx, gy] = meshgrid(0:200:1800, 0:200:1800);
+[S8, r8] = EphysPipelineConfig.ks4ForProbe(S0, struct('xc', gx(:), 'yc', gy(:)));
+check(S8.KS4.x_centers == 9 && S8.KS4.nblocks == 0 && S8.KS4.dminx == 200 && isempty(r8.Notes), ...
+    'a 2-D grid: one x center per 200 um of width, sparse rows skip drift correction');
+[~, r9] = EphysPipelineConfig.ks4ForProbe(S0, rmfield(poly, 'kcoords'));
+check(r9.Geometry.NumShanks == 1 && r9.Geometry.LateralPitchUm == 17.32 && isscalar(r9.Notes) && contains(r9.Notes, "kcoords"), ...
+    'shanks without kcoords: rows aligned across shanks are not pairs, and a note asks for kcoords');
+check(strcmp(errorId(@() EphysPipelineConfig.ks4ForProbe(S0, struct('xc', 1:3, 'yc', 1:2))), 'EphysPipelineConfig:BadProbe') ...
+    && strcmp(errorId(@() EphysPipelineConfig.ks4ForProbe(S0, poly, ExcludeChannels=1:64)), 'EphysPipelineConfig:ProbeEmpty'), ...
+    'mismatched coordinates and an all-excluded probe are refused');
 
 fprintf('\n== 4. signalOptions ==\n');
 G = EphysPipelineConfig.defaults("Signals");

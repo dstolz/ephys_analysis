@@ -3,7 +3,8 @@ function test_EphysPreprocessingApp()
 %   Builds the app in the current session (uifigure; no display interaction),
 %   opens a config over a synthetic project, and checks: config -> controls ->
 %   config round trip, the unsaved-changes marker, scan + selection ticks,
-%   plan, running one step through EphysPipeline, save, and that the app's
+%   plan, the Sorting tab's Optimize for probe / Reset to defaults, running
+%   one step through EphysPipeline, save, and that the app's
 %   preferences are restored afterwards. Dialogs that would block (uiconfirm)
 %   are never triggered because the config is kept clean before New / Close.
 %
@@ -78,8 +79,8 @@ check(ok && app.Config.Name == "gui test" && app.Config.File == string(cfgFile),
 check(strcmp(app.RootPathField.Value, proj) && app.SpkEnableCheckBox.Value && strcmp(app.SpkThresholdField.Value, '2000') ...
     && app.ExpChronuxCheckBox.Value && ~app.ExpFieldTripCheckBox.Value && app.ParamControls.nblocks.Value == 3 ...
     && strcmp(app.ParamControls.dmin.Value, '12'), 'controls reflect the config');
-check(strcmp(app.TabSpikes.Title, 'Spikes') && strcmp(app.TabSignals.Title, 'Signals [off]') && app.RunSpikesCheckBox.Value, ...
-    'tab titles and the Run checklist follow the enabled steps');
+check(tabTip(app, app.TabSpikes) ~= "Step disabled." && tabTip(app, app.TabSignals) == "Step disabled." && app.RunSpikesCheckBox.Value, ...
+    'tab strip states and the Run checklist follow the enabled steps');
 g2 = app.gatherConfig();
 check(g2.isequalConfig(app.Config) && isequaln(g2.toStruct(), cfg.toStruct()), 'gatherConfig reproduces the loaded config exactly');
 check(~startsWith(app.Fig.Name, "*") && contains(app.Fig.Name, "gui_test.json"), 'title shows the file and no unsaved marker');
@@ -90,7 +91,7 @@ app.onSpikesControlsChanged();
 check(app.Config.Spikes.Threshold == 1500 && startsWith(app.Fig.Name, "*"), 'a control edit updates the config and marks it unsaved');
 app.RunSignalsCheckBox.Value = true;
 app.RunSignalsCheckBox.ValueChangedFcn(app.RunSignalsCheckBox, []);   % as a click would
-check(app.Config.Signals.Enabled && app.SigEnableCheckBox.Value && strcmp(app.TabSignals.Title, 'Signals'), ...
+check(app.Config.Signals.Enabled && app.SigEnableCheckBox.Value && tabTip(app, app.TabSignals) ~= "Step disabled.", ...
     'the Run checklist and the step tab stay in sync');
 app.SigEnableCheckBox.Value = false;
 app.onConvertControlsChanged();
@@ -119,7 +120,7 @@ check(istable(P) && any(P.Step == "spikes" & P.Status == "ready"), 'plan lists t
 app.onValidate();
 check(iscell(app.RunIssuesTable.Data) || istable(app.RunIssuesTable.Data), 'validate fills the issues table');
 
-fprintf('\n== 3b. Trials tab: load, edit, approve, polarity ==\n');
+fprintf('\n== 3b. Trials tab: load, cut, approve, polarity ==\n');
 app.populateTrialsDatasets();
 app.TrialsDatasetDropDown.Value = 1;
 app.setTrialsLineItems("din0", "din0");
@@ -131,11 +132,20 @@ TT = app.TrialsTable.Data;
 check(~isempty(app.TrialsPairing) && height(TT) == 1 && TT{1, 3} == 1 && TT{1, 6} == 50 ...
     && height(app.TrialsLinesTable.Data) == 1 && strcmp(app.TrialsApproveButton.Enable, 'on'), ...
     'Load pairs the single trial with the din0 interval (onset row 50)');
-app.onTrialsCellEdit(struct('Indices', [1 3], 'NewData', NaN));
-check(isnan(app.TrialsPairing.interval(1)) && app.TrialsPairing.method == "manual", 'editing the Interval cell unpairs the trial');
-app.onTrialsCellEdit(struct('Indices', [1 3], 'NewData', 7));
-check(isnan(app.TrialsPairing.interval(1)), 'an out-of-range interval is refused');
-app.onTrialsLoad("auto");
+check(isequal(app.TrialsCutSpinners(1, 1).Limits, [0 1]) && strcmp(app.TrialsCutSpinners(2, 2).Enable, 'on') ...
+    && app.TrialsCutIntervalsLabel.Text == "din0 intervals", 'the cut spinners are limited to the trial / interval counts');
+check(app.TrialsAxes.InteractionOptions.LimitsDimensions == "x", 'the lines plot zooms and pans horizontally only');
+app.TrialsCutSpinners(1, 1).Value = 1;
+app.onTrialsCutsChanged();
+check(isequal(app.TrialsPairing.cutTrials, [1 0]) && isnan(app.TrialsPairing.interval(1)) && app.TrialsPairing.countMismatch ...
+    && contains(app.TrialsSummaryLabel.Text, "WARNING"), 'cutting the only trial leaves the interval unpaired and warns about the mismatch');
+app.TrialsCutSpinners(1, 2).Value = 1;
+app.onTrialsCutsChanged();
+check(isequal(app.TrialsPairing.cutTrials, [1 0]) && app.TrialsCutSpinners(1, 2).Value == 0, ...
+    'cuts beyond the trial count are refused and the spinners put back');
+app.onTrialsLoad("none");
+check(isequal(app.TrialsPairing.cutTrials, [0 0]) && app.TrialsCutSpinners(1, 1).Value == 0 && ~app.TrialsPairing.countMismatch, ...
+    'Reset cuts pairs everything in order again');
 app.onTrialsApprove("approved");
 mT = readJsonFile(dT.manifestFile());
 check(strcmp(mT.behavior.pairing.status, 'approved') && contains(app.DatasetsTable.Data.Behavior(1), "pairing approved"), ...
@@ -155,6 +165,41 @@ check(isempty(app.Config.Signals.InvertedLines) && app.TrialsPairing.recorded &&
 app.onTrialsWriteBehavior();
 BT = load(fullfile(dT.outputFolder(), dT.Name + "_behavior.mat"));
 check(BT.behavior.trials.TrialOnsetSample(1) == 50 && BT.behavior.pairing.status == "approved", 'Write behavior .mat carries the pairing');
+
+fprintf('\n== 3c. Sorting tab: optimize for probe, reset to defaults ==\n');
+dS = app.currentDataset();
+app.onOptimizeKS4ForProbe();
+check(app.Config.Sorting.KS4.nblocks == 3 && strcmp(app.ParamControls.dmin.Value, '12'), ...
+    'without a probe (the dataset''s or the default) nothing is tuned');
+probeFile = fullfile(root, 'square4.json');
+writeJsonFile(probeFile, struct('chanMap', (0:3).', 'xc', [0; 25; 0; 25], 'yc', [0; 0; 25; 25], 'kcoords', zeros(4, 1)));
+dS.ProbeFile = probeFile;
+dS.ExcludeChannels = 4;
+app.onOptimizeKS4ForProbe();
+K = app.Config.Sorting.KS4;
+check(K.nblocks == 0 && K.dmin == 25 && K.dminx == 25 && K.nearest_chans == 3 && K.nearest_templates == 3 ...
+    && K.x_centers == 1 && app.ParamControls.nearest_chans.Value == 3 && strcmp(app.ParamControls.dmin.Value, '25'), ...
+    'Optimize for probe tunes the controls and the config to the clicked dataset''s probe minus its excluded channel');
+check(any(contains(string(app.KSLogArea.Value), "square4.json")) && any(contains(string(app.KSLogArea.Value), "x_centers")), ...
+    'the tuning and its reasons are logged');
+dS.ProbeFile = "";
+dS.ExcludeChannels = double.empty(1, 0);
+app.ProbeDefaultField.Value = char(probeFile);
+app.onConfigChanged();
+app.onOptimizeKS4ForProbe();
+check(app.Config.Sorting.KS4.nearest_chans == 4 && any(contains(string(app.KSLogArea.Value), "default probe")), ...
+    'a dataset without a probe uses the default probe');
+app.ProbeDefaultField.Value = '';
+before = app.Config.Sorting;
+app.ExtraSettingsArea.Value = {'{"nblocks": 2}'};
+app.onConfigChanged();
+app.onResetKS4Params();
+S = app.Config.Sorting;
+check(isequaln(S.KS4, EphysPipelineConfig.defaults("Sorting").KS4) && S.KS4ExtraJSON == "" ...
+    && strcmp(app.ParamControls.dmin.Value, '') && isequal(app.ExtraSettingsArea.Value, {'{'; '}'}), ...
+    'Reset to defaults restores every Kilosort4 parameter and clears the extra JSON');
+check(isequaln(S.SI, before.SI) && S.PythonExe == before.PythonExe && S.Enabled == before.Enabled ...
+    && app.Config.Probe.DefaultProbeFile == "", 'and leaves the other Sorting settings alone');
 
 fprintf('\n== 4. run one step through the pipeline ==\n');
 app.runPipeline(Steps="spikes");
@@ -206,4 +251,10 @@ try
 catch
 end
 if isfolder(root); rmdir(root, 's'); end
+end
+
+
+function tip = tabTip(app, tab)
+%tabTip  Status tooltip of TAB's button in the tab strip.
+tip = string(app.TabButtons(app.TabList == tab).Tooltip);
 end

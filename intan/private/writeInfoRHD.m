@@ -1,47 +1,55 @@
-function writeInfoRHD(ffn, numAmp, Fs, numAux)
-%writeInfoRHD  Write a header-only v2.0 info.rhd (test fixture).
+function writeInfoRHD(ffn, numAmp, Fs, numAux, opts)
+%writeInfoRHD  Write a header-only info.rhd for the split layouts (test fixture).
 %   writeInfoRHD(ffn, numAmp, Fs) writes the header of a split-format
 %   recording (no data blocks follow). Declares numAmp amplifier channels
-%   (native names A-000..A-00N, so amp-A-00x.dat filenames line up) plus one
-%   bit-0 dig-in line; no adc.
+%   (native names A-000..A-00N, so amp-A-00x.dat filenames line up; custom
+%   names amp0..) plus one bit-0 dig-in line "din0" (native "DIN-00"); no adc.
 %   writeInfoRHD(ffn, numAmp, Fs, numAux) also declares numAux aux input
 %   (accelerometer) channels, native A-AUX1.., custom accel1.. (default 0).
-if nargin < 4; numAux = 0; end
 %
-%   See also writeSyntheticRHD, writeDat.
+%   Options (as in writeSyntheticRHD): AmpNames, AmpNative, DigInNames,
+%   DigInOrders, DigInNative, AuxNames, AuxNative, Version, Notes.
+%
+%   See also writeRhdHeader, writeSyntheticRHD, writeDat.
+
+arguments
+    ffn (1,1) string
+    numAmp (1,1) double {mustBeInteger, mustBePositive}
+    Fs (1,1) double {mustBePositive}
+    numAux (1,1) double {mustBeInteger, mustBeNonnegative} = 0
+    opts.AmpNames (1,:) string = string.empty(1,0)
+    opts.AmpNative (1,:) string = string.empty(1,0)
+    opts.DigInNames (1,:) string = "din0"
+    opts.DigInOrders (1,:) double = []
+    opts.DigInNative (1,:) string = string.empty(1,0)
+    opts.AuxNames (1,:) string = string.empty(1,0)
+    opts.AuxNative (1,:) string = string.empty(1,0)
+    opts.Version (1,2) double = [2 0]
+    opts.Notes (1,3) string = ["" "" ""]
+end
+
+ch = struct();
+ch.ampNative = opts.AmpNative;
+if isempty(ch.ampNative); ch.ampNative = "A-" + string(compose('%03d', (0:numAmp-1).')).'; end
+ch.ampCustom = opts.AmpNames;
+if isempty(ch.ampCustom); ch.ampCustom = "amp" + string(0:numAmp-1); end
+if numAux > 0
+    ch.auxNative = opts.AuxNative;
+    if isempty(ch.auxNative); ch.auxNative = "A-AUX" + string(1:numAux); end
+    ch.auxCustom = opts.AuxNames;
+    if isempty(ch.auxCustom); ch.auxCustom = "accel" + string(1:numAux); end
+end
+nDig = numel(opts.DigInNames);
+if nDig > 0
+    ch.digCustom = opts.DigInNames;
+    ch.digOrders = opts.DigInOrders;
+    if isempty(ch.digOrders); ch.digOrders = 0:nDig-1; end
+    ch.digNative = opts.DigInNative;
+    if isempty(ch.digNative); ch.digNative = "DIN-" + string(compose('%02d', ch.digOrders(:))).'; end
+end
 
 fid = fopen(ffn, 'w', 'ieee-le');
 assert(fid >= 0, 'cannot open %s', ffn);
-
-fwrite(fid, hex2dec('c6912702'), 'uint32');   % magic
-fwrite(fid, 2, 'int16');                       % main version (>1)
-fwrite(fid, 0, 'int16');                       % secondary version
-fwrite(fid, Fs, 'single');                     % sample_rate
-fwrite(fid, 1, 'int16');                        % dsp_enabled
-fwrite(fid, [1 1 7500], 'single');              % actual dsp cutoff, lower, upper bw
-fwrite(fid, [1 1 7500], 'single');              % desired dsp cutoff, lower, upper bw
-fwrite(fid, 0, 'int16');                        % notch_filter_mode
-fwrite(fid, [1000 1000], 'single');             % desired/actual impedance test freq
-writeQString(fid, '');                          % note1
-writeQString(fid, '');                          % note2
-writeQString(fid, '');                          % note3
-fwrite(fid, 0, 'int16');                        % num_temp_sensor_channels
-fwrite(fid, 0, 'int16');                        % board_mode
-writeQString(fid, '');                          % reference_channel (v>1)
-
-fwrite(fid, 1, 'int16');                        % number_of_signal_groups
-writeQString(fid, 'PortA');                     % group name
-writeQString(fid, 'A');                         % group prefix
-fwrite(fid, 1, 'int16');                        % group enabled
-fwrite(fid, numAmp + numAux + 1, 'int16');      % group num channels
-fwrite(fid, numAmp, 'int16');                   % group num amp channels
-for c = 1:numAmp
-    writeRhdChannel(fid, sprintf('A-%03d', c-1), sprintf('amp%d', c-1), c-1, 0);
-end
-for c = 1:numAux
-    writeRhdChannel(fid, sprintf('A-AUX%d', c), sprintf('accel%d', c), numAmp + c - 1, 1);
-end
-writeRhdChannel(fid, 'DIN-00', 'din0', 0, 4);   % dig-in, native_order 0
-
-fclose(fid);   % header only - no data blocks follow
+closer = onCleanup(@() fclose(fid));
+writeRhdHeader(fid, Fs, ch, Version=opts.Version, Notes=opts.Notes);   % header only
 end

@@ -1,28 +1,40 @@
 function P = pairEpsychTrials(trials, events, Fs, opts)
-%pairEpsychTrials  Pair Epsych2 trials with the [onset offset] of a digital line.
-%   P = pairEpsychTrials(TRIALS, EVENTS, Fs, Name=Value) matches each row of
-%   TRIALS (readEpsychSession: one row per trial) to one interval of the
-%   digital line Epsych2 holds high for the duration of a trial (TrialLine,
-%   default "InTrial") and returns the timing of every trial in seconds and in
-%   samples, plus the intervals of every other line that overlap each trial.
-%   Nothing here depends on the acquisition system: EVENTS is the universal
-%   events struct (one field per line, [k x 2] [t_on t_off] seconds with
-%   t = row/Fs, see EphysReader) and Fs its sample rate.
+%pairEpsychTrials  Pair Epsych2 trials, in order, with the intervals of a digital line.
+%   P = pairEpsychTrials(TRIALS, EVENTS, Fs, Name=Value) pairs the rows of
+%   TRIALS (readEpsychSession: one row per trial, in the order they were
+%   run) with the intervals of the digital line Epsych2 holds on for the
+%   duration of a trial (TrialLine, default "InTrial") and returns the timing
+%   of every trial in seconds and in samples, plus the intervals of every
+%   other line that overlap each trial. Nothing here depends on the
+%   acquisition system: EVENTS is the universal events struct (one field per
+%   line, [k x 2] [t_on t_off] seconds with t = row/Fs, see EphysReader) and
+%   Fs its sample rate.
 %
-%   Matching
-%   --------
-%   With a computerTimestamp column (Epsych2 stamps each trial when it ends)
-%   trials and intervals are aligned in order by dynamic programming: the
-%   clock offset between the two is the most common timestamp - offset
-%   difference, a pair costs |residual| / ToleranceS (capped at LateCost, so a
-%   trial stamped late by seconds still pairs, plus 0.02 per second of
-%   residual so the smaller of two large residuals wins), and every trial or interval
-%   left without a partner costs GapCost. So a phantom or missing TTL, or a
-%   session that stopped early, is skipped rather than shifting every later
-%   trial. Without timestamps trials pair with intervals in order (the first
-%   min(nTrials, nIntervals)). Assignment=<vector> skips both and uses the
-%   given interval per trial (a reviewed pairing).
-%   Every result is meant to be reviewed (see EphysDataset.pairTrials).
+%   Pairing
+%   -------
+%   The Epsych2 timestamps are not used. The first trial pairs with the
+%   first interval of the trial line, the second with the second, and so on:
+%   every interval is taken to be one trial. When the number of trials and
+%   the number of intervals differ, the first min(nTrials, nIntervals) still
+%   pair in order and the result is flagged (countMismatch, warnings, and a
+%   pairEpsychTrials:CountMismatch warning unless Warn=false). A mismatch
+%   means the recording did not cover the whole session (it was started
+%   late or stopped early) or the line carries intervals that are not
+%   trials. Resolve it with CutTrials / CutIntervals, which drop trials or
+%   intervals from the start or the end before pairing; the app's Trials tab
+%   does this interactively and EphysDataset.pairTrials keeps the reviewed
+%   cuts in the manifest. Every result is meant to be reviewed.
+%
+%   Intervals at the recording edges
+%   --------------------------------
+%   An interval that begins at the first sample of the recording, or ends at
+%   its last sample (NumSamples), is partial: the line was already on when
+%   the recording started (it started during a trial, or before Epsych2 had
+%   set the line to its idle level, which for an inverted line is high) or
+%   was still on when the recording stopped. Such intervals are listed in
+%   partialIntervals, the trials paired with them are flagged "partial", and
+%   the count-mismatch warning points them out, since they are usually what
+%   has to be cut. Without NumSamples only the recording start is checked.
 %
 %   Line polarity
 %   -------------
@@ -37,39 +49,39 @@ function P = pairEpsychTrials(trials, events, Fs, opts)
 %     TrialLine       "InTrial"   line whose intervals are trials
 %     InvertedLines   string list of lines with inverted polarity (default
 %                     none; names the struct lacks are ignored)
-%     NumSamples      recording length in samples (needed to invert a line)
-%     ToleranceS      0.5  residual (s) within which a timestamp agrees
-%     GapCost         3    cost of an unpaired trial or interval
-%     LateCost        4    cost cap of a pair whose timestamp disagrees
-%                          (must stay below 2*GapCost)
-%     TimestampField  "computerTimestamp"
-%     Assignment      [] or [nTrials x 1] interval index per trial (NaN = none)
+%     NumSamples      recording length in samples (needed to invert a line
+%                     and to detect intervals that run to the recording end)
+%     CutTrials       [0 0]  trials to drop [from the start, from the end]
+%     CutIntervals    [0 0]  trial-line intervals to drop [start, end]
 %     SignalFs        struct of derived-signal rates, e.g. struct('LFP', 1000)
+%     Warn            true: a count mismatch raises pairEpsychTrials:CountMismatch
 %
 %   Output P
 %   --------
-%     trialLine, invertedLines (those applied), Fs, nTrials, nIntervals, method
-%        ("timestamps" | "order" | "manual")
-%     interval        [nTrials x 1] index into the trial line's intervals (NaN)
+%     trialLine, invertedLines (those applied), Fs, nSamples, nTrials,
+%        nIntervals, cutTrials, cutIntervals
+%     intervals       [nIntervals x 2] the trial line's intervals (s, polarity applied)
+%     events          the events struct with the polarity applied
+%     interval        [nTrials x 1] index into intervals (NaN when cut or unpaired)
 %     onset, offset   [nTrials x 1] seconds (t = row/Fs), NaN when unpaired
 %     onsetSample, offsetSample   1-based rows at Fs (first / last on sample)
 %     signalFs        struct: <signal> -> rate used (valid SignalFs entries)
 %     signalSamples   struct: <signal> -> [nTrials x 2] round(t * signalFs)
 %                     (ChronuxDataset.trials' "event" onset rule)
-%     residual        [nTrials x 1] s, timestamp - (offset + clockOffsetS)
-%     clockOffsetS    timestamp clock minus recording clock (s), NaN without
-%     flag            [nTrials x 1] "ok" | "timestamp off" | "unpaired"
-%     unpairedTrials, unpairedIntervals   indices
-%     nPaired, nTimestampOff
+%     flag            [nTrials x 1] "ok" | "partial" | "cut" | "unpaired"
+%     partialIntervals   intervals touching the recording start or end
+%     unpairedTrials, unpairedIntervals   kept, but left without a partner
+%     nPaired, countMismatch
+%     warnings        string list: the count-mismatch message, or empty
 %     lines           struct: <line> -> {nTrials x 1} [n x 2] seconds of that
 %                     line's intervals overlapping the trial (every line but
 %                     the trial line, polarity applied)
 %     columns         table (nTrials rows) to append to TRIALS: TrialInterval,
 %                     TrialOnset, TrialOffset, TrialOnsetSample,
 %                     TrialOffsetSample, TrialOnsetSample_<SIG>,
-%                     TrialOffsetSample_<SIG>, TimestampResidual, PairingFlag,
-%                     TrialEvents (struct: <line> -> [n x 2] s) and
-%                     TrialEventSamples (<line> -> [n x 2] rows at Fs)
+%                     TrialOffsetSample_<SIG>, PairingFlag, TrialEvents
+%                     (struct: <line> -> [n x 2] s) and TrialEventSamples
+%                     (<line> -> [n x 2] rows at Fs)
 %     summary         one line of text
 %
 %   See also readEpsychSession, EphysDataset.pairTrials, ChronuxDataset.trials.
@@ -81,12 +93,10 @@ arguments
     opts.TrialLine (1,1) string = "InTrial"
     opts.InvertedLines (1,:) string = string.empty(1,0)
     opts.NumSamples (1,1) double = NaN
-    opts.ToleranceS (1,1) double {mustBePositive} = 0.5
-    opts.GapCost (1,1) double {mustBePositive} = 3
-    opts.LateCost (1,1) double {mustBePositive} = 4
-    opts.TimestampField (1,1) string = "computerTimestamp"
-    opts.Assignment double = []
+    opts.CutTrials (1,2) double {mustBeNonnegative, mustBeInteger} = [0 0]
+    opts.CutIntervals (1,2) double {mustBeNonnegative, mustBeInteger} = [0 0]
     opts.SignalFs (1,1) struct = struct()
+    opts.Warn (1,1) logical = true
 end
 
 lineNames = string(fieldnames(events)).';
@@ -106,71 +116,46 @@ trialIv = events.(opts.TrialLine);
 
 nT = height(trials);
 nI = size(trialIv, 1);
+ct = opts.CutTrials;
+ci = opts.CutIntervals;
+if sum(ct) > nT
+    error('pairEpsychTrials:Cuts', 'CutTrials [%d %d] drops more than the %d trial(s).', ct(1), ct(2), nT);
+end
+if sum(ci) > nI
+    error('pairEpsychTrials:Cuts', 'CutIntervals [%d %d] drops more than the %d %s interval(s).', ...
+        ci(1), ci(2), nI, opts.TrialLine);
+end
+
 P = struct();
-P.trialLine      = opts.TrialLine;
-P.invertedLines  = inverted;
-P.Fs             = Fs;
-P.nTrials        = nT;
-P.nIntervals     = nI;
+P.trialLine     = opts.TrialLine;
+P.invertedLines = inverted;
+P.Fs            = Fs;
+P.nSamples      = opts.NumSamples;
+P.nTrials       = nT;
+P.nIntervals    = nI;
+P.cutTrials     = ct;
+P.cutIntervals  = ci;
+P.intervals     = trialIv;
+P.events        = events;
 
-% --- timestamps (seconds since the first valid one) ------------------------
-ts = NaN(nT, 1);
-if ismember(opts.TimestampField, string(trials.Properties.VariableNames)) && nT > 0
-    raw = trials.(opts.TimestampField);
-    if iscell(raw)
-        ok = cellfun(@(x) isdatetime(x) && isscalar(x), raw);
-        dt = NaT(nT, 1);
-        dt(ok) = [raw{ok}];
-        raw = dt;
-    end
-    if isdatetime(raw)
-        raw = raw(:);
-        first = raw(find(~isnat(raw), 1));
-        if ~isempty(first)
-            ts = seconds(raw - first);
-        end
-    end
-end
-
-% --- assignment -------------------------------------------------------------
-c = NaN;
-if ~isempty(opts.Assignment)
-    a = double(opts.Assignment(:));
-    if numel(a) ~= nT
-        error('pairEpsychTrials:Assignment', 'Assignment has %d entries for %d trials.', numel(a), nT);
-    end
-    used = a(~isnan(a));
-    if any(used < 1 | used > nI | used ~= round(used)) || numel(unique(used)) ~= numel(used)
-        error('pairEpsychTrials:Assignment', ...
-            'Assignment must hold distinct interval indices in 1..%d (NaN = unpaired).', nI);
-    end
-    P.method = "manual";
-    have = ~isnan(a) & ~isnan(ts);
-    if any(have)
-        c = median(ts(have) - trialIv(a(have), 2));
-    end
-elseif sum(~isnan(ts)) >= 2 && nI > 0
-    P.method = "timestamps";
-    c = clockOffset(ts, trialIv(:, 2), opts.ToleranceS);
-    a = alignDP(ts, trialIv(:, 2), c, opts);
-    have = ~isnan(a) & ~isnan(ts);
-    r = ts(have) - trialIv(a(have), 2) - c;
-    inl = abs(r) <= opts.ToleranceS;
-    if any(inl)
-        c = c + median(r(inl));        % refine on the agreeing pairs
-    end
-else
-    P.method = "order";
-    a = NaN(nT, 1);
-    n = min(nT, nI);
-    a(1:n) = (1:n).';
-    have = ~isnan(a) & ~isnan(ts);
-    if any(have)
-        c = median(ts(have) - trialIv(a(have), 2));
-    end
-end
-
+% --- in-order pairing of what is left after the cuts -------------------------
+tKeep = (ct(1) + 1 : nT - ct(2)).';
+iKeep = (ci(1) + 1 : nI - ci(2)).';
+n = min(numel(tKeep), numel(iKeep));
+a = NaN(nT, 1);
+a(tKeep(1:n)) = iKeep(1:n);
 paired = ~isnan(a);
+isCut = true(nT, 1);
+isCut(tKeep) = false;
+
+rows = round(trialIv * Fs);
+atStart = rows(:, 1) <= 1;
+atEnd = false(nI, 1);
+if isfinite(opts.NumSamples) && opts.NumSamples > 0
+    atEnd = rows(:, 2) >= opts.NumSamples;
+end
+partial = find(atStart | atEnd);
+
 P.interval = a;
 P.onset = NaN(nT, 1);
 P.offset = NaN(nT, 1);
@@ -189,15 +174,41 @@ for sig = string(fieldnames(opts.SignalFs)).'
     end
 end
 
-P.clockOffsetS = c;
-P.residual = ts - P.offset - c;
 P.flag = repmat("ok", nT, 1);
-P.flag(paired & abs(P.residual) > opts.ToleranceS) = "timestamp off";
-P.flag(~paired) = "unpaired";
-P.unpairedTrials = find(~paired);
-P.unpairedIntervals = setdiff((1:nI).', a(paired));
-P.nPaired = sum(paired);
-P.nTimestampOff = sum(P.flag == "timestamp off");
+P.flag(paired & ismember(a, partial)) = "partial";
+P.flag(isCut) = "cut";
+P.flag(~paired & ~isCut) = "unpaired";
+P.partialIntervals = partial;
+P.unpairedTrials = tKeep(n + 1:end);
+P.unpairedIntervals = iKeep(n + 1:end);
+P.nPaired = n;
+P.countMismatch = numel(tKeep) ~= numel(iKeep);
+
+% --- the count-mismatch warning ---------------------------------------------
+P.warnings = strings(1, 0);
+if P.countMismatch
+    msg = sprintf("Epsych2 has %d trial(s) but the %s line has %d interval(s)", ...
+        numel(tKeep), opts.TrialLine, numel(iKeep));
+    if any(ct) || any(ci)
+        msg = msg + sprintf(" after cutting %d + %d trial(s) and %d + %d interval(s) (start + end)", ...
+            ct(1), ct(2), ci(1), ci(2));
+    end
+    msg = msg + ".";
+    if ~isempty(iKeep) && atStart(iKeep(1))
+        msg = msg + sprintf(" Interval %d begins at the first sample of the recording: the recording " + ...
+            "started during a trial, or before Epsych2 had set the line to its idle level.", iKeep(1));
+    end
+    if ~isempty(iKeep) && atEnd(iKeep(end))
+        msg = msg + sprintf(" Interval %d ends at the last sample of the recording: the recording " + ...
+            "stopped during a trial, or after Epsych2 had released the line.", iKeep(end));
+    end
+    msg = msg + " Cut trials or intervals from the start or the end to resolve it " + ...
+        "(CutTrials / CutIntervals; the app's Trials tab), then review the pairing.";
+    P.warnings = msg;
+    if opts.Warn
+        warning('pairEpsychTrials:CountMismatch', '%s', msg);
+    end
+end
 
 % --- other lines, per trial -------------------------------------------------
 P.lines = struct();
@@ -226,73 +237,19 @@ for sig = string(fieldnames(P.signalSamples)).'
     C.("TrialOnsetSample_" + sig)  = P.signalSamples.(sig)(:, 1);
     C.("TrialOffsetSample_" + sig) = P.signalSamples.(sig)(:, 2);
 end
-C.TimestampResidual = P.residual;
 C.PairingFlag = P.flag;
 C.TrialEvents = trialEv;
 C.TrialEventSamples = trialEvS;
 P.columns = C;
 
-P.summary = sprintf("%d of %d trial(s) paired with %d %s interval(s) (%s); %d unpaired interval(s), %d timestamp(s) off by > %g s", ...
-    P.nPaired, nT, nI, opts.TrialLine, P.method, numel(P.unpairedIntervals), P.nTimestampOff, opts.ToleranceS);
+s = sprintf("%d of %d trial(s) paired in order with %d %s interval(s)", n, nT, nI, opts.TrialLine);
+if any(ct); s = s + sprintf("; %d + %d trial(s) cut (start + end)", ct(1), ct(2)); end
+if any(ci); s = s + sprintf("; %d + %d interval(s) cut (start + end)", ci(1), ci(2)); end
+if ~isempty(partial)
+    s = s + sprintf("; partial interval(s) at the recording edge: %s", strjoin(string(partial(:).'), ", "));
 end
-
-
-function c = clockOffset(ts, off, tol)
-%clockOffset  Most common timestamp - offset difference (a 2*tol window).
-%   Ties (e.g. evenly spaced trials) go to the window nearest the in-order
-%   offset, median(ts(i) - off(i)) over the first trials.
-t = ts(~isnan(ts));
-d = sort(reshape(t - off.', [], 1));
-if isempty(d); c = NaN; return; end
-m = min(numel(t), numel(off));
-c0 = median(t(1:m) - off(1:m));
-w = 2 * tol;
-counts = zeros(numel(d), 1); centers = zeros(numel(d), 1);
-hi = 1;
-for lo = 1:numel(d)
-    while hi < numel(d) && d(hi + 1) - d(lo) <= w
-        hi = hi + 1;
-    end
-    counts(lo) = hi - lo + 1;
-    centers(lo) = median(d(lo:hi));
+if P.countMismatch
+    s = s + sprintf("; COUNT MISMATCH: %d trial(s) vs %d interval(s)", numel(tKeep), numel(iKeep));
 end
-best = find(counts == max(counts));
-[~, pick] = min(abs(centers(best) - c0));
-c = centers(best(pick));
-end
-
-
-function a = alignDP(ts, off, c, opts)
-%alignDP  Order-preserving pairing of trials (ts) with intervals (off).
-%   D(i+1,j+1) is the cheapest cost of the first i trials and j intervals.
-%   Trials without a timestamp pair at a neutral cost of 1.
-nT = numel(ts); nI = numel(off);
-g = opts.GapCost;
-D = inf(nT + 1, nI + 1);
-B = zeros(nT + 1, nI + 1, 'uint8');     % 1 = pair, 2 = skip trial, 3 = skip interval
-D(1, :) = (0:nI) * g;  B(1, 2:end) = 3;
-D(:, 1) = (0:nT).' * g; B(2:end, 1) = 2;
-for i = 1:nT
-    if isnan(ts(i))
-        cost = ones(1, nI);
-    else
-        r = abs(ts(i) - off.' - c);
-        cost = min(r / opts.ToleranceS, opts.LateCost) + 0.02 * r;   % slope breaks ties toward the smaller residual
-    end
-    for j = 1:nI
-        [D(i + 1, j + 1), B(i + 1, j + 1)] = min([D(i, j) + cost(j), D(i, j + 1) + g, D(i + 1, j) + g]);
-    end
-end
-a = NaN(nT, 1);
-i = nT; j = nI;
-while i > 0 || j > 0
-    switch B(i + 1, j + 1)
-        case 1
-            a(i) = j; i = i - 1; j = j - 1;
-        case 2
-            i = i - 1;
-        otherwise
-            j = j - 1;
-    end
-end
+P.summary = s;
 end

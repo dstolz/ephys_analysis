@@ -82,4 +82,5 @@ T = table(Select, Name, Key, AcqDate, NumChannels, Fs, round(DurationMin, 2), Fo
     Probe, Exclude, Sorting, Behavior, DatasetIdx, 'VariableNames', vars);
 obj.DatasetsTable.Data = T;
 obj.updatePhyButtonState();
+obj.syncTabStrip();
 end

@@ -1,10 +1,12 @@
 function refreshTrialsView(obj)
-%refreshTrialsView  Summary, trials table and residual plot from TrialsPairing.
+%refreshTrialsView  Summary, trials table, cut spinners and lines plot from TrialsPairing.
 P = obj.TrialsPairing;
 ax = obj.TrialsAxes;
 cla(ax);
+legend(ax, "off");
 removeStyle(obj.TrialsTable);
 obj.syncTrialsButtons();
+obj.syncTrialsCuts();
 if isempty(P)
     obj.TrialsTable.Data = table();
     return
@@ -20,21 +22,20 @@ else
     state = "NOT RECORDED - review, then Approve"; color = [0.75 0.4 0];
 end
 if P.stale
-    state = state + " (the recorded pairing no longer matched the session or the lines and was re-aligned)";
+    state = state + " (the recorded pairing no longer matched the session or the lines; its cuts were dropped)";
     color = [0.7 0.1 0.1];
 end
 txt = sprintf("%s: %s.  %s.", d.Name, state, P.summary);
-if ~isempty(P.unpairedIntervals)
-    shown = P.unpairedIntervals(1:min(12, end));
-    txt = txt + sprintf("  Unpaired interval(s): %s", strjoin(string(shown(:).'), ", "));
-    if numel(P.unpairedIntervals) > numel(shown); txt = txt + ", ..."; end
+if P.countMismatch
+    txt = txt + newline + "WARNING: " + strjoin(P.warnings, " ");
+    color = [0.7 0.1 0.1];
 end
 obj.TrialsSummaryLabel.Text = txt;
 obj.TrialsSummaryLabel.FontColor = color;
 
 % --- table ----------------------------------------------------------------------
 n = P.nTrials;
-T = obj.TrialsPairing.columns;
+T = P.columns;
 trialIndex = (1:n).';
 beh = [];
 try
@@ -51,37 +52,67 @@ for ln = string(fieldnames(P.lines)).'
     other(has) = other(has) + ln + ":" + string(c(has)) + " ";
 end
 obj.TrialsTable.Data = table((1:n).', trialIndex, T.TrialInterval, round(T.TrialOnset, 4), ...
-    round(T.TrialOffset, 4), T.TrialOnsetSample, T.TrialOffsetSample, round(T.TimestampResidual, 3), ...
-    T.PairingFlag, strtrim(other));
-late = find(P.flag == "timestamp off");
+    round(T.TrialOffset, 4), T.TrialOnsetSample, T.TrialOffsetSample, T.PairingFlag, strtrim(other));
+cut = find(P.flag == "cut");
+part = find(P.flag == "partial");
 none = find(P.flag == "unpaired");
-if ~isempty(late)
-    addStyle(obj.TrialsTable, uistyle("BackgroundColor", [1 0.95 0.75]), "row", late);
+if ~isempty(cut)
+    addStyle(obj.TrialsTable, uistyle("BackgroundColor", [0.9 0.9 0.9], "FontColor", [0.45 0.45 0.45]), "row", cut);
+end
+if ~isempty(part)
+    addStyle(obj.TrialsTable, uistyle("BackgroundColor", [1 0.92 0.78]), "row", part);
 end
 if ~isempty(none)
     addStyle(obj.TrialsTable, uistyle("BackgroundColor", [1 0.85 0.85]), "row", none);
 end
 
-% --- plot -----------------------------------------------------------------------
-tol = obj.Config.Behavior.AlignToleranceS;
+% --- plot: the digital lines over the recording -------------------------------
+E = P.events;
+names = [P.trialLine, setdiff(string(fieldnames(E)).', P.trialLine, 'stable')];
+nL = numel(names);
+iv = P.intervals;
+nI = size(iv, 1);
+state = repmat("unpaired", nI, 1);
+state(P.interval(~isnan(P.interval))) = "ok";
+state(P.partialIntervals) = "partial";
+isCut = false(nI, 1);
+isCut(1:P.cutIntervals(1)) = true;
+isCut(nI - P.cutIntervals(2) + 1:nI) = true;
+state(isCut) = "cut";
+colors = struct('ok', [0 0.45 0.74], 'partial', [0.85 0.5 0], 'cut', [0.55 0.55 0.55], 'unpaired', [0.8 0.1 0.1]);
+labels = struct('ok', "paired", 'partial', "partial (recording edge)", 'cut', "cut", 'unpaired', "unpaired");
 hold(ax, "on");
-r = P.residual;
-ok = P.flag == "ok";
-plot(ax, find(ok), r(ok), "o", "Color", [0 0.45 0.74], "MarkerSize", 4, "DisplayName", "ok");
-if ~isempty(late)
-    plot(ax, late, r(late), "o", "Color", [0.85 0.5 0], "MarkerFaceColor", [0.85 0.5 0], ...
-        "MarkerSize", 5, "DisplayName", "timestamp off");
+for st = ["ok" "partial" "cut" "unpaired"]
+    k = find(state == st);
+    if ~isempty(k)
+        segments(ax, iv(k, :), nL, colors.(st), 8, labels.(st));
+    end
 end
-if ~isempty(none)
-    plot(ax, none, zeros(size(none)), "x", "Color", [0.8 0.1 0.1], "MarkerSize", 8, ...
-        "LineWidth", 1.5, "DisplayName", "unpaired");
-end
-if n > 0
-    plot(ax, [0.5 n + 0.5], [tol tol], ":", "Color", [0.5 0.5 0.5], "HandleVisibility", "off");
-    plot(ax, [0.5 n + 0.5], -[tol tol], ":", "Color", [0.5 0.5 0.5], "HandleVisibility", "off");
-    xlim(ax, [0.5 n + 0.5]);
+for j = 2:nL
+    segments(ax, E.(names(j)), nL - j + 1, [0.4 0.4 0.4], 5, "");
 end
 hold(ax, "off");
-legend(ax, "Location", "northeast");
-title(ax, sprintf("Timestamp residual per trial (%s, clock offset %.2f s)", P.method, P.clockOffsetS));
+tEnd = max([P.nSamples / P.Fs, iv(:).', 1]);
+xlim(ax, [0 tEnd]);
+ylim(ax, [0.4 nL + 0.6]);
+yticks(ax, 1:nL);
+yticklabels(ax, cellstr(flip(names)));
+if nI > 0
+    legend(ax, "Location", "eastoutside");
+end
+title(ax, sprintf("Digital lines over the recording (%s: %d interval(s), %d trial(s))", P.trialLine, nI, n));
+end
+
+
+function segments(ax, iv, y, color, width, name)
+%segments  Draw [k x 2] intervals (s) as bars at height Y; | marks the ends.
+if isempty(iv); return; end
+x = [iv(:, 1), iv(:, 2), NaN(size(iv, 1), 1)].';
+yy = y * ones(size(x));
+h = plot(ax, x(:), yy(:), "-", "Color", color, "LineWidth", width, "Marker", "|", "MarkerSize", 9);
+if name == ""
+    h.HandleVisibility = "off";
+else
+    h.DisplayName = name;
+end
 end

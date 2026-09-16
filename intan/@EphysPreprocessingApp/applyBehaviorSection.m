@@ -8,7 +8,6 @@ obj.BehMaxOffsetField.Value = B.MaxStartOffsetMin;
 obj.BehOverwriteCheckBox.Value = logical(B.Overwrite);
 obj.BehWriteFileCheckBox.Value = logical(B.WriteFile);
 obj.TrialsPairCheckBox.Value = logical(B.PairTrials);
-obj.TrialsToleranceField.Value = B.AlignToleranceS;
 L = obj.TrialsLinesTable.Data;
 names = string.empty(0, 1);
 if istable(L); names = string(L.Line); end

@@ -8,8 +8,8 @@ B.Match = string(obj.BehMatchDropDown.Value);
 B.MaxStartOffsetMin = obj.BehMaxOffsetField.Value;
 B.Overwrite = logical(obj.BehOverwriteCheckBox.Value);
 B.WriteFile = logical(obj.BehWriteFileCheckBox.Value);
-% Trial pairing (Trials tab; line polarity is Signals.InvertedLines).
+% Trial pairing (Trials tab; line polarity is Signals.InvertedLines, and the
+% cuts that resolve a count mismatch belong to the dataset manifest).
 B.PairTrials = logical(obj.TrialsPairCheckBox.Value);
 B.TrialLine = strtrim(string(obj.TrialsLineDropDown.Value));
-B.AlignToleranceS = obj.TrialsToleranceField.Value;
 end

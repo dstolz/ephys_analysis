@@ -16,7 +16,7 @@ if isempty(obj.Project) || obj.Project.NumDatasets == 0
     uialert(obj.Fig, "Scan a project root first (Project tab).", "Run");
     return
 end
-obj.Tabs.SelectedTab = obj.TabRun;
+obj.selectTab(obj.TabRun);
 cfg = obj.gatherConfig();
 obj.Config = cfg;
 issues = cfg.validate();
@@ -34,12 +34,14 @@ pipe = obj.buildPipeline();
 pipe.ProgressFcn = @(evt) obj.onPipelineProgress(evt);
 obj.Pipe = pipe;
 obj.RunActive = true;
+obj.syncTabStrip();
 obj.RunButton.Enable = "off"; obj.RunDryButton.Enable = "off"; obj.RunCancelButton.Enable = "on";
 cleanup = onCleanup(@() finishRun(obj));
 obj.setRunBar(obj.RunOverallBar, 0); obj.setRunBar(obj.RunStepBar, 0);
 obj.RunOverallText.Text = ""; obj.RunStepText.Text = "";
 obj.RunStepLabel.Text = "Starting...";
 obj.RunResultsTable.ColumnName = {'Step', 'Dataset', 'Status', 'Message', 'Output', 'Seconds'};
+obj.RunResultsTable.ColumnWidth = {80, 'fit', 110, '1x', '2x', 64};
 obj.RunResultsTable.Data = EphysPipeline.emptyResults();
 obj.setStatus("Running the pipeline...", "");
 
@@ -72,5 +74,6 @@ obj.RunActive = false;
 obj.Pipe = [];
 if isvalid(obj.Fig)
     obj.RunButton.Enable = "on"; obj.RunDryButton.Enable = "on"; obj.RunCancelButton.Enable = "off";
+    obj.syncTabStrip();
 end
 end

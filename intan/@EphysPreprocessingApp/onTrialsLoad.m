@@ -1,11 +1,12 @@
 function onTrialsLoad(obj, mode)
 %onTrialsLoad  Read the digital lines of the Trials-tab dataset and pair its trials.
-%   mode "recorded" reuses the manifest's pairing when it still matches;
-%   "auto" re-aligns from the timestamps. The events are kept in memory
-%   (TrialsEvents) so edits and setting changes re-pair without re-reading.
+%   mode "recorded" reuses the manifest's cuts when they still match;
+%   "none" pairs every trial with every interval in order (Reset cuts). The
+%   events are kept in memory (TrialsEvents) so cuts and setting changes
+%   re-pair without re-reading.
 arguments
     obj (1,1) EphysPreprocessingApp
-    mode (1,1) string {mustBeMember(mode, ["recorded" "auto"])} = "recorded"
+    mode (1,1) string {mustBeMember(mode, ["recorded" "none"])} = "recorded"
 end
 d = obj.currentTrialsDataset();
 if isempty(d)

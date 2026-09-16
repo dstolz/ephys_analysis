@@ -12,7 +12,7 @@ function [extra, errMsg] = buildKS4Extra(obj)
 
 extra  = struct();
 errMsg = "";
-spec   = obj.kilosortParamSpec();
+spec   = EphysPipelineConfig.kilosortParamSpec();
 
 for i = 1:numel(spec)
     s    = spec(i);

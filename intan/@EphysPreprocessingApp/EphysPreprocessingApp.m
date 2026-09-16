@@ -341,7 +341,6 @@ classdef EphysPreprocessingApp < handle
         onAssignProbe(obj, scope)
         onApplyExclude(obj, scope)
 
-        spec = kilosortParamSpec(obj)
         [extra, errMsg] = buildKS4Extra(obj)
         cfg = gatherKilosortConfig(obj)
         applyKilosortConfig(obj, cfg)

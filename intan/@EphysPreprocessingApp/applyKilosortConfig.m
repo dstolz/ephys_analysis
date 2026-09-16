@@ -12,7 +12,7 @@ if isfield(cfg, 'SIConfig')
 end
 
 % KS4 parameter controls.
-spec = obj.kilosortParamSpec();
+spec = EphysPipelineConfig.kilosortParamSpec();
 if isfield(cfg, 'Params') && isstruct(cfg.Params)
     for i = 1:numel(spec)
         s = spec(i);

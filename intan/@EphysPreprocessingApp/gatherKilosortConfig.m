@@ -15,7 +15,7 @@ cfg.SIConfig    = obj.gatherSIConfig();
 
 % KS4 parameters, raw as entered in the controls.
 cfg.Params = struct();
-spec = obj.kilosortParamSpec();
+spec = EphysPipelineConfig.kilosortParamSpec();
 for i = 1:numel(spec)
     name = spec(i).name;
     cfg.Params.(name) = obj.ParamControls.(name).Value;

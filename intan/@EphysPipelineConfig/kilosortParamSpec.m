@@ -1,10 +1,11 @@
-function spec = kilosortParamSpec(~)
-%kilosortParamSpec  Definition of the Kilosort4 settings exposed in the GUI.
-%   SPEC = obj.kilosortParamSpec() returns a struct array describing every
-%   Kilosort4 parameter the Kilosort tab lets the user edit. buildKilosortTab
-%   creates one control per entry, gatherKilosortConfig / applyKilosortConfig
-%   round-trip them, and buildKS4Extra turns them into the settings struct that
-%   is merged into KS4's settings.json.
+function spec = kilosortParamSpec()
+%kilosortParamSpec  Definition of the Kilosort4 settings the pipeline exposes.
+%   SPEC = EphysPipelineConfig.kilosortParamSpec() returns a struct array
+%   describing every Kilosort4 parameter a config's Sorting.KS4 holds (typed:
+%   int/float as double, bool as logical, floatinf as double with Inf = auto,
+%   nullable as [] = auto, vector as a double row). The app builds one control
+%   per entry and EphysPipelineConfig.ks4Settings turns the typed values into
+%   the settings struct merged into Kilosort4's settings.
 %
 %   Each entry has fields:
 %     name     KS4 settings key (also the obj.ParamControls field name)

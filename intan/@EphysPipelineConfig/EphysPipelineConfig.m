@@ -1,0 +1,316 @@
+classdef EphysPipelineConfig
+    % EphysPipelineConfig  Everything a preprocessing run needs, in one value.
+    %   A config holds the parameters of every pipeline step, which steps are
+    %   enabled, the project root / output root and the dataset selection. It
+    %   has no GUI dependency: the app edits one, EphysPipeline runs one, and
+    %   generated scripts load one. It round-trips through JSON exactly
+    %   (Inf / NaN / empty values included).
+    %
+    %   Sections (one struct property each; see defaults(section))
+    %     Project    Root, OutputRoot, Selection "all"|"list", Datasets (keys)
+    %     Probe      DefaultProbeFile, WriteDefaultToManifest
+    %     Behavior   Enabled, SearchDirs, Match, MaxStartOffsetMin, Overwrite
+    %     Artifacts  Enabled + detector / filter settings, ApplyTo*, CacheIntervals
+    %     Sorting    Enabled, PythonExe, CondaEnv, Execution, DryRun,
+    %                SkipExisting, SI (SpikeInterface), KS4 (typed per
+    %                kilosortParamSpec), KS4ExtraJSON
+    %     Signals    Enabled + the derived-signal (toMat) settings,
+    %                ExcludeHandling, IncludeBehavior
+    %     Spikes     Enabled, Source, detection settings, sorted-unit settings,
+    %                output settings
+    %     Export     Enabled, Formats ("chronux" / "fieldtrip"), what to include
+    %
+    %   Usage
+    %     cfg = EphysPipelineConfig();                 % defaults
+    %     cfg.Project.Root = "D:\EPHYS";
+    %     cfg.Signals.Enabled = true;                  % sections are normalized on set
+    %     cfg.save("my_pipeline.json");
+    %     cfg = EphysPipelineConfig.load("my_pipeline.json");
+    %     issues = cfg.validate();                     % table of problems
+    %     pipe = EphysPipeline(cfg); pipe.run();
+    %
+    %   Values are coerced to the type and shape of the corresponding default
+    %   whenever a section is assigned (so a 1-element string list read back
+    %   from JSON is a string array again, "Inf" is Inf, ...). Unknown fields
+    %   are dropped with a warning (LoadWarnings lists them after load).
+    %
+    %   See also EphysPipeline, EphysPipelineScript, EphysPipelineConfig.defaults,
+    %   EphysPipelineConfig.validate.
+
+    properties
+        Name        (1,1) string = "Untitled"
+        Description (1,1) string = ""
+        Project     struct = EphysPipelineConfig.defaults("Project")
+        Probe       struct = EphysPipelineConfig.defaults("Probe")
+        Behavior    struct = EphysPipelineConfig.defaults("Behavior")
+        Artifacts   struct = EphysPipelineConfig.defaults("Artifacts")
+        Sorting     struct = EphysPipelineConfig.defaults("Sorting")
+        Signals     struct = EphysPipelineConfig.defaults("Signals")
+        Spikes      struct = EphysPipelineConfig.defaults("Spikes")
+        Export      struct = EphysPipelineConfig.defaults("Export")
+    end
+
+    properties (Transient)
+        File         (1,1) string = ""            % where it was loaded from / saved to
+        LoadWarnings (1,:) string = string.empty(1,0)
+    end
+
+    properties (Constant)
+        Schema   = "ephys-pipeline-config"
+        Version  = 1
+        Sections = ["Project" "Probe" "Behavior" "Artifacts" "Sorting" "Signals" "Spikes" "Export"]
+        % Execution order of the steps (Project is not a step; Probe is a preflight).
+        StepNames = ["probe" "behavior" "artifacts" "sorting" "signals" "spikes" "export"]
+        % Section that holds each step's settings.
+        StepSections = ["Probe" "Behavior" "Artifacts" "Sorting" "Signals" "Spikes" "Export"]
+    end
+
+    methods
+        % --- methods defined in separate files ---
+        issues = validate(obj, opts)
+
+        function obj = EphysPipelineConfig(s)
+            %EphysPipelineConfig  Defaults, or from a struct (see fromStruct).
+            if nargin > 0 && ~isempty(s)
+                obj = EphysPipelineConfig.fromStruct(s);
+            end
+        end
+
+        %% --- normalizing setters -------------------------------------------
+        function obj = set.Project(obj, s);   obj.Project   = EphysPipelineConfig.normalizeSection("Project", s);   end
+        function obj = set.Probe(obj, s);     obj.Probe     = EphysPipelineConfig.normalizeSection("Probe", s);     end
+        function obj = set.Behavior(obj, s);  obj.Behavior  = EphysPipelineConfig.normalizeSection("Behavior", s);  end
+        function obj = set.Artifacts(obj, s); obj.Artifacts = EphysPipelineConfig.normalizeSection("Artifacts", s); end
+        function obj = set.Sorting(obj, s);   obj.Sorting   = EphysPipelineConfig.normalizeSection("Sorting", s);   end
+        function obj = set.Signals(obj, s);   obj.Signals   = EphysPipelineConfig.normalizeSection("Signals", s);   end
+        function obj = set.Spikes(obj, s);    obj.Spikes    = EphysPipelineConfig.normalizeSection("Spikes", s);    end
+        function obj = set.Export(obj, s);    obj.Export    = EphysPipelineConfig.normalizeSection("Export", s);    end
+
+        %% --- struct / JSON --------------------------------------------------
+        function s = toStruct(obj)
+            %toStruct  Plain struct (schema, version, name, description, sections).
+            s = struct('schema', EphysPipelineConfig.Schema, 'version', EphysPipelineConfig.Version, ...
+                'name', obj.Name, 'description', obj.Description);
+            for sec = EphysPipelineConfig.Sections
+                s.(sec) = obj.(sec);
+            end
+        end
+
+        function obj = save(obj, file)
+            %save  Write the config as pretty JSON (atomic; Inf/NaN as strings).
+            arguments
+                obj (1,1) EphysPipelineConfig
+                file (1,1) string
+            end
+            writeJsonFile(file, obj.toStruct(), NonFinite="string");
+            obj.File = file;
+        end
+
+        function tf = isStep(~, name)
+            tf = ismember(string(name), EphysPipelineConfig.StepNames);
+        end
+
+        function s = stepSection(obj, step)
+            %stepSection  The settings struct of a step ("sorting" -> Sorting).
+            ix = find(EphysPipelineConfig.StepNames == string(step), 1);
+            if isempty(ix)
+                error('EphysPipelineConfig:BadStep', 'Unknown step "%s".', string(step));
+            end
+            s = obj.(EphysPipelineConfig.StepSections(ix));
+        end
+
+        function tf = stepEnabled(obj, step)
+            %stepEnabled  Whether a step runs (probe is always on).
+            s = obj.stepSection(step);
+            if isfield(s, 'Enabled'); tf = logical(s.Enabled); else; tf = true; end
+        end
+
+        function names = enabledSteps(obj)
+            names = EphysPipelineConfig.StepNames(arrayfun(@(n) obj.stepEnabled(n), EphysPipelineConfig.StepNames));
+        end
+
+        function tf = isequalConfig(obj, other)
+            %isequalConfig  True when two configs hold the same values (NaN == NaN).
+            tf = isequaln(obj.toStruct(), other.toStruct());
+        end
+    end
+
+    methods (Static)
+        % --- methods defined in separate files ---
+        spec  = kilosortParamSpec()
+        s     = defaults(section)
+        [s, unknown] = normalizeSection(section, s)
+        [ks4, errMsg] = ks4Settings(sorting)
+        s     = signalOptions(signals, opts)
+        v     = parseOrderedList(txt, what)
+        v     = parseFreqList(txt, what)
+
+        function obj = fromStruct(s)
+            %fromStruct  Build a config from a struct (e.g. decoded JSON).
+            %   Missing sections take their defaults; unknown fields are dropped
+            %   and listed in LoadWarnings.
+            arguments
+                s (1,1) struct
+            end
+            obj = EphysPipelineConfig();
+            warn = string.empty(1, 0);
+            if isfield(s, 'name');        obj.Name = string(s.name);               end
+            if isfield(s, 'description'); obj.Description = string(s.description); end
+            for sec = EphysPipelineConfig.Sections
+                if isfield(s, sec)
+                    [v, unknown] = EphysPipelineConfig.normalizeSection(sec, s.(sec));
+                    obj.(sec) = v;
+                    if ~isempty(unknown)
+                        warn(end+1) = sec + ": dropped unknown field(s) " + strjoin(unknown, ", "); %#ok<AGROW>
+                    end
+                end
+            end
+            known = ["schema" "version" "name" "description" EphysPipelineConfig.Sections];
+            extra = setdiff(string(fieldnames(s)).', known);
+            if ~isempty(extra)
+                warn(end+1) = "dropped unknown top-level field(s) " + strjoin(extra, ", ");
+            end
+            obj.LoadWarnings = warn;
+        end
+
+        function obj = load(file)
+            %load  Read a config JSON; errors on a wrong schema or version.
+            arguments
+                file (1,1) string
+            end
+            s = readJsonFile(file);
+            if ~isstruct(s) || ~isfield(s, 'schema') || string(s.schema) ~= EphysPipelineConfig.Schema
+                error('EphysPipelineConfig:BadSchema', ...
+                    '%s is not an %s file.', file, EphysPipelineConfig.Schema);
+            end
+            if ~isfield(s, 'version') || double(s.version) ~= EphysPipelineConfig.Version
+                error('EphysPipelineConfig:BadSchema', ...
+                    '%s has config version %s; this code reads version %d only.', ...
+                    file, string(jsonencode(s.version)), EphysPipelineConfig.Version);
+            end
+            obj = EphysPipelineConfig.fromStruct(s);
+            obj.File = file;
+            if ~isempty(obj.LoadWarnings)
+                warning('EphysPipelineConfig:LoadWarnings', '%s: %s', file, strjoin(obj.LoadWarnings, '; '));
+            end
+        end
+
+        function validateSuffix(sfx)
+            %validateSuffix  Error (EphysPipelineConfig:SignalsBadSuffix) on file-name characters.
+            if ~isempty(regexp(char(string(sfx)), '[\\/:*?"<>|]', 'once'))
+                error('EphysPipelineConfig:SignalsBadSuffix', ...
+                    'File suffix contains characters not allowed in file names: \\ / : * ? " < > |');
+            end
+        end
+
+        function key = datasetKey(root, folder)
+            %datasetKey  Root-relative key used in Project.Datasets (see EphysProject.relativeKey).
+            key = EphysProject.relativeKey(root, folder);
+        end
+
+        %% --- per-step option builders ----------------------------------------
+        function cfg = artifactConfig(a)
+            %artifactConfig  The Artifacts section as an EphysDataset.ArtifactConfig.
+            a = EphysPipelineConfig.normalizeSection("Artifacts", a);
+            cfg = EphysDataset.defaultArtifactConfig();
+            for f = string(fieldnames(cfg)).'
+                if isfield(a, f); cfg.(f) = a.(f); end
+            end
+        end
+
+        function d = detectOptions(sp)
+            %detectOptions  The Spikes section as spikesToMat DetectOptions.
+            %   NaN-valued "auto" settings (Threshold, MaxChunkSamples,
+            %   EdgePadMs) are left out so detectSpikes uses its own defaults.
+            sp = EphysPipelineConfig.normalizeSection("Spikes", sp);
+            d = struct('Filter', sp.Filter, 'Band', sp.Band, 'FilterOrder', sp.FilterOrder, ...
+                'Polarity', sp.Polarity, 'ThresholdMethod', sp.ThresholdMethod, ...
+                'Align', sp.Align, 'AlignWindowMs', sp.AlignWindowMs, ...
+                'MinPeriodMs', sp.MinPeriodMs, 'MaxAmplitudeUV', sp.MaxAmplitudeUV, ...
+                'Waveforms', sp.Waveforms, 'WindowMs', sp.WindowMs, ...
+                'WaveformSource', sp.WaveformSource, 'EdgeHandling', sp.EdgeHandling, ...
+                'UseParallel', sp.UseParallel);
+            if isfinite(sp.Threshold);       d.Threshold       = sp.Threshold;       end
+            if isfinite(sp.MaxChunkSamples); d.MaxChunkSamples = sp.MaxChunkSamples; end
+            if isfinite(sp.EdgePadMs);       d.EdgePadMs       = sp.EdgePadMs;       end
+        end
+
+        function ch = spikeChannels(sp, ds)
+            %spikeChannels  1-based channels to detect on for dataset DS ([] = all).
+            sp = EphysPipelineConfig.normalizeSection("Spikes", sp);
+            switch sp.Channels
+                case "all"
+                    ch = [];
+                case "excludeManifest"
+                    n = ds.NumChannels;
+                    if isnan(n); ch = []; else; ch = setdiff(1:n, ds.ExcludeChannels); end
+                case "list"
+                    ch = EphysPipelineConfig.parseOrderedList(sp.ChannelList, "Spikes channel list");
+            end
+        end
+
+        function o = exportOptions(e, fmt)
+            %exportOptions  Name-value struct for exportChronux / exportFieldTrip.
+            e = EphysPipelineConfig.normalizeSection("Export", e);
+            o = struct();
+            if ~isempty(e.Signals); o.Signals = e.Signals; end
+            if e.IncludeUnits;    o.Units = [];    else; o.Units = false;    end
+            o.Detected = logical(e.IncludeDetected);
+            o.Events   = logical(e.IncludeEvents);
+            if e.IncludeBehavior; o.Behavior = []; else; o.Behavior = false; end
+            o.Groups     = e.Groups;
+            o.Overwrite  = logical(e.Overwrite);
+            o.MatVersion = e.MatVersion;
+            if nargin > 1 && string(fmt) == "fieldtrip"
+                o.Validate = logical(e.Validate);
+            end
+        end
+
+        function txt = ks4ParamText(kind, value)
+            %ks4ParamText  Typed KS4 value -> text for an edit field.
+            switch string(kind)
+                case "floatinf"
+                    if isempty(value) || ~isfinite(value); txt = "Infinity"; else; txt = string(value); end
+                case "nullable"
+                    if isempty(value) || (isnumeric(value) && any(isnan(value))); txt = ""; else; txt = string(value); end
+                case "vector"
+                    if isempty(value); txt = ""; else; txt = strjoin(string(value(:).'), ", "); end
+                otherwise
+                    txt = string(value);
+            end
+        end
+
+        function [value, ok] = ks4ParamFromText(kind, txt)
+            %ks4ParamFromText  Edit-field text -> typed KS4 value ([] / Inf / row).
+            ok = true;
+            t = strtrim(string(txt));
+            switch string(kind)
+                case "floatinf"
+                    if t == "" || any(lower(t) == ["inf" "+inf" "infinity"])
+                        value = Inf;
+                    else
+                        value = str2double(t); ok = ~isnan(value);
+                    end
+                case "nullable"
+                    if t == "" || any(lower(t) == ["null" "none" "nan"])
+                        value = [];
+                    else
+                        value = str2double(t); ok = ~isnan(value);
+                    end
+                case "vector"
+                    if t == ""
+                        value = double.empty(1, 0);
+                    else
+                        value = sscanf(char(replace(t, ",", " ")), '%g').';
+                        ok = ~isempty(value) && ~any(isnan(value));
+                    end
+                case "bool"
+                    value = any(lower(t) == ["1" "true" "yes" "on"]);
+                case "int"
+                    value = round(str2double(t)); ok = ~isnan(value);
+                otherwise
+                    value = str2double(t); ok = ~isnan(value);
+            end
+        end
+    end
+end

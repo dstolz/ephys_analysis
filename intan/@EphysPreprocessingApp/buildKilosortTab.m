@@ -8,7 +8,7 @@ function buildKilosortTab(obj)
 %   Kilosort4 parameter set from kilosortParamSpec(). Kilosort4 still high-pass
 %   filters and whitens internally, so the SI bandpass is off by default.
 
-spec = obj.kilosortParamSpec();
+spec = EphysPipelineConfig.kilosortParamSpec();
 groups = unique({spec.group}, 'stable');
 
 % Row budget (over-estimated; extra rows are harmless scroll space, under-sizing

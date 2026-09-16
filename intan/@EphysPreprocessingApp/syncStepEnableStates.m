@@ -1,6 +1,7 @@
 function syncStepEnableStates(obj)
-%syncStepEnableStates  Tab titles ("[off]" for disabled steps), the Run-tab
-%   checklist and the selection summary follow the working config.
+%syncStepEnableStates  Tab titles and colours ("[off]" and greyed for disabled
+%   steps, green-tinted when enabled), the Run-tab checklist and the selection
+%   summary follow the working config.
 cfg = obj.Config;
 obj.Applying = true;
 restore = onCleanup(@() setApplying(obj, false));
@@ -13,8 +14,12 @@ for f = string(fieldnames(titles)).'
     if isempty(tab) || ~isvalid(tab); continue; end
     if flags.(f)
         tab.Title = char(titles.(f));
+        tab.BackgroundColor = [0.86 0.94 0.86];
+        tab.ForegroundColor = [0 0.35 0];
     else
         tab.Title = char(titles.(f) + " [off]");
+        tab.BackgroundColor = [0.88 0.88 0.88];
+        tab.ForegroundColor = [0.5 0.5 0.5];
     end
 end
 setIf(obj.RunBehaviorCheckBox,  cfg.Behavior.Enabled);

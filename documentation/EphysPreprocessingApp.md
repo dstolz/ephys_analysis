@@ -74,10 +74,11 @@ field it cannot parse.
 
 | Action | Target |
 | --- | --- |
-| Probe: Assign to selected, Exclude channels; Sorting: Use folder / Use auto / Open in phy; Project: Associate file / Clear; Artifacts: manual periods table | the row **last clicked** in the Project table |
+| Probe: Exclude channels; Sorting: Use folder / Use auto / Open in phy; Project: Associate file / Clear; Artifacts: manual periods table | the row **last clicked** in the Project table |
 | Visualize: Plot; Spikes: Preview | the dataset checked in the **Dataset menu** (clicking a Project row also checks it) |
 | Artifacts: Detect / Preview | the Artifacts tab's own **Dataset** dropdown |
 | Run pipeline, Run this step, Plan, Signals / Export target tables | the rows **ticked** in the Project table (`Project.Selection = "list"`), or **all** datasets when none are ticked (`"all"`) |
+| Probe: Assign to selected datasets | the rows **ticked** in the Project table, or the row **last clicked** when none are ticked |
 | Probe: Assign to all datasets | every dataset |
 
 ## Typical workflow
@@ -146,7 +147,7 @@ Probe maps are Kilosort4 probe `.json` files
   [EphysDataset → Channel exclusions](EphysDataset.md#channel-exclusions) for
   sorting; `Signals.ExcludeHandling` for derived signals;
   `Spikes.Channels = "excludeManifest"` for detection.
-- **Assign to selected dataset** / **Assign to all datasets** set `ProbeFile`
+- **Assign to selected datasets** (ticked rows) / **Assign to all datasets** set `ProbeFile`
   (and, for all, the Exclude field) and write the manifests.
 - **Default probe** (`Probe.DefaultProbeFile`) + **Use selected**: the probe
   the `probe` preflight assigns to datasets that have none; **Write default to

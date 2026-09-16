@@ -40,7 +40,12 @@ classdef EphysDataset < handle
     %     out = ds.toMat(File="D:\out\subj1.mat", ...
     %                    SignalOptions=struct('dataTypeOut', "LFP"));
     %
-    %   See also EPHYSPROJECT, READ_INTAN_RHD2000_FILE_MODIFIED,
+    %   Processed files, loaded on demand
+    %   ---------------------------------
+    %     out = ds.outputs();              % DatasetOutputs: finds every output
+    %     FT  = out.FieldTrip;             % loads <Name>_fieldtrip.mat
+    %
+    %   See also EPHYSPROJECT, DATASETOUTPUTS, READ_INTAN_RHD2000_FILE_MODIFIED,
     %   MATRIX2KILOSORT, EXTRACT_TRIALS, INTAN2MATLAB.
 
     properties
@@ -399,6 +404,18 @@ classdef EphysDataset < handle
                 return
             end
             dt = DatasetTracker(out, Name=obj.Name);
+        end
+
+        function o = outputs(obj, varargin)
+            %outputs  A DatasetOutputs over this dataset's processed files.
+            %   OUT = ds.outputs(Name=Value) finds the extract, spikes, behavior,
+            %   Chronux and FieldTrip files, the sorted units and the manifest
+            %   under outputFolder() and Folder, and loads each one when its
+            %   property is read (FT = OUT.FieldTrip). Options are those of
+            %   DatasetOutputs (SearchDirs, Recursive, CacheData, AutoRefresh).
+            %
+            %   See also DATASETOUTPUTS, EphysPipeline.outputsFor.
+            o = DatasetOutputs(obj, varargin{:});
         end
 
         %% --- Kilosort4 output location (cheap, no scan) ------------------

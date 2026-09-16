@@ -202,6 +202,22 @@ classdef EphysPipeline < handle
             end
         end
 
+        function o = outputsFor(obj, d, varargin)
+            %outputsFor  DatasetOutputs for dataset D, including the step folders.
+            %   OUT = pipe.outputsFor(d) is d.outputs() with the configured
+            %   Signals / Spikes / Export OutputDir folders added to SearchDirs,
+            %   so files written elsewhere by this config are found too. D is an
+            %   EphysDataset or an index into Project.Datasets; further
+            %   Name=Value options go to DatasetOutputs.
+            %
+            %   See also DatasetOutputs, EphysDataset.outputs.
+            if isnumeric(d); d = obj.Project.Datasets(d); end
+            c = obj.Config;
+            dirs = [string(c.Signals.OutputDir), string(c.Spikes.OutputDir), string(c.Export.OutputDir)];
+            dirs = strtrim(dirs);
+            o = d.outputs('SearchDirs', dirs(strlength(dirs) > 0), varargin{:});
+        end
+
         %% --- preflight steps ----------------------------------------------------
         function checkProbes(obj, opts)
             %checkProbes  Assign the default probe where missing; check channel counts.

@@ -13,7 +13,7 @@ T = P.gatherMetadata();          % header-only, one row per dataset
 %%
 % Threshold spike detection over a whole recording (streamed, one chunk at a
 % time). TS is {1 x nChan} of spike times in seconds.
-TS = P.Datasets(4).detectSpikes();
+[TS,wf,info] = P.Datasets(4).detectSpikes();
 
 
 %%

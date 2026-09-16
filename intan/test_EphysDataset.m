@@ -443,7 +443,7 @@ absArgs = {'Filter', false, 'ThresholdMethod', "absolute", 'Threshold', 100};
 check(isequal(iBlk.index{1}, recIdx), 'block reference finds every injected trough');
 
 % Streamed over 6 chunks of 2000 samples.
-[tsStr, wfStr, iStr] = dsSpk.detectSpikes(MaxChunkSamples=2000, absArgs{:});
+[tsStr, wfStr, iStr] = dsSpk.detectSpikes('MaxChunkSamples', 2000, absArgs{:});
 check(numel(iStr.chunks) == 6 && isequal([iStr.chunks.sampleOffset], 0:2000:10000), ...
     'recording streamed in 6 chunks with contiguous sample offsets');
 check(iStr.source == "recording" && iStr.thresholdScope == "chunk", ...
@@ -468,7 +468,7 @@ check(isequal(iStr.nEdgeWindows, iBlk.nEdgeWindows), ...
     'edge-window count matches the single-block result');
 
 % A subset/reorder of channels applies to every chunk.
-[~, ~, iCh] = dsSpk.detectSpikes(MaxChunkSamples=2000, ChannelOrder=2, absArgs{:});
+[~, ~, iCh] = dsSpk.detectSpikes('MaxChunkSamples', 2000, 'ChannelOrder', 2, absArgs{:});
 check(iCh.nChan == 1 && isequal(iCh.index{1}, recIdx(1:4)), ...
     'ChannelOrder subsets the channels detected on');
 
@@ -480,8 +480,24 @@ check(iDef.edgePadSamples >= round(0.010*Fs), 'edge padding at least EdgePadMs')
 
 % Progress reporting runs once per chunk.
 nProg = 0;
-dsSpk.detectSpikes(MaxChunkSamples=2000, absArgs{:}, 'ProgressFcn', @progTick);
+dsSpk.detectSpikes('MaxChunkSamples', 2000, absArgs{:}, 'ProgressFcn', @progTick);
 check(nProg == 6, 'ProgressFcn called once per chunk');
+
+% UseParallel must give exactly the serial result (or fall back to serial with
+% a warning where no pool is available).
+[tsPar, wfPar, iPar] = dsSpk.detectSpikes('MaxChunkSamples', 2000, absArgs{:}, ...
+    'UseParallel', true);
+check(isequal(tsPar, tsStr) && isequaln(wfPar, wfStr), ...
+    'UseParallel timestamps and waveforms == serial (split format)');
+check(isequaln(iPar, iStr), 'UseParallel info == serial (split format)');
+[~, ~, iParDef] = dsSpk.detectSpikes(MaxChunkSamples=2000, Threshold=8, UseParallel=true);
+check(isequaln(iParDef, iDef), 'UseParallel == serial with band-pass + MAD thresholds');
+[~, wfSerT, iSerT] = ds.detectSpikes(Filter=false, ThresholdMethod="percentile", ...
+    Threshold=99, Waveforms=true);
+[~, wfParT, iParT] = ds.detectSpikes(Filter=false, ThresholdMethod="percentile", ...
+    Threshold=99, Waveforms=true, UseParallel=true);
+check(isequaln(iParT, iSerT) && isequaln(wfParT, wfSerT) && numel(iParT.chunks) == 2, ...
+    'UseParallel == serial across traditional *.rhd files');
 
 % Guards
 errId = '';

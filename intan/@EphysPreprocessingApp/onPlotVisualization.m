@@ -275,9 +275,10 @@ if size(Xc, 2) > 1
     end
 end
 if pp.type ~= ""
-    % filterContinuous casts to double internally; bounded here to one file.
-    Xc = single(d.filterContinuous(Xc, Type=pp.type, Cutoff=pp.cutoff, ...
-        Order=pp.order, Fs=Fs));
+    % filterContinuous filters in double internally and returns single here;
+    % the temporary double copy is bounded to one file.
+    Xc = d.filterContinuous(Xc, Type=pp.type, Cutoff=pp.cutoff, ...
+        Order=pp.order, Fs=Fs);
 end
 end
 

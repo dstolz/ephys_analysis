@@ -21,6 +21,7 @@ buildStatusBar(obj, outer);
 
 % Tabs in workflow order; the two utility tabs come last.
 obj.TabProject   = uitab(obj.Tabs, "Title", "Project");
+obj.TabTrials    = uitab(obj.Tabs, "Title", "Trials");
 obj.TabProbe     = uitab(obj.Tabs, "Title", "Probe");
 obj.TabArtifacts = uitab(obj.Tabs, "Title", "Artifacts");
 obj.TabSorting   = uitab(obj.Tabs, "Title", "Sorting");
@@ -32,6 +33,7 @@ obj.TabVisualize = uitab(obj.Tabs, "Title", "Visualize");
 obj.TabReview    = uitab(obj.Tabs, "Title", "Review");
 
 obj.buildProjectTab();
+obj.buildTrialsTab();
 obj.buildVisualizeTab();     % before Artifacts: the artifact tab links to it
 obj.buildArtifactsTab();
 obj.buildProbeTab();

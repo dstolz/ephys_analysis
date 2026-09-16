@@ -71,7 +71,8 @@ function [Y, events, info] = intan2matlab(RHDroot, options)
 %   -------------------------------
 %   options.dataTypeOut        string array   "LFP"
 %       Select which signals to compute/return. Any subset of:
-%       "LFP", "MUA", "SPIKE".
+%       "LFP", "MUA", "SPIKE", "AUX" (the aux/accelerometer inputs in volts,
+%       when recorded; see EphysDataset.deriveSignals).
 %
 %   options.keepAmpChannels    integer vector []
 %       Subset of amplifier channels to load/keep (1-based) prior to
@@ -140,6 +141,11 @@ function [Y, events, info] = intan2matlab(RHDroot, options)
 %       Intan channel name used to label amplifier and digital input lines:
 %       "custom_channel_name" or "native_channel_name".
 %
+%   options.invertedLines      string list    []
+%       Digital input lines with inverted TTL polarity (on while low). Their
+%       events are the low runs: onset = falling edge, offset = last low
+%       sample. Other lines keep the normal polarity (onset = rising edge).
+%
 %   options.ProgressFcn        function handle []
 %       Optional progress callback, called as
 %           ProgressFcn(nDone, nTotal, message)
@@ -174,7 +180,7 @@ arguments
     options.channelRemap (1,:) double {mustBeInteger,mustBePositive} = []
     options.badChannels double = []
     options.keepAmpChannels double {mustBeInteger} = []
-    options.dataTypeOut (1,:) string = "LFP"; % can be one or more values "LFP","MUA","SPIKE"
+    options.dataTypeOut (1,:) string = "LFP"; % can be one or more values "LFP","MUA","SPIKE","AUX"
     options.LFP_Fs (1,1) double {mustBePositive} = 1000
     options.LFP_bpLoHi (1,2) double {mustBeNonnegative} = [0 Inf] % 0 = no high-pass, Inf = no low-pass
     options.LFP_NotchHz (1,:) double {mustBePositive, mustBeFinite} = [] % [] = no notch
@@ -185,6 +191,7 @@ arguments
     options.MUA_bpLoHi (1,2) double {mustBePositive} = [300 5000]
     options.SPIKE_bpLoHi (1,2) double {mustBePositive} = [300 5000]
     options.labelField (1,1) string = "custom_channel_name"
+    options.invertedLines (1,:) string = string.empty(1,0)
     options.ProgressFcn = []
 end
 

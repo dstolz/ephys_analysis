@@ -10,16 +10,17 @@ if isempty(obj.ConvLFPCheckBox) || ~isvalid(obj.ConvLFPCheckBox); return; end
 cfg = EphysPipelineConfig.normalizeSection("Signals", cfg);
 trySet(obj.SigEnableCheckBox, 'Value', logical(cfg.Enabled));
 setDrop(obj.ConvExcludeHandlingDropDown, cfg.ExcludeHandling);
-trySet(obj.ConvIncludeBehaviorCheckBox, 'Value', logical(cfg.IncludeBehavior));
 
 trySet(obj.ConvOutputDirField,     'Value', char(string(cfg.OutputDir)));
 trySet(obj.ConvSuffixField,        'Value', char(string(cfg.Suffix)));
 setDrop(obj.ConvMatVersionDropDown, cfg.MatVersion);
 trySet(obj.ConvOverwriteCheckBox,  'Value', logical(cfg.Overwrite));
+trySet(obj.ConvSeparateFilesCheckBox, 'Value', logical(cfg.SeparateFiles));
 
 trySet(obj.ConvLFPCheckBox,   'Value', logical(cfg.LFP));
 trySet(obj.ConvMUACheckBox,   'Value', logical(cfg.MUA));
 trySet(obj.ConvSPIKECheckBox, 'Value', logical(cfg.SPIKE));
+trySet(obj.ConvAUXCheckBox,   'Value', logical(cfg.AUX));
 
 trySet(obj.ConvLFPFsField,          'Value', cfg.LFP_Fs);
 trySet(obj.ConvLFPHighpassCheckBox, 'Value', logical(cfg.LFP_HighpassOn));
@@ -44,6 +45,17 @@ if isnumeric(cfg.SPIKE_bpLoHi) && numel(cfg.SPIKE_bpLoHi) == 2
 end
 
 setDrop(obj.ConvLabelFieldDropDown, cfg.LabelField);
+inv = string.empty(1, 0);
+if isfield(cfg, 'InvertedLines'); inv = reshape(string(cfg.InvertedLines), 1, []); end
+L = obj.TrialsLinesTable.Data;
+if isempty(obj.TrialsEvents) || ~istable(L)
+    names = reshape(inv, [], 1);
+    L = table(names, NaN(numel(names), 1), true(numel(names), 1), ...
+        'VariableNames', {'Line', 'Intervals', 'Inverted'});
+else
+    L.Inverted = ismember(string(L.Line), inv);
+end
+obj.TrialsLinesTable.Data = L;
 trySet(obj.ConvKeepChannelsField, 'Value', char(string(cfg.KeepChannels)));
 setDrop(obj.ConvBadModeDropDown, cfg.BadMode);
 trySet(obj.ConvBadThresholdField, 'Value', cfg.BadThreshold);

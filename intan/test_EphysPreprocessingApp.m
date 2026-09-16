@@ -48,6 +48,12 @@ makePhyFixture(phyDir, Fs, ChannelMap=[0 1 2 3], Legacy=true);
 d = EphysDataset(f1);
 d.SortingDir = phyDir;
 d.ManualArtifacts = [0.001 0.002];
+behFile = fullfile(root, 'recA_session.mat');
+Data = struct('ToneLevel', {60}, 'TrialIndex', {1}, 'computerTimestamp', {datetime(2026,1,1,12,0,1)}, ...
+    'isTest', {false}); %#ok<NASGU>
+Info = struct('Subject', "mouseA", 'StartTime', datetime(2026,1,1,12,0,0), 'FormatVersion', 2); %#ok<NASGU>
+save(behFile, 'Data', 'Info');
+d.BehaviorFile = behFile;
 d.writeManifest();
 outRoot = fullfile(root, 'out');
 cfg = EphysPipelineConfig();
@@ -64,7 +70,8 @@ cfg = cfg.save(cfgFile);
 fprintf('\n== 1. build + open ==\n');
 app = EphysPreprocessingApp;
 appCleanup = onCleanup(@() closeApp(app));
-check(isvalid(app.Fig) && numel(app.Tabs.Children) == 10, 'app builds with 10 tabs');
+check(isvalid(app.Fig) && numel(app.Tabs.Children) == 11 && app.Tabs.Children(2) == app.TabTrials, ...
+    'app builds with 11 tabs (Trials second)');
 check(startsWith(app.Fig.Name, "Ephys preprocessing") && ~startsWith(app.Fig.Name, "*"), 'fresh app is clean');
 ok = app.openConfigFile(cfgFile);
 check(ok && app.Config.Name == "gui test" && app.Config.File == string(cfgFile), 'openConfigFile loads the config');
@@ -111,6 +118,43 @@ P = app.RunResultsTable.Data;
 check(istable(P) && any(P.Step == "spikes" & P.Status == "ready"), 'plan lists the spikes step as ready');
 app.onValidate();
 check(iscell(app.RunIssuesTable.Data) || istable(app.RunIssuesTable.Data), 'validate fills the issues table');
+
+fprintf('\n== 3b. Trials tab: load, edit, approve, polarity ==\n');
+app.populateTrialsDatasets();
+app.TrialsDatasetDropDown.Value = 1;
+app.setTrialsLineItems("din0", "din0");
+app.onTrialsSettingsChanged();
+check(app.Config.Behavior.TrialLine == "din0" && startsWith(app.Fig.Name, "*"), 'the trial line is a config setting');
+app.onTrialsLoad("recorded");
+dT = app.currentTrialsDataset();
+TT = app.TrialsTable.Data;
+check(~isempty(app.TrialsPairing) && height(TT) == 1 && TT{1, 3} == 1 && TT{1, 6} == 50 ...
+    && height(app.TrialsLinesTable.Data) == 1 && strcmp(app.TrialsApproveButton.Enable, 'on'), ...
+    'Load pairs the single trial with the din0 interval (onset row 50)');
+app.onTrialsCellEdit(struct('Indices', [1 3], 'NewData', NaN));
+check(isnan(app.TrialsPairing.interval(1)) && app.TrialsPairing.method == "manual", 'editing the Interval cell unpairs the trial');
+app.onTrialsCellEdit(struct('Indices', [1 3], 'NewData', 7));
+check(isnan(app.TrialsPairing.interval(1)), 'an out-of-range interval is refused');
+app.onTrialsLoad("auto");
+app.onTrialsApprove("approved");
+mT = readJsonFile(dT.manifestFile());
+check(strcmp(mT.behavior.pairing.status, 'approved') && contains(app.DatasetsTable.Data.Behavior(1), "pairing approved"), ...
+    'Approve saves the pairing in the manifest and the table shows it');
+app.TrialsLinesTable.Data.Inverted(1) = true;
+app.onTrialsSettingsChanged();
+check(isequal(app.Config.Signals.InvertedLines, "din0") && app.TrialsPairing.stale ...
+    && app.TrialsPairing.status == "unreviewed" && app.TrialsPairing.onsetSample(1) == 1, ...
+    'inverting the line makes the approved pairing stale (onset = falling edge)');
+g3 = app.gatherConfig();
+check(isequal(g3.Signals.InvertedLines, "din0") && isequal(EphysPipelineConfig.signalOptions(g3.Signals).invertedLines, "din0"), ...
+    'the polarity reaches the Signals options');
+app.TrialsLinesTable.Data.Inverted(1) = false;
+app.onTrialsSettingsChanged();
+check(isempty(app.Config.Signals.InvertedLines) && app.TrialsPairing.recorded && app.TrialsPairing.status == "approved", ...
+    'restoring the polarity brings the approved pairing back');
+app.onTrialsWriteBehavior();
+BT = load(fullfile(dT.outputFolder(), dT.Name + "_behavior.mat"));
+check(BT.behavior.trials.TrialOnsetSample(1) == 50 && BT.behavior.pairing.status == "approved", 'Write behavior .mat carries the pairing');
 
 fprintf('\n== 4. run one step through the pipeline ==\n');
 app.runPipeline(Steps="spikes");

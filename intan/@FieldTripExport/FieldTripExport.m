@@ -33,7 +33,7 @@ classdef FieldTripExport
             %   data = FieldTripExport.raw(S, "LFP") with S = load("x_extract.mat").
             arguments
                 S (1,1) struct
-                sig (1,1) string {mustBeMember(sig, ["LFP","MUA","SPIKE"])}
+                sig (1,1) string {mustBeMember(sig, ["LFP","MUA","SPIKE","AUX"])}
                 opts.Class (1,1) string {mustBeMember(opts.Class, ["double","single"])} = "double"
             end
             if ~isfield(S, 'Y') || ~isfield(S.Y, sig) || isempty(S.Y.(sig))
@@ -45,7 +45,8 @@ classdef FieldTripExport
             X  = S.Y.(sig);
             Fs = double(S.info.(sig).Fs);
             [N, nCh] = size(X);
-            labels = FieldTripExport.labelsFor(S, nCh);
+            labels = FieldTripExport.labelsFor(S, nCh, sig);
+            [unit, unitName] = FieldTripExport.unitsFor(S, sig);
             origFs = Fs;
             if isfield(S.info, 'origFs') && isfinite(double(S.info.origFs)); origFs = double(S.info.origFs); end
 
@@ -58,11 +59,11 @@ classdef FieldTripExport
             data.hdr = struct('Fs', Fs, 'nChans', nCh, 'nSamples', N, 'nSamplesPre', 0, ...
                 'nTrials', 1, 'label', {cellstr(labels(:))}, ...
                 'chantype', {repmat({char(lower(sig))}, nCh, 1)}, ...
-                'chanunit', {repmat({'uV'}, nCh, 1)}, ...
+                'chanunit', {repmat({unit}, nCh, 1)}, ...
                 'FirstTimeStamp', 0, 'TimeStampPerSample', origFs / Fs, ...
                 'orig', struct('signal', sig, 'origFs', origFs, 'info', S.info.(sig)));
             data.cfg = struct('previous', [], 'exporter', "FieldTripExport.raw", ...
-                'signal', sig, 'units', "uV", 'timeConvention', "t = (sample-1)/Fs");
+                'signal', sig, 'units', unitName, 'timeConvention', "t = (sample-1)/Fs");
         end
 
         function spike = spike(units)
@@ -185,9 +186,22 @@ classdef FieldTripExport
     end
 
     methods (Static, Access = private)
-        function labels = labelsFor(S, nCh)
+        function [unit, name] = unitsFor(S, sig)
+            %unitsFor  FieldTrip chanunit and a units name: uV unless info says volts.
+            unit = 'uV'; name = "uV";
+            if isfield(S.info.(sig), 'units') && string(S.info.(sig).units) == "volts"
+                unit = 'V'; name = "V";
+            end
+        end
+
+        function labels = labelsFor(S, nCh, sig)
+            %labelsFor  The signal's own labels (AUX), else info.labels, else ch1..N.
             labels = string.empty(1, 0);
-            if isfield(S.info, 'labels'); labels = string(S.info.labels(:)).'; end
+            if isfield(S.info.(sig), 'labels')
+                labels = string(S.info.(sig).labels(:)).';
+            elseif isfield(S.info, 'labels')
+                labels = string(S.info.labels(:)).';
+            end
             if numel(labels) ~= nCh
                 labels = "ch" + string(1:nCh);
             end

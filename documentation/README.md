@@ -66,6 +66,7 @@ flowchart LR
     OUT -. readSortedUnits .-> DS
     DS -- toMat --> MAT[(_extract.mat)]
     DS -- spikesToMat --> SPK[(_spikes.mat)]
+    DS -- behaviorToMat --> BMAT[(_behavior.mat)]
     DS -- exportChronux --> CHX[(_chronux.mat)]
     DS -- exportFieldTrip --> FTX[(_fieldtrip.mat)]
     CHX -.-> CHRONUX[/Chronux/]

@@ -1,9 +1,10 @@
 function runExport(obj, opts)
 %runExport  Chronux / FieldTrip files per dataset (exportChronux / exportFieldTrip).
-%   The continuous signals come from the Signals step's extract file, the
+%   The continuous signals come from the Signals step's extract file(s), the
 %   sorted units from the sorting association, detected spikes from the
-%   Spikes step's file (Export.IncludeDetected), events and behavior as
-%   configured. One row per format and dataset.
+%   Spikes step's file (Export.IncludeDetected), events as configured.
+%   Behavior data is not exported here (see the behavior step). One row per
+%   format and dataset.
 %
 %   Options: Datasets (indices), DryRun (log only).
 
@@ -20,7 +21,7 @@ n = numel(ds);
 
 for k = 1:n
     d = ds(k);
-    extract = obj.outputPathFor("signals", d);
+    extract = EphysDataset.recordedSignalFiles(obj.outputPathFor("signals", d));
     spikesFile = obj.outputPathFor("spikes", d);
     for fmt = E.Formats
         step = "export:" + fmt;
@@ -30,8 +31,8 @@ for k = 1:n
         end
         t0 = tic;
         out = obj.outputPathFor(step, d);
-        if ~isfile(extract)
-            obj.addResult(step, d.Name, "skipped", "no extract file (" + extract + ")", out, toc(t0));
+        if isempty(extract) || ~all(isfile(extract))
+            obj.addResult(step, d.Name, "skipped", "no extract file (" + strjoin(extract(~isfile(extract)), ", ") + ")", out, toc(t0));
             continue
         end
         if isfile(out) && ~E.Overwrite
@@ -45,7 +46,7 @@ for k = 1:n
             end
             if opts.DryRun
                 obj.log("[%s] %s: dry run -> %s", step, d.Name, out);
-                obj.addResult(step, d.Name, "dry run", "would write from " + extract, out, toc(t0));
+                obj.addResult(step, d.Name, "dry run", "would write from " + strjoin(extract, ", "), out, toc(t0));
                 continue
             end
             obj.progress(step, d.Name, k, n, 0, 1, "exporting");

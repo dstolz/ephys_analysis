@@ -71,6 +71,9 @@ for i = 1:n
             [~, bf, be] = fileparts(d.BehaviorFile);
             Behavior(i) = bf + be;
         end
+        if ~isempty(d.TrialPairing)
+            Behavior(i) = Behavior(i) + ", pairing " + d.TrialPairing.status;
+        end
     end
 end
 

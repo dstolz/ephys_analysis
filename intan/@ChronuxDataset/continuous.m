@@ -67,7 +67,7 @@ params = obj.params(Fs=obj.Fs, Tapers=opts.Tapers, Pad=opts.Pad, ...
 info = struct();
 info.signal      = obj.Signal;
 info.fs          = obj.Fs;
-info.units       = "microvolts";
+info.units       = obj.dataUnits();
 info.channels    = ch;
 info.labels      = labels;
 info.sampleRange = [i0 i1];

@@ -203,7 +203,7 @@ params = obj.params(Fs=Fs, Tapers=opts.Tapers, Pad=opts.Pad, ...
 info = struct();
 info.signal            = obj.Signal;
 info.fs                = Fs;
-info.units             = "microvolts";
+info.units             = obj.dataUnits();
 info.channels          = ch;
 info.labels            = labels;
 info.twin              = twin;

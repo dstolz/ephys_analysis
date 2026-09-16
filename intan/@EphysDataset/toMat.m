@@ -1,8 +1,18 @@
 function out = toMat(obj, opts)
-%toMat  Derive LFP / MUA / SPIKE signals and save them to a .mat file.
+%toMat  Derive LFP / MUA / SPIKE / AUX signals and save them to .mat file(s).
 %   OUT = ds.toMat(Name=Value) runs EphysDataset.deriveSignals and saves its
 %   outputs -- variables Y, events and info, plus a small "conversion"
-%   provenance struct and an optional behavior struct -- to one MAT-file. The recording files are only read.
+%   provenance struct -- to one MAT-file, or with SeparateFiles=true to one
+%   MAT-file per signal type. The recording files are only read. Behavior
+%   data is not stored here; it has its own file (behaviorToMat).
+%
+%   Separate files are named <File without .mat>_<TYPE>.mat (see
+%   EphysDataset.signalFiles), e.g. rec_extract_LFP.mat. Each has the same
+%   variables as the combined file, but Y holds only that signal (the other
+%   Y fields are single([])) and info only that signal's sub-struct, so every
+%   reader of the combined file reads it too. The derivation runs once.
+%   AUX (the accelerometer inputs) is written only when the recording has
+%   them: a requested AUX that is absent gets no _AUX file.
 %
 %   The file is written to "~<name>.partial.mat" next to the target and
 %   renamed only after save() finishes without warnings and every variable is
@@ -14,19 +24,21 @@ function out = toMat(obj, opts)
 %   Options
 %   -------
 %     File           target .mat path (default:
-%                    <outputFolder()>/<Name>_extract.mat)
+%                    <outputFolder()>/<Name>_extract.mat); the base name
+%                    of the per-type files when SeparateFiles
+%     SeparateFiles  false (default): one file; true: one file per signal
 %     SignalOptions  struct of deriveSignals options (dataTypeOut, LFP_Fs,
 %                    keepAmpChannels, ...); omitted fields use its defaults
 %     MatVersion     "-v7.3" (default, any size) | "-v7"
-%     Overwrite      false (default): error if File already exists
-%     Behavior       struct saved as the behavior variable (Epsych2 session
-%                    data, see EphysDataset.behaviorStruct); [] = none
+%     Overwrite      false (default): error if File (or any per-type
+%                    file) already exists
 %     ProgressFcn    as in deriveSignals, called as ProgressFcn(nDone, nTotal,
 %                    message); the save is counted as one extra step. It may
 %                    throw to abort; once the file is complete, an error from
 %                    the final "Done" notification is ignored.
 %
-%   OUT fields: file, bytes, seconds, matVersion, recordingFormat, origFs,
+%   OUT fields: file (one per file written, in dataTypeOut order when
+%   SeparateFiles), types (the signal type(s) in each file), bytes (per file), seconds, matVersion, recordingFormat, origFs,
 %   signals (struct array: name, nSamples, nChannels, class, Fs), events
 %   (struct array: name, count), badChannels (the channels actually
 %   interpolated, from info.importOptions).
@@ -38,8 +50,8 @@ arguments
     opts.File (1,1) string = ""
     opts.SignalOptions (1,1) struct = struct()
     opts.MatVersion (1,1) string {mustBeMember(opts.MatVersion, ["-v7.3", "-v7"])} = "-v7.3"
+    opts.SeparateFiles (1,1) logical = false
     opts.Overwrite (1,1) logical = false
-    opts.Behavior = []
     opts.ProgressFcn = []
 end
 
@@ -47,9 +59,20 @@ file = opts.File;
 if file == ""
     file = string(fullfile(obj.outputFolder(), obj.Name + "_extract.mat"));
 end
-if isfile(file) && ~opts.Overwrite
+if opts.SeparateFiles
+    if isfield(opts.SignalOptions, 'dataTypeOut')
+        types = unique(string(opts.SignalOptions.dataTypeOut), 'stable');
+    else
+        types = "LFP";   % deriveSignals' default
+    end
+    files = EphysDataset.signalFiles(file, types);
+else
+    files = file;
+end
+existing = files(isfile(files));
+if ~isempty(existing) && ~opts.Overwrite
     error('EphysDataset:toMat:Exists', ...
-        '%s already exists (pass Overwrite=true to replace it).', file);
+        '%s already exists (pass Overwrite=true to replace it).', strjoin(existing, ', '));
 end
 outDir = fileparts(file);
 if strlength(outDir) > 0 && ~isfolder(outDir)
@@ -68,19 +91,14 @@ end
 steps = containers.Map({'total'}, {NaN});
 cb = [];
 if ~isempty(opts.ProgressFcn)
-    cb = @(d, n, m) forwardProgress(opts.ProgressFcn, steps, d, n, m, file);
+    cb = @(d, n, m) forwardProgress(opts.ProgressFcn, steps, d, n, m, strjoin(files, ", "));
 end
 
 t0 = tic;
 args = namedargs2cell(opts.SignalOptions);
 [Y, ev, info] = obj.deriveSignals(args{:}, 'ProgressFcn', cb);
 
-S = struct();
-S.Y = Y;
-S.events = ev;
-S.info = info;
-S.behavior = opts.Behavior;
-S.conversion = struct( ...
+conversion = struct( ...
     'tool',            "EphysDataset.toMat (deriveSignals / intan2matlab)", ...
     'created',         string(datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss')), ...
     'dataset',         obj.Name, ...
@@ -88,13 +106,37 @@ S.conversion = struct( ...
     'recordingFormat', obj.RecordingFormat, ...
     'matFileVersion',  opts.MatVersion, ...
     'matlabVersion',   string(version));
-EphysDataset.saveAtomically(file, S, opts.MatVersion);
-clear S
+if opts.SeparateFiles
+    written = isfield(info, cellstr(types));   % a requested AUX may be absent
+    files = files(written);
+    types = types(written);
+end
+bytes = zeros(1, numel(files));
+for k = 1:numel(files)
+    S = struct();
+    if opts.SeparateFiles
+        [S.Y, S.info] = onlySignal(Y, info, types(k));
+    else
+        S.Y = Y;
+        S.info = info;
+    end
+    S.events = ev;
+    S.conversion = conversion;
+    EphysDataset.saveAtomically(files(k), S, opts.MatVersion);
+    clear S
+    d = dir(files(k));
+    bytes(k) = d.bytes;
+end
 
-d = dir(file);
 out = struct();
-out.file            = file;
-out.bytes           = d.bytes;
+out.file            = files;
+if opts.SeparateFiles
+    out.types       = types;
+else
+    out.types       = strjoin(string(info.importOptions.dataTypeOut(isfield(info, ...
+        cellstr(info.importOptions.dataTypeOut)))), "+");
+end
+out.bytes           = bytes;
 out.seconds         = toc(t0);
 out.matVersion      = opts.MatVersion;
 out.recordingFormat = obj.RecordingFormat;
@@ -105,7 +147,7 @@ out.badChannels     = info.importOptions.badChannels;
 
 if ~isempty(obj.Manifest) && isa(obj.Manifest, 'Manifest')
     obj.Manifest.add("toMat", "Wrote derived signals .mat", ...
-        struct('file', file, 'dataTypeOut', info.importOptions.dataTypeOut, ...
+        struct('file', files, 'dataTypeOut', info.importOptions.dataTypeOut, ...
         'bytes', out.bytes));
 end
 
@@ -116,6 +158,19 @@ if ~isempty(opts.ProgressFcn)
     catch
         % The file is already complete; a cancel raised here must not turn a
         % finished conversion into a reported failure.
+    end
+end
+end
+
+
+function [Ys, infoS] = onlySignal(Y, info, type)
+%onlySignal  Y / info reduced to one signal type (the others emptied / removed).
+Ys = Y;
+infoS = info;
+for f = ["LFP" "MUA" "SPIKE" "AUX"]
+    if f ~= type
+        Ys.(f) = single([]);
+        if isfield(infoS, f); infoS = rmfield(infoS, f); end
     end
 end
 end
@@ -135,7 +190,7 @@ end
 function s = signalSummary(Y, info)
 %signalSummary  Size / class / rate of each derived signal that was requested.
 s = struct('name', {}, 'nSamples', {}, 'nChannels', {}, 'class', {}, 'Fs', {});
-for f = ["LFP" "MUA" "SPIKE"]
+for f = ["LFP" "MUA" "SPIKE" "AUX"]
     if isfield(info, f)   % info.<type> exists only for requested types
         X = Y.(f);
         s(end+1) = struct('name', f, 'nSamples', size(X, 1), ...

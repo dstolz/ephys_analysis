@@ -20,7 +20,6 @@ neither output is derived from the other.
 | extract struct `S` (`Y`, `events`, `info`) | `EphysDataset.toMat` (the Signals step), loaded or as a struct |
 | `units` struct | `EphysDataset.readSortedUnits` / `readPhyUnits` (Kilosort4 / phy output) |
 | `detected` struct | `EphysDataset.spikesToMat` (threshold detection) |
-| `behavior` struct | `EphysDataset.behaviorStruct` (Epsych2 session) |
 
 ## Static functions
 
@@ -42,25 +41,24 @@ matches this repository's `t = (row-1)/Fs`, so there is no off-by-one.
 
 ```matlab
 out = ds.exportFieldTrip();                        % <outputFolder>/<Name>_fieldtrip.mat
-out = ds.exportFieldTrip(Signals="LFP", Units=false, Detected=false, Behavior=false);
+out = ds.exportFieldTrip(Signals="LFP", Units=false, Detected=false);
 out = ds.exportFieldTrip(Extract=S, Units=units, File="D:\ft\subj1.mat", Overwrite=true);
 ```
 
 | Option | Default | Meaning |
 | --- | --- | --- |
 | `File` | `<outputFolder>/<Name>_fieldtrip.mat` | target |
-| `Extract` | `<outputFolder>/<Name>_extract.mat` | another extract file, or a `toMat`-shaped struct |
+| `Extract` | `<outputFolder>/<Name>_extract.mat`, else the `<Name>_extract_<TYPE>.mat` files present | other extract file(s) (several are merged), or a `toMat`-shaped struct |
 | `Signals` | all present | subset of `["LFP" "MUA" "SPIKE"]` |
 | `Units` | the associated sorted units | a units struct, or `false` |
 | `Groups` | `["good" "mua"]` | phy labels kept when reading the units |
 | `Detected` | `<Name>_spikes.mat` when present | a spikes file, a `detected` struct, or `false` |
 | `Events` | `true` | write `event` and each signal's `cfg.event` |
-| `Behavior` | the extract's `behavior`, else the associated Epsych2 session | a struct, or `false` |
 | `Validate` | `true` | validate with FieldTrip when it is on the path; the outcome is recorded in `export.validation` |
 | `Overwrite`, `MatVersion` | `false`, `"-v7.3"` | |
 
 Variables in the file: `data_LFP` / `data_MUA` / `data_SPIKE`, `spike`,
-`spikeDetected`, `event`, `behavior` and `export` (provenance: `tool`,
+`spikeDetected`, `event` and `export` (provenance: `tool`,
 `created`, `dataset`, `sources`, `signals`, `eventFs`, `validation`). Absent
 inputs are stored as `[]`. The file is written atomically
 (`EphysDataset.saveAtomically`). Schema summary in

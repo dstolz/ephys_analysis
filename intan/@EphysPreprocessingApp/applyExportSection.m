@@ -9,7 +9,6 @@ obj.ExpUnitsCheckBox.Value     = logical(E.IncludeUnits);
 obj.ExpGroupsField.Value       = char(strjoin(E.Groups, ", "));
 obj.ExpDetectedCheckBox.Value  = logical(E.IncludeDetected);
 obj.ExpEventsCheckBox.Value    = logical(E.IncludeEvents);
-obj.ExpBehaviorCheckBox.Value  = logical(E.IncludeBehavior);
 obj.ExpValidateCheckBox.Value  = logical(E.Validate);
 obj.ExpOutputDirField.Value    = char(E.OutputDir);
 obj.setDropIfMember(obj.ExpMatVersionDropDown, E.MatVersion);

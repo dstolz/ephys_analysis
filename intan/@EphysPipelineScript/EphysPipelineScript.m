@@ -139,14 +139,21 @@ classdef EphysPipelineScript
             L(end+1, 1) = "sessions = findEpsychSessions(" + lit(B.SearchDirs) + ");";
             L(end+1, 1) = "for k = idx";
             L(end+1, 1) = "    d = P.Datasets(k);";
-            L(end+1, 1) = "    if d.BehaviorFile ~= """" && ~" + lit(logical(B.Overwrite)) + "; continue; end";
-            L(end+1, 1) = "    m = matchEpsychSession(sessions, d, Match=" + lit(B.Match) + ...
+            L(end+1, 1) = "    if d.BehaviorFile == """" || ~isfile(d.BehaviorFile) || " + lit(logical(B.Overwrite));
+            L(end+1, 1) = "        m = matchEpsychSession(sessions, d, Match=" + lit(B.Match) + ...
                 ", MaxStartOffsetMin=" + lit(B.MaxStartOffsetMin) + ");";
-            L(end+1, 1) = "    if m.file ~= """"";
-            L(end+1, 1) = "        d.BehaviorFile = m.file;";
-            L(end+1, 1) = "        d.writeManifest();";
+            L(end+1, 1) = "        if m.file ~= """"";
+            L(end+1, 1) = "            d.BehaviorFile = m.file;";
+            L(end+1, 1) = "            d.writeManifest();";
+            L(end+1, 1) = "        end";
+            L(end+1, 1) = "        fprintf('%s: behavior %s (%s)\n', d.Name, m.file, m.reason);";
             L(end+1, 1) = "    end";
-            L(end+1, 1) = "    fprintf('%s: behavior %s (%s)\n', d.Name, m.file, m.reason);";
+            if B.WriteFile
+                L(end+1, 1) = "    if d.BehaviorFile ~= """" && isfile(d.BehaviorFile)";
+                L(end+1, 1) = "        r = d.behaviorToMat(Overwrite=true);   % <Name>_behavior.mat, the one copy of the behavior data";
+                L(end+1, 1) = "        fprintf('%s: wrote %s\n', d.Name, r.file);";
+                L(end+1, 1) = "    end";
+            end
             L(end+1, 1) = "end";
             L = [L; EphysPipelineScript.stepFooter(cfg.stepEnabled("behavior"))];
 
@@ -183,22 +190,27 @@ classdef EphysPipelineScript
             L = [L; EphysPipelineScript.stepFooter(cfg.stepEnabled("sorting"))];
 
             % --- signals -------------------------------------------------------------
-            L = [L; EphysPipelineScript.stepHeader("Signals: derived LFP / MUA / SPIKE (toMat)", cfg.stepEnabled("signals"))];
+            L = [L; EphysPipelineScript.stepHeader("Signals: derived LFP / MUA / SPIKE / AUX (toMat)", cfg.stepEnabled("signals"))];
             G = cfg.Signals;
+            sigTypes = ["LFP" "MUA" "SPIKE" "AUX"];
+            sigTypes = sigTypes([G.LFP G.MUA G.SPIKE G.AUX]);
+            % Files the Signals step writes for dataset d (one per type when SeparateFiles).
+            if G.SeparateFiles && ~isempty(sigTypes)
+                sigFilesExpr = "EphysDataset.signalFiles(fullfile(" + EphysPipelineScript.outDirExpr(G.OutputDir) + ...
+                    ", d.Name + " + lit(G.Suffix) + " + "".mat""), " + lit(sigTypes) + ")";
+            else
+                sigFilesExpr = "string(fullfile(" + EphysPipelineScript.outDirExpr(G.OutputDir) + ", d.Name + " + lit(G.Suffix) + " + "".mat""))";
+            end
             L = [L; EphysPipelineScript.structLiteral("signals", G)];
             L(end+1, 1) = "for k = idx";
             L(end+1, 1) = "    d = P.Datasets(k);";
             L(end+1, 1) = "    outFile = fullfile(" + EphysPipelineScript.outDirExpr(G.OutputDir) + ", d.Name + " + lit(G.Suffix) + " + "".mat"");";
-            L(end+1, 1) = "    if isfile(outFile) && ~signals.Overwrite; fprintf('%s: %s exists, skipped\n', d.Name, outFile); continue; end";
+            L(end+1, 1) = "    outFiles = " + sigFilesExpr + ";";
+            L(end+1, 1) = "    if any(isfile(outFiles)) && ~signals.Overwrite; fprintf('%s: %s exists, skipped\n', d.Name, strjoin(outFiles, ', ')); continue; end";
             L(end+1, 1) = "    try";
             L(end+1, 1) = "        sigOpts = EphysPipelineConfig.signalOptions(signals, ExcludeChannels=d.ExcludeChannels, NumChannels=d.NumChannels);";
-            if G.IncludeBehavior
-                L(end+1, 1) = "        behavior = d.behaviorStruct();";
-            else
-                L(end+1, 1) = "        behavior = [];";
-            end
-            L(end+1, 1) = "        r = d.toMat(File=outFile, SignalOptions=sigOpts, MatVersion=signals.MatVersion, Overwrite=signals.Overwrite, Behavior=behavior);";
-            L(end+1, 1) = "        fprintf('%s: wrote %s\n', d.Name, r.file);";
+            L(end+1, 1) = "        r = d.toMat(File=outFile, SeparateFiles=signals.SeparateFiles, SignalOptions=sigOpts, MatVersion=signals.MatVersion, Overwrite=signals.Overwrite);";
+            L(end+1, 1) = "        fprintf('%s: wrote %s\n', d.Name, strjoin(r.file, ', '));";
             L(end+1, 1) = "    catch ME";
             L(end+1, 1) = "        fprintf(2, '%s: signals FAILED: %s\n', d.Name, ME.message);";
             L(end+1, 1) = "    end";
@@ -231,7 +243,7 @@ classdef EphysPipelineScript
             end
             L(end+1, 1) = "        r = d.spikesToMat('File', outFile, 'Source', spikes.Source, 'DetectOptions', detectOptions, ...";
             L(end+1, 1) = "            'Channels', channels, 'RejectArtifacts', spikes.RejectArtifacts, 'Groups', spikes.Groups, ...";
-            L(end+1, 1) = "            'IncludeNoise', spikes.IncludeNoise, 'Templates', spikes.Templates, 'Behavior', d.behaviorStruct(), ...";
+            L(end+1, 1) = "            'IncludeNoise', spikes.IncludeNoise, 'Templates', spikes.Templates, ...";
             L(end+1, 1) = "            'MatVersion', spikes.MatVersion, 'Overwrite', spikes.Overwrite, extra{:});";
             L(end+1, 1) = "        fprintf('%s: wrote %s\n', d.Name, r.file);";
             L(end+1, 1) = "    catch ME";
@@ -246,9 +258,9 @@ classdef EphysPipelineScript
             L(end+1, 1) = "formats = " + lit(E.Formats) + ";";
             L(end+1, 1) = "for k = idx";
             L(end+1, 1) = "    d = P.Datasets(k);";
-            L(end+1, 1) = "    extract = fullfile(" + EphysPipelineScript.outDirExpr(G.OutputDir) + ", d.Name + " + lit(G.Suffix) + " + "".mat"");";
+            L(end+1, 1) = "    extract = EphysDataset.recordedSignalFiles(" + sigFilesExpr + ");";
             L(end+1, 1) = "    spikesFile = fullfile(" + EphysPipelineScript.outDirExpr(K.OutputDir) + ", d.Name + " + lit(K.Suffix) + " + "".mat"");";
-            L(end+1, 1) = "    if ~isfile(extract); fprintf('%s: no extract file, skipped\n', d.Name); continue; end";
+            L(end+1, 1) = "    if isempty(extract) || ~all(isfile(extract)); fprintf('%s: no extract file, skipped\n', d.Name); continue; end";
             L(end+1, 1) = "    for fmt = formats";
             L(end+1, 1) = "        outFile = fullfile(" + EphysPipelineScript.outDirExpr(E.OutputDir) + ", d.Name + ""_"" + fmt + "".mat"");";
             L(end+1, 1) = "        if isfile(outFile) && ~" + lit(logical(E.Overwrite)) + "; fprintf('%s: %s exists, skipped\n', d.Name, outFile); continue; end";

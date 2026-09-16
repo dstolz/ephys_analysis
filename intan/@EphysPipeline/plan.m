@@ -60,10 +60,21 @@ for step = steps
                 end
 
             case "behavior"
+                note = "";
+                if c.Behavior.WriteFile
+                    note = "writes " + obj.outputPathFor("behavior", d) + " when associated";
+                end
+                if c.Behavior.PairTrials
+                    pr = "pairs trials with " + c.Behavior.TrialLine;
+                    if ~isempty(d.TrialPairing)
+                        pr = pr + " (recorded pairing: " + d.TrialPairing.status + ")";
+                    end
+                    note = strjoin([note(note ~= ""), pr], "; ");
+                end
                 if d.BehaviorFile ~= "" && isfile(d.BehaviorFile) && ~c.Behavior.Overwrite
-                    add(step, k, d.BehaviorFile, "associated", "");
+                    add(step, k, d.BehaviorFile, "associated", note);
                 else
-                    add(step, k, "", "ready", "will search " + strjoin(c.Behavior.SearchDirs, "; "));
+                    add(step, k, "", "ready", strjoin(["will search " + strjoin(c.Behavior.SearchDirs, "; "), note(note ~= "")], "; "));
                 end
 
             case "artifacts"
@@ -93,19 +104,23 @@ for step = steps
                 end
 
             case "signals"
-                out = obj.outputPathFor("signals", d);
-                if ~hasFiles
-                    add(step, k, out, "no recording files", "");
-                elseif c.Signals.LFP && ~isnan(d.Fs) && c.Signals.LFP_Fs > d.Fs
-                    add(step, k, out, "error: LFP_Fs above the recording rate", sprintf("%g > %g Hz", c.Signals.LFP_Fs, d.Fs));
-                elseif c.Signals.MUA && ~isnan(d.Fs) && c.Signals.MUA_Fs > d.Fs
-                    add(step, k, out, "error: MUA_Fs above the recording rate", sprintf("%g > %g Hz", c.Signals.MUA_Fs, d.Fs));
-                elseif isfile(out) && ~c.Signals.Overwrite
-                    add(step, k, out, "exists: skip", "");
-                elseif isfile(out)
-                    add(step, k, out, "exists: overwrite", "");
-                else
-                    add(step, k, out, "ready", "");
+                % One row per output file (per signal type when SeparateFiles).
+                outs = obj.outputPathFor("signals", d);
+                anyExists = any(isfile(outs));
+                for out = outs
+                    if ~hasFiles
+                        add(step, k, out, "no recording files", "");
+                    elseif c.Signals.LFP && ~isnan(d.Fs) && c.Signals.LFP_Fs > d.Fs
+                        add(step, k, out, "error: LFP_Fs above the recording rate", sprintf("%g > %g Hz", c.Signals.LFP_Fs, d.Fs));
+                    elseif c.Signals.MUA && ~isnan(d.Fs) && c.Signals.MUA_Fs > d.Fs
+                        add(step, k, out, "error: MUA_Fs above the recording rate", sprintf("%g > %g Hz", c.Signals.MUA_Fs, d.Fs));
+                    elseif anyExists && ~c.Signals.Overwrite
+                        add(step, k, out, "exists: skip", ternary(isfile(out), "", "another output file of this dataset exists"));
+                    elseif isfile(out)
+                        add(step, k, out, "exists: overwrite", "");
+                    else
+                        add(step, k, out, "ready", "");
+                    end
                 end
 
             case "spikes"
@@ -123,15 +138,15 @@ for step = steps
                 end
 
             case "export"
-                extract = obj.outputPathFor("signals", d);
+                extract = EphysDataset.recordedSignalFiles(obj.outputPathFor("signals", d));
                 for fmt = c.Export.Formats
                     out = obj.outputPathFor("export:" + fmt, d);
                     note = "";
                     if c.Export.IncludeUnits && ~d.hasKilosortResults()
                         note = "no sorted units (left out)";
                     end
-                    if ~isfile(extract) && ~(c.Signals.Enabled && ismember("signals", steps))
-                        add("export:" + fmt, k, out, "no extract file", "expected " + extract);
+                    if (isempty(extract) || ~all(isfile(extract))) && ~(c.Signals.Enabled && ismember("signals", steps))
+                        add("export:" + fmt, k, out, "no extract file", "expected " + strjoin(extract(~isfile(extract)), ", "));
                     elseif isfile(out) && ~c.Export.Overwrite
                         add("export:" + fmt, k, out, "exists: skip", note);
                     elseif isfile(out)

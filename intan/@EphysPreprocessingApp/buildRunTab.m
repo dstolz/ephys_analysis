@@ -18,7 +18,7 @@ uilabel(sg, "Text", "Probe check (always)", "FontColor", [0.4 0.4 0.4]);
 obj.RunBehaviorCheckBox  = uicheckbox(sg, "Text", "Behavior: match Epsych2 sessions", "ValueChangedFcn", @(src,~) mirror(obj, "BehEnableCheckBox", src.Value));
 obj.RunArtifactsCheckBox = uicheckbox(sg, "Text", "Artifacts: automatic detection", "ValueChangedFcn", @(src,~) mirror(obj, "ArtEnableCheckBox", src.Value));
 obj.RunSortingCheckBox   = uicheckbox(sg, "Text", "Sorting: SpikeInterface + Kilosort4", "ValueChangedFcn", @(src,~) mirror(obj, "SortEnableCheckBox", src.Value));
-obj.RunSignalsCheckBox   = uicheckbox(sg, "Text", "Signals: LFP / MUA / SPIKE .mat", "ValueChangedFcn", @(src,~) mirror(obj, "SigEnableCheckBox", src.Value));
+obj.RunSignalsCheckBox   = uicheckbox(sg, "Text", "Signals: LFP / MUA / SPIKE / AUX .mat", "ValueChangedFcn", @(src,~) mirror(obj, "SigEnableCheckBox", src.Value));
 obj.RunSpikesCheckBox    = uicheckbox(sg, "Text", "Spikes: detected / sorted .mat", "ValueChangedFcn", @(src,~) mirror(obj, "SpkEnableCheckBox", src.Value));
 obj.RunExportCheckBox    = uicheckbox(sg, "Text", "Export: Chronux / FieldTrip", "ValueChangedFcn", @(src,~) mirror(obj, "ExpEnableCheckBox", src.Value));
 obj.RunSelectionLabel = uilabel(sg, "Text", "Selection: (scan first)", "WordWrap", "on", "FontColor", [0.3 0.3 0.3]);

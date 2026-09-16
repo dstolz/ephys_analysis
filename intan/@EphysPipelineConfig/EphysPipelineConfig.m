@@ -9,13 +9,15 @@ classdef EphysPipelineConfig
     %   Sections (one struct property each; see defaults(section))
     %     Project    Root, OutputRoot, Selection "all"|"list", Datasets (keys)
     %     Probe      DefaultProbeFile, WriteDefaultToManifest
-    %     Behavior   Enabled, SearchDirs, Match, MaxStartOffsetMin, Overwrite
+    %     Behavior   Enabled, SearchDirs, Match, MaxStartOffsetMin, Overwrite,
+    %                WriteFile, PairTrials, TrialLine, AlignToleranceS
     %     Artifacts  Enabled + detector / filter settings, ApplyTo*, CacheIntervals
     %     Sorting    Enabled, PythonExe, CondaEnv, Execution, DryRun,
     %                SkipExisting, SI (SpikeInterface), KS4 (typed per
     %                kilosortParamSpec), KS4ExtraJSON
     %     Signals    Enabled + the derived-signal (toMat) settings,
-    %                ExcludeHandling, IncludeBehavior
+    %                ExcludeHandling, InvertedLines (digital-line polarity,
+    %                also used by the trial pairing)
     %     Spikes     Enabled, Source, detection settings, sorted-unit settings,
     %                output settings
     %     Export     Enabled, Formats ("chronux" / "fieldtrip"), what to include
@@ -209,6 +211,27 @@ classdef EphysPipelineConfig
         end
 
         %% --- per-step option builders ----------------------------------------
+        function tc = trialConfig(cfg)
+            %trialConfig  EphysDataset.TrialConfig from the Behavior section
+            %   (plus Signals.LabelField / InvertedLines, the digital-line
+            %   naming and polarity every events output shares).
+            %   SignalFs holds the rate of every enabled derived signal (LFP,
+            %   MUA, SPIKE; SPIKE only when resampled) so the pairing adds
+            %   sample columns for each.
+            B = cfg.Behavior;
+            S = cfg.Signals;
+            fs = struct();
+            if S.LFP;   fs.LFP = S.LFP_Fs; end
+            if S.MUA;   fs.MUA = S.MUA_Fs; end
+            if S.SPIKE && ~S.SPIKE_KeepOriginal; fs.SPIKE = S.SPIKE_Fs; end
+            tc = EphysDataset.defaultTrialConfig();
+            tc.TrialLine      = B.TrialLine;
+            tc.InvertedLines  = S.InvertedLines;
+            tc.ToleranceS     = B.AlignToleranceS;
+            tc.SignalFs       = fs;
+            tc.LabelField     = S.LabelField;
+        end
+
         function cfg = artifactConfig(a)
             %artifactConfig  The Artifacts section as an EphysDataset.ArtifactConfig.
             a = EphysPipelineConfig.normalizeSection("Artifacts", a);
@@ -257,7 +280,6 @@ classdef EphysPipelineConfig
             if e.IncludeUnits;    o.Units = [];    else; o.Units = false;    end
             o.Detected = logical(e.IncludeDetected);
             o.Events   = logical(e.IncludeEvents);
-            if e.IncludeBehavior; o.Behavior = []; else; o.Behavior = false; end
             o.Groups     = e.Groups;
             o.Overwrite  = logical(e.Overwrite);
             o.MatVersion = e.MatVersion;

@@ -24,8 +24,6 @@ function out = spikesToMat(obj, opts)
 %                 nRejectedArtifact per channel)
 %     units       struct or []: the readSortedUnits struct (unitId, group,
 %                 times, samples, channel, templateWaveform, ...)
-%     behavior    struct or []: whatever was passed as Behavior (Epsych2
-%                 session data, see EphysDataset.behaviorStruct)
 %     conversion  provenance (tool, created, dataset, sourceFolder, ...)
 %
 %   Options
@@ -46,7 +44,6 @@ function out = spikesToMat(obj, opts)
 %     Groups            sorted units to keep by phy label (default ["good" "mua"])
 %     IncludeNoise      keep clusters labelled "noise" (default false)
 %     Templates         read template waveforms for sorted units (default true)
-%     Behavior          struct saved as the behavior variable ([] = none)
 %     MatVersion        "-v7.3" (default) | "-v7"
 %     Overwrite         false (default): error if File already exists
 %     ProgressFcn       ProgressFcn(nDone, nTotal, message); may throw to abort
@@ -68,7 +65,6 @@ arguments
     opts.Groups (1,:) string = ["good" "mua"]
     opts.IncludeNoise (1,1) logical = false
     opts.Templates (1,1) logical = true
-    opts.Behavior = []
     opts.MatVersion (1,1) string {mustBeMember(opts.MatVersion, ["-v7.3", "-v7"])} = "-v7.3"
     opts.Overwrite (1,1) logical = false
     opts.ProgressFcn = []
@@ -185,7 +181,6 @@ report("Saving " + file);
 S = struct();
 S.detected   = detected;
 S.units      = units;
-S.behavior   = opts.Behavior;
 S.conversion = struct( ...
     'tool',            "EphysDataset.spikesToMat", ...
     'created',         string(datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss')), ...

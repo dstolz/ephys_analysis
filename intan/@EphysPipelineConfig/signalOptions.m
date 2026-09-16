@@ -26,17 +26,20 @@ arguments
 end
 
 cfg = EphysPipelineConfig.normalizeSection("Signals", cfg);
-types = ["LFP" "MUA" "SPIKE"];
-sel = [cfg.LFP cfg.MUA cfg.SPIKE];
+types = ["LFP" "MUA" "SPIKE" "AUX"];
+sel = [cfg.LFP cfg.MUA cfg.SPIKE cfg.AUX];
 if ~any(sel)
     error('EphysPipelineConfig:SignalsNoSignals', ...
-        'Tick at least one signal to compute (LFP, MUA or SPIKE).');
+        'Tick at least one signal to compute (LFP, MUA, SPIKE or AUX).');
 end
 EphysPipelineConfig.validateSuffix(cfg.Suffix);
 
 s = struct();
 s.dataTypeOut = types(sel);
 s.labelField  = string(cfg.LabelField);
+if ~isempty(cfg.InvertedLines)
+    s.invertedLines = cfg.InvertedLines;
+end
 
 keep = EphysPipelineConfig.parseOrderedList(cfg.KeepChannels, "Keep amp channels");
 excl = opts.ExcludeChannels(:).';

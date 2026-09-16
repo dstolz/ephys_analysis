@@ -35,8 +35,8 @@ obj.ExpFieldTripCheckBox.Layout.Row = r; obj.ExpFieldTripCheckBox.Layout.Column 
 r = r + 1; sep(cg, "Contents", r);
 r = r + 1;
 lab(cg, "Signals:", r);
-obj.ExpSignalsField = uieditfield(cg, "text", "Placeholder", "blank = every signal in the extract (LFP, MUA, SPIKE)", ...
-    "Tooltip", "Comma-separated subset of LFP, MUA, SPIKE taken from the Signals step's extract file.", ...
+obj.ExpSignalsField = uieditfield(cg, "text", "Placeholder", "blank = every signal in the extract (LFP, MUA, SPIKE, AUX)", ...
+    "Tooltip", "Comma-separated subset of LFP, MUA, SPIKE, AUX (accelerometer) taken from the Signals step's extract file.", ...
     "ValueChangedFcn", changed);
 obj.ExpSignalsField.Layout.Row = r; obj.ExpSignalsField.Layout.Column = [2 4];
 r = r + 1;
@@ -54,12 +54,10 @@ obj.ExpDetectedCheckBox.Layout.Row = r; obj.ExpDetectedCheckBox.Layout.Column = 
 obj.ExpEventsCheckBox = uicheckbox(cg, "Text", "Digital-input events", "Value", true, "ValueChangedFcn", changed);
 obj.ExpEventsCheckBox.Layout.Row = r; obj.ExpEventsCheckBox.Layout.Column = [3 4];
 r = r + 1;
-obj.ExpBehaviorCheckBox = uicheckbox(cg, "Text", "Epsych2 behavior data", "Value", true, "ValueChangedFcn", changed);
-obj.ExpBehaviorCheckBox.Layout.Row = r; obj.ExpBehaviorCheckBox.Layout.Column = [1 2];
 obj.ExpValidateCheckBox = uicheckbox(cg, "Text", "Validate with FieldTrip when on the path", "Value", true, ...
     "Tooltip", "Runs ft_datatype_raw / ft_datatype_spike on the structures if FieldTrip is installed; never required.", ...
     "ValueChangedFcn", changed);
-obj.ExpValidateCheckBox.Layout.Row = r; obj.ExpValidateCheckBox.Layout.Column = [3 4];
+obj.ExpValidateCheckBox.Layout.Row = r; obj.ExpValidateCheckBox.Layout.Column = [1 2];
 
 r = r + 1; sep(cg, "Output", r);
 r = r + 1;
@@ -77,7 +75,7 @@ obj.ExpMatVersionDropDown = uidropdown(cg, "Items", {'-v7.3', '-v7'}, "Value", '
 obj.ExpMatVersionDropDown.Layout.Row = r; obj.ExpMatVersionDropDown.Layout.Column = 3;
 r = r + 1;
 note = uilabel(cg, "WordWrap", "on", "FontColor", [0.4 0.4 0.4], "Text", ...
-    "Exports read the Signals step's extract file (<Name>_extract.mat), so run Signals first. The files load directly into Chronux / FieldTrip outside this app; no analysis happens here.");
+    "Exports read the Signals step's extract file(s) (<Name>_extract.mat, or <Name>_extract_<TYPE>.mat per signal type), so run Signals first. The files load directly into Chronux / FieldTrip outside this app; no analysis happens here.");
 note.Layout.Row = r; note.Layout.Column = [1 4];
 cg.RowHeight{r} = 44;
 

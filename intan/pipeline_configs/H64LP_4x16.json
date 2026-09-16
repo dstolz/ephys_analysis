@@ -18,7 +18,8 @@
     "SearchDirs": [],
     "Match": "prefix-then-time",
     "MaxStartOffsetMin": 30,
-    "Overwrite": false
+    "Overwrite": false,
+    "WriteFile": true
   },
   "Artifacts": {
     "Enabled": true,
@@ -137,8 +138,7 @@
     "BadThreshold": 3,
     "BadList": "",
     "ChannelRemap": "",
-    "ExcludeHandling": "none",
-    "IncludeBehavior": true
+    "ExcludeHandling": "none"
   },
   "Spikes": {
     "Enabled": false,
@@ -187,7 +187,6 @@
     "IncludeUnits": true,
     "IncludeDetected": false,
     "IncludeEvents": true,
-    "IncludeBehavior": true,
     "Groups": [
       "good",
       "mua"

@@ -1,15 +1,17 @@
 function out = exportFieldTrip(obj, opts)
 %exportFieldTrip  Write this dataset's data as FieldTrip structures.
 %   OUT = ds.exportFieldTrip(Name=Value) packages the derived continuous
-%   signals, the sorted units and/or threshold-detected spikes, the
-%   digital-input events and the behavior data into one .mat whose variables
-%   load straight into FieldTrip outside this app (ft_preprocessing /
-%   ft_definetrial / ft_spike_maketrials ...). Packaging is done by
-%   FieldTripExport; FieldTrip itself is never required.
+%   signals, the sorted units and/or threshold-detected spikes and the
+%   digital-input events into one .mat whose variables load straight into
+%   FieldTrip outside this app (ft_preprocessing / ft_definetrial /
+%   ft_spike_maketrials ...). Packaging is done by FieldTripExport;
+%   FieldTrip itself is never required. Behavior data has its own file
+%   (behaviorToMat).
 %
 %   Variables in the file
 %   ---------------------
-%     data_LFP / data_MUA / data_SPIKE   FieldTrip raw structures, one trial
+%     data_LFP / data_MUA / data_SPIKE / data_AUX   FieldTrip raw structures
+%                 (data_AUX: accelerometer inputs, chanunit V), one trial
 %                 spanning the signal (label, time, trial [nChan x N], fsample,
 %                 sampleinfo, hdr, cfg). Each carries its own events at its own
 %                 rate in cfg.event, ready for ft_definetrial.
@@ -18,14 +20,13 @@ function out = exportFieldTrip(obj, opts)
 %     spikeDetected  the same for threshold-detected spikes (one "unit" per
 %                 channel) or []
 %     event       FieldTrip event struct array at the recording rate
-%     behavior    Epsych2 session data (see behaviorStruct) or []
 %     export      provenance: tool, created, dataset, sources, signals,
 %                 validation (per structure: ok / message)
 %
 %   Options
 %   -------
-%     File, Extract, Signals, Units, Groups, Detected, Events, Behavior,
-%     Overwrite, MatVersion   as in exportChronux
+%     File, Extract, Signals, Units, Groups, Detected, Events, Overwrite,
+%     MatVersion   as in exportChronux
 %     Validate   true (default): when FieldTrip is on the path run
 %                ft_datatype_raw / ft_datatype_spike on the structures and
 %                record the outcome (warn on failure); no-op otherwise
@@ -42,7 +43,6 @@ arguments
     opts.Groups (1,:) string = ["good" "mua"]
     opts.Detected = true
     opts.Events (1,1) logical = true
-    opts.Behavior = []
     opts.Overwrite (1,1) logical = false
     opts.MatVersion (1,1) string {mustBeMember(opts.MatVersion, ["-v7.3", "-v7"])} = "-v7.3"
     opts.Validate (1,1) logical = true
@@ -101,7 +101,6 @@ if isfinite(origFs)
 else
     S.event = FieldTripExport.event(struct(), 1);
 end
-S.behavior = in.behavior;
 S.export = struct( ...
     'tool',       "EphysDataset.exportFieldTrip", ...
     'created',    string(datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss')), ...

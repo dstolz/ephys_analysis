@@ -13,10 +13,11 @@ classdef EphysPipeline < handle
     %
     %   Steps, in execution order (EphysPipelineConfig.StepNames):
     %     probe      checkProbes        assign the default probe, check channel counts
-    %     behavior   checkBehavior      associate Epsych2 sessions (matchEpsychSession)
+    %     behavior   checkBehavior      associate Epsych2 sessions (matchEpsychSession),
+    %                                   pair trials with the trial line (pairTrials)
     %     artifacts  runArtifacts       compute + cache artifact intervals
     %     sorting    runSorting         SpikeInterface + Kilosort4 (runSpikeInterface)
-    %     signals    runSignals         derived LFP/MUA/SPIKE .mat (toMat)
+    %     signals    runSignals         derived LFP/MUA/SPIKE/AUX .mat (toMat)
     %     spikes     runSpikeDetection  detected and/or sorted spikes .mat (spikesToMat)
     %     export     runExport          Chronux / FieldTrip files
     %   Each step method can be called directly (it then runs even if the
@@ -162,11 +163,20 @@ classdef EphysPipeline < handle
             %outputPathFor  Where a step writes for dataset D.
             %   Blank OutputDir settings mean the dataset's output folder
             %   (<OutputRoot>/<Name>, or the recording folder without an
-            %   output root).
+            %   output root). "signals" gives one file per ticked signal type
+            %   when Signals.SeparateFiles (see EphysDataset.signalFiles);
+            %   "signals:base" is the name those are derived from.
             c = obj.Config;
             switch string(step)
-                case "signals"
+                case "signals:base"
                     f = fullfile(dirOr(c.Signals.OutputDir, d), d.Name + string(c.Signals.Suffix) + ".mat");
+                case "signals"
+                    f = obj.outputPathFor("signals:base", d);
+                    types = ["LFP" "MUA" "SPIKE" "AUX"];
+                    types = types([c.Signals.LFP c.Signals.MUA c.Signals.SPIKE c.Signals.AUX]);
+                    if c.Signals.SeparateFiles && ~isempty(types)
+                        f = EphysDataset.signalFiles(f, types);
+                    end
                 case "spikes"
                     f = fullfile(dirOr(c.Spikes.OutputDir, d), d.Name + string(c.Spikes.Suffix) + ".mat");
                 case "export:chronux"
@@ -177,6 +187,8 @@ classdef EphysPipeline < handle
                     f = string(d.kilosortDir());
                 case "artifacts"
                     f = fullfile(d.outputFolder(), d.Name + "_artifacts.json");
+                case "behavior"
+                    f = fullfile(d.outputFolder(), d.Name + "_behavior.mat");
                 otherwise
                     f = "";
             end
@@ -233,6 +245,17 @@ classdef EphysPipeline < handle
 
         function checkBehavior(obj, opts)
             %checkBehavior  Associate Epsych2 session files (see matchEpsychSession).
+            %   With Behavior.WriteFile, every dataset that has a session
+            %   afterwards (matched now or kept) also gets
+            %   <outputFolder>/<Name>_behavior.mat (behaviorToMat), rewritten
+            %   each run: the one file that carries the behavior data.
+            %   With Behavior.PairTrials the trials are first paired with the
+            %   TrialLine intervals (EphysDataset.pairTrials; the digital events
+            %   are read once and cached). A reviewed pairing recorded in the
+            %   manifest is reused while it still matches; anything else is
+            %   recorded as "unreviewed" and reported as "needs review" (a
+            %   "behavior:pairing" result row). The pairing columns are written
+            %   into the behavior file either way.
             arguments
                 obj (1,1) EphysPipeline
                 opts.Datasets (1,:) double = []
@@ -246,20 +269,66 @@ classdef EphysPipeline < handle
                 t0 = tic;
                 if d.BehaviorFile ~= "" && isfile(d.BehaviorFile) && ~c.Overwrite
                     obj.addResult("behavior", d.Name, "associated", "kept existing association", d.BehaviorFile, toc(t0));
-                    continue
-                end
-                m = matchEpsychSession(T, d, Match=c.Match, MaxStartOffsetMin=c.MaxStartOffsetMin);
-                if m.file ~= ""
-                    d.BehaviorFile = m.file;
-                    d.writeManifest();
-                    st = "matched (" + m.method + ")";
-                elseif m.ambiguous
-                    st = "ambiguous";
                 else
-                    st = "unmatched";
+                    m = matchEpsychSession(T, d, Match=c.Match, MaxStartOffsetMin=c.MaxStartOffsetMin);
+                    if m.file ~= ""
+                        d.BehaviorFile = m.file;
+                        d.writeManifest();
+                        st = "matched (" + m.method + ")";
+                    elseif m.ambiguous
+                        st = "ambiguous";
+                    else
+                        st = "unmatched";
+                    end
+                    obj.log("[behavior] %s: %s - %s", d.Name, st, m.reason);
+                    obj.addResult("behavior", d.Name, st, m.reason, m.file, toc(t0));
                 end
-                obj.log("[behavior] %s: %s - %s", d.Name, st, m.reason);
-                obj.addResult("behavior", d.Name, st, m.reason, m.file, toc(t0));
+                P = [];
+                if c.PairTrials && d.BehaviorFile ~= "" && isfile(d.BehaviorFile)
+                    P = obj.pairTrialsFor(d, k, numel(ds));
+                end
+                if c.WriteFile && d.BehaviorFile ~= "" && isfile(d.BehaviorFile)
+                    out = obj.outputPathFor("behavior", d);
+                    try
+                        r = d.behaviorToMat(File=out, Overwrite=true, Pairing=P);
+                        obj.log("[behavior] %s: wrote %s (%d trials)", d.Name, r.file, r.nTrials);
+                        obj.addResult("behavior:file", d.Name, "done", sprintf("%d trials", r.nTrials), r.file, r.seconds);
+                    catch ME
+                        obj.log("[behavior] %s: ERROR writing %s: %s", d.Name, out, ME.message);
+                        obj.addResult("behavior:file", d.Name, "error", string(ME.message), out, 0);
+                    end
+                end
+            end
+        end
+
+        function P = pairTrialsFor(obj, d, k, n)
+            %pairTrialsFor  Pair D's trials, record an unreviewed result, report it.
+            %   Returns the pairTrials struct, or [] when pairing failed.
+            t0 = tic;
+            P = [];
+            try
+                cb = @(i, nFiles, name) obj.progress("behavior", d.Name, k, n, i - 1, nFiles, ...
+                    "reading digital events: " + string(name));
+                P = d.pairTrials(ProgressFcn=cb);
+                if P.recorded
+                    st = P.status;
+                    if st ~= "approved"; st = "needs review"; end
+                else
+                    d.setTrialPairing(P, "unreviewed");
+                    st = "needs review";
+                end
+                msg = P.summary;
+                if P.stale
+                    msg = msg + " (the recorded pairing no longer matched and was re-aligned)";
+                end
+                obj.log("[behavior] %s: pairing %s - %s", d.Name, st, msg);
+                obj.addResult("behavior:pairing", d.Name, st, msg, d.manifestFile(), toc(t0));
+            catch ME
+                if strcmp(ME.identifier, 'EphysPipeline:Cancelled'); rethrow(ME); end
+                st = "error";
+                if strcmp(ME.identifier, 'pairEpsychTrials:NoTrialLine'); st = "no trial line"; end
+                obj.log("[behavior] %s: pairing %s: %s", d.Name, upper(st), ME.message);
+                obj.addResult("behavior:pairing", d.Name, st, string(ME.message), "", toc(t0));
             end
         end
 
@@ -352,7 +421,7 @@ classdef EphysPipeline < handle
     methods (Static)
         function applyConfigToDatasets(cfg, P)
             %applyConfigToDatasets  Push the config's shared settings onto every dataset.
-            %   Sets PythonExe, CondaEnv, SIConfig, ArtifactConfig and OutputDir
+            %   Sets PythonExe, CondaEnv, SIConfig, ArtifactConfig, TrialConfig and OutputDir
             %   (<OutputRoot>/<Name> when an output root is set). Never touches
             %   the per-dataset manifest state: ProbeFile, ExcludeChannels,
             %   ManualArtifacts, SortingDir, BehaviorFile.
@@ -364,12 +433,14 @@ classdef EphysPipeline < handle
             P.CondaEnv   = cfg.Sorting.CondaEnv;
             P.OutputRoot = cfg.Project.OutputRoot;
             acfg = EphysPipelineConfig.artifactConfig(cfg.Artifacts);
+            tcfg = EphysPipelineConfig.trialConfig(cfg);
             for k = 1:P.NumDatasets
                 d = P.Datasets(k);
                 d.PythonExe      = cfg.Sorting.PythonExe;
                 d.CondaEnv       = cfg.Sorting.CondaEnv;
                 d.SIConfig       = cfg.Sorting.SI;
                 d.ArtifactConfig = acfg;
+                d.TrialConfig    = tcfg;
                 if cfg.Project.OutputRoot ~= ""
                     d.OutputDir = fullfile(cfg.Project.OutputRoot, d.Name);
                 end

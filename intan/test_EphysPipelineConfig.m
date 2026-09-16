@@ -146,6 +146,9 @@ so = EphysPipelineConfig.signalOptions(G2);
 check(isequal(so.dataTypeOut, ["LFP" "MUA" "SPIKE"]) && isequal(so.LFP_bpLoHi, [1 300]) && isequal(so.LFP_NotchHz, [60 120]) ...
     && so.SPIKE_Fs == 20000 && isequal(so.keepAmpChannels, [1 2 3 4 8]) && isequal(so.channelRemap, [4 3 2 1]), ...
     'all signals with filters, notch, keep list and descending remap');
+G4 = G; G4.LFP = false; G4.AUX = true;
+so = EphysPipelineConfig.signalOptions(G4);
+check(isequal(so.dataTypeOut, "AUX") && ~isfield(so, 'LFP_Fs'), 'AUX alone -> dataTypeOut "AUX"');
 errs = struct();
 G3 = G; G3.LFP = false;                              errs.NoSignals       = errorId(@() EphysPipelineConfig.signalOptions(G3));
 G3 = G; G3.BadMode = "manual";                       errs.BadList         = errorId(@() EphysPipelineConfig.signalOptions(G3));
@@ -207,7 +210,7 @@ check(isequal(sort(fieldnames(ac)), sort(fieldnames(EphysDataset.defaultArtifact
     && ac.Enabled && ac.Filter && ac.Threshold == 7 && ac.FilterCutoff == 300, 'artifactConfig maps onto EphysDataset.ArtifactConfig');
 E = EphysPipelineConfig.defaults("Export"); E.IncludeUnits = false; E.Signals = "LFP";
 eo = EphysPipelineConfig.exportOptions(E, "fieldtrip");
-check(islogical(eo.Units) && ~eo.Units && isequal(eo.Signals, "LFP") && isempty(eo.Behavior) && eo.Validate, ...
+check(islogical(eo.Units) && ~eo.Units && isequal(eo.Signals, "LFP") && ~isfield(eo, 'Behavior') && eo.Validate, ...
     'exportOptions for the FieldTrip exporter');
 eo = EphysPipelineConfig.exportOptions(E, "chronux");
 check(~isfield(eo, 'Validate') && eo.Events && ~eo.Detected, 'exportOptions for the Chronux exporter');

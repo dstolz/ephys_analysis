@@ -148,6 +148,10 @@ check(pipe.Results.Status(1) == "matched (prefix)" && d1.BehaviorFile == string(
     'behavior matched by file-name prefix');
 m = readJsonFile(d1.manifestFile());
 check(strcmp(m.behavior.subject, 'mouseA') && m.behavior.n_trials == 2, 'association written to the manifest');
+behOut = pipe.outputPathFor("behavior", d1);
+Bh = load(behOut);
+check(any(pipe.Results.Step == "behavior:file" & pipe.Results.Output == behOut) && Bh.behavior.nTrials == 2, ...
+    'behavior step writes <Name>_behavior.mat (Behavior.WriteFile)');
 pipe.reset();
 pipe.checkBehavior();
 check(pipe.Results.Status(1) == "associated", 'existing association kept unless Overwrite');
@@ -204,7 +208,7 @@ tsRef = cellfun(@(t) t(~any(t >= iv(:, 1).' & t <= iv(:, 2).', 2)), tsRef, 'Unif
 check(isequal(M.detected.ts, tsRef), 'detected times equal detectSpikes with the artifact periods removed');
 uRef = d1.readSortedUnits(Groups=["good" "mua"]);
 check(isequal(M.units.unitId, uRef.unitId) && isequal(M.units.times, uRef.times), 'units equal readSortedUnits');
-check(M.behavior.nTrials == 2, 'behavior attached to the spikes file');
+check(~isfield(M, 'behavior'), 'no behavior variable in the spikes file');
 pipe.reset();
 pipe.runSpikeDetection();
 check(pipe.Results.Status(1) == "skipped" && contains(pipe.Results.Message(1), "exists"), 'existing output is skipped without Overwrite');
@@ -231,8 +235,8 @@ R = pipe.Results;
 check(height(R) == 2 && all(R.Status == "done") && isfile(R.Output(1)) && isfile(R.Output(2)), 'both export files written');
 C = load(R.Output(R.Step == "export:chronux"));
 F = load(R.Output(R.Step == "export:fieldtrip"));
-check(isequal(size(C.LFP.data), [256 numAmp]) && numel(C.sp) == 2 && numel(C.spDetected) == numAmp && C.behavior.nTrials == 2, ...
-    'chronux export carries signals, units, detected spikes and behavior');
+check(isequal(size(C.LFP.data), [256 numAmp]) && numel(C.sp) == 2 && numel(C.spDetected) == numAmp && ~isfield(C, 'behavior'), ...
+    'chronux export carries signals, units and detected spikes (behavior is separate)');
 check(isequal(size(F.data_LFP.trial{1}), [numAmp 256]) && isequal(F.spike.timestamp{1}, [300 600 30000]) ...
     && numel(F.spikeDetected.label) == numAmp, 'fieldtrip export carries signals, units and detected spikes');
 oC = d1.exportChronux(File=fullfile(root, 'direct_chronux.mat'), Extract=extract, Detected=pipe.outputPathFor("spikes", d1));
@@ -273,11 +277,32 @@ if license('test', 'Signal_Toolbox')
     pipe.runSignals();
     R = pipe.Results;
     Mx = load(R.Output(1));
-    ref = d1.toMat(File=fullfile(root, 'direct_extract.mat'), SignalOptions=EphysPipelineConfig.signalOptions(cfg.Signals), ...
-        Behavior=d1.behaviorStruct());
+    ref = d1.toMat(File=fullfile(root, 'direct_extract.mat'), SignalOptions=EphysPipelineConfig.signalOptions(cfg.Signals));
     Mr = load(ref.file);
-    check(R.Status(1) == "done" && isequal(Mx.Y, Mr.Y) && isequal(Mx.events, Mr.events) && Mx.behavior.nTrials == 2, ...
-        'runSignals equals a direct toMat call and attaches behavior');
+    check(R.Status(1) == "done" && isequal(Mx.Y, Mr.Y) && isequal(Mx.events, Mr.events) && ~isfield(Mx, 'behavior'), ...
+        'runSignals equals a direct toMat call (no behavior variable)');
+    cfgM = cfg; cfgM.Signals.MUA = true;
+    pipe.Config = cfgM; pipe.reset(); pipe.runSignals();
+    R = pipe.Results;
+    files = pipe.outputPathFor("signals", d1);
+    check(height(R) == 2 && all(R.Status == "done") && isequal(R.Output.', files) ...
+        && endsWith(files(1), "sess1_extract_LFP.mat") && endsWith(files(2), "sess1_extract_MUA.mat"), ...
+        'SeparateFiles writes one file (and one result row) per signal type');
+    Ml = load(files(1)); Mm = load(files(2));
+    check(~isempty(Ml.Y.LFP) && isempty(Ml.Y.MUA) && ~isfield(Ml.info, 'MUA') ...
+        && ~isempty(Mm.Y.MUA) && isempty(Mm.Y.LFP) && ~isfield(Mm.info, 'LFP') && isfield(Mm, 'events'), ...
+        'each per-type file holds only its signal, plus events');
+    oM = d1.exportChronux(File=fullfile(root, 'merged_chronux.mat'), Units=false, Overwrite=true);
+    Cm = load(oM.file);
+    check(isequal(sort(oM.signals), ["LFP" "MUA"]) && size(Cm.LFP.data, 1) == size(Ml.Y.LFP, 1) ...
+        && size(Cm.MUA.data, 1) == size(Mm.Y.MUA, 1), ...
+        'exporters find and merge the per-type files');
+    cfgO = cfgM; cfgO.Signals.SeparateFiles = false;
+    pipe.Config = cfgO; pipe.reset(); pipe.runSignals();
+    Mo = load(pipe.Results.Output(1));
+    check(height(pipe.Results) == 1 && isequal(Mo.Y.LFP, Ml.Y.LFP) && isequal(Mo.Y.MUA, Mm.Y.MUA), ...
+        'SeparateFiles=false writes one combined file with the same data');
+    pipe.Config = cfg;
     cfgQ = cfg; cfgQ.Signals.ExcludeHandling = "drop";
     d1.ExcludeChannels = 2;
     pipe.Config = cfgQ; pipe.reset(); pipe.runSignals();

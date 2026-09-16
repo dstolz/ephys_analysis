@@ -18,8 +18,11 @@ written as the strings `"NaN"` / `"Inf"`.
 
 <outputFolder>/                         = Folder, or OutputDir, or <OutputRoot>/<Name>
 ├─ <Name>_artifacts.json                artifact-interval cache (EphysPipeline)
-├─ <Name>_extract.mat                   derived signals (toMat; the Signals step)
+├─ <Name>_extract_<TYPE>.mat            derived signals, one file per type (toMat; the Signals step),
+│                                       or <Name>_extract.mat with Signals.SeparateFiles off
 ├─ <Name>_spikes.mat                    detected / sorted spikes (spikesToMat; the Spikes step)
+├─ <Name>_behavior.mat                  Epsych2 session data, the only copy (behaviorToMat; the behavior step)
+├─ <Name>_events.mat                    digital-input events cache (digitalEvents; trial pairing)
 ├─ <Name>_chronux.mat                   Chronux export (exportChronux; the Export step)
 ├─ <Name>_fieldtrip.mat                 FieldTrip export (exportFieldTrip; the Export step)
 ├─ <Name>.bin + <Name>.json             EphysDataset.toBin (legacy engine only)
@@ -120,7 +123,11 @@ Schema `intan-dataset-manifest/2` (`null` where a value is `NaN`):
                 "source": "auto" | "manual", "curated": <bool>,
                 "num_units": <n or null>, "updated": <"yyyy-MM-dd HH:mm:ss" or ""> },
   "behavior": { "file": <Epsych2 .mat or "">, "subject": <string>,
-                "start_time": <"yyyy-MM-dd HH:mm:ss" or "">, "n_trials": <n or null> },
+                "start_time": <"yyyy-MM-dd HH:mm:ss" or "">, "n_trials": <n or null>,
+                "pairing": null | { "status": "unreviewed" | "approved",
+                  "assignment": [<interval index per trial, null = unpaired>],
+                  "fingerprint": <string>, "method": "timestamps" | "order" | "manual",
+                  "trial_line": <string>, "summary": <string>, "updated": <"yyyy-MM-dd HH:mm:ss"> } },
   "engine":   "spikeinterface",
   "preprocessing": { <the dataset's SIConfig fields> }
 }
@@ -157,11 +164,12 @@ which holds `H64LP_4x16.json` as a starting point.
   "description": <string>,
   "Project":   { "Root", "OutputRoot", "Selection", "Datasets" },
   "Probe":     { "DefaultProbeFile", "WriteDefaultToManifest" },
-  "Behavior":  { "Enabled", "SearchDirs", "Match", "MaxStartOffsetMin", "Overwrite" },
+  "Behavior":  { "Enabled", "SearchDirs", "Match", "MaxStartOffsetMin", "Overwrite", "WriteFile",
+                 "PairTrials", "TrialLine", "AlignToleranceS" },
   "Artifacts": { "Enabled", "Method", "Threshold", ... , "ApplyToSorting", "ApplyToSpikes", "CacheIntervals" },
   "Sorting":   { "Enabled", "PythonExe", "CondaEnv", "Execution", "DryRun", "SkipExisting",
                  "SI": {...}, "KS4": {...}, "KS4ExtraJSON" },
-  "Signals":   { "Enabled", "OutputDir", "Suffix", ... , "ExcludeHandling", "IncludeBehavior" },
+  "Signals":   { "Enabled", "OutputDir", "Suffix", ... , "ExcludeHandling" },
   "Spikes":    { "Enabled", "Source", ... , "Groups", "IncludeNoise", "Templates", "OutputDir", "Suffix", ... },
   "Export":    { "Enabled", "Formats", "Signals", "IncludeUnits", ... }
 }
@@ -328,14 +336,16 @@ that holds `params.py`:
 
 ## Derived-signal `.mat` (`EphysDataset.toMat`; the Signals step)
 
-Default `<outputFolder>/<Name>_extract.mat`:
+Default `<outputFolder>/<Name>_extract.mat`, or with `SeparateFiles` (the
+Signals step's default) one `<outputFolder>/<Name>_extract_<TYPE>.mat` per
+signal type (`LFP`, `MUA`, `SPIKE`), each holding only that signal in `Y` and
+`info`:
 
 | Variable | Contents |
 | --- | --- |
 | `Y` | struct with `LFP`, `MUA`, `SPIKE` (`single`, `[nSamples x nChan]`); unrequested fields are `single([])` |
-| `events` | struct, one field per digital-input line, `[k x 2]` `[t_on t_off]` seconds |
+| `events` | struct, one field per digital-input line, `[k x 2]` `[t_on t_off]` seconds; onset = rising edge, or falling edge for the lines in `info.invertedLines` (`Signals.InvertedLines`) |
 | `info` | see [intan2matlab.md](intan2matlab.md#outputs) |
-| `behavior` | Epsych2 session data (`EphysDataset.behaviorStruct`) or `[]` |
 | `conversion` | `tool`, `created`, `dataset`, `sourceFolder`, `recordingFormat`, `matFileVersion`, `matlabVersion` |
 
 ## Spikes `.mat` (`EphysDataset.spikesToMat`; the Spikes step)
@@ -347,8 +357,35 @@ sources that were not requested are `[]`.
 | --- | --- |
 | `detected` | `ts {1 x nChan}` spike times (s, `(index-1)/Fs`, recording-relative); `wf {1 x nChan}` `[nSpikes x nWin]` µV or `[]`; `info` (`detectSpikes` info filtered to the kept events); `channels` (1-based recording channels); `channelNames`; `detection` (options used, artifact intervals applied, `nRejectedArtifact` per channel) |
 | `units` | the `readSortedUnits` struct: `unitId`, `label`, `group`, `nSpikes`, `samples`, `times`, `ksChannel`, `channel`, `shank`, `amplitude`, `contamPct`, `templateWaveform`, `templateTimeMs`, plus `fs`, `resultsDir`, `engine`, `groupSource`, `curated`, `channelMap`, `channelMapSource`, ... |
-| `behavior` | as above, or `[]` |
 | `conversion` | provenance |
+
+## Behavior `.mat` (`EphysDataset.behaviorToMat`; the behavior step)
+
+Default `<outputFolder>/<Name>_behavior.mat`: the one file that holds a
+dataset's Epsych2 session data. No other output carries a `behavior` variable.
+
+| Variable | Contents |
+| --- | --- |
+| `behavior` | `EphysDataset.behaviorStruct`: `trials` (table, one row per trial), `info` (the Epsych2 `Info` snapshot), `meta`, `file`, `subject`, `startTime`, `nTrials`, `pairing` (`[]` when trials were not paired) |
+
+When trials were paired (`Behavior.PairTrials`), `behavior.trials` also has:
+
+| Column | Contents |
+| --- | --- |
+| `TrialInterval` | index into the trial line's intervals (`NaN` = unpaired) |
+| `TrialOnset`, `TrialOffset` | seconds on the recording clock, `t = row/Fs` |
+| `TrialOnsetSample`, `TrialOffsetSample` | 1-based rows at the recording rate (first / last on sample) |
+| `TrialOnsetSample_<SIG>`, `TrialOffsetSample_<SIG>` | `round(t * Fs_SIG)` for each enabled derived signal (LFP, MUA, resampled SPIKE); the rates are in `pairing.signalFs` |
+| `TimestampResidual` | s, `computerTimestamp - (TrialOffset + clockOffsetS)` |
+| `PairingFlag` | `"ok"`, `"timestamp off"` (residual beyond the tolerance), `"unpaired"` |
+| `TrialEvents` | struct per trial: one field per other digital line, `[n x 2]` seconds of its intervals that overlap the trial (polarity applied) |
+| `TrialEventSamples` | the same in rows at the recording rate |
+
+`behavior.pairing` holds `status` (`"approved"` only after review), `method`,
+`trialLine`, `invertedLines`, `Fs`, `signalFs`, `nTrials`, `nIntervals`,
+`nPaired`, `nTimestampOff`, `unpairedTrials`, `unpairedIntervals`,
+`clockOffsetS`, `fingerprint`, `summary` and `conventions`.
+| `conversion` | `tool`, `created`, `dataset`, `sourceFolder`, `behaviorFile` (the Epsych2 session) |
 
 ## Chronux export (`EphysDataset.exportChronux`; the Export step)
 
@@ -362,7 +399,6 @@ Chronux functions take; no Chronux function is called to produce it.
 | `spDetected` | the same for threshold-detected spikes, one element per channel, or `[]` |
 | `units`, `detected` | the source structs, or `[]` |
 | `events` | dig-in lines → `[k x 2]` seconds |
-| `behavior` | as above, or `[]` |
 | `export` | `tool`, `created`, `dataset`, `sources`, `signals` |
 
 ## FieldTrip export (`EphysDataset.exportFieldTrip`; the Export step)
@@ -377,9 +413,8 @@ Default `<outputFolder>/<Name>_fieldtrip.mat`. Structures follow
 | `spike` | spike structure of the sorted units (`timestamp` in recording samples), or `[]` |
 | `spikeDetected` | the same, one "unit" per detected channel, or `[]` |
 | `event` | event struct array at the recording rate |
-| `behavior` | as above, or `[]` |
 | `export` | `tool`, `created`, `dataset`, `sources`, `signals`, `eventFs`, `validation` |
 
-All four `.mat` writers save to `~<name>.partial.mat` and rename only after a
+All five `.mat` writers save to `~<name>.partial.mat` and rename only after a
 warning-free `save()` in which every variable is confirmed present
 (`EphysDataset.saveAtomically`).

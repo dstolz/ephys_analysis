@@ -222,6 +222,59 @@ check(isig.nChan == numAmp && isig.nSamples == nSampSplit, 'signal: toBin nChan/
 rawSig = reshape(typecast(readBin(isig.filename), 'int16'), numAmp, nSampSplit);
 check(max(abs(double(rawSig) - double(ampI16)), [], 'all') <= 1, 'signal: .bin int16 == source int16');
 
+% --- aux (accelerometer) inputs: one-file-per-signal + auxiliary.dat ---------
+numAux = 3;
+auxU16 = uint16(randi([0 65535], numAux, nSampSplit));   % RHX: full rate
+expAuxV = 37.4e-6 * double(auxU16).';                    % [nSampSplit x numAux]
+auxFolder = fullfile(root, 'split_signal_aux');
+mkdir(auxFolder);
+writeInfoRHD(fullfile(auxFolder, 'info.rhd'), numAmp, Fs, numAux);
+writeDat(fullfile(auxFolder, 'amplifier.dat'), ampI16, 'int16');
+writeDat(fullfile(auxFolder, 'time.dat'), int32(0:nSampSplit-1), 'int32');
+writeDat(fullfile(auxFolder, 'digitalin.dat'), uint16(digSplit), 'uint16');
+writeDat(fullfile(auxFolder, 'auxiliary.dat'), auxU16, 'uint16');
+daux = EphysDataset(auxFolder);
+check(daux.NumChannels == numAmp, 'aux: aux channels are not amplifier channels');
+dataux = daux.readData(IncludeAux=true);
+check(isequal(size(dataux.aux), [nSampSplit numAux]) && max(abs(dataux.aux - expAuxV), [], 'all') < 1e-9 ...
+    && dataux.auxFs == Fs, 'aux: auxiliary.dat read as volts at the rate its size implies');
+check(isequal(dataux.auxNames, ["accel1" "accel2" "accel3"]) && dataux.auxNativeNames(1) == "A-AUX1", ...
+    'aux: aux channel names from info.rhd');
+[Ya, ~, ia] = daux.deriveSignals(dataTypeOut="AUX");
+check(isa(Ya.AUX, 'single') && max(abs(double(Ya.AUX) - expAuxV), [], 'all') < 1e-6 && isempty(Ya.LFP) ...
+    && ia.AUX.Fs == Fs && ia.AUX.units == "volts" && isequal(ia.AUX.labels, {'accel1'; 'accel2'; 'accel3'}) ...
+    && numel(ia.labels) == numAmp, 'deriveSignals "AUX": Y.AUX volts + info.AUX (Fs, labels, units)');
+lastwarn('');
+[Yn, ~, in_] = dsig.deriveSignals(dataTypeOut="AUX");
+[~, wid] = lastwarn();
+check(isempty(Yn.AUX) && ~isfield(in_, 'AUX') && strcmp(wid, 'EphysDataset:deriveSignals:NoAux'), ...
+    'deriveSignals "AUX" without aux inputs: empty, no info.AUX, NoAux warning');
+if license('test', 'Signal_Toolbox')
+    daux.OutputDir = fullfile(root, 'out_split_aux');
+    oa = daux.toMat(SeparateFiles=true, SignalOptions=struct('dataTypeOut', ["LFP" "AUX"], 'LFP_Fs', 1000));
+    check(numel(oa.file) == 2 && endsWith(oa.file(2), "_AUX.mat") && isequal(oa.types, ["LFP" "AUX"]), ...
+        'toMat SeparateFiles writes an _AUX file');
+    cxa = daux.exportChronux();
+    Ca = load(cxa.file);
+    check(isequal(sort(cxa.signals), ["AUX" "LFP"]) && isequal(size(Ca.AUX.data), [nSampSplit numAux]) ...
+        && Ca.AUX.params.Fs == Fs && Ca.AUX.info.units == "volts" && Ca.AUX.labels(1) == "accel1", ...
+        'exportChronux: AUX struct in volts with aux labels');
+    fta = daux.exportFieldTrip(Validate=false);
+    Fa = load(fta.file);
+    check(isfield(Fa, 'data_AUX') && isequal(Fa.data_AUX.label, {'accel1'; 'accel2'; 'accel3'}) ...
+        && isequal(Fa.data_AUX.hdr.chanunit, repmat({'V'}, numAux, 1)), 'exportFieldTrip: data_AUX with aux labels, unit V');
+    dsig.OutputDir = fullfile(root, 'out_split_noaux');
+    on = dsig.toMat(SeparateFiles=true, SignalOptions=struct('dataTypeOut', ["LFP" "AUX"], 'LFP_Fs', 1000));
+    check(isscalar(on.file) && endsWith(on.file, "_LFP.mat") && on.types == "LFP" ...
+        && ~isfile(EphysDataset.signalFiles(fullfile(dsig.OutputDir, dsig.Name + "_extract.mat"), "AUX")), ...
+        'toMat SeparateFiles: no _AUX file for a recording without aux');
+    check(isequal(EphysDataset.recordedSignalFiles([on.file, replace(on.file, "_LFP.mat", "_AUX.mat")]), on.file), ...
+        'recordedSignalFiles drops the unwritten _AUX file');
+    dsig.OutputDir = "";
+else
+    fprintf('  (aux toMat / export checks skipped: no Signal Processing Toolbox)\n');
+end
+
 % --- one-file-per-channel: info.rhd + amp-A-00x.dat (+ time/board-DIN) -------
 chanFolder = fullfile(root, 'split_channel');
 mkdir(chanFolder);
@@ -802,8 +855,8 @@ o1 = dsSpk.spikesToMat(DetectOptions=dopt);
 check(isfile(o1.file) && endsWith(o1.file, '_spikes.mat') && startsWith(o1.file, spkOut), ...
     'spikesToMat default file <outputFolder>/<Name>_spikes.mat');
 M = load(o1.file);
-check(all(isfield(M, {'detected', 'units', 'behavior', 'conversion'})), ...
-    'file holds detected / units / behavior / conversion');
+check(all(isfield(M, {'detected', 'units', 'conversion'})) && ~isfield(M, 'behavior'), ...
+    'file holds detected / units / conversion (behavior has its own file)');
 check(isequal(M.detected.info.index{1}, recIdx) && isempty(M.units) && isempty(M.detected.wf), ...
     'detected indices match detectSpikes; no units and no waveforms by default');
 check(isequal(M.detected.channels, [1 2]) && isequal(M.detected.channelNames, ["amp0" "amp1"]), ...
@@ -851,23 +904,22 @@ o5 = dsSpk.spikesToMat(Source="sorted", Overwrite=true);
 M5 = load(o5.file);
 check(isempty(M5.detected) && isequal(M5.units.unitId, [0; 1]) && o5.nUnits == 2, ...
     'Source="sorted" writes the units only');
-o6 = dsSpk.spikesToMat(Source="both", DetectOptions=dopt, Overwrite=true, ...
-    Behavior=struct('x', 1), Groups="good");
+o6 = dsSpk.spikesToMat(Source="both", DetectOptions=dopt, Overwrite=true, Groups="good");
 M6 = load(o6.file);
-check(~isempty(M6.detected) && isequal(M6.units.unitId, 0) && M6.behavior.x == 1 ...
-    && M6.conversion.source == "both", 'Source="both" + Groups + behavior');
+check(~isempty(M6.detected) && isequal(M6.units.unitId, 0) && ~isfield(M6, 'behavior') ...
+    && M6.conversion.source == "both", 'Source="both" + Groups; no behavior variable');
 check(isempty(dir(fullfile(spkOut, '~*.partial.mat'))), 'no partial file is left behind');
 dsSpk.ManualArtifacts = zeros(0, 2);
 
-% toMat carries the behavior variable too (needs the Signal Processing Toolbox).
+% toMat leaves behavior to its own file (needs the Signal Processing Toolbox).
 if license('test', 'Signal_Toolbox')
     oM = dsSpk.toMat(File=fullfile(spkOut, 'x_extract.mat'), ...
-        SignalOptions=struct('dataTypeOut', "LFP", 'LFP_Fs', 1000), Behavior=struct('trials', 3));
+        SignalOptions=struct('dataTypeOut', "LFP", 'LFP_Fs', 1000));
     MM = load(oM.file);
-    check(MM.behavior.trials == 3 && isfield(MM, 'Y') && isfield(MM, 'events') && isfield(MM, 'info'), ...
-        'toMat saves the behavior variable next to Y / events / info');
+    check(~isfield(MM, 'behavior') && isfield(MM, 'Y') && isfield(MM, 'events') && isfield(MM, 'info'), ...
+        'toMat saves Y / events / info and no behavior variable');
 else
-    fprintf('  (toMat behavior check skipped: no Signal Processing Toolbox)\n');
+    fprintf('  (toMat variables check skipped: no Signal Processing Toolbox)\n');
 end
 
 fprintf('\n== 19. acquisition readers: registry, BinaryReader, discovery ==\n');
@@ -1001,8 +1053,27 @@ check(isstruct(bs) && bs.nTrials == 2 && bs.file == string(behFile), 'behaviorSt
 dsx.writeManifest();
 mx = readJsonFile(dsx.manifestFile());
 check(strcmp(mx.behavior.subject, 'subjA') && mx.behavior.n_trials == 2, 'manifest behavior block carries subject / n_trials');
+oB = dsx.behaviorToMat();
+B = load(oB.file);
+check(oB.file == string(fullfile(expOut, dsx.Name + "_behavior.mat")) && B.behavior.nTrials == 2 ...
+    && B.conversion.behaviorFile == string(behFile) && isequal(sort(string(fieldnames(B))), ["behavior"; "conversion"]), ...
+    'behaviorToMat writes <Name>_behavior.mat with behavior + conversion');
+errId = '';
+try
+    dsx.behaviorToMat();
+catch ME
+    errId = ME.identifier;
+end
+check(strcmp(errId, 'EphysDataset:behaviorToMat:Exists'), 'behaviorToMat does not overwrite by default');
 dsx.BehaviorFile = "";
 check(isempty(dsx.behaviorStruct()), 'behaviorStruct is [] without an associated file');
+errId = '';
+try
+    dsx.behaviorToMat(Overwrite=true);
+catch ME
+    errId = ME.identifier;
+end
+check(strcmp(errId, 'EphysDataset:behaviorToMat:NoFile'), 'behaviorToMat errors without an associated session');
 errId = '';
 try
     dsx.readBehavior();
@@ -1018,8 +1089,8 @@ dsx.spikesToMat(DetectOptions=struct('Filter', false, 'ThresholdMethod', "absolu
 oC = dsx.exportChronux(Extract=Sx);
 check(endsWith(oC.file, '_chronux.mat') && isfile(oC.file), 'exportChronux writes <Name>_chronux.mat');
 C = load(oC.file);
-check(all(isfield(C, {'LFP', 'sp', 'spDetected', 'units', 'detected', 'events', 'behavior', 'export'})) ...
-    && ~isfield(C, 'MUA'), 'chronux file variables (only signals present)');
+check(all(isfield(C, {'LFP', 'sp', 'spDetected', 'units', 'detected', 'events', 'export'})) ...
+    && ~isfield(C, 'MUA') && ~isfield(C, 'behavior'), 'chronux file variables (only signals present, no behavior)');
 check(isa(C.LFP.data, 'double') && isequal(size(C.LFP.data), [nX numAmp]) ...
     && isequal(C.LFP.data, double(single(Xsrc(1:nX, :)))) ...
     && C.LFP.params.Fs == Fs && C.LFP.t(1) == 0 && abs(C.LFP.t(2) - 1/Fs) < 1e-12 ...
@@ -1028,13 +1099,13 @@ check(numel(C.sp) == 2 && isequal(fieldnames(C.sp), {'times'}) && isequal(C.unit
     && isequal(C.sp(1).times, C.units.times{1}), 'sp is the toPointProcess form of the sorted units');
 check(numel(C.spDetected) == numAmp && ~isempty(C.detected) && isequal(C.spDetected(1).times, C.detected.ts{1}(:)), ...
     'spDetected from the spikes file');
-check(isequal(C.events.din0, src.events.din0) && C.behavior.nTrials == 2 && C.export.tool == "EphysDataset.exportChronux", ...
-    'events, behavior and provenance');
-oC2 = dsx.exportChronux(Extract=Sx, Units=false, Detected=false, Behavior=false, Overwrite=true, ...
+check(isequal(C.events.din0, src.events.din0) && C.export.tool == "EphysDataset.exportChronux", ...
+    'events and provenance');
+oC2 = dsx.exportChronux(Extract=Sx, Units=false, Detected=false, Overwrite=true, ...
     File=fullfile(expOut, 'c2.mat'));
 C2 = load(oC2.file);
-check(isempty(C2.sp) && isempty(C2.units) && isempty(C2.spDetected) && isempty(C2.behavior) && oC2.nUnits == 0, ...
-    'Units / Detected / Behavior = false leave those empty');
+check(isempty(C2.sp) && isempty(C2.units) && isempty(C2.spDetected) && oC2.nUnits == 0, ...
+    'Units / Detected = false leave those empty');
 errId = '';
 try
     dsx.exportChronux(Extract=Sx);
@@ -1060,8 +1131,8 @@ check(strcmp(errId, 'EphysDataset:exportChronux:NoExtract'), 'no extract file ->
 oF = dsx.exportFieldTrip(Extract=Sx);
 check(endsWith(oF.file, '_fieldtrip.mat') && isfile(oF.file), 'exportFieldTrip writes <Name>_fieldtrip.mat');
 F = load(oF.file);
-check(all(isfield(F, {'data_LFP', 'spike', 'spikeDetected', 'event', 'behavior', 'export'})) && ~isfield(F, 'data_MUA'), ...
-    'fieldtrip file variables');
+check(all(isfield(F, {'data_LFP', 'spike', 'spikeDetected', 'event', 'export'})) && ~isfield(F, 'data_MUA') ...
+    && ~isfield(F, 'behavior'), 'fieldtrip file variables (no behavior)');
 check(isequal(size(F.data_LFP.trial{1}), [numAmp nX]) && isequal(F.data_LFP.label, cellstr(ds.ChannelNames(:))) ...
     && F.data_LFP.fsample == Fs && F.data_LFP.hdr.TimeStampPerSample == 1, 'data_LFP is a FieldTrip raw structure');
 check(numel(F.data_LFP.cfg.event) == size(src.events.din0, 1) && F.data_LFP.cfg.event(1).sample == round(src.events.din0(1, 1) * Fs), ...
@@ -1069,8 +1140,8 @@ check(numel(F.data_LFP.cfg.event) == size(src.events.din0, 1) && F.data_LFP.cfg.
 check(isequal(F.spike.label, {'unit0', 'unit1'}) && isequal(F.spike.timestamp{1}, [300 600 30000]) && F.spike.hdr.Fs == 30000, ...
     'spike structure from the sorted units');
 check(numel(F.spikeDetected.label) == numAmp && F.spikeDetected.hdr.Fs == Fs, 'spikeDetected from the spikes file');
-check(numel(F.event) == size(src.events.din0, 1) && F.export.eventFs == Fs && F.behavior.nTrials == 2, ...
-    'event at the recording rate; behavior + provenance');
+check(numel(F.event) == size(src.events.din0, 1) && F.export.eventFs == Fs, ...
+    'event at the recording rate; provenance');
 check(isempty(dir(fullfile(expOut, '~*.partial.mat'))), 'no partial files left by the exporters');
 
 % Extract from the file written by toMat (needs the Signal Processing Toolbox).

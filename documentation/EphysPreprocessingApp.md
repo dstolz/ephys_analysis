@@ -113,7 +113,7 @@ field it cannot parse.
 Table columns: **Select**, Name, **Key** (root-relative, what the config
 stores), Acq date, # chan, Fs (Hz), Duration (min), Format, Probe, Exclude,
 **Sorting** (units, `curated` when phy labels exist, `auto` / `manual`),
-**Behavior** (subject and trial count). Ticks are written to
+**Behavior** (subject, trial count and the recorded pairing status). Ticks are written to
 `Project.Datasets` as keys; with no ticks `Project.Selection` is `"all"`.
 
 **Behavior (Epsych2)** panel: **Match sessions as a pipeline step**
@@ -121,10 +121,35 @@ stores), Acq date, # chan, Fs (Hz), Duration (min), Format, Probe, Exclude,
 then time` / `prefix only` / `time only`) and max start offset
 (`Behavior.*`), **Find sessions for selected** (what `findEpsychSessions` sees
 and what `matchEpsychSession` would pick for the last-clicked dataset),
-**Re-match existing** (`Behavior.Overwrite`), **Associate file...** (pick a
+**Re-match existing** (`Behavior.Overwrite`), **Write behavior .mat**
+(`Behavior.WriteFile`), **Associate file...** (pick a
 session `.mat` for the last-clicked dataset by hand) and **Clear**. Associations are
-written to the manifest. Nothing is plotted here; the session's trials are
-carried into the Signals, Spikes and Export outputs as `behavior`.
+written to the manifest. Nothing is plotted here. When the behavior step runs
+with **Write behavior .mat** on, each associated session is saved once as
+`<Name>_behavior.mat` in the dataset's output folder; the Signals, Spikes and
+Export outputs do not carry behavior data.
+
+## Trials
+
+Review how each Epsych2 trial is paired with the trial digital line (see
+[pairing](EphysPipeline.md#pairing-trials-with-the-trial-line)).
+
+| Control | What it does |
+| --- | --- |
+| Dataset + **Load** | reads the dataset's digital lines (`digitalEvents`: cached on disk after the first read, kept in memory while the tab shows this dataset) and pairs the trials, reusing the pairing recorded in the manifest when it still matches |
+| **Re-align automatically** | discards edits and the recorded assignment and aligns by the timestamps again |
+| **Approve pairing** / **Mark unreviewed** | `setTrialPairing(P, "approved" / "unreviewed")`: saves the shown assignment in the manifest |
+| **Write behavior .mat** | `behaviorToMat(Pairing=P)` now, without running the step |
+| **Pair trials in the behavior step**, **Trial line**, **Tolerance** | `Behavior.PairTrials`, `Behavior.TrialLine`, `Behavior.AlignToleranceS` |
+| Lines table (**Inverted**) | one row per digital line with its interval count; ticked lines are `Signals.InvertedLines`: on while low, onset = falling edge. This applies to the pairing and to the events the Signals step writes (and so to the exports) |
+| Trials table | trial, `TrialIndex`, **Interval** (editable: type another interval index, blank = unpaired), onset / offset (s), onset / offset sample, timestamp residual, flag (yellow = timestamp off, red = unpaired), the other lines overlapping the trial |
+| Plot | timestamp residual per trial, with the tolerance band |
+
+The summary line says whether the pairing is approved, recorded but not
+reviewed, or new, and whether a recorded pairing went stale: the session, the
+trial line, its polarity or its intervals changed. Changing a setting re-pairs
+at once. Setting a line's polarity back brings the approved pairing back.
+Edits are not saved until you press **Approve** (or **Mark unreviewed**).
 
 ## Probe
 
@@ -202,7 +227,9 @@ Derived LFP / MUA / SPIKE `.mat` files with `EphysDataset.toMat`
 ([intan2matlab](intan2matlab.md)), `Signals.*`.
 
 - **Output**: folder (blank = the dataset's output folder), suffix
-  (`_extract`), MAT version, overwrite, **Include behavior**.
+  (`_extract`), MAT version, overwrite, **one file per
+  signal type** (on by default: `<Name>_extract_LFP.mat`, `_MUA.mat`,
+  `_SPIKE.mat`; one plan / result row per file).
 - **Signals**: LFP (`LFP_Fs`, high-pass, low-pass, notch + width), MUA
   (`MUA_Fs`, integration, band), SPIKE (keep original rate / `SPIKE_Fs`, band).
 - **Channels**: label field, keep channels, bad channels (none / manual list /
@@ -237,7 +264,7 @@ Chronux functions appears here: the app only writes files.
   and **FieldTrip** (`<Name>_fieldtrip.mat`,
   [FieldTripExport](FieldTripExport.md)).
 - What to include: signals (blank = every signal in the extract), sorted
-  units (+ groups), detected spikes, events, behavior; **Validate with
+  units (+ groups), detected spikes, events; **Validate with
   FieldTrip** when it is on the path.
 - Output folder, overwrite, MAT version; the targets table (`no extract file`
   when the Signals output is missing); **Run this step** runs
@@ -340,7 +367,7 @@ preference groups are not read.
 | `<Folder>/<Name>_manifest.json` | scan, probe assignment, exclusion change, manual artifact edit, sorting / behavior association, each sorting launch and completion |
 | `<outputFolder>/kilosort4/{si_config.json, run_si_ks4.py, ks4_run.log, ks4_status.json}` and `kilosort4/si/...` | Sorting (dry run writes only the first two) |
 | `<outputFolder>/<Name>_artifacts.json` | Artifacts (cache) |
-| `<Name>_extract.mat`, `<Name>_spikes.mat`, `<Name>_chronux.mat`, `<Name>_fieldtrip.mat` | Signals, Spikes, Export |
+| `<Name>_extract_<TYPE>.mat` (or `<Name>_extract.mat`), `<Name>_spikes.mat`, `<Name>_chronux.mat`, `<Name>_fieldtrip.mat` | Signals, Spikes, Export |
 | probe `.json` in the probe folder | Import, Designer save, Notes edit |
 
 Raw recording files are only read.
@@ -367,6 +394,7 @@ app.KSRuns                        % background runs being monitored
 | `gatherConfig.m`, `applyConfig.m`, `gather*/apply*Section.m`, `gather/applyConvertConfig.m`, `gather/applySortingSection.m`, `onConfigChanged.m`, `syncStepEnableStates.m`, `updateTitle.m` | config model |
 | `onNewConfig.m`, `onOpenConfig.m`, `openConfigFile.m`, `onSaveConfig.m`, `onSaveConfigAs.m`, `onExportConfigCopy.m`, `onGenerateScript.m`, `confirmDiscard.m`, `addRecentConfig.m`, `refreshRecentMenu.m` | File menu |
 | `buildPipeline.m`, `runPipeline.m`, `onRunStep.m`, `onCancelRun.m`, `onValidate.m`, `onPlan.m`, `refreshStepPlan.m`, `onPipelineProgress.m`, `runLog.m`, `setRunBar.m`, `showIssues.m` | running |
+| `buildTrialsTab.m`, `onTrialsLoad.m`, `repairTrials.m`, `refreshTrialsView.m`, `onTrialsCellEdit.m`, `onTrialsApprove.m`, `onTrialsWriteBehavior.m`, `onTrialsSettingsChanged.m`, `populateTrialsDatasets.m`, `clearTrialsView.m`, `currentTrialsDataset.m`, `fillTrialsLines.m`, `setTrialsLineItems.m`, `syncTrialsButtons.m` | Trials tab |
 | `onScan.m`, `refreshDatasetsTable.m`, `onDatasetCellSelection.m`, `onSelectDatasets.m`, `onRefreshMetadata.m`, `onAssociateBehavior.m`, `onClearBehavior.m`, `onBrowseBehaviorDir.m` | Project tab |
 | `refreshProbeList.m`, `onProbeSelected.m`, `onImportProbe.m`, `onDesignProbe.m`, `runProbeTool.m`, `onAssignProbe.m`, `onApplyExclude.m`, `onUseSelectedProbeAsDefault.m`, `probe_tool.py` | Probe tab |
 | `onDetectArtifacts.m`, `refreshManualArtifactsTable.m`, `onClearManualArtifacts.m` | Artifacts tab |

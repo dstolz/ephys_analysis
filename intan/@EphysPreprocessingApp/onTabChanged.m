@@ -3,6 +3,8 @@ function onTabChanged(obj)
 switch obj.Tabs.SelectedTab
     case obj.TabProject
         msg = "Project: set the root and Scan; tick rows to select datasets (none = all).";
+    case obj.TabTrials
+        msg = "Trials: Load a dataset, check how its Epsych2 trials pair with the trial line, edit if needed, then Approve.";
     case obj.TabProbe
         msg = "Probe: pick a probe .json and assign it; exclusions are saved per dataset.";
     case obj.TabArtifacts
@@ -12,7 +14,7 @@ switch obj.Tabs.SelectedTab
         msg = "Sorting: SpikeInterface + Kilosort4 settings; Run this step or the whole pipeline.";
         obj.refreshSortingLabel();
     case obj.TabSignals
-        msg = "Signals: derive LFP / MUA / SPIKE for the selected datasets.";
+        msg = "Signals: derive LFP / MUA / SPIKE / AUX for the selected datasets.";
         obj.refreshStepPlan("signals");
     case obj.TabSpikes
         msg = "Spikes: threshold detection and/or sorted units per dataset.";

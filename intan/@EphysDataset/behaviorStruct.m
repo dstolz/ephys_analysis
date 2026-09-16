@@ -1,21 +1,59 @@
-function b = behaviorStruct(obj)
+function b = behaviorStruct(obj, opts)
 %behaviorStruct  The associated Epsych2 session as one struct, or [].
 %   B = ds.behaviorStruct() loads BehaviorFile (see readBehavior) and packs
-%   it for the exporters (toMat, spikesToMat, exportChronux, exportFieldTrip
-%   save it as the "behavior" variable):
+%   it as one struct (behaviorToMat saves it as the "behavior" variable of
+%   <Name>_behavior.mat):
 %     trials     table, one row per trial (readEpsychSession)
 %     info       the Epsych2 Info snapshot
 %     meta       file, stem, subject, startTime, nTrials, responseCodeField...
 %     file, subject, startTime, nTrials   copied from meta for convenience
+%     pairing    [] unless a pairing is given (below)
 %   Returns [] when no behavior file is associated or it no longer exists.
 %
-%   See also EphysDataset.readBehavior, readEpsychSession.
+%   B = ds.behaviorStruct(Pairing=P) with P from pairTrials also appends the
+%   pairing columns to trials (TrialOnset / TrialOffset seconds, sample rows
+%   at the recording rate and per derived signal, TrialEvents, ... see
+%   pairEpsychTrials) and sets pairing to the summary: status, method,
+%   trialLine, invertedLines, Fs, signalFs, nTrials, nIntervals, nPaired,
+%   nTimestampOff, unpairedTrials, unpairedIntervals, clockOffsetS,
+%   fingerprint, summary and conventions (how times and samples are counted).
+%
+%   See also EphysDataset.readBehavior, EphysDataset.behaviorToMat,
+%   EphysDataset.pairTrials, readEpsychSession.
+
+arguments
+    obj (1,1) EphysDataset
+    opts.Pairing = []
+end
 
 b = [];
 if obj.BehaviorFile == "" || ~isfile(obj.BehaviorFile)
     return
 end
 [trials, info, meta] = readEpsychSession(obj.BehaviorFile);
+pairing = [];
+P = opts.Pairing;
+if ~isempty(P)
+    if height(P.columns) ~= height(trials)
+        error('EphysDataset:behaviorStruct:Pairing', ...
+            'The pairing has %d trials but %s has %d.', height(P.columns), obj.BehaviorFile, height(trials));
+    end
+    clash = intersect(string(P.columns.Properties.VariableNames), string(trials.Properties.VariableNames));
+    if ~isempty(clash)
+        error('EphysDataset:behaviorStruct:Pairing', ...
+            'The session already has column(s) %s.', strjoin(clash, ", "));
+    end
+    trials = [trials, P.columns];
+    pairing = struct();
+    for f = ["status" "method" "trialLine" "invertedLines" "Fs" "signalFs" "nTrials" ...
+            "nIntervals" "nPaired" "nTimestampOff" "unpairedTrials" "unpairedIntervals" ...
+            "clockOffsetS" "fingerprint" "summary"]
+        pairing.(f) = P.(f);
+    end
+    pairing.conventions = "seconds: t = row/Fs on the recording clock; *Sample: 1-based row at Fs; " + ...
+        "*Sample_<SIG>: round(t * signalFs.<SIG>); TrialEvents: intervals of other lines overlapping the trial";
+end
 b = struct('trials', trials, 'info', info, 'meta', meta, 'file', obj.BehaviorFile, ...
-    'subject', meta.subject, 'startTime', meta.startTime, 'nTrials', meta.nTrials);
+    'subject', meta.subject, 'startTime', meta.startTime, 'nTrials', meta.nTrials, ...
+    'pairing', pairing);
 end

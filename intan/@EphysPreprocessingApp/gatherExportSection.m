@@ -13,7 +13,6 @@ grp = strtrim(split(string(obj.ExpGroupsField.Value), [",", ";", " "]));
 E.Groups = reshape(grp(grp ~= ""), 1, []);
 E.IncludeDetected = logical(obj.ExpDetectedCheckBox.Value);
 E.IncludeEvents   = logical(obj.ExpEventsCheckBox.Value);
-E.IncludeBehavior = logical(obj.ExpBehaviorCheckBox.Value);
 E.Validate        = logical(obj.ExpValidateCheckBox.Value);
 E.OutputDir  = string(strtrim(obj.ExpOutputDirField.Value));
 E.MatVersion = string(obj.ExpMatVersionDropDown.Value);

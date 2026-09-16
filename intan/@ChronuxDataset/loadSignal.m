@@ -8,7 +8,7 @@ function loadSignal(obj, opts)
 %
 %   What is read, by source
 %   -----------------------
-%     EphysDataset, Signal "LFP"/"MUA"/"SPIKE"
+%     EphysDataset, Signal "LFP"/"MUA"/"SPIKE"/"AUX"
 %         EphysDataset.deriveSignals(SignalOptions..., dataTypeOut=Signal).
 %         Data is that signal (single, microvolts), Fs its derived rate,
 %         ChannelLabels info.labels, Events the digital-input events.
@@ -18,6 +18,9 @@ function loadSignal(obj, opts)
 %         honoured from SignalOptions (mapped to KeepChannels /
 %         EventLabelField); any other field is an error, because the derived-
 %         signal options have no meaning here.
+%     EphysDataset, Signal "AUX"
+%         The same, with the aux (accelerometer) inputs: volts at the aux
+%         rate, ChannelLabels info.AUX.labels; an error when none were recorded.
 %     .mat written by EphysDataset.toMat, or a toMat-shaped struct
 %         Variables Y, events and info; Data is Y.(Signal), which must have
 %         been requested in that conversion's dataTypeOut. "RAW" is not stored
@@ -122,14 +125,12 @@ end
 
 obj.Data = S.Y.(sig);
 obj.Fs   = double(S.info.(sig).Fs);
-if isfield(S.info, 'labels')
-    obj.ChannelLabels = string(S.info.labels(:)).';
-end
+[obj.ChannelLabels, units] = signalLabelsUnits(S.info, sig);
 if isfield(S, 'events') && isstruct(S.events)
     obj.Events = S.events;
 end
 obj.Info = struct('source', sourceLabel, 'file', file, 'signal', sig, ...
-    'fs', obj.Fs, 'units', "microvolts", 'derived', S.info);
+    'fs', obj.Fs, 'units', units, 'derived', S.info);
 obj.Loaded = true;
 end
 
@@ -142,13 +143,13 @@ if isempty(ds) || ~isa(ds, 'EphysDataset')
 end
 
 if obj.Signal == "RAW"
-    known = ["keepAmpChannels", "labelField"];
+    known = ["keepAmpChannels", "labelField", "invertedLines"];
     extra = setdiff(string(fieldnames(obj.SignalOptions)).', known);
     if ~isempty(extra)
         error('ChronuxDataset:RawOptions', ...
             ['Signal "RAW" reads through EphysDataset.readData, which does not ' ...
-             'take the derived-signal options %s. Only keepAmpChannels and ' ...
-             'labelField apply.'], strjoin(extra, ', '));
+             'take the derived-signal options %s. Only keepAmpChannels, ' ...
+             'labelField and invertedLines apply.'], strjoin(extra, ', '));
     end
     args = {};
     if isfield(obj.SignalOptions, 'keepAmpChannels')
@@ -166,7 +167,9 @@ if obj.Signal == "RAW"
     else
         obj.ChannelLabels = d.channelNames;
     end
-    obj.Events = d.events;
+    inv = string.empty(1, 0);
+    if isfield(obj.SignalOptions, 'invertedLines'); inv = string(obj.SignalOptions.invertedLines); end
+    obj.Events = digitalLinePolarity(d.events, inv, size(d.amplifier, 1), d.Fs);
     obj.Info = struct('source', "dataset", 'folder', ds.Folder, 'name', ds.Name, ...
         'signal', "RAW", 'fs', obj.Fs, 'units', "microvolts", ...
         'recordingFormat', ds.RecordingFormat, 'files', d.files, ...
@@ -184,15 +187,35 @@ args = namedargs2cell(obj.SignalOptions);
 [Y, ev, info] = ds.deriveSignals(args{:}, 'dataTypeOut', obj.Signal);
 
 sig = obj.Signal;
+if ~isfield(info, sig)
+    error('ChronuxDataset:SignalMissing', '%s has no %s signal.', ds.Name, sig);
+end
 obj.Data = Y.(sig);
 obj.Fs   = double(info.(sig).Fs);
-obj.ChannelLabels = string(info.labels(:)).';
+[obj.ChannelLabels, units] = signalLabelsUnits(info, sig);
 obj.Events = ev;
 obj.Info = struct('source', "dataset", 'folder', ds.Folder, 'name', ds.Name, ...
-    'signal', sig, 'fs', obj.Fs, 'units', "microvolts", ...
+    'signal', sig, 'fs', obj.Fs, 'units', units, ...
     'recordingFormat', ds.RecordingFormat, 'origFs', info.origFs, ...
     'derived', info);
 obj.Loaded = true;
+end
+
+
+function [labels, units] = signalLabelsUnits(info, sig)
+%signalLabelsUnits  Channel labels and units of one derived signal.
+%   AUX carries its own labels and units ("volts"); the amplifier-derived
+%   signals use info.labels and are microvolts.
+labels = string.empty(1, 0);
+units  = "microvolts";
+if isfield(info.(sig), 'labels')
+    labels = string(info.(sig).labels(:)).';
+elseif isfield(info, 'labels')
+    labels = string(info.labels(:)).';
+end
+if isfield(info.(sig), 'units')
+    units = string(info.(sig).units);
+end
 end
 
 

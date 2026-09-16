@@ -93,6 +93,23 @@ classdef (Abstract) EphysReader < handle
                 '%s does not support random-access reads.', class(obj));
         end
 
+        function E = readDigitalEvents(obj, opts)
+            %readDigitalEvents  Digital-input events without keeping amplifier data.
+            %   E = r.readDigitalEvents(EventLabelField=...) returns struct
+            %   events (as in readData), Fs, nSamples and digInNames. The
+            %   default reads the recording through readData keeping one
+            %   amplifier channel; readers that can decode the digital lines
+            %   alone should override it. EphysDataset.digitalEvents caches it.
+            arguments
+                obj (1,1) EphysReader
+                opts.EventLabelField (1,1) string = "custom_channel_name"
+            end
+            data = obj.readData(KeepChannels=1, Precision="single", ...
+                EventLabelField=opts.EventLabelField);
+            E = struct('events', data.events, 'Fs', data.Fs, ...
+                'nSamples', size(data.amplifier, 1), 'digInNames', string(data.digInNames));
+        end
+
         function spec = siRecordingSpec(obj)
             %siRecordingSpec  How run_si_ks4.py should load this recording.
             %   Default: the reader kind plus folder/files/format. Readers

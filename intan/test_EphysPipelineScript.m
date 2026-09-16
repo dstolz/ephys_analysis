@@ -85,7 +85,7 @@ Sx.events = src.events;
 Sx.info = struct('LFP', struct('Fs', Fs), 'labels', d.ChannelNames, 'origFs', Fs); %#ok<STRNU>
 for o = [string(outA) string(outB)]
     mkdir(fullfile(o, 'recA'));
-    save(fullfile(o, 'recA', 'recA_extract.mat'), '-struct', 'Sx');
+    save(fullfile(o, 'recA', 'recA_extract_LFP.mat'), '-struct', 'Sx');   % Signals.SeparateFiles (default)
 end
 
 fprintf('\n== 2. generate ==\n');

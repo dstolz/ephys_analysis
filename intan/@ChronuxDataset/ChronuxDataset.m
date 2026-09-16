@@ -37,6 +37,8 @@ classdef ChronuxDataset < handle
     %   needs it (or loadSignal is called). Signal picks which signal that is:
     %     "LFP" | "MUA" | "SPIKE"  derived with EphysDataset.deriveSignals
     %                              (SignalOptions is forwarded to it)
+    %     "AUX"                    the auxiliary (accelerometer) inputs, in
+    %                              VOLTS at their own rate, when recorded
     %     "RAW"                    broadband amplifier data at the recording
     %                              rate, through EphysDataset.readData
     %
@@ -89,9 +91,10 @@ classdef ChronuxDataset < handle
 
     properties
         % Which continuous signal this connector serves. "LFP"/"MUA"/"SPIKE"
-        % are derived with EphysDataset.deriveSignals; "RAW" is the broadband
-        % amplifier data at the recording rate (EphysDataset.readData).
-        Signal (1,1) string {mustBeMember(Signal, ["LFP","MUA","SPIKE","RAW"])} = "LFP"
+        % are derived with EphysDataset.deriveSignals; "AUX" is the aux
+        % (accelerometer) inputs in volts; "RAW" is the broadband amplifier
+        % data at the recording rate (EphysDataset.readData).
+        Signal (1,1) string {mustBeMember(Signal, ["LFP","MUA","SPIKE","AUX","RAW"])} = "LFP"
 
         % Options forwarded to EphysDataset.deriveSignals when the signal is
         % loaded (LFP_Fs, LFP_bpLoHi, MUA_bpLoHi, keepAmpChannels, labelField,
@@ -303,6 +306,14 @@ classdef ChronuxDataset < handle
         end
 
         %% --- helpers used by the data methods ----------------------------
+        function u = dataUnits(obj)
+            %dataUnits  Units of Data: "microvolts" unless the source says otherwise (AUX: "volts").
+            u = "microvolts";
+            if isfield(obj.Info, 'units') && ~startsWith(string(obj.Info.units), "microvolts")
+                u = string(obj.Info.units);
+            end
+        end
+
         function [idx, labels] = resolveChannels(obj, sel)
             %resolveChannels  Channel selection -> column indices + labels.
             %   SEL is [] (all channels, in the loaded order), a numeric vector

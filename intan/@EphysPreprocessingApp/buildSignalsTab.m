@@ -1,5 +1,5 @@
 function buildSignalsTab(obj)
-%buildSignalsTab  Signals step: derived LFP / MUA / SPIKE -> .mat (toMat).
+%buildSignalsTab  Signals step: derived LFP / MUA / SPIKE / AUX -> .mat (toMat).
 %   Edits the config's Signals section (gatherConvertConfig /
 %   applyConvertConfig): every EphysDataset.deriveSignals option plus where
 %   and how the results are saved, how manifest channel exclusions are
@@ -44,7 +44,7 @@ obj.ConvBrowseOutputButton.Layout.Row = r; obj.ConvBrowseOutputButton.Layout.Col
 r = r + 1;
 lab(cg, "File suffix:", r);
 obj.ConvSuffixField = uieditfield(cg, "text", "Value", "_extract", ...
-    "Tooltip", "Output file name is <dataset name><suffix>.mat.", ...
+    "Tooltip", "Output file name is <dataset name><suffix>.mat, or <dataset name><suffix>_<LFP|MUA|SPIKE|AUX>.mat with one file per signal type.", ...
     "ValueChangedFcn", changed);
 obj.ConvSuffixField.Layout.Row = r; obj.ConvSuffixField.Layout.Column = 2;
 l = lab(cg, "MAT version:", r); l.Layout.Column = 3;
@@ -58,10 +58,13 @@ r = r + 1;
 obj.ConvOverwriteCheckBox = uicheckbox(cg, "Text", "Overwrite existing output files", ...
     "Value", false, "ValueChangedFcn", changed);
 obj.ConvOverwriteCheckBox.Layout.Row = r; obj.ConvOverwriteCheckBox.Layout.Column = [1 2];
-obj.ConvIncludeBehaviorCheckBox = uicheckbox(cg, "Text", "Attach Epsych2 behavior data", ...
-    "Value", true, "Tooltip", "Save the associated Epsych2 session (trials + info) as the 'behavior' variable.", ...
+
+r = r + 1;
+obj.ConvSeparateFilesCheckBox = uicheckbox(cg, "Text", "Save one file per signal type (<name><suffix>_LFP.mat, _MUA.mat, _SPIKE.mat, _AUX.mat)", ...
+    "Value", true, "Tooltip", ...
+    "SeparateFiles: each file holds Y / info for its signal only, plus events and conversion. Off = one file with every signal.", ...
     "ValueChangedFcn", changed);
-obj.ConvIncludeBehaviorCheckBox.Layout.Row = r; obj.ConvIncludeBehaviorCheckBox.Layout.Column = [3 5];
+obj.ConvSeparateFilesCheckBox.Layout.Row = r; obj.ConvSeparateFilesCheckBox.Layout.Column = [1 5];
 
 % --- dataTypeOut ---
 r = r + 1;
@@ -80,6 +83,10 @@ obj.ConvSPIKECheckBox = uicheckbox(cg, "Text", "SPIKE", "Value", false, ...
     "Tooltip", "Y.SPIKE: optional resample to SPIKE_Fs, then zero-phase bandpass.", ...
     "ValueChangedFcn", changed);
 obj.ConvSPIKECheckBox.Layout.Row = r; obj.ConvSPIKECheckBox.Layout.Column = 3;
+obj.ConvAUXCheckBox = uicheckbox(cg, "Text", "AUX (accelerometer)", "Value", false, ...
+    "Tooltip", "Y.AUX: the headstage auxiliary (accelerometer) inputs, unprocessed, in volts at their own rate. Skipped for recordings without them.", ...
+    "ValueChangedFcn", changed);
+obj.ConvAUXCheckBox.Layout.Row = r; obj.ConvAUXCheckBox.Layout.Column = [4 5];
 
 % --- LFP ---
 r = r + 1;

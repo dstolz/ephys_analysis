@@ -188,6 +188,8 @@ The constructor errors (`EphysDataset:NoFolder`) if the folder does not exist.
 | `SIConfig` | `defaultSIConfig()` | SpikeInterface preprocessing settings for `runSpikeInterface` |
 | `SortingDir` | `""` | an explicit sorted-output folder (the one holding `params.py`). `""` = auto-discover under `kilosortDir()`; see [Sorted output](#sorted-output) |
 | `BehaviorFile` | `""` | the associated Epsych2 session `.mat`; see [Behavior](#behavior-epsych2) |
+| `TrialConfig` | `defaultTrialConfig()` | trial pairing: `TrialLine` (`"InTrial"`), `InvertedLines` (see [polarity](EphysPipeline.md#digital-line-polarity)), `ToleranceS` (0.5), `SignalFs` (struct of derived-signal rates), `LabelField` |
+| `TrialPairing` | `struct([])` | the recorded pairing (manifest `behavior.pairing`): `status` (`"unreviewed"` / `"approved"`), `assignment`, `fingerprint`, `method`, `trial_line`, `summary`, `updated` |
 
 ### Dependent
 
@@ -807,23 +809,26 @@ is the template.
 order and outputs are documented in [intan2matlab.md](intan2matlab.md).
 
 **`out = toMat(Name=Value)`** runs `deriveSignals` and saves `Y`, `events`,
-`info`, `behavior` and a `conversion` provenance struct to one MAT-file.
+`info` and a `conversion` provenance struct to one MAT-file, or
+with `SeparateFiles=true` to one MAT-file per signal type,
+`<File without .mat>_<TYPE>.mat` (names from `EphysDataset.signalFiles`). Each
+per-type file has the same variables, with `Y` / `info` holding only its signal.
 
 | Option | Default |
 | --- | --- |
-| `File` | `<outputFolder>/<Name>_extract.mat` |
+| `File` | `<outputFolder>/<Name>_extract.mat` (the base name when `SeparateFiles`) |
+| `SeparateFiles` | `false`: one file; `true`: one file per signal type |
 | `SignalOptions` | `struct()`: `deriveSignals` options |
-| `Behavior` | `[]`: a struct saved as the `behavior` variable (the pipeline passes `behaviorStruct()`) |
 | `MatVersion` | `"-v7.3"` (or `"-v7"`) |
-| `Overwrite` | `false`: error `EphysDataset:toMat:Exists` if the file exists |
+| `Overwrite` | `false`: error `EphysDataset:toMat:Exists` if any output file exists |
 | `ProgressFcn` | none: `ProgressFcn(nDone, nTotal, message)`, with the save counted as one extra step |
 
-`out` fields: `file`, `bytes`, `seconds`, `matVersion`, `recordingFormat`,
+`out` fields: `file` and `bytes` (one per file written), `seconds`, `matVersion`, `recordingFormat`,
 `origFs`, `signals` (name, nSamples, nChannels, class, Fs), `events` (name,
 count), `badChannels`.
 
 **`EphysDataset.saveAtomically(file, S, matVersion)`** (static) is the writer
-behind `toMat`, `spikesToMat` and both exporters: the struct's fields are
+behind `toMat`, `spikesToMat`, `behaviorToMat` and both exporters: the struct's fields are
 saved to `~<name>.partial.mat`, and the file is renamed to the target only
 after `save()` finishes **without any warning** and every variable is confirmed
 present with `whos -file`. Otherwise the partial file is deleted and an error is
@@ -844,12 +849,11 @@ with spike events from up to two sources
 | `RejectArtifacts` | `true` | drop detected events inside the artifact periods (`ArtifactIntervals`, else `artifactIntervals()`) |
 | `ArtifactIntervals` | computed | `[k x 2]` seconds |
 | `Groups`, `IncludeNoise`, `Templates` | `["good" "mua"]`, `false`, `true` | sorted-unit options |
-| `Behavior` | `[]` | saved as `behavior` |
 | `File`, `MatVersion`, `Overwrite`, `ProgressFcn` | as `toMat` | |
 
 Variables: `detected` (`ts`, `wf`, `info`, `channels`, `channelNames`,
 `detection` with the options, the intervals applied and `nRejectedArtifact`
-per channel), `units`, `behavior`, `conversion`. Sources not requested are
+per channel), `units`, `conversion`. Sources not requested are
 `[]`; the file is rewritten as a whole. `out`: `file`, `bytes`, `seconds`,
 `source`, `nChannels`, `nDetected`, `nRejectedArtifact`, `nUnits`, `matVersion`.
 
@@ -860,7 +864,7 @@ per channel), `units`, `behavior`, `conversion`. Sources not requested are
 the derived signals as `LFP` / `MUA` / `SPIKE` structs (`data`, `params`, `t`,
 `labels`, `info`, built by [`ChronuxDataset.continuous`](ChronuxDataset.md)),
 the sorted units as `sp` (the `mtspectrumpt` input form) and detected spikes
-as `spDetected`, plus `units`, `detected`, `events`, `behavior` and `export`.
+as `spDetected`, plus `units`, `detected`, `events` and `export`.
 No Chronux function is called.
 
 **`out = exportFieldTrip(Name=Value)`** writes
@@ -874,13 +878,12 @@ Both take the same options:
 | Option | Default | Meaning |
 | --- | --- | --- |
 | `File` | `<Name>_chronux.mat` / `<Name>_fieldtrip.mat` | target |
-| `Extract` | `<outputFolder>/<Name>_extract.mat` | another extract file, or a `toMat`-shaped struct (`Y`, `events`, `info`) |
+| `Extract` | `<outputFolder>/<Name>_extract.mat`, else the `<Name>_extract_<TYPE>.mat` files present | other extract file(s) (several are merged), or a `toMat`-shaped struct (`Y`, `events`, `info`) |
 | `Signals` | all present | subset of `["LFP" "MUA" "SPIKE"]` |
 | `Units` | the associated sorted units | a units struct, or `false` |
 | `Groups` | `["good" "mua"]` | phy labels kept when reading units |
 | `Detected` | `<Name>_spikes.mat` when present | a spikes file, a `detected` struct, or `false` |
 | `Events` | `true` | include the digital-input events |
-| `Behavior` | the extract's `behavior`, else the associated session | a struct, or `false` |
 | `Overwrite`, `MatVersion` | `false`, `"-v7.3"` | |
 
 The two toolboxes are independent: neither export is built from the other,
@@ -894,9 +897,35 @@ and nothing analysis-related is run.
   next scan if the file still exists.
 - `[trials, info, meta] = readBehavior()` is
   [`readEpsychSession(BehaviorFile)`](EphysPipeline.md#epsych2-sessions).
-- `behaviorStruct()` returns `struct(trials, info, file, subject, startTime,
-  nTrials)` or `[]`, the value the Signals, Spikes and Export steps save as
-  `behavior`.
+- `behaviorStruct()` returns `struct(trials, info, meta, file, subject,
+  startTime, nTrials)` or `[]`.
+- `out = behaviorToMat(File=, MatVersion=, Overwrite=)` saves that struct once,
+  as the `behavior` variable of `<outputFolder>/<Name>_behavior.mat` (plus
+  `conversion`). It is the only output that carries behavior data: the extract,
+  spikes, Chronux and FieldTrip files do not. Errors
+  `EphysDataset:behaviorToMat:NoFile` without an associated session and
+  `:Exists` when the file exists and `Overwrite` is off. `out`: `file`,
+  `bytes`, `seconds`, `behaviorFile`, `nTrials`, `paired`. With `Pairing=P`
+  the trials table carries the pairing columns and `behavior.pairing` the summary.
+- `E = digitalEvents(LabelField=, Cache=true, Refresh=false, ProgressFcn=)`
+  returns the dig-in `events` (high runs), `Fs`, `nSamples` and `digInNames`
+  through `EphysReader.readDigitalEvents`, cached as
+  `<outputFolder>/<Name>_events.mat` (keyed by the files, sample count and
+  label field).
+- `P = pairTrials(Assignment="recorded"|"auto"|<vector>, Events=, ProgressFcn=)`
+  pairs the session's trials with `TrialConfig.TrialLine`
+  ([`pairEpsychTrials`](EphysPipeline.md#pairing-trials-with-the-trial-line)).
+  It reuses `TrialPairing` while the fingerprint still matches. It adds
+  `status`, `recorded`, `stale` and `fingerprint` to the result.
+- `setTrialPairing(P, "unreviewed"|"approved")` records the assignment in the
+  manifest; `setTrialPairing([])` clears it.
+
+### Processed files (`DatasetOutputs`)
+
+`out = ds.outputs(Name=Value)` returns a [`DatasetOutputs`](DatasetOutputs.md)
+that finds this dataset's extract, spikes, behavior, Chronux and FieldTrip
+files, sorted units and manifest, and loads each one when its property is read
+(`FT = out.FieldTrip`).
 
 ### Dataset manifest
 
@@ -978,9 +1007,9 @@ deletes them afterwards. It covers:
 | 15 | `writeJsonFile` / `readJsonFile`, manifest v2 round trip (manual periods, sorting, behavior), v1 manifests, `sortingResultsDir` precedence, `EphysProject` keys and `refresh` |
 | 16 | the `ArtifactConfig` pre-detection filter (preview and `artifactIntervals` agree) |
 | 17 | `readPhyUnits` / `readSortedUnits` (times = samples/fs, phy labels beat Kilosort labels, groups, channel mapping, `FsFallback`) |
-| 18 | `spikesToMat` (detected + sorted, artifact rejection, waveforms, `Behavior`, no partial file left) |
+| 18 | `spikesToMat` (detected + sorted, artifact rejection, waveforms, no behavior variable, no partial file left) |
 | 19 | the reader registry, `BinaryReader` (same microvolts through `readData`, `streamPlan` / `readChunkUV` and `readWindowUV`), discovery of both kinds, `siRecordingSpec` |
-| 20 | `exportChronux` / `exportFieldTrip` / behavior |
+| 20 | `exportChronux` / `exportFieldTrip`, `readBehavior` / `behaviorStruct` / `behaviorToMat` |
 
 It needs no real recording data and no Kilosort4 install. Run every suite with
 [`run_all_tests.m`](../intan/run_all_tests.m).

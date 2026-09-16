@@ -12,12 +12,14 @@ classdef EphysPreprocessingApp < handle
     %     Project    config name, project root / output root, dataset table
     %                (the Select column is the config's dataset selection),
     %                Epsych2 behavior associations
+    %     Trials     pair Epsych2 trials with the trial digital line, per-line
+    %                TTL polarity, review / edit / approve the pairing
     %     Probe      probe library, preview, assignment, per-dataset channel
     %                exclusions, the config's default probe
     %     Artifacts  automatic detection settings + preview, manual periods
     %     Sorting    SpikeInterface + Kilosort4 settings, sorted-output
     %                association, Run this step, background-run log
-    %     Signals    derived LFP / MUA / SPIKE (.mat) settings, plan, Run
+    %     Signals    derived LFP / MUA / SPIKE / AUX (.mat) settings, plan, Run
     %     Spikes     threshold detection / sorted units (.mat), preview, Run
     %     Export     Chronux / FieldTrip files, plan, Run
     %     Run        step checklist, validate, plan, run / dry run / cancel,
@@ -56,6 +58,7 @@ classdef EphysPreprocessingApp < handle
         StatusHint matlab.ui.control.Label
 
         TabProject   matlab.ui.container.Tab
+        TabTrials    matlab.ui.container.Tab
         TabProbe     matlab.ui.container.Tab
         TabArtifacts matlab.ui.container.Tab
         TabSorting   matlab.ui.container.Tab
@@ -88,8 +91,24 @@ classdef EphysPreprocessingApp < handle
         BehFindButton        matlab.ui.control.Button
         BehStatusLabel       matlab.ui.control.Label
         BehOverwriteCheckBox matlab.ui.control.CheckBox
+        BehWriteFileCheckBox matlab.ui.control.CheckBox
         BehAssociateButton   matlab.ui.control.Button
         BehClearButton       matlab.ui.control.Button
+
+        % --- Trials tab ---
+        TrialsDatasetDropDown matlab.ui.control.DropDown
+        TrialsLoadButton      matlab.ui.control.Button
+        TrialsAutoButton      matlab.ui.control.Button
+        TrialsApproveButton   matlab.ui.control.Button
+        TrialsRevokeButton    matlab.ui.control.Button
+        TrialsWriteButton     matlab.ui.control.Button
+        TrialsSummaryLabel    matlab.ui.control.Label
+        TrialsPairCheckBox    matlab.ui.control.CheckBox
+        TrialsLineDropDown    matlab.ui.control.DropDown
+        TrialsToleranceField  matlab.ui.control.NumericEditField
+        TrialsLinesTable      matlab.ui.control.Table
+        TrialsTable           matlab.ui.control.Table
+        TrialsAxes            matlab.ui.control.UIAxes
 
         % --- Visualize tab ---
         VizDatasetLabel    matlab.ui.control.Label
@@ -209,10 +228,11 @@ classdef EphysPreprocessingApp < handle
         ConvSuffixField         matlab.ui.control.EditField
         ConvMatVersionDropDown  matlab.ui.control.DropDown
         ConvOverwriteCheckBox   matlab.ui.control.CheckBox
-        ConvIncludeBehaviorCheckBox matlab.ui.control.CheckBox
+        ConvSeparateFilesCheckBox matlab.ui.control.CheckBox
         ConvLFPCheckBox         matlab.ui.control.CheckBox
         ConvMUACheckBox         matlab.ui.control.CheckBox
         ConvSPIKECheckBox       matlab.ui.control.CheckBox
+        ConvAUXCheckBox         matlab.ui.control.CheckBox
         ConvLFPFsField          matlab.ui.control.NumericEditField
         ConvLFPHighpassCheckBox matlab.ui.control.CheckBox
         ConvLFPHighpassField    matlab.ui.control.NumericEditField
@@ -289,7 +309,6 @@ classdef EphysPreprocessingApp < handle
         ExpGroupsField       matlab.ui.control.EditField
         ExpDetectedCheckBox  matlab.ui.control.CheckBox
         ExpEventsCheckBox    matlab.ui.control.CheckBox
-        ExpBehaviorCheckBox  matlab.ui.control.CheckBox
         ExpValidateCheckBox  matlab.ui.control.CheckBox
         ExpOutputDirField    matlab.ui.control.EditField
         ExpBrowseOutputButton matlab.ui.control.Button
@@ -360,6 +379,11 @@ classdef EphysPreprocessingApp < handle
         VizArtPatches = gobjects(0,1)
         VizArtPreview = gobjects(0,1)
 
+        % --- Trials tab state (in memory; the pairing is saved via Approve) ---
+        TrialsEvents = []                    % EphysDataset.digitalEvents of the loaded dataset
+        TrialsEventsIdx (1,1) double = 0     % dataset index TrialsEvents belongs to
+        TrialsPairing = []                   % EphysDataset.pairTrials result shown
+
         % --- Review (Kilosort4 output) state ---
         ReviewData = struct([])
         ReviewSelectedUnit (1,1) double = 0
@@ -386,6 +410,7 @@ classdef EphysPreprocessingApp < handle
         buildUI(obj)
         buildMenus(obj)
         buildProjectTab(obj)
+        buildTrialsTab(obj)
         buildProbeTab(obj)
         buildArtifactsTab(obj)
         buildSortingTab(obj)
@@ -460,6 +485,21 @@ classdef EphysPreprocessingApp < handle
         idx = selectedDatasetIndices(obj)
         applyConfigToProject(obj, P)
         applyArtifactConfigToProject(obj)
+
+        % --- Trials tab ---
+        populateTrialsDatasets(obj)
+        d = currentTrialsDataset(obj)
+        onTrialsLoad(obj, mode)
+        repairTrials(obj, assignment)
+        refreshTrialsView(obj)
+        clearTrialsView(obj)
+        fillTrialsLines(obj)
+        setTrialsLineItems(obj, names, trialLine)
+        syncTrialsButtons(obj)
+        onTrialsCellEdit(obj, evt)
+        onTrialsApprove(obj, status)
+        onTrialsWriteBehavior(obj)
+        onTrialsSettingsChanged(obj)
 
         % --- Artifacts tab ---
         onDetectArtifacts(obj)

@@ -9,9 +9,9 @@ function [Y, ev, info] = deriveSignals(obj, opts)
 %
 %   Outputs
 %   -------
-%   Y       struct with fields LFP, MUA, SPIKE (nSamples x nChan single). Only
-%           the fields requested in dataTypeOut are filled; the others are
-%           single([]).
+%   Y       struct with fields LFP, MUA, SPIKE (nSamples x nChan single) and
+%           AUX. Only the fields requested in dataTypeOut are filled; the
+%           others are single([]).
 %       Y.LFP   amplifier data resampled to LFP_Fs, then (only if requested)
 %               zero-phase Butterworth band-limiting LFP_bpLoHi and notch
 %               filters LFP_NotchHz, designed and applied at LFP_Fs. With the
@@ -23,6 +23,12 @@ function [Y, ev, info] = deriveSignals(obj, opts)
 %       Y.SPIKE optionally resampled to SPIKE_Fs (Inf = original rate), then a
 %               zero-phase 4th-order Butterworth bandpass SPIKE_bpLoHi
 %               designed at SPIKE_Fs.
+%       Y.AUX   the auxiliary inputs (the headstage accelerometer, 3 per Intan
+%               headstage) unprocessed, [nSamples x nAux] single VOLTS at their
+%               own rate (info.AUX.Fs). Not affected by keepAmpChannels,
+%               badChannels or channelRemap. When the recording has no aux
+%               inputs Y.AUX stays empty, info.AUX is absent and a
+%               EphysDataset:deriveSignals:NoAux warning is issued.
 %   EVENTS  struct, one field per digital input line (named from labelField
 %           via matlab.lang.makeValidName), each [k x 2] [t_on t_off] in
 %           seconds on the original amplifier time base.
@@ -30,13 +36,15 @@ function [Y, ev, info] = deriveSignals(obj, opts)
 %           labels from labelField, in the column order of Y), origFs,
 %           LFP/MUA/SPIKE sub-structs (Fs, time vector; LFP also bpLoHi,
 %           NotchHz, NotchBW and a text description of the filter applied;
-%           MUA also IntegrationHz and bpLoHi) for the requested types, and
+%           MUA also IntegrationHz and bpLoHi; AUX also labels and units)
+%           for the requested types (AUX only when present), and
 %           importOptions (the options used; SPIKE_Fs is replaced by origFs
 %           when Inf, and badChannels by the channels actually interpolated).
 %
 %   Options
 %   -------
-%     dataTypeOut        string array  "LFP"   any of "LFP", "MUA", "SPIKE"
+%     dataTypeOut        string array  "LFP"   any of "LFP", "MUA", "SPIKE",
+%                        "AUX"
 %     keepAmpChannels    integer vector []     1-based amplifier channels to
 %                        read, in this order, before all processing
 %     channelRemap       integer vector []     final column order (1-based into
@@ -74,6 +82,11 @@ function [Y, ev, info] = deriveSignals(obj, opts)
 %     SPIKE_Fs           Hz  Inf (= original rate)
 %     SPIKE_bpLoHi       [low high] Hz  [300 5000]  (high < SPIKE_Fs/2)
 %     labelField         "custom_channel_name" | "native_channel_name"
+%     invertedLines      string list  []  digital lines with inverted TTL
+%                        polarity (on while low): their EVENTS rows are the
+%                        low runs, onset = falling edge, offset = last low
+%                        sample (digitalLinePolarity); INFO.invertedLines
+%                        lists the lines actually inverted
 %     ProgressFcn        function handle, called as ProgressFcn(nDone, nTotal,
 %                        message) before each step (one per file read, then one
 %                        per processing stage) and once more as
@@ -104,6 +117,7 @@ arguments
     opts.SPIKE_bpLoHi (1,2) double {mustBePositive} = [300 5000]
     opts.labelField (1,1) string {mustBeMember(opts.labelField, ...
         ["custom_channel_name", "native_channel_name"])} = "custom_channel_name"
+    opts.invertedLines (1,:) string = string.empty(1,0)
     opts.ProgressFcn = []
 end
 
@@ -115,10 +129,10 @@ progressFcn = opts.ProgressFcn;
 opts = rmfield(opts, 'ProgressFcn');   % never stored in info.importOptions
 
 % --- validate options (before reading anything) ---
-badType = setdiff(opts.dataTypeOut, ["LFP" "MUA" "SPIKE"]);
+badType = setdiff(opts.dataTypeOut, ["LFP" "MUA" "SPIKE" "AUX"]);
 if ~isempty(badType)
     error('EphysDataset:deriveSignals:dataTypeOut', ...
-        'Unknown dataTypeOut value(s): %s. Use "LFP", "MUA" and/or "SPIKE".', ...
+        'Unknown dataTypeOut value(s): %s. Use "LFP", "MUA", "SPIKE" and/or "AUX".', ...
         strjoin(badType, ', '));
 end
 if opts.MUA_bpLoHi(1) >= opts.MUA_bpLoHi(2)
@@ -138,6 +152,7 @@ end
 has.LFP   = any(opts.dataTypeOut == "LFP");
 has.MUA   = any(opts.dataTypeOut == "MUA");
 has.SPIKE = any(opts.dataTypeOut == "SPIKE");
+has.AUX   = any(opts.dataTypeOut == "AUX");
 
 % LFP filters are designed at LFP_Fs, which is known before reading.
 lfpFilter = has.LFP && (opts.LFP_bpLoHi(1) > 0 || isfinite(opts.LFP_bpLoHi(2)) ...
@@ -178,7 +193,7 @@ end
 
 % --- read (any layout), single precision, events keyed by labelField ---
 data = obj.readData(KeepChannels=opts.keepAmpChannels(:).', Precision="single", ...
-    EventLabelField=opts.labelField, ProgressFcn=readCb);
+    EventLabelField=opts.labelField, IncludeAux=has.AUX, ProgressFcn=readCb);
 nDone = nRead;
 
 AMPSIG = data.amplifier;
@@ -196,13 +211,24 @@ if opts.labelField == "native_channel_name"
 else
     labels = cellstr(data.channelNames);
 end
-ev = data.events;
+[ev, invertedApplied] = digitalLinePolarity(data.events, opts.invertedLines, size(AMPSIG, 1), origFs);
 filenames = cellstr(data.files);
+AUXSIG = single([]);
+if has.AUX
+    [AUXSIG, auxFs, auxLabels] = auxInputs(data, opts.labelField);
+    if isempty(AUXSIG)
+        warning('EphysDataset:deriveSignals:NoAux', ...
+            '%s has no auxiliary (accelerometer) inputs; AUX is not written.', obj.Name);
+        has.AUX = false;
+    end
+end
 clear data
 
 Y.LFP   = single([]);
 Y.MUA   = single([]);
 Y.SPIKE = single([]);
+Y.AUX   = AUXSIG;
+clear AUXSIG
 
 % --- filter / resample ---
 if has.LFP
@@ -287,6 +313,7 @@ info.filenames       = filenames;
 info.recordingFormat = obj.RecordingFormat;
 info.labels          = labels(:);
 info.origFs          = origFs;
+info.invertedLines   = invertedApplied;   % digital lines whose events are low runs
 if has.LFP
     info.LFP.Fs      = opts.LFP_Fs;
     info.LFP.bpLoHi  = opts.LFP_bpLoHi;
@@ -305,9 +332,39 @@ if has.MUA
     info.MUA.bpLoHi        = opts.MUA_bpLoHi;
     info.MUA.time          = (0:size(Y.MUA, 1)-1)' / opts.MUA_Fs;
 end
+if has.AUX
+    info.AUX.Fs     = auxFs;
+    info.AUX.labels = auxLabels(:);
+    info.AUX.units  = "volts";
+    info.AUX.time   = (0:size(Y.AUX, 1)-1)' / auxFs;
+end
 info.importOptions = opts;
 
 reportProgress(progressFcn, nDone, nSteps, 'Done');   % nDone == nSteps here
+end
+
+
+function [X, Fs, labels] = auxInputs(data, labelField)
+%auxInputs  The reader's aux inputs as [n x nAux] single volts, rate and labels.
+X = single([]);
+Fs = NaN;
+labels = {};
+if ~isfield(data, 'aux') || isempty(data.aux) || ~isnumeric(data.aux)
+    return
+end
+X  = single(data.aux);
+Fs = double(data.auxFs);
+nAux = size(X, 2);
+names = string.empty(1, 0);
+if labelField == "native_channel_name" && isfield(data, 'auxNativeNames')
+    names = string(data.auxNativeNames);
+elseif isfield(data, 'auxNames')
+    names = string(data.auxNames);
+end
+if numel(names) ~= nAux
+    names = "AUX" + string(1:nAux);
+end
+labels = cellstr(names);
 end
 
 

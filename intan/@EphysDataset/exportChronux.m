@@ -1,16 +1,18 @@
 function out = exportChronux(obj, opts)
 %exportChronux  Write this dataset's data in the shapes Chronux functions take.
 %   OUT = ds.exportChronux(Name=Value) packages the derived continuous
-%   signals, the sorted units and/or threshold-detected spikes, the
-%   digital-input events and the behavior data into one .mat that can be
-%   loaded and handed straight to Chronux (mtspectrumc, mtspectrumpt, ...)
-%   outside this app. Packaging goes through ChronuxDataset (the Chronux
-%   connector); no Chronux function is called and nothing is analysed.
+%   signals, the sorted units and/or threshold-detected spikes and the
+%   digital-input events into one .mat that can be loaded and handed
+%   straight to Chronux (mtspectrumc, mtspectrumpt, ...) outside this app.
+%   Behavior data has its own file (behaviorToMat). Packaging goes through
+%   ChronuxDataset (the Chronux connector); no Chronux function is called
+%   and nothing is analysed.
 %
 %   Variables in the file
 %   ---------------------
-%     LFP / MUA / SPIKE   one struct per exported signal:
+%     LFP / MUA / SPIKE / AUX   one struct per exported signal:
 %                           data    [nSamples x nChan] double, microvolts
+%                                   (AUX: accelerometer inputs, volts)
 %                           params  Chronux params (Fs = the signal rate)
 %                           t       [1 x nSamples] seconds, t = (k-1)/Fs
 %                           labels  1 x nChan channel labels
@@ -22,23 +24,23 @@ function out = exportChronux(obj, opts)
 %     units       the readSortedUnits struct (ids, labels, channels, ...) or []
 %     detected    the spikesToMat detected struct or []
 %     events      dig-in lines -> [k x 2] [t_on t_off] seconds (t = row/Fs)
-%     behavior    Epsych2 session data (see behaviorStruct) or []
 %     export      provenance: tool, created, dataset, sources, signals
 %
 %   Options
 %   -------
 %     File       target (default <outputFolder>/<Name>_chronux.mat)
-%     Extract    "" (default: <outputFolder>/<Name>_extract.mat), another
-%                extract file, or a toMat-shaped struct (Y, events, info)
-%     Signals    subset of ["LFP" "MUA" "SPIKE"] ([] = all present)
+%     Extract    "" (default: <outputFolder>/<Name>_extract.mat, else the
+%                <Name>_extract_<TYPE>.mat files present), other extract
+%                file(s) -- several are merged, e.g. the per-type files of
+%                toMat(SeparateFiles=true) -- or a toMat-shaped struct
+%                (Y, events, info)
+%     Signals    subset of ["LFP" "MUA" "SPIKE" "AUX"] ([] = all present)
 %     Units      [] (default: the associated sorted units when present) |
 %                a units struct | false (none)
 %     Groups     phy groups to keep when reading units (default ["good" "mua"])
 %     Detected   true (default: <Name>_spikes.mat when present) | a spikes
 %                file | a detected struct | false
 %     Events     true (default) | false
-%     Behavior   [] (default: the extract's behavior, else the associated
-%                Epsych2 session) | a struct | false
 %     Overwrite  false (default): error if File exists
 %     MatVersion "-v7.3" (default) | "-v7"
 %
@@ -54,7 +56,6 @@ arguments
     opts.Groups (1,:) string = ["good" "mua"]
     opts.Detected = true
     opts.Events (1,1) logical = true
-    opts.Behavior = []
     opts.Overwrite (1,1) logical = false
     opts.MatVersion (1,1) string {mustBeMember(opts.MatVersion, ["-v7.3", "-v7"])} = "-v7.3"
 end
@@ -93,7 +94,6 @@ if ~isempty(in.detected)
     S.detected   = in.detected;
 end
 S.events   = in.events;
-S.behavior = in.behavior;
 S.export = struct( ...
     'tool',       "EphysDataset.exportChronux", ...
     'created',    string(datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss')), ...

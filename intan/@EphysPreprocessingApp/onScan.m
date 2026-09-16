@@ -30,6 +30,7 @@ try
         obj.populateDatasetMenu();
         obj.populateArtifactDatasets();
         obj.populateReviewDatasets();
+        obj.populateTrialsDatasets();
         obj.ScanStatusLabel.Text = sprintf("No recordings found under %s", root);
         obj.setStatus(sprintf("Scan complete: no recordings found under %s.", root), ...
             "Pick a different parent folder and Scan again.");
@@ -51,6 +52,7 @@ try
     obj.populateDatasetMenu();
     obj.populateArtifactDatasets();
     obj.populateReviewDatasets();
+    obj.populateTrialsDatasets();
     obj.syncStepEnableStates();
     obj.refreshSortingLabel();
     obj.refreshManualArtifactsTable();

@@ -106,6 +106,20 @@ classdef EphysDataset < handle
         % with this recording. "" = none. Persisted in the manifest under
         % behavior.file. See readBehavior, readEpsychSession.
         BehaviorFile (1,1) string = ""
+
+        % How Epsych2 trials are paired with a digital line (pairTrials):
+        % TrialLine, InvertedLines, ToleranceS, SignalFs (derived-signal
+        % rates for sample columns) and LabelField. Pushed from the config's
+        % Behavior section. See defaultTrialConfig.
+        TrialConfig struct = EphysDataset.defaultTrialConfig()
+
+        % The reviewed trial pairing, persisted in the manifest under
+        % behavior.pairing; struct([]) until one is recorded. Fields: status
+        % ("unreviewed" | "approved"), assignment (interval index per trial,
+        % NaN = unpaired), fingerprint (behavior session + trial line
+        % intervals it applies to), method, trial_line, summary, updated.
+        % See pairTrials, setTrialPairing.
+        TrialPairing struct = struct([])
         Manifest                                  % optional Manifest for provenance
 
         % Manually defined artifact periods to blank before writing the .bin.
@@ -163,7 +177,11 @@ classdef EphysDataset < handle
         out    = exportChronux(obj, opts)
         out    = exportFieldTrip(obj, opts)
         [trials, info, meta] = readBehavior(obj)
-        b      = behaviorStruct(obj)
+        b      = behaviorStruct(obj, opts)
+        out    = behaviorToMat(obj, opts)
+        E      = digitalEvents(obj, opts)
+        P      = pairTrials(obj, opts)
+        setTrialPairing(obj, P, status)
         summary = analyzeArtifacts(obj, opts)
         X      = blankArtifacts(obj, X, mask, opts)
         mask   = manualArtifactMask(obj, nSamp, sampleOffset, Fs)
@@ -586,14 +604,20 @@ classdef EphysDataset < handle
                 bf = string(m.behavior.file);
                 if bf ~= "" && isfile(bf); obj.BehaviorFile = bf; end
             end
+            if isfield(m, 'behavior') && isstruct(m.behavior) && isfield(m.behavior, 'pairing')
+                obj.TrialPairing = EphysDataset.normalizeTrialPairing(m.behavior.pairing);
+            end
             tf = true;
         end
 
         function s = behaviorManifest(obj)
             %behaviorManifest  Manifest block for the associated Epsych2 session.
             %   file, subject, start_time, n_trials (only Info is read; any
-            %   read failure leaves the summary fields empty).
-            s = struct('file', obj.BehaviorFile, 'subject', "", 'start_time', "", 'n_trials', NaN);
+            %   read failure leaves the summary fields empty) and pairing (the
+            %   recorded TrialPairing, [] when none).
+            s = struct('file', obj.BehaviorFile, 'subject', "", 'start_time', "", 'n_trials', NaN, ...
+                'pairing', []);
+            if ~isempty(obj.TrialPairing); s.pairing = obj.TrialPairing; end
             if obj.BehaviorFile == "" || ~isfile(obj.BehaviorFile); return; end
             try
                 meta = epsychSessionMeta(obj.BehaviorFile);
@@ -677,6 +701,44 @@ classdef EphysDataset < handle
                 'FilterOrder',  4);
         end
 
+        function cfg = defaultTrialConfig()
+            %defaultTrialConfig  Default trial-pairing settings (see pairTrials).
+            %   TrialLine       digital line held high during each trial
+            %   InvertedLines   lines with inverted polarity: on while low,
+            %                   onset = falling edge (default none)
+            %   ToleranceS      timestamp agreement tolerance (s)
+            %   SignalFs        struct of derived-signal rates (e.g. LFP: 1000)
+            %                   for per-signal sample columns
+            %   LabelField      dig-in name used as the line name
+            cfg = struct('TrialLine', "InTrial", 'InvertedLines', string.empty(1,0), ...
+                'ToleranceS', 0.5, 'SignalFs', struct(), 'LabelField', "custom_channel_name");
+        end
+
+        function p = normalizeTrialPairing(p)
+            %normalizeTrialPairing  A TrialPairing record from a manifest block.
+            %   Returns struct([]) for anything that is not a usable record.
+            if isempty(p) || ~isstruct(p) || ~isscalar(p) ...
+                    || ~all(isfield(p, {'status', 'assignment', 'fingerprint'}))
+                p = struct([]);
+                return
+            end
+            a = p.assignment;
+            if iscell(a)                       % jsondecode keeps nulls as [] in a cell
+                v = NaN(numel(a), 1);
+                for k = 1:numel(a)
+                    if isnumeric(a{k}) && isscalar(a{k}); v(k) = a{k}; end
+                end
+                a = v;
+            end
+            q = struct('status', string(p.status), 'assignment', {double(a(:))}, ...
+                'fingerprint', string(p.fingerprint), 'method', "", 'trial_line', "", ...
+                'summary', "", 'updated', "");
+            for f = ["method" "trial_line" "summary" "updated"]
+                if isfield(p, f) && ~isempty(p.(f)); q.(f) = string(p.(f)); end
+            end
+            p = q;
+        end
+
         function cfg = normalizeArtifactConfig(cfg)
             %normalizeArtifactConfig  Fill missing fields from the defaults.
             %   Tolerates partial/stale ArtifactConfig structs (e.g. a project
@@ -698,6 +760,35 @@ classdef EphysDataset < handle
         end
 
         [units, info] = readPhyUnits(resultsDir, opts)
+
+        function files = signalFiles(file, types)
+            %signalFiles  Per-signal-type file names derived from one base file.
+            %   FILES = EphysDataset.signalFiles("D:\out\rec_extract.mat", ["LFP" "MUA"])
+            %   returns ["D:\out\rec_extract_LFP.mat" "D:\out\rec_extract_MUA.mat"],
+            %   the names toMat(SeparateFiles=true) writes.
+            arguments
+                file (1,1) string
+                types (1,:) string
+            end
+            [p, base, ext] = fileparts(file);
+            if ext == ""; ext = ".mat"; end
+            files = strings(1, numel(types));
+            for k = 1:numel(types)
+                files(k) = string(fullfile(p, base + "_" + types(k) + ext));
+            end
+        end
+
+        function files = recordedSignalFiles(files)
+            %recordedSignalFiles  Signal files minus an _AUX file that was not written.
+            %   toMat writes <base>_AUX.mat only when the recording has aux
+            %   (accelerometer) inputs, so a missing one is not a missing
+            %   extract. FILES = EphysDataset.recordedSignalFiles(FILES) drops
+            %   it; every other file is kept whether it exists or not.
+            arguments
+                files (1,:) string
+            end
+            files = files(isfile(files) | ~endsWith(files, "_AUX.mat", 'IgnoreCase', true));
+        end
 
         function saveAtomically(outFile, S, matVersion)
             %saveAtomically  save() the fields of S to a temp file, verify, rename.

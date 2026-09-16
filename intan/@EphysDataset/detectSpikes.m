@@ -221,7 +221,7 @@ arguments
     opts.AlignWindowMs (1,1) double {mustBeNonnegative} = 1
     opts.MinPeriodMs (1,1) double {mustBeNonnegative} = 1
     opts.MaxAmplitudeUV (1,1) double {mustBePositive} = Inf
-    opts.Waveforms (1,1) logical = false
+    opts.Waveforms = []          % [] -> extract when a second output is requested
     opts.WindowMs (1,2) double = [-0.5 1.5]
     opts.WaveformSource (1,1) string {mustBeMember(opts.WaveformSource, ...
         ["filtered","raw"])} = "filtered"
@@ -238,7 +238,11 @@ arguments
     opts.UseParallel (1,1) logical = false
 end
 
-doWave = opts.Waveforms || nargout >= 2;
+if isempty(opts.Waveforms)
+    doWave = nargout >= 2;
+else
+    doWave = logical(opts.Waveforms);
+end
 
 streamOnly = ["Files" "ChannelOrder" "MaxChunkSamples" "EdgePadMs" "ProgressFcn" ...
               "UseParallel"];

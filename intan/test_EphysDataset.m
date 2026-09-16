@@ -794,6 +794,82 @@ check(isequal(B, A) && isa(B, 'single') && isequal(shp, [2 3 4]), 'writeNPY/read
 writeNPY(npyF, int64([5 6 7]));
 check(isequal(readNPY(npyF), int64([5; 6; 7])), 'writeNPY 1-D round trip');
 
+fprintf('\n== 18. spikesToMat (detected + sorted, artifact rejection) ==\n');
+spkOut = fullfile(root, 'spikes_out');
+dsSpk.OutputDir = spkOut;
+dopt = struct('Filter', false, 'ThresholdMethod', "absolute", 'Threshold', 100);
+o1 = dsSpk.spikesToMat(DetectOptions=dopt);
+check(isfile(o1.file) && endsWith(o1.file, '_spikes.mat') && startsWith(o1.file, spkOut), ...
+    'spikesToMat default file <outputFolder>/<Name>_spikes.mat');
+M = load(o1.file);
+check(all(isfield(M, {'detected', 'units', 'behavior', 'conversion'})), ...
+    'file holds detected / units / behavior / conversion');
+check(isequal(M.detected.info.index{1}, recIdx) && isempty(M.units) && isempty(M.detected.wf), ...
+    'detected indices match detectSpikes; no units and no waveforms by default');
+check(isequal(M.detected.channels, [1 2]) && isequal(M.detected.channelNames, ["amp0" "amp1"]), ...
+    'detected channels + names');
+check(isequal(o1.nDetected, [10 4]) && isequal(o1.nRejectedArtifact, [0 0]) && o1.nUnits == 0, 'out counts');
+[~, wfN, ~] = dsSpk.detectSpikes(absArgs{:}, 'Waveforms', false);
+check(isempty(wfN) || all(cellfun(@isempty, wfN)), 'Waveforms=false suppresses extraction even with three outputs');
+
+% Events inside a manual artifact period are rejected (indices 4010, 6000).
+dsSpk.ManualArtifacts = [4000 6100] / Fs;
+o2 = dsSpk.spikesToMat(DetectOptions=dopt, Overwrite=true, Channels=1);
+M2 = load(o2.file);
+check(isequal(o2.nRejectedArtifact, 2) && numel(M2.detected.ts{1}) == 8 ...
+    && ~any(M2.detected.ts{1} >= 4000/Fs & M2.detected.ts{1} <= 6100/Fs), ...
+    'events inside a manual artifact period are rejected');
+check(numel(M2.detected.info.index{1}) == 8 && M2.detected.info.count(1) == 8, ...
+    'info arrays are filtered consistently');
+check(isequal(size(M2.detected.detection.artifactIntervals), [1 2]), 'artifact intervals are recorded');
+o3 = dsSpk.spikesToMat(DetectOptions=dopt, Overwrite=true, Channels=1, RejectArtifacts=false);
+check(isequal(o3.nDetected, 10), 'RejectArtifacts=false keeps every event');
+o3b = dsSpk.spikesToMat(DetectOptions=dopt, Overwrite=true, Channels=1, ArtifactIntervals=[0 0.0001]);
+check(isequal(o3b.nRejectedArtifact, 0) && isequal(o3b.nDetected, 10), 'explicit ArtifactIntervals override the manual periods');
+dopt2 = dopt; dopt2.Waveforms = true;
+o4 = dsSpk.spikesToMat(DetectOptions=dopt2, Overwrite=true, Channels=1);
+M4 = load(o4.file);
+check(iscell(M4.detected.wf) && size(M4.detected.wf{1}, 1) == 8, 'waveforms saved on request, rows filtered too');
+errId = '';
+try
+    dsSpk.spikesToMat(DetectOptions=dopt);
+catch ME
+    errId = ME.identifier;
+end
+check(strcmp(errId, 'EphysDataset:spikesToMat:Exists'), 'an existing file is not overwritten by default');
+errId = '';
+try
+    dsSpk.spikesToMat(DetectOptions=struct('ChannelOrder', 1), Overwrite=true);
+catch ME
+    errId = ME.identifier;
+end
+check(strcmp(errId, 'EphysDataset:spikesToMat:DetectOption'), 'ChannelOrder inside DetectOptions is rejected');
+
+% Sorted units and both sources.
+dsSpk.SortingDir = legDir;
+o5 = dsSpk.spikesToMat(Source="sorted", Overwrite=true);
+M5 = load(o5.file);
+check(isempty(M5.detected) && isequal(M5.units.unitId, [0; 1]) && o5.nUnits == 2, ...
+    'Source="sorted" writes the units only');
+o6 = dsSpk.spikesToMat(Source="both", DetectOptions=dopt, Overwrite=true, ...
+    Behavior=struct('x', 1), Groups="good");
+M6 = load(o6.file);
+check(~isempty(M6.detected) && isequal(M6.units.unitId, 0) && M6.behavior.x == 1 ...
+    && M6.conversion.source == "both", 'Source="both" + Groups + behavior');
+check(isempty(dir(fullfile(spkOut, '~*.partial.mat'))), 'no partial file is left behind');
+dsSpk.ManualArtifacts = zeros(0, 2);
+
+% toMat carries the behavior variable too (needs the Signal Processing Toolbox).
+if license('test', 'Signal_Toolbox')
+    oM = dsSpk.toMat(File=fullfile(spkOut, 'x_extract.mat'), ...
+        SignalOptions=struct('dataTypeOut', "LFP", 'LFP_Fs', 1000), Behavior=struct('trials', 3));
+    MM = load(oM.file);
+    check(MM.behavior.trials == 3 && isfield(MM, 'Y') && isfield(MM, 'events') && isfield(MM, 'info'), ...
+        'toMat saves the behavior variable next to Y / events / info');
+else
+    fprintf('  (toMat behavior check skipped: no Signal Processing Toolbox)\n');
+end
+
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0
     error('test_EphysDataset:Failures', '%d checks failed.', nFail);
@@ -802,204 +878,8 @@ end
 
 
 % =========================================================================
-function makePhyFixture(dir0, fs, opts)
-%makePhyFixture  Write a small Kilosort4/phy results folder.
-%   Three clusters: 0 (good, spikes at 300/600/30000), 1 (mua, 900/1500),
-%   2 (noise, 45000). cluster_group.tsv labels them good/mua/noise while
-%   cluster_KSLabel.tsv says mua/good/good (so curation must win). Templates
-%   [3 x 8 x NChan] put cluster 0's peak on sorted channel 2, cluster 1's on
-%   the last channel, cluster 2's on channel 1; amplitudes give cluster 0 a
-%   median of 1.5 and cluster 1 a median of 2.
-arguments
-    dir0 (1,1) string
-    fs (1,1) double
-    opts.ChannelMap (1,:) double = [0 1 2 3]
-    opts.NChan (1,1) double = 4
-    opts.Legacy (1,1) logical = true
-end
-if ~isfolder(dir0); mkdir(dir0); end
-nC = opts.NChan;
-samples  = int64([300; 600; 900; 1500; 30000; 45000]);
-clusters = int32([0; 0; 1; 1; 0; 2]);
-amps     = [1; 1.5; 2; 2; 3; 1];
-writeNPY(fullfile(dir0, 'spike_times.npy'), samples);
-writeNPY(fullfile(dir0, 'spike_clusters.npy'), clusters);
-writeNPY(fullfile(dir0, 'spike_templates.npy'), clusters);
-writeNPY(fullfile(dir0, 'amplitudes.npy'), amps);
-T = zeros(3, 8, nC);
-T(1, 3, 2)  = -50;  T(1, 5, 2)  = 20;
-T(2, 3, nC) = -80;  T(2, 6, nC) = 30;
-T(3, 4, 1)  = -10;
-writeNPY(fullfile(dir0, 'templates.npy'), single(T));
-writeNPY(fullfile(dir0, 'channel_map.npy'), int32(opts.ChannelMap(:)));
-writeNPY(fullfile(dir0, 'channel_shanks.npy'), int32(zeros(nC, 1)));
-fid = fopen(fullfile(dir0, 'params.py'), 'w');
-fprintf(fid, 'dat_path = "x.bin"\nn_channels_dat = %d\ndtype = "int16"\nsample_rate = %g.\n', nC, fs);
-fclose(fid);
-fid = fopen(fullfile(dir0, 'cluster_group.tsv'), 'w');
-fprintf(fid, 'cluster_id\tgroup\n0\tgood\n1\tmua\n2\tnoise\n');
-fclose(fid);
-fid = fopen(fullfile(dir0, 'cluster_KSLabel.tsv'), 'w');
-fprintf(fid, 'cluster_id\tKSLabel\n0\tmua\n1\tgood\n2\tgood\n');
-fclose(fid);
-if opts.Legacy
-    writeJsonFile(fullfile(dir0, 'settings.json'), struct('n_chan_bin', nC, 'fs', fs));
-end
-end
-
-
-% =========================================================================
-function writeSyntheticRHD(ffn, ampRaw, digRaw, Fs, spb)
-%writeSyntheticRHD  Write a minimal valid v2.0 RHD2000 file.
-%   ampRaw [numAmp x nSamples] uint16 raw codes; digRaw [1 x nSamples] (bit 0).
-%   numAmp amplifier channels, 1 dig-in line, no aux/adc/supply/temp/dig-out.
-%   nSamples must be a multiple of spb.
-
-numAmp = size(ampRaw,1);
-nSamples = size(ampRaw,2);
-nBlocks = nSamples / spb;
-assert(mod(nSamples, spb) == 0, 'nSamples must be a multiple of spb');
-
-fid = fopen(ffn, 'w', 'ieee-le');
-assert(fid >= 0, 'cannot open %s', ffn);
-
-% --- Header ---
-fwrite(fid, hex2dec('c6912702'), 'uint32');   % magic
-fwrite(fid, 2, 'int16');                       % main version (>1 => 128 spb, int32 ts)
-fwrite(fid, 0, 'int16');                       % secondary version
-fwrite(fid, Fs, 'single');                     % sample_rate
-fwrite(fid, 1, 'int16');                        % dsp_enabled
-fwrite(fid, [1 1 7500], 'single');              % actual dsp cutoff, lower, upper bw
-fwrite(fid, [1 1 7500], 'single');              % desired dsp cutoff, lower, upper bw
-fwrite(fid, 0, 'int16');                        % notch_filter_mode
-fwrite(fid, [1000 1000], 'single');             % desired/actual impedance test freq
-writeQString(fid, '');                          % note1
-writeQString(fid, '');                          % note2
-writeQString(fid, '');                          % note3
-fwrite(fid, 0, 'int16');                        % num_temp_sensor_channels (v1.1+/v>1)
-fwrite(fid, 0, 'int16');                        % board_mode (v1.3+/v>1)
-writeQString(fid, '');                          % reference_channel (v>1)
-
-% One signal group holding numAmp amplifier channels + 1 dig-in
-fwrite(fid, 1, 'int16');                        % number_of_signal_groups
-writeQString(fid, 'PortA');                     % group name
-writeQString(fid, 'A');                         % group prefix
-fwrite(fid, 1, 'int16');                        % group enabled
-fwrite(fid, numAmp + 1, 'int16');               % group num channels
-fwrite(fid, numAmp, 'int16');                   % group num amp channels
-
-for c = 1:numAmp
-    writeChannel(fid, sprintf('A-%03d', c-1), sprintf('amp%d', c-1), c-1, 0); % signal_type 0
-end
-% dig-in line, native_order 0
-writeChannel(fid, 'DIN-00', 'din0', 0, 4);      % signal_type 4
-
-% --- Data blocks (channel-major amplifier per block, matching the reader) ---
-for blk = 1:nBlocks
-    cols = (blk-1)*spb + (1:spb);
-    fwrite(fid, cols - 1, 'int32');             % timestamps (int32 for v>1)
-    % amplifier: fread reads [spb, numAmp] column-major => write channel-major
-    ampBlock = ampRaw(:, cols).';               % [spb x numAmp]
-    fwrite(fid, ampBlock, 'uint16');            % column-major => ch1 spb samples, ch2...
-    % dig-in raw uint16 (bit 0 carries the line)
-    fwrite(fid, digRaw(cols), 'uint16');
-end
-
-fclose(fid);
-end
-
-
-function writeChannel(fid, nativeName, customName, nativeOrder, signalType)
-writeQString(fid, nativeName);
-writeQString(fid, customName);
-fwrite(fid, nativeOrder, 'int16');   % native_order
-fwrite(fid, 0, 'int16');             % custom_order
-fwrite(fid, signalType, 'int16');    % signal_type
-fwrite(fid, 1, 'int16');             % channel_enabled
-fwrite(fid, 0, 'int16');             % chip_channel
-fwrite(fid, 0, 'int16');             % board_stream
-fwrite(fid, 0, 'int16');             % voltage_trigger_mode
-fwrite(fid, 0, 'int16');             % voltage_threshold
-fwrite(fid, 0, 'int16');             % digital_trigger_channel
-fwrite(fid, 0, 'int16');             % digital_edge_polarity
-fwrite(fid, 0, 'single');            % electrode_impedance_magnitude
-fwrite(fid, 0, 'single');            % electrode_impedance_phase
-end
-
-
-function writeQString(fid, str)
-% Qt QString: uint32 length in BYTES, then uint16 per char.
-fwrite(fid, numel(str) * 2, 'uint32');
-for i = 1:numel(str)
-    fwrite(fid, double(str(i)), 'uint16');
-end
-end
-
-
-function writeInfoRHD(ffn, numAmp, Fs)
-%writeInfoRHD  Write a header-only v2.0 info.rhd (no data blocks) for the split
-%   formats. Declares numAmp amplifier channels (native names A-000..A-00N, so
-%   amp-A-00x.dat filenames line up) plus one bit-0 dig-in line; no aux/adc.
-
-fid = fopen(ffn, 'w', 'ieee-le');
-assert(fid >= 0, 'cannot open %s', ffn);
-
-fwrite(fid, hex2dec('c6912702'), 'uint32');   % magic
-fwrite(fid, 2, 'int16');                       % main version (>1)
-fwrite(fid, 0, 'int16');                       % secondary version
-fwrite(fid, Fs, 'single');                     % sample_rate
-fwrite(fid, 1, 'int16');                        % dsp_enabled
-fwrite(fid, [1 1 7500], 'single');              % actual dsp cutoff, lower, upper bw
-fwrite(fid, [1 1 7500], 'single');              % desired dsp cutoff, lower, upper bw
-fwrite(fid, 0, 'int16');                        % notch_filter_mode
-fwrite(fid, [1000 1000], 'single');             % desired/actual impedance test freq
-writeQString(fid, '');                          % note1
-writeQString(fid, '');                          % note2
-writeQString(fid, '');                          % note3
-fwrite(fid, 0, 'int16');                        % num_temp_sensor_channels
-fwrite(fid, 0, 'int16');                        % board_mode
-writeQString(fid, '');                          % reference_channel (v>1)
-
-fwrite(fid, 1, 'int16');                        % number_of_signal_groups
-writeQString(fid, 'PortA');                     % group name
-writeQString(fid, 'A');                         % group prefix
-fwrite(fid, 1, 'int16');                        % group enabled
-fwrite(fid, numAmp + 1, 'int16');               % group num channels
-fwrite(fid, numAmp, 'int16');                   % group num amp channels
-for c = 1:numAmp
-    writeChannel(fid, sprintf('A-%03d', c-1), sprintf('amp%d', c-1), c-1, 0);
-end
-writeChannel(fid, 'DIN-00', 'din0', 0, 4);      % dig-in, native_order 0
-
-fclose(fid);   % header only - no data blocks follow
-end
-
-
-function writeDat(ffn, data, prec)
-%writeDat  Write a flat little-endian binary .dat file (split-format data file).
-fid = fopen(ffn, 'w', 'ieee-le');
-assert(fid >= 0, 'cannot open %s', ffn);
-fwrite(fid, data, prec);
-fclose(fid);
-end
-
-
 function bytes = readBin(ffn)
 fid = fopen(ffn, 'r', 'ieee-le');
 bytes = fread(fid, inf, '*uint8');
 fclose(fid);
-end
-
-
-% =========================================================================
-function X = injectSpikes(X, idx, chan, tmpl, peakPos)
-%injectSpikes  Add tmpl to column chan of X, tmpl(peakPos) landing on each idx.
-%   Samples of the template that fall outside X are clipped.
-n = size(X, 1);
-m = numel(tmpl);
-for k = 1:numel(idx)
-    rows = idx(k) - peakPos + (1:m).';
-    ok = rows >= 1 & rows <= n;
-    X(rows(ok), chan) = X(rows(ok), chan) + tmpl(ok);
-end
 end

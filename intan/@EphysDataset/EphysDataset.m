@@ -165,6 +165,7 @@ classdef EphysDataset < handle
         [mask, intervals, stats] = detectArtifacts(obj, X, opts)
         [ts, wf, info] = detectSpikes(obj, X, opts)
         [units, info] = readSortedUnits(obj, opts)
+        out    = spikesToMat(obj, opts)
         summary = analyzeArtifacts(obj, opts)
         X      = blankArtifacts(obj, X, mask, opts)
         mask   = manualArtifactMask(obj, nSamp, sampleOffset, Fs)
@@ -608,6 +609,56 @@ classdef EphysDataset < handle
         end
 
         [units, info] = readPhyUnits(resultsDir, opts)
+
+        function saveAtomically(outFile, S, matVersion)
+            %saveAtomically  save() the fields of S to a temp file, verify, rename.
+            %   EphysDataset.saveAtomically(file, S, "-v7.3") writes
+            %   "~<name>.partial.mat" next to FILE and renames it into place only
+            %   after save() finished without warnings and every field of S is
+            %   confirmed present, so a failed or cancelled run never leaves a
+            %   complete-looking file behind. (save() reports a variable it could
+            %   not store, e.g. over 2 GB with -v7, as a warning and omits it;
+            %   that is treated as a failure here.) Shared by toMat, spikesToMat
+            %   and the Chronux / FieldTrip exporters.
+            arguments
+                outFile (1,1) string
+                S (1,1) struct
+                matVersion (1,1) string {mustBeMember(matVersion, ["-v7.3", "-v7"])} = "-v7.3"
+            end
+            [outDir, base] = fileparts(outFile);
+            if strlength(outDir) > 0 && ~isfolder(outDir)
+                [ok, msg] = mkdir(outDir);
+                if ~ok
+                    error('EphysDataset:saveAtomically:MkdirFailed', ...
+                        'Could not create %s: %s', outDir, msg);
+                end
+            end
+            tmp = fullfile(outDir, "~" + base + ".partial.mat");
+            if isfile(tmp); delete(tmp); end
+            lastwarn('');
+            try
+                save(tmp, '-struct', 'S', char(matVersion));
+                [wmsg, wid] = lastwarn;
+                if ~isempty(wmsg)
+                    error('EphysDataset:saveAtomically:SaveWarning', ...
+                        'save() raised a warning, so the output was discarded (%s): %s', wid, wmsg);
+                end
+                w = whos('-file', tmp);
+                missing = setdiff(fieldnames(S), {w.name});
+                if ~isempty(missing)
+                    error('EphysDataset:saveAtomically:SaveIncomplete', ...
+                        'Saved file is missing variable(s): %s', strjoin(missing, ', '));
+                end
+                [ok, msg] = movefile(tmp, outFile, 'f');
+                if ~ok
+                    error('EphysDataset:saveAtomically:MoveFailed', ...
+                        'Could not rename %s to %s: %s', tmp, outFile, msg);
+                end
+            catch ME
+                if isfile(tmp); delete(tmp); end
+                rethrow(ME);
+            end
+        end
 
         function p = resolvePhyDir(folder)
             %resolvePhyDir  Folder that actually holds params.py under FOLDER.

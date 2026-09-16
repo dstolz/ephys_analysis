@@ -2,7 +2,7 @@ function out = toMat(obj, opts)
 %toMat  Derive LFP / MUA / SPIKE signals and save them to a .mat file.
 %   OUT = ds.toMat(Name=Value) runs EphysDataset.deriveSignals and saves its
 %   outputs -- variables Y, events and info, plus a small "conversion"
-%   provenance struct -- to one MAT-file. The recording files are only read.
+%   provenance struct and an optional behavior struct -- to one MAT-file. The recording files are only read.
 %
 %   The file is written to "~<name>.partial.mat" next to the target and
 %   renamed only after save() finishes without warnings and every variable is
@@ -19,6 +19,8 @@ function out = toMat(obj, opts)
 %                    keepAmpChannels, ...); omitted fields use its defaults
 %     MatVersion     "-v7.3" (default, any size) | "-v7"
 %     Overwrite      false (default): error if File already exists
+%     Behavior       struct saved as the behavior variable (Epsych2 session
+%                    data, see EphysDataset.behaviorStruct); [] = none
 %     ProgressFcn    as in deriveSignals, called as ProgressFcn(nDone, nTotal,
 %                    message); the save is counted as one extra step. It may
 %                    throw to abort; once the file is complete, an error from
@@ -37,6 +39,7 @@ arguments
     opts.SignalOptions (1,1) struct = struct()
     opts.MatVersion (1,1) string {mustBeMember(opts.MatVersion, ["-v7.3", "-v7"])} = "-v7.3"
     opts.Overwrite (1,1) logical = false
+    opts.Behavior = []
     opts.ProgressFcn = []
 end
 
@@ -76,6 +79,7 @@ S = struct();
 S.Y = Y;
 S.events = ev;
 S.info = info;
+S.behavior = opts.Behavior;
 S.conversion = struct( ...
     'tool',            "EphysDataset.toMat (deriveSignals / intan2matlab)", ...
     'created',         string(datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss')), ...
@@ -84,7 +88,7 @@ S.conversion = struct( ...
     'recordingFormat', obj.RecordingFormat, ...
     'matFileVersion',  opts.MatVersion, ...
     'matlabVersion',   string(version));
-saveAtomically(file, S, opts.MatVersion);
+EphysDataset.saveAtomically(file, S, opts.MatVersion);
 clear S
 
 d = dir(file);
@@ -124,37 +128,6 @@ if d >= n
     fcn(n, n + 1, "Saving " + file);
 else
     fcn(d, n + 1, m);
-end
-end
-
-
-function saveAtomically(outFile, S, matVersion)
-%saveAtomically  save() the fields of S to a temp file, verify, then rename.
-[outDir, base] = fileparts(outFile);
-tmp = fullfile(outDir, "~" + base + ".partial.mat");
-if isfile(tmp); delete(tmp); end
-lastwarn('');
-try
-    save(tmp, '-struct', 'S', char(matVersion));
-    [wmsg, wid] = lastwarn;
-    if ~isempty(wmsg)
-        error('EphysDataset:toMat:SaveWarning', ...
-            'save() raised a warning, so the output was discarded (%s): %s', wid, wmsg);
-    end
-    w = whos('-file', tmp);
-    missing = setdiff(fieldnames(S), {w.name});
-    if ~isempty(missing)
-        error('EphysDataset:toMat:SaveIncomplete', ...
-            'Saved file is missing variable(s): %s', strjoin(missing, ', '));
-    end
-    [ok, msg] = movefile(tmp, outFile, 'f');
-    if ~ok
-        error('EphysDataset:toMat:MoveFailed', ...
-            'Could not rename %s to %s: %s', tmp, outFile, msg);
-    end
-catch ME
-    if isfile(tmp); delete(tmp); end
-    rethrow(ME);
 end
 end
 

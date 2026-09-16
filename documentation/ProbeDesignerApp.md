@@ -27,7 +27,7 @@ ProbeDesignerApp(app)          % or ProbeDesignerApp(app, nChanHint)
 
 | Argument | Meaning |
 | --- | --- |
-| `app` | the parent `EphysPreprocessingApp`. The designer uses its `runProbeTool` (Python/conda from the Kilosort tab), `ProbeFolderField` / `defaultProbeFolder()` (save location) and `refreshProbeList()` (called after saving) |
+| `app` | the parent `EphysPreprocessingApp`. The designer uses its `runProbeTool` (Python/conda from the Sorting tab), `ProbeFolderField` / `defaultProbeFolder()` (save location) and `refreshProbeList()` (called after saving) |
 | `nChanHint` | optional. The selected dataset's channel count. It is used only to append a note to the status line when the contact count differs; it does not block anything |
 
 ## Workflow
@@ -94,7 +94,7 @@ to `tempname` locations and are not deleted by the designer.
 
 ## Requirements
 
-- A Python executable set on the GUI's Kilosort tab, pointing at an environment
+- A Python executable set on the GUI's Sorting tab, pointing at an environment
   with `probeinterface` (the `kilosort` env from
   [INSTALL.md](../intan/INSTALL.md) has it).
 - Internet access for the first library download.

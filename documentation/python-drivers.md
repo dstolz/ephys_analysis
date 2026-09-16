@@ -14,7 +14,7 @@ the exact script it used.
 
 | Script | Called by | Environment needs |
 | --- | --- | --- |
-| [`run_si_ks4.py`](../intan/@EphysDataset/run_si_ks4.py) | `EphysDataset.runSpikeInterface` (the GUI's Run Kilosort4) | spikeinterface, probeinterface, neo, kilosort, torch |
+| [`run_si_ks4.py`](../intan/@EphysDataset/run_si_ks4.py) | `EphysDataset.runSpikeInterface` (the pipeline's Sorting step) | spikeinterface, probeinterface, neo, kilosort, torch |
 | [`run_ks4.py`](../intan/@EphysDataset/run_ks4.py) | `EphysDataset.runKilosort` (legacy `.bin` engine) | kilosort, torch |
 | [`probe_tool.py`](../intan/@EphysPreprocessingApp/probe_tool.py) | `EphysPreprocessingApp.runProbeTool` / `ProbeDesignerApp` | probeinterface |
 
@@ -31,13 +31,18 @@ Usage: `run_si_ks4.py <si_config.json> [--check]`. The config schema is in
 
 ### Pipeline (`build_pipeline`)
 
-1. **Load.**
-   - Split layouts read `<folder>/info.rhd` with
+1. **Load** (`load_recording`), dispatching on the config's `recording.reader`
+   (written by the dataset reader's `siRecordingSpec()`; configs without it
+   are treated as Intan):
+   - `intan`, split layouts: `<folder>/info.rhd` with
      `spikeinterface.extractors.read_intan`, using the stream whose name
      contains `"amplifier"` (else the first stream).
-   - Traditional recordings read every listed `.rhd` that exists and
-     `concatenate_recordings` them in the order given (the MATLAB side passes
+   - `intan`, traditional: every listed `.rhd` that exists,
+     `concatenate_recordings` in the order given (the MATLAB side passes
      `ds.Files`, which is in chronological order).
+   - `binary` (the universal `recording.json` format): `read_binary` over the
+     flat channel-major file with the descriptor's `dtype`, `n_chan`, `fs`,
+     `gain_to_uV` and `offset`.
 2. **Unsigned → signed.** If the dtype is unsigned, `unsigned_to_signed` is
    applied (Kilosort4 refuses unsigned input).
 3. **Crop.** `tmin`/`tmax` are removed from the `ks4` settings block and applied

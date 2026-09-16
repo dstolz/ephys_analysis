@@ -1,13 +1,20 @@
 # EphysDataset
 
 `EphysDataset` ([source](../intan/@EphysDataset/EphysDataset.m)) is a `handle`
-class that represents **one recording**: one folder of Intan data recorded
-contiguously. It is the core of the Intan pipeline. The project, tracker and GUI
-classes all act on recordings through it.
+class that represents **one recording**: one folder of data recorded
+contiguously. It is the core of the pipeline. The project, pipeline, tracker
+and GUI classes all act on recordings through it.
+
+The dataset knows nothing about any acquisition system. Reading goes through a
+`Reader` ([`EphysReader`](#acquisition-readers)): `IntanReader` for Intan RHD
+recordings, `BinaryReader` for the universal `recording.json` format, or a
+reader you register. Everything above that layer (artifacts, spike detection,
+derived signals, sorting, manifests, exports) works on the same in-memory
+schema.
 
 An `EphysDataset` can:
 
-- detect which Intan file layout the folder uses and inventory its files;
+- find the reader that claims the folder and inventory its files;
 - parse header metadata cheaply (no amplifier data read);
 - read amplifier data, digital-input events and (optionally) board ADC / aux
   input into memory;
@@ -18,25 +25,76 @@ An `EphysDataset` can:
 - write a Kilosort4 `.bin` file (streaming or in-memory);
 - launch Kilosort4, either directly on a `.bin` (`runKilosort`) or through
   SpikeInterface on the raw recording (`runSpikeInterface`, the path the GUI uses);
+- keep track of the sorted output (Kilosort4 / phy) that belongs to it and read
+  the sorted units through one loader (`readSortedUnits`);
 - derive LFP / MUA / spike-band signals and save them to `.mat` (the
   `intan2matlab` processing);
+- detect and/or collect spikes into a `.mat` (`spikesToMat`);
+- export Chronux- and FieldTrip-shaped files (`exportChronux`, `exportFieldTrip`);
+- hold an associated Epsych2 behavior session (`BehaviorFile`, `readBehavior`);
 - keep a JSON manifest of its state in the recording folder.
 
-The source `*.rhd` / `*.dat` files are **never modified**. Every write goes to a
-new file: `.bin`, JSON sidecar, manifest, Kilosort4 run folder, or `.mat`.
+The source recording files are **never modified**. Every write goes to a new
+file: `.bin`, JSON sidecar, manifest, Kilosort4 run folder, or `.mat`.
+
+---
+
+## Acquisition readers
+
+`EphysReader` ([source](../intan/@EphysReader/EphysReader.m)) is the abstract
+contract between an acquisition system and the pipeline. A reader knows one
+on-disk format and answers five questions:
+
+| Method | Returns |
+| --- | --- |
+| `discoverFiles()` | which files in `Folder` make up the recording (`Files`, `NumFiles`, `RecordingFormat`) |
+| `refreshMetadata()` | header-only metadata: `Fs`, `NumChannels`, `ChannelNames`, `NativeNames`, `DigInNames`, `Duration`, `AcqDate`, `PerFile` |
+| `streamPlan(Files=, MaxChunkSamples=)` | how to read the recording one bounded chunk at a time (`kind`, `name`, `file`, `sampleOffset`, `nSamples`) |
+| `readChunkUV(chunk)` | one chunk as `[nSamples x nChan]` double **microvolts** |
+| `readData(...)` | the whole recording as the universal data struct below |
+
+Optional: `readWindowUV(sampleOffset, nSamp)` with `supportsRandomAccess()`
+true (bounded random access, used to carry context across chunks), and
+`siRecordingSpec()` (how `run_si_ks4.py` should load the recording). Static:
+`claims(folder)`, `findRecordingFolders(root, recursive)`.
+
+**Registry.** `EphysReader.forFolder(folder)` asks each class in
+`EphysReader.readerClasses()` whether it claims the folder;
+`EphysReader.register("MyReader")` adds a class;
+`EphysReader.findAllRecordingFolders(root, recursive)` is what
+`EphysProject.discover` and `DatasetTracker` use.
+
+| Reader | `RecordingFormat` | Claims a folder with |
+| --- | --- | --- |
+| [`IntanReader`](../intan/@IntanReader/IntanReader.m) | `"traditional"`, `"one-file-per-signal"`, `"one-file-per-channel"` | `*.rhd` (see [layouts](#supported-recording-layouts)) |
+| [`BinaryReader`](../intan/@BinaryReader/BinaryReader.m) | `"binary"` | `recording.json` next to a flat channel-major binary ([format](file-formats.md#universal-recording-format-recordingjson)). Any other system can be brought in by converting to this; `BinaryReader.writeDescriptor(folder, spec)` writes the descriptor |
+
+**Universal data struct** (what `readData` returns for every reader):
+`amplifier` `[nSamples x nChan]` microvolts (double or single); `Fs`; `t`
+(`(row-1)/Fs`); `channelNames`; `nativeNames`; `channelOrder`; `events`
+(one field per digital-input line, `[k x 2]` `[t_on t_off]` seconds with
+`t = row/Fs`); `digInNames`; `digInNativeNames`; `boardADC`; `aux`; `auxFs`;
+`files`; `fileSampleCounts`; `units` (`"microvolts"`); `source`.
+
+The dataset's `readData`, `streamPlan`, `readChunkUV`, `readWindowUV`,
+`supportsRandomAccess`, `refreshMetadata`, `discoverFiles` and `detectFormat`
+delegate to the reader; `ds.Reader` exposes it. The manifest records
+`reader` (`"intan"` or `"binary"`).
 
 ---
 
 ## Supported recording layouts
 
-`EphysDataset.detectFormat(folder)` classifies a folder by checking for these
-files, **in this order**. The first match wins.
+`EphysDataset.detectFormat(folder)` asks the registry for the reader that claims
+the folder and returns its format. `IntanReader` checks for these files, **in
+this order**; the first match wins.
 
 | `RecordingFormat` | Detected when the folder contains | Amplifier data on disk |
 | --- | --- | --- |
 | `"one-file-per-signal"` | `amplifier.dat` | `info.rhd` header + `amplifier.dat`, int16, `[nChan x nSamp]` with channel varying fastest |
 | `"one-file-per-channel"` | any `amp-*.dat` | `info.rhd` header + one int16 file per channel, `amp-<native name>.dat` |
 | `"traditional"` | any `*.rhd` | one or more `*.rhd` files with embedded data blocks |
+| `"binary"` (`BinaryReader`) | `recording.json` | one flat channel-major file, any of int16 / uint16 / int32 / single / double, with `gain_to_uV` and `offset` from the descriptor |
 | `"unknown"` | none of the above | none |
 
 For the two split layouts, `Files` is set to `"info.rhd"`, `NumFiles` is `1`,
@@ -96,14 +154,15 @@ The constructor errors (`EphysDataset:NoFolder`) if the folder does not exist.
 | Property | Type | Meaning |
 | --- | --- | --- |
 | `Folder` | string | recording folder |
-| `Files` | string row | traditional: every `*.rhd`, sorted by file `datenum` (chronological); split: `"info.rhd"` |
+| `Files` | string row | traditional: every `*.rhd`, sorted by file `datenum` (chronological); split: `"info.rhd"`; binary: the descriptor and the data file |
 | `Name` | string | dataset name (defaults to the folder leaf) |
+| `Reader` | `EphysReader` | the acquisition reader (created by the constructor from the registry) |
 
 ### Metadata (read-only, filled by `refreshMetadata`)
 
 | Property | Meaning |
 | --- | --- |
-| `RecordingFormat` | layout, see the table above |
+| `RecordingFormat` | layout, see the table above (`"binary"` for the universal format) |
 | `Fs` | amplifier sample rate (Hz) |
 | `NumChannels` | amplifier channel count (from the first file) |
 | `ChannelNames` / `NativeNames` | amplifier `custom_channel_name` / `native_channel_name` |
@@ -124,9 +183,11 @@ The constructor errors (`EphysDataset:NoFolder`) if the folder does not exist.
 | `Dtype` | `"int16"` | one of `int16`, `uint16`, `int32`, `single`, `float32` |
 | `OutputDir` | `""` | output folder (`""` = `Folder`) |
 | `Manifest` | empty | optional provenance `Manifest` object |
-| `ManualArtifacts` | `zeros(0,2)` | manual artifact periods, `[tStart tEnd]` seconds, recording-relative. **In memory only.** Not saved to the dataset manifest |
+| `ManualArtifacts` | `zeros(0,2)` | manual artifact periods, `[tStart tEnd]` seconds, recording-relative. Saved to and restored from the dataset manifest |
 | `ArtifactConfig` | `defaultArtifactConfig()` | automatic artifact-detector settings |
 | `SIConfig` | `defaultSIConfig()` | SpikeInterface preprocessing settings for `runSpikeInterface` |
+| `SortingDir` | `""` | an explicit sorted-output folder (the one holding `params.py`). `""` = auto-discover under `kilosortDir()`; see [Sorted output](#sorted-output) |
+| `BehaviorFile` | `""` | the associated Epsych2 session `.mat`; see [Behavior](#behavior-epsych2) |
 
 ### Dependent
 
@@ -157,7 +218,15 @@ res  = ds.runKilosort();
 % --- Derived signals (intan2matlab processing) ---
 [Y, ev, info] = ds.deriveSignals(dataTypeOut=["LFP" "MUA"]);
 out = ds.toMat(File="D:\out\subj1.mat", SignalOptions=struct('dataTypeOut', "LFP"));
+
+% --- Sorted units, spikes file, exports ---
+U   = ds.readSortedUnits(Groups=["good" "mua"]);   % the associated Kilosort4 / phy output
+out = ds.spikesToMat(Source="both");                % <Name>_spikes.mat: detected + units
+out = ds.exportChronux();                           % <Name>_chronux.mat
+out = ds.exportFieldTrip();                         % <Name>_fieldtrip.mat
 ```
+
+For many datasets with one set of settings, use [`EphysPipeline`](EphysPipeline.md).
 
 ---
 
@@ -165,11 +234,11 @@ out = ds.toMat(File="D:\out\subj1.mat", SignalOptions=struct('dataTypeOut', "LFP
 
 ### Discovery and metadata
 
-**`discoverFiles()`** detects the layout (`detectFormat`) and fills `Files`,
-`NumFiles` and (from file dates) `AcqDate`. It also clears the cached split
-layout. The constructor calls it, and so does `refreshMetadata`.
+**`discoverFiles()`** asks the reader to inventory the folder and fills
+`Files`, `NumFiles`, `RecordingFormat` and (from file dates) `AcqDate`. The
+constructor calls it, and so does `refreshMetadata`.
 
-**`refreshMetadata()`** re-runs `discoverFiles`, then:
+**`refreshMetadata()`** re-runs `discoverFiles`, then (for `IntanReader`):
 
 - **traditional**: parses every `*.rhd` header with the private static
   `parseIntanHeader` (header only, no amplifier matrix allocated). Channel names,
@@ -185,7 +254,10 @@ layout. The constructor calls it, and so does `refreshMetadata`.
 
 With no files it warns (`EphysDataset:refreshMetadata:NoFiles`) and returns.
 
-**`L = splitLayout()`** (split layouts only) returns and caches a struct
+For `BinaryReader`, everything comes from `recording.json` and the data file
+size.
+
+**`L = splitLayout()`** (`IntanReader`, split layouts only) returns and caches a struct
 describing the split recording. Fields: `format`, `folder`, `headerFile`, `Fs`,
 `nChan`, `nSamp`, `boardMode`, `ampCustom`, `ampNative`, `digInNames`,
 `digInNative`, `digInOrders`, `numADC`, `numAux`, `ampFile` / `ampFiles`,
@@ -196,7 +268,7 @@ describing the split recording. Fields: `format`, `folder`, `headerFile`, `Fs`,
 - one-file-per-channel: `floor(bytes(first amp-*.dat) / 2)`, so only the
   **first** channel file is used for sizing
 
-**`parseIntanHeader(ffn)`** (private, static) is a header-only extraction of the
+**`parseIntanHeader(ffn)`** (`IntanReader`, static) is a header-only extraction of the
 RHD2000 reader. It returns sample rate, channel counts by type, amplifier and
 digital-input names and `native_order`, bytes per data block, samples per block
 (60 for file version 1, 128 otherwise), whole-block count, `partialBlock`,
@@ -205,10 +277,11 @@ an unknown channel type.
 
 ### Reading data
 
-**`data = readData(Name=Value)`** reads the whole recording into memory. For
-traditional recordings, each file is read with `read_Intan_RHD2000_file_modified`
-and concatenated in time. Split layouts are delegated to `readSplitAll`, which
-returns the same struct.
+**`data = readData(Name=Value)`** reads the whole recording into memory as the
+[universal data struct](#acquisition-readers). For traditional Intan
+recordings, each file is read with `read_Intan_RHD2000_file_modified` and
+concatenated in time; split layouts go through `IntanReader.readSplitAll`;
+binary recordings through `BinaryReader.readData`. All return the same struct.
 
 | Option | Default | Meaning |
 | --- | --- | --- |
@@ -239,26 +312,28 @@ Behavior worth knowing:
 - With `Concatenate=false`, `events` is empty and `t` is `[]`.
 
 **`plan = streamPlan(Files=..., MaxChunkSamples=...)`** returns the list of
-chunks to stream. Each element has `kind` (`"rhd"` or `"split"`), `name`,
-`file`, `sampleOffset` and `nSamples`.
+chunks to stream. Each element has `kind` (`"rhd"`, `"split"` or `"window"`),
+`name`, `file`, `sampleOffset` and `nSamples`.
 
 - traditional: one chunk per `*.rhd` file.
-- split: fixed-size sample windows over the `.dat`. The default chunk size is
-  `max(round(Fs), floor(2.5e8 / (nChan·8)))` samples, about 250 MB of double
-  but never less than about 1 s.
+- split and binary: fixed-size sample windows over the data file. The default
+  chunk size is `max(round(Fs), floor(2.5e8 / (nChan·8)))` samples, about
+  250 MB of double but never less than about 1 s.
 
 **`X = readChunkUV(chunk)`** reads one `streamPlan` element and returns
 `[nSamp x nChan]` double µV with **all** channels in header order. An empty
 result means the chunk held no amplifier data.
 
-**`X = readSplitWindow(sampleOffset, nSamp)`** reads a sample window directly
-from the split `.dat` file(s). It returns `[nSamp x nChan]` double µV. A short
-final window returns only the rows present. For one-file-per-channel, the result
-is trimmed to the shortest channel read.
+**`X = readWindowUV(sampleOffset, nSamp)`** reads a sample window directly from
+the data file(s) when the reader supports random access
+(`supportsRandomAccess()`: split Intan layouts and binary recordings). It
+returns `[nSamp x nChan]` double µV. A short final window returns only the rows
+present. For one-file-per-channel, the result is trimmed to the shortest
+channel read.
 
-`toBin`, `analyzeArtifacts`, `artifactIntervals` and the GUI's Visualize tab all
-use `streamPlan` + `readChunkUV`, so they behave the same across layouts and hold
-one chunk in memory at a time.
+`toBin`, `analyzeArtifacts`, `artifactIntervals`, `detectSpikes` and the GUI's
+Visualize tab all use `streamPlan` + `readChunkUV`, so they behave the same
+across layouts and readers and hold one chunk in memory at a time.
 
 ### Filtering
 
@@ -307,7 +382,7 @@ channel. `Fill` is `"zero"` (default), `"hold"` (repeat the last clean sample;
 override), and accumulates statistics **without writing anything**. The GUI's
 Artifacts tab uses it for its preview. Options: `Files`, `ChannelOrder`, the
 detection parameters, `Filter` / `FilterType` / `FilterCutoff` / `FilterOrder`
-(detect on a filtered view; default off) and `ProgressFcn`. Output fields:
+(detect on a filtered view; default from `ArtifactConfig`) and `ProgressFcn`. Output fields:
 `method`, `threshold`, `rmsWindowMs`, `mergeGapMs`, `minChannels`, `padMs`,
 `fs`, `nSamples`, `durationSec`, `nChan`, `channelNames`, `channelCounts`,
 `channelPct`, `nBlanked`, `fraction`, `pctDuration`, `nIntervals` (summed per
@@ -326,8 +401,9 @@ periods (seconds) that `runSpikeInterface` passes to SpikeInterface
   are shifted by the running sample offset.
 
 Overlapping or touching periods are merged. Periods with `tEnd <= tStart` are
-**dropped**, which includes an automatic detection only one sample long. By
-default it detects on the broadband signal (`Filter=false`).
+**dropped**, which includes an automatic detection only one sample long. The
+filter fields of `ArtifactConfig` apply here too, so the preview
+(`analyzeArtifacts`) and a run detect on the same signal.
 
 #### Manual periods
 
@@ -351,9 +427,12 @@ default it detects on the broadband signal (`Filter=false`).
 | `MergeGapMs` | `0` | stitch gaps up to this length |
 | `MinChannels` | `2` | channels that must exceed simultaneously |
 | `PadMs` | `0` | expand each run by this much on both sides |
+| `Filter` | `false` | detect on a filtered view of each chunk |
+| `FilterType`, `FilterCutoff`, `FilterOrder` | `"highpass"`, `300`, `4` | the filter used when `Filter` is on |
 
 `normalizeArtifactConfig(cfg)` fills missing fields from these defaults and
-drops unknown fields.
+drops unknown fields. `EphysDataset.resolveFilterOptions(cfg, opts)` merges
+per-call filter options over the config's.
 
 ### Spike detection
 
@@ -429,7 +508,7 @@ digital-input events. `info.index` holds the 1-based rows of `X`.
 without holding it all in memory. The recording is streamed in the same units
 `toBin` and `analyzeArtifacts` use (`streamPlan` / `readChunkUV`: one `*.rhd`
 file per chunk for the traditional format, bounded sample windows for the split
-formats), so every layout works. `info.index` then holds **recording-global**
+and binary formats), so every layout and reader works. `info.index` then holds **recording-global**
 1-based sample indices and `ts` recording-relative seconds.
 
 **Chunk boundaries are not detection boundaries.** Each chunk is detected
@@ -452,7 +531,8 @@ whole recording.
 | --- | --- | --- |
 | `Files` | all | subset/order of `*.rhd` files (traditional format only); timestamps stay relative to the first sample read |
 | `ChannelOrder` | all | 1-based reorder/subset of amplifier channels, applied to every chunk (as in `toBin`) |
-| `MaxChunkSamples` | `streamPlan` default | cap on samples per chunk for the split formats |
+| `MaxChunkSamples` | `streamPlan` default | cap on samples per chunk for the split and binary formats |
+| `UseParallel` | `false` | detect chunks in parallel (Parallel Computing Toolbox) |
 | `EdgePadMs` | `10` | context carried across chunk boundaries; always at least the waveform window, the alignment window and the minimum detection period |
 | `ProgressFcn` | none | `ProgressFcn(i, nChunks, chunkName)`, called before each chunk |
 
@@ -663,21 +743,63 @@ lands directly in that folder.
   `"interpolate"`, manually excluded channels are interpolated, not removed. If
   the union covers every channel, nothing is removed and a warning is logged.
 
-#### Locating results
+#### Sorted output
 
 - `kilosortDir()` returns `<outputFolder>/kilosort4`, where both engines write
   their bookkeeping.
 - `kilosortResultsDir()` returns the first of these that contains `params.py`:
   `<kilosort4>/si/sorter_output`, `<kilosort4>/sorter_output`, `<kilosort4>`.
   If none does, it returns `kilosortDir()`.
-- `hasPhyOutput()` is true when that folder has `params.py`.
-- `hasKilosortResults()` is true when it has `spike_clusters.npy`.
+- `sortingResultsDir()` is the folder **associated** with the dataset:
+  `SortingDir` when set (a folder you chose, anywhere; the GUI's **Use
+  folder...**), else `kilosortResultsDir()`. The manifest records it as
+  `sorting` with `source` `"manual"` / `"auto"`, and a manual folder is
+  restored on the next scan as long as its `params.py` still exists.
+- `hasPhyOutput()` is true when that folder has `params.py`;
+  `hasKilosortResults()` when it has `spike_clusters.npy`.
+- `EphysDataset.resolvePhyDir(folder)` (static) accepts a dataset folder, a
+  `kilosort4` folder or the results folder itself and returns the one holding
+  `params.py`.
+
+#### Reading sorted units
+
+**`units = EphysDataset.readPhyUnits(resultsDir, Name=Value)`** (static) is the
+one reader of phy-format sorter output; **`units = ds.readSortedUnits(...)`**
+wraps it with the dataset's defaults (`sortingResultsDir()`, `Fs` as the
+fallback rate, the probe file and native channel names for the channel
+mapping). The Review tab, `ChronuxDataset.spikes`, `spikesToMat` and both
+exporters all read through it, so they agree on labels, times and channels.
+
+| Option | Default | Meaning |
+| --- | --- | --- |
+| `Groups` | `[]` (all) | keep only clusters with these labels, e.g. `["good" "mua"]` (errors when no label table exists) |
+| `IncludeNoise` | `false` | keep clusters labelled `noise` |
+| `Templates` | `true` | read `templates.npy` for the peak channel and waveform |
+| `FullTemplates` | `false` | also return every unit's `[nS x nChan]` template |
+| `ChannelMap` | worked out from the run | `[1 x nChanSorted]` 1-based recording channel of each sorted channel |
+| `ChannelNames`, `ProbeFile` | dataset's | used to map SpikeInterface runs back to recording channels |
+| `FsFallback` | `NaN` (error) | rate to use, with a warning, when `params.py` has no `sample_rate`; never a silent 30 kHz |
+
+`units` is one scalar struct with column-aligned fields, one row per unit:
+`unitId`, `label` (`unit<id>`), `group` (`good` / `mua` / `noise` / `unsorted`
+/ other phy label), `nSpikes`, `samples` (0-based int64), `times`
+(`samples / fs`, recording-relative), `ksChannel` (peak channel among the
+sorted channels), `channel` (1-based **recording** channel), `shank`,
+`amplitude`, `contamPct`, `templateWaveform` (peak-channel template, unwhitened
+when possible, scaled by the median amplitude), `templateFull`,
+`templateTimeMs`; plus per-run scalars `fs`, `resultsDir`, `engine`,
+`groupSource` (`"phy"` when `cluster_group.tsv` exists, else `"kilosort"` from
+`cluster_KSLabel.tsv`, else `"none"`), `curated`, `labelFile`, `durationSec`,
+`nChannelsSorted`, `channelMap`, `channelMapSource` (`"manual"`, `"probe"`,
+`"channel_map.npy"` or `"identity"`), `readAt`. A second output carries the
+per-spike arrays for plotting. Error identifiers:
+`EphysDataset:readPhyUnits:NoResultsDir` / `NoOutput` / `NoSampleRate` /
+`Mismatch` / `NoClusterLabels` / `NoGroupMatch`.
+
+Raw waveforms at the sorted spike times are not extracted; `templateWaveform`
+is the template.
 
 ### Derived signals (the `intan2matlab` processing)
-
-> These two methods were being edited while this documentation was written. The
-> description below reflects the code as of the documentation date; check the
-> source header if in doubt.
 
 **`[Y, ev, info] = deriveSignals(Name=Value)`** reads the whole recording through
 `readData` (single precision; any layout) and derives the requested signals.
@@ -685,38 +807,116 @@ lands directly in that folder.
 order and outputs are documented in [intan2matlab.md](intan2matlab.md).
 
 **`out = toMat(Name=Value)`** runs `deriveSignals` and saves `Y`, `events`,
-`info` and a `conversion` provenance struct to one MAT-file.
+`info`, `behavior` and a `conversion` provenance struct to one MAT-file.
 
 | Option | Default |
 | --- | --- |
 | `File` | `<outputFolder>/<Name>_extract.mat` |
 | `SignalOptions` | `struct()`: `deriveSignals` options |
+| `Behavior` | `[]`: a struct saved as the `behavior` variable (the pipeline passes `behaviorStruct()`) |
 | `MatVersion` | `"-v7.3"` (or `"-v7"`) |
 | `Overwrite` | `false`: error `EphysDataset:toMat:Exists` if the file exists |
 | `ProgressFcn` | none: `ProgressFcn(nDone, nTotal, message)`, with the save counted as one extra step |
 
-The data is saved to `~<name>.partial.mat` first. The file is renamed to the
-target only after `save()` finishes **without any warning** and every variable is
-confirmed present with `whos -file`. Otherwise the partial file is deleted and an
-error is raised, so a failed or cancelled run leaves no complete-looking file.
 `out` fields: `file`, `bytes`, `seconds`, `matVersion`, `recordingFormat`,
 `origFs`, `signals` (name, nSamples, nChannels, class, Fs), `events` (name,
 count), `badChannels`.
 
+**`EphysDataset.saveAtomically(file, S, matVersion)`** (static) is the writer
+behind `toMat`, `spikesToMat` and both exporters: the struct's fields are
+saved to `~<name>.partial.mat`, and the file is renamed to the target only
+after `save()` finishes **without any warning** and every variable is confirmed
+present with `whos -file`. Otherwise the partial file is deleted and an error is
+raised (`EphysDataset:toMat:SaveWarning` / `SaveIncomplete`), so a failed or
+cancelled run leaves no complete-looking file.
+
+### Spikes file
+
+**`out = spikesToMat(Name=Value)`** writes `<outputFolder>/<Name>_spikes.mat`
+with spike events from up to two sources
+([schema](file-formats.md#spikes-mat-ephysdatasetspikestomat-the-spikes-step)):
+
+| Option | Default | Meaning |
+| --- | --- | --- |
+| `Source` | `"detect"` | `"detect"` (threshold detection over the whole recording, one entry per channel), `"sorted"` (the associated units via `readSortedUnits`) or `"both"` |
+| `DetectOptions` | `struct()` | `detectSpikes` options (`Filter`, `Band`, `ThresholdMethod`, `Threshold`, `Waveforms`, `WindowMs`, `MaxChunkSamples`, `UseParallel`, ...) |
+| `Channels` | `[]` (all) | 1-based recording channels to detect on, in order |
+| `RejectArtifacts` | `true` | drop detected events inside the artifact periods (`ArtifactIntervals`, else `artifactIntervals()`) |
+| `ArtifactIntervals` | computed | `[k x 2]` seconds |
+| `Groups`, `IncludeNoise`, `Templates` | `["good" "mua"]`, `false`, `true` | sorted-unit options |
+| `Behavior` | `[]` | saved as `behavior` |
+| `File`, `MatVersion`, `Overwrite`, `ProgressFcn` | as `toMat` | |
+
+Variables: `detected` (`ts`, `wf`, `info`, `channels`, `channelNames`,
+`detection` with the options, the intervals applied and `nRejectedArtifact`
+per channel), `units`, `behavior`, `conversion`. Sources not requested are
+`[]`; the file is rewritten as a whole. `out`: `file`, `bytes`, `seconds`,
+`source`, `nChannels`, `nDetected`, `nRejectedArtifact`, `nUnits`, `matVersion`.
+
+### Exports
+
+**`out = exportChronux(Name=Value)`** writes `<outputFolder>/<Name>_chronux.mat`
+([schema](file-formats.md#chronux-export-ephysdatasetexportchronux-the-export-step)):
+the derived signals as `LFP` / `MUA` / `SPIKE` structs (`data`, `params`, `t`,
+`labels`, `info`, built by [`ChronuxDataset.continuous`](ChronuxDataset.md)),
+the sorted units as `sp` (the `mtspectrumpt` input form) and detected spikes
+as `spDetected`, plus `units`, `detected`, `events`, `behavior` and `export`.
+No Chronux function is called.
+
+**`out = exportFieldTrip(Name=Value)`** writes
+`<outputFolder>/<Name>_fieldtrip.mat` with FieldTrip raw / spike / event
+structures built by [`FieldTripExport`](FieldTripExport.md). FieldTrip is
+never required; with `Validate=true` (default) the structures are checked with
+`ft_datatype_raw` / `ft_datatype_spike` when FieldTrip is on the path.
+
+Both take the same options:
+
+| Option | Default | Meaning |
+| --- | --- | --- |
+| `File` | `<Name>_chronux.mat` / `<Name>_fieldtrip.mat` | target |
+| `Extract` | `<outputFolder>/<Name>_extract.mat` | another extract file, or a `toMat`-shaped struct (`Y`, `events`, `info`) |
+| `Signals` | all present | subset of `["LFP" "MUA" "SPIKE"]` |
+| `Units` | the associated sorted units | a units struct, or `false` |
+| `Groups` | `["good" "mua"]` | phy labels kept when reading units |
+| `Detected` | `<Name>_spikes.mat` when present | a spikes file, a `detected` struct, or `false` |
+| `Events` | `true` | include the digital-input events |
+| `Behavior` | the extract's `behavior`, else the associated session | a struct, or `false` |
+| `Overwrite`, `MatVersion` | `false`, `"-v7.3"` | |
+
+The two toolboxes are independent: neither export is built from the other,
+and nothing analysis-related is run.
+
+### Behavior (Epsych2)
+
+- `BehaviorFile` is the associated session `.mat` (set by the GUI, by
+  `EphysPipeline.checkBehavior`, or by hand); it is recorded in the manifest
+  (`behavior`: `file`, `subject`, `start_time`, `n_trials`) and restored on the
+  next scan if the file still exists.
+- `[trials, info, meta] = readBehavior()` is
+  [`readEpsychSession(BehaviorFile)`](EphysPipeline.md#epsych2-sessions).
+- `behaviorStruct()` returns `struct(trials, info, file, subject, startTime,
+  nTrials)` or `[]`, the value the Signals, Spikes and Export steps save as
+  `behavior`.
+
 ### Dataset manifest
 
 The manifest is a JSON state file at `<Folder>/<Name>_manifest.json`, i.e. in the
-**recording folder**, not `OutputDir`. Its schema is in
-[file-formats.md](file-formats.md#dataset-manifest).
+**recording folder**, not `OutputDir`. Its schema (`intan-dataset-manifest/2`)
+is in [file-formats.md](file-formats.md#dataset-manifest).
 
 - `manifestFile()` returns the path.
-- `manifestStruct()` builds the snapshot: metadata, probe, exclusions, `.bin`
-  state, latest Kilosort4 run from `tracker()`, and the SpikeInterface config.
-- `writeManifest()` writes it. Failures only warn
+- `manifestStruct()` builds the snapshot: metadata, reader, probe, exclusions,
+  manual artifact periods, `.bin` state, the latest Kilosort4 run from
+  `tracker()`, the sorted-output association (`sortingStruct()`), the behavior
+  association (`behaviorManifest()`), and the SpikeInterface config.
+- `writeManifest()` writes it atomically (`writeJsonFile`). Failures only warn
   (`EphysDataset:writeManifest:Failed`).
-- `applyManifest()` restores **only** `ProbeFile` (if the file still exists) and
-  `ExcludeChannels`. Header metadata is always re-parsed; `ManualArtifacts`,
-  `ArtifactConfig` and `SIConfig` are not stored or restored.
+- `applyManifest()` restores `ProbeFile` (if the file still exists),
+  `ExcludeChannels`, `ManualArtifacts`, a manual `SortingDir` (if its
+  `params.py` still exists) and `BehaviorFile` (if the file exists). Header
+  metadata is always re-parsed. `ArtifactConfig` and `SIConfig` are not stored
+  here; they belong to the [pipeline config](EphysPipeline.md). Schema `/1`
+  manifests (probe + exclusions only) are still read.
 
 ### Other helpers
 
@@ -724,7 +924,8 @@ The manifest is a JSON state file at `<Folder>/<Name>_manifest.json`, i.e. in th
 | --- | --- |
 | `outputFolder()` | `OutputDir`, or `Folder` when `OutputDir` is `""` |
 | `tracker()` | a [`DatasetTracker`](DatasetTracker.md) of `outputFolder()` (an empty tracker if the folder does not exist yet) |
-| `EphysDataset.detectFormat(folder)` | layout string (static) |
+| `EphysDataset.detectFormat(folder)` | layout string (static; asks the reader registry) |
+| `EphysDataset.resolveFilterOptions(cfg, opts)` | filter options merged over an `ArtifactConfig` (static) |
 | `EphysDataset.parseChannelList(s)` | sorted, unique, positive integer row vector from `"1,3,5-8"`, `"1 3 5:8"` or a numeric vector. Hyphens become colons and the text goes through `str2num` |
 | `EphysDataset.formatChannelList(ch)` | compact `"1,3,5-8"` string |
 
@@ -748,12 +949,16 @@ The manifest is a JSON state file at `<Folder>/<Name>_manifest.json`, i.e. in th
 | `EphysDataset:detectSpikes:BadChannelOrder` / `ChannelMismatch` | `ChannelOrder` out of range, or the channel count changes between chunks |
 | `EphysDataset:runKilosort:NoPython` / `NoProbe` / `ProbeMissing` / `BinMissing` | run prerequisites missing |
 | `EphysDataset:runSpikeInterface:NoPython` / `NoProbe` / `ProbeMissing` | run prerequisites missing |
-| `EphysDataset:toMat:Exists` / `SaveWarning` / `SaveIncomplete` | `.mat` output refused or discarded |
+| `EphysDataset:toMat:Exists` / `SaveWarning` / `SaveIncomplete` | `.mat` output refused or discarded (also used by `saveAtomically`) |
+| `EphysDataset:spikesToMat:Exists`, `EphysDataset:exportChronux:Exists`, `EphysDataset:exportFieldTrip:Exists` | target file exists and `Overwrite` is off |
+| `EphysDataset:readPhyUnits:NoResultsDir` / `NoOutput` / `NoSampleRate` / `Mismatch` / `NoClusterLabels` / `NoGroupMatch` | sorted output missing or inconsistent |
 
 ## Tests
 
-[`test_EphysDataset.m`](../intan/test_EphysDataset.m) builds synthetic `*.rhd`
-and split-layout fixtures in a temp folder and deletes them afterwards. It covers:
+[`test_EphysDataset.m`](../intan/test_EphysDataset.m) builds synthetic `*.rhd`,
+split-layout, binary, phy and Epsych2 fixtures in a temp folder (the fixture
+builders in [`intan/private`](../intan/private) are shared by every suite) and
+deletes them afterwards. It covers:
 
 | Section (as printed by the test) | Covers |
 | --- | --- |
@@ -769,7 +974,13 @@ and split-layout fixtures in a temp folder and deletes them afterwards. It cover
 | 11 | `artifactIntervals` (manual merge + automatic streaming) |
 | 12 | `runSpikeInterface(DryRun=true)` |
 | 13 | `detectSpikes` (injected troughs: alignment, thresholds, polarity, minimum period, waveforms, edges, guards) |
-| 14 | `detectSpikes` over a whole recording (streamed in 6 chunks: identical to the single-block result, boundary-straddling waveforms, `ChannelOrder`, `ProgressFcn`, guards) |
+| 14 | `detectSpikes` over a whole recording (streamed in 6 chunks: identical to the single-block result, boundary-straddling waveforms, `ChannelOrder`, `ProgressFcn`, guards, `UseParallel`) |
+| 15 | `writeJsonFile` / `readJsonFile`, manifest v2 round trip (manual periods, sorting, behavior), v1 manifests, `sortingResultsDir` precedence, `EphysProject` keys and `refresh` |
+| 16 | the `ArtifactConfig` pre-detection filter (preview and `artifactIntervals` agree) |
+| 17 | `readPhyUnits` / `readSortedUnits` (times = samples/fs, phy labels beat Kilosort labels, groups, channel mapping, `FsFallback`) |
+| 18 | `spikesToMat` (detected + sorted, artifact rejection, waveforms, `Behavior`, no partial file left) |
+| 19 | the reader registry, `BinaryReader` (same microvolts through `readData`, `streamPlan` / `readChunkUV` and `readWindowUV`), discovery of both kinds, `siRecordingSpec` |
+| 20 | `exportChronux` / `exportFieldTrip` / behavior |
 
-It needs no real Intan data and no Kilosort4 install. (These tests were not run
-as part of writing this documentation.)
+It needs no real recording data and no Kilosort4 install. Run every suite with
+[`run_all_tests.m`](../intan/run_all_tests.m).

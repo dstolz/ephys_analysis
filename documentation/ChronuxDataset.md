@@ -44,6 +44,7 @@ data, so `params.Fs` can never drift away from what was handed over.
 cx = ChronuxDataset(ds)                          % an EphysDataset
 cx = ChronuxDataset("D:\rec\subj1_day1")         % a recording folder
 cx = ChronuxDataset("D:\out\subj1_extract.mat")  % an EphysDataset.toMat output
+cx = ChronuxDataset(S)                           % the same, already loaded (struct with Y, events, info)
 cx = ChronuxDataset(X, Fs=1000)                  % [nSamples x nChan] µV matrix (single/double)
 cx = ChronuxDataset()                            % empty (statics, or a spike-only use)
 ```
@@ -81,7 +82,8 @@ what selects the signal.
 | `Err` | `0` | `0`, `[1 p]` (theoretical) or `[2 p]` (jackknife) |
 | `TrialAve` | `0` | `1` makes Chronux average over the second dimension |
 
-Read-only: `Dataset`, `SourceType`, `SourceFile`, `Data`, `Fs`,
+Read-only: `Dataset`, `SourceType` (`"dataset"`, `"file"`, `"struct"`,
+`"matrix"`), `SourceFile`, `SourceStruct`, `Data`, `Fs`,
 `ChannelLabels`, `Events`, `Info`, `Loaded`, and the dependent `NumSamples`,
 `NumChannels`, `Duration`. `cx.summary()` returns all of it as one struct.
 
@@ -214,14 +216,14 @@ column vectors of seconds) — the form `mtspectrumpt` and friends read.
 | `Source` | Spike times from |
 | --- | --- |
 | `"auto"` (default) | `"times"` when `Times` is given, else `"kilosort"` when the dataset has results. Never starts detection on its own |
-| `"kilosort"` | `spike_times.npy` + `spike_clusters.npy` in `ResultsDir` (default: the dataset's `kilosortResultsDir()`), divided by `sample_rate` from `params.py`. One element per cluster |
+| `"kilosort"` | the sorted units read with [`EphysDataset.readPhyUnits`](EphysDataset.md#reading-sorted-units) from `ResultsDir` (default: the dataset's associated `sortingResultsDir()`): `spike_times.npy` / `sample_rate` from `params.py`. One element per cluster |
 | `"detect"` | `EphysDataset.detectSpikes` on the loaded signal (one element per channel) — threshold crossings, not sorted units |
 | `"times"` | a numeric vector, a cell array of vectors, or a struct array with a `times` field |
 
 | Option | Default | Notes |
 | --- | --- | --- |
 | `Units` | `[]` (all) | cluster ids (Kilosort) or channel indices, in the order given |
-| `Groups` | `[]` | keep only clusters labelled e.g. `["good" "mua"]` in `cluster_group.tsv`, else `cluster_KSLabel.tsv` |
+| `Groups` | `[]` | keep only clusters labelled e.g. `["good" "mua"]` (phy's `cluster_group.tsv` when present, else `cluster_KSLabel.tsv`) |
 | `DetectOptions` | `struct()` | `detectSpikes` options (`Source="detect"`) |
 | `TimeRange` | `[-Inf Inf]` | analysis window; spikes outside it are dropped and `t` spans it |
 | `TimeBase` | `"recording"` | `"window"` subtracts `t0` so the times and `t` start at 0 — what the hybrid routines need (see below) |
@@ -359,8 +361,9 @@ isequal(bi.nBins, ci.nSamples)      % true: bin k starts on sample k
 | `trialave` and channels | Chronux averages the second dimension: for `continuous` those are channels, for `trials` they are trials |
 | Derived-rate onsets | a dig-in onset is accurate to ±1 sample of the derived rate (1 ms at `LFP_Fs = 1000`) |
 | `Signal="SPIKE"` + `Source="detect"` | the signal is already band-passed and `detectSpikes` filters again by default; the call warns and points at `DetectOptions=struct('Filter',false)` |
-| Kilosort channel ids | `spikes` reports cluster ids as sorted, not channels; peak channels come from the Review tab / `loadReviewResults` |
+| Kilosort channel ids | `spikes` reports cluster ids as sorted, not channels; peak channels are in the `units` struct from `EphysDataset.readSortedUnits` (`channel`, 1-based recording channel) |
 | Chronux not required | preparing data never calls Chronux; only your analysis does |
+| Files for later | `EphysDataset.exportChronux` (the pipeline's Export step) writes `<Name>_chronux.mat` with `LFP` / `MUA` / `SPIKE` structs (`data`, `params`, `t`, `labels`) and `sp` built by this class, so the analysis can run on a machine without the recordings; see [file-formats.md](file-formats.md#chronux-export-ephysdatasetexportchronux-the-export-step) |
 
 ## Main error identifiers
 
@@ -390,13 +393,12 @@ a temp folder and deletes them afterwards. It covers:
 | 1 | `makeParams` / `tapersFor` / `toPointProcess` validation |
 | 2 | matrix source and `continuous` (channels, time range, detrend, class) |
 | 3 | `trials`: both onset rules, exact rows, incomplete and non-finite policies |
-| 4 | a `toMat`-shaped `.mat` source and `eventOnsets` |
+| 4 | a `toMat`-shaped `.mat` source, the same data as a struct source, and `eventOnsets` |
 | 5 | `spikes`: struct array, analysis window, `TimeRange` |
 | 6 | `spikeTrials`: the `createdatamatpt` selection rule and time bases |
 | 7 | `binnedSpikes`: half-open bins and exact counts |
-| 8 | the Kilosort4 / phy source, with real `.npy` fixtures (also covers `readNPY`) |
+| 8 | the Kilosort4 / phy source, with real `.npy` fixtures written by `writeNPY` (also covers `readNPY`) |
 | 9 | guard rails |
 
-Neither Chronux, real Intan recordings, nor MATLAB toolboxes beyond base MATLAB
-are needed to run it. (These tests have not been executed — no MATLAB was
-available in the environment where this code was written.)
+Neither Chronux, real recordings, nor MATLAB toolboxes beyond base MATLAB are
+needed to run it.

@@ -1,20 +1,28 @@
 # EphysPreprocessingApp
 
 `EphysPreprocessingApp` ([source](../intan/@EphysPreprocessingApp/EphysPreprocessingApp.m)) is
-a programmatic `uifigure` GUI (a `handle` class, not an App Designer `.mlapp`).
-It is used to:
+a programmatic `uifigure` GUI (a `handle` class, not an App Designer `.mlapp`)
+for the preprocessing pipeline. It edits **one pipeline config**
+([`EphysPipelineConfig`](EphysPipeline.md)) and runs it with
+[`EphysPipeline`](EphysPipeline.md#ephyspipeline) over an
+[`EphysProject`](EphysProject.md). It is used to:
 
-- scan a folder tree for Intan recordings;
-- inspect and plot them;
+- scan a folder tree for recordings (Intan, or the universal binary format);
 - assign probe maps and channel exclusions;
-- configure artifact silencing and SpikeInterface preprocessing;
-- run Kilosort4;
-- review the sorted units;
-- export LFP / MUA / spike-band `.mat` files.
+- mark manual artifact periods and configure automatic detection;
+- run SpikeInterface + Kilosort4 (optional) and associate sorted output;
+- derive LFP / MUA / spike-band `.mat` files;
+- detect spikes by threshold and/or collect sorted units into a `.mat`;
+- export Chronux- and FieldTrip-shaped files;
+- associate Epsych2 behavior sessions;
+- review sorted units and open them in phy;
+- save the config, and generate scripts that reproduce the run.
 
-It is a front end over [`EphysProject`](EphysProject.md) and
-[`EphysDataset`](EphysDataset.md). Reading, filtering, sorting and conversion all
-happen in those classes; the app orchestrates them and shows progress.
+Reading, filtering, sorting, conversion and export all happen in
+[`EphysDataset`](EphysDataset.md) and `EphysPipeline`; the app edits the
+config, chooses datasets, shows progress, and keeps the per-dataset
+associations in each dataset's manifest. Anything the app runs can be run
+without it from the saved config.
 
 Installation (MATLAB, conda environments, GPU) is covered in
 [INSTALL.md](../intan/INSTALL.md).
@@ -23,98 +31,99 @@ Installation (MATLAB, conda environments, GPU) is covered in
 
 ```matlab
 EphysPreprocessingApp            % open the window
-app = EphysPreprocessingApp;     % open and keep a handle (app.Project, app.Fig, ...)
+app = EphysPreprocessingApp;     % open and keep a handle (app.Config, app.Project, ...)
 ```
 
-The constructor builds the UI, restores saved preferences (see
-[Preferences](#preferences)), and populates the probe list. Closing the window
-stops the background monitor, asks any running conversion to stop, and saves
-preferences.
+The constructor builds the UI, restores preferences, opens the last config
+file if it still exists (else starts from defaults, "Untitled"), and lists the
+probe folder. Closing the window asks to save an unsaved config, stops the
+background monitor and saves preferences.
 
 ## Window layout
 
-- **Menu bar → Dataset**: one checkable item per scanned dataset. This selects
-  the single dataset the **Visualize** tab plots.
-- **Tabs**, left to right: **Datasets, Probe, Artifacts, Visualize, Kilosort,
-  Review, Convert**.
-- **Status bar** (bottom): the left side shows the last action; the right side
-  shows a suggested next step. The suggestion comes from project state:
-  - nothing scanned → *"Browse to a parent folder and click Scan."*
-  - some datasets have no probe → *"Assign a probe on the Probe tab (k/n have
-    one)."*
-  - every dataset has phy output → *"All datasets sorted - open the Review
-    tab..."*
-  - otherwise → *"Set up the Kilosort tab, then Run Kilosort4 (k/n sorted)."*
+- **Menu bar**
+  - **File**: New config, Open config..., Open recent, Save config (Ctrl+S),
+    Save config as..., Export copy of config..., Generate script (Compact |
+    Standalone), Close.
+  - **Dataset**: one checkable item per scanned dataset. This picks the single
+    dataset the **Visualize** tab plots and the **Spikes** preview uses.
+  - **Run**: Validate config, Plan, Run pipeline (Ctrl+R), Dry run, Cancel.
+- **Title**: the config name and file; `*` in front while the config has
+  unsaved changes.
+- **Tabs**, in workflow order: **Project, Probe, Artifacts, Sorting, Signals,
+  Spikes, Export, Run, Visualize, Review**. A step tab's title reads
+  `Sorting [off]` while that step is disabled.
+- **Status bar** (bottom): the last action on the left, a suggested next step
+  on the right.
+
+### The config model
+
+Every control on the Project through Export tabs is bound to a section of
+`app.Config`. Editing a control re-gathers the config
+(`gatherConfig`), pushes the new settings into the scanned datasets, syncs the
+enable states (tab titles and the Run tab's checklist) and updates the
+unsaved marker. **Open** / **New** push a config into the controls
+(`applyConfig`). Each step has an **Enabled** box on its own tab; the Run
+tab's checklist shows the same boxes.
+
+Text fields that hold lists (channels, notch frequencies, KS4 vectors) are
+kept as typed; they are parsed when a run starts, and a run reports the first
+field it cannot parse.
 
 ### Which dataset does an action act on?
 
 | Action | Target |
 | --- | --- |
-| Probe tab: Assign to selected, Exclude channels field | the row **last clicked** in the Datasets table |
-| Datasets tab: Open in phy | the row last clicked |
-| Visualize: Plot | the dataset checked in the **Dataset menu**. Clicking a Datasets row also checks it there |
+| Probe: Assign to selected, Exclude channels; Sorting: Use folder / Use auto / Open in phy; Project: Associate file / Clear; Artifacts: manual periods table | the row **last clicked** in the Project table |
+| Visualize: Plot; Spikes: Preview | the dataset checked in the **Dataset menu** (clicking a Project row also checks it) |
 | Artifacts: Detect / Preview | the Artifacts tab's own **Dataset** dropdown |
-| Review: dataset dropdown | its own list (see the caveat under [Review](#review)) |
-| Kilosort: Run Kilosort4, Convert: Convert selected | rows **ticked** in the Datasets table's *Select* column, or **all** datasets when none are ticked |
+| Run pipeline, Run this step, Plan, Signals / Export target tables | the rows **ticked** in the Project table (`Project.Selection = "list"`), or **all** datasets when none are ticked (`"all"`) |
 | Probe: Assign to all datasets | every dataset |
-
-Row lookups go through a hidden `DatasetIdx` column, so sorting the table by a
-column header does not change which dataset a row refers to.
 
 ## Typical workflow
 
-1. **Datasets**: browse to a parent folder and press **Scan**.
-2. **Probe**: select a probe map, then **Assign to all datasets** (or to the
-   selected one). Enter any per-recording **Exclude channels**.
-3. **Artifacts** (optional): tune the detector and press **Detect / Preview**
-   to see what would be silenced.
-4. **Visualize** (optional): plot a window and mark manual artifact periods.
-5. **Kilosort**: set the Python executable, preprocessing and Kilosort4
-   parameters, then press **Run Kilosort4 (selected)**.
-6. **Review**: load the results, or open them in phy.
-7. **Convert** (independent of steps 2–6): export LFP / MUA / SPIKE `.mat`
-   files.
+1. **File → New** (or open a saved config). Name it on the Project tab.
+2. **Project**: set the project root, press **Scan**; set an output root.
+3. **Probe**: pick a probe map, **Assign to all datasets** or set it as the
+   config's default probe. Enter per-recording **Exclude channels**.
+4. **Artifacts** (optional): tune and preview the detector; mark manual
+   periods on **Visualize**.
+5. Enable the steps you want on their tabs (**Sorting**, **Signals**,
+   **Spikes**, **Export**) and set their options. Each tab has **Run this
+   step** for a single step over the selected datasets.
+6. **Run**: **Validate**, **Plan**, then **Run** (or **Dry run**).
+7. **File → Save config**, and **Generate script** if you want a script that
+   reproduces the run.
+8. **Review**: inspect sorted units, or open them in phy.
 
 ---
 
-## Datasets
+## Project
 
-Controls:
-
-- **Parent directory** + **Browse...**
-- **Scan**
-- **Refresh metadata**
-- **Open in phy**: enabled only when the last-clicked dataset has a `params.py`
-  in its Kilosort4 results folder.
-
-**Scan** does the following:
-
-1. Builds `EphysProject(root)`. This recursively finds every folder that
-   directly contains a `*.rhd` (split recordings are found via their
-   `info.rhd`).
-2. Pushes the Kilosort-tab Python / conda / output root / SpikeInterface
-   settings into every dataset.
-3. Parses headers for each dataset, with a progress dialog. **Cancel** stops
-   header parsing; datasets not yet parsed keep `NaN` metadata. A dataset whose
-   headers fail to parse stays in the table, and a warning
-   (`EphysPreprocessingApp:MetaFailed`) is printed to the MATLAB command window.
-4. For every dataset, calls `applyManifest()` (restores the saved probe and
-   channel exclusions from `<Folder>/<Name>_manifest.json`) and then
-   `writeManifest()`.
-5. Fills the table, the Dataset menu and the Artifacts dropdown, and pushes the
-   artifact settings to every dataset.
-
-**Refresh metadata** re-parses all headers and rebuilds the table.
-
-Table columns:
-
-| Column | Source |
+| Control | Meaning |
 | --- | --- |
-| Select | tick to include in batch actions (ticks are kept across refreshes, matched by name) |
-| Name, Acq date, # files, # chan, Fs (Hz), Duration (min), Format | `EphysDataset` metadata |
-| Probe | probe file name, or `-` |
-| Exclude | `ExcludeChannels` as `1,3,5-8`, or `-` |
-| Kilosort | `results` (results folder has `spike_clusters.npy`), `ready` (only `params.py`), or `-` |
+| Config name, Description | `cfg.Name`, `cfg.Description` |
+| Project root + Browse... + **Scan** | `Project.Root`. Scan builds `EphysProject(root)` (every folder that a registered reader claims: Intan `*.rhd` / `info.rhd`, or `recording.json`), then `P.refresh()`: header metadata, `applyManifest` (probe, exclusions, manual periods, sorting and behavior associations), `writeManifest`. A progress dialog with Cancel; datasets whose headers fail keep `NaN` metadata and a warning is printed |
+| Refresh metadata | re-parse all headers |
+| Output root + Browse... | `Project.OutputRoot`: each dataset writes to `<root>/<Name>`; blank = next to the recording |
+| All / None | tick / untick every row |
+| Open in phy | the last-clicked dataset's associated sorted output (enabled only when it has `params.py`) |
+
+Table columns: **Select**, Name, **Key** (root-relative, what the config
+stores), Acq date, # chan, Fs (Hz), Duration (min), Format, Probe, Exclude,
+**Sorting** (units, `curated` when phy labels exist, `auto` / `manual`),
+**Behavior** (subject and trial count). Ticks are written to
+`Project.Datasets` as keys; with no ticks `Project.Selection` is `"all"`.
+
+**Behavior (Epsych2)** panel: **Match sessions as a pipeline step**
+(`Behavior.Enabled`), search folders + **Add folder...**, match rule (`prefix,
+then time` / `prefix only` / `time only`) and max start offset
+(`Behavior.*`), **Find sessions for selected** (what `findEpsychSessions` sees
+and what `matchEpsychSession` would pick for the last-clicked dataset),
+**Re-match existing** (`Behavior.Overwrite`), **Associate file...** (pick a
+session `.mat` for the last-clicked dataset by hand) and **Clear**. Associations are
+written to the manifest. Nothing is plotted here; the session's trials are
+carried into the Signals, Spikes and Export outputs as `behavior`.
 
 ## Probe
 
@@ -123,381 +132,228 @@ Probe maps are Kilosort4 probe `.json` files
 [`intan/probes`](../intan/probes/README.md).
 
 - **Probe folder** + **Browse...** + **Refresh** list every `*.json` in the
-  folder (not recursive).
-- The **probe table** shows Probe, Ch, Shanks, Depth (µm) and Notes, parsed with
-  `DatasetTracker.probeMeta`. Files that are not valid JSON are listed with
-  Notes `(invalid JSON)`. The **Notes** cell is editable; edits are written back
-  into the file's `notes` field with an in-place text edit.
-- **Probe info** shows the file name, `n_chan`, `chanMap` length and shank count,
-  plus a channel-count check against the last-clicked dataset:
-  - `OK` (green): the counts match.
-  - `MISMATCH` (red): they differ. This never blocks anything.
-  - When exclusions exist, it also reports *"k excluded -> m sorted"*.
-- The **preview plot** shows sites by shank, with excluded sites drawn as gray
-  `x`. **Show channel numbers** labels each site with its 1-based `.bin`
-  channel (`chanMap + 1`).
-- **Design probe from probeinterface (library / generate)...** opens
-  [`ProbeDesignerApp`](ProbeDesignerApp.md).
-- **Import probe .json into folder...** copies a file into the probe folder,
-  asking before overwriting.
-- **Edit probe .json...** opens the selected file in the MATLAB editor.
-- **Exclude channels**: 1-based channels, e.g. `1,5,32-40`. Committing the field
-  applies the list to the **last-clicked** dataset. Entries above that dataset's
-  channel count are dropped, and the status line reports how many. The list is
-  written to the dataset manifest. How exclusions reach Kilosort4 is described in
-  [EphysDataset → Channel exclusions](EphysDataset.md#channel-exclusions).
-- **Assign to selected dataset** sets `ProbeFile` on the last-clicked dataset.
-- **Assign to all datasets** sets `ProbeFile` on every dataset **and** applies
-  the Exclude-channels field to every dataset (trimmed per dataset).
-
-Both assign buttons write each target's manifest and report channel-count
-mismatches in the status line.
+  folder (not recursive). The **probe table** shows Probe, Ch, Shanks, Depth
+  (µm) and Notes; the Notes cell is editable and written back into the file.
+- **Probe info** shows the file, `n_chan`, `chanMap` length, shank count, and a
+  channel-count check (`OK` / `MISMATCH`) against the last-clicked dataset.
+- The **preview plot** shows sites by shank; excluded sites are gray `x`.
+  **Show channel numbers** labels each site with its 1-based channel.
+- **Design probe from probeinterface...** opens
+  [`ProbeDesignerApp`](ProbeDesignerApp.md); **Import probe .json into
+  folder...**; **Edit probe .json...**.
+- **Exclude channels** (1-based, `1,5,32-40`) applies to the last-clicked
+  dataset and is written to its manifest. How exclusions reach each step:
+  [EphysDataset → Channel exclusions](EphysDataset.md#channel-exclusions) for
+  sorting; `Signals.ExcludeHandling` for derived signals;
+  `Spikes.Channels = "excludeManifest"` for detection.
+- **Assign to selected dataset** / **Assign to all datasets** set `ProbeFile`
+  (and, for all, the Exclude field) and write the manifests.
+- **Default probe** (`Probe.DefaultProbeFile`) + **Use selected**: the probe
+  the `probe` preflight assigns to datasets that have none; **Write default to
+  manifest** persists that assignment.
 
 ## Artifacts
 
-This tab configures the automatic artifact detector
+The automatic detector
 ([`EphysDataset.detectArtifacts`](EphysDataset.md#artifact-detection-and-blanking))
-and previews it.
-
-| Control | Maps to | GUI default |
-| --- | --- | --- |
-| Dataset | which dataset **Detect / Preview** analyzes | first dataset |
-| Method | `ArtifactConfig.Method`: Running RMS, MAD, Absolute microvolts, Common-mode | Running RMS |
-| Threshold (SD) | `ArtifactConfig.Threshold` | 9 |
-| RMS window (ms) | `ArtifactConfig.RmsWindowMs` (0 = auto, about 1 ms); RMS method only | 1 |
-| Stitch gap (ms) | `ArtifactConfig.MergeGapMs` | 0 |
-| Pad (ms) | `ArtifactConfig.PadMs` | 0 |
-| Min channels | `ArtifactConfig.MinChannels` | 2 |
-| High-pass before detecting, High-pass (Hz) | preview only (see caveat) | off, 300 |
-
-Every change is pushed to **every** scanned dataset's `ArtifactConfig` and saved
-to preferences.
-
-**Detect / Preview** runs `analyzeArtifacts` over the chosen dataset (streamed,
-read-only). It shows a summary and a per-channel table. The summary lists method,
-window, gap, pad, duration, blanked samples and percent of duration, interval
-count and worst channel; the table lists samples flagged and percent of duration
-per channel.
-
-Whether automatic detections are **applied** to a sort is set by the Kilosort
-tab's **Silence artifacts** checkbox (`ArtifactConfig.Enabled`).
-
-Caveats:
-
-- The Threshold field is sent as-is for every method. The per-method defaults in
-  `detectArtifacts` (MAD 8, 1500 µV for microvolts/common-mode) are **not**
-  used by the GUI. Switching to *Absolute microvolts* or *Common-mode* with the
-  field still at 9 means a 9 µV threshold, despite the "(SD)" label.
-- **High-pass before detecting** affects only this preview. The periods silenced
-  at run time come from `artifactIntervals()`, which detects on the broadband
-  signal.
-
-## Visualize
-
-This tab shows display-only time-domain plots. The data on disk is never
-modified. The dataset comes from the **Dataset** menu.
-
-| Control | Meaning |
-| --- | --- |
-| File | `(all)` or one `*.rhd` file (traditional layout; ignored for split layouts) |
-| Channels | e.g. `1:16` or `1 3 5` (1-based amplifier channels) |
-| Start (s), Window (s) | initial view |
-| High-pass / Low-pass (Hz) | blank = off; both set = bandpass. Uses `filterContinuous` |
-| Filter order | 1–8 |
-| Reference | None / Common average (mean) / Common median |
-| Detrend | subtract each chunk's mean |
-| Plot type | Traces / Heatmap (switchable without re-reading) |
-| Trace spacing (µV), Heatmap colors | display |
-| Sort channels by probe map | order by shank then depth from the dataset's probe; unmapped channels go last |
-| Color channels by shank | color traces by probe shank; unmapped channels share one color |
-
-**Plot** streams the selected data one chunk at a time. For each chunk it keeps
-the requested channels, converts to single precision, and applies detrend →
-re-reference → filter, **per chunk**. The result is cached in a
-[`MultiChannelViewer`](../vendor/plotting/@MultiChannelViewer/MultiChannelViewer.m),
-which handles all navigation after that. The mouse and keyboard shortcuts are
-printed under the controls.
-
-The cache has a memory budget. Where MATLAB's `memory` function works (Windows),
-it is min(2 GB, ⅓ of available array memory). Elsewhere it is 1 GB. It is never
-below 250 MB. If the requested span would exceed it, the data is
-**peak-decimated** on load. Each bin keeps, per channel, the sample with the
-largest absolute value. The status line reports the decimation factor and the
-effective sample rate.
-
-**Artifact overlays**:
-
-- **Orange**: automatic detections, computed by running `detectArtifacts` with
-  the dataset's `ArtifactConfig` on the **cached display data** (after display
-  filtering/referencing, and after decimation if any).
-- **Red**: manual periods (`ds.ManualArtifacts`).
-- **Mark Artifacts** toggles marking mode. In marking mode, left-drag adds a
-  period (`addArtifact`) and a left-click inside a red region removes it.
-  **Clear Artifacts** removes all manual periods for the dataset.
-
-Caveats:
-
-- The orange overlay is computed on display-processed and possibly decimated
-  data, so it can differ from what `artifactIntervals()` silences at run time
-  (broadband, full rate).
-- When decimation is active, the samples at the end of each chunk that do not
-  fill a whole bin are dropped from the cache. Displayed time (sample index ÷
-  effective Fs) therefore falls behind true recording time by up to
-  (factor − 1) samples at the original rate **per chunk** after the first. Manual
-  periods marked on a decimated multi-chunk view inherit that offset. Without
-  decimation there is no such offset.
-- Manual periods exist **only in memory**. They are not saved to the manifest or
-  to preferences, and are lost on re-scan or when the app closes. The periods a
-  run actually used are recorded in that run's `si_config.json`.
-- Drawing the regions uses `xregion`, which requires MATLAB R2023a or later.
-  [INSTALL.md](../intan/INSTALL.md) states R2021a as the minimum.
-
-## Kilosort
-
-The left panel is the configuration; the right panel runs batches and shows the
-log.
-
-Connection fields:
-
-| Field | Meaning |
-| --- | --- |
-| Python exe | Python executable of the `kilosort` env. Seeded on first launch from `%LOCALAPPDATA%\miniconda3\envs\kilosort\python.exe`, `%USERPROFILE%\miniconda3\...` or `%USERPROFILE%\anaconda3\...` when one exists |
-| Conda env | optional. When set, commands run as `conda run -n <env> ...` |
-| Output root | optional. Each dataset writes to `<root>/<Name>`; blank = the dataset folder |
-| Phy command | blank = `conda run -n phy phy` |
-
-Preprocessing (SpikeInterface) maps to `EphysDataset.SIConfig`
-([defaults](EphysDataset.md#default-spikeinterface-configuration)):
-
-| Control | GUI default |
-| --- | --- |
-| Detect bad channels (auto) | on |
-| Action (remove / interpolate) | remove |
-| Detector method | coherence+psd |
-| **Silence artifacts (manual always; auto-detect when ticked)**: `ArtifactConfig.Enabled` | **on** |
-| Common reference (CMR/CAR), Operator | off, median |
-| Bandpass filter in SpikeInterface, Filter min/max | off, 300 / 6000 Hz |
-
-Note that the GUI's *Silence artifacts* default (on) differs from
-`EphysDataset.defaultArtifactConfig().Enabled` (off). Saved preferences override
-both.
-
-**Kilosort4 parameters** are generated from
-[`kilosortParamSpec`](../intan/@EphysPreprocessingApp/kilosortParamSpec.m) in five
-groups: Data, Preprocessing, Drift correction, Spike detection, and Clustering &
-postproc. The spec defaults include `nblocks` 0 (no drift correction),
-`Th_universal` 7, `Th_learned` 8, `batch_size` 120000 and `highpass_cutoff`
-300; see the spec file for the full list and tooltips.
-
-Control kinds:
-
-| Kind | Behavior |
-| --- | --- |
-| int / float / bool | sent as typed |
-| `nullable` | blank / `null` / `none` is **omitted**, so Kilosort4 uses its own default |
-| `floatinf` | blank / `inf` / `Infinity` is **omitted** |
-| `vector` | comma- or space-separated numbers |
-
-**Extra settings (JSON)** is merged last and overrides any named field.
-`buildKS4Extra` validates everything before a run; the first unparseable field
-aborts the batch with a message. `run_si_ks4.py` then drops any key the
-SpikeInterface Kilosort4 wrapper does not accept and logs the list; `tmin`/`tmax`
-are applied as a crop instead.
-
-**Save config... / Load config...** write and read a JSON snapshot of this tab
-([format](file-formats.md#gui-kilosort-configuration-json)). The default folder
-is `intan/ks4_configs`.
-
-**Batch processing**:
-
-- **Execution**: *Non-blocking (background)* (default) or *Blocking (wait)*.
-- **Dry run**: write `si_config.json` + `run_si_ks4.py` without launching.
-- **Run Kilosort4 (selected)**:
-  1. Saves preferences and pushes paths, SpikeInterface settings and artifact
-     settings to every dataset.
-  2. Validates the Kilosort4 parameters.
-  3. Calls `EphysDataset.runSpikeInterface` for each selected dataset.
-
-  The GUI **always** uses the SpikeInterface engine and writes no `.bin`. Errors
-  are logged per dataset and the batch continues. Each dataset's manifest is
-  rewritten after its launch.
-
-**Background runs** are handed to a MATLAB `timer` (`EphysPreprocessingAppMonitor`,
-every 3 s). On each tick it:
-
-- appends new whole lines of each run's `ks4_run.log` to the log box (lines
-  prefixed with the time and dataset name, with carriage-return progress bars
-  collapsed to their last state);
-- reads `ks4_status.json` and logs `[done]` or `[error] <message>`;
-- rewrites that dataset's manifest and refreshes the Datasets table.
-
-The timer stops when every tracked run has a status file. Closing the app stops
-the timer but does not stop Python processes that are already running.
-
-Before launching Python, each dataset's automatic artifact scan (when *Silence
-artifacts* is on) runs **in MATLAB, synchronously**, as part of
-`runSpikeInterface`. So even a background batch blocks the UI for that scan.
-
-## Review
-
-This tab summarizes a Kilosort4 results folder (the folder holding
-`params.py`).
-
-- **Kilosort4 results folder** + **Browse...**: choosing a folder loads it.
-  **Load** also accepts the dataset folder or the `kilosort4` folder and searches
-  `kilosort4/si/sorter_output`, `si/sorter_output`, `sorter_output` and
-  `kilosort4` for `params.py`. It requires `spike_clusters.npy`.
-- **Dataset dropdown**: meant to list scanned datasets whose tracker has a run
-  with results.
-- **Open folder in explorer**, **Open in phy** (`phy template-gui params.py`,
-  launched detached in the folder).
-
-What is shown after loading:
-
-- **Summary**: Fs, duration, channels, shanks, unit counts by label
-  (good / mua / other), total spikes, mean rate, and units per shank.
-- **Units table**: Unit, Label, Shank, PkCh, #Spk, FR (Hz), Amp, Cont%.
-  - The label comes from `cluster_KSLabel.tsv`, else `cluster_group.tsv`, else
-    `unsorted`.
-  - Amp comes from `cluster_Amplitude.tsv`, else the median spike amplitude.
-  - Cont% comes from `cluster_ContamPct.tsv`.
-  - Clicking a row focuses the plots on that unit; **Show all units** clears the
-    focus.
-- **Plots**:
-  - units per shank (stacked good / mua / other);
-  - waveforms (all units' peak channel, or the selected unit's 8 largest
-    channels ordered by depth);
-  - amplitude vs time;
-  - firing rate per unit (colored by shank).
-
-How the numbers are derived (from `loadReviewResults` / `renderReviewPlots`):
-
-- **Firing rate** = spike count ÷ **time of the last spike in the sort**, not
-  the recording duration. Rates are therefore slightly overestimated when the
-  last spike falls before the end of the recording. The summary's "Duration" is
-  the same last-spike time.
-- **Waveforms** are templates, not averages of raw spikes. Each unit uses its
-  most common template (`spike_templates.npy`), unwhitened with
-  `whitening_mat_inv.npy` when present, and multiplied by the unit's median
-  spike amplitude. The axis is labeled "a.u.".
-- **PkCh** is the 1-based index into the templates' channel dimension (the
-  sorted channels), not an Intan channel number. Shank comes from
-  `channel_shanks.npy` (0 when absent).
-- **Amplitude plots** draw at most 30,000 spikes, chosen at evenly spaced
-  indices.
-- **Sample rate**: `params.py` `sample_rate`, else `settings.json` `fs`, else
-  30000 Hz assumed without a warning.
-
-Caveat: `populateReviewDatasets` (which fills the dataset dropdown) is only
-called when a scan finds **no** datasets. After a successful scan the dropdown is
-not refreshed and still reads *"(pick folder, or scan first)"*. Use **Browse...**
-to choose the results folder.
-
-## Convert
-
-This tab exports derived signals with `EphysDataset.toMat`: the
-[`intan2matlab` processing](intan2matlab.md), for any recording layout, one
-`.mat` per dataset. It is independent of the Kilosort path.
-
-> The Convert tab's LFP filter controls were being added while this
-> documentation was written. This section reflects the code as of that session.
-
-### Output
-
-| Control | Meaning |
-| --- | --- |
-| Output folder | blank (default) = each dataset's **raw data folder**; a folder given here is created if needed |
-| File suffix | the file is `<Name><suffix>.mat` (default `_extract`). Characters `\ / : * ? " < > \|` are rejected |
-| MAT version | `-v7.3` (default, any size) or `-v7` (under 2 GB per variable) |
-| Overwrite existing output files | off: datasets whose output exists are skipped and logged |
-
-### Signals
-
-The LFP / MUA / SPIKE checkboxes set `dataTypeOut`. Each group's
-fields are enabled only when that signal is ticked.
-
-| Group | Controls → option |
-| --- | --- |
-| LFP | `LFP_Fs` (1000); **High-pass** (off, 1 Hz) and **Low-pass** (off, 300 Hz) → `LFP_bpLoHi`, only when ticked; **Notch** (off, `60`) + **Notch width** (2 Hz) → `LFP_NotchHz` / `LFP_NotchBW` |
-| MUA | `MUA_Fs` (2000), Integration (1000 Hz), Bandpass low/high (300 / 5000) |
-| SPIKE | Keep original rate (on → `SPIKE_Fs = Inf`), `SPIKE_Fs` (20000, used when that box is off), Bandpass low/high (300 / 5000) |
-
-### Channels
+and the manual periods.
 
 | Control | Maps to |
 | --- | --- |
-| Label field | `labelField` |
-| Keep amp channels | `keepAmpChannels`; blank = all |
-| Bad channels: None / Manual list / Auto | `badChannels`: nothing, the list, or `-threshold` (default 3). Auto requires LFP |
-| Channel remap | `channelRemap` |
+| **Enabled** | `Artifacts.Enabled`: run automatic detection (manual periods always apply) |
+| Dataset | which dataset **Detect / Preview** analyzes |
+| Method, Threshold, RMS window, Stitch gap, Pad, Min channels | `Artifacts.Method`, `Threshold`, `RmsWindowMs`, `MergeGapMs`, `PadMs`, `MinChannels` |
+| Filter before detecting, High-pass (Hz) | `Artifacts.Filter`, `FilterCutoff` (with `FilterType`, `FilterOrder`). These now apply to runs as well as the preview |
+| Apply to sorting / Apply to spike detection | `Artifacts.ApplyToSorting`, `ApplyToSpikes` |
+| Cache intervals | `Artifacts.CacheIntervals` (`<Name>_artifacts.json`) |
+| **Detect / Preview** | `analyzeArtifacts` over the chosen dataset (streamed, read-only): summary + per-channel table |
+| Manual periods table, **Edit in Visualize**, **Clear** | the last-clicked dataset's `ManualArtifacts` (written to its manifest) |
 
-The channel lists accept 1-based integers and ranges, with **order and repeats
-kept**. For example `1-4, 8, 12-10` → `[1 2 3 4 8 12 11 10]`. Anything
-unparseable is an error, never silently dropped. **Reset to defaults** restores
-the table above.
+The Threshold field is sent as-is for every method: with *Absolute microvolts*
+/ *Common-mode* the default 9 means 9 µV.
 
-### Running
+## Sorting
 
-- The targets table lists every dataset a run would process (ticked rows, or all
-  when none are ticked), with its format, output file and a pre-run status:
-  `ready`, `exists: will skip`, `exists: will overwrite`, or
-  `will skip: no Intan files`. **Refresh list** re-checks it.
-- **Convert selected**:
-  1. Validates all options first.
-  2. Refuses to start if two datasets would write the same file (compared
-     case-insensitively).
-  3. Calls `toMat` for each dataset.
-- The overall and per-step progress bars, the current step and a timestamped
-  log are updated from the `toMat` progress callback. The log records the
-  options, the sizes and rates written, the event counts per line, and the
-  channels interpolated.
-- **Cancel** takes effect at the next step boundary (between files, processing
-  stages, or before the save). `toMat` writes a `~<name>.partial.mat` and renames
-  it only after a warning-free, verified `save()`, so a cancelled or failed
-  dataset leaves no complete-looking file. Rows not reached are marked
-  `not run (cancelled)`.
+SpikeInterface + Kilosort4, optional (`Sorting.Enabled`).
+
+| Control | Maps to |
+| --- | --- |
+| Enable the Sorting step, Skip datasets already sorted | `Sorting.Enabled`, `SkipExisting` |
+| Python exe (+ Browse), Conda env | `Sorting.PythonExe` (seeded from a `kilosort` conda env under `%LOCALAPPDATA%` / `%USERPROFILE%` when a new config is created), `CondaEnv` |
+| Phy command | preference `PhyCmd` (blank = `conda run -n phy phy`) |
+| Execution (background / blocking), Dry run | `Sorting.Execution`, `DryRun` |
+| Bandpass filter, Common reference, Detect bad channels (+ method, action) | `Sorting.SI` ([defaults](EphysDataset.md#default-spikeinterface-configuration)) |
+| Kilosort4 parameters (five groups, from `EphysPipelineConfig.kilosortParamSpec`), Extra settings (JSON) | `Sorting.KS4`, `KS4ExtraJSON`. Control kinds: int / float / bool as typed; `nullable` blank = omitted; `floatinf` blank / `inf` = omitted; `vector` = comma- or space-separated |
+| **Results** panel: label, **Use folder...**, **Use auto**, **Open in phy** | the last-clicked dataset's sorted-output association (`SortingDir`, manifest `sorting`). *auto* probes `kilosort4/si/sorter_output`; *manual* is a folder you chose (anywhere) |
+| **Run this step** | `EphysPipeline.runSorting` over the selected datasets |
+| progress label + log | background runs (`ks4_run.log` tail, `ks4_status.json`), see below |
+
+Background runs are handed to a MATLAB `timer` (every 3 s): it appends new log
+lines, logs `[done]` / `[error]`, rewrites the dataset's manifest and refreshes
+the table. The timer stops when every tracked run has a status file. Closing
+the app stops the timer but not Python processes already running. With
+automatic artifact detection on, each dataset's scan runs **in MATLAB,
+synchronously**, before Python is launched (and is cached afterwards).
+
+## Signals
+
+Derived LFP / MUA / SPIKE `.mat` files with `EphysDataset.toMat`
+([intan2matlab](intan2matlab.md)), `Signals.*`.
+
+- **Output**: folder (blank = the dataset's output folder), suffix
+  (`_extract`), MAT version, overwrite, **Include behavior**.
+- **Signals**: LFP (`LFP_Fs`, high-pass, low-pass, notch + width), MUA
+  (`MUA_Fs`, integration, band), SPIKE (keep original rate / `SPIKE_Fs`, band).
+- **Channels**: label field, keep channels, bad channels (none / manual list /
+  auto + threshold), channel remap, **Manifest exclusions** (`none` / `drop` /
+  `interpolate`). Lists keep order and repeats; anything unparseable is an
+  error. **Reset to defaults**.
+- The **targets table** is `plan(Steps="signals")` for the selected datasets
+  (`ready`, `exists: skip`, `exists: overwrite`, `no recording files`, ...);
+  **Refresh** re-plans. **Run this step** runs `EphysPipeline.runSignals`.
+
+## Spikes
+
+Spike events per dataset with `EphysDataset.spikesToMat`, `Spikes.*`.
+
+- **Source**: threshold detection, sorted units, or both.
+- **Filter** (band, order), **Threshold** (method, value, polarity, max
+  amplitude), **Events** (align, window, min period), **Waveforms** (on/off,
+  window, source, edge handling), **Channels & artifacts** (all / manifest
+  exclusions / list; reject events inside artifact periods), **Performance**
+  (chunk cap, edge pad, parallel), **Sorted units** (groups, include noise,
+  templates), **Output** (folder, suffix `_spikes`, MAT version, overwrite).
+- **Preview**: detects on the first *n* seconds of the Dataset-menu dataset
+  with the tab's settings and lists per-channel thresholds, counts and rates.
+- **Run this step** runs `EphysPipeline.runSpikeDetection`.
+
+## Export
+
+Files for external toolboxes, `Export.*`. Nothing about spectra, tapers or
+Chronux functions appears here: the app only writes files.
+
+- **Chronux** (`<Name>_chronux.mat`, [format](file-formats.md#chronux-export))
+  and **FieldTrip** (`<Name>_fieldtrip.mat`,
+  [FieldTripExport](FieldTripExport.md)).
+- What to include: signals (blank = every signal in the extract), sorted
+  units (+ groups), detected spikes, events, behavior; **Validate with
+  FieldTrip** when it is on the path.
+- Output folder, overwrite, MAT version; the targets table (`no extract file`
+  when the Signals output is missing); **Run this step** runs
+  `EphysPipeline.runExport`.
+
+## Run
+
+- **Steps** checklist: the Enabled boxes of every step (mirrored with the
+  tabs), and the selection summary.
+- **Validate config** fills the issues table (`cfg.validate()`); **Plan** fills
+  the results table with `pipe.plan()` (writes nothing).
+- **Run**, **Dry run**, **Cancel**: `EphysPipeline.run` with progress bars
+  (overall and per step), the results table (`Step`, `Dataset`, `Status`,
+  `Message`, `Output`, `Seconds`) and a timestamped log. Cancel takes effect at
+  the next progress boundary; outputs are written atomically, so a cancelled
+  dataset leaves no complete-looking file.
+- Background Kilosort4 runs launched by a run are handed to the same monitor
+  as the Sorting tab.
+
+## Visualize
+
+Display-only time-domain plots of the Dataset-menu dataset; the data on disk
+is never modified.
+
+| Control | Meaning |
+| --- | --- |
+| File | `(all)` or one recording file (multi-file recordings only) |
+| Channels | e.g. `1:16` or `1 3 5` (1-based) |
+| Start (s), Window (s) | initial view |
+| High-pass / Low-pass (Hz), Filter order | blank = off; both set = bandpass (`filterContinuous`) |
+| Reference, Detrend | None / common average / common median; subtract each chunk's mean |
+| Plot type, Trace spacing, Heatmap colors | Traces / Heatmap |
+| Sort channels by probe map, Color channels by shank | from the dataset's probe |
+
+**Plot** streams the data one chunk at a time (detrend → re-reference →
+filter per chunk) into a
+[`MultiChannelViewer`](../vendor/plotting/@MultiChannelViewer/MultiChannelViewer.m)
+cache with a memory budget (min(2 GB, ⅓ of available memory) on Windows,
+1 GB elsewhere, never below 250 MB). Longer spans are **peak-decimated** on
+load; the status line reports the factor.
+
+**Artifact overlays**: orange = automatic detections computed with the
+Artifacts settings on the **cached display data** (after display processing
+and decimation, so they can differ from what a run silences); red = manual
+periods. **Mark Artifacts** toggles marking mode (left-drag adds a period,
+click inside a red region removes it); **Clear Artifacts** removes all. Manual
+periods are written to the dataset's manifest, so they survive a rescan and a
+restart.
+
+When decimation is active, the trailing samples of each chunk that do not fill
+a bin are dropped, so displayed time can lag true time by up to (factor − 1)
+samples per chunk. Drawing uses `xregion` (MATLAB R2023a or later).
+
+## Review
+
+Summarizes a sorted-output folder (the folder holding `params.py`), read with
+`EphysDataset.readSortedUnits`.
+
+- **Dataset dropdown** lists the scanned datasets that have sorted output
+  (their associated folder); **Browse...** / **Load** accept any results
+  folder, a dataset folder or a `kilosort4` folder (searches
+  `kilosort4/si/sorter_output`, `si/sorter_output`, `sorter_output`,
+  `kilosort4`). **Open folder in explorer**, **Open in phy**.
+- **Summary**: Fs, duration, channels, shanks, unit counts by label, total
+  spikes, mean rate, units per shank.
+- **Units table**: Unit, Label (phy's `cluster_group.tsv` when present, else
+  `cluster_KSLabel.tsv`), Shank, PkCh, #Spk, FR (Hz), Amp, Cont%. Clicking a
+  row focuses the plots; **Show all units** clears the focus.
+- **Plots**: units per shank; waveforms (templates × median amplitude,
+  unwhitened when possible, not raw-spike averages); amplitude vs time (at most
+  30,000 spikes); firing rate per unit.
+
+Firing rates are spike count ÷ the time of the **last spike**, not the
+recording duration. `PkCh` is the peak channel among the sorted channels; the
+units struct also carries `channel`, the 1-based recording channel.
 
 ---
 
 ## Preferences
 
-Preferences are stored with `setpref` / `getpref` under the group
-`'EphysPreprocessingApp'`. They are saved on close and after most changes.
+Stored with `setpref` / `getpref` under the group `'EphysPreprocessingApp'`.
+Only what is **not** part of a config lives here:
 
-| Key(s) | Contents |
+| Key | Contents |
 | --- | --- |
 | `FigurePosition` | window position/size (clamped to the screen on restore) |
-| `RootPath`, `ProbeFolder`, `PhyCmd`, `ReviewFolder` | paths |
-| `VizChannels`, `VizDuration`, `VizHighpass`, `VizLowpass`, `VizOrder`, `VizReference`, `VizDetrend`, `VizSpacing` | Visualize options (older `VizCAR` is read for backward compatibility) |
-| `ArtMethod`, `ArtThreshold`, `ArtRmsWindowMs`, `ArtMergeGapMs`, `ArtPadMs`, `ArtMinChannels`, `ArtFilter`, `ArtHighpass`, `ArtEnable` | Artifacts tab + Silence artifacts |
-| `ExecBlocking` | Kilosort execution mode |
-| `KilosortConfig` | the Kilosort tab snapshot (`gatherKilosortConfig`) |
-| `ConvertConfig` | the Convert tab snapshot (`gatherConvertConfig`) |
+| `ProbeFolder`, `PhyCmd`, `ReviewFolder`, `ScriptFolder` | paths |
+| `LastConfigFile`, `RecentConfigs` | reopened on launch; the File → Open recent list |
+| `VizOptions` | the Visualize tab's display settings |
 
-To reset everything: `rmpref('EphysPreprocessingApp')` (with the app closed).
+To reset: `rmpref('EphysPreprocessingApp')` with the app closed. Older
+preference groups are not read.
 
 ## What the app writes to disk
 
 | File | When |
 | --- | --- |
-| `<Folder>/<Name>_manifest.json` | scan, probe assignment, exclusion change, each Kilosort4 launch and background completion |
-| `<outputFolder>/kilosort4/{si_config.json, run_si_ks4.py, ks4_run.log, ks4_status.json}` and `kilosort4/si/...` | Run Kilosort4 (dry run writes only the first two) |
+| pipeline config `.json` | File → Save / Save as / Export copy (default folder `intan/pipeline_configs`) |
+| generated `.m` script | File → Generate script |
+| `<Folder>/<Name>_manifest.json` | scan, probe assignment, exclusion change, manual artifact edit, sorting / behavior association, each sorting launch and completion |
+| `<outputFolder>/kilosort4/{si_config.json, run_si_ks4.py, ks4_run.log, ks4_status.json}` and `kilosort4/si/...` | Sorting (dry run writes only the first two) |
+| `<outputFolder>/<Name>_artifacts.json` | Artifacts (cache) |
+| `<Name>_extract.mat`, `<Name>_spikes.mat`, `<Name>_chronux.mat`, `<Name>_fieldtrip.mat` | Signals, Spikes, Export |
 | probe `.json` in the probe folder | Import, Designer save, Notes edit |
-| Kilosort config JSON | Save config... |
-| `.mat` per dataset | Convert |
 
-Raw `*.rhd` / `*.dat` files are only read.
+Raw recording files are only read.
 
 ## Scripting against a running app
-
-The handle exposes the live objects, for example:
 
 ```matlab
 app = EphysPreprocessingApp;
 % ... scan in the GUI ...
-P  = app.Project;                 % EphysProject
-ds = P.Datasets(1);               % EphysDataset (probe, exclusions, manual artifacts)
-ds.ManualArtifacts                % periods marked on the Visualize tab
+cfg = app.Config;                 % the working EphysPipelineConfig
+P   = app.Project;                % EphysProject
+ds  = P.Datasets(1);              % EphysDataset (probe, exclusions, manual artifacts, SortingDir, BehaviorFile)
+app.openConfigFile("D:\EPHYS\pipeline.json");
+app.runPipeline(Steps="spikes");  % same as Run this step
 app.KSRuns                        % background runs being monitored
 ```
 
@@ -505,13 +361,24 @@ app.KSRuns                        % background runs being monitored
 
 | File | Role |
 | --- | --- |
-| `EphysPreprocessingApp.m` | properties, constructor, small inline handlers, status bar, background monitor, dataset menu, Convert/Artifacts/Probe helpers |
-| `buildUI.m`, `build*Tab.m` | UI construction |
-| `onScan.m`, `refreshDatasetsTable.m`, `onDatasetCellSelection.m`, `onRefreshMetadata.m` | Datasets tab |
-| `refreshProbeList.m`, `onProbeSelected.m`, `onImportProbe.m`, `onDesignProbe.m`, `runProbeTool.m`, `onAssignProbe.m`, `onApplyExclude.m`, `probe_tool.py` | Probe tab |
-| `onDetectArtifacts.m` | Artifacts tab |
-| `onPlotVisualization.m`, `onVizButtonDown/Up.m`, `drawVizArtifacts.m`, `applyVizChannelOrder.m`, `applyVizChannelColor.m` | Visualize tab |
-| `kilosortParamSpec.m`, `buildKS4Extra.m`, `gather/applyKilosortConfig.m`, `onSave/LoadConfig.m`, `onRunBatch.m`, `pollKSRuns.m`, `onLaunchPhy.m`, `launchPhy.m` | Kilosort tab and phy |
+| `EphysPreprocessingApp.m` | properties, constructor, method declarations |
+| `buildUI.m`, `buildMenus.m`, `build*Tab.m` | UI construction |
+| `gatherConfig.m`, `applyConfig.m`, `gather*/apply*Section.m`, `gather/applyConvertConfig.m`, `gather/applySortingSection.m`, `onConfigChanged.m`, `syncStepEnableStates.m`, `updateTitle.m` | config model |
+| `onNewConfig.m`, `onOpenConfig.m`, `openConfigFile.m`, `onSaveConfig.m`, `onSaveConfigAs.m`, `onExportConfigCopy.m`, `onGenerateScript.m`, `confirmDiscard.m`, `addRecentConfig.m`, `refreshRecentMenu.m` | File menu |
+| `buildPipeline.m`, `runPipeline.m`, `onRunStep.m`, `onCancelRun.m`, `onValidate.m`, `onPlan.m`, `refreshStepPlan.m`, `onPipelineProgress.m`, `runLog.m`, `setRunBar.m`, `showIssues.m` | running |
+| `onScan.m`, `refreshDatasetsTable.m`, `onDatasetCellSelection.m`, `onSelectDatasets.m`, `onRefreshMetadata.m`, `onAssociateBehavior.m`, `onClearBehavior.m`, `onBrowseBehaviorDir.m` | Project tab |
+| `refreshProbeList.m`, `onProbeSelected.m`, `onImportProbe.m`, `onDesignProbe.m`, `runProbeTool.m`, `onAssignProbe.m`, `onApplyExclude.m`, `onUseSelectedProbeAsDefault.m`, `probe_tool.py` | Probe tab |
+| `onDetectArtifacts.m`, `refreshManualArtifactsTable.m`, `onClearManualArtifacts.m` | Artifacts tab |
+| `onUseSortingFolder.m`, `onUseAutoSorting.m`, `refreshSortingLabel.m`, `pollKSRuns.m`, `onLaunchPhy.m`, `launchPhy.m` | Sorting tab and phy |
+| `onSpikesPreview.m`, `syncSpikesEnableStates.m` | Spikes tab |
+| `onPlotVisualization.m`, `onVizButtonDown/Up.m`, `drawVizArtifacts.m`, `finishVizArtDrag.m`, `applyVizChannelOrder.m`, `applyVizChannelColor.m` | Visualize tab |
 | `loadReviewResults.m`, `renderReviewPlots.m` | Review tab |
-| `onRunConvert.m`, `gather/applyConvertConfig.m` | Convert tab |
 | `load/savePreferences.m` | preferences |
+
+## Tests
+
+[`test_EphysPreprocessingApp.m`](../intan/test_EphysPreprocessingApp.m) builds
+the app headlessly over a synthetic project: config → controls → config round
+trip, the unsaved marker, the Run checklist ↔ tab sync, scan + selection ticks,
+plan, one step through the pipeline, save / reopen and the recent list. It
+restores the user's preferences afterwards.

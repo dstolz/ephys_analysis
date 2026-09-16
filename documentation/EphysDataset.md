@@ -357,9 +357,12 @@ drops unknown fields.
 
 ### Spike detection
 
-**`[ts, wf, info] = detectSpikes(X, Name=Value)`** detects spikes in an
-in-memory `[nSamples x nChan]` microvolt block by **simple voltage
-thresholding**, each channel independently. `X` is never modified.
+**`[ts, wf, info] = detectSpikes(Name=Value)`** detects spikes over the **whole
+recording**, streaming it one chunk at a time (see *Whole-recording mode*
+below). **`[ts, wf, info] = detectSpikes(X, Name=Value)`** detects in an
+in-memory `[nSamples x nChan]` microvolt block instead. Both run the same
+detector — **simple voltage thresholding**, each channel independently — with
+the same options; `X`, and the files on disk, are never modified.
 
 - `ts` is a `{1 x nChan}` cell array of spike times in **seconds** — always a
   cell array, one column vector per channel, also for a single channel.
@@ -389,7 +392,7 @@ optional amplitude ceiling → optional waveform extraction.
 | `WindowMs` | `[-0.5 1.5]` | waveform window relative to the aligned sample, `before <= after` |
 | `WaveformSource` | `"filtered"` | or `"raw"` — which trace the snippets are cut from |
 | `EdgeHandling` | `"nan"` | a window past the start/end of `X` is NaN-padded; `"drop"` removes the event from **both** `wf` and `ts` |
-| `Fs` | `ds.Fs` | sample rate (Hz) |
+| `Fs` | `ds.Fs` | sample rate (Hz); block form only — in whole-recording mode the rate comes from the file headers (`EphysDataset:detectSpikes:FsNotAllowed`) |
 | `TimeOffset` | `0` | seconds added to every timestamp (for detecting on one chunk of a longer recording) |
 
 Thresholds are computed **per channel on the filtered trace** and are always
@@ -420,6 +423,44 @@ two events closer than `MinPeriodMs`.
 earlier than the `t = row/Fs` convention of `detectArtifacts` intervals and
 digital-input events. `info.index` holds the 1-based rows of `X`.
 
+#### Whole-recording mode
+
+`ds.detectSpikes()` — `X` omitted (or `[]`) — detects over the whole recording
+without holding it all in memory. The recording is streamed in the same units
+`toBin` and `analyzeArtifacts` use (`streamPlan` / `readChunkUV`: one `*.rhd`
+file per chunk for the traditional format, bounded sample windows for the split
+formats), so every layout works. `info.index` then holds **recording-global**
+1-based sample indices and `ts` recording-relative seconds.
+
+**Chunk boundaries are not detection boundaries.** Each chunk is detected
+together with `EdgePadMs` of real data carried over from the previous chunk, and
+the last `EdgePadMs` of each chunk is held back and reported with the next one.
+Every returned event therefore has at least that much genuine signal on both
+sides for filter settling, extremum search and its waveform window — only the
+first and last samples of the recording can truncate one — the reported regions
+tile the recording exactly, so nothing is detected twice, and `MinPeriodMs` is
+re-applied across the joins.
+
+**Thresholds are still estimated per chunk** (`info.thresholdScope` is
+`"chunk"`): a chunk's noise estimate uses only that chunk's samples, exactly as
+it does for a block, so the threshold tracks the noise from chunk to chunk and
+`info.threshold` / `info.noise` / `info.degenerate` are `[nChunks x nChan]`. Use
+`ThresholdMethod="absolute"` for one fixed threshold in microvolts across the
+whole recording.
+
+| Option (whole-recording mode only) | Default | Meaning |
+| --- | --- | --- |
+| `Files` | all | subset/order of `*.rhd` files (traditional format only); timestamps stay relative to the first sample read |
+| `ChannelOrder` | all | 1-based reorder/subset of amplifier channels, applied to every chunk (as in `toBin`) |
+| `MaxChunkSamples` | `streamPlan` default | cap on samples per chunk for the split formats |
+| `EdgePadMs` | `10` | context carried across chunk boundaries; always at least the waveform window, the alignment window and the minimum detection period |
+| `ProgressFcn` | none | `ProgressFcn(i, nChunks, chunkName)`, called before each chunk |
+
+Passing any of these with a data block raises
+`EphysDataset:detectSpikes:BlockOption`. One chunk plus its padding is held at a
+time, but the timestamps — and the waveforms, when asked for — accumulate for
+the whole recording.
+
 **Noise and threshold estimates use the whole block**, so detect on windows long
 enough to characterize the noise (a second or more) and expect chunk-to-chunk
 variation if you stream. Non-finite samples (for example NaN from
@@ -438,11 +479,23 @@ everything; it is flagged in `info.degenerate` and warned about
 `waveformSource`, `waveformsExtracted`, `edgeHandling`, `count` `[1 x nChan]`,
 `rate` `[1 x nChan]` (Hz over `durationSec`), `index` `{1 x nChan}`,
 `amplitude` `{1 x nChan}` (signed filtered microvolts at each aligned sample),
-`nEdgeWindows`, `nRejectedAmplitude`, `maxAmplitudeUV`, `timeOffset`. The
-millisecond fields report the values **after** rounding to samples.
+`rejectedIndex` / `droppedEdgeIndex` `{1 x nChan}` (the rows cut by
+`MaxAmplitudeUV` and by `EdgeHandling="drop"`), `nEdgeWindows`,
+`nRejectedAmplitude`, `maxAmplitudeUV`, `timeOffset`. The millisecond fields
+report the values **after** rounding to samples.
+
+Whole-recording mode drops `rejectedIndex` / `droppedEdgeIndex` (they are
+chunk-local) and adds `source` (`"recording"`), `thresholdScope` (`"chunk"`),
+`edgePadMs` / `edgePadSamples`, `chunks` (a struct array of `name`,
+`sampleOffset`, `nSamples` for the chunks read) and `files`.
 
 ```matlab
-d  = ds.readData();
+ts = ds.detectSpikes();                                  % whole recording
+ts = P.Datasets(4).detectSpikes();                       % straight off a project
+[ts, wf, info] = ds.detectSpikes(ThresholdMethod="absolute", ...
+    Threshold=60, ChannelOrder=1:16);
+
+d  = ds.readData();                                      % or one in-memory block
 ts = ds.detectSpikes(d.amplifier);                       % timestamps only
 [ts, wf, info] = ds.detectSpikes(d.amplifier, ...        % + waveforms
     Band=[300 6000], Threshold=4.5, MinPeriodMs=1.5);
@@ -690,6 +743,9 @@ The manifest is a JSON state file at `<Folder>/<Name>_manifest.json`, i.e. in th
 | `EphysDataset:detectSpikes:BandAboveNyquist` | spike-detection band upper edge ≥ Fs/2 |
 | `EphysDataset:detectSpikes:NoThreshold` / `BadThreshold` / `BadPercentile` | `Threshold` missing or out of range for the chosen `ThresholdMethod` |
 | `EphysDataset:detectSpikes:RowVector` / `BadWindow` / `BadBand` | `X` passed as a row vector, or a reversed `WindowMs` / `Band` |
+| `EphysDataset:detectSpikes:NoData` / `NoFiles` / `NoAmplifierData` | `detectSpikes()` with no data block on a dataset with no folder, no Intan files, or no amplifier data |
+| `EphysDataset:detectSpikes:BlockOption` / `FsNotAllowed` | a whole-recording option passed with a data block, or `Fs` passed without one |
+| `EphysDataset:detectSpikes:BadChannelOrder` / `ChannelMismatch` | `ChannelOrder` out of range, or the channel count changes between chunks |
 | `EphysDataset:runKilosort:NoPython` / `NoProbe` / `ProbeMissing` / `BinMissing` | run prerequisites missing |
 | `EphysDataset:runSpikeInterface:NoPython` / `NoProbe` / `ProbeMissing` | run prerequisites missing |
 | `EphysDataset:toMat:Exists` / `SaveWarning` / `SaveIncomplete` | `.mat` output refused or discarded |
@@ -713,6 +769,7 @@ and split-layout fixtures in a temp folder and deletes them afterwards. It cover
 | 11 | `artifactIntervals` (manual merge + automatic streaming) |
 | 12 | `runSpikeInterface(DryRun=true)` |
 | 13 | `detectSpikes` (injected troughs: alignment, thresholds, polarity, minimum period, waveforms, edges, guards) |
+| 14 | `detectSpikes` over a whole recording (streamed in 6 chunks: identical to the single-block result, boundary-straddling waveforms, `ChannelOrder`, `ProgressFcn`, guards) |
 
 It needs no real Intan data and no Kilosort4 install. (These tests were not run
 as part of writing this documentation.)

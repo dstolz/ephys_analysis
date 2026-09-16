@@ -3,14 +3,16 @@ function buildSortingTab(obj)
 %   Edits the config's Sorting section (gatherSortingSection /
 %   applySortingSection): Python paths, execution mode, SpikeInterface
 %   preprocessing and every Kilosort4 parameter from
-%   EphysPipelineConfig.kilosortParamSpec. The right column shows the
+%   EphysPipelineConfig.kilosortParamSpec, with "Optimize for probe"
+%   (onOptimizeKS4ForProbe) and "Reset to defaults" (onResetKS4Params)
+%   above the parameters. The right column shows the
 %   selected dataset's sorted-output association (auto-discovered or pinned
 %   with "Use folder..."), runs the step, and streams background run logs.
 
 spec = EphysPipelineConfig.kilosortParamSpec();
 groups = unique({spec.group}, 'stable');
 
-nRows = 11;
+nRows = 12;
 for gi = 1:numel(groups)
     np = sum(strcmp({spec.group}, groups{gi}));
     nRows = nRows + 1 + ceil(np / 2);
@@ -64,7 +66,7 @@ obj.ExecModeDropDown.Layout.Row = r; obj.ExecModeDropDown.Layout.Column = [4 5];
 r = r + 1;
 l = lab(cg, "Phy command:", r);
 l.Tooltip = "Command used to launch phy (a preference, not part of the config). Blank defaults to 'conda run -n phy phy'.";
-obj.PhyCmdField = uieditfield(cg, "text", "Placeholder", "conda run -n phy phy (default)", ...
+obj.PhyCmdField = uieditfield(cg, "text", "Placeholder", "blank = default", ...
     "ValueChangedFcn", @(~,~) obj.savePreferences());
 obj.PhyCmdField.Layout.Row = r; obj.PhyCmdField.Layout.Column = 2;
 obj.DryRunCheckBox = uicheckbox(cg, "Text", "Dry run (write si_config.json + driver only)", ...
@@ -138,6 +140,20 @@ note = uilabel(cg, "WordWrap", "on", "FontColor", [0.4 0.4 0.4], "Text", ...
 note.Layout.Row = r; note.Layout.Column = [1 5];
 
 % --- Kilosort4 parameters (from kilosortParamSpec), two per row ---
+r = r + 1;
+l = lab(cg, "Kilosort4 parameters", r);
+l.FontWeight = "bold";
+obj.KSOptimizeButton = uibutton(cg, "Text", "Optimize for probe", ...
+    "Tooltip", ["Set nblocks, dmin, dminx, nearest_chans, nearest_templates, min_template_size " ...
+     "and x_centers from the probe map of the dataset last clicked in the Project table " ...
+     "(else the default probe), following the Kilosort4 parameter guide."], ...
+    "ButtonPushedFcn", @(~,~) obj.onOptimizeKS4ForProbe());
+obj.KSOptimizeButton.Layout.Row = r; obj.KSOptimizeButton.Layout.Column = 2;
+obj.KSResetButton = uibutton(cg, "Text", "Reset to defaults", ...
+    "Tooltip", "Put every Kilosort4 parameter below back to its default and clear the extra settings JSON.", ...
+    "ButtonPushedFcn", @(~,~) obj.onResetKS4Params());
+obj.KSResetButton.Layout.Row = r; obj.KSResetButton.Layout.Column = 4;
+
 obj.ParamControls = struct();
 for gi = 1:numel(groups)
     gp = spec(strcmp({spec.group}, groups{gi}));
@@ -186,12 +202,12 @@ right.RowHeight = {'fit', '1x'};
 right.Padding = [0 0 0 0];
 
 resPanel = uipanel(right, "Title", "Sorted output of the selected dataset");
-rg = uigridlayout(resPanel, [3 3]);
+rg = uigridlayout(resPanel, [3 4]);
 rg.RowHeight   = {'fit', 'fit', 'fit'};
-rg.ColumnWidth = {'1x', 'fit', 'fit'};
+rg.ColumnWidth = {'fit', 'fit', 'fit', '1x'};
 obj.SortResultsLabel = uilabel(rg, "Text", "Select a dataset on the Project tab.", ...
     "WordWrap", "on", "FontColor", [0.3 0.3 0.3]);
-obj.SortResultsLabel.Layout.Row = 1; obj.SortResultsLabel.Layout.Column = [1 3];
+obj.SortResultsLabel.Layout.Row = 1; obj.SortResultsLabel.Layout.Column = [1 4];
 obj.SortUseFolderButton = uibutton(rg, "Text", "Use folder...", ...
     "Tooltip", "Pin a Kilosort4 / phy results folder (e.g. sorted elsewhere or a curated copy); saved in the manifest.", ...
     "ButtonPushedFcn", @(~,~) obj.onUseSortingFolder());
@@ -208,7 +224,7 @@ obj.RunStepSortingButton = uibutton(rg, "Text", "Run this step", "FontWeight", "
     "ButtonPushedFcn", @(~,~) obj.onRunStep("sorting"));
 obj.RunStepSortingButton.Layout.Row = 3; obj.RunStepSortingButton.Layout.Column = 1;
 obj.KSProgressLabel = uilabel(rg, "Text", "Idle.", "FontColor", [0.4 0.4 0.4]);
-obj.KSProgressLabel.Layout.Row = 3; obj.KSProgressLabel.Layout.Column = [2 3];
+obj.KSProgressLabel.Layout.Row = 3; obj.KSProgressLabel.Layout.Column = [2 4];
 
 logPanel = uipanel(right, "Title", "Kilosort4 log (background runs stream here)");
 lg = uigridlayout(logPanel, [1 1]);

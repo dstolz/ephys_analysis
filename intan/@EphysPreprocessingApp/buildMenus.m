@@ -1,9 +1,9 @@
 function buildMenus(obj)
 %buildMenus  File / Dataset / Run menus.
 %   File holds the pipeline-config lifecycle (New, Open, Open recent, Save,
-%   Save As, Export copy, Generate script) and Close. Dataset is the app-wide
-%   single-dataset picker (filled by populateDatasetMenu). Run mirrors the
-%   Run tab's buttons.
+%   Save As, Export copy, Generate script), Create synthetic test project
+%   and Close. Dataset is the app-wide single-dataset picker (filled by
+%   populateDatasetMenu). Run mirrors the Run tab's buttons.
 
 % --- File ------------------------------------------------------------------
 obj.FileMenu = uimenu(obj.Fig, "Text", "File");
@@ -24,6 +24,9 @@ uimenu(gen, "Text", "Compact (loads the saved config)...", ...
     "MenuSelectedFcn", @(~,~) obj.onGenerateScript("compact"));
 uimenu(gen, "Text", "Standalone (every parameter written out)...", ...
     "MenuSelectedFcn", @(~,~) obj.onGenerateScript("standalone"));
+uimenu(obj.FileMenu, "Text", "Create synthetic test project...", "Separator", "on", ...
+    "Tooltip", "Write synthetic recordings with Epsych2 sessions and sorted output, then open and scan them.", ...
+    "MenuSelectedFcn", @(~,~) obj.onCreateSyntheticProject());
 uimenu(obj.FileMenu, "Text", "Close", "Separator", "on", ...
     "MenuSelectedFcn", @(~,~) obj.onClose());
 

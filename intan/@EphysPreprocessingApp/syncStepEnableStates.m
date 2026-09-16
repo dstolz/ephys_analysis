@@ -1,27 +1,10 @@
 function syncStepEnableStates(obj)
-%syncStepEnableStates  Tab titles and colours ("[off]" and greyed for disabled
-%   steps, green-tinted when enabled), the Run-tab checklist and the selection
-%   summary follow the working config.
+%syncStepEnableStates  The tab strip colours (syncTabStrip), the Run-tab
+%   checklist and the selection summary follow the working config.
 cfg = obj.Config;
 obj.Applying = true;
 restore = onCleanup(@() setApplying(obj, false));
-titles = struct('TabArtifacts', "Artifacts", 'TabSorting', "Sorting", 'TabSignals', "Signals", ...
-    'TabSpikes', "Spikes", 'TabExport', "Export");
-flags  = struct('TabArtifacts', cfg.Artifacts.Enabled, 'TabSorting', cfg.Sorting.Enabled, ...
-    'TabSignals', cfg.Signals.Enabled, 'TabSpikes', cfg.Spikes.Enabled, 'TabExport', cfg.Export.Enabled);
-for f = string(fieldnames(titles)).'
-    tab = obj.(f);
-    if isempty(tab) || ~isvalid(tab); continue; end
-    if flags.(f)
-        tab.Title = char(titles.(f));
-        tab.BackgroundColor = [0.86 0.94 0.86];
-        tab.ForegroundColor = [0 0.35 0];
-    else
-        tab.Title = char(titles.(f) + " [off]");
-        tab.BackgroundColor = [0.88 0.88 0.88];
-        tab.ForegroundColor = [0.5 0.5 0.5];
-    end
-end
+obj.syncTabStrip();
 setIf(obj.RunBehaviorCheckBox,  cfg.Behavior.Enabled);
 setIf(obj.RunArtifactsCheckBox, cfg.Artifacts.Enabled);
 setIf(obj.RunSortingCheckBox,   cfg.Sorting.Enabled);

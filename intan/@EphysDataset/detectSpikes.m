@@ -606,8 +606,8 @@ end
 nCtx = min(2*pad, chunkFirst0);
 if nCtx == 0
     ctx = zeros(0, size(Xc, 2));
-elseif plan(i).kind == "split"
-    ctx = obj.readSplitWindow(plan(i).sampleOffset - nCtx, nCtx);
+elseif obj.supportsRandomAccess()
+    ctx = obj.readWindowUV(plan(i).sampleOffset - nCtx, nCtx);
     if ~isempty(chanOrder); ctx = ctx(:, chanOrder); end
 else
     parts = {};

@@ -1,6 +1,6 @@
 classdef EphysProject < handle
     % EphysProject  Discover and batch many Intan recordings to Kilosort4.
-    %   A project scans a root directory for folders containing *.rhd files,
+    %   A project scans a root directory for recording folders (any reader),
     %   wraps each as an EphysDataset, and provides batch operations: gather
     %   metadata into a table, write all .bin files, and launch Kilosort4 for
     %   every dataset. Shared configuration (probe, python/conda, output root,
@@ -83,16 +83,16 @@ classdef EphysProject < handle
         end
 
         function discover(obj)
-            %discover  Find every folder under Root containing >=1 *.rhd file.
+            %discover  Find every recording folder under Root (any reader).
             %   One EphysDataset is created per folder with AutoMetadata=false
             %   (cheap); shared config is pushed into each. Folder discovery is
-            %   delegated to DatasetTracker.findRecordingFolders so the project
-            %   and DatasetTracker agree on what counts as a recording.
-            folders = DatasetTracker.findRecordingFolders(obj.Root, true);
+            %   delegated to the EphysReader registry (as in DatasetTracker) so
+            %   the project and the tracker agree on what counts as a recording.
+            folders = EphysReader.findAllRecordingFolders(obj.Root, true);
             if isempty(folders)
                 obj.Datasets = EphysDataset.empty(1,0);
                 warning('EphysProject:NoData', ...
-                    'No *.rhd files found under %s', obj.Root);
+                    'No recordings found under %s', obj.Root);
                 return
             end
 

@@ -19,7 +19,7 @@ function data = readSplitAll(obj, opts)
 %   EphysDataset.readSplitWindow.
 
 arguments
-    obj (1,1) EphysDataset
+    obj (1,1) IntanReader
     opts.Files (1,:) string = string.empty(1,0)  %#ok<INUSA> (no per-file split units)
     opts.KeepChannels (1,:) double {mustBeInteger, mustBePositive} = []
     opts.IncludeADC (1,1) logical = false
@@ -49,7 +49,7 @@ end
 keep = opts.KeepChannels;
 if ~isempty(keep)
     if max(keep) > size(X, 2)
-        error('EphysDataset:readSplitAll:BadKeepChannels', ...
+        error('IntanReader:readSplitAll:BadKeepChannels', ...
             'KeepChannels references channel %d but recording has %d.', ...
             max(keep), size(X, 2));
     end

@@ -30,7 +30,7 @@ function plan = streamPlan(obj, opts)
 %   See also EphysDataset.readChunkUV, EphysDataset.toBin, EphysDataset.readSplitWindow.
 
 arguments
-    obj (1,1) EphysDataset
+    obj (1,1) IntanReader
     opts.Files (1,:) string = string.empty(1,0)
     opts.MaxChunkSamples (1,1) double = NaN
 end

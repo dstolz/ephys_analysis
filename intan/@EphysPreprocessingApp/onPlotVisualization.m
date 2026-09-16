@@ -53,7 +53,7 @@ end
 % the selection is ignored and the whole recording is streamed in bounded
 % sample-window chunks. Either way readChunkUV yields one [m x nChanAll] chunk.
 fileSel = string(obj.VizFileDropDown.Value);
-if d.RecordingFormat == "traditional" && fileSel ~= "(all)" && fileSel ~= ""
+if d.NumFiles > 1 && fileSel ~= "(all)" && fileSel ~= ""
     planFiles = fileSel;
 else
     planFiles = string.empty(1,0);
@@ -161,7 +161,7 @@ try
     % relative (matching toBin) so artifacts marked here map correctly. Uses the
     % TRUE sample rate. "(all)" -> 0; a single file -> duration of files before it.
     tOffset = 0;
-    if d.RecordingFormat == "traditional" && fileSel ~= "(all)" && fileSel ~= "" ...
+    if d.NumFiles > 1 && fileSel ~= "(all)" && fileSel ~= "" ...
             && ~isempty(d.Files)
         fi = find(d.Files == fileSel, 1);
         if ~isempty(fi) && fi > 1 && ~isempty(d.PerFile) ...

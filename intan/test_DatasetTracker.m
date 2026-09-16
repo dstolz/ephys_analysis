@@ -79,13 +79,13 @@ writeJson(struct('state', 'error', 'message', 'boom'), ...
 fprintf('\n== 1. recording discovery ==\n');
 dt = DatasetTracker(root);
 check(dt.NumRecordings == 2, 'found 2 recording folders');
-check(dt.NumRhdFiles == 3, 'counted 3 *.rhd files total');
+check(dt.NumRecordingFiles == 3, 'counted 3 recording files total');
 check(dt.Name == string(getLeaf(root)), 'Name defaults to folder leaf');
 recNames = sort([dt.Recordings.Name]);
 check(isequal(recNames, sort(["rec_morning","rec_evening"])), 'recording names');
 ra = dt.Recordings([dt.Recordings.Name] == "rec_morning");
-check(ra.NumRhdFiles == 2, 'rec_morning has 2 files');
-check(isequal(ra.RhdFiles, ["a_001.rhd","a_002.rhd"]), 'files listed in order');
+check(ra.NumFiles == 2 && ra.Format == "traditional" && ra.Reader == "intan", 'rec_morning has 2 files (intan, traditional)');
+check(isequal(ra.Files, ["a_001.rhd","a_002.rhd"]), 'files listed in order');
 
 % ---- 2. Probe files (decoy excluded) ------------------------------------
 fprintf('\n== 2. probe discovery (classification) ==\n');
@@ -122,7 +122,7 @@ fprintf('\n== 5. accessors + tabular views ==\n');
 ds = dt.recording("rec_morning");
 check(isa(ds, 'EphysDataset') && ds.NumFiles == 2, 'recording() returns an EphysDataset');
 T = dt.recordingTable();
-check(height(T) == 2 && any(T.NumRhdFiles == 2), 'recordingTable shape');
+check(height(T) == 2 && any(T.NumFiles == 2), 'recordingTable shape');
 K = dt.kilosortTable();
 check(height(K) == 2 && any(K.NumUnits == 3), 'kilosortTable shape');
 check(dt.binFile(1) == string(binFile), 'binFile accessor');

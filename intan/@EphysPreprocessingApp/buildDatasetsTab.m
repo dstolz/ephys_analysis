@@ -11,7 +11,7 @@ lbl = uilabel(g, "Text", "Parent directory:");
 lbl.Layout.Row = 1; lbl.Layout.Column = 1;
 
 obj.RootPathField = uieditfield(g, "text", ...
-    "Placeholder", "Folder scanned recursively for *.rhd recordings");
+    "Placeholder", "Folder scanned recursively for recordings");
 obj.RootPathField.Layout.Row = 1; obj.RootPathField.Layout.Column = 2;
 
 obj.BrowseRootButton = uibutton(g, "Text", "Browse...", ...

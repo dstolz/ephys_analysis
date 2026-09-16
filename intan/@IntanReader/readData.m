@@ -47,7 +47,7 @@ function data = readData(obj, opts)
 %   See also READ_INTAN_RHD2000_FILE_MODIFIED, MATRIX2KILOSORT, EXTRACT_TRIALS.
 
 arguments
-    obj (1,1) EphysDataset
+    obj (1,1) IntanReader
     opts.Files (1,:) string = string.empty(1,0)
     opts.KeepChannels (1,:) double {mustBeInteger, mustBePositive} = []
     opts.IncludeADC (1,1) logical = false
@@ -63,7 +63,7 @@ if obj.NumFiles == 0
     obj.discoverFiles();
 end
 if obj.NumFiles == 0
-    error('EphysDataset:readData:NoFiles', 'No Intan files in %s', obj.Folder);
+    error('IntanReader:readData:NoFiles', 'No Intan files in %s', obj.Folder);
 end
 
 % Split formats (info.rhd + flat .dat) read through a dedicated path that
@@ -107,7 +107,7 @@ for i = 1:nFiles
     S = read_Intan_RHD2000_file_modified(ffn, Verbosity="silent");
 
     if ~isfield(S, 'amplifier_data') || isempty(S.amplifier_data)
-        warning('EphysDataset:readData:NoData', ...
+        warning('IntanReader:readData:NoData', ...
             'No amplifier data in %s; skipping.', fileList(i));
         AMP{i} = zeros(0, 0);
         digCell{i} = zeros(0, ndid);
@@ -121,7 +121,7 @@ for i = 1:nFiles
 
     if ~isempty(opts.KeepChannels)
         if max(opts.KeepChannels) > size(X, 2)
-            error('EphysDataset:readData:BadKeepChannels', ...
+            error('IntanReader:readData:BadKeepChannels', ...
                 'KeepChannels references channel %d but file has %d.', ...
                 max(opts.KeepChannels), size(X, 2));
         end

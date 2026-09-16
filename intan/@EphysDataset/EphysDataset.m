@@ -1,8 +1,10 @@
 classdef EphysDataset < handle
-    % EphysDataset  One folder of Intan recordings -> Kilosort4 .bin + run.
-    %   An EphysDataset represents a single recording: one folder of Intan data
-    %   recorded contiguously, in any of the layouts Intan acquisition software
-    %   writes (see RecordingFormat / detectFormat):
+    % EphysDataset  One recording folder -> processing, sorting and exports.
+    %   An EphysDataset represents a single recording. All raw-data access goes
+    %   through an EphysReader chosen for the folder (see Reader): IntanReader
+    %   for the Intan layouts below, BinaryReader for the universal
+    %   recording.json + flat binary format, or any registered reader, so
+    %   nothing above this class depends on the acquisition system.
     %     "traditional"          one or more *.rhd files with embedded data
     %     "one-file-per-signal"  info.rhd + amplifier.dat (+ other signal .dat)
     %     "one-file-per-channel" info.rhd + amp-<native>.dat (one file per channel)
@@ -131,12 +133,11 @@ classdef EphysDataset < handle
         SIConfig struct = EphysDataset.defaultSIConfig()
     end
 
-    properties (Access = private, Transient)
-        % Cached split-format layout (info.rhd header + .dat file map + sample
-        % count) so the per-window readers do not re-parse on every chunk. Built
-        % lazily by splitLayout; cleared by discoverFiles when the folder is
-        % re-scanned. Always empty for the traditional format.
-        pSplitLayout = []
+    properties (SetAccess = protected)
+        % The acquisition reader for Folder (an EphysReader subclass such as
+        % IntanReader or BinaryReader), chosen by EphysReader.forFolder in
+        % discoverFiles. [] when no registered reader recognises the folder.
+        Reader = []
     end
 
     properties (Dependent)
@@ -154,13 +155,6 @@ classdef EphysDataset < handle
 
     methods
         % --- methods defined in separate files in this @-folder ---
-        refreshMetadata(obj)
-        data   = readData(obj, opts)
-        data   = readSplitAll(obj, opts)
-        L      = splitLayout(obj)
-        X      = readSplitWindow(obj, sampleOffset, nSamp)
-        plan   = streamPlan(obj, opts)
-        X      = readChunkUV(obj, chunk)
         X      = filterContinuous(obj, X, opts)
         [mask, intervals, stats] = detectArtifacts(obj, X, opts)
         [ts, wf, info] = detectSpikes(obj, X, opts)
@@ -179,7 +173,7 @@ classdef EphysDataset < handle
         out    = toMat(obj, opts)
 
         function obj = EphysDataset(folder, opts)
-            %EphysDataset  Construct from a folder of *.rhd files.
+            %EphysDataset  Construct from a recording folder (any registered reader).
             arguments
                 folder (1,1) string = ""
                 opts.AutoMetadata (1,1) logical = true
@@ -225,42 +219,110 @@ classdef EphysDataset < handle
         end
 
         function discoverFiles(obj)
-            %discoverFiles  Inventory the recording folder for the detected format.
-            %   Traditional: every *.rhd data file, sorted chronologically by
-            %   datenum. Split formats (one-file-per-signal / one-file-per-channel):
-            %   the single info.rhd header stands in as the one "file", and the
-            %   amplifier sample count comes from the .dat file(s) at metadata time
-            %   (see refreshMetadata / splitLayout), not from header data blocks.
-            obj.RecordingFormat = EphysDataset.detectFormat(obj.Folder);
-            obj.pSplitLayout = [];   % invalidate cached split layout on re-scan
-
-            switch obj.RecordingFormat
-                case {"one-file-per-signal", "one-file-per-channel"}
-                    obj.Files = "info.rhd";
-                    obj.NumFiles = 1;
-                    d = dir(fullfile(obj.Folder, 'info.rhd'));
-                    if ~isempty(d)
-                        obj.AcqDate = datetime(d.datenum, 'ConvertFrom', 'datenum');
-                    end
-                    return
-
-                case "traditional"
-                    D = dir(fullfile(obj.Folder, '*.rhd'));
-                    if isempty(D)
-                        obj.Files = string.empty(1,0);
-                        obj.NumFiles = 0;
-                        return
-                    end
-                    [~, ix] = sort([D.datenum]);
-                    D = D(ix);
-                    obj.Files = string({D.name});
-                    obj.NumFiles = numel(D);
-                    obj.AcqDate = datetime(min([D.datenum]), 'ConvertFrom', 'datenum');
-
-                otherwise   % "unknown" - no recognized Intan files
-                    obj.Files = string.empty(1,0);
-                    obj.NumFiles = 0;
+            %discoverFiles  Pick the reader for Folder and inventory its files.
+            %   The registered EphysReader classes (IntanReader, BinaryReader,
+            %   ...) are asked in turn; the first that claims the folder becomes
+            %   obj.Reader and supplies RecordingFormat / Files / NumFiles.
+            obj.Reader = EphysReader.forFolder(obj.Folder);
+            if isempty(obj.Reader)
+                obj.RecordingFormat = "unknown";
+                obj.Files = string.empty(1,0);
+                obj.NumFiles = 0;
+                return
             end
+            obj.RecordingFormat = obj.Reader.RecordingFormat;
+            obj.Files    = obj.Reader.Files;
+            obj.NumFiles = obj.Reader.NumFiles;
+            if ~isnat(obj.Reader.AcqDate); obj.AcqDate = obj.Reader.AcqDate; end
+        end
+
+        function refreshMetadata(obj)
+            %refreshMetadata  Fill header metadata for the recording (no data read).
+            %   Re-scans the folder, then asks the reader for Fs, channel names,
+            %   duration and the per-file summary (PerFile). Header-only: no
+            %   amplifier data is read.
+            obj.discoverFiles();
+            if isempty(obj.Reader) || obj.NumFiles == 0
+                warning('EphysDataset:refreshMetadata:NoFiles', ...
+                    'No recording files found in %s', obj.Folder);
+                return
+            end
+            r = obj.Reader;
+            r.refreshMetadata();
+            obj.Fs           = r.Fs;
+            obj.NumChannels  = r.NumChannels;
+            obj.ChannelNames = r.ChannelNames;
+            obj.NativeNames  = r.NativeNames;
+            obj.DigInNames   = r.DigInNames;
+            obj.Duration     = r.Duration;
+            obj.PerFile      = r.PerFile;
+            obj.Files        = r.Files;
+            obj.NumFiles     = r.NumFiles;
+            if ~isnat(r.AcqDate); obj.AcqDate = r.AcqDate; end
+
+            if ~isempty(obj.Manifest) && isa(obj.Manifest, 'Manifest')
+                obj.Manifest.add("metadata", "Parsed recording headers", ...
+                    struct('folder', obj.Folder, 'reader', string(r.Kind), ...
+                    'format', obj.RecordingFormat, 'numFiles', obj.NumFiles, ...
+                    'fs', obj.Fs, 'numChannels', obj.NumChannels, ...
+                    'duration', obj.Duration));
+            end
+        end
+
+        function plan = streamPlan(obj, opts)
+            %streamPlan  Reader-agnostic list of streaming chunks (see EphysReader).
+            %   Each element (kind, name, file, sampleOffset, nSamples) is read
+            %   with readChunkUV, so every streaming caller (toBin, artifacts,
+            %   detectSpikes, the Visualize tab) shares one loop.
+            arguments
+                obj (1,1) EphysDataset
+                opts.Files (1,:) string = string.empty(1,0)
+                opts.MaxChunkSamples (1,1) double = NaN
+            end
+            if isnan(obj.Fs) || isempty(obj.PerFile)
+                obj.refreshMetadata();
+            end
+            if isempty(obj.Reader)
+                plan = repmat(struct('kind', "", 'name', "", 'file', "", ...
+                    'sampleOffset', 0, 'nSamples', 0), 1, 0);
+                return
+            end
+            plan = obj.Reader.streamPlan(Files=opts.Files, MaxChunkSamples=opts.MaxChunkSamples);
+        end
+
+        function X = readChunkUV(obj, chunk)
+            %readChunkUV  One streamPlan chunk as [nSamp x nChan] double microvolts.
+            obj.requireReader('readChunkUV');
+            X = obj.Reader.readChunkUV(chunk);
+        end
+
+        function X = readWindowUV(obj, sampleOffset, nSamp)
+            %readWindowUV  Bounded random-access read (readers that support it).
+            obj.requireReader('readWindowUV');
+            X = obj.Reader.readWindowUV(sampleOffset, nSamp);
+        end
+
+        function tf = supportsRandomAccess(obj)
+            %supportsRandomAccess  True when readWindowUV works for this recording.
+            tf = ~isempty(obj.Reader) && obj.Reader.supportsRandomAccess();
+        end
+
+        function data = readData(obj, varargin)
+            %readData  The whole recording as the universal data struct.
+            %   DATA = ds.readData(Name=Value) forwards to the reader: Files,
+            %   KeepChannels, IncludeADC, IncludeAux, Concatenate, ProgressFcn,
+            %   Precision ("double"|"single"), EventLabelField. The struct
+            %   (amplifier in microvolts [nSamples x nChan], Fs, t, channel
+            %   names, dig-in events, ...) is the same for every reader; see
+            %   EphysReader for the field list.
+            if obj.NumFiles == 0
+                obj.discoverFiles();
+            end
+            if isempty(obj.Reader) || obj.NumFiles == 0
+                error('EphysDataset:readData:NoFiles', 'No recording files in %s', obj.Folder);
+            end
+            data = obj.Reader.readData(varargin{:});
+            data.source = struct('Folder', obj.Folder, 'Name', obj.Name);
         end
 
         %% Dependent getters
@@ -274,6 +336,16 @@ classdef EphysDataset < handle
                 return
             end
             n = sum([obj.PerFile.numAmplifierSamples]);
+        end
+
+        function requireReader(obj, what)
+            if isempty(obj.Reader)
+                obj.discoverFiles();
+            end
+            if isempty(obj.Reader)
+                error('EphysDataset:NoReader', ...
+                    '%s: no registered reader recognises %s.', what, obj.Folder);
+            end
         end
 
         function p = outputFolder(obj)
@@ -384,6 +456,8 @@ classdef EphysDataset < handle
             m.name             = obj.Name;
             m.folder           = obj.Folder;
             m.recording_format = obj.RecordingFormat;
+            m.reader           = "";
+            if ~isempty(obj.Reader); m.reader = string(obj.Reader.Kind); end
             m.updated          = string(datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss'));
 
             acq = "";
@@ -544,24 +618,18 @@ classdef EphysDataset < handle
 
     methods (Static)
         function fmt = detectFormat(folder)
-            %detectFormat  Classify a folder's Intan acquisition file layout.
-            %   "one-file-per-signal"  info.rhd + amplifier.dat
-            %   "one-file-per-channel" info.rhd + amp-*.dat
-            %   "traditional"          one or more *.rhd files with embedded data
-            %   "unknown"              none of the above
-            folder = char(folder);
-            if folder == "" || ~isfolder(folder)
-                fmt = "unknown";
-                return
+            %detectFormat  RecordingFormat of the reader that claims FOLDER.
+            %   "traditional" | "one-file-per-signal" | "one-file-per-channel"
+            %   (IntanReader), "binary" (BinaryReader), or "unknown" when no
+            %   registered reader recognises the folder.
+            arguments
+                folder (1,1) string
             end
-            if isfile(fullfile(folder, 'amplifier.dat'))
-                fmt = "one-file-per-signal";
-            elseif ~isempty(dir(fullfile(folder, 'amp-*.dat')))
-                fmt = "one-file-per-channel";
-            elseif ~isempty(dir(fullfile(folder, '*.rhd')))
-                fmt = "traditional";
-            else
+            r = EphysReader.forFolder(folder);
+            if isempty(r)
                 fmt = "unknown";
+            else
+                fmt = r.RecordingFormat;
             end
         end
 
@@ -785,7 +853,4 @@ classdef EphysDataset < handle
         end
     end
 
-    methods (Static, Access = private)
-        hdr = parseIntanHeader(ffn)
-    end
 end

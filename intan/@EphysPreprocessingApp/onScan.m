@@ -12,7 +12,7 @@ obj.ScanButton.Enable = "off";
 cleanup = onCleanup(@() set(obj.ScanButton, "Enable", "on"));
 
 dlg = uiprogressdlg(obj.Fig, "Title", "Scanning", ...
-    "Message", "Discovering *.rhd folders...", "Indeterminate", "on");
+    "Message", "Discovering recording folders...", "Indeterminate", "on");
 drawnow;
 
 try
@@ -29,8 +29,8 @@ try
         obj.populateDatasetMenu();
         obj.populateArtifactDatasets();
         obj.populateReviewDatasets();
-        obj.ScanStatusLabel.Text = sprintf("No *.rhd folders found under %s", root);
-        obj.setStatus(sprintf("Scan complete: no *.rhd recordings found under %s.", root), ...
+        obj.ScanStatusLabel.Text = sprintf("No recordings found under %s", root);
+        obj.setStatus(sprintf("Scan complete: no recordings found under %s.", root), ...
             "Pick a different parent folder and Scan again.");
         return
     end

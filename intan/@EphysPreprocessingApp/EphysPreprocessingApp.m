@@ -8,7 +8,7 @@ classdef EphysPreprocessingApp < handle
     %
     %   Features
     %   --------
-    %     1. Datasets   Pick a parent directory, scan recursively for *.rhd
+    %     1. Datasets   Pick a parent directory, scan recursively for recording
     %                   folders, and view per-dataset metadata in a table.
     %     2. Visualize  Quick time-domain plots of a short window with optional
     %                   filtering / CAR / detrend. Display-only: the underlying
@@ -398,7 +398,7 @@ classdef EphysPreprocessingApp < handle
             % Prompt for the parent directory to scan.
             start = obj.RootPathField.Value;
             if isempty(start) || ~isfolder(start); start = pwd; end
-            d = uigetdir(start, "Select parent directory to scan for *.rhd recordings");
+            d = uigetdir(start, "Select parent directory to scan for recordings");
             figure(obj.Fig);  % restore focus after modal dialog
             if isequal(d, 0); return; end
             obj.RootPathField.Value = d;

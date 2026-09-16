@@ -870,6 +870,114 @@ else
     fprintf('  (toMat behavior check skipped: no Signal Processing Toolbox)\n');
 end
 
+fprintf('\n== 19. acquisition readers: registry, BinaryReader, discovery ==\n');
+check(isa(ds.Reader, 'IntanReader') && ds.Reader.Kind == "intan" && ds.RecordingFormat == "traditional", ...
+    'EphysDataset picks IntanReader for a *.rhd folder');
+check(isa(dsig.Reader, 'IntanReader') && dsig.supportsRandomAccess() && ~ds.supportsRandomAccess(), ...
+    'random access only for the split layouts');
+check(isequal(sort(EphysReader.readerClasses()), sort(["IntanReader" "BinaryReader"])), 'built-in reader registry');
+check(isempty(EphysReader.forFolder(fullfile(root, 'proj', 'empty_decoy'))), 'no reader claims an empty folder');
+check(strcmp(DatasetTracker.classifyJson(struct('schema', "ephys-recording/1")), 'recording-descriptor'), ...
+    'classifyJson recognises a recording descriptor');
+
+% A universal recording built from the traditional dataset: toBin + descriptor.
+binDir = fullfile(root, 'universal_rec');
+mkdir(binDir);
+dsb = EphysDataset(dsFolder);
+dsb.OutputDir = binDir;
+infoB = dsb.toBin();                        % int16 = round(uV / 0.195), no offset
+src = ds.readData();
+Xsrc = src.amplifier;
+BinaryReader.writeDescriptor(binDir, struct( ...
+    'name', "universal", 'data_file', string([char(dsb.Name) '.bin']), 'dtype', "int16", ...
+    'n_chan', numAmp, 'fs', Fs, 'gain_to_uV', 0.195, 'offset', 0, ...
+    'channel_names', {cellstr(ds.ChannelNames)}, 'native_names', {cellstr(ds.NativeNames)}, ...
+    'dig_in_names', {{'din0'}}, 'events', src.events, 'acq_date', "2026-01-02 03:04:05"));
+check(isfile(fullfile(binDir, 'recording.json')) && isfile(infoB.filename), 'descriptor + binary written');
+
+dsu = EphysDataset(binDir);
+check(isa(dsu.Reader, 'BinaryReader') && dsu.RecordingFormat == "binary" && dsu.Name == "universal_rec" ...
+    && dsu.Reader.Name == "universal", 'BinaryReader claims a recording.json folder (dataset name = folder leaf)');
+check(dsu.Fs == Fs && dsu.NumChannels == numAmp && dsu.NumSamples == totalSamples ...
+    && isequal(dsu.ChannelNames, ds.ChannelNames) && isequal(dsu.NativeNames, ds.NativeNames), ...
+    'binary metadata from the descriptor + file size');
+check(dsu.AcqDate == datetime(2026, 1, 2, 3, 4, 5), 'acq_date parsed');
+du = dsu.readData();
+check(isequal(size(du.amplifier), size(Xsrc)) && max(abs(du.amplifier(:) - Xsrc(:))) < 1e-9, ...
+    'readData microvolts round-trip through the universal binary');
+check(isequal(du.events.din0, src.events.din0) && isequal(du.channelNames, ds.ChannelNames) ...
+    && abs(du.t(2) - 1/Fs) < 1e-12, 'events, names and t from the descriptor');
+du1 = dsu.readData(KeepChannels=[3 1], Precision="single");
+check(isa(du1.amplifier, 'single') && isequal(du1.channelOrder, [3 1]) ...
+    && isequal(du1.channelNames, ds.ChannelNames([3 1])), 'KeepChannels / Precision honoured');
+planU = dsu.streamPlan(MaxChunkSamples=100);
+check(numel(planU) == ceil(totalSamples / 100) && planU(1).kind == "window" && planU(2).sampleOffset == 100, ...
+    'binary streamPlan windows');
+Xw = dsu.readChunkUV(planU(2));
+check(isequal(size(Xw), [100 numAmp]) && max(abs(Xw(:) - reshape(Xsrc(101:200, :), [], 1))) < 1e-9, 'readChunkUV window');
+check(dsu.supportsRandomAccess() && max(abs(reshape(dsu.readWindowUV(5, 3) - Xsrc(6:8, :), [], 1))) < 1e-9, 'readWindowUV');
+check(isequal(size(dsu.readWindowUV(totalSamples, 10)), [0 numAmp]), 'readWindowUV past the end is empty');
+check(EphysDataset.detectFormat(binDir) == "binary" && EphysDataset.detectFormat(dsFolder) == "traditional" ...
+    && EphysDataset.detectFormat(fullfile(root, 'proj', 'empty_decoy')) == "unknown", 'detectFormat via the registry');
+
+% Discovery through the registry.
+fAll = EphysReader.findAllRecordingFolders(root, true);
+check(any(fAll == string(binDir)) && any(fAll == string(dsFolder)), 'findAllRecordingFolders finds both kinds');
+dtU = DatasetTracker(binDir);
+check(dtU.NumRecordings == 1 && dtU.Recordings(1).Format == "binary" && dtU.Recordings(1).Reader == "binary" ...
+    && dtU.Recordings(1).NumFiles == 1, 'DatasetTracker inventories a binary recording');
+Pu = EphysProject(binDir);
+check(Pu.NumDatasets == 1 && Pu.Datasets(1).RecordingFormat == "binary", 'EphysProject discovers a binary recording');
+
+% Processing on the universal format gives the same answers as on the source.
+dsu.ArtifactConfig.Enabled = true;
+dsu.ArtifactConfig.Method = "microvolts";
+dsu.ArtifactConfig.Threshold = 3000;
+dsu.ArtifactConfig.MinChannels = 1;
+dsu.ManualArtifacts = dsi.ManualArtifacts;   % section 11's manual periods are part of iva
+ivU = dsu.artifactIntervals();
+% The chunking differs (two *.rhd files vs one window), so runs that touch a
+% file boundary may split differently; compare the flagged duration instead.
+check(abs(sum(diff(ivU, 1, 2)) - sum(diff(iva, 1, 2))) <= 4 / Fs && abs(size(ivU, 1) - size(iva, 1)) <= 2, ...
+    'artifactIntervals flag the same span on the universal format');
+tsS = ds.detectSpikes(absArgs{:});
+tsU = dsu.detectSpikes(absArgs{:});
+check(isequal(tsS, tsU), 'detectSpikes identical on the universal format');
+dsu.writeManifest();
+mU = readJsonFile(dsu.manifestFile());
+check(strcmp(mU.reader, 'binary') && strcmp(mU.recording_format, 'binary'), 'manifest records the reader');
+spU = dsu.Reader.siRecordingSpec();
+check(spU.reader == "binary" && spU.gain_to_uV == 0.195 && spU.n_chan == numAmp && spU.dtype == "int16", ...
+    'siRecordingSpec carries dtype / gain / offset');
+dsu.ProbeFile = probeFile;
+dsu.PythonExe = "C:\envs\kilosort\python.exe";
+rU = dsu.runSpikeInterface(DryRun=true);
+cU = readJsonFile(rU.settingsPath);
+check(strcmp(cU.recording.reader, 'binary') && strcmp(cU.recording.dtype, 'int16') && cU.recording.n_chan == numAmp, ...
+    'si_config.json carries the recording spec');
+spI = ds.Reader.siRecordingSpec();
+check(spI.reader == "intan" && iscell(spI.files) && numel(spI.files) == 2, 'Intan siRecordingSpec lists the files');
+
+% Digital input from a per-sample uint16 file instead of the events map.
+writeDat(fullfile(binDir, 'digitalin.dat'), uint16(digRaw), 'uint16');
+BinaryReader.writeDescriptor(binDir, struct('data_file', string([char(dsb.Name) '.bin']), 'dtype', "int16", ...
+    'n_chan', numAmp, 'fs', Fs, 'gain_to_uV', 0.195, 'dig_in_names', {{'din0'}}, 'dig_in_file', "digitalin.dat"));
+dsu2 = EphysDataset(binDir);
+du2 = dsu2.readData();
+check(isequal(du2.events.din0, src.events.din0) && dsu2.Name == "universal_rec", ...
+    'events from dig_in_file; name defaults to the folder leaf');
+errId = '';
+try
+    BinaryReader.writeDescriptor(binDir, struct('data_file', "nope.bin", 'dtype', "int16", 'n_chan', 1, 'fs', 1));
+catch ME
+    errId = ME.identifier;
+end
+check(strcmp(errId, 'BinaryReader:NoDataFile'), 'writeDescriptor refuses a missing data file');
+writeJsonFile(fullfile(root, 'bad_rec', 'recording.json'), struct('schema', "ephys-recording/1", 'dtype', "int16"));
+ws = warning('off', 'EphysReader:ReaderFailed');
+check(isempty(EphysReader.forFolder(fullfile(root, 'bad_rec'))), 'an invalid descriptor is reported, not claimed');
+warning(ws);
+
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0
     error('test_EphysDataset:Failures', '%d checks failed.', nFail);

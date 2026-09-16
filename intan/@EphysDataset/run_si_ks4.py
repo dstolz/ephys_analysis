@@ -28,12 +28,26 @@ def read_one(path):
 
 
 def load_recording(cfg):
+    """Build the SpikeInterface recording from the config's 'recording' spec.
+
+    The spec is written by the dataset's EphysReader.siRecordingSpec():
+      reader == 'intan'   -> read_intan over the *.rhd files / info.rhd
+      reader == 'binary'  -> read_binary over a flat channel-major file
+                             (the universal ephys-recording/1 format)
+    Configs without a 'recording' block are treated as Intan.
+    """
     import spikeinterface.full as si
-    folder = cfg['folder']
-    fmt = cfg.get('recording_format', 'traditional')
+    spec = cfg.get('recording') or {}
+    reader = str(spec.get('reader', 'intan')).lower()
+    if reader == 'binary':
+        return load_binary_recording(spec)
+    if reader != 'intan':
+        raise ValueError('Unsupported recording reader: %s' % reader)
+    folder = cfg.get('folder') or spec.get('folder')
+    fmt = cfg.get('recording_format', spec.get('recording_format', 'traditional'))
     if fmt in ('one-file-per-signal', 'one-file-per-channel'):
         return read_one(os.path.join(folder, 'info.rhd'))
-    files = cfg.get('files') or []
+    files = cfg.get('files') or spec.get('files') or []
     paths = [os.path.join(folder, f) for f in files]
     paths = [p for p in paths if os.path.isfile(p)]
     if not paths:
@@ -42,6 +56,32 @@ def load_recording(cfg):
     if len(recs) == 1:
         return recs[0]
     return si.concatenate_recordings(recs)
+
+
+def load_binary_recording(spec):
+    import numpy as np
+    import spikeinterface.extractors as se
+    import spikeinterface.preprocessing as spre
+    name = str(spec['dtype']).lower()
+    name = {'single': 'float32', 'double': 'float64'}.get(name, name)
+    dtype = np.dtype(name)
+    gain = float(spec.get('gain_to_uV', 1.0))
+    offset = float(spec.get('offset', 0.0))
+    rec = se.read_binary(spec['file'], sampling_frequency=float(spec['fs']),
+                         dtype=dtype, num_channels=int(spec['n_chan']),
+                         gain_to_uV=gain, offset_to_uV=-offset * gain,
+                         time_axis=0, is_filtered=False)
+    if dtype.kind == 'u':
+        # Kilosort4 refuses unsigned dtypes. unsigned_to_signed subtracts
+        # 2^(bits-1); keep microvolts = (raw - offset) * gain exact.
+        rec = spre.unsigned_to_signed(rec)
+        half = float(2 ** (8 * dtype.itemsize - 1))
+        n = rec.get_num_channels()
+        rec.set_property('gain_to_uV', np.full(n, gain))
+        rec.set_property('offset_to_uV', np.full(n, (half - offset) * gain))
+    log('Loaded binary recording %s (%s, %d ch, fs=%g)'
+        % (spec['file'], dtype, rec.get_num_channels(), rec.get_sampling_frequency()))
+    return rec
 
 
 def build_probe(cfg, rec):

@@ -19,7 +19,7 @@ function X = readChunkUV(obj, chunk)
 %   READ_INTAN_RHD2000_FILE_MODIFIED.
 
 arguments
-    obj (1,1) EphysDataset
+    obj (1,1) IntanReader
     chunk (1,1) struct
 end
 
@@ -36,7 +36,7 @@ switch chunk.kind
         X = obj.readSplitWindow(chunk.sampleOffset, chunk.nSamples);
 
     otherwise
-        error('EphysDataset:readChunkUV:BadKind', ...
+        error('IntanReader:readChunkUV:BadKind', ...
             'Unknown chunk kind "%s".', chunk.kind);
 end
 end

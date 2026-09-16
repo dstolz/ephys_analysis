@@ -1,6 +1,6 @@
 function hdr = parseIntanHeader(ffn)
 %parseIntanHeader  Read an Intan *.rhd header only; stop before data blocks.
-%   HDR = EphysDataset.parseIntanHeader(FFN) parses the header of the RHD2000
+%   HDR = IntanReader.parseIntanHeader(FFN) parses the header of the RHD2000
 %   file FFN and returns a struct of metadata WITHOUT allocating or reading the
 %   amplifier matrix. This is a header-only extraction of
 %   READ_INTAN_RHD2000_FILE_MODIFIED (lines ~47-296): it parses the header,
@@ -44,7 +44,7 @@ end
 
 fid = fopen(ffn, 'r');
 if fid < 0
-    error('EphysDataset:parseIntanHeader:OpenFailed', 'Could not open %s', ffn);
+    error('IntanReader:parseIntanHeader:OpenFailed', 'Could not open %s', ffn);
 end
 cleaner = onCleanup(@() fclose(fid));  % close on any exit path
 
@@ -54,7 +54,7 @@ filesize = s.bytes;
 % Magic number guard
 magic_number = fread(fid, 1, 'uint32');
 if magic_number ~= hex2dec('c6912702')
-    error('EphysDataset:parseIntanHeader:BadMagic', 'Unrecognized file type: %s', ffn);
+    error('IntanReader:parseIntanHeader:BadMagic', 'Unrecognized file type: %s', ffn);
 end
 
 % Version
@@ -165,7 +165,7 @@ for signal_group = 1:number_of_signal_groups
                     case 5
                         num_board_dig_out_channels = num_board_dig_out_channels + 1;
                     otherwise
-                        error('EphysDataset:parseIntanHeader:BadChannelType', ...
+                        error('IntanReader:parseIntanHeader:BadChannelType', ...
                             'Unknown channel type %d in %s', signal_type, ffn);
                 end
             end

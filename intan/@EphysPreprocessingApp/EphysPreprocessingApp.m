@@ -1,79 +1,98 @@
 classdef EphysPreprocessingApp < handle
-    %EPHYSPREPROCESSINGAPP  GUI for discovering Intan recordings and running Kilosort4.
-    %   EphysPreprocessingApp is a thin front end over EphysProject and
-    %   EphysDataset. It does not duplicate any of their logic: scanning,
-    %   metadata, reading, filtering, .bin streaming and the Kilosort4 spawn all
-    %   happen through those classes. The app only orchestrates them and shows
-    %   progress.
+    %EPHYSPREPROCESSINGAPP  GUI for the config-driven ephys preprocessing pipeline.
+    %   EphysPreprocessingApp edits one EphysPipelineConfig and runs it with
+    %   EphysPipeline over an EphysProject. It duplicates none of their logic:
+    %   scanning, metadata, reading, artifacts, sorting, derived signals, spike
+    %   detection and the exports all happen in EphysDataset / EphysPipeline;
+    %   the app only edits the config, chooses datasets, shows progress and
+    %   keeps per-dataset associations (probe, exclusions, manual artifacts,
+    %   sorted output, Epsych2 session) in each dataset's manifest.
     %
-    %   Features
-    %   --------
-    %     1. Datasets   Pick a parent directory, scan recursively for recording
-    %                   folders, and view per-dataset metadata in a table.
-    %     2. Visualize  Quick time-domain plots of a short window with optional
-    %                   filtering / CAR / detrend. Display-only: the underlying
-    %                   recording is never modified.
-    %     3. Artifacts  Configure the automatic amplitude-deviation detector
-    %                   (running-RMS, threshold in robust SDs, with stitching),
-    %                   preview per-channel counts and the percent of the
-    %                   recording it would zero, and enable blanking on .bin write.
-    %     4. Probe      Pick a Kilosort4 probe .json (stored under
-    %                   intan/probes by default), with a simple channel-
-    %                   count check, and assign it to one or all datasets.
-    %     5. Kilosort   Expose Kilosort4 / .bin configuration, save & reload it,
-    %                   and batch-process selected datasets (.bin then KS4) with
-    %                   per-dataset progress.
-    %     6. Convert    Derive LFP / MUA / SPIKE + digital events for the
-    %                   selected datasets via EphysDataset.toMat (the
-    %                   intan2matlab processing, any recording layout) with
-    %                   every option exposed, and save one .mat per dataset
-    %                   (default: next to the raw data), with in-tab progress,
-    %                   status and a Cancel button.
+    %   Tabs, in workflow order
+    %     Project    config name, project root / output root, dataset table
+    %                (the Select column is the config's dataset selection),
+    %                Epsych2 behavior associations
+    %     Probe      probe library, preview, assignment, per-dataset channel
+    %                exclusions, the config's default probe
+    %     Artifacts  automatic detection settings + preview, manual periods
+    %     Sorting    SpikeInterface + Kilosort4 settings, sorted-output
+    %                association, Run this step, background-run log
+    %     Signals    derived LFP / MUA / SPIKE (.mat) settings, plan, Run
+    %     Spikes     threshold detection / sorted units (.mat), preview, Run
+    %     Export     Chronux / FieldTrip files, plan, Run
+    %     Run        step checklist, validate, plan, run / dry run / cancel,
+    %                progress, results, log
+    %     Visualize  plot a window, mark manual artifact periods
+    %     Review     inspect sorted units
     %
-    %   User preferences (paths, config, and the figure position/size) persist
-    %   across sessions via getpref/setpref under the 'IntanKilosortApp'
-    %   group (kept at the old name so existing preferences survive the
-    %   rename to EphysPreprocessingApp).
+    %   File menu: New / Open / Open recent / Save / Save As / Export copy /
+    %   Generate script (compact | standalone) / Close. The title shows "*"
+    %   while the config has unsaved changes.
+    %
+    %   Preferences (getpref group 'EphysPreprocessingApp') hold only what is
+    %   not part of a config: figure geometry, probe folder, phy command,
+    %   Review folder, last / recent config files, script folder and the
+    %   Visualize display options.
     %
     %   Usage
-    %   -----
     %     EphysPreprocessingApp;            % launch
     %     app = EphysPreprocessingApp;      % launch and keep a handle
     %
-    %   See also EPHYSPROJECT, EPHYSDATASET.
+    %   See also EPHYSPIPELINECONFIG, EPHYSPIPELINE, EPHYSPROJECT, EPHYSDATASET.
 
     properties
         Fig   matlab.ui.Figure
         Tabs  matlab.ui.container.TabGroup
 
         % --- Menu bar ---
-        % "Dataset" is the app-wide single-dataset picker (it replaces the
-        % per-tab dataset dropdown); one checkable item per scanned dataset.
-        DatasetMenu      matlab.ui.container.Menu
+        FileMenu         matlab.ui.container.Menu
+        RecentMenu       matlab.ui.container.Menu
+        DatasetMenu      matlab.ui.container.Menu   % app-wide single-dataset picker
         DatasetMenuItems matlab.ui.container.Menu
+        RunMenu          matlab.ui.container.Menu
 
-        % --- Global status bar (bottom strip; see buildUI/setStatus) ---
-        StatusBar  matlab.ui.control.Label   % last action / current state
-        StatusHint matlab.ui.control.Label   % suggested next action
+        % --- Global status bar ---
+        StatusBar  matlab.ui.control.Label
+        StatusHint matlab.ui.control.Label
 
-        TabDatasets  matlab.ui.container.Tab
-        TabVisualize matlab.ui.container.Tab
-        TabArtifacts matlab.ui.container.Tab
+        TabProject   matlab.ui.container.Tab
         TabProbe     matlab.ui.container.Tab
-        TabKilosort  matlab.ui.container.Tab
+        TabArtifacts matlab.ui.container.Tab
+        TabSorting   matlab.ui.container.Tab
+        TabSignals   matlab.ui.container.Tab
+        TabSpikes    matlab.ui.container.Tab
+        TabExport    matlab.ui.container.Tab
+        TabRun       matlab.ui.container.Tab
+        TabVisualize matlab.ui.container.Tab
         TabReview    matlab.ui.container.Tab
-        TabConvert   matlab.ui.container.Tab
 
-        % --- Datasets tab ---
-        RootPathField    matlab.ui.control.EditField
-        BrowseRootButton matlab.ui.control.Button
-        ScanButton       matlab.ui.control.Button
+        % --- Project tab ---
+        ConfigNameField   matlab.ui.control.EditField
+        ConfigDescField   matlab.ui.control.EditField
+        RootPathField     matlab.ui.control.EditField
+        BrowseRootButton  matlab.ui.control.Button
+        ScanButton        matlab.ui.control.Button
         RefreshMetaButton matlab.ui.control.Button
-        DatasetsTable    matlab.ui.control.Table
-        ScanStatusLabel  matlab.ui.control.Label
+        LaunchPhyButton   matlab.ui.control.Button
+        SelectAllButton   matlab.ui.control.Button
+        SelectNoneButton  matlab.ui.control.Button
+        OutputRootField   matlab.ui.control.EditField
+        BrowseOutputButton matlab.ui.control.Button
+        DatasetsTable     matlab.ui.control.Table
+        ScanStatusLabel   matlab.ui.control.Label
+        BehEnableCheckBox    matlab.ui.control.CheckBox
+        BehSearchDirsField   matlab.ui.control.EditField
+        BehBrowseButton      matlab.ui.control.Button
+        BehMatchDropDown     matlab.ui.control.DropDown
+        BehMaxOffsetField    matlab.ui.control.NumericEditField
+        BehFindButton        matlab.ui.control.Button
+        BehStatusLabel       matlab.ui.control.Label
+        BehOverwriteCheckBox matlab.ui.control.CheckBox
+        BehAssociateButton   matlab.ui.control.Button
+        BehClearButton       matlab.ui.control.Button
 
         % --- Visualize tab ---
-        VizDatasetLabel    matlab.ui.control.Label   % mirrors the Dataset menu
+        VizDatasetLabel    matlab.ui.control.Label
         VizFileDropDown    matlab.ui.control.DropDown
         VizChannelsField   matlab.ui.control.EditField
         VizStartField      matlab.ui.control.NumericEditField
@@ -107,10 +126,17 @@ classdef EphysPreprocessingApp < handle
         ArtPadField         matlab.ui.control.NumericEditField
         ArtFilterCheckBox   matlab.ui.control.CheckBox
         ArtHighpassField    matlab.ui.control.NumericEditField
+        ArtApplySortingCheckBox matlab.ui.control.CheckBox
+        ArtApplySpikesCheckBox  matlab.ui.control.CheckBox
+        ArtCacheCheckBox    matlab.ui.control.CheckBox
         ArtDetectButton     matlab.ui.control.Button
         ArtSummaryLabel     matlab.ui.control.Label
         ArtChannelTable     matlab.ui.control.Table
         ArtStatusLabel      matlab.ui.control.Label
+        ArtManualLabel      matlab.ui.control.Label
+        ArtEditVizButton    matlab.ui.control.Button
+        ArtManualClearButton matlab.ui.control.Button
+        ArtManualTable      matlab.ui.control.Table
 
         % --- Probe tab ---
         ProbeFolderField    matlab.ui.control.EditField
@@ -127,16 +153,19 @@ classdef EphysPreprocessingApp < handle
         AssignAllButton     matlab.ui.control.Button
         ExcludeChannelsField matlab.ui.control.EditField
         ShowChanNumbersCheckBox matlab.ui.control.CheckBox
+        ProbeDefaultField   matlab.ui.control.EditField
+        ProbeUseSelectedButton matlab.ui.control.Button
+        ProbeWriteDefaultCheckBox matlab.ui.control.CheckBox
 
-        % --- Kilosort tab ---
+        % --- Sorting tab ---
+        SortEnableCheckBox  matlab.ui.control.CheckBox
+        SortSkipExistingCheckBox matlab.ui.control.CheckBox
         PythonExeField    matlab.ui.control.EditField
         BrowsePythonButton matlab.ui.control.Button
         CondaEnvField     matlab.ui.control.EditField
-        OutputRootField   matlab.ui.control.EditField
-        BrowseOutputButton matlab.ui.control.Button
         PhyCmdField       matlab.ui.control.EditField
-
-        % --- SpikeInterface preprocessing controls (see gatherSIConfig) ---
+        ExecModeDropDown  matlab.ui.control.DropDown
+        DryRunCheckBox    matlab.ui.control.CheckBox
         SIFilterCheckBox     matlab.ui.control.CheckBox
         SIFilterMinField     matlab.ui.control.NumericEditField
         SIFilterMaxField     matlab.ui.control.NumericEditField
@@ -145,19 +174,16 @@ classdef EphysPreprocessingApp < handle
         SIDetectBadCheckBox  matlab.ui.control.CheckBox
         SIBadMethodDropDown  matlab.ui.control.DropDown
         SIBadActionDropDown  matlab.ui.control.DropDown
-
-        % Kilosort4 parameter controls, keyed by KS4 settings name. Built from
-        % kilosortParamSpec(); see buildKilosortTab / buildKS4Extra.
+        % Kilosort4 parameter controls keyed by settings name (kilosortParamSpec).
         ParamControls struct = struct()
         ExtraSettingsArea matlab.ui.control.TextArea
-        ExecModeDropDown  matlab.ui.control.DropDown
-        DryRunCheckBox    matlab.ui.control.CheckBox
-        SaveConfigButton  matlab.ui.control.Button
-        LoadConfigButton  matlab.ui.control.Button
         KSDocsLink        matlab.ui.control.Hyperlink
         SIDocsLink        matlab.ui.control.Hyperlink
-        RunKilosortButton matlab.ui.control.Button
-        LaunchPhyButton   matlab.ui.control.Button
+        SortResultsLabel  matlab.ui.control.Label
+        SortUseFolderButton matlab.ui.control.Button
+        SortUseAutoButton matlab.ui.control.Button
+        SortPhyButton     matlab.ui.control.Button
+        RunStepSortingButton matlab.ui.control.Button
         KSProgressLabel   matlab.ui.control.Label
         KSLogArea         matlab.ui.control.TextArea
 
@@ -176,12 +202,14 @@ classdef EphysPreprocessingApp < handle
         ReviewAmpAxes       matlab.ui.control.UIAxes
         ReviewRateAxes      matlab.ui.control.UIAxes
 
-        % --- Convert tab (EphysDataset.toMat; see buildConvertTab / onRunConvert) ---
+        % --- Signals tab (config Signals; gather/applyConvertConfig) ---
+        SigEnableCheckBox       matlab.ui.control.CheckBox
         ConvOutputDirField      matlab.ui.control.EditField
         ConvBrowseOutputButton  matlab.ui.control.Button
         ConvSuffixField         matlab.ui.control.EditField
         ConvMatVersionDropDown  matlab.ui.control.DropDown
         ConvOverwriteCheckBox   matlab.ui.control.CheckBox
+        ConvIncludeBehaviorCheckBox matlab.ui.control.CheckBox
         ConvLFPCheckBox         matlab.ui.control.CheckBox
         ConvMUACheckBox         matlab.ui.control.CheckBox
         ConvSPIKECheckBox       matlab.ui.control.CheckBox
@@ -202,6 +230,7 @@ classdef EphysPreprocessingApp < handle
         ConvSpikeLoField        matlab.ui.control.NumericEditField
         ConvSpikeHiField        matlab.ui.control.NumericEditField
         ConvLabelFieldDropDown  matlab.ui.control.DropDown
+        ConvExcludeHandlingDropDown matlab.ui.control.DropDown
         ConvKeepChannelsField   matlab.ui.control.EditField
         ConvBadModeDropDown     matlab.ui.control.DropDown
         ConvBadThresholdField   matlab.ui.control.NumericEditField
@@ -209,212 +238,244 @@ classdef EphysPreprocessingApp < handle
         ConvRemapField          matlab.ui.control.EditField
         ConvResetButton         matlab.ui.control.Button
         ConvTargetsTable        matlab.ui.control.Table
-        ConvRunButton           matlab.ui.control.Button
-        ConvCancelButton        matlab.ui.control.Button
+        RunStepSignalsButton    matlab.ui.control.Button
         ConvRefreshButton       matlab.ui.control.Button
-        ConvOverallBar          matlab.ui.container.GridLayout   % see setConvertBar
-        ConvOverallText         matlab.ui.control.Label
-        ConvStepBar             matlab.ui.container.GridLayout
-        ConvStepText            matlab.ui.control.Label
-        ConvStepLabel           matlab.ui.control.Label
-        ConvLogArea             matlab.ui.control.TextArea
+
+        % --- Spikes tab ---
+        SpkEnableCheckBox    matlab.ui.control.CheckBox
+        SpkSourceDropDown    matlab.ui.control.DropDown
+        SpkFilterCheckBox    matlab.ui.control.CheckBox
+        SpkBandLoField       matlab.ui.control.NumericEditField
+        SpkBandHiField       matlab.ui.control.NumericEditField
+        SpkFilterOrderField  matlab.ui.control.NumericEditField
+        SpkPolarityDropDown  matlab.ui.control.DropDown
+        SpkThreshMethodDropDown matlab.ui.control.DropDown
+        SpkThresholdField    matlab.ui.control.EditField
+        SpkMaxAmpField       matlab.ui.control.EditField
+        SpkAlignDropDown     matlab.ui.control.DropDown
+        SpkAlignWindowField  matlab.ui.control.NumericEditField
+        SpkMinPeriodField    matlab.ui.control.NumericEditField
+        SpkWaveformsCheckBox matlab.ui.control.CheckBox
+        SpkWinBeforeField    matlab.ui.control.NumericEditField
+        SpkWinAfterField     matlab.ui.control.NumericEditField
+        SpkWaveSourceDropDown matlab.ui.control.DropDown
+        SpkEdgeDropDown      matlab.ui.control.DropDown
+        SpkChannelsDropDown  matlab.ui.control.DropDown
+        SpkChannelListField  matlab.ui.control.EditField
+        SpkRejectArtifactsCheckBox matlab.ui.control.CheckBox
+        SpkChunkField        matlab.ui.control.EditField
+        SpkEdgePadField      matlab.ui.control.EditField
+        SpkParallelCheckBox  matlab.ui.control.CheckBox
+        SpkGroupsField       matlab.ui.control.EditField
+        SpkIncludeNoiseCheckBox matlab.ui.control.CheckBox
+        SpkTemplatesCheckBox matlab.ui.control.CheckBox
+        SpkOutputDirField    matlab.ui.control.EditField
+        SpkBrowseOutputButton matlab.ui.control.Button
+        SpkSuffixField       matlab.ui.control.EditField
+        SpkOverwriteCheckBox matlab.ui.control.CheckBox
+        SpkMatVersionDropDown matlab.ui.control.DropDown
+        SpkPreviewButton     matlab.ui.control.Button
+        SpkPreviewSecondsField matlab.ui.control.NumericEditField
+        SpkPreviewLabel      matlab.ui.control.Label
+        SpkPreviewTable      matlab.ui.control.Table
+        RunStepSpikesButton  matlab.ui.control.Button
+
+        % --- Export tab ---
+        ExpEnableCheckBox    matlab.ui.control.CheckBox
+        ExpChronuxCheckBox   matlab.ui.control.CheckBox
+        ExpFieldTripCheckBox matlab.ui.control.CheckBox
+        ExpSignalsField      matlab.ui.control.EditField
+        ExpUnitsCheckBox     matlab.ui.control.CheckBox
+        ExpGroupsField       matlab.ui.control.EditField
+        ExpDetectedCheckBox  matlab.ui.control.CheckBox
+        ExpEventsCheckBox    matlab.ui.control.CheckBox
+        ExpBehaviorCheckBox  matlab.ui.control.CheckBox
+        ExpValidateCheckBox  matlab.ui.control.CheckBox
+        ExpOutputDirField    matlab.ui.control.EditField
+        ExpBrowseOutputButton matlab.ui.control.Button
+        ExpOverwriteCheckBox matlab.ui.control.CheckBox
+        ExpMatVersionDropDown matlab.ui.control.DropDown
+        ExpTargetsTable      matlab.ui.control.Table
+        RunStepExportButton  matlab.ui.control.Button
+        ExpRefreshButton     matlab.ui.control.Button
+
+        % --- Run tab ---
+        RunBehaviorCheckBox  matlab.ui.control.CheckBox
+        RunArtifactsCheckBox matlab.ui.control.CheckBox
+        RunSortingCheckBox   matlab.ui.control.CheckBox
+        RunSignalsCheckBox   matlab.ui.control.CheckBox
+        RunSpikesCheckBox    matlab.ui.control.CheckBox
+        RunExportCheckBox    matlab.ui.control.CheckBox
+        RunSelectionLabel    matlab.ui.control.Label
+        RunValidateButton    matlab.ui.control.Button
+        RunPlanButton        matlab.ui.control.Button
+        RunButton            matlab.ui.control.Button
+        RunDryButton         matlab.ui.control.Button
+        RunCancelButton      matlab.ui.control.Button
+        RunIssuesTable       matlab.ui.control.Table
+        RunOverallBar        matlab.ui.container.GridLayout   % see setRunBar
+        RunOverallText       matlab.ui.control.Label
+        RunStepBar           matlab.ui.container.GridLayout
+        RunStepText          matlab.ui.control.Label
+        RunStepLabel         matlab.ui.control.Label
+        RunResultsTable      matlab.ui.control.Table
+        RunLogArea           matlab.ui.control.TextArea
+        RunKSLabel           matlab.ui.control.Label
     end
 
     properties
         Project EphysProject = EphysProject.empty
         SelectedRow (1,1) double = 0   % last-clicked datasets-table row (0 = none)
 
-        % Probe tab selection state. ProbeTable shows one row per probe .json;
-        % ProbePaths holds the matching full paths (the table itself only shows
-        % file names + parsed metadata), and SelectedProbeRow is the active row.
+        % --- config model ---
+        Config EphysPipelineConfig = EphysPipelineConfig()   % working copy
+        SavedConfigStruct struct = struct()                   % last saved / opened state
+        Applying (1,1) logical = false     % true while applyConfig pushes values (suppresses onConfigChanged)
+        RecentConfigs (1,:) string = string.empty(1,0)
+        ScriptFolder (1,1) string = ""
+
+        % --- run state ---
+        Pipe = []                          % the EphysPipeline being run (for Cancel)
+        RunActive (1,1) logical = false
+
+        % Probe tab selection state.
         ProbePaths (1,:) string = string.empty(1,0)
-        SelectedProbeRow (1,1) double = 0   % selected ProbeTable row (0 = none)
+        SelectedProbeRow (1,1) double = 0
 
         % Background Kilosort4 runs awaiting completion + the polling timer.
-        % logFile/logPos let the monitor tail each run's ks4_run.log into the
-        % status box: logPos is the byte offset already shown.
         KSRuns struct = struct('Name', {}, 'statusFile', {}, 'resultsDir', {}, ...
             'logFile', {}, 'logPos', {}, 'done', {})
         KSMonitorTimer = []
 
         % --- Visualize interaction state (display-only, in-memory) ---
-        % Viewer is the MultiChannelViewer (plotting/@MultiChannelViewer) that
-        % owns the cached data, viewport, graphics, and pan/zoom/scroll
-        % interaction for the Visualize axes. Constructed on the first Plot
-        % press and reused (via Viewer.loadData) on subsequent presses, so its
-        % attached KeyMap/mouse callbacks are never re-installed.
         Viewer = []
-        % Detected-artifact intervals (window-relative seconds) and the
-        % recording-relative time offset of the currently loaded window -- the
-        % two pieces of app-specific bookkeeping that don't belong on the
-        % generic Viewer. Read by drawVizArtifacts/finishVizArtDrag.
         VizDetectedIntervals = zeros(0, 2)
         VizTimeOffset (1,1) double = 0
-        VizDatasetIndex (1,1) double = 0   % index into obj.Project.Datasets
-        % Dataset picked in the figure's "Dataset" menu (0 = none). This is the
-        % single-dataset target for Visualize; VizDatasetIndex above is the one
-        % whose data is actually cached in the Viewer.
+        VizDatasetIndex (1,1) double = 0
         SelectedDatasetIdx (1,1) double = 0
-        % 1-based amplifier channels currently loaded into Viewer, in their
-        % original (as-typed) order -- i.e. Viewer's data-column order before
-        % any probe-depth sort. Read by applyVizChannelOrder to map the
-        % Viewer's data columns back to physical .bin channels.
         VizChannels (1,:) double = double.empty(1,0)
-        % Byte budget for the cached single-precision Visualize matrix. The
-        % loader streams files one at a time and, when the full-resolution span
-        % would exceed this, peak-decimates on load so RAM stays bounded
-        % regardless of recording length. 0 = auto (see autoMemoryBudget).
         VizMemoryBudget (1,1) double = 0
-
-        % --- Manual artifact marking (Visualize tab) ---
-        % When VizArtMode is on, a plain left-drag on the plot defines an
-        % artifact period and a left-click inside a marked region removes it.
-        % Periods live on the dataset (EphysDataset.ManualArtifacts) and are
-        % blanked by toBin; the data on disk is never altered. They are drawn
-        % with xregion (handles in VizArtPatches; VizArtPreview is the live
-        % rubber-band during a drag).
         VizArtMode (1,1) logical = false
         VizArtDrag = struct('active', false)
         VizArtPatches = gobjects(0,1)
         VizArtPreview = gobjects(0,1)
 
         % --- Review (Kilosort4 output) state ---
-        % ReviewData caches everything parsed from a kilosort4/ results folder so
-        % unit selection re-plots without re-reading .npy files. See
-        % loadReviewResults / renderReviewPlots.
         ReviewData = struct([])
-        ReviewSelectedUnit (1,1) double = 0   % row index into ReviewData unit list (0 = all)
-
-        % --- Convert (EphysDataset.toMat) run state ---
-        % ConvRunning guards against re-entry and freezes the targets table;
-        % ConvCancelRequested is set by the Cancel button and checked by the
-        % toMat/deriveSignals ProgressFcn at each step boundary (see onRunConvert).
-        ConvRunning (1,1) logical = false
-        ConvCancelRequested (1,1) logical = false
+        ReviewSelectedUnit (1,1) double = 0
     end
 
     properties (Constant)
-        PrefGroup = 'IntanKilosortApp'
+        PrefGroup = 'EphysPreprocessingApp'
     end
 
     methods
         function obj = EphysPreprocessingApp()
-            % Construct, build the UI, restore preferences.
+            % Construct, build the UI, restore preferences and the last config.
             obj.buildUI();
             obj.loadPreferences();
             obj.refreshProbeList();
+            obj.updateTitle();
 
             if nargout == 0
                 clear obj
             end
         end
 
-        % --- declared in separate files in this @-folder ---
+        % --- UI construction ---
         buildUI(obj)
-        buildDatasetsTab(obj)
-        buildVisualizeTab(obj)
-        buildArtifactsTab(obj)
+        buildMenus(obj)
+        buildProjectTab(obj)
         buildProbeTab(obj)
-        buildKilosortTab(obj)
+        buildArtifactsTab(obj)
+        buildSortingTab(obj)
+        buildSignalsTab(obj)
+        buildSpikesTab(obj)
+        buildExportTab(obj)
+        buildRunTab(obj)
+        buildVisualizeTab(obj)
         buildReviewTab(obj)
-        buildConvertTab(obj)
 
+        % --- config model ---
+        cfg = gatherConfig(obj)
+        applyConfig(obj, cfg, opts)
+        onConfigChanged(obj)
+        updateTitle(obj)
+        syncStepEnableStates(obj)
+        P = gatherProjectSection(obj)
+        applyProjectSection(obj, P)
+        applySelectionToTable(obj, P)
+        S = gatherProbeSection(obj)
+        applyProbeSection(obj, S)
+        B = gatherBehaviorSection(obj)
+        applyBehaviorSection(obj, B)
+        A = gatherArtifactsSection(obj)
+        applyArtifactsSection(obj, A)
+        [S, errMsg] = gatherSortingSection(obj)
+        applySortingSection(obj, S)
+        cfg = gatherConvertConfig(obj)
+        applyConvertConfig(obj, cfg)
+        K = gatherSpikesSection(obj)
+        applySpikesSection(obj, K)
+        E = gatherExportSection(obj)
+        applyExportSection(obj, E)
+        onNewConfig(obj)
+        onOpenConfig(obj)
+        ok = openConfigFile(obj, file)
+        ok = onSaveConfig(obj)
+        ok = onSaveConfigAs(obj)
+        onExportConfigCopy(obj)
+        onGenerateScript(obj, kind)
+        ok = confirmDiscard(obj)
+        addRecentConfig(obj, file)
+        refreshRecentMenu(obj)
+        p = defaultConfigFolder(obj)
+
+        % --- running ---
+        pipe = buildPipeline(obj)
+        runPipeline(obj, opts)
+        onPipelineProgress(obj, evt)
+        onRunStep(obj, step)
+        onCancelRun(obj)
+        onValidate(obj)
+        showIssues(obj, issues)
+        onPlan(obj)
+        refreshStepPlan(obj, step)
+        runLog(obj, fmt, varargin)
+        setRunBar(obj, bar, frac)
+
+        % --- Project tab ---
         onScan(obj)
         refreshDatasetsTable(obj)
         onDatasetCellSelection(obj, evt)
         onRefreshMetadata(obj)
+        onSelectDatasets(obj, mode)
+        onBrowseRoot(obj)
+        onBrowseOutput(obj)
+        onBrowseBehaviorDir(obj)
+        onAssociateBehavior(obj)
+        onClearBehavior(obj)
+        d = currentDataset(obj)
+        updatePhyButtonState(obj)
+        idx = selectedDatasetIndices(obj)
+        applyConfigToProject(obj, P)
+        applyArtifactConfigToProject(obj)
 
+        % --- Artifacts tab ---
         onDetectArtifacts(obj)
+        populateArtifactDatasets(obj)
+        d = currentArtifactDataset(obj)
+        onArtifactControlsChanged(obj)
+        refreshManualArtifactsTable(obj)
+        onClearManualArtifacts(obj)
 
+        % --- Visualize tab ---
         onPlotVisualization(obj)
         onVizButtonDown(obj)
         onVizButtonUp(obj)
         drawVizArtifacts(obj)
         applyVizChannelOrder(obj)
         applyVizChannelColor(obj)
-
-        refreshProbeList(obj)
-        onProbeSelected(obj)
-        onImportProbe(obj)
-        onDesignProbe(obj)
-        result = runProbeTool(obj, varargin)
-        onAssignProbe(obj, scope)
-        onApplyExclude(obj, scope)
-
-        [extra, errMsg] = buildKS4Extra(obj)
-        [S, errMsg] = gatherSortingSection(obj)
-        applySortingSection(obj, S)
-        cfg = gatherKilosortConfig(obj)
-        applyKilosortConfig(obj, cfg)
-        onSaveConfig(obj)
-        onLoadConfig(obj)
-
-        onRunBatch(obj, mode)
-        onLaunchPhy(obj)
-        launchPhy(obj, resultsDir, label)
-        pollKSRuns(obj)
-
-        loadReviewResults(obj)
-        renderReviewPlots(obj)
-
-        onRunConvert(obj)
-        cfg = gatherConvertConfig(obj)
-        applyConvertConfig(obj, cfg)
-
-        loadPreferences(obj)
-        savePreferences(obj)
-
-        % --- handlers and helpers in their own files (moved out of the classdef) ---
-        startKSMonitor(obj)
-        stopKSMonitor(obj)
-        onBrowseRoot(obj)
-        onBrowseProbeFolder(obj)
-        onBrowsePython(obj)
-        onBrowseOutput(obj)
-        onBrowseReviewFolder(obj)
-        onOpenReviewFolder(obj)
-        onReviewOpenPhy(obj)
-        populateReviewDatasets(obj)
-        onReviewDatasetChanged(obj)
-        onReviewUnitSelected(obj, evt)
-        onReviewAllUnits(obj)
-        cfg = defaultConvertConfig(obj)
-        syncConvertEnableStates(obj)
-        onConvertControlsChanged(obj)
-        onResetConvertConfig(obj)
-        onBrowseConvertOutput(obj)
-        onCancelConvert(obj)
-        T = convertTargets(obj, cfg)
-        refreshConvertTargets(obj)
-        setConvertBar(obj, bar, frac)
-        convLog(obj, fmt, varargin)
-        onClose(obj)
-        setStatus(obj, message, hint)
-        hint = suggestNextStep(obj)
-        onTabChanged(obj)
-        log(obj, fmt, varargin)
-        appendLogLines(obj, lines)
-        pf = selectedProbeFile(obj)
-        onProbeRowSelected(obj, evt)
-        onEditProbeJSON(obj)
-        syncExcludeField(obj)
-        selectProbeRow(obj, row)
-        onProbeNotesEdited(obj, evt)
-        saveProbeNotes(obj, pf, notes)
-        p = defaultProbeFolder(obj)
-        p = defaultConfigFolder(obj)
-        d = currentDataset(obj)
-        updatePhyButtonState(obj)
-        applyConfigToProject(obj, P)
-        cfg = gatherSIConfig(obj)
-        applySIConfig(obj, cfg)
-        setDropIfMember(obj, dd, value)
-        syncSIEnableStates(obj)
-        onSIControlsChanged(obj)
-        p = defaultPythonExe(obj)
-        populateDatasetMenu(obj)
-        selectDataset(obj, idx)
-        updateDatasetMenuCheck(obj)
         onVizModeChanged(obj)
         onVizColormapChanged(obj)
         tf = vizActive(obj)
@@ -426,19 +487,78 @@ classdef EphysPreprocessingApp < handle
         finishVizArtDrag(obj)
         updateVizArtStatus(obj)
         populateVizFiles(obj)
-        populateArtifactDatasets(obj)
-        d = currentArtifactDataset(obj)
-        cfg = artifactConfigFromControls(obj)
-        applyArtifactConfigToProject(obj)
-        onArtifactControlsChanged(obj)
-        idx = selectedDatasetIndices(obj)
+        populateDatasetMenu(obj)
+        selectDataset(obj, idx)
+        updateDatasetMenuCheck(obj)
 
-        %% --- small inline handlers --------------------------------------
-        %% --- Review tab handlers -----------------------------------------
-        %% --- Convert tab (EphysDataset.toMat / deriveSignals) ------------
-        %% --- Global status bar -------------------------------------------
-        %% --- Probe tab handlers ------------------------------------------
-        %% --- Manual artifact marking (Visualize tab) ---------------------
-        %% --- Artifacts tab -----------------------------------------------
+        % --- Probe tab ---
+        refreshProbeList(obj)
+        onProbeSelected(obj)
+        onImportProbe(obj)
+        onDesignProbe(obj)
+        result = runProbeTool(obj, varargin)
+        onAssignProbe(obj, scope)
+        onApplyExclude(obj, scope)
+        onBrowseProbeFolder(obj)
+        pf = selectedProbeFile(obj)
+        onProbeRowSelected(obj, evt)
+        onEditProbeJSON(obj)
+        syncExcludeField(obj)
+        selectProbeRow(obj, row)
+        onProbeNotesEdited(obj, evt)
+        saveProbeNotes(obj, pf, notes)
+        p = defaultProbeFolder(obj)
+        onUseSelectedProbeAsDefault(obj)
+
+        % --- Sorting tab ---
+        onBrowsePython(obj)
+        cfg = gatherSIConfig(obj)
+        applySIConfig(obj, cfg)
+        setDropIfMember(obj, dd, value)
+        syncSIEnableStates(obj)
+        onSIControlsChanged(obj)
+        p = defaultPythonExe(obj)
+        onUseSortingFolder(obj)
+        onUseAutoSorting(obj)
+        refreshSortingLabel(obj)
+        onLaunchPhy(obj)
+        launchPhy(obj, resultsDir, label)
+        startKSMonitor(obj)
+        stopKSMonitor(obj)
+        pollKSRuns(obj)
+        log(obj, fmt, varargin)
+        appendLogLines(obj, lines)
+
+        % --- Signals tab ---
+        syncConvertEnableStates(obj)
+        onConvertControlsChanged(obj)
+        onResetConvertConfig(obj)
+        onBrowseConvertOutput(obj)
+
+        % --- Spikes / Export tabs ---
+        syncSpikesEnableStates(obj)
+        onSpikesControlsChanged(obj)
+        onSpikesPreview(obj)
+        onBrowseSpikesOutput(obj)
+        onBrowseExportOutput(obj)
+
+        % --- Review tab ---
+        loadReviewResults(obj)
+        renderReviewPlots(obj)
+        onBrowseReviewFolder(obj)
+        onOpenReviewFolder(obj)
+        onReviewOpenPhy(obj)
+        populateReviewDatasets(obj)
+        onReviewDatasetChanged(obj)
+        onReviewUnitSelected(obj, evt)
+        onReviewAllUnits(obj)
+
+        % --- app-wide ---
+        loadPreferences(obj)
+        savePreferences(obj)
+        onClose(obj)
+        setStatus(obj, message, hint)
+        hint = suggestNextStep(obj)
+        onTabChanged(obj)
     end
 end

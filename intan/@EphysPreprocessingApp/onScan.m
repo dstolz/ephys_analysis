@@ -19,8 +19,9 @@ try
     % Discovery is cheap (AutoMetadata=false per folder inside discover()).
     P = EphysProject(root);
 
-    % Push shared config (probe/python/etc) from current UI before metadata.
-    obj.applyConfigToProject(P);
+    % Push the config's shared settings (python / output root / SI / artifacts).
+    obj.Config = obj.gatherConfig();
+    EphysPipeline.applyConfigToDatasets(obj.Config, P);
 
     if P.NumDatasets == 0
         close(dlg);
@@ -46,9 +47,13 @@ try
 
     obj.Project = P;
     obj.refreshDatasetsTable();
+    obj.applySelectionToTable(obj.Config.Project);
     obj.populateDatasetMenu();
     obj.populateArtifactDatasets();
-    obj.applyArtifactConfigToProject();   % seed every dataset with the tab's config
+    obj.populateReviewDatasets();
+    obj.syncStepEnableStates();
+    obj.refreshSortingLabel();
+    obj.refreshManualArtifactsTable();
     obj.ScanStatusLabel.Text = sprintf("Found %d dataset(s) under %s", n, root);
     obj.setStatus(sprintf("Scanned %s: found %d dataset(s).", root, n));
 catch ME

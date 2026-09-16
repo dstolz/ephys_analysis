@@ -1,25 +1,20 @@
 function loadPreferences(obj)
-%loadPreferences  Restore paths, Kilosort config, and figure geometry.
-%   Uses getpref under the 'IntanKilosortApp' group (see PrefGroup; kept at
-%   the old name for preference continuity) so choices persist between
-%   sessions. Anything missing is left at its built-in default.
+%loadPreferences  Restore app preferences and open the last config.
+%   Preferences (group EphysPreprocessingApp) hold only what is not part of
+%   a pipeline config: figure geometry, the probe folder, the phy command,
+%   the Review folder, the last / recent config files, the script folder
+%   and the Visualize display options. Everything else lives in the config;
+%   the last config file is reopened at launch (defaults otherwise).
 
 g = obj.PrefGroup;
 
-% --- figure position & size ---
 if ispref(g, 'FigurePosition')
     pos = getpref(g, 'FigurePosition');
     if isnumeric(pos) && numel(pos) == 4 && all(pos(3:4) > 100)
-        pos = clampToScreen(pos);
-        obj.Fig.Position = pos;
+        obj.Fig.Position = clampToScreen(pos);
     end
 end
 
-% --- paths ---
-if ispref(g, 'RootPath')
-    p = getpref(g, 'RootPath');
-    if isfolder(p); obj.RootPathField.Value = p; end
-end
 if ispref(g, 'ProbeFolder')
     p = getpref(g, 'ProbeFolder');
     if isfolder(p); obj.ProbeFolderField.Value = p; end
@@ -34,75 +29,55 @@ if ispref(g, 'ReviewFolder')
     p = getpref(g, 'ReviewFolder');
     if isfolder(p); obj.ReviewFolderField.Value = p; end
 end
-
-% --- visualize options ---
-applyPref(g, 'VizChannels',  @(v) set(obj.VizChannelsField, 'Value', v));
-applyPref(g, 'VizDuration',  @(v) set(obj.VizDurField, 'Value', v));
-applyPref(g, 'VizHighpass',  @(v) set(obj.VizHighpassField, 'Value', v));
-applyPref(g, 'VizLowpass',   @(v) set(obj.VizLowpassField, 'Value', v));
-applyPref(g, 'VizOrder',     @(v) set(obj.VizOrderField, 'Value', v));
-applyPref(g, 'VizReference', @(v) set(obj.VizRefDropDown, 'Value', char(v)));
-% Backward-compat: old VizCAR boolean mapped to median subtraction.
-if ~ispref(g, 'VizReference') && ispref(g, 'VizCAR')
-    if logical(getpref(g, 'VizCAR')); obj.VizRefDropDown.Value = 'cmr'; end
+if ispref(g, 'ScriptFolder')
+    obj.ScriptFolder = string(getpref(g, 'ScriptFolder'));
 end
-applyPref(g, 'VizDetrend',   @(v) set(obj.VizDetrendCheckBox, 'Value', logical(v)));
-applyPref(g, 'VizSpacing',   @(v) set(obj.VizSpacingField, 'Value', v));
+if ispref(g, 'RecentConfigs')
+    r = getpref(g, 'RecentConfigs');
+    obj.RecentConfigs = reshape(string(r), 1, []);
+end
+obj.refreshRecentMenu();
 
-% --- artifact detection options ---
-applyPref(g, 'ArtMethod',       @(v) set(obj.ArtMethodDropDown, 'Value', char(v)));
-applyPref(g, 'ArtThreshold',    @(v) set(obj.ArtThresholdField, 'Value', v));
-applyPref(g, 'ArtRmsWindowMs',  @(v) set(obj.ArtRmsWindowField, 'Value', v));
-applyPref(g, 'ArtMergeGapMs',   @(v) set(obj.ArtMergeGapField, 'Value', v));
-applyPref(g, 'ArtPadMs',        @(v) set(obj.ArtPadField, 'Value', v));
-applyPref(g, 'ArtMinChannels',  @(v) set(obj.ArtMinChannelsField, 'Value', v));
-applyPref(g, 'ArtFilter',      @(v) set(obj.ArtFilterCheckBox, 'Value', logical(v)));
-applyPref(g, 'ArtHighpass',    @(v) set(obj.ArtHighpassField, 'Value', v));
-applyPref(g, 'ArtEnable',      @(v) set(obj.ArtEnableCheckBox, 'Value', logical(v)));
-% Reflect restored values in the RMS/high-pass field enable state.
-obj.ArtRmsWindowField.Enable = matlab.lang.OnOffSwitchState( ...
-    string(obj.ArtMethodDropDown.Value) == "rms");
-obj.ArtHighpassField.Enable  = matlab.lang.OnOffSwitchState( ...
-    logical(obj.ArtFilterCheckBox.Value));
-
-% --- execution mode ---
-applyPref(g, 'ExecBlocking', @(v) set(obj.ExecModeDropDown, 'Value', logical(v)));
-
-% --- kilosort config ---
-if ispref(g, 'KilosortConfig')
-    cfg = getpref(g, 'KilosortConfig');
-    if isstruct(cfg)
-        obj.applyKilosortConfig(cfg);
+% --- Visualize display options (one struct) ---
+if ispref(g, 'VizOptions')
+    v = getpref(g, 'VizOptions');
+    if isstruct(v)
+        applyIf(v, 'channels',  @(x) set(obj.VizChannelsField, 'Value', char(x)));
+        applyIf(v, 'duration',  @(x) set(obj.VizDurField, 'Value', x));
+        applyIf(v, 'highpass',  @(x) set(obj.VizHighpassField, 'Value', char(x)));
+        applyIf(v, 'lowpass',   @(x) set(obj.VizLowpassField, 'Value', char(x)));
+        applyIf(v, 'order',     @(x) set(obj.VizOrderField, 'Value', x));
+        applyIf(v, 'reference', @(x) set(obj.VizRefDropDown, 'Value', char(x)));
+        applyIf(v, 'detrend',   @(x) set(obj.VizDetrendCheckBox, 'Value', logical(x)));
+        applyIf(v, 'spacing',   @(x) set(obj.VizSpacingField, 'Value', x));
     end
 end
 
-% --- Convert tab (EphysDataset.toMat) options ---
-if ispref(g, 'ConvertConfig')
-    cfg = getpref(g, 'ConvertConfig');
-    if isstruct(cfg)
-        obj.applyConvertConfig(cfg);
+% --- the config: last file, else defaults ---
+opened = false;
+if ispref(g, 'LastConfigFile')
+    f = string(getpref(g, 'LastConfigFile'));
+    if f ~= "" && isfile(f)
+        opened = obj.openConfigFile(f);
     end
 end
-
-% Seed the Python exe on first launch with the kilosort env python (the
-% SpikeInterface + Kilosort4 environment) when nothing was restored.
-if strlength(strtrim(string(obj.PythonExeField.Value))) == 0
-    dp = obj.defaultPythonExe();
-    if strlength(dp) > 0
-        obj.PythonExeField.Value = char(dp);
-    end
+if ~opened
+    cfg = EphysPipelineConfig();
+    cfg.Sorting.PythonExe = obj.defaultPythonExe();
+    obj.applyConfig(cfg, MarkSaved=true);
 end
 end
 
 
-function applyPref(g, key, setter)
-if ispref(g, key)
+function applyIf(s, field, setter)
+if isfield(s, field)
     try
-        setter(getpref(g, key));
+        setter(s.(field));
     catch
     end
 end
 end
+
 
 function pos = clampToScreen(pos)
 %clampToScreen  Keep the figure on-screen if the display layout changed.

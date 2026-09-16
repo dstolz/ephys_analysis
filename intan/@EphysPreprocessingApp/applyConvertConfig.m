@@ -1,23 +1,16 @@
 function applyConvertConfig(obj, cfg)
-%applyConvertConfig  Push a Convert config struct into the Convert-tab controls.
-%   Tolerates partial/stale structs (e.g. saved preferences from an older
-%   version): missing fields fall back to defaultConvertConfig and any value
-%   a control rejects is left at the control's current value.
+%applyConvertConfig  Push a config Signals section into the Signals tab.
+%   Missing fields take the section defaults; any value a control rejects is
+%   left at the control's current value.
 %
-%   See also gatherConvertConfig, defaultConvertConfig.
+%   See also gatherConvertConfig, EphysPipelineConfig.defaults.
 
 if isempty(obj.ConvLFPCheckBox) || ~isvalid(obj.ConvLFPCheckBox); return; end
 
-def = obj.defaultConvertConfig();
-if isstruct(cfg) && isscalar(cfg)
-    fn = fieldnames(def);
-    for k = 1:numel(fn)
-        if isfield(cfg, fn{k})
-            def.(fn{k}) = cfg.(fn{k});
-        end
-    end
-end
-cfg = def;
+cfg = EphysPipelineConfig.normalizeSection("Signals", cfg);
+trySet(obj.SigEnableCheckBox, 'Value', logical(cfg.Enabled));
+setDrop(obj.ConvExcludeHandlingDropDown, cfg.ExcludeHandling);
+trySet(obj.ConvIncludeBehaviorCheckBox, 'Value', logical(cfg.IncludeBehavior));
 
 trySet(obj.ConvOutputDirField,     'Value', char(string(cfg.OutputDir)));
 trySet(obj.ConvSuffixField,        'Value', char(string(cfg.Suffix)));

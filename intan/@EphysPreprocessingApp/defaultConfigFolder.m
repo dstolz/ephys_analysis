@@ -1,5 +1,5 @@
 function p = defaultConfigFolder(~)
-    % Repository config folder: intan/ks4_configs.
-    here = fileparts(mfilename('fullpath'));
-    p = fullfile(fileparts(here), 'ks4_configs');
+%defaultConfigFolder  Repository folder for pipeline configs: intan/pipeline_configs.
+here = fileparts(mfilename('fullpath'));
+p = fullfile(fileparts(here), 'pipeline_configs');
 end

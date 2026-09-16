@@ -6,5 +6,5 @@ function onBrowseRoot(obj)
     figure(obj.Fig);  % restore focus after modal dialog
     if isequal(d, 0); return; end
     obj.RootPathField.Value = d;
-    obj.savePreferences();
+    obj.onConfigChanged();
 end

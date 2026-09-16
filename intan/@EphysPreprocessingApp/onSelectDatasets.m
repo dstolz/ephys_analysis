@@ -1,0 +1,16 @@
+function onSelectDatasets(obj, mode)
+%onSelectDatasets  Tick all / no dataset rows (none = run everything).
+arguments
+    obj (1,1) EphysPreprocessingApp
+    mode (1,1) string {mustBeMember(mode, ["all", "none", "invert"])}
+end
+T = obj.DatasetsTable.Data;
+if ~istable(T) || ~any(strcmp('Select', T.Properties.VariableNames)); return; end
+switch mode
+    case "all";    T.Select(:) = true;
+    case "none";   T.Select(:) = false;
+    case "invert"; T.Select = ~T.Select;
+end
+obj.DatasetsTable.Data = T;
+obj.onConfigChanged();
+end

@@ -6,5 +6,5 @@ function onBrowseOutput(obj)
     figure(obj.Fig);
     if isequal(d, 0); return; end
     obj.OutputRootField.Value = d;
-    obj.savePreferences();
+    obj.onConfigChanged();
 end

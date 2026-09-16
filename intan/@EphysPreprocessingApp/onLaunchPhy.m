@@ -4,7 +4,7 @@ function onLaunchPhy(obj)
 %   the Datasets tab and hands it to launchPhy, which checks for params.py and
 %   launches phy detached so the app stays responsive.
 %
-%   See also EphysPreprocessingApp.launchPhy, EphysPreprocessingApp.onRunBatch,
+%   See also EphysPreprocessingApp.launchPhy, EphysPreprocessingApp.onRunStep,
 %   EphysDataset.runKilosort.
 
 d = obj.currentDataset();

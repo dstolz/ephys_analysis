@@ -4,5 +4,5 @@ function onBrowsePython(obj)
     figure(obj.Fig);
     if isequal(f, 0); return; end
     obj.PythonExeField.Value = fullfile(p, f);
-    obj.savePreferences();
+    obj.onConfigChanged();
 end

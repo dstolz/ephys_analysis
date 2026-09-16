@@ -23,4 +23,6 @@ obj.onProbeSelected();
 
 % Enable/disable "Open in phy" for the newly selected dataset.
 obj.updatePhyButtonState();
+obj.refreshSortingLabel();
+obj.refreshManualArtifactsTable();
 end

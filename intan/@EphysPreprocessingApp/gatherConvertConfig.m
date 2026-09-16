@@ -1,14 +1,17 @@
 function cfg = gatherConvertConfig(obj)
-%gatherConvertConfig  Snapshot the Convert-tab controls as a config struct.
-%   Fields match defaultConvertConfig. Channel lists are kept as the typed
-%   text; onRunConvert parses them (order-preserving) when a run starts.
+%gatherConvertConfig  The Signals tab as the config's Signals section.
+%   Channel lists are kept as typed text; EphysPipelineConfig.signalOptions
+%   parses them (order-preserving) when a run starts.
 %
-%   See also applyConvertConfig, defaultConvertConfig, onRunConvert.
+%   See also applyConvertConfig, EphysPipelineConfig.signalOptions.
 
-cfg = obj.defaultConvertConfig();
+cfg = obj.Config.Signals;
 if isempty(obj.ConvLFPCheckBox) || ~isvalid(obj.ConvLFPCheckBox)
-    return   % controls not built yet; return defaults
+    return   % controls not built yet
 end
+cfg.Enabled = logical(obj.SigEnableCheckBox.Value);
+cfg.ExcludeHandling = string(obj.ConvExcludeHandlingDropDown.Value);
+cfg.IncludeBehavior = logical(obj.ConvIncludeBehaviorCheckBox.Value);
 
 cfg.OutputDir  = strtrim(string(obj.ConvOutputDirField.Value));
 cfg.Suffix     = string(obj.ConvSuffixField.Value);

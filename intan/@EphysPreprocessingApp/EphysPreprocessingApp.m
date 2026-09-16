@@ -342,6 +342,8 @@ classdef EphysPreprocessingApp < handle
         onApplyExclude(obj, scope)
 
         [extra, errMsg] = buildKS4Extra(obj)
+        [S, errMsg] = gatherSortingSection(obj)
+        applySortingSection(obj, S)
         cfg = gatherKilosortConfig(obj)
         applyKilosortConfig(obj, cfg)
         onSaveConfig(obj)

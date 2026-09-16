@@ -23,8 +23,11 @@ function onRunConvert(obj)
 %   toMat/deriveSignals ProgressFcn; Cancel stops at the next step boundary
 %   (between files / processing stages / before the save).
 %
+%   The option validation / mapping is EphysPipelineConfig.signalOptions, the
+%   same code the headless pipeline uses.
+%
 %   See also EphysDataset.toMat, EphysDataset.deriveSignals, buildConvertTab,
-%   gatherConvertConfig.
+%   gatherConvertConfig, EphysPipelineConfig.signalOptions.
 
 if obj.ConvRunning; return; end
 if isempty(obj.Project) || obj.Project.NumDatasets == 0
@@ -35,10 +38,9 @@ end
 cfg = obj.gatherConvertConfig();
 obj.savePreferences();
 
-% --- validate options before touching anything ---
+% --- validate options before touching anything (shared with the pipeline) ---
 try
-    sigOpts = signalOptions(cfg);
-    validateSuffix(cfg.Suffix);
+    sigOpts = EphysPipelineConfig.signalOptions(cfg);
 catch ME
     uialert(obj.Fig, ME.message, "Convert: invalid options");
     return
@@ -215,178 +217,6 @@ if ~isempty(obj.ConvCancelButton) && isvalid(obj.ConvCancelButton)
 end
 end
 
-
-%% ---- options ----------------------------------------------------------
-
-function s = signalOptions(cfg)
-%signalOptions  Convert a Convert config into EphysDataset.deriveSignals options.
-%   Returns the struct passed to toMat as SignalOptions. Only the options
-%   relevant to the ticked signals are set; everything else stays at
-%   deriveSignals' defaults. Errors with a readable message on invalid input.
-types = ["LFP" "MUA" "SPIKE"];
-sel = [cfg.LFP cfg.MUA cfg.SPIKE];
-if ~any(sel)
-    error('EphysPreprocessingApp:ConvertNoSignals', ...
-        'Tick at least one signal to compute (LFP, MUA or SPIKE).');
-end
-s = struct();
-s.dataTypeOut = types(sel);
-s.labelField  = string(cfg.LabelField);
-
-keep = parseOrderedList(cfg.KeepChannels, "Keep amp channels");
-if ~isempty(keep)
-    s.keepAmpChannels = keep;
-end
-
-switch string(cfg.BadMode)
-    case "manual"
-        bad = parseOrderedList(cfg.BadList, "Bad channel list");
-        if isempty(bad)
-            error('EphysPreprocessingApp:ConvertBadList', ...
-                'Bad channels is set to "Manual list" but the list is empty.');
-        end
-        s.badChannels = bad;
-    case "auto"
-        if ~cfg.LFP
-            error('EphysPreprocessingApp:ConvertAutoBadNeedsLFP', ...
-                'Automatic bad-channel detection is computed from the LFP; tick LFP.');
-        end
-        if ~(cfg.BadThreshold > 0)
-            error('EphysPreprocessingApp:ConvertBadThreshold', ...
-                'The |z(RMS)| threshold must be greater than 0.');
-        end
-        s.badChannels = -abs(cfg.BadThreshold);   % negative = auto
-end
-
-remap = parseOrderedList(cfg.ChannelRemap, "Channel remap");
-if ~isempty(remap)
-    s.channelRemap = remap;
-end
-
-if cfg.LFP
-    s.LFP_Fs = cfg.LFP_Fs;
-    nyq = cfg.LFP_Fs / 2;
-    % [0 Inf] = no band filter (deriveSignals' default); only set if ticked.
-    lohi = [0 Inf];
-    if cfg.LFP_HighpassOn; lohi(1) = cfg.LFP_HighpassHz; end
-    if cfg.LFP_LowpassOn;  lohi(2) = cfg.LFP_LowpassHz;  end
-    if cfg.LFP_HighpassOn || cfg.LFP_LowpassOn
-        checkBand(lohi, "LFP high-pass / low-pass");
-        if lohi(1) >= nyq || (isfinite(lohi(2)) && lohi(2) >= nyq)
-            error('EphysPreprocessingApp:ConvertLFPNyquist', ...
-                'LFP filter cut-offs must be below LFP_Fs / 2 (%g Hz).', nyq);
-        end
-        s.LFP_bpLoHi = lohi;
-    end
-    if cfg.LFP_NotchOn
-        f0 = parseFreqList(cfg.LFP_NotchHz, "LFP notch");
-        if isempty(f0)
-            error('EphysPreprocessingApp:ConvertLFPNotch', ...
-                'LFP notch is ticked but no frequency is given.');
-        end
-        bw = cfg.LFP_NotchBW;
-        bad = f0(f0 - bw/2 <= 0 | f0 + bw/2 >= nyq);
-        if ~isempty(bad)
-            error('EphysPreprocessingApp:ConvertLFPNotch', ...
-                ['LFP notch %s Hz with width %g Hz does not fit inside ' ...
-                 '(0, LFP_Fs / 2 = %g Hz).'], mat2str(bad), bw, nyq);
-        end
-        s.LFP_NotchHz = f0;
-        s.LFP_NotchBW = bw;
-    end
-end
-if cfg.MUA
-    checkBand(cfg.MUA_bpLoHi, "MUA bandpass");
-    s.MUA_Fs            = cfg.MUA_Fs;
-    s.MUA_IntegrationHz = cfg.MUA_IntegrationHz;
-    s.MUA_bpLoHi        = cfg.MUA_bpLoHi;
-end
-if cfg.SPIKE
-    checkBand(cfg.SPIKE_bpLoHi, "SPIKE bandpass");
-    if cfg.SPIKE_KeepOriginal
-        s.SPIKE_Fs = Inf;
-    else
-        s.SPIKE_Fs = cfg.SPIKE_Fs;
-    end
-    s.SPIKE_bpLoHi = cfg.SPIKE_bpLoHi;
-end
-end
-
-
-function checkBand(lohi, what)
-if ~(lohi(1) < lohi(2))
-    error('EphysPreprocessingApp:ConvertBand', ...
-        '%s: low edge (%g Hz) must be below the high edge (%g Hz).', what, lohi(1), lohi(2));
-end
-end
-
-
-function v = parseOrderedList(txt, what)
-%parseOrderedList  "1-4, 8, 12-10" -> [1 2 3 4 8 12 11 10].
-%   Order and repeats are preserved (unlike EphysDataset.parseChannelList,
-%   which sorts) because keepAmpChannels and channelRemap are order-sensitive.
-%   A descending range (12-10) counts down. Anything unparseable is an error,
-%   never silently dropped.
-v = double.empty(1, 0);
-t = strtrim(char(string(txt)));
-if isempty(t); return; end
-t = regexprep(t, '\s*([-:])\s*', '$1');   % "5 - 8" -> "5-8"
-toks = regexp(t, '[,;\s]+', 'split');
-toks = toks(~cellfun(@isempty, toks));
-for k = 1:numel(toks)
-    % Two explicit patterns: MATLAB's regexp does not return tokens captured
-    % inside a non-capturing (?:...) group, so an optional range suffix
-    % cannot be written as one pattern without silently losing its end.
-    mOne   = regexp(toks{k}, '^(\d+)$', 'tokens', 'once');
-    mRange = regexp(toks{k}, '^(\d+)[-:](\d+)$', 'tokens', 'once');
-    if ~isempty(mOne)
-        a = str2double(mOne{1});
-        b = a;
-    elseif ~isempty(mRange)
-        a = str2double(mRange{1});
-        b = str2double(mRange{2});
-    else
-        error('EphysPreprocessingApp:ConvertIndexList', ...
-            '%s: cannot parse "%s". Use 1-based integers and ranges, e.g. 1-16, 20, 32-17.', ...
-            what, toks{k});
-    end
-    if a < 1 || b < 1
-        error('EphysPreprocessingApp:ConvertIndexList', ...
-            '%s: channel indices are 1-based ("%s").', what, toks{k});
-    end
-    if b >= a
-        v = [v, a:b]; %#ok<AGROW>
-    else
-        v = [v, a:-1:b]; %#ok<AGROW>
-    end
-end
-end
-
-
-function v = parseFreqList(txt, what)
-%parseFreqList  "60, 120 180" -> [60 120 180]. Positive finite numbers only;
-%   anything unparseable is an error, never silently dropped.
-v = double.empty(1, 0);
-t = strtrim(char(string(txt)));
-if isempty(t); return; end
-toks = regexp(t, '[,;\s]+', 'split');
-toks = toks(~cellfun(@isempty, toks));
-v = str2double(toks);
-badTok = toks(~(isfinite(v) & v > 0));
-if ~isempty(badTok)
-    error('EphysPreprocessingApp:ConvertFreqList', ...
-        '%s: cannot parse "%s". Use positive frequencies in Hz, e.g. 60, 120, 180.', ...
-        what, strjoin(badTok, '", "'));
-end
-end
-
-
-function validateSuffix(sfx)
-if ~isempty(regexp(char(sfx), '[\\/:*?"<>|]', 'once'))
-    error('EphysPreprocessingApp:ConvertBadSuffix', ...
-        'File suffix contains characters not allowed in file names: \\ / : * ? " < > |');
-end
-end
 
 
 function s = formatOptions(opts)

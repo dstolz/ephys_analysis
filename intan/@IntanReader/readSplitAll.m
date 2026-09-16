@@ -70,11 +70,17 @@ nSamp = size(X, 1);
 boardADC = [];
 aux      = [];
 auxFs    = NaN;
+auxNames = string.empty(1, 0);
+auxNative = string.empty(1, 0);
 if opts.IncludeADC
     boardADC = readSplitADC(L, nSamp);
 end
 if opts.IncludeAux
-    [aux, auxFs] = readSplitAux(L);
+    [aux, auxFs] = readSplitAux(L, nSamp);
+    if ~isempty(aux)
+        auxNames  = L.auxCustom;
+        auxNative = L.auxNative;
+    end
 end
 
 % --- Assemble (identical fields/orientation to readData) ----------------------
@@ -104,6 +110,8 @@ data.digInNativeNames = digInNative;
 data.boardADC         = boardADC;
 data.aux              = aux;
 data.auxFs            = auxFs;
+data.auxNames         = auxNames;
+data.auxNativeNames   = auxNative;
 data.files            = obj.Files;
 data.fileSampleCounts = nSamp;
 data.units            = "microvolts";
@@ -187,8 +195,11 @@ end
 end
 
 
-function [aux, auxFs] = readSplitAux(L)
-%readSplitAux  Aux input (volts, Fs/4), one-file-per-signal only; [] otherwise.
+function [aux, auxFs] = readSplitAux(L, nAmpSamp)
+%readSplitAux  Aux input (volts), one-file-per-signal only; [] otherwise.
+%   The aux inputs are sampled at Fs/4. RHX writes auxiliary.dat at the full
+%   amplifier rate (each value held for 4 samples), older writers at Fs/4, so
+%   the rate is taken from the sample count relative to the amplifier's.
 aux   = [];
 auxFs = NaN;
 if L.format ~= "one-file-per-signal" || L.numAux <= 0
@@ -204,7 +215,11 @@ if fid < 0; return; end
 raw = fread(fid, [L.numAux, nAuxSamp], 'uint16=>double');
 fclose(fid);
 aux   = 37.4e-6 * raw.';      % [n x nAux], volts
-auxFs = L.Fs / 4;
+if nAmpSamp > 0 && abs(nAuxSamp - nAmpSamp) <= 4
+    auxFs = L.Fs;
+else
+    auxFs = L.Fs / 4;
+end
 end
 
 

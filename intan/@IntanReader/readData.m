@@ -33,7 +33,9 @@ function data = readData(obj, opts)
 %     channelNames / nativeNames / channelOrder
 %     events         struct, one field per dig-in line -> [k x 2] [t_on t_off] (s)
 %     digInNames / digInNativeNames   dig-in custom / native channel names
-%     boardADC / aux / auxFs   (or [] when not requested/present)
+%     boardADC / aux / auxFs   (or [] when not requested/present); aux is
+%                    [nAuxSamples x nAux] volts (Intan headstage accelerometer)
+%     auxNames / auxNativeNames   aux input names (empty when no aux)
 %     files          string array of files read (chronological)
 %     fileSampleCounts  per-file amplifier sample counts
 %     units          "microvolts"
@@ -97,6 +99,8 @@ digInNames   = string.empty(1,0);
 digInNative  = string.empty(1,0);
 Fs    = NaN;
 auxFs = NaN;
+auxNames  = string.empty(1,0);
+auxNative = string.empty(1,0);
 ndid  = 0;  % dig-in line count fixed from first file (intan2matlab policy)
 
 for i = 1:nFiles
@@ -149,6 +153,8 @@ for i = 1:nFiles
         end
         if opts.IncludeAux && isfield(S, 'aux_input_data') && ~isempty(S.aux_input_data)
             auxFs = S.frequency_parameters.aux_input_sample_rate;
+            auxNames  = string({S.aux_input_channels.custom_channel_name});
+            auxNative = string({S.aux_input_channels.native_channel_name});
         end
     end
 
@@ -213,6 +219,8 @@ data.digInNativeNames = digInNative;
 data.boardADC         = boardADC;
 data.aux              = aux;
 data.auxFs            = auxFs;
+data.auxNames         = auxNames;
+data.auxNativeNames   = auxNative;
 data.files            = fileList;
 data.fileSampleCounts = fileSampleCounts;
 data.units            = "microvolts";

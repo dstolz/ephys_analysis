@@ -1,6 +1,6 @@
 function writeRhdChannel(fid, nativeName, customName, nativeOrder, signalType)
 %writeRhdChannel  One channel record of an RHD2000 header (test fixture).
-%   signalType 0 = amplifier, 4 = board digital input.
+%   signalType 0 = amplifier, 1 = aux input, 4 = board digital input.
 writeQString(fid, nativeName);
 writeQString(fid, customName);
 fwrite(fid, nativeOrder, 'int16');   % native_order

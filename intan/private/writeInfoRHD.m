@@ -1,9 +1,12 @@
-function writeInfoRHD(ffn, numAmp, Fs)
+function writeInfoRHD(ffn, numAmp, Fs, numAux)
 %writeInfoRHD  Write a header-only v2.0 info.rhd (test fixture).
 %   writeInfoRHD(ffn, numAmp, Fs) writes the header of a split-format
 %   recording (no data blocks follow). Declares numAmp amplifier channels
 %   (native names A-000..A-00N, so amp-A-00x.dat filenames line up) plus one
-%   bit-0 dig-in line; no aux/adc.
+%   bit-0 dig-in line; no adc.
+%   writeInfoRHD(ffn, numAmp, Fs, numAux) also declares numAux aux input
+%   (accelerometer) channels, native A-AUX1.., custom accel1.. (default 0).
+if nargin < 4; numAux = 0; end
 %
 %   See also writeSyntheticRHD, writeDat.
 
@@ -30,10 +33,13 @@ fwrite(fid, 1, 'int16');                        % number_of_signal_groups
 writeQString(fid, 'PortA');                     % group name
 writeQString(fid, 'A');                         % group prefix
 fwrite(fid, 1, 'int16');                        % group enabled
-fwrite(fid, numAmp + 1, 'int16');               % group num channels
+fwrite(fid, numAmp + numAux + 1, 'int16');      % group num channels
 fwrite(fid, numAmp, 'int16');                   % group num amp channels
 for c = 1:numAmp
     writeRhdChannel(fid, sprintf('A-%03d', c-1), sprintf('amp%d', c-1), c-1, 0);
+end
+for c = 1:numAux
+    writeRhdChannel(fid, sprintf('A-AUX%d', c), sprintf('accel%d', c), numAmp + c - 1, 1);
 end
 writeRhdChannel(fid, 'DIN-00', 'din0', 0, 4);   % dig-in, native_order 0
 

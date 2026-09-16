@@ -256,6 +256,8 @@ classdef BinaryReader < EphysReader
             data.boardADC         = [];
             data.aux              = [];
             data.auxFs            = NaN;
+            data.auxNames         = string.empty(1,0);
+            data.auxNativeNames   = string.empty(1,0);
             data.files            = obj.Files;
             data.fileSampleCounts = nSamp;
             data.units            = "microvolts";

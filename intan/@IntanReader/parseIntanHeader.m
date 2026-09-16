@@ -16,6 +16,7 @@ function hdr = parseIntanHeader(ffn)
 %     sampleRate              amplifier sample rate (Hz)
 %     numAmplifierChannels    amplifier channel count
 %     numAuxInputChannels     aux input channel count
+%     auxNames / auxNativeNames  1xnAux aux input (accelerometer) names
 %     numBoardADCChannels     board ADC channel count
 %     numBoardDigInChannels   board digital-input channel count
 %     numBoardDigOutChannels  board digital-output channel count
@@ -115,6 +116,8 @@ dig_in_orders = [];   % native_order (bit position) of each enabled dig-in line
 
 num_amplifier_channels      = 0;
 num_aux_input_channels      = 0;
+aux_names                   = string.empty(1, 0);
+aux_native                  = string.empty(1, 0);
 num_supply_voltage_channels = 0;
 num_board_adc_channels      = 0;
 num_board_dig_in_channels   = 0;
@@ -153,6 +156,8 @@ for signal_group = 1:number_of_signal_groups
                         amplifier_native(end+1) = string(native_name); %#ok<AGROW>
                     case 1
                         num_aux_input_channels = num_aux_input_channels + 1;
+                        aux_names(end+1)  = string(custom_name); %#ok<AGROW>
+                        aux_native(end+1) = string(native_name); %#ok<AGROW>
                     case 2
                         num_supply_voltage_channels = num_supply_voltage_channels + 1;
                     case 3
@@ -213,6 +218,8 @@ hdr = struct( ...
     'numTempSensorChannels',    num_temp_sensor_channels, ...
     'channelNames',             amplifier_names, ...
     'nativeNames',              amplifier_native, ...
+    'auxNames',                 aux_names, ...
+    'auxNativeNames',           aux_native, ...
     'digInNames',               dig_in_names, ...
     'digInNativeNames',         dig_in_native, ...
     'digInNativeOrders',        dig_in_orders, ...

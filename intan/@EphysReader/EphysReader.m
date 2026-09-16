@@ -28,7 +28,9 @@ classdef (Abstract) EphysReader < handle
     %     events           struct, one field per digital-input line ->
     %                      [k x 2] [t_on t_off] seconds, t = row/Fs (1-based row)
     %     digInNames / digInNativeNames
-    %     boardADC / aux / auxFs    [] when not requested or not present
+    %     boardADC / aux / auxFs    [] when not requested or not present; aux
+    %                      is [nAuxSamples x nAux] volts at auxFs (accelerometer)
+    %     auxNames / auxNativeNames   aux channel names (empty without aux)
     %     files            files read (chronological)
     %     fileSampleCounts per-file amplifier sample counts
     %     units            "microvolts"

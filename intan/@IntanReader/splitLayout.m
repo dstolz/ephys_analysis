@@ -31,6 +31,7 @@ function L = splitLayout(obj)
 %     digInNames / digInNative / digInOrders  dig-in custom names, native names
 %                  and native_order bit positions
 %     numADC / numAux           board ADC / aux input channel counts
+%     auxCustom / auxNative     1xnAux aux input names
 %     ampFile      amplifier.dat path (one-file-per-signal) or ""
 %     ampFiles     1xnChan per-channel paths (one-file-per-channel) or empty
 %     timeFile     time.dat path
@@ -79,6 +80,8 @@ L.digInNative = hdr.digInNativeNames;
 L.digInOrders = hdr.digInNativeOrders;
 L.numADC      = hdr.numBoardADCChannels;
 L.numAux      = hdr.numAuxInputChannels;
+L.auxCustom   = hdr.auxNames;
+L.auxNative   = hdr.auxNativeNames;
 L.timeFile    = string(fullfile(folder, 'time.dat'));
 
 % Defaults (overwritten per format below)

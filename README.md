@@ -44,4 +44,8 @@ pipe = EphysPipeline(cfg);
 disp(pipe.plan());  pipe.run();
 ```
 
+No data yet? `makeSyntheticProject("D:\scratch\synthetic_ephys")` (or **File →
+Create synthetic test project...** in the GUI) writes synthetic recordings
+with Epsych2 sessions, sorted output and a ready config to run.
+
 Tests: `cd intan; run_all_tests`.

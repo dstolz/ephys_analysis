@@ -48,7 +48,7 @@ returns the defaults and is the single source of truth for field names.
 | --- | --- | --- |
 | `Project` | – | `Root`, `OutputRoot` (`""` = outputs next to each recording), `Selection` (`"all"` or `"list"`), `Datasets` (root-relative keys, see [Dataset keys](#dataset-keys)) |
 | `Probe` | `probe` (always runs) | `DefaultProbeFile` (assigned to datasets without a probe), `WriteDefaultToManifest` |
-| `Behavior` | `behavior` | `Enabled`, `SearchDirs`, `Match` (`"prefix"`, `"time"`, `"prefix-then-time"`), `MaxStartOffsetMin` (30), `Overwrite`, `WriteFile` (`true`: write `<Name>_behavior.mat` for every associated dataset), `PairTrials` (`true`), `TrialLine` (`"InTrial"`), `AlignToleranceS` (0.5) |
+| `Behavior` | `behavior` | `Enabled`, `SearchDirs`, `Match` (`"prefix"`, `"time"`, `"prefix-then-time"`), `MaxStartOffsetMin` (30), `Overwrite`, `WriteFile` (`true`: write `<Name>_behavior.mat` for every associated dataset), `PairTrials` (`true`), `TrialLine` (`"InTrial"`) |
 | `Artifacts` | `artifacts` | `Enabled` (automatic detection; manual periods always apply), `Method`, `Threshold`, `RmsWindowMs`, `MergeGapMs`, `MinChannels`, `PadMs`, `Filter`, `FilterType`, `FilterCutoff`, `FilterOrder`, `ApplyToSorting`, `ApplyToSpikes`, `CacheIntervals` |
 | `Sorting` | `sorting` | `Enabled`, `PythonExe`, `CondaEnv`, `Execution` (`"background"` or `"blocking"`), `DryRun`, `SkipExisting`, `SI` (the [SpikeInterface settings](EphysDataset.md#default-spikeinterface-configuration)), `KS4` (one typed field per `kilosortParamSpec` entry), `KS4ExtraJSON` |
 | `Signals` | `signals` | `Enabled`, `OutputDir`, `Suffix` (`"_extract"`), `SeparateFiles` (`true`: `<Name><Suffix>_<TYPE>.mat` per signal type), `MatVersion`, `Overwrite`, `LFP` / `MUA` / `SPIKE`, `LFP_Fs`, `LFP_HighpassOn/Hz`, `LFP_LowpassOn/Hz`, `LFP_NotchOn/Hz/BW`, `MUA_Fs`, `MUA_IntegrationHz`, `MUA_bpLoHi`, `SPIKE_KeepOriginal`, `SPIKE_Fs`, `SPIKE_bpLoHi`, `LabelField`, `InvertedLines` (digital lines with inverted polarity: onset = falling edge; see [polarity](#digital-line-polarity)), `KeepChannels`, `BadMode`, `BadThreshold`, `BadList`, `ChannelRemap`, `ExcludeHandling` (`"none"`, `"drop"`, `"interpolate"`: what to do with the manifest's excluded channels) |
@@ -92,6 +92,7 @@ sorting run cannot feed the sorted-unit consumers (`Spikes.Source` `"sorted"` /
 | `signalOptions(S, ExcludeChannels=, NumChannels=)` | `deriveSignals` options for a `Signals` section, with the exclude handling applied (error IDs `EphysPipelineConfig:Signals*`) |
 | `exportOptions(E)` | name-value options shared by `exportChronux` / `exportFieldTrip` |
 | `ks4Settings(S)` | the Kilosort4 settings struct (blank / `Inf` fields omitted, `KS4ExtraJSON` merged last) |
+| `[S, report] = ks4ForProbe(S, probe, ExcludeChannels=)` | `S` with the probe-dependent Kilosort4 parameters tuned to a probe `.json` file or struct ([rules](EphysPreprocessingApp.md#optimize-for-probe)). `report`: `Probe`, `Geometry` (sites, shanks, row / lateral / nearest-contact spacing, width, span), `Changes` (a table with one row per parameter: old, new, changed, reason) and `Notes`. Errors `EphysPipelineConfig:BadProbe`, `:ProbeEmpty` |
 | `ks4ParamText`, `ks4ParamFromText`, `kilosortParamSpec` | the typed Kilosort4 parameter spec and its text form (used by the GUI) |
 | `validateSuffix(s)` | rejects `\ / : * ? " < > \|` |
 | `datasetKey(root, folder)` | root-relative key with forward slashes |
@@ -265,20 +266,30 @@ ignored. The events cache (`<Name>_events.mat`) keeps the raw high runs.
 
 ### Pairing trials with the trial line
 
-Epsych2 holds a digital line high for the duration of every trial
-(`InTrial` by default; its Intan dig-in name matches the Epsych2 parameter).
+Epsych2 holds a digital line on for the duration of every trial (`InTrial`
+by default; its Intan dig-in name matches the Epsych2 parameter).
 `P = pairEpsychTrials(trials, events, Fs, Name=Value)` pairs each trial with
 one interval of that line. It depends on nothing but the trials table and the
 universal events struct:
 
-- **Alignment.** Epsych2 stamps `computerTimestamp` when a trial ends, so the
-  timestamps are aligned with the interval offsets. The clock offset is the most
-  common timestamp - offset difference. Trials and intervals are then paired in
-  order by dynamic programming: a pair costs `|residual| / ToleranceS`, capped
-  so a trial stamped seconds late still pairs, and an unpaired trial or interval
-  costs a fixed gap. A phantom or missing TTL, or a session that stopped early,
-  is therefore skipped instead of shifting every later trial. Without timestamps
-  trials pair in order; `Assignment=` uses a given interval per trial.
+- **Pairing.** The Epsych2 timestamps are not used. The first trial pairs
+  with the first interval, the second with the second, and so on: every
+  interval is taken to be one trial. When the numbers differ, the first
+  `min(nTrials, nIntervals)` still pair in order and the result carries a
+  warning (`countMismatch`, `warnings`, and a
+  `pairEpsychTrials:CountMismatch` warning unless `Warn=false`). That happens
+  when the recording was started after the session began or stopped before
+  it ended, or when the line carries intervals that are not trials.
+  `CutTrials=[start end]` and `CutIntervals=[start end]` drop trials or
+  intervals from either end before pairing; that is how a mismatch is
+  resolved, and the only adjustment there is.
+- **Intervals at the recording edges.** An interval that begins at the first
+  sample or ends at the last sample (`NumSamples`) is partial: the line was
+  already on when the recording started (during a trial, or before Epsych2
+  had set the line to its idle level, which for an inverted line is high) or
+  still on when it stopped. They are listed in `partialIntervals`, their
+  trials are flagged `partial`, and the mismatch warning names them, since
+  they are usually what has to be cut.
 - **Polarity.** `InvertedLines` names lines with inverted polarity
   (`Signals.InvertedLines` in the config, see
   [digital-line polarity](#digital-line-polarity)); pass events that already
@@ -286,7 +297,8 @@ universal events struct:
 - **Output.** `interval`, `onset` / `offset` (s, `t = row/Fs`), `onsetSample` /
   `offsetSample` (1-based rows at `Fs`), `signalSamples.<SIG>`
   (`round(t * SignalFs.<SIG>)`, the `ChronuxDataset.trials` onset rule),
-  `residual`, `flag` (`ok`, `timestamp off`, `unpaired`), `unpairedTrials`,
+  `flag` (`ok`, `partial`, `cut`, `unpaired`), `intervals` and `events`
+  (polarity applied), `partialIntervals`, `unpairedTrials`,
   `unpairedIntervals`, `lines.<line>` (per trial, the intervals of every other
   line that overlap it) and `columns`, the table appended to `behavior.trials`.
 
@@ -295,17 +307,17 @@ The events are cached as `<outputFolder>/<Name>_events.mat`, because reading
 them can mean reading the recording. The settings come from `ds.TrialConfig`
 (`EphysPipelineConfig.trialConfig(cfg)`: the Behavior settings plus
 `Signals.LabelField`, `Signals.InvertedLines` and the rates of the enabled
-LFP / MUA / resampled SPIKE signals). A pairing is reviewed,
-not trusted: `ds.setTrialPairing(P, "approved")` stores the assignment in the
-manifest (`behavior.pairing`). Later `pairTrials` calls reuse it while its
+LFP / MUA / resampled SPIKE signals). A pairing is reviewed, not trusted:
+`ds.setTrialPairing(P, "approved")` stores its cuts in the manifest
+(`behavior.pairing`). Later `pairTrials` calls reuse them while the
 fingerprint still matches (the session stem, trial count, trial line, polarity
-and the line's intervals), and report `stale = true` otherwise. The app's
-**Trials** tab does this interactively. `ds.behaviorToMat(Pairing=P)` writes
-the columns and a `pairing` summary into the behavior file.
-
-On the real sessions this was built against, the timestamps agree with the
-interval offsets to ~0.05 s with no drift. About one trial in eight is stamped
-1-11 s late; those trials stay paired and are flagged `timestamp off`.
+and the line's intervals), and report `stale = true` (cuts dropped)
+otherwise; `Cuts="none"` ignores the record and
+`Cuts=struct('trials', [s e], 'intervals', [s e])` tries other cuts. The app's
+**Trials** tab does this interactively. In the behavior step a mismatch is a
+`count mismatch` result row and a `WARNING` log line.
+`ds.behaviorToMat(Pairing=P)` writes the columns and a `pairing` summary into
+the behavior file.
 
 ---
 
@@ -313,9 +325,9 @@ interval offsets to ~0.05 s with no drift. About one trial in eight is stamped
 
 | Suite | Checks |
 | --- | --- |
-| [`test_EphysPipelineConfig.m`](../intan/test_EphysPipelineConfig.m) | exact save / load round trip with `Inf`, `NaN`, `[]`, one-element lists and bands; normalization fills and drops; `BadSchema`; `ks4Settings`; every `signalOptions` error and each `ExcludeHandling` mode; `validate` on enabled steps only and the background-sorting rule |
+| [`test_EphysPipelineConfig.m`](../intan/test_EphysPipelineConfig.m) | exact save / load round trip with `Inf`, `NaN`, `[]`, one-element lists and bands; normalization fills and drops; `BadSchema`; `ks4Settings`; `ks4ForProbe` on synthetic layouts (staggered 4-shank, Neuropixels-like, dense multi-shank, sparse column, 2-D grid, exclusions, shanks without `kcoords`); every `signalOptions` error and each `ExcludeHandling` mode; `validate` on enabled steps only and the background-sorting rule |
 | [`test_EphysPipeline.m`](../intan/test_EphysPipeline.m) | selection by key with duplicate leaf names; `plan()` writes nothing and flags existing / duplicate outputs, missing probe, sorting output and extract file; sorting dry run writes a matching `si_config.json`; `runSignals` / `runSpikeDetection` / `runExport` outputs equal the direct calls; `checkBehavior` associates by prefix and writes the manifest; the artifact cache is reused and invalidated; cancel leaves no partial `.mat` |
-| [`test_TrialPairing.m`](../intan/test_TrialPairing.m) | `pairEpsychTrials`: equal counts, late timestamps, phantom / missing TTLs, early stop, no timestamps, manual assignment, active-low lines, nested lines, derived-signal samples; `digitalEvents` cache; `pairTrials` / `setTrialPairing` manifest round trip and staleness; `behaviorToMat(Pairing=)`; the behavior step records, reuses and reports pairings |
+| [`test_TrialPairing.m`](../intan/test_TrialPairing.m) | `pairEpsychTrials`: equal counts, a recording started late or stopped early (partial intervals at the edges, the count-mismatch warning, the cuts that resolve it), an inverted line idle at the recording start, cut validation, nested lines, derived-signal samples; `digitalEvents` cache; `pairTrials` / `setTrialPairing` manifest round trip with cuts and staleness; `behaviorToMat(Pairing=)`; the behavior step records, reuses and reports pairings, a count mismatch included |
 | [`test_EphysPipelineScript.m`](../intan/test_EphysPipelineScript.m) | both scripts are `checkcode`-clean, run, and produce identical outputs; the standalone text never mentions the pipeline classes; disabled steps are commented out in the compact script; `literal` round-trips |
 | [`test_EpsychSession.m`](../intan/test_EpsychSession.m) | synthetic `Data` / `Info` files; `NotEpsych`; matching by prefix, by time, and ambiguity |
 

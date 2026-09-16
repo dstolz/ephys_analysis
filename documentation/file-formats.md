@@ -125,9 +125,9 @@ Schema `intan-dataset-manifest/2` (`null` where a value is `NaN`):
   "behavior": { "file": <Epsych2 .mat or "">, "subject": <string>,
                 "start_time": <"yyyy-MM-dd HH:mm:ss" or "">, "n_trials": <n or null>,
                 "pairing": null | { "status": "unreviewed" | "approved",
-                  "assignment": [<interval index per trial, null = unpaired>],
-                  "fingerprint": <string>, "method": "timestamps" | "order" | "manual",
-                  "trial_line": <string>, "summary": <string>, "updated": <"yyyy-MM-dd HH:mm:ss"> } },
+                  "cut_trials": [<from start>, <from end>], "cut_intervals": [<from start>, <from end>],
+                  "fingerprint": <string>, "trial_line": <string>, "summary": <string>,
+                  "updated": <"yyyy-MM-dd HH:mm:ss"> } },
   "engine":   "spikeinterface",
   "preprocessing": { <the dataset's SIConfig fields> }
 }
@@ -165,7 +165,7 @@ which holds `H64LP_4x16.json` as a starting point.
   "Project":   { "Root", "OutputRoot", "Selection", "Datasets" },
   "Probe":     { "DefaultProbeFile", "WriteDefaultToManifest" },
   "Behavior":  { "Enabled", "SearchDirs", "Match", "MaxStartOffsetMin", "Overwrite", "WriteFile",
-                 "PairTrials", "TrialLine", "AlignToleranceS" },
+                 "PairTrials", "TrialLine" },
   "Artifacts": { "Enabled", "Method", "Threshold", ... , "ApplyToSorting", "ApplyToSpikes", "CacheIntervals" },
   "Sorting":   { "Enabled", "PythonExe", "CondaEnv", "Execution", "DryRun", "SkipExisting",
                  "SI": {...}, "KS4": {...}, "KS4ExtraJSON" },
@@ -372,19 +372,20 @@ When trials were paired (`Behavior.PairTrials`), `behavior.trials` also has:
 
 | Column | Contents |
 | --- | --- |
-| `TrialInterval` | index into the trial line's intervals (`NaN` = unpaired) |
+| `TrialInterval` | index into the trial line's intervals (`NaN` = cut or unpaired); trials pair in order after the cuts |
 | `TrialOnset`, `TrialOffset` | seconds on the recording clock, `t = row/Fs` |
 | `TrialOnsetSample`, `TrialOffsetSample` | 1-based rows at the recording rate (first / last on sample) |
 | `TrialOnsetSample_<SIG>`, `TrialOffsetSample_<SIG>` | `round(t * Fs_SIG)` for each enabled derived signal (LFP, MUA, resampled SPIKE); the rates are in `pairing.signalFs` |
-| `TimestampResidual` | s, `computerTimestamp - (TrialOffset + clockOffsetS)` |
-| `PairingFlag` | `"ok"`, `"timestamp off"` (residual beyond the tolerance), `"unpaired"` |
+| `PairingFlag` | `"ok"`, `"partial"` (the interval begins at the first or ends at the last sample of the recording), `"cut"` (dropped by the cuts), `"unpaired"` (no interval left for it) |
 | `TrialEvents` | struct per trial: one field per other digital line, `[n x 2]` seconds of its intervals that overlap the trial (polarity applied) |
 | `TrialEventSamples` | the same in rows at the recording rate |
 
-`behavior.pairing` holds `status` (`"approved"` only after review), `method`,
-`trialLine`, `invertedLines`, `Fs`, `signalFs`, `nTrials`, `nIntervals`,
-`nPaired`, `nTimestampOff`, `unpairedTrials`, `unpairedIntervals`,
-`clockOffsetS`, `fingerprint`, `summary` and `conventions`.
+`behavior.pairing` holds `status` (`"approved"` only after review),
+`trialLine`, `invertedLines`, `Fs`, `nSamples`, `signalFs`, `nTrials`,
+`nIntervals`, `nPaired`, `cutTrials` and `cutIntervals` (`[start end]`
+counts dropped before pairing), `countMismatch`, `warnings`,
+`partialIntervals`, `unpairedTrials`, `unpairedIntervals`, `fingerprint`,
+`summary` and `conventions`.
 | `conversion` | `tool`, `created`, `dataset`, `sourceFolder`, `behaviorFile` (the Epsych2 session) |
 
 ## Chronux export (`EphysDataset.exportChronux`; the Export step)

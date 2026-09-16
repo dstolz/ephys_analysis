@@ -253,6 +253,14 @@ temp folder (shared builders in [`intan/private`](../intan/private)), prints
 PASS / FAIL lines and errors when anything fails. No real recordings, no
 Python and no optional toolbox are needed.
 
+For trying the pipeline or the app by hand without real data,
+[`makeSyntheticProject`](../intan/makeSyntheticProject.m) (or the app's
+**File → Create synthetic test project...**) writes a realistic project:
+recordings with spiking units, LFP, artifacts, the lab's six digital lines
+and accelerometer inputs, an Epsych2 session per recording, ground-truth
+sorted output and a ready pipeline config. See
+[EphysPreprocessingApp → Synthetic test project](EphysPreprocessingApp.md#synthetic-test-project).
+
 ```matlab
 cd C:\src\ephys_analysis\intan
 run_all_tests            % every test_*.m; errors if any fails
@@ -269,3 +277,4 @@ test_EphysPipeline       % one suite
 | `test_EpsychSession` | Epsych2 readers and matching |
 | `test_EphysPipelineConfig`, `test_EphysPipeline`, `test_EphysPipelineScript` | config, runner, scripts |
 | `test_EphysPreprocessingApp` | the GUI's config model, headless |
+| `test_SyntheticDataset` | `makeSyntheticProject` / `makeSyntheticRecording`: the written lines, sessions, spikes, aux and artifacts read back; pairing per scenario; the other layouts; the config through the pipeline; the app's File-menu action |

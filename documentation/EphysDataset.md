@@ -188,8 +188,8 @@ The constructor errors (`EphysDataset:NoFolder`) if the folder does not exist.
 | `SIConfig` | `defaultSIConfig()` | SpikeInterface preprocessing settings for `runSpikeInterface` |
 | `SortingDir` | `""` | an explicit sorted-output folder (the one holding `params.py`). `""` = auto-discover under `kilosortDir()`; see [Sorted output](#sorted-output) |
 | `BehaviorFile` | `""` | the associated Epsych2 session `.mat`; see [Behavior](#behavior-epsych2) |
-| `TrialConfig` | `defaultTrialConfig()` | trial pairing: `TrialLine` (`"InTrial"`), `InvertedLines` (see [polarity](EphysPipeline.md#digital-line-polarity)), `ToleranceS` (0.5), `SignalFs` (struct of derived-signal rates), `LabelField` |
-| `TrialPairing` | `struct([])` | the recorded pairing (manifest `behavior.pairing`): `status` (`"unreviewed"` / `"approved"`), `assignment`, `fingerprint`, `method`, `trial_line`, `summary`, `updated` |
+| `TrialConfig` | `defaultTrialConfig()` | trial pairing: `TrialLine` (`"InTrial"`), `InvertedLines` (see [polarity](EphysPipeline.md#digital-line-polarity)), `SignalFs` (struct of derived-signal rates), `LabelField` |
+| `TrialPairing` | `struct([])` | the recorded pairing (manifest `behavior.pairing`): `status` (`"unreviewed"` / `"approved"`), `cut_trials` and `cut_intervals` (`[start end]` counts dropped before the in-order pairing), `fingerprint`, `trial_line`, `summary`, `updated` |
 
 ### Dependent
 
@@ -912,12 +912,12 @@ and nothing analysis-related is run.
   through `EphysReader.readDigitalEvents`, cached as
   `<outputFolder>/<Name>_events.mat` (keyed by the files, sample count and
   label field).
-- `P = pairTrials(Assignment="recorded"|"auto"|<vector>, Events=, ProgressFcn=)`
-  pairs the session's trials with `TrialConfig.TrialLine`
+- `P = pairTrials(Cuts="recorded"|"none"|struct('trials', [s e], 'intervals', [s e]), Events=, Warn=, ProgressFcn=)`
+  pairs the session's trials, in order, with `TrialConfig.TrialLine`
   ([`pairEpsychTrials`](EphysPipeline.md#pairing-trials-with-the-trial-line)).
-  It reuses `TrialPairing` while the fingerprint still matches. It adds
-  `status`, `recorded`, `stale` and `fingerprint` to the result.
-- `setTrialPairing(P, "unreviewed"|"approved")` records the assignment in the
+  It reuses the cuts of `TrialPairing` while the fingerprint still matches.
+  It adds `status`, `recorded`, `stale` and `fingerprint` to the result.
+- `setTrialPairing(P, "unreviewed"|"approved")` records the cuts in the
   manifest; `setTrialPairing([])` clears it.
 
 ### Processed files (`DatasetOutputs`)

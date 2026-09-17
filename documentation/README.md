@@ -210,6 +210,7 @@ Collected from the code. Each is explained on the linked page.
 | Chronux trial onsets | a dig-in onset maps to sample `round(t·Fs)` of the signal being epoched, so at a derived rate it is accurate to ±1 sample; Chronux's own `createdatamatc` indexes one sample later | [ChronuxDataset](ChronuxDataset.md#trial-sample-alignment) |
 | Chronux point-process grid | left to itself `mtspectrumpt` normalizes by the span of the spikes, not the recording; pass the `t` the connector returns | [ChronuxDataset](ChronuxDataset.md#why-t-matters-for-point-processes) |
 | MATLAB version | the Visualize tab uses `xregion` (R2023a+); the code is developed on R2025a | [INSTALL.md](../intan/INSTALL.md) |
+| Parallel steps | the worker count is capped by free memory (4-5 on a 32 GB machine), not by the pool size; every worker reads the disk, so on a slow external disk a parallel step can be no faster than serial; the results are identical either way | [EphysPipeline → Parallel execution](EphysPipeline.md#parallel-execution) |
 
 ## Dependencies
 
@@ -220,7 +221,9 @@ Collected from the code. Each is explained on the linked page.
 - Image Processing Toolbox (optional; `bwlabel`, with a fallback).
 - Statistics and Machine Learning Toolbox (only for `zscore` in automatic
   derived-signal bad-channel detection).
-- Parallel Computing Toolbox (optional; `detectSpikes(UseParallel=true)`).
+- Parallel Computing Toolbox (optional; `Parallel.Enabled` in a pipeline
+  config, or `UseParallel=true` on `detectSpikes`, `artifactIntervals` and
+  `analyzeArtifacts`).
 
 **Functions from elsewhere in this repository**:
 

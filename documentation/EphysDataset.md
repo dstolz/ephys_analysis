@@ -384,7 +384,10 @@ channel. `Fill` is `"zero"` (default), `"hold"` (repeat the last clean sample;
 override), and accumulates statistics **without writing anything**. The GUI's
 Artifacts tab uses it for its preview. Options: `Files`, `ChannelOrder`, the
 detection parameters, `Filter` / `FilterType` / `FilterCutoff` / `FilterOrder`
-(detect on a filtered view; default from `ArtifactConfig`) and `ProgressFcn`. Output fields:
+(detect on a filtered view; default from `ArtifactConfig`), `MaxChunkSamples`,
+`UseParallel` / `MaxWorkers` (run the chunks on a process pool; identical
+result; the rules are those of [`detectSpikes`](#whole-recording-mode)) and
+`ProgressFcn`. Output fields:
 `method`, `threshold`, `rmsWindowMs`, `mergeGapMs`, `minChannels`, `padMs`,
 `fs`, `nSamples`, `durationSec`, `nChan`, `channelNames`, `channelCounts`,
 `channelPct`, `nBlanked`, `fraction`, `pctDuration`, `nIntervals` (summed per
@@ -405,7 +408,9 @@ periods (seconds) that `runSpikeInterface` passes to SpikeInterface
 Overlapping or touching periods are merged. Periods with `tEnd <= tStart` are
 **dropped**, which includes an automatic detection only one sample long. The
 filter fields of `ArtifactConfig` apply here too, so the preview
-(`analyzeArtifacts`) and a run detect on the same signal.
+(`analyzeArtifacts`) and a run detect on the same signal. `UseParallel`,
+`MaxWorkers` and `MaxChunkSamples` work as for `analyzeArtifacts`, and the
+intervals are the same in either mode.
 
 #### Manual periods
 
@@ -534,9 +539,10 @@ whole recording.
 | `Files` | all | subset/order of `*.rhd` files (traditional format only); timestamps stay relative to the first sample read |
 | `ChannelOrder` | all | 1-based reorder/subset of amplifier channels, applied to every chunk (as in `toBin`) |
 | `MaxChunkSamples` | `streamPlan` default | cap on samples per chunk for the split and binary formats |
-| `UseParallel` | `false` | detect chunks in parallel (Parallel Computing Toolbox) |
+| `UseParallel` | `false` | detect the chunks on a process pool (Parallel Computing Toolbox): the open one, else one sized to the worker cap. Identical result; falls back to serial with `EphysDataset:detectSpikes:SerialFallback` when the toolbox, the pool or a chunk's sample count is missing, when a thread pool is open, or when memory allows fewer than two workers |
+| `MaxWorkers` | `NaN` (automatic) | cap on chunks in flight at once; always limited by free memory (about six copies of one chunk per worker), so a 12-worker pool typically runs 4-5 chunks at a time |
 | `EdgePadMs` | `10` | context carried across chunk boundaries; always at least the waveform window, the alignment window and the minimum detection period |
-| `ProgressFcn` | none | `ProgressFcn(i, nChunks, chunkName)`, called before each chunk |
+| `ProgressFcn` | none | `ProgressFcn(i, nChunks, chunkName)`: before each chunk (serial), or on the client as each chunk finishes (parallel; `i` = chunks done). Throwing from it aborts the run and cancels the outstanding chunks |
 
 Passing any of these with a data block raises
 `EphysDataset:detectSpikes:BlockOption`. One chunk plus its padding is held at a
@@ -844,7 +850,7 @@ with spike events from up to two sources
 | Option | Default | Meaning |
 | --- | --- | --- |
 | `Source` | `"detect"` | `"detect"` (threshold detection over the whole recording, one entry per channel), `"sorted"` (the associated units via `readSortedUnits`) or `"both"` |
-| `DetectOptions` | `struct()` | `detectSpikes` options (`Filter`, `Band`, `ThresholdMethod`, `Threshold`, `Waveforms`, `WindowMs`, `MaxChunkSamples`, `UseParallel`, ...) |
+| `DetectOptions` | `struct()` | `detectSpikes` options (`Filter`, `Band`, `ThresholdMethod`, `Threshold`, `Waveforms`, `WindowMs`, `MaxChunkSamples`, `UseParallel`, `MaxWorkers`, ...) |
 | `Channels` | `[]` (all) | 1-based recording channels to detect on, in order |
 | `RejectArtifacts` | `true` | drop detected events inside the artifact periods (`ArtifactIntervals`, else `artifactIntervals()`) |
 | `ArtifactIntervals` | computed | `[k x 2]` seconds |
@@ -1000,12 +1006,12 @@ deletes them afterwards. It covers:
 | 8 | `runKilosort(DryRun=true)` |
 | 9 | `DatasetTracker` integration |
 | 10 | split layouts (metadata, `readData`, byte-correct `toBin`) |
-| 11 | `artifactIntervals` (manual merge + automatic streaming) |
+| 11 | `artifactIntervals` (manual merge + automatic streaming; parallel == serial, `MaxWorkers=1` fall-back) |
 | 12 | `runSpikeInterface(DryRun=true)` |
 | 13 | `detectSpikes` (injected troughs: alignment, thresholds, polarity, minimum period, waveforms, edges, guards) |
-| 14 | `detectSpikes` over a whole recording (streamed in 6 chunks: identical to the single-block result, boundary-straddling waveforms, `ChannelOrder`, `ProgressFcn`, guards, `UseParallel`) |
+| 14 | `detectSpikes` over a whole recording (streamed in 6 chunks: identical to the single-block result, boundary-straddling waveforms, `ChannelOrder`, `ProgressFcn`, guards, `UseParallel` / `MaxWorkers`, worker errors, cancel, parallel `artifactIntervals` / `analyzeArtifacts` over split chunks) |
 | 15 | `writeJsonFile` / `readJsonFile`, manifest v2 round trip (manual periods, sorting, behavior), v1 manifests, `sortingResultsDir` precedence, `EphysProject` keys and `refresh` |
-| 16 | the `ArtifactConfig` pre-detection filter (preview and `artifactIntervals` agree) |
+| 16 | the `ArtifactConfig` pre-detection filter (preview and `artifactIntervals` agree; single-chunk `UseParallel` is silent) |
 | 17 | `readPhyUnits` / `readSortedUnits` (times = samples/fs, phy labels beat Kilosort labels, groups, channel mapping, `FsFallback`) |
 | 18 | `spikesToMat` (detected + sorted, artifact rejection, waveforms, no behavior variable, no partial file left) |
 | 19 | the reader registry, `BinaryReader` (same microvolts through `readData`, `streamPlan` / `readChunkUV` and `readWindowUV`), discovery of both kinds, `siRecordingSpec` |

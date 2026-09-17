@@ -163,6 +163,7 @@ which holds `H64LP_4x16.json` as a starting point.
   "name":        <string>,
   "description": <string>,
   "Project":   { "Root", "OutputRoot", "Selection", "Datasets" },
+  "Parallel":  { "Enabled", "MaxWorkers" },
   "Probe":     { "DefaultProbeFile", "WriteDefaultToManifest" },
   "Behavior":  { "Enabled", "SearchDirs", "Match", "MaxStartOffsetMin", "Overwrite", "WriteFile",
                  "PairTrials", "TrialLine" },

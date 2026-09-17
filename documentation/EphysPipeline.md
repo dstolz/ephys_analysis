@@ -46,13 +46,14 @@ returns the defaults and is the single source of truth for field names.
 
 | Section | Step | Holds |
 | --- | --- | --- |
-| `Project` | – | `Root`, `OutputRoot` (`""` = outputs next to each recording), `Selection` (`"all"` or `"list"`), `Datasets` (root-relative keys, see [Dataset keys](#dataset-keys)) |
+| `Project` | – | `Root`, `OutputRoot` (`""` = outputs next to each recording), `Selection` (`"all"` or `"list"`), `Datasets` (root-relative keys, see [Dataset keys](#dataset-keys)), `NamePattern` (`"{SubjectID}_{Date:yyMMdd}_{Time:HHmmss}"`, see [Dataset name tokens](#dataset-name-tokens)), `TokenColumns` (list text, `"SubjectID"`: tokens shown as app table columns) |
+| `Parallel` | – | `Enabled` (run the chunks of the artifacts and spike-detection steps on a process pool), `MaxWorkers` (`NaN` = automatic; always capped by free memory); see [Parallel execution](#parallel-execution) |
 | `Probe` | `probe` (always runs) | `DefaultProbeFile` (assigned to datasets without a probe), `WriteDefaultToManifest` |
 | `Behavior` | `behavior` | `Enabled`, `SearchDirs`, `Match` (`"prefix"`, `"time"`, `"prefix-then-time"`), `MaxStartOffsetMin` (30), `Overwrite`, `WriteFile` (`true`: write `<Name>_behavior.mat` for every associated dataset), `PairTrials` (`true`), `TrialLine` (`"InTrial"`) |
 | `Artifacts` | `artifacts` | `Enabled` (automatic detection; manual periods always apply), `Method`, `Threshold`, `RmsWindowMs`, `MergeGapMs`, `MinChannels`, `PadMs`, `Filter`, `FilterType`, `FilterCutoff`, `FilterOrder`, `ApplyToSorting`, `ApplyToSpikes`, `CacheIntervals` |
 | `Sorting` | `sorting` | `Enabled`, `PythonExe`, `CondaEnv`, `Execution` (`"background"` or `"blocking"`), `DryRun`, `SkipExisting`, `SI` (the [SpikeInterface settings](EphysDataset.md#default-spikeinterface-configuration)), `KS4` (one typed field per `kilosortParamSpec` entry), `KS4ExtraJSON` |
 | `Signals` | `signals` | `Enabled`, `OutputDir`, `Suffix` (`"_extract"`), `SeparateFiles` (`true`: `<Name><Suffix>_<TYPE>.mat` per signal type), `MatVersion`, `Overwrite`, `LFP` / `MUA` / `SPIKE`, `LFP_Fs`, `LFP_HighpassOn/Hz`, `LFP_LowpassOn/Hz`, `LFP_NotchOn/Hz/BW`, `MUA_Fs`, `MUA_IntegrationHz`, `MUA_bpLoHi`, `SPIKE_KeepOriginal`, `SPIKE_Fs`, `SPIKE_bpLoHi`, `LabelField`, `InvertedLines` (digital lines with inverted polarity: onset = falling edge; see [polarity](#digital-line-polarity)), `KeepChannels`, `BadMode`, `BadThreshold`, `BadList`, `ChannelRemap`, `ExcludeHandling` (`"none"`, `"drop"`, `"interpolate"`: what to do with the manifest's excluded channels) |
-| `Spikes` | `spikes` | `Enabled`, `Source` (`"detect"`, `"sorted"`, `"both"`), the `detectSpikes` options (`Filter`, `Band`, `FilterOrder`, `Polarity`, `ThresholdMethod`, `Threshold` (`NaN` = the method's default), `Align`, `AlignWindowMs`, `MinPeriodMs`, `MaxAmplitudeUV`, `Waveforms`, `WindowMs`, `WaveformSource`, `EdgeHandling`, `MaxChunkSamples`, `EdgePadMs`, `UseParallel`), `Channels` (`"all"`, `"excludeManifest"`, `"list"`) + `ChannelList`, `RejectArtifacts`, the sorted-unit options (`Groups`, `IncludeNoise`, `Templates`), `OutputDir`, `Suffix` (`"_spikes"`), `MatVersion`, `Overwrite` |
+| `Spikes` | `spikes` | `Enabled`, `Source` (`"detect"`, `"sorted"`, `"both"`), the `detectSpikes` options (`Filter`, `Band`, `FilterOrder`, `Polarity`, `ThresholdMethod`, `Threshold` (`NaN` = the method's default), `Align`, `AlignWindowMs`, `MinPeriodMs`, `MaxAmplitudeUV`, `Waveforms`, `WindowMs`, `WaveformSource`, `EdgeHandling`, `MaxChunkSamples`, `EdgePadMs`), `Channels` (`"all"`, `"excludeManifest"`, `"list"`) + `ChannelList`, `RejectArtifacts`, the sorted-unit options (`Groups`, `IncludeNoise`, `Templates`), `OutputDir`, `Suffix` (`"_spikes"`), `MatVersion`, `Overwrite` |
 | `Export` | `export` | `Enabled`, `Formats` (subset of `["chronux" "fieldtrip"]`), `Signals` (`[]` = every signal in the extract), `IncludeUnits`, `IncludeDetected`, `IncludeEvents`, `Groups`, `Validate`, `OutputDir`, `MatVersion`, `Overwrite` |
 
 `Name` and `Description` are free text. `File` (where the config was loaded
@@ -75,11 +76,15 @@ there is no migration. Unknown fields are dropped and listed in
 ### Validation
 
 `issues = cfg.validate()` returns a table (`Step`, `Field`, `Severity`,
-`Message`). `Project` and `Probe` are always checked; a step section only when
+`Message`). `Project`, `Parallel` and `Probe` are always checked; a step section only when
 it is enabled. Severity `"error"` stops `run()`. Cross-step rule: a background
 sorting run cannot feed the sorted-unit consumers (`Spikes.Source` `"sorted"` /
 `"both"`, `Export.IncludeUnits`) in the same run; set
 `Sorting.Execution = "blocking"` or run those steps later.
+
+The `Parallel` checks: `MaxWorkers` must be `NaN` or a whole number ≥ 1
+(error); `Enabled` without a licensed Parallel Computing Toolbox is a warning
+(the steps run serially).
 
 ### Helpers
 
@@ -87,7 +92,8 @@ sorting run cannot feed the sorted-unit consumers (`Spikes.Source` `"sorted"` /
 | --- | --- |
 | `defaults(section)`, `normalizeSection(section, s)` | defaults; a normalized copy |
 | `artifactConfig(A)` | the `EphysDataset.ArtifactConfig` struct for an `Artifacts` section |
-| `detectOptions(K)` | `detectSpikes` name-value options for a `Spikes` section |
+| `detectOptions(K, P)` | `detectSpikes` name-value options for a `Spikes` section; with a `Parallel` section `P`, its `UseParallel` / `MaxWorkers` too |
+| `parallelOptions(P)` | `UseParallel` / `MaxWorkers` name-value options for a `Parallel` section (`MaxWorkers` omitted when `NaN`) |
 | `spikeChannels(K, ds)` | the channel list for a dataset (`"all"`, `"excludeManifest"`, `"list"`) |
 | `signalOptions(S, ExcludeChannels=, NumChannels=)` | `deriveSignals` options for a `Signals` section, with the exclude handling applied (error IDs `EphysPipelineConfig:Signals*`) |
 | `exportOptions(E)` | name-value options shared by `exportChronux` / `exportFieldTrip` |
@@ -108,6 +114,26 @@ Dataset names are folder leaves and are not unique (`mouse1/sess1` and
 `EphysProject.datasetKey(i)` / `findByKey(key)` map between them and datasets.
 `plan()` flags two selected datasets that would write the same
 `<OutputRoot>/<Name>` file as `duplicate output`, which is an error.
+
+### Dataset name tokens
+
+`Project.NamePattern` describes how a dataset name splits into tokens;
+`[values, names, ok] = parseNameTokens(name, pattern)` applies it (the whole
+name must match; `ok` is false and `values` are `""` otherwise).
+
+| In the pattern | Matches |
+| --- | --- |
+| `{Token}` | any text, as short as possible |
+| `{Token:yyMMdd}` | a format made only of `y M d H h m s`: that many digits |
+| `{Token:regex}` | any other format is a regular expression |
+| `*` | any text that is not kept (e.g. a trailing suffix) |
+| other text | itself (e.g. the `_` separators) |
+
+The default `"{SubjectID}_{Date:yyMMdd}_{Time:HHmmss}"` splits
+`SUBJ-ID-1245_260916_143015` into `SubjectID = "SUBJ-ID-1245"`,
+`Date = "260916"`, `Time = "143015"`. Token names must be unique valid
+identifiers; `validate()` reports an invalid pattern as an error and a
+`TokenColumns` entry missing from the pattern as a warning.
 
 ---
 
@@ -194,6 +220,40 @@ the automatic detections reach those steps (manual periods always do).
 `EphysPipeline:Cancelled`. The current dataset is marked `cancelled` (its
 output is written atomically, so nothing half-done is left behind), the
 remaining rows are `not run`, and `run()` returns normally.
+
+### Parallel execution
+
+With `Parallel.Enabled`, the two steps that stream the recording chunk by
+chunk — `artifacts` (`artifactIntervals`) and detection in `spikes`
+(`detectSpikes`) — process their chunks on a **process pool**: the open pool
+when there is one, otherwise a pool started with as many workers as the cap
+below. The signals, sorting and export steps are unaffected: signals holds the
+whole recording in memory and its filters are already multithreaded, sorting is
+an external Python process, export is file bound. A step's result is
+**identical** with and without the pool, so the artifact cache is shared
+between modes and a spikes file differs only in `detection.options.UseParallel`.
+
+The number of chunks in flight is derived from memory in one place
+(`parallelChunkPool`): each chunk costs about five (artifacts) or six (spikes)
+copies of one double-precision chunk, and the cap is
+`floor((available − reserve) / perChunk)`, then `min` with `MaxWorkers` and the
+pool size, with `reserve = max(2 GB, 10 %)` kept for the client. On a 32 GB
+machine with 60-second, 64-channel files that is four or five workers whatever
+the pool size. Progress is reported on the client as chunks finish, so the bars
+behave as in a serial run, and **Cancel** takes effect after the chunk in
+flight: the outstanding chunks are cancelled and nothing is written. When the
+pool cannot be used — no Parallel Computing Toolbox, a chunk whose sample count
+is unknown, a thread pool open instead of a process pool, memory for fewer than
+two workers, or `MaxWorkers` 1 — the step runs serially and warns
+`EphysDataset:<method>:SerialFallback` with the reason. The pipeline never
+deletes a pool.
+
+What to expect: each chunk is read by its worker, so several workers read the
+disk at once. On an internal SSD the steps scale with the worker cap; on a slow
+external disk concurrent reads can be no faster than one, so compare the
+`Seconds` column of `Results` before relying on it. For traditional `*.rhd`
+recordings the spike detector also re-reads the preceding file for context,
+roughly doubling its I/O.
 
 ---
 
@@ -325,10 +385,10 @@ the behavior file.
 
 | Suite | Checks |
 | --- | --- |
-| [`test_EphysPipelineConfig.m`](../intan/test_EphysPipelineConfig.m) | exact save / load round trip with `Inf`, `NaN`, `[]`, one-element lists and bands; normalization fills and drops; `BadSchema`; `ks4Settings`; `ks4ForProbe` on synthetic layouts (staggered 4-shank, Neuropixels-like, dense multi-shank, sparse column, 2-D grid, exclusions, shanks without `kcoords`); every `signalOptions` error and each `ExcludeHandling` mode; `validate` on enabled steps only and the background-sorting rule |
-| [`test_EphysPipeline.m`](../intan/test_EphysPipeline.m) | selection by key with duplicate leaf names; `plan()` writes nothing and flags existing / duplicate outputs, missing probe, sorting output and extract file; sorting dry run writes a matching `si_config.json`; `runSignals` / `runSpikeDetection` / `runExport` outputs equal the direct calls; `checkBehavior` associates by prefix and writes the manifest; the artifact cache is reused and invalidated; cancel leaves no partial `.mat` |
+| [`test_EphysPipelineConfig.m`](../intan/test_EphysPipelineConfig.m) | exact save / load round trip with `Inf`, `NaN`, `[]`, one-element lists and bands; normalization fills and drops; `BadSchema`; `ks4Settings`; `ks4ForProbe` on synthetic layouts (staggered 4-shank, Neuropixels-like, dense multi-shank, sparse column, 2-D grid, exclusions, shanks without `kcoords`); every `signalOptions` error and each `ExcludeHandling` mode; `validate` on enabled steps only, the `Parallel` section (`MaxWorkers`) and the background-sorting rule |
+| [`test_EphysPipeline.m`](../intan/test_EphysPipeline.m) | selection by key with duplicate leaf names; `plan()` writes nothing and flags existing / duplicate outputs, missing probe, sorting output and extract file; sorting dry run writes a matching `si_config.json`; `runSignals` / `runSpikeDetection` / `runExport` outputs equal the direct calls; `checkBehavior` associates by prefix and writes the manifest; the artifact cache is reused and invalidated; cancel leaves no partial `.mat`; `Parallel.Enabled` reaches the artifacts and spikes steps and is logged |
 | [`test_TrialPairing.m`](../intan/test_TrialPairing.m) | `pairEpsychTrials`: equal counts, a recording started late or stopped early (partial intervals at the edges, the count-mismatch warning, the cuts that resolve it), an inverted line idle at the recording start, cut validation, nested lines, derived-signal samples; `digitalEvents` cache; `pairTrials` / `setTrialPairing` manifest round trip with cuts and staleness; `behaviorToMat(Pairing=)`; the behavior step records, reuses and reports pairings, a count mismatch included |
-| [`test_EphysPipelineScript.m`](../intan/test_EphysPipelineScript.m) | both scripts are `checkcode`-clean, run, and produce identical outputs; the standalone text never mentions the pipeline classes; disabled steps are commented out in the compact script; `literal` round-trips |
+| [`test_EphysPipelineScript.m`](../intan/test_EphysPipelineScript.m) | both scripts are `checkcode`-clean, run, and produce identical outputs; the standalone text never mentions the pipeline classes; disabled steps are commented out in the compact script; `literal` round-trips; the standalone script carries the `Parallel` section into the chunked steps |
 | [`test_EpsychSession.m`](../intan/test_EpsychSession.m) | synthetic `Data` / `Info` files; `NotEpsych`; matching by prefix, by time, and ambiguity |
 
 Run everything with [`run_all_tests.m`](../intan/run_all_tests.m).

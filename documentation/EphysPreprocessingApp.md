@@ -116,10 +116,14 @@ config) and opens it; see [Synthetic test project](#synthetic-test-project).
 | Project root + Browse... + **Scan** | `Project.Root`. Scan builds `EphysProject(root)` (every folder that a registered reader claims: Intan `*.rhd` / `info.rhd`, or `recording.json`), then `P.refresh()`: header metadata, `applyManifest` (probe, exclusions, manual periods, sorting and behavior associations), `writeManifest`. A progress dialog with Cancel; datasets whose headers fail keep `NaN` metadata and a warning is printed |
 | Refresh metadata | re-parse all headers |
 | Output root + Browse... | `Project.OutputRoot`: each dataset writes to `<root>/<Name>`; blank = next to the recording |
-| All / None | tick / untick every row |
+| Name pattern + Columns | `Project.NamePattern`: tokens parsed from each dataset name (see [`parseNameTokens`](EphysPipeline.md#dataset-name-tokens)); one checkbox per token, ticked tokens (`Project.TokenColumns`, default `SubjectID`) become table columns after Name. The label shows how many names match, or the pattern error |
+| Filter | one editable dropdown per name-pattern token, listing the values found (`-` = the name does not match). Rows whose token does not match are hidden; type `*` / `?` wildcards or comma-separated alternatives (case-insensitive). Filters are a view only: they are not saved, and ticks on hidden rows stay in the selection (the label shows `showing k of n (m ticked hidden)`) |
+| All / None | **All** ticks every shown row; **None** unticks every row, shown or hidden |
 | Open in phy | the last-clicked dataset's associated sorted output (enabled only when it has `params.py`) |
 
-Table columns: **Select**, Name, **Key** (root-relative, what the config
+Table columns (drag a header to reorder; the order is kept across refreshes
+and saved in the app preferences): **Select**, Name, the ticked name tokens
+(`-` when the name does not match the pattern), **Key** (root-relative, what the config
 stores), Acq date, # chan, Fs (Hz), Duration (min), Format, Probe, Exclude,
 **Sorting** (units, `curated` when phy labels exist, `auto` / `manual`),
 **Behavior** (subject, trial count and the recorded pairing status). Ticks are written to
@@ -210,7 +214,7 @@ and the manual periods.
 | Filter before detecting, High-pass (Hz) | `Artifacts.Filter`, `FilterCutoff` (with `FilterType`, `FilterOrder`). These now apply to runs as well as the preview |
 | Apply to sorting / Apply to spike detection | `Artifacts.ApplyToSorting`, `ApplyToSpikes` |
 | Cache intervals | `Artifacts.CacheIntervals` (`<Name>_artifacts.json`) |
-| **Detect / Preview** | `analyzeArtifacts` over the chosen dataset (streamed, read-only): summary + per-channel table |
+| **Detect / Preview** | `analyzeArtifacts` over the chosen dataset (streamed, read-only; on the process pool when the Run tab's **Parallel** box is ticked): summary + per-channel table |
 | Manual periods table, **Edit in Visualize**, **Clear** | the last-clicked dataset's `ManualArtifacts` (written to its manifest) |
 
 The Threshold field is sent as-is for every method: with *Absolute microvolts*
@@ -295,8 +299,8 @@ Spike events per dataset with `EphysDataset.spikesToMat`, `Spikes.*`.
 - **Filter** (band, order), **Threshold** (method, value, polarity, max
   amplitude), **Events** (align, window, min period), **Waveforms** (on/off,
   window, source, edge handling), **Channels & artifacts** (all / manifest
-  exclusions / list; reject events inside artifact periods), **Performance**
-  (chunk cap, edge pad, parallel), **Sorted units** (groups, include noise,
+  exclusions / list; reject events inside artifact periods), **Chunking**
+  (chunk cap, edge pad; the parallel switch is on the Run tab), **Sorted units** (groups, include noise,
   templates), **Output** (folder, suffix `_spikes`, MAT version, overwrite).
 - **Preview**: detects on the first *n* seconds of the Dataset-menu dataset
   with the tab's settings and lists per-channel thresholds, counts and rates.
@@ -321,6 +325,10 @@ Chronux functions appears here: the app only writes files.
 
 - **Steps** checklist: the Enabled boxes of every step (mirrored with the
   tabs), and the selection summary.
+- **Parallel: chunks on the process pool** and **Max workers** (blank =
+  automatic): `Parallel.Enabled` / `MaxWorkers`, used by the artifacts step,
+  the Artifacts tab's **Detect / Preview** and spike detection; see
+  [Parallel execution](EphysPipeline.md#parallel-execution).
 - **Validate config** fills the issues table (`cfg.validate()`); **Plan** fills
   the results table with `pipe.plan()` (writes nothing).
 - **Run**, **Dry run**, **Cancel**: `EphysPipeline.run` with progress bars
@@ -443,6 +451,7 @@ Only what is **not** part of a config lives here:
 | `FigurePosition` | window position/size (clamped to the screen on restore) |
 | `ProbeFolder`, `PhyCmd`, `ReviewFolder`, `ScriptFolder` | paths |
 | `LastConfigFile`, `RecentConfigs` | reopened on launch; the File → Open recent list |
+| `DatasetsColumnOrder` | the Project table's column order (table variable names) |
 | `VizOptions` | the Visualize tab's display settings |
 
 To reset: `rmpref('EphysPreprocessingApp')` with the app closed. Older
@@ -484,7 +493,7 @@ app.KSRuns                        % background runs being monitored
 | `buildUI.m`, `buildMenus.m`, `build*Tab.m` | UI construction |
 | `gatherConfig.m`, `applyConfig.m`, `gather*/apply*Section.m`, `gather/applyConvertConfig.m`, `gather/applySortingSection.m`, `onConfigChanged.m`, `syncStepEnableStates.m`, `updateTitle.m` | config model |
 | `onNewConfig.m`, `onOpenConfig.m`, `openConfigFile.m`, `onSaveConfig.m`, `onSaveConfigAs.m`, `onExportConfigCopy.m`, `onGenerateScript.m`, `onCreateSyntheticProject.m`, `createSyntheticProject.m`, `confirmDiscard.m`, `addRecentConfig.m`, `refreshRecentMenu.m` | File menu |
-| `buildPipeline.m`, `runPipeline.m`, `onRunStep.m`, `onCancelRun.m`, `onValidate.m`, `onPlan.m`, `refreshStepPlan.m`, `onPipelineProgress.m`, `runLog.m`, `setRunBar.m`, `showIssues.m` | running |
+| `buildPipeline.m`, `runPipeline.m`, `onRunStep.m`, `onCancelRun.m`, `onValidate.m`, `onPlan.m`, `refreshStepPlan.m`, `onPipelineProgress.m`, `runLog.m`, `setRunBar.m`, `showIssues.m`, `onParallelControlsChanged.m` | running |
 | `buildTrialsTab.m`, `onTrialsLoad.m`, `repairTrials.m`, `refreshTrialsView.m`, `onTrialsCutsChanged.m`, `syncTrialsCuts.m`, `onTrialsApprove.m`, `onTrialsWriteBehavior.m`, `onTrialsSettingsChanged.m`, `populateTrialsDatasets.m`, `clearTrialsView.m`, `currentTrialsDataset.m`, `fillTrialsLines.m`, `setTrialsLineItems.m`, `syncTrialsButtons.m` | Trials tab |
 | `onScan.m`, `refreshDatasetsTable.m`, `onDatasetCellSelection.m`, `onSelectDatasets.m`, `onRefreshMetadata.m`, `onAssociateBehavior.m`, `onClearBehavior.m`, `onBrowseBehaviorDir.m` | Project tab |
 | `refreshProbeList.m`, `onProbeSelected.m`, `onImportProbe.m`, `onDesignProbe.m`, `runProbeTool.m`, `onAssignProbe.m`, `onApplyExclude.m`, `onUseSelectedProbeAsDefault.m`, `probe_tool.py` | Probe tab |
@@ -499,7 +508,7 @@ app.KSRuns                        % background runs being monitored
 
 [`test_EphysPreprocessingApp.m`](../intan/test_EphysPreprocessingApp.m) builds
 the app headlessly over a synthetic project: config → controls → config round
-trip, the unsaved marker, the Run checklist ↔ tab sync, scan + selection ticks,
+trip, the unsaved marker, the Run checklist ↔ tab sync and its Parallel controls, scan + selection ticks,
 plan, the Sorting tab's Optimize for probe (dataset probe with exclusions,
 default-probe fallback) and Reset to defaults, one step through the pipeline,
 save / reopen and the recent list. It

@@ -7,6 +7,8 @@ function applySortingSection(obj, S)
 
 S = EphysPipelineConfig.normalizeSection("Sorting", S);
 if isempty(obj.PythonExeField) || ~isvalid(obj.PythonExeField); return; end
+obj.SortEnableCheckBox.Value       = logical(S.Enabled);
+obj.SortSkipExistingCheckBox.Value = logical(S.SkipExisting);
 obj.PythonExeField.Value = char(S.PythonExe);
 obj.CondaEnvField.Value  = char(S.CondaEnv);
 if ~isempty(obj.ExecModeDropDown) && isvalid(obj.ExecModeDropDown)

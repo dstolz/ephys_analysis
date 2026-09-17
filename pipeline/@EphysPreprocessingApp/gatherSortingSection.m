@@ -14,6 +14,8 @@ errMsg = "";
 if isempty(obj.PythonExeField) || ~isvalid(obj.PythonExeField)
     return
 end
+S.Enabled      = logical(obj.SortEnableCheckBox.Value);
+S.SkipExisting = logical(obj.SortSkipExistingCheckBox.Value);
 S.PythonExe = string(strtrim(obj.PythonExeField.Value));
 S.CondaEnv  = string(strtrim(obj.CondaEnvField.Value));
 if ~isempty(obj.ExecModeDropDown) && isvalid(obj.ExecModeDropDown)

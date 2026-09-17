@@ -103,6 +103,14 @@ check(app.Config.Signals.Enabled && app.SigEnableCheckBox.Value && tabTip(app, a
 app.SigEnableCheckBox.Value = false;
 app.onConvertControlsChanged();
 check(~app.Config.Signals.Enabled && ~app.RunSignalsCheckBox.Value, 'and back');
+app.SortEnableCheckBox.Value = true;
+app.SortSkipExistingCheckBox.Value = true;
+app.SortEnableCheckBox.ValueChangedFcn(app.SortEnableCheckBox, []);   % as a click would
+check(app.Config.Sorting.Enabled && app.Config.Sorting.SkipExisting && app.SortEnableCheckBox.Value ...
+    && app.RunSortingCheckBox.Value, 'ticking Enable on the Sorting tab sticks');
+app.SortEnableCheckBox.Value = false;
+app.SortSkipExistingCheckBox.Value = false;
+app.SortEnableCheckBox.ValueChangedFcn(app.SortEnableCheckBox, []);
 app.RunMaxWorkersField.Value = '';
 app.onParallelControlsChanged();
 check(isnan(app.Config.Parallel.MaxWorkers) && app.Config.Parallel.Enabled, 'a blank worker cap means automatic');

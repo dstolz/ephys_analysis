@@ -176,6 +176,13 @@ check(contains(pipe.Results.Message(1), "computed"), 'changing the settings inva
 pipe.Config = cfg;
 d1.ManualArtifacts = [0.001 0.002];
 d1.writeManifest();
+cfgQ = cfg; cfgQ.Parallel.Enabled = true; cfgQ.Artifacts.CacheIntervals = false;
+pipe.Config = cfgQ; pipe.reset(); logs = strings(0, 1);
+pipe.runArtifacts();
+ivQ = pipe.artifactIntervalsFor(d1);
+check(contains(pipe.Results.Message(1), "computed") && isequal(ivQ, d1.artifactIntervals()) ...
+    && any(contains(logs, "parallel")), 'Parallel.Enabled reaches artifactIntervals (one chunk: serial) and is logged');
+pipe.Config = cfg;
 
 fprintf('\n== 5. sorting dry run ==\n');
 cfg.Sorting.DryRun = true;
@@ -216,6 +223,11 @@ cfgX = cfg; cfgX.Spikes.Channels = "list"; cfgX.Spikes.ChannelList = "2"; cfgX.S
 pipe.Config = cfgX; pipe.reset(); pipe.runSpikeDetection();
 M2 = load(pipe.Results.Output(1));
 check(isequal(M2.detected.channels, 2) && isempty(M2.units), 'channel list + Source="detect"');
+cfgP = cfg; cfgP.Parallel.Enabled = true; cfgP.Spikes.Overwrite = true;
+pipe.Config = cfgP; pipe.reset(); logs = strings(0, 1); pipe.runSpikeDetection();
+M3 = load(pipe.Results.Output(1));
+check(pipe.Results.Status(1) == "done" && M3.detected.detection.options.UseParallel && isequal(M3.detected.ts, tsRef) ...
+    && any(contains(logs, "parallel")), 'Parallel.Enabled reaches spikesToMat (one chunk: serial) with the same result');
 pipe.Config = cfg;
 
 fprintf('\n== 7. export step (hand-made extract) ==\n');

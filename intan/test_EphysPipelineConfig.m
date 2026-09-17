@@ -64,6 +64,13 @@ check(strcmp(errorId(@() EphysPipelineConfig.normalizeSection("Spikes", struct('
 check(strcmp(errorId(@() EphysPipelineConfig.defaults("Nope")), 'EphysPipelineConfig:BadSection'), 'unknown section errors');
 c2 = EphysPipelineConfig.fromStruct(struct('name', "x", 'Spikes', struct('Enabled', true, 'Bogus', 1), 'Extra', 2));
 check(c2.Name == "x" && c2.Spikes.Enabled && numel(c2.LoadWarnings) == 2, 'fromStruct collects load warnings');
+check(any(EphysPipelineConfig.Sections == "Parallel") && ~cfg.Parallel.Enabled && isnan(cfg.Parallel.MaxWorkers) ...
+    && ~isfield(cfg.Spikes, 'UseParallel'), 'the Parallel section exists with its defaults; Spikes has no UseParallel');
+cfg.Parallel = struct('MaxWorkers', "4");
+check(cfg.Parallel.MaxWorkers == 4 && islogical(cfg.Parallel.Enabled) && ~cfg.Parallel.Enabled, ...
+    'a partial Parallel section is coerced and completed');
+c5 = EphysPipelineConfig.fromStruct(struct('Spikes', struct('UseParallel', true)));
+check(any(contains(c5.LoadWarnings, "Spikes.UseParallel")), 'Spikes.UseParallel from an older file is dropped with a warning');
 
 fprintf('\n== 2. save / load round trip ==\n');
 cfg = EphysPipelineConfig();
@@ -85,6 +92,7 @@ cfg.Spikes.Groups = "good";
 cfg.Export.Formats = "chronux";
 cfg.Export.Signals = string.empty(1,0);
 cfg.Behavior.SearchDirs = ["D:\beh" "E:\beh"];
+cfg.Parallel.Enabled = true; cfg.Parallel.MaxWorkers = NaN;
 f = fullfile(root, 'cfg.json');
 cfg = cfg.save(f);
 check(isfile(f) && cfg.File == string(f), 'save writes the file and records File');
@@ -101,6 +109,8 @@ check(isequal(c3.Spikes.WindowMs, [-1 2]) && isequal(c3.Sorting.KS4.drift_smooth
     && c3.Sorting.KS4.dmin == 25 && isinf(c3.Sorting.KS4.artifact_threshold) && isempty(c3.Sorting.KS4.n_chan_bin), ...
     'rows, nullables and Inf survive');
 check(c3.File == string(f) && isempty(c3.LoadWarnings), 'File is set and nothing was dropped');
+check(c3.Parallel.Enabled && isnan(c3.Parallel.MaxWorkers) && contains(txt, '"MaxWorkers": "NaN"'), ...
+    'the Parallel section round-trips (NaN MaxWorkers as a string)');
 bad = fullfile(root, 'bad.json');
 writeJsonFile(bad, struct('schema', "something-else", 'version', 1));
 check(strcmp(errorId(@() EphysPipelineConfig.load(bad)), 'EphysPipelineConfig:BadSchema'), 'wrong schema is refused');
@@ -266,6 +276,13 @@ check(~isfield(d, 'Threshold') && ~isfield(d, 'MaxChunkSamples') && ~isfield(d, 
 K.Threshold = 5; K.MaxChunkSamples = 2000;
 d = EphysPipelineConfig.detectOptions(K);
 check(d.Threshold == 5 && d.MaxChunkSamples == 2000, 'set values are forwarded');
+check(~isfield(d, 'UseParallel') && ~isfield(d, 'MaxWorkers'), 'detectOptions carries no parallel options without a Parallel section');
+dP = EphysPipelineConfig.detectOptions(K, struct('Enabled', true, 'MaxWorkers', NaN));
+check(islogical(dP.UseParallel) && dP.UseParallel && ~isfield(dP, 'MaxWorkers'), ...
+    'detectOptions(K, P) adds UseParallel and omits an automatic MaxWorkers');
+po = EphysPipelineConfig.parallelOptions(struct('Enabled', true, 'MaxWorkers', 3));
+check(po.UseParallel && po.MaxWorkers == 3 && isequal(fieldnames(EphysPipelineConfig.parallelOptions(struct())), {'UseParallel'}), ...
+    'parallelOptions: UseParallel always, MaxWorkers only when set');
 dsFake = struct('NumChannels', 6, 'ExcludeChannels', [2 5]);
 K.Channels = "excludeManifest";
 check(isequal(EphysPipelineConfig.spikeChannels(K, dsFake), [1 3 4 6]), 'excludeManifest channel selection');
@@ -293,6 +310,19 @@ cfg.Spikes.Band = [5000 500];                         % invalid but the step is 
 iss = cfg.validate();
 check(~any(iss.Severity == "error") && any(iss.Field == "OutputRoot" & iss.Severity == "warning"), ...
     'disabled steps are not checked; missing output root warns');
+cfg.Parallel.MaxWorkers = 0;
+iss = cfg.validate();
+check(any(iss.Step == "parallel" & iss.Field == "MaxWorkers" & iss.Severity == "error"), 'MaxWorkers = 0 is an error');
+cfg.Parallel.MaxWorkers = 2.5;
+iss = cfg.validate();
+check(any(iss.Step == "parallel" & iss.Field == "MaxWorkers" & iss.Severity == "error"), 'a fractional MaxWorkers is an error');
+cfg.Parallel.MaxWorkers = NaN;
+cfg.Parallel.Enabled = true;
+iss = cfg.validate();
+check(~any(iss.Step == "parallel" & iss.Severity == "error") ...
+    && (license('test', 'Distrib_Computing_Toolbox') || any(iss.Step == "parallel" & iss.Severity == "warning")), ...
+    'NaN MaxWorkers is fine; Parallel without the toolbox warns');
+cfg.Parallel.Enabled = false;
 cfg.Spikes.Enabled = true;
 iss = cfg.validate();
 check(any(iss.Step == "spikes" & iss.Field == "Band" & iss.Severity == "error"), 'enabled step settings are checked');
@@ -320,6 +350,30 @@ check(any(iss.Field == "Formats" & contains(iss.Message, "bogus")), 'unknown exp
 check(isequal(cfg.enabledSteps(), ["probe" "sorting" "spikes" "export"]) && cfg.stepEnabled("probe") && ~cfg.stepEnabled("signals"), ...
     'enabledSteps / stepEnabled');
 check(strcmp(errorId(@() cfg.stepSection("nope")), 'EphysPipelineConfig:BadStep'), 'unknown step errors');
+
+fprintf('\n== name tokens ==\n');
+cfg = EphysPipelineConfig();
+[v, n, ok] = parseNameTokens("SUBJ-ID-1245_260916_143015", cfg.Project.NamePattern);
+check(ok && isequal(n, ["SubjectID" "Date" "Time"]) && isequal(v, ["SUBJ-ID-1245" "260916" "143015"]) ...
+    && cfg.Project.TokenColumns == "SubjectID", 'the default pattern splits subject, yyMMdd, HHmmss; SubjectID is a column');
+[v, ~, ok] = parseNameTokens("recA", cfg.Project.NamePattern);
+check(~ok && isequal(v, ["" "" ""]), 'a non-matching name gives empty tokens');
+[v, n, ok] = parseNameTokens("M7_rig(2)_260916_extra", "{Subject}_{Rig:rig\((\d)\)}_{Date:yyMMdd}*");
+check(ok && isequal(n, ["Subject" "Rig" "Date"]) && isequal(v, ["M7" "rig(2)" "260916"]), ...
+    'regex formats (inner groups do not shift tokens) and a trailing *');
+check(strcmp(errorId(@() parseNameTokens("", "{a}_{a}")), 'parseNameTokens:BadPattern') ...
+    && strcmp(errorId(@() parseNameTokens("", "{1x}")), 'parseNameTokens:BadPattern') ...
+    && strcmp(errorId(@() parseNameTokens("", "{a")), 'parseNameTokens:BadPattern'), ...
+    'duplicate / invalid / unclosed tokens error');
+check(isequal(EphysPipelineConfig.parseTokenColumns(" Date; SubjectID,,Date "), ["Date" "SubjectID"]), ...
+    'TokenColumns list text parses in order without repeats');
+cfg.Project.TokenColumns = "SubjectID, Nope";
+iss = cfg.validate(CheckPaths=false);
+check(any(iss.Field == "TokenColumns" & iss.Severity == "warning" & contains(iss.Message, "Nope")), ...
+    'a token column not in the pattern warns');
+cfg.Project.NamePattern = "{bad";
+iss = cfg.validate(CheckPaths=false);
+check(any(iss.Field == "NamePattern" & iss.Severity == "error"), 'an invalid pattern is a validation error');
 
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0

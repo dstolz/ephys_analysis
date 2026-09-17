@@ -106,6 +106,8 @@ check(~contains(txtS, "EphysPipeline(") && ~contains(txtS, "EphysPipelineConfig.
 check(contains(txtS, "ks4.nblocks = 2;") && contains(txtS, "ks4.x_centers = 2;") && contains(txtS, "detectOptions.Threshold = 2000;") ...
     && contains(txtS, '"schema": "ephys-pipeline-config"'), 'standalone script carries the parameters and the config JSON as a comment');
 check(contains(txtS, "if false   % set to true to run this step"), 'standalone disabled steps are wrapped in if false');
+check(contains(txtS, "parallelOpts.UseParallel = false;") && contains(txtS, "parallelArgs{:}") ...
+    && contains(txtS, "detectOptions.UseParallel = false;"), 'standalone script carries the Parallel section into the chunked steps');
 mC = checkcode(compactFile, '-id');
 mS = checkcode(standaloneFile, '-id');
 isErr = @(m) arrayfun(@(x) startsWith(x.id, 'SYNER') || contains(x.message, 'Parse error'), m);

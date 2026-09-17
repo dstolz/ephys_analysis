@@ -24,6 +24,7 @@ savedPrefs = [];
 if ispref(g); savedPrefs = getpref(g); end
 cleanup = onCleanup(@() restorePrefsAndRoot(g, savedPrefs, root)); %#ok<NASGU>
 if ispref(g, 'LastConfigFile'); setpref(g, 'LastConfigFile', ''); end
+if ispref(g, 'DatasetsColumnOrder'); rmpref(g, 'DatasetsColumnOrder'); end
 
 nPass = 0; nFail = 0;
     function check(cond, msg)
@@ -65,6 +66,7 @@ cfg.Spikes.Enabled = true; cfg.Spikes.Filter = false; cfg.Spikes.ThresholdMethod
 cfg.Spikes.Source = "both";
 cfg.Export.Formats = "chronux";
 cfg.Sorting.KS4.nblocks = 3; cfg.Sorting.KS4.dmin = 12;
+cfg.Parallel.Enabled = true; cfg.Parallel.MaxWorkers = 3;
 cfgFile = fullfile(root, 'gui_test.json');
 cfg = cfg.save(cfgFile);
 
@@ -79,6 +81,8 @@ check(ok && app.Config.Name == "gui test" && app.Config.File == string(cfgFile),
 check(strcmp(app.RootPathField.Value, proj) && app.SpkEnableCheckBox.Value && strcmp(app.SpkThresholdField.Value, '2000') ...
     && app.ExpChronuxCheckBox.Value && ~app.ExpFieldTripCheckBox.Value && app.ParamControls.nblocks.Value == 3 ...
     && strcmp(app.ParamControls.dmin.Value, '12'), 'controls reflect the config');
+check(app.RunParallelCheckBox.Value && strcmp(app.RunMaxWorkersField.Value, '3') && strcmp(app.RunMaxWorkersField.Enable, 'on') ...
+    && ~isprop(app, 'SpkParallelCheckBox'), 'the Run tab shows the Parallel section; the Spikes tab has no parallel box');
 check(tabTip(app, app.TabSpikes) ~= "Step disabled." && tabTip(app, app.TabSignals) == "Step disabled." && app.RunSpikesCheckBox.Value, ...
     'tab strip states and the Run checklist follow the enabled steps');
 g2 = app.gatherConfig();
@@ -96,6 +100,14 @@ check(app.Config.Signals.Enabled && app.SigEnableCheckBox.Value && tabTip(app, a
 app.SigEnableCheckBox.Value = false;
 app.onConvertControlsChanged();
 check(~app.Config.Signals.Enabled && ~app.RunSignalsCheckBox.Value, 'and back');
+app.RunMaxWorkersField.Value = '';
+app.onParallelControlsChanged();
+check(isnan(app.Config.Parallel.MaxWorkers) && app.Config.Parallel.Enabled, 'a blank worker cap means automatic');
+app.RunParallelCheckBox.Value = false;
+app.onParallelControlsChanged();
+check(~app.Config.Parallel.Enabled && strcmp(app.RunMaxWorkersField.Enable, 'off'), 'unticking Parallel disables the worker cap');
+app.RunParallelCheckBox.Value = true;
+app.onParallelControlsChanged();
 app.ParamControls.tmax.Value = 'abc';
 [~, msg] = app.gatherSortingSection();
 check(msg ~= "", 'an unparseable KS4 field is reported');
@@ -119,6 +131,63 @@ P = app.RunResultsTable.Data;
 check(istable(P) && any(P.Step == "spikes" & P.Status == "ready"), 'plan lists the spikes step as ready');
 app.onValidate();
 check(iscell(app.RunIssuesTable.Data) || istable(app.RunIssuesTable.Data), 'validate fills the issues table');
+
+fprintf('\n== 3a. name tokens ==\n');
+check(isequal(string({app.NameTokenChecks.Text}), ["SubjectID" "Date" "Time"]) && isequal([app.NameTokenChecks.Value], [true false false]) ...
+    && T.Token_SubjectID(1) == "-" && string(app.DatasetsTable.ColumnName{3}) == "SubjectID" ...
+    && app.NameTokenStatusLabel.Text == "0 of 1 names match", ...
+    'default pattern: one checkbox per token, SubjectID shown, recA does not match');
+app.NamePatternField.Value = '{Stem}{Letter:[A-Z]}';
+app.onNameTokensChanged();
+check(isequal(string({app.NameTokenChecks.Text}), ["Stem" "Letter"]) && ~any([app.NameTokenChecks.Value]) ...
+    && ~any(startsWith(app.DatasetsTable.Data.Properties.VariableNames, 'Token_')) ...
+    && app.NameTokenStatusLabel.Text == "1 of 1 names match", 'a new pattern rebuilds the checkboxes');
+app.NameTokenChecks(2).Value = true; app.NameTokenChecks(1).Value = true;
+app.onNameTokensChanged();
+T = app.DatasetsTable.Data;
+check(T.Token_Stem(1) == "rec" && T.Token_Letter(1) == "A" && isequal(reshape(string(app.DatasetsTable.ColumnName(3:4)), 1, []), ["Stem" "Letter"]) ...
+    && app.Config.Project.NamePattern == "{Stem}{Letter:[A-Z]}" && app.Config.Project.TokenColumns == "Stem, Letter" ...
+    && numel(app.DatasetsTable.ColumnWidth) == width(T) && startsWith(app.Fig.Name, "*"), ...
+    'ticked tokens become columns in pattern order and are saved in the config');
+check(numel(app.NameTokenFilters) == 2 && isequal(string(app.NameTokenFilters(2).Items), ["(any)" "A"]), ...
+    'one filter dropdown per token, listing the parsed values');
+app.onSelectDatasets("all");
+app.NameTokenFilters(2).Value = 'B';
+app.refreshDatasetsTable();
+app.onConfigChanged();
+check(height(app.DatasetsTable.Data) == 0 && app.HiddenSelectedKeys == "recA" && isequal(app.selectedDatasetIndices(), 1) ...
+    && isequal(app.Config.Project.Datasets, "recA") && contains(app.NameTokenStatusLabel.Text, "showing 0 of 1 (1 ticked hidden)"), ...
+    'a filter hides non-matching rows and keeps their ticks in the selection');
+app.NameTokenFilters(2).Value = 'b, a*';
+app.refreshDatasetsTable();
+check(height(app.DatasetsTable.Data) == 1 && app.DatasetsTable.Data.Select(1) && isempty(app.HiddenSelectedKeys), ...
+    'wildcard / comma alternatives match case-insensitively and the tick returns');
+app.NameTokenFilters(2).Value = '(any)';
+app.onSelectDatasets("none");
+nCol = width(app.DatasetsTable.Data);
+app.DatasetsTable.DisplayColumnOrder = [5, 1:4, 6:nCol];   % as if Key were dragged to the front
+app.refreshDatasetsTable();
+T = app.DatasetsTable.Data;
+check(string(T.Properties.VariableNames{1}) == "Key" && string(app.DatasetsTable.ColumnName{1}) == "Key" ...
+    && isempty(app.DatasetsTable.DisplayColumnOrder) && ~app.DatasetsTable.ColumnSortable(end), ...
+    'a rearranged column order is baked into the table on refresh');
+app.NameTokenChecks(1).Value = false;
+app.onNameTokensChanged();
+T = app.DatasetsTable.Data;
+check(isequal(string(T.Properties.VariableNames(1:4)), ["Key" "Select" "Name" "Token_Letter"]) ...
+    && string(T.Properties.VariableNames{end}) == "DatasetIdx" && numel(app.DatasetsTable.ColumnWidth) == width(T), ...
+    'the order survives a change of the token columns');
+app.DatasetsColumnOrder = string.empty(1, 0);
+app.NameTokenChecks(1).Value = true;
+app.onNameTokensChanged();
+app.NamePatternField.Value = '{Stem';
+app.onNameTokensChanged();
+check(numel(app.NameTokenChecks) == 2 && ~any(startsWith(app.DatasetsTable.Data.Properties.VariableNames, 'Token_')) ...
+    && contains(app.NameTokenStatusLabel.Text, "unclosed"), 'an invalid pattern keeps the checkboxes and hides token columns');
+app.applyProjectSection(cfg.Project);
+app.onConfigChanged();
+check(app.NameTokenChecks(1).Value && app.Config.Project.TokenColumns == "SubjectID" ...
+    && app.Config.Project.NamePattern == cfg.Project.NamePattern, 'applying the section restores pattern and columns');
 
 fprintf('\n== 3b. Trials tab: load, cut, approve, polarity ==\n');
 app.populateTrialsDatasets();

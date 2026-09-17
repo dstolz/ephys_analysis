@@ -40,6 +40,20 @@ nProg = 0;
     function progTick(~, ~, ~)
         nProg = nProg + 1;
     end
+    function id = errorIdOf(fcn)
+        id = '';
+        try
+            fcn();
+        catch ME
+            id = ME.identifier;
+        end
+    end
+    function cancelAfterTwo(~, ~, ~)
+        nProg = nProg + 1;
+        if nProg >= 2
+            error('test:Cancel', 'cancelled by the test');
+        end
+    end
 
 rng(42);
 
@@ -326,6 +340,15 @@ iva = dsi.artifactIntervals();
 check(size(iva,2) == 2 && ~isempty(iva), 'artifactIntervals (auto) returns intervals');
 check(all(iva(:,2) >= iva(:,1)), 'auto intervals are well-formed');
 check(max(iva(:,2)) <= dsi.Duration + 1e-6, 'auto intervals lie within the recording');
+% The same intervals come back from the process pool (or from the serial
+% fall-back when no pool can be used); MaxWorkers=1 is serial and says so.
+ivaP = dsi.artifactIntervals(UseParallel=true);
+check(isequal(ivaP, iva), 'artifactIntervals(UseParallel=true) == serial (traditional files)');
+lastwarn('');
+ivaS = dsi.artifactIntervals(UseParallel=true, MaxWorkers=1);
+[~, wid] = lastwarn;
+check(isequal(ivaS, iva) && strcmp(wid, 'EphysDataset:artifactIntervals:SerialFallback'), ...
+    'MaxWorkers=1 falls back to serial with a warning');
 
 fprintf('\n== 12. runSpikeInterface(DryRun=true) ==\n');
 dsr = EphysDataset(dsFolder);
@@ -555,6 +578,51 @@ check(isequaln(iParDef, iDef), 'UseParallel == serial with band-pass + MAD thres
 check(isequaln(iParT, iSerT) && isequaln(wfParT, wfSerT) && numel(iParT.chunks) == 2, ...
     'UseParallel == serial across traditional *.rhd files');
 
+% MaxWorkers caps the chunks in flight without changing the result; 1 means
+% serial (with the fall-back warning), whether or not a pool is available.
+[~, ~, iPar2] = dsSpk.detectSpikes('MaxChunkSamples', 2000, absArgs{:}, 'UseParallel', true, 'MaxWorkers', 2);
+check(isequaln(iPar2, iStr), 'MaxWorkers=2 gives the serial result');
+lastwarn('');
+[~, ~, iOne] = dsSpk.detectSpikes('MaxChunkSamples', 2000, absArgs{:}, 'UseParallel', true, 'MaxWorkers', 1);
+[~, wid] = lastwarn;
+check(strcmp(wid, 'EphysDataset:detectSpikes:SerialFallback') && isequaln(iOne, iStr), ...
+    'MaxWorkers=1 falls back to serial with a warning and the same result');
+nProg = 0;
+dsSpk.detectSpikes('MaxChunkSamples', 2000, absArgs{:}, 'ProgressFcn', @progTick, 'UseParallel', true);
+check(nProg == 6, 'ProgressFcn is called once per chunk in parallel mode too');
+% A worker error surfaces with the identifier the serial path raises, and a
+% ProgressFcn that throws (the pipeline's cancel) stops the loop and leaves no
+% future queued or running on the pool.
+check(strcmp(errorIdOf(@() dsSpk.detectSpikes('MaxChunkSamples', 2000, absArgs{:}, 'ChannelOrder', 99, 'UseParallel', true)), ...
+    errorIdOf(@() dsSpk.detectSpikes('MaxChunkSamples', 2000, absArgs{:}, 'ChannelOrder', 99))), ...
+    'a worker error carries the serial error identifier');
+nProg = 0;
+check(strcmp(errorIdOf(@() dsSpk.detectSpikes('MaxChunkSamples', 2000, absArgs{:}, 'UseParallel', true, ...
+    'ProgressFcn', @cancelAfterTwo)), 'test:Cancel'), 'a throwing ProgressFcn aborts a parallel run');
+pl = gcp('nocreate');
+if ~isempty(pl)
+    tq = tic;
+    while toc(tq) < 10 && (~isempty(pl.FevalQueue.QueuedFutures) || ~isempty(pl.FevalQueue.RunningFutures))
+        pause(0.1);
+    end
+    check(isempty(pl.FevalQueue.QueuedFutures) && isempty(pl.FevalQueue.RunningFutures), ...
+        'cancelling leaves no future queued or running on the pool');
+end
+% artifactIntervals / analyzeArtifacts over the same six split chunks give the
+% same intervals and summary from the pool.
+dsSpk.ArtifactConfig.Enabled = true;
+dsSpk.ArtifactConfig.Method = "microvolts";
+dsSpk.ArtifactConfig.Threshold = 100;
+dsSpk.ArtifactConfig.MinChannels = 1;
+ivSer = dsSpk.artifactIntervals(MaxChunkSamples=2000);
+ivPar = dsSpk.artifactIntervals(MaxChunkSamples=2000, UseParallel=true);
+check(~isempty(ivSer) && isequal(ivSer, ivPar), 'artifactIntervals over 6 split chunks: parallel == serial');
+smSer = dsSpk.analyzeArtifacts(MaxChunkSamples=2000);
+smPar = dsSpk.analyzeArtifacts(MaxChunkSamples=2000, UseParallel=true);
+check(isequaln(smSer, smPar) && smSer.nSamples == nSampRec && numel(smSer.files) == 6, ...
+    'analyzeArtifacts over 6 split chunks: parallel == serial, MaxChunkSamples honoured');
+dsSpk.ArtifactConfig.Enabled = false;
+
 % Guards
 errId = '';
 try
@@ -731,6 +799,9 @@ sumH = dsf.analyzeArtifacts();
 check(sumH.nBlanked == 0, 'analyzeArtifacts honours the config filter');
 sumB = dsf.analyzeArtifacts(Filter=false);
 check(sumB.nBlanked > 0, 'analyzeArtifacts per-call override');
+lastwarn('');
+check(isequal(dsf.artifactIntervals(UseParallel=true), ivH) && isempty(lastwarn), ...
+    'UseParallel on a single-chunk recording runs serially without a warning');
 cfgN = EphysDataset.normalizeArtifactConfig(struct('Threshold', 5));
 check(cfgN.Filter == false && cfgN.FilterType == "highpass" && cfgN.FilterCutoff == 300 ...
     && cfgN.FilterOrder == 4 && cfgN.Threshold == 5, 'normalizeArtifactConfig fills the filter fields');

@@ -1,13 +1,13 @@
-function nasLog(obj, msg)
-%nasLog  Append a timestamped line to the NAS-tab log.
+function copyLog(obj, msg)
+%copyLog  Append a timestamped line to the Copy-tab log.
 %   MSG is used as is (not as a sprintf format: paths hold backslashes).
-if isempty(obj.NasLogArea) || ~isvalid(obj.NasLogArea); return; end
+if isempty(obj.CopyLogArea) || ~isvalid(obj.CopyLogArea); return; end
 line = string(datetime('now', 'Format', 'HH:mm:ss')) + "  " + string(msg);
-cur = obj.NasLogArea.Value;
+cur = obj.CopyLogArea.Value;
 if isscalar(cur) && strlength(string(cur{1})) == 0
     cur = cell(0, 1);
 end
-obj.NasLogArea.Value = [cur; cellstr(line)];
-scroll(obj.NasLogArea, 'bottom');
+obj.CopyLogArea.Value = [cur; cellstr(line)];
+scroll(obj.CopyLogArea, 'bottom');
 drawnow limitrate;
 end

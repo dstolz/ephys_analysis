@@ -1,13 +1,13 @@
-function onNasUnstitch(obj)
-%onNasUnstitch  Put the selected stitched NAS rows back as findNasSessions found them.
+function onCopyUnstitch(obj)
+%onCopyUnstitch  Put the selected stitched source rows back as findCopySessions found them.
 %   The rows holding the stitched Intan folder and ePsych files come back
-%   from NasFound with their pairing status; paired rows are ticked again.
+%   from CopyFound with their pairing status; paired rows are ticked again.
 
-T = obj.NasSessions;
+T = obj.CopySessions;
 title = "Unstitch";
 sel = [];
 if ~isempty(T)
-    sel = unique(obj.NasTable.Selection(:));
+    sel = unique(obj.CopyTable.Selection(:));
     sel = sel(sel <= height(T));
     sel = sel(T.Status(sel) == "stitched");
 end
@@ -16,7 +16,7 @@ if isempty(sel)
     return
 end
 
-F = obj.NasFound;
+F = obj.CopyFound;
 back = false(height(F), 1);
 for r = sel.'
     back = back | (F.IntanDir ~= "" & F.IntanDir == T.IntanDir(r)) ...
@@ -27,20 +27,20 @@ keep(sel) = false;
 restored = F(back, :);
 
 U = [T(keep, :); restored];
-ticked = [obj.NasTicked(keep); restored.Status == "paired"];
-copyStatus = [obj.NasCopyStatus(keep); strings(height(restored), 1)];
-message = [obj.NasMessage(keep); strings(height(restored), 1)];
+ticked = [obj.CopyTicked(keep); restored.Status == "paired"];
+copyStatus = [obj.CopyStatus(keep); strings(height(restored), 1)];
+message = [obj.CopyMessage(keep); strings(height(restored), 1)];
 
-% in time order, as findNasSessions lists them
+% in time order, as findCopySessions lists them
 t = U.IntanTime;
 t(isnat(t)) = U.EpsychTime(isnat(t));
 [~, order] = sort(t);
-obj.NasSessions = U(order, :);
-obj.NasTicked = ticked(order);
-obj.NasCopyStatus = copyStatus(order);
-obj.NasMessage = message(order);
-obj.refreshNasTable();
+obj.CopySessions = U(order, :);
+obj.CopyTicked = ticked(order);
+obj.CopyStatus = copyStatus(order);
+obj.CopyMessage = message(order);
+obj.refreshCopyTable();
 
-obj.nasLog(sprintf("Unstitched %d row(s): %s", numel(sel), strjoin(T.IntanDir(sel), ", ")));
-obj.setStatus(sprintf("NAS: %s", obj.NasSummaryLabel.Text), "");
+obj.copyLog(sprintf("Unstitched %d row(s): %s", numel(sel), strjoin(T.IntanDir(sel), ", ")));
+obj.setStatus(sprintf("Copy: %s", obj.CopySummaryLabel.Text), "");
 end

@@ -17,7 +17,13 @@ function summary = analyzeArtifacts(obj, opts)
 %     Filter         (1,1) logical  high/band-pass before detecting (default:
 %                    ds.ArtifactConfig.Filter, so preview and runs agree)
 %     FilterType/FilterCutoff/FilterOrder   filter params (default: ArtifactConfig)
-%     ProgressFcn    function handle  ProgressFcn(i, nFiles, fileName)
+%     ProgressFcn    function handle  ProgressFcn(i, nChunks, chunkName), before
+%                    each chunk (serial) or as each chunk finishes (parallel)
+%     MaxChunkSamples (1,1) double  cap on samples per chunk (split formats)
+%     UseParallel    (1,1) logical  run the chunks on a process pool (default
+%                    false; the result is identical; the rules and the memory
+%                    cap on workers are those of detectSpikes)
+%     MaxWorkers     (1,1) double  cap on chunks in flight (NaN = automatic)
 %
 %   Output SUMMARY struct
 %   ---------------------
@@ -48,6 +54,9 @@ arguments
     opts.FilterCutoff (1,:) double {mustBePositive} = []
     opts.FilterOrder (1,1) double = NaN
     opts.ProgressFcn = []
+    opts.MaxChunkSamples (1,1) double = NaN
+    opts.UseParallel (1,1) logical = false
+    opts.MaxWorkers (1,1) double = NaN
 end
 
 if obj.NumFiles == 0
@@ -72,8 +81,8 @@ padMs    = opts.PadMs;         if isnan(padMs);         padMs    = cfg.PadMs;   
     opts.Filter, opts.FilterType, opts.FilterCutoff, opts.FilterOrder);
 
 % Streaming plan (per *.rhd file for traditional; bounded sample windows for the
-% split formats). The loop body is format-agnostic via readChunkUV.
-plan = obj.streamPlan(Files=opts.Files);
+% split formats). The per-chunk work is artifactChunk, run by mapChunks.
+plan = obj.streamPlan(Files=opts.Files, MaxChunkSamples=opts.MaxChunkSamples);
 
 % Channel names from the parsed header (applying any reorder/subset), independent
 % of which chunk we are on - identical for every supported format.
@@ -87,48 +96,42 @@ if ~isempty(opts.ChannelOrder)
 end
 
 Fs = obj.Fs;
+nChunks = numel(plan);
+filt = struct('use', useFilter, 'type', fType, 'cutoff', fCut, 'order', fOrd);
+det  = struct('method', method, 'threshold', thr, 'rmsWindowMs', rmsWinMs, ...
+    'minChannels', minCh, 'mergeGapMs', mergeGapMs, 'padMs', padMs);
+chanOrder = opts.ChannelOrder;
+
+pool = [];
+nWorkers = 1;
+if opts.UseParallel && nChunks > 1
+    [pool, nWorkers] = parallelChunkPool(plan, obj.NumChannels, opts.MaxWorkers, 5, "analyzeArtifacts");
+end
+R = mapChunks(@(i) artifactChunk(obj, plan(i), chanOrder, filt, det, Fs), ...
+    reshape(string({plan.name}), 1, []), Pool=pool, NumWorkers=nWorkers, ...
+    ProgressFcn=opts.ProgressFcn);
+
+% Reduce in recording order. The sums are integer-valued, so the result does
+% not depend on the order the chunks finished in.
 nSamples = 0;
 nBlanked = 0;
 nIntervals = 0;
-channelCounts = [];     % [1 x nChan], grown on first chunk
+channelCounts = [];     % [1 x nChan], from the first chunk that held data
 rmsWindowMsUsed = NaN;
-
-nChunks = numel(plan);
 for i = 1:nChunks
-    if ~isempty(opts.ProgressFcn)
-        opts.ProgressFcn(i, nChunks, plan(i).name);
-    end
-    X = obj.readChunkUV(plan(i));   % [nSamples x nChan], microvolts (all channels)
-    if isempty(X)
+    r = R{i};
+    if isempty(r)
         continue
     end
-
-    if ~isempty(opts.ChannelOrder)
-        if max(opts.ChannelOrder) > size(X, 2)
-            error('EphysDataset:analyzeArtifacts:BadChannelOrder', ...
-                'ChannelOrder references channel %d but recording has %d.', ...
-                max(opts.ChannelOrder), size(X, 2));
-        end
-        X = X(:, opts.ChannelOrder);
-    end
-
-    if useFilter
-        X = obj.filterContinuous(X, Type=fType, Cutoff=fCut, Order=fOrd, Fs=Fs);
-    end
-
-    [mask, ~, st] = obj.detectArtifacts(X, Method=method, Threshold=thr, ...
-        RmsWindowMs=rmsWinMs, MinChannels=minCh, MergeGapMs=mergeGapMs, ...
-        PadMs=padMs, Fs=Fs);
-
     if isempty(channelCounts)
-        channelCounts = st.channelExceedCounts;
+        channelCounts = r.channelCounts;
     else
-        channelCounts = channelCounts + st.channelExceedCounts;
+        channelCounts = channelCounts + r.channelCounts;
     end
-    nBlanked   = nBlanked + nnz(mask);
-    nIntervals = nIntervals + st.numIntervals;
-    nSamples   = nSamples + size(X, 1);
-    if isnan(rmsWindowMsUsed); rmsWindowMsUsed = st.rmsWindowMs; end
+    nBlanked   = nBlanked + r.nBlanked;
+    nIntervals = nIntervals + r.numIntervals;
+    nSamples   = nSamples + r.nSamples;
+    if isnan(rmsWindowMsUsed); rmsWindowMsUsed = r.rmsWindowMs; end
 end
 
 if isempty(channelCounts); channelCounts = zeros(1, 0); end

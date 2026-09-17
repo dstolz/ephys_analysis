@@ -32,8 +32,8 @@ function out = spikesToMat(obj, opts)
 %     Source            "detect" (default) | "sorted" | "both"
 %     DetectOptions     struct of detectSpikes options (Filter, Band,
 %                       ThresholdMethod, Threshold, Waveforms, WindowMs,
-%                       MaxChunkSamples, UseParallel, ...). Do not include Fs,
-%                       ChannelOrder or ProgressFcn here.
+%                       MaxChunkSamples, UseParallel, MaxWorkers, ...). Do not
+%                       include Fs, ChannelOrder or ProgressFcn here.
 %     Channels          1-based recording channels to detect on, in order
 %                       ([] = all)
 %     RejectArtifacts   true (default): drop detected events inside the

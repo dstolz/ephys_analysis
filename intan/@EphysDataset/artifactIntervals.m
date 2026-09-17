@@ -10,10 +10,11 @@ function iv = artifactIntervals(obj, opts)
 %   exactly these spans in the recording it feeds Kilosort4; the *.rhd files are
 %   never modified.
 %
-%   Auto intervals are found with the same streamPlan + detectArtifacts loop the
-%   Artifacts-tab preview uses (analyzeArtifacts), one chunk in memory at a time,
-%   so the preview and the actual run agree. Each chunk's intervals are shifted
-%   by the running sample offset so they are global (recording-relative).
+%   Auto intervals are found with the same streamPlan + artifactChunk loop the
+%   Artifacts-tab preview uses (analyzeArtifacts), one chunk in memory at a time
+%   (per worker with UseParallel), so the preview and the actual run agree.
+%   Each chunk's intervals are shifted by the running sample offset so they are
+%   global (recording-relative). The result does not depend on UseParallel.
 %
 %   Options (auto-detection params; each omitted option falls back to
 %   ds.ArtifactConfig)
@@ -24,7 +25,13 @@ function iv = artifactIntervals(obj, opts)
 %     Filter/FilterType/FilterCutoff/FilterOrder   detect on a filtered view
 %       (default: ds.ArtifactConfig.Filter etc., so a config with Filter=true
 %       is honored by runs, the preview and the Visualize overlay alike)
-%     ProgressFcn  function handle  ProgressFcn(i, nChunks, chunkName)
+%     MaxChunkSamples (1,1) double  cap on samples per chunk (split formats)
+%     UseParallel  (1,1) logical  run the chunks on a process pool (default
+%       false); the rules and the memory cap on workers are those of
+%       detectSpikes, and a warning reports a fall-back to serial
+%     MaxWorkers   (1,1) double  cap on chunks in flight (NaN = automatic)
+%     ProgressFcn  function handle  ProgressFcn(i, nChunks, chunkName), before
+%       each chunk (serial) or as each chunk finishes (parallel)
 %
 %   See also EphysDataset.detectArtifacts, EphysDataset.analyzeArtifacts,
 %   EphysDataset.runSpikeInterface, EphysDataset.ManualArtifacts.
@@ -43,6 +50,9 @@ arguments
     opts.FilterType (1,1) string {mustBeMember(opts.FilterType, ["","highpass","lowpass","bandpass"])} = ""
     opts.FilterCutoff (1,:) double {mustBePositive} = []
     opts.FilterOrder (1,1) double = NaN
+    opts.MaxChunkSamples (1,1) double = NaN
+    opts.UseParallel (1,1) logical = false
+    opts.MaxWorkers (1,1) double = NaN
     opts.ProgressFcn = []
 end
 
@@ -87,32 +97,34 @@ minCh    = opts.MinChannels; if isnan(minCh);      minCh    = acfg.MinChannels; 
 padMs    = opts.PadMs;       if isnan(padMs);      padMs    = acfg.PadMs;       end
 
 Fs   = obj.Fs;
-plan = obj.streamPlan(Files=opts.Files);
+plan = obj.streamPlan(Files=opts.Files, MaxChunkSamples=opts.MaxChunkSamples);
+nChunks = numel(plan);
+filt = struct('use', useFilter, 'type', fType, 'cutoff', fCut, 'order', fOrd);
+det  = struct('method', method, 'threshold', thr, 'rmsWindowMs', rmsWinMs, ...
+    'minChannels', minCh, 'mergeGapMs', mergeGap, 'padMs', padMs);
 
-auto     = zeros(0, 2);
-offsetSamp = 0;               % running recording-global sample offset
-nChunks  = numel(plan);
+pool = [];
+nWorkers = 1;
+if opts.UseParallel && nChunks > 1
+    [pool, nWorkers] = parallelChunkPool(plan, obj.NumChannels, opts.MaxWorkers, 5, "artifactIntervals");
+end
+R = mapChunks(@(i) artifactChunk(obj, plan(i), [], filt, det, Fs), ...
+    reshape(string({plan.name}), 1, []), Pool=pool, NumWorkers=nWorkers, ...
+    ProgressFcn=opts.ProgressFcn);
+
+% Shift each chunk's intervals by the samples read before it, in recording
+% order - exactly the offsets the serial loop accumulates.
+auto = zeros(0, 2);
+offsetSamp = 0;
 for i = 1:nChunks
-    if ~isempty(opts.ProgressFcn)
-        opts.ProgressFcn(i, nChunks, plan(i).name);
-    end
-    X = obj.readChunkUV(plan(i));   % [nSamples x nChan], microvolts
-    if isempty(X)
+    r = R{i};
+    if isempty(r)
         continue
     end
-
-    if useFilter
-        X = obj.filterContinuous(X, Type=fType, Cutoff=fCut, Order=fOrd, Fs=Fs);
+    if ~isempty(r.intervals)
+        auto = [auto; r.intervals + offsetSamp / Fs]; %#ok<AGROW> shift to global seconds
     end
-
-    [~, chunkIv] = obj.detectArtifacts(X, Method=method, Threshold=thr, ...
-        RmsWindowMs=rmsWinMs, MinChannels=minCh, MergeGapMs=mergeGap, ...
-        PadMs=padMs, Fs=Fs);
-
-    if ~isempty(chunkIv)
-        auto = [auto; chunkIv + offsetSamp / Fs]; %#ok<AGROW> shift to global seconds
-    end
-    offsetSamp = offsetSamp + size(X, 1);
+    offsetSamp = offsetSamp + r.nSamples;
 end
 
 iv = mergeIntervals([manual; auto]);

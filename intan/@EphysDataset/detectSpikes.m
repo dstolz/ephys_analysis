@@ -120,19 +120,25 @@ function [ts, wf, info] = detectSpikes(obj, X, opts)
 %                      alignment window and the minimum detection period)
 %     ProgressFcn      function handle  ProgressFcn(i, nChunks, chunkName),
 %                      called before each chunk (serial) or on the client as
-%                      each chunk finishes (UseParallel, completion order)
-%     UseParallel      (1,1) logical  detect the chunks in parallel on the
-%                      current parallel pool, starting the default pool if none
-%                      is open (default false). The result is identical to the
-%                      serial one. Needs the Parallel Computing Toolbox and the
-%                      sample count of every chunk up front (always known for
-%                      the split formats; from the *.rhd headers otherwise);
-%                      when either is missing a warning is issued and the
-%                      chunks run serially. Each worker reads its own chunk plus
-%                      the context before it: for the split formats that is a
+%                      each chunk finishes (UseParallel; i is then the number
+%                      of chunks done and chunkName the one just finished)
+%     UseParallel      (1,1) logical  detect the chunks on a process pool
+%                      (default false): the open pool when there is one,
+%                      otherwise a pool sized to the worker cap. The result is
+%                      identical to the serial one. Needs the Parallel
+%                      Computing Toolbox and the sample count of every chunk
+%                      up front (always known for the split formats; from the
+%                      *.rhd headers otherwise); when either is missing, or a
+%                      thread pool is open, a warning is issued and the chunks
+%                      run serially. Each worker reads its own chunk plus the
+%                      context before it: for the split formats that is a
 %                      small window, but for traditional *.rhd files it means
 %                      also reading the preceding file, so expect about twice
 %                      the I/O and up to two files in memory per worker.
+%     MaxWorkers       (1,1) double  cap on chunks in flight at once (default
+%                      NaN = automatic). The cap is always limited by free
+%                      memory - about six copies of one chunk per worker - so
+%                      a 12-worker pool typically runs 4-5 chunks at a time.
 %
 %   Memory: one chunk plus the padding is held at a time (per worker with
 %   UseParallel), but the returned
@@ -236,6 +242,7 @@ arguments
     opts.EdgePadMs (1,1) double = NaN
     opts.ProgressFcn = []
     opts.UseParallel (1,1) logical = false
+    opts.MaxWorkers (1,1) double = NaN
 end
 
 if isempty(opts.Waveforms)
@@ -245,13 +252,13 @@ else
 end
 
 streamOnly = ["Files" "ChannelOrder" "MaxChunkSamples" "EdgePadMs" "ProgressFcn" ...
-              "UseParallel"];
+              "UseParallel" "MaxWorkers"];
 
 if ~isempty(X)
     % ---- block mode: detect on the matrix the caller handed us -------------
     given = streamOnly([~isempty(opts.Files), ~isempty(opts.ChannelOrder), ...
         ~isnan(opts.MaxChunkSamples), ~isnan(opts.EdgePadMs), ...
-        ~isempty(opts.ProgressFcn), opts.UseParallel]);
+        ~isempty(opts.ProgressFcn), opts.UseParallel, ~isnan(opts.MaxWorkers)]);
     if ~isempty(given)
         error('EphysDataset:detectSpikes:BlockOption', ...
             ['%s appl%s only when detecting over a whole recording ' ...
@@ -319,13 +326,10 @@ nChunks = numel(plan);
 wstate = warning('off', 'EphysDataset:detectSpikes:DegenerateThreshold');
 restoreWarning = onCleanup(@() warning(wstate));
 
-useParallel = false;
+pool = [];
+nWorkers = 1;
 if opts.UseParallel && nChunks > 1
-    [useParallel, whyNot] = parallelAvailable(plan);
-    if ~useParallel
-        warning('EphysDataset:detectSpikes:SerialFallback', ...
-            'UseParallel ignored (%s); detecting chunks serially.', whyNot);
-    end
+    [pool, nWorkers] = parallelChunkPool(plan, obj.NumChannels, opts.MaxWorkers, 6, "detectSpikes");
 end
 
 % One result per chunk (empty for chunks that held no amplifier data), in
@@ -333,26 +337,17 @@ end
 % held back for the next chunk; only the last chunk's held-back events are kept.
 R = cell(1, nChunks);
 
-if useParallel
+if ~isempty(pool)
     % Every chunk's position in the recording is known from the plan, so each
     % worker reads its own context (the up-to-2*pad samples before the chunk)
     % instead of receiving it from the previous iteration. The blocks, and hence
-    % the result, are identical to the serial loop below.
+    % the result, are identical to the serial loop below. mapChunks keeps at
+    % most nWorkers chunks in flight and reports progress on the client.
     starts = [0 cumsum([plan.nSamples])];
-    progQ  = [];
-    if ~isempty(opts.ProgressFcn)
-        progQ = parallel.pool.DataQueue;
-        progFcn = opts.ProgressFcn;
-        afterEach(progQ, @(i) progFcn(i, nChunks, plan(i).name));
-    end
     chanOrder = opts.ChannelOrder;
-    parfor i = 1:nChunks
-        R{i} = parallelChunk(obj, plan, i, starts(i), pad, chanOrder, ...
-            blockOpts, doWave);
-        if ~isempty(progQ)
-            send(progQ, i); %#ok<PFBNS>
-        end
-    end
+    R = mapChunks(@(i) parallelChunk(obj, plan, i, starts(i), pad, chanOrder, blockOpts, doWave), ...
+        reshape(string({plan.name}), 1, []), Pool=pool, NumWorkers=nWorkers, ...
+        ProgressFcn=opts.ProgressFcn);
 else
     consumed = 0;       % samples read so far = 0-based index of the next sample
     tail     = [];      % trailing samples of the previous chunk, kept as context
@@ -631,31 +626,6 @@ end
 
 R = detectChunk(obj, [ctx; Xc], plan(i).name, chunkFirst0, nCtx, pad, ...
     blockOpts, doWave);
-end
-
-
-function [ok, why] = parallelAvailable(plan)
-%parallelAvailable  Whether the chunks of PLAN can be detected on a pool.
-ok = false;
-why = "";
-if any(isnan([plan.nSamples]))
-    why = "chunk sample counts are unknown";
-    return
-end
-if ~(license('test', 'Distrib_Computing_Toolbox') && exist('gcp', 'file'))
-    why = "Parallel Computing Toolbox is not available";
-    return
-end
-try
-    if isempty(gcp())
-        why = "no parallel pool could be opened";
-        return
-    end
-catch ME
-    why = "no parallel pool could be opened: " + ME.message;
-    return
-end
-ok = true;
 end
 
 

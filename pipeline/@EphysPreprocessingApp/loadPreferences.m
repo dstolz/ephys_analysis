@@ -80,6 +80,7 @@ if ispref(g, 'NasOptions')
         applyIf(v, 'maxLeadMin', @(x) set(obj.NasMaxLeadField, 'Value', x));
         applyIf(v, 'maxLagMin',  @(x) set(obj.NasMaxLagField, 'Value', x));
         applyIf(v, 'marginSec',  @(x) set(obj.NasMarginField, 'Value', x));
+        applyIf(v, 'minDurationMin', @(x) set(obj.NasMinDurationField, 'Value', x));
         applyIf(v, 'verify',     @(x) set(obj.NasVerifyDropDown, 'Value', char(x)));
         applyIf(v, 'ifExists',   @(x) set(obj.NasIfExistsDropDown, 'Value', char(x)));
         applyIf(v, 'openAfter',  @(x) set(obj.NasScanAfterCheckBox, 'Value', logical(x)));

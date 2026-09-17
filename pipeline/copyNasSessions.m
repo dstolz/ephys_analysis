@@ -12,15 +12,29 @@ function R = copyNasSessions(T, opts)
 %
 %   Which rows are copied
 %     paired                     always
+%     stitched                   always (see stitchNasSessions and below)
 %     intan_only / epsych_only   only with IncludeUnpaired=true (an ePsych-only
 %                                row goes to <DestRoot>/<Subject>/<file name without .mat>)
 %     ambiguous                  never
 %   Pass only the rows you want (e.g. T(sel, :)).
 %
+%   Stitched rows. The Intan folder is copied as usual, but the row's ePsych
+%   files (StitchFiles) are not: they are joined, in chronological order,
+%   into one Epsych2 session written as <earliest file name>_stitched.mat
+%   (stitchEpsychSessions), so the session folder holds a single behavior
+%   file, as for a paired row. Planning (a dry run too) stitches the files in
+%   memory, so files that cannot be stitched fail the row before anything is
+%   copied. The file is checked right after it is
+%   written: it must list the same source file names and sizes and hold as
+%   many trials as they do; with Verify="hash" its Data and Info must also
+%   equal a fresh stitch of the sources, and the SHA-256 of each source and
+%   of the file are recorded.
+%
 %   Destination checks. A destination folder that exists and is not empty
 %   is compared with the source: when every source file is there with the
 %   same size (and SHA-256 with Verify="hash"; a dry run compares sizes
-%   only) the row is "already_present" and left untouched. Otherwise
+%   only), and a stitched row's file passes the checks above, the row is
+%   "already_present" and left untouched. Otherwise
 %   IfExists decides: "skip" (default) reports "skipped", "error" reports
 %   "failed". There is no overwrite option. Before copying, the free space
 %   under DestRoot is checked against the total size of the rows to copy;
@@ -35,11 +49,14 @@ function R = copyNasSessions(T, opts)
 %   codes 0-7 are success, 8 and above failure. The robocopy log is
 %   session_copy_robocopy.log in the destination folder.
 %
-%   Verification after the copy: every source file must have a destination
-%   file of identical size (plus identical SHA-256 with Verify="hash",
-%   streamed in 64 MB chunks) and must not have changed size since it was
-%   listed. Any mismatch marks the row "failed"; the partial copy is kept
-%   and the manifest records what did not match.
+%   Verification: each file is checked as soon as robocopy has copied it.
+%   The destination file must have the source's size, and the source must
+%   not have changed size since it was listed. With Verify="hash" the SHA-256
+%   of the source and of the destination (streamed in 64 MB chunks) must
+%   also match, which reads every file twice more. The first file that does
+%   not match stops that session and marks it "failed"; the partial copy is
+%   kept and the manifest records the sizes and checksums of the files
+%   checked so far.
 %
 %   Each row is handled in its own try/catch so one failure does not stop
 %   the batch.
@@ -49,36 +66,40 @@ function R = copyNasSessions(T, opts)
 %     DryRun           (default true) report what would happen, write nothing
 %     IfExists         "skip" (default) | "error"
 %     IncludeUnpaired  (default false)
-%     Verify           "size" (default) | "hash"
-%     ProgressFcn      @(fraction, message), called between files
+%     Verify           "size" (default) | "hash" (SHA-256 checksum of each file)
+%     ProgressFcn      @(fraction, message), called before each file is copied
+%                      and, with Verify="hash", before it is checksummed
 %     LogFcn           @(message) (default: print it)
 %     CancelFcn        @() logical, polled between files; true stops the batch
 %                      (the current session is kept as copied so far and marked
 %                      "cancelled", the rest "cancelled")
-%     BeforeVerifyFcn  @(destDir), called after a session's files are copied
-%                      and before they are verified (for tests)
+%     BeforeVerifyFcn  @(destFile), called after each file is copied and
+%                      before it is verified (for tests)
 %
 %   R is T with DestDir recomputed from DestRoot and these columns added:
 %     CopyStatus    "planned" (dry run) | "copied" | "already_present" |
 %                   "skipped" | "failed" | "cancelled"
 %     Message       what happened, or why not
-%     NumFiles      source files in the session
-%     TotalBytes    their total size
+%     NumFiles      files the session folder receives (a stitched row's
+%                   ePsych files count as its one stitched file)
+%     TotalBytes    the size of their sources
 %     ManifestFile  session_manifest.json written ("" when none)
 %
 %   session_manifest.json holds the source and destination paths, the
 %   session times, DeltaT, the pairing status, every file's size (and
-%   hashes when computed), the copy start / finish times, host name, user
-%   name, this function's version and the git commit of this code when git
-%   can tell.
+%   hashes when computed), for a stitched row the stitched file and each
+%   source ePsych file (epsych.stitch), the copy start / finish times, host
+%   name, user name, this function's version and the git commit of this
+%   code when git can tell.
 %
 %   Examples
 %     T = findNasSessions("SUBJ-ID-1255", "260916");
 %     R = copyNasSessions(T);                                    % dry run
 %     R = copyNasSessions(T, DryRun=false, Verify="hash");       % copy
 %     R = copyNasSessions(T(3, :), DryRun=false, IncludeUnpaired=true);
+%     R = copyNasSessions(stitchNasSessions(T, [1 2]), DryRun=false);
 %
-%   See also findNasSessions.
+%   See also findNasSessions, stitchNasSessions, stitchEpsychSessions.
 
 arguments
     T table
@@ -93,11 +114,11 @@ arguments
     opts.BeforeVerifyFcn = []
 end
 
-VERSION = "1.0.0";
+VERSION = "1.2.0";
 MANIFEST = "session_manifest.json";
 ROBOLOG = "session_copy_robocopy.log";
 
-need = ["Subject", "IntanDir", "IntanTime", "EpsychFile", "EpsychTime", "DeltaT", "Status"];
+need = ["Subject", "IntanDir", "IntanTime", "EpsychFile", "EpsychTime", "DeltaT", "Status", "StitchFiles"];
 missing = need(~ismember(need, string(T.Properties.VariableNames)));
 if ~isempty(missing)
     error('copyNasSessions:BadTable', 'The session table is missing column(s): %s.', strjoin(missing, ", "));
@@ -126,6 +147,7 @@ R.ManifestFile = strings(n, 1);
 % --- plan: sources, destinations, what each row will do --------------------------
 items = cell(n, 1);
 subdirs = cell(n, 1);
+stitches = cell(n, 1);
 for r = 1:n
     try
         if R.IntanDir(r) ~= ""
@@ -142,17 +164,19 @@ for r = 1:n
         elseif any(st == ["intan_only", "epsych_only"]) && ~opts.IncludeUnpaired
             setRow(r, "skipped", st + " row (IncludeUnpaired is false)");
             continue
-        elseif ~any(st == ["paired", "intan_only", "epsych_only"])
+        elseif ~any(st == ["paired", "stitched", "intan_only", "epsych_only"])
             setRow(r, "skipped", "unknown pairing status """ + st + """");
             continue
         end
+        parts = string(R.StitchFiles{r});
         if (st == "paired" && (R.IntanDir(r) == "" || R.EpsychFile(r) == "")) ...
+                || (st == "stitched" && (R.IntanDir(r) == "" || numel(parts) < 2)) ...
                 || (st == "intan_only" && R.IntanDir(r) == "") || (st == "epsych_only" && R.EpsychFile(r) == "")
             setRow(r, "failed", "the row's paths do not match its status " + st);
             continue
         end
 
-        [items{r}, subdirs{r}, err] = listSources(R.IntanDir(r), R.EpsychFile(r), st);
+        [items{r}, subdirs{r}, stitches{r}, err] = listSources(R.IntanDir(r), R.EpsychFile(r), parts, st);
         if err ~= ""
             setRow(r, "failed", err);
             continue
@@ -162,8 +186,17 @@ for r = 1:n
             setRow(r, "failed", "the source holds a file named " + MANIFEST + " or " + ROBOLOG + " at its top level");
             continue
         end
-        R.NumFiles(r) = numel(items{r});
+        R.NumFiles(r) = numel(items{r}) + ~isempty(stitches{r});
         R.TotalBytes(r) = sum([items{r}.bytes]);
+        if ~isempty(stitches{r})
+            R.TotalBytes(r) = R.TotalBytes(r) + sum(stitches{r}.bytes);
+            try
+                stitchEpsychSessions(parts);   % in memory: a preview reports files that cannot be stitched
+            catch ME
+                setRow(r, "failed", "the ePsych files cannot be stitched: " + ME.message);
+                continue
+            end
+        end
 
         dest = R.DestDir(r);
         if isfile(dest)
@@ -172,6 +205,9 @@ for r = 1:n
             mode = opts.Verify;
             if opts.DryRun; mode = "size"; end
             [same, why] = verifyItems(items{r}, dest, mode, false);
+            if same && ~isempty(stitches{r})
+                [same, why] = verifyStitch(stitches{r}, dest, mode, false);
+            end
             if same
                 setRow(r, "already_present", "destination already holds an identical copy (" + mode + " check)");
             elseif opts.IfExists == "skip"
@@ -179,8 +215,11 @@ for r = 1:n
             else
                 setRow(r, "failed", "destination exists and differs from the source (" + why + "); IfExists is ""error""");
             end
-        else
+        elseif isempty(stitches{r})
             setRow(r, "planned", sprintf("would copy %d file(s), %s, to %s", R.NumFiles(r), bytesText(R.TotalBytes(r)), dest));
+        else
+            setRow(r, "planned", sprintf("would copy %d file(s) and stitch %d ePsych files into %s, %s, to %s", ...
+                numel(items{r}), numel(parts), stitches{r}.rel, bytesText(R.TotalBytes(r)), dest));
         end
     catch ME
         setRow(r, "failed", "planning failed: " + ME.message);
@@ -221,6 +260,8 @@ host = hostName();
 user = string(getenv('USERNAME'));
 if user == ""; user = string(getenv('USER')); end
 
+hashing = opts.Verify == "hash";
+work = max(total * (1 + 2 * hashing), 1);   % a checksum reads the source and the copy once more
 done = 0;
 stop = false;
 for r = toCopy.'
@@ -232,6 +273,7 @@ for r = toCopy.'
     dest = R.DestDir(r);
     started = datetime('now', 'TimeZone', 'local');
     files = [];
+    stitchRec = [];
     try
         logFcn(sprintf("Copying %s -> %s", rowName(r), dest));
         makeFolder(dest);
@@ -240,30 +282,56 @@ for r = toCopy.'
             makeFolder(fullfile(dest, s));
         end
         it = items{r};
+        files = fileRecords(it, dest);
+        why = "";
         for k = 1:numel(it)
             if cancelled()
                 stop = true;
                 break
             end
-            progress(min(done / max(total, 1), 1), sprintf("%s: file %d/%d, %s (%s)", ...
-                rowName(r), k, numel(it), it(k).rel, bytesText(it(k).bytes)));
-            robocopyFile(it(k).src, fullfile(dest, it(k).rel), logFile);
+            label = sprintf("%s: file %d/%d, %s (%s)", rowName(r), k, numel(it), it(k).rel, bytesText(it(k).bytes));
+            progress(min(done / work, 1), label);
+            robocopyFile(it(k).src, files(k).destination, logFile);
             done = done + it(k).bytes;
+            if ~isempty(opts.BeforeVerifyFcn)
+                opts.BeforeVerifyFcn(files(k).destination);
+            end
+            if hashing
+                progress(min(done / work, 1), label + ", SHA-256 checksum");
+            end
+            [same, why, files(k)] = verifyItems(it(k), dest, opts.Verify, true);
+            done = done + 2 * hashing * it(k).bytes;
+            if ~same; break; end
+        end
+        stitch = stitches{r};
+        if ~stop && why == "" && ~isempty(stitch)
+            stop = cancelled();
+            if ~stop
+                label = sprintf("%s: stitching %d ePsych files into %s", rowName(r), numel(stitch.files), stitch.rel);
+                progress(min(done / work, 1), label);
+                out = string(fullfile(dest, stitch.rel));
+                stitchEpsychSessions(stitch.files, OutFile=out);
+                done = done + sum(stitch.bytes);
+                if ~isempty(opts.BeforeVerifyFcn)
+                    opts.BeforeVerifyFcn(out);
+                end
+                if hashing
+                    progress(min(done / work, 1), label + ", comparing it with a fresh stitch");
+                end
+                [~, why, stitchRec] = verifyStitch(stitch, dest, opts.Verify, true);
+                done = done + 2 * hashing * sum(stitch.bytes);
+            end
         end
         if stop
             setRow(r, "cancelled", "cancelled during the copy; the partial copy is kept in " + dest);
+        elseif why ~= ""
+            setRow(r, "failed", "VERIFICATION FAILED (" + why + "); copying stopped, the partial copy is kept in " + dest);
+        elseif isempty(stitch)
+            setRow(r, "copied", sprintf("copied and verified %d file(s), %s (%s check of each file)", ...
+                numel(it), bytesText(R.TotalBytes(r)), opts.Verify));
         else
-            if ~isempty(opts.BeforeVerifyFcn)
-                opts.BeforeVerifyFcn(dest);
-            end
-            progress(min(done / max(total, 1), 1), sprintf("%s: verifying (%s)", rowName(r), opts.Verify));
-            [same, why, files] = verifyItems(it, dest, opts.Verify, true);
-            if same
-                setRow(r, "copied", sprintf("copied and verified %d file(s), %s (%s check)", ...
-                    numel(it), bytesText(R.TotalBytes(r)), opts.Verify));
-            else
-                setRow(r, "failed", "VERIFICATION FAILED (" + why + "); the partial copy is kept in " + dest);
-            end
+            setRow(r, "copied", sprintf("copied and verified %d file(s) and stitched %d ePsych files (%d trials) into %s, %s (%s check of each file)", ...
+                numel(it), numel(stitch.files), stitchRec.nTrials, stitch.rel, bytesText(R.TotalBytes(r)), opts.Verify));
         end
     catch ME
         setRow(r, "failed", ME.message + " (anything copied is kept in " + dest + ")");
@@ -271,7 +339,7 @@ for r = toCopy.'
 
     if isfolder(dest)
         try
-            R.ManifestFile(r) = writeManifest(r, dest, started, files);
+            R.ManifestFile(r) = writeManifest(r, dest, started, files, stitchRec);
         catch ME
             R.Message(r) = R.Message(r) + "; manifest not written: " + ME.message;
             if R.CopyStatus(r) == "copied"; R.CopyStatus(r) = "failed"; end
@@ -294,25 +362,34 @@ logFcn(sprintf("Copy finished: %d copied, %d already present, %d skipped, %d fai
         [~, s] = fileparts(s);
     end
 
-    function f = writeManifest(r, dest, started, files)
+    function f = writeManifest(r, dest, started, files, stitchRec)
         if isempty(files)
             files = fileRecords(items{r}, dest);
         end
         isEpsych = [files.isEpsych];
         m = struct();
-        m.manifestVersion = 1;
+        m.manifestVersion = 2;
         m.subject = R.Subject(r);
         m.pairingStatus = R.Status(r);
         m.deltaT_s = durSeconds(R.DeltaT(r));
         m.intan = struct('sourceDir', R.IntanDir(r), 'destDir', dest, 'time', isoTime(R.IntanTime(r)), ...
             'files', {num2cell(rmfield(files(~isEpsych), 'isEpsych'))});
+        eSource = R.EpsychFile(r);
         eDest = "";
-        if R.EpsychFile(r) ~= ""
-            [~, en, ex] = fileparts(R.EpsychFile(r));
+        stitchBlock = [];
+        if ~isempty(stitches{r})
+            % the sources are listed under stitch.parts; no single file was copied
+            if isempty(stitchRec); stitchRec = stitchRecord(stitches{r}, dest); end
+            eSource = "";
+            eDest = stitchRec.file;
+            stitchBlock = stitchRec;
+            stitchBlock.parts = num2cell(stitchRec.parts);
+        elseif eSource ~= ""
+            [~, en, ex] = fileparts(eSource);
             eDest = string(fullfile(dest, en + ex));
         end
-        m.epsych = struct('sourceFile', R.EpsychFile(r), 'destFile', eDest, 'time', isoTime(R.EpsychTime(r)), ...
-            'files', {num2cell(rmfield(files(isEpsych), 'isEpsych'))});
+        m.epsych = struct('sourceFile', eSource, 'destFile', eDest, 'time', isoTime(R.EpsychTime(r)), ...
+            'files', {num2cell(rmfield(files(isEpsych), 'isEpsych'))}, 'stitch', stitchBlock);
         m.copy = struct('status', R.CopyStatus(r), 'message', R.Message(r), 'verify', opts.Verify, ...
             'numFiles', R.NumFiles(r), 'totalBytes', int64(R.TotalBytes(r)), ...
             'startedAt', isoTime(started), 'finishedAt', isoTime(datetime('now', 'TimeZone', 'local')), ...
@@ -324,10 +401,12 @@ logFcn(sprintf("Copy finished: %d copied, %d already present, %d skipped, %d fai
 end
 
 
-function [items, subdirs, err] = listSources(intanDir, epsychFile, status)
-%listSources  Source files (src, rel, bytes, isEpsych) and Intan subfolders to create.
+function [items, subdirs, stitch, err] = listSources(intanDir, epsychFile, stitchFiles, status)
+%listSources  Source files (src, rel, bytes, isEpsych), Intan subfolders to create
+%   and, for a stitched row, the stitch to write (rel, files, bytes; [] otherwise).
 items = struct('src', {}, 'rel', {}, 'bytes', {}, 'isEpsych', {});
 subdirs = strings(1, 0);
+stitch = [];
 err = "";
 if status ~= "epsych_only"
     if ~isfolder(intanDir)
@@ -352,7 +431,24 @@ if status ~= "epsych_only"
         return
     end
 end
-if status ~= "intan_only"
+if status == "stitched"
+    bytes = zeros(numel(stitchFiles), 1);
+    for k = 1:numel(stitchFiles)
+        if ~isfile(stitchFiles(k))
+            err = "ePsych file not found: " + stitchFiles(k) + " (is the NAS drive mounted?)";
+            return
+        end
+        D = dir(stitchFiles(k));
+        bytes(k) = D.bytes;
+    end
+    [~, n] = fileparts(stitchFiles(1));
+    rel = n + "_stitched.mat";
+    if any(strcmpi([items.rel], rel))
+        err = "the Intan folder already holds a file named " + rel;
+        return
+    end
+    stitch = struct('rel', rel, 'files', stitchFiles(:), 'bytes', bytes);
+elseif status ~= "intan_only"
     if ~isfile(epsychFile)
         err = "ePsych file not found: " + epsychFile + " (is the NAS drive mounted?)";
         return
@@ -421,6 +517,89 @@ for k = 1:numel(items)
         'sourceSizeBytes', [], 'destSizeBytes', [], 'sha256Source', "", 'sha256Destination', "", ...
         'isEpsych', items(k).isEpsych);
 end
+end
+
+
+function [same, why, rec] = verifyStitch(stitch, dest, mode, checkSource)
+%verifyStitch  Check a stitched ePsych file against the ePsych files it is made from.
+%   SAME is true when the file exists, its Info.Stitch.Parts list the same
+%   source file names with their current sizes, and it holds as many trials
+%   as those parts. CHECKSOURCE also requires each source still to have the
+%   size it was listed with. With MODE "hash" its Data and Info must equal a
+%   fresh stitch of the sources (apart from Stitch.Created and the source
+%   paths), and the SHA-256 of the sources and of the file are recorded.
+%   REC is the manifest record.
+rec = stitchRecord(stitch, dest);
+bad = strings(0, 1);
+for k = 1:numel(stitch.files)
+    s = dir(stitch.files(k));
+    if ~isscalar(s)
+        bad(end+1) = rec.parts(k).name + " missing on the source"; %#ok<AGROW>
+        continue
+    end
+    rec.parts(k).sourceSizeBytes = int64(s.bytes);
+    if checkSource && s.bytes ~= stitch.bytes(k)
+        bad(end+1) = rec.parts(k).name + " changed on the source during the copy"; %#ok<AGROW>
+    end
+end
+if ~isfile(rec.file)
+    bad(end+1) = stitch.rel + " missing";
+elseif isempty(bad)
+    try
+        d = dir(rec.file);
+        rec.sizeBytes = int64(d.bytes);
+        L = load(rec.file, 'Info');
+        P = L.Info.Stitch.Parts;
+        w = whos('-file', rec.file, 'Data');
+        [found, loc] = ismember([rec.parts.name], string({P.Name}));
+        if numel(P) ~= numel(stitch.files) || ~all(found) ...
+                || ~isequal([P(loc).Bytes], double([rec.parts.sourceSizeBytes]))
+            bad(end+1) = stitch.rel + " was stitched from other ePsych files or other versions of them";
+        elseif prod(w.size) ~= sum([P.NTrials])
+            bad(end+1) = sprintf("%s holds %d trials, its parts %d", stitch.rel, prod(w.size), sum([P.NTrials]));
+        else
+            rec.nTrials = prod(w.size);
+            nt = num2cell([P(loc).NTrials]);
+            [rec.parts.nTrials] = nt{:};
+            if mode == "hash"
+                L = load(rec.file, 'Data', 'Info');
+                [D2, I2] = stitchEpsychSessions(stitch.files);
+                if ~isequaln(L.Data, D2) || ~isequaln(comparableInfo(L.Info), comparableInfo(I2))
+                    bad(end+1) = stitch.rel + " differs from a fresh stitch of its ePsych files";
+                end
+                for k = 1:numel(stitch.files)
+                    rec.parts(k).sha256Source = sha256File(stitch.files(k));
+                end
+                rec.sha256 = sha256File(rec.file);
+            end
+        end
+    catch ME
+        bad(end+1) = stitch.rel + " cannot be read as a stitched ePsych file: " + ME.message;
+    end
+end
+same = isempty(bad);
+why = "";
+if ~same; why = strjoin(bad, "; "); end
+end
+
+
+function rec = stitchRecord(stitch, dest)
+%stitchRecord  Manifest record of a stitched ePsych file and its source files.
+parts = struct('source', {}, 'name', {}, 'sizeBytes', {}, 'sourceSizeBytes', {}, 'nTrials', {}, 'sha256Source', {});
+for k = 1:numel(stitch.files)
+    [~, n, x] = fileparts(stitch.files(k));
+    parts(k) = struct('source', stitch.files(k), 'name', n + x, 'sizeBytes', int64(stitch.bytes(k)), ...
+        'sourceSizeBytes', [], 'nTrials', [], 'sha256Source', "");
+end
+rec = struct('file', string(fullfile(dest, stitch.rel)), 'sizeBytes', [], 'nTrials', [], 'sha256', "", ...
+    'parts', parts);
+end
+
+
+function I = comparableInfo(I)
+%comparableInfo  A stitched Info without what differs between two stitches of the same files.
+I.Stitch = rmfield(I.Stitch, 'Created');
+I.Stitch.Parts = rmfield(I.Stitch.Parts, 'File');
 end
 
 

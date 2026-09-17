@@ -11,7 +11,9 @@ classdef EphysPreprocessingApp < handle
     %   Tabs, in workflow order
     %     NAS        find one subject's sessions on the NAS for a day or range,
     %                pair each Intan recording with its ePsych file by the
-    %                timestamps in their names (findNasSessions), preview and
+    %                timestamps in their names (findNasSessions), stitch the
+    %                ePsych files of one recording picked by hand
+    %                (stitchNasSessions), preview and
     %                copy the ticked sessions to <destination>/<subject>/<Intan
     %                folder> with verification and a manifest (copyNasSessions),
     %                then open the copied sessions as the project
@@ -111,10 +113,13 @@ classdef EphysPreprocessingApp < handle
         NasMaxLeadField      matlab.ui.control.NumericEditField   % minutes
         NasMaxLagField       matlab.ui.control.NumericEditField   % minutes
         NasMarginField       matlab.ui.control.NumericEditField   % seconds
+        NasMinDurationField  matlab.ui.control.NumericEditField   % minutes
         NasVerifyDropDown    matlab.ui.control.DropDown
         NasIfExistsDropDown  matlab.ui.control.DropDown
         NasPreviewButton     matlab.ui.control.Button
         NasCopyButton        matlab.ui.control.Button
+        NasStitchButton      matlab.ui.control.Button
+        NasUnstitchButton    matlab.ui.control.Button
         NasSummaryLabel      matlab.ui.control.Label
         NasScanAfterCheckBox matlab.ui.control.CheckBox
         NasTable             matlab.ui.control.Table
@@ -468,7 +473,8 @@ classdef EphysPreprocessingApp < handle
         TrialsColumnOrder (1,:) string = string.empty(1,0)   % Trials-table variables in display order (a preference)
 
         % --- NAS tab state (in memory) ---
-        NasSessions = []                               % findNasSessions table shown (DestDir updated by a copy)
+        NasFound = []                                  % findNasSessions table as found (Unstitch restores rows from it)
+        NasSessions = []                               % the table shown: NasFound after stitching (DestDir updated by a copy)
         NasTicked (:,1) logical = false(0, 1)          % Copy ticks, one per row
         NasCopyStatus (:,1) string = strings(0, 1)     % last copyNasSessions CopyStatus per row
         NasMessage (:,1) string = strings(0, 1)        % ... and its Message
@@ -573,6 +579,8 @@ classdef EphysPreprocessingApp < handle
         onNasCopy(obj, dryRun)
         refreshNasTable(obj)
         onNasTableEdited(obj, evt)
+        onNasStitch(obj)
+        onNasUnstitch(obj)
         onBrowseNasFolder(obj, field)
         nasLog(obj, msg)
 

@@ -31,6 +31,7 @@ try
         MaxLeadTime=minutes(obj.NasMaxLeadField.Value), ...
         MaxLagTime=minutes(obj.NasMaxLagField.Value), ...
         AmbiguityMargin=seconds(obj.NasMarginField.Value), ...
+        MinIntanDuration=minutes(obj.NasMinDurationField.Value), ...
         LogFcn=@(m) obj.nasLog(m));
     close(dlg);
 catch ME
@@ -41,6 +42,7 @@ catch ME
     return
 end
 
+obj.NasFound = T;
 obj.NasSessions = T;
 obj.NasTicked = T.Status == "paired";
 obj.NasCopyStatus = strings(height(T), 1);

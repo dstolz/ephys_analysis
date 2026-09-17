@@ -9,6 +9,10 @@
     "Selection": "all",
     "Datasets": []
   },
+  "Parallel": {
+    "Enabled": false,
+    "MaxWorkers": "NaN"
+  },
   "Probe": {
     "DefaultProbeFile": "C:\\src\\ephys_analysis\\intan\\probes\\H64LP_4x16lin_probemap.json",
     "WriteDefaultToManifest": false
@@ -168,7 +172,6 @@
     "RejectArtifacts": true,
     "MaxChunkSamples": "NaN",
     "EdgePadMs": "NaN",
-    "UseParallel": false,
     "Groups": [
       "good",
       "mua"

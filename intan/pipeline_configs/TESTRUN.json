@@ -12,7 +12,13 @@
       "SUBJ-ID-1255/SUBJ-ID-1255_260909_104123",
       "SUBJ-ID-1255/SUBJ-ID-1255_260910_104923",
       "SUBJ-ID-1255/SUBJ-ID-1255_260914_101756"
-    ]
+    ],
+    "NamePattern": "{SubjectID}_{Date:yyMMdd}_{Time:HHmmss}",
+    "TokenColumns": "SubjectID, Date, Time"
+  },
+  "Parallel": {
+    "Enabled": false,
+    "MaxWorkers": "NaN"
   },
   "Probe": {
     "DefaultProbeFile": "",
@@ -23,7 +29,10 @@
     "SearchDirs": "D:\\EPHYS",
     "Match": "prefix-then-time",
     "MaxStartOffsetMin": 10,
-    "Overwrite": false
+    "Overwrite": false,
+    "WriteFile": true,
+    "PairTrials": true,
+    "TrialLine": "InTrial"
   },
   "Artifacts": {
     "Enabled": false,
@@ -111,11 +120,13 @@
     "Enabled": true,
     "OutputDir": "",
     "Suffix": "_extract",
+    "SeparateFiles": true,
     "MatVersion": "-v7.3",
     "Overwrite": false,
     "LFP": true,
     "MUA": true,
     "SPIKE": false,
+    "AUX": true,
     "LFP_Fs": 600,
     "LFP_HighpassOn": true,
     "LFP_HighpassHz": 0.5,
@@ -137,13 +148,13 @@
       5000
     ],
     "LabelField": "custom_channel_name",
+    "InvertedLines": [],
     "KeepChannels": "",
     "BadMode": "none",
     "BadThreshold": 3,
     "BadList": "",
     "ChannelRemap": "",
-    "ExcludeHandling": "none",
-    "IncludeBehavior": true
+    "ExcludeHandling": "none"
   },
   "Spikes": {
     "Enabled": true,
@@ -173,7 +184,6 @@
     "RejectArtifacts": true,
     "MaxChunkSamples": "NaN",
     "EdgePadMs": "NaN",
-    "UseParallel": false,
     "Groups": [
       "good",
       "mua"
@@ -192,7 +202,6 @@
     "IncludeUnits": false,
     "IncludeDetected": false,
     "IncludeEvents": true,
-    "IncludeBehavior": true,
     "Groups": [
       "good",
       "mua"

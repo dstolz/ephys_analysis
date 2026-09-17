@@ -7,7 +7,7 @@ for the preprocessing pipeline. It edits **one pipeline config**
 [`EphysPipeline`](EphysPipeline.md#ephyspipeline) over an
 [`EphysProject`](EphysProject.md). It is used to:
 
-- pull a subject's sessions from the NAS (Intan recording + ePsych file,
+- pull a subject's sessions from the source (Intan recording + ePsych file,
   paired by name) into local session folders, verified;
 - scan a folder tree for recordings (Intan, or the universal binary format);
 - assign probe maps and channel exclusions;
@@ -53,8 +53,8 @@ background monitor and saves preferences.
   - **Run**: Validate config, Plan, Run pipeline (Ctrl+R), Dry run, Cancel.
 - **Title**: the config name and file; `*` in front while the config has
   unsaved changes.
-- **Tabs**, in workflow order: **NAS, Project, Trials, Probe, Artifacts, Sorting,
-  Signals, Spikes, Export, Run, Flow, Visualize, Review**. The app opens on
+- **Tabs**, in workflow order: **Copy, Project, Trials, Probe, Artifacts, Sorting,
+  Signals, Spikes, Export, Diagram, Run, Visualize, Review**. The app opens on
   Project. Each tab button is
   coloured by its status, and its tooltip says why: grey = step disabled,
   green = ready, amber = needs attention (config warnings, selected datasets
@@ -113,9 +113,11 @@ dataset stays on screen, but the status line names the dataset it shows and
 
 ## Typical workflow
 
-0. **NAS** (when the recordings are still on the NAS): find the subject's
+0. **Copy** (when the recordings are still on the source): find the subject's
    sessions for the day, check the pairing, **Preview (dry run)**, then
-   **Copy selected**; the copied sessions open as the project.
+   **Copy selected**. The copy runs in the background, so the rest of the app
+   stays usable; the copied sessions open as the project when it finishes. If
+   it is cancelled or interrupted, **Copy selected** again completes it.
 1. **File → New** (or open a saved config). Name it on the Project tab.
 2. **Project**: set the project root, press **Scan**; set an output root.
 3. **Probe**: pick a probe map, **Assign to all datasets** or set it as the
@@ -136,13 +138,13 @@ config) and opens it; see [Synthetic test project](#synthetic-test-project).
 
 ---
 
-## NAS
+## Copy
 
-Copies recording sessions from the NAS to local session folders. Each session
+Copies recording sessions from the source to local session folders. Each session
 is two separate artifacts, written by different software (possibly on
 different PCs and clocks):
 
-| Artifact | NAS path |
+| Artifact | Source path |
 | --- | --- |
 | ePsych behavior file | `<ePsych root>/<SUBJ>/<SUBJ>_<yyMMdd>T<HHmmss>.mat` |
 | Intan RHX recording folder | `<Intan root>/<SUBJ>/<SUBJ>_<yyMMdd>_<HHmmss>/` |
@@ -151,15 +153,20 @@ A session is copied to `<Destination>/<SUBJ>/<Intan folder name>/`: the Intan
 folder's contents, the ePsych file under its original name,
 `session_manifest.json` and `session_copy_robocopy.log`. The tab only collects
 settings and shows results. The pairing rules are in
-[`findNasSessions`](../pipeline/findNasSessions.m) and the copy rules in
-[`copyNasSessions`](../pipeline/copyNasSessions.m), which work the same from a
+[`findCopySessions`](../pipeline/findCopySessions.m) and the copy rules in
+[`copySessions`](../pipeline/copySessions.m), which work the same from a
 script:
 
 ```matlab
-T = findNasSessions("SUBJ-ID-1255", "260916");                 % or [datetime datetime]
-R = copyNasSessions(T(T.Status == "paired", :));               % dry run (the default)
-R = copyNasSessions(T(T.Status == "paired", :), DryRun=false, Verify="hash");
-T = stitchNasSessions(T, [2 3]);                               % one recording, two ePsych files
+T = findCopySessions("SUBJ-ID-1255", "260916");                 % or [datetime datetime]
+R = copySessions(T(T.Status == "paired", :));               % dry run (the default)
+R = copySessions(T(T.Status == "paired", :), DryRun=false, Verify="hash");
+T = stitchCopySessions(T, [2 3]);                               % one recording, two ePsych files
+
+[R, job] = copySessions(T, DryRun=false, Background=true);   % returns at once
+while ~job.Done
+    [R, job] = copySessions(job);                           % poll; no waiting
+end
 ```
 
 | Control | Meaning |
@@ -170,12 +177,12 @@ T = stitchNasSessions(T, [2 3]);                               % one recording, 
 | Ambiguity margin (s) | default 30; see below |
 | Min duration (min) | default 2. An Intan recording shorter than this is never paired; see below. 0 pairs every recording |
 | Find sessions | pair by name, using the **Duration** of each Intan recording (from its `.rhd` headers and `.dat` sizes) for the minimum; then read the **Trials** (elements of the ePsych file's `Data`) of the listed sessions. A header that cannot be read is logged and leaves the cell blank |
-| Verify | checked for each file as soon as it is copied. `size`: the copy has the source's size; `hash`: also a SHA-256 checksum of the source and the copy (reads every file twice more) |
-| If it exists | a destination folder that exists, is not empty and does not match the source: `skip` it or report it as `failed`. One that already matches is reported `already_present`. Nothing is ever overwritten |
+| Verify | checked once a session has been copied. `size`: every copy has its source's size; `hash`: also a SHA-256 checksum of the source and the copy (reads every file twice more, in the engine) |
+| If it exists | a destination folder that exists, is not empty and does not match the source: `resume` (default) completes it, copying only the files that are missing or differ; `skip` leaves it alone; `error` reports it as `failed`. One that already matches is reported `already_present`. A file that is not in the source is never touched |
 | Stitch selected rows | merges the selected rows (click, then Ctrl- or Shift-click) into one `stitched` session: they must hold exactly one Intan folder and at least two ePsych files. See [Stitching](#stitching-epsych-files) |
 | Unstitch | puts the selected stitched rows back as Find sessions paired them |
-| Preview (dry run) | reports what a copy would do, including a free-space check; writes nothing |
-| Copy selected | copies the ticked rows. A progress dialog shows each file; **Cancel** stops between files (the partial copy is kept and reported) |
+| Preview (dry run) | reports what a copy would do, including a free-space check and how much of a partial copy is already there; writes nothing |
+| Copy selected | copies the ticked rows **in the background**: the app stays usable, the line under the options shows the engine's progress and the table's **Result** column tracks each row. The button becomes **Cancel copy**, which stops after the file being copied (what has been copied is kept, and `resume` completes it later) |
 | After copying, open the copied sessions as the project | sets the Project root to the folder holding the copied sessions, scans it and makes the first copied session the active dataset |
 
 **Pairing.** Names are parsed with strict, fully anchored patterns; any other
@@ -198,20 +205,47 @@ is paired as usual.
 | `intan_only`, `epsych_only` | orange | no (tick by hand) | only when ticked |
 | `ambiguous` | red | no; cannot be ticked | never: pair these files by hand, or stitch them |
 
-**Copying.** Nothing on the NAS is modified, renamed, moved or deleted. Before
-anything is copied, the free space under Destination is checked against the
-total size, and the copy stops if there is too little. Each file goes through
-`robocopy <src> <dest> <file> /Z /R:3 /W:5 /NP /LOG+:<log>`, never with
-`/MIR`, `/MOV` or `/PURGE`. Exit codes 8 and above are failures. Each file is
-verified (size, or size and SHA-256) right after it is copied; the first
-mismatch stops that session, marks it `failed` and keeps the partial copy.
-Each session is handled separately, so one failure does not
+**Copying.** Nothing in the source tree is modified, renamed, moved or deleted.
+Before anything is copied, the free space under Destination is checked against
+the total size, and the copy stops if there is too little.
+
+The copying itself does not happen in MATLAB. `copySessions` plans the batch,
+writes it as a job file and launches
+[`copy_engine.ps1`](../pipeline/copy_engine.ps1) detached (Windows PowerShell
+5.1, which ships with Windows), which runs
+`robocopy <src> <dest> [files] /E /Z /MT:8 /R:3 /W:5 /NP /LOG+:<log>` **once
+per source folder** rather than once per file — a folder of 200 files costs one
+robocopy call instead of 200, which is worth seconds to minutes per session.
+`/MIR`, `/MOV` and `/PURGE` are never used, so a file in the destination that is
+not in the source is left alone; `/E` keeps empty source subfolders. Exit codes
+8 and above are failures. The engine reports one JSON line per file, which the
+app tails; MATLAB keeps the decisions (what may be copied, what counts as
+verified, the ePsych stitching, the manifest).
+
+Because the engine is a separate process, the copy is non-blocking: the app
+polls it twice a second and everything else stays usable. A copy even survives
+closing the app — it finishes on its own, and the app says so before it closes.
+
+**Resuming.** `/Z` makes robocopy finish a partially transferred file instead of
+starting again, and it skips a file that is already there with the same size and
+timestamp. With `If it exists = resume` a destination that holds part of a
+session is therefore completed rather than refused: the missing files are
+copied, the short or mismatched ones finished, and the rest left untouched. This
+is what makes a cancelled copy, a full disk or a dropped network share
+recoverable — press **Copy selected** again. `skip` and `error` keep the old
+behaviour and never write into such a folder.
+
+**Verification.** A whole session is copied before any of it is checked, so a
+session that fails verification keeps its complete partial copy and is marked
+`failed`. MATLAB checks each destination file's size itself; with `hash` the
+engine is then run a second time to take the SHA-256 of every source and
+destination file. Each session is handled separately, so one failure does not
 stop the others. `session_manifest.json` records the source and destination
 paths, both times and Δt, the pairing status, every file's size (and hashes),
-for a stitched session the stitched file and each source ePsych file with its
-trial count (`epsych.stitch`), the copy start and finish times, the host, the
-user, and the function version and git commit. The copy blocks MATLAB while
-each file is copied; the dialog updates between files.
+how many files were already present, `ifExists`, for a stitched session the
+stitched file and each source ePsych file with its trial count
+(`epsych.stitch`), the copy start and finish times, the host, the user, and the
+function version and git commit.
 
 ### Stitching ePsych files
 
@@ -219,7 +253,7 @@ When ePsych was stopped and started again during one Intan recording, the
 recording has several ePsych files, and pairing gives it at most one of them.
 Select the recording's row and the rows holding its other ePsych files, and
 press **Stitch selected rows**
-([`stitchNasSessions`](../pipeline/stitchNasSessions.m)).
+([`stitchCopySessions`](../pipeline/stitchCopySessions.m)).
 Rows of any status can be merged, including ambiguous rows and a row stitched
 earlier. The files are always stitched in chronological order, whatever order
 the rows are selected in. The stitched row keeps the Intan folder and its
@@ -496,27 +530,9 @@ Chronux functions appears here: the app only writes files.
   when the Signals output is missing); **Run this step** runs
   `EphysPipeline.runExport`.
 
-## Run
+## Diagram
 
-- **Steps** checklist: the Enabled boxes of every step (mirrored with the
-  tabs), and the selection summary.
-- **Parallel: chunks on the process pool** and **Max workers** (blank =
-  automatic): `Parallel.Enabled` / `MaxWorkers`, used by the artifacts step,
-  the Artifacts tab's **Detect / Preview** and spike detection; see
-  [Parallel execution](EphysPipeline.md#parallel-execution).
-- **Validate config** fills the issues table (`cfg.validate()`); **Plan** fills
-  the results table with `pipe.plan()` (writes nothing).
-- **Run**, **Dry run**, **Cancel**: `EphysPipeline.run` with progress bars
-  (overall and per step), the results table (`Step`, `Dataset`, `Status`,
-  `Message`, `Output`, `Seconds`) and a timestamped log. Cancel takes effect at
-  the next progress boundary; outputs are written atomically, so a cancelled
-  dataset leaves no complete-looking file.
-- Background Kilosort4 runs launched by a run are handed to the same monitor
-  as the Sorting tab.
-
-## Flow
-
-A flow chart of what the working config does, redrawn whenever the tab is
+A diagram of what the working config does, redrawn whenever the tab is
 shown and on every config edit while it is open. Each step that reads the raw
 recording gets its own tree, drawn top-down from the recording to the files it
 writes:
@@ -542,6 +558,24 @@ off are dashed, disabled steps are faded, and artifact periods feeding another
 step are marked orange. With an active dataset the recording node shows its
 name, rate and channel count, and the Sorting tree shows its probe and
 exclusions. **Save as HTML...** writes the chart as a standalone page.
+
+## Run
+
+- **Steps** checklist: the Enabled boxes of every step (mirrored with the
+  tabs), and the selection summary.
+- **Parallel: chunks on the process pool** and **Max workers** (blank =
+  automatic): `Parallel.Enabled` / `MaxWorkers`, used by the artifacts step,
+  the Artifacts tab's **Detect / Preview** and spike detection; see
+  [Parallel execution](EphysPipeline.md#parallel-execution).
+- **Validate config** fills the issues table (`cfg.validate()`); **Plan** fills
+  the results table with `pipe.plan()` (writes nothing).
+- **Run**, **Dry run**, **Cancel**: `EphysPipeline.run` with progress bars
+  (overall and per step), the results table (`Step`, `Dataset`, `Status`,
+  `Message`, `Output`, `Seconds`) and a timestamped log. Cancel takes effect at
+  the next progress boundary; outputs are written atomically, so a cancelled
+  dataset leaves no complete-looking file.
+- Background Kilosort4 runs launched by a run are handed to the same monitor
+  as the Sorting tab.
 
 ## Visualize
 
@@ -676,7 +710,7 @@ Only what is **not** part of a config lives here:
 | `TrialsParamColumns`, `TrialsColumnOrder` | the Epsych2 parameters shown in the Trials table, and its column order (table variable names; a parameter column is `Param_<name>`) |
 | `TrialsLabelParams` | the Epsych2 parameters written as trial labels in the Trials plot |
 | `VizOptions` | the Visualize tab's display settings |
-| `NasOptions` | the NAS tab's subject, roots, pairing and copy options (not the dates) |
+| `CopyOptions` | the Copy tab's subject, roots, pairing and copy options (not the dates) |
 
 To reset: `rmpref('EphysPreprocessingApp')` with the app closed. Older
 preference groups are not read.
@@ -693,9 +727,9 @@ preference groups are not read.
 | `<Name>_extract_<TYPE>.mat` (or `<Name>_extract.mat`), `<Name>_spikes.mat`, `<Name>_chronux.mat`, `<Name>_fieldtrip.mat` | Signals, Spikes, Export |
 | probe `.json` in the probe folder | Import, Designer save, Notes edit |
 | `<parent>/synthetic_ephys/...` | File → Create synthetic test project (recordings, sessions, sorted output, probe, config, README) |
-| `<Destination>/<SUBJ>/<Intan folder>/`: the copied files (for a stitched session, `<earliest ePsych file>_stitched.mat` instead of the ePsych files), `session_manifest.json`, `session_copy_robocopy.log` | NAS → Copy selected (Preview writes nothing) |
+| `<Destination>/<SUBJ>/<Intan folder>/`: the copied files (for a stitched session, `<earliest ePsych file>_stitched.mat` instead of the ePsych files), `session_manifest.json`, `session_copy_robocopy.log` | Copy → Copy selected, in the background (Preview writes nothing) |
 
-Raw recording files are only read. So is the NAS.
+Raw recording files are only read. So is the source tree.
 
 ## Scripting against a running app
 
@@ -727,8 +761,8 @@ app.KSRuns                        % background runs being monitored
 | `onOptimizeKS4ForProbe.m`, `onResetKS4Params.m`, `onUseSortingFolder.m`, `onUseAutoSorting.m`, `refreshSortingLabel.m`, `pollKSRuns.m`, `onLaunchPhy.m`, `launchPhy.m` | Sorting tab and phy |
 | `onSpikesPreview.m`, `syncSpikesEnableStates.m` | Spikes tab |
 | `onPlotVisualization.m`, `onVizButtonDown/Up.m`, `drawVizArtifacts.m`, `finishVizArtDrag.m`, `applyVizChannelOrder.m`, `applyVizChannelColor.m`, `syncVizDataset.m` | Visualize tab |
-| `buildFlowTab.m`, `refreshFlowChart.m`, `flowChartHTML.m`, `onSaveFlowChart.m` | Flow tab |
-| `buildNasTab.m`, `onNasFind.m`, `onNasCopy.m`, `refreshNasTable.m`, `onNasTableEdited.m`, `onNasStitch.m`, `onNasUnstitch.m`, `onBrowseNasFolder.m`, `nasLog.m`; `pipeline/findNasSessions.m`, `pipeline/stitchNasSessions.m`, `pipeline/copyNasSessions.m`, `pipeline/stitchEpsychSessions.m` | NAS tab and the pairing / stitching / copy functions it calls |
+| `buildFlowTab.m`, `refreshFlowChart.m`, `flowChartHTML.m`, `onSaveFlowChart.m` | Diagram tab |
+| `buildCopyTab.m`, `onCopyFind.m`, `onCopyRun.m`, `refreshCopyTable.m`, `onCopyTableEdited.m`, `onCopyStitch.m`, `onCopyUnstitch.m`, `onBrowseCopyFolder.m`, `copyLog.m`, `onCopyCancel.m`, `startCopyMonitor.m`, `stopCopyMonitor.m`, `pollCopyJob.m`, `setCopyRunning.m`, `applyCopyResult.m`, `finishCopyRun.m`, `showCopyProgress.m`, `copySummaryText.m`; `pipeline/findCopySessions.m`, `pipeline/stitchCopySessions.m`, `pipeline/copySessions.m`, `pipeline/copy_engine.ps1`, `pipeline/stitchEpsychSessions.m` | Copy tab, the pairing / stitching / copy functions it calls, and the detached copy engine |
 | `loadReviewResults.m`, `renderReviewPlots.m`, `syncReviewDataset.m` | Review tab |
 | `load/savePreferences.m` | preferences |
 
@@ -736,23 +770,27 @@ app.KSRuns                        % background runs being monitored
 
 [`test_EphysPreprocessingApp.m`](../pipeline/test_EphysPreprocessingApp.m) builds
 the app headlessly over a synthetic project: config → controls → config round
-trip, the unsaved marker, the Flow chart of the loaded config and its refresh on edits, the Run checklist ↔ tab sync and its Parallel controls, scan + selection ticks
+trip, the unsaved marker, the Diagram of the loaded config and its refresh on edits, the Run checklist ↔ tab sync and its Parallel controls, scan + selection ticks
 (and the ticked datasets in the Dataset menu),
 the active dataset's highlight under the token filters, plan, the Sorting tab's Optimize for probe (each answer to the offer to generate a
 missing parameter file, including a probe map without positions, loading the
 file, the default-probe fallback, the Probe tab's listing and info) and Reset to defaults, one step through the pipeline,
 save / reopen and the recent list. It
 restores the user's preferences afterwards.
-[`test_NasSessions.m`](../pipeline/test_NasSessions.m) (a `matlab.unittest`
-class; `run_all_tests` runs it too) builds fake NAS trees in a temporary
+[`test_CopySessions.m`](../pipeline/test_CopySessions.m) (a `matlab.unittest`
+class; `run_all_tests` runs it too) builds fake source trees in a temporary
 folder. It checks pairing (a single session, interleaved sessions resolved
 one-to-one, unpaired files on either side, exact and near ties, clock skew,
 midnight, similar subject IDs, malformed names). It checks copying: a dry run
 writes nothing; a hash-verified copy writes its manifest; an existing
-destination is skipped, reported as an error or already present; a truncated
-copy fails; one missing source does not stop the batch; unpaired rows copy
-only on request; Cancel works. It also drives the NAS tab from Find to Copy.
-Copy tests need Windows (robocopy).
+destination is skipped, reported as an error or already present; a partial copy
+is completed by `resume` (the short file finished, the missing one copied, the
+rest left alone); a truncated copy fails; one missing source does not stop the
+batch; unpaired rows copy only on request; Cancel works. It checks the
+background form too: `Background=true` returns before the copy is done, polling
+the job carries it through to `copied`, and options passed with a job are
+refused. It also drives the Copy tab from Find through a background copy to the
+finished table. Copy tests need Windows (robocopy).
 [`test_SyntheticDataset.m`](../pipeline/test_SyntheticDataset.m) checks the
 synthetic project generators and, headlessly, the File-menu action: the
 project is written, opened and scanned; choosing the active dataset in a

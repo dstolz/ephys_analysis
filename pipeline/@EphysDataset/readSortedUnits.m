@@ -4,12 +4,17 @@ function [units, info] = readSortedUnits(obj, opts)
 %   ds.sortingResultsDir() (an explicit SortingDir, else the auto-discovered
 %   kilosortResultsDir) through EphysDataset.readPhyUnits, with the dataset's
 %   own defaults: the recording rate as the sample-rate fallback, its native
-%   channel names and probe file for the SpikeInterface channel mapping.
+%   channel names and probe file for the SpikeInterface channel mapping, and
+%   its unitIdentity, so every unit is labelled with the subject and
+%   recording start ("su042_1255_260908T1039") and carries datasetKey.
+%   The identity is checked first: a Name that does not match NamePattern
+%   throws EphysDataset:unitIdentity:* before any sorter output is read.
 %
 %   Options: ResultsDir (override the folder), and every readPhyUnits option
 %   (Groups, IncludeNoise, Templates, FullTemplates, ChannelMap, FsFallback).
 %
-%   See also EphysDataset.readPhyUnits, EphysDataset.sortingResultsDir,
+%   See also EphysDataset.readPhyUnits, EphysDataset.unitIdentity,
+%   EphysDataset.sortingResultsDir,
 %   EphysDataset.spikesToMat, ChronuxDataset.spikes.
 
 arguments
@@ -23,6 +28,7 @@ arguments
     opts.FsFallback (1,1) double = NaN
 end
 
+identity = obj.unitIdentity();
 dir0 = opts.ResultsDir;
 if dir0 == ""
     dir0 = string(obj.sortingResultsDir());
@@ -34,5 +40,5 @@ if isnan(fsFallback); fsFallback = obj.Fs; end
     Groups=opts.Groups, IncludeNoise=opts.IncludeNoise, ...
     Templates=opts.Templates, FullTemplates=opts.FullTemplates, ...
     ChannelMap=opts.ChannelMap, ChannelNames=obj.NativeNames, ...
-    ProbeFile=obj.ProbeFile, FsFallback=fsFallback);
+    ProbeFile=obj.ProbeFile, FsFallback=fsFallback, Identity=identity);
 end

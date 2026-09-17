@@ -1,9 +1,10 @@
-function [values, names, ok] = parseNameTokens(name, pattern)
+function [values, names, ok, formats] = parseNameTokens(name, pattern)
 %parseNameTokens  Extract named tokens from a dataset / file name.
-%   [VALUES, NAMES, OK] = parseNameTokens(NAME, PATTERN) matches the whole
-%   NAME (a file stem, no extension) against PATTERN and returns the token
-%   names (string row, in pattern order), their text VALUES (string row, ""
-%   when NAME does not match) and whether it matched.
+%   [VALUES, NAMES, OK, FORMATS] = parseNameTokens(NAME, PATTERN) matches the
+%   whole NAME (a file stem, no extension) against PATTERN and returns the
+%   token names (string row, in pattern order), their text VALUES (string
+%   row, "" when NAME does not match), whether it matched, and each token's
+%   datetime-style FORMATS (e.g. "yyMMdd"; "" for free-text and regex tokens).
 %
 %   PATTERN is literal text with tokens in braces:
 %     {Token}          any text (as short as possible)
@@ -15,7 +16,10 @@ function [values, names, ok] = parseNameTokens(name, pattern)
 %
 %   Default (Project.NamePattern): "{SubjectID}_{Date:yyMMdd}_{Time:HHmmss}"
 %   splits "SUBJ-ID-1245_260916_143015" into SubjectID = "SUBJ-ID-1245",
-%   Date = "260916", Time = "143015".
+%   Date = "260916", Time = "143015". A fixed prefix written as literal text,
+%   "SUBJ-ID-{SubjectID}_{Date:yyMMdd}_{Time:HHmmss}", leaves SubjectID = "1245".
+%   Unit labels use the SubjectID, Date and Time tokens (see
+%   EphysDataset.nameIdentity).
 %
 %   NAMES = parseNameTokens("", PATTERN) just lists the tokens; an invalid
 %   pattern throws parseNameTokens:BadPattern.
@@ -25,7 +29,7 @@ arguments
     pattern (1,1) string
 end
 
-[expr, names] = compilePattern(pattern);
+[expr, names, formats] = compilePattern(pattern);
 values = strings(1, numel(names));
 ok = false;
 if isempty(names)
@@ -39,8 +43,9 @@ end
 end
 
 
-function [expr, names] = compilePattern(pattern)
+function [expr, names, formats] = compilePattern(pattern)
 names = string.empty(1, 0);
+formats = string.empty(1, 0);
 expr = "^";
 p = char(pattern);
 i = 1;
@@ -69,10 +74,12 @@ while i <= numel(p)
             bad(pattern, sprintf("token ""%s"" appears twice", tname));
         end
         names(end+1) = tname; %#ok<AGROW>
+        formats(end+1) = ""; %#ok<AGROW>
         if fmt == ""
             expr = expr + "(.+?)";
         elseif ~isempty(regexp(fmt, '^[yMdHhms]+$', 'once'))
             expr = expr + sprintf("(\\d{%d})", strlength(fmt));
+            formats(end) = fmt;
         else
             try
                 regexp("", fmt, 'once');

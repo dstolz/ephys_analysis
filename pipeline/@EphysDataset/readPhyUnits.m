@@ -25,18 +25,37 @@ function [units, info] = readPhyUnits(resultsDir, opts)
 %     ProbeFile     probe .json used for the run (SpikeInterface mapping)
 %     FsFallback    sample rate to use, with a warning, when params.py has no
 %                   sample_rate (default NaN = error instead; never 30 kHz)
+%     Identity      struct with subject, recordingStart, labelSuffix and
+%                   datasetKey (EphysDataset.unitIdentity) naming the recording;
+%                   default struct([]) = a bare folder, labels "<class><id>"
 %
 %   UNITS is one scalar struct with column-aligned fields (one row per unit):
 %     unitId            cluster id (as in spike_clusters.npy)
-%     label             "unit<id>"
+%     label             "<class><id>_<subject>_<yyMMdd>T<HHmm>", the id at least
+%                       3 digits, e.g. "su042_1255_260908T1039"; just
+%                       "<class><id>" without an Identity
+%     class             "su" (good) | "mua" | "noise" | "uns" (unsorted) |
+%                       "other" (any other phy label, with a warning)
 %     group             "good" | "mua" | "noise" | "unsorted" | other phy label
+%     notes             free text from cluster_notes.tsv ("" when none; see
+%                       EphysDataset.writeUnitNotes)
+%     subject           Identity.subject ("" without an Identity)
+%     recordingStart    Identity.recordingStart (NaT without an Identity)
+%     datasetKey        Identity.datasetKey ("" without an Identity)
+%     channel           1-based peak channel of the RECORDING (see channelMap)
+%     channelName       its native name, e.g. "A-012" ("" without ChannelNames)
+%     ksChannel         1-based peak channel among the SORTED channels
+%     shank             from channel_shanks.npy (0 when absent)
+%     peakX, peakY      site position of the peak channel, probe units (um),
+%                       from channel_positions.npy (NaN when absent)
+%     x, y              template centre: site positions weighted by the
+%                       template's peak-to-peak amplitude, over the channels on
+%                       the peak channel's shank with at least 25% of the peak
+%                       amplitude (NaN without templates or positions)
 %     nSpikes
 %     samples           {nU x 1} 0-based int64 sample indices, sorted
 %     times             {nU x 1} seconds: samples / fs (recording-relative,
 %                       the same clock as readData's t)
-%     ksChannel         1-based peak channel among the SORTED channels
-%     channel           1-based peak channel of the RECORDING (see channelMap)
-%     shank             from channel_shanks.npy (0 when absent)
 %     amplitude         cluster_Amplitude.tsv, else median amplitudes.npy
 %     contamPct         cluster_ContamPct.tsv (NaN when absent)
 %     templateWaveform  {nU x 1} [nS x 1] peak-channel template, unwhitened
@@ -55,7 +74,9 @@ function [units, info] = readPhyUnits(resultsDir, opts)
 %   cluster was dropped by the filters), chanShanks, chanPos.
 %
 %   Error identifiers: EphysDataset:readPhyUnits:NoResultsDir, :NoOutput,
-%   :NoSampleRate, :Mismatch, :NoClusterLabels, :NoGroupMatch.
+%   :NoSampleRate, :Mismatch, :NoClusterLabels, :NoGroupMatch, :BadIdentity.
+%   Warning EphysDataset:readPhyUnits:OtherGroup names cluster labels that
+%   map to class "other".
 %
 %   See also EphysDataset.readSortedUnits, EphysDataset.resolvePhyDir,
 %   ChronuxDataset.spikes, readNPY.
@@ -70,7 +91,11 @@ arguments
     opts.ChannelNames (1,:) string = string.empty(1,0)
     opts.ProbeFile (1,1) string = ""
     opts.FsFallback (1,1) double = NaN
+    opts.Identity struct = struct([])
 end
+
+% Template-centre channels: at least this fraction of the peak amplitude.
+centreFraction = 0.25;
 
 dir0 = EphysDataset.resolvePhyDir(resultsDir);
 if ~isfolder(dir0)
@@ -144,6 +169,7 @@ amplitude(~isfinite(amplitude)) = medAmp(~isfinite(amplitude));
 ksChannel = nan(nU, 1);
 wfPeak    = cell(nU, 1);
 wfFull    = [];
+p2pAll    = [];
 tms       = zeros(1, 0);
 nChSorted = NaN;
 fTmpl = fullfile(dir0, 'templates.npy');
@@ -157,6 +183,7 @@ if opts.Templates && isfile(fTmpl)
     canUnwhiten = ~isempty(Winv) && isequal(size(Winv), [nChSorted nChSorted]);
     tms = (0:nS-1) / fs * 1000;
     if opts.FullTemplates; wfFull = zeros(nS, nChSorted, nU); end
+    p2pAll = nan(nU, nChSorted);
     for u = 1:nU
         sel = spikeUnitIdx == u;
         tIdx = mode(spikeTmpl(sel)) + 1;                   % robust to KS reindexing
@@ -171,6 +198,7 @@ if opts.Templates && isfile(fTmpl)
         p2p = max(wf, [], 1) - min(wf, [], 1);
         [~, pk] = max(p2p);
         ksChannel(u) = pk;
+        p2pAll(u, :) = p2p;
         wfPeak{u} = wf(:, pk);
         if opts.FullTemplates; wfFull(:, :, u) = wf; end
     end
@@ -193,11 +221,39 @@ shank = zeros(nU, 1);
 ok = isfinite(ksChannel) & ksChannel >= 1 & ksChannel <= numel(chanShanks);
 shank(ok) = chanShanks(ksChannel(ok));
 
+% --- location on the probe: peak site and template centre ------------------
+peakX = nan(nU, 1); peakY = nan(nU, 1); cx = nan(nU, 1); cy = nan(nU, 1);
+if size(chanPos, 2) >= 2 && isfinite(nChSorted) && size(chanPos, 1) >= nChSorted
+    ok = isfinite(ksChannel) & ksChannel >= 1 & ksChannel <= nChSorted;
+    peakX(ok) = chanPos(ksChannel(ok), 1);
+    peakY(ok) = chanPos(ksChannel(ok), 2);
+    for u = find(ok).'
+        w = p2pAll(u, :).';
+        pk = ksChannel(u);
+        use = chanShanks == chanShanks(pk) & w >= centreFraction * w(pk);
+        if any(use) && sum(w(use)) > 0
+            cx(u) = sum(w(use) .* chanPos(use, 1)) / sum(w(use));
+            cy(u) = sum(w(use) .* chanPos(use, 2)) / sum(w(use));
+        else
+            cx(u) = peakX(u); cy(u) = peakY(u);
+        end
+    end
+end
+
+% --- notes typed in phy or on the Review tab -------------------------------
+notes = strings(nU, 1);
+[noteIds, noteTxt] = EphysDataset.readUnitNotes(string(dir0));
+[tf, loc] = ismember(unitId, noteIds);
+notes(tf) = noteTxt(loc(tf));
+
 % --- sorted channel -> recording channel -----------------------------------
 [engine, channelMap, channelMapSource] = resolveChannelMap(dir0, nChSorted, cm0, opts);
 channel = nan(nU, 1);
 ok = isfinite(ksChannel) & ksChannel >= 1 & ksChannel <= numel(channelMap);
 channel(ok) = channelMap(ksChannel(ok));
+channelName = strings(nU, 1);
+ok = isfinite(channel) & channel >= 1 & channel <= numel(opts.ChannelNames);
+channelName(ok) = opts.ChannelNames(channel(ok));
 
 % --- filters ---------------------------------------------------------------
 keep = true(nU, 1);
@@ -233,16 +289,29 @@ if ~isempty(spikeSamples)
     durationSec = double(max(spikeSamples)) / fs;
 end
 
+nK = numel(keptIdx);
+[subject, recStart, suffix, key] = identityParts(opts.Identity);
 units = struct();
 units.unitId           = unitId(keptIdx);
-units.label            = "unit" + string(units.unitId);
+units.label            = strings(nK, 1);
+units.class            = groupClass(group(keptIdx), dir0);
+units.label            = unitLabels(units.class, units.unitId, suffix);
 units.group            = group(keptIdx);
+units.notes            = notes(keptIdx);
+units.subject          = repmat(subject, nK, 1);
+units.recordingStart   = repmat(recStart, nK, 1);
+units.datasetKey       = repmat(key, nK, 1);
+units.channel          = channel(keptIdx);
+units.channelName      = channelName(keptIdx);
+units.ksChannel        = ksChannel(keptIdx);
+units.shank            = shank(keptIdx);
+units.peakX            = peakX(keptIdx);
+units.peakY            = peakY(keptIdx);
+units.x                = cx(keptIdx);
+units.y                = cy(keptIdx);
 units.nSpikes          = nSpikes(keptIdx);
 units.samples          = samples;
 units.times            = times;
-units.ksChannel        = ksChannel(keptIdx);
-units.channel          = channel(keptIdx);
-units.shank            = shank(keptIdx);
 units.amplitude        = amplitude(keptIdx);
 units.contamPct        = contamTsv(keptIdx);
 units.templateWaveform = wfPeak(keptIdx);
@@ -272,6 +341,50 @@ end
 
 
 %% ---------------------------------------------------------------------------
+function c = groupClass(group, folder)
+%groupClass  Unit class used in labels: good -> su, mua, noise, unsorted -> uns.
+c = repmat("other", size(group));
+c(group == "good")     = "su";
+c(group == "mua")      = "mua";
+c(group == "noise")    = "noise";
+c(group == "unsorted") = "uns";
+odd = unique(group(c == "other"));
+if ~isempty(odd)
+    warning('EphysDataset:readPhyUnits:OtherGroup', ...
+        'Cluster label(s) %s in %s have no unit class; those units are labelled "other".', ...
+        strjoin(odd.', ", "), folder);
+end
+end
+
+
+function labels = unitLabels(cls, ids, suffix)
+%unitLabels  "<class><id, at least 3 digits>", plus "_<suffix>" when the recording is known.
+labels = strings(numel(ids), 1);
+if isempty(ids); return; end
+labels = cls(:) + compose("%03d", ids(:));
+if suffix ~= ""
+    labels = labels + "_" + suffix;
+end
+end
+
+
+function [subject, recStart, suffix, key] = identityParts(identity)
+%identityParts  Recording identity for the unit columns ("" / NaT when unknown).
+subject = ""; suffix = ""; key = "";
+recStart = NaT('Format', 'yyyy-MM-dd HH:mm:ss');
+if isempty(identity); return; end
+need = ["subject" "recordingStart" "labelSuffix" "datasetKey"];
+if ~all(isfield(identity, need))
+    error('EphysDataset:readPhyUnits:BadIdentity', ...
+        'Identity needs the fields %s (see EphysDataset.unitIdentity).', strjoin(need, ", "));
+end
+subject  = string(identity.subject);
+recStart = identity.recordingStart;
+suffix   = string(identity.labelSuffix);
+key      = string(identity.datasetKey);
+end
+
+
 function fs = readPhySampleRate(folder)
 %readPhySampleRate  sample_rate from params.py, else NaN (never a guess).
 fs = NaN;
@@ -302,6 +415,7 @@ for k = 1:numel(cands)
     ids    = double(T{:, 1});
     labels = string(T{:, 2});
     labels = labels(:);
+    labels(ismissing(labels)) = "";                % blank cell -> "unsorted" below
     file   = string(fp);
     source = srcs(k);
     return

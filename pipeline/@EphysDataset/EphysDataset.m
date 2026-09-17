@@ -107,6 +107,14 @@ classdef EphysDataset < handle
         % "manual". See sortingResultsDir, readSortedUnits.
         SortingDir (1,1) string = ""
 
+        % Unit identity. NamePattern (parseNameTokens) splits Name into the
+        % SubjectID, Date and Time that label this recording's sorted units
+        % ("su042_1255_260908T1039"); DatasetKey is the folder relative to the
+        % project root ("" = the absolute folder). Both are pushed from
+        % EphysProject / the pipeline config. See unitIdentity, nameIdentity.
+        NamePattern (1,1) string = EphysDataset.DefaultNamePattern
+        DatasetKey  (1,1) string = ""
+
         % Epsych2 behavioral session file (.mat with Data + Info) associated
         % with this recording. "" = none. Persisted in the manifest under
         % behavior.file. See readBehavior, readEpsychSession.
@@ -170,6 +178,13 @@ classdef EphysDataset < handle
         % both (v2 is a strict superset, so no migration is needed).
         ManifestSchema = "intan-dataset-manifest/2"
         ManifestSchemasAccepted = ["intan-dataset-manifest/1", "intan-dataset-manifest/2"]
+
+        % Default Project.NamePattern: "<subject>_<yyMMdd>_<HHmmss>" (Intan RHX
+        % names files from the recording start).
+        DefaultNamePattern = "{SubjectID}_{Date:yyMMdd}_{Time:HHmmss}"
+
+        % Per-unit notes next to a sort, in phy's custom-label format.
+        UnitNotesFile = "cluster_notes.tsv"
     end
 
     methods
@@ -462,6 +477,33 @@ classdef EphysDataset < handle
             else
                 p = obj.kilosortResultsDir();
             end
+        end
+
+        function id = unitIdentity(obj)
+            %unitIdentity  Subject, recording start and key labelling this dataset's units.
+            %   ID = ds.unitIdentity() is EphysDataset.nameIdentity(Name, NamePattern)
+            %   (subject, recordingStart, labelSuffix) plus datasetKey (DatasetKey, else
+            %   the absolute folder with forward slashes). Throws
+            %   EphysDataset:unitIdentity:Pattern | :NoMatch | :Subject | :DateTime when
+            %   the name cannot label units, so no unit is ever written without the
+            %   recording it came from.
+            id = EphysDataset.nameIdentity(obj.Name, obj.NamePattern);
+            if ~id.ok
+                switch id.reason
+                    case "pattern";  what = "Pattern";
+                    case "subject";  what = "Subject";
+                    case "datetime"; what = "DateTime";
+                    otherwise;       what = "NoMatch";
+                end
+                error("EphysDataset:unitIdentity:" + what, ...
+                    'Dataset "%s": %s Rename the recording folder or change Project.NamePattern.', ...
+                    obj.Name, id.message);
+            end
+            id.datasetKey = obj.DatasetKey;
+            if id.datasetKey == ""
+                id.datasetKey = EphysProject.normalizeKey(obj.Folder);
+            end
+            id = rmfield(id, ["ok" "reason" "message"]);
         end
 
         function tf = hasPhyOutput(obj)
@@ -782,6 +824,9 @@ classdef EphysDataset < handle
         end
 
         [units, info] = readPhyUnits(resultsDir, opts)
+        id = nameIdentity(name, pattern)
+        [ids, notes, file] = readUnitNotes(resultsDir)
+        file = writeUnitNotes(resultsDir, unitIds, notes)
 
         function files = signalFiles(file, types)
             %signalFiles  Per-signal-type file names derived from one base file.

@@ -294,7 +294,7 @@ check(max(abs(sp(1).times - double([300; 600; 30000])/ksFs)) < 1e-12, ...
     'spike times are sample/sample_rate on the recording clock');
 check(ki.sampleRate == ksFs, 'the sample rate comes from params.py');
 check(isequal(ki.groupLabels, ["good" "mua"]), 'phy cluster labels are read');
-check(isequal(ki.labels, ["unit0" "unit1"]), 'unit names stay distinct from group labels');
+check(isequal(ki.labels, ["su000" "mua001"]), 'unit labels (class + id; no dataset, so no recording) stay distinct from group labels');
 
 [sp, ~, ~, ki] = ck.spikes(Source="kilosort", ResultsDir=ksDir, TimeRange=[0 2], Groups="good");
 check(numel(sp) == 1 && isequal(ki.unitIds, 0), 'Groups keeps only the matching clusters');

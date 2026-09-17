@@ -33,6 +33,10 @@ classdef EphysProject < handle
         Scale      (1,1) double = 1/0.195
         Dtype      (1,1) string = "int16"
         Manifest                          % optional shared Manifest
+
+        % parseNameTokens pattern splitting dataset names into the SubjectID,
+        % Date and Time that label sorted units (see unitIdentities).
+        NamePattern (1,1) string = EphysDataset.DefaultNamePattern
     end
 
     properties (Dependent)
@@ -55,6 +59,7 @@ classdef EphysProject < handle
                 opts.OutputRoot (1,1) string = ""
                 opts.Scale      (1,1) double = 1/0.195
                 opts.Dtype      (1,1) string = "int16"
+                opts.NamePattern (1,1) string = EphysDataset.DefaultNamePattern
                 opts.Manifest   = []
                 opts.AutoDiscover (1,1) logical = true
             end
@@ -73,6 +78,7 @@ classdef EphysProject < handle
             obj.OutputRoot = opts.OutputRoot;
             obj.Scale      = opts.Scale;
             obj.Dtype      = opts.Dtype;
+            obj.NamePattern = opts.NamePattern;
             if ~isempty(opts.Manifest)
                 obj.Manifest = opts.Manifest;
             end
@@ -109,6 +115,8 @@ classdef EphysProject < handle
 
         function pushConfig(obj, d)
             %pushConfig  Copy shared defaults into one EphysDataset.
+            %   Also sets its NamePattern and DatasetKey (folder relative to Root),
+            %   which label its sorted units.
             arguments
                 obj (1,1) EphysProject
                 d (1,1) EphysDataset
@@ -118,6 +126,8 @@ classdef EphysProject < handle
             d.CondaEnv  = obj.CondaEnv;
             d.Scale     = obj.Scale;
             d.Dtype     = obj.Dtype;
+            d.NamePattern = obj.NamePattern;
+            d.DatasetKey  = EphysProject.relativeKey(obj.Root, d.Folder);
             if ~isempty(obj.Manifest)
                 d.Manifest = obj.Manifest;
             end
@@ -159,6 +169,58 @@ classdef EphysProject < handle
                 ix = find(all == EphysProject.normalizeKey(keys(k)), 1);
                 if ~isempty(ix); idx(k) = ix; end
             end
+        end
+
+        function T = unitIdentities(obj, opts)
+            %unitIdentities  How each dataset's sorted units are labelled.
+            %   T = P.unitIdentities() has one row per dataset: Key, Name, Subject,
+            %   RecordingStart, LabelSuffix ("<subject>_<yyMMdd>T<HHmm>", the tail of
+            %   its unit labels), Status and Message. Status is "ok"; why the name
+            %   cannot label units ("pattern" | "nomatch" | "subject" | "datetime",
+            %   see EphysDataset.nameIdentity); or "collision" when another dataset
+            %   in scope has the same LabelSuffix (same subject, recording start in
+            %   the same minute), so the two would share unit labels.
+            %
+            %   Options: Among (dataset indices in scope, default all) and
+            %   NamePattern (use this pattern instead of each dataset's own, e.g.
+            %   an edit not yet applied).
+            arguments
+                obj (1,1) EphysProject
+                opts.Among (1,:) double = 1:obj.NumDatasets
+                opts.NamePattern (1,1) string = ""
+            end
+            idx = unique(opts.Among(opts.Among >= 1 & opts.Among <= obj.NumDatasets), 'stable');
+            n = numel(idx);
+            Key = strings(n, 1); Name = strings(n, 1); Subject = strings(n, 1);
+            RecordingStart = NaT(n, 1, 'Format', 'yyyy-MM-dd HH:mm:ss');
+            LabelSuffix = strings(n, 1); Status = strings(n, 1); Message = strings(n, 1);
+            for k = 1:n
+                d = obj.Datasets(idx(k));
+                pattern = opts.NamePattern;
+                if pattern == ""; pattern = d.NamePattern; end
+                id = EphysDataset.nameIdentity(d.Name, pattern);
+                Key(k) = obj.datasetKey(idx(k));
+                Name(k) = d.Name;
+                Subject(k) = id.subject;
+                RecordingStart(k) = id.recordingStart;
+                LabelSuffix(k) = id.labelSuffix;
+                Status(k) = "ok";
+                if ~id.ok; Status(k) = id.reason; end
+                Message(k) = id.message;
+            end
+            okRows = find(Status == "ok");
+            if isempty(okRows); okRows = zeros(0, 1); end
+            [~, ~, g] = unique(lower(LabelSuffix(okRows)));
+            counts = accumarray(g, 1, [max([g; 0]) 1]);
+            for r = okRows(counts(g) > 1).'
+                others = Key(okRows(lower(LabelSuffix(okRows)) == lower(LabelSuffix(r))));
+                others = others(others ~= Key(r));
+                Status(r) = "collision";
+                Message(r) = sprintf( ...
+                    'Unit labels "..._%s" are also used by %s (same subject, recording start in the same minute).', ...
+                    LabelSuffix(r), strjoin(others.', ", "));
+            end
+            T = table(Key, Name, Subject, RecordingStart, LabelSuffix, Status, Message);
         end
 
         function d = dataset(obj, idxOrName)

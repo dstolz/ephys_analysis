@@ -131,6 +131,54 @@ classdef test_NasSessions < matlab.unittest.TestCase
             tc.verifyEmpty(tc.find(tc.Subj, "260918"));
         end
 
+        function durationAndTrialsFromHeaders(tc)
+            % Real headers give the recording duration and the trial count;
+            % the dummy files of an unreadable session leave NaN.
+            e = fullfile(tc.Epsych, tc.Subj, tc.Subj + "_260916T110742.mat");
+            mkdir(fileparts(e));
+            Data = repmat(struct('TrialID', 1, 'RespCode', 0), 1, 7); %#ok<NASGU>
+            Info = struct('Subject', tc.Subj); %#ok<NASGU>
+            save(e, 'Data', 'Info');
+            [~, R] = tc.addSyntheticIntan("260916_110907");
+            tc.addEpsych(tc.Subj, "260916T140000");       % dummy file, no recording
+
+            % the synthetic recording is shorter than the default minimum
+            T = tc.find(tc.Subj, "260916", MinIntanDuration=seconds(0));
+            tc.verifyEqual(T.Status, ["paired"; "epsych_only"]);
+            tc.verifyEqual(seconds(T.IntanDuration(1)), R.duration, 'AbsTol', 1e-9);
+            tc.verifyEqual(T.EpsychTrials(1), 7);
+            tc.verifyTrue(isnan(T.IntanDuration(2)));
+            tc.verifyTrue(isnan(T.EpsychTrials(2)));
+        end
+
+        function shortRecordingIsNotPaired(tc)
+            % A recording shorter than MinIntanDuration (2 min by default)
+            % is never a candidate, so it cannot make a set ambiguous; one
+            % whose headers cannot be read (the dummy folder) pairs as usual.
+            e = tc.addEpsych(tc.Subj, "260916T115900");
+            short = tc.addSyntheticIntan("260916_120000");   % -60 s, well under 2 min
+            other = tc.addIntan(tc.Subj, "260916_120010");   % -70 s, unreadable headers
+            T = tc.find(tc.Subj, "260916");
+            tc.verifyEqual(T.IntanDir, [short; other]);
+            tc.verifyEqual(T.Status, ["intan_only"; "paired"]);
+            tc.verifyEqual(T.EpsychFile(2), e);
+            tc.verifyLessThan(T.IntanDuration(1), minutes(2));
+            tc.verifySubstring(char(T.Note(1)), 'shorter than the 00:02:00 minimum');
+            tc.verifyTrue(isnan(T.IntanDuration(2)));
+
+            T = tc.find(tc.Subj, "260916", MinIntanDuration=seconds(0));
+            tc.verifyEqual(T.Status, repmat("ambiguous", 3, 1), "without the minimum, 10 s apart is a tie");
+
+            % the minimum itself is long enough
+            rmdir(other, 's');
+            d = T.IntanDuration(T.IntanDir == short);
+            T = tc.find(tc.Subj, "260916", MinIntanDuration=d);
+            tc.verifyEqual(T.Status, "paired");
+            T = tc.find(tc.Subj, "260916", MinIntanDuration=d + milliseconds(1));
+            tc.verifyEqual(T.Status, ["epsych_only"; "intan_only"]);
+            tc.verifySubstring(char(T.Note(1)), 'no Intan recording of at least');
+        end
+
         function similarSubjectIDsNeverMix(tc)
             own = tc.addEpsych("SUBJ-ID-125", "260916T110742");
             tc.addIntan("SUBJ-ID-125", "260916_110907");
@@ -184,6 +232,44 @@ classdef test_NasSessions < matlab.unittest.TestCase
                 IntanRoot=tc.Intan, LogFcn=@(~) []), 'findNasSessions:RootNotFound');
             tc.verifyError(@() findNasSessions(tc.Subj, "261340", EpsychRoot=tc.Epsych, ...
                 IntanRoot=tc.Intan, LogFcn=@(~) []), 'findNasSessions:BadDate');
+        end
+
+        % ---------------------------------------------------------------- stitching
+        function stitchMergesRowsInChronologicalOrder(tc)
+            [e1, i] = tc.addPair("260916T110742", "260916_110907");
+            e2 = tc.addEpsych(tc.Subj, "260916T114000");   % restarted during the recording
+            e3 = tc.addEpsych(tc.Subj, "260916T121500");
+            T = tc.find(tc.Subj, "260916");
+            tc.verifyEqual(T.Status, ["paired"; "epsych_only"; "epsych_only"]);
+
+            [S, row, kept] = stitchNasSessions(T, [2 1]);   % any order, any status
+            tc.verifyEqual([height(S), row], [2, 1]);
+            tc.verifyEqual(kept, [true; false; true]);
+            tc.verifyEqual(S.Status, ["stitched"; "epsych_only"]);
+            tc.verifyEqual(S.IntanDir(1), i);
+            tc.verifyEqual(S.StitchFiles{1}, [e1; e2]);
+            tc.verifyEqual([S.EpsychFile(1), S.EpsychFile(2)], [e1, e3]);
+            tc.verifyEqual(S.DeltaT(1), -seconds(85));
+            tc.verifyEqual(S.DestDir(1), T.DestDir(1));
+            tc.verifySubstring(char(S.Note(1)), 'T110742.mat (-85 s); SUBJ-ID-1255_260916T114000.mat (+1853 s)');
+            tc.verifyTrue(isempty(T.StitchFiles{1}) && isempty(S.StitchFiles{2}));
+
+            S = stitchNasSessions(S, logical([1 1]));       % a stitched row takes in more files
+            tc.verifyEqual(height(S), 1);
+            tc.verifyEqual(S.StitchFiles{1}, [e1; e2; e3]);
+        end
+
+        function stitchRefusesBadRows(tc)
+            tc.addPair("260916T110742", "260916_110907");
+            tc.addPair("260916T140000", "260916_140130");
+            tc.addEpsych(tc.Subj, "260916T114000");
+            T = tc.find(tc.Subj, "260916");
+            tc.verifyEqual(T.Status, ["paired"; "epsych_only"; "paired"]);
+            tc.verifyError(@() stitchNasSessions(T, 1), 'stitchNasSessions:BadRows');
+            tc.verifyError(@() stitchNasSessions(T, [1 3]), 'stitchNasSessions:BadRows', "two Intan folders");
+            tc.verifyError(@() stitchNasSessions(T, [1 4]), 'stitchNasSessions:BadRows', "no such row");
+            T.EpsychFile(2) = "";
+            tc.verifyError(@() stitchNasSessions(T, [1 2]), 'stitchNasSessions:BadRows', "one ePsych file");
         end
 
         % ---------------------------------------------------------------- copying
@@ -254,14 +340,43 @@ classdef test_NasSessions < matlab.unittest.TestCase
             tc.assumeTrue(ispc, "robocopy needs Windows");
             tc.addPair("260916T110742", "260916_110907");
             T = tc.find(tc.Subj, "260916");
-            truncate = @(dest) tc.writeBytes(fullfile(dest, "amplifier.dat"), uint8(1:3));
+            truncate = @(f) tc.overwriteIf(f, "amplifier.dat", uint8(1:3));
             R = copyNasSessions(T, DestRoot=tc.Dest, DryRun=false, BeforeVerifyFcn=truncate, LogFcn=@(~) []);
             tc.verifyEqual(R.CopyStatus, "failed");
             tc.verifySubstring(char(R.Message), 'VERIFICATION FAILED');
             tc.verifySubstring(char(R.Message), 'amplifier.dat');
-            tc.verifyTrue(isfile(fullfile(R.DestDir, "info.rhd")), "partial copy kept");
+            tc.verifyTrue(isfile(fullfile(R.DestDir, "amplifier.dat")), "partial copy kept");
+            [~, n, x] = fileparts(T.EpsychFile);
+            tc.verifyFalse(isfile(fullfile(R.DestDir, n + x)), "the files after the bad one are not copied");
             m = jsondecode(fileread(R.ManifestFile));
             tc.verifyEqual(string(m.copy.status), "failed");
+        end
+
+        function checksumCatchesSameSizeCorruption(tc)
+            % The same number of different bytes passes the size check and
+            % fails the SHA-256 checksum of that file, which stops the session.
+            tc.assumeTrue(ispc, "robocopy needs Windows");
+            tc.addPair("260916T110742", "260916_110907");
+            T = tc.find(tc.Subj, "260916");
+            src = dir(fullfile(T.IntanDir, "amplifier.dat"));
+            corrupt = @(f) tc.overwriteIf(f, "amplifier.dat", zeros(1, src.bytes, 'uint8'));
+
+            R = copyNasSessions(T, DestRoot=fullfile(tc.Root, "size_only"), DryRun=false, ...
+                BeforeVerifyFcn=corrupt, LogFcn=@(~) []);
+            tc.verifyEqual(R.CopyStatus, "copied", "a size check cannot see it");
+
+            shown = containers.Map('KeyType', 'double', 'ValueType', 'any');
+            R = copyNasSessions(T, DestRoot=tc.Dest, DryRun=false, Verify="hash", BeforeVerifyFcn=corrupt, ...
+                ProgressFcn=@(~, m) appendLog(shown, m), LogFcn=@(~) []);
+            tc.verifyTrue(any(contains(string(shown.values), "SHA-256 checksum")), "each checksum is shown");
+            tc.verifyEqual(R.CopyStatus, "failed");
+            tc.verifySubstring(char(R.Message), 'amplifier.dat SHA-256 differs');
+            [~, n, x] = fileparts(T.EpsychFile);
+            tc.verifyFalse(isfile(fullfile(R.DestDir, n + x)), "the files after the bad one are not copied");
+            m = jsondecode(fileread(R.ManifestFile));
+            amp = m.intan.files(strcmp({m.intan.files.relativePath}, 'amplifier.dat'));
+            tc.verifyNotEmpty(amp.sha256Source);
+            tc.verifyNotEqual(amp.sha256Destination, amp.sha256Source);
         end
 
         function oneFailureDoesNotStopTheBatch(tc)
@@ -286,6 +401,90 @@ classdef test_NasSessions < matlab.unittest.TestCase
             tc.verifyEqual(R.CopyStatus, "copied", R.Message);
             [~, n, x] = fileparts(e);
             tc.verifyTrue(isfile(fullfile(tc.Dest, tc.Subj, tc.Subj + "_260916T090000", n + x)));
+        end
+
+        function copyStitchedSession(tc)
+            % The Intan files are copied; the two ePsych files become one
+            % stitched session file, and nothing else ePsych is copied.
+            [e1, i] = tc.addPair("260916T110742", "260916_110907");
+            tc.addSession("260916T110742", 3);             % replace the dummy with a real session
+            e2 = tc.addSession("260916T114000", 2);
+            T = tc.find(tc.Subj, "260916");
+            tc.verifyEqual(T.EpsychTrials, [3; 2]);
+            S = stitchNasSessions(T, [1 2]);
+            tc.verifyEqual(S.EpsychTrials, 5);
+
+            R = copyNasSessions(S, DestRoot=tc.Dest, LogFcn=@(~) []);
+            tc.verifyEqual(R.CopyStatus, "planned");
+            tc.verifyEqual(R.NumFiles, 5);   % 4 Intan files + the stitched file
+            tc.verifySubstring(char(R.Message), 'stitch 2 ePsych files into SUBJ-ID-1255_260916T110742_stitched.mat');
+            tc.verifyFalse(isfolder(tc.Dest));
+
+            tc.assumeTrue(ispc, "robocopy needs Windows");
+            before = tc.listTree(fullfile(tc.Root, "nas"));
+            R = copyNasSessions(S, DestRoot=tc.Dest, DryRun=false, Verify="hash", LogFcn=@(~) []);
+            tc.verifyEqual(R.CopyStatus, "copied", R.Message);
+            tc.verifyEqual(tc.listTree(fullfile(tc.Root, "nas")), before, "source untouched");
+            out = fullfile(R.DestDir, tc.Subj + "_260916T110742_stitched.mat");
+            [~, n1, x1] = fileparts(e1);
+            [~, n2, x2] = fileparts(e2);
+            tc.verifyTrue(isfile(out));
+            tc.verifyFalse(isfile(fullfile(R.DestDir, n1 + x1)) || isfile(fullfile(R.DestDir, n2 + x2)), ...
+                "the individual ePsych files are not copied");
+            tc.verifyTrue(isfile(fullfile(R.DestDir, "sub", "nested.bin")));
+            tc.verifyEqual(height(findEpsychSessions(R.DestDir)), 1, "one behavior file in the session folder");
+            B = readEpsychSession(out);
+            tc.verifyEqual(B.StitchPart, [1; 1; 1; 2; 2]);
+            tc.verifyEqual(B.TrialIndex, (1:5).');
+
+            m = jsondecode(fileread(R.ManifestFile));
+            tc.verifyEqual(string(m.pairingStatus), "stitched");
+            tc.verifyEqual(string(m.intan.sourceDir), i);
+            tc.verifyEqual(string(m.epsych.sourceFile), "");
+            tc.verifyEqual(string(m.epsych.destFile), string(out));
+            tc.verifyEqual(m.epsych.stitch.nTrials, 5);
+            tc.verifyEqual(string({m.epsych.stitch.parts.source}).', [e1; e2]);
+            tc.verifyEqual([m.epsych.stitch.parts.nTrials], [3 2]);
+            tc.verifyEqual(strlength(string({m.epsych.stitch.parts.sha256Source})), [64 64]);
+            tc.verifyEqual(strlength(string(m.epsych.stitch.sha256)), 64);
+
+            R = copyNasSessions(S, DestRoot=tc.Dest, DryRun=false, Verify="hash", LogFcn=@(~) []);
+            tc.verifyEqual(R.CopyStatus, "already_present", R.Message);
+
+            tc.addSession("260916T114000", 4);             % the source changed since
+            R = copyNasSessions(S, DestRoot=tc.Dest, DryRun=false, LogFcn=@(~) []);
+            tc.verifyEqual(R.CopyStatus, "skipped");
+            tc.verifySubstring(char(R.Message), 'other versions');
+        end
+
+        function unstitchableFilesFailInPreview(tc)
+            % Two ambiguous ePsych files stitched by hand, but the second
+            % starts before the first one's last trial: the dry run refuses it.
+            tc.addPair("260916T110742", "260916_110907");
+            tc.addSession("260916T110742", 3);             % trials end 10, 20, 30 s after the start
+            tc.addSession("260916T110750", 2);             % starts 8 s after it
+            T = tc.find(tc.Subj, "260916");
+            tc.verifyEqual(T.Status, repmat("ambiguous", 3, 1));
+            S = stitchNasSessions(T, 1:3);
+            tc.verifyEqual(S.Status, "stitched");
+            R = copyNasSessions(S, DestRoot=tc.Dest, LogFcn=@(~) []);
+            tc.verifyEqual(R.CopyStatus, "failed");
+            tc.verifySubstring(char(R.Message), 'cannot be stitched');
+            tc.verifySubstring(char(R.Message), 'before the last trial');
+            tc.verifyFalse(isfolder(tc.Dest));
+        end
+
+        function stitchedFileVerificationFailure(tc)
+            tc.assumeTrue(ispc, "robocopy needs Windows");
+            tc.addPair("260916T110742", "260916_110907");
+            tc.addSession("260916T110742", 3);
+            tc.addSession("260916T114000", 2);
+            S = stitchNasSessions(tc.find(tc.Subj, "260916"), [1 2]);
+            % a stitched file that lost a trial after it was written
+            drop = @(f) tc.dropTrialIf(f, tc.Subj + "_260916T110742_stitched.mat");
+            R = copyNasSessions(S, DestRoot=tc.Dest, DryRun=false, BeforeVerifyFcn=drop, LogFcn=@(~) []);
+            tc.verifyEqual(R.CopyStatus, "failed");
+            tc.verifySubstring(char(R.Message), 'holds 4 trials, its parts 5');
         end
 
         function appFindPreviewCopy(tc)
@@ -320,6 +519,7 @@ classdef test_NasSessions < matlab.unittest.TestCase
             tc.verifyEqual(T.Status, ["paired"; "ambiguous"; "ambiguous"; "ambiguous"; "epsych_only"]);
             tc.verifyEqual(app.NasTicked, T.Status == "paired", "only paired rows ticked");
             tc.verifyEqual(height(app.NasTable.Data), 5);
+            tc.verifyTrue(all(ismember(["Duration" "Trials"], string(app.NasTable.Data.Properties.VariableNames))));
             tc.verifyTrue(contains(string(app.NasLogArea.Value{end}), "1 paired"));
 
             amb = find(T.Status == "ambiguous", 1);
@@ -341,6 +541,53 @@ classdef test_NasSessions < matlab.unittest.TestCase
             tc.verifyEqual(app.NasTable.Data.Result(1), "copied");
             p = getpref(g, 'NasOptions');
             tc.verifyEqual(string(p.destRoot), tc.Dest, "the NAS settings are preferences");
+            tc.verifyEqual(p.minDurationMin, 2);
+        end
+
+        function appStitchAndUnstitch(tc)
+            % Select an Intan row and an ePsych-only row, Stitch, then Unstitch.
+            g = EphysPreprocessingApp.PrefGroup;
+            saved = [];
+            if ispref(g); saved = getpref(g); end
+            tc.addTeardown(@() restorePrefs(g, saved));
+            if ispref(g, 'LastConfigFile'); setpref(g, 'LastConfigFile', ''); end
+
+            tc.addPair("260916T110742", "260916_110907");
+            tc.addSession("260916T110742", 3);
+            tc.addSession("260916T114000", 2);
+            tc.addEpsych(tc.Subj, "260916T170000");
+
+            app = EphysPreprocessingApp;
+            tc.addTeardown(@() delete(app.Fig));
+            app.selectTab(app.TabNas);
+            app.NasSubjectField.Value = char(tc.Subj);
+            app.NasFromDatePicker.Value = datetime(2026, 9, 16);
+            app.NasToDatePicker.Value = NaT;
+            app.NasEpsychRootField.Value = char(tc.Epsych);
+            app.NasIntanRootField.Value = char(tc.Intan);
+            app.NasDestRootField.Value = char(tc.Dest);
+            app.NasScanAfterCheckBox.Value = false;
+            app.onNasFind();
+            found = app.NasSessions;
+            tc.verifyEqual(found.Status, ["paired"; "epsych_only"; "epsych_only"]);
+
+            app.NasTable.Selection = [1 2];
+            app.onNasStitch();
+            tc.verifyEqual(app.NasSessions.Status, ["stitched"; "epsych_only"]);
+            tc.verifyEqual(app.NasTicked, [true; false]);
+            tc.verifyEqual(app.NasTable.Data.("ePsych file")(1), ...
+                tc.Subj + "_260916T110742.mat + " + tc.Subj + "_260916T114000.mat");
+            tc.verifyTrue(startsWith(app.NasSummaryLabel.Text, "0 paired, 1 stitched"));
+
+            app.onNasCopy(true);
+            tc.verifyEqual(app.NasCopyStatus(1), "planned", app.NasMessage(1));
+
+            app.NasTable.Selection = 1;
+            app.onNasUnstitch();
+            tc.verifyEqual(app.NasSessions.Status, found.Status);
+            tc.verifyEqual(app.NasSessions.EpsychFile, found.EpsychFile);
+            tc.verifyEqual(app.NasTicked, [true; false; false]);
+            tc.verifyEqual(app.NasCopyStatus, strings(3, 1));
         end
 
         function cancelStopsBeforeCopying(tc)
@@ -369,6 +616,14 @@ classdef test_NasSessions < matlab.unittest.TestCase
             tc.writeBytes(fullfile(d, "info.rhd"), uint8(1:100));
         end
 
+        function [d, R] = addSyntheticIntan(tc, stamp)
+            %addSyntheticIntan  An Intan folder with readable headers: a short synthetic recording.
+            d = string(fullfile(tc.Intan, tc.Subj, tc.Subj + "_" + stamp));
+            R = makeSyntheticRecording(d, Subject=tc.Subj, Format="one-file-per-signal", ...
+                NumChannels=2, NumTrials=4, Fs=2000, SortedOutput=false, Artifacts=false, WriteManifest=false);
+            delete(R.behaviorFile);
+        end
+
         function [e, i] = addPair(tc, epsychStamp, intanStamp)
             %addPair  A session with a few Intan files, a subfolder and an empty subfolder.
             e = tc.addEpsych(tc.Subj, epsychStamp);
@@ -378,6 +633,27 @@ classdef test_NasSessions < matlab.unittest.TestCase
             mkdir(fullfile(i, "sub"));
             tc.writeBytes(fullfile(i, "sub", "nested.bin"), uint8(7:77));
             mkdir(fullfile(i, "empty_sub"));
+        end
+
+        function f = addSession(tc, stamp, nTrials)
+            %addSession  A real ePsych session file (Data + Info) starting at its name's time.
+            f = string(fullfile(tc.Epsych, tc.Subj, tc.Subj + "_" + stamp + ".mat"));
+            if ~isfolder(fileparts(f)); mkdir(fileparts(f)); end
+            t0 = datetime(stamp, 'InputFormat', 'yyMMdd''T''HHmmss');
+            Data = struct('TrialType', num2cell(mod(1:nTrials, 2)), 'TrialIndex', num2cell(1:nTrials), ...
+                'computerTimestamp', num2cell(t0 + seconds(10 * (1:nTrials))));
+            Info = struct('Subject', struct('Name', tc.Subj), 'StartTime', t0);
+            save(f, 'Data', 'Info');
+        end
+
+        function dropTrialIf(~, f, name)
+            %dropTrialIf  Remove the last trial of a just-written stitched file named NAME (a BeforeVerifyFcn).
+            [~, n, x] = fileparts(f);
+            if n + x ~= name; return; end
+            L = load(f, 'Data', 'Info');
+            Data = L.Data(1:end-1);
+            Info = L.Info;
+            save(f, 'Data', 'Info');
         end
 
         function f = addFile(tc, f)
@@ -390,6 +666,12 @@ classdef test_NasSessions < matlab.unittest.TestCase
             fid = fopen(f, 'w');
             fwrite(fid, bytes, 'uint8');
             fclose(fid);
+        end
+
+        function overwriteIf(tc, f, name, bytes)
+            %overwriteIf  Replace a just-copied file named NAME (a BeforeVerifyFcn).
+            [~, n, x] = fileparts(f);
+            if n + x == name; tc.writeBytes(f, bytes); end
         end
 
         function L = listTree(~, root)

@@ -2,8 +2,8 @@ function test_EpsychSession()
 %test_EpsychSession  Verification suite for the Epsych2 session readers.
 %   Builds synthetic Epsych2 session files (variables Data + Info, the shape
 %   epsych2's ep_SaveDataFcn writes) in a temp folder and checks
-%   epsychSessionMeta, readEpsychSession, findEpsychSessions and
-%   matchEpsychSession. No Epsych2 code is needed.
+%   epsychSessionMeta, readEpsychSession, findEpsychSessions,
+%   matchEpsychSession and stitchEpsychSessions. No Epsych2 code is needed.
 %
 %   Usage:  test_EpsychSession
 
@@ -121,6 +121,62 @@ S4 = findEpsychSessions(root);
 mL = matchEpsychSession(S4, dsA);
 check(mL.file == string(fA) && mL.method == "prefix", 'the longest matching stem wins');
 check(matchEpsychSession(S4([], :), dsA).file == "", 'an empty table matches nothing');
+
+fprintf('\n== 4. stitchEpsychSessions ==\n');
+sdir = fullfile(root, 'stitch');
+mkdir(sdir);
+Data = struct('ToneLevel', {50, 55}, 'RespCode', {uint32(1), uint32(2)}, 'TrialIndex', {1, 2}, 'TrialID', {1, 2}, ...
+    'computerTimestamp', {t0 + minutes(30) + seconds(5), t0 + minutes(30) + seconds(9)});
+Info = struct('Subject', struct('Name', "subjA", 'ID', "A1"), 'StartTime', t0 + minutes(30), ...
+    'TrialTable', {{50, 55}}, 'WriteParams', {{'ToneLevel'}});
+fS2 = fullfile(sdir, 'subjA_260101T123000.mat');
+save(fS2, 'Data', 'Info');
+Data = struct('AMdepth', {0.25, 0.5, 1}, 'RespCode', {uint32(4), uint32(1), uint32(2)}, 'TrialIndex', {1, 2, 3}, ...
+    'TrialID', {2, 1, 2}, 'computerTimestamp', {t0 + hours(1), t0 + hours(1) + seconds(4), t0 + hours(1) + seconds(8)});
+Info = struct('Subject', struct('Name', "subjA", 'ID', "A1"), 'StartTime', t0 + minutes(59), 'Protocol', "second");
+fS3 = fullfile(sdir, 'subjA_260101T125900.mat');
+save(fS3, 'Data', 'Info');
+
+[SD, SI] = stitchEpsychSessions(string({fS3, fA, fS2}));   % given out of order
+check(numel(SD) == 8 && isequal([SD.StitchPart], [1 1 1 2 2 3 3 3]) ...
+    && isequal([SD.StitchPartTrial], [1 2 3 1 2 1 2 3]), 'trials joined in chronological order, whatever the input order');
+check(isequal([SD.TrialIndex], 1:8) && isequal([SD.TrialID], [3 1 2 1 2 2 1 2]), ...
+    'TrialIndex renumbered across the sessions; TrialID kept');
+check(isempty(SD(4).AMdepth) && SD(6).AMdepth == 0.25 && isempty(SD(6).ToneLevel) && SD(4).ToneLevel == 50, ...
+    'parameters a session lacks are []');
+check(isequal(SI.StartTime, t0) && isequal(SI.WriteParams, {'ToneLevel'}) && ~isfield(SI, 'Protocol') ...
+    && isequal(string({SI.Stitch.Parts.Name}), ["subjA_260101T120000.mat" "subjA_260101T123000.mat" "subjA_260101T125900.mat"]) ...
+    && isequal([SI.Stitch.Parts.NTrials], [3 2 3]) && SI.Stitch.Parts(3).Info.Protocol == "second", ...
+    'Info is the earliest session''s, with every part (and its own Info) under Stitch');
+fOut = fullfile(sdir, 'out', 'subjA_260101T120000_stitched.mat');
+[SD2, SI2] = stitchEpsychSessions(string({fS2, fA}), OutFile=fOut);
+[TS, ~, mS] = readEpsychSession(fOut);
+check(height(TS) == 5 && isequal(TS.StitchPart, [1; 1; 1; 2; 2]) && mS.startTime == t0 && mS.subject == "subjA" ...
+    && numel(SD2) == 5 && numel(SI2.Stitch.Parts) == 2, 'OutFile writes a session readEpsychSession reads');
+check(height(findEpsychSessions(fullfile(sdir, 'out'))) == 1 && ...
+    ~isfile(fullfile(sdir, 'out', '~subjA_260101T120000_stitched.partial.mat')), 'no partial file left behind');
+
+    function id = stitchError(varargin)
+        id = '';
+        try
+            stitchEpsychSessions(varargin{:});
+        catch ME
+            id = ME.identifier;
+        end
+    end
+check(strcmp(stitchError(string({fA, fA})), 'stitchEpsychSessions:TooFew'), 'one file (even listed twice) is refused');
+check(strcmp(stitchError(string({fA, fB})), 'stitchEpsychSessions:Subject'), 'sessions of different subjects are refused');
+check(strcmp(stitchError(string({fA, fOut})), 'stitchEpsychSessions:AlreadyStitched'), 'a stitched session is not stitched again');
+Data = struct('ToneLevel', {40}, 'TrialIndex', {1}, 'computerTimestamp', {t0 + seconds(20)});
+Info = struct('Subject', "subjA", 'StartTime', t0 + seconds(10));
+fOver = fullfile(sdir, 'subjA_260101T120010.mat');
+save(fOver, 'Data', 'Info');
+check(strcmp(stitchError(string({fA, fOver})), 'stitchEpsychSessions:Overlap'), 'a session starting during the previous one is refused');
+Data = struct('ToneLevel', {40}); Info = struct('Subject', "subjA");
+fNoT = fullfile(sdir, 'subjA_notime.mat');
+save(fNoT, 'Data', 'Info');
+check(strcmp(stitchError(string({fA, fNoT})), 'stitchEpsychSessions:NoStartTime'), 'a session with no time is refused');
+check(strcmp(stitchError(string({fA, fD})), 'readEpsychSession:NotEpsych'), 'a file that is not a session is refused');
 
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0

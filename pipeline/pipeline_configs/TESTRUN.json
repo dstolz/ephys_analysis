@@ -1,7 +1,7 @@
 {
   "schema": "ephys-pipeline-config",
   "version": 1,
-  "name": "TESTRUN",
+  "name": "TEST",
   "description": "",
   "Project": {
     "Root": "D:\\EPHYS",
@@ -13,36 +13,36 @@
       "SUBJ-ID-1255/SUBJ-ID-1255_260910_104923",
       "SUBJ-ID-1255/SUBJ-ID-1255_260914_101756"
     ],
-    "NamePattern": "SUBJ-ID-{SubjectID}_{Date:yyMMdd}_{Time:HHmmss}",
+    "NamePattern": "{SubjectID}_{Date:yyMMdd}_{Time:HHmmss}",
     "TokenColumns": "SubjectID, Date, Time"
   },
   "Parallel": {
-    "Enabled": false,
+    "Enabled": true,
     "MaxWorkers": "NaN"
   },
   "Probe": {
-    "DefaultProbeFile": "",
+    "DefaultProbeFile": "C:\\src\\ephys_analysis\\pipeline\\probes\\H64LP_4x16lin_probemap.json",
     "WriteDefaultToManifest": false
   },
   "Behavior": {
     "Enabled": true,
     "SearchDirs": "D:\\EPHYS",
     "Match": "prefix-then-time",
-    "MaxStartOffsetMin": 10,
+    "MaxStartOffsetMin": 30,
     "Overwrite": false,
     "WriteFile": true,
     "PairTrials": true,
     "TrialLine": "InTrial"
   },
   "Artifacts": {
-    "Enabled": false,
+    "Enabled": true,
     "Method": "rms",
-    "Threshold": 9,
+    "Threshold": 12,
     "RmsWindowMs": "NaN",
     "MergeGapMs": 0,
     "MinChannels": 2,
     "PadMs": 0,
-    "Filter": false,
+    "Filter": true,
     "FilterType": "highpass",
     "FilterCutoff": 300,
     "FilterOrder": 4,
@@ -51,7 +51,7 @@
     "CacheIntervals": true
   },
   "Sorting": {
-    "Enabled": false,
+    "Enabled": true,
     "PythonExe": "C:\\Users\\dstolz\\AppData\\Local\\miniconda3\\envs\\kilosort\\python.exe",
     "CondaEnv": "",
     "Execution": "background",
@@ -61,7 +61,7 @@
       "Filter": false,
       "FilterFreqMin": 300,
       "FilterFreqMax": 6000,
-      "CommonReference": false,
+      "CommonReference": true,
       "ReferenceOperator": "median",
       "DetectBadChannels": true,
       "BadChannelMethod": "coherence+psd",
@@ -73,8 +73,8 @@
       "tmin": 0,
       "tmax": "Inf",
       "highpass_cutoff": 300,
-      "whitening_range": 32,
-      "artifact_threshold": "Inf",
+      "whitening_range": 16,
+      "artifact_threshold": 5000,
       "nskip": 25,
       "batch_size": 120000,
       "batch_downsampling": 1,
@@ -122,7 +122,7 @@
     "Suffix": "_extract",
     "SeparateFiles": true,
     "MatVersion": "-v7.3",
-    "Overwrite": false,
+    "Overwrite": true,
     "LFP": true,
     "MUA": true,
     "SPIKE": false,
@@ -148,7 +148,7 @@
       5000
     ],
     "LabelField": "custom_channel_name",
-    "InvertedLines": [],
+    "InvertedLines": "Platform",
     "KeepChannels": "",
     "BadMode": "none",
     "BadThreshold": 3,
@@ -157,11 +157,11 @@
     "ExcludeHandling": "none"
   },
   "Spikes": {
-    "Enabled": true,
-    "Source": "detect",
+    "Enabled": false,
+    "Source": "both",
     "Filter": true,
     "Band": [
-      500,
+      300,
       5000
     ],
     "FilterOrder": 4,
@@ -171,11 +171,11 @@
     "Align": "trough",
     "AlignWindowMs": 1,
     "MinPeriodMs": 1,
-    "MaxAmplitudeUV": "Inf",
+    "MaxAmplitudeUV": 1000,
     "Waveforms": true,
     "WindowMs": [
       -0.5,
-      1.5
+      1.2
     ],
     "WaveformSource": "filtered",
     "EdgeHandling": "nan",
@@ -193,14 +193,17 @@
     "OutputDir": "",
     "Suffix": "_spikes",
     "MatVersion": "-v7.3",
-    "Overwrite": false
+    "Overwrite": true
   },
   "Export": {
-    "Enabled": true,
-    "Formats": "fieldtrip",
-    "Signals": "LFP",
-    "IncludeUnits": false,
-    "IncludeDetected": false,
+    "Enabled": false,
+    "Formats": [
+      "chronux",
+      "fieldtrip"
+    ],
+    "Signals": [],
+    "IncludeUnits": true,
+    "IncludeDetected": true,
     "IncludeEvents": true,
     "Groups": [
       "good",
@@ -209,6 +212,6 @@
     "Validate": true,
     "OutputDir": "",
     "MatVersion": "-v7.3",
-    "Overwrite": false
+    "Overwrite": true
   }
 }

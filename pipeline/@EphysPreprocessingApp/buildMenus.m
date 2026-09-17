@@ -2,8 +2,10 @@ function buildMenus(obj)
 %buildMenus  File / Dataset / Run menus.
 %   File holds the pipeline-config lifecycle (New, Open, Open recent, Save,
 %   Save As, Export copy, Generate script), Create synthetic test project
-%   and Close. Dataset is the app-wide single-dataset picker (filled by
-%   populateDatasetMenu). Run mirrors the Run tab's buttons.
+%   and Close. Dataset chooses the active dataset, the one every tab's
+%   single-dataset controls work on (see selectDataset): it lists the
+%   datasets ticked in the Project table, with every dataset in an "All
+%   datasets" submenu. Run mirrors the Run tab's buttons.
 
 % --- File ------------------------------------------------------------------
 obj.FileMenu = uimenu(obj.Fig, "Text", "File");
@@ -30,9 +32,12 @@ uimenu(obj.FileMenu, "Text", "Create synthetic test project...", "Separator", "o
 uimenu(obj.FileMenu, "Text", "Close", "Separator", "on", ...
     "MenuSelectedFcn", @(~,~) obj.onClose());
 
-% --- Dataset (single-dataset picker; items filled by populateDatasetMenu) ---
-obj.DatasetMenu = uimenu(obj.Fig, "Text", "Dataset");
-obj.DatasetMenuItems = uimenu(obj.DatasetMenu, "Text", "(scan first)", "Enable", "off");
+% --- Dataset: the active dataset. The ticked datasets on top (refreshDatasetMenu),
+% every dataset under "All datasets" (populateDatasetPickers) ---
+obj.DatasetMenu = uimenu(obj.Fig, "Text", "Dataset", ...
+    "Tooltip", "The active dataset: what the single-dataset controls on every tab work on. Also chosen by clicking a Project-table row or in any tab's Dataset box.");
+obj.DatasetAllMenu = uimenu(obj.DatasetMenu, "Text", "All datasets", "Separator", "on", "Enable", "off");
+obj.refreshDatasetMenu();
 
 % --- Run ---------------------------------------------------------------------
 obj.RunMenu = uimenu(obj.Fig, "Text", "Run");

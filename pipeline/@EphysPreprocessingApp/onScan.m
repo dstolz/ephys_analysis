@@ -27,10 +27,7 @@ try
         close(dlg);
         obj.Project = P;
         obj.refreshDatasetsTable();
-        obj.populateDatasetMenu();
-        obj.populateArtifactDatasets();
-        obj.populateReviewDatasets();
-        obj.populateTrialsDatasets();
+        obj.populateDatasetPickers();
         obj.ScanStatusLabel.Text = sprintf("No recordings found under %s", root);
         obj.setStatus(sprintf("Scan complete: no recordings found under %s.", root), ...
             "Pick a different parent folder and Scan again.");
@@ -49,13 +46,8 @@ try
     obj.Project = P;
     obj.refreshDatasetsTable();
     obj.applySelectionToTable(obj.Config.Project);
-    obj.populateDatasetMenu();
-    obj.populateArtifactDatasets();
-    obj.populateReviewDatasets();
-    obj.populateTrialsDatasets();
+    obj.populateDatasetPickers();
     obj.syncStepEnableStates();
-    obj.refreshSortingLabel();
-    obj.refreshManualArtifactsTable();
     obj.ScanStatusLabel.Text = sprintf("Found %d dataset(s) under %s", n, root);
     obj.setStatus(sprintf("Scanned %s: found %d dataset(s).", root, n));
 catch ME

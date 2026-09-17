@@ -5,7 +5,7 @@ arguments
     status (1,1) string {mustBeMember(status, ["approved" "unreviewed"])}
 end
 P = obj.TrialsPairing;
-d = obj.currentTrialsDataset();
+d = obj.currentDataset();
 if isempty(P) || isempty(d); return; end
 d.setTrialPairing(P, status);
 P.status = status;

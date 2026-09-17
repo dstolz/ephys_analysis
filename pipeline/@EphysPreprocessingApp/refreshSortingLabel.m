@@ -1,9 +1,9 @@
 function refreshSortingLabel(obj)
-%refreshSortingLabel  Describe the selected dataset's sorted-output association.
+%refreshSortingLabel  Describe the active dataset's sorted-output association.
 if isempty(obj.SortResultsLabel) || ~isvalid(obj.SortResultsLabel); return; end
 d = obj.currentDataset();
 if isempty(d)
-    obj.SortResultsLabel.Text = "Select a dataset on the Project tab.";
+    obj.SortResultsLabel.Text = "Scan a project first.";
     return
 end
 s = d.sortingStruct();

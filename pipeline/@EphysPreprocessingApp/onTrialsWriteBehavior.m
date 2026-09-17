@@ -1,7 +1,7 @@
 function onTrialsWriteBehavior(obj)
 %onTrialsWriteBehavior  Write <name>_behavior.mat with the shown pairing.
 P = obj.TrialsPairing;
-d = obj.currentTrialsDataset();
+d = obj.currentDataset();
 if isempty(P) || isempty(d); return; end
 file = fullfile(d.outputFolder(), d.Name + "_behavior.mat");   % EphysPipeline.outputPathFor("behavior")
 try

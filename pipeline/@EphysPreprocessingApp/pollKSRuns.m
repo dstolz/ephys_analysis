@@ -64,6 +64,7 @@ end
 
 % Refresh the datasets table so the Bin/results columns reflect new outputs.
 obj.refreshDatasetsTable();
+obj.ReviewDatasetIdx = -1;   % the Review tab reloads
 
 if pending == 0
     obj.log("=== all %d background run(s) complete ===", nTot);

@@ -3,7 +3,7 @@ function buildSpikesTab(obj)
 %   Edits the config's Spikes section (gatherSpikesSection /
 %   applySpikesSection): source, detection settings (EphysDataset.detectSpikes),
 %   sorted-unit settings (readSortedUnits) and output. The right panel
-%   previews detection on a short window of the Dataset-menu dataset and
+%   previews detection on a short window of the active dataset and
 %   runs the step.
 
 g = uigridlayout(obj.TabSpikes, [1 2]);
@@ -176,11 +176,13 @@ right.Layout.Column = 2;
 right.ColumnWidth = {'fit', '1x'};
 right.RowHeight = {'fit', 'fit', '1x', 'fit'};
 right.Padding = [0 0 0 0];
-pp = uigridlayout(right, [1 3]);
+pp = uigridlayout(right, [1 5]);
 pp.Layout.Column = [1 2];
-pp.RowHeight = {'fit'}; pp.ColumnWidth = {'fit', 'fit', '1x'}; pp.Padding = [0 0 0 0];
-obj.SpkPreviewButton = uibutton(pp, "Text", "Preview on the Dataset-menu dataset", ...
-    "Tooltip", "Detect on the first seconds of the dataset picked in the Dataset menu with the settings on the left.", ...
+pp.RowHeight = {'fit'}; pp.ColumnWidth = {'fit', 240, 'fit', 'fit', '1x'}; pp.Padding = [0 0 0 0];
+uilabel(pp, "Text", "Dataset:");
+obj.SpkDatasetDropDown = obj.datasetPicker(pp);
+obj.SpkPreviewButton = uibutton(pp, "Text", "Preview", ...
+    "Tooltip", "Detect on the first seconds of this dataset with the settings on the left.", ...
     "ButtonPushedFcn", @(~,~) obj.onSpikesPreview());
 obj.SpkPreviewSecondsField = uieditfield(pp, "numeric", "Value", 10, "Limits", [0.1 Inf], ...
     "ValueDisplayFormat", "%g s", "Tooltip", "Length of the preview window.");

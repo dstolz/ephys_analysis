@@ -3,7 +3,7 @@ function repairTrials(obj, cuts)
 %   CUTS is "recorded", "none" or a struct (trials, intervals), see
 %   EphysDataset.pairTrials. Cuts that cannot be applied leave the shown
 %   pairing as it is (and put the spinners back).
-d = obj.currentTrialsDataset();
+d = obj.currentDataset();
 if isempty(d) || isempty(obj.TrialsEvents); return; end
 try
     P = d.pairTrials(Events=obj.TrialsEvents, Cuts=cuts, Warn=false);

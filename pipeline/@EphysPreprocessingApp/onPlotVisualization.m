@@ -30,7 +30,7 @@ function onPlotVisualization(obj)
 
 idx = obj.SelectedDatasetIdx;
 if idx < 1 || isempty(obj.Project) || idx > obj.Project.NumDatasets
-    uialert(obj.Fig, "Scan, then choose a dataset from the Dataset menu.", "Visualize");
+    uialert(obj.Fig, "Scan a project first.", "Visualize");
     return
 end
 d = obj.Project.Datasets(idx);
@@ -227,6 +227,8 @@ try
             "Cached %d ch x %d samples (%.2f s). Navigate with the mouse.", ...
             nCh, nSamp, nSamp / Fs);
     end
+    obj.VizStatusLabel.UserData = obj.VizStatusLabel.Text;   % shown again by syncVizDataset
+    obj.syncVizDataset();
 
     nDet = size(obj.VizDetectedIntervals, 1);
     obj.setStatus(sprintf("Plotted %s: %d ch, %.2f s (%d artifact interval(s) detected).", ...

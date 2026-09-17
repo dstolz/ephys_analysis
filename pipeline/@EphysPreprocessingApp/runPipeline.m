@@ -59,6 +59,7 @@ if ~isempty(pipe.LaunchedRuns)
     obj.startKSMonitor();
 end
 obj.refreshDatasetsTable();
+obj.ReviewDatasetIdx = -1;   % new sorted output: the Review tab reloads
 obj.refreshSortingLabel();
 obj.refreshManualArtifactsTable();
 n = height(R);

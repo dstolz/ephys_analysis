@@ -1,28 +1,14 @@
 function onDatasetCellSelection(obj, evt)
-%onDatasetCellSelection  Track the last-clicked row as the active dataset.
-%   Used by the Visualize and Probe tabs as the single-dataset target.
-
+%onDatasetCellSelection  Clicking a Project-table row makes its dataset the active one.
+%   Rows map to datasets through DatasetIdx: sorting and the token filters
+%   reorder and hide rows independently of obj.Project.Datasets.
 if isempty(evt.Indices)
     return
 end
-obj.SelectedRow = evt.Indices(1);
-
-% Keep the "Dataset" menu (indexed by dataset order, not table row order) in
-% sync with the clicked row via its DatasetIdx.
-d = obj.currentDataset();
-if ~isempty(d)
-    T = obj.DatasetsTable.Data;
-    obj.selectDataset(T.DatasetIdx(obj.SelectedRow));
+T = obj.DatasetsTable.Data;
+row = evt.Indices(1);
+if ~istable(T) || row > height(T)
+    return
 end
-
-% Reflect the newly selected dataset's per-recording channel exclusions.
-obj.syncExcludeField();
-
-% Refresh the probe channel-count check against the newly selected dataset.
-obj.onProbeSelected();
-
-% Enable/disable "Open in phy" for the newly selected dataset.
-obj.updatePhyButtonState();
-obj.refreshSortingLabel();
-obj.refreshManualArtifactsTable();
+obj.selectDataset(T.DatasetIdx(row), FromTable=true);
 end

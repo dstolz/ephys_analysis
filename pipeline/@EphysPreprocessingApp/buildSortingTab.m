@@ -144,9 +144,9 @@ r = r + 1;
 l = lab(cg, "Kilosort4 parameters", r);
 l.FontWeight = "bold";
 obj.KSOptimizeButton = uibutton(cg, "Text", "Optimize for probe", ...
-    "Tooltip", ["Set nblocks, dmin, dminx, nearest_chans, nearest_templates, min_template_size " ...
-     "and x_centers from the probe map of the dataset last clicked in the Project table " ...
-     "(else the default probe), following the Kilosort4 parameter guide."], ...
+    "Tooltip", ["Load the Kilosort4 parameters saved for the probe of the active dataset (the Dataset box " ...
+     "on the right; else the default probe) from <probe>.ks4.json next to the probe map. " ...
+     "When there is no such file, offers to generate one from the current parameters or from the probe layout."], ...
     "ButtonPushedFcn", @(~,~) obj.onOptimizeKS4ForProbe());
 obj.KSOptimizeButton.Layout.Row = r; obj.KSOptimizeButton.Layout.Column = 2;
 obj.KSResetButton = uibutton(cg, "Text", "Reset to defaults", ...
@@ -201,30 +201,34 @@ right.Layout.Column = 2;
 right.RowHeight = {'fit', '1x'};
 right.Padding = [0 0 0 0];
 
-resPanel = uipanel(right, "Title", "Sorted output of the selected dataset");
-rg = uigridlayout(resPanel, [3 4]);
-rg.RowHeight   = {'fit', 'fit', 'fit'};
+resPanel = uipanel(right, "Title", "Sorted output");
+rg = uigridlayout(resPanel, [4 4]);
+rg.RowHeight   = {'fit', 'fit', 'fit', 'fit'};
 rg.ColumnWidth = {'fit', 'fit', 'fit', '1x'};
-obj.SortResultsLabel = uilabel(rg, "Text", "Select a dataset on the Project tab.", ...
+l = uilabel(rg, "Text", "Dataset:");
+l.Layout.Row = 1; l.Layout.Column = 1;
+obj.SortDatasetDropDown = obj.datasetPicker(rg);
+obj.SortDatasetDropDown.Layout.Row = 1; obj.SortDatasetDropDown.Layout.Column = [2 4];
+obj.SortResultsLabel = uilabel(rg, "Text", "Scan a project first.", ...
     "WordWrap", "on", "FontColor", [0.3 0.3 0.3]);
-obj.SortResultsLabel.Layout.Row = 1; obj.SortResultsLabel.Layout.Column = [1 4];
+obj.SortResultsLabel.Layout.Row = 2; obj.SortResultsLabel.Layout.Column = [1 4];
 obj.SortUseFolderButton = uibutton(rg, "Text", "Use folder...", ...
     "Tooltip", "Pin a Kilosort4 / phy results folder (e.g. sorted elsewhere or a curated copy); saved in the manifest.", ...
     "ButtonPushedFcn", @(~,~) obj.onUseSortingFolder());
-obj.SortUseFolderButton.Layout.Row = 2; obj.SortUseFolderButton.Layout.Column = 1;
+obj.SortUseFolderButton.Layout.Row = 3; obj.SortUseFolderButton.Layout.Column = 1;
 obj.SortUseAutoButton = uibutton(rg, "Text", "Use auto", ...
     "Tooltip", "Back to the run under <output root>/<Name>/kilosort4.", ...
     "ButtonPushedFcn", @(~,~) obj.onUseAutoSorting());
-obj.SortUseAutoButton.Layout.Row = 2; obj.SortUseAutoButton.Layout.Column = 2;
+obj.SortUseAutoButton.Layout.Row = 3; obj.SortUseAutoButton.Layout.Column = 2;
 obj.SortPhyButton = uibutton(rg, "Text", "Open in phy", ...
     "ButtonPushedFcn", @(~,~) obj.onLaunchPhy());
-obj.SortPhyButton.Layout.Row = 2; obj.SortPhyButton.Layout.Column = 3;
+obj.SortPhyButton.Layout.Row = 3; obj.SortPhyButton.Layout.Column = 3;
 obj.RunStepSortingButton = uibutton(rg, "Text", "Run this step", "FontWeight", "bold", ...
     "Tooltip", "Run the Sorting step for the selected datasets (progress on the Run tab).", ...
     "ButtonPushedFcn", @(~,~) obj.onRunStep("sorting"));
-obj.RunStepSortingButton.Layout.Row = 3; obj.RunStepSortingButton.Layout.Column = 1;
+obj.RunStepSortingButton.Layout.Row = 4; obj.RunStepSortingButton.Layout.Column = 1;
 obj.KSProgressLabel = uilabel(rg, "Text", "Idle.", "FontColor", [0.4 0.4 0.4]);
-obj.KSProgressLabel.Layout.Row = 3; obj.KSProgressLabel.Layout.Column = [2 4];
+obj.KSProgressLabel.Layout.Row = 4; obj.KSProgressLabel.Layout.Column = [2 4];
 
 logPanel = uipanel(right, "Title", "Kilosort4 log (background runs stream here)");
 lg = uigridlayout(logPanel, [1 1]);

@@ -1,8 +1,8 @@
 function onAssociateBehavior(obj)
-%onAssociateBehavior  Pick an Epsych2 session file for the selected dataset.
+%onAssociateBehavior  Pick an Epsych2 session file for the active dataset.
 d = obj.currentDataset();
 if isempty(d)
-    uialert(obj.Fig, "Select a dataset row first.", "Behavior");
+    uialert(obj.Fig, "Scan a project first.", "Behavior");
     return
 end
 start = char(d.BehaviorFile);

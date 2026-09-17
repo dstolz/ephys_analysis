@@ -1,7 +1,7 @@
 function onApplyExclude(obj, scope)
 %onApplyExclude  Set per-recording channel exclusions from the Probe tab field.
-%   scope = "selected" -> the row last clicked in the Datasets tab (also the
-%                         path taken when the edit field is committed)
+%   scope = "selected" -> the active dataset (also the path taken when the
+%                         edit field is committed)
 %   scope = "all"      -> every dataset in the project
 %
 %   The field holds 1-based channels to drop from Kilosort4 sorting (e.g.
@@ -20,12 +20,10 @@ switch scope
     case "selected"
         d = obj.currentDataset();
         if isempty(d)
-            % Triggered by editing the field with no dataset selected: guide,
-            % don't pop a modal (this fires on every commit).
-            obj.ScanStatusLabel.Text = ...
-                "Select a dataset row (Datasets tab) to apply channel exclusions.";
-            obj.setStatus("Channel exclusions not applied: no dataset selected.", ...
-                "Click a dataset row on the Datasets tab, then re-enter exclusions.");
+            % Triggered by editing the field before a scan: guide, don't
+            % pop a modal (this fires on every commit).
+            obj.setStatus("Channel exclusions not applied: no dataset scanned.", ...
+                "Scan a project on the Project tab, then re-enter exclusions.");
             return
         end
         targets = d;

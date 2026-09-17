@@ -1,6 +1,6 @@
 function buildArtifactsTab(obj)
 %buildArtifactsTab  Artifacts step: automatic detection settings + preview,
-%   and the manual periods of the selected dataset.
+%   and the manual periods of the active dataset (the Dataset box).
 %   Edits the config's Artifacts section (gatherArtifactsSection /
 %   applyArtifactsSection). Manual periods are per dataset (marked on the
 %   Visualize tab, saved in the manifest) and always apply; the automatic
@@ -31,9 +31,8 @@ obj.ArtEnableCheckBox = uicheckbox(cg, "Text", "Enable automatic detection", "Fo
 obj.ArtEnableCheckBox.Layout.Row = row; obj.ArtEnableCheckBox.Layout.Column = [1 2];
 
 row = row + 1;
-lab(cg, "Preview dataset:", row);
-obj.ArtDatasetDropDown = uidropdown(cg);
-obj.ArtDatasetDropDown.Items = {'(scan first)'};
+lab(cg, "Dataset:", row);
+obj.ArtDatasetDropDown = obj.datasetPicker(cg);
 obj.ArtDatasetDropDown.Layout.Row = row; obj.ArtDatasetDropDown.Layout.Column = 2;
 
 row = row + 1;
@@ -135,7 +134,7 @@ obj.ArtChannelTable.Layout.Row = 3;
 
 mg = uigridlayout(right, [1 3]);
 mg.Layout.Row = 4; mg.Padding = [0 0 0 0]; mg.ColumnWidth = {'1x', 'fit', 'fit'};
-obj.ArtManualLabel = uilabel(mg, "Text", "Manual periods of the selected dataset (saved in its manifest)", "FontWeight", "bold");
+obj.ArtManualLabel = uilabel(mg, "Text", "Manual periods (scan a project first)", "FontWeight", "bold");
 obj.ArtEditVizButton = uibutton(mg, "Text", "Edit in Visualize", ...
     "ButtonPushedFcn", @(~,~) obj.selectTab(obj.TabVisualize));
 obj.ArtManualClearButton = uibutton(mg, "Text", "Clear", "ButtonPushedFcn", @(~,~) obj.onClearManualArtifacts());

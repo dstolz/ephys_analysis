@@ -1,9 +1,9 @@
 function refreshManualArtifactsTable(obj)
-%refreshManualArtifactsTable  List the selected dataset's manual periods.
+%refreshManualArtifactsTable  List the active dataset's manual periods.
 if isempty(obj.ArtManualTable) || ~isvalid(obj.ArtManualTable); return; end
 d = obj.currentDataset();
 if isempty(d)
-    obj.ArtManualLabel.Text = "Manual periods (select a dataset on the Project tab)";
+    obj.ArtManualLabel.Text = "Manual periods (scan a project first)";
     obj.ArtManualTable.Data = {};
     return
 end

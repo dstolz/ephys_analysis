@@ -1,8 +1,8 @@
 function onUseSortingFolder(obj)
-%onUseSortingFolder  Pin a Kilosort4 / phy results folder to the selected dataset.
+%onUseSortingFolder  Pin a Kilosort4 / phy results folder to the active dataset.
 d = obj.currentDataset();
 if isempty(d)
-    uialert(obj.Fig, "Select a dataset row on the Project tab first.", "Sorting");
+    uialert(obj.Fig, "Scan a project first.", "Sorting");
     return
 end
 start = char(d.sortingResultsDir());
@@ -20,6 +20,6 @@ d.SortingDir = string(r);
 d.writeManifest();
 obj.refreshDatasetsTable();
 obj.refreshSortingLabel();
-obj.populateReviewDatasets();
+obj.ReviewDatasetIdx = -1;   % the Review tab reloads it
 obj.setStatus(d.Name + ": sorted output pinned to " + string(r), "");
 end

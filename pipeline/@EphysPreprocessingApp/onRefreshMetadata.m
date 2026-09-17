@@ -22,6 +22,5 @@ end
 close(dlg);
 
 obj.refreshDatasetsTable();
-obj.populateDatasetMenu();
-obj.refreshSortingLabel();
+obj.populateDatasetPickers();
 end

@@ -6,6 +6,6 @@ d.SortingDir = "";
 d.writeManifest();
 obj.refreshDatasetsTable();
 obj.refreshSortingLabel();
-obj.populateReviewDatasets();
+obj.ReviewDatasetIdx = -1;   % the Review tab reloads it
 obj.setStatus(d.Name + ": sorted output association set to auto.", "");
 end

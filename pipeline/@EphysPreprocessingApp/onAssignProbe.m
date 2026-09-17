@@ -1,7 +1,7 @@
 function onAssignProbe(obj, scope)
 %onAssignProbe  Assign the selected probe .json to one or all datasets.
-%   scope = "selected" -> the rows ticked in the Project table, or the row
-%                         last clicked when none are ticked
+%   scope = "selected" -> the rows ticked in the Project table, or the
+%                         active dataset when none are ticked
 %   scope = "all"      -> every dataset in the project
 
 pf = obj.selectedProbeFile();
@@ -25,7 +25,7 @@ switch scope
             targets = obj.currentDataset();
         end
         if isempty(targets)
-            uialert(obj.Fig, "Tick or click a dataset row in the Project table first.", "Assign probe");
+            uialert(obj.Fig, "Tick datasets in the Project table, or choose one in the Dataset box.", "Assign probe");
             return
         end
     case "all"

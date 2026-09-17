@@ -1,9 +1,10 @@
 function buildReviewTab(obj)
 %buildReviewTab  Summary stats + plots for a Kilosort4 results folder.
-%   Pick a kilosort4/ output folder (or a scanned dataset), then load(); the
-%   left column shows aggregate stats and a per-unit table, the right column
-%   shows units-per-shank, mean waveforms, spike amplitudes over time, and
-%   per-unit firing rates. Selecting a table row focuses the waveform and
+%   The active dataset's sorted output loads when the tab opens or the
+%   dataset changes (syncReviewDataset); Browse... / Load take any other
+%   kilosort4/ output folder. The left column shows aggregate stats and a
+%   per-unit table, the right column shows units-per-shank, mean waveforms,
+%   spike amplitudes over time, and per-unit firing rates. Selecting a table row focuses the waveform and
 %   amplitude plots on that single unit; "Show all units" clears the focus.
 %   All parsing happens once in loadReviewResults; selection only re-renders
 %   from the cached ReviewData. See loadReviewResults / renderReviewPlots.
@@ -29,13 +30,13 @@ obj.ReviewFolderField = uieditfield(fr, "text", ...
 obj.BrowseReviewButton = uibutton(fr, "Text", "Browse...", ...
     "ButtonPushedFcn", @(~,~) obj.onBrowseReviewFolder());
 
-dr = uigridlayout(left, [1 2]);
-dr.ColumnWidth = {'1x', 'fit'};
+dr = uigridlayout(left, [1 3]);
+dr.ColumnWidth = {'fit', '1x', 'fit'};
 dr.Padding = [0 0 0 0];
-obj.ReviewDatasetDropDown = uidropdown(dr);
-obj.ReviewDatasetDropDown.Items = {'(pick folder, or scan first)'};
-obj.ReviewDatasetDropDown.ValueChangedFcn = @(~,~) obj.onReviewDatasetChanged();
+uilabel(dr, "Text", "Dataset:");
+obj.ReviewDatasetDropDown = obj.datasetPicker(dr);
 obj.LoadReviewButton = uibutton(dr, "Text", "Load", ...
+    "Tooltip", "Load the results folder above.", ...
     "ButtonPushedFcn", @(~,~) obj.loadReviewResults());
 
 br = uigridlayout(left, [1 2]);

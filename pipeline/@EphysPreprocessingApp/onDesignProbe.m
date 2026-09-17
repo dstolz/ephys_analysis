@@ -6,7 +6,7 @@ function onDesignProbe(obj)
 %   the probe folder. The designer calls back into obj.refreshProbeList on save
 %   so the new probe appears in the list.
 %
-%   Passes the selected dataset's channel count (when any) purely as a soft
+%   Passes the active dataset's channel count (when any) purely as a soft
 %   count-check hint.
 %
 %   See also ProbeDesignerApp, EphysPreprocessingApp.runProbeTool,

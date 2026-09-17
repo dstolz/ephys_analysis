@@ -25,11 +25,6 @@ widths = [{64, 'fit'}, repmat({'fit'}, 1, nTok), ...
 
 prev = obj.DatasetsTable.Data;
 order = displayedColumnOrder(obj, prev);
-prevDatasetIdx = obj.SelectedDatasetIdx;   % kept while its row is filtered out
-if istable(prev) && obj.SelectedRow >= 1 && obj.SelectedRow <= height(prev) ...
-        && any(strcmp('DatasetIdx', prev.Properties.VariableNames))
-    prevDatasetIdx = prev.DatasetIdx(obj.SelectedRow);
-end
 
 n = 0;
 if ~isempty(obj.Project); n = obj.Project.NumDatasets; end
@@ -140,11 +135,8 @@ obj.DatasetsTable.ColumnWidth = widths(perm);
 obj.DatasetsTable.DisplayColumnOrder = [];
 obj.DatasetsColumnOrder = vars(perm);
 
-% The last-clicked row follows its dataset (rows move as filters change).
-obj.SelectedRow = 0;
-if prevDatasetIdx >= 1 && any(T.DatasetIdx == prevDatasetIdx)
-    obj.SelectedRow = find(T.DatasetIdx == prevDatasetIdx, 1);
-end
+% The highlight follows the active dataset (rows move as filters change).
+obj.highlightDatasetRow();
 
 if patternMsg ~= ""
     msg = patternMsg;

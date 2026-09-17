@@ -20,13 +20,8 @@ cg.ColumnWidth = {'fit', '1x'};
 
 row = 1;
 lab(cg, "Dataset:", row);
-% Read-only mirror of the figure's "Dataset" menu, which owns the selection
-% (see buildUI / populateDatasetMenu / selectDataset).
-obj.VizDatasetLabel = uilabel(cg, "WordWrap", "on", ...
-    "Text", "(none - scan, then pick from the Dataset menu)", ...
-    "FontColor", [0.5 0.5 0.5], ...
-    "Tooltip", "Choose the dataset from the Dataset menu in the menu bar.");
-obj.VizDatasetLabel.Layout.Row = row; obj.VizDatasetLabel.Layout.Column = 2;
+obj.VizDatasetDropDown = obj.datasetPicker(cg);
+obj.VizDatasetDropDown.Layout.Row = row; obj.VizDatasetDropDown.Layout.Column = 2;
 
 row = row + 1;
 lab(cg, "File:", row);

@@ -1,5 +1,5 @@
 function onClearBehavior(obj)
-%onClearBehavior  Remove the selected dataset's Epsych2 association.
+%onClearBehavior  Remove the active dataset's Epsych2 association.
 d = obj.currentDataset();
 if isempty(d); return; end
 d.BehaviorFile = "";

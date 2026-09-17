@@ -1,16 +1,16 @@
 function onDetectArtifacts(obj)
 %onDetectArtifacts  Run the artifact detector over a dataset and show the summary.
 %   Pushes the current detection settings onto every scanned dataset, then
-%   streams the selected dataset one *.rhd file at a time
+%   streams the active dataset one *.rhd file at a time
 %   (EphysDataset.analyzeArtifacts) and fills the per-channel table and summary
 %   label with the number of samples flagged per channel and the percent of the
 %   recording that would be blanked. Read-only: nothing is written to disk.
 %
 %   See also EphysDataset.analyzeArtifacts, buildArtifactsTab.
 
-d = obj.currentArtifactDataset();
+d = obj.currentDataset();
 if isempty(d)
-    uialert(obj.Fig, "Scan, then choose a dataset to analyze.", "Artifacts");
+    uialert(obj.Fig, "Scan a project first.", "Artifacts");
     return
 end
 

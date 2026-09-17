@@ -1,10 +1,10 @@
 function onSpikesPreview(obj)
-%onSpikesPreview  Detect on the first seconds of the Dataset-menu dataset.
+%onSpikesPreview  Detect on the first seconds of the active dataset.
 %   Uses the Spikes-tab settings on a single in-memory block (no streaming
 %   options), and lists per-channel thresholds, counts and rates.
-d = obj.currentVizDataset();
+d = obj.currentDataset();
 if isempty(d)
-    uialert(obj.Fig, "Pick a dataset in the Dataset menu first.", "Spikes preview");
+    uialert(obj.Fig, "Scan a project first.", "Spikes preview");
     return
 end
 if isnan(d.Fs) || isempty(d.PerFile); d.refreshMetadata(); end

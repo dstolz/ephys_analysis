@@ -1,15 +1,15 @@
 function onLaunchPhy(obj)
-%onLaunchPhy  Open phy's template-gui on the selected dataset's KS4 results.
-%   Resolves the kilosort4 results directory for the dataset last selected in
-%   the Datasets tab and hands it to launchPhy, which checks for params.py and
-%   launches phy detached so the app stays responsive.
+%onLaunchPhy  Open phy's template-gui on the active dataset's KS4 results.
+%   Resolves the kilosort4 results directory of the active dataset and hands
+%   it to launchPhy, which checks for params.py and launches phy detached so
+%   the app stays responsive.
 %
 %   See also EphysPreprocessingApp.launchPhy, EphysPreprocessingApp.onRunStep,
 %   EphysDataset.runKilosort.
 
 d = obj.currentDataset();
 if isempty(d)
-    uialert(obj.Fig, "Select a dataset row in the Datasets tab first.", "phy");
+    uialert(obj.Fig, "Scan a project first.", "phy");
     return
 end
 

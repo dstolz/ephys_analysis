@@ -21,4 +21,5 @@ end
 T.Select = sel;
 obj.HiddenSelectedKeys = hidden;
 obj.DatasetsTable.Data = T;
+obj.refreshDatasetMenu();
 end

@@ -35,6 +35,13 @@ classdef EphysPreprocessingApp < handle
     %   ground-truth sorted output, opened and scanned at once) / Close. The
     %   title shows "*" while the config has unsaved changes.
     %
+    %   The active dataset is what every single-dataset control works on
+    %   (Trials, exclusions, previews, the sorted-output association, phy,
+    %   Visualize, Review). The Dataset menu, the Dataset box on each of those
+    %   tabs and a click on a Project-table row all choose it, and all of them
+    %   show it (see selectDataset). Runs, plans and step targets use the
+    %   ticked rows instead.
+    %
     %   Preferences (getpref group 'EphysPreprocessingApp') hold only what is
     %   not part of a config: figure geometry, probe folder, phy command,
     %   Review folder, last / recent config files, script folder, the
@@ -55,11 +62,13 @@ classdef EphysPreprocessingApp < handle
         TabMarks      matlab.ui.container.Panel      % selected-tab underline (one per tab)
 
         % --- Menu bar ---
-        FileMenu         matlab.ui.container.Menu
-        RecentMenu       matlab.ui.container.Menu
-        DatasetMenu      matlab.ui.container.Menu   % app-wide single-dataset picker
-        DatasetMenuItems matlab.ui.container.Menu
-        RunMenu          matlab.ui.container.Menu
+        FileMenu           matlab.ui.container.Menu
+        RecentMenu         matlab.ui.container.Menu
+        DatasetMenu        matlab.ui.container.Menu   % chooses the active dataset (selectDataset)
+        DatasetTickedItems matlab.ui.container.Menu   % top of the menu: the ticked datasets (UserData = dataset index)
+        DatasetAllMenu     matlab.ui.container.Menu   % "All datasets" submenu
+        DatasetMenuItems   matlab.ui.container.Menu   % its items, one per dataset (index = dataset index)
+        RunMenu            matlab.ui.container.Menu
 
         % --- Global status bar ---
         StatusBar  matlab.ui.control.Label
@@ -126,7 +135,7 @@ classdef EphysPreprocessingApp < handle
         TrialsAxes            matlab.ui.control.UIAxes
 
         % --- Visualize tab ---
-        VizDatasetLabel    matlab.ui.control.Label
+        VizDatasetDropDown matlab.ui.control.DropDown
         VizFileDropDown    matlab.ui.control.DropDown
         VizChannelsField   matlab.ui.control.EditField
         VizStartField      matlab.ui.control.NumericEditField
@@ -192,6 +201,7 @@ classdef EphysPreprocessingApp < handle
         ProbeWriteDefaultCheckBox matlab.ui.control.CheckBox
 
         % --- Sorting tab ---
+        ProbeDatasetDropDown matlab.ui.control.DropDown
         SortEnableCheckBox  matlab.ui.control.CheckBox
         SortSkipExistingCheckBox matlab.ui.control.CheckBox
         PythonExeField    matlab.ui.control.EditField
@@ -222,6 +232,7 @@ classdef EphysPreprocessingApp < handle
         RunStepSortingButton matlab.ui.control.Button
         KSProgressLabel   matlab.ui.control.Label
         KSLogArea         matlab.ui.control.TextArea
+        SortDatasetDropDown matlab.ui.control.DropDown
 
         % --- Review tab ---
         ReviewFolderField   matlab.ui.control.EditField
@@ -317,6 +328,7 @@ classdef EphysPreprocessingApp < handle
         RunStepSpikesButton  matlab.ui.control.Button
 
         % --- Export tab ---
+        SpkDatasetDropDown   matlab.ui.control.DropDown
         ExpEnableCheckBox    matlab.ui.control.CheckBox
         ExpChronuxCheckBox   matlab.ui.control.CheckBox
         ExpFieldTripCheckBox matlab.ui.control.CheckBox
@@ -362,7 +374,10 @@ classdef EphysPreprocessingApp < handle
 
     properties
         Project EphysProject = EphysProject.empty
-        SelectedRow (1,1) double = 0   % last-clicked datasets-table row (0 = none)
+        % The active dataset (index into Project.Datasets, 0 = none): what the
+        % single-dataset controls on every tab work on. Set only by selectDataset.
+        SelectedDatasetIdx (1,1) double = 0
+        DatasetPickers matlab.ui.control.DropDown   % every tab's Dataset box (datasetPicker)
         HiddenSelectedKeys (1,:) string = string.empty(1,0)   % ticked dataset keys hidden by the token filters
         DatasetsColumnOrder (1,:) string = string.empty(1,0)  % datasets-table variables in display order (a preference)
 
@@ -390,8 +405,7 @@ classdef EphysPreprocessingApp < handle
         Viewer = []
         VizDetectedIntervals = zeros(0, 2)
         VizTimeOffset (1,1) double = 0
-        VizDatasetIndex (1,1) double = 0
-        SelectedDatasetIdx (1,1) double = 0
+        VizDatasetIndex (1,1) double = 0     % dataset the plot shows (may differ from the active one)
         VizChannels (1,:) double = double.empty(1,0)
         VizMemoryBudget (1,1) double = 0
         VizArtMode (1,1) logical = false
@@ -418,6 +432,7 @@ classdef EphysPreprocessingApp < handle
             % Construct, build the UI, restore preferences and the last config.
             obj.buildUI();
             obj.loadPreferences();
+        ReviewDatasetIdx (1,1) double = 0    % dataset the tab last showed (-1 = reload; syncReviewDataset)
             obj.refreshProbeList();
             obj.updateTitle();
 
@@ -511,15 +526,12 @@ classdef EphysPreprocessingApp < handle
         onBrowseBehaviorDir(obj)
         onAssociateBehavior(obj)
         onClearBehavior(obj)
-        d = currentDataset(obj)
         updatePhyButtonState(obj)
         idx = selectedDatasetIndices(obj)
         applyConfigToProject(obj, P)
         applyArtifactConfigToProject(obj)
 
         % --- Trials tab ---
-        populateTrialsDatasets(obj)
-        d = currentTrialsDataset(obj)
         onTrialsLoad(obj, mode)
         repairTrials(obj, cuts)
         refreshTrialsView(obj)
@@ -528,6 +540,14 @@ classdef EphysPreprocessingApp < handle
         setTrialsLineItems(obj, names, trialLine)
         syncTrialsButtons(obj)
         syncTrialsCuts(obj)
+        % --- the active dataset (Dataset menu, every tab's Dataset box, Project-table row) ---
+        selectDataset(obj, idx, opts)
+        d = currentDataset(obj)
+        populateDatasetPickers(obj)
+        refreshDatasetMenu(obj)
+        dd = datasetPicker(obj, parent)
+        highlightDatasetRow(obj, opts)
+
         onTrialsCutsChanged(obj)
         onTrialsApprove(obj, status)
         onTrialsWriteBehavior(obj)
@@ -535,8 +555,6 @@ classdef EphysPreprocessingApp < handle
 
         % --- Artifacts tab ---
         onDetectArtifacts(obj)
-        populateArtifactDatasets(obj)
-        d = currentArtifactDataset(obj)
         onArtifactControlsChanged(obj)
         refreshManualArtifactsTable(obj)
         onClearManualArtifacts(obj)
@@ -559,9 +577,7 @@ classdef EphysPreprocessingApp < handle
         finishVizArtDrag(obj)
         updateVizArtStatus(obj)
         populateVizFiles(obj)
-        populateDatasetMenu(obj)
-        selectDataset(obj, idx)
-        updateDatasetMenuCheck(obj)
+        syncVizDataset(obj)
 
         % --- Probe tab ---
         refreshProbeList(obj)
@@ -622,8 +638,7 @@ classdef EphysPreprocessingApp < handle
         onBrowseReviewFolder(obj)
         onOpenReviewFolder(obj)
         onReviewOpenPhy(obj)
-        populateReviewDatasets(obj)
-        onReviewDatasetChanged(obj)
+        syncReviewDataset(obj)
         onReviewUnitSelected(obj, evt)
         onReviewAllUnits(obj)
 

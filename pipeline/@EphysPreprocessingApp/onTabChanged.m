@@ -27,9 +27,14 @@ switch obj.Tabs.SelectedTab
     case obj.TabVisualize
         msg = "Visualize: plot a short window; drag to mark manual artifacts.";
     case obj.TabReview
-        msg = "Review: load a results folder to inspect sorted units.";
+        msg = "Review: the active dataset's sorted units (or Browse... for any results folder).";
     otherwise
         msg = "Ready.";
 end
 obj.setStatus(msg);
+% The Review tab shows the active dataset's sorted output (after the status
+% line, so the load's own message stays).
+if obj.Tabs.SelectedTab == obj.TabReview && obj.ReviewDatasetIdx ~= obj.SelectedDatasetIdx
+    obj.syncReviewDataset();
+end
 end

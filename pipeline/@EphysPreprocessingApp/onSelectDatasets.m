@@ -17,5 +17,6 @@ switch mode
     case "invert"; T.Select = ~T.Select;
 end
 obj.DatasetsTable.Data = T;
+obj.refreshDatasetMenu();
 obj.onConfigChanged();
 end

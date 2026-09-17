@@ -32,7 +32,8 @@ written as the strings `"NaN"` / `"Inf"`.
    ├─ ks4_run.log                       captured stdout/stderr
    ├─ ks4_status.json                   {"state": "done"|"error", ...}
    ├─ si/                               run_sorter folder, WIPED on every run
-   │  └─ sorter_output/                 Kilosort4 phy output (params.py, *.npy, *.tsv)
+   │  └─ sorter_output/                 Kilosort4 phy output (params.py, *.npy, *.tsv;
+   │                                    cluster_notes.tsv holds per-unit notes)
    │
    │  -- legacy runKilosort engine writes instead, directly in kilosort4/ --
    ├─ settings.json, run_ks4.py
@@ -372,6 +373,23 @@ that holds `params.py`:
   else `cluster_KSLabel.tsv`, `cluster_Amplitude.tsv`, `cluster_ContamPct.tsv`.
 - Sample rate: `sample_rate` from `params.py`; otherwise the call errors
   unless `FsFallback=` is given (never a silent 30 kHz).
+- Unit position: `channel_positions.npy` gives each unit's peak site and
+  template centre, `channel_shanks.npy` its shank.
+
+### Unit notes (`cluster_notes.tsv`)
+
+Written by `EphysDataset.writeUnitNotes` (the Review tab's Notes column) and by
+phy, whose custom cluster labels use the same format; read into `units.notes`.
+
+```text
+cluster_id<TAB>notes
+17<TAB>possibly two cells
+42<TAB>clear refractory period; drifts after 40 min
+```
+
+One row per cluster with a note, sorted by id. Tabs and line breaks inside a
+note are written as spaces; an empty note removes its row. In phy, label a
+cluster with the field name `notes` to edit the same text.
 
 `.npy` files are read with the built-in little-endian `readNPY` and written
 (tests, fixtures) with `writeNPY`. No toolbox is needed.
@@ -400,7 +418,7 @@ sources that were not requested are `[]`.
 | Variable | Contents |
 | --- | --- |
 | `detected` | `ts {1 x nChan}` spike times (s, `(index-1)/Fs`, recording-relative); `wf {1 x nChan}` `[nSpikes x nWin]` µV or `[]`; `info` (`detectSpikes` info filtered to the kept events); `channels` (1-based recording channels); `channelNames`; `detection` (options used, artifact intervals applied, `nRejectedArtifact` per channel) |
-| `units` | the `readSortedUnits` struct: `unitId`, `label`, `group`, `nSpikes`, `samples`, `times`, `ksChannel`, `channel`, `shank`, `amplitude`, `contamPct`, `templateWaveform`, `templateTimeMs`, plus `fs`, `resultsDir`, `engine`, `groupSource`, `curated`, `channelMap`, `channelMapSource`, ... |
+| `units` | the `readSortedUnits` struct, one row per unit: `unitId`, `label` (`su042_1255_260908T1039`), `class`, `group`, `notes`, `subject`, `recordingStart`, `datasetKey`, `channel`, `channelName`, `ksChannel`, `shank`, `peakX`, `peakY`, `x`, `y`, `nSpikes`, `samples`, `times`, `amplitude`, `contamPct`, `templateWaveform`, `templateTimeMs`, plus `fs`, `resultsDir`, `engine`, `groupSource`, `curated`, `channelMap`, `channelMapSource`, ... ([fields](EphysDataset.md#reading-sorted-units)). `unitTable` turns it into a table |
 | `conversion` | provenance |
 
 ## Behavior `.mat` (`EphysDataset.behaviorToMat`; the behavior step)
@@ -442,7 +460,7 @@ Chronux functions take; no Chronux function is called to produce it.
 | `LFP` / `MUA` / `SPIKE` | one struct per exported signal: `data` `[nSamples x nChan]` double µV, `params` (Chronux params with `Fs` = the signal rate), `t` (`(k-1)/Fs`), `labels`, `info` |
 | `sp` | `1 x nUnits` struct array with field `times` (sorted units), or `[]` |
 | `spDetected` | the same for threshold-detected spikes, one element per channel, or `[]` |
-| `units`, `detected` | the source structs, or `[]` |
+| `units`, `detected` | the source structs (`units` as in the spikes file, same order as `sp`), or `[]` |
 | `events` | dig-in lines → `[k x 2]` seconds |
 | `export` | `tool`, `created`, `dataset`, `sources`, `signals` |
 
@@ -455,7 +473,7 @@ Default `<outputFolder>/<Name>_fieldtrip.mat`. Structures follow
 | Variable | Contents |
 | --- | --- |
 | `data_LFP` / `data_MUA` / `data_SPIKE` | raw structures, one trial spanning the signal; `cfg.event` holds the events at that signal's rate |
-| `spike` | spike structure of the sorted units (`timestamp` in recording samples), or `[]` |
+| `spike` | spike structure of the sorted units (`label` = unit labels such as `su042_1255_260908T1039`, `timestamp` in recording samples; `hdr.orig` keeps the unit fields: class, identity, location, notes), or `[]` |
 | `spikeDetected` | the same, one "unit" per detected channel, or `[]` |
 | `event` | event struct array at the recording rate |
 | `export` | `tool`, `created`, `dataset`, `sources`, `signals`, `eventFs`, `validation` |

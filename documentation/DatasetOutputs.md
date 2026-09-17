@@ -104,7 +104,7 @@ out.pathSource("fieldtrip")    % "manual" | "discovered" | "dataset" | "manifest
 | `Extract` | every `ExtractFiles` file merged into one `toMat`-shaped struct (`Y`, `info`, `events`, `conversion`); when two files hold the same signal the newer one wins |
 | `LFP`, `MUA`, `SPIKE`, `AUX` | the `toMat`-shaped struct of the newest file holding that signal, with `Y` / `info` reduced to it |
 | `Spikes`, `Chronux`, `FieldTrip` | the file's variables as a struct |
-| `Units` | `ds.readSortedUnits(ResultsDir=SortingDir)`, or without a dataset `EphysDataset.readPhyUnits(SortingDir)` with the manifest's probe file |
+| `Units` | `ds.readSortedUnits(ResultsDir=SortingDir)` (full unit labels), or without a dataset `EphysDataset.readPhyUnits(SortingDir)` with the manifest's probe file (labels `<class><id>` only, no `subject` / `recordingStart` / `datasetKey`) |
 | `Behavior` | `trials`, `info`, `meta`, `file`, `subject`, `startTime`, `nTrials` |
 | `Manifest`, `Artifacts` | the decoded JSON |
 

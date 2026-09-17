@@ -24,6 +24,7 @@ P = EphysProject(root, AutoDiscover=false)   % set config, call P.discover() lat
 | `OutputRoot` | `""` | when set, each dataset's `OutputDir` = `OutputRoot/<Name>` |
 | `Scale` | `1/0.195` | pushed to every dataset |
 | `Dtype` | `"int16"` | pushed to every dataset |
+| `NamePattern` | `EphysDataset.DefaultNamePattern` | name pattern pushed to every dataset; its `SubjectID`, `Date` and `Time` tokens label sorted units (see [Unit labels](EphysDataset.md#unit-labels)) |
 | `Manifest` | `[]` | optional shared provenance `Manifest` |
 | `AutoDiscover` | `true` | run `discover()` in the constructor |
 
@@ -36,7 +37,7 @@ The constructor errors (`EphysProject:NoRoot`) if `root` does not exist.
 | --- | --- |
 | `Root` | root folder that was scanned |
 | `Datasets` | `EphysDataset` row array, one per recording folder |
-| `ProbeFile`, `PythonExe`, `CondaEnv`, `OutputRoot`, `Scale`, `Dtype`, `Manifest` | shared defaults |
+| `ProbeFile`, `PythonExe`, `CondaEnv`, `OutputRoot`, `Scale`, `Dtype`, `NamePattern`, `Manifest` | shared defaults |
 | `NumDatasets` (dependent) | `numel(Datasets)` |
 
 Changing a shared property after construction does **not** update existing
@@ -70,7 +71,8 @@ recorded in the returned table (`Dataset`, `Key`, `Metadata`, `Manifest`,
 `Message`) instead of interrupting the loop.
 
 **`pushConfig(d)`** copies `ProbeFile`, `PythonExe`, `CondaEnv`, `Scale`,
-`Dtype`, `Manifest`, and (when `OutputRoot` is set) `OutputDir = OutputRoot/<Name>`
+`Dtype`, `NamePattern`, `Manifest`, the dataset's key (`DatasetKey`, saved
+with its sorted units) and (when `OutputRoot` is set) `OutputDir = OutputRoot/<Name>`
 into one dataset. This **overwrites** that dataset's `ProbeFile`. The GUI and
 the pipeline deliberately avoid calling it after scanning so per-dataset probe
 assignments survive (`EphysPipeline.applyConfigToDatasets` sets everything
@@ -91,6 +93,7 @@ config's selection, the refresh report, the GUI table) uses the
 | `EphysProject.relativeKey(root, folder)`, `EphysProject.normalizeKey(s)` | statics: build / normalize a key |
 | `d = dataset(idxOrName)` | one dataset by index or by `Name` (the **first** match; `EphysProject:NoSuchDataset` if the name is not found) |
 | `dt = tracker(idxOrName)` | `dataset(idxOrName).tracker()`, the [`DatasetTracker`](DatasetTracker.md) inventory of that dataset's output folder |
+| `T = unitIdentities(Among=, NamePattern=)` | one row per dataset (`Key`, `Name`, `Subject`, `RecordingStart`, `LabelSuffix`, `Status`, `Message`): how its sorted units are labelled. `Status` is `ok`, why the name cannot label units (`pattern`, `nomatch`, `subject`, `datetime`), or `collision` when another dataset in `Among` (default: all) has the same subject and start minute. `NamePattern` overrides each dataset's own |
 
 ### Batch operations
 

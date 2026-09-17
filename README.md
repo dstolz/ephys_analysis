@@ -44,6 +44,16 @@ pipe = EphysPipeline(cfg);
 disp(pipe.plan());  pipe.run();
 ```
 
+Every sorted unit is labelled with its class, cluster id, subject and recording
+start (`su042_1255_260908T1039`), and carries its channel, shank, position and
+notes. Gather them across recordings into one table:
+
+```matlab
+f  = dir("D:\EPHYS\out\**\*_spikes.mat");
+T  = unitTable(string(fullfile({f.folder}, {f.name})));
+su = T(T.class == "su" & T.subject == "1255", :);
+```
+
 No data yet? `makeSyntheticProject("D:\scratch\synthetic_ephys")` (or **File →
 Create synthetic test project...** in the GUI) writes synthetic recordings
 with Epsych2 sessions, sorted output and a ready config to run.

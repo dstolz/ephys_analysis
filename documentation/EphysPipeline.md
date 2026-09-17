@@ -46,7 +46,7 @@ returns the defaults and is the single source of truth for field names.
 
 | Section | Step | Holds |
 | --- | --- | --- |
-| `Project` | – | `Root`, `OutputRoot` (`""` = outputs next to each recording), `Selection` (`"all"` or `"list"`), `Datasets` (root-relative keys, see [Dataset keys](#dataset-keys)), `NamePattern` (`"{SubjectID}_{Date:yyMMdd}_{Time:HHmmss}"`, see [Dataset name tokens](#dataset-name-tokens)), `TokenColumns` (list text, `"SubjectID"`: tokens shown as app table columns) |
+| `Project` | – | `Root`, `OutputRoot` (`""` = outputs next to each recording), `Selection` (`"all"` or `"list"`), `Datasets` (root-relative keys, see [Dataset keys](#dataset-keys)), `NamePattern` (`"{SubjectID}_{Date:yyMMdd}_{Time:HHmmss}"`, see [Dataset name tokens](#dataset-name-tokens); also labels sorted units, see [Unit labels](#unit-labels)), `TokenColumns` (list text, `"SubjectID"`: tokens shown as app table columns) |
 | `Parallel` | – | `Enabled` (run the chunks of the artifacts and spike-detection steps on a process pool), `MaxWorkers` (`NaN` = automatic; always capped by free memory); see [Parallel execution](#parallel-execution) |
 | `Probe` | `probe` (always runs) | `DefaultProbeFile` (assigned to datasets without a probe), `WriteDefaultToManifest` |
 | `Behavior` | `behavior` | `Enabled`, `SearchDirs`, `Match` (`"prefix"`, `"time"`, `"prefix-then-time"`), `MaxStartOffsetMin` (30), `Overwrite`, `WriteFile` (`true`: write `<Name>_behavior.mat` for every associated dataset), `PairTrials` (`true`), `TrialLine` (`"InTrial"`) |
@@ -80,7 +80,10 @@ there is no migration. Unknown fields are dropped and listed in
 it is enabled. Severity `"error"` stops `run()`. Cross-step rule: a background
 sorting run cannot feed the sorted-unit consumers (`Spikes.Source` `"sorted"` /
 `"both"`, `Export.IncludeUnits`) in the same run; set
-`Sorting.Execution = "blocking"` or run those steps later.
+`Sorting.Execution = "blocking"` or run those steps later. When those
+consumers are on, `Project.NamePattern` must be able to label units (a
+`SubjectID` token and `Date` / `Time` tokens with datetime formats); otherwise
+it is an error.
 
 The `Parallel` checks: `MaxWorkers` must be `NaN` or a whole number ≥ 1
 (error); `Enabled` without a licensed Parallel Computing Toolbox is a warning
@@ -126,8 +129,10 @@ Dataset names are folder leaves and are not unique (`mouse1/sess1` and
 ### Dataset name tokens
 
 `Project.NamePattern` describes how a dataset name splits into tokens;
-`[values, names, ok] = parseNameTokens(name, pattern)` applies it (the whole
-name must match; `ok` is false and `values` are `""` otherwise).
+`[values, names, ok, formats] = parseNameTokens(name, pattern)` applies it (the
+whole name must match; `ok` is false and `values` are `""` otherwise;
+`formats` holds each token's datetime format, `""` for free text and regex
+tokens).
 
 | In the pattern | Matches |
 | --- | --- |
@@ -139,9 +144,57 @@ name must match; `ok` is false and `values` are `""` otherwise).
 
 The default `"{SubjectID}_{Date:yyMMdd}_{Time:HHmmss}"` splits
 `SUBJ-ID-1245_260916_143015` into `SubjectID = "SUBJ-ID-1245"`,
-`Date = "260916"`, `Time = "143015"`. Token names must be unique valid
+`Date = "260916"`, `Time = "143015"`. Fixed text belongs in the pattern as
+literal text: `"SUBJ-ID-{SubjectID}_{Date:yyMMdd}_{Time:HHmmss}"` gives
+`SubjectID = "1245"` for the same name, which is what the lab configs in
+`pipeline/pipeline_configs` use. Token names must be unique valid
 identifiers; `validate()` reports an invalid pattern as an error and a
 `TokenColumns` entry missing from the pattern as a warning.
+
+### Unit labels
+
+The `SubjectID`, `Date` and `Time` tokens label every sorted unit, so a unit
+leads back to its recording wherever it ends up:
+
+| Label part | Example | From |
+| --- | --- | --- |
+| class + cluster id (at least 3 digits) | `su042` | phy label (`good` → `su`, `mua`, `noise`, `unsorted` → `uns`, else `other`) and `spike_clusters.npy` |
+| subject | `1255` | `SubjectID` token |
+| recording start, to the minute | `260908T1039` | `Date` + `Time` tokens |
+
+`su042_1255_260908T1039` splits with `split(labels, "_")` and filters with
+`startsWith(labels, "su")`. The saved `units` struct carries the same facts as
+columns (`class`, `subject`, `recordingStart` to the second, `datasetKey` =
+root-relative folder), with the unit's location (`channel`, `channelName`,
+`ksChannel`, `shank`, peak site `peakX` / `peakY`, template centre `x` / `y`)
+and `notes` (see [Reading sorted units](EphysDataset.md#reading-sorted-units)).
+A unit is identified by `datasetKey` + `unitId`.
+
+- **Names that do not match.** A dataset whose name gives no subject and start
+  cannot label units. Its spikes (`Source` `"sorted"` / `"both"`) and export
+  (`IncludeUnits`) rows plan as `error: unit identity`, and
+  `ds.readSortedUnits()` throws `EphysDataset:unitIdentity:*`.
+- **Collisions.** Two recordings of one subject starting in the same minute
+  would share labels. `T = P.unitIdentities(Among=idx, NamePattern="")` lists
+  each dataset's `Subject`, `RecordingStart`, `LabelSuffix` and `Status`
+  (`ok`, `pattern`, `nomatch`, `subject`, `datetime` or `collision`). `plan()`
+  checks the selected datasets plus every dataset that is already sorted and
+  marks the unit rows `error: unit label collision`.
+- **Tables.** [`T = unitTable(units)`](../pipeline/unitTable.m) takes `units`
+  structs or `<Name>_spikes.mat` / `<Name>_chronux.mat` files and returns one
+  row per unit (`label`, `class`, `subject`, `recordingStart`, `datasetKey`,
+  `unitId`, `group`, `channel`, `channelName`, `ksChannel`, `shank`, `peakX`,
+  `peakY`, `x`, `y`, `notes`, `nSpikes`, `amplitude`, `contamPct`, `curated`,
+  `fs`, `resultsDir`, `times`). Notes are re-read from each sort folder when it
+  is reachable (`RefreshNotes=true`). The same unit twice is an error
+  (`unitTable:DuplicateUnit`); a shared label is a warning
+  (`unitTable:DuplicateLabel`).
+
+```matlab
+f  = dir("D:\out\**\*_spikes.mat");
+T  = unitTable(string(fullfile({f.folder}, {f.name})));
+su = T(T.class == "su" & T.subject == "1255" & T.shank == 2, :);
+```
 
 ---
 
@@ -156,8 +209,9 @@ pipe = EphysPipeline(cfg, Project=P, Refresh=false)
 ```
 
 Construction always calls `EphysPipeline.applyConfigToDatasets(cfg, P)`
-(pushes `PythonExe`, `CondaEnv`, `SIConfig`, `ArtifactConfig` and `OutputDir`
-into every dataset; never touches `ProbeFile`, `SortingDir` or `BehaviorFile`)
+(pushes `PythonExe`, `CondaEnv`, `SIConfig`, `ArtifactConfig`, `OutputDir`,
+`NamePattern` and `DatasetKey` into every dataset; never touches `ProbeFile`,
+`SortingDir` or `BehaviorFile`)
 and `selectDatasets()`. Assigning a new `Config` does both again.
 `EphysPipeline:NoRoot` when the root does not exist.
 
@@ -189,6 +243,8 @@ and `selectDatasets()`. Assigning a new `Config` does both again.
 | `no sorting output` | `Spikes.Source` needs sorted units this dataset lacks |
 | `no extract file` | export needs the Signals output |
 | `duplicate output` | two selected datasets would write the same file |
+| `error: unit identity` | the step reads sorted units but the name gives no subject and start (see [Unit labels](#unit-labels)) |
+| `error: unit label collision` | another selected or sorted dataset has the same subject and start minute |
 | `error: ...` | a setting cannot apply (for example `LFP_Fs` above the recording rate) |
 
 Rows whose status starts with `duplicate` or `error` stop `run()`
@@ -393,10 +449,11 @@ the behavior file.
 
 | Suite | Checks |
 | --- | --- |
-| [`test_EphysPipelineConfig.m`](../pipeline/test_EphysPipelineConfig.m) | exact save / load round trip with `Inf`, `NaN`, `[]`, one-element lists and bands; normalization fills and drops; `BadSchema`; `ks4Settings`; `ks4ProbeDefaults` on synthetic layouts (staggered 4-shank, Neuropixels-like, dense multi-shank, sparse column, 2-D grid, exclusions, shanks without `kcoords`); probe parameter files (`writeKS4Params` / `ks4ForProbe`: round trip, a hand-written subset, refusals, every file shipped in `pipeline/probes` loads); every `signalOptions` error and each `ExcludeHandling` mode; `validate` on enabled steps only, the `Parallel` section (`MaxWorkers`) and the background-sorting rule |
-| [`test_EphysPipeline.m`](../pipeline/test_EphysPipeline.m) | selection by key with duplicate leaf names; `plan()` writes nothing and flags existing / duplicate outputs, missing probe, sorting output and extract file; sorting dry run writes a matching `si_config.json`; `runSignals` / `runSpikeDetection` / `runExport` outputs equal the direct calls; `checkBehavior` associates by prefix and writes the manifest; the artifact cache is reused and invalidated; cancel leaves no partial `.mat`; `Parallel.Enabled` reaches the artifacts and spikes steps and is logged |
+| [`test_EphysPipelineConfig.m`](../pipeline/test_EphysPipelineConfig.m) | exact save / load round trip with `Inf`, `NaN`, `[]`, one-element lists and bands; normalization fills and drops; `BadSchema`; `ks4Settings`; `ks4ProbeDefaults` on synthetic layouts (staggered 4-shank, Neuropixels-like, dense multi-shank, sparse column, 2-D grid, exclusions, shanks without `kcoords`); probe parameter files (`writeKS4Params` / `ks4ForProbe`: round trip, a hand-written subset, refusals, every file shipped in `pipeline/probes` loads); every `signalOptions` error and each `ExcludeHandling` mode; `validate` on enabled steps only, the `Parallel` section (`MaxWorkers`), the background-sorting rule and the unit-label `NamePattern` rule |
+| [`test_EphysPipeline.m`](../pipeline/test_EphysPipeline.m) | selection by key with duplicate leaf names; `plan()` writes nothing and flags existing / duplicate outputs, missing probe, sorting output and extract file, unit identity errors and unit label collisions; sorting dry run writes a matching `si_config.json`; `runSignals` / `runSpikeDetection` / `runExport` outputs equal the direct calls; `checkBehavior` associates by prefix and writes the manifest; the artifact cache is reused and invalidated; cancel leaves no partial `.mat`; `Parallel.Enabled` reaches the artifacts and spikes steps and is logged |
 | [`test_TrialPairing.m`](../pipeline/test_TrialPairing.m) | `pairEpsychTrials`: equal counts, a recording started late or stopped early (partial intervals at the edges, the count-mismatch warning, the cuts that resolve it), an inverted line idle at the recording start, cut validation, nested lines, derived-signal samples; `digitalEvents` cache; `pairTrials` / `setTrialPairing` manifest round trip with cuts and staleness; `behaviorToMat(Pairing=)`; the behavior step records, reuses and reports pairings, a count mismatch included |
 | [`test_EphysPipelineScript.m`](../pipeline/test_EphysPipelineScript.m) | both scripts are `checkcode`-clean, run, and produce identical outputs; the standalone text never mentions the pipeline classes; disabled steps are commented out in the compact script; `literal` round-trips; the standalone script carries the `Parallel` section into the chunked steps |
+| [`test_UnitLabels.m`](../pipeline/test_UnitLabels.m) | `nameIdentity` (literal prefix, non-matching names, pattern, subject and date errors), class and id padding, identity columns, peak site and template centre, `writeUnitNotes` / `readUnitNotes`, `readSortedUnits` identity errors, `EphysProject.unitIdentities` collisions, `unitTable` (columns, filtering, duplicates, files, refreshed notes) |
 | [`test_EpsychSession.m`](../pipeline/test_EpsychSession.m) | synthetic `Data` / `Info` files; `NotEpsych`; matching by prefix, by time, and ambiguity |
 
 Run everything with [`run_all_tests.m`](../pipeline/run_all_tests.m).

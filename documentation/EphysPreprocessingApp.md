@@ -437,8 +437,12 @@ samples per chunk. Drawing uses `xregion` (MATLAB R2023a or later).
 
 ## Review
 
-Summarizes a sorted-output folder (the folder holding `params.py`), read with
-`EphysDataset.readSortedUnits`.
+Summarizes a sorted-output folder (the folder holding `params.py`). A folder
+that belongs to the active dataset (under its folder or output folder, or its
+pinned sorting folder) is read with `EphysDataset.readSortedUnits`, so units
+carry their full labels (`su042_1255_260908T1039`); any other folder, or a
+dataset whose name does not match `Project.NamePattern`, is read with
+`readPhyUnits` and its labels are only `<class><id>`.
 
 - **Dataset**: the active dataset. Its associated sorted output (else the
   latest Kilosort4 run the `DatasetTracker` finds) loads when the tab opens
@@ -447,18 +451,28 @@ Summarizes a sorted-output folder (the folder holding `params.py`), read with
   folder, a dataset folder or a `kilosort4` folder (searches
   `kilosort4/si/sorter_output`, `si/sorter_output`, `sorter_output`,
   `kilosort4`). **Open folder in explorer**, **Open in phy**.
-- **Summary**: Fs, duration, channels, shanks, unit counts by label, total
+- **Summary**: the dataset key and label form (or the folder and why labels
+  are short), Fs, duration, channels, shanks, unit counts by label, total
   spikes, mean rate, units per shank.
-- **Units table**: Unit, Label (phy's `cluster_group.tsv` when present, else
-  `cluster_KSLabel.tsv`), Shank, PkCh, #Spk, FR (Hz), Amp, Cont%. Clicking a
-  row focuses the plots; **Show all units** clears the focus.
+- **Units table**: Unit, Group (phy's `cluster_group.tsv` when present, else
+  `cluster_KSLabel.tsv`), Shank, Ch (the peak channel's native name, else its
+  recording channel number), X / Y (µm, the template centre on the probe),
+  #Spk, FR (Hz), Amp, Cont%, **Notes**. Clicking a row focuses the plots, whose
+  titles show the unit label; **Show all units** clears the focus. The table
+  scrolls sideways.
+- **Notes**: the one editable column. Typing a note saves it at once to
+  `cluster_notes.tsv` next to the sort (`EphysDataset.writeUnitNotes`), the
+  file phy uses for a `notes` label, so the Spikes and Export steps and
+  `unitTable` carry it. A note that cannot be saved is put back, with an
+  alert.
 - **Plots**: units per shank; waveforms (templates × median amplitude,
   unwhitened when possible, not raw-spike averages); amplitude vs time (at most
   30,000 spikes); firing rate per unit.
 
 Firing rates are spike count ÷ the time of the **last spike**, not the
-recording duration. `PkCh` is the peak channel among the sorted channels; the
-units struct also carries `channel`, the 1-based recording channel.
+recording duration. The units struct also carries `ksChannel` (the peak
+channel among the sorted channels), `channel` (the 1-based recording channel),
+the peak site (`peakX`, `peakY`) and the class and identity fields.
 
 ---
 

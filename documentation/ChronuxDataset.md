@@ -232,7 +232,8 @@ column vectors of seconds) — the form `mtspectrumpt` and friends read.
 The window defaults to the recording duration, then the loaded signal's
 duration, then the last spike — the last case warns, because rates and the
 taper grid are then set by the spikes themselves. `info` records which
-(`timeRangeSource`), plus `unitIds`, `labels`, `groupLabels`, `counts`, `rates`,
+(`timeRangeSource`), plus `unitIds`, `labels` (the unit labels, e.g.
+`su042_1255_260908T1039`; `su042` when no dataset is attached), `groupLabels`, `counts`, `rates`,
 `sampleRate` and `nDroppedOutsideRange`.
 
 There is **no silent 30 kHz fallback**: when `params.py` has no `sample_rate`,

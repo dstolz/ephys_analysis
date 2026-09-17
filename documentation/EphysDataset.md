@@ -155,7 +155,7 @@ The constructor errors (`EphysDataset:NoFolder`) if the folder does not exist.
 | --- | --- | --- |
 | `Folder` | string | recording folder |
 | `Files` | string row | traditional: every `*.rhd`, sorted by file `datenum` (chronological); split: `"info.rhd"`; binary: the descriptor and the data file |
-| `Name` | string | dataset name (defaults to the folder leaf) |
+| `Name` | string | dataset name (defaults to the folder leaf). Its `SubjectID`, `Date` and `Time` tokens label the sorted units; see [Unit labels](#unit-labels) |
 | `Reader` | `EphysReader` | the acquisition reader (created by the constructor from the registry) |
 
 ### Metadata (read-only, filled by `refreshMetadata`)
@@ -189,6 +189,8 @@ The constructor errors (`EphysDataset:NoFolder`) if the folder does not exist.
 | `SortingDir` | `""` | an explicit sorted-output folder (the one holding `params.py`). `""` = auto-discover under `kilosortDir()`; see [Sorted output](#sorted-output) |
 | `BehaviorFile` | `""` | the associated Epsych2 session `.mat`; see [Behavior](#behavior-epsych2) |
 | `TrialConfig` | `defaultTrialConfig()` | trial pairing: `TrialLine` (`"InTrial"`), `InvertedLines` (see [polarity](EphysPipeline.md#digital-line-polarity)), `SignalFs` (struct of derived-signal rates), `LabelField` |
+| `NamePattern` | `EphysDataset.DefaultNamePattern` = `"{SubjectID}_{Date:yyMMdd}_{Time:HHmmss}"` | [`parseNameTokens`](../pipeline/parseNameTokens.m) pattern that splits `Name` into the tokens labelling sorted units. Pushed from `EphysProject.NamePattern` / the config's `Project.NamePattern` |
+| `DatasetKey` | `""` | folder relative to the project root, saved with every unit (`""` = the absolute folder). Pushed by `EphysProject` and the pipeline |
 | `TrialPairing` | `struct([])` | the recorded pairing (manifest `behavior.pairing`): `status` (`"unreviewed"` / `"approved"`), `cut_trials` and `cut_intervals` (`[start end]` counts dropped before the in-order pairing), `fingerprint`, `trial_line`, `summary`, `updated` |
 
 ### Dependent
@@ -775,8 +777,9 @@ lands directly in that folder.
 one reader of phy-format sorter output; **`units = ds.readSortedUnits(...)`**
 wraps it with the dataset's defaults (`sortingResultsDir()`, `Fs` as the
 fallback rate, the probe file and native channel names for the channel
-mapping). The Review tab, `ChronuxDataset.spikes`, `spikesToMat` and both
-exporters all read through it, so they agree on labels, times and channels.
+mapping, and `unitIdentity()` for the labels). The Review tab,
+`ChronuxDataset.spikes`, `spikesToMat` and both exporters all read through it,
+so they agree on labels, times, channels and notes.
 
 | Option | Default | Meaning |
 | --- | --- | --- |
@@ -787,25 +790,90 @@ exporters all read through it, so they agree on labels, times and channels.
 | `ChannelMap` | worked out from the run | `[1 x nChanSorted]` 1-based recording channel of each sorted channel |
 | `ChannelNames`, `ProbeFile` | dataset's | used to map SpikeInterface runs back to recording channels |
 | `FsFallback` | `NaN` (error) | rate to use, with a warning, when `params.py` has no `sample_rate`; never a silent 30 kHz |
+| `Identity` | `struct([])` | `subject`, `recordingStart`, `labelSuffix`, `datasetKey` of the recording (`readSortedUnits` passes `unitIdentity()`); empty = labels without the recording |
 
 `units` is one scalar struct with column-aligned fields, one row per unit:
-`unitId`, `label` (`unit<id>`), `group` (`good` / `mua` / `noise` / `unsorted`
-/ other phy label), `nSpikes`, `samples` (0-based int64), `times`
-(`samples / fs`, recording-relative), `ksChannel` (peak channel among the
-sorted channels), `channel` (1-based **recording** channel), `shank`,
-`amplitude`, `contamPct`, `templateWaveform` (peak-channel template, unwhitened
-when possible, scaled by the median amplitude), `templateFull`,
-`templateTimeMs`; plus per-run scalars `fs`, `resultsDir`, `engine`,
+
+| Field | Meaning |
+| --- | --- |
+| `unitId` | cluster id in `spike_clusters.npy` |
+| `label` | `<class><id>_<subject>_<yyMMdd>T<HHmm>`, e.g. `su042_1255_260908T1039` (the id has at least 3 digits); just `<class><id>` without an `Identity` |
+| `class` | `su` (phy `good`), `mua`, `noise`, `uns` (`unsorted` or blank), `other` (any other phy label; warning `EphysDataset:readPhyUnits:OtherGroup`) |
+| `group` | the phy / Kilosort label as written (`good` / `mua` / `noise` / `unsorted` / other) |
+| `notes` | text from `cluster_notes.tsv` next to the sort (`""` when none); see [Unit notes](#unit-notes) |
+| `subject`, `recordingStart`, `datasetKey` | the recording the unit came from (`""` / `NaT` / `""` without an `Identity`) |
+| `channel`, `channelName` | 1-based peak **recording** channel and its native name (`"A-012"`; `""` without `ChannelNames`) |
+| `ksChannel` | peak channel among the sorted channels |
+| `shank` | from `channel_shanks.npy` (0 when absent) |
+| `peakX`, `peakY` | site position of the peak channel (probe units, µm) from `channel_positions.npy` |
+| `x`, `y` | template centre: site positions weighted by the template's peak-to-peak amplitude, over the channels on the peak channel's shank with at least 25% of the peak amplitude (`NaN` without templates or positions) |
+| `nSpikes`, `samples`, `times` | spike count, 0-based int64 samples, `samples / fs` (recording-relative) |
+| `amplitude`, `contamPct` | `cluster_Amplitude.tsv` (else median `amplitudes.npy`), `cluster_ContamPct.tsv` |
+| `templateWaveform`, `templateFull`, `templateTimeMs` | peak-channel template (unwhitened when possible, scaled by the median amplitude), every channel's template (`FullTemplates`), time axis |
+
+Plus per-run scalars `fs`, `resultsDir`, `engine`,
 `groupSource` (`"phy"` when `cluster_group.tsv` exists, else `"kilosort"` from
 `cluster_KSLabel.tsv`, else `"none"`), `curated`, `labelFile`, `durationSec`,
 `nChannelsSorted`, `channelMap`, `channelMapSource` (`"manual"`, `"probe"`,
 `"channel_map.npy"` or `"identity"`), `readAt`. A second output carries the
 per-spike arrays for plotting. Error identifiers:
 `EphysDataset:readPhyUnits:NoResultsDir` / `NoOutput` / `NoSampleRate` /
-`Mismatch` / `NoClusterLabels` / `NoGroupMatch`.
+`Mismatch` / `NoClusterLabels` / `NoGroupMatch` / `BadIdentity`.
 
 Raw waveforms at the sorted spike times are not extracted; `templateWaveform`
-is the template.
+is the template. [`unitTable`](../pipeline/unitTable.m) turns one or more
+`units` structs or saved files into a table (see
+[Unit labels](EphysPipeline.md#unit-labels)).
+
+#### Unit labels
+
+A unit label names the recording as well as the cluster, so a unit taken out of
+its file still leads back to its recording:
+
+```text
+su042_1255_260908T1039
+|  |   |    |      `-- recording start, to the minute (yyMMdd T HHmm)
+|  |   |    `--------- date
+|  |   `-------------- subject
+|  `------------------ cluster id, at least 3 digits
+`--------------------- class: su | mua | noise | uns | other
+```
+
+- **`id = EphysDataset.nameIdentity(name, pattern)`** (static, never throws)
+  parses the name with [`parseNameTokens`](../pipeline/parseNameTokens.m). It
+  returns `subject`, `recordingStart` (datetime, to the second), `labelSuffix`
+  (`"<subject>_<yyMMdd>T<HHmm>"`), `ok`, `reason` (`""`, `"pattern"`,
+  `"nomatch"`, `"subject"` or `"datetime"`) and `message`.
+- The pattern needs a `SubjectID` token and `Date` + `Time` tokens whose
+  datetime formats give year, month, day, hour (`H`) and minute. Two-digit
+  years are 2000-2099. The subject may not contain `_` or white space.
+- A lab-wide subject prefix is written as literal text so it stays out of the
+  label: `"SUBJ-ID-{SubjectID}_{Date:yyMMdd}_{Time:HHmmss}"` gives
+  `SUBJ-ID-1255_260908_103949` the subject `1255`.
+- **`id = ds.unitIdentity()`** applies `NamePattern` to `Name` and adds
+  `datasetKey`. When the name cannot label units it throws
+  `EphysDataset:unitIdentity:Pattern` / `NoMatch` / `Subject` / `DateTime`;
+  `readSortedUnits` calls it before reading any sorter output, so units are
+  never written without their recording.
+- The recording time comes from the name (Intan RHX names files from the
+  recording start), not from `AcqDate`, which is a file time.
+- Two recordings of one subject that start in the same minute would share
+  labels. `EphysProject.unitIdentities` reports them as `collision`, and the
+  pipeline's `plan()` stops the steps that would write those units.
+
+#### Unit notes
+
+Per-unit notes live next to the sort in `cluster_notes.tsv`, phy's format for a
+custom cluster label (a header `cluster_id<TAB>notes`, then one row per
+cluster). Type them in phy (label a cluster with the field `notes`) or in the
+Notes column of the app's Review tab; every read picks them up as
+`units.notes`.
+
+- **`file = EphysDataset.writeUnitNotes(resultsDir, unitIds, notes)`** sets the
+  notes of those clusters, keeps the other rows, turns tabs and line breaks
+  into spaces and removes the row of an empty note.
+- **`[ids, notes, file] = EphysDataset.readUnitNotes(resultsDir)`** reads them
+  (empty outputs when there is no file).
 
 ### Derived signals (the `intan2matlab` processing)
 
@@ -987,6 +1055,9 @@ is in [file-formats.md](file-formats.md#dataset-manifest).
 | `EphysDataset:toMat:Exists` / `SaveWarning` / `SaveIncomplete` | `.mat` output refused or discarded (also used by `saveAtomically`) |
 | `EphysDataset:spikesToMat:Exists`, `EphysDataset:exportChronux:Exists`, `EphysDataset:exportFieldTrip:Exists` | target file exists and `Overwrite` is off |
 | `EphysDataset:readPhyUnits:NoResultsDir` / `NoOutput` / `NoSampleRate` / `Mismatch` / `NoClusterLabels` / `NoGroupMatch` | sorted output missing or inconsistent |
+| `EphysDataset:readPhyUnits:BadIdentity` | an `Identity` struct without `subject`, `recordingStart`, `labelSuffix` and `datasetKey` |
+| `EphysDataset:unitIdentity:Pattern` / `NoMatch` / `Subject` / `DateTime` | the dataset name cannot label sorted units (see [Unit labels](#unit-labels)) |
+| `EphysDataset:writeUnitNotes:Size` / `NoResultsDir` / `Write` | notes and ids do not pair up, or the notes file cannot be written |
 
 ## Tests
 
@@ -1013,9 +1084,14 @@ deletes them afterwards. It covers:
 | 15 | `writeJsonFile` / `readJsonFile`, manifest v2 round trip (manual periods, sorting, behavior), v1 manifests, `sortingResultsDir` precedence, `EphysProject` keys and `refresh` |
 | 16 | the `ArtifactConfig` pre-detection filter (preview and `artifactIntervals` agree; single-chunk `UseParallel` is silent) |
 | 17 | `readPhyUnits` / `readSortedUnits` (times = samples/fs, phy labels beat Kilosort labels, groups, channel mapping, `FsFallback`) |
-| 18 | `spikesToMat` (detected + sorted, artifact rejection, waveforms, no behavior variable, no partial file left) |
+| 18 | `spikesToMat` (detected + sorted, artifact rejection, waveforms, unit labels and identity saved, no behavior variable, no partial file left) |
 | 19 | the reader registry, `BinaryReader` (same microvolts through `readData`, `streamPlan` / `readChunkUV` and `readWindowUV`), discovery of both kinds, `siRecordingSpec` |
 | 20 | `exportChronux` / `exportFieldTrip`, `readBehavior` / `behaviorStruct` / `behaviorToMat` |
+
+[`test_UnitLabels.m`](../pipeline/test_UnitLabels.m) covers unit labels:
+`parseNameTokens` formats, `nameIdentity`, class and id padding, identity
+columns, peak site and template centre, notes, `readSortedUnits` identity
+errors, `EphysProject` pattern push and collisions, and `unitTable`.
 
 It needs no real recording data and no Kilosort4 install. Run every suite with
 [`run_all_tests.m`](../pipeline/run_all_tests.m).

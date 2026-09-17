@@ -1,12 +1,12 @@
-classdef test_NasSessions < matlab.unittest.TestCase
-    %test_NasSessions  Tests for findNasSessions and copyNasSessions.
-    %   Builds fake NAS trees (ePsych files and Intan folders with small dummy
+classdef test_CopySessions < matlab.unittest.TestCase
+    %test_CopySessions  Tests for findCopySessions and copySessions.
+    %   Builds fake source trees (ePsych files and Intan folders with small dummy
     %   files) in a temporary folder. Tests that copy need robocopy and are
     %   skipped off Windows.
     %
     %   Usage
-    %     runtests("test_NasSessions")
-    %     run_all_tests("test_NasSessions")
+    %     runtests("test_CopySessions")
+    %     run_all_tests("test_CopySessions")
 
     properties
         Root      string   % temporary folder
@@ -84,7 +84,7 @@ classdef test_NasSessions < matlab.unittest.TestCase
             tc.verifyTrue(all(T.Note ~= ""));
             tc.verifySubstring(char(T.Note(T.IntanDir ~= "")), 'T115900.mat');
 
-            R = copyNasSessions(T, DestRoot=tc.Dest, DryRun=false, IncludeUnpaired=true, LogFcn=@(~) []);
+            R = copySessions(T, DestRoot=tc.Dest, DryRun=false, IncludeUnpaired=true, LogFcn=@(~) []);
             tc.verifyEqual(R.CopyStatus, repmat("skipped", 3, 1));
             tc.verifyFalse(isfolder(tc.Dest));
         end
@@ -216,7 +216,7 @@ classdef test_NasSessions < matlab.unittest.TestCase
             mkdir(bad(5)); mkdir(bad(6));
 
             logged = containers.Map('KeyType', 'double', 'ValueType', 'any');
-            [T, S] = findNasSessions(tc.Subj, "260916", EpsychRoot=tc.Epsych, IntanRoot=tc.Intan, ...
+            [T, S] = findCopySessions(tc.Subj, "260916", EpsychRoot=tc.Epsych, IntanRoot=tc.Intan, ...
                 DestRoot=tc.Dest, LogFcn=@(m) appendLog(logged, m));
             tc.verifyEqual(height(T), 1);
             tc.verifyEqual(T.Status, "paired");
@@ -228,10 +228,10 @@ classdef test_NasSessions < matlab.unittest.TestCase
         end
 
         function missingRootErrors(tc)
-            tc.verifyError(@() findNasSessions(tc.Subj, "260916", EpsychRoot=fullfile(tc.Root, "nope"), ...
-                IntanRoot=tc.Intan, LogFcn=@(~) []), 'findNasSessions:RootNotFound');
-            tc.verifyError(@() findNasSessions(tc.Subj, "261340", EpsychRoot=tc.Epsych, ...
-                IntanRoot=tc.Intan, LogFcn=@(~) []), 'findNasSessions:BadDate');
+            tc.verifyError(@() findCopySessions(tc.Subj, "260916", EpsychRoot=fullfile(tc.Root, "nope"), ...
+                IntanRoot=tc.Intan, LogFcn=@(~) []), 'findCopySessions:RootNotFound');
+            tc.verifyError(@() findCopySessions(tc.Subj, "261340", EpsychRoot=tc.Epsych, ...
+                IntanRoot=tc.Intan, LogFcn=@(~) []), 'findCopySessions:BadDate');
         end
 
         % ---------------------------------------------------------------- stitching
@@ -242,7 +242,7 @@ classdef test_NasSessions < matlab.unittest.TestCase
             T = tc.find(tc.Subj, "260916");
             tc.verifyEqual(T.Status, ["paired"; "epsych_only"; "epsych_only"]);
 
-            [S, row, kept] = stitchNasSessions(T, [2 1]);   % any order, any status
+            [S, row, kept] = stitchCopySessions(T, [2 1]);   % any order, any status
             tc.verifyEqual([height(S), row], [2, 1]);
             tc.verifyEqual(kept, [true; false; true]);
             tc.verifyEqual(S.Status, ["stitched"; "epsych_only"]);
@@ -254,7 +254,7 @@ classdef test_NasSessions < matlab.unittest.TestCase
             tc.verifySubstring(char(S.Note(1)), 'T110742.mat (-85 s); SUBJ-ID-1255_260916T114000.mat (+1853 s)');
             tc.verifyTrue(isempty(T.StitchFiles{1}) && isempty(S.StitchFiles{2}));
 
-            S = stitchNasSessions(S, logical([1 1]));       % a stitched row takes in more files
+            S = stitchCopySessions(S, logical([1 1]));       % a stitched row takes in more files
             tc.verifyEqual(height(S), 1);
             tc.verifyEqual(S.StitchFiles{1}, [e1; e2; e3]);
         end
@@ -265,11 +265,11 @@ classdef test_NasSessions < matlab.unittest.TestCase
             tc.addEpsych(tc.Subj, "260916T114000");
             T = tc.find(tc.Subj, "260916");
             tc.verifyEqual(T.Status, ["paired"; "epsych_only"; "paired"]);
-            tc.verifyError(@() stitchNasSessions(T, 1), 'stitchNasSessions:BadRows');
-            tc.verifyError(@() stitchNasSessions(T, [1 3]), 'stitchNasSessions:BadRows', "two Intan folders");
-            tc.verifyError(@() stitchNasSessions(T, [1 4]), 'stitchNasSessions:BadRows', "no such row");
+            tc.verifyError(@() stitchCopySessions(T, 1), 'stitchCopySessions:BadRows');
+            tc.verifyError(@() stitchCopySessions(T, [1 3]), 'stitchCopySessions:BadRows', "two Intan folders");
+            tc.verifyError(@() stitchCopySessions(T, [1 4]), 'stitchCopySessions:BadRows', "no such row");
             T.EpsychFile(2) = "";
-            tc.verifyError(@() stitchNasSessions(T, [1 2]), 'stitchNasSessions:BadRows', "one ePsych file");
+            tc.verifyError(@() stitchCopySessions(T, [1 2]), 'stitchCopySessions:BadRows', "one ePsych file");
         end
 
         % ---------------------------------------------------------------- copying
@@ -277,7 +277,7 @@ classdef test_NasSessions < matlab.unittest.TestCase
             tc.addPair("260916T110742", "260916_110907");
             T = tc.find(tc.Subj, "260916");
             before = tc.listTree(fullfile(tc.Root, "nas"));
-            R = copyNasSessions(T, DestRoot=tc.Dest, LogFcn=@(~) []);   % DryRun defaults to true
+            R = copySessions(T, DestRoot=tc.Dest, LogFcn=@(~) []);   % DryRun defaults to true
             tc.verifyEqual(R.CopyStatus, "planned");
             tc.verifyEqual(R.NumFiles, 5);   % 4 Intan files + the ePsych file
             tc.verifyFalse(isfolder(tc.Dest));
@@ -289,7 +289,7 @@ classdef test_NasSessions < matlab.unittest.TestCase
             [e, i] = tc.addPair("260916T110742", "260916_110907");
             T = tc.find(tc.Subj, "260916");
             before = tc.listTree(fullfile(tc.Root, "nas"));
-            R = copyNasSessions(T, DestRoot=tc.Dest, DryRun=false, Verify="hash", LogFcn=@(~) []);
+            R = copySessions(T, DestRoot=tc.Dest, DryRun=false, Verify="hash", LogFcn=@(~) []);
             tc.verifyEqual(R.CopyStatus, "copied", R.Message);
             dest = fullfile(tc.Dest, tc.Subj, tc.Subj + "_260916_110907");
             tc.verifyEqual(R.DestDir, string(dest));
@@ -316,24 +316,81 @@ classdef test_NasSessions < matlab.unittest.TestCase
             tc.assumeTrue(ispc, "robocopy needs Windows");
             tc.addPair("260916T110742", "260916_110907");
             T = tc.find(tc.Subj, "260916");
-            R = copyNasSessions(T, DestRoot=tc.Dest, DryRun=false, LogFcn=@(~) []);
+            R = copySessions(T, DestRoot=tc.Dest, DryRun=false, LogFcn=@(~) []);
             tc.verifyEqual(R.CopyStatus, "copied", R.Message);
 
-            R = copyNasSessions(T, DestRoot=tc.Dest, DryRun=false, Verify="hash", LogFcn=@(~) []);
+            R = copySessions(T, DestRoot=tc.Dest, DryRun=false, Verify="hash", LogFcn=@(~) []);
             tc.verifyEqual(R.CopyStatus, "already_present", R.Message);
-            R = copyNasSessions(T, DestRoot=tc.Dest, LogFcn=@(~) []);
+            R = copySessions(T, DestRoot=tc.Dest, LogFcn=@(~) []);
             tc.verifyEqual(R.CopyStatus, "already_present", "dry run");
 
             amp = fullfile(R.DestDir, "amplifier.dat");
             tc.writeBytes(amp, uint8(1:10));
             info = dir(amp);
-            R = copyNasSessions(T, DestRoot=tc.Dest, DryRun=false, LogFcn=@(~) []);
+            R = copySessions(T, DestRoot=tc.Dest, DryRun=false, IfExists="skip", LogFcn=@(~) []);
             tc.verifyEqual(R.CopyStatus, "skipped");
             tc.verifySubstring(char(R.Message), 'amplifier.dat');
-            R = copyNasSessions(T, DestRoot=tc.Dest, DryRun=false, IfExists="error", LogFcn=@(~) []);
+            R = copySessions(T, DestRoot=tc.Dest, DryRun=false, IfExists="error", LogFcn=@(~) []);
             tc.verifyEqual(R.CopyStatus, "failed");
             after = dir(amp);
-            tc.verifyEqual([after.bytes, after.datenum], [info.bytes, info.datenum], "nothing overwritten");
+            tc.verifyEqual([after.bytes, after.datenum], [info.bytes, info.datenum], ...
+                "skip and error never touch the destination");
+        end
+
+        function resumeCompletesAPartialCopy(tc)
+            % A copy that stopped part way is finished, not started again and
+            % not refused: the short file is completed, the missing one copied
+            % and the ones already there left alone.
+            tc.assumeTrue(ispc, "robocopy needs Windows");
+            tc.addPair("260916T110742", "260916_110907");
+            T = tc.find(tc.Subj, "260916");
+            R = copySessions(T, DestRoot=tc.Dest, DryRun=false, LogFcn=@(~) []);
+            tc.verifyEqual(R.CopyStatus, "copied", R.Message);
+            dest = R.DestDir;
+            full = dir(fullfile(dest, "amplifier.dat"));
+
+            tc.writeBytes(fullfile(dest, "amplifier.dat"), uint8(1:7));   % interrupted mid-file
+            delete(fullfile(dest, "sub", "nested.bin"));                  % never reached
+
+            R = copySessions(T, DestRoot=tc.Dest, LogFcn=@(~) []);        % dry run first
+            tc.verifyEqual(R.CopyStatus, "planned");
+            tc.verifySubstring(char(R.Message), 'would complete a partial copy');
+            tc.verifySubstring(char(R.Message), '3 of 5 file');
+
+            R = copySessions(T, DestRoot=tc.Dest, DryRun=false, Verify="hash", LogFcn=@(~) []);
+            tc.verifyEqual(R.CopyStatus, "copied", R.Message);
+            tc.verifySubstring(char(R.Message), '3 of them were already there');
+            done = dir(fullfile(dest, "amplifier.dat"));
+            tc.verifyEqual(done.bytes, full.bytes, "the partial file was completed");
+            tc.verifyTrue(isfile(fullfile(dest, "sub", "nested.bin")), "the missing file was copied");
+            m = jsondecode(fileread(R.ManifestFile));
+            tc.verifyEqual(string(m.copy.ifExists), "resume");
+            tc.verifyEqual(m.copy.filesAlreadyPresent, 3);
+        end
+
+        function backgroundCopyReturnsAtOnce(tc)
+            % Background=true launches the engine and hands control straight
+            % back; polling the job reports it through to "copied".
+            tc.assumeTrue(ispc, "robocopy needs Windows");
+            tc.addPair("260916T110742", "260916_110907");
+            T = tc.find(tc.Subj, "260916");
+            t0 = tic;
+            [R, job] = copySessions(T, DestRoot=tc.Dest, DryRun=false, Background=true, LogFcn=@(~) []);
+            tc.verifyLessThan(toc(t0), 5, "the call must not wait for the copy");
+            tc.verifyEqual(R.CopyStatus, "copying");
+            tc.verifyFalse(job.Done);
+
+            polls = 0;
+            while ~job.Done
+                pause(0.05);
+                [R, job] = copySessions(job);
+                polls = polls + 1;
+                tc.assertLessThan(polls, 1200, "the background copy never finished");
+            end
+            tc.verifyEqual(R.CopyStatus, "copied", R.Message);
+            tc.verifyTrue(isfile(fullfile(R.DestDir, "amplifier.dat")));
+            tc.verifyTrue(isfile(R.ManifestFile));
+            tc.verifyError(@() copySessions(job, DestRoot=tc.Dest), 'copySessions:JobTakesNoOptions');
         end
 
         function verificationFailureIsReported(tc)
@@ -341,13 +398,14 @@ classdef test_NasSessions < matlab.unittest.TestCase
             tc.addPair("260916T110742", "260916_110907");
             T = tc.find(tc.Subj, "260916");
             truncate = @(f) tc.overwriteIf(f, "amplifier.dat", uint8(1:3));
-            R = copyNasSessions(T, DestRoot=tc.Dest, DryRun=false, BeforeVerifyFcn=truncate, LogFcn=@(~) []);
+            R = copySessions(T, DestRoot=tc.Dest, DryRun=false, BeforeVerifyFcn=truncate, LogFcn=@(~) []);
             tc.verifyEqual(R.CopyStatus, "failed");
             tc.verifySubstring(char(R.Message), 'VERIFICATION FAILED');
             tc.verifySubstring(char(R.Message), 'amplifier.dat');
-            tc.verifyTrue(isfile(fullfile(R.DestDir, "amplifier.dat")), "partial copy kept");
+            tc.verifyTrue(isfile(fullfile(R.DestDir, "amplifier.dat")), "the copy is kept");
             [~, n, x] = fileparts(T.EpsychFile);
-            tc.verifyFalse(isfile(fullfile(R.DestDir, n + x)), "the files after the bad one are not copied");
+            tc.verifyTrue(isfile(fullfile(R.DestDir, n + x)), ...
+                "a session is copied whole before it is verified, so the other files are there");
             m = jsondecode(fileread(R.ManifestFile));
             tc.verifyEqual(string(m.copy.status), "failed");
         end
@@ -361,18 +419,16 @@ classdef test_NasSessions < matlab.unittest.TestCase
             src = dir(fullfile(T.IntanDir, "amplifier.dat"));
             corrupt = @(f) tc.overwriteIf(f, "amplifier.dat", zeros(1, src.bytes, 'uint8'));
 
-            R = copyNasSessions(T, DestRoot=fullfile(tc.Root, "size_only"), DryRun=false, ...
+            R = copySessions(T, DestRoot=fullfile(tc.Root, "size_only"), DryRun=false, ...
                 BeforeVerifyFcn=corrupt, LogFcn=@(~) []);
             tc.verifyEqual(R.CopyStatus, "copied", "a size check cannot see it");
 
             shown = containers.Map('KeyType', 'double', 'ValueType', 'any');
-            R = copyNasSessions(T, DestRoot=tc.Dest, DryRun=false, Verify="hash", BeforeVerifyFcn=corrupt, ...
+            R = copySessions(T, DestRoot=tc.Dest, DryRun=false, Verify="hash", BeforeVerifyFcn=corrupt, ...
                 ProgressFcn=@(~, m) appendLog(shown, m), LogFcn=@(~) []);
             tc.verifyTrue(any(contains(string(shown.values), "SHA-256 checksum")), "each checksum is shown");
             tc.verifyEqual(R.CopyStatus, "failed");
             tc.verifySubstring(char(R.Message), 'amplifier.dat SHA-256 differs');
-            [~, n, x] = fileparts(T.EpsychFile);
-            tc.verifyFalse(isfile(fullfile(R.DestDir, n + x)), "the files after the bad one are not copied");
             m = jsondecode(fileread(R.ManifestFile));
             amp = m.intan.files(strcmp({m.intan.files.relativePath}, 'amplifier.dat'));
             tc.verifyNotEmpty(amp.sha256Source);
@@ -384,8 +440,8 @@ classdef test_NasSessions < matlab.unittest.TestCase
             tc.addPair("260916T110742", "260916_110907");
             tc.addPair("260916T140000", "260916_140130");
             T = tc.find(tc.Subj, "260916");
-            rmdir(T.IntanDir(1), 's');   % NAS folder vanished after the search
-            R = copyNasSessions(T, DestRoot=tc.Dest, DryRun=false, LogFcn=@(~) []);
+            rmdir(T.IntanDir(1), 's');   % Source folder vanished after the search
+            R = copySessions(T, DestRoot=tc.Dest, DryRun=false, LogFcn=@(~) []);
             tc.verifyEqual(R.CopyStatus, ["failed"; "copied"]);
             tc.verifySubstring(char(R.Message(1)), 'not found');
         end
@@ -394,10 +450,10 @@ classdef test_NasSessions < matlab.unittest.TestCase
             tc.assumeTrue(ispc, "robocopy needs Windows");
             e = tc.addEpsych(tc.Subj, "260916T090000");
             T = tc.find(tc.Subj, "260916");
-            R = copyNasSessions(T, DestRoot=tc.Dest, DryRun=false, LogFcn=@(~) []);
+            R = copySessions(T, DestRoot=tc.Dest, DryRun=false, LogFcn=@(~) []);
             tc.verifyEqual(R.CopyStatus, "skipped");
             tc.verifyFalse(isfolder(tc.Dest));
-            R = copyNasSessions(T, DestRoot=tc.Dest, DryRun=false, IncludeUnpaired=true, LogFcn=@(~) []);
+            R = copySessions(T, DestRoot=tc.Dest, DryRun=false, IncludeUnpaired=true, LogFcn=@(~) []);
             tc.verifyEqual(R.CopyStatus, "copied", R.Message);
             [~, n, x] = fileparts(e);
             tc.verifyTrue(isfile(fullfile(tc.Dest, tc.Subj, tc.Subj + "_260916T090000", n + x)));
@@ -411,10 +467,10 @@ classdef test_NasSessions < matlab.unittest.TestCase
             e2 = tc.addSession("260916T114000", 2);
             T = tc.find(tc.Subj, "260916");
             tc.verifyEqual(T.EpsychTrials, [3; 2]);
-            S = stitchNasSessions(T, [1 2]);
+            S = stitchCopySessions(T, [1 2]);
             tc.verifyEqual(S.EpsychTrials, 5);
 
-            R = copyNasSessions(S, DestRoot=tc.Dest, LogFcn=@(~) []);
+            R = copySessions(S, DestRoot=tc.Dest, LogFcn=@(~) []);
             tc.verifyEqual(R.CopyStatus, "planned");
             tc.verifyEqual(R.NumFiles, 5);   % 4 Intan files + the stitched file
             tc.verifySubstring(char(R.Message), 'stitch 2 ePsych files into SUBJ-ID-1255_260916T110742_stitched.mat');
@@ -422,7 +478,7 @@ classdef test_NasSessions < matlab.unittest.TestCase
 
             tc.assumeTrue(ispc, "robocopy needs Windows");
             before = tc.listTree(fullfile(tc.Root, "nas"));
-            R = copyNasSessions(S, DestRoot=tc.Dest, DryRun=false, Verify="hash", LogFcn=@(~) []);
+            R = copySessions(S, DestRoot=tc.Dest, DryRun=false, Verify="hash", LogFcn=@(~) []);
             tc.verifyEqual(R.CopyStatus, "copied", R.Message);
             tc.verifyEqual(tc.listTree(fullfile(tc.Root, "nas")), before, "source untouched");
             out = fullfile(R.DestDir, tc.Subj + "_260916T110742_stitched.mat");
@@ -448,13 +504,19 @@ classdef test_NasSessions < matlab.unittest.TestCase
             tc.verifyEqual(strlength(string({m.epsych.stitch.parts.sha256Source})), [64 64]);
             tc.verifyEqual(strlength(string(m.epsych.stitch.sha256)), 64);
 
-            R = copyNasSessions(S, DestRoot=tc.Dest, DryRun=false, Verify="hash", LogFcn=@(~) []);
+            R = copySessions(S, DestRoot=tc.Dest, DryRun=false, Verify="hash", LogFcn=@(~) []);
             tc.verifyEqual(R.CopyStatus, "already_present", R.Message);
 
             tc.addSession("260916T114000", 4);             % the source changed since
-            R = copyNasSessions(S, DestRoot=tc.Dest, DryRun=false, LogFcn=@(~) []);
+            R = copySessions(S, DestRoot=tc.Dest, DryRun=false, IfExists="skip", LogFcn=@(~) []);
             tc.verifyEqual(R.CopyStatus, "skipped");
             tc.verifySubstring(char(R.Message), 'other versions');
+
+            % resume rebuilds it from what the sources now hold
+            S2 = stitchCopySessions(tc.find(tc.Subj, "260916"), [1 2]);
+            R = copySessions(S2, DestRoot=tc.Dest, DryRun=false, LogFcn=@(~) []);
+            tc.verifyEqual(R.CopyStatus, "copied", R.Message);
+            tc.verifyEqual(height(readEpsychSession(out)), 7, "3 + 4 trials after the source changed");
         end
 
         function unstitchableFilesFailInPreview(tc)
@@ -465,9 +527,9 @@ classdef test_NasSessions < matlab.unittest.TestCase
             tc.addSession("260916T110750", 2);             % starts 8 s after it
             T = tc.find(tc.Subj, "260916");
             tc.verifyEqual(T.Status, repmat("ambiguous", 3, 1));
-            S = stitchNasSessions(T, 1:3);
+            S = stitchCopySessions(T, 1:3);
             tc.verifyEqual(S.Status, "stitched");
-            R = copyNasSessions(S, DestRoot=tc.Dest, LogFcn=@(~) []);
+            R = copySessions(S, DestRoot=tc.Dest, LogFcn=@(~) []);
             tc.verifyEqual(R.CopyStatus, "failed");
             tc.verifySubstring(char(R.Message), 'cannot be stitched');
             tc.verifySubstring(char(R.Message), 'before the last trial');
@@ -479,16 +541,16 @@ classdef test_NasSessions < matlab.unittest.TestCase
             tc.addPair("260916T110742", "260916_110907");
             tc.addSession("260916T110742", 3);
             tc.addSession("260916T114000", 2);
-            S = stitchNasSessions(tc.find(tc.Subj, "260916"), [1 2]);
+            S = stitchCopySessions(tc.find(tc.Subj, "260916"), [1 2]);
             % a stitched file that lost a trial after it was written
             drop = @(f) tc.dropTrialIf(f, tc.Subj + "_260916T110742_stitched.mat");
-            R = copyNasSessions(S, DestRoot=tc.Dest, DryRun=false, BeforeVerifyFcn=drop, LogFcn=@(~) []);
+            R = copySessions(S, DestRoot=tc.Dest, DryRun=false, BeforeVerifyFcn=drop, LogFcn=@(~) []);
             tc.verifyEqual(R.CopyStatus, "failed");
             tc.verifySubstring(char(R.Message), 'holds 4 trials, its parts 5');
         end
 
         function appFindPreviewCopy(tc)
-            % The NAS tab end to end: find, ambiguous rows refuse a tick,
+            % The Copy tab end to end: find, ambiguous rows refuse a tick,
             % dry run writes nothing, copy writes the ticked session.
             g = EphysPreprocessingApp.PrefGroup;
             saved = [];
@@ -505,42 +567,49 @@ classdef test_NasSessions < matlab.unittest.TestCase
             app = EphysPreprocessingApp;
             tc.addTeardown(@() delete(app.Fig));
             tc.verifyEqual(app.Tabs.SelectedTab, app.TabProject);
-            app.selectTab(app.TabNas);
-            app.NasSubjectField.Value = char(tc.Subj);
-            app.NasFromDatePicker.Value = datetime(2026, 9, 16);
-            app.NasToDatePicker.Value = NaT;
-            app.NasEpsychRootField.Value = char(tc.Epsych);
-            app.NasIntanRootField.Value = char(tc.Intan);
-            app.NasDestRootField.Value = char(tc.Dest);
-            app.NasScanAfterCheckBox.Value = false;
+            app.selectTab(app.TabCopy);
+            app.CopySubjectField.Value = char(tc.Subj);
+            app.CopyFromDatePicker.Value = datetime(2026, 9, 16);
+            app.CopyToDatePicker.Value = NaT;
+            app.CopyEpsychRootField.Value = char(tc.Epsych);
+            app.CopyIntanRootField.Value = char(tc.Intan);
+            app.CopyDestRootField.Value = char(tc.Dest);
+            app.CopyScanAfterCheckBox.Value = false;
 
-            app.onNasFind();
-            T = app.NasSessions;
+            app.onCopyFind();
+            T = app.CopySessions;
             tc.verifyEqual(T.Status, ["paired"; "ambiguous"; "ambiguous"; "ambiguous"; "epsych_only"]);
-            tc.verifyEqual(app.NasTicked, T.Status == "paired", "only paired rows ticked");
-            tc.verifyEqual(height(app.NasTable.Data), 5);
-            tc.verifyTrue(all(ismember(["Duration" "Trials"], string(app.NasTable.Data.Properties.VariableNames))));
-            tc.verifyTrue(contains(string(app.NasLogArea.Value{end}), "1 paired"));
+            tc.verifyEqual(app.CopyTicked, T.Status == "paired", "only paired rows ticked");
+            tc.verifyEqual(height(app.CopyTable.Data), 5);
+            tc.verifyTrue(all(ismember(["Duration" "Trials"], string(app.CopyTable.Data.Properties.VariableNames))));
+            tc.verifyTrue(contains(string(app.CopyLogArea.Value{end}), "1 paired"));
 
             amb = find(T.Status == "ambiguous", 1);
-            app.onNasTableEdited(struct('Indices', [amb 1], 'NewData', true));
-            tc.verifyFalse(app.NasTicked(amb), "an ambiguous row cannot be ticked");
-            app.onNasTableEdited(struct('Indices', [5 1], 'NewData', true));
-            tc.verifyTrue(app.NasTicked(5), "an unpaired row can be ticked by hand");
-            app.onNasTableEdited(struct('Indices', [5 1], 'NewData', false));
+            app.onCopyTableEdited(struct('Indices', [amb 1], 'NewData', true));
+            tc.verifyFalse(app.CopyTicked(amb), "an ambiguous row cannot be ticked");
+            app.onCopyTableEdited(struct('Indices', [5 1], 'NewData', true));
+            tc.verifyTrue(app.CopyTicked(5), "an unpaired row can be ticked by hand");
+            app.onCopyTableEdited(struct('Indices', [5 1], 'NewData', false));
 
-            app.onNasCopy(true);
-            tc.verifyEqual(app.NasCopyStatus(1), "planned");
-            tc.verifyEqual(app.NasCopyStatus(2:end), strings(4, 1));
+            app.onCopyRun(true);
+            tc.verifyEqual(app.CopyStatus(1), "planned");
+            tc.verifyEqual(app.CopyStatus(2:end), strings(4, 1));
             tc.verifyFalse(isfolder(tc.Dest), "preview writes nothing");
 
             tc.assumeTrue(ispc, "robocopy needs Windows");
-            app.onNasCopy(false);
-            tc.verifyEqual(app.NasCopyStatus(1), "copied", app.NasMessage(1));
+            app.onCopyRun(false);
+            tc.verifyNotEmpty(app.CopyJob, "the copy runs in the background");
+            tc.verifyEqual(app.CopyStatus(1), "copying");
+            tc.verifyEqual(string(app.CopyRunButton.Text), "Cancel copy");
+            tc.verifyEqual(string(app.CopyFindButton.Enable), "off");
+            tc.waitForCopy(app);
+            tc.verifyEqual(string(app.CopyRunButton.Text), "Copy selected");
+            tc.verifyEqual(string(app.CopyFindButton.Enable), "on");
+            tc.verifyEqual(app.CopyStatus(1), "copied", app.CopyMessage(1));
             tc.verifyTrue(isfile(fullfile(tc.Dest, tc.Subj, tc.Subj + "_260916_110907", "session_manifest.json")));
-            tc.verifyEqual(app.NasTable.Data.Result(1), "copied");
-            p = getpref(g, 'NasOptions');
-            tc.verifyEqual(string(p.destRoot), tc.Dest, "the NAS settings are preferences");
+            tc.verifyEqual(app.CopyTable.Data.Result(1), "copied");
+            p = getpref(g, 'CopyOptions');
+            tc.verifyEqual(string(p.destRoot), tc.Dest, "the Copy tab settings are preferences");
             tc.verifyEqual(p.minDurationMin, 2);
         end
 
@@ -559,50 +628,62 @@ classdef test_NasSessions < matlab.unittest.TestCase
 
             app = EphysPreprocessingApp;
             tc.addTeardown(@() delete(app.Fig));
-            app.selectTab(app.TabNas);
-            app.NasSubjectField.Value = char(tc.Subj);
-            app.NasFromDatePicker.Value = datetime(2026, 9, 16);
-            app.NasToDatePicker.Value = NaT;
-            app.NasEpsychRootField.Value = char(tc.Epsych);
-            app.NasIntanRootField.Value = char(tc.Intan);
-            app.NasDestRootField.Value = char(tc.Dest);
-            app.NasScanAfterCheckBox.Value = false;
-            app.onNasFind();
-            found = app.NasSessions;
+            app.selectTab(app.TabCopy);
+            app.CopySubjectField.Value = char(tc.Subj);
+            app.CopyFromDatePicker.Value = datetime(2026, 9, 16);
+            app.CopyToDatePicker.Value = NaT;
+            app.CopyEpsychRootField.Value = char(tc.Epsych);
+            app.CopyIntanRootField.Value = char(tc.Intan);
+            app.CopyDestRootField.Value = char(tc.Dest);
+            app.CopyScanAfterCheckBox.Value = false;
+            app.onCopyFind();
+            found = app.CopySessions;
             tc.verifyEqual(found.Status, ["paired"; "epsych_only"; "epsych_only"]);
 
-            app.NasTable.Selection = [1 2];
-            app.onNasStitch();
-            tc.verifyEqual(app.NasSessions.Status, ["stitched"; "epsych_only"]);
-            tc.verifyEqual(app.NasTicked, [true; false]);
-            tc.verifyEqual(app.NasTable.Data.("ePsych file")(1), ...
+            app.CopyTable.Selection = [1 2];
+            app.onCopyStitch();
+            tc.verifyEqual(app.CopySessions.Status, ["stitched"; "epsych_only"]);
+            tc.verifyEqual(app.CopyTicked, [true; false]);
+            tc.verifyEqual(app.CopyTable.Data.("ePsych file")(1), ...
                 tc.Subj + "_260916T110742.mat + " + tc.Subj + "_260916T114000.mat");
-            tc.verifyTrue(startsWith(app.NasSummaryLabel.Text, "0 paired, 1 stitched"));
+            tc.verifyTrue(startsWith(app.CopySummaryLabel.Text, "0 paired, 1 stitched"));
 
-            app.onNasCopy(true);
-            tc.verifyEqual(app.NasCopyStatus(1), "planned", app.NasMessage(1));
+            app.onCopyRun(true);
+            tc.verifyEqual(app.CopyStatus(1), "planned", app.CopyMessage(1));
 
-            app.NasTable.Selection = 1;
-            app.onNasUnstitch();
-            tc.verifyEqual(app.NasSessions.Status, found.Status);
-            tc.verifyEqual(app.NasSessions.EpsychFile, found.EpsychFile);
-            tc.verifyEqual(app.NasTicked, [true; false; false]);
-            tc.verifyEqual(app.NasCopyStatus, strings(3, 1));
+            app.CopyTable.Selection = 1;
+            app.onCopyUnstitch();
+            tc.verifyEqual(app.CopySessions.Status, found.Status);
+            tc.verifyEqual(app.CopySessions.EpsychFile, found.EpsychFile);
+            tc.verifyEqual(app.CopyTicked, [true; false; false]);
+            tc.verifyEqual(app.CopyStatus, strings(3, 1));
         end
 
         function cancelStopsBeforeCopying(tc)
             tc.assumeTrue(ispc, "robocopy needs Windows");
             tc.addPair("260916T110742", "260916_110907");
             T = tc.find(tc.Subj, "260916");
-            R = copyNasSessions(T, DestRoot=tc.Dest, DryRun=false, CancelFcn=@() true, LogFcn=@(~) []);
+            R = copySessions(T, DestRoot=tc.Dest, DryRun=false, CancelFcn=@() true, LogFcn=@(~) []);
             tc.verifyEqual(R.CopyStatus, "cancelled");
-            tc.verifyFalse(isfolder(R.DestDir));
+            tc.verifySubstring(char(R.Message), 'before the copy started');
+            tc.verifyFalse(isfolder(R.DestDir), "nothing is created for a cancelled batch");
         end
     end
 
     methods
+        function waitForCopy(tc, app, timeout)
+            %waitForCopy  Pump the event queue until the app's copy timer is done.
+            if nargin < 3; timeout = 120; end
+            t0 = tic;
+            while ~isempty(app.CopyJob) && toc(t0) < timeout
+                pause(0.05);
+                drawnow;
+            end
+            tc.assertEmpty(app.CopyJob, "the background copy did not finish in time");
+        end
+
         function [T, S] = find(tc, subj, spec, varargin)
-            [T, S] = findNasSessions(subj, spec, 'EpsychRoot', tc.Epsych, 'IntanRoot', tc.Intan, ...
+            [T, S] = findCopySessions(subj, spec, 'EpsychRoot', tc.Epsych, 'IntanRoot', tc.Intan, ...
                 'DestRoot', tc.Dest, 'LogFcn', @(~) [], varargin{:});
         end
 

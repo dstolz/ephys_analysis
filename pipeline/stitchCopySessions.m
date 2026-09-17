@@ -1,9 +1,9 @@
-function [T, row, kept] = stitchNasSessions(T, rows)
-%stitchNasSessions  Merge NAS session rows into one recording whose ePsych files are stitched.
-%   T = stitchNasSessions(T, rows) takes a findNasSessions table and the
+function [T, row, kept] = stitchCopySessions(T, rows)
+%stitchCopySessions  Merge source session rows into one recording whose ePsych files are stitched.
+%   T = stitchCopySessions(T, rows) takes a findCopySessions table and the
 %   rows (indices or a logical mask), picked by hand, that hold one Intan
 %   recording folder and the ePsych files that belong to it, and replaces
-%   them with one "stitched" row. copyNasSessions copies that row's Intan
+%   them with one "stitched" row. copySessions copies that row's Intan
 %   folder and joins its ePsych files, in chronological order, into one
 %   Epsych2 session file (stitchEpsychSessions), so the local session folder
 %   holds a single behavior file as usual.
@@ -17,26 +17,26 @@ function [T, row, kept] = stitchNasSessions(T, rows)
 %   IntanDuration, DestDir are kept); the other rows are removed. It has
 %     Status        "stitched"
 %     StitchFiles   every ePsych file, in chronological order (by the time in
-%                   its name, as findNasSessions reads it)
+%                   its name, as findCopySessions reads it)
 %     EpsychFile, EpsychTime, DeltaT   those of the earliest file
 %     EpsychTrials  the sum over the files (NaN when a count is unknown)
 %     Note          the files in order, each with its start relative to the
 %                   Intan recording
 %
-%   [T, ROW, KEPT] = stitchNasSessions(...) also returns the stitched row's
+%   [T, ROW, KEPT] = stitchCopySessions(...) also returns the stitched row's
 %   index in the returned T and a logical mask of the input rows that remain
 %   (in order), to carry per-row state such as tick boxes along.
 %
-%   Errors with stitchNasSessions:BadRows when ROWS name fewer than two
+%   Errors with stitchCopySessions:BadRows when ROWS name fewer than two
 %   rows, several subjects, not exactly one Intan folder, fewer than two
 %   ePsych files, or an ePsych file whose name holds no time.
 %
 %   Example
-%     T = findNasSessions("SUBJ-ID-1255", "260916");
-%     T = stitchNasSessions(T, [2 3]);      % a recording and a second ePsych file
-%     R = copyNasSessions(T, DryRun=false);
+%     T = findCopySessions("SUBJ-ID-1255", "260916");
+%     T = stitchCopySessions(T, [2 3]);      % a recording and a second ePsych file
+%     R = copySessions(T, DryRun=false);
 %
-%   See also findNasSessions, copyNasSessions, stitchEpsychSessions.
+%   See also findCopySessions, copySessions, stitchEpsychSessions.
 
 arguments
     T table
@@ -48,22 +48,22 @@ if islogical(rows)
 end
 rows = unique(double(rows(:)));
 if numel(rows) < 2 || any(rows < 1 | rows > height(T) | rows ~= round(rows))
-    error('stitchNasSessions:BadRows', 'Pick at least two rows of the session table to stitch.');
+    error('stitchCopySessions:BadRows', 'Pick at least two rows of the session table to stitch.');
 end
 S = T(rows, :);
 subjects = unique(S.Subject);
 if numel(subjects) > 1
-    error('stitchNasSessions:BadRows', 'The rows belong to different subjects: %s.', strjoin(subjects, ", "));
+    error('stitchCopySessions:BadRows', 'The rows belong to different subjects: %s.', strjoin(subjects, ", "));
 end
 row = rows(S.IntanDir ~= "");
 if numel(row) ~= 1
-    error('stitchNasSessions:BadRows', 'The rows must hold exactly one Intan folder; they hold %d.', numel(row));
+    error('stitchCopySessions:BadRows', 'The rows must hold exactly one Intan folder; they hold %d.', numel(row));
 end
 
 files = [S.EpsychFile; vertcat(S.StitchFiles{:})];
 files = unique(files(files ~= ""));
 if numel(files) < 2
-    error('stitchNasSessions:BadRows', 'The rows must hold at least two ePsych files to stitch; they hold %d.', numel(files));
+    error('stitchCopySessions:BadRows', 'The rows must hold at least two ePsych files to stitch; they hold %d.', numel(files));
 end
 times = NaT(numel(files), 1);
 for k = 1:numel(files)
@@ -76,7 +76,7 @@ for k = 1:numel(files)
         end
     end
     if isnat(times(k))
-        error('stitchNasSessions:BadRows', 'The time of %s cannot be read from its name.', files(k));
+        error('stitchCopySessions:BadRows', 'The time of %s cannot be read from its name.', files(k));
     end
 end
 [times, order] = sort(times);

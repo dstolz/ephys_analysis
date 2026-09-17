@@ -1,7 +1,7 @@
-function [T, skipped] = findNasSessions(subjID, dateSpec, opts)
-%findNasSessions  Pair ePsych behavior files with Intan RHX recordings on the NAS by name.
-%   T = findNasSessions(subjID, dateSpec) lists one subject's sessions on the
-%   NAS for a day (or a range of days) and pairs each Intan recording folder
+function [T, skipped] = findCopySessions(subjID, dateSpec, opts)
+%findCopySessions  Pair ePsych behavior files with Intan RHX recordings on the source by name.
+%   T = findCopySessions(subjID, dateSpec) lists one subject's sessions on the
+%   source tree for a day (or a range of days) and pairs each Intan recording folder
 %   with its ePsych behavior file from the timestamps in their names. Nothing
 %   is written to either tree; of the files, only headers are read: the
 %   Intan headers of every folder taking part in the pairing (for
@@ -24,7 +24,7 @@ function [T, skipped] = findNasSessions(subjID, dateSpec, opts)
 %   resolved globally rather than by whichever file comes first. When, at an
 %   assignment, the Intan folder or the ePsych file has another unassigned
 %   candidate whose |DeltaT| is within AmbiguityMargin, the whole set is
-%   marked ambiguous: none of its files are paired, and copyNasSessions never
+%   marked ambiguous: none of its files are paired, and copySessions never
 %   copies them.
 %
 %   An Intan recording shorter than MinIntanDuration (from its headers) takes
@@ -72,7 +72,7 @@ function [T, skipped] = findNasSessions(subjID, dateSpec, opts)
 %                 headers cannot be read)
 %     EpsychTrials   double, trials in the ePsych file (epsychSessionMeta;
 %                 NaN without a file or when it cannot be read)
-%     StitchFiles    cell, strings(0, 1) on every row: stitchNasSessions
+%     StitchFiles    cell, strings(0, 1) on every row: stitchCopySessions
 %                 merges rows picked by hand into a "stitched" row that lists
 %                 its ePsych files here
 %   A header that cannot be read is logged and leaves NaN.
@@ -81,17 +81,17 @@ function [T, skipped] = findNasSessions(subjID, dateSpec, opts)
 %
 %   SKIPPED is a table (Path, Reason) of names that did not parse.
 %
-%   Errors with findNasSessions:RootNotFound when EpsychRoot or IntanRoot
-%   is not a folder (e.g. the NAS drive is not mounted). A missing subject
+%   Errors with findCopySessions:RootNotFound when EpsychRoot or IntanRoot
+%   is not a folder (e.g. the source drive is not mounted). A missing subject
 %   folder under an existing root is logged and treated as empty.
 %
 %   Examples
-%     T = findNasSessions("SUBJ-ID-1255", "260916");
-%     T = findNasSessions("SUBJ-ID-1255", datetime(2026,9,14) + [0 3], ...
+%     T = findCopySessions("SUBJ-ID-1255", "260916");
+%     T = findCopySessions("SUBJ-ID-1255", datetime(2026,9,14) + [0 3], ...
 %             MaxLeadTime=minutes(5));
-%     R = copyNasSessions(T(T.Status == "paired", :), DryRun=true);
+%     R = copySessions(T(T.Status == "paired", :), DryRun=true);
 %
-%   See also copyNasSessions, stitchNasSessions, findEpsychSessions,
+%   See also copySessions, stitchCopySessions, findEpsychSessions,
 %   matchEpsychSession.
 
 arguments
@@ -116,8 +116,8 @@ subjID = strtrim(subjID);
 
 for r = [opts.EpsychRoot, opts.IntanRoot]
     if ~isfolder(r)
-        error('findNasSessions:RootNotFound', ...
-            'Folder not found: %s (is the NAS drive mounted?)', r);
+        error('findCopySessions:RootNotFound', ...
+            'Folder not found: %s (is the source drive mounted?)', r);
     end
 end
 
@@ -419,7 +419,7 @@ else
         t = NaT;
         if ~isempty(tok); t = nameTime({char(tok), '000000'}); end
         if isnat(t)
-            error('findNasSessions:BadDate', 'Invalid date "%s": expected yyMMdd.', s(k));
+            error('findCopySessions:BadDate', 'Invalid date "%s": expected yyMMdd.', s(k));
         end
         d(k) = t;
     end
@@ -427,10 +427,10 @@ end
 d.TimeZone = '';
 day0 = d(1); day1 = d(end);
 if any(isnat([day0 day1]))
-    error('findNasSessions:BadDate', 'The date must not be NaT.');
+    error('findCopySessions:BadDate', 'The date must not be NaT.');
 end
 if day1 < day0
-    error('findNasSessions:BadDate', 'The date range ends (%s) before it starts (%s).', ...
+    error('findCopySessions:BadDate', 'The date range ends (%s) before it starts (%s).', ...
         string(day1, 'yyMMdd'), string(day0, 'yyMMdd'));
 end
 end
@@ -440,7 +440,7 @@ function mustBeDateSpec(x)
 ok = (isdatetime(x) && any(numel(x) == [1 2])) ...
     || ((isstring(x) || ischar(x) || iscellstr(x)) && any(numel(string(x)) == [1 2]));
 if ~ok
-    error('findNasSessions:BadDate', ...
+    error('findCopySessions:BadDate', ...
         'dateSpec must be a datetime, two datetimes, a "yyMMdd" string or two of them.');
 end
 end
@@ -448,6 +448,6 @@ end
 
 function mustBeNonnegativeDuration(x)
 if x < 0
-    error('findNasSessions:BadOption', 'Durations must not be negative.');
+    error('findCopySessions:BadOption', 'Durations must not be negative.');
 end
 end

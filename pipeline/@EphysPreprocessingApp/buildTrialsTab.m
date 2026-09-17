@@ -1,17 +1,22 @@
 function buildTrialsTab(obj)
 %buildTrialsTab  Review the pairing of Epsych2 trials with the trial digital line.
 %   Top: dataset, Load (reads the digital events once, cached per dataset),
-%   Reset cuts, Approve / Mark unreviewed, Write behavior .mat, and the
-%   pairing summary with the count-mismatch warning. Left: the config's
+%   Reset cuts, Approve / Mark unreviewed, Write behavior .mat, the Epsych2
+%   session / <name>_behavior.mat to the base workspace, and the pairing
+%   summary with the count-mismatch warning. Left: the config's
 %   pairing settings (Behavior section: pair in the behavior step, trial
 %   line), one row per digital line with its polarity (Signals.InvertedLines:
 %   an inverted line is on while low, so its onset is the falling edge; this
 %   also applies to the events in the extract and export files), and the
 %   cuts that resolve a count mismatch: trials or trial-line intervals
 %   dropped from the start or the end before the in-order pairing (kept per
-%   dataset in its manifest, not in the config). Right: one row per trial.
-%   Bottom: the digital lines over the recording, the trial line coloured by
-%   pairing state; the mouse wheel zooms time about the cursor and dragging
+%   dataset in its manifest, not in the config). Right: one row per trial;
+%   its columns sort and move, and its context menu adds or removes Epsych2
+%   parameter columns (remembered for every dataset as preferences).
+%   Bottom: the digital lines over the recording, one bar per event from its
+%   onset to its offset with the polarity applied, the trial line coloured by
+%   pairing state (refreshTrialsPlot; its context menu shows or hides the
+%   trial onset / offset lines, grid lines and Epsych2 parameter labels); the mouse wheel zooms time about the cursor and dragging
 %   pans time (the line rows stay fixed). Approving saves the cuts in the dataset manifest
 %   (EphysDataset.setTrialPairing); the behavior step then reuses them.
 
@@ -23,13 +28,12 @@ changed = @(~,~) obj.onTrialsSettingsChanged();
 cutsChanged = @(~,~) obj.onTrialsCutsChanged();
 
 % --- row 1: dataset + actions ------------------------------------------------
-top = uigridlayout(g, [1 8]);
+top = uigridlayout(g, [1 10]);
 top.Layout.Row = 1; top.Layout.Column = [1 2];
-top.ColumnWidth = {'fit', 320, 'fit', 'fit', 'fit', 'fit', 'fit', '1x'};
+top.ColumnWidth = {'fit', 240, 'fit', 'fit', 'fit', 'fit', 'fit', '1x', 'fit', 'fit'};
 top.Padding = [0 0 0 0];
 uilabel(top, "Text", "Dataset:");
-obj.TrialsDatasetDropDown = uidropdown(top, "Items", {'(scan first)'}, ...
-    "ValueChangedFcn", @(~,~) obj.clearTrialsView());
+obj.TrialsDatasetDropDown = obj.datasetPicker(top);
 obj.TrialsLoadButton = uibutton(top, "Text", "Load", "FontWeight", "bold", ...
     "Tooltip", "Read the digital lines (cached after the first read) and pair the trials in order, reusing the recorded cuts when they still match.", ...
     "ButtonPushedFcn", @(~,~) obj.onTrialsLoad("recorded"));
@@ -46,6 +50,14 @@ obj.TrialsRevokeButton = uibutton(top, "Text", "Mark unreviewed", ...
 obj.TrialsWriteButton = uibutton(top, "Text", "Write behavior .mat", ...
     "Tooltip", "Write <name>_behavior.mat with the pairing columns now.", ...
     "ButtonPushedFcn", @(~,~) obj.onTrialsWriteBehavior());
+obj.TrialsEpsychToWorkspaceButton = uibutton(top, "Text", "Epsych2 to workspace", ...
+    "Tooltip", "Load the associated Epsych2 session file as saved (Data, Info) into the base workspace as epsych_<name>.", ...
+    "ButtonPushedFcn", @(~,~) obj.onTrialsToWorkspace("epsych"));
+obj.TrialsEpsychToWorkspaceButton.Layout.Column = 9;
+obj.TrialsBehaviorToWorkspaceButton = uibutton(top, "Text", "Behavior to workspace", ...
+    "Tooltip", "Load the behavior struct of <name>_behavior.mat (trials with the pairing columns, info, meta, pairing) into the base workspace as behavior_<name>.", ...
+    "ButtonPushedFcn", @(~,~) obj.onTrialsToWorkspace("behavior"));
+obj.TrialsBehaviorToWorkspaceButton.Layout.Column = 10;
 
 % --- row 2: summary --------------------------------------------------------
 obj.TrialsSummaryLabel = uilabel(g, "Text", "Scan a project, pick a dataset with an Epsych2 session and press Load.", ...
@@ -68,7 +80,7 @@ obj.TrialsLineDropDown = uidropdown(sg, "Items", {'InTrial'}, "Value", 'InTrial'
 obj.TrialsLineDropDown.Layout.Row = 2; obj.TrialsLineDropDown.Layout.Column = 2;
 obj.TrialsLinesTable = uitable(sg, "ColumnName", {'Line', 'Intervals', 'Inverted'}, ...
     "ColumnEditable", [false false true], "ColumnWidth", {110, 65, 70}, "RowName", {}, ...
-    "Tooltip", "Tick lines with inverted polarity: on while low, onset = falling edge. Applies to pairing and to the events written by the Signals step.", ...
+    "Tooltip", "Tick lines with inverted polarity: on while low, onset = falling edge, offset = rising edge. Applies to pairing and to the events written by the Signals step.", ...
     "CellEditCallback", changed);
 obj.TrialsLinesTable.Layout.Row = 3; obj.TrialsLinesTable.Layout.Column = [1 2];
 obj.TrialsLinesTable.Data = table(strings(0, 1), zeros(0, 1), false(0, 1), ...
@@ -106,11 +118,15 @@ lbl = uilabel(sg, "WordWrap", "on", "FontColor", [0.4 0.4 0.4], "Text", ...
 lbl.Layout.Row = 5; lbl.Layout.Column = [1 2];
 
 % --- row 3 right: trials ---------------------------------------------------
+% Columns are laid out by refreshTrialsTable; the context menu adds or removes
+% Epsych2 parameter columns and is rebuilt each time it opens.
 obj.TrialsTable = uitable(g, "RowName", {}, ...
     "ColumnName", {'Trial', 'TrialIndex', 'Interval', 'Onset (s)', 'Offset (s)', ...
         'Onset sample', 'Offset sample', 'Flag', 'Other lines'}, ...
-    "ColumnEditable", false(1, 9), ...
-    "ColumnWidth", {45, 70, 60, 80, 80, 95, 95, 70, 'auto'});
+    "ColumnWidth", {45, 70, 60, 80, 80, 95, 95, 70, 'auto'}, ...
+    "ColumnSortable", true, "ColumnRearrangeable", "on", ...
+    "Tooltip", "Click a header to sort, drag it to move the column. Right-click to add or remove Epsych2 parameter columns.", ...
+    "ContextMenu", uicontextmenu(obj.Fig, "ContextMenuOpeningFcn", @(m, evt) obj.onTrialsTableMenu(m, evt)));
 obj.TrialsTable.Layout.Row = 3; obj.TrialsTable.Layout.Column = 2;
 
 % --- row 4: the digital lines over the recording -----------------------------
@@ -119,7 +135,32 @@ obj.TrialsAxes.Layout.Row = 4; obj.TrialsAxes.Layout.Column = [1 2];
 obj.TrialsAxes.InteractionOptions.LimitsDimensions = "x";   % wheel zoom (about the cursor), drag pan and toolbar zoom move time only
 title(obj.TrialsAxes, "Digital lines over the recording");
 xlabel(obj.TrialsAxes, "Time (s)");
+% Right-click: the trial line's onset / offset lines (shown by default), grid
+% lines (hidden) and Trial labels, the Epsych2 parameter values written above
+% each trial (none; the list is built as the menu opens).
+cm = uicontextmenu(obj.Fig, "ContextMenuOpeningFcn", @(~,~) obj.onTrialsPlotMenu());
+obj.TrialsEdgesMenu = uimenu(cm, "Text", "Trial onset / offset lines", "Checked", "on", ...
+    "MenuSelectedFcn", @(m, ~) toggleTrialEdges(m, obj.TrialsAxes));
+obj.TrialsGridMenu = uimenu(cm, "Text", "Grid lines", "Checked", "off", ...
+    "MenuSelectedFcn", @(m, ~) toggleGrid(m, obj.TrialsAxes));
+obj.TrialsLabelsMenu = uimenu(cm, "Text", "Trial labels", "Separator", "on");
+obj.TrialsAxes.ContextMenu = cm;
 
 obj.syncTrialsButtons();
 obj.syncTrialsCuts();
+end
+
+
+function toggleTrialEdges(menu, ax)
+%toggleTrialEdges  Show or hide the dotted lines at the trial line's onsets and offsets.
+menu.Checked = ~menu.Checked;
+set(findall(ax, "Tag", "trialEdges"), "Visible", menu.Checked);
+end
+
+
+function toggleGrid(menu, ax)
+%toggleGrid  Show or hide the plot's grid lines.
+menu.Checked = ~menu.Checked;
+ax.XGrid = menu.Checked;
+ax.YGrid = menu.Checked;
 end

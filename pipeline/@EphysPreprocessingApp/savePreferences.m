@@ -20,6 +20,9 @@ if istable(T) && width(T) > 0 && numel(dco) == width(T)   % dragged since the la
     order = string(T.Properties.VariableNames(dco));
 end
 setpref(g, 'DatasetsColumnOrder', cellstr(order));
+setpref(g, 'TrialsParamColumns', cellstr(obj.TrialsParamColumns));
+setpref(g, 'TrialsColumnOrder', cellstr(obj.trialsColumnOrder()));
+setpref(g, 'TrialsLabelParams', cellstr(obj.TrialsLabelParams));
 setpref(g, 'VizOptions', struct( ...
     'channels',  char(obj.VizChannelsField.Value), ...
     'duration',  obj.VizDurField.Value, ...

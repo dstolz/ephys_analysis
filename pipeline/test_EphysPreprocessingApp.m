@@ -25,6 +25,9 @@ if ispref(g); savedPrefs = getpref(g); end
 cleanup = onCleanup(@() restorePrefsAndRoot(g, savedPrefs, root)); %#ok<NASGU>
 if ispref(g, 'LastConfigFile'); setpref(g, 'LastConfigFile', ''); end
 if ispref(g, 'DatasetsColumnOrder'); rmpref(g, 'DatasetsColumnOrder'); end
+if ispref(g, 'TrialsParamColumns'); rmpref(g, 'TrialsParamColumns'); end
+if ispref(g, 'TrialsColumnOrder'); rmpref(g, 'TrialsColumnOrder'); end
+if ispref(g, 'TrialsLabelParams'); rmpref(g, 'TrialsLabelParams'); end
 
 nPass = 0; nFail = 0;
     function check(cond, msg)
@@ -214,6 +217,66 @@ check(~isempty(app.TrialsPairing) && height(TT) == 1 && TT{1, 3} == 1 && TT{1, 6
 check(isequal(app.TrialsCutSpinners(1, 1).Limits, [0 1]) && strcmp(app.TrialsCutSpinners(2, 2).Enable, 'on') ...
     && app.TrialsCutIntervalsLabel.Text == "din0 intervals", 'the cut spinners are limited to the trial / interval counts');
 check(app.TrialsAxes.InteractionOptions.LimitsDimensions == "x", 'the lines plot zooms and pans horizontally only');
+check(all(app.TrialsTable.ColumnSortable) && app.TrialsTable.ColumnRearrangeable == "on", 'the trials table sorts and rearranges');
+cm = app.TrialsTable.ContextMenu;
+app.onTrialsTableMenu(cm, struct('InteractionInformation', struct('Column', [])));
+sub = findobj(cm.Children, 'flat', 'Text', 'Parameter columns');
+check(isscalar(sub) && isequal(flip(string({sub.Children.Text})), ["computerTimestamp" "isTest" "ToneLevel"]) ...
+    && ~any(logical([sub.Children.Checked])) && isscalar(findobj(cm.Children, 'flat', 'Text', 'Reset column order')), ...
+    'the table menu lists the session parameters (not TrialIndex) alphabetically, ignoring case, unticked');
+for p = ["ToneLevel" "isTest"]
+    item = findobj(sub, 'Text', p);
+    item.MenuSelectedFcn(item, []);
+    app.onTrialsTableMenu(cm, struct('InteractionInformation', struct('Column', [])));   % as the next right-click would
+    sub = findobj(cm.Children, 'flat', 'Text', 'Parameter columns');
+end
+TT = app.TrialsTable.Data;
+vars = string(TT.Properties.VariableNames);
+check(isequal(app.TrialsParamColumns, ["ToneLevel" "isTest"]) && isequal(vars(8:11), ["Flag" "Param_ToneLevel" "Param_isTest" "OtherLines"]) ...
+    && isequal(reshape(string(app.TrialsTable.ColumnName(9:10)), 1, []), ["ToneLevel" "isTest"]) && TT.Param_ToneLevel == 60 && TT.Param_isTest == false ...
+    && all(logical(findobj(sub, 'Text', 'ToneLevel').Checked)), 'ticked parameters become columns after Flag, in the order added');
+app.TrialsTable.DisplayColumnOrder = [10, 1:9, 11];   % as if isTest were dragged to the front
+check(isequal(app.trialsColumnOrder(), vars([10, 1:9, 11])), 'the dragged order is read back before a refresh');
+kTone = find(vars == "Param_ToneLevel");
+app.onTrialsTableMenu(cm, struct('InteractionInformation', struct('Column', kTone)));
+item = findobj(cm.Children, 'flat', 'Text', 'Remove "ToneLevel"');
+check(isscalar(item), 'right-clicking a parameter column offers to remove it');
+item.MenuSelectedFcn(item, []);
+TT = app.TrialsTable.Data;
+check(isequal(app.TrialsParamColumns, "isTest") && string(TT.Properties.VariableNames{1}) == "Param_isTest" ...
+    && ~ismember("Param_ToneLevel", TT.Properties.VariableNames) && isempty(app.TrialsTable.DisplayColumnOrder) ...
+    && isequal(app.TrialsColumnOrder, ["Param_isTest", vars(1:8), "Param_ToneLevel", "OtherLines"]), ...
+    'removing a column keeps the dragged order and remembers where the removed column was');
+app.TrialsParamColumns = ["isTest" "ToneLevel" "Response"];   % Response: chosen for another dataset
+app.refreshTrialsTable();
+TT = app.TrialsTable.Data;
+app.onTrialsTableMenu(cm, struct('InteractionInformation', struct('Column', [])));
+sub = findobj(cm.Children, 'flat', 'Text', 'Parameter columns');
+item = findobj(sub, 'Text', 'Response (not in this session)');
+check(isequal(string(TT.Properties.VariableNames), ["Param_isTest", vars(1:8), "Param_ToneLevel", "OtherLines"]) ...
+    && isscalar(item) && logical(item.Checked), 'a re-added column returns to its place; a parameter the session lacks is listed, not shown');
+item.MenuSelectedFcn(item, []);
+check(isequal(app.TrialsParamColumns, ["isTest" "ToneLevel"]), 'and can be unticked');
+app.TrialsSession.Pos = [1 2];
+app.TrialsSession.Note = {'abc'};
+app.TrialsSession.Maybe = {[]};
+app.TrialsParamColumns = ["Pos" "Note" "Maybe"];
+app.refreshTrialsTable();
+TT = app.TrialsTable.Data;
+check(TT.Param_Pos == "1 2" && TT.Param_Note == "abc" && isnan(TT.Param_Maybe), ...
+    'multi-column and cell parameters are shown as text, empty numbers as NaN');
+app.savePreferences();
+check(isequal(string(getpref(g, 'TrialsParamColumns')), ["Pos" "Note" "Maybe"]) ...
+    && isequal(string(getpref(g, 'TrialsColumnOrder')), app.TrialsColumnOrder), 'the columns and their order are preferences');
+app.TrialsTable.DisplayColumnOrder = [2 1 3:width(TT)];
+app.onTrialsTableMenu(cm, struct('InteractionInformation', struct('Column', [])));
+item = findobj(cm.Children, 'flat', 'Text', 'Reset column order');
+item.MenuSelectedFcn(item, []);
+TT = app.TrialsTable.Data;
+check(string(TT.Properties.VariableNames{1}) == "Trial" && isempty(app.TrialsTable.DisplayColumnOrder) ...
+    && isequal(app.TrialsColumnOrder, string(TT.Properties.VariableNames)), 'Reset column order restores the natural order');
+app.TrialsParamColumns = string.empty(1, 0);
+app.refreshTrialsTable();
 app.TrialsCutSpinners(1, 1).Value = 1;
 app.onTrialsCutsChanged();
 check(isequal(app.TrialsPairing.cutTrials, [1 0]) && isnan(app.TrialsPairing.interval(1)) && app.TrialsPairing.countMismatch ...
@@ -234,6 +297,63 @@ app.onTrialsSettingsChanged();
 check(isequal(app.Config.Signals.InvertedLines, "din0") && app.TrialsPairing.stale ...
     && app.TrialsPairing.status == "unreviewed" && app.TrialsPairing.onsetSample(1) == 1, ...
     'inverting the line makes the approved pairing stale (onset = falling edge)');
+FsT = app.TrialsEvents.Fs;
+hBars = findall(app.TrialsAxes, "Tag", "events:din0");
+xBars = [hBars.XData];
+barRows = sortrows(round(reshape(xBars(~isnan(xBars)), 2, []).' * FsT));
+hiRows = round(app.TrialsEvents.events.din0 * FsT);
+check(isequal(barRows, round(app.TrialsPairing.events.din0 * FsT)) && all(ismember(hiRows(:, 2) + 1, barRows(:, 1))) ...
+    && all(ismember(hiRows(:, 1) - 1, barRows(:, 2))) && all(strcmp({hBars.Marker}, 'none')) ...
+    && any(contains(string(app.TrialsAxes.YTickLabel), "din0 (inverted)")), ...
+    'inverted, the plot draws din0 as unmarked bars from each falling edge to the next rising edge');
+hEdges = findall(app.TrialsAxes, "Tag", "trialEdges");
+check(isscalar(hEdges) && hEdges.Visible == "on" && isequal(unique(round(hEdges.XData(~isnan(hEdges.XData)) * FsT)), ...
+    unique(round(app.TrialsPairing.intervals(:) * FsT)).'), ...
+    'dotted lines mark every trial-line onset and offset, and a refresh replaces the previous plot (hidden objects too)');
+app.TrialsEdgesMenu.MenuSelectedFcn(app.TrialsEdgesMenu, []);
+app.onTrialsSettingsChanged();
+hEdges = findall(app.TrialsAxes, "Tag", "trialEdges");
+check(isscalar(hEdges) && hEdges.Visible == "off" && app.TrialsEdgesMenu.Checked == "off", ...
+    'the plot''s context menu hides the onset / offset lines, and they stay hidden when the plot is redrawn');
+app.TrialsEdgesMenu.MenuSelectedFcn(app.TrialsEdgesMenu, []);
+check(app.TrialsAxes.XGrid == "off", 'no grid lines by default');
+app.TrialsGridMenu.MenuSelectedFcn(app.TrialsGridMenu, []);
+check(hEdges.Visible == "on" && app.TrialsAxes.XGrid == "on" && app.TrialsAxes.YGrid == "on" && app.TrialsGridMenu.Checked == "on", ...
+    'the context menu shows the onset / offset lines again and toggles the grid lines');
+app.TrialsGridMenu.MenuSelectedFcn(app.TrialsGridMenu, []);
+app.onTrialsPlotMenu();
+labelItems = flip(string({app.TrialsLabelsMenu.Children.Text}));
+sessionVars = string(app.TrialsSession.Properties.VariableNames);
+[~, iAlpha] = sort(lower(sessionVars));
+check(isequal(labelItems, sessionVars(iAlpha)) && ismember("TrialIndex", labelItems) ...
+    && ~any(logical([app.TrialsLabelsMenu.Children.Checked])) && isempty(findall(app.TrialsAxes, "Tag", "trialLabels")), ...
+    'the plot menu lists every session parameter for trial labels (TrialIndex too), none shown by default');
+item = findobj(app.TrialsLabelsMenu, 'Text', 'ToneLevel');
+item.MenuSelectedFcn(item, []);
+hLab = findall(app.TrialsAxes, "Tag", "trialLabels");
+check(isequal(app.TrialsLabelParams, "ToneLevel") && isscalar(hLab) && string(hLab.String) == "60" ...
+    && hLab.Position(1) == app.TrialsPairing.onset(1) && hLab.Position(2) > 1 && app.TrialsAxes.YLim(2) > hLab.Position(2) ...
+    && isscalar(findall(app.TrialsAxes, "Tag", "trialEdges")), ...
+    'ticking a parameter writes each paired trial''s value above the trial line at its onset');
+app.onTrialsPlotMenu();
+item = findobj(app.TrialsLabelsMenu, 'Text', 'isTest');
+item.MenuSelectedFcn(item, []);
+hLab = findall(app.TrialsAxes, "Tag", "trialLabels");
+check(isscalar(hLab) && string(hLab.String) == "ToneLevel=60, isTest=false" && contains(string(app.TrialsAxes.Title.String), "labels: ToneLevel, isTest"), ...
+    'several parameters are written name=value in the order ticked, and the title names them');
+app.TrialsLabelParams = ["ToneLevel" "Response"];   % Response: chosen for another dataset
+app.refreshTrialsPlot();
+app.onTrialsPlotMenu();
+item = findobj(app.TrialsLabelsMenu, 'Text', 'Response (not in this session)');
+hLab = findall(app.TrialsAxes, "Tag", "trialLabels");
+check(isscalar(item) && logical(item.Checked) && string(hLab.String) == "60", ...
+    'a label parameter the session lacks is listed, not written');
+app.savePreferences();
+check(isequal(string(getpref(g, 'TrialsLabelParams')), ["ToneLevel" "Response"]), 'the label parameters are a preference');
+item = findobj(app.TrialsLabelsMenu, 'Text', 'No labels');
+item.MenuSelectedFcn(item, []);
+check(isempty(app.TrialsLabelParams) && isempty(findall(app.TrialsAxes, "Tag", "trialLabels")) && app.TrialsAxes.YLim(2) == 1.6, ...
+    'No labels removes them and the head room');
 g3 = app.gatherConfig();
 check(isequal(g3.Signals.InvertedLines, "din0") && isequal(EphysPipelineConfig.signalOptions(g3.Signals).invertedLines, "din0"), ...
     'the polarity reaches the Signals options');
@@ -241,33 +361,80 @@ app.TrialsLinesTable.Data.Inverted(1) = false;
 app.onTrialsSettingsChanged();
 check(isempty(app.Config.Signals.InvertedLines) && app.TrialsPairing.recorded && app.TrialsPairing.status == "approved", ...
     'restoring the polarity brings the approved pairing back');
+vE = matlab.lang.makeValidName("epsych_" + dT.Name);
+vB = matlab.lang.makeValidName("behavior_" + dT.Name);
+evalin('base', "clear " + vE + " " + vB);
+behT = fullfile(dT.outputFolder(), dT.Name + "_behavior.mat");
+if ~isfile(behT)
+    app.onTrialsToWorkspace("behavior");
+    check(~evalin('base', "exist('" + vB + "', 'var')"), 'Behavior to workspace assigns nothing before <name>_behavior.mat exists');
+end
 app.onTrialsWriteBehavior();
-BT = load(fullfile(dT.outputFolder(), dT.Name + "_behavior.mat"));
+BT = load(behT);
 check(BT.behavior.trials.TrialOnsetSample(1) == 50 && BT.behavior.pairing.status == "approved", 'Write behavior .mat carries the pairing');
+app.onTrialsToWorkspace("epsych");
+E = evalin('base', vE);
+check(isequal(E, load(dT.BehaviorFile)) && contains(app.StatusBar.Text, vE), ...
+    'Epsych2 to workspace puts the session file as saved in the base workspace and names the variable');
+app.onTrialsToWorkspace("behavior");
+BW = evalin('base', vB);
+check(isequal(BW, BT.behavior) && contains(app.StatusBar.Text, vB), ...
+    'Behavior to workspace puts the behavior struct of <name>_behavior.mat in the base workspace and names the variable');
+evalin('base', "clear " + vE + " " + vB);
 
 fprintf('\n== 3c. Sorting tab: optimize for probe, reset to defaults ==\n');
 dS = app.currentDataset();
 app.onOptimizeKS4ForProbe();
 check(app.Config.Sorting.KS4.nblocks == 3 && strcmp(app.ParamControls.dmin.Value, '12'), ...
-    'without a probe (the dataset''s or the default) nothing is tuned');
+    'without a probe (the dataset''s or the default) nothing is loaded');
 probeFile = fullfile(root, 'square4.json');
 writeJsonFile(probeFile, struct('chanMap', (0:3).', 'xc', [0; 25; 0; 25], 'yc', [0; 0; 25; 25], 'kcoords', zeros(4, 1)));
+paramsFile = EphysPipelineConfig.ks4ParamsFile(probeFile);
 dS.ProbeFile = probeFile;
-dS.ExcludeChannels = 4;
-app.onOptimizeKS4ForProbe();
+app.onOptimizeKS4ForProbe("cancel");
+check(~isfile(paramsFile) && app.Config.Sorting.KS4.nblocks == 3, ...
+    'a probe without a parameter file: cancelling the offer writes and changes nothing');
+K0 = app.Config.Sorting.KS4;
+app.onOptimizeKS4ForProbe("generate");
+P = readJsonFile(paramsFile);
+check(isfile(paramsFile) && isequal(string(fieldnames(P.KS4)).', EphysPipelineConfig.KS4ProbeParams) ...
+    && P.KS4.nblocks == 3 && P.KS4.dmin == 12 && isequaln(app.Config.Sorting.KS4, K0) ...
+    && any(contains(string(app.KSLogArea.Value), "square4.ks4.json")), ...
+    'the current-parameters option saves the current probe-dependent values next to the probe map and logs it');
+probeFolder = app.ProbeFolderField.Value;
+app.ProbeFolderField.Value = char(root);
+app.refreshProbeList();
+row = find(app.ProbePaths == string(probeFile), 1);
+check(~isempty(row) && ~any(endsWith(app.ProbePaths, ".ks4.json")), 'the probe list shows the probe map but not its parameter file');
+app.selectProbeRow(row);
+check(contains(app.ProbeInfoLabel.Text, "Kilosort4 parameters: square4.ks4.json"), ...
+    'the Probe tab names the selected probe''s parameter file');
+app.ProbeFolderField.Value = probeFolder;
+app.refreshProbeList();
+delete(paramsFile);
+app.onOptimizeKS4ForProbe("derive");
+P = readJsonFile(paramsFile);
 K = app.Config.Sorting.KS4;
-check(K.nblocks == 0 && K.dmin == 25 && K.dminx == 25 && K.nearest_chans == 3 && K.nearest_templates == 3 ...
-    && K.x_centers == 1 && app.ParamControls.nearest_chans.Value == 3 && strcmp(app.ParamControls.dmin.Value, '25'), ...
-    'Optimize for probe tunes the controls and the config to the clicked dataset''s probe minus its excluded channel');
-check(any(contains(string(app.KSLogArea.Value), "square4.json")) && any(contains(string(app.KSLogArea.Value), "x_centers")), ...
-    'the tuning and its reasons are logged');
+check(isfile(paramsFile) && P.KS4.dminx == 25 && isfield(P, 'reasons') && contains(string(P.description), "probe layout") ...
+    && K.nblocks == 0 && K.dmin == 25 && K.dminx == 25 && K.nearest_chans == 4 && K.nearest_templates == 4 ...
+    && K.x_centers == 1 && app.ParamControls.nearest_chans.Value == 4 && strcmp(app.ParamControls.dmin.Value, '25'), ...
+    'the probe-layout option saves the layout defaults with their reasons and loads them into the controls and the config');
+check(any(contains(string(app.KSLogArea.Value), "from the probe layout")) ...
+    && any(contains(string(app.KSLogArea.Value), "x_centers: 4 -> 1 (a single shank")), ...
+    'the generated file and each loaded value with its reason are logged');
+noLayout = fullfile(root, 'nolayout.json');
+writeJsonFile(noLayout, struct('chanMap', (0:3).'));
+dS.ProbeFile = noLayout;
+app.onOptimizeKS4ForProbe("derive");
+check(~isfile(EphysPipelineConfig.ks4ParamsFile(noLayout)) && app.Config.Sorting.KS4.x_centers == 1, ...
+    'a probe map without site positions gives no layout defaults: nothing is written or changed');
 dS.ProbeFile = "";
-dS.ExcludeChannels = double.empty(1, 0);
 app.ProbeDefaultField.Value = char(probeFile);
+app.ParamControls.nearest_chans.Value = 9;
 app.onConfigChanged();
 app.onOptimizeKS4ForProbe();
 check(app.Config.Sorting.KS4.nearest_chans == 4 && any(contains(string(app.KSLogArea.Value), "default probe")), ...
-    'a dataset without a probe uses the default probe');
+    'a dataset without a probe uses the default probe''s parameter file');
 app.ProbeDefaultField.Value = '';
 before = app.Config.Sorting;
 app.ExtraSettingsArea.Value = {'{"nblocks": 2}'};

@@ -1,14 +1,15 @@
 function onTrialsLoad(obj, mode)
-%onTrialsLoad  Read the digital lines of the Trials-tab dataset and pair its trials.
+%onTrialsLoad  Read the digital lines of the active dataset and pair its trials.
 %   mode "recorded" reuses the manifest's cuts when they still match;
 %   "none" pairs every trial with every interval in order (Reset cuts). The
 %   events are kept in memory (TrialsEvents) so cuts and setting changes
-%   re-pair without re-reading.
+%   re-pair without re-reading. The session's trials are re-read on every
+%   Load (TrialsSession: the table's parameter columns).
 arguments
     obj (1,1) EphysPreprocessingApp
     mode (1,1) string {mustBeMember(mode, ["recorded" "none"])} = "recorded"
 end
-d = obj.currentTrialsDataset();
+d = obj.currentDataset();
 if isempty(d)
     obj.setStatus("Trials: scan a project and pick a dataset first.");
     return
@@ -19,7 +20,7 @@ if d.BehaviorFile == "" || ~isfile(d.BehaviorFile)
     obj.TrialsSummaryLabel.FontColor = [0.7 0.1 0.1];
     return
 end
-idx = obj.TrialsDatasetDropDown.Value;
+idx = obj.SelectedDatasetIdx;
 if isempty(obj.TrialsEvents) || obj.TrialsEventsIdx ~= idx
     dlg = uiprogressdlg(obj.Fig, "Title", "Digital lines", ...
         "Message", "Reading the digital lines of " + d.Name + " ...", "Indeterminate", "on");
@@ -33,6 +34,11 @@ if isempty(obj.TrialsEvents) || obj.TrialsEventsIdx ~= idx
         return
     end
     delete(closer);
+end
+try
+    obj.TrialsSession = d.readBehavior();
+catch
+    obj.TrialsSession = [];
 end
 obj.fillTrialsLines();
 obj.repairTrials(mode);

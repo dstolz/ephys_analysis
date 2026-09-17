@@ -45,7 +45,9 @@ classdef EphysPreprocessingApp < handle
     %   Preferences (getpref group 'EphysPreprocessingApp') hold only what is
     %   not part of a config: figure geometry, probe folder, phy command,
     %   Review folder, last / recent config files, script folder, the
-    %   datasets-table column order and the Visualize display options.
+    %   datasets-table column order, the Trials-table parameter columns and
+    %   column order, the Trials-plot label parameters, and the Visualize
+    %   display options.
     %
     %   Usage
     %     EphysPreprocessingApp;            % launch
@@ -125,6 +127,8 @@ classdef EphysPreprocessingApp < handle
         TrialsApproveButton   matlab.ui.control.Button
         TrialsRevokeButton    matlab.ui.control.Button
         TrialsWriteButton     matlab.ui.control.Button
+        TrialsEpsychToWorkspaceButton   matlab.ui.control.Button
+        TrialsBehaviorToWorkspaceButton matlab.ui.control.Button
         TrialsSummaryLabel    matlab.ui.control.Label
         TrialsPairCheckBox    matlab.ui.control.CheckBox
         TrialsLineDropDown    matlab.ui.control.DropDown
@@ -133,6 +137,9 @@ classdef EphysPreprocessingApp < handle
         TrialsCutIntervalsLabel matlab.ui.control.Label
         TrialsTable           matlab.ui.control.Table
         TrialsAxes            matlab.ui.control.UIAxes
+        TrialsEdgesMenu       matlab.ui.container.Menu   % plot context menu: trial onset / offset lines (checked = shown)
+        TrialsGridMenu        matlab.ui.container.Menu   % plot context menu: grid lines (checked = shown)
+        TrialsLabelsMenu      matlab.ui.container.Menu   % plot context menu: Trial labels submenu (rebuilt as it opens)
 
         % --- Visualize tab ---
         VizDatasetDropDown matlab.ui.control.DropDown
@@ -194,6 +201,7 @@ classdef EphysPreprocessingApp < handle
         ProbePreviewAxes    matlab.ui.control.UIAxes
         AssignSelectedButton matlab.ui.control.Button
         AssignAllButton     matlab.ui.control.Button
+        ProbeDatasetDropDown matlab.ui.control.DropDown
         ExcludeChannelsField matlab.ui.control.EditField
         ShowChanNumbersCheckBox matlab.ui.control.CheckBox
         ProbeDefaultField   matlab.ui.control.EditField
@@ -201,7 +209,6 @@ classdef EphysPreprocessingApp < handle
         ProbeWriteDefaultCheckBox matlab.ui.control.CheckBox
 
         % --- Sorting tab ---
-        ProbeDatasetDropDown matlab.ui.control.DropDown
         SortEnableCheckBox  matlab.ui.control.CheckBox
         SortSkipExistingCheckBox matlab.ui.control.CheckBox
         PythonExeField    matlab.ui.control.EditField
@@ -225,6 +232,7 @@ classdef EphysPreprocessingApp < handle
         ExtraSettingsArea matlab.ui.control.TextArea
         KSDocsLink        matlab.ui.control.Hyperlink
         SIDocsLink        matlab.ui.control.Hyperlink
+        SortDatasetDropDown matlab.ui.control.DropDown
         SortResultsLabel  matlab.ui.control.Label
         SortUseFolderButton matlab.ui.control.Button
         SortUseAutoButton matlab.ui.control.Button
@@ -232,7 +240,6 @@ classdef EphysPreprocessingApp < handle
         RunStepSortingButton matlab.ui.control.Button
         KSProgressLabel   matlab.ui.control.Label
         KSLogArea         matlab.ui.control.TextArea
-        SortDatasetDropDown matlab.ui.control.DropDown
 
         % --- Review tab ---
         ReviewFolderField   matlab.ui.control.EditField
@@ -321,6 +328,7 @@ classdef EphysPreprocessingApp < handle
         SpkSuffixField       matlab.ui.control.EditField
         SpkOverwriteCheckBox matlab.ui.control.CheckBox
         SpkMatVersionDropDown matlab.ui.control.DropDown
+        SpkDatasetDropDown   matlab.ui.control.DropDown
         SpkPreviewButton     matlab.ui.control.Button
         SpkPreviewSecondsField matlab.ui.control.NumericEditField
         SpkPreviewLabel      matlab.ui.control.Label
@@ -328,7 +336,6 @@ classdef EphysPreprocessingApp < handle
         RunStepSpikesButton  matlab.ui.control.Button
 
         % --- Export tab ---
-        SpkDatasetDropDown   matlab.ui.control.DropDown
         ExpEnableCheckBox    matlab.ui.control.CheckBox
         ExpChronuxCheckBox   matlab.ui.control.CheckBox
         ExpFieldTripCheckBox matlab.ui.control.CheckBox
@@ -417,10 +424,15 @@ classdef EphysPreprocessingApp < handle
         TrialsEvents = []                    % EphysDataset.digitalEvents of the loaded dataset
         TrialsEventsIdx (1,1) double = 0     % dataset index TrialsEvents belongs to
         TrialsPairing = []                   % EphysDataset.pairTrials result shown
+        TrialsSession = []                   % EphysDataset.readBehavior trials of the loaded dataset
+        TrialsParamColumns (1,:) string = string.empty(1,0)  % Epsych2 parameters shown as Trials-table columns (a preference)
+        TrialsLabelParams (1,:) string = string.empty(1,0)   % Epsych2 parameters shown as trial labels in the Trials plot (a preference)
+        TrialsColumnOrder (1,:) string = string.empty(1,0)   % Trials-table variables in display order (a preference)
 
         % --- Review (Kilosort4 output) state ---
         ReviewData = struct([])
         ReviewSelectedUnit (1,1) double = 0
+        ReviewDatasetIdx (1,1) double = 0    % dataset the tab last showed (-1 = reload; syncReviewDataset)
     end
 
     properties (Constant)
@@ -432,7 +444,6 @@ classdef EphysPreprocessingApp < handle
             % Construct, build the UI, restore preferences and the last config.
             obj.buildUI();
             obj.loadPreferences();
-        ReviewDatasetIdx (1,1) double = 0    % dataset the tab last showed (-1 = reload; syncReviewDataset)
             obj.refreshProbeList();
             obj.updateTitle();
 
@@ -531,15 +542,6 @@ classdef EphysPreprocessingApp < handle
         applyConfigToProject(obj, P)
         applyArtifactConfigToProject(obj)
 
-        % --- Trials tab ---
-        onTrialsLoad(obj, mode)
-        repairTrials(obj, cuts)
-        refreshTrialsView(obj)
-        clearTrialsView(obj)
-        fillTrialsLines(obj)
-        setTrialsLineItems(obj, names, trialLine)
-        syncTrialsButtons(obj)
-        syncTrialsCuts(obj)
         % --- the active dataset (Dataset menu, every tab's Dataset box, Project-table row) ---
         selectDataset(obj, idx, opts)
         d = currentDataset(obj)
@@ -548,9 +550,24 @@ classdef EphysPreprocessingApp < handle
         dd = datasetPicker(obj, parent)
         highlightDatasetRow(obj, opts)
 
+        % --- Trials tab ---
+        onTrialsLoad(obj, mode)
+        repairTrials(obj, cuts)
+        refreshTrialsView(obj)
+        refreshTrialsTable(obj)
+        refreshTrialsPlot(obj)
+        order = trialsColumnOrder(obj, shown)
+        onTrialsTableMenu(obj, menu, evt)
+        onTrialsPlotMenu(obj)
+        clearTrialsView(obj)
+        fillTrialsLines(obj)
+        setTrialsLineItems(obj, names, trialLine)
+        syncTrialsButtons(obj)
+        syncTrialsCuts(obj)
         onTrialsCutsChanged(obj)
         onTrialsApprove(obj, status)
         onTrialsWriteBehavior(obj)
+        onTrialsToWorkspace(obj, source)
         onTrialsSettingsChanged(obj)
 
         % --- Artifacts tab ---

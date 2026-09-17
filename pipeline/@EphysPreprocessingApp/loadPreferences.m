@@ -3,7 +3,9 @@ function loadPreferences(obj)
 %   Preferences (group EphysPreprocessingApp) hold only what is not part of
 %   a pipeline config: figure geometry, the probe folder, the phy command,
 %   the Review folder, the last / recent config files, the script folder,
-%   the datasets-table column order and the Visualize display options.
+%   the datasets-table column order, the Trials-table parameter columns and
+%   column order, the Trials-plot label parameters, and the Visualize
+%   display options.
 %   Everything else lives in the config; the last config file is reopened
 %   at launch (defaults otherwise).
 
@@ -40,6 +42,15 @@ end
 obj.refreshRecentMenu();
 if ispref(g, 'DatasetsColumnOrder')
     obj.DatasetsColumnOrder = reshape(string(getpref(g, 'DatasetsColumnOrder')), 1, []);
+end
+if ispref(g, 'TrialsParamColumns')
+    obj.TrialsParamColumns = reshape(string(getpref(g, 'TrialsParamColumns')), 1, []);
+end
+if ispref(g, 'TrialsLabelParams')
+    obj.TrialsLabelParams = reshape(string(getpref(g, 'TrialsLabelParams')), 1, []);
+end
+if ispref(g, 'TrialsColumnOrder')
+    obj.TrialsColumnOrder = reshape(string(getpref(g, 'TrialsColumnOrder')), 1, []);
 end
 
 % --- Visualize display options (one struct) ---

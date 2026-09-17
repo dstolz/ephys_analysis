@@ -2,8 +2,9 @@ function test_EphysPipelineConfig()
 %test_EphysPipelineConfig  Verification suite for the pipeline config class.
 %   Covers defaults, normalization on set, exact JSON round trips (Inf, NaN,
 %   [] nullables, one-element string lists, 1x2 bands), schema checks, the
-%   Kilosort4 settings builder, tuning Kilosort4 to a probe map on synthetic
-%   layouts, the derived-signal options builder (every
+%   Kilosort4 settings builder, probe-layout Kilosort4 defaults on synthetic
+%   layouts, probe parameter files (write, load, refusals, the shipped
+%   files), the derived-signal options builder (every
 %   error id and each ExcludeHandling mode), the detection option builders
 %   and validate(). No recordings or toolboxes are needed.
 %
@@ -146,12 +147,8 @@ check(EphysPipelineConfig.ks4ParamText('floatinf', Inf) == "Infinity" && EphysPi
 [~, ok4] = EphysPipelineConfig.ks4ParamFromText('float', 'abc');
 check(isinf(v1) && ok1 && isempty(v2) && ok2 && isequal(v3, [1 2 3]) && ok3 && ~ok4, 'ks4ParamFromText parses edit-field text');
 
-fprintf('\n== 3b. ks4ForProbe ==\n');
+fprintf('\n== 3b. ks4ProbeDefaults ==\n');
 S0 = EphysPipelineConfig.defaults("Sorting");
-S = S0;
-S.KS4.Th_learned = 7;
-S.KS4.max_channel_distance = 8;
-S.KS4ExtraJSON = "{""nblocks"": 2}";
 % 4 shanks x 16 sites in two staggered columns 17.32 um apart, rows 10 um apart
 [xs, ys, kc] = deal([]);
 for s = 0:3
@@ -162,33 +159,26 @@ end
 poly = struct('chanMap', (0:63).', 'xc', xs, 'yc', ys, 'kcoords', kc);
 pf = fullfile(root, 'poly2.json');
 writeJsonFile(pf, poly);
-[S1, r1] = EphysPipelineConfig.ks4ForProbe(S, pf);
+[V1, r1] = EphysPipelineConfig.ks4ProbeDefaults(pf);
 G = r1.Geometry;
 check(r1.Probe == string(pf) && G.NumSites == 64 && G.NumShanks == 4 && G.RowPitchUm == 10 ...
-    && G.LateralPitchUm == 17.32 && G.NearestSiteUm == 20, 'geometry of a 4-shank staggered probe read from its file');
-check(S1.KS4.nblocks == 0 && S1.KS4.dmin == 10 && S1.KS4.dminx == 17.32 && S1.KS4.nearest_chans == 10 ...
-    && S1.KS4.nearest_templates == 58 && S1.KS4.min_template_size == 15 && S1.KS4.x_centers == 4, ...
+    && G.LateralPitchUm == 17.32 && G.NearestSiteUm == 20 && startsWith(r1.Summary, "64 sites on 4 shanks"), ...
+    'geometry of a 4-shank staggered probe read from its file');
+check(isequal(string(fieldnames(V1)).', EphysPipelineConfig.KS4ProbeParams) ...
+    && isequal(string(fieldnames(r1.Reasons)).', EphysPipelineConfig.KS4ProbeParams) && all(structfun(@(t) t ~= "", r1.Reasons)), ...
+    'one value and one reason per probe-dependent parameter');
+check(V1.nblocks == 0 && V1.dmin == 10 && V1.dminx == 17.32 && V1.nearest_chans == 10 ...
+    && V1.nearest_templates == 58 && V1.min_template_size == 15 && V1.x_centers == 4, ...
     '64 sites on 4 shanks: no drift correction, row / column spacing, one x center per shank');
-check(S1.KS4.Th_learned == 7 && S1.KS4.max_channel_distance == 8 && S1.KS4ExtraJSON == S.KS4ExtraJSON, ...
-    'untuned parameters and the extra JSON are kept');
-check(isequal(r1.Changes.Parameter.', ["nblocks" "dmin" "dminx" "nearest_chans" "nearest_templates" "min_template_size" "x_centers"]) ...
-    && isequal(r1.Changes.Changed.', [false true true false false false false]) ...
-    && r1.Changes.Old(2) == "" && r1.Changes.New(3) == "17.32" && all(r1.Changes.Reason ~= ""), ...
-    'the report lists every tuned parameter with old / new text and a reason');
-check(isscalar(r1.Notes) && contains(r1.Notes, "nblocks"), 'an extra JSON entry overriding a tuned value is noted');
-S2 = S1;
-S2.KS4.nblocks = 3; S2.KS4.x_centers = 9; S2.KS4.dmin = []; S2.KS4.nearest_chans = 2;
-[S3, r3] = EphysPipelineConfig.ks4ForProbe(S2, poly);
-check(isequaln(S3.KS4, S1.KS4) && r3.Probe == "" && nnz(r3.Changes.Changed) == 4, ...
-    'the result depends on the probe only (a decoded struct works too)');
-[S4, r4] = EphysPipelineConfig.ks4ForProbe(S0, poly, ExcludeChannels=[1 2 17 18 33 34 49 50]);
-check(r4.Geometry.NumSites == 56 && r4.Geometry.NumExcluded == 8 && S4.KS4.nearest_templates == 56 && isempty(r4.Notes), ...
+check(isequaln(EphysPipelineConfig.ks4ProbeDefaults(poly), V1), 'a decoded probe struct gives the same values');
+[V4, r4] = EphysPipelineConfig.ks4ProbeDefaults(poly, ExcludeChannels=[1 2 17 18 33 34 49 50]);
+check(r4.Geometry.NumSites == 56 && r4.Geometry.NumExcluded == 8 && V4.nearest_templates == 56 && isempty(r4.Notes), ...
     'excluded channels (chanMap + 1) are dropped before counting sites');
 site = (0:383).';
 xp = [43 11 59 27];
-[S5, r5] = EphysPipelineConfig.ks4ForProbe(S0, struct('xc', xp(mod(site, 4) + 1).', 'yc', 20 * floor(site / 2)));
-check(S5.KS4.nblocks == 5 && S5.KS4.dmin == 20 && S5.KS4.dminx == 32 && S5.KS4.x_centers == 1 ...
-    && S5.KS4.nearest_templates == 58 && r5.Geometry.NumShanks == 1, ...
+[V5, r5] = EphysPipelineConfig.ks4ProbeDefaults(struct('xc', xp(mod(site, 4) + 1).', 'yc', 20 * floor(site / 2)));
+check(V5.nblocks == 5 && V5.dmin == 20 && V5.dminx == 32 && V5.x_centers == 1 ...
+    && V5.nearest_templates == 58 && r5.Geometry.NumShanks == 1, ...
     'a Neuropixels-like shank: non-rigid drift correction, dminx from same-row pairs (32 um)');
 [xs, ys, kc] = deal([]);
 for s = 0:3
@@ -196,23 +186,84 @@ for s = 0:3
     ys = [ys; kron(15*(0:15).', [1; 1])]; %#ok<AGROW>
     kc = [kc; repmat(s, 32, 1)]; %#ok<AGROW>
 end
-S6 = EphysPipelineConfig.ks4ForProbe(S0, struct('xc', xs, 'yc', ys, 'kcoords', kc));
-check(S6.KS4.nblocks == 1 && S6.KS4.dmin == 15 && S6.KS4.dminx == 32 && S6.KS4.x_centers == 4, ...
+V6 = EphysPipelineConfig.ks4ProbeDefaults(struct('xc', xs, 'yc', ys, 'kcoords', kc));
+check(V6.nblocks == 1 && V6.dmin == 15 && V6.dminx == 32 && V6.x_centers == 4, ...
     'a dense 128-site 4-shank probe: rigid drift correction');
-[S7, r7] = EphysPipelineConfig.ks4ForProbe(S0, struct('xc', zeros(8, 1), 'yc', 100 * (0:7).'));
-check(S7.KS4.dmin == 100 && S7.KS4.dminx == 32 && S7.KS4.min_template_size == 50 && S7.KS4.nearest_chans == 8 ...
-    && S7.KS4.nearest_templates == 8 && S7.KS4.x_centers == 1 && isnan(r7.Geometry.LateralPitchUm), ...
+[V7, r7] = EphysPipelineConfig.ks4ProbeDefaults(struct('xc', zeros(8, 1), 'yc', 100 * (0:7).'));
+check(V7.dmin == 100 && V7.dminx == 32 && V7.min_template_size == 50 && V7.nearest_chans == 8 ...
+    && V7.nearest_templates == 8 && V7.x_centers == 1 && isnan(r7.Geometry.LateralPitchUm), ...
     'a sparse single column: wider templates, neighbour counts capped at the site count, dminx left at the default');
 [gx, gy] = meshgrid(0:200:1800, 0:200:1800);
-[S8, r8] = EphysPipelineConfig.ks4ForProbe(S0, struct('xc', gx(:), 'yc', gy(:)));
-check(S8.KS4.x_centers == 9 && S8.KS4.nblocks == 0 && S8.KS4.dminx == 200 && isempty(r8.Notes), ...
+[V8, r8] = EphysPipelineConfig.ks4ProbeDefaults(struct('xc', gx(:), 'yc', gy(:)));
+check(V8.x_centers == 9 && V8.nblocks == 0 && V8.dminx == 200 && isempty(r8.Notes), ...
     'a 2-D grid: one x center per 200 um of width, sparse rows skip drift correction');
-[~, r9] = EphysPipelineConfig.ks4ForProbe(S0, rmfield(poly, 'kcoords'));
+[~, r9] = EphysPipelineConfig.ks4ProbeDefaults(rmfield(poly, 'kcoords'));
 check(r9.Geometry.NumShanks == 1 && r9.Geometry.LateralPitchUm == 17.32 && isscalar(r9.Notes) && contains(r9.Notes, "kcoords"), ...
     'shanks without kcoords: rows aligned across shanks are not pairs, and a note asks for kcoords');
-check(strcmp(errorId(@() EphysPipelineConfig.ks4ForProbe(S0, struct('xc', 1:3, 'yc', 1:2))), 'EphysPipelineConfig:BadProbe') ...
-    && strcmp(errorId(@() EphysPipelineConfig.ks4ForProbe(S0, poly, ExcludeChannels=1:64)), 'EphysPipelineConfig:ProbeEmpty'), ...
+check(strcmp(errorId(@() EphysPipelineConfig.ks4ProbeDefaults(struct('xc', 1:3, 'yc', 1:2))), 'EphysPipelineConfig:BadProbe') ...
+    && strcmp(errorId(@() EphysPipelineConfig.ks4ProbeDefaults(poly, ExcludeChannels=1:64)), 'EphysPipelineConfig:ProbeEmpty'), ...
     'mismatched coordinates and an all-excluded probe are refused');
+
+fprintf('\n== 3c. probe parameter files (writeKS4Params, ks4ForProbe) ==\n');
+paramsFile = EphysPipelineConfig.ks4ParamsFile(pf);
+check(paramsFile == fullfile(string(root), "poly2.ks4.json"), 'a probe map''s parameter file is <name>.ks4.json next to it');
+check(strcmp(errorId(@() EphysPipelineConfig.ks4ForProbe(S0, pf)), 'EphysPipelineConfig:NoProbeParams'), ...
+    'loading for a probe without a parameter file errors');
+written = EphysPipelineConfig.writeKS4Params(pf, V1, Description=r1.Summary, Reasons=r1.Reasons);
+P = readJsonFile(paramsFile);
+check(written == paramsFile && P.schema == "ephys-ks4-params/1" && P.probe == "poly2.json" ...
+    && isequal(string(fieldnames(P.KS4)).', EphysPipelineConfig.KS4ProbeParams) && P.KS4.dminx == 17.32 ...
+    && string(P.description) == r1.Summary && string(P.reasons.x_centers) == r1.Reasons.x_centers, ...
+    'writeKS4Params writes the schema, the probe name, the description, the values and the reasons');
+check(strcmp(errorId(@() EphysPipelineConfig.writeKS4Params(pf, V1)), 'EphysPipelineConfig:ParamsExist') ...
+    && strcmp(errorId(@() EphysPipelineConfig.writeKS4Params(pf, struct('nblock', 1), Overwrite=true)), 'EphysPipelineConfig:BadParams') ...
+    && strcmp(errorId(@() EphysPipelineConfig.writeKS4Params(pf, struct(), Overwrite=true)), 'EphysPipelineConfig:BadParams'), ...
+    'an existing file, unknown names and an empty set are refused');
+S = S0;
+S.KS4.Th_learned = 7;
+S.KS4.max_channel_distance = 8;
+S.KS4ExtraJSON = "{""nblocks"": 2}";
+[S1, rep] = EphysPipelineConfig.ks4ForProbe(S, pf);
+check(S1.KS4.nblocks == 0 && S1.KS4.dmin == 10 && S1.KS4.dminx == 17.32 && S1.KS4.x_centers == 4 ...
+    && S1.KS4.Th_learned == 7 && S1.KS4.max_channel_distance == 8 && S1.KS4ExtraJSON == S.KS4ExtraJSON, ...
+    'ks4ForProbe sets the file''s parameters and keeps the others and the extra JSON');
+check(rep.File == paramsFile && rep.Description == r1.Summary ...
+    && isequal(rep.Changes.Parameter.', EphysPipelineConfig.KS4ProbeParams) ...
+    && isequal(rep.Changes.Changed.', [false true true false false false false]) ...
+    && rep.Changes.Old(2) == "" && rep.Changes.New(3) == "17.32" && rep.Changes.Reason(7) == r1.Reasons.x_centers, ...
+    'the report lists each parameter with old / new text and the file''s reason');
+check(isscalar(rep.Notes) && contains(rep.Notes, "nblocks"), 'an extra JSON entry overriding a loaded value is noted');
+writeJsonFile(paramsFile, struct('schema', "ephys-ks4-params/1", ...
+    'KS4', struct('x_centers', 2, 'artifact_threshold', "Inf", 'dmin', [], 'Th_universal', 8)));
+S2 = S1;
+S2.KS4.artifact_threshold = 500;
+[S3, rep3] = EphysPipelineConfig.ks4ForProbe(S2, pf);
+check(isinf(S3.KS4.artifact_threshold) && isempty(S3.KS4.dmin) && S3.KS4.Th_universal == 8 && S3.KS4.x_centers == 2 ...
+    && S3.KS4.dminx == 17.32 && isequal(rep3.Changes.Parameter.', ["artifact_threshold" "dmin" "Th_universal" "x_centers"]) ...
+    && rep3.Description == "" && all(rep3.Changes.Reason == ""), ...
+    'a hand-written file loads only what it lists ("Inf", [] = blank), in parameter-spec order');
+writeJsonFile(paramsFile, struct('schema', "ephys-ks4-params/1", 'KS4', struct('nblock', 1)));
+idUnknown = errorId(@() EphysPipelineConfig.ks4ForProbe(S0, pf));
+writeJsonFile(paramsFile, struct('schema', "something-else", 'KS4', struct('nblocks', 1)));
+idSchema = errorId(@() EphysPipelineConfig.ks4ForProbe(S0, pf));
+writeJsonFile(paramsFile, struct('schema', "ephys-ks4-params/1", 'KS4', struct('nblocks', "many")));
+idValue = errorId(@() EphysPipelineConfig.ks4ForProbe(S0, pf));
+check(strcmp(idUnknown, 'EphysPipelineConfig:BadParams') && strcmp(idSchema, 'EphysPipelineConfig:BadParams') ...
+    && strcmp(idValue, 'EphysPipelineConfig:BadValue'), 'unknown names, another schema and a non-numeric value are refused');
+probeDir = fullfile(here, 'probes');
+shipped = dir(fullfile(probeDir, "*" + EphysPipelineConfig.KS4ParamsSuffix));
+shipped = string({shipped.name});
+loads = ~isempty(shipped);
+for k = 1:numel(shipped)
+    probeMap = fullfile(probeDir, extractBefore(shipped(k), EphysPipelineConfig.KS4ParamsSuffix) + ".json");
+    try
+        [~, rk] = EphysPipelineConfig.ks4ForProbe(S0, probeMap);
+        loads = loads && isfile(probeMap) && height(rk.Changes) >= 1;
+    catch
+        loads = false;
+    end
+end
+check(loads, 'every parameter file shipped in pipeline/probes belongs to a probe map and loads');
 
 fprintf('\n== 4. signalOptions ==\n');
 G = EphysPipelineConfig.defaults("Signals");

@@ -11,7 +11,7 @@ end
 
 [nProbe, info] = probeChannelCount(pf);
 
-% Compare against the currently selected dataset.
+% Compare against the active dataset.
 d = obj.currentDataset();
 exclude = double.empty(1,0);
 if ~isempty(d); exclude = EphysDataset.parseChannelList(d.ExcludeChannels); end
@@ -21,11 +21,18 @@ showNumbers = ~isempty(obj.ShowChanNumbersCheckBox) ...
     && logical(obj.ShowChanNumbersCheckBox.Value);
 plotProbeArrangement(obj.ProbePreviewAxes, pf, exclude, showNumbers);
 [~, pn, pe] = fileparts(pf);
-obj.ProbeInfoLabel.Text = sprintf("%s%s\nn_chan: %s\n%s", pn, pe, ...
-    num2str(nProbe), info);
+ks4File = EphysPipelineConfig.ks4ParamsFile(pf);
+[~, kn, ke] = fileparts(ks4File);
+if isfile(ks4File)
+    ks4Txt = "Kilosort4 parameters: " + kn + ke;
+else
+    ks4Txt = "Kilosort4 parameters: no " + kn + ke + " yet (Sorting tab > Optimize for probe offers to generate it)";
+end
+obj.ProbeInfoLabel.Text = sprintf("%s%s\nn_chan: %s\n%s\n%s", pn, pe, ...
+    num2str(nProbe), info, ks4Txt);
 
 if isempty(d) || isnan(d.NumChannels)
-    obj.ProbeCheckLabel.Text = "Select a dataset (Datasets tab) to check channel count.";
+    obj.ProbeCheckLabel.Text = "Scan a project to check the channel count against a dataset.";
     obj.ProbeCheckLabel.FontColor = [0.4 0.4 0.4];
     return
 end

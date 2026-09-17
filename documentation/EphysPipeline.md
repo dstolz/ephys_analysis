@@ -4,9 +4,9 @@ Three classes make a preprocessing run reproducible outside the GUI:
 
 | Class | Kind | Role |
 | --- | --- | --- |
-| [`EphysPipelineConfig`](../intan/@EphysPipelineConfig/EphysPipelineConfig.m) | value | every setting of every step, which steps are enabled, the project root / output root and the dataset selection; round-trips through JSON exactly |
-| [`EphysPipeline`](../intan/@EphysPipeline/EphysPipeline.m) | handle | runs a config over an [`EphysProject`](EphysProject.md): plan, validate, run, cancel, progress, results |
-| [`EphysPipelineScript`](../intan/@EphysPipelineScript/EphysPipelineScript.m) | static | writes MATLAB scripts that reproduce a config's run, with or without the two classes above |
+| [`EphysPipelineConfig`](../pipeline/@EphysPipelineConfig/EphysPipelineConfig.m) | value | every setting of every step, which steps are enabled, the project root / output root and the dataset selection; round-trips through JSON exactly |
+| [`EphysPipeline`](../pipeline/@EphysPipeline/EphysPipeline.m) | handle | runs a config over an [`EphysProject`](EphysProject.md): plan, validate, run, cancel, progress, results |
+| [`EphysPipelineScript`](../pipeline/@EphysPipelineScript/EphysPipelineScript.m) | static | writes MATLAB scripts that reproduce a config's run, with or without the two classes above |
 
 The GUI ([`EphysPreprocessingApp`](EphysPreprocessingApp.md)) edits one config
 and runs it through the same `EphysPipeline`, so a run from the app, from a
@@ -98,13 +98,21 @@ The `Parallel` checks: `MaxWorkers` must be `NaN` or a whole number ≥ 1
 | `signalOptions(S, ExcludeChannels=, NumChannels=)` | `deriveSignals` options for a `Signals` section, with the exclude handling applied (error IDs `EphysPipelineConfig:Signals*`) |
 | `exportOptions(E)` | name-value options shared by `exportChronux` / `exportFieldTrip` |
 | `ks4Settings(S)` | the Kilosort4 settings struct (blank / `Inf` fields omitted, `KS4ExtraJSON` merged last) |
-| `[S, report] = ks4ForProbe(S, probe, ExcludeChannels=)` | `S` with the probe-dependent Kilosort4 parameters tuned to a probe `.json` file or struct ([rules](EphysPreprocessingApp.md#optimize-for-probe)). `report`: `Probe`, `Geometry` (sites, shanks, row / lateral / nearest-contact spacing, width, span), `Changes` (a table with one row per parameter: old, new, changed, reason) and `Notes`. Errors `EphysPipelineConfig:BadProbe`, `:ProbeEmpty` |
+| `[S, report] = ks4ForProbe(S, probeFile)` | `S` with the Kilosort4 parameters listed in the probe's parameter file ([`<probe>.ks4.json`](file-formats.md#kilosort4-probe-parameters-probeks4json)) set; the others and `KS4ExtraJSON` kept. `report`: `File`, `Description`, `Changes` (a table with one row per parameter: old, new, changed, the file's reason) and `Notes` (extra-JSON overrides). Errors `EphysPipelineConfig:NoProbeParams`, `:BadParams`, `:BadValue` |
+| `file = writeKS4Params(probeFile, values, Description=, Reasons=, Overwrite=)` | writes a struct of typed Kilosort4 parameters as the probe's parameter file. Errors `EphysPipelineConfig:ParamsExist`, `:BadParams` |
+| `[values, report] = ks4ProbeDefaults(probe, ExcludeChannels=)` | good defaults for `KS4ProbeParams` derived from a probe `.json` file or struct ([rules](EphysPreprocessingApp.md#optimize-for-probe)). `report`: `Probe`, `Summary`, `Geometry` (sites, shanks, row / lateral / nearest-contact spacing, width, span), `Reasons` (per parameter) and `Notes`. Errors `EphysPipelineConfig:BadProbe`, `:ProbeEmpty` |
+| `ks4ParamsFile(probeFile)` | the probe's parameter file path, `<folder>/<probe>.ks4.json` |
 | `ks4ParamText`, `ks4ParamFromText`, `kilosortParamSpec` | the typed Kilosort4 parameter spec and its text form (used by the GUI) |
 | `validateSuffix(s)` | rejects `\ / : * ? " < > \|` |
 | `datasetKey(root, folder)` | root-relative key with forward slashes |
 
 Instance: `stepSection(step)`, `stepEnabled(step)`, `enabledSteps()`,
 `isequalConfig(other)`, `toStruct()`, `fromStruct(s)`.
+
+Constants for probe parameter files: `KS4ProbeParams` (the probe-dependent
+parameters: `nblocks`, `dmin`, `dminx`, `nearest_chans`, `nearest_templates`,
+`min_template_size`, `x_centers`), `KS4ParamsSuffix` (`".ks4.json"`),
+`KS4ParamsSchema` (`"ephys-ks4-params/1"`).
 
 ### Dataset keys
 
@@ -272,7 +280,7 @@ txt = EphysPipelineScript.standalone(cfg, File="run_subj1_standalone.m");
 Both scripts write to separate output folders when their config does, and
 the two produce identical `_extract.mat`, `_spikes.mat`, `_chronux.mat`,
 `_fieldtrip.mat` and `si_config.json` files
-([`test_EphysPipelineScript`](../intan/test_EphysPipelineScript.m)).
+([`test_EphysPipelineScript`](../pipeline/test_EphysPipelineScript.m)).
 `EphysPipelineScript.literal(v)` renders strings, string lists, numbers
 (including `Inf`, `NaN`, `[]`), logicals and structs so that
 `eval(literal(v))` reproduces `v`.
@@ -385,10 +393,10 @@ the behavior file.
 
 | Suite | Checks |
 | --- | --- |
-| [`test_EphysPipelineConfig.m`](../intan/test_EphysPipelineConfig.m) | exact save / load round trip with `Inf`, `NaN`, `[]`, one-element lists and bands; normalization fills and drops; `BadSchema`; `ks4Settings`; `ks4ForProbe` on synthetic layouts (staggered 4-shank, Neuropixels-like, dense multi-shank, sparse column, 2-D grid, exclusions, shanks without `kcoords`); every `signalOptions` error and each `ExcludeHandling` mode; `validate` on enabled steps only, the `Parallel` section (`MaxWorkers`) and the background-sorting rule |
-| [`test_EphysPipeline.m`](../intan/test_EphysPipeline.m) | selection by key with duplicate leaf names; `plan()` writes nothing and flags existing / duplicate outputs, missing probe, sorting output and extract file; sorting dry run writes a matching `si_config.json`; `runSignals` / `runSpikeDetection` / `runExport` outputs equal the direct calls; `checkBehavior` associates by prefix and writes the manifest; the artifact cache is reused and invalidated; cancel leaves no partial `.mat`; `Parallel.Enabled` reaches the artifacts and spikes steps and is logged |
-| [`test_TrialPairing.m`](../intan/test_TrialPairing.m) | `pairEpsychTrials`: equal counts, a recording started late or stopped early (partial intervals at the edges, the count-mismatch warning, the cuts that resolve it), an inverted line idle at the recording start, cut validation, nested lines, derived-signal samples; `digitalEvents` cache; `pairTrials` / `setTrialPairing` manifest round trip with cuts and staleness; `behaviorToMat(Pairing=)`; the behavior step records, reuses and reports pairings, a count mismatch included |
-| [`test_EphysPipelineScript.m`](../intan/test_EphysPipelineScript.m) | both scripts are `checkcode`-clean, run, and produce identical outputs; the standalone text never mentions the pipeline classes; disabled steps are commented out in the compact script; `literal` round-trips; the standalone script carries the `Parallel` section into the chunked steps |
-| [`test_EpsychSession.m`](../intan/test_EpsychSession.m) | synthetic `Data` / `Info` files; `NotEpsych`; matching by prefix, by time, and ambiguity |
+| [`test_EphysPipelineConfig.m`](../pipeline/test_EphysPipelineConfig.m) | exact save / load round trip with `Inf`, `NaN`, `[]`, one-element lists and bands; normalization fills and drops; `BadSchema`; `ks4Settings`; `ks4ProbeDefaults` on synthetic layouts (staggered 4-shank, Neuropixels-like, dense multi-shank, sparse column, 2-D grid, exclusions, shanks without `kcoords`); probe parameter files (`writeKS4Params` / `ks4ForProbe`: round trip, a hand-written subset, refusals, every file shipped in `pipeline/probes` loads); every `signalOptions` error and each `ExcludeHandling` mode; `validate` on enabled steps only, the `Parallel` section (`MaxWorkers`) and the background-sorting rule |
+| [`test_EphysPipeline.m`](../pipeline/test_EphysPipeline.m) | selection by key with duplicate leaf names; `plan()` writes nothing and flags existing / duplicate outputs, missing probe, sorting output and extract file; sorting dry run writes a matching `si_config.json`; `runSignals` / `runSpikeDetection` / `runExport` outputs equal the direct calls; `checkBehavior` associates by prefix and writes the manifest; the artifact cache is reused and invalidated; cancel leaves no partial `.mat`; `Parallel.Enabled` reaches the artifacts and spikes steps and is logged |
+| [`test_TrialPairing.m`](../pipeline/test_TrialPairing.m) | `pairEpsychTrials`: equal counts, a recording started late or stopped early (partial intervals at the edges, the count-mismatch warning, the cuts that resolve it), an inverted line idle at the recording start, cut validation, nested lines, derived-signal samples; `digitalEvents` cache; `pairTrials` / `setTrialPairing` manifest round trip with cuts and staleness; `behaviorToMat(Pairing=)`; the behavior step records, reuses and reports pairings, a count mismatch included |
+| [`test_EphysPipelineScript.m`](../pipeline/test_EphysPipelineScript.m) | both scripts are `checkcode`-clean, run, and produce identical outputs; the standalone text never mentions the pipeline classes; disabled steps are commented out in the compact script; `literal` round-trips; the standalone script carries the `Parallel` section into the chunked steps |
+| [`test_EpsychSession.m`](../pipeline/test_EpsychSession.m) | synthetic `Data` / `Info` files; `NotEpsych`; matching by prefix, by time, and ambiguity |
 
-Run everything with [`run_all_tests.m`](../intan/run_all_tests.m).
+Run everything with [`run_all_tests.m`](../pipeline/run_all_tests.m).

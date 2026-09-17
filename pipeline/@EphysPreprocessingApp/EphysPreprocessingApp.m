@@ -605,7 +605,7 @@ classdef EphysPreprocessingApp < handle
         setDropIfMember(obj, dd, value)
         syncSIEnableStates(obj)
         onSIControlsChanged(obj)
-        onOptimizeKS4ForProbe(obj)
+        onOptimizeKS4ForProbe(obj, ifMissing)
         onResetKS4Params(obj)
         p = defaultPythonExe(obj)
         onUseSortingFolder(obj)

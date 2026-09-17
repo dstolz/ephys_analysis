@@ -1,5 +1,7 @@
 function onImportProbe(obj)
 %onImportProbe  Copy an external probe .json into the probe folder.
+%   The probe's Kilosort4 parameter file (<probe>.ks4.json) comes along when
+%   there is one next to it.
 
 [f, p] = uigetfile({'*.json', 'Kilosort4 probe (*.json)'}, "Select a probe .json to import");
 figure(obj.Fig);
@@ -20,6 +22,9 @@ if isfile(dst)
 end
 
 [ok, msg] = copyfile(src, dst);
+if ok && isfile(EphysPipelineConfig.ks4ParamsFile(src))
+    [ok, msg] = copyfile(EphysPipelineConfig.ks4ParamsFile(src), EphysPipelineConfig.ks4ParamsFile(dst), 'f');
+end
 if ~ok
     uialert(obj.Fig, "Copy failed: " + string(msg), "Import probe");
     return

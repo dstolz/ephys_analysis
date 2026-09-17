@@ -1,0 +1,23 @@
+{
+  "schema": "ephys-ks4-params/1",
+  "probe": "H64LP_4x16lin_probemap.json",
+  "description": "Good defaults derived from the probe layout by EphysPipelineConfig.ks4ProbeDefaults. 64 sites on 4 shanks: rows 10 um apart, lateral spacing 17.32 um, nearest contact 20 um.",
+  "KS4": {
+    "nblocks": 0,
+    "dmin": 10,
+    "dminx": 17.32,
+    "nearest_chans": 10,
+    "nearest_templates": 58,
+    "min_template_size": 15,
+    "x_centers": 4
+  },
+  "reasons": {
+    "nblocks": "64 sites, at most 64: drift estimates are unreliable, so no drift correction",
+    "dmin": "median spacing of the contact rows within a shank",
+    "dminx": "median lateral distance to the nearest contact in another column",
+    "nearest_chans": "default, no more than the number of sites",
+    "nearest_templates": "default, no more than the number of sites",
+    "min_template_size": "nearest contacts 20 um apart: the default covers them",
+    "x_centers": "one per shank, 4 shanks"
+  }
+}

@@ -70,6 +70,13 @@ classdef EphysPipelineConfig
         StepNames = ["probe" "behavior" "artifacts" "sorting" "signals" "spikes" "export"]
         % Section that holds each step's settings.
         StepSections = ["Probe" "Behavior" "Artifacts" "Sorting" "Signals" "Spikes" "Export"]
+        % Kilosort4 parameters that depend on the probe layout: what
+        % ks4ProbeDefaults derives and what a probe's parameter file holds
+        % when it is created from the Sorting tab.
+        KS4ProbeParams = ["nblocks" "dmin" "dminx" "nearest_chans" "nearest_templates" "min_template_size" "x_centers"]
+        % A probe map <name>.json keeps its Kilosort4 parameters in <name>.ks4.json.
+        KS4ParamsSuffix = ".ks4.json"
+        KS4ParamsSchema = "ephys-ks4-params/1"
     end
 
     methods
@@ -149,7 +156,10 @@ classdef EphysPipelineConfig
         s     = defaults(section)
         [s, unknown] = normalizeSection(section, s)
         [ks4, errMsg] = ks4Settings(sorting)
-        [sorting, report] = ks4ForProbe(sorting, probe, opts)
+        [sorting, report] = ks4ForProbe(sorting, probeFile)
+        [values, report] = ks4ProbeDefaults(probe, opts)
+        file  = ks4ParamsFile(probeFile)
+        file  = writeKS4Params(probeFile, values, opts)
         s     = signalOptions(signals, opts)
         v     = parseOrderedList(txt, what)
         v     = parseFreqList(txt, what)

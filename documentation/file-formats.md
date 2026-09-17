@@ -42,6 +42,10 @@ written as the strings `"NaN"` / `"Inf"`.
 <anywhere>/
 ├─ <config>.json                        pipeline config (EphysPipelineConfig.save; File → Save)
 └─ <script>.m                           generated script (EphysPipelineScript; File → Generate script)
+
+<probe folder>/                         pipeline/probes by default
+├─ <probe>.json                         Kilosort4 probe map
+└─ <probe>.ks4.json                     its Kilosort4 parameters (writeKS4Params; Sorting → Optimize for probe)
 ```
 
 Output folders for the Signals, Spikes and Export steps can each be redirected
@@ -229,6 +233,45 @@ the shape `kilosort.io.load_probe` accepts:
   smaller than the map length is treated as wrong.
 - `notes`: optional. The GUI Probe tab edits it in place with a minimal textual
   replacement, so the rest of the file's formatting is preserved.
+
+---
+
+## Kilosort4 probe parameters (`<probe>.ks4.json`)
+
+Path: next to the probe map, `<folder>/<probe>.ks4.json` for
+`<folder>/<probe>.json` (`EphysPipelineConfig.ks4ParamsFile`). Written by
+`EphysPipelineConfig.writeKS4Params`, or by the app when **Optimize for probe**
+generates it from the current parameters or from the probe layout. Read by
+`EphysPipelineConfig.ks4ForProbe` (Sorting → Optimize for probe).
+
+```json
+{
+  "schema":      "ephys-ks4-params/1",
+  "probe":       "H64LP_4x16lin_probemap.json",
+  "description": "Good defaults derived from the probe layout by EphysPipelineConfig.ks4ProbeDefaults. ...",
+  "KS4": {
+    "nblocks": 0, "dmin": 10, "dminx": 17.32, "nearest_chans": 10,
+    "nearest_templates": 58, "min_template_size": 15, "x_centers": 4
+  },
+  "reasons": {
+    "nblocks": "64 sites, at most 64: drift estimates are unreliable, so no drift correction",
+    "...": "..."
+  }
+}
+```
+
+- `schema`: required; any other value is refused (`EphysPipelineConfig:BadParams`).
+- `KS4`: the parameters to set, named as in `kilosortParamSpec` (any subset,
+  at least one). Values are read as in a config file: `[]` or `null` is blank
+  (Kilosort's own default) and `"Inf"` is `Inf`. An unknown name is refused.
+  Parameters the file does not list keep their current values.
+- `probe`, `description`, `reasons`: optional and informational. `reasons`
+  holds one text per parameter, shown next to its value when the file is
+  loaded. Other fields are ignored.
+- Generated files hold `EphysPipelineConfig.KS4ProbeParams` (`nblocks`, `dmin`,
+  `dminx`, `nearest_chans`, `nearest_templates`, `min_template_size`,
+  `x_centers`).
+- The Probe tab does not list `*.ks4.json` files as probes.
 
 ---
 

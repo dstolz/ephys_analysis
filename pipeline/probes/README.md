@@ -40,6 +40,30 @@ blocks you — Kilosort4 itself will also warn at run time
 
 Drop your probe `.json` files in this folder to have them appear automatically.
 
+## Kilosort4 parameter files (`<probe>.ks4.json`)
+
+Each probe map can keep its Kilosort4 parameters next to it, in
+`<probe>.ks4.json` (e.g. `H64LP_4x16lin_probemap.ks4.json`). The Sorting tab's
+**Optimize for probe** loads that file into the Kilosort4 parameters. When a
+probe has no such file, the app alerts you and offers to generate one from the
+current parameters or from the probe layout (the good defaults described
+below, which are then loaded). These files are not listed as probes.
+
+The files here hold good defaults for the probe-dependent parameters
+(`nblocks`, `dmin`, `dminx`, `nearest_chans`, `nearest_templates`,
+`min_template_size`, `x_centers`). `EphysPipelineConfig.ks4ProbeDefaults`
+derived them from each layout, following Kilosort4's
+[parameter guide](https://kilosort.readthedocs.io/en/latest/parameters.html);
+`reasons` in each file says why. Edit a file to tune a probe. It may list any
+other Kilosort4 parameter too. The format is in
+[file-formats.md](../../documentation/file-formats.md#kilosort4-probe-parameters-probeks4json).
+To generate good defaults for a new probe map `pf`:
+
+```matlab
+[v, r] = EphysPipelineConfig.ks4ProbeDefaults(pf);
+EphysPipelineConfig.writeKS4Params(pf, v, Description=r.Summary, Reasons=r.Reasons);
+```
+
 ## Creating probes with the designer
 
 Instead of hand-writing the JSON above, use **Probe tab → "Design probe from

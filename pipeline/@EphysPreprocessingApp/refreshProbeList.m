@@ -1,9 +1,10 @@
 function refreshProbeList(obj)
 %refreshProbeList  Populate the probe table from the probe folder.
 %   One row per *.json, with parsed channel/shank/depth metadata and the
-%   optional "notes" field. Full paths are kept in obj.ProbePaths (the table
-%   shows only file names); the previously selected probe stays selected when
-%   it still exists.
+%   optional "notes" field. Kilosort4 parameter files (<probe>.ks4.json, see
+%   EphysPipelineConfig.ks4ParamsFile) belong to a probe and are not listed.
+%   Full paths are kept in obj.ProbePaths (the table shows only file names);
+%   the previously selected probe stays selected when it still exists.
 
 folder = string(obj.ProbeFolderField.Value);
 if folder == "" || ~isfolder(folder)
@@ -15,6 +16,7 @@ prevSel = obj.selectedProbeFile();   % keep selection across refresh if possible
 
 D = dir(fullfile(folder, '*.json'));
 names = string({D.name});
+names = names(~endsWith(names, EphysPipelineConfig.KS4ParamsSuffix, 'IgnoreCase', true));
 if isempty(names)
     obj.ProbeTable.Data = emptyProbeTable();
     obj.ProbePaths = string.empty(1, 0);

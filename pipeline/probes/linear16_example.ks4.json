@@ -1,0 +1,23 @@
+{
+  "schema": "ephys-ks4-params/1",
+  "probe": "linear16_example.json",
+  "description": "Good defaults derived from the probe layout by EphysPipelineConfig.ks4ProbeDefaults. 16 sites on 1 shank: rows 20 um apart, nearest contact 20 um.",
+  "KS4": {
+    "nblocks": 0,
+    "dmin": 20,
+    "dminx": 32,
+    "nearest_chans": 10,
+    "nearest_templates": 16,
+    "min_template_size": 15,
+    "x_centers": 1
+  },
+  "reasons": {
+    "nblocks": "16 sites, at most 64: drift estimates are unreliable, so no drift correction",
+    "dmin": "median spacing of the contact rows within a shank",
+    "dminx": "every shank is a single column, where dminx has no effect: default",
+    "nearest_chans": "default, no more than the number of sites",
+    "nearest_templates": "16 sites, at most 64: capped at the number of sites for numerical stability",
+    "min_template_size": "nearest contacts 20 um apart: the default covers them",
+    "x_centers": "a single shank under 300 um wide: one center"
+  }
+}

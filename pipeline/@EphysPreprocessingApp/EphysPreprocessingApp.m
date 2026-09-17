@@ -547,6 +547,7 @@ classdef EphysPreprocessingApp < handle
         d = currentDataset(obj)
         populateDatasetPickers(obj)
         refreshDatasetMenu(obj)
+        refreshDatasetPickers(obj)
         dd = datasetPicker(obj, parent)
         highlightDatasetRow(obj, opts)
 

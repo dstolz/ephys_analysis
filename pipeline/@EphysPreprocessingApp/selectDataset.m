@@ -38,11 +38,7 @@ end
 for item = obj.DatasetTickedItems(isvalid(obj.DatasetTickedItems))
     item.Checked = isequal(item.UserData, idx);
 end
-if idx >= 1
-    for dd = obj.DatasetPickers(isvalid(obj.DatasetPickers))
-        dd.Value = idx;
-    end
-end
+obj.refreshDatasetPickers();
 obj.highlightDatasetRow(Scroll=~opts.FromTable);
 
 % --- views of the active dataset ---------------------------------------------

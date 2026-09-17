@@ -34,8 +34,8 @@ function [Data, Info] = stitchEpsychSessions(files, opts)
 %   and readEpsychSession:NotFound / NotEpsych for a file that is not an
 %   Epsych2 session.
 %
-%   See also readEpsychSession, epsychSessionMeta, stitchNasSessions,
-%   copyNasSessions.
+%   See also readEpsychSession, epsychSessionMeta, stitchCopySessions,
+%   copySessions.
 
 arguments
     files string

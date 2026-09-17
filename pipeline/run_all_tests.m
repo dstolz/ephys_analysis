@@ -5,7 +5,7 @@ function results = run_all_tests(names)
 %
 %   Each suite prints PASS/FAIL lines and raises an error when any check
 %   fails. A test_*.m that is a matlab.unittest.TestCase class (e.g.
-%   test_NasSessions) is run with runtests and fails when any test fails.
+%   test_CopySessions) is run with runtests and fails when any test fails.
 %   This runner catches per-suite errors, prints a summary, and errors
 %   at the end when any suite failed, so it can drive `matlab -batch` and CI:
 %

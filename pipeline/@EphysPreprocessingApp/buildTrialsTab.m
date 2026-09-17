@@ -21,7 +21,7 @@ function buildTrialsTab(obj)
 %   (EphysDataset.setTrialPairing); the behavior step then reuses them.
 
 g = uigridlayout(obj.TabTrials, [4 2]);
-g.RowHeight   = {'fit', 'fit', '1x', 200};
+g.RowHeight   = {'fit', 'fit', '2x', '1x'};
 g.ColumnWidth = {300, '1x'};
 g.Padding     = [10 10 10 10];
 changed = @(~,~) obj.onTrialsSettingsChanged();

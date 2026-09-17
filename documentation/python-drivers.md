@@ -14,11 +14,11 @@ the exact script it used.
 
 | Script | Called by | Environment needs |
 | --- | --- | --- |
-| [`run_si_ks4.py`](../intan/@EphysDataset/run_si_ks4.py) | `EphysDataset.runSpikeInterface` (the pipeline's Sorting step) | spikeinterface, probeinterface, neo, kilosort, torch |
-| [`run_ks4.py`](../intan/@EphysDataset/run_ks4.py) | `EphysDataset.runKilosort` (legacy `.bin` engine) | kilosort, torch |
-| [`probe_tool.py`](../intan/@EphysPreprocessingApp/probe_tool.py) | `EphysPreprocessingApp.runProbeTool` / `ProbeDesignerApp` | probeinterface |
+| [`run_si_ks4.py`](../pipeline/@EphysDataset/run_si_ks4.py) | `EphysDataset.runSpikeInterface` (the pipeline's Sorting step) | spikeinterface, probeinterface, neo, kilosort, torch |
+| [`run_ks4.py`](../pipeline/@EphysDataset/run_ks4.py) | `EphysDataset.runKilosort` (legacy `.bin` engine) | kilosort, torch |
+| [`probe_tool.py`](../pipeline/@EphysPreprocessingApp/probe_tool.py) | `EphysPreprocessingApp.runProbeTool` / `ProbeDesignerApp` | probeinterface |
 
-Versions known to work are listed in [INSTALL.md](../intan/INSTALL.md):
+Versions known to work are listed in [INSTALL.md](../pipeline/INSTALL.md):
 spikeinterface 0.104.5, kilosort 4.1.7, probeinterface 0.3.2, neo 0.14.4,
 torch 2.7.1.
 

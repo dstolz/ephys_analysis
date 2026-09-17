@@ -1,6 +1,6 @@
 # EphysProject
 
-`EphysProject` ([source](../intan/@EphysProject/EphysProject.m))
+`EphysProject` ([source](../pipeline/@EphysProject/EphysProject.m))
 is a `handle` class that discovers **many recordings** under one root folder,
 wraps each one as an [`EphysDataset`](EphysDataset.md), and runs batch
 operations over them. It holds shared configuration (probe, Python/conda, output
@@ -122,7 +122,7 @@ P = EphysProject("D:\experiments", OutputRoot="D:\sorted");
 P.refresh();                              % headers + manifests
 T = P.gatherMetadata();                   % one row per dataset
 i = P.findByKey("mouse1/sess1");
-P.Datasets(i).ProbeFile = "C:\src\ephys_analysis\intan\probes\H64LP_4x16lin_probemap.json";
+P.Datasets(i).ProbeFile = "C:\src\ephys_analysis\pipeline\probes\H64LP_4x16lin_probemap.json";
 P.Datasets(i).writeManifest();
 
 % run a config over the project (see EphysPipeline.md)

@@ -1,6 +1,6 @@
 # ProbeDesignerApp
 
-`ProbeDesignerApp` ([source](../intan/ProbeDesignerApp.m)) is a `handle` class
+`ProbeDesignerApp` ([source](../pipeline/ProbeDesignerApp.m)) is a `handle` class
 that opens a modal window for **building a Kilosort4 probe `.json`**. You can
 start from a manufactured probe in the
 [probeinterface library](https://github.com/SpikeInterface/probeinterface_library)
@@ -17,7 +17,7 @@ consumes only that JSON.
 
 The designer is normally opened from the GUI: **Probe tab → "Design probe from
 probeinterface (library / generate)..."**
-([`EphysPreprocessingApp.onDesignProbe`](../intan/@EphysPreprocessingApp/onDesignProbe.m)).
+([`EphysPreprocessingApp.onDesignProbe`](../pipeline/@EphysPreprocessingApp/onDesignProbe.m)).
 Programmatically:
 
 ```matlab
@@ -63,7 +63,7 @@ ProbeDesignerApp(app)          % or ProbeDesignerApp(app, nChanHint)
    is removed. It defaults to the probe name (library) or `linearN` / `mcCxN` /
    `tetrode` (generated). Notes are stored in the JSON `notes` field.
 6. **Save to probe folder** writes `<probe folder>/<name>.json`. The probe
-   folder is the Probe tab's folder, or `intan/probes` if that is blank or
+   folder is the Probe tab's folder, or `pipeline/probes` if that is blank or
    missing.
 
 ## What is written
@@ -96,5 +96,5 @@ to `tempname` locations and are not deleted by the designer.
 
 - A Python executable set on the GUI's Sorting tab, pointing at an environment
   with `probeinterface` (the `kilosort` env from
-  [INSTALL.md](../intan/INSTALL.md) has it).
+  [INSTALL.md](../pipeline/INSTALL.md) has it).
 - Internet access for the first library download.

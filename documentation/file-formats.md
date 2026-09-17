@@ -153,7 +153,7 @@ Schema `intan-dataset-manifest/2` (`null` where a value is `NaN`):
 ## Pipeline config JSON
 
 Written by `EphysPipelineConfig.save` (GUI **File → Save config**). Default
-folder for the GUI's dialogs: [`intan/pipeline_configs`](../intan/pipeline_configs),
+folder for the GUI's dialogs: [`pipeline/pipeline_configs`](../pipeline/pipeline_configs),
 which holds `H64LP_4x16.json` as a starting point.
 
 ```text
@@ -204,7 +204,7 @@ a cache whose fingerprint differs from the current settings is recomputed.
 
 ## Kilosort4 probe JSON
 
-Stored in [`intan/probes`](../intan/probes/README.md) by default. This is
+Stored in [`pipeline/probes`](../pipeline/probes/README.md) by default. This is
 the shape `kilosort.io.load_probe` accepts:
 
 ```json

@@ -1,6 +1,6 @@
 # DatasetOutputs
 
-`DatasetOutputs` ([source](../intan/@DatasetOutputs/DatasetOutputs.m)) is a
+`DatasetOutputs` ([source](../pipeline/@DatasetOutputs/DatasetOutputs.m)) is a
 `handle` class that tracks **one dataset's processed files** and loads each
 one only when you ask for it. It gives analysis scripts one way to reach the
 preprocessed data, wherever the pipeline wrote it:
@@ -139,7 +139,7 @@ end
 
 ## Tests
 
-[`test_DatasetOutputs.m`](../intan/test_DatasetOutputs.m) covers classification
+[`test_DatasetOutputs.m`](../pipeline/test_DatasetOutputs.m) covers classification
 by variables, how decoys are rejected (name prefix, provenance, partial files),
 newest-wins selection, merged and per-signal extracts, units, behavior from
 the written file and from the session, pinning and `SearchDirs`, caching, and

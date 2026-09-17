@@ -1,6 +1,6 @@
 # Pipeline documentation
 
-This folder is the reference for the code in [`intan`](../intan): a
+This folder is the reference for the code in [`pipeline`](../pipeline): a
 config-driven preprocessing pipeline for extracellular recordings. It reads
 recordings through an acquisition-agnostic reader layer (Intan RHD out of the
 box, anything else through a universal binary format), screens them for
@@ -30,9 +30,9 @@ the headless runner and generated scripts.
 | [Python drivers](python-drivers.md) | `run_si_ks4.py`, `run_ks4.py`, `probe_tool.py` |
 | [Files on disk](file-formats.md) | folder layout and every JSON / `.bin` / `.mat` schema |
 
-Existing docs next to the code: [INSTALL.md](../intan/INSTALL.md) (Windows
+Existing docs next to the code: [INSTALL.md](../pipeline/INSTALL.md) (Windows
 setup, conda environments, GPU) and
-[probes/README.md](../intan/probes/README.md) (probe map format).
+[probes/README.md](../pipeline/probes/README.md) (probe map format).
 
 ## How the pieces fit
 
@@ -107,7 +107,7 @@ One dataset by hand:
 
 ```matlab
 ds = EphysDataset("D:\rec\subj1_day1");
-ds.ProbeFile = "C:\src\ephys_analysis\intan\probes\H64LP_4x16lin_probemap.json";
+ds.ProbeFile = "C:\src\ephys_analysis\pipeline\probes\H64LP_4x16lin_probemap.json";
 ds.PythonExe = "C:\Users\me\miniconda3\envs\kilosort\python.exe";
 res = ds.runSpikeInterface();        % blocks until Kilosort4 finishes
 U   = ds.readSortedUnits();          % the sorted units (phy labels, times, channels)
@@ -209,7 +209,7 @@ Collected from the code. Each is explained on the linked page.
 | Derived-signal bad channels | interpolation is across neighboring **columns**, not probe geometry | [intan2matlab](intan2matlab.md#processing-order) |
 | Chronux trial onsets | a dig-in onset maps to sample `round(t·Fs)` of the signal being epoched, so at a derived rate it is accurate to ±1 sample; Chronux's own `createdatamatc` indexes one sample later | [ChronuxDataset](ChronuxDataset.md#trial-sample-alignment) |
 | Chronux point-process grid | left to itself `mtspectrumpt` normalizes by the span of the spikes, not the recording; pass the `t` the connector returns | [ChronuxDataset](ChronuxDataset.md#why-t-matters-for-point-processes) |
-| MATLAB version | the Visualize tab uses `xregion` (R2023a+); the code is developed on R2025a | [INSTALL.md](../intan/INSTALL.md) |
+| MATLAB version | the Visualize tab uses `xregion` (R2023a+); the code is developed on R2025a | [INSTALL.md](../pipeline/INSTALL.md) |
 | Parallel steps | the worker count is capped by free memory (4-5 on a 32 GB machine), not by the pool size; every worker reads the disk, so on a slow external disk a parallel step can be no faster than serial; the results are identical either way | [EphysPipeline → Parallel execution](EphysPipeline.md#parallel-execution) |
 
 ## Dependencies
@@ -229,7 +229,7 @@ Collected from the code. Each is explained on the linked page.
 
 | Function | Used by |
 | --- | --- |
-| [`read_Intan_RHD2000_file_modified`](../intan/read_Intan_RHD2000_file_modified.m) | `IntanReader`, traditional `*.rhd` |
+| [`read_Intan_RHD2000_file_modified`](../pipeline/read_Intan_RHD2000_file_modified.m) | `IntanReader`, traditional `*.rhd` |
 | [`matrix2kilosort`](../matrix2kilosort.m) | `EphysDataset.matrixToBin` |
 | [`MultiChannelViewer`](../vendor/plotting/@MultiChannelViewer/MultiChannelViewer.m) | GUI Visualize tab |
 | [`Manifest`](../vendor/tools/Manifest.m) | optional provenance log |
@@ -238,7 +238,7 @@ Collected from the code. Each is explained on the linked page.
 
 **Python**: a conda environment with spikeinterface, kilosort, probeinterface,
 neo and torch, plus an optional separate `phy` environment. Needed only for
-the sorting step and the probe designer. See [INSTALL.md](../intan/INSTALL.md)
+the sorting step and the probe designer. See [INSTALL.md](../pipeline/INSTALL.md)
 for known-good versions.
 
 **Optional MATLAB toolboxes**: [Chronux](http://chronux.org) (bundled in
@@ -252,12 +252,12 @@ structures with `ft_datatype_*` when FieldTrip is present.
 ## Tests
 
 Every suite is a function-style script that builds synthetic fixtures in a
-temp folder (shared builders in [`intan/private`](../intan/private)), prints
+temp folder (shared builders in [`pipeline/private`](../pipeline/private)), prints
 PASS / FAIL lines and errors when anything fails. No real recordings, no
 Python and no optional toolbox are needed.
 
 For trying the pipeline or the app by hand without real data,
-[`makeSyntheticProject`](../intan/makeSyntheticProject.m) (or the app's
+[`makeSyntheticProject`](../pipeline/makeSyntheticProject.m) (or the app's
 **File → Create synthetic test project...**) writes a realistic project:
 recordings with spiking units, LFP, artifacts, the lab's six digital lines
 and accelerometer inputs, an Epsych2 session per recording, ground-truth
@@ -265,7 +265,7 @@ sorted output and a ready pipeline config. See
 [EphysPreprocessingApp → Synthetic test project](EphysPreprocessingApp.md#synthetic-test-project).
 
 ```matlab
-cd C:\src\ephys_analysis\intan
+cd C:\src\ephys_analysis\pipeline
 run_all_tests            % every test_*.m; errors if any fails
 test_EphysPipeline       % one suite
 ```

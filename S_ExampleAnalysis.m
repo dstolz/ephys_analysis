@@ -1,8 +1,10 @@
 %%
 
+clear classes
+startup
 addpath_nogit('c:\src\ephys_analysis')
 
-%%
+%
 
 EphysPreprocessingApp
 
@@ -11,7 +13,7 @@ EphysPreprocessingApp
 %%
 
 P = EphysProject("D:\EPHYS", ...
-    ProbeFile="C:\src\ephys_analysis\intan\probes\H64LP_4x16lin_probemap.json");
+    ProbeFile="C:\src\ephys_analysis\pipeline\probes\H64LP_4x16lin_probemap.json");
 P.refresh();                     % headers + per-dataset manifests
 
 T = P.gatherMetadata();          % header-only, one row per dataset
@@ -38,7 +40,7 @@ cfg = EphysPipelineConfig();
 cfg.Name = "example";
 cfg.Project.Root = "D:\EPHYS";
 cfg.Project.OutputRoot = "D:\EPHYS_out";
-cfg.Probe.DefaultProbeFile = "C:\src\ephys_analysis\intan\probes\H64LP_4x16lin_probemap.json";
+cfg.Probe.DefaultProbeFile = "C:\src\ephys_analysis\pipeline\probes\H64LP_4x16lin_probemap.json";
 cfg.Artifacts.Enabled = true;                          % automatic detection (+ manual periods)
 cfg.Sorting.Enabled = true;                            % SpikeInterface + Kilosort4 (optional)
 cfg.Sorting.PythonExe = "C:\Users\me\miniconda3\envs\kilosort\python.exe";

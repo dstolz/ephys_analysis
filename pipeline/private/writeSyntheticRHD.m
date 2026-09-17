@@ -26,8 +26,8 @@ function writeSyntheticRHD(ffn, ampRaw, digRaw, Fs, spb, opts)
 %   int32 timestamps, the amplifier samples channel by channel, the aux
 %   samples channel by channel (spb/4 each), then the dig-in words.
 %
-%   Shared by the test suites (intan/private is visible to functions in
-%   intan/) and by makeSyntheticRecording. See also writeRhdHeader,
+%   Shared by the test suites (pipeline/private is visible to functions in
+%   pipeline/) and by makeSyntheticRecording. See also writeRhdHeader,
 %   writeInfoRHD, writeDat, injectSpikes, makePhyFixture.
 
 arguments

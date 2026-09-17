@@ -7,7 +7,7 @@ function loadReviewResults(obj)
 %   only re-renders from the cache (see renderReviewPlots).
 %
 %   .npy files are read with the repository's small reader (READNPY, in
-%   intan/); no external toolbox is required. Numeric arrays are assumed
+%   pipeline/); no external toolbox is required. Numeric arrays are assumed
 %   little-endian, which is what Kilosort4 writes on x86.
 
 folder = strtrim(obj.ReviewFolderField.Value);

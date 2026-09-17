@@ -9,7 +9,7 @@ function p = makeSyntheticProbe(nChan, opts)
 %   agree, as in the lab's H64LP maps.
 %
 %   P = makeSyntheticProbe(nChan, File=f) also writes the JSON (the shape
-%   kilosort.io.load_probe accepts, see intan/probes/README.md) to F.
+%   kilosort.io.load_probe accepts, see pipeline/probes/README.md) to F.
 %
 %   See also makeSyntheticRecording, makeSyntheticProject.
 

@@ -1,6 +1,6 @@
 # EphysDataset
 
-`EphysDataset` ([source](../intan/@EphysDataset/EphysDataset.m)) is a `handle`
+`EphysDataset` ([source](../pipeline/@EphysDataset/EphysDataset.m)) is a `handle`
 class that represents **one recording**: one folder of data recorded
 contiguously. It is the core of the pipeline. The project, pipeline, tracker
 and GUI classes all act on recordings through it.
@@ -41,7 +41,7 @@ file: `.bin`, JSON sidecar, manifest, Kilosort4 run folder, or `.mat`.
 
 ## Acquisition readers
 
-`EphysReader` ([source](../intan/@EphysReader/EphysReader.m)) is the abstract
+`EphysReader` ([source](../pipeline/@EphysReader/EphysReader.m)) is the abstract
 contract between an acquisition system and the pipeline. A reader knows one
 on-disk format and answers five questions:
 
@@ -66,8 +66,8 @@ true (bounded random access, used to carry context across chunks), and
 
 | Reader | `RecordingFormat` | Claims a folder with |
 | --- | --- | --- |
-| [`IntanReader`](../intan/@IntanReader/IntanReader.m) | `"traditional"`, `"one-file-per-signal"`, `"one-file-per-channel"` | `*.rhd` (see [layouts](#supported-recording-layouts)) |
-| [`BinaryReader`](../intan/@BinaryReader/BinaryReader.m) | `"binary"` | `recording.json` next to a flat channel-major binary ([format](file-formats.md#universal-recording-format-recordingjson)). Any other system can be brought in by converting to this; `BinaryReader.writeDescriptor(folder, spec)` writes the descriptor |
+| [`IntanReader`](../pipeline/@IntanReader/IntanReader.m) | `"traditional"`, `"one-file-per-signal"`, `"one-file-per-channel"` | `*.rhd` (see [layouts](#supported-recording-layouts)) |
+| [`BinaryReader`](../pipeline/@BinaryReader/BinaryReader.m) | `"binary"` | `recording.json` next to a flat channel-major binary ([format](file-formats.md#universal-recording-format-recordingjson)). Any other system can be brought in by converting to this; `BinaryReader.writeDescriptor(folder, spec)` writes the descriptor |
 
 **Universal data struct** (what `readData` returns for every reader):
 `amplifier` `[nSamples x nChan]` microvolts (double or single); `Fs`; `t`
@@ -207,7 +207,7 @@ ds = EphysDataset("D:\rec\subj1_day1");
 ds.PerFile                                   % per-file header summary
 
 % --- Kilosort4 via SpikeInterface (what the GUI does) ---
-ds.ProbeFile = "C:\src\ephys_analysis\intan\probes\H64LP_4x16lin_probemap.json";
+ds.ProbeFile = "C:\src\ephys_analysis\pipeline\probes\H64LP_4x16lin_probemap.json";
 ds.PythonExe = "C:\Users\me\miniconda3\envs\kilosort\python.exe";
 ds.ExcludeChannels = [5 17];
 res = ds.runSpikeInterface(DryRun=true);     % write si_config.json + script only
@@ -669,7 +669,7 @@ Kilosort4's exit code. Either way the Python script writes `ks4_status.json`
 #### `result = runSpikeInterface(Name=Value)`
 
 This path writes no `.bin`. It writes `si_config.json` and a copy of
-[`run_si_ks4.py`](../intan/@EphysDataset/run_si_ks4.py) into `kilosortDir()`
+[`run_si_ks4.py`](../pipeline/@EphysDataset/run_si_ks4.py) into `kilosortDir()`
 (`<outputFolder>/kilosort4`) and runs it. The script reads the raw recording with
 SpikeInterface, attaches the probe, applies the `SIConfig` preprocessing plus
 artifact silencing, and runs Kilosort4 via `run_sorter` into `<kilosort4>/si`.
@@ -719,7 +719,7 @@ described step by step in [python-drivers.md](python-drivers.md#run_si_ks4py).
 
 This requires an existing `.bin` (run `toBin` first) unless `DryRun=true`. It
 writes `settings.json` and a copy of
-[`run_ks4.py`](../intan/@EphysDataset/run_ks4.py) into `ResultsDir` (default
+[`run_ks4.py`](../pipeline/@EphysDataset/run_ks4.py) into `ResultsDir` (default
 `<outputFolder>/kilosort4`), then calls `kilosort.run_kilosort`. The phy output
 lands directly in that folder.
 
@@ -990,9 +990,9 @@ is in [file-formats.md](file-formats.md#dataset-manifest).
 
 ## Tests
 
-[`test_EphysDataset.m`](../intan/test_EphysDataset.m) builds synthetic `*.rhd`,
+[`test_EphysDataset.m`](../pipeline/test_EphysDataset.m) builds synthetic `*.rhd`,
 split-layout, binary, phy and Epsych2 fixtures in a temp folder (the fixture
-builders in [`intan/private`](../intan/private) are shared by every suite) and
+builders in [`pipeline/private`](../pipeline/private) are shared by every suite) and
 deletes them afterwards. It covers:
 
 | Section (as printed by the test) | Covers |
@@ -1018,4 +1018,4 @@ deletes them afterwards. It covers:
 | 20 | `exportChronux` / `exportFieldTrip`, `readBehavior` / `behaviorStruct` / `behaviorToMat` |
 
 It needs no real recording data and no Kilosort4 install. Run every suite with
-[`run_all_tests.m`](../intan/run_all_tests.m).
+[`run_all_tests.m`](../pipeline/run_all_tests.m).

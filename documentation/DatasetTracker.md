@@ -1,6 +1,6 @@
 # DatasetTracker
 
-`DatasetTracker` ([source](../intan/@DatasetTracker/DatasetTracker.m)) is a
+`DatasetTracker` ([source](../pipeline/@DatasetTracker/DatasetTracker.m)) is a
 `handle` class that takes a **read-only filesystem inventory** of one directory:
 every file the pipeline produces or consumes.
 
@@ -178,7 +178,7 @@ ds = dt.recording(1, AutoMetadata=true);
 
 ## Tests
 
-[`test_DatasetTracker.m`](../intan/test_DatasetTracker.m) builds a synthetic tree
+[`test_DatasetTracker.m`](../pipeline/test_DatasetTracker.m) builds a synthetic tree
 (empty `*.rhd` files, a `.bin` + sidecar, a probe `.json` plus a decoy `.json`,
 two `kilosort4` folders) and checks recordings, probe classification, bin
 sidecars, Kilosort4 runs, accessors/tables, and non-recursive/empty behavior.

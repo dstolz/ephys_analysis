@@ -14,7 +14,7 @@
     "MaxWorkers": "NaN"
   },
   "Probe": {
-    "DefaultProbeFile": "C:\\src\\ephys_analysis\\intan\\probes\\H64LP_4x16lin_probemap.json",
+    "DefaultProbeFile": "C:\\src\\ephys_analysis\\pipeline\\probes\\H64LP_4x16lin_probemap.json",
     "WriteDefaultToManifest": false
   },
   "Behavior": {

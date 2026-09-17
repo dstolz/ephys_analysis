@@ -1,6 +1,6 @@
 # FieldTripExport
 
-[`FieldTripExport`](../intan/@FieldTripExport/FieldTripExport.m) is a static
+[`FieldTripExport`](../pipeline/@FieldTripExport/FieldTripExport.m) is a static
 class of pure packaging functions that build the data structures the
 [FieldTrip](https://www.fieldtriptoolbox.org/) toolbox documents
 (`ft_datatype_raw`, `ft_datatype_spike`, `ft_read_event`) from what this
@@ -78,7 +78,7 @@ spk = ft_spike_maketrials(struct('trl', cfg.trl, 'timestampspersecond', F.spike.
 
 ## Tests
 
-[`test_FieldTripExport.m`](../intan/test_FieldTripExport.m): `raw`
+[`test_FieldTripExport.m`](../pipeline/test_FieldTripExport.m): `raw`
 (`trial{1}` = `Y.LFP.'`, `time{1}(1) == 0`, `sampleinfo == [1 N]`, labels,
 `hdr.TimeStampPerSample == origFs/Fs`), `spike` (timestamps equal the sorted
 samples, `FirstTimeStamp == 0`, no `time` / `trial`), `event` (`sample ==

@@ -1,6 +1,6 @@
 # ChronuxDataset
 
-`ChronuxDataset` ([source](../intan/@ChronuxDataset/ChronuxDataset.m)) is a
+`ChronuxDataset` ([source](../pipeline/@ChronuxDataset/ChronuxDataset.m)) is a
 `handle` class that connects this pipeline's data to the
 [**Chronux**](http://chronux.org) toolbox: it hands Chronux's spectral routines
 the data structures they expect, together with a validated `params` struct, and
@@ -385,7 +385,7 @@ isequal(bi.nBins, ci.nSamples)      % true: bin k starts on sample k
 
 ## Tests
 
-[`test_ChronuxDataset.m`](../intan/test_ChronuxDataset.m) builds its fixtures in
+[`test_ChronuxDataset.m`](../pipeline/test_ChronuxDataset.m) builds its fixtures in
 a temp folder and deletes them afterwards. It covers:
 
 | Section (as printed by the test) | Covers |

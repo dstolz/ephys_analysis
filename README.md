@@ -12,22 +12,22 @@ runner (`EphysPipeline`) and generated scripts (`EphysPipelineScript`).
 
 This repository was split out of
 [`helper_fnc`](https://github.com/dstolz/helper_fnc)'s `ephys/` folder on
-2026-09-11. `ephys/intan` became [`intan/`](intan) and `ephys/documentation`
+2026-09-11. `ephys/intan` became [`pipeline/`](pipeline) and `ephys/documentation`
 became [`documentation/`](documentation) at the repo root; history was not
 carried over (fresh initial commit).
 
 See [documentation/README.md](documentation/README.md) for the full pipeline
-reference and [intan/INSTALL.md](intan/INSTALL.md) for setup.
+reference and [pipeline/INSTALL.md](pipeline/INSTALL.md) for setup.
 
 ## Layout
 
 | Path | Contents |
 | --- | --- |
-| [`intan/`](intan) | `EphysDataset`, `EphysReader` / `IntanReader` / `BinaryReader`, `EphysProject`, `DatasetTracker`, `EphysPipelineConfig` / `EphysPipeline` / `EphysPipelineScript`, `EphysPreprocessingApp`, `ChronuxDataset`, `FieldTripExport`, Epsych2 readers, probe JSON, pipeline configs, Python drivers, tests |
-| [`intan/pipeline_configs/`](intan/pipeline_configs) | starting-point pipeline configs (`H64LP_4x16.json`) |
+| [`pipeline/`](pipeline) | `EphysDataset`, `EphysReader` / `IntanReader` / `BinaryReader`, `EphysProject`, `DatasetTracker`, `EphysPipelineConfig` / `EphysPipeline` / `EphysPipelineScript`, `EphysPreprocessingApp`, `ChronuxDataset`, `FieldTripExport`, Epsych2 readers, probe JSON, pipeline configs, Python drivers, tests |
+| [`pipeline/pipeline_configs/`](pipeline/pipeline_configs) | starting-point pipeline configs (`H64LP_4x16.json`) |
 | [`documentation/`](documentation) | Reference docs for the pipeline |
 | [`S_ExampleAnalysis.m`](S_ExampleAnalysis.m) | script walkthrough: project, detection, derived signals, the pipeline and its outputs |
-| [`extract_trials.m`](extract_trials.m), [`matrix2kilosort.m`](matrix2kilosort.m) | Top-level helpers used by `intan/` |
+| [`extract_trials.m`](extract_trials.m), [`matrix2kilosort.m`](matrix2kilosort.m) | Top-level helpers used by `pipeline/` |
 | [`vendor/`](vendor) | Copies of a few `helper_fnc` utilities this pipeline depends on — see [vendor/README.md](vendor/README.md) |
 | [`toolboxes/chronux`](toolboxes/chronux) | Bundled copy of the [Chronux](http://chronux.org) toolbox, used with `ChronuxDataset` |
 
@@ -48,4 +48,4 @@ No data yet? `makeSyntheticProject("D:\scratch\synthetic_ephys")` (or **File →
 Create synthetic test project...** in the GUI) writes synthetic recordings
 with Epsych2 sessions, sorted output and a ready config to run.
 
-Tests: `cd intan; run_all_tests`.
+Tests: `cd pipeline; run_all_tests`.

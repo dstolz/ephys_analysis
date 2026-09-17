@@ -7,7 +7,7 @@ function results = run_all_tests(names)
 %   fails. This runner catches per-suite errors, prints a summary, and errors
 %   at the end when any suite failed, so it can drive `matlab -batch` and CI:
 %
-%     matlab -batch "cd('C:\src\ephys_analysis\intan'); run_all_tests"
+%     matlab -batch "cd('C:\src\ephys_analysis\pipeline'); run_all_tests"
 %
 %   Returns a table (Suite, Passed, Seconds, Message).
 

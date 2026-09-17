@@ -1,6 +1,6 @@
 # Installing `EphysPreprocessingApp` on Windows 11
 
-`EphysPreprocessingApp` is a MATLAB `uifigure` GUI (`intan/@EphysPreprocessingApp`)
+`EphysPreprocessingApp` is a MATLAB `uifigure` GUI (`pipeline/@EphysPreprocessingApp`)
 that scans recordings (Intan `.rhd`, or the universal binary format),
 previews/filters them, optionally hands them off to **SpikeInterface +
 Kilosort4** (running in a separate Python/conda environment) for spike sorting
@@ -40,7 +40,7 @@ everything except sorting and probe design.
    ```matlab
    addpath_nogit(pwd)
    ```
-   This adds the repo (including `intan` and the vendored `vendor/` helpers) to
+   This adds the repo (including `pipeline` and the vendored `vendor/` helpers) to
    the path while skipping `.git` folders. Save the path (`savepath`) if you
    want this to persist across MATLAB restarts, or re-run it each session.
 
@@ -135,7 +135,7 @@ still runs and writes phy-format output either way.
 Run the MATLAB test suites first; they need no Python and no real data:
 
 ```matlab
-cd C:\src\ephys_analysis\intan
+cd C:\src\ephys_analysis\pipeline
 run_all_tests
 ```
 

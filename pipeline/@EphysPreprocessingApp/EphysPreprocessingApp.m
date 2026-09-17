@@ -657,6 +657,7 @@ classdef EphysPreprocessingApp < handle
         onReviewOpenPhy(obj)
         syncReviewDataset(obj)
         onReviewUnitSelected(obj, evt)
+        onReviewNoteEdited(obj, evt)
         onReviewAllUnits(obj)
 
         % --- app-wide ---

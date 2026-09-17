@@ -31,8 +31,8 @@ nSh = R.nShank;
 counts = zeros(nSh, 3);   % [good mua other]
 for s = 1:nSh
     m = R.shank == R.shankIDs(s);
-    counts(s, 1) = sum(m & R.label == "good");
-    counts(s, 2) = sum(m & R.label == "mua");
+    counts(s, 1) = sum(m & R.group == "good");
+    counts(s, 2) = sum(m & R.group == "mua");
     counts(s, 3) = sum(m) - counts(s, 1) - counts(s, 2);
 end
 b = bar(ax, 1:nSh, counts, 'stacked');
@@ -101,8 +101,8 @@ else
     ax.YTickLabel = flipud(string(ord(:)));
     ylabel(ax, "Channel");
     xlabel(ax, "Time (ms)");
-    title(ax, sprintf("Unit %d waveform (top %d ch, peak ch %d)", ...
-        R.clusterID(sel), K, R.peakChan(sel)));
+    title(ax, sprintf("%s waveform (top %d ch, peak ch %d)", ...
+        R.unitLabel(sel), K, R.peakChan(sel)), 'Interpreter', 'none');
 end
 hold(ax, 'off');
 grid(ax, 'on');
@@ -136,8 +136,8 @@ else
         t = t(keep); a = a(keep);
     end
     scatter(ax, t, a, 5, [0 0.35 0.75], 'filled', 'MarkerFaceAlpha', 0.4);
-    title(ax, sprintf("Unit %d amplitudes (%s spikes)", ...
-        R.clusterID(sel), thousands(N)));
+    title(ax, sprintf("%s amplitudes (%s spikes)", ...
+        R.unitLabel(sel), thousands(N)), 'Interpreter', 'none');
 end
 xlabel(ax, "Time (s)");
 ylabel(ax, "Amplitude (a.u.)");

@@ -72,7 +72,8 @@ classdef EphysPipeline < handle
                     error('EphysPipeline:NoRoot', 'Project root does not exist: "%s".', cfg.Project.Root);
                 end
                 obj.Project = EphysProject(cfg.Project.Root, OutputRoot=cfg.Project.OutputRoot, ...
-                    PythonExe=cfg.Sorting.PythonExe, CondaEnv=cfg.Sorting.CondaEnv);
+                    PythonExe=cfg.Sorting.PythonExe, CondaEnv=cfg.Sorting.CondaEnv, ...
+                    NamePattern=cfg.Project.NamePattern);
                 obj.Project.refresh();
             else
                 obj.Project = opts.Project;
@@ -455,8 +456,9 @@ classdef EphysPipeline < handle
     methods (Static)
         function applyConfigToDatasets(cfg, P)
             %applyConfigToDatasets  Push the config's shared settings onto every dataset.
-            %   Sets PythonExe, CondaEnv, SIConfig, ArtifactConfig, TrialConfig and OutputDir
-            %   (<OutputRoot>/<Name> when an output root is set). Never touches
+            %   Sets PythonExe, CondaEnv, SIConfig, ArtifactConfig, TrialConfig, OutputDir
+            %   (<OutputRoot>/<Name> when an output root is set), and the NamePattern and
+            %   DatasetKey that label sorted units. Never touches
             %   the per-dataset manifest state: ProbeFile, ExcludeChannels,
             %   ManualArtifacts, SortingDir, BehaviorFile.
             arguments
@@ -466,6 +468,7 @@ classdef EphysPipeline < handle
             P.PythonExe  = cfg.Sorting.PythonExe;
             P.CondaEnv   = cfg.Sorting.CondaEnv;
             P.OutputRoot = cfg.Project.OutputRoot;
+            P.NamePattern = cfg.Project.NamePattern;
             acfg = EphysPipelineConfig.artifactConfig(cfg.Artifacts);
             tcfg = EphysPipelineConfig.trialConfig(cfg);
             for k = 1:P.NumDatasets
@@ -475,6 +478,8 @@ classdef EphysPipeline < handle
                 d.SIConfig       = cfg.Sorting.SI;
                 d.ArtifactConfig = acfg;
                 d.TrialConfig    = tcfg;
+                d.NamePattern    = cfg.Project.NamePattern;
+                d.DatasetKey     = EphysProject.relativeKey(P.Root, d.Folder);
                 if cfg.Project.OutputRoot ~= ""
                     d.OutputDir = fullfile(cfg.Project.OutputRoot, d.Name);
                 end

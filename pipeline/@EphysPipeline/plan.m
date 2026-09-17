@@ -10,6 +10,12 @@ function T = plan(obj, opts)
 %     no sorting output            a step needs sorted units this dataset lacks
 %     no extract file              export needs the Signals output
 %     duplicate output             two selected datasets would write one file
+%     error: unit identity         a step reads sorted units but the dataset
+%                                  name does not give the subject and
+%                                  recording start (Project.NamePattern)
+%     error: unit label collision  another sorted or selected dataset has the
+%                                  same subject and recording start minute,
+%                                  so their unit labels would be the same
 %     error: ...                   a setting cannot apply to this dataset
 %                                  (e.g. LFP_Fs above the recording rate)
 %   Rows whose Status starts with "duplicate" or "error" stop run().
@@ -160,6 +166,31 @@ for step = steps
 end
 
 T = table(Step, Dataset, Key, Output, Status, Note);
+
+% Rows that read sorted units label them from the dataset name: the name must
+% match the pattern, and no two recordings may share labels. Datasets that are
+% neither selected nor sorted never get labels, so they cannot collide.
+readsUnits = startsWith(T.Status, ["ready" "exists: overwrite"]) & ( ...
+    (T.Step == "spikes" & c.Spikes.Source ~= "detect") | ...
+    (startsWith(T.Step, "export:") & c.Export.IncludeUnits & T.Note ~= "no sorted units (left out)"));
+if any(readsUnits)
+    P = obj.Project;
+    sorted = false(1, P.NumDatasets);
+    for i = 1:P.NumDatasets
+        sorted(i) = P.Datasets(i).hasKilosortResults();
+    end
+    I = P.unitIdentities(Among=union(obj.DatasetIdx, find(sorted)));
+    for r = find(readsUnits).'
+        at = find(I.Key == T.Key(r), 1);
+        if isempty(at) || I.Status(at) == "ok"; continue; end
+        if I.Status(at) == "collision"
+            T.Status(r) = "error: unit label collision";
+        else
+            T.Status(r) = "error: unit identity";
+        end
+        T.Note(r) = I.Message(at);
+    end
+end
 
 % Two selected datasets must never write the same file (case-insensitive).
 fileSteps = ~ismember(T.Step, ["probe" "behavior"]) & T.Output ~= "" & startsWith(T.Status, ["ready" "exists"]);

@@ -96,7 +96,7 @@ classdef EphysPipelineScript
             L(end+1, 1) = "root       = " + lit(cfg.Project.Root) + ";";
             L(end+1, 1) = "outputRoot = " + lit(cfg.Project.OutputRoot) + ";";
             L(end+1, 1) = "P = EphysProject(root, OutputRoot=outputRoot, PythonExe=" + lit(cfg.Sorting.PythonExe) + ...
-                ", CondaEnv=" + lit(cfg.Sorting.CondaEnv) + ");";
+                ", CondaEnv=" + lit(cfg.Sorting.CondaEnv) + ", NamePattern=" + lit(cfg.Project.NamePattern) + ");";
             L(end+1, 1) = "P.refresh();                       % headers + per-dataset manifests (probe, exclusions, ...)";
             if cfg.Project.Selection == "list"
                 L(end+1, 1) = "keys = " + lit(cfg.Project.Datasets) + ";   % root-relative dataset keys";
@@ -105,6 +105,8 @@ classdef EphysPipelineScript
             else
                 L(end+1, 1) = "idx = 1:P.NumDatasets;             % every dataset under the root";
             end
+            L(end+1, 1) = "I = P.unitIdentities(Among=idx);   % subject + recording start that label sorted units";
+            L(end+1, 1) = "if any(I.Status ~= ""ok""); disp(I(I.Status ~= ""ok"", [""Key"" ""Status"" ""Message""])); end";
             L(end+1, 1) = "";
             L(end+1, 1) = "% Shared settings pushed onto every dataset";
             L = [L; EphysPipelineScript.structLiteral("siConfig", cfg.Sorting.SI)];

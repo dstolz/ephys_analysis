@@ -7,7 +7,9 @@
     "Root": "",
     "OutputRoot": "",
     "Selection": "all",
-    "Datasets": []
+    "Datasets": [],
+    "NamePattern": "SUBJ-ID-{SubjectID}_{Date:yyMMdd}_{Time:HHmmss}",
+    "TokenColumns": "SubjectID"
   },
   "Parallel": {
     "Enabled": false,

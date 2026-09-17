@@ -409,6 +409,15 @@ check(ok && isequal(n, ["SubjectID" "Date" "Time"]) && isequal(v, ["SUBJ-ID-1245
     && cfg.Project.TokenColumns == "SubjectID", 'the default pattern splits subject, yyMMdd, HHmmss; SubjectID is a column');
 [v, ~, ok] = parseNameTokens("recA", cfg.Project.NamePattern);
 check(~ok && isequal(v, ["" "" ""]), 'a non-matching name gives empty tokens');
+cfgV = EphysPipelineConfig();
+cfgV.Project.NamePattern = "{SubjectID}_{Date:yyMMdd}";
+cfgV.Spikes.Enabled = true; cfgV.Spikes.Source = "sorted"; cfgV.Export.Enabled = false;
+iss = cfgV.validate(CheckPaths=false);
+check(any(iss.Field == "NamePattern" & iss.Severity == "error" & contains(iss.Message, "Time")), ...
+    'steps reading sorted units need SubjectID, Date and Time tokens (they label the units)');
+cfgV.Spikes.Source = "detect";
+iss = cfgV.validate(CheckPaths=false);
+check(~any(iss.Field == "NamePattern"), 'without sorted units the pattern only feeds the dataset table');
 [v, n, ok] = parseNameTokens("M7_rig(2)_260916_extra", "{Subject}_{Rig:rig\((\d)\)}_{Date:yyMMdd}*");
 check(ok && isequal(n, ["Subject" "Rig" "Date"]) && isequal(v, ["M7" "rig(2)" "260916"]), ...
     'regex formats (inner groups do not shift tokens) and a trailing *');

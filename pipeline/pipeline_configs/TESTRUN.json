@@ -13,7 +13,7 @@
       "SUBJ-ID-1255/SUBJ-ID-1255_260910_104923",
       "SUBJ-ID-1255/SUBJ-ID-1255_260914_101756"
     ],
-    "NamePattern": "{SubjectID}_{Date:yyMMdd}_{Time:HHmmss}",
+    "NamePattern": "SUBJ-ID-{SubjectID}_{Date:yyMMdd}_{Time:HHmmss}",
     "TokenColumns": "SubjectID, Date, Time"
   },
   "Parallel": {

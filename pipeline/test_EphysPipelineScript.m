@@ -53,8 +53,8 @@ Fs = 30000; numAmp = 4; spb = 128; nSamp = 4 * spb;
 ampRaw = uint16(randi([0 65535], numAmp, nSamp));
 digRaw = zeros(1, nSamp); digRaw(50:70) = 1;
 proj = fullfile(root, 'proj');
-f1 = fullfile(proj, 'recA'); mkdir(f1);
-writeSyntheticRHD(fullfile(f1, 'recA.rhd'), ampRaw, digRaw, Fs, spb);
+f1 = fullfile(proj, 'A1_260101_120000'); mkdir(f1);
+writeSyntheticRHD(fullfile(f1, 'A1_260101_120000.rhd'), ampRaw, digRaw, Fs, spb);
 probeFile = fullfile(root, 'probe.json');
 writeJsonFile(probeFile, struct('chanMap', 0:numAmp-1, 'xc', zeros(1, numAmp), 'yc', (0:numAmp-1) * 20, ...
     'kcoords', zeros(1, numAmp), 'n_chan', numAmp));
@@ -84,8 +84,8 @@ Sx.Y = struct('LFP', single(src.amplifier(1:256, :)), 'MUA', single([]), 'SPIKE'
 Sx.events = src.events;
 Sx.info = struct('LFP', struct('Fs', Fs), 'labels', d.ChannelNames, 'origFs', Fs); %#ok<STRNU>
 for o = [string(outA) string(outB)]
-    mkdir(fullfile(o, 'recA'));
-    save(fullfile(o, 'recA', 'recA_extract_LFP.mat'), '-struct', 'Sx');   % Signals.SeparateFiles (default)
+    mkdir(fullfile(o, 'A1_260101_120000'));
+    save(fullfile(o, 'A1_260101_120000', 'A1_260101_120000_extract_LFP.mat'), '-struct', 'Sx');   % Signals.SeparateFiles (default)
 end
 
 fprintf('\n== 2. generate ==\n');
@@ -103,6 +103,8 @@ check(contains(txtC, "EphysPipelineConfig.load(") && contains(txtC, "pipe.runSpi
     'compact script loads the config and comments out disabled steps');
 check(~contains(txtS, "EphysPipeline(") && ~contains(txtS, "EphysPipelineConfig.load(") && ~contains(txtS, "pipe."), ...
     'standalone script never uses the runner or a config file');
+check(contains(txtS, "NamePattern=""{SubjectID}_{Date:yyMMdd}_{Time:HHmmss}""") && contains(txtS, "P.unitIdentities(Among=idx)"), ...
+    'standalone script builds the project with the name pattern that labels sorted units');
 check(contains(txtS, "ks4.nblocks = 2;") && contains(txtS, "ks4.x_centers = 2;") && contains(txtS, "detectOptions.Threshold = 2000;") ...
     && contains(txtS, '"schema": "ephys-pipeline-config"'), 'standalone script carries the parameters and the config JSON as a comment');
 check(contains(txtS, "if false   % set to true to run this step"), 'standalone disabled steps are wrapped in if false');
@@ -117,19 +119,19 @@ if ~isempty(mS) && any(isErr(mS)); disp(mS(isErr(mS))); end
 
 fprintf('\n== 3. run both ==\n');
 outC = runScript(compactFile);
-check(contains(outC, "recA") && isfile(fullfile(outA, 'recA', 'recA_spikes.mat')), 'compact script ran and wrote the spikes file');
+check(contains(outC, "A1_260101_120000") && isfile(fullfile(outA, 'A1_260101_120000', 'A1_260101_120000_spikes.mat')), 'compact script ran and wrote the spikes file');
 outS = runScript(standaloneFile);
-check(isfile(fullfile(outB, 'recA', 'recA_spikes.mat')), 'standalone script ran and wrote the spikes file');
+check(isfile(fullfile(outB, 'A1_260101_120000', 'A1_260101_120000_spikes.mat')), 'standalone script ran and wrote the spikes file');
 check(~contains(outS, "FAILED"), 'standalone script reported no failures');
 if contains(outS, "FAILED"); disp(outS); end
-for f = ["recA_spikes.mat" "recA_chronux.mat" "recA_fieldtrip.mat"]
-    A = load(fullfile(outA, 'recA', f));
-    B = load(fullfile(outB, 'recA', f));
+for f = ["A1_260101_120000_spikes.mat" "A1_260101_120000_chronux.mat" "A1_260101_120000_fieldtrip.mat"]
+    A = load(fullfile(outA, 'A1_260101_120000', f));
+    B = load(fullfile(outB, 'A1_260101_120000', f));
     A = stripVolatile(A); B = stripVolatile(B);
     check(isequaln(A, B), "identical " + f + " from both scripts");
 end
-siA = readJsonFile(fullfile(outA, 'recA', 'kilosort4', 'si_config.json'));
-siB = readJsonFile(fullfile(outB, 'recA', 'kilosort4', 'si_config.json'));
+siA = readJsonFile(fullfile(outA, 'A1_260101_120000', 'kilosort4', 'si_config.json'));
+siB = readJsonFile(fullfile(outB, 'A1_260101_120000', 'kilosort4', 'si_config.json'));
 check(isequaln(siA.ks4, siB.ks4) && siA.ks4.nblocks == 2 && siA.ks4.x_centers == 2 ...
     && isequaln(siA.preprocessing, siB.preprocessing), 'identical si_config.json (dry run) from both scripts');
 

@@ -19,7 +19,7 @@ switch section
             'OutputRoot', "", ...            % "" = outputs next to each recording
             'Selection',  "all", ...         % "all" | "list"
             'Datasets',   string.empty(1,0), ... % root-relative keys when "list"
-            'NamePattern',  "{SubjectID}_{Date:yyMMdd}_{Time:HHmmss}", ... % see parseNameTokens
+            'NamePattern',  EphysDataset.DefaultNamePattern, ... % see parseNameTokens; labels sorted units
             'TokenColumns', "SubjectID");     % list text: tokens shown as dataset-table columns
 
     case "Parallel"

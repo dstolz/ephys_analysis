@@ -44,8 +44,8 @@ Fs = 30000; numAmp = 4; spb = 128; nSamp = 4 * spb;
 ampRaw = uint16(randi([0 65535], numAmp, nSamp));
 digRaw = zeros(1, nSamp); digRaw(50:70) = 1;
 proj = fullfile(root, 'proj');
-f1 = fullfile(proj, 'mouse1', 'sess1'); mkdir(f1);
-f2 = fullfile(proj, 'mouse2', 'sess1'); mkdir(f2);
+f1 = fullfile(proj, 'mouse1', 'M1_260101_120000'); mkdir(f1);
+f2 = fullfile(proj, 'mouse2', 'M1_260101_120000'); mkdir(f2);
 writeSyntheticRHD(fullfile(f1, 'mouseA_260101T120000_260101_120004.rhd'), ampRaw, digRaw, Fs, spb);
 writeSyntheticRHD(fullfile(f2, 'other_rec.rhd'), ampRaw, digRaw, Fs, spb);
 probeFile = fullfile(root, 'probe.json');
@@ -72,7 +72,7 @@ cfg.Name = "unit test";
 cfg.Project.Root = proj;
 cfg.Project.OutputRoot = outRoot;
 cfg.Project.Selection = "list";
-cfg.Project.Datasets = "mouse1/sess1";
+cfg.Project.Datasets = "mouse1/M1_260101_120000";
 
 fprintf('\n== 1. construction, selection, applyConfigToDatasets ==\n');
 logs = strings(0, 1);
@@ -80,7 +80,7 @@ pipe = EphysPipeline(cfg);
 pipe.LogFcn = @(m) evalin('base', '1;');       % replaced below
 pipe.LogFcn = @(m) appendLog(m);
     function appendLog(m); logs(end+1, 1) = string(m); end
-check(pipe.Project.NumDatasets == 2 && isequal(pipe.DatasetIdx, pipe.Project.findByKey("mouse1/sess1")), ...
+check(pipe.Project.NumDatasets == 2 && isequal(pipe.DatasetIdx, pipe.Project.findByKey("mouse1/M1_260101_120000")), ...
     'selection by root-relative key');
 d1 = pipe.selected();
 check(numel(d1) == 1 && d1.ProbeFile == string(probeFile) && d1.SortingDir == string(phyDir) ...
@@ -90,7 +90,7 @@ check(startsWith(d1.OutputDir, outRoot) && isequal(fieldnames(d1.ArtifactConfig)
 cfgAll = cfg; cfgAll.Project.Selection = "all";
 pAll = EphysPipeline(cfgAll, Project=pipe.Project, Refresh=false);
 check(isequal(pAll.DatasetIdx, [1 2]), 'Selection="all" selects every dataset');
-cfgBad = cfg; cfgBad.Project.Datasets = ["mouse1/sess1" "nope/x"];
+cfgBad = cfg; cfgBad.Project.Datasets = ["mouse1/M1_260101_120000" "nope/x"];
 ws = warning('off', 'EphysPipeline:UnknownDataset');
 pBad = EphysPipeline(cfgBad, Project=pipe.Project, Refresh=false);
 warning(ws);
@@ -102,7 +102,7 @@ cfg.Signals.Enabled = true; cfg.Spikes.Enabled = true; cfg.Export.Enabled = true
 cfg.Sorting.Enabled = true; cfg.Sorting.PythonExe = "C:\envs\ks\python.exe"; cfg.Sorting.Execution = "blocking";
 pipe.Config = cfg;
 T = pipe.plan();
-check(isempty(dir(fullfile(outRoot, '**', '*.mat'))) && ~isfolder(fullfile(outRoot, 'sess1')), 'plan writes nothing');
+check(isempty(dir(fullfile(outRoot, '**', '*.mat'))) && ~isfolder(fullfile(outRoot, 'M1_260101_120000')), 'plan writes nothing');
 check(all(ismember(["probe" "sorting" "signals" "spikes" "export:chronux" "export:fieldtrip"], T.Step)), 'one row per enabled step (export per format)');
 check(T.Status(T.Step == "probe") == "ok" && T.Status(T.Step == "sorting") == "exists: will re-sort", 'probe ok; existing sorting output noted');
 check(T.Status(T.Step == "signals") == "ready" && T.Status(T.Step == "spikes") == "ready", 'signals / spikes ready');
@@ -112,7 +112,7 @@ pipe.Config = cfgE;
 T = pipe.plan();
 check(all(T.Status(startsWith(T.Step, "export")) == "no extract file"), 'export without an extract is flagged');
 pipe.Config = cfg;
-cfgS = cfg; cfgS.Spikes.Source = "sorted"; cfgS.Project.Datasets = "mouse2/sess1";
+cfgS = cfg; cfgS.Spikes.Source = "sorted"; cfgS.Project.Datasets = "mouse2/M1_260101_120000";
 p2 = EphysPipeline(cfgS, Project=pipe.Project, Refresh=false);
 T2 = p2.plan();
 check(T2.Status(T2.Step == "spikes") == "no sorting output" && T2.Status(T2.Step == "probe") == "no probe" ...
@@ -122,11 +122,32 @@ pD = EphysPipeline(cfgD, Project=pipe.Project, Refresh=false);
 TD = pD.plan(Steps="signals");
 check(all(TD.Status == "duplicate output"), 'two datasets with the same name under one OutputRoot collide');
 check(strcmp(errorId(@() pD.run(Steps="signals")), 'EphysPipeline:PlanInvalid'), 'run refuses a plan with duplicate outputs');
+% Both fixtures are subject M1 starting 2026-01-01 12:00, so their unit labels would collide.
+cfgU = cfgD; cfgU.Spikes.Source = "sorted";
+pU = EphysPipeline(cfgU, Project=pipe.Project, Refresh=false);
+TU = pU.plan(Steps="spikes");
+rowU = TU.Key == "mouse1/M1_260101_120000";
+check(TU.Status(rowU) == "error: unit label collision" && contains(TU.Note(rowU), "mouse2/M1_260101_120000") ...
+    && TU.Status(~rowU) == "no sorting output", ...
+    'a sorted dataset sharing subject + start minute with another selected dataset cannot label its units');
+check(strcmp(errorId(@() pU.run(Steps="spikes")), 'EphysPipeline:PlanInvalid'), 'run refuses unit label collisions');
+cfgI = cfg; cfgI.Spikes.Source = "sorted"; cfgI.Project.NamePattern = "X-{SubjectID}_{Date:yyMMdd}_{Time:HHmmss}";
+pI = EphysPipeline(cfgI, Project=pipe.Project, Refresh=false);
+check(all([pI.Project.Datasets.NamePattern] == cfgI.Project.NamePattern), 'the config''s NamePattern is pushed onto the datasets');
+TI = pI.plan(Steps=["signals" "spikes" "export"]);
+check(TI.Status(TI.Step == "spikes") == "error: unit identity" && all(TI.Status(startsWith(TI.Step, "export")) == "error: unit identity") ...
+    && contains(TI.Note(TI.Step == "spikes"), "does not match") && TI.Status(TI.Step == "signals") == "ready", ...
+    'a name that does not match NamePattern stops only the steps that read sorted units');
+cfgI.Spikes.Source = "detect"; cfgI.Export.IncludeUnits = false;
+pI.Config = cfgI;
+TI = pI.plan(Steps=["signals" "spikes" "export"]);
+check(~any(startsWith(TI.Status, "error")), 'steps that do not read sorted units ignore the name');
+pipe.Config = cfg;
 cfgN = cfg; cfgN.Signals.LFP_Fs = 60000;
 pN = EphysPipeline(cfgN, Project=pipe.Project, Refresh=false);
 TN = pN.plan(Steps="signals");
 check(startsWith(TN.Status(1), "error: LFP_Fs"), 'a rate above the recording rate is flagged per dataset');
-cfgP = cfg; cfgP.Probe.DefaultProbeFile = bigProbe; cfgP.Project.Datasets = "mouse2/sess1";
+cfgP = cfg; cfgP.Probe.DefaultProbeFile = bigProbe; cfgP.Project.Datasets = "mouse2/M1_260101_120000";
 pP = EphysPipeline(cfgP, Project=pipe.Project, Refresh=false);
 TP = pP.plan(Steps="probe");
 check(TP.Status(1) == "ready" && contains(TP.Note(1), "default"), 'default probe assignment is planned');
@@ -207,7 +228,7 @@ pipe.Config = cfg;
 pipe.reset();
 pipe.runSpikeDetection();
 R = pipe.Results;
-check(R.Status(1) == "done" && isfile(R.Output(1)) && endsWith(R.Output(1), "sess1_spikes.mat"), 'spikes file written under OutputRoot/<Name>');
+check(R.Status(1) == "done" && isfile(R.Output(1)) && endsWith(R.Output(1), "M1_260101_120000_spikes.mat"), 'spikes file written under OutputRoot/<Name>');
 M = load(R.Output(1));
 iv = pipe.artifactIntervalsFor(d1);
 [tsRef, ~, ~] = d1.detectSpikes(Filter=false, ThresholdMethod="absolute", Threshold=2000);
@@ -215,6 +236,8 @@ tsRef = cellfun(@(t) t(~any(t >= iv(:, 1).' & t <= iv(:, 2).', 2)), tsRef, 'Unif
 check(isequal(M.detected.ts, tsRef), 'detected times equal detectSpikes with the artifact periods removed');
 uRef = d1.readSortedUnits(Groups=["good" "mua"]);
 check(isequal(M.units.unitId, uRef.unitId) && isequal(M.units.times, uRef.times), 'units equal readSortedUnits');
+check(M.units.label(1) == "su000_M1_260101T1200" && M.units.datasetKey(1) == "mouse1/M1_260101_120000" ...
+    && M.units.subject(1) == "M1", 'saved units carry the label and the project-relative dataset key');
 check(~isfield(M, 'behavior'), 'no behavior variable in the spikes file');
 pipe.reset();
 pipe.runSpikeDetection();
@@ -277,7 +300,7 @@ pipe.ProgressFcn = @(evt) cancelOnDetect(evt, pipe);
     end
 R = pipe.run(Steps="spikes");
 check(any(R.Status == "cancelled") && ~isfile(pipe.outputPathFor("spikes", d1)) ...
-    && isempty(dir(fullfile(outRoot, 'sess1', '~*.partial.mat'))), 'cancel stops the run and leaves no partial file');
+    && isempty(dir(fullfile(outRoot, 'M1_260101_120000', '~*.partial.mat'))), 'cancel stops the run and leaves no partial file');
 check(any(contains(logs, "cancelled")), 'the log records the cancellation');
 pipe.ProgressFcn = [];
 
@@ -298,7 +321,7 @@ if license('test', 'Signal_Toolbox')
     R = pipe.Results;
     files = pipe.outputPathFor("signals", d1);
     check(height(R) == 2 && all(R.Status == "done") && isequal(R.Output.', files) ...
-        && endsWith(files(1), "sess1_extract_LFP.mat") && endsWith(files(2), "sess1_extract_MUA.mat"), ...
+        && endsWith(files(1), "M1_260101_120000_extract_LFP.mat") && endsWith(files(2), "M1_260101_120000_extract_MUA.mat"), ...
         'SeparateFiles writes one file (and one result row) per signal type');
     Ml = load(files(1)); Mm = load(files(2));
     check(~isempty(Ml.Y.LFP) && isempty(Ml.Y.MUA) && ~isfield(Ml.info, 'MUA') ...

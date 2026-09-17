@@ -33,12 +33,14 @@ end
 if P.Selection == "list" && isempty(P.Datasets)
     add("project", "Datasets", "warning", "Selection is ""list"" but no datasets are listed; nothing will run.");
 end
+patternParses = true;
 try
     [~, tokenNames] = parseNameTokens("", P.NamePattern);
     for t = setdiff(EphysPipelineConfig.parseTokenColumns(P.TokenColumns), tokenNames, 'stable')
         add("project", "TokenColumns", "warning", "Token column """ + t + """ is not in the name pattern.");
     end
 catch ME
+    patternParses = false;
     add("project", "NamePattern", "error", string(ME.message));
 end
 
@@ -179,6 +181,12 @@ end
 
 % --- cross-step ------------------------------------------------------------------
 needsSorted = (K.Enabled && K.Source ~= "detect") || (E.Enabled && E.IncludeUnits);
+if needsSorted && patternParses
+    id = EphysDataset.nameIdentity("", P.NamePattern);
+    if id.reason == "pattern"
+        add("project", "NamePattern", "error", id.message + " Sorted units are labelled from the dataset name.");
+    end
+end
 if S.Enabled && S.Execution == "background" && ~S.DryRun && needsSorted
     add("sorting", "Execution", "error", ...
         "Sorting runs in the background but a later step in this run uses the sorted units; " + ...

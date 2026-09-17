@@ -2,8 +2,8 @@ function onTabChanged(obj)
 %onTabChanged  Refresh the tab strip, the status hint and per-tab previews on tab change.
 obj.syncTabStrip();
 switch obj.Tabs.SelectedTab
-    case obj.TabNas
-        msg = "NAS: find a subject's sessions, check the pairing, Preview, then Copy selected (nothing on the NAS is changed).";
+    case obj.TabCopy
+        msg = "Copy: find a subject's sessions, check the pairing, Preview, then Copy selected (nothing on the source is changed).";
     case obj.TabProject
         msg = "Project: set the root and Scan; tick rows to select datasets (none = all).";
     case obj.TabTrials

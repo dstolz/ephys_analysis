@@ -5,7 +5,7 @@ function loadPreferences(obj)
 %   the Review folder, the last / recent config files, the script folder,
 %   the datasets-table column order, the Trials-table parameter columns and
 %   column order, the Trials-plot label parameters, the Visualize
-%   display options and the NAS tab settings (subject, roots, pairing and
+%   display options and the Copy tab settings (subject, roots, pairing and
 %   copy options; not the dates).
 %   Everything else lives in the config; the last config file is reopened
 %   at launch (defaults otherwise).
@@ -69,21 +69,21 @@ if ispref(g, 'VizOptions')
     end
 end
 
-% --- NAS tab settings (one struct) ---
-if ispref(g, 'NasOptions')
-    v = getpref(g, 'NasOptions');
+% --- Copy tab settings (one struct) ---
+if ispref(g, 'CopyOptions')
+    v = getpref(g, 'CopyOptions');
     if isstruct(v)
-        applyIf(v, 'subject',    @(x) set(obj.NasSubjectField, 'Value', char(x)));
-        applyIf(v, 'epsychRoot', @(x) set(obj.NasEpsychRootField, 'Value', char(x)));
-        applyIf(v, 'intanRoot',  @(x) set(obj.NasIntanRootField, 'Value', char(x)));
-        applyIf(v, 'destRoot',   @(x) set(obj.NasDestRootField, 'Value', char(x)));
-        applyIf(v, 'maxLeadMin', @(x) set(obj.NasMaxLeadField, 'Value', x));
-        applyIf(v, 'maxLagMin',  @(x) set(obj.NasMaxLagField, 'Value', x));
-        applyIf(v, 'marginSec',  @(x) set(obj.NasMarginField, 'Value', x));
-        applyIf(v, 'minDurationMin', @(x) set(obj.NasMinDurationField, 'Value', x));
-        applyIf(v, 'verify',     @(x) set(obj.NasVerifyDropDown, 'Value', char(x)));
-        applyIf(v, 'ifExists',   @(x) set(obj.NasIfExistsDropDown, 'Value', char(x)));
-        applyIf(v, 'openAfter',  @(x) set(obj.NasScanAfterCheckBox, 'Value', logical(x)));
+        applyIf(v, 'subject',    @(x) set(obj.CopySubjectField, 'Value', char(x)));
+        applyIf(v, 'epsychRoot', @(x) set(obj.CopyEpsychRootField, 'Value', char(x)));
+        applyIf(v, 'intanRoot',  @(x) set(obj.CopyIntanRootField, 'Value', char(x)));
+        applyIf(v, 'destRoot',   @(x) set(obj.CopyDestRootField, 'Value', char(x)));
+        applyIf(v, 'maxLeadMin', @(x) set(obj.CopyMaxLeadField, 'Value', x));
+        applyIf(v, 'maxLagMin',  @(x) set(obj.CopyMaxLagField, 'Value', x));
+        applyIf(v, 'marginSec',  @(x) set(obj.CopyMarginField, 'Value', x));
+        applyIf(v, 'minDurationMin', @(x) set(obj.CopyMinDurationField, 'Value', x));
+        applyIf(v, 'verify',     @(x) set(obj.CopyVerifyDropDown, 'Value', char(x)));
+        applyIf(v, 'ifExists',   @(x) set(obj.CopyIfExistsDropDown, 'Value', char(x)));
+        applyIf(v, 'openAfter',  @(x) set(obj.CopyScanAfterCheckBox, 'Value', logical(x)));
     end
 end
 

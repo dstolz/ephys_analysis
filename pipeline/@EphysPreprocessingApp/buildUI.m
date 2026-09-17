@@ -25,9 +25,9 @@ obj.TabHost.SizeChangedFcn = @(~,~) fitTabGroup(obj);
 
 buildStatusBar(obj, outer);
 
-% Tabs in workflow order (NAS first: pulling sessions from the NAS comes
-% before everything); the Flow chart and the two utility tabs come last.
-obj.TabNas       = uitab(obj.Tabs, "Title", "NAS");
+% Tabs in workflow order (Copy first: pulling sessions from the source comes
+% before everything); the Diagram chart and the two utility tabs come last.
+obj.TabCopy       = uitab(obj.Tabs, "Title", "Copy");
 obj.TabProject   = uitab(obj.Tabs, "Title", "Project");
 obj.TabTrials    = uitab(obj.Tabs, "Title", "Trials");
 obj.TabProbe     = uitab(obj.Tabs, "Title", "Probe");
@@ -36,18 +36,18 @@ obj.TabSorting   = uitab(obj.Tabs, "Title", "Sorting");
 obj.TabSignals   = uitab(obj.Tabs, "Title", "Signals");
 obj.TabSpikes    = uitab(obj.Tabs, "Title", "Spikes");
 obj.TabExport    = uitab(obj.Tabs, "Title", "Export");
+obj.TabFlow      = uitab(obj.Tabs, "Title", "Diagram");
 obj.TabRun       = uitab(obj.Tabs, "Title", "Run");
-obj.TabFlow      = uitab(obj.Tabs, "Title", "Flow");
 obj.TabVisualize = uitab(obj.Tabs, "Title", "Visualize");
 obj.TabReview    = uitab(obj.Tabs, "Title", "Review");
-obj.TabList = [obj.TabNas, obj.TabProject, obj.TabTrials, obj.TabProbe, obj.TabArtifacts, ...
-    obj.TabSorting, obj.TabSignals, obj.TabSpikes, obj.TabExport, obj.TabRun, ...
-    obj.TabFlow, obj.TabVisualize, obj.TabReview];
+obj.TabList = [obj.TabCopy, obj.TabProject, obj.TabTrials, obj.TabProbe, obj.TabArtifacts, ...
+    obj.TabSorting, obj.TabSignals, obj.TabSpikes, obj.TabExport, obj.TabFlow, ...
+    obj.TabRun, obj.TabVisualize, obj.TabReview];
 
 buildTabStrip(obj, outer);
 fitTabGroup(obj);
 
-obj.buildNasTab();
+obj.buildCopyTab();
 obj.buildProjectTab();
 obj.buildTrialsTab();
 obj.buildVisualizeTab();     % before Artifacts: the artifact tab links to it
@@ -57,8 +57,8 @@ obj.buildSortingTab();
 obj.buildSignalsTab();
 obj.buildSpikesTab();
 obj.buildExportTab();
-obj.buildRunTab();
 obj.buildFlowTab();
+obj.buildRunTab();
 obj.buildReviewTab();
 
 obj.Tabs.SelectedTab = obj.TabProject;   % the app still opens on Project

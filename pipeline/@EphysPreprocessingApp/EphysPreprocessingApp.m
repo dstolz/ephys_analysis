@@ -9,14 +9,17 @@ classdef EphysPreprocessingApp < handle
     %   sorted output, Epsych2 session) in each dataset's manifest.
     %
     %   Tabs, in workflow order
-    %     NAS        find one subject's sessions on the NAS for a day or range,
+    %     Copy       find one subject's sessions on the source for a day or range,
     %                pair each Intan recording with its ePsych file by the
-    %                timestamps in their names (findNasSessions), stitch the
+    %                timestamps in their names (findCopySessions), stitch the
     %                ePsych files of one recording picked by hand
-    %                (stitchNasSessions), preview and
+    %                (stitchCopySessions), preview and
     %                copy the ticked sessions to <destination>/<subject>/<Intan
-    %                folder> with verification and a manifest (copyNasSessions),
-    %                then open the copied sessions as the project
+    %                folder> with verification and a manifest (copySessions),
+    %                then open the copied sessions as the project. The copy
+    %                runs in a detached engine (copy_engine.ps1) polled by a
+    %                timer, so it never blocks the app, and an interrupted one
+    %                is completed rather than restarted (IfExists="resume")
     %     Project    config name, project root / output root, dataset table
     %                (the Select column is the config's dataset selection),
     %                Epsych2 behavior associations
@@ -32,12 +35,12 @@ classdef EphysPreprocessingApp < handle
     %     Signals    derived LFP / MUA / SPIKE / AUX (.mat) settings, plan, Run
     %     Spikes     threshold detection / sorted units (.mat), preview, Run
     %     Export     Chronux / FieldTrip files, plan, Run
-    %     Run        step checklist, validate, plan, run / dry run / cancel,
-    %                progress, results, log
-    %     Flow       flow chart of the working config: one tree per step that
+    %     Diagram    diagram of the working config: one tree per step that
     %                reads the raw recording (filters, references, detection
     %                parameters, files written), then the downstream steps;
     %                Save as HTML
+    %     Run        step checklist, validate, plan, run / dry run / cancel,
+    %                progress, results, log
     %     Visualize  plot a window, mark manual artifact periods
     %     Review     inspect sorted units
     %
@@ -59,7 +62,7 @@ classdef EphysPreprocessingApp < handle
     %   Review folder, last / recent config files, script folder, the
     %   datasets-table column order, the Trials-table parameter columns and
     %   column order, the Trials-plot label parameters, the Visualize
-    %   display options and the NAS tab settings.
+    %   display options and the Copy tab settings.
     %
     %   Usage
     %     EphysPreprocessingApp;            % launch
@@ -88,7 +91,7 @@ classdef EphysPreprocessingApp < handle
         StatusBar  matlab.ui.control.Label
         StatusHint matlab.ui.control.Label
 
-        TabNas       matlab.ui.container.Tab
+        TabCopy       matlab.ui.container.Tab
         TabProject   matlab.ui.container.Tab
         TabTrials    matlab.ui.container.Tab
         TabProbe     matlab.ui.container.Tab
@@ -102,28 +105,29 @@ classdef EphysPreprocessingApp < handle
         TabVisualize matlab.ui.container.Tab
         TabReview    matlab.ui.container.Tab
 
-        % --- NAS tab (settings are preferences; findNasSessions / copyNasSessions) ---
-        NasSubjectField      matlab.ui.control.EditField
-        NasFromDatePicker    matlab.ui.control.DatePicker
-        NasToDatePicker      matlab.ui.control.DatePicker
-        NasFindButton        matlab.ui.control.Button
-        NasEpsychRootField   matlab.ui.control.EditField
-        NasIntanRootField    matlab.ui.control.EditField
-        NasDestRootField     matlab.ui.control.EditField
-        NasMaxLeadField      matlab.ui.control.NumericEditField   % minutes
-        NasMaxLagField       matlab.ui.control.NumericEditField   % minutes
-        NasMarginField       matlab.ui.control.NumericEditField   % seconds
-        NasMinDurationField  matlab.ui.control.NumericEditField   % minutes
-        NasVerifyDropDown    matlab.ui.control.DropDown
-        NasIfExistsDropDown  matlab.ui.control.DropDown
-        NasPreviewButton     matlab.ui.control.Button
-        NasCopyButton        matlab.ui.control.Button
-        NasStitchButton      matlab.ui.control.Button
-        NasUnstitchButton    matlab.ui.control.Button
-        NasSummaryLabel      matlab.ui.control.Label
-        NasScanAfterCheckBox matlab.ui.control.CheckBox
-        NasTable             matlab.ui.control.Table
-        NasLogArea           matlab.ui.control.TextArea
+        % --- Copy tab (settings are preferences; findCopySessions / copySessions) ---
+        CopySubjectField      matlab.ui.control.EditField
+        CopyFromDatePicker    matlab.ui.control.DatePicker
+        CopyToDatePicker      matlab.ui.control.DatePicker
+        CopyFindButton        matlab.ui.control.Button
+        CopyEpsychRootField   matlab.ui.control.EditField
+        CopyIntanRootField    matlab.ui.control.EditField
+        CopyDestRootField     matlab.ui.control.EditField
+        CopyMaxLeadField      matlab.ui.control.NumericEditField   % minutes
+        CopyMaxLagField       matlab.ui.control.NumericEditField   % minutes
+        CopyMarginField       matlab.ui.control.NumericEditField   % seconds
+        CopyMinDurationField  matlab.ui.control.NumericEditField   % minutes
+        CopyVerifyDropDown    matlab.ui.control.DropDown
+        CopyIfExistsDropDown  matlab.ui.control.DropDown
+        CopyPreviewButton     matlab.ui.control.Button
+        CopyRunButton         matlab.ui.control.Button
+        CopyStitchButton      matlab.ui.control.Button
+        CopyUnstitchButton    matlab.ui.control.Button
+        CopySummaryLabel      matlab.ui.control.Label
+        CopyScanAfterCheckBox matlab.ui.control.CheckBox
+        CopyTable             matlab.ui.control.Table
+        CopyLogArea           matlab.ui.control.TextArea
+        CopyProgressLabel     matlab.ui.control.Label
 
         % --- Project tab ---
         ConfigNameField   matlab.ui.control.EditField
@@ -472,12 +476,16 @@ classdef EphysPreprocessingApp < handle
         TrialsLabelParams (1,:) string = string.empty(1,0)   % Epsych2 parameters shown as trial labels in the Trials plot (a preference)
         TrialsColumnOrder (1,:) string = string.empty(1,0)   % Trials-table variables in display order (a preference)
 
-        % --- NAS tab state (in memory) ---
-        NasFound = []                                  % findNasSessions table as found (Unstitch restores rows from it)
-        NasSessions = []                               % the table shown: NasFound after stitching (DestDir updated by a copy)
-        NasTicked (:,1) logical = false(0, 1)          % Copy ticks, one per row
-        NasCopyStatus (:,1) string = strings(0, 1)     % last copyNasSessions CopyStatus per row
-        NasMessage (:,1) string = strings(0, 1)        % ... and its Message
+        % --- Copy tab state (in memory) ---
+        CopyFound = []                                  % findCopySessions table as found (Unstitch restores rows from it)
+        CopySessions = []                               % the table shown: CopyFound after stitching (DestDir updated by a copy)
+        CopyTicked (:,1) logical = false(0, 1)          % Copy ticks, one per row
+        CopyStatus (:,1) string = strings(0, 1)         % last copySessions CopyStatus per row
+        CopyMessage (:,1) string = strings(0, 1)        % ... and its Message
+        CopyJob = []                                    % copySessions job while a background copy runs ([] when idle)
+        CopyRows (:,1) double = zeros(0, 1)             % CopySessions rows that job was made from, in order
+        CopyMonitorTimer = []                           % timer polling CopyJob (startCopyMonitor)
+        CopyCancelRequested (1,1) logical = false       % Cancel copy was pressed; the engine stops between files
 
         % --- Review (Kilosort4 output) state ---
         ReviewData = struct([])
@@ -505,7 +513,7 @@ classdef EphysPreprocessingApp < handle
         % --- UI construction ---
         buildUI(obj)
         buildMenus(obj)
-        buildNasTab(obj)
+        buildCopyTab(obj)
         buildProjectTab(obj)
         buildTrialsTab(obj)
         buildProbeTab(obj)
@@ -574,15 +582,24 @@ classdef EphysPreprocessingApp < handle
         runLog(obj, fmt, varargin)
         setRunBar(obj, bar, frac)
 
-        % --- NAS tab ---
-        onNasFind(obj)
-        onNasCopy(obj, dryRun)
-        refreshNasTable(obj)
-        onNasTableEdited(obj, evt)
-        onNasStitch(obj)
-        onNasUnstitch(obj)
-        onBrowseNasFolder(obj, field)
-        nasLog(obj, msg)
+        % --- Copy tab ---
+        onCopyFind(obj)
+        onCopyRun(obj, dryRun)
+        onCopyCancel(obj)
+        startCopyMonitor(obj)
+        stopCopyMonitor(obj)
+        pollCopyJob(obj)
+        setCopyRunning(obj, running)
+        applyCopyResult(obj, sel, R)
+        finishCopyRun(obj, R)
+        showCopyProgress(obj, frac, msg)
+        s = copySummaryText(obj, title, R)
+        refreshCopyTable(obj)
+        onCopyTableEdited(obj, evt)
+        onCopyStitch(obj)
+        onCopyUnstitch(obj)
+        onBrowseCopyFolder(obj, field)
+        copyLog(obj, msg)
 
         % --- Project tab ---
         onScan(obj)

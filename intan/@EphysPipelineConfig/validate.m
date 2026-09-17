@@ -1,10 +1,10 @@
 function issues = validate(obj, opts)
 %validate  Check the config for problems, enabled steps only.
 %   ISSUES = cfg.validate() returns a table (Step, Field, Severity, Message)
-%   with Severity "error" (the run cannot start) or "warning". Project and
-%   Probe are always checked; step sections only when Enabled. Cross-step
-%   rules are checked too (e.g. a background sorting run cannot feed the
-%   sorted-unit consumers in the same run). An empty table means clean.
+%   with Severity "error" (the run cannot start) or "warning". Project,
+%   Parallel and Probe are always checked; step sections only when Enabled.
+%   Cross-step rules are checked too (e.g. a background sorting run cannot
+%   feed the sorted-unit consumers in the same run). An empty table means clean.
 %
 %   Options: CheckPaths (default true) also checks that Root / files exist.
 %
@@ -33,10 +33,27 @@ end
 if P.Selection == "list" && isempty(P.Datasets)
     add("project", "Datasets", "warning", "Selection is ""list"" but no datasets are listed; nothing will run.");
 end
+try
+    [~, tokenNames] = parseNameTokens("", P.NamePattern);
+    for t = setdiff(EphysPipelineConfig.parseTokenColumns(P.TokenColumns), tokenNames, 'stable')
+        add("project", "TokenColumns", "warning", "Token column """ + t + """ is not in the name pattern.");
+    end
+catch ME
+    add("project", "NamePattern", "error", string(ME.message));
+end
 
 % --- Probe (always) ------------------------------------------------------------
 if obj.Probe.DefaultProbeFile ~= "" && opts.CheckPaths && ~isfile(obj.Probe.DefaultProbeFile)
     add("probe", "DefaultProbeFile", "error", "Default probe file not found: " + obj.Probe.DefaultProbeFile);
+end
+
+% --- Parallel (always) -----------------------------------------------------------
+PL = obj.Parallel;
+if ~isnan(PL.MaxWorkers) && ~(PL.MaxWorkers >= 1 && PL.MaxWorkers == round(PL.MaxWorkers))
+    add("parallel", "MaxWorkers", "error", "MaxWorkers must be a whole number >= 1, or NaN for automatic.");
+end
+if PL.Enabled && ~license('test', 'Distrib_Computing_Toolbox')
+    add("parallel", "Enabled", "warning", "Parallel is on but the Parallel Computing Toolbox is not licensed; the steps run serially.");
 end
 
 % --- Behavior --------------------------------------------------------------------

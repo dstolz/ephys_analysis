@@ -7,7 +7,11 @@ classdef EphysPipelineConfig
     %   (Inf / NaN / empty values included).
     %
     %   Sections (one struct property each; see defaults(section))
-    %     Project    Root, OutputRoot, Selection "all"|"list", Datasets (keys)
+    %     Project    Root, OutputRoot, Selection "all"|"list", Datasets (keys),
+    %                NamePattern (dataset-name tokens, see parseNameTokens),
+    %                TokenColumns (tokens shown as dataset-table columns)
+    %     Parallel   Enabled, MaxWorkers (NaN = automatic): run the chunks of
+    %                the artifacts and spike-detection steps on a process pool
     %     Probe      DefaultProbeFile, WriteDefaultToManifest
     %     Behavior   Enabled, SearchDirs, Match, MaxStartOffsetMin, Overwrite,
     %                WriteFile, PairTrials, TrialLine
@@ -43,6 +47,7 @@ classdef EphysPipelineConfig
         Name        (1,1) string = "Untitled"
         Description (1,1) string = ""
         Project     struct = EphysPipelineConfig.defaults("Project")
+        Parallel    struct = EphysPipelineConfig.defaults("Parallel")
         Probe       struct = EphysPipelineConfig.defaults("Probe")
         Behavior    struct = EphysPipelineConfig.defaults("Behavior")
         Artifacts   struct = EphysPipelineConfig.defaults("Artifacts")
@@ -60,7 +65,7 @@ classdef EphysPipelineConfig
     properties (Constant)
         Schema   = "ephys-pipeline-config"
         Version  = 1
-        Sections = ["Project" "Probe" "Behavior" "Artifacts" "Sorting" "Signals" "Spikes" "Export"]
+        Sections = ["Project" "Parallel" "Probe" "Behavior" "Artifacts" "Sorting" "Signals" "Spikes" "Export"]
         % Execution order of the steps (Project is not a step; Probe is a preflight).
         StepNames = ["probe" "behavior" "artifacts" "sorting" "signals" "spikes" "export"]
         % Section that holds each step's settings.
@@ -80,6 +85,7 @@ classdef EphysPipelineConfig
 
         %% --- normalizing setters -------------------------------------------
         function obj = set.Project(obj, s);   obj.Project   = EphysPipelineConfig.normalizeSection("Project", s);   end
+        function obj = set.Parallel(obj, s);  obj.Parallel  = EphysPipelineConfig.normalizeSection("Parallel", s);  end
         function obj = set.Probe(obj, s);     obj.Probe     = EphysPipelineConfig.normalizeSection("Probe", s);     end
         function obj = set.Behavior(obj, s);  obj.Behavior  = EphysPipelineConfig.normalizeSection("Behavior", s);  end
         function obj = set.Artifacts(obj, s); obj.Artifacts = EphysPipelineConfig.normalizeSection("Artifacts", s); end
@@ -206,6 +212,12 @@ classdef EphysPipelineConfig
             end
         end
 
+        function names = parseTokenColumns(txt)
+            %parseTokenColumns  Project.TokenColumns list text -> string row of token names.
+            t = strtrim(split(string(txt), [",", ";"])).';
+            names = unique(t(t ~= ""), 'stable');
+        end
+
         function key = datasetKey(root, folder)
             %datasetKey  Root-relative key used in Project.Datasets (see EphysProject.relativeKey).
             key = EphysProject.relativeKey(root, folder);
@@ -241,21 +253,38 @@ classdef EphysPipelineConfig
             end
         end
 
-        function d = detectOptions(sp)
+        function d = detectOptions(sp, par)
             %detectOptions  The Spikes section as spikesToMat DetectOptions.
             %   NaN-valued "auto" settings (Threshold, MaxChunkSamples,
             %   EdgePadMs) are left out so detectSpikes uses its own defaults.
+            %   With a Parallel section as the second argument its options
+            %   (parallelOptions: UseParallel, MaxWorkers) are added.
             sp = EphysPipelineConfig.normalizeSection("Spikes", sp);
             d = struct('Filter', sp.Filter, 'Band', sp.Band, 'FilterOrder', sp.FilterOrder, ...
                 'Polarity', sp.Polarity, 'ThresholdMethod', sp.ThresholdMethod, ...
                 'Align', sp.Align, 'AlignWindowMs', sp.AlignWindowMs, ...
                 'MinPeriodMs', sp.MinPeriodMs, 'MaxAmplitudeUV', sp.MaxAmplitudeUV, ...
                 'Waveforms', sp.Waveforms, 'WindowMs', sp.WindowMs, ...
-                'WaveformSource', sp.WaveformSource, 'EdgeHandling', sp.EdgeHandling, ...
-                'UseParallel', sp.UseParallel);
+                'WaveformSource', sp.WaveformSource, 'EdgeHandling', sp.EdgeHandling);
             if isfinite(sp.Threshold);       d.Threshold       = sp.Threshold;       end
             if isfinite(sp.MaxChunkSamples); d.MaxChunkSamples = sp.MaxChunkSamples; end
             if isfinite(sp.EdgePadMs);       d.EdgePadMs       = sp.EdgePadMs;       end
+            if nargin > 1
+                p = EphysPipelineConfig.parallelOptions(par);
+                for f = string(fieldnames(p)).'
+                    d.(f) = p.(f);
+                end
+            end
+        end
+
+        function p = parallelOptions(par)
+            %parallelOptions  The Parallel section as UseParallel / MaxWorkers options.
+            %   A struct for namedargs2cell: UseParallel always, MaxWorkers only
+            %   when set (NaN = the automatic, memory-derived cap is left to the
+            %   dataset methods).
+            par = EphysPipelineConfig.normalizeSection("Parallel", par);
+            p = struct('UseParallel', logical(par.Enabled));
+            if isfinite(par.MaxWorkers); p.MaxWorkers = par.MaxWorkers; end
         end
 
         function ch = spikeChannels(sp, ds)

@@ -153,6 +153,14 @@ classdef EphysPipeline < handle
                 string(message), string(output), seconds};
         end
 
+        function logParallel(obj, step)
+            %logParallel  One log line per step when the Parallel section is on.
+            P = obj.Config.Parallel;
+            if ~P.Enabled; return; end
+            if isnan(P.MaxWorkers); w = "auto"; else; w = string(P.MaxWorkers); end
+            obj.log("[%s] parallel: chunks on the process pool (MaxWorkers=%s)", step, w);
+        end
+
         function ds = selected(obj, idx)
             %selected  The selected datasets (or the given indices).
             if nargin < 2 || isempty(idx); idx = obj.DatasetIdx; end
@@ -365,6 +373,7 @@ classdef EphysPipeline < handle
             end
             ds = obj.selected(opts.Datasets);
             n = numel(ds);
+            if n > 0; obj.logParallel("artifacts"); end
             for k = 1:n
                 d = ds(k);
                 if obj.CancelRequested
@@ -422,7 +431,8 @@ classdef EphysPipeline < handle
                 end
             end
             cb = @(i, nChunks, name) obj.progress("artifacts", d.Name, 1, 1, i - 1, nChunks, "detecting: " + string(name));
-            iv = d.artifactIntervals(ProgressFcn=cb);
+            popt = namedargs2cell(EphysPipelineConfig.parallelOptions(obj.Config.Parallel));
+            iv = d.artifactIntervals('ProgressFcn', cb, popt{:});
             source = "computed";
             if a.CacheIntervals
                 writeJsonFile(cacheFile, struct('schema', "ephys-artifacts/1", 'dataset', d.Name, ...

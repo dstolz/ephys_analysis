@@ -109,6 +109,8 @@ classdef EphysPipelineScript
             L(end+1, 1) = "% Shared settings pushed onto every dataset";
             L = [L; EphysPipelineScript.structLiteral("siConfig", cfg.Sorting.SI)];
             L = [L; EphysPipelineScript.structLiteral("artifactConfig", EphysPipelineConfig.artifactConfig(cfg.Artifacts))];
+            L = [L; EphysPipelineScript.structLiteral("parallelOpts", EphysPipelineConfig.parallelOptions(cfg.Parallel))];
+            L(end+1, 1) = "parallelArgs = namedargs2cell(parallelOpts);   % UseParallel / MaxWorkers for the chunked steps";
             L(end+1, 1) = "for k = idx";
             L(end+1, 1) = "    d = P.Datasets(k);";
             L(end+1, 1) = "    d.PythonExe = " + lit(cfg.Sorting.PythonExe) + ";";
@@ -159,7 +161,7 @@ classdef EphysPipelineScript
 
             % --- artifacts helper ----------------------------------------------------
             L(end+1, 1) = "%% Artifact intervals (manual periods always; automatic detection when enabled)";
-            L(end+1, 1) = "artifactIntervals = @(d) d.artifactIntervals();";
+            L(end+1, 1) = "artifactIntervals = @(d) d.artifactIntervals(parallelArgs{:});";
             L(end+1, 1) = "";
 
             % --- sorting -------------------------------------------------------------
@@ -221,7 +223,7 @@ classdef EphysPipelineScript
             L = [L; EphysPipelineScript.stepHeader("Spikes: detected and/or sorted (spikesToMat)", cfg.stepEnabled("spikes"))];
             K = cfg.Spikes;
             L = [L; EphysPipelineScript.structLiteral("spikes", K)];
-            L = [L; EphysPipelineScript.structLiteral("detectOptions", EphysPipelineConfig.detectOptions(K))];
+            L = [L; EphysPipelineScript.structLiteral("detectOptions", EphysPipelineConfig.detectOptions(K, cfg.Parallel))];
             L(end+1, 1) = "for k = idx";
             L(end+1, 1) = "    d = P.Datasets(k);";
             L(end+1, 1) = "    outFile = fullfile(" + EphysPipelineScript.outDirExpr(K.OutputDir) + ", d.Name + " + lit(K.Suffix) + " + "".mat"");";

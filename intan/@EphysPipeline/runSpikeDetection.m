@@ -17,9 +17,10 @@ end
 
 c = obj.Config;
 K = c.Spikes;
-dopt = EphysPipelineConfig.detectOptions(K);
+dopt = EphysPipelineConfig.detectOptions(K, c.Parallel);
 ds = obj.selected(opts.Datasets);
 n = numel(ds);
+if n > 0; obj.logParallel("spikes"); end
 
 for k = 1:n
     d = ds(k);

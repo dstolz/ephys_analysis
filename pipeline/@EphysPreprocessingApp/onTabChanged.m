@@ -2,6 +2,8 @@ function onTabChanged(obj)
 %onTabChanged  Refresh the tab strip, the status hint and per-tab previews on tab change.
 obj.syncTabStrip();
 switch obj.Tabs.SelectedTab
+    case obj.TabNas
+        msg = "NAS: find a subject's sessions, check the pairing, Preview, then Copy selected (nothing on the NAS is changed).";
     case obj.TabProject
         msg = "Project: set the root and Scan; tick rows to select datasets (none = all).";
     case obj.TabTrials
@@ -24,6 +26,9 @@ switch obj.Tabs.SelectedTab
         obj.refreshStepPlan("export");
     case obj.TabRun
         msg = "Run: validate, plan, then run the enabled steps.";
+    case obj.TabFlow
+        msg = "Flow: the processing each enabled step applies, from the raw recording to the files written.";
+        obj.refreshFlowChart();
     case obj.TabVisualize
         msg = "Visualize: plot a short window; drag to mark manual artifacts.";
     case obj.TabReview

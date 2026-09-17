@@ -1,10 +1,14 @@
 function syncStepEnableStates(obj)
 %syncStepEnableStates  The tab strip colours (syncTabStrip), the Run-tab
-%   checklist and the selection summary follow the working config.
+%   checklist, the selection summary and (while shown) the Flow chart
+%   follow the working config.
 cfg = obj.Config;
 obj.Applying = true;
 restore = onCleanup(@() setApplying(obj, false));
 obj.syncTabStrip();
+if ~isempty(obj.TabFlow) && isvalid(obj.Tabs) && obj.Tabs.SelectedTab == obj.TabFlow
+    obj.refreshFlowChart();
+end
 setIf(obj.RunBehaviorCheckBox,  cfg.Behavior.Enabled);
 setIf(obj.RunArtifactsCheckBox, cfg.Artifacts.Enabled);
 setIf(obj.RunSortingCheckBox,   cfg.Sorting.Enabled);

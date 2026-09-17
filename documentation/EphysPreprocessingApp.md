@@ -7,6 +7,8 @@ for the preprocessing pipeline. It edits **one pipeline config**
 [`EphysPipeline`](EphysPipeline.md#ephyspipeline) over an
 [`EphysProject`](EphysProject.md). It is used to:
 
+- pull a subject's sessions from the NAS (Intan recording + ePsych file,
+  paired by name) into local session folders, verified;
 - scan a folder tree for recordings (Intan, or the universal binary format);
 - assign probe maps and channel exclusions;
 - mark manual artifact periods and configure automatic detection;
@@ -51,8 +53,9 @@ background monitor and saves preferences.
   - **Run**: Validate config, Plan, Run pipeline (Ctrl+R), Dry run, Cancel.
 - **Title**: the config name and file; `*` in front while the config has
   unsaved changes.
-- **Tabs**, in workflow order: **Project, Trials, Probe, Artifacts, Sorting,
-  Signals, Spikes, Export, Run, Visualize, Review**. Each tab button is
+- **Tabs**, in workflow order: **NAS, Project, Trials, Probe, Artifacts, Sorting,
+  Signals, Spikes, Export, Run, Flow, Visualize, Review**. The app opens on
+  Project. Each tab button is
   coloured by its status, and its tooltip says why: grey = step disabled,
   green = ready, amber = needs attention (config warnings, selected datasets
   without a probe, trial pairings not approved, no datasets scanned), red =
@@ -110,6 +113,9 @@ dataset stays on screen, but the status line names the dataset it shows and
 
 ## Typical workflow
 
+0. **NAS** (when the recordings are still on the NAS): find the subject's
+   sessions for the day, check the pairing, **Preview (dry run)**, then
+   **Copy selected**; the copied sessions open as the project.
 1. **File → New** (or open a saved config). Name it on the Project tab.
 2. **Project**: set the project root, press **Scan**; set an output root.
 3. **Probe**: pick a probe map, **Assign to all datasets** or set it as the
@@ -129,6 +135,71 @@ complete test project (recordings, Epsych2 sessions, sorted output, a
 config) and opens it; see [Synthetic test project](#synthetic-test-project).
 
 ---
+
+## NAS
+
+Copies recording sessions from the NAS to local session folders. Each session
+is two separate artifacts, written by different software (possibly on
+different PCs and clocks):
+
+| Artifact | NAS path |
+| --- | --- |
+| ePsych behavior file | `<ePsych root>/<SUBJ>/<SUBJ>_<yyMMdd>T<HHmmss>.mat` |
+| Intan RHX recording folder | `<Intan root>/<SUBJ>/<SUBJ>_<yyMMdd>_<HHmmss>/` |
+
+A session is copied to `<Destination>/<SUBJ>/<Intan folder name>/`: the Intan
+folder's contents, the ePsych file under its original name,
+`session_manifest.json` and `session_copy_robocopy.log`. The tab only collects
+settings and shows results. The pairing rules are in
+[`findNasSessions`](../pipeline/findNasSessions.m) and the copy rules in
+[`copyNasSessions`](../pipeline/copyNasSessions.m), which work the same from a
+script:
+
+```matlab
+T = findNasSessions("SUBJ-ID-1255", "260916");                 % or [datetime datetime]
+R = copyNasSessions(T(T.Status == "paired", :));               % dry run (the default)
+R = copyNasSessions(T(T.Status == "paired", :), DryRun=false, Verify="hash");
+```
+
+| Control | Meaning |
+| --- | --- |
+| Subject ID, From, To | the subject (matched exactly: `SUBJ-ID-125` never matches `SUBJ-ID-1255_...`) and an inclusive range of days (To blank = one day) |
+| ePsych root, Intan root, Destination | defaults `S:/RIG3_Backup_2025/epsych_files/Data`, `S:/RIG3_Backup_2025/intan_files/Data`, `D:/EPHYS` |
+| Max lead (min), Max lag (min) | an ePsych file is a candidate for an Intan folder when it starts no more than *lead* before it (default 10) and no more than *lag* after it (default 2, for clock skew) |
+| Ambiguity margin (s) | default 30; see below |
+| Find sessions | list and pair by name only (no file is opened) |
+| Verify | `size`: every destination file has the source's size; `hash`: also the same SHA-256 (reads every file twice) |
+| If it exists | a destination folder that exists, is not empty and does not match the source: `skip` it or report it as `failed`. One that already matches is reported `already_present`. Nothing is ever overwritten |
+| Preview (dry run) | reports what a copy would do, including a free-space check; writes nothing |
+| Copy selected | copies the ticked rows. A progress dialog shows each file; **Cancel** stops between files (the partial copy is kept and reported) |
+| After copying, open the copied sessions as the project | sets the Project root to the folder holding the copied sessions, scans it and makes the first copied session the active dataset |
+
+**Pairing.** Names are parsed with strict, fully anchored patterns; any other
+name in the two subject folders is skipped and listed in the log. Candidate
+pairs are resolved one-to-one across all of them at once, nearest |Δt| first,
+so a file never goes to whichever session happened to be listed first. If a
+file has a second candidate whose |Δt| is within the ambiguity margin of the
+best one, every file linked to it by a candidate pair is marked **ambiguous**
+and none of them is paired. Rows spanning midnight appear under either day.
+
+| Status | Row colour | Ticked after Find | Copied |
+| --- | --- | --- | --- |
+| `paired` | white | yes | yes |
+| `intan_only`, `epsych_only` | orange | no (tick by hand) | only when ticked |
+| `ambiguous` | red | no; cannot be ticked | never: pair these files by hand |
+
+**Copying.** Nothing on the NAS is modified, renamed, moved or deleted. Before
+anything is copied, the free space under Destination is checked against the
+total size, and the copy stops if there is too little. Each file goes through
+`robocopy <src> <dest> <file> /Z /R:3 /W:5 /NP /LOG+:<log>`, never with
+`/MIR`, `/MOV` or `/PURGE`. Exit codes 8 and above are failures. Afterwards
+every file is verified; a mismatch marks the session `failed` and keeps the
+partial copy. Each session is handled separately, so one failure does not
+stop the others. `session_manifest.json` records the source and destination
+paths, both times and Δt, the pairing status, every file's size (and hashes),
+the copy start and finish times, the host, the user, and the function version
+and git commit. The copy blocks MATLAB while each file is copied; the dialog
+updates between files.
 
 ## Project
 
@@ -401,6 +472,35 @@ Chronux functions appears here: the app only writes files.
 - Background Kilosort4 runs launched by a run are handed to the same monitor
   as the Sorting tab.
 
+## Flow
+
+A flow chart of what the working config does, redrawn whenever the tab is
+shown and on every config edit while it is open. Each step that reads the raw
+recording gets its own tree, drawn top-down from the recording to the files it
+writes:
+
+- **Artifacts**: chunked reading, the detection filter, the detector (method,
+  window, threshold), channel coincidence, merge / pad, the automatic
+  intervals, and where they go with the manual periods (Sorting, Spikes).
+- **Sorting**: the SpikeInterface recording, crop, probe map, bandpass, bad
+  channels (manifest exclusions + detection, remove / interpolate), common
+  reference, silenced artifact periods, then Kilosort4's own high-pass, CAR,
+  artifact threshold, whitening, drift correction, template matching and
+  clustering.
+- **Signals**: channel selection, then one branch each for LFP (resample,
+  band filter, notch), MUA (bandpass, rectify, resample, integrate), SPIKE
+  (resample, bandpass), AUX and the digital events; the amplifier branches end
+  with bad-channel interpolation, the channel remap and the output file.
+- **Spikes**: chunking, channels, bandpass, threshold, alignment, minimum
+  period, amplitude cap, waveforms, artifact rejection and the spikes file.
+
+The steps that read those outputs instead of the recording (sorted units for
+the spikes file, Export) follow under **Downstream**. Stages the config leaves
+off are dashed, disabled steps are faded, and artifact periods feeding another
+step are marked orange. With an active dataset the recording node shows its
+name, rate and channel count, and the Sorting tree shows its probe and
+exclusions. **Save as HTML...** writes the chart as a standalone page.
+
 ## Visualize
 
 Display-only time-domain plots of the active dataset; the data on disk is
@@ -534,6 +634,7 @@ Only what is **not** part of a config lives here:
 | `TrialsParamColumns`, `TrialsColumnOrder` | the Epsych2 parameters shown in the Trials table, and its column order (table variable names; a parameter column is `Param_<name>`) |
 | `TrialsLabelParams` | the Epsych2 parameters written as trial labels in the Trials plot |
 | `VizOptions` | the Visualize tab's display settings |
+| `NasOptions` | the NAS tab's subject, roots, pairing and copy options (not the dates) |
 
 To reset: `rmpref('EphysPreprocessingApp')` with the app closed. Older
 preference groups are not read.
@@ -550,8 +651,9 @@ preference groups are not read.
 | `<Name>_extract_<TYPE>.mat` (or `<Name>_extract.mat`), `<Name>_spikes.mat`, `<Name>_chronux.mat`, `<Name>_fieldtrip.mat` | Signals, Spikes, Export |
 | probe `.json` in the probe folder | Import, Designer save, Notes edit |
 | `<parent>/synthetic_ephys/...` | File → Create synthetic test project (recordings, sessions, sorted output, probe, config, README) |
+| `<Destination>/<SUBJ>/<Intan folder>/`: the copied files, `session_manifest.json`, `session_copy_robocopy.log` | NAS → Copy selected (Preview writes nothing) |
 
-Raw recording files are only read.
+Raw recording files are only read. So is the NAS.
 
 ## Scripting against a running app
 
@@ -583,6 +685,8 @@ app.KSRuns                        % background runs being monitored
 | `onOptimizeKS4ForProbe.m`, `onResetKS4Params.m`, `onUseSortingFolder.m`, `onUseAutoSorting.m`, `refreshSortingLabel.m`, `pollKSRuns.m`, `onLaunchPhy.m`, `launchPhy.m` | Sorting tab and phy |
 | `onSpikesPreview.m`, `syncSpikesEnableStates.m` | Spikes tab |
 | `onPlotVisualization.m`, `onVizButtonDown/Up.m`, `drawVizArtifacts.m`, `finishVizArtDrag.m`, `applyVizChannelOrder.m`, `applyVizChannelColor.m`, `syncVizDataset.m` | Visualize tab |
+| `buildFlowTab.m`, `refreshFlowChart.m`, `flowChartHTML.m`, `onSaveFlowChart.m` | Flow tab |
+| `buildNasTab.m`, `onNasFind.m`, `onNasCopy.m`, `refreshNasTable.m`, `onNasTableEdited.m`, `onBrowseNasFolder.m`, `nasLog.m`; `pipeline/findNasSessions.m`, `pipeline/copyNasSessions.m` | NAS tab and the pairing / copy functions it calls |
 | `loadReviewResults.m`, `renderReviewPlots.m`, `syncReviewDataset.m` | Review tab |
 | `load/savePreferences.m` | preferences |
 
@@ -590,13 +694,23 @@ app.KSRuns                        % background runs being monitored
 
 [`test_EphysPreprocessingApp.m`](../pipeline/test_EphysPreprocessingApp.m) builds
 the app headlessly over a synthetic project: config → controls → config round
-trip, the unsaved marker, the Run checklist ↔ tab sync and its Parallel controls, scan + selection ticks
+trip, the unsaved marker, the Flow chart of the loaded config and its refresh on edits, the Run checklist ↔ tab sync and its Parallel controls, scan + selection ticks
 (and the ticked datasets in the Dataset menu),
 the active dataset's highlight under the token filters, plan, the Sorting tab's Optimize for probe (each answer to the offer to generate a
 missing parameter file, including a probe map without positions, loading the
 file, the default-probe fallback, the Probe tab's listing and info) and Reset to defaults, one step through the pipeline,
 save / reopen and the recent list. It
 restores the user's preferences afterwards.
+[`test_NasSessions.m`](../pipeline/test_NasSessions.m) (a `matlab.unittest`
+class; `run_all_tests` runs it too) builds fake NAS trees in a temporary
+folder. It checks pairing (a single session, interleaved sessions resolved
+one-to-one, unpaired files on either side, exact and near ties, clock skew,
+midnight, similar subject IDs, malformed names). It checks copying: a dry run
+writes nothing; a hash-verified copy writes its manifest; an existing
+destination is skipped, reported as an error or already present; a truncated
+copy fails; one missing source does not stop the batch; unpaired rows copy
+only on request; Cancel works. It also drives the NAS tab from Find to Copy.
+Copy tests need Windows (robocopy).
 [`test_SyntheticDataset.m`](../pipeline/test_SyntheticDataset.m) checks the
 synthetic project generators and, headlessly, the File-menu action: the
 project is written, opened and scanned; choosing the active dataset in a

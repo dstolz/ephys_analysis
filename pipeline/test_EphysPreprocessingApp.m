@@ -76,8 +76,9 @@ cfg = cfg.save(cfgFile);
 fprintf('\n== 1. build + open ==\n');
 app = EphysPreprocessingApp;
 appCleanup = onCleanup(@() closeApp(app));
-check(isvalid(app.Fig) && numel(app.Tabs.Children) == 11 && app.Tabs.Children(2) == app.TabTrials, ...
-    'app builds with 11 tabs (Trials second)');
+check(isvalid(app.Fig) && numel(app.Tabs.Children) == 13 && app.Tabs.Children(1) == app.TabNas ...
+    && app.Tabs.Children(3) == app.TabTrials && app.Tabs.SelectedTab == app.TabProject, ...
+    'app builds with 13 tabs (NAS first, Trials third) and opens on Project');
 check(startsWith(app.Fig.Name, "Ephys preprocessing") && ~startsWith(app.Fig.Name, "*"), 'fresh app is clean');
 ok = app.openConfigFile(cfgFile);
 check(ok && app.Config.Name == "gui test" && app.Config.File == string(cfgFile), 'openConfigFile loads the config');
@@ -88,6 +89,19 @@ check(app.RunParallelCheckBox.Value && strcmp(app.RunMaxWorkersField.Value, '3')
     && ~isprop(app, 'SpkParallelCheckBox'), 'the Run tab shows the Parallel section; the Spikes tab has no parallel box');
 check(tabTip(app, app.TabSpikes) ~= "Step disabled." && tabTip(app, app.TabSignals) == "Step disabled." && app.RunSpikesCheckBox.Value, ...
     'tab strip states and the Run checklist follow the enabled steps');
+app.selectTab(app.TabFlow);
+html = string(app.FlowHTML.HTMLSource);
+check(contains(html, "Preprocessing flow: gui test") ...
+    && contains(html, "thr = 2000 &micro;V") && contains(html, "Bandpass filter</div><div class=""d"">off (raw trace)") ...
+    && contains(html, "nblocks 3") && contains(html, "Chronux file") && ~contains(html, "FieldTrip file") ...
+    && contains(html, "+ sorted units (see downstream)") && startsWith(app.FlowSummaryLabel.Text, "1 of 4"), ...
+    'the Flow tab charts the loaded config (spike threshold, filter off, KS4 drift, export formats)');
+app.SpkThresholdField.Value = '2500';
+app.onSpikesControlsChanged();
+check(contains(string(app.FlowHTML.HTMLSource), "thr = 2500 &micro;V"), 'the Flow chart follows config edits while shown');
+app.SpkThresholdField.Value = '2000';
+app.onSpikesControlsChanged();
+app.selectTab(app.TabProject);
 g2 = app.gatherConfig();
 check(g2.isequalConfig(app.Config) && isequaln(g2.toStruct(), cfg.toStruct()), 'gatherConfig reproduces the loaded config exactly');
 check(~startsWith(app.Fig.Name, "*") && contains(app.Fig.Name, "gui_test.json"), 'title shows the file and no unsaved marker');

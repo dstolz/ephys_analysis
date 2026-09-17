@@ -25,7 +25,9 @@ obj.TabHost.SizeChangedFcn = @(~,~) fitTabGroup(obj);
 
 buildStatusBar(obj, outer);
 
-% Tabs in workflow order; the two utility tabs come last.
+% Tabs in workflow order (NAS first: pulling sessions from the NAS comes
+% before everything); the Flow chart and the two utility tabs come last.
+obj.TabNas       = uitab(obj.Tabs, "Title", "NAS");
 obj.TabProject   = uitab(obj.Tabs, "Title", "Project");
 obj.TabTrials    = uitab(obj.Tabs, "Title", "Trials");
 obj.TabProbe     = uitab(obj.Tabs, "Title", "Probe");
@@ -35,15 +37,17 @@ obj.TabSignals   = uitab(obj.Tabs, "Title", "Signals");
 obj.TabSpikes    = uitab(obj.Tabs, "Title", "Spikes");
 obj.TabExport    = uitab(obj.Tabs, "Title", "Export");
 obj.TabRun       = uitab(obj.Tabs, "Title", "Run");
+obj.TabFlow      = uitab(obj.Tabs, "Title", "Flow");
 obj.TabVisualize = uitab(obj.Tabs, "Title", "Visualize");
 obj.TabReview    = uitab(obj.Tabs, "Title", "Review");
-obj.TabList = [obj.TabProject, obj.TabTrials, obj.TabProbe, obj.TabArtifacts, ...
+obj.TabList = [obj.TabNas, obj.TabProject, obj.TabTrials, obj.TabProbe, obj.TabArtifacts, ...
     obj.TabSorting, obj.TabSignals, obj.TabSpikes, obj.TabExport, obj.TabRun, ...
-    obj.TabVisualize, obj.TabReview];
+    obj.TabFlow, obj.TabVisualize, obj.TabReview];
 
 buildTabStrip(obj, outer);
 fitTabGroup(obj);
 
+obj.buildNasTab();
 obj.buildProjectTab();
 obj.buildTrialsTab();
 obj.buildVisualizeTab();     % before Artifacts: the artifact tab links to it
@@ -54,8 +58,10 @@ obj.buildSignalsTab();
 obj.buildSpikesTab();
 obj.buildExportTab();
 obj.buildRunTab();
+obj.buildFlowTab();
 obj.buildReviewTab();
 
+obj.Tabs.SelectedTab = obj.TabProject;   % the app still opens on Project
 obj.syncTabStrip();
 obj.onTabChanged();
 end
@@ -67,7 +73,7 @@ n = numel(obj.TabList);
 sg = uigridlayout(parent, [2 n + 1]);
 sg.Layout.Row = 1; sg.Layout.Column = 1;
 sg.RowHeight     = {'1x', 3};
-sg.ColumnWidth   = [repmat({92}, 1, n), {'1x'}];
+sg.ColumnWidth   = [repmat({88}, 1, n), {'1x'}];   % 13 tabs fit the default 1240 px width
 sg.RowSpacing    = 1;
 sg.ColumnSpacing = 3;
 sg.Padding       = [6 3 6 0];

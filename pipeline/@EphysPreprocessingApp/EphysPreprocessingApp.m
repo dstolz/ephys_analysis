@@ -9,6 +9,12 @@ classdef EphysPreprocessingApp < handle
     %   sorted output, Epsych2 session) in each dataset's manifest.
     %
     %   Tabs, in workflow order
+    %     NAS        find one subject's sessions on the NAS for a day or range,
+    %                pair each Intan recording with its ePsych file by the
+    %                timestamps in their names (findNasSessions), preview and
+    %                copy the ticked sessions to <destination>/<subject>/<Intan
+    %                folder> with verification and a manifest (copyNasSessions),
+    %                then open the copied sessions as the project
     %     Project    config name, project root / output root, dataset table
     %                (the Select column is the config's dataset selection),
     %                Epsych2 behavior associations
@@ -26,6 +32,10 @@ classdef EphysPreprocessingApp < handle
     %     Export     Chronux / FieldTrip files, plan, Run
     %     Run        step checklist, validate, plan, run / dry run / cancel,
     %                progress, results, log
+    %     Flow       flow chart of the working config: one tree per step that
+    %                reads the raw recording (filters, references, detection
+    %                parameters, files written), then the downstream steps;
+    %                Save as HTML
     %     Visualize  plot a window, mark manual artifact periods
     %     Review     inspect sorted units
     %
@@ -46,8 +56,8 @@ classdef EphysPreprocessingApp < handle
     %   not part of a config: figure geometry, probe folder, phy command,
     %   Review folder, last / recent config files, script folder, the
     %   datasets-table column order, the Trials-table parameter columns and
-    %   column order, the Trials-plot label parameters, and the Visualize
-    %   display options.
+    %   column order, the Trials-plot label parameters, the Visualize
+    %   display options and the NAS tab settings.
     %
     %   Usage
     %     EphysPreprocessingApp;            % launch
@@ -76,6 +86,7 @@ classdef EphysPreprocessingApp < handle
         StatusBar  matlab.ui.control.Label
         StatusHint matlab.ui.control.Label
 
+        TabNas       matlab.ui.container.Tab
         TabProject   matlab.ui.container.Tab
         TabTrials    matlab.ui.container.Tab
         TabProbe     matlab.ui.container.Tab
@@ -85,8 +96,29 @@ classdef EphysPreprocessingApp < handle
         TabSpikes    matlab.ui.container.Tab
         TabExport    matlab.ui.container.Tab
         TabRun       matlab.ui.container.Tab
+        TabFlow      matlab.ui.container.Tab
         TabVisualize matlab.ui.container.Tab
         TabReview    matlab.ui.container.Tab
+
+        % --- NAS tab (settings are preferences; findNasSessions / copyNasSessions) ---
+        NasSubjectField      matlab.ui.control.EditField
+        NasFromDatePicker    matlab.ui.control.DatePicker
+        NasToDatePicker      matlab.ui.control.DatePicker
+        NasFindButton        matlab.ui.control.Button
+        NasEpsychRootField   matlab.ui.control.EditField
+        NasIntanRootField    matlab.ui.control.EditField
+        NasDestRootField     matlab.ui.control.EditField
+        NasMaxLeadField      matlab.ui.control.NumericEditField   % minutes
+        NasMaxLagField       matlab.ui.control.NumericEditField   % minutes
+        NasMarginField       matlab.ui.control.NumericEditField   % seconds
+        NasVerifyDropDown    matlab.ui.control.DropDown
+        NasIfExistsDropDown  matlab.ui.control.DropDown
+        NasPreviewButton     matlab.ui.control.Button
+        NasCopyButton        matlab.ui.control.Button
+        NasSummaryLabel      matlab.ui.control.Label
+        NasScanAfterCheckBox matlab.ui.control.CheckBox
+        NasTable             matlab.ui.control.Table
+        NasLogArea           matlab.ui.control.TextArea
 
         % --- Project tab ---
         ConfigNameField   matlab.ui.control.EditField
@@ -353,6 +385,12 @@ classdef EphysPreprocessingApp < handle
         RunStepExportButton  matlab.ui.control.Button
         ExpRefreshButton     matlab.ui.control.Button
 
+        % --- Flow tab ---
+        FlowRefreshButton matlab.ui.control.Button
+        FlowSaveButton    matlab.ui.control.Button
+        FlowSummaryLabel  matlab.ui.control.Label
+        FlowHTML          matlab.ui.control.HTML
+
         % --- Run tab ---
         RunBehaviorCheckBox  matlab.ui.control.CheckBox
         RunArtifactsCheckBox matlab.ui.control.CheckBox
@@ -429,6 +467,12 @@ classdef EphysPreprocessingApp < handle
         TrialsLabelParams (1,:) string = string.empty(1,0)   % Epsych2 parameters shown as trial labels in the Trials plot (a preference)
         TrialsColumnOrder (1,:) string = string.empty(1,0)   % Trials-table variables in display order (a preference)
 
+        % --- NAS tab state (in memory) ---
+        NasSessions = []                               % findNasSessions table shown (DestDir updated by a copy)
+        NasTicked (:,1) logical = false(0, 1)          % Copy ticks, one per row
+        NasCopyStatus (:,1) string = strings(0, 1)     % last copyNasSessions CopyStatus per row
+        NasMessage (:,1) string = strings(0, 1)        % ... and its Message
+
         % --- Review (Kilosort4 output) state ---
         ReviewData = struct([])
         ReviewSelectedUnit (1,1) double = 0
@@ -455,6 +499,7 @@ classdef EphysPreprocessingApp < handle
         % --- UI construction ---
         buildUI(obj)
         buildMenus(obj)
+        buildNasTab(obj)
         buildProjectTab(obj)
         buildTrialsTab(obj)
         buildProbeTab(obj)
@@ -464,6 +509,7 @@ classdef EphysPreprocessingApp < handle
         buildSpikesTab(obj)
         buildExportTab(obj)
         buildRunTab(obj)
+        buildFlowTab(obj)
         buildVisualizeTab(obj)
         buildReviewTab(obj)
 
@@ -521,6 +567,14 @@ classdef EphysPreprocessingApp < handle
         refreshStepPlan(obj, step)
         runLog(obj, fmt, varargin)
         setRunBar(obj, bar, frac)
+
+        % --- NAS tab ---
+        onNasFind(obj)
+        onNasCopy(obj, dryRun)
+        refreshNasTable(obj)
+        onNasTableEdited(obj, evt)
+        onBrowseNasFolder(obj, field)
+        nasLog(obj, msg)
 
         % --- Project tab ---
         onScan(obj)
@@ -649,6 +703,11 @@ classdef EphysPreprocessingApp < handle
         onSpikesPreview(obj)
         onBrowseSpikesOutput(obj)
         onBrowseExportOutput(obj)
+
+        % --- Flow tab ---
+        refreshFlowChart(obj)
+        [html, summary] = flowChartHTML(obj)
+        onSaveFlowChart(obj)
 
         % --- Review tab ---
         loadReviewResults(obj)

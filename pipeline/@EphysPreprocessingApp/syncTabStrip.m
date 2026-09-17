@@ -30,6 +30,8 @@ if hasData; sel = obj.selectedDatasetIndices(); end
 tabs = obj.TabList;
 for k = 1:numel(tabs)
     switch tabs(k)
+        case obj.TabNas
+            state = "neutral"; tip = "Find sessions on the NAS and copy them to local session folders.";
         case obj.TabProject
             [state, tip] = issueState(issues, "project");
             if state == "ok"
@@ -65,6 +67,8 @@ for k = 1:numel(tabs)
             else
                 state = "neutral"; tip = "Validate, plan and run the enabled steps.";
             end
+        case obj.TabFlow
+            state = "neutral"; tip = "Flow chart of the working config.";
         otherwise
             state = "neutral"; tip = "";
     end

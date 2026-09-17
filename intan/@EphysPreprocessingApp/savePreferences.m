@@ -13,6 +13,13 @@ setpref(g, 'ReviewFolder',  char(obj.ReviewFolderField.Value));
 setpref(g, 'ScriptFolder',  char(obj.ScriptFolder));
 setpref(g, 'RecentConfigs', cellstr(obj.RecentConfigs));
 setpref(g, 'LastConfigFile', char(obj.Config.File));
+order = obj.DatasetsColumnOrder;
+T = obj.DatasetsTable.Data;
+dco = obj.DatasetsTable.DisplayColumnOrder;
+if istable(T) && width(T) > 0 && numel(dco) == width(T)   % dragged since the last refresh
+    order = string(T.Properties.VariableNames(dco));
+end
+setpref(g, 'DatasetsColumnOrder', cellstr(order));
 setpref(g, 'VizOptions', struct( ...
     'channels',  char(obj.VizChannelsField.Value), ...
     'duration',  obj.VizDurField.Value, ...

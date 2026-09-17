@@ -18,11 +18,7 @@ switch scope
     case "selected"
         % Ticked rows only: selectedDatasetIndices() falls back to every
         % dataset when nothing is ticked, which "selected" must not do.
-        T = obj.DatasetsTable.Data;
-        idx = [];
-        if istable(T) && all(ismember({'Select', 'DatasetIdx'}, T.Properties.VariableNames))
-            idx = T.DatasetIdx(T.Select(:))';
-        end
+        idx = obj.tickedDatasetIndices();
         if ~isempty(idx)
             targets = obj.Project.Datasets(idx);
         else

@@ -2,9 +2,10 @@ function loadPreferences(obj)
 %loadPreferences  Restore app preferences and open the last config.
 %   Preferences (group EphysPreprocessingApp) hold only what is not part of
 %   a pipeline config: figure geometry, the probe folder, the phy command,
-%   the Review folder, the last / recent config files, the script folder
-%   and the Visualize display options. Everything else lives in the config;
-%   the last config file is reopened at launch (defaults otherwise).
+%   the Review folder, the last / recent config files, the script folder,
+%   the datasets-table column order and the Visualize display options.
+%   Everything else lives in the config; the last config file is reopened
+%   at launch (defaults otherwise).
 
 g = obj.PrefGroup;
 
@@ -37,6 +38,9 @@ if ispref(g, 'RecentConfigs')
     obj.RecentConfigs = reshape(string(r), 1, []);
 end
 obj.refreshRecentMenu();
+if ispref(g, 'DatasetsColumnOrder')
+    obj.DatasetsColumnOrder = reshape(string(getpref(g, 'DatasetsColumnOrder')), 1, []);
+end
 
 % --- Visualize display options (one struct) ---
 if ispref(g, 'VizOptions')

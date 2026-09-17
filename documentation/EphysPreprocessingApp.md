@@ -159,6 +159,7 @@ script:
 T = findNasSessions("SUBJ-ID-1255", "260916");                 % or [datetime datetime]
 R = copyNasSessions(T(T.Status == "paired", :));               % dry run (the default)
 R = copyNasSessions(T(T.Status == "paired", :), DryRun=false, Verify="hash");
+T = stitchNasSessions(T, [2 3]);                               % one recording, two ePsych files
 ```
 
 | Control | Meaning |
@@ -167,9 +168,12 @@ R = copyNasSessions(T(T.Status == "paired", :), DryRun=false, Verify="hash");
 | ePsych root, Intan root, Destination | defaults `S:/RIG3_Backup_2025/epsych_files/Data`, `S:/RIG3_Backup_2025/intan_files/Data`, `D:/EPHYS` |
 | Max lead (min), Max lag (min) | an ePsych file is a candidate for an Intan folder when it starts no more than *lead* before it (default 10) and no more than *lag* after it (default 2, for clock skew) |
 | Ambiguity margin (s) | default 30; see below |
-| Find sessions | list and pair by name only (no file is opened) |
-| Verify | `size`: every destination file has the source's size; `hash`: also the same SHA-256 (reads every file twice) |
+| Min duration (min) | default 2. An Intan recording shorter than this is never paired; see below. 0 pairs every recording |
+| Find sessions | pair by name, using the **Duration** of each Intan recording (from its `.rhd` headers and `.dat` sizes) for the minimum; then read the **Trials** (elements of the ePsych file's `Data`) of the listed sessions. A header that cannot be read is logged and leaves the cell blank |
+| Verify | checked for each file as soon as it is copied. `size`: the copy has the source's size; `hash`: also a SHA-256 checksum of the source and the copy (reads every file twice more) |
 | If it exists | a destination folder that exists, is not empty and does not match the source: `skip` it or report it as `failed`. One that already matches is reported `already_present`. Nothing is ever overwritten |
+| Stitch selected rows | merges the selected rows (click, then Ctrl- or Shift-click) into one `stitched` session: they must hold exactly one Intan folder and at least two ePsych files. See [Stitching](#stitching-epsych-files) |
+| Unstitch | puts the selected stitched rows back as Find sessions paired them |
 | Preview (dry run) | reports what a copy would do, including a free-space check; writes nothing |
 | Copy selected | copies the ticked rows. A progress dialog shows each file; **Cancel** stops between files (the partial copy is kept and reported) |
 | After copying, open the copied sessions as the project | sets the Project root to the folder holding the copied sessions, scans it and makes the first copied session the active dataset |
@@ -181,25 +185,63 @@ so a file never goes to whichever session happened to be listed first. If a
 file has a second candidate whose |Δt| is within the ambiguity margin of the
 best one, every file linked to it by a candidate pair is marked **ambiguous**
 and none of them is paired. Rows spanning midnight appear under either day.
+An Intan recording shorter than **Min duration** takes no part in the
+pairing, so an aborted recording can neither claim the ePsych file nor make
+the real recording ambiguous. It is listed as `intan_only` with the reason in
+**Note**. A recording whose headers cannot be read has no known duration and
+is paired as usual.
 
 | Status | Row colour | Ticked after Find | Copied |
 | --- | --- | --- | --- |
 | `paired` | white | yes | yes |
+| `stitched` | blue | yes, when stitched | yes, with its ePsych files stitched into one |
 | `intan_only`, `epsych_only` | orange | no (tick by hand) | only when ticked |
-| `ambiguous` | red | no; cannot be ticked | never: pair these files by hand |
+| `ambiguous` | red | no; cannot be ticked | never: pair these files by hand, or stitch them |
 
 **Copying.** Nothing on the NAS is modified, renamed, moved or deleted. Before
 anything is copied, the free space under Destination is checked against the
 total size, and the copy stops if there is too little. Each file goes through
 `robocopy <src> <dest> <file> /Z /R:3 /W:5 /NP /LOG+:<log>`, never with
-`/MIR`, `/MOV` or `/PURGE`. Exit codes 8 and above are failures. Afterwards
-every file is verified; a mismatch marks the session `failed` and keeps the
-partial copy. Each session is handled separately, so one failure does not
+`/MIR`, `/MOV` or `/PURGE`. Exit codes 8 and above are failures. Each file is
+verified (size, or size and SHA-256) right after it is copied; the first
+mismatch stops that session, marks it `failed` and keeps the partial copy.
+Each session is handled separately, so one failure does not
 stop the others. `session_manifest.json` records the source and destination
 paths, both times and Δt, the pairing status, every file's size (and hashes),
-the copy start and finish times, the host, the user, and the function version
-and git commit. The copy blocks MATLAB while each file is copied; the dialog
-updates between files.
+for a stitched session the stitched file and each source ePsych file with its
+trial count (`epsych.stitch`), the copy start and finish times, the host, the
+user, and the function version and git commit. The copy blocks MATLAB while
+each file is copied; the dialog updates between files.
+
+### Stitching ePsych files
+
+When ePsych was stopped and started again during one Intan recording, the
+recording has several ePsych files, and pairing gives it at most one of them.
+Select the recording's row and the rows holding its other ePsych files, and
+press **Stitch selected rows**
+([`stitchNasSessions`](../pipeline/stitchNasSessions.m)).
+Rows of any status can be merged, including ambiguous rows and a row stitched
+earlier. The files are always stitched in chronological order, whatever order
+the rows are selected in. The stitched row keeps the Intan folder and its
+destination. **ePsych file** lists every file joined by `+`, **ePsych time**
+and **ePsych - Intan** belong to the earliest file, **Trials** is the total, and
+**Note** gives each file's start relative to the recording. Stitching and
+unstitching only change the table. **Preview** stitches the files in memory, so
+files that cannot be stitched (different subjects, a session that starts
+before the previous one's last trial, no start time) fail the row there,
+before anything is copied.
+
+The copy writes the ePsych files as one Epsych2 session,
+`<earliest file name>_stitched.mat`, in place of the individual files
+([`stitchEpsychSessions`](EphysPipeline.md#epsych2-sessions)). The session folder
+therefore holds a single behavior file, which the behavior step matches and the
+Trials tab pairs like any other. That file is checked right after it is
+written. It must list the same source file names and sizes and hold as many
+trials as they do. With `hash`, its `Data` and `Info` must also equal a fresh
+stitch of the sources, and the SHA-256 of every source and of the file are
+recorded. A destination that already holds a stitched file made from other
+versions of the sources is `skipped` (or `failed`), like any other differing
+copy.
 
 ## Project
 
@@ -651,7 +693,7 @@ preference groups are not read.
 | `<Name>_extract_<TYPE>.mat` (or `<Name>_extract.mat`), `<Name>_spikes.mat`, `<Name>_chronux.mat`, `<Name>_fieldtrip.mat` | Signals, Spikes, Export |
 | probe `.json` in the probe folder | Import, Designer save, Notes edit |
 | `<parent>/synthetic_ephys/...` | File → Create synthetic test project (recordings, sessions, sorted output, probe, config, README) |
-| `<Destination>/<SUBJ>/<Intan folder>/`: the copied files, `session_manifest.json`, `session_copy_robocopy.log` | NAS → Copy selected (Preview writes nothing) |
+| `<Destination>/<SUBJ>/<Intan folder>/`: the copied files (for a stitched session, `<earliest ePsych file>_stitched.mat` instead of the ePsych files), `session_manifest.json`, `session_copy_robocopy.log` | NAS → Copy selected (Preview writes nothing) |
 
 Raw recording files are only read. So is the NAS.
 
@@ -686,7 +728,7 @@ app.KSRuns                        % background runs being monitored
 | `onSpikesPreview.m`, `syncSpikesEnableStates.m` | Spikes tab |
 | `onPlotVisualization.m`, `onVizButtonDown/Up.m`, `drawVizArtifacts.m`, `finishVizArtDrag.m`, `applyVizChannelOrder.m`, `applyVizChannelColor.m`, `syncVizDataset.m` | Visualize tab |
 | `buildFlowTab.m`, `refreshFlowChart.m`, `flowChartHTML.m`, `onSaveFlowChart.m` | Flow tab |
-| `buildNasTab.m`, `onNasFind.m`, `onNasCopy.m`, `refreshNasTable.m`, `onNasTableEdited.m`, `onBrowseNasFolder.m`, `nasLog.m`; `pipeline/findNasSessions.m`, `pipeline/copyNasSessions.m` | NAS tab and the pairing / copy functions it calls |
+| `buildNasTab.m`, `onNasFind.m`, `onNasCopy.m`, `refreshNasTable.m`, `onNasTableEdited.m`, `onNasStitch.m`, `onNasUnstitch.m`, `onBrowseNasFolder.m`, `nasLog.m`; `pipeline/findNasSessions.m`, `pipeline/stitchNasSessions.m`, `pipeline/copyNasSessions.m`, `pipeline/stitchEpsychSessions.m` | NAS tab and the pairing / stitching / copy functions it calls |
 | `loadReviewResults.m`, `renderReviewPlots.m`, `syncReviewDataset.m` | Review tab |
 | `load/savePreferences.m` | preferences |
 

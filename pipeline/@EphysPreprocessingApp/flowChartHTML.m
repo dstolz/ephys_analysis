@@ -20,18 +20,19 @@ function [html, summary] = flowChartHTML(obj)
 cfg = obj.Config;
 d = obj.currentDataset();
 raw = rawNode(d);
+dsName = ternary(isempty(d), "<Name>", d.Name);
 
 cards = [ ...
     card("artifacts", "Artifacts", cfg.Artifacts.Enabled, artifactsTree(cfg, raw), ...
         ternary(cfg.Artifacts.Enabled, "", "Detection is off: only the manual periods reach Sorting / Spikes.")), ...
     card("sorting", "Sorting", cfg.Sorting.Enabled, sortingTree(cfg, raw, d), sortingNote(cfg.Sorting)), ...
-    card("signals", "Signals", cfg.Signals.Enabled, signalsTree(cfg, raw), ""), ...
-    card("spikes", "Spikes", cfg.Spikes.Enabled && cfg.Spikes.Source ~= "sorted", spikesTree(cfg, raw), ...
+    card("signals", "Signals", cfg.Signals.Enabled, signalsTree(cfg, raw, dsName), ""), ...
+    card("spikes", "Spikes", cfg.Spikes.Enabled && cfg.Spikes.Source ~= "sorted", spikesTree(cfg, raw, dsName), ...
         ternary(cfg.Spikes.Source == "sorted", "Source is 'sorted': no threshold detection runs.", ""))];
 down = [ ...
-    card("spikes", "Spikes: sorted units", cfg.Spikes.Enabled && cfg.Spikes.Source ~= "detect", unitsTree(cfg), ...
+    card("spikes", "Spikes: sorted units", cfg.Spikes.Enabled && cfg.Spikes.Source ~= "detect", unitsTree(cfg, dsName), ...
         ternary(cfg.Spikes.Source == "detect", "Source is 'detect': sorted units are not read.", "")), ...
-    card("export", "Export", cfg.Export.Enabled, exportTree(cfg), "")];
+    card("export", "Export", cfg.Export.Enabled, exportTree(cfg, dsName), "")];
 
 nOn = sum([cards.enabled]);
 summary = sprintf("%d of %d raw-data step(s) enabled", nOn, numel(cards));
@@ -39,7 +40,7 @@ if ~isempty(d)
     summary = summary + " | recording: " + d.Name;
 end
 
-pageTitle = "Preprocessing flow: " + cfg.Name;
+pageTitle = "Preprocessing diagram: " + cfg.Name;
 body = "<h1>" + esc(pageTitle) + "</h1>" + legendHTML() ...
     + "<h2>From the raw recording</h2><div class=""cards"">" + joinHTML(arrayfun(@cardHTML, cards, "UniformOutput", false)) + "</div>" ...
     + "<h2>Downstream (reads step outputs)</h2><div class=""cards"">" + joinHTML(arrayfun(@cardHTML, down, "UniformOutput", false)) + "</div>";
@@ -189,7 +190,7 @@ txt = txt + ".";
 end
 
 
-function n = signalsTree(cfg, raw)
+function n = signalsTree(cfg, raw, dsName)
 G = cfg.Signals;
 
 sel = strings(1, 0);
@@ -214,7 +215,7 @@ if G.LFP
     end
     notch = onOff(G.LFP_NotchOn, "Notch", [G.LFP_NotchHz + " Hz", sprintf("width %g Hz, order 2, zero-phase", G.LFP_NotchBW)], "off");
     branches{1} = chain([{node("stage", "LFP", "amplifier"), ...
-        node("op", "Resample", sprintf("-> %g Hz (anti-aliased)", G.LFP_Fs)), band, notch}, ampTail(G, "LFP")]);
+        node("op", "Resample", sprintf("-> %g Hz (anti-aliased)", G.LFP_Fs)), band, notch}, ampTail(G, "LFP", dsName)]);
 else
     branches{1} = node("off", "LFP", "not computed");
 end
@@ -224,20 +225,20 @@ if G.MUA
         node("op", "Butterworth bandpass", [sprintf("%g - %g Hz, order 4", G.MUA_bpLoHi), "zero-phase at original rate"]), ...
         node("op", "Rectify", "|x|"), ...
         node("op", "Resample", sprintf("-> %g Hz", G.MUA_Fs)), ...
-        node("op", "Integrate", sprintf("moving mean, %d sample(s) (%g Hz)", win, G.MUA_IntegrationHz))}, ampTail(G, "MUA")]);
+        node("op", "Integrate", sprintf("moving mean, %d sample(s) (%g Hz)", win, G.MUA_IntegrationHz))}, ampTail(G, "MUA", dsName)]);
 else
     branches{2} = node("off", "MUA", "not computed");
 end
 if G.SPIKE
     rs = onOff(~G.SPIKE_KeepOriginal, "Resample", sprintf("-> %g Hz", G.SPIKE_Fs), "off (original rate)");
     branches{3} = chain([{node("stage", "SPIKE", "amplifier"), rs, ...
-        node("op", "Butterworth bandpass", [sprintf("%g - %g Hz, order 4", G.SPIKE_bpLoHi), "zero-phase"])}, ampTail(G, "SPIKE")]);
+        node("op", "Butterworth bandpass", [sprintf("%g - %g Hz, order 4", G.SPIKE_bpLoHi), "zero-phase"])}, ampTail(G, "SPIKE", dsName)]);
 else
     branches{3} = node("off", "SPIKE", "not computed");
 end
 if G.AUX
     branches{4} = chain({node("stage", "AUX", "headstage accelerometer"), ...
-        node("op", "No processing", "volts at the aux rate"), outNode(G, "AUX")});
+        node("op", "No processing", "volts at the aux rate"), outNode(G, "AUX", dsName)});
 else
     branches{4} = node("off", "AUX", "not computed");
 end
@@ -251,7 +252,7 @@ n = chain({raw, node("op", "Read whole recording", "single precision, uV"), chan
 end
 
 
-function tail = ampTail(G, type)
+function tail = ampTail(G, type, dsName)
 %ampTail  Bad-channel interpolation, remap and the file of one amplifier signal.
 lines = strings(1, 0);
 switch G.BadMode
@@ -265,21 +266,21 @@ else
     bad = node("op", "Interpolate bad channels", [lines, "spatial makima"]);
 end
 remap = onOff(G.ChannelRemap ~= "", "Channel remap", G.ChannelRemap, "off");
-tail = {bad, remap, outNode(G, type)};
+tail = {bad, remap, outNode(G, type, dsName)};
 end
 
 
-function n = outNode(G, type)
+function n = outNode(G, type, dsName)
 if G.SeparateFiles
-    f = "<Name>" + G.Suffix + "_" + type + ".mat";
+    f = dsName + G.Suffix + "_" + type + ".mat";
 else
-    f = "<Name>" + G.Suffix + ".mat";
+    f = dsName + G.Suffix + ".mat";
 end
 n = node("out", type + " file", [f, G.MatVersion]);
 end
 
 
-function n = spikesTree(cfg, raw)
+function n = spikesTree(cfg, raw, dsName)
 K = cfg.Spikes;
 A = cfg.Artifacts;
 
@@ -322,7 +323,7 @@ if K.RejectArtifacts
 else
     rej = node("off", "Reject artifact periods", "off");
 end
-lines = ["<Name>" + K.Suffix + ".mat", K.MatVersion];
+lines = [dsName + K.Suffix + ".mat", K.MatVersion];
 if K.Source == "both"; lines(end+1) = "+ sorted units (see downstream)"; end
 out = node("out", "Detected spikes", lines);
 
@@ -331,18 +332,18 @@ n = chain({raw, node("op", "Stream chunks", chunk), node("op", "Channels", ch), 
 end
 
 
-function n = unitsTree(cfg)
+function n = unitsTree(cfg, dsName)
 K = cfg.Spikes;
 lines = "groups: " + joinOr(K.Groups, "every non-noise cluster");
 if K.IncludeNoise; lines(end+1) = "+ noise clusters"; end
 if K.Templates; lines(end+1) = "+ templates"; end
 n = chain({node("data", "Sorted units", "from Sorting (phy folder)"), ...
     node("op", "Unit selection", lines), ...
-    node("out", "Spikes file", ["<Name>" + K.Suffix + ".mat", K.MatVersion])});
+    node("out", "Spikes file", [dsName + K.Suffix + ".mat", K.MatVersion])});
 end
 
 
-function n = exportTree(cfg)
+function n = exportTree(cfg, dsName)
 E = cfg.Export;
 in = "Signals extract: " + joinOr(E.Signals, "every signal");
 if E.IncludeUnits; in(end+1) = "sorted units: " + joinOr(E.Groups, "every non-noise cluster"); end
@@ -352,12 +353,12 @@ if E.IncludeEvents; in(end+1) = "digital events"; end
 kids = {};
 if ismember("chronux", E.Formats)
     kids{end+1} = chain({node("op", "Chronux layout", ["[samples x channels] + params", "spike times as structs"]), ...
-        node("out", "Chronux file", ["<Name>_chronux.mat", E.MatVersion])});
+        node("out", "Chronux file", [dsName + "_chronux.mat", E.MatVersion])});
 end
 if ismember("fieldtrip", E.Formats)
     kids{end+1} = chain({node("op", "FieldTrip structures", ["raw / spike / event", ...
         ternary(E.Validate, "validated when FieldTrip is on the path", "not validated")]), ...
-        node("out", "FieldTrip file", ["<Name>_fieldtrip.mat", E.MatVersion])});
+        node("out", "FieldTrip file", [dsName + "_fieldtrip.mat", E.MatVersion])});
 end
 if isempty(kids)
     kids = {node("off", "Formats", "none ticked")};

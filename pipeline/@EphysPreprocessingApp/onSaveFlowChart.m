@@ -3,9 +3,9 @@ function onSaveFlowChart(obj)
 start = obj.defaultConfigFolder();
 if obj.Config.File ~= ""
     [p, base] = fileparts(obj.Config.File);
-    start = fullfile(p, base + "_flow.html");
+    start = fullfile(p, base + "_diagram.html");
 end
-[f, p] = uiputfile({'*.html', 'HTML page (*.html)'}, "Save the flow chart", start);
+[f, p] = uiputfile({'*.html', 'HTML page (*.html)'}, "Save the diagram", start);
 figure(obj.Fig);
 if isequal(f, 0); return; end
 file = fullfile(p, f);
@@ -17,5 +17,5 @@ if fid < 0
 end
 fwrite(fid, char(html), 'char');
 fclose(fid);
-obj.setStatus("Flow chart saved to " + string(file));
+obj.setStatus("Diagram saved to " + string(file));
 end

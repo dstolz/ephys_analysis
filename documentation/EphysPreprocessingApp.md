@@ -1,6 +1,6 @@
 # EphysPreprocessingApp
 
-`EphysPreprocessingApp` ([source](../intan/@EphysPreprocessingApp/EphysPreprocessingApp.m)) is
+`EphysPreprocessingApp` ([source](../pipeline/@EphysPreprocessingApp/EphysPreprocessingApp.m)) is
 a programmatic `uifigure` GUI (a `handle` class, not an App Designer `.mlapp`)
 for the preprocessing pipeline. It edits **one pipeline config**
 ([`EphysPipelineConfig`](EphysPipeline.md)) and runs it with
@@ -25,7 +25,7 @@ associations in each dataset's manifest. Anything the app runs can be run
 without it from the saved config.
 
 Installation (MATLAB, conda environments, GPU) is covered in
-[INSTALL.md](../intan/INSTALL.md).
+[INSTALL.md](../pipeline/INSTALL.md).
 
 ## Launching
 
@@ -46,8 +46,8 @@ background monitor and saves preferences.
     Save config as..., Export copy of config..., Generate script (Compact |
     Standalone), Create synthetic test project... (see
     [Synthetic test project](#synthetic-test-project)), Close.
-  - **Dataset**: one checkable item per scanned dataset. This picks the single
-    dataset the **Visualize** tab plots and the **Spikes** preview uses.
+  - **Dataset**: one checkable item per scanned dataset; the checked one is
+    the [active dataset](#which-dataset-does-an-action-act-on).
   - **Run**: Validate config, Plan, Run pipeline (Ctrl+R), Dry run, Cancel.
 - **Title**: the config name and file; `*` in front while the config has
   unsaved changes.
@@ -77,13 +77,34 @@ field it cannot parse.
 
 ### Which dataset does an action act on?
 
+There are two kinds of target. Batch work uses the **ticked** rows of the
+Project table. Everything that works on one dataset uses the **active
+dataset**. There is always exactly one active dataset once a project is
+scanned (the first one after a scan, or the one that was active if it is
+still there). You choose it in any of three places, and all of them always
+show the same one:
+
+- the **Dataset menu** (the active dataset is checked). It lists the datasets
+  ticked in the Project table, including ticked rows the token filters hide;
+  every dataset, ticked or not, is under its **All datasets** submenu;
+- a **Dataset** box on the Trials, Probe, Artifacts, Sorting, Spikes,
+  Visualize and Review tabs;
+- a click on a row of the **Project table** (the active row is bold on light
+  blue; no row is highlighted while the token filters hide it, but it stays
+  active).
+
+When the active dataset changes, results shown for the previous one are
+cleared: a loaded trial pairing, the Artifacts preview and the Spikes
+preview. The Review tab loads the new dataset's sorted output (at once when
+the tab is open, else when you open it). A Visualize plot of the previous
+dataset stays on screen, but the status line names the dataset it shows and
+**Mark Artifacts** / **Clear Artifacts** are off until you press **Plot**.
+
 | Action | Target |
 | --- | --- |
-| Probe: Exclude channels; Sorting: Use folder / Use auto / Open in phy, Optimize for probe (the default probe when that row has none); Project: Associate file / Clear; Artifacts: manual periods table | the row **last clicked** in the Project table |
-| Visualize: Plot; Spikes: Preview | the dataset checked in the **Dataset menu** (clicking a Project row also checks it) |
-| Artifacts: Detect / Preview | the Artifacts tab's own **Dataset** dropdown |
+| Trials: every control; Probe: Exclude channels, the channel-count check; Artifacts: Detect / Preview, manual periods table; Sorting: Use folder / Use auto / Open in phy, Optimize for probe (the default probe when the dataset has none); Spikes: Preview; Visualize: Plot; Review; Project: Associate file / Clear, Open in phy | the **active dataset** |
 | Run pipeline, Run this step, Plan, Signals / Export target tables | the rows **ticked** in the Project table (`Project.Selection = "list"`), or **all** datasets when none are ticked (`"all"`) |
-| Probe: Assign to selected datasets | the rows **ticked** in the Project table, or the row **last clicked** when none are ticked |
+| Probe: Assign to selected datasets | the rows **ticked** in the Project table, or the **active dataset** when none are ticked |
 | Probe: Assign to all datasets | every dataset |
 
 ## Typical workflow
@@ -119,7 +140,7 @@ config) and opens it; see [Synthetic test project](#synthetic-test-project).
 | Name pattern + Columns | `Project.NamePattern`: tokens parsed from each dataset name (see [`parseNameTokens`](EphysPipeline.md#dataset-name-tokens)); one checkbox per token, ticked tokens (`Project.TokenColumns`, default `SubjectID`) become table columns after Name. The label shows how many names match, or the pattern error |
 | Filter | one editable dropdown per name-pattern token, listing the values found (`-` = the name does not match). Rows whose token does not match are hidden; type `*` / `?` wildcards or comma-separated alternatives (case-insensitive). Filters are a view only: they are not saved, and ticks on hidden rows stay in the selection (the label shows `showing k of n (m ticked hidden)`) |
 | All / None | **All** ticks every shown row; **None** unticks every row, shown or hidden |
-| Open in phy | the last-clicked dataset's associated sorted output (enabled only when it has `params.py`) |
+| Open in phy | the active dataset's associated sorted output (enabled only when it has `params.py`) |
 
 Table columns (drag a header to reorder; the order is kept across refreshes
 and saved in the app preferences): **Select**, Name, the ticked name tokens
@@ -128,15 +149,16 @@ stores), Acq date, # chan, Fs (Hz), Duration (min), Format, Probe, Exclude,
 **Sorting** (units, `curated` when phy labels exist, `auto` / `manual`),
 **Behavior** (subject, trial count and the recorded pairing status). Ticks are written to
 `Project.Datasets` as keys; with no ticks `Project.Selection` is `"all"`.
+Clicking a row makes its dataset the active one; its row is highlighted.
 
 **Behavior (Epsych2)** panel: **Match sessions as a pipeline step**
 (`Behavior.Enabled`), search folders + **Add folder...**, match rule (`prefix,
 then time` / `prefix only` / `time only`) and max start offset
 (`Behavior.*`), **Find sessions for selected** (what `findEpsychSessions` sees
-and what `matchEpsychSession` would pick for the last-clicked dataset),
+and what `matchEpsychSession` would pick for the active dataset),
 **Re-match existing** (`Behavior.Overwrite`), **Write behavior .mat**
 (`Behavior.WriteFile`), **Associate file...** (pick a
-session `.mat` for the last-clicked dataset by hand) and **Clear**. Associations are
+session `.mat` for the active dataset by hand) and **Clear**. Associations are
 written to the manifest. Nothing is plotted here. When the behavior step runs
 with **Write behavior .mat** on, each associated session is saved once as
 `<Name>_behavior.mat` in the dataset's output folder; the Signals, Spikes and
@@ -149,15 +171,17 @@ Review how each Epsych2 trial is paired with the trial digital line (see
 
 | Control | What it does |
 | --- | --- |
-| Dataset + **Load** | reads the dataset's digital lines (`digitalEvents`: cached on disk after the first read, kept in memory while the tab shows this dataset) and pairs the trials in order, reusing the cuts recorded in the manifest when they still match |
+| Dataset + **Load** | the active dataset. Load reads its digital lines (`digitalEvents`: cached on disk after the first read, kept in memory while it stays active) and pairs the trials in order, reusing the cuts recorded in the manifest when they still match. Choosing another dataset clears the pairing shown, including cuts not yet approved |
 | **Reset cuts** | drops the cuts (shown and recorded) and pairs every trial with every interval in order again |
 | **Approve pairing** / **Mark unreviewed** | `setTrialPairing(P, "approved" / "unreviewed")`: saves the shown cuts in the manifest |
 | **Write behavior .mat** | `behaviorToMat(Pairing=P)` now, without running the step |
+| **Epsych2 to workspace** | loads the associated Epsych2 session file as saved (`Data`, `Info`) into the base workspace as `epsych_<Name>`; an alert and the status bar give the variable's name. A variable of that name is replaced |
+| **Behavior to workspace** | loads the `behavior` struct of `<Name>_behavior.mat` (trials with the pairing columns, `info`, `meta`, `pairing`, ...) into the base workspace as `behavior_<Name>`, the same way. The file must exist: run the behavior step or press **Write behavior .mat** first |
 | **Pair trials in the behavior step**, **Trial line** | `Behavior.PairTrials`, `Behavior.TrialLine` |
-| Lines table (**Inverted**) | one row per digital line with its interval count; ticked lines are `Signals.InvertedLines`: on while low, onset = falling edge. This applies to the pairing and to the events the Signals step writes (and so to the exports) |
+| Lines table (**Inverted**) | one row per digital line with its interval count; ticked lines are `Signals.InvertedLines`: on while low, so an event's onset is the falling edge and its offset the rising edge (the last low sample). This applies to the pairing and to the events the Signals step writes (and so to the exports) |
 | **Resolve a count mismatch** | four spinners: Epsych2 trials and trial-line intervals to cut from the start and from the end before pairing. They belong to the dataset (its manifest), not to the config; cuts that would drop more than there is are refused |
-| Trials table | trial, `TrialIndex`, interval, onset / offset (s), onset / offset sample, flag (orange = partial: the interval touches the recording start or end; grey = cut; red = unpaired), the other lines overlapping the trial |
-| Plot | the digital lines over the recording, the trial line coloured by pairing state (paired, partial, cut, unpaired). Zoom and pan are horizontal only: the mouse wheel zooms time in and out about the cursor, dragging pans time |
+| Trials table | trial, `TrialIndex`, interval, onset / offset (s), onset / offset sample, flag (orange = partial: the interval touches the recording start or end; grey = cut; red = unpaired), the other lines overlapping the trial. Click a header to sort, drag it to move the column. Right-click for **Parameter columns** (the session's Epsych2 parameters in alphabetical order; tick one, e.g. `TrialType` or a response code, to show it after Flag), **Remove "*name*"** (on a parameter column) and **Reset column order**. The chosen parameters and the column order are preferences, so they apply to every dataset and the next session; a parameter a session lacks is not shown there (the menu lists it as *not in this session*) and returns to its place for sessions that have it. Values that are not one number, text or date per trial are shown as text. A sort is not kept when the table refreshes (Load, a cut, a setting or a column change) |
+| Plot | the digital lines over the recording: one bar per event, from its onset to its offset. A normal line's bars run from each rising edge to the next falling edge; an inverted line's (row label `(inverted)`) from each falling edge to the next rising edge. The trial line's bars are coloured by pairing state (paired, partial, cut, unpaired), and dotted lines across every row mark its onsets and offsets. Right-click the plot to show or hide those lines (shown by default) and the grid lines (hidden by default), and for **Trial labels**: the loaded session's Epsych2 parameters in alphabetical order (`TrialIndex` included). A ticked parameter writes each paired trial's value above the trial line, starting at the trial's onset; with several ticked, each label reads `name=value, name=value` in the order ticked, and the plot title names them. **No labels** clears them. Like the table's parameter columns, the choice is a preference: it applies to every dataset and the next session, and a parameter a session lacks is listed as *not in this session* and not written. Zoom and pan are horizontal only: the mouse wheel zooms time in and out about the cursor, dragging pans time |
 
 The summary line says whether the pairing is approved, recorded but not
 reviewed, or new, whether a recorded pairing went stale (the session, the
@@ -177,20 +201,24 @@ brings the approved pairing back. Cuts are not saved until you press
 
 Probe maps are Kilosort4 probe `.json` files
 ([format](file-formats.md#kilosort4-probe-json)). The default folder is
-[`intan/probes`](../intan/probes/README.md).
+[`pipeline/probes`](../pipeline/probes/README.md).
 
-- **Probe folder** + **Browse...** + **Refresh** list every `*.json` in the
-  folder (not recursive). The **probe table** shows Probe, Ch, Shanks, Depth
+- **Probe folder** + **Browse...** + **Refresh** list every probe `*.json` in
+  the folder (not recursive; a probe's `<probe>.ks4.json` parameter file is not
+  listed). The **probe table** shows Probe, Ch, Shanks, Depth
   (µm) and Notes; the Notes cell is editable and written back into the file.
-- **Probe info** shows the file, `n_chan`, `chanMap` length, shank count, and a
-  channel-count check (`OK` / `MISMATCH`) against the last-clicked dataset.
+- **Probe info** shows the file, `n_chan`, `chanMap` length, shank count,
+  whether the probe has a Kilosort4 parameter file
+  ([Optimize for probe](#optimize-for-probe)), and a channel-count check
+  (`OK` / `MISMATCH`) against the active dataset.
 - The **preview plot** shows sites by shank; excluded sites are gray `x`.
   **Show channel numbers** labels each site with its 1-based channel.
 - **Design probe from probeinterface...** opens
   [`ProbeDesignerApp`](ProbeDesignerApp.md); **Import probe .json into
-  folder...**; **Edit probe .json...**.
-- **Exclude channels** (1-based, `1,5,32-40`) applies to the last-clicked
-  dataset and is written to its manifest. How exclusions reach each step:
+  folder...** (copies the probe's `.ks4.json` parameter file too, when it has
+  one); **Edit probe .json...**.
+- **Dataset** + **Exclude channels** (1-based, `1,5,32-40`): the exclusions
+  of the active dataset, written to its manifest. How exclusions reach each step:
   [EphysDataset → Channel exclusions](EphysDataset.md#channel-exclusions) for
   sorting; `Signals.ExcludeHandling` for derived signals;
   `Spikes.Channels = "excludeManifest"` for detection.
@@ -209,13 +237,13 @@ and the manual periods.
 | Control | Maps to |
 | --- | --- |
 | **Enabled** | `Artifacts.Enabled`: run automatic detection (manual periods always apply) |
-| Dataset | which dataset **Detect / Preview** analyzes |
+| Dataset | the active dataset: the one **Detect / Preview** analyzes and whose manual periods are listed |
 | Method, Threshold, RMS window, Stitch gap, Pad, Min channels | `Artifacts.Method`, `Threshold`, `RmsWindowMs`, `MergeGapMs`, `PadMs`, `MinChannels` |
 | Filter before detecting, High-pass (Hz) | `Artifacts.Filter`, `FilterCutoff` (with `FilterType`, `FilterOrder`). These now apply to runs as well as the preview |
 | Apply to sorting / Apply to spike detection | `Artifacts.ApplyToSorting`, `ApplyToSpikes` |
 | Cache intervals | `Artifacts.CacheIntervals` (`<Name>_artifacts.json`) |
-| **Detect / Preview** | `analyzeArtifacts` over the chosen dataset (streamed, read-only; on the process pool when the Run tab's **Parallel** box is ticked): summary + per-channel table |
-| Manual periods table, **Edit in Visualize**, **Clear** | the last-clicked dataset's `ManualArtifacts` (written to its manifest) |
+| **Detect / Preview** | `analyzeArtifacts` over the active dataset (streamed, read-only; on the process pool when the Run tab's **Parallel** box is ticked): summary + per-channel table |
+| Manual periods table, **Edit in Visualize**, **Clear** | the active dataset's `ManualArtifacts` (written to its manifest) |
 
 The Threshold field is sent as-is for every method: with *Absolute microvolts*
 / *Common-mode* the default 9 means 9 µV.
@@ -232,9 +260,9 @@ SpikeInterface + Kilosort4, optional (`Sorting.Enabled`).
 | Execution (background / blocking), Dry run | `Sorting.Execution`, `DryRun` |
 | Bandpass filter, Common reference, Detect bad channels (+ method, action) | `Sorting.SI` ([defaults](EphysDataset.md#default-spikeinterface-configuration)) |
 | Kilosort4 parameters (five groups, from `EphysPipelineConfig.kilosortParamSpec`), Extra settings (JSON) | `Sorting.KS4`, `KS4ExtraJSON`. Control kinds: int / float / bool as typed; `nullable` blank = omitted; `floatinf` blank / `inf` = omitted; `vector` = comma- or space-separated |
-| **Optimize for probe** | sets the probe-dependent Kilosort4 parameters from a probe map ([rules](#optimize-for-probe)); a dialog lists what changed and the log gives the reason for every value |
+| **Optimize for probe** | loads the Kilosort4 parameters saved for the active dataset's probe (else the default probe) from `<probe>.ks4.json` next to the probe map; without that file, offers to generate it from the current parameters or from the probe layout ([details](#optimize-for-probe)) |
 | **Reset to defaults** | every `Sorting.KS4` parameter back to its `kilosortParamSpec` default and `KS4ExtraJSON` cleared; the Python, execution and SpikeInterface settings stay |
-| **Results** panel: label, **Use folder...**, **Use auto**, **Open in phy** | the last-clicked dataset's sorted-output association (`SortingDir`, manifest `sorting`). *auto* probes `kilosort4/si/sorter_output`; *manual* is a folder you chose (anywhere) |
+| **Sorted output** panel: Dataset, label, **Use folder...**, **Use auto**, **Open in phy** | the active dataset's sorted-output association (`SortingDir`, manifest `sorting`). *auto* probes `kilosort4/si/sorter_output`; *manual* is a folder you chose (anywhere) |
 | **Run this step** | `EphysPipeline.runSorting` over the selected datasets |
 | progress label + log | background runs (`ks4_run.log` tail, `ks4_status.json`), see below |
 
@@ -247,15 +275,48 @@ synchronously**, before Python is launched (and is cached afterwards).
 
 ### Optimize for probe
 
-**Optimize for probe** applies `EphysPipelineConfig.ks4ForProbe`, which sets
-the Kilosort4 parameters that depend on the probe layout. It follows
-Kilosort4's [parameter guide](https://kilosort.readthedocs.io/en/latest/parameters.html).
-The probe is the last-clicked dataset's. When that dataset has no probe, or no
-row is clicked, it is the config's default probe. The dataset's excluded
-channels are left out first. Shanks are the probe's `kcoords` groups, because
-Kilosort4 places templates per `kcoords` value. Every rule starts from the
-`kilosortParamSpec` default, so the values depend only on the probe: pressing
-the button again, or after tuning for another probe, gives the same result.
+Each probe map keeps its Kilosort4 parameters in a parameter file next to it:
+`<probe>.ks4.json` for `<probe>.json`
+([format](file-formats.md#kilosort4-probe-parameters-probeks4json)).
+**Optimize for probe** loads that file with `EphysPipelineConfig.ks4ForProbe`.
+The probe is the active dataset's. When that dataset has no probe, or no
+project is scanned, it is the config's default probe. The parameters the file
+lists are set; every other parameter and the extra settings JSON are left
+alone. The dialog lists what changed, with the file's reasons, and warns when
+the extra settings JSON sets a loaded parameter (the JSON overrides it). The
+log lists every value.
+
+When the probe has no parameter file, an alert says so and offers to generate
+`<probe>.ks4.json` with the probe-dependent parameters
+(`EphysPipelineConfig.KS4ProbeParams`: `nblocks`, `dmin`, `dminx`,
+`nearest_chans`, `nearest_templates`, `min_template_size`, `x_centers`). The
+alert lists both sets of values:
+
+| Button | Writes | Then |
+| --- | --- | --- |
+| **From current parameters** (default) | the Sorting tab's current values | nothing else changes |
+| **From probe layout** | the defaults `EphysPipelineConfig.ks4ProbeDefaults` derives from the layout, with their reasons (the button is missing when the probe map has no usable `xc` / `yc`) | the file is loaded, as above |
+| **Cancel** | nothing | nothing |
+
+From then on the button loads that file. To change the values, edit the file;
+it can also list any other Kilosort4 parameter. The Probe tab's **Probe info**
+says whether the selected probe has a parameter file.
+
+The probes in [`pipeline/probes`](../pipeline/probes/README.md) come with parameter
+files holding good defaults, derived from each layout by
+`EphysPipelineConfig.ks4ProbeDefaults`. The rules follow Kilosort4's
+[parameter guide](https://kilosort.readthedocs.io/en/latest/parameters.html),
+and each file's `reasons` says why a value was chosen. To derive defaults for
+another probe map `pf`:
+
+```matlab
+[v, r] = EphysPipelineConfig.ks4ProbeDefaults(pf);
+EphysPipelineConfig.writeKS4Params(pf, v, Description=r.Summary, Reasons=r.Reasons);
+```
+
+Shanks are the probe's `kcoords` groups, because Kilosort4 places templates
+per `kcoords` value. Every rule starts from the `kilosortParamSpec` default, so
+the values depend only on the probe.
 
 | Parameter | Rule |
 | --- | --- |
@@ -267,10 +328,9 @@ the button again, or after tuning for another probe, gives the same result.
 | `min_template_size` | half the median distance to the nearest contact, never below the default |
 | `x_centers` | one per shank, or one per 200 µm of a wider shank (2-D arrays) |
 
-Every other parameter and the extra settings JSON are left alone. The dialog
-warns when the extra JSON sets a tuned parameter (it overrides the tuned
-value). It also warns when groups of columns 100 µm or more apart share one
-`kcoords` value, which suggests a multi-shank map without per-shank `kcoords`.
+`ks4ProbeDefaults` also notes when groups of columns 100 µm or more apart share
+one `kcoords` value, which suggests a multi-shank map without per-shank
+`kcoords`.
 
 ## Signals
 
@@ -302,8 +362,9 @@ Spike events per dataset with `EphysDataset.spikesToMat`, `Spikes.*`.
   exclusions / list; reject events inside artifact periods), **Chunking**
   (chunk cap, edge pad; the parallel switch is on the Run tab), **Sorted units** (groups, include noise,
   templates), **Output** (folder, suffix `_spikes`, MAT version, overwrite).
-- **Preview**: detects on the first *n* seconds of the Dataset-menu dataset
-  with the tab's settings and lists per-channel thresholds, counts and rates.
+- **Dataset** + **Preview**: detects on the first *n* seconds of the active
+  dataset with the tab's settings and lists per-channel thresholds, counts and
+  rates.
 - **Run this step** runs `EphysPipeline.runSpikeDetection`.
 
 ## Export
@@ -341,11 +402,12 @@ Chronux functions appears here: the app only writes files.
 
 ## Visualize
 
-Display-only time-domain plots of the Dataset-menu dataset; the data on disk
-is never modified.
+Display-only time-domain plots of the active dataset; the data on disk is
+never modified.
 
 | Control | Meaning |
 | --- | --- |
+| Dataset | the active dataset. After you choose another one, the plot still shows the previous dataset until you press **Plot**: the status line says so, and marking artifacts is off |
 | File | `(all)` or one recording file (multi-file recordings only) |
 | Channels | e.g. `1:16` or `1 3 5` (1-based) |
 | Start (s), Window (s) | initial view |
@@ -378,8 +440,10 @@ samples per chunk. Drawing uses `xregion` (MATLAB R2023a or later).
 Summarizes a sorted-output folder (the folder holding `params.py`), read with
 `EphysDataset.readSortedUnits`.
 
-- **Dataset dropdown** lists the scanned datasets that have sorted output
-  (their associated folder); **Browse...** / **Load** accept any results
+- **Dataset**: the active dataset. Its associated sorted output (else the
+  latest Kilosort4 run the `DatasetTracker` finds) loads when the tab opens
+  and whenever the active dataset changes while it is open. A dataset without
+  sorted output clears the tab. **Browse...** / **Load** accept any results
   folder, a dataset folder or a `kilosort4` folder (searches
   `kilosort4/si/sorter_output`, `si/sorter_output`, `sorter_output`,
   `kilosort4`). **Open folder in explorer**, **Open in phy**.
@@ -413,9 +477,9 @@ S = makeSyntheticProject("D:\scratch\synthetic_ephys");          % Preset="small
 app.createSyntheticProject("D:\scratch\synthetic_ephys");        % write, open the config and scan, in an app
 ```
 
-What is written ([`makeSyntheticProject`](../intan/makeSyntheticProject.m),
+What is written ([`makeSyntheticProject`](../pipeline/makeSyntheticProject.m),
 one recording per scenario with
-[`makeSyntheticRecording`](../intan/makeSyntheticRecording.m)):
+[`makeSyntheticRecording`](../pipeline/makeSyntheticRecording.m)):
 
 | Item | Contents |
 | --- | --- |
@@ -452,6 +516,8 @@ Only what is **not** part of a config lives here:
 | `ProbeFolder`, `PhyCmd`, `ReviewFolder`, `ScriptFolder` | paths |
 | `LastConfigFile`, `RecentConfigs` | reopened on launch; the File → Open recent list |
 | `DatasetsColumnOrder` | the Project table's column order (table variable names) |
+| `TrialsParamColumns`, `TrialsColumnOrder` | the Epsych2 parameters shown in the Trials table, and its column order (table variable names; a parameter column is `Param_<name>`) |
+| `TrialsLabelParams` | the Epsych2 parameters written as trial labels in the Trials plot |
 | `VizOptions` | the Visualize tab's display settings |
 
 To reset: `rmpref('EphysPreprocessingApp')` with the app closed. Older
@@ -461,7 +527,7 @@ preference groups are not read.
 
 | File | When |
 | --- | --- |
-| pipeline config `.json` | File → Save / Save as / Export copy (default folder `intan/pipeline_configs`) |
+| pipeline config `.json` | File → Save / Save as / Export copy (default folder `pipeline/pipeline_configs`) |
 | generated `.m` script | File → Generate script |
 | `<Folder>/<Name>_manifest.json` | scan, probe assignment, exclusion change, manual artifact edit, sorting / behavior association, each sorting launch and completion |
 | `<outputFolder>/kilosort4/{si_config.json, run_si_ks4.py, ks4_run.log, ks4_status.json}` and `kilosort4/si/...` | Sorting (dry run writes only the first two) |
@@ -494,27 +560,35 @@ app.KSRuns                        % background runs being monitored
 | `gatherConfig.m`, `applyConfig.m`, `gather*/apply*Section.m`, `gather/applyConvertConfig.m`, `gather/applySortingSection.m`, `onConfigChanged.m`, `syncStepEnableStates.m`, `updateTitle.m` | config model |
 | `onNewConfig.m`, `onOpenConfig.m`, `openConfigFile.m`, `onSaveConfig.m`, `onSaveConfigAs.m`, `onExportConfigCopy.m`, `onGenerateScript.m`, `onCreateSyntheticProject.m`, `createSyntheticProject.m`, `confirmDiscard.m`, `addRecentConfig.m`, `refreshRecentMenu.m` | File menu |
 | `buildPipeline.m`, `runPipeline.m`, `onRunStep.m`, `onCancelRun.m`, `onValidate.m`, `onPlan.m`, `refreshStepPlan.m`, `onPipelineProgress.m`, `runLog.m`, `setRunBar.m`, `showIssues.m`, `onParallelControlsChanged.m` | running |
-| `buildTrialsTab.m`, `onTrialsLoad.m`, `repairTrials.m`, `refreshTrialsView.m`, `onTrialsCutsChanged.m`, `syncTrialsCuts.m`, `onTrialsApprove.m`, `onTrialsWriteBehavior.m`, `onTrialsSettingsChanged.m`, `populateTrialsDatasets.m`, `clearTrialsView.m`, `currentTrialsDataset.m`, `fillTrialsLines.m`, `setTrialsLineItems.m`, `syncTrialsButtons.m` | Trials tab |
+| `buildTrialsTab.m`, `onTrialsLoad.m`, `repairTrials.m`, `refreshTrialsView.m`, `refreshTrialsTable.m`, `refreshTrialsPlot.m`, `trialsColumnOrder.m`, `onTrialsTableMenu.m`, `onTrialsPlotMenu.m`, `onTrialsCutsChanged.m`, `syncTrialsCuts.m`, `onTrialsApprove.m`, `onTrialsWriteBehavior.m`, `onTrialsToWorkspace.m`, `onTrialsSettingsChanged.m`, `clearTrialsView.m`, `fillTrialsLines.m`, `setTrialsLineItems.m`, `syncTrialsButtons.m` | Trials tab |
 | `onScan.m`, `refreshDatasetsTable.m`, `onDatasetCellSelection.m`, `onSelectDatasets.m`, `onRefreshMetadata.m`, `onAssociateBehavior.m`, `onClearBehavior.m`, `onBrowseBehaviorDir.m` | Project tab |
+| `selectDataset.m`, `currentDataset.m`, `populateDatasetPickers.m`, `refreshDatasetMenu.m`, `datasetPicker.m`, `highlightDatasetRow.m` | the active dataset: Dataset menu, every tab's Dataset box, the highlighted table row |
 | `refreshProbeList.m`, `onProbeSelected.m`, `onImportProbe.m`, `onDesignProbe.m`, `runProbeTool.m`, `onAssignProbe.m`, `onApplyExclude.m`, `onUseSelectedProbeAsDefault.m`, `probe_tool.py` | Probe tab |
 | `onDetectArtifacts.m`, `refreshManualArtifactsTable.m`, `onClearManualArtifacts.m` | Artifacts tab |
 | `onOptimizeKS4ForProbe.m`, `onResetKS4Params.m`, `onUseSortingFolder.m`, `onUseAutoSorting.m`, `refreshSortingLabel.m`, `pollKSRuns.m`, `onLaunchPhy.m`, `launchPhy.m` | Sorting tab and phy |
 | `onSpikesPreview.m`, `syncSpikesEnableStates.m` | Spikes tab |
-| `onPlotVisualization.m`, `onVizButtonDown/Up.m`, `drawVizArtifacts.m`, `finishVizArtDrag.m`, `applyVizChannelOrder.m`, `applyVizChannelColor.m` | Visualize tab |
-| `loadReviewResults.m`, `renderReviewPlots.m` | Review tab |
+| `onPlotVisualization.m`, `onVizButtonDown/Up.m`, `drawVizArtifacts.m`, `finishVizArtDrag.m`, `applyVizChannelOrder.m`, `applyVizChannelColor.m`, `syncVizDataset.m` | Visualize tab |
+| `loadReviewResults.m`, `renderReviewPlots.m`, `syncReviewDataset.m` | Review tab |
 | `load/savePreferences.m` | preferences |
 
 ## Tests
 
-[`test_EphysPreprocessingApp.m`](../intan/test_EphysPreprocessingApp.m) builds
+[`test_EphysPreprocessingApp.m`](../pipeline/test_EphysPreprocessingApp.m) builds
 the app headlessly over a synthetic project: config → controls → config round
-trip, the unsaved marker, the Run checklist ↔ tab sync and its Parallel controls, scan + selection ticks,
-plan, the Sorting tab's Optimize for probe (dataset probe with exclusions,
-default-probe fallback) and Reset to defaults, one step through the pipeline,
+trip, the unsaved marker, the Run checklist ↔ tab sync and its Parallel controls, scan + selection ticks
+(and the ticked datasets in the Dataset menu),
+the active dataset's highlight under the token filters, plan, the Sorting tab's Optimize for probe (each answer to the offer to generate a
+missing parameter file, including a probe map without positions, loading the
+file, the default-probe fallback, the Probe tab's listing and info) and Reset to defaults, one step through the pipeline,
 save / reopen and the recent list. It
 restores the user's preferences afterwards.
-[`test_SyntheticDataset.m`](../intan/test_SyntheticDataset.m) checks the
+[`test_SyntheticDataset.m`](../pipeline/test_SyntheticDataset.m) checks the
 synthetic project generators and, headlessly, the File-menu action: the
-project is written, opened and scanned, the Trials tab pairs the clean
+project is written, opened and scanned; choosing the active dataset in a
+tab's Dataset box, the Dataset menu (a ticked dataset or one under All
+datasets) or the Project table updates all of them, the Dataset menu lists only
+the ticked rows,
+clears the previous dataset's pairing and previews, flags a Visualize plot of
+the previous dataset and loads the Review tab; the Trials tab pairs the clean
 dataset, warns about the late-start one and resolves it with the expected
 cuts.

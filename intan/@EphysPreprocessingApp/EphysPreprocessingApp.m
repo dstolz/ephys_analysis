@@ -37,8 +37,8 @@ classdef EphysPreprocessingApp < handle
     %
     %   Preferences (getpref group 'EphysPreprocessingApp') hold only what is
     %   not part of a config: figure geometry, probe folder, phy command,
-    %   Review folder, last / recent config files, script folder and the
-    %   Visualize display options.
+    %   Review folder, last / recent config files, script folder, the
+    %   datasets-table column order and the Visualize display options.
     %
     %   Usage
     %     EphysPreprocessingApp;            % launch
@@ -89,6 +89,12 @@ classdef EphysPreprocessingApp < handle
         SelectNoneButton  matlab.ui.control.Button
         OutputRootField   matlab.ui.control.EditField
         BrowseOutputButton matlab.ui.control.Button
+        NamePatternField  matlab.ui.control.EditField
+        NameTokenGrid     matlab.ui.container.GridLayout
+        NameTokenChecks   matlab.ui.control.CheckBox   % one per pattern token: show as a table column
+        NameTokenStatusLabel matlab.ui.control.Label
+        NameTokenFilterGrid  matlab.ui.container.GridLayout
+        NameTokenFilters  matlab.ui.control.DropDown   % one per pattern token: row filter (UserData = token name)
         DatasetsTable     matlab.ui.control.Table
         ScanStatusLabel   matlab.ui.control.Label
         BehEnableCheckBox    matlab.ui.control.CheckBox
@@ -296,7 +302,6 @@ classdef EphysPreprocessingApp < handle
         SpkRejectArtifactsCheckBox matlab.ui.control.CheckBox
         SpkChunkField        matlab.ui.control.EditField
         SpkEdgePadField      matlab.ui.control.EditField
-        SpkParallelCheckBox  matlab.ui.control.CheckBox
         SpkGroupsField       matlab.ui.control.EditField
         SpkIncludeNoiseCheckBox matlab.ui.control.CheckBox
         SpkTemplatesCheckBox matlab.ui.control.CheckBox
@@ -336,6 +341,8 @@ classdef EphysPreprocessingApp < handle
         RunSignalsCheckBox   matlab.ui.control.CheckBox
         RunSpikesCheckBox    matlab.ui.control.CheckBox
         RunExportCheckBox    matlab.ui.control.CheckBox
+        RunParallelCheckBox  matlab.ui.control.CheckBox
+        RunMaxWorkersField   matlab.ui.control.EditField
         RunSelectionLabel    matlab.ui.control.Label
         RunValidateButton    matlab.ui.control.Button
         RunPlanButton        matlab.ui.control.Button
@@ -356,6 +363,8 @@ classdef EphysPreprocessingApp < handle
     properties
         Project EphysProject = EphysProject.empty
         SelectedRow (1,1) double = 0   % last-clicked datasets-table row (0 = none)
+        HiddenSelectedKeys (1,:) string = string.empty(1,0)   % ticked dataset keys hidden by the token filters
+        DatasetsColumnOrder (1,:) string = string.empty(1,0)  % datasets-table variables in display order (a preference)
 
         % --- config model ---
         Config EphysPipelineConfig = EphysPipelineConfig()   % working copy
@@ -455,6 +464,8 @@ classdef EphysPreprocessingApp < handle
         applyConvertConfig(obj, cfg)
         K = gatherSpikesSection(obj)
         applySpikesSection(obj, K)
+        P = gatherParallelSection(obj)
+        applyParallelSection(obj, P)
         E = gatherExportSection(obj)
         applyExportSection(obj, E)
         onNewConfig(obj)
@@ -477,6 +488,7 @@ classdef EphysPreprocessingApp < handle
         onPipelineProgress(obj, evt)
         onRunStep(obj, step)
         onCancelRun(obj)
+        onParallelControlsChanged(obj)
         onValidate(obj)
         showIssues(obj, issues)
         onPlan(obj)
@@ -487,6 +499,10 @@ classdef EphysPreprocessingApp < handle
         % --- Project tab ---
         onScan(obj)
         refreshDatasetsTable(obj)
+        onNameTokensChanged(obj)
+        setNameTokenChecks(obj, tokenNames, shown)
+        syncTokenFilters(obj, tokenNames, values)
+        idx = tickedDatasetIndices(obj)
         onDatasetCellSelection(obj, evt)
         onRefreshMetadata(obj)
         onSelectDatasets(obj, mode)

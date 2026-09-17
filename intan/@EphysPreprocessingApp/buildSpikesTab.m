@@ -127,7 +127,7 @@ obj.SpkRejectArtifactsCheckBox = uicheckbox(cg, "Text", "Reject events inside ar
 obj.SpkRejectArtifactsCheckBox.Layout.Row = r; obj.SpkRejectArtifactsCheckBox.Layout.Column = [1 5];
 
 % --- Performance ---
-r = r + 1; sep(cg, "Detection: performance", r);
+r = r + 1; sep(cg, "Detection: chunking", r);
 r = r + 1;
 lab(cg, "Max chunk samples:", r);
 obj.SpkChunkField = uieditfield(cg, "text", "Placeholder", "blank = auto", ...
@@ -137,9 +137,6 @@ l = lab(cg, "Edge pad (ms):", r); l.Layout.Column = 3;
 obj.SpkEdgePadField = uieditfield(cg, "text", "Placeholder", "blank = auto", ...
     "Tooltip", "Context carried across chunk boundaries. Blank = auto (10 ms).", "ValueChangedFcn", changed);
 obj.SpkEdgePadField.Layout.Row = r; obj.SpkEdgePadField.Layout.Column = 4;
-obj.SpkParallelCheckBox = uicheckbox(cg, "Text", "Parallel", "Value", false, ...
-    "Tooltip", "Detect chunks on the parallel pool (Parallel Computing Toolbox).", "ValueChangedFcn", changed);
-obj.SpkParallelCheckBox.Layout.Row = r; obj.SpkParallelCheckBox.Layout.Column = 5;
 
 % --- Sorted units ---
 r = r + 1; sep(cg, "Sorted units (Kilosort4 / phy output associated with each dataset)", r);

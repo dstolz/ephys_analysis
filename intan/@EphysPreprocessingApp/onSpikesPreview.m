@@ -28,7 +28,7 @@ try
     if isempty(ch); ch = 1:size(X, 2); end
     X = X(:, ch);
     dopt = EphysPipelineConfig.detectOptions(K);
-    for f = ["MaxChunkSamples" "EdgePadMs" "UseParallel"]
+    for f = ["MaxChunkSamples" "EdgePadMs"]
         if isfield(dopt, f); dopt = rmfield(dopt, f); end
     end
     dopt.Waveforms = false;

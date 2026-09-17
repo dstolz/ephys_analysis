@@ -22,7 +22,6 @@ K.ChannelList = string(strtrim(obj.SpkChannelListField.Value));
 K.RejectArtifacts = logical(obj.SpkRejectArtifactsCheckBox.Value);
 K.MaxChunkSamples = numOrNaN(obj.SpkChunkField.Value);
 K.EdgePadMs = numOrNaN(obj.SpkEdgePadField.Value);
-K.UseParallel = logical(obj.SpkParallelCheckBox.Value);
 K.Groups = parseList(obj.SpkGroupsField.Value);
 K.IncludeNoise = logical(obj.SpkIncludeNoiseCheckBox.Value);
 K.Templates = logical(obj.SpkTemplatesCheckBox.Value);

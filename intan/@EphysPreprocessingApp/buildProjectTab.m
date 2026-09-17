@@ -13,9 +13,9 @@ g.RowSpacing  = 8;
 changed = @(~,~) obj.onConfigChanged();
 
 % --- rows 1-3: config name / project root / output root ---------------------
-top = uigridlayout(g, [3 7]);
+top = uigridlayout(g, [4 7]);
 top.Layout.Row = 1;
-top.RowHeight   = {'fit', 'fit', 'fit'};
+top.RowHeight   = {'fit', 'fit', 'fit', 'fit'};
 top.ColumnWidth = {'fit', 460, 'fit', 'fit', 'fit', 360, '1x'};
 top.Padding     = [0 0 0 0];
 
@@ -58,40 +58,56 @@ obj.BrowseOutputButton = uibutton(top, "Text", "Browse...", ...
     "ButtonPushedFcn", @(~,~) obj.onBrowseOutput());
 obj.BrowseOutputButton.Layout.Row = 3; obj.BrowseOutputButton.Layout.Column = 3;
 
+lbl = uilabel(top, "Text", "Name pattern:", "Tooltip", ...
+    "Tokens parsed from each dataset name. {Token} = any text, {Token:yyMMdd} = that many digits, {Token:regex} = a regular expression, * = ignored text.");
+lbl.Layout.Row = 4; lbl.Layout.Column = 1;
+obj.NamePatternField = uieditfield(top, "text", ...
+    "Value", EphysPipelineConfig.defaults("Project").NamePattern, ...
+    "Tooltip", lbl.Tooltip, "ValueChangedFcn", @(~,~) obj.onNameTokensChanged());
+obj.NamePatternField.Layout.Row = 4; obj.NamePatternField.Layout.Column = 2;
+obj.NameTokenGrid = uigridlayout(top, [1 1]);
+obj.NameTokenGrid.Layout.Row = 4; obj.NameTokenGrid.Layout.Column = [3 6];
+obj.NameTokenGrid.RowHeight = {'fit'};
+obj.NameTokenGrid.Padding   = [0 0 0 0];
+obj.NameTokenStatusLabel = uilabel(top, "Text", "", "FontColor", [0.4 0.4 0.4]);
+obj.NameTokenStatusLabel.Layout.Row = 4; obj.NameTokenStatusLabel.Layout.Column = 7;
+
 % --- row 2: table toolbar ----------------------------------------------------
-tb = uigridlayout(g, [1 5]);
+tb = uigridlayout(g, [1 6]);
 tb.Layout.Row = 2;
 tb.RowHeight   = {'fit'};
-tb.ColumnWidth = {'fit', 60, 60, 'fit', '1x'};
+tb.ColumnWidth = {'fit', 60, 60, 'fit', 'fit', '1x'};
 tb.Padding     = [0 0 0 0];
 lbl = uilabel(tb, "Text", "Datasets", "FontWeight", "bold");
 lbl.Layout.Column = 1;
-obj.SelectAllButton = uibutton(tb, "Text", "All", "Tooltip", "Tick every dataset", ...
+obj.SelectAllButton = uibutton(tb, "Text", "All", "Tooltip", "Tick every shown dataset", ...
     "ButtonPushedFcn", @(~,~) obj.onSelectDatasets("all"));
 obj.SelectAllButton.Layout.Column = 2;
-obj.SelectNoneButton = uibutton(tb, "Text", "None", "Tooltip", "Untick every dataset (= run all)", ...
+obj.SelectNoneButton = uibutton(tb, "Text", "None", "Tooltip", "Untick every dataset, shown or filtered out (= run all)", ...
     "ButtonPushedFcn", @(~,~) obj.onSelectDatasets("none"));
 obj.SelectNoneButton.Layout.Column = 3;
 obj.LaunchPhyButton = uibutton(tb, "Text", "Open in phy", ...
     "ButtonPushedFcn", @(~,~) obj.onLaunchPhy(), "Enable", "off", ...
     "Tooltip", "Launch phy template-gui on the selected dataset's sorted output.");
 obj.LaunchPhyButton.Layout.Column = 4;
+% One filter dropdown per name-pattern token (see syncTokenFilters).
+obj.NameTokenFilterGrid = uigridlayout(tb, [1 1]);
+obj.NameTokenFilterGrid.Layout.Column = 5;
+obj.NameTokenFilterGrid.RowHeight = {'fit'};
+obj.NameTokenFilterGrid.ColumnWidth = {'fit'};
+obj.NameTokenFilterGrid.Padding   = [12 0 0 0];
 obj.ScanStatusLabel = uilabel(tb, "Text", "No datasets scanned yet.", "FontColor", [0.4 0.4 0.4], ...
     "HorizontalAlignment", "right");
-obj.ScanStatusLabel.Layout.Column = 5;
+obj.ScanStatusLabel.Layout.Column = 6;
 
 % --- row 3: datasets table ---------------------------------------------------
-obj.DatasetsTable = uitable(g);
+% Columns (headers, widths, the trailing hidden "DatasetIdx" that maps a row
+% back to obj.Project.Datasets) are laid out by refreshDatasetsTable. Headers
+% can be dragged into a new order, which refreshes keep.
+obj.DatasetsTable = uitable(g, "ColumnRearrangeable", "on");
 obj.DatasetsTable.Layout.Row = 3;
-% Trailing "DatasetIdx" is a hidden bookkeeping column (see refreshDatasetsTable)
-% that maps a table row back to its position in obj.Project.Datasets.
-obj.DatasetsTable.ColumnName = {'Select', 'Name', 'Key', 'Acq date', 'Ch', 'Fs (Hz)', ...
-    'Dur (min)', 'Format', 'Probe', 'Exclude', 'Sorting', 'Behavior', ''};
-obj.DatasetsTable.ColumnEditable = [true false(1, 11) false];
-obj.DatasetsTable.ColumnSortable = [true(1, 12) false];
 obj.DatasetsTable.CellSelectionCallback = @(~,evt) obj.onDatasetCellSelection(evt);
 obj.DatasetsTable.CellEditCallback = @(~,~) obj.onConfigChanged();
-obj.DatasetsTable.ColumnWidth = {64, 'fit', '1x', 118, 44, 76, 86, 'fit', 'fit', 90, 'fit', '1x', 1};
 
 % --- row 4: behavior (Epsych2) panel -----------------------------------------
 bp = uipanel(g, "Title", "Behavior: Epsych2 session files (associated per dataset, saved in the manifest)");

@@ -30,7 +30,8 @@ dlg = uiprogressdlg(obj.Fig, "Title", "Detecting artifacts", ...
 
 try
     progress = @(i, n, name) updateProgress(dlg, i, n, name);
-    summary = d.analyzeArtifacts(ProgressFcn=progress);   % settings from d.ArtifactConfig
+    popt = namedargs2cell(EphysPipelineConfig.parallelOptions(obj.Config.Parallel));
+    summary = d.analyzeArtifacts('ProgressFcn', progress, popt{:});   % settings from d.ArtifactConfig
 
     if isvalid(dlg); close(dlg); end
 
@@ -58,7 +59,7 @@ end
 function updateProgress(dlg, i, n, name)
 if ~isvalid(dlg); return; end
 dlg.Value   = max(0, min(1, (i - 1) / max(n, 1)));
-dlg.Message = sprintf("Scanning file %d/%d: %s", i, n, name);
+dlg.Message = sprintf("Chunk %d/%d: %s", i, n, name);
 end
 
 

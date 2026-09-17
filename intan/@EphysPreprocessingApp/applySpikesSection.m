@@ -24,7 +24,6 @@ obj.SpkChannelListField.Value = char(K.ChannelList);
 obj.SpkRejectArtifactsCheckBox.Value = logical(K.RejectArtifacts);
 obj.SpkChunkField.Value = numText(K.MaxChunkSamples, "");
 obj.SpkEdgePadField.Value = numText(K.EdgePadMs, "");
-obj.SpkParallelCheckBox.Value = logical(K.UseParallel);
 obj.SpkGroupsField.Value = char(strjoin(K.Groups, ", "));
 obj.SpkIncludeNoiseCheckBox.Value = logical(K.IncludeNoise);
 obj.SpkTemplatesCheckBox.Value = logical(K.Templates);

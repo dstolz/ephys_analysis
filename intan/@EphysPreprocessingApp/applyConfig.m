@@ -12,6 +12,7 @@ restore = onCleanup(@() setApplying(obj, false));
 obj.ConfigNameField.Value = char(cfg.Name);
 obj.ConfigDescField.Value = char(cfg.Description);
 obj.applyProjectSection(cfg.Project);
+obj.applyParallelSection(cfg.Parallel);
 obj.applyProbeSection(cfg.Probe);
 obj.applyBehaviorSection(cfg.Behavior);
 obj.applyArtifactsSection(cfg.Artifacts);

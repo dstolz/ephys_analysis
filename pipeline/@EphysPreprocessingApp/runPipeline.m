@@ -1,8 +1,9 @@
 function runPipeline(obj, opts)
 %runPipeline  Run the pipeline (all enabled steps, or Steps=...) on the Run tab.
 %   Validates first and shows the issues; blocks on errors. Progress,
-%   results and the log update live; Cancel stops at the next boundary.
-%   Background Kilosort4 runs are handed to the existing monitor (KSRuns).
+%   results, the log and the run diagram update live; Cancel stops at the
+%   next boundary. Background Kilosort4 runs are handed to the existing
+%   monitor (KSRuns).
 arguments
     obj (1,1) EphysPreprocessingApp
     opts.Steps (1,:) string = string.empty(1,0)
@@ -44,15 +45,22 @@ obj.RunResultsTable.ColumnName = {'Step', 'Dataset', 'Status', 'Message', 'Outpu
 obj.RunResultsTable.ColumnWidth = {80, 'fit', 110, '1x', '2x', 64};
 obj.RunResultsTable.Data = EphysPipeline.emptyResults();
 obj.setStatus("Running the pipeline...", "");
+steps = opts.Steps;
+if isempty(steps); steps = cfg.enabledSteps(); end
+obj.resetRunDiagram(steps, opts.DryRun);
 
 R = EphysPipeline.emptyResults();
+outcome = "done"; note = "";
 try
     R = pipe.run(Steps=opts.Steps, DryRun=opts.DryRun);
+    if pipe.CancelRequested; outcome = "cancelled"; end
 catch ME
     R = pipe.Results;
+    outcome = "error"; note = string(ME.message);
     obj.runLog("ERROR: %s", ME.message);
     uialert(obj.Fig, "Run stopped:" + newline + string(ME.message), "Run");
 end
+obj.finishRunDiagram(R, outcome, note);
 obj.RunResultsTable.Data = R;
 if ~isempty(pipe.LaunchedRuns)
     obj.KSRuns = [obj.KSRuns, pipe.LaunchedRuns];
@@ -71,6 +79,9 @@ end
 
 
 function finishRun(obj)
+if obj.RunDiagram.phase == "running"   % runPipeline stopped before it could close the diagram
+    obj.finishRunDiagram(EphysPipeline.emptyResults(), "error", "The run stopped unexpectedly.");
+end
 obj.RunActive = false;
 obj.Pipe = [];
 if isvalid(obj.Fig)

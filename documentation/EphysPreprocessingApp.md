@@ -622,6 +622,24 @@ default web browser, same as **Save as HTML...** but without the save dialog.
   `Message`, `Output`, `Seconds`) and a timestamped log. Cancel takes effect at
   the next progress boundary; outputs are written atomically, so a cancelled
   dataset leaves no complete-looking file.
+- **Show the run diagram** (under the Run buttons) splits the right side in
+  two: the progress bars, issues, results and log keep the left half and a
+  diagram of the run takes the right half. It draws every step in execution
+  order (Probe check, Behavior, Artifacts, Sorting, Signals, Spikes, Export),
+  in the Diagram tab's step colours, each with a line saying what it does
+  under the working config. The step underway is tinted, framed in its
+  colour with a pulsing ring, and shows `RUNNING`, its percentage, a moving
+  bar, the dataset (*Dataset 2 of 5: name*) and what it is doing; the diagram
+  scrolls to it as the run moves on. Every step of the run has a percentage:
+  how far it is through its datasets, (dataset − 1 + progress within the
+  dataset) / datasets. Finished steps show `done` at 100 % with their result
+  counts (done, dry run, skipped, to check, errors, cancelled), red when any
+  row is an error; a cancel leaves its step at the percentage it reached and
+  the later steps `not run`; steps outside the run are dashed. The headline
+  says which step of how many is underway and for how long, or how the run
+  ended. Before the first run the diagram previews the ticked steps and
+  follows the checklist; afterwards it keeps the last run until the next one
+  starts. The switch is remembered between sessions.
 - Background Kilosort4 runs launched by a run are handed to the same monitor
   as the Sorting tab.
 
@@ -759,6 +777,7 @@ Only what is **not** part of a config lives here:
 | `TrialsLabelParams` | the Epsych2 parameters written as trial labels in the Trials plot |
 | `VizOptions` | the Visualize tab's display settings |
 | `CopyOptions` | the Copy tab's subject, roots, pairing and copy options (not the dates) |
+| `ShowRunDiagram` | the Run tab's **Show the run diagram** switch |
 
 To reset: `rmpref('EphysPreprocessingApp')` with the app closed. Older
 preference groups are not read.
@@ -801,6 +820,7 @@ app.KSRuns                        % background runs being monitored
 | `gatherConfig.m`, `applyConfig.m`, `gather*/apply*Section.m`, `gather/applyConvertConfig.m`, `gather/applySortingSection.m`, `onConfigChanged.m`, `syncStepEnableStates.m`, `updateTitle.m` | config model |
 | `onNewConfig.m`, `onOpenConfig.m`, `openConfigFile.m`, `onSaveConfig.m`, `onSaveConfigAs.m`, `onExportConfigCopy.m`, `onGenerateScript.m`, `onCreateSyntheticProject.m`, `createSyntheticProject.m`, `confirmDiscard.m`, `addRecentConfig.m`, `refreshRecentMenu.m` | File menu |
 | `buildPipeline.m`, `runPipeline.m`, `onRunStep.m`, `onCancelRun.m`, `onValidate.m`, `onPlan.m`, `refreshStepPlan.m`, `onPipelineProgress.m`, `runLog.m`, `setRunBar.m`, `showIssues.m`, `onParallelControlsChanged.m` | running |
+| `onRunDiagramToggled.m`, `resetRunDiagram.m`, `updateRunDiagram.m`, `finishRunDiagram.m`, `refreshRunDiagram.m`, `runDiagramHTML.m` | the Run tab's diagram of the run: show / hide, its model (start, progress events, end), what is sent to the page, the page |
 | `buildTrialsTab.m`, `onTrialsLoad.m`, `repairTrials.m`, `refreshTrialsView.m`, `refreshTrialsTable.m`, `refreshTrialsPlot.m`, `trialsColumnOrder.m`, `onTrialsTableMenu.m`, `onTrialsPlotMenu.m`, `onTrialsCutsChanged.m`, `syncTrialsCuts.m`, `onTrialsApprove.m`, `onTrialsPrefetch.m`, `onTrialsWriteBehavior.m`, `onTrialsToWorkspace.m`, `onTrialsSettingsChanged.m`, `clearTrialsView.m`, `fillTrialsLines.m`, `setTrialsLineItems.m`, `syncTrialsButtons.m` | Trials tab |
 | `onScan.m`, `refreshDatasetsTable.m`, `onDatasetCellSelection.m`, `onSelectDatasets.m`, `onRefreshMetadata.m`, `onAssociateBehavior.m`, `onClearBehavior.m`, `onBrowseBehaviorDir.m` | Project tab |
 | `selectDataset.m`, `currentDataset.m`, `populateDatasetPickers.m`, `refreshDatasetMenu.m`, `refreshDatasetPickers.m`, `datasetPicker.m`, `highlightDatasetRow.m` | the active dataset: Dataset menu, every tab's Dataset box, the highlighted table row |
@@ -826,6 +846,8 @@ them, the Run checklist ↔ tab sync and its Parallel controls, scan + selection
 the active dataset's highlight under the token filters, plan, the Sorting tab's Optimize for probe (each answer to the offer to generate a
 missing parameter file, including a probe map without positions, loading the
 file, the default-probe fallback, the Probe tab's listing and info) and Reset to defaults, one step through the pipeline,
+the run diagram (its half of the right side, the last run followed while hidden, a run's steps and percentages
+event by event, a cancel, the preview that follows the checklist, the preference),
 save / reopen and the recent list. It
 restores the user's preferences afterwards.
 [`test_CopySessions.m`](../pipeline/test_CopySessions.m) (a `matlab.unittest`

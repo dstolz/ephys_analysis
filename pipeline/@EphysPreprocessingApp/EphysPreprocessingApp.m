@@ -42,7 +42,9 @@ classdef EphysPreprocessingApp < handle
     %                parameters, files written), then the downstream steps;
     %                Save as HTML
     %     Run        step checklist, validate, plan, run / dry run / cancel,
-    %                progress, results, log
+    %                progress, results, log; optionally a diagram of the
+    %                run's steps (the one underway highlighted, each with
+    %                its % done) in the right half
     %     Visualize  plot a window, mark manual artifact periods
     %     Review     inspect sorted units
     %
@@ -68,7 +70,8 @@ classdef EphysPreprocessingApp < handle
     %   Review folder, last / recent config files, script folder, the
     %   datasets-table column order, the Trials-table parameter columns and
     %   column order, the Trials-plot label parameters, the Visualize
-    %   display options and the Copy tab settings.
+    %   display options, the Copy tab settings and the Run tab's Show the
+    %   run diagram switch.
     %
     %   Usage
     %     EphysPreprocessingApp;            % launch
@@ -445,6 +448,10 @@ classdef EphysPreprocessingApp < handle
         RunResultsTable      matlab.ui.control.Table
         RunLogArea           matlab.ui.control.TextArea
         RunKSLabel           matlab.ui.control.Label
+        RunDiagramCheckBox   matlab.ui.control.CheckBox       % Show the run diagram (a preference)
+        RunSplitGrid         matlab.ui.container.GridLayout   % right side: progress / results / log | diagram
+        RunDiagramPanel      matlab.ui.container.Panel
+        RunDiagramHTML       matlab.ui.control.HTML           % runDiagramHTML; Data from refreshRunDiagram
     end
 
     properties
@@ -466,6 +473,9 @@ classdef EphysPreprocessingApp < handle
         % --- run state ---
         Pipe = []                          % the EphysPipeline being run (for Cancel)
         RunActive (1,1) logical = false
+        % The Run tab diagram's model: phase, times, results so far, one entry
+        % per step (resetRunDiagram / updateRunDiagram / finishRunDiagram).
+        RunDiagram struct = struct('phase', "idle")
 
         % Probe tab selection state.
         ProbePaths (1,:) string = string.empty(1,0)
@@ -609,6 +619,12 @@ classdef EphysPreprocessingApp < handle
         refreshStepPlan(obj, step)
         runLog(obj, fmt, varargin)
         setRunBar(obj, bar, frac)
+        onRunDiagramToggled(obj)
+        resetRunDiagram(obj, steps, dryRun)
+        updateRunDiagram(obj, evt)
+        finishRunDiagram(obj, R, outcome, note)
+        refreshRunDiagram(obj)
+        html = runDiagramHTML(obj)
 
         % --- Copy tab ---
         onCopyFind(obj)

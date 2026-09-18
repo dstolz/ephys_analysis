@@ -1,7 +1,10 @@
 function buildRunTab(obj)
 %buildRunTab  Run the whole pipeline: step checklist, validate / plan,
 %   run / dry run / cancel, progress bars, validation issues, results,
-%   merged log and the background Kilosort4 runs being monitored.
+%   merged log and the background Kilosort4 runs being monitored. With
+%   Show the run diagram ticked, a diagram of the run's steps (the one
+%   underway highlighted, each with its percentage) takes the right half of
+%   the right side (onRunDiagramToggled, runDiagramHTML).
 
 g = uigridlayout(obj.TabRun, [2 2]);
 g.RowHeight   = {'fit', '1x'};
@@ -12,8 +15,8 @@ g.Padding     = [10 10 10 10];
 % --- steps checklist ---------------------------------------------------------
 steps = uipanel(g, "Title", "Steps (same switches as on each tab)");
 steps.Layout.Row = [1 2]; steps.Layout.Column = 1;
-sg = uigridlayout(steps, [13 1]);
-sg.RowHeight = [repmat({'fit'}, 1, 12), {'1x'}];
+sg = uigridlayout(steps, [14 1]);
+sg.RowHeight = [repmat({'fit'}, 1, 13), {'1x'}];
 uilabel(sg, "Text", "Probe check (always)", "FontColor", [0.4 0.4 0.4]);
 obj.RunBehaviorCheckBox  = uicheckbox(sg, "Text", "Behavior: match Epsych2 sessions", "ValueChangedFcn", @(src,~) mirror(obj, "BehEnableCheckBox", src.Value));
 obj.RunArtifactsCheckBox = uicheckbox(sg, "Text", "Artifacts: automatic detection", "ValueChangedFcn", @(src,~) mirror(obj, "ArtEnableCheckBox", src.Value));
@@ -41,10 +44,20 @@ obj.RunButton = uibutton(bg, "Text", "Run pipeline", "FontWeight", "bold", ...
 obj.RunDryButton = uibutton(bg, "Text", "Dry run", "ButtonPushedFcn", @(~,~) obj.runPipeline(DryRun=true));
 obj.RunCancelButton = uibutton(bg, "Text", "Cancel", "Enable", "off", ...
     "ButtonPushedFcn", @(~,~) obj.onCancelRun());
+obj.RunDiagramCheckBox = uicheckbox(sg, "Text", "Show the run diagram", ...
+    "Tooltip", "Draw the steps beside the progress bars: the one underway highlighted, each with its % done.", ...
+    "ValueChangedFcn", @(~,~) obj.onRunDiagramToggled());
 
-% --- progress + results + log -------------------------------------------------
-right = uigridlayout(g, [9 3]);
-right.Layout.Row = [1 2]; right.Layout.Column = 2;
+% --- right side: progress + results + log | the run diagram (when shown) -----
+obj.RunSplitGrid = uigridlayout(g, [1 2]);
+obj.RunSplitGrid.Layout.Row = [1 2]; obj.RunSplitGrid.Layout.Column = 2;
+obj.RunSplitGrid.RowHeight = {'1x'};
+obj.RunSplitGrid.ColumnWidth = {'1x', 0};   % onRunDiagramToggled: {'1x', '1x'} while shown
+obj.RunSplitGrid.ColumnSpacing = 0;
+obj.RunSplitGrid.Padding = [0 0 0 0];
+
+right = uigridlayout(obj.RunSplitGrid, [9 3]);
+right.Layout.Row = 1; right.Layout.Column = 1;
 right.RowHeight   = {20, 20, 'fit', 'fit', 110, '1x', 'fit', '1x', 'fit'};
 right.ColumnWidth = {'fit', '1x', 120};
 right.Padding = [0 0 0 0];
@@ -75,6 +88,12 @@ obj.RunLogArea.Layout.Row = 8; obj.RunLogArea.Layout.Column = [1 3];
 
 obj.RunKSLabel = uilabel(right, "Text", "Background Kilosort4 runs: none.", "FontColor", [0.4 0.4 0.4]);
 obj.RunKSLabel.Layout.Row = 9; obj.RunKSLabel.Layout.Column = [1 3];
+
+obj.RunDiagramPanel = uipanel(obj.RunSplitGrid, "Title", "Run diagram", "Visible", "off");
+obj.RunDiagramPanel.Layout.Row = 1; obj.RunDiagramPanel.Layout.Column = 2;
+dg = uigridlayout(obj.RunDiagramPanel, [1 1], "Padding", [0 0 0 0]);
+obj.RunDiagramHTML = uihtml(dg, "HTMLSource", char(obj.runDiagramHTML()));
+obj.resetRunDiagram();
 end
 
 

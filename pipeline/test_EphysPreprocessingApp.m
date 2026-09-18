@@ -585,6 +585,61 @@ check(isequal(ids, 1) && notes == "two cells?" && app.ReviewData.notes(app.Revie
 app.syncReviewDataset();
 check(app.ReviewData.notes(app.ReviewData.clusterID == 1) == "two cells?", 'the note is read back on reload');
 
+fprintf('\n== 4b. Run tab: the run diagram ==\n');
+check(app.RunDiagramPanel.Visible == "off" && isequal(app.RunSplitGrid.ColumnWidth, {'1x', 0}) ...
+    && contains(string(app.RunDiagramHTML.HTMLSource), "function setup(htmlComponent)"), ...
+    'the run diagram is off by default and its page is loaded');
+app.RunDiagramCheckBox.Value = true;
+app.onRunDiagramToggled();
+D = app.RunDiagramHTML.Data;
+st = [D.steps.state];
+check(app.RunDiagramPanel.Visible == "on" && isequal(app.RunSplitGrid.ColumnWidth, {'1x', '1x'}) ...
+    && isequal([D.steps.key], EphysPipelineConfig.StepNames) && D.phase == "done" ...
+    && st(6) == "done" && D.steps(6).pct == 100 && D.steps(6).summary ~= "" && all(st([1:5 7]) == "off") ...
+    && D.steps(1).label == "not in this run", ...
+    'ticked, it takes half of the right side and shows the last run (followed while hidden): Spikes done at 100%');
+app.resetRunDiagram(["probe" "signals" "spikes"], false);
+D = app.RunDiagramHTML.Data;
+check(D.phase == "running" && all([D.steps([1 5 6]).state] == "queued") && D.steps(3).state == "off" ...
+    && D.headline == "Starting...", 'a run starts with its steps waiting and the others not in it');
+ev = @(step, ds, i, n, done, total, msg) struct('step', string(step), 'dataset', string(ds), 'index', i, ...
+    'count', n, 'done', done, 'total', total, 'message', string(msg));
+app.updateRunDiagram(ev("probe", "", 0, 4, 0, 1, "starting"));
+app.updateRunDiagram(ev("signals", "", 0, 4, 0, 1, "starting"));
+app.updateRunDiagram(ev("signals", "recB", 2, 4, 1, 2, "LFP"));
+D = app.RunDiagramHTML.Data;
+s = D.steps(5);
+check(D.steps(1).state == "done" && D.steps(1).pct == 100 && s.state == "running" && s.pct == 37.5 ...
+    && s.now == "Dataset 2 of 4: recB" && s.msg == "LFP" && D.steps(6).state == "queued" ...
+    && D.headline == "Step 2 of 3: Signals", ...
+    'an event makes its step the one underway at (index - 1 + done/total) / count, the steps before it done');
+app.updateRunDiagram(ev("signals", "recA", 1, 4, 0, 1, "late"));
+check(app.RunDiagramHTML.Data.steps(5).pct == 37.5, 'a step''s percentage never goes back');
+Rd = EphysPipeline.emptyResults();
+Rd(1:2, :) = {"signals", "recA", "done", "", "", 1; "signals", "recB", "cancelled", "", "", 1};
+app.finishRunDiagram(Rd, "cancelled", "");
+D = app.RunDiagramHTML.Data;
+check(D.phase == "cancelled" && D.steps(5).state == "cancelled" && D.steps(5).pct == 37.5 ...
+    && D.steps(6).state == "notrun" && D.steps(5).summary == "1 done, 1 cancelled" ...
+    && startsWith(D.headline, "Cancelled during Signals"), ...
+    'a cancel leaves its step at the percentage reached, with its counts, and the later steps not run');
+app.resetRunDiagram();
+app.RunSignalsCheckBox.Value = true;
+app.RunSignalsCheckBox.ValueChangedFcn(app.RunSignalsCheckBox, []);   % as a click would
+D = app.RunDiagramHTML.Data;
+check(D.phase == "idle" && D.steps(1).label == "will run" && D.steps(5).label == "will run" ...
+    && D.steps(3).label == "off" && startsWith(D.headline, "Ready: "), ...
+    'before a run it previews the ticked steps and follows the checklist');
+app.RunSignalsCheckBox.Value = false;
+app.RunSignalsCheckBox.ValueChangedFcn(app.RunSignalsCheckBox, []);
+check(app.RunDiagramHTML.Data.steps(5).label == "off", 'unticking a step takes it out of the preview');
+app.savePreferences();
+check(isequal(getpref(g, 'ShowRunDiagram'), true), 'the switch is saved as a preference');
+app.RunDiagramCheckBox.Value = false;
+app.onRunDiagramToggled();
+check(app.RunDiagramPanel.Visible == "off" && isequal(app.RunSplitGrid.ColumnWidth, {'1x', 0}), ...
+    'unticked, the progress, results and log have the whole right side again');
+
 fprintf('\n== 5. save and reopen ==\n');
 ok = app.onSaveConfig();
 check(ok && ~startsWith(app.Fig.Name, "*"), 'save clears the unsaved marker');

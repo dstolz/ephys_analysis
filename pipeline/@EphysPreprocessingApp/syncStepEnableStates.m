@@ -1,7 +1,7 @@
 function syncStepEnableStates(obj)
 %syncStepEnableStates  The tab strip colours (syncTabStrip), the Run-tab
-%   checklist, the selection summary and (while shown) the Flow chart
-%   follow the working config.
+%   checklist, the selection summary, (while shown) the Flow chart and,
+%   until a run starts, the run diagram's preview follow the working config.
 cfg = obj.Config;
 obj.Applying = true;
 restore = onCleanup(@() setApplying(obj, false));
@@ -30,6 +30,10 @@ if ~isempty(obj.RunSelectionLabel) && isvalid(obj.RunSelectionLabel)
     else
         obj.RunSelectionLabel.Text = sprintf("Selection: all %d dataset(s).", obj.Project.NumDatasets);
     end
+end
+if ~isempty(obj.RunDiagramCheckBox) && isvalid(obj.RunDiagramCheckBox) && obj.RunDiagramCheckBox.Value ...
+        && obj.RunDiagram.phase == "idle"
+    obj.resetRunDiagram();
 end
 end
 

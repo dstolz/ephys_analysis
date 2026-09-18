@@ -5,8 +5,8 @@ function loadPreferences(obj)
 %   the Review folder, the last / recent config files, the script folder,
 %   the datasets-table column order, the Trials-table parameter columns and
 %   column order, the Trials-plot label parameters, the Visualize
-%   display options and the Copy tab settings (subject, roots, pairing and
-%   copy options; not the dates).
+%   display options, the Copy tab settings (subject, roots, pairing and
+%   copy options; not the dates) and the Run tab's Show the run diagram.
 %   Everything else lives in the config; the last config file is reopened
 %   at launch (defaults otherwise).
 
@@ -52,6 +52,10 @@ if ispref(g, 'TrialsLabelParams')
 end
 if ispref(g, 'TrialsColumnOrder')
     obj.TrialsColumnOrder = reshape(string(getpref(g, 'TrialsColumnOrder')), 1, []);
+end
+if ispref(g, 'ShowRunDiagram')
+    obj.RunDiagramCheckBox.Value = isequal(getpref(g, 'ShowRunDiagram'), true);
+    obj.onRunDiagramToggled();
 end
 
 % --- Visualize display options (one struct) ---

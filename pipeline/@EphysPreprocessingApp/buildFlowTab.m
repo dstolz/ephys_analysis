@@ -13,9 +13,9 @@ g = uigridlayout(obj.TabFlow, [2 1]);
 g.RowHeight = {'fit', '1x'};
 g.Padding   = [10 10 10 10];
 
-bar = uigridlayout(g, [1 3]);
+bar = uigridlayout(g, [1 4]);
 bar.Layout.Row = 1;
-bar.ColumnWidth = {'fit', 'fit', '1x'};
+bar.ColumnWidth = {'fit', 'fit', 'fit', '1x'};
 bar.RowHeight   = {'fit'};
 bar.Padding     = [0 0 0 0];
 obj.FlowRefreshButton = uibutton(bar, "Text", "Refresh", ...
@@ -23,6 +23,9 @@ obj.FlowRefreshButton = uibutton(bar, "Text", "Refresh", ...
 obj.FlowSaveButton = uibutton(bar, "Text", "Save as HTML...", ...
     "Tooltip", "Write the chart as a standalone .html file (opens in any browser, prints to PDF).", ...
     "ButtonPushedFcn", @(~,~) obj.onSaveFlowChart());
+obj.FlowOpenButton = uibutton(bar, "Text", "Open in Browser", ...
+    "Tooltip", "Open the chart in your default web browser.", ...
+    "ButtonPushedFcn", @(~,~) obj.onOpenFlowChartInBrowser());
 obj.FlowSummaryLabel = uilabel(bar, "Text", "", "FontColor", [0.4 0.4 0.4]);
 
 obj.FlowHTML = uihtml(g, "HTMLEventReceivedFcn", @(~, evt) obj.onFlowNavigate(evt));

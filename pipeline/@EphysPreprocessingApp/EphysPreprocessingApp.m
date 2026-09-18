@@ -409,6 +409,7 @@ classdef EphysPreprocessingApp < handle
         % --- Flow tab ---
         FlowRefreshButton matlab.ui.control.Button
         FlowSaveButton    matlab.ui.control.Button
+        FlowOpenButton    matlab.ui.control.Button
         FlowSummaryLabel  matlab.ui.control.Label
         FlowHTML          matlab.ui.control.HTML
         % Controls a click in the Diagram marked, with the look to put back
@@ -755,6 +756,7 @@ classdef EphysPreprocessingApp < handle
         refreshFlowChart(obj)
         [html, summary] = flowChartHTML(obj)
         onSaveFlowChart(obj)
+        onOpenFlowChartInBrowser(obj)
         onFlowNavigate(obj, evt)
         ctrls = flowNavControls(obj, target)
         clearFlowHighlight(obj)

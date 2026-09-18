@@ -49,7 +49,8 @@ background monitor and saves preferences.
   - **File**: New config, Open config..., Open recent, Save config (Ctrl+S),
     Save config as..., Export copy of config..., Generate script (Compact |
     Standalone), Create synthetic test project... (see
-    [Synthetic test project](#synthetic-test-project)), Close.
+    [Synthetic test project](#synthetic-test-project)), Open analysis app...
+    ([EphysAnalysisApp](EphysAnalysisApp.md) on this project), Close.
   - **Dataset**: one checkable item per scanned dataset; the checked one is
     the [active dataset](#which-dataset-does-an-action-act-on).
   - **Run**: Validate config, Plan, Run pipeline (Ctrl+R), Dry run, Cancel.
@@ -1007,7 +1008,7 @@ app.KSRuns                        % background runs being monitored
 | `EphysPreprocessingApp.m` | properties, constructor, method declarations |
 | `buildUI.m`, `buildMenus.m`, `build*Tab.m` | UI construction |
 | `gatherConfig.m`, `applyConfig.m`, `gather*/apply*Section.m`, `gather/applyConvertConfig.m`, `gather/applySortingSection.m`, `onConfigChanged.m`, `syncStepEnableStates.m`, `updateTitle.m` | config model |
-| `onNewConfig.m`, `onOpenConfig.m`, `openConfigFile.m`, `onSaveConfig.m`, `onSaveConfigAs.m`, `onExportConfigCopy.m`, `onGenerateScript.m`, `onCreateSyntheticProject.m`, `createSyntheticProject.m`, `confirmDiscard.m`, `addRecentConfig.m`, `refreshRecentMenu.m` | File menu |
+| `onNewConfig.m`, `onOpenConfig.m`, `openConfigFile.m`, `onSaveConfig.m`, `onSaveConfigAs.m`, `onExportConfigCopy.m`, `onGenerateScript.m`, `onCreateSyntheticProject.m`, `createSyntheticProject.m`, `onOpenAnalysisApp.m`, `confirmDiscard.m`, `addRecentConfig.m`, `refreshRecentMenu.m` | File menu |
 | `buildPipeline.m`, `runPipeline.m`, `onRunStep.m`, `onCancelRun.m`, `onValidate.m`, `onPlan.m`, `refreshStepPlan.m`, `onPipelineProgress.m`, `runLog.m`, `setRunBar.m`, `showIssues.m`, `onParallelControlsChanged.m` | running |
 | `onRunDiagramToggled.m`, `resetRunDiagram.m`, `updateRunDiagram.m`, `finishRunDiagram.m`, `refreshRunDiagram.m`, `runDiagramHTML.m` | the Run tab's diagram of the run: show / hide, its model (start, progress events, end), what is sent to the page, the page |
 | `onResourceMonitorToggled.m`, `startResourceMonitor.m`, `stopResourceMonitor.m`, `pollResourceMonitor.m`, `showResourceSample.m`, [`resource_monitor.ps1`](../pipeline/resource_monitor.ps1) | the Run tab's resource monitoring: show / hide, launching and stopping the sampler, the timer reading it, the display |

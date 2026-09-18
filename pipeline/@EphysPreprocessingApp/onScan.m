@@ -17,10 +17,10 @@ drawnow;
 
 try
     % Discovery is cheap (AutoMetadata=false per folder inside discover()).
-    P = EphysProject(root);
+    obj.Config = obj.gatherConfig();
+    P = EphysProject(root, Recursive=obj.Config.Project.Recursive);
 
     % Push the config's shared settings (python / output root / SI / artifacts).
-    obj.Config = obj.gatherConfig();
     EphysPipeline.applyConfigToDatasets(obj.Config, P);
 
     if P.NumDatasets == 0
@@ -29,8 +29,11 @@ try
         obj.refreshDatasetsTable();
         obj.populateDatasetPickers();
         obj.ScanStatusLabel.Text = sprintf("No recordings found under %s", root);
-        obj.setStatus(sprintf("Scan complete: no recordings found under %s.", root), ...
-            "Pick a different parent folder and Scan again.");
+        hint = "Pick a different parent folder and Scan again.";
+        if ~P.Recursive
+            hint = "Only the root and the folders directly in it were searched: tick Recursive, or pick a different parent folder, and Scan again.";
+        end
+        obj.setStatus(sprintf("Scan complete: no recordings found under %s.", root), hint);
         return
     end
 

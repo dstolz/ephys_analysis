@@ -96,7 +96,8 @@ classdef EphysPipelineScript
             L(end+1, 1) = "root       = " + lit(cfg.Project.Root) + ";";
             L(end+1, 1) = "outputRoot = " + lit(cfg.Project.OutputRoot) + ";";
             L(end+1, 1) = "P = EphysProject(root, OutputRoot=outputRoot, PythonExe=" + lit(cfg.Sorting.PythonExe) + ...
-                ", CondaEnv=" + lit(cfg.Sorting.CondaEnv) + ", NamePattern=" + lit(cfg.Project.NamePattern) + ");";
+                ", CondaEnv=" + lit(cfg.Sorting.CondaEnv) + ", NamePattern=" + lit(cfg.Project.NamePattern) + ...
+                ", Recursive=" + lit(cfg.Project.Recursive) + ");";
             L(end+1, 1) = "P.refresh();                       % headers + per-dataset manifests (probe, exclusions, ...)";
             if cfg.Project.Selection == "list"
                 L(end+1, 1) = "keys = " + lit(cfg.Project.Datasets) + ";   % root-relative dataset keys";

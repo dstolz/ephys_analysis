@@ -79,7 +79,7 @@ classdef EphysPipeline < handle
                 end
                 obj.Project = EphysProject(cfg.Project.Root, OutputRoot=cfg.Project.OutputRoot, ...
                     PythonExe=cfg.Sorting.PythonExe, CondaEnv=cfg.Sorting.CondaEnv, ...
-                    NamePattern=cfg.Project.NamePattern);
+                    NamePattern=cfg.Project.NamePattern, Recursive=cfg.Project.Recursive);
                 obj.Project.refresh();
             else
                 obj.Project = opts.Project;

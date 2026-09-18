@@ -25,7 +25,7 @@ written as the strings `"NaN"` / `"Inf"`.
 ├─ <Name>_events.mat                    digital-input events cache (digitalEvents; trial pairing)
 ├─ <Name>_chronux.mat                   Chronux export (exportChronux; the Export step)
 ├─ <Name>_fieldtrip.mat                 FieldTrip export (exportFieldTrip; the Export step)
-├─ <Name>.bin + <Name>.json             EphysDataset.toBin (legacy engine only)
+├─ <Name>.bin + <Name>.json             EphysDataset.toBin (native Kilosort4 engine only)
 └─ kilosort4/                           kilosortDir()
    ├─ si_config.json                    SpikeInterface engine config
    ├─ run_si_ks4.py                     copy of the driver used for this run
@@ -35,7 +35,8 @@ written as the strings `"NaN"` / `"Inf"`.
    │  └─ sorter_output/                 Kilosort4 phy output (params.py, *.npy, *.tsv;
    │                                    cluster_notes.tsv holds per-unit notes)
    │
-   │  -- legacy runKilosort engine writes instead, directly in kilosort4/ --
+   │  -- the native engine (runKilosort) writes instead, directly in kilosort4/,
+   │     and deletes si/ first --
    ├─ settings.json, run_ks4.py
    ├─ <probe>_excluded.json             derived probe when channels are excluded
    └─ params.py, spike_*.npy, templates.npy, cluster_*.tsv, ...
@@ -173,7 +174,7 @@ which holds `H64LP_4x16.json` as a starting point.
   "Behavior":  { "Enabled", "SearchDirs", "Match", "MaxStartOffsetMin", "Overwrite", "WriteFile",
                  "PairTrials", "AutoApprove", "TrialLine" },
   "Artifacts": { "Enabled", "Method", "Threshold", ... , "ApplyToSorting", "ApplyToSpikes", "CacheIntervals" },
-  "Sorting":   { "Enabled", "PythonExe", "CondaEnv", "Execution", "DryRun", "SkipExisting",
+  "Sorting":   { "Enabled", "Engine", "PythonExe", "CondaEnv", "Execution", "DryRun", "SkipExisting",
                  "SI": {...}, "KS4": {...}, "KS4ExtraJSON" },
   "Signals":   { "Enabled", "OutputDir", "Suffix", ... , "ExcludeHandling" },
   "Spikes":    { "Enabled", "Source", ... , "Groups", "IncludeNoise", "Templates", "OutputDir", "Suffix", ... },
@@ -341,7 +342,7 @@ Schema (placeholders in `<...>`; all paths use forward slashes):
   `ExtraSettings=`). `do_CAR: false` is added when the common reference is
   enabled and `do_CAR` was not set explicitly.
 
-## `settings.json` (legacy `runKilosort` engine)
+## `settings.json` (native `runKilosort` engine)
 
 Path: `<ResultsDir>/settings.json`. Fields: `n_chan_bin`, `fs`, `data_dtype`
 (from `ds.Dtype`), `filename` (the `.bin`), `probe` (original or
@@ -355,7 +356,7 @@ Path: in the run folder. Written by the Python driver when it finishes.
 | Engine | Success | Failure |
 | --- | --- | --- |
 | SpikeInterface | `{"state":"done","num_units":N,"bad_channels":[...],"dropped_params":[...]}` | `{"state":"error","message":"...","traceback":"..."}` |
-| legacy | `{"state":"done"}` | `{"state":"error","message":"...","traceback":"..."}` |
+| native | `{"state":"done","num_units":N,"dropped_params":[...]}` | `{"state":"error","message":"...","traceback":"..."}` |
 
 Both engines delete a stale status file before launching. The GUI's background
 monitor polls this file every 3 s.

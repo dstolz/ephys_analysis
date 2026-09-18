@@ -111,7 +111,7 @@ A run folder is any folder containing one of `spike_clusters.npy`, `params.py`,
 | `State`, `Message` | from `ks4_status.json`. If there is no status file but results exist, `State` is `"done"` |
 | `NumUnits` | data rows of `cluster_KSLabel.tsv` (falling back to `cluster_group.tsv`), blank lines excluded; `NaN` if neither file exists |
 | `SettingsPath`, `ScriptPath`, `LogPath`, `StatusPath` | paths or `""` |
-| `BinFile`, `ProbeFile`, `Fs`, `NChanBin` | from `settings.json` (legacy `runKilosort` engine) |
+| `BinFile`, `ProbeFile`, `Fs`, `NChanBin` | from `settings.json` (native `runKilosort` engine) |
 | `Modified` | newest modification time among the folder's direct files |
 
 For the SpikeInterface engine, the bookkeeping folder (`kilosort4/`, holding

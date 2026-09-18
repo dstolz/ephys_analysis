@@ -211,6 +211,18 @@ app.onParallelControlsChanged();
 check(~app.Config.Parallel.Enabled && strcmp(app.RunMaxWorkersField.Enable, 'off'), 'unticking Parallel disables the worker cap');
 app.RunParallelCheckBox.Value = true;
 app.onParallelControlsChanged();
+sort0 = app.Config.Sorting;
+app.SIDetectBadCheckBox.Value = true;
+app.SortEngineDropDown.Value = 'kilosort';
+app.SortEngineDropDown.ValueChangedFcn(app.SortEngineDropDown, []);   % as a pick would
+[html, ~] = app.flowChartHTML();
+check(app.Config.Sorting.Engine == "kilosort" && strcmp(app.SIDetectBadCheckBox.Enable, 'off') ...
+    && strcmp(app.SIBadMethodDropDown.Enable, 'off') && contains(html, "Write .bin") && ~contains(html, "run_sorter"), ...
+    'the native engine disables the SpikeInterface preprocessing and redraws the diagram');
+app.applySortingSection(sort0);
+check(strcmp(app.SortEngineDropDown.Value, 'spikeinterface') && strcmp(app.SIDetectBadCheckBox.Enable, 'on'), ...
+    'applying a SpikeInterface config restores the engine and its controls');
+app.onSIControlsChanged();
 app.ParamControls.tmax.Value = 'abc';
 [~, msg] = app.gatherSortingSection();
 check(msg ~= "", 'an unparseable KS4 field is reported');

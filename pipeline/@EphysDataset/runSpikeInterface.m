@@ -28,8 +28,9 @@ function result = runSpikeInterface(obj, opts)
 %     Fs / NChan       overrides (default ds.Fs / ds.NumChannels)
 %     SIConfig         scalar struct override (default ds.SIConfig)
 %     ExtraSettings    scalar struct of Kilosort4 settings merged into ks4 block
-%     ArtifactIntervals (:,2) double  seconds periods to silence (default: computed
-%                      from ds.artifactIntervals(): manual + auto when enabled)
+%     ArtifactIntervals [k x 2] seconds periods to silence; [] silences nothing
+%                      (default NaN: computed from ds.artifactIntervals(),
+%                      manual + auto when enabled)
 %     DryRun           (1,1) logical  write files + build command, do NOT spawn
 %     Wait             (1,1) logical  block until finished (default true). When
 %                      false, launched detached (background) with stdout/stderr
@@ -57,7 +58,7 @@ arguments
     opts.NChan (1,1) double = NaN
     opts.SIConfig struct = struct()
     opts.ExtraSettings (1,1) struct = struct()
-    opts.ArtifactIntervals (:,2) double = NaN(0, 2)
+    opts.ArtifactIntervals double = NaN
     opts.Files (1,:) string = string.empty(1,0)
     opts.DryRun (1,1) logical = false
     opts.Wait (1,1) logical = true
@@ -124,10 +125,9 @@ if ~isempty(fieldnames(opts.SIConfig))
 end
 
 % Artifact periods to silence (manual + auto when enabled), in seconds.
-if isequaln(opts.ArtifactIntervals, NaN(0, 2))
+[intervals, given] = explicitIntervals(opts.ArtifactIntervals);
+if ~given
     intervals = obj.artifactIntervals();
-else
-    intervals = opts.ArtifactIntervals;
 end
 
 % ---- Assemble the config the Python script consumes --------------------

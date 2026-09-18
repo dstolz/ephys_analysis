@@ -16,7 +16,8 @@ classdef EphysPipelineConfig
     %     Behavior   Enabled, SearchDirs, Match, MaxStartOffsetMin, Overwrite,
     %                WriteFile, PairTrials, AutoApprove, TrialLine
     %     Artifacts  Enabled + detector / filter settings, ApplyTo*, CacheIntervals
-    %     Sorting    Enabled, PythonExe, CondaEnv, Execution, DryRun,
+    %     Sorting    Enabled, Engine (spikeinterface | kilosort), PythonExe,
+    %                CondaEnv, Execution, DryRun,
     %                SkipExisting, SI (SpikeInterface), KS4 (typed per
     %                kilosortParamSpec), KS4ExtraJSON
     %     Signals    Enabled + the derived-signal (toMat) settings,

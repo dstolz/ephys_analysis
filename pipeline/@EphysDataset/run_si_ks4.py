@@ -125,6 +125,23 @@ def build_probe(cfg, rec):
     return probe
 
 
+# Refuse to sort when artifact silencing would zero more than this share of
+# the recording: Kilosort4 then finds no spikes and fails deep inside its
+# template SVD with an unhelpful "Found array with 0 sample(s)".
+MAX_SILENCED_FRACTION = 0.5
+
+
+def silenced_samples(frames):
+    """Samples covered by the union of (start, end) frame spans."""
+    total, end = 0, -1
+    for a, b in sorted(frames):
+        a = max(a, end)
+        if b > a:
+            total += b - a
+            end = b
+    return total
+
+
 def to_frames(periods_s, fs, n_samples):
     frames = []
     for p in periods_s:
@@ -224,8 +241,21 @@ def build_pipeline(cfg):
     sil = pp.get('silence_periods', {})
     if sil.get('enabled'):
         periods = [[float(a) - tmin, float(b) - tmin] for (a, b) in (sil.get('periods_s', []) or [])]
-        frames = to_frames(periods, fs, rec.get_num_samples())
+        n_samples = rec.get_num_samples()
+        frames = to_frames(periods, fs, n_samples)
         if frames:
+            covered = silenced_samples(frames)
+            share = covered / float(n_samples)
+            log('artifact periods cover %.4g of %.4g s (%.0f%%)'
+                % (covered / fs, n_samples / fs, 100 * share))
+            if share > MAX_SILENCED_FRACTION:
+                raise ValueError(
+                    'Artifact silencing would zero %.0f%% of the recording '
+                    '(%d period(s), %.4g of %.4g s; limit %.0f%%). Kilosort4 '
+                    'would find no spikes. Check the artifact detector settings '
+                    'or turn off artifact silencing for this dataset.'
+                    % (100 * share, len(frames), covered / fs, n_samples / fs,
+                       100 * MAX_SILENCED_FRACTION))
             _patch_silence_periods_dtype()
             try:
                 periods = np.array([(0, a, b) for (a, b) in frames],

@@ -419,8 +419,8 @@ intervals are the same in either mode.
 - `addArtifact(t0, t1)` appends `[t0 t1]` (seconds, recording-relative),
   clamps negatives to 0, ignores zero-width periods, then sorts and merges
   overlaps.
-- `mask = manualArtifactMask(nSamp, sampleOffset, Fs)` returns the per-block
-  logical mask `toBin` uses. It covers samples `ceil(t0·Fs) … floor(t1·Fs)` as
+- `mask = manualArtifactMask(nSamp, sampleOffset, Fs, iv)` returns the per-block
+  logical mask `toBin` uses, for the intervals `iv` (default `ManualArtifacts`). It covers samples `ceil(t0·Fs) … floor(t1·Fs)` as
   0-based absolute indices.
 
 #### Default artifact configuration
@@ -613,8 +613,9 @@ varying fastest. It holds one chunk in memory at a time. Per chunk, in order:
 3. reorder/subset (`ChannelOrder`);
 4. filter, if `Filter=true` (default **off**; Kilosort4 filters internally);
 5. auto-detect and zero artifacts, if `Blank=true` **or**
-   `ArtifactConfig.Enabled`;
-6. zero `ManualArtifacts` (mapped with the running sample offset);
+   `ArtifactConfig.Enabled`, and no `ArtifactIntervals` list is given;
+6. zero `ArtifactIntervals` when given, else `ManualArtifacts` (mapped with the
+   running sample offset);
 7. compute `scale × x + Offset`, count out-of-range samples, cast, write.
 
 | Option | Default |
@@ -625,6 +626,7 @@ varying fastest. It holds one chunk in memory at a time. Per chunk, in order:
 | `Filter`, `FilterType`, `FilterCutoff`, `FilterOrder` | off, `"highpass"`, `300`, `4` |
 | `FilterEdgeMode` | `"independent"` (each chunk filtered on its own). `"overlap"` prepends the previous chunk's last `OverlapSamples` raw samples before filtering |
 | `Blank`, `ArtifactMethod`, `ArtifactThreshold`, `ArtifactRmsWindowMs`, `ArtifactMergeGapMs`, `ArtifactMinChannels`, `ArtifactPadMs` | fall back to `ArtifactConfig` |
+| `ArtifactIntervals` | `NaN`: `ManualArtifacts` plus detection as above. A `[k x 2]` list of seconds replaces both, and `[]` zeroes nothing. `runKilosort` passes its intervals here |
 | `WriteMeta` | `true` (writes a `<name>.json` sidecar next to the `.bin`) |
 | `BinFile` | `ds.BinFile` |
 
@@ -649,9 +651,21 @@ for the same data and options, it produces a file byte-identical to `toBin`;
 
 ### Running Kilosort4
 
-There are two engines. The GUI uses **`runSpikeInterface`**. `runKilosort` is
-the older `.bin`-based path, kept for scripting and batch use
-(`EphysProject.runKilosortAll`).
+There are two engines, picked by the config's `Sorting.Engine` (the Sorting
+tab's **Engine** drop-down):
+
+- **`runSpikeInterface`** (`"spikeinterface"`, the default) reads the raw
+  recording with SpikeInterface, applies its preprocessing and runs Kilosort4.
+- **`runKilosort`** (`"kilosort"`) writes the recording to a `.bin` and runs
+  Kilosort4 natively on it, with no SpikeInterface. It is also what
+  `EphysProject.runKilosortAll` calls.
+
+Both take the same `ExtraSettings`, `ArtifactIntervals`, `DryRun` and `Wait`
+options. Both refuse to run when the artifact intervals cover more than
+`EphysDataset.MaxSilencedFraction` (half) of the recording, because Kilosort4
+would then find no spikes and fail inside its template SVD. `runKilosort`
+checks this in MATLAB before writing the `.bin`. `runSpikeInterface` checks it
+in `run_si_ks4.py`, which logs the covered share first.
 
 Both launch Python through `system()` (not MATLAB's `pyenv`) as either
 `"<PythonExe>" "<script>" "<config>"` or
@@ -686,7 +700,7 @@ described step by step in [python-drivers.md](python-drivers.md#run_si_ks4py).
 | `Fs`, `NChan` | `ds.Fs`, `ds.NumChannels` |
 | `SIConfig` | `ds.SIConfig` |
 | `ExtraSettings` | `struct()`: Kilosort4 settings passed to `run_sorter` |
-| `ArtifactIntervals` | computed by `artifactIntervals()` |
+| `ArtifactIntervals` | `NaN`: computed by `artifactIntervals()`. `[]` silences nothing |
 | `Files` | `ds.Files` |
 | `DryRun` | `false`: write config + script and build the command without launching |
 | `Wait` | `true` |
@@ -717,13 +731,29 @@ described step by step in [python-drivers.md](python-drivers.md#run_si_ks4py).
 
 `normalizeSIConfig(cfg)` fills missing fields and drops unknown ones.
 
-#### `result = runKilosort(Name=Value)` (legacy `.bin` engine)
+#### `result = runKilosort(Name=Value)` (native `.bin` engine)
 
-This requires an existing `.bin` (run `toBin` first) unless `DryRun=true`. It
+Unless `DryRun=true` or `BinFile` names an existing `.bin`, it first writes the
+recording to `ds.BinFile` with `toBin(ArtifactIntervals=iv)`, zeroing the
+artifact intervals (`ArtifactIntervals`, else `artifactIntervals()`). It then
 writes `settings.json` and a copy of
 [`run_ks4.py`](../pipeline/@EphysDataset/run_ks4.py) into `ResultsDir` (default
-`<outputFolder>/kilosort4`), then calls `kilosort.run_kilosort`. The phy output
-lands directly in that folder.
+`kilosortDir()`) and calls `kilosort.run_kilosort`. The phy output lands
+directly in that folder.
+
+- A run into `kilosortDir()` first deletes a SpikeInterface run's `si/`
+  subfolder there. Otherwise `kilosortResultsDir` would keep finding the older
+  run.
+- No SpikeInterface preprocessing applies: `SIConfig`'s filter, bad-channel
+  detection and common reference are ignored. Kilosort4 still high-passes and
+  references (`do_CAR`) itself.
+- The probe's `chanMap` indexes `.bin` rows directly. `runSpikeInterface`
+  instead matches probe sites to channels by their native number. So for a
+  recording with a channel disabled at acquisition, the probe must already
+  account for the gap.
+- `run_ks4.py` passes `run_kilosort` arguments found in the settings
+  (`do_CAR`, `invert_sign`, `bad_channels`, ...) as arguments, and drops and
+  logs any other key Kilosort4 does not recognize.
 
 - `n_chan_bin` and `fs` resolve in this order: options, then the `.bin` JSON
   sidecar, then `NumChannels`/`Fs`.
@@ -731,11 +761,12 @@ lands directly in that folder.
   `Dtype=` override, pass a matching dataset `Dtype`.
 - The probe channel count is compared with `n_chan_bin`. A mismatch only warns
   (`EphysDataset:runKilosort:ProbeChannelMismatch`).
-- Options: `PythonExe`, `CondaEnv`, `ProbeFile`, `ExcludeChannels`, `BinFile`,
-  `ResultsDir`, `NChanBin`, `Fs`, `ExtraSettings` (merged into `settings.json`),
-  `DryRun`, `Wait`.
+- Options: `PythonExe`, `CondaEnv`, `ProbeFile`, `ExcludeChannels`, `BinFile`
+  (an existing `.bin` to sort as is), `ResultsDir`, `NChanBin`, `Fs`,
+  `ExtraSettings` (merged into `settings.json`), `ArtifactIntervals` (`NaN` =
+  `artifactIntervals()`, `[]` = none), `DryRun`, `Wait`.
 - `result` fields: `status`, `command`, `stdoutLog`, `scriptPath`,
-  `settingsPath`, `resultsDir`, `binFile`, `probeFile`, `excludeChannels`,
+  `settingsPath`, `resultsDir` and `runDir` (the same folder), `binFile`, `probeFile`, `excludeChannels`,
   `nExcludedChannels`, `dryRun`, `wait`, `statusFile`, `background`.
 
 #### Channel exclusions
@@ -1066,6 +1097,8 @@ is in [file-formats.md](file-formats.md#dataset-manifest).
 | `EphysDataset:detectSpikes:BlockOption` / `FsNotAllowed` | a whole-recording option passed with a data block, or `Fs` passed without one |
 | `EphysDataset:detectSpikes:BadChannelOrder` / `ChannelMismatch` | `ChannelOrder` out of range, or the channel count changes between chunks |
 | `EphysDataset:runKilosort:NoPython` / `NoProbe` / `ProbeMissing` / `BinMissing` | run prerequisites missing |
+| `EphysDataset:runKilosort:MostlySilenced` | the artifact intervals cover more than `MaxSilencedFraction` of the recording |
+| `EphysDataset:BadArtifactIntervals` | an `ArtifactIntervals` option that is not `[k x 2]` |
 | `EphysDataset:runSpikeInterface:NoPython` / `NoProbe` / `ProbeMissing` | run prerequisites missing |
 | `EphysDataset:toMat:Exists` / `SaveWarning` / `SaveIncomplete` | `.mat` output refused or discarded (also used by `saveAtomically`) |
 | `EphysDataset:spikesToMat:Exists`, `EphysDataset:exportChronux:Exists`, `EphysDataset:exportFieldTrip:Exists` | target file exists and `Overwrite` is off |

@@ -278,6 +278,7 @@ classdef EphysPreprocessingApp < handle
         % --- Sorting tab ---
         SortEnableCheckBox  matlab.ui.control.CheckBox
         SortSkipExistingCheckBox matlab.ui.control.CheckBox
+        SortEngineDropDown matlab.ui.control.DropDown
         PythonExeField    matlab.ui.control.EditField
         BrowsePythonButton matlab.ui.control.Button
         CondaEnvField     matlab.ui.control.EditField

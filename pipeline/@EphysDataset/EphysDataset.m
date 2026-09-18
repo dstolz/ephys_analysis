@@ -29,10 +29,10 @@ classdef EphysDataset < handle
     %   ----------------
     %     ds = EphysDataset("D:\rec\subj1_day1");
     %     T  = ds.PerFile;                 % per-file header summary
-    %     info = ds.toBin();               % stream raw broadband int16 .bin
     %     ds.ProbeFile = "probe.json";
     %     ds.PythonExe = "C:\miniconda3\python.exe";
-    %     res = ds.runKilosort();          % write run_ks4.py + settings.json, spawn
+    %     res = ds.runSpikeInterface();    % SpikeInterface + Kilosort4, or
+    %     res = ds.runKilosort();          % toBin, then Kilosort4 natively
     %
     %   Derived signals (the intan2matlab conversion, any layout)
     %   ---------------------------------------------------------
@@ -188,6 +188,12 @@ classdef EphysDataset < handle
 
         % Per-unit notes next to a sort, in phy's custom-label format.
         UnitNotesFile = "cluster_notes.tsv"
+
+        % Sorting refuses to zero more than this share of a recording as
+        % artifacts: Kilosort4 then finds no spikes and fails deep inside its
+        % template SVD. run_si_ks4.py holds the same limit
+        % (MAX_SILENCED_FRACTION). See silencedFraction.
+        MaxSilencedFraction = 0.5
     end
 
     methods
@@ -209,7 +215,7 @@ classdef EphysDataset < handle
         [P, tf] = autoApproveTrialPairing(obj, P)
         summary = analyzeArtifacts(obj, opts)
         X      = blankArtifacts(obj, X, mask, opts)
-        mask   = manualArtifactMask(obj, nSamp, sampleOffset, Fs)
+        mask   = manualArtifactMask(obj, nSamp, sampleOffset, Fs, iv)
         addArtifact(obj, t0, t1)
         info   = toBin(obj, opts)
         info   = matrixToBin(obj, X, opts)
@@ -594,8 +600,18 @@ classdef EphysDataset < handle
             % Epsych2 behavioral session association (see BehaviorFile).
             m.behavior = obj.behaviorManifest();
 
-            % SpikeInterface preprocessing provenance (engine + config snapshot).
-            m.engine        = "spikeinterface";
+            % Sorting engine of the run on disk (SpikeInterface nests its output
+            % under si/; the native engine writes into kilosortDir) and the
+            % SpikeInterface preprocessing snapshot, which only the
+            % spikeinterface engine applies.
+            ksDir = obj.kilosortDir();
+            if isfile(fullfile(ksDir, 'si', 'sorter_output', 'params.py'))
+                m.engine = "spikeinterface";
+            elseif isfile(fullfile(ksDir, 'params.py'))
+                m.engine = "kilosort";
+            else
+                m.engine = "";
+            end
             m.preprocessing = EphysDataset.normalizeSIConfig(obj.SIConfig);
         end
 
@@ -1003,6 +1019,28 @@ classdef EphysDataset < handle
                 end
             end
             cfg = def;
+        end
+
+        function [share, covered] = silencedFraction(iv, duration)
+            %silencedFraction  Share of a recording covered by artifact intervals.
+            %   [SHARE, COVERED] = EphysDataset.silencedFraction(IV, DURATION)
+            %   clips the [k x 2] second intervals IV to [0 DURATION] and
+            %   returns the covered seconds of their union and that as a share
+            %   of DURATION (NaN when DURATION is unknown).
+            covered = 0;
+            if ~isempty(iv)
+                iv = sortrows([max(iv(:, 1), 0), min(iv(:, 2), duration)], 1);
+                reach = 0;
+                for k = 1:size(iv, 1)
+                    a = max(iv(k, 1), reach);
+                    if iv(k, 2) > a
+                        covered = covered + iv(k, 2) - a;
+                        reach = iv(k, 2);
+                    end
+                end
+            end
+            share = NaN;
+            if duration > 0; share = covered / duration; end
         end
 
         function ch = parseChannelList(s)

@@ -203,6 +203,15 @@ pipe.runArtifacts();
 ivQ = pipe.artifactIntervalsFor(d1);
 check(contains(pipe.Results.Message(1), "computed") && isequal(ivQ, d1.artifactIntervals()) ...
     && any(contains(logs, "parallel")), 'Parallel.Enabled reaches artifactIntervals (one chunk: serial) and is logged');
+check(any(contains(logs, "interval(s) computed, covering")), ...
+    'the artifact log line reports how much of the recording the intervals cover');
+manual0 = d1.ManualArtifacts;
+d1.ManualArtifacts = [0 d1.NumSamples / d1.Fs];
+logs = strings(0, 1);
+pipe.artifactIntervalsFor(d1);
+check(any(contains(logs, "(100%)") & contains(logs, "WARNING")), ...
+    'silencing over half the recording is flagged in the log');
+d1.ManualArtifacts = manual0;
 pipe.Config = cfg;
 
 fprintf('\n== 5. sorting dry run ==\n');
@@ -219,6 +228,14 @@ check(isequaln(orderfields(si.ks4), orderfields(structfun(@double, ks, 'UniformO
     isequal(sort(fieldnames(si.ks4)), sort(fieldnames(ks))), 'si_config ks4 block carries the config settings');
 check(si.preprocessing.silence_periods.enabled && numel(si.preprocessing.silence_periods.periods_s) >= 1, ...
     'artifact intervals (manual + cached auto) passed to the sorter');
+cfgN = cfg; cfgN.Sorting.Engine = "kilosort";
+pipe.Config = cfgN;
+pipe.reset();
+pipe.runSorting();
+R = pipe.Results;
+check(R.Status(1) == "dry run" && endsWith(R.Output(1), "settings.json") && isfile(R.Output(1)) ...
+    && contains(R.Message(1), "settings.json"), 'native engine dry run writes settings.json (runKilosort)');
+pipe.Config = cfg;
 cfg.Sorting.DryRun = false; cfg.Sorting.Enabled = false;
 
 fprintf('\n== 6. spikes step ==\n');

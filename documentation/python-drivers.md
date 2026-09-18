@@ -15,7 +15,7 @@ the exact script it used.
 | Script | Called by | Environment needs |
 | --- | --- | --- |
 | [`run_si_ks4.py`](../pipeline/@EphysDataset/run_si_ks4.py) | `EphysDataset.runSpikeInterface` (the pipeline's Sorting step) | spikeinterface, probeinterface, neo, kilosort, torch |
-| [`run_ks4.py`](../pipeline/@EphysDataset/run_ks4.py) | `EphysDataset.runKilosort` (legacy `.bin` engine) | kilosort, torch |
+| [`run_ks4.py`](../pipeline/@EphysDataset/run_ks4.py) | `EphysDataset.runKilosort` (native `.bin` engine, `Sorting.Engine = "kilosort"`) | kilosort, torch |
 | [`probe_tool.py`](../pipeline/@EphysPreprocessingApp/probe_tool.py) | `EphysPreprocessingApp.runProbeTool` / `ProbeDesignerApp` | probeinterface |
 
 Versions known to work are listed in [INSTALL.md](../pipeline/INSTALL.md):
@@ -75,6 +75,10 @@ Usage: `run_si_ks4.py <si_config.json> [--check]`. The config schema is in
      `round(t·fs)`.
    - The result is clamped to the recording, and periods with `end <= start`
      are dropped.
+   - The share of the recording they cover is logged. If it is over half
+     (`MAX_SILENCED_FRACTION`), the run stops with an error instead of
+     sorting. Kilosort4 would find no spikes in the zeroed data and fail
+     inside its template SVD.
    - The periods are applied with `silence_periods` (zeros).
    - A small in-process patch of `SilencedPeriodsRecording.__init__` rebuilds
      the structured `periods` array after SpikeInterface's JSON round-trip.
@@ -123,14 +127,20 @@ integer**, whereas `exclude_channels` and the legacy `.bin` engine use
 Usage: `run_ks4.py <settings.json>`.
 
 1. Loads the probe with `kilosort.io.load_probe(cfg['probe'])`.
-2. Passes every other `settings.json` key (except `probe` and `data_dtype`) as
-   Kilosort4 `settings`.
+2. Sorts the other `settings.json` keys (except `probe` and `data_dtype`) with
+   `split_settings`:
+   - `run_kilosort` arguments (`do_CAR`, `invert_sign`, `save_extra_vars`,
+     `save_preprocessed_copy`, `bad_channels`, `clear_cache`,
+     `torch_thread_lim`) are passed as arguments;
+   - keys in Kilosort4's `RECOGNIZED_SETTINGS` become `settings`;
+   - anything else is **dropped** and logged. Kilosort4 would otherwise refuse
+     the whole run with "Unrecognized settings".
 3. Calls `kilosort.run_kilosort(settings, probe, filename, data_dtype,
-   results_dir)`.
+   results_dir, **run_args)`.
 
-It writes `ks4_status.json` (`{"state": "done"}` or `{"state": "error",
-"message", "traceback"}`) in `results_dir` and prints `KILOSORT4_DONE` /
-`KILOSORT4_ERROR`.
+It writes `ks4_status.json` (`{"state": "done", "num_units", "dropped_params"}`
+or `{"state": "error", "message", "traceback"}`) in `results_dir` and prints
+`KILOSORT4_DONE units=<n>` / `KILOSORT4_ERROR`.
 
 ---
 

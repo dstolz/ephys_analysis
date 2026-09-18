@@ -173,6 +173,27 @@ check(contains(res.command, '"C:\miniconda3\python.exe"'), 'command quotes pytho
 check(contains(res.command, '"'+string(res.scriptPath)+'"') || contains(res.command, res.scriptPath), ...
     'command references script');
 
+fprintf('\n== 8b. explicit artifact intervals (native engine) ==\n');
+ds.ManualArtifacts = [0.001 0.002];
+siDry = fullfile(root, 'si_dry');
+rsi = ds.runSpikeInterface(DryRun=true, ResultsDir=siDry, ArtifactIntervals=zeros(0, 2));
+sic = jsondecode(fileread(rsi.settingsPath));
+check(~sic.preprocessing.silence_periods.enabled, 'an explicit empty ArtifactIntervals silences nothing');
+rsi = ds.runSpikeInterface(DryRun=true, ResultsDir=siDry);
+sic = jsondecode(fileread(rsi.settingsPath));
+check(sic.preprocessing.silence_periods.enabled, 'the default ArtifactIntervals falls back to the dataset''s periods');
+binX = fullfile(root, 'blank_test.bin');
+infoB = ds.toBin(BinFile=binX, ArtifactIntervals=[0 0.001], WriteMeta=false);
+fid = fopen(binX, 'r'); B = fread(fid, [infoB.nChan Inf], 'int16=>double'); fclose(fid);
+nZ = floor(0.001 * Fs) + 1;   % samples 0 .. floor(t1*Fs), as manualArtifactMask
+check(all(B(:, 1:nZ) == 0, 'all') && any(B(:, nZ+1:end) ~= 0, 'all') && infoB.nManualBlanked == nZ, ...
+    'toBin blanks exactly the listed intervals, not the manual periods');
+check(strcmp(errorIdOf(@() ds.runKilosort(ArtifactIntervals=[0 ds.NumSamples / ds.Fs])), ...
+    'EphysDataset:runKilosort:MostlySilenced'), 'runKilosort refuses to blank most of the recording');
+[share, covered] = EphysDataset.silencedFraction([0 1; 0.5 2; 3 10], 4);
+check(abs(covered - 3) < 1e-12 && abs(share - 0.75) < 1e-12, 'silencedFraction clips and unions the intervals');
+ds.ManualArtifacts = zeros(0, 2);
+
 fprintf('\n== 9. DatasetTracker integration (ds / project) ==\n');
 % ds.OutputDir = out_stream (section 4); section 8 wrote a dry-run kilosort4/
 % there (settings + script, but no spike output yet).

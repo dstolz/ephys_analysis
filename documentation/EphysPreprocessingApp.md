@@ -432,15 +432,17 @@ The Threshold field is sent as-is for every method: with *Absolute microvolts*
 
 ## Sorting
 
-SpikeInterface + Kilosort4, optional (`Sorting.Enabled`).
+Kilosort4, optional (`Sorting.Enabled`), either through SpikeInterface or
+natively.
 
 | Control | Maps to |
 | --- | --- |
 | Enable the Sorting step, Skip datasets already sorted | `Sorting.Enabled`, `SkipExisting` |
+| Engine: *SpikeInterface + Kilosort4* / *Kilosort4 only (native, via a .bin)* | `Sorting.Engine` (`"spikeinterface"` / `"kilosort"`). The native engine writes `<Name>.bin` with the artifact periods zeroed, runs `run_ks4.py` on it, and greys out the SpikeInterface preprocessing controls, which it ignores. See [Running Kilosort4](EphysDataset.md#running-kilosort4) |
 | Python exe (+ Browse), Conda env | `Sorting.PythonExe` (seeded from a `kilosort` conda env under `%LOCALAPPDATA%` / `%USERPROFILE%` when a new config is created), `CondaEnv` |
 | Phy command | preference `PhyCmd` (blank = `conda run -n phy phy`) |
 | Execution (background / blocking), Dry run | `Sorting.Execution`, `DryRun` |
-| Bandpass filter, Common reference, Detect bad channels (+ method, action) | `Sorting.SI` ([defaults](EphysDataset.md#default-spikeinterface-configuration)) |
+| Bandpass filter, Common reference, Detect bad channels (+ method, action) | `Sorting.SI` ([defaults](EphysDataset.md#default-spikeinterface-configuration)); SpikeInterface engine only |
 | Kilosort4 parameters (five groups, from `EphysPipelineConfig.kilosortParamSpec`), Extra settings (JSON) | `Sorting.KS4`, `KS4ExtraJSON`. Control kinds: int / float / bool as typed; `nullable` blank = omitted; `floatinf` blank / `inf` = omitted; `vector` = comma- or space-separated |
 | **Optimize for probe** | loads the Kilosort4 parameters saved for the active dataset's probe (else the default probe) from `<probe>.ks4.json` next to the probe map; without that file, offers to generate it from the current parameters or from the probe layout ([details](#optimize-for-probe)) |
 | **Reset to defaults** | every `Sorting.KS4` parameter back to its `kilosortParamSpec` default and `KS4ExtraJSON` cleared; the Python, execution and SpikeInterface settings stay |
@@ -824,7 +826,8 @@ preference groups are not read.
 | pipeline config `.json` | File → Save / Save as / Export copy (default folder `pipeline/pipeline_configs`) |
 | generated `.m` script | File → Generate script |
 | `<Folder>/<Name>_manifest.json` | scan, probe assignment, exclusion change, manual artifact edit, sorting / behavior association, each sorting launch and completion |
-| `<outputFolder>/kilosort4/{si_config.json, run_si_ks4.py, ks4_run.log, ks4_status.json}` and `kilosort4/si/...` | Sorting (dry run writes only the first two) |
+| `<outputFolder>/kilosort4/{si_config.json, run_si_ks4.py, ks4_run.log, ks4_status.json}` and `kilosort4/si/...` | Sorting, SpikeInterface engine (dry run writes only the first two) |
+| `<outputFolder>/<Name>.bin` + `.json`, `<outputFolder>/kilosort4/{settings.json, run_ks4.py, ks4_run.log, ks4_status.json}` and the phy files | Sorting, native engine (dry run writes only `settings.json` and `run_ks4.py`) |
 | `<outputFolder>/<Name>_artifacts.json` | Artifacts (cache) |
 | `<Name>_extract_<TYPE>.mat` (or `<Name>_extract.mat`), `<Name>_spikes.mat`, `<Name>_chronux.mat`, `<Name>_fieldtrip.mat` | Signals, Spikes, Export |
 | probe `.json` in the probe folder | Import, Designer save, Notes edit |

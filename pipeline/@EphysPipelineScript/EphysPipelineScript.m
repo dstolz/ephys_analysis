@@ -167,8 +167,15 @@ classdef EphysPipelineScript
             L(end+1, 1) = "";
 
             % --- sorting -------------------------------------------------------------
-            L = [L; EphysPipelineScript.stepHeader("Sorting: SpikeInterface + Kilosort4", cfg.stepEnabled("sorting"))];
             S = cfg.Sorting;
+            if S.Engine == "kilosort"
+                sortTitle = "Sorting: Kilosort4 (native, via a .bin)";
+                sortCall = "d.runKilosort";
+            else
+                sortTitle = "Sorting: SpikeInterface + Kilosort4";
+                sortCall = "d.runSpikeInterface";
+            end
+            L = [L; EphysPipelineScript.stepHeader(sortTitle, cfg.stepEnabled("sorting"))];
             [ks4, ~] = EphysPipelineConfig.ks4Settings(S);
             L = [L; EphysPipelineScript.structLiteral("ks4", ks4)];
             L(end+1, 1) = "for k = idx";
@@ -183,7 +190,7 @@ classdef EphysPipelineScript
             else
                 L(end+1, 1) = "        iv = d.artifactIntervals(IncludeAuto=false);";
             end
-            L(end+1, 1) = "        res = d.runSpikeInterface(ExtraSettings=ks4, ArtifactIntervals=iv, DryRun=" + ...
+            L(end+1, 1) = "        res = " + sortCall + "(ExtraSettings=ks4, ArtifactIntervals=iv, DryRun=" + ...
                 lit(logical(S.DryRun)) + ", Wait=" + lit(S.Execution == "blocking") + ");";
             L(end+1, 1) = "        d.writeManifest();";
             L(end+1, 1) = "        fprintf('%s: sorting -> %s\n', d.Name, res.resultsDir);";

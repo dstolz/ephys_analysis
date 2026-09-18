@@ -112,7 +112,7 @@ reported as a warning (`EphysProject:toBinFailed`), and the batch continues.
 Each element of `infos` has `Name`, `info` (the `toBin` struct, or `[]` on
 failure) and `error` (`""` on success).
 
-**`results = runKilosortAll(Name=Value...)`** calls the legacy
+**`results = runKilosortAll(Name=Value...)`** calls the native
 `EphysDataset.runKilosort` on every dataset with the same error handling
 (`EphysProject:runKilosortFailed`).
 

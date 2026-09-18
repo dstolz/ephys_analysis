@@ -41,6 +41,7 @@ function out = spikesToMat(obj, opts)
 %                       ds.artifactIntervals(): manual periods always, the
 %                       automatic detector when ds.ArtifactConfig.Enabled)
 %     ArtifactIntervals [k x 2] seconds to use instead of ds.artifactIntervals()
+%                       ([] = none; default NaN = ds.artifactIntervals())
 %     Groups            sorted units to keep by phy label (default ["good" "mua"])
 %     IncludeNoise      keep clusters labelled "noise" (default false)
 %     Templates         read template waveforms for sorted units (default true)
@@ -61,7 +62,7 @@ arguments
     opts.DetectOptions (1,1) struct = struct()
     opts.Channels (1,:) double {mustBeInteger, mustBePositive} = []
     opts.RejectArtifacts (1,1) logical = true
-    opts.ArtifactIntervals (:,2) double = NaN(0, 2)
+    opts.ArtifactIntervals double = NaN
     opts.Groups (1,:) string = ["good" "mua"]
     opts.IncludeNoise (1,1) logical = false
     opts.Templates (1,1) logical = true
@@ -108,9 +109,8 @@ if doDetect
 
     iv = zeros(0, 2);
     if opts.RejectArtifacts
-        if ~isequaln(opts.ArtifactIntervals, NaN(0, 2))
-            iv = opts.ArtifactIntervals;
-        else
+        [iv, given] = explicitIntervals(opts.ArtifactIntervals);
+        if ~given
             progress(opts.ProgressFcn, step, nSteps, "Resolving artifact periods");
             iv = obj.artifactIntervals();
         end

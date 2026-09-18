@@ -108,6 +108,11 @@ check(contains(txtS, "NamePattern=""{SubjectID}_{Date:yyMMdd}_{Time:HHmmss}""") 
 check(contains(txtS, "ks4.nblocks = 2;") && contains(txtS, "ks4.x_centers = 2;") && contains(txtS, "detectOptions.Threshold = 2000;") ...
     && contains(txtS, '"schema": "ephys-pipeline-config"'), 'standalone script carries the parameters and the config JSON as a comment');
 check(contains(txtS, "if false   % set to true to run this step"), 'standalone disabled steps are wrapped in if false');
+check(contains(txtS, "res = d.runSpikeInterface(ExtraSettings=ks4"), 'standalone sorting uses SpikeInterface by default');
+cfgN = cfgB; cfgN.Sorting.Engine = "kilosort";
+txtN = EphysPipelineScript.standalone(cfgN);
+check(contains(txtN, "res = d.runKilosort(ExtraSettings=ks4, ArtifactIntervals=iv") && ~contains(txtN, "runSpikeInterface"), ...
+    'standalone sorting runs Kilosort4 natively for Engine="kilosort"');
 check(contains(txtS, "parallelOpts.UseParallel = false;") && contains(txtS, "parallelArgs{:}") ...
     && contains(txtS, "detectOptions.UseParallel = false;"), 'standalone script carries the Parallel section into the chunked steps');
 mC = checkcode(compactFile, '-id');

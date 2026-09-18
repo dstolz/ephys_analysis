@@ -455,7 +455,7 @@ classdef EphysPipeline < handle
                     if isvector(iv) && numel(iv) == 2; iv = double(iv(:)).'; end
                     iv = double(iv);
                     source = "cache";
-                    obj.log("[artifacts] %s: %d interval(s) from cache", d.Name, size(iv, 1));
+                    obj.log("[artifacts] %s: %d interval(s) from cache%s", d.Name, size(iv, 1), coverageNote(iv, d));
                     return
                 end
             end
@@ -468,7 +468,7 @@ classdef EphysPipeline < handle
                     'fingerprint', fp, 'intervals', iv, 'nIntervals', size(iv, 1), ...
                     'created', string(datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss'))));
             end
-            obj.log("[artifacts] %s: %d interval(s) computed", d.Name, size(iv, 1));
+            obj.log("[artifacts] %s: %d interval(s) computed%s", d.Name, size(iv, 1), coverageNote(iv, d));
         end
 
         function [iv, source] = artifactIntervalsForStep(obj, d, applyAuto, report)
@@ -528,4 +528,21 @@ classdef EphysPipeline < handle
                 'logFile', {}, 'logPos', {}, 'done', {});
         end
     end
+end
+
+
+function s = coverageNote(iv, d)
+%coverageNote  ", covering X of Y s (Z%)" for artifact intervals IV.
+%   Adds a warning past EphysDataset.MaxSilencedFraction, the share at which
+%   sorting refuses to run.
+[share, covered] = EphysDataset.silencedFraction(iv, d.NumSamples / d.Fs);
+if isempty(iv) || isnan(share)
+    s = "";
+    return
+end
+s = string(sprintf(", covering %.4g of %.4g s (%.0f%%)", covered, d.NumSamples / d.Fs, 100 * share));
+if share > EphysDataset.MaxSilencedFraction
+    s = s + sprintf(" - WARNING: sorting refuses to silence more than %.0f%%; check the artifact settings", ...
+        100 * EphysDataset.MaxSilencedFraction);
+end
 end

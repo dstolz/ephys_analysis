@@ -96,9 +96,12 @@ end
 S = obj.Sorting;
 if S.Enabled
     if S.PythonExe == ""
-        add("sorting", "PythonExe", "error", "PythonExe is required to run SpikeInterface / Kilosort4.");
+        add("sorting", "PythonExe", "error", "PythonExe is required to run Kilosort4.");
     elseif opts.CheckPaths && ~isfile(S.PythonExe)
         add("sorting", "PythonExe", "warning", "Python executable not found: " + S.PythonExe);
+    end
+    if ~ismember(S.Engine, ["spikeinterface" "kilosort"])
+        add("sorting", "Engine", "error", "Engine must be ""spikeinterface"" or ""kilosort"".");
     end
     if ~ismember(S.Execution, ["background" "blocking"])
         add("sorting", "Execution", "error", "Execution must be ""background"" or ""blocking"".");

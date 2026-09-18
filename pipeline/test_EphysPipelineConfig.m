@@ -390,6 +390,14 @@ check(any(iss.Step == "sorting" & iss.Field == "Execution" & iss.Severity == "er
 cfg.Sorting.Execution = "blocking";
 iss = cfg.validate();
 check(~any(iss.Field == "Execution"), 'blocking sorting resolves the cross-step rule');
+check(EphysPipelineConfig().Sorting.Engine == "spikeinterface", 'sorting runs through SpikeInterface by default');
+cfg.Sorting.Engine = "bogus";
+iss = cfg.validate();
+check(any(iss.Step == "sorting" & iss.Field == "Engine" & iss.Severity == "error"), 'an unknown sorting engine is an error');
+cfg.Sorting.Engine = "kilosort";
+iss = cfg.validate();
+check(~any(iss.Step == "sorting" & iss.Severity == "error"), 'the native engine validates');
+cfg.Sorting.Engine = "spikeinterface";
 cfg.Export.Enabled = true;
 iss = cfg.validate();
 check(any(iss.Step == "export" & iss.Field == "Formats" & iss.Severity == "error") ...

@@ -56,6 +56,10 @@ background monitor and saves preferences.
     Documentation home, Quick start, App overview, Output files,
     Troubleshooting and FAQ, Scripting guide, Pipeline configs, Developer
     reference. If no browser opens, an alert shows the address.
+    Its last two items file against the
+    [repository](https://github.com/dstolz/ephys_analysis/issues) instead:
+    **Report an issue on GitHub...** and **Request a feature on GitHub...**
+    (see [Reporting an issue](#reporting-an-issue)).
 - **Title**: the config name and file; `*` in front while the config has
   unsaved changes.
 - **Tabs**, in workflow order: **Copy, Project, Trials, Probe, Artifacts, Sorting,
@@ -762,6 +766,37 @@ The four recordings differ in how they cover their session, so the
 `Artifacts` and `Overwrite`; its result holds the truth of every dataset
 (events, trials, units, artifacts, the expected cuts).
 
+## Reporting an issue
+
+**Help → Report an issue on GitHub...** and **Help → Request a feature on
+GitHub...** compose a GitHub issue from the session you are in. Both open the
+same dialog: a title, a box for what happened (or what you would like the app
+to do), tick boxes for what to send with it, and a preview of the whole report
+exactly as it will be sent.
+
+| Ticked | What it sends |
+| --- | --- |
+| System info | MATLAB release and platform, OS, compute threads, memory, GPUs, the Python interpreter (`pyenv` and the Sorting tab's), the installed toolboxes, and the repository folder with its git commit, branch and whether it has uncommitted changes |
+| Pipeline options | the working config as the controls hold it now (name, file, unsaved edits, enabled steps, roots, dataset counts, active dataset, selected tab, whether a run is going) and the whole config as JSON, written the way **Save config** writes it — **this carries your file paths** |
+| Logs and last error | the last 60 lines of the Run, Kilosort and Copy logs, each saying how many lines it had, and the error the last run stopped on with its stack |
+
+A bug report starts with all three ticked and a feature request with only the
+system info; untick anything you would rather not send. Nothing leaves the app
+until you press a button:
+
+- **Open on GitHub** puts the whole report on the clipboard and opens the
+  repository's new-issue form with the title, the report and the label (`bug`
+  or `enhancement`) filled in. Nothing is filed until you submit it there, and
+  you can edit it further on the page. A report longer than the address bar
+  holds is cut at a line boundary and says so in the body: paste the whole of
+  it from the clipboard. If no browser opens, an alert shows the address.
+- **Copy report** puts the report on the clipboard and leaves the dialog open,
+  for filing it somewhere else (email, an existing issue).
+
+Scripted, `app.issueReport("bug")` returns the same report (name-value
+`Description`, `System`, `Config`, `Logs`, `MaxLogLines`) and
+`app.issueURL("bug", title, body)` the prefilled address.
+
 ## Preferences
 
 Stored with `setpref` / `getpref` under the group `'EphysPreprocessingApp'`.
@@ -834,6 +869,7 @@ app.KSRuns                        % background runs being monitored
 | `loadReviewResults.m`, `renderReviewPlots.m`, `syncReviewDataset.m` | Review tab |
 | `load/savePreferences.m` | preferences |
 | `helpURL.m`, `onHelp.m` | Help menu (wiki pages) |
+| `onReportIssue.m`, `issueReport.m`, `issueURL.m` | Help menu (GitHub issue / feature request) |
 
 ## Tests
 
@@ -848,7 +884,11 @@ missing parameter file, including a probe map without positions, loading the
 file, the default-probe fallback, the Probe tab's listing and info) and Reset to defaults, one step through the pipeline,
 the run diagram (its half of the right side, the last run followed while hidden, a run's steps and percentages
 event by event, a cancel, the preview that follows the checklist, the preference),
-save / reopen and the recent list. It
+save / reopen and the recent list,
+the Help menu's wiki pages and its issue items (what a bug report and a
+feature request carry, that an unticked section is left out, the percent-encoded
+address with its label, and that a report too long for the address is cut and
+says so). It
 restores the user's preferences afterwards.
 [`test_CopySessions.m`](../pipeline/test_CopySessions.m) (a `matlab.unittest`
 class; `run_all_tests` runs it too) builds fake source trees in a temporary

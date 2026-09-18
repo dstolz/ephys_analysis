@@ -56,7 +56,13 @@ classdef EphysPreprocessingApp < handle
     %
     %   Help menu: opens the GitHub wiki (WikiURL) in the browser: the page
     %   for the tab that is shown, the home page, the quick start and the
-    %   user, scripting and developer guides.
+    %   user, scripting and developer guides. Its last two items file
+    %   against the repository (RepoURL) instead: Report an issue and
+    %   Request a feature open a dialog that collects what the maintainer
+    %   would ask for (MATLAB and machine, the working config, the tail of
+    %   the logs and the error the last run stopped on), shows the whole
+    %   report before anything leaves the app and opens GitHub's new-issue
+    %   form with it filled in (onReportIssue, issueReport, issueURL).
     %
     %   The active dataset is what every single-dataset control works on
     %   (Trials, exclusions, previews, the sorted-output association, phy,
@@ -95,7 +101,7 @@ classdef EphysPreprocessingApp < handle
         DatasetAllMenu     matlab.ui.container.Menu   % "All datasets" submenu
         DatasetMenuItems   matlab.ui.container.Menu   % its items, one per dataset (index = dataset index)
         RunMenu            matlab.ui.container.Menu
-        HelpMenu           matlab.ui.container.Menu   % wiki pages (helpURL, onHelp)
+        HelpMenu           matlab.ui.container.Menu   % wiki pages (helpURL, onHelp) + the issue items (onReportIssue)
 
         % --- Global status bar ---
         StatusBar  matlab.ui.control.Label
@@ -528,10 +534,15 @@ classdef EphysPreprocessingApp < handle
         ReviewData = struct([])
         ReviewSelectedUnit (1,1) double = 0
         ReviewDatasetIdx (1,1) double = 0    % dataset the tab last showed (-1 = reload; syncReviewDataset)
+
+        % --- the last run error (Help > Report an issue sends it; issueReport) ---
+        LastError MException = MException.empty(0, 1)   % what a run stopped on ([] when none)
+        LastErrorTime (1,1) datetime = NaT              % when it was caught
     end
 
     properties (Constant)
         PrefGroup = 'EphysPreprocessingApp'
+        RepoURL = "https://github.com/dstolz/ephys_analysis"        % the repository the issue items file against
         WikiURL = "https://github.com/dstolz/ephys_analysis/wiki"   % the Help menu's pages
     end
 
@@ -803,5 +814,8 @@ classdef EphysPreprocessingApp < handle
         onTabChanged(obj)
         url = helpURL(obj, page)
         onHelp(obj, page)
+        onReportIssue(obj, kind)
+        body = issueReport(obj, kind, opts)
+        [url, truncated] = issueURL(obj, kind, title, body)
     end
 end

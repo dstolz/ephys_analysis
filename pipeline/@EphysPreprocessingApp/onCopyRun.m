@@ -69,6 +69,11 @@ function startCopy(obj, rows, sel, destRoot)
 %startCopy  Launch the copy engine and let a timer follow it.
 obj.CopyCancelRequested = false;
 obj.CopyRows = sel;
+obj.CopyStarted = tic;
+obj.CopyRateHistory = zeros(0, 2);
+obj.CopyLiveRow = 0;
+obj.CopyLivePos = 0;
+obj.CopyLivePhase = "copying";
 obj.CopyProgressLabel.Text = '';
 obj.copyLog(sprintf("Copy sessions: %d session(s) to %s", numel(sel), destRoot));
 try
@@ -77,7 +82,7 @@ try
         IncludeUnpaired=any(ismember(rows.Status, ["intan_only" "epsych_only"])), ...
         Verify=string(obj.CopyVerifyDropDown.Value), ...
         Background=true, ...
-        ProgressFcn=@(f, m) obj.showCopyProgress(f, m), ...
+        ProgressFcn=@(f, m, i) obj.showCopyProgress(f, m, i), ...
         CancelFcn=@() obj.CopyCancelRequested, ...
         LogFcn=@(m) obj.copyLog(m));
 catch ME

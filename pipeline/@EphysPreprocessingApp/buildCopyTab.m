@@ -8,11 +8,12 @@ function buildCopyTab(obj)
 %   stitching and copy rules live in those functions. The settings are
 %   preferences, not part of the config.
 
-g = uigridlayout(obj.TabCopy, [5 1]);
-g.RowHeight   = {'fit', 'fit', 'fit', '2x', '1x'};
+g = uigridlayout(obj.TabCopy, [6 1]);
+g.RowHeight   = {'fit', 'fit', 0, 'fit', '2x', '1x'};   % row 3 is the progress panel, collapsed while idle
 g.ColumnWidth = {'1x'};
 g.Padding     = [10 10 10 10];
 g.RowSpacing  = 8;
+obj.CopyGrid = g;
 
 % --- session search ----------------------------------------------------------
 top = uigridlayout(g, [4 8]);
@@ -107,13 +108,11 @@ obj.CopySummaryLabel.Layout.Row = 2; obj.CopySummaryLabel.Layout.Column = [1 12]
 obj.CopyScanAfterCheckBox = uicheckbox(bar, "Text", "After copying, open the copied sessions as the project", "Value", true, ...
     "Tooltip", "Set the Project root to the folder holding the copied sessions and Scan it.");
 obj.CopyScanAfterCheckBox.Layout.Row = 2; obj.CopyScanAfterCheckBox.Layout.Column = [13 15];
-obj.CopyProgressLabel = uilabel(bar, "Text", "", "FontColor", [0.15 0.45 0.80], ...
-    "Tooltip", "What the background copy engine is doing now.");
-obj.CopyProgressLabel.Layout.Row = 3; obj.CopyProgressLabel.Layout.Column = [1 15];
+buildProgressPanel(obj, g);
 
 % --- stitching ------------------------------------------------------------------------
 st = uigridlayout(g, [1 3]);
-st.Layout.Row = 3;
+st.Layout.Row = 4;
 st.RowHeight   = {'fit'};
 st.ColumnWidth = {'fit', 'fit', '1x'};
 st.Padding     = [0 0 0 0];
@@ -130,11 +129,60 @@ uilabel(st, "FontColor", [0.4 0.4 0.4], "Text", ...
 obj.CopyTable = uitable(g, "RowName", {}, "ColumnSortable", false, ...
     "SelectionType", "row", "Multiselect", "on", ...
     "CellEditCallback", @(~, evt) obj.onCopyTableEdited(evt));
-obj.CopyTable.Layout.Row = 4;
+obj.CopyTable.Layout.Row = 5;
 
 % --- log -------------------------------------------------------------------------------
 obj.CopyLogArea = uitextarea(g, "Editable", "off", "FontName", "Consolas", "Value", {''});
-obj.CopyLogArea.Layout.Row = 5;
+obj.CopyLogArea.Layout.Row = 6;
 
 obj.refreshCopyTable();
+end
+
+
+function buildProgressPanel(obj, g)
+%buildProgressPanel  Where a background copy says how far it has got.
+%   A percentage on its own says little about a batch that takes an hour, and
+%   the Copy tab has the width to say more: a bar, what the engine is doing to
+%   which session, how much of the batch has moved, how fast and how long is
+%   left. The panel is only shown while a copy is running (setCopyRunning
+%   opens and closes row 3 of the tab).
+p = uipanel(g, "BorderType", "line", "BackgroundColor", [0.97 0.98 1.00], ...
+    "Title", "", "Visible", "off");
+p.Layout.Row = 3;
+obj.CopyProgressPanel = p;
+
+pg = uigridlayout(p, [3 2]);
+pg.RowHeight   = {'fit', 22, 'fit'};
+pg.ColumnWidth = {'1x', 'fit'};
+pg.Padding     = [10 8 10 8];
+pg.RowSpacing  = 4;
+
+obj.CopyProgressHeadline = uilabel(pg, "Text", "", "FontWeight", "bold", "FontSize", 13);
+obj.CopyProgressHeadline.Layout.Row = 1; obj.CopyProgressHeadline.Layout.Column = 1;
+obj.CopyPercentLabel = uilabel(pg, "Text", "0%", "FontWeight", "bold", "FontSize", 18, ...
+    "FontColor", [0.15 0.45 0.80], "HorizontalAlignment", "right");
+obj.CopyPercentLabel.Layout.Row = 1; obj.CopyPercentLabel.Layout.Column = 2;
+
+% The bar is two panels in a grid: their column weights are the percentage, so
+% showing progress is one property set and no graphics object is redrawn.
+track = uigridlayout(pg, [1 2]);
+track.Layout.Row = 2; track.Layout.Column = [1 2];
+track.ColumnWidth = {0.0001, '1x'};
+track.RowHeight   = {'1x'};
+track.Padding     = [0 0 0 0];
+track.ColumnSpacing = 0;
+obj.CopyProgressTrack = track;
+obj.CopyProgressFill = uipanel(track, "BorderType", "none", "BackgroundColor", [0.15 0.45 0.80]);
+obj.CopyProgressFill.Layout.Row = 1; obj.CopyProgressFill.Layout.Column = 1;
+obj.CopyProgressRest = uipanel(track, "BorderType", "none", "BackgroundColor", [0.88 0.90 0.93]);
+obj.CopyProgressRest.Layout.Row = 1; obj.CopyProgressRest.Layout.Column = 2;
+
+obj.CopyProgressLabel = uilabel(pg, "Text", "", "FontColor", [0.30 0.30 0.30], ...
+    "Tooltip", "The file the copy engine is working on now.");
+obj.CopyProgressLabel.Layout.Row = 3; obj.CopyProgressLabel.Layout.Column = 1;
+
+obj.CopyProgressETA = uilabel(pg, "Text", "", "FontColor", [0.35 0.35 0.35], ...
+    "HorizontalAlignment", "right", ...
+    "Tooltip", "Measured from what has been copied so far, so it settles as the copy runs.");
+obj.CopyProgressETA.Layout.Row = 3; obj.CopyProgressETA.Layout.Column = 2;
 end

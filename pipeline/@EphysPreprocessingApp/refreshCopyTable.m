@@ -2,7 +2,9 @@ function refreshCopyTable(obj)
 %refreshCopyTable  Show CopySessions with the Copy ticks, the last copy results and row colours.
 %   Unpaired rows are orange, ambiguous rows red (and cannot be ticked),
 %   stitched rows blue (their ePsych files joined by " + "); a failed copy
-%   result is red, a copied / already present one green.
+%   result is red, a copied / already present one green. The row a background
+%   copy is inside says how far through it is (showCopyProgress), so a long
+%   batch can be read from the table as well as from the progress panel.
 
 tbl = obj.CopyTable;
 if isempty(tbl) || ~isvalid(tbl); return; end
@@ -20,9 +22,10 @@ epsych = leafName(T.EpsychFile);
 for k = find(T.Status == "stitched").'
     epsych(k) = strjoin(leafName(T.StitchFiles{k}), " + ");
 end
+result = liveResults(obj, n);
 D = table(obj.CopyTicked(:), T.Status, leafName(T.IntanDir), timeText(T.IntanTime), durationText(T.IntanDuration), ...
     epsych, timeText(T.EpsychTime), trialsText(T.EpsychTrials), deltaText(T.DeltaT), T.DestDir, ...
-    obj.CopyStatus(:), obj.CopyMessage(:), T.Note, ...
+    result, obj.CopyMessage(:), T.Note, ...
     'VariableNames', {'Copy', 'Status', 'Intan folder', 'Intan time', 'Duration', 'ePsych file', 'ePsych time', ...
     'Trials', 'ePsych - Intan', 'Destination', 'Result', 'Message', 'Note'});
 resultCol = find(D.Properties.VariableNames == "Result");
@@ -44,6 +47,12 @@ for k = 1:n
             addStyle(tbl, uistyle("FontColor", [0.1 0.5 0.1], "FontWeight", "bold"), "cell", [k resultCol]);
         case {"failed", "cancelled"}
             addStyle(tbl, uistyle("FontColor", [0.75 0.1 0.1], "FontWeight", "bold"), "cell", [k resultCol]);
+        case "copying"
+            if startsWith(D.Result(k), "waiting")
+                addStyle(tbl, uistyle("FontColor", [0.45 0.45 0.45]), "cell", [k resultCol]);
+            else
+                addStyle(tbl, uistyle("FontColor", [0.15 0.45 0.80], "FontWeight", "bold"), "cell", [k resultCol]);
+            end
     end
 end
 
@@ -58,6 +67,34 @@ else
     obj.CopySummaryLabel.Text = sprintf("%d paired, %d stitched, %d Intan only, %d ePsych only, %d ambiguous; %d ticked.", ...
         counts, nnz(obj.CopyTicked));
 end
+end
+
+
+function result = liveResults(obj, n)
+%liveResults  The Result column while a background copy is in flight.
+%   copySessions marks every row of the batch "copying" when it starts, which
+%   says nothing about where the engine is. The row it is inside carries its
+%   percentage and the rows behind it in the batch are waiting their turn;
+%   rows it has passed keep "copying" until the batch is verified and they
+%   become copied or failed.
+result = obj.CopyStatus(:);
+if obj.CopyLivePos < 1; return; end
+word = ternary(obj.CopyLivePhase == "verifying", "verifying", "copying");
+for k = 1:min(n, numel(result))
+    if result(k) ~= "copying"; continue; end
+    pos = find(obj.CopyRows == k, 1);
+    if isempty(pos); continue; end
+    if pos == obj.CopyLivePos
+        result(k) = sprintf("%s %.0f%%", word, 100 * obj.CopyLiveFrac);
+    elseif pos > obj.CopyLivePos
+        result(k) = "waiting";
+    end
+end
+end
+
+
+function v = ternary(c, a, b)
+if c; v = a; else; v = b; end
 end
 
 

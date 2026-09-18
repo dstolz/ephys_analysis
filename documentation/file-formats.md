@@ -481,3 +481,57 @@ Default `<outputFolder>/<Name>_fieldtrip.mat`. Structures follow
 All five `.mat` writers save to `~<name>.partial.mat` and rename only after a
 warning-free `save()` in which every variable is confirmed present
 (`EphysDataset.saveAtomically`).
+
+## Analysis config JSON
+
+Written by `EphysAnalysisConfig.save` (the analysis app's **File → Save
+config**); any name, e.g. `am_quicklook.json`. Schema `ephys-analysis-config`,
+version 1; `Inf` / `NaN` are written as the strings `"Inf"` / `"NaN"`
+(`writeJsonFile(NonFinite="string")`) and read back as numbers.
+
+| Key | Contents |
+| --- | --- |
+| `schema`, `version`, `name`, `description` | identification |
+| `Source` | `Mode` (`project` / `folders`), `Root`, `OutputRoot`, `NamePattern`, `Selection`, `Datasets`, `Folders` |
+| `Defaults` | `EventRef`, `Window` (`stop` is `[]` or an event reference), `Selection` |
+| `Plots` | array of plots: `id`, `kind`, `enabled`, `title`, `source`, `units`, `channels`, `ref` / `window` / `selection` (`"default"` or an object), `bins`, `baseline`, `layout`, `withRaster`, `maskAfterStop`, `param`, `seriesParam`, `value`, `order`, `style` |
+| `Export` | `Enabled`, `Formats`, `Folder`, `FilenamePattern`, `Dpi`, `FigureSizeCm`, `Overwrite` |
+| `Report` | `Enabled`, `Format`, `Title`, `Folder`, `FileName`, `PerDataset`, `EmbedFormat`, `Dpi`, `IncludeSummary`, `IncludeParameters`, `IncludeConfig` |
+
+Every field, its type and default: [EphysAnalysisConfig](EphysAnalysisConfig.md).
+
+## Exported figure names
+
+`<Export.Folder>/<Export.FilenamePattern>.<format>`, one file per page and
+format (`png`, `eps`, `svg`, `pdf`). The folder pattern takes
+`{OutputFolder}` (the dataset's output folder), `{OutputRoot}`, `{Root}`,
+`{Name}` and `{Date}`; the default is `{OutputFolder}\analysis`, next to the
+dataset's other outputs. The file-name pattern takes `{Name}` (the dataset),
+`{Plot}` (the plot id), `{Kind}`, `{Group}` (`all`), `{Unit}` (the first unit
+of a paged grid's page, else `all`), `{Index}` (the page) and `{Date}`
+(yyyyMMdd); token values are cleaned to `[A-Za-z0-9_.-]`. A plot drawn on
+several pages whose pattern names neither `{Index}` nor `{Unit}` gets
+`_p<page>`: with the default `{Name}_{Plot}`,
+
+```
+<outputFolder>/analysis/SYNTH-01_260918_101500_psth_stim_p1.png
+<outputFolder>/analysis/SYNTH-01_260918_101500_psth_stim_p2.png
+<outputFolder>/analysis/SYNTH-01_260918_101500_lfp_stim.svg
+```
+
+## Report files
+
+`<Report.Folder>/<Report.FileName>.html` and / or `.pdf`
+(`Report.Format`); with `Report.PerDataset` one pair per dataset,
+`<FileName>_<dataset>.html`. The default folder is `{OutputRoot}\analysis`.
+
+- **HTML**: one self-contained file. A contents list; per dataset its
+  summary tables (recording, digital lines, trials by pairing flag and
+  response, units by class and shank, the highest rates) and every plot:
+  its pages as `data:image/png;base64` images (or inline SVG with
+  `EmbedFormat = "svg"`), the caption, relative links to the exported files
+  and the plot's parameters (folded); plots that were skipped or failed with
+  the reason; the config JSON at the end (folded).
+- **PDF**: a title page, a summary page per dataset (listing skipped and
+  failed plots) and every plot's pages drawn again as vector pages
+  (`exportgraphics(ContentType="vector", Append=true)`).

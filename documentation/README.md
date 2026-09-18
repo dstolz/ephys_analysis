@@ -13,6 +13,11 @@ the headless runner and generated scripts.
 > Written 2026-09-11 and revised 2026-09-16 from the source in the working
 > tree. When the code and these pages disagree, the code is authoritative.
 
+The [`analysis`](../analysis) folder draws quick-look figures (PSTHs, evoked
+potentials, rates, tuning curves, heatmaps, probe maps) and reports from the
+pipeline's outputs, with its own config, runner, scripts and GUI. It depends
+on `pipeline`; `pipeline` does not depend on it. See [Analysis](EphysAnalysis.md).
+
 ## Pages
 
 | Page | Covers |
@@ -27,6 +32,9 @@ the headless runner and generated scripts.
 | [intan2matlab](intan2matlab.md) | `intan2matlab` / `deriveSignals` / `toMat`: LFP, MUA, SPIKE and digital events |
 | [ChronuxDataset](ChronuxDataset.md) | connector that hands recordings, trials and spike trains to the Chronux toolbox |
 | [FieldTripExport](FieldTripExport.md) | FieldTrip raw / spike / event structures and `exportFieldTrip` |
+| [Analysis](EphysAnalysis.md) | the `analysis` folder: event references, epochs, trial selection and grouping, PSTH / evoked / rate / tuning computations, renderers, export, HTML / PDF reports, `EphysAnalysisRunner`, `EphysAnalysisScript` |
+| [EphysAnalysisConfig](EphysAnalysisConfig.md) | the analysis config (JSON `ephys-analysis-config`): every field, plot kinds, validation, tokens |
+| [EphysAnalysisApp](EphysAnalysisApp.md) | the analysis GUI: Data, Alignment, Plots, Export and Log tabs, preferences, why a plot is skipped |
 | [Python drivers](python-drivers.md) | `run_si_ks4.py`, `run_ks4.py`, `probe_tool.py` |
 | [Files on disk](file-formats.md) | folder layout and every JSON / `.bin` / `.mat` schema |
 
@@ -51,6 +59,11 @@ flowchart LR
         CX[ChronuxDataset<br/>Chronux connector] --> DS
         FT[FieldTripExport] --> DS
         EP[readEpsychSession] --> DS
+        ANA[EphysAnalysisApp<br/>analysis GUI] --> ACFG[EphysAnalysisConfig<br/>analysis config]
+        ACFG --> ARUN[EphysAnalysisRunner<br/>figures + reports]
+        ASCR[EphysAnalysisScript<br/>generated scripts] -.-> ACFG
+        ARUN --> DOUT[DatasetOutputs<br/>one dataset's outputs]
+        APP -. Open analysis app .-> ANA
     end
     subgraph Python["Python (conda env, via system())"]
         SI[run_si_ks4.py<br/>SpikeInterface + KS4]
@@ -70,6 +83,10 @@ flowchart LR
     DS -- behaviorToMat --> BMAT[(_behavior.mat)]
     DS -- exportChronux --> CHX[(_chronux.mat)]
     DS -- exportFieldTrip --> FTX[(_fieldtrip.mat)]
+    MAT -.-> DOUT
+    SPK -.-> DOUT
+    BMAT -.-> DOUT
+    ARUN --> FIGS[(figures .png / .svg / .eps / .pdf<br/>HTML + PDF reports)]
     CHX -.-> CHRONUX[/Chronux/]
     FTX -.-> FIELDTRIP[/FieldTrip/]
 ```
@@ -224,6 +241,8 @@ Collected from the code. Each is explained on the linked page.
 - Parallel Computing Toolbox (optional; `Parallel.Enabled` in a pipeline
   config, or `UseParallel=true` on `detectSpikes`, `artifactIntervals` and
   `analyzeArtifacts`).
+- No Report Generator: the analysis module's PDF reports are built with
+  `exportgraphics(..., Append=true)` and its HTML reports by hand.
 
 **Functions from elsewhere in this repository**:
 
@@ -281,3 +300,8 @@ test_EphysPipeline       % one suite
 | `test_EphysPipelineConfig`, `test_EphysPipeline`, `test_EphysPipelineScript` | config, runner, scripts |
 | `test_EphysPreprocessingApp` | the GUI's config model, headless |
 | `test_SyntheticDataset` | `makeSyntheticProject` / `makeSyntheticRecording`: the written lines, sessions, spikes, aux and artifacts read back; pairing per scenario; the other layouts; the config through the pipeline; the app's File-menu action |
+| `test_EphysAnalysisCompute` (analysis/) | compute functions on seeded spike trains and signals, the trial-filter compiler, every renderer |
+| `test_EphysAnalysisEpochs` (analysis/) | sources, event references, epochs, trial selection and grouping against the synthetic truth |
+| `test_EphysAnalysisConfig` (analysis/) | the analysis config: JSON round trips, `plotFor`, validation |
+| `test_EphysAnalysisRunner` (analysis/) | plan, run, exports, HTML / PDF reports, cancel, compact vs standalone script equivalence |
+| `test_EphysAnalysisApp` (analysis/) | the analysis GUI, headless |

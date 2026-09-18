@@ -73,6 +73,8 @@ for k = 1:numel(tabs)
             end
         case obj.TabFlow
             state = "neutral"; tip = "Diagram of the working config.";
+        case obj.TabCleanup
+            state = "neutral"; tip = "Remove local raw recordings and sorter copies to free disk space; outputs are kept.";
         otherwise
             state = "neutral"; tip = "";
     end

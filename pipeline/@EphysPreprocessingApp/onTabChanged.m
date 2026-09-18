@@ -35,6 +35,9 @@ switch obj.Tabs.SelectedTab
         msg = "Visualize: plot a short window; drag to mark manual artifacts.";
     case obj.TabReview
         msg = "Review: the active dataset's sorted units (or Browse... for any results folder).";
+    case obj.TabCleanup
+        msg = "Clean up: Preview what would be removed from the selected datasets and what would remain, then Remove files.";
+        obj.refreshCleanupScope();
     otherwise
         msg = "Ready.";
 end

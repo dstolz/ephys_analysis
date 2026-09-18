@@ -51,6 +51,13 @@ classdef EphysPreprocessingApp < handle
     %                GPU use under the steps
     %     Visualize  plot a window, mark manual artifact periods
     %     Review     inspect sorted units
+    %     Clean up   free local disk space once datasets are preprocessed:
+    %                preview every local file of the selected datasets as
+    %                Remove or Keep (planLocalCleanup), then, after a
+    %                confirmation, delete the Remove ones (runLocalCleanup).
+    %                Raw files go only when the source they were copied from
+    %                still holds them; outputs and sorted units always stay.
+    %                Not a pipeline step
     %
     %   File menu: New / Open / Open recent / Save / Save As / Export copy /
     %   Generate script (compact | standalone) / Create synthetic test
@@ -124,6 +131,7 @@ classdef EphysPreprocessingApp < handle
         TabFlow      matlab.ui.container.Tab
         TabVisualize matlab.ui.container.Tab
         TabReview    matlab.ui.container.Tab
+        TabCleanup   matlab.ui.container.Tab
 
         % --- Copy tab (settings are preferences; findCopySessions / copySessions) ---
         CopySubjectField      matlab.ui.control.EditField
@@ -337,6 +345,18 @@ classdef EphysPreprocessingApp < handle
         ReviewWaveAxes      matlab.ui.control.UIAxes
         ReviewAmpAxes       matlab.ui.control.UIAxes
         ReviewRateAxes      matlab.ui.control.UIAxes
+
+        % --- Clean up tab (planLocalCleanup / runLocalCleanup; the kinds ticked are a preference) ---
+        CleanupScopeLabel         matlab.ui.control.Label
+        CleanupRawCheckBox        matlab.ui.control.CheckBox
+        CleanupSorterCopyCheckBox matlab.ui.control.CheckBox
+        CleanupBinCheckBox        matlab.ui.control.CheckBox
+        CleanupPreviewButton      matlab.ui.control.Button
+        CleanupRunButton          matlab.ui.control.Button
+        CleanupSummaryLabel       matlab.ui.control.Label
+        CleanupTable              matlab.ui.control.Table
+        CleanupShowKeptCheckBox   matlab.ui.control.CheckBox
+        CleanupLogArea            matlab.ui.control.TextArea
 
         % --- Signals tab (config Signals; gather/applyConvertConfig) ---
         SigEnableCheckBox       matlab.ui.control.CheckBox
@@ -562,6 +582,10 @@ classdef EphysPreprocessingApp < handle
         ReviewSelectedUnit (1,1) double = 0
         ReviewDatasetIdx (1,1) double = 0    % dataset the tab last showed (-1 = reload; syncReviewDataset)
 
+        % --- Clean up tab state (in memory) ---
+        CleanupPlan = []                                        % planLocalCleanup table shown ([] = no preview)
+        CleanupPlanKeys (1,:) string = string.empty(1, 0)       % dataset keys it was made for
+
         % --- the last run error (Help > Report an issue sends it; issueReport) ---
         LastError MException = MException.empty(0, 1)   % what a run stopped on ([] when none)
         LastErrorTime (1,1) datetime = NaT              % when it was caught
@@ -603,6 +627,7 @@ classdef EphysPreprocessingApp < handle
         buildFlowTab(obj)
         buildVisualizeTab(obj)
         buildReviewTab(obj)
+        buildCleanupTab(obj)
 
         % --- config model ---
         cfg = gatherConfig(obj)
@@ -842,6 +867,13 @@ classdef EphysPreprocessingApp < handle
         onReviewUnitSelected(obj, evt)
         onReviewNoteEdited(obj, evt)
         onReviewAllUnits(obj)
+
+        % --- Clean up tab ---
+        onCleanupPreview(obj)
+        onCleanupRun(obj)
+        onCleanupSettingsChanged(obj, why)
+        refreshCleanupScope(obj)
+        refreshCleanupTable(obj)
 
         % --- app-wide ---
         loadPreferences(obj)

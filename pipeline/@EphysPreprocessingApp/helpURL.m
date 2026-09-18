@@ -22,6 +22,7 @@ if page == "tab"
         case obj.TabRun,       page = "Run-and-Flow-Tabs#run-tab";
         case obj.TabVisualize, page = "Visualize-Tab";
         case obj.TabReview,    page = "Review-Tab";
+        case obj.TabCleanup,   page = "Clean-Up-Tab";
         otherwise,             page = "App-Overview";
     end
 end

@@ -14,7 +14,8 @@ written as the strings `"NaN"` / `"Inf"`.
 ├─ info.rhd + amplifier.dat + ...       Intan one-file-per-signal, or
 ├─ info.rhd + amp-<native>.dat ...      Intan one-file-per-channel, or
 ├─ recording.json + <data>.bin          the universal binary format (any acquisition system)
-└─ <Name>_manifest.json                 dataset manifest (writeManifest)
+├─ <Name>_manifest.json                 dataset manifest (writeManifest)
+└─ <Name>_cleanup.json                  what Clean up removed (runLocalCleanup)
 
 <outputFolder>/                         = Folder, or OutputDir, or <OutputRoot>/<Name>
 ├─ <Name>_artifacts.json                artifact-interval cache (EphysPipeline)
@@ -91,6 +92,31 @@ Only `recording.json` marks a folder as a recording, so the `.bin` + sidecar
 pairs that `toBin` writes into output folders are never mistaken for one.
 `RecordingFormat` for these datasets is `"binary"`; the manifest's `reader` is
 `"binary"`.
+
+---
+
+## Clean-up record
+
+Path: `<Folder>/<Name>_cleanup.json`. Written by `runLocalCleanup` (the app's
+Clean up tab) in each dataset folder it removed files from; a later clean up
+appends a run.
+
+```text
+{
+  "schema":  "ephys-local-cleanup/1",
+  "dataset": <dataset Name>,
+  "folder":  <recording folder>,
+  "runs": [
+    { "time": <"yyyy-MM-dd HH:mm:ss">, "host": <computer>, "user": <user>,
+      "bytesRemoved": <n>,
+      "removed": [ { "file": <local path>, "category": "raw" | "sorter_copy" | "bin",
+                     "bytes": <n>, "source": <source path for a raw file, else ""> }, ... ] }, ...
+  ]
+}
+```
+
+A raw file is only removed while its `source` holds a file of the same size,
+so the record says where to copy each one back from.
 
 ---
 

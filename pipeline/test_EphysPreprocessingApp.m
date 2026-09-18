@@ -29,6 +29,7 @@ if ispref(g, 'TrialsParamColumns'); rmpref(g, 'TrialsParamColumns'); end
 if ispref(g, 'TrialsColumnOrder'); rmpref(g, 'TrialsColumnOrder'); end
 if ispref(g, 'TrialsLabelParams'); rmpref(g, 'TrialsLabelParams'); end
 if ispref(g, 'MonitorResources'); rmpref(g, 'MonitorResources'); end
+if ispref(g, 'CleanupOptions'); rmpref(g, 'CleanupOptions'); end
 
 nPass = 0; nFail = 0;
     function check(cond, msg)
@@ -77,9 +78,9 @@ cfg = cfg.save(cfgFile);
 fprintf('\n== 1. build + open ==\n');
 app = EphysPreprocessingApp;
 appCleanup = onCleanup(@() closeApp(app));
-check(isvalid(app.Fig) && numel(app.Tabs.Children) == 13 && app.Tabs.Children(1) == app.TabCopy ...
-    && app.Tabs.Children(3) == app.TabTrials && app.Tabs.SelectedTab == app.TabProject, ...
-    'app builds with 13 tabs (Copy first, Trials third) and opens on Project');
+check(isvalid(app.Fig) && numel(app.Tabs.Children) == 14 && app.Tabs.Children(1) == app.TabCopy ...
+    && app.Tabs.Children(3) == app.TabTrials && app.Tabs.Children(end) == app.TabCleanup && app.Tabs.SelectedTab == app.TabProject, ...
+    'app builds with 14 tabs (Copy first, Trials third, Clean up last) and opens on Project');
 check(startsWith(app.Fig.Name, "Ephys preprocessing") && ~startsWith(app.Fig.Name, "*"), 'fresh app is clean');
 ok = app.openConfigFile(cfgFile);
 check(ok && app.Config.Name == "gui test" && app.Config.File == string(cfgFile), 'openConfigFile loads the config');
@@ -151,7 +152,7 @@ for k = 1:numel(app.TabList)
     tabPages(k) = app.helpURL("tab");
 end
 app.Tabs.SelectedTab = app.TabProject;
-check(numel(tabPages) == 13 && numel(unique(tabPages)) == 13 && all(startsWith(tabPages, app.WikiURL + "/")) ...
+check(numel(tabPages) == 14 && numel(unique(tabPages)) == 14 && all(startsWith(tabPages, app.WikiURL + "/")) ...
     && ~any(endsWith(tabPages, "/App-Overview")), 'every tab has its own wiki page');
 
 fprintf('\n== 1c. Help menu: GitHub issue and feature request ==\n');
@@ -735,6 +736,35 @@ end
 check(app.RunMonitorPanel.Visible == "off" && isequal(app.RunLeftGrid.RowHeight, {'1x', 0}) ...
     && isempty(app.ResourceMonitorTimer) && ~isfolder(dirMon), ...
     'unticked, the panel closes, the timer stops and the sampler exits and removes its folder');
+
+fprintf('\n== 4d. Clean up tab ==\n');
+ksRoot = app.Project.Datasets(1).kilosortDir();   % under the OutputRoot
+ksOut = fullfile(ksRoot, 'si', 'sorter_output');
+mkdir(ksOut);
+fid = fopen(fullfile(ksOut, 'recording.dat'), 'w'); fwrite(fid, zeros(1, 512, 'int16'), 'int16'); fclose(fid);
+app.selectTab(app.TabCleanup);
+check(contains(app.CleanupScopeLabel.Text, "1 dataset") && app.CleanupRunButton.Enable == "off" ...
+    && isempty(app.CleanupPlan), 'the tab says which datasets it acts on; nothing can be removed before a Preview');
+app.onCleanupPreview();
+P = app.CleanupPlan;
+rawRow = P(P.File == string(fullfile(f1, 'recA.rhd')), :);
+check(height(P) > 2 && isequal(P.Action(P.File == string(fullfile(ksOut, 'recording.dat'))), "remove") ...
+    && rawRow.Action == "keep" && contains(rawRow.Reason, "no source copy") ...
+    && app.CleanupRunButton.Enable == "on" && startsWith(app.CleanupSummaryLabel.Text, "Would remove 1 file(s)") ...
+    && height(app.CleanupTable.Data) == height(P) && isfile(fullfile(ksOut, 'recording.dat')), ...
+    'Preview lists every file as Remove or Keep (a raw recording without a copy record stays) and deletes nothing');
+app.CleanupShowKeptCheckBox.Value = false;
+app.refreshCleanupTable();
+check(height(app.CleanupTable.Data) == 1 && app.CleanupTable.Data.Action == "Remove", ...
+    'unticking Show the files that remain leaves only the Remove rows');
+app.CleanupShowKeptCheckBox.Value = true;
+app.CleanupSorterCopyCheckBox.Value = false;
+app.onCleanupSettingsChanged();
+check(isempty(app.CleanupPlan) && app.CleanupRunButton.Enable == "off" && contains(app.CleanupSummaryLabel.Text, "Preview again"), ...
+    'changing the kinds to remove discards the preview until Preview is pressed again');
+app.CleanupSorterCopyCheckBox.Value = true;
+rmdir(ksRoot, 's');
+app.selectTab(app.TabProject);
 
 fprintf('\n== 5. save and reopen ==\n');
 ok = app.onSaveConfig();

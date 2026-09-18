@@ -7,7 +7,8 @@ function loadPreferences(obj)
 %   column order, the Trials-plot label parameters, the Visualize
 %   display options, the Copy tab settings (subject, roots, pairing and
 %   copy options; not the dates), the Run tab's Show the run diagram and
-%   Monitor CPU, memory, disk and GPU.
+%   Monitor CPU, memory, disk and GPU, and the kinds of file the Clean up
+%   tab removes.
 %   Everything else lives in the config; the last config file is reopened
 %   at launch (defaults otherwise).
 
@@ -93,6 +94,17 @@ if ispref(g, 'CopyOptions')
         applyIf(v, 'verify',     @(x) set(obj.CopyVerifyDropDown, 'Value', char(x)));
         applyIf(v, 'ifExists',   @(x) set(obj.CopyIfExistsDropDown, 'Value', char(x)));
         applyIf(v, 'openAfter',  @(x) set(obj.CopyScanAfterCheckBox, 'Value', logical(x)));
+    end
+end
+
+% --- Clean up tab: the kinds of file to remove (one struct) ---
+if ispref(g, 'CleanupOptions')
+    v = getpref(g, 'CleanupOptions');
+    if isstruct(v)
+        applyIf(v, 'raw',        @(x) set(obj.CleanupRawCheckBox, 'Value', logical(x)));
+        applyIf(v, 'sorterCopy', @(x) set(obj.CleanupSorterCopyCheckBox, 'Value', logical(x)));
+        applyIf(v, 'bin',        @(x) set(obj.CleanupBinCheckBox, 'Value', logical(x)));
+        applyIf(v, 'showKept',   @(x) set(obj.CleanupShowKeptCheckBox, 'Value', logical(x)));
     end
 end
 

@@ -1,11 +1,13 @@
 function buildTrialsTab(obj)
 %buildTrialsTab  Review the pairing of Epsych2 trials with the trial digital line.
 %   Top: dataset, Load (reads the digital events once, cached per dataset),
-%   Reset cuts, Approve / Mark unreviewed, Write behavior .mat, the Epsych2
-%   session / <name>_behavior.mat to the base workspace, and the pairing
-%   summary with the count-mismatch warning. Left: the config's
-%   pairing settings (Behavior section: pair in the behavior step, trial
-%   line), one row per digital line with its polarity (Signals.InvertedLines:
+%   Prefetch ticked (reads and caches them for every ticked dataset at once,
+%   onTrialsPrefetch), Reset cuts, Approve / Mark unreviewed, Write behavior
+%   .mat, the Epsych2 session / <name>_behavior.mat to the base workspace,
+%   and the pairing summary with the count-mismatch warning. Left: the
+%   config's pairing settings (Behavior section: pair in the behavior step,
+%   auto approve a pairing whose counts match without cuts, trial line), one
+%   row per digital line with its polarity (Signals.InvertedLines:
 %   an inverted line is on while low, so its onset is the falling edge; this
 %   also applies to the events in the extract and export files), and the
 %   cuts that resolve a count mismatch: trials or trial-line intervals
@@ -28,15 +30,18 @@ changed = @(~,~) obj.onTrialsSettingsChanged();
 cutsChanged = @(~,~) obj.onTrialsCutsChanged();
 
 % --- row 1: dataset + actions ------------------------------------------------
-top = uigridlayout(g, [1 10]);
+top = uigridlayout(g, [1 11]);
 top.Layout.Row = 1; top.Layout.Column = [1 2];
-top.ColumnWidth = {'fit', 240, 'fit', 'fit', 'fit', 'fit', 'fit', '1x', 'fit', 'fit'};
+top.ColumnWidth = {'fit', 240, 'fit', 'fit', 'fit', 'fit', 'fit', 'fit', '1x', 'fit', 'fit'};
 top.Padding = [0 0 0 0];
 uilabel(top, "Text", "Dataset:");
 obj.TrialsDatasetDropDown = obj.datasetPicker(top);
 obj.TrialsLoadButton = uibutton(top, "Text", "Load", "FontWeight", "bold", ...
     "Tooltip", "Read the digital lines (cached after the first read) and pair the trials in order, reusing the recorded cuts when they still match.", ...
     "ButtonPushedFcn", @(~,~) obj.onTrialsLoad("recorded"));
+obj.TrialsPrefetchButton = uibutton(top, "Text", "Prefetch ticked", ...
+    "Tooltip", "Read and cache the digital lines of every ticked dataset (Project tab) with an Epsych2 session, so Load and the behavior step do not read the recordings again. With Auto approve on, also approve each pairing whose counts match.", ...
+    "ButtonPushedFcn", @(~,~) obj.onTrialsPrefetch());
 obj.TrialsResetButton = uibutton(top, "Text", "Reset cuts", ...
     "Tooltip", "Drop the cuts (shown and recorded) and pair every trial with every interval in order again.", ...
     "ButtonPushedFcn", @(~,~) obj.onTrialsLoad("none"));
@@ -53,41 +58,45 @@ obj.TrialsWriteButton = uibutton(top, "Text", "Write behavior .mat", ...
 obj.TrialsEpsychToWorkspaceButton = uibutton(top, "Text", "Epsych2 to workspace", ...
     "Tooltip", "Load the associated Epsych2 session file as saved (Data, Info) into the base workspace as epsych_<name>.", ...
     "ButtonPushedFcn", @(~,~) obj.onTrialsToWorkspace("epsych"));
-obj.TrialsEpsychToWorkspaceButton.Layout.Column = 9;
+obj.TrialsEpsychToWorkspaceButton.Layout.Column = 10;
 obj.TrialsBehaviorToWorkspaceButton = uibutton(top, "Text", "Behavior to workspace", ...
     "Tooltip", "Load the behavior struct of <name>_behavior.mat (trials with the pairing columns, info, meta, pairing) into the base workspace as behavior_<name>.", ...
     "ButtonPushedFcn", @(~,~) obj.onTrialsToWorkspace("behavior"));
-obj.TrialsBehaviorToWorkspaceButton.Layout.Column = 10;
+obj.TrialsBehaviorToWorkspaceButton.Layout.Column = 11;
 
 % --- row 2: summary --------------------------------------------------------
 obj.TrialsSummaryLabel = uilabel(g, "Text", "Scan a project, pick a dataset with an Epsych2 session and press Load.", ...
-    "WordWrap", "on", "FontColor", [0.3 0.3 0.3]);
+    "WordWrap", "on", "FontSize", 15, "FontColor", [0.3 0.3 0.3]);
 obj.TrialsSummaryLabel.Layout.Row = 2; obj.TrialsSummaryLabel.Layout.Column = [1 2];
 
 % --- row 3 left: settings and cuts -------------------------------------------
 sp = uipanel(g, "Title", "Digital lines and pairing");
 sp.Layout.Row = 3; sp.Layout.Column = 1;
-sg = uigridlayout(sp, [5 2]);
-sg.RowHeight = {'fit', 'fit', '1x', 'fit', 'fit'};
+sg = uigridlayout(sp, [6 2]);
+sg.RowHeight = {'fit', 'fit', 'fit', '1x', 'fit', 'fit'};
 sg.ColumnWidth = {'fit', '1x'};
 obj.TrialsPairCheckBox = uicheckbox(sg, "Text", "Pair trials in the behavior step", "Value", true, ...
     "ValueChangedFcn", changed);
 obj.TrialsPairCheckBox.Layout.Row = 1; obj.TrialsPairCheckBox.Layout.Column = [1 2];
-lbl = uilabel(sg, "Text", "Trial line:"); lbl.Layout.Row = 2; lbl.Layout.Column = 1;
+obj.TrialsAutoApproveCheckBox = uicheckbox(sg, "Text", "Auto approve when the counts match", "Value", false, ...
+    "Tooltip", "Approve a pairing as soon as it is paired (Load, Prefetch ticked, the behavior step) when the Epsych2 trials and the trial-line intervals are equal in number and nothing is cut. A count mismatch, or a pairing with cuts, still needs review.", ...
+    "ValueChangedFcn", changed);
+obj.TrialsAutoApproveCheckBox.Layout.Row = 2; obj.TrialsAutoApproveCheckBox.Layout.Column = [1 2];
+lbl = uilabel(sg, "Text", "Trial line:"); lbl.Layout.Row = 3; lbl.Layout.Column = 1;
 obj.TrialsLineDropDown = uidropdown(sg, "Items", {'InTrial'}, "Value", 'InTrial', "Editable", "on", ...
     "Tooltip", "Digital line that is on for the duration of each trial (type a name or pick a loaded line).", ...
     "ValueChangedFcn", changed);
-obj.TrialsLineDropDown.Layout.Row = 2; obj.TrialsLineDropDown.Layout.Column = 2;
+obj.TrialsLineDropDown.Layout.Row = 3; obj.TrialsLineDropDown.Layout.Column = 2;
 obj.TrialsLinesTable = uitable(sg, "ColumnName", {'Line', 'Intervals', 'Inverted'}, ...
     "ColumnEditable", [false false true], "ColumnWidth", {110, 65, 70}, "RowName", {}, ...
     "Tooltip", "Tick lines with inverted polarity: on while low, onset = falling edge, offset = rising edge. Applies to pairing and to the events written by the Signals step.", ...
     "CellEditCallback", changed);
-obj.TrialsLinesTable.Layout.Row = 3; obj.TrialsLinesTable.Layout.Column = [1 2];
+obj.TrialsLinesTable.Layout.Row = 4; obj.TrialsLinesTable.Layout.Column = [1 2];
 obj.TrialsLinesTable.Data = table(strings(0, 1), zeros(0, 1), false(0, 1), ...
     'VariableNames', {'Line', 'Intervals', 'Inverted'});
 
 cp = uipanel(sg, "Title", "Resolve a count mismatch (this dataset)");
-cp.Layout.Row = 4; cp.Layout.Column = [1 2];
+cp.Layout.Row = 5; cp.Layout.Column = [1 2];
 cg = uigridlayout(cp, [3 3]);
 cg.RowHeight = {'fit', 'fit', 'fit'};
 cg.ColumnWidth = {'1x', 64, 64};
@@ -115,7 +124,7 @@ obj.TrialsCutSpinners = s;
 
 lbl = uilabel(sg, "WordWrap", "on", "FontColor", [0.4 0.4 0.4], "Text", ...
     "Trials pair in order with the trial line's intervals. When the counts differ, cut the trials run before the recording started (or after it stopped), or the partial intervals at the recording edges, then Approve.");
-lbl.Layout.Row = 5; lbl.Layout.Column = [1 2];
+lbl.Layout.Row = 6; lbl.Layout.Column = [1 2];
 
 % --- row 3 right: trials ---------------------------------------------------
 % Columns are laid out by refreshTrialsTable; the context menu adds or removes

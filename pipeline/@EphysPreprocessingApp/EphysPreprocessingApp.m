@@ -26,6 +26,8 @@ classdef EphysPreprocessingApp < handle
     %     Trials     pair Epsych2 trials in order with the trial digital line,
     %                per-line TTL polarity, resolve a trial / interval count
     %                mismatch by cutting from either end, approve the pairing
+    %                (or auto approve the ones whose counts match), prefetch
+    %                the digital lines of every ticked dataset at once
     %     Probe      probe library, preview, assignment, per-dataset channel
     %                exclusions, the config's default probe
     %     Artifacts  automatic detection settings + preview, manual periods
@@ -172,6 +174,7 @@ classdef EphysPreprocessingApp < handle
         % --- Trials tab ---
         TrialsDatasetDropDown matlab.ui.control.DropDown
         TrialsLoadButton      matlab.ui.control.Button
+        TrialsPrefetchButton  matlab.ui.control.Button
         TrialsResetButton     matlab.ui.control.Button
         TrialsApproveButton   matlab.ui.control.Button
         TrialsRevokeButton    matlab.ui.control.Button
@@ -180,6 +183,7 @@ classdef EphysPreprocessingApp < handle
         TrialsBehaviorToWorkspaceButton matlab.ui.control.Button
         TrialsSummaryLabel    matlab.ui.control.Label
         TrialsPairCheckBox    matlab.ui.control.CheckBox
+        TrialsAutoApproveCheckBox matlab.ui.control.CheckBox
         TrialsLineDropDown    matlab.ui.control.DropDown
         TrialsLinesTable      matlab.ui.control.Table
         TrialsCutSpinners     % 2 x 2 matlab.ui.control.Spinner: rows trials / intervals, columns start / end
@@ -649,6 +653,7 @@ classdef EphysPreprocessingApp < handle
 
         % --- Trials tab ---
         onTrialsLoad(obj, mode)
+        onTrialsPrefetch(obj)
         repairTrials(obj, cuts)
         refreshTrialsView(obj)
         refreshTrialsTable(obj)

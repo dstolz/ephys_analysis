@@ -99,7 +99,13 @@ function [R, job] = copySessions(T, varargin)
 %     IncludeUnpaired  (default false)
 %     Verify           "size" (default) | "hash" (SHA-256 checksum of each file)
 %     Background       (default false) return as soon as the engine is launched
-%     ProgressFcn      @(fraction, message), called as the engine reports files
+%     ProgressFcn      @(fraction, message, info), called as the engine reports
+%                      its progress. INFO says what the fraction is made of, so
+%                      a caller can show it as more than a percentage: Phase
+%                      ("copying" | "verifying" | "stitching" | "done"), Session
+%                      (the row of R being worked on, 0 for none), Sessions
+%                      ([done total]) and Bytes ([done total] of the batch, each
+%                      file counted once)
 %     LogFcn           @(message) (default: print it)
 %     CancelFcn        @() logical, polled while copying; true stops the batch
 %                      (a session being copied keeps what it has and is marked
@@ -232,7 +238,7 @@ job.Started = datetime('now', 'TimeZone', 'local');
 job.LogFcn = opts.LogFcn;
 if isempty(job.LogFcn); job.LogFcn = @(msg) fprintf('%s\n', msg); end
 job.ProgressFcn = opts.ProgressFcn;
-if isempty(job.ProgressFcn); job.ProgressFcn = @(f, msg) []; end
+if isempty(job.ProgressFcn); job.ProgressFcn = @(f, msg, info) []; end
 job.CancelFcn = opts.CancelFcn;
 if isempty(job.CancelFcn); job.CancelFcn = @() false; end
 
@@ -363,6 +369,9 @@ job.Launched = tic;
 job.Present = present;
 job.WasPresent = wasPresent;
 job.ToCopy = find(R.CopyStatus == "planned");
+job.SessionNow = 0;      % row of R the engine is working on (0: none yet)
+job.SessionsDone = 0;    % sessions it has finished in this phase
+job.PhaseBytes = 0;      % bytes of the batch it has copied (or checksummed) in this phase
 job.Total = sum(R.TotalBytes(job.ToCopy));
 job.Work = max(job.Total * (1 + 2 * (opts.Verify == "hash")), 1);
 job.BytesBase = 0;
@@ -513,6 +522,8 @@ if phase == "copy"
     if ~job.Done && job.Opts.Verify == "hash" && any(job.R.CopyStatus == "copying")
         job.BytesBase = job.Total;
         job.Pos = 0;
+        job.SessionsDone = 0;
+        job.PhaseBytes = 0;
         startPhase(job, "hash");
         job.State = "hashing";
         job.Launched = tic;
@@ -530,6 +541,8 @@ function job = drainEvents(job, phase)
 %drainEvents  Read new JSON lines from the engine's progress file.
 %   Only whole lines are consumed; a partial trailing line waits for the next
 %   poll. Sizes and checksums are kept per session; everything else is progress.
+%   "file" events arrive once a session's robocopy is over, so the percentage
+%   between them comes from the engine's "progress" events.
 f = phaseFile(job, phase, "progress.jsonl");
 if ~isfile(f); return; end
 fid = fopen(f, 'r');
@@ -549,6 +562,7 @@ job.Pos = job.Pos + nl;
 lines = splitlines(string(chunk(1:nl)));
 lines = strtrim(lines(strlength(strtrim(lines)) > 0));
 weight = ternary(phase == "hash", 2, 1);
+phaseName = ternary(phase == "hash", "verifying", "copying");
 for k = 1:numel(lines)
     try
         e = jsondecode(lines(k));
@@ -560,25 +574,48 @@ for k = 1:numel(lines)
         case "session"
             switch string(e.state)
                 case "copying"
+                    job.SessionNow = e.index;
                     job.ProgressFcn(min(job.BytesBase / job.Work, 1), sprintf("%s: copying %d file(s), %s", ...
-                        rowName(job.R, e.index), e.files, bytesText(e.bytes)));
+                        rowName(job.R, e.index), e.files, bytesText(e.bytes)), ...
+                        progressInfo(job, phaseName, [0 e.bytes]));
                 case "hashing"
+                    job.SessionNow = e.index;
                     job.ProgressFcn(min(job.BytesBase / job.Work, 1), sprintf("%s: SHA-256 checksum of %d file(s)", ...
-                        rowName(job.R, e.index), e.files));
+                        rowName(job.R, e.index), e.files), progressInfo(job, phaseName));
                 case "cancelled"
+                    job.SessionsDone = job.SessionsDone + 1;
                     job.Errors(end+1) = struct('index', e.index, 'message', "cancelled");
                 case "done"
+                    job.SessionsDone = job.SessionsDone + 1;
                     if isfield(e, 'error') && strlength(string(e.error)) > 0
                         job.Errors(end+1) = struct('index', e.index, 'message', string(e.error));
                     end
             end
+        case "progress"
+            % Where the engine has got to inside a session: the destination
+            % files sized while robocopy runs, or how far a SHA-256 has read.
+            % Without it the percentage would only move between sessions.
+            done = job.BytesBase + weight * e.bytesDone;
+            job.SessionNow = e.index;
+            job.PhaseBytes = e.bytesDone;
+            if isfield(e, 'rel')
+                msg = sprintf("%s: SHA-256 of %s, %s of %s", rowName(job.R, e.index), e.rel, ...
+                    bytesText(e.bytes), bytesText(e.bytesTotal));
+            else
+                msg = sprintf("%s: %d of %d file(s), %s of %s", rowName(job.R, e.index), ...
+                    e.files, e.filesTotal, bytesText(e.bytes), bytesText(e.bytesTotal));
+            end
+            job.ProgressFcn(min(done / job.Work, 1), msg, progressInfo(job, phaseName, [e.bytes e.bytesTotal]));
         case "robocopy"
             if e.exit >= 8
                 job.LogFcn(sprintf("%s: robocopy exit code %d", rowName(job.R, e.index), e.exit));
             end
         case "file"
             done = job.BytesBase + weight * e.bytesDone;
-            job.ProgressFcn(min(done / job.Work, 1), sprintf("%s: %s", rowName(job.R, e.index), e.rel));
+            job.SessionNow = e.index;
+            job.PhaseBytes = e.bytesDone;
+            job.ProgressFcn(min(done / job.Work, 1), sprintf("%s: %s", rowName(job.R, e.index), e.rel), ...
+                progressInfo(job, phaseName));
             if isfield(e, 'sha256Source')
                 err = "";
                 if isfield(e, 'hashError'); err = string(e.hashError); end
@@ -681,8 +718,9 @@ function job = stitchInto(job, r, dest, stitch)
 out = string(fullfile(dest, stitch.rel));
 [ok, ~] = verifyStitch(stitch, dest, "size", false);
 if ~ok
+    job.SessionNow = r;
     job.ProgressFcn(min(job.BytesBase / job.Work, 1), sprintf("%s: stitching %d ePsych files into %s", ...
-        rowName(job.R, r), numel(stitch.files), stitch.rel));
+        rowName(job.R, r), numel(stitch.files), stitch.rel), progressInfo(job, "stitching"));
     stitchEpsychSessions(stitch.files, OutFile=out);
 end
 if ~isempty(job.Opts.BeforeVerifyFcn)
@@ -800,7 +838,10 @@ for r = rows
     end
 end
 
-job.ProgressFcn(1, "Done.");
+job.SessionNow = 0;
+job.SessionsDone = numel(job.ToCopy);
+job.PhaseBytes = job.Total;
+job.ProgressFcn(1, "Done.", progressInfo(job, "done"));
 counts = arrayfun(@(s) nnz(job.R.CopyStatus == s), ["copied", "already_present", "skipped", "failed", "cancelled"]);
 job.LogFcn(sprintf("Copy finished: %d copied, %d already present, %d skipped, %d failed, %d cancelled.", counts));
 
@@ -1099,6 +1140,23 @@ end
 % =============================================================================
 % small helpers
 % =============================================================================
+
+function info = progressInfo(job, phase, sessionBytes)
+%progressInfo  What a ProgressFcn is told besides the fraction and the message.
+%   The fraction alone cannot be shown as anything but a percentage; this says
+%   which session the engine is on, how many are left and how many bytes of the
+%   batch have moved, so a caller can put a rate and a time left beside it.
+%   SessionBytes is [done total] for the session in flight, or NaN when the
+%   event does not say (it is only known while the engine is inside one).
+if nargin < 3; sessionBytes = [NaN NaN]; end
+info = struct( ...
+    'Phase', string(phase), ...
+    'Session', job.SessionNow, ...
+    'Sessions', [job.SessionsDone, numel(job.ToCopy)], ...
+    'Bytes', [job.PhaseBytes, job.Total], ...
+    'SessionBytes', sessionBytes);
+end
+
 
 function s = rowName(R, r)
 s = R.DestDir(r);

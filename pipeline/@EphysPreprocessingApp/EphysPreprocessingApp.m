@@ -39,7 +39,7 @@ classdef EphysPreprocessingApp < handle
     %                step, background-run log
     %     Signals    derived LFP / MUA / SPIKE / AUX (.mat) settings, plan, Run
     %     Spikes     threshold detection / sorted units (.mat), preview, Run
-    %     Export     Chronux / FieldTrip files, plan, Run
+    %     Export     analysis-toolbox files (one per format), plan, Run
     %     Diagram    diagram of the working config: one tree per step that
     %                reads the raw recording (filters, references, detection
     %                parameters, files written), then the downstream steps;

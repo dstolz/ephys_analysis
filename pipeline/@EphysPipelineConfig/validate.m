@@ -169,9 +169,9 @@ end
 E = obj.Export;
 if E.Enabled
     if isempty(E.Formats)
-        add("export", "Formats", "error", "Export is enabled but no format is selected (chronux / fieldtrip).");
+        add("export", "Formats", "error", "Export is enabled but no format is selected (" + strjoin(obj.ExportFormats, " / ") + ").");
     else
-        bad = setdiff(E.Formats, ["chronux" "fieldtrip"]);
+        bad = setdiff(E.Formats, obj.ExportFormats);
         if ~isempty(bad); add("export", "Formats", "error", "Unknown export format(s): " + strjoin(bad, ", ")); end
     end
     if ~G.Enabled

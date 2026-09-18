@@ -264,7 +264,7 @@ classdef EphysPipelineScript
             L = [L; EphysPipelineScript.stepFooter(cfg.stepEnabled("spikes"))];
 
             % --- export --------------------------------------------------------------
-            L = [L; EphysPipelineScript.stepHeader("Export: Chronux / FieldTrip files", cfg.stepEnabled("export"))];
+            L = [L; EphysPipelineScript.stepHeader("Export: analysis-toolbox files",cfg.stepEnabled("export"))];
             E = cfg.Export;
             L(end+1, 1) = "formats = " + lit(E.Formats) + ";";
             L(end+1, 1) = "for k = idx";
@@ -281,10 +281,13 @@ classdef EphysPipelineScript
                 L(end+1, 1) = "            if isfile(spikesFile); o.Detected = spikesFile; else; o.Detected = false; end";
             end
             L(end+1, 1) = "            args = namedargs2cell(o);";
-            L(end+1, 1) = "            if fmt == ""chronux""";
-            L(end+1, 1) = "                r = d.exportChronux('File', outFile, 'Extract', extract, args{:});";
-            L(end+1, 1) = "            else";
-            L(end+1, 1) = "                r = d.exportFieldTrip('File', outFile, 'Extract', extract, args{:});";
+            L(end+1, 1) = "            switch fmt";
+            L(end+1, 1) = "                case ""chronux""";
+            L(end+1, 1) = "                    r = d.exportChronux('File', outFile, 'Extract', extract, args{:});";
+            L(end+1, 1) = "                case ""fieldtrip""";
+            L(end+1, 1) = "                    r = d.exportFieldTrip('File', outFile, 'Extract', extract, args{:});";
+            L(end+1, 1) = "                otherwise";
+            L(end+1, 1) = "                    error('Unknown export format ""%s"".', fmt);";
             L(end+1, 1) = "            end";
             L(end+1, 1) = "            fprintf('%s: wrote %s\n', d.Name, r.file);";
             L(end+1, 1) = "        catch ME";

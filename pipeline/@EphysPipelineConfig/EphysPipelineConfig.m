@@ -25,7 +25,8 @@ classdef EphysPipelineConfig
     %                also used by the trial pairing)
     %     Spikes     Enabled, Source, detection settings, sorted-unit settings,
     %                output settings
-    %     Export     Enabled, Formats ("chronux" / "fieldtrip"), what to include
+    %     Export     Enabled, Formats (analysis-toolbox formats, a subset of
+    %                ExportFormats), what to include
     %
     %   Usage
     %     cfg = EphysPipelineConfig();                 % defaults
@@ -71,6 +72,9 @@ classdef EphysPipelineConfig
         StepNames = ["probe" "behavior" "artifacts" "sorting" "signals" "spikes" "export"]
         % Section that holds each step's settings.
         StepSections = ["Probe" "Behavior" "Artifacts" "Sorting" "Signals" "Spikes" "Export"]
+        % Export formats the Export step can write, one per analysis
+        % toolbox. Each has an EphysDataset.export<Format> method.
+        ExportFormats = ["chronux" "fieldtrip"]
         % Kilosort4 parameters that depend on the probe layout: what
         % ks4ProbeDefaults derives and what a probe's parameter file holds
         % when it is created from the Sorting tab.
@@ -313,7 +317,7 @@ classdef EphysPipelineConfig
         end
 
         function o = exportOptions(e, fmt)
-            %exportOptions  Name-value struct for exportChronux / exportFieldTrip.
+            %exportOptions  Name-value struct for the export<Format> method of FMT.
             e = EphysPipelineConfig.normalizeSection("Export", e);
             o = struct();
             if ~isempty(e.Signals); o.Signals = e.Signals; end

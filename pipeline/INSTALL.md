@@ -4,8 +4,9 @@
 that scans recordings (Intan `.rhd`, or the universal binary format),
 previews/filters them, optionally hands them off to **SpikeInterface +
 Kilosort4** (running in a separate Python/conda environment) for spike sorting
-with **phy** as the curation viewer, and writes derived-signal, spike, Chronux
-and FieldTrip `.mat` files. This guide covers everything needed to get a clean
+with **phy** as the curation viewer, and writes derived-signal and spike `.mat`
+files plus export files for external analysis toolboxes (Chronux and FieldTrip
+so far; more formats will be added). This guide covers everything needed to get a clean
 Windows 11 machine running the app end to end. Only MATLAB is required for
 everything except sorting and probe design.
 

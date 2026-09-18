@@ -22,7 +22,7 @@ function T = planLocalCleanup(datasets, opts)
 %                    recording file). As above, only phy's trace view needs it.
 %
 %   Everything else is kept: the pipeline outputs (extract, spikes, behavior,
-%   Chronux, FieldTrip, events and artifact files), the sorted output, the
+%   toolbox exports, events and artifact files), the sorted output, the
 %   dataset and copy manifests, the Epsych2 session file and any other file.
 %   Removing the raw recording means the pipeline can no longer read the
 %   dataset (Signals, Sorting, Spikes, Visualize, Scan) until it is copied

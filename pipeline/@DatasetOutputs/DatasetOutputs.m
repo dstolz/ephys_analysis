@@ -1,7 +1,7 @@
 classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
     % DatasetOutputs  One dataset's processed files, found once and loaded on demand.
     %   A DatasetOutputs keeps track of every file the pipeline writes for one
-    %   dataset -- derived signals, spikes, Chronux and FieldTrip exports,
+    %   dataset -- derived signals, spikes, analysis-toolbox exports,
     %   sorted units, the Epsych2 behavior session, the manifest and the
     %   artifact cache -- wherever they live, and loads each one only when its
     %   property is read:

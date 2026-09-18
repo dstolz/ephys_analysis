@@ -4,7 +4,7 @@ function [units, info] = readPhyUnits(resultsDir, opts)
 %   of phy-format sorter output (spike_times.npy, spike_clusters.npy, the
 %   cluster_*.tsv label tables, templates.npy, ...). It needs no EphysDataset;
 %   ds.readSortedUnits wraps it with the dataset's own defaults. The Review
-%   tab, ChronuxDataset.spikes, spikesToMat and the Chronux / FieldTrip
+%   tab, ChronuxDataset.spikes, spikesToMat and the toolbox
 %   exporters all read through here, so they agree on labels, times and
 %   channels.
 %

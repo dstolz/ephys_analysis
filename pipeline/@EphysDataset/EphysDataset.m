@@ -434,8 +434,8 @@ classdef EphysDataset < handle
 
         function o = outputs(obj, varargin)
             %outputs  A DatasetOutputs over this dataset's processed files.
-            %   OUT = ds.outputs(Name=Value) finds the extract, spikes, behavior,
-            %   Chronux and FieldTrip files, the sorted units and the manifest
+            %   OUT = ds.outputs(Name=Value) finds the extract, spikes, behavior
+            %   and toolbox export files, the sorted units and the manifest
             %   under outputFolder() and Folder, and loads each one when its
             %   property is read (FT = OUT.FieldTrip). Options are those of
             %   DatasetOutputs (SearchDirs, Recursive, CacheData, AutoRefresh).
@@ -891,7 +891,7 @@ classdef EphysDataset < handle
             %   complete-looking file behind. (save() reports a variable it could
             %   not store, e.g. over 2 GB with -v7, as a warning and omits it;
             %   that is treated as a failure here.) Shared by toMat, spikesToMat
-            %   and the Chronux / FieldTrip exporters.
+            %   and the toolbox exporters (export<Format>).
             arguments
                 outFile (1,1) string
                 S (1,1) struct

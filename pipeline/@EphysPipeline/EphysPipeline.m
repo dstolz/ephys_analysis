@@ -19,7 +19,7 @@ classdef EphysPipeline < handle
     %     sorting    runSorting         SpikeInterface + Kilosort4 (runSpikeInterface)
     %     signals    runSignals         derived LFP/MUA/SPIKE/AUX .mat (toMat)
     %     spikes     runSpikeDetection  detected and/or sorted spikes .mat (spikesToMat)
-    %     export     runExport          Chronux / FieldTrip files
+    %     export     runExport          analysis-toolbox files (Export.Formats)
     %   Each step method can be called directly (it then runs even if the
     %   step is disabled in the config).
     %

@@ -1,15 +1,16 @@
 function buildExportTab(obj)
-%buildExportTab  Export step: files for Chronux and FieldTrip.
+%buildExportTab  Export step: files for external analysis toolboxes.
 %   Edits the config's Export section (gatherExportSection /
-%   applyExportSection). Only packaging options are exposed; no analysis
-%   from either toolbox is surfaced here.
+%   applyExportSection). One checkbox per export format
+%   (EphysPipelineConfig.ExportFormats). Only packaging options are
+%   exposed; no toolbox analysis is surfaced here.
 
 g = uigridlayout(obj.TabExport, [1 2]);
 g.ColumnWidth = {520, '1x'};
 g.Padding     = [10 10 10 10];
 changed = @(~,~) obj.onConfigChanged();
 
-opt = uipanel(g, "Title", "Export options (config: Export; EphysDataset.exportChronux / exportFieldTrip)");
+opt = uipanel(g, "Title", "Export options (config: Export; EphysDataset.export<Format>)");
 opt.Layout.Column = 1;
 nRows = 12;
 cg = uigridlayout(opt, [nRows 4]);
@@ -75,7 +76,7 @@ obj.ExpMatVersionDropDown = uidropdown(cg, "Items", {'-v7.3', '-v7'}, "Value", '
 obj.ExpMatVersionDropDown.Layout.Row = r; obj.ExpMatVersionDropDown.Layout.Column = 3;
 r = r + 1;
 note = uilabel(cg, "WordWrap", "on", "FontColor", [0.4 0.4 0.4], "Text", ...
-    "Exports read the Signals step's extract file(s) (<Name>_extract.mat, or <Name>_extract_<TYPE>.mat per signal type), so run Signals first. The files load directly into Chronux / FieldTrip outside this app; no analysis happens here.");
+    "Exports read the Signals step's extract file(s) (<Name>_extract.mat, or <Name>_extract_<TYPE>.mat per signal type), so run Signals first. Each format's file loads directly into its toolbox outside this app; no analysis happens here.");
 note.Layout.Row = r; note.Layout.Column = [1 4];
 cg.RowHeight{r} = 44;
 

@@ -1,6 +1,7 @@
 function onTabChanged(obj)
 %onTabChanged  Refresh the tab strip, the status hint and per-tab previews on tab change.
 obj.syncTabStrip();
+obj.clearFlowHighlight();   % a control marked by a Diagram click stays marked only while its tab is shown
 switch obj.Tabs.SelectedTab
     case obj.TabCopy
         msg = "Copy: find a subject's sessions, check the pairing, Preview, then Copy selected (nothing on the source is changed).";

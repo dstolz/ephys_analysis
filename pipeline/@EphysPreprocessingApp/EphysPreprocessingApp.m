@@ -127,7 +127,15 @@ classdef EphysPreprocessingApp < handle
         CopyScanAfterCheckBox matlab.ui.control.CheckBox
         CopyTable             matlab.ui.control.Table
         CopyLogArea           matlab.ui.control.TextArea
-        CopyProgressLabel     matlab.ui.control.Label
+        CopyGrid              matlab.ui.container.GridLayout    % the tab's rows (row 3 is the progress panel)
+        CopyProgressPanel     matlab.ui.container.Panel         % only open while a copy runs
+        CopyProgressHeadline  matlab.ui.control.Label           % what is being done to which session
+        CopyProgressETA       matlab.ui.control.Label           % rate and time left
+        CopyProgressTrack     matlab.ui.container.GridLayout    % the bar: its column weights are the fraction
+        CopyProgressFill      matlab.ui.container.Panel
+        CopyProgressRest      matlab.ui.container.Panel
+        CopyPercentLabel      matlab.ui.control.Label
+        CopyProgressLabel     matlab.ui.control.Label           % the file the engine is on
 
         % --- Project tab ---
         ConfigNameField   matlab.ui.control.EditField
@@ -399,6 +407,9 @@ classdef EphysPreprocessingApp < handle
         FlowSaveButton    matlab.ui.control.Button
         FlowSummaryLabel  matlab.ui.control.Label
         FlowHTML          matlab.ui.control.HTML
+        % Controls a click in the Diagram marked, with the look to put back
+        % (onFlowNavigate / clearFlowHighlight).
+        FlowHighlight struct = struct('Control', {}, 'Saved', {})
 
         % --- Run tab ---
         RunBehaviorCheckBox  matlab.ui.control.CheckBox
@@ -486,6 +497,12 @@ classdef EphysPreprocessingApp < handle
         CopyRows (:,1) double = zeros(0, 1)             % CopySessions rows that job was made from, in order
         CopyMonitorTimer = []                           % timer polling CopyJob (startCopyMonitor)
         CopyCancelRequested (1,1) logical = false       % Cancel copy was pressed; the engine stops between files
+        CopyStarted = []                                % tic when the running batch was launched (rate and time left)
+        CopyRateHistory (:,2) double = zeros(0, 2)      % [seconds, bytes] over the last few seconds
+        CopyLiveRow (1,1) double = 0                    % CopySessions row the engine is inside (0: none)
+        CopyLiveFrac (1,1) double = 0                   % how far through that row it is
+        CopyLivePos (1,1) double = 0                    % its place in the batch: later rows are still waiting
+        CopyLivePhase (1,1) string = ""                 % "copying" | "verifying" | "stitching" | "done"
 
         % --- Review (Kilosort4 output) state ---
         ReviewData = struct([])
@@ -592,7 +609,7 @@ classdef EphysPreprocessingApp < handle
         setCopyRunning(obj, running)
         applyCopyResult(obj, sel, R)
         finishCopyRun(obj, R)
-        showCopyProgress(obj, frac, msg)
+        showCopyProgress(obj, frac, msg, info)
         s = copySummaryText(obj, title, R)
         refreshCopyTable(obj)
         onCopyTableEdited(obj, evt)
@@ -733,6 +750,9 @@ classdef EphysPreprocessingApp < handle
         refreshFlowChart(obj)
         [html, summary] = flowChartHTML(obj)
         onSaveFlowChart(obj)
+        onFlowNavigate(obj, evt)
+        ctrls = flowNavControls(obj, target)
+        clearFlowHighlight(obj)
 
         % --- Review tab ---
         loadReviewResults(obj)

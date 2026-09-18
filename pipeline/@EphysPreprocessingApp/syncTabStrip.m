@@ -32,6 +32,10 @@ for k = 1:numel(tabs)
     switch tabs(k)
         case obj.TabCopy
             state = "neutral"; tip = "Find sessions on the source and copy them to local session folders.";
+            if ~isempty(obj.CopyJob)
+                state = "busy";
+                tip = "Copying sessions in the background; the Copy tab shows how far it has got.";
+            end
         case obj.TabProject
             [state, tip] = issueState(issues, "project");
             if state == "ok"

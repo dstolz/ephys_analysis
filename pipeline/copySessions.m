@@ -81,6 +81,16 @@ function [R, job] = copySessions(T, varargin)
 %   copy; too little space throws copySessions:InsufficientSpace before any
 %   file is written (a dry run reports it in the log and Message instead).
 %
+%   Sessions that are still changing. With MinQuietTime, a row whose source
+%   changed more recently than that (any file or folder of the Intan
+%   recording, or its ePsych file) is "skipped": it may still be being
+%   recorded, or synced to the source, and a later copy takes it. A row
+%   whose session folder another batch is writing at that moment (a copy
+%   running in this MATLAB, in another one, or a scheduled copy) is "skipped"
+%   too, so two copies never write one folder at once. Batches in flight
+%   keep a job folder under %LOCALAPPDATA%\ephys_analysis\copy_jobs, which
+%   is how they see each other.
+%
 %   Verification. Once the engine has copied a session, MATLAB checks every
 %   file itself: the destination file must have the source's size, and the
 %   source must not have changed size since it was listed. With Verify="hash"
@@ -98,6 +108,8 @@ function [R, job] = copySessions(T, varargin)
 %     IfExists         "resume" (default) | "skip" | "error"
 %     IncludeUnpaired  (default false)
 %     Verify           "size" (default) | "hash" (SHA-256 checksum of each file)
+%     MinQuietTime     duration (default 0: off). Skip a row whose source
+%                      changed less than this long ago (see above)
 %     Background       (default false) return as soon as the engine is launched
 %     ProgressFcn      @(fraction, message, info), called as the engine reports
 %                      its progress. INFO says what the fraction is made of, so
@@ -140,7 +152,7 @@ function [R, job] = copySessions(T, varargin)
 %     R = copySessions(stitchCopySessions(T, [1 2]), DryRun=false);
 %
 %   See also findCopySessions, stitchCopySessions, stitchEpsychSessions,
-%   copy_engine.ps1.
+%   CopySchedule, copy_engine.ps1.
 
 % The options are parsed by copyOptions rather than by an arguments block here:
 % the first input is either a session table or a background job, and only an
@@ -198,6 +210,7 @@ arguments
     opts.IfExists (1,1) string {mustBeMember(opts.IfExists, ["resume", "skip", "error"])} = "resume"
     opts.IncludeUnpaired (1,1) logical = false
     opts.Verify (1,1) string {mustBeMember(opts.Verify, ["size", "hash"])} = "size"
+    opts.MinQuietTime (1,1) duration = seconds(0)
     opts.Background (1,1) logical = false
     opts.ProgressFcn = []
     opts.LogFcn = []
@@ -305,6 +318,18 @@ for r = 1:n
         R.TotalBytes(r) = sum([items{r}.bytes]);
         if ~isempty(stitches{r})
             R.TotalBytes(r) = R.TotalBytes(r) + sum(stitches{r}.bytes);
+        end
+        if opts.MinQuietTime > 0
+            % a source clock ahead of this one reads as "just now"
+            age = max(seconds(0), datetime('now') - sourceChanged(items{r}, subdirs{r}, groups{r}, stitches{r}));
+            if age < opts.MinQuietTime   % false for an unknown (NaT) time
+                [R.CopyStatus(r), R.Message(r)] = deal("skipped", sprintf( ...
+                    "the source changed %s ago, within the %s quiet time (still being written?); left for a later copy", ...
+                    durationText(age), durationText(opts.MinQuietTime)));
+                continue
+            end
+        end
+        if ~isempty(stitches{r})
             try
                 stitchEpsychSessions(parts);   % in memory: a preview reports files that cannot be stitched
             catch ME
@@ -353,6 +378,19 @@ for r = 1:n
         end
     catch ME
         [R.CopyStatus(r), R.Message(r)] = deal("failed", "planning failed: " + ME.message);
+    end
+end
+
+% --- session folders another batch is writing now ------------------------------------
+planned = find(R.CopyStatus == "planned");
+if ~isempty(planned)
+    busy = sessionsInFlight();
+    for r = planned.'
+        k = find(busy.Dest == normPath(R.DestDir(r)), 1);
+        if ~isempty(k)
+            [R.CopyStatus(r), R.Message(r)] = deal("skipped", ...
+                "another copy (started " + busy.Started(k) + ") is writing this session now; left for a later copy");
+        end
     end
 end
 
@@ -407,7 +445,8 @@ if ~ispc
     error('copySessions:NotWindows', 'Copying uses robocopy and needs Windows.');
 end
 
-job.Dir = string(tempname);
+pruneJobFolders();
+job.Dir = string(tempname(char(jobsFolder())));
 makeFolder(job.Dir);
 job.CancelFile = fullfile(job.Dir, "cancel.flag");
 job.R.CopyStatus(job.ToCopy) = "copying";
@@ -450,6 +489,7 @@ for r = job.ToCopy.'
         'subdirs', {cellRow(job.Subdirs{r})}, 'groups', {grp}, 'expect', {expect}); %#ok<AGROW>
 end
 spec = struct('version', 1, 'verify', job.Opts.Verify, ...
+    'started', string(job.Started, 'yyyy-MM-dd HH:mm'), 'pid', feature('getpid'), ...
     'progressFile', phaseFile(job, phase, "progress.jsonl"), ...
     'statusFile', phaseFile(job, phase, "status.json"), ...
     'heartbeatFile', phaseFile(job, phase, "heartbeat"), ...
@@ -956,6 +996,33 @@ end
 end
 
 
+function t = sourceChanged(items, subdirs, groups, stitch)
+%sourceChanged  When a row's sources last changed (NaT when unknown).
+%   The newest of its files and folders: a folder changes when a file is
+%   added to it or taken out, even when the file itself keeps an old time
+%   (a sync that restores times). Each one is asked for its own time; a
+%   folder listing reports what the folder last noted for its entries,
+%   which lags behind a folder that changed, and can lag behind a file
+%   that is still being written.
+paths = [items.src];
+if ~isempty(groups) && groups(1).recurse   % the Intan folder and its subfolders
+    paths = [paths, groups(1).src, groups(1).src + filesep + subdirs];
+end
+if ~isempty(stitch)
+    paths = [paths, stitch.files(:).'];
+end
+ms = 0;
+for p = paths
+    ms = max(ms, double(java.io.File(char(p)).lastModified()));   % 0 when it cannot be read
+end
+t = NaT;
+if ms > 0
+    t = datetime(ms / 1000, 'ConvertFrom', 'posixtime', 'TimeZone', 'local');
+    t.TimeZone = '';
+end
+end
+
+
 % =============================================================================
 % verification
 % =============================================================================
@@ -1138,8 +1205,100 @@ end
 
 
 % =============================================================================
+% batches in flight
+% =============================================================================
+
+function d = jobsFolder()
+%jobsFolder  Where every batch in flight keeps its job folder.
+%   Per Windows user rather than tempdir, which can differ between a sign-in
+%   and a scheduled task: the app's copies and scheduled ones must see each
+%   other's batches.
+base = string(getenv('LOCALAPPDATA'));
+if base == ""; base = string(tempdir); end
+d = fullfile(base, "ephys_analysis", "copy_jobs");
+end
+
+
+function busy = sessionsInFlight()
+%sessionsInFlight  Session folders that batches still in flight are writing.
+%   A batch's engine touches its heartbeat every couple of seconds, so a job
+%   folder touched within the last two minutes belongs to a batch that is
+%   still copying; the job file it gave its engine lists the session folders.
+%   Batches that finished removed their folder; one whose MATLAB went away
+%   left it behind, and it goes quiet.
+busy = struct('Dest', strings(0, 1), 'Started', strings(0, 1));
+root = jobsFolder();
+if ~isfolder(root); return; end
+D = dir(root);
+D = D([D.isdir] & ~startsWith({D.name}, '.'));
+nowNum = datenum(datetime('now')); %#ok<DATNM> dir reports datenums
+for k = 1:numel(D)
+    folder = fullfile(root, D(k).name);
+    F = dir(folder);
+    F = F(~[F.isdir]);
+    if isempty(F) || (nowNum - max([F.datenum])) * 86400 > 120; continue; end
+    specs = F(endsWith({F.name}, '_job.json'));
+    if isempty(specs); continue; end
+    [~, newest] = max([specs.datenum]);
+    try
+        spec = jsondecode(stripBOM(fileread(fullfile(folder, specs(newest).name))));
+        s = spec.sessions;
+        if iscell(s); s = [s{:}]; end
+        dest = strings(numel(s), 1);
+        for i = 1:numel(s)
+            dest(i) = normPath(s(i).dest);
+        end
+        started = "earlier";
+        if isfield(spec, 'started'); started = string(spec.started); end
+    catch
+        continue   % caught mid-write, or not a job file
+    end
+    busy.Dest = [busy.Dest; dest];
+    busy.Started = [busy.Started; repmat(started, numel(dest), 1)];
+end
+end
+
+
+function pruneJobFolders()
+%pruneJobFolders  Remove job folders nothing has touched for a week.
+%   Only a batch whose MATLAB closed before it finished leaves one behind; no
+%   one can take such a batch up again, and the next copy completes it.
+root = jobsFolder();
+if ~isfolder(root); return; end
+D = dir(root);
+D = D([D.isdir] & ~startsWith({D.name}, '.'));
+nowNum = datenum(datetime('now')); %#ok<DATNM>
+for k = 1:numel(D)
+    folder = fullfile(root, D(k).name);
+    F = dir(folder);
+    F = F(~strcmp({F.name}, '..'));   % the parent changes with every batch
+    if nowNum - max([F.datenum]) > 7
+        try rmdir(folder, 's'); catch; end
+    end
+end
+end
+
+
+function p = normPath(p)
+%normPath  A folder path spelled one way, to compare two spellings of it.
+p = lower(strip(replace(string(p), "/", "\"), "right", "\"));
+end
+
+
+% =============================================================================
 % small helpers
 % =============================================================================
+
+function s = durationText(d)
+if d < minutes(1)
+    s = sprintf("%.0f s", seconds(d));
+elseif d < hours(2)
+    s = sprintf("%.0f min", minutes(d));
+else
+    s = sprintf("%.1f h", hours(d));
+end
+end
+
 
 function info = progressInfo(job, phase, sessionBytes)
 %progressInfo  What a ProgressFcn is told besides the fraction and the message.

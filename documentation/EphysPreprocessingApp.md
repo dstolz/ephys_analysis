@@ -126,7 +126,9 @@ dataset stays on screen, but the status line names the dataset it shows and
    sessions for the day, check the pairing, **Preview (dry run)**, then
    **Copy selected**. The copy runs in the background, so the rest of the app
    stays usable; the copied sessions open as the project when it finishes. If
-   it is cancelled or interrupted, **Copy selected** again completes it.
+   it is cancelled or interrupted, **Copy selected** again completes it. A
+   [Scheduled copy](#scheduled-copy) does the copying by itself, at an
+   interval, without MATLAB open.
 1. **File → New** (or open a saved config). Name it on the Project tab.
 2. **Project**: set the project root, press **Scan**; set an output root.
 3. **Probe**: pick a probe map, **Assign to all datasets** or set it as the
@@ -308,6 +310,77 @@ stitch of the sources, and the SHA-256 of every source and of the file are
 recorded. A destination that already holds a stitched file made from other
 versions of the sources is `skipped` (or `failed`), like any other differing
 copy.
+
+### Scheduled copy
+
+The **Scheduled copy** panel sets up a Windows Task Scheduler task that copies
+new sessions at an interval ([`CopySchedule`](../pipeline/CopySchedule.m)). The
+task starts MATLAB in the background (`MATLAB.exe -batch`: no desktop, no
+window), which finds and copies the new sessions and exits. Neither the app nor
+MATLAB has to be open, so sessions keep arriving in the destination for as long
+as the computer is on.
+
+A schedule copies with the roots, destination, pairing options, **Verify** and
+**If it exists** above, as they are when it is saved. The panel holds only what
+is its own:
+
+| Control | Meaning |
+| --- | --- |
+| Subjects | subject IDs separated by spaces or commas; each is searched as **Find sessions** searches it. Blank: the Subject ID above |
+| Every (min) | how often Windows starts a run, 5 to 1440 (default 60). Runs are on the clock: every 60 min is on the hour, every 15 min on the quarter hours |
+| Days back | each run searches this many days, ending today (default 3; 1 = today only). A session already copied is recognised by its sizes and left alone, so looking back costs little. It is how a run missed while the computer was off, or the source unreachable, is caught up |
+| Quiet (min) | a session whose source changed within this many minutes is left for a later run (default 15), so a recording that is still being written, or still being synced to the source, is never copied half way. Every file and folder of the session counts |
+| Run | **while I am signed in** (default): whenever you are signed in to Windows, with the screen locked too; no password. **even when I am signed out**: also after a restart or a sign-out. Windows asks for your password once, in a console window of its own, and keeps it with the task; the app never sees it. Save again after a password change. Some accounts are not allowed to run tasks while signed out: Windows then refuses, and the status line says so. Mapped drive letters do not exist outside a sign-in, so in this mode their paths are saved as UNC paths (`S:/...` becomes `\\server\share\...`) |
+| Save schedule | saves the settings and creates (or replaces) the task |
+| Remove | deletes the task. Copies already made, the log and the last run's summary are kept |
+| Run now | has Windows start a run at once, in the background |
+| Open log | the schedule's log: every run, every session |
+
+The line under the controls says when the next run is and how the last one
+went, e.g. `Every 60 min, while you are signed in: SUBJ-ID-1255 to D:/EPHYS.
+Next run 15:00. Last run 14:00: 1 copied, 3 already present.` Its tooltip lists
+the settings and what the last run did with each session it did not find
+already copied. It is refreshed when the Copy tab is shown and, while a run is
+under way, every few seconds. Problems are shown in red: a failed run, a
+password Windows no longer accepts, a task disabled in Task Scheduler, or code
+or a MATLAB that has moved.
+
+**What a run copies**: the paired sessions of the days searched, with the same
+checks as **Copy selected**. A run leaves these alone, and reports them in the
+log and on the status line:
+
+| Status | Session |
+| --- | --- |
+| `ambiguous` | an ambiguous pairing, never copied automatically (as on the Copy tab) |
+| `unpaired` | Intan only or ePsych only |
+| `needs_stitching` | a paired recording with another ePsych file that starts during it: ePsych was restarted. Stitch the files on the Copy tab and copy it from there |
+| `stitched_by_hand` | a session copied by hand with stitched ePsych files (its `session_manifest.json` says so): copying its paired row would add a second behavior file to the folder |
+| `skipped` | its source changed within the quiet time, or another copy is writing it at that moment. A later run takes it |
+
+**Two copies never write one session.** Every copy batch in flight (from the
+app, a script or a scheduled run) keeps a job folder under
+`%LOCALAPPDATA%\ephys_analysis\copy_jobs`, and a batch skips a session that
+another batch is writing at that moment, saying so in its **Message**. This
+matters when **Copy selected** runs while a scheduled run copies the same
+session: copy it again once the other batch has finished.
+
+**The task** is `\ephys_analysis\Copy sessions (<user>)` in Task Scheduler. It
+never runs twice at once, runs on battery, starts a run missed while the
+computer was off or asleep as soon as it is back, and stops a run after 12 h. It
+runs the code and the MATLAB it was saved from, so save the schedule again after
+moving either. MATLAB starts in the schedule's folder and runs the empty
+`startup.m` kept there instead of yours. The same from a script:
+
+```matlab
+sch = CopySchedule;                        % this Windows user's schedule
+s = CopySchedule.defaults();               % roots, pairing, EveryMin=60, LookBackDays=3, QuietMin=15, ...
+s.Subjects = ["SUBJ-ID-1255" "SUBJ-ID-1256"];
+sch.save(s);                               % write the settings, create the task
+st = sch.status();                         % next run, last run, problems
+sch.startNow();                            % a run now, in the background
+out = CopySchedule.copyNew(s);             % one run's work, in this MATLAB
+sch.remove();
+```
 
 ## Project
 
@@ -817,7 +890,8 @@ Only what is **not** part of a config lives here:
 | `ShowRunDiagram` | the Run tab's **Show the run diagram** switch |
 
 To reset: `rmpref('EphysPreprocessingApp')` with the app closed. Older
-preference groups are not read.
+preference groups are not read. The [scheduled copy](#scheduled-copy) is not a
+preference: its settings live in its own file, which its Windows task reads.
 
 ## What the app writes to disk
 
@@ -832,7 +906,10 @@ preference groups are not read.
 | `<Name>_extract_<TYPE>.mat` (or `<Name>_extract.mat`), `<Name>_spikes.mat`, `<Name>_chronux.mat`, `<Name>_fieldtrip.mat` | Signals, Spikes, Export |
 | probe `.json` in the probe folder | Import, Designer save, Notes edit |
 | `<parent>/synthetic_ephys/...` | File → Create synthetic test project (recordings, sessions, sorted output, probe, config, README) |
-| `<Destination>/<SUBJ>/<Intan folder>/`: the copied files (for a stitched session, `<earliest ePsych file>_stitched.mat` instead of the ePsych files), `session_manifest.json`, `session_copy_robocopy.log` | Copy → Copy selected, in the background (Preview writes nothing) |
+| `<Destination>/<SUBJ>/<Intan folder>/`: the copied files (for a stitched session, `<earliest ePsych file>_stitched.mat` instead of the ePsych files), `session_manifest.json`, `session_copy_robocopy.log` | Copy → Copy selected, in the background (Preview writes nothing); each scheduled run |
+| `%LOCALAPPDATA%\ephys_analysis\copy_jobs\<batch>\`: the copy engine's job, progress and heartbeat files | while a copy batch is in flight; removed when it ends |
+| `%LOCALAPPDATA%\ephys_analysis\copy_schedule\`: `schedule.json`, `task.xml`, `startup.m`; the Windows task `\ephys_analysis\Copy sessions (<user>)` | Copy → Save schedule (Remove deletes the task and the first two) |
+| the same folder: `copy_schedule.log` (appended; the previous 5 MB in `copy_schedule.1.log`), `last_run.json`, `matlab.log` | each scheduled run |
 
 Raw recording files are only read. So is the source tree.
 
@@ -868,7 +945,7 @@ app.KSRuns                        % background runs being monitored
 | `onSpikesPreview.m`, `syncSpikesEnableStates.m` | Spikes tab |
 | `onPlotVisualization.m`, `onVizButtonDown/Up.m`, `drawVizArtifacts.m`, `finishVizArtDrag.m`, `applyVizChannelOrder.m`, `applyVizChannelColor.m`, `syncVizDataset.m` | Visualize tab |
 | `buildFlowTab.m`, `refreshFlowChart.m`, `flowChartHTML.m`, `onSaveFlowChart.m`, `onOpenFlowChartInBrowser.m`, `onFlowNavigate.m`, `flowNavControls.m`, `clearFlowHighlight.m` | Diagram tab |
-| `buildCopyTab.m`, `onCopyFind.m`, `onCopyRun.m`, `refreshCopyTable.m`, `onCopyTableEdited.m`, `onCopyStitch.m`, `onCopyUnstitch.m`, `onBrowseCopyFolder.m`, `copyLog.m`, `onCopyCancel.m`, `startCopyMonitor.m`, `stopCopyMonitor.m`, `pollCopyJob.m`, `setCopyRunning.m`, `applyCopyResult.m`, `finishCopyRun.m`, `showCopyProgress.m`, `copySummaryText.m`; `pipeline/findCopySessions.m`, `pipeline/stitchCopySessions.m`, `pipeline/copySessions.m`, `pipeline/copy_engine.ps1`, `pipeline/stitchEpsychSessions.m` | Copy tab, the pairing / stitching / copy functions it calls, and the detached copy engine |
+| `buildCopyTab.m`, `onCopyFind.m`, `onCopyRun.m`, `refreshCopyTable.m`, `onCopyTableEdited.m`, `onCopyStitch.m`, `onCopyUnstitch.m`, `onBrowseCopyFolder.m`, `copyLog.m`, `onCopyCancel.m`, `startCopyMonitor.m`, `stopCopyMonitor.m`, `pollCopyJob.m`, `setCopyRunning.m`, `applyCopyResult.m`, `finishCopyRun.m`, `showCopyProgress.m`, `copySummaryText.m`, `refreshCopySchedule.m`, `onCopyScheduleSave.m`, `onCopyScheduleRemove.m`, `onCopyScheduleRunNow.m`, `onCopyScheduleLog.m`; `pipeline/findCopySessions.m`, `pipeline/stitchCopySessions.m`, `pipeline/copySessions.m`, `pipeline/copy_engine.ps1`, `pipeline/stitchEpsychSessions.m`, `pipeline/CopySchedule.m` | Copy tab, the pairing / stitching / copy functions it calls, the detached copy engine, and the scheduled copy (its Windows task and what each run does) |
 | `loadReviewResults.m`, `renderReviewPlots.m`, `syncReviewDataset.m` | Review tab |
 | `load/savePreferences.m` | preferences |
 | `helpURL.m`, `onHelp.m` | Help menu (wiki pages) |
@@ -908,7 +985,18 @@ the job carries it through to `copied`, options passed with a job are
 refused, and every `ProgressFcn` call carries the fraction, a message and the
 `info` behind it (phase, session, sessions, bytes) with a fraction that never
 steps back. It also drives the Copy tab from Find through a background copy to the
-finished table. Copy tests need Windows (robocopy).
+finished table. It checks that a session whose source changed within the quiet
+time (a file, or a folder a file was taken out of) is left for later, and that
+one another batch is writing is left alone until that batch has gone quiet,
+also while a background batch of its own is in flight. For the scheduled copy
+it checks what a run copies (the paired sessions of the days searched; never
+ambiguous, unpaired, to-be-stitched or hand-stitched ones; nothing until the
+source is quiet), what stops a run (no destination, no source), the log,
+`last_run.json` and exit code of `CopySchedule.runTask`, the settings checks,
+the task definition and UNC paths. It creates a real task, has Windows run it
+(MATLAB, started in the background, copies the session and reports) and
+removes it, and saves and removes a schedule from the Copy tab. Copy tests need
+Windows (robocopy, Task Scheduler).
 [`test_SyntheticDataset.m`](../pipeline/test_SyntheticDataset.m) checks the
 synthetic project generators and, headlessly, the File-menu action: the
 project is written, opened and scanned; choosing the active dataset in a

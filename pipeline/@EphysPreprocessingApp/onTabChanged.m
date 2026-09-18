@@ -5,6 +5,7 @@ obj.clearFlowHighlight();   % a control marked by a Diagram click stays marked o
 switch obj.Tabs.SelectedTab
     case obj.TabCopy
         msg = "Copy: find a subject's sessions, check the pairing, Preview, then Copy selected (nothing on the source is changed).";
+        obj.refreshCopySchedule();   % a scheduled run may have happened since
     case obj.TabProject
         msg = "Project: set the root and Scan; tick rows to select datasets (none = all).";
     case obj.TabTrials

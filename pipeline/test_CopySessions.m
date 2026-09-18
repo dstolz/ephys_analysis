@@ -1,8 +1,10 @@
 classdef test_CopySessions < matlab.unittest.TestCase
-    %test_CopySessions  Tests for findCopySessions and copySessions.
+    %test_CopySessions  Tests for findCopySessions, copySessions and CopySchedule.
     %   Builds fake source trees (ePsych files and Intan folders with small dummy
     %   files) in a temporary folder. Tests that copy need robocopy and are
-    %   skipped off Windows.
+    %   skipped off Windows. scheduleRunsAsAWindowsTask and appSchedulesACopy
+    %   create a Windows task under \ephys_analysis_test and remove it again;
+    %   the first has Windows start MATLAB for a scheduled run (about a minute).
     %
     %   Usage
     %     runtests("test_CopySessions")
@@ -379,6 +381,12 @@ classdef test_CopySessions < matlab.unittest.TestCase
             tc.verifyLessThan(toc(t0), 5, "the call must not wait for the copy");
             tc.verifyEqual(R.CopyStatus, "copying");
             tc.verifyFalse(job.Done);
+            tc.verifyTrue(startsWith(job.Dir, tc.jobsFolder()), "batches in flight keep their job folder there");
+
+            % While the batch is in flight, no other copy writes its session.
+            R2 = copySessions(T, DestRoot=tc.Dest, LogFcn=@(~) []);
+            tc.verifyEqual(R2.CopyStatus, "skipped");
+            tc.verifySubstring(char(R2.Message), 'another copy');
 
             polls = 0;
             while ~job.Done
@@ -390,6 +398,7 @@ classdef test_CopySessions < matlab.unittest.TestCase
             tc.verifyEqual(R.CopyStatus, "copied", R.Message);
             tc.verifyTrue(isfile(fullfile(R.DestDir, "amplifier.dat")));
             tc.verifyTrue(isfile(R.ManifestFile));
+            tc.verifyFalse(isfolder(job.Dir), "a finished batch removes its job folder");
             tc.verifyError(@() copySessions(job, DestRoot=tc.Dest), 'copySessions:JobTakesNoOptions');
         end
 
@@ -697,9 +706,361 @@ classdef test_CopySessions < matlab.unittest.TestCase
             tc.verifySubstring(char(R.Message), 'before the copy started');
             tc.verifyFalse(isfolder(R.DestDir), "nothing is created for a cancelled batch");
         end
+
+        % ---------------------------------------------------------------- still changing, in flight
+        function quietTimeLeavesAChangingSessionForLater(tc)
+            % A session whose source changed within MinQuietTime may still be
+            % being recorded or synced: it is left for a later copy. A folder
+            % counts as well as a file, since removing a file changes it.
+            tc.addPair("260916T110742", "260916_110907");
+            T = tc.find(tc.Subj, "260916");
+            quiet = @() copySessions(T, DestRoot=tc.Dest, MinQuietTime=minutes(15), LogFcn=@(~) []);
+            R = quiet();
+            tc.verifyEqual(R.CopyStatus, "skipped");
+            tc.verifySubstring(char(R.Message), 'still being written');
+
+            R = copySessions(T, DestRoot=tc.Dest, LogFcn=@(~) []);
+            tc.verifyEqual(R.CopyStatus, "planned", "no quiet time by default");
+            tc.age(fullfile(tc.Root, "nas"), hours(1));
+            R = quiet();
+            tc.verifyEqual(R.CopyStatus, "planned", R.Message);
+
+            delete(fullfile(T.IntanDir, "sub", "nested.bin"));   % only a folder changes
+            R = quiet();
+            tc.verifyEqual(R.CopyStatus, "skipped");
+            tc.age(fullfile(tc.Root, "nas"), hours(1));
+            tc.addEpsych(tc.Subj, "260916T110742");              % the ePsych file rewritten
+            R = quiet();
+            tc.verifyEqual(R.CopyStatus, "skipped");
+        end
+
+        function aSessionAnotherCopyIsWritingIsLeftAlone(tc)
+            % A batch in another MATLAB (or a scheduled copy) writing the same
+            % session folder: this one leaves it alone until that batch is over.
+            tc.addPair("260916T110742", "260916_110907");
+            T = tc.find(tc.Subj, "260916");
+            job = tc.fakeBatch(T.DestDir);
+            R = copySessions(T, DestRoot=tc.Dest, LogFcn=@(~) []);
+            tc.verifyEqual(R.CopyStatus, "skipped");
+            tc.verifySubstring(char(R.Message), 'another copy (started 2026-09-18 10:00)');
+
+            tc.age(job, minutes(5));   % its heartbeat stopped: that batch is gone
+            R = copySessions(T, DestRoot=tc.Dest, LogFcn=@(~) []);
+            tc.verifyEqual(R.CopyStatus, "planned", R.Message);
+        end
+
+        % ---------------------------------------------------------------- scheduled copy
+        function scheduledCopyTakesTheNewPairedSessions(tc)
+            tc.assumeTrue(ispc, "robocopy needs Windows");
+            tc.addPair("260916T110742", "260916_110907");
+            tc.addPair("260915T090000", "260915_090130");      % yesterday
+            tc.addPair("260910T090000", "260910_090130");      % before the days searched
+            tc.addIntan(tc.Subj, "260916_150000");             % ambiguous: two ePsych files 60 s either side
+            tc.addEpsych(tc.Subj, "260916T145900");
+            tc.addEpsych(tc.Subj, "260916T150100");
+            tc.addEpsych(tc.Subj, "260916T170000");            % ePsych only
+            mkdir(tc.Dest);
+            s = tc.schedule(LookBackDays=2);
+            out = CopySchedule.copyNew(s, Today=datetime(2026, 9, 16, 13, 0, 0), LogFcn=@(~) []);
+            tc.verifyEmpty(out.Errors);
+            tc.verifyEqual(out.Days, datetime(2026, 9, [15 16]));
+            S = out.Sessions;
+            tc.verifyEqual(S.Session(S.Status == "copied"), tc.Subj + ["_260915_090130"; "_260916_110907"]);
+            tc.verifyEqual(nnz(S.Status == "ambiguous"), 3);
+            tc.verifyEqual(S.Status(S.Session == tc.Subj + "_260916T170000"), "unpaired");
+            tc.verifyTrue(all(S.Message ~= ""));
+            tc.verifyFalse(isfolder(fullfile(tc.Dest, tc.Subj, tc.Subj + "_260910_090130")), ...
+                "a day before the ones searched");
+            tc.verifyFalse(isfolder(fullfile(tc.Dest, tc.Subj, tc.Subj + "_260916_150000")), "never an ambiguous one");
+
+            out = CopySchedule.copyNew(s, Today=datetime(2026, 9, 16), LogFcn=@(~) []);
+            tc.verifyEqual(CopySchedule.countText(out.Sessions.Status), "2 already present, 3 ambiguous, 1 unpaired.");
+        end
+
+        function scheduledCopyWaitsForAQuietSource(tc)
+            tc.assumeTrue(ispc, "robocopy needs Windows");
+            tc.addPair("260916T110742", "260916_110907");
+            mkdir(tc.Dest);
+            s = tc.schedule(QuietMin=15);
+            out = CopySchedule.copyNew(s, Today=datetime(2026, 9, 16), LogFcn=@(~) []);
+            tc.verifyEqual(out.Sessions.Status, "skipped");
+            tc.verifySubstring(char(out.Sessions.Message), 'still being written');
+            tc.age(fullfile(tc.Root, "nas"), hours(1));
+            out = CopySchedule.copyNew(s, Today=datetime(2026, 9, 16), LogFcn=@(~) []);
+            tc.verifyEqual(out.Sessions.Status, "copied", out.Sessions.Message);
+        end
+
+        function scheduledCopyLeavesSessionsToStitchToAPerson(tc)
+            % A paired recording with another ePsych file that starts during
+            % it: ePsych was restarted, and the files are stitched by hand.
+            [i, R] = tc.addSyntheticIntan("260916_110907");
+            tc.addEpsych(tc.Subj, "260916T110742");            % 85 s before: paired
+            later = datetime(2026, 9, 16, 11, 9, 7) + seconds(floor(R.duration / 2));
+            tc.assertGreaterThan(later, datetime(2026, 9, 16, 11, 9, 7), "the recording is long enough to start a file in");
+            tc.addEpsych(tc.Subj, string(later, 'yyMMdd''T''HHmmss'));
+            mkdir(tc.Dest);
+            s = tc.schedule(MinDurationMin=0, MaxLagMin=0);
+            out = CopySchedule.copyNew(s, Today=datetime(2026, 9, 16), LogFcn=@(~) []);
+            tc.verifyEqual(out.Sessions.Status, ["needs_stitching"; "needs_stitching"]);
+            [~, name] = fileparts(i);
+            tc.verifySubstring(char(out.Sessions.Message(1)), char(name + " has more than one ePsych file"));
+            tc.verifyFalse(isfolder(fullfile(tc.Dest, tc.Subj)), "nothing is copied");
+        end
+
+        function scheduledCopyKeepsAHandStitchedCopy(tc)
+            % Copying the paired row would put a second behavior file next
+            % to the stitched one; the session is left as it was copied.
+            tc.assumeTrue(ispc, "robocopy needs Windows");
+            tc.addPair("260916T110742", "260916_110907");
+            tc.addSession("260916T110742", 3);
+            tc.addSession("260916T114000", 2);
+            T = tc.find(tc.Subj, "260916");
+            R = copySessions(stitchCopySessions(T, [1 2]), DestRoot=tc.Dest, DryRun=false, LogFcn=@(~) []);
+            tc.verifyEqual(R.CopyStatus, "copied", R.Message);
+            out = CopySchedule.copyNew(tc.schedule(), Today=datetime(2026, 9, 16), LogFcn=@(~) []);
+            tc.verifyEqual(out.Sessions.Status, ["stitched_by_hand"; "unpaired"]);
+            [~, n, x] = fileparts(T.EpsychFile(1));
+            tc.verifyFalse(isfile(fullfile(R.DestDir, n + x)), "still one behavior file in the session folder");
+        end
+
+        function scheduledCopyReportsWhatStopsIt(tc)
+            tc.addPair("260916T110742", "260916_110907");
+            s = tc.schedule();                                % the destination is not there
+            out = CopySchedule.copyNew(s, Today=datetime(2026, 9, 16), LogFcn=@(~) []);
+            tc.verifyEqual(height(out.Sessions), 0);
+            tc.verifySubstring(char(out.Errors), 'does not exist (is its disk connected?)');
+            tc.verifyFalse(isfolder(tc.Dest), "a missing destination is not created");
+
+            mkdir(tc.Dest);
+            s.EpsychRoot = fullfile(tc.Root, "not_mounted");
+            out = CopySchedule.copyNew(s, Today=datetime(2026, 9, 16), LogFcn=@(~) []);
+            tc.verifySubstring(char(out.Errors), char(tc.Subj + ": Folder not found"));
+        end
+
+        function runTaskKeepsALogAndASummary(tc)
+            % What the Windows task runs: the settings from a file, every line
+            % appended to a log, last_run.json, and MATLAB's exit code.
+            tc.assumeTrue(ispc, "robocopy needs Windows");
+            stamp = string(datetime('today'), 'yyMMdd');
+            tc.addPair(stamp + "T090000", stamp + "_090130");
+            mkdir(tc.Dest);
+            folder = fullfile(tc.Root, "schedule");
+            mkdir(folder);
+            file = fullfile(folder, "schedule.json");
+            writeJsonFile(file, tc.schedule(LookBackDays=1));
+
+            tc.verifyEqual(CopySchedule.runTask(file), 0);
+            L = jsondecode(fileread(fullfile(folder, "last_run.json")));
+            tc.verifyEqual(string(L.State), "done");
+            tc.verifyEqual(string(L.Sessions.Status), "copied");
+            log = fileread(fullfile(folder, "copy_schedule.log"));
+            tc.verifySubstring(log, 'Scheduled copy started: ' + tc.Subj);
+            tc.verifySubstring(log, 'Scheduled copy done: 1 copied.');
+            tc.verifyTrue(isfolder(fullfile(tc.Dest, tc.Subj, tc.Subj + "_" + stamp + "_090130")));
+
+            rmdir(tc.Dest, 's');                              % its disk is not connected
+            tc.verifyEqual(CopySchedule.runTask(file), 1);
+            L = jsondecode(fileread(fullfile(folder, "last_run.json")));
+            tc.verifyEqual(string(L.State), "failed");
+            tc.verifySubstring(fileread(fullfile(folder, "copy_schedule.log")), 'Scheduled copy failed: the destination');
+        end
+
+        function scheduleSettingsAreChecked(tc)
+            s = CopySchedule.normalize(struct('Subjects', 'A-1, B-2;C-3  A-1', 'EveryMin', "30"));
+            tc.verifyEqual(s.Subjects, ["A-1", "B-2", "C-3"]);
+            tc.verifyEqual(s.EveryMin, 30);
+            tc.verifyEqual([s.RunWhen, s.Verify, s.IfExists], ["signed_in", "size", "resume"]);
+            tc.verifyEqual(string(fieldnames(s)), string(fieldnames(CopySchedule.defaults())));
+            bad = {struct('Subjects', ""), struct('Subjects', "A", 'EveryMin', 2), ...
+                struct('Subjects', "A", 'LookBackDays', 1.5), struct('Subjects', "A/B"), ...
+                struct('Subjects', "A", 'RunWhen', "sometimes"), struct('Subjects', "A", 'DestRoot', "")};
+            for k = 1:numel(bad)
+                tc.verifyError(@() CopySchedule.normalize(bad{k}), 'CopySchedule:BadSettings');
+            end
+        end
+
+        function taskDefinitionRunsMatlabInTheBackground(tc)
+            file = fullfile(tc.Root, "sched", "schedule.json");
+            xml = string(CopySchedule.taskXml(tc.schedule(EveryMin=30), "\ephys_analysis_test\t", file));
+            for part = ["<Interval>PT30M</Interval>", "<MultipleInstancesPolicy>IgnoreNew<", ...
+                    "<DisallowStartIfOnBatteries>false<", "<StopIfGoingOnBatteries>false<", ...
+                    "<StartWhenAvailable>true<", "<LogonType>InteractiveToken<", ...
+                    "<Command>" + fullfile(matlabroot, "bin", "win64", "MATLAB.exe") + "<", ...
+                    "-sd """ + fileparts(file) + """ -batch", "exit(CopySchedule.runTask('" + file + "'))"]
+                tc.verifySubstring(xml, part);
+            end
+            start = datetime(regexp(xml, '<StartBoundary>([^<]+)<', 'tokens', 'once'), ...
+                'InputFormat', "yyyy-MM-dd'T'HH:mm:ss");
+            tc.verifyTrue(start > datetime('now') && start <= datetime('now') + minutes(30));
+            tc.verifyEqual(mod(minutes(timeofday(start)), 30), 0, "runs are on the clock");
+
+            xml = string(CopySchedule.taskXml(tc.schedule(RunWhen="always"), "\ephys_analysis_test\t", file));
+            tc.verifySubstring(xml, "<LogonType>Password</LogonType>");
+            f = fullfile(tc.Root, "task.xml");                 % well formed
+            fid = fopen(f, 'w');
+            fwrite(fid, replace(xml, "UTF-16", "UTF-8"), 'char');
+            fclose(fid);
+            doc = xmlread(f);
+            tc.verifyEqual(doc.getElementsByTagName('Exec').getLength(), 1);
+        end
+
+        function uncPathOnlyForNetworkDrives(tc)
+            tc.verifyEqual(CopySchedule.uncPath(tc.Root), tc.Root);
+            tc.verifyEqual(CopySchedule.uncPath("\\server\share\x"), "\\server\share\x");
+            tc.assumeTrue(ispc, "drive letters are Windows");
+            net = actxserver('WScript.Network');
+            drives = net.EnumNetworkDrives;
+            letter = "";
+            for k = 0:2:drives.Count - 1
+                if drives.Item(k) ~= ""
+                    letter = string(drives.Item(k));
+                    remote = string(drives.Item(k + 1));
+                    break
+                end
+            end
+            tc.assumeNotEqual(letter, "", "no network drive is mapped here");
+            tc.verifyEqual(CopySchedule.uncPath(letter + "/a/b"), strip(remote, "right", "\") + "\a\b");
+        end
+
+        function scheduleRunsAsAWindowsTask(tc)
+            % End to end: save creates the task, Run now has Windows start
+            % MATLAB in the background, the run copies today's session and
+            % reports, and remove takes the task away again.
+            tc.assumeTrue(ispc, "Task Scheduler needs Windows");
+            stamp = string(datetime('today'), 'yyMMdd');
+            tc.addPair(stamp + "T090000", stamp + "_090130");
+            mkdir(tc.Dest);
+            sch = tc.testSchedule("task");
+            s = sch.save(tc.schedule(LookBackDays=1, EveryMin=720));
+            st = sch.status();
+            tc.verifyTrue(st.Scheduled && st.Enabled && ~st.Running);
+            tc.verifyEqual([st.RunWhen, st.Problem], ["signed_in", ""]);
+            tc.verifyEqual(st.EveryMin, 720);
+            tc.verifyTrue(st.NextRun > datetime('now') && st.NextRun <= datetime('now') + hours(12));
+            tc.verifyEqual(s.Code, string(fileparts(which('CopySchedule'))));
+            tc.verifyTrue(isfile(fullfile(sch.Folder, "startup.m")));
+            tc.verifyEqual(sch.read(), s);
+
+            sch.startNow();
+            t0 = tic;
+            while toc(t0) < 300
+                pause(2);
+                st = sch.status();
+                if ~st.Running && ~isempty(st.LastRun) && st.LastRun.State ~= "running"; break; end
+            end
+            tc.assertFalse(st.Running, "the scheduled run did not finish in 5 min");
+            tc.verifyEqual(st.LastResult, 0, "MATLAB's exit code reaches Task Scheduler");
+            tc.assertNotEmpty(st.LastRun, "the run wrote no last_run.json; see " + fullfile(sch.Folder, "matlab.log"));
+            tc.verifyEqual(st.LastRun.State, "done");
+            tc.verifyEqual(st.LastRun.Sessions.Status, "copied");
+            tc.verifyTrue(isfile(fullfile(tc.Dest, tc.Subj, tc.Subj + "_" + stamp + "_090130", "session_manifest.json")));
+
+            sch.remove();
+            st = sch.status();
+            tc.verifyFalse(st.Scheduled);
+            tc.verifyEmpty(st.Settings);
+            tc.verifyNotEmpty(st.LastRun, "the last run's summary is kept");
+        end
+
+        function appSchedulesACopy(tc)
+            % The Copy tab's Scheduled copy panel: Save with the tab's roots
+            % and the Subject ID, the status line, Remove.
+            tc.assumeTrue(ispc, "Task Scheduler needs Windows");
+            g = EphysPreprocessingApp.PrefGroup;
+            saved = [];
+            if ispref(g); saved = getpref(g); end
+            tc.addTeardown(@() restorePrefs(g, saved));
+            if ispref(g, 'LastConfigFile'); setpref(g, 'LastConfigFile', ''); end
+
+            app = EphysPreprocessingApp;
+            tc.addTeardown(@() delete(app.Fig));
+            sch = tc.testSchedule("app");
+            app.CopyScheduler = sch;
+            app.refreshCopySchedule(Fill=true);
+            tc.verifySubstring(app.CopyScheduleStatusLabel.Text, 'Not scheduled.');
+            tc.verifyEqual(string(app.CopyScheduleRunNowButton.Enable), "off");
+
+            app.selectTab(app.TabCopy);
+            app.CopySubjectField.Value = char(tc.Subj);
+            app.CopyEpsychRootField.Value = char(tc.Epsych);
+            app.CopyIntanRootField.Value = char(tc.Intan);
+            app.CopyDestRootField.Value = char(tc.Dest);
+            app.CopyScheduleSubjectsField.Value = '';          % blank: the Subject ID above
+            app.CopyScheduleEveryField.Value = 30;
+            app.CopyScheduleDaysField.Value = 2;
+            app.onCopyScheduleSave();
+            s = sch.read();
+            tc.assertNotEmpty(s, "the schedule was not saved");
+            tc.verifyEqual([s.Subjects, s.DestRoot, s.EpsychRoot], [tc.Subj, tc.Dest, tc.Epsych]);
+            tc.verifyEqual([s.EveryMin, s.LookBackDays, s.QuietMin], [30, 2, 15]);
+            tc.verifyEqual(string(app.CopyScheduleSubjectsField.Value), tc.Subj, "the panel shows what is saved");
+            txt = string(app.CopyScheduleStatusLabel.Text);
+            tc.verifySubstring(txt, "Every 30 min, while you are signed in: " + tc.Subj + " to " + tc.Dest);
+            tc.verifySubstring(txt, "Next run");
+            tc.verifySubstring(txt, "Not run yet.");
+            tc.verifyEqual(string(app.CopyScheduleRunNowButton.Enable), "on");
+            tc.verifySubstring(string(app.CopyLogArea.Value{end}), "Scheduled copy saved");
+
+            app.onCopyScheduleRemove();
+            st = sch.status();
+            tc.verifyFalse(st.Scheduled);
+            tc.verifySubstring(app.CopyScheduleStatusLabel.Text, 'Not scheduled.');
+        end
     end
 
     methods
+        function s = schedule(tc, varargin)
+            %schedule  Scheduled-copy settings for this tree; name-value pairs override.
+            %   QuietMin is 0: the tree has just been written.
+            s = CopySchedule.defaults();
+            s.Subjects = tc.Subj;
+            s.EpsychRoot = tc.Epsych;
+            s.IntanRoot = tc.Intan;
+            s.DestRoot = tc.Dest;
+            s.QuietMin = 0;
+            for k = 1:2:numel(varargin)
+                s.(varargin{k}) = varargin{k + 1};
+            end
+        end
+
+        function sch = testSchedule(tc, label)
+            %testSchedule  A schedule of its own for a test, removed when the test ends.
+            sch = CopySchedule(Folder=fullfile(tc.Root, "schedule_" + label), ...
+                TaskName="\ephys_analysis_test\Copy sessions " + label + " " + feature('getpid'));
+            tc.addTeardown(@() sch.remove());
+        end
+
+        function d = jobsFolder(~)
+            %jobsFolder  Where copySessions keeps the job folders of batches in flight.
+            base = string(getenv('LOCALAPPDATA'));
+            if base == ""; base = string(tempdir); end
+            d = fullfile(base, "ephys_analysis", "copy_jobs");
+        end
+
+        function folder = fakeBatch(tc, dest)
+            %fakeBatch  The job folder of a batch writing DEST, as another MATLAB keeps it.
+            [~, name] = fileparts(tempname);
+            folder = fullfile(tc.jobsFolder(), "test_" + name);
+            mkdir(folder);
+            tc.addTeardown(@() rmdir(folder, 's'));
+            spec = struct('version', 1, 'started', "2026-09-18 10:00", 'pid', 1, ...
+                'sessions', {{struct('index', 1, 'dest', dest)}});
+            writeJsonFile(fullfile(folder, "copy_job.json"), spec);
+            tc.writeBytes(fullfile(folder, "copy_heartbeat"), uint8('1'));
+        end
+
+        function age(tc, root, dt)
+            %age  Set the modification time of ROOT and everything in it DT back.
+            ms = posixtime(datetime('now', 'TimeZone', 'local') - dt) * 1000;
+            D = dir(fullfile(root, '**', '*'));
+            D = D(~strcmp({D.name}, '..'));
+            for k = 1:numel(D)
+                p = fullfile(D(k).folder, D(k).name);
+                if strcmp(D(k).name, '.'); p = D(k).folder; end   % the folder itself
+                tc.assertTrue(java.io.File(p).setLastModified(ms), "cannot set the time of " + p);
+            end
+        end
+
         function waitForCopy(tc, app, timeout)
             %waitForCopy  Pump the event queue until the app's copy timer is done.
             if nargin < 3; timeout = 120; end

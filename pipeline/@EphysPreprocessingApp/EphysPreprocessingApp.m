@@ -19,7 +19,10 @@ classdef EphysPreprocessingApp < handle
     %                then open the copied sessions as the project. The copy
     %                runs in a detached engine (copy_engine.ps1) polled by a
     %                timer, so it never blocks the app, and an interrupted one
-    %                is completed rather than restarted (IfExists="resume")
+    %                is completed rather than restarted (IfExists="resume").
+    %                Scheduled copy: a Windows task copies the new sessions
+    %                of chosen subjects at an interval, with no MATLAB open
+    %                (CopySchedule); the tab saves it and shows its last run
     %     Project    config name, project root / output root, dataset table
     %                (the Select column is the config's dataset selection),
     %                Epsych2 behavior associations
@@ -152,6 +155,16 @@ classdef EphysPreprocessingApp < handle
         CopyProgressRest      matlab.ui.container.Panel
         CopyPercentLabel      matlab.ui.control.Label
         CopyProgressLabel     matlab.ui.control.Label           % the file the engine is on
+        CopyScheduleSubjectsField   matlab.ui.control.EditField          % scheduled copy (CopySchedule)
+        CopyScheduleEveryField      matlab.ui.control.NumericEditField   % minutes between runs
+        CopyScheduleDaysField       matlab.ui.control.NumericEditField   % days each run looks back
+        CopyScheduleQuietField      matlab.ui.control.NumericEditField   % minutes a source must be unchanged
+        CopyScheduleRunWhenDropDown matlab.ui.control.DropDown           % ItemsData "signed_in" | "always"
+        CopyScheduleSaveButton      matlab.ui.control.Button
+        CopyScheduleRemoveButton    matlab.ui.control.Button
+        CopyScheduleRunNowButton    matlab.ui.control.Button
+        CopyScheduleLogButton       matlab.ui.control.Button
+        CopyScheduleStatusLabel     matlab.ui.control.Label              % refreshCopySchedule
 
         % --- Project tab ---
         ConfigNameField   matlab.ui.control.EditField
@@ -530,6 +543,8 @@ classdef EphysPreprocessingApp < handle
         CopyLiveFrac (1,1) double = 0                   % how far through that row it is
         CopyLivePos (1,1) double = 0                    % its place in the batch: later rows are still waiting
         CopyLivePhase (1,1) string = ""                 % "copying" | "verifying" | "stitching" | "done"
+        CopyScheduler CopySchedule = CopySchedule()     % this user's scheduled copy (a test points it elsewhere)
+        CopyScheduleTimer = []                          % refreshes its state while a scheduled run is under way
 
         % --- Review (Kilosort4 output) state ---
         ReviewData = struct([])
@@ -552,6 +567,7 @@ classdef EphysPreprocessingApp < handle
             % Construct, build the UI, restore preferences and the last config.
             obj.buildUI();
             obj.loadPreferences();
+            obj.refreshCopySchedule(Fill=true);
             obj.refreshProbeList();
             obj.updateTitle();
 
@@ -656,6 +672,11 @@ classdef EphysPreprocessingApp < handle
         onCopyUnstitch(obj)
         onBrowseCopyFolder(obj, field)
         copyLog(obj, msg)
+        refreshCopySchedule(obj, opts)
+        onCopyScheduleSave(obj)
+        onCopyScheduleRemove(obj)
+        onCopyScheduleRunNow(obj)
+        onCopyScheduleLog(obj)
 
         % --- Project tab ---
         onScan(obj)

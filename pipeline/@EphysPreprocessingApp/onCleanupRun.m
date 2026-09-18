@@ -1,11 +1,18 @@
 function onCleanupRun(obj)
-%onCleanupRun  Confirm, then delete the Remove rows of the Clean up preview (runLocalCleanup).
-%   The confirmation lists what goes, by kind, and what stays. Nothing is
+%onCleanupRun  Confirm, then delete the ticked Remove rows of the Clean up preview (runLocalCleanup).
+%   The confirmation lists what goes, by kind, and what stays, and says how
+%   many ticked files the table's filters hide. Nothing is
 %   deleted while the pipeline, a copy or a Kilosort4 run is under way,
 %   since any of them may be using the files. Afterwards the preview is
 %   made again, so the table shows what is left.
 T = obj.CleanupPlan;
-if isempty(T) || ~any(T.Action == "remove"); return; end
+if isempty(T); return; end
+% an unticked Remove row stays: runLocalCleanup deletes only Action "remove"
+hidden = setdiff(find(T.Action == "remove" & T.Include), obj.CleanupRowMap);
+unticked = T.Action == "remove" & ~T.Include;
+T.Action(unticked) = "keep";
+T.Reason(unticked) = "Unticked in the preview.";
+if ~any(T.Action == "remove"); return; end
 busy = "";
 if obj.RunActive
     busy = "The pipeline is running.";
@@ -38,6 +45,9 @@ msg = [sprintf("Permanently delete %d file(s), %s, from %d dataset(s)?", height(
     sprintf("%d file(s), %s, remain: every pipeline output, the sorted units, the manifests and the Epsych2 sessions.", ...
         height(kept), bytesText(sum(kept.Bytes)))
     "The files are deleted, not moved to the Recycle Bin."];
+if ~isempty(hidden)
+    msg = [msg; ""; sprintf("%d of the files to delete are ticked but hidden by the search, Subject or Show filters.", numel(hidden))];
+end
 if any(rm.Category == "raw")
     msg = [msg; ""; "Datasets whose raw recording is removed cannot be run, viewed or scanned until they are copied back from the source."];
 end

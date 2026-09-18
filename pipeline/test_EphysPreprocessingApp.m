@@ -751,13 +751,56 @@ rawRow = P(P.File == string(fullfile(f1, 'recA.rhd')), :);
 check(height(P) > 2 && isequal(P.Action(P.File == string(fullfile(ksOut, 'recording.dat'))), "remove") ...
     && rawRow.Action == "keep" && contains(rawRow.Reason, "no source copy") ...
     && app.CleanupRunButton.Enable == "on" && startsWith(app.CleanupSummaryLabel.Text, "Would remove 1 file(s)") ...
-    && height(app.CleanupTable.Data) == height(P) && isfile(fullfile(ksOut, 'recording.dat')), ...
+    && size(app.CleanupTable.Data, 1) == height(P) && isfile(fullfile(ksOut, 'recording.dat')), ...
     'Preview lists every file as Remove or Keep (a raw recording without a copy record stays) and deletes nothing');
+check(app.CleanupTable.ColumnSortable && isequal(P.Include, P.Action == "remove") ...
+    && isequal(app.CleanupSubjectDropDown.Items, [{'All subjects'}; cellstr(unique(P.Subject))].'), ...
+    'the columns sort, every Remove file starts ticked and the Subject ID list holds the plan''s subjects');
 app.CleanupShowKeptCheckBox.Value = false;
 app.refreshCleanupTable();
-check(height(app.CleanupTable.Data) == 1 && app.CleanupTable.Data.Action == "Remove", ...
+check(size(app.CleanupTable.Data, 1) == 1 && isequal(app.CleanupTable.Data(1, 1:2), {true, 'Remove'}), ...
     'unticking Show the files that remain leaves only the Remove rows');
 app.CleanupShowKeptCheckBox.Value = true;
+app.CleanupSearchField.Value = 'recording\.dat$';
+app.refreshCleanupTable();
+check(size(app.CleanupTable.Data, 1) == 1 && startsWith(app.CleanupShownLabel.Text, "Showing 1 of"), ...
+    'the regexp search shows only the matching files');
+app.CleanupSearchField.Value = 'no-such-file';
+app.refreshCleanupTable();
+check(isempty(app.CleanupTable.Data) && isequal(app.CleanupSearchField.BackgroundColor, [1.00 0.85 0.85]), ...
+    'a search matching no file empties the table and is flagged');
+app.CleanupSearchField.Value = '';
+app.CleanupSubjectDropDown.Value = app.CleanupSubjectDropDown.Items{end};
+app.refreshCleanupTable();
+check(size(app.CleanupTable.Data, 1) == nnz(P.Subject == string(app.CleanupSubjectDropDown.Value)), ...
+    'the Subject ID list shows only that subject''s files');
+app.CleanupSubjectDropDown.Value = 'All subjects';
+app.refreshCleanupTable();
+r = find(strcmp(app.CleanupTable.Data(:, 2), 'Remove'));
+app.onCleanupFileTicked(struct('Indices', [r 1], 'NewData', false));
+check(~app.CleanupPlan.Include(app.CleanupRowMap(r)) && app.CleanupRunButton.Enable == "off" ...
+    && contains(app.CleanupSummaryLabel.Text, "Would remove 0 file(s)"), ...
+    'unticking the only Remove file leaves nothing to remove');
+k = find(strcmp(app.CleanupTable.Data(:, 2), 'Keep'), 1);
+app.CleanupTable.Data{k, 1} = true;
+app.onCleanupFileTicked(struct('Indices', [k 1], 'NewData', true));
+check(~app.CleanupTable.Data{k, 1} && ~any(app.CleanupPlan.Include(app.CleanupPlan.Action == "keep")), ...
+    'a Keep file cannot be ticked');
+app.onCleanupSelect("all");
+check(app.CleanupPlan.Include(app.CleanupRowMap(r)) && app.CleanupRunButton.Enable == "on", 'All visible ticks the Remove files shown');
+app.onCleanupSelect("invert");
+check(~any(app.CleanupPlan.Include), 'Invert visible flips them');
+app.onCleanupSelect("all");
+app.CleanupSearchField.Value = 'no-such-file';
+app.refreshCleanupTable();
+app.onCleanupSelect("only");
+check(~any(app.CleanupPlan.Include), 'Only visible with nothing shown unticks every hidden file');
+app.CleanupSearchField.Value = '';
+app.refreshCleanupTable();
+app.onCleanupSelect("all");
+app.onCleanupSelect("none");
+check(~any(app.CleanupPlan.Include) && app.CleanupRunButton.Enable == "off", 'None visible unticks what is shown');
+app.onCleanupSelect("all");
 app.CleanupSorterCopyCheckBox.Value = false;
 app.onCleanupSettingsChanged();
 check(isempty(app.CleanupPlan) && app.CleanupRunButton.Enable == "off" && contains(app.CleanupSummaryLabel.Text, "Preview again"), ...

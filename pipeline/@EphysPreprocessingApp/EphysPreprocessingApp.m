@@ -354,8 +354,12 @@ classdef EphysPreprocessingApp < handle
         CleanupPreviewButton      matlab.ui.control.Button
         CleanupRunButton          matlab.ui.control.Button
         CleanupSummaryLabel       matlab.ui.control.Label
+        CleanupSearchField        matlab.ui.control.EditField
+        CleanupSubjectDropDown    matlab.ui.control.DropDown
         CleanupTable              matlab.ui.control.Table
         CleanupShowKeptCheckBox   matlab.ui.control.CheckBox
+        CleanupShownLabel         matlab.ui.control.Label
+        CleanupSelectButtons      matlab.ui.control.Button   % All / None / Only / Invert visible
         CleanupLogArea            matlab.ui.control.TextArea
 
         % --- Signals tab (config Signals; gather/applyConvertConfig) ---
@@ -583,8 +587,9 @@ classdef EphysPreprocessingApp < handle
         ReviewDatasetIdx (1,1) double = 0    % dataset the tab last showed (-1 = reload; syncReviewDataset)
 
         % --- Clean up tab state (in memory) ---
-        CleanupPlan = []                                        % planLocalCleanup table shown ([] = no preview)
+        CleanupPlan = []                                        % planLocalCleanup table + Subject, Include ([] = no preview)
         CleanupPlanKeys (1,:) string = string.empty(1, 0)       % dataset keys it was made for
+        CleanupRowMap (:,1) double = zeros(0, 1)                % CleanupPlan row of each CleanupTable.Data row
 
         % --- the last run error (Help > Report an issue sends it; issueReport) ---
         LastError MException = MException.empty(0, 1)   % what a run stopped on ([] when none)
@@ -872,8 +877,10 @@ classdef EphysPreprocessingApp < handle
         onCleanupPreview(obj)
         onCleanupRun(obj)
         onCleanupSettingsChanged(obj, why)
+        onCleanupFileTicked(obj, evt)
+        onCleanupSelect(obj, how)
         refreshCleanupScope(obj)
-        refreshCleanupTable(obj)
+        refreshCleanupTable(obj, part)
 
         % --- app-wide ---
         loadPreferences(obj)

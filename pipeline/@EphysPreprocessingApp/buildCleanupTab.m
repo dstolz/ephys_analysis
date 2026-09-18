@@ -57,23 +57,59 @@ obj.CleanupRunButton = uibutton(cg, "Text", "Remove files...", "Enable", "off", 
 obj.CleanupRunButton.Layout.Row = 12; obj.CleanupRunButton.Layout.Column = 2;
 
 % =================== right: the files ===================
+% Include ticks which Remove files go (Keep files cannot be ticked); the
+% search, Subject and "Show the files that remain" only filter what is
+% shown, and the select buttons act on the rows shown.
 right = uipanel(g, "Title", "Files of the selected datasets");
 right.Layout.Column = 2;
-rg = uigridlayout(right, [4 2]);
-rg.RowHeight   = {'fit', '1x', 24, 90};
-rg.ColumnWidth = {'1x', 'fit'};
+rg = uigridlayout(right, [5 1]);
+rg.RowHeight   = {'fit', 24, '1x', 24, 90};
+rg.RowSpacing  = 6;
 obj.CleanupSummaryLabel = uilabel(rg, "WordWrap", "on", "FontWeight", "bold", ...
     "Text", "Press Preview to see what would be removed and what would remain.");
-obj.CleanupSummaryLabel.Layout.Row = 1; obj.CleanupSummaryLabel.Layout.Column = [1 2];
-obj.CleanupTable = uitable(rg, "RowName", {}, ...
-    "ColumnName", {'Action', 'Dataset', 'What', 'Size', 'File', 'Why'}, ...
-    "ColumnWidth", {60, 'fit', 190, 70, '2x', '2x'});
-obj.CleanupTable.Layout.Row = 2; obj.CleanupTable.Layout.Column = [1 2];
-obj.CleanupShowKeptCheckBox = uicheckbox(rg, "Text", "Show the files that remain", "Value", true, ...
+obj.CleanupSummaryLabel.Layout.Row = 1;
+
+fg = uigridlayout(rg, [1 4]);
+fg.Layout.Row = 2;
+fg.ColumnWidth = {'fit', '1x', 'fit', 160};
+fg.Padding = [0 0 0 0];
+uilabel(fg, "Text", "Search (regexp):");
+obj.CleanupSearchField = uieditfield(fg, "text", "Placeholder", "e.g. \.rhd$ or kilosort4", ...
+    "Tooltip", "Show only the files whose full path matches this regular expression (case-insensitive).", ...
     "ValueChangedFcn", @(~,~) obj.refreshCleanupTable());
-obj.CleanupShowKeptCheckBox.Layout.Row = 3; obj.CleanupShowKeptCheckBox.Layout.Column = 1;
+uilabel(fg, "Text", "Subject ID:");
+obj.CleanupSubjectDropDown = uidropdown(fg, "Items", {'All subjects'}, ...
+    "Tooltip", "Show only the files of one subject (the SubjectID of Project.NamePattern).", ...
+    "ValueChangedFcn", @(~,~) obj.refreshCleanupTable());
+
+obj.CleanupTable = uitable(rg, "RowName", {}, "ColumnSortable", true, ...
+    "ColumnName", {'Include', 'Action', 'Dataset', 'Subject', 'What', 'Size (MB)', 'File', 'Why'}, ...
+    "ColumnWidth", {72, 78, 'fit', 80, 180, 92, '2x', '2x'}, ...
+    "ColumnEditable", [true false(1, 7)], ...
+    "ColumnFormat", {'logical', 'char', 'char', 'char', 'char', 'shortG', 'char', 'char'}, ...
+    "Data", cell(0, 8), ...
+    "CellEditCallback", @(~, evt) obj.onCleanupFileTicked(evt));
+obj.CleanupTable.Layout.Row = 3;
+
+bg = uigridlayout(rg, [1 6]);
+bg.Layout.Row = 4;
+bg.ColumnWidth = {'fit', '1x', 90, 90, 90, 95};
+bg.Padding = [0 0 0 0];
+obj.CleanupShowKeptCheckBox = uicheckbox(bg, "Text", "Show the files that remain", "Value", true, ...
+    "ValueChangedFcn", @(~,~) obj.refreshCleanupTable());
+obj.CleanupShownLabel = uilabel(bg, "Text", "", "FontColor", [0.4 0.4 0.4]);
+obj.CleanupSelectButtons = [ ...
+    uibutton(bg, "Text", "All visible", "Tooltip", "Tick every Remove file shown.", ...
+        "ButtonPushedFcn", @(~,~) obj.onCleanupSelect("all"))
+    uibutton(bg, "Text", "None visible", "Tooltip", "Untick every file shown.", ...
+        "ButtonPushedFcn", @(~,~) obj.onCleanupSelect("none"))
+    uibutton(bg, "Text", "Only visible", ...
+        "Tooltip", "Tick every Remove file shown and untick every file hidden by the filters.", ...
+        "ButtonPushedFcn", @(~,~) obj.onCleanupSelect("only"))
+    uibutton(bg, "Text", "Invert visible", "Tooltip", "Flip the tick of every Remove file shown.", ...
+        "ButtonPushedFcn", @(~,~) obj.onCleanupSelect("invert"))];
 obj.CleanupLogArea = uitextarea(rg, "Editable", "off", "FontName", "Consolas");
-obj.CleanupLogArea.Layout.Row = 4; obj.CleanupLogArea.Layout.Column = [1 2];
+obj.CleanupLogArea.Layout.Row = 5;
 end
 
 

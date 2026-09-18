@@ -1,7 +1,8 @@
 function onCleanupPreview(obj)
 %onCleanupPreview  List the selected datasets' files as Remove or Keep (planLocalCleanup).
 %   Reads only file listings (and the sources of copied raw files); nothing
-%   is changed. The plan is what Remove files... deletes.
+%   is changed. The plan's ticked (Include) Remove rows are what Remove
+%   files... deletes; every Remove row starts ticked.
 obj.CleanupPlan = [];
 obj.CleanupPlanKeys = string.empty(1, 0);
 idx = obj.selectedDatasetIndices();
@@ -21,6 +22,14 @@ catch ME
     obj.setStatus("Clean up: preview failed.", "");
     return
 end
+% Subject (for the Subject ID filter) and Include (every Remove file ticked)
+T.Subject = repmat("(none)", height(T), 1);
+ds = obj.Project.Datasets(idx);
+for d = ds(:).'
+    s = EphysDataset.nameIdentity(d.Name, d.NamePattern).subject;
+    if s ~= ""; T.Subject(T.Dataset == string(d.Name)) = s; end
+end
+T.Include = T.Action == "remove";
 keys = obj.Project.datasetKeys();
 obj.CleanupPlan = T;
 obj.CleanupPlanKeys = keys(idx);

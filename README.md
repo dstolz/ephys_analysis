@@ -1,20 +1,5 @@
 # ephys_analysis
 
-Config-driven preprocessing pipeline for extracellular electrophysiology, in
-MATLAB: read recordings (Intan RHD out of the box; any other system through a
-universal binary format), screen for artifacts, sort with Kilosort4 through
-SpikeInterface (optional), derive LFP / MUA / spike-band signals, detect
-spikes and collect sorted units, associate Epsych2 behavior sessions, and
-export files for the [Chronux](http://chronux.org) and
-[FieldTrip](https://www.fieldtriptoolbox.org/) toolboxes. One JSON config
-(`EphysPipelineConfig`) drives the GUI (`EphysPreprocessingApp`), the headless
-runner (`EphysPipeline`) and generated scripts (`EphysPipelineScript`).
-
-This repository was split out of
-[`helper_fnc`](https://github.com/dstolz/helper_fnc)'s `ephys/` folder on
-2026-09-11. `ephys/intan` became [`pipeline/`](pipeline) and `ephys/documentation`
-became [`documentation/`](documentation) at the repo root; history was not
-carried over (fresh initial commit).
 
 See [documentation/README.md](documentation/README.md) for the full pipeline
 reference and [pipeline/INSTALL.md](pipeline/INSTALL.md) for setup.

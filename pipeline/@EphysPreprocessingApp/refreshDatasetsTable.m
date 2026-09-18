@@ -98,6 +98,9 @@ for i = 1:n
         end
         if ~isempty(d.TrialPairing)
             Behavior(i) = Behavior(i) + ", pairing " + d.TrialPairing.status;
+            if d.TrialPairing.auto_approved
+                Behavior(i) = Behavior(i) + " (auto)";
+            end
         end
     end
 end

@@ -182,8 +182,28 @@ end
 | Stitch selected rows | merges the selected rows (click, then Ctrl- or Shift-click) into one `stitched` session: they must hold exactly one Intan folder and at least two ePsych files. See [Stitching](#stitching-epsych-files) |
 | Unstitch | puts the selected stitched rows back as Find sessions paired them |
 | Preview (dry run) | reports what a copy would do, including a free-space check and how much of a partial copy is already there; writes nothing |
-| Copy selected | copies the ticked rows **in the background**: the app stays usable, the line under the options shows the engine's progress and the table's **Result** column tracks each row. The button becomes **Cancel copy**, which stops after the file being copied (what has been copied is kept, and `resume` completes it later) |
+| Copy selected | copies the ticked rows **in the background**: the app stays usable, a progress panel opens above the table and the table's **Result** column tracks each row (see [Watching a copy](#watching-a-copy)). The button becomes **Cancel copy**, which stops after the file being copied (what has been copied is kept, and `resume` completes it later) |
 | After copying, open the copied sessions as the project | sets the Project root to the folder holding the copied sessions, scans it and makes the first copied session the active dataset |
+
+### Watching a copy
+
+While a batch is in flight a progress panel sits between the options and the
+table, and closes again when the batch is done:
+
+| | |
+|---|---|
+| headline | what is being done to which session: `Copying session 2 of 4   SUBJ-ID-1255_260914_101756`, or `Verifying (SHA-256) ...` during the checksum pass and `Stitching ePsych files for ...` while a stitched row is written |
+| bar + percentage | the whole batch, counting the checksum pass as the two extra reads it is (`Verify=hash` makes copying the first third of the work) |
+| detail line | the bytes of the batch that have moved, then the file the engine is on: `4.9 GB of 11.2 GB   amplifier.dat` |
+| rate + time left | measured from the bytes themselves over the last 15 s, and from the fraction and how long it has taken so far. Neither is shown until there is enough of the copy to measure |
+| **Result** column | the session being copied shows its own percentage (`copying 42%`, `verifying 42%`), the sessions behind it in the batch show `waiting`, and each becomes `copied` / `already_present` / `failed` when the batch is verified |
+| **Copy** tab button | goes blue (busy) for as long as a copy is running, so it is visible from whichever tab the app has moved on to |
+
+The percentage moves inside a single large file, not just between sessions:
+robocopy says nothing until it exits, so the engine sizes the session's
+destination files about once a second while it runs, and reports how far each
+SHA-256 has read. Closing the app stops the watching, not the copy
+(see [`copySessions`](../pipeline/copySessions.m)).
 
 **Pairing.** Names are parsed with strict, fully anchored patterns; any other
 name in the two subject folders is skipped and listed in the log. Candidate
@@ -557,7 +577,22 @@ the spikes file, Export) follow under **Downstream**. Stages the config leaves
 off are dashed, disabled steps are faded, and artifact periods feeding another
 step are marked orange. With an active dataset the recording node shows its
 name, rate and channel count, and the Sorting tree shows its probe and
-exclusions. **Save as HTML...** writes the chart as a standalone page.
+exclusions.
+
+**Click a box to open the setting it draws**: the app switches to the tab that
+holds it, scrolls it into view, focuses it and colours it blue and bold until
+you leave the tab. A box usually stands for several controls (the *Threshold*
+box for the method, the threshold and the polarity; *Drift correction* for
+`nblocks`, `sig_interp`, `binning_depth`, `dmin` and `dminx`) — all of them are
+marked, and the first one decides the tab. A step's header opens its **Enable**
+box. Boxes lead where the setting lives rather than where they are drawn, so
+*Silence artifact periods* in the Sorting tree opens the Artifacts tab, *Read in
+chunks* opens the Run tab's parallel settings, and the recording box opens the
+project root. Keyboard: tab to a box and press Enter or Space.
+
+**Save as HTML...** writes the chart as a standalone page. Saved pages are not
+clickable: the boxes only come alive when the app's HTML component calls the
+page's `setup()`.
 
 ## Run
 
@@ -761,7 +796,7 @@ app.KSRuns                        % background runs being monitored
 | `onOptimizeKS4ForProbe.m`, `onResetKS4Params.m`, `onUseSortingFolder.m`, `onUseAutoSorting.m`, `refreshSortingLabel.m`, `pollKSRuns.m`, `onLaunchPhy.m`, `launchPhy.m` | Sorting tab and phy |
 | `onSpikesPreview.m`, `syncSpikesEnableStates.m` | Spikes tab |
 | `onPlotVisualization.m`, `onVizButtonDown/Up.m`, `drawVizArtifacts.m`, `finishVizArtDrag.m`, `applyVizChannelOrder.m`, `applyVizChannelColor.m`, `syncVizDataset.m` | Visualize tab |
-| `buildFlowTab.m`, `refreshFlowChart.m`, `flowChartHTML.m`, `onSaveFlowChart.m` | Diagram tab |
+| `buildFlowTab.m`, `refreshFlowChart.m`, `flowChartHTML.m`, `onSaveFlowChart.m`, `onFlowNavigate.m`, `flowNavControls.m`, `clearFlowHighlight.m` | Diagram tab |
 | `buildCopyTab.m`, `onCopyFind.m`, `onCopyRun.m`, `refreshCopyTable.m`, `onCopyTableEdited.m`, `onCopyStitch.m`, `onCopyUnstitch.m`, `onBrowseCopyFolder.m`, `copyLog.m`, `onCopyCancel.m`, `startCopyMonitor.m`, `stopCopyMonitor.m`, `pollCopyJob.m`, `setCopyRunning.m`, `applyCopyResult.m`, `finishCopyRun.m`, `showCopyProgress.m`, `copySummaryText.m`; `pipeline/findCopySessions.m`, `pipeline/stitchCopySessions.m`, `pipeline/copySessions.m`, `pipeline/copy_engine.ps1`, `pipeline/stitchEpsychSessions.m` | Copy tab, the pairing / stitching / copy functions it calls, and the detached copy engine |
 | `loadReviewResults.m`, `renderReviewPlots.m`, `syncReviewDataset.m` | Review tab |
 | `load/savePreferences.m` | preferences |
@@ -770,7 +805,9 @@ app.KSRuns                        % background runs being monitored
 
 [`test_EphysPreprocessingApp.m`](../pipeline/test_EphysPreprocessingApp.m) builds
 the app headlessly over a synthetic project: config → controls → config round
-trip, the unsaved marker, the Diagram of the loaded config and its refresh on edits, the Run checklist ↔ tab sync and its Parallel controls, scan + selection ticks
+trip, the unsaved marker, the Diagram of the loaded config and its refresh on edits, that every box in a
+chart of all the steps points at controls that exist and that clicking one opens its tab and marks
+them, the Run checklist ↔ tab sync and its Parallel controls, scan + selection ticks
 (and the ticked datasets in the Dataset menu),
 the active dataset's highlight under the token filters, plan, the Sorting tab's Optimize for probe (each answer to the offer to generate a
 missing parameter file, including a probe map without positions, loading the
@@ -788,8 +825,10 @@ is completed by `resume` (the short file finished, the missing one copied, the
 rest left alone); a truncated copy fails; one missing source does not stop the
 batch; unpaired rows copy only on request; Cancel works. It checks the
 background form too: `Background=true` returns before the copy is done, polling
-the job carries it through to `copied`, and options passed with a job are
-refused. It also drives the Copy tab from Find through a background copy to the
+the job carries it through to `copied`, options passed with a job are
+refused, and every `ProgressFcn` call carries the fraction, a message and the
+`info` behind it (phase, session, sessions, bytes) with a fraction that never
+steps back. It also drives the Copy tab from Find through a background copy to the
 finished table. Copy tests need Windows (robocopy).
 [`test_SyntheticDataset.m`](../pipeline/test_SyntheticDataset.m) checks the
 synthetic project generators and, headlessly, the File-menu action: the

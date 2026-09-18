@@ -393,6 +393,35 @@ classdef test_CopySessions < matlab.unittest.TestCase
             tc.verifyError(@() copySessions(job, DestRoot=tc.Dest), 'copySessions:JobTakesNoOptions');
         end
 
+        function progressIsReportedAndNeverGoesBackwards(tc)
+            % Every ProgressFcn call carries the fraction, a message and the
+            % info a caller needs to show more than a percentage; the fraction
+            % only ever grows, through the copy and the checksum pass alike.
+            tc.assumeTrue(ispc, "robocopy needs Windows");
+            tc.addPair("260916T110742", "260916_110907");
+            T = tc.find(tc.Subj, "260916");
+            seen = containers.Map('KeyType', 'double', 'ValueType', 'any');
+            R = copySessions(T, DestRoot=tc.Dest, DryRun=false, Verify="hash", ...
+                ProgressFcn=@(fr, m, info) appendProgress(seen, fr, info), LogFcn=@(~) []);
+            tc.verifyEqual(R.CopyStatus, "copied", R.Message);
+
+            v = values(seen);            % numeric keys: values come back in call order
+            calls = [v{:}];
+            tc.verifyNotEmpty(calls);
+            fracs = [calls.frac];
+            tc.verifyGreaterThanOrEqual(min(diff(fracs)), 0, "the percentage never steps back");
+            tc.verifyEqual(fracs(end), 1);
+
+            info = [calls.info];
+            tc.verifyEqual(sort(unique(string(fieldnames(info)))).', ...
+                sort(["Bytes" "Phase" "Session" "SessionBytes" "Sessions"]));
+            tc.verifyEqual(info(end).Phase, "done");
+            tc.verifyTrue(any([info.Phase] == "copying") && any([info.Phase] == "verifying"), ...
+                "both phases report themselves");
+            tc.verifyTrue(all(arrayfun(@(i) i.Sessions(2) == 1, info)), "one session in the batch");
+            tc.verifyEqual(info(end).Bytes, [R.TotalBytes R.TotalBytes], "the batch ends on its own size");
+        end
+
         function verificationFailureIsReported(tc)
             tc.assumeTrue(ispc, "robocopy needs Windows");
             tc.addPair("260916T110742", "260916_110907");
@@ -425,7 +454,7 @@ classdef test_CopySessions < matlab.unittest.TestCase
 
             shown = containers.Map('KeyType', 'double', 'ValueType', 'any');
             R = copySessions(T, DestRoot=tc.Dest, DryRun=false, Verify="hash", BeforeVerifyFcn=corrupt, ...
-                ProgressFcn=@(~, m) appendLog(shown, m), LogFcn=@(~) []);
+                ProgressFcn=@(~, m, ~) appendLog(shown, m), LogFcn=@(~) []);
             tc.verifyTrue(any(contains(string(shown.values), "SHA-256 checksum")), "each checksum is shown");
             tc.verifyEqual(R.CopyStatus, "failed");
             tc.verifySubstring(char(R.Message), 'amplifier.dat SHA-256 differs');
@@ -771,6 +800,12 @@ if isstruct(saved)
         setpref(g, char(f), saved.(f));
     end
 end
+end
+
+
+function appendProgress(map, frac, info)
+%appendProgress  Keep every ProgressFcn call, in order (a Map: the handle is shared).
+map(map.Count + 1) = struct('frac', frac, 'info', info);
 end
 
 

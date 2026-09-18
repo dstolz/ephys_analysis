@@ -101,6 +101,38 @@ app.onSpikesControlsChanged();
 check(contains(string(app.FlowHTML.HTMLSource), "thr = 2500 &micro;V"), 'the Diagram follows config edits while shown');
 app.SpkThresholdField.Value = '2000';
 app.onSpikesControlsChanged();
+
+fprintf('\n== 1a. Diagram: boxes open their settings ==\n');
+loaded = app.Config;                       % put back after the every-branch chart below
+allOn = loaded;
+allOn.Artifacts.Enabled = true; allOn.Sorting.Enabled = true; allOn.Signals.Enabled = true;
+allOn.Signals.LFP = true; allOn.Signals.MUA = true; allOn.Signals.SPIKE = true; allOn.Signals.AUX = true;
+allOn.Export.Enabled = true; allOn.Export.Formats = ["chronux" "fieldtrip"];
+app.applyConfig(allOn);
+full = string(app.FlowHTML.HTMLSource);
+targets = unique(strip(split(join(string(regexp(full, '(?<=data-nav=")[^"]+', 'match')), ","), ",")));
+missing = targets(arrayfun(@(t) isempty(app.flowNavControls(t)), targets));
+msg = sprintf('every one of the %d controls the Diagram boxes point at exists', numel(targets));
+if ~isempty(missing); msg = msg + " (missing: " + join(missing, ", ") + ")"; end
+check(numel(targets) > 50 && isempty(missing) && contains(full, "sendEventToMATLAB('navigate'") ...
+    && ~isempty(app.FlowHTML.HTMLEventReceivedFcn), msg);
+check(isempty(regexp(full, '<div class="n k-[a-z]+">', 'once')) && count(full, "<header data-nav=") == 6, ...
+    'no box is left without a target, and each of the 6 step headers has one too');
+app.applyConfig(loaded);
+drift = struct('nav', 'ks4.nblocks,ks4.sig_interp,ks4.binning_depth,ks4.dmin,ks4.dminx', 'title', 'Drift correction');
+app.onFlowNavigate(struct('HTMLEventName', 'navigate', 'HTMLEventData', drift));
+check(app.Tabs.SelectedTab == app.TabSorting && numel(app.FlowHighlight) == 5 ...
+    && isequal(app.ParamControls.nblocks.FontColor, [0.15 0.45 0.80]) && app.ParamControls.dmin.FontWeight == "bold" ...
+    && contains(app.StatusBar.Text, "Drift correction is set on the Sorting tab"), ...
+    'a click in the Diagram opens the first control''s tab, marks every control of the box and says where it went');
+app.selectTab(app.TabFlow);
+check(isempty(app.FlowHighlight) && app.ParamControls.nblocks.FontWeight == "normal" ...
+    && isequal(app.ParamControls.nblocks.FontColor, app.ParamControls.nt.FontColor), ...
+    'the marks come off when the tab changes');
+app.onFlowNavigate(struct('HTMLEventName', 'navigate', ...
+    'HTMLEventData', struct('nav', 'NoSuchField', 'title', 'Gone')));
+check(app.Tabs.SelectedTab == app.TabFlow && contains(app.StatusBar.Text, "no setting to open"), ...
+    'a box pointing at a control that no longer exists says so instead of navigating');
 app.selectTab(app.TabProject);
 g2 = app.gatherConfig();
 check(g2.isequalConfig(app.Config) && isequaln(g2.toStruct(), cfg.toStruct()), 'gatherConfig reproduces the loaded config exactly');

@@ -117,7 +117,9 @@ classdef EphysDataset < handle
 
         % Epsych2 behavioral session file (.mat with Data + Info) associated
         % with this recording. "" = none. Persisted in the manifest under
-        % behavior.file. See readBehavior, readEpsychSession.
+        % behavior.file. A scan (EphysProject.refresh) fills it from the one
+        % Epsych2 file in the recording folder when none is associated (see
+        % associateFolderBehavior). See readBehavior, readEpsychSession.
         BehaviorFile (1,1) string = ""
 
         % How Epsych2 trials are paired with a digital line (pairTrials):
@@ -128,10 +130,11 @@ classdef EphysDataset < handle
 
         % The reviewed trial pairing, persisted in the manifest under
         % behavior.pairing; struct([]) until one is recorded. Fields: status
-        % ("unreviewed" | "approved"), cut_trials and cut_intervals ([start
-        % end] counts dropped before pairing in order), fingerprint (behavior
-        % session + trial line intervals it applies to), trial_line, summary,
-        % updated. See pairTrials, setTrialPairing.
+        % ("unreviewed" | "approved"), auto_approved (true when approved by
+        % autoApproveTrialPairing rather than by a review), cut_trials and
+        % cut_intervals ([start end] counts dropped before pairing in order),
+        % fingerprint (behavior session + trial line intervals it applies
+        % to), trial_line, summary, updated. See pairTrials, setTrialPairing.
         TrialPairing struct = struct([])
         Manifest                                  % optional Manifest for provenance
 
@@ -199,9 +202,11 @@ classdef EphysDataset < handle
         [trials, info, meta] = readBehavior(obj)
         b      = behaviorStruct(obj, opts)
         out    = behaviorToMat(obj, opts)
+        tf     = associateFolderBehavior(obj)
         E      = digitalEvents(obj, opts)
         P      = pairTrials(obj, opts)
-        setTrialPairing(obj, P, status)
+        setTrialPairing(obj, P, status, opts)
+        [P, tf] = autoApproveTrialPairing(obj, P)
         summary = analyzeArtifacts(obj, opts)
         X      = blankArtifacts(obj, X, mask, opts)
         mask   = manualArtifactMask(obj, nSamp, sampleOffset, Fs)
@@ -795,8 +800,12 @@ classdef EphysDataset < handle
                 end
                 cuts{k} = v;
             end
-            q = struct('status', string(p.status), 'cut_trials', cuts{1}, 'cut_intervals', cuts{2}, ...
+            q = struct('status', string(p.status), 'auto_approved', false, ...
+                'cut_trials', cuts{1}, 'cut_intervals', cuts{2}, ...
                 'fingerprint', string(p.fingerprint), 'trial_line', "", 'summary', "", 'updated', "");
+            if isfield(p, 'auto_approved') && isscalar(p.auto_approved)
+                q.auto_approved = logical(p.auto_approved) && q.status == "approved";
+            end
             for f = ["trial_line" "summary" "updated"]
                 if isfield(p, f) && ~isempty(p.(f)); q.(f) = string(p.(f)); end
             end

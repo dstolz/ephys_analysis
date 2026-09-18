@@ -72,6 +72,9 @@ for step = steps
                 end
                 if c.Behavior.PairTrials
                     pr = "pairs trials with " + c.Behavior.TrialLine;
+                    if c.Behavior.AutoApprove
+                        pr = pr + ", approving matching counts";
+                    end
                     if ~isempty(d.TrialPairing)
                         pr = pr + " (recorded pairing: " + d.TrialPairing.status + ")";
                     end

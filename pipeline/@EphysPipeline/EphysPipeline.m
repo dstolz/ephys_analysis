@@ -278,12 +278,15 @@ classdef EphysPipeline < handle
             %   order, with the TrialLine intervals (EphysDataset.pairTrials;
             %   the digital events are read once and cached). A reviewed
             %   pairing recorded in the manifest (its cuts) is reused while it
-            %   still matches; anything else is recorded as "unreviewed" and
-            %   reported as "needs review", or "count mismatch" when the
-            %   numbers of trials and intervals differ (a "behavior:pairing"
-            %   result row, and a WARNING log line; resolve it on the app's
-            %   Trials tab). The pairing columns are written into the
-            %   behavior file either way.
+            %   still matches. With Behavior.AutoApprove, a pairing whose
+            %   trial and interval counts match without cuts is approved
+            %   ("auto-approved"; EphysDataset.autoApproveTrialPairing).
+            %   Anything else is recorded as "unreviewed" and reported as
+            %   "needs review", or "count mismatch" when the numbers of
+            %   trials and intervals differ (a "behavior:pairing" result row,
+            %   and a WARNING log line; resolve it on the app's Trials tab).
+            %   The pairing columns are written into the behavior file either
+            %   way.
             arguments
                 obj (1,1) EphysPipeline
                 opts.Datasets (1,:) double = []
@@ -330,20 +333,28 @@ classdef EphysPipeline < handle
         end
 
         function P = pairTrialsFor(obj, d, k, n)
-            %pairTrialsFor  Pair D's trials, record an unreviewed result, report it.
-            %   Returns the pairTrials struct, or [] when pairing failed.
+            %pairTrialsFor  Pair D's trials, record the result, report it.
+            %   A new result is recorded as unreviewed, or approved when
+            %   Behavior.AutoApprove is on and its counts match. Returns the
+            %   pairTrials struct, or [] when pairing failed.
             t0 = tic;
             P = [];
             try
                 cb = @(i, nFiles, name) obj.progress("behavior", d.Name, k, n, i - 1, nFiles, ...
                     "reading digital events: " + string(name));
                 P = d.pairTrials(ProgressFcn=cb, Warn=false);
-                if P.recorded
-                    st = P.status;
-                    if st ~= "approved"; st = "needs review"; end
-                else
+                if obj.Config.Behavior.AutoApprove
+                    P = d.autoApproveTrialPairing(P);
+                end
+                if ~P.recorded
                     d.setTrialPairing(P, "unreviewed");
+                end
+                if P.status ~= "approved"
                     st = "needs review";
+                elseif P.autoApproved
+                    st = "auto-approved";
+                else
+                    st = "approved";
                 end
                 msg = P.summary;
                 if P.stale

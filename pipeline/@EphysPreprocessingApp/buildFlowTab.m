@@ -6,7 +6,8 @@ function buildFlowTab(obj)
 %   written, plus the downstream steps that read those files instead (sorted
 %   units, Export). Built by flowChartHTML from obj.Config and shown in an
 %   HTML component; refreshed when the tab is shown and whenever the config
-%   changes while it is (syncStepEnableStates).
+%   changes while it is (syncStepEnableStates). Clicking a box opens the
+%   setting it draws (onFlowNavigate).
 
 g = uigridlayout(obj.TabFlow, [2 1]);
 g.RowHeight = {'fit', '1x'};
@@ -24,6 +25,6 @@ obj.FlowSaveButton = uibutton(bar, "Text", "Save as HTML...", ...
     "ButtonPushedFcn", @(~,~) obj.onSaveFlowChart());
 obj.FlowSummaryLabel = uilabel(bar, "Text", "", "FontColor", [0.4 0.4 0.4]);
 
-obj.FlowHTML = uihtml(g);
+obj.FlowHTML = uihtml(g, "HTMLEventReceivedFcn", @(~, evt) obj.onFlowNavigate(evt));
 obj.FlowHTML.Layout.Row = 2;
 end

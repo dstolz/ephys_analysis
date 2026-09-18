@@ -10,12 +10,18 @@ function [html, summary] = flowChartHTML(obj)
 %   off are drawn dashed; disabled steps are faded. Artifact periods feeding
 %   Sorting / Spikes are marked in the Artifacts colour.
 %
+%   Each box names the control(s) that set what it shows (its node target,
+%   written into the page as data-nav). In the app a click on a box sends
+%   them to onFlowNavigate, which opens that control's tab; in a saved page
+%   the boxes are plain, because only the app calls the page's setup().
+%
 %   It reads only obj.Config and the active dataset (for the recording's
 %   rate, channel count, probe and exclusions), so it mirrors what
 %   EphysPipeline would run. SUMMARY is a one-line description for the tab.
 %
-%   See also EphysDataset.deriveSignals, EphysDataset.detectSpikes,
-%   EphysDataset.detectArtifacts, EphysDataset.runSpikeInterface.
+%   See also onFlowNavigate, flowNavControls, EphysDataset.deriveSignals,
+%   EphysDataset.detectSpikes, EphysDataset.detectArtifacts,
+%   EphysDataset.runSpikeInterface.
 
 cfg = obj.Config;
 d = obj.currentDataset();
@@ -24,15 +30,19 @@ dsName = ternary(isempty(d), "<Name>", d.Name);
 
 cards = [ ...
     card("artifacts", "Artifacts", cfg.Artifacts.Enabled, artifactsTree(cfg, raw), ...
-        ternary(cfg.Artifacts.Enabled, "", "Detection is off: only the manual periods reach Sorting / Spikes.")), ...
-    card("sorting", "Sorting", cfg.Sorting.Enabled, sortingTree(cfg, raw, d), sortingNote(cfg.Sorting)), ...
-    card("signals", "Signals", cfg.Signals.Enabled, signalsTree(cfg, raw, dsName), ""), ...
+        ternary(cfg.Artifacts.Enabled, "", "Detection is off: only the manual periods reach Sorting / Spikes."), ...
+        "ArtEnableCheckBox"), ...
+    card("sorting", "Sorting", cfg.Sorting.Enabled, sortingTree(cfg, raw, d), sortingNote(cfg.Sorting), ...
+        "SortEnableCheckBox,SortSkipExistingCheckBox,ExecModeDropDown,DryRunCheckBox"), ...
+    card("signals", "Signals", cfg.Signals.Enabled, signalsTree(cfg, raw, dsName), "", "SigEnableCheckBox"), ...
     card("spikes", "Spikes", cfg.Spikes.Enabled && cfg.Spikes.Source ~= "sorted", spikesTree(cfg, raw, dsName), ...
-        ternary(cfg.Spikes.Source == "sorted", "Source is 'sorted': no threshold detection runs.", ""))];
+        ternary(cfg.Spikes.Source == "sorted", "Source is 'sorted': no threshold detection runs.", ""), ...
+        "SpkEnableCheckBox,SpkSourceDropDown")];
 down = [ ...
     card("spikes", "Spikes: sorted units", cfg.Spikes.Enabled && cfg.Spikes.Source ~= "detect", unitsTree(cfg, dsName), ...
-        ternary(cfg.Spikes.Source == "detect", "Source is 'detect': sorted units are not read.", "")), ...
-    card("export", "Export", cfg.Export.Enabled, exportTree(cfg, dsName), "")];
+        ternary(cfg.Spikes.Source == "detect", "Source is 'detect': sorted units are not read.", ""), ...
+        "SpkSourceDropDown"), ...
+    card("export", "Export", cfg.Export.Enabled, exportTree(cfg, dsName), "", "ExpEnableCheckBox")];
 
 nOn = sum([cards.enabled]);
 summary = sprintf("%d of %d raw-data step(s) enabled", nOn, numel(cards));
@@ -42,8 +52,10 @@ end
 
 pageTitle = "Preprocessing diagram: " + cfg.Name;
 body = "<h1>" + esc(pageTitle) + "</h1>" + legendHTML() ...
+    + "<div class=""hint"">Click any box to open the setting it draws.</div>" ...
     + "<h2>From the raw recording</h2><div class=""cards"">" + joinHTML(arrayfun(@cardHTML, cards, "UniformOutput", false)) + "</div>" ...
-    + "<h2>Downstream (reads step outputs)</h2><div class=""cards"">" + joinHTML(arrayfun(@cardHTML, down, "UniformOutput", false)) + "</div>";
+    + "<h2>Downstream (reads step outputs)</h2><div class=""cards"">" + joinHTML(arrayfun(@cardHTML, down, "UniformOutput", false)) + "</div>" ...
+    + "<script>" + js() + "</script>";
 html = "<!DOCTYPE html><html><head><meta charset=""utf-8""><title>" + esc(pageTitle) + "</title><style>" ...
     + css() + "</style></head><body>" + body + "</body></html>";
 end
@@ -55,64 +67,69 @@ end
 
 function n = rawNode(d)
 if isempty(d)
-    n = node("src", "Raw recording", "amplifier channels (no active dataset)");
+    n = node("src", "Raw recording", "amplifier channels (no active dataset)", "RootPathField");
     return
 end
 info = string(d.RecordingFormat);
 if isfinite(d.Fs); info = sprintf("%g kHz, ", d.Fs / 1000) + info; end
 if isfinite(d.NumChannels); info = sprintf("%d ch, ", d.NumChannels) + info; end
-n = node("src", "Raw recording", [d.Name, info]);
+n = node("src", "Raw recording", [d.Name, info], "RootPathField,DatasetsTable");
 end
 
 
 function n = artifactsTree(cfg, raw)
 A = cfg.Artifacts;
+filtTarget = "ArtFilterCheckBox,ArtHighpassField";
 if A.Filter
     filt = node("op", "Butterworth " + A.FilterType, ...
-        [numList(A.FilterCutoff) + " Hz, order " + A.FilterOrder, "detector runs on the filtered copy"]);
+        [numList(A.FilterCutoff) + " Hz, order " + A.FilterOrder, "detector runs on the filtered copy"], filtTarget);
 else
-    filt = node("off", "Detection filter", "off (broadband)");
+    filt = node("off", "Detection filter", "off (broadband)", filtTarget);
 end
 thr = A.Threshold;
+detTarget = "ArtMethodDropDown,ArtThresholdField";
 switch A.Method
     case "rms"
         det = node("op", "Running RMS", ["window " + msOrAuto(A.RmsWindowMs, "auto (~1 ms)"), ...
-            "flag > " + numOr(thr, "9") + " robust SD above baseline"]);
+            "flag > " + numOr(thr, "9") + " robust SD above baseline"], detTarget + ",ArtRmsWindowField");
     case "mad"
-        det = node("op", "Robust z-score", ["|x - median| / (1.4826 MAD)", "flag z > " + numOr(thr, "8")]);
+        det = node("op", "Robust z-score", ["|x - median| / (1.4826 MAD)", "flag z > " + numOr(thr, "8")], detTarget);
     case "microvolts"
-        det = node("op", "Absolute amplitude", "flag |x| > " + numOr(thr, "1500") + " uV");
+        det = node("op", "Absolute amplitude", "flag |x| > " + numOr(thr, "1500") + " uV", detTarget);
     otherwise
-        det = node("op", "Common-mode mean", ["mean across channels", "flag |mean| > " + numOr(thr, "1500") + " uV"]);
+        det = node("op", "Common-mode mean", ["mean across channels", "flag |mean| > " + numOr(thr, "1500") + " uV"], detTarget);
 end
 if A.Method == "commonmode"
-    coinc = node("off", "Channel coincidence", "n/a for commonmode");
+    coinc = node("off", "Channel coincidence", "n/a for commonmode", "ArtMinChannelsField");
 else
-    coinc = node("op", "Channel coincidence", ">= " + A.MinChannels + " channel(s) at once");
+    coinc = node("op", "Channel coincidence", ">= " + A.MinChannels + " channel(s) at once", "ArtMinChannelsField");
 end
-merge = onOff(A.MergeGapMs > 0, "Merge gaps", sprintf("gaps <= %g ms stitched", A.MergeGapMs), "off (0 ms)");
-pad = onOff(A.PadMs > 0, "Pad intervals", sprintf("+/- %g ms", A.PadMs), "off (0 ms)");
+merge = onOff(A.MergeGapMs > 0, "Merge gaps", sprintf("gaps <= %g ms stitched", A.MergeGapMs), "off (0 ms)", "ArtMergeGapField");
+pad = onOff(A.PadMs > 0, "Pad intervals", sprintf("+/- %g ms", A.PadMs), "off (0 ms)", "ArtPadField");
 out = node("out", "Automatic intervals", ["[t_on t_off] s", ...
-    ternary(A.CacheIntervals, "cached while recording + settings match", "recomputed by each step")]);
+    ternary(A.CacheIntervals, "cached while recording + settings match", "recomputed by each step")], ...
+    "ArtCacheCheckBox,ArtDetectButton");
 
-toSort = linkNode(cfg.Sorting.Enabled, A.Enabled && A.ApplyToSorting, "Silence in Sorting", "ApplyToSorting");
+toSort = linkNode(cfg.Sorting.Enabled, A.Enabled && A.ApplyToSorting, "Silence in Sorting", "ApplyToSorting", "ArtApplySortingCheckBox");
 toSpk  = linkNode(cfg.Spikes.Enabled && cfg.Spikes.Source ~= "sorted" && cfg.Spikes.RejectArtifacts, ...
-    A.Enabled && A.ApplyToSpikes, "Reject in Spikes", "ApplyToSpikes");
-manual = node("data", "+ manual periods", "marked on Visualize; always applied", {toSort, toSpk});
+    A.Enabled && A.ApplyToSpikes, "Reject in Spikes", "ApplyToSpikes", "ArtApplySpikesCheckBox");
+manual = node("data", "+ manual periods", "marked on Visualize; always applied", "ArtManualTable,ArtEditVizButton");
+manual.children = {toSort, toSpk};
 out.children = {manual};
 
-n = chain({raw, node("op", "Read in chunks", ["one file / bounded window per chunk", parallelText(cfg.Parallel)]), ...
+n = chain({raw, node("op", "Read in chunks", ["one file / bounded window per chunk", parallelText(cfg.Parallel)], ...
+    "RunParallelCheckBox,RunMaxWorkersField"), ...
     filt, det, coinc, merge, pad, out});
 end
 
 
-function n = linkNode(stepOn, applyAuto, title, field)
+function n = linkNode(stepOn, applyAuto, title, field, target)
 if ~stepOn
-    n = node("off", title, "step not run");
+    n = node("off", title, "step not run", target);
 elseif applyAuto
-    n = node("link", title, "manual + automatic");
+    n = node("link", title, "manual + automatic", target);
 else
-    n = node("link", title, "manual only (" + field + " or detection off)");
+    n = node("link", title, "manual only (" + field + " or detection off)", target);
 end
 end
 
@@ -122,9 +139,9 @@ S = cfg.Sorting; SI = S.SI; K = S.KS4;
 A = cfg.Artifacts;
 
 if K.tmin > 0 || isfinite(K.tmax)
-    crop = node("op", "Crop", sprintf("%g - %s s", K.tmin, ternary(isfinite(K.tmax), sprintf("%g", K.tmax), "end")));
+    crop = node("op", "Crop", sprintf("%g - %s s", K.tmin, ternary(isfinite(K.tmax), sprintf("%g", K.tmax), "end")), "ks4.tmin,ks4.tmax");
 else
-    crop = node("off", "Crop", "whole recording");
+    crop = node("off", "Crop", "whole recording", "ks4.tmin,ks4.tmax");
 end
 
 if ~isempty(d) && d.ProbeFile ~= ""
@@ -135,10 +152,11 @@ else
     probe = "per-dataset probe (none set)";
 end
 
+bpTarget = "SIFilterCheckBox,SIFilterMinField,SIFilterMaxField";
 if SI.Filter
-    bp = node("op", "Bandpass filter", sprintf("%g - %g Hz (spre.bandpass_filter)", SI.FilterFreqMin, SI.FilterFreqMax));
+    bp = node("op", "Bandpass filter", sprintf("%g - %g Hz (spre.bandpass_filter)", SI.FilterFreqMin, SI.FilterFreqMax), bpTarget);
 else
-    bp = node("off", "Bandpass filter", "off (Kilosort4 filters)");
+    bp = node("off", "Bandpass filter", "off (Kilosort4 filters)", bpTarget);
 end
 
 bad = "manifest exclusions";
@@ -150,35 +168,41 @@ if SI.DetectBadChannels
     if ~SI.Filter; bad(end+1) = "  on a 300 Hz high-passed copy"; end
 end
 bad(end+1) = "-> " + SI.BadChannelAction;
-badNode = node("op", "Bad channels", bad);
+badNode = node("op", "Bad channels", bad, "SIDetectBadCheckBox,SIBadMethodDropDown,SIBadActionDropDown");
 
+carTarget = "SICommonRefCheckBox,SIRefOperatorDropDown";
 if SI.CommonReference
-    car = node("op", "Common reference", "global " + SI.ReferenceOperator);
-    ksCar = node("off", "KS4 CAR", "do_CAR off (already referenced)");
+    car = node("op", "Common reference", "global " + SI.ReferenceOperator, carTarget);
+    ksCar = node("off", "KS4 CAR", "do_CAR off (already referenced)", carTarget);
 else
-    car = node("off", "Common reference", "off (Kilosort4 CAR)");
-    ksCar = node("op", "KS4 CAR", "do_CAR (common average)");
+    car = node("off", "Common reference", "off (Kilosort4 CAR)", carTarget);
+    ksCar = node("op", "KS4 CAR", "do_CAR (common average)", carTarget);
 end
 
 sil = node("link", "Silence artifact periods", ...
-    ternary(A.Enabled && A.ApplyToSorting, "manual + automatic", "manual periods only"));
+    ternary(A.Enabled && A.ApplyToSorting, "manual + automatic", "manual periods only"), "ArtApplySortingCheckBox");
 
-hp = node("op", "KS4 high-pass", sprintf("%g Hz", K.highpass_cutoff));
+hp = node("op", "KS4 high-pass", sprintf("%g Hz", K.highpass_cutoff), "ks4.highpass_cutoff");
 art = onOff(isfinite(K.artifact_threshold), "KS4 artifact threshold", ...
-    sprintf("zero batches >= %g ADC counts", K.artifact_threshold), "off");
+    sprintf("zero batches >= %g ADC counts", K.artifact_threshold), "off", "ks4.artifact_threshold");
 white = node("op", "Whitening", [sprintf("%d nearest channels", K.whitening_range), ...
-    sprintf("batch %d samples", K.batch_size)]);
+    sprintf("batch %d samples", K.batch_size)], "ks4.whitening_range,ks4.batch_size,ks4.nskip");
 drift = onOff(K.nblocks > 0, "Drift correction", ...
-    [sprintf("nblocks %d", K.nblocks), sprintf("sig_interp %g um", K.sig_interp)], "off (nblocks = 0)");
+    [sprintf("nblocks %d", K.nblocks), sprintf("sig_interp %g um", K.sig_interp)], "off (nblocks = 0)", ...
+    "ks4.nblocks,ks4.sig_interp,ks4.binning_depth,ks4.dmin,ks4.dminx");
 det = node("op", "Template matching", [sprintf("Th_universal %g, Th_learned %g", K.Th_universal, K.Th_learned), ...
-    sprintf("Th_single_ch %g, nt %d samples", K.Th_single_ch, K.nt)]);
-clu = node("op", "Clustering", sprintf("ACG %g, CCG %g", K.acg_threshold, K.ccg_threshold));
-out = node("out", "Sorted units", ["kilosort4/si/sorter_output", "phy-ready"]);
+    sprintf("Th_single_ch %g, nt %d samples", K.Th_single_ch, K.nt)], ...
+    "ks4.Th_universal,ks4.Th_learned,ks4.Th_single_ch,ks4.nt");
+clu = node("op", "Clustering", sprintf("ACG %g, CCG %g", K.acg_threshold, K.ccg_threshold), ...
+    "ks4.acg_threshold,ks4.ccg_threshold,ks4.cluster_neighbors,ks4.x_centers");
+out = node("out", "Sorted units", ["kilosort4/si/sorter_output", "phy-ready"], ...
+    "SortDatasetDropDown,SortUseFolderButton,SortPhyButton");
 
 n = chain({raw, ...
-    node("stage", "SpikeInterface", ["read the recording", "unsigned -> signed"]), crop, ...
-    node("op", "Attach probe map", probe), bp, badNode, car, sil, ...
-    node("stage", "Kilosort4", "run_sorter('kilosort4')"), hp, ksCar, art, white, drift, det, clu, out});
+    node("stage", "SpikeInterface", ["read the recording", "unsigned -> signed"], "PythonExeField,CondaEnvField"), crop, ...
+    node("op", "Attach probe map", probe, "ProbeDatasetDropDown,ProbeDefaultField,ExcludeChannelsField"), bp, badNode, car, sil, ...
+    node("stage", "Kilosort4", "run_sorter('kilosort4')", "KSOptimizeButton,KSResetButton"), ...
+    hp, ksCar, art, white, drift, det, clu, out});
 end
 
 
@@ -196,59 +220,67 @@ G = cfg.Signals;
 sel = strings(1, 0);
 if G.KeepChannels ~= ""; sel(end+1) = "keep " + G.KeepChannels; end
 if G.ExcludeHandling == "drop"; sel(end+1) = "drop manifest exclusions"; end
+chanTarget = "ConvKeepChannelsField,ConvExcludeHandlingDropDown";
 if isempty(sel)
-    chan = node("off", "Channel selection", "all amplifier channels");
+    chan = node("off", "Channel selection", "all amplifier channels", chanTarget);
 else
-    chan = node("op", "Channel selection", sel);
+    chan = node("op", "Channel selection", sel, chanTarget);
 end
 
 branches = cell(1, 5);
 if G.LFP
+    bandTarget = "ConvLFPHighpassCheckBox,ConvLFPHighpassField,ConvLFPLowpassCheckBox,ConvLFPLowpassField";
     if G.LFP_HighpassOn && G.LFP_LowpassOn
-        band = node("op", "Butterworth bandpass", [sprintf("%g - %g Hz, order 4", G.LFP_HighpassHz, G.LFP_LowpassHz), "zero-phase at LFP rate"]);
+        band = node("op", "Butterworth bandpass", [sprintf("%g - %g Hz, order 4", G.LFP_HighpassHz, G.LFP_LowpassHz), "zero-phase at LFP rate"], bandTarget);
     elseif G.LFP_HighpassOn
-        band = node("op", "Butterworth high-pass", [sprintf("%g Hz, order 4", G.LFP_HighpassHz), "zero-phase at LFP rate"]);
+        band = node("op", "Butterworth high-pass", [sprintf("%g Hz, order 4", G.LFP_HighpassHz), "zero-phase at LFP rate"], bandTarget);
     elseif G.LFP_LowpassOn
-        band = node("op", "Butterworth low-pass", [sprintf("%g Hz, order 4", G.LFP_LowpassHz), "zero-phase at LFP rate"]);
+        band = node("op", "Butterworth low-pass", [sprintf("%g Hz, order 4", G.LFP_LowpassHz), "zero-phase at LFP rate"], bandTarget);
     else
-        band = node("off", "Band filter", "none (resample anti-aliasing only)");
+        band = node("off", "Band filter", "none (resample anti-aliasing only)", bandTarget);
     end
-    notch = onOff(G.LFP_NotchOn, "Notch", [G.LFP_NotchHz + " Hz", sprintf("width %g Hz, order 2, zero-phase", G.LFP_NotchBW)], "off");
-    branches{1} = chain([{node("stage", "LFP", "amplifier"), ...
-        node("op", "Resample", sprintf("-> %g Hz (anti-aliased)", G.LFP_Fs)), band, notch}, ampTail(G, "LFP", dsName)]);
+    notch = onOff(G.LFP_NotchOn, "Notch", [G.LFP_NotchHz + " Hz", sprintf("width %g Hz, order 2, zero-phase", G.LFP_NotchBW)], "off", ...
+        "ConvLFPNotchCheckBox,ConvLFPNotchField,ConvLFPNotchBWField");
+    branches{1} = chain([{node("stage", "LFP", "amplifier", "ConvLFPCheckBox"), ...
+        node("op", "Resample", sprintf("-> %g Hz (anti-aliased)", G.LFP_Fs), "ConvLFPFsField"), band, notch}, ampTail(G, "LFP", dsName)]);
 else
-    branches{1} = node("off", "LFP", "not computed");
+    branches{1} = node("off", "LFP", "not computed", "ConvLFPCheckBox");
 end
 if G.MUA
     win = max(1, round(G.MUA_Fs / G.MUA_IntegrationHz));
-    branches{2} = chain([{node("stage", "MUA", "amplifier"), ...
-        node("op", "Butterworth bandpass", [sprintf("%g - %g Hz, order 4", G.MUA_bpLoHi), "zero-phase at original rate"]), ...
-        node("op", "Rectify", "|x|"), ...
-        node("op", "Resample", sprintf("-> %g Hz", G.MUA_Fs)), ...
-        node("op", "Integrate", sprintf("moving mean, %d sample(s) (%g Hz)", win, G.MUA_IntegrationHz))}, ampTail(G, "MUA", dsName)]);
+    branches{2} = chain([{node("stage", "MUA", "amplifier", "ConvMUACheckBox"), ...
+        node("op", "Butterworth bandpass", [sprintf("%g - %g Hz, order 4", G.MUA_bpLoHi), "zero-phase at original rate"], ...
+            "ConvMUALoField,ConvMUAHiField"), ...
+        node("op", "Rectify", "|x|", "ConvMUACheckBox"), ...
+        node("op", "Resample", sprintf("-> %g Hz", G.MUA_Fs), "ConvMUAFsField"), ...
+        node("op", "Integrate", sprintf("moving mean, %d sample(s) (%g Hz)", win, G.MUA_IntegrationHz), ...
+            "ConvMUAIntegrationField")}, ampTail(G, "MUA", dsName)]);
 else
-    branches{2} = node("off", "MUA", "not computed");
+    branches{2} = node("off", "MUA", "not computed", "ConvMUACheckBox");
 end
 if G.SPIKE
-    rs = onOff(~G.SPIKE_KeepOriginal, "Resample", sprintf("-> %g Hz", G.SPIKE_Fs), "off (original rate)");
-    branches{3} = chain([{node("stage", "SPIKE", "amplifier"), rs, ...
-        node("op", "Butterworth bandpass", [sprintf("%g - %g Hz, order 4", G.SPIKE_bpLoHi), "zero-phase"])}, ampTail(G, "SPIKE", dsName)]);
+    rs = onOff(~G.SPIKE_KeepOriginal, "Resample", sprintf("-> %g Hz", G.SPIKE_Fs), "off (original rate)", ...
+        "ConvSpikeOrigCheckBox,ConvSpikeFsField");
+    branches{3} = chain([{node("stage", "SPIKE", "amplifier", "ConvSPIKECheckBox"), rs, ...
+        node("op", "Butterworth bandpass", [sprintf("%g - %g Hz, order 4", G.SPIKE_bpLoHi), "zero-phase"], ...
+            "ConvSpikeLoField,ConvSpikeHiField")}, ampTail(G, "SPIKE", dsName)]);
 else
-    branches{3} = node("off", "SPIKE", "not computed");
+    branches{3} = node("off", "SPIKE", "not computed", "ConvSPIKECheckBox");
 end
 if G.AUX
-    branches{4} = chain({node("stage", "AUX", "headstage accelerometer"), ...
-        node("op", "No processing", "volts at the aux rate"), outNode(G, "AUX", dsName)});
+    branches{4} = chain({node("stage", "AUX", "headstage accelerometer", "ConvAUXCheckBox"), ...
+        node("op", "No processing", "volts at the aux rate", "ConvAUXCheckBox"), outNode(G, "AUX", dsName)});
 else
-    branches{4} = node("off", "AUX", "not computed");
+    branches{4} = node("off", "AUX", "not computed", "ConvAUXCheckBox");
 end
 ev = "[t_on t_off] s per line";
 if ~isempty(G.InvertedLines); ev(end+1) = "inverted: " + join(G.InvertedLines, ", "); end
-branches{5} = chain({node("stage", "Digital inputs", "named by " + G.LabelField), ...
-    node("op", "Edge detection", ev), node("out", "Events", "in every extract file")});
+branches{5} = chain({node("stage", "Digital inputs", "named by " + G.LabelField, "ConvLabelFieldDropDown"), ...
+    node("op", "Edge detection", ev, "TrialsLinesTable"), ...
+    node("out", "Events", "in every extract file", "ConvLabelFieldDropDown")});
 
 chan.children = branches;
-n = chain({raw, node("op", "Read whole recording", "single precision, uV"), chan});
+n = chain({raw, node("op", "Read whole recording", "single precision, uV", "SigEnableCheckBox"), chan});
 end
 
 
@@ -260,12 +292,13 @@ switch G.BadMode
     case "auto";   lines(end+1) = sprintf("auto: |z(RMS of LFP)| > %g", G.BadThreshold);
 end
 if G.ExcludeHandling == "interpolate"; lines(end+1) = "+ manifest exclusions"; end
+badTarget = "ConvBadModeDropDown,ConvBadThresholdField,ConvBadListField";
 if isempty(lines)
-    bad = node("off", "Bad channels", "none interpolated");
+    bad = node("off", "Bad channels", "none interpolated", badTarget);
 else
-    bad = node("op", "Interpolate bad channels", [lines, "spatial makima"]);
+    bad = node("op", "Interpolate bad channels", [lines, "spatial makima"], badTarget);
 end
-remap = onOff(G.ChannelRemap ~= "", "Channel remap", G.ChannelRemap, "off");
+remap = onOff(G.ChannelRemap ~= "", "Channel remap", G.ChannelRemap, "off", "ConvRemapField");
 tail = {bad, remap, outNode(G, type, dsName)};
 end
 
@@ -276,7 +309,8 @@ if G.SeparateFiles
 else
     f = dsName + G.Suffix + ".mat";
 end
-n = node("out", type + " file", [f, G.MatVersion]);
+n = node("out", type + " file", [f, G.MatVersion], ...
+    "ConvOutputDirField,ConvSuffixField,ConvSeparateFilesCheckBox,ConvMatVersionDropDown");
 end
 
 
@@ -291,10 +325,11 @@ switch K.Channels
     case "excludeManifest"; ch = "all minus manifest exclusions";
     otherwise;              ch = "list: " + K.ChannelList;
 end
+filtTarget = "SpkFilterCheckBox,SpkBandLoField,SpkBandHiField,SpkFilterOrderField";
 if K.Filter
-    filt = node("op", "Butterworth bandpass", sprintf("%g - %g Hz, order %d", K.Band, K.FilterOrder));
+    filt = node("op", "Butterworth bandpass", sprintf("%g - %g Hz, order %d", K.Band, K.FilterOrder), filtTarget);
 else
-    filt = node("off", "Bandpass filter", "off (raw trace)");
+    filt = node("off", "Bandpass filter", "off (raw trace)", filtTarget);
 end
 
 switch K.Polarity
@@ -311,23 +346,26 @@ switch K.ThresholdMethod
 end
 lines = [pol, how];
 if K.ThresholdMethod ~= "absolute"; lines(end+1) = "per chunk and channel"; end
-thr = node("op", "Threshold", lines);
+thr = node("op", "Threshold", lines, "SpkThreshMethodDropDown,SpkThresholdField,SpkPolarityDropDown");
 
-align = onOff(K.Align ~= "none", "Align", sprintf("to %s within %g ms", K.Align, K.AlignWindowMs), "off (first crossing)");
-minP = node("op", "Minimum period", sprintf("%g ms between events", K.MinPeriodMs));
-maxA = onOff(isfinite(K.MaxAmplitudeUV), "Amplitude cap", sprintf("drop |amplitude| > %g uV", K.MaxAmplitudeUV), "off");
+align = onOff(K.Align ~= "none", "Align", sprintf("to %s within %g ms", K.Align, K.AlignWindowMs), "off (first crossing)", ...
+    "SpkAlignDropDown,SpkAlignWindowField");
+minP = node("op", "Minimum period", sprintf("%g ms between events", K.MinPeriodMs), "SpkMinPeriodField");
+maxA = onOff(isfinite(K.MaxAmplitudeUV), "Amplitude cap", sprintf("drop |amplitude| > %g uV", K.MaxAmplitudeUV), "off", "SpkMaxAmpField");
 wave = onOff(K.Waveforms, "Waveforms", [sprintf("[%g %g] ms", K.WindowMs), K.WaveformSource + " trace", "edges: " + K.EdgeHandling], ...
-    "off (timestamps only)");
+    "off (timestamps only)", "SpkWaveformsCheckBox,SpkWinBeforeField,SpkWinAfterField,SpkWaveSourceDropDown,SpkEdgeDropDown");
 if K.RejectArtifacts
-    rej = node("link", "Reject artifact periods", ternary(A.Enabled && A.ApplyToSpikes, "manual + automatic", "manual periods only"));
+    rej = node("link", "Reject artifact periods", ternary(A.Enabled && A.ApplyToSpikes, "manual + automatic", "manual periods only"), ...
+        "SpkRejectArtifactsCheckBox");
 else
-    rej = node("off", "Reject artifact periods", "off");
+    rej = node("off", "Reject artifact periods", "off", "SpkRejectArtifactsCheckBox");
 end
 lines = [dsName + K.Suffix + ".mat", K.MatVersion];
 if K.Source == "both"; lines(end+1) = "+ sorted units (see downstream)"; end
-out = node("out", "Detected spikes", lines);
+out = node("out", "Detected spikes", lines, "SpkOutputDirField,SpkSuffixField,SpkOverwriteCheckBox,SpkMatVersionDropDown");
 
-n = chain({raw, node("op", "Stream chunks", chunk), node("op", "Channels", ch), ...
+n = chain({raw, node("op", "Stream chunks", chunk, "SpkChunkField,SpkEdgePadField"), ...
+    node("op", "Channels", ch, "SpkChannelsDropDown,SpkChannelListField"), ...
     filt, thr, align, minP, maxA, wave, rej, out});
 end
 
@@ -337,9 +375,10 @@ K = cfg.Spikes;
 lines = "groups: " + joinOr(K.Groups, "every non-noise cluster");
 if K.IncludeNoise; lines(end+1) = "+ noise clusters"; end
 if K.Templates; lines(end+1) = "+ templates"; end
-n = chain({node("data", "Sorted units", "from Sorting (phy folder)"), ...
-    node("op", "Unit selection", lines), ...
-    node("out", "Spikes file", [dsName + K.Suffix + ".mat", K.MatVersion])});
+n = chain({node("data", "Sorted units", "from Sorting (phy folder)", "SortDatasetDropDown,SortUseFolderButton"), ...
+    node("op", "Unit selection", lines, "SpkGroupsField,SpkIncludeNoiseCheckBox,SpkTemplatesCheckBox"), ...
+    node("out", "Spikes file", [dsName + K.Suffix + ".mat", K.MatVersion], ...
+        "SpkOutputDirField,SpkSuffixField,SpkOverwriteCheckBox,SpkMatVersionDropDown")});
 end
 
 
@@ -350,20 +389,23 @@ if E.IncludeUnits; in(end+1) = "sorted units: " + joinOr(E.Groups, "every non-no
 if E.IncludeDetected; in(end+1) = "detected spikes (Spikes file)"; end
 if E.IncludeEvents; in(end+1) = "digital events"; end
 
+fileTarget = "ExpOutputDirField,ExpOverwriteCheckBox,ExpMatVersionDropDown";
 kids = {};
 if ismember("chronux", E.Formats)
-    kids{end+1} = chain({node("op", "Chronux layout", ["[samples x channels] + params", "spike times as structs"]), ...
-        node("out", "Chronux file", [dsName + "_chronux.mat", E.MatVersion])});
+    kids{end+1} = chain({node("op", "Chronux layout", ["[samples x channels] + params", "spike times as structs"], "ExpChronuxCheckBox"), ...
+        node("out", "Chronux file", [dsName + "_chronux.mat", E.MatVersion], fileTarget)});
 end
 if ismember("fieldtrip", E.Formats)
     kids{end+1} = chain({node("op", "FieldTrip structures", ["raw / spike / event", ...
-        ternary(E.Validate, "validated when FieldTrip is on the path", "not validated")]), ...
-        node("out", "FieldTrip file", [dsName + "_fieldtrip.mat", E.MatVersion])});
+        ternary(E.Validate, "validated when FieldTrip is on the path", "not validated")], ...
+        "ExpFieldTripCheckBox,ExpValidateCheckBox"), ...
+        node("out", "FieldTrip file", [dsName + "_fieldtrip.mat", E.MatVersion], fileTarget)});
 end
 if isempty(kids)
-    kids = {node("off", "Formats", "none ticked")};
+    kids = {node("off", "Formats", "none ticked", "ExpChronuxCheckBox,ExpFieldTripCheckBox")};
 end
-n = node("data", "Export inputs", in, kids);
+n = node("data", "Export inputs", in, "ExpSignalsField,ExpUnitsCheckBox,ExpGroupsField,ExpDetectedCheckBox,ExpEventsCheckBox");
+n.children = kids;
 end
 
 
@@ -371,19 +413,25 @@ end
 % node helpers
 % =========================================================================
 
-function n = node(kind, title, detail, children)
+function n = node(kind, title, detail, target)
 %node  One box: kind src | stage | op | off | link | data | out.
+%   TARGET is what a click on the box opens: the app property name of a
+%   control, ks4.<parameter> for a Kilosort4 field, or several of those
+%   separated by commas (the first one decides the tab). "" = not clickable.
+%   Set n.children afterwards to hang boxes under it.
 if nargin < 3; detail = strings(1, 0); end
-if nargin < 4; children = {}; end
-n = struct('kind', string(kind), 'title', string(title), 'detail', {string(detail)}, 'children', {children});
+if nargin < 4; target = ""; end
+n = struct('kind', string(kind), 'title', string(title), 'detail', {string(detail)}, ...
+    'target', string(target), 'children', {{}});
 end
 
 
-function n = onOff(on, title, detailOn, detailOff)
+function n = onOff(on, title, detailOn, detailOff, target)
+if nargin < 5; target = ""; end
 if on
-    n = node("op", title, detailOn);
+    n = node("op", title, detailOn, target);
 else
-    n = node("off", title, detailOff);
+    n = node("off", title, detailOff, target);
 end
 end
 
@@ -399,9 +447,10 @@ end
 end
 
 
-function c = card(key, title, enabled, root, note)
+function c = card(key, title, enabled, root, note, target)
+%card  One step's tree, its enabled badge and the controls its header opens.
 c = struct('key', string(key), 'title', string(title), 'enabled', logical(enabled), ...
-    'root', root, 'note', string(note));
+    'root', root, 'note', string(note), 'target', string(target));
 end
 
 
@@ -415,7 +464,7 @@ if ~c.enabled; cls = cls + " disabled"; end
 badge = ternary(c.enabled, "<span class=""badge on"">enabled</span>", "<span class=""badge"">disabled</span>");
 note = "";
 if c.note ~= ""; note = "<div class=""note"">" + esc(c.note) + "</div>"; end
-h = "<section class=""" + cls + """><header><span class=""dot""></span><b>" + esc(c.title) + "</b>" ...
+h = "<section class=""" + cls + """><header" + navAttr(c.target, c.title) + "><span class=""dot""></span><b>" + esc(c.title) + "</b>" ...
     + badge + "</header>" + note + "<div class=""tree""><ul>" + nodeHTML(c.root) + "</ul></div></section>";
 end
 
@@ -425,11 +474,22 @@ detail = "";
 if ~isempty(n.detail)
     detail = "<div class=""d"">" + join(esc(n.detail), "<br>") + "</div>";
 end
-h = "<li><span class=""cl""></span><span class=""cr""></span><div class=""n k-" + n.kind + """><div class=""t"">" + esc(n.title) + "</div>" + detail + "</div>";
+h = "<li><span class=""cl""></span><span class=""cr""></span><div class=""n k-" + n.kind + """" + navAttr(n.target, n.title) ...
+    + "><div class=""t"">" + esc(n.title) + "</div>" + detail + "</div>";
 if ~isempty(n.children)
     h = h + "<span class=""stem""></span><ul>" + joinHTML(cellfun(@nodeHTML, n.children, "UniformOutput", false)) + "</ul>";
 end
 h = h + "</li>";
+end
+
+
+function a = navAttr(target, title)
+%navAttr  The attributes setup() looks for to make a box open its controls.
+if strlength(target) == 0
+    a = "";
+else
+    a = " data-nav=""" + esc(target) + """ data-title=""" + esc(title) + """";
+end
 end
 
 
@@ -450,6 +510,38 @@ items = [ ...
     "<span class=""n k-data"">input from a step</span>", ...
     "<span class=""n k-out"">written</span>"];
 h = "<div class=""legend"">" + join(items, "") + "</div>";
+end
+
+
+function s = js()
+%js  Page script: make every box with a target open it in the app.
+%   setup() is called only by the app's HTML component (matlab.ui.control.HTML),
+%   so a saved page keeps its boxes plain: the class it adds to <body> is what
+%   turns on the pointer, the hover and the hint line.
+s = join([ ...
+    "function setup(htmlComponent) {"
+    "  document.body.classList.add('live');"
+    "  var boxes = document.querySelectorAll('[data-nav]');"
+    "  for (var i = 0; i < boxes.length; i++) {"
+    "    (function (el) {"
+    "      el.setAttribute('tabindex', '0');"
+    "      el.setAttribute('role', 'button');"
+    "      el.title = 'Open this setting';"
+    "      var open = function (e) {"
+    "        e.preventDefault();"
+    "        el.classList.add('picked');"
+    "        window.setTimeout(function () { el.classList.remove('picked'); }, 500);"
+    "        htmlComponent.sendEventToMATLAB('navigate', {"
+    "          nav: el.getAttribute('data-nav'), title: el.getAttribute('data-title')});"
+    "      };"
+    "      el.addEventListener('click', open);"
+    "      el.addEventListener('keydown', function (e) {"
+    "        if (e.key === 'Enter' || e.key === ' ') { open(e); }"
+    "      });"
+    "    })(boxes[i]);"
+    "  }"
+    "}"
+    ], newline);
 end
 
 
@@ -493,6 +585,14 @@ s = join([ ...
     ".k-link{border-color:#d9822b;border-left-color:#d9822b;background:#fdf0e2;border-radius:12px}"
     ".k-data{border-style:double;border-width:3px;border-left-width:4px;background:#fff}"
     ".k-out{background:var(--tint);border-color:var(--acc)}"
+    % Clickable only in the app: setup() adds .live to <body> (see js()).
+    ".hint{display:none;font-size:11px;color:#57606a;margin:6px 0 0}"
+    "body.live .hint{display:block}"
+    "body.live [data-nav]{cursor:pointer}"
+    "body.live .n[data-nav]:hover{border-color:var(--acc);box-shadow:0 0 0 2px rgba(31,127,191,.25)}"
+    "body.live .n[data-nav]:focus-visible{outline:2px solid #1f7fbf;outline-offset:1px}"
+    "body.live header[data-nav]:hover b{text-decoration:underline}"
+    "body.live [data-nav].picked{box-shadow:0 0 0 3px rgba(31,127,191,.55)}"
     ], "");
 end
 

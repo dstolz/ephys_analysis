@@ -109,6 +109,18 @@ classdef EphysAnalysisConfig
             obj.File = file;
         end
 
+        function txt = toJson(obj, opts)
+            %toJson  The JSON text save() writes (Inf / NaN as "Inf" / "NaN").
+            arguments
+                obj (1,1) EphysAnalysisConfig
+                opts.Pretty (1,1) logical = true
+            end
+            f = string(tempname) + ".json";
+            writeJsonFile(f, obj.toStruct(), NonFinite="string", Pretty=opts.Pretty);
+            txt = string(fileread(f));
+            delete(f);
+        end
+
         function tf = isequalConfig(obj, other)
             %isequalConfig  True when two configs hold the same values (NaN == NaN).
             tf = isequaln(obj.toStruct(), other.toStruct());

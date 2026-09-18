@@ -27,7 +27,7 @@ end
 
 style = EphysAnalysisConfig.normalizeSection("Style", opts.Style);
 colors = groupPalette(R.groups, style);
-[nT, nC, nG] = size(R.mean);
+[~, nC, nG] = size(R.mean);
 order = depthOrder(R.meta, nC);
 t = R.t;
 h = struct('layout', [], 'axes', gobjects(0), 'spacing', NaN);

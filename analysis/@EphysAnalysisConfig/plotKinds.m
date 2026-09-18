@@ -18,13 +18,13 @@ function T = plotKinds()
 spk = ["units" "detected"];
 sig = ["LFP" "MUA" "SPIKE" "AUX"];
 rows = {
-    "psth",     "PSTH",             spk,        ["grid" "overlay"],             ["fixed"],            true,  "Peri-event firing rate per unit (with a raster), groups overlaid"
-    "raster",   "Raster",           spk,        ["grid"],                       ["fixed"],            true,  "Spike rasters per unit, epochs sorted by group"
-    "evoked",   "Evoked potential", sig,        ["stack" "butterfly" "grid"],   ["fixed"],            true,  "Event-locked average of LFP / MUA / SPIKE / AUX channels"
-    "rate",     "Firing rate",      spk,        ["bar" "box" "points"],         ["fixed" "between"],  true,  "Mean rate per unit and group in each epoch window"
-    "tuning",   "Tuning curve",     spk,        ["grid" "overlay"],             ["fixed" "between"],  true,  "Rate against a trial parameter, one curve per series"
-    "heatmap",  "Heatmap",          [spk sig],  ["groups"],                     ["fixed"],            true,  "Units or channels by time, one tile per group"
-    "probemap", "Probe map",        spk,        ["shanks"],                     ["fixed"],            false, "A per-channel value (rate, spikes, units) drawn on the probe sites"
+    "psth",     "PSTH",             spk,       ["grid" "overlay"],            "fixed",             true,  "Peri-event firing rate per unit (with a raster), groups overlaid"
+    "raster",   "Raster",           spk,       "grid",                        "fixed",             true,  "Spike rasters per unit, epochs sorted by group"
+    "evoked",   "Evoked potential", sig,       ["stack" "butterfly" "grid"],  "fixed",             true,  "Event-locked average of LFP / MUA / SPIKE / AUX channels"
+    "rate",     "Firing rate",      spk,       ["bar" "box" "points"],        ["fixed" "between"], true,  "Mean rate per unit and group in each epoch window"
+    "tuning",   "Tuning curve",     spk,       ["grid" "overlay"],            ["fixed" "between"], true,  "Rate against a trial parameter, one curve per series"
+    "heatmap",  "Heatmap",          [spk sig], "groups",                      "fixed",             true,  "Units or channels by time, one tile per group"
+    "probemap", "Probe map",        spk,       "shanks",                      "fixed",             false, "A per-channel value (rate, spikes, units) drawn on the probe sites"
     };
 n = size(rows, 1);
 Kind = strings(n, 1); Label = strings(n, 1); Description = strings(n, 1);

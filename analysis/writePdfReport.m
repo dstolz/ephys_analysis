@@ -38,7 +38,7 @@ for d = 1:numel(report.datasets)
     L = strings(0, 1);
     if ~isempty(D.summary)
         S = D.summary;
-        L = [L; tableLines(S.recording); ""];
+        L = [L; tableLines(S.recording); ""]; %#ok<AGROW>
         if height(S.trials) > 0; L = [L; "Trials"; tableLines(S.trials); ""]; end %#ok<AGROW>
         if height(S.units) > 0; L = [L; "Units"; tableLines(S.units); ""]; end %#ok<AGROW>
     end

@@ -179,14 +179,14 @@ cases = {
     };
 fig = figure('Visible', 'off');
 ufig = uifigure('Visible', 'off');
-closer = onCleanup(@() delete([fig ufig])); %#ok<NASGU>
+closer = onCleanup(@() delete([fig ufig]));
 for k = 1:size(cases, 1)
     okAll = true;
     msgs = "";
     for mode = ["axes" "uiaxes" "figure" "panel"]
         try
             switch mode
-                case "axes",   clf(fig); tg = axes(fig);
+                case "axes",   clf(fig); tg = axes(fig); %#ok<LAXES>
                 case "uiaxes", delete(ufig.Children); tg = uiaxes(ufig);
                 case "figure", tg = fig;
                 case "panel",  delete(ufig.Children); tg = uipanel(ufig);
@@ -207,7 +207,7 @@ end
 spec = EphysAnalysisConfig.normalizePlot(struct('kind', "psth", 'layout', "grid", 'style', struct('MaxTiles', 2)));
 check(plotPageCount(Rp, spec) == 2, 'three units at MaxTiles 2 make two pages');
 h = renderPlot(Rp, spec, fig, Page=2);
-check(numel(h.axes) == 1 && h.page == 2 && startsWith(h.title, "PSTH: ") && contains(h.title, "(200 epochs)") ...
+check(isscalar(h.axes) && h.page == 2 && startsWith(h.title, "PSTH: ") && contains(h.title, "(200 epochs)") ...
     && contains(string(h.layout.Subtitle.String), "page 2 of 2") && contains(string(h.layout.Subtitle.String), "synthetic"), ...
     'renderPlot draws page 2 with the automatic title and a subtitle');
 spec.title = "Custom";

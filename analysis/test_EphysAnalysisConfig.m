@@ -15,7 +15,7 @@ addpath(repo);
 
 root = fullfile(tempdir, sprintf('AnaConfig_test_%s', datestr(now, 'yyyymmdd_HHMMSSFFF'))); %#ok<TNOW1,DATST>
 mkdir(root);
-cleanup = onCleanup(@() rmdir(root, 's')); %#ok<NASGU>
+cleanup = onCleanup(@() rmdir(root, 's'));
 
 nPass = 0; nFail = 0;
     function check(cond, msg)

@@ -12,8 +12,8 @@ function rows = runDataset(obj, k, opts)
 %   The folder is Export.Folder with {OutputFolder} (this dataset's output
 %   folder), {OutputRoot}, {Root}, {Name} and {Date} filled; the name is
 %   plotFileName(Export.FilenamePattern, ...) (the page's tokens, and
-%   "_p<page>" for a paged plot whose pattern names no page token). With Export.Overwrite off, pages whose files all
-%   exist are not written again. A plot that fails is an "error" row; the
+%   "_p<page>" for a paged plot whose pattern names no page token). With
+%   Export.Overwrite off, pages whose files all exist are not written again. A plot that fails is an "error" row; the
 %   others still run. Afterwards the dataset's cached data is cleared.
 %   The report (Report) is r.Report, started by run().
 %

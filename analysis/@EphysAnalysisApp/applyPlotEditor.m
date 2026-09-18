@@ -39,7 +39,6 @@ E.baseTo.Value = p.baseline.Window(2);
 E.withRaster.Value = p.withRaster;
 E.maskAfterStop.Value = p.maskAfterStop;
 params = string.empty(1, 0);
-src = [];
 if ~isempty(obj.Runner) && obj.ActiveIdx >= 1
     try src = obj.Runner.source(obj.ActiveIdx); params = src.paramNames; catch; end
 end

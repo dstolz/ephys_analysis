@@ -20,7 +20,7 @@ addpath(genpath(fullfile(repo, 'vendor')));
 
 root = fullfile(tempdir, sprintf('AnaRunner_test_%s', datestr(now, 'yyyymmdd_HHMMSSFFF'))); %#ok<TNOW1,DATST>
 mkdir(root);
-cleanup = onCleanup(@() rmdirQuiet(root)); %#ok<NASGU>
+cleanup = onCleanup(@() rmdirQuiet(root));
 
 nPass = 0; nFail = 0;
     function check(cond, msg)
@@ -176,7 +176,7 @@ end
 end
 
 
-function out = runScript(file)
+function out = runScript(file) %#ok<INUSD> used inside evalc
 %runScript  Run a script in its own workspace and capture what it prints.
 out = evalc('run(file)');
 end

@@ -25,7 +25,7 @@ w = spec.window;
 b = [];
 if spec.baseline.Mode ~= "none"; b = spec.baseline.Window; end
 isSignal = ismember(spec.source, EphysAnalysisConfig.SignalSources);
-E = []; G = [];
+E = [];
 switch spec.kind
     case {"psth" "raster" "heatmap"}
         [E, G] = epochTable(src, spec.ref, Window=w, Selection=spec.selection);

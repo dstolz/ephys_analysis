@@ -21,7 +21,7 @@ addpath(genpath(fullfile(repo, 'vendor')));
 
 root = fullfile(tempdir, sprintf('AnaEpochs_test_%s', datestr(now, 'yyyymmdd_HHMMSSFFF'))); %#ok<TNOW1,DATST>
 mkdir(root);
-cleanup = onCleanup(@() rmdirQuiet(root)); %#ok<NASGU>
+cleanup = onCleanup(@() rmdirQuiet(root));
 
 nPass = 0; nFail = 0;
     function check(cond, msg)

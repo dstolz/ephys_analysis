@@ -24,7 +24,7 @@ mkdir(root);
 g = EphysAnalysisApp.PrefGroup;
 savedPrefs = [];
 if ispref(g); savedPrefs = getpref(g); end
-cleanup = onCleanup(@() restorePrefsAndRoot(g, savedPrefs, root)); %#ok<NASGU>
+cleanup = onCleanup(@() restorePrefsAndRoot(g, savedPrefs, root));
 if ispref(g, 'LastConfigFile'); setpref(g, 'LastConfigFile', ''); end
 
 nPass = 0; nFail = 0;
@@ -44,7 +44,7 @@ check(numel(F.names) == 2, 'two datasets run through the pipeline');
 
 fprintf('\n== 1. build, open the project, scan ==\n');
 app = EphysAnalysisApp(F.proj);
-appCleanup = onCleanup(@() closeApp(app)); %#ok<NASGU>
+appCleanup = onCleanup(@() closeApp(app));
 check(isvalid(app.Fig) && numel(app.Tabs.Children) == 5 && app.Tabs.Children(1) == app.TabData ...
     && app.Tabs.Children(5) == app.TabLog, 'the app has the Data, Alignment, Plots, Export and Log tabs');
 T = app.DatasetsTable.Data;
@@ -76,7 +76,7 @@ check(startsWith(app.Fig.Name, "*"), 'the edit marks the config unsaved');
 fprintf('\n== 3. Plots: add, edit, preview ==\n');
 app.selectTab(app.TabPlots);
 app.onAddPlot("psth");
-check(numel(app.Config.Plots) == 1 && app.SelectedPlot == 1 && app.Config.Plots(1).id == "psth_1" ...
+check(isscalar(app.Config.Plots) && app.SelectedPlot == 1 && app.Config.Plots(1).id == "psth_1" ...
     && string(app.PlotEditor.kind.Text) == "PSTH" && string(app.PlotsListBox.Items{1}) == "psth_1  (psth)", ...
     'Add psth makes psth_1 and opens it in the editor');
 app.refreshPreview(Force=true);

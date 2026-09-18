@@ -14,7 +14,7 @@ classdef EphysPipelineConfig
     %                the artifacts and spike-detection steps on a process pool
     %     Probe      DefaultProbeFile, WriteDefaultToManifest
     %     Behavior   Enabled, SearchDirs, Match, MaxStartOffsetMin, Overwrite,
-    %                WriteFile, PairTrials, TrialLine
+    %                WriteFile, PairTrials, AutoApprove, TrialLine
     %     Artifacts  Enabled + detector / filter settings, ApplyTo*, CacheIntervals
     %     Sorting    Enabled, PythonExe, CondaEnv, Execution, DryRun,
     %                SkipExisting, SI (SpikeInterface), KS4 (typed per

@@ -3,7 +3,11 @@ function report = refresh(obj, opts)
 %   P.refresh() runs, for every dataset in the project:
 %     1. refreshMetadata()  - header-only metadata (Fs, channels, duration)
 %     2. applyManifest()    - restore probe, exclusions, manual artifacts,
-%                             sorting and behavior associations from disk
+%                             sorting and behavior associations from disk;
+%                             then associateFolderBehavior() - a dataset with
+%                             no behavior file takes the one Epsych2 session
+%                             file in its own folder (where the Copy tab
+%                             puts it)
 %     3. writeManifest()    - rewrite the manifest with the fresh metadata
 %   This is what the GUI's Scan does and what scripts / EphysPipeline call,
 %   so headless runs and the app agree on the state of each dataset.
@@ -20,7 +24,7 @@ function report = refresh(obj, opts)
 %   instead of interrupting the loop.
 %
 %   See also EphysDataset.refreshMetadata, EphysDataset.applyManifest,
-%   EphysDataset.writeManifest.
+%   EphysDataset.associateFolderBehavior, EphysDataset.writeManifest.
 
 arguments
     obj (1,1) EphysProject
@@ -64,6 +68,7 @@ for i = 1:n
     try
         if opts.ApplyManifest
             d.applyManifest();
+            d.associateFolderBehavior();
         end
         if opts.WriteManifest
             d.writeManifest();

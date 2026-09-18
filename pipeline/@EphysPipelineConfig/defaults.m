@@ -41,6 +41,7 @@ switch section
             'Overwrite',         false, ...   % re-match datasets that already have a file
             'WriteFile',         true, ...    % save <Name>_behavior.mat for associated datasets
             'PairTrials',        true, ...    % pair trials in order with TrialLine intervals (needs review)
+            'AutoApprove',       false, ...   % approve a pairing whose trial / interval counts match without cuts
             'TrialLine',         "InTrial");  % digital line that is on during each trial
 
     case "Artifacts"

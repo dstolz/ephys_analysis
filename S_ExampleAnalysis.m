@@ -1,5 +1,6 @@
 %%
 
+close all force
 clear classes
 
 clc

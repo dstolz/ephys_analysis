@@ -1,17 +1,19 @@
 {
   "schema": "ephys-pipeline-config",
   "version": 1,
-  "name": "TEST",
+  "name": "OFC_Appetitive",
   "description": "",
   "Project": {
-    "Root": "D:\\EPHYS",
+    "Root": "C:/Users/dstolz/Documents/EPHYS_DATA",
     "OutputRoot": "",
     "Selection": "list",
     "Datasets": [
-      "SUBJ-ID-1255/SUBJ-ID-1255_260908_103949",
-      "SUBJ-ID-1255/SUBJ-ID-1255_260909_104123",
       "SUBJ-ID-1255/SUBJ-ID-1255_260910_104923",
-      "SUBJ-ID-1255/SUBJ-ID-1255_260914_101756"
+      "SUBJ-ID-1255/SUBJ-ID-1255_260911_102903",
+      "SUBJ-ID-1255/SUBJ-ID-1255_260914_101756",
+      "SUBJ-ID-1255/SUBJ-ID-1255_260915_103012",
+      "SUBJ-ID-1255/SUBJ-ID-1255_260916_110907",
+      "SUBJ-ID-1255/SUBJ-ID-1255_260917_101403"
     ],
     "NamePattern": "{SubjectID}_{Date:yyMMdd}_{Time:HHmmss}",
     "TokenColumns": "SubjectID, Date, Time"
@@ -25,29 +27,30 @@
     "WriteDefaultToManifest": false
   },
   "Behavior": {
-    "Enabled": true,
+    "Enabled": false,
     "SearchDirs": "D:\\EPHYS",
     "Match": "prefix-then-time",
     "MaxStartOffsetMin": 30,
     "Overwrite": false,
     "WriteFile": true,
     "PairTrials": true,
+    "AutoApprove": false,
     "TrialLine": "InTrial"
   },
   "Artifacts": {
     "Enabled": true,
-    "Method": "rms",
+    "Method": "mad",
     "Threshold": 12,
     "RmsWindowMs": "NaN",
     "MergeGapMs": 0,
-    "MinChannels": 2,
-    "PadMs": 0,
+    "MinChannels": 6,
+    "PadMs": 1,
     "Filter": true,
     "FilterType": "highpass",
-    "FilterCutoff": 300,
+    "FilterCutoff": 500,
     "FilterOrder": 4,
-    "ApplyToSorting": true,
-    "ApplyToSpikes": true,
+    "ApplyToSorting": false,
+    "ApplyToSpikes": false,
     "CacheIntervals": true
   },
   "Sorting": {
@@ -63,7 +66,7 @@
       "FilterFreqMax": 6000,
       "CommonReference": true,
       "ReferenceOperator": "median",
-      "DetectBadChannels": true,
+      "DetectBadChannels": false,
       "BadChannelMethod": "coherence+psd",
       "BadChannelAction": "remove"
     },
@@ -90,12 +93,12 @@
         0.5,
         0.5
       ],
-      "dmin": [],
-      "dminx": 32,
+      "dmin": 10,
+      "dminx": 17.32,
       "Th_universal": 7,
       "Th_learned": 8,
       "Th_single_ch": 6,
-      "nearest_chans": 10,
+      "nearest_chans": 8,
       "nearest_templates": 58,
       "max_channel_distance": 32,
       "max_peels": 100,
@@ -157,11 +160,11 @@
     "ExcludeHandling": "none"
   },
   "Spikes": {
-    "Enabled": false,
-    "Source": "both",
+    "Enabled": true,
+    "Source": "detect",
     "Filter": true,
     "Band": [
-      300,
+      500,
       5000
     ],
     "FilterOrder": 4,
@@ -171,7 +174,7 @@
     "Align": "trough",
     "AlignWindowMs": 1,
     "MinPeriodMs": 1,
-    "MaxAmplitudeUV": 1000,
+    "MaxAmplitudeUV": 200,
     "Waveforms": true,
     "WindowMs": [
       -0.5,

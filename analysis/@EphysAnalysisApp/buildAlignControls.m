@@ -89,47 +89,63 @@ C.StopScope.Layout.Row = 4; C.StopScope.Layout.Column = [3 4];
 
 % --- selection -----------------------------------------------------------------------
 C.SelectionPanel = uipanel(g, "Title", "Trial selection");
-sg = uigridlayout(C.SelectionPanel, [5 4]);
-sg.RowHeight = repmat({22}, 1, 5);
-sg.ColumnWidth = {80, '1x', 80, '1x'};
-sg.RowSpacing = 4;
+sg = uigridlayout(C.SelectionPanel, [8 4]);
+sg.RowHeight = repmat({22}, 1, 8);
+sg.ColumnWidth = {90, '1x', 90, '1x'};
+sg.RowSpacing = 6;
+sg.Padding = [8 8 8 8];
+
+% Filter
 lab(sg, "Filter:", 1, 1);
 fg = uigridlayout(sg, [1 2]);
 fg.Layout.Row = 1; fg.Layout.Column = [2 4];
-fg.ColumnWidth = {'1x', 24};
+fg.ColumnWidth = {'1x', 28};
 fg.Padding = [0 0 0 0];
 C.Filter = uieditfield(fg, "text", "Placeholder", "e.g. Depth > 0 & RespLatency < 500   or   Hit | Miss", "ValueChangedFcn", cb);
-C.FilterHelp = uibutton(fg, "Text", "?", "Tooltip", "The trial columns, response words and functions a filter can use.", ...
+C.FilterHelp = uibutton(fg, "Text", "?", "FontSize", 12, "Tooltip", "The trial columns, response words and functions a filter can use.", ...
     "ButtonPushedFcn", @(~,~) obj.onFilterHelp());
+
+% Response codes
 lab(sg, "Response:", 2, 1);
 rsp = uigridlayout(sg, [1 numel(words)]);
 rsp.Layout.Row = 2; rsp.Layout.Column = [2 4];
-rsp.Padding = [0 0 0 0]; rsp.ColumnSpacing = 2;
+rsp.Padding = [0 0 0 0]; rsp.ColumnSpacing = 3;
 C.Response = struct();
 for w = words
     C.Response.(w) = uicheckbox(rsp, "Text", w, "ValueChangedFcn", cb, "Tooltip", "Keep trials that are any of the ticked responses.");
 end
+
+% Pairing flags
 lab(sg, "Pairing:", 3, 1);
-flg = uigridlayout(sg, [1 4]);
-flg.Layout.Row = 3; flg.Layout.Column = [2 4];
-flg.Padding = [0 0 0 0];
+flg = uigridlayout(sg, [2 2]);
+flg.Layout.Row = [3 4]; flg.Layout.Column = [2 4];
+flg.Padding = [0 0 0 0]; flg.RowSpacing = 3; flg.ColumnSpacing = 12;
 C.Flags = struct();
-for f = ["ok" "partial" "cut" "unpaired"]
+for i = 1:numel(["ok" "partial" "cut" "unpaired"])
+    f = ["ok" "partial" "cut" "unpaired"](i);
+    row = 1 + mod(i-1, 2);
+    col = 1 + floor((i-1)/2);
     C.Flags.(f) = uicheckbox(flg, "Text", f, "Value", f == "ok", "ValueChangedFcn", cb, ...
         "Tooltip", "Keep trials with this PairingFlag (none ticked = every flag).");
+    C.Flags.(f).Layout.Row = row;
+    C.Flags.(f).Layout.Column = col;
 end
-lab(sg, "Group by:", 4, 1);
+
+% Grouping
+lab(sg, "Group by:", 5, 1);
 C.Group1 = uidropdown(sg, "Editable", "on", "Items", "(none)", "Value", "(none)", "ValueChangedFcn", cb);
-C.Group1.Layout.Row = 4; C.Group1.Layout.Column = 2;
-lab(sg, "and:", 4, 3);
+C.Group1.Layout.Row = 5; C.Group1.Layout.Column = 2;
+lab(sg, "and:", 5, 3);
 C.Group2 = uidropdown(sg, "Editable", "on", "Items", "(none)", "Value", "(none)", "ValueChangedFcn", cb);
-C.Group2.Layout.Row = 4; C.Group2.Layout.Column = 4;
-lab(sg, "Order:", 5, 1);
+C.Group2.Layout.Row = 5; C.Group2.Layout.Column = 4;
+
+% Ordering
+lab(sg, "Order:", 6, 1);
 C.Order = uidropdown(sg, "Items", ["ascending" "descending" "appearance"], "ValueChangedFcn", cb);
-C.Order.Layout.Row = 5; C.Order.Layout.Column = 2;
-lab(sg, "Max groups:", 5, 3);
+C.Order.Layout.Row = 6; C.Order.Layout.Column = 2;
+lab(sg, "Max groups:", 6, 3);
 C.MaxGroups = uispinner(sg, "Limits", [1 100], "Value", 12, "RoundFractionalValues", "on", "ValueChangedFcn", cb);
-C.MaxGroups.Layout.Row = 5; C.MaxGroups.Layout.Column = 4;
+C.MaxGroups.Layout.Row = 6; C.MaxGroups.Layout.Column = 4;
 end
 
 

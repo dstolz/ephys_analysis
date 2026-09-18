@@ -11,5 +11,6 @@ B.WriteFile = logical(obj.BehWriteFileCheckBox.Value);
 % Trial pairing (Trials tab; line polarity is Signals.InvertedLines, and the
 % cuts that resolve a count mismatch belong to the dataset manifest).
 B.PairTrials = logical(obj.TrialsPairCheckBox.Value);
+B.AutoApprove = logical(obj.TrialsAutoApproveCheckBox.Value);
 B.TrialLine = strtrim(string(obj.TrialsLineDropDown.Value));
 end

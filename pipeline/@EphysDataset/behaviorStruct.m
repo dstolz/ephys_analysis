@@ -14,10 +14,11 @@ function b = behaviorStruct(obj, opts)
 %   pairing columns to trials (TrialOnset / TrialOffset seconds, sample rows
 %   at the recording rate and per derived signal, PairingFlag, TrialEvents,
 %   ... see pairEpsychTrials) and sets pairing to the summary: status,
-%   trialLine, invertedLines, Fs, nSamples, signalFs, nTrials, nIntervals,
-%   nPaired, cutTrials, cutIntervals, countMismatch, warnings,
-%   partialIntervals, unpairedTrials, unpairedIntervals, fingerprint, summary
-%   and conventions (how times and samples are counted).
+%   autoApproved, trialLine, invertedLines, Fs, nSamples, signalFs,
+%   nTrials, nIntervals, nPaired, cutTrials, cutIntervals, countMismatch,
+%   warnings, partialIntervals, unpairedTrials, unpairedIntervals,
+%   fingerprint, summary and conventions (how times and samples are
+%   counted).
 %
 %   See also EphysDataset.readBehavior, EphysDataset.behaviorToMat,
 %   EphysDataset.pairTrials, readEpsychSession.
@@ -46,7 +47,7 @@ if ~isempty(P)
     end
     trials = [trials, P.columns];
     pairing = struct();
-    for f = ["status" "trialLine" "invertedLines" "Fs" "nSamples" "signalFs" "nTrials" ...
+    for f = ["status" "autoApproved" "trialLine" "invertedLines" "Fs" "nSamples" "signalFs" "nTrials" ...
             "nIntervals" "nPaired" "cutTrials" "cutIntervals" "countMismatch" "warnings" ...
             "partialIntervals" "unpairedTrials" "unpairedIntervals" "fingerprint" "summary"]
         pairing.(f) = P.(f);

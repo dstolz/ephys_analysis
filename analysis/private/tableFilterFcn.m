@@ -5,6 +5,7 @@ function [fcn, names] = tableFilterFcn(expr, columns, opts)
 %   returns FCN, which maps a table with those columns to a logical column
 %   (one per row), and the column names EXPR uses. Identifiers become
 %   T.("name"), response words bitand(T.(RespField), bit) > 0, "!" "~",
+%   "&&" / "||" the row-wise "&" / "|",
 %   "!=" "~=" and a single "=" "=="; functions must be on the allow-list.
 %   The text is compiled with str2func, never eval, from these tokens only.
 %   With COLUMNS = [] only the syntax is checked (any name counts as a
@@ -61,6 +62,8 @@ for k = 1:numel(toks)
             case "!",  parts(k) = "~";
             case "!=", parts(k) = "~=";
             case "=",  parts(k) = "==";
+            case "&&", parts(k) = "&";     % row-wise: the operands are columns
+            case "||", parts(k) = "|";
             otherwise, parts(k) = t;
         end
     else

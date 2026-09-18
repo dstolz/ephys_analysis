@@ -611,6 +611,7 @@ classdef EphysPreprocessingApp < handle
         onExportConfigCopy(obj)
         onGenerateScript(obj, kind)
         onCreateSyntheticProject(obj)
+        onOpenAnalysisApp(obj)
         S = createSyntheticProject(obj, root, opts)
         ok = confirmDiscard(obj)
         addRecentConfig(obj, file)

@@ -6,7 +6,8 @@ function loadPreferences(obj)
 %   the datasets-table column order, the Trials-table parameter columns and
 %   column order, the Trials-plot label parameters, the Visualize
 %   display options, the Copy tab settings (subject, roots, pairing and
-%   copy options; not the dates) and the Run tab's Show the run diagram.
+%   copy options; not the dates), the Run tab's Show the run diagram and
+%   Monitor CPU, memory, disk and GPU.
 %   Everything else lives in the config; the last config file is reopened
 %   at launch (defaults otherwise).
 
@@ -56,6 +57,10 @@ end
 if ispref(g, 'ShowRunDiagram')
     obj.RunDiagramCheckBox.Value = isequal(getpref(g, 'ShowRunDiagram'), true);
     obj.onRunDiagramToggled();
+end
+if ispref(g, 'MonitorResources')
+    obj.RunMonitorCheckBox.Value = isequal(getpref(g, 'MonitorResources'), true);
+    obj.onResourceMonitorToggled();
 end
 
 % --- Visualize display options (one struct) ---

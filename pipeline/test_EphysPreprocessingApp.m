@@ -28,6 +28,7 @@ if ispref(g, 'DatasetsColumnOrder'); rmpref(g, 'DatasetsColumnOrder'); end
 if ispref(g, 'TrialsParamColumns'); rmpref(g, 'TrialsParamColumns'); end
 if ispref(g, 'TrialsColumnOrder'); rmpref(g, 'TrialsColumnOrder'); end
 if ispref(g, 'TrialsLabelParams'); rmpref(g, 'TrialsLabelParams'); end
+if ispref(g, 'MonitorResources'); rmpref(g, 'MonitorResources'); end
 
 nPass = 0; nFail = 0;
     function check(cond, msg)
@@ -690,6 +691,51 @@ app.onRunDiagramToggled();
 check(app.RunDiagramPanel.Visible == "off" && isequal(app.RunSplitGrid.ColumnWidth, {'1x', 0}), ...
     'unticked, the progress, results and log have the whole right side again');
 
+fprintf('\n== 4c. Run tab: resource monitoring ==\n');
+check(app.RunMonitorPanel.Visible == "off" && isequal(app.RunLeftGrid.RowHeight, {'1x', 0}) ...
+    && isempty(app.ResourceMonitorTimer) && app.ResourceMonitor.dir == "", ...
+    'resource monitoring is off by default: no panel, no sampler, no timer');
+S = struct('t', '2026-09-18T10:41:21', 'cpu', 37.2, 'memUsedGB', 12.3, 'memTotalGB', 31.7, ...
+    'disk', 95, 'diskName', '1 D:', 'readMBs', 80.2, 'writeMBs', 12.5, ...
+    'gpus', struct('index', {0 1}, 'name', {'A' 'B'}, 'util', {28 61}, 'memUsedMB', {869 1024}, 'memTotalMB', {4094 8192}), ...
+    'gpuNote', '');
+app.showResourceSample(S);
+tx = string({app.RunMonitorTexts.Text});
+check(isequal(tx, ["37%" "12.3 / 31.7 GB" "95%  93 MB/s" "61%  1.0/8.0 GB"]) ...
+    && isequal(app.RunMonitorBars(3).Children(1).BackgroundColor, [0.9 0.45 0.1]) ...
+    && isequal(app.RunMonitorBars(1).Children(1).BackgroundColor, [0.25 0.55 0.85]) ...
+    && contains(app.RunMonitorTexts(3).Tooltip, "1 D:") && contains(app.RunMonitorTexts(4).Tooltip, "GPU 0 A"), ...
+    'a sample shows each figure, the busiest GPU, and a bar at 90% or more in orange');
+S.gpus = []; S.gpuNote = 'nvidia-smi not found'; S.cpu = [];
+app.showResourceSample(S);
+check(app.RunMonitorTexts(4).Text == "n/a" && contains(app.RunMonitorTexts(4).Tooltip, "not found") ...
+    && app.RunMonitorTexts(1).Text == "n/a", 'a missing reading shows n/a and says why');
+app.selectTab(app.TabRun);
+app.RunMonitorCheckBox.Value = true;
+app.onResourceMonitorToggled();
+dirMon = app.ResourceMonitor.dir;
+check(app.RunMonitorPanel.Visible == "on" && isequal(app.RunLeftGrid.RowHeight, {'1x', 'fit'}) ...
+    && isfolder(dirMon) && strcmp(app.ResourceMonitorTimer.Running, 'on'), ...
+    'ticked, the panel opens under the steps and the sampler and timer start');
+t0 = tic;
+while toc(t0) < 20 && ~startsWith(string(app.RunMonitorNote.Text), "Sampled every")
+    pause(0.5);
+end
+tx = string({app.RunMonitorTexts.Text});
+check(startsWith(string(app.RunMonitorNote.Text), "Sampled every") && endsWith(tx(1), "%") ...
+    && endsWith(tx(2), " GB"), sprintf('live samples arrive within %.0f s', toc(t0)));
+app.savePreferences();
+check(isequal(getpref(g, 'MonitorResources'), true), 'the switch is saved as a preference');
+app.RunMonitorCheckBox.Value = false;
+app.onResourceMonitorToggled();
+t0 = tic;
+while toc(t0) < 10 && isfolder(dirMon)
+    pause(0.5);
+end
+check(app.RunMonitorPanel.Visible == "off" && isequal(app.RunLeftGrid.RowHeight, {'1x', 0}) ...
+    && isempty(app.ResourceMonitorTimer) && ~isfolder(dirMon), ...
+    'unticked, the panel closes, the timer stops and the sampler exits and removes its folder');
+
 fprintf('\n== 5. save and reopen ==\n');
 ok = app.onSaveConfig();
 check(ok && ~startsWith(app.Fig.Name, "*"), 'save clears the unsaved marker');
@@ -712,6 +758,7 @@ function closeApp(app)
 try
     if isvalid(app) && isvalid(app.Fig)
         app.stopKSMonitor();
+        app.stopResourceMonitor();
         delete(app.Fig);
     end
 catch

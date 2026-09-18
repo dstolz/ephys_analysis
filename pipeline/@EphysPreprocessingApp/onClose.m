@@ -20,6 +20,7 @@ if obj.RunActive && ~isempty(obj.Pipe)
 end
 obj.stopKSMonitor();
 obj.stopCopyMonitor();
+obj.stopResourceMonitor();
 t = obj.CopyScheduleTimer;   % only watches the scheduled copy's state
 if ~isempty(t) && isvalid(t)
     stop(t);

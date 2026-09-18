@@ -47,7 +47,8 @@ classdef EphysPreprocessingApp < handle
     %     Run        step checklist, validate, plan, run / dry run / cancel,
     %                progress, results, log; optionally a diagram of the
     %                run's steps (the one underway highlighted, each with
-    %                its % done) in the right half
+    %                its % done) in the right half, and CPU / memory / disk /
+    %                GPU use under the steps
     %     Visualize  plot a window, mark manual artifact periods
     %     Review     inspect sorted units
     %
@@ -80,7 +81,7 @@ classdef EphysPreprocessingApp < handle
     %   datasets-table column order, the Trials-table parameter columns and
     %   column order, the Trials-plot label parameters, the Visualize
     %   display options, the Copy tab settings and the Run tab's Show the
-    %   run diagram switch.
+    %   run diagram and Monitor CPU, memory, disk and GPU switches.
     %
     %   Usage
     %     EphysPreprocessingApp;            % launch
@@ -472,6 +473,12 @@ classdef EphysPreprocessingApp < handle
         RunSplitGrid         matlab.ui.container.GridLayout   % right side: progress / results / log | diagram
         RunDiagramPanel      matlab.ui.container.Panel
         RunDiagramHTML       matlab.ui.control.HTML           % runDiagramHTML; Data from refreshRunDiagram
+        RunLeftGrid          matlab.ui.container.GridLayout   % the tab's grid: Steps panel over Resource use
+        RunMonitorCheckBox   matlab.ui.control.CheckBox       % Monitor CPU, memory, disk and GPU (a preference)
+        RunMonitorPanel      matlab.ui.container.Panel        % Resource use, under the Steps panel
+        RunMonitorBars       matlab.ui.container.GridLayout   % CPU, memory, disk, GPU (see setRunBar)
+        RunMonitorTexts      matlab.ui.control.Label          % ... their figures
+        RunMonitorNote       matlab.ui.control.Label
     end
 
     properties
@@ -496,6 +503,10 @@ classdef EphysPreprocessingApp < handle
         % The Run tab diagram's model: phase, times, results so far, one entry
         % per step (resetRunDiagram / updateRunDiagram / finishRunDiagram).
         RunDiagram struct = struct('phase', "idle")
+        % The resource sampler (resource_monitor.ps1) being shown: its folder
+        % ("" = none), launch time and interval, and the timer reading it.
+        ResourceMonitor struct = struct('dir', "", 'started', NaT, 'interval', 2)
+        ResourceMonitorTimer = []
 
         % Probe tab selection state.
         ProbePaths (1,:) string = string.empty(1,0)
@@ -653,6 +664,11 @@ classdef EphysPreprocessingApp < handle
         finishRunDiagram(obj, R, outcome, note)
         refreshRunDiagram(obj)
         html = runDiagramHTML(obj)
+        onResourceMonitorToggled(obj)
+        startResourceMonitor(obj)
+        stopResourceMonitor(obj)
+        pollResourceMonitor(obj)
+        showResourceSample(obj, S)
 
         % --- Copy tab ---
         onCopyFind(obj)

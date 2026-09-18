@@ -12,6 +12,8 @@ function P = pairTrials(obj, opts)
 %
 %   P is the pairEpsychTrials struct plus
 %     status       "approved" | "unreviewed" (recorded or new)
+%     autoApproved true when the recorded approval was automatic
+%                  (autoApproveTrialPairing)
 %     recorded     true when the cuts came from TrialPairing
 %     stale        true when a recorded pairing no longer matched (the
 %                  session or the recording changed) and its cuts were dropped
@@ -87,8 +89,10 @@ P = pairEpsychTrials(trials, E.events, E.Fs, TrialLine=trialLine, ...
     CutTrials=cutT, CutIntervals=cutI, SignalFs=tc.SignalFs, Warn=opts.Warn);
 if recorded
     P.status = rec.status;
+    P.autoApproved = rec.auto_approved;
 else
     P.status = "unreviewed";
+    P.autoApproved = false;
 end
 P.recorded = recorded;
 P.stale = stale;

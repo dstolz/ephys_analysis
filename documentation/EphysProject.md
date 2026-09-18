@@ -25,6 +25,7 @@ P = EphysProject(root, AutoDiscover=false)   % set config, call P.discover() lat
 | `Scale` | `1/0.195` | pushed to every dataset |
 | `Dtype` | `"int16"` | pushed to every dataset |
 | `NamePattern` | `EphysDataset.DefaultNamePattern` | name pattern pushed to every dataset; its `SubjectID`, `Date` and `Time` tokens label sorted units (see [Unit labels](EphysDataset.md#unit-labels)) |
+| `Recursive` | `true` | `discover()` searches every sub-folder of `root`; `false` = only `root` and the folders directly in it |
 | `Manifest` | `[]` | optional shared provenance `Manifest` |
 | `AutoDiscover` | `true` | run `discover()` in the constructor |
 
@@ -36,6 +37,7 @@ The constructor errors (`EphysProject:NoRoot`) if `root` does not exist.
 | Property | Meaning |
 | --- | --- |
 | `Root` | root folder that was scanned |
+| `Recursive` | whether `discover()` searches below the folders directly in `Root` |
 | `Datasets` | `EphysDataset` row array, one per recording folder |
 | `ProbeFile`, `PythonExe`, `CondaEnv`, `OutputRoot`, `Scale`, `Dtype`, `NamePattern`, `Manifest` | shared defaults |
 | `NumDatasets` (dependent) | `numel(Datasets)` |
@@ -45,12 +47,15 @@ datasets by itself. Call `pushConfig(d)` for each dataset (or re-`discover()`).
 
 ## Methods
 
-**`discover()`** finds every folder under `Root` (recursively) that a
-registered acquisition reader claims
+**`discover()`** finds every folder under `Root` that a registered
+acquisition reader claims
 (`EphysReader.findAllRecordingFolders`): folders that directly contain a
 `*.rhd` file (Intan traditional and split layouts, since `info.rhd` matches)
 and folders holding a `recording.json` descriptor (the
 [universal binary format](file-formats.md#universal-recording-format-recordingjson)).
+With `Recursive` (the default) every sub-folder is searched; with
+`Recursive=false` only `Root` itself and the folders directly in it can be
+recordings, so `Root/mouse1/sess1` is not found.
 One `EphysDataset` is created per folder with `AutoMetadata=false` (headers are
 not parsed yet), and `pushConfig` is applied to each. If nothing is found,
 `Datasets` is emptied and a warning is issued (`EphysProject:NoData`).

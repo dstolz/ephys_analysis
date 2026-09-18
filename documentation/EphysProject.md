@@ -60,7 +60,9 @@ not parsed yet), and `pushConfig` is applied to each. If nothing is found,
 1. `refreshMetadata()`: header-only metadata (Fs, channels, duration);
 2. `applyManifest()`: restore the probe, channel exclusions, manual artifact
    periods, sorting and behavior associations from
-   `<Folder>/<Name>_manifest.json`;
+   `<Folder>/<Name>_manifest.json`, then `associateFolderBehavior()`: a
+   dataset with no behavior file takes the one Epsych2 session file in its
+   own folder, which is where the app's Copy tab puts it;
 3. `writeManifest()`: rewrite the manifest with the fresh metadata.
 
 This is what the GUI's Scan does and what `EphysPipeline` and generated scripts

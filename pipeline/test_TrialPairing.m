@@ -224,6 +224,31 @@ PS = dR.pairTrials(Warn=false);
 check(PS.stale && ~PS.recorded && PS.status == "unreviewed" && isequal(PS.cutTrials, [0 0]), ...
     'a changed line polarity makes the recorded pairing stale and drops its cuts');
 
+% autoApproveTrialPairing: only a pairing without cuts whose counts match.
+dA = EphysDataset(recDir);
+dA.OutputDir = d.OutputDir; dA.TrialConfig = d.TrialConfig;
+dA.applyManifest();                                          % approved, cuts [1 0]
+[PA1, tf1] = dA.autoApproveTrialPairing(dA.pairTrials(Warn=false));
+check(~tf1 && PA1.status == "approved" && ~PA1.autoApproved && ~dA.TrialPairing.auto_approved, ...
+    'auto approval leaves an approved pairing as it is');
+dA.setTrialPairing(dA.pairTrials(Warn=false), "unreviewed");
+[PA2, tf2] = dA.autoApproveTrialPairing(dA.pairTrials(Warn=false));
+check(~tf2 && PA2.status == "unreviewed" && dA.TrialPairing.status == "unreviewed", ...
+    'auto approval leaves a pairing with cuts for review');
+[PA3, tf3] = dA.autoApproveTrialPairing(dA.pairTrials(Cuts="none", Warn=false));
+mfA = readJsonFile(dA.manifestFile());
+check(tf3 && PA3.status == "approved" && PA3.autoApproved && PA3.recorded && isequal(dA.TrialPairing.cut_trials, [0 0]) ...
+    && strcmp(mfA.behavior.pairing.status, 'approved') && mfA.behavior.pairing.auto_approved, ...
+    'a pairing whose counts match without cuts is approved and marked automatic in the manifest');
+dB = EphysDataset(recDir);
+dB.OutputDir = d.OutputDir; dB.TrialConfig = d.TrialConfig;
+dB.applyManifest();
+PB = dB.pairTrials(Warn=false);
+check(dB.TrialPairing.auto_approved && PB.recorded && PB.status == "approved" && PB.autoApproved, ...
+    'the automatic approval survives the manifest round trip');
+dB.setTrialPairing(PB, "approved");
+check(~dB.TrialPairing.auto_approved, 'approving by hand clears the automatic mark');
+
 o = d.behaviorToMat(Pairing=PR);
 B = load(o.file);
 bt = B.behavior.trials;
@@ -233,6 +258,8 @@ check(o.paired && all(ismember(["ToneLevel" "TrialOnset" "TrialOnsetSample" "Tri
     && isequal(B.behavior.pairing.cutTrials, [1 0]) && B.behavior.pairing.countMismatch, ...
     'behaviorToMat writes the pairing columns and summary');
 check(isempty(d.behaviorStruct().pairing), 'behaviorStruct without a pairing leaves trials untouched');
+check(isfield(B.behavior.pairing, 'autoApproved') && ~B.behavior.pairing.autoApproved, ...
+    'the behavior file says whether the approval was automatic');
 
 fprintf('\n== 7. inverted polarity in the extract events ==\n');
 lowRows = [[1; offR + 1], [onR - 1; nSamp]];
@@ -274,6 +301,19 @@ pipe.checkBehavior();
 check(any(pipe.Results.Step == "behavior:pairing" & pipe.Results.Status == "approved"), 'an approved pairing is reused');
 T = pipe.plan(Steps="behavior");
 check(any(contains(T.Note, "recorded pairing: approved")), 'plan mentions the recorded pairing');
+dp.setTrialPairing([]);
+cfg.Behavior.AutoApprove = true;        % stays on below: a count mismatch must still need review
+pipe.Config = cfg;
+pipe.reset();
+pipe.checkBehavior();
+check(any(pipe.Results.Step == "behavior:pairing" & pipe.Results.Status == "auto-approved") ...
+    && dp.TrialPairing.status == "approved" && dp.TrialPairing.auto_approved, ...
+    'with AutoApprove a new pairing whose counts match is approved automatically');
+pipe.reset();
+pipe.checkBehavior();
+T = pipe.plan(Steps="behavior");
+check(any(pipe.Results.Step == "behavior:pairing" & pipe.Results.Status == "auto-approved") ...
+    && any(contains(T.Note, "approving matching counts")), 'a reused automatic approval is reported as such, and plan mentions AutoApprove');
 
 % A session with one trial more than the line has intervals: the approved
 % record no longer matches and the mismatch is reported.

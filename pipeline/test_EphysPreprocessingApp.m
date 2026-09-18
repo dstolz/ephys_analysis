@@ -438,6 +438,45 @@ check(isequal(BW, BT.behavior) && contains(app.StatusBar.Text, vB), ...
     'Behavior to workspace puts the behavior struct of <name>_behavior.mat in the base workspace and names the variable');
 evalin('base', "clear " + vE + " " + vB);
 
+fprintf('\n== 3b2. Trials tab: prefetch the ticked datasets, auto approve ==\n');
+evFile = fullfile(dT.outputFolder(), dT.Name + "_events.mat");
+check(isfile(evFile) && string(app.TrialsPrefetchButton.Text) == "Prefetch ticked" ...
+    && ~app.TrialsAutoApproveCheckBox.Value && ~app.Config.Behavior.AutoApprove, ...
+    'Load cached the lines; the Prefetch button is there and Auto approve is off by default');
+delete(evFile);
+dT.setTrialPairing([]);
+app.clearTrialsView();
+ticked0 = app.tickedDatasetIndices();
+app.onSelectDatasets("all");
+app.onTrialsPrefetch();
+check(isfile(evFile) && contains(app.StatusBar.Text, "1 read, 0 already cached") && isempty(dT.TrialPairing), ...
+    'Prefetch reads and caches the lines of the ticked dataset, and pairs nothing without Auto approve');
+app.onTrialsPrefetch();
+check(contains(app.StatusBar.Text, "0 read, 1 already cached"), 'a second Prefetch finds the lines cached');
+app.onTrialsLoad("recorded");
+check(app.TrialsEvents.source == "cache" && app.TrialsPairing.status == "unreviewed" && ~app.TrialsPairing.recorded, ...
+    'Load takes the prefetched lines from the cache');
+app.TrialsAutoApproveCheckBox.Value = true;
+app.onTrialsSettingsChanged();
+mT = readJsonFile(dT.manifestFile());
+check(app.Config.Behavior.AutoApprove && app.TrialsPairing.status == "approved" && app.TrialsPairing.autoApproved ...
+    && contains(app.TrialsSummaryLabel.Text, "APPROVED automatically") && mT.behavior.pairing.auto_approved ...
+    && contains(app.DatasetsTable.Data.Behavior(1), "pairing approved (auto)"), ...
+    'ticking Auto approve approves the shown pairing (its counts match) and marks it automatic');
+dT.setTrialPairing([]);
+app.clearTrialsView();
+app.onTrialsPrefetch();
+check(dT.TrialPairing.status == "approved" && dT.TrialPairing.auto_approved ...
+    && contains(app.StatusBar.Text, "1 approved automatically, 0 already approved, 0 need review"), ...
+    'with Auto approve, Prefetch also approves each ticked pairing whose counts match');
+app.onTrialsLoad("recorded");
+app.onTrialsApprove("approved");
+check(~dT.TrialPairing.auto_approved && app.TrialsPairing.status == "approved" && ~app.TrialsPairing.autoApproved ...
+    && ~contains(app.TrialsSummaryLabel.Text, "automatically"), 'approving by hand replaces the automatic approval');
+app.TrialsAutoApproveCheckBox.Value = false;
+app.onTrialsSettingsChanged();
+if isempty(ticked0); app.onSelectDatasets("none"); end
+
 fprintf('\n== 3c. Sorting tab: optimize for probe, reset to defaults ==\n');
 dS = app.currentDataset();
 app.onOptimizeKS4ForProbe();

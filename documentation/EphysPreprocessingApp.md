@@ -151,7 +151,10 @@ different PCs and clocks):
 
 A session is copied to `<Destination>/<SUBJ>/<Intan folder name>/`: the Intan
 folder's contents, the ePsych file under its original name,
-`session_manifest.json` and `session_copy_robocopy.log`. The tab only collects
+`session_manifest.json` and `session_copy_robocopy.log`. Scanning the
+destination as a project associates that ePsych file with the recording
+(`associateFolderBehavior`), so the **Behavior** column is filled without
+any behavior search folders. The tab only collects
 settings and shows results. The pairing rules are in
 [`findCopySessions`](../pipeline/findCopySessions.m) and the copy rules in
 [`copySessions`](../pipeline/copySessions.m), which work the same from a
@@ -288,8 +291,8 @@ before anything is copied.
 The copy writes the ePsych files as one Epsych2 session,
 `<earliest file name>_stitched.mat`, in place of the individual files
 ([`stitchEpsychSessions`](EphysPipeline.md#epsych2-sessions)). The session folder
-therefore holds a single behavior file, which the behavior step matches and the
-Trials tab pairs like any other. That file is checked right after it is
+therefore holds a single behavior file, which Scan associates with the recording
+and the Trials tab pairs like any other. That file is checked right after it is
 written. It must list the same source file names and sizes and hold as many
 trials as they do. With `hash`, its `Data` and `Info` must also equal a fresh
 stitch of the sources, and the SHA-256 of every source and of the file are
@@ -302,7 +305,7 @@ copy.
 | Control | Meaning |
 | --- | --- |
 | Config name, Description | `cfg.Name`, `cfg.Description` |
-| Project root + Browse... + **Scan** | `Project.Root`. Scan builds `EphysProject(root)` (every folder that a registered reader claims: Intan `*.rhd` / `info.rhd`, or `recording.json`), then `P.refresh()`: header metadata, `applyManifest` (probe, exclusions, manual periods, sorting and behavior associations), `writeManifest`. A progress dialog with Cancel; datasets whose headers fail keep `NaN` metadata and a warning is printed |
+| Project root + Browse... + **Scan** | `Project.Root`. Scan builds `EphysProject(root)` (every folder that a registered reader claims: Intan `*.rhd` / `info.rhd`, or `recording.json`), then `P.refresh()`: header metadata, `applyManifest` (probe, exclusions, manual periods, sorting and behavior associations), `associateFolderBehavior` (a dataset with no behavior file takes the one Epsych2 file in its own folder), `writeManifest`. A progress dialog with Cancel; datasets whose headers fail keep `NaN` metadata and a warning is printed |
 | Refresh metadata | re-parse all headers |
 | Output root + Browse... | `Project.OutputRoot`: each dataset writes to `<root>/<Name>`; blank = next to the recording |
 | Name pattern + Columns | `Project.NamePattern`: tokens parsed from each dataset name (see [`parseNameTokens`](EphysPipeline.md#dataset-name-tokens)); one checkbox per token, ticked tokens (`Project.TokenColumns`, default `SubjectID`) become table columns after Name. The label shows how many names match, or the pattern error |
@@ -340,19 +343,21 @@ Review how each Epsych2 trial is paired with the trial digital line (see
 | Control | What it does |
 | --- | --- |
 | Dataset + **Load** | the active dataset. Load reads its digital lines (`digitalEvents`: cached on disk after the first read, kept in memory while it stays active) and pairs the trials in order, reusing the cuts recorded in the manifest when they still match. Choosing another dataset clears the pairing shown, including cuts not yet approved |
+| **Prefetch ticked** | reads and caches the digital lines of every ticked dataset (Project tab) that has an Epsych2 session, one after the other (`digitalEvents` for each), so a later Load, the pairing and the behavior step take them from `<Name>_events.mat` instead of reading the recording. A dataset whose cache is still current is only checked. With **Auto approve** on, each dataset is also paired and a pairing whose counts match is approved. The progress dialog names the dataset and the file being read; **Cancel** stops before the next file and keeps what was cached. The status bar sums it up (read, already cached, skipped for want of a session, failed; with Auto approve, approved automatically / already approved / need review), and an alert lists the pairings that need review and any failures |
 | **Reset cuts** | drops the cuts (shown and recorded) and pairs every trial with every interval in order again |
 | **Approve pairing** / **Mark unreviewed** | `setTrialPairing(P, "approved" / "unreviewed")`: saves the shown cuts in the manifest |
 | **Write behavior .mat** | `behaviorToMat(Pairing=P)` now, without running the step |
 | **Epsych2 to workspace** | loads the associated Epsych2 session file as saved (`Data`, `Info`) into the base workspace as `epsych_<Name>`; an alert and the status bar give the variable's name. A variable of that name is replaced |
 | **Behavior to workspace** | loads the `behavior` struct of `<Name>_behavior.mat` (trials with the pairing columns, `info`, `meta`, `pairing`, ...) into the base workspace as `behavior_<Name>`, the same way. The file must exist: run the behavior step or press **Write behavior .mat** first |
 | **Pair trials in the behavior step**, **Trial line** | `Behavior.PairTrials`, `Behavior.TrialLine` |
+| **Auto approve when the counts match** | `Behavior.AutoApprove` (off by default): a pairing is approved as soon as it is paired (Load, a setting change, **Prefetch ticked**, the behavior step) when it cuts nothing and the Epsych2 trials and the trial-line intervals are equal in number (`EphysDataset.autoApproveTrialPairing`). The manifest marks the approval as automatic (`auto_approved`), the summary reads *APPROVED automatically* and the Project table *pairing approved (auto)*. A count mismatch, and a pairing whose cuts resolved one, still need **Approve**. **Reset cuts** and cut edits never approve; approving by hand replaces the automatic mark |
 | Lines table (**Inverted**) | one row per digital line with its interval count; ticked lines are `Signals.InvertedLines`: on while low, so an event's onset is the falling edge and its offset the rising edge (the last low sample). This applies to the pairing and to the events the Signals step writes (and so to the exports) |
 | **Resolve a count mismatch** | four spinners: Epsych2 trials and trial-line intervals to cut from the start and from the end before pairing. They belong to the dataset (its manifest), not to the config; cuts that would drop more than there is are refused |
 | Trials table | trial, `TrialIndex`, interval, onset / offset (s), onset / offset sample, flag (orange = partial: the interval touches the recording start or end; grey = cut; red = unpaired), the other lines overlapping the trial. Click a header to sort, drag it to move the column. Right-click for **Parameter columns** (the session's Epsych2 parameters in alphabetical order; tick one, e.g. `TrialType` or a response code, to show it after Flag), **Remove "*name*"** (on a parameter column) and **Reset column order**. The chosen parameters and the column order are preferences, so they apply to every dataset and the next session; a parameter a session lacks is not shown there (the menu lists it as *not in this session*) and returns to its place for sessions that have it. Values that are not one number, text or date per trial are shown as text. A sort is not kept when the table refreshes (Load, a cut, a setting or a column change) |
 | Plot | the digital lines over the recording: one bar per event, from its onset to its offset. A normal line's bars run from each rising edge to the next falling edge; an inverted line's (row label `(inverted)`) from each falling edge to the next rising edge. The trial line's bars are coloured by pairing state (paired, partial, cut, unpaired), and dotted lines across every row mark its onsets and offsets. Right-click the plot to show or hide those lines (shown by default) and the grid lines (hidden by default), and for **Trial labels**: the loaded session's Epsych2 parameters in alphabetical order (`TrialIndex` included). A ticked parameter writes each paired trial's value above the trial line, starting at the trial's onset; with several ticked, each label reads `name=value, name=value` in the order ticked, and the plot title names them. **No labels** clears them. Like the table's parameter columns, the choice is a preference: it applies to every dataset and the next session, and a parameter a session lacks is listed as *not in this session* and not written. Zoom and pan are horizontal only: the mouse wheel zooms time in and out about the cursor, dragging pans time |
 
-The summary line says whether the pairing is approved, recorded but not
-reviewed, or new, whether a recorded pairing went stale (the session, the
+The summary line says whether the pairing is approved (by hand or
+automatically), recorded but not reviewed, or new, whether a recorded pairing went stale (the session, the
 trial line, its polarity or its intervals changed: its cuts are dropped), and
 warns when the numbers of trials and intervals differ. The Epsych2 timestamps
 are not used: trial 1 is the first interval, and the only thing to check is
@@ -720,7 +725,7 @@ The four recordings differ in how they cover their session, so the
 
 | Dataset | Scenario | Trials vs `InTrial` intervals | Resolution on the Trials tab |
 | --- | --- | --- | --- |
-| 1 | `clean` | equal | approve as is |
+| 1 | `clean` | equal | approve as is (Auto approve does it) |
 | 2 | `late-start` | the recording started 1.2 s into trial 3: trials 1-2 have no interval, interval 1 is partial (begins at sample 1) | cut 3 trials and 1 interval from the start (cutting 2 trials pairs trial 3 with the partial interval) |
 | 3 | `early-stop` | the recording stopped in the middle of trial N-2: the last interval is partial, trials N-1 and N have none | cut 3 trials and 1 interval from the end |
 | 4 | `spurious` | a 40 ms `InTrial` pulse before the first trial | cut 1 interval from the start |
@@ -788,7 +793,7 @@ app.KSRuns                        % background runs being monitored
 | `gatherConfig.m`, `applyConfig.m`, `gather*/apply*Section.m`, `gather/applyConvertConfig.m`, `gather/applySortingSection.m`, `onConfigChanged.m`, `syncStepEnableStates.m`, `updateTitle.m` | config model |
 | `onNewConfig.m`, `onOpenConfig.m`, `openConfigFile.m`, `onSaveConfig.m`, `onSaveConfigAs.m`, `onExportConfigCopy.m`, `onGenerateScript.m`, `onCreateSyntheticProject.m`, `createSyntheticProject.m`, `confirmDiscard.m`, `addRecentConfig.m`, `refreshRecentMenu.m` | File menu |
 | `buildPipeline.m`, `runPipeline.m`, `onRunStep.m`, `onCancelRun.m`, `onValidate.m`, `onPlan.m`, `refreshStepPlan.m`, `onPipelineProgress.m`, `runLog.m`, `setRunBar.m`, `showIssues.m`, `onParallelControlsChanged.m` | running |
-| `buildTrialsTab.m`, `onTrialsLoad.m`, `repairTrials.m`, `refreshTrialsView.m`, `refreshTrialsTable.m`, `refreshTrialsPlot.m`, `trialsColumnOrder.m`, `onTrialsTableMenu.m`, `onTrialsPlotMenu.m`, `onTrialsCutsChanged.m`, `syncTrialsCuts.m`, `onTrialsApprove.m`, `onTrialsWriteBehavior.m`, `onTrialsToWorkspace.m`, `onTrialsSettingsChanged.m`, `clearTrialsView.m`, `fillTrialsLines.m`, `setTrialsLineItems.m`, `syncTrialsButtons.m` | Trials tab |
+| `buildTrialsTab.m`, `onTrialsLoad.m`, `repairTrials.m`, `refreshTrialsView.m`, `refreshTrialsTable.m`, `refreshTrialsPlot.m`, `trialsColumnOrder.m`, `onTrialsTableMenu.m`, `onTrialsPlotMenu.m`, `onTrialsCutsChanged.m`, `syncTrialsCuts.m`, `onTrialsApprove.m`, `onTrialsPrefetch.m`, `onTrialsWriteBehavior.m`, `onTrialsToWorkspace.m`, `onTrialsSettingsChanged.m`, `clearTrialsView.m`, `fillTrialsLines.m`, `setTrialsLineItems.m`, `syncTrialsButtons.m` | Trials tab |
 | `onScan.m`, `refreshDatasetsTable.m`, `onDatasetCellSelection.m`, `onSelectDatasets.m`, `onRefreshMetadata.m`, `onAssociateBehavior.m`, `onClearBehavior.m`, `onBrowseBehaviorDir.m` | Project tab |
 | `selectDataset.m`, `currentDataset.m`, `populateDatasetPickers.m`, `refreshDatasetMenu.m`, `refreshDatasetPickers.m`, `datasetPicker.m`, `highlightDatasetRow.m` | the active dataset: Dataset menu, every tab's Dataset box, the highlighted table row |
 | `refreshProbeList.m`, `onProbeSelected.m`, `onImportProbe.m`, `onDesignProbe.m`, `runProbeTool.m`, `onAssignProbe.m`, `onApplyExclude.m`, `onUseSelectedProbeAsDefault.m`, `probe_tool.py` | Probe tab |

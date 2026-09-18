@@ -129,7 +129,7 @@ Schema `intan-dataset-manifest/2` (`null` where a value is `NaN`):
                 "num_units": <n or null>, "updated": <"yyyy-MM-dd HH:mm:ss" or ""> },
   "behavior": { "file": <Epsych2 .mat or "">, "subject": <string>,
                 "start_time": <"yyyy-MM-dd HH:mm:ss" or "">, "n_trials": <n or null>,
-                "pairing": null | { "status": "unreviewed" | "approved",
+                "pairing": null | { "status": "unreviewed" | "approved", "auto_approved": <bool>,
                   "cut_trials": [<from start>, <from end>], "cut_intervals": [<from start>, <from end>],
                   "fingerprint": <string>, "trial_line": <string>, "summary": <string>,
                   "updated": <"yyyy-MM-dd HH:mm:ss"> } },
@@ -171,7 +171,7 @@ which holds `H64LP_4x16.json` as a starting point.
   "Parallel":  { "Enabled", "MaxWorkers" },
   "Probe":     { "DefaultProbeFile", "WriteDefaultToManifest" },
   "Behavior":  { "Enabled", "SearchDirs", "Match", "MaxStartOffsetMin", "Overwrite", "WriteFile",
-                 "PairTrials", "TrialLine" },
+                 "PairTrials", "AutoApprove", "TrialLine" },
   "Artifacts": { "Enabled", "Method", "Threshold", ... , "ApplyToSorting", "ApplyToSpikes", "CacheIntervals" },
   "Sorting":   { "Enabled", "PythonExe", "CondaEnv", "Execution", "DryRun", "SkipExisting",
                  "SI": {...}, "KS4": {...}, "KS4ExtraJSON" },
@@ -442,8 +442,8 @@ When trials were paired (`Behavior.PairTrials`), `behavior.trials` also has:
 | `TrialEvents` | struct per trial: one field per other digital line, `[n x 2]` seconds of its intervals that overlap the trial (polarity applied) |
 | `TrialEventSamples` | the same in rows at the recording rate |
 
-`behavior.pairing` holds `status` (`"approved"` only after review),
-`trialLine`, `invertedLines`, `Fs`, `nSamples`, `signalFs`, `nTrials`,
+`behavior.pairing` holds `status` (`"approved"` only after review, or
+automatically with `Behavior.AutoApprove`), `autoApproved`, `trialLine`, `invertedLines`, `Fs`, `nSamples`, `signalFs`, `nTrials`,
 `nIntervals`, `nPaired`, `cutTrials` and `cutIntervals` (`[start end]`
 counts dropped before pairing), `countMismatch`, `warnings`,
 `partialIntervals`, `unpairedTrials`, `unpairedIntervals`, `fingerprint`,

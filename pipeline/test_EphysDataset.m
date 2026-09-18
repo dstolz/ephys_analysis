@@ -772,6 +772,41 @@ check(isequal(Pr.Datasets(j1).ManualArtifacts, [0.001 0.002]) && ~isnan(Pr.Datas
 rep2 = Pr.refresh(CancelFcn=@() true);
 check(all(rep2.Message == "cancelled"), 'refresh honours CancelFcn');
 
+% refresh associates the one Epsych2 file in a recording folder (the Copy tab puts it there).
+k1 = Pr.findByKey("mouse1/sess1");
+k2 = Pr.findByKey("mouse2/sess1");
+f1 = Pr.Datasets(k1).Folder;
+f2 = Pr.Datasets(k2).Folder;
+check(Pr.Datasets(k1).BehaviorFile == "" && Pr.Datasets(k2).BehaviorFile == "", ...
+    'no behavior file before one is put in the recording folders');
+Data = struct('TrialIndex', {1, 2}); Info = struct('Subject', 'subjA');
+save(fullfile(f1, 'subjA_260101T100000.mat'), 'Data', 'Info');
+save(fullfile(f2, 'subjA_260102T100000.mat'), 'Data', 'Info');
+save(fullfile(f2, 'subjA_260102T110000.mat'), 'Data', 'Info');
+behavior = struct('nTrials', 2);
+save(fullfile(f1, 'sess1_behavior.mat'), 'behavior');   % an output, not an Epsych2 session
+Pb = EphysProject(fullfile(root, 'proj'));
+Pb.refresh();
+b1 = Pb.Datasets(Pb.findByKey("mouse1/sess1"));
+b2 = Pb.Datasets(Pb.findByKey("mouse2/sess1"));
+check(b1.BehaviorFile == string(fullfile(f1, 'subjA_260101T100000.mat')), ...
+    'refresh associates the one Epsych2 file in the recording folder');
+mb = readJsonFile(b1.manifestFile());
+check(strcmp(mb.behavior.file, fullfile(f1, 'subjA_260101T100000.mat')), 'that association is written to the manifest');
+check(b2.BehaviorFile == "", 'two Epsych2 files in the folder: nothing is associated');
+b2.BehaviorFile = string(behFile);
+b2.writeManifest();
+Pc = EphysProject(fullfile(root, 'proj'));
+Pc.refresh();
+check(Pc.Datasets(Pc.findByKey("mouse2/sess1")).BehaviorFile == string(behFile), ...
+    'an existing association is kept');
+Pd = EphysProject(fullfile(root, 'proj'));
+Pd.refresh(ApplyManifest=false, WriteManifest=false);
+check(Pd.Datasets(Pd.findByKey("mouse1/sess1")).BehaviorFile == "", ...
+    'ApplyManifest=false leaves behavior unassociated');
+delete(fullfile(f1, '*.mat'));
+delete(fullfile(f2, '*.mat'));
+
 fprintf('\n== 16. ArtifactConfig pre-detection filter ==\n');
 % A slow 5 Hz, 4000 uV oscillation trips the absolute-microvolts detector
 % on broadband data but vanishes after the configured 300 Hz high-pass.

@@ -191,7 +191,7 @@ The constructor errors (`EphysDataset:NoFolder`) if the folder does not exist.
 | `TrialConfig` | `defaultTrialConfig()` | trial pairing: `TrialLine` (`"InTrial"`), `InvertedLines` (see [polarity](EphysPipeline.md#digital-line-polarity)), `SignalFs` (struct of derived-signal rates), `LabelField` |
 | `NamePattern` | `EphysDataset.DefaultNamePattern` = `"{SubjectID}_{Date:yyMMdd}_{Time:HHmmss}"` | [`parseNameTokens`](../pipeline/parseNameTokens.m) pattern that splits `Name` into the tokens labelling sorted units. Pushed from `EphysProject.NamePattern` / the config's `Project.NamePattern` |
 | `DatasetKey` | `""` | folder relative to the project root, saved with every unit (`""` = the absolute folder). Pushed by `EphysProject` and the pipeline |
-| `TrialPairing` | `struct([])` | the recorded pairing (manifest `behavior.pairing`): `status` (`"unreviewed"` / `"approved"`), `cut_trials` and `cut_intervals` (`[start end]` counts dropped before the in-order pairing), `fingerprint`, `trial_line`, `summary`, `updated` |
+| `TrialPairing` | `struct([])` | the recorded pairing (manifest `behavior.pairing`): `status` (`"unreviewed"` / `"approved"`), `auto_approved` (approved by `autoApproveTrialPairing`, not by a review), `cut_trials` and `cut_intervals` (`[start end]` counts dropped before the in-order pairing), `fingerprint`, `trial_line`, `summary`, `updated` |
 
 ### Dependent
 
@@ -966,9 +966,17 @@ and nothing analysis-related is run.
 ### Behavior (Epsych2)
 
 - `BehaviorFile` is the associated session `.mat` (set by the GUI, by
-  `EphysPipeline.checkBehavior`, or by hand); it is recorded in the manifest
-  (`behavior`: `file`, `subject`, `start_time`, `n_trials`) and restored on the
-  next scan if the file still exists.
+  `EphysPipeline.checkBehavior`, by a scan, or by hand); it is recorded in the
+  manifest (`behavior`: `file`, `subject`, `start_time`, `n_trials`) and
+  restored on the next scan if the file still exists.
+- `tf = associateFolderBehavior()` sets `BehaviorFile` when none is associated
+  (or its file is gone) and the recording folder holds exactly one Epsych2
+  session file at its top level (`findEpsychSessions(Folder, Recursive=false)`).
+  That is where the app's Copy tab puts a session's ePsych file, or its
+  stitched file. With none or several it changes nothing. `EphysProject.refresh`
+  calls it after `applyManifest`, so a scan associates copied sessions without
+  any `Behavior.SearchDirs`. The behavior, signals, spikes and export outputs
+  do not hold `Data` and `Info`, so they are never taken for a session.
 - `[trials, info, meta] = readBehavior()` is
   [`readEpsychSession(BehaviorFile)`](EphysPipeline.md#epsych2-sessions).
 - `behaviorStruct()` returns `struct(trials, info, meta, file, subject,
@@ -990,9 +998,16 @@ and nothing analysis-related is run.
   pairs the session's trials, in order, with `TrialConfig.TrialLine`
   ([`pairEpsychTrials`](EphysPipeline.md#pairing-trials-with-the-trial-line)).
   It reuses the cuts of `TrialPairing` while the fingerprint still matches.
-  It adds `status`, `recorded`, `stale` and `fingerprint` to the result.
-- `setTrialPairing(P, "unreviewed"|"approved")` records the cuts in the
-  manifest; `setTrialPairing([])` clears it.
+  It adds `status`, `autoApproved`, `recorded`, `stale` and `fingerprint` to
+  the result.
+- `setTrialPairing(P, "unreviewed"|"approved", Auto=false)` records the cuts
+  in the manifest (`Auto=true` marks an approval as automatic);
+  `setTrialPairing([])` clears it.
+- `[P, tf] = autoApproveTrialPairing(P)` approves and records `P` (marked
+  automatic) when it is not approved yet, cuts nothing, and the session has
+  as many trials as the trial line has intervals; anything else is left for
+  review. `tf` says whether it did. The behavior step and the app call it
+  when `Behavior.AutoApprove` is on.
 
 ### Processed files (`DatasetOutputs`)
 
@@ -1081,7 +1096,7 @@ deletes them afterwards. It covers:
 | 12 | `runSpikeInterface(DryRun=true)` |
 | 13 | `detectSpikes` (injected troughs: alignment, thresholds, polarity, minimum period, waveforms, edges, guards) |
 | 14 | `detectSpikes` over a whole recording (streamed in 6 chunks: identical to the single-block result, boundary-straddling waveforms, `ChannelOrder`, `ProgressFcn`, guards, `UseParallel` / `MaxWorkers`, worker errors, cancel, parallel `artifactIntervals` / `analyzeArtifacts` over split chunks) |
-| 15 | `writeJsonFile` / `readJsonFile`, manifest v2 round trip (manual periods, sorting, behavior), v1 manifests, `sortingResultsDir` precedence, `EphysProject` keys and `refresh` |
+| 15 | `writeJsonFile` / `readJsonFile`, manifest v2 round trip (manual periods, sorting, behavior), v1 manifests, `sortingResultsDir` precedence, `EphysProject` keys and `refresh`, including `associateFolderBehavior` (one file associated, two left alone, an existing association kept) |
 | 16 | the `ArtifactConfig` pre-detection filter (preview and `artifactIntervals` agree; single-chunk `UseParallel` is silent) |
 | 17 | `readPhyUnits` / `readSortedUnits` (times = samples/fs, phy labels beat Kilosort labels, groups, channel mapping, `FsFallback`) |
 | 18 | `spikesToMat` (detected + sorted, artifact rejection, waveforms, unit labels and identity saved, no behavior variable, no partial file left) |

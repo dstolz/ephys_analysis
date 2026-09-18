@@ -150,9 +150,27 @@ mkdir(fullfile(root, 'proj', 'empty_decoy'));
 writeSyntheticRHD(fullfile(root,'proj','mouse1','sess1','a.rhd'), ampRaw(:,1:spb), digRaw(1:spb), Fs, spb);
 writeSyntheticRHD(fullfile(root,'proj','mouse2','sess1','b.rhd'), ampRaw(:,1:spb), digRaw(1:spb), Fs, spb);
 P = EphysProject(fullfile(root,'proj'));
-check(P.NumDatasets == 2, 'discover finds exactly 2 dataset folders (decoy ignored)');
+check(P.NumDatasets == 2 && P.Recursive, 'discover finds exactly 2 dataset folders (decoy ignored)');
 T = P.gatherMetadata();
 check(height(T) == 2 && all(T.NumChannels == numAmp), 'gatherMetadata table');
+% Recursive=false: the root and the folders directly in it, nothing deeper
+flat = fullfile(root, 'flat');
+mkdir(fullfile(flat, 'sessA', 'old'));
+mkdir(fullfile(flat, 'grp', 'sessB'));
+writeSyntheticRHD(fullfile(flat,'top.rhd'), ampRaw(:,1:spb), digRaw(1:spb), Fs, spb);
+writeSyntheticRHD(fullfile(flat,'sessA','a.rhd'), ampRaw(:,1:spb), digRaw(1:spb), Fs, spb);
+writeSyntheticRHD(fullfile(flat,'sessA','old','a.rhd'), ampRaw(:,1:spb), digRaw(1:spb), Fs, spb);
+writeSyntheticRHD(fullfile(flat,'grp','sessB','b.rhd'), ampRaw(:,1:spb), digRaw(1:spb), Fs, spb);
+Pdeep = EphysProject(flat);
+check(isequal(sort(Pdeep.datasetKeys()), ["." "grp/sessB" "sessA" "sessA/old"]), ...
+    'a recursive scan finds the root and every nested recording');
+Pflat = EphysProject(flat, Recursive=false);
+check(~Pflat.Recursive && isequal(sort(Pflat.datasetKeys()), ["." "sessA"]), ...
+    'Recursive=false finds only the root and the folders directly in it');
+ws = warning('off', 'EphysProject:NoData');
+Pnone = EphysProject(fullfile(root, 'proj'), Recursive=false);
+warning(ws);
+check(Pnone.NumDatasets == 0, 'Recursive=false does not reach recordings two levels down');
 
 fprintf('\n== 8. runKilosort(DryRun=true) ==\n');
 % Minimal valid probe json

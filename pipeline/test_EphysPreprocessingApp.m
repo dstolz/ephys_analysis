@@ -319,6 +319,19 @@ app.onConfigChanged();
 check(app.NameTokenChecks(1).Value && app.Config.Project.TokenColumns == "SubjectID" ...
     && app.Config.Project.NamePattern == cfg.Project.NamePattern, 'applying the section restores pattern and columns');
 
+fprintf('\n== 3a2. recursive scan ==\n');
+check(app.RecursiveCheckBox.Value && app.Project.Recursive, 'scans are recursive by default');
+app.RecursiveCheckBox.Value = false;
+app.onConfigChanged();
+app.onScan();
+check(~app.Config.Project.Recursive && ~app.Project.Recursive && app.Project.NumDatasets == 1, ...
+    'unticking Recursive is saved in the config and scans only the root and the folders directly in it');
+app.applyProjectSection(cfg.Project);
+app.onConfigChanged();
+app.onScan();
+check(app.RecursiveCheckBox.Value && app.Config.Project.Recursive && app.Project.Recursive, ...
+    'applying the section restores Recursive');
+
 fprintf('\n== 3b. Trials tab: load, cut, approve, polarity ==\n');
 app.selectDataset(1);
 app.setTrialsLineItems("din0", "din0");

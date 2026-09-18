@@ -1,8 +1,9 @@
 function applyProjectSection(obj, P)
-%applyProjectSection  Project section -> Project tab (root, output root,
-%   name pattern + token columns, ticks).
+%applyProjectSection  Project section -> Project tab (root, recursive,
+%   output root, name pattern + token columns, ticks).
 P = EphysPipelineConfig.normalizeSection("Project", P);
 obj.RootPathField.Value   = char(P.Root);
+obj.RecursiveCheckBox.Value = P.Recursive;
 obj.OutputRootField.Value = char(P.OutputRoot);
 obj.NamePatternField.Value = char(P.NamePattern);
 try

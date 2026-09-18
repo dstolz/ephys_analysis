@@ -16,6 +16,7 @@ switch section
     case "Project"
         s = struct( ...
             'Root',       "", ...            % folder scanned for recordings
+            'Recursive',  true, ...          % search every sub-folder; false = Root and the folders directly in it
             'OutputRoot', "", ...            % "" = outputs next to each recording
             'Selection',  "all", ...         % "all" | "list"
             'Datasets',   string.empty(1,0), ... % root-relative keys when "list"

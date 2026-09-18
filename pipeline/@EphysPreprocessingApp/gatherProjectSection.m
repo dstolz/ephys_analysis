@@ -6,6 +6,7 @@ function P = gatherProjectSection(obj)
 %   before a scan the applied config's selection is kept.
 P = obj.Config.Project;
 P.Root       = string(strtrim(obj.RootPathField.Value));
+P.Recursive  = logical(obj.RecursiveCheckBox.Value);
 P.OutputRoot = string(strtrim(obj.OutputRootField.Value));
 P.NamePattern = string(obj.NamePatternField.Value);
 checks = obj.NameTokenChecks;

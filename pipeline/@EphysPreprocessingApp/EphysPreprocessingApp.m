@@ -180,6 +180,7 @@ classdef EphysPreprocessingApp < handle
         ConfigDescField   matlab.ui.control.EditField
         RootPathField     matlab.ui.control.EditField
         BrowseRootButton  matlab.ui.control.Button
+        RecursiveCheckBox matlab.ui.control.CheckBox
         ScanButton        matlab.ui.control.Button
         RefreshMetaButton matlab.ui.control.Button
         LaunchPhyButton   matlab.ui.control.Button

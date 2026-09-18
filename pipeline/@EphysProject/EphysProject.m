@@ -37,6 +37,10 @@ classdef EphysProject < handle
         % parseNameTokens pattern splitting dataset names into the SubjectID,
         % Date and Time that label sorted units (see unitIdentities).
         NamePattern (1,1) string = EphysDataset.DefaultNamePattern
+
+        % discover() searches every sub-folder of Root; false = only Root
+        % and the folders directly in it.
+        Recursive (1,1) logical = true
     end
 
     properties (Dependent)
@@ -60,6 +64,7 @@ classdef EphysProject < handle
                 opts.Scale      (1,1) double = 1/0.195
                 opts.Dtype      (1,1) string = "int16"
                 opts.NamePattern (1,1) string = EphysDataset.DefaultNamePattern
+                opts.Recursive  (1,1) logical = true
                 opts.Manifest   = []
                 opts.AutoDiscover (1,1) logical = true
             end
@@ -79,6 +84,7 @@ classdef EphysProject < handle
             obj.Scale      = opts.Scale;
             obj.Dtype      = opts.Dtype;
             obj.NamePattern = opts.NamePattern;
+            obj.Recursive  = opts.Recursive;
             if ~isempty(opts.Manifest)
                 obj.Manifest = opts.Manifest;
             end
@@ -94,7 +100,19 @@ classdef EphysProject < handle
             %   (cheap); shared config is pushed into each. Folder discovery is
             %   delegated to the EphysReader registry (as in DatasetTracker) so
             %   the project and the tracker agree on what counts as a recording.
-            folders = EphysReader.findAllRecordingFolders(obj.Root, true);
+            %   With Recursive false only Root and the folders directly in it
+            %   are recordings; deeper folders are not searched.
+            if obj.Recursive
+                folders = EphysReader.findAllRecordingFolders(obj.Root, true);
+            else
+                sub = dir(obj.Root);
+                sub = sub([sub.isdir] & ~ismember({sub.name}, {'.', '..'}));
+                folders = EphysReader.findAllRecordingFolders(obj.Root, false);
+                for k = 1:numel(sub)
+                    folders = [folders, EphysReader.findAllRecordingFolders( ...
+                        string(fullfile(sub(k).folder, sub(k).name)), false)]; %#ok<AGROW>
+                end
+            end
             if isempty(folders)
                 obj.Datasets = EphysDataset.empty(1,0);
                 warning('EphysProject:NoData', ...

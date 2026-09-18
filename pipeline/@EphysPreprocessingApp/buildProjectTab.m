@@ -13,10 +13,10 @@ g.RowSpacing  = 8;
 changed = @(~,~) obj.onConfigChanged();
 
 % --- rows 1-3: config name / project root / output root ---------------------
-top = uigridlayout(g, [4 7]);
+top = uigridlayout(g, [4 8]);
 top.Layout.Row = 1;
 top.RowHeight   = {'fit', 'fit', 'fit', 'fit'};
-top.ColumnWidth = {'fit', 460, 'fit', 'fit', 'fit', 360, '1x'};
+top.ColumnWidth = {'fit', 460, 'fit', 'fit', 'fit', 'fit', 360, '1x'};
 top.Padding     = [0 0 0 0];
 
 lbl = uilabel(top, "Text", "Config name:");
@@ -29,26 +29,30 @@ lbl = uilabel(top, "Text", "Description:");
 lbl.Layout.Row = 1; lbl.Layout.Column = 3;
 obj.ConfigDescField = uieditfield(top, "text", "Placeholder", "optional", ...
     "ValueChangedFcn", changed);
-obj.ConfigDescField.Layout.Row = 1; obj.ConfigDescField.Layout.Column = [4 6];
+obj.ConfigDescField.Layout.Row = 1; obj.ConfigDescField.Layout.Column = [4 7];
 obj.ConfigDescField.Tooltip = "Free-text description saved in the config.";
 
 lbl = uilabel(top, "Text", "Project root:");
 lbl.Layout.Row = 2; lbl.Layout.Column = 1;
 obj.RootPathField = uieditfield(top, "text", ...
-    "Placeholder", "Folder scanned recursively for recordings", ...
+    "Placeholder", "Folder scanned for recordings", ...
     "ValueChangedFcn", changed);
 obj.RootPathField.Layout.Row = 2; obj.RootPathField.Layout.Column = 2;
 obj.BrowseRootButton = uibutton(top, "Text", "Browse...", ...
     "ButtonPushedFcn", @(~,~) obj.onBrowseRoot());
 obj.BrowseRootButton.Layout.Row = 2; obj.BrowseRootButton.Layout.Column = 3;
+obj.RecursiveCheckBox = uicheckbox(top, "Text", "Recursive", "Value", true, ...
+    "Tooltip", "Scan searches every sub-folder of the project root. Off: only the root and the folders directly in it.", ...
+    "ValueChangedFcn", changed);
+obj.RecursiveCheckBox.Layout.Row = 2; obj.RecursiveCheckBox.Layout.Column = 4;
 obj.ScanButton = uibutton(top, "Text", "Scan", "FontWeight", "bold", "FontSize", 14, ...
     "BackgroundColor", [0.15 0.45 0.80], "FontColor", [1 1 1], ...
     "Tooltip", "Scan the project root for recordings.", ...
     "ButtonPushedFcn", @(~,~) obj.onScan());
-obj.ScanButton.Layout.Row = 2; obj.ScanButton.Layout.Column = 4;
+obj.ScanButton.Layout.Row = 2; obj.ScanButton.Layout.Column = 5;
 obj.RefreshMetaButton = uibutton(top, "Text", "Refresh metadata", ...
     "ButtonPushedFcn", @(~,~) obj.onRefreshMetadata());
-obj.RefreshMetaButton.Layout.Row = 2; obj.RefreshMetaButton.Layout.Column = 5;
+obj.RefreshMetaButton.Layout.Row = 2; obj.RefreshMetaButton.Layout.Column = 6;
 
 lbl = uilabel(top, "Text", "Output root:", "Tooltip", ...
     "Per-dataset outputs (kilosort4/, *_extract[_LFP|_MUA|_SPIKE|_AUX].mat, *_spikes.mat, exports) go under <root>/<Name>. Blank = next to each recording.");
@@ -68,11 +72,11 @@ obj.NamePatternField = uieditfield(top, "text", ...
     "Tooltip", lbl.Tooltip, "ValueChangedFcn", @(~,~) obj.onNameTokensChanged());
 obj.NamePatternField.Layout.Row = 4; obj.NamePatternField.Layout.Column = 2;
 obj.NameTokenGrid = uigridlayout(top, [1 1]);
-obj.NameTokenGrid.Layout.Row = 4; obj.NameTokenGrid.Layout.Column = [3 6];
+obj.NameTokenGrid.Layout.Row = 4; obj.NameTokenGrid.Layout.Column = [3 7];
 obj.NameTokenGrid.RowHeight = {'fit'};
 obj.NameTokenGrid.Padding   = [0 0 0 0];
 obj.NameTokenStatusLabel = uilabel(top, "Text", "", "FontColor", [0.4 0.4 0.4]);
-obj.NameTokenStatusLabel.Layout.Row = 4; obj.NameTokenStatusLabel.Layout.Column = 7;
+obj.NameTokenStatusLabel.Layout.Row = 4; obj.NameTokenStatusLabel.Layout.Column = 8;
 
 % --- row 2: table toolbar ----------------------------------------------------
 tb = uigridlayout(g, [1 6]);

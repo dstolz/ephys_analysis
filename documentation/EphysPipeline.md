@@ -221,7 +221,7 @@ and `selectDatasets()`. Assigning a new `Config` does both again.
 | --- | --- |
 | `Config`, `Project` | the config and the project it runs on |
 | `DatasetIdx` | indices of the selected datasets (`Selection = "all"` → all) |
-| `ProgressFcn` | `ProgressFcn(evt)`, `evt` = `step`, `dataset`, `index`, `count`, `done`, `total`, `message` |
+| `ProgressFcn` | `ProgressFcn(evt)`, `evt` = `step`, `dataset`, `index`, `count`, `done`, `total`, `message` (see [Progress events](#progress-events)) |
 | `LogFcn` | one line per event (default `fprintf`) |
 | `CancelRequested` | set by `cancel()` |
 | `Results` | table `Step`, `Dataset`, `Status`, `Message`, `Output`, `Seconds`, one row per step × dataset |
@@ -284,6 +284,32 @@ the automatic detections reach those steps (manual periods always do).
 `EphysPipeline:Cancelled`. The current dataset is marked `cancelled` (its
 output is written atomically, so nothing half-done is left behind), the
 remaining rows are `not run`, and `run()` returns normally.
+
+### Progress events
+
+`ProgressFcn(evt)` is called with a struct:
+
+| Field | Meaning |
+| --- | --- |
+| `step` | the step name (`probe` ... `export`, as in `StepNames`) |
+| `dataset` | the dataset's name; `""` when the step is starting |
+| `index`, `count` | the dataset's place in the step's selection; `index` is 0 when the step is starting |
+| `done`, `total` | how far that dataset is (`done / total`, 0 to 1) |
+| `message` | what is being done (`starting`, `detecting: <file>`, `fieldtrip: exporting`, ...) |
+
+A step is therefore `(max(index, 1) - 1 + done / total) / count` done, and
+that fraction only grows while the step runs. `run()` sends one event with
+`dataset = ""`, `index = 0` and `message = "starting"` as each step starts,
+so every step is seen to begin, including those that report nothing else;
+after `cancel()` it sends none, and the step records its datasets as
+`cancelled` instead. Every step also reports each dataset as it begins it.
+Artifact detection that Sorting or Spikes needs (no valid cache) reports as
+that step: it fills the first half of the dataset's share, and the sort or
+the spike detection the second. Export reports as `export`, the formats
+sharing each dataset's share (the result rows stay `export:<format>`). A
+direct `artifactIntervalsFor(d)` reports as `artifacts`, dataset 1 of 1; its
+optional third argument `report(done, total, message)` sends the detection's
+progress elsewhere.
 
 ### Parallel execution
 

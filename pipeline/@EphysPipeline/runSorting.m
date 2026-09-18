@@ -49,7 +49,8 @@ for k = 1:n
     end
     try
         obj.progress("sorting", d.Name, k, n, 0, 2, "artifact intervals");
-        iv = obj.artifactIntervalsForStep(d, c.Artifacts.ApplyToSorting);
+        iv = obj.artifactIntervalsForStep(d, c.Artifacts.ApplyToSorting, ...   % a detection fills the first half
+            @(done, total, msg) obj.progress("sorting", d.Name, k, n, done / max(total, 1), 2, "artifact intervals, " + msg));
         obj.progress("sorting", d.Name, k, n, 1, 2, ternary(dry, "writing run files", "launching Kilosort4"));
         res = d.runSpikeInterface(ExtraSettings=ks4, ArtifactIntervals=iv, ...
             DryRun=dry, Wait=blocking);

@@ -291,6 +291,37 @@ R = pipe.run(Steps=["spikes" "export"]);
 check(isequal(unique(R.Step, 'stable'), ["spikes"; "export:chronux"; "export:fieldtrip"]) && all(R.Status == "done"), ...
     'run(Steps=...) runs the given steps in canonical order');
 check(strcmp(errorId(@() pipe.run(Steps="nope")), 'EphysPipeline:BadStep'), 'unknown step name errors');
+evts = struct('step', {}, 'dataset', {}, 'index', {}, 'count', {}, 'done', {}, 'total', {}, 'message', {});
+    function recordEvent(evt)
+        evts(end+1) = evt;
+    end
+cfgE = cfg; cfgE.Artifacts.CacheIntervals = false;   % so Spikes has to detect the artifacts itself
+pipe.Config = cfgE;
+pipe.ProgressFcn = @recordEvent;
+pipe.run(Steps=["probe" "artifacts" "spikes" "export"]);
+names = [evts.step];
+starts = evts([evts.index] == 0);
+check(isequal([starts.step], ["probe" "artifacts" "spikes" "export"]) && all([starts.dataset] == "") ...
+    && all([starts.message] == "starting"), 'run() announces each step as it starts (dataset "", index 0)');
+[~, pos] = ismember(names, EphysPipelineConfig.StepNames);
+check(all(pos > 0) && issorted(pos) && any(names == "spikes" & startsWith([evts.message], "artifact intervals, detecting")) ...
+    && any(names == "export" & [evts.message] == "fieldtrip: done"), ...
+    'every event names its own step: the detection Spikes needs reports as spikes, both formats as export');
+frac = arrayfun(@(e) (max(e.index, 1) - 1 + e.done / e.total) / e.count, evts);
+grows = true;
+for s = reshape(unique(names), 1, [])
+    grows = grows && all(diff(frac(names == s)) >= 0);
+end
+check(grows && frac(find(names == "export", 1, 'last')) == 1, 'each step''s fraction only grows, reaching 1 as export ends');
+pipe.ProgressFcn = @(evt) cancelOnProbe(evt, pipe);
+    function cancelOnProbe(evt, p)
+        if evt.step == "probe" && evt.index > 0; p.cancel(); end
+    end
+R = pipe.run(Steps=["probe" "artifacts"]);
+check(all(R.Status(R.Step == "probe") ~= "cancelled") && isequal(R.Status(R.Step == "artifacts"), "cancelled"), ...
+    'a cancel between steps is recorded by the next step, which does not announce itself');
+pipe.ProgressFcn = [];
+pipe.Config = cfg;
 delete(pipe.outputPathFor("spikes", d1));
 pipe.ProgressFcn = @(evt) cancelOnDetect(evt, pipe);
     function cancelOnDetect(evt, p)

@@ -96,8 +96,7 @@ end
 doDetect = opts.Source ~= "sorted";
 doSorted = opts.Source ~= "detect";
 nSteps = double(doDetect) * 2 + double(doSorted) + 1;   % artifacts+detect, units, save
-step = 0;
-report = @(msg) progress(opts.ProgressFcn, step, nSteps, msg);
+step = 0;   % stages done so far; passed as it stands at each report
 
 detected = [];
 units    = [];
@@ -112,7 +111,7 @@ if doDetect
         if ~isequaln(opts.ArtifactIntervals, NaN(0, 2))
             iv = opts.ArtifactIntervals;
         else
-            report("Resolving artifact periods");
+            progress(opts.ProgressFcn, step, nSteps, "Resolving artifact periods");
             iv = obj.artifactIntervals();
         end
     end
@@ -170,14 +169,14 @@ end
 
 % --- sorted units -----------------------------------------------------------
 if doSorted
-    report("Reading sorted units");
+    progress(opts.ProgressFcn, step, nSteps, "Reading sorted units");
     units = obj.readSortedUnits(Groups=opts.Groups, IncludeNoise=opts.IncludeNoise, ...
         Templates=opts.Templates);
     step = step + 1;
 end
 
 % --- save -------------------------------------------------------------------
-report("Saving " + file);
+progress(opts.ProgressFcn, step, nSteps, "Saving " + file);
 S = struct();
 S.detected   = detected;
 S.units      = units;
@@ -193,7 +192,6 @@ S.conversion = struct( ...
     'matFileVersion',  opts.MatVersion, ...
     'matlabVersion',   string(version));
 EphysDataset.saveAtomically(file, S, opts.MatVersion);
-step = step + 1;
 
 d = dir(file);
 out = struct();

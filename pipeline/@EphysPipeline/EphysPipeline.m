@@ -25,7 +25,13 @@ classdef EphysPipeline < handle
     %
     %   Progress and cancellation
     %     ProgressFcn(evt) receives struct(step, dataset, index, count, done,
-    %     total, message). cancel() (e.g. from a GUI button) makes the next
+    %     total, message): STEP is one of the step names above (artifact
+    %     detection that Sorting or Spikes needs reports as that step), INDEX
+    %     of COUNT places the dataset in the step's selection and DONE of
+    %     TOTAL is how far that dataset is, so the step is
+    %     (INDEX - 1 + DONE/TOTAL) / COUNT done. run() also sends one event
+    %     with dataset "" and INDEX 0 as each step starts.
+    %     cancel() (e.g. from a GUI button) makes the next
     %     progress notification throw EphysPipeline:Cancelled; the current
     %     dataset is marked "cancelled" (its output, written atomically, is
     %     never left half-done) and the run stops. LogFcn(msg) receives one
@@ -238,6 +244,7 @@ classdef EphysPipeline < handle
             ds = obj.selected(opts.Datasets);
             for k = 1:numel(ds)
                 d = ds(k);
+                obj.progress("probe", d.Name, k, numel(ds), 0, 1, "checking the probe");
                 t0 = tic;
                 note = "";
                 if d.ProbeFile == "" && c.DefaultProbeFile ~= ""
@@ -297,6 +304,7 @@ classdef EphysPipeline < handle
             obj.log("[behavior] %d Epsych2 session file(s) under %s", height(T), strjoin(c.SearchDirs, "; "));
             for k = 1:numel(ds)
                 d = ds(k);
+                obj.progress("behavior", d.Name, k, numel(ds), 0, 1, "Epsych2 session");
                 t0 = tic;
                 if d.BehaviorFile ~= "" && isfile(d.BehaviorFile) && ~c.Overwrite
                     obj.addResult("behavior", d.Name, "associated", "kept existing association", d.BehaviorFile, toc(t0));
@@ -395,7 +403,8 @@ classdef EphysPipeline < handle
                 t0 = tic;
                 try
                     obj.progress("artifacts", d.Name, k, n, 0, 1, "artifact intervals");
-                    [iv, src] = obj.artifactIntervalsFor(d);
+                    [iv, src] = obj.artifactIntervalsFor(d, ...
+                        @(done, total, msg) obj.progress("artifacts", d.Name, k, n, done, total, msg));
                     obj.addResult("artifacts", d.Name, "done", sprintf("%d interval(s), %s", size(iv, 1), src), ...
                         obj.outputPathFor("artifacts", d), toc(t0));
                 catch ME
@@ -412,11 +421,19 @@ classdef EphysPipeline < handle
             end
         end
 
-        function [iv, source] = artifactIntervalsFor(obj, d)
+        function [iv, source] = artifactIntervalsFor(obj, d, report)
             %artifactIntervalsFor  Artifact intervals for D, from the cache when valid.
             %   The cache (<outputFolder>/<Name>_artifacts.json) is keyed by a
             %   fingerprint of the artifact config, the manual periods and the
             %   recording files, so a change to any of them recomputes.
+            %   SOURCE is "cache", "computed" or the manual-only note.
+            %   REPORT(done, total, message) hears how far a detection is, so
+            %   the step that needs the intervals can report it as its own
+            %   progress; by default it goes out as the artifacts step on
+            %   dataset 1 of 1.
+            if nargin < 3
+                report = @(done, total, msg) obj.progress("artifacts", d.Name, 1, 1, done, total, msg);
+            end
             a = obj.Config.Artifacts;
             acfg = EphysPipelineConfig.artifactConfig(a);
             d.ArtifactConfig = acfg;
@@ -442,7 +459,7 @@ classdef EphysPipeline < handle
                     return
                 end
             end
-            cb = @(i, nChunks, name) obj.progress("artifacts", d.Name, 1, 1, i - 1, nChunks, "detecting: " + string(name));
+            cb = @(i, nChunks, name) report(i - 1, nChunks, "detecting: " + string(name));
             popt = namedargs2cell(EphysPipelineConfig.parallelOptions(obj.Config.Parallel));
             iv = d.artifactIntervals('ProgressFcn', cb, popt{:});
             source = "computed";
@@ -454,12 +471,15 @@ classdef EphysPipeline < handle
             obj.log("[artifacts] %s: %d interval(s) computed", d.Name, size(iv, 1));
         end
 
-        function iv = artifactIntervalsForStep(obj, d, applyAuto)
+        function [iv, source] = artifactIntervalsForStep(obj, d, applyAuto, report)
             %artifactIntervalsForStep  Manual + (optionally cached auto) intervals.
+            %   REPORT and SOURCE as in artifactIntervalsFor; SOURCE is
+            %   "manual" when the automatic detections do not apply.
             if applyAuto
-                iv = obj.artifactIntervalsFor(d);
+                [iv, source] = obj.artifactIntervalsFor(d, report);
             else
                 iv = d.artifactIntervals(IncludeAuto=false);
+                source = "manual";
             end
         end
     end

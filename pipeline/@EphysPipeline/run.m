@@ -5,7 +5,10 @@ function R = run(obj, opts)
 %   stop before anything is written (EphysPipeline:ConfigInvalid /
 %   EphysPipeline:PlanInvalid). Per-dataset failures inside a step are
 %   recorded as "error" rows and the run continues; cancel() stops the run at
-%   the next progress notification and returns what was done.
+%   the next progress notification and returns what was done. Each step
+%   starts with one progress event of its own (dataset "", index 0,
+%   message "starting"), so a listener sees every step begin, including
+%   the ones that report nothing else.
 %
 %   Options
 %     Steps    subset of EphysPipelineConfig.StepNames to run, in the
@@ -62,6 +65,9 @@ t0 = tic;
 for step = steps
     obj.log("--- step: %s ---", step);
     try
+        if ~obj.CancelRequested   % once cancelled, the step records its datasets as "cancelled" itself
+            obj.progress(step, "", 0, numel(obj.DatasetIdx), 0, 1, "starting");
+        end
         switch step
             case "probe";     obj.checkProbes();
             case "behavior";  obj.checkBehavior();

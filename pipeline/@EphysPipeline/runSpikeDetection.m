@@ -50,12 +50,15 @@ for k = 1:n
             continue
         end
         args = {};
+        lo = 0;   % share of this dataset's progress an artifact detection took
         if K.Source ~= "sorted" && K.RejectArtifacts
             obj.progress("spikes", d.Name, k, n, 0, 1, "artifact intervals");
-            iv = obj.artifactIntervalsForStep(d, c.Artifacts.ApplyToSpikes);
+            [iv, src] = obj.artifactIntervalsForStep(d, c.Artifacts.ApplyToSpikes, ...   % a detection fills the first half
+                @(done, total, msg) obj.progress("spikes", d.Name, k, n, done / max(total, 1) / 2, 1, "artifact intervals, " + msg));
+            if src == "computed"; lo = 0.5; end
             args = {'ArtifactIntervals', iv};
         end
-        cb = @(done, total, msg) obj.progress("spikes", d.Name, k, n, done, total, msg);
+        cb = @(done, total, msg) obj.progress("spikes", d.Name, k, n, lo + (1 - lo) * done / max(total, 1), 1, msg);
         r = d.spikesToMat('File', out, 'Source', K.Source, 'DetectOptions', dopt, 'Channels', channels, ...
             'RejectArtifacts', K.RejectArtifacts, 'Groups', K.Groups, 'IncludeNoise', K.IncludeNoise, ...
             'Templates', K.Templates, 'MatVersion', K.MatVersion, ...

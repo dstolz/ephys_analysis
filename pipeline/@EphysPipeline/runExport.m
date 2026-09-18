@@ -4,7 +4,8 @@ function runExport(obj, opts)
 %   sorted units from the sorting association, detected spikes from the
 %   Spikes step's file (Export.IncludeDetected), events as configured.
 %   Behavior data is not exported here (see the behavior step). One row per
-%   format and dataset.
+%   format and dataset (step "export:<format>"); progress goes out as the
+%   "export" step, the formats sharing each dataset's part of it.
 %
 %   Options: Datasets (indices), DryRun (log only).
 
@@ -18,12 +19,14 @@ c = obj.Config;
 E = c.Export;
 ds = obj.selected(opts.Datasets);
 n = numel(ds);
+nFmt = numel(E.Formats);
 
 for k = 1:n
     d = ds(k);
     extract = EphysDataset.recordedSignalFiles(obj.outputPathFor("signals", d));
     spikesFile = obj.outputPathFor("spikes", d);
-    for fmt = E.Formats
+    for j = 1:nFmt
+        fmt = E.Formats(j);
         step = "export:" + fmt;
         if obj.CancelRequested
             obj.addResult(step, d.Name, "cancelled", "not run");
@@ -49,7 +52,7 @@ for k = 1:n
                 obj.addResult(step, d.Name, "dry run", "would write from " + strjoin(extract, ", "), out, toc(t0));
                 continue
             end
-            obj.progress(step, d.Name, k, n, 0, 1, "exporting");
+            obj.progress("export", d.Name, k, n, j - 1, nFmt, fmt + ": exporting");
             args = namedargs2cell(o);
             switch fmt
                 case "chronux"
@@ -59,7 +62,7 @@ for k = 1:n
                 otherwise
                     error('EphysPipeline:BadFormat', 'Unknown export format "%s".', fmt);
             end
-            obj.progress(step, d.Name, k, n, 1, 1, "done");
+            obj.progress("export", d.Name, k, n, j, nFmt, fmt + ": done");
             msg = sprintf("%s; %d unit(s)", strjoin(r.signals, "+"), r.nUnits);
             obj.log("[%s] %s: wrote %s (%s)", step, d.Name, r.file, msg);
             obj.addResult(step, d.Name, "done", msg, r.file, toc(t0));

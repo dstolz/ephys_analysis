@@ -11,7 +11,9 @@ end
 
 % --- summary -----------------------------------------------------------------
 d = obj.currentDataset();
-if P.status == "approved"
+if P.status == "approved" && P.autoApproved
+    state = "APPROVED automatically (the counts match)"; color = [0 0.45 0];
+elseif P.status == "approved"
     state = "APPROVED"; color = [0 0.45 0];
 elseif P.recorded
     state = "recorded, NOT REVIEWED"; color = [0.75 0.4 0];

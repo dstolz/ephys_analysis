@@ -1,8 +1,11 @@
 function repairTrials(obj, cuts)
 %repairTrials  Pair the Trials-tab dataset from the in-memory events and show it.
 %   CUTS is "recorded", "none" or a struct (trials, intervals), see
-%   EphysDataset.pairTrials. Cuts that cannot be applied leave the shown
-%   pairing as it is (and put the spinners back).
+%   EphysDataset.pairTrials. With Behavior.AutoApprove, a "recorded"
+%   pairing (Load, a setting change) whose counts match without cuts is
+%   approved at once (EphysDataset.autoApproveTrialPairing); Reset cuts and
+%   cut edits leave the approval to the user. Cuts that cannot be applied
+%   leave the shown pairing as it is (and put the spinners back).
 d = obj.currentDataset();
 if isempty(d) || isempty(obj.TrialsEvents); return; end
 try
@@ -19,9 +22,16 @@ catch ME
     end
     return
 end
+auto = false;
+if ~isstruct(cuts) && string(cuts) == "recorded" && obj.Config.Behavior.AutoApprove
+    [P, auto] = d.autoApproveTrialPairing(P);
+end
 obj.TrialsPairing = P;
 obj.refreshTrialsView();
-if isstruct(cuts)
+if auto
+    obj.refreshDatasetsTable();
+    obj.setStatus("Trials: " + d.Name + " - the trial and interval counts match; the pairing was approved automatically.");
+elseif isstruct(cuts)
     obj.setStatus(sprintf("Trials: cut %d + %d trial(s) and %d + %d interval(s) (start + end); not saved - Approve to keep it.", ...
         cuts.trials(1), cuts.trials(2), cuts.intervals(1), cuts.intervals(2)));
 elseif P.countMismatch

@@ -9,6 +9,7 @@ d = obj.currentDataset();
 if isempty(P) || isempty(d); return; end
 d.setTrialPairing(P, status);
 P.status = status;
+P.autoApproved = false;
 P.recorded = true;
 P.stale = false;
 obj.TrialsPairing = P;

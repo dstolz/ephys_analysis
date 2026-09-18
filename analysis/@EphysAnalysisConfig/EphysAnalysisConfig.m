@@ -51,7 +51,7 @@ classdef EphysAnalysisConfig
         Description (1,1) string = ""
         Source      struct = EphysAnalysisConfig.defaults("Source")
         Defaults    struct = EphysAnalysisConfig.defaults("Defaults")
-        Plots       struct = EphysAnalysisConfig.emptyPlots()
+        Plots       = EphysAnalysisConfig.emptyPlots()   % struct array; set.Plots also takes a cell (jsondecode)
         Export      struct = EphysAnalysisConfig.defaults("Export")
         Report      struct = EphysAnalysisConfig.defaults("Report")
     end
@@ -130,7 +130,7 @@ classdef EphysAnalysisConfig
             if opts.Id ~= ""; p.id = opts.Id; end
             p = EphysAnalysisConfig.normalizePlot(p);
             if p.id == ""
-                p.id = EphysAnalysisConfig.freeId(p.kind, [obj.Plots.id]);
+                p.id = EphysAnalysisConfig.freeId(p.kind, obj.plotIds());
             end
             obj.Plots = [obj.Plots, p];
             id = p.id;
@@ -147,8 +147,14 @@ classdef EphysAnalysisConfig
 
         function k = plotIndex(obj, id)
             %plotIndex  Index of the plot with this id in Plots (0 = none).
-            k = find([obj.Plots.id] == string(id), 1);
+            k = find(obj.plotIds() == string(id), 1);
             if isempty(k); k = 0; end
+        end
+
+        function ids = plotIds(obj)
+            %plotIds  Ids of every plot, in order (a string row).
+            ids = string.empty(1, 0);
+            if ~isempty(obj.Plots); ids = reshape([obj.Plots.id], 1, []); end
         end
 
         function ids = enabledPlots(obj)
@@ -295,6 +301,7 @@ classdef EphysAnalysisConfig
         function id = freeId(kind, used)
             %freeId  "<kind>_<n>" with the smallest n not in USED.
             n = 1;
+            used = string(used);
             while any(used == kind + "_" + n)
                 n = n + 1;
             end

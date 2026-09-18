@@ -52,6 +52,10 @@ classdef EphysPreprocessingApp < handle
     %   ground-truth sorted output, opened and scanned at once) / Close. The
     %   title shows "*" while the config has unsaved changes.
     %
+    %   Help menu: opens the GitHub wiki (WikiURL) in the browser: the page
+    %   for the tab that is shown, the home page, the quick start and the
+    %   user, scripting and developer guides.
+    %
     %   The active dataset is what every single-dataset control works on
     %   (Trials, exclusions, previews, the sorted-output association, phy,
     %   Visualize, Review). The Dataset menu, the Dataset box on each of those
@@ -88,6 +92,7 @@ classdef EphysPreprocessingApp < handle
         DatasetAllMenu     matlab.ui.container.Menu   % "All datasets" submenu
         DatasetMenuItems   matlab.ui.container.Menu   % its items, one per dataset (index = dataset index)
         RunMenu            matlab.ui.container.Menu
+        HelpMenu           matlab.ui.container.Menu   % wiki pages (helpURL, onHelp)
 
         % --- Global status bar ---
         StatusBar  matlab.ui.control.Label
@@ -517,6 +522,7 @@ classdef EphysPreprocessingApp < handle
 
     properties (Constant)
         PrefGroup = 'EphysPreprocessingApp'
+        WikiURL = "https://github.com/dstolz/ephys_analysis/wiki"   % the Help menu's pages
     end
 
     methods
@@ -779,5 +785,7 @@ classdef EphysPreprocessingApp < handle
         setStatus(obj, message, hint)
         hint = suggestNextStep(obj)
         onTabChanged(obj)
+        url = helpURL(obj, page)
+        onHelp(obj, page)
     end
 end

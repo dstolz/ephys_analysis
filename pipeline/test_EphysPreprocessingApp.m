@@ -138,6 +138,20 @@ g2 = app.gatherConfig();
 check(g2.isequalConfig(app.Config) && isequaln(g2.toStruct(), cfg.toStruct()), 'gatherConfig reproduces the loaded config exactly');
 check(~startsWith(app.Fig.Name, "*") && contains(app.Fig.Name, "gui_test.json"), 'title shows the file and no unsaved marker');
 
+fprintf('\n== 1b. Help menu: wiki pages ==\n');
+items = flip(string({app.HelpMenu.Children.Text}));
+check(isequal(items(1:2), ["Help for this tab" "Documentation home"]) && numel(items) == 9 ...
+    && app.helpURL("") == app.WikiURL && app.helpURL("Quick-Start") == app.WikiURL + "/Quick-Start", ...
+    'the Help menu opens the tab''s page, the wiki home and the guides');
+tabPages = strings(1, numel(app.TabList));
+for k = 1:numel(app.TabList)
+    app.Tabs.SelectedTab = app.TabList(k);   % helpURL reads only the selection; no tab-change refresh needed
+    tabPages(k) = app.helpURL("tab");
+end
+app.Tabs.SelectedTab = app.TabProject;
+check(numel(tabPages) == 13 && numel(unique(tabPages)) == 13 && all(startsWith(tabPages, app.WikiURL + "/")) ...
+    && ~any(endsWith(tabPages, "/App-Overview")), 'every tab has its own wiki page');
+
 fprintf('\n== 2. edits and the unsaved marker ==\n');
 app.SpkThresholdField.Value = '1500';
 app.onSpikesControlsChanged();

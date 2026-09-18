@@ -51,6 +51,11 @@ background monitor and saves preferences.
   - **Dataset**: one checkable item per scanned dataset; the checked one is
     the [active dataset](#which-dataset-does-an-action-act-on).
   - **Run**: Validate config, Plan, Run pipeline (Ctrl+R), Dry run, Cancel.
+  - **Help**: opens the [GitHub wiki](https://github.com/dstolz/ephys_analysis/wiki)
+    in the browser. Help for this tab (the page for the tab that is shown),
+    Documentation home, Quick start, App overview, Output files,
+    Troubleshooting and FAQ, Scripting guide, Pipeline configs, Developer
+    reference. If no browser opens, an alert shows the address.
 - **Title**: the config name and file; `*` in front while the config has
   unsaved changes.
 - **Tabs**, in workflow order: **Copy, Project, Trials, Probe, Artifacts, Sorting,
@@ -808,6 +813,7 @@ app.KSRuns                        % background runs being monitored
 | `buildCopyTab.m`, `onCopyFind.m`, `onCopyRun.m`, `refreshCopyTable.m`, `onCopyTableEdited.m`, `onCopyStitch.m`, `onCopyUnstitch.m`, `onBrowseCopyFolder.m`, `copyLog.m`, `onCopyCancel.m`, `startCopyMonitor.m`, `stopCopyMonitor.m`, `pollCopyJob.m`, `setCopyRunning.m`, `applyCopyResult.m`, `finishCopyRun.m`, `showCopyProgress.m`, `copySummaryText.m`; `pipeline/findCopySessions.m`, `pipeline/stitchCopySessions.m`, `pipeline/copySessions.m`, `pipeline/copy_engine.ps1`, `pipeline/stitchEpsychSessions.m` | Copy tab, the pairing / stitching / copy functions it calls, and the detached copy engine |
 | `loadReviewResults.m`, `renderReviewPlots.m`, `syncReviewDataset.m` | Review tab |
 | `load/savePreferences.m` | preferences |
+| `helpURL.m`, `onHelp.m` | Help menu (wiki pages) |
 
 ## Tests
 

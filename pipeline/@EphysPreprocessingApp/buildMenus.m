@@ -1,11 +1,13 @@
 function buildMenus(obj)
-%buildMenus  File / Dataset / Run menus.
+%buildMenus  File / Dataset / Run / Help menus.
 %   File holds the pipeline-config lifecycle (New, Open, Open recent, Save,
 %   Save As, Export copy, Generate script), Create synthetic test project
 %   and Close. Dataset chooses the active dataset, the one every tab's
 %   single-dataset controls work on (see selectDataset): it lists the
 %   datasets ticked in the Project table, with every dataset in an "All
-%   datasets" submenu. Run mirrors the Run tab's buttons.
+%   datasets" submenu. Run mirrors the Run tab's buttons. Help opens pages
+%   of the GitHub wiki: the one for the tab that is shown, the home page
+%   and the main guides.
 
 % --- File ------------------------------------------------------------------
 obj.FileMenu = uimenu(obj.Fig, "Text", "File");
@@ -47,4 +49,25 @@ uimenu(obj.RunMenu, "Text", "Run pipeline", "Accelerator", "R", "Separator", "on
     "MenuSelectedFcn", @(~,~) obj.runPipeline());
 uimenu(obj.RunMenu, "Text", "Dry run", "MenuSelectedFcn", @(~,~) obj.runPipeline(DryRun=true));
 uimenu(obj.RunMenu, "Text", "Cancel", "MenuSelectedFcn", @(~,~) obj.onCancelRun());
+
+% --- Help: pages of the GitHub wiki (helpURL), opened in the browser ------------
+obj.HelpMenu = uimenu(obj.Fig, "Text", "Help");
+uimenu(obj.HelpMenu, "Text", "Help for this tab", ...
+    "Tooltip", "The wiki page for the tab that is shown.", ...
+    "MenuSelectedFcn", @(~,~) obj.onHelp("tab"));
+uimenu(obj.HelpMenu, "Text", "Documentation home", ...
+    "MenuSelectedFcn", @(~,~) obj.onHelp(""));
+pages = [ ...
+    "Quick start",              "Quick-Start",             "on"
+    "App overview",             "App-Overview",            "off"
+    "Output files",             "Output-Files",            "off"
+    "Troubleshooting and FAQ",  "Troubleshooting-and-FAQ", "off"
+    "Scripting guide",          "Scripting-Overview",      "on"
+    "Pipeline configs",         "Pipeline-Configs",        "off"
+    "Developer reference",      "Architecture",            "on"];
+for k = 1:height(pages)
+    page = pages(k, 2);
+    uimenu(obj.HelpMenu, "Text", pages(k, 1), "Separator", pages(k, 3), ...
+        "MenuSelectedFcn", @(~,~) obj.onHelp(page));
+end
 end

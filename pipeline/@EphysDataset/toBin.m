@@ -2,13 +2,15 @@ function info = toBin(obj, opts)
 %toBin  Stream the recording to a Kilosort4 int16 .bin file, one file in RAM.
 %   INFO = ds.toBin() writes raw broadband data, scaled to int16, to ds.BinFile
 %   in the layout Kilosort4 expects (no header, little-endian, channel index
-%   varying fastest on disk). Only one *.rhd file is held in memory at a time:
-%   each file is read, optionally filtered/blanked, scaled, cast to int16, and
-%   appended to the open binary file before the next file is read.
+%   varying fastest on disk). Only one chunk of the reader's streamPlan (a
+%   traditional *.rhd file, or a bounded sample window) is held in memory at
+%   a time: each is read, optionally filtered/blanked, scaled, cast to int16,
+%   and appended to the open binary file before the next one is read.
 %
 %   By default the broadband signal is written unfiltered (Kilosort4 filters and
 %   whitens internally). The scale 1/0.195 restores the native ADC int16
-%   resolution from the microvolt values produced by the Intan reader, mirroring
+%   resolution (0.195 uV per count, Intan and Open Ephys headstages) from the
+%   microvolt values the reader produces, mirroring
 %   MATRIX2KILOSORT so that the streamed file is byte-identical to the in-memory
 %   writer for the same data.
 %
@@ -76,7 +78,7 @@ if obj.NumFiles == 0
     obj.discoverFiles();
 end
 if obj.NumFiles == 0
-    error('EphysDataset:toBin:NoFiles', 'No Intan files in %s', obj.Folder);
+    error('EphysDataset:toBin:NoFiles', 'No recording files in %s', obj.Folder);
 end
 % Header metadata (Fs, sample counts) drives the stream plan and is needed up
 % front for the .bin sidecar; parse it now if it has not been parsed yet.
@@ -107,13 +109,13 @@ artGapMs  = opts.ArtifactMergeGapMs;    if isnan(artGapMs);       artGapMs  = ac
 artMinCh  = opts.ArtifactMinChannels;   if isnan(artMinCh);       artMinCh  = acfg.MinChannels;  end
 artPadMs  = opts.ArtifactPadMs;         if isnan(artPadMs);       artPadMs  = acfg.PadMs;        end
 
-% Resolve the streaming plan (one chunk per *.rhd file for traditional; bounded
-% sample windows over the flat .dat for split formats). The downstream loop is
+% Resolve the streaming plan (one chunk per *.rhd file for traditional Intan;
+% bounded sample windows for every other layout). The downstream loop is
 % identical for every format because each chunk yields a [nSamp x nChan]
 % microvolt matrix from readChunkUV.
 plan = obj.streamPlan(Files=opts.Files);
 if isempty(plan)
-    error('EphysDataset:toBin:NoFiles', 'No readable Intan data in %s', obj.Folder);
+    error('EphysDataset:toBin:NoFiles', 'No readable recording data in %s', obj.Folder);
 end
 
 % Ensure output folder exists

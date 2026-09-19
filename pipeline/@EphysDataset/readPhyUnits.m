@@ -20,8 +20,13 @@ function [units, info] = readPhyUnits(resultsDir, opts)
 %     FullTemplates also return every unit's [nS x nChan] template (default false)
 %     ChannelMap    [1 x nChanSorted] 1-based RECORDING channel for each sorted
 %                   channel (overrides the mapping worked out from the run)
-%     ChannelNames  recording channel native names ("A-000", ...), used to map
-%                   SpikeInterface runs back to recording channels
+%     ChannelNumbers  recording channel hardware numbers (0-based,
+%                   EphysDataset.ChannelNumbers), used to map SpikeInterface
+%                   runs back to recording channels: run_si_ks4.py names the
+%                   channels by these numbers and matches the probe chanMap
+%                   to them (default 0..n_chan-1)
+%     ChannelNames  recording channel native names ("A-000", "CH1", ...) for
+%                   the channelName column
 %     ProbeFile     probe .json used for the run (SpikeInterface mapping)
 %     FsFallback    sample rate to use, with a warning, when params.py has no
 %                   sample_rate (default NaN = error instead; never 30 kHz)
@@ -44,6 +49,8 @@ function [units, info] = readPhyUnits(resultsDir, opts)
 %     datasetKey        Identity.datasetKey ("" without an Identity)
 %     channel           1-based peak channel of the RECORDING (see channelMap)
 %     channelName       its native name, e.g. "A-012" ("" without ChannelNames)
+%     channelNumber     its hardware number, the probe chanMap value (NaN
+%                       without ChannelNumbers)
 %     ksChannel         1-based peak channel among the SORTED channels
 %     shank             from channel_shanks.npy (0 when absent)
 %     peakX, peakY      site position of the peak channel, probe units (um),
@@ -88,6 +95,7 @@ arguments
     opts.Templates (1,1) logical = true
     opts.FullTemplates (1,1) logical = false
     opts.ChannelMap (1,:) double = []
+    opts.ChannelNumbers (1,:) double = double.empty(1,0)
     opts.ChannelNames (1,:) string = string.empty(1,0)
     opts.ProbeFile (1,1) string = ""
     opts.FsFallback (1,1) double = NaN
@@ -254,6 +262,9 @@ channel(ok) = channelMap(ksChannel(ok));
 channelName = strings(nU, 1);
 ok = isfinite(channel) & channel >= 1 & channel <= numel(opts.ChannelNames);
 channelName(ok) = opts.ChannelNames(channel(ok));
+channelNumber = nan(nU, 1);
+ok = isfinite(channel) & channel >= 1 & channel <= numel(opts.ChannelNumbers);
+channelNumber(ok) = opts.ChannelNumbers(channel(ok));
 
 % --- filters ---------------------------------------------------------------
 keep = true(nU, 1);
@@ -303,6 +314,7 @@ units.recordingStart   = repmat(recStart, nK, 1);
 units.datasetKey       = repmat(key, nK, 1);
 units.channel          = channel(keptIdx);
 units.channelName      = channelName(keptIdx);
+units.channelNumber    = channelNumber(keptIdx);
 units.ksChannel        = ksChannel(keptIdx);
 units.shank            = shank(keptIdx);
 units.peakX            = peakX(keptIdx);
@@ -457,9 +469,10 @@ function [engine, channelMap, source] = resolveChannelMap(dir0, nChSorted, cm0, 
 %   channels, so channel_map.npy + 1 is the answer. SpikeInterface runs sort a
 %   recording reordered into probe-site order (minus sites missing from the
 %   recording and minus removed bad channels), so the mapping goes through the
-%   probe's chanMap, matched to recording channels by the trailing number of
-%   the channel id exactly as run_si_ks4.py does. When that cannot be
-%   reconstructed, the identity mapping is returned with a warning.
+%   probe's chanMap, matched to recording channels by their channel numbers
+%   exactly as run_si_ks4.py does (it names each channel by its number). When
+%   that cannot be reconstructed, the identity mapping is returned with a
+%   warning.
 engine = "unknown";
 runDir = dir0;
 siCfg = "";
@@ -496,27 +509,26 @@ if engine == "spikeinterface"
         end
         probe = readJsonFile(probeFile);
         chanMap = double(probe.chanMap(:));          % nominal channel numbers
-        % Recording channel positions by trailing number of the native id.
-        names = opts.ChannelNames;
-        if isempty(names) && isfield(cfg, 'n_chan')
-            names = "A-" + string(compose('%03d', (0:double(cfg.n_chan)-1).'));
+        % Recording channel positions by channel number.
+        nums = opts.ChannelNumbers;
+        if isempty(nums) && isfield(cfg, 'n_chan')
+            nums = 0:double(cfg.n_chan)-1;
         end
         posByNum = containers.Map('KeyType', 'double', 'ValueType', 'double');
-        for p = 1:numel(names)
-            tok = regexp(char(names(p)), '([0-9]+)$', 'tokens', 'once');
-            if ~isempty(tok); posByNum(str2double(tok{1})) = p; end
+        for p = 1:numel(nums)
+            posByNum(nums(p)) = p;
         end
         keep = arrayfun(@(v) isKey(posByNum, v), chanMap);
         rec = arrayfun(@(v) posByNum(v), chanMap(keep));   % 1-based positions, site order
-        % Bad channels removed before sorting (status file lists channel ids).
+        % Bad channels removed before sorting (the status file lists channel
+        % ids, which are the channel numbers).
         st = readJsonFile(fullfile(fileparts(siCfg), 'ks4_status.json'), ErrorOnFail=false);
         if ~isempty(st) && isstruct(st) && isfield(st, 'bad_channels') && ~isempty(st.bad_channels)
-            bad = string(st.bad_channels);
+            bad = str2double(string(st.bad_channels));
             badPos = [];
-            for b = 1:numel(bad)
-                tok = regexp(char(bad(b)), '([0-9]+)$', 'tokens', 'once');
-                if ~isempty(tok) && isKey(posByNum, str2double(tok{1}))
-                    badPos(end+1) = posByNum(str2double(tok{1})); %#ok<AGROW>
+            for b = bad(isfinite(bad)).'
+                if isKey(posByNum, b)
+                    badPos(end+1) = posByNum(b); %#ok<AGROW>
                 end
             end
             rec = rec(~ismember(rec, badPos));

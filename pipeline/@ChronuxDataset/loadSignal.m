@@ -14,10 +14,10 @@ function loadSignal(obj, opts)
 %         ChannelLabels info.labels, Events the digital-input events.
 %     EphysDataset, Signal "RAW"
 %         EphysDataset.readData, i.e. the broadband amplifier data at the
-%         recording rate, unfiltered. Only keepAmpChannels and labelField are
-%         honoured from SignalOptions (mapped to KeepChannels /
-%         EventLabelField); any other field is an error, because the derived-
-%         signal options have no meaning here.
+%         recording rate, unfiltered. Only keepAmpChannels, labelField,
+%         lineNames and invertedLines are honoured from SignalOptions (mapped
+%         to KeepChannels / LabelField / LineNames); any other field is an
+%         error, because the derived-signal options have no meaning here.
 %     EphysDataset, Signal "AUX"
 %         The same, with the aux (accelerometer) inputs: volts at the aux
 %         rate, ChannelLabels info.AUX.labels; an error when none were recorded.
@@ -143,26 +143,29 @@ if isempty(ds) || ~isa(ds, 'EphysDataset')
 end
 
 if obj.Signal == "RAW"
-    known = ["keepAmpChannels", "labelField", "invertedLines"];
+    known = ["keepAmpChannels", "labelField", "lineNames", "invertedLines"];
     extra = setdiff(string(fieldnames(obj.SignalOptions)).', known);
     if ~isempty(extra)
         error('ChronuxDataset:RawOptions', ...
             ['Signal "RAW" reads through EphysDataset.readData, which does not ' ...
              'take the derived-signal options %s. Only keepAmpChannels, ' ...
-             'labelField and invertedLines apply.'], strjoin(extra, ', '));
+             'labelField, lineNames and invertedLines apply.'], strjoin(extra, ', '));
     end
     args = {};
     if isfield(obj.SignalOptions, 'keepAmpChannels')
         args = [args, {'KeepChannels', obj.SignalOptions.keepAmpChannels}];
     end
     if isfield(obj.SignalOptions, 'labelField')
-        args = [args, {'EventLabelField', obj.SignalOptions.labelField}];
+        args = [args, {'LabelField', string(obj.SignalOptions.labelField)}];
+    end
+    if isfield(obj.SignalOptions, 'lineNames')
+        args = [args, {'LineNames', string(obj.SignalOptions.lineNames)}];
     end
     d = ds.readData(args{:});
     obj.Data = d.amplifier;
     obj.Fs   = d.Fs;
     if isfield(obj.SignalOptions, 'labelField') && ...
-            string(obj.SignalOptions.labelField) == "native_channel_name"
+            string(obj.SignalOptions.labelField) == "native"
         obj.ChannelLabels = d.nativeNames;
     else
         obj.ChannelLabels = d.channelNames;

@@ -31,18 +31,50 @@ def load_recording(cfg):
     """Build the SpikeInterface recording from the config's 'recording' spec.
 
     The spec is written by the dataset's EphysReader.siRecordingSpec():
-      reader == 'intan'   -> read_intan over the *.rhd files / info.rhd
-      reader == 'binary'  -> read_binary over a flat channel-major file
-                             (the universal ephys-recording/1 format)
+      reader == 'intan'             -> read_intan over the *.rhd files / info.rhd
+      reader == 'binary'            -> read_binary over a flat channel-major file
+                                       (the universal ephys-recording/1 format)
+      reader == 'openephys-binary'  -> read_binary per recording (continuous.dat)
+      reader == 'openephys-legacy'  -> the .continuous record files
+      reader == 'openephys-nwb'     -> the NWB ElectricalSeries (needs h5py)
+    Open Ephys recordings are one segment per recording, concatenated, on the
+    same row grid as the MATLAB reader. The channels are then renamed to the
+    spec's channel_numbers (the hardware numbers a probe chanMap refers to).
     Configs without a 'recording' block are treated as Intan.
     """
-    import spikeinterface.full as si
     spec = cfg.get('recording') or {}
     reader = str(spec.get('reader', 'intan')).lower()
     if reader == 'binary':
-        return load_binary_recording(spec)
-    if reader != 'intan':
+        rec = load_binary_recording(spec)
+    elif reader == 'openephys-binary':
+        rec = load_openephys_binary(spec)
+    elif reader == 'openephys-legacy':
+        rec = load_openephys_legacy(spec)
+    elif reader == 'openephys-nwb':
+        rec = load_openephys_nwb(spec)
+    elif reader == 'intan':
+        rec = load_intan_recording(cfg, spec)
+    else:
         raise ValueError('Unsupported recording reader: %s' % reader)
+    return name_by_number(rec, spec)
+
+
+def name_by_number(rec, spec):
+    """Rename the channels to their hardware numbers (the probe chanMap values)."""
+    numbers = spec.get('channel_numbers')
+    if numbers is None:
+        return rec
+    numbers = [int(n) for n in numbers]
+    if len(numbers) != rec.get_num_channels():
+        raise ValueError('The recording spec lists %d channel numbers but the recording has %d channels.'
+                         % (len(numbers), rec.get_num_channels()))
+    if len(set(numbers)) != len(numbers):
+        raise ValueError('The channel numbers are not unique: %s' % numbers)
+    return rec.rename_channels(new_channel_ids=[str(n) for n in numbers])
+
+
+def load_intan_recording(cfg, spec):
+    import spikeinterface.full as si
     folder = cfg.get('folder') or spec.get('folder')
     fmt = cfg.get('recording_format', spec.get('recording_format', 'traditional'))
     if fmt in ('one-file-per-signal', 'one-file-per-channel'):
@@ -84,8 +116,184 @@ def load_binary_recording(spec):
     return rec
 
 
+def _concatenate(recs):
+    import spikeinterface.full as si
+    return recs[0] if len(recs) == 1 else si.concatenate_recordings(recs)
+
+
+def _headstage(rec, spec):
+    """Keep the headstage channels (0-based stream positions) with their gains in uV."""
+    import numpy as np
+    idx = [int(i) for i in spec['channel_indices']]
+    ids = [rec.channel_ids[i] for i in idx]
+    rec = rec.select_channels(ids)
+    rec.set_channel_gains(np.asarray(spec['gain_to_uV'], dtype=float))
+    rec.set_channel_offsets(np.zeros(len(idx)))
+    return rec
+
+
+def load_openephys_binary(spec):
+    """Open Ephys Binary: one continuous.dat (int16, all stream channels) per recording."""
+    import spikeinterface.extractors as se
+    n = int(spec['n_chan_stream'])
+    recs = []
+    for p in spec['parts']:
+        r = se.read_binary(p['file'], sampling_frequency=float(spec['fs']), dtype='int16',
+                           num_channels=n, time_axis=0, is_filtered=False)
+        if r.get_num_samples() != int(p['n_samples']):
+            r = r.frame_slice(0, int(p['n_samples']))
+        recs.append(r)
+    rec = _headstage(_concatenate(recs), spec)
+    log('Loaded Open Ephys Binary recording (%d part(s), %d ch, fs=%g)'
+        % (len(recs), rec.get_num_channels(), rec.get_sampling_frequency()))
+    return rec
+
+
+def load_openephys_legacy(spec):
+    """Open Ephys format: the headstage .continuous files, one segment per recording."""
+    import spikeinterface.full as si
+    parts = [{'channel_files': list(p['channel_files']), 'first_record': int(p['first_record']),
+              'n_records': int(p['n_records'])} for p in spec['parts']]
+    rec = OpenEphysLegacyRecording(parts, float(spec['fs']), [float(g) for g in spec['gain_to_uV']])
+    if rec.get_num_segments() > 1:
+        rec = si.concatenate_recordings([rec.select_segments([i]) for i in range(rec.get_num_segments())])
+    log('Loaded Open Ephys format recording (%d part(s), %d ch, fs=%g)'
+        % (len(parts), rec.get_num_channels(), rec.get_sampling_frequency()))
+    return rec
+
+
+def load_openephys_nwb(spec):
+    """Open Ephys NWB 2: the stream's ElectricalSeries, one segment per recording."""
+    try:
+        import h5py  # noqa: F401
+    except ImportError:
+        raise ImportError('Reading Open Ephys NWB files needs h5py in the sorting environment '
+                          '(e.g. "conda install -n kilosort h5py"), or sort with the kilosort engine, '
+                          'which reads the recording in MATLAB.')
+    import spikeinterface.full as si
+    parts = [{'file': p['file'], 'dataset': p['dataset'], 'row_start': int(p['row_start']),
+              'n_samples': int(p['n_samples'])} for p in spec['parts']]
+    rec = OpenEphysNwbRecording(parts, [int(i) for i in spec['channel_indices']], float(spec['fs']),
+                                [float(g) for g in spec['gain_to_uV']])
+    if rec.get_num_segments() > 1:
+        rec = si.concatenate_recordings([rec.select_segments([i]) for i in range(rec.get_num_segments())])
+    log('Loaded Open Ephys NWB recording (%d part(s), %d ch, fs=%g)'
+        % (len(parts), rec.get_num_channels(), rec.get_sampling_frequency()))
+    return rec
+
+
+# --- Open Ephys format / NWB recordings ---------------------------------------
+# Module-level classes: SpikeInterface dumps a recording (class path +
+# _kwargs + the module's __version__) and rebuilds it, so they must be
+# importable by name (__main__.<class>) and the module needs a version.
+__version__ = '1.0.0'
+
+import numpy as _np
+from spikeinterface.core import BaseRecording as _BaseRecording
+from spikeinterface.core import BaseRecordingSegment as _BaseRecordingSegment
+
+_LEGACY_RECORD = _np.dtype([('ts', '<i8'), ('n', '<u2'), ('rec', '<u2'),
+                            ('s', '>i2', (1024,)), ('m', 'u1', (10,))])
+
+
+def _channel_list(channel_indices, n):
+    if channel_indices is None:
+        return list(range(n))
+    if isinstance(channel_indices, slice):
+        return list(range(n))[channel_indices]
+    return [int(c) for c in channel_indices]
+
+
+class OpenEphysLegacySegment(_BaseRecordingSegment):
+    """One recording of .continuous files: records [first, first + n) of each channel file."""
+
+    def __init__(self, files, first_record, n_records, fs):
+        _BaseRecordingSegment.__init__(self, sampling_frequency=fs)
+        self._maps = [_np.memmap(f, dtype=_LEGACY_RECORD, mode='r', offset=1024) for f in files]
+        self._first = int(first_record)
+        self._n = int(n_records)
+
+    def get_num_samples(self):
+        return self._n * 1024
+
+    def get_traces(self, start_frame=None, end_frame=None, channel_indices=None):
+        start = 0 if start_frame is None else int(start_frame)
+        end = self.get_num_samples() if end_frame is None else int(end_frame)
+        chans = _channel_list(channel_indices, len(self._maps))
+        out = _np.zeros((max(end - start, 0), len(chans)), dtype='int16')
+        if end <= start:
+            return out
+        r0 = self._first + start // 1024
+        r1 = self._first + (end - 1) // 1024 + 1
+        off = start % 1024
+        for j, c in enumerate(chans):
+            v = self._maps[c][r0:r1]['s'].reshape(-1)
+            out[:, j] = v[off:off + (end - start)]
+        return out
+
+
+class OpenEphysLegacyRecording(_BaseRecording):
+    """Open Ephys format headstage channels; one segment per recording."""
+
+    def __init__(self, parts, fs, gains):
+        n = len(parts[0]['channel_files'])
+        _BaseRecording.__init__(self, sampling_frequency=float(fs),
+                                channel_ids=[str(i) for i in range(n)], dtype='int16')
+        for p in parts:
+            self.add_recording_segment(OpenEphysLegacySegment(
+                p['channel_files'], p['first_record'], p['n_records'], float(fs)))
+        self.set_channel_gains(_np.asarray(gains, dtype=float))
+        self.set_channel_offsets(_np.zeros(n))
+        self._kwargs = {'parts': [dict(p) for p in parts], 'fs': float(fs), 'gains': [float(g) for g in gains]}
+
+
+class OpenEphysNwbSegment(_BaseRecordingSegment):
+    """One recording of an NWB ElectricalSeries: rows [row_start, row_start + n) (h5py)."""
+
+    def __init__(self, file, dataset, row_start, n_samples, channel_indices, fs):
+        _BaseRecordingSegment.__init__(self, sampling_frequency=fs)
+        self._file, self._ds = file, dataset
+        self._row0, self._n = int(row_start), int(n_samples)
+        self._idx = _np.asarray(channel_indices, dtype=int)
+        self._h5 = None
+
+    def _data(self):
+        if self._h5 is None:
+            import h5py
+            self._h5 = h5py.File(self._file, 'r')
+        return self._h5[self._ds]
+
+    def get_num_samples(self):
+        return self._n
+
+    def get_traces(self, start_frame=None, end_frame=None, channel_indices=None):
+        start = 0 if start_frame is None else int(start_frame)
+        end = self._n if end_frame is None else int(end_frame)
+        cols = self._idx[_channel_list(channel_indices, len(self._idx))]
+        if end <= start or cols.size == 0:
+            return _np.zeros((max(end - start, 0), cols.size), dtype='int16')
+        lo, hi = int(cols.min()), int(cols.max()) + 1
+        block = self._data()[self._row0 + start:self._row0 + end, lo:hi]
+        return _np.asarray(block[:, cols - lo], dtype='int16')
+
+
+class OpenEphysNwbRecording(_BaseRecording):
+    """Open Ephys NWB headstage channels; one segment per recording."""
+
+    def __init__(self, parts, channel_indices, fs, gains):
+        n = len(channel_indices)
+        _BaseRecording.__init__(self, sampling_frequency=float(fs),
+                                channel_ids=[str(i) for i in range(n)], dtype='int16')
+        for p in parts:
+            self.add_recording_segment(OpenEphysNwbSegment(
+                p['file'], p['dataset'], p['row_start'], p['n_samples'], channel_indices, float(fs)))
+        self.set_channel_gains(_np.asarray(gains, dtype=float))
+        self.set_channel_offsets(_np.zeros(n))
+        self._kwargs = {'parts': [dict(p) for p in parts], 'channel_indices': [int(i) for i in channel_indices],
+                        'fs': float(fs), 'gains': [float(g) for g in gains]}
+
+
 def build_probe(cfg, rec):
-    import re
     import numpy as np
     from probeinterface import Probe
     d = load_config(cfg['probe'])
@@ -97,16 +305,17 @@ def build_probe(cfg, rec):
     if kc is not None:
         kc = np.asarray(kc).astype(int).ravel()
 
-    # Map each probe site's nominal channel number to its actual position in
-    # THIS recording. Native ids can have gaps when a hardware channel was
-    # disabled at acquisition (e.g. 'A-016' missing shifts every later
-    # channel down by one slot), so a site is dropped rather than assumed to
-    # line up with the raw chanMap value.
+    # Map each probe site's channel number to its position in THIS recording.
+    # The channels are named by their hardware numbers (name_by_number), which
+    # can have gaps when a channel was disabled at acquisition (e.g. 16
+    # missing shifts every later channel down by one slot), so a site whose
+    # number is absent is dropped rather than assumed to line up.
     pos_by_number = {}
     for pos, cid in enumerate(rec.channel_ids):
-        m = re.search(r'([0-9]+)$', str(cid))
-        if m:
-            pos_by_number[int(m.group(1))] = pos
+        try:
+            pos_by_number[int(str(cid))] = pos
+        except ValueError:
+            pass
 
     keep = np.array([int(v) in pos_by_number for v in chan_map])
     missing = [str(v) for v, k in zip(chan_map, keep) if not k]

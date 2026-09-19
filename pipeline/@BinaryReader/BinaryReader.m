@@ -17,6 +17,8 @@ classdef BinaryReader < EphysReader
     %       "offset":        0,                         raw units subtracted before the gain
     %       "channel_names": ["ch1", ...],              (optional; default "ch1".."chN")
     %       "native_names":  ["A-000", ...],            (optional; default = channel_names)
+    %       "channel_numbers": [0, 1, ...],             (optional; default 0..n_chan-1) the
+    %                                                   hardware number a probe chanMap refers to
     %       "dig_in_names":  ["din0", ...],             (optional)
     %       "dig_in_file":   "digitalin.dat",           (optional) uint16 per sample, bit k = line k
     %       "events":        {"din0": [[t_on, t_off], ...]},   (optional) seconds, t = row/Fs
@@ -49,10 +51,12 @@ classdef BinaryReader < EphysReader
     end
 
     methods
-        function obj = BinaryReader(folder)
+        function obj = BinaryReader(folder, options)
             arguments
                 folder (1,1) string = ""
+                options struct = struct()   % reader options (unused)
             end
+            obj.Options = options;
             if folder == ""; return; end
             obj.Folder = string(folder);
             [~, leaf] = fileparts(char(obj.Folder));
@@ -108,7 +112,18 @@ classdef BinaryReader < EphysReader
             else
                 obj.NativeNames = names;
             end
+            if isfield(d, 'channel_numbers') && ~isempty(d.channel_numbers)
+                nums = double(d.channel_numbers(:).');
+                if numel(nums) ~= obj.NumChannels
+                    error('BinaryReader:BadDescriptor', '%s: channel_numbers has %d entries for %d channels.', ...
+                        obj.Folder, numel(nums), obj.NumChannels);
+                end
+                obj.ChannelNumbers = EphysReader.checkChannelNumbers(nums, obj.Folder);
+            else
+                obj.ChannelNumbers = 0:obj.NumChannels-1;
+            end
             obj.DigInNames = BinaryReader.stringList(d, 'dig_in_names', 0, "din");
+            obj.DigInNativeNames = obj.DigInNames;
             nSamp = obj.sampleCount();
             obj.PerFile = struct( ...
                 'name',                 string(d.data_file), ...
@@ -211,8 +226,6 @@ classdef BinaryReader < EphysReader
                 opts.Concatenate (1,1) logical = true %#ok<INUSA>
                 opts.ProgressFcn = []
                 opts.Precision (1,1) string {mustBeMember(opts.Precision, ["double", "single"])} = "double"
-                opts.EventLabelField (1,1) string {mustBeMember(opts.EventLabelField, ...
-                    ["custom_channel_name", "native_channel_name"])} = "custom_channel_name"
             end
             if isnan(obj.Fs) || isempty(obj.PerFile); obj.refreshMetadata(); end
             if obj.RecordingFormat ~= "binary"
@@ -241,7 +254,7 @@ classdef BinaryReader < EphysReader
                 order = 1:obj.NumChannels;
             end
 
-            [events, digNames] = obj.readEvents(nSamp, opts.EventLabelField);
+            [events, digNames] = obj.readEvents(nSamp);
 
             data = struct();
             data.amplifier        = X;
@@ -277,7 +290,8 @@ classdef BinaryReader < EphysReader
                 'n_chan', obj.NumChannels, 'fs', obj.Fs, ...
                 'gain_to_uV', gain, 'offset', off, ...
                 'byte_order', obj.byteOrderName(), ...
-                'channel_names', {cellstr(obj.ChannelNames(:).')});
+                'channel_names', {cellstr(obj.ChannelNames(:).')}, ...
+                'channel_numbers', {num2cell(double(obj.ChannelNumbers))});
         end
     end
 
@@ -307,8 +321,9 @@ classdef BinaryReader < EphysReader
             end
         end
 
-        function [events, names] = readEvents(obj, nSamp, labelField) %#ok<INUSD>
+        function [events, names] = readEvents(obj, nSamp)
             %readEvents  Digital-input intervals from the descriptor or dig_in_file.
+            %   Keyed by the line names (the format has one name per line).
             d = obj.Descriptor;
             names = obj.DigInNames;
             events = struct();
@@ -361,11 +376,12 @@ classdef BinaryReader < EphysReader
             tf = isstruct(s) && isfield(s, 'schema') && string(s.schema) == BinaryReader.Schema;
         end
 
-        function folders = findRecordingFolders(root, recursive)
+        function folders = findRecordingFolders(root, recursive, options) %#ok<INUSD>
             %findRecordingFolders  Folders holding an ephys-recording/1 recording.json.
             arguments
                 root (1,1) string
                 recursive (1,1) logical = true
+                options struct = struct()
             end
             folders = string.empty(1, 0);
             if ~isfolder(root); return; end
@@ -405,8 +421,8 @@ classdef BinaryReader < EphysReader
             %writeDescriptor  Write a validated recording.json into FOLDER.
             %   spec is a struct with at least data_file, dtype, n_chan, fs;
             %   optional gain_to_uV (default 1), offset (0), channel_names,
-            %   native_names, dig_in_names, dig_in_file, events, acq_date,
-            %   name, source. The schema field is added here.
+            %   native_names, channel_numbers, dig_in_names, dig_in_file,
+            %   events, acq_date, name, source. The schema field is added here.
             arguments
                 folder (1,1) string
                 spec (1,1) struct

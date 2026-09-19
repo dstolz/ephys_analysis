@@ -13,7 +13,8 @@ function T = makeSyntheticRecording(folder, opts)
 %     digital inputs     the six lines of the lab's rig, in RHX order:
 %                        Trough (nose pokes), Platform, Stim, InTrial (the
 %                        trial line), RespWindow, Commutator (never active)
-%     aux inputs         three accelerometer channels at Fs/4 (Intan layouts)
+%     aux inputs         three accelerometer channels at Fs/4 (Intan layouts;
+%                        Open Ephys formats hold each value for 4 samples)
 %     Epsych2 session    <Subject>_<yymmdd>T<HHMMSS>.mat (Data + Info) in the
 %                        recording folder, named from its start time as
 %                        Epsych2 does, one trial per InTrial interval
@@ -44,6 +45,19 @@ function T = makeSyntheticRecording(folder, opts)
 %     Format         "traditional" (default: RHX-style *.rhd files of
 %                    FileSeconds each) | "one-file-per-signal" (info.rhd +
 %                    *.dat) | "binary" (recording.json + .bin; no aux inputs)
+%                    | "openephys-binary" | "openephys-legacy" |
+%                    "openephys-nwb" (an Open Ephys GUI session: FOLDER is
+%                    the session folder, holding "Record Node 101"; channels
+%                    CH1.., lines TTL1..TTL6 in the order above, name them with
+%                    Signals.LineNames; the sample count is a multiple of 1024)
+%     Parts          1 (Open Ephys formats): split the session into this many
+%                    recordings (recording stopped and restarted, 2 s apart),
+%                    each boundary in an inter-trial interval. T.events is
+%                    then what an Open Ephys reader sees: intervals split at
+%                    the boundaries, and a line already high when a recording
+%                    starts is lost where the format cannot know it (the Open
+%                    Ephys format without an edge in that recording; NWB in
+%                    a recording without any edge)
 %     Fs             30000
 %     NumChannels    16 (at least 2)
 %     NumTrials      12 (at least 4)
@@ -62,7 +76,8 @@ function T = makeSyntheticRecording(folder, opts)
 %     WriteManifest  true
 %     ProgressFcn    ProgressFcn(fraction, message)
 %
-%   T fields: folder, name, subject, scenario, format, Fs, nSamples,
+%   T fields: folder, name, subject, scenario, format, parts (part end rows),
+%   lineNames (Open Ephys: "TTL1=Trough", ...), Fs, nSamples,
 %   duration, files, acqTime, sessionStart, behaviorFile, channelNames,
 %   digInNames, digInOrders, trialLine, invertedLines, events (struct: line
 %   -> [k x 2] seconds ON, t = row/Fs, the readers' convention), nTrials,
@@ -79,7 +94,8 @@ arguments
     folder (1,1) string
     opts.Subject (1,1) string = "SYNTH-01"
     opts.Scenario (1,1) string {mustBeMember(opts.Scenario, ["clean" "late-start" "early-stop" "spurious"])} = "clean"
-    opts.Format (1,1) string {mustBeMember(opts.Format, ["traditional" "one-file-per-signal" "binary"])} = "traditional"
+    opts.Format (1,1) string {mustBeMember(opts.Format, ["traditional" "one-file-per-signal" "binary" ...
+        "openephys-binary" "openephys-legacy" "openephys-nwb"])} = "traditional"
     opts.Fs (1,1) double {mustBePositive} = 30000
     opts.NumChannels (1,1) double {mustBeInteger, mustBeGreaterThanOrEqual(opts.NumChannels, 2)} = 16
     opts.NumTrials (1,1) double {mustBeInteger, mustBeGreaterThanOrEqual(opts.NumTrials, 4)} = 12
@@ -91,6 +107,7 @@ arguments
     opts.SortedOutput (1,1) logical = true
     opts.Artifacts (1,1) logical = true
     opts.InvertedLines (1,:) string = string.empty(1,0)
+    opts.Parts (1,1) double {mustBeInteger, mustBePositive} = 1
     opts.WriteManifest (1,1) logical = true
     opts.ProgressFcn = []
 end
@@ -105,6 +122,16 @@ auxVoltsPerBit = 37.4e-6;   % Intan aux-input resolution
 preS = 65;                  % Epsych2 started this long before the recording (as in the lab)
 scenario = opts.Scenario;
 fmt = opts.Format;
+isOE = startsWith(fmt, "openephys-");
+if opts.Parts > 1 && ~isOE
+    error('makeSyntheticRecording:Parts', 'Parts applies to the Open Ephys formats only.');
+end
+if isOE && ~isempty(opts.InvertedLines)
+    error('makeSyntheticRecording:InvertedLines', 'InvertedLines is not supported for the Open Ephys formats.');
+end
+if isOE
+    spb = 1024;   % whole Open Ephys records: no zero padding at the end of a recording
+end
 
 acq = opts.AcqTime;
 if isnat(acq)
@@ -137,11 +164,12 @@ auxNative  = "A-AUX" + string(1:3);
 lineNames  = ["Trough" "Platform" "Stim" "InTrial" "RespWindow" "Commutator"];
 lineNative = "DIGITAL-IN-" + string(compose('%02d', (1:6).')).';
 lineOrders = 1:6;                       % RHX: DIGITAL-IN-01 is bit 1 of the word
-if fmt == "binary"
-    lineBits = 0:5;                     % recording.json: bit k = dig_in_names(k+1)
+if fmt == "binary" || isOE
+    lineBits = 0:5;                     % recording.json: bit k = dig_in_names(k+1); Open Ephys: TTL k+1
 else
     lineBits = lineOrders;
 end
+oeLineNames = "TTL" + (1:6) + "=" + lineNames;
 bad = setdiff(opts.InvertedLines, lineNames);
 if ~isempty(bad)
     error('makeSyntheticRecording:InvertedLines', 'Unknown line(s) in InvertedLines: %s', strjoin(bad, ', '));
@@ -298,6 +326,23 @@ sigSlowIn = 30 * sqrt((1 + alpha) / (1 - alpha));                 % -> ~30 uV RM
 ziSlow = zeros(1, nCh);
 auxBase = [1.65 1.70 2.00]; auxF = [0.9 1.3 0.7]; auxPh = 2 * pi * rand(1, 3);
 
+% --- Open Ephys recordings (parts): boundaries in inter-trial intervals ---------
+partEnd = nSamp;
+if isOE && opts.Parts > 1
+    partEnd = zeros(1, opts.Parts);
+    for k = 1:opts.Parts - 1
+        b = round(k * nSamp / opts.Parts / 1024) * 1024;
+        while any(rows.InTrial(:, 1) <= b + 1 & rows.InTrial(:, 2) >= b) && b + 1024 < nSamp
+            b = b + 1024;
+        end
+        partEnd(k) = b;
+    end
+    partEnd(end) = nSamp;
+    partEnd = unique(partEnd);
+end
+gapS = 2;                                  % wall-clock pause between recordings
+firstSample = 123456;                      % acquisition was running before recording started
+
 % --- write, one segment (= one traditional file) at a time --------------------
 nSegSamp = max(spb, round(opts.FileSeconds * Fs / spb) * spb);
 nSeg = ceil(nSamp / nSegSamp);
@@ -319,6 +364,17 @@ switch fmt
         files = [name + ".bin", "digitalin.dat"];
 end
 closer = onCleanup(@() closeAll(fids));
+oeW = [];
+if isOE
+    meta = struct('Fs', Fs, 'NumChannels', nCh, 'AuxCount', 3, 'BitVolts', uvPerBit, 'AuxBitVolts', auxVoltsPerBit);
+    switch fmt
+        case "openephys-binary", oeW = writeOpenEphysBinary(folder, meta);
+        case "openephys-legacy", oeW = writeOpenEphysLegacy(folder, meta);
+        case "openephys-nwb",    oeW = writeOpenEphysNWB(folder, meta);
+    end
+    oePart = 1;
+    oeW.begin(1, 1, firstSample, acq);
+end
 
 for sIdx = 1:nSeg
     s0 = (sIdx - 1) * nSegSamp;
@@ -401,9 +457,29 @@ for sIdx = 1:nSeg
         case "binary"
             fwrite(fids.amp, int16(min(max(round(X / uvPerBit), -32768), 32767)).', 'int16');
             fwrite(fids.dig, W, 'uint16');
+        otherwise   % Open Ephys: AUX held for 4 samples, stored as (raw - 32768) * 37.4 uV
+            A = repelem((double(auxRaw.') - 32768) * auxVoltsPerBit, 4, 1);
+            A = A(1:n, :);
+            r = 1;
+            while r <= n
+                stop = min(n, partEnd(oePart) - s0);
+                oeW.append(X(r:stop, :), W(r:stop), A(r:stop, :));
+                r = stop + 1;
+                if s0 + stop == partEnd(oePart) && oePart < numel(partEnd)
+                    oeW.finish();
+                    oePart = oePart + 1;
+                    b = partEnd(oePart - 1);
+                    oeW.begin(1, oePart, firstSample + b + round(gapS * (oePart - 1) * Fs), ...
+                        acq + seconds(b / Fs + gapS * (oePart - 1)));
+                end
+            end
     end
 end
 delete(closer);
+if isOE
+    oeW.finish();
+    if isfield(oeW, 'closeAll'); oeW.closeAll(); end
+end
 switch fmt
     case "one-file-per-signal"
         fileTimes = repmat(acq, 1, numel(files));
@@ -416,6 +492,11 @@ switch fmt
             'acq_date', fmtTime(acq, 'yyyy-MM-dd HH:mm:ss'), ...
             'source', struct('tool', "makeSyntheticRecording", 'scenario', scenario, 'seed', opts.Seed)));
         files = ["recording.json", files];
+        fileTimes = repmat(acq, 1, numel(files));
+    otherwise   % Open Ephys: start times are in the session's own files
+        D = dir(fullfile(folder, '**', '*'));
+        D = D(~[D.isdir]);
+        files = string(erase(fullfile({D.folder}, {D.name}), [char(folder) filesep]));
         fileTimes = repmat(acq, 1, numel(files));
 end
 timesOk = true;
@@ -543,7 +624,11 @@ tick(1, "Done");
 % --- the truth -------------------------------------------------------------------
 events = struct();
 for ln = lineNames
-    events.(ln) = rows.(ln) / Fs;
+    iv = rows.(ln);
+    if isOE
+        iv = openEphysView(iv, rows, lineNames, partEnd, fmt);
+    end
+    events.(ln) = iv / Fs;
 end
 units = struct('id', {}, 'peakChannel', {}, 'samples', {}, 'amplitudeUV', {}, 'label', {}, 'modulation', {});
 for u = 1:nU
@@ -559,6 +644,8 @@ D = dir(fullfile(folder, '**', '*'));
 auxFs = Fs / 4;
 if fmt == "one-file-per-signal"; auxFs = Fs; end
 if fmt == "binary"; auxFs = NaN; end
+auxOffset = 0;
+if isOE; auxOffset = -32768 * auxVoltsPerBit; end
 
 T = struct();
 T.folder        = folder;
@@ -566,6 +653,9 @@ T.name          = name;
 T.subject       = subject;
 T.scenario      = scenario;
 T.format        = fmt;
+T.parts         = partEnd;
+T.lineNames     = string.empty(1, 0);
+if isOE; T.lineNames = oeLineNames; end
 T.Fs            = Fs;
 T.nSamples      = nSamp;
 T.duration      = L;
@@ -574,6 +664,7 @@ T.acqTime       = acq;
 T.sessionStart  = sessionStart;
 T.behaviorFile  = string(behFile);
 T.channelNames  = ampNames;
+if isOE; T.channelNames = "CH" + (1:nCh); end
 T.digInNames    = lineNames;
 T.digInOrders   = lineBits;
 T.trialLine     = "InTrial";
@@ -585,7 +676,7 @@ T.expectedCuts  = cuts;
 T.trials        = trials;
 T.units         = units;
 T.artifacts     = artRows / Fs;
-T.aux           = struct('names', auxNames, 'Fs', auxFs);
+T.aux           = struct('names', auxNames, 'Fs', auxFs, 'offset', auxOffset);   % Open Ephys: volts - 1.2255
 T.sortedDir     = string(sortedDir);
 T.manifestFile  = manifestFile;
 T.probeFile     = opts.ProbeFile;
@@ -616,6 +707,37 @@ keep = off >= 1 & on <= nSamp;
 on  = max(on, 1); off = min(off, nSamp);
 rows = [on off];
 rows(~keep, :) = NaN;
+end
+
+
+function out = openEphysView(iv, rows, lineNames, partEnd, fmt)
+%openEphysView  What an Open Ephys reader sees of a line's [on off] rows:
+%   intervals split at the recording boundaries; an interval already high
+%   when a recording starts (it holds the recording's first row) is lost
+%   where the format cannot know it: the Open Ephys format when the line has
+%   no edge in that recording, NWB when that recording has no edge at all
+%   (Binary records the initial TTL word).
+starts = [1, partEnd(1:end-1) + 1];
+out = zeros(0, 2);
+for p = 1:numel(partEnd)
+    s = starts(p); e = partEnd(p);
+    in = iv(iv(:, 2) >= s & iv(:, 1) <= e, :);
+    in = [max(in(:, 1), s), min(in(:, 2), e)];
+    for k = 1:size(in, 1)
+        atStart = in(k, 1) == s;
+        if atStart && fmt ~= "openephys-binary"
+            ownEdge = in(k, 2) < e;
+            anyEdge = false;
+            for ln = lineNames
+                r = rows.(ln);
+                anyEdge = anyEdge || any((r(:, 1) > s & r(:, 1) <= e) | (r(:, 2) >= s & r(:, 2) < e));
+            end
+            if fmt == "openephys-legacy" && ~ownEdge; continue; end
+            if fmt == "openephys-nwb" && ~ownEdge && ~anyEdge; continue; end
+        end
+        out(end+1, :) = in(k, :); %#ok<AGROW>
+    end
+end
 end
 
 

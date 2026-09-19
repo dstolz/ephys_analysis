@@ -9,8 +9,11 @@ function S = makeSyntheticProject(root, opts)
 %       README.txt                       what is in here and what to expect
 %       <Subject>/
 %         <Subject>_<yymmdd>_<HHMMSS>/   one recording per scenario, on
-%                                        consecutive days (makeSyntheticRecording)
-%           *.rhd                        Intan RHX-style files (or the other layouts)
+%                                        consecutive days (makeSyntheticRecording);
+%                                        Open Ephys formats: the GUI's session
+%                                        folder <Subject>_<yyyy-MM-dd>_<HH-mm-ss>
+%           *.rhd                        Intan RHX-style files (or the other layouts;
+%                                        Open Ephys: Record Node 101/)
 %           <Subject>_<yymmdd>T<HHMMSS>.mat   its Epsych2 session
 %           <Name>_manifest.json         probe + session associated
 %           kilosort4/si/sorter_output/  ground-truth units as Kilosort4 / phy output
@@ -42,7 +45,13 @@ function S = makeSyntheticProject(root, opts)
 %                    NumChannels, NumTrials and FileSeconds override the preset
 %     Subject        "SYNTH-01"
 %     Scenarios      ["clean" "late-start" "early-stop" "spurious"] (any subset / order)
-%     Format         "traditional" (default) | "one-file-per-signal" | "binary"
+%     Format         "traditional" (default) | "one-file-per-signal" | "binary" |
+%                    "openephys-binary" | "openephys-legacy" | "openephys-nwb". For
+%                    the Open Ephys formats the config sets Project.NamePattern
+%                    to OpenEphysReader.DefaultNamePattern and names the TTL
+%                    lines (Signals.LineNames: TTL4=InTrial, ...)
+%     Parts          1: Open Ephys formats only, recordings per session (see
+%                    makeSyntheticRecording)
 %     Seed           1 (dataset k uses Seed + k - 1)
 %     SortedOutput   true: write the ground-truth sorted output
 %     Artifacts      true
@@ -65,7 +74,9 @@ arguments
     opts.Preset (1,1) string {mustBeMember(opts.Preset, ["standard" "small"])} = "standard"
     opts.Subject (1,1) string = "SYNTH-01"
     opts.Scenarios (1,:) string {mustBeMember(opts.Scenarios, ["clean" "late-start" "early-stop" "spurious"])} = ["clean" "late-start" "early-stop" "spurious"]
-    opts.Format (1,1) string {mustBeMember(opts.Format, ["traditional" "one-file-per-signal" "binary"])} = "traditional"
+    opts.Format (1,1) string {mustBeMember(opts.Format, ["traditional" "one-file-per-signal" "binary" ...
+        "openephys-binary" "openephys-legacy" "openephys-nwb"])} = "traditional"
+    opts.Parts (1,1) double {mustBeInteger, mustBePositive} = 1
     opts.Fs (1,1) double = NaN
     opts.NumChannels (1,1) double = NaN
     opts.NumTrials (1,1) double = NaN
@@ -79,6 +90,7 @@ arguments
 end
 
 configName = 'synthetic_pipeline.json';
+isOE = startsWith(opts.Format, "openephys-");
 switch opts.Preset
     case "standard", def = struct('Fs', 30000, 'NumChannels', 16, 'NumTrials', 12, 'FileSeconds', 30);
     case "small",    def = struct('Fs', 20000, 'NumChannels', 8,  'NumTrials', 6,  'FileSeconds', 10);
@@ -121,13 +133,16 @@ datasets = [];
 for k = 1:n
     acq = base - days(n - k);                       % one recording per day, the last one today
     acq.Format = 'yyMMdd_HHmmss';
+    if isOE; acq.Format = 'yyyy-MM-dd_HH-mm-ss'; end  % the Open Ephys GUI's session folder
     folder = fullfile(root, opts.Subject, opts.Subject + "_" + string(acq));
+    parts = 1;
+    if isOE; parts = opts.Parts; end
     T = makeSyntheticRecording(folder, Subject=opts.Subject, Scenario=opts.Scenarios(k), ...
         Format=opts.Format, Fs=opts.Fs, NumChannels=opts.NumChannels, NumTrials=opts.NumTrials, ...
         FileSeconds=opts.FileSeconds, AcqTime=acq, Seed=opts.Seed + k - 1, Probe=probe, ...
         ProbeFile=probeFile, SortedOutput=opts.SortedOutput, Artifacts=opts.Artifacts, ...
         InvertedLines=opts.InvertedLines, WriteManifest=true, ...
-        ProgressFcn=@(f, m) tick((k - 1 + f) / (n + 0.5), m));
+        Parts=parts, ProgressFcn=@(f, m) tick((k - 1 + f) / (n + 0.5), m));
     if isempty(datasets); datasets = T; else; datasets(end+1) = T; end %#ok<AGROW>
 end
 
@@ -140,6 +155,10 @@ cfg.Description = sprintf("%d synthetic %s recording(s) with Epsych2 sessions (%
     n, opts.Format, strjoin(opts.Scenarios, ", "), string(datetime('now', 'Format', 'yyyy-MM-dd HH:mm')));
 cfg.Project.Root = root;
 cfg.Project.OutputRoot = "";                         % outputs next to each recording, as in the lab
+if isOE
+    cfg.Project.NamePattern = OpenEphysReader.DefaultNamePattern;
+    cfg.Signals.LineNames = datasets(1).lineNames;   % TTL1=Trough, ..., TTL4=InTrial, ...
+end
 cfg.Probe.DefaultProbeFile = probeFile;
 cfg.Probe.WriteDefaultToManifest = true;
 cfg.Behavior.Enabled = true;
@@ -178,7 +197,7 @@ readmeFile = fullfile(root, 'README.txt');
 writeReadme(readmeFile, root, configFile, probeFile, datasets, opts);
 
 % --- verify: the project scans back --------------------------------------------------------------
-P = EphysProject(root);
+P = EphysProject(root, ReaderOptions=cfg.Acquisition);
 if P.NumDatasets ~= n
     error('makeSyntheticProject:Verify', 'Expected %d recording folder(s) under %s but EphysProject found %d.', ...
         n, root, P.NumDatasets);
@@ -218,9 +237,17 @@ w('      pipe = EphysPipeline(EphysPipelineConfig.load("%s")); pipe.run();', con
 w('  %s   probe map (%d channels)', probeFile, opts.NumChannels);
 w('  %s/<recording>/     one folder per dataset (below)', fullfile(root, opts.Subject));
 w('');
-w('Every recording: %s layout, %g Hz, %d amplifier channels (A-000..), 3 accelerometer inputs', opts.Format, opts.Fs, opts.NumChannels);
-w('(accelX/Y/Z, Intan layouts only), 6 digital lines in RHX order: Trough, Platform, Stim,');
-w('InTrial (the trial line), RespWindow, Commutator (never active). Amplifier data holds LFP');
+if startsWith(opts.Format, "openephys-")
+    w('Every recording: an Open Ephys GUI session (%s format, Record Node 101), %g Hz, %d headstage', erase(opts.Format, "openephys-"), opts.Fs, opts.NumChannels);
+    w('channels (CH1..), 3 AUX (accelerometer) inputs, TTL lines TTL1..TTL6 named by the config''s');
+    w('Signals.LineNames: TTL1=Trough, TTL2=Platform, TTL3=Stim, TTL4=InTrial (the trial line),');
+    w('TTL5=RespWindow, TTL6=Commutator (never active, so never seen). %d recording(s) per session.', opts.Parts);
+    w('Amplifier data holds LFP');
+else
+    w('Every recording: %s layout, %g Hz, %d amplifier channels (A-000..), 3 accelerometer inputs', opts.Format, opts.Fs, opts.NumChannels);
+    w('(accelX/Y/Z, Intan layouts only), 6 digital lines in RHX order: Trough, Platform, Stim,');
+    w('InTrial (the trial line), RespWindow, Commutator (never active). Amplifier data holds LFP');
+end
 w('rhythms, noise, 60 Hz, a stimulus-evoked potential, %d spiking units and%s two large', numel(D(1).units), ternary(opts.Artifacts, '', ' (Artifacts off) no'));
 w('artifacts (one saturates the ADC). The Epsych2 session (<subject>_<yymmdd>T<HHMMSS>.mat,');
 w('variables Data + Info) sits in the recording folder and starts 65 s before the recording.');

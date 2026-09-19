@@ -47,6 +47,7 @@ classdef DatasetTracker < handle
         Root      (1,1) string  = ""      % the dataset directory being tracked
         Name      (1,1) string  = ""      % dataset name (defaults to folder leaf)
         Recursive (1,1) logical = true    % scan sub-folders (false = top level only)
+        ReaderOptions struct = struct()   % reader options (config Acquisition section)
     end
 
     properties (SetAccess = protected)
@@ -74,6 +75,7 @@ classdef DatasetTracker < handle
                 root (1,1) string = ""
                 opts.Name (1,1) string = ""
                 opts.Recursive (1,1) logical = true
+                opts.ReaderOptions struct = struct()
                 opts.AutoRefresh (1,1) logical = true
             end
 
@@ -86,6 +88,7 @@ classdef DatasetTracker < handle
 
             obj.Root      = string(root);
             obj.Recursive = opts.Recursive;
+            obj.ReaderOptions = opts.ReaderOptions;
             obj.Name      = opts.Name;
             if obj.Name == ""
                 [~, leaf] = fileparts(char(obj.Root));
@@ -256,7 +259,7 @@ classdef DatasetTracker < handle
             %   Thin wrapper over the shared static DatasetTracker.findRecordings
             %   so this class and EphysProject agree on what a recording
             %   is (a folder claimed by a registered EphysReader).
-            rec = DatasetTracker.findRecordings(obj.Root, obj.Recursive);
+            rec = DatasetTracker.findRecordings(obj.Root, obj.Recursive, obj.ReaderOptions);
         end
 
         function probes = discoverProbeFiles(obj)
@@ -437,21 +440,23 @@ classdef DatasetTracker < handle
             end
         end
 
-        function rec = findRecordings(root, recursive)
+        function rec = findRecordings(root, recursive, options)
             %findRecordings  One row per recording folder under ROOT.
             %   A recording is any folder claimed by a registered EphysReader
             %   (Intan *.rhd / info.rhd layouts, the universal recording.json
-            %   format, ...); see EphysReader.findAllRecordingFolders. This is
-            %   the single definition of "a recording" shared by
-            %   DatasetTracker.refresh and EphysProject.discover.
+            %   format, Open Ephys sessions, ...); see
+            %   EphysReader.findAllRecordingFolders. This is the single
+            %   definition of "a recording" shared by DatasetTracker.refresh
+            %   and EphysProject.discover. OPTIONS are the reader options.
             arguments
                 root (1,1) string
                 recursive (1,1) logical = true
+                options struct = struct()
             end
             rec = DatasetTracker.emptyRecordings();
-            folders = EphysReader.findAllRecordingFolders(root, recursive);
+            folders = EphysReader.findAllRecordingFolders(root, recursive, Options=options);
             for i = 1:numel(folders)
-                r = EphysReader.forFolder(folders(i));
+                r = EphysReader.forFolder(folders(i), Options=options);
                 if isempty(r) || r.NumFiles == 0; continue; end
                 bytes = 0;
                 for f = r.Files
@@ -471,15 +476,16 @@ classdef DatasetTracker < handle
             end
         end
 
-        function folders = findRecordingFolders(root, recursive)
+        function folders = findRecordingFolders(root, recursive, options)
             %findRecordingFolders  Folders holding a recording (any reader).
-            %   Stable order. Convenience over findRecordings for callers (e.g.
-            %   EphysProject.discover) that only need the folder paths.
+            %   Stable order. Convenience over findRecordings for callers that
+            %   only need the folder paths.
             arguments
                 root (1,1) string
                 recursive (1,1) logical = true
+                options struct = struct()
             end
-            rec = DatasetTracker.findRecordings(root, recursive);
+            rec = DatasetTracker.findRecordings(root, recursive, options);
             if isempty(rec)
                 folders = string.empty(1, 0);
             else

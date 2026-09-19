@@ -4,8 +4,9 @@
 that scans recordings (Intan `.rhd`, or the universal binary format),
 previews/filters them, optionally hands them off to **SpikeInterface +
 Kilosort4** (running in a separate Python/conda environment) for spike sorting
-with **phy** as the curation viewer, and writes derived-signal, spike, Chronux
-and FieldTrip `.mat` files. This guide covers everything needed to get a clean
+with **phy** as the curation viewer, and writes derived-signal and spike `.mat`
+files plus export files for external analysis toolboxes (Chronux and FieldTrip
+so far; more formats will be added). This guide covers everything needed to get a clean
 Windows 11 machine running the app end to end. Only MATLAB is required for
 everything except sorting and probe design.
 
@@ -92,6 +93,11 @@ PyTorch instead — everything still works, just slower.
    ```
    This should print `True` if the GPU build installed correctly, or `False`
    (no error) for a CPU-only setup.
+6. Optional, for Open Ephys sessions recorded in the **NWB** format and sorted
+   with the SpikeInterface engine (the default): `pip install h5py` (or
+   `conda install -n kilosort h5py`). Binary and Open Ephys format sessions
+   need nothing extra, and the native Kilosort4 engine reads NWB files in
+   MATLAB.
 
 You do **not** need conda on the Windows `PATH` for the app to work — it
 calls the environment's `python.exe` directly by full path

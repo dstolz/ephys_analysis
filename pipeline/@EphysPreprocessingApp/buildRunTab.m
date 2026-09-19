@@ -4,26 +4,29 @@ function buildRunTab(obj)
 %   merged log and the background Kilosort4 runs being monitored. With
 %   Show the run diagram ticked, a diagram of the run's steps (the one
 %   underway highlighted, each with its percentage) takes the right half of
-%   the right side (onRunDiagramToggled, runDiagramHTML).
+%   the right side (onRunDiagramToggled, runDiagramHTML). With Monitor CPU,
+%   memory, disk and GPU ticked, their use is shown under the Steps panel
+%   (onResourceMonitorToggled, resource_monitor.ps1).
 
 g = uigridlayout(obj.TabRun, [2 2]);
-g.RowHeight   = {'fit', '1x'};
+g.RowHeight   = {'1x', 0};   % onResourceMonitorToggled: {'1x', 'fit'} while monitoring
+obj.RunLeftGrid = g;
 g.ColumnWidth = {300, '1x'};
 g.Padding     = [10 10 10 10];
 %(the Validate / Plan / Run buttons have their own callbacks; checklist ticks mirror the step tabs)
 
 % --- steps checklist ---------------------------------------------------------
 steps = uipanel(g, "Title", "Steps (same switches as on each tab)");
-steps.Layout.Row = [1 2]; steps.Layout.Column = 1;
-sg = uigridlayout(steps, [14 1]);
-sg.RowHeight = [repmat({'fit'}, 1, 13), {'1x'}];
+steps.Layout.Row = 1; steps.Layout.Column = 1;
+sg = uigridlayout(steps, [15 1]);
+sg.RowHeight = [repmat({'fit'}, 1, 14), {'1x'}];
 uilabel(sg, "Text", "Probe check (always)", "FontColor", [0.4 0.4 0.4]);
 obj.RunBehaviorCheckBox  = uicheckbox(sg, "Text", "Behavior: match Epsych2 sessions", "ValueChangedFcn", @(src,~) mirror(obj, "BehEnableCheckBox", src.Value));
 obj.RunArtifactsCheckBox = uicheckbox(sg, "Text", "Artifacts: automatic detection", "ValueChangedFcn", @(src,~) mirror(obj, "ArtEnableCheckBox", src.Value));
 obj.RunSortingCheckBox   = uicheckbox(sg, "Text", "Sorting: SpikeInterface + Kilosort4", "ValueChangedFcn", @(src,~) mirror(obj, "SortEnableCheckBox", src.Value));
 obj.RunSignalsCheckBox   = uicheckbox(sg, "Text", "Signals: LFP / MUA / SPIKE / AUX .mat", "ValueChangedFcn", @(src,~) mirror(obj, "SigEnableCheckBox", src.Value));
 obj.RunSpikesCheckBox    = uicheckbox(sg, "Text", "Spikes: detected / sorted .mat", "ValueChangedFcn", @(src,~) mirror(obj, "SpkEnableCheckBox", src.Value));
-obj.RunExportCheckBox    = uicheckbox(sg, "Text", "Export: Chronux / FieldTrip / epochs", "ValueChangedFcn", @(src,~) mirror(obj, "ExpEnableCheckBox", src.Value));
+obj.RunExportCheckBox    = uicheckbox(sg, "Text", "Export: analysis-toolbox files", "ValueChangedFcn", @(src,~) mirror(obj, "ExpEnableCheckBox", src.Value));
 pg = uigridlayout(sg, [1 3]);
 pg.Padding = [0 0 0 0]; pg.ColumnWidth = {'1x', 'fit', 56}; pg.RowHeight = {'fit'}; pg.ColumnSpacing = 4;
 obj.RunParallelCheckBox = uicheckbox(pg, "Text", "Parallel: chunks on the process pool", ...
@@ -47,6 +50,26 @@ obj.RunCancelButton = uibutton(bg, "Text", "Cancel", "Enable", "off", ...
 obj.RunDiagramCheckBox = uicheckbox(sg, "Text", "Show the run diagram", ...
     "Tooltip", "Draw the steps beside the progress bars: the one underway highlighted, each with its % done.", ...
     "ValueChangedFcn", @(~,~) obj.onRunDiagramToggled());
+obj.RunMonitorCheckBox = uicheckbox(sg, "Text", "Monitor CPU, memory, disk and GPU", ...
+    "Tooltip", "Show the computer's CPU, memory, disk and GPU use under this panel, sampled every 2 s by a small idle-priority process outside MATLAB.", ...
+    "ValueChangedFcn", @(~,~) obj.onResourceMonitorToggled());
+
+% --- resource use (when monitored), under the Steps panel ----------------------
+obj.RunMonitorPanel = uipanel(g, "Title", "Resource use", "Visible", "off");
+obj.RunMonitorPanel.Layout.Row = 2; obj.RunMonitorPanel.Layout.Column = 1;
+mg = uigridlayout(obj.RunMonitorPanel, [5 3]);
+mg.RowHeight = {18, 18, 18, 18, 'fit'};
+mg.ColumnWidth = {'fit', '1x', 112};
+mg.RowSpacing = 6;
+names = ["CPU" "Memory" "Disk" "GPU"];
+for k = 1:4
+    l = uilabel(mg, "Text", names(k) + ":"); l.Layout.Row = k; l.Layout.Column = 1;
+    obj.RunMonitorBars(k) = makeBar(mg, k);
+    obj.RunMonitorTexts(k) = uilabel(mg, "Text", "", "FontColor", [0.3 0.3 0.3]);
+    obj.RunMonitorTexts(k).Layout.Row = k; obj.RunMonitorTexts(k).Layout.Column = 3;
+end
+obj.RunMonitorNote = uilabel(mg, "Text", "", "WordWrap", "on", "FontColor", [0.4 0.4 0.4]);
+obj.RunMonitorNote.Layout.Row = 5; obj.RunMonitorNote.Layout.Column = [1 3];
 
 % --- right side: progress + results + log | the run diagram (when shown) -----
 obj.RunSplitGrid = uigridlayout(g, [1 2]);

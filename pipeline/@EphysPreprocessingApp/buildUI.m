@@ -26,7 +26,8 @@ obj.TabHost.SizeChangedFcn = @(~,~) fitTabGroup(obj);
 buildStatusBar(obj, outer);
 
 % Tabs in workflow order (Copy first: pulling sessions from the source comes
-% before everything); the Diagram chart and the two utility tabs come last.
+% before everything); the Diagram chart and the utility tabs come last, Clean
+% up (freeing local disk space once a dataset is done) at the very end.
 obj.TabCopy       = uitab(obj.Tabs, "Title", "Copy");
 obj.TabProject   = uitab(obj.Tabs, "Title", "Project");
 obj.TabTrials    = uitab(obj.Tabs, "Title", "Trials");
@@ -40,9 +41,10 @@ obj.TabFlow      = uitab(obj.Tabs, "Title", "Diagram");
 obj.TabRun       = uitab(obj.Tabs, "Title", "Run");
 obj.TabVisualize = uitab(obj.Tabs, "Title", "Visualize");
 obj.TabReview    = uitab(obj.Tabs, "Title", "Review");
+obj.TabCleanup   = uitab(obj.Tabs, "Title", "Clean up");
 obj.TabList = [obj.TabCopy, obj.TabProject, obj.TabTrials, obj.TabProbe, obj.TabArtifacts, ...
     obj.TabSorting, obj.TabSignals, obj.TabSpikes, obj.TabExport, obj.TabFlow, ...
-    obj.TabRun, obj.TabVisualize, obj.TabReview];
+    obj.TabRun, obj.TabVisualize, obj.TabReview, obj.TabCleanup];
 
 buildTabStrip(obj, outer);
 fitTabGroup(obj);
@@ -60,6 +62,7 @@ obj.buildExportTab();
 obj.buildFlowTab();
 obj.buildRunTab();
 obj.buildReviewTab();
+obj.buildCleanupTab();
 
 obj.Tabs.SelectedTab = obj.TabProject;   % the app still opens on Project
 obj.syncTabStrip();
@@ -73,7 +76,7 @@ n = numel(obj.TabList);
 sg = uigridlayout(parent, [2 n + 1]);
 sg.Layout.Row = 1; sg.Layout.Column = 1;
 sg.RowHeight     = {'1x', 3};
-sg.ColumnWidth   = [repmat({88}, 1, n), {'1x'}];   % 13 tabs fit the default 1240 px width
+sg.ColumnWidth   = [repmat({82}, 1, n), {'1x'}];   % 14 tabs fit the default 1240 px width
 sg.RowSpacing    = 1;
 sg.ColumnSpacing = 3;
 sg.Padding       = [6 3 6 0];

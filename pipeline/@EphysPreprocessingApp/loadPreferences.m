@@ -6,7 +6,9 @@ function loadPreferences(obj)
 %   the datasets-table column order, the Trials-table parameter columns and
 %   column order, the Trials-plot label parameters, the Visualize
 %   display options, the Copy tab settings (subject, roots, pairing and
-%   copy options; not the dates) and the Run tab's Show the run diagram.
+%   copy options; not the dates), the Run tab's Show the run diagram and
+%   Monitor CPU, memory, disk and GPU, and the kinds of file the Clean up
+%   tab removes.
 %   Everything else lives in the config; the last config file is reopened
 %   at launch (defaults otherwise).
 
@@ -57,6 +59,10 @@ if ispref(g, 'ShowRunDiagram')
     obj.RunDiagramCheckBox.Value = isequal(getpref(g, 'ShowRunDiagram'), true);
     obj.onRunDiagramToggled();
 end
+if ispref(g, 'MonitorResources')
+    obj.RunMonitorCheckBox.Value = isequal(getpref(g, 'MonitorResources'), true);
+    obj.onResourceMonitorToggled();
+end
 
 % --- Visualize display options (one struct) ---
 if ispref(g, 'VizOptions')
@@ -79,7 +85,7 @@ if ispref(g, 'CopyOptions')
     if isstruct(v)
         applyIf(v, 'subject',    @(x) set(obj.CopySubjectField, 'Value', char(x)));
         applyIf(v, 'epsychRoot', @(x) set(obj.CopyEpsychRootField, 'Value', char(x)));
-        applyIf(v, 'intanRoot',  @(x) set(obj.CopyIntanRootField, 'Value', char(x)));
+        applyIf(v, 'recordingRoots', @(x) set(obj.CopyRecordingRootsField, 'Value', char(x)));
         applyIf(v, 'destRoot',   @(x) set(obj.CopyDestRootField, 'Value', char(x)));
         applyIf(v, 'maxLeadMin', @(x) set(obj.CopyMaxLeadField, 'Value', x));
         applyIf(v, 'maxLagMin',  @(x) set(obj.CopyMaxLagField, 'Value', x));
@@ -88,6 +94,17 @@ if ispref(g, 'CopyOptions')
         applyIf(v, 'verify',     @(x) set(obj.CopyVerifyDropDown, 'Value', char(x)));
         applyIf(v, 'ifExists',   @(x) set(obj.CopyIfExistsDropDown, 'Value', char(x)));
         applyIf(v, 'openAfter',  @(x) set(obj.CopyScanAfterCheckBox, 'Value', logical(x)));
+    end
+end
+
+% --- Clean up tab: the kinds of file to remove (one struct) ---
+if ispref(g, 'CleanupOptions')
+    v = getpref(g, 'CleanupOptions');
+    if isstruct(v)
+        applyIf(v, 'raw',        @(x) set(obj.CleanupRawCheckBox, 'Value', logical(x)));
+        applyIf(v, 'sorterCopy', @(x) set(obj.CleanupSorterCopyCheckBox, 'Value', logical(x)));
+        applyIf(v, 'bin',        @(x) set(obj.CleanupBinCheckBox, 'Value', logical(x)));
+        applyIf(v, 'showKept',   @(x) set(obj.CleanupShowKeptCheckBox, 'Value', logical(x)));
     end
 end
 

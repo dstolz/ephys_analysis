@@ -44,6 +44,17 @@ catch ME
     add("project", "NamePattern", "error", string(ME.message));
 end
 
+% --- Acquisition (always) ------------------------------------------------------
+OE = obj.Acquisition.OpenEphys;
+if ~ismember(OE.Recordings, ["concatenate" "separate" "single"])
+    add("acquisition", "OpenEphys.Recordings", "error", ...
+        "OpenEphys.Recordings must be ""concatenate"", ""separate"" or ""single"".");
+end
+if OE.RecordNode ~= "" && isempty(regexp(OE.RecordNode, '^\d+$', 'once'))
+    add("acquisition", "OpenEphys.RecordNode", "error", ...
+        "OpenEphys.RecordNode must be empty or a Record Node id (digits, e.g. 101).");
+end
+
 % --- Probe (always) ------------------------------------------------------------
 if obj.Probe.DefaultProbeFile ~= "" && opts.CheckPaths && ~isfile(obj.Probe.DefaultProbeFile)
     add("probe", "DefaultProbeFile", "error", "Default probe file not found: " + obj.Probe.DefaultProbeFile);
@@ -96,9 +107,12 @@ end
 S = obj.Sorting;
 if S.Enabled
     if S.PythonExe == ""
-        add("sorting", "PythonExe", "error", "PythonExe is required to run SpikeInterface / Kilosort4.");
+        add("sorting", "PythonExe", "error", "PythonExe is required to run Kilosort4.");
     elseif opts.CheckPaths && ~isfile(S.PythonExe)
         add("sorting", "PythonExe", "warning", "Python executable not found: " + S.PythonExe);
+    end
+    if ~ismember(S.Engine, ["spikeinterface" "kilosort"])
+        add("sorting", "Engine", "error", "Engine must be ""spikeinterface"" or ""kilosort"".");
     end
     if ~ismember(S.Execution, ["background" "blocking"])
         add("sorting", "Execution", "error", "Execution must be ""background"" or ""blocking"".");
@@ -112,6 +126,17 @@ end
 
 % --- Signals ---------------------------------------------------------------------
 G = obj.Signals;
+if G.Enabled || B.Enabled
+    % Line naming also names the lines the Behavior step pairs trials with.
+    if ~ismember(G.LabelField, ["custom" "native"])
+        add("signals", "LabelField", "error", "LabelField must be ""custom"" or ""native"".");
+    end
+    try
+        EphysDataset.parseLineNames(G.LineNames);
+    catch ME
+        add("signals", "LineNames", "error", string(ME.message));
+    end
+end
 if G.Enabled
     try
         EphysPipelineConfig.signalOptions(G, NumChannels=64);
@@ -166,9 +191,9 @@ end
 E = obj.Export;
 if E.Enabled
     if isempty(E.Formats)
-        add("export", "Formats", "error", "Export is enabled but no format is selected (chronux / fieldtrip / epochs).");
+        add("export", "Formats", "error", "Export is enabled but no format is selected (" + strjoin(obj.ExportFormats, " / ") + ").");
     else
-        bad = setdiff(E.Formats, ["chronux" "fieldtrip" "epochs"]);
+        bad = setdiff(E.Formats, obj.ExportFormats);
         if ~isempty(bad); add("export", "Formats", "error", "Unknown export format(s): " + strjoin(bad, ", ")); end
     end
     if ~G.Enabled

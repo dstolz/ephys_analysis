@@ -1,13 +1,16 @@
 function buildMenus(obj)
 %buildMenus  File / Dataset / Run / Help menus.
 %   File holds the pipeline-config lifecycle (New, Open, Open recent, Save,
-%   Save As, Export copy, Generate script), Create synthetic test project
+%   Save As, Export copy, Generate script), Create synthetic test project,
+%   Open analysis app (EphysAnalysisApp on this project; onOpenAnalysisApp)
 %   and Close. Dataset chooses the active dataset, the one every tab's
 %   single-dataset controls work on (see selectDataset): it lists the
 %   datasets ticked in the Project table, with every dataset in an "All
 %   datasets" submenu. Run mirrors the Run tab's buttons. Help opens pages
 %   of the GitHub wiki: the one for the tab that is shown, the home page
-%   and the main guides.
+%   and the main guides, and at the bottom files against the repository
+%   itself: Report an issue and Request a feature compose a GitHub issue
+%   from this session (onReportIssue).
 
 % --- File ------------------------------------------------------------------
 obj.FileMenu = uimenu(obj.Fig, "Text", "File");
@@ -31,6 +34,9 @@ uimenu(gen, "Text", "Standalone (every parameter written out)...", ...
 uimenu(obj.FileMenu, "Text", "Create synthetic test project...", "Separator", "on", ...
     "Tooltip", "Write synthetic recordings with Epsych2 sessions and sorted output, then open and scan them.", ...
     "MenuSelectedFcn", @(~,~) obj.onCreateSyntheticProject());
+uimenu(obj.FileMenu, "Text", "Open analysis app...", ...
+    "Tooltip", "Quick-look figures (PSTHs, evoked potentials, rates, tuning, probe maps) of this project's outputs.", ...
+    "MenuSelectedFcn", @(~,~) obj.onOpenAnalysisApp());
 uimenu(obj.FileMenu, "Text", "Close", "Separator", "on", ...
     "MenuSelectedFcn", @(~,~) obj.onClose());
 
@@ -70,4 +76,12 @@ for k = 1:height(pages)
     uimenu(obj.HelpMenu, "Text", pages(k, 1), "Separator", pages(k, 3), ...
         "MenuSelectedFcn", @(~,~) obj.onHelp(page));
 end
+
+% --- ... and the issues of the repository itself (onReportIssue) ---
+uimenu(obj.HelpMenu, "Text", "Report an issue on GitHub...", "Separator", "on", ...
+    "Tooltip", "Compose a bug report with the system info, the pipeline options and the logs of this session, and open it prefilled on GitHub.", ...
+    "MenuSelectedFcn", @(~,~) obj.onReportIssue("bug"));
+uimenu(obj.HelpMenu, "Text", "Request a feature on GitHub...", ...
+    "Tooltip", "Ask for something the app does not do yet, and open the request prefilled on GitHub.", ...
+    "MenuSelectedFcn", @(~,~) obj.onReportIssue("feature"));
 end

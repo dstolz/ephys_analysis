@@ -1,4 +1,4 @@
-function [data, shape] = readNPY(filename)
+function [data, shape] = readNPY(filename, opts)
 %readNPY  Read a little-endian NumPy .npy array (numeric or bool).
 %   DATA = READNPY(FILENAME) reads a NumPy array file written by Kilosort4 /
 %   phy (spike_times.npy, spike_clusters.npy, templates.npy, ...) and returns
@@ -12,10 +12,16 @@ function [data, shape] = readNPY(filename)
 %   The values are returned in the file's own class; cast with DOUBLE() when
 %   you need to do arithmetic (spike sample indices are int64).
 %
+%   DATA = READNPY(FILENAME, Range=[FIRST LAST]) reads only elements
+%   FIRST..LAST (1-based, LAST clipped to the array length) of a 1-D array
+%   as a column, seeking past the rest; SHAPE is still the whole array's.
+%   Range=[1 0] reads nothing and just returns the shape.
+%
 %   See also EphysPreprocessingApp.loadReviewResults, ChronuxDataset.spikes.
 
 arguments
     filename (1,1) string
+    opts.Range (1,2) double = [NaN NaN]
 end
 
 fid = fopen(filename, 'r', 'l');
@@ -50,6 +56,21 @@ elseif isscalar(shape)
 end
 
 mtype = npyType(descr);
+if all(isfinite(opts.Range))
+    n = prod(shape);
+    if n ~= max(shape)
+        error('readNPY:range', 'Range reads 1-D arrays only; %s has shape %s.', filename, mat2str(shape));
+    end
+    first = max(1, opts.Range(1));
+    last = min(opts.Range(2), n);
+    nRead = max(0, last - first + 1);
+    if nRead > 0 && first > 1
+        fseek(fid, (first - 1) * str2double(descr(3:end)), 'cof');
+    end
+    data = fread(fid, nRead, ['*' mtype]);
+    if descr(2) == 'b'; data = logical(data); end
+    return
+end
 data = fread(fid, prod(shape), ['*' mtype]);
 if descr(2) == 'b'; data = logical(data); end
 

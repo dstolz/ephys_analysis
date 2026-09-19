@@ -1,8 +1,11 @@
 classdef test_CopySessions < matlab.unittest.TestCase
-    %test_CopySessions  Tests for findCopySessions and copySessions.
-    %   Builds fake source trees (ePsych files and Intan folders with small dummy
-    %   files) in a temporary folder. Tests that copy need robocopy and are
-    %   skipped off Windows.
+    %test_CopySessions  Tests for findCopySessions, copySessions and CopySchedule.
+    %   Builds fake source trees (ePsych files, Intan folders with small dummy
+    %   files and synthetic Open Ephys sessions under a second recording root)
+    %   in a temporary folder. Tests that copy need robocopy and are
+    %   skipped off Windows. scheduleRunsAsAWindowsTask and appSchedulesACopy
+    %   create a Windows task under \ephys_analysis_test and remove it again;
+    %   the first has Windows start MATLAB for a scheduled run (about a minute).
     %
     %   Usage
     %     runtests("test_CopySessions")
@@ -11,7 +14,8 @@ classdef test_CopySessions < matlab.unittest.TestCase
     properties
         Root      string   % temporary folder
         Epsych    string   % fake ePsych root
-        Intan     string   % fake Intan root
+        Intan     string   % fake Intan root (the first recording root)
+        OpenEphys string   % fake Open Ephys root (created by addSyntheticOpenEphys)
         Dest      string   % local destination root (not created)
     end
 
@@ -25,6 +29,7 @@ classdef test_CopySessions < matlab.unittest.TestCase
             tc.Root = string(f.Folder);
             tc.Epsych = fullfile(tc.Root, "nas", "epsych_files", "Data");
             tc.Intan = fullfile(tc.Root, "nas", "intan_files", "Data");
+            tc.OpenEphys = fullfile(tc.Root, "nas", "openephys_files", "Data");
             tc.Dest = fullfile(tc.Root, "EPHYS");
             mkdir(tc.Epsych);
             mkdir(tc.Intan);
@@ -40,9 +45,9 @@ classdef test_CopySessions < matlab.unittest.TestCase
             tc.verifyEqual(height(T), 1);
             tc.verifyEqual(T.Status, "paired");
             tc.verifyEqual(T.EpsychFile, e);
-            tc.verifyEqual(T.IntanDir, i);
+            tc.verifyEqual(T.RecordingDir, i);
             tc.verifyEqual(T.DeltaT, -seconds(85));
-            tc.verifyEqual(T.IntanTime, datetime(2026, 9, 16, 11, 9, 7));
+            tc.verifyEqual(T.RecordingTime, datetime(2026, 9, 16, 11, 9, 7));
             tc.verifyEqual(T.DestDir, string(fullfile(tc.Dest, tc.Subj, tc.Subj + "_260916_110907")));
         end
 
@@ -67,9 +72,9 @@ classdef test_CopySessions < matlab.unittest.TestCase
             i = tc.addIntan(tc.Subj, "260916_140000");    % recording without behavior
             T = tc.find(tc.Subj, "260916");
             tc.verifyEqual(height(T), 2);
-            tc.verifyEqual(T.Status, ["epsych_only"; "intan_only"]);
+            tc.verifyEqual(T.Status, ["epsych_only"; "recording_only"]);
             tc.verifyEqual(T.EpsychFile(1), e);
-            tc.verifyEqual(T.IntanDir(2), i);
+            tc.verifyEqual(T.RecordingDir(2), i);
             tc.verifyEqual(T.EpsychFile(2), "");
             tc.verifyEqual(T.DestDir(1), string(fullfile(tc.Dest, tc.Subj, tc.Subj + "_260916T090000")));
         end
@@ -82,7 +87,7 @@ classdef test_CopySessions < matlab.unittest.TestCase
             tc.verifyEqual(height(T), 3);
             tc.verifyEqual(T.Status, repmat("ambiguous", 3, 1));
             tc.verifyTrue(all(T.Note ~= ""));
-            tc.verifySubstring(char(T.Note(T.IntanDir ~= "")), 'T115900.mat');
+            tc.verifySubstring(char(T.Note(T.RecordingDir ~= "")), 'T115900.mat');
 
             R = copySessions(T, DestRoot=tc.Dest, DryRun=false, IncludeUnpaired=true, LogFcn=@(~) []);
             tc.verifyEqual(R.CopyStatus, repmat("skipped", 3, 1));
@@ -108,14 +113,14 @@ classdef test_CopySessions < matlab.unittest.TestCase
             tc.verifyEqual(T.DeltaT, seconds(40));
 
             T = tc.find(tc.Subj, "260916", MaxLagTime=seconds(30));
-            tc.verifyEqual(sort(T.Status), ["epsych_only"; "intan_only"]);
+            tc.verifyEqual(sort(T.Status), ["epsych_only"; "recording_only"]);
         end
 
         function leadBeyondMaxLeadIsNotPaired(tc)
             tc.addEpsych(tc.Subj, "260916T114900");       % 11 min before
             tc.addIntan(tc.Subj, "260916_120000");
             T = tc.find(tc.Subj, "260916");
-            tc.verifyEqual(sort(T.Status), ["epsych_only"; "intan_only"]);
+            tc.verifyEqual(sort(T.Status), ["epsych_only"; "recording_only"]);
         end
 
         function sessionCrossingMidnight(tc)
@@ -125,7 +130,7 @@ classdef test_CopySessions < matlab.unittest.TestCase
                 T = tc.find(tc.Subj, spec{1});
                 tc.verifyEqual(height(T), 1);
                 tc.verifyEqual(T.Status, "paired");
-                tc.verifyEqual([T.EpsychFile, T.IntanDir], [e, i]);
+                tc.verifyEqual([T.EpsychFile, T.RecordingDir], [e, i]);
                 tc.verifyEqual(T.DeltaT, -seconds(120));
             end
             tc.verifyEmpty(tc.find(tc.Subj, "260918"));
@@ -143,40 +148,40 @@ classdef test_CopySessions < matlab.unittest.TestCase
             tc.addEpsych(tc.Subj, "260916T140000");       % dummy file, no recording
 
             % the synthetic recording is shorter than the default minimum
-            T = tc.find(tc.Subj, "260916", MinIntanDuration=seconds(0));
+            T = tc.find(tc.Subj, "260916", MinRecordingDuration=seconds(0));
             tc.verifyEqual(T.Status, ["paired"; "epsych_only"]);
-            tc.verifyEqual(seconds(T.IntanDuration(1)), R.duration, 'AbsTol', 1e-9);
+            tc.verifyEqual(seconds(T.RecordingDuration(1)), R.duration, 'AbsTol', 1e-9);
             tc.verifyEqual(T.EpsychTrials(1), 7);
-            tc.verifyTrue(isnan(T.IntanDuration(2)));
+            tc.verifyTrue(isnan(T.RecordingDuration(2)));
             tc.verifyTrue(isnan(T.EpsychTrials(2)));
         end
 
         function shortRecordingIsNotPaired(tc)
-            % A recording shorter than MinIntanDuration (2 min by default)
+            % A recording shorter than MinRecordingDuration (2 min by default)
             % is never a candidate, so it cannot make a set ambiguous; one
             % whose headers cannot be read (the dummy folder) pairs as usual.
             e = tc.addEpsych(tc.Subj, "260916T115900");
             short = tc.addSyntheticIntan("260916_120000");   % -60 s, well under 2 min
             other = tc.addIntan(tc.Subj, "260916_120010");   % -70 s, unreadable headers
             T = tc.find(tc.Subj, "260916");
-            tc.verifyEqual(T.IntanDir, [short; other]);
-            tc.verifyEqual(T.Status, ["intan_only"; "paired"]);
+            tc.verifyEqual(T.RecordingDir, [short; other]);
+            tc.verifyEqual(T.Status, ["recording_only"; "paired"]);
             tc.verifyEqual(T.EpsychFile(2), e);
-            tc.verifyLessThan(T.IntanDuration(1), minutes(2));
+            tc.verifyLessThan(T.RecordingDuration(1), minutes(2));
             tc.verifySubstring(char(T.Note(1)), 'shorter than the 00:02:00 minimum');
-            tc.verifyTrue(isnan(T.IntanDuration(2)));
+            tc.verifyTrue(isnan(T.RecordingDuration(2)));
 
-            T = tc.find(tc.Subj, "260916", MinIntanDuration=seconds(0));
+            T = tc.find(tc.Subj, "260916", MinRecordingDuration=seconds(0));
             tc.verifyEqual(T.Status, repmat("ambiguous", 3, 1), "without the minimum, 10 s apart is a tie");
 
             % the minimum itself is long enough
             rmdir(other, 's');
-            d = T.IntanDuration(T.IntanDir == short);
-            T = tc.find(tc.Subj, "260916", MinIntanDuration=d);
+            d = T.RecordingDuration(T.RecordingDir == short);
+            T = tc.find(tc.Subj, "260916", MinRecordingDuration=d);
             tc.verifyEqual(T.Status, "paired");
-            T = tc.find(tc.Subj, "260916", MinIntanDuration=d + milliseconds(1));
-            tc.verifyEqual(T.Status, ["epsych_only"; "intan_only"]);
-            tc.verifySubstring(char(T.Note(1)), 'no Intan recording of at least');
+            T = tc.find(tc.Subj, "260916", MinRecordingDuration=d + milliseconds(1));
+            tc.verifyEqual(T.Status, ["epsych_only"; "recording_only"]);
+            tc.verifySubstring(char(T.Note(1)), 'no recording of at least');
         end
 
         function similarSubjectIDsNeverMix(tc)
@@ -197,7 +202,7 @@ classdef test_CopySessions < matlab.unittest.TestCase
 
             T = tc.find(tc.Subj, "260916");
             tc.verifyEqual(height(T), 1);
-            tc.verifyTrue(contains(T.IntanDir, "SUBJ-ID-1255" + filesep + "SUBJ-ID-1255_"));
+            tc.verifyTrue(contains(T.RecordingDir, "SUBJ-ID-1255" + filesep + "SUBJ-ID-1255_"));
         end
 
         function malformedNamesSkippedAndLogged(tc)
@@ -216,7 +221,7 @@ classdef test_CopySessions < matlab.unittest.TestCase
             mkdir(bad(5)); mkdir(bad(6));
 
             logged = containers.Map('KeyType', 'double', 'ValueType', 'any');
-            [T, S] = findCopySessions(tc.Subj, "260916", EpsychRoot=tc.Epsych, IntanRoot=tc.Intan, ...
+            [T, S] = findCopySessions(tc.Subj, "260916", EpsychRoot=tc.Epsych, RecordingRoots=tc.Intan, ...
                 DestRoot=tc.Dest, LogFcn=@(m) appendLog(logged, m));
             tc.verifyEqual(height(T), 1);
             tc.verifyEqual(T.Status, "paired");
@@ -227,11 +232,58 @@ classdef test_CopySessions < matlab.unittest.TestCase
             end
         end
 
+        function openEphysSessionsPairAcrossRoots(tc)
+            % An Open Ephys GUI session (named <subject>_yyyy-MM-dd_HH-mm-ss
+            % with appended text) under a second root pairs like an Intan
+            % folder; its duration and format come from its headers.
+            [o, R] = tc.addSyntheticOpenEphys("2026-09-16_11-09-07_active");
+            eO = tc.addEpsych(tc.Subj, "260916T110742");
+            i = tc.addIntan(tc.Subj, "260916_140000");
+            eI = tc.addEpsych(tc.Subj, "260916T135900");
+            T = tc.find(tc.Subj, "260916", RecordingRoots=[tc.Intan tc.OpenEphys], MinRecordingDuration=seconds(0));
+            tc.verifyEqual(T.Status, ["paired"; "paired"]);
+            tc.verifyEqual([T.RecordingDir, T.EpsychFile], [o, eO; i, eI]);
+            tc.verifyEqual(T.Reader, ["openephys"; "intan"]);
+            tc.verifyEqual(T.RecordingTime(1), datetime(2026, 9, 16, 11, 9, 7));
+            tc.verifyEqual(T.DeltaT(1), -seconds(85));
+            tc.verifyEqual(seconds(T.RecordingDuration(1)), R.duration, 'AbsTol', 1e-9);
+            tc.verifyTrue(isnan(T.RecordingDuration(2)));   % dummy Intan headers
+            tc.verifyEqual(T.DestDir(1), string(fullfile(tc.Dest, tc.Subj, tc.Subj + "_2026-09-16_11-09-07_active")));
+
+            % one root only: the other root's sessions are not listed
+            T = tc.find(tc.Subj, "260916");
+            tc.verifyEqual(T.Status, ["epsych_only"; "paired"]);
+
+            % only the name patterns asked for are matched
+            [T, S] = tc.find(tc.Subj, "260916", RecordingRoots=tc.OpenEphys, ...
+                NamePatterns=EphysDataset.DefaultNamePattern, MinRecordingDuration=seconds(0));
+            tc.verifyEqual(T.Status, ["epsych_only"; "epsych_only"]);
+            tc.verifyEqual(S.Path, o);
+            tc.verifySubstring(char(S.Reason), 'does not match');
+        end
+
+        function openEphysBadNamesSkipped(tc)
+            d = fullfile(tc.OpenEphys, tc.Subj);
+            bad = string(fullfile(d, [tc.Subj + "_2026-09-31_11-09-07"; ...    % 31 September
+                "SUBJ-ID-12555_2026-09-16_11-09-07"; tc.Subj + "_2026-09-16_11-09"]));
+            for b = bad.'
+                mkdir(b);
+            end
+            [T, S] = tc.find(tc.Subj, "260916", RecordingRoots=tc.OpenEphys);
+            tc.verifyEmpty(T);
+            tc.verifyEqual(sort(S.Path), sort(bad));
+            tc.verifyEqual(S.Reason(S.Path == bad(1)), "the name holds an invalid date or time");
+        end
+
         function missingRootErrors(tc)
             tc.verifyError(@() findCopySessions(tc.Subj, "260916", EpsychRoot=fullfile(tc.Root, "nope"), ...
-                IntanRoot=tc.Intan, LogFcn=@(~) []), 'findCopySessions:RootNotFound');
+                RecordingRoots=tc.Intan, LogFcn=@(~) []), 'findCopySessions:RootNotFound');
             tc.verifyError(@() findCopySessions(tc.Subj, "261340", EpsychRoot=tc.Epsych, ...
-                IntanRoot=tc.Intan, LogFcn=@(~) []), 'findCopySessions:BadDate');
+                RecordingRoots=tc.Intan, LogFcn=@(~) []), 'findCopySessions:BadDate');
+            tc.verifyError(@() findCopySessions(tc.Subj, "260916", EpsychRoot=tc.Epsych, ...
+                RecordingRoots=[tc.Intan fullfile(tc.Root, "nope")], LogFcn=@(~) []), 'findCopySessions:RootNotFound');
+            tc.verifyError(@() findCopySessions(tc.Subj, "260916", EpsychRoot=tc.Epsych, RecordingRoots=tc.Intan, ...
+                NamePatterns="{SubjectID}_{Date:yyMMdd}", LogFcn=@(~) []), 'findCopySessions:BadPattern');
         end
 
         % ---------------------------------------------------------------- stitching
@@ -246,7 +298,7 @@ classdef test_CopySessions < matlab.unittest.TestCase
             tc.verifyEqual([height(S), row], [2, 1]);
             tc.verifyEqual(kept, [true; false; true]);
             tc.verifyEqual(S.Status, ["stitched"; "epsych_only"]);
-            tc.verifyEqual(S.IntanDir(1), i);
+            tc.verifyEqual(S.RecordingDir(1), i);
             tc.verifyEqual(S.StitchFiles{1}, [e1; e2]);
             tc.verifyEqual([S.EpsychFile(1), S.EpsychFile(2)], [e1, e3]);
             tc.verifyEqual(S.DeltaT(1), -seconds(85));
@@ -266,7 +318,7 @@ classdef test_CopySessions < matlab.unittest.TestCase
             T = tc.find(tc.Subj, "260916");
             tc.verifyEqual(T.Status, ["paired"; "epsych_only"; "paired"]);
             tc.verifyError(@() stitchCopySessions(T, 1), 'stitchCopySessions:BadRows');
-            tc.verifyError(@() stitchCopySessions(T, [1 3]), 'stitchCopySessions:BadRows', "two Intan folders");
+            tc.verifyError(@() stitchCopySessions(T, [1 3]), 'stitchCopySessions:BadRows', "two recording folders");
             tc.verifyError(@() stitchCopySessions(T, [1 4]), 'stitchCopySessions:BadRows', "no such row");
             T.EpsychFile(2) = "";
             tc.verifyError(@() stitchCopySessions(T, [1 2]), 'stitchCopySessions:BadRows', "one ePsych file");
@@ -300,16 +352,48 @@ classdef test_CopySessions < matlab.unittest.TestCase
             tc.verifyEqual(tc.listTree(fullfile(tc.Root, "nas")), before);   % source untouched
 
             m = jsondecode(fileread(R.ManifestFile));
+            tc.verifyEqual(m.manifestVersion, 3);
             tc.verifyEqual(string(m.copy.status), "copied");
-            tc.verifyEqual(string(m.intan.sourceDir), i);
+            tc.verifyEqual(string(m.recording.sourceDir), i);
+            tc.verifyEqual(string(m.recording.reader), "intan");
             tc.verifyEqual(string(m.epsych.sourceFile), e);
             tc.verifyEqual(m.deltaT_s, -85);
             tc.verifyEqual(string(m.pairingStatus), "paired");
             tc.verifyNotEmpty(m.copy.host);
-            abc = m.intan.files(strcmp({m.intan.files.relativePath}, 'abc.txt'));
+            abc = m.recording.files(strcmp({m.recording.files.relativePath}, 'abc.txt'));
             tc.verifyEqual(string(abc.sha256Source), "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
             tc.verifyEqual(abc.sha256Destination, abc.sha256Source);
             tc.verifyEqual(numel(m.epsych.files), 1);
+        end
+
+        function copiesAnOpenEphysSession(tc)
+            % The whole session folder is copied (Record Node and all); the
+            % copy reads as the source does, and the manifest lists its files
+            % below the session folder.
+            tc.assumeTrue(ispc, "robocopy needs Windows");
+            [o, R0] = tc.addSyntheticOpenEphys("2026-09-16_11-09-07");
+            e = tc.addEpsych(tc.Subj, "260916T110742");
+            T = tc.find(tc.Subj, "260916", RecordingRoots=tc.OpenEphys, MinRecordingDuration=seconds(0));
+            R = copySessions(T, DestRoot=tc.Dest, DryRun=false, LogFcn=@(~) []);
+            tc.verifyEqual(R.CopyStatus, "copied", R.Message);
+            dest = string(fullfile(tc.Dest, tc.Subj, tc.Subj + "_2026-09-16_11-09-07"));
+            tc.verifyEqual(R.DestDir, dest);
+            [~, en, ex] = fileparts(e);
+            tc.verifyTrue(isfile(fullfile(dest, en + ex)));
+
+            src = EphysReader.forFolder(o);
+            cpy = EphysReader.forFolder(dest);
+            tc.verifyEqual(string(class(cpy)), "OpenEphysReader");
+            src.refreshMetadata(); cpy.refreshMetadata();
+            tc.verifyEqual(cpy.Files, src.Files);
+            tc.verifyEqual(cpy.Duration, R0.duration, 'AbsTol', 1e-9);
+
+            m = jsondecode(fileread(R.ManifestFile));
+            tc.verifyEqual(string(m.recording.reader), "openephys");
+            tc.verifyEqual(string(m.recording.sourceDir), o);
+            rel = replace(string({m.recording.files.relativePath}), "\", "/");
+            tc.verifyTrue(any(startsWith(rel, "Record Node 101/")));
+            tc.verifyTrue(all(ismember(replace(src.Files, "\", "/"), rel)));
         end
 
         function destinationExists(tc)
@@ -379,6 +463,12 @@ classdef test_CopySessions < matlab.unittest.TestCase
             tc.verifyLessThan(toc(t0), 5, "the call must not wait for the copy");
             tc.verifyEqual(R.CopyStatus, "copying");
             tc.verifyFalse(job.Done);
+            tc.verifyTrue(startsWith(job.Dir, tc.jobsFolder()), "batches in flight keep their job folder there");
+
+            % While the batch is in flight, no other copy writes its session.
+            R2 = copySessions(T, DestRoot=tc.Dest, LogFcn=@(~) []);
+            tc.verifyEqual(R2.CopyStatus, "skipped");
+            tc.verifySubstring(char(R2.Message), 'another copy');
 
             polls = 0;
             while ~job.Done
@@ -390,6 +480,7 @@ classdef test_CopySessions < matlab.unittest.TestCase
             tc.verifyEqual(R.CopyStatus, "copied", R.Message);
             tc.verifyTrue(isfile(fullfile(R.DestDir, "amplifier.dat")));
             tc.verifyTrue(isfile(R.ManifestFile));
+            tc.verifyFalse(isfolder(job.Dir), "a finished batch removes its job folder");
             tc.verifyError(@() copySessions(job, DestRoot=tc.Dest), 'copySessions:JobTakesNoOptions');
         end
 
@@ -445,7 +536,7 @@ classdef test_CopySessions < matlab.unittest.TestCase
             tc.assumeTrue(ispc, "robocopy needs Windows");
             tc.addPair("260916T110742", "260916_110907");
             T = tc.find(tc.Subj, "260916");
-            src = dir(fullfile(T.IntanDir, "amplifier.dat"));
+            src = dir(fullfile(T.RecordingDir, "amplifier.dat"));
             corrupt = @(f) tc.overwriteIf(f, "amplifier.dat", zeros(1, src.bytes, 'uint8'));
 
             R = copySessions(T, DestRoot=fullfile(tc.Root, "size_only"), DryRun=false, ...
@@ -459,7 +550,7 @@ classdef test_CopySessions < matlab.unittest.TestCase
             tc.verifyEqual(R.CopyStatus, "failed");
             tc.verifySubstring(char(R.Message), 'amplifier.dat SHA-256 differs');
             m = jsondecode(fileread(R.ManifestFile));
-            amp = m.intan.files(strcmp({m.intan.files.relativePath}, 'amplifier.dat'));
+            amp = m.recording.files(strcmp({m.recording.files.relativePath}, 'amplifier.dat'));
             tc.verifyNotEmpty(amp.sha256Source);
             tc.verifyNotEqual(amp.sha256Destination, amp.sha256Source);
         end
@@ -469,7 +560,7 @@ classdef test_CopySessions < matlab.unittest.TestCase
             tc.addPair("260916T110742", "260916_110907");
             tc.addPair("260916T140000", "260916_140130");
             T = tc.find(tc.Subj, "260916");
-            rmdir(T.IntanDir(1), 's');   % Source folder vanished after the search
+            rmdir(T.RecordingDir(1), 's');   % Source folder vanished after the search
             R = copySessions(T, DestRoot=tc.Dest, DryRun=false, LogFcn=@(~) []);
             tc.verifyEqual(R.CopyStatus, ["failed"; "copied"]);
             tc.verifySubstring(char(R.Message(1)), 'not found');
@@ -524,7 +615,7 @@ classdef test_CopySessions < matlab.unittest.TestCase
 
             m = jsondecode(fileread(R.ManifestFile));
             tc.verifyEqual(string(m.pairingStatus), "stitched");
-            tc.verifyEqual(string(m.intan.sourceDir), i);
+            tc.verifyEqual(string(m.recording.sourceDir), i);
             tc.verifyEqual(string(m.epsych.sourceFile), "");
             tc.verifyEqual(string(m.epsych.destFile), string(out));
             tc.verifyEqual(m.epsych.stitch.nTrials, 5);
@@ -601,7 +692,7 @@ classdef test_CopySessions < matlab.unittest.TestCase
             app.CopyFromDatePicker.Value = datetime(2026, 9, 16);
             app.CopyToDatePicker.Value = NaT;
             app.CopyEpsychRootField.Value = char(tc.Epsych);
-            app.CopyIntanRootField.Value = char(tc.Intan);
+            app.CopyRecordingRootsField.Value = char(tc.Intan);
             app.CopyDestRootField.Value = char(tc.Dest);
             app.CopyScanAfterCheckBox.Value = false;
 
@@ -662,7 +753,7 @@ classdef test_CopySessions < matlab.unittest.TestCase
             app.CopyFromDatePicker.Value = datetime(2026, 9, 16);
             app.CopyToDatePicker.Value = NaT;
             app.CopyEpsychRootField.Value = char(tc.Epsych);
-            app.CopyIntanRootField.Value = char(tc.Intan);
+            app.CopyRecordingRootsField.Value = char(tc.Intan);
             app.CopyDestRootField.Value = char(tc.Dest);
             app.CopyScanAfterCheckBox.Value = false;
             app.onCopyFind();
@@ -697,9 +788,361 @@ classdef test_CopySessions < matlab.unittest.TestCase
             tc.verifySubstring(char(R.Message), 'before the copy started');
             tc.verifyFalse(isfolder(R.DestDir), "nothing is created for a cancelled batch");
         end
+
+        % ---------------------------------------------------------------- still changing, in flight
+        function quietTimeLeavesAChangingSessionForLater(tc)
+            % A session whose source changed within MinQuietTime may still be
+            % being recorded or synced: it is left for a later copy. A folder
+            % counts as well as a file, since removing a file changes it.
+            tc.addPair("260916T110742", "260916_110907");
+            T = tc.find(tc.Subj, "260916");
+            quiet = @() copySessions(T, DestRoot=tc.Dest, MinQuietTime=minutes(15), LogFcn=@(~) []);
+            R = quiet();
+            tc.verifyEqual(R.CopyStatus, "skipped");
+            tc.verifySubstring(char(R.Message), 'still being written');
+
+            R = copySessions(T, DestRoot=tc.Dest, LogFcn=@(~) []);
+            tc.verifyEqual(R.CopyStatus, "planned", "no quiet time by default");
+            tc.age(fullfile(tc.Root, "nas"), hours(1));
+            R = quiet();
+            tc.verifyEqual(R.CopyStatus, "planned", R.Message);
+
+            delete(fullfile(T.RecordingDir, "sub", "nested.bin"));   % only a folder changes
+            R = quiet();
+            tc.verifyEqual(R.CopyStatus, "skipped");
+            tc.age(fullfile(tc.Root, "nas"), hours(1));
+            tc.addEpsych(tc.Subj, "260916T110742");              % the ePsych file rewritten
+            R = quiet();
+            tc.verifyEqual(R.CopyStatus, "skipped");
+        end
+
+        function aSessionAnotherCopyIsWritingIsLeftAlone(tc)
+            % A batch in another MATLAB (or a scheduled copy) writing the same
+            % session folder: this one leaves it alone until that batch is over.
+            tc.addPair("260916T110742", "260916_110907");
+            T = tc.find(tc.Subj, "260916");
+            job = tc.fakeBatch(T.DestDir);
+            R = copySessions(T, DestRoot=tc.Dest, LogFcn=@(~) []);
+            tc.verifyEqual(R.CopyStatus, "skipped");
+            tc.verifySubstring(char(R.Message), 'another copy (started 2026-09-18 10:00)');
+
+            tc.age(job, minutes(5));   % its heartbeat stopped: that batch is gone
+            R = copySessions(T, DestRoot=tc.Dest, LogFcn=@(~) []);
+            tc.verifyEqual(R.CopyStatus, "planned", R.Message);
+        end
+
+        % ---------------------------------------------------------------- scheduled copy
+        function scheduledCopyTakesTheNewPairedSessions(tc)
+            tc.assumeTrue(ispc, "robocopy needs Windows");
+            tc.addPair("260916T110742", "260916_110907");
+            tc.addPair("260915T090000", "260915_090130");      % yesterday
+            tc.addPair("260910T090000", "260910_090130");      % before the days searched
+            tc.addIntan(tc.Subj, "260916_150000");             % ambiguous: two ePsych files 60 s either side
+            tc.addEpsych(tc.Subj, "260916T145900");
+            tc.addEpsych(tc.Subj, "260916T150100");
+            tc.addEpsych(tc.Subj, "260916T170000");            % ePsych only
+            mkdir(tc.Dest);
+            s = tc.schedule(LookBackDays=2);
+            out = CopySchedule.copyNew(s, Today=datetime(2026, 9, 16, 13, 0, 0), LogFcn=@(~) []);
+            tc.verifyEmpty(out.Errors);
+            tc.verifyEqual(out.Days, datetime(2026, 9, [15 16]));
+            S = out.Sessions;
+            tc.verifyEqual(S.Session(S.Status == "copied"), tc.Subj + ["_260915_090130"; "_260916_110907"]);
+            tc.verifyEqual(nnz(S.Status == "ambiguous"), 3);
+            tc.verifyEqual(S.Status(S.Session == tc.Subj + "_260916T170000"), "unpaired");
+            tc.verifyTrue(all(S.Message ~= ""));
+            tc.verifyFalse(isfolder(fullfile(tc.Dest, tc.Subj, tc.Subj + "_260910_090130")), ...
+                "a day before the ones searched");
+            tc.verifyFalse(isfolder(fullfile(tc.Dest, tc.Subj, tc.Subj + "_260916_150000")), "never an ambiguous one");
+
+            out = CopySchedule.copyNew(s, Today=datetime(2026, 9, 16), LogFcn=@(~) []);
+            tc.verifyEqual(CopySchedule.countText(out.Sessions.Status), "2 already present, 3 ambiguous, 1 unpaired.");
+        end
+
+        function scheduledCopyWaitsForAQuietSource(tc)
+            tc.assumeTrue(ispc, "robocopy needs Windows");
+            tc.addPair("260916T110742", "260916_110907");
+            mkdir(tc.Dest);
+            s = tc.schedule(QuietMin=15);
+            out = CopySchedule.copyNew(s, Today=datetime(2026, 9, 16), LogFcn=@(~) []);
+            tc.verifyEqual(out.Sessions.Status, "skipped");
+            tc.verifySubstring(char(out.Sessions.Message), 'still being written');
+            tc.age(fullfile(tc.Root, "nas"), hours(1));
+            out = CopySchedule.copyNew(s, Today=datetime(2026, 9, 16), LogFcn=@(~) []);
+            tc.verifyEqual(out.Sessions.Status, "copied", out.Sessions.Message);
+        end
+
+        function scheduledCopyLeavesSessionsToStitchToAPerson(tc)
+            % A paired recording with another ePsych file that starts during
+            % it: ePsych was restarted, and the files are stitched by hand.
+            [i, R] = tc.addSyntheticIntan("260916_110907");
+            tc.addEpsych(tc.Subj, "260916T110742");            % 85 s before: paired
+            later = datetime(2026, 9, 16, 11, 9, 7) + seconds(floor(R.duration / 2));
+            tc.assertGreaterThan(later, datetime(2026, 9, 16, 11, 9, 7), "the recording is long enough to start a file in");
+            tc.addEpsych(tc.Subj, string(later, 'yyMMdd''T''HHmmss'));
+            mkdir(tc.Dest);
+            s = tc.schedule(MinDurationMin=0, MaxLagMin=0);
+            out = CopySchedule.copyNew(s, Today=datetime(2026, 9, 16), LogFcn=@(~) []);
+            tc.verifyEqual(out.Sessions.Status, ["needs_stitching"; "needs_stitching"]);
+            [~, name] = fileparts(i);
+            tc.verifySubstring(char(out.Sessions.Message(1)), char(name + " has more than one ePsych file"));
+            tc.verifyFalse(isfolder(fullfile(tc.Dest, tc.Subj)), "nothing is copied");
+        end
+
+        function scheduledCopyKeepsAHandStitchedCopy(tc)
+            % Copying the paired row would put a second behavior file next
+            % to the stitched one; the session is left as it was copied.
+            tc.assumeTrue(ispc, "robocopy needs Windows");
+            tc.addPair("260916T110742", "260916_110907");
+            tc.addSession("260916T110742", 3);
+            tc.addSession("260916T114000", 2);
+            T = tc.find(tc.Subj, "260916");
+            R = copySessions(stitchCopySessions(T, [1 2]), DestRoot=tc.Dest, DryRun=false, LogFcn=@(~) []);
+            tc.verifyEqual(R.CopyStatus, "copied", R.Message);
+            out = CopySchedule.copyNew(tc.schedule(), Today=datetime(2026, 9, 16), LogFcn=@(~) []);
+            tc.verifyEqual(out.Sessions.Status, ["stitched_by_hand"; "unpaired"]);
+            [~, n, x] = fileparts(T.EpsychFile(1));
+            tc.verifyFalse(isfile(fullfile(R.DestDir, n + x)), "still one behavior file in the session folder");
+        end
+
+        function scheduledCopyReportsWhatStopsIt(tc)
+            tc.addPair("260916T110742", "260916_110907");
+            s = tc.schedule();                                % the destination is not there
+            out = CopySchedule.copyNew(s, Today=datetime(2026, 9, 16), LogFcn=@(~) []);
+            tc.verifyEqual(height(out.Sessions), 0);
+            tc.verifySubstring(char(out.Errors), 'does not exist (is its disk connected?)');
+            tc.verifyFalse(isfolder(tc.Dest), "a missing destination is not created");
+
+            mkdir(tc.Dest);
+            s.EpsychRoot = fullfile(tc.Root, "not_mounted");
+            out = CopySchedule.copyNew(s, Today=datetime(2026, 9, 16), LogFcn=@(~) []);
+            tc.verifySubstring(char(out.Errors), char(tc.Subj + ": Folder not found"));
+        end
+
+        function runTaskKeepsALogAndASummary(tc)
+            % What the Windows task runs: the settings from a file, every line
+            % appended to a log, last_run.json, and MATLAB's exit code.
+            tc.assumeTrue(ispc, "robocopy needs Windows");
+            stamp = string(datetime('today'), 'yyMMdd');
+            tc.addPair(stamp + "T090000", stamp + "_090130");
+            mkdir(tc.Dest);
+            folder = fullfile(tc.Root, "schedule");
+            mkdir(folder);
+            file = fullfile(folder, "schedule.json");
+            writeJsonFile(file, tc.schedule(LookBackDays=1));
+
+            tc.verifyEqual(CopySchedule.runTask(file), 0);
+            L = jsondecode(fileread(fullfile(folder, "last_run.json")));
+            tc.verifyEqual(string(L.State), "done");
+            tc.verifyEqual(string(L.Sessions.Status), "copied");
+            log = fileread(fullfile(folder, "copy_schedule.log"));
+            tc.verifySubstring(log, 'Scheduled copy started: ' + tc.Subj);
+            tc.verifySubstring(log, 'Scheduled copy done: 1 copied.');
+            tc.verifyTrue(isfolder(fullfile(tc.Dest, tc.Subj, tc.Subj + "_" + stamp + "_090130")));
+
+            rmdir(tc.Dest, 's');                              % its disk is not connected
+            tc.verifyEqual(CopySchedule.runTask(file), 1);
+            L = jsondecode(fileread(fullfile(folder, "last_run.json")));
+            tc.verifyEqual(string(L.State), "failed");
+            tc.verifySubstring(fileread(fullfile(folder, "copy_schedule.log")), 'Scheduled copy failed: the destination');
+        end
+
+        function scheduleSettingsAreChecked(tc)
+            s = CopySchedule.normalize(struct('Subjects', 'A-1, B-2;C-3  A-1', 'EveryMin', "30"));
+            tc.verifyEqual(s.Subjects, ["A-1", "B-2", "C-3"]);
+            tc.verifyEqual(s.EveryMin, 30);
+            tc.verifyEqual([s.RunWhen, s.Verify, s.IfExists], ["signed_in", "size", "resume"]);
+            tc.verifyEqual(string(fieldnames(s)), string(fieldnames(CopySchedule.defaults())));
+            bad = {struct('Subjects', ""), struct('Subjects', "A", 'EveryMin', 2), ...
+                struct('Subjects', "A", 'LookBackDays', 1.5), struct('Subjects', "A/B"), ...
+                struct('Subjects', "A", 'RunWhen', "sometimes"), struct('Subjects', "A", 'DestRoot', "")};
+            for k = 1:numel(bad)
+                tc.verifyError(@() CopySchedule.normalize(bad{k}), 'CopySchedule:BadSettings');
+            end
+        end
+
+        function taskDefinitionRunsMatlabInTheBackground(tc)
+            file = fullfile(tc.Root, "sched", "schedule.json");
+            xml = string(CopySchedule.taskXml(tc.schedule(EveryMin=30), "\ephys_analysis_test\t", file));
+            for part = ["<Interval>PT30M</Interval>", "<MultipleInstancesPolicy>IgnoreNew<", ...
+                    "<DisallowStartIfOnBatteries>false<", "<StopIfGoingOnBatteries>false<", ...
+                    "<StartWhenAvailable>true<", "<LogonType>InteractiveToken<", ...
+                    "<Command>" + fullfile(matlabroot, "bin", "win64", "MATLAB.exe") + "<", ...
+                    "-sd """ + fileparts(file) + """ -batch", "exit(CopySchedule.runTask('" + file + "'))"]
+                tc.verifySubstring(xml, part);
+            end
+            start = datetime(regexp(xml, '<StartBoundary>([^<]+)<', 'tokens', 'once'), ...
+                'InputFormat', "yyyy-MM-dd'T'HH:mm:ss");
+            tc.verifyTrue(start > datetime('now') && start <= datetime('now') + minutes(30));
+            tc.verifyEqual(mod(minutes(timeofday(start)), 30), 0, "runs are on the clock");
+
+            xml = string(CopySchedule.taskXml(tc.schedule(RunWhen="always"), "\ephys_analysis_test\t", file));
+            tc.verifySubstring(xml, "<LogonType>Password</LogonType>");
+            f = fullfile(tc.Root, "task.xml");                 % well formed
+            fid = fopen(f, 'w');
+            fwrite(fid, replace(xml, "UTF-16", "UTF-8"), 'char');
+            fclose(fid);
+            doc = xmlread(f);
+            tc.verifyEqual(doc.getElementsByTagName('Exec').getLength(), 1);
+        end
+
+        function uncPathOnlyForNetworkDrives(tc)
+            tc.verifyEqual(CopySchedule.uncPath(tc.Root), tc.Root);
+            tc.verifyEqual(CopySchedule.uncPath("\\server\share\x"), "\\server\share\x");
+            tc.assumeTrue(ispc, "drive letters are Windows");
+            net = actxserver('WScript.Network');
+            drives = net.EnumNetworkDrives;
+            letter = "";
+            for k = 0:2:drives.Count - 1
+                if drives.Item(k) ~= ""
+                    letter = string(drives.Item(k));
+                    remote = string(drives.Item(k + 1));
+                    break
+                end
+            end
+            tc.assumeNotEqual(letter, "", "no network drive is mapped here");
+            tc.verifyEqual(CopySchedule.uncPath(letter + "/a/b"), strip(remote, "right", "\") + "\a\b");
+        end
+
+        function scheduleRunsAsAWindowsTask(tc)
+            % End to end: save creates the task, Run now has Windows start
+            % MATLAB in the background, the run copies today's session and
+            % reports, and remove takes the task away again.
+            tc.assumeTrue(ispc, "Task Scheduler needs Windows");
+            stamp = string(datetime('today'), 'yyMMdd');
+            tc.addPair(stamp + "T090000", stamp + "_090130");
+            mkdir(tc.Dest);
+            sch = tc.testSchedule("task");
+            s = sch.save(tc.schedule(LookBackDays=1, EveryMin=720));
+            st = sch.status();
+            tc.verifyTrue(st.Scheduled && st.Enabled && ~st.Running);
+            tc.verifyEqual([st.RunWhen, st.Problem], ["signed_in", ""]);
+            tc.verifyEqual(st.EveryMin, 720);
+            tc.verifyTrue(st.NextRun > datetime('now') && st.NextRun <= datetime('now') + hours(12));
+            tc.verifyEqual(s.Code, string(fileparts(which('CopySchedule'))));
+            tc.verifyTrue(isfile(fullfile(sch.Folder, "startup.m")));
+            tc.verifyEqual(sch.read(), s);
+
+            sch.startNow();
+            t0 = tic;
+            while toc(t0) < 300
+                pause(2);
+                st = sch.status();
+                if ~st.Running && ~isempty(st.LastRun) && st.LastRun.State ~= "running"; break; end
+            end
+            tc.assertFalse(st.Running, "the scheduled run did not finish in 5 min");
+            tc.verifyEqual(st.LastResult, 0, "MATLAB's exit code reaches Task Scheduler");
+            tc.assertNotEmpty(st.LastRun, "the run wrote no last_run.json; see " + fullfile(sch.Folder, "matlab.log"));
+            tc.verifyEqual(st.LastRun.State, "done");
+            tc.verifyEqual(st.LastRun.Sessions.Status, "copied");
+            tc.verifyTrue(isfile(fullfile(tc.Dest, tc.Subj, tc.Subj + "_" + stamp + "_090130", "session_manifest.json")));
+
+            sch.remove();
+            st = sch.status();
+            tc.verifyFalse(st.Scheduled);
+            tc.verifyEmpty(st.Settings);
+            tc.verifyNotEmpty(st.LastRun, "the last run's summary is kept");
+        end
+
+        function appSchedulesACopy(tc)
+            % The Copy tab's Scheduled copy panel: Save with the tab's roots
+            % and the Subject ID, the status line, Remove.
+            tc.assumeTrue(ispc, "Task Scheduler needs Windows");
+            g = EphysPreprocessingApp.PrefGroup;
+            saved = [];
+            if ispref(g); saved = getpref(g); end
+            tc.addTeardown(@() restorePrefs(g, saved));
+            if ispref(g, 'LastConfigFile'); setpref(g, 'LastConfigFile', ''); end
+
+            app = EphysPreprocessingApp;
+            tc.addTeardown(@() delete(app.Fig));
+            sch = tc.testSchedule("app");
+            app.CopyScheduler = sch;
+            app.refreshCopySchedule(Fill=true);
+            tc.verifySubstring(app.CopyScheduleStatusLabel.Text, 'Not scheduled.');
+            tc.verifyEqual(string(app.CopyScheduleRunNowButton.Enable), "off");
+
+            app.selectTab(app.TabCopy);
+            app.CopySubjectField.Value = char(tc.Subj);
+            app.CopyEpsychRootField.Value = char(tc.Epsych);
+            app.CopyRecordingRootsField.Value = char(tc.Intan);
+            app.CopyDestRootField.Value = char(tc.Dest);
+            app.CopyScheduleSubjectsField.Value = '';          % blank: the Subject ID above
+            app.CopyScheduleEveryField.Value = 30;
+            app.CopyScheduleDaysField.Value = 2;
+            app.onCopyScheduleSave();
+            s = sch.read();
+            tc.assertNotEmpty(s, "the schedule was not saved");
+            tc.verifyEqual([s.Subjects, s.DestRoot, s.EpsychRoot], [tc.Subj, tc.Dest, tc.Epsych]);
+            tc.verifyEqual([s.EveryMin, s.LookBackDays, s.QuietMin], [30, 2, 15]);
+            tc.verifyEqual(string(app.CopyScheduleSubjectsField.Value), tc.Subj, "the panel shows what is saved");
+            txt = string(app.CopyScheduleStatusLabel.Text);
+            tc.verifySubstring(txt, "Every 30 min, while you are signed in: " + tc.Subj + " to " + tc.Dest);
+            tc.verifySubstring(txt, "Next run");
+            tc.verifySubstring(txt, "Not run yet.");
+            tc.verifyEqual(string(app.CopyScheduleRunNowButton.Enable), "on");
+            tc.verifySubstring(string(app.CopyLogArea.Value{end}), "Scheduled copy saved");
+
+            app.onCopyScheduleRemove();
+            st = sch.status();
+            tc.verifyFalse(st.Scheduled);
+            tc.verifySubstring(app.CopyScheduleStatusLabel.Text, 'Not scheduled.');
+        end
     end
 
     methods
+        function s = schedule(tc, varargin)
+            %schedule  Scheduled-copy settings for this tree; name-value pairs override.
+            %   QuietMin is 0: the tree has just been written.
+            s = CopySchedule.defaults();
+            s.Subjects = tc.Subj;
+            s.EpsychRoot = tc.Epsych;
+            s.RecordingRoots = tc.Intan;
+            s.DestRoot = tc.Dest;
+            s.QuietMin = 0;
+            for k = 1:2:numel(varargin)
+                s.(varargin{k}) = varargin{k + 1};
+            end
+        end
+
+        function sch = testSchedule(tc, label)
+            %testSchedule  A schedule of its own for a test, removed when the test ends.
+            sch = CopySchedule(Folder=fullfile(tc.Root, "schedule_" + label), ...
+                TaskName="\ephys_analysis_test\Copy sessions " + label + " " + feature('getpid'));
+            tc.addTeardown(@() sch.remove());
+        end
+
+        function d = jobsFolder(~)
+            %jobsFolder  Where copySessions keeps the job folders of batches in flight.
+            base = string(getenv('LOCALAPPDATA'));
+            if base == ""; base = string(tempdir); end
+            d = fullfile(base, "ephys_analysis", "copy_jobs");
+        end
+
+        function folder = fakeBatch(tc, dest)
+            %fakeBatch  The job folder of a batch writing DEST, as another MATLAB keeps it.
+            [~, name] = fileparts(tempname);
+            folder = fullfile(tc.jobsFolder(), "test_" + name);
+            mkdir(folder);
+            tc.addTeardown(@() rmdir(folder, 's'));
+            spec = struct('version', 1, 'started', "2026-09-18 10:00", 'pid', 1, ...
+                'sessions', {{struct('index', 1, 'dest', dest)}});
+            writeJsonFile(fullfile(folder, "copy_job.json"), spec);
+            tc.writeBytes(fullfile(folder, "copy_heartbeat"), uint8('1'));
+        end
+
+        function age(tc, root, dt)
+            %age  Set the modification time of ROOT and everything in it DT back.
+            ms = posixtime(datetime('now', 'TimeZone', 'local') - dt) * 1000;
+            D = dir(fullfile(root, '**', '*'));
+            D = D(~strcmp({D.name}, '..'));
+            for k = 1:numel(D)
+                p = fullfile(D(k).folder, D(k).name);
+                if strcmp(D(k).name, '.'); p = D(k).folder; end   % the folder itself
+                tc.assertTrue(java.io.File(p).setLastModified(ms), "cannot set the time of " + p);
+            end
+        end
+
         function waitForCopy(tc, app, timeout)
             %waitForCopy  Pump the event queue until the app's copy timer is done.
             if nargin < 3; timeout = 120; end
@@ -712,7 +1155,7 @@ classdef test_CopySessions < matlab.unittest.TestCase
         end
 
         function [T, S] = find(tc, subj, spec, varargin)
-            [T, S] = findCopySessions(subj, spec, 'EpsychRoot', tc.Epsych, 'IntanRoot', tc.Intan, ...
+            [T, S] = findCopySessions(subj, spec, 'EpsychRoot', tc.Epsych, 'RecordingRoots', tc.Intan, ...
                 'DestRoot', tc.Dest, 'LogFcn', @(~) [], varargin{:});
         end
 
@@ -724,6 +1167,14 @@ classdef test_CopySessions < matlab.unittest.TestCase
             d = string(fullfile(tc.Intan, subj, subj + "_" + stamp));
             mkdir(d);
             tc.writeBytes(fullfile(d, "info.rhd"), uint8(1:100));
+        end
+
+        function [d, R] = addSyntheticOpenEphys(tc, name)
+            %addSyntheticOpenEphys  An Open Ephys GUI session (Binary format) <Subj>_<name> under tc.OpenEphys.
+            d = string(fullfile(tc.OpenEphys, tc.Subj, tc.Subj + "_" + name));
+            R = makeSyntheticRecording(d, Subject=tc.Subj, Format="openephys-binary", ...
+                NumChannels=2, NumTrials=4, Fs=2000, SortedOutput=false, Artifacts=false, WriteManifest=false);
+            delete(R.behaviorFile);
         end
 
         function [d, R] = addSyntheticIntan(tc, stamp)

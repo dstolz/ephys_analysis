@@ -1,6 +1,7 @@
 function results = run_all_tests(names)
-%run_all_tests  Run every function-style test suite in this folder.
+%run_all_tests  Run every function-style test suite in this folder and in analysis/.
 %   run_all_tests            runs all test_*.m suites found next to this file
+%                            and in the repository's analysis folder
 %   run_all_tests(names)     runs only the named suites (string array)
 %
 %   Each suite prints PASS/FAIL lines and raises an error when any check
@@ -14,11 +15,13 @@ function results = run_all_tests(names)
 %   Returns a table (Suite, Passed, Seconds, Message).
 
 here = fileparts(mfilename('fullpath'));
+ana = fullfile(fileparts(here), 'analysis');
 addpath(here);
 addpath(fileparts(here));
+addpath(ana);
 
 if nargin < 1 || isempty(names)
-    d = dir(fullfile(here, 'test_*.m'));
+    d = [dir(fullfile(here, 'test_*.m')); dir(fullfile(ana, 'test_*.m'))];
     names = string(erase({d.name}, '.m'));
 end
 names = string(names(:)).';

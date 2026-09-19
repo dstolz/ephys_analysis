@@ -19,7 +19,7 @@ classdef EphysPipeline < handle
     %     sorting    runSorting         SpikeInterface + Kilosort4 (runSpikeInterface)
     %     signals    runSignals         derived LFP/MUA/SPIKE/AUX .mat (toMat)
     %     spikes     runSpikeDetection  detected and/or sorted spikes .mat (spikesToMat)
-    %     export     runExport          Chronux / FieldTrip / epoch files
+    %     export     runExport          analysis-toolbox / epoch files (Export.Formats)
     %   Each step method can be called directly (it then runs even if the
     %   step is disabled in the config).
     %
@@ -79,7 +79,8 @@ classdef EphysPipeline < handle
                 end
                 obj.Project = EphysProject(cfg.Project.Root, OutputRoot=cfg.Project.OutputRoot, ...
                     PythonExe=cfg.Sorting.PythonExe, CondaEnv=cfg.Sorting.CondaEnv, ...
-                    NamePattern=cfg.Project.NamePattern);
+                    NamePattern=cfg.Project.NamePattern, Recursive=cfg.Project.Recursive, ...
+                    ReaderOptions=cfg.Acquisition);
                 obj.Project.refresh();
             else
                 obj.Project = opts.Project;
@@ -457,7 +458,7 @@ classdef EphysPipeline < handle
                     if isvector(iv) && numel(iv) == 2; iv = double(iv(:)).'; end
                     iv = double(iv);
                     source = "cache";
-                    obj.log("[artifacts] %s: %d interval(s) from cache", d.Name, size(iv, 1));
+                    obj.log("[artifacts] %s: %d interval(s) from cache%s", d.Name, size(iv, 1), coverageNote(iv, d));
                     return
                 end
             end
@@ -470,7 +471,7 @@ classdef EphysPipeline < handle
                     'fingerprint', fp, 'intervals', iv, 'nIntervals', size(iv, 1), ...
                     'created', string(datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss'))));
             end
-            obj.log("[artifacts] %s: %d interval(s) computed", d.Name, size(iv, 1));
+            obj.log("[artifacts] %s: %d interval(s) computed%s", d.Name, size(iv, 1), coverageNote(iv, d));
         end
 
         function [iv, source] = artifactIntervalsForStep(obj, d, applyAuto, report)
@@ -489,9 +490,12 @@ classdef EphysPipeline < handle
     methods (Static)
         function applyConfigToDatasets(cfg, P)
             %applyConfigToDatasets  Push the config's shared settings onto every dataset.
-            %   Sets PythonExe, CondaEnv, SIConfig, ArtifactConfig, TrialConfig, OutputDir
-            %   (<OutputRoot>/<Name> when an output root is set), and the NamePattern and
-            %   DatasetKey that label sorted units. Never touches
+            %   Sets PythonExe, CondaEnv, SIConfig, ArtifactConfig, TrialConfig,
+            %   ReaderOptions (Acquisition), OutputDir (<OutputRoot>/<Name> when
+            %   an output root is set), and the NamePattern and DatasetKey that
+            %   label sorted units. A changed Acquisition section changes which
+            %   folders are recordings (Open Ephys modes): rescan the project
+            %   (EphysProject.discover) for that. Never touches
             %   the per-dataset manifest state: ProbeFile, ExcludeChannels,
             %   ManualArtifacts, SortingDir, BehaviorFile.
             arguments
@@ -502,6 +506,7 @@ classdef EphysPipeline < handle
             P.CondaEnv   = cfg.Sorting.CondaEnv;
             P.OutputRoot = cfg.Project.OutputRoot;
             P.NamePattern = cfg.Project.NamePattern;
+            P.ReaderOptions = cfg.Acquisition;
             acfg = EphysPipelineConfig.artifactConfig(cfg.Artifacts);
             tcfg = EphysPipelineConfig.trialConfig(cfg);
             for k = 1:P.NumDatasets
@@ -511,6 +516,7 @@ classdef EphysPipeline < handle
                 d.SIConfig       = cfg.Sorting.SI;
                 d.ArtifactConfig = acfg;
                 d.TrialConfig    = tcfg;
+                d.ReaderOptions  = cfg.Acquisition;
                 d.NamePattern    = cfg.Project.NamePattern;
                 d.DatasetKey     = EphysProject.relativeKey(P.Root, d.Folder);
                 if cfg.Project.OutputRoot ~= ""
@@ -530,4 +536,21 @@ classdef EphysPipeline < handle
                 'logFile', {}, 'logPos', {}, 'done', {});
         end
     end
+end
+
+
+function s = coverageNote(iv, d)
+%coverageNote  ", covering X of Y s (Z%)" for artifact intervals IV.
+%   Adds a warning past EphysDataset.MaxSilencedFraction, the share at which
+%   sorting refuses to run.
+[share, covered] = EphysDataset.silencedFraction(iv, d.NumSamples / d.Fs);
+if isempty(iv) || isnan(share)
+    s = "";
+    return
+end
+s = string(sprintf(", covering %.4g of %.4g s (%.0f%%)", covered, d.NumSamples / d.Fs, 100 * share));
+if share > EphysDataset.MaxSilencedFraction
+    s = s + sprintf(" - WARNING: sorting refuses to silence more than %.0f%%; check the artifact settings", ...
+        100 * EphysDataset.MaxSilencedFraction);
+end
 end

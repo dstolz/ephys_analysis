@@ -2,7 +2,8 @@ function onClose(obj)
 %onClose  Ask about unsaved changes, stop background work, persist prefs, close.
 %   A background copy is not cancelled: the copy engine runs outside MATLAB, so
 %   it finishes on its own. Closing only stops watching it, and the app says so
-%   rather than leaving the copy looking abandoned.
+%   rather than leaving the copy looking abandoned. A scheduled copy is a
+%   Windows task and does not depend on the app at all.
 if ~obj.confirmDiscard(); return; end
 if ~isempty(obj.CopyJob)
     answer = uiconfirm(obj.Fig, ...
@@ -19,6 +20,12 @@ if obj.RunActive && ~isempty(obj.Pipe)
 end
 obj.stopKSMonitor();
 obj.stopCopyMonitor();
+obj.stopResourceMonitor();
+t = obj.CopyScheduleTimer;   % only watches the scheduled copy's state
+if ~isempty(t) && isvalid(t)
+    stop(t);
+    delete(t);
+end
 try
     obj.savePreferences();
 catch ME

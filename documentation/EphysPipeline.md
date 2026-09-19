@@ -46,13 +46,14 @@ returns the defaults and is the single source of truth for field names.
 
 | Section | Step | Holds |
 | --- | --- | --- |
-| `Project` | – | `Root`, `OutputRoot` (`""` = outputs next to each recording), `Selection` (`"all"` or `"list"`), `Datasets` (root-relative keys, see [Dataset keys](#dataset-keys)), `NamePattern` (`"{SubjectID}_{Date:yyMMdd}_{Time:HHmmss}"`, see [Dataset name tokens](#dataset-name-tokens); also labels sorted units, see [Unit labels](#unit-labels)), `TokenColumns` (list text, `"SubjectID"`: tokens shown as app table columns) |
+| `Project` | – | `Root`, `Recursive` (`true`: search every sub-folder of `Root` for recordings; `false`: only `Root` and the folders directly in it), `OutputRoot` (`""` = outputs next to each recording), `Selection` (`"all"` or `"list"`), `Datasets` (root-relative keys, see [Dataset keys](#dataset-keys)), `NamePattern` (`"{SubjectID}_{Date:yyMMdd}_{Time:HHmmss}"`, see [Dataset name tokens](#dataset-name-tokens); also labels sorted units, see [Unit labels](#unit-labels)), `TokenColumns` (list text, `"SubjectID"`: tokens shown as app table columns) |
+| `Acquisition` | – | reader options, see [Acquisition](#acquisition): `OpenEphys.Recordings` (`"concatenate"`), `OpenEphys.RecordNode` (`""`), `OpenEphys.Stream` (`""`) |
 | `Parallel` | – | `Enabled` (run the chunks of the artifacts and spike-detection steps on a process pool), `MaxWorkers` (`NaN` = automatic; always capped by free memory); see [Parallel execution](#parallel-execution) |
 | `Probe` | `probe` (always runs) | `DefaultProbeFile` (assigned to datasets without a probe), `WriteDefaultToManifest` |
 | `Behavior` | `behavior` | `Enabled`, `SearchDirs`, `Match` (`"prefix"`, `"time"`, `"prefix-then-time"`), `MaxStartOffsetMin` (30), `Overwrite`, `WriteFile` (`true`: write `<Name>_behavior.mat` for every associated dataset), `PairTrials` (`true`), `AutoApprove` (`false`: approve a pairing whose trial and interval counts match without cuts), `TrialLine` (`"InTrial"`) |
 | `Artifacts` | `artifacts` | `Enabled` (automatic detection; manual periods always apply), `Method`, `Threshold`, `RmsWindowMs`, `MergeGapMs`, `MinChannels`, `PadMs`, `Filter`, `FilterType`, `FilterCutoff`, `FilterOrder`, `ApplyToSorting`, `ApplyToSpikes`, `CacheIntervals` |
-| `Sorting` | `sorting` | `Enabled`, `PythonExe`, `CondaEnv`, `Execution` (`"background"` or `"blocking"`), `DryRun`, `SkipExisting`, `SI` (the [SpikeInterface settings](EphysDataset.md#default-spikeinterface-configuration)), `KS4` (one typed field per `kilosortParamSpec` entry), `KS4ExtraJSON` |
-| `Signals` | `signals` | `Enabled`, `OutputDir`, `Suffix` (`"_extract"`), `SeparateFiles` (`true`: `<Name><Suffix>_<TYPE>.mat` per signal type), `MatVersion`, `Overwrite`, `LFP` / `MUA` / `SPIKE`, `LFP_Fs`, `LFP_HighpassOn/Hz`, `LFP_LowpassOn/Hz`, `LFP_NotchOn/Hz/BW`, `MUA_Fs`, `MUA_IntegrationHz`, `MUA_bpLoHi`, `SPIKE_KeepOriginal`, `SPIKE_Fs`, `SPIKE_bpLoHi`, `LabelField`, `InvertedLines` (digital lines with inverted polarity: onset = falling edge; see [polarity](#digital-line-polarity)), `KeepChannels`, `BadMode`, `BadThreshold`, `BadList`, `ChannelRemap`, `ExcludeHandling` (`"none"`, `"drop"`, `"interpolate"`: what to do with the manifest's excluded channels) |
+| `Sorting` | `sorting` | `Enabled`, `Engine` (`"spikeinterface"`: `runSpikeInterface`; `"kilosort"`: `runKilosort`, native Kilosort4 on a `.bin` with the artifact periods zeroed and no SpikeInterface preprocessing), `PythonExe`, `CondaEnv`, `Execution` (`"background"` or `"blocking"`), `DryRun`, `SkipExisting`, `SI` (the [SpikeInterface settings](EphysDataset.md#default-spikeinterface-configuration)), `KS4` (one typed field per `kilosortParamSpec` entry), `KS4ExtraJSON` |
+| `Signals` | `signals` | `Enabled`, `OutputDir`, `Suffix` (`"_extract"`), `SeparateFiles` (`true`: `<Name><Suffix>_<TYPE>.mat` per signal type), `MatVersion`, `Overwrite`, `LFP` / `MUA` / `SPIKE`, `LFP_Fs`, `LFP_HighpassOn/Hz`, `LFP_LowpassOn/Hz`, `LFP_NotchOn/Hz/BW`, `MUA_Fs`, `MUA_IntegrationHz`, `MUA_bpLoHi`, `SPIKE_KeepOriginal`, `SPIKE_Fs`, `SPIKE_bpLoHi`, `LabelField` (`"custom"` or `"native"`: which name labels channels, aux inputs and digital lines), `LineNames` (`"native=name"` entries naming digital lines, e.g. `"TTL4=InTrial"`; see [line names](#digital-line-names)), `InvertedLines` (digital lines with inverted polarity: onset = falling edge; see [polarity](#digital-line-polarity)), `KeepChannels`, `BadMode`, `BadThreshold`, `BadList`, `ChannelRemap`, `ExcludeHandling` (`"none"`, `"drop"`, `"interpolate"`: what to do with the manifest's excluded channels) |
 | `Spikes` | `spikes` | `Enabled`, `Source` (`"detect"`, `"sorted"`, `"both"`), the `detectSpikes` options (`Filter`, `Band`, `FilterOrder`, `Polarity`, `ThresholdMethod`, `Threshold` (`NaN` = the method's default), `Align`, `AlignWindowMs`, `MinPeriodMs`, `MaxAmplitudeUV`, `Waveforms`, `WindowMs`, `WaveformSource`, `EdgeHandling`, `MaxChunkSamples`, `EdgePadMs`), `Channels` (`"all"`, `"excludeManifest"`, `"list"`) + `ChannelList`, `RejectArtifacts`, the sorted-unit options (`Groups`, `IncludeNoise`, `Templates`), `OutputDir`, `Suffix` (`"_spikes"`), `MatVersion`, `Overwrite` |
 | `Export` | `export` | `Enabled`, `Formats` (subset of `["chronux" "fieldtrip" "epochs"]`), `Signals` (`[]` = every signal in the extract), `IncludeUnits`, `IncludeDetected`, `IncludeEvents`, `Groups`, `Validate`, the epoch settings `EpochSource` (`"line"` / `"behavior"`), `EpochLine`, `EpochWindow` (`[tPre tPost]` s), `EpochOnsetRule`, `EpochIncomplete`, `EpochNonFinite`, `EpochSpikeTimeBase`, `EpochClass`, `OutputDir`, `MatVersion`, `Overwrite` |
 
@@ -63,6 +64,21 @@ Channel lists (`KeepChannels`, `BadList`, `ChannelRemap`, `ChannelList`) and the
 notch list are kept as typed text and parsed when a run starts
 (`parseOrderedList`, `parseFreqList`: order and repeats are kept, anything
 unparseable is an error).
+
+### Acquisition
+
+Reader options, pushed to every dataset as `ReaderOptions` and used by
+`EphysProject.discover`. Each reader reads its own sub-struct.
+
+| Field | Default | Meaning |
+| --- | --- | --- |
+| `OpenEphys.Recordings` | `"concatenate"` | an Open Ephys session with several recordings is one dataset (`"concatenate"`), one dataset per recording in part folders (`"separate"`), or refused (`"single"`); see [Open Ephys sessions](EphysDataset.md#open-ephys-sessions) |
+| `OpenEphys.RecordNode` | `""` | Record Node id to read; `""` = the only one (the lowest id, with a warning, when there are several) |
+| `OpenEphys.Stream` | `""` | continuous stream to read, by name; `""` = the stream with the most headstage channels |
+
+`validate()` checks the mode and that `RecordNode` is blank or digits. The
+section decides which folders are datasets (in `"separate"` mode), so changing
+it needs a rescan; the app rescans on every change.
 
 ### JSON
 
@@ -76,8 +92,9 @@ there is no migration. Unknown fields are dropped and listed in
 ### Validation
 
 `issues = cfg.validate()` returns a table (`Step`, `Field`, `Severity`,
-`Message`). `Project`, `Parallel` and `Probe` are always checked; a step section only when
-it is enabled. Severity `"error"` stops `run()`. Cross-step rule: a background
+`Message`). `Project`, `Acquisition`, `Parallel` and `Probe` are always checked; a step section only when
+it is enabled (`Signals.LabelField` and `Signals.LineNames` also when
+`Behavior` is, since they name the trial line). Severity `"error"` stops `run()`. Cross-step rule: a background
 sorting run cannot feed the sorted-unit consumers (`Spikes.Source` `"sorted"` /
 `"both"`, `Export.IncludeUnits`) in the same run; set
 `Sorting.Execution = "blocking"` or run those steps later. When those
@@ -138,6 +155,7 @@ tokens).
 | --- | --- |
 | `{Token}` | any text, as short as possible |
 | `{Token:yyMMdd}` | a format made only of `y M d H h m s`: that many digits |
+| `{Token:yyyy-MM-dd}` | runs of those letters joined by separators (any characters other than letters and digits): the digits per run, the separators literally |
 | `{Token:regex}` | any other format is a regular expression |
 | `*` | any text that is not kept (e.g. a trailing suffix) |
 | other text | itself (e.g. the `_` separators) |
@@ -147,7 +165,11 @@ The default `"{SubjectID}_{Date:yyMMdd}_{Time:HHmmss}"` splits
 `Date = "260916"`, `Time = "143015"`. Fixed text belongs in the pattern as
 literal text: `"SUBJ-ID-{SubjectID}_{Date:yyMMdd}_{Time:HHmmss}"` gives
 `SubjectID = "1245"` for the same name, which is what the lab configs in
-`pipeline/pipeline_configs` use. Token names must be unique valid
+`pipeline/pipeline_configs` use. Open Ephys session folders
+(`SUBJ-ID-1219_2026-07-07_16-35-39_active`) match
+`OpenEphysReader.DefaultNamePattern`,
+`"{SubjectID}_{Date:yyyy-MM-dd}_{Time:HH-mm-ss}*"` (the `*` takes the GUI's
+appended text). Token names must be unique valid
 identifiers; `validate()` reports an invalid pattern as an error and a
 `TokenColumns` entry missing from the pattern as a warning.
 
@@ -395,6 +417,20 @@ struct once as `<outputFolder>/<Name>_behavior.mat` (the behavior step does
 this when `Behavior.WriteFile`). No other output carries behavior data. The
 manifest records `file`, `subject`, `start_time` and `n_trials`.
 
+### Digital-line names
+
+Readers name digital lines by their native names (`DIGITAL-IN-04` on Intan,
+`TTL4` on Open Ephys). Every events output names them by
+`Signals.LabelField` (`"custom"`: Intan's custom names, such as the `InTrial`
+set in RHX; `"native"`) unless `Signals.LineNames` names a line:
+`LineNames = ["TTL1=Trough" "TTL4=InTrial"]` makes Open Ephys lines match the
+Epsych2 names. `Behavior.TrialLine` and `Signals.InvertedLines` use the final
+names. `validate()` checks the `native=name` form, that names are valid
+identifiers and that no native line or name appears twice. The events cache
+stores the native names, so renaming a line (the app's **Trials** tab edits
+`LineNames` in place) never re-reads a recording. See
+[EphysDataset → Digital-line names](EphysDataset.md#digital-line-names).
+
 ### Digital-line polarity
 
 Readers return every digital line as its HIGH runs. `Signals.InvertedLines`
@@ -457,7 +493,7 @@ On a dataset, `P = ds.pairTrials()` reads the session and the digital events.
 The events are cached as `<outputFolder>/<Name>_events.mat`, because reading
 them can mean reading the recording. The settings come from `ds.TrialConfig`
 (`EphysPipelineConfig.trialConfig(cfg)`: the Behavior settings plus
-`Signals.LabelField`, `Signals.InvertedLines` and the rates of the enabled
+`Signals.LabelField`, `Signals.LineNames`, `Signals.InvertedLines` and the rates of the enabled
 LFP / MUA / resampled SPIKE signals). A pairing is reviewed, not trusted:
 `ds.setTrialPairing(P, "approved")` stores its cuts in the manifest
 (`behavior.pairing`). Later `pairTrials` calls reuse them while the
@@ -484,7 +520,8 @@ the behavior file.
 | [`test_EphysPipeline.m`](../pipeline/test_EphysPipeline.m) | selection by key with duplicate leaf names; `plan()` writes nothing and flags existing / duplicate outputs, missing probe, sorting output and extract file, unit identity errors and unit label collisions; sorting dry run writes a matching `si_config.json`; `runSignals` / `runSpikeDetection` / `runExport` outputs equal the direct calls; `checkBehavior` associates by prefix and writes the manifest; the artifact cache is reused and invalidated; cancel leaves no partial `.mat`; `Parallel.Enabled` reaches the artifacts and spikes steps and is logged |
 | [`test_TrialPairing.m`](../pipeline/test_TrialPairing.m) | `pairEpsychTrials`: equal counts, a recording started late or stopped early (partial intervals at the edges, the count-mismatch warning, the cuts that resolve it), an inverted line idle at the recording start, cut validation, nested lines, derived-signal samples; `digitalEvents` cache; `pairTrials` / `setTrialPairing` manifest round trip with cuts and staleness; `autoApproveTrialPairing` (only matching counts without cuts, the `auto_approved` mark); `behaviorToMat(Pairing=)`; the behavior step records, reuses and reports pairings, `AutoApprove` and a count mismatch included |
 | [`test_EphysPipelineScript.m`](../pipeline/test_EphysPipelineScript.m) | both scripts are `checkcode`-clean, run, and produce identical outputs; the standalone text never mentions the pipeline classes; disabled steps are commented out in the compact script; `literal` round-trips; the standalone script carries the `Parallel` section into the chunked steps |
-| [`test_UnitLabels.m`](../pipeline/test_UnitLabels.m) | `nameIdentity` (literal prefix, non-matching names, pattern, subject and date errors), class and id padding, identity columns, peak site and template centre, `writeUnitNotes` / `readUnitNotes`, `readSortedUnits` identity errors, `EphysProject.unitIdentities` collisions, `unitTable` (columns, filtering, duplicates, files, refreshed notes) |
+| [`test_OpenEphysReader.m`](../pipeline/test_OpenEphysReader.m) | Open Ephys sessions in every record engine; the `Acquisition` modes; `LineNames` validation and naming; a synthetic Open Ephys project through `EphysPipeline` |
+| [`test_UnitLabels.m`](../pipeline/test_UnitLabels.m) | `nameIdentity` (literal prefix, non-matching names, pattern, subject and date errors, dates and times with separators), class and id padding, identity columns, peak site and template centre, `writeUnitNotes` / `readUnitNotes`, `readSortedUnits` identity errors, `EphysProject.unitIdentities` collisions, `unitTable` (columns, filtering, duplicates, files, refreshed notes) |
 | [`test_EpsychSession.m`](../pipeline/test_EpsychSession.m) | synthetic `Data` / `Info` files; `NotEpsych`; matching by prefix, by time, and ambiguity |
 
 Run everything with [`run_all_tests.m`](../pipeline/run_all_tests.m).

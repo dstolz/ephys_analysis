@@ -1,89 +1,100 @@
 function [T, skipped] = findCopySessions(subjID, dateSpec, opts)
-%findCopySessions  Pair ePsych behavior files with Intan RHX recordings on the source by name.
+%findCopySessions  Pair ePsych behavior files with recordings on the source by name.
 %   T = findCopySessions(subjID, dateSpec) lists one subject's sessions on the
-%   source tree for a day (or a range of days) and pairs each Intan recording folder
-%   with its ePsych behavior file from the timestamps in their names. Nothing
-%   is written to either tree; of the files, only headers are read: the
-%   Intan headers of every folder taking part in the pairing (for
-%   MinIntanDuration and the IntanDuration column) and the ePsych files of
-%   the listed sessions (for the EpsychTrials column).
+%   source tree for a day (or a range of days) and pairs each recording folder
+%   (Intan RHX, Open Ephys GUI or any other format a registered EphysReader
+%   reads) with its ePsych behavior file from the times in their names.
+%   Nothing is written to either tree; of the files, only headers are read:
+%   those of every recording taking part in the pairing (for
+%   MinRecordingDuration and the RecordingDuration column) and the ePsych
+%   files of the listed sessions (for the EpsychTrials column).
 %
-%   Names are matched with strict regular expressions anchored to the whole
-%   name, and the subject ID must match exactly (SUBJ-ID-125 never matches
-%   SUBJ-ID-1255_...):
-%     ePsych  <EpsychRoot>/<SUBJ>/<SUBJ>_<yyMMdd>T<HHmmss>.mat     (file)
-%     Intan   <IntanRoot>/<SUBJ>/<SUBJ>_<yyMMdd>_<HHmmss>          (folder)
-%   Anything else in the two subject folders is logged and skipped (never
-%   guessed at); it is also returned in SKIPPED.
+%   Names are matched whole, and the subject ID must match exactly
+%   (SUBJ-ID-125 never matches SUBJ-ID-1255_...):
+%     ePsych      <EpsychRoot>/<SUBJ>/<SUBJ>_<yyMMdd>T<HHmmss>.mat     (file)
+%     recording   <RecordingRoot>/<SUBJ>/<name>                        (folder)
+%   where <name> matches one of NamePatterns with SubjectID = SUBJ (see
+%   parseNameTokens): by default Intan's <SUBJ>_<yyMMdd>_<HHmmss> and the Open
+%   Ephys GUI's <SUBJ>_<yyyy-MM-dd>_<HH-mm-ss>[<appended text>]. Anything else
+%   in the subject folders is logged and skipped (never guessed at); it is
+%   also returned in SKIPPED.
 %
-%   Pairing. An ePsych file is a candidate for an Intan folder when its time
-%   lies in [IntanTime - MaxLeadTime, IntanTime + MaxLagTime] (ePsych usually
-%   starts 1-3 min before Intan; the lag allows for clock skew). Candidates
-%   are grouped into connected sets; within a set every candidate pair is
-%   sorted by |DeltaT| and assigned greedily one-to-one, so a conflict is
-%   resolved globally rather than by whichever file comes first. When, at an
-%   assignment, the Intan folder or the ePsych file has another unassigned
-%   candidate whose |DeltaT| is within AmbiguityMargin, the whole set is
-%   marked ambiguous: none of its files are paired, and copySessions never
-%   copies them.
+%   Pairing. An ePsych file is a candidate for a recording when its time lies
+%   in [RecordingTime - MaxLeadTime, RecordingTime + MaxLagTime] (ePsych
+%   usually starts 1-3 min before the recording; the lag allows for clock
+%   skew). Candidates are grouped into connected sets; within a set every
+%   candidate pair is sorted by |DeltaT| and assigned greedily one-to-one, so
+%   a conflict is resolved globally rather than by whichever file comes first.
+%   When, at an assignment, the recording or the ePsych file has another
+%   unassigned candidate whose |DeltaT| is within AmbiguityMargin, the whole
+%   set is marked ambiguous: none of its files are paired, and copySessions
+%   never copies them.
 %
-%   An Intan recording shorter than MinIntanDuration (from its headers) takes
+%   A recording shorter than MinRecordingDuration (from its headers) takes
 %   no part in the pairing: it is never a candidate, so it can neither claim
-%   an ePsych file nor make a set ambiguous. It is listed as intan_only with
-%   a Note. A recording whose headers cannot be read has no known duration
-%   and is paired as usual.
+%   an ePsych file nor make a set ambiguous. It is listed as recording_only
+%   with a Note. A recording whose headers cannot be read has no known
+%   duration and is paired as usual.
 %
 %   dateSpec
 %     datetime                one day (the time of day is ignored)
 %     [datetime datetime]     an inclusive range of days
 %     "yyMMdd"                one day, e.g. "260916"
 %     ["yyMMdd" "yyMMdd"]     an inclusive range of days
-%   A row is listed when its Intan or its ePsych time falls on one of those
+%   A row is listed when its recording or its ePsych time falls on one of those
 %   days, so a session that crosses midnight appears under either day.
 %   Files up to MaxLeadTime + MaxLagTime outside the range take part in the
 %   pairing so that edge sessions pair the same way whatever range is asked.
 %
 %   Options
 %     EpsychRoot       (default "S:/RIG3_Backup_2025/epsych_files/Data")
-%     IntanRoot        (default "S:/RIG3_Backup_2025/intan_files/Data")
+%     RecordingRoots   string list (default "S:/RIG3_Backup_2025/intan_files/Data"):
+%                      roots holding one folder of recording folders per subject
+%     NamePatterns     recording folder name patterns (default
+%                      [EphysDataset.DefaultNamePattern, OpenEphysReader.DefaultNamePattern])
+%     ReaderOptions    reader options for reading the recordings' headers
+%                      (a pipeline config's Acquisition section; default struct())
 %     DestRoot         (default "D:/EPHYS") only fills the DestDir column
-%     MaxLeadTime      duration, how long ePsych may start before Intan (default minutes(10))
-%     MaxLagTime       duration, how long ePsych may start after Intan (default minutes(2))
+%     MaxLeadTime      duration, how long ePsych may start before the recording (default minutes(10))
+%     MaxLagTime       duration, how long ePsych may start after the recording (default minutes(2))
 %     AmbiguityMargin  duration (default seconds(30))
-%     MinIntanDuration duration, shorter recordings are not paired (default
-%                      minutes(2); 0 pairs every recording)
+%     MinRecordingDuration  duration, shorter recordings are not paired
+%                      (default minutes(2); 0 pairs every recording)
 %     LogFcn          function handle taking one string (default: print it)
 %
-%   T has one row per Intan folder plus one per ePsych file left unpaired,
-%   sorted by time:
-%     Subject     string
-%     IntanDir    string, full path ("" for an ePsych-only row)
-%     IntanTime   datetime (NaT for an ePsych-only row)
-%     EpsychFile  string, full path ("" when not paired)
-%     EpsychTime  datetime (NaT when not paired)
-%     DeltaT      duration EpsychTime - IntanTime (negative: ePsych started first)
-%     Status      "paired" | "intan_only" | "epsych_only" | "ambiguous"
-%     DestDir     string, <DestRoot>/<SUBJ>/<Intan folder name>; an unpaired
-%                 ePsych row uses the ePsych file name without .mat
-%     Note        string, why a row is ambiguous (its candidates) or unpaired
-%                 (including a recording shorter than MinIntanDuration)
-%     IntanDuration  duration of the recording from its Intan headers
-%                 (IntanReader metadata; NaN without a folder or when the
-%                 headers cannot be read)
+%   T has one row per recording folder plus one per ePsych file left
+%   unpaired, sorted by time:
+%     Subject        string
+%     RecordingDir   string, full path ("" for an ePsych-only row)
+%     RecordingTime  datetime from the folder name (NaT for an ePsych-only row)
+%     EpsychFile     string, full path ("" when not paired)
+%     EpsychTime     datetime (NaT when not paired)
+%     DeltaT         duration EpsychTime - RecordingTime (negative: ePsych started first)
+%     Status         "paired" | "recording_only" | "epsych_only" | "ambiguous"
+%     DestDir        string, <DestRoot>/<SUBJ>/<recording folder name>; an
+%                    unpaired ePsych row uses the ePsych file name without .mat
+%     Note           string, why a row is ambiguous (its candidates) or unpaired
+%                    (including a recording shorter than MinRecordingDuration)
+%     RecordingDuration  duration of the recording from its headers (NaN
+%                    without a folder or when they cannot be read)
+%     Reader         the reader that reads it: "intan" | "openephys" |
+%                    "binary" | "" (none, or no folder)
 %     EpsychTrials   double, trials in the ePsych file (epsychSessionMeta;
-%                 NaN without a file or when it cannot be read)
+%                    NaN without a file or when it cannot be read)
 %     StitchFiles    cell, strings(0, 1) on every row: stitchCopySessions
-%                 merges rows picked by hand into a "stitched" row that lists
-%                 its ePsych files here
+%                    merges rows picked by hand into a "stitched" row that
+%                    lists its ePsych files here
 %   A header that cannot be read is logged and leaves NaN.
 %   For an ambiguous ePsych file the row carries EpsychFile / EpsychTime and
-%   no Intan folder.
+%   no recording folder.
 %
 %   SKIPPED is a table (Path, Reason) of names that did not parse.
 %
-%   Errors with findCopySessions:RootNotFound when EpsychRoot or IntanRoot
-%   is not a folder (e.g. the source drive is not mounted). A missing subject
-%   folder under an existing root is logged and treated as empty.
+%   Errors with findCopySessions:RootNotFound when EpsychRoot or a
+%   RecordingRoots folder is not a folder (e.g. the source drive is not
+%   mounted), and with findCopySessions:BadPattern when a name pattern cannot
+%   give a subject and a start time. A missing subject folder under an
+%   existing root is logged and treated as empty.
 %
 %   Examples
 %     T = findCopySessions("SUBJ-ID-1255", "260916");
@@ -98,12 +109,14 @@ arguments
     subjID (1,1) string {mustBeNonzeroLengthText}
     dateSpec {mustBeDateSpec}
     opts.EpsychRoot (1,1) string = "S:/RIG3_Backup_2025/epsych_files/Data"
-    opts.IntanRoot (1,1) string = "S:/RIG3_Backup_2025/intan_files/Data"
+    opts.RecordingRoots (1,:) string {mustBeNonempty} = "S:/RIG3_Backup_2025/intan_files/Data"
+    opts.NamePatterns (1,:) string {mustBeNonempty} = [EphysDataset.DefaultNamePattern, OpenEphysReader.DefaultNamePattern]
+    opts.ReaderOptions struct = struct()
     opts.DestRoot (1,1) string = "D:/EPHYS"
     opts.MaxLeadTime (1,1) duration {mustBeNonnegativeDuration} = minutes(10)
     opts.MaxLagTime (1,1) duration {mustBeNonnegativeDuration} = minutes(2)
     opts.AmbiguityMargin (1,1) duration {mustBeNonnegativeDuration} = seconds(30)
-    opts.MinIntanDuration (1,1) duration {mustBeNonnegativeDuration} = minutes(2)
+    opts.MinRecordingDuration (1,1) duration {mustBeNonnegativeDuration} = minutes(2)
     opts.LogFcn = []
 end
 
@@ -114,10 +127,16 @@ end
 subjID = strtrim(subjID);
 [day0, day1] = parseDateSpec(dateSpec);
 
-for r = [opts.EpsychRoot, opts.IntanRoot]
+for r = [opts.EpsychRoot, opts.RecordingRoots]
     if ~isfolder(r)
         error('findCopySessions:RootNotFound', ...
             'Folder not found: %s (is the source drive mounted?)', r);
+    end
+end
+for p = opts.NamePatterns
+    id = EphysDataset.nameIdentity("", p);
+    if id.reason == "pattern"
+        error('findCopySessions:BadPattern', '%s', id.message);
     end
 end
 
@@ -129,7 +148,6 @@ skipped = table(strings(0, 1), strings(0, 1), 'VariableNames', {'Path', 'Reason'
 
 subj = regexptranslate('escape', char(subjID));
 epsychExpr = ['^' subj '_(\d{6})T(\d{6})\.mat$'];
-intanExpr  = ['^' subj '_(\d{6})_(\d{6})$'];
 
 % --- ePsych files --------------------------------------------------------------
 eFile = strings(0, 1); eTime = NaT(0, 1);
@@ -159,30 +177,27 @@ else
     end
 end
 
-% --- Intan folders ---------------------------------------------------------------
+% --- recording folders --------------------------------------------------------------
 iDir = strings(0, 1); iTime = NaT(0, 1);
-nDir = fullfile(opts.IntanRoot, subjID);
-if ~isfolder(nDir)
-    logFcn(sprintf("No Intan folder for %s: %s", subjID, nDir));
-else
+for root = opts.RecordingRoots
+    nDir = fullfile(root, subjID);
+    if ~isfolder(nDir)
+        logFcn(sprintf("No recording folder for %s: %s", subjID, nDir));
+        continue
+    end
     D = dir(nDir);
     for k = 1:numel(D)
         name = D(k).name;
         if any(strcmp(name, {'.', '..'})); continue; end
         path = string(fullfile(nDir, name));
-        tok = regexp(name, intanExpr, 'tokens', 'once');
-        if isempty(tok)
-            skip(path, "name is not " + subjID + "_yyMMdd_HHmmss");
+        [t, why] = recordingTime(string(name), subjID, opts.NamePatterns);
+        if why ~= ""
+            skip(path, why);
         elseif ~D(k).isdir
-            skip(path, "a file, not an Intan recording folder");
+            skip(path, "a file, not a recording folder");
         else
-            t = nameTime(tok);
-            if isnat(t)
-                skip(path, "the name holds an invalid date or time");
-            else
-                iDir(end+1, 1) = path; %#ok<AGROW>
-                iTime(end+1, 1) = t;   %#ok<AGROW>
-            end
+            iDir(end+1, 1) = path; %#ok<AGROW>
+            iTime(end+1, 1) = t;   %#ok<AGROW>
         end
     end
 end
@@ -197,11 +212,12 @@ iDir = iDir(keepI); iTime = iTime(keepI);
 
 % --- recording durations: a recording shorter than the minimum is not paired -------
 iDur = duration(NaN(numel(iDir), 1), 0, 0, 'Format', 'hh:mm:ss');
+iKind = strings(numel(iDir), 1);
 for i = 1:numel(iDir)
-    [iDur(i), msg] = intanDuration(iDir(i));
-    if msg ~= ""; logFcn(sprintf("Could not read the Intan headers of %s: %s", iDir(i), msg)); end
+    [iDur(i), iKind(i), msg] = recordingDuration(iDir(i), opts.ReaderOptions);
+    if msg ~= ""; logFcn(sprintf("Could not read the headers of %s: %s", iDir(i), msg)); end
 end
-short = iDur < opts.MinIntanDuration;   % false for NaN: an unknown duration pairs as usual
+short = iDur < opts.MinRecordingDuration;   % false for NaN: an unknown duration pairs as usual
 
 [pairOf, ambiguous, note] = pairSessions(iTime, eTime, ~short, opts, iDir, eFile);
 
@@ -209,57 +225,57 @@ short = iDur < opts.MinIntanDuration;   % false for NaN: an unknown duration pai
 nI = numel(iDir); nE = numel(eFile);
 usedE = false(nE, 1);
 noDelta = duration(NaN, 0, 0);
-rows = cell(0, 10);
+rows = cell(0, 11);
 for i = 1:nI
-    [~, iName] = fileparts(iDir(i));
-    dest = string(fullfile(opts.DestRoot, subjID, iName));
+    [~, iName, iExt] = fileparts(iDir(i));
+    dest = string(fullfile(opts.DestRoot, subjID, iName + iExt));
     if short(i)
         why = sprintf("recording is %s, shorter than the %s minimum; not paired", ...
-            string(iDur(i), 'hh:mm:ss'), string(opts.MinIntanDuration, 'hh:mm:ss'));
+            string(iDur(i), 'hh:mm:ss'), string(opts.MinRecordingDuration, 'hh:mm:ss'));
         logFcn(sprintf("Not paired: %s (%s)", iDir(i), why));
-        rows(end+1, :) = {subjID, iDir(i), iTime(i), "", NaT, noDelta, "intan_only", dest, why, iDur(i)}; %#ok<AGROW>
-    elseif ambiguous.intan(i)
-        rows(end+1, :) = {subjID, iDir(i), iTime(i), "", NaT, noDelta, "ambiguous", dest, note.intan(i), iDur(i)}; %#ok<AGROW>
+        rows(end+1, :) = {subjID, iDir(i), iTime(i), "", NaT, noDelta, "recording_only", dest, why, iDur(i), iKind(i)}; %#ok<AGROW>
+    elseif ambiguous.recording(i)
+        rows(end+1, :) = {subjID, iDir(i), iTime(i), "", NaT, noDelta, "ambiguous", dest, note.recording(i), iDur(i), iKind(i)}; %#ok<AGROW>
     elseif pairOf(i) > 0
         j = pairOf(i);
         usedE(j) = true;
-        rows(end+1, :) = {subjID, iDir(i), iTime(i), eFile(j), eTime(j), eTime(j) - iTime(i), "paired", dest, "", iDur(i)}; %#ok<AGROW>
+        rows(end+1, :) = {subjID, iDir(i), iTime(i), eFile(j), eTime(j), eTime(j) - iTime(i), "paired", dest, "", iDur(i), iKind(i)}; %#ok<AGROW>
     else
-        rows(end+1, :) = {subjID, iDir(i), iTime(i), "", NaT, noDelta, "intan_only", dest, ...
-            "no ePsych file within the pairing window", iDur(i)}; %#ok<AGROW>
+        rows(end+1, :) = {subjID, iDir(i), iTime(i), "", NaT, noDelta, "recording_only", dest, ...
+            "no ePsych file within the pairing window", iDur(i), iKind(i)}; %#ok<AGROW>
     end
 end
 for j = find(~usedE).'
     [~, eName] = fileparts(eFile(j));
     dest = string(fullfile(opts.DestRoot, subjID, eName));
     if ambiguous.epsych(j)
-        rows(end+1, :) = {subjID, "", NaT, eFile(j), eTime(j), noDelta, "ambiguous", dest, note.epsych(j), noDelta}; %#ok<AGROW>
+        rows(end+1, :) = {subjID, "", NaT, eFile(j), eTime(j), noDelta, "ambiguous", dest, note.epsych(j), noDelta, ""}; %#ok<AGROW>
     else
         dtShort = eTime(j) - iTime(short);
         if any(dtShort >= -opts.MaxLeadTime & dtShort <= opts.MaxLagTime)
-            why = "no Intan recording of at least " + string(opts.MinIntanDuration, 'hh:mm:ss') + " within the pairing window";
+            why = "no recording of at least " + string(opts.MinRecordingDuration, 'hh:mm:ss') + " within the pairing window";
         else
-            why = "no Intan folder within the pairing window";
+            why = "no recording folder within the pairing window";
         end
-        rows(end+1, :) = {subjID, "", NaT, eFile(j), eTime(j), noDelta, "epsych_only", dest, why, noDelta}; %#ok<AGROW>
+        rows(end+1, :) = {subjID, "", NaT, eFile(j), eTime(j), noDelta, "epsych_only", dest, why, noDelta, ""}; %#ok<AGROW>
     end
 end
 
-names = {'Subject', 'IntanDir', 'IntanTime', 'EpsychFile', 'EpsychTime', 'DeltaT', 'Status', 'DestDir', 'Note', ...
-    'IntanDuration'};
+names = {'Subject', 'RecordingDir', 'RecordingTime', 'EpsychFile', 'EpsychTime', 'DeltaT', 'Status', 'DestDir', 'Note', ...
+    'RecordingDuration', 'Reader'};
 if isempty(rows)
     T = table(strings(0, 1), strings(0, 1), NaT(0, 1), strings(0, 1), NaT(0, 1), duration.empty(0, 1), ...
-        strings(0, 1), strings(0, 1), strings(0, 1), duration.empty(0, 1), 'VariableNames', names);
+        strings(0, 1), strings(0, 1), strings(0, 1), duration.empty(0, 1), strings(0, 1), 'VariableNames', names);
 else
     T = cell2table(rows, 'VariableNames', names);
     T.DeltaT.Format = 'mm:ss';
 end
-T.IntanDuration.Format = 'hh:mm:ss';
+T.RecordingDuration.Format = 'hh:mm:ss';
 
 % --- keep rows touching the requested days, sort by time ---------------------------
 inRange = @(t) ~isnat(t) & t >= day0 & t < day1 + days(1);
-T = T(inRange(T.IntanTime) | inRange(T.EpsychTime), :);
-sortTime = T.IntanTime;
+T = T(inRange(T.RecordingTime) | inRange(T.EpsychTime), :);
+sortTime = T.RecordingTime;
 sortTime(isnat(sortTime)) = T.EpsychTime(isnat(sortTime));
 [~, order] = sort(sortTime);
 T = T(order, :);
@@ -274,24 +290,54 @@ for k = 1:height(T)
 end
 T.StitchFiles = repmat({strings(0, 1)}, height(T), 1);
 
-counts = arrayfun(@(s) nnz(T.Status == s), ["paired" "intan_only" "epsych_only" "ambiguous"]);
-logFcn(sprintf("%s, %s to %s: %d paired, %d Intan only, %d ePsych only, %d ambiguous, %d name(s) skipped", ...
+counts = arrayfun(@(s) nnz(T.Status == s), ["paired" "recording_only" "epsych_only" "ambiguous"]);
+logFcn(sprintf("%s, %s to %s: %d paired, %d recording only, %d ePsych only, %d ambiguous, %d name(s) skipped", ...
     subjID, string(day0, 'yyMMdd'), string(day1, 'yyMMdd'), counts, height(skipped)));
 end
 
 
-function [d, msg] = intanDuration(folder)
-%intanDuration  Recording duration from the Intan headers (and .dat sizes); NaN and a message on failure.
-d = duration(NaN, 0, 0); msg = "";
+function [t, why] = recordingTime(name, subjID, patterns)
+%recordingTime  Start time of a recording folder named by one of PATTERNS for
+%   SUBJID (the SubjectID token equal to it, exactly); WHY says why not.
+t = NaT; why = "";
+badTime = false;
+for p = patterns
+    id = EphysDataset.nameIdentity(name, p);
+    if id.ok && id.subject == subjID
+        t = id.recordingStart;
+        t.Format = 'default';
+        return
+    end
+    if id.reason == "datetime"
+        v = parseNameTokens(name, p);
+        [~, names] = parseNameTokens("", p);
+        badTime = badTime || v(names == "SubjectID") == subjID;
+    end
+end
+if badTime
+    why = "the name holds an invalid date or time";
+else
+    why = "the name does not match " + strjoin(replace(patterns, "{SubjectID}", subjID), " or ");
+end
+end
+
+
+function [d, kind, msg] = recordingDuration(folder, options)
+%recordingDuration  Duration from the recording's headers, and the reader's kind; NaN and a message on failure.
+%   An Open Ephys session is copied whole, so its duration is that of all
+%   its recordings whatever the recording mode.
+d = duration(NaN, 0, 0); kind = ""; msg = "";
+if ~isfield(options, 'OpenEphys'); options.OpenEphys = struct(); end
+options.OpenEphys.Recordings = "concatenate";
 w = warning('off', 'all');
 restore = onCleanup(@() warning(w));
 try
-    r = IntanReader(folder);
-    r.discoverFiles();
-    if r.RecordingFormat == "unknown"
-        msg = "no Intan files";
+    r = EphysReader.forFolder(folder, Options=options);
+    if isempty(r)
+        msg = "no recording files";
         return
     end
+    kind = string(r.Kind);
     r.refreshMetadata();
     d = seconds(r.Duration);
 catch ME
@@ -314,11 +360,11 @@ end
 
 function [pairOf, ambiguous, note] = pairSessions(iTime, eTime, eligibleI, opts, iDir, eFile)
 %pairSessions  One-to-one assignment by |DeltaT| within connected candidate sets.
-%   Only the Intan folders flagged in eligibleI can be candidates.
+%   Only the recording folders flagged in eligibleI can be candidates.
 nI = numel(iTime); nE = numel(eTime);
 pairOf = zeros(nI, 1);
-ambiguous = struct('intan', false(nI, 1), 'epsych', false(nE, 1));
-note = struct('intan', strings(nI, 1), 'epsych', strings(nE, 1));
+ambiguous = struct('recording', false(nI, 1), 'epsych', false(nE, 1));
+note = struct('recording', strings(nI, 1), 'epsych', strings(nE, 1));
 if nI == 0 || nE == 0; return; end
 
 % Candidate pairs: ePsych in [I - lead, I + lag].
@@ -330,7 +376,7 @@ C = [I(ok), E(ok)];
 absDt = abs(seconds(dt(ok)));
 if isempty(C); return; end
 
-% Connected sets (nodes 1..nI are Intan, nI+1..nI+nE are ePsych).
+% Connected sets (nodes 1..nI are recordings, nI+1..nI+nE are ePsych).
 comp = 1:(nI + nE);
     function r = findRoot(x)
         r = x;
@@ -365,15 +411,15 @@ for r = unique(root).'
     end
     setI = unique(C(inSet, 1)); setE = unique(C(inSet, 2));
     if tie
-        ambiguous.intan(setI) = true;
+        ambiguous.recording(setI) = true;
         ambiguous.epsych(setE) = true;
         for i = setI.'
             cand = C(inSet(C(inSet, 1) == i), 2);
-            note.intan(i) = "ambiguous: candidate ePsych files " + candidateList(eFile(cand), eTime(cand) - iTime(i));
+            note.recording(i) = "ambiguous: candidate ePsych files " + candidateList(eFile(cand), eTime(cand) - iTime(i));
         end
         for j = setE.'
             cand = C(inSet(C(inSet, 2) == j), 1);
-            note.epsych(j) = "ambiguous: candidate Intan folders " + candidateList(iDir(cand), eTime(j) - iTime(cand));
+            note.epsych(j) = "ambiguous: candidate recording folders " + candidateList(iDir(cand), eTime(j) - iTime(cand));
         end
     else
         pairOf(pairs(:, 1)) = pairs(:, 2);

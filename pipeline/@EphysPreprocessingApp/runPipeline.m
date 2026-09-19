@@ -57,6 +57,8 @@ try
 catch ME
     R = pipe.Results;
     outcome = "error"; note = string(ME.message);
+    obj.LastError = ME;                      % Help > Report an issue sends it with its stack
+    obj.LastErrorTime = datetime('now');
     obj.runLog("ERROR: %s", ME.message);
     uialert(obj.Fig, "Run stopped:" + newline + string(ME.message), "Run");
 end

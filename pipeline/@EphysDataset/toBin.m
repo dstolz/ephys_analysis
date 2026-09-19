@@ -2,13 +2,15 @@ function info = toBin(obj, opts)
 %toBin  Stream the recording to a Kilosort4 int16 .bin file, one file in RAM.
 %   INFO = ds.toBin() writes raw broadband data, scaled to int16, to ds.BinFile
 %   in the layout Kilosort4 expects (no header, little-endian, channel index
-%   varying fastest on disk). Only one *.rhd file is held in memory at a time:
-%   each file is read, optionally filtered/blanked, scaled, cast to int16, and
-%   appended to the open binary file before the next file is read.
+%   varying fastest on disk). Only one chunk of the reader's streamPlan (a
+%   traditional *.rhd file, or a bounded sample window) is held in memory at
+%   a time: each is read, optionally filtered/blanked, scaled, cast to int16,
+%   and appended to the open binary file before the next one is read.
 %
 %   By default the broadband signal is written unfiltered (Kilosort4 filters and
 %   whitens internally). The scale 1/0.195 restores the native ADC int16
-%   resolution from the microvolt values produced by the Intan reader, mirroring
+%   resolution (0.195 uV per count, Intan and Open Ephys headstages) from the
+%   microvolt values the reader produces, mirroring
 %   MATRIX2KILOSORT so that the streamed file is byte-identical to the in-memory
 %   writer for the same data.
 %
@@ -31,6 +33,9 @@ function info = toBin(obj, opts)
 %     ArtifactMinChannels / ArtifactPadMs   detection params; each falls back to
 %                    ds.ArtifactConfig when left at its default. See
 %                    detectArtifacts (RmsWindow/MergeGap/Pad are in milliseconds).
+%     ArtifactIntervals [k x 2] recording-relative seconds to blank instead of
+%                    the manual periods and the detector ([] = blank nothing;
+%                    default NaN = ManualArtifacts, plus detection as above)
 %     WriteMeta      (1,1) logical  write JSON sidecar (default true)
 %     BinFile        (1,1) string   override output path (default ds.BinFile)
 %
@@ -66,13 +71,14 @@ arguments
     opts.ArtifactPadMs (1,1) double = NaN
     opts.WriteMeta (1,1) logical = true
     opts.BinFile (1,1) string = ""
+    opts.ArtifactIntervals double = NaN
 end
 
 if obj.NumFiles == 0
     obj.discoverFiles();
 end
 if obj.NumFiles == 0
-    error('EphysDataset:toBin:NoFiles', 'No Intan files in %s', obj.Folder);
+    error('EphysDataset:toBin:NoFiles', 'No recording files in %s', obj.Folder);
 end
 % Header metadata (Fs, sample counts) drives the stream plan and is needed up
 % front for the .bin sidecar; parse it now if it has not been parsed yet.
@@ -88,7 +94,14 @@ binFile = opts.BinFile; if binFile == ""; binFile = obj.BinFile; end
 % Resolve automatic artifact-blanking config (per-call -> ds.ArtifactConfig).
 % Blanking runs when the Blank option is set OR the dataset config is enabled.
 acfg = EphysDataset.normalizeArtifactConfig(obj.ArtifactConfig);
-doBlank   = opts.Blank || acfg.Enabled;
+% An explicit ArtifactIntervals list replaces both the detector and the
+% manual periods, so the .bin is blanked exactly where the caller says.
+[listIv, givenIv] = explicitIntervals(opts.ArtifactIntervals);
+if ~givenIv
+    listIv = obj.ManualArtifacts;
+    if isempty(listIv); listIv = zeros(0, 2); end
+end
+doBlank   = ~givenIv && (opts.Blank || acfg.Enabled);
 artMethod = opts.ArtifactMethod;        if artMethod == "";       artMethod = acfg.Method;      end
 artThr    = opts.ArtifactThreshold;     if isnan(artThr);         artThr    = acfg.Threshold;   end
 artWinMs  = opts.ArtifactRmsWindowMs;   if isnan(artWinMs);       artWinMs  = acfg.RmsWindowMs;  end
@@ -96,13 +109,13 @@ artGapMs  = opts.ArtifactMergeGapMs;    if isnan(artGapMs);       artGapMs  = ac
 artMinCh  = opts.ArtifactMinChannels;   if isnan(artMinCh);       artMinCh  = acfg.MinChannels;  end
 artPadMs  = opts.ArtifactPadMs;         if isnan(artPadMs);       artPadMs  = acfg.PadMs;        end
 
-% Resolve the streaming plan (one chunk per *.rhd file for traditional; bounded
-% sample windows over the flat .dat for split formats). The downstream loop is
+% Resolve the streaming plan (one chunk per *.rhd file for traditional Intan;
+% bounded sample windows for every other layout). The downstream loop is
 % identical for every format because each chunk yields a [nSamp x nChan]
 % microvolt matrix from readChunkUV.
 plan = obj.streamPlan(Files=opts.Files);
 if isempty(plan)
-    error('EphysDataset:toBin:NoFiles', 'No readable Intan data in %s', obj.Folder);
+    error('EphysDataset:toBin:NoFiles', 'No readable recording data in %s', obj.Folder);
 end
 
 % Ensure output folder exists
@@ -207,11 +220,12 @@ for i = 1:numel(plan)
         if isnan(artWinMsUsed); artWinMsUsed = astats.rmsWindowMs; end
     end
 
-    % Manually defined artifact periods (Visualize tab). Recording-relative,
-    % so map them into this file using the running sample offset (nSamples =
-    % samples written from earlier files).
-    if ~isempty(obj.ManualArtifacts)
-        mmask = obj.manualArtifactMask(size(X, 1), nSamples, Fs);
+    % Listed artifact periods: the ArtifactIntervals option, else the manual
+    % periods (Visualize tab). Recording-relative, so map them into this file
+    % using the running sample offset (nSamples = samples written from
+    % earlier files).
+    if ~isempty(listIv)
+        mmask = obj.manualArtifactMask(size(X, 1), nSamples, Fs, listIv);
         if any(mmask)
             X = obj.blankArtifacts(X, mmask, Fill="zero");
             nManualBlanked = nManualBlanked + nnz(mmask);
@@ -247,7 +261,7 @@ info.scale     = scale;
 info.offset    = opts.Offset;
 info.byteOrder = 'little-endian';
 info.nClipped  = nClipped;
-info.nManualArtifacts = size(obj.ManualArtifacts, 1);
+info.nManualArtifacts = size(listIv, 1);
 info.nManualBlanked   = nManualBlanked;
 info.nAutoBlanked     = nAutoBlanked;
 if isempty(autoChanCounts); autoChanCounts = zeros(1, nChanOut); end
@@ -273,7 +287,7 @@ if doBlank
 end
 
 if nManualBlanked > 0
-    fprintf('Blanked %d manual artifact period(s): %d samples (%.3f s) zeroed.\n', ...
+    fprintf('Blanked %d listed artifact period(s): %d samples (%.3f s) zeroed.\n', ...
         info.nManualArtifacts, nManualBlanked, nManualBlanked / max(Fs, 1));
 end
 
@@ -290,7 +304,7 @@ if opts.WriteMeta
         'n_samples', nSamples, 'byte_order', 'little-endian', 'scale', scale, ...
         'offset', opts.Offset, 'bin_file', char(binFile), ...
         'source_folder', char(obj.Folder), ...
-        'manual_artifacts', obj.ManualArtifacts, ...
+        'manual_artifacts', listIv, ...
         'n_manual_blanked', nManualBlanked, ...
         'auto_artifacts', info.autoArtifact, ...
         'created', char(datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss')));

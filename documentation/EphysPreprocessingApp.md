@@ -7,9 +7,10 @@ for the preprocessing pipeline. It edits **one pipeline config**
 [`EphysPipeline`](EphysPipeline.md#ephyspipeline) over an
 [`EphysProject`](EphysProject.md). It is used to:
 
-- pull a subject's sessions from the source (Intan recording + ePsych file,
-  paired by name) into local session folders, verified;
-- scan a folder tree for recordings (Intan, or the universal binary format);
+- pull a subject's sessions from the source (Intan or Open Ephys recording +
+  ePsych file, paired by name) into local session folders, verified;
+- scan a folder tree for recordings (Intan, Open Ephys GUI sessions, or the
+  universal binary format);
 - assign probe maps and channel exclusions;
 - mark manual artifact periods and configure automatic detection;
 - run SpikeInterface + Kilosort4 (optional) and associate sorted output;
@@ -18,6 +19,8 @@ for the preprocessing pipeline. It edits **one pipeline config**
 - export Chronux- and FieldTrip-shaped files;
 - associate Epsych2 behavior sessions;
 - review sorted units and open them in phy;
+- free local disk space once datasets are preprocessed (raw recordings with a
+  verified copy on the source, sorter copies of the recording);
 - save the config, and generate scripts that reproduce the run.
 
 Reading, filtering, sorting, conversion and export all happen in
@@ -47,7 +50,8 @@ background monitor and saves preferences.
   - **File**: New config, Open config..., Open recent, Save config (Ctrl+S),
     Save config as..., Export copy of config..., Generate script (Compact |
     Standalone), Create synthetic test project... (see
-    [Synthetic test project](#synthetic-test-project)), Close.
+    [Synthetic test project](#synthetic-test-project)), Open analysis app...
+    ([EphysAnalysisApp](EphysAnalysisApp.md) on this project), Close.
   - **Dataset**: one checkable item per scanned dataset; the checked one is
     the [active dataset](#which-dataset-does-an-action-act-on).
   - **Run**: Validate config, Plan, Run pipeline (Ctrl+R), Dry run, Cancel.
@@ -56,10 +60,14 @@ background monitor and saves preferences.
     Documentation home, Quick start, App overview, Output files,
     Troubleshooting and FAQ, Scripting guide, Pipeline configs, Developer
     reference. If no browser opens, an alert shows the address.
+    Its last two items file against the
+    [repository](https://github.com/dstolz/ephys_analysis/issues) instead:
+    **Report an issue on GitHub...** and **Request a feature on GitHub...**
+    (see [Reporting an issue](#reporting-an-issue)).
 - **Title**: the config name and file; `*` in front while the config has
   unsaved changes.
 - **Tabs**, in workflow order: **Copy, Project, Trials, Probe, Artifacts, Sorting,
-  Signals, Spikes, Export, Diagram, Run, Visualize, Review**. The app opens on
+  Signals, Spikes, Export, Diagram, Run, Visualize, Review, Clean up**. The app opens on
   Project. Each tab button is
   coloured by its status, and its tooltip says why: grey = step disabled,
   green = ready, amber = needs attention (config warnings, selected datasets
@@ -122,7 +130,9 @@ dataset stays on screen, but the status line names the dataset it shows and
    sessions for the day, check the pairing, **Preview (dry run)**, then
    **Copy selected**. The copy runs in the background, so the rest of the app
    stays usable; the copied sessions open as the project when it finishes. If
-   it is cancelled or interrupted, **Copy selected** again completes it.
+   it is cancelled or interrupted, **Copy selected** again completes it. A
+   [Scheduled copy](#scheduled-copy) does the copying by itself, at an
+   interval, without MATLAB open.
 1. **File → New** (or open a saved config). Name it on the Project tab.
 2. **Project**: set the project root, press **Scan**; set an output root.
 3. **Probe**: pick a probe map, **Assign to all datasets** or set it as the
@@ -152,10 +162,16 @@ different PCs and clocks):
 | Artifact | Source path |
 | --- | --- |
 | ePsych behavior file | `<ePsych root>/<SUBJ>/<SUBJ>_<yyMMdd>T<HHmmss>.mat` |
-| Intan RHX recording folder | `<Intan root>/<SUBJ>/<SUBJ>_<yyMMdd>_<HHmmss>/` |
+| Intan RHX recording folder | `<recording root>/<SUBJ>/<SUBJ>_<yyMMdd>_<HHmmss>/` |
+| Open Ephys GUI session folder | `<recording root>/<SUBJ>/<SUBJ>_<yyyy-MM-dd>_<HH-mm-ss>[<appended text>]/` (holding `Record Node <id>`) |
 
-A session is copied to `<Destination>/<SUBJ>/<Intan folder name>/`: the Intan
-folder's contents, the ePsych file under its original name,
+A recording folder is recognised by its name (the name patterns
+`{SubjectID}_{Date:yyMMdd}_{Time:HHmmss}` and
+`{SubjectID}_{Date:yyyy-MM-dd}_{Time:HH-mm-ss}*`, with the subject ID matched
+exactly), and read by whichever reader claims it. A session is copied to
+`<Destination>/<SUBJ>/<recording folder name>/`: the recording folder's
+whole contents (for Open Ephys, the Record Nodes and everything under them),
+the ePsych file under its original name,
 `session_manifest.json` and `session_copy_robocopy.log`. Scanning the
 destination as a project associates that ePsych file with the recording
 (`associateFolderBehavior`), so the **Behavior** column is filled without
@@ -180,18 +196,18 @@ end
 | Control | Meaning |
 | --- | --- |
 | Subject ID, From, To | the subject (matched exactly: `SUBJ-ID-125` never matches `SUBJ-ID-1255_...`) and an inclusive range of days (To blank = one day) |
-| ePsych root, Intan root, Destination | defaults `S:/RIG3_Backup_2025/epsych_files/Data`, `S:/RIG3_Backup_2025/intan_files/Data`, `D:/EPHYS` |
-| Max lead (min), Max lag (min) | an ePsych file is a candidate for an Intan folder when it starts no more than *lead* before it (default 10) and no more than *lag* after it (default 2, for clock skew) |
+| ePsych root, Recording roots, Destination | defaults `S:/RIG3_Backup_2025/epsych_files/Data`, `S:/RIG3_Backup_2025/intan_files/Data`, `D:/EPHYS`. **Recording roots** is a list separated by `;` (e.g. an Intan share and an Open Ephys share); its **Browse...** adds a folder to the list |
+| Max lead (min), Max lag (min) | an ePsych file is a candidate for a recording when it starts no more than *lead* before it (default 10) and no more than *lag* after it (default 2, for clock skew) |
 | Ambiguity margin (s) | default 30; see below |
-| Min duration (min) | default 2. An Intan recording shorter than this is never paired; see below. 0 pairs every recording |
-| Find sessions | pair by name, using the **Duration** of each Intan recording (from its `.rhd` headers and `.dat` sizes) for the minimum; then read the **Trials** (elements of the ePsych file's `Data`) of the listed sessions. A header that cannot be read is logged and leaves the cell blank |
+| Min duration (min) | default 2. A recording shorter than this is never paired; see below. 0 pairs every recording |
+| Find sessions | pair by name, using the **Duration** of each recording (from its headers: Intan `.rhd` headers and `.dat` sizes, the Open Ephys sample counts of every recording in the session) for the minimum; then read the **Trials** (elements of the ePsych file's `Data`) of the listed sessions. A header that cannot be read is logged and leaves the cell blank. **Format** says which reader reads the folder (Intan, Open Ephys, Binary; blank when none does) |
 | Verify | checked once a session has been copied. `size`: every copy has its source's size; `hash`: also a SHA-256 checksum of the source and the copy (reads every file twice more, in the engine) |
 | If it exists | a destination folder that exists, is not empty and does not match the source: `resume` (default) completes it, copying only the files that are missing or differ; `skip` leaves it alone; `error` reports it as `failed`. One that already matches is reported `already_present`. A file that is not in the source is never touched |
-| Stitch selected rows | merges the selected rows (click, then Ctrl- or Shift-click) into one `stitched` session: they must hold exactly one Intan folder and at least two ePsych files. See [Stitching](#stitching-epsych-files) |
+| Stitch selected rows | merges the selected rows (click, then Ctrl- or Shift-click) into one `stitched` session: they must hold exactly one recording folder and at least two ePsych files. See [Stitching](#stitching-epsych-files) |
 | Unstitch | puts the selected stitched rows back as Find sessions paired them |
 | Preview (dry run) | reports what a copy would do, including a free-space check and how much of a partial copy is already there; writes nothing |
 | Copy selected | copies the ticked rows **in the background**: the app stays usable, a progress panel opens above the table and the table's **Result** column tracks each row (see [Watching a copy](#watching-a-copy)). The button becomes **Cancel copy**, which stops after the file being copied (what has been copied is kept, and `resume` completes it later) |
-| After copying, open the copied sessions as the project | sets the Project root to the folder holding the copied sessions, scans it and makes the first copied session the active dataset |
+| After copying, open the copied sessions as the project | sets the Project root to the folder holding the copied sessions, scans it and makes the first copied session the active dataset (for an Open Ephys session split into one dataset per recording, its first part folder) |
 
 ### Watching a copy
 
@@ -214,23 +230,24 @@ SHA-256 has read. Closing the app stops the watching, not the copy
 (see [`copySessions`](../pipeline/copySessions.m)).
 
 **Pairing.** Names are parsed with strict, fully anchored patterns; any other
-name in the two subject folders is skipped and listed in the log. Candidate
+name in the subject folders is skipped and listed in the log. Candidate
 pairs are resolved one-to-one across all of them at once, nearest |Δt| first,
 so a file never goes to whichever session happened to be listed first. If a
 file has a second candidate whose |Δt| is within the ambiguity margin of the
 best one, every file linked to it by a candidate pair is marked **ambiguous**
 and none of them is paired. Rows spanning midnight appear under either day.
-An Intan recording shorter than **Min duration** takes no part in the
+A recording shorter than **Min duration** takes no part in the
 pairing, so an aborted recording can neither claim the ePsych file nor make
-the real recording ambiguous. It is listed as `intan_only` with the reason in
+the real recording ambiguous. It is listed as `recording_only` with the reason in
 **Note**. A recording whose headers cannot be read has no known duration and
-is paired as usual.
+is paired as usual. An Open Ephys session is one row whatever its number of
+recordings: it is copied whole, and its duration is that of all of them.
 
 | Status | Row colour | Ticked after Find | Copied |
 | --- | --- | --- | --- |
 | `paired` | white | yes | yes |
 | `stitched` | blue | yes, when stitched | yes, with its ePsych files stitched into one |
-| `intan_only`, `epsych_only` | orange | no (tick by hand) | only when ticked |
+| `recording_only`, `epsych_only` | orange | no (tick by hand) | only when ticked |
 | `ambiguous` | red | no; cannot be ticked | never: pair these files by hand, or stitch them |
 
 **Copying.** Nothing in the source tree is modified, renamed, moved or deleted.
@@ -268,8 +285,10 @@ session that fails verification keeps its complete partial copy and is marked
 `failed`. MATLAB checks each destination file's size itself; with `hash` the
 engine is then run a second time to take the SHA-256 of every source and
 destination file. Each session is handled separately, so one failure does not
-stop the others. `session_manifest.json` records the source and destination
-paths, both times and Δt, the pairing status, every file's size (and hashes),
+stop the others. `session_manifest.json`
+([schema](file-formats.md#copy-manifest-session_manifestjson)) records the
+source and destination paths, the reader of the recording, both times and Δt,
+the pairing status, every file's size (and hashes),
 how many files were already present, `ifExists`, for a stitched session the
 stitched file and each source ePsych file with its trial count
 (`epsych.stitch`), the copy start and finish times, the host, the user, and the
@@ -277,16 +296,16 @@ function version and git commit.
 
 ### Stitching ePsych files
 
-When ePsych was stopped and started again during one Intan recording, the
+When ePsych was stopped and started again during one recording, the
 recording has several ePsych files, and pairing gives it at most one of them.
 Select the recording's row and the rows holding its other ePsych files, and
 press **Stitch selected rows**
 ([`stitchCopySessions`](../pipeline/stitchCopySessions.m)).
 Rows of any status can be merged, including ambiguous rows and a row stitched
 earlier. The files are always stitched in chronological order, whatever order
-the rows are selected in. The stitched row keeps the Intan folder and its
+the rows are selected in. The stitched row keeps the recording folder and its
 destination. **ePsych file** lists every file joined by `+`, **ePsych time**
-and **ePsych - Intan** belong to the earliest file, **Trials** is the total, and
+and **ePsych - recording** belong to the earliest file, **Trials** is the total, and
 **Note** gives each file's start relative to the recording. Stitching and
 unstitching only change the table. **Preview** stitches the files in memory, so
 files that cannot be stitched (different subjects, a session that starts
@@ -305,15 +324,87 @@ recorded. A destination that already holds a stitched file made from other
 versions of the sources is `skipped` (or `failed`), like any other differing
 copy.
 
+### Scheduled copy
+
+The **Scheduled copy** panel sets up a Windows Task Scheduler task that copies
+new sessions at an interval ([`CopySchedule`](../pipeline/CopySchedule.m)). The
+task starts MATLAB in the background (`MATLAB.exe -batch`: no desktop, no
+window), which finds and copies the new sessions and exits. Neither the app nor
+MATLAB has to be open, so sessions keep arriving in the destination for as long
+as the computer is on.
+
+A schedule copies with the roots, destination, pairing options, **Verify** and
+**If it exists** above, as they are when it is saved. The panel holds only what
+is its own:
+
+| Control | Meaning |
+| --- | --- |
+| Subjects | subject IDs separated by spaces or commas; each is searched as **Find sessions** searches it. Blank: the Subject ID above |
+| Every (min) | how often Windows starts a run, 5 to 1440 (default 60). Runs are on the clock: every 60 min is on the hour, every 15 min on the quarter hours |
+| Days back | each run searches this many days, ending today (default 3; 1 = today only). A session already copied is recognised by its sizes and left alone, so looking back costs little. It is how a run missed while the computer was off, or the source unreachable, is caught up |
+| Quiet (min) | a session whose source changed within this many minutes is left for a later run (default 15), so a recording that is still being written, or still being synced to the source, is never copied half way. Every file and folder of the session counts |
+| Run | **while I am signed in** (default): whenever you are signed in to Windows, with the screen locked too; no password. **even when I am signed out**: also after a restart or a sign-out. Windows asks for your password once, in a console window of its own, and keeps it with the task; the app never sees it. Save again after a password change. Some accounts are not allowed to run tasks while signed out: Windows then refuses, and the status line says so. Mapped drive letters do not exist outside a sign-in, so in this mode their paths are saved as UNC paths (`S:/...` becomes `\\server\share\...`) |
+| Save schedule | saves the settings and creates (or replaces) the task |
+| Remove | deletes the task. Copies already made, the log and the last run's summary are kept |
+| Run now | has Windows start a run at once, in the background |
+| Open log | the schedule's log: every run, every session |
+
+The line under the controls says when the next run is and how the last one
+went, e.g. `Every 60 min, while you are signed in: SUBJ-ID-1255 to D:/EPHYS.
+Next run 15:00. Last run 14:00: 1 copied, 3 already present.` Its tooltip lists
+the settings and what the last run did with each session it did not find
+already copied. It is refreshed when the Copy tab is shown and, while a run is
+under way, every few seconds. Problems are shown in red: a failed run, a
+password Windows no longer accepts, a task disabled in Task Scheduler, or code
+or a MATLAB that has moved.
+
+**What a run copies**: the paired sessions of the days searched, with the same
+checks as **Copy selected**. A run leaves these alone, and reports them in the
+log and on the status line:
+
+| Status | Session |
+| --- | --- |
+| `ambiguous` | an ambiguous pairing, never copied automatically (as on the Copy tab) |
+| `unpaired` | recording only or ePsych only |
+| `needs_stitching` | a paired recording with another ePsych file that starts during it: ePsych was restarted. Stitch the files on the Copy tab and copy it from there |
+| `stitched_by_hand` | a session copied by hand with stitched ePsych files (its `session_manifest.json` says so): copying its paired row would add a second behavior file to the folder |
+| `skipped` | its source changed within the quiet time, or another copy is writing it at that moment. A later run takes it |
+
+**Two copies never write one session.** Every copy batch in flight (from the
+app, a script or a scheduled run) keeps a job folder under
+`%LOCALAPPDATA%\ephys_analysis\copy_jobs`, and a batch skips a session that
+another batch is writing at that moment, saying so in its **Message**. This
+matters when **Copy selected** runs while a scheduled run copies the same
+session: copy it again once the other batch has finished.
+
+**The task** is `\ephys_analysis\Copy sessions (<user>)` in Task Scheduler. It
+never runs twice at once, runs on battery, starts a run missed while the
+computer was off or asleep as soon as it is back, and stops a run after 12 h. It
+runs the code and the MATLAB it was saved from, so save the schedule again after
+moving either. MATLAB starts in the schedule's folder and runs the empty
+`startup.m` kept there instead of yours. The same from a script:
+
+```matlab
+sch = CopySchedule;                        % this Windows user's schedule
+s = CopySchedule.defaults();               % roots, pairing, EveryMin=60, LookBackDays=3, QuietMin=15, ...
+s.Subjects = ["SUBJ-ID-1255" "SUBJ-ID-1256"];
+sch.save(s);                               % write the settings, create the task
+st = sch.status();                         % next run, last run, problems
+sch.startNow();                            % a run now, in the background
+out = CopySchedule.copyNew(s);             % one run's work, in this MATLAB
+sch.remove();
+```
+
 ## Project
 
 | Control | Meaning |
 | --- | --- |
 | Config name, Description | `cfg.Name`, `cfg.Description` |
-| Project root + Browse... + **Scan** | `Project.Root`. Scan builds `EphysProject(root)` (every folder that a registered reader claims: Intan `*.rhd` / `info.rhd`, or `recording.json`), then `P.refresh()`: header metadata, `applyManifest` (probe, exclusions, manual periods, sorting and behavior associations), `associateFolderBehavior` (a dataset with no behavior file takes the one Epsych2 file in its own folder), `writeManifest`. A progress dialog with Cancel; datasets whose headers fail keep `NaN` metadata and a warning is printed |
+| Project root + Browse... + Recursive + **Scan** | `Project.Root`, `Project.Recursive`. Scan builds `EphysProject(root, Recursive=, ReaderOptions=)` (every folder that a registered reader claims: Intan `*.rhd` / `info.rhd`, an Open Ephys GUI session folder (the folder holding `Record Node <id>`), or `recording.json`; with Recursive unticked only the root and the folders directly in it are searched), then `P.refresh()`: header metadata, `applyManifest` (probe, exclusions, manual periods, sorting and behavior associations), `associateFolderBehavior` (a dataset with no behavior file takes the one Epsych2 file in its own folder), `writeManifest`. A progress dialog with Cancel; datasets whose headers fail keep `NaN` metadata and a warning is printed |
 | Refresh metadata | re-parse all headers |
 | Output root + Browse... | `Project.OutputRoot`: each dataset writes to `<root>/<Name>`; blank = next to the recording |
-| Name pattern + Columns | `Project.NamePattern`: tokens parsed from each dataset name (see [`parseNameTokens`](EphysPipeline.md#dataset-name-tokens)); one checkbox per token, ticked tokens (`Project.TokenColumns`, default `SubjectID`) become table columns after Name. The label shows how many names match, or the pattern error |
+| Name pattern + Columns | `Project.NamePattern`: tokens parsed from each dataset name (see [`parseNameTokens`](EphysPipeline.md#dataset-name-tokens)); one checkbox per token, ticked tokens (`Project.TokenColumns`, default `SubjectID`) become table columns after Name. The label shows how many names match, or the pattern error. After a scan that found Open Ephys sessions whose names do not match, the status bar suggests `{SubjectID}_{Date:yyyy-MM-dd}_{Time:HH-mm-ss}*` |
+| Open Ephys: recordings, Record node, Stream | the [`Acquisition` section](EphysPipeline.md#acquisition): what a session with several recordings is (**join recordings** = one dataset, **one dataset per recording** = part folders created in the session folder, **single recording only** = refused), which Record Node and which continuous stream to read (blank = automatic). A change rescans the project, since it changes which folders are datasets |
 | Filter | one editable dropdown per name-pattern token, listing the values found (`-` = the name does not match). Rows whose token does not match are hidden; type `*` / `?` wildcards or comma-separated alternatives (case-insensitive). Filters are a view only: they are not saved, and ticks on hidden rows stay in the selection (the label shows `showing k of n (m ticked hidden)`) |
 | All / None | **All** ticks every shown row; **None** unticks every row, shown or hidden |
 | Open in phy | the active dataset's associated sorted output (enabled only when it has `params.py`) |
@@ -356,7 +447,7 @@ Review how each Epsych2 trial is paired with the trial digital line (see
 | **Behavior to workspace** | loads the `behavior` struct of `<Name>_behavior.mat` (trials with the pairing columns, `info`, `meta`, `pairing`, ...) into the base workspace as `behavior_<Name>`, the same way. The file must exist: run the behavior step or press **Write behavior .mat** first |
 | **Pair trials in the behavior step**, **Trial line** | `Behavior.PairTrials`, `Behavior.TrialLine` |
 | **Auto approve when the counts match** | `Behavior.AutoApprove` (off by default): a pairing is approved as soon as it is paired (Load, a setting change, **Prefetch ticked**, the behavior step) when it cuts nothing and the Epsych2 trials and the trial-line intervals are equal in number (`EphysDataset.autoApproveTrialPairing`). The manifest marks the approval as automatic (`auto_approved`), the summary reads *APPROVED automatically* and the Project table *pairing approved (auto)*. A count mismatch, and a pairing whose cuts resolved one, still need **Approve**. **Reset cuts** and cut edits never approve; approving by hand replaces the automatic mark |
-| Lines table (**Inverted**) | one row per digital line with its interval count; ticked lines are `Signals.InvertedLines`: on while low, so an event's onset is the falling edge and its offset the rising edge (the last low sample). This applies to the pairing and to the events the Signals step writes (and so to the exports) |
+| Lines table (**Native**, **Name**, **Intervals**, **Inverted**) | one row per digital line: its native name (`DIGITAL-IN-04`, Open Ephys `TTL4`), its name, and its interval count. Editing **Name** writes a `Signals.LineNames` entry `native=name` (a name equal to the line's default, or a blank cell, removes it) and re-pairs from the lines already read, without reading the recording again; the trial line and the inverted lines follow the new name. Name the Open Ephys TTL lines here (`TTL4` → `InTrial`). Ticked **Inverted** lines are `Signals.InvertedLines`: on while low, so an event's onset is the falling edge and its offset the rising edge (the last low sample). Names and polarity apply to the pairing and to the events the Signals step writes (and so to the exports) |
 | **Resolve a count mismatch** | four spinners: Epsych2 trials and trial-line intervals to cut from the start and from the end before pairing. They belong to the dataset (its manifest), not to the config; cuts that would drop more than there is are refused |
 | Trials table | trial, `TrialIndex`, interval, onset / offset (s), onset / offset sample, flag (orange = partial: the interval touches the recording start or end; grey = cut; red = unpaired), the other lines overlapping the trial. Click a header to sort, drag it to move the column. Right-click for **Parameter columns** (the session's Epsych2 parameters in alphabetical order; tick one, e.g. `TrialType` or a response code, to show it after Flag), **Remove "*name*"** (on a parameter column) and **Reset column order**. The chosen parameters and the column order are preferences, so they apply to every dataset and the next session; a parameter a session lacks is not shown there (the menu lists it as *not in this session*) and returns to its place for sessions that have it. Values that are not one number, text or date per trial are shown as text. A sort is not kept when the table refreshes (Load, a cut, a setting or a column change) |
 | Plot | the digital lines over the recording: one bar per event, from its onset to its offset. A normal line's bars run from each rising edge to the next falling edge; an inverted line's (row label `(inverted)`) from each falling edge to the next rising edge. The trial line's bars are coloured by pairing state (paired, partial, cut, unpaired), and dotted lines across every row mark its onsets and offsets. Right-click the plot to show or hide those lines (shown by default) and the grid lines (hidden by default), and for **Trial labels**: the loaded session's Epsych2 parameters in alphabetical order (`TrialIndex` included). A ticked parameter writes each paired trial's value above the trial line, starting at the trial's onset; with several ticked, each label reads `name=value, name=value` in the order ticked, and the plot title names them. **No labels** clears them. Like the table's parameter columns, the choice is a preference: it applies to every dataset and the next session, and a parameter a session lacks is listed as *not in this session* and not written. Zoom and pan are horizontal only: the mouse wheel zooms time in and out about the cursor, dragging pans time |
@@ -428,15 +519,17 @@ The Threshold field is sent as-is for every method: with *Absolute microvolts*
 
 ## Sorting
 
-SpikeInterface + Kilosort4, optional (`Sorting.Enabled`).
+Kilosort4, optional (`Sorting.Enabled`), either through SpikeInterface or
+natively.
 
 | Control | Maps to |
 | --- | --- |
 | Enable the Sorting step, Skip datasets already sorted | `Sorting.Enabled`, `SkipExisting` |
+| Engine: *SpikeInterface + Kilosort4* / *Kilosort4 only (native, via a .bin)* | `Sorting.Engine` (`"spikeinterface"` / `"kilosort"`). The native engine writes `<Name>.bin` with the artifact periods zeroed, runs `run_ks4.py` on it, and greys out the SpikeInterface preprocessing controls, which it ignores. See [Running Kilosort4](EphysDataset.md#running-kilosort4) |
 | Python exe (+ Browse), Conda env | `Sorting.PythonExe` (seeded from a `kilosort` conda env under `%LOCALAPPDATA%` / `%USERPROFILE%` when a new config is created), `CondaEnv` |
 | Phy command | preference `PhyCmd` (blank = `conda run -n phy phy`) |
 | Execution (background / blocking), Dry run | `Sorting.Execution`, `DryRun` |
-| Bandpass filter, Common reference, Detect bad channels (+ method, action) | `Sorting.SI` ([defaults](EphysDataset.md#default-spikeinterface-configuration)) |
+| Bandpass filter, Common reference, Detect bad channels (+ method, action) | `Sorting.SI` ([defaults](EphysDataset.md#default-spikeinterface-configuration)); SpikeInterface engine only |
 | Kilosort4 parameters (five groups, from `EphysPipelineConfig.kilosortParamSpec`), Extra settings (JSON) | `Sorting.KS4`, `KS4ExtraJSON`. Control kinds: int / float / bool as typed; `nullable` blank = omitted; `floatinf` blank / `inf` = omitted; `vector` = comma- or space-separated |
 | **Optimize for probe** | loads the Kilosort4 parameters saved for the active dataset's probe (else the default probe) from `<probe>.ks4.json` next to the probe map; without that file, offers to generate it from the current parameters or from the probe layout ([details](#optimize-for-probe)) |
 | **Reset to defaults** | every `Sorting.KS4` parameter back to its `kilosortParamSpec` default and `KS4ExtraJSON` cleared; the Python, execution and SpikeInterface settings stay |
@@ -521,7 +614,9 @@ Derived LFP / MUA / SPIKE `.mat` files with `EphysDataset.toMat`
   `_SPIKE.mat`; one plan / result row per file).
 - **Signals**: LFP (`LFP_Fs`, high-pass, low-pass, notch + width), MUA
   (`MUA_Fs`, integration, band), SPIKE (keep original rate / `SPIKE_Fs`, band).
-- **Channels**: label field, keep channels, bad channels (none / manual list /
+- **Channels**: label field (`custom` / `native` names for channels, aux
+  inputs and digital lines; lines renamed on the Trials tab keep their
+  names), keep channels, bad channels (none / manual list /
   auto + threshold), channel remap, **Manifest exclusions** (`none` / `drop` /
   `interpolate`). Lists keep order and repeats; anything unparseable is an
   error. **Reset to defaults**.
@@ -650,6 +745,22 @@ default web browser, same as **Save as HTML...** but without the save dialog.
   ended. Before the first run the diagram previews the ticked steps and
   follows the checklist; afterwards it keeps the last run until the next one
   starts. The switch is remembered between sessions.
+- **Monitor CPU, memory, disk and GPU** (under the run diagram switch) opens a
+  **Resource use** panel under the Steps panel with a bar and figures for each:
+  CPU (all cores, as Task Manager counts them), memory in use of the total,
+  the busiest physical disk's active time with the read + write rate over all
+  disks, and the busiest GPU's use and memory (tooltips give the detail, e.g.
+  every GPU). A bar turns orange at 90 %. The sampling is done outside MATLAB
+  by [`resource_monitor.ps1`](../pipeline/resource_monitor.ps1), a Windows
+  PowerShell script launched at idle priority that opens the performance
+  counters once, keeps one `nvidia-smi` running in loop mode for the GPU (no
+  NVIDIA driver: the GPU row says `n/a`), and every 2 s overwrites one small
+  JSON file in its own temporary folder; together they use well under 1 % of
+  one core. The app only reads that file on a 2 s timer, and not at all while
+  another tab is showing, so a busy MATLAB never stops the sampling itself.
+  Unticking, or closing the app, stops the sampler (it also stops by itself
+  when MATLAB exits) and it deletes its folder; if no sample comes for 15 s,
+  the app starts a new one. The switch is remembered between sessions.
 - Background Kilosort4 runs launched by a run are handed to the same monitor
   as the Sorting tab.
 
@@ -729,15 +840,71 @@ the peak site (`peakX`, `peakY`) and the class and identity fields.
 
 ---
 
+## Clean up
+
+Frees local disk space once datasets are preprocessed. It is not a pipeline
+step and nothing in the config drives it; it acts on the datasets selected on
+the Project tab (the ticked rows, else all), which the top of the tab names.
+The rules live in [`planLocalCleanup`](../pipeline/planLocalCleanup.m) and
+[`runLocalCleanup`](../pipeline/runLocalCleanup.m), which can be called
+without the app.
+
+**What can be removed**, each with its own tick box:
+
+| Kind | Files | Condition |
+| --- | --- | --- |
+| Raw recording files | the recording files the Copy tab copied into the session folder (for Open Ephys, everything under its Record Nodes), as listed in its `session_manifest.json` | each file's source, as recorded there, still exists **with the same size**. A recording not copied by the Copy tab has no known source and is always kept, as are the session files of an Open Ephys dataset that is one part folder of several |
+| Kilosort4's filtered copy of the recording | `recording.dat`, `temp_wh.dat` under the dataset's `kilosort4` folder or its sorted-output folder | none; the sorted units do not need it, phy's trace view does |
+| Sorting input .bin | `<Name>.bin` + `<Name>.json` in the output folder, written by `toBin` for the native Kilosort engine | never the data file of a binary-format recording |
+
+**Always kept**: every pipeline output (extract, spikes, behavior, events,
+artifacts, Chronux, FieldTrip), the sorted output (the phy files), the dataset
+manifest, the copy record (`session_manifest.json`, the robocopy log), the
+Epsych2 session file and any other file. Nothing on the source is touched.
+
+- **Preview** lists every file in the datasets' recording, output and sorting
+  folders, one row each: **Action** (Remove / Keep), Dataset, What, Size,
+  File and **Why** (for a raw file, where its source copy is, or why it is
+  kept: not found at the source, a different size, no copy record). Remove
+  rows come first, largest first, tinted red; raw files that are kept are
+  tinted amber. The line above the table totals both sides: *Would remove
+  N file(s), X GB, from K of M dataset(s). N file(s), Y GB, remain.* **Show
+  the files that remain** hides or shows the Keep rows. Previewing reads file
+  listings and the sources' sizes only.
+- **Remove files...** acts on the preview as shown, after a confirmation that
+  lists what goes by kind with its size, what remains, and, when raw files
+  are among them, that those datasets cannot be run, viewed or scanned until
+  they are copied back. Changing a tick box or the dataset selection discards
+  the preview, so the button waits for a new Preview. It refuses while the
+  pipeline, a copy or a Kilosort4 run is under way.
+- Each file is checked again just before it is deleted: it must still have
+  the size the preview saw, and a raw file's source must still have it too; a
+  file that fails is **skipped** and left in place. Files are deleted outright,
+  not moved to the Recycle Bin (which would free no space).
+- Each dataset that had files removed gets `<Folder>/<Name>_cleanup.json`
+  (see [Files on disk](file-formats.md#clean-up-record)): what was removed and,
+  for raw files, where to copy them back from. The log under the table lists
+  each file handled, and the preview is made again afterwards.
+- After raw files are removed, **Scan** the project again: those datasets are
+  no longer recordings and drop out of it. Their outputs are unaffected.
+
+The tick boxes and Show the files that remain are preferences.
+
+---
+
 ## Synthetic test project
 
 **File → Create synthetic test project...** writes a project that exercises
 every step without real data or Python, then opens its config and scans it.
 It asks for a parent folder (the project goes into a `synthetic_ephys`
 subfolder there; an existing one is replaced only after confirmation, and
-only when this tool wrote it) and a size: **Standard** (30 kHz, 16 channels,
+only when this tool wrote it), a size: **Standard** (30 kHz, 16 channels,
 12 trials per session, about 250 MB) or **Small** (20 kHz, 8 channels, 6
-trials, about 40 MB). The same thing from the command line:
+trials, about 40 MB), and a recording format: **Intan RHX**, or an Open Ephys
+GUI session in the **Binary**, **Open Ephys** or **NWB** format (session
+folders `SYNTH-01_<yyyy-MM-dd>_<HH-mm-ss>` holding `Record Node 101`, channels
+`CH1..`, TTL lines named by the config's `Signals.LineNames`). The same thing
+from the command line:
 
 ```matlab
 S = makeSyntheticProject("D:\scratch\synthetic_ephys");          % Preset="small" for the small one
@@ -767,10 +934,43 @@ The four recordings differ in how they cover their session, so the
 | 4 | `spurious` | a 40 ms `InTrial` pulse before the first trial | cut 1 interval from the start |
 
 `makeSyntheticProject` also takes `Scenarios`, `Format`
-(`"one-file-per-signal"`, `"binary"`), `Fs`, `NumChannels`, `NumTrials`,
+(`"one-file-per-signal"`, `"binary"`, `"openephys-binary"`,
+`"openephys-legacy"`, `"openephys-nwb"`), `Parts` (Open Ephys: recordings per
+session, each boundary in an inter-trial interval), `Fs`, `NumChannels`, `NumTrials`,
 `FileSeconds`, `Seed`, `InvertedLines` (lines written active-low), `SortedOutput`,
 `Artifacts` and `Overwrite`; its result holds the truth of every dataset
 (events, trials, units, artifacts, the expected cuts).
+
+## Reporting an issue
+
+**Help → Report an issue on GitHub...** and **Help → Request a feature on
+GitHub...** compose a GitHub issue from the session you are in. Both open the
+same dialog: a title, a box for what happened (or what you would like the app
+to do), tick boxes for what to send with it, and a preview of the whole report
+exactly as it will be sent.
+
+| Ticked | What it sends |
+| --- | --- |
+| System info | MATLAB release and platform, OS, compute threads, memory, GPUs, the Python interpreter (`pyenv` and the Sorting tab's), the installed toolboxes, and the repository folder with its git commit, branch and whether it has uncommitted changes |
+| Pipeline options | the working config as the controls hold it now (name, file, unsaved edits, enabled steps, roots, dataset counts, active dataset, selected tab, whether a run is going) and the whole config as JSON, written the way **Save config** writes it — **this carries your file paths** |
+| Logs and last error | the last 60 lines of the Run, Kilosort and Copy logs, each saying how many lines it had, and the error the last run stopped on with its stack |
+
+A bug report starts with all three ticked and a feature request with only the
+system info; untick anything you would rather not send. Nothing leaves the app
+until you press a button:
+
+- **Open on GitHub** puts the whole report on the clipboard and opens the
+  repository's new-issue form with the title, the report and the label (`bug`
+  or `enhancement`) filled in. Nothing is filed until you submit it there, and
+  you can edit it further on the page. A report longer than the address bar
+  holds is cut at a line boundary and says so in the body: paste the whole of
+  it from the clipboard. If no browser opens, an alert shows the address.
+- **Copy report** puts the report on the clipboard and leaves the dialog open,
+  for filing it somewhere else (email, an existing issue).
+
+Scripted, `app.issueReport("bug")` returns the same report (name-value
+`Description`, `System`, `Config`, `Logs`, `MaxLogLines`) and
+`app.issueURL("bug", title, body)` the prefilled address.
 
 ## Preferences
 
@@ -788,9 +988,12 @@ Only what is **not** part of a config lives here:
 | `VizOptions` | the Visualize tab's display settings |
 | `CopyOptions` | the Copy tab's subject, roots, pairing and copy options (not the dates) |
 | `ShowRunDiagram` | the Run tab's **Show the run diagram** switch |
+| `MonitorResources` | the Run tab's **Monitor CPU, memory, disk and GPU** switch |
+| `CleanupOptions` | the Clean up tab's kinds of file to remove and **Show the files that remain** |
 
 To reset: `rmpref('EphysPreprocessingApp')` with the app closed. Older
-preference groups are not read.
+preference groups are not read. The [scheduled copy](#scheduled-copy) is not a
+preference: its settings live in its own file, which its Windows task reads.
 
 ## What the app writes to disk
 
@@ -799,14 +1002,20 @@ preference groups are not read.
 | pipeline config `.json` | File → Save / Save as / Export copy (default folder `pipeline/pipeline_configs`) |
 | generated `.m` script | File → Generate script |
 | `<Folder>/<Name>_manifest.json` | scan, probe assignment, exclusion change, manual artifact edit, sorting / behavior association, each sorting launch and completion |
-| `<outputFolder>/kilosort4/{si_config.json, run_si_ks4.py, ks4_run.log, ks4_status.json}` and `kilosort4/si/...` | Sorting (dry run writes only the first two) |
+| `<outputFolder>/kilosort4/{si_config.json, run_si_ks4.py, ks4_run.log, ks4_status.json}` and `kilosort4/si/...` | Sorting, SpikeInterface engine (dry run writes only the first two) |
+| `<outputFolder>/<Name>.bin` + `.json`, `<outputFolder>/kilosort4/{settings.json, run_ks4.py, ks4_run.log, ks4_status.json}` and the phy files | Sorting, native engine (dry run writes only `settings.json` and `run_ks4.py`) |
 | `<outputFolder>/<Name>_artifacts.json` | Artifacts (cache) |
 | `<Name>_extract_<TYPE>.mat` (or `<Name>_extract.mat`), `<Name>_spikes.mat`, `<Name>_chronux.mat`, `<Name>_fieldtrip.mat`, `<Name>_epochs.mat` | Signals, Spikes, Export |
 | probe `.json` in the probe folder | Import, Designer save, Notes edit |
 | `<parent>/synthetic_ephys/...` | File → Create synthetic test project (recordings, sessions, sorted output, probe, config, README) |
-| `<Destination>/<SUBJ>/<Intan folder>/`: the copied files (for a stitched session, `<earliest ePsych file>_stitched.mat` instead of the ePsych files), `session_manifest.json`, `session_copy_robocopy.log` | Copy → Copy selected, in the background (Preview writes nothing) |
+| `<Destination>/<SUBJ>/<recording folder>/`: the copied files (for a stitched session, `<earliest ePsych file>_stitched.mat` instead of the ePsych files), `session_manifest.json`, `session_copy_robocopy.log` | Copy → Copy selected, in the background (Preview writes nothing); each scheduled run |
+| `%LOCALAPPDATA%\ephys_analysis\copy_jobs\<batch>\`: the copy engine's job, progress and heartbeat files | while a copy batch is in flight; removed when it ends |
+| `%LOCALAPPDATA%\ephys_analysis\copy_schedule\`: `schedule.json`, `task.xml`, `startup.m`; the Windows task `\ephys_analysis\Copy sessions (<user>)` | Copy → Save schedule (Remove deletes the task and the first two) |
+| the same folder: `copy_schedule.log` (appended; the previous 5 MB in `copy_schedule.1.log`), `last_run.json`, `matlab.log` | each scheduled run |
+| `<Folder>/<Name>_cleanup.json`; **deletes** the files the Clean up preview marks Remove | Clean up → Remove files..., after its confirmation |
 
-Raw recording files are only read. So is the source tree.
+Raw recording files are only read, except that Clean up deletes local copies
+whose source still holds them. The source tree is only read.
 
 ## Scripting against a running app
 
@@ -828,9 +1037,10 @@ app.KSRuns                        % background runs being monitored
 | `EphysPreprocessingApp.m` | properties, constructor, method declarations |
 | `buildUI.m`, `buildMenus.m`, `build*Tab.m` | UI construction |
 | `gatherConfig.m`, `applyConfig.m`, `gather*/apply*Section.m`, `gather/applyConvertConfig.m`, `gather/applySortingSection.m`, `onConfigChanged.m`, `syncStepEnableStates.m`, `updateTitle.m` | config model |
-| `onNewConfig.m`, `onOpenConfig.m`, `openConfigFile.m`, `onSaveConfig.m`, `onSaveConfigAs.m`, `onExportConfigCopy.m`, `onGenerateScript.m`, `onCreateSyntheticProject.m`, `createSyntheticProject.m`, `confirmDiscard.m`, `addRecentConfig.m`, `refreshRecentMenu.m` | File menu |
+| `onNewConfig.m`, `onOpenConfig.m`, `openConfigFile.m`, `onSaveConfig.m`, `onSaveConfigAs.m`, `onExportConfigCopy.m`, `onGenerateScript.m`, `onCreateSyntheticProject.m`, `createSyntheticProject.m`, `onOpenAnalysisApp.m`, `confirmDiscard.m`, `addRecentConfig.m`, `refreshRecentMenu.m` | File menu |
 | `buildPipeline.m`, `runPipeline.m`, `onRunStep.m`, `onCancelRun.m`, `onValidate.m`, `onPlan.m`, `refreshStepPlan.m`, `onPipelineProgress.m`, `runLog.m`, `setRunBar.m`, `showIssues.m`, `onParallelControlsChanged.m` | running |
 | `onRunDiagramToggled.m`, `resetRunDiagram.m`, `updateRunDiagram.m`, `finishRunDiagram.m`, `refreshRunDiagram.m`, `runDiagramHTML.m` | the Run tab's diagram of the run: show / hide, its model (start, progress events, end), what is sent to the page, the page |
+| `onResourceMonitorToggled.m`, `startResourceMonitor.m`, `stopResourceMonitor.m`, `pollResourceMonitor.m`, `showResourceSample.m`, [`resource_monitor.ps1`](../pipeline/resource_monitor.ps1) | the Run tab's resource monitoring: show / hide, launching and stopping the sampler, the timer reading it, the display |
 | `buildTrialsTab.m`, `onTrialsLoad.m`, `repairTrials.m`, `refreshTrialsView.m`, `refreshTrialsTable.m`, `refreshTrialsPlot.m`, `trialsColumnOrder.m`, `onTrialsTableMenu.m`, `onTrialsPlotMenu.m`, `onTrialsCutsChanged.m`, `syncTrialsCuts.m`, `onTrialsApprove.m`, `onTrialsPrefetch.m`, `onTrialsWriteBehavior.m`, `onTrialsToWorkspace.m`, `onTrialsSettingsChanged.m`, `clearTrialsView.m`, `fillTrialsLines.m`, `setTrialsLineItems.m`, `syncTrialsButtons.m` | Trials tab |
 | `onScan.m`, `refreshDatasetsTable.m`, `onDatasetCellSelection.m`, `onSelectDatasets.m`, `onRefreshMetadata.m`, `onAssociateBehavior.m`, `onClearBehavior.m`, `onBrowseBehaviorDir.m` | Project tab |
 | `selectDataset.m`, `currentDataset.m`, `populateDatasetPickers.m`, `refreshDatasetMenu.m`, `refreshDatasetPickers.m`, `datasetPicker.m`, `highlightDatasetRow.m` | the active dataset: Dataset menu, every tab's Dataset box, the highlighted table row |
@@ -841,10 +1051,12 @@ app.KSRuns                        % background runs being monitored
 | `onBrowseExportOutput.m`, `onExportEpochsToWorkspace.m` | Export tab (output folder, Epochs to workspace) |
 | `onPlotVisualization.m`, `onVizButtonDown/Up.m`, `drawVizArtifacts.m`, `finishVizArtDrag.m`, `applyVizChannelOrder.m`, `applyVizChannelColor.m`, `syncVizDataset.m` | Visualize tab |
 | `buildFlowTab.m`, `refreshFlowChart.m`, `flowChartHTML.m`, `onSaveFlowChart.m`, `onOpenFlowChartInBrowser.m`, `onFlowNavigate.m`, `flowNavControls.m`, `clearFlowHighlight.m` | Diagram tab |
-| `buildCopyTab.m`, `onCopyFind.m`, `onCopyRun.m`, `refreshCopyTable.m`, `onCopyTableEdited.m`, `onCopyStitch.m`, `onCopyUnstitch.m`, `onBrowseCopyFolder.m`, `copyLog.m`, `onCopyCancel.m`, `startCopyMonitor.m`, `stopCopyMonitor.m`, `pollCopyJob.m`, `setCopyRunning.m`, `applyCopyResult.m`, `finishCopyRun.m`, `showCopyProgress.m`, `copySummaryText.m`; `pipeline/findCopySessions.m`, `pipeline/stitchCopySessions.m`, `pipeline/copySessions.m`, `pipeline/copy_engine.ps1`, `pipeline/stitchEpsychSessions.m` | Copy tab, the pairing / stitching / copy functions it calls, and the detached copy engine |
+| `buildCopyTab.m`, `onCopyFind.m`, `onCopyRun.m`, `refreshCopyTable.m`, `onCopyTableEdited.m`, `onCopyStitch.m`, `onCopyUnstitch.m`, `onBrowseCopyFolder.m`, `copyLog.m`, `onCopyCancel.m`, `startCopyMonitor.m`, `stopCopyMonitor.m`, `pollCopyJob.m`, `setCopyRunning.m`, `applyCopyResult.m`, `finishCopyRun.m`, `showCopyProgress.m`, `copySummaryText.m`, `refreshCopySchedule.m`, `onCopyScheduleSave.m`, `onCopyScheduleRemove.m`, `onCopyScheduleRunNow.m`, `onCopyScheduleLog.m`; `pipeline/findCopySessions.m`, `pipeline/stitchCopySessions.m`, `pipeline/copySessions.m`, `pipeline/copy_engine.ps1`, `pipeline/stitchEpsychSessions.m`, `pipeline/CopySchedule.m` | Copy tab, the pairing / stitching / copy functions it calls, the detached copy engine, and the scheduled copy (its Windows task and what each run does) |
 | `loadReviewResults.m`, `renderReviewPlots.m`, `syncReviewDataset.m` | Review tab |
+| `buildCleanupTab.m`, `onCleanupPreview.m`, `onCleanupRun.m`, `onCleanupSettingsChanged.m`, `refreshCleanupScope.m`, `refreshCleanupTable.m`; `pipeline/planLocalCleanup.m`, `pipeline/runLocalCleanup.m` | Clean up tab and the functions that decide and delete |
 | `load/savePreferences.m` | preferences |
 | `helpURL.m`, `onHelp.m` | Help menu (wiki pages) |
+| `onReportIssue.m`, `issueReport.m`, `issueURL.m` | Help menu (GitHub issue / feature request) |
 
 ## Tests
 
@@ -859,7 +1071,14 @@ missing parameter file, including a probe map without positions, loading the
 file, the default-probe fallback, the Probe tab's listing and info) and Reset to defaults, one step through the pipeline,
 the run diagram (its half of the right side, the last run followed while hidden, a run's steps and percentages
 event by event, a cancel, the preview that follows the checklist, the preference),
-save / reopen and the recent list. It
+resource monitoring (a sample's figures and colours, n/a readings, live samples from the sampler, the preference, the sampler
+exiting and removing its folder when unticked), the Clean up tab's preview (every file listed, a raw
+recording without a copy record kept, nothing deleted, the Keep rows hidden on request, a changed tick box discarding it),
+save / reopen and the recent list,
+the Help menu's wiki pages and its issue items (what a bug report and a
+feature request carry, that an unticked section is left out, the percent-encoded
+address with its label, and that a report too long for the address is cut and
+says so). It
 restores the user's preferences afterwards.
 [`test_CopySessions.m`](../pipeline/test_CopySessions.m) (a `matlab.unittest`
 class; `run_all_tests` runs it too) builds fake source trees in a temporary
@@ -876,7 +1095,26 @@ the job carries it through to `copied`, options passed with a job are
 refused, and every `ProgressFcn` call carries the fraction, a message and the
 `info` behind it (phase, session, sessions, bytes) with a fraction that never
 steps back. It also drives the Copy tab from Find through a background copy to the
-finished table. Copy tests need Windows (robocopy).
+finished table. It checks that a session whose source changed within the quiet
+time (a file, or a folder a file was taken out of) is left for later, and that
+one another batch is writing is left alone until that batch has gone quiet,
+also while a background batch of its own is in flight. For the scheduled copy
+it checks what a run copies (the paired sessions of the days searched; never
+ambiguous, unpaired, to-be-stitched or hand-stitched ones; nothing until the
+source is quiet), what stops a run (no destination, no source), the log,
+`last_run.json` and exit code of `CopySchedule.runTask`, the settings checks,
+the task definition and UNC paths. It creates a real task, has Windows run it
+(MATLAB, started in the background, copies the session and reports) and
+removes it, and saves and removes a schedule from the Copy tab. Copy tests need
+Windows (robocopy, Task Scheduler).
+[`test_LocalCleanup.m`](../pipeline/test_LocalCleanup.m) (a `matlab.unittest`
+class) copies a synthetic recording into a session folder as the Copy tab
+would and checks what `planLocalCleanup` removes and keeps (a raw file whose
+source is missing or a different size stays, as does a recording without a copy
+record, and the `.bin` of a binary-format recording), that the Remove option
+limits the kinds, and that `runLocalCleanup` deletes only the Remove rows,
+leaves the source alone, skips files that changed since the preview, and writes
+and appends to the clean-up record.
 [`test_SyntheticDataset.m`](../pipeline/test_SyntheticDataset.m) checks the
 synthetic project generators and, headlessly, the File-menu action: the
 project is written, opened and scanned; choosing the active dataset in a

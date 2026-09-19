@@ -1,8 +1,9 @@
 function buildSortingTab(obj)
-%buildSortingTab  Sorting step: SpikeInterface preprocessing + Kilosort4.
+%buildSortingTab  Sorting step: Kilosort4, through SpikeInterface or natively.
 %   Edits the config's Sorting section (gatherSortingSection /
-%   applySortingSection): Python paths, execution mode, SpikeInterface
-%   preprocessing and every Kilosort4 parameter from
+%   applySortingSection): the engine (SpikeInterface + Kilosort4, or
+%   Kilosort4 natively on a .bin), Python paths, execution mode, SpikeInterface
+%   preprocessing (disabled for the native engine) and every Kilosort4 parameter from
 %   EphysPipelineConfig.kilosortParamSpec, with "Optimize for probe"
 %   (onOptimizeKS4ForProbe) and "Reset to defaults" (onResetKS4Params)
 %   above the parameters. The right column shows the
@@ -12,7 +13,7 @@ function buildSortingTab(obj)
 spec = EphysPipelineConfig.kilosortParamSpec();
 groups = unique({spec.group}, 'stable');
 
-nRows = 12;
+nRows = 13;
 for gi = 1:numel(groups)
     np = sum(strcmp({spec.group}, groups{gi}));
     nRows = nRows + 1 + ceil(np / 2);
@@ -33,12 +34,26 @@ cg.RowHeight   = repmat({26}, 1, nRows);
 cg.ColumnWidth = {150, '1x', 150, '1x', 30};
 
 r = 1;
-obj.SortEnableCheckBox = uicheckbox(cg, "Text", "Enable the Sorting step (SpikeInterface + Kilosort4)", ...
+obj.SortEnableCheckBox = uicheckbox(cg, "Text", "Enable the Sorting step (Kilosort4)", ...
     "FontWeight", "bold", "Value", false, "ValueChangedFcn", changed);
 obj.SortEnableCheckBox.Layout.Row = r; obj.SortEnableCheckBox.Layout.Column = [1 3];
 obj.SortSkipExistingCheckBox = uicheckbox(cg, "Text", "Skip datasets already sorted", ...
     "Value", false, "ValueChangedFcn", changed);
 obj.SortSkipExistingCheckBox.Layout.Row = r; obj.SortSkipExistingCheckBox.Layout.Column = [4 5];
+
+r = r + 1;
+l = lab(cg, "Engine:", r);
+l.Tooltip = ["SpikeInterface + Kilosort4: SpikeInterface reads the recording, applies the preprocessing below " ...
+    "and silences artifact periods, then runs Kilosort4. " ...
+    "Kilosort4 only: the recording is written to <Name>.bin (artifact periods zeroed) and Kilosort4 runs " ...
+    "natively on it; the SpikeInterface preprocessing below is skipped."];
+obj.SortEngineDropDown = uidropdown(cg);
+obj.SortEngineDropDown.Items = {'SpikeInterface + Kilosort4', 'Kilosort4 only (native, via a .bin)'};
+obj.SortEngineDropDown.ItemsData = {'spikeinterface', 'kilosort'};
+obj.SortEngineDropDown.Value = 'spikeinterface';
+obj.SortEngineDropDown.Tooltip = l.Tooltip;
+obj.SortEngineDropDown.ValueChangedFcn = @(~,~) obj.onSIControlsChanged();
+obj.SortEngineDropDown.Layout.Row = r; obj.SortEngineDropDown.Layout.Column = [2 4];
 
 r = r + 1;
 lab(cg, "Python exe:", r);
@@ -65,17 +80,17 @@ obj.ExecModeDropDown.Layout.Row = r; obj.ExecModeDropDown.Layout.Column = [4 5];
 
 r = r + 1;
 l = lab(cg, "Phy command:", r);
-l.Tooltip = "Command used to launch phy (a preference, not part of the config). Blank defaults to 'conda run -n phy phy'.";
+l.Tooltip = "Command used to launch phy (a preference, not part of the config). Blank uses phy.exe from the 'phy' conda env (found next to the Python exe's conda install), else 'conda run -n phy phy'.";
 obj.PhyCmdField = uieditfield(cg, "text", "Placeholder", "blank = default", ...
     "ValueChangedFcn", @(~,~) obj.savePreferences());
 obj.PhyCmdField.Layout.Row = r; obj.PhyCmdField.Layout.Column = 2;
-obj.DryRunCheckBox = uicheckbox(cg, "Text", "Dry run (write si_config.json + driver only)", ...
+obj.DryRunCheckBox = uicheckbox(cg, "Text", "Dry run (write the run files only)", ...
     "ValueChangedFcn", changed);
 obj.DryRunCheckBox.Layout.Row = r; obj.DryRunCheckBox.Layout.Column = [3 5];
 
 % --- Preprocessing (SpikeInterface) ---
 r = r + 1;
-sep(cg, "Preprocessing (SpikeInterface) - KS4 still filters + whitens internally", r);
+sep(cg, "Preprocessing (SpikeInterface engine only) - KS4 still filters + whitens internally", r);
 
 r = r + 1;
 obj.SIDetectBadCheckBox = uicheckbox(cg, "Text", "Detect bad channels (auto)", ...
@@ -136,7 +151,7 @@ obj.SIFilterMaxField.Layout.Row = r; obj.SIFilterMaxField.Layout.Column = 4;
 
 r = r + 1;
 note = uilabel(cg, "WordWrap", "on", "FontColor", [0.4 0.4 0.4], "Text", ...
-    "Artifact silencing (manual periods always; automatic detection when enabled) is configured on the Artifacts tab.");
+    "Artifact silencing (manual periods always; automatic detection when enabled) is configured on the Artifacts tab. The native engine zeroes the same periods in the .bin.");
 note.Layout.Row = r; note.Layout.Column = [1 5];
 
 % --- Kilosort4 parameters (from kilosortParamSpec), two per row ---

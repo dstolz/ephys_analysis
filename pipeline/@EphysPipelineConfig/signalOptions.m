@@ -37,6 +37,9 @@ EphysPipelineConfig.validateSuffix(cfg.Suffix);
 s = struct();
 s.dataTypeOut = types(sel);
 s.labelField  = string(cfg.LabelField);
+if ~isempty(cfg.LineNames)
+    s.lineNames = cfg.LineNames;
+end
 if ~isempty(cfg.InvertedLines)
     s.invertedLines = cfg.InvertedLines;
 end

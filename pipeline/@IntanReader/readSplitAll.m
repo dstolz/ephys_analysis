@@ -27,8 +27,6 @@ arguments
     opts.Concatenate (1,1) logical = true
     opts.ProgressFcn = []
     opts.Precision (1,1) string {mustBeMember(opts.Precision, ["double", "single"])} = "double"
-    opts.EventLabelField (1,1) string {mustBeMember(opts.EventLabelField, ...
-        ["custom_channel_name", "native_channel_name"])} = "custom_channel_name"
 end
 
 if isnan(obj.Fs) || isempty(obj.PerFile)
@@ -63,8 +61,7 @@ end
 nSamp = size(X, 1);
 
 % --- Digital-input events -----------------------------------------------------
-[events, digInNames, digInNative, digData] = readSplitDigital(L, nSamp, Fs, ...
-    opts.EventLabelField);
+[events, digInNames, digInNative, digData] = readSplitDigital(L, nSamp, Fs);
 
 % --- Optional board ADC / aux (one-file-per-signal only) ----------------------
 boardADC = [];
@@ -120,9 +117,9 @@ end
 
 
 % =========================================================================
-function [events, digInNames, digInNative, digData] = readSplitDigital(L, nSamp, Fs, labelField)
+function [events, digInNames, digInNative, digData] = readSplitDigital(L, nSamp, Fs)
 %readSplitDigital  Decode dig-in lines into per-line [nSamp x nLine] + events.
-%   Events are keyed by the custom or native dig-in names (LABELFIELD).
+%   Events are keyed by the native dig-in names (EphysDataset renames them).
 events      = struct();
 digInNames  = L.digInNames;
 digInNative = L.digInNative;
@@ -160,11 +157,7 @@ switch L.format
         end
 end
 
-if labelField == "native_channel_name"
-    names = matlab.lang.makeValidName(cellstr(digInNative));
-else
-    names = matlab.lang.makeValidName(cellstr(digInNames));
-end
+names = matlab.lang.makeValidName(cellstr(digInNative));
 for j = 1:numel(names)
     events.(names{j}) = highSegments(digData(:, j), Fs);
 end

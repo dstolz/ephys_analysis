@@ -29,11 +29,11 @@ function [Y, ev, info] = deriveSignals(obj, opts)
 %               badChannels or channelRemap. When the recording has no aux
 %               inputs Y.AUX stays empty, info.AUX is absent and a
 %               EphysDataset:deriveSignals:NoAux warning is issued.
-%   EVENTS  struct, one field per digital input line (named from labelField
-%           via matlab.lang.makeValidName), each [k x 2] [t_on t_off] in
-%           seconds on the original amplifier time base.
-%   INFO    struct: RHDroot, filenames, recordingFormat, labels (amplifier
-%           labels from labelField, in the column order of Y), origFs,
+%   EVENTS  struct, one field per digital input line (named by labelField
+%           and lineNames, see EphysDataset.relabelEvents), each [k x 2]
+%           [t_on t_off] in seconds on the original amplifier time base.
+%   INFO    struct: recordingFolder, filenames, recordingFormat, labels
+%           (amplifier labels from labelField, in the column order of Y), origFs,
 %           LFP/MUA/SPIKE sub-structs (Fs, time vector; LFP also bpLoHi,
 %           NotchHz, NotchBW and a text description of the filter applied;
 %           MUA also IntegrationHz and bpLoHi; AUX also labels and units)
@@ -81,7 +81,10 @@ function [Y, ev, info] = deriveSignals(obj, opts)
 %     MUA_bpLoHi         [low high] Hz  [300 5000]  (high < original rate/2)
 %     SPIKE_Fs           Hz  Inf (= original rate)
 %     SPIKE_bpLoHi       [low high] Hz  [300 5000]  (high < SPIKE_Fs/2)
-%     labelField         "custom_channel_name" | "native_channel_name"
+%     labelField         "custom" | "native": channel, aux and digital-line
+%                        names (default "custom")
+%     lineNames          string list  []  "native=name" digital-line names
+%                        (e.g. "TTL4=InTrial"), overriding labelField
 %     invertedLines      string list  []  digital lines with inverted TTL
 %                        polarity (on while low): their EVENTS rows are the
 %                        low runs, onset = falling edge, offset = last low
@@ -115,8 +118,8 @@ arguments
     opts.MUA_IntegrationHz (1,1) double {mustBePositive} = 1000
     opts.MUA_bpLoHi (1,2) double {mustBePositive} = [300 5000]
     opts.SPIKE_bpLoHi (1,2) double {mustBePositive} = [300 5000]
-    opts.labelField (1,1) string {mustBeMember(opts.labelField, ...
-        ["custom_channel_name", "native_channel_name"])} = "custom_channel_name"
+    opts.labelField (1,1) string {mustBeMember(opts.labelField, ["custom" "native"])} = "custom"
+    opts.lineNames (1,:) string = string.empty(1,0)
     opts.invertedLines (1,:) string = string.empty(1,0)
     opts.ProgressFcn = []
 end
@@ -172,7 +175,7 @@ if obj.NumFiles == 0
     obj.discoverFiles();
 end
 if obj.NumFiles == 0
-    error('EphysDataset:deriveSignals:NoFiles', 'No Intan files in %s', obj.Folder);
+    error('EphysDataset:deriveSignals:NoFiles', 'No recording files in %s', obj.Folder);
 end
 if isnan(obj.Fs) || isempty(obj.PerFile)
     obj.refreshMetadata();
@@ -191,9 +194,9 @@ if ~isempty(progressFcn)
         sprintf('Reading file %d/%d: %s', i, n, name));
 end
 
-% --- read (any layout), single precision, events keyed by labelField ---
+% --- read (any layout), single precision, lines named by labelField / lineNames ---
 data = obj.readData(KeepChannels=opts.keepAmpChannels(:).', Precision="single", ...
-    EventLabelField=opts.labelField, IncludeAux=has.AUX, ProgressFcn=readCb);
+    LabelField=opts.labelField, LineNames=opts.lineNames, IncludeAux=has.AUX, ProgressFcn=readCb);
 nDone = nRead;
 
 AMPSIG = data.amplifier;
@@ -206,7 +209,7 @@ if origFs ~= obj.Fs
     validateRates(opts, has, origFs);   % header metadata was stale
 end
 
-if opts.labelField == "native_channel_name"
+if opts.labelField == "native"
     labels = cellstr(data.nativeNames);
 else
     labels = cellstr(data.channelNames);
@@ -308,7 +311,7 @@ nDone = reportProgress(progressFcn, nDone, nSteps, 'Extracting digital events');
 
 % --- package info ---
 info = struct();
-info.RHDroot         = char(obj.Folder);
+info.recordingFolder = char(obj.Folder);
 info.filenames       = filenames;
 info.recordingFormat = obj.RecordingFormat;
 info.labels          = labels(:);
@@ -356,7 +359,7 @@ X  = single(data.aux);
 Fs = double(data.auxFs);
 nAux = size(X, 2);
 names = string.empty(1, 0);
-if labelField == "native_channel_name" && isfield(data, 'auxNativeNames')
+if labelField == "native" && isfield(data, 'auxNativeNames')
     names = string(data.auxNativeNames);
 elseif isfield(data, 'auxNames')
     names = string(data.auxNames);

@@ -28,6 +28,9 @@ if ispref(g, 'DatasetsColumnOrder'); rmpref(g, 'DatasetsColumnOrder'); end
 if ispref(g, 'TrialsParamColumns'); rmpref(g, 'TrialsParamColumns'); end
 if ispref(g, 'TrialsColumnOrder'); rmpref(g, 'TrialsColumnOrder'); end
 if ispref(g, 'TrialsLabelParams'); rmpref(g, 'TrialsLabelParams'); end
+if ispref(g, 'MonitorResources'); rmpref(g, 'MonitorResources'); end
+if ispref(g, 'ShowRunDiagram'); rmpref(g, 'ShowRunDiagram'); end
+if ispref(g, 'CleanupOptions'); rmpref(g, 'CleanupOptions'); end
 
 nPass = 0; nFail = 0;
     function check(cond, msg)
@@ -76,9 +79,9 @@ cfg = cfg.save(cfgFile);
 fprintf('\n== 1. build + open ==\n');
 app = EphysPreprocessingApp;
 appCleanup = onCleanup(@() closeApp(app));
-check(isvalid(app.Fig) && numel(app.Tabs.Children) == 13 && app.Tabs.Children(1) == app.TabCopy ...
-    && app.Tabs.Children(3) == app.TabTrials && app.Tabs.SelectedTab == app.TabProject, ...
-    'app builds with 13 tabs (Copy first, Trials third) and opens on Project');
+check(isvalid(app.Fig) && numel(app.Tabs.Children) == 14 && app.Tabs.Children(1) == app.TabCopy ...
+    && app.Tabs.Children(3) == app.TabTrials && app.Tabs.Children(end) == app.TabCleanup && app.Tabs.SelectedTab == app.TabProject, ...
+    'app builds with 14 tabs (Copy first, Trials third, Clean up last) and opens on Project');
 check(startsWith(app.Fig.Name, "Ephys preprocessing") && ~startsWith(app.Fig.Name, "*"), 'fresh app is clean');
 ok = app.openConfigFile(cfgFile);
 check(ok && app.Config.Name == "gui test" && app.Config.File == string(cfgFile), 'openConfigFile loads the config');
@@ -156,17 +159,49 @@ check(~app.ExpEpochsCheckBox.Value && strcmp(app.ExpEpochSourceDropDown.Value, '
 
 fprintf('\n== 1b. Help menu: wiki pages ==\n');
 items = flip(string({app.HelpMenu.Children.Text}));
-check(isequal(items(1:2), ["Help for this tab" "Documentation home"]) && numel(items) == 9 ...
+check(isequal(items(1:2), ["Help for this tab" "Documentation home"]) && numel(items) == 11 ...
+    && isequal(items(10:11), ["Report an issue on GitHub..." "Request a feature on GitHub..."]) ...
     && app.helpURL("") == app.WikiURL && app.helpURL("Quick-Start") == app.WikiURL + "/Quick-Start", ...
-    'the Help menu opens the tab''s page, the wiki home and the guides');
+    'the Help menu opens the tab''s page, the wiki home, the guides and the two GitHub issue items');
 tabPages = strings(1, numel(app.TabList));
 for k = 1:numel(app.TabList)
     app.Tabs.SelectedTab = app.TabList(k);   % helpURL reads only the selection; no tab-change refresh needed
     tabPages(k) = app.helpURL("tab");
 end
 app.Tabs.SelectedTab = app.TabProject;
-check(numel(tabPages) == 13 && numel(unique(tabPages)) == 13 && all(startsWith(tabPages, app.WikiURL + "/")) ...
+check(numel(tabPages) == 14 && numel(unique(tabPages)) == 14 && all(startsWith(tabPages, app.WikiURL + "/")) ...
     && ~any(endsWith(tabPages, "/App-Overview")), 'every tab has its own wiki page');
+
+fprintf('\n== 1c. Help menu: GitHub issue and feature request ==\n');
+bug = app.issueReport("bug", Description="the Spikes step stops here");
+check(contains(bug, "### What happened") && contains(bug, "the Spikes step stops here") ...
+    && contains(bug, "### Steps to reproduce") && contains(bug, "<summary>System</summary>") ...
+    && contains(bug, "MATLAB") && contains(bug, "<summary>Pipeline options</summary>") ...
+    && contains(bug, "gui test") && contains(bug, "<summary>Config JSON</summary>") ...
+    && contains(bug, """schema""") && contains(bug, "<summary>Logs</summary>"), ...
+    'a bug report carries the description, the system, the config and the logs');
+feat = app.issueReport("feature", Description="a button that stitches", System=false, Config=false, Logs=false);
+check(contains(feat, "### What would you like to be able to do") && contains(feat, "a button that stitches") ...
+    && ~contains(feat, "<details>") && ~contains(feat, "### What happened") ...
+    && ~contains(feat, string(proj)), 'a feature request keeps only what is ticked: no system, config or logs');
+app.LastError = MException("EphysPreprocessingApp:test", "synthetic failure");
+app.LastErrorTime = datetime('now');
+err = app.issueReport("bug", System=false, Config=false);
+check(contains(err, "**Last run error**") && contains(err, "synthetic failure") ...
+    && ~contains(app.issueReport("bug", System=false, Config=false, Logs=false), "synthetic failure"), ...
+    'the last run error and its stack go with the report, unless the logs are unticked');
+app.LastError = MException.empty(0, 1);
+app.LastErrorTime = NaT;
+[url, cut] = app.issueURL("bug", "a title", "line one" + newline + "line two");
+check(startsWith(url, app.RepoURL + "/issues/new?") && contains(url, "title=a%20title") ...
+    && contains(url, "body=line%20one%0Aline%20two") && contains(url, "labels=bug") ...
+    && ~cut && ~contains(url, " ") && ~contains(url, newline), ...
+    'the issue address is the prefilled form, percent-encoded');
+check(contains(app.issueURL("feature", "t", "b"), "labels=enhancement"), ...
+    'a feature request is filed as an enhancement');
+[long, cut] = app.issueURL("bug", "t", join(repmat("0123456789", 1, 2000), newline));
+check(cut && strlength(long) <= 7000 && contains(long, "was%20too%20long%20for%20the%20address"), ...
+    'a report too long for the address is cut and says so in the body');
 
 fprintf('\n== 2. edits and the unsaved marker ==\n');
 app.SpkThresholdField.Value = '1500';
@@ -195,6 +230,18 @@ app.onParallelControlsChanged();
 check(~app.Config.Parallel.Enabled && strcmp(app.RunMaxWorkersField.Enable, 'off'), 'unticking Parallel disables the worker cap');
 app.RunParallelCheckBox.Value = true;
 app.onParallelControlsChanged();
+sort0 = app.Config.Sorting;
+app.SIDetectBadCheckBox.Value = true;
+app.SortEngineDropDown.Value = 'kilosort';
+app.SortEngineDropDown.ValueChangedFcn(app.SortEngineDropDown, []);   % as a pick would
+[html, ~] = app.flowChartHTML();
+check(app.Config.Sorting.Engine == "kilosort" && strcmp(app.SIDetectBadCheckBox.Enable, 'off') ...
+    && strcmp(app.SIBadMethodDropDown.Enable, 'off') && contains(html, "Write .bin") && ~contains(html, "run_sorter"), ...
+    'the native engine disables the SpikeInterface preprocessing and redraws the diagram');
+app.applySortingSection(sort0);
+check(strcmp(app.SortEngineDropDown.Value, 'spikeinterface') && strcmp(app.SIDetectBadCheckBox.Enable, 'on'), ...
+    'applying a SpikeInterface config restores the engine and its controls');
+app.onSIControlsChanged();
 app.ParamControls.tmax.Value = 'abc';
 [~, msg] = app.gatherSortingSection();
 check(msg ~= "", 'an unparseable KS4 field is reported');
@@ -288,6 +335,35 @@ app.applyProjectSection(cfg.Project);
 app.onConfigChanged();
 check(app.NameTokenChecks(1).Value && app.Config.Project.TokenColumns == "SubjectID" ...
     && app.Config.Project.NamePattern == cfg.Project.NamePattern, 'applying the section restores pattern and columns');
+
+fprintf('\n== 3a2. recursive scan ==\n');
+check(app.RecursiveCheckBox.Value && app.Project.Recursive, 'scans are recursive by default');
+app.RecursiveCheckBox.Value = false;
+app.onConfigChanged();
+app.onScan();
+check(~app.Config.Project.Recursive && ~app.Project.Recursive && app.Project.NumDatasets == 1, ...
+    'unticking Recursive is saved in the config and scans only the root and the folders directly in it');
+app.applyProjectSection(cfg.Project);
+app.onConfigChanged();
+app.onScan();
+check(app.RecursiveCheckBox.Value && app.Config.Project.Recursive && app.Project.Recursive, ...
+    'applying the section restores Recursive');
+
+fprintf('\n== 3b1. Project tab: Open Ephys reader options ==\n');
+check(app.Config.Acquisition.OpenEphys.Recordings == "concatenate" && string(app.OERecordingsDropDown.Value) == "concatenate", ...
+    'Open Ephys sessions are joined by default');
+app.OERecordingsDropDown.Value = 'separate';
+app.OERecordNodeField.Value = '104';
+app.OEStreamField.Value = 'Rhythm Data';
+app.onAcquisitionChanged();
+A = app.Config.Acquisition.OpenEphys;
+check(A.Recordings == "separate" && A.RecordNode == "104" && A.Stream == "Rhythm Data" ...
+    && isequal(app.Project.ReaderOptions, app.Config.Acquisition) && isequal(app.Project.Datasets(1).ReaderOptions, app.Config.Acquisition), ...
+    'the Open Ephys options are saved in Acquisition and a rescan pushes them to the project and datasets');
+app.applyAcquisitionSection(cfg.Acquisition);
+app.onAcquisitionChanged();
+check(app.Config.Acquisition.OpenEphys.Recordings == "concatenate" && app.OERecordNodeField.Value == "" ...
+    && isequal(app.Project.ReaderOptions, cfg.Acquisition), 'applying the section restores the defaults');
 
 fprintf('\n== 3b. Trials tab: load, cut, approve, polarity ==\n');
 app.selectDataset(1);
@@ -387,7 +463,7 @@ FsT = app.TrialsEvents.Fs;
 hBars = findall(app.TrialsAxes, "Tag", "events:din0");
 xBars = [hBars.XData];
 barRows = sortrows(round(reshape(xBars(~isnan(xBars)), 2, []).' * FsT));
-hiRows = round(app.TrialsEvents.events.din0 * FsT);
+hiRows = round(app.namedTrialsEvents().events.din0 * FsT);
 check(isequal(barRows, round(app.TrialsPairing.events.din0 * FsT)) && all(ismember(hiRows(:, 2) + 1, barRows(:, 1))) ...
     && all(ismember(hiRows(:, 1) - 1, barRows(:, 2))) && all(strcmp({hBars.Marker}, 'none')) ...
     && any(contains(string(app.TrialsAxes.YTickLabel), "din0 (inverted)")), ...
@@ -447,6 +523,25 @@ app.TrialsLinesTable.Data.Inverted(1) = false;
 app.onTrialsSettingsChanged();
 check(isempty(app.Config.Signals.InvertedLines) && app.TrialsPairing.recorded && app.TrialsPairing.status == "approved", ...
     'restoring the polarity brings the approved pairing back');
+L0 = app.TrialsLinesTable.Data;
+E0 = app.TrialsEvents;
+check(isequal(string(L0.Properties.VariableNames), ["Native" "Name" "Intervals" "Inverted"]) && L0.Native(1) == "DIN-00" ...
+    && L0.Name(1) == "din0", 'the lines table shows each line''s native name and its name');
+app.TrialsLinesTable.Data.Name(1) = "Trial";
+app.onTrialsLinesEdited(struct('Indices', [1 2], 'PreviousData', "din0", 'NewData', "Trial"));
+check(isequal(app.Config.Signals.LineNames, "DIN-00=Trial") && app.Config.Behavior.TrialLine == "Trial" ...
+    && string(app.TrialsLineDropDown.Value) == "Trial" && ~isempty(app.TrialsPairing) && app.TrialsPairing.nPaired == 1 ...
+    && isequal(app.TrialsEvents, E0) && isfield(app.TrialsPairing.events, 'Trial'), ...
+    'renaming a line writes Signals.LineNames, the trial line follows, and it re-pairs without reading the recording');
+app.TrialsLinesTable.Data.Name(1) = "1bad";
+app.onTrialsLinesEdited(struct('Indices', [1 2], 'PreviousData', "Trial", 'NewData', "1bad"));
+check(app.TrialsLinesTable.Data.Name(1) == "Trial" && isequal(app.Config.Signals.LineNames, "DIN-00=Trial"), ...
+    'an invalid name is refused and put back');
+app.TrialsLinesTable.Data.Name(1) = "";
+app.onTrialsLinesEdited(struct('Indices', [1 2], 'PreviousData', "Trial", 'NewData', ""));
+check(isempty(app.Config.Signals.LineNames) && app.Config.Behavior.TrialLine == "din0" ...
+    && app.TrialsLinesTable.Data.Name(1) == "din0", 'a blank name goes back to the default name and drops the entry');
+
 vE = matlab.lang.makeValidName("epsych_" + dT.Name);
 vB = matlab.lang.makeValidName("behavior_" + dT.Name);
 evalin('base', "clear " + vE + " " + vB);
@@ -581,6 +676,12 @@ M = load(spikesFile);
 check(~isempty(M.detected) && isequal(M.units.unitId, [0; 1]) && M.detected.detection.options.Threshold == 1500, ...
     'the file reflects the edited threshold and the sorted units');
 check(~app.RunActive && strcmp(app.RunButton.Enable, 'on'), 'run state is reset afterwards');
+app.runLog("the report reads this line");
+runTail = string(app.RunLogArea.Value);
+runTail = runTail(strlength(strip(runTail)) > 0);
+rep = app.issueReport("bug", System=false, Config=false);
+check(contains(rep, "**Run log**") && contains(rep, runTail(end)) && contains(rep, "the report reads this line") ...
+    && isempty(app.LastError), 'the issue report carries the Run log as the tab shows it; the run recorded no error');
 
 fprintf('\n== 4a. Review tab: unit labels, location, notes ==\n');
 app.selectDataset(1);
@@ -656,6 +757,123 @@ app.onRunDiagramToggled();
 check(app.RunDiagramPanel.Visible == "off" && isequal(app.RunSplitGrid.ColumnWidth, {'1x', 0}), ...
     'unticked, the progress, results and log have the whole right side again');
 
+fprintf('\n== 4c. Run tab: resource monitoring ==\n');
+check(app.RunMonitorPanel.Visible == "off" && isequal(app.RunLeftGrid.RowHeight, {'1x', 0}) ...
+    && isempty(app.ResourceMonitorTimer) && app.ResourceMonitor.dir == "", ...
+    'resource monitoring is off by default: no panel, no sampler, no timer');
+S = struct('t', '2026-09-18T10:41:21', 'cpu', 37.2, 'memUsedGB', 12.3, 'memTotalGB', 31.7, ...
+    'disk', 95, 'diskName', '1 D:', 'readMBs', 80.2, 'writeMBs', 12.5, ...
+    'gpus', struct('index', {0 1}, 'name', {'A' 'B'}, 'util', {28 61}, 'memUsedMB', {869 1024}, 'memTotalMB', {4094 8192}), ...
+    'gpuNote', '');
+app.showResourceSample(S);
+tx = string({app.RunMonitorTexts.Text});
+check(isequal(tx, ["37%" "12.3 / 31.7 GB" "95%  93 MB/s" "61%  1.0/8.0 GB"]) ...
+    && isequal(app.RunMonitorBars(3).Children(1).BackgroundColor, [0.9 0.45 0.1]) ...
+    && isequal(app.RunMonitorBars(1).Children(1).BackgroundColor, [0.25 0.55 0.85]) ...
+    && contains(app.RunMonitorTexts(3).Tooltip, "1 D:") && contains(app.RunMonitorTexts(4).Tooltip, "GPU 0 A"), ...
+    'a sample shows each figure, the busiest GPU, and a bar at 90% or more in orange');
+S.gpus = []; S.gpuNote = 'nvidia-smi not found'; S.cpu = [];
+app.showResourceSample(S);
+check(app.RunMonitorTexts(4).Text == "n/a" && contains(app.RunMonitorTexts(4).Tooltip, "not found") ...
+    && app.RunMonitorTexts(1).Text == "n/a", 'a missing reading shows n/a and says why');
+app.selectTab(app.TabRun);
+app.RunMonitorCheckBox.Value = true;
+app.onResourceMonitorToggled();
+dirMon = app.ResourceMonitor.dir;
+check(app.RunMonitorPanel.Visible == "on" && isequal(app.RunLeftGrid.RowHeight, {'1x', 'fit'}) ...
+    && isfolder(dirMon) && strcmp(app.ResourceMonitorTimer.Running, 'on'), ...
+    'ticked, the panel opens under the steps and the sampler and timer start');
+t0 = tic;
+while toc(t0) < 20 && ~startsWith(string(app.RunMonitorNote.Text), "Sampled every")
+    pause(0.5);
+end
+tx = string({app.RunMonitorTexts.Text});
+check(startsWith(string(app.RunMonitorNote.Text), "Sampled every") && endsWith(tx(1), "%") ...
+    && endsWith(tx(2), " GB"), sprintf('live samples arrive within %.0f s', toc(t0)));
+app.savePreferences();
+check(isequal(getpref(g, 'MonitorResources'), true), 'the switch is saved as a preference');
+app.RunMonitorCheckBox.Value = false;
+app.onResourceMonitorToggled();
+t0 = tic;
+while toc(t0) < 10 && isfolder(dirMon)
+    pause(0.5);
+end
+check(app.RunMonitorPanel.Visible == "off" && isequal(app.RunLeftGrid.RowHeight, {'1x', 0}) ...
+    && isempty(app.ResourceMonitorTimer) && ~isfolder(dirMon), ...
+    'unticked, the panel closes, the timer stops and the sampler exits and removes its folder');
+
+fprintf('\n== 4d. Clean up tab ==\n');
+ksRoot = app.Project.Datasets(1).kilosortDir();   % under the OutputRoot
+ksOut = fullfile(ksRoot, 'si', 'sorter_output');
+mkdir(ksOut);
+fid = fopen(fullfile(ksOut, 'recording.dat'), 'w'); fwrite(fid, zeros(1, 512, 'int16'), 'int16'); fclose(fid);
+app.selectTab(app.TabCleanup);
+check(contains(app.CleanupScopeLabel.Text, "1 dataset") && app.CleanupRunButton.Enable == "off" ...
+    && isempty(app.CleanupPlan), 'the tab says which datasets it acts on; nothing can be removed before a Preview');
+app.onCleanupPreview();
+P = app.CleanupPlan;
+rawRow = P(P.File == string(fullfile(f1, 'recA.rhd')), :);
+check(height(P) > 2 && isequal(P.Action(P.File == string(fullfile(ksOut, 'recording.dat'))), "remove") ...
+    && rawRow.Action == "keep" && contains(rawRow.Reason, "no source copy") ...
+    && app.CleanupRunButton.Enable == "on" && startsWith(app.CleanupSummaryLabel.Text, "Would remove 1 file(s)") ...
+    && size(app.CleanupTable.Data, 1) == height(P) && isfile(fullfile(ksOut, 'recording.dat')), ...
+    'Preview lists every file as Remove or Keep (a raw recording without a copy record stays) and deletes nothing');
+check(app.CleanupTable.ColumnSortable && isequal(P.Include, P.Action == "remove") ...
+    && isequal(app.CleanupSubjectDropDown.Items, [{'All subjects'}; cellstr(unique(P.Subject))].'), ...
+    'the columns sort, every Remove file starts ticked and the Subject ID list holds the plan''s subjects');
+app.CleanupShowKeptCheckBox.Value = false;
+app.refreshCleanupTable();
+check(size(app.CleanupTable.Data, 1) == 1 && isequal(app.CleanupTable.Data(1, 1:2), {true, 'Remove'}), ...
+    'unticking Show the files that remain leaves only the Remove rows');
+app.CleanupShowKeptCheckBox.Value = true;
+app.CleanupSearchField.Value = 'recording\.dat$';
+app.refreshCleanupTable();
+check(size(app.CleanupTable.Data, 1) == 1 && startsWith(app.CleanupShownLabel.Text, "Showing 1 of"), ...
+    'the regexp search shows only the matching files');
+app.CleanupSearchField.Value = 'no-such-file';
+app.refreshCleanupTable();
+check(isempty(app.CleanupTable.Data) && isequal(app.CleanupSearchField.BackgroundColor, [1.00 0.85 0.85]), ...
+    'a search matching no file empties the table and is flagged');
+app.CleanupSearchField.Value = '';
+app.CleanupSubjectDropDown.Value = app.CleanupSubjectDropDown.Items{end};
+app.refreshCleanupTable();
+check(size(app.CleanupTable.Data, 1) == nnz(P.Subject == string(app.CleanupSubjectDropDown.Value)), ...
+    'the Subject ID list shows only that subject''s files');
+app.CleanupSubjectDropDown.Value = 'All subjects';
+app.refreshCleanupTable();
+r = find(strcmp(app.CleanupTable.Data(:, 2), 'Remove'));
+app.onCleanupFileTicked(struct('Indices', [r 1], 'NewData', false));
+check(~app.CleanupPlan.Include(app.CleanupRowMap(r)) && app.CleanupRunButton.Enable == "off" ...
+    && contains(app.CleanupSummaryLabel.Text, "Would remove 0 file(s)"), ...
+    'unticking the only Remove file leaves nothing to remove');
+k = find(strcmp(app.CleanupTable.Data(:, 2), 'Keep'), 1);
+app.CleanupTable.Data{k, 1} = true;
+app.onCleanupFileTicked(struct('Indices', [k 1], 'NewData', true));
+check(~app.CleanupTable.Data{k, 1} && ~any(app.CleanupPlan.Include(app.CleanupPlan.Action == "keep")), ...
+    'a Keep file cannot be ticked');
+app.onCleanupSelect("all");
+check(app.CleanupPlan.Include(app.CleanupRowMap(r)) && app.CleanupRunButton.Enable == "on", 'All visible ticks the Remove files shown');
+app.onCleanupSelect("invert");
+check(~any(app.CleanupPlan.Include), 'Invert visible flips them');
+app.onCleanupSelect("all");
+app.CleanupSearchField.Value = 'no-such-file';
+app.refreshCleanupTable();
+app.onCleanupSelect("only");
+check(~any(app.CleanupPlan.Include), 'Only visible with nothing shown unticks every hidden file');
+app.CleanupSearchField.Value = '';
+app.refreshCleanupTable();
+app.onCleanupSelect("all");
+app.onCleanupSelect("none");
+check(~any(app.CleanupPlan.Include) && app.CleanupRunButton.Enable == "off", 'None visible unticks what is shown');
+app.onCleanupSelect("all");
+app.CleanupSorterCopyCheckBox.Value = false;
+app.onCleanupSettingsChanged();
+check(isempty(app.CleanupPlan) && app.CleanupRunButton.Enable == "off" && contains(app.CleanupSummaryLabel.Text, "Preview again"), ...
+    'changing the kinds to remove discards the preview until Preview is pressed again');
+app.CleanupSorterCopyCheckBox.Value = true;
+rmdir(ksRoot, 's');
+app.selectTab(app.TabProject);
+
 fprintf('\n== 5. save and reopen ==\n');
 ok = app.onSaveConfig();
 check(ok && ~startsWith(app.Fig.Name, "*"), 'save clears the unsaved marker');
@@ -678,6 +896,7 @@ function closeApp(app)
 try
     if isvalid(app) && isvalid(app.Fig)
         app.stopKSMonitor();
+        app.stopResourceMonitor();
         delete(app.Fig);
     end
 catch

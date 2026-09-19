@@ -41,13 +41,26 @@ cfg.SPIKE_Fs           = obj.ConvSpikeFsField.Value;
 cfg.SPIKE_bpLoHi       = [obj.ConvSpikeLoField.Value, obj.ConvSpikeHiField.Value];
 
 cfg.LabelField   = string(obj.ConvLabelFieldDropDown.Value);
-% Digital-line polarity is edited in the Trials tab's lines table; inverted
-% lines not listed there (another dataset's lines) are kept.
+% Digital-line names and polarity are edited in the Trials tab's lines
+% table; entries for lines not listed there (another dataset's lines) are kept.
 L = obj.TrialsLinesTable.Data;
+cfg.LineNames = obj.Config.Signals.LineNames;
 if istable(L) && height(L) > 0
-    shown = string(L.Line);
+    shown = string(L.Name);
     cfg.InvertedLines = reshape(unique([setdiff(obj.Config.Signals.InvertedLines, shown, 'stable'), ...
         reshape(shown(logical(L.Inverted)), 1, [])], 'stable'), 1, []);
+    if ~isempty(obj.TrialsEvents)
+        E = EphysDataset.relabelEvents(obj.TrialsEvents, cfg.LabelField, string.empty(1, 0));
+        natives = string(L.Native);
+        [kept, ~] = EphysDataset.parseLineNames(cfg.LineNames);
+        others = cfg.LineNames(~ismember(lower(kept), lower(natives)));
+        renamed = false(numel(natives), 1);
+        for k = 1:numel(natives)
+            j = find(E.digInNativeNames == natives(k), 1);
+            renamed(k) = ~isempty(j) && shown(k) ~= E.digInDefaultNames(j);
+        end
+        cfg.LineNames = [reshape(others, 1, []), reshape(natives(renamed) + "=" + shown(renamed), 1, [])];
+    end
 else
     cfg.InvertedLines = obj.Config.Signals.InvertedLines;
 end

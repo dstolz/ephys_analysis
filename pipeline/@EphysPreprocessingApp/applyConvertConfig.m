@@ -45,17 +45,7 @@ if isnumeric(cfg.SPIKE_bpLoHi) && numel(cfg.SPIKE_bpLoHi) == 2
 end
 
 setDrop(obj.ConvLabelFieldDropDown, cfg.LabelField);
-inv = string.empty(1, 0);
-if isfield(cfg, 'InvertedLines'); inv = reshape(string(cfg.InvertedLines), 1, []); end
-L = obj.TrialsLinesTable.Data;
-if isempty(obj.TrialsEvents) || ~istable(L)
-    names = reshape(inv, [], 1);
-    L = table(names, NaN(numel(names), 1), true(numel(names), 1), ...
-        'VariableNames', {'Line', 'Intervals', 'Inverted'});
-else
-    L.Inverted = ismember(string(L.Line), inv);
-end
-obj.TrialsLinesTable.Data = L;
+obj.fillTrialsLines(EphysPipelineConfig.normalizeSection("Signals", cfg));   % line names + polarity
 trySet(obj.ConvKeepChannelsField, 'Value', char(string(cfg.KeepChannels)));
 setDrop(obj.ConvBadModeDropDown, cfg.BadMode);
 trySet(obj.ConvBadThresholdField, 'Value', cfg.BadThreshold);

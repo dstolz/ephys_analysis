@@ -150,9 +150,27 @@ mkdir(fullfile(root, 'proj', 'empty_decoy'));
 writeSyntheticRHD(fullfile(root,'proj','mouse1','sess1','a.rhd'), ampRaw(:,1:spb), digRaw(1:spb), Fs, spb);
 writeSyntheticRHD(fullfile(root,'proj','mouse2','sess1','b.rhd'), ampRaw(:,1:spb), digRaw(1:spb), Fs, spb);
 P = EphysProject(fullfile(root,'proj'));
-check(P.NumDatasets == 2, 'discover finds exactly 2 dataset folders (decoy ignored)');
+check(P.NumDatasets == 2 && P.Recursive, 'discover finds exactly 2 dataset folders (decoy ignored)');
 T = P.gatherMetadata();
 check(height(T) == 2 && all(T.NumChannels == numAmp), 'gatherMetadata table');
+% Recursive=false: the root and the folders directly in it, nothing deeper
+flat = fullfile(root, 'flat');
+mkdir(fullfile(flat, 'sessA', 'old'));
+mkdir(fullfile(flat, 'grp', 'sessB'));
+writeSyntheticRHD(fullfile(flat,'top.rhd'), ampRaw(:,1:spb), digRaw(1:spb), Fs, spb);
+writeSyntheticRHD(fullfile(flat,'sessA','a.rhd'), ampRaw(:,1:spb), digRaw(1:spb), Fs, spb);
+writeSyntheticRHD(fullfile(flat,'sessA','old','a.rhd'), ampRaw(:,1:spb), digRaw(1:spb), Fs, spb);
+writeSyntheticRHD(fullfile(flat,'grp','sessB','b.rhd'), ampRaw(:,1:spb), digRaw(1:spb), Fs, spb);
+Pdeep = EphysProject(flat);
+check(isequal(sort(Pdeep.datasetKeys()), ["." "grp/sessB" "sessA" "sessA/old"]), ...
+    'a recursive scan finds the root and every nested recording');
+Pflat = EphysProject(flat, Recursive=false);
+check(~Pflat.Recursive && isequal(sort(Pflat.datasetKeys()), ["." "sessA"]), ...
+    'Recursive=false finds only the root and the folders directly in it');
+ws = warning('off', 'EphysProject:NoData');
+Pnone = EphysProject(fullfile(root, 'proj'), Recursive=false);
+warning(ws);
+check(Pnone.NumDatasets == 0, 'Recursive=false does not reach recordings two levels down');
 
 fprintf('\n== 8. runKilosort(DryRun=true) ==\n');
 % Minimal valid probe json
@@ -172,6 +190,27 @@ check(sett.fs == Fs, 'settings fs');
 check(contains(res.command, '"C:\miniconda3\python.exe"'), 'command quotes python path');
 check(contains(res.command, '"'+string(res.scriptPath)+'"') || contains(res.command, res.scriptPath), ...
     'command references script');
+
+fprintf('\n== 8b. explicit artifact intervals (native engine) ==\n');
+ds.ManualArtifacts = [0.001 0.002];
+siDry = fullfile(root, 'si_dry');
+rsi = ds.runSpikeInterface(DryRun=true, ResultsDir=siDry, ArtifactIntervals=zeros(0, 2));
+sic = jsondecode(fileread(rsi.settingsPath));
+check(~sic.preprocessing.silence_periods.enabled, 'an explicit empty ArtifactIntervals silences nothing');
+rsi = ds.runSpikeInterface(DryRun=true, ResultsDir=siDry);
+sic = jsondecode(fileread(rsi.settingsPath));
+check(sic.preprocessing.silence_periods.enabled, 'the default ArtifactIntervals falls back to the dataset''s periods');
+binX = fullfile(root, 'blank_test.bin');
+infoB = ds.toBin(BinFile=binX, ArtifactIntervals=[0 0.001], WriteMeta=false);
+fid = fopen(binX, 'r'); B = fread(fid, [infoB.nChan Inf], 'int16=>double'); fclose(fid);
+nZ = floor(0.001 * Fs) + 1;   % samples 0 .. floor(t1*Fs), as manualArtifactMask
+check(all(B(:, 1:nZ) == 0, 'all') && any(B(:, nZ+1:end) ~= 0, 'all') && infoB.nManualBlanked == nZ, ...
+    'toBin blanks exactly the listed intervals, not the manual periods');
+check(strcmp(errorIdOf(@() ds.runKilosort(ArtifactIntervals=[0 ds.NumSamples / ds.Fs])), ...
+    'EphysDataset:runKilosort:MostlySilenced'), 'runKilosort refuses to blank most of the recording');
+[share, covered] = EphysDataset.silencedFraction([0 1; 0.5 2; 3 10], 4);
+check(abs(covered - 3) < 1e-12 && abs(share - 0.75) < 1e-12, 'silencedFraction clips and unions the intervals');
+ds.ManualArtifacts = zeros(0, 2);
 
 fprintf('\n== 9. DatasetTracker integration (ds / project) ==\n');
 % ds.OutputDir = out_stream (section 4); section 8 wrote a dry-run kilosort4/
@@ -913,17 +952,18 @@ writeJsonFile(siProbe, struct('chanMap', [3 0 2 1], 'xc', zeros(1, 4), 'yc', (0:
     'kcoords', zeros(1, 4), 'n_chan', 4));
 writeJsonFile(fullfile(siRun, 'si_config.json'), struct('schema', "intan-si-ks4/1", ...
     'probe', siProbe, 'n_chan', 4, 'exclude_channels', []));
-writeJsonFile(fullfile(siRun, 'ks4_status.json'), struct('state', "done", 'bad_channels', {{'A-002'}}));
+writeJsonFile(fullfile(siRun, 'ks4_status.json'), struct('state', "done", 'bad_channels', {{'2'}}));
 Us = EphysDataset.readPhyUnits(siDir);
-% sites in probe order: A-003, A-000, A-002, A-001 -> drop A-002 -> [4 1 2]
+% channel numbers 0..3 (default); sites in probe order: 3, 0, 2, 1 -> drop 2 -> [4 1 2]
 check(Us.engine == "spikeinterface" && Us.channelMapSource == "probe" && isequal(Us.channelMap, [4; 1; 2]), ...
     'SpikeInterface run maps sorted channels back through the probe minus bad channels');
 check(isequal(Us.ksChannel, [2; 3]) && isequal(Us.channel, [1; 2]), 'unit recording channels follow that map');
 wsI = warning('off', 'EphysDataset:readPhyUnits:ChannelMapFallback');
-Us2 = EphysDataset.readPhyUnits(siDir, ChannelNames=["B-000" "B-001" "B-002" "B-003"]);
+Us2 = EphysDataset.readPhyUnits(siDir, ChannelNumbers=[3 2 1 0]);
 warning(wsI);
-check(Us2.channelMapSource == "probe" && isequal(Us2.channelMap, [4; 1; 2]), ...
-    'channel names are matched by trailing number, as run_si_ks4.py does');
+% number -> position: 3->1 2->2 1->3 0->4; chanMap [3 0 2 1] -> [1 4 2 3]; drop number 2 (position 2)
+check(Us2.channelMapSource == "probe" && isequal(Us2.channelMap, [1; 4; 3]), ...
+    'channels are matched by channel number, as run_si_ks4.py names them');
 
 % Instance wrapper: dataset defaults + SortingDir association.
 dsu = EphysDataset(dsFolder);
@@ -1037,7 +1077,7 @@ check(isa(ds.Reader, 'IntanReader') && ds.Reader.Kind == "intan" && ds.Recording
     'EphysDataset picks IntanReader for a *.rhd folder');
 check(isa(dsig.Reader, 'IntanReader') && dsig.supportsRandomAccess() && ~ds.supportsRandomAccess(), ...
     'random access only for the split layouts');
-check(isequal(sort(EphysReader.readerClasses()), sort(["IntanReader" "BinaryReader"])), 'built-in reader registry');
+check(isequal(sort(EphysReader.readerClasses()), sort(["IntanReader" "BinaryReader" "OpenEphysReader"])), 'built-in reader registry');
 check(isempty(EphysReader.forFolder(fullfile(root, 'proj', 'empty_decoy'))), 'no reader claims an empty folder');
 check(strcmp(DatasetTracker.classifyJson(struct('schema', "ephys-recording/1")), 'recording-descriptor'), ...
     'classifyJson recognises a recording descriptor');

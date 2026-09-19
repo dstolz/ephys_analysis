@@ -9,7 +9,7 @@ arguments
 end
 if page == "tab"
     switch obj.Tabs.SelectedTab
-        case obj.TabCopy,      page = "NAS-Tab";
+        case obj.TabCopy,      page = "Copy-Tab";
         case obj.TabProject,   page = "Project-Tab";
         case obj.TabTrials,    page = "Trials-Tab";
         case obj.TabProbe,     page = "Probe-Tab";
@@ -22,6 +22,7 @@ if page == "tab"
         case obj.TabRun,       page = "Run-and-Flow-Tabs#run-tab";
         case obj.TabVisualize, page = "Visualize-Tab";
         case obj.TabReview,    page = "Review-Tab";
+        case obj.TabCleanup,   page = "Clean-Up-Tab";
         otherwise,             page = "App-Overview";
     end
 end

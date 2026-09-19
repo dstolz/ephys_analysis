@@ -95,8 +95,10 @@ classdef EphysPipelineScript
             L(end+1, 1) = "%% Project";
             L(end+1, 1) = "root       = " + lit(cfg.Project.Root) + ";";
             L(end+1, 1) = "outputRoot = " + lit(cfg.Project.OutputRoot) + ";";
+            L = [L; EphysPipelineScript.structLiteral("readerOptions", cfg.Acquisition)];
             L(end+1, 1) = "P = EphysProject(root, OutputRoot=outputRoot, PythonExe=" + lit(cfg.Sorting.PythonExe) + ...
-                ", CondaEnv=" + lit(cfg.Sorting.CondaEnv) + ", NamePattern=" + lit(cfg.Project.NamePattern) + ");";
+                ", CondaEnv=" + lit(cfg.Sorting.CondaEnv) + ", NamePattern=" + lit(cfg.Project.NamePattern) + ...
+                ", Recursive=" + lit(cfg.Project.Recursive) + ", ReaderOptions=readerOptions);";
             L(end+1, 1) = "P.refresh();                       % headers + per-dataset manifests (probe, exclusions, ...)";
             if cfg.Project.Selection == "list"
                 L(end+1, 1) = "keys = " + lit(cfg.Project.Datasets) + ";   % root-relative dataset keys";
@@ -167,8 +169,15 @@ classdef EphysPipelineScript
             L(end+1, 1) = "";
 
             % --- sorting -------------------------------------------------------------
-            L = [L; EphysPipelineScript.stepHeader("Sorting: SpikeInterface + Kilosort4", cfg.stepEnabled("sorting"))];
             S = cfg.Sorting;
+            if S.Engine == "kilosort"
+                sortTitle = "Sorting: Kilosort4 (native, via a .bin)";
+                sortCall = "d.runKilosort";
+            else
+                sortTitle = "Sorting: SpikeInterface + Kilosort4";
+                sortCall = "d.runSpikeInterface";
+            end
+            L = [L; EphysPipelineScript.stepHeader(sortTitle, cfg.stepEnabled("sorting"))];
             [ks4, ~] = EphysPipelineConfig.ks4Settings(S);
             L = [L; EphysPipelineScript.structLiteral("ks4", ks4)];
             L(end+1, 1) = "for k = idx";
@@ -183,7 +192,7 @@ classdef EphysPipelineScript
             else
                 L(end+1, 1) = "        iv = d.artifactIntervals(IncludeAuto=false);";
             end
-            L(end+1, 1) = "        res = d.runSpikeInterface(ExtraSettings=ks4, ArtifactIntervals=iv, DryRun=" + ...
+            L(end+1, 1) = "        res = " + sortCall + "(ExtraSettings=ks4, ArtifactIntervals=iv, DryRun=" + ...
                 lit(logical(S.DryRun)) + ", Wait=" + lit(S.Execution == "blocking") + ");";
             L(end+1, 1) = "        d.writeManifest();";
             L(end+1, 1) = "        fprintf('%s: sorting -> %s\n', d.Name, res.resultsDir);";
@@ -257,7 +266,7 @@ classdef EphysPipelineScript
             L = [L; EphysPipelineScript.stepFooter(cfg.stepEnabled("spikes"))];
 
             % --- export --------------------------------------------------------------
-            L = [L; EphysPipelineScript.stepHeader("Export: Chronux / FieldTrip / epoch files", cfg.stepEnabled("export"))];
+            L = [L; EphysPipelineScript.stepHeader("Export: analysis-toolbox and epoch files",cfg.stepEnabled("export"))];
             E = cfg.Export;
             L(end+1, 1) = "formats = " + lit(E.Formats) + ";";
             L(end+1, 1) = "for k = idx";
@@ -277,10 +286,12 @@ classdef EphysPipelineScript
             L(end+1, 1) = "            switch fmt";
             L(end+1, 1) = "                case ""chronux""";
             L(end+1, 1) = "                    r = d.exportChronux('File', outFile, 'Extract', extract, args{:});";
+            L(end+1, 1) = "                case ""fieldtrip""";
+            L(end+1, 1) = "                    r = d.exportFieldTrip('File', outFile, 'Extract', extract, args{:});";
             L(end+1, 1) = "                case ""epochs""";
             L(end+1, 1) = "                    r = d.exportEpochs('File', outFile, 'Extract', extract, args{:});";
             L(end+1, 1) = "                otherwise";
-            L(end+1, 1) = "                    r = d.exportFieldTrip('File', outFile, 'Extract', extract, args{:});";
+            L(end+1, 1) = "                    error('Unknown export format ""%s"".', fmt);";
             L(end+1, 1) = "            end";
             L(end+1, 1) = "            fprintf('%s: wrote %s\n', d.Name, r.file);";
             L(end+1, 1) = "        catch ME";

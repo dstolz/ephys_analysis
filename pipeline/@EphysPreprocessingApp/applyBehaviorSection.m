@@ -11,6 +11,6 @@ obj.TrialsPairCheckBox.Value = logical(B.PairTrials);
 obj.TrialsAutoApproveCheckBox.Value = logical(B.AutoApprove);
 L = obj.TrialsLinesTable.Data;
 names = string.empty(0, 1);
-if istable(L); names = string(L.Line); end
+if istable(L); names = string(L.Name); end
 obj.setTrialsLineItems(names, B.TrialLine);
 end

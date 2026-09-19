@@ -269,7 +269,7 @@ fprintf('\n== 4. signalOptions ==\n');
 G = EphysPipelineConfig.defaults("Signals");
 so = EphysPipelineConfig.signalOptions(G);
 check(isequal(so.dataTypeOut, "LFP") && so.LFP_Fs == 1000 && ~isfield(so, 'LFP_bpLoHi') ...
-    && ~isfield(so, 'keepAmpChannels') && so.labelField == "custom_channel_name", 'defaults -> LFP only, no filters');
+    && ~isfield(so, 'keepAmpChannels') && so.labelField == "custom" && ~isfield(so, 'lineNames'), 'defaults -> LFP only, no filters');
 G2 = G; G2.MUA = true; G2.SPIKE = true; G2.SPIKE_KeepOriginal = false; G2.LFP_HighpassOn = true; G2.LFP_LowpassOn = true;
 G2.LFP_NotchOn = true; G2.LFP_NotchHz = "60, 120"; G2.KeepChannels = "1-4, 8"; G2.ChannelRemap = "4-1";
 so = EphysPipelineConfig.signalOptions(G2);
@@ -395,6 +395,14 @@ check(any(iss.Step == "sorting" & iss.Field == "Execution" & iss.Severity == "er
 cfg.Sorting.Execution = "blocking";
 iss = cfg.validate();
 check(~any(iss.Field == "Execution"), 'blocking sorting resolves the cross-step rule');
+check(EphysPipelineConfig().Sorting.Engine == "spikeinterface", 'sorting runs through SpikeInterface by default');
+cfg.Sorting.Engine = "bogus";
+iss = cfg.validate();
+check(any(iss.Step == "sorting" & iss.Field == "Engine" & iss.Severity == "error"), 'an unknown sorting engine is an error');
+cfg.Sorting.Engine = "kilosort";
+iss = cfg.validate();
+check(~any(iss.Step == "sorting" & iss.Severity == "error"), 'the native engine validates');
+cfg.Sorting.Engine = "spikeinterface";
 cfg.Export.Enabled = true;
 iss = cfg.validate();
 check(any(iss.Step == "export" & iss.Field == "Formats" & iss.Severity == "error") ...

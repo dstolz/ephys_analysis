@@ -10,16 +10,20 @@ classdef EphysPreprocessingApp < handle
     %
     %   Tabs, in workflow order
     %     Copy       find one subject's sessions on the source for a day or range,
-    %                pair each Intan recording with its ePsych file by the
-    %                timestamps in their names (findCopySessions), stitch the
+    %                pair each recording (Intan RHX folder, Open Ephys GUI
+    %                session) with its ePsych file by the times in their
+    %                names (findCopySessions), stitch the
     %                ePsych files of one recording picked by hand
     %                (stitchCopySessions), preview and
-    %                copy the ticked sessions to <destination>/<subject>/<Intan
+    %                copy the ticked sessions to <destination>/<subject>/<recording
     %                folder> with verification and a manifest (copySessions),
     %                then open the copied sessions as the project. The copy
     %                runs in a detached engine (copy_engine.ps1) polled by a
     %                timer, so it never blocks the app, and an interrupted one
-    %                is completed rather than restarted (IfExists="resume")
+    %                is completed rather than restarted (IfExists="resume").
+    %                Scheduled copy: a Windows task copies the new sessions
+    %                of chosen subjects at an interval, with no MATLAB open
+    %                (CopySchedule); the tab saves it and shows its last run
     %     Project    config name, project root / output root, dataset table
     %                (the Select column is the config's dataset selection),
     %                Epsych2 behavior associations
@@ -36,7 +40,7 @@ classdef EphysPreprocessingApp < handle
     %                step, background-run log
     %     Signals    derived LFP / MUA / SPIKE / AUX (.mat) settings, plan, Run
     %     Spikes     threshold detection / sorted units (.mat), preview, Run
-    %     Export     Chronux / FieldTrip / epoch files, plan, Run
+    %     Export     analysis-toolbox and epoch files (one per format), plan, Run
     %     Diagram    diagram of the working config: one tree per step that
     %                reads the raw recording (filters, references, detection
     %                parameters, files written), then the downstream steps;
@@ -44,9 +48,17 @@ classdef EphysPreprocessingApp < handle
     %     Run        step checklist, validate, plan, run / dry run / cancel,
     %                progress, results, log; optionally a diagram of the
     %                run's steps (the one underway highlighted, each with
-    %                its % done) in the right half
+    %                its % done) in the right half, and CPU / memory / disk /
+    %                GPU use under the steps
     %     Visualize  plot a window, mark manual artifact periods
     %     Review     inspect sorted units
+    %     Clean up   free local disk space once datasets are preprocessed:
+    %                preview every local file of the selected datasets as
+    %                Remove or Keep (planLocalCleanup), then, after a
+    %                confirmation, delete the Remove ones (runLocalCleanup).
+    %                Raw files go only when the source they were copied from
+    %                still holds them; outputs and sorted units always stay.
+    %                Not a pipeline step
     %
     %   File menu: New / Open / Open recent / Save / Save As / Export copy /
     %   Generate script (compact | standalone) / Create synthetic test
@@ -56,7 +68,13 @@ classdef EphysPreprocessingApp < handle
     %
     %   Help menu: opens the GitHub wiki (WikiURL) in the browser: the page
     %   for the tab that is shown, the home page, the quick start and the
-    %   user, scripting and developer guides.
+    %   user, scripting and developer guides. Its last two items file
+    %   against the repository (RepoURL) instead: Report an issue and
+    %   Request a feature open a dialog that collects what the maintainer
+    %   would ask for (MATLAB and machine, the working config, the tail of
+    %   the logs and the error the last run stopped on), shows the whole
+    %   report before anything leaves the app and opens GitHub's new-issue
+    %   form with it filled in (onReportIssue, issueReport, issueURL).
     %
     %   The active dataset is what every single-dataset control works on
     %   (Trials, exclusions, previews, the sorted-output association, phy,
@@ -71,7 +89,7 @@ classdef EphysPreprocessingApp < handle
     %   datasets-table column order, the Trials-table parameter columns and
     %   column order, the Trials-plot label parameters, the Visualize
     %   display options, the Copy tab settings and the Run tab's Show the
-    %   run diagram switch.
+    %   run diagram and Monitor CPU, memory, disk and GPU switches.
     %
     %   Usage
     %     EphysPreprocessingApp;            % launch
@@ -95,7 +113,7 @@ classdef EphysPreprocessingApp < handle
         DatasetAllMenu     matlab.ui.container.Menu   % "All datasets" submenu
         DatasetMenuItems   matlab.ui.container.Menu   % its items, one per dataset (index = dataset index)
         RunMenu            matlab.ui.container.Menu
-        HelpMenu           matlab.ui.container.Menu   % wiki pages (helpURL, onHelp)
+        HelpMenu           matlab.ui.container.Menu   % wiki pages (helpURL, onHelp) + the issue items (onReportIssue)
 
         % --- Global status bar ---
         StatusBar  matlab.ui.control.Label
@@ -114,6 +132,7 @@ classdef EphysPreprocessingApp < handle
         TabFlow      matlab.ui.container.Tab
         TabVisualize matlab.ui.container.Tab
         TabReview    matlab.ui.container.Tab
+        TabCleanup   matlab.ui.container.Tab
 
         % --- Copy tab (settings are preferences; findCopySessions / copySessions) ---
         CopySubjectField      matlab.ui.control.EditField
@@ -121,7 +140,7 @@ classdef EphysPreprocessingApp < handle
         CopyToDatePicker      matlab.ui.control.DatePicker
         CopyFindButton        matlab.ui.control.Button
         CopyEpsychRootField   matlab.ui.control.EditField
-        CopyIntanRootField    matlab.ui.control.EditField
+        CopyRecordingRootsField  matlab.ui.control.EditField   % one or more roots, separated by ";"
         CopyDestRootField     matlab.ui.control.EditField
         CopyMaxLeadField      matlab.ui.control.NumericEditField   % minutes
         CopyMaxLagField       matlab.ui.control.NumericEditField   % minutes
@@ -146,12 +165,26 @@ classdef EphysPreprocessingApp < handle
         CopyProgressRest      matlab.ui.container.Panel
         CopyPercentLabel      matlab.ui.control.Label
         CopyProgressLabel     matlab.ui.control.Label           % the file the engine is on
+        CopyScheduleSubjectsField   matlab.ui.control.EditField          % scheduled copy (CopySchedule)
+        CopyScheduleEveryField      matlab.ui.control.NumericEditField   % minutes between runs
+        CopyScheduleDaysField       matlab.ui.control.NumericEditField   % days each run looks back
+        CopyScheduleQuietField      matlab.ui.control.NumericEditField   % minutes a source must be unchanged
+        CopyScheduleRunWhenDropDown matlab.ui.control.DropDown           % ItemsData "signed_in" | "always"
+        CopyScheduleSaveButton      matlab.ui.control.Button
+        CopyScheduleRemoveButton    matlab.ui.control.Button
+        CopyScheduleRunNowButton    matlab.ui.control.Button
+        CopyScheduleLogButton       matlab.ui.control.Button
+        CopyScheduleStatusLabel     matlab.ui.control.Label              % refreshCopySchedule
 
         % --- Project tab ---
         ConfigNameField   matlab.ui.control.EditField
         ConfigDescField   matlab.ui.control.EditField
         RootPathField     matlab.ui.control.EditField
         BrowseRootButton  matlab.ui.control.Button
+        RecursiveCheckBox matlab.ui.control.CheckBox
+        OERecordingsDropDown matlab.ui.control.DropDown   % Acquisition.OpenEphys.Recordings
+        OERecordNodeField    matlab.ui.control.EditField  % Acquisition.OpenEphys.RecordNode ("" = automatic)
+        OEStreamField        matlab.ui.control.EditField  % Acquisition.OpenEphys.Stream ("" = automatic)
         ScanButton        matlab.ui.control.Button
         RefreshMetaButton matlab.ui.control.Button
         LaunchPhyButton   matlab.ui.control.Button
@@ -272,6 +305,7 @@ classdef EphysPreprocessingApp < handle
         % --- Sorting tab ---
         SortEnableCheckBox  matlab.ui.control.CheckBox
         SortSkipExistingCheckBox matlab.ui.control.CheckBox
+        SortEngineDropDown matlab.ui.control.DropDown
         PythonExeField    matlab.ui.control.EditField
         BrowsePythonButton matlab.ui.control.Button
         CondaEnvField     matlab.ui.control.EditField
@@ -316,6 +350,22 @@ classdef EphysPreprocessingApp < handle
         ReviewWaveAxes      matlab.ui.control.UIAxes
         ReviewAmpAxes       matlab.ui.control.UIAxes
         ReviewRateAxes      matlab.ui.control.UIAxes
+
+        % --- Clean up tab (planLocalCleanup / runLocalCleanup; the kinds ticked are a preference) ---
+        CleanupScopeLabel         matlab.ui.control.Label
+        CleanupRawCheckBox        matlab.ui.control.CheckBox
+        CleanupSorterCopyCheckBox matlab.ui.control.CheckBox
+        CleanupBinCheckBox        matlab.ui.control.CheckBox
+        CleanupPreviewButton      matlab.ui.control.Button
+        CleanupRunButton          matlab.ui.control.Button
+        CleanupSummaryLabel       matlab.ui.control.Label
+        CleanupSearchField        matlab.ui.control.EditField
+        CleanupSubjectDropDown    matlab.ui.control.DropDown
+        CleanupTable              matlab.ui.control.Table
+        CleanupShowKeptCheckBox   matlab.ui.control.CheckBox
+        CleanupShownLabel         matlab.ui.control.Label
+        CleanupSelectButtons      matlab.ui.control.Button   % All / None / Only / Invert visible
+        CleanupLogArea            matlab.ui.control.TextArea
 
         % --- Signals tab (config Signals; gather/applyConvertConfig) ---
         SigEnableCheckBox       matlab.ui.control.CheckBox
@@ -463,6 +513,12 @@ classdef EphysPreprocessingApp < handle
         RunSplitGrid         matlab.ui.container.GridLayout   % right side: progress / results / log | diagram
         RunDiagramPanel      matlab.ui.container.Panel
         RunDiagramHTML       matlab.ui.control.HTML           % runDiagramHTML; Data from refreshRunDiagram
+        RunLeftGrid          matlab.ui.container.GridLayout   % the tab's grid: Steps panel over Resource use
+        RunMonitorCheckBox   matlab.ui.control.CheckBox       % Monitor CPU, memory, disk and GPU (a preference)
+        RunMonitorPanel      matlab.ui.container.Panel        % Resource use, under the Steps panel
+        RunMonitorBars       matlab.ui.container.GridLayout   % CPU, memory, disk, GPU (see setRunBar)
+        RunMonitorTexts      matlab.ui.control.Label          % ... their figures
+        RunMonitorNote       matlab.ui.control.Label
     end
 
     properties
@@ -487,6 +543,10 @@ classdef EphysPreprocessingApp < handle
         % The Run tab diagram's model: phase, times, results so far, one entry
         % per step (resetRunDiagram / updateRunDiagram / finishRunDiagram).
         RunDiagram struct = struct('phase', "idle")
+        % The resource sampler (resource_monitor.ps1) being shown: its folder
+        % ("" = none), launch time and interval, and the timer reading it.
+        ResourceMonitor struct = struct('dir', "", 'started', NaT, 'interval', 2)
+        ResourceMonitorTimer = []
 
         % Probe tab selection state.
         ProbePaths (1,:) string = string.empty(1,0)
@@ -510,7 +570,7 @@ classdef EphysPreprocessingApp < handle
         VizArtPreview = gobjects(0,1)
 
         % --- Trials tab state (in memory; the pairing is saved via Approve) ---
-        TrialsEvents = []                    % EphysDataset.digitalEvents of the loaded dataset
+        TrialsEvents = []                    % EphysDataset.digitalEvents(Relabel=false) of the loaded dataset (native-keyed; see namedTrialsEvents)
         TrialsEventsIdx (1,1) double = 0     % dataset index TrialsEvents belongs to
         TrialsPairing = []                   % EphysDataset.pairTrials result shown
         TrialsSession = []                   % EphysDataset.readBehavior trials of the loaded dataset
@@ -534,15 +594,27 @@ classdef EphysPreprocessingApp < handle
         CopyLiveFrac (1,1) double = 0                   % how far through that row it is
         CopyLivePos (1,1) double = 0                    % its place in the batch: later rows are still waiting
         CopyLivePhase (1,1) string = ""                 % "copying" | "verifying" | "stitching" | "done"
+        CopyScheduler CopySchedule = CopySchedule()     % this user's scheduled copy (a test points it elsewhere)
+        CopyScheduleTimer = []                          % refreshes its state while a scheduled run is under way
 
         % --- Review (Kilosort4 output) state ---
         ReviewData = struct([])
         ReviewSelectedUnit (1,1) double = 0
         ReviewDatasetIdx (1,1) double = 0    % dataset the tab last showed (-1 = reload; syncReviewDataset)
+
+        % --- Clean up tab state (in memory) ---
+        CleanupPlan = []                                        % planLocalCleanup table + Subject, Include ([] = no preview)
+        CleanupPlanKeys (1,:) string = string.empty(1, 0)       % dataset keys it was made for
+        CleanupRowMap (:,1) double = zeros(0, 1)                % CleanupPlan row of each CleanupTable.Data row
+
+        % --- the last run error (Help > Report an issue sends it; issueReport) ---
+        LastError MException = MException.empty(0, 1)   % what a run stopped on ([] when none)
+        LastErrorTime (1,1) datetime = NaT              % when it was caught
     end
 
     properties (Constant)
         PrefGroup = 'EphysPreprocessingApp'
+        RepoURL = "https://github.com/dstolz/ephys_analysis"        % the repository the issue items file against
         WikiURL = "https://github.com/dstolz/ephys_analysis/wiki"   % the Help menu's pages
     end
 
@@ -551,6 +623,7 @@ classdef EphysPreprocessingApp < handle
             % Construct, build the UI, restore preferences and the last config.
             obj.buildUI();
             obj.loadPreferences();
+            obj.refreshCopySchedule(Fill=true);
             obj.refreshProbeList();
             obj.updateTitle();
 
@@ -575,6 +648,7 @@ classdef EphysPreprocessingApp < handle
         buildFlowTab(obj)
         buildVisualizeTab(obj)
         buildReviewTab(obj)
+        buildCleanupTab(obj)
 
         % --- config model ---
         cfg = gatherConfig(obj)
@@ -586,6 +660,9 @@ classdef EphysPreprocessingApp < handle
         selectTab(obj, tab)
         P = gatherProjectSection(obj)
         applyProjectSection(obj, P)
+        A = gatherAcquisitionSection(obj)
+        applyAcquisitionSection(obj, A)
+        onAcquisitionChanged(obj)
         applySelectionToTable(obj, P)
         S = gatherProbeSection(obj)
         applyProbeSection(obj, S)
@@ -611,6 +688,7 @@ classdef EphysPreprocessingApp < handle
         onExportConfigCopy(obj)
         onGenerateScript(obj, kind)
         onCreateSyntheticProject(obj)
+        onOpenAnalysisApp(obj)
         S = createSyntheticProject(obj, root, opts)
         ok = confirmDiscard(obj)
         addRecentConfig(obj, file)
@@ -636,6 +714,11 @@ classdef EphysPreprocessingApp < handle
         finishRunDiagram(obj, R, outcome, note)
         refreshRunDiagram(obj)
         html = runDiagramHTML(obj)
+        onResourceMonitorToggled(obj)
+        startResourceMonitor(obj)
+        stopResourceMonitor(obj)
+        pollResourceMonitor(obj)
+        showResourceSample(obj, S)
 
         % --- Copy tab ---
         onCopyFind(obj)
@@ -654,7 +737,13 @@ classdef EphysPreprocessingApp < handle
         onCopyStitch(obj)
         onCopyUnstitch(obj)
         onBrowseCopyFolder(obj, field)
+        roots = copyRecordingRoots(obj)
         copyLog(obj, msg)
+        refreshCopySchedule(obj, opts)
+        onCopyScheduleSave(obj)
+        onCopyScheduleRemove(obj)
+        onCopyScheduleRunNow(obj)
+        onCopyScheduleLog(obj)
 
         % --- Project tab ---
         onScan(obj)
@@ -696,7 +785,9 @@ classdef EphysPreprocessingApp < handle
         onTrialsTableMenu(obj, menu, evt)
         onTrialsPlotMenu(obj)
         clearTrialsView(obj)
-        fillTrialsLines(obj)
+        fillTrialsLines(obj, S)
+        E = namedTrialsEvents(obj, S)
+        onTrialsLinesEdited(obj, evt)
         setTrialsLineItems(obj, names, trialLine)
         syncTrialsButtons(obj)
         syncTrialsCuts(obj)
@@ -806,6 +897,15 @@ classdef EphysPreprocessingApp < handle
         onReviewNoteEdited(obj, evt)
         onReviewAllUnits(obj)
 
+        % --- Clean up tab ---
+        onCleanupPreview(obj)
+        onCleanupRun(obj)
+        onCleanupSettingsChanged(obj, why)
+        onCleanupFileTicked(obj, evt)
+        onCleanupSelect(obj, how)
+        refreshCleanupScope(obj)
+        refreshCleanupTable(obj, part)
+
         % --- app-wide ---
         loadPreferences(obj)
         savePreferences(obj)
@@ -815,5 +915,8 @@ classdef EphysPreprocessingApp < handle
         onTabChanged(obj)
         url = helpURL(obj, page)
         onHelp(obj, page)
+        onReportIssue(obj, kind)
+        body = issueReport(obj, kind, opts)
+        [url, truncated] = issueURL(obj, kind, title, body)
     end
 end

@@ -19,6 +19,7 @@ function T = unitTable(units, opts)
 %     group           phy / Kilosort label ("good", "mua", ...)
 %     channel         peak recording channel (1-based)
 %     channelName     its native name, e.g. "A-012"
+%     channelNumber   its hardware number (the probe chanMap value)
 %     ksChannel       peak channel among the sorted channels
 %     shank
 %     peakX, peakY    site position of the peak channel (probe units, um)
@@ -151,6 +152,7 @@ T.unitId         = double(col('unitId', NaN));
 T.group          = string(col('group', ""));
 T.channel        = double(col('channel', NaN));
 T.channelName    = string(col('channelName', ""));
+T.channelNumber  = double(col('channelNumber', NaN));
 T.ksChannel      = double(col('ksChannel', NaN));
 T.shank          = double(col('shank', NaN));
 T.peakX          = double(col('peakX', NaN));

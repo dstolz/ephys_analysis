@@ -5,6 +5,7 @@ obj.clearFlowHighlight();   % a control marked by a Diagram click stays marked o
 switch obj.Tabs.SelectedTab
     case obj.TabCopy
         msg = "Copy: find a subject's sessions, check the pairing, Preview, then Copy selected (nothing on the source is changed).";
+        obj.refreshCopySchedule();   % a scheduled run may have happened since
     case obj.TabProject
         msg = "Project: set the root and Scan; tick rows to select datasets (none = all).";
     case obj.TabTrials
@@ -23,7 +24,7 @@ switch obj.Tabs.SelectedTab
     case obj.TabSpikes
         msg = "Spikes: threshold detection and/or sorted units per dataset.";
     case obj.TabExport
-        msg = "Export: write Chronux / FieldTrip / event-epoch files from the extract + spikes.";
+        msg = "Export: write analysis-toolbox files from the extract + spikes.";
         obj.refreshStepPlan("export");
     case obj.TabRun
         msg = "Run: validate, plan, then run the enabled steps.";
@@ -34,6 +35,9 @@ switch obj.Tabs.SelectedTab
         msg = "Visualize: plot a short window; drag to mark manual artifacts.";
     case obj.TabReview
         msg = "Review: the active dataset's sorted units (or Browse... for any results folder).";
+    case obj.TabCleanup
+        msg = "Clean up: Preview what would be removed from the selected datasets and what would remain, then Remove files.";
+        obj.refreshCleanupScope();
     otherwise
         msg = "Ready.";
 end

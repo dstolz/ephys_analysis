@@ -1,22 +1,5 @@
 # ephys_analysis
 
-Config-driven preprocessing pipeline for extracellular electrophysiology, in
-MATLAB: read recordings (Intan RHD out of the box; any other system through a
-universal binary format), screen for artifacts, sort with Kilosort4 through
-SpikeInterface (optional), derive LFP / MUA / spike-band signals, detect
-spikes and collect sorted units, associate Epsych2 behavior sessions, and
-export files for the [Chronux](http://chronux.org) and
-[FieldTrip](https://www.fieldtriptoolbox.org/) toolboxes or as
-event-organized epochs (one epoch per digital pulse or behavior trial, to a
-file or straight to the workspace). One JSON config
-(`EphysPipelineConfig`) drives the GUI (`EphysPreprocessingApp`), the headless
-runner (`EphysPipeline`) and generated scripts (`EphysPipelineScript`).
-
-This repository was split out of
-[`helper_fnc`](https://github.com/dstolz/helper_fnc)'s `ephys/` folder on
-2026-09-11. `ephys/intan` became [`pipeline/`](pipeline) and `ephys/documentation`
-became [`documentation/`](documentation) at the repo root; history was not
-carried over (fresh initial commit).
 
 See [documentation/README.md](documentation/README.md) for the full pipeline
 reference and [pipeline/INSTALL.md](pipeline/INSTALL.md) for setup.
@@ -25,8 +8,9 @@ reference and [pipeline/INSTALL.md](pipeline/INSTALL.md) for setup.
 
 | Path | Contents |
 | --- | --- |
-| [`pipeline/`](pipeline) | `EphysDataset`, `EphysReader` / `IntanReader` / `BinaryReader`, `EphysProject`, `DatasetTracker`, `EphysPipelineConfig` / `EphysPipeline` / `EphysPipelineScript`, `EphysPreprocessingApp`, `ChronuxDataset`, `FieldTripExport`, Epsych2 readers, probe JSON, pipeline configs, Python drivers, tests |
+| [`pipeline/`](pipeline) | `EphysDataset`, `EphysReader` / `IntanReader` / `OpenEphysReader` / `BinaryReader`, `EphysProject`, `DatasetTracker`, `EphysPipelineConfig` / `EphysPipeline` / `EphysPipelineScript`, `EphysPreprocessingApp`, `ChronuxDataset`, `FieldTripExport`, Epsych2 readers, probe JSON, pipeline configs, Python drivers, tests |
 | [`pipeline/pipeline_configs/`](pipeline/pipeline_configs) | starting-point pipeline configs (`H64LP_4x16.json`) |
+| [`analysis/`](analysis) | quick-look figures from the pipeline's outputs: `EphysAnalysisConfig` / `EphysAnalysisRunner` / `EphysAnalysisScript`, `EphysAnalysisApp`, PSTHs, evoked potentials, rates, tuning, heatmaps, probe maps, HTML / PDF reports ([docs](documentation/EphysAnalysis.md)) |
 | [`documentation/`](documentation) | Reference docs for the pipeline |
 | [`S_ExampleAnalysis.m`](S_ExampleAnalysis.m) | script walkthrough: project, detection, derived signals, the pipeline and its outputs |
 | [`extract_trials.m`](extract_trials.m), [`matrix2kilosort.m`](matrix2kilosort.m) | Top-level helpers used by `pipeline/` |
@@ -56,8 +40,25 @@ T  = unitTable(string(fullfile({f.folder}, {f.name})));
 su = T(T.class == "su" & T.subject == "1255", :);
 ```
 
+Quick-look figures of the outputs (PSTHs, evoked potentials, rates, tuning
+curves, heatmaps, probe maps; aligned to any digital line, grouped by Epsych2
+parameters; exported with an HTML / PDF report):
+
+```matlab
+EphysAnalysisApp("D:\EPHYS")                                       % GUI
+r = EphysAnalysisRunner(EphysAnalysisConfig.load("D:\EPHYS\am.json"));
+disp(r.plan());  r.run();                                          % headless
+```
+
+Recordings from Intan RHX and from the Open Ephys GUI (Binary, Open Ephys or
+NWB format) are read directly; name Open Ephys TTL lines in the config
+(`Signals.LineNames = ["TTL4=InTrial" ...]`, or on the Trials tab) and match
+its session folders with the name pattern
+`{SubjectID}_{Date:yyyy-MM-dd}_{Time:HH-mm-ss}*`.
+
 No data yet? `makeSyntheticProject("D:\scratch\synthetic_ephys")` (or **File →
 Create synthetic test project...** in the GUI) writes synthetic recordings
-with Epsych2 sessions, sorted output and a ready config to run.
+(Intan or Open Ephys) with Epsych2 sessions, sorted output and a ready config
+to run.
 
 Tests: `cd pipeline; run_all_tests`.

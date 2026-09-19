@@ -9,7 +9,7 @@ function repairTrials(obj, cuts)
 d = obj.currentDataset();
 if isempty(d) || isempty(obj.TrialsEvents); return; end
 try
-    P = d.pairTrials(Events=obj.TrialsEvents, Cuts=cuts, Warn=false);
+    P = d.pairTrials(Events=obj.namedTrialsEvents(), Cuts=cuts, Warn=false);
 catch ME
     if isstruct(cuts) && ~isempty(obj.TrialsPairing)
         obj.refreshTrialsView();

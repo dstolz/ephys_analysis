@@ -23,19 +23,19 @@ for k = find(T.Status == "stitched").'
     epsych(k) = strjoin(leafName(T.StitchFiles{k}), " + ");
 end
 result = liveResults(obj, n);
-D = table(obj.CopyTicked(:), T.Status, leafName(T.IntanDir), timeText(T.IntanTime), durationText(T.IntanDuration), ...
-    epsych, timeText(T.EpsychTime), trialsText(T.EpsychTrials), deltaText(T.DeltaT), T.DestDir, ...
-    result, obj.CopyMessage(:), T.Note, ...
-    'VariableNames', {'Copy', 'Status', 'Intan folder', 'Intan time', 'Duration', 'ePsych file', 'ePsych time', ...
-    'Trials', 'ePsych - Intan', 'Destination', 'Result', 'Message', 'Note'});
+D = table(obj.CopyTicked(:), T.Status, leafName(T.RecordingDir), readerText(T.Reader), timeText(T.RecordingTime), ...
+    durationText(T.RecordingDuration), epsych, timeText(T.EpsychTime), trialsText(T.EpsychTrials), deltaText(T.DeltaT), ...
+    T.DestDir, result, obj.CopyMessage(:), T.Note, ...
+    'VariableNames', {'Copy', 'Status', 'Recording folder', 'Format', 'Recording time', 'Duration', 'ePsych file', ...
+    'ePsych time', 'Trials', 'ePsych - recording', 'Destination', 'Result', 'Message', 'Note'});
 resultCol = find(D.Properties.VariableNames == "Result");
 tbl.Data = D;
 tbl.ColumnEditable = [true, false(1, width(D) - 1)];
-tbl.ColumnWidth = {45, 85, 185, 120, 70, 205, 120, 50, 95, 'auto', 105, 'auto', 'auto'};
+tbl.ColumnWidth = {45, 95, 185, 75, 120, 70, 205, 120, 50, 110, 'auto', 105, 'auto', 'auto'};
 
 for k = 1:n
     switch T.Status(k)
-        case {"intan_only", "epsych_only"}
+        case {"recording_only", "epsych_only"}
             addStyle(tbl, uistyle("BackgroundColor", [1 0.92 0.78]), "row", k);
         case "ambiguous"
             addStyle(tbl, uistyle("BackgroundColor", [1 0.85 0.85]), "row", k);
@@ -63,8 +63,8 @@ if n == 0
         obj.CopySummaryLabel.Text = "No sessions found for these days.";
     end
 else
-    counts = arrayfun(@(s) nnz(T.Status == s), ["paired", "stitched", "intan_only", "epsych_only", "ambiguous"]);
-    obj.CopySummaryLabel.Text = sprintf("%d paired, %d stitched, %d Intan only, %d ePsych only, %d ambiguous; %d ticked.", ...
+    counts = arrayfun(@(s) nnz(T.Status == s), ["paired", "stitched", "recording_only", "epsych_only", "ambiguous"]);
+    obj.CopySummaryLabel.Text = sprintf("%d paired, %d stitched, %d recording only, %d ePsych only, %d ambiguous; %d ticked.", ...
         counts, nnz(obj.CopyTicked));
 end
 end
@@ -100,9 +100,20 @@ end
 
 function T = findCopySessionsEmpty()
 T = table(strings(0, 1), strings(0, 1), NaT(0, 1), strings(0, 1), NaT(0, 1), duration.empty(0, 1), ...
-    strings(0, 1), strings(0, 1), strings(0, 1), duration.empty(0, 1), zeros(0, 1), cell(0, 1), 'VariableNames', ...
-    {'Subject', 'IntanDir', 'IntanTime', 'EpsychFile', 'EpsychTime', 'DeltaT', 'Status', 'DestDir', 'Note', ...
-    'IntanDuration', 'EpsychTrials', 'StitchFiles'});
+    strings(0, 1), strings(0, 1), strings(0, 1), duration.empty(0, 1), strings(0, 1), zeros(0, 1), cell(0, 1), ...
+    'VariableNames', {'Subject', 'RecordingDir', 'RecordingTime', 'EpsychFile', 'EpsychTime', 'DeltaT', 'Status', ...
+    'DestDir', 'Note', 'RecordingDuration', 'Reader', 'EpsychTrials', 'StitchFiles'});
+end
+
+
+function s = readerText(kind)
+%readerText  The recording format in words, from the reader's kind.
+s = strings(size(kind));
+s(kind == "intan") = "Intan";
+s(kind == "openephys") = "Open Ephys";
+s(kind == "binary") = "Binary";
+other = kind ~= "" & s == "";
+s(other) = kind(other);
 end
 
 

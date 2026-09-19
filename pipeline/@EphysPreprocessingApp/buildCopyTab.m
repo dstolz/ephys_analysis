@@ -1,15 +1,18 @@
 function buildCopyTab(obj)
-%buildCopyTab  Copy tab: find one subject's sessions on the source, pair each Intan
-%   recording with its ePsych file by the timestamps in their names
+%buildCopyTab  Copy tab: find one subject's sessions on the source, pair each
+%   recording (Intan RHX folder or Open Ephys GUI session) with its ePsych
+%   file by the times in their names
 %   (findCopySessions), and copy the ticked sessions to local session folders
 %   (copySessions). Rows picked by hand can be stitched into one recording
-%   with several ePsych files (stitchCopySessions). The app only collects the
-%   settings, shows the pairing and passes the ticked rows on; the pairing,
-%   stitching and copy rules live in those functions. The settings are
-%   preferences, not part of the config.
+%   with several ePsych files (stitchCopySessions). The Scheduled copy panel
+%   sets up a Windows task that copies new sessions at an interval without
+%   MATLAB open (CopySchedule). The app only collects the settings, shows the
+%   pairing and passes the ticked rows on; the pairing, stitching, copy and
+%   schedule rules live in those functions. The settings are preferences, not
+%   part of the config; the schedule keeps its own settings file.
 
-g = uigridlayout(obj.TabCopy, [6 1]);
-g.RowHeight   = {'fit', 'fit', 0, 'fit', '2x', '1x'};   % row 3 is the progress panel, collapsed while idle
+g = uigridlayout(obj.TabCopy, [7 1]);
+g.RowHeight   = {'fit', 'fit', 0, 'fit', 'fit', '2x', '1x'};   % row 3 is the progress panel, collapsed while idle
 g.ColumnWidth = {'1x'};
 g.Padding     = [10 10 10 10];
 g.RowSpacing  = 8;
@@ -38,13 +41,15 @@ obj.CopyToDatePicker = uidatepicker(top, "DisplayFormat", "yyyy-MM-dd", "Placeho
 obj.CopyToDatePicker.Layout.Row = 1; obj.CopyToDatePicker.Layout.Column = 6;
 obj.CopyFindButton = uibutton(top, "Text", "Find sessions", "FontWeight", "bold", ...
     "BackgroundColor", [0.15 0.45 0.80], "FontColor", [1 1 1], ...
-    "Tooltip", "List and pair the subject's ePsych files and Intan folders for these days (by name; reads only headers).", ...
+    "Tooltip", "List and pair the subject's ePsych files and recording folders for these days (by name; reads only headers).", ...
     "ButtonPushedFcn", @(~,~) obj.onCopyFind());
 obj.CopyFindButton.Layout.Row = 1; obj.CopyFindButton.Layout.Column = 7;
 
 roots = {"ePsych root:", "CopyEpsychRootField", "Source folder holding one folder of ePsych .mat files per subject."
-         "Intan root:",  "CopyIntanRootField",  "Source folder holding one folder of Intan recording folders per subject."
-         "Destination:", "CopyDestRootField",   "Local root; each session is copied to <root>/<subject>/<Intan folder name>."};
+         "Recording roots:", "CopyRecordingRootsField", ...
+            "Source folders holding one folder of recordings per subject: Intan RHX folders <subject>_yyMMdd_HHmmss " + ...
+            "and Open Ephys GUI sessions <subject>_yyyy-MM-dd_HH-mm-ss. Separate several roots with "";""; Browse adds one."
+         "Destination:", "CopyDestRootField",   "Local root; each session is copied to <root>/<subject>/<recording folder name>."};
 for k = 1:3
     lbl = uilabel(top, "Text", roots{k, 1}, "Tooltip", roots{k, 3});
     lbl.Layout.Row = k + 1; lbl.Layout.Column = 1;
@@ -55,7 +60,7 @@ for k = 1:3
     b.Layout.Row = k + 1; b.Layout.Column = 7;
 end
 obj.CopyEpsychRootField.Value = 'S:/RIG3_Backup_2025/epsych_files/Data';
-obj.CopyIntanRootField.Value  = 'S:/RIG3_Backup_2025/intan_files/Data';
+obj.CopyRecordingRootsField.Value = 'S:/RIG3_Backup_2025/intan_files/Data';
 obj.CopyDestRootField.Value   = 'D:/EPHYS';
 
 % --- pairing and copy options + actions --------------------------------------------
@@ -65,11 +70,11 @@ bar.RowHeight   = {'fit', 'fit', 'fit'};
 bar.ColumnWidth = {'fit', 50, 'fit', 50, 'fit', 50, 'fit', 50, 'fit', 70, 'fit', 70, '1x', 'fit', 'fit'};
 bar.Padding     = [0 0 0 0];
 
-lbl = uilabel(bar, "Text", "Max lead (min):", "Tooltip", "How long the ePsych file may start before the Intan recording.");
+lbl = uilabel(bar, "Text", "Max lead (min):", "Tooltip", "How long the ePsych file may start before the recording.");
 lbl.Layout.Row = 1; lbl.Layout.Column = 1;
 obj.CopyMaxLeadField = uieditfield(bar, "numeric", "Value", 10, "Limits", [0 Inf], "Tooltip", lbl.Tooltip);
 obj.CopyMaxLeadField.Layout.Row = 1; obj.CopyMaxLeadField.Layout.Column = 2;
-lbl = uilabel(bar, "Text", "Max lag (min):", "Tooltip", "How long the ePsych file may start after the Intan recording (clock skew).");
+lbl = uilabel(bar, "Text", "Max lag (min):", "Tooltip", "How long the ePsych file may start after the recording (clock skew).");
 lbl.Layout.Row = 1; lbl.Layout.Column = 3;
 obj.CopyMaxLagField = uieditfield(bar, "numeric", "Value", 2, "Limits", [0 Inf], "Tooltip", lbl.Tooltip);
 obj.CopyMaxLagField.Layout.Row = 1; obj.CopyMaxLagField.Layout.Column = 4;
@@ -79,7 +84,7 @@ lbl.Layout.Row = 1; lbl.Layout.Column = 5;
 obj.CopyMarginField = uieditfield(bar, "numeric", "Value", 30, "Limits", [0 Inf], "Tooltip", lbl.Tooltip);
 obj.CopyMarginField.Layout.Row = 1; obj.CopyMarginField.Layout.Column = 6;
 lbl = uilabel(bar, "Text", "Min duration (min):", "Tooltip", ...
-    "Intan recordings shorter than this are never paired (listed as Intan only); 0 pairs every recording.");
+    "Recordings shorter than this (from their headers) are never paired (listed as recording only); 0 pairs every recording.");
 lbl.Layout.Row = 1; lbl.Layout.Column = 7;
 obj.CopyMinDurationField = uieditfield(bar, "numeric", "Value", 2, "Limits", [0 Inf], "Tooltip", lbl.Tooltip);
 obj.CopyMinDurationField.Layout.Row = 1; obj.CopyMinDurationField.Layout.Column = 8;
@@ -109,33 +114,106 @@ obj.CopyScanAfterCheckBox = uicheckbox(bar, "Text", "After copying, open the cop
     "Tooltip", "Set the Project root to the folder holding the copied sessions and Scan it.");
 obj.CopyScanAfterCheckBox.Layout.Row = 2; obj.CopyScanAfterCheckBox.Layout.Column = [13 15];
 buildProgressPanel(obj, g);
+buildSchedulePanel(obj, g);
 
 % --- stitching ------------------------------------------------------------------------
 st = uigridlayout(g, [1 3]);
-st.Layout.Row = 4;
+st.Layout.Row = 5;
 st.RowHeight   = {'fit'};
 st.ColumnWidth = {'fit', 'fit', '1x'};
 st.Padding     = [0 0 0 0];
 obj.CopyStitchButton = uibutton(st, "Text", "Stitch selected rows", ...
-    "Tooltip", "Merge the selected rows (one Intan folder and its ePsych files) into one session; copying joins the ePsych files, in chronological order, into one file.", ...
+    "Tooltip", "Merge the selected rows (one recording folder and its ePsych files) into one session; copying joins the ePsych files, in chronological order, into one file.", ...
     "ButtonPushedFcn", @(~,~) obj.onCopyStitch());
 obj.CopyUnstitchButton = uibutton(st, "Text", "Unstitch", ...
     "Tooltip", "Put the selected stitched rows back as Find sessions paired them.", ...
     "ButtonPushedFcn", @(~,~) obj.onCopyUnstitch());
 uilabel(st, "FontColor", [0.4 0.4 0.4], "Text", ...
-    "To stitch ePsych files: select the Intan folder's row and the rows of its ePsych files (Ctrl-click), then Stitch.");
+    "To stitch ePsych files: select the recording folder's row and the rows of its ePsych files (Ctrl-click), then Stitch.");
 
 % --- sessions table ------------------------------------------------------------------
 obj.CopyTable = uitable(g, "RowName", {}, "ColumnSortable", false, ...
     "SelectionType", "row", "Multiselect", "on", ...
     "CellEditCallback", @(~, evt) obj.onCopyTableEdited(evt));
-obj.CopyTable.Layout.Row = 5;
+obj.CopyTable.Layout.Row = 6;
 
 % --- log -------------------------------------------------------------------------------
 obj.CopyLogArea = uitextarea(g, "Editable", "off", "FontName", "Consolas", "Value", {''});
-obj.CopyLogArea.Layout.Row = 6;
+obj.CopyLogArea.Layout.Row = 7;
 
 obj.refreshCopyTable();
+end
+
+
+function buildSchedulePanel(obj, g)
+%buildSchedulePanel  The scheduled copy: its own settings, its buttons and its state.
+%   A schedule copies with the roots, destination, pairing and copy options
+%   above, as they are when it is saved, so only what is its own is here:
+%   the subjects, how often, how many days back, how long a session must
+%   have been quiet, and whether it also runs while signed out.
+%   refreshCopySchedule shows its state on the second row.
+p = uipanel(g, "Title", "Scheduled copy: copies new sessions in the background through Windows Task Scheduler (MATLAB need not be open)", ...
+    "FontWeight", "bold");
+p.Layout.Row = 4;
+sg = uigridlayout(p, [2 12]);
+sg.RowHeight   = {'fit', 'fit'};
+sg.ColumnWidth = {'fit', '1x', 'fit', 55, 'fit', 50, 'fit', 50, 'fit', 250, 'fit', 'fit'};
+sg.Padding     = [8 6 8 6];
+sg.RowSpacing  = 6;
+
+tip = "Subject IDs to copy, separated by spaces or commas; each is searched as Find sessions searches it. Blank: the Subject ID above.";
+lbl = uilabel(sg, "Text", "Subjects:", "Tooltip", tip);
+lbl.Layout.Row = 1; lbl.Layout.Column = 1;
+obj.CopyScheduleSubjectsField = uieditfield(sg, "text", "Tooltip", tip, ...
+    "Placeholder", "e.g. SUBJ-ID-1255 SUBJ-ID-1256 (blank: the Subject ID above)");
+obj.CopyScheduleSubjectsField.Layout.Row = 1; obj.CopyScheduleSubjectsField.Layout.Column = 2;
+
+fields = {
+    "Every (min):", "CopyScheduleEveryField", 60, [5 1440], ...
+        "How often Windows starts a copy (5 to 1440 min). Runs are on the clock: every 60 min is on the hour."
+    "Days back:", "CopyScheduleDaysField", 3, [1 366], ...
+        "Each run looks for the sessions of this many days, ending today (1: today only). Sessions already copied are recognised by their sizes and left alone."
+    "Quiet (min):", "CopyScheduleQuietField", 15, [0 1440], ...
+        "A session whose source changed within this many minutes is left for a later run, so a recording that is still being written, or synced to the source, is never copied half way."};
+for k = 1:size(fields, 1)
+    lbl = uilabel(sg, "Text", fields{k, 1}, "Tooltip", fields{k, 5});
+    lbl.Layout.Row = 1; lbl.Layout.Column = 2 * k + 1;
+    f = uieditfield(sg, "numeric", "Value", fields{k, 3}, "Limits", fields{k, 4}, ...
+        "RoundFractionalValues", k < 3, "Tooltip", fields{k, 5});
+    f.Layout.Row = 1; f.Layout.Column = 2 * k + 2;
+    obj.(fields{k, 2}) = f;
+end
+
+tip = "While I am signed in: runs whenever you are signed in to Windows, with the screen locked too. " + ...
+    "Even when I am signed out: also after a restart or sign-out; Windows asks for your password once, " + ...
+    "in a window of its own, and keeps it with the task (some accounts are not allowed this).";
+lbl = uilabel(sg, "Text", "Run:", "Tooltip", tip);
+lbl.Layout.Row = 1; lbl.Layout.Column = 9;
+obj.CopyScheduleRunWhenDropDown = uidropdown(sg, "Tooltip", tip, ...
+    "Items", ["while I am signed in", "even when I am signed out (asks for my password)"], ...
+    "ItemsData", ["signed_in", "always"], "Value", "signed_in");
+obj.CopyScheduleRunWhenDropDown.Layout.Row = 1; obj.CopyScheduleRunWhenDropDown.Layout.Column = 10;
+
+obj.CopyScheduleSaveButton = uibutton(sg, "Text", "Save schedule", "FontWeight", "bold", ...
+    "Tooltip", "Save these settings with the roots, destination, pairing and copy options above, and create (or replace) the Windows task. Paired sessions are copied; ambiguous, unpaired and to-be-stitched ones are left for you.", ...
+    "ButtonPushedFcn", @(~,~) obj.onCopyScheduleSave());
+obj.CopyScheduleSaveButton.Layout.Row = 1; obj.CopyScheduleSaveButton.Layout.Column = 11;
+obj.CopyScheduleRemoveButton = uibutton(sg, "Text", "Remove", ...
+    "Tooltip", "Delete the Windows task. Copies already made are kept, and so is the log.", ...
+    "ButtonPushedFcn", @(~,~) obj.onCopyScheduleRemove());
+obj.CopyScheduleRemoveButton.Layout.Row = 1; obj.CopyScheduleRemoveButton.Layout.Column = 12;
+
+obj.CopyScheduleStatusLabel = uilabel(sg, "Text", "Not scheduled.", "WordWrap", "on", ...
+    "FontColor", [0.35 0.35 0.35]);
+obj.CopyScheduleStatusLabel.Layout.Row = 2; obj.CopyScheduleStatusLabel.Layout.Column = [1 10];
+obj.CopyScheduleRunNowButton = uibutton(sg, "Text", "Run now", "Enable", "off", ...
+    "Tooltip", "Start a scheduled run now, in the background, as Windows would.", ...
+    "ButtonPushedFcn", @(~,~) obj.onCopyScheduleRunNow());
+obj.CopyScheduleRunNowButton.Layout.Row = 2; obj.CopyScheduleRunNowButton.Layout.Column = 11;
+obj.CopyScheduleLogButton = uibutton(sg, "Text", "Open log", "Enable", "off", ...
+    "Tooltip", "Open the scheduled copy's log: every run, every session.", ...
+    "ButtonPushedFcn", @(~,~) obj.onCopyScheduleLog());
+obj.CopyScheduleLogButton.Layout.Row = 2; obj.CopyScheduleLogButton.Layout.Column = 12;
 end
 
 

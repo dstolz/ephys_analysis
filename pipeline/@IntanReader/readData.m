@@ -22,8 +22,6 @@ function data = readData(obj, opts)
 %                  matrix. "single" casts each file as it is read, so peak
 %                  memory is ~half that of "double" (values are the same
 %                  microvolts, rounded to single precision).
-%     EventLabelField  "custom_channel_name" (default) | "native_channel_name"
-%                  which dig-in channel name keys the EVENTS struct.
 %
 %   Output struct fields
 %   --------------------
@@ -31,7 +29,8 @@ function data = readData(obj, opts)
 %     Fs             amplifier sample rate (Hz)
 %     t              [nSamples x 1] time vector (s)
 %     channelNames / nativeNames / channelOrder
-%     events         struct, one field per dig-in line -> [k x 2] [t_on t_off] (s)
+%     events         struct, one field per dig-in line, keyed by its NATIVE
+%                    name (makeValidName) -> [k x 2] [t_on t_off] (s)
 %     digInNames / digInNativeNames   dig-in custom / native channel names
 %     boardADC / aux / auxFs   (or [] when not requested/present); aux is
 %                    [nAuxSamples x nAux] volts (Intan headstage accelerometer)
@@ -57,8 +56,6 @@ arguments
     opts.Concatenate (1,1) logical = true
     opts.ProgressFcn = []
     opts.Precision (1,1) string {mustBeMember(opts.Precision, ["double", "single"])} = "double"
-    opts.EventLabelField (1,1) string {mustBeMember(opts.EventLabelField, ...
-        ["custom_channel_name", "native_channel_name"])} = "custom_channel_name"
 end
 
 if obj.NumFiles == 0
@@ -75,7 +72,7 @@ if obj.RecordingFormat == "one-file-per-signal" || ...
     data = obj.readSplitAll(Files=opts.Files, KeepChannels=opts.KeepChannels, ...
         IncludeADC=opts.IncludeADC, IncludeAux=opts.IncludeAux, ...
         Concatenate=opts.Concatenate, ProgressFcn=opts.ProgressFcn, ...
-        Precision=opts.Precision, EventLabelField=opts.EventLabelField);
+        Precision=opts.Precision);
     return
 end
 
@@ -186,14 +183,11 @@ else
     aux       = AUX;
 end
 
-% Build events from concatenated dig lines (seconds on Fs grid)
+% Build events from concatenated dig lines (seconds on Fs grid), keyed by
+% the native line names (EphysDataset renames them)
 events = struct();
 if opts.Concatenate && ndid > 0 && ~isempty(digData)
-    if opts.EventLabelField == "native_channel_name"
-        names = matlab.lang.makeValidName(cellstr(digInNative));
-    else
-        names = matlab.lang.makeValidName(cellstr(digInNames));
-    end
+    names = matlab.lang.makeValidName(cellstr(digInNative));
     for j = 1:ndid
         events.(names{j}) = highSegments(digData(:, j), Fs);
     end

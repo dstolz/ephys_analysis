@@ -1,6 +1,6 @@
 function runExport(obj, opts)
-%runExport  Chronux / FieldTrip / epoch files per dataset (exportChronux /
-%   exportFieldTrip / exportEpochs).
+%runExport  Analysis-toolbox and epoch files per dataset, one per format
+%   (export<Format>).
 %   The continuous signals come from the Signals step's extract file(s), the
 %   sorted units from the sorting association, detected spikes from the
 %   Spikes step's file (Export.IncludeDetected), events as configured. The

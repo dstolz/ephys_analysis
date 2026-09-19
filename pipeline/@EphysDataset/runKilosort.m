@@ -1,10 +1,17 @@
 function result = runKilosort(obj, opts)
-%runKilosort  Write run_ks4.py + settings.json and spawn Kilosort4 via system().
-%   RESULT = ds.runKilosort() writes a settings.json and a run_ks4.py next to
-%   the dataset's .bin, then launches Kilosort4 by calling a configurable
-%   python/conda executable through SYSTEM (not MATLAB's pyenv). The .bin must
-%   already exist (call ds.toBin first) and ds.ProbeFile must point to an
-%   existing Kilosort4 probe .json (this class never generates probe maps).
+%runKilosort  Run Kilosort4 natively (no SpikeInterface) via system().
+%   RESULT = ds.runKilosort() writes the recording to ds.BinFile (toBin,
+%   blanking the artifact intervals), writes a settings.json and a run_ks4.py
+%   into the results dir, then launches Kilosort4 by calling a configurable
+%   python/conda executable through SYSTEM (not MATLAB's pyenv).
+%   ds.ProbeFile must point to an existing Kilosort4 probe .json (this class
+%   never generates probe maps). This is the "kilosort" sorting engine; the
+%   "spikeinterface" engine is runSpikeInterface.
+%
+%   The probe's chanMap indexes .bin rows (0-based) directly. Unlike
+%   runSpikeInterface, sites are not matched to channels by their native
+%   number, so a recording with a channel disabled at acquisition needs a
+%   probe that already accounts for the gap.
 %
 %   RESULT = ds.runKilosort(opts) with name-value options:
 %     PythonExe      python executable path (default ds.PythonExe)
@@ -15,7 +22,12 @@ function result = runKilosort(obj, opts)
 %                    .bin (n_chan_bin is unchanged) but are removed from the
 %                    probe's chanMap/xc/yc/kcoords via a derived probe written to
 %                    the results dir; the original probe .json is never modified.
-%     BinFile        input .bin (default ds.BinFile)
+%     BinFile        existing .bin to sort as is (default: write ds.BinFile
+%                    from the recording first)
+%     ArtifactIntervals [k x 2] seconds to blank when writing the .bin
+%                    ([] = none; default NaN = ds.artifactIntervals(): manual
+%                    + auto when enabled). Refused when they cover more than
+%                    EphysDataset.MaxSilencedFraction of the recording.
 %     ResultsDir     KS4 output dir (default OutputDir/kilosort4)
 %     NChanBin       n_chan_bin override (default from .bin JSON sidecar or NumChannels)
 %     Fs             sample rate override (default ds.Fs)
@@ -34,8 +46,13 @@ function result = runKilosort(obj, opts)
 %   Python/conda exe and conda env resolve most-specific-first:
 %   per-call opts -> dataset property -> (manager default, when pushed down).
 %
+%   A run into the default results dir (kilosortDir) first deletes a
+%   SpikeInterface run's si/ subfolder there, so kilosortResultsDir finds
+%   this run's output rather than the older one.
+%
 %   RESULT struct: status, command, stdoutLog, scriptPath, settingsPath,
-%   resultsDir, binFile, probeFile, dryRun, wait, statusFile, background.
+%   resultsDir, runDir, binFile, probeFile, dryRun, wait, statusFile,
+%   background.
 %
 %   See also EphysDataset.toBin, EPHYSPROJECT.
 
@@ -50,6 +67,7 @@ arguments
     opts.NChanBin (1,1) double = NaN
     opts.Fs (1,1) double = NaN
     opts.ExtraSettings (1,1) struct = struct()
+    opts.ArtifactIntervals double = NaN
     opts.DryRun (1,1) logical = false
     opts.Wait (1,1) logical = true
 end
@@ -58,6 +76,7 @@ end
 pythonExe = firstNonEmpty(opts.PythonExe, obj.PythonExe);
 condaEnv  = firstNonEmpty(opts.CondaEnv,  obj.CondaEnv);
 probeFile = firstNonEmpty(opts.ProbeFile, obj.ProbeFile);
+binGiven  = opts.BinFile ~= "";
 binFile   = firstNonEmpty(opts.BinFile,   obj.BinFile);
 
 if pythonExe == ""
@@ -71,9 +90,34 @@ end
 if ~isfile(probeFile)
     error('EphysDataset:runKilosort:ProbeMissing', 'Probe file not found: %s', probeFile);
 end
-if ~opts.DryRun && ~isfile(binFile)
-    error('EphysDataset:runKilosort:BinMissing', ...
-        '.bin not found: %s (run ds.toBin first).', binFile);
+if ~opts.DryRun && binGiven && ~isfile(binFile)
+    error('EphysDataset:runKilosort:BinMissing', '.bin not found: %s', binFile);
+end
+
+% Results dir
+if opts.ResultsDir ~= ""
+    resultsDir = char(opts.ResultsDir);
+else
+    resultsDir = obj.kilosortDir();
+end
+resultsDir = absPath(resultsDir);
+
+% Write the .bin from the recording, blanking the artifact intervals.
+if ~binGiven && ~opts.DryRun
+    [iv, given] = explicitIntervals(opts.ArtifactIntervals);
+    if ~given
+        iv = obj.artifactIntervals();
+    end
+    if isnan(obj.Fs) || isempty(obj.PerFile); obj.refreshMetadata(); end
+    [share, covered] = EphysDataset.silencedFraction(iv, obj.NumSamples / obj.Fs);
+    if share > EphysDataset.MaxSilencedFraction
+        error('EphysDataset:runKilosort:MostlySilenced', ...
+            ['Artifact blanking would zero %.0f%% of the recording (%d period(s), %.4g of %.4g s; ' ...
+             'limit %.0f%%). Kilosort4 would find no spikes. Check the artifact detector settings ' ...
+             'or turn off artifact silencing for this dataset.'], 100 * share, size(iv, 1), ...
+            covered, obj.NumSamples / obj.Fs, 100 * EphysDataset.MaxSilencedFraction);
+    end
+    obj.toBin(ArtifactIntervals=iv);
 end
 
 % Absolute paths (KS4 + system() want absolute, double-quoted paths)
@@ -83,13 +127,10 @@ probeFile = absPath(probeFile);
 % n_chan_bin and fs: opts -> .bin JSON sidecar -> dataset metadata
 [nChanBin, fsVal] = resolveBinMeta(binFile, opts, obj);
 
-% Results dir
-if opts.ResultsDir ~= ""
-    resultsDir = char(opts.ResultsDir);
-else
-    resultsDir = fullfile(char(obj.outputFolder()), 'kilosort4');
+siDir = fullfile(resultsDir, 'si');
+if ~opts.DryRun && strcmpi(resultsDir, absPath(obj.kilosortDir())) && isfolder(siDir)
+    rmdir(siDir, 's');   % an older SpikeInterface run would shadow this one
 end
-resultsDir = absPath(resultsDir);
 if ~isfolder(resultsDir)
     mkdir(resultsDir);
 end
@@ -148,6 +189,7 @@ result.stdoutLog    = char(stdoutLog);
 result.scriptPath   = char(scriptPath);
 result.settingsPath = char(settingsPath);
 result.resultsDir   = resultsDir;
+result.runDir       = resultsDir;
 result.binFile      = binFile;
 result.probeFile    = probeFile;
 result.excludeChannels = excludeCh;

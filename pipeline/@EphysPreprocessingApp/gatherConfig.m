@@ -7,6 +7,7 @@ cfg.Name        = string(strtrim(obj.ConfigNameField.Value));
 if cfg.Name == ""; cfg.Name = "Untitled"; end
 cfg.Description = string(strtrim(obj.ConfigDescField.Value));
 cfg.Project   = obj.gatherProjectSection();
+cfg.Acquisition = obj.gatherAcquisitionSection();
 cfg.Parallel  = obj.gatherParallelSection();
 cfg.Probe     = obj.gatherProbeSection();
 cfg.Behavior  = obj.gatherBehaviorSection();

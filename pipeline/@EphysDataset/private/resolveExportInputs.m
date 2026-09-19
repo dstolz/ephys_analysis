@@ -1,5 +1,5 @@
 function in = resolveExportInputs(obj, opts, who)
-%resolveExportInputs  Shared input resolution for exportChronux / exportFieldTrip.
+%resolveExportInputs  Shared input resolution for the export<Format> methods.
 %   Turns the exporter options into concrete data:
 %     in.S         toMat-shaped extract struct (Y, events, info)
 %     in.signals   signals to export (present in in.S.Y)

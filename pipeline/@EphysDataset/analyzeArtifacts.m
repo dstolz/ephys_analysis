@@ -63,7 +63,7 @@ if obj.NumFiles == 0
     obj.discoverFiles();
 end
 if obj.NumFiles == 0
-    error('EphysDataset:analyzeArtifacts:NoFiles', 'No Intan files in %s', obj.Folder);
+    error('EphysDataset:analyzeArtifacts:NoFiles', 'No recording files in %s', obj.Folder);
 end
 if isnan(obj.Fs) || isempty(obj.PerFile)
     obj.refreshMetadata();

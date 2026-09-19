@@ -15,7 +15,7 @@ the exact script it used.
 | Script | Called by | Environment needs |
 | --- | --- | --- |
 | [`run_si_ks4.py`](../pipeline/@EphysDataset/run_si_ks4.py) | `EphysDataset.runSpikeInterface` (the pipeline's Sorting step) | spikeinterface, probeinterface, neo, kilosort, torch |
-| [`run_ks4.py`](../pipeline/@EphysDataset/run_ks4.py) | `EphysDataset.runKilosort` (legacy `.bin` engine) | kilosort, torch |
+| [`run_ks4.py`](../pipeline/@EphysDataset/run_ks4.py) | `EphysDataset.runKilosort` (native `.bin` engine, `Sorting.Engine = "kilosort"`) | kilosort, torch |
 | [`probe_tool.py`](../pipeline/@EphysPreprocessingApp/probe_tool.py) | `EphysPreprocessingApp.runProbeTool` / `ProbeDesignerApp` | probeinterface |
 
 Versions known to work are listed in [INSTALL.md](../pipeline/INSTALL.md):
@@ -43,6 +43,24 @@ Usage: `run_si_ks4.py <si_config.json> [--check]`. The config schema is in
    - `binary` (the universal `recording.json` format): `read_binary` over the
      flat channel-major file with the descriptor's `dtype`, `n_chan`, `fs`,
      `gain_to_uV` and `offset`.
+   - `openephys-binary`: `read_binary` over each recording's `continuous.dat`
+     (int16, every stream channel), concatenated, then the headstage channels
+     (`channel_indices`) with their `gain_to_uV`.
+   - `openephys-legacy`: `OpenEphysLegacyRecording`, which memory-maps the
+     headstage `.continuous` files as 2070-byte records (big-endian samples)
+     and exposes each recording's records (`first_record`, `n_records`) as a
+     segment; the segments are concatenated.
+   - `openephys-nwb`: `OpenEphysNwbRecording`, which reads the stream's
+     `ElectricalSeries` rows (`row_start`, `n_samples` per recording) through
+     **h5py**. The kilosort environment does not include h5py: install it
+     (`conda install -n kilosort h5py`) or sort NWB sessions with the native
+     engine (`Sorting.Engine = "kilosort"`), which reads the file in MATLAB.
+   The two Open Ephys classes are defined at module level (with a module
+   `__version__`) because SpikeInterface serializes a recording by class path
+   and rebuilds it. Every loader returns the rows the MATLAB reader returns.
+   Then the channels are **renamed to their channel numbers**
+   (`recording.channel_numbers`, the dataset's `ChannelNumbers`); a count
+   mismatch or a repeated number is an error.
 2. **Unsigned → signed.** If the dtype is unsigned, `unsigned_to_signed` is
    applied (Kilosort4 refuses unsigned input).
 3. **Crop.** `tmin`/`tmax` are removed from the `ks4` settings block and applied
@@ -53,8 +71,8 @@ Usage: `run_si_ks4.py <si_config.json> [--check]`. The config schema is in
 5. **Attach the probe** (`build_probe`):
    - The KS4 JSON `xc`/`yc`/`chanMap`/`kcoords` are read, and circular contacts
      of radius 6 µm are created.
-   - Each `chanMap` value is matched to the recording channel whose **ID ends in
-     that integer** (for example `A-016` → 16).
+   - Each `chanMap` value is matched to the recording channel **named by that
+     number** (the channel numbers of step 1: `A-016` → 16, `CH17` → 16).
    - Probe sites whose number is not present in the recording are dropped and
      logged ("disabled at acquisition?").
 6. **Bandpass**, if `preprocessing.filter.enabled`: `bandpass_filter(freq_min,
@@ -75,6 +93,10 @@ Usage: `run_si_ks4.py <si_config.json> [--check]`. The config schema is in
      `round(t·fs)`.
    - The result is clamped to the recording, and periods with `end <= start`
      are dropped.
+   - The share of the recording they cover is logged. If it is over half
+     (`MAX_SILENCED_FRACTION`), the run stops with an error instead of
+     sorting. Kilosort4 would find no spikes in the zeroed data and fail
+     inside its template SVD.
    - The periods are applied with `silence_periods` (zeros).
    - A small in-process patch of `SilencedPeriodsRecording.__init__` rebuilds
      the structured `periods` array after SpikeInterface's JSON round-trip.
@@ -93,8 +115,9 @@ Usage: `run_si_ks4.py <si_config.json> [--check]`. The config schema is in
 
 ### Status and dry runs
 
-- Success: `ks4_status.json` = `{"state": "done", "num_units", "bad_channels",
-  "dropped_params"}`, and the log line `KILOSORT4_DONE units=N`.
+- Success: `ks4_status.json` = `{"state": "done", "num_units", "bad_channels"
+  (channel numbers, as strings), "dropped_params"}`, and the log line
+  `KILOSORT4_DONE units=N`.
 - Failure: `{"state": "error", "message", "traceback"}`, the log line
   `KILOSORT4_ERROR`, and the exception is re-raised.
 - `--check` builds the pipeline and the parameter list and prints
@@ -107,14 +130,15 @@ Usage: `run_si_ks4.py <si_config.json> [--check]`. The config schema is in
 
 ### Channel-numbering caveat
 
-`build_probe` matches `chanMap` values to channel IDs by their **trailing
-integer**, whereas `exclude_channels` and the legacy `.bin` engine use
-**positions**. The two agree when native channel numbers equal positions
-(0, 1, 2, … with no gaps). They can differ when:
-
-- channels were disabled at acquisition (gaps in the numbering), or
-- the recording spans more than one port. `A-000` and `B-000` both end in `0`,
-  and the lookup keeps the later one.
+`build_probe` matches `chanMap` values to channel **numbers**
+(`EphysDataset.ChannelNumbers`), whereas `exclude_channels` and the legacy
+`.bin` engine use **positions**. The two agree when the channel numbers equal
+the positions (0, 1, 2, … with no gaps). They differ when channels were
+disabled at acquisition (gaps in the numbering): the probe then drops the
+missing sites, while `.bin` rows are positions. A recording spanning more than
+one Intan port (`A-000` and `B-000`) does not give distinct numbers, so its
+channels are numbered by position (`EphysReader:ChannelNumbersNotUnique`
+warns), and a probe for it must use positions `0..n-1`.
 
 ---
 
@@ -123,14 +147,20 @@ integer**, whereas `exclude_channels` and the legacy `.bin` engine use
 Usage: `run_ks4.py <settings.json>`.
 
 1. Loads the probe with `kilosort.io.load_probe(cfg['probe'])`.
-2. Passes every other `settings.json` key (except `probe` and `data_dtype`) as
-   Kilosort4 `settings`.
+2. Sorts the other `settings.json` keys (except `probe` and `data_dtype`) with
+   `split_settings`:
+   - `run_kilosort` arguments (`do_CAR`, `invert_sign`, `save_extra_vars`,
+     `save_preprocessed_copy`, `bad_channels`, `clear_cache`,
+     `torch_thread_lim`) are passed as arguments;
+   - keys in Kilosort4's `RECOGNIZED_SETTINGS` become `settings`;
+   - anything else is **dropped** and logged. Kilosort4 would otherwise refuse
+     the whole run with "Unrecognized settings".
 3. Calls `kilosort.run_kilosort(settings, probe, filename, data_dtype,
-   results_dir)`.
+   results_dir, **run_args)`.
 
-It writes `ks4_status.json` (`{"state": "done"}` or `{"state": "error",
-"message", "traceback"}`) in `results_dir` and prints `KILOSORT4_DONE` /
-`KILOSORT4_ERROR`.
+It writes `ks4_status.json` (`{"state": "done", "num_units", "dropped_params"}`
+or `{"state": "error", "message", "traceback"}`) in `results_dir` and prints
+`KILOSORT4_DONE units=<n>` / `KILOSORT4_ERROR`.
 
 ---
 

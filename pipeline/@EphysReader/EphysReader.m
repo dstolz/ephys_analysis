@@ -13,9 +13,19 @@ classdef (Abstract) EphysReader < handle
     %     readData(...)        the whole recording as the universal data struct
     %
     %   Optional: readWindowUV(sampleOffset, nSamp) with supportsRandomAccess()
-    %   true (bounded random access, used to carry context across chunks), and
-    %   siRecordingSpec() describing the recording for the SpikeInterface
-    %   driver (run_si_ks4.py).
+    %   true (bounded random access, used to carry context across chunks),
+    %   readDigitalEvents() when the digital lines can be decoded without the
+    %   amplifier data, and siRecordingSpec() describing the recording for the
+    %   SpikeInterface driver (run_si_ks4.py).
+    %
+    %   Channel numbers
+    %   ---------------
+    %   ChannelNumbers holds the 0-based hardware number of each amplifier
+    %   channel: the value a probe chanMap refers to. They are unique; a reader
+    %   that cannot make them unique numbers the channels by position (0..n-1)
+    %   and warns EphysReader:ChannelNumbersNotUnique. Intan: the trailing
+    %   digits of the native name ("A-012" -> 12); Open Ephys: "CH13" -> 12;
+    %   recording.json: its channel_numbers, else 0..n-1.
     %
     %   Universal data struct (what readData returns, for every reader)
     %   ---------------------------------------------------------------
@@ -25,9 +35,14 @@ classdef (Abstract) EphysReader < handle
     %     channelNames     1 x nChan custom names
     %     nativeNames      1 x nChan native/hardware names
     %     channelOrder     1 x nChan indices into the recording's channels
-    %     events           struct, one field per digital-input line ->
-    %                      [k x 2] [t_on t_off] seconds, t = row/Fs (1-based row)
-    %     digInNames / digInNativeNames
+    %     events           struct, one field per digital-input line, keyed by
+    %                      the line's NATIVE name (matlab.lang.makeValidName) ->
+    %                      [k x 2] [t_on t_off] seconds, t = row/Fs (1-based
+    %                      row). EphysDataset renames the lines (LabelField,
+    %                      LineNames); see EphysDataset.readData.
+    %     digInNames / digInNativeNames   aligned custom / native line names
+    %                      (the custom name equals the native one when the
+    %                      format has none)
     %     boardADC / aux / auxFs    [] when not requested or not present; aux
     %                      is [nAuxSamples x nAux] volts at auxFs (accelerometer)
     %     auxNames / auxNativeNames   aux channel names (empty without aux)
@@ -36,15 +51,24 @@ classdef (Abstract) EphysReader < handle
     %     units            "microvolts"
     %     source           struct('Folder', ..., 'Name', ...)
     %
+    %   Reader options
+    %   --------------
+    %   Readers are built as READER(folder, options), where OPTIONS is the
+    %   pipeline config's Acquisition section (e.g. options.OpenEphys holds the
+    %   Open Ephys recording mode, record node and stream). A reader reads its
+    %   own sub-struct and ignores the rest.
+    %
     %   Registry
     %   --------
     %   Readers are found by EphysReader.forFolder(folder), which asks each
     %   class in EphysReader.readerClasses() whether it claims the folder.
-    %   Built-in: IntanReader (Intan RHD2000 *.rhd, info.rhd + .dat layouts)
-    %   and BinaryReader (the universal recording.json + flat binary format,
-    %   see BinaryReader). Add your own with EphysReader.register("MyReader").
+    %   Built-in: IntanReader (Intan RHD2000 *.rhd, info.rhd + .dat layouts),
+    %   BinaryReader (the universal recording.json + flat binary format, see
+    %   BinaryReader) and OpenEphysReader (Open Ephys GUI sessions: Binary,
+    %   Open Ephys and NWB formats). Add your own with
+    %   EphysReader.register("MyReader").
     %
-    %   See also EphysDataset, IntanReader, BinaryReader.
+    %   See also EphysDataset, IntanReader, BinaryReader, OpenEphysReader.
 
     properties (SetAccess = protected)
         Folder          (1,1) string = ""      % recording folder
@@ -52,20 +76,23 @@ classdef (Abstract) EphysReader < handle
         RecordingFormat (1,1) string = "unknown"
         Files           (1,:) string = string.empty(1,0)
         NumFiles        (1,1) double = 0
+        Options         struct = struct()       % reader options (config Acquisition section)
 
         % Header metadata (filled by refreshMetadata)
-        Fs           (1,1) double = NaN
-        NumChannels  (1,1) double = NaN
-        ChannelNames (1,:) string = string.empty(1,0)
-        NativeNames  (1,:) string = string.empty(1,0)
-        DigInNames   (1,:) string = string.empty(1,0)
-        Duration     (1,1) double = NaN
-        AcqDate      datetime = NaT
-        PerFile      struct = struct([])       % per-file summary; name + numAmplifierSamples at least
+        Fs               (1,1) double = NaN
+        NumChannels      (1,1) double = NaN
+        ChannelNames     (1,:) string = string.empty(1,0)
+        NativeNames      (1,:) string = string.empty(1,0)
+        ChannelNumbers   (1,:) double = double.empty(1,0)   % 0-based hardware numbers (probe chanMap values)
+        DigInNames       (1,:) string = string.empty(1,0)
+        DigInNativeNames (1,:) string = string.empty(1,0)
+        Duration         (1,1) double = NaN
+        AcqDate          datetime = NaT
+        PerFile          struct = struct([])       % per-file summary; name + numAmplifierSamples at least
     end
 
     properties (Abstract, Constant)
-        Kind    % short reader id, e.g. "intan", "binary"
+        Kind    % short reader id, e.g. "intan", "binary", "openephys"
     end
 
     methods (Abstract)
@@ -78,7 +105,7 @@ classdef (Abstract) EphysReader < handle
 
     methods (Abstract, Static)
         tf = claims(folder)
-        folders = findRecordingFolders(root, recursive)
+        folders = findRecordingFolders(root, recursive, options)
     end
 
     methods
@@ -87,7 +114,7 @@ classdef (Abstract) EphysReader < handle
             tf = false;
         end
 
-        function X = readWindowUV(obj, sampleOffset, nSamp) %#ok<INUSD>
+        function X = readWindowUV(obj, sampleOffset, nSamp) %#ok<INUSD,STOUT>
             %readWindowUV  Bounded random-access read (override when supported).
             error('EphysReader:NotSupported', ...
                 '%s does not support random-access reads.', class(obj));
@@ -95,34 +122,43 @@ classdef (Abstract) EphysReader < handle
 
         function E = readDigitalEvents(obj, opts)
             %readDigitalEvents  Digital-input events without keeping amplifier data.
-            %   E = r.readDigitalEvents(EventLabelField=...) returns struct
-            %   events (as in readData), Fs, nSamples and digInNames. The
-            %   default reads the recording through readData keeping one
-            %   amplifier channel; readers that can decode the digital lines
-            %   alone should override it. EphysDataset.digitalEvents caches it.
+            %   E = r.readDigitalEvents() returns struct events (native-keyed,
+            %   as in readData), Fs, nSamples, digInNames and digInNativeNames.
+            %   The default reads the recording through readData keeping one
+            %   amplifier channel (ProgressFcn forwarded); readers that can
+            %   decode the digital lines alone should override it.
+            %   EphysDataset.digitalEvents caches the result.
             arguments
                 obj (1,1) EphysReader
-                opts.EventLabelField (1,1) string = "custom_channel_name"
+                opts.ProgressFcn = []
             end
-            data = obj.readData(KeepChannels=1, Precision="single", ...
-                EventLabelField=opts.EventLabelField);
+            data = obj.readData(KeepChannels=1, Precision="single", ProgressFcn=opts.ProgressFcn);
             E = struct('events', data.events, 'Fs', data.Fs, ...
-                'nSamples', size(data.amplifier, 1), 'digInNames', string(data.digInNames));
+                'nSamples', size(data.amplifier, 1), 'digInNames', string(data.digInNames), ...
+                'digInNativeNames', string(data.digInNativeNames));
         end
 
         function spec = siRecordingSpec(obj)
             %siRecordingSpec  How run_si_ks4.py should load this recording.
-            %   Default: the reader kind plus folder/files/format. Readers
-            %   override to add what their SpikeInterface extractor needs.
+            %   Default: the reader kind plus folder/files/format and the
+            %   channel numbers (the recording's channels are renamed to them,
+            %   so the probe chanMap matches by number). Readers override to
+            %   add what their SpikeInterface loader needs.
+            if isnan(obj.NumChannels) || isempty(obj.ChannelNumbers)
+                obj.refreshMetadata();
+            end
             spec = struct('reader', string(obj.Kind), 'folder', obj.Folder, ...
-                'files', {cellstr(obj.Files(:).')}, 'recording_format', obj.RecordingFormat);
+                'files', {cellstr(obj.Files(:).')}, 'recording_format', obj.RecordingFormat, ...
+                'channel_numbers', {num2cell(double(obj.ChannelNumbers))});
         end
 
         function m = metadataStruct(obj)
             %metadataStruct  The header metadata as one struct.
             m = struct('Fs', obj.Fs, 'NumChannels', obj.NumChannels, ...
                 'ChannelNames', obj.ChannelNames, 'NativeNames', obj.NativeNames, ...
-                'DigInNames', obj.DigInNames, 'Duration', obj.Duration, ...
+                'ChannelNumbers', obj.ChannelNumbers, ...
+                'DigInNames', obj.DigInNames, 'DigInNativeNames', obj.DigInNativeNames, ...
+                'Duration', obj.Duration, ...
                 'AcqDate', obj.AcqDate, 'NumFiles', obj.NumFiles, ...
                 'PerFile', obj.PerFile, 'RecordingFormat', obj.RecordingFormat);
         end
@@ -131,7 +167,7 @@ classdef (Abstract) EphysReader < handle
     methods (Static)
         function classes = readerClasses()
             %readerClasses  Reader class names, built-ins first, then registered.
-            classes = ["IntanReader", "BinaryReader", EphysReader.registered()];
+            classes = ["IntanReader", "BinaryReader", "OpenEphysReader", EphysReader.registered()];
         end
 
         function register(className)
@@ -145,18 +181,21 @@ classdef (Abstract) EphysReader < handle
             EphysReader.registered(className);
         end
 
-        function r = forFolder(folder)
+        function r = forFolder(folder, opts)
             %forFolder  The first registered reader that claims FOLDER, or [].
-            %   The reader is returned with its files discovered.
+            %   r = EphysReader.forFolder(folder, Options=acquisition) builds
+            %   the reader with the reader options (the config's Acquisition
+            %   section) and discovers its files.
             arguments
                 folder (1,1) string
+                opts.Options struct = struct()
             end
             r = [];
             if folder == "" || ~isfolder(folder); return; end
             for c = EphysReader.readerClasses()
                 try
                     if feval(c + ".claims", folder)
-                        r = feval(c, folder);
+                        r = feval(c, folder, opts.Options);
                         r.discoverFiles();
                         return
                     end
@@ -168,16 +207,20 @@ classdef (Abstract) EphysReader < handle
             end
         end
 
-        function folders = findAllRecordingFolders(root, recursive)
+        function folders = findAllRecordingFolders(root, recursive, opts)
             %findAllRecordingFolders  Union of every reader's recording folders.
+            %   Options is the reader options struct (see forFolder); readers
+            %   whose folder layout depends on it (Open Ephys recording modes)
+            %   use it.
             arguments
                 root (1,1) string
                 recursive (1,1) logical = true
+                opts.Options struct = struct()
             end
             folders = string.empty(1, 0);
             for c = EphysReader.readerClasses()
                 try
-                    f = feval(c + ".findRecordingFolders", root, recursive);
+                    f = feval(c + ".findRecordingFolders", root, recursive, opts.Options);
                 catch ME
                     warning('EphysReader:ReaderFailed', ...
                         'Reader %s failed to scan %s: %s', c, root, ME.message);
@@ -200,6 +243,48 @@ classdef (Abstract) EphysReader < handle
                 iv = zeros(0, 2);
             else
                 iv = [on off] ./ Fs;
+            end
+        end
+
+        function key = eventKey(name)
+            %eventKey  Field name of a digital line in an events struct.
+            key = string(matlab.lang.makeValidName(char(string(name))));
+        end
+
+        function nums = trailingNumbers(names)
+            %trailingNumbers  The trailing digits of each name as a number (NaN if none).
+            names = string(names);
+            nums = NaN(1, numel(names));
+            for k = 1:numel(names)
+                tok = regexp(char(names(k)), '(\d+)$', 'tokens', 'once');
+                if ~isempty(tok); nums(k) = str2double(tok{1}); end
+            end
+        end
+
+        function nums = checkChannelNumbers(nums, where)
+            %checkChannelNumbers  NUMS when they are unique whole numbers >= 0, else 0..n-1.
+            %   The fallback warns EphysReader:ChannelNumbersNotUnique naming
+            %   WHERE (the recording), because probe chanMap values then refer
+            %   to channel positions.
+            nums = double(reshape(nums, 1, []));
+            n = numel(nums);
+            if n == 0; nums = double.empty(1, 0); return; end
+            ok = all(isfinite(nums)) && all(nums >= 0) && all(nums == round(nums)) ...
+                && numel(unique(nums)) == n;
+            if ~ok
+                warning('EphysReader:ChannelNumbersNotUnique', ...
+                    ['%s: the channel names do not give %d distinct channel numbers; ' ...
+                     'channels are numbered by position (0..%d), which is what probe chanMap values then refer to.'], ...
+                    where, n, n - 1);
+                nums = 0:n-1;
+            end
+        end
+
+        function s = readerOptions(options, key)
+            %readerOptions  A reader's sub-struct of the reader options ([] fields -> struct()).
+            s = struct();
+            if isstruct(options) && isscalar(options) && isfield(options, key) && isstruct(options.(key))
+                s = options.(key);
             end
         end
     end

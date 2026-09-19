@@ -18,7 +18,7 @@ classdef EphysAnalysisConfig
     %     Plots     struct array, one entry per plot (defaults("Plot")): id,
     %               kind (see Kinds / plotKinds), enabled, source, units,
     %               channels, ref, window, selection, bins, baseline, layout,
-    %               withRaster, maskAfterStop, param, seriesParam, value,
+    %               withRaster, histStyle, maskAfterStop, param, seriesParam, value,
     %               order, style
     %     Export    figure files: Formats (png / eps / svg / pdf), Folder and
     %               FilenamePattern with tokens, Dpi, FigureSizeCm

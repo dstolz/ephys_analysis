@@ -672,7 +672,7 @@ version 1; `Inf` / `NaN` are written as the strings `"Inf"` / `"NaN"`
 | `schema`, `version`, `name`, `description` | identification |
 | `Source` | `Mode` (`project` / `folders`), `Root`, `OutputRoot`, `NamePattern`, `Selection`, `Datasets`, `Folders` |
 | `Defaults` | `EventRef`, `Window` (`stop` is `[]` or an event reference), `Selection` |
-| `Plots` | array of plots: `id`, `kind`, `enabled`, `title`, `source`, `units`, `channels`, `ref` / `window` / `selection` (`"default"` or an object), `bins`, `baseline`, `layout`, `withRaster`, `maskAfterStop`, `param`, `seriesParam`, `value`, `order`, `style` |
+| `Plots` | array of plots: `id`, `kind`, `enabled`, `title`, `source`, `units`, `channels`, `ref` / `window` / `selection` (`"default"` or an object), `bins`, `baseline`, `layout`, `withRaster`, `histStyle`, `maskAfterStop`, `param`, `seriesParam`, `value`, `order`, `style` |
 | `Export` | `Enabled`, `Formats`, `Folder`, `FilenamePattern`, `Dpi`, `FigureSizeCm`, `Overwrite` |
 | `Report` | `Enabled`, `Format`, `Title`, `Folder`, `FileName`, `PerDataset`, `EmbedFormat`, `Dpi`, `IncludeSummary`, `IncludeParameters`, `IncludeConfig` |
 

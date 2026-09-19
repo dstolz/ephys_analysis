@@ -16,7 +16,8 @@ function issues = validate(obj, opts)
 %               windows only for rate / tuning, and with a stop event; tuning
 %               names its parameter; groupBy <= 2; BinSec > 0; pre <= post;
 %               baseline mode fits the kind and its window is [b0 b1] with
-%               b0 < b1; probemap value; heatmap order; style values
+%               b0 < b1; psth histStyle; probemap value; heatmap order;
+%               style values
 %     Export    formats are png / eps / svg / pdf; Dpi, FigureSizeCm; the
 %               folder and file-name patterns use known tokens
 %     Report    Format html / pdf / both; EmbedFormat png / svg; Dpi;
@@ -130,6 +131,9 @@ for k = 1:numel(obj.Plots)
         add("Plots", f0 + ".baseline.Mode", "error", sprintf("A %s plot's baseline Mode is one of %s, not ""%s"".", p.kind, strjoin(modes, ", "), bm.Mode));
     elseif bm.Mode ~= "none" && ~(numel(bm.Window) == 2 && bm.Window(2) > bm.Window(1))
         add("Plots", f0 + ".baseline.Window", "error", "The baseline window must be [b0 b1] with b0 < b1.");
+    end
+    if p.kind == "psth" && ~ismember(p.histStyle, ["bar" "line"])
+        add("Plots", f0 + ".histStyle", "error", "A PSTH is drawn as bar or line.");
     end
     if p.kind == "probemap" && ~ismember(p.value, ["rate" "nSpikes" "nUnits"])
         add("Plots", f0 + ".value", "error", "A probe map shows rate, nSpikes or nUnits.");

@@ -1,15 +1,15 @@
 function syncPlotEditorEnable(obj)
 %syncPlotEditorEnable  Enable the editor rows the selected plot's kind and source use.
 %   Unit rows for spike sources (classes and groups for sorted units only),
-%   bins for PSTHs / rasters / spike heatmaps, raster and masking for
-%   PSTHs, parameter rows for tuning, value for probe maps, row order for
+%   bins for PSTHs / rasters / spike heatmaps, raster, bar / line and
+%   masking for PSTHs, parameter rows for tuning, value for probe maps, row order for
 %   heatmaps, tiles for paged grids, and the plot's own event / window /
 %   selection only where its "Default ..." box is unticked (not for probe
 %   maps, which align to nothing).
 E = obj.PlotEditor;
 k = obj.SelectedPlot;
 ctl = [E.enabled E.id E.title E.source E.layout E.ids E.maxUnits E.channels E.shanks E.binMs E.smoothMs ...
-    E.baselineMode E.baseFrom E.baseTo E.withRaster E.maskAfterStop E.param E.seriesParam E.value E.order ...
+    E.baselineMode E.baseFrom E.baseTo E.withRaster E.histStyle E.maskAfterStop E.param E.seriesParam E.value E.order ...
     E.maxTiles E.fontSize E.showSEM E.showStop E.legend E.grid E.ylim E.heatColormap ...
     E.defaultRef E.defaultWindow E.defaultSelection];
 classes = struct2cell(E.classes);
@@ -36,7 +36,7 @@ en([E.ids E.maxUnits E.shanks], spikes);
 en([E.binMs E.smoothMs], ismember(kind, ["psth" "raster"]) || (kind == "heatmap" && spikes));
 en([E.baselineMode E.baseFrom E.baseTo], ~ismember(kind, ["raster" "probemap"]));
 en([E.baseFrom E.baseTo], ~ismember(kind, ["raster" "probemap"]) && string(E.baselineMode.Value) ~= "none");
-en(E.withRaster, kind == "psth");
+en([E.withRaster E.histStyle], kind == "psth");
 en(E.maskAfterStop, ismember(kind, ["psth" "raster"]) || (kind == "heatmap" && spikes));
 en([E.param E.seriesParam], kind == "tuning");
 en(E.value, kind == "probemap");

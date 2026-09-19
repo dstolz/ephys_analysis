@@ -217,7 +217,7 @@ figure with the same code.
 
 | Renderer | Draws |
 | --- | --- |
-| `renderPSTH` | `Layout="grid"`: one tile per unit (`MaxTiles` per page, `Page=`), groups overlaid with SEM bands, a raster above each; `"overlay"`: the mean over units |
+| `renderPSTH` | `Layout="grid"`: one tile per unit (`MaxTiles` per page, `Page=`), groups overlaid with SEM bands, a raster above each; `HistStyle="bar"` (default) or `"line"`; `"overlay"`: the mean over units |
 | `renderRaster` | one raster per unit: epochs as rows sorted by group, on pale group bands; all ticks are one NaN-separated line |
 | `renderEvoked` | `"stack"` (channels stacked top of the probe first), `"butterfly"` (a tile per group, channels coloured by depth), `"grid"` (a tile per channel) |
 | `renderRates` | units along x (by depth), groups side by side: `"bar"` (mean ± SEM), `"box"`, `"points"` (every epoch, fixed jitter) |

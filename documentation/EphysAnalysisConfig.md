@@ -73,7 +73,7 @@ without one gets `"<kind>_<n>"`.
       "units": { "classes": ["su", "mua"], "groups": [], "ids": [], "channels": [], "shanks": [], "maxUnits": "Inf" },
       "channels": [], "ref": "default", "window": "default", "selection": "default",
       "bins": { "BinSec": 0.01, "SmoothSec": 0.02 }, "baseline": { "Mode": "none", "Window": [-0.2, 0] },
-      "layout": "grid", "withRaster": true, "maskAfterStop": false, "param": "", "seriesParam": "",
+      "layout": "grid", "withRaster": true, "histStyle": "bar", "maskAfterStop": false, "param": "", "seriesParam": "",
       "value": "rate", "order": "depth", "style": { "MaxTiles": 16, "...": "..." } },
     { "id": "rate_platform", "kind": "rate", "source": "units",
       "ref": { "line": "Platform", "edge": "onset", "which": "first", "scope": "trial", "...": "..." },
@@ -167,6 +167,7 @@ A plot's `units` (its `source` is the plot's `source`):
 | `baseline` | `Mode "none"`, `Window [-0.2 0]` | see the kinds |
 | `layout` | `""` | `""` = the kind's default |
 | `withRaster` | `true` | psth: a raster above each unit |
+| `histStyle` | `"bar"` | psth: `"bar"` (one bar per bin; half-transparent when groups overlap) or `"line"` |
 | `maskAfterStop` | `false` | psth: drop bins after each epoch's stop event |
 | `param`, `seriesParam` | `""` | tuning: x axis parameter; one curve per value of the series parameter |
 | `value` | `"rate"` | probemap: `"rate"`, `"nSpikes"`, `"nUnits"` |
@@ -226,7 +227,7 @@ dataset's output folder), `{Root}`, `{Name}` (the dataset), `{Date}`
 | Source | a "list" selection with no datasets; an OutputRoot that does not exist | warning |
 | Defaults, Plots | the event reference, window and selection are valid (`pre <= post`, a `"between"` window has a stop, `groupBy` has at most 2 parameters, ...) | error |
 | Defaults, Plots | a filter that does not parse | warning (it is checked against each dataset's trials when it runs) |
-| Plots | at least one enabled; the kind exists; the source, layout, window mode and baseline mode fit the kind; tuning names its parameter; `BinSec > 0`, `SmoothSec >= 0`; a baseline window `[b0 b1]` with `b0 < b1`; probemap value, heatmap order; `maxUnits >= 1`; `MaxTiles`, `FontSize`, `LineWidth` positive | error |
+| Plots | at least one enabled; the kind exists; the source, layout, window mode and baseline mode fit the kind; tuning names its parameter; `BinSec > 0`, `SmoothSec >= 0`; a baseline window `[b0 b1]` with `b0 < b1`; probemap value, psth `histStyle` bar / line; heatmap order; `maxUnits >= 1`; `MaxTiles`, `FontSize`, `LineWidth` positive | error |
 | Plots | a colormap that is not a function | warning |
 | Export | formats are png / eps / svg / pdf (and at least one when enabled); `Dpi`, `FigureSizeCm`; the folder and file-name patterns use known tokens | error |
 | Report | Format, EmbedFormat, `Dpi`, a plain `FileName`, the folder pattern | error |

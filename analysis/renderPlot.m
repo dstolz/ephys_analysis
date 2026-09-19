@@ -28,7 +28,7 @@ nPages = plotPageCount(R, spec);
 page = min(opts.Page, nPages);
 switch spec.kind
     case "psth"
-        h = renderPSTH(R, target, Layout=spec.layout, WithRaster=spec.withRaster, Page=page, Style=style);
+        h = renderPSTH(R, target, Layout=spec.layout, WithRaster=spec.withRaster, HistStyle=spec.histStyle, Page=page, Style=style);
     case "raster"
         h = renderRaster(R, target, Page=page, Style=style);
     case "evoked"

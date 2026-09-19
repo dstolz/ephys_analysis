@@ -28,6 +28,7 @@ p.bins.SmoothSec = E.smoothMs.Value / 1000;
 p.baseline.Mode = string(E.baselineMode.Value);
 p.baseline.Window = [E.baseFrom.Value E.baseTo.Value];
 p.withRaster = E.withRaster.Value;
+p.histStyle = string(E.histStyle.Value);
 p.maskAfterStop = E.maskAfterStop.Value;
 p.param = strtrim(string(E.param.Value));
 p.seriesParam = strtrim(string(E.seriesParam.Value));

@@ -163,6 +163,7 @@ check(sum(Rq0.value) == 3 && Rq0.value(2) == 0, 'nUnits counts the units per sit
 cases = {
     "psth grid + raster",  @(tg) renderPSTH(Rp, tg, Layout="grid", WithRaster=true)
     "psth overlay",        @(tg) renderPSTH(Rp, tg, Layout="overlay")
+    "psth line",           @(tg) renderPSTH(Rp, tg, Layout="grid", HistStyle="line")
     "raster",              @(tg) renderRaster(Rp, tg)
     "evoked stack",        @(tg) renderEvoked(Rv, tg, Layout="stack")
     "evoked butterfly",    @(tg) renderEvoked(Rv, tg, Layout="butterfly")
@@ -213,6 +214,16 @@ check(isscalar(h.axes) && h.page == 2 && startsWith(h.title, "PSTH: ") && contai
 spec.title = "Custom";
 h = renderPlot(Rp, spec, axes(figure('Visible', 'off')));
 check(h.title == "Custom" && string(h.axes(1).Title.String) == "Custom", 'a plot title replaces the automatic one');
+close(h.axes(1).Parent);
+spec.title = "";
+h = renderPlot(Rp, spec, axes(figure('Visible', 'off')));
+kids = h.axes(1).Children;
+check(spec.histStyle == "bar" && any(arrayfun(@(c) isa(c, 'matlab.graphics.chart.primitive.Bar'), kids)), 'a PSTH draws bars by default');
+close(h.axes(1).Parent);
+spec.histStyle = "line";
+h = renderPlot(Rp, spec, axes(figure('Visible', 'off')));
+kids = h.axes(1).Children;
+check(~any(arrayfun(@(c) isa(c, 'matlab.graphics.chart.primitive.Bar'), kids)) && any(arrayfun(@(c) isa(c, 'matlab.graphics.chart.primitive.Line'), kids)), 'histStyle "line" draws traces');
 close(h.axes(1).Parent);
 check(EphysAnalysisConfig.defaults("Plot").bins.SmoothSec == 0.01, 'PSTHs are smoothed with a 10 ms Gaussian by default');
 cap = plotCaption(EphysAnalysisConfig.normalizePlot(struct('kind', "psth")), Rp);

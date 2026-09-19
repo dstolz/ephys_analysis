@@ -37,6 +37,7 @@ setItems(E.baselineMode, baselineModes(p), p.baseline.Mode);
 E.baseFrom.Value = p.baseline.Window(1);
 E.baseTo.Value = p.baseline.Window(2);
 E.withRaster.Value = p.withRaster;
+setItems(E.histStyle, ["bar" "line"], p.histStyle);
 E.maskAfterStop.Value = p.maskAfterStop;
 params = string.empty(1, 0);
 if ~isempty(obj.Runner) && obj.ActiveIdx >= 1

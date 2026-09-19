@@ -89,8 +89,8 @@ colours, and the kept trials with their group and number of epochs.
   kind, **Remove**, **Duplicate**, **Up / Down** (the run and report order).
 - The editor. Its rows follow the kind and source (`syncPlotEditorEnable`):
   enabled, id, title, source, layout; unit classes, ids, max units, channels,
-  shanks; bin and smoothing (ms); baseline mode and window; raster, mask
-  after the stop event; the tuning parameter and series; the probe-map value;
+  shanks; bin and smoothing (ms); baseline mode and window; raster, bar or
+  line PSTH, mask after the stop event; the tuning parameter and series; the probe-map value;
   the heatmap row order; tiles per page, font size, SEM, stop marks, legend,
   grid, y limits, heat colours. **Default event / window / selection**:
   untick one to give the plot its own, in the panels below (the same

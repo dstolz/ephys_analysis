@@ -11,7 +11,10 @@ function h = renderPSTH(R, target, opts)
 %                 across units); a single unit is shown as itself
 %     WithRaster  a raster above each rate panel (default true; grid, or
 %                 overlay of one unit)
-%     Page        page of units in grid layout (MaxTiles per page)
+%     HistStyle   "bar" (default): one bar per bin (half-transparent when
+%                 several groups overlap); "line": a trace through the bin
+%                 centres. SEM is a band behind either
+%     Page       page of units in grid layout (MaxTiles per page)
 %     Style       EphysAnalysisConfig.defaults("Style") fields (LineWidth,
 %                 ShowSEM, ShowStop, ShowZeroLine, Colormap, FontSize, XLim,
 %                 YLim, Grid, Legend, MaxTiles)
@@ -25,6 +28,7 @@ arguments
     target
     opts.Layout (1,1) string {mustBeMember(opts.Layout, ["grid" "overlay"])} = "grid"
     opts.WithRaster (1,1) logical = true
+    opts.HistStyle (1,1) string {mustBeMember(opts.HistStyle, ["bar" "line"])} = "bar"
     opts.Page (1,1) double {mustBePositive, mustBeInteger} = 1
     opts.Style = struct()
 end
@@ -40,7 +44,7 @@ if opts.Layout == "overlay" && nU > 1
     if isempty(ax); ax = nexttile(tl); end
     m = reshape(mean(R.rate, 2, 'omitnan'), [], nG);
     s = reshape(semOf(R.rate, 2), [], nG);
-    drawRates(ax, R.t, m, s, R, colors, style, true);
+    drawRates(ax, R.t, m, s, R, colors, style, opts.HistStyle, true);
     title(ax, sprintf('Mean of %d units', nU), 'FontWeight', 'normal');
     xlabel(ax, 'Time (s)');
     ylabel(ax, R.units);
@@ -78,7 +82,7 @@ for j = 1:numel(idx)
         end
         ax = nexttile(tl, ((r - 1) * rowsPer + withRaster) * nc + c);
     end
-    drawRates(ax, R.t, reshape(R.rate(:, u, :), [], nG), reshape(R.sem(:, u, :), [], nG), R, colors, style, j == 1);
+    drawRates(ax, R.t, reshape(R.rate(:, u, :), [], nG), reshape(R.sem(:, u, :), [], nG), R, colors, style, opts.HistStyle, j == 1);
     if ~withRaster
         title(ax, R.labels(u), 'FontWeight', 'normal', 'Interpreter', 'none');
     end
@@ -95,8 +99,8 @@ h.layout = tl; h.axes = axs; h.rasterAxes = rax;
 end
 
 
-function drawRates(ax, t, m, s, R, colors, style, withLegend)
-%drawRates  Traces (and SEM bands, stop lines) of every group into AX.
+function drawRates(ax, t, m, s, R, colors, style, histStyle, withLegend)
+%drawRates  Bars or traces (and SEM bands, stop lines) of every group into AX.
 hold(ax, 'on');
 nG = size(m, 2);
 if style.ShowSEM
@@ -105,8 +109,14 @@ if style.ShowSEM
     end
 end
 lh = gobjects(1, nG);
+alpha = 1;
+if nG > 1; alpha = 0.5; end
 for g = 1:nG
-    lh(g) = plot(ax, t, m(:, g), 'Color', colors(g, :), 'LineWidth', style.LineWidth);
+    if histStyle == "bar"
+        lh(g) = bar(ax, t, m(:, g), 1, 'FaceColor', colors(g, :), 'EdgeColor', 'none', 'FaceAlpha', alpha);
+    else
+        lh(g) = plot(ax, t, m(:, g), 'Color', colors(g, :), 'LineWidth', style.LineWidth);
+    end
 end
 if style.ShowZeroLine
     xline(ax, 0, ':', 'Color', [0.3 0.3 0.3], 'HandleVisibility', 'off');

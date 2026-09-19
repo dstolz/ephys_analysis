@@ -33,8 +33,8 @@ ep = uipanel(g, "Title", "Plot", "Scrollable", "on");
 eg = uigridlayout(ep, [2 1]);
 eg.RowHeight = {'fit', 'fit'};
 eg.Padding = [4 4 4 4];
-fg = uigridlayout(eg, [17 4]);
-fg.RowHeight = repmat({22}, 1, 17);
+fg = uigridlayout(eg, [18 4]);
+fg.RowHeight = repmat({22}, 1, 18);
 fg.ColumnWidth = {95, '1x', 95, '1x'};
 fg.RowSpacing = 4;
 fg.Padding = [0 0 0 0];
@@ -103,6 +103,11 @@ E.withRaster = uicheckbox(fg, "Text", "Raster above each PSTH", "Value", true, "
 E.withRaster.Layout.Row = r; E.withRaster.Layout.Column = [1 2];
 E.maskAfterStop = uicheckbox(fg, "Text", "Mask after the stop event", "ValueChangedFcn", changed);
 E.maskAfterStop.Layout.Row = r; E.maskAfterStop.Layout.Column = [3 4];
+r = r + 1;
+lab(fg, "PSTH as:", r, 1);
+E.histStyle = uidropdown(fg, "Items", ["bar" "line"], "Value", "bar", "ValueChangedFcn", changed, ...
+    "Tooltip", "PSTH: one bar per bin, or a line through the bin centres.");
+place(E.histStyle, r, 2);
 r = r + 1;
 lab(fg, "Parameter:", r, 1);
 E.param = uidropdown(fg, "Editable", "on", "Items", "", "ValueChangedFcn", changed, "Tooltip", "Tuning: the trial parameter on the x axis.");

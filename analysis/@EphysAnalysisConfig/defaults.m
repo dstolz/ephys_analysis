@@ -132,6 +132,7 @@ switch section
             'baseline',      struct('Mode', "none", 'Window', [-0.2 0]), ...
             'layout',        "", ...            % "" = the kind's default layout
             'withRaster',    true, ...          % psth
+            'histStyle',     "bar", ...         % psth: "bar" | "line"
             'maskAfterStop', false, ...         % psth: drop bins after each epoch's stop event
             'param',         "", ...            % tuning: trial parameter on the x axis
             'seriesParam',   "", ...            % tuning: one curve per value of this parameter

@@ -642,8 +642,9 @@ Spike events per dataset with `EphysDataset.spikesToMat`, `Spikes.*`.
 
 ## Export
 
-Files for external toolboxes, `Export.*`. Nothing about spectra, tapers or
-Chronux functions appears here: the app only writes files.
+Files for external toolboxes, and the same data organized by event,
+`Export.*`. Nothing about spectra, tapers or Chronux functions appears here:
+the app only writes files.
 
 - **Chronux** (`<Name>_chronux.mat`, [format](file-formats.md#chronux-export)),
   **FieldTrip** (`<Name>_fieldtrip.mat`,

@@ -269,7 +269,7 @@ fprintf('\n== 4. signalOptions ==\n');
 G = EphysPipelineConfig.defaults("Signals");
 so = EphysPipelineConfig.signalOptions(G);
 check(isequal(so.dataTypeOut, "LFP") && so.LFP_Fs == 1000 && ~isfield(so, 'LFP_bpLoHi') ...
-    && ~isfield(so, 'keepAmpChannels') && so.labelField == "custom_channel_name", 'defaults -> LFP only, no filters');
+    && ~isfield(so, 'keepAmpChannels') && so.labelField == "custom" && ~isfield(so, 'lineNames'), 'defaults -> LFP only, no filters');
 G2 = G; G2.MUA = true; G2.SPIKE = true; G2.SPIKE_KeepOriginal = false; G2.LFP_HighpassOn = true; G2.LFP_LowpassOn = true;
 G2.LFP_NotchOn = true; G2.LFP_NotchHz = "60, 120"; G2.KeepChannels = "1-4, 8"; G2.ChannelRemap = "4-1";
 so = EphysPipelineConfig.signalOptions(G2);

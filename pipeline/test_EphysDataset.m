@@ -952,17 +952,18 @@ writeJsonFile(siProbe, struct('chanMap', [3 0 2 1], 'xc', zeros(1, 4), 'yc', (0:
     'kcoords', zeros(1, 4), 'n_chan', 4));
 writeJsonFile(fullfile(siRun, 'si_config.json'), struct('schema', "intan-si-ks4/1", ...
     'probe', siProbe, 'n_chan', 4, 'exclude_channels', []));
-writeJsonFile(fullfile(siRun, 'ks4_status.json'), struct('state', "done", 'bad_channels', {{'A-002'}}));
+writeJsonFile(fullfile(siRun, 'ks4_status.json'), struct('state', "done", 'bad_channels', {{'2'}}));
 Us = EphysDataset.readPhyUnits(siDir);
-% sites in probe order: A-003, A-000, A-002, A-001 -> drop A-002 -> [4 1 2]
+% channel numbers 0..3 (default); sites in probe order: 3, 0, 2, 1 -> drop 2 -> [4 1 2]
 check(Us.engine == "spikeinterface" && Us.channelMapSource == "probe" && isequal(Us.channelMap, [4; 1; 2]), ...
     'SpikeInterface run maps sorted channels back through the probe minus bad channels');
 check(isequal(Us.ksChannel, [2; 3]) && isequal(Us.channel, [1; 2]), 'unit recording channels follow that map');
 wsI = warning('off', 'EphysDataset:readPhyUnits:ChannelMapFallback');
-Us2 = EphysDataset.readPhyUnits(siDir, ChannelNames=["B-000" "B-001" "B-002" "B-003"]);
+Us2 = EphysDataset.readPhyUnits(siDir, ChannelNumbers=[3 2 1 0]);
 warning(wsI);
-check(Us2.channelMapSource == "probe" && isequal(Us2.channelMap, [4; 1; 2]), ...
-    'channel names are matched by trailing number, as run_si_ks4.py does');
+% number -> position: 3->1 2->2 1->3 0->4; chanMap [3 0 2 1] -> [1 4 2 3]; drop number 2 (position 2)
+check(Us2.channelMapSource == "probe" && isequal(Us2.channelMap, [1; 4; 3]), ...
+    'channels are matched by channel number, as run_si_ks4.py names them');
 
 % Instance wrapper: dataset defaults + SortingDir association.
 dsu = EphysDataset(dsFolder);
@@ -1076,7 +1077,7 @@ check(isa(ds.Reader, 'IntanReader') && ds.Reader.Kind == "intan" && ds.Recording
     'EphysDataset picks IntanReader for a *.rhd folder');
 check(isa(dsig.Reader, 'IntanReader') && dsig.supportsRandomAccess() && ~ds.supportsRandomAccess(), ...
     'random access only for the split layouts');
-check(isequal(sort(EphysReader.readerClasses()), sort(["IntanReader" "BinaryReader"])), 'built-in reader registry');
+check(isequal(sort(EphysReader.readerClasses()), sort(["IntanReader" "BinaryReader" "OpenEphysReader"])), 'built-in reader registry');
 check(isempty(EphysReader.forFolder(fullfile(root, 'proj', 'empty_decoy'))), 'no reader claims an empty folder');
 check(strcmp(DatasetTracker.classifyJson(struct('schema', "ephys-recording/1")), 'recording-descriptor'), ...
     'classifyJson recognises a recording descriptor');

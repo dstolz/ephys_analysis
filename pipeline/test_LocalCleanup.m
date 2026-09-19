@@ -142,6 +142,39 @@ classdef test_LocalCleanup < matlab.unittest.TestCase
             tc.verifyTrue(all(R.Status(~(R.File == dat | r1)) == "removed"));
         end
 
+        function openEphysRawFilesBelowTheRecordNode(tc)
+            % An Open Ephys session keeps its recording under Record Node
+            % folders: the files the Copy tab listed there go like any raw
+            % file, and without a manifest they are raw and kept.
+            name = "SYNTH-01_2026-09-16_11-09-07";
+            src = fullfile(tc.Root, "nas3", name);
+            local = fullfile(tc.Root, "EPHYS3", "SYNTH-01", name);
+            tc.writeRecording(src, "openephys-binary");
+            copyfile(src, local);
+            D = dir(fullfile(src, "**", "*"));
+            D = D(~[D.isdir] & ~endsWith({D.name}, ".mat"));
+            full = string(fullfile({D.folder}, {D.name}));
+            rel = extractAfter(full, strlength(src) + 1);
+            files = struct('relativePath', cellstr(rel), 'source', cellstr(full), 'sizeBytes', num2cell([D.bytes]));
+            m = struct('manifestVersion', 3, 'subject', "SYNTH-01", ...
+                'recording', struct('reader', "openephys", 'sourceDir', src, 'destDir', local, 'files', {num2cell(files)}));
+            writeJsonFile(fullfile(local, "session_manifest.json"), m);
+
+            d = EphysDataset(local, AutoMetadata=false);
+            T = planLocalCleanup(d, Remove="raw");
+            dat = contains(T.File, filesep + "Record Node 101" + filesep) & endsWith(T.File, "continuous.dat");
+            tc.verifyEqual(nnz(dat), 1);
+            tc.verifyEqual([T.Category(dat) T.Action(dat)], ["raw" "remove"]);
+            tc.verifyEqual(sort(T.File(T.Category == "raw")), sort(string(fullfile(local, rel(:)))), ...
+                'every file the manifest lists is raw');
+
+            delete(fullfile(local, "session_manifest.json"));
+            T = planLocalCleanup(EphysDataset(local, AutoMetadata=false), Remove="raw");
+            dat = contains(T.File, filesep + "Record Node 101" + filesep) & endsWith(T.File, "continuous.dat");
+            tc.verifyEqual([T.Category(dat) T.Action(dat)], ["raw" "keep"]);
+            tc.verifySubstring(T.Reason(dat), "no source copy is known");
+        end
+
         function nothingToCleanIsAnEmptyPlan(tc)
             T = planLocalCleanup(EphysDataset.empty(1, 0));
             tc.verifyEqual(height(T), 0);
@@ -159,7 +192,7 @@ classdef test_LocalCleanup < matlab.unittest.TestCase
 
         function copyToLocal(tc)
             % What copySessions leaves: the files, and session_manifest.json
-            % listing the Intan ones with their sources.
+            % listing the recording's with their sources.
             copyfile(tc.Source, tc.Local);
             D = dir(tc.Source);
             D = D(~[D.isdir]);
@@ -168,8 +201,8 @@ classdef test_LocalCleanup < matlab.unittest.TestCase
             files = struct('relativePath', cellstr(names(~isEpsych)), ...
                 'source', cellstr(fullfile(tc.Source, names(~isEpsych))), ...
                 'sizeBytes', num2cell([D(~isEpsych).bytes]));
-            m = struct('manifestVersion', 2, 'subject', "SYNTH-01", ...
-                'intan', struct('sourceDir', tc.Source, 'destDir', tc.Local, 'files', {num2cell(files)}), ...
+            m = struct('manifestVersion', 3, 'subject', "SYNTH-01", ...
+                'recording', struct('reader', "intan", 'sourceDir', tc.Source, 'destDir', tc.Local, 'files', {num2cell(files)}), ...
                 'epsych', struct('sourceFile', fullfile(tc.Source, tc.epsychName()), ...
                     'destFile', fullfile(tc.Local, tc.epsychName())));
             writeJsonFile(fullfile(tc.Local, "session_manifest.json"), m);
@@ -195,7 +228,7 @@ classdef test_LocalCleanup < matlab.unittest.TestCase
 
         function names = rawFiles(tc)
             m = readJsonFile(fullfile(tc.Local, "session_manifest.json"));
-            recs = m.intan.files;
+            recs = m.recording.files;
             if iscell(recs); recs = [recs{:}]; end
             names = string({recs.relativePath});
         end

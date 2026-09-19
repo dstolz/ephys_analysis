@@ -29,6 +29,7 @@ if ispref(g, 'TrialsParamColumns'); rmpref(g, 'TrialsParamColumns'); end
 if ispref(g, 'TrialsColumnOrder'); rmpref(g, 'TrialsColumnOrder'); end
 if ispref(g, 'TrialsLabelParams'); rmpref(g, 'TrialsLabelParams'); end
 if ispref(g, 'MonitorResources'); rmpref(g, 'MonitorResources'); end
+if ispref(g, 'ShowRunDiagram'); rmpref(g, 'ShowRunDiagram'); end
 if ispref(g, 'CleanupOptions'); rmpref(g, 'CleanupOptions'); end
 
 nPass = 0; nFail = 0;
@@ -332,6 +333,22 @@ app.onScan();
 check(app.RecursiveCheckBox.Value && app.Config.Project.Recursive && app.Project.Recursive, ...
     'applying the section restores Recursive');
 
+fprintf('\n== 3b1. Project tab: Open Ephys reader options ==\n');
+check(app.Config.Acquisition.OpenEphys.Recordings == "concatenate" && string(app.OERecordingsDropDown.Value) == "concatenate", ...
+    'Open Ephys sessions are joined by default');
+app.OERecordingsDropDown.Value = 'separate';
+app.OERecordNodeField.Value = '104';
+app.OEStreamField.Value = 'Rhythm Data';
+app.onAcquisitionChanged();
+A = app.Config.Acquisition.OpenEphys;
+check(A.Recordings == "separate" && A.RecordNode == "104" && A.Stream == "Rhythm Data" ...
+    && isequal(app.Project.ReaderOptions, app.Config.Acquisition) && isequal(app.Project.Datasets(1).ReaderOptions, app.Config.Acquisition), ...
+    'the Open Ephys options are saved in Acquisition and a rescan pushes them to the project and datasets');
+app.applyAcquisitionSection(cfg.Acquisition);
+app.onAcquisitionChanged();
+check(app.Config.Acquisition.OpenEphys.Recordings == "concatenate" && app.OERecordNodeField.Value == "" ...
+    && isequal(app.Project.ReaderOptions, cfg.Acquisition), 'applying the section restores the defaults');
+
 fprintf('\n== 3b. Trials tab: load, cut, approve, polarity ==\n');
 app.selectDataset(1);
 app.setTrialsLineItems("din0", "din0");
@@ -430,7 +447,7 @@ FsT = app.TrialsEvents.Fs;
 hBars = findall(app.TrialsAxes, "Tag", "events:din0");
 xBars = [hBars.XData];
 barRows = sortrows(round(reshape(xBars(~isnan(xBars)), 2, []).' * FsT));
-hiRows = round(app.TrialsEvents.events.din0 * FsT);
+hiRows = round(app.namedTrialsEvents().events.din0 * FsT);
 check(isequal(barRows, round(app.TrialsPairing.events.din0 * FsT)) && all(ismember(hiRows(:, 2) + 1, barRows(:, 1))) ...
     && all(ismember(hiRows(:, 1) - 1, barRows(:, 2))) && all(strcmp({hBars.Marker}, 'none')) ...
     && any(contains(string(app.TrialsAxes.YTickLabel), "din0 (inverted)")), ...
@@ -490,6 +507,25 @@ app.TrialsLinesTable.Data.Inverted(1) = false;
 app.onTrialsSettingsChanged();
 check(isempty(app.Config.Signals.InvertedLines) && app.TrialsPairing.recorded && app.TrialsPairing.status == "approved", ...
     'restoring the polarity brings the approved pairing back');
+L0 = app.TrialsLinesTable.Data;
+E0 = app.TrialsEvents;
+check(isequal(string(L0.Properties.VariableNames), ["Native" "Name" "Intervals" "Inverted"]) && L0.Native(1) == "DIN-00" ...
+    && L0.Name(1) == "din0", 'the lines table shows each line''s native name and its name');
+app.TrialsLinesTable.Data.Name(1) = "Trial";
+app.onTrialsLinesEdited(struct('Indices', [1 2], 'PreviousData', "din0", 'NewData', "Trial"));
+check(isequal(app.Config.Signals.LineNames, "DIN-00=Trial") && app.Config.Behavior.TrialLine == "Trial" ...
+    && string(app.TrialsLineDropDown.Value) == "Trial" && ~isempty(app.TrialsPairing) && app.TrialsPairing.nPaired == 1 ...
+    && isequal(app.TrialsEvents, E0) && isfield(app.TrialsPairing.events, 'Trial'), ...
+    'renaming a line writes Signals.LineNames, the trial line follows, and it re-pairs without reading the recording');
+app.TrialsLinesTable.Data.Name(1) = "1bad";
+app.onTrialsLinesEdited(struct('Indices', [1 2], 'PreviousData', "Trial", 'NewData', "1bad"));
+check(app.TrialsLinesTable.Data.Name(1) == "Trial" && isequal(app.Config.Signals.LineNames, "DIN-00=Trial"), ...
+    'an invalid name is refused and put back');
+app.TrialsLinesTable.Data.Name(1) = "";
+app.onTrialsLinesEdited(struct('Indices', [1 2], 'PreviousData', "Trial", 'NewData', ""));
+check(isempty(app.Config.Signals.LineNames) && app.Config.Behavior.TrialLine == "din0" ...
+    && app.TrialsLinesTable.Data.Name(1) == "din0", 'a blank name goes back to the default name and drops the entry');
+
 vE = matlab.lang.makeValidName("epsych_" + dT.Name);
 vB = matlab.lang.makeValidName("behavior_" + dT.Name);
 evalin('base', "clear " + vE + " " + vB);

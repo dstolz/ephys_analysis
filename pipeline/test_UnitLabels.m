@@ -64,6 +64,14 @@ check(ok && isequal(n, ["SubjectID" "Date" "Time"]) && isequal(f, ["" "yyMMdd" "
     && isequal(v, ["A1" "260101" "120000"]), 'formats: "" for free text, the datetime format otherwise');
 [~, ~, ~, f] = parseNameTokens("", "{Letter:[A-Z]}{Num:\d+}_*");
 check(isequal(f, ["" ""]), 'regex tokens have no format');
+oePattern = "{SubjectID}_{Date:yyyy-MM-dd}_{Time:HH-mm-ss}*";
+[v, ~, ok, f] = parseNameTokens("SUBJ-ID-1219_2026-07-07_16-35-39_active", oePattern);
+check(ok && isequal(f, ["" "yyyy-MM-dd" "HH-mm-ss"]) && isequal(v, ["SUBJ-ID-1219" "2026-07-07" "16-35-39"]), ...
+    'datetime formats with separators (Open Ephys folder names, appended text)');
+[~, ~, ok] = parseNameTokens("SUBJ-ID-1219_2026-07-07_16.35.39", oePattern);
+check(~ok, 'separators are matched literally');
+[~, ~, ~, f] = parseNameTokens("", "{Date:yyyy-MM-dd-x}");
+check(f == "", 'a format with other letters stays a regular expression');
 
 %% ---- 2. nameIdentity ------------------------------------------------------------
 fprintf('\n== 2. nameIdentity ==\n');
@@ -84,6 +92,11 @@ check(EphysDataset.nameIdentity("A_1_260101_120000", EphysDataset.DefaultNamePat
 check(EphysDataset.nameIdentity("A1_261301_120000", EphysDataset.DefaultNamePattern).reason == "datetime", 'month 13 is not a date');
 check(EphysDataset.nameIdentity("A1_991231_235900", EphysDataset.DefaultNamePattern).recordingStart.Year == 2099, ...
     'two-digit years are 2000-2099');
+id = EphysDataset.nameIdentity("SUBJ-ID-1219_2026-07-07_16-35-39_active", oePattern);
+check(id.ok && id.subject == "SUBJ-ID-1219" && id.recordingStart == datetime(2026, 7, 7, 16, 35, 39) ...
+    && id.labelSuffix == "SUBJ-ID-1219_260707T1635", 'Open Ephys names: dates and times with separators');
+check(EphysDataset.nameIdentity("S1_2026-02-30_10-00-00", oePattern).reason == "datetime", ...
+    'an invalid date with separators is reported');
 
 %% ---- 3. readPhyUnits: class, padding, bare labels -------------------------------
 fprintf('\n== 3. class and label ==\n');
@@ -93,8 +106,8 @@ U = EphysDataset.readPhyUnits(d3, IncludeNoise=true);
 check(isequal(U.unitId, [2; 7; 1042]) && isequal(U.class, ["noise"; "su"; "mua"]) ...
     && isequal(U.label, ["noise002"; "su007"; "mua1042"]), 'good->su, ids padded to 3 digits, longer ids kept');
 fn = string(fieldnames(U)).';
-check(isequal(fn(1:16), ["unitId" "label" "class" "group" "notes" "subject" "recordingStart" "datasetKey" ...
-    "channel" "channelName" "ksChannel" "shank" "peakX" "peakY" "x" "y"]), 'identity and location fields come first');
+check(isequal(fn(1:17), ["unitId" "label" "class" "group" "notes" "subject" "recordingStart" "datasetKey" ...
+    "channel" "channelName" "channelNumber" "ksChannel" "shank" "peakX" "peakY" "x" "y"]), 'identity and location fields come first');
 check(all(U.subject == "") && all(isnat(U.recordingStart)) && all(U.datasetKey == "") && all(U.notes == ""), ...
     'a bare folder has no identity');
 fid = fopen(fullfile(d3, 'cluster_group.tsv'), 'w');
@@ -128,14 +141,16 @@ T(1, 3, 1) = -10;                      % ... 10 on ch1 (under 25%, ignored)
 T(2, 3, 4) = -80; T(2, 6, 4) = 30;     % cluster 1: ch4 only
 T(3, 4, 1) = -10;                      % cluster 2: ch1 only
 writeNPY(fullfile(d4, 'templates.npy'), single(T));
-U = EphysDataset.readPhyUnits(d4, IncludeNoise=true, ChannelNames=["A-000" "A-001" "A-002" "A-003"]);
+U = EphysDataset.readPhyUnits(d4, IncludeNoise=true, ChannelNames=["A-000" "A-001" "A-002" "A-003"], ...
+    ChannelNumbers=[0 1 2 3]);
 check(isequal(U.ksChannel, [2; 4; 1]) && isequal(U.shank, [0; 1; 0]) && isequal(U.channel, [2; 4; 1]) ...
-    && isequal(U.channelName, ["A-001"; "A-003"; "A-000"]), 'peak channel, shank and channel name');
+    && isequal(U.channelName, ["A-001"; "A-003"; "A-000"]) && isequal(U.channelNumber, [1; 3; 0]), ...
+    'peak channel, shank, channel name and number');
 check(isequal([U.peakX U.peakY], [0 20; 200 0; 0 0]), 'peakX / peakY are the peak channel''s site');
 check(abs(U.x(1)) < 1e-9 && abs(U.y(1) - 30) < 1e-9 && isequal([U.x(2:3) U.y(2:3)], [200 0; 0 0]), ...
     'template centre: weighted over same-shank channels with at least 25% of the peak');
 U = EphysDataset.readPhyUnits(d4, IncludeNoise=true);
-check(all(U.channelName == ""), 'no channel names without ChannelNames');
+check(all(U.channelName == "") && all(isnan(U.channelNumber)), 'no channel names / numbers without ChannelNames / ChannelNumbers');
 U = EphysDataset.readPhyUnits(d4, IncludeNoise=true, Templates=false);
 check(all(isnan([U.x; U.y; U.peakX; U.peakY])), 'no position without templates');
 delete(fullfile(d4, 'channel_positions.npy'));
@@ -217,14 +232,14 @@ UA = P.Datasets(iA).readSortedUnits();
 UC = P.Datasets(iC).readSortedUnits(IncludeNoise=true);
 T = unitTable({UA, UC});
 check(isequal(string(T.Properties.VariableNames), ["label" "class" "subject" "recordingStart" "datasetKey" ...
-    "unitId" "group" "channel" "channelName" "ksChannel" "shank" "peakX" "peakY" "x" "y" "notes" ...
+    "unitId" "group" "channel" "channelName" "channelNumber" "ksChannel" "shank" "peakX" "peakY" "x" "y" "notes" ...
     "nSpikes" "amplitude" "contamPct" "curated" "fs" "resultsDir" "times"]), 'column order');
 check(height(T) == 5 && isstring(T.label) && isdatetime(T.recordingStart) && iscell(T.times) ...
     && isequal(T.times{1}, UA.times{1}), 'one row per unit, typed columns');
 su = T(T.class == "su" & T.subject == "S1", :);
 check(height(su) == 1 && su.label == "su000_S1_260101T1200" && su.datasetKey == keys(iA), 'filter by class and subject');
-check(width(unitTable(UA, Times=false)) == 22, 'Times=false drops the times column');
-check(height(unitTable([])) == 0 && width(unitTable([])) == 23, 'no units, an empty typed table');
+check(width(unitTable(UA, Times=false)) == 23, 'Times=false drops the times column');
+check(height(unitTable([])) == 0 && width(unitTable([])) == 24, 'no units, an empty typed table');
 check(strcmp(errorId(@() unitTable({UA, UA})), 'unitTable:DuplicateUnit'), 'the same unit twice is an error');
 UB = P.Datasets(iB).readSortedUnits();
 lastwarn('');

@@ -166,9 +166,9 @@ end
 E = obj.Export;
 if E.Enabled
     if isempty(E.Formats)
-        add("export", "Formats", "error", "Export is enabled but no format is selected (chronux / fieldtrip).");
+        add("export", "Formats", "error", "Export is enabled but no format is selected (chronux / fieldtrip / epochs).");
     else
-        bad = setdiff(E.Formats, ["chronux" "fieldtrip"]);
+        bad = setdiff(E.Formats, ["chronux" "fieldtrip" "epochs"]);
         if ~isempty(bad); add("export", "Formats", "error", "Unknown export format(s): " + strjoin(bad, ", ")); end
     end
     if ~G.Enabled
@@ -176,6 +176,22 @@ if E.Enabled
     end
     if E.IncludeDetected && ~(K.Enabled && K.Source ~= "sorted")
         add("export", "IncludeDetected", "warning", "Detected spikes are included only where a spikes file already exists.");
+    end
+    if any(E.Formats == "epochs")
+        w = E.EpochWindow;
+        if numel(w) ~= 2 || w(2) <= w(1)
+            add("export", "EpochWindow", "error", ...
+                "The epoch window must be [tPre tPost] with tPre < tPost; got [" + strjoin(string(w), " ") + "].");
+        end
+        if ~ismember(E.EpochSource, ["line" "behavior"])
+            add("export", "EpochSource", "error", "Epoch events come from a digital line or the paired trials (line / behavior).");
+        end
+        if E.EpochSource == "line" && ~E.IncludeEvents
+            add("export", "IncludeEvents", "error", "Epochs around a digital line need the digital-input events.");
+        end
+        if E.EpochSource == "behavior" && ~(B.Enabled && B.PairTrials)
+            add("export", "EpochSource", "warning", "Epochs around behavior trials need a paired session (the behavior step with PairTrials, reviewed on the Trials tab).");
+        end
     end
 end
 

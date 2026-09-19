@@ -351,6 +351,11 @@ check(islogical(eo.Units) && ~eo.Units && isequal(eo.Signals, "LFP") && ~isfield
     'exportOptions for the FieldTrip exporter');
 eo = EphysPipelineConfig.exportOptions(E, "chronux");
 check(~isfield(eo, 'Validate') && eo.Events && ~eo.Detected, 'exportOptions for the Chronux exporter');
+E.EpochSource = "behavior"; E.EpochWindow = [-0.1 0.4]; E.EpochSpikeTimeBase = "window";
+eo = EphysPipelineConfig.exportOptions(E, "epochs");
+check(~isfield(eo, 'Validate') && eo.EventSource == "behavior" && isequal(eo.Window, [-0.1 0.4]) ...
+    && eo.SpikeTimeBase == "window" && eo.Incomplete == "nan" && eo.OnsetRule == "event", ...
+    'exportOptions for the epoch exporter uses its own option names');
 
 fprintf('\n== 6. validate ==\n');
 cfg = EphysPipelineConfig();
@@ -398,6 +403,19 @@ check(any(iss.Step == "export" & iss.Field == "Formats" & iss.Severity == "error
 cfg.Export.Formats = ["chronux" "bogus"];
 iss = cfg.validate();
 check(any(iss.Field == "Formats" & contains(iss.Message, "bogus")), 'unknown export format is reported');
+cfg.Export.Formats = ["chronux" "epochs"];
+cfg.Export.EpochWindow = [0.5 -0.5];
+iss = cfg.validate();
+check(~any(iss.Field == "Formats" & iss.Severity == "error") ...
+    && any(iss.Field == "EpochWindow" & iss.Severity == "error"), ...
+    '"epochs" is a known format; a reversed epoch window is an error');
+cfg.Export.EpochWindow = [-0.2 0.5];
+cfg.Export.IncludeEvents = false;
+iss = cfg.validate();
+check(any(iss.Field == "IncludeEvents" & iss.Severity == "error"), ...
+    'epochs around a digital line need the digital-input events');
+cfg.Export.IncludeEvents = true;
+cfg.Export.Formats = "chronux";
 check(isequal(cfg.enabledSteps(), ["probe" "sorting" "spikes" "export"]) && cfg.stepEnabled("probe") && ~cfg.stepEnabled("signals"), ...
     'enabledSteps / stepEnabled');
 check(strcmp(errorId(@() cfg.stepSection("nope")), 'EphysPipelineConfig:BadStep'), 'unknown step errors');

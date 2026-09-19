@@ -23,7 +23,7 @@ switch obj.Tabs.SelectedTab
     case obj.TabSpikes
         msg = "Spikes: threshold detection and/or sorted units per dataset.";
     case obj.TabExport
-        msg = "Export: write Chronux / FieldTrip files from the extract + spikes.";
+        msg = "Export: write Chronux / FieldTrip / event-epoch files from the extract + spikes.";
         obj.refreshStepPlan("export");
     case obj.TabRun
         msg = "Run: validate, plan, then run the enabled steps.";

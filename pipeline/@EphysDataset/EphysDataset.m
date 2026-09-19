@@ -40,6 +40,11 @@ classdef EphysDataset < handle
     %     out = ds.toMat(File="D:\out\subj1.mat", ...
     %                    SignalOptions=struct('dataTypeOut', "LFP"));
     %
+    %   Event-organized (epoched) data
+    %   ------------------------------
+    %     E = ds.eventEpochs(EventSource="behavior", Window=[-0.2 0.5]);
+    %     out = ds.exportEpochs();         % the same, saved as <Name>_epochs.mat
+    %
     %   Processed files, loaded on demand
     %   ---------------------------------
     %     out = ds.outputs();              % DatasetOutputs: finds every output
@@ -199,6 +204,8 @@ classdef EphysDataset < handle
         out    = spikesToMat(obj, opts)
         out    = exportChronux(obj, opts)
         out    = exportFieldTrip(obj, opts)
+        E      = eventEpochs(obj, opts)
+        out    = exportEpochs(obj, opts)
         [trials, info, meta] = readBehavior(obj)
         b      = behaviorStruct(obj, opts)
         out    = behaviorToMat(obj, opts)
@@ -875,7 +882,7 @@ classdef EphysDataset < handle
             %   complete-looking file behind. (save() reports a variable it could
             %   not store, e.g. over 2 GB with -v7, as a warning and omits it;
             %   that is treated as a failure here.) Shared by toMat, spikesToMat
-            %   and the Chronux / FieldTrip exporters.
+            %   and the Chronux / FieldTrip / epochs exporters.
             arguments
                 outFile (1,1) string
                 S (1,1) struct

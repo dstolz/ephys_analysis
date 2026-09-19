@@ -1,9 +1,13 @@
 function runExport(obj, opts)
-%runExport  Chronux / FieldTrip files per dataset (exportChronux / exportFieldTrip).
+%runExport  Chronux / FieldTrip / epoch files per dataset (exportChronux /
+%   exportFieldTrip / exportEpochs).
 %   The continuous signals come from the Signals step's extract file(s), the
 %   sorted units from the sorting association, detected spikes from the
-%   Spikes step's file (Export.IncludeDetected), events as configured.
-%   Behavior data is not exported here (see the behavior step). One row per
+%   Spikes step's file (Export.IncludeDetected), events as configured. The
+%   "epochs" format organizes the same data by event, one epoch per digital
+%   pulse or paired trial (Export.Epoch* settings); the behavior columns of a
+%   paired session ride along with its trials table. Behavior data is not
+%   exported here (see the behavior step). One row per
 %   format and dataset (step "export:<format>"); progress goes out as the
 %   "export" step, the formats sharing each dataset's part of it.
 %
@@ -59,11 +63,16 @@ for k = 1:n
                     r = d.exportChronux('File', out, 'Extract', extract, args{:});
                 case "fieldtrip"
                     r = d.exportFieldTrip('File', out, 'Extract', extract, args{:});
+                case "epochs"
+                    r = d.exportEpochs('File', out, 'Extract', extract, args{:});
                 otherwise
                     error('EphysPipeline:BadFormat', 'Unknown export format "%s".', fmt);
             end
             obj.progress("export", d.Name, k, n, j, nFmt, fmt + ": done");
             msg = sprintf("%s; %d unit(s)", strjoin(r.signals, "+"), r.nUnits);
+            if fmt == "epochs"
+                msg = string(msg) + sprintf("; %d epoch(s) of %s [%g %g] s", r.nEpochs, r.eventName, r.window(1), r.window(2));
+            end
             obj.log("[%s] %s: wrote %s (%s)", step, d.Name, r.file, msg);
             obj.addResult(step, d.Name, "done", msg, r.file, toc(t0));
         catch ME

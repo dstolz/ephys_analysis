@@ -6,7 +6,9 @@ universal binary format), screen for artifacts, sort with Kilosort4 through
 SpikeInterface (optional), derive LFP / MUA / spike-band signals, detect
 spikes and collect sorted units, associate Epsych2 behavior sessions, and
 export files for the [Chronux](http://chronux.org) and
-[FieldTrip](https://www.fieldtriptoolbox.org/) toolboxes. One JSON config
+[FieldTrip](https://www.fieldtriptoolbox.org/) toolboxes or as
+event-organized epochs (one epoch per digital pulse or behavior trial, to a
+file or straight to the workspace). One JSON config
 (`EphysPipelineConfig`) drives the GUI (`EphysPreprocessingApp`), the headless
 runner (`EphysPipeline`) and generated scripts (`EphysPipelineScript`).
 

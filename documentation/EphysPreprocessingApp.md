@@ -550,12 +550,22 @@ Spike events per dataset with `EphysDataset.spikesToMat`, `Spikes.*`.
 Files for external toolboxes, `Export.*`. Nothing about spectra, tapers or
 Chronux functions appears here: the app only writes files.
 
-- **Chronux** (`<Name>_chronux.mat`, [format](file-formats.md#chronux-export))
-  and **FieldTrip** (`<Name>_fieldtrip.mat`,
-  [FieldTripExport](FieldTripExport.md)).
+- **Chronux** (`<Name>_chronux.mat`, [format](file-formats.md#chronux-export)),
+  **FieldTrip** (`<Name>_fieldtrip.mat`,
+  [FieldTripExport](FieldTripExport.md)) and **Event epochs**
+  (`<Name>_epochs.mat`, the same data organized by event —
+  [`EphysDataset.eventEpochs`](EphysDataset.md#event-organized-epoched-data)).
 - What to include: signals (blank = every signal in the extract), sorted
   units (+ groups), detected spikes, events; **Validate with
   FieldTrip** when it is on the path.
+- **Event epochs**: where the onsets come from (a digital-input line, or the
+  paired behavior trials, which bring their session columns with them), the
+  line, the window around each onset, what to do with a window that runs past
+  the recording or holds blanked (`NaN`) samples, how the per-epoch spike
+  times are stamped, the class of the epoched samples and the onset rule.
+  **Epochs to workspace** builds that struct for the dataset selected on the
+  Project tab with these settings and puts it in the base workspace as
+  `epochs_<name>` — nothing is written to disk.
 - Output folder, overwrite, MAT version; the targets table (`no extract file`
   when the Signals output is missing); **Run this step** runs
   `EphysPipeline.runExport`.
@@ -791,7 +801,7 @@ preference groups are not read.
 | `<Folder>/<Name>_manifest.json` | scan, probe assignment, exclusion change, manual artifact edit, sorting / behavior association, each sorting launch and completion |
 | `<outputFolder>/kilosort4/{si_config.json, run_si_ks4.py, ks4_run.log, ks4_status.json}` and `kilosort4/si/...` | Sorting (dry run writes only the first two) |
 | `<outputFolder>/<Name>_artifacts.json` | Artifacts (cache) |
-| `<Name>_extract_<TYPE>.mat` (or `<Name>_extract.mat`), `<Name>_spikes.mat`, `<Name>_chronux.mat`, `<Name>_fieldtrip.mat` | Signals, Spikes, Export |
+| `<Name>_extract_<TYPE>.mat` (or `<Name>_extract.mat`), `<Name>_spikes.mat`, `<Name>_chronux.mat`, `<Name>_fieldtrip.mat`, `<Name>_epochs.mat` | Signals, Spikes, Export |
 | probe `.json` in the probe folder | Import, Designer save, Notes edit |
 | `<parent>/synthetic_ephys/...` | File → Create synthetic test project (recordings, sessions, sorted output, probe, config, README) |
 | `<Destination>/<SUBJ>/<Intan folder>/`: the copied files (for a stitched session, `<earliest ePsych file>_stitched.mat` instead of the ePsych files), `session_manifest.json`, `session_copy_robocopy.log` | Copy → Copy selected, in the background (Preview writes nothing) |
@@ -828,6 +838,7 @@ app.KSRuns                        % background runs being monitored
 | `onDetectArtifacts.m`, `refreshManualArtifactsTable.m`, `onClearManualArtifacts.m` | Artifacts tab |
 | `onOptimizeKS4ForProbe.m`, `onResetKS4Params.m`, `onUseSortingFolder.m`, `onUseAutoSorting.m`, `refreshSortingLabel.m`, `pollKSRuns.m`, `onLaunchPhy.m`, `launchPhy.m` | Sorting tab and phy |
 | `onSpikesPreview.m`, `syncSpikesEnableStates.m` | Spikes tab |
+| `onBrowseExportOutput.m`, `onExportEpochsToWorkspace.m` | Export tab (output folder, Epochs to workspace) |
 | `onPlotVisualization.m`, `onVizButtonDown/Up.m`, `drawVizArtifacts.m`, `finishVizArtDrag.m`, `applyVizChannelOrder.m`, `applyVizChannelColor.m`, `syncVizDataset.m` | Visualize tab |
 | `buildFlowTab.m`, `refreshFlowChart.m`, `flowChartHTML.m`, `onSaveFlowChart.m`, `onOpenFlowChartInBrowser.m`, `onFlowNavigate.m`, `flowNavControls.m`, `clearFlowHighlight.m` | Diagram tab |
 | `buildCopyTab.m`, `onCopyFind.m`, `onCopyRun.m`, `refreshCopyTable.m`, `onCopyTableEdited.m`, `onCopyStitch.m`, `onCopyUnstitch.m`, `onBrowseCopyFolder.m`, `copyLog.m`, `onCopyCancel.m`, `startCopyMonitor.m`, `stopCopyMonitor.m`, `pollCopyJob.m`, `setCopyRunning.m`, `applyCopyResult.m`, `finishCopyRun.m`, `showCopyProgress.m`, `copySummaryText.m`; `pipeline/findCopySessions.m`, `pipeline/stitchCopySessions.m`, `pipeline/copySessions.m`, `pipeline/copy_engine.ps1`, `pipeline/stitchEpsychSessions.m` | Copy tab, the pairing / stitching / copy functions it calls, and the detached copy engine |

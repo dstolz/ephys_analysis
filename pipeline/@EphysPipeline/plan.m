@@ -154,6 +154,22 @@ for step = steps
                     if c.Export.IncludeUnits && ~d.hasKilosortResults()
                         note = "no sorted units (left out)";
                     end
+                    if fmt == "epochs"
+                        ep = sprintf("epochs [%g %g] s around ", c.Export.EpochWindow(1), c.Export.EpochWindow(2));
+                        if c.Export.EpochSource == "behavior"
+                            ep = ep + "the paired trials";
+                            if isempty(d.TrialPairing)
+                                ep = ep + " (no recorded pairing)";
+                            elseif d.TrialPairing.status ~= "approved"
+                                ep = ep + " (pairing " + d.TrialPairing.status + ")";
+                            end
+                        elseif c.Export.EpochLine == ""
+                            ep = ep + "the trial line, or the only dig-in line";
+                        else
+                            ep = ep + c.Export.EpochLine;
+                        end
+                        note = strjoin([note(note ~= ""), ep], "; ");
+                    end
                     if (isempty(extract) || ~all(isfile(extract))) && ~(c.Signals.Enabled && ismember("signals", steps))
                         add("export:" + fmt, k, out, "no extract file", "expected " + strjoin(extract(~isfile(extract)), ", "));
                     elseif isfile(out) && ~c.Export.Overwrite

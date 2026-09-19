@@ -24,7 +24,8 @@ classdef EphysPipelineConfig
     %                also used by the trial pairing)
     %     Spikes     Enabled, Source, detection settings, sorted-unit settings,
     %                output settings
-    %     Export     Enabled, Formats ("chronux" / "fieldtrip"), what to include
+    %     Export     Enabled, Formats ("chronux" / "fieldtrip" / "epochs"),
+    %                what to include, the Epoch* settings of the epoch format
     %
     %   Usage
     %     cfg = EphysPipelineConfig();                 % defaults
@@ -312,7 +313,10 @@ classdef EphysPipelineConfig
         end
 
         function o = exportOptions(e, fmt)
-            %exportOptions  Name-value struct for exportChronux / exportFieldTrip.
+            %exportOptions  Name-value struct for the exporter of format FMT.
+            %   Shared options for exportChronux / exportFieldTrip /
+            %   exportEpochs, plus Validate (fieldtrip) or the Epoch* settings
+            %   as the epoch exporter's names (epochs).
             e = EphysPipelineConfig.normalizeSection("Export", e);
             o = struct();
             if ~isempty(e.Signals); o.Signals = e.Signals; end
@@ -324,6 +328,16 @@ classdef EphysPipelineConfig
             o.MatVersion = e.MatVersion;
             if nargin > 1 && string(fmt) == "fieldtrip"
                 o.Validate = logical(e.Validate);
+            end
+            if nargin > 1 && string(fmt) == "epochs"
+                o.EventSource   = e.EpochSource;
+                o.EventLine     = e.EpochLine;
+                o.Window        = e.EpochWindow;
+                o.OnsetRule     = e.EpochOnsetRule;
+                o.Incomplete    = e.EpochIncomplete;
+                o.NonFinite     = e.EpochNonFinite;
+                o.SpikeTimeBase = e.EpochSpikeTimeBase;
+                o.Class         = e.EpochClass;
             end
         end
 

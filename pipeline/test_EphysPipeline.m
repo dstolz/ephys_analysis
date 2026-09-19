@@ -281,6 +281,19 @@ check(isequal(Cd.LFP.data, C.LFP.data) && isequal(Cd.sp, C.sp) && isequal(Cd.spD
 pipe.reset(); pipe.runExport();
 check(all(pipe.Results.Status == "skipped"), 'existing exports are skipped');
 
+cfgP = cfg; cfgP.Export.Formats = "epochs"; cfgP.Export.EpochWindow = [-0.001 0.002];
+pipe.Config = cfgP; pipe.reset(); pipe.runExport();
+Rp = pipe.Results;
+check(height(Rp) == 1 && Rp.Step(1) == "export:epochs" && Rp.Status(1) == "done" ...
+    && endsWith(Rp.Output(1), "_epochs.mat"), 'the epochs format writes <Name>_epochs.mat');
+P = load(Rp.Output(1));
+check(isfield(P, 'epochs') && P.epochs.event.nEpochs == 1 && istable(P.epochs.trials) ...
+    && isequal(size(P.epochs.signals.LFP.data), [91 1 numAmp]) ...
+    && isequal(P.epochs.signals.LFP.data(:, 1, 1), double(Sx.Y.LFP(20:110, 1))) ...
+    && numel(P.epochs.units) == 2 && numel(P.epochs.detected) == numAmp, ...
+    'the epoch file holds the samples around the dig-in onset, with the units and detected spikes');
+pipe.Config = cfg;
+
 fprintf('\n== 8. run(), dry run and cancel ==\n');
 cfg.Sorting.Enabled = false; cfg.Signals.Enabled = false; cfg.Export.Overwrite = true; cfg.Spikes.Overwrite = true;
 pipe.Config = cfg;

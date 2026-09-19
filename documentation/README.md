@@ -39,6 +39,7 @@ on `pipeline`; `pipeline` does not depend on it. See [Analysis](EphysAnalysis.md
 | [EphysAnalysisApp](EphysAnalysisApp.md) | the analysis GUI: Data, Alignment, Plots, Export and Log tabs, preferences, why a plot is skipped |
 | [Python drivers](python-drivers.md) | `run_si_ks4.py`, `run_ks4.py`, `probe_tool.py` |
 | [Files on disk](file-formats.md) | folder layout and every JSON / `.bin` / `.mat` schema |
+| [Remote jobs](remote-jobs.md) | **design proposal, not implemented** — running the pipeline as queued jobs on a remote Windows machine, monitored from MATLAB or a browser |
 
 Existing docs next to the code: [INSTALL.md](../pipeline/INSTALL.md) (Windows
 setup, conda environments, GPU) and

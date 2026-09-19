@@ -93,6 +93,11 @@ PyTorch instead — everything still works, just slower.
    ```
    This should print `True` if the GPU build installed correctly, or `False`
    (no error) for a CPU-only setup.
+6. Optional, for Open Ephys sessions recorded in the **NWB** format and sorted
+   with the SpikeInterface engine (the default): `pip install h5py` (or
+   `conda install -n kilosort h5py`). Binary and Open Ephys format sessions
+   need nothing extra, and the native Kilosort4 engine reads NWB files in
+   MATLAB.
 
 You do **not** need conda on the Windows `PATH` for the app to work — it
 calls the environment's `python.exe` directly by full path

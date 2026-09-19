@@ -7,17 +7,21 @@ function [values, names, ok, formats] = parseNameTokens(name, pattern)
 %   datetime-style FORMATS (e.g. "yyMMdd"; "" for free-text and regex tokens).
 %
 %   PATTERN is literal text with tokens in braces:
-%     {Token}          any text (as short as possible)
-%     {Token:yyMMdd}   a datetime-style format made only of the letters
-%                      y M d H h m s: that many digits
-%     {Token:regex}    any other format is used as a regular expression
-%     *                any text that is not kept (e.g. a trailing suffix)
+%     {Token}            any text (as short as possible)
+%     {Token:yyMMdd}     a datetime-style format: runs of the letters
+%     {Token:yyyy-MM-dd} y M d H h m s, each matching that many digits,
+%                        optionally joined by separators (any characters
+%                        other than letters and digits, matched literally)
+%     {Token:regex}      any other format is used as a regular expression
+%     *                  any text that is not kept (e.g. a trailing suffix)
 %   Token names must be valid MATLAB identifiers and unique.
 %
 %   Default (Project.NamePattern): "{SubjectID}_{Date:yyMMdd}_{Time:HHmmss}"
 %   splits "SUBJ-ID-1245_260916_143015" into SubjectID = "SUBJ-ID-1245",
 %   Date = "260916", Time = "143015". A fixed prefix written as literal text,
 %   "SUBJ-ID-{SubjectID}_{Date:yyMMdd}_{Time:HHmmss}", leaves SubjectID = "1245".
+%   Open Ephys session folders ("SUBJ-ID-1245_2026-09-16_14-30-15", with an
+%   optional appended text) match "{SubjectID}_{Date:yyyy-MM-dd}_{Time:HH-mm-ss}*".
 %   Unit labels use the SubjectID, Date and Time tokens (see
 %   EphysDataset.nameIdentity).
 %
@@ -77,8 +81,8 @@ while i <= numel(p)
         formats(end+1) = ""; %#ok<AGROW>
         if fmt == ""
             expr = expr + "(.+?)";
-        elseif ~isempty(regexp(fmt, '^[yMdHhms]+$', 'once'))
-            expr = expr + sprintf("(\\d{%d})", strlength(fmt));
+        elseif ~isempty(regexp(fmt, '^[yMdHhms]+([^A-Za-z0-9]+[yMdHhms]+)*$', 'once'))
+            expr = expr + "(" + dateRegex(fmt) + ")";
             formats(end) = fmt;
         else
             try
@@ -100,6 +104,21 @@ while i <= numel(p)
     end
 end
 expr = expr + regexptranslate('escape', lit) + "$";
+end
+
+
+function s = dateRegex(fmt)
+%dateRegex  "yyyy-MM-dd" -> "\d{4}\-\d{2}\-\d{2}": digits per letter run,
+%   separators literal.
+runs = regexp(char(fmt), '[yMdHhms]+|[^yMdHhms]+', 'match');
+s = "";
+for k = 1:numel(runs)
+    if any(runs{k}(1) == 'yMdHhms')
+        s = s + sprintf("\\d{%d}", numel(runs{k}));
+    else
+        s = s + regexptranslate('escape', runs{k});
+    end
+end
 end
 
 

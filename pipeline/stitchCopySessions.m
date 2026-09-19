@@ -1,34 +1,35 @@
 function [T, row, kept] = stitchCopySessions(T, rows)
 %stitchCopySessions  Merge source session rows into one recording whose ePsych files are stitched.
 %   T = stitchCopySessions(T, rows) takes a findCopySessions table and the
-%   rows (indices or a logical mask), picked by hand, that hold one Intan
+%   rows (indices or a logical mask), picked by hand, that hold one
 %   recording folder and the ePsych files that belong to it, and replaces
-%   them with one "stitched" row. copySessions copies that row's Intan
+%   them with one "stitched" row. copySessions copies that row's recording
 %   folder and joins its ePsych files, in chronological order, into one
 %   Epsych2 session file (stitchEpsychSessions), so the local session folder
 %   holds a single behavior file as usual.
 %
-%   The rows must hold exactly one Intan folder and, between them, at least
+%   The rows must hold exactly one recording folder and, between them, at least
 %   two ePsych files, all of one subject. Rows of any status can be merged:
 %   ambiguous rows (picking the files resolves them) and rows stitched
 %   before (their files join the new set).
 %
-%   The stitched row takes the Intan folder row's place (IntanDir, IntanTime,
-%   IntanDuration, DestDir are kept); the other rows are removed. It has
+%   The stitched row takes the recording folder row's place (RecordingDir,
+%   RecordingTime, RecordingDuration, Reader, DestDir are kept); the other
+%   rows are removed. It has
 %     Status        "stitched"
 %     StitchFiles   every ePsych file, in chronological order (by the time in
 %                   its name, as findCopySessions reads it)
 %     EpsychFile, EpsychTime, DeltaT   those of the earliest file
 %     EpsychTrials  the sum over the files (NaN when a count is unknown)
 %     Note          the files in order, each with its start relative to the
-%                   Intan recording
+%                   recording
 %
 %   [T, ROW, KEPT] = stitchCopySessions(...) also returns the stitched row's
 %   index in the returned T and a logical mask of the input rows that remain
 %   (in order), to carry per-row state such as tick boxes along.
 %
 %   Errors with stitchCopySessions:BadRows when ROWS name fewer than two
-%   rows, several subjects, not exactly one Intan folder, fewer than two
+%   rows, several subjects, not exactly one recording folder, fewer than two
 %   ePsych files, or an ePsych file whose name holds no time.
 %
 %   Example
@@ -55,9 +56,9 @@ subjects = unique(S.Subject);
 if numel(subjects) > 1
     error('stitchCopySessions:BadRows', 'The rows belong to different subjects: %s.', strjoin(subjects, ", "));
 end
-row = rows(S.IntanDir ~= "");
+row = rows(S.RecordingDir ~= "");
 if numel(row) ~= 1
-    error('stitchCopySessions:BadRows', 'The rows must hold exactly one Intan folder; they hold %d.', numel(row));
+    error('stitchCopySessions:BadRows', 'The rows must hold exactly one recording folder; they hold %d.', numel(row));
 end
 
 files = [S.EpsychFile; vertcat(S.StitchFiles{:})];
@@ -82,7 +83,7 @@ end
 [times, order] = sort(times);
 files = files(order);
 
-delta = times - T.IntanTime(row);
+delta = times - T.RecordingTime(row);
 parts = strings(numel(files), 1);
 for k = 1:numel(files)
     [~, n, x] = fileparts(files(k));

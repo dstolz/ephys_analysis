@@ -7,12 +7,15 @@ function T = planLocalCleanup(datasets, opts)
 %
 %   What can be removed (Remove option; all three by default)
 %     "raw"          the raw recording files that the Copy tab copied into the
-%                    session folder (the Intan files listed in its
+%                    session folder (the recording files listed in its
 %                    session_manifest.json). A file is removed only when its
 %                    source, as recorded in that manifest, still exists and has
 %                    the same size as the local file, so the recording can be
 %                    copied back. A recording that was not copied by the Copy
-%                    tab has no known source and is always kept.
+%                    tab has no known source and is always kept. An Open
+%                    Ephys recording that is one dataset of several in its
+%                    session (a part folder) shares the session's files:
+%                    they are not listed with it and never removed.
 %     "sorter_copy"  Kilosort4's filtered copy of the recording (recording.dat,
 %                    temp_wh.dat) under the dataset's kilosort4 folder or its
 %                    sorted-output folder. The sorted units do not need it;
@@ -82,6 +85,10 @@ for k = 1:n
     leaf = base + ext;
     inFolder = samePath(p, folder);
     key = lower(f.path);
+    rel = "";   % the path below the recording folder, as the reader lists its files
+    if under(p, folder)
+        rel = lower(replace(extractAfter(f.path, strlength(stripSep(folder)) + 1), "\", "/"));
+    end
 
     if isKey(copied.raw, key)
         src = copied.raw(key);
@@ -99,7 +106,7 @@ for k = 1:n
                 r.Reason = "A copy of the same size is at " + src + ".";
             end
         end
-    elseif inFolder && (any(lower(leaf) == lower(rawNames)) || any(lower(ext) == [".rhd" ".rhs" ".dat"]))
+    elseif (inFolder && any(lower(ext) == [".rhd" ".rhs" ".dat"])) || any(rel == rawNames)
         r.Category = "raw"; r.What = "Raw recording";
         r.Reason = "Not copied by the Copy tab (no session_manifest.json lists it), so no source copy is known.";
     elseif any(lower(leaf) == ["recording.dat" "temp_wh.dat"]) && (under(p, ksDir) || under(p, sortDir))
@@ -156,8 +163,8 @@ function c = copyRecord(folder)
 c = struct('raw', containers.Map('KeyType', 'char', 'ValueType', 'any'), 'epsych', strings(1, 0));
 m = readJsonFile(fullfile(folder, "session_manifest.json"), ErrorOnFail=false);
 if ~isstruct(m); return; end
-if isfield(m, 'intan') && isfield(m.intan, 'files')
-    recs = m.intan.files;
+if isfield(m, 'recording') && isfield(m.recording, 'files')
+    recs = m.recording.files;
     if iscell(recs); recs = [recs{:}]; end
     for rec = recs(:).'
         if ~isfield(rec, 'relativePath') || ~isfield(rec, 'source'); continue; end
@@ -173,8 +180,10 @@ end
 
 
 function names = rawRecordingNames(d)
-%rawRecordingNames  File names the dataset's reader counts as its recording.
-names = string(d.Files);
+%rawRecordingNames  Files the dataset's reader counts as its recording, relative
+%   to its folder, lower case with "/" separators (Open Ephys lists paths
+%   below the session folder).
+names = lower(replace(string(d.Files), "\", "/"));
 names = names(:).';
 if isempty(names); names = strings(1, 0); end
 end

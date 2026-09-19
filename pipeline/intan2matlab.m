@@ -43,15 +43,15 @@ function [Y, events, info] = intan2matlab(RHDroot, options)
 %               rate of the data being filtered).
 %
 %   EVENTS  struct
-%           One field per digital input line. Field names are taken from the
-%           Intan digital input channel metadata specified by
-%           options.labelField and made valid via MATLAB.LANG.MAKEVALIDNAME.
+%           One field per digital input line. Field names are the custom or
+%           native digital input names (options.labelField), overridden by
+%           options.lineNames, made valid via MATLAB.LANG.MAKEVALIDNAME.
 %           Each field contains an N×2 array [t_on t_off] in seconds on the
 %           original amplifier time base (origFs).
 %
 %   INFO    struct
 %           Metadata, including:
-%             • INFO.RHDroot, INFO.filenames, INFO.recordingFormat
+%             • INFO.recordingFolder, INFO.filenames, INFO.recordingFormat
 %             • INFO.labels (amplifier channel labels from options.labelField)
 %             • INFO.origFs (amplifier sample rate)
 %             • Per-stream sampling and time vectors (seconds):
@@ -137,9 +137,13 @@ function [Y, events, info] = intan2matlab(RHDroot, options)
 %       Bandpass edges [low high] for spike-band filtering. Must satisfy
 %       low < high < SPIKE_Fs/2.
 %
-%   options.labelField         string         "custom_channel_name"
+%   options.labelField         string         "custom"
 %       Intan channel name used to label amplifier and digital input lines:
-%       "custom_channel_name" or "native_channel_name".
+%       "custom" (custom_channel_name) or "native" (native_channel_name).
+%
+%   options.lineNames          string list    []
+%       "native=name" digital-line names overriding labelField, e.g.
+%       "DIGITAL-IN-04=InTrial".
 %
 %   options.invertedLines      string list    []
 %       Digital input lines with inverted TTL polarity (on while low). Their
@@ -190,7 +194,8 @@ arguments
     options.MUA_IntegrationHz (1,1) double {mustBePositive} = 1000
     options.MUA_bpLoHi (1,2) double {mustBePositive} = [300 5000]
     options.SPIKE_bpLoHi (1,2) double {mustBePositive} = [300 5000]
-    options.labelField (1,1) string = "custom_channel_name"
+    options.labelField (1,1) string = "custom"
+    options.lineNames (1,:) string = string.empty(1,0)
     options.invertedLines (1,:) string = string.empty(1,0)
     options.ProgressFcn = []
 end

@@ -25,7 +25,7 @@ classdef CopySchedule
     %   What a run copies. For each subject, the sessions of the days
     %   [today - LookBackDays + 1, today] are found and paired as Find sessions
     %   pairs them, and the paired ones are copied (IncludeUnpaired adds the
-    %   Intan-only and ePsych-only ones) with IfExists and Verify as set: a
+    %   recording-only and ePsych-only ones) with IfExists and Verify as set: a
     %   session already copied is recognised by its sizes and left alone, and
     %   one copied part way is completed. A run leaves alone, and reports:
     %     ambiguous         a pairing that is ambiguous (never copied
@@ -35,7 +35,7 @@ classdef CopySchedule
     %                       files are to be stitched by hand on the Copy tab
     %     stitched_by_hand  a session whose copy was made by hand, stitched
     %                       (its session_manifest.json says so)
-    %     unpaired          an Intan-only or ePsych-only session, unless
+    %     unpaired          a recording-only or ePsych-only session, unless
     %                       IncludeUnpaired
     %     skipped           a session whose source changed within the last
     %                       QuietMin minutes (still being recorded, or synced
@@ -44,7 +44,11 @@ classdef CopySchedule
     %
     %   Settings (CopySchedule.defaults)
     %     Subjects          subject IDs (string array)
-    %     EpsychRoot, IntanRoot, DestRoot
+    %     EpsychRoot, DestRoot
+    %     RecordingRoots    roots of the recording folders (string array, or one
+    %                       string of them separated by semicolons); the folder
+    %                       names are matched with findCopySessions' default
+    %                       NamePatterns (Intan RHX and Open Ephys GUI)
     %     MaxLeadMin, MaxLagMin, MarginSec, MinDurationMin
     %                       pairing, as findCopySessions (minutes / seconds)
     %     Verify            "size" (default) | "hash"
@@ -144,9 +148,10 @@ classdef CopySchedule
             end
             s = CopySchedule.normalize(s);
             if s.RunWhen == "always"
-                for f = ["EpsychRoot", "IntanRoot", "DestRoot"]
+                for f = ["EpsychRoot", "DestRoot"]
                     s.(f) = CopySchedule.uncPath(s.(f));
                 end
+                s.RecordingRoots = arrayfun(@CopySchedule.uncPath, s.RecordingRoots);
             end
             now_ = datetime('now');
             s.Start = isoText(nextStart(now_, s.EveryMin));
@@ -268,7 +273,7 @@ classdef CopySchedule
             s = struct( ...
                 'Subjects', strings(1, 0), ...
                 'EpsychRoot', "S:/RIG3_Backup_2025/epsych_files/Data", ...
-                'IntanRoot', "S:/RIG3_Backup_2025/intan_files/Data", ...
+                'RecordingRoots', "S:/RIG3_Backup_2025/intan_files/Data", ...
                 'DestRoot', "D:/EPHYS", ...
                 'MaxLeadMin', 10, 'MaxLagMin', 2, 'MarginSec', 30, 'MinDurationMin', 2, ...
                 'Verify', "size", 'IfExists', "resume", 'IncludeUnpaired', false, ...
@@ -295,11 +300,15 @@ classdef CopySchedule
             if isempty(s.Subjects)
                 error('CopySchedule:BadSettings', 'Name at least one subject to copy.');
             end
-            for f = ["EpsychRoot", "IntanRoot", "DestRoot"]
+            for f = ["EpsychRoot", "DestRoot"]
                 s.(f) = strtrim(string(s.(f)));
                 if ~isscalar(s.(f)) || s.(f) == ""
                     error('CopySchedule:BadSettings', '%s must be a folder.', f);
                 end
+            end
+            s.RecordingRoots = rootList(s.RecordingRoots);
+            if isempty(s.RecordingRoots)
+                error('CopySchedule:BadSettings', 'RecordingRoots must name at least one folder.');
             end
             s.MaxLeadMin = number(s.MaxLeadMin, "MaxLeadMin", 0, Inf, false);
             s.MaxLagMin = number(s.MaxLagMin, "MaxLagMin", 0, Inf, false);
@@ -350,9 +359,9 @@ classdef CopySchedule
             end
             for subj = s.Subjects
                 try
-                    T = findCopySessions(subj, [day0 day1], EpsychRoot=s.EpsychRoot, IntanRoot=s.IntanRoot, ...
+                    T = findCopySessions(subj, [day0 day1], EpsychRoot=s.EpsychRoot, RecordingRoots=s.RecordingRoots, ...
                         DestRoot=s.DestRoot, MaxLeadTime=minutes(s.MaxLeadMin), MaxLagTime=minutes(s.MaxLagMin), ...
-                        AmbiguityMargin=seconds(s.MarginSec), MinIntanDuration=minutes(s.MinDurationMin), ...
+                        AmbiguityMargin=seconds(s.MarginSec), MinRecordingDuration=minutes(s.MinDurationMin), ...
                         LogFcn=logFcn);
                 catch ME
                     out.Errors(end+1, 1) = subj + ": " + ME.message;
@@ -572,7 +581,7 @@ st = T.Status;
 amb = st == "ambiguous";
 status(amb) = "ambiguous";
 message(amb) = regexprep(T.Note(amb), "^ambiguous: ", "") + "; pair it by hand on the Copy tab";
-unpaired = ismember(st, ["intan_only", "epsych_only"]);
+unpaired = ismember(st, ["recording_only", "epsych_only"]);
 if ~s.IncludeUnpaired
     status(unpaired) = "unpaired";
     message(unpaired) = T.Note(unpaired) + "; not copied automatically";
@@ -581,13 +590,13 @@ end
 % An ePsych file that starts during a paired recording: ePsych was
 % restarted, and its files belong stitched together, which a person decides.
 for p = find(st == "paired").'
-    if isnan(T.IntanDuration(p)); continue; end
-    during = find(st == "epsych_only" & T.EpsychTime >= T.IntanTime(p) ...
-        & T.EpsychTime <= T.IntanTime(p) + T.IntanDuration(p));
+    if isnan(T.RecordingDuration(p)); continue; end
+    during = find(st == "epsych_only" & T.EpsychTime >= T.RecordingTime(p) ...
+        & T.EpsychTime <= T.RecordingTime(p) + T.RecordingDuration(p));
     if isempty(during); continue; end
     rows = [p; during];
     status(rows) = "needs_stitching";
-    message(rows) = leafName(T.IntanDir(p)) + " has more than one ePsych file (" + ...
+    message(rows) = leafName(T.RecordingDir(p)) + " has more than one ePsych file (" + ...
         strjoin(leafName(T.EpsychFile(rows)), ", ") + "): stitch them on the Copy tab, then copy";
 end
 
@@ -860,6 +869,14 @@ end
 % =============================================================================
 % small helpers
 % =============================================================================
+
+function list = rootList(x)
+%rootList  Folders as a row of strings, from a list or one string of them separated by semicolons.
+x = strjoin(string(x), ";");
+list = strtrim(split(x, ";")).';
+list = unique(list(list ~= ""), 'stable');
+end
+
 
 function list = subjectList(x)
 %subjectList  Subject IDs as a row of strings, from a list or one string of them.

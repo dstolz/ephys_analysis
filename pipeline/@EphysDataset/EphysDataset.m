@@ -2,18 +2,20 @@ classdef EphysDataset < handle
     % EphysDataset  One recording folder -> processing, sorting and exports.
     %   An EphysDataset represents a single recording. All raw-data access goes
     %   through an EphysReader chosen for the folder (see Reader): IntanReader
-    %   for the Intan layouts below, BinaryReader for the universal
-    %   recording.json + flat binary format, or any registered reader, so
+    %   for the Intan RHX layouts, BinaryReader for the universal recording.json
+    %   + flat binary format, OpenEphysReader for Open Ephys GUI sessions
+    %   (Binary, Open Ephys and NWB formats), or any registered reader, so
     %   nothing above this class depends on the acquisition system.
-    %     "traditional"          one or more *.rhd files with embedded data
-    %     "one-file-per-signal"  info.rhd + amplifier.dat (+ other signal .dat)
-    %     "one-file-per-channel" info.rhd + amp-<native>.dat (one file per channel)
     %   It discovers the files, gathers header metadata cheaply (without reading
     %   amplifier data), reads/filters/screens the data, streams a Kilosort4 .bin
     %   file to disk, and spawns Kilosort4 - identically across formats, because
     %   all data access goes through the format-agnostic streamPlan/readChunkUV
-    %   primitives (whole *.rhd files for traditional; bounded sample windows over
-    %   the flat .dat files for the split formats).
+    %   primitives.
+    %
+    %   Digital lines: readers key their events by each line's native name
+    %   (DIGITAL-IN-04, TTL4); readData and digitalEvents rename them by
+    %   TrialConfig.LabelField ("custom" | "native") and TrialConfig.LineNames
+    %   ("native=name" entries, e.g. "TTL4=InTrial"), see relabelEvents.
     %
     %   Existing helpers are reused, never forked:
     %     read_Intan_RHD2000_file_modified  traditional reader (via readChunkUV)
@@ -49,34 +51,34 @@ classdef EphysDataset < handle
     %   MATRIX2KILOSORT, EXTRACT_TRIALS, INTAN2MATLAB.
 
     properties
-        Folder   (1,1) string = ""      % directory containing the *.rhd files
-        Files    (1,:) string = string.empty(1,0)  % *.rhd files, chronological (datenum)
+        Folder   (1,1) string = ""      % recording folder
+        Files    (1,:) string = string.empty(1,0)  % recording files (relative to Folder), from the reader
         Name     (1,1) string = ""      % dataset name (defaults to folder name)
     end
 
     properties (SetAccess = protected)
-        % Intan acquisition file layout for this folder, detected from its
-        % contents (see EphysDataset.detectFormat):
-        %   "traditional"         one or more *.rhd files with embedded data
-        %   "one-file-per-signal" info.rhd + amplifier.dat (+ other signal .dat)
-        %   "one-file-per-channel" info.rhd + amp-*.dat (one file per channel)
-        %   "unknown"             no recognized Intan files
-        % Recorded in the manifest so the GUI shows the layout even for formats
-        % whose amplifier data is not yet read in-process.
-        RecordingFormat (1,1) string = "traditional"
+        % On-disk layout of the recording, from its reader (see
+        % EphysDataset.detectFormat): Intan "traditional" | "one-file-per-signal"
+        % | "one-file-per-channel", "binary" (recording.json), Open Ephys
+        % "openephys-binary" | "openephys-legacy" | "openephys-nwb", or
+        % "unknown" when no reader recognises the folder. Recorded in the
+        % manifest.
+        RecordingFormat (1,1) string = "unknown"
     end
 
     properties (SetAccess = protected)
         % Header metadata (filled by refreshMetadata; no amplifier data read)
         Fs           (1,1) double = NaN          % amplifier sample rate (Hz)
-        NumChannels  (1,1) double = NaN          % amplifier channel count (first file)
-        ChannelNames (1,:) string = string.empty(1,0)  % custom_channel_name
-        NativeNames  (1,:) string = string.empty(1,0)  % native_channel_name
-        DigInNames   (1,:) string = string.empty(1,0)  % board dig-in custom names
+        NumChannels  (1,1) double = NaN          % amplifier channel count
+        ChannelNames (1,:) string = string.empty(1,0)  % custom channel names
+        NativeNames  (1,:) string = string.empty(1,0)  % native (hardware) channel names
+        ChannelNumbers (1,:) double = double.empty(1,0) % 0-based hardware numbers: what probe chanMap values refer to
+        DigInNames   (1,:) string = string.empty(1,0)  % digital-line custom names
+        DigInNativeNames (1,:) string = string.empty(1,0) % digital-line native names (DIGITAL-IN-04, TTL4)
         Duration     (1,1) double = NaN          % total recording duration (s)
-        AcqDate      datetime = NaT              % earliest file datenum
-        NumFiles     (1,1) double = 0            % number of *.rhd files
-        PerFile      struct = struct([])         % per-file header summary (struct array)
+        AcqDate      datetime = NaT              % recording start
+        NumFiles     (1,1) double = 0            % number of recording files / parts
+        PerFile      struct = struct([])         % per-file (per-part) summary (struct array)
     end
 
     properties
@@ -89,7 +91,7 @@ classdef EphysDataset < handle
         % recording (bad/disconnected sites vary across sessions). Excluded
         % channels are still written to the .bin (n_chan_bin is unchanged); they
         % are simply dropped from the probe's chanMap/xc/yc/kcoords at run time
-        % so Kilosort4 ignores them. The *.rhd files and probe .json are never
+        % so Kilosort4 ignores them. The recording files and probe .json are never
         % modified. See runKilosort, parseChannelList, formatChannelList.
         ExcludeChannels (1,:) double = double.empty(1,0)
 
@@ -99,6 +101,12 @@ classdef EphysDataset < handle
         Dtype     (1,1) string {mustBeMember(Dtype, ...
             ["int16","uint16","int32","single","float32"])} = "int16"
         OutputDir (1,1) string = ""              % output dir for .bin / KS4 results (default = Folder)
+
+        % Reader options: the pipeline config's Acquisition section (e.g.
+        % OpenEphys.Recordings / RecordNode / Stream). Passed to the reader
+        % chosen for Folder; changing it drops the reader, so the next access
+        % rebuilds it (call refreshMetadata for fresh metadata).
+        ReaderOptions struct = struct()
 
         % Sorted-output association. "" = auto-discover the Kilosort4/phy
         % results under outputFolder() (see kilosortResultsDir); a non-empty
@@ -122,10 +130,11 @@ classdef EphysDataset < handle
         % associateFolderBehavior). See readBehavior, readEpsychSession.
         BehaviorFile (1,1) string = ""
 
-        % How Epsych2 trials are paired with a digital line (pairTrials):
-        % TrialLine, InvertedLines, SignalFs (derived-signal rates for
-        % sample columns) and LabelField. Pushed from the config's Behavior
-        % section. See defaultTrialConfig.
+        % How Epsych2 trials are paired with a digital line (pairTrials) and
+        % how the digital lines are named: TrialLine, InvertedLines, SignalFs
+        % (derived-signal rates for sample columns), LabelField and
+        % LineNames. Pushed from the config's Behavior and Signals sections.
+        % See defaultTrialConfig.
         TrialConfig struct = EphysDataset.defaultTrialConfig()
 
         % The reviewed trial pairing, persisted in the manifest under
@@ -141,13 +150,13 @@ classdef EphysDataset < handle
         % Manually defined artifact periods to blank before writing the .bin.
         % [k x 2] of [tStart tEnd] in seconds, recording-relative (file 1 = t0),
         % set on the Visualize tab. toBin zeros these samples on every channel;
-        % the original *.rhd files are never modified. See addArtifact /
+        % the recording files are never modified. See addArtifact /
         % manualArtifactMask.
         ManualArtifacts (:,2) double = zeros(0,2)
 
         % Automatic artifact-detection configuration applied by toBin (when
         % Enabled) to zero large per-channel amplitude deviations before the
-        % .bin is written; never touches the *.rhd files. Set from the Artifacts
+        % .bin is written; never touches the recording files. Set from the Artifacts
         % tab. RmsWindowMs/MergeGapMs/PadMs are in milliseconds (converted to
         % samples with Fs). See detectArtifacts, analyzeArtifacts, toBin and
         % defaultArtifactConfig.
@@ -183,7 +192,8 @@ classdef EphysDataset < handle
         ManifestSchemasAccepted = ["intan-dataset-manifest/1", "intan-dataset-manifest/2"]
 
         % Default Project.NamePattern: "<subject>_<yyMMdd>_<HHmmss>" (Intan RHX
-        % names files from the recording start).
+        % names files from the recording start). Open Ephys session folders use
+        % OpenEphysReader.DefaultNamePattern.
         DefaultNamePattern = "{SubjectID}_{Date:yyMMdd}_{Time:HHmmss}"
 
         % Per-unit notes next to a sort, in phy's custom-label format.
@@ -238,6 +248,7 @@ classdef EphysDataset < handle
                 opts.Dtype     (1,1) string = "int16"
                 opts.OutputDir (1,1) string = ""
                 opts.Manifest  = []
+                opts.ReaderOptions struct = struct()
             end
 
             if folder == ""
@@ -255,6 +266,7 @@ classdef EphysDataset < handle
             obj.Scale     = opts.Scale;
             obj.Dtype     = opts.Dtype;
             obj.OutputDir = opts.OutputDir;
+            obj.ReaderOptions = opts.ReaderOptions;
             if ~isempty(opts.Manifest)
                 obj.Manifest = opts.Manifest;
             end
@@ -271,12 +283,20 @@ classdef EphysDataset < handle
             end
         end
 
+        function set.ReaderOptions(obj, v)
+            if ~isequaln(obj.ReaderOptions, v)
+                obj.ReaderOptions = v;
+                obj.Reader = []; %#ok<MCSUP> rebuilt with the new options on next use
+            end
+        end
+
         function discoverFiles(obj)
             %discoverFiles  Pick the reader for Folder and inventory its files.
             %   The registered EphysReader classes (IntanReader, BinaryReader,
-            %   ...) are asked in turn; the first that claims the folder becomes
-            %   obj.Reader and supplies RecordingFormat / Files / NumFiles.
-            obj.Reader = EphysReader.forFolder(obj.Folder);
+            %   OpenEphysReader, ...) are asked in turn; the first that claims
+            %   the folder, built with ReaderOptions, becomes obj.Reader and
+            %   supplies RecordingFormat / Files / NumFiles.
+            obj.Reader = EphysReader.forFolder(obj.Folder, Options=obj.ReaderOptions);
             if isempty(obj.Reader)
                 obj.RecordingFormat = "unknown";
                 obj.Files = string.empty(1,0);
@@ -306,7 +326,9 @@ classdef EphysDataset < handle
             obj.NumChannels  = r.NumChannels;
             obj.ChannelNames = r.ChannelNames;
             obj.NativeNames  = r.NativeNames;
+            obj.ChannelNumbers = r.ChannelNumbers;
             obj.DigInNames   = r.DigInNames;
+            obj.DigInNativeNames = r.DigInNativeNames;
             obj.Duration     = r.Duration;
             obj.PerFile      = r.PerFile;
             obj.Files        = r.Files;
@@ -360,22 +382,61 @@ classdef EphysDataset < handle
             tf = ~isempty(obj.Reader) && obj.Reader.supportsRandomAccess();
         end
 
-        function data = readData(obj, varargin)
+        function data = readData(obj, opts)
             %readData  The whole recording as the universal data struct.
-            %   DATA = ds.readData(Name=Value) forwards to the reader: Files,
-            %   KeepChannels, IncludeADC, IncludeAux, Concatenate, ProgressFcn,
-            %   Precision ("double"|"single"), EventLabelField. The struct
-            %   (amplifier in microvolts [nSamples x nChan], Fs, t, channel
-            %   names, dig-in events, ...) is the same for every reader; see
-            %   EphysReader for the field list.
-            if obj.NumFiles == 0
+            %   DATA = ds.readData(Name=Value) reads through the reader with
+            %   Files, KeepChannels, IncludeADC, IncludeAux, Concatenate,
+            %   ProgressFcn and Precision ("double"|"single"), then names the
+            %   digital lines: LabelField ("custom" | "native", default
+            %   TrialConfig.LabelField) picks each line's default name and
+            %   LineNames ("native=name" entries, default TrialConfig.LineNames)
+            %   overrides it (relabelEvents). The struct (amplifier in
+            %   microvolts [nSamples x nChan], Fs, t, channel names, events keyed
+            %   by the final line names, digInNames = those names, ...) is the
+            %   same for every reader; see EphysReader for the field list.
+            arguments
+                obj (1,1) EphysDataset
+                opts.Files (1,:) string = string.empty(1,0)
+                opts.KeepChannels (1,:) double {mustBeInteger, mustBePositive} = []
+                opts.IncludeADC (1,1) logical = false
+                opts.IncludeAux (1,1) logical = false
+                opts.Concatenate (1,1) logical = true
+                opts.ProgressFcn = []
+                opts.Precision (1,1) string {mustBeMember(opts.Precision, ["double", "single"])} = "double"
+                opts.LabelField (1,1) string = ""
+                opts.LineNames = []
+            end
+            if obj.NumFiles == 0 || isempty(obj.Reader)
                 obj.discoverFiles();
             end
             if isempty(obj.Reader) || obj.NumFiles == 0
                 error('EphysDataset:readData:NoFiles', 'No recording files in %s', obj.Folder);
             end
-            data = obj.Reader.readData(varargin{:});
+            [labelField, lineNames] = obj.lineNaming(opts.LabelField, opts.LineNames);
+            data = obj.Reader.readData(Files=opts.Files, KeepChannels=opts.KeepChannels, ...
+                IncludeADC=opts.IncludeADC, IncludeAux=opts.IncludeAux, ...
+                Concatenate=opts.Concatenate, ProgressFcn=opts.ProgressFcn, Precision=opts.Precision);
+            E = EphysDataset.relabelEvents(struct('events', data.events, ...
+                'digInNames', string(data.digInNames), 'digInNativeNames', string(data.digInNativeNames)), ...
+                labelField, lineNames);
+            data.events = E.events;
+            data.digInNames = E.digInNames;
+            data.digInNativeNames = E.digInNativeNames;
             data.source = struct('Folder', obj.Folder, 'Name', obj.Name);
+        end
+
+        function [labelField, lineNames] = lineNaming(obj, labelField, lineNames)
+            %lineNaming  LabelField / LineNames, falling back to TrialConfig ("" / []).
+            if labelField == ""
+                labelField = string(obj.TrialConfig.LabelField);
+            end
+            if isnumeric(lineNames)
+                lineNames = string.empty(1, 0);
+                if isfield(obj.TrialConfig, 'LineNames')
+                    lineNames = reshape(string(obj.TrialConfig.LineNames), 1, []);
+                end
+            end
+            lineNames = reshape(string(lineNames), 1, []);
         end
 
         %% Dependent getters
@@ -429,7 +490,7 @@ classdef EphysDataset < handle
                 dt.Name = obj.Name;
                 return
             end
-            dt = DatasetTracker(out, Name=obj.Name);
+            dt = DatasetTracker(out, Name=obj.Name, ReaderOptions=obj.ReaderOptions);
         end
 
         function o = outputs(obj, varargin)
@@ -742,15 +803,18 @@ classdef EphysDataset < handle
     end
 
     methods (Static)
-        function fmt = detectFormat(folder)
+        function fmt = detectFormat(folder, opts)
             %detectFormat  RecordingFormat of the reader that claims FOLDER.
             %   "traditional" | "one-file-per-signal" | "one-file-per-channel"
-            %   (IntanReader), "binary" (BinaryReader), or "unknown" when no
-            %   registered reader recognises the folder.
+            %   (IntanReader), "binary" (BinaryReader), "openephys-binary" |
+            %   "openephys-legacy" | "openephys-nwb" (OpenEphysReader), or
+            %   "unknown" when no registered reader recognises the folder.
+            %   ReaderOptions= passes the reader options.
             arguments
                 folder (1,1) string
+                opts.ReaderOptions struct = struct()
             end
-            r = EphysReader.forFolder(folder);
+            r = EphysReader.forFolder(folder, Options=opts.ReaderOptions);
             if isempty(r)
                 fmt = "unknown";
             else
@@ -782,15 +846,18 @@ classdef EphysDataset < handle
         end
 
         function cfg = defaultTrialConfig()
-            %defaultTrialConfig  Default trial-pairing settings (see pairTrials).
+            %defaultTrialConfig  Default trial-pairing and line-naming settings.
             %   TrialLine       digital line held high during each trial
             %   InvertedLines   lines with inverted polarity: on while low,
             %                   onset = falling edge (default none)
             %   SignalFs        struct of derived-signal rates (e.g. LFP: 1000)
             %                   for per-signal sample columns
-            %   LabelField      dig-in name used as the line name
+            %   LabelField      "custom" | "native": each line's default name
+            %   LineNames       "native=name" entries renaming lines (e.g.
+            %                   "TTL4=InTrial"); see relabelEvents
+            %   TrialLine and InvertedLines use the final names.
             cfg = struct('TrialLine', "InTrial", 'InvertedLines', string.empty(1,0), ...
-                'SignalFs', struct(), 'LabelField', "custom_channel_name");
+                'SignalFs', struct(), 'LabelField', "custom", 'LineNames', string.empty(1,0));
         end
 
         function p = normalizeTrialPairing(p)
@@ -850,6 +917,8 @@ classdef EphysDataset < handle
 
         [units, info] = readPhyUnits(resultsDir, opts)
         id = nameIdentity(name, pattern)
+        E = relabelEvents(E, labelField, lineNames)
+        [natives, names] = parseLineNames(lineNames)
         [ids, notes, file] = readUnitNotes(resultsDir)
         file = writeUnitNotes(resultsDir, unitIds, notes)
 

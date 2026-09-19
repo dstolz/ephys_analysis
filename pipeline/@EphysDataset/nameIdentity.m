@@ -14,7 +14,8 @@ function id = nameIdentity(name, pattern)
 %
 %   PATTERN needs a SubjectID token and Date + Time tokens with datetime
 %   formats that together give year, month, day, hour and minute, e.g. the
-%   default "{SubjectID}_{Date:yyMMdd}_{Time:HHmmss}". A lab-wide subject
+%   default "{SubjectID}_{Date:yyMMdd}_{Time:HHmmss}" or, for Open Ephys
+%   session folders, "{SubjectID}_{Date:yyyy-MM-dd}_{Time:HH-mm-ss}*". A lab-wide subject
 %   prefix is written as literal text so it is not part of the subject:
 %   "SUBJ-ID-{SubjectID}_{Date:yyMMdd}_{Time:HHmmss}" gives "SUBJ-ID-1255_260908_103949"
 %   subject "1255", recordingStart 2026-09-08 10:39:49, labelSuffix
@@ -45,7 +46,7 @@ if ~isempty(missing)
         pattern, strjoin(missing, " / ")));
     return
 end
-fmt = formats(names == "Date") + formats(names == "Time");
+fmt = formats(names == "Date") + " " + formats(names == "Time");
 if formats(names == "Date") == "" || formats(names == "Time") == "" || ...
         ~all(arrayfun(@(c) contains(fmt, c), ["y" "M" "d" "H" "m"]))
     id = fail(id, "pattern", sprintf( ...
@@ -65,7 +66,7 @@ if subject == "" || contains(subject, "_") || ~isempty(regexp(subject, '\s', 'on
     return
 end
 
-txt = values(names == "Date") + values(names == "Time");
+txt = values(names == "Date") + " " + values(names == "Time");
 try
     t = datetime(txt, 'InputFormat', char(fmt), 'PivotYear', 2000);
 catch

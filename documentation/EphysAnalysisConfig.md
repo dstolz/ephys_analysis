@@ -163,7 +163,7 @@ A plot's `units` (its `source` is the plot's `source`):
 | `units` | UnitSelection | spike sources |
 | `channels` | `[]` | signal columns drawn |
 | `ref`, `window`, `selection` | `"default"` | or the plot's own EventRef / EpochWindow / TrialSelection |
-| `bins` | `BinSec` 0.01, `SmoothSec` 0 | PSTH bins and Gaussian SD, s |
+| `bins` | `BinSec` 0.01, `SmoothSec` 0.01 | PSTH bins and Gaussian SD, s (0 = no smoothing) |
 | `baseline` | `Mode "none"`, `Window [-0.2 0]` | see the kinds |
 | `layout` | `""` | `""` = the kind's default |
 | `withRaster` | `true` | psth: a raster above each unit |

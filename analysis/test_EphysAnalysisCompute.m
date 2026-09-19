@@ -214,6 +214,7 @@ spec.title = "Custom";
 h = renderPlot(Rp, spec, axes(figure('Visible', 'off')));
 check(h.title == "Custom" && string(h.axes(1).Title.String) == "Custom", 'a plot title replaces the automatic one');
 close(h.axes(1).Parent);
+check(EphysAnalysisConfig.defaults("Plot").bins.SmoothSec == 0.01, 'PSTHs are smoothed with a 10 ms Gaussian by default');
 cap = plotCaption(EphysAnalysisConfig.normalizePlot(struct('kind', "psth")), Rp);
 check(startsWith(cap, "PSTH") && contains(cap, "bins 20 ms") && contains(cap, "3 sorted unit(s)"), "plotCaption: " + cap);
 

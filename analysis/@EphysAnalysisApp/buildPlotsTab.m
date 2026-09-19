@@ -87,7 +87,7 @@ lab(fg, "Bin (ms):", r, 1);
 E.binMs = uieditfield(fg, "numeric", "Value", 10, "Limits", [0.001 Inf], "ValueChangedFcn", changed);
 place(E.binMs, r, 2);
 lab(fg, "Smooth (ms):", r, 3);
-E.smoothMs = uieditfield(fg, "numeric", "Value", 0, "Limits", [0 Inf], "ValueChangedFcn", changed, ...
+E.smoothMs = uieditfield(fg, "numeric", "Value", 10, "Limits", [0 Inf], "ValueChangedFcn", changed, ...
     "Tooltip", "Gaussian SD; 0 = none.");
 place(E.smoothMs, r, 4);
 r = r + 1;

@@ -128,7 +128,7 @@ switch section
             'ref',           "default", ...     % "default" (Defaults.EventRef) or an EventRef
             'window',        "default", ...     % "default" (Defaults.Window) or an EpochWindow
             'selection',     "default", ...     % "default" (Defaults.Selection) or a TrialSelection
-            'bins',          struct('BinSec', 0.01, 'SmoothSec', 0), ...
+            'bins',          struct('BinSec', 0.01, 'SmoothSec', 0.01), ...  % SmoothSec: Gaussian SD (0 = none)
             'baseline',      struct('Mode', "none", 'Window', [-0.2 0]), ...
             'layout',        "", ...            % "" = the kind's default layout
             'withRaster',    true, ...          % psth

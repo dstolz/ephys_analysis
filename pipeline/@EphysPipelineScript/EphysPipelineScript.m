@@ -95,9 +95,10 @@ classdef EphysPipelineScript
             L(end+1, 1) = "%% Project";
             L(end+1, 1) = "root       = " + lit(cfg.Project.Root) + ";";
             L(end+1, 1) = "outputRoot = " + lit(cfg.Project.OutputRoot) + ";";
+            L = [L; EphysPipelineScript.structLiteral("readerOptions", cfg.Acquisition)];
             L(end+1, 1) = "P = EphysProject(root, OutputRoot=outputRoot, PythonExe=" + lit(cfg.Sorting.PythonExe) + ...
                 ", CondaEnv=" + lit(cfg.Sorting.CondaEnv) + ", NamePattern=" + lit(cfg.Project.NamePattern) + ...
-                ", Recursive=" + lit(cfg.Project.Recursive) + ");";
+                ", Recursive=" + lit(cfg.Project.Recursive) + ", ReaderOptions=readerOptions);";
             L(end+1, 1) = "P.refresh();                       % headers + per-dataset manifests (probe, exclusions, ...)";
             if cfg.Project.Selection == "list"
                 L(end+1, 1) = "keys = " + lit(cfg.Project.Datasets) + ";   % root-relative dataset keys";

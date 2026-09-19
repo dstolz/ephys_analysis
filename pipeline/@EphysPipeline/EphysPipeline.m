@@ -79,7 +79,8 @@ classdef EphysPipeline < handle
                 end
                 obj.Project = EphysProject(cfg.Project.Root, OutputRoot=cfg.Project.OutputRoot, ...
                     PythonExe=cfg.Sorting.PythonExe, CondaEnv=cfg.Sorting.CondaEnv, ...
-                    NamePattern=cfg.Project.NamePattern, Recursive=cfg.Project.Recursive);
+                    NamePattern=cfg.Project.NamePattern, Recursive=cfg.Project.Recursive, ...
+                    ReaderOptions=cfg.Acquisition);
                 obj.Project.refresh();
             else
                 obj.Project = opts.Project;
@@ -487,9 +488,12 @@ classdef EphysPipeline < handle
     methods (Static)
         function applyConfigToDatasets(cfg, P)
             %applyConfigToDatasets  Push the config's shared settings onto every dataset.
-            %   Sets PythonExe, CondaEnv, SIConfig, ArtifactConfig, TrialConfig, OutputDir
-            %   (<OutputRoot>/<Name> when an output root is set), and the NamePattern and
-            %   DatasetKey that label sorted units. Never touches
+            %   Sets PythonExe, CondaEnv, SIConfig, ArtifactConfig, TrialConfig,
+            %   ReaderOptions (Acquisition), OutputDir (<OutputRoot>/<Name> when
+            %   an output root is set), and the NamePattern and DatasetKey that
+            %   label sorted units. A changed Acquisition section changes which
+            %   folders are recordings (Open Ephys modes): rescan the project
+            %   (EphysProject.discover) for that. Never touches
             %   the per-dataset manifest state: ProbeFile, ExcludeChannels,
             %   ManualArtifacts, SortingDir, BehaviorFile.
             arguments
@@ -500,6 +504,7 @@ classdef EphysPipeline < handle
             P.CondaEnv   = cfg.Sorting.CondaEnv;
             P.OutputRoot = cfg.Project.OutputRoot;
             P.NamePattern = cfg.Project.NamePattern;
+            P.ReaderOptions = cfg.Acquisition;
             acfg = EphysPipelineConfig.artifactConfig(cfg.Artifacts);
             tcfg = EphysPipelineConfig.trialConfig(cfg);
             for k = 1:P.NumDatasets
@@ -509,6 +514,7 @@ classdef EphysPipeline < handle
                 d.SIConfig       = cfg.Sorting.SI;
                 d.ArtifactConfig = acfg;
                 d.TrialConfig    = tcfg;
+                d.ReaderOptions  = cfg.Acquisition;
                 d.NamePattern    = cfg.Project.NamePattern;
                 d.DatasetKey     = EphysProject.relativeKey(P.Root, d.Folder);
                 if cfg.Project.OutputRoot ~= ""

@@ -10,11 +10,12 @@ classdef EphysPreprocessingApp < handle
     %
     %   Tabs, in workflow order
     %     Copy       find one subject's sessions on the source for a day or range,
-    %                pair each Intan recording with its ePsych file by the
-    %                timestamps in their names (findCopySessions), stitch the
+    %                pair each recording (Intan RHX folder, Open Ephys GUI
+    %                session) with its ePsych file by the times in their
+    %                names (findCopySessions), stitch the
     %                ePsych files of one recording picked by hand
     %                (stitchCopySessions), preview and
-    %                copy the ticked sessions to <destination>/<subject>/<Intan
+    %                copy the ticked sessions to <destination>/<subject>/<recording
     %                folder> with verification and a manifest (copySessions),
     %                then open the copied sessions as the project. The copy
     %                runs in a detached engine (copy_engine.ps1) polled by a
@@ -139,7 +140,7 @@ classdef EphysPreprocessingApp < handle
         CopyToDatePicker      matlab.ui.control.DatePicker
         CopyFindButton        matlab.ui.control.Button
         CopyEpsychRootField   matlab.ui.control.EditField
-        CopyIntanRootField    matlab.ui.control.EditField
+        CopyRecordingRootsField  matlab.ui.control.EditField   % one or more roots, separated by ";"
         CopyDestRootField     matlab.ui.control.EditField
         CopyMaxLeadField      matlab.ui.control.NumericEditField   % minutes
         CopyMaxLagField       matlab.ui.control.NumericEditField   % minutes
@@ -181,6 +182,9 @@ classdef EphysPreprocessingApp < handle
         RootPathField     matlab.ui.control.EditField
         BrowseRootButton  matlab.ui.control.Button
         RecursiveCheckBox matlab.ui.control.CheckBox
+        OERecordingsDropDown matlab.ui.control.DropDown   % Acquisition.OpenEphys.Recordings
+        OERecordNodeField    matlab.ui.control.EditField  % Acquisition.OpenEphys.RecordNode ("" = automatic)
+        OEStreamField        matlab.ui.control.EditField  % Acquisition.OpenEphys.Stream ("" = automatic)
         ScanButton        matlab.ui.control.Button
         RefreshMetaButton matlab.ui.control.Button
         LaunchPhyButton   matlab.ui.control.Button
@@ -555,7 +559,7 @@ classdef EphysPreprocessingApp < handle
         VizArtPreview = gobjects(0,1)
 
         % --- Trials tab state (in memory; the pairing is saved via Approve) ---
-        TrialsEvents = []                    % EphysDataset.digitalEvents of the loaded dataset
+        TrialsEvents = []                    % EphysDataset.digitalEvents(Relabel=false) of the loaded dataset (native-keyed; see namedTrialsEvents)
         TrialsEventsIdx (1,1) double = 0     % dataset index TrialsEvents belongs to
         TrialsPairing = []                   % EphysDataset.pairTrials result shown
         TrialsSession = []                   % EphysDataset.readBehavior trials of the loaded dataset
@@ -645,6 +649,9 @@ classdef EphysPreprocessingApp < handle
         selectTab(obj, tab)
         P = gatherProjectSection(obj)
         applyProjectSection(obj, P)
+        A = gatherAcquisitionSection(obj)
+        applyAcquisitionSection(obj, A)
+        onAcquisitionChanged(obj)
         applySelectionToTable(obj, P)
         S = gatherProbeSection(obj)
         applyProbeSection(obj, S)
@@ -719,6 +726,7 @@ classdef EphysPreprocessingApp < handle
         onCopyStitch(obj)
         onCopyUnstitch(obj)
         onBrowseCopyFolder(obj, field)
+        roots = copyRecordingRoots(obj)
         copyLog(obj, msg)
         refreshCopySchedule(obj, opts)
         onCopyScheduleSave(obj)
@@ -766,7 +774,9 @@ classdef EphysPreprocessingApp < handle
         onTrialsTableMenu(obj, menu, evt)
         onTrialsPlotMenu(obj)
         clearTrialsView(obj)
-        fillTrialsLines(obj)
+        fillTrialsLines(obj, S)
+        E = namedTrialsEvents(obj, S)
+        onTrialsLinesEdited(obj, evt)
         setTrialsLineItems(obj, names, trialLine)
         syncTrialsButtons(obj)
         syncTrialsCuts(obj)

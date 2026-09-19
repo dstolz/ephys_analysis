@@ -41,7 +41,7 @@ s = add(s, 'highpass_cutoff',    'highpass_cutoff',    g, 'float',    300,      
 s = add(s, 'whitening_range',    'whitening_range',    g, 'int',      32,         'Number of nearby channels for whitening.');
 s = add(s, 'artifact_threshold', 'artifact_threshold', g, 'floatinf', 'Infinity', ['Zero out any batch with an absolute value at or above this amplitude (Infinity = off). ' ...
     'Units are raw ADC counts, not volts: KS4 applies it after its own high-pass filter and CAR, before whitening. ' ...
-    'For Intan data 1 count = 0.195 uV, so 5000 is about 1 mV.']);
+    'For Intan and Open Ephys headstage data 1 count = 0.195 uV, so 5000 is about 1 mV.']);
 s = add(s, 'nskip',              'nskip',              g, 'int',      25,         'Batch stride for computing whitening/drift.');
 s = add(s, 'batch_size',         'batch_size',         g, 'int',      120000,     'Samples per processing batch.');
 s = add(s, 'batch_downsampling', 'batch_downsampling', g, 'int',      1,          'Downsampling factor across batches for drift.');

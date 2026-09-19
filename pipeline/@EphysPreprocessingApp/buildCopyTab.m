@@ -1,6 +1,7 @@
 function buildCopyTab(obj)
-%buildCopyTab  Copy tab: find one subject's sessions on the source, pair each Intan
-%   recording with its ePsych file by the timestamps in their names
+%buildCopyTab  Copy tab: find one subject's sessions on the source, pair each
+%   recording (Intan RHX folder or Open Ephys GUI session) with its ePsych
+%   file by the times in their names
 %   (findCopySessions), and copy the ticked sessions to local session folders
 %   (copySessions). Rows picked by hand can be stitched into one recording
 %   with several ePsych files (stitchCopySessions). The Scheduled copy panel
@@ -40,13 +41,15 @@ obj.CopyToDatePicker = uidatepicker(top, "DisplayFormat", "yyyy-MM-dd", "Placeho
 obj.CopyToDatePicker.Layout.Row = 1; obj.CopyToDatePicker.Layout.Column = 6;
 obj.CopyFindButton = uibutton(top, "Text", "Find sessions", "FontWeight", "bold", ...
     "BackgroundColor", [0.15 0.45 0.80], "FontColor", [1 1 1], ...
-    "Tooltip", "List and pair the subject's ePsych files and Intan folders for these days (by name; reads only headers).", ...
+    "Tooltip", "List and pair the subject's ePsych files and recording folders for these days (by name; reads only headers).", ...
     "ButtonPushedFcn", @(~,~) obj.onCopyFind());
 obj.CopyFindButton.Layout.Row = 1; obj.CopyFindButton.Layout.Column = 7;
 
 roots = {"ePsych root:", "CopyEpsychRootField", "Source folder holding one folder of ePsych .mat files per subject."
-         "Intan root:",  "CopyIntanRootField",  "Source folder holding one folder of Intan recording folders per subject."
-         "Destination:", "CopyDestRootField",   "Local root; each session is copied to <root>/<subject>/<Intan folder name>."};
+         "Recording roots:", "CopyRecordingRootsField", ...
+            "Source folders holding one folder of recordings per subject: Intan RHX folders <subject>_yyMMdd_HHmmss " + ...
+            "and Open Ephys GUI sessions <subject>_yyyy-MM-dd_HH-mm-ss. Separate several roots with "";""; Browse adds one."
+         "Destination:", "CopyDestRootField",   "Local root; each session is copied to <root>/<subject>/<recording folder name>."};
 for k = 1:3
     lbl = uilabel(top, "Text", roots{k, 1}, "Tooltip", roots{k, 3});
     lbl.Layout.Row = k + 1; lbl.Layout.Column = 1;
@@ -57,7 +60,7 @@ for k = 1:3
     b.Layout.Row = k + 1; b.Layout.Column = 7;
 end
 obj.CopyEpsychRootField.Value = 'S:/RIG3_Backup_2025/epsych_files/Data';
-obj.CopyIntanRootField.Value  = 'S:/RIG3_Backup_2025/intan_files/Data';
+obj.CopyRecordingRootsField.Value = 'S:/RIG3_Backup_2025/intan_files/Data';
 obj.CopyDestRootField.Value   = 'D:/EPHYS';
 
 % --- pairing and copy options + actions --------------------------------------------
@@ -67,11 +70,11 @@ bar.RowHeight   = {'fit', 'fit', 'fit'};
 bar.ColumnWidth = {'fit', 50, 'fit', 50, 'fit', 50, 'fit', 50, 'fit', 70, 'fit', 70, '1x', 'fit', 'fit'};
 bar.Padding     = [0 0 0 0];
 
-lbl = uilabel(bar, "Text", "Max lead (min):", "Tooltip", "How long the ePsych file may start before the Intan recording.");
+lbl = uilabel(bar, "Text", "Max lead (min):", "Tooltip", "How long the ePsych file may start before the recording.");
 lbl.Layout.Row = 1; lbl.Layout.Column = 1;
 obj.CopyMaxLeadField = uieditfield(bar, "numeric", "Value", 10, "Limits", [0 Inf], "Tooltip", lbl.Tooltip);
 obj.CopyMaxLeadField.Layout.Row = 1; obj.CopyMaxLeadField.Layout.Column = 2;
-lbl = uilabel(bar, "Text", "Max lag (min):", "Tooltip", "How long the ePsych file may start after the Intan recording (clock skew).");
+lbl = uilabel(bar, "Text", "Max lag (min):", "Tooltip", "How long the ePsych file may start after the recording (clock skew).");
 lbl.Layout.Row = 1; lbl.Layout.Column = 3;
 obj.CopyMaxLagField = uieditfield(bar, "numeric", "Value", 2, "Limits", [0 Inf], "Tooltip", lbl.Tooltip);
 obj.CopyMaxLagField.Layout.Row = 1; obj.CopyMaxLagField.Layout.Column = 4;
@@ -81,7 +84,7 @@ lbl.Layout.Row = 1; lbl.Layout.Column = 5;
 obj.CopyMarginField = uieditfield(bar, "numeric", "Value", 30, "Limits", [0 Inf], "Tooltip", lbl.Tooltip);
 obj.CopyMarginField.Layout.Row = 1; obj.CopyMarginField.Layout.Column = 6;
 lbl = uilabel(bar, "Text", "Min duration (min):", "Tooltip", ...
-    "Intan recordings shorter than this are never paired (listed as Intan only); 0 pairs every recording.");
+    "Recordings shorter than this (from their headers) are never paired (listed as recording only); 0 pairs every recording.");
 lbl.Layout.Row = 1; lbl.Layout.Column = 7;
 obj.CopyMinDurationField = uieditfield(bar, "numeric", "Value", 2, "Limits", [0 Inf], "Tooltip", lbl.Tooltip);
 obj.CopyMinDurationField.Layout.Row = 1; obj.CopyMinDurationField.Layout.Column = 8;
@@ -120,13 +123,13 @@ st.RowHeight   = {'fit'};
 st.ColumnWidth = {'fit', 'fit', '1x'};
 st.Padding     = [0 0 0 0];
 obj.CopyStitchButton = uibutton(st, "Text", "Stitch selected rows", ...
-    "Tooltip", "Merge the selected rows (one Intan folder and its ePsych files) into one session; copying joins the ePsych files, in chronological order, into one file.", ...
+    "Tooltip", "Merge the selected rows (one recording folder and its ePsych files) into one session; copying joins the ePsych files, in chronological order, into one file.", ...
     "ButtonPushedFcn", @(~,~) obj.onCopyStitch());
 obj.CopyUnstitchButton = uibutton(st, "Text", "Unstitch", ...
     "Tooltip", "Put the selected stitched rows back as Find sessions paired them.", ...
     "ButtonPushedFcn", @(~,~) obj.onCopyUnstitch());
 uilabel(st, "FontColor", [0.4 0.4 0.4], "Text", ...
-    "To stitch ePsych files: select the Intan folder's row and the rows of its ePsych files (Ctrl-click), then Stitch.");
+    "To stitch ePsych files: select the recording folder's row and the rows of its ePsych files (Ctrl-click), then Stitch.");
 
 % --- sessions table ------------------------------------------------------------------
 obj.CopyTable = uitable(g, "RowName", {}, "ColumnSortable", false, ...

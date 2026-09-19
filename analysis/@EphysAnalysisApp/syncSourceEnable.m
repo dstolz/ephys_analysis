@@ -3,7 +3,7 @@ function syncSourceEnable(obj)
 project = string(obj.SourceModeDropDown.Value) == "project";
 on = matlab.lang.OnOffSwitchState(project);
 off = matlab.lang.OnOffSwitchState(~project);
-set([obj.RootField obj.OutputRootField obj.NamePatternField], 'Enable', on);
+set([obj.RootField obj.OutputRootField obj.NamePatternField obj.RecordingsDropDown], 'Enable', on);
 set([obj.BrowseRootButton obj.BrowseOutputButton], 'Enable', on);
 obj.FoldersArea.Enable = off;
 obj.AddFolderButton.Enable = off;

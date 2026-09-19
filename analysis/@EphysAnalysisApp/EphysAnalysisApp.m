@@ -42,7 +42,7 @@ classdef EphysAnalysisApp < handle
     %   Usage
     %     EphysAnalysisApp                      % the last config, or defaults
     %     EphysAnalysisApp("D:\EPHYS")          % a pipeline project root
-    %     EphysAnalysisApp("D:\EPHYS", OutputRoot="E:\out")
+    %     EphysAnalysisApp("D:\EPHYS", OutputRoot="E:\out", NamePattern=..., Recordings="separate")
     %     EphysAnalysisApp("D:\out\subj1_day1") % one dataset's output folder
     %     EphysAnalysisApp("am_quicklook.json") % an analysis config
     %     app = EphysAnalysisApp(...);          % keep a handle
@@ -72,6 +72,7 @@ classdef EphysAnalysisApp < handle
         OutputRootField    matlab.ui.control.EditField
         BrowseOutputButton matlab.ui.control.Button
         NamePatternField   matlab.ui.control.EditField
+        RecordingsDropDown matlab.ui.control.DropDown   % Source.Recordings (Open Ephys recording mode)
         FoldersArea        matlab.ui.control.TextArea
         AddFolderButton    matlab.ui.control.Button
         ScanButton         matlab.ui.control.Button
@@ -161,11 +162,14 @@ classdef EphysAnalysisApp < handle
             arguments
                 source (1,1) string = ""
                 opts.OutputRoot (1,1) string = ""
+                opts.NamePattern (1,1) string = ""
+                opts.Recordings (1,1) string = ""
             end
             obj.buildUI();
             obj.loadPreferences(source == "");
             if source ~= ""
-                obj.openSource(source, OutputRoot=opts.OutputRoot);
+                obj.openSource(source, OutputRoot=opts.OutputRoot, NamePattern=opts.NamePattern, ...
+                    Recordings=opts.Recordings);
             end
             obj.updateTitle();
             if nargout == 0

@@ -4,11 +4,14 @@ function openSource(obj, source, opts)
 %   holding <Name>_manifest.json or <Name>_extract*.mat files is one
 %   dataset's output folder: a new config in "folders" mode. Any other
 %   folder is a pipeline project root: a new config in "project" mode with
-%   OutputRoot. Either way the datasets are scanned.
+%   OutputRoot, NamePattern and Recordings ("" = the defaults). Either way
+%   the datasets are scanned.
 arguments
     obj (1,1) EphysAnalysisApp
     source (1,1) string
     opts.OutputRoot (1,1) string = ""
+    opts.NamePattern (1,1) string = ""
+    opts.Recordings (1,1) string = ""
 end
 if endsWith(lower(source), ".json")
     if ~isfile(source)
@@ -34,6 +37,8 @@ else
     cfg.Source.Mode = "project";
     cfg.Source.Root = source;
     cfg.Source.OutputRoot = opts.OutputRoot;
+    if opts.NamePattern ~= ""; cfg.Source.NamePattern = opts.NamePattern; end
+    if opts.Recordings ~= ""; cfg.Source.Recordings = opts.Recordings; end
 end
 obj.SelectedPlot = 0;
 obj.applyConfig(cfg, MarkSaved=true);

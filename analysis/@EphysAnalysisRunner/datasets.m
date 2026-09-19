@@ -2,9 +2,11 @@ function outs = datasets(obj)
 %datasets  Find the config's datasets: one DatasetOutputs each.
 %   OUTS = r.datasets() reads Config.Source and sets Outputs, Keys and
 %   Names (and forgets any loaded source):
-%     "project"  EphysProject(Root, OutputRoot=, NamePattern=) finds the
-%                recording folders (only their folders: no header is read and
-%                nothing is written); each dataset's outputs are found under
+%     "project"  EphysProject(Root, OutputRoot=, NamePattern=, ReaderOptions=)
+%                finds the recording folders (only their folders: no header is
+%                read; Recordings says whether an Open Ephys session with
+%                several recordings is one dataset or one per recording, as in
+%                the pipeline config); each dataset's outputs are found under
 %                its output folder and recording folder. Selection "list"
 %                keeps the Datasets keys (root-relative folders)
 %     "folders"  DatasetOutputs(folder) for each of Folders; the key is the
@@ -26,7 +28,8 @@ switch S.Mode
             error('EphysAnalysisRunner:NoRoot', 'Project root does not exist: "%s".', S.Root);
         end
         ws = warning('off', 'EphysProject:NoData');
-        P = EphysProject(S.Root, OutputRoot=S.OutputRoot, NamePattern=S.NamePattern);
+        P = EphysProject(S.Root, OutputRoot=S.OutputRoot, NamePattern=S.NamePattern, ...
+            ReaderOptions=struct('OpenEphys', struct('Recordings', S.Recordings)));
         warning(ws);
         obj.Project = P;
         idx = 1:P.NumDatasets;

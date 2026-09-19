@@ -24,6 +24,7 @@ switch section
             'Root',        "", ...                  % project root (Mode "project")
             'OutputRoot',  "", ...                  % "" = outputs next to each recording
             'NamePattern', EphysDataset.DefaultNamePattern, ...
+            'Recordings',  "concatenate", ...       % Open Ephys sessions with several recordings: "concatenate" | "separate" | "single" (the pipeline config's Acquisition.OpenEphys.Recordings)
             'Selection',   "all", ...               % "all" | "list"
             'Datasets',    string.empty(1,0), ...   % root-relative keys when "list"
             'Folders',     string.empty(1,0));      % output folders (Mode "folders")

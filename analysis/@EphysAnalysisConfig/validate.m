@@ -59,6 +59,9 @@ elseif S.Mode == "project"
     catch ME
         add("Source", "NamePattern", "error", string(ME.message));
     end
+    if ~ismember(S.Recordings, ["concatenate" "separate" "single"])
+        add("Source", "Recordings", "error", "Recordings must be ""concatenate"", ""separate"" or ""single"".");
+    end
 else
     if isempty(S.Folders)
         add("Source", "Folders", "error", "Mode is ""folders"" but no folders are listed.");

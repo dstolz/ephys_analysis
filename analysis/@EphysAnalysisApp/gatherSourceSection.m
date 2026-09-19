@@ -8,6 +8,7 @@ S.Mode = string(obj.SourceModeDropDown.Value);
 S.Root = strtrim(string(obj.RootField.Value));
 S.OutputRoot = strtrim(string(obj.OutputRootField.Value));
 S.NamePattern = strtrim(string(obj.NamePatternField.Value));
+S.Recordings = string(obj.RecordingsDropDown.Value);
 lines = strtrim(string(obj.FoldersArea.Value));
 lines = lines(lines ~= "");
 if isempty(lines); lines = string.empty(1, 0); end

@@ -44,6 +44,17 @@ catch ME
     add("project", "NamePattern", "error", string(ME.message));
 end
 
+% --- Acquisition (always) ------------------------------------------------------
+OE = obj.Acquisition.OpenEphys;
+if ~ismember(OE.Recordings, ["concatenate" "separate" "single"])
+    add("acquisition", "OpenEphys.Recordings", "error", ...
+        "OpenEphys.Recordings must be ""concatenate"", ""separate"" or ""single"".");
+end
+if OE.RecordNode ~= "" && isempty(regexp(OE.RecordNode, '^\d+$', 'once'))
+    add("acquisition", "OpenEphys.RecordNode", "error", ...
+        "OpenEphys.RecordNode must be empty or a Record Node id (digits, e.g. 101).");
+end
+
 % --- Probe (always) ------------------------------------------------------------
 if obj.Probe.DefaultProbeFile ~= "" && opts.CheckPaths && ~isfile(obj.Probe.DefaultProbeFile)
     add("probe", "DefaultProbeFile", "error", "Default probe file not found: " + obj.Probe.DefaultProbeFile);
@@ -115,6 +126,17 @@ end
 
 % --- Signals ---------------------------------------------------------------------
 G = obj.Signals;
+if G.Enabled || B.Enabled
+    % Line naming also names the lines the Behavior step pairs trials with.
+    if ~ismember(G.LabelField, ["custom" "native"])
+        add("signals", "LabelField", "error", "LabelField must be ""custom"" or ""native"".");
+    end
+    try
+        EphysDataset.parseLineNames(G.LineNames);
+    catch ME
+        add("signals", "LineNames", "error", string(ME.message));
+    end
+end
 if G.Enabled
     try
         EphysPipelineConfig.signalOptions(G, NumChannels=64);

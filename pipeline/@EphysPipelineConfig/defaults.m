@@ -23,6 +23,14 @@ switch section
             'NamePattern',  EphysDataset.DefaultNamePattern, ... % see parseNameTokens; labels sorted units
             'TokenColumns', "SubjectID");     % list text: tokens shown as dataset-table columns
 
+    case "Acquisition"
+        % Reader options (EphysReader): each reader reads its own sub-struct.
+        s = struct( ...
+            'OpenEphys', struct( ...
+                'Recordings', "concatenate", ... % "concatenate" | "separate" | "single": several recordings in one session
+                'RecordNode', "", ...            % Record Node id ("" = the only one; the lowest id when several)
+                'Stream',     ""));              % continuous stream ("" = the one with the most headstage channels)
+
     case "Parallel"
         s = struct( ...
             'Enabled',    false, ...  % artifacts + spike detection chunks on a process pool
@@ -107,7 +115,8 @@ switch section
             'SPIKE_KeepOriginal', true, ...
             'SPIKE_Fs',           20000, ...   % used only when KeepOriginal is off
             'SPIKE_bpLoHi',       [300 5000], ...
-            'LabelField',         "custom_channel_name", ...
+            'LabelField',         "custom", ...  % "custom" | "native": channel, aux and digital-line names
+            'LineNames',          string.empty(1,0), ...  % "native=name" digital-line names, e.g. "TTL4=InTrial"
             'InvertedLines',      string.empty(1,0), ...  % digital lines on while low (onset = falling edge)
             'KeepChannels',       "", ...
             'BadMode',            "none", ...  % "none" | "manual" | "auto"

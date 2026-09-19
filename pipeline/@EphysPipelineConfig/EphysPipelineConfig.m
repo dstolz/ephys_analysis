@@ -10,6 +10,9 @@ classdef EphysPipelineConfig
     %     Project    Root, OutputRoot, Selection "all"|"list", Datasets (keys),
     %                NamePattern (dataset-name tokens, see parseNameTokens),
     %                TokenColumns (tokens shown as dataset-table columns)
+    %     Acquisition  reader options: OpenEphys.Recordings ("concatenate" |
+    %                "separate" | "single"), OpenEphys.RecordNode,
+    %                OpenEphys.Stream (see OpenEphysReader)
     %     Parallel   Enabled, MaxWorkers (NaN = automatic): run the chunks of
     %                the artifacts and spike-detection steps on a process pool
     %     Probe      DefaultProbeFile, WriteDefaultToManifest
@@ -21,8 +24,10 @@ classdef EphysPipelineConfig
     %                SkipExisting, SI (SpikeInterface), KS4 (typed per
     %                kilosortParamSpec), KS4ExtraJSON
     %     Signals    Enabled + the derived-signal (toMat) settings,
-    %                ExcludeHandling, InvertedLines (digital-line polarity,
-    %                also used by the trial pairing)
+    %                ExcludeHandling, LabelField ("custom" | "native" names),
+    %                LineNames ("native=name" digital-line names) and
+    %                InvertedLines (digital-line polarity); the line naming
+    %                and polarity are also used by the trial pairing
     %     Spikes     Enabled, Source, detection settings, sorted-unit settings,
     %                output settings
     %     Export     Enabled, Formats (analysis-toolbox formats, a subset of
@@ -49,6 +54,7 @@ classdef EphysPipelineConfig
         Name        (1,1) string = "Untitled"
         Description (1,1) string = ""
         Project     struct = EphysPipelineConfig.defaults("Project")
+        Acquisition struct = EphysPipelineConfig.defaults("Acquisition")
         Parallel    struct = EphysPipelineConfig.defaults("Parallel")
         Probe       struct = EphysPipelineConfig.defaults("Probe")
         Behavior    struct = EphysPipelineConfig.defaults("Behavior")
@@ -67,8 +73,8 @@ classdef EphysPipelineConfig
     properties (Constant)
         Schema   = "ephys-pipeline-config"
         Version  = 1
-        Sections = ["Project" "Parallel" "Probe" "Behavior" "Artifacts" "Sorting" "Signals" "Spikes" "Export"]
-        % Execution order of the steps (Project is not a step; Probe is a preflight).
+        Sections = ["Project" "Acquisition" "Parallel" "Probe" "Behavior" "Artifacts" "Sorting" "Signals" "Spikes" "Export"]
+        % Execution order of the steps (Project, Acquisition and Parallel are not steps; Probe is a preflight).
         StepNames = ["probe" "behavior" "artifacts" "sorting" "signals" "spikes" "export"]
         % Section that holds each step's settings.
         StepSections = ["Probe" "Behavior" "Artifacts" "Sorting" "Signals" "Spikes" "Export"]
@@ -97,6 +103,7 @@ classdef EphysPipelineConfig
 
         %% --- normalizing setters -------------------------------------------
         function obj = set.Project(obj, s);   obj.Project   = EphysPipelineConfig.normalizeSection("Project", s);   end
+        function obj = set.Acquisition(obj, s); obj.Acquisition = EphysPipelineConfig.normalizeSection("Acquisition", s); end
         function obj = set.Parallel(obj, s);  obj.Parallel  = EphysPipelineConfig.normalizeSection("Parallel", s);  end
         function obj = set.Probe(obj, s);     obj.Probe     = EphysPipelineConfig.normalizeSection("Probe", s);     end
         function obj = set.Behavior(obj, s);  obj.Behavior  = EphysPipelineConfig.normalizeSection("Behavior", s);  end
@@ -241,8 +248,8 @@ classdef EphysPipelineConfig
         %% --- per-step option builders ----------------------------------------
         function tc = trialConfig(cfg)
             %trialConfig  EphysDataset.TrialConfig from the Behavior section
-            %   (plus Signals.LabelField / InvertedLines, the digital-line
-            %   naming and polarity every events output shares).
+            %   (plus Signals.LabelField / LineNames / InvertedLines, the
+            %   digital-line naming and polarity every events output shares).
             %   SignalFs holds the rate of every enabled derived signal (LFP,
             %   MUA, SPIKE; SPIKE only when resampled) so the pairing adds
             %   sample columns for each.
@@ -257,6 +264,7 @@ classdef EphysPipelineConfig
             tc.InvertedLines  = S.InvertedLines;
             tc.SignalFs       = fs;
             tc.LabelField     = S.LabelField;
+            tc.LineNames      = S.LineNames;
         end
 
         function cfg = artifactConfig(a)

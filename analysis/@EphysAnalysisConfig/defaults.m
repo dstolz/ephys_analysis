@@ -81,7 +81,7 @@ switch section
             'ShowStop',     true, ...
             'ShowZeroLine', true, ...
             'Colormap',     "lines", ...    % group colours: "lines" keeps selectTrials' colours
-            'HeatColormap', "parula", ...   % heatmap / probe map colours
+            'HeatColormap', "", ...         % heatmap / probe map / corrmap colours ("" = parula; blueWhiteRed for corrmap)
             'FontSize',     9, ...
             'YLim',         [], ...
             'XLim',         [], ...
@@ -137,7 +137,9 @@ switch section
             'param',         "", ...            % tuning: trial parameter on the x axis
             'seriesParam',   "", ...            % tuning: one curve per value of this parameter
             'value',         "rate", ...        % probemap: "rate" | "nSpikes" | "nUnits"
-            'order',         "depth", ...       % heatmap rows: "depth" | "channel" | "peak"
+            'order',         "depth", ...       % heatmap rows: "depth" | "channel" | "peak"; corrmap: "depth" | "channel"
+            'metric',        "mean", ...        % corrmap: each epoch's "mean" or "peak" (binned) rate
+            'correlation',   "pearson", ...     % corrmap: "pearson" | "spearman"
             'style',         EphysAnalysisConfig.defaults("Style"));
 
     otherwise

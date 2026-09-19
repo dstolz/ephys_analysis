@@ -3,7 +3,7 @@ function h = renderHeatmap(R, target, opts)
 %   H = renderHeatmap(R, TARGET, Order=, Style=) draws a spikePSTH result
 %   (rows = units, rate) or an evokedPotential result (rows = channels, mean)
 %   as an image per group, on one colour scale (Style.CLim, else the range
-%   of every tile) with Style.HeatColormap.
+%   of every tile) with Style.HeatColormap ("" = parula).
 %
 %   Order
 %     "depth"    (default) top of the probe first (probe y, else channel)
@@ -52,7 +52,9 @@ end
 [idx, nr, nc] = pageItems(nG, 1, max(nG, 1));
 [tl, ax0] = renderLayout(target, nr, nc);
 if ~isempty(ax0); idx = idx(1:min(1, end)); end
-cmap = feval(char(style.HeatColormap), 256);
+cmapName = style.HeatColormap;
+if cmapName == ""; cmapName = "parula"; end
+cmap = feval(char(cmapName), 256);
 axs = gobjects(1, numel(idx));
 for j = 1:numel(idx)
     g = idx(j);

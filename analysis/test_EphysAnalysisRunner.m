@@ -56,6 +56,8 @@ cfg = cfg.addPlot(struct('kind', "tuning", 'param', "Depth", 'window', struct('p
     'selection', struct('groupBy', string.empty(1, 0))), Id="tuning_depth");
 cfg = cfg.addPlot(struct('kind', "heatmap", 'source', "detected"), Id="heat_det");
 cfg = cfg.addPlot(struct('kind', "probemap", 'source', "detected", 'value', "rate"), Id="rate_map");
+cfg = cfg.addPlot(struct('kind', "corrmap", 'metric', "peak", 'correlation', "spearman", 'ref', struct('line', "Platform", 'scope', "trial"), ...
+    'window', struct('mode', "between", 'pre', 0, 'post', 0, 'stop', struct('line', "Platform", 'edge', "offset", 'scope', "trial"))), Id="corr_platform");
 cfg = cfg.addPlot(struct('kind', "evoked", 'source', "SPIKE"), Id="spike_band");
 cfg = cfg.addPlot(struct('kind', "psth", 'ref', struct('line', "Nope")), Id="no_line");
 outMain = fullfile(root, 'outMain');

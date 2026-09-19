@@ -13,11 +13,12 @@ function issues = validate(obj, opts)
 %     Plots     at least one enabled; kind is one of Kinds; source fits the
 %               kind (units / detected for spike kinds, LFP / MUA / SPIKE /
 %               AUX for signal kinds); layout fits the kind; "between"
-%               windows only for rate / tuning, and with a stop event; tuning
-%               names its parameter; groupBy <= 2; BinSec > 0; pre <= post;
-%               baseline mode fits the kind and its window is [b0 b1] with
-%               b0 < b1; psth histStyle; probemap value; heatmap order;
-%               style values
+%               windows only for rate / tuning / corrmap, and with a stop
+%               event; tuning names its parameter; groupBy <= 2; BinSec > 0;
+%               pre <= post; baseline mode fits the kind and its window is
+%               [b0 b1] with b0 < b1; psth histStyle; probemap value;
+%               heatmap order; corrmap order, metric and correlation; style
+%               values
 %     Export    formats are png / eps / svg / pdf; Dpi, FigureSizeCm; the
 %               folder and file-name patterns use known tokens
 %     Report    Format html / pdf / both; EmbedFormat png / svg; Dpi;
@@ -105,13 +106,16 @@ for k = 1:numel(obj.Plots)
         w = p.window;
         if isequal(w, "default"); w = D.Window; end
         if ~ismember(w.mode, row.WindowModes{1})
-            add("Plots", f0 + ".window", "error", sprintf("A %s plot needs a fixed window (""between"" windows are for rate and tuning plots).", p.kind));
+            between = K.Kind(cellfun(@(m) ismember("between", m), K.WindowModes));
+            add("Plots", f0 + ".window", "error", sprintf("A %s plot needs a fixed window (""between"" windows are for %s plots).", ...
+                p.kind, strjoin(between, " / ")));
         end
     end
     if p.kind == "tuning" && strtrim(p.param) == ""
         add("Plots", f0 + ".param", "error", "A tuning plot needs param: the trial parameter on its x axis.");
     end
-    if ismember(p.kind, ["psth" "raster"]) || (p.kind == "heatmap" && ismember(p.source, EphysAnalysisConfig.SpikeSources))
+    if ismember(p.kind, ["psth" "raster"]) || (p.kind == "heatmap" && ismember(p.source, EphysAnalysisConfig.SpikeSources)) ...
+            || (p.kind == "corrmap" && p.metric == "peak")
         if ~(p.bins.BinSec > 0); add("Plots", f0 + ".bins.BinSec", "error", "BinSec must be positive."); end
         if ~(p.bins.SmoothSec >= 0); add("Plots", f0 + ".bins.SmoothSec", "error", "SmoothSec must be >= 0."); end
     end
@@ -121,7 +125,7 @@ for k = 1:numel(obj.Plots)
             if ismember(p.source, EphysAnalysisConfig.SignalSources); modes = ["none" "subtract"]; end
         case {"rate" "tuning"}
             modes = ["none" "subtract" "ratio" "zscore"];
-        case "evoked"
+        case {"evoked" "corrmap"}
             modes = ["none" "subtract"];
         otherwise
             modes = "none";
@@ -141,6 +145,17 @@ for k = 1:numel(obj.Plots)
     if p.kind == "heatmap" && ~ismember(p.order, ["depth" "channel" "peak"])
         add("Plots", f0 + ".order", "error", "A heatmap orders its rows by depth, channel or peak.");
     end
+    if p.kind == "corrmap"
+        if ~ismember(p.order, ["depth" "channel"])
+            add("Plots", f0 + ".order", "error", "A unit correlation map orders its units by depth or channel.");
+        end
+        if ~ismember(p.metric, ["mean" "peak"])
+            add("Plots", f0 + ".metric", "error", "A unit correlation map correlates each epoch's mean or peak rate.");
+        end
+        if ~ismember(p.correlation, ["pearson" "spearman"])
+            add("Plots", f0 + ".correlation", "error", "A unit correlation map's correlation is pearson or spearman.");
+        end
+    end
     if ~(p.units.maxUnits >= 1)
         add("Plots", f0 + ".units.maxUnits", "error", "maxUnits must be >= 1 (Inf = all).");
     end
@@ -149,7 +164,8 @@ for k = 1:numel(obj.Plots)
     if ~(st.FontSize > 0);  add("Plots", f0 + ".style.FontSize", "error", "FontSize must be positive."); end
     if ~(st.LineWidth > 0); add("Plots", f0 + ".style.LineWidth", "error", "LineWidth must be positive."); end
     for cm = ["Colormap" "HeatColormap"]
-        if ~(cm == "Colormap" && st.(cm) == "lines") && ~ismember(exist(char(st.(cm))), [2 5]) %#ok<EXIST>
+        if ~(cm == "Colormap" && st.(cm) == "lines") && ~(cm == "HeatColormap" && st.(cm) == "") ...
+                && ~ismember(exist(char(st.(cm))), [2 5]) %#ok<EXIST>
             add("Plots", f0 + ".style." + cm, "warning", "No colormap function """ + st.(cm) + """; the default is used.");
         end
     end

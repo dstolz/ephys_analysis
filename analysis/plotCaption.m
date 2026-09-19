@@ -39,9 +39,14 @@ if isfield(U, 'ref')
         if ~isempty(w.stop); parts(end+1) = "stop at " + w.stop.line + " " + w.stop.edge; end
     end
 end
+if spec.kind == "corrmap"
+    type = "Pearson";
+    if R.type == "spearman"; type = "Spearman"; end
+    parts(end+1) = sprintf("%s correlation of each epoch's %s rate between every pair of units", type, R.metric);
+end
 if isfield(R, 'params')
     P = R.params;
-    if isfield(P, 'BinSec')
+    if isfield(P, 'BinSec') && ~(isfield(P, 'Metric') && P.Metric == "mean")
         b = sprintf("bins %g ms", 1000 * P.BinSec);
         if P.SmoothSec > 0; b = b + sprintf(", smooth %g ms", 1000 * P.SmoothSec); end
         parts(end+1) = b;

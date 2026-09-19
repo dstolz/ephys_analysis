@@ -19,7 +19,7 @@ classdef EphysAnalysisConfig
     %               kind (see Kinds / plotKinds), enabled, source, units,
     %               channels, ref, window, selection, bins, baseline, layout,
     %               withRaster, histStyle, maskAfterStop, param, seriesParam, value,
-    %               order, style
+    %               order, metric, correlation, style
     %     Export    figure files: Formats (png / eps / svg / pdf), Folder and
     %               FilenamePattern with tokens, Dpi, FigureSizeCm
     %     Report    one HTML and / or multi-page PDF report per run (or per
@@ -65,7 +65,7 @@ classdef EphysAnalysisConfig
         Schema   = "ephys-analysis-config"
         Version  = 1
         Sections = ["Source" "Defaults" "Export" "Report"]
-        Kinds    = ["psth" "raster" "evoked" "rate" "tuning" "heatmap" "probemap"]
+        Kinds    = ["psth" "raster" "evoked" "rate" "tuning" "heatmap" "probemap" "corrmap"]
         SpikeSources  = ["units" "detected"]
         SignalSources = ["LFP" "MUA" "SPIKE" "AUX"]
         % String fields that are lists even when their default has one element.

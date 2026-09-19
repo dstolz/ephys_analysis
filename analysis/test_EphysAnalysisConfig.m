@@ -126,7 +126,24 @@ check(hasIssue(bad, "evoked_1.source", "error"), 'a signal kind reading units');
 bad = cfg; bad.Plots(1).layout = "stack";
 check(hasIssue(bad, "psth_1.layout", "error"), 'a layout the kind does not have');
 bad = cfg; bad.Plots(1).window = struct('mode', "between", 'stop', struct('line', "Stim", 'edge', "offset"));
-check(hasIssue(bad, "psth_1.window", "error"), '"between" is for rate and tuning only');
+check(hasIssue(bad, "psth_1.window", "error"), '"between" is for rate, tuning and corrmap only');
+bet = struct('mode', "between", 'pre', 0, 'post', 0, 'stop', struct('line', "Stim", 'edge', "offset"));
+ok = cfg.addPlot(struct('kind', "corrmap", 'window', bet, 'metric', "peak", 'correlation', "spearman", ...
+    'baseline', struct('Mode', "subtract", 'Window', [-0.2 0])), Id="corr_ok");
+check(~any(ok.validate().Severity == "error") && ok.Plots(end).style.HeatColormap == "", ...
+    'a corrmap over a "between" window (peak, Spearman, baseline subtract) validates; its colours are the default');
+bad = ok; bad.Plots(end).metric = "max";
+check(hasIssue(bad, "corr_ok.metric", "error"), 'corrmap metric is mean or peak');
+bad = ok; bad.Plots(end).correlation = "kendall";
+check(hasIssue(bad, "corr_ok.correlation", "error"), 'corrmap correlation is pearson or spearman');
+bad = ok; bad.Plots(end).order = "peak";
+check(hasIssue(bad, "corr_ok.order", "error"), 'corrmap orders by depth or channel');
+bad = ok; bad.Plots(end).baseline.Mode = "zscore";
+check(hasIssue(bad, "corr_ok.baseline.Mode", "error"), 'corrmap baseline is none or subtract');
+bad = ok; bad.Plots(end).bins.BinSec = 0;
+check(hasIssue(bad, "corr_ok.bins.BinSec", "error"), 'a peak corrmap needs BinSec > 0');
+bad.Plots(end).metric = "mean";
+check(~hasIssue(bad, "corr_ok.bins.BinSec", "error"), 'a mean corrmap does not use bins');
 bad = cfg; bad.Plots(3).window = struct('mode', "between");
 check(hasIssue(bad, "rate_platform.window", "error"), '"between" needs a stop');
 bad = cfg; bad.Plots(4).param = "";

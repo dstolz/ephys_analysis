@@ -59,7 +59,9 @@ if ~(numel(clim0) == 2 && clim0(2) > clim0(1))
     if isempty(v); clim0 = [0 1]; else; clim0 = [min(v) max(v)]; end
     if clim0(2) <= clim0(1); clim0 = clim0 + [-0.5 0.5]; end
 end
-cmap = feval(char(style.HeatColormap), 256);
+cmapName = style.HeatColormap;
+if cmapName == ""; cmapName = "parula"; end
+cmap = feval(char(cmapName), 256);
 xr = [min(P.x) max(P.x)]; yr = [min(P.y) max(P.y)];
 axs = gobjects(1, numel(shanks));
 for j = 1:numel(shanks)

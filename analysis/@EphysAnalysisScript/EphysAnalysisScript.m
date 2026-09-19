@@ -12,7 +12,7 @@ classdef EphysAnalysisScript
     %                                 loadAnalysisSource, epochTable,
     %                                 selectUnits / selectChannels, spikePSTH
     %                                 / evokedPotential / firingRate /
-    %                                 tuningCurve / unitSummary +
+    %                                 tuningCurve / unitCorrelation / unitSummary +
     %                                 probeMapValues, newExportFigure,
     %                                 renderPlot, exportFigure, the report
     %                                 calls. It never uses EphysAnalysisRunner,
@@ -275,6 +275,12 @@ classdef EphysAnalysisScript
                     if spec.seriesParam ~= ""; series = "E.(" + lit(spec.seriesParam) + ")"; end
                     L(end+1, 1) = "R = tuningCurve(F.rate, E.(" + lit(spec.param) + "), Series=" + series + ", Param=" + lit(spec.param) + ...
                         ", SeriesParam=" + lit(spec.seriesParam) + ", Meta=meta, Units=F.units);";
+                case "corrmap"
+                    L(end+1, 1) = epochs;
+                    L(end+1, 1) = "[st, meta] = selectUnits(src, spec.units);";
+                    L(end+1, 1) = "R = unitCorrelation(st, E, Metric=" + lit(spec.metric) + ", Type=" + lit(spec.correlation) + ...
+                        ", BinSec=" + lit(spec.bins.BinSec) + ", SmoothSec=" + lit(spec.bins.SmoothSec) + ", ...";
+                    L(end+1, 1) = "    Baseline=" + b + ", BaselineMode=" + lit(spec.baseline.Mode) + ", Groups=G, Meta=meta);";
                 case "probemap"
                     L(end+1, 1) = "T = unitSummary(src, Source=" + lit(spec.source) + ", Units=spec.units);";
                     L(end+1, 1) = "R = probeMapValues(T, src.probe, Value=" + lit(spec.value) + ");";

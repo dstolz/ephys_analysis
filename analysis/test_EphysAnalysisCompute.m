@@ -4,7 +4,9 @@ function test_EphysAnalysisCompute()
 %   signals check spikePSTH (rates, SEM, half-open bins, baseline, smoothing,
 %   stop masking, rasters), firingRate ("between" windows, baselines),
 %   tuningCurve, evokedPotential (the event onset rule, NaN padding and drop
-%   counts, baseline), the trial-filter compiler, and that every renderer
+%   counts, baseline), the trial-filter compiler, unitCorrelation (Pearson
+%   and Spearman against corrcoef, peak rates, partial bins, baseline,
+%   groups, degenerate units), and that every renderer
 %   draws into a classic figure's axes, a uifigure's uiaxes and a figure
 %   (tiled layout), including renderPlot's pages and titles.
 %
@@ -156,6 +158,8 @@ Rv.meta = table(["c1"; "c2"; "c3"], [1; 2; 3], [0; 0; 0], [0; 0; 0], [0; 25; 50]
 probe = struct('chanMap', 0:7, 'xc', [0 8 0 8 200 208 200 208], 'yc', [0 25 50 75 0 25 50 75], 'kcoords', [0 0 0 0 1 1 1 1]);
 Tu = table(["u1"; "u2"; "u3"], ["su"; "mua"; "su"], [1; 5; 3], [0; 1; 0], [0; 200; 0], [0; 0; 50], [10; 20; 30], [1; 2; 3], ...
     'VariableNames', {'label', 'class', 'channel', 'shank', 'x', 'y', 'nSpikes', 'rateHz'});
+Rc = unitCorrelation({s2, st, drv}, E3, Groups=G3, Meta=meta);
+Rc.epochs = E3; Rc.dataset = "synthetic";
 Rq = probeMapValues(Tu, probe, Value="rate");
 check(isequal(Rq.value([1 3 5]), [1; 3; 2]) && all(isnan(Rq.value([2 4 6 7 8]))), 'probeMapValues puts each unit''s rate on its site');
 Rq0 = probeMapValues(Tu, probe, Value="nUnits");
@@ -177,6 +181,7 @@ cases = {
     "heatmap evoked",      @(tg) renderHeatmap(Rv, tg)
     "probe map",           @(tg) renderProbeMap(Rq, [], tg)
     "probe map (values)",  @(tg) renderProbeMap([5 NaN 3 1 0 2 7 4], probe, tg)
+    "unit correlation",    @(tg) renderCorrMap(Rc, tg, Order="channel")
     };
 fig = figure('Visible', 'off');
 ufig = uifigure('Visible', 'off');
@@ -228,6 +233,74 @@ close(h.axes(1).Parent);
 check(EphysAnalysisConfig.defaults("Plot").bins.SmoothSec == 0.01, 'PSTHs are smoothed with a 10 ms Gaussian by default');
 cap = plotCaption(EphysAnalysisConfig.normalizePlot(struct('kind', "psth")), Rp);
 check(startsWith(cap, "PSTH") && contains(cap, "bins 20 ms") && contains(cap, "3 sorted unit(s)"), "plotCaption: " + cap);
+spec = EphysAnalysisConfig.normalizePlot(struct('kind', "corrmap"));
+h = renderPlot(Rc, spec, fig);
+check(numel(h.axes) == 3 && startsWith(h.title, "Unit correlation (Pearson, mean rate): Stim onset") ...
+    && isequal(h.axes(1).CLim, [-1 1]) && isequal(h.axes(1).Colormap, blueWhiteRed(256)), ...
+    'renderPlot draws a corrmap: a tile per group on [-1 1] in blueWhiteRed');
+cap = plotCaption(spec, Rc);
+check(contains(cap, "Pearson correlation of each epoch's mean rate") && ~contains(cap, "bins"), "plotCaption: " + cap);
+
+fprintf('\n== 7. unitCorrelation ==\n');
+tc = (5:2:203).';
+nC = numel(tc);
+k = randi([0 10], nC, 1);
+[uA, uB, uD, uF, uG, uC] = deal(zeros(0, 1));
+for e = 1:nC
+    a = tc(e) + linspace(0.01, 0.4, k(e)).';
+    uA = [uA; a]; uB = [uB; a + 0.001]; %#ok<AGROW>
+    uD = [uD; tc(e) + linspace(0.01, 0.4, 10 - k(e)).']; %#ok<AGROW>
+    uF = [uF; tc(e) + linspace(0.01, 0.4, k(e) ^ 2).']; %#ok<AGROW>
+    uG = [uG; tc(e) + 0.1025 + 0.002 * rand(k(e), 1)]; %#ok<AGROW>
+    uC = [uC; tc(e) - 0.2 + 0.7 * rand(randi([0 10]), 1)]; %#ok<AGROW>
+end
+Ec = epochs(tc, ones(nC, 1));
+C = unitCorrelation({uA, uB, uC, uD, uF}, Ec);
+[r0, p0] = corrcoef(C.response);
+check(C.kind == "corrmap" && isequal(size(C.r), [5 5]) && C.nEpochs == nC ...
+    && max(abs(C.response(:, 1) - k / 0.7)) < 1e-9, 'mean metric: spikes in [tStart, tStop) over the window length');
+check(max(abs(C.r(:) - r0(:))) < 1e-12 && abs(C.r(1, 2) - 1) < 1e-12 && abs(C.r(1, 4) + 1) < 1e-12 ...
+    && abs(C.r(1, 3)) < 0.35 && C.r(1, 5) < 0.99, ...
+    sprintf('Pearson matches corrcoef: same train 1, mirror -1, independent %.2f, squared %.3f', C.r(1, 3), C.r(1, 5)));
+off = ~eye(5);
+check(max(abs(C.p(off) - p0(off))) < 1e-9 && all(isnan(diag(C.p))), 'p values match corrcoef''s');
+check(abs(C.meanR - mean(r0(off))) < 1e-12, 'meanR is the mean over the pairs');
+S = unitCorrelation({uA, uB, uC, uD, uF}, Ec, Type="spearman");
+check(abs(S.r(1, 5) - 1) < 1e-12 && abs(S.r(1, 4) + 1) < 1e-12 && max(abs(S.r - corrcoef(ranks(S.response))), [], 'all') < 1e-12, ...
+    'Spearman: a monotone transform correlates 1, and it is Pearson of the (tie-averaged) ranks');
+P = unitCorrelation({uA, uG}, Ec, Metric="peak", BinSec=0.01);
+check(max(abs(P.response(:, 2) - 100 * k)) < 1e-9 && max(abs(P.response(:, 1) - 100 * (k > 0))) < 1e-9 ...
+    && abs(P.r(1, 2) - corr1(P.response)) < 1e-12, 'peak metric: the largest 10 ms bin (a burst of k spikes = 100 k/s)');
+Ps = unitCorrelation({uG}, Ec, Metric="peak", BinSec=0.01, SmoothSec=0.01);
+check(all(Ps.response(k > 0) < 100 * k(k > 0)) && all(Ps.response(k > 0) > 30 * k(k > 0)), 'smoothing spreads the burst: a lower peak');
+Eb = Ec(1:4, :);
+Eb.tStop = Eb.tStart + [0.035; 0.035; 0.7; 0.7];
+Eb.duration = Eb.tStop - Eb.tStart;
+sb = Eb.tStart + [0.032; 0.005; 0.5; 0.6];
+Pb = unitCorrelation({sb}, Eb, Metric="peak", BinSec=0.01);
+Mb = unitCorrelation({sb}, Eb);
+check(max(abs(Pb.response.' - [0 100 100 100])) < 1e-9 && max(abs(Mb.response.' - 1 ./ Eb.duration.')) < 1e-9, ...
+    'between windows: the peak skips a bin that runs past tStop; the mean divides by each window''s length');
+B = unitCorrelation({uA, uC}, Ec, Baseline=[-0.2 0], BaselineMode="subtract");
+bC = arrayfun(@(t) nnz(uC >= t - 0.2 & uC < t), tc) / 0.2;
+check(max(abs(B.response(:, 2) - (C.response(:, 3) - bC))) < 1e-9 && B.units == "spikes/s - baseline", ...
+    'baseline subtract: each epoch minus its own baseline rate');
+g2 = 1 + (tc > 100);
+Eg = epochs(tc, g2);
+Rg = unitCorrelation({uA, uC, uD}, Eg);
+r1 = corrcoef(C.response(g2 == 1, [1 3 4]));
+r2 = corrcoef(C.response(g2 == 2, [1 3 4]));
+check(isequal(size(Rg.r), [3 3 2]) && isequal(Rg.n, [nnz(g2 == 1); nnz(g2 == 2)]) ...
+    && max(abs(Rg.r(:, :, 1) - r1), [], 'all') < 1e-12 && max(abs(Rg.r(:, :, 2) - r2), [], 'all') < 1e-12, ...
+    'one matrix per group, over that group''s epochs');
+Z = unitCorrelation({uA, tc + 0.1, uD}, Ec);
+check(all(isnan(Z.r(2, :))) && all(isnan(Z.r(:, 2))) && Z.r(1, 1) == 1 && abs(Z.r(1, 3) + 1) < 1e-12, ...
+    'a unit with the same count every epoch has NaN correlations');
+Z = unitCorrelation({uA, uD}, epochs(tc(1:2), [1; 1]));
+check(all(isnan(Z.r(:))) && isnan(Z.meanR) && Z.n == 2, 'fewer than 3 epochs: NaN');
+check(strcmp(errorId(@() unitCorrelation({uA}, Eb, Metric="peak", BinSec=1)), 'unitCorrelation:BadWindow') ...
+    && strcmp(errorId(@() unitCorrelation({uA}, Ec, BaselineMode="subtract")), 'unitCorrelation:BadBaseline'), ...
+    'a window shorter than a bin, and subtract without a baseline window, are errors');
 
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0
@@ -274,6 +347,22 @@ t0 = t0(:); g = g(:);
 n = numel(t0);
 E = table((1:n).', NaN(n, 1), t0, NaN(n, 1), t0 - 0.2, t0 + 0.5, repmat(0.7, n, 1), true(n, 1), g, "group " + g, ...
     'VariableNames', {'epoch', 'trial', 't0', 't1', 'tStart', 'tStop', 'duration', 'complete', 'groupIndex', 'group'});
+end
+
+
+function Q = ranks(X)
+%ranks  Tie-averaged ranks down each column, by counting (independent of unitCorrelation's).
+Q = zeros(size(X));
+for j = 1:size(X, 2)
+    x = X(:, j);
+    Q(:, j) = arrayfun(@(v) nnz(x < v) + (nnz(x == v) + 1) / 2, x);
+end
+end
+
+
+function r = corr1(X)
+c = corrcoef(X);
+r = c(1, 2);
 end
 
 

@@ -46,7 +46,11 @@ end
 setItems(E.param, ["" params], p.param);
 setItems(E.seriesParam, ["" params], p.seriesParam);
 E.value.Value = char(p.value);
-E.order.Value = char(p.order);
+orders = ["depth" "channel" "peak"];
+if p.kind == "corrmap"; orders = ["depth" "channel"]; end
+setItems(E.order, orders, p.order);
+setItems(E.metric, ["mean" "peak"], p.metric);
+E.correlation.Value = char(p.correlation);
 s = p.style;
 E.maxTiles.Value = s.MaxTiles;
 E.fontSize.Value = s.FontSize;
@@ -55,7 +59,7 @@ E.showStop.Value = s.ShowStop;
 E.legend.Value = s.Legend;
 E.grid.Value = s.Grid;
 E.ylim.Value = listText(s.YLim);
-setItems(E.heatColormap, string(E.heatColormap.Items), s.HeatColormap);
+setItems(E.heatColormap, string(E.heatColormap.Items), pick(s.HeatColormap, "auto"));
 E.defaultRef.Value = isequal(p.ref, "default");
 E.defaultWindow.Value = isequal(p.window, "default");
 E.defaultSelection.Value = isequal(p.selection, "default");
@@ -83,7 +87,7 @@ switch p.kind
         if ismember(p.source, EphysAnalysisConfig.SignalSources); m = ["none" "subtract"]; end
     case {"rate" "tuning"}
         m = ["none" "subtract" "ratio" "zscore"];
-    case "evoked"
+    case {"evoked" "corrmap"}
         m = ["none" "subtract"];
     otherwise
         m = "none";

@@ -19,7 +19,7 @@ classdef EphysAnalysisApp < handle
     %                two groupBy parameters), with a live count of epochs and
     %                groups on the active dataset
     %     Plots      the plots: add (psth, raster, evoked, rate, tuning,
-    %                heatmap, probemap), remove, duplicate, reorder, enable;
+    %                heatmap, probemap, corrmap), remove, duplicate, reorder, enable;
     %                an editor whose rows follow the kind, the plot's own event
     %                / window / selection when "use defaults" is off, and a
     %                preview on the active dataset (auto-preview while a

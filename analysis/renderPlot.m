@@ -3,7 +3,7 @@ function h = renderPlot(R, spec, target, opts)
 %   H = renderPlot(R, SPEC, TARGET, Page=P) dispatches on SPEC.kind (a plot
 %   entry, e.g. from EphysAnalysisConfig.plotFor; [] = the defaults for
 %   R.kind) to renderPSTH, renderRaster, renderEvoked, renderRates,
-%   renderTuning, renderHeatmap or renderProbeMap, with SPEC.style, the
+%   renderTuning, renderHeatmap, renderProbeMap or renderCorrMap, with SPEC.style, the
 %   layout, and page P of a grid (plotPageCount pages). TARGET is an axes,
 %   uiaxes, figure, uifigure, panel, tab, grid layout or tiled layout: the
 %   app draws its previews into a panel, the runner into an invisible
@@ -41,6 +41,8 @@ switch spec.kind
         h = renderHeatmap(R, target, Order=spec.order, Style=style);
     case "probemap"
         h = renderProbeMap(R, [], target, Style=style);
+    case "corrmap"
+        h = renderCorrMap(R, target, Order=spec.order, Style=style);
     otherwise
         error('renderPlot:BadKind', 'Unknown plot kind "%s".', spec.kind);
 end
@@ -96,6 +98,11 @@ end
 if ~isfinite(nEp) && isfield(R, 'n'); nEp = sum(R.n(:)); end
 if spec.kind == "tuning"
     label = label + " (" + R.param + ")";
+end
+if spec.kind == "corrmap"
+    type = "Pearson";
+    if R.type == "spearman"; type = "Spearman"; end
+    label = label + " (" + type + ", " + R.metric + " rate)";
 end
 t = label;
 if ev ~= ""; t = t + ": " + ev; end

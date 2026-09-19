@@ -33,8 +33,8 @@ ep = uipanel(g, "Title", "Plot", "Scrollable", "on");
 eg = uigridlayout(ep, [2 1]);
 eg.RowHeight = {'fit', 'fit'};
 eg.Padding = [4 4 4 4];
-fg = uigridlayout(eg, [18 4]);
-fg.RowHeight = repmat({22}, 1, 18);
+fg = uigridlayout(eg, [19 4]);
+fg.RowHeight = repmat({22}, 1, 19);
 fg.ColumnWidth = {95, '1x', 95, '1x'};
 fg.RowSpacing = 4;
 fg.Padding = [0 0 0 0];
@@ -120,8 +120,18 @@ lab(fg, "Value:", r, 1);
 E.value = uidropdown(fg, "Items", ["rate" "nSpikes" "nUnits"], "ValueChangedFcn", changed, "Tooltip", "Probe map: what colours each site.");
 place(E.value, r, 2);
 lab(fg, "Row order:", r, 3);
-E.order = uidropdown(fg, "Items", ["depth" "channel" "peak"], "ValueChangedFcn", changed, "Tooltip", "Heatmap rows.");
+E.order = uidropdown(fg, "Items", ["depth" "channel" "peak"], "ValueChangedFcn", changed, ...
+    "Tooltip", "Heatmap rows; unit correlation rows and columns.");
 place(E.order, r, 4);
+r = r + 1;
+lab(fg, "Epoch rate:", r, 1);
+E.metric = uidropdown(fg, "Items", ["mean" "peak"], "ValueChangedFcn", changed, ...
+    "Tooltip", "Unit correlation: each epoch's mean rate over its window, or its peak binned rate.");
+place(E.metric, r, 2);
+lab(fg, "Correlation:", r, 3);
+E.correlation = uidropdown(fg, "Items", ["Pearson" "Spearman"], "ItemsData", ["pearson" "spearman"], ...
+    "ValueChangedFcn", changed, "Tooltip", "Unit correlation: Pearson's r, or Spearman's rank correlation.");
+place(E.correlation, r, 4);
 r = r + 1;
 lab(fg, "Tiles / page:", r, 1);
 E.maxTiles = uispinner(fg, "Limits", [1 64], "Value", 16, "RoundFractionalValues", "on", "ValueChangedFcn", changed);
@@ -141,8 +151,9 @@ lab(fg, "Y limits:", r, 1);
 E.ylim = uieditfield(fg, "text", "Placeholder", "auto, or e.g. 0 40", "ValueChangedFcn", changed);
 place(E.ylim, r, 2);
 lab(fg, "Colours:", r, 3);
-E.heatColormap = uidropdown(fg, "Items", ["parula" "turbo" "hot" "gray" "jet" "cool"], "ValueChangedFcn", changed, ...
-    "Tooltip", "Heatmap and probe-map colours.");
+E.heatColormap = uidropdown(fg, "Items", ["auto" "parula" "turbo" "hot" "gray" "jet" "cool" "blueWhiteRed"], ...
+    "ValueChangedFcn", changed, ...
+    "Tooltip", "Heatmap, probe-map and unit-correlation colours (auto: parula; blueWhiteRed for unit correlation).");
 place(E.heatColormap, r, 4);
 r = r + 1;
 ug = uigridlayout(fg, [1 3]); ug.Padding = [0 0 0 0]; ug.ColumnSpacing = 2;

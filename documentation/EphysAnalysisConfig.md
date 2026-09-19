@@ -74,7 +74,7 @@ without one gets `"<kind>_<n>"`.
       "channels": [], "ref": "default", "window": "default", "selection": "default",
       "bins": { "BinSec": 0.01, "SmoothSec": 0.02 }, "baseline": { "Mode": "none", "Window": [-0.2, 0] },
       "layout": "grid", "withRaster": true, "histStyle": "bar", "maskAfterStop": false, "param": "", "seriesParam": "",
-      "value": "rate", "order": "depth", "style": { "MaxTiles": 16, "...": "..." } },
+      "value": "rate", "order": "depth", "metric": "mean", "correlation": "pearson", "style": { "MaxTiles": 16, "...": "..." } },
     { "id": "rate_platform", "kind": "rate", "source": "units",
       "ref": { "line": "Platform", "edge": "onset", "which": "first", "scope": "trial", "...": "..." },
       "window": { "mode": "between", "pre": 0, "post": 0,
@@ -144,7 +144,7 @@ A plot's `units` (its `source` is the plot's `source`):
 | `ShowStop` | `true` | stop-event marks (mean per group; a dot per raster row) |
 | `ShowZeroLine` | `true` | a dotted line at the event |
 | `Colormap` | `"lines"` | group colours: `"lines"` keeps selectTrials' colours; any colormap name resamples them |
-| `HeatColormap` | `"parula"` | heatmaps and probe maps |
+| `HeatColormap` | `""` | heatmaps, probe maps and unit correlations; `""` = parula, or `blueWhiteRed` for corrmap |
 | `FontSize` | 9 | |
 | `YLim`, `XLim`, `CLim` | `[]` | fixed limits (`[]` = automatic) |
 | `Grid`, `Legend` | `true` | |
@@ -163,7 +163,7 @@ A plot's `units` (its `source` is the plot's `source`):
 | `units` | UnitSelection | spike sources |
 | `channels` | `[]` | signal columns drawn |
 | `ref`, `window`, `selection` | `"default"` | or the plot's own EventRef / EpochWindow / TrialSelection |
-| `bins` | `BinSec` 0.01, `SmoothSec` 0.01 | PSTH bins and Gaussian SD, s (0 = no smoothing) |
+| `bins` | `BinSec` 0.01, `SmoothSec` 0.01 | PSTH bins and Gaussian SD, s (0 = no smoothing); also a corrmap's `"peak"` rate |
 | `baseline` | `Mode "none"`, `Window [-0.2 0]` | see the kinds |
 | `layout` | `""` | `""` = the kind's default |
 | `withRaster` | `true` | psth: a raster above each unit |
@@ -171,7 +171,9 @@ A plot's `units` (its `source` is the plot's `source`):
 | `maskAfterStop` | `false` | psth: drop bins after each epoch's stop event |
 | `param`, `seriesParam` | `""` | tuning: x axis parameter; one curve per value of the series parameter |
 | `value` | `"rate"` | probemap: `"rate"`, `"nSpikes"`, `"nUnits"` |
-| `order` | `"depth"` | heatmap rows: `"depth"`, `"channel"`, `"peak"` |
+| `order` | `"depth"` | heatmap rows: `"depth"`, `"channel"`, `"peak"`; corrmap rows and columns: `"depth"`, `"channel"` |
+| `metric` | `"mean"` | corrmap: each epoch's `"mean"` rate over its window, or its `"peak"` binned rate (`bins`) |
+| `correlation` | `"pearson"` | corrmap: `"pearson"` or `"spearman"` |
 | `style` | Style | |
 
 | Kind | Sources | Layouts (first = default) | Windows | Baseline modes |
@@ -183,6 +185,7 @@ A plot's `units` (its `source` is the plot's `source`):
 | `tuning` | units, detected | grid, overlay | fixed, between | none, subtract, ratio, zscore |
 | `heatmap` | all six | groups | fixed | spikes: as psth; signals: none, subtract |
 | `probemap` | units, detected | shanks | (no alignment) | none |
+| `corrmap` | units, detected | groups | fixed, between | none, subtract |
 
 ## Export
 
@@ -227,7 +230,7 @@ dataset's output folder), `{Root}`, `{Name}` (the dataset), `{Date}`
 | Source | a "list" selection with no datasets; an OutputRoot that does not exist | warning |
 | Defaults, Plots | the event reference, window and selection are valid (`pre <= post`, a `"between"` window has a stop, `groupBy` has at most 2 parameters, ...) | error |
 | Defaults, Plots | a filter that does not parse | warning (it is checked against each dataset's trials when it runs) |
-| Plots | at least one enabled; the kind exists; the source, layout, window mode and baseline mode fit the kind; tuning names its parameter; `BinSec > 0`, `SmoothSec >= 0`; a baseline window `[b0 b1]` with `b0 < b1`; probemap value, psth `histStyle` bar / line; heatmap order; `maxUnits >= 1`; `MaxTiles`, `FontSize`, `LineWidth` positive | error |
+| Plots | at least one enabled; the kind exists; the source, layout, window mode and baseline mode fit the kind; tuning names its parameter; `BinSec > 0`, `SmoothSec >= 0`; a baseline window `[b0 b1]` with `b0 < b1`; probemap value, psth `histStyle` bar / line; heatmap order; corrmap order, metric and correlation; `maxUnits >= 1`; `MaxTiles`, `FontSize`, `LineWidth` positive | error |
 | Plots | a colormap that is not a function | warning |
 | Export | formats are png / eps / svg / pdf (and at least one when enabled); `Dpi`, `FigureSizeCm`; the folder and file-name patterns use known tokens | error |
 | Report | Format, EmbedFormat, `Dpi`, a plain `FileName`, the folder pattern | error |

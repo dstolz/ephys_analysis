@@ -3,7 +3,7 @@ function T = plotKinds()
 %   T = EphysAnalysisConfig.plotKinds() has one row per kind (in the order
 %   of EphysAnalysisConfig.Kinds):
 %     Kind           "psth" | "raster" | "evoked" | "rate" | "tuning" |
-%                    "heatmap" | "probemap"
+%                    "heatmap" | "probemap" | "corrmap"
 %     Label          name shown in the app
 %     Sources        sources it reads: "units" / "detected" (spike times)
 %                    and / or "LFP" / "MUA" / "SPIKE" / "AUX" (signals)
@@ -25,6 +25,7 @@ rows = {
     "tuning",   "Tuning curve",     spk,       ["grid" "overlay"],            ["fixed" "between"], true,  "Rate against a trial parameter, one curve per series"
     "heatmap",  "Heatmap",          [spk sig], "groups",                      "fixed",             true,  "Units or channels by time, one tile per group"
     "probemap", "Probe map",        spk,       "shanks",                      "fixed",             false, "A per-channel value (rate, spikes, units) drawn on the probe sites"
+    "corrmap",  "Unit correlation", spk,       "groups",                      ["fixed" "between"], true,  "Pairwise correlation of the units' per-epoch mean or peak rates, one matrix per group"
     };
 n = size(rows, 1);
 Kind = strings(n, 1); Label = strings(n, 1); Description = strings(n, 1);

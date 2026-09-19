@@ -15,6 +15,8 @@ function [R, E, G] = computePlot(obj, src, spec) %#ok<INUSD>
 %     rate      firingRate(st, E, Baseline=, Normalize=spec.baseline.Mode, ...)
 %     tuning    epochTable(..., Columns=[param seriesParam]), firingRate, then
 %               tuningCurve(F.rate, E.(param), Series=E.(seriesParam), ...)
+%     corrmap   unitCorrelation(st, E, Metric=spec.metric, Type=spec.correlation,
+%               BinSec=, SmoothSec=, Baseline=, BaselineMode=, Groups=G, Meta=meta)
 %     probemap  probeMapValues(unitSummary(src, Source=, Units=), src.probe, Value=)
 %   R also gets epochs (E), dataset (the name) and spec. EphysAnalysisScript
 %   writes these same calls out.
@@ -55,6 +57,11 @@ switch spec.kind
         if spec.seriesParam ~= ""; series = E.(spec.seriesParam); end
         R = tuningCurve(F.rate, E.(spec.param), Series=series, Param=spec.param, SeriesParam=spec.seriesParam, ...
             Meta=meta, Units=F.units);
+    case "corrmap"
+        [E, G] = epochTable(src, spec.ref, Window=w, Selection=spec.selection);
+        [st, meta] = selectUnits(src, spec.units);
+        R = unitCorrelation(st, E, Metric=spec.metric, Type=spec.correlation, BinSec=spec.bins.BinSec, ...
+            SmoothSec=spec.bins.SmoothSec, Baseline=b, BaselineMode=spec.baseline.Mode, Groups=G, Meta=meta);
     case "probemap"
         T = unitSummary(src, Source=spec.source, Units=spec.units);
         R = probeMapValues(T, src.probe, Value=spec.value);

@@ -2,7 +2,7 @@
 
 The [`analysis`](../analysis) folder turns the pipeline's outputs into
 figures: PSTHs with rasters, evoked potentials, firing rates, tuning curves,
-heatmaps and probe maps. Every figure can be aligned to **any digital line**
+heatmaps, probe maps and unit-by-unit correlation matrices. Every figure can be aligned to **any digital line**
 (onset or offset; the first, last, every or nth interval per trial), and
 trials can be **filtered and grouped by Epsych2 parameters** (Depth,
 TrialType, response bits). Figures are exported as PNG / EPS / SVG / PDF and
@@ -206,6 +206,7 @@ Pure functions: no I/O, no graphics. Every result `R` carries `kind`,
 | `tuningCurve(rates, x, Series=, Param=, SeriesParam=)` | `x` (sorted values), `series`, `mean / sem [nX x nUnits x nSeries]`, `n [nX x nSeries]` |
 | `unitSummary(src, Source=, Units=)` | table `label, class, channel, shank, x, y, nSpikes, rateHz` with `rateHz = nSpikes / src.durationSec` |
 | `probeMapValues(T, probe, Value=)` | one value per probe site: `rate` (summed Hz), `nSpikes`, `nUnits` |
+| `unitCorrelation(st, E, Metric=, Type=, BinSec=, SmoothSec=, Baseline=, BaselineMode=, Groups=, Meta=)` | `r / p [nUnits x nUnits x nGroups]`, `meanR` (mean over the pairs), `nEpochs`, `response [nEpochs x nUnits]`. Each epoch's response is its `"mean"` rate over `[tStart, tStop)` or its `"peak"` binned rate (bins from `tStart`; a bin that runs past `tStop` is not used), optionally minus the epoch's baseline rate (`BaselineMode="subtract"`); every pair of units is then correlated over the epochs of each group, `Type="pearson"` or `"spearman"` (ties averaged). Fixed and `"between"` windows. Needs no toolbox; `p` is two-sided from the t distribution |
 
 ## Render
 
@@ -224,6 +225,7 @@ figure with the same code.
 | `renderTuning` | rate against the parameter per unit (`"grid"`) or the mean over units (`"overlay"`) |
 | `renderHeatmap` | units (psth) or channels (evoked) × time, a tile per group, one colour scale; `Order="depth"`, `"channel"` or `"peak"` |
 | `renderProbeMap(values, probe, target)` | a value per site on the probe's layout, a tile per shank; `values` is per recording channel, or a `probeMapValues` result |
+| `renderCorrMap` | a `unitCorrelation` result: a square units × units matrix per group on `[-1 1]` (`CLim` overrides) in `blueWhiteRed`, titled with the epochs used and the mean r; `Order="depth"` or `"channel"` |
 
 `renderPlot(R, spec, target, Page=)` dispatches on `spec.kind`, applies
 `spec.style` ([Style](EphysAnalysisConfig.md#style)) and titles the figure
@@ -286,7 +288,7 @@ folders mode each folder is a `DatasetOutputs`. `source(k)` loads and caches
 - `computePlot(src, spec)` is the one compute path: `epochTable` →
   `selectUnits` / `selectChannels` → the compute function (tuning: an
   `epochTable` with the parameter columns, `firingRate`, `tuningCurve`;
-  probemap: `unitSummary` + `probeMapValues`).
+  corrmap: `unitCorrelation`; probemap: `unitSummary` + `probeMapValues`).
 - `renderPlotFigures(R, spec, Target=)` draws into a target (the app's
   preview) or one `newExportFigure` per page.
 - `runDataset(k)` is a thin sequence of these public calls per plot, then
@@ -312,7 +314,7 @@ separate roots and requires pixel-identical figures and equal HTML reports.
 
 | Suite | Covers |
 | --- | --- |
-| `test_EphysAnalysisCompute` | no fixture: `spikePSTH` on seeded Poisson trains (rate, SEM, half-open bins, baselines, smoothing, stop masking), `firingRate` over between windows, `tuningCurve`, `evokedPotential` (event rule, padding, drop counts, baseline), the filter compiler, every renderer into axes, uiaxes, figure and uipanel, `renderPlot` pages and titles |
+| `test_EphysAnalysisCompute` | no fixture: `spikePSTH` on seeded Poisson trains (rate, SEM, half-open bins, baselines, smoothing, stop masking), `firingRate` over between windows, `tuningCurve`, `evokedPotential` (event rule, padding, drop counts, baseline), the filter compiler, `unitCorrelation` (Pearson and Spearman against `corrcoef`, peak rates and partial bins, baseline, groups, constant units), every renderer into axes, uiaxes, figure and uipanel, `renderPlot` pages and titles |
 | `test_EphysAnalysisEpochs` | the fixture: `loadAnalysisSource` against the generator's truth, trial / recording scope, `"Trial"`, `groupBy`, response and filter selection, between windows, approved cuts, `selectUnits` / `selectChannels`, error identifiers, the no-behavior fallback |
 | `test_EphysAnalysisConfig` | see [EphysAnalysisConfig](EphysAnalysisConfig.md#tests) |
 | `test_EphysAnalysisRunner` | the fixture: `plan` skip reasons, `run` exports and paged names, HTML and PDF reports, cancel, driven units, compact vs standalone script equivalence |

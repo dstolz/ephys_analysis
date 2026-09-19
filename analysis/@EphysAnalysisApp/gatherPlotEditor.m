@@ -34,6 +34,8 @@ p.param = strtrim(string(E.param.Value));
 p.seriesParam = strtrim(string(E.seriesParam.Value));
 p.value = string(E.value.Value);
 p.order = string(E.order.Value);
+p.metric = string(E.metric.Value);
+p.correlation = string(E.correlation.Value);
 p.style.MaxTiles = E.maxTiles.Value;
 p.style.FontSize = E.fontSize.Value;
 p.style.ShowSEM = E.showSEM.Value;
@@ -44,6 +46,7 @@ yl = parseList(E.ylim.Value);
 if numel(yl) ~= 2; yl = []; end
 p.style.YLim = yl;
 p.style.HeatColormap = string(E.heatColormap.Value);
+if p.style.HeatColormap == "auto"; p.style.HeatColormap = ""; end
 [ref, win, sel] = obj.gatherAlignControls(obj.PlotAlignControls);
 if E.defaultRef.Value; p.ref = "default"; else; p.ref = ref; end
 if E.defaultWindow.Value; p.window = "default"; else; p.window = win; end

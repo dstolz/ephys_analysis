@@ -23,7 +23,8 @@ EphysAnalysisApp("D:\EPHYS_synthetic")     % a project processed by the pipeline
    the epochs per group.
 3. **Plots**: *Add* a PSTH, an evoked potential (source LFP), a rate plot
    (e.g. `Platform` onset → offset: untick *Default event* / *Default
-   window*), a tuning curve (parameter `Depth`), a heatmap and a probe map;
+   window*), a tuning curve (parameter `Depth`), a heatmap, a probe map and
+   a unit correlation;
    each previews on the active dataset.
 4. **Export**: tick png / svg / pdf, *Run*; *Open report*.
 5. **File → Generate script → Standalone** to get the same figures from a
@@ -91,8 +92,11 @@ colours, and the kept trials with their group and number of epochs.
   enabled, id, title, source, layout; unit classes, ids, max units, channels,
   shanks; bin and smoothing (ms); baseline mode and window; raster, bar or
   line PSTH, mask after the stop event; the tuning parameter and series; the probe-map value;
-  the heatmap row order; tiles per page, font size, SEM, stop marks, legend,
-  grid, y limits, heat colours. **Default event / window / selection**:
+  the heatmap and unit-correlation row order; the unit correlation's epoch
+  rate (mean or peak; bins apply to peak) and correlation (Pearson or
+  Spearman); tiles per page, font size, SEM, stop marks, legend,
+  grid, y limits, heat colours (*auto*: parula, or blueWhiteRed for unit
+  correlations). **Default event / window / selection**:
   untick one to give the plot its own, in the panels below (the same
   controls as the Alignment tab).
 - The preview: on the active dataset, through the runner. **Preview** always

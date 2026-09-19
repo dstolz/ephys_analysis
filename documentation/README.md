@@ -85,6 +85,7 @@ flowchart LR
     DS -- behaviorToMat --> BMAT[(_behavior.mat)]
     DS -- exportChronux --> CHX[(_chronux.mat)]
     DS -- exportFieldTrip --> FTX[(_fieldtrip.mat)]
+    DS -- exportEpochs --> EPO[(_epochs.mat)]
     MAT -.-> DOUT
     SPK -.-> DOUT
     BMAT -.-> DOUT
@@ -133,6 +134,8 @@ U   = ds.readSortedUnits();          % the sorted units (phy labels, times, chan
 out = ds.toMat(SignalOptions=struct('dataTypeOut', ["LFP" "MUA"]));
 out = ds.spikesToMat(Source="both");
 out = ds.exportChronux();  out = ds.exportFieldTrip();
+E   = ds.eventEpochs(EventSource="behavior");   % the same data, one epoch per trial
+out = ds.exportEpochs();                        % E, saved as _epochs.mat
 ```
 
 Chronux spectra from the export (needs [Chronux](http://chronux.org) on the path):
@@ -312,6 +315,7 @@ test_EphysPipeline       % one suite
 | `test_DatasetTracker` | the filesystem inventory |
 | `test_ChronuxDataset` | the Chronux connector |
 | `test_FieldTripExport` | the FieldTrip structures |
+| `test_EventEpochs` | the event-organized export: sample alignment, spike windows, the trials table, the behavior source, the epoch settings |
 | `test_EpsychSession` | Epsych2 readers and matching |
 | `test_EphysPipelineConfig`, `test_EphysPipeline`, `test_EphysPipelineScript` | config, runner, scripts |
 | `test_EphysPreprocessingApp` | the GUI's config model, headless |

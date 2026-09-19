@@ -266,7 +266,7 @@ classdef EphysPipelineScript
             L = [L; EphysPipelineScript.stepFooter(cfg.stepEnabled("spikes"))];
 
             % --- export --------------------------------------------------------------
-            L = [L; EphysPipelineScript.stepHeader("Export: analysis-toolbox files",cfg.stepEnabled("export"))];
+            L = [L; EphysPipelineScript.stepHeader("Export: analysis-toolbox and epoch files",cfg.stepEnabled("export"))];
             E = cfg.Export;
             L(end+1, 1) = "formats = " + lit(E.Formats) + ";";
             L(end+1, 1) = "for k = idx";
@@ -288,6 +288,8 @@ classdef EphysPipelineScript
             L(end+1, 1) = "                    r = d.exportChronux('File', outFile, 'Extract', extract, args{:});";
             L(end+1, 1) = "                case ""fieldtrip""";
             L(end+1, 1) = "                    r = d.exportFieldTrip('File', outFile, 'Extract', extract, args{:});";
+            L(end+1, 1) = "                case ""epochs""";
+            L(end+1, 1) = "                    r = d.exportEpochs('File', outFile, 'Extract', extract, args{:});";
             L(end+1, 1) = "                otherwise";
             L(end+1, 1) = "                    error('Unknown export format ""%s"".', fmt);";
             L(end+1, 1) = "            end";

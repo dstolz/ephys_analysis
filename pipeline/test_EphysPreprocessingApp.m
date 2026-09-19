@@ -110,7 +110,7 @@ loaded = app.Config;                       % put back after the every-branch cha
 allOn = loaded;
 allOn.Artifacts.Enabled = true; allOn.Sorting.Enabled = true; allOn.Signals.Enabled = true;
 allOn.Signals.LFP = true; allOn.Signals.MUA = true; allOn.Signals.SPIKE = true; allOn.Signals.AUX = true;
-allOn.Export.Enabled = true; allOn.Export.Formats = ["chronux" "fieldtrip"];
+allOn.Export.Enabled = true; allOn.Export.Formats = ["chronux" "fieldtrip" "epochs"];
 app.applyConfig(allOn);
 full = string(app.FlowHTML.HTMLSource);
 targets = unique(strip(split(join(string(regexp(full, '(?<=data-nav=")[^"]+', 'match')), ","), ",")));
@@ -140,6 +140,22 @@ app.selectTab(app.TabProject);
 g2 = app.gatherConfig();
 check(g2.isequalConfig(app.Config) && isequaln(g2.toStruct(), cfg.toStruct()), 'gatherConfig reproduces the loaded config exactly');
 check(~startsWith(app.Fig.Name, "*") && contains(app.Fig.Name, "gui_test.json"), 'title shows the file and no unsaved marker');
+
+% the Export tab's event-epoch settings, both ways
+app.ExpEpochsCheckBox.Value = true;
+app.ExpEpochSourceDropDown.Value = 'behavior';
+app.ExpEpochPreField.Value = -0.35;
+app.ExpEpochPostField.Value = 0.8;
+app.ExpEpochSpikeBaseDropDown.Value = 'window';
+app.ExpEpochIncompleteDropDown.Value = 'drop';
+gE = app.gatherExportSection();
+check(any(gE.Formats == "epochs") && gE.EpochSource == "behavior" && isequal(gE.EpochWindow, [-0.35 0.8]) ...
+    && gE.EpochSpikeTimeBase == "window" && gE.EpochIncomplete == "drop", ...
+    'the Export tab''s epoch settings reach the Export section');
+app.applyExportSection(app.Config.Export);
+check(~app.ExpEpochsCheckBox.Value && strcmp(app.ExpEpochSourceDropDown.Value, 'line') ...
+    && app.ExpEpochPreField.Value == -0.2 && strcmp(app.ExpEpochIncompleteDropDown.Value, 'nan'), ...
+    'applyExportSection puts the epoch settings back');
 
 fprintf('\n== 1b. Help menu: wiki pages ==\n');
 items = flip(string({app.HelpMenu.Children.Text}));

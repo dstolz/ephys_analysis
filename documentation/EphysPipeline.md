@@ -24,7 +24,7 @@ cfg.Project.Root = "D:\EPHYS\subj1";
 cfg.Project.OutputRoot = "D:\EPHYS\subj1_out";
 cfg.Signals.Enabled = true;                  % LFP .mat per dataset
 cfg.Spikes.Enabled = true;  cfg.Spikes.Source = "both";
-cfg.Export.Enabled = true;  cfg.Export.Formats = ["chronux" "fieldtrip"];
+cfg.Export.Enabled = true;  cfg.Export.Formats = ["chronux" "fieldtrip" "epochs"];
 cfg = cfg.save("D:\EPHYS\subj1\pipeline.json");
 
 pipe = EphysPipeline(cfg);                   % scans Root, restores manifests
@@ -55,7 +55,7 @@ returns the defaults and is the single source of truth for field names.
 | `Sorting` | `sorting` | `Enabled`, `Engine` (`"spikeinterface"`: `runSpikeInterface`; `"kilosort"`: `runKilosort`, native Kilosort4 on a `.bin` with the artifact periods zeroed and no SpikeInterface preprocessing), `PythonExe`, `CondaEnv`, `Execution` (`"background"` or `"blocking"`), `DryRun`, `SkipExisting`, `SI` (the [SpikeInterface settings](EphysDataset.md#default-spikeinterface-configuration)), `KS4` (one typed field per `kilosortParamSpec` entry), `KS4ExtraJSON` |
 | `Signals` | `signals` | `Enabled`, `OutputDir`, `Suffix` (`"_extract"`), `SeparateFiles` (`true`: `<Name><Suffix>_<TYPE>.mat` per signal type), `MatVersion`, `Overwrite`, `LFP` / `MUA` / `SPIKE`, `LFP_Fs`, `LFP_HighpassOn/Hz`, `LFP_LowpassOn/Hz`, `LFP_NotchOn/Hz/BW`, `MUA_Fs`, `MUA_IntegrationHz`, `MUA_bpLoHi`, `SPIKE_KeepOriginal`, `SPIKE_Fs`, `SPIKE_bpLoHi`, `LabelField` (`"custom"` or `"native"`: which name labels channels, aux inputs and digital lines), `LineNames` (`"native=name"` entries naming digital lines, e.g. `"TTL4=InTrial"`; see [line names](#digital-line-names)), `InvertedLines` (digital lines with inverted polarity: onset = falling edge; see [polarity](#digital-line-polarity)), `KeepChannels`, `BadMode`, `BadThreshold`, `BadList`, `ChannelRemap`, `ExcludeHandling` (`"none"`, `"drop"`, `"interpolate"`: what to do with the manifest's excluded channels) |
 | `Spikes` | `spikes` | `Enabled`, `Source` (`"detect"`, `"sorted"`, `"both"`), the `detectSpikes` options (`Filter`, `Band`, `FilterOrder`, `Polarity`, `ThresholdMethod`, `Threshold` (`NaN` = the method's default), `Align`, `AlignWindowMs`, `MinPeriodMs`, `MaxAmplitudeUV`, `Waveforms`, `WindowMs`, `WaveformSource`, `EdgeHandling`, `MaxChunkSamples`, `EdgePadMs`), `Channels` (`"all"`, `"excludeManifest"`, `"list"`) + `ChannelList`, `RejectArtifacts`, the sorted-unit options (`Groups`, `IncludeNoise`, `Templates`), `OutputDir`, `Suffix` (`"_spikes"`), `MatVersion`, `Overwrite` |
-| `Export` | `export` | `Enabled`, `Formats` (subset of `["chronux" "fieldtrip"]`), `Signals` (`[]` = every signal in the extract), `IncludeUnits`, `IncludeDetected`, `IncludeEvents`, `Groups`, `Validate`, `OutputDir`, `MatVersion`, `Overwrite` |
+| `Export` | `export` | `Enabled`, `Formats` (subset of `["chronux" "fieldtrip" "epochs"]`), `Signals` (`[]` = every signal in the extract), `IncludeUnits`, `IncludeDetected`, `IncludeEvents`, `Groups`, `Validate`, the epoch settings `EpochSource` (`"line"` / `"behavior"`), `EpochLine`, `EpochWindow` (`[tPre tPost]` s), `EpochOnsetRule`, `EpochIncomplete`, `EpochNonFinite`, `EpochSpikeTimeBase`, `EpochClass`, `OutputDir`, `MatVersion`, `Overwrite` |
 
 `Name` and `Description` are free text. `File` (where the config was loaded
 from or saved to) and `LoadWarnings` are transient.
@@ -286,7 +286,7 @@ step in `EphysPipelineConfig.StepNames` order:
 | `sorting` | `runSorting()` | `runSpikeInterface(ExtraSettings=ks4Settings, SIConfig=, ArtifactIntervals=, DryRun=, Wait=)`, then `writeManifest`. Background runs are listed in `LaunchedRuns` with status `launched` |
 | `signals` | `runSignals()` | `toMat(File=, SeparateFiles=, SignalOptions=, MatVersion=, Overwrite=, ProgressFcn=)` with the configured exclude handling |
 | `spikes` | `runSpikeDetection()` | `spikesToMat(Source=, DetectOptions=, Channels=, ArtifactIntervals=, Groups=, IncludeNoise=, Templates=, ...)` |
-| `export` | `runExport()` | per format `exportChronux(...)` / `exportFieldTrip(...)` from the extract file, with units, detected spikes and events as configured |
+| `export` | `runExport()` | per format `exportChronux(...)` / `exportFieldTrip(...)` / `exportEpochs(...)` from the extract file, with units, detected spikes and events as configured. The `epochs` format organizes the same data by event — one epoch per digital pulse (`EpochSource = "line"`) or per paired trial (`"behavior"`, which also carries the session's trial columns) — over `EpochWindow` ([`EphysDataset.eventEpochs`](EphysDataset.md#event-organized-epoched-data)) |
 
 Each step method can be called directly; it then runs even when the step is
 disabled in the config. Result statuses are `done`, `skipped`, `dry run`,

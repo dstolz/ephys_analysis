@@ -1114,7 +1114,11 @@ structures built by [`FieldTripExport`](FieldTripExport.md). FieldTrip is
 never required; with `Validate=true` (default) the structures are checked with
 `ft_datatype_raw` / `ft_datatype_spike` when FieldTrip is on the path.
 
-Both take the same options:
+**`E = eventEpochs(Name=Value)`** and **`out = exportEpochs(Name=Value)`** are
+the event-organized pair — see
+[Event-organized (epoched) data](#event-organized-epoched-data) below.
+
+The Chronux and FieldTrip exporters take the same options:
 
 | Option | Default | Meaning |
 | --- | --- | --- |
@@ -1129,6 +1133,63 @@ Both take the same options:
 
 The two toolboxes are independent: neither export is built from the other,
 and nothing analysis-related is run.
+
+#### Event-organized (epoched) data
+
+**`E = eventEpochs(Name=Value)`** cuts the same data into one epoch per event
+and returns it as one struct, aligned trial by trial;
+**`out = exportEpochs(Name=Value)`** saves that struct as
+`<outputFolder>/<Name>_epochs.mat`
+([schema](file-formats.md#epoch-export-ephysdatasetexportepochs-the-export-step)),
+and the app's **Epochs to workspace** button puts it in the base workspace
+without writing a file. It selects and re-packages: the epochs are cut by
+[`ChronuxDataset.trials`](ChronuxDataset.md#data-params-t-info--cxtrialsonsets-twin-namevalue)
+(continuous) and
+[`ChronuxDataset.spikeTrials`](ChronuxDataset.md#data-params-t-info--cxspiketrialsonsets-twin-namevalue)
+(spike times), so the sample alignment and the half-open spike window are
+exactly the documented ones, and no epoch is dropped by default — a window
+that runs past the recording is padded with `NaN` and flagged.
+
+| Field of `E` | Contents |
+| --- | --- |
+| `event` | `source` (`"line"` / `"behavior"` / `"times"`), `name`, `window`, `onsetRule`, `nEpochs`, `onsets` / `offsets` / `durations`, `recordingRange` (+ its source), `lines`, what the selection dropped, and `pairingStatus` for the behavior source |
+| `trials` | table, one row per epoch: `EpochIndex`, `EpochOnset`, `EpochOffset`, `EpochDuration`, `EpochComplete`, plus `EventIndex` (row in the line's event list) or `BehaviorRow` and every behavior trial column |
+| `signals` | one struct per signal: `data` `[nTime x nEpochs x nChan]`, `t` (seconds relative to the onset), `fs`, `labels`, `units`, `nIncomplete`, `nNonFinite`, `info` (`keptTrials` names the epochs the data holds) |
+| `units` | `1 x nUnits`: `id`, `label`, `class`, `group`, `channel`, `channelName`, `times` (`1 x nEpochs` cell), `counts` |
+| `detected` | the same per detected channel (`channel`, `channelName`, `times`, `counts`), or `[]` |
+| `spikes`, `behavior`, `meta` | how the spike times are stamped; the session and pairing the events came from; provenance |
+
+| Option | Default | Meaning |
+| --- | --- | --- |
+| `EventSource` | `"line"` | `"line"` (a digital-input line), `"behavior"` (the paired Epsych2 trials, whose columns ride along), `"times"` (`Times=`, epoched in the order given) |
+| `EventLine` | `""` | the line; blank uses `TrialConfig.TrialLine` when the extract has it, else the only line |
+| `Behavior` | `<Name>_behavior.mat`, else the associated session with its recorded pairing | a behavior file or a `behaviorStruct`; a pairing that is not approved warns (`EphysDataset:eventEpochs:PairingNotApproved`) |
+| `Window` | `[-0.2 0.5]` | `[tPre tPost]` seconds around the onset |
+| `OnsetRule` | `"event"` | `"event"` / `"sample"`, as in `ChronuxDataset.trials` |
+| `Incomplete` | `"nan"` | window past the recording: pad with `NaN`, `"drop"` or `"error"` |
+| `NonFinite` | `"keep"` | epoch with `NaN`/`Inf` samples (blanked artifacts): keep, `"drop"` or `"error"` |
+| `SpikeTimeBase` | `"onset"` | `"onset"` (0 at the event), `"window"` (0 at the window start), `"absolute"` |
+| `Class` | `"double"` | `"single"` / `"asis"` for the epoched samples |
+| `MinDurationSec`, `MaxDurationSec` | `0`, `Inf` | pulse-length filter for the `"line"` source |
+| `Extract`, `Signals`, `Units`, `Groups`, `Detected`, `Events` | as above | |
+| `File`, `Overwrite`, `MatVersion` (`exportEpochs`) | `<Name>_epochs.mat`, `false`, `"-v7.3"` | |
+
+With `Incomplete="drop"` or `NonFinite="drop"` a signal holds fewer epochs than
+the trials table has rows, and its `info.keptTrials` names the rows it kept;
+the spike epochs always cover every row.
+
+This is the data itself, organized by event, for an analysis of your own. For
+quick-look figures from the same alignment — PSTHs, evoked potentials, tuning,
+with trial filtering and grouping — use
+[`analysis`](EphysAnalysis.md#event-reference-window-selection), whose
+`epochTable` indexes signals with the same event rule (`round(t*Fs)`).
+
+```matlab
+E = ds.eventEpochs(EventSource="behavior", Window=[-0.2 0.5]);
+lfp = E.signals.LFP.data(:, E.trials.EpochComplete, 1);   % [nTime x nEpochs]
+hit = E.trials.ResponseCode == 1;                         % a session column
+raster = E.units(3).times(hit);                           % spike times per trial
+```
 
 ### Behavior (Epsych2)
 

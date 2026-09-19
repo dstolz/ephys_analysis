@@ -423,8 +423,21 @@ if ismember("fieldtrip", E.Formats)
         "ExpFieldTripCheckBox,ExpValidateCheckBox"), ...
         node("out", "FieldTrip file", [dsName + "_fieldtrip.mat", E.MatVersion], fileTarget)});
 end
+if ismember("epochs", E.Formats)
+    if E.EpochSource == "behavior"
+        around = "around the paired trials";
+    elseif E.EpochLine == ""
+        around = "around the trial line";
+    else
+        around = "around " + E.EpochLine;
+    end
+    kids{end+1} = chain({node("op", "Event epochs", [around, ...
+        sprintf("window [%g %g] s, spike times %s", E.EpochWindow(1), E.EpochWindow(2), E.EpochSpikeTimeBase)], ...
+        "ExpEpochsCheckBox,ExpEpochSourceDropDown,ExpEpochLineField,ExpEpochPreField,ExpEpochPostField"), ...
+        node("out", "Epoch file", [dsName + "_epochs.mat", E.MatVersion], fileTarget)});
+end
 if isempty(kids)
-    kids = {node("off", "Formats", "none ticked", "ExpChronuxCheckBox,ExpFieldTripCheckBox")};
+    kids = {node("off", "Formats", "none ticked", "ExpChronuxCheckBox,ExpFieldTripCheckBox,ExpEpochsCheckBox")};
 end
 n = node("data", "Export inputs", in, "ExpSignalsField,ExpUnitsCheckBox,ExpGroupsField,ExpDetectedCheckBox,ExpEventsCheckBox");
 n.children = kids;

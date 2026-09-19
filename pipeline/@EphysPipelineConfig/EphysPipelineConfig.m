@@ -30,8 +30,9 @@ classdef EphysPipelineConfig
     %                and polarity are also used by the trial pairing
     %     Spikes     Enabled, Source, detection settings, sorted-unit settings,
     %                output settings
-    %     Export     Enabled, Formats (analysis-toolbox formats, a subset of
-    %                ExportFormats), what to include
+    %     Export     Enabled, Formats (a subset of ExportFormats: the
+    %                analysis-toolbox files and the event-organized epochs),
+    %                what to include, the Epoch* settings of the epoch format
     %
     %   Usage
     %     cfg = EphysPipelineConfig();                 % defaults
@@ -78,9 +79,10 @@ classdef EphysPipelineConfig
         StepNames = ["probe" "behavior" "artifacts" "sorting" "signals" "spikes" "export"]
         % Section that holds each step's settings.
         StepSections = ["Probe" "Behavior" "Artifacts" "Sorting" "Signals" "Spikes" "Export"]
-        % Export formats the Export step can write, one per analysis
-        % toolbox. Each has an EphysDataset.export<Format> method.
-        ExportFormats = ["chronux" "fieldtrip"]
+        % Export formats the Export step can write: one per analysis
+        % toolbox, plus "epochs", the same data organized by event. Each has
+        % an EphysDataset.export<Format> method.
+        ExportFormats = ["chronux" "fieldtrip" "epochs"]
         % Kilosort4 parameters that depend on the probe layout: what
         % ks4ProbeDefaults derives and what a probe's parameter file holds
         % when it is created from the Sorting tab.
@@ -326,6 +328,8 @@ classdef EphysPipelineConfig
 
         function o = exportOptions(e, fmt)
             %exportOptions  Name-value struct for the export<Format> method of FMT.
+            %   The shared options, plus Validate (fieldtrip) or the Epoch*
+            %   settings under the epoch exporter's own names (epochs).
             e = EphysPipelineConfig.normalizeSection("Export", e);
             o = struct();
             if ~isempty(e.Signals); o.Signals = e.Signals; end
@@ -337,6 +341,16 @@ classdef EphysPipelineConfig
             o.MatVersion = e.MatVersion;
             if nargin > 1 && string(fmt) == "fieldtrip"
                 o.Validate = logical(e.Validate);
+            end
+            if nargin > 1 && string(fmt) == "epochs"
+                o.EventSource   = e.EpochSource;
+                o.EventLine     = e.EpochLine;
+                o.Window        = e.EpochWindow;
+                o.OnsetRule     = e.EpochOnsetRule;
+                o.Incomplete    = e.EpochIncomplete;
+                o.NonFinite     = e.EpochNonFinite;
+                o.SpikeTimeBase = e.EpochSpikeTimeBase;
+                o.Class         = e.EpochClass;
             end
         end
 

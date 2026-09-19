@@ -98,7 +98,7 @@ switch cfg.Spikes.Source
     otherwise;     w(6) = "threshold detection + sorted units .mat";
 end
 
-fmts = replace(cfg.Export.Formats, ["chronux" "fieldtrip"], ["Chronux" "FieldTrip"]);
+fmts = replace(cfg.Export.Formats, ["chronux" "fieldtrip" "epochs"], ["Chronux" "FieldTrip" "event epoch"]);
 if isempty(fmts)
     w(7) = "no format ticked";
 else

@@ -634,7 +634,29 @@ Default `<outputFolder>/<Name>_fieldtrip.mat`. Structures follow
 | `event` | event struct array at the recording rate |
 | `export` | `tool`, `created`, `dataset`, `sources`, `signals`, `eventFs`, `validation` |
 
-All five `.mat` writers save to `~<name>.partial.mat` and rename only after a
+## Epoch export (`EphysDataset.exportEpochs`; the Export step)
+
+Default `<outputFolder>/<Name>_epochs.mat`: the same recorded samples and spike
+times as the other exports, cut into one epoch per event
+([`EphysDataset.eventEpochs`](EphysDataset.md#event-organized-epoched-data)).
+Nothing is averaged, smoothed or resampled.
+
+| Variable | Contents |
+| --- | --- |
+| `epochs` | `event` (source, name, window, onsets / offsets / durations, recording range, what was dropped), `trials` (one row per epoch: `EpochIndex`, `EpochOnset`, `EpochOffset`, `EpochDuration`, `EpochComplete`, plus `EventIndex` or `BehaviorRow` and the behavior trial columns), `signals` (per signal: `data` `[nTime x nEpochs x nChan]`, `t` relative to the onset, `fs`, `labels`, `units`, `info`), `units` (per unit: `id`, `label`, `class`, `group`, `channel`, `times` `{1 x nEpochs}`, `counts`), `detected`, `spikes` (the stamping rule), `behavior`, `meta` |
+| `export` | `tool`, `created`, `dataset`, `sources`, `signals`, `eventSource`, `eventName`, `window`, `nEpochs`, the policies applied and the time conventions |
+
+The same alignment drives the [`analysis`](EphysAnalysis.md) figures, which
+index signals with the same event rule; this file is for taking the aligned
+data elsewhere.
+
+Epoch *i* of a signal holds rows `base(i)+round(tPre*Fs) … base(i)+round(tPost*Fs)`
+with `base(i) = round(onset*Fs)` (`EpochOnsetRule = "event"`); samples outside
+the recording are `NaN` and `EpochComplete` is false for that row. A spike
+belongs to epoch *i* when `t > onset+tPre` and `t <= onset+tPost`, stamped by
+`epochs.spikes.timeBase` (`"onset"`: 0 at the event).
+
+All six `.mat` writers save to `~<name>.partial.mat` and rename only after a
 warning-free `save()` in which every variable is confirmed present
 (`EphysDataset.saveAtomically`).
 

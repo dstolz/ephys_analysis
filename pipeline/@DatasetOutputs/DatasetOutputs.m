@@ -1,9 +1,9 @@
 classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
     % DatasetOutputs  One dataset's processed files, found once and loaded on demand.
     %   A DatasetOutputs keeps track of every file the pipeline writes for one
-    %   dataset -- derived signals, spikes, analysis-toolbox exports,
-    %   sorted units, the Epsych2 behavior session, the manifest and the
-    %   artifact cache -- wherever they live, and loads each one only when its
+    %   dataset -- derived signals, spikes, analysis-toolbox and epoch
+    %   exports, sorted units, the Epsych2 behavior session, the manifest and
+    %   the artifact cache -- wherever they live, and loads each one only when its
     %   property is read:
     %
     %     out = ds.outputs();                  % from an EphysDataset
@@ -25,6 +25,7 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
     %     spikes     detected + units + conversion (spikesToMat)
     %     chronux    export + sp                   (exportChronux)
     %     fieldtrip  export + event / spike / data_* (exportFieldTrip)
+    %     epochs     export + epochs               (exportEpochs)
     %     behavior   behavior + conversion         (behaviorToMat)
     %   A file whose provenance struct (conversion / export) names another
     %   dataset is skipped. <Name>_manifest.json and <Name>_artifacts.json are
@@ -43,7 +44,8 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
     %   Manual paths
     %   ------------
     %   The path properties (ExtractFiles, SpikesFile, ChronuxFile,
-    %   FieldTripFile, SortingDir, BehaviorFile, ManifestFile, ArtifactsFile)
+    %   FieldTripFile, EpochsFile, SortingDir, BehaviorFile, ManifestFile,
+    %   ArtifactsFile)
     %   always return the path in effect. Assigning one pins it; assigning ""
     %   returns it to discovery. pathSource(kind) says which applies.
     %
@@ -56,7 +58,8 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
     %                  (Y, info, events, behavior, conversion); newer files win
     %     LFP, MUA, SPIKE, AUX   the toMat-shaped struct of the file holding
     %                  that signal, with Y / info trimmed to it
-    %     Spikes, Chronux, FieldTrip   the file's variables as a struct
+    %     Spikes, Chronux, FieldTrip, Epochs   the file's variables as a struct
+    %                  (Epochs: epochs + export, see EphysDataset.exportEpochs)
     %     Units        readSortedUnits (with a dataset) / readPhyUnits defaults
     %     Behavior     trials, info, meta, file, subject, startTime, nTrials
     %                  (the EphysDataset.behaviorStruct shape), from
@@ -69,7 +72,8 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
     %
     %   See also EphysDataset.outputs, EphysPipeline.outputsFor, DatasetTracker,
     %   EphysDataset.toMat, EphysDataset.spikesToMat, EphysDataset.behaviorToMat,
-    %   EphysDataset.exportChronux, EphysDataset.exportFieldTrip.
+    %   EphysDataset.exportChronux, EphysDataset.exportFieldTrip,
+    %   EphysDataset.exportEpochs.
 
     properties
         Name       (1,1) string = ""      % dataset name; files must start with it
@@ -91,6 +95,7 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
         SpikesFile      % spikesToMat output
         ChronuxFile     % exportChronux output
         FieldTripFile   % exportFieldTrip output
+        EpochsFile      % exportEpochs output (event-organized data)
         SortingDir      % Kilosort4 / phy results folder
         BehaviorFile    % <Name>_behavior.mat, else the Epsych2 session .mat
         ManifestFile    % <Name>_manifest.json
@@ -108,6 +113,7 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
         Units
         Chronux
         FieldTrip
+        Epochs
         Behavior
         Manifest
         Artifacts
@@ -115,18 +121,19 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
     end
 
     properties (Constant)
-        Kinds = ["extract" "spikes" "chronux" "fieldtrip" "sorting" "behavior" "manifest" "artifacts"]
+        Kinds = ["extract" "spikes" "chronux" "fieldtrip" "epochs" "sorting" "behavior" "manifest" "artifacts"]
         SignalTypes = ["LFP" "MUA" "SPIKE" "AUX"]
     end
 
     properties (Constant, Access = private)
         PathProps = ["ExtractFiles" "SpikesFile" "ChronuxFile" "FieldTripFile" ...
-                     "SortingDir" "BehaviorFile" "ManifestFile" "ArtifactsFile"]
+                     "EpochsFile" "SortingDir" "BehaviorFile" "ManifestFile" "ArtifactsFile"]
     end
 
     properties (Access = private)
         Pinned = struct('extract', string.empty(1,0), 'spikes', string.empty(1,0), ...
             'chronux', string.empty(1,0), 'fieldtrip', string.empty(1,0), ...
+            'epochs', string.empty(1,0), ...
             'sorting', string.empty(1,0), 'behavior', string.empty(1,0), ...
             'manifest', string.empty(1,0), 'artifacts', string.empty(1,0))
         Cache = []
@@ -214,9 +221,9 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
 
         function tf = has(obj, kind)
             %has  True when the file (or folder) for KIND exists.
-            %   KIND: "extract" | "spikes" | "chronux" | "fieldtrip" | "sorting"
-            %   | "behavior" | "manifest" | "artifacts" | "LFP" | "MUA" |
-            %   "SPIKE" | "AUX".
+            %   KIND: "extract" | "spikes" | "chronux" | "fieldtrip" |
+            %   "epochs" | "sorting" | "behavior" | "manifest" | "artifacts" |
+            %   "LFP" | "MUA" | "SPIKE" | "AUX".
             kind = string(kind);
             if ismember(upper(kind), DatasetOutputs.SignalTypes)
                 tf = ~isempty(obj.signalFile(upper(kind)));
@@ -299,7 +306,7 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
                     end
                 case {"LFP", "MUA", "SPIKE", "AUX"}
                     S = trimToSignal(loadMat(files, vars), kind);
-                case {"spikes", "chronux", "fieldtrip"}
+                case {"spikes", "chronux", "fieldtrip", "epochs"}
                     S = loadMat(files, vars);
                 case "sorting"
                     S = obj.readUnits();
@@ -379,6 +386,7 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
         function f = get.SpikesFile(obj);    f = obj.resolve("spikes");    end
         function f = get.ChronuxFile(obj);   f = obj.resolve("chronux");   end
         function f = get.FieldTripFile(obj); f = obj.resolve("fieldtrip"); end
+        function f = get.EpochsFile(obj);    f = obj.resolve("epochs");    end
         function f = get.SortingDir(obj);    f = obj.resolve("sorting");   end
         function f = get.BehaviorFile(obj);  f = obj.resolve("behavior");  end
         function f = get.ManifestFile(obj);  f = obj.resolve("manifest");  end
@@ -388,6 +396,7 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
         function set.SpikesFile(obj, f);    obj.pin("spikes", f);    end
         function set.ChronuxFile(obj, f);   obj.pin("chronux", f);   end
         function set.FieldTripFile(obj, f); obj.pin("fieldtrip", f); end
+        function set.EpochsFile(obj, f);    obj.pin("epochs", f);    end
         function set.SortingDir(obj, f);    obj.pin("sorting", f);   end
         function set.BehaviorFile(obj, f);  obj.pin("behavior", f);  end
         function set.ManifestFile(obj, f);  obj.pin("manifest", f);  end
@@ -403,6 +412,7 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
         function S = get.Units(obj);     S = obj.load("sorting");   end
         function S = get.Chronux(obj);   S = obj.load("chronux");   end
         function S = get.FieldTrip(obj); S = obj.load("fieldtrip"); end
+        function S = get.Epochs(obj);    S = obj.load("epochs");    end
         function S = get.Behavior(obj);  S = obj.load("behavior");  end
         function S = get.Manifest(obj);  S = obj.load("manifest");  end
         function S = get.Artifacts(obj); S = obj.load("artifacts"); end
@@ -569,7 +579,7 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
         function s = getFooter(obj)
             if ~isscalar(obj); s = ''; return; end
             s = sprintf(['  Load on demand: Extract, LFP, MUA, SPIKE, AUX, Spikes, Units, ' ...
-                'Chronux, FieldTrip, Behavior, Manifest, Artifacts\n' ...
+                'Chronux, FieldTrip, Epochs, Behavior, Manifest, Artifacts\n' ...
                 '  See inventory(), has(kind), load(kind, vars...), readUnits(...)\n']);
         end
     end
@@ -626,7 +636,9 @@ function [kind, prov] = classifyMat(file)
 %classifyMat  Output kind of a .mat from its variable names ("" = not ours).
 kind = ""; prov = "";
 v = matVars(file);
-if ismember("export", v) && any(ismember(["sp" "spDetected"], v))
+if all(ismember(["export" "epochs"], v))
+    kind = "epochs"; prov = "export";
+elseif ismember("export", v) && any(ismember(["sp" "spDetected"], v))
     kind = "chronux"; prov = "export";
 elseif ismember("export", v) && (any(ismember(["event" "spike" "spikeDetected"], v)) ...
         || any(startsWith(v, "data_")))

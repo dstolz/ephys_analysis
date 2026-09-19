@@ -19,7 +19,7 @@ classdef EphysPipeline < handle
     %     sorting    runSorting         SpikeInterface + Kilosort4 (runSpikeInterface)
     %     signals    runSignals         derived LFP/MUA/SPIKE/AUX .mat (toMat)
     %     spikes     runSpikeDetection  detected and/or sorted spikes .mat (spikesToMat)
-    %     export     runExport          analysis-toolbox files (Export.Formats)
+    %     export     runExport          analysis-toolbox / epoch files (Export.Formats)
     %   Each step method can be called directly (it then runs even if the
     %   step is disabled in the config).
     %
@@ -199,6 +199,8 @@ classdef EphysPipeline < handle
                     f = fullfile(dirOr(c.Export.OutputDir, d), d.Name + "_chronux.mat");
                 case "export:fieldtrip"
                     f = fullfile(dirOr(c.Export.OutputDir, d), d.Name + "_fieldtrip.mat");
+                case "export:epochs"
+                    f = fullfile(dirOr(c.Export.OutputDir, d), d.Name + "_epochs.mat");
                 case "sorting"
                     f = string(d.kilosortDir());
                 case "artifacts"

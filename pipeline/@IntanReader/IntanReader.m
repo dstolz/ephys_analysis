@@ -33,10 +33,12 @@ classdef IntanReader < EphysReader
         X    = readSplitWindow(obj, sampleOffset, nSamp)
         L    = splitLayout(obj)
 
-        function obj = IntanReader(folder)
+        function obj = IntanReader(folder, options)
             arguments
                 folder (1,1) string = ""
+                options struct = struct()   % reader options (unused by Intan)
             end
+            obj.Options = options;
             if folder == ""; return; end
             obj.Folder = string(folder);
             [~, leaf] = fileparts(char(obj.Folder));
@@ -95,17 +97,26 @@ classdef IntanReader < EphysReader
     methods (Static)
         hdr = parseIntanHeader(ffn)
 
+        function nums = channelNumbersFor(nativeNames, where)
+            %channelNumbersFor  Hardware numbers from native names ("A-012" -> 12).
+            %   A multi-port recording repeats numbers (A-000, B-000), so the
+            %   channels are then numbered by position (see
+            %   EphysReader.checkChannelNumbers).
+            nums = EphysReader.checkChannelNumbers(EphysReader.trailingNumbers(nativeNames), where);
+        end
+
         function tf = claims(folder)
             %claims  True when FOLDER holds an Intan recording in any layout.
             tf = IntanReader.detectFormat(folder) ~= "unknown";
         end
 
-        function folders = findRecordingFolders(root, recursive)
+        function folders = findRecordingFolders(root, recursive, options) %#ok<INUSD>
             %findRecordingFolders  Folders directly containing >=1 *.rhd file.
             %   info.rhd matches too, so the split layouts are found as well.
             arguments
                 root (1,1) string
                 recursive (1,1) logical = true
+                options struct = struct()
             end
             folders = string.empty(1, 0);
             if ~isfolder(root); return; end

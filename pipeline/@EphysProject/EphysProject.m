@@ -1,5 +1,5 @@
 classdef EphysProject < handle
-    % EphysProject  Discover and batch many Intan recordings to Kilosort4.
+    % EphysProject  Discover and batch many recordings to Kilosort4.
     %   A project scans a root directory for recording folders (any reader),
     %   wraps each as an EphysDataset, and provides batch operations: gather
     %   metadata into a table, write all .bin files, and launch Kilosort4 for
@@ -41,6 +41,11 @@ classdef EphysProject < handle
         % discover() searches every sub-folder of Root; false = only Root
         % and the folders directly in it.
         Recursive (1,1) logical = true
+
+        % Reader options (the pipeline config's Acquisition section), used
+        % to find the recordings (Open Ephys recording modes) and pushed into
+        % every dataset.
+        ReaderOptions struct = struct()
     end
 
     properties (Dependent)
@@ -65,6 +70,7 @@ classdef EphysProject < handle
                 opts.Dtype      (1,1) string = "int16"
                 opts.NamePattern (1,1) string = EphysDataset.DefaultNamePattern
                 opts.Recursive  (1,1) logical = true
+                opts.ReaderOptions struct = struct()
                 opts.Manifest   = []
                 opts.AutoDiscover (1,1) logical = true
             end
@@ -85,6 +91,7 @@ classdef EphysProject < handle
             obj.Dtype      = opts.Dtype;
             obj.NamePattern = opts.NamePattern;
             obj.Recursive  = opts.Recursive;
+            obj.ReaderOptions = opts.ReaderOptions;
             if ~isempty(opts.Manifest)
                 obj.Manifest = opts.Manifest;
             end
@@ -101,17 +108,21 @@ classdef EphysProject < handle
             %   delegated to the EphysReader registry (as in DatasetTracker) so
             %   the project and the tracker agree on what counts as a recording.
             %   With Recursive false only Root and the folders directly in it
-            %   are recordings; deeper folders are not searched.
+            %   are recordings; deeper folders are not searched. ReaderOptions
+            %   decide what a recording folder is where a format allows
+            %   several (Open Ephys recording modes).
+            opt = obj.ReaderOptions;
             if obj.Recursive
-                folders = EphysReader.findAllRecordingFolders(obj.Root, true);
+                folders = EphysReader.findAllRecordingFolders(obj.Root, true, Options=opt);
             else
                 sub = dir(obj.Root);
                 sub = sub([sub.isdir] & ~ismember({sub.name}, {'.', '..'}));
-                folders = EphysReader.findAllRecordingFolders(obj.Root, false);
+                folders = EphysReader.findAllRecordingFolders(obj.Root, false, Options=opt);
                 for k = 1:numel(sub)
                     folders = [folders, EphysReader.findAllRecordingFolders( ...
-                        string(fullfile(sub(k).folder, sub(k).name)), false)]; %#ok<AGROW>
+                        string(fullfile(sub(k).folder, sub(k).name)), false, Options=opt)]; %#ok<AGROW>
                 end
+                folders = unique(folders, 'stable');
             end
             if isempty(folders)
                 obj.Datasets = EphysDataset.empty(1,0);
@@ -122,7 +133,7 @@ classdef EphysProject < handle
 
             ds = EphysDataset.empty(1, 0);
             for i = 1:numel(folders)
-                d = EphysDataset(folders(i), AutoMetadata=false);
+                d = EphysDataset(folders(i), AutoMetadata=false, ReaderOptions=obj.ReaderOptions);
                 obj.pushConfig(d);
                 ds(end+1) = d; %#ok<AGROW>
             end
@@ -145,6 +156,7 @@ classdef EphysProject < handle
             d.Scale     = obj.Scale;
             d.Dtype     = obj.Dtype;
             d.NamePattern = obj.NamePattern;
+            d.ReaderOptions = obj.ReaderOptions;
             d.DatasetKey  = EphysProject.relativeKey(obj.Root, d.Folder);
             if ~isempty(obj.Manifest)
                 d.Manifest = obj.Manifest;

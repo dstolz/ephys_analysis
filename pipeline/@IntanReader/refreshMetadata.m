@@ -52,7 +52,9 @@ for i = 1:obj.NumFiles
         obj.NumChannels  = hdr.numAmplifierChannels;
         obj.ChannelNames = hdr.channelNames;
         obj.NativeNames  = hdr.nativeNames;
+        obj.ChannelNumbers = IntanReader.channelNumbersFor(hdr.nativeNames, obj.Folder);
         obj.DigInNames   = hdr.digInNames;
+        obj.DigInNativeNames = hdr.digInNativeNames;
     elseif hdr.numAmplifierChannels ~= firstNumChan
         error('IntanReader:refreshMetadata:ChannelMismatch', ...
             ['Amplifier channel count changed mid-dataset (%d -> %d) at %s. ', ...
@@ -96,7 +98,9 @@ obj.Fs           = L.Fs;
 obj.NumChannels  = L.nChan;
 obj.ChannelNames = L.ampCustom;
 obj.NativeNames  = L.ampNative;
+obj.ChannelNumbers = IntanReader.channelNumbersFor(L.ampNative, obj.Folder);
 obj.DigInNames   = L.digInNames;
+obj.DigInNativeNames = L.digInNative;
 
 nSamp = L.nSamp;
 obj.PerFile = struct( ...

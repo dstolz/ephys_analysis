@@ -18,7 +18,8 @@ drawnow;
 try
     % Discovery is cheap (AutoMetadata=false per folder inside discover()).
     obj.Config = obj.gatherConfig();
-    P = EphysProject(root, Recursive=obj.Config.Project.Recursive);
+    P = EphysProject(root, Recursive=obj.Config.Project.Recursive, ...
+        ReaderOptions=obj.Config.Acquisition);
 
     % Push the config's shared settings (python / output root / SI / artifacts).
     EphysPipeline.applyConfigToDatasets(obj.Config, P);
@@ -52,13 +53,33 @@ try
     obj.populateDatasetPickers();
     obj.syncStepEnableStates();
     obj.ScanStatusLabel.Text = sprintf("Found %d dataset(s) under %s", n, root);
-    obj.setStatus(sprintf("Scanned %s: found %d dataset(s).", root, n));
+    obj.setStatus(sprintf("Scanned %s: found %d dataset(s).", root, n), namePatternHint(P, obj.Config.Project.NamePattern));
 catch ME
     if isvalid(dlg); close(dlg); end
     uialert(obj.Fig, ME.message, "Scan failed");
     obj.setStatus("Scan failed: " + string(ME.message), ...
         "Check the parent folder path and try Scan again.");
 end
+end
+
+
+function hint = namePatternHint(P, pattern)
+%namePatternHint  Suggest the Open Ephys name pattern when Open Ephys
+%   session names do not match the current one.
+hint = "";
+oe = arrayfun(@(d) ~isempty(d.Reader) && d.Reader.Kind == "openephys", P.Datasets);
+if ~any(oe); return; end
+ok = true(1, 0);
+for d = P.Datasets(oe)
+    try
+        [~, ~, ok(end+1)] = parseNameTokens(d.Name, pattern); %#ok<AGROW>
+    catch
+        return
+    end
+end
+if all(ok); return; end
+hint = sprintf("%d Open Ephys session name(s) do not match the name pattern; Open Ephys folders match %s.", ...
+    nnz(~ok), OpenEphysReader.DefaultNamePattern);
 end
 
 

@@ -85,7 +85,7 @@ if ispref(g, 'CopyOptions')
     if isstruct(v)
         applyIf(v, 'subject',    @(x) set(obj.CopySubjectField, 'Value', char(x)));
         applyIf(v, 'epsychRoot', @(x) set(obj.CopyEpsychRootField, 'Value', char(x)));
-        applyIf(v, 'intanRoot',  @(x) set(obj.CopyIntanRootField, 'Value', char(x)));
+        applyIf(v, 'recordingRoots', @(x) set(obj.CopyRecordingRootsField, 'Value', char(x)));
         applyIf(v, 'destRoot',   @(x) set(obj.CopyDestRootField, 'Value', char(x)));
         applyIf(v, 'maxLeadMin', @(x) set(obj.CopyMaxLeadField, 'Value', x));
         applyIf(v, 'maxLagMin',  @(x) set(obj.CopyMaxLagField, 'Value', x));

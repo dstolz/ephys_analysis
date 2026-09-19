@@ -60,7 +60,7 @@ else
 end
 plan = d.streamPlan(Files=planFiles);
 if isempty(plan)
-    uialert(obj.Fig, "No Intan data to read for this dataset.", "Visualize");
+    uialert(obj.Fig, "No recording data to read for this dataset.", "Visualize");
     return
 end
 

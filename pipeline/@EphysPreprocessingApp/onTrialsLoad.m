@@ -26,7 +26,7 @@ if isempty(obj.TrialsEvents) || obj.TrialsEventsIdx ~= idx
         "Message", "Reading the digital lines of " + d.Name + " ...", "Indeterminate", "on");
     closer = onCleanup(@() close(dlg));
     try
-        obj.TrialsEvents = d.digitalEvents(ProgressFcn=@(i, n, name) progress(dlg, i, n, name));
+        obj.TrialsEvents = d.digitalEvents(Relabel=false, ProgressFcn=@(i, n, name) progress(dlg, i, n, name));
         obj.TrialsEventsIdx = idx;
     catch ME
         delete(closer);

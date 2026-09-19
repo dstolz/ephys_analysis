@@ -13,7 +13,7 @@ end
 s = CopySchedule.defaults();
 s.Subjects = subjects;
 s.EpsychRoot = string(obj.CopyEpsychRootField.Value);
-s.IntanRoot = string(obj.CopyIntanRootField.Value);
+s.RecordingRoots = obj.copyRecordingRoots();
 s.DestRoot = string(obj.CopyDestRootField.Value);
 s.MaxLeadMin = obj.CopyMaxLeadField.Value;
 s.MaxLagMin = obj.CopyMaxLagField.Value;

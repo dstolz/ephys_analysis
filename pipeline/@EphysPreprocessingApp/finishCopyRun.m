@@ -27,6 +27,8 @@ end
 
 function openAsProject(obj, sessionDirs)
 %openAsProject  Scan the folder holding SESSIONDIRS as the project; make the first one active.
+%   The first dataset is the session folder itself or, for an Open Ephys
+%   session split into one dataset per recording, its first part folder.
 parents = unique(arrayfun(@(d) string(fileparts(d)), sessionDirs));
 root = parents(1);
 if numel(parents) > 1
@@ -40,7 +42,7 @@ obj.onScan();
 P = obj.Project;
 if isempty(P) || P.NumDatasets == 0; return; end
 folders = arrayfun(@(d) string(d.Folder), P.Datasets);
-idx = find(strcmpi(folders, sessionDirs(1)), 1);
+idx = find(strcmpi(folders, sessionDirs(1)) | startsWith(lower(folders), lower(sessionDirs(1) + filesep)), 1);
 if ~isempty(idx)
     obj.selectDataset(idx);
 end

@@ -295,7 +295,9 @@ else
 end
 ev = "[t_on t_off] s per line";
 if ~isempty(G.InvertedLines); ev(end+1) = "inverted: " + join(G.InvertedLines, ", "); end
-branches{5} = chain({node("stage", "Digital inputs", "named by " + G.LabelField, "ConvLabelFieldDropDown"), ...
+named = G.LabelField + " names";
+if ~isempty(G.LineNames); named = [named, numel(G.LineNames) + " renamed (Trials tab)"]; end
+branches{5} = chain({node("stage", "Digital inputs", named, "ConvLabelFieldDropDown"), ...
     node("op", "Edge detection", ev, "TrialsLinesTable"), ...
     node("out", "Events", "in every extract file", "ConvLabelFieldDropDown")});
 

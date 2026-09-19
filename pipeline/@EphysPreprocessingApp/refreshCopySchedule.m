@@ -109,7 +109,7 @@ txt = strjoin(parts, " ");
 lines = strings(0, 1);
 if ~isempty(s)
     lines(end+1) = "Subjects: " + strjoin(s.Subjects, ", ");
-    lines(end+1) = "From: " + s.EpsychRoot + " (ePsych), " + s.IntanRoot + " (Intan)";
+    lines(end+1) = "From: " + s.EpsychRoot + " (ePsych), " + strjoin(s.RecordingRoots, "; ") + " (recordings)";
     lines(end+1) = "To: " + s.DestRoot;
     lines(end+1) = sprintf("Sessions of the last %d day(s), quiet for %g min; Verify %s; If it exists %s%s", ...
         s.LookBackDays, s.QuietMin, s.Verify, s.IfExists, ternary(s.IncludeUnpaired, "; unpaired included", ""));

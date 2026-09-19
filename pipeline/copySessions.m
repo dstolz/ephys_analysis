@@ -1,9 +1,10 @@
 function [R, job] = copySessions(T, varargin)
-%copySessions  Copy paired source sessions (Intan folder + ePsych file) to local session folders.
+%copySessions  Copy paired source sessions (recording folder + ePsych file) to local session folders.
 %   R = copySessions(T) takes a findCopySessions table and, for each row
-%   it is allowed to copy, copies the Intan recording folder's contents and
-%   the ePsych .mat (original file name kept) into
-%     <DestRoot>/<Subject>/<Intan folder name>/
+%   it is allowed to copy, copies the recording folder's contents (all of
+%   it, whatever the format: an Intan folder, an Open Ephys session with its
+%   Record Nodes) and the ePsych .mat (original file name kept) into
+%     <DestRoot>/<Subject>/<recording folder name>/
 %   then verifies every file and writes session_manifest.json there. The
 %   source is only ever read: nothing in the source tree is modified, renamed,
 %   moved or deleted, and no file already in a destination is overwritten
@@ -14,12 +15,13 @@ function [R, job] = copySessions(T, varargin)
 %   Which rows are copied
 %     paired                     always
 %     stitched                   always (see stitchCopySessions and below)
-%     intan_only / epsych_only   only with IncludeUnpaired=true (an ePsych-only
-%                                row goes to <DestRoot>/<Subject>/<file name without .mat>)
+%     recording_only / epsych_only   only with IncludeUnpaired=true (an
+%                                ePsych-only row goes to
+%                                <DestRoot>/<Subject>/<file name without .mat>)
 %     ambiguous                  never
 %   Pass only the rows you want (e.g. T(sel, :)).
 %
-%   Stitched rows. The Intan folder is copied as usual, but the row's ePsych
+%   Stitched rows. The recording folder is copied as usual, but the row's ePsych
 %   files (StitchFiles) are not: they are joined, in chronological order,
 %   into one Epsych2 session written as <earliest file name>_stitched.mat
 %   (stitchEpsychSessions), so the session folder holds a single behavior
@@ -82,7 +84,7 @@ function [R, job] = copySessions(T, varargin)
 %   file is written (a dry run reports it in the log and Message instead).
 %
 %   Sessions that are still changing. With MinQuietTime, a row whose source
-%   changed more recently than that (any file or folder of the Intan
+%   changed more recently than that (any file or folder of the
 %   recording, or its ePsych file) is "skipped": it may still be being
 %   recorded, or synced to the source, and a later copy takes it. A row
 %   whose session folder another batch is writing at that moment (a copy
@@ -138,7 +140,8 @@ function [R, job] = copySessions(T, varargin)
 %   the plan the engine was given. It is only useful for Background=true.
 %
 %   session_manifest.json holds the source and destination paths, the
-%   session times, DeltaT, the pairing status, every file's size (and
+%   session times, DeltaT, the pairing status, the reader of the recording
+%   (the table's Reader column), every file's size (and
 %   hashes when computed), for a stitched row the stitched file and each
 %   source ePsych file (epsych.stitch), the copy start / finish times, host
 %   name, user name, this function's version and the git commit of this
@@ -229,7 +232,7 @@ function job = planBatch(T, opts)
 MANIFEST = "session_manifest.json";
 ROBOLOG = "session_copy_robocopy.log";
 
-need = ["Subject", "IntanDir", "IntanTime", "EpsychFile", "EpsychTime", "DeltaT", "Status", "StitchFiles"];
+need = ["Subject", "RecordingDir", "RecordingTime", "Reader", "EpsychFile", "EpsychTime", "DeltaT", "Status", "StitchFiles"];
 missing = need(~ismember(need, string(T.Properties.VariableNames)));
 if ~isempty(missing)
     error('copySessions:BadTable', 'The session table is missing column(s): %s.', strjoin(missing, ", "));
@@ -240,7 +243,7 @@ job.IsCopyJob = true;
 job.Opts = opts;
 job.Manifest = MANIFEST;
 job.Robolog = ROBOLOG;
-job.Version = "2.0.0";
+job.Version = "3.0.0";
 job.State = "planning";
 job.Done = false;
 job.Dir = "";
@@ -258,7 +261,8 @@ if isempty(job.CancelFcn); job.CancelFcn = @() false; end
 n = height(T);
 R = T;
 R.Subject = string(R.Subject);
-R.IntanDir = string(R.IntanDir);
+R.RecordingDir = string(R.RecordingDir);
+R.Reader = string(R.Reader);
 R.EpsychFile = string(R.EpsychFile);
 R.Status = string(R.Status);
 R.DestDir = strings(n, 1);
@@ -277,8 +281,9 @@ wasPresent = false(n, 1);    % every file was already there
 
 for r = 1:n
     try
-        if R.IntanDir(r) ~= ""
-            [~, name] = fileparts(R.IntanDir(r));
+        if R.RecordingDir(r) ~= ""
+            [~, name, ext] = fileparts(R.RecordingDir(r));
+            name = name + ext;   % a folder name may hold a dot
         else
             [~, name] = fileparts(R.EpsychFile(r));
         end
@@ -288,22 +293,22 @@ for r = 1:n
         if st == "ambiguous"
             [R.CopyStatus(r), R.Message(r)] = deal("skipped", "ambiguous pairing: resolve it by hand, never copied");
             continue
-        elseif any(st == ["intan_only", "epsych_only"]) && ~opts.IncludeUnpaired
+        elseif any(st == ["recording_only", "epsych_only"]) && ~opts.IncludeUnpaired
             [R.CopyStatus(r), R.Message(r)] = deal("skipped", st + " row (IncludeUnpaired is false)");
             continue
-        elseif ~any(st == ["paired", "stitched", "intan_only", "epsych_only"])
+        elseif ~any(st == ["paired", "stitched", "recording_only", "epsych_only"])
             [R.CopyStatus(r), R.Message(r)] = deal("skipped", "unknown pairing status """ + st + """");
             continue
         end
         parts = string(R.StitchFiles{r});
-        if (st == "paired" && (R.IntanDir(r) == "" || R.EpsychFile(r) == "")) ...
-                || (st == "stitched" && (R.IntanDir(r) == "" || numel(parts) < 2)) ...
-                || (st == "intan_only" && R.IntanDir(r) == "") || (st == "epsych_only" && R.EpsychFile(r) == "")
+        if (st == "paired" && (R.RecordingDir(r) == "" || R.EpsychFile(r) == "")) ...
+                || (st == "stitched" && (R.RecordingDir(r) == "" || numel(parts) < 2)) ...
+                || (st == "recording_only" && R.RecordingDir(r) == "") || (st == "epsych_only" && R.EpsychFile(r) == "")
             [R.CopyStatus(r), R.Message(r)] = deal("failed", "the row's paths do not match its status " + st);
             continue
         end
 
-        [items{r}, subdirs{r}, stitches{r}, groups{r}, err] = listSources(R.IntanDir(r), R.EpsychFile(r), parts, st);
+        [items{r}, subdirs{r}, stitches{r}, groups{r}, err] = listSources(R.RecordingDir(r), R.EpsychFile(r), parts, st);
         if err ~= ""
             [R.CopyStatus(r), R.Message(r)] = deal("failed", err);
             continue
@@ -928,8 +933,8 @@ end
 % the plan of one row
 % =============================================================================
 
-function [items, subdirs, stitch, groups, err] = listSources(intanDir, epsychFile, stitchFiles, status)
-%listSources  Source files (src, rel, bytes, isEpsych), Intan subfolders to create,
+function [items, subdirs, stitch, groups, err] = listSources(recDir, epsychFile, stitchFiles, status)
+%listSources  Source files (src, rel, bytes, isEpsych), recording subfolders to create,
 %   the stitch to write for a stitched row ([] otherwise), and the robocopy
 %   groups (one source folder each) that copy them.
 items = struct('src', {}, 'rel', {}, 'bytes', {}, 'isEpsych', {});
@@ -938,12 +943,12 @@ groups = struct('src', {}, 'recurse', {}, 'files', {});
 stitch = [];
 err = "";
 if status ~= "epsych_only"
-    if ~isfolder(intanDir)
-        err = "Intan folder not found: " + intanDir + " (is the source drive mounted?)";
+    if ~isfolder(recDir)
+        err = "Recording folder not found: " + recDir + " (is the source drive mounted?)";
         return
     end
-    D = dir(fullfile(intanDir, '**', '*'));
-    top = dir(intanDir);
+    D = dir(fullfile(recDir, '**', '*'));
+    top = dir(recDir);
     base = top(1).folder;   % as dir spells it, so it prefixes every entry's folder
     for k = 1:numel(D)
         if any(strcmp(D(k).name, {'.', '..'})); continue; end
@@ -956,7 +961,7 @@ if status ~= "epsych_only"
         end
     end
     if isempty(items)
-        err = "the Intan folder holds no files: " + intanDir;
+        err = "the recording folder holds no files: " + recDir;
         return
     end
     groups(end+1) = struct('src', string(base), 'recurse', true, 'files', strings(1, 0));
@@ -974,11 +979,11 @@ if status == "stitched"
     [~, n] = fileparts(stitchFiles(1));
     rel = n + "_stitched.mat";
     if any(strcmpi([items.rel], rel))
-        err = "the Intan folder already holds a file named " + rel;
+        err = "the recording folder already holds a file named " + rel;
         return
     end
     stitch = struct('rel', rel, 'files', stitchFiles(:), 'bytes', bytes);
-elseif status ~= "intan_only"
+elseif status ~= "recording_only"
     if ~isfile(epsychFile)
         err = "ePsych file not found: " + epsychFile + " (is the source drive mounted?)";
         return
@@ -987,7 +992,7 @@ elseif status ~= "intan_only"
     [~, n, x] = fileparts(epsychFile);
     rel = n + x;
     if any(strcmpi([items.rel], rel))
-        err = "the Intan folder already holds a file named " + rel;
+        err = "the recording folder already holds a file named " + rel;
         return
     end
     items(end+1) = struct('src', string(fullfile(D.folder, D.name)), 'rel', rel, 'bytes', D.bytes, 'isEpsych', true);
@@ -1005,7 +1010,7 @@ function t = sourceChanged(items, subdirs, groups, stitch)
 %   which lags behind a folder that changed, and can lag behind a file
 %   that is still being written.
 paths = [items.src];
-if ~isempty(groups) && groups(1).recurse   % the Intan folder and its subfolders
+if ~isempty(groups) && groups(1).recurse   % the recording folder and its subfolders
     paths = [paths, groups(1).src, groups(1).src + filesep + subdirs];
 end
 if ~isempty(stitch)
@@ -1170,12 +1175,12 @@ if isempty(files)
 end
 isEpsych = [files.isEpsych];
 m = struct();
-m.manifestVersion = 2;
+m.manifestVersion = 3;
 m.subject = R.Subject(r);
 m.pairingStatus = R.Status(r);
 m.deltaT_s = durSeconds(R.DeltaT(r));
-m.intan = struct('sourceDir', R.IntanDir(r), 'destDir', dest, 'time', isoTime(R.IntanTime(r)), ...
-    'files', {num2cell(rmfield(files(~isEpsych), 'isEpsych'))});
+m.recording = struct('reader', R.Reader(r), 'sourceDir', R.RecordingDir(r), 'destDir', dest, ...
+    'time', isoTime(R.RecordingTime(r)), 'files', {num2cell(rmfield(files(~isEpsych), 'isEpsych'))});
 eSource = R.EpsychFile(r);
 eDest = "";
 stitchBlock = [];

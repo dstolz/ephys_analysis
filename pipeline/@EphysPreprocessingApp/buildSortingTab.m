@@ -80,7 +80,7 @@ obj.ExecModeDropDown.Layout.Row = r; obj.ExecModeDropDown.Layout.Column = [4 5];
 
 r = r + 1;
 l = lab(cg, "Phy command:", r);
-l.Tooltip = "Command used to launch phy (a preference, not part of the config). Blank defaults to 'conda run -n phy phy'.";
+l.Tooltip = "Command used to launch phy (a preference, not part of the config). Blank uses phy.exe from the 'phy' conda env (found next to the Python exe's conda install), else 'conda run -n phy phy'.";
 obj.PhyCmdField = uieditfield(cg, "text", "Placeholder", "blank = default", ...
     "ValueChangedFcn", @(~,~) obj.savePreferences());
 obj.PhyCmdField.Layout.Row = r; obj.PhyCmdField.Layout.Column = 2;

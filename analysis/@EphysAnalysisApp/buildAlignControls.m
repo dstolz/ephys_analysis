@@ -121,8 +121,9 @@ flg = uigridlayout(sg, [2 2]);
 flg.Layout.Row = [3 4]; flg.Layout.Column = [2 4];
 flg.Padding = [0 0 0 0]; flg.RowSpacing = 3; flg.ColumnSpacing = 12;
 C.Flags = struct();
-for i = 1:numel(["ok" "partial" "cut" "unpaired"])
-    f = ["ok" "partial" "cut" "unpaired"](i);
+flags = ["ok" "partial" "cut" "unpaired"];
+for i = 1:numel(flags)
+    f = flags(i);
     row = 1 + mod(i-1, 2);
     col = 1 + floor((i-1)/2);
     C.Flags.(f) = uicheckbox(flg, "Text", f, "Value", f == "ok", "ValueChangedFcn", cb, ...

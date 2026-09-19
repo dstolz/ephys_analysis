@@ -26,6 +26,7 @@ P = EphysProject(root, AutoDiscover=false)   % set config, call P.discover() lat
 | `Dtype` | `"int16"` | pushed to every dataset |
 | `NamePattern` | `EphysDataset.DefaultNamePattern` | name pattern pushed to every dataset; its `SubjectID`, `Date` and `Time` tokens label sorted units (see [Unit labels](EphysDataset.md#unit-labels)) |
 | `Recursive` | `true` | `discover()` searches every sub-folder of `root`; `false` = only `root` and the folders directly in it |
+| `ReaderOptions` | `struct()` | reader options (a config's [`Acquisition` section](EphysPipeline.md#acquisition)): used by `discover()` and pushed to every dataset |
 | `Manifest` | `[]` | optional shared provenance `Manifest` |
 | `AutoDiscover` | `true` | run `discover()` in the constructor |
 
@@ -39,7 +40,7 @@ The constructor errors (`EphysProject:NoRoot`) if `root` does not exist.
 | `Root` | root folder that was scanned |
 | `Recursive` | whether `discover()` searches below the folders directly in `Root` |
 | `Datasets` | `EphysDataset` row array, one per recording folder |
-| `ProbeFile`, `PythonExe`, `CondaEnv`, `OutputRoot`, `Scale`, `Dtype`, `NamePattern`, `Manifest` | shared defaults |
+| `ProbeFile`, `PythonExe`, `CondaEnv`, `OutputRoot`, `Scale`, `Dtype`, `NamePattern`, `ReaderOptions`, `Manifest` | shared defaults |
 | `NumDatasets` (dependent) | `numel(Datasets)` |
 
 Changing a shared property after construction does **not** update existing
@@ -50,9 +51,15 @@ datasets by itself. Call `pushConfig(d)` for each dataset (or re-`discover()`).
 **`discover()`** finds every folder under `Root` that a registered
 acquisition reader claims
 (`EphysReader.findAllRecordingFolders`): folders that directly contain a
-`*.rhd` file (Intan traditional and split layouts, since `info.rhd` matches)
-and folders holding a `recording.json` descriptor (the
-[universal binary format](file-formats.md#universal-recording-format-recordingjson)).
+`*.rhd` file (Intan traditional and split layouts, since `info.rhd` matches),
+folders holding a `recording.json` descriptor (the
+[universal binary format](file-formats.md#universal-recording-format-recordingjson)),
+and Open Ephys GUI session folders (the folder holding `Record Node <id>`, found
+by its `structure.oebin`, `*.continuous` or `experiment*.nwb` files; see
+[Open Ephys sessions](EphysDataset.md#open-ephys-sessions)). With
+`ReaderOptions.OpenEphys.Recordings = "separate"` a session with several
+recordings is replaced by one part folder per recording, which the scan
+creates inside the session folder.
 With `Recursive` (the default) every sub-folder is searched; with
 `Recursive=false` only `Root` itself and the folders directly in it can be
 recordings, so `Root/mouse1/sess1` is not found.

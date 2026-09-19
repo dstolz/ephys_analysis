@@ -272,8 +272,10 @@ r.ReportFiles
 
 `EphysAnalysisRunner(cfg, ProgressFcn=, LogFcn=)` finds the datasets from
 `cfg.Source` (`datasets()`): in project mode `EphysProject(Root, OutputRoot=,
-NamePattern=)` only lists the recording folders (no header is read, nothing
-is written) and each dataset's `outputs(CacheData=true)` finds its files; in
+NamePattern=, ReaderOptions=)` only lists the recording folders (no header is
+read; `Source.Recordings` says whether an Open Ephys session with several
+recordings is one dataset or one per recording) and each dataset's
+`outputs(CacheData=true)` finds its files; in
 folders mode each folder is a `DatasetOutputs`. `source(k)` loads and caches
 `loadAnalysisSource`.
 

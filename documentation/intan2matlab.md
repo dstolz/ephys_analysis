@@ -70,7 +70,8 @@ out = ds.toMat(SignalOptions=struct('dataTypeOut', ["LFP" "SPIKE"]));
 | `MUA_bpLoHi` | `[300 5000]` | high edge < original Fs/2 |
 | `SPIKE_Fs` | `Inf` (original rate) | |
 | `SPIKE_bpLoHi` | `[300 5000]` | high edge < `SPIKE_Fs/2` |
-| `labelField` | `"custom_channel_name"` | or `"native_channel_name"`; labels `info.labels` and names the `events` fields |
+| `labelField` | `"custom"` | or `"native"`; labels `info.labels` (and the aux labels) and names the `events` fields |
+| `lineNames` | `[]` | `"native=name"` digital-line names overriding `labelField` (e.g. `"DIGITAL-IN-04=InTrial"`, Open Ephys `"TTL4=InTrial"`) |
 | `ProgressFcn` | `[]` | `ProgressFcn(nDone, nTotal, message)`: one step per file read, one per processing stage, then `(nTotal, nTotal, "Done")`. It may throw to abort. Not stored in `info` |
 
 All options are validated before any data is read. Band edges are checked
@@ -88,7 +89,8 @@ LFP high-pass, and longer for lower cut-offs.
 Signals that were not requested are `single([])`.
 
 **`events`**: one field per digital-input line. The field name is the line's
-`labelField` name passed through `matlab.lang.makeValidName`. Each field is a
+`lineNames` entry, else its `labelField` name, passed through
+`matlab.lang.makeValidName`. Each field is a
 `[k x 2]` array of `[t_on t_off]` in seconds on the original amplifier time
 base. Onset/offset times are (1-based sample index)/Fs; see
 [Time conventions](README.md#time-and-indexing-conventions).
@@ -97,7 +99,7 @@ base. Onset/offset times are (1-based sample index)/Fs; see
 
 | Field | Contents |
 | --- | --- |
-| `RHDroot` | recording folder |
+| `recordingFolder` | recording folder |
 | `filenames` | files read |
 | `recordingFormat` | layout |
 | `labels` | amplifier labels in `Y` column order |

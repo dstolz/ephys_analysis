@@ -7,9 +7,10 @@ for the preprocessing pipeline. It edits **one pipeline config**
 [`EphysPipeline`](EphysPipeline.md#ephyspipeline) over an
 [`EphysProject`](EphysProject.md). It is used to:
 
-- pull a subject's sessions from the source (Intan recording + ePsych file,
-  paired by name) into local session folders, verified;
-- scan a folder tree for recordings (Intan, or the universal binary format);
+- pull a subject's sessions from the source (Intan or Open Ephys recording +
+  ePsych file, paired by name) into local session folders, verified;
+- scan a folder tree for recordings (Intan, Open Ephys GUI sessions, or the
+  universal binary format);
 - assign probe maps and channel exclusions;
 - mark manual artifact periods and configure automatic detection;
 - run SpikeInterface + Kilosort4 (optional) and associate sorted output;
@@ -161,10 +162,16 @@ different PCs and clocks):
 | Artifact | Source path |
 | --- | --- |
 | ePsych behavior file | `<ePsych root>/<SUBJ>/<SUBJ>_<yyMMdd>T<HHmmss>.mat` |
-| Intan RHX recording folder | `<Intan root>/<SUBJ>/<SUBJ>_<yyMMdd>_<HHmmss>/` |
+| Intan RHX recording folder | `<recording root>/<SUBJ>/<SUBJ>_<yyMMdd>_<HHmmss>/` |
+| Open Ephys GUI session folder | `<recording root>/<SUBJ>/<SUBJ>_<yyyy-MM-dd>_<HH-mm-ss>[<appended text>]/` (holding `Record Node <id>`) |
 
-A session is copied to `<Destination>/<SUBJ>/<Intan folder name>/`: the Intan
-folder's contents, the ePsych file under its original name,
+A recording folder is recognised by its name (the name patterns
+`{SubjectID}_{Date:yyMMdd}_{Time:HHmmss}` and
+`{SubjectID}_{Date:yyyy-MM-dd}_{Time:HH-mm-ss}*`, with the subject ID matched
+exactly), and read by whichever reader claims it. A session is copied to
+`<Destination>/<SUBJ>/<recording folder name>/`: the recording folder's
+whole contents (for Open Ephys, the Record Nodes and everything under them),
+the ePsych file under its original name,
 `session_manifest.json` and `session_copy_robocopy.log`. Scanning the
 destination as a project associates that ePsych file with the recording
 (`associateFolderBehavior`), so the **Behavior** column is filled without
@@ -189,18 +196,18 @@ end
 | Control | Meaning |
 | --- | --- |
 | Subject ID, From, To | the subject (matched exactly: `SUBJ-ID-125` never matches `SUBJ-ID-1255_...`) and an inclusive range of days (To blank = one day) |
-| ePsych root, Intan root, Destination | defaults `S:/RIG3_Backup_2025/epsych_files/Data`, `S:/RIG3_Backup_2025/intan_files/Data`, `D:/EPHYS` |
-| Max lead (min), Max lag (min) | an ePsych file is a candidate for an Intan folder when it starts no more than *lead* before it (default 10) and no more than *lag* after it (default 2, for clock skew) |
+| ePsych root, Recording roots, Destination | defaults `S:/RIG3_Backup_2025/epsych_files/Data`, `S:/RIG3_Backup_2025/intan_files/Data`, `D:/EPHYS`. **Recording roots** is a list separated by `;` (e.g. an Intan share and an Open Ephys share); its **Browse...** adds a folder to the list |
+| Max lead (min), Max lag (min) | an ePsych file is a candidate for a recording when it starts no more than *lead* before it (default 10) and no more than *lag* after it (default 2, for clock skew) |
 | Ambiguity margin (s) | default 30; see below |
-| Min duration (min) | default 2. An Intan recording shorter than this is never paired; see below. 0 pairs every recording |
-| Find sessions | pair by name, using the **Duration** of each Intan recording (from its `.rhd` headers and `.dat` sizes) for the minimum; then read the **Trials** (elements of the ePsych file's `Data`) of the listed sessions. A header that cannot be read is logged and leaves the cell blank |
+| Min duration (min) | default 2. A recording shorter than this is never paired; see below. 0 pairs every recording |
+| Find sessions | pair by name, using the **Duration** of each recording (from its headers: Intan `.rhd` headers and `.dat` sizes, the Open Ephys sample counts of every recording in the session) for the minimum; then read the **Trials** (elements of the ePsych file's `Data`) of the listed sessions. A header that cannot be read is logged and leaves the cell blank. **Format** says which reader reads the folder (Intan, Open Ephys, Binary; blank when none does) |
 | Verify | checked once a session has been copied. `size`: every copy has its source's size; `hash`: also a SHA-256 checksum of the source and the copy (reads every file twice more, in the engine) |
 | If it exists | a destination folder that exists, is not empty and does not match the source: `resume` (default) completes it, copying only the files that are missing or differ; `skip` leaves it alone; `error` reports it as `failed`. One that already matches is reported `already_present`. A file that is not in the source is never touched |
-| Stitch selected rows | merges the selected rows (click, then Ctrl- or Shift-click) into one `stitched` session: they must hold exactly one Intan folder and at least two ePsych files. See [Stitching](#stitching-epsych-files) |
+| Stitch selected rows | merges the selected rows (click, then Ctrl- or Shift-click) into one `stitched` session: they must hold exactly one recording folder and at least two ePsych files. See [Stitching](#stitching-epsych-files) |
 | Unstitch | puts the selected stitched rows back as Find sessions paired them |
 | Preview (dry run) | reports what a copy would do, including a free-space check and how much of a partial copy is already there; writes nothing |
 | Copy selected | copies the ticked rows **in the background**: the app stays usable, a progress panel opens above the table and the table's **Result** column tracks each row (see [Watching a copy](#watching-a-copy)). The button becomes **Cancel copy**, which stops after the file being copied (what has been copied is kept, and `resume` completes it later) |
-| After copying, open the copied sessions as the project | sets the Project root to the folder holding the copied sessions, scans it and makes the first copied session the active dataset |
+| After copying, open the copied sessions as the project | sets the Project root to the folder holding the copied sessions, scans it and makes the first copied session the active dataset (for an Open Ephys session split into one dataset per recording, its first part folder) |
 
 ### Watching a copy
 
@@ -223,23 +230,24 @@ SHA-256 has read. Closing the app stops the watching, not the copy
 (see [`copySessions`](../pipeline/copySessions.m)).
 
 **Pairing.** Names are parsed with strict, fully anchored patterns; any other
-name in the two subject folders is skipped and listed in the log. Candidate
+name in the subject folders is skipped and listed in the log. Candidate
 pairs are resolved one-to-one across all of them at once, nearest |Δt| first,
 so a file never goes to whichever session happened to be listed first. If a
 file has a second candidate whose |Δt| is within the ambiguity margin of the
 best one, every file linked to it by a candidate pair is marked **ambiguous**
 and none of them is paired. Rows spanning midnight appear under either day.
-An Intan recording shorter than **Min duration** takes no part in the
+A recording shorter than **Min duration** takes no part in the
 pairing, so an aborted recording can neither claim the ePsych file nor make
-the real recording ambiguous. It is listed as `intan_only` with the reason in
+the real recording ambiguous. It is listed as `recording_only` with the reason in
 **Note**. A recording whose headers cannot be read has no known duration and
-is paired as usual.
+is paired as usual. An Open Ephys session is one row whatever its number of
+recordings: it is copied whole, and its duration is that of all of them.
 
 | Status | Row colour | Ticked after Find | Copied |
 | --- | --- | --- | --- |
 | `paired` | white | yes | yes |
 | `stitched` | blue | yes, when stitched | yes, with its ePsych files stitched into one |
-| `intan_only`, `epsych_only` | orange | no (tick by hand) | only when ticked |
+| `recording_only`, `epsych_only` | orange | no (tick by hand) | only when ticked |
 | `ambiguous` | red | no; cannot be ticked | never: pair these files by hand, or stitch them |
 
 **Copying.** Nothing in the source tree is modified, renamed, moved or deleted.
@@ -277,8 +285,10 @@ session that fails verification keeps its complete partial copy and is marked
 `failed`. MATLAB checks each destination file's size itself; with `hash` the
 engine is then run a second time to take the SHA-256 of every source and
 destination file. Each session is handled separately, so one failure does not
-stop the others. `session_manifest.json` records the source and destination
-paths, both times and Δt, the pairing status, every file's size (and hashes),
+stop the others. `session_manifest.json`
+([schema](file-formats.md#copy-manifest-session_manifestjson)) records the
+source and destination paths, the reader of the recording, both times and Δt,
+the pairing status, every file's size (and hashes),
 how many files were already present, `ifExists`, for a stitched session the
 stitched file and each source ePsych file with its trial count
 (`epsych.stitch`), the copy start and finish times, the host, the user, and the
@@ -286,16 +296,16 @@ function version and git commit.
 
 ### Stitching ePsych files
 
-When ePsych was stopped and started again during one Intan recording, the
+When ePsych was stopped and started again during one recording, the
 recording has several ePsych files, and pairing gives it at most one of them.
 Select the recording's row and the rows holding its other ePsych files, and
 press **Stitch selected rows**
 ([`stitchCopySessions`](../pipeline/stitchCopySessions.m)).
 Rows of any status can be merged, including ambiguous rows and a row stitched
 earlier. The files are always stitched in chronological order, whatever order
-the rows are selected in. The stitched row keeps the Intan folder and its
+the rows are selected in. The stitched row keeps the recording folder and its
 destination. **ePsych file** lists every file joined by `+`, **ePsych time**
-and **ePsych - Intan** belong to the earliest file, **Trials** is the total, and
+and **ePsych - recording** belong to the earliest file, **Trials** is the total, and
 **Note** gives each file's start relative to the recording. Stitching and
 unstitching only change the table. **Preview** stitches the files in memory, so
 files that cannot be stitched (different subjects, a session that starts
@@ -355,7 +365,7 @@ log and on the status line:
 | Status | Session |
 | --- | --- |
 | `ambiguous` | an ambiguous pairing, never copied automatically (as on the Copy tab) |
-| `unpaired` | Intan only or ePsych only |
+| `unpaired` | recording only or ePsych only |
 | `needs_stitching` | a paired recording with another ePsych file that starts during it: ePsych was restarted. Stitch the files on the Copy tab and copy it from there |
 | `stitched_by_hand` | a session copied by hand with stitched ePsych files (its `session_manifest.json` says so): copying its paired row would add a second behavior file to the folder |
 | `skipped` | its source changed within the quiet time, or another copy is writing it at that moment. A later run takes it |
@@ -390,10 +400,11 @@ sch.remove();
 | Control | Meaning |
 | --- | --- |
 | Config name, Description | `cfg.Name`, `cfg.Description` |
-| Project root + Browse... + Recursive + **Scan** | `Project.Root`, `Project.Recursive`. Scan builds `EphysProject(root, Recursive=)` (every folder that a registered reader claims: Intan `*.rhd` / `info.rhd`, or `recording.json`; with Recursive unticked only the root and the folders directly in it are searched), then `P.refresh()`: header metadata, `applyManifest` (probe, exclusions, manual periods, sorting and behavior associations), `associateFolderBehavior` (a dataset with no behavior file takes the one Epsych2 file in its own folder), `writeManifest`. A progress dialog with Cancel; datasets whose headers fail keep `NaN` metadata and a warning is printed |
+| Project root + Browse... + Recursive + **Scan** | `Project.Root`, `Project.Recursive`. Scan builds `EphysProject(root, Recursive=, ReaderOptions=)` (every folder that a registered reader claims: Intan `*.rhd` / `info.rhd`, an Open Ephys GUI session folder (the folder holding `Record Node <id>`), or `recording.json`; with Recursive unticked only the root and the folders directly in it are searched), then `P.refresh()`: header metadata, `applyManifest` (probe, exclusions, manual periods, sorting and behavior associations), `associateFolderBehavior` (a dataset with no behavior file takes the one Epsych2 file in its own folder), `writeManifest`. A progress dialog with Cancel; datasets whose headers fail keep `NaN` metadata and a warning is printed |
 | Refresh metadata | re-parse all headers |
 | Output root + Browse... | `Project.OutputRoot`: each dataset writes to `<root>/<Name>`; blank = next to the recording |
-| Name pattern + Columns | `Project.NamePattern`: tokens parsed from each dataset name (see [`parseNameTokens`](EphysPipeline.md#dataset-name-tokens)); one checkbox per token, ticked tokens (`Project.TokenColumns`, default `SubjectID`) become table columns after Name. The label shows how many names match, or the pattern error |
+| Name pattern + Columns | `Project.NamePattern`: tokens parsed from each dataset name (see [`parseNameTokens`](EphysPipeline.md#dataset-name-tokens)); one checkbox per token, ticked tokens (`Project.TokenColumns`, default `SubjectID`) become table columns after Name. The label shows how many names match, or the pattern error. After a scan that found Open Ephys sessions whose names do not match, the status bar suggests `{SubjectID}_{Date:yyyy-MM-dd}_{Time:HH-mm-ss}*` |
+| Open Ephys: recordings, Record node, Stream | the [`Acquisition` section](EphysPipeline.md#acquisition): what a session with several recordings is (**join recordings** = one dataset, **one dataset per recording** = part folders created in the session folder, **single recording only** = refused), which Record Node and which continuous stream to read (blank = automatic). A change rescans the project, since it changes which folders are datasets |
 | Filter | one editable dropdown per name-pattern token, listing the values found (`-` = the name does not match). Rows whose token does not match are hidden; type `*` / `?` wildcards or comma-separated alternatives (case-insensitive). Filters are a view only: they are not saved, and ticks on hidden rows stay in the selection (the label shows `showing k of n (m ticked hidden)`) |
 | All / None | **All** ticks every shown row; **None** unticks every row, shown or hidden |
 | Open in phy | the active dataset's associated sorted output (enabled only when it has `params.py`) |
@@ -436,7 +447,7 @@ Review how each Epsych2 trial is paired with the trial digital line (see
 | **Behavior to workspace** | loads the `behavior` struct of `<Name>_behavior.mat` (trials with the pairing columns, `info`, `meta`, `pairing`, ...) into the base workspace as `behavior_<Name>`, the same way. The file must exist: run the behavior step or press **Write behavior .mat** first |
 | **Pair trials in the behavior step**, **Trial line** | `Behavior.PairTrials`, `Behavior.TrialLine` |
 | **Auto approve when the counts match** | `Behavior.AutoApprove` (off by default): a pairing is approved as soon as it is paired (Load, a setting change, **Prefetch ticked**, the behavior step) when it cuts nothing and the Epsych2 trials and the trial-line intervals are equal in number (`EphysDataset.autoApproveTrialPairing`). The manifest marks the approval as automatic (`auto_approved`), the summary reads *APPROVED automatically* and the Project table *pairing approved (auto)*. A count mismatch, and a pairing whose cuts resolved one, still need **Approve**. **Reset cuts** and cut edits never approve; approving by hand replaces the automatic mark |
-| Lines table (**Inverted**) | one row per digital line with its interval count; ticked lines are `Signals.InvertedLines`: on while low, so an event's onset is the falling edge and its offset the rising edge (the last low sample). This applies to the pairing and to the events the Signals step writes (and so to the exports) |
+| Lines table (**Native**, **Name**, **Intervals**, **Inverted**) | one row per digital line: its native name (`DIGITAL-IN-04`, Open Ephys `TTL4`), its name, and its interval count. Editing **Name** writes a `Signals.LineNames` entry `native=name` (a name equal to the line's default, or a blank cell, removes it) and re-pairs from the lines already read, without reading the recording again; the trial line and the inverted lines follow the new name. Name the Open Ephys TTL lines here (`TTL4` → `InTrial`). Ticked **Inverted** lines are `Signals.InvertedLines`: on while low, so an event's onset is the falling edge and its offset the rising edge (the last low sample). Names and polarity apply to the pairing and to the events the Signals step writes (and so to the exports) |
 | **Resolve a count mismatch** | four spinners: Epsych2 trials and trial-line intervals to cut from the start and from the end before pairing. They belong to the dataset (its manifest), not to the config; cuts that would drop more than there is are refused |
 | Trials table | trial, `TrialIndex`, interval, onset / offset (s), onset / offset sample, flag (orange = partial: the interval touches the recording start or end; grey = cut; red = unpaired), the other lines overlapping the trial. Click a header to sort, drag it to move the column. Right-click for **Parameter columns** (the session's Epsych2 parameters in alphabetical order; tick one, e.g. `TrialType` or a response code, to show it after Flag), **Remove "*name*"** (on a parameter column) and **Reset column order**. The chosen parameters and the column order are preferences, so they apply to every dataset and the next session; a parameter a session lacks is not shown there (the menu lists it as *not in this session*) and returns to its place for sessions that have it. Values that are not one number, text or date per trial are shown as text. A sort is not kept when the table refreshes (Load, a cut, a setting or a column change) |
 | Plot | the digital lines over the recording: one bar per event, from its onset to its offset. A normal line's bars run from each rising edge to the next falling edge; an inverted line's (row label `(inverted)`) from each falling edge to the next rising edge. The trial line's bars are coloured by pairing state (paired, partial, cut, unpaired), and dotted lines across every row mark its onsets and offsets. Right-click the plot to show or hide those lines (shown by default) and the grid lines (hidden by default), and for **Trial labels**: the loaded session's Epsych2 parameters in alphabetical order (`TrialIndex` included). A ticked parameter writes each paired trial's value above the trial line, starting at the trial's onset; with several ticked, each label reads `name=value, name=value` in the order ticked, and the plot title names them. **No labels** clears them. Like the table's parameter columns, the choice is a preference: it applies to every dataset and the next session, and a parameter a session lacks is listed as *not in this session* and not written. Zoom and pan are horizontal only: the mouse wheel zooms time in and out about the cursor, dragging pans time |
@@ -603,7 +614,9 @@ Derived LFP / MUA / SPIKE `.mat` files with `EphysDataset.toMat`
   `_SPIKE.mat`; one plan / result row per file).
 - **Signals**: LFP (`LFP_Fs`, high-pass, low-pass, notch + width), MUA
   (`MUA_Fs`, integration, band), SPIKE (keep original rate / `SPIKE_Fs`, band).
-- **Channels**: label field, keep channels, bad channels (none / manual list /
+- **Channels**: label field (`custom` / `native` names for channels, aux
+  inputs and digital lines; lines renamed on the Trials tab keep their
+  names), keep channels, bad channels (none / manual list /
   auto + threshold), channel remap, **Manifest exclusions** (`none` / `drop` /
   `interpolate`). Lists keep order and repeats; anything unparseable is an
   error. **Reset to defaults**.
@@ -830,7 +843,7 @@ without the app.
 
 | Kind | Files | Condition |
 | --- | --- | --- |
-| Raw recording files | the Intan files the Copy tab copied into the session folder, as listed in its `session_manifest.json` | each file's source, as recorded there, still exists **with the same size**. A recording not copied by the Copy tab has no known source and is always kept |
+| Raw recording files | the recording files the Copy tab copied into the session folder (for Open Ephys, everything under its Record Nodes), as listed in its `session_manifest.json` | each file's source, as recorded there, still exists **with the same size**. A recording not copied by the Copy tab has no known source and is always kept, as are the session files of an Open Ephys dataset that is one part folder of several |
 | Kilosort4's filtered copy of the recording | `recording.dat`, `temp_wh.dat` under the dataset's `kilosort4` folder or its sorted-output folder | none; the sorted units do not need it, phy's trace view does |
 | Sorting input .bin | `<Name>.bin` + `<Name>.json` in the output folder, written by `toBin` for the native Kilosort engine | never the data file of a binary-format recording |
 
@@ -875,9 +888,13 @@ The tick boxes and Show the files that remain are preferences.
 every step without real data or Python, then opens its config and scans it.
 It asks for a parent folder (the project goes into a `synthetic_ephys`
 subfolder there; an existing one is replaced only after confirmation, and
-only when this tool wrote it) and a size: **Standard** (30 kHz, 16 channels,
+only when this tool wrote it), a size: **Standard** (30 kHz, 16 channels,
 12 trials per session, about 250 MB) or **Small** (20 kHz, 8 channels, 6
-trials, about 40 MB). The same thing from the command line:
+trials, about 40 MB), and a recording format: **Intan RHX**, or an Open Ephys
+GUI session in the **Binary**, **Open Ephys** or **NWB** format (session
+folders `SYNTH-01_<yyyy-MM-dd>_<HH-mm-ss>` holding `Record Node 101`, channels
+`CH1..`, TTL lines named by the config's `Signals.LineNames`). The same thing
+from the command line:
 
 ```matlab
 S = makeSyntheticProject("D:\scratch\synthetic_ephys");          % Preset="small" for the small one
@@ -907,7 +924,9 @@ The four recordings differ in how they cover their session, so the
 | 4 | `spurious` | a 40 ms `InTrial` pulse before the first trial | cut 1 interval from the start |
 
 `makeSyntheticProject` also takes `Scenarios`, `Format`
-(`"one-file-per-signal"`, `"binary"`), `Fs`, `NumChannels`, `NumTrials`,
+(`"one-file-per-signal"`, `"binary"`, `"openephys-binary"`,
+`"openephys-legacy"`, `"openephys-nwb"`), `Parts` (Open Ephys: recordings per
+session, each boundary in an inter-trial interval), `Fs`, `NumChannels`, `NumTrials`,
 `FileSeconds`, `Seed`, `InvertedLines` (lines written active-low), `SortedOutput`,
 `Artifacts` and `Overwrite`; its result holds the truth of every dataset
 (events, trials, units, artifacts, the expected cuts).
@@ -979,7 +998,7 @@ preference: its settings live in its own file, which its Windows task reads.
 | `<Name>_extract_<TYPE>.mat` (or `<Name>_extract.mat`), `<Name>_spikes.mat`, `<Name>_chronux.mat`, `<Name>_fieldtrip.mat` | Signals, Spikes, Export |
 | probe `.json` in the probe folder | Import, Designer save, Notes edit |
 | `<parent>/synthetic_ephys/...` | File → Create synthetic test project (recordings, sessions, sorted output, probe, config, README) |
-| `<Destination>/<SUBJ>/<Intan folder>/`: the copied files (for a stitched session, `<earliest ePsych file>_stitched.mat` instead of the ePsych files), `session_manifest.json`, `session_copy_robocopy.log` | Copy → Copy selected, in the background (Preview writes nothing); each scheduled run |
+| `<Destination>/<SUBJ>/<recording folder>/`: the copied files (for a stitched session, `<earliest ePsych file>_stitched.mat` instead of the ePsych files), `session_manifest.json`, `session_copy_robocopy.log` | Copy → Copy selected, in the background (Preview writes nothing); each scheduled run |
 | `%LOCALAPPDATA%\ephys_analysis\copy_jobs\<batch>\`: the copy engine's job, progress and heartbeat files | while a copy batch is in flight; removed when it ends |
 | `%LOCALAPPDATA%\ephys_analysis\copy_schedule\`: `schedule.json`, `task.xml`, `startup.m`; the Windows task `\ephys_analysis\Copy sessions (<user>)` | Copy → Save schedule (Remove deletes the task and the first two) |
 | the same folder: `copy_schedule.log` (appended; the previous 5 MB in `copy_schedule.1.log`), `last_run.json`, `matlab.log` | each scheduled run |

@@ -2,8 +2,9 @@
 
 This folder is the reference for the code in [`pipeline`](../pipeline): a
 config-driven preprocessing pipeline for extracellular recordings. It reads
-recordings through an acquisition-agnostic reader layer (Intan RHD out of the
-box, anything else through a universal binary format), screens them for
+recordings through an acquisition-agnostic reader layer (Intan RHD and Open
+Ephys GUI sessions in its Binary, Open Ephys and NWB formats out of the box,
+anything else through a universal binary format), screens them for
 artifacts, sorts them with **Kilosort4** through **SpikeInterface**
 (optional), derives LFP / MUA / spike-band signals, detects spikes and collects
 sorted units, associates **Epsych2** behavior sessions, and exports files for
@@ -28,6 +29,7 @@ on `pipeline`; `pipeline` does not depend on it. See [Analysis](EphysAnalysis.md
 | [DatasetTracker](DatasetTracker.md) | read-only filesystem inventory (recordings, probe maps, `.bin` files, Kilosort4 runs) |
 | [DatasetOutputs](DatasetOutputs.md) | one dataset's processed files (signals, spikes, behavior, exports, sorted units), found wherever they live and loaded on demand |
 | [EphysPreprocessingApp](EphysPreprocessingApp.md) | the GUI, tab by tab, its config model and preferences |
+| [Copying sessions](EphysPreprocessingApp.md#copy) | `findCopySessions`, `stitchCopySessions`, `copySessions`, `CopySchedule`: pairing recording folders (Intan RHX, Open Ephys GUI sessions) with ePsych files on the source and copying them to local session folders, by hand or on a schedule |
 | [ProbeDesignerApp](ProbeDesignerApp.md) | building a Kilosort4 probe `.json` from probeinterface |
 | [intan2matlab](intan2matlab.md) | `intan2matlab` / `deriveSignals` / `toMat`: LFP, MUA, SPIKE and digital events |
 | [ChronuxDataset](ChronuxDataset.md) | connector that hands recordings, trials and spike trains to the Chronux toolbox |
@@ -53,7 +55,7 @@ flowchart LR
         APP --> PDA[ProbeDesignerApp]
         PIPE --> PRJ[EphysProject<br/>many recordings]
         PRJ --> DS[EphysDataset<br/>one recording]
-        DS --> RD[EphysReader<br/>IntanReader / BinaryReader]
+        DS --> RD[EphysReader<br/>IntanReader / OpenEphysReader / BinaryReader]
         DS --> DT[DatasetTracker<br/>file inventory]
         I2M[intan2matlab] --> DS
         CX[ChronuxDataset<br/>Chronux connector] --> DS
@@ -70,7 +72,7 @@ flowchart LR
         KS[run_ks4.py<br/>Kilosort4 on .bin]
         PT[probe_tool.py<br/>probeinterface]
     end
-    RAW[(recording folder<br/>*.rhd, info.rhd + *.dat,<br/>or recording.json + .bin)] --> RD
+    RAW[(recording folder<br/>*.rhd, info.rhd + *.dat,<br/>Open Ephys Record Node,<br/>or recording.json + .bin)] --> RD
     BEH[(Epsych2 session .mat)] --> EP
     DS -- runSpikeInterface --> SI
     DS -- toBin + runKilosort --> KS
@@ -149,11 +151,16 @@ C = load("D:\out\subj1_day1\subj1_day1_chronux.mat");
 | `IntanReader` | traditional | `*.rhd` with embedded data |
 | `IntanReader` | one-file-per-signal | `info.rhd` + `amplifier.dat` |
 | `IntanReader` | one-file-per-channel | `info.rhd` + `amp-*.dat` |
+| `OpenEphysReader` | openephys-binary | an Open Ephys GUI session folder: `Record Node <id>/experiment*/recording*/structure.oebin` + `continuous.dat` |
+| `OpenEphysReader` | openephys-legacy | `Record Node <id>/*.continuous` + `.events` (the Open Ephys format; GUI 0.4 / 0.5 names too) |
+| `OpenEphysReader` | openephys-nwb | `Record Node <id>/experiment*.nwb` (NWB 2) |
 | `BinaryReader` | binary (universal) | `recording.json` + one flat channel-major file |
 
 All read identically through `streamPlan` / `readChunkUV` and return the same
 in-memory struct. See
-[EphysDataset → Acquisition readers](EphysDataset.md#acquisition-readers) and
+[EphysDataset → Acquisition readers](EphysDataset.md#acquisition-readers),
+[Open Ephys sessions](EphysDataset.md#open-ephys-sessions) (recording modes,
+record node / stream, TTL line names) and
 [file-formats → recording.json](file-formats.md#universal-recording-format-recordingjson).
 
 ### Units
@@ -167,12 +174,13 @@ in-memory struct. See
 | Where | Base | Meaning |
 | --- | --- | --- |
 | MATLAB channel lists: `ExcludeChannels`, `KeepChannels`, `ChannelOrder`, config / GUI fields, `units.channel` | 1-based | amplifier channels in header order (= `.bin` rows) |
-| Kilosort4 probe `chanMap` | 0-based | `.bin` channel of each site is `chanMap + 1` |
+| `ChannelNumbers`, `units.channelNumber` | 0-based | hardware numbers (`A-012` → 12, Open Ephys `CH13` → 12) |
+| Kilosort4 probe `chanMap` | 0-based | channel numbers; the `.bin` channel of each site is `chanMap + 1` when the numbers are positions |
 | `si_config.json` `exclude_channels` | 0-based | positions |
 | `units.ksChannel` | 1-based | among the **sorted** channels (after exclusions / bad-channel removal) |
 
-`run_si_ks4.py` matches `chanMap` to recording channels by the **trailing number
-of the channel ID**, not by position; see
+`run_si_ks4.py` names the recording's channels by their **channel numbers** and
+matches `chanMap` to them; see
 [Channel-numbering caveat](python-drivers.md#channel-numbering-caveat).
 
 ### Time and indexing conventions
@@ -200,9 +208,11 @@ uses: channel exclusions go through a derived probe (legacy engine) or
 SpikeInterface channel removal. Artifacts are zeroed in the written `.bin` or
 in the SpikeInterface recording, never in the source. Probe files are changed
 only by explicit GUI actions: editing a Notes cell, a Designer save, or an
-Import that you confirm should overwrite. The one file written **into the raw
-folder** is `<Name>_manifest.json`; everything else goes to the output folder
-(`<OutputRoot>/<Name>`, or the recording folder when no output root is set).
+Import that you confirm should overwrite. The files written **into the raw
+folder** are `<Name>_manifest.json` and, for Open Ephys sessions in
+`"separate"` mode, the part folders (`openephys-part.json`); everything else
+goes to the output folder (`<OutputRoot>/<Name>`, or the recording folder when
+no output root is set).
 
 ## Known behaviors and caveats
 
@@ -220,7 +230,11 @@ Collected from the code. Each is explained on the linked page.
 | Background sorting + dependent steps | a background sorting run cannot feed `Spikes` (sorted) or `Export` (units) in the same run; `validate` reports it | [EphysPipeline → Validation](EphysPipeline.md#validation) |
 | Duplicate dataset names | two selected datasets with the same leaf name and one output root would collide; `plan()` stops the run | [EphysPipeline → Dataset keys](EphysPipeline.md#dataset-keys) |
 | SpikeInterface exclusions | manual exclusions are unioned with auto bad channels and follow `BadChannelAction`, so they are interpolated when the action is "interpolate" | [EphysDataset → Channel exclusions](EphysDataset.md#channel-exclusions) |
-| SpikeInterface probe mapping | `chanMap` is matched by channel-ID number; multi-port recordings (`A-000` and `B-000`) collide | [Python drivers](python-drivers.md#channel-numbering-caveat) |
+| SpikeInterface probe mapping | `chanMap` is matched by channel number; a multi-port Intan recording (`A-000` and `B-000`) is numbered by position instead, with a warning | [Python drivers](python-drivers.md#channel-numbering-caveat) |
+| Open Ephys TTL lines at a recording start | a line already high when a recording starts is seen from Binary always, from NWB when that recording has any TTL edge, and from the Open Ephys format only when its first edge there is falling; intervals are split at recording boundaries | [EphysDataset → Open Ephys sessions](EphysDataset.md#open-ephys-sessions) |
+| Open Ephys samples | rows are the stored samples (dropped samples are not zero-filled; a warning lists them); the Open Ephys format zero-pads each recording's last record, as the GUI writes it | [EphysDataset → Open Ephys sessions](EphysDataset.md#open-ephys-sessions) |
+| Open Ephys AUX | stored as (raw − 32768) × 37.4 µV: 1.2255 V below Intan RHX's volts for the same accelerometer | [EphysDataset → Open Ephys sessions](EphysDataset.md#open-ephys-sessions) |
+| Open Ephys NWB sorting | the SpikeInterface engine needs h5py in the sorting environment; the native engine does not | [Python drivers](python-drivers.md#run_si_ks4py) |
 | Background runs | automatic artifact detection runs synchronously in MATLAB before each launch (then cached); closing the app does not stop running Python processes | [App → Sorting](EphysPreprocessingApp.md#sorting) |
 | Manifest `kilosort.state` | for the SpikeInterface engine it is the tracker's fallback `"done"` whenever results exist; the true state is in `kilosort4/ks4_status.json` | [Files on disk](file-formats.md#dataset-manifest) |
 | Derived-signal bad channels | interpolation is across neighboring **columns**, not probe geometry | [intan2matlab](intan2matlab.md#processing-order) |
@@ -256,7 +270,8 @@ Collected from the code. Each is explained on the linked page.
 | [`addpath_nogit`](../addpath_nogit.m) | path setup |
 
 **Python**: a conda environment with spikeinterface, kilosort, probeinterface,
-neo and torch, plus an optional separate `phy` environment. Needed only for
+neo and torch (plus h5py to sort Open Ephys NWB sessions with the SpikeInterface
+engine), plus an optional separate `phy` environment. Needed only for
 the sorting step and the probe designer. See [INSTALL.md](../pipeline/INSTALL.md)
 for known-good versions.
 
@@ -292,6 +307,7 @@ test_EphysPipeline       % one suite
 | Suite | Covers |
 | --- | --- |
 | `test_EphysDataset` | readers, layouts, streaming, artifacts, spikes, `.bin`, dry runs, manifest v2, sorted units, `spikesToMat`, exports, behavior |
+| `test_OpenEphysReader` | Open Ephys sessions (Binary, Open Ephys format, NWB): metadata, samples across recordings and gaps, TTL lines, AUX / ADC, discovery, record node / stream, the recording modes, line names, the pipeline on a synthetic Open Ephys project, the SpikeInterface loaders |
 | `test_EphysProject` (in `test_EphysDataset` §7 / §15) | discovery, keys, `refresh` |
 | `test_DatasetTracker` | the filesystem inventory |
 | `test_ChronuxDataset` | the Chronux connector |
@@ -299,7 +315,7 @@ test_EphysPipeline       % one suite
 | `test_EpsychSession` | Epsych2 readers and matching |
 | `test_EphysPipelineConfig`, `test_EphysPipeline`, `test_EphysPipelineScript` | config, runner, scripts |
 | `test_EphysPreprocessingApp` | the GUI's config model, headless |
-| `test_SyntheticDataset` | `makeSyntheticProject` / `makeSyntheticRecording`: the written lines, sessions, spikes, aux and artifacts read back; pairing per scenario; the other layouts; the config through the pipeline; the app's File-menu action |
+| `test_SyntheticDataset` | `makeSyntheticProject` / `makeSyntheticRecording`: the written lines, sessions, spikes, aux and artifacts read back; pairing per scenario; the other layouts (Open Ephys included); the config through the pipeline; the app's File-menu action |
 | `test_EphysAnalysisCompute` (analysis/) | compute functions on seeded spike trains and signals, the trial-filter compiler, every renderer |
 | `test_EphysAnalysisEpochs` (analysis/) | sources, event references, epochs, trial selection and grouping against the synthetic truth |
 | `test_EphysAnalysisConfig` (analysis/) | the analysis config: JSON round trips, `plotFor`, validation |

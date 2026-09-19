@@ -87,7 +87,8 @@ classdef EphysAnalysisScript
             L(end+1, 1) = "%% Datasets";
             if S.Mode == "project"
                 L(end+1, 1) = "root = " + lit(S.Root) + ";";
-                L(end+1, 1) = "P = EphysProject(root, OutputRoot=" + lit(S.OutputRoot) + ", NamePattern=" + lit(S.NamePattern) + ");";
+                L(end+1, 1) = "P = EphysProject(root, OutputRoot=" + lit(S.OutputRoot) + ", NamePattern=" + lit(S.NamePattern) + ...
+                    ", ReaderOptions=struct('OpenEphys', struct('Recordings', " + lit(S.Recordings) + ")));";
                 if S.Selection == "list"
                     L(end+1, 1) = "idx = P.findByKey(" + lit(S.Datasets) + ");   % root-relative dataset keys";
                     L(end+1, 1) = "idx = idx(idx > 0);";

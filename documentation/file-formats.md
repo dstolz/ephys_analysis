@@ -13,7 +13,11 @@ written as the strings `"NaN"` / `"Inf"`.
 ├─ *.rhd                                Intan traditional layout, or
 ├─ info.rhd + amplifier.dat + ...       Intan one-file-per-signal, or
 ├─ info.rhd + amp-<native>.dat ...      Intan one-file-per-channel, or
-├─ recording.json + <data>.bin          the universal binary format (any acquisition system)
+├─ recording.json + <data>.bin          the universal binary format (any acquisition system), or
+├─ Record Node <id>/                    an Open Ephys GUI session (see below)
+├─ <part name>/openephys-part.json      Open Ephys "separate" mode: one part folder per recording (a dataset)
+├─ session_manifest.json                where the Copy tab copied the session from (copySessions)
+├─ session_copy_robocopy.log            the copy engine's robocopy log
 ├─ <Name>_manifest.json                 dataset manifest (writeManifest)
 └─ <Name>_cleanup.json                  what Clean up removed (runLocalCleanup)
 
@@ -91,7 +95,119 @@ Kilosort4 layout, and what `EphysDataset.toBin` writes.
 Only `recording.json` marks a folder as a recording, so the `.bin` + sidecar
 pairs that `toBin` writes into output folders are never mistaken for one.
 `RecordingFormat` for these datasets is `"binary"`; the manifest's `reader` is
-`"binary"`.
+`"binary"`. The optional `"channel_numbers": [0, 1, ...]` gives each channel's
+hardware number (what a probe `chanMap` refers to; default `0..n_chan-1`).
+
+---
+
+## Open Ephys GUI sessions
+
+[`OpenEphysReader`](EphysDataset.md#open-ephys-sessions) reads the folders the
+Open Ephys GUI writes; they are never modified. A session folder (named by the
+GUI from its prepend text, start time and append text) holds one folder per
+Record Node:
+
+```text
+SUBJ01_2026-09-17_10-30-00/                  the session folder = the dataset
+└─ Record Node 101/
+   │  -- Binary (the GUI default) --
+   ├─ settings.xml                           signal chain (settings_<E>.xml for later experiments)
+   └─ experiment1/recording1/
+      ├─ structure.oebin                     JSON: streams (folder_name, sample_rate, num_channels,
+      │                                      channels: channel_name, bit_volts, units, type 0/1/2),
+      │                                      event channels (folder_name, initial_state)
+      ├─ sync_messages.txt                   "Software Time (...): <ms since 1970 UTC>", "Start Time for ...: <sample>"
+      ├─ continuous/<proc>-<id>.<stream>/    continuous.dat (int16, channels interleaved),
+      │                                      sample_numbers.npy (int64), timestamps.npy (float64)
+      └─ events/<proc>-<id>.<stream>/TTL/    states.npy (int16, +/- line), sample_numbers.npy,
+                                             timestamps.npy, full_words.npy (uint64 TTL word)
+   │  -- Open Ephys format --
+   ├─ <proc>_<stream>_<channel>[_<E>].continuous   1024-byte text header (sampleRate, bitVolts,
+   │                                         date_created), then 2070-byte records: int64 first
+   │                                         sample, uint16 1024, uint16 recording (0-based),
+   │                                         1024 big-endian int16, 10-byte marker
+   ├─ <proc>_<stream>[_<E>].events           1024-byte header, then 16-byte records: int64 sample,
+   │                                         int16, uint8 type (3 = TTL), uint8 processor, uint8
+   │                                         state, uint8 line (0-based), uint16 recording
+   ├─ messages[_<E>].events                  "<ms>, Software Time (...)" per recording
+   ├─ structure[_<E>].openephys              XML (not needed to read)
+   │  (GUI 0.4 / 0.5: <proc>_<channel>[_<E>].continuous and all_channels[_<E>].events)
+   │  -- NWB 2 --
+   └─ experiment<E>.nwb                      /acquisition/<proc>-<id>.<stream>: data [samples x
+                                             channels] int16, sync (sample numbers), timestamps,
+                                             channel_conversion (V/bit), channel_type, electrodes;
+                                             <...>.TTL: data (+/- line), sync, full_word;
+                                             sync_messages: data (text), sync
+```
+
+`RecordingFormat` is `"openephys-binary"`, `"openephys-legacy"` or
+`"openephys-nwb"`; the manifest's `reader` is `"openephys"`. Experiment 1
+files have no suffix; experiment *E* > 1 adds `_<E>` (Open Ephys format) or
+its own `experiment<E>` folder / file. Recordings of one experiment share its
+files in the Open Ephys and NWB formats and have their own folders in Binary.
+
+### Open Ephys part folders
+
+With `Acquisition.OpenEphys.Recordings = "separate"` the scan represents each
+recording of a multi-recording session by a part folder inside the session
+folder, named from the recording's start (see
+[EphysDataset](EphysDataset.md#open-ephys-sessions)) and holding
+`openephys-part.json`:
+
+```text
+{
+  "schema":      "openephys-part/1",
+  "record_node": "101",
+  "experiment":  1,
+  "recording":   2
+}
+```
+
+A part folder is a dataset like any other: its manifest and (without an output
+root) its outputs are written into it. The scan creates missing part folders
+and warns (`OpenEphysReader:PartFolder`) when the session is read-only. The
+other modes ignore part folders.
+
+---
+
+## Copy manifest (`session_manifest.json`)
+
+Path: `<Destination>/<SUBJ>/<recording folder name>/session_manifest.json`.
+Written by `copySessions` (the app's Copy tab and each scheduled copy) in every
+session folder it copies or finds already present; one that is already there
+is left as it is.
+
+```text
+{
+  "manifestVersion": 3,
+  "subject": <subject ID>,
+  "pairingStatus": "paired" | "stitched" | "recording_only" | "epsych_only",
+  "deltaT_s": <ePsych start - recording start, s; null when unpaired>,
+  "recording": {
+    "reader": "intan" | "openephys" | "binary" | "",   the reader that read the folder (findCopySessions' Reader column)
+    "sourceDir": <source recording folder>, "destDir": <session folder>,
+    "time": <recording start from the folder name, ISO 8601>,
+    "files": [ { "relativePath": <path below the folder, e.g. "Record Node 101\experiment1\...">,
+                 "source": <source path>, "destination": <local path>,
+                 "sizeBytes": <n at planning>, "sourceSizeBytes": <n>, "destSizeBytes": <n>,
+                 "sha256Source": <hex or "">, "sha256Destination": <hex or ""> }, ... ]
+  },
+  "epsych": {
+    "sourceFile": <ePsych file, "" for a stitched session>, "destFile": <local file>,
+    "time": <ePsych start, ISO 8601>, "files": [ <as above> ],
+    "stitch": null | { "file": <local ..._stitched.mat>, "sizeBytes", "nTrials", "sha256",
+                       "parts": [ { "source", "name", "sizeBytes", "sourceSizeBytes",
+                                    "nTrials", "sha256Source" }, ... ] }
+  },
+  "copy": { "status", "message", "verify": "size" | "hash", "ifExists", "numFiles",
+            "totalBytes", "filesAlreadyPresent", "startedAt", "finishedAt",
+            "host", "user", "robocopyLog" },
+  "tool": { "name": "copySessions", "version": "3.0.0", "gitCommit": <hash or ""> }
+}
+```
+
+The Clean up tab (`planLocalCleanup`) reads `recording.files`: a local file
+listed there is a raw recording file with a known source.
 
 ---
 
@@ -135,8 +251,9 @@ Schema `intan-dataset-manifest/2` (`null` where a value is `NaN`):
   "schema":           "intan-dataset-manifest/2",
   "name":             <dataset Name>,
   "folder":           <recording folder>,
-  "recording_format": "traditional" | "one-file-per-signal" | "one-file-per-channel" | "binary" | "unknown",
-  "reader":           "intan" | "binary",
+  "recording_format": "traditional" | "one-file-per-signal" | "one-file-per-channel" | "binary" |
+                      "openephys-binary" | "openephys-legacy" | "openephys-nwb" | "unknown",
+  "reader":           "intan" | "binary" | "openephys",
   "updated":          <"yyyy-MM-dd HH:mm:ss">,
   "metadata": {
     "fs": <Hz>, "num_channels": <n>, "duration_s": <s>, "num_files": <n>,
@@ -195,6 +312,7 @@ which holds `H64LP_4x16.json` as a starting point.
   "name":        <string>,
   "description": <string>,
   "Project":   { "Root", "Recursive", "OutputRoot", "Selection", "Datasets", "NamePattern", "TokenColumns" },
+  "Acquisition": { "OpenEphys": { "Recordings", "RecordNode", "Stream" } },
   "Parallel":  { "Enabled", "MaxWorkers" },
   "Probe":     { "DefaultProbeFile", "WriteDefaultToManifest" },
   "Behavior":  { "Enabled", "SearchDirs", "Match", "MaxStartOffsetMin", "Overwrite", "WriteFile",
@@ -202,7 +320,7 @@ which holds `H64LP_4x16.json` as a starting point.
   "Artifacts": { "Enabled", "Method", "Threshold", ... , "ApplyToSorting", "ApplyToSpikes", "CacheIntervals" },
   "Sorting":   { "Enabled", "Engine", "PythonExe", "CondaEnv", "Execution", "DryRun", "SkipExisting",
                  "SI": {...}, "KS4": {...}, "KS4ExtraJSON" },
-  "Signals":   { "Enabled", "OutputDir", "Suffix", ... , "ExcludeHandling" },
+  "Signals":   { "Enabled", "OutputDir", "Suffix", ... , "LabelField", "LineNames", "InvertedLines", ... , "ExcludeHandling" },
   "Spikes":    { "Enabled", "Source", ... , "Groups", "IncludeNoise", "Templates", "OutputDir", "Suffix", ... },
   "Export":    { "Enabled", "Formats", "Signals", "IncludeUnits", ... }
 }
@@ -355,10 +473,21 @@ Schema (placeholders in `<...>`; all paths use forward slashes):
 }
 ```
 
-- `recording` tells the driver how to load the data: `{"reader": "intan",
-  "folder", "recording_format", "files"}` for Intan recordings, or
-  `{"reader": "binary", "file", "dtype", "n_chan", "fs", "gain_to_uV",
-  "offset", ...}` for the universal format. Configs without it are treated as
+- `recording` tells the driver how to load the data. Every spec has
+  `channel_numbers` (the dataset's `ChannelNumbers`); the driver renames the
+  recording's channels to them, so the probe `chanMap` matches by number.
+  Per reader:
+
+  | `reader` | Fields | Loaded as |
+  | --- | --- | --- |
+  | `"intan"` | `folder`, `recording_format`, `files` | `read_intan` (amplifier stream) per file, concatenated |
+  | `"binary"` | `file`, `dtype`, `n_chan`, `fs`, `gain_to_uV`, `offset`, `byte_order`, `channel_names` | `read_binary` |
+  | `"openephys-binary"` | `fs`, `n_chan_stream`, `channel_indices` (0-based headstage positions), `gain_to_uV` (per headstage channel), `parts` [{`file` (continuous.dat), `n_samples`}] | `read_binary` per recording, concatenated, headstage channels selected |
+  | `"openephys-legacy"` | as above, `parts` [{`channel_files` (one per headstage channel), `first_record`, `n_records`, `n_samples`}] | memory-mapped `.continuous` records, one segment per recording, concatenated |
+  | `"openephys-nwb"` | as above, `parts` [{`file`, `dataset`, `row_start` (0-based), `n_samples`}] | the ElectricalSeries through h5py, one segment per recording, concatenated |
+
+  The Open Ephys specs give the same rows as the MATLAB reader (stored samples,
+  recordings end to end). Configs without a `recording` block are treated as
   Intan.
 - `exclude_channels` are **0-based** positions (`ExcludeChannels − 1`).
 - `silence_periods.periods_s` is the merged manual + automatic list from
@@ -381,7 +510,7 @@ Path: in the run folder. Written by the Python driver when it finishes.
 
 | Engine | Success | Failure |
 | --- | --- | --- |
-| SpikeInterface | `{"state":"done","num_units":N,"bad_channels":[...],"dropped_params":[...]}` | `{"state":"error","message":"...","traceback":"..."}` |
+| SpikeInterface | `{"state":"done","num_units":N,"bad_channels":[<channel numbers as strings>],"dropped_params":[...]}` | `{"state":"error","message":"...","traceback":"..."}` |
 | native | `{"state":"done","num_units":N,"dropped_params":[...]}` | `{"state":"error","message":"...","traceback":"..."}` |
 
 Both engines delete a stale status file before launching. The GUI's background

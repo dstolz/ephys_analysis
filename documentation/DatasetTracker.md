@@ -25,6 +25,7 @@ dt = DatasetTracker(folder)                      % scan immediately
 dt = DatasetTracker(folder, AutoRefresh=false)   % call dt.refresh() later
 dt = DatasetTracker(folder, Recursive=false)     % top level only
 dt = DatasetTracker(folder, Name="subj1")
+dt = DatasetTracker(folder, ReaderOptions=cfg.Acquisition)   % Open Ephys recording modes
 dt = DatasetTracker.fromDataset(ds)              % tracks ds.Folder (not ds.OutputDir)
 ```
 
@@ -43,6 +44,7 @@ and returns an empty tracker if that folder does not exist yet.
 | `Root` | public | directory being tracked |
 | `Name` | public | defaults to the folder leaf |
 | `Recursive` | public | scan sub-folders (default `true`) |
+| `ReaderOptions` | public | reader options used to find recordings (default `struct()`; `EphysDataset.tracker()` passes the dataset's) |
 | `Recordings`, `ProbeFiles`, `BinFiles`, `KilosortRuns` | read-only | inventory struct arrays (schemas below) |
 | `LastRefreshed` | read-only | time of the last successful scan |
 | `NumRecordings`, `NumProbeFiles`, `NumBinFiles`, `NumKilosortRuns`, `NumRecordingFiles` | dependent | counts |
@@ -148,8 +150,8 @@ These are public so the other Intan classes can reuse one implementation.
 | Helper | Purpose |
 | --- | --- |
 | `listFiles(root, pattern, recursive)` | `dir` matches, excluding directories |
-| `findRecordings(root, recursive)` | the `Recordings` struct array (through the reader registry) |
-| `findRecordingFolders(root, recursive)` | folder paths only |
+| `findRecordings(root, recursive, options)` | the `Recordings` struct array (through the reader registry, with reader options) |
+| `findRecordingFolders(root, recursive, options)` | folder paths only |
 | `readJson(path)` | `jsondecode(fileread(path))`, or `[]` on any failure |
 | `classifyJson(s)` | see the rules below |
 | `probeMeta(s)` | `nChan`, `nShank`, `depth`, `notes` from a decoded probe |

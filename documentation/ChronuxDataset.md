@@ -64,7 +64,7 @@ change to `Signal` or `SignalOptions`.
 | `Signal` | Where the data comes from |
 | --- | --- |
 | `"LFP"`, `"MUA"`, `"SPIKE"` | `EphysDataset.deriveSignals(SignalOptions..., dataTypeOut=Signal)` — see [intan2matlab](intan2matlab.md) |
-| `"RAW"` | `EphysDataset.readData` — broadband amplifier data at the recording rate, unfiltered (only `keepAmpChannels` and `labelField` apply from `SignalOptions`) |
+| `"RAW"` | `EphysDataset.readData` — broadband amplifier data at the recording rate, unfiltered (only `keepAmpChannels`, `labelField`, `lineNames` and `invertedLines` apply from `SignalOptions`) |
 
 `dataTypeOut` must **not** appear in `SignalOptions`; the `Signal` property is
 what selects the signal.

@@ -43,6 +43,24 @@ Usage: `run_si_ks4.py <si_config.json> [--check]`. The config schema is in
    - `binary` (the universal `recording.json` format): `read_binary` over the
      flat channel-major file with the descriptor's `dtype`, `n_chan`, `fs`,
      `gain_to_uV` and `offset`.
+   - `openephys-binary`: `read_binary` over each recording's `continuous.dat`
+     (int16, every stream channel), concatenated, then the headstage channels
+     (`channel_indices`) with their `gain_to_uV`.
+   - `openephys-legacy`: `OpenEphysLegacyRecording`, which memory-maps the
+     headstage `.continuous` files as 2070-byte records (big-endian samples)
+     and exposes each recording's records (`first_record`, `n_records`) as a
+     segment; the segments are concatenated.
+   - `openephys-nwb`: `OpenEphysNwbRecording`, which reads the stream's
+     `ElectricalSeries` rows (`row_start`, `n_samples` per recording) through
+     **h5py**. The kilosort environment does not include h5py: install it
+     (`conda install -n kilosort h5py`) or sort NWB sessions with the native
+     engine (`Sorting.Engine = "kilosort"`), which reads the file in MATLAB.
+   The two Open Ephys classes are defined at module level (with a module
+   `__version__`) because SpikeInterface serializes a recording by class path
+   and rebuilds it. Every loader returns the rows the MATLAB reader returns.
+   Then the channels are **renamed to their channel numbers**
+   (`recording.channel_numbers`, the dataset's `ChannelNumbers`); a count
+   mismatch or a repeated number is an error.
 2. **Unsigned → signed.** If the dtype is unsigned, `unsigned_to_signed` is
    applied (Kilosort4 refuses unsigned input).
 3. **Crop.** `tmin`/`tmax` are removed from the `ks4` settings block and applied
@@ -53,8 +71,8 @@ Usage: `run_si_ks4.py <si_config.json> [--check]`. The config schema is in
 5. **Attach the probe** (`build_probe`):
    - The KS4 JSON `xc`/`yc`/`chanMap`/`kcoords` are read, and circular contacts
      of radius 6 µm are created.
-   - Each `chanMap` value is matched to the recording channel whose **ID ends in
-     that integer** (for example `A-016` → 16).
+   - Each `chanMap` value is matched to the recording channel **named by that
+     number** (the channel numbers of step 1: `A-016` → 16, `CH17` → 16).
    - Probe sites whose number is not present in the recording are dropped and
      logged ("disabled at acquisition?").
 6. **Bandpass**, if `preprocessing.filter.enabled`: `bandpass_filter(freq_min,
@@ -97,8 +115,9 @@ Usage: `run_si_ks4.py <si_config.json> [--check]`. The config schema is in
 
 ### Status and dry runs
 
-- Success: `ks4_status.json` = `{"state": "done", "num_units", "bad_channels",
-  "dropped_params"}`, and the log line `KILOSORT4_DONE units=N`.
+- Success: `ks4_status.json` = `{"state": "done", "num_units", "bad_channels"
+  (channel numbers, as strings), "dropped_params"}`, and the log line
+  `KILOSORT4_DONE units=N`.
 - Failure: `{"state": "error", "message", "traceback"}`, the log line
   `KILOSORT4_ERROR`, and the exception is re-raised.
 - `--check` builds the pipeline and the parameter list and prints
@@ -111,14 +130,15 @@ Usage: `run_si_ks4.py <si_config.json> [--check]`. The config schema is in
 
 ### Channel-numbering caveat
 
-`build_probe` matches `chanMap` values to channel IDs by their **trailing
-integer**, whereas `exclude_channels` and the legacy `.bin` engine use
-**positions**. The two agree when native channel numbers equal positions
-(0, 1, 2, … with no gaps). They can differ when:
-
-- channels were disabled at acquisition (gaps in the numbering), or
-- the recording spans more than one port. `A-000` and `B-000` both end in `0`,
-  and the lookup keeps the later one.
+`build_probe` matches `chanMap` values to channel **numbers**
+(`EphysDataset.ChannelNumbers`), whereas `exclude_channels` and the legacy
+`.bin` engine use **positions**. The two agree when the channel numbers equal
+the positions (0, 1, 2, … with no gaps). They differ when channels were
+disabled at acquisition (gaps in the numbering): the probe then drops the
+missing sites, while `.bin` rows are positions. A recording spanning more than
+one Intan port (`A-000` and `B-000`) does not give distinct numbers, so its
+channels are numbered by position (`EphysReader:ChannelNumbersNotUnique`
+warns), and a probe for it must use positions `0..n-1`.
 
 ---
 

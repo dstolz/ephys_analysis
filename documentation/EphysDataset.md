@@ -7,10 +7,11 @@ and GUI classes all act on recordings through it.
 
 The dataset knows nothing about any acquisition system. Reading goes through a
 `Reader` ([`EphysReader`](#acquisition-readers)): `IntanReader` for Intan RHD
-recordings, `BinaryReader` for the universal `recording.json` format, or a
-reader you register. Everything above that layer (artifacts, spike detection,
-derived signals, sorting, manifests, exports) works on the same in-memory
-schema.
+recordings, `OpenEphysReader` for Open Ephys GUI sessions (Binary, Open Ephys
+and NWB formats), `BinaryReader` for the universal `recording.json` format, or
+a reader you register. Everything above that layer (artifacts, spike
+detection, derived signals, sorting, manifests, exports) works on the same
+in-memory schema.
 
 An `EphysDataset` can:
 
@@ -48,38 +49,60 @@ on-disk format and answers five questions:
 | Method | Returns |
 | --- | --- |
 | `discoverFiles()` | which files in `Folder` make up the recording (`Files`, `NumFiles`, `RecordingFormat`) |
-| `refreshMetadata()` | header-only metadata: `Fs`, `NumChannels`, `ChannelNames`, `NativeNames`, `DigInNames`, `Duration`, `AcqDate`, `PerFile` |
+| `refreshMetadata()` | header-only metadata: `Fs`, `NumChannels`, `ChannelNames`, `NativeNames`, `ChannelNumbers`, `DigInNames`, `DigInNativeNames`, `Duration`, `AcqDate`, `PerFile` |
 | `streamPlan(Files=, MaxChunkSamples=)` | how to read the recording one bounded chunk at a time (`kind`, `name`, `file`, `sampleOffset`, `nSamples`) |
 | `readChunkUV(chunk)` | one chunk as `[nSamples x nChan]` double **microvolts** |
 | `readData(...)` | the whole recording as the universal data struct below |
 
 Optional: `readWindowUV(sampleOffset, nSamp)` with `supportsRandomAccess()`
-true (bounded random access, used to carry context across chunks), and
+true (bounded random access, used to carry context across chunks),
+`readDigitalEvents(ProgressFcn=)` (the digital lines without the amplifier
+data; the default reads the recording keeping one channel), and
 `siRecordingSpec()` (how `run_si_ks4.py` should load the recording). Static:
-`claims(folder)`, `findRecordingFolders(root, recursive)`.
+`claims(folder)`, `findRecordingFolders(root, recursive, options)`.
 
-**Registry.** `EphysReader.forFolder(folder)` asks each class in
-`EphysReader.readerClasses()` whether it claims the folder;
+**Registry.** `EphysReader.forFolder(folder, Options=)` asks each class in
+`EphysReader.readerClasses()` whether it claims the folder and builds the
+first that does as `Reader(folder, options)`;
 `EphysReader.register("MyReader")` adds a class;
-`EphysReader.findAllRecordingFolders(root, recursive)` is what
+`EphysReader.findAllRecordingFolders(root, recursive, Options=)` is what
 `EphysProject.discover` and `DatasetTracker` use.
+
+**Reader options.** `options` is the pipeline config's
+[`Acquisition` section](EphysPipeline.md#acquisition); each reader reads its
+own sub-struct (`options.OpenEphys`) and ignores the rest. Intan and binary
+recordings need none.
 
 | Reader | `RecordingFormat` | Claims a folder with |
 | --- | --- | --- |
 | [`IntanReader`](../pipeline/@IntanReader/IntanReader.m) | `"traditional"`, `"one-file-per-signal"`, `"one-file-per-channel"` | `*.rhd` (see [layouts](#supported-recording-layouts)) |
 | [`BinaryReader`](../pipeline/@BinaryReader/BinaryReader.m) | `"binary"` | `recording.json` next to a flat channel-major binary ([format](file-formats.md#universal-recording-format-recordingjson)). Any other system can be brought in by converting to this; `BinaryReader.writeDescriptor(folder, spec)` writes the descriptor |
+| [`OpenEphysReader`](../pipeline/@OpenEphysReader/OpenEphysReader.m) | `"openephys-binary"`, `"openephys-legacy"`, `"openephys-nwb"` | a `Record Node <id>` folder with data in one of the Open Ephys GUI's record engines, or an `openephys-part.json` part folder (see [Open Ephys sessions](#open-ephys-sessions)) |
 
 **Universal data struct** (what `readData` returns for every reader):
 `amplifier` `[nSamples x nChan]` microvolts (double or single); `Fs`; `t`
 (`(row-1)/Fs`); `channelNames`; `nativeNames`; `channelOrder`; `events`
 (one field per digital-input line, `[k x 2]` `[t_on t_off]` seconds with
 `t = row/Fs`); `digInNames`; `digInNativeNames`; `boardADC`; `aux`; `auxFs`;
-`files`; `fileSampleCounts`; `units` (`"microvolts"`); `source`.
+`files`; `fileSampleCounts`; `units` (`"microvolts"`); `source`. A reader
+keys `events` by each line's **native** name (`DIGITAL_IN_04`, `TTL4`);
+[`EphysDataset.readData`](#reading-data) renames them (see
+[Digital-line names](#digital-line-names)).
+
+**Channel numbers.** `ChannelNumbers` holds the 0-based hardware number of each
+amplifier channel: the value a probe `chanMap` refers to. Intan: the trailing
+digits of the native name (`A-012` is 12); Open Ephys: `CH13` is 12 (else the
+trailing digits); `recording.json`: its `channel_numbers`, else `0..n-1`. They
+are unique: when the names do not give distinct numbers (a two-port Intan
+recording with `A-000` and `B-000`), every channel is numbered by its position
+`0..n-1` and `EphysReader:ChannelNumbersNotUnique` warns. `run_si_ks4.py` names
+the SpikeInterface channels by these numbers, so a probe maps by number and a
+channel missing from the recording (disabled at acquisition) drops its site.
 
 The dataset's `readData`, `streamPlan`, `readChunkUV`, `readWindowUV`,
 `supportsRandomAccess`, `refreshMetadata`, `discoverFiles` and `detectFormat`
 delegate to the reader; `ds.Reader` exposes it. The manifest records
-`reader` (`"intan"` or `"binary"`).
+`reader` (`"intan"`, `"binary"` or `"openephys"`).
 
 ---
 
@@ -120,6 +143,94 @@ For one-file-per-channel recordings, digital inputs are read from
 Otherwise there are no events. Board ADC and aux are **not** read for that layout
 (returned as `[]`).
 
+### Open Ephys sessions
+
+`OpenEphysReader` reads a session folder written by the
+[Open Ephys GUI](https://open-ephys.github.io/gui-docs/) (0.6 and later, and
+the older Open Ephys format of GUI 0.4 / 0.5) in each of its record engines:
+
+| `RecordingFormat` | GUI record engine | Inside `Record Node <id>/` |
+| --- | --- | --- |
+| `"openephys-binary"` | Binary (the GUI default) | `experiment<E>/recording<R>/structure.oebin`, `continuous/<stream>/continuous.dat` (int16, channels interleaved) + `sample_numbers.npy`, `events/<stream>/TTL/states.npy` + `sample_numbers.npy` + `full_words.npy`, `sync_messages.txt` |
+| `"openephys-legacy"` | Open Ephys format | one `<proc>_<stream>_<channel>[_<E>].continuous` per channel (1024-byte text header, then 2070-byte records of 1024 big-endian int16), `<proc>_<stream>[_<E>].events` (GUI 0.4 / 0.5: `<proc>_<channel>.continuous` and `all_channels.events`), `messages[_<E>].events` |
+| `"openephys-nwb"` | NWB 2 (plugin) | `experiment<E>.nwb`: the stream's `ElectricalSeries` under `/acquisition`, its `.TTL` series and `sync_messages` |
+
+The **session folder** is the folder the GUI creates for each recording
+session: named from the prepend text, the start time and the append text
+(`SUBJ01_2026-09-17_10-30-00`, or `SUBJ-ID-1219_2026-07-07_16-35-39_active`),
+holding one `Record Node <id>` folder per Record Node. It is the dataset; the
+Record Node, experiment and recording folders never are. A folder holding the
+node's files directly (GUI 0.4, or a Record Node folder copied on its own) is
+read too. [`OpenEphysReader.DefaultNamePattern`](../pipeline/@OpenEphysReader/OpenEphysReader.m),
+`"{SubjectID}_{Date:yyyy-MM-dd}_{Time:HH-mm-ss}*"`, matches these names.
+
+**Several recordings.** The GUI starts a new *recording* each time recording
+is stopped and restarted, and a new *experiment* each time acquisition is.
+`Acquisition.OpenEphys.Recordings` decides what a dataset is:
+
+| Mode | A session with several recordings is |
+| --- | --- |
+| `"concatenate"` (default) | one dataset: its recordings in (experiment, recording) order, joined end to end. `OpenEphysReader:Concatenated` warns at each boundary with the wall-clock time that is not in the data |
+| `"separate"` | one dataset per recording, each in a **part folder** inside the session folder (`openephys-part.json`, created by the scan; see [file-formats](file-formats.md#open-ephys-part-folders)), named from the session folder with its GUI timestamp replaced by the recording's own start (`SUBJ01_2026-09-17_10-47-12`); without a timestamp, or for two recordings starting in the same second, `<name>_exp<E>_rec<R>`. A session with one recording stays one dataset |
+| `"single"` | refused: `refreshMetadata` throws `OpenEphysReader:MultipleRecordings` naming the recordings (a scan reports it per dataset) |
+
+A part folder's `Files` start with `..` (the session's files). Two parts
+started in the same minute share a unit-label identity, which
+`EphysProject.unitIdentities` reports as a collision; use `"concatenate"` for
+those. In `"separate"` mode the session's Epsych2 file is in the session
+folder, not the part folder, so the behavior step finds it through
+`Behavior.SearchDirs` by start time.
+
+**Record node and stream.** `Acquisition.OpenEphys.RecordNode` picks a Record
+Node by id; blank reads the only one, or the lowest id with a warning
+(`OpenEphysReader:SeveralNodes`). `Acquisition.OpenEphys.Stream` picks a
+continuous stream by name (`Rhythm Data`) or folder name; blank reads the
+stream with the most headstage channels (`OpenEphysReader:SeveralStreams`
+when more than one has any).
+
+**Channels.** The stream's headstage channels (`CH1..`) are the amplifier
+channels, in microvolts (int16 × `bit_volts`, 0.195 for Intan headstages);
+AUX channels are the accelerometer inputs and ADC channels the board ADC,
+both in volts. The GUI's channel type decides (Binary `type`, NWB
+`channel_type`); otherwise the name (`AUX`, `ADC`). NWB files carry no channel
+names: channels are named `CH<n>` from their electrode index within the
+stream, `AUX<k>` and `ADC<k>`, and their bit volts are the file's float32
+`channel_conversion` (× 1e6, to 7 significant digits). The Acquisition Board
+updates its AUX inputs every 4 samples and holds the value: when every AUX
+channel holds each value for 4 samples (tested on the first 10 s) `readData`
+returns them at `Fs/4`, as the Intan layouts do. Open Ephys stores AUX as
+(raw − 32768) × 37.4 µV, so its accelerometer volts are 1.2255 V below what
+Intan RHX writes for the same signal.
+
+**Digital lines.** TTL lines are `TTL1..TTLn` (native = custom), up to the
+highest line with an edge (or set in a TTL word); name them with
+`Signals.LineNames` (`TTL4=InTrial`). A rising edge at sample *s* opens an
+interval at *s*'s row and a falling edge closes it on the row before. A line
+already high when a recording starts begins at its first row when the format
+records that: Binary always (`initial_state` in `structure.oebin`); NWB when
+the recording has any TTL edge (its TTL words); the Open Ephys format only
+when the line's first edge in that recording is falling. A line high at the
+start of a recording that never changes during it is therefore invisible in
+the Open Ephys format. Intervals are split at recording boundaries
+(`OpenEphysReader:LineAcrossBoundary` warns).
+
+**Samples.** A recording's rows are its stored samples. When the GUI dropped
+samples, `sample_numbers` (Binary), the record headers (Open Ephys format) or
+`sync` (NWB) jump; the reader finds each jump by binary search on the sample
+numbers, warns (`OpenEphysReader:Gaps`) and does not zero-fill, and TTL edges
+land on the stored rows (an edge inside a gap moves to the next stored row).
+The GUI fills the last 1024-sample record of each recording in the Open Ephys
+format with zeros; those samples are part of the data.
+
+**Start time (`AcqDate`)** is the first recording's start, from the GUI's
+Software Time message (`sync_messages.txt`, `messages.events`, NWB
+`sync_messages`: milliseconds since 1970 UTC, converted to local time); else
+the `.continuous` header's `date_created` or the NWB `session_start_time`
+(plus the recording's offset in its experiment); else the modification time
+of `structure.oebin`. `PerFile` has one entry per recording (`name`
+`"exp1/rec2"`, `experiment`, `recording`, `numAmplifierSamples`,
+`recordTime`, `datenum`, `numGaps`).
+
 ---
 
 ## Construction
@@ -142,6 +253,7 @@ ds = EphysDataset()                              % empty object (arrays/prealloc
 | `Dtype` | `"int16"` | `.bin` sample class |
 | `OutputDir` | `""` | output folder; `""` means the recording folder |
 | `Manifest` | `[]` | optional `Manifest` object ([vendor/tools/Manifest.m](../vendor/tools/Manifest.m)) that receives provenance entries |
+| `ReaderOptions` | `struct()` | reader options (the config's `Acquisition` section) |
 
 The constructor errors (`EphysDataset:NoFolder`) if the folder does not exist.
 
@@ -154,7 +266,7 @@ The constructor errors (`EphysDataset:NoFolder`) if the folder does not exist.
 | Property | Type | Meaning |
 | --- | --- | --- |
 | `Folder` | string | recording folder |
-| `Files` | string row | traditional: every `*.rhd`, sorted by file `datenum` (chronological); split: `"info.rhd"`; binary: the descriptor and the data file |
+| `Files` | string row | traditional: every `*.rhd`, sorted by file `datenum` (chronological); split: `"info.rhd"`; binary: the descriptor and the data file; Open Ephys: the data and event files of the selected recordings, relative to `Folder` (`..\Record Node 101\...` for a part folder) |
 | `Name` | string | dataset name (defaults to the folder leaf). Its `SubjectID`, `Date` and `Time` tokens label the sorted units; see [Unit labels](#unit-labels) |
 | `Reader` | `EphysReader` | the acquisition reader (created by the constructor from the registry) |
 
@@ -165,12 +277,13 @@ The constructor errors (`EphysDataset:NoFolder`) if the folder does not exist.
 | `RecordingFormat` | layout, see the table above (`"binary"` for the universal format) |
 | `Fs` | amplifier sample rate (Hz) |
 | `NumChannels` | amplifier channel count (from the first file) |
-| `ChannelNames` / `NativeNames` | amplifier `custom_channel_name` / `native_channel_name` |
-| `DigInNames` | digital-input custom names |
+| `ChannelNames` / `NativeNames` | amplifier custom / native (hardware) names: Intan `custom_channel_name` / `native_channel_name`; Open Ephys `CH1..` for both |
+| `ChannelNumbers` | 0-based hardware numbers, what probe `chanMap` values refer to (see [channel numbers](#acquisition-readers)) |
+| `DigInNames` / `DigInNativeNames` | digital-line custom / native names (Open Ephys: `TTL1..` for both) |
 | `Duration` | total duration (s) = sum of per-file `recordTime` |
-| `AcqDate` | earliest file `datenum` (traditional) or the amplifier `.dat` `datenum` (split) |
-| `NumFiles` | number of `*.rhd` files (1 for split layouts) |
-| `PerFile` | struct array, one element per file: `name`, `bytesPerBlock`, `numDataBlocks`, `numAmplifierSamples`, `recordTime`, `numAmplifierChannels`, `numBoardDigIn`, `headerBytes`, `datenum`, `partialBlock`, `dataPresent` |
+| `AcqDate` | recording start: earliest file `datenum` (traditional), the amplifier `.dat` `datenum` (split), the descriptor's `acq_date` (binary), the Software Time message (Open Ephys) |
+| `NumFiles` | number of `*.rhd` files (1 for split layouts; Open Ephys: recordings) |
+| `PerFile` | struct array, one element per file: `name`, `bytesPerBlock`, `numDataBlocks`, `numAmplifierSamples`, `recordTime`, `numAmplifierChannels`, `numBoardDigIn`, `headerBytes`, `datenum`, `partialBlock`, `dataPresent` (Open Ephys: one per recording, plus `experiment`, `recording`, `numGaps`) |
 
 ### Configuration (public)
 
@@ -188,7 +301,8 @@ The constructor errors (`EphysDataset:NoFolder`) if the folder does not exist.
 | `SIConfig` | `defaultSIConfig()` | SpikeInterface preprocessing settings for `runSpikeInterface` |
 | `SortingDir` | `""` | an explicit sorted-output folder (the one holding `params.py`). `""` = auto-discover under `kilosortDir()`; see [Sorted output](#sorted-output) |
 | `BehaviorFile` | `""` | the associated Epsych2 session `.mat`; see [Behavior](#behavior-epsych2) |
-| `TrialConfig` | `defaultTrialConfig()` | trial pairing: `TrialLine` (`"InTrial"`), `InvertedLines` (see [polarity](EphysPipeline.md#digital-line-polarity)), `SignalFs` (struct of derived-signal rates), `LabelField` |
+| `TrialConfig` | `defaultTrialConfig()` | trial pairing and line naming: `TrialLine` (`"InTrial"`), `InvertedLines` (see [polarity](EphysPipeline.md#digital-line-polarity)), `SignalFs` (struct of derived-signal rates), `LabelField` (`"custom"` / `"native"`) and `LineNames` (`"native=name"` entries); see [Digital-line names](#digital-line-names) |
+| `ReaderOptions` | `struct()` | the config's `Acquisition` section, passed to the reader. Setting a different value drops the reader, so the next access rebuilds it (call `refreshMetadata` for fresh metadata) |
 | `NamePattern` | `EphysDataset.DefaultNamePattern` = `"{SubjectID}_{Date:yyMMdd}_{Time:HHmmss}"` | [`parseNameTokens`](../pipeline/parseNameTokens.m) pattern that splits `Name` into the tokens labelling sorted units. Pushed from `EphysProject.NamePattern` / the config's `Project.NamePattern` |
 | `DatasetKey` | `""` | folder relative to the project root, saved with every unit (`""` = the absolute folder). Pushed by `EphysProject` and the pipeline |
 | `TrialPairing` | `struct([])` | the recorded pairing (manifest `behavior.pairing`): `status` (`"unreviewed"` / `"approved"`), `auto_approved` (approved by `autoApproveTrialPairing`, not by a review), `cut_trials` and `cut_intervals` (`[start end]` counts dropped before the in-order pairing), `fingerprint`, `trial_line`, `summary`, `updated` |
@@ -285,7 +399,10 @@ an unknown channel type.
 [universal data struct](#acquisition-readers). For traditional Intan
 recordings, each file is read with `read_Intan_RHD2000_file_modified` and
 concatenated in time; split layouts go through `IntanReader.readSplitAll`;
-binary recordings through `BinaryReader.readData`. All return the same struct.
+binary recordings through `BinaryReader.readData`; Open Ephys sessions through
+`OpenEphysReader.readData` (one read per recording). All return the same
+struct, whose digital lines are then named (see
+[Digital-line names](#digital-line-names)).
 
 | Option | Default | Meaning |
 | --- | --- | --- |
@@ -295,7 +412,8 @@ binary recordings through `BinaryReader.readData`. All return the same struct.
 | `Concatenate` | `true` | concatenate files in time (`false` returns per-file cells) |
 | `ProgressFcn` | none | called as `ProgressFcn(i, nFiles, fileName)` before each file |
 | `Precision` | `"double"` | `"single"` casts each file as read (about half the peak memory) |
-| `EventLabelField` | `"custom_channel_name"` | or `"native_channel_name"`; which dig-in name keys `events` |
+| `LabelField` | `TrialConfig.LabelField` | `"custom"` or `"native"`: each digital line's default name |
+| `LineNames` | `TrialConfig.LineNames` | `"native=name"` entries naming lines (`"TTL4=InTrial"`) |
 
 Output fields: `amplifier` `[nSamples x nChan]` µV; `Fs`; `t` = `(0:n-1)'/Fs`;
 `channelNames`; `nativeNames`; `channelOrder`; `events` (one field per dig-in
@@ -315,14 +433,30 @@ Behavior worth knowing:
   [Time conventions](README.md#time-and-indexing-conventions).
 - With `Concatenate=false`, `events` is empty and `t` is `[]`.
 
+#### Digital-line names
+
+Readers key `events` by each line's native name. `readData` and
+`digitalEvents` then name every line through
+[`EphysDataset.relabelEvents`](../pipeline/@EphysDataset/relabelEvents.m):
+its `LineNames` entry when there is one (`"native=name"`, the native name
+matched without case), else its custom name (`LabelField = "custom"`) or its
+native name (`"native"`). Intan lines have both (`DIGITAL-IN-04` named
+`InTrial` in RHX); Open Ephys lines have only `TTL1..`, so name them with
+`LineNames = ["TTL4=InTrial" ...]`. `digInNames` holds the final names,
+`TrialConfig.TrialLine` and `InvertedLines` refer to them, and two lines ending
+with the same name throw `EphysDataset:relabelEvents:Duplicate`.
+`EphysDataset.parseLineNames(list)` checks and splits a list
+(`EphysDataset:LineNames`).
+
 **`plan = streamPlan(Files=..., MaxChunkSamples=...)`** returns the list of
 chunks to stream. Each element has `kind` (`"rhd"`, `"split"` or `"window"`),
 `name`, `file`, `sampleOffset` and `nSamples`.
 
 - traditional: one chunk per `*.rhd` file.
-- split and binary: fixed-size sample windows over the data file. The default
-  chunk size is `max(round(Fs), floor(2.5e8 / (nChan·8)))` samples, about
-  250 MB of double but never less than about 1 s.
+- split, binary and Open Ephys: fixed-size sample windows over the recording
+  (an Open Ephys window may span a recording boundary). The default chunk size
+  is `max(round(Fs), floor(2.5e8 / (nChan·8)))` samples, about 250 MB of
+  double but never less than about 1 s.
 
 **`X = readChunkUV(chunk)`** reads one `streamPlan` element and returns
 `[nSamp x nChan]` double µV with **all** channels in header order. An empty
@@ -330,7 +464,8 @@ result means the chunk held no amplifier data.
 
 **`X = readWindowUV(sampleOffset, nSamp)`** reads a sample window directly from
 the data file(s) when the reader supports random access
-(`supportsRandomAccess()`: split Intan layouts and binary recordings). It
+(`supportsRandomAccess()`: split Intan layouts, binary recordings and Open
+Ephys sessions). It
 returns `[nSamp x nChan]` double µV. A short final window returns only the rows
 present. For one-file-per-channel, the result is trimmed to the shortest
 channel read.
@@ -807,8 +942,8 @@ directly in that folder.
 **`units = EphysDataset.readPhyUnits(resultsDir, Name=Value)`** (static) is the
 one reader of phy-format sorter output; **`units = ds.readSortedUnits(...)`**
 wraps it with the dataset's defaults (`sortingResultsDir()`, `Fs` as the
-fallback rate, the probe file and native channel names for the channel
-mapping, and `unitIdentity()` for the labels). The Review tab,
+fallback rate, the probe file and channel numbers for the channel mapping,
+the native channel names, and `unitIdentity()` for the labels). The Review tab,
 `ChronuxDataset.spikes`, `spikesToMat` and both exporters all read through it,
 so they agree on labels, times, channels and notes.
 
@@ -819,7 +954,8 @@ so they agree on labels, times, channels and notes.
 | `Templates` | `true` | read `templates.npy` for the peak channel and waveform |
 | `FullTemplates` | `false` | also return every unit's `[nS x nChan]` template |
 | `ChannelMap` | worked out from the run | `[1 x nChanSorted]` 1-based recording channel of each sorted channel |
-| `ChannelNames`, `ProbeFile` | dataset's | used to map SpikeInterface runs back to recording channels |
+| `ChannelNumbers`, `ProbeFile` | dataset's (`0..n_chan-1` without) | map SpikeInterface runs back to recording channels: the probe's `chanMap` values are matched to channel numbers, as `run_si_ks4.py` does |
+| `ChannelNames` | dataset's native names | fill the `channelName` column |
 | `FsFallback` | `NaN` (error) | rate to use, with a warning, when `params.py` has no `sample_rate`; never a silent 30 kHz |
 | `Identity` | `struct([])` | `subject`, `recordingStart`, `labelSuffix`, `datasetKey` of the recording (`readSortedUnits` passes `unitIdentity()`); empty = labels without the recording |
 
@@ -833,7 +969,7 @@ so they agree on labels, times, channels and notes.
 | `group` | the phy / Kilosort label as written (`good` / `mua` / `noise` / `unsorted` / other) |
 | `notes` | text from `cluster_notes.tsv` next to the sort (`""` when none); see [Unit notes](#unit-notes) |
 | `subject`, `recordingStart`, `datasetKey` | the recording the unit came from (`""` / `NaT` / `""` without an `Identity`) |
-| `channel`, `channelName` | 1-based peak **recording** channel and its native name (`"A-012"`; `""` without `ChannelNames`) |
+| `channel`, `channelName`, `channelNumber` | 1-based peak **recording** channel, its native name (`"A-012"`, `"CH13"`; `""` without `ChannelNames`) and its hardware number (the probe `chanMap` value; `NaN` without `ChannelNumbers`) |
 | `ksChannel` | peak channel among the sorted channels |
 | `shank` | from `channel_shanks.npy` (0 when absent) |
 | `peakX`, `peakY` | site position of the peak channel (probe units, µm) from `channel_positions.npy` |
@@ -1020,11 +1156,14 @@ and nothing analysis-related is run.
   `:Exists` when the file exists and `Overwrite` is off. `out`: `file`,
   `bytes`, `seconds`, `behaviorFile`, `nTrials`, `paired`. With `Pairing=P`
   the trials table carries the pairing columns and `behavior.pairing` the summary.
-- `E = digitalEvents(LabelField=, Cache=true, Refresh=false, ProgressFcn=)`
-  returns the dig-in `events` (high runs), `Fs`, `nSamples` and `digInNames`
-  through `EphysReader.readDigitalEvents`, cached as
-  `<outputFolder>/<Name>_events.mat` (keyed by the files, sample count and
-  label field).
+- `E = digitalEvents(LabelField=, LineNames=, Relabel=true, Cache=true, Refresh=false, ProgressFcn=)`
+  returns the dig-in `events` (high runs), `Fs`, `nSamples`, `digInNames`
+  (the final line names), `digInNativeNames` and `digInDefaultNames` (the
+  names without `LineNames`) through `EphysReader.readDigitalEvents`. The
+  reader's native-keyed result is cached as `<outputFolder>/<Name>_events.mat`
+  (keyed by the reader, the files and the sample count) and the lines are
+  named after loading, so renaming a line never re-reads the recording.
+  `Relabel=false` returns the native-keyed events.
 - `P = pairTrials(Cuts="recorded"|"none"|struct('trials', [s e], 'intervals', [s e]), Events=, Warn=, ProgressFcn=)`
   pairs the session's trials, in order, with `TrialConfig.TrialLine`
   ([`pairEpsychTrials`](EphysPipeline.md#pairing-trials-with-the-trial-line)).
@@ -1073,7 +1212,9 @@ is in [file-formats.md](file-formats.md#dataset-manifest).
 | --- | --- |
 | `outputFolder()` | `OutputDir`, or `Folder` when `OutputDir` is `""` |
 | `tracker()` | a [`DatasetTracker`](DatasetTracker.md) of `outputFolder()` (an empty tracker if the folder does not exist yet) |
-| `EphysDataset.detectFormat(folder)` | layout string (static; asks the reader registry) |
+| `EphysDataset.detectFormat(folder, ReaderOptions=)` | layout string (static; asks the reader registry) |
+| `EphysDataset.relabelEvents(E, labelField, lineNames)` | events named as [above](#digital-line-names) (static) |
+| `EphysDataset.parseLineNames(list)` | `[natives, names]` of `"native=name"` entries (static) |
 | `EphysDataset.resolveFilterOptions(cfg, opts)` | filter options merged over an `ArtifactConfig` (static) |
 | `EphysDataset.parseChannelList(s)` | sorted, unique, positive integer row vector from `"1,3,5-8"`, `"1 3 5:8"` or a numeric vector. Hyphens become colons and the text goes through `str2num` |
 | `EphysDataset.formatChannelList(ch)` | compact `"1,3,5-8"` string |
@@ -1087,7 +1228,10 @@ is in [file-formats.md](file-formats.md#dataset-manifest).
 | `EphysDataset:NoFolder` | constructor folder missing |
 | `EphysDataset:refreshMetadata:ChannelMismatch`, `EphysDataset:toBin:ChannelMismatch` | amplifier channel count changes between files |
 | `EphysDataset:splitLayout:NoHeader` / `NoAmplifier` / `NoChannels` | split recording incomplete |
-| `EphysDataset:readData:NoFiles`, `EphysDataset:toBin:NoFiles` | no Intan files |
+| `EphysDataset:readData:NoFiles`, `EphysDataset:toBin:NoFiles` | no recording files |
+| `EphysDataset:LineNames`, `EphysDataset:relabelEvents:Duplicate` | a malformed `LineNames` entry, or two lines with the same final name |
+| `OpenEphysReader:MultipleRecordings` | `"single"` mode and a session with several recordings |
+| `OpenEphysReader:NoNode` / `NoStream` / `NoRecording` | the configured Record Node or stream (or a part folder's recording) is not in the session |
 | `EphysDataset:readData:BadKeepChannels`, `EphysDataset:toBin:BadChannelOrder` | channel index out of range |
 | `EphysDataset:filterContinuous:CutoffAboveNyquist` | cutoff ≥ Fs/2 |
 | `EphysDataset:detectSpikes:BandAboveNyquist` | spike-detection band upper edge ≥ Fs/2 |
@@ -1134,6 +1278,14 @@ deletes them afterwards. It covers:
 | 17 | `readPhyUnits` / `readSortedUnits` (times = samples/fs, phy labels beat Kilosort labels, groups, channel mapping, `FsFallback`) |
 | 18 | `spikesToMat` (detected + sorted, artifact rejection, waveforms, unit labels and identity saved, no behavior variable, no partial file left) |
 | 19 | the reader registry, `BinaryReader` (same microvolts through `readData`, `streamPlan` / `readChunkUV` and `readWindowUV`), discovery of both kinds, `siRecordingSpec` |
+
+[`test_OpenEphysReader.m`](../pipeline/test_OpenEphysReader.m) writes Open
+Ephys sessions in every record engine (and the GUI 0.5 file names) with the
+synthetic writers and covers metadata, exact samples across recordings and
+gaps, TTL intervals per format, AUX and ADC, discovery, record node / stream
+selection, the three recording modes, line naming and the events cache, a
+synthetic Open Ephys project through `EphysPipeline`, and (with the kilosort
+environment) `run_si_ks4.py` loading the same samples.
 | 20 | `exportChronux` / `exportFieldTrip`, `readBehavior` / `behaviorStruct` / `behaviorToMat` |
 
 [`test_UnitLabels.m`](../pipeline/test_UnitLabels.m) covers unit labels:

@@ -60,7 +60,7 @@ without one gets `"<kind>_<n>"`.
   "schema": "ephys-analysis-config", "version": 1,
   "name": "AM quick look", "description": "",
   "Source": { "Mode": "project", "Root": "D:\\EPHYS", "OutputRoot": "",
-              "NamePattern": "{SubjectID}_{Date:yyMMdd}_{Time:HHmmss}",
+              "NamePattern": "{SubjectID}_{Date:yyMMdd}_{Time:HHmmss}", "Recordings": "concatenate",
               "Selection": "all", "Datasets": [], "Folders": [] },
   "Defaults": {
     "EventRef":  { "line": "Stim", "edge": "onset", "which": "first", "n": 1, "scope": "auto",
@@ -101,6 +101,7 @@ stand for the rest); a file written by hand may leave fields out.
 | `Root` | `""` | project root (the folder the preprocessing app scans) |
 | `OutputRoot` | `""` | the project's output root; `""` = outputs next to each recording |
 | `NamePattern` | `EphysDataset.DefaultNamePattern` | dataset-name tokens, as in the pipeline config |
+| `Recordings` | `"concatenate"` | what an Open Ephys session with several recordings is (`"concatenate"`, `"separate"`, `"single"`), as in the pipeline config's `Acquisition.OpenEphys.Recordings`: with `"separate"` the datasets are the part folders |
 | `Selection` | `"all"` | `"all"` or `"list"` |
 | `Datasets` | none | root-relative dataset keys for `"list"` |
 | `Folders` | none | dataset output folders (`"folders"` mode) |
@@ -221,7 +222,7 @@ dataset's output folder), `{Root}`, `{Name}` (the dataset), `{Date}`
 
 | Section | Rule | Severity |
 | --- | --- | --- |
-| Source | Mode is project / folders; Root set and existing (CheckPaths); every folder exists; NamePattern parses | error |
+| Source | Mode is project / folders; Root set and existing (CheckPaths); every folder exists; NamePattern parses; Recordings is one of the three modes | error |
 | Source | a "list" selection with no datasets; an OutputRoot that does not exist | warning |
 | Defaults, Plots | the event reference, window and selection are valid (`pre <= post`, a `"between"` window has a stop, `groupBy` has at most 2 parameters, ...) | error |
 | Defaults, Plots | a filter that does not parse | warning (it is checked against each dataset's trials when it runs) |

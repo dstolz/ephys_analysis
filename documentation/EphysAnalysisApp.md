@@ -50,7 +50,8 @@ The detection is in `openSource`.
 ### Data tab
 
 - Config name and description.
-- **Datasets from**: a pipeline project (Root, Output root, Name pattern) or
+- **Datasets from**: a pipeline project (Root, Output root, Name pattern, and
+  the Open Ephys recording mode, as in the pipeline config) or
   output folders (one per line, *Add...*). **Scan** builds the runner, which
   finds the datasets (and owns the loaded data).
 - The datasets table: **Run** (tick the datasets a run uses; in project mode

@@ -7,9 +7,11 @@ function buildTrialsTab(obj)
 %   and the pairing summary with the count-mismatch warning. Left: the
 %   config's pairing settings (Behavior section: pair in the behavior step,
 %   auto approve a pairing whose counts match without cuts, trial line), one
-%   row per digital line with its polarity (Signals.InvertedLines:
-%   an inverted line is on while low, so its onset is the falling edge; this
-%   also applies to the events in the extract and export files), and the
+%   row per digital line with its native name, its name (editable:
+%   Signals.LineNames, e.g. an Open Ephys TTL4 named InTrial) and its
+%   polarity (Signals.InvertedLines: an inverted line is on while low, so
+%   its onset is the falling edge; the names and polarity also apply to the
+%   events in the extract and export files), and the
 %   cuts that resolve a count mismatch: trials or trial-line intervals
 %   dropped from the start or the end before the in-order pairing (kept per
 %   dataset in its manifest, not in the config). Right: one row per trial;
@@ -87,13 +89,14 @@ obj.TrialsLineDropDown = uidropdown(sg, "Items", {'InTrial'}, "Value", 'InTrial'
     "Tooltip", "Digital line that is on for the duration of each trial (type a name or pick a loaded line).", ...
     "ValueChangedFcn", changed);
 obj.TrialsLineDropDown.Layout.Row = 3; obj.TrialsLineDropDown.Layout.Column = 2;
-obj.TrialsLinesTable = uitable(sg, "ColumnName", {'Line', 'Intervals', 'Inverted'}, ...
-    "ColumnEditable", [false false true], "ColumnWidth", {110, 65, 70}, "RowName", {}, ...
-    "Tooltip", "Tick lines with inverted polarity: on while low, onset = falling edge, offset = rising edge. Applies to pairing and to the events written by the Signals step.", ...
-    "CellEditCallback", changed);
+obj.TrialsLinesTable = uitable(sg, "ColumnName", {'Native', 'Name', 'Intervals', 'Inverted'}, ...
+    "ColumnEditable", [false true false true], "ColumnWidth", {90, 100, 60, 60}, "RowName", {}, ...
+    "Tooltip", ["Name: what the line is called in the pairing, the extract and export files (Signals.LineNames; blank = its default name)." ...
+        "Inverted: the line is on while low (onset = falling edge, offset = rising edge)."], ...
+    "CellEditCallback", @(~, evt) obj.onTrialsLinesEdited(evt));
 obj.TrialsLinesTable.Layout.Row = 4; obj.TrialsLinesTable.Layout.Column = [1 2];
-obj.TrialsLinesTable.Data = table(strings(0, 1), zeros(0, 1), false(0, 1), ...
-    'VariableNames', {'Line', 'Intervals', 'Inverted'});
+obj.TrialsLinesTable.Data = table(strings(0, 1), strings(0, 1), zeros(0, 1), false(0, 1), ...
+    'VariableNames', {'Native', 'Name', 'Intervals', 'Inverted'});
 
 cp = uipanel(sg, "Title", "Resolve a count mismatch (this dataset)");
 cp.Layout.Row = 5; cp.Layout.Column = [1 2];

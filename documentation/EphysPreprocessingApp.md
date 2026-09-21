@@ -528,7 +528,7 @@ natively.
 | Engine: *SpikeInterface + Kilosort4* / *Kilosort4 only (native, via a .bin)* | `Sorting.Engine` (`"spikeinterface"` / `"kilosort"`). The native engine writes `<Name>.bin` with the artifact periods zeroed, runs `run_ks4.py` on it, and greys out the SpikeInterface preprocessing controls, which it ignores. See [Running Kilosort4](EphysDataset.md#running-kilosort4) |
 | Python exe (+ Browse), Conda env | `Sorting.PythonExe` (seeded from a `kilosort` conda env under `%LOCALAPPDATA%` / `%USERPROFILE%` when a new config is created), `CondaEnv` |
 | Phy command | preference `PhyCmd` (blank = `conda run -n phy phy`) |
-| Execution (background / blocking), Dry run | `Sorting.Execution`, `DryRun` |
+| Execution (background / blocking), Dry run | `Sorting.Execution`, `DryRun`. How many background runs go at once is set on the [Run](#run) tab |
 | Bandpass filter, Common reference, Detect bad channels (+ method, action) | `Sorting.SI` ([defaults](EphysDataset.md#default-spikeinterface-configuration)); SpikeInterface engine only |
 | Kilosort4 parameters (five groups, from `EphysPipelineConfig.kilosortParamSpec`), Extra settings (JSON) | `Sorting.KS4`, `KS4ExtraJSON`. Control kinds: int / float / bool as typed; `nullable` blank = omitted; `floatinf` blank / `inf` = omitted; `vector` = comma- or space-separated |
 | **Optimize for probe** | loads the Kilosort4 parameters saved for the active dataset's probe (else the default probe) from `<probe>.ks4.json` next to the probe map; without that file, offers to generate it from the current parameters or from the probe layout ([details](#optimize-for-probe)) |
@@ -537,9 +537,13 @@ natively.
 | **Run this step** | `EphysPipeline.runSorting` over the selected datasets |
 | progress label + log | background runs (`ks4_run.log` tail, `ks4_status.json`), see below |
 
-Background runs are handed to a MATLAB `timer` (every 3 s): it appends new log
-lines, logs `[done]` / `[error]`, rewrites the dataset's manifest and refreshes
-the table. The timer stops when every tracked run has a status file. Closing
+Each background run is handed to a MATLAB `timer` (every 3 s) as soon as it
+starts: it appends new log lines, logs `[done]` / `[error]` (a run whose
+process exits without a status file is an error), rewrites the dataset's
+manifest and refreshes the table. The progress label reads *Background
+Kilosort4: F of T finished (R running, W waiting to start)*, where *waiting*
+counts the datasets the run has not started yet for want of a free slot. The
+timer stops when every tracked run has finished and none is waiting. Closing
 the app stops the timer but not Python processes already running. With
 automatic artifact detection on, each dataset's scan runs **in MATLAB,
 synchronously**, before Python is launched (and is cached afterwards).
@@ -717,6 +721,16 @@ default web browser, same as **Save as HTML...** but without the save dialog.
 
 - **Steps** checklist: the Enabled boxes of every step (mirrored with the
   tabs), and the selection summary.
+- **Kilosort4 runs at once** (under the Sorting box, default 1):
+  `Sorting.MaxConcurrent`. With background execution, a run sorts this many
+  datasets at a time and starts the next as one finishes. It writes each
+  dataset's run files first (the `.bin` for the native engine), so the next
+  one is ready to go. The run stays busy until the last dataset has started;
+  **Cancel** stops the wait (runs already started carry on). The current-step
+  line says how many are running, finished and still to start. Runs from an
+  earlier Run that are still going count too. Greyed out when Execution
+  (Sorting tab) is blocking, which always goes one at a time. See
+  [Background Kilosort4 runs](EphysPipeline.md#background-kilosort4-runs).
 - **Parallel: chunks on the process pool** and **Max workers** (blank =
   automatic): `Parallel.Enabled` / `MaxWorkers`, used by the artifacts step,
   the Artifacts tab's **Detect / Preview** and spike detection; see
@@ -763,7 +777,8 @@ default web browser, same as **Save as HTML...** but without the save dialog.
   when MATLAB exits) and it deletes its folder; if no sample comes for 15 s,
   the app starts a new one. The switch is remembered between sessions.
 - Background Kilosort4 runs launched by a run are handed to the same monitor
-  as the Sorting tab.
+  as the Sorting tab as each one starts; the label under the log counts them
+  (finished of total, running, waiting to start).
 
 ## Visualize
 

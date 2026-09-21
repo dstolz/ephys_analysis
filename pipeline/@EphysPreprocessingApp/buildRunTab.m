@@ -1,5 +1,6 @@
 function buildRunTab(obj)
-%buildRunTab  Run the whole pipeline: step checklist, validate / plan,
+%buildRunTab  Run the whole pipeline: step checklist (with how many
+%   background Kilosort4 runs go at once, Sorting.MaxConcurrent), validate / plan,
 %   run / dry run / cancel, progress bars, validation issues, results,
 %   merged log and the background Kilosort4 runs being monitored. With
 %   Show the run diagram ticked, a diagram of the run's steps (the one
@@ -18,12 +19,19 @@ g.Padding     = [10 10 10 10];
 % --- steps checklist ---------------------------------------------------------
 steps = uipanel(g, "Title", "Steps (same switches as on each tab)");
 steps.Layout.Row = 1; steps.Layout.Column = 1;
-sg = uigridlayout(steps, [15 1]);
-sg.RowHeight = [repmat({'fit'}, 1, 14), {'1x'}];
+sg = uigridlayout(steps, [16 1]);
+sg.RowHeight = [repmat({'fit'}, 1, 15), {'1x'}];
 uilabel(sg, "Text", "Probe check (always)", "FontColor", [0.4 0.4 0.4]);
 obj.RunBehaviorCheckBox  = uicheckbox(sg, "Text", "Behavior: match Epsych2 sessions", "ValueChangedFcn", @(src,~) mirror(obj, "BehEnableCheckBox", src.Value));
 obj.RunArtifactsCheckBox = uicheckbox(sg, "Text", "Artifacts: automatic detection", "ValueChangedFcn", @(src,~) mirror(obj, "ArtEnableCheckBox", src.Value));
 obj.RunSortingCheckBox   = uicheckbox(sg, "Text", "Sorting: SpikeInterface + Kilosort4", "ValueChangedFcn", @(src,~) mirror(obj, "SortEnableCheckBox", src.Value));
+kg = uigridlayout(sg, [1 2]);
+kg.Padding = [20 0 0 0]; kg.ColumnWidth = {'fit', 60}; kg.RowHeight = {'fit'}; kg.ColumnSpacing = 4;
+tip = "How many Kilosort4 runs go at once in the background; each further dataset waits for one to finish. " + ...
+    "Blocking runs (Sorting tab, Execution) always go one at a time.";
+uilabel(kg, "Text", "Kilosort4 runs at once:", "Tooltip", tip);
+obj.RunKSAtOnceSpinner = uispinner(kg, "Limits", [1 Inf], "Step", 1, "RoundFractionalValues", "on", ...
+    "Value", 1, "Tooltip", tip, "ValueChangedFcn", @(~,~) obj.onConfigChanged());
 obj.RunSignalsCheckBox   = uicheckbox(sg, "Text", "Signals: LFP / MUA / SPIKE / AUX .mat", "ValueChangedFcn", @(src,~) mirror(obj, "SigEnableCheckBox", src.Value));
 obj.RunSpikesCheckBox    = uicheckbox(sg, "Text", "Spikes: detected / sorted .mat", "ValueChangedFcn", @(src,~) mirror(obj, "SpkEnableCheckBox", src.Value));
 obj.RunExportCheckBox    = uicheckbox(sg, "Text", "Export: analysis-toolbox files", "ValueChangedFcn", @(src,~) mirror(obj, "ExpEnableCheckBox", src.Value));

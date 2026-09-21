@@ -49,6 +49,7 @@ classdef EphysPipelineScript
             L(end+1, 1) = "% cfg.Project.OutputRoot = " + EphysPipelineScript.literal(cfg.Project.OutputRoot) + ";";
             L(end+1, 1) = "% cfg.Project.Selection = ""all"";";
             L(end+1, 1) = "% cfg.Sorting.Execution = ""blocking"";";
+            L(end+1, 1) = "% cfg.Sorting.MaxConcurrent = 2;   % background Kilosort4 runs at once";
             L(end+1, 1) = "";
             L(end+1, 1) = "pipe = EphysPipeline(cfg);      % scans the project root, applies the manifests";
             L(end+1, 1) = "disp(pipe.plan());              % what will run; writes nothing";
@@ -180,6 +181,13 @@ classdef EphysPipelineScript
             L = [L; EphysPipelineScript.stepHeader(sortTitle, cfg.stepEnabled("sorting"))];
             [ks4, ~] = EphysPipelineConfig.ks4Settings(S);
             L = [L; EphysPipelineScript.structLiteral("ks4", ks4)];
+            background = S.Execution == "background" && ~S.DryRun;
+            gateArg = "";
+            if background
+                L(end+1, 1) = "maxConcurrent = " + lit(S.MaxConcurrent) + ";   % background runs at once; the next waits for a free slot";
+                L(end+1, 1) = "launched = strings(0, 1);   % ks4_status.json of each run started";
+                gateArg = "BeforeLaunchFcn=@() waitForSortingSlot(launched, maxConcurrent), ";
+            end
             L(end+1, 1) = "for k = idx";
             L(end+1, 1) = "    d = P.Datasets(k);";
             L(end+1, 1) = "    if d.ProbeFile == """"; fprintf('%s: no probe, skipped\n', d.Name); continue; end";
@@ -192,8 +200,11 @@ classdef EphysPipelineScript
             else
                 L(end+1, 1) = "        iv = d.artifactIntervals(IncludeAuto=false);";
             end
-            L(end+1, 1) = "        res = " + sortCall + "(ExtraSettings=ks4, ArtifactIntervals=iv, DryRun=" + ...
+            L(end+1, 1) = "        res = " + sortCall + "(" + gateArg + "ExtraSettings=ks4, ArtifactIntervals=iv, DryRun=" + ...
                 lit(logical(S.DryRun)) + ", Wait=" + lit(S.Execution == "blocking") + ");";
+            if background
+                L(end+1, 1) = "        launched(end+1) = res.statusFile;";
+            end
             L(end+1, 1) = "        d.writeManifest();";
             L(end+1, 1) = "        fprintf('%s: sorting -> %s\n', d.Name, res.resultsDir);";
             L(end+1, 1) = "    catch ME";

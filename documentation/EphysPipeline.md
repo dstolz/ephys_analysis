@@ -52,7 +52,7 @@ returns the defaults and is the single source of truth for field names.
 | `Probe` | `probe` (always runs) | `DefaultProbeFile` (assigned to datasets without a probe), `WriteDefaultToManifest` |
 | `Behavior` | `behavior` | `Enabled`, `SearchDirs`, `Match` (`"prefix"`, `"time"`, `"prefix-then-time"`), `MaxStartOffsetMin` (30), `Overwrite`, `WriteFile` (`true`: write `<Name>_behavior.mat` for every associated dataset), `PairTrials` (`true`), `AutoApprove` (`false`: approve a pairing whose trial and interval counts match without cuts), `TrialLine` (`"InTrial"`) |
 | `Artifacts` | `artifacts` | `Enabled` (automatic detection; manual periods always apply), `Method`, `Threshold`, `RmsWindowMs`, `MergeGapMs`, `MinChannels`, `PadMs`, `Filter`, `FilterType`, `FilterCutoff`, `FilterOrder`, `ApplyToSorting`, `ApplyToSpikes`, `CacheIntervals` |
-| `Sorting` | `sorting` | `Enabled`, `Engine` (`"spikeinterface"`: `runSpikeInterface`; `"kilosort"`: `runKilosort`, native Kilosort4 on a `.bin` with the artifact periods zeroed and no SpikeInterface preprocessing), `PythonExe`, `CondaEnv`, `Execution` (`"background"` or `"blocking"`), `DryRun`, `SkipExisting`, `SI` (the [SpikeInterface settings](EphysDataset.md#default-spikeinterface-configuration)), `KS4` (one typed field per `kilosortParamSpec` entry), `KS4ExtraJSON` |
+| `Sorting` | `sorting` | `Enabled`, `Engine` (`"spikeinterface"`: `runSpikeInterface`; `"kilosort"`: `runKilosort`, native Kilosort4 on a `.bin` with the artifact periods zeroed and no SpikeInterface preprocessing), `PythonExe`, `CondaEnv`, `Execution` (`"background"` or `"blocking"`), `MaxConcurrent` (background runs at once, default 1; see [Background Kilosort4 runs](#background-kilosort4-runs)), `DryRun`, `SkipExisting`, `SI` (the [SpikeInterface settings](EphysDataset.md#default-spikeinterface-configuration)), `KS4` (one typed field per `kilosortParamSpec` entry), `KS4ExtraJSON` |
 | `Signals` | `signals` | `Enabled`, `OutputDir`, `Suffix` (`"_extract"`), `SeparateFiles` (`true`: `<Name><Suffix>_<TYPE>.mat` per signal type), `MatVersion`, `Overwrite`, `LFP` / `MUA` / `SPIKE`, `LFP_Fs`, `LFP_HighpassOn/Hz`, `LFP_LowpassOn/Hz`, `LFP_NotchOn/Hz/BW`, `MUA_Fs`, `MUA_IntegrationHz`, `MUA_bpLoHi`, `SPIKE_KeepOriginal`, `SPIKE_Fs`, `SPIKE_bpLoHi`, `LabelField` (`"custom"` or `"native"`: which name labels channels, aux inputs and digital lines), `LineNames` (`"native=name"` entries naming digital lines, e.g. `"TTL4=InTrial"`; see [line names](#digital-line-names)), `InvertedLines` (digital lines with inverted polarity: onset = falling edge; see [polarity](#digital-line-polarity)), `KeepChannels`, `BadMode`, `BadThreshold`, `BadList`, `ChannelRemap`, `ExcludeHandling` (`"none"`, `"drop"`, `"interpolate"`: what to do with the manifest's excluded channels) |
 | `Spikes` | `spikes` | `Enabled`, `Source` (`"detect"`, `"sorted"`, `"both"`), the `detectSpikes` options (`Filter`, `Band`, `FilterOrder`, `Polarity`, `ThresholdMethod`, `Threshold` (`NaN` = the method's default), `Align`, `AlignWindowMs`, `MinPeriodMs`, `MaxAmplitudeUV`, `Waveforms`, `WindowMs`, `WaveformSource`, `EdgeHandling`, `MaxChunkSamples`, `EdgePadMs`), `Channels` (`"all"`, `"excludeManifest"`, `"list"`) + `ChannelList`, `RejectArtifacts`, the sorted-unit options (`Groups`, `IncludeNoise`, `Templates`), `OutputDir`, `Suffix` (`"_spikes"`), `MatVersion`, `Overwrite` |
 | `Export` | `export` | `Enabled`, `Formats` (subset of `["chronux" "fieldtrip" "epochs"]`), `Signals` (`[]` = every signal in the extract), `IncludeUnits`, `IncludeDetected`, `IncludeEvents`, `Groups`, `Validate`, the epoch settings `EpochSource` (`"line"` / `"behavior"`), `EpochLine`, `EpochWindow` (`[tPre tPost]` s), `EpochOnsetRule`, `EpochIncomplete`, `EpochNonFinite`, `EpochSpikeTimeBase`, `EpochClass`, `OutputDir`, `MatVersion`, `Overwrite` |
@@ -104,7 +104,8 @@ it is an error.
 
 The `Parallel` checks: `MaxWorkers` must be `NaN` or a whole number ≥ 1
 (error); `Enabled` without a licensed Parallel Computing Toolbox is a warning
-(the steps run serially).
+(the steps run serially). With sorting enabled, `Sorting.MaxConcurrent` must
+be a whole number ≥ 1 (error).
 
 ### Helpers
 
@@ -248,6 +249,9 @@ and `selectDatasets()`. Assigning a new `Config` does both again.
 | `CancelRequested` | set by `cancel()` |
 | `Results` | table `Step`, `Dataset`, `Status`, `Message`, `Output`, `Seconds`, one row per step × dataset |
 | `LaunchedRuns` | background Kilosort4 runs (`Name`, `statusFile`, `resultsDir`, `logFile`, `logPos`, `done`), the shape the app's monitor consumes |
+| `LaunchFcn` | `LaunchFcn(run)` is called with each background run (a `LaunchedRuns` element) as soon as it starts (default none) |
+| `PriorRuns` | `ks4_status.json` paths of background runs started elsewhere; while they are running they take slots of `Sorting.MaxConcurrent` |
+| `SortingWaiting` | how many datasets the sorting step has still to start |
 
 ### Plan
 
@@ -283,7 +287,7 @@ step in `EphysPipelineConfig.StepNames` order:
 | `probe` | `checkProbes()` | assigns `Probe.DefaultProbeFile` to datasets without a probe (written to the manifest when `WriteDefaultToManifest`), reports channel-count mismatches |
 | `behavior` | `checkBehavior()` | for datasets without a `BehaviorFile` (or all with `Overwrite`) runs `findEpsychSessions` over `SearchDirs` and `matchEpsychSession`; sets `BehaviorFile`, writes the manifest; reports unmatched and ambiguous datasets. With `WriteFile`, every dataset that ends up associated (matched or kept) gets `behaviorToMat` → `<outputFolder>/<Name>_behavior.mat`, rewritten each run (result step `behavior:file`). With `PairTrials`, trials are first paired with the `TrialLine` intervals (`EphysDataset.pairTrials`, result step `behavior:pairing`): a recorded pairing that still matches is reused (`approved`, `auto-approved` or `needs review`); with `AutoApprove`, a pairing whose counts match without cuts is approved (`auto-approved`, `EphysDataset.autoApproveTrialPairing`); anything else is recorded in the manifest as unreviewed (`needs review`, or `count mismatch`); `no trial line` when the recording has no such line. The pairing columns go into the behavior file |
 | `artifacts` | `runArtifacts()` | computes `artifactIntervals()` per dataset and caches them (see below) |
-| `sorting` | `runSorting()` | `runSpikeInterface(ExtraSettings=ks4Settings, SIConfig=, ArtifactIntervals=, DryRun=, Wait=)`, then `writeManifest`. Background runs are listed in `LaunchedRuns` with status `launched` |
+| `sorting` | `runSorting()` | `runSpikeInterface(ExtraSettings=ks4Settings, SIConfig=, ArtifactIntervals=, DryRun=, Wait=)`, then `writeManifest`. Background runs go at most `Sorting.MaxConcurrent` at a time ([below](#background-kilosort4-runs)) and are listed in `LaunchedRuns` with status `launched` |
 | `signals` | `runSignals()` | `toMat(File=, SeparateFiles=, SignalOptions=, MatVersion=, Overwrite=, ProgressFcn=)` with the configured exclude handling |
 | `spikes` | `runSpikeDetection()` | `spikesToMat(Source=, DetectOptions=, Channels=, ArtifactIntervals=, Groups=, IncludeNoise=, Templates=, ...)` |
 | `export` | `runExport()` | per format `exportChronux(...)` / `exportFieldTrip(...)` / `exportEpochs(...)` from the extract file, with units, detected spikes and events as configured. The `epochs` format organizes the same data by event — one epoch per digital pulse (`EpochSource = "line"`) or per paired trial (`"behavior"`, which also carries the session's trial columns) — over `EpochWindow` ([`EphysDataset.eventEpochs`](EphysDataset.md#event-organized-epoched-data)) |
@@ -306,6 +310,29 @@ the automatic detections reach those steps (manual periods always do).
 `EphysPipeline:Cancelled`. The current dataset is marked `cancelled` (its
 output is written atomically, so nothing half-done is left behind), the
 remaining rows are `not run`, and `run()` returns normally.
+
+### Background Kilosort4 runs
+
+With `Sorting.Execution = "background"`, at most `Sorting.MaxConcurrent`
+(default 1) Kilosort4 processes run at once, so a batch does not overload the
+GPU. For each dataset, `runSorting` writes the run files first: the
+`si_config.json` or, for the native engine, the `.bin` and `settings.json`.
+Then it waits until a slot is free (`BeforeLaunchFcn` of
+[`runSpikeInterface` / `runKilosort`](EphysDataset.md#running-kilosort4)).
+The next dataset's files are therefore ready while the current runs sort. A
+slot frees when a run's `ks4_status.json` says it is done or failed, or its
+process has exited without writing one
+([`EphysDataset.sortRunState`](EphysDataset.md#running-kilosort4)). Runs listed
+in `PriorRuns` take slots too; the app passes the runs it is still
+following. While it waits, the step reports `waiting for a free Kilosort4
+slot (N at a time): R running, F finished, W still to start`, and `cancel()`
+stops the wait. The dataset it was waiting to start and the rest are marked
+`cancelled`, and runs already started carry on. The step returns once the
+last dataset has started, so a later step in the same run overlaps only the
+last runs. Blocking runs always go one at a time.
+
+`waitForSortingSlot(statusFiles, maxRunning)` is the wait on its own. The
+standalone script uses it the same way.
 
 ### Progress events
 
@@ -378,7 +405,7 @@ txt = EphysPipelineScript.standalone(cfg, File="run_subj1_standalone.m");
 
 | Form | Contents |
 | --- | --- |
-| `compact` | loads the JSON config, builds an `EphysPipeline`, prints `plan()`, then one `pipe.<step>()` line per step. Disabled steps are written commented out. Override hints for the output root, the selection and the execution mode are included as comments. Keep the config file next to it |
+| `compact` | loads the JSON config, builds an `EphysPipeline`, prints `plan()`, then one `pipe.<step>()` line per step. Disabled steps are written commented out. Override hints for the output root, the selection, the execution mode and the background runs at once are included as comments. Keep the config file next to it |
 | `standalone` | every parameter written out as MATLAB literals, in `%%` sections; builds `EphysProject` + `refresh()`, selects datasets by key, and calls `artifactIntervals`, `runSpikeInterface`, `toMat`, `spikesToMat`, `exportChronux`, `exportFieldTrip` and the Epsych2 functions directly. It never references the pipeline classes, so it documents exactly what a run does and needs no config file. The config JSON is embedded in the header comment |
 
 Both scripts write to separate output folders when their config does, and

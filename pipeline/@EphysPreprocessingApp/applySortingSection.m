@@ -18,6 +18,10 @@ obj.CondaEnvField.Value  = char(S.CondaEnv);
 if ~isempty(obj.ExecModeDropDown) && isvalid(obj.ExecModeDropDown)
     obj.ExecModeDropDown.Value = (S.Execution == "blocking");
 end
+if ~isempty(obj.RunKSAtOnceSpinner) && isvalid(obj.RunKSAtOnceSpinner)
+    obj.RunKSAtOnceSpinner.Value = max(1, round(S.MaxConcurrent));
+    obj.RunKSAtOnceSpinner.Enable = matlab.lang.OnOffSwitchState(S.Execution == "background");
+end
 if ~isempty(obj.DryRunCheckBox) && isvalid(obj.DryRunCheckBox)
     obj.DryRunCheckBox.Value = logical(S.DryRun);
 end

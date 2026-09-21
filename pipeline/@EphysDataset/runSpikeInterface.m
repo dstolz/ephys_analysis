@@ -35,10 +35,17 @@ function result = runSpikeInterface(obj, opts)
 %     Wait             (1,1) logical  block until finished (default true). When
 %                      false, launched detached (background) with stdout/stderr
 %                      redirected to the log; result.status is the launcher's.
+%     BeforeLaunchFcn  function handle called with no arguments after the run
+%                      files are written, just before the pipeline starts; it
+%                      returns when the run may start (EphysPipeline.runSorting
+%                      waits there for a free slot). An error from it stops
+%                      the launch. Default [] = none.
 %
 %   Whether blocking or not, run_si_ks4.py writes ks4_status.json (state "done"
-%   or "error") in the run folder on completion, so a caller (pollKSRuns) can
-%   poll a background run exactly as for runKilosort.
+%   or "error") in the run folder on completion, and a background run also
+%   leaves an empty EphysDataset.SortExitMarker there once its process exits,
+%   so a caller (pollKSRuns) can poll a background run exactly as for
+%   runKilosort (EphysDataset.sortRunState).
 %
 %   RESULT struct: status, command, stdoutLog, scriptPath, settingsPath,
 %   resultsDir, runDir, probeFile, excludeChannels, dryRun, wait, statusFile,
@@ -62,6 +69,7 @@ arguments
     opts.Files (1,:) string = string.empty(1,0)
     opts.DryRun (1,1) logical = false
     opts.Wait (1,1) logical = true
+    opts.BeforeLaunchFcn = []
 end
 
 % Resolve config (per-call -> dataset)
@@ -132,6 +140,7 @@ end
 
 % ---- Assemble the config the Python script consumes --------------------
 statusFile = fullfile(runDir, 'ks4_status.json');
+exitFile   = fullfile(runDir, char(EphysDataset.SortExitMarker));
 stdoutLog  = fullfile(runDir, 'ks4_run.log');
 scriptPath = fullfile(runDir, 'run_si_ks4.py');
 configPath = fullfile(runDir, 'si_config.json');
@@ -206,9 +215,16 @@ if opts.DryRun
     return
 end
 
-% Clear any stale status file so it reflects this run only.
+if ~isempty(opts.BeforeLaunchFcn)
+    opts.BeforeLaunchFcn();
+end
+
+% Clear any stale status / exit marker so they reflect this run only.
 if isfile(statusFile)
     delete(statusFile);
+end
+if isfile(exitFile)
+    delete(exitFile);
 end
 
 if opts.Wait
@@ -225,7 +241,7 @@ if opts.Wait
             'Pipeline exited with status %d. See log: %s', status, stdoutLog);
     end
 else
-    bgCommand = backgroundCommand(command, stdoutLog);
+    bgCommand = backgroundCommand(command, stdoutLog, exitFile, 'SpikeInterface-KS4');
     fprintf('Launching SpikeInterface + Kilosort4 (background):\n  %s\n', bgCommand);
     status = system(bgCommand);   % returns immediately
     result.status = status;       % launcher status, not the pipeline exit code
@@ -245,21 +261,6 @@ end
 
 
 %% ---- local helpers ----------------------------------------------------
-
-function bg = backgroundCommand(command, logFile)
-%backgroundCommand  Wrap COMMAND to run detached with output redirected to LOG.
-%   PYTHONUNBUFFERED=1 forces unbuffered stdout/stderr; without it, Python
-%   fully block-buffers when writing to a redirected file (not a TTY), so
-%   ks4_run.log stays empty until the process exits and the live tail in
-%   pollKSRuns has nothing to show.
-log = char(logFile);
-if ispc
-    bg = sprintf('start "SpikeInterface-KS4" /min cmd /s /c "set PYTHONUNBUFFERED=1&& %s 1> "%s" 2>&1"', command, log);
-else
-    bg = sprintf('PYTHONUNBUFFERED=1 %s > "%s" 2>&1 &', command, log);
-end
-end
-
 
 function v = firstNonEmpty(varargin)
 v = "";

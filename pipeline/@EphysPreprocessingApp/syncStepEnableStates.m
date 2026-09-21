@@ -21,6 +21,9 @@ setIf(obj.SortEnableCheckBox,   cfg.Sorting.Enabled);
 setIf(obj.SigEnableCheckBox,    cfg.Signals.Enabled);
 setIf(obj.SpkEnableCheckBox,    cfg.Spikes.Enabled);
 setIf(obj.ExpEnableCheckBox,    cfg.Export.Enabled);
+if ~isempty(obj.RunKSAtOnceSpinner) && isvalid(obj.RunKSAtOnceSpinner)
+    obj.RunKSAtOnceSpinner.Enable = matlab.lang.OnOffSwitchState(cfg.Sorting.Execution == "background");
+end
 if ~isempty(obj.RunSelectionLabel) && isvalid(obj.RunSelectionLabel)
     if isempty(obj.Project) || obj.Project.NumDatasets == 0
         obj.RunSelectionLabel.Text = "Selection: scan a project root first.";

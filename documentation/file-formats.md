@@ -318,7 +318,7 @@ which holds `H64LP_4x16.json` as a starting point.
   "Behavior":  { "Enabled", "SearchDirs", "Match", "MaxStartOffsetMin", "Overwrite", "WriteFile",
                  "PairTrials", "AutoApprove", "TrialLine" },
   "Artifacts": { "Enabled", "Method", "Threshold", ... , "ApplyToSorting", "ApplyToSpikes", "CacheIntervals" },
-  "Sorting":   { "Enabled", "Engine", "PythonExe", "CondaEnv", "Execution", "DryRun", "SkipExisting",
+  "Sorting":   { "Enabled", "Engine", "PythonExe", "CondaEnv", "Execution", "MaxConcurrent", "DryRun", "SkipExisting",
                  "SI": {...}, "KS4": {...}, "KS4ExtraJSON" },
   "Signals":   { "Enabled", "OutputDir", "Suffix", ... , "LabelField", "LineNames", "InvertedLines", ... , "ExcludeHandling" },
   "Spikes":    { "Enabled", "Source", ... , "Groups", "IncludeNoise", "Templates", "OutputDir", "Suffix", ... },
@@ -515,6 +515,14 @@ Path: in the run folder. Written by the Python driver when it finishes.
 
 Both engines delete a stale status file before launching. The GUI's background
 monitor polls this file every 3 s.
+
+## `ks4_exit.txt`
+
+Path: next to `ks4_status.json`. An empty file that the background launcher
+writes once the Python process has exited, however it ended. A run with this
+file but no status file failed before the driver could report (a missing
+Python or conda env, a crash). `EphysDataset.sortRunState` reads the two
+together. Deleted before each launch.
 
 ## Kilosort4 / phy output
 

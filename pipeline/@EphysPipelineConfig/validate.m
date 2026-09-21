@@ -117,6 +117,9 @@ if S.Enabled
     if ~ismember(S.Execution, ["background" "blocking"])
         add("sorting", "Execution", "error", "Execution must be ""background"" or ""blocking"".");
     end
+    if ~(isfinite(S.MaxConcurrent) && S.MaxConcurrent >= 1 && S.MaxConcurrent == round(S.MaxConcurrent))
+        add("sorting", "MaxConcurrent", "error", "MaxConcurrent (Kilosort4 runs at once) must be a whole number >= 1.");
+    end
     [~, msg] = EphysPipelineConfig.ks4Settings(S);
     if msg ~= ""; add("sorting", "KS4ExtraJSON", "error", msg); end
     if S.SI.Filter && ~(S.SI.FilterFreqMin < S.SI.FilterFreqMax)

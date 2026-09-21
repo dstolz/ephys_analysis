@@ -38,10 +38,17 @@ function result = runKilosort(obj, opts)
 %                    with stdout/stderr redirected to the log, and the call
 %                    returns immediately; result.status is then the launcher's
 %                    status, not the Kilosort4 exit code.
+%     BeforeLaunchFcn function handle called with no arguments after every
+%                    file (the .bin included) is written, just before
+%                    Kilosort4 starts; it returns when the run may start
+%                    (EphysPipeline.runSorting waits there for a free slot).
+%                    An error from it stops the launch. Default [] = none.
 %
 %   Whether blocking or not, the generated run_ks4.py writes a small
 %   ks4_status.json (state "done" or "error") in the results dir on completion,
-%   so a caller can poll for completion of a background run.
+%   and a background run also leaves an empty EphysDataset.SortExitMarker there
+%   once its process exits, so a caller can poll for completion of a
+%   background run (EphysDataset.sortRunState).
 %
 %   Python/conda exe and conda env resolve most-specific-first:
 %   per-call opts -> dataset property -> (manager default, when pushed down).
@@ -70,6 +77,7 @@ arguments
     opts.ArtifactIntervals double = NaN
     opts.DryRun (1,1) logical = false
     opts.Wait (1,1) logical = true
+    opts.BeforeLaunchFcn = []
 end
 
 % Resolve config (per-call -> dataset)
@@ -171,6 +179,7 @@ settingsPath = fullfile(resultsDir, 'settings.json');
 scriptPath   = fullfile(resultsDir, 'run_ks4.py');
 stdoutLog    = fullfile(resultsDir, 'ks4_run.log');
 statusFile   = fullfile(resultsDir, 'ks4_status.json');
+exitFile     = fullfile(resultsDir, char(EphysDataset.SortExitMarker));
 
 writeSettings(settings, settingsPath);
 writeRunScript(scriptPath);
@@ -205,9 +214,16 @@ if opts.DryRun
     return
 end
 
-% Clear any stale status file so it reflects this run only.
+if ~isempty(opts.BeforeLaunchFcn)
+    opts.BeforeLaunchFcn();
+end
+
+% Clear any stale status / exit marker so they reflect this run only.
 if isfile(statusFile)
     delete(statusFile);
+end
+if isfile(exitFile)
+    delete(exitFile);
 end
 
 if opts.Wait
@@ -227,7 +243,7 @@ if opts.Wait
             'Kilosort4 exited with status %d. See log: %s', status, stdoutLog);
     end
 else
-    bgCommand = backgroundCommand(command, stdoutLog);
+    bgCommand = backgroundCommand(command, stdoutLog, exitFile, 'Kilosort4');
     fprintf('Launching Kilosort4 (background):\n  %s\n', bgCommand);
     status = system(bgCommand);   % returns immediately
     result.status = status;       % launcher status, not Kilosort4 exit code
@@ -242,22 +258,6 @@ if ~isempty(obj.Manifest) && isa(obj.Manifest, 'Manifest')
     obj.Manifest.add("runKilosort", "Spawned Kilosort4", ...
         struct('command', command, 'status', status, 'wait', opts.Wait, ...
         'resultsDir', resultsDir, 'binFile', binFile));
-end
-end
-
-
-function bg = backgroundCommand(command, logFile)
-%backgroundCommand  Wrap COMMAND to run detached with output redirected to LOG.
-%   PYTHONUNBUFFERED=1 forces unbuffered stdout/stderr; without it, Python
-%   fully block-buffers when writing to a redirected file (not a TTY), so
-%   ks4_run.log stays empty until the process exits and the live tail in
-%   pollKSRuns has nothing to show.
-log = char(logFile);
-if ispc
-    % start returns immediately; cmd /s /c keeps the inner quotes verbatim.
-    bg = sprintf('start "Kilosort4" /min cmd /s /c "set PYTHONUNBUFFERED=1&& %s 1> "%s" 2>&1"', command, log);
-else
-    bg = sprintf('PYTHONUNBUFFERED=1 %s > "%s" 2>&1 &', command, log);
 end
 end
 

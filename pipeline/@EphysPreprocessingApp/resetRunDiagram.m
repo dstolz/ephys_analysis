@@ -79,7 +79,7 @@ S = cfg.Sorting;
 if S.Execution == "blocking"
     w(4) = "SpikeInterface + Kilosort4, waits for the sort";
 else
-    w(4) = "SpikeInterface + Kilosort4, launched in the background";
+    w(4) = "SpikeInterface + Kilosort4, launched in the background, " + S.MaxConcurrent + " at a time";
 end
 if S.DryRun; w(4) = w(4) + " (run files only)"; end
 

@@ -807,7 +807,11 @@ Both launch Python through `system()` (not MATLAB's `pyenv`) as either
 `conda run -n <CondaEnv> "<PythonExe>" "<script>" "<config>"`. Both:
 
 - copy the checked-in driver script into the run folder;
-- delete any stale `ks4_status.json` before launching;
+- call `BeforeLaunchFcn` (when given) once every file is written, just before
+  launching: it returns when the run may start, and an error from it stops the
+  launch. `EphysPipeline.runSorting` waits there for a free slot
+  ([Background Kilosort4 runs](EphysPipeline.md#background-kilosort4-runs));
+- delete any stale `ks4_status.json` and `ks4_exit.txt` before launching;
 - support blocking (`Wait=true`, default) or detached background (`Wait=false`)
   execution.
 
@@ -815,7 +819,13 @@ In blocking mode, output is captured and written to `ks4_run.log` after the
 process exits. In background mode, output is redirected to `ks4_run.log` with
 `PYTHONUNBUFFERED=1`, and `result.status` is the **launcher's** status, not
 Kilosort4's exit code. Either way the Python script writes `ks4_status.json`
-(`state` `"done"` or `"error"`) when it finishes.
+(`state` `"done"` or `"error"`) when it finishes. A background run also
+leaves an empty `ks4_exit.txt` (`EphysDataset.SortExitMarker`) next to it
+once the process has exited, for any reason. `[state, message] =
+EphysDataset.sortRunState(statusFile)` reads both. It returns `"running"`
+until the status file is complete. It returns `"done"` / `"error"` from the
+status, and `"error"` when the process exited without writing a status (a
+missing Python or conda env, a crash).
 
 #### `result = runSpikeInterface(Name=Value)`
 
@@ -839,6 +849,7 @@ described step by step in [python-drivers.md](python-drivers.md#run_si_ks4py).
 | `Files` | `ds.Files` |
 | `DryRun` | `false`: write config + script and build the command without launching |
 | `Wait` | `true` |
+| `BeforeLaunchFcn` | `[]`: called just before launching (see above) |
 
 - If `SIConfig.CommonReference` is on and `ExtraSettings` has no `do_CAR`,
   `do_CAR=false` is added so Kilosort4 does not re-reference.
@@ -899,7 +910,9 @@ directly in that folder.
 - Options: `PythonExe`, `CondaEnv`, `ProbeFile`, `ExcludeChannels`, `BinFile`
   (an existing `.bin` to sort as is), `ResultsDir`, `NChanBin`, `Fs`,
   `ExtraSettings` (merged into `settings.json`), `ArtifactIntervals` (`NaN` =
-  `artifactIntervals()`, `[]` = none), `DryRun`, `Wait`.
+  `artifactIntervals()`, `[]` = none), `DryRun`, `Wait`, `BeforeLaunchFcn`
+  (called once the `.bin` and `settings.json` are written, just before
+  launching).
 - `result` fields: `status`, `command`, `stdoutLog`, `scriptPath`,
   `settingsPath`, `resultsDir` and `runDir` (the same folder), `binFile`, `probeFile`, `excludeChannels`,
   `nExcludedChannels`, `dryRun`, `wait`, `statusFile`, `background`.

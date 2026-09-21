@@ -874,6 +874,81 @@ app.CleanupSorterCopyCheckBox.Value = true;
 rmdir(ksRoot, 's');
 app.selectTab(app.TabProject);
 
+fprintf('\n== 4e. Run tab: background Kilosort4 runs, N at a time ==\n');
+check(app.RunKSAtOnceSpinner.Value == 1 && strcmp(app.RunKSAtOnceSpinner.Enable, 'on') ...
+    && app.Config.Sorting.MaxConcurrent == 1, 'one background Kilosort4 run at a time by default, set on the Run tab');
+app.ExecModeDropDown.Value = true;   % Blocking (wait)
+app.ExecModeDropDown.ValueChangedFcn(app.ExecModeDropDown, []);
+check(app.Config.Sorting.Execution == "blocking" && strcmp(app.RunKSAtOnceSpinner.Enable, 'off'), ...
+    'blocking execution greys out the runs-at-once spinner');
+app.ExecModeDropDown.Value = false;
+app.ExecModeDropDown.ValueChangedFcn(app.ExecModeDropDown, []);
+app.RunKSAtOnceSpinner.Value = 2;
+app.RunKSAtOnceSpinner.ValueChangedFcn(app.RunKSAtOnceSpinner, []);   % as a click would
+check(app.Config.Sorting.MaxConcurrent == 2 && strcmp(app.RunKSAtOnceSpinner.Enable, 'on'), ...
+    'the spinner sets Sorting.MaxConcurrent');
+app.RunKSAtOnceSpinner.Value = 1;
+app.RunKSAtOnceSpinner.ValueChangedFcn(app.RunKSAtOnceSpinner, []);
+% A run from an earlier Run still holds the only slot: this Run waits for it
+% (the sampler below ends that run once both labels have said so), and the
+% monitor follows the new run from its start. A stand-in "python" sleeps
+% ~4 s and writes ks4_status.json.
+probe4 = fullfile(root, 'probe4.json');
+writeJsonFile(probe4, struct('chanMap', 0:numAmp-1, 'xc', zeros(1, numAmp), 'yc', (0:numAmp-1) * 20, ...
+    'kcoords', zeros(1, numAmp), 'n_chan', numAmp));
+app.Project.Datasets(1).ProbeFile = probe4;
+fakePython = fullfile(root, 'fake_python.cmd');
+writelines(["@echo off"; "ping -n 5 127.0.0.1 > nul"; "echo sorted by the stand-in"
+    "echo {""state"": ""done""}> ""%~dp1ks4_status.json"""], fakePython, LineEnding="\r\n");
+app.PythonExeField.Value = fakePython;
+app.onConfigChanged();
+priorDir = fullfile(root, 'earlier_run'); mkdir(priorDir);
+priorStatus = fullfile(priorDir, 'ks4_status.json');
+app.KSRuns = struct('Name', "earlier", 'statusFile', string(priorStatus), ...
+    'resultsDir', string(priorDir), 'logFile', "", 'logPos', 0, 'done', false);
+app.startKSMonitor();
+labelsSeen = strings(0, 1);
+tSample = tic;
+    function sampleLabels()
+        labelsSeen(end+1, 1) = string(app.RunKSLabel.Text) + " | " + string(app.RunStepLabel.Text);
+        both = any(contains(labelsSeen, "waiting to start")) && any(contains(labelsSeen, "waiting for a free"));
+        if ~isfile(priorStatus) && (both || toc(tSample) > 60)
+            writelines('{"state": "done"}', priorStatus);   % the earlier run finishes
+        end
+    end
+sampler = timer('ExecutionMode', 'fixedSpacing', 'Period', 0.5, 'BusyMode', 'drop', ...
+    'TimerFcn', @(~,~) sampleLabels());
+start(sampler);
+app.runPipeline(Steps="sorting");
+stop(sampler); delete(sampler);
+R = app.RunResultsTable.Data;
+check(any(R.Step == "sorting" & R.Status == "launched") && toc(tSample) < 60, ...
+    'the Run waited for the earlier run''s slot, then launched');
+check(any(contains(labelsSeen, "sorting: recA_260101_120000 - waiting for a free Kilosort4 slot (1 at a time): 1 running")) ...
+    && any(contains(labelsSeen, "Background Kilosort4: 0 of 2 finished (1 running, 1 waiting to start).")), ...
+    'while waiting, the step line and the Kilosort4 label say how many run and wait');
+check(numel(app.KSRuns) == 2 && app.KSRuns(2).Name == "recA_260101_120000", ...
+    'the new run joined the monitor as it started');
+t0 = tic;
+while toc(t0) < 30 && ~isempty(app.KSRuns)
+    pause(0.5);
+end
+exitMarker = fullfile(app.Project.Datasets(1).kilosortDir(), EphysDataset.SortExitMarker);
+while toc(t0) < 40 && ~isfile(exitMarker)
+    pause(0.25);
+end
+ksLog = strjoin(string(app.KSLogArea.Value), newline);
+check(isempty(app.KSRuns) && contains(ksLog, "recA_260101_120000 | sorted by the stand-in") ...
+    && contains(ksLog, "[done] recA_260101_120000 - Kilosort4 complete") ...
+    && contains(ksLog, "=== all 2 background run(s) complete ===") ...
+    && startsWith(string(app.RunKSLabel.Text), "Background Kilosort4: 2 of 2 finished"), ...
+    'the monitor streamed its log, logged it done and cleared the finished batch');
+app.PythonExeField.Value = '';
+app.onConfigChanged();
+app.Project.Datasets(1).ProbeFile = "";
+app.Project.Datasets(1).writeManifest();
+rmdir(app.Project.Datasets(1).kilosortDir(), 's');
+
 fprintf('\n== 5. save and reopen ==\n');
 ok = app.onSaveConfig();
 check(ok && ~startsWith(app.Fig.Name, "*"), 'save clears the unsaved marker');

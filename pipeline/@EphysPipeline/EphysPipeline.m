@@ -41,6 +41,16 @@ classdef EphysPipeline < handle
     %   one row per step x dataset. LaunchedRuns lists background Kilosort4
     %   runs (same shape the app's KSRuns monitor consumes).
     %
+    %   Background Kilosort4 runs
+    %     At most Sorting.MaxConcurrent run at once: runSorting waits for a
+    %     free slot before each launch and returns once the last dataset has
+    %     started. LaunchFcn(run) receives each run (a LaunchedRuns element)
+    %     as it starts, so a monitor can follow it while the rest wait.
+    %     SortingWaiting is how many datasets the step has still to start.
+    %     PriorRuns lists the ks4_status.json files of runs started
+    %     elsewhere (e.g. by an earlier run the app still monitors); while
+    %     they are going they take slots too.
+    %
     %   See also EphysPipelineConfig, EphysPipelineScript, EphysProject, EphysDataset.
 
     properties
@@ -49,12 +59,15 @@ classdef EphysPipeline < handle
         DatasetIdx  (1,:) double = double.empty(1,0)   % selected datasets (indices into Project.Datasets)
         ProgressFcn = []
         LogFcn      = @(msg) fprintf('%s\n', msg)
+        LaunchFcn   = []
+        PriorRuns   (:,1) string = strings(0, 1)
     end
 
     properties (SetAccess = protected)
         CancelRequested (1,1) logical = false
         Results table = EphysPipeline.emptyResults()
         LaunchedRuns struct = EphysPipeline.emptyRuns()
+        SortingWaiting (1,1) double = 0
     end
 
     methods
@@ -127,6 +140,7 @@ classdef EphysPipeline < handle
             %reset  Clear Results, LaunchedRuns and the cancel flag.
             obj.Results = EphysPipeline.emptyResults();
             obj.LaunchedRuns = EphysPipeline.emptyRuns();
+            obj.SortingWaiting = 0;
             obj.CancelRequested = false;
         end
 

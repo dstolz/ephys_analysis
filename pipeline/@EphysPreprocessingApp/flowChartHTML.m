@@ -228,6 +228,9 @@ end
 function txt = sortingNote(S)
 txt = ternary(S.Engine == "kilosort", "Kilosort4 natively (SpikeInterface skipped)", "SpikeInterface + Kilosort4") + ...
     ", runs " + S.Execution;
+if S.Execution == "background"
+    txt = txt + " (" + S.MaxConcurrent + " at a time)";
+end
 if S.DryRun; txt = txt + ", dry run (writes run files only)"; end
 if S.SkipExisting; txt = txt + ", skips datasets already sorted"; end
 txt = txt + ".";

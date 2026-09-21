@@ -109,7 +109,7 @@ for step = steps
                 elseif d.hasKilosortResults()
                     add(step, k, out, "exists: will re-sort", string(d.sortingResultsDir()));
                 else
-                    add(step, k, out, "ready", ternary(c.Sorting.DryRun, "dry run", c.Sorting.Execution));
+                    add(step, k, out, "ready", ternary(c.Sorting.DryRun, "dry run", executionText(c.Sorting)));
                 end
 
             case "signals"
@@ -227,4 +227,13 @@ end
 
 function out = ternary(cond, a, b)
 if cond; out = string(a); else; out = string(b); end
+end
+
+
+function t = executionText(S)
+%executionText  "blocking", or "background, N at a time".
+t = S.Execution;
+if t == "background"
+    t = t + ", " + S.MaxConcurrent + " at a time";
+end
 end

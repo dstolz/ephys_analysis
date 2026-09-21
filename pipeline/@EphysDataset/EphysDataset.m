@@ -209,6 +209,10 @@ classdef EphysDataset < handle
         % template SVD. run_si_ks4.py holds the same limit
         % (MAX_SILENCED_FRACTION). See silencedFraction.
         MaxSilencedFraction = 0.5
+
+        % Empty file a background Kilosort4 run leaves next to its
+        % ks4_status.json once its process exits (see sortRunState).
+        SortExitMarker = "ks4_exit.txt"
     end
 
     methods
@@ -1117,6 +1121,41 @@ classdef EphysDataset < handle
             end
             share = NaN;
             if duration > 0; share = covered / duration; end
+        end
+
+        function [state, message] = sortRunState(statusFile)
+            %sortRunState  How a background Kilosort4 run stands.
+            %   [STATE, MESSAGE] = EphysDataset.sortRunState(STATUSFILE) reads
+            %   the ks4_status.json that runKilosort / runSpikeInterface
+            %   drivers write when they finish: STATE is its "done" or
+            %   "error", and "running" while there is none yet (or it is
+            %   caught mid-write). A run whose process has exited (the
+            %   SortExitMarker beside the status file) without writing a
+            %   status is an "error". MESSAGE is the driver's error
+            %   message, or why the run counts as failed ("" otherwise).
+            statusFile = char(statusFile);
+            % The marker is written after the process exits, so once it is
+            % there the status file (if any) is complete.
+            exited = isfile(fullfile(fileparts(statusFile), char(EphysDataset.SortExitMarker)));
+            state = "running";
+            message = "";
+            if isfile(statusFile)
+                try
+                    s = jsondecode(fileread(statusFile));
+                    state = "done";
+                    if isfield(s, 'state'); state = string(s.state); end
+                    if isfield(s, 'message'); message = string(s.message); end
+                    return
+                catch
+                    if ~exited; return; end   % mid-write: read it again next time
+                    message = "unreadable " + string(statusFile);
+                end
+            elseif exited
+                message = "the process exited without writing ks4_status.json (see ks4_run.log)";
+            else
+                return
+            end
+            state = "error";
         end
 
         function ch = parseChannelList(s)

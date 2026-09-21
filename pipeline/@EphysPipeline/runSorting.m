@@ -10,8 +10,16 @@ function runSorting(obj, opts)
 %   (EphysPipelineConfig.ks4Settings) and the artifact intervals (manual
 %   periods always; the cached automatic detection when
 %   Artifacts.ApplyToSorting), silenced by SpikeInterface or blanked in the
-%   .bin. Background runs are appended to LaunchedRuns and the manifest is
-%   rewritten after each launch / completion.
+%   .bin. The manifest is rewritten after each launch / completion.
+%
+%   Background runs (Sorting.Execution "background") go at most
+%   Sorting.MaxConcurrent at a time. The next dataset's run files (and
+%   .bin) are written first, then its launch waits for a free slot. A slot
+%   frees when a run finishes, fails or its process exits
+%   (EphysDataset.sortRunState). Runs in PriorRuns take slots too. The step
+%   returns once the last dataset has started. Each launch is appended to
+%   LaunchedRuns and passed to LaunchFcn. SortingWaiting counts the datasets
+%   still to start. Blocking runs go one at a time.
 %
 %   Options: Datasets (indices), DryRun (write si_config.json + the driver
 %   only).
@@ -41,6 +49,15 @@ dry = opts.DryRun || logical(S.DryRun);   % the config's DryRun applies to direc
 ds = obj.selected(opts.Datasets);
 n = numel(ds);
 
+% Decide the skips up front, so a background step can say how many
+% datasets are still waiting to start.
+why = strings(1, n);
+whyOut = strings(1, n);
+for k = 1:n
+    [why(k), whyOut(k)] = skipReason(ds(k), S);
+end
+obj.SortingWaiting = nnz(why == "");
+
 for k = 1:n
     d = ds(k);
     if obj.CancelRequested
@@ -48,25 +65,21 @@ for k = 1:n
         continue
     end
     t0 = tic;
-    if d.NumFiles == 0 || d.RecordingFormat == "unknown"
-        obj.addResult("sorting", d.Name, "skipped", "no recording files", "", toc(t0));
+    if why(k) ~= ""
+        obj.addResult("sorting", d.Name, "skipped", why(k), whyOut(k), toc(t0));
         continue
     end
-    if d.ProbeFile == ""
-        obj.addResult("sorting", d.Name, "skipped", "no probe", "", toc(t0));
-        continue
-    end
-    if S.SkipExisting && d.hasKilosortResults()
-        obj.addResult("sorting", d.Name, "skipped", "sorted output exists (SkipExisting)", ...
-            string(d.sortingResultsDir()), toc(t0));
-        continue
+    launchOpts = {};
+    if ~blocking
+        launchOpts = {'BeforeLaunchFcn', @() waitForSlot(obj, S.MaxConcurrent, d.Name, k, n)};
     end
     try
         obj.progress("sorting", d.Name, k, n, 0, 2, "artifact intervals");
         iv = obj.artifactIntervalsForStep(d, c.Artifacts.ApplyToSorting, ...   % a detection fills the first half
             @(done, total, msg) obj.progress("sorting", d.Name, k, n, done / max(total, 1), 2, "artifact intervals, " + msg));
         obj.progress("sorting", d.Name, k, n, 1, 2, ternary(dry, "writing run files", launchMsg));
-        res = runFcn(d, ExtraSettings=ks4, ArtifactIntervals=iv, DryRun=dry, Wait=blocking);
+        res = runFcn(d, launchOpts{:}, ExtraSettings=ks4, ArtifactIntervals=iv, DryRun=dry, Wait=blocking);
+        obj.SortingWaiting = nnz(why(k+1:end) == "");
         d.writeManifest();
         if dry
             obj.log("[sorting] %s: dry run, wrote %s", d.Name, res.settingsPath);
@@ -83,13 +96,18 @@ for k = 1:n
             end
         else
             obj.log("[sorting] %s: launched in the background -> %s", d.Name, res.resultsDir);
-            obj.LaunchedRuns(end+1) = struct('Name', d.Name, ...
+            run = struct('Name', d.Name, ...
                 'statusFile', string(res.statusFile), 'resultsDir', string(res.resultsDir), ...
                 'logFile', string(res.stdoutLog), 'logPos', 0, 'done', false);
+            obj.LaunchedRuns(end+1) = run;
             obj.addResult("sorting", d.Name, "launched", "background run; see LaunchedRuns", res.resultsDir, toc(t0));
+            if ~isempty(obj.LaunchFcn)
+                obj.LaunchFcn(run);
+            end
         end
         obj.progress("sorting", d.Name, k, n, 2, 2, "done");
     catch ME
+        obj.SortingWaiting = nnz(why(k+1:end) == "");   % whether or not it launched
         if strcmp(ME.identifier, 'EphysPipeline:Cancelled')
             obj.addResult("sorting", d.Name, "cancelled", "cancelled before launch", "", toc(t0));
             continue
@@ -98,9 +116,35 @@ for k = 1:n
         obj.addResult("sorting", d.Name, "error", string(ME.message), "", toc(t0));
     end
 end
+obj.SortingWaiting = 0;
 if obj.CancelRequested
     error('EphysPipeline:Cancelled', 'Cancelled by user.');
 end
+end
+
+
+function [why, out] = skipReason(d, S)
+%skipReason  Why dataset D is not sorted ("" = it is) and the output to show.
+why = "";
+out = "";
+if d.NumFiles == 0 || d.RecordingFormat == "unknown"
+    why = "no recording files";
+elseif d.ProbeFile == ""
+    why = "no probe";
+elseif S.SkipExisting && d.hasKilosortResults()
+    why = "sorted output exists (SkipExisting)";
+    out = string(d.sortingResultsDir());
+end
+end
+
+
+function waitForSlot(obj, maxRunning, name, k, n)
+%waitForSlot  BeforeLaunchFcn of a background run: wait for one of the
+%   MAXRUNNING slots, reporting the counts (a cancel ends the wait).
+files = [obj.PriorRuns(:); reshape(string({obj.LaunchedRuns.statusFile}), [], 1)];
+waitForSortingSlot(files, maxRunning, TickFcn=@(nRunning, nFinished) obj.progress("sorting", name, k, n, 1, 2, ...
+    sprintf("waiting for a free Kilosort4 slot (%d at a time): %d running, %d finished, %d still to start", ...
+    maxRunning, nRunning, nFinished, obj.SortingWaiting)));
 end
 
 

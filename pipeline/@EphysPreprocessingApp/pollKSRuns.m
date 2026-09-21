@@ -3,10 +3,13 @@ function pollKSRuns(obj)
 %   check for completion.
 %   Each background run redirects Kilosort4 stdout/stderr to a ks4_run.log and
 %   writes a ks4_status.json (state "done" or "error") in its results dir when
-%   it finishes. Every tick this tails each run's log into the status box so
-%   progress is visible live, then polls the status files, logs each
-%   completion, updates the progress label, and stops the monitor once every
-%   tracked run has finished.
+%   it finishes (EphysDataset.sortRunState; a process that exits without one
+%   counts as failed). Every tick this tails each run's log into the status
+%   box so progress is visible live, then polls the runs, logs each
+%   completion and updates the progress label: how many finished, are
+%   running and, while the pipeline's sorting step waits for a free slot
+%   (Sorting.MaxConcurrent), are still to start. The monitor stops once
+%   every run has finished and none is left to start.
 
 if isempty(obj.KSRuns)
     obj.stopKSMonitor();
@@ -22,16 +25,8 @@ for i = 1:numel(obj.KSRuns)
     % Stream any new log output for this run into the status box.
     obj.KSRuns(i).logPos = tailLog(obj, obj.KSRuns(i));
 
-    sf = char(obj.KSRuns(i).statusFile);
-    if ~isfile(sf)
-        pending = pending + 1;
-        continue
-    end
-
-    % The file may be observed mid-write; if it does not parse yet, retry next tick.
-    try
-        s = jsondecode(fileread(sf));
-    catch
+    [state, msg] = EphysDataset.sortRunState(obj.KSRuns(i).statusFile);
+    if state == "running"
         pending = pending + 1;
         continue
     end
@@ -39,8 +34,6 @@ for i = 1:numel(obj.KSRuns)
     % Run finished: flush the tail of its log before reporting status.
     obj.KSRuns(i).logPos = tailLog(obj, obj.KSRuns(i));
 
-    state = "done";
-    if isfield(s, 'state'); state = string(s.state); end
     obj.KSRuns(i).done = true;
     % Record the completed sort in the dataset's manifest.
     updateManifestFor(obj, obj.KSRuns(i).Name);
@@ -48,16 +41,23 @@ for i = 1:numel(obj.KSRuns)
         obj.log("[done] %s - Kilosort4 complete (%s)", obj.KSRuns(i).Name, ...
             obj.KSRuns(i).resultsDir);
     else
-        msg = "";
-        if isfield(s, 'message'); msg = string(s.message); end
         obj.log("[error] %s - Kilosort4 failed: %s", obj.KSRuns(i).Name, msg);
     end
 end
 
+% Datasets the running pipeline has yet to start (waiting for a free slot).
+waiting = 0;
+if obj.RunActive && ~isempty(obj.Pipe) && isvalid(obj.Pipe)
+    waiting = obj.Pipe.SortingWaiting;
+end
+
 nTot  = numel(obj.KSRuns);
 nDone = sum([obj.KSRuns.done]);
-obj.KSProgressLabel.Text = sprintf("Background Kilosort4: %d/%d complete (%d running).", ...
-    nDone, nTot, pending);
+txt = sprintf("Background Kilosort4: %d of %d finished (%d running", nDone, nTot + waiting, pending);
+if waiting > 0
+    txt = txt + sprintf(", %d waiting to start", waiting);
+end
+obj.KSProgressLabel.Text = txt + ").";
 if ~isempty(obj.RunKSLabel) && isvalid(obj.RunKSLabel)
     obj.RunKSLabel.Text = obj.KSProgressLabel.Text;
 end
@@ -66,7 +66,7 @@ end
 obj.refreshDatasetsTable();
 obj.ReviewDatasetIdx = -1;   % the Review tab reloads
 
-if pending == 0
+if pending == 0 && waiting == 0
     obj.log("=== all %d background run(s) complete ===", nTot);
     obj.setStatus(sprintf("Kilosort4 finished: %d background run(s) complete.", nTot), ...
         "Open the Review tab to inspect sorted units.");

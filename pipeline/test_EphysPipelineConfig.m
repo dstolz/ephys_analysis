@@ -395,6 +395,17 @@ check(any(iss.Step == "sorting" & iss.Field == "Execution" & iss.Severity == "er
 cfg.Sorting.Execution = "blocking";
 iss = cfg.validate();
 check(~any(iss.Field == "Execution"), 'blocking sorting resolves the cross-step rule');
+check(EphysPipelineConfig().Sorting.MaxConcurrent == 1 && ~any(iss.Field == "MaxConcurrent"), ...
+    'one background Kilosort4 run at a time by default');
+for bad = [0 1.5 Inf NaN]
+    cfg.Sorting.MaxConcurrent = bad;
+    iss = cfg.validate();
+    check(any(iss.Step == "sorting" & iss.Field == "MaxConcurrent" & iss.Severity == "error"), ...
+        sprintf('MaxConcurrent = %g is an error', bad));
+end
+cfg.Sorting.MaxConcurrent = 3;
+check(~any(cfg.validate().Field == "MaxConcurrent"), 'MaxConcurrent = 3 is fine');
+cfg.Sorting.MaxConcurrent = 1;
 check(EphysPipelineConfig().Sorting.Engine == "spikeinterface", 'sorting runs through SpikeInterface by default');
 cfg.Sorting.Engine = "bogus";
 iss = cfg.validate();

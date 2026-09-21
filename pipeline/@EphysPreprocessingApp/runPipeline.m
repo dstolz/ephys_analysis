@@ -2,8 +2,9 @@ function runPipeline(obj, opts)
 %runPipeline  Run the pipeline (all enabled steps, or Steps=...) on the Run tab.
 %   Validates first and shows the issues; blocks on errors. Progress,
 %   results, the log and the run diagram update live; Cancel stops at the
-%   next boundary. Background Kilosort4 runs are handed to the existing
-%   monitor (KSRuns).
+%   next boundary. Each background Kilosort4 run is handed to the monitor
+%   (KSRuns) as it starts; runs the monitor is still following take slots
+%   of Sorting.MaxConcurrent (the pipeline's PriorRuns).
 arguments
     obj (1,1) EphysPreprocessingApp
     opts.Steps (1,:) string = string.empty(1,0)
@@ -33,6 +34,10 @@ end
 
 pipe = obj.buildPipeline();
 pipe.ProgressFcn = @(evt) obj.onPipelineProgress(evt);
+pipe.LaunchFcn = @(run) addKSRun(obj, run);
+if ~isempty(obj.KSRuns)
+    pipe.PriorRuns = reshape(string({obj.KSRuns(~[obj.KSRuns.done]).statusFile}), [], 1);
+end
 obj.Pipe = pipe;
 obj.RunActive = true;
 obj.syncTabStrip();
@@ -64,10 +69,6 @@ catch ME
 end
 obj.finishRunDiagram(R, outcome, note);
 obj.RunResultsTable.Data = R;
-if ~isempty(pipe.LaunchedRuns)
-    obj.KSRuns = [obj.KSRuns, pipe.LaunchedRuns];
-    obj.startKSMonitor();
-end
 obj.refreshDatasetsTable();
 obj.ReviewDatasetIdx = -1;   % new sorted output: the Review tab reloads
 obj.refreshSortingLabel();
@@ -77,6 +78,13 @@ nErr = nnz(startsWith(R.Status, "error"));
 nCan = nnz(R.Status == "cancelled");
 obj.RunStepLabel.Text = sprintf("Finished: %d result(s), %d error(s), %d cancelled.", n, nErr, nCan);
 obj.setStatus(sprintf("Pipeline finished: %d result(s), %d error(s), %d cancelled.", n, nErr, nCan));
+end
+
+
+function addKSRun(obj, run)
+%addKSRun  The pipeline's LaunchFcn: follow a background run from its start.
+obj.KSRuns(end+1) = run;
+obj.startKSMonitor();
 end
 
 

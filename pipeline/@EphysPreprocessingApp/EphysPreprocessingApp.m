@@ -489,6 +489,7 @@ classdef EphysPreprocessingApp < handle
         RunBehaviorCheckBox  matlab.ui.control.CheckBox
         RunArtifactsCheckBox matlab.ui.control.CheckBox
         RunSortingCheckBox   matlab.ui.control.CheckBox
+        RunKSAtOnceSpinner   matlab.ui.control.Spinner        % Sorting.MaxConcurrent
         RunSignalsCheckBox   matlab.ui.control.CheckBox
         RunSpikesCheckBox    matlab.ui.control.CheckBox
         RunExportCheckBox    matlab.ui.control.CheckBox

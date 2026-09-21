@@ -406,6 +406,39 @@ end
 cfg.Sorting.MaxConcurrent = 3;
 check(~any(cfg.validate().Field == "MaxConcurrent"), 'MaxConcurrent = 3 is fine');
 cfg.Sorting.MaxConcurrent = 1;
+check(isempty(EphysPipelineConfig().Sorting.Devices) && ~any(cfg.validate().Field == "Devices"), ...
+    'no GPUs listed by default (Kilosort4 picks its device)');
+cfg.Sorting.Devices = ["cuda:0" "gpu1"];
+iss = cfg.validate();
+check(any(iss.Field == "Devices" & iss.Severity == "error" & contains(iss.Message, "gpu1")), ...
+    'a device that is not a torch device is an error');
+cfg.Sorting.Devices = ["cuda:0" "cuda:1"];
+iss = cfg.validate();
+check(any(iss.Field == "Devices" & iss.Severity == "warning" & contains(iss.Message, "first device, cuda:0")), ...
+    'blocking runs with two devices: a warning that only the first is used');
+cfg.Sorting.Execution = "background";
+iss = cfg.validate();
+check(any(iss.Field == "Devices" & iss.Severity == "warning" & contains(iss.Message, "cuda:1 stay(s) idle")), ...
+    'more devices than runs at once: a warning naming the idle ones');
+cfg.Sorting.MaxConcurrent = 2;
+check(~any(cfg.validate().Field == "Devices"), 'two devices, two runs at once: fine');
+cfg.Sorting.KS4ExtraJSON = '{"torch_device": "cuda:0"}';
+iss = cfg.validate();
+check(any(iss.Field == "Devices" & iss.Severity == "warning" & contains(iss.Message, "overrides torch_device")), ...
+    'Devices next to a torch_device in the extra settings: a warning');
+devFile = [tempname '.json'];
+cfg.save(devFile);
+cDev = EphysPipelineConfig.load(devFile);
+delete(devFile);
+check(isequal(cDev.Sorting.Devices, ["cuda:0" "cuda:1"]), 'Sorting.Devices survives a save and load');
+cfg.Sorting.KS4ExtraJSON = "";
+cfg.Sorting.Devices = string.empty(1, 0);
+cfg.Sorting.Execution = "blocking";
+cfg.Sorting.MaxConcurrent = 1;
+cfg.save(devFile);
+cDev = EphysPipelineConfig.load(devFile);
+delete(devFile);
+check(isequal(cDev.Sorting.Devices, string.empty(1, 0)), 'an empty Sorting.Devices survives a save and load');
 check(EphysPipelineConfig().Sorting.Engine == "spikeinterface", 'sorting runs through SpikeInterface by default');
 cfg.Sorting.Engine = "bogus";
 iss = cfg.validate();

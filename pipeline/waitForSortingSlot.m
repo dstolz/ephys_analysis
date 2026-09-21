@@ -1,46 +1,47 @@
-function waitForSortingSlot(statusFiles, maxRunning, opts)
+function device = waitForSortingSlot(runs, maxRunning, opts)
 %waitForSortingSlot  Wait until fewer than MAXRUNNING Kilosort4 runs are going.
-%   waitForSortingSlot(STATUSFILES, MAXRUNNING) checks the background runs
-%   named by their ks4_status.json paths (EphysDataset.sortRunState) and
-%   returns as soon as fewer than MAXRUNNING of them are still running,
-%   checking again every Period seconds until then. Pass it as
-%   BeforeLaunchFcn to EphysDataset.runSpikeInterface / runKilosort to cap
+%   DEVICE = waitForSortingSlot(RUNS, MAXRUNNING) checks the background
+%   runs RUNS (a struct array with statusFile and device fields, [] for
+%   none; see sortingSlot) and returns as soon as fewer than MAXRUNNING of
+%   them are still running, checking again every Period seconds until
+%   then. Put it between writing a run's files and starting the run to cap
 %   how many run at once:
 %
-%     launched = strings(0, 1);
+%     launched = [];
 %     for d = datasets
-%         res = d.runSpikeInterface(Wait=false, ...
-%             BeforeLaunchFcn=@() waitForSortingSlot(launched, 2));
-%         launched(end+1) = res.statusFile;
+%         res = d.runSpikeInterface(Launch=false, ...);   % the run files
+%         device = waitForSortingSlot(launched, 2, Devices=["cuda:0" "cuda:1"]);
+%         res = d.launchSorting(res, Wait=false, Device=device);
+%         launched = [launched, res];
 %     end
 %
 %   Options
+%     Devices  torch devices to share out (default none). DEVICE is the one
+%              the fewest running runs use once the slot is free, "" when
+%              there are none.
 %     Period   seconds between checks (default 2)
 %     TickFcn  called as TickFcn(nRunning, nFinished) before each wait
 %              (e.g. to report progress); an error from it (e.g. a cancel)
 %              ends the wait
 %
-%   See also EphysDataset.sortRunState, EphysPipeline.runSorting.
+%   See also sortingSlot, EphysDataset.launchSorting,
+%   EphysDataset.sortRunState, EphysPipeline.runSorting.
 
 arguments
-    statusFiles string
+    runs
     maxRunning (1,1) double {mustBePositive}
+    opts.Devices string = strings(1, 0)
     opts.Period (1,1) double {mustBePositive} = 2
     opts.TickFcn = []
 end
 
-statusFiles = statusFiles(:);
-finished = false(size(statusFiles));
 while true
-    for i = find(~finished).'
-        finished(i) = EphysDataset.sortRunState(statusFiles(i)) ~= "running";
-    end
-    nRunning = nnz(~finished);
-    if nRunning < maxRunning
+    [free, device, nRunning, nFinished] = sortingSlot(runs, maxRunning, opts.Devices);
+    if free
         return
     end
     if ~isempty(opts.TickFcn)
-        opts.TickFcn(nRunning, nnz(finished));
+        opts.TickFcn(nRunning, nFinished);
     end
     pause(opts.Period);
 end

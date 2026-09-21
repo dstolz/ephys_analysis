@@ -731,6 +731,24 @@ default web browser, same as **Save as HTML...** but without the save dialog.
   earlier Run that are still going count too. Greyed out when Execution
   (Sorting tab) is blocking, which always goes one at a time. See
   [Background Kilosort4 runs](EphysPipeline.md#background-kilosort4-runs).
+- **GPUs** (under it, blank by default): `Sorting.Devices`, torch devices
+  separated by commas, such as `cuda:0, cuda:1`. Each background run gets the
+  GPU the fewest running runs use, so on a two-GPU machine with two runs at
+  once each run has its own. Blocking runs use the first. Blank leaves the
+  choice to Kilosort4, which takes the first GPU.
+- **Queue the waiting runs; the Run goes on** (a preference, off by default):
+  the sorting step writes each dataset's run files and hands the run to the
+  background monitor instead of waiting for a slot. Its result row says
+  `queued`. The Run goes straight on to its next step and ends without
+  waiting, which leaves the app free. The monitor starts each queued run, in
+  order, as a slot frees (with the working config's runs at once and GPUs),
+  and the row turns `launched`. While a Run that waits for its own slots is
+  under way, the queue waits until it ends. **Stop queue** (beside the
+  Kilosort4 label under the log) drops the queued runs that have not started
+  (their rows turn `cancelled`; their run files stay); the runs already going
+  carry on. Closing the app with runs queued asks first, since closing drops
+  them. Clean up refuses to delete files while runs are queued. Greyed out
+  when Execution is blocking.
 - **Parallel: chunks on the process pool** and **Max workers** (blank =
   automatic): `Parallel.Enabled` / `MaxWorkers`, used by the artifacts step,
   the Artifacts tab's **Detect / Preview** and spike detection; see
@@ -741,7 +759,10 @@ default web browser, same as **Save as HTML...** but without the save dialog.
   (overall and per step), the results table (`Step`, `Dataset`, `Status`,
   `Message`, `Output`, `Seconds`) and a timestamped log. Cancel takes effect at
   the next progress boundary; outputs are written atomically, so a cancelled
-  dataset leaves no complete-looking file.
+  dataset leaves no complete-looking file. A background Kilosort4 run's row
+  says `launched` (or `queued`) when the Run ends. The monitor turns it into
+  `done` or `error` when the run finishes, with the time it ran added to
+  `Seconds`.
 - **Show the run diagram** (under the Run buttons) splits the right side in
   two: the progress bars, issues, results and log keep the left half and a
   diagram of the run takes the right half. It draws every step in execution
@@ -753,7 +774,9 @@ default web browser, same as **Save as HTML...** but without the save dialog.
   scrolls to it as the run moves on. Every step of the run has a percentage:
   how far it is through its datasets, (dataset − 1 + progress within the
   dataset) / datasets. Finished steps show `done` at 100 % with their result
-  counts (done, dry run, skipped, to check, errors, cancelled), red when any
+  counts (done, in the background, dry run, skipped, to check, errors,
+  cancelled; a background Kilosort4 run moves from "in the background" to
+  done or errors when the monitor sees it end), red when any
   row is an error; a cancel leaves its step at the percentage it reached and
   the later steps `not run`; steps outside the run are dashed. The headline
   says which step of how many is underway and for how long, or how the run
@@ -778,7 +801,8 @@ default web browser, same as **Save as HTML...** but without the save dialog.
   the app starts a new one. The switch is remembered between sessions.
 - Background Kilosort4 runs launched by a run are handed to the same monitor
   as the Sorting tab as each one starts; the label under the log counts them
-  (finished of total, running, waiting to start).
+  (finished of total, running, waiting to start: queued, or still in the
+  Run's sorting step).
 
 ## Visualize
 
@@ -1005,6 +1029,7 @@ Only what is **not** part of a config lives here:
 | `CopyOptions` | the Copy tab's subject, roots, pairing and copy options (not the dates) |
 | `ShowRunDiagram` | the Run tab's **Show the run diagram** switch |
 | `MonitorResources` | the Run tab's **Monitor CPU, memory, disk and GPU** switch |
+| `QueueSortingRuns` | the Run tab's **Queue the waiting runs; the Run goes on** switch |
 | `CleanupOptions` | the Clean up tab's kinds of file to remove and **Show the files that remain** |
 
 To reset: `rmpref('EphysPreprocessingApp')` with the app closed. Older
@@ -1044,6 +1069,7 @@ ds  = P.Datasets(1);              % EphysDataset (probe, exclusions, manual arti
 app.openConfigFile("D:\EPHYS\pipeline.json");
 app.runPipeline(Steps="spikes");  % same as Run this step
 app.KSRuns                        % background runs being monitored
+app.KSQueue                       % prepared runs waiting for a slot (Queue the waiting runs)
 ```
 
 ## Source map
@@ -1063,6 +1089,7 @@ app.KSRuns                        % background runs being monitored
 | `refreshProbeList.m`, `onProbeSelected.m`, `onImportProbe.m`, `onDesignProbe.m`, `runProbeTool.m`, `onAssignProbe.m`, `onApplyExclude.m`, `onUseSelectedProbeAsDefault.m`, `probe_tool.py` | Probe tab |
 | `onDetectArtifacts.m`, `refreshManualArtifactsTable.m`, `onClearManualArtifacts.m` | Artifacts tab |
 | `onOptimizeKS4ForProbe.m`, `onResetKS4Params.m`, `onUseSortingFolder.m`, `onUseAutoSorting.m`, `refreshSortingLabel.m`, `pollKSRuns.m`, `onLaunchPhy.m`, `launchPhy.m` | Sorting tab and phy |
+| `queueKSRun.m`, `onStopKSQueue.m`, `markKSResult.m` | background Kilosort4 runs: the queue the monitor starts from, Stop queue, restating a run's result row |
 | `onSpikesPreview.m`, `syncSpikesEnableStates.m` | Spikes tab |
 | `onBrowseExportOutput.m`, `onExportEpochsToWorkspace.m` | Export tab (output folder, Epochs to workspace) |
 | `onPlotVisualization.m`, `onVizButtonDown/Up.m`, `drawVizArtifacts.m`, `finishVizArtDrag.m`, `applyVizChannelOrder.m`, `applyVizChannelColor.m`, `syncVizDataset.m` | Visualize tab |

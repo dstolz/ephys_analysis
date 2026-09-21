@@ -21,7 +21,9 @@ classdef EphysPipelineConfig
     %     Artifacts  Enabled + detector / filter settings, ApplyTo*, CacheIntervals
     %     Sorting    Enabled, Engine (spikeinterface | kilosort), PythonExe,
     %                CondaEnv, Execution, MaxConcurrent (background runs at
-    %                once; the others wait for a free slot), DryRun,
+    %                once; the others wait for a free slot), Devices
+    %                (torch devices such as "cuda:0" "cuda:1" shared out
+    %                among the runs; none = Kilosort4's choice), DryRun,
     %                SkipExisting, SI (SpikeInterface), KS4 (typed per
     %                kilosortParamSpec), KS4ExtraJSON
     %     Signals    Enabled + the derived-signal (toMat) settings,

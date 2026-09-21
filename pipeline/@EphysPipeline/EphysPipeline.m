@@ -47,9 +47,16 @@ classdef EphysPipeline < handle
     %     started. LaunchFcn(run) receives each run (a LaunchedRuns element)
     %     as it starts, so a monitor can follow it while the rest wait.
     %     SortingWaiting is how many datasets the step has still to start.
-    %     PriorRuns lists the ks4_status.json files of runs started
-    %     elsewhere (e.g. by an earlier run the app still monitors); while
-    %     they are going they take slots too.
+    %     PriorRuns lists runs started elsewhere (e.g. by an earlier run the
+    %     app still monitors), in LaunchedRuns' shape; while they are going
+    %     they take slots too. Sorting.Devices shares GPUs out: each run
+    %     gets the one the fewest running runs use (sortingSlot).
+    %     With QueueFcn set, runSorting starts nothing itself: it writes
+    %     each dataset's run files and passes the prepared run to
+    %     QueueFcn(d, res), whose owner starts it later with
+    %     d.launchSorting(res, Wait=false, Device=...). The step then
+    %     returns without waiting for a slot. updateResult restates a row
+    %     once such a run starts or ends.
     %
     %   See also EphysPipelineConfig, EphysPipelineScript, EphysProject, EphysDataset.
 
@@ -60,7 +67,8 @@ classdef EphysPipeline < handle
         ProgressFcn = []
         LogFcn      = @(msg) fprintf('%s\n', msg)
         LaunchFcn   = []
-        PriorRuns   (:,1) string = strings(0, 1)
+        QueueFcn    = []
+        PriorRuns   struct = EphysPipeline.emptyRuns()
     end
 
     properties (SetAccess = protected)
@@ -173,6 +181,18 @@ classdef EphysPipeline < handle
             if nargin < 6; output = ""; end
             obj.Results(end+1, :) = {string(step), string(dataset), string(status), ...
                 string(message), string(output), seconds};
+        end
+
+        function updateResult(obj, step, dataset, output, status, message, addSeconds)
+            %updateResult  Restate the Results row of STEP x DATASET x OUTPUT.
+            %   For work that ends after its step has returned, such as a
+            %   background Kilosort4 run: the last matching row takes STATUS
+            %   and MESSAGE, and ADDSECONDS (default 0) is added to its
+            %   Seconds. Without a matching row nothing changes. See
+            %   restateResult.
+            if nargin < 7; addSeconds = 0; end
+            obj.Results = EphysPipeline.restateResult(obj.Results, step, dataset, output, ...
+                status, message, addSeconds);
         end
 
         function logParallel(obj, step)
@@ -546,8 +566,36 @@ classdef EphysPipeline < handle
         end
 
         function s = emptyRuns()
+            %emptyRuns  0x0 struct array in the shape of LaunchedRuns.
+            %   Name, statusFile, resultsDir, logFile (ks4_run.log), logPos
+            %   (bytes of the log already shown), done, device (torch device,
+            %   "" = Kilosort4's choice) and started (datetime).
             s = struct('Name', {}, 'statusFile', {}, 'resultsDir', {}, ...
-                'logFile', {}, 'logPos', {}, 'done', {});
+                'logFile', {}, 'logPos', {}, 'done', {}, 'device', {}, 'started', {});
+        end
+
+        function run = sortRun(name, res)
+            %sortRun  The LaunchedRuns element for a run launchSorting started.
+            %   RUN = EphysPipeline.sortRun(NAME, RES): NAME is the dataset's,
+            %   RES what EphysDataset.launchSorting returned.
+            run = struct('Name', string(name), 'statusFile', string(res.statusFile), ...
+                'resultsDir', string(res.resultsDir), 'logFile', string(res.stdoutLog), ...
+                'logPos', 0, 'done', false, 'device', string(res.device), 'started', datetime('now'));
+        end
+
+        function T = restateResult(T, step, dataset, output, status, message, addSeconds)
+            %restateResult  A Results table with one row restated.
+            %   T = EphysPipeline.restateResult(T, STEP, DATASET, OUTPUT,
+            %   STATUS, MESSAGE, ADDSECONDS): the last row of T with that
+            %   Step, Dataset and Output takes STATUS and MESSAGE, and
+            %   ADDSECONDS is added to its Seconds. T is unchanged without
+            %   such a row. See updateResult.
+            if isempty(T) || ~istable(T); return; end
+            i = find(T.Step == string(step) & T.Dataset == string(dataset) & T.Output == string(output), 1, 'last');
+            if isempty(i); return; end
+            T.Status(i) = string(status);
+            T.Message(i) = string(message);
+            T.Seconds(i) = T.Seconds(i) + addSeconds;
         end
     end
 end

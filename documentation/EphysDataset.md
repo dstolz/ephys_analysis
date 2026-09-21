@@ -794,8 +794,8 @@ tab's **Engine** drop-down):
 - **`runKilosort`** (`"kilosort"`) writes the recording to a `.bin` and runs
   Kilosort4 natively on it, with no SpikeInterface.
 
-Both take the same `ExtraSettings`, `ArtifactIntervals`, `DryRun` and `Wait`
-options. Both refuse to run when the artifact intervals cover more than
+Both take the same `ExtraSettings`, `ArtifactIntervals`, `DryRun`, `Wait`,
+`Device` and `Launch` options. Both refuse to run when the artifact intervals cover more than
 `EphysDataset.MaxSilencedFraction` (half) of the recording, because Kilosort4
 would then find no spikes and fail inside its template SVD. `runKilosort`
 checks this in MATLAB before writing the `.bin`. `runSpikeInterface` checks it
@@ -803,16 +803,34 @@ in `run_si_ks4.py`, which logs the covered share first.
 
 Both launch Python through `system()` (not MATLAB's `pyenv`) as either
 `"<PythonExe>" "<script>" "<config>"` or
-`conda run -n <CondaEnv> "<PythonExe>" "<script>" "<config>"`. Both:
+`conda run -n <CondaEnv> "<PythonExe>" "<script>" "<config>"`, with
+`--device <torch device>` appended when a device is given. Both:
 
 - copy the checked-in driver script into the run folder;
-- call `BeforeLaunchFcn` (when given) once every file is written, just before
-  launching: it returns when the run may start, and an error from it stops the
-  launch. `EphysPipeline.runSorting` waits there for a free slot
+- with `Launch=false`, write every file of the run (the `.bin` included) and
+  return without starting it. `result = ds.launchSorting(result)` starts it
+  later. `EphysPipeline.runSorting` waits for a free slot in between, and the
+  app's monitor starts queued runs this way
   ([Background Kilosort4 runs](EphysPipeline.md#background-kilosort4-runs));
 - delete any stale `ks4_status.json` and `ks4_exit.txt` before launching;
 - support blocking (`Wait=true`, default) or detached background (`Wait=false`)
   execution.
+
+#### `result = launchSorting(result, Wait=, Device=)`
+
+Starts a run that `runSpikeInterface` or `runKilosort` prepared with
+`Launch=false`. Both engines call it themselves unless `Launch=false`.
+
+| Option | Default |
+| --- | --- |
+| `Wait` | `true`: block until Kilosort4 finishes; `false` launches it detached |
+| `Device` | `""`: the torch device for this run (`"cuda:0"`, `"cuda:1"`, `"cpu"`), passed to the driver as `--device`. It overrides a `torch_device` in the run's settings. `""` leaves the device to those settings, or to Kilosort4 (the first GPU) |
+
+It errors on a dry run's result (`EphysDataset:launchSorting:DryRun`) and on a
+device that `EphysDataset.isTorchDevice` rejects (only `cpu`, `mps`, `cuda`
+and `cuda:N`). It returns the result with `command` (as run, `--device`
+included), `status`, `wait`, `background`, `device` and `launched` (`true`)
+set, and adds a `launchSorting` entry to the manifest.
 
 In blocking mode, output is captured and written to `ks4_run.log` after the
 process exits. In background mode, output is redirected to `ks4_run.log` with
@@ -848,16 +866,21 @@ described step by step in [python-drivers.md](python-drivers.md#run_si_ks4py).
 | `Files` | `ds.Files` |
 | `DryRun` | `false`: write config + script and build the command without launching |
 | `Wait` | `true` |
-| `BeforeLaunchFcn` | `[]`: called just before launching (see above) |
+| `Device` | `""`: torch device for the run (see `launchSorting`) |
+| `Launch` | `true`: `false` writes the run files and returns (see above) |
 
 - If `SIConfig.CommonReference` is on and `ExtraSettings` has no `do_CAR`,
   `do_CAR=false` is added so Kilosort4 does not re-reference.
 - Computing `ArtifactIntervals` with `ArtifactConfig.Enabled` scans the **whole
   recording in MATLAB** before Python is launched, even for a background run.
-- `result` fields: `status`, `command`, `stdoutLog`, `scriptPath`,
-  `settingsPath` (the `si_config.json`), `resultsDir` and `runDir` (both the
-  `kilosort4` folder), `sorterDir`, `probeFile`, `excludeChannels`, `dryRun`,
-  `wait`, `statusFile`, `background`.
+- `result` fields: `status`, `command`, `driverCommand` (the command without
+  `--device`), `stdoutLog`, `scriptPath`, `settingsPath` (the
+  `si_config.json`), `resultsDir` and `runDir` (both the `kilosort4` folder),
+  `sorterDir`, `probeFile`, `excludeChannels`, `dryRun`, `wait`,
+  `statusFile`, `background`, `engine` (`"spikeinterface"`), `device`,
+  `launched`.
+- `run_si_ks4.py --device <device>` sets the SpikeInterface wrapper's
+  `torch_device`.
 
 #### Default SpikeInterface configuration
 
@@ -898,7 +921,9 @@ directly in that folder.
   account for the gap.
 - `run_ks4.py` passes `run_kilosort` arguments found in the settings
   (`do_CAR`, `invert_sign`, `bad_channels`, ...) as arguments, and drops and
-  logs any other key Kilosort4 does not recognize.
+  logs any other key Kilosort4 does not recognize. A `torch_device` in the
+  settings, or `--device` on its command line (which wins), becomes
+  `run_kilosort`'s `device`.
 
 - `n_chan_bin` and `fs` resolve in this order: options, then the `.bin` JSON
   sidecar, then `NumChannels`/`Fs`.
@@ -909,12 +934,14 @@ directly in that folder.
 - Options: `PythonExe`, `CondaEnv`, `ProbeFile`, `ExcludeChannels`, `BinFile`
   (an existing `.bin` to sort as is), `ResultsDir`, `NChanBin`, `Fs`,
   `ExtraSettings` (merged into `settings.json`), `ArtifactIntervals` (`NaN` =
-  `artifactIntervals()`, `[]` = none), `DryRun`, `Wait`, `BeforeLaunchFcn`
-  (called once the `.bin` and `settings.json` are written, just before
-  launching).
-- `result` fields: `status`, `command`, `stdoutLog`, `scriptPath`,
-  `settingsPath`, `resultsDir` and `runDir` (the same folder), `binFile`, `probeFile`, `excludeChannels`,
-  `nExcludedChannels`, `dryRun`, `wait`, `statusFile`, `background`.
+  `artifactIntervals()`, `[]` = none), `DryRun`, `Wait`, `Device`, `Launch`
+  (`false` writes the `.bin` and `settings.json` and returns; see
+  `launchSorting`).
+- `result` fields: `status`, `command`, `driverCommand`, `stdoutLog`,
+  `scriptPath`, `settingsPath`, `resultsDir` and `runDir` (the same folder),
+  `binFile`, `probeFile`, `excludeChannels`, `nExcludedChannels`, `dryRun`,
+  `wait`, `statusFile`, `background`, `engine` (`"kilosort"`), `device`,
+  `launched`.
 
 #### Channel exclusions
 

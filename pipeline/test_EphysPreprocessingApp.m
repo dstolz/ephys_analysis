@@ -904,8 +904,8 @@ app.PythonExeField.Value = fakePython;
 app.onConfigChanged();
 priorDir = fullfile(root, 'earlier_run'); mkdir(priorDir);
 priorStatus = fullfile(priorDir, 'ks4_status.json');
-app.KSRuns = struct('Name', "earlier", 'statusFile', string(priorStatus), ...
-    'resultsDir', string(priorDir), 'logFile', "", 'logPos', 0, 'done', false);
+app.KSRuns = EphysPipeline.sortRun("earlier", struct('statusFile', priorStatus, ...
+    'resultsDir', priorDir, 'stdoutLog', "", 'device', ""));
 app.startKSMonitor();
 labelsSeen = strings(0, 1);
 tSample = tic;
@@ -944,6 +944,77 @@ check(isempty(app.KSRuns) && contains(ksLog, "[done] recA_260101_120000 - Kiloso
     && contains(ksLog, "=== all 2 background run(s) complete ===") ...
     && startsWith(string(app.RunKSLabel.Text), "Background Kilosort4: 2 of 2 finished"), ...
     'the monitor logged it done and cleared the finished batch');
+R = app.RunResultsTable.Data;
+row = R(R.Step == "sorting", :);
+check(height(row) == 1 && row.Status == "done" && row.Message == "Kilosort4 finished" && row.Seconds >= 3, ...
+    'the monitor turned the run''s "launched" row into "done", adding the time it ran');
+check(app.RunDiagram.results.Status(app.RunDiagram.results.Step == "sorting") == "done", ...
+    'the run diagram counts it done too');
+
+fprintf('\n== 4f. Run tab: GPUs, and queueing the waiting runs ==\n');
+app.RunKSDevicesField.Value = 'cuda:0, cuda:1';
+app.RunKSDevicesField.ValueChangedFcn(app.RunKSDevicesField, []);
+check(isequal(app.Config.Sorting.Devices, ["cuda:0" "cuda:1"]), 'the GPUs field sets Sorting.Devices');
+app.RunKSDevicesField.Value = '';
+app.RunKSDevicesField.ValueChangedFcn(app.RunKSDevicesField, []);
+check(isempty(app.Config.Sorting.Devices), 'a blank GPUs field lists no devices');
+app.ExecModeDropDown.Value = true;
+app.ExecModeDropDown.ValueChangedFcn(app.ExecModeDropDown, []);
+check(strcmp(app.RunKSQueueCheckBox.Enable, 'off'), 'blocking execution greys out the queue box');
+app.ExecModeDropDown.Value = false;
+app.ExecModeDropDown.ValueChangedFcn(app.ExecModeDropDown, []);
+app.RunKSQueueCheckBox.Value = true;
+% An earlier run holds the only slot again: this time the Run queues the
+% dataset and ends without waiting. A safety timer ends the earlier run
+% after 60 s, so a Run that waited after all cannot hang the suite.
+priorDir = fullfile(root, 'earlier_run2'); mkdir(priorDir);
+priorStatus = fullfile(priorDir, 'ks4_status.json');
+app.KSRuns = EphysPipeline.sortRun("earlier", struct('statusFile', priorStatus, ...
+    'resultsDir', priorDir, 'stdoutLog', "", 'device', ""));
+app.startKSMonitor();
+safety = timer('StartDelay', 60, 'TimerFcn', @(~,~) writelines('{"state": "done"}', priorStatus));
+start(safety);
+t0 = tic;
+app.runPipeline(Steps="sorting");
+R = app.RunResultsTable.Data;
+check(toc(t0) < 30 && ~app.RunActive && any(R.Step == "sorting" & R.Status == "queued") ...
+    && numel(app.KSQueue) == 1 && numel(app.KSRuns) == 1, ...
+    'with the earlier run holding the slot, the Run queued the dataset and ended at once');
+t0 = tic;
+while toc(t0) < 10 && ~contains(app.RunKSLabel.Text, "1 waiting to start"); pause(0.25); end
+check(strcmp(app.RunKSStopQueueButton.Enable, 'on') && contains(app.RunKSLabel.Text, "(1 running, 1 waiting to start)"), ...
+    'Stop queue is on and the Kilosort4 label counts the queued dataset');
+writelines('{"state": "done"}', priorStatus);   % the earlier run finishes
+t0 = tic;
+while toc(t0) < 20 && ~isempty(app.KSQueue); pause(0.25); end
+R = app.RunResultsTable.Data;
+check(isempty(app.KSQueue) && any(R.Step == "sorting" & R.Status == "launched" & contains(R.Message, "started from the queue")) ...
+    && strcmp(app.RunKSStopQueueButton.Enable, 'off'), ...
+    'once the slot freed, the monitor started the queued run and its row says so');
+t0 = tic;
+while toc(t0) < 30 && ~isempty(app.KSRuns); pause(0.5); end
+R = app.RunResultsTable.Data;
+check(any(R.Step == "sorting" & R.Status == "done") && contains(strjoin(string(app.KSLogArea.Value), newline), ...
+    "recA_260101_120000: launched from the queue"), 'the queued run ran to the end: its row says "done"');
+while toc(t0) < 40 && ~isfile(exitMarker); pause(0.25); end
+% Stop queue drops a queued run that has not started.
+priorDir = fullfile(root, 'earlier_run3'); mkdir(priorDir);
+priorStatus3 = fullfile(priorDir, 'ks4_status.json');
+app.KSRuns = EphysPipeline.sortRun("earlier", struct('statusFile', priorStatus3, ...
+    'resultsDir', priorDir, 'stdoutLog', "", 'device', ""));
+app.startKSMonitor();
+app.runPipeline(Steps="sorting");
+check(numel(app.KSQueue) == 1, 'queued again behind a running earlier run');
+app.RunKSStopQueueButton.ButtonPushedFcn(app.RunKSStopQueueButton, []);
+R = app.RunResultsTable.Data;
+check(isempty(app.KSQueue) && any(R.Status == "cancelled" & R.Message == "queue stopped before it started") ...
+    && strcmp(app.RunKSStopQueueButton.Enable, 'off') && numel(app.KSRuns) == 1, ...
+    'Stop queue drops the queued run, marks its row cancelled and leaves the running one');
+writelines('{"state": "done"}', priorStatus3);
+t0 = tic;
+while toc(t0) < 20 && ~isempty(app.KSRuns); pause(0.25); end
+stop(safety); delete(safety);
+app.RunKSQueueCheckBox.Value = false;
 app.PythonExeField.Value = '';
 app.onConfigChanged();
 app.Project.Datasets(1).ProbeFile = "";

@@ -38,11 +38,13 @@ function result = runKilosort(obj, opts)
 %                    with stdout/stderr redirected to the log, and the call
 %                    returns immediately; result.status is then the launcher's
 %                    status, not the Kilosort4 exit code.
-%     BeforeLaunchFcn function handle called with no arguments after every
-%                    file (the .bin included) is written, just before
-%                    Kilosort4 starts; it returns when the run may start
-%                    (EphysPipeline.runSorting waits there for a free slot).
-%                    An error from it stops the launch. Default [] = none.
+%     Device         (1,1) string  torch device for the run ("cuda:1", "cpu";
+%                    default "" = Kilosort4's choice), see launchSorting
+%     Launch         (1,1) logical  start Kilosort4 (default true). false
+%                    writes every file (the .bin included) and returns;
+%                    ds.launchSorting(result) starts the run later
+%                    (EphysPipeline.runSorting waits for a free slot in
+%                    between).
 %
 %   Whether blocking or not, the generated run_ks4.py writes a small
 %   ks4_status.json (state "done" or "error") in the results dir on completion,
@@ -57,11 +59,11 @@ function result = runKilosort(obj, opts)
 %   SpikeInterface run's si/ subfolder there, so kilosortResultsDir finds
 %   this run's output rather than the older one.
 %
-%   RESULT struct: status, command, stdoutLog, scriptPath, settingsPath,
-%   resultsDir, runDir, binFile, probeFile, dryRun, wait, statusFile,
-%   background.
+%   RESULT struct: status, command, driverCommand, stdoutLog, scriptPath,
+%   settingsPath, resultsDir, runDir, binFile, probeFile, dryRun, wait,
+%   statusFile, background, engine ("kilosort"), device, launched.
 %
-%   See also EphysDataset.toBin, EPHYSPROJECT.
+%   See also EphysDataset.launchSorting, EphysDataset.toBin, EPHYSPROJECT.
 
 arguments
     obj (1,1) EphysDataset
@@ -77,7 +79,8 @@ arguments
     opts.ArtifactIntervals double = NaN
     opts.DryRun (1,1) logical = false
     opts.Wait (1,1) logical = true
-    opts.BeforeLaunchFcn = []
+    opts.Device (1,1) string = ""
+    opts.Launch (1,1) logical = true
 end
 
 % Resolve config (per-call -> dataset)
@@ -179,7 +182,6 @@ settingsPath = fullfile(resultsDir, 'settings.json');
 scriptPath   = fullfile(resultsDir, 'run_ks4.py');
 stdoutLog    = fullfile(resultsDir, 'ks4_run.log');
 statusFile   = fullfile(resultsDir, 'ks4_status.json');
-exitFile     = fullfile(resultsDir, char(EphysDataset.SortExitMarker));
 
 writeSettings(settings, settingsPath);
 writeRunScript(scriptPath);
@@ -207,57 +209,18 @@ result.dryRun       = opts.DryRun;
 result.wait         = opts.Wait;
 result.statusFile   = char(statusFile);
 result.background   = false;
+result.driverCommand = command;   % launchSorting adds --device
+result.engine       = "kilosort";
+result.device       = "";
+result.launched     = false;
 
 if opts.DryRun
     fprintf('[DryRun] Wrote %s and %s\n', settingsPath, scriptPath);
     fprintf('[DryRun] Command: %s\n', command);
     return
 end
-
-if ~isempty(opts.BeforeLaunchFcn)
-    opts.BeforeLaunchFcn();
-end
-
-% Clear any stale status / exit marker so they reflect this run only.
-if isfile(statusFile)
-    delete(statusFile);
-end
-if isfile(exitFile)
-    delete(exitFile);
-end
-
-if opts.Wait
-    fprintf('Launching Kilosort4 (blocking):\n  %s\n', command);
-    [status, out] = system(command);
-    result.status = status;
-
-    % Tee output to log
-    fid = fopen(stdoutLog, 'w');
-    if fid >= 0
-        fwrite(fid, out, 'char');
-        fclose(fid);
-    end
-
-    if status ~= 0
-        warning('EphysDataset:runKilosort:NonZeroExit', ...
-            'Kilosort4 exited with status %d. See log: %s', status, stdoutLog);
-    end
-else
-    bgCommand = backgroundCommand(command, stdoutLog, exitFile, 'Kilosort4');
-    fprintf('Launching Kilosort4 (background):\n  %s\n', bgCommand);
-    status = system(bgCommand);   % returns immediately
-    result.status = status;       % launcher status, not Kilosort4 exit code
-    result.background = true;
-    if status ~= 0
-        warning('EphysDataset:runKilosort:LaunchFailed', ...
-            'Background launch returned status %d. See log: %s', status, stdoutLog);
-    end
-end
-
-if ~isempty(obj.Manifest) && isa(obj.Manifest, 'Manifest')
-    obj.Manifest.add("runKilosort", "Spawned Kilosort4", ...
-        struct('command', command, 'status', status, 'wait', opts.Wait, ...
-        'resultsDir', resultsDir, 'binFile', binFile));
+if opts.Launch
+    result = obj.launchSorting(result, Wait=opts.Wait, Device=opts.Device);
 end
 end
 

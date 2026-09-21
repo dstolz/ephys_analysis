@@ -5,8 +5,9 @@ function refreshRunDiagram(obj)
 %   phase, a headline (which step of how many is underway, or how the run
 %   ended), a line naming the config, the datasets and the times, and per
 %   step its state and label, percentage, the dataset and message of its last
-%   event and its result counts (done, dry run, skipped, to check, errors,
-%   cancelled).
+%   event and its result counts (done, in the background, dry run,
+%   skipped, to check, errors, cancelled; a background Kilosort4 run
+%   counts as done once the monitor has seen it finish).
 
 h = obj.RunDiagramHTML;
 if isempty(h) || ~isvalid(h) || ~obj.RunDiagramCheckBox.Value; return; end
@@ -61,15 +62,16 @@ if isempty(R); return; end
 st = R.Status(extractBefore(R.Step + ":", ":") == key);
 if isempty(st); return; end
 dry  = st == "dry run";
-ok   = ismember(st, ["done" "ok" "launched" "associated" "approved" "auto-approved"]) | startsWith(st, "matched");
+ok   = ismember(st, ["done" "ok" "associated" "approved" "auto-approved"]) | startsWith(st, "matched");
+bg   = ismember(st, ["launched" "queued"]);   % Kilosort4 runs the monitor restates when they end
 skip = startsWith(st, "skipped");
 err  = startsWith(st, "error");
 can  = ismember(st, ["cancelled" "not run"]);
-look = ~(dry | ok | skip | err | can);   % no probe, unmatched, needs review, ...
+look = ~(dry | ok | bg | skip | err | can);   % no probe, unmatched, needs review, ...
 nErr = nnz(err);
-n = [nnz(ok) nnz(dry) nnz(skip) nnz(look) nErr nnz(can)];
-words = ["done" "dry run" "skipped" "to check" "errors" "cancelled"];
-if nErr == 1; words(5) = "error"; end
+n = [nnz(ok) nnz(bg) nnz(dry) nnz(skip) nnz(look) nErr nnz(can)];
+words = ["done" "in the background" "dry run" "skipped" "to check" "errors" "cancelled"];
+if nErr == 1; words(6) = "error"; end
 parts = compose("%d %s", n(:), words(:));
 t = join(parts(n > 0), ", ");
 end

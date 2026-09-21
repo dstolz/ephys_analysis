@@ -26,8 +26,12 @@ torch 2.7.1.
 
 ## `run_si_ks4.py`
 
-Usage: `run_si_ks4.py <si_config.json> [--check]`. The config schema is in
-[file-formats.md](file-formats.md#si_configjson).
+Usage: `run_si_ks4.py <si_config.json> [--check] [--device <torch device>]`.
+The config schema is in [file-formats.md](file-formats.md#si_configjson).
+`--device` (added by `EphysDataset.launchSorting`, one GPU per run with
+`Sorting.Devices`) sets the wrapper's `torch_device`, over any
+`torch_device` in the config's `ks4` block, and logs
+`Kilosort4 on torch device <device>`.
 
 ### Pipeline (`build_pipeline`)
 
@@ -144,18 +148,22 @@ warns), and a probe for it must use positions `0..n-1`.
 
 ## `run_ks4.py`
 
-Usage: `run_ks4.py <settings.json>`.
+Usage: `run_ks4.py <settings.json> [--device <torch device>]`.
 
 1. Loads the probe with `kilosort.io.load_probe(cfg['probe'])`.
-2. Sorts the other `settings.json` keys (except `probe` and `data_dtype`) with
-   `split_settings`:
+2. Sorts the other `settings.json` keys (except `probe`, `data_dtype` and
+   `torch_device`) with `split_settings`:
    - `run_kilosort` arguments (`do_CAR`, `invert_sign`, `save_extra_vars`,
      `save_preprocessed_copy`, `bad_channels`, `clear_cache`,
      `torch_thread_lim`) are passed as arguments;
    - keys in Kilosort4's `RECOGNIZED_SETTINGS` become `settings`;
    - anything else is **dropped** and logged. Kilosort4 would otherwise refuse
      the whole run with "Unrecognized settings".
-3. Calls `kilosort.run_kilosort(settings, probe, filename, data_dtype,
+3. `--device`, else a `torch_device` in the settings (`"auto"` = none),
+   becomes `run_kilosort`'s `device=torch.device(...)`, logged as
+   `Kilosort4 on torch device <device>`. Without either, Kilosort4 takes the
+   first GPU (or the CPU).
+4. Calls `kilosort.run_kilosort(settings, probe, filename, data_dtype,
    results_dir, **run_args)`.
 
 It writes `ks4_status.json` (`{"state": "done", "num_units", "dropped_params"}`

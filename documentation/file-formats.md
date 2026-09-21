@@ -318,7 +318,7 @@ which holds `H64LP_4x16.json` as a starting point.
   "Behavior":  { "Enabled", "SearchDirs", "Match", "MaxStartOffsetMin", "Overwrite", "WriteFile",
                  "PairTrials", "AutoApprove", "TrialLine" },
   "Artifacts": { "Enabled", "Method", "Threshold", ... , "ApplyToSorting", "ApplyToSpikes", "CacheIntervals" },
-  "Sorting":   { "Enabled", "Engine", "PythonExe", "CondaEnv", "Execution", "MaxConcurrent", "DryRun", "SkipExisting",
+  "Sorting":   { "Enabled", "Engine", "PythonExe", "CondaEnv", "Execution", "MaxConcurrent", "Devices", "DryRun", "SkipExisting",
                  "SI": {...}, "KS4": {...}, "KS4ExtraJSON" },
   "Signals":   { "Enabled", "OutputDir", "Suffix", ... , "LabelField", "LineNames", "InvertedLines", ... , "ExcludeHandling" },
   "Spikes":    { "Enabled", "Source", ... , "Groups", "IncludeNoise", "Templates", "OutputDir", "Suffix", ... },
@@ -502,7 +502,10 @@ Schema (placeholders in `<...>`; all paths use forward slashes):
 Path: `<ResultsDir>/settings.json`. Fields: `n_chan_bin`, `fs`, `data_dtype`
 (from `ds.Dtype`), `filename` (the `.bin`), `probe` (original or
 `_excluded.json` probe), `results_dir`, plus any `ExtraSettings` fields. Paths
-use forward slashes.
+use forward slashes. A `torch_device` field picks the GPU; the `--device`
+argument a run gets from `Sorting.Devices` overrides it (the device a run
+used is in `ks4_run.log` and the manifest's `launchSorting` entry, not
+here).
 
 ## `ks4_status.json`
 
@@ -513,8 +516,8 @@ Path: in the run folder. Written by the Python driver when it finishes.
 | SpikeInterface | `{"state":"done","num_units":N,"bad_channels":[<channel numbers as strings>],"dropped_params":[...]}` | `{"state":"error","message":"...","traceback":"..."}` |
 | native | `{"state":"done","num_units":N,"dropped_params":[...]}` | `{"state":"error","message":"...","traceback":"..."}` |
 
-Both engines delete a stale status file before launching. The GUI's background
-monitor polls this file every 3 s.
+`EphysDataset.launchSorting` deletes a stale status file before launching.
+The GUI's background monitor polls this file every 3 s.
 
 ## `ks4_exit.txt`
 

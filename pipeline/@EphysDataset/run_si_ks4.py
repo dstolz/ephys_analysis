@@ -479,9 +479,21 @@ def build_pipeline(cfg):
     return rec, bad
 
 
-def ks4_params(cfg):
+def device_arg(argv):
+    """The value of --device <torch device> in ARGV, or None."""
+    if '--device' in argv:
+        i = argv.index('--device')
+        if i + 1 < len(argv):
+            return argv[i + 1]
+    return None
+
+
+def ks4_params(cfg, device=None):
     import spikeinterface.sorters as ss
     requested = dict(cfg.get('ks4', {}) or {})
+    if device:   # --device (one GPU per run) wins over a torch_device in ks4
+        requested['torch_device'] = device
+        log('Kilosort4 on torch device %s' % device)
     try:
         accepted = ss.get_default_sorter_params('kilosort4')
     except Exception:
@@ -499,20 +511,21 @@ def ks4_params(cfg):
 
 def main():
     if len(sys.argv) < 2:
-        raise SystemExit('usage: run_si_ks4.py <si_config.json> [--check]')
+        raise SystemExit('usage: run_si_ks4.py <si_config.json> [--check] [--device <torch device>]')
     cfg = load_config(sys.argv[1])
     check = '--check' in sys.argv[1:]
+    device = device_arg(sys.argv[2:])
     status_path = cfg['status_path']
     if check:
         rec, bad = build_pipeline(cfg)
-        params, dropped = ks4_params(cfg)
+        params, dropped = ks4_params(cfg, device)
         log('CHECK OK: %d channel(s) feed Kilosort4 (probe %s); KS4 params %d ok, %d dropped'
             % (rec.get_num_channels(), os.path.basename(cfg['probe']), len(params), len(dropped)))
         return
     try:
         import spikeinterface.full as si
         rec, bad = build_pipeline(cfg)
-        params, dropped = ks4_params(cfg)
+        params, dropped = ks4_params(cfg, device)
         results_dir = cfg['results_dir']
         log('Running Kilosort4 via SpikeInterface -> %s' % results_dir)
         # Keep the preprocessed recording.dat that KS4 writes during sorting

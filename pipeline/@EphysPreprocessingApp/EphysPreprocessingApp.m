@@ -45,8 +45,12 @@ classdef EphysPreprocessingApp < handle
     %                reads the raw recording (filters, references, detection
     %                parameters, files written), then the downstream steps;
     %                Save as HTML
-    %     Run        step checklist, validate, plan, run / dry run / cancel,
-    %                progress, results, log; optionally a diagram of the
+    %     Run        step checklist (with how many background Kilosort4 runs
+    %                go at once, the GPUs they share and whether the Run
+    %                hands the waiting ones to the monitor's queue),
+    %                validate, plan, run / dry run / cancel, progress,
+    %                results (background runs' rows follow them to done /
+    %                error), log, Stop queue; optionally a diagram of the
     %                run's steps (the one underway highlighted, each with
     %                its % done) in the right half, and CPU / memory / disk /
     %                GPU use under the steps
@@ -490,6 +494,8 @@ classdef EphysPreprocessingApp < handle
         RunArtifactsCheckBox matlab.ui.control.CheckBox
         RunSortingCheckBox   matlab.ui.control.CheckBox
         RunKSAtOnceSpinner   matlab.ui.control.Spinner        % Sorting.MaxConcurrent
+        RunKSDevicesField    matlab.ui.control.EditField      % Sorting.Devices ("cuda:0, cuda:1")
+        RunKSQueueCheckBox   matlab.ui.control.CheckBox       % hand waiting runs to the monitor (a preference)
         RunSignalsCheckBox   matlab.ui.control.CheckBox
         RunSpikesCheckBox    matlab.ui.control.CheckBox
         RunExportCheckBox    matlab.ui.control.CheckBox
@@ -510,6 +516,7 @@ classdef EphysPreprocessingApp < handle
         RunResultsTable      matlab.ui.control.Table
         RunLogArea           matlab.ui.control.TextArea
         RunKSLabel           matlab.ui.control.Label
+        RunKSStopQueueButton matlab.ui.control.Button         % drop the queued Kilosort4 runs (onStopKSQueue)
         RunDiagramCheckBox   matlab.ui.control.CheckBox       % Show the run diagram (a preference)
         RunSplitGrid         matlab.ui.container.GridLayout   % right side: progress / results / log | diagram
         RunDiagramPanel      matlab.ui.container.Panel
@@ -554,8 +561,10 @@ classdef EphysPreprocessingApp < handle
         SelectedProbeRow (1,1) double = 0
 
         % Background Kilosort4 runs awaiting completion + the polling timer.
-        KSRuns struct = struct('Name', {}, 'statusFile', {}, 'resultsDir', {}, ...
-            'logFile', {}, 'logPos', {}, 'done', {})
+        KSRuns struct = EphysPipeline.emptyRuns()
+        % Runs whose files are written, waiting for the monitor to start them
+        % when a slot frees (queueKSRun): the dataset and the prepared result.
+        KSQueue struct = struct('Name', {}, 'dataset', {}, 'prepared', {})
         KSMonitorTimer = []
 
         % --- Visualize interaction state (display-only, in-memory) ---
@@ -861,6 +870,9 @@ classdef EphysPreprocessingApp < handle
         startKSMonitor(obj)
         stopKSMonitor(obj)
         pollKSRuns(obj)
+        queueKSRun(obj, d, res)
+        onStopKSQueue(obj)
+        markKSResult(obj, name, output, status, message, addSeconds)
         log(obj, fmt, varargin)
         appendLogLines(obj, lines)
 

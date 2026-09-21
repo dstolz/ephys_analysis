@@ -182,11 +182,13 @@ classdef EphysPipelineScript
             [ks4, ~] = EphysPipelineConfig.ks4Settings(S);
             L = [L; EphysPipelineScript.structLiteral("ks4", ks4)];
             background = S.Execution == "background" && ~S.DryRun;
-            gateArg = "";
+            devices = ~isempty(S.Devices) && ~S.DryRun;
             if background
                 L(end+1, 1) = "maxConcurrent = " + lit(S.MaxConcurrent) + ";   % background runs at once; the next waits for a free slot";
-                L(end+1, 1) = "launched = strings(0, 1);   % ks4_status.json of each run started";
-                gateArg = "BeforeLaunchFcn=@() waitForSortingSlot(launched, maxConcurrent), ";
+                if devices
+                    L(end+1, 1) = "devices = " + lit(S.Devices) + ";   % torch devices: each run gets the one the fewest running runs use";
+                end
+                L(end+1, 1) = "launched = [];   % each run started (launchSorting results)";
             end
             L(end+1, 1) = "for k = idx";
             L(end+1, 1) = "    d = P.Datasets(k);";
@@ -200,10 +202,21 @@ classdef EphysPipelineScript
             else
                 L(end+1, 1) = "        iv = d.artifactIntervals(IncludeAuto=false);";
             end
-            L(end+1, 1) = "        res = " + sortCall + "(" + gateArg + "ExtraSettings=ks4, ArtifactIntervals=iv, DryRun=" + ...
-                lit(logical(S.DryRun)) + ", Wait=" + lit(S.Execution == "blocking") + ");";
             if background
-                L(end+1, 1) = "        launched(end+1) = res.statusFile;";
+                L(end+1, 1) = "        res = " + sortCall + "(ExtraSettings=ks4, ArtifactIntervals=iv, Launch=false);   % write the run files";
+                if devices
+                    L(end+1, 1) = "        device = waitForSortingSlot(launched, maxConcurrent, Devices=devices);";
+                    L(end+1, 1) = "        res = d.launchSorting(res, Wait=false, Device=device);";
+                else
+                    L(end+1, 1) = "        waitForSortingSlot(launched, maxConcurrent);";
+                    L(end+1, 1) = "        res = d.launchSorting(res, Wait=false);";
+                end
+                L(end+1, 1) = "        launched = [launched, res];";
+            else
+                devArg = "";
+                if devices; devArg = ", Device=" + lit(S.Devices(1)); end
+                L(end+1, 1) = "        res = " + sortCall + "(ExtraSettings=ks4, ArtifactIntervals=iv, DryRun=" + ...
+                    lit(logical(S.DryRun)) + ", Wait=" + lit(S.Execution == "blocking") + devArg + ");";
             end
             L(end+1, 1) = "        d.writeManifest();";
             L(end+1, 1) = "        fprintf('%s: sorting -> %s\n', d.Name, res.resultsDir);";

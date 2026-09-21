@@ -92,7 +92,10 @@ PyTorch instead — everything still works, just slower.
    python -c "import spikeinterface, kilosort, probeinterface, torch; print(torch.cuda.is_available())"
    ```
    This should print `True` if the GPU build installed correctly, or `False`
-   (no error) for a CPU-only setup.
+   (no error) for a CPU-only setup. On a machine with more than one GPU,
+   `python -c "import torch; print(torch.cuda.device_count())"` gives the
+   count. List them in the app's Run tab **GPUs** box (`cuda:0, cuda:1`,
+   `Sorting.Devices`) so that runs going at once each get their own.
 6. Optional, for Open Ephys sessions recorded in the **NWB** format and sorted
    with the SpikeInterface engine (the default): `pip install h5py` (or
    `conda install -n kilosort h5py`). Binary and Open Ephys format sessions

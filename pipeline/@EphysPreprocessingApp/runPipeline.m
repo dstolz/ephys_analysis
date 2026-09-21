@@ -4,7 +4,11 @@ function runPipeline(obj, opts)
 %   results, the log and the run diagram update live; Cancel stops at the
 %   next boundary. Each background Kilosort4 run is handed to the monitor
 %   (KSRuns) as it starts; runs the monitor is still following take slots
-%   of Sorting.MaxConcurrent (the pipeline's PriorRuns).
+%   of Sorting.MaxConcurrent (the pipeline's PriorRuns). With "Queue the
+%   waiting runs" ticked, the sorting step writes each dataset's run files
+%   and queues the run with the monitor (queueKSRun), which starts it when
+%   a slot frees, so the Run goes on at once. Either way the monitor
+%   restates each background run's result row when it ends (markKSResult).
 arguments
     obj (1,1) EphysPreprocessingApp
     opts.Steps (1,:) string = string.empty(1,0)
@@ -36,7 +40,10 @@ pipe = obj.buildPipeline();
 pipe.ProgressFcn = @(evt) obj.onPipelineProgress(evt);
 pipe.LaunchFcn = @(run) addKSRun(obj, run);
 if ~isempty(obj.KSRuns)
-    pipe.PriorRuns = reshape(string({obj.KSRuns(~[obj.KSRuns.done]).statusFile}), [], 1);
+    pipe.PriorRuns = obj.KSRuns(~[obj.KSRuns.done]);
+end
+if obj.RunKSQueueCheckBox.Value && cfg.Sorting.Execution == "background"
+    pipe.QueueFcn = @(d, res) obj.queueKSRun(d, res);
 end
 obj.Pipe = pipe;
 obj.RunActive = true;
@@ -54,19 +61,18 @@ steps = opts.Steps;
 if isempty(steps); steps = cfg.enabledSteps(); end
 obj.resetRunDiagram(steps, opts.DryRun);
 
-R = EphysPipeline.emptyResults();
 outcome = "done"; note = "";
 try
-    R = pipe.run(Steps=opts.Steps, DryRun=opts.DryRun);
+    pipe.run(Steps=opts.Steps, DryRun=opts.DryRun);
     if pipe.CancelRequested; outcome = "cancelled"; end
 catch ME
-    R = pipe.Results;
     outcome = "error"; note = string(ME.message);
     obj.LastError = ME;                      % Help > Report an issue sends it with its stack
     obj.LastErrorTime = datetime('now');
     obj.runLog("ERROR: %s", ME.message);
     uialert(obj.Fig, "Run stopped:" + newline + string(ME.message), "Run");
 end
+R = pipe.Results;   % with the rows the monitor restated since
 obj.finishRunDiagram(R, outcome, note);
 obj.RunResultsTable.Data = R;
 obj.refreshDatasetsTable();

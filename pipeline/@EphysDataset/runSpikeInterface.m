@@ -35,11 +35,12 @@ function result = runSpikeInterface(obj, opts)
 %     Wait             (1,1) logical  block until finished (default true). When
 %                      false, launched detached (background) with stdout/stderr
 %                      redirected to the log; result.status is the launcher's.
-%     BeforeLaunchFcn  function handle called with no arguments after the run
-%                      files are written, just before the pipeline starts; it
-%                      returns when the run may start (EphysPipeline.runSorting
-%                      waits there for a free slot). An error from it stops
-%                      the launch. Default [] = none.
+%     Device           (1,1) string  torch device for the run ("cuda:1", "cpu";
+%                      default "" = Kilosort4's choice), see launchSorting
+%     Launch           (1,1) logical  start the run (default true). false
+%                      writes the run files and returns; ds.launchSorting(
+%                      result) starts it later (EphysPipeline.runSorting waits
+%                      for a free slot in between).
 %
 %   Whether blocking or not, run_si_ks4.py writes ks4_status.json (state "done"
 %   or "error") in the run folder on completion, and a background run also
@@ -47,11 +48,13 @@ function result = runSpikeInterface(obj, opts)
 %   so a caller (pollKSRuns) can poll a background run exactly as for
 %   runKilosort (EphysDataset.sortRunState).
 %
-%   RESULT struct: status, command, stdoutLog, scriptPath, settingsPath,
-%   resultsDir, runDir, probeFile, excludeChannels, dryRun, wait, statusFile,
-%   background.
+%   RESULT struct: status, command, driverCommand, stdoutLog, scriptPath,
+%   settingsPath, resultsDir, runDir, probeFile, excludeChannels, dryRun,
+%   wait, statusFile, background, engine ("spikeinterface"), device,
+%   launched.
 %
-%   See also EphysDataset.runKilosort, EphysDataset.artifactIntervals,
+%   See also EphysDataset.launchSorting, EphysDataset.runKilosort,
+%   EphysDataset.artifactIntervals,
 %   EphysDataset.kilosortResultsDir.
 
 arguments
@@ -69,7 +72,8 @@ arguments
     opts.Files (1,:) string = string.empty(1,0)
     opts.DryRun (1,1) logical = false
     opts.Wait (1,1) logical = true
-    opts.BeforeLaunchFcn = []
+    opts.Device (1,1) string = ""
+    opts.Launch (1,1) logical = true
 end
 
 % Resolve config (per-call -> dataset)
@@ -140,7 +144,6 @@ end
 
 % ---- Assemble the config the Python script consumes --------------------
 statusFile = fullfile(runDir, 'ks4_status.json');
-exitFile   = fullfile(runDir, char(EphysDataset.SortExitMarker));
 stdoutLog  = fullfile(runDir, 'ks4_run.log');
 scriptPath = fullfile(runDir, 'run_si_ks4.py');
 configPath = fullfile(runDir, 'si_config.json');
@@ -208,54 +211,18 @@ result.dryRun       = opts.DryRun;
 result.wait         = opts.Wait;
 result.statusFile   = char(statusFile);
 result.background   = false;
+result.driverCommand = command;   % launchSorting adds --device
+result.engine       = "spikeinterface";
+result.device       = "";
+result.launched     = false;
 
 if opts.DryRun
     fprintf('[DryRun] Wrote %s and %s\n', configPath, scriptPath);
     fprintf('[DryRun] Command: %s\n', command);
     return
 end
-
-if ~isempty(opts.BeforeLaunchFcn)
-    opts.BeforeLaunchFcn();
-end
-
-% Clear any stale status / exit marker so they reflect this run only.
-if isfile(statusFile)
-    delete(statusFile);
-end
-if isfile(exitFile)
-    delete(exitFile);
-end
-
-if opts.Wait
-    fprintf('Launching SpikeInterface + Kilosort4 (blocking):\n  %s\n', command);
-    [status, out] = system(command);
-    result.status = status;
-    fid = fopen(stdoutLog, 'w');
-    if fid >= 0
-        fwrite(fid, out, 'char');
-        fclose(fid);
-    end
-    if status ~= 0
-        warning('EphysDataset:runSpikeInterface:NonZeroExit', ...
-            'Pipeline exited with status %d. See log: %s', status, stdoutLog);
-    end
-else
-    bgCommand = backgroundCommand(command, stdoutLog, exitFile, 'SpikeInterface-KS4');
-    fprintf('Launching SpikeInterface + Kilosort4 (background):\n  %s\n', bgCommand);
-    status = system(bgCommand);   % returns immediately
-    result.status = status;       % launcher status, not the pipeline exit code
-    result.background = true;
-    if status ~= 0
-        warning('EphysDataset:runSpikeInterface:LaunchFailed', ...
-            'Background launch returned status %d. See log: %s', status, stdoutLog);
-    end
-end
-
-if ~isempty(obj.Manifest) && isa(obj.Manifest, 'Manifest')
-    obj.Manifest.add("runSpikeInterface", "Spawned SpikeInterface + Kilosort4", ...
-        struct('command', command, 'status', status, 'wait', opts.Wait, ...
-        'resultsDir', runDir, 'probeFile', probeAbs));
+if opts.Launch
+    result = obj.launchSorting(result, Wait=opts.Wait, Device=opts.Device);
 end
 end
 

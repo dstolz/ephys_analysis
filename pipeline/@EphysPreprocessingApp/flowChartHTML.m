@@ -231,6 +231,7 @@ txt = ternary(S.Engine == "kilosort", "Kilosort4 natively (SpikeInterface skippe
 if S.Execution == "background"
     txt = txt + " (" + S.MaxConcurrent + " at a time)";
 end
+if ~isempty(S.Devices); txt = txt + ", on " + strjoin(S.Devices, " / "); end
 if S.DryRun; txt = txt + ", dry run (writes run files only)"; end
 if S.SkipExisting; txt = txt + ", skips datasets already sorted"; end
 txt = txt + ".";

@@ -231,9 +231,12 @@ end
 
 
 function t = executionText(S)
-%executionText  "blocking", or "background, N at a time".
+%executionText  "blocking", or "background, N at a time", and the devices.
 t = S.Execution;
 if t == "background"
     t = t + ", " + S.MaxConcurrent + " at a time";
+end
+if ~isempty(S.Devices)
+    t = t + ", on " + strjoin(S.Devices, " / ");
 end
 end

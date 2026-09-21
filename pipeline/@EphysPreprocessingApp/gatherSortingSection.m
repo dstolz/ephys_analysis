@@ -2,7 +2,7 @@ function [S, errMsg] = gatherSortingSection(obj)
 %gatherSortingSection  The Kilosort tab as a config Sorting section.
 %   [S, ERRMSG] = obj.gatherSortingSection() returns EphysPipelineConfig's
 %   Sorting struct filled from the controls: engine, paths, execution mode,
-%   runs at once (the Run tab's spinner), dry run,
+%   runs at once and GPUs (on the Run tab), dry run,
 %   SpikeInterface preprocessing, the typed KS4 parameters (text fields are
 %   parsed with EphysPipelineConfig.ks4ParamFromText) and the extra JSON.
 %   ERRMSG names the first control whose text does not parse ("" when all
@@ -27,6 +27,10 @@ if ~isempty(obj.ExecModeDropDown) && isvalid(obj.ExecModeDropDown)
 end
 if ~isempty(obj.RunKSAtOnceSpinner) && isvalid(obj.RunKSAtOnceSpinner)
     S.MaxConcurrent = double(obj.RunKSAtOnceSpinner.Value);   % on the Run tab
+end
+if ~isempty(obj.RunKSDevicesField) && isvalid(obj.RunKSDevicesField)   % on the Run tab too
+    dev = split(strtrim(string(obj.RunKSDevicesField.Value)), [",", ";", " "]).';
+    S.Devices = dev(dev ~= "");
 end
 if ~isempty(obj.DryRunCheckBox) && isvalid(obj.DryRunCheckBox)
     S.DryRun = logical(obj.DryRunCheckBox.Value);

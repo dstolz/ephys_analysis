@@ -120,8 +120,22 @@ if S.Enabled
     if ~(isfinite(S.MaxConcurrent) && S.MaxConcurrent >= 1 && S.MaxConcurrent == round(S.MaxConcurrent))
         add("sorting", "MaxConcurrent", "error", "MaxConcurrent (Kilosort4 runs at once) must be a whole number >= 1.");
     end
-    [~, msg] = EphysPipelineConfig.ks4Settings(S);
+    [ks4, msg] = EphysPipelineConfig.ks4Settings(S);
     if msg ~= ""; add("sorting", "KS4ExtraJSON", "error", msg); end
+    badDev = S.Devices(~EphysDataset.isTorchDevice(S.Devices));
+    if ~isempty(badDev)
+        add("sorting", "Devices", "error", "Not a torch device: " + strjoin(badDev, ", ") + ...
+            " (use cuda:0, cuda:1, ... or cpu).");
+    elseif S.Execution == "blocking" && numel(S.Devices) > 1
+        add("sorting", "Devices", "warning", "Blocking runs go one at a time on the first device, " + S.Devices(1) + ".");
+    elseif S.Execution == "background" && isfinite(S.MaxConcurrent) && S.MaxConcurrent >= 1 ...
+            && numel(S.Devices) > S.MaxConcurrent
+        add("sorting", "Devices", "warning", sprintf("%d devices but %d Kilosort4 run(s) at once: %s stay(s) idle.", ...
+            numel(S.Devices), S.MaxConcurrent, strjoin(S.Devices(floor(S.MaxConcurrent)+1:end), ", ")));
+    end
+    if ~isempty(S.Devices) && msg == "" && isfield(ks4, 'torch_device')
+        add("sorting", "Devices", "warning", "Devices overrides torch_device in the extra Kilosort4 settings.");
+    end
     if S.SI.Filter && ~(S.SI.FilterFreqMin < S.SI.FilterFreqMax)
         add("sorting", "SI.FilterFreqMin", "error", "SpikeInterface band-pass edges must satisfy min < max.");
     end

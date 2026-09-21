@@ -1,18 +1,27 @@
 function pollKSRuns(obj)
-%pollKSRuns  Timer callback: stream each background Kilosort4 run's log and
-%   check for completion.
+%pollKSRuns  Timer callback: stream each background Kilosort4 run's log,
+%   check for completion and start the queued runs.
 %   Each background run redirects Kilosort4 stdout/stderr to a ks4_run.log and
 %   writes a ks4_status.json (state "done" or "error") in its results dir when
 %   it finishes (EphysDataset.sortRunState; a process that exits without one
 %   counts as failed). Every tick this tails each run's log into the status
-%   box so progress is visible live, then polls the runs, logs each
-%   completion and updates the progress label: how many finished, are
-%   running and, while the pipeline's sorting step waits for a free slot
-%   (Sorting.MaxConcurrent), are still to start. The monitor stops once
-%   every run has finished and none is left to start.
+%   box so progress is visible live, then polls the runs. A finished run is
+%   logged, its dataset's manifest rewritten and its row in the Run tab's
+%   results restated as "done" or "error" (markKSResult), with the time it
+%   ran added to its Seconds.
+%   Then, while fewer than Sorting.MaxConcurrent runs are going, the queued
+%   runs (KSQueue, see queueKSRun) start in order, each on the GPU of
+%   Sorting.Devices that the fewest running runs use (sortingSlot), and
+%   their rows turn "launched". Both limits are read from the working
+%   config at each tick. The queue is held while a Run that waits for its
+%   own slots is under way: its launches go first.
+%   The progress label says how many runs finished, are running and are
+%   still to start (queued, or waiting in the pipeline's sorting step). The
+%   monitor stops once every run has finished and none is left to start.
 
-if isempty(obj.KSRuns)
+if isempty(obj.KSRuns) && isempty(obj.KSQueue)
     obj.stopKSMonitor();
+    syncStopQueueButton(obj);
     return
 end
 
@@ -35,24 +44,35 @@ for i = 1:numel(obj.KSRuns)
     obj.KSRuns(i).logPos = tailLog(obj, obj.KSRuns(i));
 
     obj.KSRuns(i).done = true;
+    run = obj.KSRuns(i);
     % Record the completed sort in the dataset's manifest.
-    updateManifestFor(obj, obj.KSRuns(i).Name);
+    updateManifestFor(obj, run.Name);
+    took = 0;
+    if ~isnat(run.started); took = round(seconds(datetime('now') - run.started), 1); end
     if state == "done"
-        obj.log("[done] %s - Kilosort4 complete (%s)", obj.KSRuns(i).Name, ...
-            obj.KSRuns(i).resultsDir);
+        obj.log("[done] %s - Kilosort4 complete (%s)", run.Name, run.resultsDir);
+        obj.markKSResult(run.Name, run.resultsDir, "done", "Kilosort4 finished" + onDevice(run.device), took);
     else
-        obj.log("[error] %s - Kilosort4 failed: %s", obj.KSRuns(i).Name, msg);
+        obj.log("[error] %s - Kilosort4 failed: %s", run.Name, msg);
+        obj.markKSResult(run.Name, run.resultsDir, "error", "Kilosort4 failed: " + msg, took);
     end
 end
 
-% Datasets the running pipeline has yet to start (waiting for a free slot).
-waiting = 0;
+% Start queued runs while there are free slots, unless a Run is waiting
+% for slots itself (its PriorRuns are the runs already here).
+ownSlots = obj.RunActive && ~isempty(obj.Pipe) && isvalid(obj.Pipe) && isempty(obj.Pipe.QueueFcn);
+if ~isempty(obj.KSQueue) && ~ownSlots
+    pending = pending + startQueued(obj, obj.Config.Sorting);
+end
+
+% Datasets still to start: queued here, or waiting in the running pipeline.
+waiting = numel(obj.KSQueue);
 if obj.RunActive && ~isempty(obj.Pipe) && isvalid(obj.Pipe)
-    waiting = obj.Pipe.SortingWaiting;
+    waiting = waiting + obj.Pipe.SortingWaiting;
 end
 
 nTot  = numel(obj.KSRuns);
-nDone = sum([obj.KSRuns.done]);
+nDone = nnz([obj.KSRuns.done]);
 txt = sprintf("Background Kilosort4: %d of %d finished (%d running", nDone, nTot + waiting, pending);
 if waiting > 0
     txt = txt + sprintf(", %d waiting to start", waiting);
@@ -61,6 +81,7 @@ obj.KSProgressLabel.Text = txt + ").";
 if ~isempty(obj.RunKSLabel) && isvalid(obj.RunKSLabel)
     obj.RunKSLabel.Text = obj.KSProgressLabel.Text;
 end
+syncStopQueueButton(obj);
 
 % Refresh the datasets table so the Bin/results columns reflect new outputs.
 obj.refreshDatasetsTable();
@@ -77,6 +98,48 @@ end
 
 
 %% ---- local helpers ----------------------------------------------------
+
+function nStarted = startQueued(obj, S)
+%startQueued  Start queued runs, first in first out, while a slot is free.
+nStarted = 0;
+while ~isempty(obj.KSQueue)
+    running = obj.KSRuns(~[obj.KSRuns.done]);
+    [free, device] = sortingSlot(running, max(1, S.MaxConcurrent), S.Devices);
+    if ~free
+        return
+    end
+    q = obj.KSQueue(1);
+    obj.KSQueue(1) = [];
+    try
+        res = q.dataset.launchSorting(q.prepared, Wait=false, Device=device);
+    catch ME
+        obj.log("[error] %s - Kilosort4 did not start: %s", q.Name, ME.message);
+        obj.markKSResult(q.Name, q.prepared.resultsDir, "error", "did not start: " + string(ME.message));
+        continue
+    end
+    obj.KSRuns(end+1) = EphysPipeline.sortRun(q.Name, res);
+    nStarted = nStarted + 1;
+    obj.log("[sorting] %s: launched from the queue%s -> %s", q.Name, onDevice(device), res.resultsDir);
+    obj.markKSResult(q.Name, res.resultsDir, "launched", "background run, started from the queue" + onDevice(device));
+end
+end
+
+
+function syncStopQueueButton(obj)
+%syncStopQueueButton  Stop queue is on while runs are queued.
+b = obj.RunKSStopQueueButton;
+if ~isempty(b) && isvalid(b)
+    b.Enable = matlab.lang.OnOffSwitchState(~isempty(obj.KSQueue));
+end
+end
+
+
+function t = onDevice(device)
+%onDevice  " on cuda:1", or "" without a device.
+t = "";
+if device ~= ""; t = " on " + device; end
+end
+
 
 function updateManifestFor(obj, name)
 %updateManifestFor  Refresh the manifest of the dataset named NAME (if scanned),

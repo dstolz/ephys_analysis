@@ -9,7 +9,16 @@ RUN_ARGS = ('do_CAR', 'invert_sign', 'save_extra_vars', 'save_preprocessed_copy'
             'bad_channels', 'clear_cache', 'torch_thread_lim')
 
 # settings.json keys this driver consumes itself.
-DRIVER_KEYS = ('probe', 'data_dtype')
+DRIVER_KEYS = ('probe', 'data_dtype', 'torch_device')
+
+
+def device_arg(argv):
+    """The value of --device <torch device> in ARGV, or None."""
+    if '--device' in argv:
+        i = argv.index('--device')
+        if i + 1 < len(argv):
+            return argv[i + 1]
+    return None
 
 
 def split_settings(cfg, recognized):
@@ -29,7 +38,7 @@ def split_settings(cfg, recognized):
 
 def main():
     if len(sys.argv) < 2:
-        raise SystemExit('usage: run_ks4.py <settings.json>')
+        raise SystemExit('usage: run_ks4.py <settings.json> [--device <torch device>]')
     with open(sys.argv[1], 'r') as f:
         cfg = json.load(f)
 
@@ -37,6 +46,7 @@ def main():
 
     try:
         import numpy as np
+        import torch
         from kilosort import run_kilosort
         from kilosort.io import load_probe
         from kilosort.run_kilosort import RECOGNIZED_SETTINGS
@@ -45,6 +55,11 @@ def main():
         if dropped:
             print('Dropped %d setting(s) Kilosort4 does not recognize: %s'
                   % (len(dropped), dropped), flush=True)
+        # --device (one GPU per run) wins over a torch_device in the settings.
+        device = device_arg(sys.argv[2:]) or cfg.get('torch_device')
+        if device and device != 'auto':
+            run_args['device'] = torch.device(device)
+            print('Kilosort4 on torch device %s' % device, flush=True)
         out = run_kilosort(
             settings=settings,
             probe=load_probe(cfg['probe']),

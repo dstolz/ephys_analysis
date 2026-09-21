@@ -1,8 +1,11 @@
 function buildRunTab(obj)
 %buildRunTab  Run the whole pipeline: step checklist (with how many
-%   background Kilosort4 runs go at once, Sorting.MaxConcurrent), validate / plan,
+%   background Kilosort4 runs go at once, Sorting.MaxConcurrent, the GPUs
+%   they share, Sorting.Devices, and whether the Run queues the waiting
+%   ones with the monitor instead of waiting), validate / plan,
 %   run / dry run / cancel, progress bars, validation issues, results,
-%   merged log and the background Kilosort4 runs being monitored. With
+%   merged log and the background Kilosort4 runs being monitored (Stop
+%   queue drops the queued ones). With
 %   Show the run diagram ticked, a diagram of the run's steps (the one
 %   underway highlighted, each with its percentage) takes the right half of
 %   the right side (onRunDiagramToggled, runDiagramHTML). With Monitor CPU,
@@ -25,13 +28,25 @@ uilabel(sg, "Text", "Probe check (always)", "FontColor", [0.4 0.4 0.4]);
 obj.RunBehaviorCheckBox  = uicheckbox(sg, "Text", "Behavior: match Epsych2 sessions", "ValueChangedFcn", @(src,~) mirror(obj, "BehEnableCheckBox", src.Value));
 obj.RunArtifactsCheckBox = uicheckbox(sg, "Text", "Artifacts: automatic detection", "ValueChangedFcn", @(src,~) mirror(obj, "ArtEnableCheckBox", src.Value));
 obj.RunSortingCheckBox   = uicheckbox(sg, "Text", "Sorting: SpikeInterface + Kilosort4", "ValueChangedFcn", @(src,~) mirror(obj, "SortEnableCheckBox", src.Value));
-kg = uigridlayout(sg, [1 2]);
-kg.Padding = [20 0 0 0]; kg.ColumnWidth = {'fit', 60}; kg.RowHeight = {'fit'}; kg.ColumnSpacing = 4;
+kg = uigridlayout(sg, [3 3]);
+kg.Padding = [20 0 0 0]; kg.ColumnWidth = {'fit', 60, '1x'}; kg.RowHeight = {'fit', 'fit', 'fit'}; kg.ColumnSpacing = 4;
 tip = "How many Kilosort4 runs go at once in the background; each further dataset waits for one to finish. " + ...
     "Blocking runs (Sorting tab, Execution) always go one at a time.";
-uilabel(kg, "Text", "Kilosort4 runs at once:", "Tooltip", tip);
+l = uilabel(kg, "Text", "Kilosort4 runs at once:", "Tooltip", tip); l.Layout.Row = 1; l.Layout.Column = 1;
 obj.RunKSAtOnceSpinner = uispinner(kg, "Limits", [1 Inf], "Step", 1, "RoundFractionalValues", "on", ...
     "Value", 1, "Tooltip", tip, "ValueChangedFcn", @(~,~) obj.onConfigChanged());
+obj.RunKSAtOnceSpinner.Layout.Row = 1; obj.RunKSAtOnceSpinner.Layout.Column = 2;
+tip = "Torch devices the runs share, e.g. ""cuda:0, cuda:1"": each run gets the GPU the fewest running runs use. " + ...
+    "Blocking runs use the first. Blank = Kilosort4's own choice (the first GPU).";
+l = uilabel(kg, "Text", "GPUs:", "Tooltip", tip); l.Layout.Row = 2; l.Layout.Column = 1;
+obj.RunKSDevicesField = uieditfield(kg, "text", "Placeholder", "e.g. cuda:0, cuda:1", "Tooltip", tip, ...
+    "ValueChangedFcn", @(~,~) obj.onConfigChanged());
+obj.RunKSDevicesField.Layout.Row = 2; obj.RunKSDevicesField.Layout.Column = [2 3];
+obj.RunKSQueueCheckBox = uicheckbox(kg, "Text", "Queue the waiting runs; the Run goes on", ...
+    "Tooltip", "Hand the datasets that wait for a free Kilosort4 slot to the background monitor, which starts " + ...
+    "each as a slot frees, so the Run carries on with its next step at once. Stop queue (under the log) " + ...
+    "drops the ones not started yet; closing the app drops them too.");
+obj.RunKSQueueCheckBox.Layout.Row = 3; obj.RunKSQueueCheckBox.Layout.Column = [1 3];
 obj.RunSignalsCheckBox   = uicheckbox(sg, "Text", "Signals: LFP / MUA / SPIKE / AUX .mat", "ValueChangedFcn", @(src,~) mirror(obj, "SigEnableCheckBox", src.Value));
 obj.RunSpikesCheckBox    = uicheckbox(sg, "Text", "Spikes: detected / sorted .mat", "ValueChangedFcn", @(src,~) mirror(obj, "SpkEnableCheckBox", src.Value));
 obj.RunExportCheckBox    = uicheckbox(sg, "Text", "Export: analysis-toolbox files", "ValueChangedFcn", @(src,~) mirror(obj, "ExpEnableCheckBox", src.Value));
@@ -118,7 +133,11 @@ obj.RunLogArea = uitextarea(right, "Editable", "off");
 obj.RunLogArea.Layout.Row = 8; obj.RunLogArea.Layout.Column = [1 3];
 
 obj.RunKSLabel = uilabel(right, "Text", "Background Kilosort4 runs: none.", "FontColor", [0.4 0.4 0.4]);
-obj.RunKSLabel.Layout.Row = 9; obj.RunKSLabel.Layout.Column = [1 3];
+obj.RunKSLabel.Layout.Row = 9; obj.RunKSLabel.Layout.Column = [1 2];
+obj.RunKSStopQueueButton = uibutton(right, "Text", "Stop queue", "Enable", "off", ...
+    "Tooltip", "Drop the queued Kilosort4 runs that have not started. Runs already going carry on.", ...
+    "ButtonPushedFcn", @(~,~) obj.onStopKSQueue());
+obj.RunKSStopQueueButton.Layout.Row = 9; obj.RunKSStopQueueButton.Layout.Column = 3;
 
 obj.RunDiagramPanel = uipanel(obj.RunSplitGrid, "Title", "Run diagram", "Visible", "off");
 obj.RunDiagramPanel.Layout.Row = 1; obj.RunDiagramPanel.Layout.Column = 2;

@@ -52,7 +52,7 @@ returns the defaults and is the single source of truth for field names.
 | `Probe` | `probe` (always runs) | `DefaultProbeFile` (assigned to datasets without a probe), `WriteDefaultToManifest` |
 | `Behavior` | `behavior` | `Enabled`, `SearchDirs`, `Match` (`"prefix"`, `"time"`, `"prefix-then-time"`), `MaxStartOffsetMin` (30), `Overwrite`, `WriteFile` (`true`: write `<Name>_behavior.mat` for every associated dataset), `PairTrials` (`true`), `AutoApprove` (`false`: approve a pairing whose trial and interval counts match without cuts), `TrialLine` (`"InTrial"`) |
 | `Artifacts` | `artifacts` | `Enabled` (automatic detection; manual periods always apply), `Method`, `Threshold`, `RmsWindowMs`, `MergeGapMs`, `MinChannels`, `PadMs`, `Filter`, `FilterType`, `FilterCutoff`, `FilterOrder`, `ApplyToSorting`, `ApplyToSpikes`, `CacheIntervals` |
-| `Sorting` | `sorting` | `Enabled`, `Engine` (`"spikeinterface"`: `runSpikeInterface`; `"kilosort"`: `runKilosort`, native Kilosort4 on a `.bin` with the artifact periods zeroed and no SpikeInterface preprocessing), `PythonExe`, `CondaEnv`, `Execution` (`"background"` or `"blocking"`), `MaxConcurrent` (background runs at once, default 1; see [Background Kilosort4 runs](#background-kilosort4-runs)), `DryRun`, `SkipExisting`, `SI` (the [SpikeInterface settings](EphysDataset.md#default-spikeinterface-configuration)), `KS4` (one typed field per `kilosortParamSpec` entry), `KS4ExtraJSON` |
+| `Sorting` | `sorting` | `Enabled`, `Engine` (`"spikeinterface"`: `runSpikeInterface`; `"kilosort"`: `runKilosort`, native Kilosort4 on a `.bin` with the artifact periods zeroed and no SpikeInterface preprocessing), `PythonExe`, `CondaEnv`, `Execution` (`"background"` or `"blocking"`), `MaxConcurrent` (background runs at once, default 1; see [Background Kilosort4 runs](#background-kilosort4-runs)), `Devices` (torch devices shared out among the runs, e.g. `["cuda:0" "cuda:1"]`; empty = Kilosort4's choice), `DryRun`, `SkipExisting`, `SI` (the [SpikeInterface settings](EphysDataset.md#default-spikeinterface-configuration)), `KS4` (one typed field per `kilosortParamSpec` entry), `KS4ExtraJSON` |
 | `Signals` | `signals` | `Enabled`, `OutputDir`, `Suffix` (`"_extract"`), `SeparateFiles` (`true`: `<Name><Suffix>_<TYPE>.mat` per signal type), `MatVersion`, `Overwrite`, `LFP` / `MUA` / `SPIKE`, `LFP_Fs`, `LFP_HighpassOn/Hz`, `LFP_LowpassOn/Hz`, `LFP_NotchOn/Hz/BW`, `MUA_Fs`, `MUA_IntegrationHz`, `MUA_bpLoHi`, `SPIKE_KeepOriginal`, `SPIKE_Fs`, `SPIKE_bpLoHi`, `LabelField` (`"custom"` or `"native"`: which name labels channels, aux inputs and digital lines), `LineNames` (`"native=name"` entries naming digital lines, e.g. `"TTL4=InTrial"`; see [line names](#digital-line-names)), `InvertedLines` (digital lines with inverted polarity: onset = falling edge; see [polarity](#digital-line-polarity)), `KeepChannels`, `BadMode`, `BadThreshold`, `BadList`, `ChannelRemap`, `ExcludeHandling` (`"none"`, `"drop"`, `"interpolate"`: what to do with the manifest's excluded channels) |
 | `Spikes` | `spikes` | `Enabled`, `Source` (`"detect"`, `"sorted"`, `"both"`), the `detectSpikes` options (`Filter`, `Band`, `FilterOrder`, `Polarity`, `ThresholdMethod`, `Threshold` (`NaN` = the method's default), `Align`, `AlignWindowMs`, `MinPeriodMs`, `MaxAmplitudeUV`, `Waveforms`, `WindowMs`, `WaveformSource`, `EdgeHandling`, `MaxChunkSamples`, `EdgePadMs`), `Channels` (`"all"`, `"excludeManifest"`, `"list"`) + `ChannelList`, `RejectArtifacts`, the sorted-unit options (`Groups`, `IncludeNoise`, `Templates`), `OutputDir`, `Suffix` (`"_spikes"`), `MatVersion`, `Overwrite` |
 | `Export` | `export` | `Enabled`, `Formats` (subset of `["chronux" "fieldtrip" "epochs"]`), `Signals` (`[]` = every signal in the extract), `IncludeUnits`, `IncludeDetected`, `IncludeEvents`, `Groups`, `Validate`, the epoch settings `EpochSource` (`"line"` / `"behavior"`), `EpochLine`, `EpochWindow` (`[tPre tPost]` s), `EpochOnsetRule`, `EpochIncomplete`, `EpochNonFinite`, `EpochSpikeTimeBase`, `EpochClass`, `OutputDir`, `MatVersion`, `Overwrite` |
@@ -105,7 +105,11 @@ it is an error.
 The `Parallel` checks: `MaxWorkers` must be `NaN` or a whole number ≥ 1
 (error); `Enabled` without a licensed Parallel Computing Toolbox is a warning
 (the steps run serially). With sorting enabled, `Sorting.MaxConcurrent` must
-be a whole number ≥ 1 (error).
+be a whole number ≥ 1 (error), and each of `Sorting.Devices` must be a torch
+device, `cpu`, `mps`, `cuda` or `cuda:N` (error). More devices than
+`MaxConcurrent`, several devices with blocking runs (only the first is used)
+and `Devices` next to a `torch_device` in `KS4ExtraJSON` (`Devices` wins) are
+warnings.
 
 ### Helpers
 
@@ -248,10 +252,11 @@ and `selectDatasets()`. Assigning a new `Config` does both again.
 | `LogFcn` | one line per event (default `fprintf`) |
 | `CancelRequested` | set by `cancel()` |
 | `Results` | table `Step`, `Dataset`, `Status`, `Message`, `Output`, `Seconds`, one row per step × dataset |
-| `LaunchedRuns` | background Kilosort4 runs (`Name`, `statusFile`, `resultsDir`, `logFile`, `logPos`, `done`), the shape the app's monitor consumes |
+| `LaunchedRuns` | background Kilosort4 runs (`Name`, `statusFile`, `resultsDir`, `logFile`, `logPos`, `done`, `device`, `started`; `EphysPipeline.emptyRuns()`), the shape the app's monitor consumes. `EphysPipeline.sortRun(name, res)` builds one from a `launchSorting` result |
 | `LaunchFcn` | `LaunchFcn(run)` is called with each background run (a `LaunchedRuns` element) as soon as it starts (default none) |
-| `PriorRuns` | `ks4_status.json` paths of background runs started elsewhere; while they are running they take slots of `Sorting.MaxConcurrent` |
-| `SortingWaiting` | how many datasets the sorting step has still to start |
+| `PriorRuns` | background runs started elsewhere, in `LaunchedRuns`' shape; while they are running they take slots of `Sorting.MaxConcurrent`, and their `device` counts when GPUs are shared out |
+| `QueueFcn` | `QueueFcn(d, res)`: when set, background runs are not started by the step but handed over prepared ([below](#background-kilosort4-runs)); default none |
+| `SortingWaiting` | how many datasets the sorting step has still to start (or, with `QueueFcn`, to hand over) |
 
 ### Plan
 
@@ -287,15 +292,19 @@ step in `EphysPipelineConfig.StepNames` order:
 | `probe` | `checkProbes()` | assigns `Probe.DefaultProbeFile` to datasets without a probe (written to the manifest when `WriteDefaultToManifest`), reports channel-count mismatches |
 | `behavior` | `checkBehavior()` | for datasets without a `BehaviorFile` (or all with `Overwrite`) runs `findEpsychSessions` over `SearchDirs` and `matchEpsychSession`; sets `BehaviorFile`, writes the manifest; reports unmatched and ambiguous datasets. With `WriteFile`, every dataset that ends up associated (matched or kept) gets `behaviorToMat` → `<outputFolder>/<Name>_behavior.mat`, rewritten each run (result step `behavior:file`). With `PairTrials`, trials are first paired with the `TrialLine` intervals (`EphysDataset.pairTrials`, result step `behavior:pairing`): a recorded pairing that still matches is reused (`approved`, `auto-approved` or `needs review`); with `AutoApprove`, a pairing whose counts match without cuts is approved (`auto-approved`, `EphysDataset.autoApproveTrialPairing`); anything else is recorded in the manifest as unreviewed (`needs review`, or `count mismatch`); `no trial line` when the recording has no such line. The pairing columns go into the behavior file |
 | `artifacts` | `runArtifacts()` | computes `artifactIntervals()` per dataset and caches them (see below) |
-| `sorting` | `runSorting()` | `runSpikeInterface(ExtraSettings=ks4Settings, SIConfig=, ArtifactIntervals=, DryRun=, Wait=)`, then `writeManifest`. Background runs go at most `Sorting.MaxConcurrent` at a time ([below](#background-kilosort4-runs)) and are listed in `LaunchedRuns` with status `launched` |
+| `sorting` | `runSorting()` | `runSpikeInterface(ExtraSettings=ks4Settings, ArtifactIntervals=, DryRun=, Launch=false)` (or `runKilosort`), then `launchSorting(res, Wait=, Device=)` and `writeManifest`. Background runs go at most `Sorting.MaxConcurrent` at a time, spread over `Sorting.Devices` ([below](#background-kilosort4-runs)), and are listed in `LaunchedRuns` with status `launched`; with `QueueFcn` set they are handed over with status `queued` |
 | `signals` | `runSignals()` | `toMat(File=, SeparateFiles=, SignalOptions=, MatVersion=, Overwrite=, ProgressFcn=)` with the configured exclude handling |
 | `spikes` | `runSpikeDetection()` | `spikesToMat(Source=, DetectOptions=, Channels=, ArtifactIntervals=, Groups=, IncludeNoise=, Templates=, ...)` |
 | `export` | `runExport()` | per format `exportChronux(...)` / `exportFieldTrip(...)` / `exportEpochs(...)` from the extract file, with units, detected spikes and events as configured. The `epochs` format organizes the same data by event — one epoch per digital pulse (`EpochSource = "line"`) or per paired trial (`"behavior"`, which also carries the session's trial columns) — over `EpochWindow` ([`EphysDataset.eventEpochs`](EphysDataset.md#event-organized-epoched-data)) |
 
 Each step method can be called directly; it then runs even when the step is
 disabled in the config. Result statuses are `done`, `skipped`, `dry run`,
-`launched`, `error`, `cancelled` and `not run`. Errors on one dataset are
-recorded and the run continues with the next.
+`launched`, `queued`, `error`, `cancelled` and `not run`. Errors on one dataset are
+recorded and the run continues with the next. Work that ends after its step
+has returned (a background Kilosort4 run) can restate its row with
+`pipe.updateResult(step, dataset, output, status, message, addSeconds)`; the
+static `EphysPipeline.restateResult(T, ...)` does the same to any results
+table.
 
 **Artifact cache.** `artifactIntervalsFor(d)` returns the intervals for a
 dataset: manual periods always, automatic detections when `Artifacts.Enabled`.
@@ -315,13 +324,13 @@ remaining rows are `not run`, and `run()` returns normally.
 
 With `Sorting.Execution = "background"`, at most `Sorting.MaxConcurrent`
 (default 1) Kilosort4 processes run at once, so a batch does not overload the
-GPU. For each dataset, `runSorting` writes the run files first: the
-`si_config.json` or, for the native engine, the `.bin` and `settings.json`.
-Then it waits until a slot is free (`BeforeLaunchFcn` of
-[`runSpikeInterface` / `runKilosort`](EphysDataset.md#running-kilosort4)).
-The next dataset's files are therefore ready while the current runs sort. A
-slot frees when a run's `ks4_status.json` says it is done or failed, or its
-process has exited without writing one
+GPU. For each dataset, `runSorting` writes the run files first
+(`Launch=false`): the `si_config.json` or, for the native engine, the `.bin`
+and `settings.json`. Then it waits until a slot is free and starts the run
+with [`launchSorting`](EphysDataset.md#running-kilosort4). The next dataset's
+files are therefore ready while the current runs sort. A slot frees when a
+run's `ks4_status.json` says it is done or failed, or its process has exited
+without writing one
 ([`EphysDataset.sortRunState`](EphysDataset.md#running-kilosort4)). Runs listed
 in `PriorRuns` take slots too; the app passes the runs it is still
 following. While it waits, the step reports `waiting for a free Kilosort4
@@ -331,8 +340,39 @@ stops the wait. The dataset it was waiting to start and the rest are marked
 last dataset has started, so a later step in the same run overlaps only the
 last runs. Blocking runs always go one at a time.
 
-`waitForSortingSlot(statusFiles, maxRunning)` is the wait on its own. The
-standalone script uses it the same way.
+**GPUs.** `Sorting.Devices` lists torch devices to share out, such as
+`["cuda:0" "cuda:1"]`. Each background run gets the device the fewest
+running runs use, the first listed on a tie, so two runs at once on a
+two-GPU machine get one GPU each. The device goes to the driver as
+`--device` and overrides a `torch_device` in `KS4ExtraJSON`. Blocking runs
+use the first device. Empty (the default) leaves the choice to Kilosort4,
+which takes the first GPU. With more devices than `MaxConcurrent`, the
+extra ones stay idle, and validation warns.
+
+**Queued.** With `QueueFcn` set, `runSorting` starts no background run
+itself and never waits for a slot. It writes each dataset's run files, calls
+`QueueFcn(d, res)` with the prepared result, and records the row as `queued`.
+The owner of `QueueFcn` starts each run later with
+`d.launchSorting(res, Wait=false, Device=...)` when a slot frees, and can
+restate the row with `updateResult`. The step returns once the last
+dataset's files are written, so the steps after it start at once. The app
+uses this for its **Queue the waiting runs** option.
+
+`[free, device] = sortingSlot(runs, maxRunning, devices)` checks for a slot
+without waiting (`runs` is a struct array with `statusFile` and `device`,
+such as `LaunchedRuns` or `launchSorting` results). `device =
+waitForSortingSlot(runs, maxRunning, Devices=...)` waits for one. The
+standalone script uses them the same way:
+
+```matlab
+launched = [];
+for d = datasets
+    res = d.runSpikeInterface(ExtraSettings=ks4, Launch=false);   % the run files
+    device = waitForSortingSlot(launched, 2, Devices=["cuda:0" "cuda:1"]);
+    res = d.launchSorting(res, Wait=false, Device=device);
+    launched = [launched, res];
+end
+```
 
 ### Progress events
 

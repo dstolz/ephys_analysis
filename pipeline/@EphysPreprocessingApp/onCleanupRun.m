@@ -20,6 +20,8 @@ elseif ~isempty(obj.CopyJob)
     busy = "A copy is running.";
 elseif ~isempty(obj.KSRuns) && ~all([obj.KSRuns.done])
     busy = "A Kilosort4 run is under way.";
+elseif ~isempty(obj.KSQueue)
+    busy = "Kilosort4 runs are queued (Run tab, Stop queue drops them).";
 end
 if busy ~= ""
     uialert(obj.Fig, busy + " Clean up once it has finished.", "Clean up");

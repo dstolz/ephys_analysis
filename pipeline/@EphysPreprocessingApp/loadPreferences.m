@@ -6,9 +6,9 @@ function loadPreferences(obj)
 %   the datasets-table column order, the Trials-table parameter columns and
 %   column order, the Trials-plot label parameters, the Visualize
 %   display options, the Copy tab settings (subject, roots, pairing and
-%   copy options; not the dates), the Run tab's Show the run diagram and
-%   Monitor CPU, memory, disk and GPU, and the kinds of file the Clean up
-%   tab removes.
+%   copy options; not the dates), the Run tab's Show the run diagram,
+%   Monitor CPU, memory, disk and GPU and Queue the waiting runs, and the
+%   kinds of file the Clean up tab removes.
 %   Everything else lives in the config; the last config file is reopened
 %   at launch (defaults otherwise).
 
@@ -62,6 +62,9 @@ end
 if ispref(g, 'MonitorResources')
     obj.RunMonitorCheckBox.Value = isequal(getpref(g, 'MonitorResources'), true);
     obj.onResourceMonitorToggled();
+end
+if ispref(g, 'QueueSortingRuns')
+    obj.RunKSQueueCheckBox.Value = isequal(getpref(g, 'QueueSortingRuns'), true);
 end
 
 % --- Visualize display options (one struct) ---

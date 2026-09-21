@@ -4,10 +4,13 @@ function test_SortingConcurrency()
 %   and end in a shared timeline file, sleep ~2 s and write ks4_status.json
 %   (or exit without one), so the pipeline's slot handling is checked
 %   without Kilosort4 or a GPU. Checks EphysDataset.sortRunState,
-%   waitForSortingSlot, the pipeline with one and two slots (the
-%   SpikeInterface and the native engine), a run that exits without a
-%   status, runs started elsewhere (PriorRuns), a cancel while waiting and
-%   blocking runs. Windows only (the stand-ins are batch files).
+%   sortingSlot and waitForSortingSlot, the pipeline with one and two
+%   slots (the SpikeInterface and the native engine), a run that exits
+%   without a status, runs started elsewhere (PriorRuns), a cancel while
+%   waiting, blocking runs, GPUs shared out (Sorting.Devices, the
+%   driver's --device), runs handed to a queue (QueueFcn, launchSorting)
+%   and restated result rows. Windows only (the stand-ins are batch
+%   files).
 %
 %   Usage:  test_SortingConcurrency
 
@@ -69,22 +72,44 @@ delete(ex);
 writelines('{"state": "done", "num_units": 5}', sf);
 check(EphysDataset.sortRunState(sf) == "done", 'the driver''s done state');
 
-fprintf('\n== 2. waitForSortingSlot ==\n');
+fprintf('\n== 2. sortingSlot and waitForSortingSlot ==\n');
 t0 = tic;
-waitForSortingSlot(string(sf), 1);
-waitForSortingSlot(strings(0, 1), 1);
-check(toc(t0) < 1, 'returns at once when the runs have finished (or there are none)');
+r1 = struct('statusFile', string(sf), 'device', "");
+dev = waitForSortingSlot(r1, 1);
+waitForSortingSlot([], 1);
+check(toc(t0) < 1 && dev == "", 'returns at once when the runs have finished (or there are none), with no device');
 sf2 = string(fullfile(root, 'state2', 'ks4_status.json')); mkdir(fileparts(sf2));
+r2 = struct('statusFile', sf2, 'device', "");
 ticks = 0;
     function tick(nRunning, nFinished)
         ticks = ticks + 1;
         check(nRunning == 1 && nFinished == 1, 'TickFcn gets the running / finished counts');
         writelines('{"state": "done"}', sf2);   % the run finishes while waiting
     end
-waitForSortingSlot([string(sf); sf2], 2);
+waitForSortingSlot([r1 r2], 2);
 check(ticks == 0, 'one running of two slots: no wait');
-waitForSortingSlot([string(sf); sf2], 1, Period=0.1, TickFcn=@tick);
+waitForSortingSlot([r1 r2], 1, Period=0.1, TickFcn=@tick);
 check(ticks == 1, 'one running of one slot: waits until it finishes');
+% Devices: runs on cuda:0 (three, one of them done) and cuda:1 (one).
+rs = struct('statusFile', {}, 'device', {});
+for j = 1:4
+    f = string(fullfile(root, sprintf('dev%d', j), 'ks4_status.json')); mkdir(fileparts(f));
+    rs(j).statusFile = f;
+end
+[rs.device] = deal("cuda:0", "cuda:0", "cuda:1", "cuda:0");
+writelines('{"state": "done"}', rs(4).statusFile);
+[free, dev, nRun, nFin] = sortingSlot(rs, 4, ["cuda:0" "cuda:1"]);
+check(free && dev == "cuda:1" && nRun == 3 && nFin == 1, 'the device the fewest running runs use (a finished run no longer counts)');
+[~, dev] = sortingSlot(rs(3), 4, ["cuda:0" "cuda:1"]);
+check(dev == "cuda:0", 'a device nothing runs on goes first');
+[~, dev] = sortingSlot(rs([1 3]), 4, ["cuda:0" "cuda:1"]);
+check(dev == "cuda:0", 'a tie goes to the first listed device');
+free = sortingSlot(rs, 3, ["cuda:0" "cuda:1"]);
+check(~free, 'three running of three slots: no slot');
+[~, dev] = sortingSlot(rs, 4, strings(1, 0));
+check(dev == "", 'no devices: no device');
+check(isequal(EphysDataset.isTorchDevice(["cuda:1" "cpu" "cuda" "gpu1" "cuda:x" ""]), [true true true false false false]), ...
+    'isTorchDevice accepts cpu / cuda / cuda:N only');
 
 fprintf('\n== 3. one slot, SpikeInterface engine ==\n');
 tl = fullfile(root, 'timeline3.txt');
@@ -119,7 +144,9 @@ check(st == "error" && contains(msg, "exited without writing"), 'the run counts 
 fprintf('\n== 6. runs started elsewhere take slots (PriorRuns) ==\n');
 tl = fullfile(root, 'timeline6.txt');
 fake = makeFake(root, 'fake6.cmd', tl, true);
-prior = string(fullfile(root, 'prior', 'ks4_status.json')); mkdir(fileparts(prior));
+priorDir = fullfile(root, 'prior'); mkdir(priorDir);
+prior = EphysPipeline.sortRun("elsewhere", struct('statusFile', fullfile(priorDir, 'ks4_status.json'), ...
+    'resultsDir', priorDir, 'stdoutLog', fullfile(priorDir, 'ks4_run.log'), 'device', ""));
 S = runScenario(proj, probeFile, 1, "spikeinterface", fake, fullfile(root, 'out6'), PriorRuns=prior);
 check(S.waitedForPrior, 'the first dataset waited for the earlier run to finish');
 check(numel(S.launched) == 3, 'then all three launched');
@@ -140,6 +167,57 @@ S = runScenario(proj, probeFile, 3, "spikeinterface", fake, fullfile(root, 'out8
 check(all(S.results.Status == "done") && isempty(S.launched) && S.nWaitMsgs == 0, 'three blocking runs, done, no background launches');
 check(nEvents == 6 && maxRun == 1, 'blocking ignores MaxConcurrent: one at a time');
 
+fprintf('\n== 9. two slots, two GPUs (Sorting.Devices) ==\n');
+tl = fullfile(root, 'timeline9.txt');
+fake = makeFake(root, 'fake9.cmd', tl, true);
+S = runScenario(proj, probeFile, 2, "spikeinterface", fake, fullfile(root, 'out9'), Devices=["cuda:0" "cuda:1"]);
+[maxRun, nEvents, shared] = concurrency(tl);
+check(numel(S.launched) == 3 && nEvents == 6 && maxRun == 2, sprintf('two at a time (max %d over %d events)', maxRun, nEvents));
+check(isequal([S.launched(1:2).device], ["cuda:0" "cuda:1"]) && ismember(S.launched(3).device, ["cuda:0" "cuda:1"]), ...
+    'the first two runs get one GPU each, the third a freed one');
+check(~shared, 'no two runs going at once shared a GPU (the drivers got --device)');
+check(all(contains(S.results.Message, "background run on cuda:")), 'the result rows name the GPU');
+tl = fullfile(root, 'timeline9b.txt');
+fake = makeFake(root, 'fake9b.cmd', tl, true);
+runScenario(proj, probeFile, 1, "kilosort", fake, fullfile(root, 'out9b'), Execution="blocking", Devices=["cuda:1" "cuda:0"]);
+L = strtrim(readlines(tl)); L = L(startsWith(L, "start"));
+check(numel(L) == 3 && all(endsWith(L, "--device cuda:1")), 'blocking runs go on the first device');
+
+fprintf('\n== 10. runs handed to a queue (QueueFcn) ==\n');
+tl = fullfile(root, 'timeline10.txt');
+fake = makeFake(root, 'fake10.cmd', tl, true);
+S = runScenario(proj, probeFile, 1, "kilosort", fake, fullfile(root, 'out10'), Queue=true);
+check(~isfile(tl) && isempty(S.launched) && S.nWaitMsgs == 0, 'the step started nothing and never waited for a slot');
+check(numel(S.queued) == 3 && all(S.results.Status == "queued") && S.pipe.SortingWaiting == 0, ...
+    'each dataset went to QueueFcn, its row "queued"');
+check(all(arrayfun(@(q) ~q.res.launched && isfile(q.res.binFile) && isfile(q.res.settingsPath), S.queued)), ...
+    'the queued runs have their .bin and run files written, not launched');
+launched = [];
+for q = S.queued
+    device = waitForSortingSlot(launched, 1, Devices="cuda:0", Period=0.25);
+    res = q.d.launchSorting(q.res, Wait=false, Device=device);
+    launched = [launched, res]; %#ok<AGROW>
+    S.pipe.updateResult("sorting", q.d.Name, res.resultsDir, "launched", "started from the queue");
+end
+waitForSortingSlot(launched, 1, Period=0.25);
+[maxRun, nEvents] = concurrency(tl);
+check(nEvents == 6 && maxRun == 1 && all(arrayfun(@(r) EphysDataset.sortRunState(r.statusFile) == "done", launched)), ...
+    'launchSorting starts them later, one at a time, and they finish');
+check(all(S.pipe.Results.Status == "launched") && all(S.pipe.Results.Message == "started from the queue"), ...
+    'updateResult restates each row');
+check(all([launched.launched]) && all([launched.device] == "cuda:0") && all(contains(string({launched.command}), "--device cuda:0")), ...
+    'launchSorting records the device and the command it ran');
+waitForExits(launched);
+
+fprintf('\n== 11. restating result rows ==\n');
+T = EphysPipeline.emptyResults();
+T(1, :) = {"sorting", "A", "launched", "background run", "C:/out/A/kilosort4", 12};
+T(2, :) = {"sorting", "B", "launched", "background run", "C:/out/B/kilosort4", 5};
+T2 = EphysPipeline.restateResult(T, "sorting", "B", "C:/out/B/kilosort4", "error", "Kilosort4 failed: boom", 100);
+check(T2.Status(2) == "error" && T2.Message(2) == "Kilosort4 failed: boom" && T2.Seconds(2) == 105 && isequal(T2(1, :), T(1, :)), ...
+    'the matching row takes the status and message, its Seconds grows, the others stay');
+check(isequal(EphysPipeline.restateResult(T, "sorting", "C", "x", "done", "", 0), T), 'no matching row: unchanged');
+
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0
     error('test_SortingConcurrency:Failures', '%d checks failed.', nFail);
@@ -157,9 +235,11 @@ arguments
     engine
     fake
     outRoot
-    opts.PriorRuns (:,1) string = strings(0, 1)
+    opts.PriorRuns struct = EphysPipeline.emptyRuns()
     opts.CancelOnWait (1,1) logical = false
     opts.Execution (1,1) string = "background"
+    opts.Devices (1,:) string = strings(1, 0)
+    opts.Queue (1,1) logical = false
 end
 cfg = EphysPipelineConfig();
 cfg.Project.Root = proj;
@@ -170,6 +250,7 @@ cfg.Sorting.Engine = engine;
 cfg.Sorting.PythonExe = fake;
 cfg.Sorting.Execution = opts.Execution;
 cfg.Sorting.MaxConcurrent = maxConcurrent;
+cfg.Sorting.Devices = opts.Devices;
 pipe = EphysPipeline(cfg);
 pipe.LogFcn = [];
 pipe.checkProbes();
@@ -177,9 +258,12 @@ pipe.reset();
 pipe.PriorRuns = opts.PriorRuns;
 S = struct('pipe', pipe, 'launched', EphysPipeline.emptyRuns(), 'nWaitMsgs', 0, ...
     'waitingSeen', [], 'waitedForPrior', false, 'timedOut', false, 'errorId', "", ...
-    'results', [], 'allExited', false);
+    'results', [], 'allExited', false, 'queued', struct('d', {}, 'res', {}));
 started = tic;
 pipe.LaunchFcn = @(run) onLaunch(run);
+if opts.Queue
+    pipe.QueueFcn = @(d, res) onQueue(d, res);
+end
 pipe.ProgressFcn = @(evt) onProgress(evt);
 try
     pipe.runSorting();
@@ -189,15 +273,15 @@ end
 S.results = pipe.Results;
 % Let the last runs finish (their processes gone too) before the next
 % scenario and the cleanup.
-waitForSortingSlot([S.launched.statusFile], 1, Period=0.25);
-t0 = tic;
-while ~S.allExited && toc(t0) < 10
-    S.allExited = all(arrayfun(@(r) isfile(fullfile(r.resultsDir, EphysDataset.SortExitMarker)), S.launched));
-    if ~S.allExited; pause(0.25); end
-end
+waitForSortingSlot(S.launched, 1, Period=0.25);
+S.allExited = waitForExits(S.launched);
 
     function onLaunch(run)
         S.launched(end+1) = run;
+    end
+
+    function onQueue(d, res)
+        S.queued(end+1) = struct('d', d, 'res', res);
     end
 
     function onProgress(evt)
@@ -206,7 +290,7 @@ end
         S.waitingSeen(end+1) = pipe.SortingWaiting;
         if ~isempty(opts.PriorRuns) && isempty(S.launched) && ~S.waitedForPrior
             S.waitedForPrior = true;
-            writelines('{"state": "done"}', opts.PriorRuns(1));   % the earlier run finishes
+            writelines('{"state": "done"}', opts.PriorRuns(1).statusFile);   % the earlier run finishes
         end
         if opts.CancelOnWait
             pipe.cancel();
@@ -219,14 +303,27 @@ end
 end
 
 
+function allExited = waitForExits(runs)
+%waitForExits  Wait (up to 10 s) until every run's process has left its exit marker.
+t0 = tic;
+allExited = false;
+while ~allExited && toc(t0) < 10
+    allExited = all(arrayfun(@(r) isfile(fullfile(r.resultsDir, EphysDataset.SortExitMarker)), runs));
+    if ~allExited; pause(0.25); end
+end
+end
+
+
 function fake = makeFake(folder, name, timeline, writeStatus)
 %makeFake  A stand-in python.exe: note start / end, sleep ~2 s, write the status.
-%   Called as <fake> <driver.py> <config.json>; the driver sits in the run
-%   folder, where the pipeline expects ks4_status.json (%~dp1).
+%   Called as <fake> <driver.py> <config.json> [--device <device>]; the
+%   driver sits in the run folder, where the pipeline expects
+%   ks4_status.json (%~dp1). The start / end lines carry the run folder
+%   and the device arguments.
 L = ["@echo off"
-    "echo start %~dp1>> """ + timeline + """"
+    "echo start %~dp1 %3 %4>> """ + timeline + """"
     "ping -n 3 127.0.0.1 > nul"
-    "echo end %~dp1>> """ + timeline + """"];
+    "echo end %~dp1 %3 %4>> """ + timeline + """"];
 if writeStatus
     L(end+1) = "echo {""state"": ""done"", ""num_units"": 0}> ""%~dp1ks4_status.json""";
 else
@@ -237,21 +334,25 @@ writelines(L, fake, LineEnding="\r\n");
 end
 
 
-function [maxRun, nEvents] = concurrency(timeline)
-%concurrency  Most runs going at once, from the start / end lines in order.
-maxRun = 0; nEvents = 0;
+function [maxRun, nEvents, shared] = concurrency(timeline)
+%concurrency  Most runs going at once, from the start / end lines in order,
+%   and whether two runs going at once had the same --device.
+maxRun = 0; nEvents = 0; shared = false;
 if ~isfile(timeline); return; end
 L = strtrim(readlines(timeline));
 L(L == "") = [];
 nEvents = numel(L);
-running = 0;
+going = strings(1, 0);   % the devices of the runs going
 for k = 1:nEvents
-    running = running + ternary(startsWith(L(k), "start"), 1, -1);
-    maxRun = max(maxRun, running);
+    dev = regexp(L(k), '--device (\S+)', 'tokens', 'once');
+    if isempty(dev); dev = ""; else; dev = string(dev{1}); end
+    if startsWith(L(k), "start")
+        shared = shared || (dev ~= "" && any(going == dev));
+        going(end+1) = dev; %#ok<AGROW>
+    else
+        going(find(going == dev, 1)) = [];
+    end
+    maxRun = max(maxRun, numel(going));
 end
 end
 
-
-function v = ternary(c, a, b)
-if c; v = a; else; v = b; end
-end

@@ -25,7 +25,7 @@ if nargin < 3; dryRun = false; end
 
 names = EphysPipelineConfig.StepNames;
 titles = ["Probe check" "Behavior" "Artifacts" "Sorting" "Signals" "Spikes" "Export"];
-S = struct('key', num2cell(names), 'title', num2cell(titles), 'what', num2cell(stepWhat(cfg)), ...
+S = struct('key', num2cell(names), 'title', num2cell(titles), 'what', num2cell(stepWhat(cfg, queueOn(obj))), ...
     'inRun', num2cell(ismember(names, string(steps))), 'state', "queued", 'pct', 0, ...
     'index', 0, 'count', 0, 'dataset', "", 'message', "");
 for k = find(~[S.inRun])
@@ -47,8 +47,9 @@ obj.refreshRunDiagram();
 end
 
 
-function w = stepWhat(cfg)
+function w = stepWhat(cfg, queued)
 %stepWhat  What each step does under CFG, in a few words (StepNames order).
+%   QUEUED: the Run queues the background runs that wait for a slot.
 w = strings(1, 7);
 
 w(1) = "assigned probes vs channel counts";
@@ -80,7 +81,11 @@ if S.Execution == "blocking"
     w(4) = "SpikeInterface + Kilosort4, waits for the sort";
 else
     w(4) = "SpikeInterface + Kilosort4, launched in the background, " + S.MaxConcurrent + " at a time";
+    if queued
+        w(4) = w(4) + "; the rest queued";
+    end
 end
+if ~isempty(S.Devices); w(4) = w(4) + ", on " + strjoin(S.Devices, " / "); end
 if S.DryRun; w(4) = w(4) + " (run files only)"; end
 
 G = cfg.Signals;
@@ -104,4 +109,10 @@ if isempty(fmts)
 else
     w(7) = join(fmts, " + ") + " files";
 end
+end
+
+
+function tf = queueOn(obj)
+%queueOn  Whether the Run tab's "Queue the waiting runs" is ticked.
+tf = ~isempty(obj.RunKSQueueCheckBox) && isvalid(obj.RunKSQueueCheckBox) && obj.RunKSQueueCheckBox.Value;
 end

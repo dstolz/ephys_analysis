@@ -242,6 +242,7 @@ classdef EphysDataset < handle
         info   = matrixToBin(obj, X, opts)
         result = runKilosort(obj, opts)
         result = runSpikeInterface(obj, opts)
+        result = launchSorting(obj, result, opts)
         iv     = artifactIntervals(obj, opts)
         [Y, ev, info] = deriveSignals(obj, opts)   % "events" is reserved in classdef
         out    = toMat(obj, opts)
@@ -1156,6 +1157,15 @@ classdef EphysDataset < handle
                 return
             end
             state = "error";
+        end
+
+        function tf = isTorchDevice(s)
+            %isTorchDevice  Whether S names a torch device a Kilosort4 run can use.
+            %   TF = EphysDataset.isTorchDevice(S): "cpu", "mps", "cuda" or
+            %   "cuda:N" (the GPU with index N), elementwise for a string
+            %   array. See launchSorting's Device option.
+            tf = ~cellfun(@isempty, regexp(cellstr(string(s)), '^(cpu|mps|cuda(:\d+)?)$', 'once'));
+            tf = reshape(tf, size(string(s)));
         end
 
         function ch = parseChannelList(s)

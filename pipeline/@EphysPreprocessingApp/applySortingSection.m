@@ -22,6 +22,12 @@ if ~isempty(obj.RunKSAtOnceSpinner) && isvalid(obj.RunKSAtOnceSpinner)
     obj.RunKSAtOnceSpinner.Value = max(1, round(S.MaxConcurrent));
     obj.RunKSAtOnceSpinner.Enable = matlab.lang.OnOffSwitchState(S.Execution == "background");
 end
+if ~isempty(obj.RunKSDevicesField) && isvalid(obj.RunKSDevicesField)
+    obj.RunKSDevicesField.Value = char(strjoin(S.Devices, ", "));
+end
+if ~isempty(obj.RunKSQueueCheckBox) && isvalid(obj.RunKSQueueCheckBox)
+    obj.RunKSQueueCheckBox.Enable = matlab.lang.OnOffSwitchState(S.Execution == "background");
+end
 if ~isempty(obj.DryRunCheckBox) && isvalid(obj.DryRunCheckBox)
     obj.DryRunCheckBox.Value = logical(S.DryRun);
 end

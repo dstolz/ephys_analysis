@@ -240,6 +240,23 @@ check(numel(h.axes) == 3 && startsWith(h.title, "Unit correlation (Pearson, mean
     'renderPlot draws a corrmap: a tile per group on [-1 1] in blueWhiteRed');
 cap = plotCaption(spec, Rc);
 check(contains(cap, "Pearson correlation of each epoch's mean rate") && ~contains(cap, "bins"), "plotCaption: " + cap);
+check(isequal(shortUnitLabels(["su001_S-01_260918T1405"; "mua012_S-01_260918T1405"]), ["su001"; "mua012"]) ...
+    && isequal(shortUnitLabels(["su001_S-01_A"; "su001_S-01_B"]), ["su001_S-01_A"; "su001_S-01_B"]) ...
+    && isequal(shortUnitLabels(["A-000"; "A-001"]), ["A-000"; "A-001"]), ...
+    'shortUnitLabels drops a shared recording suffix, and only a shared one');
+long = ["su000"; "mua001"; "su002"] + "_SYNTH-01_260918T1405";
+Rc2 = Rc; Rc2.labels = long;
+h = renderCorrMap(Rc2, fig);
+tick = @(v) string(v(:));
+short = sort(["su000"; "mua001"; "su002"]);
+check(isempty(h.axes(1).XTickLabel) && isequal(sort(tick(h.axes(1).YTickLabel)), short) ...
+    && isempty(h.axes(2).YTickLabel) && isequal(sort(tick(h.axes(2).XTickLabel)), short) ...
+    && ~isempty(h.axes(3).XTickLabel) && ~isempty(h.axes(3).YTickLabel), ...
+    'a corrmap names the units, without the shared suffix, on the outer tiles only');
+Rp2 = Rp; Rp2.labels = long;
+h = renderPSTH(Rp2, fig, Layout="grid");
+titles = arrayfun(@(ax) string(ax.Title.String), [h.axes h.rasterAxes]);
+check(any(titles == "su000") && ~any(contains(titles, "SYNTH-01")), 'PSTH tiles are titled by the short unit label');
 
 fprintf('\n== 7. unitCorrelation ==\n');
 tc = (5:2:203).';

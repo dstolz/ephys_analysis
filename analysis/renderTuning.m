@@ -47,11 +47,12 @@ end
 [tl, ax0] = renderLayout(target, nr, nc);
 if ~isempty(ax0); idx = idx(1:min(1, end)); end
 axs = gobjects(1, numel(idx));
+names = shortUnitLabels(R.labels);
 for j = 1:numel(idx)
     u = idx(j);
     if ~isempty(ax0); ax = ax0; else; ax = nexttile(tl, j); end
     drawCurves(ax, xv, reshape(R.mean(:, u, :), nX, nS), reshape(R.sem(:, u, :), nX, nS), R, colors, style, j == 1);
-    title(ax, R.labels(u), 'FontWeight', 'normal', 'Interpreter', 'none');
+    title(ax, names(u), 'FontWeight', 'normal', 'Interpreter', 'none');
     if mod(j - 1, nc) == 0; ylabel(ax, R.units); end
     if ceil(j / nc) < nr && isempty(ax0); xlabel(ax, ''); end
     axs(j) = ax;

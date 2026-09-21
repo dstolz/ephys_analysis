@@ -69,7 +69,7 @@ for j = 1:numel(idx)
     grid(ax, 'off');
     ylim(ax, [0.5 nR + 0.5]);
     if nR <= 40
-        set(ax, 'YTick', 1:nR, 'YTickLabel', R.labels(order), 'TickLabelInterpreter', 'none', ...
+        set(ax, 'YTick', 1:nR, 'YTickLabel', shortUnitLabels(R.labels(order)), 'TickLabelInterpreter', 'none', ...
             'FontSize', max(6, style.FontSize - (nR > 20)));
     end
     title(ax, sprintf('%s (n = %d)', R.groups.label(g), R.n(g)), 'FontWeight', 'normal', 'Interpreter', 'none');

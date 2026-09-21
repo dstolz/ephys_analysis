@@ -64,7 +64,7 @@ for g = 1:nG
     end
 end
 hold(ax, 'off');
-labels = R.labels(order);
+labels = shortUnitLabels(R.labels(order));
 set(ax, 'XTick', 1:nU, 'XTickLabel', labels, 'TickLabelInterpreter', 'none');
 if nU > 8; ax.XTickLabelRotation = 60; end
 if nU > 40; ax.XTickLabel = []; xlabel(ax, sprintf('%d units (top of the probe first)', nU)); end

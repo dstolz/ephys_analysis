@@ -41,7 +41,7 @@ cmap = feval(char(cmapName), 256);
 [idx, nr, nc] = pageItems(nG, 1, max(nG, 1));
 [tl, ax0] = renderLayout(target, nr, nc);
 if ~isempty(ax0); idx = idx(1:min(1, end)); end
-labels = R.labels(order);
+labels = shortUnitLabels(R.labels(order));
 axs = gobjects(1, numel(idx));
 for j = 1:numel(idx)
     g = idx(j);
@@ -57,16 +57,21 @@ for j = 1:numel(idx)
     axis(ax, 'image');
     xlim(ax, [0.5 nU + 0.5]);
     ylim(ax, [0.5 nU + 0.5]);
+    % Unit names on the outer tiles only: every tile shares one order.
+    bottom = j + nc > numel(idx) || ~isempty(ax0);   % no tile below
+    left = mod(j - 1, nc) == 0;
     if nU <= 40
         fs = max(6, style.FontSize - (nU > 20));
-        set(ax, 'XTick', 1:nU, 'XTickLabel', labels, 'YTick', 1:nU, 'YTickLabel', labels, ...
-            'TickLabelInterpreter', 'none', 'XTickLabelRotation', 90, 'FontSize', fs);
+        set(ax, 'XTick', 1:nU, 'YTick', 1:nU, 'TickLabelInterpreter', 'none', ...
+            'XTickLabelRotation', 90, 'FontSize', fs);
+        if bottom; ax.XTickLabel = labels; else; ax.XTickLabel = {}; end
+        if left; ax.YTickLabel = labels; else; ax.YTickLabel = {}; end
     end
     t = string(sprintf('%s (n = %d', R.groups.label(g), R.nEpochs(g)));
     if isfinite(R.meanR(g)); t = t + sprintf(', mean r = %.2f', R.meanR(g)); end
     title(ax, t + ")", 'FontWeight', 'normal', 'Interpreter', 'none');
-    if ceil(j / nc) == nr || ~isempty(ax0); xlabel(ax, 'Units'); end
-    if mod(j - 1, nc) == 0; ylabel(ax, 'Units'); end
+    if bottom; xlabel(ax, 'Units'); end
+    if left; ylabel(ax, 'Units'); end
     axs(j) = ax;
 end
 cb = gobjects(0);

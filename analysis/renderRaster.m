@@ -26,11 +26,12 @@ nU = numel(R.raster);
 [tl, ax0] = renderLayout(target, nr, nc);
 if ~isempty(ax0); idx = idx(1:min(1, end)); end
 axs = gobjects(1, numel(idx));
+names = shortUnitLabels(R.labels);
 for j = 1:numel(idx)
     if ~isempty(ax0); ax = ax0; else; ax = nexttile(tl, j); end
     rasterInto(ax, R, idx(j), style, colors);
     styleAxes(ax, style);
-    title(ax, R.labels(idx(j)), 'FontWeight', 'normal', 'Interpreter', 'none');
+    title(ax, names(idx(j)), 'FontWeight', 'normal', 'Interpreter', 'none');
     r = ceil(j / nc);
     if r == nr || ~isempty(ax0); xlabel(ax, 'Time (s)'); end
     axs(j) = ax;

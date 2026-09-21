@@ -66,6 +66,7 @@ if ~isempty(ax0)
 end
 axs = gobjects(1, numel(idx));
 rax = gobjects(1, 0);
+names = shortUnitLabels(R.labels);
 for j = 1:numel(idx)
     u = idx(j);
     r = ceil(j / nc); c = j - (r - 1) * nc;
@@ -77,14 +78,14 @@ for j = 1:numel(idx)
             rasterInto(ra, R, u, style, colors);
             styleAxes(ra, style);
             ra.XTickLabel = [];
-            title(ra, R.labels(u), 'FontWeight', 'normal', 'Interpreter', 'none');
+            title(ra, names(u), 'FontWeight', 'normal', 'Interpreter', 'none');
             rax(end+1) = ra; %#ok<AGROW>
         end
         ax = nexttile(tl, ((r - 1) * rowsPer + withRaster) * nc + c);
     end
     drawRates(ax, R.t, reshape(R.rate(:, u, :), [], nG), reshape(R.sem(:, u, :), [], nG), R, colors, style, opts.HistStyle, j == 1);
     if ~withRaster
-        title(ax, R.labels(u), 'FontWeight', 'normal', 'Interpreter', 'none');
+        title(ax, names(u), 'FontWeight', 'normal', 'Interpreter', 'none');
     end
     if r == nr || ~isempty(ax0); xlabel(ax, 'Time (s)'); end
     if c == 1; ylabel(ax, R.units); end

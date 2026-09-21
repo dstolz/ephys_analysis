@@ -364,6 +364,11 @@ app.applyAcquisitionSection(cfg.Acquisition);
 app.onAcquisitionChanged();
 check(app.Config.Acquisition.OpenEphys.Recordings == "concatenate" && app.OERecordNodeField.Value == "" ...
     && isequal(app.Project.ReaderOptions, cfg.Acquisition), 'applying the section restores the defaults');
+app.Config.Acquisition.OpenEphys.RecordNode = "node";
+app.syncTabStrip();
+check(contains(tabTip(app, app.TabProject), "RecordNode"), 'an invalid Open Ephys option shows on the Project tab''s button');
+app.Config.Acquisition = cfg.Acquisition;
+app.syncTabStrip();
 
 fprintf('\n== 3b. Trials tab: load, cut, approve, polarity ==\n');
 app.selectDataset(1);

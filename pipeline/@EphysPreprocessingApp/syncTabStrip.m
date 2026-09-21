@@ -19,6 +19,8 @@ end
 isPairing = issues.Step == "behavior" & issues.Field == "TrialLine";
 issues.Step(isPairing) = "trials";
 issues.Step(issues.Step == "behavior") = "project";
+% The Acquisition section (reader options) is edited on the Project tab.
+issues.Step(issues.Step == "acquisition") = "project";
 % A blank output root is a normal choice (outputs next to each recording), not a problem.
 issues(issues.Step == "project" & issues.Field == "OutputRoot", :) = [];
 

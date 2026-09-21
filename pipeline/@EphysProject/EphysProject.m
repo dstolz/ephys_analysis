@@ -17,7 +17,7 @@ classdef EphysProject < handle
     %     P.refresh();                   % headers + per-dataset manifests
     %     T = P.gatherMetadata();        % one row per dataset
     %     P.toBinAll();                  % stream every dataset's .bin
-    %     P.runKilosortAll();            % spawn Kilosort4 for each
+    %   Sorting goes through EphysPipeline (runSorting).
     %
     %   See also EPHYSDATASET.
 
@@ -56,7 +56,6 @@ classdef EphysProject < handle
         % --- methods defined in separate files ---
         T       = gatherMetadata(obj, opts)
         infos   = toBinAll(obj, opts)
-        results = runKilosortAll(obj, opts)
         report  = refresh(obj, opts)
 
         function obj = EphysProject(root, opts)

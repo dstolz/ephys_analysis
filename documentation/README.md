@@ -104,7 +104,7 @@ There are **two Kilosort4 engines**:
 | Engine | Method | Writes a `.bin`? | Used by |
 | --- | --- | --- | --- |
 | SpikeInterface | `EphysDataset.runSpikeInterface` | no; SpikeInterface reads the raw files | the pipeline's `sorting` step with `Sorting.Engine = "spikeinterface"` (the default) |
-| native Kilosort4 | `EphysDataset.runKilosort` (calls `toBin`) | yes, with the artifact periods zeroed | the `sorting` step with `Sorting.Engine = "kilosort"`, `EphysProject.runKilosortAll` |
+| native Kilosort4 | `EphysDataset.runKilosort` (calls `toBin`) | yes, with the artifact periods zeroed | the `sorting` step with `Sorting.Engine = "kilosort"` |
 
 ## Quick start
 

@@ -124,11 +124,7 @@ reported as a warning (`EphysProject:toBinFailed`), and the batch continues.
 Each element of `infos` has `Name`, `info` (the `toBin` struct, or `[]` on
 failure) and `error` (`""` on success).
 
-**`results = runKilosortAll(Name=Value...)`** calls the native
-`EphysDataset.runKilosort` on every dataset with the same error handling
-(`EphysProject:runKilosortFailed`).
-
-For everything else (sorting through SpikeInterface, derived signals, spikes,
+For everything else (sorting with either engine, derived signals, spikes,
 exports) use [`EphysPipeline`](EphysPipeline.md), which loops over the
 project's selected datasets with a config, or loop over `P.Datasets` yourself.
 

@@ -792,8 +792,7 @@ tab's **Engine** drop-down):
 - **`runSpikeInterface`** (`"spikeinterface"`, the default) reads the raw
   recording with SpikeInterface, applies its preprocessing and runs Kilosort4.
 - **`runKilosort`** (`"kilosort"`) writes the recording to a `.bin` and runs
-  Kilosort4 natively on it, with no SpikeInterface. It is also what
-  `EphysProject.runKilosortAll` calls.
+  Kilosort4 natively on it, with no SpikeInterface.
 
 Both take the same `ExtraSettings`, `ArtifactIntervals`, `DryRun` and `Wait`
 options. Both refuse to run when the artifact intervals cover more than

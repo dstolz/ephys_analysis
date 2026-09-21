@@ -39,7 +39,7 @@ sel = trialSelection(filter="Hit | Miss", groupBy="Depth");
 
 % sorted units -> PSTH + raster
 [st, meta] = selectUnits(src, struct('source', "units", 'classes', "su"));
-R = spikePSTH(st, E, Window=[-0.2 0.8], BinSec=0.01, SmoothSec=0.02, Groups=G, Meta=meta);
+R = spikePSTH(st, E, Window=[-0.2 0.8], BinSec=0.01, SmoothSec=0.01, Groups=G, Meta=meta);
 R.epochs = E;
 
 fig = newExportFigure(struct('FigureSizeCm', [18 12]));
@@ -169,8 +169,11 @@ dropped unless `Incomplete="keep"`. `G.n` is the number of epochs per group,
 channel, channelName, shank, x, y, nSpikes`. `usel.source` is `"units"`
 (sorted units, filtered by `classes`, `groups`, `ids`) or `"detected"`
 (threshold detections, one "unit" per channel, class `"det"`, sites from the
-probe map); both filter by `channels`, `shanks` and `maxUnits`. Everything
-downstream treats the two alike.
+probe map); both filter by `channels`, `shanks` and `maxUnits`. Shanks are
+the probe map's `kcoords` values for both: a sorted unit on a mapped channel
+takes its channel's shank, since the sorter's own shank numbers depend on the
+engine (SpikeInterface writes 0-based group indices). Everything downstream
+treats the two alike.
 
 `[Y, fs, meta] = selectChannels(src, "LFP", Channels=...)` loads one derived
 signal (`LFP`, `MUA`, `SPIKE` or `AUX`) through the outputs' cache: `Y` is
@@ -233,7 +236,7 @@ figure with the same code.
 page as a subtitle. `plotPageCount(R, spec)` is the number of pages;
 `plotCaption(spec, R)` the one-sentence caption the reports print, e.g.
 *PSTH, Stim onset, first per trial; window [-0.2 0.8] s; bins 10 ms, smooth
-20 ms; trials: PairingFlag ok & Hit; groups by Depth (n = 4, 5); 12 sorted
+10 ms; trials: PairingFlag ok & Hit; groups by Depth (n = 4, 5); 12 sorted
 unit(s) (su, mua).*
 
 ## Export and reports

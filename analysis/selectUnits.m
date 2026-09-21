@@ -8,6 +8,10 @@ function [st, meta] = selectUnits(src, usel)
 %     META   table, one row per unit: label, unitId, class, channel (1-based
 %            recording channel), channelName, shank, x, y (probe position,
 %            um; NaN when unknown), nSpikes
+%   Shanks are numbered as in the probe map (kcoords) for both sources: a
+%   sorted unit on a mapped channel takes its channel's shank, because the
+%   sorter's own shank numbers depend on the engine (SpikeInterface writes
+%   0-based group indices).
 %   Sorted units ("units") and threshold detections ("detected", one
 %   "unit" per channel, class "det") share every later step.
 %
@@ -20,7 +24,7 @@ function [st, meta] = selectUnits(src, usel)
 %     groups    phy groups kept ([] = all)
 %     ids       unit ids (units) or channels (detected) kept ([] = all)
 %     channels  1-based recording channels kept ([] = all)
-%     shanks    shanks kept ([] = all; detected: from the probe map)
+%     shanks    shanks kept ([] = all): the probe map's kcoords values
 %     maxUnits  at most this many, in order
 %
 %   Errors: selectUnits:NoUnits, selectUnits:NoDetected, selectUnits:NoneLeft,
@@ -59,6 +63,9 @@ switch usel.source
         meta.label = string(meta.label);
         meta.class = string(meta.class);
         meta.channelName = string(meta.channelName);
+        [pShank, pX] = probeSites(src.probe, meta.channel);
+        onMap = ~isnan(pX);
+        meta.shank(onMap) = pShank(onMap);
         groups = string(col(U, 'group', strings(nU, 1)));
         st = cellfun(@(x) double(x(:)), U.times(:), 'UniformOutput', false);
         keep = true(nU, 1);
@@ -96,8 +103,12 @@ if isfinite(usel.maxUnits) && numel(idx) > usel.maxUnits
     idx = idx(1:usel.maxUnits);
 end
 if isempty(idx)
-    error('selectUnits:NoneLeft', '%s: no %s is left after the unit selection.', src.name, ...
+    msg = sprintf('%s: no %s is left after the unit selection.', src.name, ...
         replace(usel.source, ["units" "detected"], ["sorted unit" "detection channel"]));
+    if ~isempty(usel.shanks)
+        msg = [msg sprintf(' Its shanks are numbered %s.', strjoin(string(unique(meta.shank)).', ", "))];
+    end
+    error('selectUnits:NoneLeft', '%s', msg);
 end
 st = st(idx);
 meta = meta(idx, :);

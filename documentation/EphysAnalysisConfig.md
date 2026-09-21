@@ -72,7 +72,7 @@ without one gets `"<kind>_<n>"`.
     { "id": "psth_stim", "kind": "psth", "enabled": true, "title": "", "source": "units",
       "units": { "classes": ["su", "mua"], "groups": [], "ids": [], "channels": [], "shanks": [], "maxUnits": "Inf" },
       "channels": [], "ref": "default", "window": "default", "selection": "default",
-      "bins": { "BinSec": 0.01, "SmoothSec": 0.02 }, "baseline": { "Mode": "none", "Window": [-0.2, 0] },
+      "bins": { "BinSec": 0.01, "SmoothSec": 0.01 }, "baseline": { "Mode": "none", "Window": [-0.2, 0] },
       "layout": "grid", "withRaster": true, "histStyle": "bar", "maskAfterStop": false, "param": "", "seriesParam": "",
       "value": "rate", "order": "depth", "metric": "mean", "correlation": "pearson", "style": { "MaxTiles": 16, "...": "..." } },
     { "id": "rate_platform", "kind": "rate", "source": "units",
@@ -132,7 +132,7 @@ A plot's `units` (its `source` is the plot's `source`):
 | `groups` | none | phy groups kept |
 | `ids` | `[]` | unit ids (sorted) or channels (detected) |
 | `channels` | `[]` | 1-based recording channels |
-| `shanks` | `[]` | shanks |
+| `shanks` | `[]` | shanks, as the probe map's `kcoords` values (single-shank maps usually use 0) |
 | `maxUnits` | `Inf` | at most this many, in order |
 
 ### Style

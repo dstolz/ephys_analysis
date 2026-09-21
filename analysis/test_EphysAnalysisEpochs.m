@@ -154,6 +154,18 @@ check(numel(st) == numel(T1.channelNames) && isequal(meta.channel, (1:numel(T1.c
     && all(isfinite(meta.y)) && isequal(meta.label, T1.channelNames(:)), 'detections: one "unit" per channel with its site');
 [~, meta] = selectUnits(src, struct('source', "detected", 'shanks', 0, 'maxUnits', 3));
 check(height(meta) == 3 && all(meta.shank == 0), 'shanks and maxUnits limit the detections');
+src3 = src; src3.probe.kcoords(:) = 3;
+[~, mu] = selectUnits(src3, struct('source', "units"));
+[~, md] = selectUnits(src3, struct('source', "detected"));
+check(all(mu.shank == 3) && all(md.shank == 3), 'sorted units and detections both number shanks by the probe map''s kcoords');
+try
+    selectUnits(src, struct('source', "detected", 'shanks', 1));
+    msg = "";
+catch ME
+    msg = string(ME.message);
+end
+check(contains(msg, "no detection channel is left") && contains(msg, "shanks are numbered 0"), ...
+    'a shank selection that leaves nothing names the shanks there are');
 [Y, fs, cm] = selectChannels(src, "LFP", Channels=[2 4]);
 check(fs == 1000 && size(Y, 2) == 2 && isequal(cm.channel, [2; 4]) && isequal(cm.recordingChannel, [2; 4]) ...
     && all(cm.units == "uV") && abs(size(Y, 1) / fs - T1.duration) < 0.01, 'selectChannels: LFP columns with their sites');

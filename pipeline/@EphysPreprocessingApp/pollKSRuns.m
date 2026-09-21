@@ -144,6 +144,9 @@ end
 
 function s = collapseCR(s)
 %collapseCR  Reduce a carriage-return-overwritten line to its final state.
-parts = split(string(s), sprintf('\r'));
+%   The CR of a CRLF line ending goes first: Python on Windows writes CRLF
+%   to a redirected stdout, and the segment after that CR is empty.
+s = regexprep(string(s), '\r+$', '');
+parts = split(s, sprintf('\r'));
 s = parts(end);
 end

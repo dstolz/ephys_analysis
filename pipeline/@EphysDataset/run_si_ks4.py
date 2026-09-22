@@ -352,6 +352,11 @@ def silenced_samples(frames):
 
 
 def to_frames(periods_s, fs, n_samples):
+    """Half-open [t0, t1) seconds -> (start, end) frames, end exclusive.
+
+    The same samples MATLAB's manualArtifactMask and spike rejection use, and
+    the ones a detectArtifacts interval was made from.
+    """
     frames = []
     for p in periods_s:
         a = max(0, min(int(round(float(p[0]) * fs)), n_samples))

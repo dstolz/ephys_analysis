@@ -141,7 +141,7 @@ if doDetect
     nCh = numel(ts);
     nRej = zeros(1, nCh);
     for c = 1:nCh
-        keep = ~inIntervals(ts{c}, iv);
+        keep = ~inIntervals(ts{c}, iv, obj.Fs);
         nRej(c) = nnz(~keep);
         if all(keep); continue; end
         ts{c} = ts{c}(keep);
@@ -231,11 +231,15 @@ if ~isempty(fcn); fcn(done, total, msg); end
 end
 
 
-function tf = inIntervals(t, iv)
-%inIntervals  True for each time inside any [t0 t1] interval (inclusive).
+function tf = inIntervals(t, iv, Fs)
+%inIntervals  True for each event on a sample inside any [t0 t1) period.
+%   Compared in samples (t = index/Fs, 0-based), as manualArtifactMask and
+%   SpikeInterface's silence_periods count them: round(t0*Fs) up to but not
+%   including round(t1*Fs).
+g = round(t * Fs);
 tf = false(size(t));
 for k = 1:size(iv, 1)
-    tf = tf | (t >= iv(k, 1) & t <= iv(k, 2));
+    tf = tf | (g >= round(iv(k, 1) * Fs) & g < round(iv(k, 2) * Fs));
 end
 end
 

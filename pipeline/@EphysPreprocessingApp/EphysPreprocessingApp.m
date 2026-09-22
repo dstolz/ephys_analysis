@@ -34,7 +34,9 @@ classdef EphysPreprocessingApp < handle
     %                the digital lines of every ticked dataset at once
     %     Probe      probe library, preview, assignment, per-dataset channel
     %                exclusions, the config's default probe
-    %     Artifacts  automatic detection settings + preview, manual periods
+    %     Artifacts  automatic detection settings + preview, a viewer that steps
+    %                through the detected artifacts (what a run removes and
+    %                keeps around each), manual periods
     %     Sorting    SpikeInterface + Kilosort4 settings (Optimize for probe,
     %                Reset to defaults), sorted-output association, Run this
     %                step, background-run log
@@ -285,6 +287,15 @@ classdef EphysPreprocessingApp < handle
         ArtEditVizButton    matlab.ui.control.Button
         ArtManualClearButton matlab.ui.control.Button
         ArtManualTable      matlab.ui.control.Table
+        ArtViewPrevButton   matlab.ui.control.Button             % artifact viewer (showArtifactView)
+        ArtViewSpinner      matlab.ui.control.Spinner
+        ArtViewCountLabel   matlab.ui.control.Label
+        ArtViewNextButton   matlab.ui.control.Button
+        ArtViewContextField matlab.ui.control.NumericEditField
+        ArtViewChannelsField matlab.ui.control.NumericEditField
+        ArtViewScaleDropDown matlab.ui.control.DropDown
+        ArtViewNoteLabel    matlab.ui.control.Label              % what red / black mean on a run
+        ArtViewAxes         matlab.ui.control.UIAxes
 
         % --- Probe tab ---
         ProbeFolderField    matlab.ui.control.EditField
@@ -580,6 +591,15 @@ classdef EphysPreprocessingApp < handle
         VizArtPatches = gobjects(0,1)
         VizArtPreview = gobjects(0,1)
 
+        % --- Artifacts tab viewer (in memory; showArtifactView / drawArtifactView) ---
+        % intervals: the last preview's detected artifacts (recording-relative
+        % s) and previewed: whether a preview ran for the active dataset;
+        % settings: the detection settings it ran with (a change makes it
+        % stale); chunk: the last chunk read, for readers without random
+        % access; win: the window being drawn.
+        ArtView struct = struct('intervals', zeros(0, 2), 'previewed', false, ...
+            'settings', struct(), 'chunk', [], 'win', [])
+
         % --- Trials tab state (in memory; the pairing is saved via Approve) ---
         TrialsEvents = []                    % EphysDataset.digitalEvents(Relabel=false) of the loaded dataset (native-keyed; see namedTrialsEvents)
         TrialsEventsIdx (1,1) double = 0     % dataset index TrialsEvents belongs to
@@ -813,6 +833,8 @@ classdef EphysPreprocessingApp < handle
         onArtifactControlsChanged(obj)
         refreshManualArtifactsTable(obj)
         onClearManualArtifacts(obj)
+        showArtifactView(obj)
+        drawArtifactView(obj)
 
         % --- Visualize tab ---
         onPlotVisualization(obj)

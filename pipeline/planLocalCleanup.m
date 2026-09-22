@@ -5,7 +5,8 @@ function T = planLocalCleanup(datasets, opts)
 %   row per file saying whether runLocalCleanup would remove it or keep it,
 %   and why. Nothing is changed on disk: this is the preview.
 %
-%   What can be removed (Remove option; all three by default)
+%   What can be removed (Remove option; the first three by default)
+%   To free space, keeping every output:
 %     "raw"          the raw recording files that the Copy tab copied into the
 %                    session folder (the recording files listed in its
 %                    session_manifest.json). A file is removed only when its
@@ -23,17 +24,43 @@ function T = planLocalCleanup(datasets, opts)
 %     "bin"          <Name>.bin and its <Name>.json sidecar written by toBin: the
 %                    flat binary the native Kilosort engine sorts (never a raw
 %                    recording file). As above, only phy's trace view needs it.
+%   Everything one preprocessing step wrote (the step names of
+%   EphysPipelineConfig.StepNames), to run the step again or drop it:
+%     "sorting"      the dataset's kilosort4 folder (kilosortDir: the sorted
+%                    units with their phy curation and unit notes, the run
+%                    files and logs, Kilosort4's copy of the recording) and the
+%                    .bin + .json of toBin. A sorted-output folder associated
+%                    by hand (SortingDir, outside kilosort4) was not written by
+%                    the step and is kept.
+%     "signals"      the derived-signal .mat files (toMat)
+%     "spikes"       the spikes .mat (spikesToMat)
+%     "behavior"     <Name>_behavior.mat (behaviorToMat) and the digital
+%                    events cache <Name>_events.mat (trial pairing)
+%     "artifacts"    the artifact-interval cache <Name>_artifacts.json
+%     "export"       the Chronux, FieldTrip and epochs .mat files
+%   A .mat output is recognised by the variables it holds (DatasetOutputs),
+%   so outputs with configured suffixes are found too, else by its default
+%   name (<Name>_extract*, <Name>_spikes*, ...). Unfinished outputs that a
+%   failed write left (~<name>.partial.mat) go with their step. The probe
+%   step writes no file, and what the dataset manifest records (probe,
+%   exclusions, trial pairing, a hand-picked sorted-output folder) stays.
 %
-%   Everything else is kept: the pipeline outputs (extract, spikes, behavior,
-%   toolbox exports, events and artifact files), the sorted output, the
-%   dataset and copy manifests, the Epsych2 session file and any other file.
-%   Removing the raw recording means the pipeline can no longer read the
-%   dataset (Signals, Sorting, Spikes, Visualize, Scan) until it is copied
-%   back; the outputs already written are unaffected.
+%   Everything else is kept: the outputs of the steps not selected, the
+%   dataset and copy manifests, the clean-up record, the Epsych2 session
+%   file and any other file. Removing the raw recording means the pipeline
+%   can no longer read the dataset (Signals, Sorting, Spikes, Visualize,
+%   Scan) until it is copied back; the outputs already written are
+%   unaffected.
 %
 %   Options
-%     Remove  (1,:) string, a subset of ["raw" "sorter_copy" "bin"]
-%             (default all three). Files of the other kinds are kept.
+%     Remove      (1,:) string, a subset of ["raw" "sorter_copy" "bin"
+%                 "sorting" "signals" "spikes" "behavior" "artifacts"
+%                 "export"] (default ["raw" "sorter_copy" "bin"]). Files of
+%                 the other kinds are kept.
+%     SearchDirs  (1,:) string, more folders holding step outputs (the
+%                 config's Signals / Spikes / Export OutputDir). The
+%                 datasets' outputs found there are listed too; their other
+%                 files are not.
 %
 %   T has one row per file:
 %     Dataset    dataset Name
@@ -41,57 +68,73 @@ function T = planLocalCleanup(datasets, opts)
 %     Action     "remove" | "keep"
 %     Category   "raw" | "sorter_copy" | "bin" | "epsych" | "copy_record" |
 %                "manifest" | "sorting" | "output" | "other"
+%     Step       the preprocessing step that wrote the file ("" for none)
 %     What       what the file is, in words
 %     File       full path
 %     Bytes      its size now
 %     Source     for a raw file copied by the Copy tab, its source ("" otherwise)
 %     Reason     why it is removed or kept
+%     Root       the folder the file lies under: the dataset's recording or
+%                output folder, or the search folder it was found in.
+%                runLocalCleanup moves a file to <Destination>/<Key>/<its path
+%                below Root> and removes the folders it empties below Root.
+%     Key        the dataset's DatasetKey (its folder below the project
+%                root), else its Name
 %
-%   See also runLocalCleanup, copySessions, EphysDataset.
+%   See also runLocalCleanup, copySessions, EphysDataset, DatasetOutputs.
 
 arguments
     datasets EphysDataset
-    opts.Remove (1,:) string {mustBeMember(opts.Remove, ["raw" "sorter_copy" "bin"])} = ["raw" "sorter_copy" "bin"]
+    opts.Remove (1,:) string {mustBeMember(opts.Remove, ["raw" "sorter_copy" "bin" ...
+        "sorting" "signals" "spikes" "behavior" "artifacts" "export"])} = ["raw" "sorter_copy" "bin"]
+    opts.SearchDirs (1,:) string = string.empty(1, 0)
 end
 
+searchDirs = opts.SearchDirs(strlength(strtrim(opts.SearchDirs)) > 0);
 T = emptyPlan();
 for d = datasets(:).'
-    T = [T; planDataset(d, opts.Remove)]; %#ok<AGROW>
+    T = [T; planDataset(d, opts.Remove, searchDirs)]; %#ok<AGROW>
 end
 end
 
 
-function T = planDataset(d, remove)
+function T = planDataset(d, remove, searchDirs)
 folder = string(d.Folder);
 outDir = string(d.outputFolder());
 ksDir  = string(d.kilosortDir());
 sortDir = string(d.sortingResultsDir());
 name = string(d.Name);
+key = string(d.DatasetKey);
+if key == ""; key = name; end
 
-files = listFiles(unique([folder outDir ksDir sortDir], 'stable'));
+[outputKind, found] = datasetOutputs(d, searchDirs);
+files = addFiles(listFiles(unique([folder outDir ksDir sortDir], 'stable')), found);
 n = numel(files);
 T = emptyPlan();
 if n == 0; return; end
 
 copied = copyRecord(folder);
 rawNames = rawRecordingNames(d);
+roots = [folder outDir searchDirs];
 
 rows = cell(n, 1);
 for k = 1:n
     f = files(k);
-    r = struct('Dataset', name, 'Folder', folder, 'Action', "keep", 'Category', "other", ...
-        'What', "Other file", 'File', f.path, 'Bytes', f.bytes, 'Source', "", 'Reason', "");
+    r = struct('Dataset', name, 'Folder', folder, 'Action', "keep", 'Category', "other", 'Step', "", ...
+        'What', "Other file", 'File', f.path, 'Bytes', f.bytes, 'Source', "", 'Reason', "", ...
+        'Root', "", 'Key', key);
     [p, base, ext] = fileparts(f.path);
     leaf = base + ext;
+    r.Root = rootOf(p, roots, sortDir);
     inFolder = samePath(p, folder);
-    key = lower(f.path);
+    fileKey = lower(f.path);
     rel = "";   % the path below the recording folder, as the reader lists its files
     if under(p, folder)
         rel = lower(replace(extractAfter(f.path, strlength(stripSep(folder)) + 1), "\", "/"));
     end
 
-    if isKey(copied.raw, key)
-        src = copied.raw(key);
+    if isKey(copied.raw, fileKey)
+        src = copied.raw(fileKey);
         r.Category = "raw"; r.What = "Raw recording"; r.Source = src;
         if ~any(remove == "raw")
             r.Reason = "Raw recording files are not selected for removal.";
@@ -111,17 +154,23 @@ for k = 1:n
         r.Reason = "Not copied by the Copy tab (no session_manifest.json lists it), so no source copy is known.";
     elseif any(lower(leaf) == ["recording.dat" "temp_wh.dat"]) && (under(p, ksDir) || under(p, sortDir))
         r.Category = "sorter_copy"; r.What = "Kilosort4's filtered copy of the recording";
+        if under(p, ksDir); r.Step = "sorting"; end
         if any(remove == "sorter_copy")
             r.Action = "remove";
             r.Reason = "The sorted units do not need it; phy's trace view does.";
+        elseif r.Step ~= "" && any(remove == r.Step)
+            r = removeWithStep(r);
         else
             r.Reason = "Kilosort4's copy of the recording is not selected for removal.";
         end
-    elseif samePath(p, outDir) && any(lower(leaf) == lower(name + [".bin" ".json"])) && isfile(fullfile(outDir, name + ".bin"))
-        r.Category = "bin"; r.What = "Sorting input .bin (toBin)";
+    elseif samePath(p, outDir) && any(lower(leaf) == lower(name + [".bin" ".json"])) ...
+            && (isfile(fullfile(outDir, name + ".bin")) || isBinSidecar(f.path))
+        r.Category = "bin"; r.What = "Sorting input .bin (toBin)"; r.Step = "sorting";
         if any(remove == "bin")
             r.Action = "remove";
             r.Reason = "The flat binary the native Kilosort engine sorted; the sorted units do not need it, phy's trace view does.";
+        elseif any(remove == r.Step)
+            r = removeWithStep(r);
         else
             r.Reason = "The sorting input .bin is not selected for removal.";
         end
@@ -132,10 +181,31 @@ for k = 1:n
     elseif lower(leaf) == lower(name + "_manifest.json") || lower(leaf) == lower(name + "_cleanup.json")
         r.Category = "manifest"; r.What = "Dataset manifest";
         if endsWith(lower(leaf), "_cleanup.json"); r.What = "Clean-up record"; end
-    elseif under(p, ksDir) || under(p, sortDir)
-        r.Category = "sorting"; r.What = "Sorted output / sorting run file";
-    elseif startsWith(lower(leaf), lower(name) + "_")
-        r.Category = "output"; r.What = outputWhat(lower(extractAfter(leaf, strlength(name) + 1)));
+    elseif under(p, ksDir)
+        r.Category = "sorting"; r.What = "Sorted output / sorting run file"; r.Step = "sorting";
+        if any(remove == r.Step); r = removeWithStep(r); end
+    elseif under(p, sortDir)
+        r.Category = "sorting"; r.What = "Sorted output associated by hand";
+        if any(remove == "sorting")
+            r.Reason = "A sorted-output folder chosen by hand (SortingDir), not written by the Sorting step: it is kept.";
+        end
+    else
+        kind = "";
+        if isKey(outputKind, char(fileKey)); kind = outputKind(char(fileKey)); end
+        partial = startsWith(lower(leaf), "~" + lower(name) + "_") && endsWith(lower(leaf), ".partial.mat");
+        if kind == "" && (partial || startsWith(lower(leaf), lower(name) + "_"))
+            kind = "other";
+            if partial || any(lower(ext) == [".mat" ".json"])
+                byName = nameKind(lower(extractAfter(leaf, strlength(name) + 1 + partial)));
+                if byName ~= ""; kind = byName; end
+            end
+        end
+        if kind ~= ""
+            [r.What, r.Step] = outputWhat(kind);
+            r.Category = "output";
+            if partial; r.What = "Unfinished " + lower(extractBefore(r.What, 2)) + extractAfter(r.What, 1) + " (a failed write)"; end
+            if r.Step ~= "" && any(remove == r.Step); r = removeWithStep(r); end
+        end
     end
     rows{k} = r;
 end
@@ -144,17 +214,77 @@ T = sortrows(T, {'Action', 'Bytes'}, {'descend', 'descend'});   % "remove" befor
 end
 
 
-function w = outputWhat(rest)
-%outputWhat  Words for a <Name>_<rest> pipeline output.
-if startsWith(rest, "extract");       w = "Signals output (extract)";
-elseif startsWith(rest, "spikes");    w = "Spikes output";
-elseif startsWith(rest, "behavior");  w = "Behavior output";
-elseif startsWith(rest, "events");    w = "Digital events cache";
-elseif startsWith(rest, "artifacts"); w = "Artifact cache";
-elseif startsWith(rest, "chronux");   w = "Chronux export";
-elseif startsWith(rest, "fieldtrip"); w = "FieldTrip export";
-else;                                 w = "Pipeline output";
+function r = removeWithStep(r)
+r.Action = "remove";
+r.Reason = "Written by the " + stepTitle(r.Step) + " step, whose output is selected for removal.";
 end
+
+
+function t = stepTitle(step)
+t = upper(extractBefore(step, 2)) + extractAfter(step, 1);
+end
+
+
+function [what, step] = outputWhat(kind)
+%outputWhat  Words for an output of KIND (a DatasetOutputs kind, or "events") and the step that writes it.
+switch kind
+    case "extract";   what = "Signals output (extract)"; step = "signals";
+    case "spikes";    what = "Spikes output";            step = "spikes";
+    case "behavior";  what = "Behavior output";          step = "behavior";
+    case "events";    what = "Digital events cache";     step = "behavior";
+    case "artifacts"; what = "Artifact cache";           step = "artifacts";
+    case "chronux";   what = "Chronux export";           step = "export";
+    case "fieldtrip"; what = "FieldTrip export";         step = "export";
+    case "epochs";    what = "Epochs export";            step = "export";
+    otherwise;        what = "Pipeline output";          step = "";
+end
+end
+
+
+function kind = nameKind(rest)
+%nameKind  The output kind a <Name>_<rest> file's default name gives ("" = none).
+kind = "";
+for k = ["extract" "spikes" "behavior" "events" "artifacts" "chronux" "fieldtrip" "epochs"]
+    if startsWith(rest, k); kind = k; return; end
+end
+end
+
+
+function [kind, found] = datasetOutputs(d, searchDirs)
+%datasetOutputs  The dataset's outputs found by DatasetOutputs (file -> kind) and their files.
+kind = containers.Map('KeyType', 'char', 'ValueType', 'any');
+found = struct('path', {}, 'bytes', {});
+ws = warning('off');   % a .mat it cannot read is not classified; no need to say so here
+restoreWarnings = onCleanup(@() warning(ws));
+try
+    C = DatasetOutputs(d, SearchDirs=searchDirs).Candidates;
+catch
+    return
+end
+for k = 1:height(C)
+    kind(char(lower(C.File(k)))) = C.Kind(k);
+    found(end+1) = struct('path', C.File(k), 'bytes', C.Bytes(k)); %#ok<AGROW>
+end
+end
+
+
+function tf = isBinSidecar(file)
+%isBinSidecar  True for toBin's JSON sidecar (it names the .bin and its channel count).
+m = readJsonFile(file, ErrorOnFail=false);
+tf = isstruct(m) && isfield(m, 'n_chan_bin') && isfield(m, 'bin_file');
+end
+
+
+function root = rootOf(p, roots, sortDir)
+%rootOf  The deepest of ROOTS holding folder P, else SORTDIR, else P itself.
+root = "";
+for c = roots
+    if under(p, c) && strlength(stripSep(c)) > strlength(root)
+        root = stripSep(c);
+    end
+end
+if root == "" && under(p, sortDir); root = stripSep(sortDir); end
+if root == ""; root = stripSep(p); end
 end
 
 
@@ -192,17 +322,26 @@ end
 function files = listFiles(roots)
 %listFiles  Every file under ROOTS (recursive), each once.
 files = struct('path', {}, 'bytes', {});
-seen = strings(0, 1);
 for root = roots
     if root == "" || ~isfolder(root); continue; end
     D = dir(fullfile(root, "**", "*"));
     D = D(~[D.isdir]);
     for k = 1:numel(D)
-        p = string(fullfile(D(k).folder, D(k).name));
-        if any(seen == lower(p)); continue; end
-        seen(end+1, 1) = lower(p); %#ok<AGROW>
-        files(end+1) = struct('path', p, 'bytes', D(k).bytes); %#ok<AGROW>
+        files(end+1) = struct('path', string(fullfile(D(k).folder, D(k).name)), 'bytes', D(k).bytes); %#ok<AGROW>
     end
+end
+files = addFiles(struct('path', {}, 'bytes', {}), files);
+end
+
+
+function files = addFiles(files, more)
+%addFiles  FILES plus those of MORE not in it yet (paths compared without case).
+seen = strings(1, 0);
+if ~isempty(files); seen = lower([files.path]); end
+for f = more(:).'
+    if any(seen == lower(f.path)); continue; end
+    seen(end+1) = lower(f.path); %#ok<AGROW>
+    files(end+1) = f; %#ok<AGROW>
 end
 end
 
@@ -236,7 +375,8 @@ end
 
 
 function T = emptyPlan()
-T = table(strings(0, 1), strings(0, 1), strings(0, 1), strings(0, 1), strings(0, 1), ...
-    strings(0, 1), zeros(0, 1), strings(0, 1), strings(0, 1), ...
-    'VariableNames', {'Dataset', 'Folder', 'Action', 'Category', 'What', 'File', 'Bytes', 'Source', 'Reason'});
+T = table(strings(0, 1), strings(0, 1), strings(0, 1), strings(0, 1), strings(0, 1), strings(0, 1), ...
+    strings(0, 1), zeros(0, 1), strings(0, 1), strings(0, 1), strings(0, 1), strings(0, 1), ...
+    'VariableNames', {'Dataset', 'Folder', 'Action', 'Category', 'Step', 'What', 'File', 'Bytes', ...
+    'Source', 'Reason', 'Root', 'Key'});
 end

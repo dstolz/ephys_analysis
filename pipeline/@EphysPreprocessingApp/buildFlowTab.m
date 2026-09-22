@@ -16,7 +16,7 @@ g.Padding   = [10 10 10 10];
 bar = uigridlayout(g, [1 4]);
 bar.Layout.Row = 1;
 bar.ColumnWidth = {'fit', 'fit', 'fit', '1x'};
-bar.RowHeight   = {'fit'};
+bar.RowHeight   = {30};
 bar.Padding     = [0 0 0 0];
 obj.FlowRefreshButton = uibutton(bar, "Text", "Refresh", ...
     "ButtonPushedFcn", @(~,~) obj.refreshFlowChart());

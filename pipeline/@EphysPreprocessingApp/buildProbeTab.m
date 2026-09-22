@@ -11,7 +11,7 @@ g.Padding     = [10 10 10 10];
 % =================== left: library + actions ===================
 left = uigridlayout(g, [7 1]);
 left.Layout.Column = 1;
-left.RowHeight = {'fit', '1x', 'fit', 'fit', 'fit', 'fit', 'fit'};
+left.RowHeight = {'fit', '1x', 30, 'fit', 30, 'fit', 'fit'};
 left.Padding   = [0 0 0 0];
 
 % Row 1: probe folder

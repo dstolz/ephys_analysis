@@ -3,11 +3,11 @@ function onVizArtToggle(obj, val)
     obj.VizArtMode = logical(val);
     if obj.VizArtMode
         obj.VizArtButton.Text = "Mark Artifacts: ON (drag to mark)";
-        obj.VizArtButton.FontWeight = "bold";
+        styleButton(obj.VizArtButton, "active");
         if isvalid(obj.Fig); obj.Fig.Pointer = "crosshair"; end
     else
         obj.VizArtButton.Text = "Mark Artifacts: off";
-        obj.VizArtButton.FontWeight = "normal";
+        styleButton(obj.VizArtButton);
         if isvalid(obj.Fig); obj.Fig.Pointer = "arrow"; end
     end
 end

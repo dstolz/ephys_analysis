@@ -21,7 +21,7 @@ obj.CopyGrid = g;
 % --- session search ----------------------------------------------------------
 top = uigridlayout(g, [4 8]);
 top.Layout.Row = 1;
-top.RowHeight   = {'fit', 'fit', 'fit', 'fit'};
+top.RowHeight   = {30, 'fit', 'fit', 'fit'};
 top.ColumnWidth = {'fit', 170, 'fit', 130, 'fit', 130, 'fit', '1x'};
 top.Padding     = [0 0 0 0];
 
@@ -39,8 +39,7 @@ lbl.Layout.Row = 1; lbl.Layout.Column = 5;
 obj.CopyToDatePicker = uidatepicker(top, "DisplayFormat", "yyyy-MM-dd", "Placeholder", "same day", ...
     "Tooltip", "Last day of the range (blank = the From day only).");
 obj.CopyToDatePicker.Layout.Row = 1; obj.CopyToDatePicker.Layout.Column = 6;
-obj.CopyFindButton = uibutton(top, "Text", "Find sessions", "FontWeight", "bold", ...
-    "BackgroundColor", [0.15 0.45 0.80], "FontColor", [1 1 1], ...
+obj.CopyFindButton = uibutton(top, "Text", "Find sessions", ...
     "Tooltip", "List and pair the subject's ePsych files and recording folders for these days (by name; reads only headers).", ...
     "ButtonPushedFcn", @(~,~) obj.onCopyFind());
 obj.CopyFindButton.Layout.Row = 1; obj.CopyFindButton.Layout.Column = 7;
@@ -66,7 +65,7 @@ obj.CopyDestRootField.Value   = 'D:/EPHYS';
 % --- pairing and copy options + actions --------------------------------------------
 bar = uigridlayout(g, [3 15]);
 bar.Layout.Row = 2;
-bar.RowHeight   = {'fit', 'fit', 'fit'};
+bar.RowHeight   = {30, 'fit', 'fit'};
 bar.ColumnWidth = {'fit', 50, 'fit', 50, 'fit', 50, 'fit', 50, 'fit', 70, 'fit', 70, '1x', 'fit', 'fit'};
 bar.Padding     = [0 0 0 0];
 
@@ -102,7 +101,7 @@ obj.CopyPreviewButton = uibutton(bar, "Text", "Preview (dry run)", ...
     "Tooltip", "Check the ticked sessions and report what a copy would do; writes nothing.", ...
     "ButtonPushedFcn", @(~,~) obj.onCopyRun(true));
 obj.CopyPreviewButton.Layout.Row = 1; obj.CopyPreviewButton.Layout.Column = 14;
-obj.CopyRunButton = uibutton(bar, "Text", "Copy selected", "FontWeight", "bold", ...
+obj.CopyRunButton = uibutton(bar, "Text", "Copy selected", ...
     "Tooltip", "Copy the ticked sessions in the background, verify them and write session_manifest.json in each. " + ...
     "The app stays usable while they copy; this button becomes Cancel copy.", ...
     "ButtonPushedFcn", @(~,~) obj.onCopyRun(false));
@@ -119,7 +118,7 @@ buildSchedulePanel(obj, g);
 % --- stitching ------------------------------------------------------------------------
 st = uigridlayout(g, [1 3]);
 st.Layout.Row = 5;
-st.RowHeight   = {'fit'};
+st.RowHeight   = {30};
 st.ColumnWidth = {'fit', 'fit', '1x'};
 st.Padding     = [0 0 0 0];
 obj.CopyStitchButton = uibutton(st, "Text", "Stitch selected rows", ...
@@ -156,7 +155,7 @@ p = uipanel(g, "Title", "Scheduled copy: copies new sessions in the background t
     "FontWeight", "bold");
 p.Layout.Row = 4;
 sg = uigridlayout(p, [2 12]);
-sg.RowHeight   = {'fit', 'fit'};
+sg.RowHeight   = {30, 'fit'};
 sg.ColumnWidth = {'fit', '1x', 'fit', 55, 'fit', 50, 'fit', 50, 'fit', 250, 'fit', 'fit'};
 sg.Padding     = [8 6 8 6];
 sg.RowSpacing  = 6;
@@ -194,7 +193,7 @@ obj.CopyScheduleRunWhenDropDown = uidropdown(sg, "Tooltip", tip, ...
     "ItemsData", ["signed_in", "always"], "Value", "signed_in");
 obj.CopyScheduleRunWhenDropDown.Layout.Row = 1; obj.CopyScheduleRunWhenDropDown.Layout.Column = 10;
 
-obj.CopyScheduleSaveButton = uibutton(sg, "Text", "Save schedule", "FontWeight", "bold", ...
+obj.CopyScheduleSaveButton = uibutton(sg, "Text", "Save schedule", ...
     "Tooltip", "Save these settings with the roots, destination, pairing and copy options above, and create (or replace) the Windows task. Paired sessions are copied; ambiguous, unpaired and to-be-stitched ones are left for you.", ...
     "ButtonPushedFcn", @(~,~) obj.onCopyScheduleSave());
 obj.CopyScheduleSaveButton.Layout.Row = 1; obj.CopyScheduleSaveButton.Layout.Column = 11;

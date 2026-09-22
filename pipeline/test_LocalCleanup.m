@@ -3,7 +3,9 @@ classdef test_LocalCleanup < matlab.unittest.TestCase
     %   Writes a small synthetic recording as the "source", copies it into a
     %   local session folder with a session_manifest.json as the Copy tab
     %   would, adds a sorting folder, a .bin and pipeline outputs, then checks
-    %   what a clean up would remove and keep, and that it removes only that.
+    %   what a clean up would remove and keep (by kind, and by preprocessing
+    %   step), and that it removes only that: deleted, moved into a folder,
+    %   or sent to the Recycle Bin (whose items it empties again afterwards).
     %
     %   Usage
     %     runtests("test_LocalCleanup")
@@ -107,9 +109,10 @@ classdef test_LocalCleanup < matlab.unittest.TestCase
             tc.verifyTrue(all(isfile(fullfile(tc.Source, tc.rawFiles()))), 'the source is untouched');
 
             rec = readJsonFile(fullfile(tc.Local, tc.Name + "_cleanup.json"));
-            tc.verifyEqual(string(rec.schema), "ephys-local-cleanup/1");
+            tc.verifyEqual(string(rec.schema), "ephys-local-cleanup/2");
             run = rec.runs(1);
             if iscell(rec.runs); run = rec.runs{1}; end
+            tc.verifyEqual([string(run.method) string(run.destination)], ["delete" ""]);
             tc.verifyEqual(numel(run.removed), height(R));
             tc.verifyEqual(double(run.bytesRemoved), sum(R.Bytes));
             srcs = string({run.removed.source});
@@ -181,6 +184,145 @@ classdef test_LocalCleanup < matlab.unittest.TestCase
             R = runLocalCleanup(T);
             tc.verifyEqual(height(R), 0);
         end
+
+        function sortingStepTakesTheKilosortFolderAndTheBin(tc)
+            ks = fullfile(tc.Local, "kilosort4");
+            before = tc.snapshot();
+            T = planLocalCleanup(tc.dataset(), Remove="sorting");
+            inKs = startsWith(T.File, ks + filesep);
+            bin = ismember(T.File, fullfile(tc.Local, tc.Name + [".bin" ".json"]));
+            tc.verifyEqual(nnz(inKs), 4);
+            tc.verifyTrue(all(T.Action(inKs | bin) == "remove") && all(T.Step(inKs | bin) == "sorting"), ...
+                'everything under kilosort4, and the .bin + .json, go with the Sorting step');
+            tc.verifySubstring(T.Reason(T.File == fullfile(ks, "ks4_status.json")), "Sorting step");
+            tc.verifyFalse(any(T.Action(~(inKs | bin)) == "remove"), 'nothing else goes, not even raw files');
+            tc.verifyEqual(tc.action(T, tc.Name + "_extract_LFP.mat"), "keep");
+
+            R = runLocalCleanup(T);
+            tc.verifyTrue(all(R.Status == "removed"), strjoin(R.Message, "; "));
+            tc.verifyFalse(isfolder(ks), 'the emptied kilosort4 folder is removed too');
+            tc.verifyEqual(tc.snapshot(), sort([setdiff(before, T.File(T.Action == "remove")), ...
+                string(fullfile(tc.Local, tc.Name + "_cleanup.json"))]), 'every other file stays');
+            rec = readJsonFile(fullfile(tc.Local, tc.Name + "_cleanup.json"));
+            tc.verifyEqual(unique(string({rec.runs(1).removed.step})), "sorting");
+        end
+
+        function stepOutputsAreFoundByWhatTheyHold(tc)
+            % Configured suffixes and output folders: a .mat is placed by its
+            % variables (DatasetOutputs), else by its default name.
+            conv = struct('dataset', tc.Name);
+            shared = fullfile(tc.Root, "shared");
+            mkdir(shared);
+            tc.writeMat(fullfile(tc.Local, tc.Name + "_lfp.mat"), struct('Y', 1, 'info', 1, 'conversion', conv));
+            tc.writeMat(fullfile(tc.Local, tc.Name + "_spk.mat"), ...
+                struct('detected', 1, 'units', 1, 'conversion', conv));
+            tc.writeMat(fullfile(tc.Local, tc.Name + "_behavior.mat"), struct('behavior', 1, 'conversion', conv));
+            tc.writeMat(fullfile(shared, tc.Name + "_ft.mat"), struct('export', conv, 'event', 1));
+            tc.writeMat(fullfile(shared, "OTHER_ft.mat"), struct('export', struct('dataset', "OTHER"), 'event', 1));
+            tc.writeBytes(fullfile(tc.Local, tc.Name + "_events.mat"), 60);
+            tc.writeBytes(fullfile(tc.Local, tc.Name + "_artifacts.json"), 30);
+            tc.writeBytes(fullfile(tc.Local, "~" + tc.Name + "_extract_MUA.partial.mat"), 70);
+            tc.writeBytes(fullfile(tc.Local, tc.Name + "_notes.txt"), 10);
+            expect = [tc.Name + "_lfp.mat" "signals"; tc.Name + "_extract_LFP.mat" "signals"
+                "~" + tc.Name + "_extract_MUA.partial.mat" "signals"; tc.Name + "_spk.mat" "spikes"
+                tc.Name + "_spikes.mat" "spikes"; tc.Name + "_behavior.mat" "behavior"
+                tc.Name + "_events.mat" "behavior"; tc.Name + "_artifacts.json" "artifacts"];
+            steps = ["signals" "spikes" "behavior" "artifacts" "export"];
+
+            T = planLocalCleanup(tc.dataset(), Remove=steps, SearchDirs=shared);
+            for k = 1:height(expect)
+                r = T(T.File == fullfile(tc.Local, expect(k, 1)), :);
+                tc.verifyEqual([r.Step r.Action], [expect(k, 2) "remove"], expect(k, 1));
+            end
+            ft = T(T.File == fullfile(shared, tc.Name + "_ft.mat"), :);
+            tc.verifyEqual([ft.Step ft.Action ft.What ft.Root], ["export" "remove" "FieldTrip export" string(shared)], ...
+                'an output in a search folder is listed below that folder');
+            tc.verifyFalse(any(contains(T.File, "OTHER_ft")), 'another dataset''s file in the search folder is not listed');
+            tc.verifyEqual(T.What(T.File == fullfile(tc.Local, "~" + tc.Name + "_extract_MUA.partial.mat")), ...
+                "Unfinished signals output (extract) (a failed write)");
+            tc.verifyEqual(tc.action(T, tc.Name + "_notes.txt"), "keep");
+            tc.verifyFalse(any(T.Action(T.Step == "" | T.Step == "sorting") == "remove"), ...
+                'only the ticked steps'' files go');
+
+            T = planLocalCleanup(tc.dataset(), Remove="spikes", SearchDirs=shared);
+            tc.verifyEqual(sort(T.File(T.Action == "remove")), ...
+                sort(string(fullfile(tc.Local, tc.Name + ["_spk.mat"; "_spikes.mat"]))));
+        end
+
+        function handPickedSortingFolderIsKept(tc)
+            curated = fullfile(tc.Root, "curated", tc.Name);
+            mkdir(curated);
+            tc.writeBytes(fullfile(curated, "params.py"), 50);
+            tc.writeBytes(fullfile(curated, "cluster_group.tsv"), 20);
+            d = tc.dataset();
+            d.SortingDir = curated;
+            T = planLocalCleanup(d, Remove="sorting");
+            mine = startsWith(T.File, curated + filesep);
+            tc.verifyEqual(nnz(mine), 2);
+            tc.verifyTrue(all(T.Action(mine) == "keep") && all(T.Step(mine) == ""));
+            tc.verifySubstring(T.Reason(find(mine, 1)), "chosen by hand");
+            tc.verifyEqual(tc.action(T, "kilosort4/ks4_status.json"), "remove", 'the step''s own folder still goes');
+        end
+
+        function moveKeepsTheLayoutAndNeverOverwrites(tc)
+            dest = fullfile(tc.Root, "removed");
+            T = planLocalCleanup(tc.dataset(), Remove="sorting");
+            tc.verifyError(@() runLocalCleanup(T, Method="move", Destination=fullfile(tc.Local, "old")), ...
+                'runLocalCleanup:Destination');
+            tc.verifyError(@() runLocalCleanup(T, Method="move"), 'runLocalCleanup:Destination');
+            tc.verifyError(@() runLocalCleanup(T, Method="move", Destination="relative\folder"), ...
+                'runLocalCleanup:Destination');
+            taken = fullfile(dest, tc.Name, tc.Name + ".json");
+            mkdir(fileparts(taken));
+            tc.writeBytes(taken, 5);
+
+            R = runLocalCleanup(T, Method="move", Destination=dest);
+            json = R.File == fullfile(tc.Local, tc.Name + ".json");
+            tc.verifyEqual(R.Status(json), "skipped");
+            tc.verifySubstring(R.Message(json), "never overwritten");
+            tc.verifyTrue(isfile(R.File(json)) && dir(taken).bytes == 5, 'neither file is touched');
+            moved = R(~json, :);
+            tc.verifyTrue(all(moved.Status == "removed"), strjoin(moved.Message, "; "));
+            want = string(fullfile(dest, tc.Name, extractAfter(moved.File, strlength(tc.Local) + 1)));
+            tc.verifyEqual(moved.To, want, 'each file keeps its path below the dataset folder');
+            tc.verifyTrue(all(isfile(want)) && ~any(isfile(moved.File)));
+            tc.verifyEqual(dir(fullfile(dest, tc.Name, "kilosort4", "si", "sorter_output", "recording.dat")).bytes, 4000);
+            tc.verifyFalse(isfolder(fullfile(tc.Local, "kilosort4")));
+            rec = readJsonFile(fullfile(tc.Local, tc.Name + "_cleanup.json"));
+            tc.verifyEqual([string(rec.runs(1).method) string(rec.runs(1).destination)], ["move" string(dest)]);
+            tc.verifyEqual(sort(string({rec.runs(1).removed.to})).', sort(want));
+        end
+
+        function cancelLeavesTheRestInPlace(tc)
+            T = planLocalCleanup(tc.dataset(), Remove="sorting");
+            seen = zeros(1, 0);
+            R = runLocalCleanup(T, CancelFcn=@stopAfterOne, ProgressFcn=@note);
+            tc.verifyEqual(seen, 1, 'progress is reported before each file handled');
+            tc.verifyEqual(R.Status(1), "removed");
+            tc.verifyTrue(all(R.Status(2:end) == "skipped") && all(R.Message(2:end) == "cancelled"));
+            tc.verifyTrue(all(isfile(R.File(2:end))));
+
+            function note(evt)
+                seen(end+1) = evt.index;
+            end
+            function tf = stopAfterOne()
+                tf = ~isempty(seen);
+            end
+        end
+
+        function recycleSendsFilesToTheBinAndChecksThem(tc)
+            tc.assumeTrue(ispc, 'the Recycle Bin is Windows only');
+            tc.addTeardown(@() tc.purgeFromRecycleBin());
+            T = planLocalCleanup(tc.dataset(), Remove="sorting");
+            R = runLocalCleanup(T, Method="recycle");
+            tc.verifyTrue(all(R.Status == "removed"), strjoin(R.Message, "; "));
+            tc.verifyEqual(R.To, repmat("Recycle Bin", height(R), 1), 'each file is found in the bin afterwards');
+            tc.verifyFalse(any(isfile(R.File)));
+            tc.verifyFalse(isfolder(fullfile(tc.Local, "kilosort4")));
+            tc.verifyEqual(sort(tc.binned()), sort(R.File), 'the bin holds them under their own paths');
+            rec = readJsonFile(fullfile(tc.Local, tc.Name + "_cleanup.json"));
+            tc.verifyEqual(string(rec.runs(1).method), "recycle");
+        end
     end
 
     methods
@@ -246,6 +388,36 @@ classdef test_LocalCleanup < matlab.unittest.TestCase
             D = D(~[D.isdir]);
             s = sort(string(fullfile({D.folder}, {D.name})));
         end
+
+        function [paths, records] = binned(tc)
+            %binned  Original paths (and $I records) of what this test put in the Recycle Bin.
+            paths = strings(0, 1); records = strings(0, 1);
+            sid = string(char(System.Security.Principal.WindowsIdentity.GetCurrent().User.Value));
+            D = dir(fullfile(extractBefore(tc.Root, 3) + "\", "$RECYCLE.BIN", sid, "$I*"));
+            for k = 1:numel(D)
+                f = string(fullfile(D(k).folder, D(k).name));
+                fid = fopen(f, 'r', 'ieee-le');
+                if fid < 0; continue; end
+                b = fread(fid, inf, '*uint8');
+                fclose(fid);
+                if numel(b) < 30 || mod(numel(b), 2) ~= 0; continue; end
+                p = string(strtok(char(typecast(b(29:end).', 'uint16')), char(0)));
+                if startsWith(lower(p), lower(tc.Root))
+                    paths(end+1, 1) = p; %#ok<AGROW>
+                    records(end+1, 1) = f; %#ok<AGROW>
+                end
+            end
+        end
+
+        function purgeFromRecycleBin(tc)
+            %purgeFromRecycleBin  Empty this test's items (the $I record and $R data of each) from the bin.
+            [~, records] = tc.binned();
+            for f = records.'
+                [fo, na, ex] = fileparts(f);
+                delete(f);
+                delete(fullfile(fo, "$R" + extractAfter(na, 2) + ex));
+            end
+        end
     end
 
     methods (Static)
@@ -253,6 +425,10 @@ classdef test_LocalCleanup < matlab.unittest.TestCase
             fid = fopen(file, 'w');
             fwrite(fid, zeros(1, n, 'uint8'), 'uint8');
             fclose(fid);
+        end
+
+        function writeMat(file, S)
+            save(file, '-struct', 'S');
         end
     end
 end

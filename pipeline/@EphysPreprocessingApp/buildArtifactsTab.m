@@ -114,6 +114,7 @@ row = row + 1;
 obj.ArtDetectButton = uibutton(cg, "Text", "Detect / Preview", ...
     "ButtonPushedFcn", @(~,~) obj.onDetectArtifacts());
 obj.ArtDetectButton.Layout.Row = row; obj.ArtDetectButton.Layout.Column = [1 2];
+cg.RowHeight{row} = 30;
 
 row = row + 1;
 obj.ArtStatusLabel = uilabel(cg, "Text", "", "FontColor", [0.4 0.4 0.4], "WordWrap", "on");
@@ -175,7 +176,7 @@ obj.ArtViewAxes.Toolbar.Visible = "on";
 obj.drawArtifactView();   % the empty state
 
 mg = uigridlayout(right, [1 3]);
-mg.Layout.Row = 5; mg.Padding = [0 0 0 0]; mg.ColumnWidth = {'1x', 'fit', 'fit'};
+mg.Layout.Row = 5; mg.Padding = [0 0 0 0]; mg.ColumnWidth = {'1x', 'fit', 'fit'}; mg.RowHeight = {30};
 obj.ArtManualLabel = uilabel(mg, "Text", "Manual periods (scan a project first)", "FontWeight", "bold");
 obj.ArtEditVizButton = uibutton(mg, "Text", "Edit in Visualize", ...
     "ButtonPushedFcn", @(~,~) obj.selectTab(obj.TabVisualize));

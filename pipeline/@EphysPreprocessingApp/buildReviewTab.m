@@ -16,7 +16,7 @@ g.Padding     = [10 10 10 10];
 % =================== left column: source + stats + table ===================
 left = uigridlayout(g, [8 1]);
 left.Layout.Column = 1;
-left.RowHeight = {'fit', 'fit', 'fit', 'fit', 'fit', 220, '1x', 'fit'};
+left.RowHeight = {'fit', 'fit', 30, 30, 'fit', 220, '1x', 30};
 left.Padding   = [0 0 0 0];
 left.RowSpacing = 6;
 

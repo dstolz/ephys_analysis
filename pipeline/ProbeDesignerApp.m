@@ -214,6 +214,10 @@ classdef ProbeDesignerApp < handle
                 'Enable', 'off', 'ButtonPushedFcn', @(~,~) obj.onSave());
             obj.CancelButton = uibutton(act, 'Text', 'Cancel', ...
                 'ButtonPushedFcn', @(~,~) obj.onCancel());
+
+            styleButton(findall(obj.Fig, 'Type', 'uibutton'));
+            styleButton([obj.FetchButton, obj.BuildButton], 'primary');
+            styleButton(obj.SaveButton, 'confirm');
         end
 
         % ---- source / type toggling -------------------------------------

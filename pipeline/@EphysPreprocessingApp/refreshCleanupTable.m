@@ -3,7 +3,7 @@ function refreshCleanupTable(obj, part)
 %   refreshCleanupTable(obj) fills the table with the plan rows that pass the
 %   filters (regexp search on the file path, Subject ID, "Show the files that
 %   remain") and updates the totals. refreshCleanupTable(obj, "summary")
-%   updates only the totals and the Remove files... button, leaving the table
+%   updates only the totals and the Delete / Recycle / Move files... button, leaving the table
 %   (and the user's sort of it) as it is.
 %
 %   Ticked Remove rows are tinted red, unticked ones grey; raw recording files

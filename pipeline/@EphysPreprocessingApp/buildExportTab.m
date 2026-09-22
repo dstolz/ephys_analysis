@@ -153,12 +153,12 @@ cg.RowHeight{r} = 56;
 runPanel = uipanel(g, "Title", "This step for the selected datasets");
 runPanel.Layout.Column = 2;
 rg = uigridlayout(runPanel, [2 3]);
-rg.RowHeight   = {'1x', 'fit'};
+rg.RowHeight   = {'1x', 30};
 rg.ColumnWidth = {'fit', '1x', 'fit'};
 obj.ExpTargetsTable = uitable(rg, "ColumnName", {'Step', 'Dataset', 'Output file', 'Status', 'Note'}, ...
     "ColumnWidth", {80, 'fit', '2x', 140, '1x'}, "RowName", {});
 obj.ExpTargetsTable.Layout.Row = 1; obj.ExpTargetsTable.Layout.Column = [1 3];
-obj.RunStepExportButton = uibutton(rg, "Text", "Run this step", "FontWeight", "bold", ...
+obj.RunStepExportButton = uibutton(rg, "Text", "Run this step", ...
     "ButtonPushedFcn", @(~,~) obj.onRunStep("export"));
 obj.RunStepExportButton.Layout.Row = 2; obj.RunStepExportButton.Layout.Column = 1;
 obj.ExpRefreshButton = uibutton(rg, "Text", "Refresh plan", ...

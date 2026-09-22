@@ -58,8 +58,10 @@ lb = uilistbox(g, "Items", labels, "ItemsData", 1:numel(labels), "Multiselect", 
 lb.Layout.Row = 2; lb.Layout.Column = [1 3];
 b = uibutton(g, "Text", "Stop selected", "ButtonPushedFcn", @(~,~) finish(true));
 b.Layout.Row = 3; b.Layout.Column = 2;
+styleButton(b, "danger");
 b = uibutton(g, "Text", "Keep running", "ButtonPushedFcn", @(~,~) finish(false));
 b.Layout.Row = 3; b.Layout.Column = 3;
+styleButton(b);
 uiwait(d);
 
     function finish(stop)

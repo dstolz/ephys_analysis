@@ -58,13 +58,14 @@ classdef EphysPreprocessingApp < handle
     %                GPU use under the steps
     %     Visualize  plot a window, mark manual artifact periods
     %     Review     inspect sorted units
-    %     Clean up   free local disk space once datasets are preprocessed:
-    %                preview every local file of the selected datasets as
-    %                Remove or Keep (planLocalCleanup), then, after a
-    %                confirmation, delete the Remove ones (runLocalCleanup).
-    %                Raw files go only when the source they were copied from
-    %                still holds them; outputs and sorted units always stay.
-    %                Not a pipeline step
+    %     Clean up   free local disk space once datasets are preprocessed, or
+    %                remove what chosen preprocessing steps wrote: preview
+    %                every local file of the selected datasets as Remove or
+    %                Keep (planLocalCleanup), then, after a confirmation,
+    %                delete the Remove ones, send them to the Recycle Bin or
+    %                move them to a folder (runLocalCleanup). Raw files go
+    %                only when the source they were copied from still holds
+    %                them. Not a pipeline step
     %
     %   File menu: New / Open / Open recent / Save / Save As / Export copy /
     %   Generate script (compact | standalone) / Create synthetic test
@@ -366,11 +367,16 @@ classdef EphysPreprocessingApp < handle
         ReviewAmpAxes       matlab.ui.control.UIAxes
         ReviewRateAxes      matlab.ui.control.UIAxes
 
-        % --- Clean up tab (planLocalCleanup / runLocalCleanup; the kinds ticked are a preference) ---
+        % --- Clean up tab (planLocalCleanup / runLocalCleanup; the kinds ticked and where files go are preferences) ---
         CleanupScopeLabel         matlab.ui.control.Label
         CleanupRawCheckBox        matlab.ui.control.CheckBox
         CleanupSorterCopyCheckBox matlab.ui.control.CheckBox
         CleanupBinCheckBox        matlab.ui.control.CheckBox
+        CleanupStepCheckBoxes     matlab.ui.control.CheckBox   % one per step that writes files; Tag = the step name
+        CleanupMethodDropDown     matlab.ui.control.DropDown   % where removed files go: "delete" | "recycle" | "move"
+        CleanupDestField          matlab.ui.control.EditField  % the folder for "move"
+        CleanupDestButton         matlab.ui.control.Button
+        CleanupMethodNote         matlab.ui.control.Label
         CleanupPreviewButton      matlab.ui.control.Button
         CleanupRunButton          matlab.ui.control.Button
         CleanupSummaryLabel       matlab.ui.control.Label
@@ -938,6 +944,9 @@ classdef EphysPreprocessingApp < handle
         % --- Clean up tab ---
         onCleanupPreview(obj)
         onCleanupRun(obj)
+        R = runCleanup(obj, T)
+        onCleanupMethodChanged(obj)
+        onCleanupBrowseDest(obj)
         onCleanupSettingsChanged(obj, why)
         onCleanupFileTicked(obj, evt)
         onCleanupSelect(obj, how)

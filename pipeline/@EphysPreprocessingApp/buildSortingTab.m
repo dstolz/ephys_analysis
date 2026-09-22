@@ -218,7 +218,7 @@ right.Padding = [0 0 0 0];
 
 resPanel = uipanel(right, "Title", "Sorted output");
 rg = uigridlayout(resPanel, [4 4]);
-rg.RowHeight   = {'fit', 'fit', 'fit', 'fit'};
+rg.RowHeight   = {'fit', 'fit', 30, 30};
 rg.ColumnWidth = {'fit', 'fit', 'fit', '1x'};
 l = uilabel(rg, "Text", "Dataset:");
 l.Layout.Row = 1; l.Layout.Column = 1;
@@ -238,7 +238,7 @@ obj.SortUseAutoButton.Layout.Row = 3; obj.SortUseAutoButton.Layout.Column = 2;
 obj.SortPhyButton = uibutton(rg, "Text", "Open in phy", ...
     "ButtonPushedFcn", @(~,~) obj.onLaunchPhy());
 obj.SortPhyButton.Layout.Row = 3; obj.SortPhyButton.Layout.Column = 3;
-obj.RunStepSortingButton = uibutton(rg, "Text", "Run this step", "FontWeight", "bold", ...
+obj.RunStepSortingButton = uibutton(rg, "Text", "Run this step", ...
     "Tooltip", "Run the Sorting step for the selected datasets (progress on the Run tab).", ...
     "ButtonPushedFcn", @(~,~) obj.onRunStep("sorting"));
 obj.RunStepSortingButton.Layout.Row = 4; obj.RunStepSortingButton.Layout.Column = 1;

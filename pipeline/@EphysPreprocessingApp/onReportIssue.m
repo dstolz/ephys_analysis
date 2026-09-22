@@ -84,9 +84,11 @@ bg = uigridlayout(g, [1 4]);
 bg.ColumnWidth = {'1x', 140, 110, 90}; bg.RowHeight = {'1x'};
 bg.Padding = [0 0 0 0]; bg.ColumnSpacing = 8;
 uilabel(bg, "Text", "");
-uibutton(bg, "Text", "Open on GitHub", "ButtonPushedFcn", @(~,~) openOnGitHub());
+gh = uibutton(bg, "Text", "Open on GitHub", "ButtonPushedFcn", @(~,~) openOnGitHub());
 uibutton(bg, "Text", "Copy report", "ButtonPushedFcn", @(~,~) copyOnly());
 uibutton(bg, "Text", "Cancel", "ButtonPushedFcn", @(~,~) delete(d));
+styleButton(findall(bg, "Type", "uibutton"));
+styleButton(gh, "primary");
 
 refresh();
 

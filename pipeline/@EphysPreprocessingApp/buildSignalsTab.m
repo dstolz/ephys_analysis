@@ -236,7 +236,7 @@ obj.ConvResetButton.Layout.Row = r; obj.ConvResetButton.Layout.Column = 2;
 runPanel = uipanel(g, "Title", "This step for the selected datasets");
 runPanel.Layout.Column = 2;
 rg = uigridlayout(runPanel, [3 3]);
-rg.RowHeight   = {'fit', '1x', 'fit'};
+rg.RowHeight   = {'fit', '1x', 30};
 rg.ColumnWidth = {'fit', '1x', 'fit'};
 hint = uilabel(rg, "WordWrap", "on", "FontColor", [0.4 0.4 0.4], "Text", ...
     "Datasets ticked on the Project tab (none ticked = all). Each dataset reads its own recording through its reader, so every supported layout works. Progress shows on the Run tab.");
@@ -244,7 +244,7 @@ hint.Layout.Row = 1; hint.Layout.Column = [1 3];
 obj.ConvTargetsTable = uitable(rg, "ColumnName", {'Dataset', 'Output file', 'Status', 'Note'}, ...
     "ColumnWidth", {'fit', '2x', 140, '1x'}, "RowName", {});
 obj.ConvTargetsTable.Layout.Row = 2; obj.ConvTargetsTable.Layout.Column = [1 3];
-obj.RunStepSignalsButton = uibutton(rg, "Text", "Run this step", "FontWeight", "bold", ...
+obj.RunStepSignalsButton = uibutton(rg, "Text", "Run this step", ...
     "ButtonPushedFcn", @(~,~) obj.onRunStep("signals"));
 obj.RunStepSignalsButton.Layout.Row = 3; obj.RunStepSignalsButton.Layout.Column = 1;
 obj.ConvRefreshButton = uibutton(rg, "Text", "Refresh plan", ...

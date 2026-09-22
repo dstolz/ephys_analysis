@@ -10,13 +10,13 @@ others = others(isvalid(others));
 if running
     set(others, "Enable", "off");
     obj.CopyRunButton.Text = "Cancel copy";
-    obj.CopyRunButton.BackgroundColor = [0.80 0.30 0.20];
+    styleButton(obj.CopyRunButton, "danger");
     obj.CopyRunButton.Tooltip = "Stop after the file being copied now. What has been copied is kept and can be completed later.";
     obj.CopyRunButton.ButtonPushedFcn = @(~,~) obj.onCopyCancel();
 else
     set(others, "Enable", "on");
     obj.CopyRunButton.Text = "Copy selected";
-    obj.CopyRunButton.BackgroundColor = [0.96 0.96 0.96];
+    styleButton(obj.CopyRunButton, "primary");
     obj.CopyRunButton.Tooltip = "Copy the ticked sessions in the background, verify them and write session_manifest.json in each. " + ...
         "The app stays usable while they copy; this button becomes Cancel copy.";
     obj.CopyRunButton.ButtonPushedFcn = @(~,~) obj.onCopyRun(false);

@@ -16,7 +16,7 @@ changed = @(~,~) obj.onConfigChanged();
 % --- rows 1-5: config name / project root / output root / name pattern / Open Ephys
 top = uigridlayout(g, [5 8]);
 top.Layout.Row = 1;
-top.RowHeight   = {'fit', 'fit', 'fit', 'fit', 'fit'};
+top.RowHeight   = {'fit', 30, 'fit', 'fit', 'fit'};
 top.ColumnWidth = {'fit', 460, 'fit', 'fit', 'fit', 'fit', 360, '1x'};
 top.Padding     = [0 0 0 0];
 
@@ -46,8 +46,7 @@ obj.RecursiveCheckBox = uicheckbox(top, "Text", "Recursive", "Value", true, ...
     "Tooltip", "Scan searches every sub-folder of the project root. Off: only the root and the folders directly in it.", ...
     "ValueChangedFcn", changed);
 obj.RecursiveCheckBox.Layout.Row = 2; obj.RecursiveCheckBox.Layout.Column = 4;
-obj.ScanButton = uibutton(top, "Text", "Scan", "FontWeight", "bold", "FontSize", 14, ...
-    "BackgroundColor", [0.15 0.45 0.80], "FontColor", [1 1 1], ...
+obj.ScanButton = uibutton(top, "Text", "Scan", ...
     "Tooltip", "Scan the project root for recordings.", ...
     "ButtonPushedFcn", @(~,~) obj.onScan());
 obj.ScanButton.Layout.Row = 2; obj.ScanButton.Layout.Column = 5;
@@ -111,7 +110,7 @@ obj.OEStreamField.Layout.Column = 5;
 % --- row 2: table toolbar ----------------------------------------------------
 tb = uigridlayout(g, [1 6]);
 tb.Layout.Row = 2;
-tb.RowHeight   = {'fit'};
+tb.RowHeight   = {30};
 tb.ColumnWidth = {'fit', 60, 60, 'fit', 'fit', '1x'};
 tb.Padding     = [0 0 0 0];
 lbl = uilabel(tb, "Text", "Datasets", "FontWeight", "bold");
@@ -151,7 +150,7 @@ obj.DatasetsTable.CellEditCallback = @(~,~) ticksEdited(obj);
 bp = uipanel(g, "Title", "Behavior: Epsych2 session files (associated per dataset, saved in the manifest)");
 bp.Layout.Row = 4;
 bg = uigridlayout(bp, [2 8]);
-bg.RowHeight   = {'fit', 'fit'};
+bg.RowHeight   = {'fit', 30};
 bg.ColumnWidth = {'fit', 460, 'fit', 'fit', 'fit', 'fit', '1x', 'fit'};
 
 obj.BehEnableCheckBox = uicheckbox(bg, "Text", "Match sessions as a pipeline step", ...

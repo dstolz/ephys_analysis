@@ -174,7 +174,7 @@ obj.SpkMatVersionDropDown.Layout.Row = r; obj.SpkMatVersionDropDown.Layout.Colum
 right = uigridlayout(g, [4 2]);
 right.Layout.Column = 2;
 right.ColumnWidth = {'fit', '1x'};
-right.RowHeight = {'fit', 'fit', '1x', 'fit'};
+right.RowHeight = {'fit', 'fit', '1x', 30};
 right.Padding = [0 0 0 0];
 pp = uigridlayout(right, [1 5]);
 pp.Layout.Column = [1 2];
@@ -192,7 +192,7 @@ l.Layout.Row = 2; l.Layout.Column = [1 2];
 obj.SpkPreviewTable = uitable(right, "ColumnName", {'Ch', 'Name', 'Threshold (uV)', 'Events', 'Rate (Hz)'}, ...
     "ColumnWidth", {44, '1x', 110, 80, 90}, "RowName", {});
 obj.SpkPreviewTable.Layout.Row = 3; obj.SpkPreviewTable.Layout.Column = [1 2];
-obj.RunStepSpikesButton = uibutton(right, "Text", "Run this step", "FontWeight", "bold", ...
+obj.RunStepSpikesButton = uibutton(right, "Text", "Run this step", ...
     "ButtonPushedFcn", @(~,~) obj.onRunStep("spikes"));
 obj.RunStepSpikesButton.Layout.Row = 4; obj.RunStepSpikesButton.Layout.Column = 1;
 

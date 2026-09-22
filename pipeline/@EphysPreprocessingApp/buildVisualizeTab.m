@@ -120,6 +120,7 @@ row = row + 1;
 obj.VizPlotButton = uibutton(cg, "Text", "Plot", ...
     "ButtonPushedFcn", @(~,~) obj.onPlotVisualization());
 obj.VizPlotButton.Layout.Row = row; obj.VizPlotButton.Layout.Column = [1 2];
+cg.RowHeight{row} = 30;
 
 row = row + 1;
 obj.VizStatusLabel = uilabel(cg, "Text", "", "FontColor", [0.4 0.4 0.4]);
@@ -132,11 +133,13 @@ obj.VizArtButton = uibutton(cg, "state", "Text", "Mark Artifacts: off", ...
         "never changed - marked periods are zeroed only when the .bin is written."], ...
     "ValueChangedFcn", @(src,~) obj.onVizArtToggle(src.Value));
 obj.VizArtButton.Layout.Row = row; obj.VizArtButton.Layout.Column = [1 2];
+cg.RowHeight{row} = 30;
 
 row = row + 1;
 obj.VizArtClearButton = uibutton(cg, "Text", "Clear Artifacts", ...
     "ButtonPushedFcn", @(~,~) obj.onVizArtClear());
 obj.VizArtClearButton.Layout.Row = row; obj.VizArtClearButton.Layout.Column = [1 2];
+cg.RowHeight{row} = 30;
 
 row = row + 1;
 obj.VizArtStatusLabel = uilabel(cg, "Text", "No artifacts defined.", ...

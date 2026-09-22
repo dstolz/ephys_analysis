@@ -42,8 +42,10 @@ on `pipeline`; `pipeline` does not depend on it. See [Analysis](EphysAnalysis.md
 | [Remote jobs](remote-jobs.md) | **design proposal, not implemented** — running the pipeline as queued jobs on a remote Windows machine, monitored from MATLAB or a browser |
 
 Existing docs next to the code: [INSTALL.md](../pipeline/INSTALL.md) (Windows
-setup, conda environments, GPU) and
-[probes/README.md](../pipeline/probes/README.md) (probe map format).
+setup, conda environments, GPU),
+[probes/README.md](../pipeline/probes/README.md) (probe map format) and
+[tools/wiki/README.md](../tools/wiki/README.md) (updating the GitHub wiki:
+the API generator, the link check and the app screenshots).
 
 ## How the pieces fit
 

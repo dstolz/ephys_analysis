@@ -26,8 +26,8 @@ classdef EphysPipelineConfig
     %                once; the others wait for a free slot), Devices
     %                (torch devices such as "cuda:0" "cuda:1" shared out
     %                among the runs; none = Kilosort4's choice), DryRun,
-    %                SkipExisting, SI (SpikeInterface), KS4 (typed per
-    %                kilosortParamSpec), KS4ExtraJSON
+    %                SkipExisting, KS4 (typed per kilosortParamSpec),
+    %                KS4ExtraJSON
     %     Signals    Enabled + the derived-signal (toMat) settings,
     %                ExcludeHandling, LabelField ("custom" | "native" names),
     %                LineNames ("native=name" digital-line names) and

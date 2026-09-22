@@ -1,5 +1,5 @@
 function iv = artifactIntervals(obj, opts)
-%artifactIntervals  Merged artifact periods (seconds) for SI silence_periods.
+%artifactIntervals  Merged artifact periods (seconds) erased before sorting.
 %   IV = ds.artifactIntervals() returns a [k x 2] matrix of [tStart tEnd] in
 %   seconds, recording-relative (file 1 = t0), combining:
 %     * every manual period in ds.ManualArtifacts (always included), and
@@ -8,9 +8,9 @@ function iv = artifactIntervals(obj, opts)
 %   Overlapping / adjacent periods are merged into one. Every period is
 %   half-open, [tStart tEnd) on the 0-based sample clock (detectArtifacts,
 %   manualArtifactMask), so an artifact cut by a chunk boundary comes back as
-%   one period. runSpikeInterface passes this list to the generated Python so
-%   SpikeInterface's silence_periods zeros exactly these spans in the
-%   recording it feeds Kilosort4; the *.rhd files are never modified.
+%   one period. runKilosort passes this list to toBin, which erases exactly
+%   these spans in the .bin it feeds Kilosort4; the recording files are never
+%   modified.
 %
 %   Auto intervals are found with the same streamPlan + artifactChunk loop the
 %   Artifacts-tab preview uses (analyzeArtifacts), one chunk in memory at a time
@@ -36,7 +36,7 @@ function iv = artifactIntervals(obj, opts)
 %       each chunk (serial) or as each chunk finishes (parallel)
 %
 %   See also EphysDataset.detectArtifacts, EphysDataset.analyzeArtifacts,
-%   EphysDataset.runSpikeInterface, EphysDataset.ManualArtifacts.
+%   EphysDataset.runKilosort, EphysDataset.ManualArtifacts.
 
 arguments
     obj (1,1) EphysDataset

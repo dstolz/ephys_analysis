@@ -17,7 +17,7 @@ switch obj.Tabs.SelectedTab
         obj.refreshManualArtifactsTable();
         obj.refreshReferencePanel();
     case obj.TabSorting
-        msg = "Sorting: SpikeInterface + Kilosort4 settings; Run this step or the whole pipeline.";
+        msg = "Sorting: Kilosort4 settings; Run this step or the whole pipeline.";
         obj.refreshSortingLabel();
     case obj.TabSignals
         msg = "Signals: derive LFP / MUA / SPIKE / AUX for the selected datasets.";

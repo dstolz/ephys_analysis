@@ -297,7 +297,7 @@ check(nArt > 1 && isequal(app.ArtView.intervals, sm.intervals) && app.ArtViewCou
 % Auto context (25 ms) spans the whole 512-sample recording; all 4 channels drawn.
 nPts  = @(name) sum(arrayfun(@(h) nnz(~isnan(h.YData)), findobj(ax, 'Type', 'line', 'DisplayName', name)));
 nKept = @() nPts('Kept');                 % one line per lane
-nRem  = @() nPts('Removed (zeroed)');
+nRem  = @() nPts('Removed (replaced)');
 manMask = dA.manualArtifactMask(nSamp, 0, Fs);
 allMask = manMask | dA.manualArtifactMask(nSamp, 0, Fs, sm.intervals);
 check(numel(ax.YTick) == numAmp && nKept() == numAmp * (nSamp - nnz(manMask)) && nRem() > 0 ...
@@ -306,7 +306,7 @@ check(numel(ax.YTick) == numAmp && nKept() == numAmp * (nSamp - nnz(manMask)) &&
     'detection off: only the manual period is removed (red), the detected artifacts shaded but kept');
 app.ArtEnableCheckBox.Value = true;
 app.onArtifactControlsChanged();
-check(nKept() == numAmp * (nSamp - nnz(allMask)) && startsWith(app.ArtViewNoteLabel.Text, "Red is what a run removes: zeroed"), ...
+check(nKept() == numAmp * (nSamp - nnz(allMask)) && startsWith(app.ArtViewNoteLabel.Text, "Red is what a run removes: replaced"), ...
     'detection on: the detected artifacts are removed too');
 app.ArtApplySortingCheckBox.Value = false; app.ArtApplySpikesCheckBox.Value = false;
 app.onArtifactControlsChanged();

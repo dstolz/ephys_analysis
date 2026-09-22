@@ -483,7 +483,11 @@ classdef EphysPipeline < handle
                 return
             end
             schema = "ephys-artifacts/2";
-            fp = string(jsonencode(struct('schema', schema, 'config', acfg, 'manual', manual, ...
+            % Keyed by what decides the intervals: the fill fields say how the
+            % periods are erased, not which they are, so a change there must
+            % not throw away a detection.
+            det = rmfield(acfg, intersect(fieldnames(acfg), {'Fill', 'NoiseBandHz', 'NoiseSeed'}));
+            fp = string(jsonencode(struct('schema', schema, 'config', det, 'manual', manual, ...
                 'files', cellstr(d.Files(:).'), 'nSamples', d.NumSamples)));
             cacheFile = obj.outputPathFor("artifacts", d);
             if a.CacheIntervals && isfile(cacheFile)

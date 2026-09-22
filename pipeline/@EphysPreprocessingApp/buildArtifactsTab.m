@@ -33,7 +33,7 @@ left.RowHeight = {'1x', 210};
 
 ctrl = uipanel(left, "Title", "Automatic artifact detection (config: Artifacts)");
 
-nRows = 16;
+nRows = 17;
 cg = uigridlayout(ctrl, [nRows 2]);
 cg.RowHeight   = [repmat({'fit'}, 1, nRows - 1), {'1x'}];
 cg.ColumnWidth = {'fit', '1x'};
@@ -108,6 +108,20 @@ lab(cg, "High-pass (Hz):", row);
 obj.ArtHighpassField = uieditfield(cg, "numeric", "Value", 300, "Limits", [0 Inf], "Enable", "off", ...
     "ValueChangedFcn", changed);
 obj.ArtHighpassField.Layout.Row = row; obj.ArtHighpassField.Layout.Column = 2;
+
+row = row + 1;
+lab(cg, "Erase with:", row);
+obj.ArtFillDropDown = uidropdown(cg);
+obj.ArtFillDropDown.Items = {'Gaussian noise (recording level)', 'Zeros'};
+obj.ArtFillDropDown.ItemsData = {'noise', 'zero'};
+obj.ArtFillDropDown.Value = 'noise';
+obj.ArtFillDropDown.Tooltip = "What replaces the artifact samples, manual periods included. " + ...
+    "Kilosort4 reads a block of zeros across every channel as a signal discontinuity, " + ...
+    "so the periods are filled with per-channel Gaussian noise at the recording's own " + ...
+    "level (measured over the whole recording, above 300 Hz; the band and the random " + ...
+    "seed are the config's NoiseBandHz and NoiseSeed).";
+obj.ArtFillDropDown.ValueChangedFcn = changed;
+obj.ArtFillDropDown.Layout.Row = row; obj.ArtFillDropDown.Layout.Column = 2;
 
 row = row + 1;
 obj.ArtApplySortingCheckBox = uicheckbox(cg, "Text", "Silence in sorting (SpikeInterface silence_periods)", ...

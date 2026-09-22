@@ -180,7 +180,7 @@ if byShank
     keptName = "Shank " + L.shank(ch);
     keptName(isnan(L.shank(ch))) = "Not on the probe";
 end
-hRem  = drawLanes(ax, t, yRem, repmat(red, nShow, 1), repmat("Removed (zeroed)", 1, nShow));
+hRem  = drawLanes(ax, t, yRem, repmat(red, nShow, 1), repmat("Removed (replaced)", 1, nShow));
 hKept = drawLanes(ax, t, yKept, laneColor, keptName);
 
 % Legend: the kept signal (one entry per shank when coloured), removed, the shadings.
@@ -189,7 +189,7 @@ hLeg = gobjects(0, 1);
 for j = first(:).'
     hLeg(end+1, 1) = legendLine(ax, hKept(keptName == keptName(j)), laneColor(j, :), keptName(j)); %#ok<AGROW>
 end
-hLeg = [hLeg; legendLine(ax, hRem, red, "Removed (zeroed)"); hDet(1:min(1, end)); hMan(1:min(1, end))];
+hLeg = [hLeg; legendLine(ax, hRem, red, "Removed (replaced)"); hDet(1:min(1, end)); hMan(1:min(1, end))];
 hold(ax, 'off');
 legend(ax, hLeg, 'Location', 'southoutside', 'NumColumns', min(numel(hLeg), 4), ...
     'Box', 'off', 'AutoUpdate', 'off');
@@ -312,9 +312,9 @@ toSort = logical(obj.ArtApplySortingCheckBox.Value);
 toSpk  = logical(obj.ArtApplySpikesCheckBox.Value);
 if autoRemoved(obj)
     if toSort && toSpk
-        uses = "zeroed on every channel for sorting, and spikes inside are rejected";
+        uses = "replaced on every channel for sorting, and spikes inside are rejected";
     elseif toSort
-        uses = "zeroed on every channel for sorting (spike detection keeps it)";
+        uses = "replaced on every channel for sorting (spike detection keeps it)";
     else
         uses = "spikes inside are rejected (sorting keeps the signal)";
     end

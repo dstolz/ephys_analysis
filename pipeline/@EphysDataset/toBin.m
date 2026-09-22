@@ -36,18 +36,39 @@ function info = toBin(obj, opts)
 %     ArtifactIntervals [k x 2] recording-relative seconds to blank instead of
 %                    the manual periods and the detector ([] = blank nothing;
 %                    default NaN = ManualArtifacts, plus detection as above)
+%     ArtifactFill   "noise" | "zero"  what replaces the artifact samples
+%                    (default: ds.ArtifactConfig.Fill, "noise"). Kilosort4
+%                    reads a block of zeros across every channel as a signal
+%                    discontinuity, so the periods are filled with per-channel
+%                    Gaussian noise matched to the recording's own noise level.
+%     NoiseBandHz    (1,1) double  band the noise level is measured in: the
+%                    level is taken on a high-pass-filtered view of the whole
+%                    recording at this cut-off, the band a sorter works in
+%                    (default ds.ArtifactConfig.NoiseBandHz, 300 Hz; 0 =
+%                    broadband). Ignored when Filter is on - the level is then
+%                    measured through that same write filter.
+%     NoiseSeed      (1,1) double  RNG seed for the fill, so the .bin is
+%                    reproducible (default NaN: ds.ArtifactConfig.NoiseSeed,
+%                    itself 0; set that to NaN for a new draw each run)
+%     NoiseLevels    struct  precomputed levels from ds.noiseLevels() (sigma /
+%                    center, microvolts, one per written channel). Default
+%                    struct([]): toBin measures them itself, in one extra
+%                    streaming pass over the recording before it writes.
 %     WriteMeta      (1,1) logical  write JSON sidecar (default true)
 %     BinFile        (1,1) string   override output path (default ds.BinFile)
 %
 %   Output INFO struct: filename, dtype, nChan, nSamples, fs, scale, offset,
-%   nClipped, nBytes, metaFile (if written), nManualBlanked, nAutoBlanked, and
-%   autoArtifact (struct: enabled, method, threshold, rmsWindowMs, mergeGapMs,
-%   minChannels, padMs, nBlanked, fraction, pctDuration, nIntervals, channelCounts).
+%   nClipped, nBytes, metaFile (if written), nManualBlanked, nAutoBlanked,
+%   artifactFill, noiseFill (struct: bandHz, seed, sigma, center - empty when
+%   filling with zeros) and autoArtifact (struct: enabled, method, threshold,
+%   rmsWindowMs, mergeGapMs, minChannels, padMs, nBlanked, fraction,
+%   pctDuration, nIntervals, channelCounts).
 %
 %   GUARD: every file must have the same amplifier channel count as the first;
 %   a flat int16 .bin cannot represent a mid-dataset channel-count change.
 %
-%   See also MATRIX2KILOSORT, EphysDataset.matrixToBin, EphysDataset.filterContinuous.
+%   See also MATRIX2KILOSORT, EphysDataset.matrixToBin, EphysDataset.filterContinuous,
+%   EphysDataset.noiseLevels, EphysDataset.blankArtifacts.
 
 arguments
     obj (1,1) EphysDataset
@@ -69,6 +90,10 @@ arguments
     opts.ArtifactMergeGapMs (1,1) double = NaN
     opts.ArtifactMinChannels (1,1) double = NaN
     opts.ArtifactPadMs (1,1) double = NaN
+    opts.ArtifactFill (1,1) string {mustBeMember(opts.ArtifactFill, ["","noise","zero"])} = ""
+    opts.NoiseBandHz (1,1) double = NaN
+    opts.NoiseSeed (1,1) double = NaN
+    opts.NoiseLevels struct = struct([])
     opts.WriteMeta (1,1) logical = true
     opts.BinFile (1,1) string = ""
     opts.ArtifactIntervals double = NaN
@@ -109,6 +134,16 @@ artGapMs  = opts.ArtifactMergeGapMs;    if isnan(artGapMs);       artGapMs  = ac
 artMinCh  = opts.ArtifactMinChannels;   if isnan(artMinCh);       artMinCh  = acfg.MinChannels;  end
 artPadMs  = opts.ArtifactPadMs;         if isnan(artPadMs);       artPadMs  = acfg.PadMs;        end
 
+% How the flagged samples are erased (what replaces them), as opposed to which
+% samples those are.
+artFill   = opts.ArtifactFill;          if artFill == "";         artFill   = string(acfg.Fill);  end
+noiseBand = opts.NoiseBandHz;           if isnan(noiseBand);      noiseBand = acfg.NoiseBandHz;   end
+noiseSeed = opts.NoiseSeed;             if isnan(noiseSeed);      noiseSeed = acfg.NoiseSeed;     end
+if ~(isfinite(noiseBand) && noiseBand >= 0)
+    error('EphysDataset:toBin:BadNoiseBand', ...
+        'NoiseBandHz must be 0 (broadband) or a positive frequency.');
+end
+
 % Resolve the streaming plan (one chunk per *.rhd file for traditional Intan;
 % bounded sample windows for every other layout). The downstream loop is
 % identical for every format because each chunk yields a [nSamp x nChan]
@@ -133,6 +168,46 @@ end
 
 % Overlap mode needs filtering on
 useOverlap = opts.Filter && opts.FilterEdgeMode == "overlap" && opts.OverlapSamples > 0;
+
+% How the artifact samples are erased. "noise" replaces them with per-channel
+% Gaussian noise at the recording's own level instead of zeros, so nothing in
+% the .bin reads to Kilosort4 as a signal discontinuity (a zeroed block breaks
+% its whitening, threshold and drift estimates). Measuring that level costs one
+% extra streaming pass before this one - skipped when there is nothing to
+% blank, or when the caller already has the levels.
+willBlank  = doBlank || ~isempty(listIv);
+noiseFill  = struct([]);
+fillStream = [];
+if artFill == "noise" && willBlank
+    nl = opts.NoiseLevels;
+    if isempty(fieldnames(nl))
+        fprintf('Measuring the recording''s noise level (%s) for the artifact fill...\n', ...
+            bandNote(opts, noiseBand));
+        nlArgs = [{'Files', opts.Files, 'ChannelOrder', opts.ChannelOrder}, ...
+            noiseFilterArgs(opts, noiseBand)];
+        nl = obj.noiseLevels(nlArgs{:});
+    elseif ~all(isfield(nl, {'sigma', 'center'}))
+        error('EphysDataset:toBin:BadNoiseLevels', ...
+            'NoiseLevels needs sigma and center fields (see EphysDataset.noiseLevels).');
+    end
+    noiseFill = struct('bandHz', noiseBand, 'seed', noiseSeed, ...
+        'sigma', double(nl.sigma(:).'), 'center', double(nl.center(:).'));
+    % One stream for the whole file, seeded so a rerun writes the same .bin,
+    % and kept off the global stream so a caller's own draws stay theirs.
+    if isnan(noiseSeed)
+        fillStream = RandStream('threefry', 'Seed', 'shuffle');
+    else
+        fillStream = RandStream('threefry', 'Seed', noiseSeed);
+    end
+    fprintf('Artifact fill: Gaussian noise, median sigma %.2f uV across %d channel(s).\n', ...
+        median(noiseFill.sigma), numel(noiseFill.sigma));
+end
+if isempty(noiseFill)
+    fillArgs = {'Fill', "zero"};
+else
+    fillArgs = {'Fill', "noise", 'NoiseSigma', noiseFill.sigma, ...
+        'NoiseCenter', noiseFill.center, 'Stream', fillStream};
+end
 
 fid = fopen(binFile, 'w', 'ieee-le');
 if fid < 0
@@ -209,7 +284,7 @@ for i = 1:numel(plan)
         [mask, ~, astats] = obj.detectArtifacts(X, Method=artMethod, ...
             Threshold=artThr, RmsWindowMs=artWinMs, MinChannels=artMinCh, ...
             MergeGapMs=artGapMs, PadMs=artPadMs, Fs=Fs);
-        X = obj.blankArtifacts(X, mask, Fill="zero");
+        X = obj.blankArtifacts(X, mask, fillArgs{:});
         nAutoBlanked   = nAutoBlanked + nnz(mask);
         nAutoIntervals = nAutoIntervals + astats.numIntervals;
         if isempty(autoChanCounts)
@@ -227,7 +302,7 @@ for i = 1:numel(plan)
     if ~isempty(listIv)
         mmask = obj.manualArtifactMask(size(X, 1), nSamples, Fs, listIv);
         if any(mmask)
-            X = obj.blankArtifacts(X, mmask, Fill="zero");
+            X = obj.blankArtifacts(X, mmask, fillArgs{:});
             nManualBlanked = nManualBlanked + nnz(mmask);
         end
     end
@@ -264,6 +339,8 @@ info.nClipped  = nClipped;
 info.nManualArtifacts = size(listIv, 1);
 info.nManualBlanked   = nManualBlanked;
 info.nAutoBlanked     = nAutoBlanked;
+info.artifactFill     = char(artFill);
+info.noiseFill        = noiseFill;
 if isempty(autoChanCounts); autoChanCounts = zeros(1, nChanOut); end
 info.autoArtifact = struct( ...
     'enabled',       doBlank, ...
@@ -280,15 +357,16 @@ info.autoArtifact = struct( ...
     'channelCounts', autoChanCounts);
 info.nBytes    = d.bytes;
 
+filled = ternary(artFill == "noise", "noise-filled", "zeroed");
 if doBlank
-    fprintf(['Auto artifacts (%s, thr=%g): %d samples (%.3f s, %.2f%%) zeroed ' ...
+    fprintf(['Auto artifacts (%s, thr=%g): %d samples (%.3f s, %.2f%%) %s ' ...
         'in %d interval(s).\n'], artMethod, artThr, nAutoBlanked, ...
-        nAutoBlanked / max(Fs, 1), info.autoArtifact.pctDuration, nAutoIntervals);
+        nAutoBlanked / max(Fs, 1), info.autoArtifact.pctDuration, filled, nAutoIntervals);
 end
 
 if nManualBlanked > 0
-    fprintf('Blanked %d listed artifact period(s): %d samples (%.3f s) zeroed.\n', ...
-        info.nManualArtifacts, nManualBlanked, nManualBlanked / max(Fs, 1));
+    fprintf('Blanked %d listed artifact period(s): %d samples (%.3f s) %s.\n', ...
+        info.nManualArtifacts, nManualBlanked, nManualBlanked / max(Fs, 1), filled);
 end
 
 if nClipped > 0
@@ -306,8 +384,12 @@ if opts.WriteMeta
         'source_folder', char(obj.Folder), ...
         'manual_artifacts', listIv, ...
         'n_manual_blanked', nManualBlanked, ...
+        'artifact_fill', char(artFill), ...
         'auto_artifacts', info.autoArtifact, ...
         'created', char(datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss')));
+    % Assigned, not passed to struct(): an empty struct value there would
+    % collapse the whole meta struct to 0x0.
+    meta.noise_fill = noiseFill;
     metaFile = fullfile(mDir, mName + ".json");
     writeJson(meta, metaFile);
     info.metaFile = char(metaFile);
@@ -318,13 +400,48 @@ if ~isempty(obj.Manifest) && isa(obj.Manifest, 'Manifest')
         struct('binFile', info.filename, 'nChan', info.nChan, ...
         'nSamples', info.nSamples, 'fs', info.fs, ...
         'filtered', opts.Filter, 'blanked', doBlank, ...
-        'autoBlanked', nAutoBlanked, ...
+        'fill', char(artFill), 'autoBlanked', nAutoBlanked, ...
         'manualArtifacts', info.nManualArtifacts, ...
         'manualBlanked', nManualBlanked));
 end
 
 fprintf('Done. %.2f MB written (%s, little-endian); n_chan_bin=%d, fs=%g\n', ...
     info.nBytes/1e6, info.dtype, info.nChan, info.fs);
+end
+
+
+function args = noiseFilterArgs(opts, noiseBand)
+%noiseFilterArgs  noiseLevels filter options for what this call writes.
+%   The fill has to sit in the same band as the signal around it, so the level
+%   is measured through the write filter when toBin filters, and otherwise on a
+%   high-pass view at NoiseBandHz - the spike band Kilosort4 filters down to,
+%   where a broadband level would overstate the noise by the whole LFP.
+if opts.Filter
+    args = {'Filter', true, 'FilterType', opts.FilterType, ...
+        'FilterCutoff', opts.FilterCutoff, 'FilterOrder', opts.FilterOrder};
+elseif noiseBand > 0
+    args = {'Filter', true, 'FilterType', "highpass", ...
+        'FilterCutoff', noiseBand, 'FilterOrder', 4};
+else
+    args = {'Filter', false};
+end
+end
+
+
+function s = bandNote(opts, noiseBand)
+%bandNote  How noiseFilterArgs measured the level, for the console.
+if opts.Filter
+    s = "through the write filter";
+elseif noiseBand > 0
+    s = sprintf("above %g Hz", noiseBand);
+else
+    s = "broadband";
+end
+end
+
+
+function v = ternary(tf, a, b)
+if tf; v = a; else; v = b; end
 end
 
 

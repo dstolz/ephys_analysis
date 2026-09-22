@@ -106,7 +106,7 @@ There are **two Kilosort4 engines**:
 | Engine | Method | Writes a `.bin`? | Used by |
 | --- | --- | --- | --- |
 | SpikeInterface | `EphysDataset.runSpikeInterface` | no; SpikeInterface reads the raw files | the pipeline's `sorting` step with `Sorting.Engine = "spikeinterface"` (the default) |
-| native Kilosort4 | `EphysDataset.runKilosort` (calls `toBin`) | yes, with the artifact periods zeroed | the `sorting` step with `Sorting.Engine = "kilosort"` |
+| native Kilosort4 | `EphysDataset.runKilosort` (calls `toBin`) | yes, with the artifact periods erased | the `sorting` step with `Sorting.Engine = "kilosort"` |
 
 ## Quick start
 
@@ -211,8 +211,11 @@ matches `chanMap` to them; see
 
 No class modifies recording files. Sorting never modifies the probe `.json` it
 uses: channel exclusions go through a derived probe (legacy engine) or
-SpikeInterface channel removal. Artifacts are zeroed in the written `.bin` or
-in the SpikeInterface recording, never in the source. Probe files are changed
+SpikeInterface channel removal. Artifacts are erased in the written `.bin` or
+in the SpikeInterface recording, never in the source - replaced with
+per-channel Gaussian noise at the recording's own level by default
+(`ArtifactConfig.Fill`), because a sorter reads a block of zeros across every
+channel as a signal discontinuity. Probe files are changed
 only by explicit GUI actions: editing a Notes cell, a Designer save, or an
 Import that you confirm should overwrite. The files written **into the raw
 folder** are `<Name>_manifest.json` and, for Open Ephys sessions in

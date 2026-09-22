@@ -1,6 +1,7 @@
 import sys
 import os
 import json
+import time
 import traceback
 
 
@@ -334,7 +335,7 @@ def build_probe(cfg, rec):
     return probe
 
 
-# Refuse to sort when artifact silencing would zero more than this share of
+# Refuse to sort when artifact silencing would replace more than this share of
 # the recording: Kilosort4 then finds no spikes and fails deep inside its
 # template SVD with an unhelpful "Found array with 0 sample(s)".
 MAX_SILENCED_FRACTION = 0.5
@@ -364,6 +365,59 @@ def to_frames(periods_s, fs, n_samples):
         if b > a:
             frames.append((a, b))
     return frames
+
+
+def noise_levels_whole_recording(rec, band_hz, fs, block_s=10.0):
+    """Per-channel noise level of the WHOLE recording, for the artifact fill.
+
+    Every block of the recording contributes its own per-channel median and
+    robust SD (1.4826 x MAD); the level returned is the median of those. Both
+    statistics are robust, so the artifacts that are about to be replaced
+    cannot inflate the noise replacing them, and no detection is needed here.
+
+    Measured on a high-pass view at BAND_HZ (0 = broadband, as recorded): the
+    fill is white, and a broadband level - dominated by the LFP - would put far
+    more power into the spike band than the real signal around it carries.
+    Filtering only the measurement, never the traces, keeps the levels in the
+    units silence_periods fills with.
+    """
+    import numpy as np
+    src = rec
+    if band_hz and band_hz > 0:
+        import spikeinterface.preprocessing as spre
+        src = spre.highpass_filter(rec, freq_min=band_hz)
+    n = src.get_num_samples()
+    step = max(int(round(block_s * fs)), 1)
+    levels = []
+    for a in range(0, n, step):
+        tr = np.asarray(src.get_traces(start_frame=a, end_frame=min(a + step, n)),
+                        dtype='float32')
+        if tr.size == 0:
+            continue
+        med = np.median(tr, axis=0)
+        levels.append(1.4826 * np.median(np.abs(tr - med), axis=0))
+    if not levels:
+        return None
+    return np.median(np.stack(levels, axis=0), axis=0).astype('float32')
+
+
+def cap_noise_levels(levels, dtype):
+    """Keep the fill inside DTYPE's range (numpy wraps instead of clipping).
+
+    A level over a sixth of the range would put samples outside it; on a real
+    recording the background noise is orders of magnitude below that, so this
+    only ever fires on a broken measurement - loudly, rather than wrapping
+    huge fill samples round to the opposite rail.
+    """
+    import numpy as np
+    if np.issubdtype(dtype, np.floating):
+        return levels
+    cap = float(np.iinfo(dtype).max) / 6.0
+    if float(np.max(levels)) > cap:
+        log('WARNING: noise level %.4g exceeds a sixth of the %s range; capped at %.4g'
+            % (float(np.max(levels)), np.dtype(dtype).name, cap))
+        levels = np.minimum(levels, cap)
+    return levels
 
 
 def _patch_silence_periods_dtype():
@@ -464,22 +518,55 @@ def build_pipeline(cfg):
                 % (covered / fs, n_samples / fs, 100 * share))
             if share > MAX_SILENCED_FRACTION:
                 raise ValueError(
-                    'Artifact silencing would zero %.0f%% of the recording '
+                    'Artifact silencing would erase %.0f%% of the recording '
                     '(%d period(s), %.4g of %.4g s; limit %.0f%%). Kilosort4 '
                     'would find no spikes. Check the artifact detector settings '
                     'or turn off artifact silencing for this dataset.'
                     % (100 * share, len(frames), covered / fs, n_samples / fs,
                        100 * MAX_SILENCED_FRACTION))
+            # What replaces the silenced samples. "noise" (the default) fills
+            # them with per-channel Gaussian noise at the recording's own
+            # level; Kilosort4 reads a block of zeros across every channel as
+            # a signal discontinuity, which skews its whitening, thresholds
+            # and drift estimate.
+            mode = str(sil.get('mode', 'noise') or 'noise')
+            seed = sil.get('seed', None)
+            seed = None if seed is None else int(seed)
+            levels = None
+            in_dtype = rec.get_dtype()
+            as_float = mode == 'noise' and not np.issubdtype(in_dtype, np.floating)
+            if mode == 'noise':
+                band = sil.get('noise_band_hz', 300)
+                band = 0.0 if band is None else float(band)
+                t0 = time.time()
+                levels = noise_levels_whole_recording(rec, band, fs)
+                if levels is None:
+                    raise ValueError('Could not measure the recording noise level for the artifact fill.')
+                levels = cap_noise_levels(levels, in_dtype)
+                log('noise fill: median level %.4g (%s) measured over the whole recording in %.1f s'
+                    % (float(np.median(levels)),
+                       ('above %g Hz' % band) if band > 0 else 'broadband',
+                       time.time() - t0))
+                if as_float:
+                    # SpikeInterface generates the noise with
+                    # NoiseGeneratorRecording, which is float-only, so the fill
+                    # happens on a float view and casts straight back: the
+                    # traces Kilosort4 reads stay in the recording's dtype.
+                    rec = spre.astype(rec, 'float32')
             _patch_silence_periods_dtype()
+            fill = dict(mode=mode, noise_levels=levels, seed=seed)
             try:
                 periods = np.array([(0, a, b) for (a, b) in frames],
                                    dtype=[('segment_index', 'int64'),
                                           ('start_sample_index', 'int64'),
                                           ('end_sample_index', 'int64')])
-                rec = spre.silence_periods(rec, periods)
+                rec = spre.silence_periods(rec, periods, **fill)
             except (ValueError, TypeError):
-                rec = spre.silence_periods(rec, [frames])   # older list-per-segment API
-            log('silenced %d artifact period(s)' % len(frames))
+                rec = spre.silence_periods(rec, [frames], **fill)   # older list-per-segment API
+            if as_float:
+                rec = spre.astype(rec, in_dtype)   # rounds back to int16
+            log('silenced %d artifact period(s) with %s'
+                % (len(frames), 'noise' if mode == 'noise' else 'zeros'))
 
     return rec, bad
 

@@ -31,6 +31,18 @@ function result = runSpikeInterface(obj, opts)
 %     ArtifactIntervals [k x 2] seconds periods to silence; [] silences nothing
 %                      (default NaN: computed from ds.artifactIntervals(),
 %                      manual + auto when enabled)
+%     ArtifactFill     "noise" | "zero"  what replaces the silenced samples
+%                      (default ds.ArtifactConfig.Fill, "noise"): SpikeInterface
+%                      silence_periods mode "noise" or "zeros". Kilosort4 reads
+%                      a block of zeros across every channel as a signal
+%                      discontinuity, so the periods are filled with
+%                      per-channel Gaussian noise at the recording's own level.
+%     NoiseBandHz      (1,1) double  band that level is measured in, on a
+%                      high-pass view of the whole recording (default
+%                      ds.ArtifactConfig.NoiseBandHz, 300 Hz; 0 = broadband)
+%     NoiseSeed        (1,1) double  RNG seed for the fill, so a rerun silences
+%                      identically (default NaN: ds.ArtifactConfig.NoiseSeed,
+%                      itself 0; set that to NaN for a new draw each run)
 %     DryRun           (1,1) logical  write files + build command, do NOT spawn
 %     Wait             (1,1) logical  block until finished (default true). When
 %                      false, launched detached (background) with stdout/stderr
@@ -69,6 +81,9 @@ arguments
     opts.SIConfig struct = struct()
     opts.ExtraSettings (1,1) struct = struct()
     opts.ArtifactIntervals double = NaN
+    opts.ArtifactFill (1,1) string {mustBeMember(opts.ArtifactFill, ["","noise","zero"])} = ""
+    opts.NoiseBandHz (1,1) double = NaN
+    opts.NoiseSeed (1,1) double = NaN
     opts.Files (1,:) string = string.empty(1,0)
     opts.DryRun (1,1) logical = false
     opts.Wait (1,1) logical = true
@@ -136,7 +151,9 @@ if ~isempty(fieldnames(opts.SIConfig))
     sicfg = EphysDataset.normalizeSIConfig(opts.SIConfig);
 end
 
-% Artifact periods to silence (manual + auto when enabled), in seconds.
+% Artifact periods to silence (manual + auto when enabled), in seconds, and
+% how they are erased (ArtifactConfig, shared with toBin).
+acfg = EphysDataset.normalizeArtifactConfig(obj.ArtifactConfig);
 [intervals, given] = explicitIntervals(opts.ArtifactIntervals);
 if ~given
     intervals = obj.artifactIntervals();
@@ -167,6 +184,20 @@ cfg.log_path         = fwdslash(stdoutLog);
 % struct(), which would build a struct array instead of storing the cell).
 sp = struct('enabled', ~isempty(intervals));
 sp.periods_s = num2cell(intervals, 2);
+
+% What replaces the silenced samples. "noise" is SpikeInterface's noise mode:
+% per-channel Gaussian noise at the level the Python side measures over the
+% whole recording, rather than a block of zeros Kilosort4 would read as a
+% signal discontinuity. The fill settings live in ArtifactConfig beside the
+% detector's, so both sorting engines erase artifacts the same way.
+artFill = opts.ArtifactFill;  if artFill == "";  artFill = string(acfg.Fill);  end
+if artFill == "noise"; sp.mode = 'noise'; else; sp.mode = 'zeros'; end
+sp.noise_band_hz = opts.NoiseBandHz;  if isnan(sp.noise_band_hz); sp.noise_band_hz = acfg.NoiseBandHz; end
+sp.seed = opts.NoiseSeed;             if isnan(sp.seed);          sp.seed = acfg.NoiseSeed;          end
+if ~(isfinite(sp.noise_band_hz) && sp.noise_band_hz >= 0)
+    error('EphysDataset:runSpikeInterface:BadNoiseBand', ...
+        'NoiseBandHz must be 0 (broadband) or a positive frequency.');
+end
 
 cfg.preprocessing = struct( ...
     'filter', struct('enabled', logical(sicfg.Filter), ...

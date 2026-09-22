@@ -45,7 +45,7 @@ r = r + 1;
 l = lab(cg, "Engine:", r);
 l.Tooltip = ["SpikeInterface + Kilosort4: SpikeInterface reads the recording, applies the preprocessing below " ...
     "and silences artifact periods, then runs Kilosort4. " ...
-    "Kilosort4 only: the recording is written to <Name>.bin (artifact periods zeroed) and Kilosort4 runs " ...
+    "Kilosort4 only: the recording is written to <Name>.bin (artifact periods erased, with noise by default) and Kilosort4 runs " ...
     "natively on it; the SpikeInterface preprocessing below is skipped."];
 obj.SortEngineDropDown = uidropdown(cg);
 obj.SortEngineDropDown.Items = {'SpikeInterface + Kilosort4', 'Kilosort4 only (native, via a .bin)'};
@@ -151,7 +151,7 @@ obj.SIFilterMaxField.Layout.Row = r; obj.SIFilterMaxField.Layout.Column = 4;
 
 r = r + 1;
 note = uilabel(cg, "WordWrap", "on", "FontColor", [0.4 0.4 0.4], "Text", ...
-    "Artifact silencing (manual periods always; automatic detection when enabled) is configured on the Artifacts tab. The native engine zeroes the same periods in the .bin.");
+    "Artifact silencing (manual periods always; automatic detection when enabled) is configured on the Artifacts tab, the way they are erased included. The native engine erases the same periods in the .bin.");
 note.Layout.Row = r; note.Layout.Column = [1 5];
 
 % --- Kilosort4 parameters (from kilosortParamSpec), two per row ---

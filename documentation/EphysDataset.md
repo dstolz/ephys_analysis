@@ -21,7 +21,8 @@ An `EphysDataset` can:
   input into memory;
 - stream the recording one bounded chunk at a time (for `.bin` writing, artifact
   screening and plotting) so peak memory does not scale with recording length;
-- filter, screen for artifacts, and blank artifacts;
+- filter, screen for artifacts, and erase them (Gaussian noise by default,
+  or zeros);
 - detect spikes by voltage thresholding, with waveforms;
 - write a Kilosort4 `.bin` file (streaming or in-memory);
 - launch Kilosort4, either directly on a `.bin` (`runKilosort`) or through
@@ -515,8 +516,43 @@ padded by `PadMs` on both sides.
   `[a-1, b)/Fs`, so a one-sample artifact is one sample long.
 
 **`Y = blankArtifacts(X, mask, Fill=...)`** replaces flagged rows on every
-channel. `Fill` is `"zero"` (default), `"hold"` (repeat the last clean sample;
-0 if the run starts at row 1) or `"nan"`.
+channel. `Fill` is `"zero"` (default), `"noise"`, `"hold"` (repeat the last
+clean sample; 0 if the run starts at row 1) or `"nan"`.
+
+`Fill="noise"` draws per-channel Gaussian noise instead: Kilosort4 reads a
+block of zeros across every channel as a signal discontinuity, and its
+whitening, thresholds and drift estimate all assume continuous noise. This is
+what the pipeline uses (`ArtifactConfig.Fill`, default `"noise"`), for the
+manual periods as much as the detected ones. Its options:
+
+| Option | Default | Meaning |
+| --- | --- | --- |
+| `NoiseSigma` | `[]` | scalar or `[1 x nChan]` SD of the fill, in the units of `X` (microvolts). Empty: the robust SD (1.4826 x MAD) of the rows the mask leaves clean |
+| `NoiseCenter` | `[]` | scalar or `[1 x nChan]` mean of the fill. Empty: the median of those same rows |
+| `Stream` | `[]` | a `RandStream`, so a run repeats. Empty: the global stream |
+
+A `NoiseSigma`/`NoiseCenter` that is neither scalar nor one value per channel
+raises `EphysDataset:blankArtifacts:BadNoiseLevels`.
+
+**`nl = noiseLevels(Name=Value)`** measures that level over the **whole
+recording**, streaming it one chunk at a time and writing nothing. Every chunk
+contributes its per-channel median and robust SD; the levels returned are the
+medians of those across every chunk. Both statistics are robust, so the
+artifacts about to be replaced cannot inflate the noise replacing them, and no
+detection is needed here.
+
+Options: `Files`, `ChannelOrder`, `Filter` / `FilterType` / `FilterCutoff` /
+`FilterOrder` (**the band to measure in** - see below), `MaxChunkSamples`,
+`UseParallel` / `MaxWorkers`, `ProgressFcn`. Output fields: `sigma`
+`[1 x nChan]` and `center` `[1 x nChan]` (microvolts), `nChan`,
+`channelNames`, `nChunks`, `nSamples`, `fs`, `filtered`, `filterType`,
+`filterCutoff`, `filterOrder`, `method` (`"mad"`).
+
+The fill is white, so the band matters: a broadband level is dominated by the
+LFP and would put far more power into the spike band than the signal around it
+carries. `toBin` therefore measures through its own write filter when it
+filters, and otherwise on a high-pass view at `ArtifactConfig.NoiseBandHz`
+(300 Hz, the band Kilosort4 filters down to; `0` = broadband).
 
 **`summary = analyzeArtifacts(Name=Value)`** streams the whole recording, runs
 `detectArtifacts` on each chunk with `ArtifactConfig` (per-call options
@@ -586,6 +622,13 @@ in that range).
 | `PadMs` | `0` | expand each run by this much on both sides |
 | `Filter` | `false` | detect on a filtered view of each chunk |
 | `FilterType`, `FilterCutoff`, `FilterOrder` | `"highpass"`, `300`, `4` | the filter used when `Filter` is on |
+| `Fill` | `"noise"` | what replaces the artifact samples, manual periods included: `"noise"` (per-channel Gaussian noise at the recording's own level) or `"zero"` |
+| `NoiseBandHz` | `300` | the band that level is measured in (`0` = broadband) |
+| `NoiseSeed` | `0` | RNG seed for the fill, so a rerun writes the same `.bin`; `NaN` draws afresh each run |
+
+The last three say how the flagged periods are erased rather than which ones
+they are, so they apply whether or not `Enabled` is on (manual periods
+included), and a change to them does not invalidate a cached interval list.
 
 `normalizeArtifactConfig(cfg)` fills missing fields from these defaults and
 drops unknown fields. `EphysDataset.resolveFilterOptions(cfg, opts)` merges
@@ -760,9 +803,9 @@ varying fastest. It holds one chunk in memory at a time. Per chunk, in order:
    changes);
 3. reorder/subset (`ChannelOrder`);
 4. filter, if `Filter=true` (default **off**; Kilosort4 filters internally);
-5. auto-detect and zero artifacts, if `Blank=true` **or**
+5. auto-detect and erase artifacts, if `Blank=true` **or**
    `ArtifactConfig.Enabled`, and no `ArtifactIntervals` list is given;
-6. zero `ArtifactIntervals` when given, else `ManualArtifacts` (mapped with the
+6. erase `ArtifactIntervals` when given, else `ManualArtifacts` (mapped with the
    running sample offset);
 7. compute `scale × x + Offset`, count out-of-range samples, cast, write.
 
@@ -774,7 +817,10 @@ varying fastest. It holds one chunk in memory at a time. Per chunk, in order:
 | `Filter`, `FilterType`, `FilterCutoff`, `FilterOrder` | off, `"highpass"`, `300`, `4` |
 | `FilterEdgeMode` | `"independent"` (each chunk filtered on its own). `"overlap"` prepends the previous chunk's last `OverlapSamples` raw samples before filtering |
 | `Blank`, `ArtifactMethod`, `ArtifactThreshold`, `ArtifactRmsWindowMs`, `ArtifactMergeGapMs`, `ArtifactMinChannels`, `ArtifactPadMs` | fall back to `ArtifactConfig` |
-| `ArtifactIntervals` | `NaN`: `ManualArtifacts` plus detection as above. A `[k x 2]` list of seconds replaces both, and `[]` zeroes nothing. `runKilosort` passes its intervals here |
+| `ArtifactIntervals` | `NaN`: `ManualArtifacts` plus detection as above. A `[k x 2]` list of seconds replaces both, and `[]` erases nothing. `runKilosort` passes its intervals here |
+| `ArtifactFill` | `""`: `ArtifactConfig.Fill` (`"noise"`). `"zero"` writes zeros instead |
+| `NoiseBandHz`, `NoiseSeed` | `NaN`: `ArtifactConfig.NoiseBandHz` / `.NoiseSeed` |
+| `NoiseLevels` | `struct([])`: measured by `noiseLevels()` in one extra streaming pass before the writing one. Pass measured ones (`sigma`, `center`) to skip it |
 | `WriteMeta` | `true` (writes a `<name>.json` sidecar next to the `.bin`) |
 | `BinFile` | `ds.BinFile` |
 
@@ -783,11 +829,20 @@ units. For integer dtypes, values outside the class range are **clipped** by the
 cast. Clipping is counted (`info.nClipped`) and reported by a warning
 (`EphysDataset:toBin:Clipping`).
 
+A noise fill costs **one extra pass over the recording** (`noiseLevels`) before
+the writing pass, and only when the call has something to erase (the detector
+is on, or a period list is in effect). The level is
+measured once for the whole file and one seeded `RandStream` (`NoiseSeed`)
+draws every period, so the same recording and settings write the same `.bin`
+byte for byte.
+
 `info` fields: `filename`, `dtype`, `nChan`, `nSamples`, `fs`, `scale`,
 `offset`, `byteOrder`, `nClipped`, `nManualArtifacts`, `nManualBlanked`,
-`nAutoBlanked`, `autoArtifact` (settings used + `nBlanked`, `fraction`,
-`pctDuration`, `nIntervals`, `channelCounts`), `nBytes`, `metaFile`. The sidecar
-schema is in [file-formats.md](file-formats.md#bin-json-sidecar).
+`nAutoBlanked`, `artifactFill`, `noiseFill` (`bandHz`, `seed`, `sigma`,
+`center`; empty when filling with zeros), `autoArtifact` (settings used +
+`nBlanked`, `fraction`, `pctDuration`, `nIntervals`, `channelCounts`),
+`nBytes`, `metaFile`. The sidecar schema is in
+[file-formats.md](file-formats.md#bin-json-sidecar).
 
 **`info = matrixToBin(X, Name=Value)`** writes an in-memory
 `[nSamples x nChan]` µV matrix by delegating to
@@ -886,6 +941,8 @@ described step by step in [python-drivers.md](python-drivers.md#run_si_ks4py).
 | `SIConfig` | `ds.SIConfig` |
 | `ExtraSettings` | `struct()`: Kilosort4 settings passed to `run_sorter` |
 | `ArtifactIntervals` | `NaN`: computed by `artifactIntervals()`. `[]` silences nothing |
+| `ArtifactFill` | `""`: `ArtifactConfig.Fill`. `"noise"` asks SpikeInterface `silence_periods` for mode `"noise"`, `"zero"` for `"zeros"` |
+| `NoiseBandHz`, `NoiseSeed` | `NaN`: `ArtifactConfig.NoiseBandHz` / `.NoiseSeed`, passed to the driver |
 | `Files` | `ds.Files` |
 | `DryRun` | `false`: write config + script and build the command without launching |
 | `Wait` | `true` |
@@ -896,6 +953,9 @@ described step by step in [python-drivers.md](python-drivers.md#run_si_ks4py).
   `do_CAR=false` is added so Kilosort4 does not re-reference.
 - Computing `ArtifactIntervals` with `ArtifactConfig.Enabled` scans the **whole
   recording in MATLAB** before Python is launched, even for a background run.
+- With the noise fill the driver measures the noise level over the whole
+  **preprocessed** recording in Python (`noise_levels_whole_recording`), so the
+  fill matches what Kilosort4 will see, filter and reference included.
 - `result` fields: `status`, `command`, `driverCommand` (the command without
   `--device`), `stdoutLog`, `scriptPath`, `settingsPath` (the
   `si_config.json`), `resultsDir` and `runDir` (both the `kilosort4` folder),
@@ -925,8 +985,9 @@ described step by step in [python-drivers.md](python-drivers.md#run_si_ks4py).
 #### `result = runKilosort(Name=Value)` (native `.bin` engine)
 
 Unless `DryRun=true` or `BinFile` names an existing `.bin`, it first writes the
-recording to `ds.BinFile` with `toBin(ArtifactIntervals=iv)`, zeroing the
-artifact intervals (`ArtifactIntervals`, else `artifactIntervals()`). It then
+recording to `ds.BinFile` with `toBin(ArtifactIntervals=iv)`, erasing the
+artifact intervals (`ArtifactIntervals`, else `artifactIntervals()`) as
+`ArtifactConfig.Fill` says - with noise by default. It then
 writes `settings.json` and a copy of
 [`run_ks4.py`](../pipeline/@EphysDataset/run_ks4.py) into `ResultsDir` (default
 `kilosortDir()`) and calls `kilosort.run_kilosort`. The phy output lands
@@ -1370,6 +1431,7 @@ to draw its lanes in probe order.
 | `EphysDataset.relabelEvents(E, labelField, lineNames)` | events named as [above](#digital-line-names) (static) |
 | `EphysDataset.parseLineNames(list)` | `[natives, names]` of `"native=name"` entries (static) |
 | `EphysDataset.resolveFilterOptions(cfg, opts)` | filter options merged over an `ArtifactConfig` (static) |
+| `ds.noiseLevels()` | per-channel noise level of the whole recording, for the artifact fill |
 | `EphysDataset.parseChannelList(s)` | sorted, unique, positive integer row vector from `"1,3,5-8"`, `"1 3 5:8"` or a numeric vector. Hyphens become colons and the text goes through `str2num` |
 | `EphysDataset.formatChannelList(ch)` | compact `"1,3,5-8"` string |
 
@@ -1386,7 +1448,10 @@ to draw its lanes in probe order.
 | `EphysDataset:LineNames`, `EphysDataset:relabelEvents:Duplicate` | a malformed `LineNames` entry, or two lines with the same final name |
 | `OpenEphysReader:MultipleRecordings` | `"single"` mode and a session with several recordings |
 | `OpenEphysReader:NoNode` / `NoStream` / `NoRecording` | the configured Record Node or stream (or a part folder's recording) is not in the session |
-| `EphysDataset:readData:BadKeepChannels`, `EphysDataset:toBin:BadChannelOrder` | channel index out of range |
+| `EphysDataset:readData:BadKeepChannels`, `EphysDataset:toBin:BadChannelOrder`, `EphysDataset:noiseLevels:BadChannelOrder` | channel index out of range |
+| `EphysDataset:blankArtifacts:BadNoiseLevels`, `EphysDataset:toBin:BadNoiseLevels` | a noise level per channel that does not cover every channel, or `NoiseLevels` without `sigma`/`center` |
+| `EphysDataset:toBin:BadNoiseBand`, `EphysDataset:runSpikeInterface:BadNoiseBand` | `NoiseBandHz` is negative or not finite |
+| `EphysDataset:noiseLevels:NoFiles` / `NoData` | nothing to measure the noise level on |
 | `EphysDataset:filterContinuous:CutoffAboveNyquist` | cutoff ≥ Fs/2 |
 | `EphysDataset:detectSpikes:BandAboveNyquist` | spike-detection band upper edge ≥ Fs/2 |
 | `EphysDataset:detectSpikes:NoThreshold` / `BadThreshold` / `BadPercentile` | `Threshold` missing or out of range for the chosen `ThresholdMethod` |

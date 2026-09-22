@@ -511,6 +511,7 @@ full height, and the preview's summary with its per-channel table.
 | Dataset | the active dataset: the one **Detect / Preview** analyzes and whose manual periods are listed |
 | Method, Threshold, RMS window, Stitch gap, Pad, Min channels | `Artifacts.Method`, `Threshold`, `RmsWindowMs`, `MergeGapMs`, `PadMs`, `MinChannels` |
 | Filter before detecting, High-pass (Hz) | `Artifacts.Filter`, `FilterCutoff` (with `FilterType`, `FilterOrder`). These now apply to runs as well as the preview |
+| Erase with: *Gaussian noise (recording level)* / *Zeros* | `Artifacts.Fill` (`"noise"` / `"zero"`): what replaces the artifact samples, manual periods included. Noise by default - Kilosort4 reads a block of zeros across every channel as a signal discontinuity. Its level is measured over the whole recording above `Artifacts.NoiseBandHz` (300 Hz), and `Artifacts.NoiseSeed` makes a rerun repeat; neither has a control here |
 | Apply to sorting / Apply to spike detection | `Artifacts.ApplyToSorting`, `ApplyToSpikes` |
 | Cache intervals | `Artifacts.CacheIntervals` (`<Name>_artifacts.json`) |
 | Order channels by probe layout | display only, not saved: the viewer's lanes and the per-channel table in probe order (below). Needs a probe assigned to the dataset, and is ticked by default when it has one |
@@ -527,7 +528,8 @@ signal either side (0 = auto: twice the artifact's length, 25 ms to 5 s). It
 draws the signal the detector saw (high-passed when *High-pass before
 detecting* is ticked) for the **Channels** the artifact is largest on, one lane
 each, against time from the artifact's start. Samples a run would remove are
-**red** and those it keeps are **black**. Detected artifacts are shaded orange,
+**red** and those it keeps are **black** (red is what gets replaced, by
+noise or by zeros as *Erase with* says). Detected artifacts are shaded orange,
 with the one shown outlined, and manual periods are shaded red, as on the
 Visualize tab. What counts as removed follows the controls as they are set:
 manual periods always, and detected artifacts only when **Enabled** is ticked
@@ -580,7 +582,7 @@ natively.
 | Control | Maps to |
 | --- | --- |
 | Enable the Sorting step, Skip datasets already sorted | `Sorting.Enabled`, `SkipExisting` |
-| Engine: *SpikeInterface + Kilosort4* / *Kilosort4 only (native, via a .bin)* | `Sorting.Engine` (`"spikeinterface"` / `"kilosort"`). The native engine writes `<Name>.bin` with the artifact periods zeroed, runs `run_ks4.py` on it, and greys out the SpikeInterface preprocessing controls, which it ignores. See [Running Kilosort4](EphysDataset.md#running-kilosort4) |
+| Engine: *SpikeInterface + Kilosort4* / *Kilosort4 only (native, via a .bin)* | `Sorting.Engine` (`"spikeinterface"` / `"kilosort"`). The native engine writes `<Name>.bin` with the artifact periods erased (noise by default, see the Artifacts tab), runs `run_ks4.py` on it, and greys out the SpikeInterface preprocessing controls, which it ignores. See [Running Kilosort4](EphysDataset.md#running-kilosort4) |
 | Python exe (+ Browse), Conda env | `Sorting.PythonExe` (seeded from a `kilosort` conda env under `%LOCALAPPDATA%` / `%USERPROFILE%` when a new config is created), `CondaEnv` |
 | Phy command | preference `PhyCmd` (blank = `conda run -n phy phy`) |
 | Execution (background / blocking), Dry run | `Sorting.Execution`, `DryRun`. How many background runs go at once is set on the [Run](#run) tab |

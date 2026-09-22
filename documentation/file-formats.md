@@ -327,7 +327,7 @@ which holds `H64LP_4x16.json` as a starting point.
   "Probe":     { "DefaultProbeFile", "WriteDefaultToManifest" },
   "Behavior":  { "Enabled", "SearchDirs", "Match", "MaxStartOffsetMin", "Overwrite", "WriteFile",
                  "PairTrials", "AutoApprove", "TrialLine" },
-  "Artifacts": { "Enabled", "Method", "Threshold", ... , "ApplyToSorting", "ApplyToSpikes", "CacheIntervals" },
+  "Artifacts": { "Enabled", "Method", "Threshold", ... , "Fill", "NoiseBandHz", "NoiseSeed", "ApplyToSorting", "ApplyToSpikes", "CacheIntervals" },
   "Sorting":   { "Enabled", "Engine", "PythonExe", "CondaEnv", "Execution", "MaxConcurrent", "Devices", "DryRun", "SkipExisting",
                  "SI": {...}, "KS4": {...}, "KS4ExtraJSON" },
   "Signals":   { "Enabled", "OutputDir", "Suffix", ... , "LabelField", "LineNames", "InvertedLines", ... , "ExcludeHandling" },
@@ -447,7 +447,9 @@ Path: `<outputFolder>/<Name>.json`, next to the `.bin`. Written by
 | `n_chan_bin`, `fs`, `dtype`, `n_samples`, `byte_order`, `scale`, `offset` | what was written |
 | `bin_file`, `source_folder` | paths |
 | `manual_artifacts` | `[k x 2]` seconds (the `ManualArtifacts` in effect) |
-| `n_manual_blanked` | samples zeroed by manual periods |
+| `n_manual_blanked` | samples erased by manual periods |
+| `artifact_fill` | `"noise"` or `"zero"`: what replaced the artifact samples |
+| `noise_fill` | `bandHz`, `seed`, and the `sigma` / `center` per channel the fill was drawn from (`[]` for a zero fill) |
 | `auto_artifacts` | `enabled`, `method`, `threshold`, `rmsWindowMs`, `mergeGapMs`, `minChannels`, `padMs`, `nBlanked`, `fraction`, `pctDuration`, `nIntervals`, `channelCounts` |
 | `created` | timestamp |
 
@@ -481,7 +483,8 @@ Schema (placeholders in `<...>`; all paths use forward slashes):
     "filter":              { "enabled": <bool>, "freq_min": <Hz>, "freq_max": <Hz> },
     "common_reference":    { "enabled": <bool>, "operator": "median" | "average" },
     "detect_bad_channels": { "enabled": <bool>, "method": <string>, "action": "remove" | "interpolate" },
-    "silence_periods":     { "enabled": <bool>, "periods_s": [[<t0>, <t1>], ...] }
+    "silence_periods":     { "enabled": <bool>, "periods_s": [[<t0>, <t1>], ...],
+                             "mode": "noise" | "zeros", "noise_band_hz": <Hz>, "seed": <int|null> }
   },
   "ks4": { <Kilosort4 settings> }
 }
@@ -507,6 +510,11 @@ Schema (placeholders in `<...>`; all paths use forward slashes):
 - `silence_periods.periods_s` is the merged manual + automatic list from
   `artifactIntervals()`, in recording-relative seconds. This file is the record
   of which periods a run actually silenced.
+- `silence_periods.mode` / `noise_band_hz` / `seed` come from
+  `ArtifactConfig.Fill` / `.NoiseBandHz` / `.NoiseSeed`. Mode `"noise"` (the
+  default) fills the periods with per-channel Gaussian noise at the level the
+  driver measures over the whole recording; a `null` seed draws afresh each
+  run. The native engine erases the same periods the same way in the `.bin`.
 - `ks4` is the Kilosort4 settings block (`EphysPipelineConfig.ks4Settings` or
   `ExtraSettings=`). `do_CAR: false` is added when the common reference is
   enabled and `do_CAR` was not set explicitly.

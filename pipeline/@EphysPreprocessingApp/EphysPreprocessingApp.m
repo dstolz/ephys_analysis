@@ -277,6 +277,7 @@ classdef EphysPreprocessingApp < handle
         ArtPadField         matlab.ui.control.NumericEditField
         ArtFilterCheckBox   matlab.ui.control.CheckBox
         ArtHighpassField    matlab.ui.control.NumericEditField
+        ArtFillDropDown     matlab.ui.control.DropDown           % what replaces the artifact samples
         ArtApplySortingCheckBox matlab.ui.control.CheckBox
         ArtApplySpikesCheckBox  matlab.ui.control.CheckBox
         ArtCacheCheckBox    matlab.ui.control.CheckBox

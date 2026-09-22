@@ -148,6 +148,24 @@ check(isequal(find(ds.manualArtifactMask(1000, 200, Fs, iv1 + 200 / Fs)).', [101
     'the mask of a later block (sample offset) finds the same rows');
 Xb = ds.blankArtifacts(X, mask, Fill="zero");
 check(all(all(Xb(mask,:) == 0)), 'blankArtifacts zeroes flagged rows');
+% Fill="noise": the flagged rows become Gaussian noise at the level given, the
+% rest of the block is untouched, and a seeded stream repeats exactly.
+seeded = @() RandStream('threefry', 'Seed', 7);
+Xn = ds.blankArtifacts(X, mask, Fill="noise", NoiseSigma=5, NoiseCenter=0, Stream=seeded());
+check(isequal(Xn(~mask,:), X(~mask,:)) && ~isequal(Xn(mask,:), X(mask,:)) && ...
+    abs(std(Xn(mask,:), 0, 'all') - 5) < 3 && abs(mean(Xn(mask,:), 'all')) < 5, ...
+    'blankArtifacts fills the flagged rows with noise at the level given, keeping the rest');
+check(isequal(Xn, ds.blankArtifacts(X, mask, Fill="noise", NoiseSigma=5, NoiseCenter=0, Stream=seeded())), ...
+    'the same seed fills identically');
+check(strcmp(errorIdOf(@() ds.blankArtifacts(X, mask, Fill="noise", NoiseSigma=[1 2])), ...
+    'EphysDataset:blankArtifacts:BadNoiseLevels'), 'a noise level per channel must cover every channel');
+% Whole-recording levels: one robust SD and centre per channel, every chunk of
+% the recording counted (the fill toBin draws from).
+nl = ds.noiseLevels();
+check(numel(nl.sigma) == numAmp && numel(nl.center) == numAmp && all(nl.sigma > 0) && ...
+    nl.nSamples == totalSamples && nl.nChunks == 2, ...
+    'noiseLevels measures every channel over the whole recording');
+check(numel(ds.noiseLevels(ChannelOrder=[2 1]).sigma) == 2, 'noiseLevels follows ChannelOrder');
 
 fprintf('\n== 7. EphysProject discovery ==\n');
 % nested tree: 2 real dataset folders + 1 empty decoy
@@ -207,12 +225,29 @@ check(~sic.preprocessing.silence_periods.enabled, 'an explicit empty ArtifactInt
 rsi = ds.runSpikeInterface(DryRun=true, ResultsDir=siDry);
 sic = jsondecode(fileread(rsi.settingsPath));
 check(sic.preprocessing.silence_periods.enabled, 'the default ArtifactIntervals falls back to the dataset''s periods');
+check(strcmp(sic.preprocessing.silence_periods.mode, 'noise') && sic.preprocessing.silence_periods.seed == 0, ...
+    'the SI config asks for a seeded noise fill (silence_periods mode)');
 binX = fullfile(root, 'blank_test.bin');
+% The synthetic amplifier data is full-scale uniform, so a fill at its own
+% measured level saturates int16 - never so on a real recording.
+wsClip = warning('off', 'EphysDataset:toBin:Clipping');
 infoB = ds.toBin(BinFile=binX, ArtifactIntervals=[0 0.001], WriteMeta=false);
 fid = fopen(binX, 'r'); B = fread(fid, [infoB.nChan Inf], 'int16=>double'); fclose(fid);
 nZ = round(0.001 * Fs);       % samples 0 .. round(t1*Fs)-1: half-open, as SpikeInterface silences
-check(all(B(:, 1:nZ) == 0, 'all') && any(B(:, nZ+1:end) ~= 0, 'all') && infoB.nManualBlanked == nZ, ...
-    'toBin blanks exactly the listed intervals, not the manual periods');
+% Default fill: Gaussian noise, not zeros, so Kilosort4 never sees a flat block.
+binX2 = fullfile(root, 'blank_test2.bin');
+ds.toBin(BinFile=binX2, ArtifactIntervals=[0 0.001], WriteMeta=false);
+binZ = fullfile(root, 'blank_zero.bin');
+infoZ = ds.toBin(BinFile=binZ, ArtifactIntervals=[0 0.001], WriteMeta=false, ArtifactFill="zero");
+warning(wsClip);
+fid = fopen(binZ, 'r'); Bz = fread(fid, [infoZ.nChan Inf], 'int16=>double'); fclose(fid);
+check(strcmp(infoB.artifactFill, 'noise') && ~any(all(B(:, 1:nZ) == 0, 1)) && ...
+    numel(infoB.noiseFill.sigma) == infoB.nChan && infoB.nManualBlanked == nZ, ...
+    'toBin fills the listed intervals with noise by default');
+check(isequal(readBin(binX), readBin(binX2)), 'the noise fill repeats with the config''s seed');
+check(all(Bz(:, 1:nZ) == 0, 'all') && any(Bz(:, nZ+1:end) ~= 0, 'all') && ...
+    isequal(B(:, nZ+1:end), Bz(:, nZ+1:end)) && infoZ.nManualBlanked == nZ, ...
+    'toBin(ArtifactFill="zero") zeroes exactly the listed intervals, not the manual periods');
 check(strcmp(errorIdOf(@() ds.runKilosort(ArtifactIntervals=[0 ds.NumSamples / ds.Fs])), ...
     'EphysDataset:runKilosort:MostlySilenced'), 'runKilosort refuses to blank most of the recording');
 [share, covered] = EphysDataset.silencedFraction([0 1; 0.5 2; 3 10], 4);

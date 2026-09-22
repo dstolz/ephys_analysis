@@ -89,6 +89,17 @@ end
 
 % --- Artifacts -------------------------------------------------------------------
 A = obj.Artifacts;
+% The fill applies to the manual periods too, so it is checked whether or not
+% automatic detection is on.
+if ~ismember(A.Fill, ["noise" "zero"])
+    add("artifacts", "Fill", "error", "Fill must be ""noise"" or ""zero"".");
+end
+if ~(isscalar(A.NoiseBandHz) && isfinite(A.NoiseBandHz) && A.NoiseBandHz >= 0)
+    add("artifacts", "NoiseBandHz", "error", "NoiseBandHz must be 0 (broadband) or a positive frequency.");
+end
+if ~(isscalar(A.NoiseSeed) && (isnan(A.NoiseSeed) || (A.NoiseSeed >= 0 && A.NoiseSeed == round(A.NoiseSeed))))
+    add("artifacts", "NoiseSeed", "error", "NoiseSeed must be a non-negative integer, or NaN for a new draw each run.");
+end
 if A.Enabled
     if ~ismember(A.Method, ["rms" "mad" "microvolts" "commonmode"])
         add("artifacts", "Method", "error", "Unknown artifact method """ + A.Method + """.");

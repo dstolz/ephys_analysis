@@ -10,6 +10,7 @@ obj.ArtPadField.Value         = A.PadMs;
 if isfinite(A.RmsWindowMs); obj.ArtRmsWindowField.Value = A.RmsWindowMs; else; obj.ArtRmsWindowField.Value = 0; end
 obj.ArtFilterCheckBox.Value = logical(A.Filter);
 obj.ArtHighpassField.Value  = A.FilterCutoff(1);
+obj.setDropIfMember(obj.ArtFillDropDown, A.Fill);
 obj.ArtApplySortingCheckBox.Value = logical(A.ApplyToSorting);
 obj.ArtApplySpikesCheckBox.Value  = logical(A.ApplyToSpikes);
 obj.ArtCacheCheckBox.Value        = logical(A.CacheIntervals);

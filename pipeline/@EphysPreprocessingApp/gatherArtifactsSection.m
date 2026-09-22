@@ -13,6 +13,7 @@ A.Filter       = logical(obj.ArtFilterCheckBox.Value);
 A.FilterType   = "highpass";
 A.FilterCutoff = max(obj.ArtHighpassField.Value, eps);
 A.FilterOrder  = 4;
+A.Fill           = string(obj.ArtFillDropDown.Value);
 A.ApplyToSorting = logical(obj.ArtApplySortingCheckBox.Value);
 A.ApplyToSpikes  = logical(obj.ArtApplySpikesCheckBox.Value);
 A.CacheIntervals = logical(obj.ArtCacheCheckBox.Value);

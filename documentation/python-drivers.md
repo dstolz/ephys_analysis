@@ -99,9 +99,21 @@ The config schema is in [file-formats.md](file-formats.md#si_configjson).
      are dropped.
    - The share of the recording they cover is logged. If it is over half
      (`MAX_SILENCED_FRACTION`), the run stops with an error instead of
-     sorting. Kilosort4 would find no spikes in the zeroed data and fail
+     sorting. Kilosort4 would find no spikes in the silenced data and fail
      inside its template SVD.
-   - The periods are applied with `silence_periods` (zeros).
+   - With `mode: "noise"` (the default), the per-channel noise level is
+     measured over the **whole preprocessed recording** first
+     (`noise_levels_whole_recording`): each 10 s block contributes its median
+     and robust SD (1.4826 x MAD), and the level is the median of those, so
+     the artifacts about to be replaced cannot inflate it. It is measured on a
+     high-pass view at `noise_band_hz` (300 Hz; `0` = as recorded), because the
+     fill is white and a broadband level - dominated by the LFP - would put far
+     more power into the spike band than the signal around it carries. Only
+     the measurement is filtered, never the traces.
+   - The periods are applied with `silence_periods(mode, noise_levels, seed)`:
+     per-channel Gaussian noise at that level, or zeros with `mode: "zeros"`.
+     A block of zeros across every channel reads to Kilosort4 as a signal
+     discontinuity, which skews its whitening, thresholds and drift estimate.
    - A small in-process patch of `SilencedPeriodsRecording.__init__` rebuilds
      the structured `periods` array after SpikeInterface's JSON round-trip.
 

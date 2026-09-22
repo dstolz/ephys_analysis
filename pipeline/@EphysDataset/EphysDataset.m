@@ -235,6 +235,7 @@ classdef EphysDataset < handle
         file   = setTrialPairing(obj, P, status, opts)
         [P, tf] = autoApproveTrialPairing(obj, P)
         summary = analyzeArtifacts(obj, opts)
+        nl     = noiseLevels(obj, opts)
         X      = blankArtifacts(obj, X, mask, opts)
         mask   = manualArtifactMask(obj, nSamp, sampleOffset, Fs, iv)
         addArtifact(obj, t0, t1)
@@ -847,6 +848,12 @@ classdef EphysDataset < handle
             %   on a filtered view of each chunk (e.g. high-pass 300 Hz) instead
             %   of broadband; they apply everywhere the config is consulted
             %   (artifactIntervals, analyzeArtifacts, the Visualize overlay).
+            %   Fill/NoiseBandHz/NoiseSeed say how the flagged periods are
+            %   erased rather than which ones they are: by default with
+            %   Gaussian noise matched to the recording's own noise level
+            %   (noiseLevels), because Kilosort4 reads a block of zeros across
+            %   every channel as a signal discontinuity - its whitening,
+            %   threshold and drift estimates all assume continuous noise.
             cfg = struct( ...
                 'Enabled',      false, ...   % toBin blanks only when true
                 'Method',       "rms", ...   % running-RMS amplitude deviation
@@ -858,7 +865,10 @@ classdef EphysDataset < handle
                 'Filter',       false, ...   % detect on a filtered view
                 'FilterType',   "highpass", ...
                 'FilterCutoff', 300, ...     % Hz (scalar, or [lo hi] for bandpass)
-                'FilterOrder',  4);
+                'FilterOrder',  4, ...
+                'Fill',         "noise", ... % "noise" (Gaussian) | "zero"
+                'NoiseBandHz',  300, ...     % Hz; band the noise level is measured in (0 = broadband)
+                'NoiseSeed',    0);          % RNG seed for the fill (NaN = a new draw each run)
         end
 
         function cfg = defaultTrialConfig()

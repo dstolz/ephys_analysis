@@ -15,6 +15,7 @@ switch obj.Tabs.SelectedTab
     case obj.TabArtifacts
         msg = "Artifacts: tune the detector and preview what would be silenced.";
         obj.refreshManualArtifactsTable();
+        obj.refreshReferencePanel();
     case obj.TabSorting
         msg = "Sorting: SpikeInterface + Kilosort4 settings; Run this step or the whole pipeline.";
         obj.refreshSortingLabel();

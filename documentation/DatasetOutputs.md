@@ -73,7 +73,7 @@ The other two paths are resolved when they are read:
 
 - **`SortingDir`**: the dataset's `sortingResultsDir()` when it holds
   `params.py`, else the manifest's `sorting.results_dir`, else the standard
-  `kilosort4/si/sorter_output` / `kilosort4` layouts under the roots.
+  `kilosort4` layout under the roots.
 - **`BehaviorFile`**: the newest `<Name>_behavior.mat`. Until one has been
   written, it is the associated Epsych2 session: the dataset's `BehaviorFile`,
   else the manifest's `behavior.file`. Both load into the same struct.

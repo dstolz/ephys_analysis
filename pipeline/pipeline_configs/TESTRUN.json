@@ -60,16 +60,6 @@
     "Execution": "background",
     "DryRun": false,
     "SkipExisting": false,
-    "SI": {
-      "Filter": false,
-      "FilterFreqMin": 300,
-      "FilterFreqMax": 6000,
-      "CommonReference": true,
-      "ReferenceOperator": "median",
-      "DetectBadChannels": false,
-      "BadChannelMethod": "coherence+psd",
-      "BadChannelAction": "remove"
-    },
     "KS4": {
       "n_chan_bin": [],
       "fs": [],

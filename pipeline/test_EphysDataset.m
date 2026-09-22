@@ -216,24 +216,15 @@ check(contains(res.command, '"C:\miniconda3\python.exe"'), 'command quotes pytho
 check(contains(res.command, '"'+string(res.scriptPath)+'"') || contains(res.command, res.scriptPath), ...
     'command references script');
 
-fprintf('\n== 8b. explicit artifact intervals (native engine) ==\n');
+fprintf('\n== 8b. explicit artifact intervals in the .bin ==\n');
 ds.ManualArtifacts = [0.001 0.002];
-siDry = fullfile(root, 'si_dry');
-rsi = ds.runSpikeInterface(DryRun=true, ResultsDir=siDry, ArtifactIntervals=zeros(0, 2));
-sic = jsondecode(fileread(rsi.settingsPath));
-check(~sic.preprocessing.silence_periods.enabled, 'an explicit empty ArtifactIntervals silences nothing');
-rsi = ds.runSpikeInterface(DryRun=true, ResultsDir=siDry);
-sic = jsondecode(fileread(rsi.settingsPath));
-check(sic.preprocessing.silence_periods.enabled, 'the default ArtifactIntervals falls back to the dataset''s periods');
-check(strcmp(sic.preprocessing.silence_periods.mode, 'noise') && sic.preprocessing.silence_periods.seed == 0, ...
-    'the SI config asks for a seeded noise fill (silence_periods mode)');
 binX = fullfile(root, 'blank_test.bin');
 % The synthetic amplifier data is full-scale uniform, so a fill at its own
 % measured level saturates int16 - never so on a real recording.
 wsClip = warning('off', 'EphysDataset:toBin:Clipping');
 infoB = ds.toBin(BinFile=binX, ArtifactIntervals=[0 0.001], WriteMeta=false);
 fid = fopen(binX, 'r'); B = fread(fid, [infoB.nChan Inf], 'int16=>double'); fclose(fid);
-nZ = round(0.001 * Fs);       % samples 0 .. round(t1*Fs)-1: half-open, as SpikeInterface silences
+nZ = round(0.001 * Fs);       % samples 0 .. round(t1*Fs)-1: half-open
 % Default fill: Gaussian noise, not zeros, so Kilosort4 never sees a flat block.
 binX2 = fullfile(root, 'blank_test2.bin');
 ds.toBin(BinFile=binX2, ArtifactIntervals=[0 0.001], WriteMeta=false);
@@ -431,27 +422,21 @@ ivaS = dsi.artifactIntervals(UseParallel=true, MaxWorkers=1);
 check(isequal(ivaS, iva) && strcmp(wid, 'EphysDataset:artifactIntervals:SerialFallback'), ...
     'MaxWorkers=1 falls back to serial with a warning');
 
-fprintf('\n== 12. runSpikeInterface(DryRun=true) ==\n');
+fprintf('\n== 12. runKilosort(DryRun=true) with excluded channels ==\n');
 dsr = EphysDataset(dsFolder);
-dsr.OutputDir = fullfile(root, 'out_si');
+dsr.OutputDir = fullfile(root, 'out_ks');
 dsr.ProbeFile = probeFile;                 % from section 8
 dsr.PythonExe = "C:\envs\kilosort\python.exe";
-dsr.ExcludeChannels = 2;                    % 1-based .bin row -> 0-based idx 1
-dsr.ManualArtifacts = [0.0005 0.001];
-resSI = dsr.runSpikeInterface(DryRun=true);
-check(isfile(resSI.settingsPath), 'si_config.json written');
-check(isfile(resSI.scriptPath), 'run_si_ks4.py written');
-cfgSI = jsondecode(fileread(resSI.settingsPath));
-check(cfgSI.n_chan == numAmp, 'config n_chan');
-check(abs(cfgSI.fs - Fs) < 1e-9, 'config fs');
-check(strcmp(char(cfgSI.recording_format), 'traditional'), 'config recording_format');
-check(numel(cfgSI.files) == 2, 'config lists both rhd files');
-check(isequal(cfgSI.exclude_channels(:).', 1), 'exclude_channels 0-based (2 -> 1)');
-check(cfgSI.preprocessing.detect_bad_channels.enabled, 'detect_bad_channels on by default');
-check(cfgSI.preprocessing.silence_periods.enabled, 'silence enabled with a manual period');
-check(~cfgSI.preprocessing.filter.enabled, 'SI bandpass off by default');
-check(contains(resSI.command, 'run_si_ks4.py'), 'command references the script');
-check(endsWith(char(resSI.resultsDir), 'kilosort4'), 'results dir is the kilosort4 run folder');
+dsr.ExcludeChannels = 2;                    % 1-based .bin row -> chanMap value 1
+resX = dsr.runKilosort(DryRun=true);
+setX = jsondecode(fileread(resX.settingsPath));
+prX = jsondecode(fileread(resX.probeFile));
+check(resX.nExcludedChannels == 1 && endsWith(string(resX.probeFile), "_excluded.json"), ...
+    'excluded channels go to a derived probe in the run folder');
+check(isequal(prX.chanMap(:).', [0 2:numAmp-1]) && prX.n_chan == numAmp && setX.n_chan_bin == numAmp, ...
+    'the derived probe drops chanMap 1 and keeps n_chan == n_chan_bin');
+check(strcmpi(strrep(setX.probe, '/', filesep), resX.probeFile), 'settings.json points at the derived probe');
+check(endsWith(char(resX.resultsDir), 'kilosort4'), 'results dir is the kilosort4 run folder');
 
 fprintf('\n== 13. detectSpikes (voltage thresholding) ==\n');
 FsSpk = ds.Fs;                      % 30000
@@ -809,7 +794,7 @@ check(strcmp(s3.source, 'auto') && s3.results_dir == "" && isnan(s3.num_units), 
     'sortingStruct reports auto / no results when nothing is sorted');
 
 % Auto-discovered sorting is reported without pinning it.
-autoDir = fullfile(ds3.kilosortDir(), 'si', 'sorter_output');
+autoDir = ds3.kilosortDir();
 mkdir(autoDir);
 copyfile(fullfile(sortDir, 'params.py'), autoDir);
 copyfile(fullfile(sortDir, 'spike_clusters.npy'), autoDir);
@@ -926,11 +911,11 @@ check(cfgN.Filter == false && cfgN.FilterType == "highpass" && cfgN.FilterCutoff
     && cfgN.FilterOrder == 4 && cfgN.Threshold == 5, 'normalizeArtifactConfig fills the filter fields');
 
 fprintf('\n== 17. readPhyUnits / readSortedUnits (sorted units loader) ==\n');
-% Legacy-engine layout: phy files directly in kilosort4/, channel_map.npy
+% runKilosort layout: phy files directly in kilosort4/, channel_map.npy
 % reversed so sorted channel k is recording channel 5-k.
 phyFs = 30000;
 legDir = fullfile(root, 'phy_legacy', 'kilosort4');
-makePhyFixture(legDir, phyFs, ChannelMap=[3 2 1 0], Legacy=true);
+makePhyFixture(legDir, phyFs, ChannelMap=[3 2 1 0], SettingsJson=true);
 [U, ui] = EphysDataset.readPhyUnits(legDir);
 check(isequal(U.unitId, [0; 1]) && isequal(U.group, ["good"; "mua"]) && U.groupSource == "phy" && U.curated, ...
     'noise cluster dropped by default; phy labels win over KSLabel');
@@ -938,8 +923,8 @@ check(isequal(U.times{1}, double(int64([300; 600; 30000])) / phyFs) && isequal(U
     'times are samples / params.py sample_rate');
 check(U.fs == phyFs && U.nSpikes(1) == 3 && U.nSpikes(2) == 2, 'fs and per-unit counts');
 check(isequal(U.ksChannel, [2; 4]) && isequal(U.channel, [3; 1]), ...
-    'peak channel from templates; recording channel via channel_map.npy (legacy engine)');
-check(U.channelMapSource == "channel_map.npy" && U.engine == "legacy", 'legacy engine detected');
+    'peak channel from templates; recording channel via channel_map.npy');
+check(U.channelMapSource == "channel_map.npy", 'channel map read from channel_map.npy');
 check(numel(U.templateWaveform{1}) == 8 && isempty(U.templateFull) && numel(U.templateTimeMs) == 8, ...
     'peak-channel template waveform, no full templates by default');
 check(abs(U.templateWaveform{1}(3) - (-50 * 1.5)) < 1e-9, 'template scaled by the unit median amplitude');
@@ -972,7 +957,7 @@ check(strcmp(errId, 'EphysDataset:readPhyUnits:NoOutput'), 'a folder without phy
 
 % No params.py: fallback rate with a warning, error without one.
 noFsDir = fullfile(root, 'phy_nofs');
-makePhyFixture(noFsDir, phyFs, ChannelMap=[0 1 2 3], Legacy=true);
+makePhyFixture(noFsDir, phyFs, ChannelMap=[0 1 2 3], SettingsJson=true);
 delete(fullfile(noFsDir, 'params.py'));
 errId = '';
 try
@@ -986,29 +971,6 @@ ws = warning('off', 'EphysDataset:readPhyUnits:FsFallback');
 Uf = EphysDataset.readPhyUnits(noFsDir, FsFallback=20000);
 warning(ws);
 check(Uf.fs == 20000 && abs(Uf.times{1}(1) - 300 / 20000) < 1e-12, 'FsFallback is used when params.py is missing');
-
-% SpikeInterface layout: probe-site order, one bad channel removed, so the
-% 3 sorted channels map back to recording channels through the probe.
-siRun = fullfile(root, 'phy_si', 'kilosort4');
-siDir = fullfile(siRun, 'si', 'sorter_output');
-makePhyFixture(siDir, phyFs, ChannelMap=[0 1 2], NChan=3, Legacy=false);
-siProbe = fullfile(root, 'si_probe.json');
-writeJsonFile(siProbe, struct('chanMap', [3 0 2 1], 'xc', zeros(1, 4), 'yc', (0:3) * 20, ...
-    'kcoords', zeros(1, 4), 'n_chan', 4));
-writeJsonFile(fullfile(siRun, 'si_config.json'), struct('schema', "intan-si-ks4/1", ...
-    'probe', siProbe, 'n_chan', 4, 'exclude_channels', []));
-writeJsonFile(fullfile(siRun, 'ks4_status.json'), struct('state', "done", 'bad_channels', {{'2'}}));
-Us = EphysDataset.readPhyUnits(siDir);
-% channel numbers 0..3 (default); sites in probe order: 3, 0, 2, 1 -> drop 2 -> [4 1 2]
-check(Us.engine == "spikeinterface" && Us.channelMapSource == "probe" && isequal(Us.channelMap, [4; 1; 2]), ...
-    'SpikeInterface run maps sorted channels back through the probe minus bad channels');
-check(isequal(Us.ksChannel, [2; 3]) && isequal(Us.channel, [1; 2]), 'unit recording channels follow that map');
-wsI = warning('off', 'EphysDataset:readPhyUnits:ChannelMapFallback');
-Us2 = EphysDataset.readPhyUnits(siDir, ChannelNumbers=[3 2 1 0]);
-warning(wsI);
-% number -> position: 3->1 2->2 1->3 0->4; chanMap [3 0 2 1] -> [1 4 2 3]; drop number 2 (position 2)
-check(Us2.channelMapSource == "probe" && isequal(Us2.channelMap, [1; 4; 3]), ...
-    'channels are matched by channel number, as run_si_ks4.py names them');
 
 % Instance wrapper: dataset defaults + SortingDir association.
 dsu = EphysDataset(dsFolder);
@@ -1197,17 +1159,12 @@ check(isequal(tsS, tsU), 'detectSpikes identical on the universal format');
 dsu.writeManifest();
 mU = readJsonFile(dsu.manifestFile());
 check(strcmp(mU.reader, 'binary') && strcmp(mU.recording_format, 'binary'), 'manifest records the reader');
-spU = dsu.Reader.siRecordingSpec();
-check(spU.reader == "binary" && spU.gain_to_uV == 0.195 && spU.n_chan == numAmp && spU.dtype == "int16", ...
-    'siRecordingSpec carries dtype / gain / offset');
 dsu.ProbeFile = probeFile;
 dsu.PythonExe = "C:\envs\kilosort\python.exe";
-rU = dsu.runSpikeInterface(DryRun=true);
+rU = dsu.runKilosort(DryRun=true);
 cU = readJsonFile(rU.settingsPath);
-check(strcmp(cU.recording.reader, 'binary') && strcmp(cU.recording.dtype, 'int16') && cU.recording.n_chan == numAmp, ...
-    'si_config.json carries the recording spec');
-spI = ds.Reader.siRecordingSpec();
-check(spI.reader == "intan" && iscell(spI.files) && numel(spI.files) == 2, 'Intan siRecordingSpec lists the files');
+check(cU.n_chan_bin == numAmp && cU.fs == Fs && strcmp(cU.data_dtype, 'int16'), ...
+    'runKilosort sorts the universal format through a .bin');
 
 % Digital input from a per-sample uint16 file instead of the events map.
 writeDat(fullfile(binDir, 'digitalin.dat'), uint16(digRaw), 'uint16');

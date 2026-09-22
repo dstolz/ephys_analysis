@@ -89,6 +89,8 @@ end
 if isnan(obj.Fs) || isempty(obj.PerFile)
     obj.refreshMetadata();
 end
+% Settle the common reference's channels before any chunk is read.
+obj.prepareReference();
 
 % Resolve detection params (per-call overrides ds.ArtifactConfig).
 method   = opts.Method;      if method == "";      method   = acfg.Method;      end

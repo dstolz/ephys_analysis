@@ -331,8 +331,7 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
             %readUnits  Sorted units from SortingDir with reader options.
             %   [UNITS, INFO] = out.readUnits(Groups=["good" "mua"], ...) takes
             %   the options of EphysDataset.readSortedUnits (with a dataset) or
-            %   EphysDataset.readPhyUnits (without one; the manifest's probe
-            %   file is used for the SpikeInterface channel mapping).
+            %   EphysDataset.readPhyUnits (without one).
             if ~obj.has("sorting")
                 obj.missing("sorting");
             end

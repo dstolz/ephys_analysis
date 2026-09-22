@@ -341,32 +341,6 @@ classdef OpenEphysReader < EphysReader
             E = struct('events', events, 'Fs', obj.Fs, 'nSamples', offset, ...
                 'digInNames', names, 'digInNativeNames', names);
         end
-
-        function spec = siRecordingSpec(obj)
-            %siRecordingSpec  How run_si_ks4.py loads the recording (one segment per recording, concatenated).
-            spec = siRecordingSpec@EphysReader(obj);
-            hs = obj.channelsOfType("headstage");
-            spec.reader = obj.RecordingFormat;
-            spec.fs = obj.Fs;
-            spec.n_chan_stream = numel(obj.Stream.channels);
-            spec.channel_indices = num2cell(hs - 1);
-            spec.gain_to_uV = num2cell([obj.Stream.channels(hs).bitVolts]);
-            parts = cell(1, numel(obj.Parts));
-            for k = 1:numel(obj.Parts)
-                p = obj.Parts(k);
-                switch obj.formatName()
-                    case "binary"
-                        parts{k} = struct('file', OpenEphysReader.fwd(p.datFile), 'n_samples', p.nSamples);
-                    case "legacy"
-                        parts{k} = struct('channel_files', {cellstr(OpenEphysReader.fwd(p.channelFiles(hs)))}, ...
-                            'first_record', p.firstRecord, 'n_records', p.nRecords, 'n_samples', p.nSamples);
-                    case "nwb"
-                        parts{k} = struct('file', OpenEphysReader.fwd(p.file), 'dataset', p.dsPath + "/data", ...
-                            'row_start', p.rowOffset, 'n_samples', p.nSamples);
-                end
-            end
-            spec.parts = parts;
-        end
     end
 
     methods (Access = private)
@@ -863,10 +837,6 @@ classdef OpenEphysReader < EphysReader
                 up = repmat({'..'}, 1, numel(bparts) - m);
                 rel(k) = string(strjoin([up, fparts(m + 1:end)], filesep));
             end
-        end
-
-        function s = fwd(p)
-            s = replace(string(p), "\", "/");
         end
     end
 end

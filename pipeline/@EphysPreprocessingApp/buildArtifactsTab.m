@@ -9,8 +9,14 @@ function buildArtifactsTab(obj)
 %   steps through the detected artifacts one at a time, each with the signal
 %   around it, the kept and removed samples drawn apart.
 %
-%   Three columns: the detection settings with the manual periods below
-%   them, the viewer (the plot takes the full height), and the preview's
+%   The common reference (CAR / CMR, config Artifacts.Reference) comes
+%   first, as it is subtracted before anything is detected; its panel also
+%   holds the active dataset's channels left out of the reference, suggested
+%   by the noise-floor rule of Ludwig et al. 2009 (onSuggestReferenceExclude)
+%   or typed in (onReferenceExcludeEdited).
+%
+%   Three columns: the reference and the detection settings with the manual
+%   periods below them, the viewer (the plot takes the full height), and the preview's
 %   summary with its per-channel table. With a probe assigned to the
 %   dataset the viewer and the table can follow the probe layout, show one
 %   shank and colour the channels by shank (syncArtProbeControls). The
@@ -25,13 +31,16 @@ g.ColumnWidth = {400, '1x', 350};
 g.Padding     = [10 10 10 10];
 changed = @(~,~) obj.onArtifactControlsChanged();
 
-% =========== left: controls, then the manual periods ===========
-left = uigridlayout(g, [2 1]);
+% =========== left: the reference, the controls, then the manual periods ===========
+left = uigridlayout(g, [3 1]);
 left.Layout.Column = 1;
 left.Padding = [0 0 0 0];
-left.RowHeight = {'1x', 210};
+left.RowHeight = {'fit', '1x', 210};
+
+buildReferencePanel(obj, left, changed);
 
 ctrl = uipanel(left, "Title", "Automatic artifact detection (config: Artifacts)");
+ctrl.Layout.Row = 2;
 
 nRows = 17;
 cg = uigridlayout(ctrl, [nRows 2]);
@@ -124,7 +133,7 @@ obj.ArtFillDropDown.ValueChangedFcn = changed;
 obj.ArtFillDropDown.Layout.Row = row; obj.ArtFillDropDown.Layout.Column = 2;
 
 row = row + 1;
-obj.ArtApplySortingCheckBox = uicheckbox(cg, "Text", "Silence in sorting (SpikeInterface silence_periods)", ...
+obj.ArtApplySortingCheckBox = uicheckbox(cg, "Text", "Erase in sorting (in the .bin Kilosort4 sorts)", ...
     "Value", true, "ValueChangedFcn", changed);
 obj.ArtApplySortingCheckBox.Layout.Row = row; obj.ArtApplySortingCheckBox.Layout.Column = [1 2];
 row = row + 1;
@@ -159,7 +168,7 @@ obj.ArtStatusLabel = uilabel(cg, "Text", "", "FontColor", [0.4 0.4 0.4], "WordWr
 obj.ArtStatusLabel.Layout.Row = row; obj.ArtStatusLabel.Layout.Column = [1 2];
 
 manual = uipanel(left);
-manual.Layout.Row = 2;
+manual.Layout.Row = 3;
 mg = uigridlayout(manual, [3 3]);
 mg.RowHeight = {'fit', '1x', 30};
 mg.ColumnWidth = {'1x', 'fit', 'fit'};
@@ -222,14 +231,20 @@ obj.ArtViewShankColorCheckBox = uicheckbox(chans, "Text", "Colour by shank", "Va
     "Draw each shank's kept signal in its own colour (needs a probe assigned to the dataset).", ...
     "ValueChangedFcn", @(~,~) obj.drawArtifactView());
 
-sc = uigridlayout(mid, [1 4]);
+sc = uigridlayout(mid, [1 6]);
 sc.Padding = [0 0 0 0]; sc.ColumnSpacing = 6;
-sc.ColumnWidth = {'fit', 150, '1x', 'fit'};
+sc.ColumnWidth = {'fit', 150, 'fit', 70, '1x', 'fit'};
 uilabel(sc, "Text", "Scale:");
-obj.ArtViewScaleDropDown = uidropdown(sc, "Items", {'Fit the artifact', 'Fit the kept signal'}, ...
-    "ItemsData", {'artifact', 'kept'}, "Value", 'artifact', ...
-    "Tooltip", "Fit the kept signal to check that nothing of the artifact is left either side (larger values are clipped).", ...
+obj.ArtViewScaleDropDown = uidropdown(sc, "Items", {'Fit the artifact', 'Fit the kept signal', 'Manual'}, ...
+    "ItemsData", {'artifact', 'kept', 'manual'}, "Value", 'artifact', ...
+    "Tooltip", "Fit the kept signal to check that nothing of the artifact is left either side, " + ...
+    "or set the lane spacing by hand (Lanes). Larger values are clipped.", ...
     "ValueChangedFcn", @(~,~) scaleChanged(obj));
+uilabel(sc, "Text", "Lanes (uV):", "HorizontalAlignment", "right");
+obj.ArtViewLanesField = uieditfield(sc, "numeric", "Value", 0, "Limits", [0 Inf], ...
+    "ValueDisplayFormat", "%.4g", "Tooltip", ...
+    "Microvolts between lanes: shows the spacing drawn; type one to set it by hand (Scale: Manual).", ...
+    "ValueChangedFcn", @(~,~) lanesChanged(obj));
 uilabel(sc, "Text", "");
 obj.ArtViewResetButton = uibutton(sc, "Text", "Reset view", ...
     "Tooltip", "Show the whole window at the Scale fit (R over the plot)", ...
@@ -291,6 +306,72 @@ function scaleChanged(obj)
 % A new Scale fit starts from its own voltage scale.
 obj.ArtView.gain = 1;
 obj.drawArtifactView();
+end
+
+
+function lanesChanged(obj)
+% A lane spacing typed in sets the scale by hand; 0 goes back to fitting.
+if obj.ArtViewLanesField.Value > 0
+    obj.ArtViewScaleDropDown.Value = 'manual';
+elseif obj.ArtViewScaleDropDown.Value == "manual"
+    obj.ArtViewScaleDropDown.Value = 'artifact';
+end
+obj.ArtView.gain = 1;
+obj.drawArtifactView();
+end
+
+
+function buildReferencePanel(obj, parent, changed)
+% The common reference: its mode and noise bounds (config), and the active
+% dataset's channels left out of it (manifest). refreshReferencePanel fills
+% the dataset part.
+p = uipanel(parent, "Title", "Common reference, before detection (config: Artifacts)");
+p.Layout.Row = 1;
+rg = uigridlayout(p, [4 2]);
+rg.RowHeight   = {'fit', 'fit', 30, 'fit'};
+rg.ColumnWidth = {'fit', '1x'};
+rg.RowSpacing  = 6;
+
+lab(rg, "Reference:", 1);
+obj.ArtRefDropDown = uidropdown(rg, ...
+    "Items", {'None (as recorded)', 'CAR: common average', 'CMR: common median'}, ...
+    "ItemsData", {'none', 'car', 'cmr'}, "Value", 'none', ...
+    "Tooltip", "Subtract, sample by sample, the mean (CAR) or median (CMR) of the good channels " + ...
+    "from every channel before artifact detection, the Kilosort4 .bin and spike detection. " + ...
+    "CMR is not dragged along by a large spike or artifact on a few channels. " + ...
+    "The derived LFP / MUA signals are not referenced.", ...
+    "ValueChangedFcn", changed);
+obj.ArtRefDropDown.Layout.Row = 1; obj.ArtRefDropDown.Layout.Column = 2;
+
+lab(rg, "Good noise (x mean):", 2);
+bg = uigridlayout(rg, [1 3]);
+bg.Layout.Row = 2; bg.Layout.Column = 2;
+bg.Padding = [0 0 0 0]; bg.ColumnSpacing = 6;
+bg.ColumnWidth = {'1x', 'fit', '1x'};
+tip = "A channel whose noise floor lies outside this band, relative to the mean across channels, " + ...
+    "is suggested to stay out of the reference (Ludwig et al. 2009: 0.3 to 2; broken sites run 3-6x).";
+obj.ArtRefLowField = uieditfield(bg, "numeric", "Value", 0.3, "Limits", [0 Inf], ...
+    "ValueDisplayFormat", "%.3g", "Tooltip", tip, "ValueChangedFcn", changed);
+uilabel(bg, "Text", "to");
+obj.ArtRefHighField = uieditfield(bg, "numeric", "Value", 2, "Limits", [0 Inf], ...
+    "ValueDisplayFormat", "%.3g", "Tooltip", tip, "ValueChangedFcn", changed);
+
+lab(rg, "Left out:", 3);
+xg = uigridlayout(rg, [1 2]);
+xg.Layout.Row = 3; xg.Layout.Column = 2;
+xg.Padding = [0 0 0 0]; xg.ColumnSpacing = 6;
+xg.ColumnWidth = {'1x', 'fit'};
+obj.ArtRefExcludeField = uieditfield(xg, "text", "Value", "", "Placeholder", "none", ...
+    "Tooltip", "The active dataset's channels left out of the reference (1-based, e.g. ""3,7,12-14""); " + ...
+    "they are still referenced. Channels excluded on the Probe tab are left out as well. Saved in its manifest.", ...
+    "ValueChangedFcn", @(~,~) obj.onReferenceExcludeEdited());
+obj.ArtRefSuggestButton = uibutton(xg, "Text", "Suggest", ...
+    "Tooltip", "Measure each channel's noise floor on a sample of the recording and leave out the channels " + ...
+    "outside the band above.", ...
+    "ButtonPushedFcn", @(~,~) obj.onSuggestReferenceExclude());
+
+obj.ArtRefStatusLabel = uilabel(rg, "Text", "", "FontColor", [0.4 0.4 0.4], "WordWrap", "on");
+obj.ArtRefStatusLabel.Layout.Row = 4; obj.ArtRefStatusLabel.Layout.Column = [1 2];
 end
 
 

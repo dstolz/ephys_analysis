@@ -113,17 +113,8 @@ A run folder is any folder containing one of `spike_clusters.npy`, `params.py`,
 | `State`, `Message` | from `ks4_status.json`. If there is no status file but results exist, `State` is `"done"` |
 | `NumUnits` | data rows of `cluster_KSLabel.tsv` (falling back to `cluster_group.tsv`), blank lines excluded; `NaN` if neither file exists |
 | `SettingsPath`, `ScriptPath`, `LogPath`, `StatusPath` | paths or `""` |
-| `BinFile`, `ProbeFile`, `Fs`, `NChanBin` | from `settings.json` (native `runKilosort` engine) |
+| `BinFile`, `ProbeFile`, `Fs`, `NChanBin` | from `settings.json` |
 | `Modified` | newest modification time among the folder's direct files |
-
-For the SpikeInterface engine, the bookkeeping folder (`kilosort4/`, holding
-`ks4_status.json`) and the phy output folder (`kilosort4/si/sorter_output/`,
-holding `params.py` and `spike_clusters.npy`) show up as **separate** entries in
-this inventory. The bookkeeping entry carries the real `State`/`Message`. The
-output entry has `HasResults = true`, and because it has no status file of its
-own, its `State` is the fallback `"done"`. `latestKilosortRun()` prefers entries
-with results, so it returns the output entry. `si_config.json` is not a
-recognized marker.
 
 ## Methods
 

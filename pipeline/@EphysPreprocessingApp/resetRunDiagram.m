@@ -78,9 +78,9 @@ end
 
 S = cfg.Sorting;
 if S.Execution == "blocking"
-    w(4) = "SpikeInterface + Kilosort4, waits for the sort";
+    w(4) = "Kilosort4, waits for the sort";
 else
-    w(4) = "SpikeInterface + Kilosort4, launched in the background, " + S.MaxConcurrent + " at a time";
+    w(4) = "Kilosort4, launched in the background, " + S.MaxConcurrent + " at a time";
     if queued
         w(4) = w(4) + "; the rest queued";
     end

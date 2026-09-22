@@ -171,8 +171,8 @@ channel, channelName, shank, x, y, nSpikes`. `usel.source` is `"units"`
 (threshold detections, one "unit" per channel, class `"det"`, sites from the
 probe map); both filter by `channels`, `shanks` and `maxUnits`. Shanks are
 the probe map's `kcoords` values for both: a sorted unit on a mapped channel
-takes its channel's shank, since the sorter's own shank numbers depend on the
-engine (SpikeInterface writes 0-based group indices). Everything downstream
+takes its channel's shank, since the sorter's own shank numbers
+(`channel_shanks.npy`) need not match them. Everything downstream
 treats the two alike.
 
 `[Y, fs, meta] = selectChannels(src, "LFP", Channels=...)` loads one derived

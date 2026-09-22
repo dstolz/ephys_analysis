@@ -17,7 +17,7 @@ function L = channelLayout(obj)
 %   still lands on the right sites. Without a usable probe every channel is
 %   off it and ORDER is 1:nChan. The file is read on every call.
 %
-%   See also EphysDataset.ChannelNumbers, runSpikeInterface.
+%   See also EphysDataset.ChannelNumbers.
 
 nChan = obj.NumChannels;
 if ~isfinite(nChan); nChan = numel(obj.ChannelNumbers); end

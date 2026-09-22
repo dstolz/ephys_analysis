@@ -37,7 +37,7 @@ classdef EphysPreprocessingApp < handle
     %     Artifacts  automatic detection settings + preview, a viewer that steps
     %                through the detected artifacts (what a run removes and
     %                keeps around each), manual periods
-    %     Sorting    SpikeInterface + Kilosort4 settings (Optimize for probe,
+    %     Sorting    Kilosort4 settings (Optimize for probe,
     %                Reset to defaults), sorted-output association, Run this
     %                step, background-run log
     %     Signals    derived LFP / MUA / SPIKE / AUX (.mat) settings, plan, Run
@@ -326,28 +326,18 @@ classdef EphysPreprocessingApp < handle
         % --- Sorting tab ---
         SortEnableCheckBox  matlab.ui.control.CheckBox
         SortSkipExistingCheckBox matlab.ui.control.CheckBox
-        SortEngineDropDown matlab.ui.control.DropDown
         PythonExeField    matlab.ui.control.EditField
         BrowsePythonButton matlab.ui.control.Button
         CondaEnvField     matlab.ui.control.EditField
         PhyCmdField       matlab.ui.control.EditField
         ExecModeDropDown  matlab.ui.control.DropDown
         DryRunCheckBox    matlab.ui.control.CheckBox
-        SIFilterCheckBox     matlab.ui.control.CheckBox
-        SIFilterMinField     matlab.ui.control.NumericEditField
-        SIFilterMaxField     matlab.ui.control.NumericEditField
-        SICommonRefCheckBox  matlab.ui.control.CheckBox
-        SIRefOperatorDropDown matlab.ui.control.DropDown
-        SIDetectBadCheckBox  matlab.ui.control.CheckBox
-        SIBadMethodDropDown  matlab.ui.control.DropDown
-        SIBadActionDropDown  matlab.ui.control.DropDown
         KSOptimizeButton  matlab.ui.control.Button
         KSResetButton     matlab.ui.control.Button
         % Kilosort4 parameter controls keyed by settings name (kilosortParamSpec).
         ParamControls struct = struct()
         ExtraSettingsArea matlab.ui.control.TextArea
         KSDocsLink        matlab.ui.control.Hyperlink
-        SIDocsLink        matlab.ui.control.Hyperlink
         SortDatasetDropDown matlab.ui.control.DropDown
         SortResultsLabel  matlab.ui.control.Label
         SortUseFolderButton matlab.ui.control.Button
@@ -904,11 +894,7 @@ classdef EphysPreprocessingApp < handle
 
         % --- Sorting tab ---
         onBrowsePython(obj)
-        cfg = gatherSIConfig(obj)
-        applySIConfig(obj, cfg)
         setDropIfMember(obj, dd, value)
-        syncSIEnableStates(obj)
-        onSIControlsChanged(obj)
         onOptimizeKS4ForProbe(obj, ifMissing)
         onResetKS4Params(obj)
         p = defaultPythonExe(obj)

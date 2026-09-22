@@ -1,5 +1,5 @@
 function p = defaultPythonExe(~)
-    % Best-guess python for the SpikeInterface + Kilosort4 pipeline: the
+    % Best-guess python for the Kilosort4 sorting step: the
     % "kilosort" conda env python when present, else "". Used to seed the
     % Python-exe field on first launch (the user can override).
     p = "";

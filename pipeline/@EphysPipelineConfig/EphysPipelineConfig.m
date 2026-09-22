@@ -18,9 +18,11 @@ classdef EphysPipelineConfig
     %     Probe      DefaultProbeFile, WriteDefaultToManifest
     %     Behavior   Enabled, SearchDirs, Match, MaxStartOffsetMin, Overwrite,
     %                WriteFile, PairTrials, AutoApprove, TrialLine
-    %     Artifacts  Enabled + detector / filter settings, ApplyTo*, CacheIntervals
-    %     Sorting    Enabled, Engine (spikeinterface | kilosort), PythonExe,
-    %                CondaEnv, Execution, MaxConcurrent (background runs at
+    %     Artifacts  Reference ("none" | "car" | "cmr", with the
+    %                ReferenceBadLow / ReferenceBadHigh noise bounds that
+    %                suggest channels to leave out of it), Enabled + detector /
+    %                filter settings, ApplyTo*, CacheIntervals
+    %     Sorting    Enabled, PythonExe, CondaEnv, Execution, MaxConcurrent (background runs at
     %                once; the others wait for a free slot), Devices
     %                (torch devices such as "cuda:0" "cuda:1" shared out
     %                among the runs; none = Kilosort4's choice), DryRun,

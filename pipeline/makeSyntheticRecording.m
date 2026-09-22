@@ -19,9 +19,9 @@ function T = makeSyntheticRecording(folder, opts)
 %                        recording folder, named from its start time as
 %                        Epsych2 does, one trial per InTrial interval
 %     sorted output      (SortedOutput) the ground-truth units as Kilosort4 /
-%                        phy files under kilosort4/si/sorter_output, where the
-%                        SpikeInterface engine puts them, so the Spikes, Export
-%                        and Review steps have sorted units without Python
+%                        phy files under kilosort4/, where runKilosort puts
+%                        them, so the Spikes, Export and Review steps have
+%                        sorted units without Python
 %     manifest           (WriteManifest) with the session and ProbeFile
 %                        associated, as after a run
 %
@@ -551,7 +551,7 @@ setFileModifiedTime(behFile, sessionStart);
 sortedDir = "";
 if opts.SortedOutput
     tick(nSeg / (nSeg + 1), "Writing the ground-truth sorted output");
-    sortedDir = fullfile(folder, 'kilosort4', 'si', 'sorter_output');
+    sortedDir = fullfile(folder, 'kilosort4');
     if ~isfolder(sortedDir); mkdir(sortedDir); end
     allS = zeros(0, 1); allC = zeros(0, 1); allA = zeros(0, 1);
     for u = 1:nU

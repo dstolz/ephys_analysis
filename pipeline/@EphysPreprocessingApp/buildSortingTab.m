@@ -1,19 +1,17 @@
 function buildSortingTab(obj)
-%buildSortingTab  Sorting step: Kilosort4, through SpikeInterface or natively.
+%buildSortingTab  Sorting step: Kilosort4 on a .bin of the recording.
 %   Edits the config's Sorting section (gatherSortingSection /
-%   applySortingSection): the engine (SpikeInterface + Kilosort4, or
-%   Kilosort4 natively on a .bin), Python paths, execution mode, SpikeInterface
-%   preprocessing (disabled for the native engine) and every Kilosort4 parameter from
-%   EphysPipelineConfig.kilosortParamSpec, with "Optimize for probe"
-%   (onOptimizeKS4ForProbe) and "Reset to defaults" (onResetKS4Params)
-%   above the parameters. The right column shows the
+%   applySortingSection): Python paths, execution mode and every Kilosort4
+%   parameter from EphysPipelineConfig.kilosortParamSpec, with "Optimize
+%   for probe" (onOptimizeKS4ForProbe) and "Reset to defaults"
+%   (onResetKS4Params) above the parameters. The right column shows the
 %   selected dataset's sorted-output association (auto-discovered or pinned
 %   with "Use folder..."), runs the step, and streams background run logs.
 
 spec = EphysPipelineConfig.kilosortParamSpec();
 groups = unique({spec.group}, 'stable');
 
-nRows = 13;
+nRows = 6;
 for gi = 1:numel(groups)
     np = sum(strcmp({spec.group}, groups{gi}));
     nRows = nRows + 1 + ceil(np / 2);
@@ -40,20 +38,6 @@ obj.SortEnableCheckBox.Layout.Row = r; obj.SortEnableCheckBox.Layout.Column = [1
 obj.SortSkipExistingCheckBox = uicheckbox(cg, "Text", "Skip datasets already sorted", ...
     "Value", false, "ValueChangedFcn", changed);
 obj.SortSkipExistingCheckBox.Layout.Row = r; obj.SortSkipExistingCheckBox.Layout.Column = [4 5];
-
-r = r + 1;
-l = lab(cg, "Engine:", r);
-l.Tooltip = ["SpikeInterface + Kilosort4: SpikeInterface reads the recording, applies the preprocessing below " ...
-    "and silences artifact periods, then runs Kilosort4. " ...
-    "Kilosort4 only: the recording is written to <Name>.bin (artifact periods erased, with noise by default) and Kilosort4 runs " ...
-    "natively on it; the SpikeInterface preprocessing below is skipped."];
-obj.SortEngineDropDown = uidropdown(cg);
-obj.SortEngineDropDown.Items = {'SpikeInterface + Kilosort4', 'Kilosort4 only (native, via a .bin)'};
-obj.SortEngineDropDown.ItemsData = {'spikeinterface', 'kilosort'};
-obj.SortEngineDropDown.Value = 'spikeinterface';
-obj.SortEngineDropDown.Tooltip = l.Tooltip;
-obj.SortEngineDropDown.ValueChangedFcn = @(~,~) obj.onSIControlsChanged();
-obj.SortEngineDropDown.Layout.Row = r; obj.SortEngineDropDown.Layout.Column = [2 4];
 
 r = r + 1;
 lab(cg, "Python exe:", r);
@@ -88,70 +72,9 @@ obj.DryRunCheckBox = uicheckbox(cg, "Text", "Dry run (write the run files only)"
     "ValueChangedFcn", changed);
 obj.DryRunCheckBox.Layout.Row = r; obj.DryRunCheckBox.Layout.Column = [3 5];
 
-% --- Preprocessing (SpikeInterface) ---
-r = r + 1;
-sep(cg, "Preprocessing (SpikeInterface engine only) - KS4 still filters + whitens internally", r);
-
-r = r + 1;
-obj.SIDetectBadCheckBox = uicheckbox(cg, "Text", "Detect bad channels (auto)", ...
-    "Value", true, "Tooltip", ...
-    ["Run spikeinterface.detect_bad_channels and drop dead/noisy channels " ...
-     "before sorting. Detected channels are unioned with the manual Exclude list."], ...
-    "ValueChangedFcn", @(~,~) obj.onSIControlsChanged());
-obj.SIDetectBadCheckBox.Layout.Row = r; obj.SIDetectBadCheckBox.Layout.Column = [1 2];
-l = lab(cg, "Action:", r); l.Layout.Column = 3;
-obj.SIBadActionDropDown = uidropdown(cg);
-obj.SIBadActionDropDown.Items = ["remove", "interpolate"];
-obj.SIBadActionDropDown.Value = "remove";
-set(obj.SIBadActionDropDown, "Tooltip", ...
-    "Remove bad channels from the probe, or interpolate them from neighbours.", ...
-    "ValueChangedFcn", @(~,~) obj.onSIControlsChanged());
-obj.SIBadActionDropDown.Layout.Row = r; obj.SIBadActionDropDown.Layout.Column = 4;
-
-r = r + 1;
-lab(cg, "Detector method:", r);
-obj.SIBadMethodDropDown = uidropdown(cg);
-obj.SIBadMethodDropDown.Items = ["coherence+psd", "std", "mad", "neighborhood_r2"];
-obj.SIBadMethodDropDown.Value = "coherence+psd";
-obj.SIBadMethodDropDown.Tooltip = "spikeinterface.detect_bad_channels method.";
-obj.SIBadMethodDropDown.ValueChangedFcn = @(~,~) obj.onSIControlsChanged();
-obj.SIBadMethodDropDown.Layout.Row = r; obj.SIBadMethodDropDown.Layout.Column = [2 4];
-
-r = r + 1;
-obj.SICommonRefCheckBox = uicheckbox(cg, "Text", "Common reference (CMR/CAR)", ...
-    "Value", false, "Tooltip", ...
-    "Apply spikeinterface.common_reference across channels before sorting.", ...
-    "ValueChangedFcn", @(~,~) obj.onSIControlsChanged());
-obj.SICommonRefCheckBox.Layout.Row = r; obj.SICommonRefCheckBox.Layout.Column = [1 2];
-l = lab(cg, "Operator:", r); l.Layout.Column = 3;
-obj.SIRefOperatorDropDown = uidropdown(cg);
-obj.SIRefOperatorDropDown.Items = ["median", "average"];
-obj.SIRefOperatorDropDown.Value = "median";
-obj.SIRefOperatorDropDown.ValueChangedFcn = @(~,~) obj.onSIControlsChanged();
-obj.SIRefOperatorDropDown.Layout.Row = r; obj.SIRefOperatorDropDown.Layout.Column = 4;
-
-r = r + 1;
-obj.SIFilterCheckBox = uicheckbox(cg, "Text", ...
-    "Bandpass filter in SpikeInterface (off = let KS4 filter)", ...
-    "Value", false, "Tooltip", ...
-    ["Filter in SpikeInterface instead of relying on KS4's internal high-pass. " ...
-     "Off by default to avoid double-filtering."], ...
-    "ValueChangedFcn", @(~,~) obj.onSIControlsChanged());
-obj.SIFilterCheckBox.Layout.Row = r; obj.SIFilterCheckBox.Layout.Column = [1 5];
-
-r = r + 1;
-lab(cg, "Filter min (Hz):", r);
-obj.SIFilterMinField = uieditfield(cg, "numeric", "Value", 300, "Limits", [0 Inf], ...
-    "ValueChangedFcn", @(~,~) obj.onSIControlsChanged());
-obj.SIFilterMinField.Layout.Row = r; obj.SIFilterMinField.Layout.Column = 2;
-l = lab(cg, "Filter max (Hz):", r); l.Layout.Column = 3;
-obj.SIFilterMaxField = uieditfield(cg, "numeric", "Value", 6000, "Limits", [0 Inf], ...
-    "ValueChangedFcn", @(~,~) obj.onSIControlsChanged());
-obj.SIFilterMaxField.Layout.Row = r; obj.SIFilterMaxField.Layout.Column = 4;
-
 r = r + 1;
 note = uilabel(cg, "WordWrap", "on", "FontColor", [0.4 0.4 0.4], "Text", ...
-    "Artifact silencing (manual periods always; automatic detection when enabled) is configured on the Artifacts tab, the way they are erased included. The native engine erases the same periods in the .bin.");
+    "Artifact silencing (manual periods always; automatic detection when enabled) is configured on the Artifacts tab, the way they are erased included; those periods are erased in the .bin Kilosort4 sorts.");
 note.Layout.Row = r; note.Layout.Column = [1 5];
 
 % --- Kilosort4 parameters (from kilosortParamSpec), two per row ---
@@ -206,9 +129,6 @@ r = r + 1;
 obj.KSDocsLink = uihyperlink(cg, "Text", "Kilosort4 parameter docs", ...
     "URL", "https://kilosort.readthedocs.io/en/latest/parameters.html");
 obj.KSDocsLink.Layout.Row = r; obj.KSDocsLink.Layout.Column = [2 3];
-obj.SIDocsLink = uihyperlink(cg, "Text", "SpikeInterface docs", ...
-    "URL", "https://spikeinterface.readthedocs.io/en/stable/");
-obj.SIDocsLink.Layout.Row = r; obj.SIDocsLink.Layout.Column = [4 5];
 
 % =================== right column: results association + run + log ===================
 right = uigridlayout(g, [2 1]);
@@ -248,8 +168,6 @@ obj.KSProgressLabel.Layout.Row = 4; obj.KSProgressLabel.Layout.Column = [2 4];
 logPanel = uipanel(right, "Title", "Kilosort4 log (background runs stream here)");
 lg = uigridlayout(logPanel, [1 1]);
 obj.KSLogArea = uitextarea(lg, "Editable", "off");
-
-obj.syncSIEnableStates();
 end
 
 

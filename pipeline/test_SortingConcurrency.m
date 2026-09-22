@@ -5,7 +5,7 @@ function test_SortingConcurrency()
 %   (or exit without one), so the pipeline's slot handling is checked
 %   without Kilosort4 or a GPU. Checks EphysDataset.sortRunState,
 %   sortingSlot and waitForSortingSlot, the pipeline with one and two
-%   slots (the SpikeInterface and the native engine), a run that exits
+%   slots, a run that exits
 %   without a status, runs started elsewhere (PriorRuns), a cancel while
 %   waiting, blocking runs, GPUs shared out (Sorting.Devices, the
 %   driver's --device), runs handed to a queue (QueueFcn, launchSorting),
@@ -111,10 +111,10 @@ check(dev == "", 'no devices: no device');
 check(isequal(EphysDataset.isTorchDevice(["cuda:1" "cpu" "cuda" "gpu1" "cuda:x" ""]), [true true true false false false]), ...
     'isTorchDevice accepts cpu / cuda / cuda:N only');
 
-fprintf('\n== 3. one slot, SpikeInterface engine ==\n');
+fprintf('\n== 3. one slot ==\n');
 tl = fullfile(root, 'timeline3.txt');
 fake = makeFake(root, 'fake3.cmd', tl, true);
-S = runScenario(proj, probeFile, 1, "spikeinterface", fake, fullfile(root, 'out3'));
+S = runScenario(proj, probeFile, 1, fake, fullfile(root, 'out3'));
 check(numel(S.launched) == 3 && all(S.results.Status == "launched"), 'all three datasets launched');
 [maxRun, nEvents] = concurrency(tl);
 check(nEvents == 6 && maxRun == 1, sprintf('never more than one at a time (max %d over %d events)', maxRun, nEvents));
@@ -123,19 +123,19 @@ check(S.pipe.SortingWaiting == 0, 'SortingWaiting is 0 once every dataset has st
 check(S.allExited, 'each run left its exit marker once its process ended');
 check(all(arrayfun(@(r) EphysDataset.sortRunState(r.statusFile) == "done", S.launched)), 'every run reports done');
 
-fprintf('\n== 4. two slots, native engine ==\n');
+fprintf('\n== 4. two slots ==\n');
 tl = fullfile(root, 'timeline4.txt');
 fake = makeFake(root, 'fake4.cmd', tl, true);
-S = runScenario(proj, probeFile, 2, "kilosort", fake, fullfile(root, 'out4'));
+S = runScenario(proj, probeFile, 2, fake, fullfile(root, 'out4'));
 [maxRun, nEvents] = concurrency(tl);
 check(numel(S.launched) == 3 && nEvents == 6 && maxRun == 2, sprintf('two at a time (max %d over %d events)', maxRun, nEvents));
 check(all(arrayfun(@(r) isfile(fullfile(r.resultsDir, 'settings.json')), S.launched)), ...
-    'the native engine wrote each run''s files before launching');
+    'runKilosort wrote each run''s files before launching');
 
 fprintf('\n== 5. a run that exits without a status frees its slot ==\n');
 tl = fullfile(root, 'timeline5.txt');
 fake = makeFake(root, 'fake5.cmd', tl, false);
-S = runScenario(proj, probeFile, 1, "spikeinterface", fake, fullfile(root, 'out5'));
+S = runScenario(proj, probeFile, 1, fake, fullfile(root, 'out5'));
 [maxRun, nEvents] = concurrency(tl);
 check(~S.timedOut && numel(S.launched) == 3 && nEvents == 6 && maxRun == 1, 'all three ran, one at a time, without hanging');
 [st, msg] = EphysDataset.sortRunState(S.launched(1).statusFile);
@@ -147,14 +147,14 @@ fake = makeFake(root, 'fake6.cmd', tl, true);
 priorDir = fullfile(root, 'prior'); mkdir(priorDir);
 prior = EphysPipeline.sortRun("elsewhere", struct('statusFile', fullfile(priorDir, 'ks4_status.json'), ...
     'resultsDir', priorDir, 'stdoutLog', fullfile(priorDir, 'ks4_run.log'), 'device', ""));
-S = runScenario(proj, probeFile, 1, "spikeinterface", fake, fullfile(root, 'out6'), PriorRuns=prior);
+S = runScenario(proj, probeFile, 1, fake, fullfile(root, 'out6'), PriorRuns=prior);
 check(S.waitedForPrior, 'the first dataset waited for the earlier run to finish');
 check(numel(S.launched) == 3, 'then all three launched');
 
 fprintf('\n== 7. cancel while waiting for a slot ==\n');
 tl = fullfile(root, 'timeline7.txt');
 fake = makeFake(root, 'fake7.cmd', tl, true);
-S = runScenario(proj, probeFile, 1, "spikeinterface", fake, fullfile(root, 'out7'), CancelOnWait=true);
+S = runScenario(proj, probeFile, 1, fake, fullfile(root, 'out7'), CancelOnWait=true);
 check(S.errorId == "EphysPipeline:Cancelled", 'runSorting ends with EphysPipeline:Cancelled');
 check(numel(S.launched) == 1 && isequal(S.results.Status.', ["launched" "cancelled" "cancelled"]), ...
     'the running dataset carries on; the other two are cancelled');
@@ -162,7 +162,7 @@ check(numel(S.launched) == 1 && isequal(S.results.Status.', ["launched" "cancell
 fprintf('\n== 8. blocking runs go one at a time, without the slot wait ==\n');
 tl = fullfile(root, 'timeline8.txt');
 fake = makeFake(root, 'fake8.cmd', tl, true);
-S = runScenario(proj, probeFile, 3, "spikeinterface", fake, fullfile(root, 'out8'), Execution="blocking");
+S = runScenario(proj, probeFile, 3, fake, fullfile(root, 'out8'), Execution="blocking");
 [maxRun, nEvents] = concurrency(tl);
 check(all(S.results.Status == "done") && isempty(S.launched) && S.nWaitMsgs == 0, 'three blocking runs, done, no background launches');
 check(nEvents == 6 && maxRun == 1, 'blocking ignores MaxConcurrent: one at a time');
@@ -170,7 +170,7 @@ check(nEvents == 6 && maxRun == 1, 'blocking ignores MaxConcurrent: one at a tim
 fprintf('\n== 9. two slots, two GPUs (Sorting.Devices) ==\n');
 tl = fullfile(root, 'timeline9.txt');
 fake = makeFake(root, 'fake9.cmd', tl, true);
-S = runScenario(proj, probeFile, 2, "spikeinterface", fake, fullfile(root, 'out9'), Devices=["cuda:0" "cuda:1"]);
+S = runScenario(proj, probeFile, 2, fake, fullfile(root, 'out9'), Devices=["cuda:0" "cuda:1"]);
 [maxRun, nEvents, shared] = concurrency(tl);
 check(numel(S.launched) == 3 && nEvents == 6 && maxRun == 2, sprintf('two at a time (max %d over %d events)', maxRun, nEvents));
 check(isequal([S.launched(1:2).device], ["cuda:0" "cuda:1"]) && ismember(S.launched(3).device, ["cuda:0" "cuda:1"]), ...
@@ -179,14 +179,14 @@ check(~shared, 'no two runs going at once shared a GPU (the drivers got --device
 check(all(contains(S.results.Message, "background run on cuda:")), 'the result rows name the GPU');
 tl = fullfile(root, 'timeline9b.txt');
 fake = makeFake(root, 'fake9b.cmd', tl, true);
-runScenario(proj, probeFile, 1, "kilosort", fake, fullfile(root, 'out9b'), Execution="blocking", Devices=["cuda:1" "cuda:0"]);
+runScenario(proj, probeFile, 1, fake, fullfile(root, 'out9b'), Execution="blocking", Devices=["cuda:1" "cuda:0"]);
 L = strtrim(readlines(tl)); L = L(startsWith(L, "start"));
 check(numel(L) == 3 && all(endsWith(L, "--device cuda:1")), 'blocking runs go on the first device');
 
 fprintf('\n== 10. runs handed to a queue (QueueFcn) ==\n');
 tl = fullfile(root, 'timeline10.txt');
 fake = makeFake(root, 'fake10.cmd', tl, true);
-S = runScenario(proj, probeFile, 1, "kilosort", fake, fullfile(root, 'out10'), Queue=true);
+S = runScenario(proj, probeFile, 1, fake, fullfile(root, 'out10'), Queue=true);
 check(~isfile(tl) && isempty(S.launched) && S.nWaitMsgs == 0, 'the step started nothing and never waited for a slot');
 check(numel(S.queued) == 3 && all(S.results.Status == "queued") && S.pipe.SortingWaiting == 0, ...
     'each dataset went to QueueFcn, its row "queued"');
@@ -221,7 +221,7 @@ check(isequal(EphysPipeline.restateResult(T, "sorting", "C", "x", "done", "", 0)
 fprintf('\n== 12. stopping a run that is going (stopSortRun) ==\n');
 tl = fullfile(root, 'timeline12.txt');
 fake = makeFake(root, 'fake12.cmd', tl, true, 30);   % would sort for ~30 s
-S = runScenario(proj, probeFile, 1, "spikeinterface", fake, fullfile(root, 'out12'), Queue=true);
+S = runScenario(proj, probeFile, 1, fake, fullfile(root, 'out12'), Queue=true);
 q = S.queued(1);
 res = q.d.launchSorting(q.res, Wait=false);
 t0 = tic;
@@ -247,13 +247,12 @@ end
 end
 
 
-function S = runScenario(proj, probeFile, maxConcurrent, engine, fake, outRoot, opts)
+function S = runScenario(proj, probeFile, maxConcurrent, fake, outRoot, opts)
 %runScenario  Sort the three datasets, then wait for every run to end.
 arguments
     proj
     probeFile
     maxConcurrent
-    engine
     fake
     outRoot
     opts.PriorRuns struct = EphysPipeline.emptyRuns()
@@ -267,7 +266,6 @@ cfg.Project.Root = proj;
 cfg.Project.OutputRoot = outRoot;
 cfg.Probe.DefaultProbeFile = probeFile;
 cfg.Sorting.Enabled = true;
-cfg.Sorting.Engine = engine;
 cfg.Sorting.PythonExe = fake;
 cfg.Sorting.Execution = opts.Execution;
 cfg.Sorting.MaxConcurrent = maxConcurrent;

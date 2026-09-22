@@ -16,7 +16,7 @@ classdef EphysPipeline < handle
     %     behavior   checkBehavior      associate Epsych2 sessions (matchEpsychSession),
     %                                   pair trials with the trial line (pairTrials)
     %     artifacts  runArtifacts       compute + cache artifact intervals
-    %     sorting    runSorting         SpikeInterface + Kilosort4 (runSpikeInterface)
+    %     sorting    runSorting         Kilosort4 on a .bin (runKilosort)
     %     signals    runSignals         derived LFP/MUA/SPIKE/AUX .mat (toMat)
     %     spikes     runSpikeDetection  detected and/or sorted spikes .mat (spikesToMat)
     %     export     runExport          analysis-toolbox / epoch files (Export.Formats)
@@ -530,7 +530,7 @@ classdef EphysPipeline < handle
     methods (Static)
         function applyConfigToDatasets(cfg, P)
             %applyConfigToDatasets  Push the config's shared settings onto every dataset.
-            %   Sets PythonExe, CondaEnv, SIConfig, ArtifactConfig, TrialConfig,
+            %   Sets PythonExe, CondaEnv, ArtifactConfig, TrialConfig,
             %   ReaderOptions (Acquisition), OutputDir (<OutputRoot>/<Name> when
             %   an output root is set), and the NamePattern and DatasetKey that
             %   label sorted units. A changed Acquisition section changes which
@@ -553,7 +553,6 @@ classdef EphysPipeline < handle
                 d = P.Datasets(k);
                 d.PythonExe      = cfg.Sorting.PythonExe;
                 d.CondaEnv       = cfg.Sorting.CondaEnv;
-                d.SIConfig       = cfg.Sorting.SI;
                 d.ArtifactConfig = acfg;
                 d.TrialConfig    = tcfg;
                 d.ReaderOptions  = cfg.Acquisition;

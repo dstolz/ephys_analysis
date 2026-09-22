@@ -447,14 +447,8 @@ cfg.save(devFile);
 cDev = EphysPipelineConfig.load(devFile);
 delete(devFile);
 check(isequal(cDev.Sorting.Devices, string.empty(1, 0)), 'an empty Sorting.Devices survives a save and load');
-check(EphysPipelineConfig().Sorting.Engine == "spikeinterface", 'sorting runs through SpikeInterface by default');
-cfg.Sorting.Engine = "bogus";
-iss = cfg.validate();
-check(any(iss.Step == "sorting" & iss.Field == "Engine" & iss.Severity == "error"), 'an unknown sorting engine is an error');
-cfg.Sorting.Engine = "kilosort";
-iss = cfg.validate();
-check(~any(iss.Step == "sorting" & iss.Severity == "error"), 'the native engine validates');
-cfg.Sorting.Engine = "spikeinterface";
+check(~isfield(EphysPipelineConfig().Sorting, 'Engine') && ~isfield(EphysPipelineConfig().Sorting, 'SI'), ...
+    'Kilosort4 is the only sorter: no Engine or SI settings');
 cfg.Export.Enabled = true;
 iss = cfg.validate();
 check(any(iss.Step == "export" & iss.Field == "Formats" & iss.Severity == "error") ...

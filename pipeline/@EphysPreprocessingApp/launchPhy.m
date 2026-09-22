@@ -1,8 +1,7 @@
 function launchPhy(obj, resultsDir, label)
 %launchPhy  Run `phy template-gui params.py` detached in RESULTSDIR.
-%   RESULTSDIR must be the folder that holds params.py (for the SpikeInterface
-%   engine that is <kilosort4>/si/sorter_output). LABEL names the source in
-%   the log (e.g. the dataset name). The launch command comes from the "Phy
+%   RESULTSDIR must be the folder that holds params.py (the dataset's
+%   <kilosort4> run folder). LABEL names the source in the log (e.g. the dataset name). The launch command comes from the "Phy
 %   command" field; phy lives in its own conda env (see INSTALL.md), so the
 %   default (when the field is blank) is that env's phy executable, falling
 %   back to `conda run -n phy phy` when it cannot be found. phy reads

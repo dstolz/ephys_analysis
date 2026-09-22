@@ -1,19 +1,14 @@
 function runSorting(obj, opts)
 %runSorting  Kilosort4 for each selected dataset.
-%   Sorting.Engine picks the route:
-%     "spikeinterface"  EphysDataset.runSpikeInterface: SpikeInterface loads
-%                       the recording, applies its preprocessing (already
-%                       pushed onto each dataset) and runs Kilosort4.
-%     "kilosort"        EphysDataset.runKilosort: the recording is written to
-%                       a .bin and Kilosort4 runs natively on it.
-%   Both get the config's typed Kilosort4 settings
+%   EphysDataset.runKilosort writes the recording to a .bin and Kilosort4
+%   runs on it, with the config's typed Kilosort4 settings
 %   (EphysPipelineConfig.ks4Settings) and the artifact intervals (manual
 %   periods always; the cached automatic detection when
-%   Artifacts.ApplyToSorting), silenced by SpikeInterface or blanked in the
-%   .bin. The manifest is rewritten after each launch / completion.
+%   Artifacts.ApplyToSorting) blanked in the .bin. The manifest is rewritten
+%   after each launch / completion.
 %
-%   Each dataset's run files (and the .bin for the native engine) are
-%   written first (Launch=false), then the run starts
+%   Each dataset's run files and .bin are written first (Launch=false), then
+%   the run starts
 %   (EphysDataset.launchSorting):
 %     blocking    (Sorting.Execution) at once; the step waits for each run
 %                 to finish, so they go one at a time.
@@ -33,7 +28,7 @@ function runSorting(obj, opts)
 %   Sorting.Devices shares torch devices out: a background run gets the one
 %   the fewest running runs use (sortingSlot), a blocking run the first.
 %
-%   Options: Datasets (indices), DryRun (write si_config.json + the driver
+%   Options: Datasets (indices), DryRun (write settings.json + the driver
 %   only).
 
 arguments
@@ -50,14 +45,6 @@ if msg ~= ""
 end
 blocking = S.Execution == "blocking";
 queued = ~blocking && ~isempty(obj.QueueFcn);
-native = S.Engine == "kilosort";
-if native
-    runFcn = @(d, varargin) d.runKilosort(varargin{:});
-    writeMsg = "writing the .bin and run files";
-else
-    runFcn = @(d, varargin) d.runSpikeInterface(varargin{:});
-    writeMsg = "writing the run files";
-end
 dry = opts.DryRun || logical(S.DryRun);   % the config's DryRun applies to direct calls too
 ds = obj.selected(opts.Datasets);
 n = numel(ds);
@@ -86,12 +73,11 @@ for k = 1:n
         obj.progress("sorting", d.Name, k, n, 0, 2, "artifact intervals");
         iv = obj.artifactIntervalsForStep(d, c.Artifacts.ApplyToSorting, ...   % a detection fills the first half
             @(done, total, msg) obj.progress("sorting", d.Name, k, n, done / max(total, 1), 2, "artifact intervals, " + msg));
-        obj.progress("sorting", d.Name, k, n, 1, 2, ternary(dry, "writing run files", writeMsg));
-        res = runFcn(d, ExtraSettings=ks4, ArtifactIntervals=iv, DryRun=dry, Launch=false);
+        obj.progress("sorting", d.Name, k, n, 1, 2, ternary(dry, "writing run files", "writing the .bin and run files"));
+        res = d.runKilosort(ExtraSettings=ks4, ArtifactIntervals=iv, DryRun=dry, Launch=false);
         if dry
             obj.log("[sorting] %s: dry run, wrote %s", d.Name, res.settingsPath);
-            obj.addResult("sorting", d.Name, "dry run", "wrote " + ternary(native, "settings.json", "si_config.json") + ...
-                " + driver", res.settingsPath, toc(t0));
+            obj.addResult("sorting", d.Name, "dry run", "wrote settings.json + driver", res.settingsPath, toc(t0));
         elseif blocking
             device = "";
             if ~isempty(S.Devices); device = S.Devices(1); end

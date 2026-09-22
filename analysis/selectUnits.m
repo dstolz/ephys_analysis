@@ -10,8 +10,7 @@ function [st, meta] = selectUnits(src, usel)
 %            um; NaN when unknown), nSpikes
 %   Shanks are numbered as in the probe map (kcoords) for both sources: a
 %   sorted unit on a mapped channel takes its channel's shank, because the
-%   sorter's own shank numbers depend on the engine (SpikeInterface writes
-%   0-based group indices).
+%   sorter's own shank numbers (channel_shanks.npy) need not match them.
 %   Sorted units ("units") and threshold detections ("detected", one
 %   "unit" per channel, class "det") share every later step.
 %

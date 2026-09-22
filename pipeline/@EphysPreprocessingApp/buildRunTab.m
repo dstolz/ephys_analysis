@@ -27,7 +27,7 @@ sg.RowHeight = [repmat({'fit'}, 1, 15), {'1x'}];
 uilabel(sg, "Text", "Probe check (always)", "FontColor", [0.4 0.4 0.4]);
 obj.RunBehaviorCheckBox  = uicheckbox(sg, "Text", "Behavior: match Epsych2 sessions", "ValueChangedFcn", @(src,~) mirror(obj, "BehEnableCheckBox", src.Value));
 obj.RunArtifactsCheckBox = uicheckbox(sg, "Text", "Artifacts: automatic detection", "ValueChangedFcn", @(src,~) mirror(obj, "ArtEnableCheckBox", src.Value));
-obj.RunSortingCheckBox   = uicheckbox(sg, "Text", "Sorting: SpikeInterface + Kilosort4", "ValueChangedFcn", @(src,~) mirror(obj, "SortEnableCheckBox", src.Value));
+obj.RunSortingCheckBox   = uicheckbox(sg, "Text", "Sorting: Kilosort4", "ValueChangedFcn", @(src,~) mirror(obj, "SortEnableCheckBox", src.Value));
 kg = uigridlayout(sg, [3 3]);
 kg.Padding = [20 0 0 0]; kg.ColumnWidth = {'fit', 60, '1x'}; kg.RowHeight = {'fit', 'fit', 'fit'}; kg.ColumnSpacing = 4;
 tip = "How many Kilosort4 runs go at once in the background; each further dataset waits for one to finish. " + ...

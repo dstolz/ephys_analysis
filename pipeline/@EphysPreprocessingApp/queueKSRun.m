@@ -1,7 +1,7 @@
 function queueKSRun(obj, d, res)
 %queueKSRun  The pipeline's QueueFcn: hold a prepared Kilosort4 run for the monitor.
-%   obj.queueKSRun(D, RES): D is the dataset, RES what runKilosort /
-%   runSpikeInterface returned with Launch=false (every file written).
+%   obj.queueKSRun(D, RES): D is the dataset, RES what runKilosort
+%   returned with Launch=false (every file written).
 %   The run joins KSQueue and the monitor (pollKSRuns) starts it with
 %   D.launchSorting once fewer than Sorting.MaxConcurrent runs are going.
 %   Used when the Run tab's "Queue the waiting runs" is ticked, so the Run

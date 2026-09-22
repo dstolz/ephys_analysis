@@ -3,7 +3,7 @@ function test_EphysPipelineScript()
 %   Generates the compact and the standalone script for a config over a
 %   synthetic project (spike detection + exports enabled, sorting as a dry
 %   run), checks both with checkcode, runs each into its own output root and
-%   requires the spikes / chronux / fieldtrip files and si_config.json to
+%   requires the spikes / chronux / fieldtrip files and settings.json to
 %   match between the two. Also checks that disabled steps are commented out
 %   in the compact script, that the standalone script never uses the
 %   EphysPipeline runner, and that literal(v) round-trips through eval.
@@ -59,7 +59,7 @@ probeFile = fullfile(root, 'probe.json');
 writeJsonFile(probeFile, struct('chanMap', 0:numAmp-1, 'xc', zeros(1, numAmp), 'yc', (0:numAmp-1) * 20, ...
     'kcoords', zeros(1, numAmp), 'n_chan', numAmp));
 phyDir = fullfile(root, 'phy');
-makePhyFixture(phyDir, Fs, ChannelMap=[0 1 2 3], Legacy=true);
+makePhyFixture(phyDir, Fs, ChannelMap=[0 1 2 3], SettingsJson=true);
 d = EphysDataset(f1);
 d.SortingDir = phyDir;
 d.ProbeFile = probeFile;
@@ -106,7 +106,7 @@ check(~contains(txtS, "EphysPipeline(") && ~contains(txtS, "EphysPipelineConfig.
 cfgBg = cfgB; cfgBg.Sorting.Execution = "background"; cfgBg.Sorting.DryRun = false; cfgBg.Sorting.MaxConcurrent = 2;
 txtBg = EphysPipelineScript.standalone(cfgBg);
 check(contains(txtBg, "maxConcurrent = 2;") && contains(txtBg, "launched = [];") ...
-    && contains(txtBg, "res = d.runSpikeInterface(ExtraSettings=ks4, ArtifactIntervals=iv, Launch=false);") ...
+    && contains(txtBg, "res = d.runKilosort(ExtraSettings=ks4, ArtifactIntervals=iv, Launch=false);") ...
     && contains(txtBg, "waitForSortingSlot(launched, maxConcurrent);") && contains(txtBg, "res = d.launchSorting(res, Wait=false);") ...
     && contains(txtBg, "launched = [launched, res];") && ~contains(txtBg, "devices ="), ...
     'standalone script writes each run''s files, waits for a slot (Sorting.MaxConcurrent at a time), then starts it');
@@ -130,11 +130,7 @@ check(contains(txtS, ", Recursive=true, ReaderOptions=readerOptions);") ...
 check(contains(txtS, "ks4.nblocks = 2;") && contains(txtS, "ks4.x_centers = 2;") && contains(txtS, "detectOptions.Threshold = 2000;") ...
     && contains(txtS, '"schema": "ephys-pipeline-config"'), 'standalone script carries the parameters and the config JSON as a comment');
 check(contains(txtS, "if false   % set to true to run this step"), 'standalone disabled steps are wrapped in if false');
-check(contains(txtS, "res = d.runSpikeInterface(ExtraSettings=ks4"), 'standalone sorting uses SpikeInterface by default');
-cfgN = cfgB; cfgN.Sorting.Engine = "kilosort";
-txtN = EphysPipelineScript.standalone(cfgN);
-check(contains(txtN, "res = d.runKilosort(ExtraSettings=ks4, ArtifactIntervals=iv") && ~contains(txtN, "runSpikeInterface"), ...
-    'standalone sorting runs Kilosort4 natively for Engine="kilosort"');
+check(contains(txtS, "res = d.runKilosort(ExtraSettings=ks4, ArtifactIntervals=iv"), 'standalone sorting runs Kilosort4 (runKilosort)');
 check(contains(txtS, "parallelOpts.UseParallel = false;") && contains(txtS, "parallelArgs{:}") ...
     && contains(txtS, "detectOptions.UseParallel = false;"), 'standalone script carries the Parallel section into the chunked steps');
 mC = checkcode(compactFile, '-id');
@@ -159,10 +155,10 @@ for f = ["A1_260101_120000_spikes.mat" "A1_260101_120000_chronux.mat" "A1_260101
     A = stripVolatile(A); B = stripVolatile(B);
     check(isequaln(A, B), "identical " + f + " from both scripts");
 end
-siA = readJsonFile(fullfile(outA, 'A1_260101_120000', 'kilosort4', 'si_config.json'));
-siB = readJsonFile(fullfile(outB, 'A1_260101_120000', 'kilosort4', 'si_config.json'));
-check(isequaln(siA.ks4, siB.ks4) && siA.ks4.nblocks == 2 && siA.ks4.x_centers == 2 ...
-    && isequaln(siA.preprocessing, siB.preprocessing), 'identical si_config.json (dry run) from both scripts');
+paths = {'filename', 'probe', 'results_dir'};   % under each script's own output root
+stA = rmfield(readJsonFile(fullfile(outA, 'A1_260101_120000', 'kilosort4', 'settings.json')), paths);
+stB = rmfield(readJsonFile(fullfile(outB, 'A1_260101_120000', 'kilosort4', 'settings.json')), paths);
+check(isequaln(stA, stB) && stA.nblocks == 2 && stA.x_centers == 2, 'identical settings.json (dry run) from both scripts');
 
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0

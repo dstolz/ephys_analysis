@@ -5,8 +5,8 @@ function s = defaults(section)
 %   coerces every assigned value to match them.
 %
 %   Continuous-signal defaults mirror EphysDataset.deriveSignals; detection
-%   defaults mirror EphysDataset.detectSpikes; the artifact and SpikeInterface
-%   defaults come from EphysDataset.defaultArtifactConfig / defaultSIConfig.
+%   defaults mirror EphysDataset.detectSpikes; the artifact defaults come from
+%   EphysDataset.defaultArtifactConfig.
 
 arguments
     section (1,1) string
@@ -82,7 +82,6 @@ switch section
         end
         s = struct( ...
             'Enabled',      false, ...
-            'Engine',       "spikeinterface", ...  % "spikeinterface" | "kilosort" (native, via a .bin)
             'PythonExe',    "", ...
             'CondaEnv',     "", ...
             'Execution',    "background", ...  % "background" | "blocking"
@@ -90,7 +89,6 @@ switch section
             'Devices',      string.empty(1,0), ...   % torch devices shared out ("cuda:0" "cuda:1"); none = Kilosort4's choice
             'DryRun',       false, ...
             'SkipExisting', false, ...          % skip datasets that already have results
-            'SI',           EphysDataset.defaultSIConfig(), ...
             'KS4',          ks4, ...
             'KS4ExtraJSON', "");
 

@@ -1,7 +1,7 @@
 function [ks4, errMsg] = ks4Settings(sorting)
 %ks4Settings  Kilosort4 settings struct from the Sorting section.
 %   [KS4, ERRMSG] = EphysPipelineConfig.ks4Settings(cfg.Sorting) returns the
-%   scalar struct passed to EphysDataset.runSpikeInterface as ExtraSettings.
+%   scalar struct passed to EphysDataset.runKilosort as ExtraSettings.
 %   Typed values come from Sorting.KS4 (per kilosortParamSpec); "auto"
 %   values - nullable parameters left [] and floatinf parameters at Inf -
 %   are OMITTED so Kilosort4 falls back to its own default. The free-form
@@ -9,7 +9,7 @@ function [ks4, errMsg] = ks4Settings(sorting)
 %   ERRMSG is "" on success or describes the JSON parse failure (KS4 is then
 %   the named fields only).
 %
-%   See also EphysPipelineConfig.kilosortParamSpec, EphysDataset.runSpikeInterface.
+%   See also EphysPipelineConfig.kilosortParamSpec, EphysDataset.runKilosort.
 
 arguments
     sorting (1,1) struct

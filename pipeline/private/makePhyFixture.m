@@ -1,14 +1,14 @@
 function makePhyFixture(dir0, fs, opts)
 %makePhyFixture  Write a small Kilosort4/phy results folder (test fixture).
-%   makePhyFixture(dir0, fs, ChannelMap=[0 1 2 3], NChan=4, Legacy=true,
+%   makePhyFixture(dir0, fs, ChannelMap=[0 1 2 3], NChan=4, SettingsJson=true,
 %                  ClusterIds=[0 1 2], Shanks=zeros(1,NChan), Positions=[])
 %   Three clusters: 0 (good, spikes at 300/600/30000), 1 (mua, 900/1500),
 %   2 (noise, 45000). cluster_group.tsv labels them good/mua/noise while
 %   cluster_KSLabel.tsv says mua/good/good (so curation must win). Templates
 %   [3 x 8 x NChan] put cluster 0's peak on sorted channel 2, cluster 1's on
 %   the last channel, cluster 2's on channel 1; amplitudes give cluster 0 a
-%   median of 1.5 and cluster 1 a median of 2. Legacy=true adds a
-%   settings.json so readPhyUnits detects the legacy .bin engine.
+%   median of 1.5 and cluster 1 a median of 2. SettingsJson=true adds a
+%   settings.json, as a runKilosort run folder has.
 %   ClusterIds renames the three clusters in spike_clusters.npy and both .tsv
 %   files (spike_templates.npy keeps 0..2). Shanks writes channel_shanks.npy;
 %   Positions ([NChan x 2], um) writes channel_positions.npy (none when empty).
@@ -19,7 +19,7 @@ arguments
     fs (1,1) double
     opts.ChannelMap (1,:) double = [0 1 2 3]
     opts.NChan (1,1) double = 4
-    opts.Legacy (1,1) logical = true
+    opts.SettingsJson (1,1) logical = true
     opts.ClusterIds (1,3) double = [0 1 2]
     opts.Shanks (1,:) double = []
     opts.Positions (:,2) double = zeros(0, 2)
@@ -55,7 +55,7 @@ fclose(fid);
 fid = fopen(fullfile(dir0, 'cluster_KSLabel.tsv'), 'w');
 fprintf(fid, 'cluster_id\tKSLabel\n%d\tmua\n%d\tgood\n%d\tgood\n', opts.ClusterIds);
 fclose(fid);
-if opts.Legacy
+if opts.SettingsJson
     writeJsonFile(fullfile(dir0, 'settings.json'), struct('n_chan_bin', nC, 'fs', fs));
 end
 end

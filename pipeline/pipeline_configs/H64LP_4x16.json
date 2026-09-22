@@ -2,7 +2,7 @@
   "schema": "ephys-pipeline-config",
   "version": 1,
   "name": "H64LP 4x16",
-  "description": "Starting point for H64LP 4x16 linear probes: the SpikeInterface + Kilosort4 settings of the previous ks4_configs file. Set Project.Root / OutputRoot and Sorting.PythonExe, then enable the steps you need.",
+  "description": "Starting point for H64LP 4x16 linear probes: the Kilosort4 settings of the previous ks4_configs file. Set Project.Root / OutputRoot and Sorting.PythonExe, then enable the steps you need.",
   "Project": {
     "Root": "",
     "OutputRoot": "",
@@ -50,16 +50,6 @@
     "Execution": "background",
     "DryRun": false,
     "SkipExisting": false,
-    "SI": {
-      "Filter": false,
-      "FilterFreqMin": 300,
-      "FilterFreqMax": 6000,
-      "CommonReference": false,
-      "ReferenceOperator": "median",
-      "DetectBadChannels": true,
-      "BadChannelMethod": "coherence+psd",
-      "BadChannelAction": "remove"
-    },
     "KS4": {
       "n_chan_bin": [],
       "fs": [],

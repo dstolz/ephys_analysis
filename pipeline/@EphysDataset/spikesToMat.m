@@ -233,9 +233,8 @@ end
 
 function tf = inIntervals(t, iv, Fs)
 %inIntervals  True for each event on a sample inside any [t0 t1) period.
-%   Compared in samples (t = index/Fs, 0-based), as manualArtifactMask and
-%   SpikeInterface's silence_periods count them: round(t0*Fs) up to but not
-%   including round(t1*Fs).
+%   Compared in samples (t = index/Fs, 0-based), as manualArtifactMask counts
+%   them: round(t0*Fs) up to but not including round(t1*Fs).
 g = round(t * Fs);
 tf = false(size(t));
 for k = 1:size(iv, 1)

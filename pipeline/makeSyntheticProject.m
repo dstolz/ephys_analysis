@@ -16,7 +16,7 @@ function S = makeSyntheticProject(root, opts)
 %                                        Open Ephys: Record Node 101/)
 %           <Subject>_<yymmdd>T<HHMMSS>.mat   its Epsych2 session
 %           <Name>_manifest.json         probe + session associated
-%           kilosort4/si/sorter_output/  ground-truth units as Kilosort4 / phy output
+%           kilosort4/                   ground-truth units as Kilosort4 / phy output
 %
 %   The recordings hold spiking units, LFP, artifacts, six digital lines
 %   (InTrial is the trial line) and accelerometer inputs; each Epsych2
@@ -252,7 +252,7 @@ w('rhythms, noise, 60 Hz, a stimulus-evoked potential, %d spiking units and%s tw
 w('artifacts (one saturates the ADC). The Epsych2 session (<subject>_<yymmdd>T<HHMMSS>.mat,');
 w('variables Data + Info) sits in the recording folder and starts 65 s before the recording.');
 if opts.SortedOutput
-    w('kilosort4/si/sorter_output holds the ground-truth units as Kilosort4 / phy output, so the');
+    w('kilosort4/ holds the ground-truth units as Kilosort4 / phy output, so the');
     w('Spikes (sorted), Export (units) and Review steps work without running Python.');
 end
 if ~isempty(opts.InvertedLines)

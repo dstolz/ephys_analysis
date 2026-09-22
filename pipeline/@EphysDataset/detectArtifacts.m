@@ -7,9 +7,8 @@ function [mask, intervals, stats] = detectArtifacts(obj, X, opts)
 %                contiguous run of MASK: half-open on the 0-based sample
 %                clock, so row r (sample r-1, at (r-1)/Fs) is inside when
 %                tStart <= (r-1)/Fs < tEnd. A run of rows a..b is [a-1, b]/Fs;
-%                a one-sample run is one sample long. manualArtifactMask and
-%                SpikeInterface's silence_periods map it back to exactly
-%                those samples.
+%                a one-sample run is one sample long. manualArtifactMask maps
+%                it back to exactly those samples.
 %     STATS      struct with the threshold(s) used and per-channel exceedance
 %
 %   Options

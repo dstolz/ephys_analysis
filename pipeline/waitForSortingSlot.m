@@ -9,7 +9,7 @@ function device = waitForSortingSlot(runs, maxRunning, opts)
 %
 %     launched = [];
 %     for d = datasets
-%         res = d.runSpikeInterface(Launch=false, ...);   % the run files
+%         res = d.runKilosort(Launch=false, ...);   % the .bin + run files
 %         device = waitForSortingSlot(launched, 2, Devices=["cuda:0" "cuda:1"]);
 %         res = d.launchSorting(res, Wait=false, Device=device);
 %         launched = [launched, res];

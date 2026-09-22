@@ -33,8 +33,7 @@ classdef EphysDataset < handle
     %     T  = ds.PerFile;                 % per-file header summary
     %     ds.ProbeFile = "probe.json";
     %     ds.PythonExe = "C:\miniconda3\python.exe";
-    %     res = ds.runSpikeInterface();    % SpikeInterface + Kilosort4, or
-    %     res = ds.runKilosort();          % toBin, then Kilosort4 natively
+    %     res = ds.runKilosort();          % toBin, then Kilosort4
     %
     %   Derived signals (the intan2matlab conversion, any layout)
     %   ---------------------------------------------------------
@@ -166,15 +165,6 @@ classdef EphysDataset < handle
         % samples with Fs). See detectArtifacts, analyzeArtifacts, toBin and
         % defaultArtifactConfig.
         ArtifactConfig struct = EphysDataset.defaultArtifactConfig()
-
-        % SpikeInterface preprocessing configuration used by runSpikeInterface
-        % when the recording is converted for Kilosort4 through SpikeInterface
-        % (read_intan -> attach probe -> preprocessing -> run_sorter). Controls
-        % the optional bandpass filter, common reference, and automatic
-        % bad-channel detection/removal. Artifact silencing is driven separately
-        % by ManualArtifacts + ArtifactConfig (see artifactIntervals). Set from
-        % the Kilosort tab. See defaultSIConfig / normalizeSIConfig.
-        SIConfig struct = EphysDataset.defaultSIConfig()
     end
 
     properties (SetAccess = protected)
@@ -236,13 +226,16 @@ classdef EphysDataset < handle
         [P, tf] = autoApproveTrialPairing(obj, P)
         summary = analyzeArtifacts(obj, opts)
         nl     = noiseLevels(obj, opts)
+        X      = applyReference(obj, X)
+        [bad, info] = suggestReferenceExclude(obj, opts)
+        tf     = prepareReference(obj)
+        ch     = referenceChannels(obj)
         X      = blankArtifacts(obj, X, mask, opts)
         mask   = manualArtifactMask(obj, nSamp, sampleOffset, Fs, iv)
         addArtifact(obj, t0, t1)
         info   = toBin(obj, opts)
         info   = matrixToBin(obj, X, opts)
         result = runKilosort(obj, opts)
-        result = runSpikeInterface(obj, opts)
         result = launchSorting(obj, result, opts)
         iv     = artifactIntervals(obj, opts)
         L      = channelLayout(obj)
@@ -522,33 +515,18 @@ classdef EphysDataset < handle
         %% --- Kilosort4 output location (cheap, no scan) ------------------
         function p = kilosortDir(obj)
             %kilosortDir  Default Kilosort4 run folder (outputFolder/kilosort4).
-            %   This is the folder runKilosort / runSpikeInterface write their
-            %   bookkeeping into. The phy/npy output may live one or two levels
-            %   deeper for the SpikeInterface engine; use kilosortResultsDir to
-            %   locate the actual results.
+            %   This is the folder runKilosort writes the run files and the
+            %   phy/npy output into.
             p = fullfile(char(obj.outputFolder()), 'kilosort4');
         end
 
         function p = kilosortResultsDir(obj)
             %kilosortResultsDir  Folder that actually holds the KS4 phy output.
-            %   Kilosort4's native files (params.py, spike_*.npy, templates.npy,
-            %   cluster_*.tsv) sit directly in kilosortDir() for the legacy
-            %   run_ks4.py engine, but SpikeInterface's run_sorter nests them
-            %   under <kilosortDir>/si/sorter_output. Return the first candidate
-            %   that contains a params.py (deepest/most-specific first), so phy,
-            %   the Review tab, and hasPhyOutput find the results for either
-            %   engine. Falls back to kilosortDir() when nothing is found yet.
-            base = obj.kilosortDir();
-            cands = { fullfile(base, 'si', 'sorter_output'), ...
-                      fullfile(base, 'sorter_output'), ...
-                      base };
-            for k = 1:numel(cands)
-                if isfile(fullfile(cands{k}, 'params.py'))
-                    p = cands{k};
-                    return
-                end
-            end
-            p = base;
+            %   Kilosort4's files (params.py, spike_*.npy, templates.npy,
+            %   cluster_*.tsv) sit directly in kilosortDir(), so this is
+            %   kilosortDir(); phy, the Review tab and hasPhyOutput go through
+            %   it.
+            p = obj.kilosortDir();
         end
 
         function p = sortingResultsDir(obj)
@@ -674,20 +652,6 @@ classdef EphysDataset < handle
 
             % Epsych2 behavioral session association (see BehaviorFile).
             m.behavior = obj.behaviorManifest();
-
-            % Sorting engine of the run on disk (SpikeInterface nests its output
-            % under si/; the native engine writes into kilosortDir) and the
-            % SpikeInterface preprocessing snapshot, which only the
-            % spikeinterface engine applies.
-            ksDir = obj.kilosortDir();
-            if isfile(fullfile(ksDir, 'si', 'sorter_output', 'params.py'))
-                m.engine = "spikeinterface";
-            elseif isfile(fullfile(ksDir, 'params.py'))
-                m.engine = "kilosort";
-            else
-                m.engine = "";
-            end
-            m.preprocessing = EphysDataset.normalizeSIConfig(obj.SIConfig);
         end
 
         function writeManifest(obj)
@@ -1030,26 +994,19 @@ classdef EphysDataset < handle
         function p = resolvePhyDir(folder)
             %resolvePhyDir  Folder that actually holds params.py under FOLDER.
             %   Accepts the results folder itself, a kilosort4 run folder or a
-            %   dataset output folder: the SpikeInterface engine nests the phy
-            %   output under kilosort4/si/sorter_output, the legacy engine
-            %   writes it into kilosort4/ directly. Returns FOLDER unchanged
-            %   when no candidate holds a params.py.
+            %   dataset output folder (Kilosort4 writes the phy output into
+            %   kilosort4/ directly). Returns FOLDER unchanged when neither
+            %   holds a params.py.
             folder = char(folder);
             if isfile(fullfile(folder, 'params.py'))
                 p = folder;
                 return
             end
-            cands = { fullfile(folder, 'kilosort4', 'si', 'sorter_output'), ...
-                      fullfile(folder, 'si', 'sorter_output'), ...
-                      fullfile(folder, 'sorter_output'), ...
-                      fullfile(folder, 'kilosort4') };
-            for k = 1:numel(cands)
-                if isfile(fullfile(cands{k}, 'params.py'))
-                    p = cands{k};
-                    return
-                end
+            if isfile(fullfile(folder, 'kilosort4', 'params.py'))
+                p = fullfile(folder, 'kilosort4');
+            else
+                p = folder;
             end
-            p = folder;
         end
 
         function [useFilter, fType, fCut, fOrd] = resolveFilterOptions(cfg, filt, fType, fCut, fOrd)
@@ -1069,51 +1026,6 @@ classdef EphysDataset < handle
                 error('EphysDataset:resolveFilterOptions:Order', ...
                     'FilterOrder must be a positive integer when Filter is enabled.');
             end
-        end
-
-        function cfg = defaultSIConfig()
-            %defaultSIConfig  Default SpikeInterface preprocessing settings.
-            %   Used to initialize SIConfig and consumed by runSpikeInterface.
-            %   Kilosort4 still high-pass filters and whitens internally, so the
-            %   SI bandpass is OFF by default (enabling it risks double-filtering)
-            %   and common reference is OFF; automatic bad-channel detection is ON
-            %   and augments the manual ExcludeChannels list (union). Fields:
-            %     Filter           logical  apply spikeinterface bandpass_filter
-            %     FilterFreqMin/Max  Hz      band edges when Filter is true
-            %     CommonReference  logical  apply common_reference (CMR/CAR)
-            %     ReferenceOperator "median"|"average"  common_reference operator
-            %     DetectBadChannels logical detect_bad_channels before sorting
-            %     BadChannelMethod  string  spikeinterface detector method
-            %                       ("coherence+psd","std","mad","neighborhood_r2")
-            %     BadChannelAction  "remove"|"interpolate"  what to do with bad ch
-            cfg = struct( ...
-                'Filter',            false, ...
-                'FilterFreqMin',     300, ...
-                'FilterFreqMax',     6000, ...
-                'CommonReference',   false, ...
-                'ReferenceOperator', "median", ...
-                'DetectBadChannels', true, ...
-                'BadChannelMethod',  "coherence+psd", ...
-                'BadChannelAction',  "remove");
-        end
-
-        function cfg = normalizeSIConfig(cfg)
-            %normalizeSIConfig  Fill missing fields from the SI defaults.
-            %   Tolerates partial/stale SIConfig structs (e.g. a project saved
-            %   before a field was added) by merging onto defaultSIConfig; unknown
-            %   extra fields are dropped.
-            def = EphysDataset.defaultSIConfig();
-            if isempty(cfg) || ~isstruct(cfg)
-                cfg = def;
-                return
-            end
-            fn = fieldnames(def);
-            for k = 1:numel(fn)
-                if isfield(cfg, fn{k})
-                    def.(fn{k}) = cfg.(fn{k});
-                end
-            end
-            cfg = def;
         end
 
         function [share, covered] = silencedFraction(iv, duration)
@@ -1141,7 +1053,7 @@ classdef EphysDataset < handle
         function [state, message] = sortRunState(statusFile)
             %sortRunState  How a background Kilosort4 run stands.
             %   [STATE, MESSAGE] = EphysDataset.sortRunState(STATUSFILE) reads
-            %   the ks4_status.json that runKilosort / runSpikeInterface
+            %   the ks4_status.json that runKilosort
             %   drivers write when they finish: STATE is its "done" or
             %   "error" ("cancelled" for a run ended by stopSortRun), and
             %   "running" while there is none yet (or it is caught

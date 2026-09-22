@@ -52,7 +52,7 @@ proj = fullfile(root, 'proj');
 f1 = fullfile(proj, 'recA_260101_120000'); mkdir(f1);   % <SubjectID>_<yyMMdd>_<HHmmss>
 writeSyntheticRHD(fullfile(f1, 'recA.rhd'), ampRaw, digRaw, Fs, spb);
 phyDir = fullfile(root, 'phy');
-makePhyFixture(phyDir, Fs, ChannelMap=[0 1 2 3], Legacy=true);
+makePhyFixture(phyDir, Fs, ChannelMap=[0 1 2 3], SettingsJson=true);
 d = EphysDataset(f1);
 d.SortingDir = phyDir;
 d.ManualArtifacts = [0.001 0.002];
@@ -234,18 +234,9 @@ app.onParallelControlsChanged();
 check(~app.Config.Parallel.Enabled && strcmp(app.RunMaxWorkersField.Enable, 'off'), 'unticking Parallel disables the worker cap');
 app.RunParallelCheckBox.Value = true;
 app.onParallelControlsChanged();
-sort0 = app.Config.Sorting;
-app.SIDetectBadCheckBox.Value = true;
-app.SortEngineDropDown.Value = 'kilosort';
-app.SortEngineDropDown.ValueChangedFcn(app.SortEngineDropDown, []);   % as a pick would
 [html, ~] = app.flowChartHTML();
-check(app.Config.Sorting.Engine == "kilosort" && strcmp(app.SIDetectBadCheckBox.Enable, 'off') ...
-    && strcmp(app.SIBadMethodDropDown.Enable, 'off') && contains(html, "Write .bin") && ~contains(html, "run_sorter"), ...
-    'the native engine disables the SpikeInterface preprocessing and redraws the diagram');
-app.applySortingSection(sort0);
-check(strcmp(app.SortEngineDropDown.Value, 'spikeinterface') && strcmp(app.SIDetectBadCheckBox.Enable, 'on'), ...
-    'applying a SpikeInterface config restores the engine and its controls');
-app.onSIControlsChanged();
+check(contains(html, "Write .bin") && contains(html, "run_kilosort") && ~contains(html, "SpikeInterface"), ...
+    'the Sorting diagram shows Kilosort4 on a .bin');
 app.ParamControls.tmax.Value = 'abc';
 [~, msg] = app.gatherSortingSection();
 check(msg ~= "", 'an unparseable KS4 field is reported');
@@ -339,6 +330,17 @@ check(numel(ax.YTick) == 2 && isequal(string(ax.Subtitle.String), ["the 2 of 4 c
 app.ArtViewScaleDropDown.Value = 'kept';
 app.drawArtifactView();
 check(diff(ax.YLim) <= fitAll && numel(ax.YTick) == 2, 'fitting the kept signal gives lanes no wider');
+check(abs(app.ArtViewLanesField.Value - diff(ax.YLim) / 2) < 1e-6 * diff(ax.YLim), 'Lanes shows the spacing drawn');
+app.ArtViewLanesField.Value = 123;
+app.ArtViewLanesField.ValueChangedFcn(app.ArtViewLanesField, []);
+check(app.ArtViewScaleDropDown.Value == "manual" && abs(ax.YTick(2) - ax.YTick(1) - 123) < 1e-9 ...
+    && contains(ax.YLabel.String, "123 uV"), 'typing a lane spacing sets the scale by hand');
+app.drawArtifactView();
+check(abs(ax.YTick(2) - ax.YTick(1) - 123) < 1e-9, 'a manual spacing survives a redraw');
+app.ArtViewLanesField.Value = 0;
+app.ArtViewLanesField.ValueChangedFcn(app.ArtViewLanesField, []);
+check(app.ArtViewScaleDropDown.Value == "artifact" && abs(diff(ax.YLim) - fitAll) < 1e-6 * fitAll, ...
+    'a spacing of 0 goes back to fitting the artifact');
 app.ArtViewContextField.Value = 0; app.ArtViewChannelsField.Value = 8; app.ArtViewScaleDropDown.Value = 'artifact';
 app.ArtThresholdField.Value = 1e6;
 app.onArtifactControlsChanged();
@@ -434,6 +436,13 @@ app.onArtViewInput("key", keyEvt('rightarrow', {'shift'}));
 app.ArtViewNextButton.ButtonPushedFcn(app.ArtViewNextButton, []);
 check(app.ArtView.gain > 1 && max(abs(ax.XLim - app.ArtView.drawn.span)) < 1e-9, ...
     'the next artifact keeps the voltage scale but shows its whole window');
+app.ArtViewScaleDropDown.Value = 'manual';
+app.ArtViewLanesField.Value = 200;
+g0 = app.ArtView.gain;
+app.onArtViewInput("key", keyEvt('uparrow', {}));
+check(abs(app.ArtViewLanesField.Value - 160) < 1e-9 && app.ArtView.gain == g0 ...
+    && abs(ax.YTick(2) - ax.YTick(1) - 160) < 1e-9, 'with Scale: Manual the voltage keys change Lanes');
+app.ArtViewScaleDropDown.Value = 'artifact';
 app.selectTab(app.TabArtifacts);
 g0 = app.ArtView.gain;
 app.Fig.WindowKeyPressFcn(app.Fig, keyEvt('uparrow', {}));
@@ -848,7 +857,7 @@ S = app.Config.Sorting;
 check(isequaln(S.KS4, EphysPipelineConfig.defaults("Sorting").KS4) && S.KS4ExtraJSON == "" ...
     && strcmp(app.ParamControls.dmin.Value, '') && isequal(app.ExtraSettingsArea.Value, {'{'; '}'}), ...
     'Reset to defaults restores every Kilosort4 parameter and clears the extra JSON');
-check(isequaln(S.SI, before.SI) && S.PythonExe == before.PythonExe && S.Enabled == before.Enabled ...
+check(S.PythonExe == before.PythonExe && S.Enabled == before.Enabled ...
     && app.Config.Probe.DefaultProbeFile == "", 'and leaves the other Sorting settings alone');
 
 fprintf('\n== 4. run one step through the pipeline ==\n');
@@ -988,19 +997,19 @@ check(app.RunMonitorPanel.Visible == "off" && isequal(app.RunLeftGrid.RowHeight,
 
 fprintf('\n== 4d. Clean up tab ==\n');
 ksRoot = app.Project.Datasets(1).kilosortDir();   % under the OutputRoot
-ksOut = fullfile(ksRoot, 'si', 'sorter_output');
-mkdir(ksOut);
-fid = fopen(fullfile(ksOut, 'recording.dat'), 'w'); fwrite(fid, zeros(1, 512, 'int16'), 'int16'); fclose(fid);
+ksOut = ksRoot;
+if ~isfolder(ksOut); mkdir(ksOut); end
+fid = fopen(fullfile(ksOut, 'temp_wh.dat'), 'w'); fwrite(fid, zeros(1, 512, 'int16'), 'int16'); fclose(fid);
 app.selectTab(app.TabCleanup);
 check(contains(app.CleanupScopeLabel.Text, "1 dataset") && app.CleanupRunButton.Enable == "off" ...
     && isempty(app.CleanupPlan), 'the tab says which datasets it acts on; nothing can be removed before a Preview');
 app.onCleanupPreview();
 P = app.CleanupPlan;
 rawRow = P(P.File == string(fullfile(f1, 'recA.rhd')), :);
-check(height(P) > 2 && isequal(P.Action(P.File == string(fullfile(ksOut, 'recording.dat'))), "remove") ...
+check(height(P) > 2 && isequal(P.Action(P.File == string(fullfile(ksOut, 'temp_wh.dat'))), "remove") ...
     && rawRow.Action == "keep" && contains(rawRow.Reason, "no source copy") ...
     && app.CleanupRunButton.Enable == "on" && startsWith(app.CleanupSummaryLabel.Text, "Would remove 1 file(s)") ...
-    && size(app.CleanupTable.Data, 1) == height(P) && isfile(fullfile(ksOut, 'recording.dat')), ...
+    && size(app.CleanupTable.Data, 1) == height(P) && isfile(fullfile(ksOut, 'temp_wh.dat')), ...
     'Preview lists every file as Remove or Keep (a raw recording without a copy record stays) and deletes nothing');
 check(app.CleanupTable.ColumnSortable && isequal(P.Include, P.Action == "remove") ...
     && isequal(app.CleanupSubjectDropDown.Items, [{'All subjects'}; cellstr(unique(P.Subject))].'), ...
@@ -1010,7 +1019,7 @@ app.refreshCleanupTable();
 check(size(app.CleanupTable.Data, 1) == 1 && isequal(app.CleanupTable.Data(1, 1:2), {true, 'Remove'}), ...
     'unticking Show the files that remain leaves only the Remove rows');
 app.CleanupShowKeptCheckBox.Value = true;
-app.CleanupSearchField.Value = 'recording\.dat$';
+app.CleanupSearchField.Value = 'temp_wh\.dat$';
 app.refreshCleanupTable();
 check(size(app.CleanupTable.Data, 1) == 1 && startsWith(app.CleanupShownLabel.Text, "Showing 1 of"), ...
     'the regexp search shows only the matching files');

@@ -2,8 +2,8 @@
 
 `EphysPreprocessingApp` is a MATLAB `uifigure` GUI (`pipeline/@EphysPreprocessingApp`)
 that scans recordings (Intan `.rhd`, or the universal binary format),
-previews/filters them, optionally hands them off to **SpikeInterface +
-Kilosort4** (running in a separate Python/conda environment) for spike sorting
+previews/filters them, optionally hands them off to **Kilosort4** (running
+in a separate Python/conda environment) for spike sorting
 with **phy** as the curation viewer, and writes derived-signal and spike `.mat`
 files plus export files for external analysis toolboxes (Chronux and FieldTrip
 so far; more formats will be added). This guide covers everything needed to get a clean
@@ -16,7 +16,7 @@ everything except sorting and probe design.
 | --- | --- | --- |
 | MATLAB + Signal Processing Toolbox | Runs the app, reads/filters Intan data | Yes |
 | Miniconda (Windows) | Hosts the Python environments below | Yes |
-| `kilosort` conda env (spikeinterface, kilosort, probeinterface, neo, torch) | Runs the sorting step and the probe designer | Only for sorting / probe design |
+| `kilosort` conda env (kilosort, probeinterface, torch) | Runs the sorting step and the probe designer | Only for sorting / probe design |
 | NVIDIA GPU + driver | Kilosort4 runs dramatically faster on GPU | Recommended, not required |
 | `phy` conda env (phy) | Manual curation of sorting results | Optional |
 | [FieldTrip](https://www.fieldtriptoolbox.org/) on the MATLAB path | Validates the FieldTrip export; analysing it | Optional |
@@ -76,7 +76,7 @@ PyTorch instead — everything still works, just slower.
    ```
 3. Install the sorting stack:
    ```bat
-   pip install spikeinterface[full]==0.104.5 kilosort==4.1.7 probeinterface==0.3.2 neo==0.14.4
+   pip install kilosort==4.1.7 probeinterface==0.3.2
    ```
 4. Install PyTorch:
    - **With an NVIDIA GPU (CUDA 11.8):**
@@ -89,18 +89,13 @@ PyTorch instead — everything still works, just slower.
      ```
 5. Sanity check the environment:
    ```bat
-   python -c "import spikeinterface, kilosort, probeinterface, torch; print(torch.cuda.is_available())"
+   python -c "import kilosort, probeinterface, torch; print(torch.cuda.is_available())"
    ```
    This should print `True` if the GPU build installed correctly, or `False`
    (no error) for a CPU-only setup. On a machine with more than one GPU,
    `python -c "import torch; print(torch.cuda.device_count())"` gives the
    count. List them in the app's Run tab **GPUs** box (`cuda:0, cuda:1`,
    `Sorting.Devices`) so that runs going at once each get their own.
-6. Optional, for Open Ephys sessions recorded in the **NWB** format and sorted
-   with the SpikeInterface engine (the default): `pip install h5py` (or
-   `conda install -n kilosort h5py`). Binary and Open Ephys format sessions
-   need nothing extra, and the native Kilosort4 engine reads NWB files in
-   MATLAB.
 
 You do **not** need conda on the Windows `PATH` for the app to work — it
 calls the environment's `python.exe` directly by full path
@@ -149,24 +144,15 @@ run_all_tests
 ```
 
 Then use the pipeline's built-in dry run: tick **Dry run** on the Sorting tab
-(or **Run → Dry run**) to write `si_config.json` + `run_si_ks4.py` without
-launching, and run the driver with `--check` in the conda environment. That
-reads a recording, attaches the probe and builds the preprocessing chain
-**without** running Kilosort4 — the fastest way to confirm the environment and
-a given recording format are compatible:
-
-```bat
-"<PythonExe>" "<output>\kilosort4\run_si_ks4.py" "<output>\kilosort4\si_config.json" --check
-```
+(or **Run → Dry run**) to write `settings.json` + `run_ks4.py` into
+`<output>\kilosort4` without writing the `.bin` or launching Kilosort4, and
+check the settings, probe and paths it would use.
 
 ## Troubleshooting
 
 - **"No python executable configured"** — set the Python exe field on the
   Sorting tab (`Sorting.PythonExe` in the config, or `ds.PythonExe` if
   scripting `EphysDataset` directly).
-- **`neo`/`read_intan` errors about a missing `.dat` file** — split-format
-  Intan recordings need every declared stream's `.dat` file present (e.g.
-  `digitalin.dat`), even if you don't use that stream.
 - **`torch.cuda.is_available()` returns `False` on a GPU machine** — the
   wrong PyTorch build was installed (CPU wheel instead of `+cu118`); reinstall
   using the CUDA index URL in step 4, and confirm the NVIDIA driver installed

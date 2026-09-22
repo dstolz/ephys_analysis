@@ -17,13 +17,13 @@ function T = planLocalCleanup(datasets, opts)
 %                    Ephys recording that is one dataset of several in its
 %                    session (a part folder) shares the session's files:
 %                    they are not listed with it and never removed.
-%     "sorter_copy"  Kilosort4's filtered copy of the recording (recording.dat,
-%                    temp_wh.dat) under the dataset's kilosort4 folder or its
+%     "sorter_copy"  Kilosort4's filtered copy of the recording (temp_wh.dat)
+%                    under the dataset's kilosort4 folder or its
 %                    sorted-output folder. The sorted units do not need it;
 %                    phy's trace view does.
 %     "bin"          <Name>.bin and its <Name>.json sidecar written by toBin: the
-%                    flat binary the native Kilosort engine sorts (never a raw
-%                    recording file). As above, only phy's trace view needs it.
+%                    flat binary Kilosort4 sorts (never a raw recording
+%                    file). As above, only phy's trace view needs it.
 %   Everything one preprocessing step wrote (the step names of
 %   EphysPipelineConfig.StepNames), to run the step again or drop it:
 %     "sorting"      the dataset's kilosort4 folder (kilosortDir: the sorted
@@ -152,7 +152,7 @@ for k = 1:n
     elseif (inFolder && any(lower(ext) == [".rhd" ".rhs" ".dat"])) || any(rel == rawNames)
         r.Category = "raw"; r.What = "Raw recording";
         r.Reason = "Not copied by the Copy tab (no session_manifest.json lists it), so no source copy is known.";
-    elseif any(lower(leaf) == ["recording.dat" "temp_wh.dat"]) && (under(p, ksDir) || under(p, sortDir))
+    elseif lower(leaf) == "temp_wh.dat" && (under(p, ksDir) || under(p, sortDir))
         r.Category = "sorter_copy"; r.What = "Kilosort4's filtered copy of the recording";
         if under(p, ksDir); r.Step = "sorting"; end
         if any(remove == "sorter_copy")
@@ -168,7 +168,7 @@ for k = 1:n
         r.Category = "bin"; r.What = "Sorting input .bin (toBin)"; r.Step = "sorting";
         if any(remove == "bin")
             r.Action = "remove";
-            r.Reason = "The flat binary the native Kilosort engine sorted; the sorted units do not need it, phy's trace view does.";
+            r.Reason = "The flat binary Kilosort4 sorted; the sorted units do not need it, phy's trace view does.";
         elseif any(remove == r.Step)
             r = removeWithStep(r);
         else

@@ -122,9 +122,6 @@ if S.Enabled
     elseif opts.CheckPaths && ~isfile(S.PythonExe)
         add("sorting", "PythonExe", "warning", "Python executable not found: " + S.PythonExe);
     end
-    if ~ismember(S.Engine, ["spikeinterface" "kilosort"])
-        add("sorting", "Engine", "error", "Engine must be ""spikeinterface"" or ""kilosort"".");
-    end
     if ~ismember(S.Execution, ["background" "blocking"])
         add("sorting", "Execution", "error", "Execution must be ""background"" or ""blocking"".");
     end
@@ -149,9 +146,6 @@ if S.Enabled
     end
     if ~isempty(S.Devices) && msg == "" && isfield(ks4, 'torch_device')
         add("sorting", "Devices", "warning", "Devices overrides torch_device in the extra Kilosort4 settings.");
-    end
-    if S.SI.Filter && ~(S.SI.FilterFreqMin < S.SI.FilterFreqMax)
-        add("sorting", "SI.FilterFreqMin", "error", "SpikeInterface band-pass edges must satisfy min < max.");
     end
 end
 

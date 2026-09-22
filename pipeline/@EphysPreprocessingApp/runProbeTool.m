@@ -14,11 +14,11 @@ function result = runProbeTool(obj, varargin)
 %   plain Kilosort4 probe .json, which is exactly what probe_tool.py writes.
 %
 %   Uses the same env-python-or-`conda run` dispatch as
-%   EphysDataset.runSpikeInterface (env python directly when no conda env is
-%   set; conda is not required to be on PATH in that case).
+%   EphysDataset.runKilosort (env python directly when no conda env is set;
+%   conda is not required to be on PATH in that case).
 %
 %   See also EphysPreprocessingApp.onDesignProbe, ProbeDesignerApp,
-%   EphysDataset.runSpikeInterface.
+%   EphysDataset.runKilosort.
 
 if isempty(varargin)
     error('EphysPreprocessingApp:runProbeTool:NoSubcommand', ...
@@ -40,7 +40,7 @@ if ~isfile(script)
 end
 
 % Double-quote every token; keep native paths (cmd/python handle them as-is),
-% mirroring runSpikeInterface's command assembly.
+% mirroring runKilosort's command assembly.
 tokens = string(varargin);
 quoted = strjoin(arrayfun(@(t) """" + t + """", tokens), " ");
 if condaEnv ~= ""

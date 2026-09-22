@@ -15,8 +15,7 @@ classdef (Abstract) EphysReader < handle
     %   Optional: readWindowUV(sampleOffset, nSamp) with supportsRandomAccess()
     %   true (bounded random access, used to carry context across chunks),
     %   readDigitalEvents() when the digital lines can be decoded without the
-    %   amplifier data, and siRecordingSpec() describing the recording for the
-    %   SpikeInterface driver (run_si_ks4.py).
+    %   amplifier data.
     %
     %   Channel numbers
     %   ---------------
@@ -136,20 +135,6 @@ classdef (Abstract) EphysReader < handle
             E = struct('events', data.events, 'Fs', data.Fs, ...
                 'nSamples', size(data.amplifier, 1), 'digInNames', string(data.digInNames), ...
                 'digInNativeNames', string(data.digInNativeNames));
-        end
-
-        function spec = siRecordingSpec(obj)
-            %siRecordingSpec  How run_si_ks4.py should load this recording.
-            %   Default: the reader kind plus folder/files/format and the
-            %   channel numbers (the recording's channels are renamed to them,
-            %   so the probe chanMap matches by number). Readers override to
-            %   add what their SpikeInterface loader needs.
-            if isnan(obj.NumChannels) || isempty(obj.ChannelNumbers)
-                obj.refreshMetadata();
-            end
-            spec = struct('reader', string(obj.Kind), 'folder', obj.Folder, ...
-                'files', {cellstr(obj.Files(:).')}, 'recording_format', obj.RecordingFormat, ...
-                'channel_numbers', {num2cell(double(obj.ChannelNumbers))});
         end
 
         function m = metadataStruct(obj)

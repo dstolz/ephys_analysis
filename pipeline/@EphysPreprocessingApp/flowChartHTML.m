@@ -1,8 +1,7 @@
 function [html, summary] = flowChartHTML(obj)
 %flowChartHTML  Flow chart of the working config as a standalone HTML page.
 %   [HTML, SUMMARY] = app.flowChartHTML() draws one tree per step that reads
-%   the raw recording -- Artifacts, Sorting (SpikeInterface + Kilosort4, or
-%   Kilosort4 natively on a .bin),
+%   the raw recording -- Artifacts, Sorting (Kilosort4 on a .bin),
 %   Signals (LFP / MUA / SPIKE / AUX / digital events) and Spikes (threshold
 %   detection) -- from the recording through each stage, with its filter,
 %   reference and detection parameters, to what the step writes. The steps
@@ -22,7 +21,7 @@ function [html, summary] = flowChartHTML(obj)
 %
 %   See also onFlowNavigate, flowNavControls, EphysDataset.deriveSignals,
 %   EphysDataset.detectSpikes, EphysDataset.detectArtifacts,
-%   EphysDataset.runSpikeInterface.
+%   EphysDataset.runKilosort.
 
 cfg = obj.Config;
 d = obj.currentDataset();
@@ -34,7 +33,7 @@ cards = [ ...
         ternary(cfg.Artifacts.Enabled, "", "Detection is off: only the manual periods reach Sorting / Spikes."), ...
         "ArtEnableCheckBox"), ...
     card("sorting", "Sorting", cfg.Sorting.Enabled, sortingTree(cfg, raw, d), sortingNote(cfg.Sorting), ...
-        "SortEnableCheckBox,SortEngineDropDown,SortSkipExistingCheckBox,ExecModeDropDown,DryRunCheckBox"), ...
+        "SortEnableCheckBox,SortSkipExistingCheckBox,ExecModeDropDown,DryRunCheckBox"), ...
     card("signals", "Signals", cfg.Signals.Enabled, signalsTree(cfg, raw, dsName), "", "SigEnableCheckBox"), ...
     card("spikes", "Spikes", cfg.Spikes.Enabled && cfg.Spikes.Source ~= "sorted", spikesTree(cfg, raw, dsName), ...
         ternary(cfg.Spikes.Source == "sorted", "Source is 'sorted': no threshold detection runs.", ""), ...
@@ -136,7 +135,9 @@ end
 
 
 function n = sortingTree(cfg, raw, d)
-S = cfg.Sorting; SI = S.SI; K = S.KS4;
+% The recording goes to a .bin and straight into Kilosort4, which crops
+% (tmin/tmax) and references (do_CAR) itself.
+S = cfg.Sorting; K = S.KS4;
 A = cfg.Artifacts;
 
 if K.tmin > 0 || isfinite(K.tmax)
@@ -152,39 +153,17 @@ elseif cfg.Probe.DefaultProbeFile ~= ""
 else
     probe = "per-dataset probe (none set)";
 end
-
-bpTarget = "SIFilterCheckBox,SIFilterMinField,SIFilterMaxField";
-if SI.Filter
-    bp = node("op", "Bandpass filter", sprintf("%g - %g Hz (spre.bandpass_filter)", SI.FilterFreqMin, SI.FilterFreqMax), bpTarget);
-else
-    bp = node("off", "Bandpass filter", "off (Kilosort4 filters)", bpTarget);
-end
-
-bad = "manifest exclusions";
 if ~isempty(d) && ~isempty(d.ExcludeChannels)
-    bad = bad + ": " + compactList(d.ExcludeChannels);
-end
-if SI.DetectBadChannels
-    bad(end+1) = "+ detect_bad_channels (" + SI.BadChannelMethod + ")";
-    if ~SI.Filter; bad(end+1) = "  on a 300 Hz high-passed copy"; end
-end
-bad(end+1) = "-> " + SI.BadChannelAction;
-badNode = node("op", "Bad channels", bad, "SIDetectBadCheckBox,SIBadMethodDropDown,SIBadActionDropDown");
-
-carTarget = "SICommonRefCheckBox,SIRefOperatorDropDown";
-if SI.CommonReference
-    car = node("op", "Common reference", "global " + SI.ReferenceOperator, carTarget);
-    ksCar = node("off", "KS4 CAR", "do_CAR off (already referenced)", carTarget);
-else
-    car = node("off", "Common reference", "off (Kilosort4 CAR)", carTarget);
-    ksCar = node("op", "KS4 CAR", "do_CAR (common average)", carTarget);
+    probe(end+1) = "excluding " + compactList(d.ExcludeChannels);
 end
 
-sil = node("link", "Silence artifact periods", ...
-    [ternary(A.Enabled && A.ApplyToSorting, "manual + automatic", "manual periods only"), ...
-     ternary(A.Fill == "noise", "filled with matched noise", "filled with zeros")], "ArtApplySortingCheckBox");
+erased = ternary(A.Fill == "noise", " in the .bin, noise-filled", " in the .bin, zeroed");
+blank = node("link", "Blank artifact periods", ...
+    ternary(A.Enabled && A.ApplyToSorting, "manual + automatic" + erased, "manual periods only" + erased), ...
+    "ArtApplySortingCheckBox");
 
 hp = node("op", "KS4 high-pass", sprintf("%g Hz", K.highpass_cutoff), "ks4.highpass_cutoff");
+ksCar = node("op", "KS4 CAR", "do_CAR (common average)", "ExtraSettingsArea");
 art = onOff(isfinite(K.artifact_threshold), "KS4 artifact threshold", ...
     sprintf("zero batches >= %g ADC counts", K.artifact_threshold), "off", "ks4.artifact_threshold");
 white = node("op", "Whitening", [sprintf("%d nearest channels", K.whitening_range), ...
@@ -200,36 +179,17 @@ clu = node("op", "Clustering", sprintf("ACG %g, CCG %g", K.acg_threshold, K.ccg_
 outTarget = "SortDatasetDropDown,SortUseFolderButton,SortPhyButton";
 ksStage = "KSOptimizeButton,KSResetButton";
 
-if S.Engine == "kilosort"
-    % Native: the recording goes to a .bin and straight into Kilosort4, which
-    % crops (tmin/tmax) and references (do_CAR) itself.
-    erased = ternary(A.Fill == "noise", " in the .bin, noise-filled", " in the .bin, zeroed");
-    blank = node("link", "Blank artifact periods", ...
-        ternary(A.Enabled && A.ApplyToSorting, "manual + automatic" + erased, "manual periods only" + erased), ...
-        "ArtApplySortingCheckBox");
-    ksCar = node("op", "KS4 CAR", "do_CAR (common average)", "ExtraSettingsArea");
-    n = chain({raw, ...
-        node("stage", "Write .bin", ["int16, channel-interleaved", "<Name>.bin (toBin)"], "SortEngineDropDown"), blank, ...
-        node("op", "Attach probe map", [probe, "chanMap indexes .bin rows"], "ProbeDatasetDropDown,ProbeDefaultField,ExcludeChannelsField"), ...
-        node("stage", "Kilosort4", "run_kilosort (native, no SpikeInterface)", ksStage), ...
-        crop, hp, ksCar, art, white, drift, det, clu, ...
-        node("out", "Sorted units", ["kilosort4/", "phy-ready"], outTarget)});
-    return
-end
-
-out = node("out", "Sorted units", ["kilosort4/si/sorter_output", "phy-ready"], outTarget);
-
 n = chain({raw, ...
-    node("stage", "SpikeInterface", ["read the recording", "unsigned -> signed"], "SortEngineDropDown,PythonExeField,CondaEnvField"), crop, ...
-    node("op", "Attach probe map", probe, "ProbeDatasetDropDown,ProbeDefaultField,ExcludeChannelsField"), bp, badNode, car, sil, ...
-    node("stage", "Kilosort4", "run_sorter('kilosort4')", ksStage), ...
-    hp, ksCar, art, white, drift, det, clu, out});
+    node("stage", "Write .bin", ["int16, channel-interleaved", "<Name>.bin (toBin)"], "PythonExeField,CondaEnvField"), blank, ...
+    node("op", "Attach probe map", [probe, "chanMap indexes .bin rows"], "ProbeDatasetDropDown,ProbeDefaultField,ExcludeChannelsField"), ...
+    node("stage", "Kilosort4", "run_kilosort", ksStage), ...
+    crop, hp, ksCar, art, white, drift, det, clu, ...
+    node("out", "Sorted units", ["kilosort4/", "phy-ready"], outTarget)});
 end
 
 
 function txt = sortingNote(S)
-txt = ternary(S.Engine == "kilosort", "Kilosort4 natively (SpikeInterface skipped)", "SpikeInterface + Kilosort4") + ...
-    ", runs " + S.Execution;
+txt = "Kilosort4 on a .bin, runs " + S.Execution;
 if S.Execution == "background"
     txt = txt + " (" + S.MaxConcurrent + " at a time)";
 end

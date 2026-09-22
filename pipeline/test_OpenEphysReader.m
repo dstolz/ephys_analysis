@@ -10,9 +10,8 @@ function test_OpenEphysReader()
 %   recording boundary, what each format can know), AUX hold detection,
 %   ADC, record node / stream selection, the three recording modes
 %   (concatenate, separate part folders, single), line naming (LabelField,
-%   LineNames, the events cache), a synthetic Open Ephys project through
-%   EphysPipeline, and, when the kilosort environment is installed, that
-%   run_si_ks4.py loads the same samples as MATLAB.
+%   LineNames, the events cache) and a synthetic Open Ephys project through
+%   EphysPipeline.
 %
 %   Usage:  test_OpenEphysReader
 
@@ -108,9 +107,6 @@ for fmt = fmts
     check(size(d.boardADC, 2) == 2 && max(abs(d.boardADC(1:n1, 1) - round(adc1(:, 1) / 0.00015258789) * 0.00015258789)) < 1e-6, ...
         fmt + ": ADC channels in volts (NWB keeps bit volts as float32)");
     check(isequal(d.fileSampleCounts, [pad1 pad2]) && isequal(d.channelOrder, 1:nCh), fmt + ": per-recording counts");
-    spec = ds.Reader.siRecordingSpec();
-    check(spec.reader == "openephys-" + fmt && numel(spec.parts) == 2 && isequal([spec.channel_numbers{:}], 0:nCh-1) ...
-        && isequal([spec.channel_indices{:}], 0:nCh-1) && spec.n_chan_stream == nCh + 3 + 2, fmt + ": SpikeInterface spec");
 end
 sess05 = writeSession("legacy", "S1_2026-07-07_16-35-39_legacy05", Layout="0.5");
 d05 = EphysDataset(sess05);
@@ -292,50 +288,6 @@ end
 U = d1.readSortedUnits();
 check(numel(U.unitId) == numel(T1.units) && all(U.channelNumber == U.channel - 1) && all(U.channelName == "CH" + U.channel), ...
     'sorted units carry the Open Ephys channel names and numbers');
-
-%% ---- 7. run_si_ks4.py loads the same samples (kilosort env) -------------------------------
-fprintf('\n== 7. SpikeInterface loaders ==\n');
-py = fullfile(getenv('LOCALAPPDATA'), 'miniconda3', 'envs', 'kilosort', 'python.exe');
-if ~isfile(py)
-    fprintf('  (skipped: no kilosort environment at %s)\n', py);
-else
-    drv = fullfile(here, '@EphysDataset', 'run_si_ks4.py');
-    script = fullfile(root, 'load_check.py');
-    fid = fopen(script, 'w');
-    fprintf(fid, '%s\n', ...
-        'import sys, json', ...
-        'sys.path.insert(0, sys.argv[1])', ...
-        'import run_si_ks4 as d', ...
-        'r = d.load_recording(json.load(open(sys.argv[2])))', ...
-        'try:', ...
-        '    x = r.get_traces(start_frame=4990, end_frame=5130, return_in_uV=True)', ...
-        'except TypeError:', ...
-        '    x = r.get_traces(start_frame=4990, end_frame=5130, return_scaled=True)', ...
-        'print("IDS", ",".join(map(str, r.channel_ids)))', ...
-        'print("VALS", ",".join("%.6f" % v for v in x.ravel()))');
-    fclose(fid);
-    for fmt = ["binary" "legacy" "nwb"]
-        sess = fullfile(root, "S1_2026-07-07_16-35-39_" + fmt);
-        ds = EphysDataset(sess);
-        specFile = fullfile(root, fmt + "_spec.json");
-        writeJsonFile(specFile, struct('recording', ds.Reader.siRecordingSpec()));
-        X = ds.readWindowUV(4990, 140);
-        [st, out] = system(sprintf('"%s" "%s" "%s" "%s"', py, script, fileparts(drv), specFile));
-        if fmt == "nwb" && st ~= 0 && contains(out, "h5py")
-            fprintf('  (skipped NWB: h5py is not installed in the kilosort environment)\n');
-            continue
-        end
-        ids = regexp(out, 'IDS ([^\r\n]*)', 'tokens', 'once');
-        vals = regexp(out, 'VALS ([^\r\n]*)', 'tokens', 'once');
-        ok = st == 0 && ~isempty(vals);
-        if ok
-            v = str2double(split(string(vals{1}), ","));
-            Y = reshape(v, nCh, []).';
-            ok = isequal(size(Y), size(X)) && max(abs(Y - X), [], 'all') < 1e-3 && ids{1} == "0,1,2,3";
-        end
-        check(ok, fmt + ": run_si_ks4.py reads the MATLAB samples, across the recording boundary, channels named by number");
-    end
-end
 
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0

@@ -1,7 +1,7 @@
 function onResetKS4Params(obj)
 %onResetKS4Params  Put every Kilosort4 parameter back to its default.
 %   Resets Sorting.KS4 (every kilosortParamSpec entry) and clears
-%   KS4ExtraJSON. The Python, execution and SpikeInterface settings stay.
+%   KS4ExtraJSON. The Python and execution settings stay.
 %
 %   See also onOptimizeKS4ForProbe, EphysPipelineConfig.defaults.
 

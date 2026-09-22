@@ -1,13 +1,12 @@
 function result = launchSorting(obj, result, opts)
-%launchSorting  Start a Kilosort4 run that runKilosort / runSpikeInterface prepared.
+%launchSorting  Start a Kilosort4 run that runKilosort prepared.
 %   RESULT = ds.launchSorting(RESULT) starts the run described by RESULT,
-%   the struct ds.runKilosort(Launch=false) or
-%   ds.runSpikeInterface(Launch=false) returned once every file of the run
-%   (the .bin included) was written. Keeping the two apart lets a caller
+%   the struct ds.runKilosort(Launch=false) returned once every file of the
+%   run (the .bin included) was written. Keeping the two apart lets a caller
 %   write a run's files, then start it later: EphysPipeline.runSorting
 %   waits for a free slot in between, and the app's monitor starts queued
-%   runs as slots free. runKilosort / runSpikeInterface call this
-%   themselves unless Launch=false.
+%   runs as slots free. runKilosort calls this itself unless
+%   Launch=false.
 %
 %   Options
 %     Wait    (1,1) logical  block until Kilosort4 finishes (default true).
@@ -29,8 +28,7 @@ function result = launchSorting(obj, result, opts)
 %   RESULT comes back with command (as run, --device included), status,
 %   wait, background, device and launched (true) set.
 %
-%   See also EphysDataset.runKilosort, EphysDataset.runSpikeInterface,
-%   EphysDataset.sortRunState, waitForSortingSlot.
+%   See also EphysDataset.runKilosort, EphysDataset.sortRunState, waitForSortingSlot.
 
 arguments
     obj (1,1) EphysDataset
@@ -53,13 +51,8 @@ command    = char(result.driverCommand);
 if opts.Device ~= ""
     command = sprintf('%s --device %s', command, opts.Device);
 end
-if result.engine == "kilosort"
-    what = "Kilosort4";
-    title = 'Kilosort4';
-else
-    what = "SpikeInterface + Kilosort4";
-    title = 'SpikeInterface-KS4';
-end
+what = "Kilosort4";
+title = 'Kilosort4';
 
 % Clear any stale status / exit marker so they reflect this run only.
 if isfile(statusFile)

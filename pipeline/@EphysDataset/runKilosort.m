@@ -1,17 +1,16 @@
 function result = runKilosort(obj, opts)
-%runKilosort  Run Kilosort4 natively (no SpikeInterface) via system().
+%runKilosort  Run Kilosort4 on the recording via system().
 %   RESULT = ds.runKilosort() writes the recording to ds.BinFile (toBin,
 %   blanking the artifact intervals), writes a settings.json and a run_ks4.py
 %   into the results dir, then launches Kilosort4 by calling a configurable
 %   python/conda executable through SYSTEM (not MATLAB's pyenv).
 %   ds.ProbeFile must point to an existing Kilosort4 probe .json (this class
-%   never generates probe maps). This is the "kilosort" sorting engine; the
-%   "spikeinterface" engine is runSpikeInterface.
+%   never generates probe maps).
 %
-%   The probe's chanMap indexes .bin rows (0-based) directly. Unlike
-%   runSpikeInterface, sites are not matched to channels by their native
-%   number, so a recording with a channel disabled at acquisition needs a
-%   probe that already accounts for the gap.
+%   The probe's chanMap indexes .bin rows (0-based) directly: sites are not
+%   matched to channels by their native number, so a recording with a
+%   channel disabled at acquisition needs a probe that already accounts for
+%   the gap.
 %
 %   RESULT = ds.runKilosort(opts) with name-value options:
 %     PythonExe      python executable path (default ds.PythonExe)
@@ -55,13 +54,9 @@ function result = runKilosort(obj, opts)
 %   Python/conda exe and conda env resolve most-specific-first:
 %   per-call opts -> dataset property -> (manager default, when pushed down).
 %
-%   A run into the default results dir (kilosortDir) first deletes a
-%   SpikeInterface run's si/ subfolder there, so kilosortResultsDir finds
-%   this run's output rather than the older one.
-%
 %   RESULT struct: status, command, driverCommand, stdoutLog, scriptPath,
 %   settingsPath, resultsDir, runDir, binFile, probeFile, dryRun, wait,
-%   statusFile, background, engine ("kilosort"), device, launched.
+%   statusFile, background, device, launched.
 %
 %   See also EphysDataset.launchSorting, EphysDataset.toBin, EPHYSPROJECT.
 
@@ -138,10 +133,6 @@ probeFile = absPath(probeFile);
 % n_chan_bin and fs: opts -> .bin JSON sidecar -> dataset metadata
 [nChanBin, fsVal] = resolveBinMeta(binFile, opts, obj);
 
-siDir = fullfile(resultsDir, 'si');
-if ~opts.DryRun && strcmpi(resultsDir, absPath(obj.kilosortDir())) && isfolder(siDir)
-    rmdir(siDir, 's');   % an older SpikeInterface run would shadow this one
-end
 if ~isfolder(resultsDir)
     mkdir(resultsDir);
 end
@@ -210,7 +201,6 @@ result.wait         = opts.Wait;
 result.statusFile   = char(statusFile);
 result.background   = false;
 result.driverCommand = command;   % launchSorting adds --device
-result.engine       = "kilosort";
 result.device       = "";
 result.launched     = false;
 

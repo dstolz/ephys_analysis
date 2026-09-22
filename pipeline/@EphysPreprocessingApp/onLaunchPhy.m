@@ -18,7 +18,6 @@ end
 obj.applyConfigToProject();
 
 % Resolve the folder that actually holds params.py: the dataset's explicit
-% SortingDir when set, else the auto-discovered run (<kilosort4>/si/sorter_output
-% for the SpikeInterface engine, <kilosort4> for the legacy engine).
+% SortingDir when set, else the auto-discovered run (<kilosort4>).
 obj.launchPhy(d.sortingResultsDir(), d.Name);
 end

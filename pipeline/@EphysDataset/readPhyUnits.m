@@ -21,13 +21,9 @@ function [units, info] = readPhyUnits(resultsDir, opts)
 %     ChannelMap    [1 x nChanSorted] 1-based RECORDING channel for each sorted
 %                   channel (overrides the mapping worked out from the run)
 %     ChannelNumbers  recording channel hardware numbers (0-based,
-%                   EphysDataset.ChannelNumbers), used to map SpikeInterface
-%                   runs back to recording channels: run_si_ks4.py names the
-%                   channels by these numbers and matches the probe chanMap
-%                   to them (default 0..n_chan-1)
+%                   EphysDataset.ChannelNumbers) for the channelNumber column
 %     ChannelNames  recording channel native names ("A-000", "CH1", ...) for
 %                   the channelName column
-%     ProbeFile     probe .json used for the run (SpikeInterface mapping)
 %     FsFallback    sample rate to use, with a warning, when params.py has no
 %                   sample_rate (default NaN = error instead; never 30 kHz)
 %     Identity      struct with subject, recordingStart, labelSuffix and
@@ -70,11 +66,10 @@ function [units, info] = readPhyUnits(resultsDir, opts)
 %                       unit's median amplitude (what the Review tab plots)
 %     templateFull      [nS x nChanSorted x nU] (FullTemplates) else []
 %     templateTimeMs    [1 x nS]
-%   and per-run scalars: fs, resultsDir, engine ("spikeinterface" | "legacy" |
-%   "unknown"), groupSource ("phy" | "kilosort" | "none"), curated, labelFile,
-%   durationSec (last spike), nChannelsSorted, channelMap ([nChanSorted x 1]
-%   1-based recording channels), channelMapSource ("manual" | "probe" |
-%   "channel_map.npy" | "identity"), readAt.
+%   and per-run scalars: fs, resultsDir, groupSource ("phy" | "kilosort" |
+%   "none"), curated, labelFile, durationSec (last spike), nChannelsSorted,
+%   channelMap ([nChanSorted x 1] 1-based recording channels),
+%   channelMapSource ("manual" | "channel_map.npy" | "identity"), readAt.
 %
 %   INFO carries the per-spike arrays for plotting: spikeSamples,
 %   spikeClusters, spikeAmplitudes, spikeUnitIdx (row into UNITS, 0 when the
@@ -97,7 +92,6 @@ arguments
     opts.ChannelMap (1,:) double = []
     opts.ChannelNumbers (1,:) double = double.empty(1,0)
     opts.ChannelNames (1,:) string = string.empty(1,0)
-    opts.ProbeFile (1,1) string = ""
     opts.FsFallback (1,1) double = NaN
     opts.Identity struct = struct([])
 end
@@ -255,7 +249,7 @@ notes = strings(nU, 1);
 notes(tf) = noteTxt(loc(tf));
 
 % --- sorted channel -> recording channel -----------------------------------
-[engine, channelMap, channelMapSource] = resolveChannelMap(dir0, nChSorted, cm0, opts);
+[channelMap, channelMapSource] = resolveChannelMap(dir0, nChSorted, cm0, opts);
 channel = nan(nU, 1);
 ok = isfinite(ksChannel) & ksChannel >= 1 & ksChannel <= numel(channelMap);
 channel(ok) = channelMap(ksChannel(ok));
@@ -331,7 +325,6 @@ if isempty(wfFull); units.templateFull = []; else; units.templateFull = wfFull(:
 units.templateTimeMs   = tms;
 units.fs               = fs;
 units.resultsDir       = string(dir0);
-units.engine           = engine;
 units.groupSource      = groupSource;
 units.curated          = groupSource == "phy";
 units.labelFile        = labelFile;
@@ -463,25 +456,12 @@ end
 end
 
 
-function [engine, channelMap, source] = resolveChannelMap(dir0, nChSorted, cm0, opts)
+function [channelMap, source] = resolveChannelMap(dir0, nChSorted, cm0, opts)
 %resolveChannelMap  1-based recording channel for each sorted channel.
-%   Legacy run_ks4.py runs sort the .bin directly, whose rows ARE recording
-%   channels, so channel_map.npy + 1 is the answer. SpikeInterface runs sort a
-%   recording reordered into probe-site order (minus sites missing from the
-%   recording and minus removed bad channels), so the mapping goes through the
-%   probe's chanMap, matched to recording channels by their channel numbers
-%   exactly as run_si_ks4.py does (it names each channel by its number). When
-%   that cannot be reconstructed, the identity mapping is returned with a
-%   warning.
-engine = "unknown";
-runDir = dir0;
-siCfg = "";
-for up = 0:2
-    if isfile(fullfile(runDir, 'si_config.json')); siCfg = fullfile(runDir, 'si_config.json'); break; end
-    if isfile(fullfile(runDir, 'settings.json')) && up == 0; engine = "legacy"; break; end
-    runDir = fileparts(runDir);
-end
-if siCfg ~= ""; engine = "spikeinterface"; end
+%   runKilosort sorts the .bin directly, whose rows ARE recording channels,
+%   so channel_map.npy + 1 is the answer. Without a usable channel_map.npy
+%   the identity mapping is returned, with a warning unless the folder is a
+%   runKilosort run (its settings.json sits beside the output).
 if isnan(nChSorted) || nChSorted < 1
     channelMap = zeros(0, 1); source = "identity";
     return
@@ -498,68 +478,15 @@ if ~isempty(opts.ChannelMap)
     return
 end
 
-identity = (1:nChSorted).';
-if engine == "spikeinterface"
-    try
-        cfg = readJsonFile(siCfg);
-        probeFile = opts.ProbeFile;
-        if probeFile == "" && isfield(cfg, 'probe'); probeFile = string(cfg.probe); end
-        if probeFile == "" || ~isfile(probeFile)
-            error('no probe file');
-        end
-        probe = readJsonFile(probeFile);
-        chanMap = double(probe.chanMap(:));          % nominal channel numbers
-        % Recording channel positions by channel number.
-        nums = opts.ChannelNumbers;
-        if isempty(nums) && isfield(cfg, 'n_chan')
-            nums = 0:double(cfg.n_chan)-1;
-        end
-        posByNum = containers.Map('KeyType', 'double', 'ValueType', 'double');
-        for p = 1:numel(nums)
-            posByNum(nums(p)) = p;
-        end
-        keep = arrayfun(@(v) isKey(posByNum, v), chanMap);
-        rec = arrayfun(@(v) posByNum(v), chanMap(keep));   % 1-based positions, site order
-        % Bad channels removed before sorting (the status file lists channel
-        % ids, which are the channel numbers).
-        st = readJsonFile(fullfile(fileparts(siCfg), 'ks4_status.json'), ErrorOnFail=false);
-        if ~isempty(st) && isstruct(st) && isfield(st, 'bad_channels') && ~isempty(st.bad_channels)
-            bad = str2double(string(st.bad_channels));
-            badPos = [];
-            for b = bad(isfinite(bad)).'
-                if isKey(posByNum, b)
-                    badPos(end+1) = posByNum(b); %#ok<AGROW>
-                end
-            end
-            rec = rec(~ismember(rec, badPos));
-        end
-        if ~isempty(cm0) && numel(cm0) == nChSorted && all(cm0 + 1 >= 1 & cm0 + 1 <= numel(rec))
-            rec = rec(cm0 + 1);
-        end
-        if numel(rec) ~= nChSorted
-            error('kept %d sites but %d sorted channels', numel(rec), nChSorted);
-        end
-        channelMap = rec(:);
-        source = "probe";
-        return
-    catch ME
-        warning('EphysDataset:readPhyUnits:ChannelMapFallback', ...
-            ['Could not map SpikeInterface sorted channels back to recording ' ...
-             'channels (%s); using the identity mapping. Pass ChannelMap= to fix.'], ME.message);
-        channelMap = identity; source = "identity";
-        return
-    end
-end
-
 if ~isempty(cm0) && numel(cm0) == nChSorted
     channelMap = cm0 + 1;
     source = "channel_map.npy";
 else
-    if engine ~= "legacy"
+    if ~isfile(fullfile(dir0, 'settings.json'))
         warning('EphysDataset:readPhyUnits:ChannelMapFallback', ...
             'No usable channel_map.npy in %s; using the identity channel mapping.', dir0);
     end
-    channelMap = identity;
+    channelMap = (1:nChSorted).';
     source = "identity";
 end
 end

@@ -1,10 +1,10 @@
 function [S, errMsg] = gatherSortingSection(obj)
 %gatherSortingSection  The Kilosort tab as a config Sorting section.
 %   [S, ERRMSG] = obj.gatherSortingSection() returns EphysPipelineConfig's
-%   Sorting struct filled from the controls: engine, paths, execution mode,
-%   runs at once and GPUs (on the Run tab), dry run,
-%   SpikeInterface preprocessing, the typed KS4 parameters (text fields are
-%   parsed with EphysPipelineConfig.ks4ParamFromText) and the extra JSON.
+%   Sorting struct filled from the controls: paths, execution mode, runs at
+%   once and GPUs (on the Run tab), dry run, the typed KS4 parameters (text
+%   fields are parsed with EphysPipelineConfig.ks4ParamFromText) and the
+%   extra JSON.
 %   ERRMSG names the first control whose text does not parse ("" when all
 %   parse); S still holds every other value.
 %
@@ -17,9 +17,6 @@ if isempty(obj.PythonExeField) || ~isvalid(obj.PythonExeField)
 end
 S.Enabled      = logical(obj.SortEnableCheckBox.Value);
 S.SkipExisting = logical(obj.SortSkipExistingCheckBox.Value);
-if ~isempty(obj.SortEngineDropDown) && isvalid(obj.SortEngineDropDown)
-    S.Engine = string(obj.SortEngineDropDown.Value);
-end
 S.PythonExe = string(strtrim(obj.PythonExeField.Value));
 S.CondaEnv  = string(strtrim(obj.CondaEnvField.Value));
 if ~isempty(obj.ExecModeDropDown) && isvalid(obj.ExecModeDropDown)
@@ -35,7 +32,6 @@ end
 if ~isempty(obj.DryRunCheckBox) && isvalid(obj.DryRunCheckBox)
     S.DryRun = logical(obj.DryRunCheckBox.Value);
 end
-S.SI = obj.gatherSIConfig();
 
 spec = EphysPipelineConfig.kilosortParamSpec();
 for i = 1:numel(spec)

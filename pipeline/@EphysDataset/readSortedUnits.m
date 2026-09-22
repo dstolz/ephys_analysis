@@ -4,10 +4,9 @@ function [units, info] = readSortedUnits(obj, opts)
 %   ds.sortingResultsDir() (an explicit SortingDir, else the auto-discovered
 %   kilosortResultsDir) through EphysDataset.readPhyUnits, with the dataset's
 %   own defaults: the recording rate as the sample-rate fallback, its channel
-%   numbers, native names and probe file for the SpikeInterface channel
-%   mapping, and
-%   its unitIdentity, so every unit is labelled with the subject and
-%   recording start ("su042_1255_260908T1039") and carries datasetKey.
+%   numbers and native names, and its unitIdentity, so every unit is
+%   labelled with the subject and recording start ("su042_1255_260908T1039")
+%   and carries datasetKey.
 %   The identity is checked first: a Name that does not match NamePattern
 %   throws EphysDataset:unitIdentity:* before any sorter output is read.
 %
@@ -41,5 +40,5 @@ if isnan(fsFallback); fsFallback = obj.Fs; end
     Groups=opts.Groups, IncludeNoise=opts.IncludeNoise, ...
     Templates=opts.Templates, FullTemplates=opts.FullTemplates, ...
     ChannelMap=opts.ChannelMap, ChannelNumbers=obj.ChannelNumbers, ChannelNames=obj.NativeNames, ...
-    ProbeFile=obj.ProbeFile, FsFallback=fsFallback, Identity=identity);
+    FsFallback=fsFallback, Identity=identity);
 end

@@ -27,12 +27,12 @@ classdef BinaryReader < EphysReader
     %     }
     %
     %   The data file is channel-major per sample (all channels of sample 1,
-    %   then sample 2, ...), i.e. the Kilosort4 / SpikeInterface read_binary
-    %   layout, which is also what EphysDataset.toBin writes. Any acquisition
+    %   then sample 2, ...), i.e. the Kilosort4 .bin layout, which is also
+    %   what EphysDataset.toBin writes. Any acquisition
     %   system can therefore be brought into the pipeline by converting its
     %   recording to this layout and writing the descriptor (see
     %   BinaryReader.writeDescriptor); the whole pipeline (artifacts, spike
-    %   detection, derived signals, SpikeInterface sorting, exports) then runs
+    %   detection, derived signals, Kilosort4 sorting, exports) then runs
     %   unchanged. Only recording.json is used to recognise a folder, so the
     %   .bin + <name>.json sidecar pairs that toBin writes into output folders
     %   are never mistaken for recordings.
@@ -275,23 +275,6 @@ classdef BinaryReader < EphysReader
             data.fileSampleCounts = nSamp;
             data.units            = "microvolts";
             data.source           = struct('Folder', obj.Folder, 'Name', obj.Name);
-        end
-
-        function spec = siRecordingSpec(obj)
-            %siRecordingSpec  What run_si_ks4.py needs for spikeinterface.read_binary.
-            if isnan(obj.Fs); obj.refreshMetadata(); end
-            d = obj.Descriptor;
-            gain = 1; off = 0;
-            if isfield(d, 'gain_to_uV'); gain = double(d.gain_to_uV); end
-            if isfield(d, 'offset');     off  = double(d.offset);     end
-            spec = struct('reader', "binary", 'folder', obj.Folder, ...
-                'files', {cellstr(obj.Files(:).')}, 'recording_format', "binary", ...
-                'file', obj.DataFile, 'dtype', string(d.dtype), ...
-                'n_chan', obj.NumChannels, 'fs', obj.Fs, ...
-                'gain_to_uV', gain, 'offset', off, ...
-                'byte_order', obj.byteOrderName(), ...
-                'channel_names', {cellstr(obj.ChannelNames(:).')}, ...
-                'channel_numbers', {num2cell(double(obj.ChannelNumbers))});
         end
     end
 

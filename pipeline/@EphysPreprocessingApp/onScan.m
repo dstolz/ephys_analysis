@@ -21,7 +21,7 @@ try
     P = EphysProject(root, Recursive=obj.Config.Project.Recursive, ...
         ReaderOptions=obj.Config.Acquisition);
 
-    % Push the config's shared settings (python / output root / SI / artifacts).
+    % Push the config's shared settings (python / output root / artifacts).
     EphysPipeline.applyConfigToDatasets(obj.Config, P);
 
     if P.NumDatasets == 0

@@ -8,10 +8,9 @@ function mask = manualArtifactMask(obj, nSamp, sampleOffset, Fs, iv)
 %   SAMPLEOFFSET + k - 1 and its time is that divided by FS.
 %
 %   A period [a b] is half-open on that clock: it covers samples
-%   round(a*FS) .. round(b*FS) - 1, the frames SpikeInterface's
-%   silence_periods zeros (run_si_ks4.py to_frames) and the samples a
-%   detectArtifacts interval came from. So every route (.bin blanking,
-%   SpikeInterface, spike rejection) removes the same samples.
+%   round(a*FS) .. round(b*FS) - 1, the samples a detectArtifacts interval
+%   came from. So every route (.bin blanking, spike rejection) removes the
+%   same samples.
 %
 %   MASK = ds.manualArtifactMask(NSAMP, SAMPLEOFFSET, FS, IV) masks the
 %   recording-relative [k x 2] second intervals IV instead of ManualArtifacts.

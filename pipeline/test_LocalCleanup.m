@@ -40,12 +40,12 @@ classdef test_LocalCleanup < matlab.unittest.TestCase
             tc.verifyGreaterThanOrEqual(height(raw), 2);
             tc.verifyTrue(all(raw.Action == "remove"), 'copied raw files with a same-size source go');
             tc.verifyTrue(all(startsWith(raw.Source, tc.Source)), 'each names its source');
-            tc.verifyEqual(tc.action(T, "kilosort4/si/sorter_output/recording.dat"), "remove");
+            tc.verifyEqual(tc.action(T, "kilosort4/temp_wh.dat"), "remove");
             tc.verifyEqual(tc.action(T, tc.Name + ".bin"), "remove");
             tc.verifyEqual(tc.action(T, tc.Name + ".json"), "remove");
             for keep = ["session_manifest.json", tc.Name + "_manifest.json", tc.Name + "_extract_LFP.mat", ...
-                    tc.Name + "_spikes.mat", "kilosort4/si/sorter_output/params.py", ...
-                    "kilosort4/si/sorter_output/spike_times.npy", tc.epsychName()]
+                    tc.Name + "_spikes.mat", "kilosort4/params.py", ...
+                    "kilosort4/spike_times.npy", tc.epsychName()]
                 tc.verifyEqual(tc.action(T, keep), "keep", keep + " is kept");
             end
             tc.verifyEqual(T.Category(T.File == fullfile(tc.Local, tc.epsychName())), "epsych");
@@ -80,7 +80,7 @@ classdef test_LocalCleanup < matlab.unittest.TestCase
         function removeOptionLimitsTheKinds(tc)
             T = planLocalCleanup(tc.dataset(), Remove="sorter_copy");
             tc.verifyEqual(T.File(T.Action == "remove"), ...
-                string(fullfile(tc.Local, "kilosort4", "si", "sorter_output", "recording.dat")));
+                string(fullfile(tc.Local, "kilosort4", "temp_wh.dat")));
             tc.verifySubstring(T.Reason(T.File == fullfile(tc.Local, tc.Name + ".bin")), "not selected");
         end
 
@@ -122,7 +122,7 @@ classdef test_LocalCleanup < matlab.unittest.TestCase
             T2 = planLocalCleanup(tc.dataset());
             tc.verifyFalse(any(T2.Action == "remove"));
             tc.verifyEqual(T2.What(T2.File == fullfile(tc.Local, tc.Name + "_cleanup.json")), "Clean-up record");
-            fid = fopen(fullfile(tc.Local, "kilosort4", "si", "sorter_output", "recording.dat"), 'w');
+            fid = fopen(fullfile(tc.Local, "kilosort4", "temp_wh.dat"), 'w');
             fwrite(fid, zeros(1, 64, 'int16'), 'int16'); fclose(fid);
             runLocalCleanup(planLocalCleanup(tc.dataset()));
             rec = readJsonFile(fullfile(tc.Local, tc.Name + "_cleanup.json"));
@@ -131,7 +131,7 @@ classdef test_LocalCleanup < matlab.unittest.TestCase
 
         function runSkipsFilesThatChangedSinceThePreview(tc)
             T = planLocalCleanup(tc.dataset());
-            dat = string(fullfile(tc.Local, "kilosort4", "si", "sorter_output", "recording.dat"));
+            dat = string(fullfile(tc.Local, "kilosort4", "temp_wh.dat"));
             fid = fopen(dat, 'a'); fwrite(fid, 1, 'uint8'); fclose(fid);   % grew
             raw = tc.rawFiles();
             delete(fullfile(tc.Source, raw(1)));                           % source gone
@@ -286,7 +286,7 @@ classdef test_LocalCleanup < matlab.unittest.TestCase
             want = string(fullfile(dest, tc.Name, extractAfter(moved.File, strlength(tc.Local) + 1)));
             tc.verifyEqual(moved.To, want, 'each file keeps its path below the dataset folder');
             tc.verifyTrue(all(isfile(want)) && ~any(isfile(moved.File)));
-            tc.verifyEqual(dir(fullfile(dest, tc.Name, "kilosort4", "si", "sorter_output", "recording.dat")).bytes, 4000);
+            tc.verifyEqual(dir(fullfile(dest, tc.Name, "kilosort4", "temp_wh.dat")).bytes, 4000);
             tc.verifyFalse(isfolder(fullfile(tc.Local, "kilosort4")));
             rec = readJsonFile(fullfile(tc.Local, tc.Name + "_cleanup.json"));
             tc.verifyEqual([string(rec.runs(1).method) string(rec.runs(1).destination)], ["move" string(dest)]);
@@ -350,9 +350,9 @@ classdef test_LocalCleanup < matlab.unittest.TestCase
             writeJsonFile(fullfile(tc.Local, "session_manifest.json"), m);
 
             % after preprocessing: a sort, a .bin, outputs, the manifest
-            so = fullfile(tc.Local, "kilosort4", "si", "sorter_output");
+            so = fullfile(tc.Local, "kilosort4");
             mkdir(so);
-            tc.writeBytes(fullfile(so, "recording.dat"), 4000);
+            tc.writeBytes(fullfile(so, "temp_wh.dat"), 4000);
             tc.writeBytes(fullfile(so, "spike_times.npy"), 100);
             tc.writeBytes(fullfile(so, "params.py"), 50);
             tc.writeBytes(fullfile(tc.Local, "kilosort4", "ks4_status.json"), 20);

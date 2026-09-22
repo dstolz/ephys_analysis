@@ -9,10 +9,6 @@ S = EphysPipelineConfig.normalizeSection("Sorting", S);
 if isempty(obj.PythonExeField) || ~isvalid(obj.PythonExeField); return; end
 obj.SortEnableCheckBox.Value       = logical(S.Enabled);
 obj.SortSkipExistingCheckBox.Value = logical(S.SkipExisting);
-if ~isempty(obj.SortEngineDropDown) && isvalid(obj.SortEngineDropDown) && ...
-        any(strcmp(obj.SortEngineDropDown.ItemsData, S.Engine))
-    obj.SortEngineDropDown.Value = char(S.Engine);
-end
 obj.PythonExeField.Value = char(S.PythonExe);
 obj.CondaEnvField.Value  = char(S.CondaEnv);
 if ~isempty(obj.ExecModeDropDown) && isvalid(obj.ExecModeDropDown)
@@ -31,7 +27,6 @@ end
 if ~isempty(obj.DryRunCheckBox) && isvalid(obj.DryRunCheckBox)
     obj.DryRunCheckBox.Value = logical(S.DryRun);
 end
-obj.applySIConfig(S.SI);
 
 spec = EphysPipelineConfig.kilosortParamSpec();
 for i = 1:numel(spec)

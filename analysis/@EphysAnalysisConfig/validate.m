@@ -16,7 +16,8 @@ function issues = validate(obj, opts)
 %               windows only for rate / tuning / corrmap, and with a stop
 %               event; tuning names its parameter; groupBy <= 2; BinSec > 0;
 %               pre <= post; baseline mode fits the kind and its window is
-%               [b0 b1] with b0 < b1; psth histStyle; probemap value;
+%               [b0 b1] with b0 < b1; psth histStyle, normalize,
+%               fillAlpha (0-1 or NaN) and stackSpacing (> 0); probemap value;
 %               heatmap order; corrmap order, metric and correlation; style
 %               values
 %     Export    formats are png / eps / svg / pdf; Dpi, FigureSizeCm; the
@@ -136,8 +137,19 @@ for k = 1:numel(obj.Plots)
     elseif bm.Mode ~= "none" && ~(numel(bm.Window) == 2 && bm.Window(2) > bm.Window(1))
         add("Plots", f0 + ".baseline.Window", "error", "The baseline window must be [b0 b1] with b0 < b1.");
     end
-    if p.kind == "psth" && ~ismember(p.histStyle, ["bar" "line"])
-        add("Plots", f0 + ".histStyle", "error", "A PSTH is drawn as bar or line.");
+    if p.kind == "psth"
+        if ~ismember(p.histStyle, ["bar" "line"])
+            add("Plots", f0 + ".histStyle", "error", "A PSTH is drawn as bar or line.");
+        end
+        if ~ismember(p.normalize, ["none" "unitPeak" "groupPeak"])
+            add("Plots", f0 + ".normalize", "error", "A PSTH's normalize is none, unitPeak or groupPeak.");
+        end
+        if ~(isnan(p.fillAlpha) || (p.fillAlpha >= 0 && p.fillAlpha <= 1))
+            add("Plots", f0 + ".fillAlpha", "error", "fillAlpha is an opacity from 0 to 1 (NaN = automatic).");
+        end
+        if ~(p.stackSpacing > 0 && isfinite(p.stackSpacing))
+            add("Plots", f0 + ".stackSpacing", "error", "stackSpacing must be positive (1 = the tallest PSTH reaches the next row).");
+        end
     end
     if p.kind == "probemap" && ~ismember(p.value, ["rate" "nSpikes" "nUnits"])
         add("Plots", f0 + ".value", "error", "A probe map shows rate, nSpikes or nUnits.");
@@ -164,9 +176,11 @@ for k = 1:numel(obj.Plots)
     if ~(st.FontSize > 0);  add("Plots", f0 + ".style.FontSize", "error", "FontSize must be positive."); end
     if ~(st.LineWidth > 0); add("Plots", f0 + ".style.LineWidth", "error", "LineWidth must be positive."); end
     for cm = ["Colormap" "HeatColormap"]
-        if ~(cm == "Colormap" && st.(cm) == "lines") && ~(cm == "HeatColormap" && st.(cm) == "") ...
+        if ~(cm == "Colormap" && (st.(cm) == "lines" || isColor(st.(cm)))) && ~(cm == "HeatColormap" && st.(cm) == "") ...
                 && ~ismember(exist(char(st.(cm))), [2 5]) %#ok<EXIST>
-            add("Plots", f0 + ".style." + cm, "warning", "No colormap function """ + st.(cm) + """; the default is used.");
+            what = "colormap function";
+            if cm == "Colormap"; what = "colormap function or colour"; end
+            add("Plots", f0 + ".style." + cm, "warning", "No " + what + " """ + st.(cm) + """; the default is used.");
         end
     end
 end
@@ -249,4 +263,15 @@ issues = table(Section, Field, Severity, Message);
             add(sec, field, "error", "The file-name pattern is empty.");
         end
     end
+end
+
+
+function tf = isColor(name)
+%isColor  True for a colour name or hex code (groupPalette gives every group that colour).
+try
+    validatecolor(name);
+    tf = true;
+catch
+    tf = false;
+end
 end

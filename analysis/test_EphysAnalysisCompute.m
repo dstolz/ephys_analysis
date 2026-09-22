@@ -168,6 +168,8 @@ cases = {
     "psth grid + raster",  @(tg) renderPSTH(Rp, tg, Layout="grid", WithRaster=true)
     "psth overlay",        @(tg) renderPSTH(Rp, tg, Layout="overlay")
     "psth line",           @(tg) renderPSTH(Rp, tg, Layout="grid", HistStyle="line")
+    "psth stack",          @(tg) renderPSTH(Rp, tg, Layout="grid", Stack=true, Fill=false)
+    "psth stack overlay",  @(tg) renderPSTH(Rp, tg, Layout="overlay", Stack=true, Normalize="unitPeak", HistStyle="line")
     "raster",              @(tg) renderRaster(Rp, tg)
     "evoked stack",        @(tg) renderEvoked(Rv, tg, Layout="stack")
     "evoked butterfly",    @(tg) renderEvoked(Rv, tg, Layout="butterfly")
@@ -221,15 +223,87 @@ h = renderPlot(Rp, spec, axes(figure('Visible', 'off')));
 check(h.title == "Custom" && string(h.axes(1).Title.String) == "Custom", 'a plot title replaces the automatic one');
 close(h.axes(1).Parent);
 spec.title = "";
+spec.style.ShowSEM = false;
 h = renderPlot(Rp, spec, axes(figure('Visible', 'off')));
-kids = h.axes(1).Children;
-check(spec.histStyle == "bar" && any(arrayfun(@(c) isa(c, 'matlab.graphics.chart.primitive.Bar'), kids)), 'a PSTH draws bars by default');
+pa = findobj(h.axes(1), 'Type', 'patch');
+check(spec.histStyle == "bar" && spec.fill && numel(pa) == 3 && all([pa.FaceAlpha] == 0.5) && numel(pa(1).XData) == 2 * numel(Rp.t) + 2, ...
+    'a PSTH draws filled bars by default: a staircase patch per group, half-transparent where the 3 groups overlap');
+close(h.axes(1).Parent);
+spec.fill = false;
+h = renderPlot(Rp, spec, axes(figure('Visible', 'off')));
+ln = findobj(h.axes(1), 'Type', 'line');
+check(isempty(findobj(h.axes(1), 'Type', 'patch')) && numel(ln) == 3 && all(arrayfun(@(l) numel(l.XData) == 2 * numel(Rp.t) + 3, ln)), ...
+    'fill false: the bars'' outline, one staircase line per group (no patches)');
 close(h.axes(1).Parent);
 spec.histStyle = "line";
 h = renderPlot(Rp, spec, axes(figure('Visible', 'off')));
-kids = h.axes(1).Children;
-check(~any(arrayfun(@(c) isa(c, 'matlab.graphics.chart.primitive.Bar'), kids)) && any(arrayfun(@(c) isa(c, 'matlab.graphics.chart.primitive.Line'), kids)), 'histStyle "line" draws traces');
+ln = findobj(h.axes(1), 'Type', 'line');
+check(isempty(findobj(h.axes(1), 'Type', 'patch')) && numel(ln) == 3 && all(arrayfun(@(l) numel(l.XData) == numel(Rp.t), ln)), ...
+    'histStyle "line" unfilled draws one trace per group');
 close(h.axes(1).Parent);
+spec.fill = true; spec.fillAlpha = 0.3;
+h = renderPlot(Rp, spec, axes(figure('Visible', 'off')));
+pa = findall(h.axes(1), 'Type', 'patch');   % hidden from findobj, as the SEM bands
+lg = h.axes(1).Legend;
+check(numel(pa) == 3 && all([pa.FaceAlpha] == 0.3) && numel(findobj(h.axes(1), 'Type', 'line')) == 3 ...
+    && ~isempty(lg) && all(arrayfun(@(p) isa(p, 'matlab.graphics.chart.primitive.Line'), lg.PlotChildren)), ...
+    'a filled line: the area under it at fillAlpha 0.3, the line on top (and in the legend)');
+close(h.axes(1).Parent);
+
+fprintf('\n== 6b. stacked, normalized PSTHs ==\n');
+G3d = G3; G3d.Depth = [0; 0.5; 1];
+Rd = Rp; Rd.groups = G3d;
+f6 = figure('Visible', 'off');
+h = renderPSTH(Rd, f6, Stack=true, Style=struct('ShowSEM', false));
+ax = h.axes(1);
+pk = reshape(max(Rd.rate(:, 1, :), [], 1), [], 1);
+stp = 1.1 * max(pk);
+yyaxis(ax, 'right'); rt = ax.YTick; rl = string(ax.YTickLabel); ylR = ax.YLim;
+yyaxis(ax, 'left');  lt = ax.YTick; ll = string(ax.YTickLabel); llab = string(ax.YLabel.String); ylL = ax.YLim;
+[srt, o] = sort((0:2).' * stp + pk);
+check(numel(h.axes) == 3 && all(abs(h.step - 1.1 * reshape(max(Rd.rate, [], [1 3]), 1, [])) < 1e-9) && abs(h.step(1) - stp) < 1e-9, ...
+    'each unit''s row step is Spacing (1.1) x its tallest PSTH');
+check(numel(ax.YAxis) == 2 && max(abs(lt - (0:2) * stp)) < 1e-9 && isequal(ll(:), ["0"; "0.5"; "1"]) && llab == "Depth", ...
+    'left axis: a tick at each row''s baseline, first group at the bottom, labelled with its Depth value');
+check(max(abs(rt(:) - srt)) < 1e-9 && isequal(rl(:), compose("%.3g", pk(o))) && isequal(ylL, ylR), ...
+    'right axis: a tick where each row peaks, labelled with its peak rate, on the same limits as the left');
+check(isempty(ax.Legend) && contains(string(h.axes(2).YAxis(2).Label.String), "Peak (spikes/s)") ...
+    && string(h.axes(1).YAxis(2).Label.String) == "", 'no legend; "Peak (spikes/s)" names the right axis of the last column');
+check(all(strcmp(get(findall(ax, 'Type', 'line'), 'Marker'), 'none')), 'no markers from the yyaxis line-style cycle');
+check(all(strcmp({h.rasterAxes.YDir}, 'normal')), 'the raster above a stack is flipped: first group at the bottom, as the rows');
+pa = findobj(ax, 'Type', 'patch');
+check(numel(pa) == 3 && all([pa.FaceAlpha] == 1), 'stacked rows are opaque by default');
+yl0 = ylL;
+h = renderPSTH(Rd, f6, Stack=true, Spacing=0.5, Style=struct('ShowSEM', false, 'YLim', [0 1]));
+ax = h.axes(1);
+check(abs(h.step(1) - 0.5 * max(pk)) < 1e-9 && max(abs(ax.YTick - (0:2) * 0.5 * max(pk))) < 1e-9 && ax.YLim(2) < yl0(2) ...
+    && ax.YLim(2) > 1, 'Spacing 0.5 overlaps the rows; a stack ignores YLim');
+h = renderPSTH(Rd, f6, Stack=true, Normalize="groupPeak", Style=struct('ShowSEM', false));
+ax = h.axes(1);
+yyaxis(ax, 'right'); rt = ax.YTick; rl = string(ax.YTickLabel); yyaxis(ax, 'left');
+check(abs(h.step(1) - 1.1) < 1e-9 && max(abs(sort(rt(:)) - ((0:2).' * 1.1 + 1))) < 1e-9 && isequal(sort(rl(:)), sort(compose("%.3g", pk))), ...
+    'groupPeak: every row peaks at 1 x its step unit; the right axis still gives each row''s peak rate');
+h = renderPSTH(Rd, f6, Normalize="unitPeak", Stack=false, Style=struct('ShowSEM', false));
+ax = h.axes(1);
+yd = get(findobj(ax, 'Type', 'patch'), 'YData');
+check(abs(max(cellfun(@max, yd)) - 1) < 1e-9 && string(ax.YLabel.String) == "Normalized (unit peak = 1)", ...
+    'unitPeak unstacked: the tallest group reaches 1, and the y label says so');
+h = renderPSTH(Rd, f6, Layout="overlay", Normalize="unitPeak", Stack=true, Style=struct('ShowSEM', false));
+ax = h.axes(1);
+m = reshape(mean(Rd.rate ./ max(Rd.rate, [], [1 3]), 2, 'omitnan'), [], 3);
+yyaxis(ax, 'right'); rl = string(ax.YTickLabel); rlab = string(ax.YLabel.String); yyaxis(ax, 'left');
+check(abs(h.step - 1.1 * max(m, [], 'all')) < 1e-9 && isequal(sort(rl(:)), sort(compose("%.3g", max(m, [], 1).'))) && rlab == "Peak (normalized)", ...
+    'overlay + unitPeak: each unit is normalized before the mean; the right axis gives the normalized peaks');
+R1 = spikePSTH({st}, epochs(t0(1:20), ones(20, 1)), Window=[-0.2 0.5], BinSec=0.02);
+h = renderPSTH(R1, f6, Stack=true);
+check(isscalar(h.axes(1).YAxis) && isnan(h.step), 'a single group is not stacked');
+h = renderPSTH(Rd, f6, Style=struct('Colormap', "black"));
+pa = findobj(h.axes(1), 'Type', 'patch', '-not', 'FaceAlpha', 1);
+check(numel(pa) == 3 && all(arrayfun(@(p) isequal(p.FaceColor, [0 0 0]), pa)), 'Colormap "black" gives every group black');
+delete(f6);
+sp = EphysAnalysisConfig.normalizePlot(struct('kind', "psth", 'stack', true, 'normalize', "groupPeak"));
+cap = plotCaption(sp, Rd);
+check(contains(cap, "each PSTH normalized to its own peak") && contains(cap, "groups stacked"), "plotCaption: " + cap);
 check(EphysAnalysisConfig.defaults("Plot").bins.SmoothSec == 0.01, 'PSTHs are smoothed with a 10 ms Gaussian by default');
 cap = plotCaption(EphysAnalysisConfig.normalizePlot(struct('kind', "psth")), Rp);
 check(startsWith(cap, "PSTH") && contains(cap, "bins 20 ms") && contains(cap, "3 sorted unit(s)"), "plotCaption: " + cap);

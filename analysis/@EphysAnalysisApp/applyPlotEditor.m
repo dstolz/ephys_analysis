@@ -38,6 +38,15 @@ E.baseFrom.Value = p.baseline.Window(1);
 E.baseTo.Value = p.baseline.Window(2);
 E.withRaster.Value = p.withRaster;
 setItems(E.histStyle, ["bar" "line"], p.histStyle);
+E.normalize.Value = char(pickFrom(p.normalize, string(E.normalize.ItemsData), "none"));
+E.fill.Value = p.fill;
+if isnan(p.fillAlpha)
+    E.fillAlpha.Value = [];
+else
+    E.fillAlpha.Value = min(1, max(0, p.fillAlpha));
+end
+E.stack.Value = p.stack;
+if p.stackSpacing > 0 && isfinite(p.stackSpacing); E.stackSpacing.Value = p.stackSpacing; end
 E.maskAfterStop.Value = p.maskAfterStop;
 params = string.empty(1, 0);
 if ~isempty(obj.Runner) && obj.ActiveIdx >= 1
@@ -59,6 +68,8 @@ E.showStop.Value = s.ShowStop;
 E.legend.Value = s.Legend;
 E.grid.Value = s.Grid;
 E.ylim.Value = listText(s.YLim);
+E.lineWidth.Value = min(E.lineWidth.Limits(2), max(E.lineWidth.Limits(1), s.LineWidth));
+setItems(E.colormap, string(E.colormap.Items), pick(s.Colormap, "lines"));
 setItems(E.heatColormap, string(E.heatColormap.Items), pick(s.HeatColormap, "auto"));
 E.defaultRef.Value = isequal(p.ref, "default");
 E.defaultWindow.Value = isequal(p.window, "default");
@@ -77,6 +88,11 @@ end
 
 function v = pick(v, default)
 if v == ""; v = default; end
+end
+
+
+function v = pickFrom(v, allowed, default)
+if ~ismember(v, allowed); v = default; end
 end
 
 

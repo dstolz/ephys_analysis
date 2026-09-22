@@ -77,6 +77,15 @@ end
 if spec.kind == "tuning" && R.seriesParam ~= ""
     parts(end+1) = "one curve per " + R.seriesParam;
 end
+if spec.kind == "psth"
+    switch spec.normalize
+        case "unitPeak",  parts(end+1) = "each unit's PSTHs normalized to its largest peak";
+        case "groupPeak", parts(end+1) = "each PSTH normalized to its own peak";
+    end
+    if spec.stack && size(R.rate, 3) > 1
+        parts(end+1) = "groups stacked, first at the bottom";
+    end
+end
 parts(end+1) = sourceText(spec, R);
 txt = strjoin(parts, "; ") + ".";
 end

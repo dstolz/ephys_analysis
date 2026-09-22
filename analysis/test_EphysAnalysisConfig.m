@@ -170,6 +170,29 @@ bad = cfg; bad.Defaults.Selection.filter = "Depth >";
 check(hasIssue(bad, "filter", "warning"), 'a filter that does not parse is a warning');
 bad = cfg; bad.Plots(1).style.HeatColormap = "notacolormap";
 check(hasIssue(bad, "HeatColormap", "warning"), 'an unknown colormap warns');
+d = EphysAnalysisConfig.defaults("Plot");
+check(d.fill && isnan(d.fillAlpha) && d.normalize == "none" && ~d.stack && d.stackSpacing == 1.1, ...
+    'PSTH defaults: filled, automatic opacity, not normalized, not stacked, spacing 1.1');
+bad = cfg; bad.Plots(1).normalize = "area";
+check(hasIssue(bad, "psth_1.normalize", "error"), 'psth normalize is none, unitPeak or groupPeak');
+bad = cfg; bad.Plots(1).fillAlpha = 1.5;
+check(hasIssue(bad, "psth_1.fillAlpha", "error"), 'psth fillAlpha is 0-1');
+bad = cfg; bad.Plots(1).stackSpacing = 0;
+check(hasIssue(bad, "psth_1.stackSpacing", "error"), 'psth stackSpacing > 0');
+ok = cfg; ok.Plots(1).style.Colormap = "black"; ok.Plots(2).style.Colormap = "#1f77b4"; ok.Plots(3).style.Colormap = "turbo";
+check(~hasIssue(ok, "Colormap", "warning"), 'a single colour ("black", "#1f77b4") or a colormap function are group colours');
+bad = cfg; bad.Plots(1).style.Colormap = "nope";
+check(hasIssue(bad, "Colormap", "warning"), 'an unknown group colour warns');
+rt = cfg;
+rt.Plots(1).stack = true; rt.Plots(1).stackSpacing = 0.8; rt.Plots(1).normalize = "groupPeak";
+rt.Plots(1).fill = false; rt.Plots(1).fillAlpha = 0.3; rt.Plots(1).style.Colormap = "black";
+f = fullfile(root, 'psth_look.json');
+rt.save(f);
+rt2 = EphysAnalysisConfig.load(f);
+p1 = rt2.Plots(1);
+check(rt2.isequalConfig(rt) && p1.stack && p1.stackSpacing == 0.8 && p1.normalize == "groupPeak" && ~p1.fill ...
+    && p1.fillAlpha == 0.3 && p1.style.Colormap == "black" && isnan(rt2.Plots(2).fillAlpha), ...
+    'stack, spacing, normalize, fill, opacity and group colours survive save / load (NaN opacity too)');
 
 fprintf('\n== 5. load warnings and schema ==\n');
 s = cfg.toStruct();

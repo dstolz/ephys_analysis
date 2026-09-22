@@ -29,6 +29,12 @@ p.baseline.Mode = string(E.baselineMode.Value);
 p.baseline.Window = [E.baseFrom.Value E.baseTo.Value];
 p.withRaster = E.withRaster.Value;
 p.histStyle = string(E.histStyle.Value);
+p.normalize = string(E.normalize.Value);
+p.fill = E.fill.Value;
+p.fillAlpha = E.fillAlpha.Value;
+if isempty(p.fillAlpha); p.fillAlpha = NaN; end
+p.stack = E.stack.Value;
+p.stackSpacing = E.stackSpacing.Value;
 p.maskAfterStop = E.maskAfterStop.Value;
 p.param = strtrim(string(E.param.Value));
 p.seriesParam = strtrim(string(E.seriesParam.Value));
@@ -45,6 +51,9 @@ p.style.Grid = E.grid.Value;
 yl = parseList(E.ylim.Value);
 if numel(yl) ~= 2; yl = []; end
 p.style.YLim = yl;
+p.style.LineWidth = E.lineWidth.Value;
+p.style.Colormap = strtrim(string(E.colormap.Value));
+if p.style.Colormap == ""; p.style.Colormap = "lines"; end
 p.style.HeatColormap = string(E.heatColormap.Value);
 if p.style.HeatColormap == "auto"; p.style.HeatColormap = ""; end
 [ref, win, sel] = obj.gatherAlignControls(obj.PlotAlignControls);

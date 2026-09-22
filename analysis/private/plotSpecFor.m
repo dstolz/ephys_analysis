@@ -5,7 +5,7 @@ if isempty(spec)
     spec = struct('kind', R.kind);
     if isfield(R, 'spec') && isstruct(R.spec); spec = R.spec; end
 end
-if ~isfield(spec, 'style') || ~isfield(spec, 'layout') || ~isfield(spec, 'kind') || ~isfield(spec, 'withRaster')
+if ~all(isfield(spec, fieldnames(EphysAnalysisConfig.defaults("Plot"))))
     spec = EphysAnalysisConfig.normalizePlot(spec);
 end
 spec.style = EphysAnalysisConfig.normalizeSection("Style", spec.style);

@@ -33,8 +33,8 @@ ep = uipanel(g, "Title", "Plot", "Scrollable", "on");
 eg = uigridlayout(ep, [2 1]);
 eg.RowHeight = {'fit', 'fit'};
 eg.Padding = [4 4 4 4];
-fg = uigridlayout(eg, [19 4]);
-fg.RowHeight = repmat({22}, 1, 19);
+fg = uigridlayout(eg, [22 4]);
+fg.RowHeight = repmat({22}, 1, 22);
 fg.ColumnWidth = {95, '1x', 95, '1x'};
 fg.RowSpacing = 4;
 fg.Padding = [0 0 0 0];
@@ -108,6 +108,28 @@ lab(fg, "PSTH as:", r, 1);
 E.histStyle = uidropdown(fg, "Items", ["bar" "line"], "Value", "bar", "ValueChangedFcn", changed, ...
     "Tooltip", "PSTH: one bar per bin, or a line through the bin centres.");
 place(E.histStyle, r, 2);
+lab(fg, "Normalize:", r, 3);
+E.normalize = uidropdown(fg, "Items", ["none" "unit peak" "group peak"], "ItemsData", ["none" "unitPeak" "groupPeak"], ...
+    "ValueChangedFcn", changed, "Tooltip", "PSTH: divide each unit's PSTHs by their largest peak (unit peak: the groups keep " + ...
+    "their sizes), or each PSTH by its own (group peak). The overlay layout normalizes each unit before the mean.");
+place(E.normalize, r, 4);
+r = r + 1;
+E.fill = uicheckbox(fg, "Text", "Filled", "Value", true, "ValueChangedFcn", changed, ...
+    "Tooltip", "PSTH: fill the bars, or the area under the line; untick for the bars' outline, or the line alone.");
+E.fill.Layout.Row = r; E.fill.Layout.Column = [1 2];
+lab(fg, "Opacity:", r, 3);
+E.fillAlpha = uieditfield(fg, "numeric", "AllowEmpty", "on", "Value", [], "Placeholder", "auto", "Limits", [0 1], ...
+    "ValueChangedFcn", changed, "Tooltip", "PSTH fill opacity, 0 to 1 (blank: 0.5 where groups overlap, else 1).");
+place(E.fillAlpha, r, 4);
+r = r + 1;
+E.stack = uicheckbox(fg, "Text", "Stack groups", "ValueChangedFcn", changed, ...
+    "Tooltip", "PSTH: one row per group, the first at the bottom; each row's value on the left axis, its peak on the right.");
+E.stack.Layout.Row = r; E.stack.Layout.Column = [1 2];
+lab(fg, "Spacing:", r, 3);
+E.stackSpacing = uieditfield(fg, "numeric", "Value", 1.1, "Limits", [0 Inf], "LowerLimitInclusive", "off", ...
+    "ValueChangedFcn", changed, "Tooltip", "Stacked PSTHs: the row step, times the tallest PSTH (1: it just reaches the " + ...
+    "next row; below 1 the rows overlap).");
+place(E.stackSpacing, r, 4);
 r = r + 1;
 lab(fg, "Parameter:", r, 1);
 E.param = uidropdown(fg, "Editable", "on", "Items", "", "ValueChangedFcn", changed, "Tooltip", "Tuning: the trial parameter on the x axis.");
@@ -148,9 +170,21 @@ E.legend = uicheckbox(sg, "Text", "Legend", "Value", true, "ValueChangedFcn", ch
 E.grid = uicheckbox(sg, "Text", "Grid", "Value", true, "ValueChangedFcn", changed);
 r = r + 1;
 lab(fg, "Y limits:", r, 1);
-E.ylim = uieditfield(fg, "text", "Placeholder", "auto, or e.g. 0 40", "ValueChangedFcn", changed);
+E.ylim = uieditfield(fg, "text", "Placeholder", "auto, or e.g. 0 40", "ValueChangedFcn", changed, ...
+    "Tooltip", "Not for stacked PSTHs: their spacing sets the rows.");
 place(E.ylim, r, 2);
-lab(fg, "Colours:", r, 3);
+lab(fg, "Line width:", r, 3);
+E.lineWidth = uispinner(fg, "Limits", [0.25 6], "Step", 0.25, "Value", 1.2, "ValueChangedFcn", changed, ...
+    "Tooltip", "PSTH lines and outlines, evoked traces, tuning curves.");
+place(E.lineWidth, r, 4);
+r = r + 1;
+lab(fg, "Group colours:", r, 1);
+E.colormap = uidropdown(fg, "Editable", "on", "Items", ["lines" "parula" "turbo" "jet" "hot" "cool" "gray" "black"], ...
+    "Value", "lines", "ValueChangedFcn", changed, ...
+    "Tooltip", "lines: the trial selection's colours (parula for a numeric parameter with more than two values); " + ...
+    "a colormap function; or one colour for every group (a name or #RRGGBB).");
+place(E.colormap, r, 2);
+lab(fg, "Heat colours:", r, 3);
 E.heatColormap = uidropdown(fg, "Items", ["auto" "parula" "turbo" "hot" "gray" "jet" "cool" "blueWhiteRed"], ...
     "ValueChangedFcn", changed, ...
     "Tooltip", "Heatmap, probe-map and unit-correlation colours (auto: parula; blueWhiteRed for unit correlation).");

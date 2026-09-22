@@ -8,8 +8,9 @@ function body = issueReport(obj, kind, opts)
 %   Name-value arguments
 %     Description  what the user typed; it goes under the first heading
 %     System       MATLAB release, platform, cores, memory, GPU, the Python
-%                  interpreter the Sorting tab uses, the installed toolboxes
-%                  and this repository's folder and git commit (default true)
+%                  interpreter the Sorting tab uses, the installed toolboxes,
+%                  the version and git commit of this code (ephysVersion)
+%                  and the repository folder (default true)
 %     Config       the working config as the controls hold it now
 %                  (gatherConfig): name, file, enabled steps, roots, dataset
 %                  counts, and the whole config as JSON (default true)
@@ -82,7 +83,8 @@ function L = systemLines(obj)
 L = [kv("MATLAB", version); kv("Platform", computer)];
 osTxt = osDescription();
 if osTxt ~= ""; L = [L; kv("OS", osTxt)]; end
-L = [L; kv("Repository", repoDescription())];
+v = ephysVersion();
+L = [L; kv("Version", v.Text); kv("Repository", v.Folder)];
 try
     L = [L; kv("Compute threads", string(maxNumCompThreads))];
 catch
@@ -227,26 +229,6 @@ try
 catch
 end
 if s == "" && ispc; s = string(getenv('OS')); end
-end
-
-
-function s = repoDescription()
-%repoDescription  Where this code is and which commit it is on, when git can tell.
-here = fileparts(mfilename('fullpath'));            % @EphysPreprocessingApp
-s = string(fileparts(fileparts(here)));             % the repository folder
-try
-    [st, out] = system(sprintf('git -C "%s" rev-parse --short HEAD', here));
-    commit = strtrim(string(out));
-    if st ~= 0 || isempty(regexp(commit, '^[0-9a-f]{7,40}$', 'once')); return; end
-    s = s + " (commit " + commit;
-    [st, branch] = system(sprintf('git -C "%s" rev-parse --abbrev-ref HEAD', here));
-    branch = strtrim(string(branch));
-    if st == 0 && branch ~= "" && branch ~= "HEAD"; s = s + " on " + branch; end
-    [st, dirty] = system(sprintf('git -C "%s" status --porcelain', here));
-    if st == 0 && strlength(strtrim(string(dirty))) > 0; s = s + ", with uncommitted changes"; end
-    s = s + ")";
-catch
-end
 end
 
 

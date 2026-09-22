@@ -133,7 +133,7 @@ What the scans and runs reported, time-stamped (the last 2000 lines).
 | Menu | Items |
 | --- | --- |
 | File | New config, Open config..., Open recent, Save config, Save config as..., Generate script ▸ Compact (loads the saved config) / Standalone (every setting written out), Open preprocessing app, Close |
-| Help | Help for this tab, Documentation home, Analysis quick start, Analysis configs (wiki pages `Analysis-App`, `Analysis-Configs`) |
+| Help | Help for this tab, Documentation home, Analysis quick start, Analysis configs (wiki pages `Analysis-App`, `Analysis-Configs`), About EphysAnalysisApp (the version and git commit of the code, the repository folder and the MATLAB release; **Copy** puts them on the clipboard) |
 
 The title shows `*` while the config has unsaved changes; closing, opening
 or starting a new config asks to save them.

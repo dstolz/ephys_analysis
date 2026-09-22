@@ -10,7 +10,8 @@ function buildMenus(obj)
 %   of the GitHub wiki: the one for the tab that is shown, the home page
 %   and the main guides, and at the bottom files against the repository
 %   itself: Report an issue and Request a feature compose a GitHub issue
-%   from this session (onReportIssue).
+%   from this session (onReportIssue). About, last, shows the version of
+%   the code (showAbout).
 
 % --- File ------------------------------------------------------------------
 obj.FileMenu = uimenu(obj.Fig, "Text", "File");
@@ -84,4 +85,9 @@ uimenu(obj.HelpMenu, "Text", "Report an issue on GitHub...", "Separator", "on", 
 uimenu(obj.HelpMenu, "Text", "Request a feature on GitHub...", ...
     "Tooltip", "Ask for something the app does not do yet, and open the request prefilled on GitHub.", ...
     "MenuSelectedFcn", @(~,~) obj.onReportIssue("feature"));
+
+% --- ... and which version of the code this is (showAbout, ephysVersion) ---
+uimenu(obj.HelpMenu, "Text", "About EphysPreprocessingApp", "Separator", "on", ...
+    "Tooltip", "The version and git commit of this code, and the MATLAB release.", ...
+    "MenuSelectedFcn", @(~,~) showAbout(obj.Fig, "EphysPreprocessingApp"));
 end

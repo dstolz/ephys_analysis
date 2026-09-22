@@ -63,7 +63,10 @@ background monitor and saves preferences.
     Its last two items file against the
     [repository](https://github.com/dstolz/ephys_analysis/issues) instead:
     **Report an issue on GitHub...** and **Request a feature on GitHub...**
-    (see [Reporting an issue](#reporting-an-issue)).
+    (see [Reporting an issue](#reporting-an-issue)). The very last,
+    **About EphysPreprocessingApp**, shows the version and git commit of the
+    code, the repository folder and the MATLAB release; **Copy** puts them
+    on the clipboard.
 - **Title**: the config name and file; `*` in front while the config has
   unsaved changes.
 - **Tabs**, in workflow order: **Copy, Project, Trials, Probe, Artifacts, Sorting,
@@ -1098,7 +1101,7 @@ exactly as it will be sent.
 
 | Ticked | What it sends |
 | --- | --- |
-| System info | MATLAB release and platform, OS, compute threads, memory, GPUs, the Python interpreter (`pyenv` and the Sorting tab's), the installed toolboxes, and the repository folder with its git commit, branch and whether it has uncommitted changes |
+| System info | MATLAB release and platform, OS, compute threads, memory, GPUs, the Python interpreter (`pyenv` and the Sorting tab's), the installed toolboxes, the version of the code with its git commit, branch and whether it has uncommitted changes, and the repository folder |
 | Pipeline options | the working config as the controls hold it now (name, file, unsaved edits, enabled steps, roots, dataset counts, active dataset, selected tab, whether a run is going) and the whole config as JSON, written the way **Save config** writes it — **this carries your file paths** |
 | Logs and last error | the last 60 lines of the Run, Kilosort and Copy logs, each saying how many lines it had, and the error the last run stopped on with its stack |
 
@@ -1208,6 +1211,7 @@ app.KSQueue                       % prepared runs waiting for a slot (Queue the 
 | `load/savePreferences.m` | preferences |
 | `helpURL.m`, `onHelp.m` | Help menu (wiki pages) |
 | `onReportIssue.m`, `issueReport.m`, `issueURL.m` | Help menu (GitHub issue / feature request) |
+| `pipeline/showAbout.m`, `pipeline/ephysVersion.m` | Help menu (About; shared with EphysAnalysisApp). The release number is set by hand in `ephysVersion.m` |
 
 ## Tests
 

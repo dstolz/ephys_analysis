@@ -3,7 +3,8 @@ function buildMenus(obj)
 %   File: the analysis-config lifecycle (New, Open, Open recent, Save, Save
 %   As), Generate script (compact | standalone), Open preprocessing app and
 %   Close. Help: the wiki page of the tab shown, the documentation home and
-%   the analysis quick start (helpURL).
+%   the analysis quick start (helpURL), and About (showAbout): the version
+%   of the code.
 
 obj.FileMenu = uimenu(obj.Fig, "Text", "File");
 uimenu(obj.FileMenu, "Text", "New config", "Accelerator", "N", "MenuSelectedFcn", @(~,~) obj.onNewConfig());
@@ -27,4 +28,7 @@ uimenu(obj.HelpMenu, "Text", "Documentation home", "MenuSelectedFcn", @(~,~) obj
 uimenu(obj.HelpMenu, "Text", "Analysis quick start", "Separator", "on", ...
     "MenuSelectedFcn", @(~,~) obj.onHelp("Analysis-App#quick-start"));
 uimenu(obj.HelpMenu, "Text", "Analysis configs", "MenuSelectedFcn", @(~,~) obj.onHelp("Analysis-Configs"));
+uimenu(obj.HelpMenu, "Text", "About EphysAnalysisApp", "Separator", "on", ...
+    "Tooltip", "The version and git commit of this code, and the MATLAB release.", ...
+    "MenuSelectedFcn", @(~,~) showAbout(obj.Fig, "EphysAnalysisApp"));
 end

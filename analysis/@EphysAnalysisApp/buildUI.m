@@ -1,5 +1,6 @@
 function buildUI(obj)
-%buildUI  The figure, menus, the five tabs and the status bar.
+%buildUI  The figure, menus, the five tabs and the status bar; every button
+%   styled (styleButtons), the main actions in colour.
 obj.Fig = uifigure("Name", "Ephys analysis", "Position", [140 80 1280 820]);
 obj.Fig.CloseRequestFcn = @(~,~) obj.onClose();
 obj.buildMenus();
@@ -28,5 +29,14 @@ obj.buildAlignTab();
 obj.buildPlotsTab();
 obj.buildExportTab();
 obj.buildLogTab();
+styleButtons(obj);
 obj.Tabs.SelectedTab = obj.TabData;
+end
+
+
+function styleButtons(obj)
+%styleButtons  Every button a size up; the main actions in colour (styleButton).
+styleButton(findall(obj.Fig, "Type", "uibutton", "-or", "Type", "uistatebutton"));
+styleButton([obj.ScanButton, obj.PreviewButton, obj.RunButton], "primary");
+styleButton(obj.CancelButton, "danger");
 end

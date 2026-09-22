@@ -4,6 +4,7 @@ function buildUI(obj)
 %   of view (TabHost) and a strip of buttons takes their place: one per
 %   tab, coloured by the tab's status (see syncTabStrip) with an underline
 %   on the selected one. obj.Tabs.SelectedTab stays the source of truth.
+%   Every button is then styled (styleButtons), the main actions in colour.
 
 pos = [120 90 1240 800];   % default; overridden by the saved preference
 obj.Fig = uifigure("Name", "Ephys preprocessing", "Position", pos);
@@ -12,7 +13,7 @@ obj.Fig.CloseRequestFcn = @(~,~) obj.onClose();
 obj.buildMenus();
 
 outer = uigridlayout(obj.Fig, [3 1]);
-outer.RowHeight   = {30, '1x', 24};
+outer.RowHeight   = {34, '1x', 24};
 outer.ColumnWidth = {'1x'};
 outer.RowSpacing  = 0;
 outer.Padding     = [0 0 0 0];
@@ -63,10 +64,26 @@ obj.buildFlowTab();
 obj.buildRunTab();
 obj.buildReviewTab();
 obj.buildCleanupTab();
+styleButtons(obj);   % before syncTabStrip, which colours the tab strip by status
 
 obj.Tabs.SelectedTab = obj.TabProject;   % the app still opens on Project
 obj.syncTabStrip();
 obj.onTabChanged();
+end
+
+
+function styleButtons(obj)
+%styleButtons  Every button a size up; the main actions in colour (styleButton).
+%   A button that changes role while the app runs restyles itself
+%   (setCopyRunning, onVizArtToggle).
+styleButton(findall(obj.Fig, "Type", "uibutton", "-or", "Type", "uistatebutton"));
+styleButton([obj.CopyFindButton, obj.CopyRunButton, obj.ScanButton, obj.TrialsLoadButton, ...
+    obj.AssignSelectedButton, obj.ArtDetectButton, obj.RunStepSortingButton, obj.RunStepSignalsButton, obj.RunStepSpikesButton, ...
+    obj.RunStepExportButton, obj.RunButton, obj.VizPlotButton, obj.LoadReviewButton, ...
+    obj.CleanupPreviewButton], "primary");
+styleButton([obj.TrialsApproveButton, obj.CopyScheduleSaveButton], "confirm");
+styleButton([obj.CleanupRunButton, obj.RunCancelButton, obj.RunKSStopRunsButton, obj.RunKSStopQueueButton, ...
+    obj.CopyScheduleRemoveButton, obj.ArtManualClearButton, obj.VizArtClearButton], "danger");
 end
 
 

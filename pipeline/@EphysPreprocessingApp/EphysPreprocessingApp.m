@@ -303,6 +303,7 @@ classdef EphysPreprocessingApp < handle
         ArtViewContextField matlab.ui.control.NumericEditField
         ArtViewChannelsField matlab.ui.control.NumericEditField
         ArtViewScaleDropDown matlab.ui.control.DropDown
+        ArtViewLanesField   matlab.ui.control.NumericEditField   % uV between lanes (Scale: Manual)
         ArtViewShankDropDown matlab.ui.control.DropDown
         ArtViewShankColorCheckBox matlab.ui.control.CheckBox
         ArtViewResetButton  matlab.ui.control.Button

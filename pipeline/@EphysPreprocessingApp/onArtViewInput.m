@@ -13,7 +13,8 @@ function tf = onArtViewInput(obj, kind, evt)
 %     r .......................... reset (as Reset view)
 %   Dragging pans too (the axes' own pan, along time only). The voltage
 %   scale is ArtView.gain, a factor on the Scale fit kept from one artifact
-%   to the next until a reset or a new Scale; the time zoom is the axes'
+%   to the next until a reset or a new Scale (with Scale: Manual they
+%   change the lane spacing, ArtViewLanesField); the time zoom is the axes'
 %   XLim, kept while the same window is drawn (drawArtifactView). Reset
 %   shows the whole window at the Scale fit. Wheel events carry no
 %   modifiers, so the wheel reads ArtView.mods (kept by routeFigureInput).
@@ -69,7 +70,13 @@ end
 
 
 function scaleVoltage(obj, f)
-% Lanes F times taller (within limits), redrawn.
+% Lanes F times taller (within limits), redrawn. A scale set by hand
+% (Scale: Manual) changes the lane spacing instead.
+if obj.ArtViewScaleDropDown.Value == "manual" && obj.ArtViewLanesField.Value > 0
+    obj.ArtViewLanesField.Value = obj.ArtViewLanesField.Value / f;
+    obj.drawArtifactView();
+    return
+end
 obj.ArtView.gain = min(max(obj.ArtView.gain * f, 1 / 64), 1024);
 obj.drawArtifactView();
 end

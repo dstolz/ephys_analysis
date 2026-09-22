@@ -10,9 +10,11 @@ function drawArtifactView(obj)
 %   is enabled and silences them in sorting or rejects spikes inside them.
 %   The line above the axes says which, and flags a preview whose detection
 %   settings have since changed. Scale (ArtViewScaleDropDown) fits the lanes
-%   to the whole window or to the kept samples only, clipping the rest, and
-%   ArtView.gain scales that fit (onArtViewInput). The y label gives the
-%   lane spacing in microvolts.
+%   to the whole window or to the spread of the signal outside the
+%   artifacts, clipping the rest, and ArtView.gain scales that fit
+%   (onArtViewInput); Manual takes the lane spacing typed in Lanes
+%   (ArtViewLanesField), which otherwise shows the spacing drawn. The y
+%   label gives the lane spacing in microvolts.
 %
 %   With a probe assigned to the dataset (ArtView.layout, from
 %   syncArtProbeControls) the channels can come from one shank only (Shank),
@@ -119,17 +121,27 @@ if byShank
 end
 
 % --- lanes ---------------------------------------------------------------------
-fitKept = string(obj.ArtViewScaleDropDown.Value) == "kept";
-if fitKept
-    half = max(abs(Y(kept, :)), [], 'all');
+scale = string(obj.ArtViewScaleDropDown.Value);
+fixed = scale == "manual" && obj.ArtViewLanesField.Value > 0;
+if fixed
+    half = obj.ArtViewLanesField.Value / 2.1;   % the spacing set by hand
+elseif scale == "kept"
+    % Robust spread of the signal outside every artifact, so leftovers at an
+    % artifact's edges (or artifacts a run keeps) are clipped, not fitted.
+    bg = ~(maskManual | w.maskDetected);
+    if ~any(bg); bg = kept; end
+    half = min(6 * max(1.4826 * median(abs(Y(bg, :)), 1)), max(abs(Y), [], 'all'));
 else
     half = max(abs(Y), [], 'all');
 end
-if ~(half > 0); half = 1; end
-half = half / V.gain;
+if ~fixed
+    if ~(half > 0); half = 1; end
+    half = half / V.gain;
+end
 clipped = any(abs(Y) > half, 'all');
 Y = min(max(Y, -half), half);
 spacing = 2.1 * half;
+obj.ArtViewLanesField.Value = spacing;         % shows the spacing drawn
 offsets = (nShow - 1:-1:0) * spacing;         % first channel on top
 
 % --- time: the whole window, or the zoom kept from the last draw of it ---------
@@ -290,6 +302,7 @@ obj.ArtViewNextButton.Enable = matlab.lang.OnOffSwitchState(has && sp.Value < n)
 obj.ArtViewContextField.Enable = matlab.lang.OnOffSwitchState(has);
 obj.ArtViewChannelsField.Enable = matlab.lang.OnOffSwitchState(has);
 obj.ArtViewScaleDropDown.Enable = matlab.lang.OnOffSwitchState(has);
+obj.ArtViewLanesField.Enable = matlab.lang.OnOffSwitchState(has);
 obj.ArtViewShankDropDown.Enable = matlab.lang.OnOffSwitchState(has && hasProbe);
 obj.ArtViewShankColorCheckBox.Enable = matlab.lang.OnOffSwitchState(has && hasProbe);
 obj.ArtViewResetButton.Enable = matlab.lang.OnOffSwitchState(has);

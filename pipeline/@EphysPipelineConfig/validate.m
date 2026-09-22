@@ -120,6 +120,9 @@ if S.Enabled
     if ~(isfinite(S.MaxConcurrent) && S.MaxConcurrent >= 1 && S.MaxConcurrent == round(S.MaxConcurrent))
         add("sorting", "MaxConcurrent", "error", "MaxConcurrent (Kilosort4 runs at once) must be a whole number >= 1.");
     end
+    if ~(S.KS4.nt > 0 && S.KS4.nt == round(S.KS4.nt) && mod(S.KS4.nt, 2) == 1)
+        add("sorting", "KS4.nt", "error", "nt (spike template width) must be a positive odd integer.");
+    end
     [ks4, msg] = EphysPipelineConfig.ks4Settings(S);
     if msg ~= ""; add("sorting", "KS4ExtraJSON", "error", msg); end
     badDev = S.Devices(~EphysDataset.isTorchDevice(S.Devices));

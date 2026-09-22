@@ -406,6 +406,14 @@ end
 cfg.Sorting.MaxConcurrent = 3;
 check(~any(cfg.validate().Field == "MaxConcurrent"), 'MaxConcurrent = 3 is fine');
 cfg.Sorting.MaxConcurrent = 1;
+for bad = [60 -3 1.5 0]
+    cfg.Sorting.KS4.nt = bad;
+    iss = cfg.validate();
+    check(any(iss.Step == "sorting" & iss.Field == "KS4.nt" & iss.Severity == "error"), ...
+        sprintf('KS4.nt = %g is an error (must be a positive odd integer)', bad));
+end
+cfg.Sorting.KS4.nt = 61;
+check(~any(cfg.validate().Field == "KS4.nt"), 'KS4.nt = 61 (default) is fine');
 check(isempty(EphysPipelineConfig().Sorting.Devices) && ~any(cfg.validate().Field == "Devices"), ...
     'no GPUs listed by default (Kilosort4 picks its device)');
 cfg.Sorting.Devices = ["cuda:0" "gpu1"];

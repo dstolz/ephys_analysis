@@ -45,7 +45,7 @@ s = add(s, 'artifact_threshold', 'artifact_threshold', g, 'floatinf', 'Infinity'
 s = add(s, 'nskip',              'nskip',              g, 'int',      25,         'Batch stride for computing whitening/drift.');
 s = add(s, 'batch_size',         'batch_size',         g, 'int',      120000,     'Samples per processing batch.');
 s = add(s, 'batch_downsampling', 'batch_downsampling', g, 'int',      1,          'Downsampling factor across batches for drift.');
-s = add(s, 'nt',                 'nt',                 g, 'int',      61,         'Spike template width, samples.');
+s = add(s, 'nt',                 'nt',                 g, 'int',      61,         'Spike template width, samples. Must be a positive odd integer.');
 s = add(s, 'nt0min',             'nt0min',             g, 'nullable', '',         'Sample index of template peak (blank = auto).');
 s = add(s, 'shift',              'shift',              g, 'nullable', '',         'Additive offset applied to data (blank = none).');
 s = add(s, 'scale',              'scale',              g, 'nullable', '',         'Multiplicative scale applied to data (blank = none).');

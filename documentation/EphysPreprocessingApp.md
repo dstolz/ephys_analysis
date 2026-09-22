@@ -13,7 +13,7 @@ for the preprocessing pipeline. It edits **one pipeline config**
   universal binary format);
 - assign probe maps and channel exclusions;
 - mark manual artifact periods and configure automatic detection;
-- run SpikeInterface + Kilosort4 (optional) and associate sorted output;
+- run Kilosort4 (optional) and associate sorted output;
 - derive LFP / MUA / spike-band `.mat` files;
 - detect spikes by threshold and/or collect sorted units into a `.mat`;
 - export Chronux- and FieldTrip-shaped files;
@@ -504,18 +504,22 @@ Probe maps are Kilosort4 probe `.json` files
 
 The automatic detector
 ([`EphysDataset.detectArtifacts`](EphysDataset.md#artifact-detection-and-blanking))
-and the manual periods. The tab has three columns: the detection settings
-with the active dataset's manual periods below them, the artifact viewer at
-full height, and the preview's summary with its per-channel table.
+and the manual periods, after the common reference. The tab has three
+columns: the common reference and the detection settings with the active
+dataset's manual periods below them, the artifact viewer at full height, and
+the preview's summary with its per-channel table.
 
 | Control | Maps to |
 | --- | --- |
+| Reference: *None* / *CAR: common average* / *CMR: common median* | `Artifacts.Reference` (`"none"` / `"car"` / `"cmr"`): subtract, sample by sample, the mean or median of the good channels from every channel before anything else - artifact detection, the noise level of the fill, the Kilosort4 `.bin` and spike detection. The preview and the viewer show the referenced signal. The derived LFP / MUA signals are not referenced. See [Common reference](EphysDataset.md#common-reference-car--cmr) |
+| Good noise (x mean): *low* to *high* | `Artifacts.ReferenceBadLow`, `ReferenceBadHigh` (0.3 and 2, Ludwig et al. 2009): a channel whose noise floor lies outside this band, relative to the mean across channels, is suggested to stay out of the reference |
+| Left out, **Suggest** | the active dataset's `ReferenceExclude` (written to its manifest): channels kept out of the average, though still referenced. **Suggest** measures each channel's noise floor on a sample of the recording and fills the field (each channel's ratio goes to the log); typing a list marks it set by hand. A dataset whose list was never set gets the suggestion on its first referenced run or preview. Channels excluded on the Probe tab stay out of the reference too |
 | **Enabled** | `Artifacts.Enabled`: run automatic detection (manual periods always apply) |
 | Dataset | the active dataset: the one **Detect / Preview** analyzes and whose manual periods are listed |
 | Method, Threshold, RMS window, Stitch gap, Pad, Min channels | `Artifacts.Method`, `Threshold`, `RmsWindowMs`, `MergeGapMs`, `PadMs`, `MinChannels` |
 | Filter before detecting, High-pass (Hz) | `Artifacts.Filter`, `FilterCutoff` (with `FilterType`, `FilterOrder`). These now apply to runs as well as the preview |
 | Erase with: *Gaussian noise (recording level)* / *Zeros* | `Artifacts.Fill` (`"noise"` / `"zero"`): what replaces the artifact samples, manual periods included. Noise by default - Kilosort4 reads a block of zeros across every channel as a signal discontinuity. Its level is measured over the whole recording above `Artifacts.NoiseBandHz` (300 Hz), and `Artifacts.NoiseSeed` makes a rerun repeat; neither has a control here |
-| Apply to sorting / Apply to spike detection | `Artifacts.ApplyToSorting`, `ApplyToSpikes` |
+| Erase in sorting (in the .bin Kilosort4 sorts) / Reject detected spikes inside the periods | `Artifacts.ApplyToSorting`, `ApplyToSpikes` |
 | Cache intervals | `Artifacts.CacheIntervals` (`<Name>_artifacts.json`) |
 | Order channels by probe layout | display only, not saved: the viewer's lanes and the per-channel table in probe order (below). Needs a probe assigned to the dataset, and is ticked by default when it has one |
 | **Detect / Preview** | `analyzeArtifacts` over the active dataset (streamed, read-only; on the process pool when the Run tab's **Parallel** box is ticked): summary + per-channel table, and the detected artifacts in the viewer |
@@ -536,11 +540,14 @@ noise or by zeros as *Erase with* says). Detected artifacts are shaded orange,
 with the one shown outlined, and manual periods are shaded red, as on the
 Visualize tab. What counts as removed follows the controls as they are set:
 manual periods always, and detected artifacts only when **Enabled** is ticked
-together with *Silence in sorting* or *Reject detected spikes*. The line above
+together with *Erase in sorting* or *Reject detected spikes*. The line above
 the plot says which applies, and it warns when a detection setting has changed
-since the preview. **Scale** fits the lanes either to the whole window or to
-the kept signal only; the second clips the artifact so you can check that
-none of it is left on either side. Readers without random access (Intan
+since the preview. **Scale** fits the lanes to the whole window, or to the
+kept signal: six robust SDs of the signal outside the artifacts (at most the whole
+window's fit), so the artifact and any leftover of it are clipped and you can
+check that none of it is left on either side. **Manual** takes the lane spacing typed in **Lanes
+(uV)**; otherwise that field shows the spacing drawn, and typing in it switches
+to Manual (0 goes back to fitting). Readers without random access (Intan
 traditional `*.rhd`) read the file that holds the artifact once and keep it
 while you step through that file's artifacts. A new active dataset clears the
 viewer.
@@ -571,7 +578,8 @@ active dataset, or assigning it a probe, resets the checkbox to its default.
 | R, **Reset view** | show the whole window at the Scale fit |
 
 The voltage scale carries over from one artifact to the next until **Reset
-view** or a new **Scale**. The time zoom is kept while the same artifact is
+view** or a new **Scale**; with Manual the voltage keys change **Lanes**.
+The time zoom is kept while the same artifact is
 shown, and a long window is redrawn in finer detail as you zoom in. The
 y-axis label gives the lane spacing in µV and says when larger values are
 clipped. On other tabs the wheel and keys work
@@ -579,21 +587,21 @@ as before (the Visualize viewer's shortcuts).
 
 ## Sorting
 
-Kilosort4, optional (`Sorting.Enabled`), either through SpikeInterface or
-natively.
+Kilosort4, optional (`Sorting.Enabled`). The step writes `<Name>.bin` with the
+artifact periods erased (noise by default, see the Artifacts tab) and runs
+`run_ks4.py` on it. See [Running Kilosort4](EphysDataset.md#running-kilosort4).
 
 | Control | Maps to |
 | --- | --- |
 | Enable the Sorting step, Skip datasets already sorted | `Sorting.Enabled`, `SkipExisting` |
-| Engine: *SpikeInterface + Kilosort4* / *Kilosort4 only (native, via a .bin)* | `Sorting.Engine` (`"spikeinterface"` / `"kilosort"`). The native engine writes `<Name>.bin` with the artifact periods erased (noise by default, see the Artifacts tab), runs `run_ks4.py` on it, and greys out the SpikeInterface preprocessing controls, which it ignores. See [Running Kilosort4](EphysDataset.md#running-kilosort4) |
 | Python exe (+ Browse), Conda env | `Sorting.PythonExe` (seeded from a `kilosort` conda env under `%LOCALAPPDATA%` / `%USERPROFILE%` when a new config is created), `CondaEnv` |
 | Phy command | preference `PhyCmd` (blank = `conda run -n phy phy`) |
 | Execution (background / blocking), Dry run | `Sorting.Execution`, `DryRun`. How many background runs go at once is set on the [Run](#run) tab |
-| Bandpass filter, Common reference, Detect bad channels (+ method, action) | `Sorting.SI` ([defaults](EphysDataset.md#default-spikeinterface-configuration)); SpikeInterface engine only |
-| Kilosort4 parameters (five groups, from `EphysPipelineConfig.kilosortParamSpec`), Extra settings (JSON) | `Sorting.KS4`, `KS4ExtraJSON`. Control kinds: int / float / bool as typed; `nullable` blank = omitted; `floatinf` blank / `inf` = omitted; `vector` = comma- or space-separated |
+| note about artifact periods | read-only: the periods set on the Artifacts tab are erased in the `.bin` Kilosort4 sorts |
+| Kilosort4 parameters (five groups, from `EphysPipelineConfig.kilosortParamSpec`), Extra settings (JSON), Kilosort4 parameter docs link | `Sorting.KS4`, `KS4ExtraJSON`. Control kinds: int / float / bool as typed; `nullable` blank = omitted; `floatinf` blank / `inf` = omitted; `vector` = comma- or space-separated |
 | **Optimize for probe** | loads the Kilosort4 parameters saved for the active dataset's probe (else the default probe) from `<probe>.ks4.json` next to the probe map; without that file, offers to generate it from the current parameters or from the probe layout ([details](#optimize-for-probe)) |
-| **Reset to defaults** | every `Sorting.KS4` parameter back to its `kilosortParamSpec` default and `KS4ExtraJSON` cleared; the Python, execution and SpikeInterface settings stay |
-| **Sorted output** panel: Dataset, label, **Use folder...**, **Use auto**, **Open in phy** | the active dataset's sorted-output association (`SortingDir`, manifest `sorting`). *auto* probes `kilosort4/si/sorter_output`; *manual* is a folder you chose (anywhere) |
+| **Reset to defaults** | every `Sorting.KS4` parameter back to its `kilosortParamSpec` default and `KS4ExtraJSON` cleared; the Python and execution settings stay |
+| **Sorted output** panel: Dataset, label, **Use folder...**, **Use auto**, **Open in phy** | the active dataset's sorted-output association (`SortingDir`, manifest `sorting`). *auto* is `kilosort4/`; *manual* is a folder you chose (anywhere) |
 | **Run this step** | `EphysPipeline.runSorting` over the selected datasets |
 | progress label + log | background runs (`ks4_run.log` tail, `ks4_status.json`), see below |
 
@@ -740,11 +748,11 @@ writes:
 - **Artifacts**: chunked reading, the detection filter, the detector (method,
   window, threshold), channel coincidence, merge / pad, the automatic
   intervals, and where they go with the manual periods (Sorting, Spikes).
-- **Sorting**: the SpikeInterface recording, crop, probe map, bandpass, bad
-  channels (manifest exclusions + detection, remove / interpolate), common
-  reference, silenced artifact periods, then Kilosort4's own high-pass, CAR,
-  artifact threshold, whitening, drift correction, template matching and
-  clustering.
+- **Sorting**: the `.bin` write, blanked artifact periods, the probe map
+  (`chanMap` indexes `.bin` rows; manifest exclusions), then Kilosort4
+  (`run_kilosort`): crop, its own high-pass, CAR, artifact threshold,
+  whitening, drift correction, template matching and clustering, ending in
+  the phy-ready sorted units in `kilosort4/`.
 - **Signals**: channel selection, then one branch each for LFP (resample,
   band filter, notch), MUA (bandpass, rectify, resample, integrate), SPIKE
   (resample, bandpass), AUX and the digital events; the amplifier branches end
@@ -766,7 +774,7 @@ box for the method, the threshold and the polarity; *Drift correction* for
 `nblocks`, `sig_interp`, `binning_depth`, `dmin` and `dminx`) — all of them are
 marked, and the first one decides the tab. A step's header opens its **Enable**
 box. Boxes lead where the setting lives rather than where they are drawn, so
-*Silence artifact periods* in the Sorting tree opens the Artifacts tab, *Read in
+*Blank artifact periods* in the Sorting tree opens the Artifacts tab, *Read in
 chunks* opens the Run tab's parallel settings, and the recording box opens the
 project root. Keyboard: tab to a box and press Enter or Space.
 
@@ -784,7 +792,7 @@ default web browser, same as **Save as HTML...** but without the save dialog.
 - **Kilosort4 runs at once** (under the Sorting box, default 1):
   `Sorting.MaxConcurrent`. With background execution, a run sorts this many
   datasets at a time and starts the next as one finishes. It writes each
-  dataset's run files first (the `.bin` for the native engine), so the next
+  dataset's run files first (the `.bin` included), so the next
   one is ready to go. The run stays busy until the last dataset has started;
   **Cancel** stops the wait (runs already started carry on). The current-step
   line says how many are running, finished and still to start. Runs from an
@@ -921,9 +929,8 @@ dataset whose name does not match `Project.NamePattern`, is read with
   latest Kilosort4 run the `DatasetTracker` finds) loads when the tab opens
   and whenever the active dataset changes while it is open. A dataset without
   sorted output clears the tab. **Browse...** / **Load** accept any results
-  folder, a dataset folder or a `kilosort4` folder (searches
-  `kilosort4/si/sorter_output`, `si/sorter_output`, `sorter_output`,
-  `kilosort4`). **Open folder in explorer**, **Open in phy**.
+  folder, a dataset folder or a `kilosort4` folder (the folder itself, else
+  its `kilosort4` subfolder). **Open folder in explorer**, **Open in phy**.
 - **Summary**: the dataset key and label form (or the folder and why labels
   are short), Fs, duration, channels, shanks, unit counts by label, total
   spikes, mean rate, units per shank.
@@ -964,8 +971,8 @@ without the app.
 | Kind | Files | Condition |
 | --- | --- | --- |
 | Raw recording files | the recording files the Copy tab copied into the session folder (for Open Ephys, everything under its Record Nodes), as listed in its `session_manifest.json` | each file's source, as recorded there, still exists **with the same size**. A recording not copied by the Copy tab has no known source and is always kept, as are the session files of an Open Ephys dataset that is one part folder of several |
-| Kilosort4's filtered copy of the recording | `recording.dat`, `temp_wh.dat` under the dataset's `kilosort4` folder or its sorted-output folder | none; the sorted units do not need it, phy's trace view does |
-| Sorting input .bin | `<Name>.bin` + `<Name>.json` in the output folder, written by `toBin` for the native Kilosort engine | never the data file of a binary-format recording |
+| Kilosort4's filtered copy of the recording | `temp_wh.dat` under the dataset's `kilosort4` folder or its sorted-output folder | none; the sorted units do not need it, phy's trace view does |
+| Sorting input .bin | `<Name>.bin` + `<Name>.json` in the output folder, written by `toBin` for Kilosort4 to sort | never the data file of a binary-format recording |
 
 **Remove what a preprocessing step wrote**: one tick box per step that writes
 files, none ticked by default. Everything the step wrote goes, to run it again
@@ -1069,7 +1076,7 @@ one recording per scenario with
 | --- | --- |
 | recordings `SYNTH-01/SYNTH-01_<yymmdd>_<HHMMSS>/` | Intan RHX-style `*.rhd` files (30 s each) on consecutive days: LFP rhythms with a depth profile, noise, 60 Hz, a stimulus-evoked potential, spiking units with waveforms spread over neighbouring sites, two artifacts (one saturating the ADC); the lab's six digital lines `Trough`, `Platform`, `Stim`, `InTrial`, `RespWindow`, `Commutator`; three accelerometer inputs at Fs/4 |
 | Epsych2 session `SYNTH-01_<yymmdd>T<HHMMSS>.mat` | in the recording folder, starting 65 s before the recording as in the lab: `Data` (one trial per `InTrial` interval, with `TrialType`, `Depth`, `StimDelay`, `RespCode`, `RespLatency`, `TrialIndex`, `computerTimestamp`, ...) and `Info` |
-| `kilosort4/si/sorter_output/` | the ground-truth units as Kilosort4 / phy files (plus a noise cluster), where the SpikeInterface engine would put them, so the Spikes (sorted), Export (units) and Review steps work |
+| `kilosort4/` | the ground-truth units as Kilosort4 / phy files (plus a noise cluster), where a sorting run would put them, so the Spikes (sorted), Export (units) and Review steps work |
 | `<Name>_manifest.json` | the session and the probe already associated |
 | `SYNTH-01_probe.json`, `synthetic_pipeline.json`, `README.txt` | a probe map for the channel count; a config with behavior (matching + pairing), artifacts, signals (LFP, MUA, AUX), spikes (detected + sorted) and export (Chronux + FieldTrip) enabled, outputs next to each recording, sorting off; what each dataset should show |
 
@@ -1153,8 +1160,7 @@ preference: its settings live in its own file, which its Windows task reads.
 | pipeline config `.json` | File → Save / Save as / Export copy (default folder `pipeline/pipeline_configs`) |
 | generated `.m` script | File → Generate script |
 | `<Folder>/<Name>_manifest.json` | scan, probe assignment, exclusion change, manual artifact edit, sorting / behavior association, each sorting launch and completion |
-| `<outputFolder>/kilosort4/{si_config.json, run_si_ks4.py, ks4_run.log, ks4_status.json}` and `kilosort4/si/...` | Sorting, SpikeInterface engine (dry run writes only the first two) |
-| `<outputFolder>/<Name>.bin` + `.json`, `<outputFolder>/kilosort4/{settings.json, run_ks4.py, ks4_run.log, ks4_status.json}` and the phy files | Sorting, native engine (dry run writes only `settings.json` and `run_ks4.py`) |
+| `<outputFolder>/<Name>.bin` + `.json`, `<outputFolder>/kilosort4/{settings.json, run_ks4.py, ks4_run.log, ks4_status.json}` and the phy files (plus `<probe>_excluded.json` with excluded channels) | Sorting (dry run writes only `settings.json` and `run_ks4.py`) |
 | `<outputFolder>/<Name>_artifacts.json` | Artifacts (cache) |
 | `<Name>_extract_<TYPE>.mat` (or `<Name>_extract.mat`), `<Name>_spikes.mat`, `<Name>_chronux.mat`, `<Name>_fieldtrip.mat`, `<Name>_epochs.mat` | Signals, Spikes, Export |
 | probe `.json` in the probe folder | Import, Designer save, Notes edit |

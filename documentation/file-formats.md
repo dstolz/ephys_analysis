@@ -30,21 +30,14 @@ written as the strings `"NaN"` / `"Inf"`.
 ├─ <Name>_events.mat                    digital-input events cache (digitalEvents; trial pairing)
 ├─ <Name>_chronux.mat                   Chronux export (exportChronux; the Export step)
 ├─ <Name>_fieldtrip.mat                 FieldTrip export (exportFieldTrip; the Export step)
-├─ <Name>.bin + <Name>.json             EphysDataset.toBin (native Kilosort4 engine only)
+├─ <Name>.bin + <Name>.json             EphysDataset.toBin (the Sorting step)
 └─ kilosort4/                           kilosortDir()
-   ├─ si_config.json                    SpikeInterface engine config
-   ├─ run_si_ks4.py                     copy of the driver used for this run
+   ├─ settings.json, run_ks4.py         run settings, copy of the driver used for this run
    ├─ ks4_run.log                       captured stdout/stderr
    ├─ ks4_status.json                   {"state": "done"|"error", ...}
-   ├─ si/                               run_sorter folder, WIPED on every run
-   │  └─ sorter_output/                 Kilosort4 phy output (params.py, *.npy, *.tsv;
-   │                                    cluster_notes.tsv holds per-unit notes)
-   │
-   │  -- the native engine (runKilosort) writes instead, directly in kilosort4/,
-   │     and deletes si/ first --
-   ├─ settings.json, run_ks4.py
    ├─ <probe>_excluded.json             derived probe when channels are excluded
    └─ params.py, spike_*.npy, templates.npy, cluster_*.tsv, ...
+                                        Kilosort4 phy output (cluster_notes.tsv holds per-unit notes)
 
 <anywhere>/
 ├─ <config>.json                        pipeline config (EphysPipelineConfig.save; File → Save)
@@ -65,7 +58,7 @@ records the folder that is associated with the dataset.
 
 Any acquisition system can feed the pipeline by converting its recording to a
 flat binary plus this descriptor; [`BinaryReader`](EphysDataset.md#acquisition-readers)
-reads it and SpikeInterface reads it with `read_binary`. The data file is
+reads it. The data file is
 **channel-major per sample** (all channels of sample 1, then sample 2, ...): the
 Kilosort4 layout, and what `EphysDataset.toBin` writes.
 
@@ -274,6 +267,8 @@ Schema `intan-dataset-manifest/2` (`null` where a value is `NaN`):
     "depth_um": <max(yc)-min(yc)>, "notes": <string>
   },
   "exclude_channels": <compact list, e.g. "5,17-18", or "">,
+  "reference_exclude": { "channels": <compact list or "">,   left out of the common reference
+                         "source": "" | "suggested" | "manual" },
   "manual_artifacts": [[<t0>, <t1>], ...],          seconds, recording-relative
   "bin":      { "file": <BinFile path>, "exists": <true|false> },
   "kilosort": { "has_results": <bool>, "results_dir": <path or "">,
@@ -286,23 +281,26 @@ Schema `intan-dataset-manifest/2` (`null` where a value is `NaN`):
                 "pairing": null | { "status": "unreviewed" | "approved", "auto_approved": <bool>,
                   "cut_trials": [<from start>, <from end>], "cut_intervals": [<from start>, <from end>],
                   "fingerprint": <string>, "trial_line": <string>, "summary": <string>,
-                  "updated": <"yyyy-MM-dd HH:mm:ss"> } },
-  "engine":   "spikeinterface",
-  "preprocessing": { <the dataset's SIConfig fields> }
+                  "updated": <"yyyy-MM-dd HH:mm:ss"> } }
 }
 ```
 
 - `sorting` is the sorted-output association (`EphysDataset.sortingResultsDir`):
   `source` is `"manual"` when `SortingDir` was set explicitly (GUI **Use
-  folder...**), else `"auto"` (the `kilosort4/si/sorter_output` probe).
+  folder...**), else `"auto"` (`kilosort4/`).
   `curated` is true when `cluster_group.tsv` exists (phy was used).
-- `kilosort` is the older `DatasetTracker.latestKilosortRun()` block and is
-  kept for the tracker tables; `state` there is the tracker's fallback `"done"`
-  whenever results exist. The real run state is in `kilosort4/ks4_status.json`.
+- `kilosort` is the `DatasetTracker.latestKilosortRun()` block, kept for the
+  tracker tables; `state` comes from `kilosort4/ks4_status.json`, or is
+  `"done"` when results exist without a status file.
+- `reference_exclude` lists the channels (1-based) kept out of the common
+  reference (`Artifacts.Reference` `"car"` / `"cmr"`). `source` is
+  `"suggested"` (by the noise-floor rule, `suggestReferenceExclude`),
+  `"manual"` (typed on the Artifacts tab), or `""` (never set: the first
+  referenced read suggests it).
 - `applyManifest()` restores `probe.file` (if the file exists),
-  `exclude_channels`, `manual_artifacts`, a `"manual"` `sorting.results_dir`
+  `exclude_channels`, `reference_exclude`, `manual_artifacts`, a `"manual"` `sorting.results_dir`
   (if its `params.py` still exists) and `behavior.file` (if it exists).
-  Detector, SpikeInterface and step settings are **not** stored here; they are
+  Detector and step settings are **not** stored here; they are
   in the pipeline config.
 - Schema `/1` manifests (probe + exclusions only) are still read; `/2` is a
   superset. Any other schema is ignored with a warning.
@@ -327,9 +325,9 @@ which holds `H64LP_4x16.json` as a starting point.
   "Probe":     { "DefaultProbeFile", "WriteDefaultToManifest" },
   "Behavior":  { "Enabled", "SearchDirs", "Match", "MaxStartOffsetMin", "Overwrite", "WriteFile",
                  "PairTrials", "AutoApprove", "TrialLine" },
-  "Artifacts": { "Enabled", "Method", "Threshold", ... , "Fill", "NoiseBandHz", "NoiseSeed", "ApplyToSorting", "ApplyToSpikes", "CacheIntervals" },
-  "Sorting":   { "Enabled", "Engine", "PythonExe", "CondaEnv", "Execution", "MaxConcurrent", "Devices", "DryRun", "SkipExisting",
-                 "SI": {...}, "KS4": {...}, "KS4ExtraJSON" },
+  "Artifacts": { "Reference", "ReferenceBadLow", "ReferenceBadHigh", "Enabled", "Method", "Threshold", ... , "Fill", "NoiseBandHz", "NoiseSeed", "ApplyToSorting", "ApplyToSpikes", "CacheIntervals" },
+  "Sorting":   { "Enabled", "PythonExe", "CondaEnv", "Execution", "MaxConcurrent", "Devices", "DryRun", "SkipExisting",
+                 "KS4": {...}, "KS4ExtraJSON" },
   "Signals":   { "Enabled", "OutputDir", "Suffix", ... , "LabelField", "LineNames", "InvertedLines", ... , "ExcludeHandling" },
   "Spikes":    { "Enabled", "Source", ... , "Groups", "IncludeNoise", "Templates", "OutputDir", "Suffix", ... },
   "Export":    { "Enabled", "Formats", "Signals", "IncludeUnits", ... }
@@ -359,7 +357,7 @@ Path: `<outputFolder>/<Name>_artifacts.json`. Written by
 
 `intervals` are recording-relative seconds, half-open on the 0-based sample
 clock: a period `[t0, t1)` covers samples `round(t0*fs)` to `round(t1*fs) - 1`,
-the frames SpikeInterface's `silence_periods` zeros. `fingerprint` is
+the samples `toBin` erases in the `.bin`. `fingerprint` is
 `jsonencode` of the schema, the artifact config, the manual periods and the
 recording files; a cache whose fingerprint differs from the current settings
 (including one written under schema 1) is recomputed.
@@ -383,9 +381,9 @@ the shape `kilosort.io.load_probe` accepts:
 ```
 
 - `chanMap`: **0-based** channel per site. Throughout the MATLAB code, the
-  1-based `.bin` channel of a site is `chanMap + 1`. For how the SpikeInterface
-  engine interprets it, see
-  [python-drivers.md](python-drivers.md#channel-numbering-caveat).
+  1-based `.bin` channel of a site is `chanMap + 1`; sites are not matched to
+  channels by hardware number (see
+  [python-drivers.md](python-drivers.md#channel-numbering-caveat)).
 - `xc`, `yc`: site positions in µm.
 - `kcoords`: shank per site. Optional; treated as all zeros when absent.
 - `n_chan`: total channels. Every channel-count check in the code uses
@@ -451,6 +449,7 @@ Path: `<outputFolder>/<Name>.json`, next to the `.bin`. Written by
 | `artifact_fill` | `"noise"` or `"zero"`: what replaced the artifact samples |
 | `noise_fill` | `bandHz`, `seed`, and the `sigma` / `center` per channel the fill was drawn from (`[]` for a zero fill) |
 | `auto_artifacts` | `enabled`, `method`, `threshold`, `rmsWindowMs`, `mergeGapMs`, `minChannels`, `padMs`, `nBlanked`, `fraction`, `pctDuration`, `nIntervals`, `channelCounts` |
+| `reference` | `mode` (`"none"`, `"car"` or `"cmr"`) and `channels`, the 1-based channels the common reference was taken over (`[]` for none) |
 | `created` | timestamp |
 
 `matrixToBin` delegates to [`matrix2kilosort`](../matrix2kilosort.m), which
@@ -458,68 +457,7 @@ writes its own sidecar. See that function's help for its fields.
 
 ---
 
-## `si_config.json`
-
-Path: `<kilosort4>/si_config.json`. Written by
-`EphysDataset.runSpikeInterface` and consumed by `run_si_ks4.py`.
-
-Schema (placeholders in `<...>`; all paths use forward slashes):
-
-```text
-{
-  "schema":           "intan-si-ks4/1",
-  "folder":           <recording folder>,
-  "recording_format": <RecordingFormat>,
-  "files":            [<*.rhd names in order, or ["info.rhd"]>],
-  "fs":               <Hz>,
-  "n_chan":           <amplifier channels>,
-  "recording":        <the reader's siRecordingSpec(), see below>,
-  "probe":            <absolute probe .json path>,
-  "exclude_channels": [<0-based positions>],
-  "results_dir":      <kilosort4>/si,
-  "status_path":      <kilosort4>/ks4_status.json,
-  "log_path":         <kilosort4>/ks4_run.log,
-  "preprocessing": {
-    "filter":              { "enabled": <bool>, "freq_min": <Hz>, "freq_max": <Hz> },
-    "common_reference":    { "enabled": <bool>, "operator": "median" | "average" },
-    "detect_bad_channels": { "enabled": <bool>, "method": <string>, "action": "remove" | "interpolate" },
-    "silence_periods":     { "enabled": <bool>, "periods_s": [[<t0>, <t1>], ...],
-                             "mode": "noise" | "zeros", "noise_band_hz": <Hz>, "seed": <int|null> }
-  },
-  "ks4": { <Kilosort4 settings> }
-}
-```
-
-- `recording` tells the driver how to load the data. Every spec has
-  `channel_numbers` (the dataset's `ChannelNumbers`); the driver renames the
-  recording's channels to them, so the probe `chanMap` matches by number.
-  Per reader:
-
-  | `reader` | Fields | Loaded as |
-  | --- | --- | --- |
-  | `"intan"` | `folder`, `recording_format`, `files` | `read_intan` (amplifier stream) per file, concatenated |
-  | `"binary"` | `file`, `dtype`, `n_chan`, `fs`, `gain_to_uV`, `offset`, `byte_order`, `channel_names` | `read_binary` |
-  | `"openephys-binary"` | `fs`, `n_chan_stream`, `channel_indices` (0-based headstage positions), `gain_to_uV` (per headstage channel), `parts` [{`file` (continuous.dat), `n_samples`}] | `read_binary` per recording, concatenated, headstage channels selected |
-  | `"openephys-legacy"` | as above, `parts` [{`channel_files` (one per headstage channel), `first_record`, `n_records`, `n_samples`}] | memory-mapped `.continuous` records, one segment per recording, concatenated |
-  | `"openephys-nwb"` | as above, `parts` [{`file`, `dataset`, `row_start` (0-based), `n_samples`}] | the ElectricalSeries through h5py, one segment per recording, concatenated |
-
-  The Open Ephys specs give the same rows as the MATLAB reader (stored samples,
-  recordings end to end). Configs without a `recording` block are treated as
-  Intan.
-- `exclude_channels` are **0-based** positions (`ExcludeChannels − 1`).
-- `silence_periods.periods_s` is the merged manual + automatic list from
-  `artifactIntervals()`, in recording-relative seconds. This file is the record
-  of which periods a run actually silenced.
-- `silence_periods.mode` / `noise_band_hz` / `seed` come from
-  `ArtifactConfig.Fill` / `.NoiseBandHz` / `.NoiseSeed`. Mode `"noise"` (the
-  default) fills the periods with per-channel Gaussian noise at the level the
-  driver measures over the whole recording; a `null` seed draws afresh each
-  run. The native engine erases the same periods the same way in the `.bin`.
-- `ks4` is the Kilosort4 settings block (`EphysPipelineConfig.ks4Settings` or
-  `ExtraSettings=`). `do_CAR: false` is added when the common reference is
-  enabled and `do_CAR` was not set explicitly.
-
-## `settings.json` (native `runKilosort` engine)
+## `settings.json`
 
 Path: `<ResultsDir>/settings.json`. Fields: `n_chan_bin`, `fs`, `data_dtype`
 (from `ds.Dtype`), `filename` (the `.bin`), `probe` (original or
@@ -533,10 +471,9 @@ here).
 
 Path: in the run folder. Written by the Python driver when it finishes.
 
-| Engine | Success | Failure |
-| --- | --- | --- |
-| SpikeInterface | `{"state":"done","num_units":N,"bad_channels":[<channel numbers as strings>],"dropped_params":[...]}` | `{"state":"error","message":"...","traceback":"..."}` |
-| native | `{"state":"done","num_units":N,"dropped_params":[...]}` | `{"state":"error","message":"...","traceback":"..."}` |
+| Success | Failure |
+| --- | --- |
+| `{"state":"done","num_units":N,"dropped_params":[...]}` | `{"state":"error","message":"...","traceback":"..."}` |
 
 A run stopped from MATLAB (`EphysDataset.stopSortRun`, the app's **Stop
 runs...**) gets `{"state":"cancelled","message":"stopped by the user"}`,
@@ -612,7 +549,7 @@ sources that were not requested are `[]`.
 | Variable | Contents |
 | --- | --- |
 | `detected` | `ts {1 x nChan}` spike times (s, `(index-1)/Fs`, recording-relative); `wf {1 x nChan}` `[nSpikes x nWin]` µV or `[]`; `info` (`detectSpikes` info filtered to the kept events); `channels` (1-based recording channels); `channelNames`; `detection` (options used, artifact intervals applied, `nRejectedArtifact` per channel) |
-| `units` | the `readSortedUnits` struct, one row per unit: `unitId`, `label` (`su042_1255_260908T1039`), `class`, `group`, `notes`, `subject`, `recordingStart`, `datasetKey`, `channel`, `channelName`, `ksChannel`, `shank`, `peakX`, `peakY`, `x`, `y`, `nSpikes`, `samples`, `times`, `amplitude`, `contamPct`, `templateWaveform`, `templateTimeMs`, plus `fs`, `resultsDir`, `engine`, `groupSource`, `curated`, `channelMap`, `channelMapSource`, ... ([fields](EphysDataset.md#reading-sorted-units)). `unitTable` turns it into a table |
+| `units` | the `readSortedUnits` struct, one row per unit: `unitId`, `label` (`su042_1255_260908T1039`), `class`, `group`, `notes`, `subject`, `recordingStart`, `datasetKey`, `channel`, `channelName`, `ksChannel`, `shank`, `peakX`, `peakY`, `x`, `y`, `nSpikes`, `samples`, `times`, `amplitude`, `contamPct`, `templateWaveform`, `templateTimeMs`, plus `fs`, `resultsDir`, `groupSource`, `curated`, `channelMap`, `channelMapSource`, ... ([fields](EphysDataset.md#reading-sorted-units)). `unitTable` turns it into a table |
 | `conversion` | provenance |
 
 ## Behavior `.mat` (`EphysDataset.behaviorToMat`; the behavior step)

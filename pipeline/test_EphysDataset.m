@@ -139,6 +139,13 @@ X(100:105, :) = X(100:105, :) + 2000;    % multi-channel transient
 [mask, intervals] = ds.detectArtifacts(X, Method="microvolts", Threshold=1500, MinChannels=2);
 check(all(mask(100:105)), 'artifact mask covers transient');
 check(size(intervals,1) >= 1 && intervals(1,1) <= 100/Fs, 'artifact interval onset');
+% Intervals are half-open on the 0-based sample clock: rows a..b -> [a-1, b)/Fs.
+Xs = zeros(1000, 2); Xs(101, :) = 5000; Xs(301:310, :) = 5000;
+[m1, iv1] = ds.detectArtifacts(Xs, Method="microvolts", Threshold=1500, MinChannels=2, Fs=Fs);
+check(isequal(iv1, [100 101; 300 310] / Fs) && isequal(ds.manualArtifactMask(1000, 0, Fs, iv1), m1), ...
+    'intervals are [first, last+1)/Fs (a one-sample artifact is one sample long) and mask back to the flagged samples');
+check(isequal(find(ds.manualArtifactMask(1000, 200, Fs, iv1 + 200 / Fs)).', [101 301:310]), ...
+    'the mask of a later block (sample offset) finds the same rows');
 Xb = ds.blankArtifacts(X, mask, Fill="zero");
 check(all(all(Xb(mask,:) == 0)), 'blankArtifacts zeroes flagged rows');
 
@@ -203,7 +210,7 @@ check(sic.preprocessing.silence_periods.enabled, 'the default ArtifactIntervals 
 binX = fullfile(root, 'blank_test.bin');
 infoB = ds.toBin(BinFile=binX, ArtifactIntervals=[0 0.001], WriteMeta=false);
 fid = fopen(binX, 'r'); B = fread(fid, [infoB.nChan Inf], 'int16=>double'); fclose(fid);
-nZ = floor(0.001 * Fs) + 1;   % samples 0 .. floor(t1*Fs), as manualArtifactMask
+nZ = round(0.001 * Fs);       % samples 0 .. round(t1*Fs)-1: half-open, as SpikeInterface silences
 check(all(B(:, 1:nZ) == 0, 'all') && any(B(:, nZ+1:end) ~= 0, 'all') && infoB.nManualBlanked == nZ, ...
     'toBin blanks exactly the listed intervals, not the manual periods');
 check(strcmp(errorIdOf(@() ds.runKilosort(ArtifactIntervals=[0 ds.NumSamples / ds.Fs])), ...
@@ -660,6 +667,9 @@ smSer = dsSpk.analyzeArtifacts(MaxChunkSamples=2000);
 smPar = dsSpk.analyzeArtifacts(MaxChunkSamples=2000, UseParallel=true);
 check(isequaln(smSer, smPar) && smSer.nSamples == nSampRec && numel(smSer.files) == 6, ...
     'analyzeArtifacts over 6 split chunks: parallel == serial, MaxChunkSamples honoured');
+check(size(smSer.intervals, 1) == smSer.nIntervals && all(smSer.intervals(:, 2) > smSer.intervals(:, 1)) ...
+    && isequal(mergeTouching(smSer.intervals), ivSer), ...
+    'analyzeArtifacts returns every detected interval, recording-relative; artifactIntervals joins those that touch across chunks');
 dsSpk.ArtifactConfig.Enabled = false;
 
 % Guards
@@ -1021,6 +1031,10 @@ check(isequal(o2.nRejectedArtifact, 2) && numel(M2.detected.ts{1}) == 8 ...
 check(numel(M2.detected.info.index{1}) == 8 && M2.detected.info.count(1) == 8, ...
     'info arrays are filtered consistently');
 check(isequal(size(M2.detected.detection.artifactIntervals), [1 2]), 'artifact intervals are recorded');
+dsSpk.ManualArtifacts = [4009 5999] / Fs;   % the two events' samples: start inside, end outside
+o2b = dsSpk.spikesToMat(DetectOptions=dopt, Overwrite=true, Channels=1);
+check(isequal(o2b.nRejectedArtifact, 1), 'a period rejects the event on its first sample but not the one on its end (half-open)');
+dsSpk.ManualArtifacts = [4000 6100] / Fs;
 o3 = dsSpk.spikesToMat(DetectOptions=dopt, Overwrite=true, Channels=1, RejectArtifacts=false);
 check(isequal(o3.nDetected, 10), 'RejectArtifacts=false keeps every event');
 o3b = dsSpk.spikesToMat(DetectOptions=dopt, Overwrite=true, Channels=1, ArtifactIntervals=[0 0.0001]);
@@ -1315,6 +1329,19 @@ end
 
 
 % =========================================================================
+function out = mergeTouching(iv)
+% Sorted half-open intervals joined where they overlap or touch (artifactIntervals' rule).
+out = zeros(0, 2);
+for r = 1:size(iv, 1)
+    if ~isempty(out) && iv(r, 1) <= out(end, 2)
+        out(end, 2) = max(out(end, 2), iv(r, 2));
+    else
+        out(end+1, :) = iv(r, :); %#ok<AGROW>
+    end
+end
+end
+
+
 function bytes = readBin(ffn)
 fid = fopen(ffn, 'r', 'ieee-le');
 bytes = fread(fid, inf, '*uint8');

@@ -3,7 +3,13 @@ function [mask, intervals, stats] = detectArtifacts(obj, X, opts)
 %   [MASK, INTERVALS, STATS] = ds.detectArtifacts(X) screens the
 %   [nSamples x nChan] signal X for artifacts and returns:
 %     MASK       [nSamples x 1] logical, true where an artifact is present
-%     INTERVALS  [k x 2] artifact intervals in seconds [t_on t_off]
+%     INTERVALS  [k x 2] artifact intervals in seconds [tStart tEnd), one per
+%                contiguous run of MASK: half-open on the 0-based sample
+%                clock, so row r (sample r-1, at (r-1)/Fs) is inside when
+%                tStart <= (r-1)/Fs < tEnd. A run of rows a..b is [a-1, b]/Fs;
+%                a one-sample run is one sample long. manualArtifactMask and
+%                SpikeInterface's silence_periods map it back to exactly
+%                those samples.
 %     STATS      struct with the threshold(s) used and per-channel exceedance
 %
 %   Options
@@ -173,12 +179,13 @@ end
 
 
 function iv = maskToIntervals(mask, Fs)
+% Runs of MASK as half-open [first, last + 1) on the 0-based sample clock.
 d = diff([0; mask(:); 0]);
-on  = find(d == 1);
-off = find(d == -1) - 1;
+on  = find(d == 1);          % first row of each run
+off = find(d == -1) - 1;     % last row of each run
 if isempty(on)
     iv = zeros(0, 2);
 else
-    iv = [on off] ./ Fs;
+    iv = [on - 1, off] ./ Fs;
 end
 end

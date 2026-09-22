@@ -70,6 +70,11 @@ else
 end
 obj.ArtChannelTable.Data = cell(0, 4);
 obj.ArtStatusLabel.Text = "";
+obj.ArtView.intervals = zeros(0, 2);
+obj.ArtView.previewed = false;
+obj.ArtView.chunk = [];
+obj.ArtView.win = [];
+obj.drawArtifactView();
 obj.SpkPreviewTable.Data = cell(0, 5);
 obj.SpkPreviewLabel.Text = "";
 end

@@ -276,6 +276,77 @@ check(istable(P) && any(P.Step == "spikes" & P.Status == "ready"), 'plan lists t
 app.onValidate();
 check(iscell(app.RunIssuesTable.Data) || istable(app.RunIssuesTable.Data), 'validate fills the issues table');
 
+fprintf('\n== 3a0. Artifacts tab: the artifact viewer ==\n');
+art0 = app.Config.Artifacts;
+ax = app.ArtViewAxes;
+check(~app.ArtView.previewed && strcmp(app.ArtViewSpinner.Enable, 'off') && app.ArtViewCountLabel.Text == "of 0" ...
+    && contains(string(get(findobj(ax, 'Type', 'text'), 'String')), "Detect / Preview"), ...
+    'the viewer asks for a preview until one has run');
+app.ArtMethodDropDown.Value = 'microvolts';
+app.ArtThresholdField.Value = 6300;
+app.ArtMinChannelsField.Value = 1;
+app.onArtifactControlsChanged();
+app.onDetectArtifacts();
+dA = app.Project.Datasets(1);
+sm = dA.analyzeArtifacts();
+nArt = size(app.ArtView.intervals, 1);
+check(nArt > 1 && isequal(app.ArtView.intervals, sm.intervals) && app.ArtViewCountLabel.Text == "of " + nArt ...
+    && isequal(app.ArtViewSpinner.Limits, [1 nArt]) && strcmp(app.ArtViewPrevButton.Enable, 'off') ...
+    && strcmp(app.ArtViewNextButton.Enable, 'on') && startsWith(ax.Title.String, "Artifact 1 of " + nArt), ...
+    'a preview loads the detected artifacts into the viewer and shows the first');
+% Auto context (25 ms) spans the whole 512-sample recording; all 4 channels drawn.
+nPts  = @(name) sum(arrayfun(@(h) nnz(~isnan(h.YData)), findobj(ax, 'Type', 'line', 'DisplayName', name)));
+nKept = @() nPts('Kept');                 % one line per lane
+nRem  = @() nPts('Removed (zeroed)');
+manMask = dA.manualArtifactMask(nSamp, 0, Fs);
+allMask = manMask | dA.manualArtifactMask(nSamp, 0, Fs, sm.intervals);
+check(numel(ax.YTick) == numAmp && nKept() == numAmp * (nSamp - nnz(manMask)) && nRem() > 0 ...
+    && startsWith(app.ArtViewNoteLabel.Text, "Automatic detection is off") ...
+    && numel(findobj(ax, 'Type', 'constantregion')) == nArt + 1, ...
+    'detection off: only the manual period is removed (red), the detected artifacts shaded but kept');
+app.ArtEnableCheckBox.Value = true;
+app.onArtifactControlsChanged();
+check(nKept() == numAmp * (nSamp - nnz(allMask)) && startsWith(app.ArtViewNoteLabel.Text, "Red is what a run removes: zeroed"), ...
+    'detection on: the detected artifacts are removed too');
+app.ArtApplySortingCheckBox.Value = false; app.ArtApplySpikesCheckBox.Value = false;
+app.onArtifactControlsChanged();
+check(nKept() == numAmp * (nSamp - nnz(manMask)) && contains(app.ArtViewNoteLabel.Text, "both off"), ...
+    'with neither use ticked a run keeps the detected artifacts');
+app.ArtApplySortingCheckBox.Value = true; app.ArtApplySpikesCheckBox.Value = true;
+app.ArtThresholdField.Value = 6000;
+app.onArtifactControlsChanged();
+check(startsWith(app.ArtViewNoteLabel.Text, "Detection settings changed"), 'a changed detection setting marks the preview stale');
+app.ArtThresholdField.Value = 6300;
+app.onArtifactControlsChanged();
+check(startsWith(app.ArtViewNoteLabel.Text, "Red is what"), 'setting it back clears the mark');
+app.ArtViewNextButton.ButtonPushedFcn(app.ArtViewNextButton, []);
+check(app.ArtViewSpinner.Value == 2 && startsWith(ax.Title.String, "Artifact 2 of") ...
+    && strcmp(app.ArtViewPrevButton.Enable, 'on'), 'Next steps to the second artifact');
+app.ArtViewContextField.Value = 1;
+app.ArtViewContextField.ValueChangedFcn(app.ArtViewContextField, []);
+iv2 = sm.intervals(2, :);
+check(diff(ax.XLim) <= 1e3 * diff(iv2) + 2 + 2e3 / Fs, 'Context sets the signal shown around it (ms)');
+app.ArtViewChannelsField.Value = 2;
+app.drawArtifactView();
+fitAll = diff(ax.YLim);
+check(numel(ax.YTick) == 2 && contains(ax.Subtitle.String, "the 2 of 4 channels") && ~contains(ax.Subtitle.String, "clipped"), ...
+    'Channels picks the channels it is largest on; fitting the artifact never clips');
+app.ArtViewScaleDropDown.Value = 'kept';
+app.drawArtifactView();
+check(diff(ax.YLim) <= fitAll && numel(ax.YTick) == 2, 'fitting the kept signal gives lanes no wider');
+app.ArtViewContextField.Value = 0; app.ArtViewChannelsField.Value = 8; app.ArtViewScaleDropDown.Value = 'artifact';
+app.ArtThresholdField.Value = 1e6;
+app.onArtifactControlsChanged();
+app.onDetectArtifacts();
+check(app.ArtView.previewed && isempty(app.ArtView.intervals) && strcmp(app.ArtViewNextButton.Enable, 'off') ...
+    && contains(string(get(findobj(ax, 'Type', 'text'), 'String')), "No artifacts detected"), ...
+    'a preview that detects nothing says so');
+app.applyArtifactsSection(art0);
+app.onArtifactControlsChanged();
+app.selectDataset(1, Reset=true);
+check(~app.ArtView.previewed && isempty(app.ArtView.win) && isequaln(app.Config.Artifacts, art0), ...
+    'a dataset change clears the viewer; the settings are back as loaded');
+
 fprintf('\n== 3a. name tokens ==\n');
 check(isequal(string({app.NameTokenChecks.Text}), ["SubjectID" "Date" "Time"]) && isequal([app.NameTokenChecks.Value], [true false false]) ...
     && T.Token_SubjectID(1) == "recA" && string(app.DatasetsTable.ColumnName{3}) == "SubjectID" ...

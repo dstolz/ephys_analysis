@@ -35,6 +35,9 @@ function summary = analyzeArtifacts(obj, opts)
 %     fraction       nBlanked / nSamples
 %     pctDuration    100 * fraction
 %     nIntervals     number of contiguous artifact intervals (summed per file)
+%     intervals      [nIntervals x 2] those intervals, [tStart tEnd] in
+%                    recording-relative seconds (the artifactIntervals
+%                    convention; one per chunk, never merged across chunks)
 %     files          files analyzed
 %
 %   See also EphysDataset.detectArtifacts, EphysDataset.toBin.
@@ -112,10 +115,12 @@ R = mapChunks(@(i) artifactChunk(obj, plan(i), chanOrder, filt, det, Fs), ...
     ProgressFcn=opts.ProgressFcn);
 
 % Reduce in recording order. The sums are integer-valued, so the result does
-% not depend on the order the chunks finished in.
+% not depend on the order the chunks finished in. Each chunk's intervals are
+% shifted by the samples read before it, as artifactIntervals does.
 nSamples = 0;
 nBlanked = 0;
 nIntervals = 0;
+intervals = zeros(0, 2);
 channelCounts = [];     % [1 x nChan], from the first chunk that held data
 rmsWindowMsUsed = NaN;
 for i = 1:nChunks
@@ -127,6 +132,9 @@ for i = 1:nChunks
         channelCounts = r.channelCounts;
     else
         channelCounts = channelCounts + r.channelCounts;
+    end
+    if ~isempty(r.intervals)
+        intervals = [intervals; r.intervals + nSamples / Fs]; %#ok<AGROW>
     end
     nBlanked   = nBlanked + r.nBlanked;
     nIntervals = nIntervals + r.numIntervals;
@@ -154,5 +162,6 @@ summary.nBlanked    = nBlanked;
 summary.fraction    = nBlanked / max(nSamples, 1);
 summary.pctDuration = 100 * nBlanked / max(nSamples, 1);
 summary.nIntervals  = nIntervals;
+summary.intervals   = intervals;
 summary.files       = string({plan.name});
 end

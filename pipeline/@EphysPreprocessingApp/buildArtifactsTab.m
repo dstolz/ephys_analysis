@@ -1,14 +1,17 @@
 function buildArtifactsTab(obj)
 %buildArtifactsTab  Artifacts step: automatic detection settings + preview,
-%   and the manual periods of the active dataset (the Dataset box).
-%   Edits the config's Artifacts section (gatherArtifactsSection /
+%   an artifact viewer, and the manual periods of the active dataset (the
+%   Dataset box). Edits the config's Artifacts section (gatherArtifactsSection /
 %   applyArtifactsSection). Manual periods are per dataset (marked on the
 %   Visualize tab, saved in the manifest) and always apply; the automatic
 %   detector applies when the step is enabled. Where the intervals are used
-%   (sorting, spike detection) is chosen here too.
+%   (sorting, spike detection) is chosen here too. After a preview the viewer
+%   steps through the detected artifacts one at a time, each with the signal
+%   around it, the kept and removed samples drawn apart.
 %
 %   See also EphysDataset.detectArtifacts, EphysDataset.analyzeArtifacts,
-%   EphysDataset.artifactIntervals, onDetectArtifacts.
+%   EphysDataset.artifactIntervals, onDetectArtifacts, showArtifactView,
+%   drawArtifactView.
 
 g = uigridlayout(obj.TabArtifacts, [1 2]);
 g.ColumnWidth = {400, '1x'};
@@ -116,31 +119,81 @@ row = row + 1;
 obj.ArtStatusLabel = uilabel(cg, "Text", "", "FontColor", [0.4 0.4 0.4], "WordWrap", "on");
 obj.ArtStatusLabel.Layout.Row = row; obj.ArtStatusLabel.Layout.Column = [1 2];
 
-% =================== right: summary + per-channel table + manual periods ===================
-right = uigridlayout(g, [5 1]);
+% ===== right: summary + per-channel table, artifact viewer, manual periods =====
+right = uigridlayout(g, [6 1]);
 right.Layout.Column = 2;
-right.RowHeight = {'fit', 130, '1x', 'fit', 160};
+right.RowHeight = {'fit', 175, 'fit', '1x', 'fit', 110};
 right.RowSpacing = 8;
 
 uilabel(right, "Text", "Preview summary", "FontWeight", "bold");
-summaryPanel = uipanel(right);
+top = uigridlayout(right, [1 2]);
+top.Padding = [0 0 0 0];
+top.ColumnWidth = {'1x', 330};
+summaryPanel = uipanel(top);
 sg = uigridlayout(summaryPanel, [1 1]);
 sg.Padding = [8 6 8 6];
 obj.ArtSummaryLabel = uilabel(sg, "Text", "Pick a dataset and press Detect / Preview.", ...
     "VerticalAlignment", "top", "WordWrap", "on", "FontName", "monospaced", "FontColor", [0.2 0.2 0.2]);
-obj.ArtChannelTable = uitable(right, "ColumnName", {'Ch', 'Name', '#Samples', '% of duration'}, ...
-    "ColumnWidth", {44, '1x', 100, 110}, "RowName", {});
-obj.ArtChannelTable.Layout.Row = 3;
+obj.ArtChannelTable = uitable(top, "ColumnName", {'Ch', 'Name', '#Samples', '% of duration'}, ...
+    "ColumnWidth", {36, '1x', 80, 95}, "RowName", {});
+
+% Artifact viewer: one detected artifact at a time with the signal around it
+% (showArtifactView reads, drawArtifactView draws).
+vg = uigridlayout(right, [2 12]);
+vg.Layout.Row = 3; vg.Padding = [0 0 0 0]; vg.ColumnSpacing = 6; vg.RowSpacing = 4;
+vg.RowHeight = {'fit', 'fit'};
+vg.ColumnWidth = {'fit', 34, 64, 'fit', 34, '1x', 'fit', 60, 'fit', 50, 'fit', 140};
+uilabel(vg, "Text", "Detected artifacts", "FontWeight", "bold");
+obj.ArtViewPrevButton = uibutton(vg, "Text", char(9664), "Tooltip", "Previous artifact", ...
+    "ButtonPushedFcn", @(~,~) stepArtifact(obj, -1));
+obj.ArtViewSpinner = uispinner(vg, "Limits", [1 Inf], "Step", 1, "RoundFractionalValues", "on", ...
+    "Value", 1, "Tooltip", "Artifact number, in recording order", ...
+    "ValueChangedFcn", @(~,~) obj.showArtifactView());
+obj.ArtViewCountLabel = uilabel(vg, "Text", "of 0");
+obj.ArtViewNextButton = uibutton(vg, "Text", char(9654), "Tooltip", "Next artifact", ...
+    "ButtonPushedFcn", @(~,~) stepArtifact(obj, 1));
+uilabel(vg, "Text", "");
+uilabel(vg, "Text", "Context (ms):", "HorizontalAlignment", "right");
+obj.ArtViewContextField = uieditfield(vg, "numeric", "Value", 0, "Limits", [0 60000], ...
+    "Tooltip", "Signal shown before and after the artifact. 0 = auto (twice its length, 25 ms to 5 s).", ...
+    "ValueChangedFcn", @(~,~) obj.showArtifactView());
+uilabel(vg, "Text", "Channels:", "HorizontalAlignment", "right");
+obj.ArtViewChannelsField = uieditfield(vg, "numeric", "Value", 8, "Limits", [1 Inf], ...
+    "RoundFractionalValues", "on", "Tooltip", "How many channels to draw: the ones the artifact is largest on.", ...
+    "ValueChangedFcn", @(~,~) obj.drawArtifactView());
+uilabel(vg, "Text", "Scale:", "HorizontalAlignment", "right");
+obj.ArtViewScaleDropDown = uidropdown(vg, "Items", {'Fit the artifact', 'Fit the kept signal'}, ...
+    "ItemsData", {'artifact', 'kept'}, "Value", 'artifact', ...
+    "Tooltip", "Fit the kept signal to check that nothing of the artifact is left either side (larger values are clipped).", ...
+    "ValueChangedFcn", @(~,~) obj.drawArtifactView());
+obj.ArtViewNoteLabel = uilabel(vg, "Text", "", "WordWrap", "on");
+obj.ArtViewNoteLabel.Layout.Row = 2; obj.ArtViewNoteLabel.Layout.Column = [1 12];
+
+obj.ArtViewAxes = uiaxes(right);
+obj.ArtViewAxes.Layout.Row = 4;
+obj.ArtViewAxes.Toolbar.Visible = "on";
+obj.drawArtifactView();   % the empty state
 
 mg = uigridlayout(right, [1 3]);
-mg.Layout.Row = 4; mg.Padding = [0 0 0 0]; mg.ColumnWidth = {'1x', 'fit', 'fit'};
+mg.Layout.Row = 5; mg.Padding = [0 0 0 0]; mg.ColumnWidth = {'1x', 'fit', 'fit'};
 obj.ArtManualLabel = uilabel(mg, "Text", "Manual periods (scan a project first)", "FontWeight", "bold");
 obj.ArtEditVizButton = uibutton(mg, "Text", "Edit in Visualize", ...
     "ButtonPushedFcn", @(~,~) obj.selectTab(obj.TabVisualize));
 obj.ArtManualClearButton = uibutton(mg, "Text", "Clear", "ButtonPushedFcn", @(~,~) obj.onClearManualArtifacts());
 obj.ArtManualTable = uitable(right, "ColumnName", {'Start (s)', 'End (s)', 'Duration (s)'}, ...
     "ColumnWidth", {'1x', '1x', '1x'}, "RowName", {});
-obj.ArtManualTable.Layout.Row = 5;
+obj.ArtManualTable.Layout.Row = 6;
+end
+
+
+function stepArtifact(obj, step)
+% Previous / next artifact; the spinner's limits keep it in range.
+sp = obj.ArtViewSpinner;
+v = min(max(sp.Value + step, sp.Limits(1)), sp.Limits(2));
+if v ~= sp.Value
+    sp.Value = v;
+    obj.showArtifactView();
+end
 end
 
 

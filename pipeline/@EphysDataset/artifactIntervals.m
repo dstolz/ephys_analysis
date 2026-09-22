@@ -5,10 +5,12 @@ function iv = artifactIntervals(obj, opts)
 %     * every manual period in ds.ManualArtifacts (always included), and
 %     * the automatic amplitude-deviation detector's intervals when
 %       ds.ArtifactConfig.Enabled (or opts.IncludeAuto) is true.
-%   Overlapping / adjacent periods are merged into one. runSpikeInterface passes
-%   this list to the generated Python so SpikeInterface's silence_periods zeros
-%   exactly these spans in the recording it feeds Kilosort4; the *.rhd files are
-%   never modified.
+%   Overlapping / adjacent periods are merged into one. Every period is
+%   half-open, [tStart tEnd) on the 0-based sample clock (detectArtifacts,
+%   manualArtifactMask), so an artifact cut by a chunk boundary comes back as
+%   one period. runSpikeInterface passes this list to the generated Python so
+%   SpikeInterface's silence_periods zeros exactly these spans in the
+%   recording it feeds Kilosort4; the *.rhd files are never modified.
 %
 %   Auto intervals are found with the same streamPlan + artifactChunk loop the
 %   Artifacts-tab preview uses (analyzeArtifacts), one chunk in memory at a time
@@ -132,12 +134,13 @@ end
 
 
 function out = mergeIntervals(iv)
-%mergeIntervals  Sort [k x 2] second-intervals and merge overlapping/adjacent.
+%mergeIntervals  Sort [k x 2] half-open second-intervals and merge overlapping
+%   or touching ones ([a b) and [b c) are one span).
 if isempty(iv)
     out = zeros(0, 2);
     return
 end
-iv = iv(iv(:, 2) > iv(:, 1), :);           % drop degenerate/empty spans
+iv = iv(iv(:, 2) > iv(:, 1), :);           % drop empty spans (a detection is never empty)
 if isempty(iv)
     out = zeros(0, 2);
     return

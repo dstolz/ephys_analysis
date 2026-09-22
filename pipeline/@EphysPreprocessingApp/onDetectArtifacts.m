@@ -4,9 +4,10 @@ function onDetectArtifacts(obj)
 %   streams the active dataset one *.rhd file at a time
 %   (EphysDataset.analyzeArtifacts) and fills the per-channel table and summary
 %   label with the number of samples flagged per channel and the percent of the
-%   recording that would be blanked. Read-only: nothing is written to disk.
+%   recording that would be blanked, then shows the first detected artifact in
+%   the viewer (showArtifactView). Read-only: nothing is written to disk.
 %
-%   See also EphysDataset.analyzeArtifacts, buildArtifactsTab.
+%   See also EphysDataset.analyzeArtifacts, buildArtifactsTab, showArtifactView.
 
 d = obj.currentDataset();
 if isempty(d)
@@ -40,6 +41,13 @@ try
         logical(obj.ArtEnableCheckBox.Value));
     obj.ArtStatusLabel.Text = sprintf("Analyzed %s (%d file(s)).", ...
         d.Name, numel(summary.files));
+
+    % The viewer steps through what was just detected, from the first.
+    obj.ArtView.intervals = summary.intervals;
+    obj.ArtView.previewed = true;
+    obj.ArtView.settings = EphysDataset.normalizeArtifactConfig(d.ArtifactConfig);
+    obj.ArtViewSpinner.Value = 1;
+    obj.showArtifactView();
 
     if logical(obj.ArtEnableCheckBox.Value)
         artHint = "Automatic detection is enabled; it applies on the next run.";

@@ -1,6 +1,8 @@
 function refreshManualArtifactsTable(obj)
 %refreshManualArtifactsTable  List the active dataset's manual periods.
+%   The artifact viewer is redrawn too, as it shades them.
 if isempty(obj.ArtManualTable) || ~isvalid(obj.ArtManualTable); return; end
+if ~isempty(obj.ArtView.win); obj.drawArtifactView(); end
 d = obj.currentDataset();
 if isempty(d)
     obj.ArtManualLabel.Text = "Manual periods (scan a project first)";

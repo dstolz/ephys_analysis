@@ -81,7 +81,7 @@ save(fullfile(out, 'rec1_notes.mat'), 'junk');
 makePhyFixture(fullfile(out, 'kilosort4'), 30000);
 writeJsonFile(fullfile(out, 'rec1_manifest.json'), struct('schema', "intan-dataset-manifest/2", ...
     'name', name, 'sorting', struct('results_dir', "", 'source', "auto")));
-writeJsonFile(fullfile(out, 'rec1_artifacts.json'), struct('schema', "ephys-artifacts/1", 'intervals', [0 1]));
+writeJsonFile(fullfile(out, 'rec1_artifacts.json'), struct('schema', "ephys-artifacts/2", 'intervals', [0 1]));
 
 %% ---- 1. folder mode: discovery -------------------------------------------
 fprintf('\n== 1. discovery from a folder ==\n');

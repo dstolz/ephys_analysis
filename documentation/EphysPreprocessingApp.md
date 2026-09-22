@@ -511,11 +511,31 @@ and the manual periods.
 | Filter before detecting, High-pass (Hz) | `Artifacts.Filter`, `FilterCutoff` (with `FilterType`, `FilterOrder`). These now apply to runs as well as the preview |
 | Apply to sorting / Apply to spike detection | `Artifacts.ApplyToSorting`, `ApplyToSpikes` |
 | Cache intervals | `Artifacts.CacheIntervals` (`<Name>_artifacts.json`) |
-| **Detect / Preview** | `analyzeArtifacts` over the active dataset (streamed, read-only; on the process pool when the Run tab's **Parallel** box is ticked): summary + per-channel table |
+| **Detect / Preview** | `analyzeArtifacts` over the active dataset (streamed, read-only; on the process pool when the Run tab's **Parallel** box is ticked): summary + per-channel table, and the detected artifacts in the viewer |
+| Detected artifacts: ◀ / number / ▶, Context (ms), Channels, Scale | the artifact viewer (display only, below) |
 | Manual periods table, **Edit in Visualize**, **Clear** | the active dataset's `ManualArtifacts` (written to its manifest) |
 
 The Threshold field is sent as-is for every method: with *Absolute microvolts*
 / *Common-mode* the default 9 means 9 µV.
+
+**Artifact viewer.** After a preview, the plot under the summary shows one
+detected artifact at a time (◀ / ▶ or type its number), with **Context** ms of
+signal either side (0 = auto: twice the artifact's length, 25 ms to 5 s). It
+draws the signal the detector saw (high-passed when *High-pass before
+detecting* is ticked) for the **Channels** the artifact is largest on, one lane
+each, against time from the artifact's start. Samples a run would remove are
+**red** and those it keeps are **black**. Detected artifacts are shaded orange,
+with the one shown outlined, and manual periods are shaded red, as on the
+Visualize tab. What counts as removed follows the controls as they are set:
+manual periods always, and detected artifacts only when **Enabled** is ticked
+together with *Silence in sorting* or *Reject detected spikes*. The line above
+the plot says which applies, and it warns when a detection setting has changed
+since the preview. **Scale** fits the lanes either to the whole window or to
+the kept signal only; the second clips the artifact so you can check that
+none of it is left on either side. Readers without random access (Intan
+traditional `*.rhd`) read the file that holds the artifact once and keep it
+while you step through that file's artifacts. A new active dataset clears the
+viewer.
 
 ## Sorting
 
@@ -1096,7 +1116,7 @@ app.KSQueue                       % prepared runs waiting for a slot (Queue the 
 | `onScan.m`, `refreshDatasetsTable.m`, `onDatasetCellSelection.m`, `onSelectDatasets.m`, `onRefreshMetadata.m`, `onAssociateBehavior.m`, `onClearBehavior.m`, `onBrowseBehaviorDir.m` | Project tab |
 | `selectDataset.m`, `currentDataset.m`, `populateDatasetPickers.m`, `refreshDatasetMenu.m`, `refreshDatasetPickers.m`, `datasetPicker.m`, `highlightDatasetRow.m` | the active dataset: Dataset menu, every tab's Dataset box, the highlighted table row |
 | `refreshProbeList.m`, `onProbeSelected.m`, `onImportProbe.m`, `onDesignProbe.m`, `runProbeTool.m`, `onAssignProbe.m`, `onApplyExclude.m`, `onUseSelectedProbeAsDefault.m`, `probe_tool.py` | Probe tab |
-| `onDetectArtifacts.m`, `refreshManualArtifactsTable.m`, `onClearManualArtifacts.m` | Artifacts tab |
+| `onDetectArtifacts.m`, `showArtifactView.m`, `drawArtifactView.m`, `refreshManualArtifactsTable.m`, `onClearManualArtifacts.m` | Artifacts tab |
 | `onOptimizeKS4ForProbe.m`, `onResetKS4Params.m`, `onUseSortingFolder.m`, `onUseAutoSorting.m`, `refreshSortingLabel.m`, `pollKSRuns.m`, `onLaunchPhy.m`, `launchPhy.m` | Sorting tab and phy |
 | `queueKSRun.m`, `onStopKSQueue.m`, `onStopKSRuns.m`, `stopKSRuns.m`, `markKSResult.m` | background Kilosort4 runs: the queue the monitor starts from, Stop queue, Stop runs..., restating a run's result row |
 | `onSpikesPreview.m`, `syncSpikesEnableStates.m` | Spikes tab |

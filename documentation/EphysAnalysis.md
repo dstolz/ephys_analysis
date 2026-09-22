@@ -221,7 +221,7 @@ figure with the same code.
 
 | Renderer | Draws |
 | --- | --- |
-| `renderPSTH` | `Layout="grid"`: one tile per unit (`MaxTiles` per page, `Page=`), groups overlaid with SEM bands, a raster above each; `HistStyle="bar"` (default) or `"line"`; `"overlay"`: the mean over units |
+| `renderPSTH` | `Layout="grid"`: one tile per unit (`MaxTiles` per page, `Page=`), groups overlaid with SEM bands, a raster above each; `"overlay"`: the mean over units. `HistStyle="bar"` (default) or `"line"`, `Fill=` (bars / area under the line, or outlines) at `FillAlpha=` (NaN: 0.5 overlaid, else 1); `Normalize="unitPeak"` or `"groupPeak"`; `Stack=true`: a row per group, first at the bottom, `Spacing=` x the tallest PSTH apart, the group values on the left axis and each row's peak rate on the right |
 | `renderRaster` | one raster per unit: epochs as rows sorted by group, on pale group bands; all ticks are one NaN-separated line |
 | `renderEvoked` | `"stack"` (channels stacked top of the probe first), `"butterfly"` (a tile per group, channels coloured by depth), `"grid"` (a tile per channel) |
 | `renderRates` | units along x (by depth), groups side by side: `"bar"` (mean ± SEM), `"box"`, `"points"` (every epoch, fixed jitter) |
@@ -317,7 +317,7 @@ separate roots and requires pixel-identical figures and equal HTML reports.
 
 | Suite | Covers |
 | --- | --- |
-| `test_EphysAnalysisCompute` | no fixture: `spikePSTH` on seeded Poisson trains (rate, SEM, half-open bins, baselines, smoothing, stop masking), `firingRate` over between windows, `tuningCurve`, `evokedPotential` (event rule, padding, drop counts, baseline), the filter compiler, `unitCorrelation` (Pearson and Spearman against `corrcoef`, peak rates and partial bins, baseline, groups, constant units), every renderer into axes, uiaxes, figure and uipanel, `renderPlot` pages and titles |
+| `test_EphysAnalysisCompute` | no fixture: `spikePSTH` on seeded Poisson trains (rate, SEM, half-open bins, baselines, smoothing, stop masking), `firingRate` over between windows, `tuningCurve`, `evokedPotential` (event rule, padding, drop counts, baseline), the filter compiler, `unitCorrelation` (Pearson and Spearman against `corrcoef`, peak rates and partial bins, baseline, groups, constant units), every renderer into axes, uiaxes, figure and uipanel, PSTH fills, normalization and stacks (row steps, value and peak axes), `renderPlot` pages and titles |
 | `test_EphysAnalysisEpochs` | the fixture: `loadAnalysisSource` against the generator's truth, trial / recording scope, `"Trial"`, `groupBy`, response and filter selection, between windows, approved cuts, `selectUnits` / `selectChannels`, error identifiers, the no-behavior fallback |
 | `test_EphysAnalysisConfig` | see [EphysAnalysisConfig](EphysAnalysisConfig.md#tests) |
 | `test_EphysAnalysisRunner` | the fixture: `plan` skip reasons, `run` exports and paged names, HTML and PDF reports, cancel, driven units, compact vs standalone script equivalence |

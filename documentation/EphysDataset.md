@@ -296,7 +296,7 @@ The constructor errors (`EphysDataset:NoFolder`) if the folder does not exist.
 | `Dtype` | `"int16"` | one of `int16`, `uint16`, `int32`, `single`, `float32` |
 | `OutputDir` | `""` | output folder (`""` = `Folder`) |
 | `Manifest` | empty | optional provenance `Manifest` object |
-| `ManualArtifacts` | `zeros(0,2)` | manual artifact periods, `[tStart tEnd]` seconds, recording-relative. Saved to and restored from the dataset manifest |
+| `ManualArtifacts` | `zeros(0,2)` | manual artifact periods, `[tStart tEnd)` seconds (half-open), recording-relative. Saved to and restored from the dataset manifest |
 | `ArtifactConfig` | `defaultArtifactConfig()` | automatic artifact-detector settings |
 | `SIConfig` | `defaultSIConfig()` | SpikeInterface preprocessing settings for `runSpikeInterface` |
 | `SortingDir` | `""` | an explicit sorted-output folder (the one holding `params.py`). `""` = auto-discover under `kilosortDir()`; see [Sorted output](#sorted-output) |
@@ -510,7 +510,9 @@ padded by `PadMs` on both sides.
 - `stats` fields: `method`, `threshold`, `rmsWindowMs` (actual window after
   rounding), `minChannels`, `mergeGapMs`, `padMs`, `fraction`, `numIntervals`,
   and `channelExceedCounts` (per channel, before the `MinChannels` combination).
-- `intervals` are `[k x 2]` seconds computed as (1-based index)/Fs.
+- `intervals` are `[k x 2]` seconds, one per flagged run, **half-open** on the
+  0-based sample clock (sample `g` is at `g/Fs`): rows `a..b` give
+  `[a-1, b)/Fs`, so a one-sample artifact is one sample long.
 
 **`Y = blankArtifacts(X, mask, Fill=...)`** replaces flagged rows on every
 channel. `Fill` is `"zero"` (default), `"hold"` (repeat the last clean sample;
@@ -528,7 +530,10 @@ result; the rules are those of [`detectSpikes`](#whole-recording-mode)) and
 `method`, `threshold`, `rmsWindowMs`, `mergeGapMs`, `minChannels`, `padMs`,
 `fs`, `nSamples`, `durationSec`, `nChan`, `channelNames`, `channelCounts`,
 `channelPct`, `nBlanked`, `fraction`, `pctDuration`, `nIntervals` (summed per
-chunk), `files`.
+chunk), `intervals` (those `nIntervals` detections as `[tStart tEnd)` in
+recording-relative seconds, shifted per chunk as `artifactIntervals` does, but
+neither merged nor combined with the manual periods; a run cut by a chunk
+boundary is two rows here and one period there), `files`.
 
 Detection runs **per chunk**. The robust baseline (median/MAD) is computed within
 each chunk, and runs are not stitched across chunk boundaries.
@@ -542,8 +547,9 @@ periods (seconds) that `runSpikeInterface` passes to SpikeInterface
   `ArtifactConfig.Enabled` is true (or `IncludeAuto=true`). Each chunk's intervals
   are shifted by the running sample offset.
 
-Overlapping or touching periods are merged. Periods with `tEnd <= tStart` are
-**dropped**, which includes an automatic detection only one sample long. The
+Overlapping or touching periods are merged, so an artifact that runs across a
+chunk boundary comes back as one period. Empty periods (`tEnd <= tStart`,
+possible only for manual ones) are dropped. The
 filter fields of `ArtifactConfig` apply here too, so the preview
 (`analyzeArtifacts`) and a run detect on the same signal. `UseParallel`,
 `MaxWorkers` and `MaxChunkSamples` work as for `analyzeArtifacts`, and the
@@ -555,8 +561,15 @@ intervals are the same in either mode.
   clamps negatives to 0, ignores zero-width periods, then sorts and merges
   overlaps.
 - `mask = manualArtifactMask(nSamp, sampleOffset, Fs, iv)` returns the per-block
-  logical mask `toBin` uses, for the intervals `iv` (default `ManualArtifacts`). It covers samples `ceil(t0·Fs) … floor(t1·Fs)` as
+  logical mask `toBin` uses, for the intervals `iv` (default `ManualArtifacts`). It covers samples `round(t0·Fs) … round(t1·Fs) − 1` as
   0-based absolute indices.
+
+Every artifact period, manual or detected, is **half-open** `[t0, t1)` on that
+clock, and every route removes the same samples, `round(t0·Fs)` up to but not
+including `round(t1·Fs)`: `.bin` blanking (`toBin`, `manualArtifactMask`),
+SpikeInterface `silence_periods` (`to_frames` in `run_si_ks4.py`) and spike
+rejection in `spikesToMat` (an event at `t` is dropped when `round(t·Fs)` is
+in that range).
 
 #### Default artifact configuration
 

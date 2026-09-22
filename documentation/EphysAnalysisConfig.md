@@ -73,7 +73,8 @@ without one gets `"<kind>_<n>"`.
       "units": { "classes": ["su", "mua"], "groups": [], "ids": [], "channels": [], "shanks": [], "maxUnits": "Inf" },
       "channels": [], "ref": "default", "window": "default", "selection": "default",
       "bins": { "BinSec": 0.01, "SmoothSec": 0.01 }, "baseline": { "Mode": "none", "Window": [-0.2, 0] },
-      "layout": "grid", "withRaster": true, "histStyle": "bar", "maskAfterStop": false, "param": "", "seriesParam": "",
+      "layout": "grid", "withRaster": true, "histStyle": "bar", "fill": true, "fillAlpha": "NaN", "normalize": "none",
+      "stack": false, "stackSpacing": 1.1, "maskAfterStop": false, "param": "", "seriesParam": "",
       "value": "rate", "order": "depth", "metric": "mean", "correlation": "pearson", "style": { "MaxTiles": 16, "...": "..." } },
     { "id": "rate_platform", "kind": "rate", "source": "units",
       "ref": { "line": "Platform", "edge": "onset", "which": "first", "scope": "trial", "...": "..." },
@@ -139,14 +140,14 @@ A plot's `units` (its `source` is the plot's `source`):
 
 | Field | Default | Meaning |
 | --- | --- | --- |
-| `LineWidth` | 1.2 | traces |
+| `LineWidth` | 1.2 | traces, PSTH lines and bar outlines |
 | `ShowSEM` | `true` | SEM bands / error bars |
 | `ShowStop` | `true` | stop-event marks (mean per group; a dot per raster row) |
 | `ShowZeroLine` | `true` | a dotted line at the event |
-| `Colormap` | `"lines"` | group colours: `"lines"` keeps selectTrials' colours; any colormap name resamples them |
+| `Colormap` | `"lines"` | group colours: `"lines"` keeps selectTrials' colours; any colormap name resamples them; a colour name or hex code (`"black"`, `"#1f77b4"`) gives every group that colour |
 | `HeatColormap` | `""` | heatmaps, probe maps and unit correlations; `""` = parula, or `blueWhiteRed` for corrmap |
 | `FontSize` | 9 | |
-| `YLim`, `XLim`, `CLim` | `[]` | fixed limits (`[]` = automatic) |
+| `YLim`, `XLim`, `CLim` | `[]` | fixed limits (`[]` = automatic); a stacked PSTH ignores `YLim` |
 | `Grid`, `Legend` | `true` | |
 | `MaxTiles` | 16 | tiles per page in grid layouts |
 | `StackSpacing` | `NaN` | evoked `"stack"` offset (NaN = 1.2 x the 90th percentile of the channels' ranges) |
@@ -167,7 +168,12 @@ A plot's `units` (its `source` is the plot's `source`):
 | `baseline` | `Mode "none"`, `Window [-0.2 0]` | see the kinds |
 | `layout` | `""` | `""` = the kind's default |
 | `withRaster` | `true` | psth: a raster above each unit |
-| `histStyle` | `"bar"` | psth: `"bar"` (one bar per bin; half-transparent when groups overlap) or `"line"` |
+| `histStyle` | `"bar"` | psth: `"bar"` (one bar per bin) or `"line"` (a trace through the bin centres) |
+| `fill` | `true` | psth: fill the bars, or the area under the line; `false` = the bars' outline, or the line alone |
+| `fillAlpha` | `NaN` | psth: fill opacity 0-1; `NaN` = 0.5 where groups are overlaid, else 1 |
+| `normalize` | `"none"` | psth: `"unitPeak"` divides each unit's PSTHs by their largest absolute value over every group (the groups keep their sizes); `"groupPeak"` divides each PSTH by its own. The overlay layout normalizes each unit before the mean |
+| `stack` | `false` | psth: one row per group instead of overlaid (see [Stacked PSTHs](#stacked-psths)) |
+| `stackSpacing` | 1.1 | psth stack: the row step, times the panel's tallest PSTH (1 = it just reaches the next row; below 1 the rows overlap) |
 | `maskAfterStop` | `false` | psth: drop bins after each epoch's stop event |
 | `param`, `seriesParam` | `""` | tuning: x axis parameter; one curve per value of the series parameter |
 | `value` | `"rate"` | probemap: `"rate"`, `"nSpikes"`, `"nUnits"` |
@@ -186,6 +192,31 @@ A plot's `units` (its `source` is the plot's `source`):
 | `heatmap` | all six | groups | fixed | spikes: as psth; signals: none, subtract |
 | `probemap` | units, detected | shanks | (no alignment) | none |
 | `corrmap` | units, detected | groups | fixed, between | none, subtract |
+
+### Stacked PSTHs
+
+With `stack` on, a PSTH plot with more than one group draws each group in
+its own row, the first group at the bottom (use the selection's
+`groupOrder` to turn it over), instead of overlaying them. Each panel's
+row step is `stackSpacing` times its tallest PSTH, so every unit's tile
+fills its height whatever its rate. Rows are drawn top down, so where
+they overlap (`stackSpacing` below 1) the lower one is in front.
+
+- **Left axis:** a tick at each row's baseline, labelled with the group's
+  value (`0.5`, or `0.5, 1` for two `groupBy` parameters); the parameter
+  names the axis.
+- **Right axis:** a tick at the height where each row peaks, labelled
+  with that peak in spikes/s (or the baseline mode's unit). It gives the
+  scale of every row, also when `normalize` scaled the rows: a
+  `groupPeak` stack still shows each PSTH's peak rate. The overlay layout
+  labels the peaks of its mean, in the units of the mean (normalized when
+  `normalize` is set).
+- A thin grey line marks each baseline; each group's mean stop event is a
+  dashed mark in its own row. There is no legend (the rows are labelled),
+  and `Style.YLim` is not used.
+- The raster above each tile is flipped to match, its first group at the
+  bottom.
+- A plot with one group is drawn unstacked.
 
 ## Export
 
@@ -230,8 +261,8 @@ dataset's output folder), `{Root}`, `{Name}` (the dataset), `{Date}`
 | Source | a "list" selection with no datasets; an OutputRoot that does not exist | warning |
 | Defaults, Plots | the event reference, window and selection are valid (`pre <= post`, a `"between"` window has a stop, `groupBy` has at most 2 parameters, ...) | error |
 | Defaults, Plots | a filter that does not parse | warning (it is checked against each dataset's trials when it runs) |
-| Plots | at least one enabled; the kind exists; the source, layout, window mode and baseline mode fit the kind; tuning names its parameter; `BinSec > 0`, `SmoothSec >= 0`; a baseline window `[b0 b1]` with `b0 < b1`; probemap value, psth `histStyle` bar / line; heatmap order; corrmap order, metric and correlation; `maxUnits >= 1`; `MaxTiles`, `FontSize`, `LineWidth` positive | error |
-| Plots | a colormap that is not a function | warning |
+| Plots | at least one enabled; the kind exists; the source, layout, window mode and baseline mode fit the kind; tuning names its parameter; `BinSec > 0`, `SmoothSec >= 0`; a baseline window `[b0 b1]` with `b0 < b1`; probemap value, psth `histStyle` bar / line, `normalize` none / unitPeak / groupPeak, `fillAlpha` 0-1 or NaN, `stackSpacing > 0`; heatmap order; corrmap order, metric and correlation; `maxUnits >= 1`; `MaxTiles`, `FontSize`, `LineWidth` positive | error |
+| Plots | a `HeatColormap` that is not a colormap function; a `Colormap` that is neither a colormap function nor a colour | warning |
 | Export | formats are png / eps / svg / pdf (and at least one when enabled); `Dpi`, `FigureSizeCm`; the folder and file-name patterns use known tokens | error |
 | Report | Format, EmbedFormat, `Dpi`, a plain `FileName`, the folder pattern | error |
 | Report | `{OutputFolder}` in a report over every dataset | warning |

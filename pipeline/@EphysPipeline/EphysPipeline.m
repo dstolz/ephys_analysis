@@ -461,8 +461,9 @@ classdef EphysPipeline < handle
         function [iv, source] = artifactIntervalsFor(obj, d, report)
             %artifactIntervalsFor  Artifact intervals for D, from the cache when valid.
             %   The cache (<outputFolder>/<Name>_artifacts.json) is keyed by a
-            %   fingerprint of the artifact config, the manual periods and the
-            %   recording files, so a change to any of them recomputes.
+            %   fingerprint of its schema, the artifact config, the manual
+            %   periods and the recording files, so a change to any of them
+            %   recomputes. Schema 2: half-open [tStart tEnd) intervals.
             %   SOURCE is "cache", "computed" or the manual-only note.
             %   REPORT(done, total, message) hears how far a detection is, so
             %   the step that needs the intervals can report it as its own
@@ -481,7 +482,8 @@ classdef EphysPipeline < handle
                 source = "manual periods only (auto-detection off)";
                 return
             end
-            fp = string(jsonencode(struct('config', acfg, 'manual', manual, ...
+            schema = "ephys-artifacts/2";
+            fp = string(jsonencode(struct('schema', schema, 'config', acfg, 'manual', manual, ...
                 'files', cellstr(d.Files(:).'), 'nSamples', d.NumSamples)));
             cacheFile = obj.outputPathFor("artifacts", d);
             if a.CacheIntervals && isfile(cacheFile)
@@ -501,7 +503,7 @@ classdef EphysPipeline < handle
             iv = d.artifactIntervals('ProgressFcn', cb, popt{:});
             source = "computed";
             if a.CacheIntervals
-                writeJsonFile(cacheFile, struct('schema', "ephys-artifacts/1", 'dataset', d.Name, ...
+                writeJsonFile(cacheFile, struct('schema', schema, 'dataset', d.Name, ...
                     'fingerprint', fp, 'intervals', iv, 'nIntervals', size(iv, 1), ...
                     'created', string(datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss'))));
             end

@@ -91,11 +91,17 @@ colours, and the kept trials with their group and number of epochs.
 - The editor. Its rows follow the kind and source (`syncPlotEditorEnable`):
   enabled, id, title, source, layout; unit classes, ids, max units, channels,
   shanks; bin and smoothing (ms); baseline mode and window; raster, bar or
-  line PSTH, mask after the stop event; the tuning parameter and series; the probe-map value;
+  line PSTH, mask after the stop event; the PSTH's normalization (none, unit
+  peak, group peak), **Filled** and its opacity (blank = automatic), and
+  **Stack groups** with its spacing (a row per group, labelled by value on
+  the left and by peak rate on the right; y limits and legend are off for a
+  stack); the tuning parameter and series; the probe-map value;
   the heatmap and unit-correlation row order; the unit correlation's epoch
   rate (mean or peak; bins apply to peak) and correlation (Pearson or
   Spearman); tiles per page, font size, SEM, stop marks, legend,
-  grid, y limits, heat colours (*auto*: parula, or blueWhiteRed for unit
+  grid, y limits, line width; group colours (*lines*: the trial selection's
+  colours; a colormap; or one colour such as *black* or `#1f77b4`, typed in)
+  and heat colours (*auto*: parula, or blueWhiteRed for unit
   correlations). **Default event / window / selection**:
   untick one to give the plot its own, in the panels below (the same
   controls as the Alignment tab).

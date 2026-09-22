@@ -343,12 +343,16 @@ Path: `<outputFolder>/<Name>_artifacts.json`. Written by
 `EphysPipeline.artifactIntervalsFor` when `Artifacts.CacheIntervals` is on.
 
 ```text
-{ "schema": "ephys-artifacts/1", "dataset": <Name>, "fingerprint": <string>,
+{ "schema": "ephys-artifacts/2", "dataset": <Name>, "fingerprint": <string>,
   "intervals": [[t0, t1], ...], "nIntervals": <n>, "created": <timestamp> }
 ```
 
-`fingerprint` is `jsonencode` of the artifact config and the manual periods;
-a cache whose fingerprint differs from the current settings is recomputed.
+`intervals` are recording-relative seconds, half-open on the 0-based sample
+clock: a period `[t0, t1)` covers samples `round(t0*fs)` to `round(t1*fs) - 1`,
+the frames SpikeInterface's `silence_periods` zeros. `fingerprint` is
+`jsonencode` of the schema, the artifact config, the manual periods and the
+recording files; a cache whose fingerprint differs from the current settings
+(including one written under schema 1) is recomputed.
 
 ---
 
@@ -688,7 +692,7 @@ version 1; `Inf` / `NaN` are written as the strings `"Inf"` / `"NaN"`
 | `schema`, `version`, `name`, `description` | identification |
 | `Source` | `Mode` (`project` / `folders`), `Root`, `OutputRoot`, `NamePattern`, `Selection`, `Datasets`, `Folders` |
 | `Defaults` | `EventRef`, `Window` (`stop` is `[]` or an event reference), `Selection` |
-| `Plots` | array of plots: `id`, `kind`, `enabled`, `title`, `source`, `units`, `channels`, `ref` / `window` / `selection` (`"default"` or an object), `bins`, `baseline`, `layout`, `withRaster`, `histStyle`, `maskAfterStop`, `param`, `seriesParam`, `value`, `order`, `metric`, `correlation`, `style` |
+| `Plots` | array of plots: `id`, `kind`, `enabled`, `title`, `source`, `units`, `channels`, `ref` / `window` / `selection` (`"default"` or an object), `bins`, `baseline`, `layout`, `withRaster`, `histStyle`, `fill`, `fillAlpha`, `normalize`, `stack`, `stackSpacing`, `maskAfterStop`, `param`, `seriesParam`, `value`, `order`, `metric`, `correlation`, `style` |
 | `Export` | `Enabled`, `Formats`, `Folder`, `FilenamePattern`, `Dpi`, `FigureSizeCm`, `Overwrite` |
 | `Report` | `Enabled`, `Format`, `Title`, `Folder`, `FileName`, `PerDataset`, `EmbedFormat`, `Dpi`, `IncludeSummary`, `IncludeParameters`, `IncludeConfig` |
 

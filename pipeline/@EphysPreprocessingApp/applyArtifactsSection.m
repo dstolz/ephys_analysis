@@ -1,6 +1,9 @@
 function applyArtifactsSection(obj, A)
 %applyArtifactsSection  Artifacts section -> Artifacts tab.
 A = EphysPipelineConfig.normalizeSection("Artifacts", A);
+obj.setDropIfMember(obj.ArtRefDropDown, A.Reference);
+obj.ArtRefLowField.Value  = A.ReferenceBadLow;
+obj.ArtRefHighField.Value = A.ReferenceBadHigh;
 obj.ArtEnableCheckBox.Value = logical(A.Enabled);
 obj.setDropIfMember(obj.ArtMethodDropDown, A.Method);
 obj.ArtThresholdField.Value   = A.Threshold;
@@ -16,4 +19,5 @@ obj.ArtApplySpikesCheckBox.Value  = logical(A.ApplyToSpikes);
 obj.ArtCacheCheckBox.Value        = logical(A.CacheIntervals);
 obj.ArtRmsWindowField.Enable = matlab.lang.OnOffSwitchState(A.Method == "rms");
 obj.ArtHighpassField.Enable  = matlab.lang.OnOffSwitchState(logical(A.Filter));
+obj.refreshReferencePanel();
 end

@@ -268,6 +268,12 @@ classdef EphysPreprocessingApp < handle
 
         % --- Artifacts tab ---
         ArtDatasetDropDown  matlab.ui.control.DropDown
+        ArtRefDropDown      matlab.ui.control.DropDown           % common reference: none / car / cmr
+        ArtRefLowField      matlab.ui.control.NumericEditField   % good-noise band (x mean) of the suggestion
+        ArtRefHighField     matlab.ui.control.NumericEditField
+        ArtRefExcludeField  matlab.ui.control.EditField          % active dataset's channels left out of the reference
+        ArtRefSuggestButton matlab.ui.control.Button
+        ArtRefStatusLabel   matlab.ui.control.Label
         ArtEnableCheckBox   matlab.ui.control.CheckBox
         ArtMethodDropDown   matlab.ui.control.DropDown
         ArtThresholdField   matlab.ui.control.NumericEditField
@@ -845,6 +851,9 @@ classdef EphysPreprocessingApp < handle
         onDetectArtifacts(obj)
         onArtifactControlsChanged(obj)
         refreshManualArtifactsTable(obj)
+        refreshReferencePanel(obj)
+        onSuggestReferenceExclude(obj)
+        onReferenceExcludeEdited(obj)
         onClearManualArtifacts(obj)
         showArtifactView(obj)
         drawArtifactView(obj)

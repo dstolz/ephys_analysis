@@ -487,8 +487,18 @@ classdef EphysPipeline < handle
             % periods are erased, not which they are, so a change there must
             % not throw away a detection.
             det = rmfield(acfg, intersect(fieldnames(acfg), {'Fill', 'NoiseBandHz', 'NoiseSeed'}));
+            % Detection runs on the common-referenced signal, so the channels
+            % the reference is taken over decide the intervals too.
+            refCh = [];
+            if acfg.Reference ~= "none"
+                if d.prepareReference()
+                    obj.log("[artifacts] %s: common reference leaves out suggested channel(s) [%s]", ...
+                        d.Name, EphysDataset.formatChannelList(d.ReferenceExclude));
+                end
+                refCh = d.referenceChannels();
+            end
             fp = string(jsonencode(struct('schema', schema, 'config', det, 'manual', manual, ...
-                'files', cellstr(d.Files(:).'), 'nSamples', d.NumSamples)));
+                'reference', refCh, 'files', cellstr(d.Files(:).'), 'nSamples', d.NumSamples)));
             cacheFile = obj.outputPathFor("artifacts", d);
             if a.CacheIntervals && isfile(cacheFile)
                 c = readJsonFile(cacheFile, ErrorOnFail=false);

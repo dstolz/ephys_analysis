@@ -1,8 +1,9 @@
-function r = noiseChunk(obj, chunk, chanOrder, filt, Fs)
+function r = noiseChunk(obj, chunk, chanOrder, filt, Fs, reference)
 %noiseChunk  Per-channel noise level of one streaming chunk (worker body).
-%   R = noiseChunk(DS, CHUNK, CHANORDER, FILT, FS) reads one streamPlan chunk,
-%   optionally subsets / reorders its channels, optionally filters it, and
-%   returns what noiseLevels accumulates:
+%   R = noiseChunk(DS, CHUNK, CHANORDER, FILT, FS, REFERENCE) reads one
+%   streamPlan chunk (common-referenced when REFERENCE), optionally subsets /
+%   reorders its channels, optionally filters it, and returns what
+%   noiseLevels accumulates:
 %     nSamples  rows read
 %     center    [1 x nChan] per-channel median (microvolts)
 %     sigma     [1 x nChan] per-channel robust SD, 1.4826 x MAD (microvolts)
@@ -15,7 +16,7 @@ function r = noiseChunk(obj, chunk, chanOrder, filt, Fs)
 %   See also mapChunks, EphysDataset.noiseLevels, EphysDataset.readChunkUV.
 
 r = [];
-X = obj.readChunkUV(chunk);   % [nSamples x nChan], microvolts, all channels
+X = obj.readChunkUV(chunk, Reference=reference);   % [nSamples x nChan], microvolts, all channels
 if isempty(X)
     return
 end

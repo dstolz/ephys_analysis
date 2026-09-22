@@ -293,6 +293,8 @@ end
 if isnan(obj.Fs) || isempty(obj.PerFile)
     obj.refreshMetadata();
 end
+% Settle the common reference's channels before any chunk is read.
+obj.prepareReference();
 Fs = obj.Fs;
 if isnan(Fs) || Fs <= 0
     error('EphysDataset:detectSpikes:NoFs', ...

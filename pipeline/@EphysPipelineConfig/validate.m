@@ -89,8 +89,15 @@ end
 
 % --- Artifacts -------------------------------------------------------------------
 A = obj.Artifacts;
-% The fill applies to the manual periods too, so it is checked whether or not
-% automatic detection is on.
+% The reference and the fill apply to the manual periods too, so they are
+% checked whether or not automatic detection is on.
+if ~ismember(A.Reference, ["none" "car" "cmr"])
+    add("artifacts", "Reference", "error", "Reference must be ""none"", ""car"" or ""cmr"".");
+end
+if ~(A.ReferenceBadLow >= 0 && A.ReferenceBadHigh > A.ReferenceBadLow)
+    add("artifacts", "ReferenceBadLow", "error", ...
+        "The reference noise bounds must satisfy 0 <= ReferenceBadLow < ReferenceBadHigh.");
+end
 if ~ismember(A.Fill, ["noise" "zero"])
     add("artifacts", "Fill", "error", "Fill must be ""noise"" or ""zero"".");
 end

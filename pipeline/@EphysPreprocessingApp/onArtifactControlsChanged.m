@@ -6,5 +6,6 @@ isRms = string(obj.ArtMethodDropDown.Value) == "rms";
 obj.ArtRmsWindowField.Enable = matlab.lang.OnOffSwitchState(isRms);
 obj.ArtHighpassField.Enable  = matlab.lang.OnOffSwitchState(logical(obj.ArtFilterCheckBox.Value));
 obj.onConfigChanged();
+obj.refreshReferencePanel();
 obj.drawArtifactView();
 end

@@ -4,7 +4,7 @@ function [s, unknown] = normalizeSection(section, in)
 %   - fills missing fields from defaults(section)
 %   - coerces each present value to the class and shape of the default:
 %     logical scalars, double scalars / rows, string scalars / rows, nested
-%     structs (SI, KS4) recursively; the strings "Inf", "-Inf", "NaN"
+%     structs (KS4) recursively; the strings "Inf", "-Inf", "NaN"
 %     (writeJsonFile NonFinite="string") and JSON null ([]) become numbers
 %   - drops fields the defaults do not have and returns their names
 %   Nullable Kilosort4 parameters (default []) stay [] when empty.

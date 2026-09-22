@@ -62,7 +62,9 @@ function info = toBin(obj, opts)
 %   artifactFill, noiseFill (struct: bandHz, seed, sigma, center - empty when
 %   filling with zeros) and autoArtifact (struct: enabled, method, threshold,
 %   rmsWindowMs, mergeGapMs, minChannels, padMs, nBlanked, fraction,
-%   pctDuration, nIntervals, channelCounts).
+%   pctDuration, nIntervals, channelCounts) and reference (struct: mode -
+%   "none" | "car" | "cmr" - and channels, the 1-based channels the
+%   common reference was taken over; see applyReference).
 %
 %   GUARD: every file must have the same amplifier channel count as the first;
 %   a flat int16 .bin cannot represent a mid-dataset channel-count change.
@@ -110,6 +112,8 @@ end
 if isnan(obj.Fs) || isempty(obj.PerFile)
     obj.refreshMetadata();
 end
+% Settle the common reference's channels before any chunk is read.
+obj.prepareReference();
 
 % Resolve config (per-call -> dataset defaults)
 scale = opts.Scale;  if isnan(scale); scale = obj.Scale; end
@@ -356,6 +360,7 @@ info.autoArtifact = struct( ...
     'nIntervals',    nAutoIntervals, ...
     'channelCounts', autoChanCounts);
 info.nBytes    = d.bytes;
+info.reference = referenceInfo(obj);
 
 filled = ternary(artFill == "noise", "noise-filled", "zeroed");
 if doBlank
@@ -386,6 +391,7 @@ if opts.WriteMeta
         'n_manual_blanked', nManualBlanked, ...
         'artifact_fill', char(artFill), ...
         'auto_artifacts', info.autoArtifact, ...
+        'reference', info.reference, ...
         'created', char(datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss')));
     % Assigned, not passed to struct(): an empty struct value there would
     % collapse the whole meta struct to 0x0.
@@ -407,6 +413,16 @@ end
 
 fprintf('Done. %.2f MB written (%s, little-endian); n_chan_bin=%d, fs=%g\n', ...
     info.nBytes/1e6, info.dtype, info.nChan, info.fs);
+end
+
+
+function r = referenceInfo(obj)
+%referenceInfo  The common reference the chunks were read with (applyReference).
+acfg = EphysDataset.normalizeArtifactConfig(obj.ArtifactConfig);
+r = struct('mode', char(acfg.Reference), 'channels', double.empty(1, 0));
+if string(acfg.Reference) ~= "none"
+    r.channels = obj.referenceChannels();
+end
 end
 
 

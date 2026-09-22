@@ -1,6 +1,9 @@
 function A = gatherArtifactsSection(obj)
 %gatherArtifactsSection  Artifacts section from the Artifacts tab.
 A = obj.Config.Artifacts;
+A.Reference        = string(obj.ArtRefDropDown.Value);
+A.ReferenceBadLow  = obj.ArtRefLowField.Value;
+A.ReferenceBadHigh = obj.ArtRefHighField.Value;
 A.Enabled     = logical(obj.ArtEnableCheckBox.Value);
 A.Method      = string(obj.ArtMethodDropDown.Value);
 A.Threshold   = obj.ArtThresholdField.Value;

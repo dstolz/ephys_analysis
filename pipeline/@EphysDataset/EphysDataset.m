@@ -99,6 +99,19 @@ classdef EphysDataset < handle
         % modified. See runKilosort, parseChannelList, formatChannelList.
         ExcludeChannels (1,:) double = double.empty(1,0)
 
+        % Channels left out of the common reference (ArtifactConfig.Reference
+        % "car" / "cmr"), 1-based like ExcludeChannels, which are left out
+        % too. The reference is still subtracted from them. Filled by
+        % suggestReferenceExclude (the noise-floor rule of Ludwig et al.
+        % 2009) or set by hand; saved in the manifest. See
+        % ReferenceExcludeSource, referenceChannels.
+        ReferenceExclude (1,:) double = double.empty(1,0)
+
+        % Where ReferenceExclude came from: "" = never set (the first
+        % referenced read suggests it, see prepareReference), "suggested" or
+        % "manual".
+        ReferenceExcludeSource (1,1) string {mustBeMember(ReferenceExcludeSource, ["" "suggested" "manual"])} = ""
+
         PythonExe (1,1) string = ""              % python/conda exe path for KS4 spawn
         CondaEnv  (1,1) string = ""              % conda env name (uses `conda run -n` when set)
         Scale     (1,1) double = 1/0.195         % int16 scale (restores native ADC resolution)
@@ -196,9 +209,12 @@ classdef EphysDataset < handle
 
         % Sorting refuses to zero more than this share of a recording as
         % artifacts: Kilosort4 then finds no spikes and fails deep inside its
-        % template SVD. run_si_ks4.py holds the same limit
-        % (MAX_SILENCED_FRACTION). See silencedFraction.
+        % template SVD. See silencedFraction.
         MaxSilencedFraction = 0.5
+
+        % A common reference over fewer channels warns (prepareReference):
+        % one large unit can then dominate the average (Ludwig et al. 2009).
+        MinReferenceChannels = 5
 
         % Empty file a background Kilosort4 run leaves next to its
         % ks4_status.json once its process exits (see sortRunState).
@@ -372,16 +388,39 @@ classdef EphysDataset < handle
             plan = obj.Reader.streamPlan(Files=opts.Files, MaxChunkSamples=opts.MaxChunkSamples);
         end
 
-        function X = readChunkUV(obj, chunk)
+        function X = readChunkUV(obj, chunk, opts)
             %readChunkUV  One streamPlan chunk as [nSamp x nChan] double microvolts.
+            %   The common reference of ArtifactConfig.Reference (CAR / CMR,
+            %   see applyReference) is subtracted, so every streaming
+            %   consumer - the .bin, artifact detection, noise levels, spike
+            %   detection and the app's views - sees the referenced signal.
+            %   readChunkUV(CHUNK, Reference=false) returns it as recorded.
+            arguments
+                obj (1,1) EphysDataset
+                chunk (1,1) struct
+                opts.Reference (1,1) logical = true
+            end
             obj.requireReader('readChunkUV');
             X = obj.Reader.readChunkUV(chunk);
+            if opts.Reference
+                X = obj.applyReference(X);
+            end
         end
 
-        function X = readWindowUV(obj, sampleOffset, nSamp)
+        function X = readWindowUV(obj, sampleOffset, nSamp, opts)
             %readWindowUV  Bounded random-access read (readers that support it).
+            %   Referenced as readChunkUV is; Reference=false skips it.
+            arguments
+                obj (1,1) EphysDataset
+                sampleOffset (1,1) double
+                nSamp (1,1) double
+                opts.Reference (1,1) logical = true
+            end
             obj.requireReader('readWindowUV');
             X = obj.Reader.readWindowUV(sampleOffset, nSamp);
+            if opts.Reference
+                X = obj.applyReference(X);
+            end
         end
 
         function tf = supportsRandomAccess(obj)
@@ -628,6 +667,12 @@ classdef EphysDataset < handle
 
             m.exclude_channels = EphysDataset.formatChannelList(obj.ExcludeChannels);
 
+            % Channels left out of the common reference, and whether they
+            % were suggested or set by hand ("" = never set).
+            m.reference_exclude = struct( ...
+                'channels', EphysDataset.formatChannelList(obj.ReferenceExclude), ...
+                'source', obj.ReferenceExcludeSource);
+
             % Manual artifact periods ([k x 2] seconds, recording-relative) so
             % periods marked on the Visualize tab survive a rescan / restart.
             ma = obj.ManualArtifacts;
@@ -694,6 +739,12 @@ classdef EphysDataset < handle
             end
             if isfield(m, 'exclude_channels')
                 obj.ExcludeChannels = EphysDataset.parseChannelList(string(m.exclude_channels));
+            end
+            if isfield(m, 'reference_exclude') && isstruct(m.reference_exclude) ...
+                    && all(isfield(m.reference_exclude, {'channels', 'source'})) ...
+                    && ismember(string(m.reference_exclude.source), ["" "suggested" "manual"])
+                obj.ReferenceExclude = EphysDataset.parseChannelList(string(m.reference_exclude.channels));
+                obj.ReferenceExcludeSource = string(m.reference_exclude.source);
             end
             if isfield(m, 'manual_artifacts')
                 ma = m.manual_artifacts;
@@ -818,7 +869,15 @@ classdef EphysDataset < handle
             %   (noiseLevels), because Kilosort4 reads a block of zeros across
             %   every channel as a signal discontinuity - its whitening,
             %   threshold and drift estimates all assume continuous noise.
+            %   Reference/ReferenceBadLow/ReferenceBadHigh set the common
+            %   reference subtracted from every read before anything else
+            %   (applyReference): "none", "car" (mean) or "cmr" (median) of
+            %   the channels whose noise floor lies within [Low High] times
+            %   the mean across channels (suggestReferenceExclude).
             cfg = struct( ...
+                'Reference',    "none", ...  % "none" | "car" (mean) | "cmr" (median)
+                'ReferenceBadLow',  0.3, ... % x mean noise: quieter channels are left out of the reference
+                'ReferenceBadHigh', 2, ...   % x mean noise: noisier channels are left out of the reference
                 'Enabled',      false, ...   % toBin blanks only when true
                 'Method',       "rms", ...   % running-RMS amplitude deviation
                 'Threshold',    9, ...       % robust SDs above per-channel baseline

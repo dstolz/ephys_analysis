@@ -36,6 +36,7 @@ try
     summary = d.analyzeArtifacts('ProgressFcn', progress, popt{:});   % settings from d.ArtifactConfig
 
     if isvalid(dlg); close(dlg); end
+    obj.refreshReferencePanel();   % a first referenced read suggests the channels left out
 
     obj.ArtView.summary = summary;
     obj.refreshArtChannelTable();

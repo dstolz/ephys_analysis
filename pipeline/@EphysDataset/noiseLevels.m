@@ -26,6 +26,12 @@ function nl = noiseLevels(obj, opts)
 %     FilterType     "highpass"|"lowpass"|"bandpass" (default "highpass")
 %     FilterCutoff   scalar or [lo hi] Hz  (default 300)
 %     FilterOrder    (1,1) double          (default 4)
+%     Reference      (1,1) logical  measure the common-referenced signal
+%                    (default true: what readChunkUV returns, the signal the
+%                    fill sits in); false measures the recording as stored
+%                    (suggestReferenceExclude)
+%     MaxChunks      (1,1) double  read at most this many chunks, spread evenly
+%                    over the recording (default Inf: every chunk)
 %     MaxChunkSamples (1,1) double  cap on samples per chunk (split formats)
 %     UseParallel    (1,1) logical  run the chunks on a process pool (default
 %                    false); the result is identical, and the rules and the
@@ -48,6 +54,8 @@ arguments
     opts.FilterType (1,1) string {mustBeMember(opts.FilterType, ["highpass","lowpass","bandpass"])} = "highpass"
     opts.FilterCutoff (1,:) double {mustBePositive} = 300
     opts.FilterOrder (1,1) double {mustBeInteger, mustBePositive} = 4
+    opts.Reference (1,1) logical = true
+    opts.MaxChunks (1,1) double {mustBePositive} = Inf
     opts.MaxChunkSamples (1,1) double = NaN
     opts.UseParallel (1,1) logical = false
     opts.MaxWorkers (1,1) double = NaN
@@ -64,9 +72,16 @@ if isnan(obj.Fs) || isempty(obj.PerFile)
     obj.refreshMetadata();
 end
 
+if opts.Reference
+    obj.prepareReference();
+end
+
 plan = obj.streamPlan(Files=opts.Files, MaxChunkSamples=opts.MaxChunkSamples);
 if isempty(plan)
     error('EphysDataset:noiseLevels:NoFiles', 'No readable recording data in %s', obj.Folder);
+end
+if numel(plan) > opts.MaxChunks
+    plan = plan(unique(round(linspace(1, numel(plan), opts.MaxChunks))));
 end
 
 Fs = obj.Fs;
@@ -80,7 +95,8 @@ nWorkers = 1;
 if opts.UseParallel && nChunks > 1
     [pool, nWorkers] = parallelChunkPool(plan, obj.NumChannels, opts.MaxWorkers, 5, "noiseLevels");
 end
-R = mapChunks(@(i) noiseChunk(obj, plan(i), chanOrder, filt, Fs), ...
+reference = opts.Reference;
+R = mapChunks(@(i) noiseChunk(obj, plan(i), chanOrder, filt, Fs, reference), ...
     reshape(string({plan.name}), 1, []), Pool=pool, NumWorkers=nWorkers, ...
     ProgressFcn=opts.ProgressFcn);
 

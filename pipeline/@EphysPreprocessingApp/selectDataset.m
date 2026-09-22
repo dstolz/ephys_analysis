@@ -53,6 +53,7 @@ obj.syncArtProbeControls();
 obj.updatePhyButtonState();
 obj.refreshSortingLabel();
 obj.refreshManualArtifactsTable();
+obj.refreshReferencePanel();
 obj.syncVizDataset();
 if obj.Tabs.SelectedTab == obj.TabReview && obj.ReviewDatasetIdx ~= idx
     obj.syncReviewDataset();

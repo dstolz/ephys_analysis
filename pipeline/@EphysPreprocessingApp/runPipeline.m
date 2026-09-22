@@ -79,6 +79,7 @@ obj.refreshDatasetsTable();
 obj.ReviewDatasetIdx = -1;   % new sorted output: the Review tab reloads
 obj.refreshSortingLabel();
 obj.refreshManualArtifactsTable();
+obj.refreshReferencePanel();
 n = height(R);
 nErr = nnz(startsWith(R.Status, "error"));
 nCan = nnz(R.Status == "cancelled");

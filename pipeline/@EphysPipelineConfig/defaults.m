@@ -56,6 +56,9 @@ switch section
     case "Artifacts"
         a = EphysDataset.defaultArtifactConfig();
         s = struct( ...
+            'Reference',        a.Reference, ...        % "none" | "car" | "cmr": common reference, before detection
+            'ReferenceBadLow',  a.ReferenceBadLow, ...  % suggested out of the reference below this x mean noise
+            'ReferenceBadHigh', a.ReferenceBadHigh, ... % ... and above this
             'Enabled',        false, ...       % automatic detection (manual periods always apply)
             'Method',         a.Method, ...
             'Threshold',      a.Threshold, ...

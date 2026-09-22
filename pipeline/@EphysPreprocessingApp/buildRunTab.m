@@ -5,7 +5,7 @@ function buildRunTab(obj)
 %   ones with the monitor instead of waiting), validate / plan,
 %   run / dry run / cancel, progress bars, validation issues, results,
 %   merged log and the background Kilosort4 runs being monitored (Stop
-%   queue drops the queued ones). With
+%   runs... stops running ones, Stop queue drops the queued ones). With
 %   Show the run diagram ticked, a diagram of the run's steps (the one
 %   underway highlighted, each with its percentage) takes the right half of
 %   the right side (onRunDiagramToggled, runDiagramHTML). With Monitor CPU,
@@ -132,12 +132,16 @@ l = uilabel(right, "Text", "Log", "FontWeight", "bold"); l.Layout.Row = 7; l.Lay
 obj.RunLogArea = uitextarea(right, "Editable", "off");
 obj.RunLogArea.Layout.Row = 8; obj.RunLogArea.Layout.Column = [1 3];
 
-obj.RunKSLabel = uilabel(right, "Text", "Background Kilosort4 runs: none.", "FontColor", [0.4 0.4 0.4]);
-obj.RunKSLabel.Layout.Row = 9; obj.RunKSLabel.Layout.Column = [1 2];
-obj.RunKSStopQueueButton = uibutton(right, "Text", "Stop queue", "Enable", "off", ...
+ksg = uigridlayout(right, [1 3], "Padding", [0 0 0 0], "ColumnSpacing", 6);
+ksg.Layout.Row = 9; ksg.Layout.Column = [1 3];
+ksg.ColumnWidth = {'1x', 'fit', 'fit'}; ksg.RowHeight = {'fit'};
+obj.RunKSLabel = uilabel(ksg, "Text", "Background Kilosort4 runs: none.", "FontColor", [0.4 0.4 0.4]);
+obj.RunKSStopRunsButton = uibutton(ksg, "Text", "Stop runs...", "Enable", "off", ...
+    "Tooltip", "Stop background Kilosort4 runs that are going; what they wrote so far stays. Their rows turn cancelled.", ...
+    "ButtonPushedFcn", @(~,~) obj.onStopKSRuns());
+obj.RunKSStopQueueButton = uibutton(ksg, "Text", "Stop queue", "Enable", "off", ...
     "Tooltip", "Drop the queued Kilosort4 runs that have not started. Runs already going carry on.", ...
     "ButtonPushedFcn", @(~,~) obj.onStopKSQueue());
-obj.RunKSStopQueueButton.Layout.Row = 9; obj.RunKSStopQueueButton.Layout.Column = 3;
 
 obj.RunDiagramPanel = uipanel(obj.RunSplitGrid, "Title", "Run diagram", "Visible", "off");
 obj.RunDiagramPanel.Layout.Row = 1; obj.RunDiagramPanel.Layout.Column = 2;

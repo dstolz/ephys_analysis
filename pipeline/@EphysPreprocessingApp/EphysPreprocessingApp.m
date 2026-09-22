@@ -50,7 +50,7 @@ classdef EphysPreprocessingApp < handle
     %                hands the waiting ones to the monitor's queue),
     %                validate, plan, run / dry run / cancel, progress,
     %                results (background runs' rows follow them to done /
-    %                error), log, Stop queue; optionally a diagram of the
+    %                error), log, Stop runs... / Stop queue; optionally a diagram of the
     %                run's steps (the one underway highlighted, each with
     %                its % done) in the right half, and CPU / memory / disk /
     %                GPU use under the steps
@@ -516,6 +516,7 @@ classdef EphysPreprocessingApp < handle
         RunResultsTable      matlab.ui.control.Table
         RunLogArea           matlab.ui.control.TextArea
         RunKSLabel           matlab.ui.control.Label
+        RunKSStopRunsButton  matlab.ui.control.Button         % stop running Kilosort4 runs (onStopKSRuns)
         RunKSStopQueueButton matlab.ui.control.Button         % drop the queued Kilosort4 runs (onStopKSQueue)
         RunDiagramCheckBox   matlab.ui.control.CheckBox       % Show the run diagram (a preference)
         RunSplitGrid         matlab.ui.container.GridLayout   % right side: progress / results / log | diagram
@@ -872,6 +873,8 @@ classdef EphysPreprocessingApp < handle
         pollKSRuns(obj)
         queueKSRun(obj, d, res)
         onStopKSQueue(obj)
+        onStopKSRuns(obj)
+        stopKSRuns(obj, names)
         markKSResult(obj, name, output, status, message, addSeconds)
         log(obj, fmt, varargin)
         appendLogLines(obj, lines)

@@ -516,6 +516,10 @@ Path: in the run folder. Written by the Python driver when it finishes.
 | SpikeInterface | `{"state":"done","num_units":N,"bad_channels":[<channel numbers as strings>],"dropped_params":[...]}` | `{"state":"error","message":"...","traceback":"..."}` |
 | native | `{"state":"done","num_units":N,"dropped_params":[...]}` | `{"state":"error","message":"...","traceback":"..."}` |
 
+A run stopped from MATLAB (`EphysDataset.stopSortRun`, the app's **Stop
+runs...**) gets `{"state":"cancelled","message":"stopped by the user"}`,
+written by MATLAB after it ends the run's processes.
+
 `EphysDataset.launchSorting` deletes a stale status file before launching.
 The GUI's background monitor polls this file every 3 s.
 
@@ -525,7 +529,8 @@ Path: next to `ks4_status.json`. An empty file that the background launcher
 writes once the Python process has exited, however it ended. A run with this
 file but no status file failed before the driver could report (a missing
 Python or conda env, a crash). `EphysDataset.sortRunState` reads the two
-together. Deleted before each launch.
+together. `stopSortRun` writes it too, since the launcher it ends never
+gets to. Deleted before each launch.
 
 ## Kilosort4 / phy output
 

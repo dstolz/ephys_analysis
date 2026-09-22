@@ -7,8 +7,9 @@ function pollKSRuns(obj)
 %   counts as failed). Every tick this tails each run's log into the status
 %   box so progress is visible live, then polls the runs. A finished run is
 %   logged, its dataset's manifest rewritten and its row in the Run tab's
-%   results restated as "done" or "error" (markKSResult), with the time it
-%   ran added to its Seconds.
+%   results restated as "done", "error" or, for a run stopped with Stop
+%   runs (stopKSRuns), "cancelled" (markKSResult), with the time it ran
+%   added to its Seconds.
 %   Then, while fewer than Sorting.MaxConcurrent runs are going, the queued
 %   runs (KSQueue, see queueKSRun) start in order, each on the GPU of
 %   Sorting.Devices that the fewest running runs use (sortingSlot), and
@@ -21,7 +22,7 @@ function pollKSRuns(obj)
 
 if isempty(obj.KSRuns) && isempty(obj.KSQueue)
     obj.stopKSMonitor();
-    syncStopQueueButton(obj);
+    syncStopButtons(obj, 0);
     return
 end
 
@@ -52,6 +53,9 @@ for i = 1:numel(obj.KSRuns)
     if state == "done"
         obj.log("[done] %s - Kilosort4 complete (%s)", run.Name, run.resultsDir);
         obj.markKSResult(run.Name, run.resultsDir, "done", "Kilosort4 finished" + onDevice(run.device), took);
+    elseif state == "cancelled"
+        obj.log("[stopped] %s - Kilosort4 stopped by the user", run.Name);
+        obj.markKSResult(run.Name, run.resultsDir, "cancelled", "stopped before it finished", took);
     else
         obj.log("[error] %s - Kilosort4 failed: %s", run.Name, msg);
         obj.markKSResult(run.Name, run.resultsDir, "error", "Kilosort4 failed: " + msg, took);
@@ -81,7 +85,7 @@ obj.KSProgressLabel.Text = txt + ").";
 if ~isempty(obj.RunKSLabel) && isvalid(obj.RunKSLabel)
     obj.RunKSLabel.Text = obj.KSProgressLabel.Text;
 end
-syncStopQueueButton(obj);
+syncStopButtons(obj, pending);
 
 % Refresh the datasets table so the Bin/results columns reflect new outputs.
 obj.refreshDatasetsTable();
@@ -125,8 +129,13 @@ end
 end
 
 
-function syncStopQueueButton(obj)
-%syncStopQueueButton  Stop queue is on while runs are queued.
+function syncStopButtons(obj, nRunning)
+%syncStopButtons  Stop runs is on while runs are going, Stop queue while
+%   runs are queued.
+b = obj.RunKSStopRunsButton;
+if ~isempty(b) && isvalid(b)
+    b.Enable = matlab.lang.OnOffSwitchState(nRunning > 0);
+end
 b = obj.RunKSStopQueueButton;
 if ~isempty(b) && isvalid(b)
     b.Enable = matlab.lang.OnOffSwitchState(~isempty(obj.KSQueue));

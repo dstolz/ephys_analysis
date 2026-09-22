@@ -1020,6 +1020,26 @@ t0 = tic;
 while toc(t0) < 20 && ~isempty(app.KSRuns); pause(0.25); end
 stop(safety); delete(safety);
 app.RunKSQueueCheckBox.Value = false;
+% Stop runs... ends a run that is going: a stand-in that would take ~30 s.
+slowPython = fullfile(root, 'slow_python.cmd');
+writelines(["@echo off"; "ping -n 31 127.0.0.1 > nul"
+    "echo {""state"": ""done""}> ""%~dp1ks4_status.json"""], slowPython, LineEnding="\r\n");
+app.PythonExeField.Value = slowPython;
+app.onConfigChanged();
+check(strcmp(app.RunKSStopRunsButton.Enable, 'off'), 'Stop runs... is off with no run going');
+app.runPipeline(Steps="sorting");
+t0 = tic;
+while toc(t0) < 10 && ~strcmp(app.RunKSStopRunsButton.Enable, 'on'); pause(0.25); end
+check(strcmp(app.RunKSStopRunsButton.Enable, 'on') && numel(app.KSRuns) == 1, 'Stop runs... is on while a run is going');
+app.stopKSRuns();   % what the button does once confirmed
+t0 = tic;
+while toc(t0) < 10 && ~isempty(app.KSRuns); pause(0.25); end
+R = app.RunResultsTable.Data;
+ksLog = strjoin(string(app.KSLogArea.Value), newline);
+check(isempty(app.KSRuns) && any(R.Step == "sorting" & R.Status == "cancelled" & R.Message == "stopped before it finished") ...
+    && contains(ksLog, "[stopped] recA_260101_120000 - Kilosort4 stopped by the user") ...
+    && strcmp(app.RunKSStopRunsButton.Enable, 'off'), ...
+    'stopKSRuns ended the run: logged, its row cancelled, the button off again');
 app.PythonExeField.Value = '';
 app.onConfigChanged();
 app.Project.Datasets(1).ProbeFile = "";

@@ -826,7 +826,16 @@ Starts a run that `runSpikeInterface` or `runKilosort` prepared with
 | `Wait` | `true`: block until Kilosort4 finishes; `false` launches it detached |
 | `Device` | `""`: the torch device for this run (`"cuda:0"`, `"cuda:1"`, `"cpu"`), passed to the driver as `--device`. It overrides a `torch_device` in the run's settings. `""` leaves the device to those settings, or to Kilosort4 (the first GPU) |
 
-It errors on a dry run's result (`EphysDataset:launchSorting:DryRun`) and on a
+`[stopped, message] = EphysDataset.stopSortRun(statusFile)` stops a
+background run that is going. Every process whose command line names the run
+folder's driver (the launcher's `cmd.exe`, conda, Python) is ended with its
+children (`taskkill /T` on Windows, `pkill` elsewhere). Then `ks4_status.json`
+is written as `{"state": "cancelled", "message": "stopped by the user"}`
+together with `ks4_exit.txt`, so `sortRunState` returns `"cancelled"` and the
+slot frees. It does nothing (`stopped` false) when the run is not running.
+What Kilosort4 wrote so far stays. A blocking run cannot be stopped this way.
+
+`launchSorting` errors on a dry run's result (`EphysDataset:launchSorting:DryRun`) and on a
 device that `EphysDataset.isTorchDevice` rejects (only `cpu`, `mps`, `cuda`
 and `cuda:N`). It returns the result with `command` (as run, `--device`
 included), `status`, `wait`, `background`, `device` and `launched` (`true`)
@@ -840,9 +849,10 @@ Kilosort4's exit code. Either way the Python script writes `ks4_status.json`
 leaves an empty `ks4_exit.txt` (`EphysDataset.SortExitMarker`) next to it
 once the process has exited, for any reason. `[state, message] =
 EphysDataset.sortRunState(statusFile)` reads both. It returns `"running"`
-until the status file is complete. It returns `"done"` / `"error"` from the
-status, and `"error"` when the process exited without writing a status (a
-missing Python or conda env, a crash).
+until the status file is complete. It returns `"done"` / `"error"` (or
+`"cancelled"`, for a run ended by `stopSortRun`) from the status, and
+`"error"` when the process exited without writing a status (a missing Python
+or conda env, a crash).
 
 #### `result = runSpikeInterface(Name=Value)`
 

@@ -358,6 +358,9 @@ restate the row with `updateResult`. The step returns once the last
 dataset's files are written, so the steps after it start at once. The app
 uses this for its **Queue the waiting runs** option.
 
+`EphysDataset.stopSortRun(statusFile)` stops a background run that is going:
+its status becomes `"cancelled"` and its slot frees.
+
 `[free, device] = sortingSlot(runs, maxRunning, devices)` checks for a slot
 without waiting (`runs` is a struct array with `statusFile` and `device`,
 such as `LaunchedRuns` or `launchSorting` results). `device =

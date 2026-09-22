@@ -8,9 +8,9 @@ function test_SortingConcurrency()
 %   slots (the SpikeInterface and the native engine), a run that exits
 %   without a status, runs started elsewhere (PriorRuns), a cancel while
 %   waiting, blocking runs, GPUs shared out (Sorting.Devices, the
-%   driver's --device), runs handed to a queue (QueueFcn, launchSorting)
-%   and restated result rows. Windows only (the stand-ins are batch
-%   files).
+%   driver's --device), runs handed to a queue (QueueFcn, launchSorting),
+%   restated result rows and stopping a run that is going
+%   (stopSortRun). Windows only (the stand-ins are batch files).
 %
 %   Usage:  test_SortingConcurrency
 
@@ -218,6 +218,27 @@ check(T2.Status(2) == "error" && T2.Message(2) == "Kilosort4 failed: boom" && T2
     'the matching row takes the status and message, its Seconds grows, the others stay');
 check(isequal(EphysPipeline.restateResult(T, "sorting", "C", "x", "done", "", 0), T), 'no matching row: unchanged');
 
+fprintf('\n== 12. stopping a run that is going (stopSortRun) ==\n');
+tl = fullfile(root, 'timeline12.txt');
+fake = makeFake(root, 'fake12.cmd', tl, true, 30);   % would sort for ~30 s
+S = runScenario(proj, probeFile, 1, "spikeinterface", fake, fullfile(root, 'out12'), Queue=true);
+q = S.queued(1);
+res = q.d.launchSorting(q.res, Wait=false);
+t0 = tic;
+while toc(t0) < 10 && ~isfile(tl); pause(0.1); end   % the stand-in has started
+[stopped, msg] = EphysDataset.stopSortRun(res.statusFile);
+[st, why] = EphysDataset.sortRunState(res.statusFile);
+check(stopped && ~isempty(regexp(msg, '^stopped [1-9]\d* process\(es\)$', 'once')), ...
+    sprintf('stopSortRun ended the run''s processes (%s)', msg));
+check(st == "cancelled" && why == "stopped by the user" && isfile(fullfile(res.resultsDir, EphysDataset.SortExitMarker)), ...
+    'its status says cancelled, and the exit marker is there');
+pause(3);
+L = strtrim(readlines(tl)); L(L == "") = [];
+check(isscalar(L) && startsWith(L, "start"), 'the stand-in never reached its end (the process tree was killed)');
+check(~EphysDataset.stopSortRun(res.statusFile), 'a run that is not going is left alone');
+[free, ~, nRun, nFin] = sortingSlot(res, 1);
+check(free && nRun == 0 && nFin == 1, 'a stopped run frees its slot');
+
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0
     error('test_SortingConcurrency:Failures', '%d checks failed.', nFail);
@@ -314,15 +335,16 @@ end
 end
 
 
-function fake = makeFake(folder, name, timeline, writeStatus)
-%makeFake  A stand-in python.exe: note start / end, sleep ~2 s, write the status.
+function fake = makeFake(folder, name, timeline, writeStatus, seconds)
+%makeFake  A stand-in python.exe: note start / end, sleep, write the status.
 %   Called as <fake> <driver.py> <config.json> [--device <device>]; the
 %   driver sits in the run folder, where the pipeline expects
 %   ks4_status.json (%~dp1). The start / end lines carry the run folder
-%   and the device arguments.
+%   and the device arguments. It sleeps about SECONDS (default 2).
+if nargin < 5; seconds = 2; end
 L = ["@echo off"
     "echo start %~dp1 %3 %4>> """ + timeline + """"
-    "ping -n 3 127.0.0.1 > nul"
+    "ping -n " + (seconds + 1) + " 127.0.0.1 > nul"
     "echo end %~dp1 %3 %4>> """ + timeline + """"];
 if writeStatus
     L(end+1) = "echo {""state"": ""done"", ""num_units"": 0}> ""%~dp1ks4_status.json""";

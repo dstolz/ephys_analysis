@@ -815,6 +815,9 @@ classdef EphysDataset < handle
     end
 
     methods (Static)
+        % --- static methods defined in separate files in this @-folder ---
+        [stopped, message] = stopSortRun(statusFile)
+
         function fmt = detectFormat(folder, opts)
             %detectFormat  RecordingFormat of the reader that claims FOLDER.
             %   "traditional" | "one-file-per-signal" | "one-file-per-channel"
@@ -1129,8 +1132,9 @@ classdef EphysDataset < handle
             %   [STATE, MESSAGE] = EphysDataset.sortRunState(STATUSFILE) reads
             %   the ks4_status.json that runKilosort / runSpikeInterface
             %   drivers write when they finish: STATE is its "done" or
-            %   "error", and "running" while there is none yet (or it is
-            %   caught mid-write). A run whose process has exited (the
+            %   "error" ("cancelled" for a run ended by stopSortRun), and
+            %   "running" while there is none yet (or it is caught
+            %   mid-write). A run whose process has exited (the
             %   SortExitMarker beside the status file) without writing a
             %   status is an "error". MESSAGE is the driver's error
             %   message, or why the run counts as failed ("" otherwise).

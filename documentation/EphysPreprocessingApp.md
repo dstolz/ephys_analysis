@@ -749,6 +749,15 @@ default web browser, same as **Save as HTML...** but without the save dialog.
   carry on. Closing the app with runs queued asks first, since closing drops
   them. Clean up refuses to delete files while runs are queued. Greyed out
   when Execution is blocking.
+- **Stop runs...** (beside **Stop queue**, on while background runs are
+  going) stops runs that are going. With one run it asks for a confirmation;
+  with several it lists them (dataset, GPU, minutes running), all selected,
+  to pick from. Each chosen run's processes are ended
+  (`EphysDataset.stopSortRun`), the log says `[stopped]` and its row turns
+  `cancelled` ("stopped before it finished"). What Kilosort4 wrote so far
+  stays in the run folder. The freed slot goes to the next queued run, so
+  press **Stop queue** too to stop everything. Blocking runs cannot be
+  stopped: MATLAB waits for them.
 - **Parallel: chunks on the process pool** and **Max workers** (blank =
   automatic): `Parallel.Enabled` / `MaxWorkers`, used by the artifacts step,
   the Artifacts tab's **Detect / Preview** and spike detection; see
@@ -1089,7 +1098,7 @@ app.KSQueue                       % prepared runs waiting for a slot (Queue the 
 | `refreshProbeList.m`, `onProbeSelected.m`, `onImportProbe.m`, `onDesignProbe.m`, `runProbeTool.m`, `onAssignProbe.m`, `onApplyExclude.m`, `onUseSelectedProbeAsDefault.m`, `probe_tool.py` | Probe tab |
 | `onDetectArtifacts.m`, `refreshManualArtifactsTable.m`, `onClearManualArtifacts.m` | Artifacts tab |
 | `onOptimizeKS4ForProbe.m`, `onResetKS4Params.m`, `onUseSortingFolder.m`, `onUseAutoSorting.m`, `refreshSortingLabel.m`, `pollKSRuns.m`, `onLaunchPhy.m`, `launchPhy.m` | Sorting tab and phy |
-| `queueKSRun.m`, `onStopKSQueue.m`, `markKSResult.m` | background Kilosort4 runs: the queue the monitor starts from, Stop queue, restating a run's result row |
+| `queueKSRun.m`, `onStopKSQueue.m`, `onStopKSRuns.m`, `stopKSRuns.m`, `markKSResult.m` | background Kilosort4 runs: the queue the monitor starts from, Stop queue, Stop runs..., restating a run's result row |
 | `onSpikesPreview.m`, `syncSpikesEnableStates.m` | Spikes tab |
 | `onBrowseExportOutput.m`, `onExportEpochsToWorkspace.m` | Export tab (output folder, Epochs to workspace) |
 | `onPlotVisualization.m`, `onVizButtonDown/Up.m`, `drawVizArtifacts.m`, `finishVizArtDrag.m`, `applyVizChannelOrder.m`, `applyVizChannelColor.m`, `syncVizDataset.m` | Visualize tab |

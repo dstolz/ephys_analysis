@@ -102,7 +102,7 @@ fg.Layout.Row = 1; fg.Layout.Column = [2 4];
 fg.ColumnWidth = {'1x', 28};
 fg.Padding = [0 0 0 0];
 C.Filter = uieditfield(fg, "text", "Placeholder", "e.g. Depth > 0 & RespLatency < 500   or   Hit | Miss", "ValueChangedFcn", cb);
-C.FilterHelp = uibutton(fg, "Text", "?", "FontSize", 12, "Tooltip", "The trial columns, response words and functions a filter can use.", ...
+C.FilterHelp = uibutton(fg, "Text", "?", "Tooltip", "The trial columns, response words and functions a filter can use.", ...
     "ButtonPushedFcn", @(~,~) obj.onFilterHelp());
 
 % Response codes

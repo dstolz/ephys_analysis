@@ -7,7 +7,7 @@ changed = @(~,~) obj.onConfigChanged("plot");
 
 % --- the list --------------------------------------------------------------------
 lg = uigridlayout(g, [6 2]);
-lg.RowHeight = {22, '1x', 24, 24, 24, 24};
+lg.RowHeight = {22, '1x', 30, 30, 30, 24};
 lg.ColumnWidth = {'1x', '1x'};
 lg.Padding = [0 0 0 0];
 l = uilabel(lg, "Text", "Plots", "FontWeight", "bold");
@@ -205,7 +205,7 @@ obj.PlotAlignControls = obj.buildAlignControls(host, @() obj.onConfigChanged("pl
 
 % --- the preview ---------------------------------------------------------------------------
 pg = uigridlayout(g, [3 6]);
-pg.RowHeight = {24, '1x', 22};
+pg.RowHeight = {30, '1x', 22};
 pg.ColumnWidth = {'fit', '1x', 'fit', 'fit', 'fit', 'fit'};
 pg.Padding = [0 0 0 0];
 l = uilabel(pg, "Text", "Active dataset:");
@@ -213,7 +213,7 @@ l.Layout.Row = 1; l.Layout.Column = 1;
 obj.PlotsDatasetDropDown = uidropdown(pg, "Items", "(scan first)", "ItemsData", 0, ...
     "ValueChangedFcn", @(dd, ~) obj.selectDataset(dd.Value));
 obj.PlotsDatasetDropDown.Layout.Row = 1; obj.PlotsDatasetDropDown.Layout.Column = 2;
-obj.PreviewButton = uibutton(pg, "Text", "Preview", "FontWeight", "bold", "ButtonPushedFcn", @(~,~) obj.refreshPreview(Force=true));
+obj.PreviewButton = uibutton(pg, "Text", "Preview", "ButtonPushedFcn", @(~,~) obj.refreshPreview(Force=true));
 obj.PreviewButton.Layout.Row = 1; obj.PreviewButton.Layout.Column = 3;
 obj.AutoPreviewCheckBox = uicheckbox(pg, "Text", "Auto", "Value", true, ...
     "Tooltip", "Redraw on every change while a preview takes under 2 s.", "ValueChangedFcn", @(~,~) obj.onAutoPreviewToggled());

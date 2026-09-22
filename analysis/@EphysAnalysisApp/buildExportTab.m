@@ -86,15 +86,15 @@ obj.ReportControls = P;
 
 % --- run ------------------------------------------------------------------------
 right = uigridlayout(g, [5 6]);
-right.RowHeight = {26, '1x', 22, '1x', 26};
-right.ColumnWidth = {'fit', 'fit', 'fit', 'fit', '1x', 'fit'};
+right.RowHeight = {30, '1x', 22, '1x', 30};
+right.ColumnWidth = {90, 90, 90, 90, '1x', 'fit'};
 right.Padding = [0 0 0 0];
 obj.ValidateButton = uibutton(right, "Text", "Validate", "ButtonPushedFcn", @(~,~) obj.onValidate());
 place(obj.ValidateButton, 1, 1);
 obj.PlanButton = uibutton(right, "Text", "Plan", "Tooltip", "Which plot runs on which ticked dataset, and why one is skipped.", ...
     "ButtonPushedFcn", @(~,~) obj.onPlan());
 place(obj.PlanButton, 1, 2);
-obj.RunButton = uibutton(right, "Text", "Run", "FontWeight", "bold", ...
+obj.RunButton = uibutton(right, "Text", "Run", ...
     "Tooltip", "Every enabled plot on every ticked dataset: figures and report.", "ButtonPushedFcn", @(~,~) obj.onRunExport());
 place(obj.RunButton, 1, 3);
 obj.CancelButton = uibutton(right, "Text", "Cancel", "Enable", "off", "ButtonPushedFcn", @(~,~) obj.onCancelRun());
@@ -105,10 +105,10 @@ obj.RunLabel = uilabel(right, "Text", "Results", "FontWeight", "bold");
 place(obj.RunLabel, 3, [1 6]);
 obj.ResultsTable = uitable(right, "RowName", {}, "ColumnWidth", 'auto');
 place(obj.ResultsTable, 4, [1 6]);
-obj.OpenReportButton = uibutton(right, "Text", "Open report", "Enable", "off", "ButtonPushedFcn", @(~,~) obj.onOpenReport());
-place(obj.OpenReportButton, 5, 1);
-obj.OpenFolderButton = uibutton(right, "Text", "Open figure folder", "Enable", "off", "ButtonPushedFcn", @(~,~) obj.onOpenExportFolder());
-place(obj.OpenFolderButton, 5, 2);
+og = uigridlayout(right, [1 3], "Padding", [0 0 0 0], "ColumnWidth", {'fit', 'fit', '1x'});
+place(og, 5, [1 6]);
+obj.OpenReportButton = uibutton(og, "Text", "Open report", "Enable", "off", "ButtonPushedFcn", @(~,~) obj.onOpenReport());
+obj.OpenFolderButton = uibutton(og, "Text", "Open figure folder", "Enable", "off", "ButtonPushedFcn", @(~,~) obj.onOpenExportFolder());
 end
 
 

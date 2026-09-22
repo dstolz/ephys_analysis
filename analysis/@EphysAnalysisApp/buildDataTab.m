@@ -7,7 +7,7 @@ changed = @(~,~) obj.onConfigChanged("source");
 
 left = uigridlayout(g, [9 4]);
 left.Padding = [0 0 0 0];
-left.RowHeight = {24, 24, 24, 24, 24, 56, 20, '1x', 20};
+left.RowHeight = {24, 30, 24, 24, 24, 56, 20, '1x', 20};
 left.ColumnWidth = {110, '1x', '1x', 90};
 
 lab(left, "Config name:", 1, 1);
@@ -21,7 +21,7 @@ lab(left, "Datasets from:", 2, 1);
 obj.SourceModeDropDown = uidropdown(left, "Items", ["a pipeline project (root folder)" "output folders"], ...
     "ItemsData", ["project" "folders"], "ValueChangedFcn", @(~,~) obj.onSourceModeChanged());
 obj.SourceModeDropDown.Layout.Row = 2; obj.SourceModeDropDown.Layout.Column = 2;
-obj.ScanButton = uibutton(left, "Text", "Scan", "FontWeight", "bold", ...
+obj.ScanButton = uibutton(left, "Text", "Scan", ...
     "Tooltip", "Find the datasets and what each holds.", "ButtonPushedFcn", @(~,~) obj.onScan());
 obj.ScanButton.Layout.Row = 2; obj.ScanButton.Layout.Column = 4;
 

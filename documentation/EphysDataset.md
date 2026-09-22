@@ -1293,9 +1293,15 @@ raster = E.units(3).times(hit);                           % spike times per tria
   It reuses the cuts of `TrialPairing` while the fingerprint still matches.
   It adds `status`, `autoApproved`, `recorded`, `stale` and `fingerprint` to
   the result.
-- `setTrialPairing(P, "unreviewed"|"approved", Auto=false)` records the cuts
-  in the manifest (`Auto=true` marks an approval as automatic);
-  `setTrialPairing([])` clears it.
+- `file = setTrialPairing(P, "unreviewed"|"approved", Auto=false)` records
+  the cuts in the manifest (`Auto=true` marks an approval as automatic);
+  `setTrialPairing([])` clears it. An existing
+  `<outputFolder>/<Name>_behavior.mat` that does not already carry this
+  record (status, cuts, fingerprint) is rewritten with `P` (`behaviorToMat`),
+  so the status read from that file by the analysis and the epochs follows
+  every approval, automatic ones included. No behavior file is created.
+  `file` is the file rewritten (`""` when none was); a failed rewrite warns
+  (`EphysDataset:setTrialPairing:BehaviorFile`).
 - `[P, tf] = autoApproveTrialPairing(P)` approves and records `P` (marked
   automatic) when it is not approved yet, cuts nothing, and the session has
   as many trials as the trial line has intervals; anything else is left for

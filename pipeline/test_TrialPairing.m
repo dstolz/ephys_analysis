@@ -198,7 +198,9 @@ check(E2.source == "cache" && isequal(E2.events, E.events), 'second call uses th
 P = d.pairTrials();
 check(P.status == "unreviewed" && ~P.recorded && ~P.stale && isequal(P.interval, (1:k).') && ~P.countMismatch ...
     && isequal(P.onsetSample, onR) && isequal(P.cutTrials, [0 0]) && P.nSamples == nSamp, 'pairTrials pairs the recording in order');
-d.setTrialPairing(P);
+fb = d.setTrialPairing(P);
+check(fb == "" && ~isfile(fullfile(d.outputFolder(), d.Name + "_behavior.mat")), ...
+    'recording a pairing creates no behavior file');
 mf = readJsonFile(d.manifestFile());
 check(isfield(mf.behavior, 'pairing') && strcmp(mf.behavior.pairing.status, 'unreviewed') ...
     && isequal(mf.behavior.pairing.cut_trials(:).', [0 0]) && isequal(mf.behavior.pairing.cut_intervals(:).', [0 0]) ...
@@ -260,6 +262,16 @@ check(o.paired && all(ismember(["ToneLevel" "TrialOnset" "TrialOnsetSample" "Tri
 check(isempty(d.behaviorStruct().pairing), 'behaviorStruct without a pairing leaves trials untouched');
 check(isfield(B.behavior.pairing, 'autoApproved') && ~B.behavior.pairing.autoApproved, ...
     'the behavior file says whether the approval was automatic');
+check(d.setTrialPairing(PR, "approved") == "", 'a behavior file that already carries the recorded pairing is left alone');
+fb = d.setTrialPairing(PR, "unreviewed");
+B = load(o.file);
+check(fb == o.file && B.behavior.pairing.status == "unreviewed" && isequal(B.behavior.pairing.cutTrials, [1 0]) ...
+    && isnan(B.behavior.trials.TrialOnsetSample(1)), 'a new status of the same pairing is written into the behavior file');
+[~, tfZ] = d.autoApproveTrialPairing(d.pairTrials(Cuts="none", Warn=false));
+B = load(o.file);
+check(tfZ && B.behavior.pairing.status == "approved" && B.behavior.pairing.autoApproved ...
+    && isequal(B.behavior.pairing.cutTrials, [0 0]) && isequal(B.behavior.trials.TrialOnsetSample, onR), ...
+    'an automatic approval rewrites the behavior file with the approved pairing');
 
 fprintf('\n== 7. inverted polarity in the extract events ==\n');
 lowRows = [[1; offR + 1], [onR - 1; nSamp]];
@@ -296,6 +308,8 @@ B = load(pipe.outputPathFor("behavior", dp));
 check(ismember("TrialOnsetSample_LFP", string(B.behavior.trials.Properties.VariableNames)) ...
     && B.behavior.trials.TrialOnsetSample_LFP(1) == round(onR(1) / Fs2 * 500), 'the behavior file carries the pairing (LFP rate from the config)');
 dp.setTrialPairing(dp.pairTrials(), "approved");
+B = load(pipe.outputPathFor("behavior", dp));
+check(B.behavior.pairing.status == "approved", 'approving after the behavior step brings its behavior file up to date');
 pipe.reset();
 pipe.checkBehavior();
 check(any(pipe.Results.Step == "behavior:pairing" & pipe.Results.Status == "approved"), 'an approved pairing is reused');

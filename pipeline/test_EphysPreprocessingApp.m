@@ -762,6 +762,9 @@ check(app.Config.Behavior.AutoApprove && app.TrialsPairing.status == "approved" 
     && contains(app.TrialsSummaryLabel.Text, "APPROVED automatically") && mT.behavior.pairing.auto_approved ...
     && contains(app.DatasetsTable.Data.Behavior(1), "pairing approved (auto)"), ...
     'ticking Auto approve approves the shown pairing (its counts match) and marks it automatic');
+BT = load(behT);
+check(BT.behavior.pairing.status == "approved" && BT.behavior.pairing.autoApproved, ...
+    'the automatic approval reaches the existing <name>_behavior.mat');
 dT.setTrialPairing([]);
 app.clearTrialsView();
 app.onTrialsPrefetch();
@@ -772,6 +775,9 @@ app.onTrialsLoad("recorded");
 app.onTrialsApprove("approved");
 check(~dT.TrialPairing.auto_approved && app.TrialsPairing.status == "approved" && ~app.TrialsPairing.autoApproved ...
     && ~contains(app.TrialsSummaryLabel.Text, "automatically"), 'approving by hand replaces the automatic approval');
+BT = load(behT);
+check(BT.behavior.pairing.status == "approved" && ~BT.behavior.pairing.autoApproved && contains(app.StatusBar.Text, "rewrote"), ...
+    'approving by hand rewrites <name>_behavior.mat and says so');
 app.TrialsAutoApproveCheckBox.Value = false;
 app.onTrialsSettingsChanged();
 if isempty(ticked0); app.onSelectDatasets("none"); end

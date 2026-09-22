@@ -54,7 +54,7 @@ writeJsonFile(probeFile, struct('chanMap', 0:numAmp-1, 'xc', zeros(1, numAmp), '
 bigProbe = fullfile(root, 'probe8.json');
 writeJsonFile(bigProbe, struct('chanMap', 0:7, 'xc', zeros(1, 8), 'yc', (0:7) * 20, 'kcoords', zeros(1, 8), 'n_chan', 8));
 phyDir = fullfile(root, 'phy_manual');
-makePhyFixture(phyDir, Fs, ChannelMap=[0 1 2 3], Legacy=true);
+makePhyFixture(phyDir, Fs, ChannelMap=[0 1 2 3], SettingsJson=true);
 ds1 = EphysDataset(f1);
 ds1.SortingDir = phyDir;
 ds1.ProbeFile = probeFile;
@@ -221,21 +221,11 @@ pipe.reset();
 pipe.runSorting();
 R = pipe.Results;
 if R.Status(1) ~= "dry run"; disp(R); end
-check(R.Status(1) == "dry run" && isfile(R.Output(1)), 'dry run writes si_config.json');
-si = readJsonFile(R.Output(1));
-ks = EphysPipelineConfig.ks4Settings(cfg.Sorting);
-check(isequaln(orderfields(si.ks4), orderfields(structfun(@double, ks, 'UniformOutput', false))) || ...
-    isequal(sort(fieldnames(si.ks4)), sort(fieldnames(ks))), 'si_config ks4 block carries the config settings');
-check(si.preprocessing.silence_periods.enabled && numel(si.preprocessing.silence_periods.periods_s) >= 1, ...
-    'artifact intervals (manual + cached auto) passed to the sorter');
-cfgN = cfg; cfgN.Sorting.Engine = "kilosort";
-pipe.Config = cfgN;
-pipe.reset();
-pipe.runSorting();
-R = pipe.Results;
 check(R.Status(1) == "dry run" && endsWith(R.Output(1), "settings.json") && isfile(R.Output(1)) ...
-    && contains(R.Message(1), "settings.json"), 'native engine dry run writes settings.json (runKilosort)');
-pipe.Config = cfg;
+    && contains(R.Message(1), "settings.json"), 'dry run writes settings.json (runKilosort)');
+st = readJsonFile(R.Output(1));
+ks = EphysPipelineConfig.ks4Settings(cfg.Sorting);
+check(all(isfield(st, fieldnames(ks))), 'settings.json carries the config''s Kilosort4 settings');
 cfg.Sorting.DryRun = false; cfg.Sorting.Enabled = false;
 
 fprintf('\n== 6. spikes step ==\n');

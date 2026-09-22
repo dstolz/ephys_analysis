@@ -62,7 +62,7 @@ Almost none of this is new machinery; it is existing conventions wired together.
 | `matlab -batch` (already how [`run_all_tests`](../pipeline/run_all_tests.m) drives CI) | the runner process |
 | [`CopySchedule`](../pipeline/CopySchedule.m) — JSON settings plus a Windows Task Scheduler task that runs `matlab -batch` unattended, with `RunWhen` `"signed_in"` / `"always"` | the phase-1 worker's task registration, and the precedent for the session-0 question below |
 | [`resource_monitor.ps1`](../pipeline/resource_monitor.ps1) — detached CPU / memory / disk / GPU sampler writing `sample.json`, with a `stop` sentinel and a parent-pid watchdog | the dashboard's machine-health panel, and GPU-aware scheduling |
-| [`planLocalCleanup`](../pipeline/planLocalCleanup.m) / [`runLocalCleanup`](../pipeline/runLocalCleanup.m) — plan and delete the local raw copies, sorter copies and `.bin` files a dataset no longer needs | retention for the staging area; no new policy code needed |
+| [`planLocalCleanup`](../pipeline/planLocalCleanup.m) / [`runLocalCleanup`](../pipeline/runLocalCleanup.m) — plan and remove (delete, recycle or move) the local raw copies, sorter copies and `.bin` files a dataset no longer needs, or everything a preprocessing step wrote | retention for the staging area; no new policy code needed |
 | [`EphysAnalysisRunner`](EphysAnalysis.md) — the analysis-side config-driven runner, with its own `ProgressFcn(fraction, message)`, `LogFcn`, `cancel()` and `Results` | the second job kind (see §2) |
 
 ## 1. Job directory — the on-disk contract

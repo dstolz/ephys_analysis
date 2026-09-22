@@ -911,14 +911,15 @@ the peak site (`peakX`, `peakY`) and the class and identity fields.
 
 ## Clean up
 
-Frees local disk space once datasets are preprocessed. It is not a pipeline
+Frees local disk space once datasets are preprocessed, or removes what chosen
+preprocessing steps wrote so they can be run again. It is not a pipeline
 step and nothing in the config drives it; it acts on the datasets selected on
 the Project tab (the ticked rows, else all), which the top of the tab names.
 The rules live in [`planLocalCleanup`](../pipeline/planLocalCleanup.m) and
 [`runLocalCleanup`](../pipeline/runLocalCleanup.m), which can be called
 without the app.
 
-**What can be removed**, each with its own tick box:
+**Free space (the outputs stay)**, each with its own tick box, all ticked by default:
 
 | Kind | Files | Condition |
 | --- | --- | --- |
@@ -926,38 +927,78 @@ without the app.
 | Kilosort4's filtered copy of the recording | `recording.dat`, `temp_wh.dat` under the dataset's `kilosort4` folder or its sorted-output folder | none; the sorted units do not need it, phy's trace view does |
 | Sorting input .bin | `<Name>.bin` + `<Name>.json` in the output folder, written by `toBin` for the native Kilosort engine | never the data file of a binary-format recording |
 
-**Always kept**: every pipeline output (extract, spikes, behavior, events,
-artifacts, Chronux, FieldTrip), the sorted output (the phy files), the dataset
-manifest, the copy record (`session_manifest.json`, the robocopy log), the
-Epsych2 session file and any other file. Nothing on the source is touched.
+**Remove what a preprocessing step wrote**: one tick box per step that writes
+files, none ticked by default. Everything the step wrote goes, to run it again
+or drop it:
+
+| Step | Files |
+| --- | --- |
+| Sorting (Kilosort4) | the whole `kilosort4` folder (the sorted units with their phy curation and unit notes, run files, logs, Kilosort4's copy of the recording) and `<Name>.bin` + `.json`. A sorted-output folder chosen by hand (Sorting tab, **Use folder...**) was not written by the step and is kept |
+| Signals | the derived-signal `.mat` files (`<Name>_extract*.mat`) |
+| Spikes | the spikes `.mat` (`<Name>_spikes.mat`) |
+| Behavior | `<Name>_behavior.mat` and the digital events cache `<Name>_events.mat` |
+| Artifacts | the artifact-interval cache `<Name>_artifacts.json` |
+| Export | the Chronux, FieldTrip and epochs `.mat` files |
+
+A `.mat` output is recognised by the variables it holds (as `DatasetOutputs`
+does), so outputs with a configured suffix count too, and the config's
+Signals, Spikes and Export output folders are searched for the datasets'
+outputs. Unfinished outputs that a failed write left (`~<name>.partial.mat`)
+go with their step. The probe step writes no file. What the dataset manifest
+records (probe, exclusions, manual artifact periods, trial pairing) is not a
+file and stays.
+
+**Always kept**: the outputs of the steps not ticked, the dataset manifest,
+the copy record (`session_manifest.json`, the robocopy log), the Epsych2
+session file, the clean-up record and any other file. Nothing on the source is
+touched.
+
+**Removed files go**, a choice that applies to the preview as it is
+(changing it keeps the preview):
+
+| Choice | What happens |
+| --- | --- |
+| Delete permanently (default) | deleted for good: the space is free at once |
+| Move to the Recycle Bin | each file goes to the Recycle Bin of its drive, from where it can be restored; the space is freed only when the bin is emptied. Windows keeps a file there only on a local fixed drive whose bin is not set to remove files at once, and only when the file fits the bin's **Maximum size** (the bin's Properties; by default about 5% of the drive); otherwise it would delete the file for good without asking, so such a file is **skipped** instead. Afterwards each file is looked up in the bin, and one not found there is reported. Windows only |
+| Move to a folder | each file goes to `<folder>\<dataset key>\<its path in the dataset's recording or output folder>`, so a dataset keeps its layout (the `kilosort4` folder included). A file already there is skipped, never overwritten. Between drives a file is copied, the copy's size checked, and only then the local file deleted. The folder may not be inside the project or output root, where a scan would find the files again |
 
 - **Preview** lists every file in the datasets' recording, output and sorting
   folders, one row each: **Action** (Remove / Keep), Dataset, What, Size,
   File and **Why** (for a raw file, where its source copy is, or why it is
-  kept: not found at the source, a different size, no copy record). Remove
-  rows come first, largest first, tinted red; raw files that are kept are
-  tinted amber. The line above the table totals both sides: *Would remove
-  N file(s), X GB, from K of M dataset(s). N file(s), Y GB, remain.* **Show
-  the files that remain** hides or shows the Keep rows. Previewing reads file
-  listings and the sources' sizes only.
-- **Remove files...** acts on the preview as shown, after a confirmation that
-  lists what goes by kind with its size, what remains, and, when raw files
-  are among them, that those datasets cannot be run, viewed or scanned until
-  they are copied back. Changing a tick box or the dataset selection discards
-  the preview, so the button waits for a new Preview. It refuses while the
-  pipeline, a copy or a Kilosort4 run is under way.
-- Each file is checked again just before it is deleted: it must still have
+  kept: not found at the source, a different size, no copy record; for a
+  step's file, that the step's output is selected). Remove rows come first,
+  largest first, tinted red; raw files that are kept are tinted amber. The
+  line above the table totals both sides: *Would remove N file(s), X GB,
+  from K of M dataset(s). N file(s), Y GB, remain.* **Show the files that
+  remain** hides or shows the Keep rows. Previewing reads file listings, the
+  outputs' variable names and the sources' sizes only.
+- **Delete files...** / **Recycle files...** / **Move files...** (the button
+  follows the choice) acts on the preview as shown, after a confirmation that
+  says how the files go, lists what goes by kind or step with its size and
+  what remains, and warns when phy curation or unit notes go with a sorting
+  and, when raw files are among them, that those datasets cannot be run,
+  viewed or scanned until they are copied back. Changing a tick box or the
+  dataset selection discards the preview, so the button waits for a new
+  Preview. It refuses while the pipeline, a copy or a Kilosort4 run is under
+  way. A progress dialog follows the files; its **Cancel** leaves the files
+  not yet handled in place.
+- Each file is checked again just before it is removed: it must still have
   the size the preview saw, and a raw file's source must still have it too; a
-  file that fails is **skipped** and left in place. Files are deleted outright,
-  not moved to the Recycle Bin (which would free no space).
+  file that fails is **skipped** and left in place.
+- Folders that the removal leaves empty go too, up to the dataset's recording
+  or output folder, so removing the Sorting step's output leaves no
+  `kilosort4` folder behind.
 - Each dataset that had files removed gets `<Folder>/<Name>_cleanup.json`
-  (see [Files on disk](file-formats.md#clean-up-record)): what was removed and,
-  for raw files, where to copy them back from. The log under the table lists
-  each file handled, and the preview is made again afterwards.
+  (see [Files on disk](file-formats.md#clean-up-record)): what was removed,
+  how, where it went and, for raw files, where to copy them back from. The
+  log under the table lists each file handled. The datasets' manifests are
+  rewritten (they record the sorting and `.bin` on disk), the Datasets table
+  and the Review tab follow, and the preview is made again.
 - After raw files are removed, **Scan** the project again: those datasets are
   no longer recordings and drop out of it. Their outputs are unaffected.
 
-The tick boxes and Show the files that remain are preferences.
+The tick boxes, **Removed files go** with its folder, and Show the files that
+remain are preferences.
 
 ---
 
@@ -1059,7 +1100,7 @@ Only what is **not** part of a config lives here:
 | `ShowRunDiagram` | the Run tab's **Show the run diagram** switch |
 | `MonitorResources` | the Run tab's **Monitor CPU, memory, disk and GPU** switch |
 | `QueueSortingRuns` | the Run tab's **Queue the waiting runs; the Run goes on** switch |
-| `CleanupOptions` | the Clean up tab's kinds of file to remove and **Show the files that remain** |
+| `CleanupOptions` | the Clean up tab's kinds of file and steps to remove, **Removed files go** and its folder, and **Show the files that remain** |
 
 To reset: `rmpref('EphysPreprocessingApp')` with the app closed. Older
 preference groups are not read. The [scheduled copy](#scheduled-copy) is not a
@@ -1082,9 +1123,9 @@ preference: its settings live in its own file, which its Windows task reads.
 | `%LOCALAPPDATA%\ephys_analysis\copy_jobs\<batch>\`: the copy engine's job, progress and heartbeat files | while a copy batch is in flight; removed when it ends |
 | `%LOCALAPPDATA%\ephys_analysis\copy_schedule\`: `schedule.json`, `task.xml`, `startup.m`; the Windows task `\ephys_analysis\Copy sessions (<user>)` | Copy → Save schedule (Remove deletes the task and the first two) |
 | the same folder: `copy_schedule.log` (appended; the previous 5 MB in `copy_schedule.1.log`), `last_run.json`, `matlab.log` | each scheduled run |
-| `<Folder>/<Name>_cleanup.json`; **deletes** the files the Clean up preview marks Remove | Clean up → Remove files..., after its confirmation |
+| `<Folder>/<Name>_cleanup.json`; **deletes**, recycles or moves (to `<folder>\<dataset key>\...`) the files the Clean up preview marks Remove | Clean up → Delete / Recycle / Move files..., after its confirmation |
 
-Raw recording files are only read, except that Clean up deletes local copies
+Raw recording files are only read, except that Clean up removes local copies
 whose source still holds them. The source tree is only read.
 
 ## Scripting against a running app
@@ -1125,7 +1166,7 @@ app.KSQueue                       % prepared runs waiting for a slot (Queue the 
 | `buildFlowTab.m`, `refreshFlowChart.m`, `flowChartHTML.m`, `onSaveFlowChart.m`, `onOpenFlowChartInBrowser.m`, `onFlowNavigate.m`, `flowNavControls.m`, `clearFlowHighlight.m` | Diagram tab |
 | `buildCopyTab.m`, `onCopyFind.m`, `onCopyRun.m`, `refreshCopyTable.m`, `onCopyTableEdited.m`, `onCopyStitch.m`, `onCopyUnstitch.m`, `onBrowseCopyFolder.m`, `copyLog.m`, `onCopyCancel.m`, `startCopyMonitor.m`, `stopCopyMonitor.m`, `pollCopyJob.m`, `setCopyRunning.m`, `applyCopyResult.m`, `finishCopyRun.m`, `showCopyProgress.m`, `copySummaryText.m`, `refreshCopySchedule.m`, `onCopyScheduleSave.m`, `onCopyScheduleRemove.m`, `onCopyScheduleRunNow.m`, `onCopyScheduleLog.m`; `pipeline/findCopySessions.m`, `pipeline/stitchCopySessions.m`, `pipeline/copySessions.m`, `pipeline/copy_engine.ps1`, `pipeline/stitchEpsychSessions.m`, `pipeline/CopySchedule.m` | Copy tab, the pairing / stitching / copy functions it calls, the detached copy engine, and the scheduled copy (its Windows task and what each run does) |
 | `loadReviewResults.m`, `renderReviewPlots.m`, `syncReviewDataset.m` | Review tab |
-| `buildCleanupTab.m`, `onCleanupPreview.m`, `onCleanupRun.m`, `onCleanupSettingsChanged.m`, `refreshCleanupScope.m`, `refreshCleanupTable.m`; `pipeline/planLocalCleanup.m`, `pipeline/runLocalCleanup.m` | Clean up tab and the functions that decide and delete |
+| `buildCleanupTab.m`, `onCleanupPreview.m`, `onCleanupRun.m`, `runCleanup.m`, `onCleanupMethodChanged.m`, `onCleanupBrowseDest.m`, `onCleanupSettingsChanged.m`, `refreshCleanupScope.m`, `refreshCleanupTable.m`; `pipeline/planLocalCleanup.m`, `pipeline/runLocalCleanup.m` | Clean up tab and the functions that decide and remove |
 | `load/savePreferences.m` | preferences |
 | `helpURL.m`, `onHelp.m` | Help menu (wiki pages) |
 | `onReportIssue.m`, `issueReport.m`, `issueURL.m` | Help menu (GitHub issue / feature request) |
@@ -1145,7 +1186,8 @@ the run diagram (its half of the right side, the last run followed while hidden,
 event by event, a cancel, the preview that follows the checklist, the preference),
 resource monitoring (a sample's figures and colours, n/a readings, live samples from the sampler, the preference, the sampler
 exiting and removing its folder when unticked), the Clean up tab's preview (every file listed, a raw
-recording without a copy record kept, nothing deleted, the Keep rows hidden on request, a changed tick box discarding it),
+recording without a copy record kept, nothing deleted, the Keep rows hidden on request, a changed tick box discarding it,
+the Sorting step's box marking its whole folder), a move into the project refused, a move out of it (layout, record, preview again) and the preferences,
 save / reopen and the recent list,
 the Help menu's wiki pages and its issue items (what a bug report and a
 feature request carry, that an unticked section is left out, the percent-encoded
@@ -1184,9 +1226,15 @@ class) copies a synthetic recording into a session folder as the Copy tab
 would and checks what `planLocalCleanup` removes and keeps (a raw file whose
 source is missing or a different size stays, as does a recording without a copy
 record, and the `.bin` of a binary-format recording), that the Remove option
-limits the kinds, and that `runLocalCleanup` deletes only the Remove rows,
-leaves the source alone, skips files that changed since the preview, and writes
-and appends to the clean-up record.
+limits the kinds, what each step's removal takes (the whole `kilosort4` folder;
+outputs found by their variables, with configured suffixes, in a search folder,
+and unfinished ones; a hand-picked sorted-output folder kept), and that
+`runLocalCleanup` removes only the Remove rows, leaves the source alone, skips
+files that changed since the preview, removes emptied folders, moves files into
+a folder keeping their layout without overwriting, refuses a destination inside
+a dataset, stops on cancel, sends files to the Recycle Bin and finds them there
+(then empties its own items from the bin), and writes and appends to the
+clean-up record.
 [`test_SyntheticDataset.m`](../pipeline/test_SyntheticDataset.m) checks the
 synthetic project generators and, headlessly, the File-menu action: the
 project is written, opened and scanned; choosing the active dataset in a

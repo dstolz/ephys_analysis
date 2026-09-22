@@ -19,7 +19,7 @@ written as the strings `"NaN"` / `"Inf"`.
 ├─ session_manifest.json                where the Copy tab copied the session from (copySessions)
 ├─ session_copy_robocopy.log            the copy engine's robocopy log
 ├─ <Name>_manifest.json                 dataset manifest (writeManifest)
-└─ <Name>_cleanup.json                  what Clean up removed (runLocalCleanup)
+└─ <Name>_cleanup.json                  what Clean up removed, how and where to (runLocalCleanup)
 
 <outputFolder>/                         = Folder, or OutputDir, or <OutputRoot>/<Name>
 ├─ <Name>_artifacts.json                artifact-interval cache (EphysPipeline)
@@ -219,20 +219,30 @@ appends a run.
 
 ```text
 {
-  "schema":  "ephys-local-cleanup/1",
+  "schema":  "ephys-local-cleanup/2",
   "dataset": <dataset Name>,
   "folder":  <recording folder>,
   "runs": [
     { "time": <"yyyy-MM-dd HH:mm:ss">, "host": <computer>, "user": <user>,
+      "method": "delete" | "recycle" | "move",
+      "destination": <the folder files were moved into, "" unless "move">,
       "bytesRemoved": <n>,
-      "removed": [ { "file": <local path>, "category": "raw" | "sorter_copy" | "bin",
-                     "bytes": <n>, "source": <source path for a raw file, else ""> }, ... ] }, ...
+      "removed": [ { "file": <local path>,
+                     "category": "raw" | "sorter_copy" | "bin" | "sorting" | "output",
+                     "step": <the preprocessing step that wrote it: "sorting" | "signals" |
+                              "spikes" | "behavior" | "artifacts" | "export", "" for a raw file>,
+                     "bytes": <n>, "source": <source path for a raw file, else "">,
+                     "to": <its new path ("move"), "Recycle Bin" ("recycle", found there
+                            afterwards), else "">,
+                     "note": <e.g. not found in the Recycle Bin afterwards, else ""> }, ... ] }, ...
   ]
 }
 ```
 
 A raw file is only removed while its `source` holds a file of the same size,
-so the record says where to copy each one back from.
+so the record says where to copy each one back from. A moved file is at
+`<destination>/<dataset key>/<its path in the dataset's recording or output
+folder>`, as `to` says.
 
 ---
 

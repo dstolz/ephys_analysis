@@ -74,3 +74,10 @@ _DO NOT PROCESS UNLESS MOVED TO THE TO DO LIST_
    - **Screenshots:** `app-run-plan.png` and `app-run-results.png` were retaken.
    - **Checked:** links check clean, and the page, the image and linked source files are served live.
    - **Preferences:** a hung screenshot run left test state in the R2025a `EphysPreprocessingApp` preferences, which only batch tests use; your R2024b desktop keeps its own. They were put back to the last clean backup (15:07, 2026-09-21).
+8. **Keep the wiki generator in the repo** (done 2026-09-22; not committed yet). New folder `tools/wiki/`:
+   - **`gen_api.py`:** the API generator (from session 651280dc's scratchpad), with its paths now arguments (`--src`, `--wiki`, `--gen`, `--no-splice`) instead of its scratchpad layout. Run against the published wiki and the `502771b` source, it reproduces the pages byte for byte.
+   - **`check_links.py`:** the link and anchor check (missing pages, anchors and images; `<Name>` eaten as HTML). It exits 1 on problems.
+   - **`wikiScreenshots.m`:** takes the eight app screenshots its help lists, over a synthetic project. It puts only `pipeline`, `analysis`, `vendor` and `toolboxes` of `Source=` on the path, so `.claude/worktrees` copies can't shadow the app. It backs up the preferences to a file and restores them even on an error. It stops the resource monitor's timer before the results shot, which is when `exportapp` had hung twice; with that change it passed.
+   - **`restoreAppPrefs.m`:** re-applies that backup if a run has to be killed.
+   - **`README.md`:** the whole update workflow (snapshot the commit with `git archive`, generate, hand edits, screenshots, link check, footer, push) and the traps.
+   - Linked from `documentation/README.md`. Tested: generator, link check, and the screenshots (all eight taken, in two runs).

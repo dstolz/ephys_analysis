@@ -244,6 +244,7 @@ classdef EphysDataset < handle
         result = runSpikeInterface(obj, opts)
         result = launchSorting(obj, result, opts)
         iv     = artifactIntervals(obj, opts)
+        L      = channelLayout(obj)
         [Y, ev, info] = deriveSignals(obj, opts)   % "events" is reserved in classdef
         out    = toMat(obj, opts)
 

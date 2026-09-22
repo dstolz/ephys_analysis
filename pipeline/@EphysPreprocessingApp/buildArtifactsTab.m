@@ -9,23 +9,36 @@ function buildArtifactsTab(obj)
 %   steps through the detected artifacts one at a time, each with the signal
 %   around it, the kept and removed samples drawn apart.
 %
+%   Three columns: the detection settings with the manual periods below
+%   them, the viewer (the plot takes the full height), and the preview's
+%   summary with its per-channel table. With a probe assigned to the
+%   dataset the viewer and the table can follow the probe layout, show one
+%   shank and colour the channels by shank (syncArtProbeControls). The
+%   wheel and keys scale the plot's voltage and time (onArtViewInput).
+%
 %   See also EphysDataset.detectArtifacts, EphysDataset.analyzeArtifacts,
-%   EphysDataset.artifactIntervals, onDetectArtifacts, showArtifactView,
-%   drawArtifactView.
+%   EphysDataset.artifactIntervals, EphysDataset.channelLayout,
+%   onDetectArtifacts, showArtifactView, drawArtifactView.
 
-g = uigridlayout(obj.TabArtifacts, [1 2]);
-g.ColumnWidth = {400, '1x'};
+g = uigridlayout(obj.TabArtifacts, [1 3]);
+g.ColumnWidth = {400, '1x', 350};
 g.Padding     = [10 10 10 10];
 changed = @(~,~) obj.onArtifactControlsChanged();
 
-% =================== left: controls ===================
-ctrl = uipanel(g, "Title", "Automatic artifact detection (config: Artifacts)");
-ctrl.Layout.Column = 1;
+% =========== left: controls, then the manual periods ===========
+left = uigridlayout(g, [2 1]);
+left.Layout.Column = 1;
+left.Padding = [0 0 0 0];
+left.RowHeight = {'1x', 210};
 
-nRows = 18;
+ctrl = uipanel(left, "Title", "Automatic artifact detection (config: Artifacts)");
+
+nRows = 16;
 cg = uigridlayout(ctrl, [nRows 2]);
 cg.RowHeight   = [repmat({'fit'}, 1, nRows - 1), {'1x'}];
 cg.ColumnWidth = {'fit', '1x'};
+cg.RowSpacing  = 6;
+cg.Scrollable  = "on";
 
 row = 1;
 obj.ArtEnableCheckBox = uicheckbox(cg, "Text", "Enable automatic detection", "FontWeight", "bold", "Value", false, ...
@@ -110,6 +123,17 @@ obj.ArtCacheCheckBox = uicheckbox(cg, "Text", "Cache intervals (<Name>_artifacts
     "ValueChangedFcn", changed);
 obj.ArtCacheCheckBox.Layout.Row = row; obj.ArtCacheCheckBox.Layout.Column = [1 2];
 
+% Display only (the detectors treat every channel alike), so it is not part
+% of the config; syncArtProbeControls sets it per dataset.
+row = row + 1;
+obj.ArtProbeOrderCheckBox = uicheckbox(cg, "Text", "Order channels by probe layout", ...
+    "Value", false, "Enable", "off", "Tooltip", ...
+    "Show the channels in the plot and the per-channel table as they sit on the probe: " + ...
+    "by shank, then from the top of each shank down. Needs a probe assigned to the dataset " + ...
+    "(Probe tab), and is on by default when it has one. Detection is the same either way.", ...
+    "ValueChangedFcn", @(~,~) probeOrderChanged(obj));
+obj.ArtProbeOrderCheckBox.Layout.Row = row; obj.ArtProbeOrderCheckBox.Layout.Column = [1 2];
+
 row = row + 1;
 obj.ArtDetectButton = uibutton(cg, "Text", "Detect / Preview", ...
     "ButtonPushedFcn", @(~,~) obj.onDetectArtifacts());
@@ -120,70 +144,114 @@ row = row + 1;
 obj.ArtStatusLabel = uilabel(cg, "Text", "", "FontColor", [0.4 0.4 0.4], "WordWrap", "on");
 obj.ArtStatusLabel.Layout.Row = row; obj.ArtStatusLabel.Layout.Column = [1 2];
 
-% ===== right: summary + per-channel table, artifact viewer, manual periods =====
-right = uigridlayout(g, [6 1]);
-right.Layout.Column = 2;
-right.RowHeight = {'fit', 175, 'fit', '1x', 'fit', 110};
-right.RowSpacing = 8;
+manual = uipanel(left);
+manual.Layout.Row = 2;
+mg = uigridlayout(manual, [3 3]);
+mg.RowHeight = {'fit', '1x', 30};
+mg.ColumnWidth = {'1x', 'fit', 'fit'};
+mg.Padding = [8 8 8 8];
+mg.RowSpacing = 6;
+obj.ArtManualLabel = uilabel(mg, "Text", "Manual periods (scan a project first)", ...
+    "FontWeight", "bold", "WordWrap", "on");
+obj.ArtManualLabel.Layout.Row = 1; obj.ArtManualLabel.Layout.Column = [1 3];
+obj.ArtManualTable = uitable(mg, "ColumnName", {'Start (s)', 'End (s)', 'Duration (s)'}, ...
+    "ColumnWidth", {'1x', '1x', '1x'}, "RowName", {});
+obj.ArtManualTable.Layout.Row = 2; obj.ArtManualTable.Layout.Column = [1 3];
+obj.ArtEditVizButton = uibutton(mg, "Text", "Edit in Visualize", ...
+    "ButtonPushedFcn", @(~,~) obj.selectTab(obj.TabVisualize));
+obj.ArtEditVizButton.Layout.Row = 3; obj.ArtEditVizButton.Layout.Column = 2;
+obj.ArtManualClearButton = uibutton(mg, "Text", "Clear", "ButtonPushedFcn", @(~,~) obj.onClearManualArtifacts());
+obj.ArtManualClearButton.Layout.Row = 3; obj.ArtManualClearButton.Layout.Column = 3;
+
+% =========== middle: the artifact viewer, full height ===========
+% One detected artifact at a time with the signal around it (showArtifactView
+% reads, drawArtifactView draws).
+mid = uigridlayout(g, [6 1]);
+mid.Layout.Column = 2;
+mid.Padding = [0 0 0 0];
+mid.RowSpacing = 4;
+mid.RowHeight = {'fit', 'fit', 'fit', 'fit', '1x', 'fit'};
+
+nav = uigridlayout(mid, [1 8]);
+nav.Padding = [0 0 0 0]; nav.ColumnSpacing = 6;
+nav.ColumnWidth = {'fit', 34, 64, 'fit', 34, '1x', 'fit', 60};
+uilabel(nav, "Text", "Detected artifacts", "FontWeight", "bold");
+obj.ArtViewPrevButton = uibutton(nav, "Text", char(9664), "Tooltip", "Previous artifact", ...
+    "ButtonPushedFcn", @(~,~) stepArtifact(obj, -1));
+obj.ArtViewSpinner = uispinner(nav, "Limits", [1 Inf], "Step", 1, "RoundFractionalValues", "on", ...
+    "Value", 1, "Tooltip", "Artifact number, in recording order", ...
+    "ValueChangedFcn", @(~,~) obj.showArtifactView());
+obj.ArtViewCountLabel = uilabel(nav, "Text", "of 0");
+obj.ArtViewNextButton = uibutton(nav, "Text", char(9654), "Tooltip", "Next artifact", ...
+    "ButtonPushedFcn", @(~,~) stepArtifact(obj, 1));
+uilabel(nav, "Text", "");
+uilabel(nav, "Text", "Context (ms):", "HorizontalAlignment", "right");
+obj.ArtViewContextField = uieditfield(nav, "numeric", "Value", 0, "Limits", [0 60000], ...
+    "Tooltip", "Signal shown before and after the artifact. 0 = auto (twice its length, 25 ms to 5 s).", ...
+    "ValueChangedFcn", @(~,~) obj.showArtifactView());
+
+chans = uigridlayout(mid, [1 6]);
+chans.Padding = [0 0 0 0]; chans.ColumnSpacing = 6;
+chans.ColumnWidth = {'fit', 50, 'fit', 110, 'fit', '1x'};
+uilabel(chans, "Text", "Channels:");
+obj.ArtViewChannelsField = uieditfield(chans, "numeric", "Value", 8, "Limits", [1 Inf], ...
+    "RoundFractionalValues", "on", "Tooltip", ...
+    "How many channels to draw: the ones the artifact is largest on (on the chosen shank).", ...
+    "ValueChangedFcn", @(~,~) obj.drawArtifactView());
+uilabel(chans, "Text", "Shank:", "HorizontalAlignment", "right");
+obj.ArtViewShankDropDown = uidropdown(chans, "Items", {'All shanks'}, "ItemsData", {'all'}, ...
+    "Value", 'all', "Enable", "off", "Tooltip", ...
+    "Draw the channels of one shank only (needs a probe assigned to the dataset).", ...
+    "ValueChangedFcn", @(~,~) obj.drawArtifactView());
+obj.ArtViewShankColorCheckBox = uicheckbox(chans, "Text", "Colour by shank", "Value", true, ...
+    "Enable", "off", "Tooltip", ...
+    "Draw each shank's kept signal in its own colour (needs a probe assigned to the dataset).", ...
+    "ValueChangedFcn", @(~,~) obj.drawArtifactView());
+
+sc = uigridlayout(mid, [1 4]);
+sc.Padding = [0 0 0 0]; sc.ColumnSpacing = 6;
+sc.ColumnWidth = {'fit', 150, '1x', 'fit'};
+uilabel(sc, "Text", "Scale:");
+obj.ArtViewScaleDropDown = uidropdown(sc, "Items", {'Fit the artifact', 'Fit the kept signal'}, ...
+    "ItemsData", {'artifact', 'kept'}, "Value", 'artifact', ...
+    "Tooltip", "Fit the kept signal to check that nothing of the artifact is left either side (larger values are clipped).", ...
+    "ValueChangedFcn", @(~,~) scaleChanged(obj));
+uilabel(sc, "Text", "");
+obj.ArtViewResetButton = uibutton(sc, "Text", "Reset view", ...
+    "Tooltip", "Show the whole window at the Scale fit (R over the plot)", ...
+    "ButtonPushedFcn", @(~,~) obj.onArtViewInput("reset", []));
+
+obj.ArtViewNoteLabel = uilabel(mid, "Text", "", "WordWrap", "on");
+
+% The wheel zoom is onArtViewInput's (time only), so the axes keep just the
+% drag pan (along time) and data tips of their built-in interactions.
+obj.ArtViewAxes = uiaxes(mid);
+obj.ArtViewAxes.Toolbar.Visible = "on";
+obj.ArtViewAxes.Interactions = [panInteraction(Dimensions="x"), dataTipInteraction];
+obj.drawArtifactView();   % the empty state
+
+uilabel(mid, "WordWrap", "on", "FontColor", [0.45 0.45 0.45], "Text", ...
+    "Pointer over the plot: wheel zooms time, drag or " + char(8592) + "/" + char(8594) + ...
+    " pans, Shift+" + char(8592) + "/" + char(8594) + " zooms time, Ctrl+wheel, " + ...
+    char(8593) + "/" + char(8595) + " or +/" + char(8722) + " scale the voltage, R resets.");
+
+% =========== right: the preview's summary and per-channel table ===========
+right = uigridlayout(g, [3 1]);
+right.Layout.Column = 3;
+right.Padding = [0 0 0 0];
+right.RowSpacing = 6;
+right.RowHeight = {'fit', 215, '1x'};
 
 uilabel(right, "Text", "Preview summary", "FontWeight", "bold");
-top = uigridlayout(right, [1 2]);
-top.Padding = [0 0 0 0];
-top.ColumnWidth = {'1x', 330};
-summaryPanel = uipanel(top);
+summaryPanel = uipanel(right);
 sg = uigridlayout(summaryPanel, [1 1]);
 sg.Padding = [8 6 8 6];
 obj.ArtSummaryLabel = uilabel(sg, "Text", "Pick a dataset and press Detect / Preview.", ...
     "VerticalAlignment", "top", "WordWrap", "on", "FontName", "monospaced", "FontColor", [0.2 0.2 0.2]);
-obj.ArtChannelTable = uitable(top, "ColumnName", {'Ch', 'Name', '#Samples', '% of duration'}, ...
-    "ColumnWidth", {36, '1x', 80, 95}, "RowName", {});
+obj.ArtChannelTable = uitable(right, "RowName", {});
+obj.refreshArtChannelTable();   % its columns
 
-% Artifact viewer: one detected artifact at a time with the signal around it
-% (showArtifactView reads, drawArtifactView draws).
-vg = uigridlayout(right, [2 12]);
-vg.Layout.Row = 3; vg.Padding = [0 0 0 0]; vg.ColumnSpacing = 6; vg.RowSpacing = 4;
-vg.RowHeight = {'fit', 'fit'};
-vg.ColumnWidth = {'fit', 34, 64, 'fit', 34, '1x', 'fit', 60, 'fit', 50, 'fit', 140};
-uilabel(vg, "Text", "Detected artifacts", "FontWeight", "bold");
-obj.ArtViewPrevButton = uibutton(vg, "Text", char(9664), "Tooltip", "Previous artifact", ...
-    "ButtonPushedFcn", @(~,~) stepArtifact(obj, -1));
-obj.ArtViewSpinner = uispinner(vg, "Limits", [1 Inf], "Step", 1, "RoundFractionalValues", "on", ...
-    "Value", 1, "Tooltip", "Artifact number, in recording order", ...
-    "ValueChangedFcn", @(~,~) obj.showArtifactView());
-obj.ArtViewCountLabel = uilabel(vg, "Text", "of 0");
-obj.ArtViewNextButton = uibutton(vg, "Text", char(9654), "Tooltip", "Next artifact", ...
-    "ButtonPushedFcn", @(~,~) stepArtifact(obj, 1));
-uilabel(vg, "Text", "");
-uilabel(vg, "Text", "Context (ms):", "HorizontalAlignment", "right");
-obj.ArtViewContextField = uieditfield(vg, "numeric", "Value", 0, "Limits", [0 60000], ...
-    "Tooltip", "Signal shown before and after the artifact. 0 = auto (twice its length, 25 ms to 5 s).", ...
-    "ValueChangedFcn", @(~,~) obj.showArtifactView());
-uilabel(vg, "Text", "Channels:", "HorizontalAlignment", "right");
-obj.ArtViewChannelsField = uieditfield(vg, "numeric", "Value", 8, "Limits", [1 Inf], ...
-    "RoundFractionalValues", "on", "Tooltip", "How many channels to draw: the ones the artifact is largest on.", ...
-    "ValueChangedFcn", @(~,~) obj.drawArtifactView());
-uilabel(vg, "Text", "Scale:", "HorizontalAlignment", "right");
-obj.ArtViewScaleDropDown = uidropdown(vg, "Items", {'Fit the artifact', 'Fit the kept signal'}, ...
-    "ItemsData", {'artifact', 'kept'}, "Value", 'artifact', ...
-    "Tooltip", "Fit the kept signal to check that nothing of the artifact is left either side (larger values are clipped).", ...
-    "ValueChangedFcn", @(~,~) obj.drawArtifactView());
-obj.ArtViewNoteLabel = uilabel(vg, "Text", "", "WordWrap", "on");
-obj.ArtViewNoteLabel.Layout.Row = 2; obj.ArtViewNoteLabel.Layout.Column = [1 12];
-
-obj.ArtViewAxes = uiaxes(right);
-obj.ArtViewAxes.Layout.Row = 4;
-obj.ArtViewAxes.Toolbar.Visible = "on";
-obj.drawArtifactView();   % the empty state
-
-mg = uigridlayout(right, [1 3]);
-mg.Layout.Row = 5; mg.Padding = [0 0 0 0]; mg.ColumnWidth = {'1x', 'fit', 'fit'}; mg.RowHeight = {30};
-obj.ArtManualLabel = uilabel(mg, "Text", "Manual periods (scan a project first)", "FontWeight", "bold");
-obj.ArtEditVizButton = uibutton(mg, "Text", "Edit in Visualize", ...
-    "ButtonPushedFcn", @(~,~) obj.selectTab(obj.TabVisualize));
-obj.ArtManualClearButton = uibutton(mg, "Text", "Clear", "ButtonPushedFcn", @(~,~) obj.onClearManualArtifacts());
-obj.ArtManualTable = uitable(right, "ColumnName", {'Start (s)', 'End (s)', 'Duration (s)'}, ...
-    "ColumnWidth", {'1x', '1x', '1x'}, "RowName", {});
-obj.ArtManualTable.Layout.Row = 6;
+obj.routeFigureInput();         % the wheel and keys on the plot
 end
 
 
@@ -195,6 +263,20 @@ if v ~= sp.Value
     sp.Value = v;
     obj.showArtifactView();
 end
+end
+
+
+function probeOrderChanged(obj)
+% The table and the plot follow the probe order (or the recording order).
+obj.refreshArtChannelTable();
+obj.drawArtifactView();
+end
+
+
+function scaleChanged(obj)
+% A new Scale fit starts from its own voltage scale.
+obj.ArtView.gain = 1;
+obj.drawArtifactView();
 end
 
 

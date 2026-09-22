@@ -329,8 +329,9 @@ check(diff(ax.XLim) <= 1e3 * diff(iv2) + 2 + 2e3 / Fs, 'Context sets the signal 
 app.ArtViewChannelsField.Value = 2;
 app.drawArtifactView();
 fitAll = diff(ax.YLim);
-check(numel(ax.YTick) == 2 && contains(ax.Subtitle.String, "the 2 of 4 channels") && ~contains(ax.Subtitle.String, "clipped"), ...
-    'Channels picks the channels it is largest on; fitting the artifact never clips');
+check(numel(ax.YTick) == 2 && isequal(string(ax.Subtitle.String), ["the 2 of 4 channels it is largest on"; "broadband, as detected"]) ...
+    && ~contains(ax.YLabel.String, "clipped"), ...
+    'Channels picks the channels it is largest on (a long subtitle on two lines); fitting the artifact never clips');
 app.ArtViewScaleDropDown.Value = 'kept';
 app.drawArtifactView();
 check(diff(ax.YLim) <= fitAll && numel(ax.YTick) == 2, 'fitting the kept signal gives lanes no wider');
@@ -346,6 +347,103 @@ app.onArtifactControlsChanged();
 app.selectDataset(1, Reset=true);
 check(~app.ArtView.previewed && isempty(app.ArtView.win) && isequaln(app.Config.Artifacts, art0), ...
     'a dataset change clears the viewer; the settings are back as loaded');
+
+fprintf('\n== 3a0b. Artifacts tab: probe layout, shanks, voltage and time scale ==\n');
+check(~app.ArtProbeOrderCheckBox.Value && strcmp(app.ArtProbeOrderCheckBox.Enable, 'off') ...
+    && isequal(app.ArtViewShankDropDown.ItemsData, {'all'}) && app.ArtViewShankColorCheckBox.Value ...
+    && numel(app.ArtChannelTable.ColumnName) == 4, ...
+    'without a probe: no probe order or shanks to pick, colour by shank on by default, no Shank column');
+% Two shanks, the recording's channels crossing between them: 1 and 3 on
+% shank 2, 2 and 4 on shank 1; 3 and 4 above 1 and 2.
+probe2 = fullfile(root, 'twoShank.json');
+writeJsonFile(probe2, struct('chanMap', (0:3).', 'xc', zeros(4, 1), 'yc', [0; 0; 20; 20], 'kcoords', [2; 1; 2; 1]));
+dA = app.Project.Datasets(1);
+dA.ProbeFile = probe2;
+L = dA.channelLayout();
+check(L.hasProbe && isequal(L.order, [4 2 3 1]) && isequal(L.shank, [2 1 2 1]) && isequal(L.shanks, [1 2]), ...
+    'channelLayout places the channels: by shank, the top of each shank first');
+app.syncArtProbeControls();
+check(app.ArtProbeOrderCheckBox.Value && strcmp(app.ArtProbeOrderCheckBox.Enable, 'on') ...
+    && isequal(app.ArtViewShankDropDown.ItemsData, {'all', '1', '2'}), ...
+    'with a probe: probe order is on by default and its shanks are offered');
+app.ArtMethodDropDown.Value = 'microvolts';
+app.ArtThresholdField.Value = 6300;
+app.ArtMinChannelsField.Value = 1;
+app.onArtifactControlsChanged();
+app.onDetectArtifacts();
+w = app.ArtView.win;
+lanes = @() string(ax.YTickLabel(:)).';   % bottom lane first
+artT = app.ArtChannelTable.Data;
+check(isequal(lanes(), w.names([1 3 2 4])) && numel(findall(ax, 'Type', 'constantline')) == 1 ...
+    && isequal(cell2mat(artT(:, 1)).', [4 2 3 1]) && isequal(cell2mat(artT(:, 3)).', [1 1 2 2]), ...
+    'the lanes and the table follow the probe (a dotted line between the shanks, a Shank column)');
+k1 = findobj(ax, 'Type', 'line', 'DisplayName', 'Shank 1');
+k2 = findobj(ax, 'Type', 'line', 'DisplayName', 'Shank 2');
+check(~isempty(k1) && ~isempty(k2) && ~isequal(k1(1).Color, k2(1).Color) ...
+    && isempty(findobj(ax, 'Type', 'line', 'DisplayName', 'Kept')), 'colour by shank: each shank in its own colour');
+app.ArtProbeOrderCheckBox.Value = false;
+app.ArtProbeOrderCheckBox.ValueChangedFcn(app.ArtProbeOrderCheckBox, []);
+check(isequal(lanes(), w.names(4:-1:1)) && isempty(findall(ax, 'Type', 'constantline')) ...
+    && isequal(cell2mat(app.ArtChannelTable.Data(:, 1)).', 1:4), 'unticked: recording order again, plot and table');
+app.ArtViewShankDropDown.Value = '2';
+app.drawArtifactView();
+check(numel(ax.YTick) == 2 && all(ismember(lanes(), w.names([1 3]))) && contains(join(string(ax.Subtitle.String)), "on shank 2"), ...
+    'Shank draws that shank''s channels only');
+app.ArtViewShankColorCheckBox.Value = false;
+app.drawArtifactView();
+check(~isempty(findobj(ax, 'Type', 'line', 'DisplayName', 'Kept')), 'colour by shank off: the kept signal is black again');
+app.ArtViewShankDropDown.Value = 'all';
+app.ArtViewShankColorCheckBox.Value = true;
+app.drawArtifactView();
+
+% Scale: the plot's keys and wheel, with the pointer over it.
+pp = getpixelposition(ax, true);
+app.Fig.CurrentPoint = pp(1:2) + pp(3:4) / 2;
+keyEvt = @(k, mods) struct('Key', k, 'Modifier', {mods});
+xFull = ax.XLim; yFull = diff(ax.YLim);
+check(app.onArtViewInput("key", keyEvt('uparrow', {})) && app.ArtView.gain > 1 && diff(ax.YLim) < yFull ...
+    && contains(ax.YLabel.String, "clipped"), 'up arrow scales the voltage up (the lanes fewer microvolts apart)');
+check(app.onArtViewInput("key", keyEvt('rightarrow', {'shift'})) && diff(ax.XLim) < diff(xFull), 'Shift+right zooms time in');
+xz = ax.XLim;
+app.onArtViewInput("key", keyEvt('rightarrow', {}));
+check(ax.XLim(1) > xz(1) && abs(diff(ax.XLim) - diff(xz)) < 1e-9, 'right arrow pans later in time');
+xz = ax.XLim;
+app.drawArtifactView();
+check(max(abs(ax.XLim - xz)) < 1e-9, 'a redraw of the same artifact keeps the time zoom');
+app.ArtView.mods = strings(1, 0);
+app.onArtViewInput("scroll", struct('VerticalScrollCount', -1));
+check(diff(ax.XLim) < diff(xz), 'the wheel zooms time');
+g0 = app.ArtView.gain;
+app.ArtView.mods = "control";
+app.onArtViewInput("scroll", struct('VerticalScrollCount', 1));
+app.ArtView.mods = strings(1, 0);
+check(app.ArtView.gain < g0, 'Ctrl+wheel scales the voltage');
+app.Fig.CurrentPoint = [1 1];
+check(~app.onArtViewInput("key", keyEvt('uparrow', {})) && app.ArtView.gain < g0, ...
+    'with the pointer off the plot the keys are left alone');
+app.Fig.CurrentPoint = pp(1:2) + pp(3:4) / 2;
+app.ArtViewResetButton.ButtonPushedFcn(app.ArtViewResetButton, []);
+check(app.ArtView.gain == 1 && max(abs(ax.XLim - xFull)) < 1e-9 && abs(diff(ax.YLim) - yFull) < 1e-9, ...
+    'Reset view: the whole window at the Scale fit');
+app.onArtViewInput("key", keyEvt('equal', {}));
+app.onArtViewInput("key", keyEvt('rightarrow', {'shift'}));
+app.ArtViewNextButton.ButtonPushedFcn(app.ArtViewNextButton, []);
+check(app.ArtView.gain > 1 && max(abs(ax.XLim - app.ArtView.drawn.span)) < 1e-9, ...
+    'the next artifact keeps the voltage scale but shows its whole window');
+app.selectTab(app.TabArtifacts);
+g0 = app.ArtView.gain;
+app.Fig.WindowKeyPressFcn(app.Fig, keyEvt('uparrow', {}));
+check(app.ArtView.gain > g0, 'on the Artifacts tab the figure''s keys reach the plot');
+app.selectTab(app.TabProject);
+g0 = app.ArtView.gain;
+app.Fig.WindowKeyPressFcn(app.Fig, keyEvt('uparrow', {}));
+check(app.ArtView.gain == g0, 'on another tab they do not');
+dA.ProbeFile = "";
+app.applyArtifactsSection(art0);
+app.onArtifactControlsChanged();
+app.selectDataset(1, Reset=true);
+check(~app.ArtProbeOrderCheckBox.Value && isequal(app.ArtViewShankDropDown.ItemsData, {'all'}), ...
+    'without the probe again the probe controls go back off');
 
 fprintf('\n== 3a. name tokens ==\n');
 check(isequal(string({app.NameTokenChecks.Text}), ["SubjectID" "Date" "Time"]) && isequal([app.NameTokenChecks.Value], [true false false]) ...

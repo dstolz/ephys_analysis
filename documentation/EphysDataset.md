@@ -1329,6 +1329,31 @@ is in [file-formats.md](file-formats.md#dataset-manifest).
   here; they belong to the [pipeline config](EphysPipeline.md). Schema `/1`
   manifests (probe + exclusions only) are still read.
 
+### Probe layout
+
+```matlab
+L = ds.channelLayout();
+```
+
+Places the amplifier channels on the probe in `ProbeFile`. A Kilosort4 probe
+`.json` gives `chanMap`, `xc`, `yc` and `kcoords`. The result has one entry
+per channel, in recording order (the columns `readWindowUV` and `readChunkUV`
+return):
+
+| Field | Meaning |
+| --- | --- |
+| `hasProbe` | `true` when `ProbeFile` can be read and places at least one channel |
+| `shank` | `[1 x nChan]` the channel's `kcoords` (1 when the probe has none). `NaN` when the channel is not on the probe |
+| `x`, `y` | `[1 x nChan]` the site's `xc` / `yc` in µm. `NaN` off the probe |
+| `order` | `[1 x nChan]` the channels as they sit on the probe: by shank, then from the top of the shank down (`yc` descending, as the Probe tab draws it), then left to right. Channels not on the probe come last, in recording order |
+| `shanks` | the shanks holding at least one channel, ascending |
+
+`chanMap` values are hardware channel numbers (`ChannelNumbers`, or `0..nChan-1`
+when those are unknown), so a recording that skips channels still lands on the
+right sites. Without a usable probe, every channel is off it and `order` is
+`1:nChan`. The file is read on every call. The app's Artifacts tab uses this
+to draw its lanes in probe order.
+
 ### Other helpers
 
 | Method | Returns |

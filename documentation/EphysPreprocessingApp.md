@@ -501,7 +501,9 @@ Probe maps are Kilosort4 probe `.json` files
 
 The automatic detector
 ([`EphysDataset.detectArtifacts`](EphysDataset.md#artifact-detection-and-blanking))
-and the manual periods.
+and the manual periods. The tab has three columns: the detection settings
+with the active dataset's manual periods below them, the artifact viewer at
+full height, and the preview's summary with its per-channel table.
 
 | Control | Maps to |
 | --- | --- |
@@ -511,14 +513,15 @@ and the manual periods.
 | Filter before detecting, High-pass (Hz) | `Artifacts.Filter`, `FilterCutoff` (with `FilterType`, `FilterOrder`). These now apply to runs as well as the preview |
 | Apply to sorting / Apply to spike detection | `Artifacts.ApplyToSorting`, `ApplyToSpikes` |
 | Cache intervals | `Artifacts.CacheIntervals` (`<Name>_artifacts.json`) |
+| Order channels by probe layout | display only, not saved: the viewer's lanes and the per-channel table in probe order (below). Needs a probe assigned to the dataset, and is ticked by default when it has one |
 | **Detect / Preview** | `analyzeArtifacts` over the active dataset (streamed, read-only; on the process pool when the Run tab's **Parallel** box is ticked): summary + per-channel table, and the detected artifacts in the viewer |
-| Detected artifacts: ◀ / number / ▶, Context (ms), Channels, Scale | the artifact viewer (display only, below) |
+| Detected artifacts: ◀ / number / ▶, Context (ms), Channels, Shank, Colour by shank, Scale, **Reset view** | the artifact viewer (display only, below) |
 | Manual periods table, **Edit in Visualize**, **Clear** | the active dataset's `ManualArtifacts` (written to its manifest) |
 
 The Threshold field is sent as-is for every method: with *Absolute microvolts*
 / *Common-mode* the default 9 means 9 µV.
 
-**Artifact viewer.** After a preview, the plot under the summary shows one
+**Artifact viewer.** After a preview, the middle plot shows one
 detected artifact at a time (◀ / ▶ or type its number), with **Context** ms of
 signal either side (0 = auto: twice the artifact's length, 25 ms to 5 s). It
 draws the signal the detector saw (high-passed when *High-pass before
@@ -536,6 +539,38 @@ none of it is left on either side. Readers without random access (Intan
 traditional `*.rhd`) read the file that holds the artifact once and keep it
 while you step through that file's artifacts. A new active dataset clears the
 viewer.
+
+**Probe layout.** With a probe assigned to the dataset (Probe tab), *Order
+channels by probe layout* is ticked by default. The lanes are then drawn as
+the channels sit on the probe: shank by shank, from the top of each shank down
+(larger `yc` first, as the Probe tab draws the probe), with a dotted line
+between shanks. The per-channel table follows the same order and gains a Shank
+column. **Shank** limits the lanes to one shank's channels, and **Channels**
+still picks the ones the artifact is largest on. **Colour by shank** (on by
+default) draws each shank's kept signal in its own colour, named in the
+legend. Removed samples stay red. The probe's `chanMap` values are matched to
+the recording's hardware channel numbers
+([`EphysDataset.channelLayout`](EphysDataset.md#probe-layout)). The detectors
+treat every channel alike, so the order only changes the display. Changing the
+active dataset, or assigning it a probe, resets the checkbox to its default.
+
+**Scaling.** Keep the pointer over the plot:
+
+| Input | Does |
+| --- | --- |
+| wheel (or Shift+wheel) | zoom time about the pointer |
+| Ctrl+wheel (or Ctrl+Shift+wheel) | scale the voltage |
+| drag, ← / → | pan time |
+| Shift+← / Shift+→ | zoom time out / in |
+| ↑ / ↓, + / − | scale the voltage up / down |
+| R, **Reset view** | show the whole window at the Scale fit |
+
+The voltage scale carries over from one artifact to the next until **Reset
+view** or a new **Scale**. The time zoom is kept while the same artifact is
+shown, and a long window is redrawn in finer detail as you zoom in. The
+y-axis label gives the lane spacing in µV and says when larger values are
+clipped. On other tabs the wheel and keys work
+as before (the Visualize viewer's shortcuts).
 
 ## Sorting
 
@@ -1157,7 +1192,8 @@ app.KSQueue                       % prepared runs waiting for a slot (Queue the 
 | `onScan.m`, `refreshDatasetsTable.m`, `onDatasetCellSelection.m`, `onSelectDatasets.m`, `onRefreshMetadata.m`, `onAssociateBehavior.m`, `onClearBehavior.m`, `onBrowseBehaviorDir.m` | Project tab |
 | `selectDataset.m`, `currentDataset.m`, `populateDatasetPickers.m`, `refreshDatasetMenu.m`, `refreshDatasetPickers.m`, `datasetPicker.m`, `highlightDatasetRow.m` | the active dataset: Dataset menu, every tab's Dataset box, the highlighted table row |
 | `refreshProbeList.m`, `onProbeSelected.m`, `onImportProbe.m`, `onDesignProbe.m`, `runProbeTool.m`, `onAssignProbe.m`, `onApplyExclude.m`, `onUseSelectedProbeAsDefault.m`, `probe_tool.py` | Probe tab |
-| `onDetectArtifacts.m`, `showArtifactView.m`, `drawArtifactView.m`, `refreshManualArtifactsTable.m`, `onClearManualArtifacts.m` | Artifacts tab |
+| `onDetectArtifacts.m`, `showArtifactView.m`, `drawArtifactView.m`, `onArtViewInput.m`, `syncArtProbeControls.m`, `refreshArtChannelTable.m`, `refreshManualArtifactsTable.m`, `onClearManualArtifacts.m` | Artifacts tab |
+| `routeFigureInput.m` | shares the figure's wheel and key callbacks between the Artifacts tab's plot and the Visualize viewer |
 | `onOptimizeKS4ForProbe.m`, `onResetKS4Params.m`, `onUseSortingFolder.m`, `onUseAutoSorting.m`, `refreshSortingLabel.m`, `pollKSRuns.m`, `onLaunchPhy.m`, `launchPhy.m` | Sorting tab and phy |
 | `queueKSRun.m`, `onStopKSQueue.m`, `onStopKSRuns.m`, `stopKSRuns.m`, `markKSResult.m` | background Kilosort4 runs: the queue the monitor starts from, Stop queue, Stop runs..., restating a run's result row |
 | `onSpikesPreview.m`, `syncSpikesEnableStates.m` | Spikes tab |

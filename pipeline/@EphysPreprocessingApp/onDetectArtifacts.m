@@ -2,10 +2,11 @@ function onDetectArtifacts(obj)
 %onDetectArtifacts  Run the artifact detector over a dataset and show the summary.
 %   Pushes the current detection settings onto every scanned dataset, then
 %   streams the active dataset one *.rhd file at a time
-%   (EphysDataset.analyzeArtifacts) and fills the per-channel table and summary
-%   label with the number of samples flagged per channel and the percent of the
-%   recording that would be blanked, then shows the first detected artifact in
-%   the viewer (showArtifactView). Read-only: nothing is written to disk.
+%   (EphysDataset.analyzeArtifacts) and fills the per-channel table
+%   (refreshArtChannelTable, from ArtView.summary) and summary label with the
+%   number of samples flagged per channel and the percent of the recording
+%   that would be blanked, then shows the first detected artifact in the
+%   viewer (showArtifactView). Read-only: nothing is written to disk.
 %
 %   See also EphysDataset.analyzeArtifacts, buildArtifactsTab, showArtifactView.
 
@@ -36,7 +37,8 @@ try
 
     if isvalid(dlg); close(dlg); end
 
-    fillArtifactTable(obj, summary);
+    obj.ArtView.summary = summary;
+    obj.refreshArtChannelTable();
     obj.ArtSummaryLabel.Text = summaryText(summary, ...
         logical(obj.ArtEnableCheckBox.Value));
     obj.ArtStatusLabel.Text = sprintf("Analyzed %s (%d file(s)).", ...
@@ -71,31 +73,9 @@ dlg.Message = sprintf("Chunk %d/%d: %s", i, n, name);
 end
 
 
-function fillArtifactTable(obj, s)
-%fillArtifactTable  Per-channel counts -> the Artifacts table.
-nCh = s.nChan;
-if nCh == 0
-    obj.ArtChannelTable.Data = cell(0, 4);
-    return
-end
-ch    = (1:nCh).';
-names = s.channelNames;
-if numel(names) ~= nCh
-    names = "ch" + string(ch);
-end
-C = cell(nCh, 4);
-for k = 1:nCh
-    C{k, 1} = ch(k);
-    C{k, 2} = char(names(k));
-    C{k, 3} = s.channelCounts(k);
-    C{k, 4} = sprintf('%.3f', s.channelPct(k));
-end
-obj.ArtChannelTable.Data = C;
-end
-
-
 function t = summaryText(s, enabled)
-%summaryText  Aggregate artifact statistics as a monospaced block.
+%summaryText  Aggregate artifact statistics as a monospaced block, its lines
+%   short enough for the Artifacts tab's right column.
 if s.nChan > 0
     [pkPct, pkCh] = max(s.channelPct);
 else
@@ -107,20 +87,19 @@ else
     winStr = 'n/a';
 end
 lines = {
-    sprintf('Method        : %s   threshold %g', char(s.method), s.threshold)
-    sprintf('RMS window    : %s', winStr)
-    sprintf('Stitch gap    : %g ms     Pad: %g ms     MinCh: %d', ...
-        s.mergeGapMs, s.padMs, s.minChannels)
-    sprintf('Duration      : %.2f s  (%d samples, fs=%g, %d ch)', ...
-        s.durationSec, s.nSamples, s.fs, s.nChan)
+    sprintf('Method      %s, threshold %g', char(s.method), s.threshold)
+    sprintf('RMS window  %s', winStr)
+    sprintf('Stitch gap  %g ms, pad %g ms', s.mergeGapMs, s.padMs)
+    sprintf('Min chans   %d', s.minChannels)
+    sprintf('Duration    %.2f s, %d ch', s.durationSec, s.nChan)
+    sprintf('            %d samples, %g Hz', s.nSamples, s.fs)
     ''
-    sprintf('Blanked       : %d samples = %.3f%% of duration', s.nBlanked, s.pctDuration)
-    sprintf('Intervals     : %d', s.nIntervals)
-    sprintf('Worst channel : %d (%.3f%% flagged)', pkCh, pkPct)
+    sprintf('Blanked     %d samples (%.3f%%)', s.nBlanked, s.pctDuration)
+    sprintf('Intervals   %d', s.nIntervals)
+    sprintf('Worst ch    %d (%.3f%% flagged)', pkCh, pkPct)
     ''
-    sprintf('On sort run   : %s', ternary(enabled, ...
-        'SILENCED (flagged samples zeroed via SpikeInterface)', ...
-        'NOT silenced (tick "Silence artifacts" on the Kilosort tab to enable)'))
+    sprintf('On a run    %s', ternary(enabled, 'applied: detection is on', ...
+        'not applied: detection is off'))
     };
 t = strjoin(lines, newline);
 end

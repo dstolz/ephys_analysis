@@ -1321,6 +1321,27 @@ else
     fprintf('  (toMat-based export check skipped: no Signal Processing Toolbox)\n');
 end
 
+fprintf('\n== 21. channelLayout (the recording channels on the probe) ==\n');
+lay = fullfile(root, 'layout'); mkdir(lay);
+rng(7);
+writeSyntheticRHD(fullfile(lay, 'lay.rhd'), uint16(randi([0 65535], 5, spb)), zeros(1, spb), Fs, spb, ...
+    AmpNames=["c5" "c2" "c7" "c0" "c9"], AmpNative=["A-005" "A-002" "A-007" "A-000" "A-009"]);
+dl = EphysDataset(lay);
+L0 = dl.channelLayout();
+check(isequal(dl.ChannelNumbers, [5 2 7 0 9]) && ~L0.hasProbe && isequal(L0.order, 1:5) && all(isnan(L0.shank)), ...
+    'without a probe no channel is placed and the order is the recording''s');
+layProbe = fullfile(lay, 'probe.json');
+writeJsonFile(layProbe, struct('chanMap', [0; 2; 5; 7], 'xc', zeros(4, 1), 'yc', [0; 10; 20; 30], 'kcoords', [1; 1; 2; 2]));
+dl.ProbeFile = layProbe;
+L = dl.channelLayout();
+check(L.hasProbe && isequaln(L.shank, [2 1 2 1 NaN]) && isequaln(L.y, [20 10 30 0 NaN]) ...
+    && isequal(L.order, [2 4 3 1 5]) && isequal(L.shanks, [1 2]), ...
+    'chanMap values are hardware numbers: by shank, top down, the channel off the probe last');
+writeJsonFile(layProbe, struct('chanMap', [0; 2; 5; 7], 'xc', [0; 10; 0; 10], 'yc', zeros(4, 1)));
+L = dl.channelLayout();
+check(isequaln(L.shank, [1 1 1 1 NaN]) && isequal(L.order, [1 4 2 3 5]), ...
+    'without kcoords every site is on shank 1; a row runs left to right');
+
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0
     error('test_EphysDataset:Failures', '%d checks failed.', nFail);

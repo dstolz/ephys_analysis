@@ -280,6 +280,7 @@ classdef EphysPreprocessingApp < handle
         ArtApplySortingCheckBox matlab.ui.control.CheckBox
         ArtApplySpikesCheckBox  matlab.ui.control.CheckBox
         ArtCacheCheckBox    matlab.ui.control.CheckBox
+        ArtProbeOrderCheckBox matlab.ui.control.CheckBox         % plot / table in probe order (syncArtProbeControls)
         ArtDetectButton     matlab.ui.control.Button
         ArtSummaryLabel     matlab.ui.control.Label
         ArtChannelTable     matlab.ui.control.Table
@@ -295,6 +296,9 @@ classdef EphysPreprocessingApp < handle
         ArtViewContextField matlab.ui.control.NumericEditField
         ArtViewChannelsField matlab.ui.control.NumericEditField
         ArtViewScaleDropDown matlab.ui.control.DropDown
+        ArtViewShankDropDown matlab.ui.control.DropDown
+        ArtViewShankColorCheckBox matlab.ui.control.CheckBox
+        ArtViewResetButton  matlab.ui.control.Button
         ArtViewNoteLabel    matlab.ui.control.Label              % what red / black mean on a run
         ArtViewAxes         matlab.ui.control.UIAxes
 
@@ -601,10 +605,22 @@ classdef EphysPreprocessingApp < handle
         % intervals: the last preview's detected artifacts (recording-relative
         % s) and previewed: whether a preview ran for the active dataset;
         % settings: the detection settings it ran with (a change makes it
-        % stale); chunk: the last chunk read, for readers without random
-        % access; win: the window being drawn.
+        % stale); summary: its analyzeArtifacts result (the per-channel
+        % table); chunk: the last chunk read, for readers without random
+        % access; win: the window being drawn; drawn: what the axes show
+        % (the window's key, its full time span and envelope resolution);
+        % gain: the voltage scale (onArtViewInput); layout / layoutKey: the
+        % active dataset's channelLayout and the dataset + probe it is for;
+        % mods: the modifier keys held (wheel events carry none).
         ArtView struct = struct('intervals', zeros(0, 2), 'previewed', false, ...
-            'settings', struct(), 'chunk', [], 'win', [])
+            'settings', struct(), 'summary', [], 'chunk', [], 'win', [], ...
+            'drawn', struct('key', [], 'span', [0 1], 'factor', 1, 'decimated', false), 'gain', 1, ...
+            'layout', [], 'layoutKey', "", 'mods', strings(1, 0))
+
+        % Figure wheel / key handlers installed before routeFigureInput (the
+        % Visualize viewer's): they get the events when the Artifacts tab is
+        % not showing.
+        FigInput struct = struct('scroll', [], 'key', [], 'release', [])
 
         % --- Trials tab state (in memory; the pairing is saved via Approve) ---
         TrialsEvents = []                    % EphysDataset.digitalEvents(Relabel=false) of the loaded dataset (native-keyed; see namedTrialsEvents)
@@ -841,6 +857,10 @@ classdef EphysPreprocessingApp < handle
         onClearManualArtifacts(obj)
         showArtifactView(obj)
         drawArtifactView(obj)
+        tf = onArtViewInput(obj, kind, evt)
+        syncArtProbeControls(obj)
+        refreshArtChannelTable(obj)
+        routeFigureInput(obj)
 
         % --- Visualize tab ---
         onPlotVisualization(obj)

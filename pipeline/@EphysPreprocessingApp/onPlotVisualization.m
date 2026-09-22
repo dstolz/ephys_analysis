@@ -189,7 +189,8 @@ try
         % First plot: construct the viewer once, parented to the Visualize
         % axes. It self-attaches its own scroll/drag/keyboard callbacks; the
         % app then re-asserts WindowButtonDown/UpFcn so plain-left artifact
-        % marking still takes precedence over the viewer's pan gesture.
+        % marking still takes precedence over the viewer's pan gesture, and
+        % shares the wheel and keys with the Artifacts tab's plot again.
         obj.Viewer = MultiChannelViewer(X, Fs, Parent=obj.VizAxes, ...
             ChannelNames=chanNames, Units="uV", ...
             Mode=string(obj.VizModeDropDown.Value), ...
@@ -200,6 +201,7 @@ try
             PostRenderFcn=@() obj.drawVizArtifacts());
         obj.Fig.WindowButtonDownFcn = @(~, ~) obj.onVizButtonDown();
         obj.Fig.WindowButtonUpFcn   = @(~, ~) obj.onVizButtonUp();
+        obj.routeFigureInput();
     else
         % Subsequent plots: reuse the same instance (and its callback/KeyMap
         % wiring) with the newly streamed data.

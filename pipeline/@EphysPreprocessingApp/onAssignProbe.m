@@ -58,6 +58,7 @@ for k = 1:numel(targets)
 end
 
 obj.refreshDatasetsTable();
+obj.syncArtProbeControls();   % the active dataset's probe may have changed
 [~, pn, pe] = fileparts(pf);
 msg = sprintf("Assigned %s to %d dataset(s).", pn + pe, numel(targets));
 if scope == "all" && ~isempty(ch)

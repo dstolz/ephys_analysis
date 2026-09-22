@@ -49,6 +49,7 @@ if changed
 end
 obj.syncExcludeField();
 obj.onProbeSelected();
+obj.syncArtProbeControls();
 obj.updatePhyButtonState();
 obj.refreshSortingLabel();
 obj.refreshManualArtifactsTable();
@@ -68,8 +69,10 @@ if isempty(d)
 else
     obj.ArtSummaryLabel.Text = "Press Detect / Preview to analyze " + d.Name + ".";
 end
-obj.ArtChannelTable.Data = cell(0, 4);
 obj.ArtStatusLabel.Text = "";
+obj.ArtView.summary = [];
+obj.ArtView.layout = [];         % read again (syncArtProbeControls)
+obj.refreshArtChannelTable();
 obj.ArtView.intervals = zeros(0, 2);
 obj.ArtView.previewed = false;
 obj.ArtView.chunk = [];

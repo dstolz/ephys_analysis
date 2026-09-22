@@ -100,14 +100,18 @@ if ispref(g, 'CopyOptions')
     end
 end
 
-% --- Clean up tab: the kinds of file to remove (one struct) ---
+% --- Clean up tab: the kinds of file to remove and where they go (one struct) ---
 if ispref(g, 'CleanupOptions')
     v = getpref(g, 'CleanupOptions');
     if isstruct(v)
         applyIf(v, 'raw',        @(x) set(obj.CleanupRawCheckBox, 'Value', logical(x)));
         applyIf(v, 'sorterCopy', @(x) set(obj.CleanupSorterCopyCheckBox, 'Value', logical(x)));
         applyIf(v, 'bin',        @(x) set(obj.CleanupBinCheckBox, 'Value', logical(x)));
+        applyIf(v, 'steps',      @(x) arrayfun(@(b) set(b, 'Value', ismember(b.Tag, cellstr(x))), obj.CleanupStepCheckBoxes));
+        applyIf(v, 'method',     @(x) set(obj.CleanupMethodDropDown, 'Value', char(x)));
+        applyIf(v, 'destination', @(x) set(obj.CleanupDestField, 'Value', char(x)));
         applyIf(v, 'showKept',   @(x) set(obj.CleanupShowKeptCheckBox, 'Value', logical(x)));
+        obj.onCleanupMethodChanged();
     end
 end
 

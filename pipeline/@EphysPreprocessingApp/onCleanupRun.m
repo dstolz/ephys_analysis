@@ -1,13 +1,16 @@
 function onCleanupRun(obj)
-%onCleanupRun  Confirm, then delete the ticked Remove rows of the Clean up preview (runLocalCleanup).
-%   The confirmation lists what goes, by kind, and what stays, and says how
-%   many ticked files the table's filters hide. Nothing is
-%   deleted while the pipeline, a copy or a Kilosort4 run is under way,
-%   since any of them may be using the files. Afterwards the preview is
-%   made again, so the table shows what is left.
+%onCleanupRun  Confirm, then remove the ticked Remove rows of the Clean up preview (runCleanup).
+%   The confirmation says how the files go (deleted, to the Recycle Bin, or
+%   moved to the folder given), lists what goes, by kind and step, and what
+%   stays, warns when phy curation or unit notes go with a sorting, and
+%   says how many ticked files the table's filters hide. Nothing is
+%   removed while the pipeline, a copy or a Kilosort4 run is under way,
+%   since any of them may be using the files. A move needs a folder
+%   outside the project and output roots, where a scan would find the
+%   files again.
 T = obj.CleanupPlan;
 if isempty(T); return; end
-% an unticked Remove row stays: runLocalCleanup deletes only Action "remove"
+% an unticked Remove row stays: runLocalCleanup removes only Action "remove"
 hidden = setdiff(find(T.Action == "remove" & T.Include), obj.CleanupRowMap);
 unticked = T.Action == "remove" & ~T.Include;
 T.Action(unticked) = "keep";
@@ -27,75 +30,113 @@ if busy ~= ""
     uialert(obj.Fig, busy + " Clean up once it has finished.", "Clean up");
     return
 end
+method = string(obj.CleanupMethodDropDown.Value);
+dest = strtrim(string(obj.CleanupDestField.Value));
+if method == "move"
+    why = destinationProblem(obj, dest);
+    if why ~= ""
+        uialert(obj.Fig, why, "Clean up");
+        return
+    end
+end
 
 rm = T(T.Action == "remove", :);
 kept = T(T.Action == "keep", :);
-kinds = ["raw" "sorter_copy" "bin"];
-words = ["Raw recording files (a copy of the same size is at the source)", ...
-    "Kilosort4's filtered copy of the recording", "Sorting input .bin files"];
-lines = strings(0, 1);
-for k = 1:numel(kinds)
-    sel = rm.Category == kinds(k);
-    if any(sel)
-        lines(end+1) = sprintf("  - %s: %d file(s), %s", words(k), nnz(sel), bytesText(sum(rm.Bytes(sel)))); %#ok<AGROW>
-    end
-end
 nDs = numel(unique(rm.Dataset));
-msg = [sprintf("Permanently delete %d file(s), %s, from %d dataset(s)?", height(rm), bytesText(sum(rm.Bytes)), nDs)
-    lines
-    ""
-    sprintf("%d file(s), %s, remain: every pipeline output, the sorted units, the manifests and the Epsych2 sessions.", ...
-        height(kept), bytesText(sum(kept.Bytes)))
-    "The files are deleted, not moved to the Recycle Bin."];
+switch method
+    case "delete"
+        dlgTitle = "Delete local files";
+        head = sprintf("Permanently delete %d file(s), %s, from %d dataset(s)?", height(rm), bytesText(sum(rm.Bytes)), nDs);
+        how = "The files are deleted for good, not moved to the Recycle Bin.";
+        button = sprintf('Delete %d file(s)', height(rm));
+    case "recycle"
+        dlgTitle = "Move local files to the Recycle Bin";
+        head = sprintf("Move %d file(s), %s, from %d dataset(s) to the Recycle Bin?", height(rm), bytesText(sum(rm.Bytes)), nDs);
+        how = "They can be restored from there; the space is freed only when the Recycle Bin is emptied. " + ...
+            "A file on a drive without a Recycle Bin (network, removable) or too large for it is skipped, not deleted.";
+        button = sprintf('Recycle %d file(s)', height(rm));
+    case "move"
+        dlgTitle = "Move local files";
+        head = sprintf("Move %d file(s), %s, from %d dataset(s) to %s?", height(rm), bytesText(sum(rm.Bytes)), nDs, dest);
+        how = "Each keeps its path below " + fullfile(dest, "<dataset key>") + "; a file already there is never overwritten.";
+        button = sprintf('Move %d file(s)', height(rm));
+end
+msg = [head; groupLines(obj, rm); ""
+    sprintf("%d file(s), %s, remain.", height(kept), bytesText(sum(kept.Bytes))); how];
+curated = unique(rm.Dataset(rm.Category == "sorting" & endsWith(lower(rm.File), ["cluster_group.tsv" "cluster_notes.tsv"])));
+if ~isempty(curated)
+    msg = [msg; ""; sprintf("The sorted units of %d dataset(s) carry phy curation or unit notes " + ...
+        "(cluster_group.tsv / cluster_notes.tsv), which go with them.", numel(curated))];
+end
 if ~isempty(hidden)
-    msg = [msg; ""; sprintf("%d of the files to delete are ticked but hidden by the search, Subject or Show filters.", numel(hidden))];
+    msg = [msg; ""; sprintf("%d of the files to remove are ticked but hidden by the search, Subject or Show filters.", numel(hidden))];
 end
 if any(rm.Category == "raw")
     msg = [msg; ""; "Datasets whose raw recording is removed cannot be run, viewed or scanned until they are copied back from the source."];
 end
-answer = uiconfirm(obj.Fig, strjoin(msg, newline), "Delete local files", ...
-    "Options", {sprintf('Delete %d file(s)', height(rm)), 'Cancel'}, ...
-    "DefaultOption", 2, "CancelOption", 2, "Icon", "warning");
+answer = uiconfirm(obj.Fig, strjoin(msg, newline), dlgTitle, ...
+    "Options", {button, 'Cancel'}, "DefaultOption", 2, "CancelOption", 2, "Icon", "warning");
 if answer == "Cancel"
-    obj.setStatus("Clean up cancelled; nothing was deleted.", "");
+    obj.setStatus("Clean up cancelled; nothing was removed.", "");
     return
 end
-
-obj.CleanupRunButton.Enable = "off";
-obj.CleanupPreviewButton.Enable = "off";
-restore = onCleanup(@() set(obj.CleanupPreviewButton, "Enable", "on"));
-cleanupLog(obj, sprintf("Deleting %d file(s) from %d dataset(s)...", height(rm), nDs));
-R = runLocalCleanup(T, LogFcn=@(m) cleanupLog(obj, m));
-done = R.Status == "removed";
-summary = sprintf("Removed %d file(s), %s.", nnz(done), bytesText(sum(R.Bytes(done))));
-if any(~done)
-    summary = summary + sprintf(" %d file(s) left in place (see the log).", nnz(~done));
-end
-cleanupLog(obj, summary);
-
-obj.onCleanupPreview();   % show what is left
-hint = "";
-if any(done & R.Category == "raw")
-    hint = "Scan the project again: datasets whose raw recording was removed drop out of it.";
-end
-obj.setStatus("Clean up: " + summary, hint);
-if any(~done)
-    uialert(obj.Fig, summary, "Clean up", "Icon", "warning");
-end
+obj.runCleanup(T);
 end
 
 
-function cleanupLog(obj, msg)
-%cleanupLog  Append a timestamped line to the Clean up log (MSG used as is).
-if isempty(obj.CleanupLogArea) || ~isvalid(obj.CleanupLogArea); return; end
-line = string(datetime('now', 'Format', 'HH:mm:ss')) + "  " + string(msg);
-cur = obj.CleanupLogArea.Value;
-if isscalar(cur) && strlength(string(cur{1})) == 0
-    cur = cell(0, 1);
+function lines = groupLines(obj, rm)
+%groupLines  One line per kind of file going: raw, sorter copy and .bin when ticked as such, else by step.
+kindTicked = ["raw" "sorter_copy" "bin"];
+kindTicked = kindTicked([obj.CleanupRawCheckBox.Value, obj.CleanupSorterCopyCheckBox.Value, obj.CleanupBinCheckBox.Value]);
+group = "step:" + rm.Step;
+own = ismember(rm.Category, kindTicked);
+group(own) = rm.Category(own);
+words = ["raw" "Raw recording files (a copy of the same size is at the source)"
+    "sorter_copy" "Kilosort4's filtered copy of the recording"
+    "bin" "Sorting input .bin files"
+    "step:sorting" "Sorting output: the kilosort4 folders (sorted units, phy curation, unit notes, logs) and .bin files"
+    "step:signals" "Signals output (derived-signal .mat files)"
+    "step:spikes" "Spikes output"
+    "step:behavior" "Behavior output and digital events caches"
+    "step:artifacts" "Artifact caches"
+    "step:export" "Export files (Chronux, FieldTrip, epochs)"];
+lines = strings(0, 1);
+for k = 1:size(words, 1)
+    sel = group == words(k, 1);
+    if any(sel)
+        lines(end+1, 1) = sprintf("  - %s: %d file(s), %s", words(k, 2), nnz(sel), bytesText(sum(rm.Bytes(sel)))); %#ok<AGROW>
+    end
 end
-obj.CleanupLogArea.Value = [cur; cellstr(line)];
-scroll(obj.CleanupLogArea, 'bottom');
-drawnow limitrate;
+end
+
+
+function why = destinationProblem(obj, dest)
+%destinationProblem  Why DEST cannot take moved files ("" when it can).
+why = "";
+if dest == ""
+    why = "Choose the folder to move the files into (Browse...).";
+    return
+end
+if isempty(regexp(dest, '^([A-Za-z]:([\\/]|$)|\\\\)', 'once'))
+    why = "The folder to move the files into must be a full path: " + dest;
+    return
+end
+roots = [string(obj.Project.Root), string(obj.Project.OutputRoot)];
+for r = roots(strlength(roots) > 0)
+    if under(dest, r)
+        why = sprintf("%s is inside the project folder %s, where a scan would find the moved files again. " + ...
+            "Choose a folder outside it.", dest, r);
+        return
+    end
+end
+end
+
+
+function tf = under(p, root)
+%under  True when folder P is ROOT or inside it.
+p = strip(strrep(string(p), "/", filesep), 'right', filesep);
+root = strip(strrep(string(root), "/", filesep), 'right', filesep);
+tf = strcmpi(p, root) || startsWith(lower(p), lower(root) + filesep);
 end
 
 

@@ -946,8 +946,48 @@ app.CleanupSorterCopyCheckBox.Value = false;
 app.onCleanupSettingsChanged();
 check(isempty(app.CleanupPlan) && app.CleanupRunButton.Enable == "off" && contains(app.CleanupSummaryLabel.Text, "Preview again"), ...
     'changing the kinds to remove discards the preview until Preview is pressed again');
+check(numel(app.CleanupStepCheckBoxes) == 6 && isequal(string({app.CleanupStepCheckBoxes.Tag}), ...
+    ["sorting" "signals" "spikes" "behavior" "artifacts" "export"]) && ~any([app.CleanupStepCheckBoxes.Value]) ...
+    && string(app.CleanupMethodDropDown.Value) == "delete" && app.CleanupDestField.Enable == "off" ...
+    && app.CleanupRunButton.Text == "Delete files...", ...
+    'one box per step that writes files, none ticked; files are deleted by default and the folder field is off');
+writelines('{"state": "done"}', fullfile(ksRoot, 'ks4_status.json'));
+app.CleanupStepCheckBoxes(1).Value = true;   % Sorting (Kilosort4)
+app.onCleanupSettingsChanged();
+app.onCleanupPreview();
+P = app.CleanupPlan;
+inKs = startsWith(P.File, string(ksRoot) + filesep);
+check(nnz(inKs) == 2 && all(P.Action(inKs) == "remove") && all(P.Step(inKs) == "sorting") ...
+    && ~any(P.Action(~inKs & P.Step ~= "sorting") == "remove"), ...
+    'ticking Sorting marks everything in the kilosort4 folder Remove, and nothing outside the step''s files');
+app.CleanupMethodDropDown.Value = 'move';
+app.onCleanupMethodChanged();
+check(app.CleanupDestField.Enable == "on" && app.CleanupRunButton.Text == "Move files..." && ~isempty(app.CleanupPlan), ...
+    'Move to a folder turns the folder field on and keeps the preview');
+app.CleanupDestField.Value = fullfile(proj, 'moved');
+app.onCleanupRun();   % refused with an alert, before any confirmation
+check(all(isfile(P.File(inKs))) && ~isfolder(fullfile(proj, 'moved')), ...
+    'a folder inside the project root is refused and nothing moves');
+moveDest = fullfile(root, 'moved');
+app.CleanupDestField.Value = moveDest;
+R = app.runCleanup(app.CleanupPlan);
+movedTo = string(fullfile(moveDest, R.Key, extractAfter(R.File, strlength(R.Root) + 1)));
+check(height(R) == nnz(P.Action == "remove") && all(R.Status == "removed") && isequal(R.To, movedTo) ...
+    && all(isfile(movedTo)) && ~isfolder(ksRoot) && ~any(startsWith(app.CleanupPlan.File, string(ksRoot))) ...
+    && contains(string(app.CleanupLogArea.Value{end}), "Moved") ...
+    && isfile(fullfile(f1, app.Project.Datasets(1).Name + "_cleanup.json")), ...
+    'Move files moves them to <folder>\<dataset key>\..., removes the emptied kilosort4 folder, keeps a record and previews again');
+app.savePreferences();
+v = getpref(g, 'CleanupOptions');
+check(isequal(string(v.steps), "sorting") && string(v.method) == "move" && string(v.destination) == string(moveDest), ...
+    'the ticked steps, the method and the folder are saved as preferences');
+app.CleanupStepCheckBoxes(1).Value = false;
 app.CleanupSorterCopyCheckBox.Value = true;
-rmdir(ksRoot, 's');
+app.CleanupMethodDropDown.Value = 'delete';
+app.CleanupDestField.Value = '';
+app.onCleanupMethodChanged();
+app.onCleanupSettingsChanged();
+if isfolder(ksRoot); rmdir(ksRoot, 's'); end
 app.selectTab(app.TabProject);
 
 fprintf('\n== 4e. Run tab: background Kilosort4 runs, N at a time ==\n');

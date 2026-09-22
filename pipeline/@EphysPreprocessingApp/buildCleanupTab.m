@@ -1,9 +1,10 @@
 function buildCleanupTab(obj)
-%buildCleanupTab  Clean up tab: free local disk space once datasets are preprocessed.
+%buildCleanupTab  Clean up tab: free local disk space, or remove what preprocessing steps wrote.
 %   Lists every local file of the selected datasets as Remove or Keep
 %   (planLocalCleanup) and, after a confirmation that says what goes and
-%   what stays, deletes the Remove rows (runLocalCleanup). Not a pipeline
-%   step and not part of the config: the kinds ticked are a preference.
+%   what stays, deletes the Remove rows, sends them to the Recycle Bin or
+%   moves them to a folder (runLocalCleanup). Not a pipeline step and not
+%   part of the config: the kinds ticked and where files go are preferences.
 
 g = uigridlayout(obj.TabCleanup, [1 2]);
 g.ColumnWidth = {400, '1x'};
@@ -13,15 +14,21 @@ stale = @(~,~) obj.onCleanupSettingsChanged();
 % =================== left: what to remove ===================
 opt = uipanel(g, "Title", "What to remove (planLocalCleanup / runLocalCleanup)");
 opt.Layout.Column = 1;
-cg = uigridlayout(opt, [13 2]);
-cg.RowHeight   = {'fit', 22, 24, 'fit', 24, 'fit', 24, 'fit', 22, 'fit', 'fit', 32, '1x'};
+og = uigridlayout(opt, [2 1]);   % the options scroll; the buttons under them stay in view
+og.RowHeight = {'1x', 32};
+og.Padding = [0 10 0 0];
+og.RowSpacing = 6;
+cg = uigridlayout(og, [18 2]);
+cg.Layout.Row = 1;
+cg.RowHeight   = {'fit', 22, 24, 'fit', 24, 'fit', 24, 'fit', 22, 'fit', 'fit', 22, 'fit', 22, 24, 26, 'fit', '1x'};
 cg.ColumnWidth = {'1x', '1x'};
 cg.RowSpacing  = 4;
+cg.Scrollable  = "on";
 
 obj.CleanupScopeLabel = uilabel(cg, "WordWrap", "on", "Text", "Scan a project first.");
 obj.CleanupScopeLabel.Layout.Row = 1; obj.CleanupScopeLabel.Layout.Column = [1 2];
 
-sep(cg, "Remove, for the selected datasets", 2);
+sep(cg, "Free space (the outputs stay), for the selected datasets", 2);
 obj.CleanupRawCheckBox = uicheckbox(cg, "Text", "Raw recording files", "Value", true, ...
     "FontWeight", "bold", "ValueChangedFcn", stale);
 obj.CleanupRawCheckBox.Layout.Row = 3; obj.CleanupRawCheckBox.Layout.Column = [1 2];
@@ -39,22 +46,58 @@ obj.CleanupBinCheckBox.Layout.Row = 7; obj.CleanupBinCheckBox.Layout.Column = [1
 note(cg, 8, "The flat binary toBin writes for the native Kilosort engine, as large as the raw recording. " + ...
     "As above: the sorted units do not need it; phy's trace view does.");
 
-sep(cg, "Always kept", 9);
-note(cg, 10, "Every pipeline output (extract, spikes, behavior, events, artifacts, toolbox exports)," + ...
-    "the sorted output (phy files), the dataset manifest, the copy record (session_manifest.json), " + ...
-    "the Epsych2 session file and any file not named above. Nothing on the source is touched.");
-note(cg, 11, "Files are deleted outright, not moved to the Recycle Bin. Each dataset gets <Name>_cleanup.json " + ...
-    "listing what was removed and where its source copy is.");
+% one box per step that writes files (the probe step writes none)
+sep(cg, "Remove what a preprocessing step wrote", 9);
+sg = uigridlayout(cg, [3 2]);
+sg.Layout.Row = 10; sg.Layout.Column = [1 2];
+sg.RowHeight = {22, 22, 22}; sg.ColumnWidth = {'1x', '1x'};
+sg.Padding = [0 0 0 0]; sg.RowSpacing = 2;
+steps = ["sorting" "Sorting (Kilosort4)" "The kilosort4 folder (the sorted units with their phy curation and unit notes, " + ...
+        "run files, logs, Kilosort4's copy of the recording) and <Name>.bin + .json. A sorted-output folder chosen by hand is kept."
+    "signals" "Signals" "The derived-signal .mat files (<Name>_extract*.mat, or the configured suffix and folder)."
+    "spikes" "Spikes" "The spikes .mat (<Name>_spikes.mat, or the configured suffix and folder)."
+    "behavior" "Behavior" "<Name>_behavior.mat and the digital events cache <Name>_events.mat. The trial pairing in the manifest stays."
+    "artifacts" "Artifacts" "The artifact-interval cache <Name>_artifacts.json. Manual artifact periods (in the manifest) stay."
+    "export" "Export" "The Chronux, FieldTrip and epochs .mat files."];
+for k = 1:size(steps, 1)
+    obj.CleanupStepCheckBoxes(k) = uicheckbox(sg, "Text", steps(k, 2), "Tag", steps(k, 1), ...
+        "Value", false, "Tooltip", steps(k, 3), "ValueChangedFcn", stale);
+end
+note(cg, 11, "Everything the step wrote, to run it again or drop it (hover over a box for its files). " + ...
+    "Sorting takes the whole kilosort4 folder, phy curation included.");
 
-obj.CleanupPreviewButton = uibutton(cg, "Text", "Preview", "FontWeight", "bold", ...
+sep(cg, "Always kept", 12);
+note(cg, 13, "The outputs of the steps not ticked, the manifests, the copy record, the Epsych2 session file, " + ...
+    "the clean-up record and any other file. Nothing on the source is touched.");
+
+% where removed files go (acts on the preview as it is: changing it keeps the preview)
+sep(cg, "Removed files go", 14);
+ways = ["delete" "Delete permanently"; "recycle" "Move to the Recycle Bin"; "move" "Move to a folder"];
+if ~ispc; ways(2, :) = []; end   % the Recycle Bin is Windows only
+obj.CleanupMethodDropDown = uidropdown(cg, "Items", cellstr(ways(:, 2)), "ItemsData", cellstr(ways(:, 1)), ...
+    "Value", 'delete', "Tooltip", "What happens to the Remove files of the preview.", ...
+    "ValueChangedFcn", @(~,~) obj.onCleanupMethodChanged());
+obj.CleanupMethodDropDown.Layout.Row = 15; obj.CleanupMethodDropDown.Layout.Column = [1 2];
+dg = uigridlayout(cg, [1 2]);
+dg.Layout.Row = 16; dg.Layout.Column = [1 2];
+dg.ColumnWidth = {'1x', 80}; dg.Padding = [0 0 0 0];
+obj.CleanupDestField = uieditfield(dg, "text", "Placeholder", "Folder to move the files into", ...
+    "Tooltip", "Each file goes to <folder>\<dataset key>\<its path in the dataset folder>. " + ...
+    "Not inside the project or output root, where a scan would find the files again.");
+obj.CleanupDestButton = uibutton(dg, "Text", "Browse...", ...
+    "ButtonPushedFcn", @(~,~) obj.onCleanupBrowseDest());
+obj.CleanupMethodNote = uilabel(cg, "Text", "", "WordWrap", "on", "FontColor", [0.4 0.4 0.4]);
+obj.CleanupMethodNote.Layout.Row = 17; obj.CleanupMethodNote.Layout.Column = [1 2];
+
+pb = uigridlayout(og, [1 2]);
+pb.Layout.Row = 2;
+pb.Padding = [10 0 10 0];
+obj.CleanupPreviewButton = uibutton(pb, "Text", "Preview", ...   % primary, and Run danger (buildUI styleButtons)
     "Tooltip", "List the files of the selected datasets as Remove or Keep; nothing is changed.", ...
     "ButtonPushedFcn", @(~,~) obj.onCleanupPreview());
-obj.CleanupPreviewButton.Layout.Row = 12; obj.CleanupPreviewButton.Layout.Column = 1;
-obj.CleanupRunButton = uibutton(cg, "Text", "Remove files...", "Enable", "off", ...
-    "BackgroundColor", [0.80 0.25 0.20], "FontColor", [1 1 1], "FontWeight", "bold", ...
-    "Tooltip", "Delete the Remove rows of the preview, after a confirmation.", ...
+obj.CleanupRunButton = uibutton(pb, "Text", "Delete files...", "Enable", "off", ...
     "ButtonPushedFcn", @(~,~) obj.onCleanupRun());
-obj.CleanupRunButton.Layout.Row = 12; obj.CleanupRunButton.Layout.Column = 2;
+obj.onCleanupMethodChanged();
 
 % =================== right: the files ===================
 % Include ticks which Remove files go (Keep files cannot be ticked); the

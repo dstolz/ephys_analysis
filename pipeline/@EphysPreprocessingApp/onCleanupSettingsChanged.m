@@ -2,7 +2,7 @@ function onCleanupSettingsChanged(obj, why)
 %onCleanupSettingsChanged  Drop the Clean up preview when what it was made for has changed.
 %   A preview is only ever acted on as shown, so a change of the kinds to
 %   remove (or of the dataset selection, see refreshCleanupScope) discards
-%   it and Remove files... waits for a new Preview.
+%   it and the Delete / Recycle / Move files... button waits for a new Preview.
 arguments
     obj
     why (1,1) string = "The kinds to remove changed"

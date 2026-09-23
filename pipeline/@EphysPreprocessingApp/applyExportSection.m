@@ -18,6 +18,7 @@ obj.setControlValue(obj.ExpEpochPostField, E.EpochWindow(2), "Export.EpochWindow
 obj.setDropIfMember(obj.ExpEpochOnsetRuleDropDown, E.EpochOnsetRule, "Export.EpochOnsetRule");
 obj.setDropIfMember(obj.ExpEpochIncompleteDropDown, E.EpochIncomplete, "Export.EpochIncomplete");
 obj.setDropIfMember(obj.ExpEpochNonFiniteDropDown, E.EpochNonFinite, "Export.EpochNonFinite");
+obj.setDropIfMember(obj.ExpEpochArtifactsDropDown, E.EpochArtifacts, "Export.EpochArtifacts");
 obj.setDropIfMember(obj.ExpEpochSpikeBaseDropDown, E.EpochSpikeTimeBase, "Export.EpochSpikeTimeBase");
 obj.setDropIfMember(obj.ExpEpochClassDropDown, E.EpochClass, "Export.EpochClass");
 obj.ExpOutputDirField.Value    = char(E.OutputDir);

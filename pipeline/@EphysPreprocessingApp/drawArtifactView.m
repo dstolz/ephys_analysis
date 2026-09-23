@@ -312,7 +312,7 @@ end
 function tf = autoRemoved(obj)
 % Whether a run removes the detected artifacts, with the controls as they are.
 tf = logical(obj.ArtEnableCheckBox.Value) && (logical(obj.ArtApplySortingCheckBox.Value) ...
-    || logical(obj.ArtApplySpikesCheckBox.Value));
+    || logical(obj.ArtApplySpikesCheckBox.Value) || logical(obj.ArtApplySignalsCheckBox.Value));
 end
 
 
@@ -321,20 +321,21 @@ function [s, color] = removalNote(obj, V)
 s = "";
 color = [0.3 0.3 0.3];
 if ~V.previewed; return; end
-toSort = logical(obj.ArtApplySortingCheckBox.Value);
-toSpk  = logical(obj.ArtApplySpikesCheckBox.Value);
 if autoRemoved(obj)
-    if toSort && toSpk
-        uses = "replaced on every channel for sorting, and spikes inside are rejected";
-    elseif toSort
-        uses = "replaced on every channel for sorting (spike detection keeps it)";
-    else
-        uses = "spikes inside are rejected (sorting keeps the signal)";
+    uses = strings(1, 0);
+    if logical(obj.ArtApplySortingCheckBox.Value)
+        uses(end+1) = "replaced on every channel for sorting";
     end
-    s = "Red is what a run removes: " + uses + ". Black is kept.";
+    if logical(obj.ArtApplySpikesCheckBox.Value)
+        uses(end+1) = "spikes inside are rejected";
+    end
+    if logical(obj.ArtApplySignalsCheckBox.Value)
+        uses(end+1) = "erased in the signals (LFP / MUA / SPIKE)";
+    end
+    s = "Red is what a run removes: " + strjoin(uses, "; ") + ". Black is kept.";
 elseif logical(obj.ArtEnableCheckBox.Value)
-    s = "Silencing in sorting and rejecting spikes are both off, so a run keeps the detected " + ...
-        "artifacts (black). Manual periods (red) are always removed.";
+    s = "Erasing in sorting and in the signals and rejecting spikes are all off, so a run keeps the " + ...
+        "detected artifacts (black). Manual periods (red) are always removed.";
 else
     s = "Automatic detection is off, so a run keeps the detected artifacts (black). " + ...
         "Manual periods (red) are always removed.";

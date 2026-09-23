@@ -300,6 +300,7 @@ classdef EphysPreprocessingApp < handle
         ArtFillDropDown     matlab.ui.control.DropDown           % what replaces the artifact samples
         ArtApplySortingCheckBox matlab.ui.control.CheckBox
         ArtApplySpikesCheckBox  matlab.ui.control.CheckBox
+        ArtApplySignalsCheckBox matlab.ui.control.CheckBox
         ArtCacheCheckBox    matlab.ui.control.CheckBox
         ArtProbeOrderCheckBox matlab.ui.control.CheckBox         % plot / table in probe order (syncArtProbeControls)
         ArtDetectButton     matlab.ui.control.Button
@@ -467,6 +468,7 @@ classdef EphysPreprocessingApp < handle
         ConvMUACheckBox         matlab.ui.control.CheckBox
         ConvSPIKECheckBox       matlab.ui.control.CheckBox
         ConvAUXCheckBox         matlab.ui.control.CheckBox
+        SigBlankArtifactsCheckBox matlab.ui.control.CheckBox   % erase the artifact periods before deriving
         ConvLFPFsField          matlab.ui.control.NumericEditField
         ConvLFPHighpassCheckBox matlab.ui.control.CheckBox
         ConvLFPHighpassField    matlab.ui.control.NumericEditField
@@ -552,6 +554,7 @@ classdef EphysPreprocessingApp < handle
         ExpEpochOnsetRuleDropDown  matlab.ui.control.DropDown
         ExpEpochIncompleteDropDown matlab.ui.control.DropDown
         ExpEpochNonFiniteDropDown  matlab.ui.control.DropDown
+        ExpEpochArtifactsDropDown  matlab.ui.control.DropDown
         ExpEpochSpikeBaseDropDown  matlab.ui.control.DropDown
         ExpEpochClassDropDown      matlab.ui.control.DropDown
         ExpEpochsToWorkspaceButton matlab.ui.control.Button

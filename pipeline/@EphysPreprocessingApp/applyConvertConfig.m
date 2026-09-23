@@ -21,6 +21,7 @@ obj.ConvLFPCheckBox.Value   = logical(cfg.LFP);
 obj.ConvMUACheckBox.Value   = logical(cfg.MUA);
 obj.ConvSPIKECheckBox.Value = logical(cfg.SPIKE);
 obj.ConvAUXCheckBox.Value   = logical(cfg.AUX);
+obj.SigBlankArtifactsCheckBox.Value = logical(cfg.BlankArtifacts);
 
 obj.setControlValue(obj.ConvLFPFsField, cfg.LFP_Fs, "Signals.LFP_Fs");
 obj.ConvLFPHighpassCheckBox.Value = logical(cfg.LFP_HighpassOn);

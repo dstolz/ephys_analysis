@@ -24,6 +24,7 @@ obj.setControlValue(obj.ArtHighpassField, A.FilterCutoff(1), "Artifacts.FilterCu
 obj.setDropIfMember(obj.ArtFillDropDown, A.Fill, "Artifacts.Fill");
 obj.ArtApplySortingCheckBox.Value = logical(A.ApplyToSorting);
 obj.ArtApplySpikesCheckBox.Value  = logical(A.ApplyToSpikes);
+obj.ArtApplySignalsCheckBox.Value = logical(A.ApplyToSignals);
 obj.ArtCacheCheckBox.Value        = logical(A.CacheIntervals);
 obj.ArtRmsWindowField.Enable = matlab.lang.OnOffSwitchState(A.Method == "rms");
 obj.ArtHighpassField.Enable  = matlab.lang.OnOffSwitchState(logical(A.Filter) && A.FilterType ~= "lowpass");

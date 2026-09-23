@@ -21,6 +21,7 @@ E.EpochWindow     = [double(obj.ExpEpochPreField.Value), double(obj.ExpEpochPost
 E.EpochOnsetRule  = string(obj.ExpEpochOnsetRuleDropDown.Value);
 E.EpochIncomplete = string(obj.ExpEpochIncompleteDropDown.Value);
 E.EpochNonFinite  = string(obj.ExpEpochNonFiniteDropDown.Value);
+E.EpochArtifacts  = string(obj.ExpEpochArtifactsDropDown.Value);
 E.EpochSpikeTimeBase = string(obj.ExpEpochSpikeBaseDropDown.Value);
 E.EpochClass      = string(obj.ExpEpochClassDropDown.Value);
 E.OutputDir  = string(strtrim(obj.ExpOutputDirField.Value));

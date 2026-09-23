@@ -4,20 +4,23 @@ function [html, summary] = flowChartHTML(obj, layout)
 %   recording. It branches into Artifacts, Signals (LFP / MUA / SPIKE / AUX
 %   / digital events) and Spikes (threshold detection), and runs each
 %   through its stages, with their filter, reference and detection
-%   parameters, to what the step writes. Sorting (Kilosort4 on a .bin)
-%   hangs from the artifact periods, because its .bin is the recording with
-%   those periods erased. The steps that read an output rather than the
-%   recording hang from the file they read: sorted units for the Spikes
-%   file under Sorting's output, Export under the Signals extract.
+%   parameters, to what the step writes. Sorting (Kilosort4 on a .bin) and
+%   Signals hang from the artifact periods, because each erases them from
+%   the recording before it reads it: the .bin, and the amplifier data the
+%   LFP / MUA / SPIKE are derived from (Signals only while
+%   Signals.BlankArtifacts; with it off Signals hangs from the recording).
+%   The steps that read an output rather than the recording hang from the
+%   file they read: sorted units for the Spikes file under Sorting's
+%   output, Export under the Signals extract.
 %   Each step's branch starts with a box in its colour. Stages the config
 %   leaves off are drawn dashed; disabled steps are faded. Artifact periods
-%   feeding Sorting / Spikes are marked in the Artifacts colour.
+%   feeding Sorting / Signals / Spikes are marked in the Artifacts colour.
 %
 %   app.flowChartHTML(LAYOUT) picks the layout: "tree" (the one tree above)
 %   or "steps" (a tree of its own for each step that reads the recording,
 %   each from the recording box, then the steps hung from another step's
-%   output -- Sorting from the artifact periods too -- as downstream trees,
-%   each under the box it reads). Default: the Diagram tab's Layout
+%   output -- Sorting and Signals from the artifact periods too -- as
+%   downstream trees, each under the box it reads). Default: the Diagram tab's Layout
 %   drop-down (FlowLayoutDropDown).
 %
 %   Each box names the control(s) that set what it shows (its node target,
@@ -44,13 +47,23 @@ d = obj.currentDataset();
 dsName = ternary(isempty(d), "<Name>", d.Name);
 
 sorting = sortingTree(cfg, d, unitsTree(cfg, dsName));
-steps = {artifactsTree(cfg, sorting), signalsTree(cfg, dsName, exportTree(cfg, dsName)), ...
-    spikesTree(cfg, dsName)};
+signals = signalsTree(cfg, dsName, exportTree(cfg, dsName));
+spikes = spikesTree(cfg, dsName);
+% The steps that erase the artifact periods before they read the recording
+% hang from them; Signals does only while BlankArtifacts is on.
+if cfg.Signals.BlankArtifacts
+    artifacts = artifactsTree(cfg, {sorting, signals});
+    steps = {artifacts, spikes};
+else
+    artifacts = artifactsTree(cfg, {sorting});
+    steps = {artifacts, signals, spikes};
+end
 raw = rawNode(d);
 
-% Sorting reads the recording too (it writes the .bin from it).
-nOn = sum(cellfun(@(s) ~s.dim, [steps, {sorting}]));
-summary = sprintf("%d of %d raw-data step(s) enabled", nOn, numel(steps) + 1);
+% Sorting and Signals read the recording too, wherever they hang.
+readers = {artifacts, sorting, signals, spikes};
+nOn = sum(cellfun(@(s) ~s.dim, readers));
+summary = sprintf("%d of %d raw-data step(s) enabled", nOn, numel(readers));
 if ~isempty(d)
     summary = summary + " | recording: " + d.Name;
 end
@@ -81,9 +94,10 @@ n = node("src", "Raw recording", [d.Name, info], "RootPathField,DatasetsTable");
 end
 
 
-function n = artifactsTree(cfg, sorting)
+function n = artifactsTree(cfg, readers)
 %artifactsTree  The detection chain, ending in the artifact periods that
-%   SORTING (its .bin has them erased) and the Spikes rejection read.
+%   READERS (the steps that erase them before reading the recording:
+%   Sorting's .bin, Signals' amplifier data) and the Spikes rejection read.
 A = cfg.Artifacts;
 if A.Method == "commonmode"
     ref = referenceNode(A, "the common-mode detector reads before it");
@@ -126,10 +140,10 @@ toSpk = linkNode(cfg.Spikes.Enabled && cfg.Spikes.Source ~= "sorted" && cfg.Spik
 periods = node("link", "Artifact periods", ...
     [ternary(A.Enabled, "automatic + manual", "manual only (detection off)"), "manual: marked on Visualize"], ...
     "ArtManualTable,ArtEditVizButton");
-periods.children = {sorting, toSpk};
+periods.children = [readers, {toSpk}];
 
 n = step("artifacts", "Artifacts", A.Enabled, ...
-    ternary(A.Enabled, "", "Detection is off: only the manual periods reach Sorting / Spikes."), ...
+    ternary(A.Enabled, "", "Detection is off: only the manual periods reach Sorting / Signals / Spikes."), ...
     "ArtEnableCheckBox", ...
     {node("op", "Read in chunks", ["one file / bounded window per chunk", parallelText(cfg.Parallel)], ...
     "RunParallelCheckBox,RunMaxWorkersField"), ...
@@ -142,8 +156,9 @@ end
 
 function n = referenceNode(A, note)
 %referenceNode  The Artifacts section's common reference, which every
-%   streaming read subtracts: artifact detection, the Kilosort4 .bin and
-%   spike detection (EphysDataset.applyReference), detection on or off.
+%   read of the recording subtracts: artifact detection, the Kilosort4 .bin,
+%   the derived signals and spike detection (EphysDataset.applyReference),
+%   detection on or off.
 target = "ArtRefDropDown,ArtRefLowField,ArtRefHighField";
 switch A.Reference
     case "car"; n = node("op", "Common average reference", "mean of the good channels, subtracted from each", target);
@@ -241,7 +256,12 @@ end
 
 function n = signalsTree(cfg, dsName, export)
 %signalsTree  EXPORT (reading the extract) hangs from the first signal file.
+%   The common reference (over every channel) comes first, then the channel
+%   selection, and the artifact periods are erased in the amplifier data LFP /
+%   MUA / SPIKE derive from; AUX and the digital inputs come from the read as
+%   they are.
 G = cfg.Signals;
+A = cfg.Artifacts;
 types = ["LFP" "MUA" "SPIKE" "AUX"];
 host = types(find([G.LFP G.MUA G.SPIKE G.AUX], 1));
 kids = @(type) exportUnder(host, type, export);
@@ -311,9 +331,21 @@ if isempty(host); events.children = {export}; end
 branches{5} = chain({node("stage", "Digital inputs", named, "ConvLabelFieldDropDown"), ...
     node("op", "Edge detection", ev, "TrialsLinesTable"), events});
 
-chan.children = branches;
-n = step("signals", "Signals", G.Enabled, "", "SigEnableCheckBox", ...
-    {node("op", "Read whole recording", "single precision, uV", "SigEnableCheckBox"), chan});
+eraseTarget = "SigBlankArtifactsCheckBox,ArtApplySignalsCheckBox";
+if G.BlankArtifacts
+    erase = node("link", "Erase artifact periods", ...
+        [ternary(A.Enabled && A.ApplyToSignals, "manual + automatic", "manual periods only"), ...
+        "a line across each, before any filter", "recorded in every file"], eraseTarget);
+else
+    erase = node("off", "Erase artifact periods", "off (as recorded)", eraseTarget);
+end
+erase.children = branches(1:3);
+chan.children = {erase};
+ref = referenceNode(A, "over every channel, before the channel selection");
+ref.children = {chan};
+read = node("op", "Read whole recording", "single precision, uV", "SigEnableCheckBox");
+read.children = [{ref}, branches(4:5)];
+n = step("signals", "Signals", G.Enabled, "", "SigEnableCheckBox", {read});
 end
 
 
@@ -454,8 +486,9 @@ if ismember("epochs", E.Formats)
         around = "around " + E.EpochLine;
     end
     kids{end+1} = chain({node("op", "Event epochs", [around, ...
-        sprintf("window [%g %g] s, spike times %s", E.EpochWindow(1), E.EpochWindow(2), E.EpochSpikeTimeBase)], ...
-        "ExpEpochsCheckBox,ExpEpochSourceDropDown,ExpEpochLineField,ExpEpochPreField,ExpEpochPostField"), ...
+        sprintf("window [%g %g] s, spike times %s", E.EpochWindow(1), E.EpochWindow(2), E.EpochSpikeTimeBase), ...
+        ternary(E.EpochArtifacts == "drop", "touching an artifact period: dropped", "touching an artifact period: kept, flagged")], ...
+        "ExpEpochsCheckBox,ExpEpochSourceDropDown,ExpEpochLineField,ExpEpochPreField,ExpEpochPostField,ExpEpochArtifactsDropDown"), ...
         node("out", "Epoch file", [dsName + "_epochs.mat", E.MatVersion], fileTarget)});
 end
 if isempty(kids)

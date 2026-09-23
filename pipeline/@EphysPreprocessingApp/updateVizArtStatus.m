@@ -11,7 +11,7 @@ function updateVizArtStatus(obj)
     elseif nDet == 0
         detTxt = "No artifacts detected with these settings. ";
     elseif logical(obj.ArtEnableCheckBox.Value) && (logical(obj.ArtApplySortingCheckBox.Value) ...
-            || logical(obj.ArtApplySpikesCheckBox.Value))
+            || logical(obj.ArtApplySpikesCheckBox.Value) || logical(obj.ArtApplySignalsCheckBox.Value))
         detTxt = sprintf("%d detected (orange; a run removes them). ", nDet);
     else
         detTxt = sprintf("%d detected (orange; a run keeps them: detection or its uses are off). ", nDet);
@@ -23,7 +23,9 @@ function updateVizArtStatus(obj)
         return
     end
     iv = d.ManualArtifacts;
+    where = "the .bin";
+    if logical(obj.SigBlankArtifactsCheckBox.Value); where = "the .bin and the signals"; end
     obj.VizArtStatusLabel.Text = detTxt + sprintf( ...
-        "%d manual period(s), %.3f s total (blanked on .bin write).", ...
-        size(iv, 1), sum(iv(:, 2) - iv(:, 1)));
+        "%d manual period(s), %.3f s total (erased in %s).", ...
+        size(iv, 1), sum(iv(:, 2) - iv(:, 1)), where);
 end

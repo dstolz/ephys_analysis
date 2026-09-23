@@ -23,5 +23,6 @@ end
 A.Fill           = string(obj.ArtFillDropDown.Value);
 A.ApplyToSorting = logical(obj.ArtApplySortingCheckBox.Value);
 A.ApplyToSpikes  = logical(obj.ArtApplySpikesCheckBox.Value);
+A.ApplyToSignals = logical(obj.ArtApplySignalsCheckBox.Value);
 A.CacheIntervals = logical(obj.ArtCacheCheckBox.Value);
 end

@@ -1125,6 +1125,58 @@ classdef EphysDataset < handle
             iv = out;
         end
 
+        function rows = artifactSamples(iv, Fs, nSamp)
+            %artifactSamples  The samples [k x 2] artifact periods replace.
+            %   ROWS = EphysDataset.artifactSamples(IV, FS, NSAMP) returns the
+            %   [first last] 1-based rows of a recording at FS (NSAMP rows)
+            %   inside the [k x 2] second periods IV, merged where they touch.
+            %   A period [a b) covers 0-based samples round(a*FS) ..
+            %   round(b*FS) - 1, the samples a detectArtifacts interval came
+            %   from, so every route that erases or rejects them (the .bin,
+            %   the derived signals, spike rejection) takes the same samples.
+            %   See also manualArtifactMask, intervalRows.
+            rows = zeros(0, 2);
+            if isempty(iv) || nSamp < 1; return; end
+            a = min(iv(:, 1), iv(:, 2));
+            b = max(iv(:, 1), iv(:, 2));
+            r = [max(1, round(a * Fs) + 1), min(nSamp, round(b * Fs))];
+            rows = mergeRows(r(r(:, 2) >= r(:, 1), :));
+        end
+
+        function rows = intervalRows(iv, Fs, nRows)
+            %intervalRows  The rows of a signal at any rate that periods touch.
+            %   ROWS = EphysDataset.intervalRows(IV, FS, NROWS) returns the
+            %   [first last] 1-based rows of a signal at FS (row r at
+            %   (r-1)/FS, NROWS rows) whose sample period [(r-1)/FS, r/FS)
+            %   overlaps a [k x 2] second period of IV, merged where they
+            %   touch. At the recording rate that is artifactSamples' rows for
+            %   periods on the sample grid; at a derived rate every row the
+            %   period falls in is kept, so a period shorter than one row is
+            %   never lost.
+            rows = zeros(0, 2);
+            if isempty(iv) || nRows < 1; return; end
+            tol = 1e-6;                  % rows, for times one rounding off a row
+            r = [max(1, floor(iv(:, 1) * Fs + tol) + 1), min(nRows, ceil(iv(:, 2) * Fs - tol))];
+            rows = mergeRows(r(r(:, 2) >= r(:, 1), :));
+        end
+
+        function tf = overlapsIntervals(tStart, tStop, iv)
+            %overlapsIntervals  Which [tStart tStop] windows touch a period.
+            %   TF = EphysDataset.overlapsIntervals(TSTART, TSTOP, IV) is true
+            %   for each window (closed, seconds) that overlaps one of the
+            %   half-open [k x 2] second periods IV: a <= tStop and b > tStart.
+            %   Windows and periods on the same clock (the continuous one,
+            %   row r at (r-1)/Fs, for artifact periods).
+            tf = false(size(tStart));
+            iv = EphysDataset.mergeIntervals(iv);
+            if isempty(iv) || isempty(tStart); return; end
+            % The only period that can overlap is the last one starting at or
+            % before tStop (the merged periods are disjoint and sorted).
+            j = discretize(tStop, [iv(:, 1); Inf]);
+            has = ~isnan(j);
+            tf(has) = reshape(iv(j(has), 2), [], 1) > reshape(tStart(has), [], 1);
+        end
+
         [units, info] = readPhyUnits(resultsDir, opts)
         id = nameIdentity(name, pattern)
         E = relabelEvents(E, labelField, lineNames)
@@ -1369,4 +1421,24 @@ classdef EphysDataset < handle
         end
     end
 
+end
+
+
+function rows = mergeRows(rows)
+%mergeRows  Sorted union of [k x 2] inclusive [first last] row ranges; ranges
+%   that overlap or touch ([3 5] and [6 9]) become one.
+if isempty(rows)
+    rows = zeros(0, 2);
+    return
+end
+rows = sortrows(rows, 1);
+out = rows(1, :);
+for k = 2:size(rows, 1)
+    if rows(k, 1) <= out(end, 2) + 1
+        out(end, 2) = max(out(end, 2), rows(k, 2));
+    else
+        out(end+1, :) = rows(k, :); %#ok<AGROW>
+    end
+end
+rows = out;
 end

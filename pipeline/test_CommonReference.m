@@ -18,6 +18,9 @@ function test_CommonReference()
 %        suggestion that would leave too few channels is not applied
 %     9. the common-mode detector still finds artifacts under a common
 %        reference, and ExcludeChannels take no part in artifact detection
+%    10. deriveSignals subtracts the reference (CAR / CMR over every good
+%        channel, keepAmpChannels picked after it, reference=false opts out)
+%        and erases the artifact periods after it
 %   No Intan files, toolboxes or Python are needed.
 %
 %   Usage:  test_CommonReference
@@ -281,6 +284,39 @@ check(iE.nAutoBlanked == 0 && numel(iE.autoArtifact.channelCounts) == 16, ...
 dsE.ArtifactConfig.Reference = "car";
 dsE.ReferenceExcludeSource = "manual";
 check(isempty(dsE.artifactIntervals()), 'also under a common reference');
+
+fprintf('\n== 10. the derived signals are referenced ==\n');
+if license('test', 'Signal_Toolbox')
+    dsS = EphysDataset(writeRecording(root, 'sigref', X, Fs));
+    aS = dsS.ArtifactConfig; aS.Reference = "car"; dsS.ArtifactConfig = aS;
+    dsS.ReferenceExclude = [3 6]; dsS.ReferenceExcludeSource = "manual";
+    lfp = {'dataTypeOut', "LFP", 'LFP_Fs', Fs};   % at the recording rate, unfiltered: the amplifier data itself
+    xs = single(X);
+    near = @(A, B) max(abs(double(A(:)) - double(B(:)))) < 1e-2;   % single precision, ~200 uV signals
+    [Yr, ~, Ir] = dsS.deriveSignals(lfp{:});
+    carS = xs - mean(xs(:, good), 2);
+    check(near(Yr.LFP, carS) && Ir.reference.mode == "car" && isequal(Ir.reference.channels, good), ...
+        'CAR: the derived signal is the recording minus the mean of the good channels; info.reference says so');
+    [Yk, ~, Ik] = dsS.deriveSignals(lfp{:}, keepAmpChannels=[6 2]);
+    check(near(Yk.LFP, carS(:, [6 2])) && isequal(string(Ik.labels(:)).', ["ch6" "ch2"]), ...
+        'keepAmpChannels picks from the referenced recording: the reference is still over every good channel');
+    [Yn, ~, In] = dsS.deriveSignals(lfp{:}, reference=false);
+    check(isequal(Yn.LFP, xs) && In.reference.mode == "none" && isempty(In.reference.channels), ...
+        'reference=false: the recording as stored');
+    art = [1.0 1.02];
+    [Ya, ~, ~] = dsS.deriveSignals(lfp{:}, artifactIntervals=art);
+    rows = (round(art(1) * Fs) + 1):round(art(2) * Fs);
+    w = round(1e-3 * Fs);
+    fillRef = mean(carS(rows(1)-w:rows(1)-1, :), 1) + (mean(carS(rows(end)+1:rows(end)+w, :), 1) ...
+        - mean(carS(rows(1)-w:rows(1)-1, :), 1)) .* ((1:numel(rows)).' / (numel(rows) + 1));
+    check(near(Ya.LFP(rows, :), fillRef), 'the artifact periods are erased after the reference, between the referenced levels');
+    aS.Reference = "cmr"; dsS.ArtifactConfig = aS;
+    [Ym, ~, Im] = dsS.deriveSignals(lfp{:});
+    check(near(Ym.LFP, xs - median(xs(:, good), 2)) && Im.reference.mode == "cmr", ...
+        'CMR: minus the median of the good channels');
+else
+    fprintf('  (skipped: no Signal Processing Toolbox)\n');
+end
 
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0

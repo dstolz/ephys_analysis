@@ -27,6 +27,9 @@ classdef FieldTripExport
     %     round((t_on - 1/origFs)*Fs) + 1 (1-based): the sample that produced
     %     the onset at the recording rate, the nearest sample of a derived
     %     signal. duration = pulse length in samples at Fs (inclusive).
+    %   - artifact: the periods erased before the signals were derived, as
+    %     [begsample endsample] rows on a raw structure's sampleinfo (every
+    %     sample a period touches), for cfg.artfctdef.<type>.artifact.
     %
     %   See also EphysDataset.exportFieldTrip, EphysDataset.exportChronux.
 
@@ -161,6 +164,25 @@ classdef FieldTripExport
                 [~, ix] = sort([ev.sample]);
                 ev = ev(ix);
             end
+        end
+
+        function art = artifact(intervals, data)
+            %artifact  FieldTrip artifact matrix of [k x 2] second periods.
+            %   art = FieldTripExport.artifact(IV, DATA) gives the periods IV
+            %   ([tStart tEnd) seconds on the continuous clock, as the
+            %   extract's info.artifacts.intervals) as [begsample endsample]
+            %   rows of the raw structure DATA, on its sampleinfo: every
+            %   sample of the signal a period touches (EphysDataset.intervalRows),
+            %   so a period shorter than one sample of a derived signal still
+            %   marks one. It is the matrix ft_rejectartifact reads from
+            %   cfg.artfctdef.<type>.artifact; [] with no periods.
+            arguments
+                intervals (:,2) double
+                data (1,1) struct
+            end
+            rows = EphysDataset.intervalRows(intervals, data.fsample, size(data.trial{1}, 2));
+            art = rows + data.sampleinfo(1) - 1;
+            if isempty(art); art = []; end
         end
 
         function tf = hasFieldTrip()

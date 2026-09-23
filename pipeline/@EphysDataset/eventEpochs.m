@@ -13,7 +13,10 @@ function E = eventEpochs(obj, opts)
 %   ChronuxDataset.spikeTrials (spike times), so the sample alignment and the
 %   spike-window rule are exactly the documented ones, and no trial is
 %   silently dropped with the defaults: a window that runs past the recording
-%   is padded with NaN and flagged (EpochComplete) rather than removed.
+%   is padded with NaN and flagged (EpochComplete) rather than removed, and
+%   one that touches an artifact period of the extract (info.artifacts, the
+%   periods erased before the signals were derived) is flagged
+%   (EpochArtifact) and left out of the signals.
 %
 %   Fields of E
 %   -----------
@@ -32,15 +35,17 @@ function E = eventEpochs(obj, opts)
 %     trials     table, one row per epoch: EpochIndex, EpochOnset,
 %                EpochOffset, EpochDuration, EpochComplete (the window lies
 %                inside the recording and inside every signal, so no sample of
-%                the epoch is NaN padding), plus EventIndex (row in the
-%                line's event list) or BehaviorRow and the behavior trial
-%                columns when the events came from a session
+%                the epoch is NaN padding), EpochArtifact (the window touches
+%                an artifact period), plus EventIndex (row in the line's
+%                event list) or BehaviorRow and the behavior trial columns
+%                when the events came from a session
 %     signals    struct, one field per exported signal (LFP / MUA / SPIKE /
 %                AUX): data [nTime x nEpochs x nChan] in the signal's units,
 %                t [1 x nTime] seconds relative to the onset, fs, labels,
-%                units, nIncomplete / nNonFinite and the
+%                units, nIncomplete / nNonFinite / nArtifact and the
 %                ChronuxDataset.trials info (keptTrials says which epochs the
-%                data holds)
+%                data holds; droppedArtifact the ones left out for an
+%                artifact period)
 %     units      1 x nUnits struct array of the sorted units: id, label,
 %                class, group, channel, channelName, times {1 x nEpochs} and
 %                counts [1 x nEpochs]. Empty when no units were included
@@ -49,6 +54,10 @@ function E = eventEpochs(obj, opts)
 %     spikes     how the spike times are stamped: timeBase, window, rule
 %     behavior   meta / pairing summary of the session the events came from,
 %                or []
+%     artifacts  the extract's artifact periods (info.artifacts: intervals
+%                [k x 2] [tStart tEnd) s on the continuous clock, fill,
+%                nSamples); an epoch touches one when its window on that
+%                clock, onset + [tPre tPost], overlaps it
 %     meta       provenance: tool, created, dataset, sourceFolder, sources,
 %                signals, window, nEpochs, conventions
 %
@@ -81,8 +90,12 @@ function E = eventEpochs(obj, opts)
 %     OnsetRule      "event" (default) | "sample" (ChronuxDataset.trials)
 %     Incomplete     what to do with a window that runs past the recording:
 %                    "nan" (default: keep it, pad with NaN), "drop", "error"
-%     NonFinite      epochs whose in-range samples hold NaN/Inf (e.g. blanked
-%                    artifacts): "keep" (default), "drop", "error"
+%     NonFinite      epochs whose in-range samples hold NaN/Inf: "keep"
+%                    (default), "drop", "error"
+%     Artifacts      epochs whose window touches an artifact period of the
+%                    extract (the periods the Signals step erased): "drop"
+%                    (default: flagged in EpochArtifact and left out of the
+%                    signals) or "keep" (flagged only)
 %     SpikeTimeBase  "onset" (default: 0 at the event, spanning the window),
 %                    "window" (0 at the window start) or "absolute"
 %                    (recording times), see ChronuxDataset.spikeTrials
@@ -90,9 +103,9 @@ function E = eventEpochs(obj, opts)
 %     MinDurationSec / MaxDurationSec   pulse-length filter for the "line"
 %                    source (0 / Inf: every pulse)
 %
-%   With Incomplete="drop" or NonFinite="drop" a signal holds fewer epochs
-%   than the trials table has rows; its info.keptTrials names the rows it
-%   kept. The spike epochs always cover every row.
+%   With Incomplete="drop", NonFinite="drop" or Artifacts="drop" a signal
+%   holds fewer epochs than the trials table has rows; its info.keptTrials
+%   names the rows it kept. The spike epochs always cover every row.
 %
 %   See also EphysDataset.exportEpochs, ChronuxDataset.trials,
 %   ChronuxDataset.spikeTrials, EphysDataset.pairTrials.
@@ -115,6 +128,7 @@ arguments
     opts.OnsetRule (1,1) string {mustBeMember(opts.OnsetRule, ["event","sample"])} = "event"
     opts.Incomplete (1,1) string {mustBeMember(opts.Incomplete, ["nan","drop","error"])} = "nan"
     opts.NonFinite (1,1) string {mustBeMember(opts.NonFinite, ["keep","drop","error"])} = "keep"
+    opts.Artifacts (1,1) string {mustBeMember(opts.Artifacts, ["drop","keep"])} = "drop"
     opts.SpikeTimeBase (1,1) string {mustBeMember(opts.SpikeTimeBase, ...
         ["onset","window","absolute"])} = "onset"
     opts.Class (1,1) string {mustBeMember(opts.Class, ["double","single","asis"])} = "double"
@@ -225,6 +239,22 @@ ev.offsets   = offsets;
 ev.durations = offsets - onsets;
 ev.nEpochs   = nEp;
 
+% --- the onsets on the continuous clock ------------------------------------------
+% Spike times and the artifact periods are on the continuous clock,
+% (sample-1)/Fs. A digital-event onset (OnsetRule "event") t = row/eventFs is
+% one recording sample later than that clock, so the spikes are cut around the
+% onset's own recording row, (row-1)/eventFs, computed from the row so a spike
+% in that sample is at exactly 0.
+spikeOnsets = onsets;
+if opts.OnsetRule == "event" && isfinite(ev.eventFs)
+    spikeOnsets = (round(onsets * ev.eventFs) - 1) / ev.eventFs;
+end
+
+% --- which windows touch an artifact period ---------------------------------------
+artifact = EphysDataset.overlapsIntervals(spikeOnsets + twin(1), spikeOnsets + twin(2), ...
+    in.artifacts.intervals);
+ev.nArtifact = nnz(artifact);
+
 % --- continuous signals -------------------------------------------------------
 S = struct();
 inSignals = true(nEp, 1);          % every signal holds all of the epoch's rows
@@ -234,6 +264,16 @@ for sig = in.signals
         EventFs=ev.eventFs, Incomplete=opts.Incomplete, NonFinite=opts.NonFinite, ...
         Class=opts.Class);
     data = reshape(data, tinfo.nTime, tinfo.nTrials, tinfo.nChan);
+    tinfo.droppedArtifact = zeros(1, 0);
+    if opts.Artifacts == "drop"
+        cut = reshape(artifact(tinfo.keptTrials), 1, []);
+        data = data(:, ~cut, :);
+        tinfo.droppedArtifact = tinfo.keptTrials(cut);
+        tinfo.keptTrials   = tinfo.keptTrials(~cut);
+        tinfo.onsets       = tinfo.onsets(~cut);
+        tinfo.onsetSamples = tinfo.onsetSamples(~cut);
+        tinfo.nTrials      = numel(tinfo.keptTrials);
+    end
     S.(sig) = struct( ...
         'data',   data, ...
         't',      T, ...
@@ -245,6 +285,7 @@ for sig = in.signals
         'nChan',  tinfo.nChan, ...
         'nIncomplete', numel(tinfo.droppedIncomplete), ...
         'nNonFinite', numel(tinfo.droppedNonFinite), ...
+        'nArtifact', numel(tinfo.droppedArtifact), ...
         'info',   tinfo);
     inSignals(tinfo.droppedIncomplete) = false;    % NaN-padded or dropped rows
 end
@@ -262,8 +303,8 @@ ev.recordingRangeSource = recSource;
 ev.nIncomplete          = nnz(~complete);
 
 % --- the trial table ----------------------------------------------------------
-V = table((1:nEp).', onsets, offsets, offsets - onsets, complete, ...
-    'VariableNames', {'EpochIndex', 'EpochOnset', 'EpochOffset', 'EpochDuration', 'EpochComplete'});
+V = table((1:nEp).', onsets, offsets, offsets - onsets, complete, artifact(:), ...
+    'VariableNames', {'EpochIndex', 'EpochOnset', 'EpochOffset', 'EpochDuration', 'EpochComplete', 'EpochArtifact'});
 switch opts.EventSource
     case "line"
         V = addvars(V, eventIndex, 'After', 'EpochIndex', 'NewVariableNames', 'EventIndex');
@@ -275,16 +316,6 @@ switch opts.EventSource
                 'The behavior trials already have column(s) %s.', strjoin(clash, ", "));
         end
         V = [V, b.trials(behaviorRows, :)];
-end
-
-% --- the onsets on the spikes' clock ---------------------------------------------
-% Spike times are on the continuous clock, (sample-1)/Fs. A digital-event onset
-% (OnsetRule "event") t = row/eventFs is one recording sample later than that
-% clock, so the spikes are cut around the onset's own recording row, (row-1)/
-% eventFs, computed from the row so a spike in that sample is at exactly 0.
-spikeOnsets = onsets;
-if opts.OnsetRule == "event" && isfinite(ev.eventFs)
-    spikeOnsets = (round(onsets * ev.eventFs) - 1) / ev.eventFs;
 end
 
 % --- sorted units -------------------------------------------------------------
@@ -343,6 +374,7 @@ E.spikes   = struct('timeBase', opts.SpikeTimeBase, 'window', twin, ...
     'rule', "t > onset+tPre and t <= onset+tPost (ChronuxDataset.spikeTrials), onset on the spikes' clock: (row-1)/eventFs for a digital-event onset (OnsetRule ""event"")", ...
     'nUnits', numel(U), 'nDetectedChannels', numel(D));
 E.behavior = B;
+E.artifacts = in.artifacts;
 E.meta = struct( ...
     'tool',         "EphysDataset.eventEpochs", ...
     'created',      string(datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss')), ...
@@ -358,12 +390,15 @@ E.meta = struct( ...
     'nDetectedChannels', numel(D), ...
     'incomplete',   opts.Incomplete, ...
     'nonFinite',    opts.NonFinite, ...
+    'artifacts',    opts.Artifacts, ...
+    'nArtifact',    ev.nArtifact, ...
     'class',        opts.Class, ...
     'conventions',  struct( ...
         'epochs',  "trial i is rows base(i)+round(tPre*Fs) ... base(i)+round(tPost*Fs) of each signal, " + ...
                    baseRule(opts.OnsetRule) + "; t is relative to the onset", ...
         'onsets',  "seconds on the recording clock (t = row/eventFs for digital-input and paired trial times)", ...
         'complete', "EpochComplete: the window lies inside the recording and inside every signal (no NaN padding)", ...
+        'artifact', "EpochArtifact: the window on the continuous clock, onset + [tPre tPost], overlaps a period of artifacts.intervals", ...
         'spikes',  "half-open window around the onset's recording row ((row-1)/eventFs, the spikes' clock), stamped per spikes.timeBase"));
 end
 

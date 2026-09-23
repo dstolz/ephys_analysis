@@ -2,6 +2,7 @@ function tf = prepareReference(obj)
 %prepareReference  Settle the channels of the common reference before a read.
 %   TF = ds.prepareReference() is called by every streaming entry point
 %   (toBin, artifactIntervals, analyzeArtifacts, noiseLevels, detectSpikes)
+%   and by deriveSignals
 %   before it reads, so a reference is never taken over a channel list that
 %   changes mid-run or is worked out again on every parallel worker. When
 %   ArtifactConfig.Reference is "car" / "cmr" and ReferenceExclude was never

@@ -9,8 +9,8 @@ function mask = manualArtifactMask(obj, nSamp, sampleOffset, Fs, iv)
 %
 %   A period [a b] is half-open on that clock: it covers samples
 %   round(a*FS) .. round(b*FS) - 1, the samples a detectArtifacts interval
-%   came from. So every route (.bin blanking, spike rejection) removes the
-%   same samples.
+%   came from (EphysDataset.artifactSamples). So every route (.bin blanking,
+%   the derived signals, spike rejection) removes the same samples.
 %
 %   MASK = ds.manualArtifactMask(NSAMP, SAMPLEOFFSET, FS, IV) masks the
 %   recording-relative [k x 2] second intervals IV instead of ManualArtifacts.
@@ -33,15 +33,11 @@ if isempty(iv) || nSamp == 0
     return
 end
 
-for k = 1:size(iv, 1)
-    a = min(iv(k, 1), iv(k, 2));
-    b = max(iv(k, 1), iv(k, 2));
-    % Absolute 0-based sample indices covered by [a, b) seconds.
-    n0 = round(a * Fs);
-    n1 = round(b * Fs) - 1;
-    % Map to 1-based rows within this block and clamp to it.
-    i0 = max(1, n0 - sampleOffset + 1);
-    i1 = min(nSamp, n1 - sampleOffset + 1);
+% The periods' rows in the whole recording, mapped into this block.
+rows = EphysDataset.artifactSamples(iv, Fs, Inf) - sampleOffset;
+for k = 1:size(rows, 1)
+    i0 = max(1, rows(k, 1));
+    i1 = min(nSamp, rows(k, 2));
     if i1 >= i0
         mask(i0:i1) = true;
     end

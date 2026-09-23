@@ -285,6 +285,14 @@ classdef EphysPipelineScript
             L(end+1, 1) = "            sigOpts.probeFile = d.ProbeFile;";
             L(end+1, 1) = "            if sigOpts.probeFile == """"; sigOpts.probeFile = defaultProbe; end";
             L(end+1, 1) = "        end";
+            if G.BlankArtifacts
+                % erased before any signal is derived, recorded in every file (info.artifacts)
+                if cfg.Artifacts.ApplyToSignals
+                    L(end+1, 1) = "        sigOpts.artifactIntervals = artifactIntervals(d);   % erased before deriving";
+                else
+                    L(end+1, 1) = "        sigOpts.artifactIntervals = d.artifactIntervals(IncludeAuto=false);   % erased before deriving";
+                end
+            end
             L(end+1, 1) = "        r = d.toMat(File=outFile, SeparateFiles=signals.SeparateFiles, SignalOptions=sigOpts, MatVersion=signals.MatVersion, Overwrite=signals.Overwrite);";
             L(end+1, 1) = "        fprintf('%s: wrote %s\n', d.Name, strjoin(r.file, ', '));";
             L(end+1, 1) = "    catch ME";

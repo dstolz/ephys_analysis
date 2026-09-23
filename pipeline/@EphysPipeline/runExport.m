@@ -94,6 +94,10 @@ for k = 1:n
             msg = sprintf("%s; %d unit(s)", strjoin(r.signals, "+"), r.nUnits);
             if fmt == "epochs"
                 msg = string(msg) + sprintf("; %d epoch(s) of %s [%g %g] s", r.nEpochs, r.eventName, r.window(1), r.window(2));
+                if r.nArtifact > 0
+                    msg = msg + sprintf(", %d touch an artifact period (%s)", r.nArtifact, ...
+                        ternary(r.artifacts == "drop", "left out of the signals", "kept, flagged"));
+                end
             end
             obj.log("[%s] %s: wrote %s (%s)", step, d.Name, r.file, msg);
             obj.addResult(step, d.Name, "done", msg, r.file, toc(t0));
@@ -145,4 +149,9 @@ if isstring(o.Detected)
     end
 end
 in = struct('Extract', S, 'Units', units, 'Detected', detected, 'Sources', src);
+end
+
+
+function out = ternary(cond, a, b)
+if cond; out = a; else; out = b; end
 end

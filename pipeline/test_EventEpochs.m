@@ -290,6 +290,43 @@ warning(ws);
 check(isequal(Ed2.trials.EpochComplete, [false; true]) && isequal(Ed2.signals.LFP.info.keptTrials, 2), ...
     'Incomplete="drop": the epoch a signal left out is not complete either');
 
+fprintf('\n== 9. epochs that touch an artifact period ==\n');
+% din0's second onset, row 400, lies at 0.399 s on the continuous clock: its
+% window is rows 390..420, [0.389 0.419] s, which [0.410 0.415) falls in.
+Sa = S;
+Sa.info.artifacts = struct('intervals', [0.410 0.415], 'fill', "line", 'nSamples', 5);
+Ea = ds.eventEpochs(Extract=Sa, EventSource="line", EventLine="din0", Window=twin, Units=units, Detected=false);
+La = Ea.signals.LFP;
+check(isequal(Ea.trials.EpochArtifact, [false; true; false]) && Ea.event.nArtifact == 1 ...
+    && isequal(Ea.artifacts.intervals, [0.410 0.415]) && Ea.meta.artifacts == "drop", ...
+    'EpochArtifact flags the epoch whose window touches the period; E.artifacts carries the periods');
+check(isequal(La.info.keptTrials, [1 3]) && isequal(La.info.droppedArtifact, 2) && La.nArtifact == 1 ...
+    && size(La.data, 2) == 2 && isequal(La.data(:, 1, 1), double(X(90:120, 1))) ...
+    && isequal(La.data(1:21, 2, 1), double(X(980:1000, 1))), ...
+    'Artifacts="drop" (default): the signal leaves that epoch out, the others are as before');
+check(height(Ea.trials) == 3 && numel(Ea.units(1).times) == 3 && isequal(Ea.units(1).counts, [3 1 0]), ...
+    'the trials table and the spike epochs still cover every epoch');
+Ek2 = ds.eventEpochs(Extract=Sa, EventSource="line", EventLine="din0", Window=twin, Units=false, ...
+    Detected=false, Artifacts="keep");
+check(size(Ek2.signals.LFP.data, 2) == 3 && isequal(Ek2.trials.EpochArtifact, [false; true; false]) ...
+    && Ek2.signals.LFP.nArtifact == 0 && isequal(Ek2.signals.LFP.data(:, 2, 1), double(X(390:420, 1))), ...
+    'Artifacts="keep": every epoch stays in the signal, flagged');
+Se = S;
+Se.info.artifacts = struct('intervals', [0.380 0.389], 'fill', "line", 'nSamples', 9);
+Ee = ds.eventEpochs(Extract=Se, EventSource="line", EventLine="din0", Window=twin, Units=false, Detected=false);
+Se.info.artifacts.intervals = [0.419 0.425];
+El = ds.eventEpochs(Extract=Se, EventSource="line", EventLine="din0", Window=twin, Units=false, Detected=false);
+check(~any(Ee.trials.EpochArtifact) && isequal(El.trials.EpochArtifact, [false; true; false]), ...
+    'half-open periods: one ending at the window''s first row (0.389 s) does not touch it; one starting at its last row (0.419 s) does');
+check(~any(E.trials.EpochArtifact) && isempty(E.artifacts.intervals) && E.event.nArtifact == 0, ...
+    'an extract without artifact periods flags nothing');
+D9 = EphysPipelineConfig.defaults("Export");
+o9 = EphysPipelineConfig.exportOptions(D9, "epochs");
+check(D9.EpochArtifacts == "drop" && o9.Artifacts == "drop", ...
+    'Export.EpochArtifacts (drop by default) reaches eventEpochs as Artifacts');
+out9 = ds.exportEpochs(Extract=Sa, EventLine="din0", Window=twin, Units=false, Detected=false, Overwrite=true);
+check(out9.nArtifact == 1 && out9.artifacts == "drop", 'exportEpochs reports the epochs that touch a period');
+
 fprintf('\n######## %d passed, %d failed ########\n', nPass, nFail);
 if nFail > 0
     error('test_EventEpochs:Failures', '%d check(s) failed.', nFail);

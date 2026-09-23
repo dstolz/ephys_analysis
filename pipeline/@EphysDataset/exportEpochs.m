@@ -16,8 +16,9 @@ function out = exportEpochs(obj, opts)
 %                event     the events the epochs were cut around (source,
 %                          name, window, onsets, offsets, recordingRange, ...)
 %                trials    table, one row per epoch (EpochIndex, EpochOnset,
-%                          EpochOffset, EpochDuration, EpochComplete, plus
-%                          EventIndex or BehaviorRow and the behavior columns)
+%                          EpochOffset, EpochDuration, EpochComplete,
+%                          EpochArtifact, plus EventIndex or BehaviorRow
+%                          and the behavior columns)
 %                signals   LFP / MUA / SPIKE / AUX: data [nTime x nEpochs x
 %                          nChan], t (seconds relative to the onset), fs,
 %                          labels, units, info
@@ -26,6 +27,7 @@ function out = exportEpochs(obj, opts)
 %                detected  the same per detected channel, or []
 %                spikes    how the spike times are stamped
 %                behavior  the session and pairing the events came from, or []
+%                artifacts the extract's artifact periods (info.artifacts)
 %                meta      provenance
 %     export   provenance: tool, created, dataset, sources, signals, window,
 %              nEpochs (the same struct as epochs.meta)
@@ -37,11 +39,15 @@ function out = exportEpochs(obj, opts)
 %     MatVersion "-v7.3" (default) | "-v7"
 %     Extract, Signals, Units, Groups, Detected, Sources, Events,
 %     EventSource, EventLine, Times, Behavior, Window, OnsetRule, Incomplete,
-%     NonFinite, SpikeTimeBase, Class, MinDurationSec, MaxDurationSec
-%                as in EphysDataset.eventEpochs
+%     NonFinite, Artifacts, SpikeTimeBase, Class, MinDurationSec,
+%     MaxDurationSec
+%                as in EphysDataset.eventEpochs (Artifacts: "drop", the
+%                default, leaves the epochs that touch an artifact period
+%                out of the signals; "keep" only flags them)
 %
 %   OUT fields: file, bytes, seconds, signals, nEpochs, nUnits,
-%   nDetectedChannels, eventSource, eventName, window, sources.
+%   nDetectedChannels, eventSource, eventName, window, nArtifact (epochs
+%   that touch an artifact period), artifacts (Artifacts), sources.
 %
 %   See also EphysDataset.eventEpochs, EphysDataset.exportChronux,
 %   EphysDataset.exportFieldTrip, ChronuxDataset.trials.
@@ -66,6 +72,7 @@ arguments
     opts.OnsetRule (1,1) string = "event"
     opts.Incomplete (1,1) string = "nan"
     opts.NonFinite (1,1) string = "keep"
+    opts.Artifacts (1,1) string = "drop"
     opts.SpikeTimeBase (1,1) string = "onset"
     opts.Class (1,1) string = "double"
     opts.MinDurationSec (1,1) double = 0
@@ -98,5 +105,6 @@ out = struct('file', file, 'bytes', d.bytes, 'seconds', toc(t0), ...
     'signals', epochs.meta.signals, 'nEpochs', epochs.meta.nEpochs, ...
     'nUnits', epochs.meta.nUnits, 'nDetectedChannels', epochs.meta.nDetectedChannels, ...
     'eventSource', epochs.meta.eventSource, 'eventName', epochs.meta.eventName, ...
-    'window', epochs.meta.window, 'sources', epochs.meta.sources);
+    'window', epochs.meta.window, 'nArtifact', epochs.meta.nArtifact, ...
+    'artifacts', epochs.meta.artifacts, 'sources', epochs.meta.sources);
 end

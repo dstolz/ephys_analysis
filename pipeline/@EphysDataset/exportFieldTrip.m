@@ -17,14 +17,20 @@ function out = exportFieldTrip(obj, opts)
 %                 rate in cfg.event, ready for ft_definetrial: each onset on the
 %                 signal's sample nearest the recording sample that produced
 %                 it (FieldTripExport.event with EventFs = the recording rate).
+%                 The artifact periods erased before the signals were derived
+%                 are in cfg.artfctdef.preprocessing.artifact, [k x 2]
+%                 [begsample endsample] at the signal's rate on its
+%                 sampleinfo, the form ft_rejectartifact reads
+%                 (FieldTripExport.artifact); [] with none
 %     spike       FieldTrip spike structure of the sorted units (label,
 %                 timestamp in recording samples, hdr, cfg) or []
 %     spikeDetected  the same for threshold-detected spikes (one "unit" per
 %                 channel) or []
 %     event       FieldTrip event struct array at the recording rate
 %     export      provenance: tool, created, dataset, sources, signals,
-%                 eventFs (the recording rate), validation (per structure:
-%                 ok / message)
+%                 eventFs (the recording rate), artifacts (the extract's
+%                 info.artifacts: the periods in seconds), validation (per
+%                 structure: ok / message)
 %
 %   Options
 %   -------
@@ -73,6 +79,7 @@ S = struct();
 for sig = in.signals
     data = FieldTripExport.raw(in.S, sig);
     data.cfg.event = FieldTripExport.event(in.events, data.fsample, evClock{:});
+    data.cfg.artfctdef.preprocessing.artifact = FieldTripExport.artifact(in.artifacts.intervals, data);
     if opts.Validate
         [ok, msg] = FieldTripExport.validate(data, "raw");
         validation.("data_" + sig) = struct('ok', ok, 'message', msg);
@@ -112,6 +119,7 @@ S.export = struct( ...
     'sourceFolder', obj.Folder, ...
     'signals',    in.signals, ...
     'eventFs',    origFs, ...
+    'artifacts',  in.artifacts, ...
     'nUnits',     numel(in.units), ...
     'sources',    in.sources, ...
     'validation', validation, ...

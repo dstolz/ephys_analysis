@@ -456,10 +456,44 @@ if license('test', 'Signal_Toolbox')
     pipe.runSignals();
     R = pipe.Results;
     Mx = load(R.Output(1));
-    ref = d1.toMat(File=fullfile(root, 'direct_extract.mat'), SignalOptions=EphysPipelineConfig.signalOptions(cfg.Signals));
+    % Signals.BlankArtifacts (default): the manual period and the detection, as Sorting takes them
+    ivS = pipe.artifactIntervalsForStep(d1, cfg.Artifacts.ApplyToSignals, @(varargin) []);
+    so = EphysPipelineConfig.signalOptions(cfg.Signals);
+    so.artifactIntervals = ivS;
+    ref = d1.toMat(File=fullfile(root, 'direct_extract.mat'), SignalOptions=so);
     Mr = load(ref.file);
     check(R.Status(1) == "done" && isequal(Mx.Y, Mr.Y) && isequal(Mx.events, Mr.events) && ~isfield(Mx, 'behavior'), ...
-        'runSignals equals a direct toMat call (no behavior variable)');
+        'runSignals equals a direct toMat call with the dataset''s artifact periods (no behavior variable)');
+    check(size(ivS, 1) > 1 && any(ivS(:, 1) <= 0.001 & ivS(:, 2) >= 0.002) && isequal(Mx.info.artifacts.intervals, ivS) ...
+        && Mx.info.artifacts.nSamples > 0, ...
+        'the manual period (merged with any detection it touches) and the automatic detection are erased and recorded in info.artifacts');
+    check(contains(R.Message(1), sprintf("%d artifact period(s) erased", size(ivS, 1))), ...
+        'the result row says how many periods were erased');
+    cfgNo = cfg; cfgNo.Signals.BlankArtifacts = false;
+    pipe.Config = cfgNo; pipe.reset(); pipe.runSignals();
+    Mn = load(pipe.Results.Output(1));
+    Mp = load(d1.toMat(File=fullfile(root, 'plain_extract.mat'), SignalOptions=EphysPipelineConfig.signalOptions(cfg.Signals)).file);
+    check(isequal(Mn.Y, Mp.Y) && isempty(Mn.info.artifacts.intervals) && ~isequal(Mn.Y.LFP, Mx.Y.LFP), ...
+        'Signals.BlankArtifacts off: the recording as it is, no periods recorded');
+    cfgMan = cfg; cfgMan.Artifacts.ApplyToSignals = false;
+    pipe.Config = cfgMan; pipe.reset(); pipe.runSignals();
+    Mman = load(pipe.Results.Output(1));
+    check(isequal(Mman.info.artifacts.intervals, d1.ManualArtifacts), ...
+        'Artifacts.ApplyToSignals off: the manual periods only');
+    check(Mx.info.reference.mode == "none", 'Artifacts.Reference "none": the signals are not referenced');
+    cfgRef = cfg; cfgRef.Artifacts.Reference = "car";
+    refState = {d1.ReferenceExclude, d1.ReferenceExcludeSource};
+    d1.ReferenceExclude = []; d1.ReferenceExcludeSource = "manual";
+    logs = strings(0, 1);
+    ws = warning('off', 'EphysDataset:prepareReference:FewChannels');
+    pipe.Config = cfgRef; pipe.reset(); pipe.runSignals();
+    warning(ws);
+    Mref = load(pipe.Results.Output(1));
+    check(pipe.Results.Status(1) == "done" && Mref.info.reference.mode == "car" ...
+        && isequal(Mref.info.reference.channels, 1:numAmp) && any(contains(logs, "common CAR reference over 4 channel(s)")), ...
+        'Artifacts.Reference "car": the Signals step references the recording too, and logs it');
+    [d1.ReferenceExclude, d1.ReferenceExcludeSource] = refState{:};
+    pipe.Config = cfg;
     cfgM = cfg; cfgM.Signals.MUA = true;
     pipe.Config = cfgM; pipe.reset(); pipe.runSignals();
     R = pipe.Results;
@@ -471,11 +505,19 @@ if license('test', 'Signal_Toolbox')
     check(~isempty(Ml.Y.LFP) && isempty(Ml.Y.MUA) && ~isfield(Ml.info, 'MUA') ...
         && ~isempty(Mm.Y.MUA) && isempty(Mm.Y.LFP) && ~isfield(Mm.info, 'LFP') && isfield(Mm, 'events'), ...
         'each per-type file holds only its signal, plus events');
+    check(isequal(Ml.info.artifacts.intervals, ivS) && isequal(Mm.info.artifacts.intervals, ivS), ...
+        'every per-type file records the artifact periods (LFP and MUA alike)');
     oM = d1.exportChronux(File=fullfile(root, 'merged_chronux.mat'), Units=false, Overwrite=true);
     Cm = load(oM.file);
     check(isequal(sort(oM.signals), ["LFP" "MUA"]) && size(Cm.LFP.data, 1) == size(Ml.Y.LFP, 1) ...
         && size(Cm.MUA.data, 1) == size(Mm.Y.MUA, 1), ...
         'exporters find and merge the per-type files');
+    oF = d1.exportFieldTrip(File=fullfile(root, 'merged_fieldtrip.mat'), Units=false, Validate=false, Overwrite=true);
+    Fm = load(oF.file);
+    check(isequal(Cm.artifacts.intervals, ivS) ...
+        && isequal(Fm.data_LFP.cfg.artfctdef.preprocessing.artifact, EphysDataset.intervalRows(ivS, 1000, size(Ml.Y.LFP, 1))) ...
+        && isequal(Fm.data_MUA.cfg.artfctdef.preprocessing.artifact, EphysDataset.intervalRows(ivS, Mm.info.MUA.Fs, size(Mm.Y.MUA, 1))), ...
+        'the Chronux file carries the periods, the FieldTrip file each signal''s rows of them');
     cfgO = cfgM; cfgO.Signals.SeparateFiles = false;
     pipe.Config = cfgO; pipe.reset(); pipe.runSignals();
     Mo = load(pipe.Results.Output(1));

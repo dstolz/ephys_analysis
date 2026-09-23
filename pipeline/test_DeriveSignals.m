@@ -23,6 +23,12 @@ function test_DeriveSignals()
 %     6. digital-line naming and polarity default to the dataset's
 %        TrialConfig, also through ChronuxDataset; explicit options win;
 %        intan2matlab's ProbeFile
+%     7. artifactIntervals: the periods' samples become a line between the
+%        1 ms means on either side, bit for bit, before anything is derived,
+%        and info.artifacts reports them; a 20 mV artifact then leaves the
+%        1 Hz high-passed LFP 0.3 s away (and MUA / SPIKE 5 ms away) as
+%        without it, where unerased it rings hundreds of uV into them; AUX
+%        is not touched
 %   Needs the Signal Processing Toolbox (and zscore for automatic detection).
 %
 %   Usage:  test_DeriveSignals
@@ -320,6 +326,53 @@ lastwarn('');
 [~, wid] = lastwarn();
 check(~strcmp(wid, 'EphysDataset:deriveSignals:BadChannelGeometry') && isempty(Iaux.badChannels.columns), ...
     'AUX alone: bad channels have nothing to interpolate (no geometry warning)');
+
+fprintf('\n== 7. artifact periods are erased before any signal is derived ==\n');
+Fa = 30000;
+rng(7);
+Xa0 = 10 * randn(3 * Fa, 4);                  % the recording without the artifact
+art = [1.0 1.05];                              % on the sample grid: rows 30001..31500
+artRows = (round(art(1) * Fa) + 1):round(art(2) * Fa);
+Xa = Xa0;
+Xa(artRows, :) = Xa(artRows, :) + 20000;      % a 20 mV step on every channel
+ds0 = EphysDataset(writeRecording(root, "art0", Xa0, Fa));
+dsArt = EphysDataset(writeRecording(root, "art", Xa, Fa));
+% LFP at the recording's own rate and unfiltered is the amplifier data itself
+[Yid, ~, Iid] = dsArt.deriveSignals(dataTypeOut="LFP", LFP_Fs=Fa, artifactIntervals=[art; 1.02 1.03]);
+x = single(Xa);
+w = round(1e-3 * Fa);
+a = artRows(1); b = artRows(end); L = b - a + 1;
+before = mean(x(a-w:a-1, :), 1);
+after = mean(x(b+1:b+w, :), 1);
+fillLine = before + (after - before) .* ((1:L).' / (L + 1));
+clean = setdiff(1:size(x, 1), artRows);
+check(isequal(Yid.LFP(artRows, :), fillLine) && isequal(Yid.LFP(clean, :), x(clean, :)), ...
+    'the period''s samples become a line between the 1 ms means on either side; every other sample is as recorded');
+check(isequal(Iid.artifacts.intervals, art) && Iid.artifacts.nSamples == L && Iid.artifacts.fill == "line" ...
+    && ~isfield(Iid.importOptions, 'artifactIntervals'), ...
+    'info.artifacts holds the merged periods and the samples replaced (importOptions does not)');
+hp = {'dataTypeOut', ["LFP" "MUA" "SPIKE"], 'LFP_bpLoHi', [1 Inf]};
+[Y0, ~, I0] = ds0.deriveSignals(hp{:});
+[Yn, ~, ~] = dsArt.deriveSignals(hp{:});
+[Ye, ~, Ie] = dsArt.deriveSignals(hp{:}, artifactIntervals=art);
+check(isequal(I0.artifacts.intervals, zeros(0, 2)) && I0.artifacts.nSamples == 0, ...
+    'without periods info.artifacts says none were erased');
+for sig = ["LFP" "MUA" "SPIKE"]
+    margin = 0.005;
+    if sig == "LFP"; margin = 0.3; end
+    tt = ((1:size(Ye.(sig), 1)).' - 1) / Ie.(sig).Fs;
+    away = tt < art(1) - margin | tt >= art(2) + margin;
+    errE = max(abs(Ye.(sig)(away, :) - Y0.(sig)(away, :)), [], 'all');
+    errN = max(abs(Yn.(sig)(away, :) - Y0.(sig)(away, :)), [], 'all');
+    check(errE < 1 && errN > 50, sprintf(['%s %g ms and more from the period: erased, as without the artifact ' ...
+        '(%.2g uV off); unerased, %.0f uV off'], sig, 1000 * margin, errE, errN));
+end
+dsX = EphysDataset(T2.folder);
+[Yx0, ~, ~] = dsX.deriveSignals(dataTypeOut=["LFP" "AUX"]);
+[Yx1, ~, ~] = intan2matlab(T2.folder, dataTypeOut=["LFP" "AUX"], artifactIntervals=[0.5 0.6], ...
+    ProgressFcn=@(varargin) []);
+check(isequal(Yx1.AUX, Yx0.AUX) && ~isequal(Yx1.LFP, Yx0.LFP), ...
+    'AUX is not touched; intan2matlab passes artifactIntervals on');
 
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0

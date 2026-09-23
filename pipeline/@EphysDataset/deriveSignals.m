@@ -4,6 +4,11 @@ function [Y, ev, info] = deriveSignals(obj, opts)
 %   through EphysDataset.readData -- so every supported layout works
 %   (traditional *.rhd, one-file-per-signal, one-file-per-channel) -- then
 %   derives the requested continuous signals and the digital-input events.
+%   The dataset's common reference (ArtifactConfig.Reference: CAR / CMR over
+%   referenceChannels, applyReference) is subtracted from the amplifier data
+%   first, as the .bin and spike detection take it, and the artifact periods
+%   (artifactIntervals) are erased after it, so LFP, MUA and SPIKE all derive
+%   from the referenced, cleaned recording.
 %   This is the implementation behind INTAN2MATLAB, which is a thin wrapper
 %   around it: option names, processing and outputs are the same.
 %
@@ -54,6 +59,15 @@ function [Y, ev, info] = deriveSignals(obj, opts)
 %           column ("geometry" | "columns") and weights [nKept x nBad] (each
 %           geometry column's weights over the kept columns, summing to 1;
 %           zero for a "columns" fill).
+%           INFO.reference: the common reference subtracted first: mode
+%           ("none" | "car" | "cmr") and channels (the recording channels
+%           it was taken over, referenceChannels; empty for "none").
+%           INFO.artifacts: the artifactIntervals option, what was erased
+%           before any signal was derived: intervals ([k x 2] [tStart tEnd)
+%           seconds on the recording's continuous clock, merged; zeros(0,2)
+%           for none), fill ("line") and nSamples (recording samples
+%           replaced). They hold for every signal and rate: row r of a
+%           signal at Fs lies at (r-1)/Fs (EphysDataset.intervalRows).
 %
 %   Options
 %   -------
@@ -121,6 +135,24 @@ function [Y, ev, info] = deriveSignals(obj, opts)
 %                        (default "": the dataset's ProbeFile); EphysPipeline
 %                        passes the probe it sorts with (probeFor), the config's
 %                        default for a dataset without a probe of its own
+%     reference          logical  true  subtract the dataset's common
+%                        reference (ArtifactConfig.Reference; nothing for
+%                        "none"), sample by sample over every channel of the
+%                        recording, so with a reference all channels are read
+%                        and keepAmpChannels picks from the referenced data.
+%                        false: the recording as stored (readChunkUV's
+%                        Reference=false). Reported in INFO.reference
+%     artifactIntervals  [k x 2] seconds  zeros(0,2)  artifact periods
+%                        (EphysDataset.artifactIntervals: recording-relative,
+%                        half-open) erased in the amplifier data before any
+%                        signal is derived, so no filter or resampler spreads
+%                        an artifact past its period: the samples
+%                        EphysDataset.artifactSamples names (those the .bin
+%                        and spike rejection take) become, per channel, a
+%                        straight line from the mean of the 1 ms before the
+%                        period to the mean of the 1 ms after it. LFP, MUA
+%                        and SPIKE all derive from the filled data; AUX is
+%                        not touched. Reported in INFO.artifacts
 %     ProgressFcn        function handle, called as ProgressFcn(nDone, nTotal,
 %                        message) before each step (one per file read, then one
 %                        per processing stage) and once more as
@@ -141,6 +173,9 @@ function [Y, ev, info] = deriveSignals(obj, opts)
 %   amplifier data in place. Peak memory is about the single-precision
 %   recording plus the derived signals plus the double-precision working
 %   copies of one block of channels (at most about the recording again).
+%   The common reference is subtracted in place, a block of rows at a time;
+%   with a reference and keepAmpChannels every channel is read, so the kept
+%   columns are copied out of the whole referenced recording once.
 %
 %   Requires the Signal Processing Toolbox (BUTTER, FILTFILT, RESAMPLE);
 %   automatic bad-channel detection also needs ZSCORE (Statistics and
@@ -168,6 +203,8 @@ arguments
     opts.lineNames {mustBeNameList} = []
     opts.invertedLines {mustBeNameList} = []
     opts.probeFile (1,1) string = ""
+    opts.reference (1,1) logical = true
+    opts.artifactIntervals (:,2) double {mustBeFinite} = zeros(0, 2)
     opts.ProgressFcn = []
 end
 
@@ -251,9 +288,28 @@ if ~autoBad && ~isempty(opts.badChannels) && isfinite(nKept)
     checkBadChannels(opts.badChannels, nKept);
 end
 
+artifacts = EphysDataset.mergeIntervals(opts.artifactIntervals);
+opts = rmfield(opts, 'artifactIntervals');   % reported in info.artifacts, not importOptions
+
+% The common reference is taken over every channel of the recording, so with
+% one the whole recording is read and the kept channels are picked after it.
+refMode = "none";
+if opts.reference
+    refMode = string(EphysDataset.normalizeArtifactConfig(obj.ArtifactConfig).Reference);
+end
+readKeep = opts.keepAmpChannels(:).';
+if refMode ~= "none"
+    if isfinite(obj.NumChannels) && any(readKeep > obj.NumChannels)
+        error('EphysDataset:deriveSignals:KeepChannels', ...
+            'keepAmpChannels lists channel %d but %s has %d.', max(readKeep), obj.Name, obj.NumChannels);
+    end
+    obj.prepareReference();
+    readKeep = [];
+end
+
 % Progress steps: one per file read, then one per processing stage.
 nRead  = obj.NumFiles;
-nProc  = has.LFP + lfpFilter + has.MUA + has.SPIKE + ~isempty(opts.badChannels) ...
+nProc  = (refMode ~= "none") + ~isempty(artifacts) + has.LFP + lfpFilter + has.MUA + has.SPIKE + ~isempty(opts.badChannels) ...
     + ~isempty(opts.channelRemap) + 1;   % +1 = digital events
 nSteps = nRead + nProc;
 
@@ -264,7 +320,7 @@ if ~isempty(progressFcn)
 end
 
 % --- read (any layout), single precision, lines named by labelField / lineNames ---
-data = obj.readData(KeepChannels=opts.keepAmpChannels(:).', Precision="single", ...
+data = obj.readData(KeepChannels=readKeep, Precision="single", ...
     LabelField=opts.labelField, LineNames=opts.lineNames, IncludeAux=has.AUX, ProgressFcn=readCb);
 nDone = nRead;
 
@@ -274,7 +330,35 @@ if isempty(AMPSIG)
     error('EphysDataset:deriveSignals:NoData', 'No amplifier data read from %s', obj.Folder);
 end
 origFs = data.Fs;
+
+% --- the common reference, over every channel; then the kept channels ---
+ref = struct('mode', refMode, 'channels', zeros(1, 0));
+if refMode ~= "none"
+    ref.channels = obj.referenceChannels();
+    nDone = reportProgress(progressFcn, nDone, nSteps, sprintf('Common %s reference over %d channel(s)', ...
+        upper(refMode), numel(ref.channels)));
+    AMPSIG = referenceRows(obj, AMPSIG);
+    if ~isempty(opts.keepAmpChannels)
+        keepCh = opts.keepAmpChannels(:).';
+        AMPSIG = AMPSIG(:, keepCh);
+        data.channelNames = data.channelNames(keepCh);
+        data.nativeNames = data.nativeNames(keepCh);
+    end
+end
 [nSamp, nCol] = size(AMPSIG);
+
+% --- erase the artifact periods before any filter or resampler sees them ---
+% In place, run by run: a line across each period between the 1 ms levels on
+% either side, so no signal carries an artifact or its filter ringing.
+art = struct('intervals', artifacts, 'fill', "line", 'nSamples', 0);
+if ~isempty(artifacts)
+    runs = EphysDataset.artifactSamples(artifacts, origFs, nSamp);
+    nDone = reportProgress(progressFcn, nDone, nSteps, ...
+        sprintf('Erasing %d artifact period(s) (line fill)', size(artifacts, 1)));
+    AMPSIG = bridgeRuns(AMPSIG, runs(:, 1), runs(:, 2), [], zeros(1, nCol, 'like', AMPSIG), ...
+        [], max(1, round(1e-3 * origFs)));
+    art.nSamples = sum(runs(:, 2) - runs(:, 1) + 1);
+end
 % The rates the signals are produced at (RESAMPLE's P/Q), checked against
 % the rate actually read; the options report them from here on.
 rates = signalRates(opts, has, origFs);
@@ -406,6 +490,8 @@ info.labels          = labels(:);
 info.origFs          = origFs;
 info.invertedLines   = invertedApplied;   % digital lines whose events are low runs
 info.badChannels     = bad;               % what was interpolated, and how
+info.reference       = ref;               % the common reference subtracted first
+info.artifacts       = art;               % what was erased before deriving
 if has.LFP
     info.LFP.Fs       = opts.LFP_Fs;
     info.LFP.bpLoHi   = opts.LFP_bpLoHi;
@@ -489,6 +575,20 @@ if numel(names) ~= nAux
     names = "AUX" + string(1:nAux);
 end
 labels = cellstr(names);
+end
+
+
+function X = referenceRows(obj, X)
+%referenceRows  Subtract the common reference (applyReference) from X, in
+%   place, a block of rows at a time: each sample is referenced on its own,
+%   so the result is the same as for the whole matrix at once, without a
+%   second copy of the recording.
+nRows = size(X, 1);
+blk = max(1, floor(2^24 / max(1, size(X, 2))));   % about 16M samples per block
+for r0 = 1:blk:nRows
+    r = r0:min(nRows, r0 + blk - 1);
+    X(r, :) = obj.applyReference(X(r, :));
+end
 end
 
 

@@ -27,6 +27,12 @@ function out = exportChronux(obj, opts)
 %                 on the recording's clock: on a signal at Fs that is row
 %                 round((t - 1/eventFs)*Fs) + 1 (ChronuxDataset.trials' "event"
 %                 rule)
+%     artifacts   the artifact periods erased before the signals were
+%                 derived (the extract's info.artifacts): intervals [k x 2]
+%                 [tStart tEnd) seconds on the continuous clock -- the rows of
+%                 a signal they touch are those with t in or next to them,
+%                 EphysDataset.intervalRows -- fill and nSamples. No intervals:
+%                 nothing was erased
 %     export      provenance: tool, created, dataset, sources, signals,
 %                 eventFs (the recording rate), timeConventions
 %
@@ -104,6 +110,7 @@ if ~isempty(in.detected)
     S.detected   = in.detected;
 end
 S.events   = in.events;
+S.artifacts = in.artifacts;
 S.export = struct( ...
     'tool',       "EphysDataset.exportChronux", ...
     'created',    string(datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss')), ...
@@ -116,7 +123,8 @@ S.export = struct( ...
     'sources',    in.sources, ...
     'timeConventions', struct('continuous', "t = (sample-1)/Fs", ...
         'events', "t = row/eventFs (1-based row of the recording); row round((t - 1/eventFs)*Fs) + 1 of a signal at Fs", ...
-        'spikes', "seconds on the recording clock"));
+        'spikes', "seconds on the recording clock", ...
+        'artifacts', "[tStart tEnd) s on the continuous clock; rows EphysDataset.intervalRows(intervals, Fs, nRows) of a signal at Fs"));
 
 EphysDataset.saveAtomically(file, S, opts.MatVersion);
 

@@ -11,6 +11,10 @@ function out = toMat(obj, opts)
 %   variables as the combined file, but Y holds only that signal (the other
 %   Y fields are single([])) and info only that signal's sub-struct, so every
 %   reader of the combined file reads it too. The derivation runs once.
+%   Every file carries info.artifacts, the artifact periods erased before
+%   the signals were derived (SignalOptions.artifactIntervals; see
+%   deriveSignals), so whatever reads one signal knows which of its rows
+%   they cover.
 %   AUX (the accelerometer inputs) is written only when the recording has
 %   them: a requested AUX that is absent gets no _AUX file.
 %
@@ -42,7 +46,9 @@ function out = toMat(obj, opts)
 %   SeparateFiles), types (the signal type(s) in each file), bytes (per file), seconds, matVersion, recordingFormat, origFs,
 %   signals (struct array: name, nSamples, nChannels, class, Fs), events
 %   (struct array: name, count), badChannels (the columns actually
-%   interpolated, from info.importOptions; info.badChannels says how).
+%   interpolated, from info.importOptions; info.badChannels says how),
+%   reference (info.reference: the common reference subtracted first),
+%   artifacts (info.artifacts: the periods erased and the samples replaced).
 %
 %   See also EphysDataset.deriveSignals, INTAN2MATLAB.
 
@@ -145,6 +151,8 @@ out.origFs          = info.origFs;
 out.signals         = signalSummary(Y, info);
 out.events          = eventSummary(ev);
 out.badChannels     = info.importOptions.badChannels;
+out.reference       = info.reference;
+out.artifacts       = info.artifacts;
 
 if ~isempty(obj.Manifest) && isa(obj.Manifest, 'Manifest')
     obj.Manifest.add("toMat", "Wrote derived signals .mat", ...

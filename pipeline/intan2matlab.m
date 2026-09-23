@@ -168,6 +168,12 @@ function [Y, events, info] = intan2matlab(RHDroot, options)
 %       events are the low runs: onset = falling edge, offset = last low
 %       sample. Other lines keep the normal polarity (onset = rising edge).
 %
+%   options.artifactIntervals  k×2 double s   zeros(0,2)
+%       Artifact periods [tStart tEnd) in seconds from the recording start,
+%       erased (a straight line across each, per channel) before any signal
+%       is derived; INFO.artifacts reports them (see
+%       EphysDataset.deriveSignals).
+%
 %   options.ProgressFcn        function handle []
 %       Optional progress callback, called as
 %           ProgressFcn(nDone, nTotal, message)
@@ -216,6 +222,7 @@ arguments
     options.lineNames (1,:) string = string.empty(1,0)
     options.invertedLines (1,:) string = string.empty(1,0)
     options.ProbeFile (1,1) string = ""
+    options.artifactIntervals (:,2) double = zeros(0, 2)
     options.ProgressFcn = []
 end
 

@@ -29,6 +29,9 @@ classdef EphysPipelineConfig
     %                SkipExisting, KS4 (typed per kilosortParamSpec),
     %                KS4ExtraJSON
     %     Signals    Enabled + the derived-signal (toMat) settings,
+    %                BlankArtifacts (erase the artifact periods before
+    %                deriving, and record them in every file; the automatic
+    %                ones with Artifacts.ApplyToSignals),
     %                ExcludeHandling, LabelField ("custom" | "native" names),
     %                LineNames ("native=name" digital-line names) and
     %                InvertedLines (digital-line polarity); the line naming
@@ -354,6 +357,7 @@ classdef EphysPipelineConfig
                 o.OnsetRule     = e.EpochOnsetRule;
                 o.Incomplete    = e.EpochIncomplete;
                 o.NonFinite     = e.EpochNonFinite;
+                o.Artifacts     = e.EpochArtifacts;
                 o.SpikeTimeBase = e.EpochSpikeTimeBase;
                 o.Class         = e.EpochClass;
             end

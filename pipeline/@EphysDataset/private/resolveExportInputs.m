@@ -9,6 +9,10 @@ function in = resolveExportInputs(obj, opts, who)
 %     in.eventFs   the recording rate, the clock the event times count rows
 %                  of (t = row/eventFs): info.origFs, else the dataset's Fs,
 %                  else NaN
+%     in.artifacts the artifact periods erased before the signals were
+%                  derived: info.artifacts (intervals [k x 2] s on the
+%                  continuous clock, fill, nSamples), with no intervals for
+%                  an extract passed as a struct without them
 %     in.sources   provenance (extractFile, spikesFile, sortingDir)
 %
 %   opts fields: Extract, Signals, Units, Detected, Events, Groups, Sources.
@@ -24,7 +28,7 @@ function in = resolveExportInputs(obj, opts, who)
 %   passed in as structs; what is read from files here replaces it.
 
 in = struct('S', [], 'signals', string.empty(1,0), 'units', [], 'detected', [], ...
-    'events', struct(), 'eventFs', NaN, 'sources', struct());
+    'events', struct(), 'eventFs', NaN, 'artifacts', [], 'sources', struct());
 src = struct('extractFile', "", 'spikesFile', "", 'sortingDir', "");
 if isfield(opts, 'Sources')
     for fld = intersect(string(fieldnames(opts.Sources)).', string(fieldnames(src)).')
@@ -98,6 +102,12 @@ if opts.Events && isfield(S, 'events') && isstruct(S.events)
 end
 if isfield(S.info, 'origFs'); in.eventFs = double(S.info.origFs); end
 if ~isfinite(in.eventFs) && ~isnan(obj.Fs); in.eventFs = obj.Fs; end
+
+% --- artifact periods (the same in every file of one extract) ---------------------
+in.artifacts = struct('intervals', zeros(0, 2), 'fill', "none", 'nSamples', 0);
+if isfield(S.info, 'artifacts') && isstruct(S.info.artifacts)
+    in.artifacts = S.info.artifacts;
+end
 
 % --- sorted units -----------------------------------------------------------
 u = opts.Units;

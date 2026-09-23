@@ -99,7 +99,7 @@ obj.RunMonitorNote.Layout.Row = 5; obj.RunMonitorNote.Layout.Column = [1 3];
 obj.RunSplitGrid = uigridlayout(g, [1 2]);
 obj.RunSplitGrid.Layout.Row = [1 2]; obj.RunSplitGrid.Layout.Column = 2;
 obj.RunSplitGrid.RowHeight = {'1x'};
-obj.RunSplitGrid.ColumnWidth = {'1x', 0};   % onRunDiagramToggled: {'1x', '1x'} while shown
+obj.RunSplitGrid.ColumnWidth = {'1x', 0};   % onRunDiagramToggled: {'3x', '1x'} while shown
 obj.RunSplitGrid.ColumnSpacing = 0;
 obj.RunSplitGrid.Padding = [0 0 0 0];
 

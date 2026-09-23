@@ -43,10 +43,11 @@ classdef EphysPreprocessingApp < handle
     %     Signals    derived LFP / MUA / SPIKE / AUX (.mat) settings, plan, Run
     %     Spikes     threshold detection / sorted units (.mat), preview, Run
     %     Export     analysis-toolbox and epoch files (one per format), plan, Run
-    %     Diagram    diagram of the working config: one tree per step that
-    %                reads the raw recording (filters, references, detection
-    %                parameters, files written), then the downstream steps;
-    %                Save as HTML
+    %     Diagram    diagram of the working config: one tree from the raw
+    %                recording, a branch per step (filters, references,
+    %                detection parameters, files written), with the steps
+    %                that read those files hanging from them, or a tree
+    %                per step (Layout); Save as HTML
     %     Run        step checklist (with how many background Kilosort4 runs
     %                go at once, the GPUs they share and whether the Run
     %                hands the waiting ones to the monitor's queue),
@@ -503,6 +504,7 @@ classdef EphysPreprocessingApp < handle
         FlowRefreshButton matlab.ui.control.Button
         FlowSaveButton    matlab.ui.control.Button
         FlowOpenButton    matlab.ui.control.Button
+        FlowLayoutDropDown matlab.ui.control.DropDown
         FlowSummaryLabel  matlab.ui.control.Label
         FlowHTML          matlab.ui.control.HTML
         % Controls a click in the Diagram marked, with the look to put back
@@ -966,6 +968,7 @@ classdef EphysPreprocessingApp < handle
         [html, summary] = flowChartHTML(obj)
         onSaveFlowChart(obj)
         onOpenFlowChartInBrowser(obj)
+        onFlowLayoutChanged(obj)
         onFlowNavigate(obj, evt)
         ctrls = flowNavControls(obj, target)
         clearFlowHighlight(obj)

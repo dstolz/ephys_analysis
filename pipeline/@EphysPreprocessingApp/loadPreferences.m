@@ -55,6 +55,9 @@ end
 if ispref(g, 'TrialsColumnOrder')
     obj.TrialsColumnOrder = reshape(string(getpref(g, 'TrialsColumnOrder')), 1, []);
 end
+if ispref(g, 'DiagramLayout') && ismember(string(getpref(g, 'DiagramLayout')), ["tree" "steps"])
+    obj.FlowLayoutDropDown.Value = string(getpref(g, 'DiagramLayout'));
+end
 if ispref(g, 'ShowRunDiagram')
     obj.RunDiagramCheckBox.Value = isequal(getpref(g, 'ShowRunDiagram'), true);
     obj.onRunDiagramToggled();

@@ -811,9 +811,9 @@ the app only writes files.
 ## Diagram
 
 A diagram of what the working config does, redrawn whenever the tab is
-shown and on every config edit while it is open. Each step that reads the raw
-recording gets its own tree, drawn top-down from the recording to the files it
-writes:
+shown and on every config edit while it is open. It is one tree: the raw
+recording at the top branches into the steps that read it, each drawn
+top-down from its own coloured step box to the files it writes:
 
 - **Artifacts**: chunked reading, the detection filter, the detector (method,
   window, threshold), channel coincidence, merge / pad, the automatic
@@ -827,22 +827,30 @@ writes:
   band filter, notch), MUA (bandpass, rectify, resample, integrate), SPIKE
   (resample, bandpass), AUX and the digital events; the amplifier branches end
   with bad-channel interpolation, the channel remap and the output file.
+  Export hangs from the first signal file (from the digital events when no
+  amplifier signal is computed): its inputs, then one branch per format.
 - **Spikes**: chunking, channels, bandpass, threshold, alignment, minimum
   period, amplitude cap, waveforms, artifact rejection and the spikes file.
 
-The steps that read those outputs instead of the recording (sorted units for
-the spikes file, Export) follow under **Downstream**. Stages the config leaves
-off are dashed, disabled steps are faded, and artifact periods feeding another
-step are marked orange. With an active dataset the recording node shows its
-name, rate and channel count, and the Sorting tree shows its probe and
-exclusions.
+Reading the sorted units into the spikes file (*Spikes: sorted units*) hangs
+from Sorting's output. Stages the config leaves off are dashed, a disabled
+step's branch is faded (a step hanging from it keeps its own state), and
+artifact periods feeding another step are marked orange.
+
+**Layout** switches to **Tree per step**: a tree of its own for each step that
+reads the recording, each from the recording box, then the steps that read
+their outputs (sorted units, Export) under **Downstream**, each under a box
+for the file it reads. The choice is kept as a preference.
+
+With an active dataset the recording node shows its name, rate and channel
+count, and the Sorting branch shows its probe and exclusions.
 
 **Click a box to open the setting it draws**: the app switches to the tab that
 holds it, scrolls it into view, focuses it and colours it blue and bold until
 you leave the tab. A box usually stands for several controls (the *Threshold*
 box for the method, the threshold and the polarity; *Drift correction* for
 `nblocks`, `sig_interp`, `binning_depth`, `dmin` and `dminx`) — all of them are
-marked, and the first one decides the tab. A step's header opens its **Enable**
+marked, and the first one decides the tab. A step box opens its **Enable**
 box. Boxes lead where the setting lives rather than where they are drawn, so
 *Blank artifact periods* in the Sorting tree opens the Artifacts tab, *Read in
 chunks* opens the Run tab's parallel settings, and the recording box opens the

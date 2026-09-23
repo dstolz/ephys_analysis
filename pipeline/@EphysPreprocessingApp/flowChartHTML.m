@@ -1,14 +1,22 @@
-function [html, summary] = flowChartHTML(obj)
+function [html, summary] = flowChartHTML(obj, layout)
 %flowChartHTML  Flow chart of the working config as a standalone HTML page.
-%   [HTML, SUMMARY] = app.flowChartHTML() draws one tree per step that reads
-%   the raw recording -- Artifacts, Sorting (Kilosort4 on a .bin),
-%   Signals (LFP / MUA / SPIKE / AUX / digital events) and Spikes (threshold
-%   detection) -- from the recording through each stage, with its filter,
-%   reference and detection parameters, to what the step writes. The steps
-%   that read those outputs instead of the recording (sorted units for the
-%   Spikes file, Export) follow as downstream trees. Stages the config leaves
-%   off are drawn dashed; disabled steps are faded. Artifact periods feeding
-%   Sorting / Spikes are marked in the Artifacts colour.
+%   [HTML, SUMMARY] = app.flowChartHTML() draws one tree from the raw
+%   recording. It branches into the steps that read the recording --
+%   Artifacts, Sorting (Kilosort4 on a .bin), Signals (LFP / MUA / SPIKE /
+%   AUX / digital events) and Spikes (threshold detection) -- and runs each
+%   through its stages, with their filter, reference and detection
+%   parameters, to what the step writes. The steps that read those outputs
+%   instead of the recording hang from the file they read: sorted units for
+%   the Spikes file under Sorting's output, Export under the Signals extract.
+%   Each step's branch starts with a box in its colour. Stages the config
+%   leaves off are drawn dashed; disabled steps are faded. Artifact periods
+%   feeding Sorting / Spikes are marked in the Artifacts colour.
+%
+%   app.flowChartHTML(LAYOUT) picks the layout: "tree" (the one tree above)
+%   or "steps" (a tree of its own for each step that reads the recording,
+%   each from the recording box, then the steps that read their outputs as
+%   downstream trees, each under the file it reads). Default: the Diagram
+%   tab's Layout drop-down (FlowLayoutDropDown).
 %
 %   Each box names the control(s) that set what it shows (its node target,
 %   written into the page as data-nav). In the app a click on a box sends
@@ -23,29 +31,22 @@ function [html, summary] = flowChartHTML(obj)
 %   EphysDataset.detectSpikes, EphysDataset.detectArtifacts,
 %   EphysDataset.runKilosort.
 
+if nargin < 2
+    layout = "tree";
+    if ~isempty(obj.FlowLayoutDropDown) && isvalid(obj.FlowLayoutDropDown)
+        layout = string(obj.FlowLayoutDropDown.Value);
+    end
+end
 cfg = obj.Config;
 d = obj.currentDataset();
-raw = rawNode(d);
 dsName = ternary(isempty(d), "<Name>", d.Name);
 
-cards = [ ...
-    card("artifacts", "Artifacts", cfg.Artifacts.Enabled, artifactsTree(cfg, raw), ...
-        ternary(cfg.Artifacts.Enabled, "", "Detection is off: only the manual periods reach Sorting / Spikes."), ...
-        "ArtEnableCheckBox"), ...
-    card("sorting", "Sorting", cfg.Sorting.Enabled, sortingTree(cfg, raw, d), sortingNote(cfg.Sorting), ...
-        "SortEnableCheckBox,SortSkipExistingCheckBox,ExecModeDropDown,DryRunCheckBox"), ...
-    card("signals", "Signals", cfg.Signals.Enabled, signalsTree(cfg, raw, dsName), "", "SigEnableCheckBox"), ...
-    card("spikes", "Spikes", cfg.Spikes.Enabled && cfg.Spikes.Source ~= "sorted", spikesTree(cfg, raw, dsName), ...
-        ternary(cfg.Spikes.Source == "sorted", "Source is 'sorted': no threshold detection runs.", ""), ...
-        "SpkEnableCheckBox,SpkSourceDropDown")];
-down = [ ...
-    card("spikes", "Spikes: sorted units", cfg.Spikes.Enabled && cfg.Spikes.Source ~= "detect", unitsTree(cfg, dsName), ...
-        ternary(cfg.Spikes.Source == "detect", "Source is 'detect': sorted units are not read.", ""), ...
-        "SpkSourceDropDown"), ...
-    card("export", "Export", cfg.Export.Enabled, exportTree(cfg, dsName), "", "ExpEnableCheckBox")];
+steps = {artifactsTree(cfg), sortingTree(cfg, d, unitsTree(cfg, dsName)), ...
+    signalsTree(cfg, dsName, exportTree(cfg, dsName)), spikesTree(cfg, dsName)};
+raw = rawNode(d);
 
-nOn = sum([cards.enabled]);
-summary = sprintf("%d of %d raw-data step(s) enabled", nOn, numel(cards));
+nOn = sum(cellfun(@(s) ~s.dim, steps));
+summary = sprintf("%d of %d raw-data step(s) enabled", nOn, numel(steps));
 if ~isempty(d)
     summary = summary + " | recording: " + d.Name;
 end
@@ -53,8 +54,7 @@ end
 pageTitle = "Preprocessing diagram: " + cfg.Name;
 body = "<h1>" + esc(pageTitle) + "</h1>" + legendHTML() ...
     + "<div class=""hint"">Click any box to open the setting it draws.</div>" ...
-    + "<h2>From the raw recording</h2><div class=""cards"">" + joinHTML(arrayfun(@cardHTML, cards, "UniformOutput", false)) + "</div>" ...
-    + "<h2>Downstream (reads step outputs)</h2><div class=""cards"">" + joinHTML(arrayfun(@cardHTML, down, "UniformOutput", false)) + "</div>" ...
+    + ternary(layout == "steps", stepsHTML(raw, steps), treeHTML(raw, steps)) ...
     + "<script>" + js() + "</script>";
 html = "<!DOCTYPE html><html><head><meta charset=""utf-8""><title>" + esc(pageTitle) + "</title><style>" ...
     + css() + "</style></head><body>" + body + "</body></html>";
@@ -77,7 +77,7 @@ n = node("src", "Raw recording", [d.Name, info], "RootPathField,DatasetsTable");
 end
 
 
-function n = artifactsTree(cfg, raw)
+function n = artifactsTree(cfg)
 A = cfg.Artifacts;
 filtTarget = "ArtFilterCheckBox,ArtHighpassField";
 if A.Filter
@@ -117,7 +117,10 @@ manual = node("data", "+ manual periods", "marked on Visualize; always applied",
 manual.children = {toSort, toSpk};
 out.children = {manual};
 
-n = chain({raw, node("op", "Read in chunks", ["one file / bounded window per chunk", parallelText(cfg.Parallel)], ...
+n = step("artifacts", "Artifacts", A.Enabled, ...
+    ternary(A.Enabled, "", "Detection is off: only the manual periods reach Sorting / Spikes."), ...
+    "ArtEnableCheckBox", ...
+    {node("op", "Read in chunks", ["one file / bounded window per chunk", parallelText(cfg.Parallel)], ...
     "RunParallelCheckBox,RunMaxWorkersField"), ...
     filt, det, coinc, merge, pad, out});
 end
@@ -134,9 +137,10 @@ end
 end
 
 
-function n = sortingTree(cfg, raw, d)
+function n = sortingTree(cfg, d, units)
 % The recording goes to a .bin and straight into Kilosort4, which crops
-% (tmin/tmax) and references (do_CAR) itself.
+% (tmin/tmax) and references (do_CAR) itself. UNITS (reading the sorted
+% units into the Spikes file) hangs from the sorted units.
 S = cfg.Sorting; K = S.KS4;
 A = cfg.Artifacts;
 
@@ -179,12 +183,15 @@ clu = node("op", "Clustering", sprintf("ACG %g, CCG %g", K.acg_threshold, K.ccg_
 outTarget = "SortDatasetDropDown,SortUseFolderButton,SortPhyButton";
 ksStage = "KSOptimizeButton,KSResetButton";
 
-n = chain({raw, ...
-    node("stage", "Write .bin", ["int16, channel-interleaved", "<Name>.bin (toBin)"], "PythonExeField,CondaEnvField"), blank, ...
+out = node("out", "Sorted units", ["kilosort4/", "phy-ready"], outTarget);
+out.children = {units};
+
+n = step("sorting", "Sorting", S.Enabled, sortingNote(S), ...
+    "SortEnableCheckBox,SortSkipExistingCheckBox,ExecModeDropDown,DryRunCheckBox", ...
+    {node("stage", "Write .bin", ["int16, channel-interleaved", "<Name>.bin (toBin)"], "PythonExeField,CondaEnvField"), blank, ...
     node("op", "Attach probe map", [probe, "chanMap indexes .bin rows"], "ProbeDatasetDropDown,ProbeDefaultField,ExcludeChannelsField"), ...
     node("stage", "Kilosort4", "run_kilosort", ksStage), ...
-    crop, hp, ksCar, art, white, drift, det, clu, ...
-    node("out", "Sorted units", ["kilosort4/", "phy-ready"], outTarget)});
+    crop, hp, ksCar, art, white, drift, det, clu, out});
 end
 
 
@@ -200,8 +207,12 @@ txt = txt + ".";
 end
 
 
-function n = signalsTree(cfg, raw, dsName)
+function n = signalsTree(cfg, dsName, export)
+%signalsTree  EXPORT (reading the extract) hangs from the first signal file.
 G = cfg.Signals;
+types = ["LFP" "MUA" "SPIKE" "AUX"];
+host = types(find([G.LFP G.MUA G.SPIKE G.AUX], 1));
+kids = @(type) exportUnder(host, type, export);
 
 sel = strings(1, 0);
 if G.KeepChannels ~= ""; sel(end+1) = "keep " + G.KeepChannels; end
@@ -228,7 +239,7 @@ if G.LFP
     notch = onOff(G.LFP_NotchOn, "Notch", [G.LFP_NotchHz + " Hz", sprintf("width %g Hz, order 2, zero-phase", G.LFP_NotchBW)], "off", ...
         "ConvLFPNotchCheckBox,ConvLFPNotchField,ConvLFPNotchBWField");
     branches{1} = chain([{node("stage", "LFP", "amplifier", "ConvLFPCheckBox"), ...
-        node("op", "Resample", sprintf("-> %g Hz (anti-aliased)", G.LFP_Fs), "ConvLFPFsField"), band, notch}, ampTail(G, "LFP", dsName)]);
+        node("op", "Resample", sprintf("-> %g Hz (anti-aliased)", G.LFP_Fs), "ConvLFPFsField"), band, notch}, ampTail(G, "LFP", dsName, kids("LFP"))]);
 else
     branches{1} = node("off", "LFP", "not computed", "ConvLFPCheckBox");
 end
@@ -240,7 +251,7 @@ if G.MUA
         node("op", "Rectify", "|x|", "ConvMUACheckBox"), ...
         node("op", "Resample", sprintf("-> %g Hz", G.MUA_Fs), "ConvMUAFsField"), ...
         node("op", "Integrate", sprintf("moving mean, %d sample(s) (%g Hz)", win, G.MUA_IntegrationHz), ...
-            "ConvMUAIntegrationField")}, ampTail(G, "MUA", dsName)]);
+            "ConvMUAIntegrationField")}, ampTail(G, "MUA", dsName, kids("MUA"))]);
 else
     branches{2} = node("off", "MUA", "not computed", "ConvMUACheckBox");
 end
@@ -249,13 +260,13 @@ if G.SPIKE
         "ConvSpikeOrigCheckBox,ConvSpikeFsField");
     branches{3} = chain([{node("stage", "SPIKE", "amplifier", "ConvSPIKECheckBox"), rs, ...
         node("op", "Butterworth bandpass", [sprintf("%g - %g Hz, order 4", G.SPIKE_bpLoHi), "zero-phase"], ...
-            "ConvSpikeLoField,ConvSpikeHiField")}, ampTail(G, "SPIKE", dsName)]);
+            "ConvSpikeLoField,ConvSpikeHiField")}, ampTail(G, "SPIKE", dsName, kids("SPIKE"))]);
 else
     branches{3} = node("off", "SPIKE", "not computed", "ConvSPIKECheckBox");
 end
 if G.AUX
     branches{4} = chain({node("stage", "AUX", "headstage accelerometer", "ConvAUXCheckBox"), ...
-        node("op", "No processing", "volts at the aux rate", "ConvAUXCheckBox"), outNode(G, "AUX", dsName)});
+        node("op", "No processing", "volts at the aux rate", "ConvAUXCheckBox"), outNode(G, "AUX", dsName, kids("AUX"))});
 else
     branches{4} = node("off", "AUX", "not computed", "ConvAUXCheckBox");
 end
@@ -263,16 +274,24 @@ ev = "[t_on t_off] s per line";
 if ~isempty(G.InvertedLines); ev(end+1) = "inverted: " + join(G.InvertedLines, ", "); end
 named = G.LabelField + " names";
 if ~isempty(G.LineNames); named = [named, numel(G.LineNames) + " renamed (Trials tab)"]; end
+events = node("out", "Events", "in every extract file", "ConvLabelFieldDropDown");
+if isempty(host); events.children = {export}; end
 branches{5} = chain({node("stage", "Digital inputs", named, "ConvLabelFieldDropDown"), ...
-    node("op", "Edge detection", ev, "TrialsLinesTable"), ...
-    node("out", "Events", "in every extract file", "ConvLabelFieldDropDown")});
+    node("op", "Edge detection", ev, "TrialsLinesTable"), events});
 
 chan.children = branches;
-n = chain({raw, node("op", "Read whole recording", "single precision, uV", "SigEnableCheckBox"), chan});
+n = step("signals", "Signals", G.Enabled, "", "SigEnableCheckBox", ...
+    {node("op", "Read whole recording", "single precision, uV", "SigEnableCheckBox"), chan});
 end
 
 
-function tail = ampTail(G, type, dsName)
+function k = exportUnder(host, type, export)
+%exportUnder  {EXPORT} under the file of signal HOST, {} under the others.
+if isequal(host, type); k = {export}; else; k = {}; end
+end
+
+
+function tail = ampTail(G, type, dsName, kids)
 %ampTail  Bad-channel interpolation, remap and the file of one amplifier signal.
 lines = strings(1, 0);
 switch G.BadMode
@@ -284,14 +303,14 @@ badTarget = "ConvBadModeDropDown,ConvBadThresholdField,ConvBadListField";
 if isempty(lines)
     bad = node("off", "Bad channels", "none interpolated", badTarget);
 else
-    bad = node("op", "Interpolate bad channels", [lines, "spatial makima"], badTarget);
+    bad = node("op", "Interpolate bad channels", [lines, "from the nearest probe sites", "(makima across columns without a probe)"], badTarget);
 end
 remap = onOff(G.ChannelRemap ~= "", "Channel remap", G.ChannelRemap, "off", "ConvRemapField");
-tail = {bad, remap, outNode(G, type, dsName)};
+tail = {bad, remap, outNode(G, type, dsName, kids)};
 end
 
 
-function n = outNode(G, type, dsName)
+function n = outNode(G, type, dsName, kids)
 if G.SeparateFiles
     f = dsName + G.Suffix + "_" + type + ".mat";
 else
@@ -299,10 +318,11 @@ else
 end
 n = node("out", type + " file", [f, G.MatVersion], ...
     "ConvOutputDirField,ConvSuffixField,ConvSeparateFilesCheckBox,ConvMatVersionDropDown");
+n.children = kids;
 end
 
 
-function n = spikesTree(cfg, raw, dsName)
+function n = spikesTree(cfg, dsName)
 K = cfg.Spikes;
 A = cfg.Artifacts;
 
@@ -349,10 +369,13 @@ else
     rej = node("off", "Reject artifact periods", "off", "SpkRejectArtifactsCheckBox");
 end
 lines = [dsName + K.Suffix + ".mat", K.MatVersion];
-if K.Source == "both"; lines(end+1) = "+ sorted units (see downstream)"; end
+if K.Source == "both"; lines(end+1) = "+ sorted units (under Sorting)"; end
 out = node("out", "Detected spikes", lines, "SpkOutputDirField,SpkSuffixField,SpkOverwriteCheckBox,SpkMatVersionDropDown");
 
-n = chain({raw, node("op", "Stream chunks", chunk, "SpkChunkField,SpkEdgePadField"), ...
+n = step("spikes", "Spikes", K.Enabled && K.Source ~= "sorted", ...
+    ternary(K.Source == "sorted", "Source is 'sorted': no threshold detection runs.", ""), ...
+    "SpkEnableCheckBox,SpkSourceDropDown", ...
+    {node("op", "Stream chunks", chunk, "SpkChunkField,SpkEdgePadField"), ...
     node("op", "Channels", ch, "SpkChannelsDropDown,SpkChannelListField"), ...
     filt, thr, align, minP, maxA, wave, rej, out});
 end
@@ -363,8 +386,9 @@ K = cfg.Spikes;
 lines = "groups: " + joinOr(K.Groups, "every non-noise cluster");
 if K.IncludeNoise; lines(end+1) = "+ noise clusters"; end
 if K.Templates; lines(end+1) = "+ templates"; end
-n = chain({node("data", "Sorted units", "from Sorting (phy folder)", "SortDatasetDropDown,SortUseFolderButton"), ...
-    node("op", "Unit selection", lines, "SpkGroupsField,SpkIncludeNoiseCheckBox,SpkTemplatesCheckBox"), ...
+n = step("spikes", "Spikes: sorted units", K.Enabled && K.Source ~= "detect", ...
+    ternary(K.Source == "detect", "Source is 'detect': sorted units are not read.", ""), "SpkSourceDropDown", ...
+    {node("op", "Unit selection", lines, "SpkGroupsField,SpkIncludeNoiseCheckBox,SpkTemplatesCheckBox"), ...
     node("out", "Spikes file", [dsName + K.Suffix + ".mat", K.MatVersion], ...
         "SpkOutputDirField,SpkSuffixField,SpkOverwriteCheckBox,SpkMatVersionDropDown")});
 end
@@ -405,8 +429,9 @@ end
 if isempty(kids)
     kids = {node("off", "Formats", "none ticked", "ExpChronuxCheckBox,ExpFieldTripCheckBox,ExpEpochsCheckBox")};
 end
-n = node("data", "Export inputs", in, "ExpSignalsField,ExpUnitsCheckBox,ExpGroupsField,ExpDetectedCheckBox,ExpEventsCheckBox");
-n.children = kids;
+inputs = node("data", "Export inputs", in, "ExpSignalsField,ExpUnitsCheckBox,ExpGroupsField,ExpDetectedCheckBox,ExpEventsCheckBox");
+inputs.children = kids;
+n = step("export", "Export", E.Enabled, "", "ExpEnableCheckBox", {inputs});
 end
 
 
@@ -415,7 +440,7 @@ end
 % =========================================================================
 
 function n = node(kind, title, detail, target)
-%node  One box: kind src | stage | op | off | link | data | out.
+%node  One box: kind src | step | stage | op | off | link | data | out.
 %   TARGET is what a click on the box opens: the app property name of a
 %   control, ks4.<parameter> for a Kilosort4 field, or several of those
 %   separated by commas (the first one decides the tab). "" = not clickable.
@@ -423,7 +448,31 @@ function n = node(kind, title, detail, target)
 if nargin < 3; detail = strings(1, 0); end
 if nargin < 4; target = ""; end
 n = struct('kind', string(kind), 'title', string(title), 'detail', {string(detail)}, ...
-    'target', string(target), 'children', {{}});
+    'target', string(target), 'children', {{}}, 'key', "", 'dim', false);
+end
+
+
+function n = step(key, title, enabled, note, target, stages)
+%step  One step's branch: its box (in the step's colour, with its enabled
+%   badge and NOTE; TARGET is what the box opens) over the chain of STAGES.
+%   A disabled step's boxes are faded, down to the next step that hangs
+%   from it, which fades by its own state.
+n = node("step", title, note, target);
+n.key = string(key);
+n = chain([{n}, stages]);
+if ~enabled
+    n = fade(n);
+end
+end
+
+
+function n = fade(n)
+n.dim = true;
+for k = 1:numel(n.children)
+    if n.children{k}.kind ~= "step"
+        n.children{k} = fade(n.children{k});
+    end
+end
 end
 
 
@@ -448,35 +497,80 @@ end
 end
 
 
-function c = card(key, title, enabled, root, note, target)
-%card  One step's tree, its enabled badge and the controls its header opens.
-c = struct('key', string(key), 'title', string(title), 'enabled', logical(enabled), ...
-    'root', root, 'note', string(note), 'target', string(target));
-end
-
-
 % =========================================================================
 % rendering
 % =========================================================================
 
-function h = cardHTML(c)
-cls = "card c-" + c.key;
-if ~c.enabled; cls = cls + " disabled"; end
-badge = ternary(c.enabled, "<span class=""badge on"">enabled</span>", "<span class=""badge"">disabled</span>");
-note = "";
-if c.note ~= ""; note = "<div class=""note"">" + esc(c.note) + "</div>"; end
-h = "<section class=""" + cls + """><header" + navAttr(c.target, c.title) + "><span class=""dot""></span><b>" + esc(c.title) + "</b>" ...
-    + badge + "</header>" + note + "<div class=""tree""><ul>" + nodeHTML(c.root) + "</ul></div></section>";
+function h = treeHTML(raw, steps)
+%treeHTML  The "tree" layout: every step hangs from one recording box.
+raw.children = steps;
+h = "<div class=""card""><div class=""tree""><ul>" + nodeHTML(raw) + "</ul></div></div>";
+end
+
+
+function h = stepsHTML(raw, steps)
+%stepsHTML  The "steps" layout: a tree per step from the recording box, then
+%   the steps hung from their outputs as downstream trees, each under a box
+%   for the file it reads.
+top = strings(1, 0); down = strings(1, 0);
+for k = 1:numel(steps)
+    [s, cut] = detach(steps{k}, steps{k}.title);
+    r = raw;
+    r.children = {s};
+    top(end+1) = treeCard(r); %#ok<AGROW>
+    for j = 1:numel(cut)
+        down(end+1) = treeCard(cut{j}); %#ok<AGROW>
+    end
+end
+h = "<h2>From the raw recording</h2><div class=""cards"">" + join(top, "") + "</div>";
+if ~isempty(down)
+    h = h + "<h2>Downstream (reads step outputs)</h2><div class=""cards"">" + join(down, "") + "</div>";
+end
+end
+
+
+function [n, cut] = detach(n, owner)
+%detach  Take the step boxes hung below N off it. CUT holds each one under a
+%   copy of the box it hung from, drawn as an input from step OWNER.
+cut = {};
+keep = true(1, numel(n.children));
+for k = 1:numel(n.children)
+    c = n.children{k};
+    if c.kind == "step"
+        in = node("data", n.title, "from " + owner, n.target);
+        [c, more] = detach(c, c.title);
+        in.children = {c};
+        cut = [cut, {in}, more]; %#ok<AGROW>
+        keep(k) = false;
+    else
+        [n.children{k}, more] = detach(c, owner);
+        cut = [cut, more]; %#ok<AGROW>
+    end
+end
+n.children = n.children(keep);
+end
+
+
+function h = treeCard(root)
+h = "<div class=""card""><div class=""tree""><ul>" + nodeHTML(root) + "</ul></div></div>";
 end
 
 
 function h = nodeHTML(n)
+%nodeHTML  One box and, below it, the boxes hung from it. A step box sets
+%   its step's colour for its whole branch (class c-<key> on its <li>).
 detail = "";
 if ~isempty(n.detail)
     detail = "<div class=""d"">" + join(esc(n.detail), "<br>") + "</div>";
 end
-h = "<li><span class=""cl""></span><span class=""cr""></span><div class=""n k-" + n.kind + """" + navAttr(n.target, n.title) ...
-    + "><div class=""t"">" + esc(n.title) + "</div>" + detail + "</div>";
+title = esc(n.title);
+if n.kind == "step"
+    title = title + ternary(n.dim, " <span class=""badge"">disabled</span>", " <span class=""badge on"">enabled</span>");
+end
+li = "<li>";
+if n.key ~= ""; li = "<li class=""c-" + n.key + """>"; end
+h = li + "<span class=""cl""></span><span class=""cr""></span><div class=""n k-" + n.kind + ternary(n.dim, " dim", "") + """" ...
+    + navAttr(n.target, n.title) + "><div class=""t"">" + title + "</div>" + detail + "</div>";
 if ~isempty(n.children)
     h = h + "<span class=""stem""></span><ul>" + joinHTML(cellfun(@nodeHTML, n.children, "UniformOutput", false)) + "</ul>";
 end
@@ -504,6 +598,7 @@ end
 function h = legendHTML()
 items = [ ...
     "<span class=""n k-src"">recording</span>", ...
+    "<span class=""n k-step"">step</span>", ...
     "<span class=""n k-stage"">stage</span>", ...
     "<span class=""n k-op"">processing</span>", ...
     "<span class=""n k-off"">off in this config</span>", ...
@@ -553,14 +648,11 @@ s = join([ ...
     "h2{font-size:13px;margin:16px 0 8px;color:#57606a;font-weight:600}"
     ".legend{--acc:#8c959f;--tint:#f0f1f3;display:flex;flex-wrap:wrap;gap:6px}"
     ".legend .n{display:inline-block;padding:2px 8px;min-width:0}"
+    ".card{--acc:#8c959f;--tint:#f0f1f3;display:inline-block;min-width:100%;margin-top:12px;background:#fff;border:1px solid #d0d7de;border-radius:8px;padding:12px;box-sizing:border-box}"
     ".cards{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-start}"
-    ".card{--acc:#8c959f;--tint:#f0f1f3;background:#fff;border:1px solid #d0d7de;border-radius:8px;padding:8px 12px 12px;max-width:100%;overflow-x:auto;box-sizing:border-box}"
-    ".card.disabled{opacity:.55}"
-    ".card header{display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:4px}"
-    ".dot{width:10px;height:10px;border-radius:50%;background:var(--acc)}"
-    ".badge{font-size:11px;padding:0 6px;border-radius:9px;background:#eaeef2;color:#57606a}"
+    ".cards .card{min-width:0;max-width:100%;margin-top:0;overflow-x:auto}"
+    ".badge{font-size:11px;font-weight:400;padding:0 6px;border-radius:9px;background:#eaeef2;color:#57606a}"
     ".badge.on{background:#dafbe1;color:#116329}"
-    ".note{font-size:11px;color:#57606a;margin:0 0 6px}"
     ".c-artifacts{--acc:#d9822b;--tint:#fdf0e2}"
     ".c-sorting{--acc:#8250df;--tint:#f1eafd}"
     ".c-signals{--acc:#1f7fbf;--tint:#e3f0fa}"
@@ -580,19 +672,20 @@ s = join([ ...
     ".n .d{color:#57606a;font-size:11px}"
     ".k-src{background:#24292f;border-color:#24292f;color:#fff}"
     ".k-src .d{color:#d0d7de}"
+    ".k-step{background:var(--tint);border-color:var(--acc);border-width:2px;border-left-width:6px;font-size:13px}"
     ".k-stage{background:var(--tint);font-size:12.5px}"
     ".k-off{border-style:dashed;border-left-style:dashed;border-left-color:#afb8c1;background:#f6f8fa;color:#8c959f}"
     ".k-off .d{color:#8c959f}"
     ".k-link{border-color:#d9822b;border-left-color:#d9822b;background:#fdf0e2;border-radius:12px}"
     ".k-data{border-style:double;border-width:3px;border-left-width:4px;background:#fff}"
     ".k-out{background:var(--tint);border-color:var(--acc)}"
+    ".dim{opacity:.55}"
     % Clickable only in the app: setup() adds .live to <body> (see js()).
     ".hint{display:none;font-size:11px;color:#57606a;margin:6px 0 0}"
     "body.live .hint{display:block}"
     "body.live [data-nav]{cursor:pointer}"
     "body.live .n[data-nav]:hover{border-color:var(--acc);box-shadow:0 0 0 2px rgba(31,127,191,.25)}"
     "body.live .n[data-nav]:focus-visible{outline:2px solid #1f7fbf;outline-offset:1px}"
-    "body.live header[data-nav]:hover b{text-decoration:underline}"
     "body.live [data-nav].picked{box-shadow:0 0 0 3px rgba(31,127,191,.55)}"
     ], "");
 end

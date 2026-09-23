@@ -24,6 +24,7 @@ setpref(g, 'TrialsParamColumns', cellstr(obj.TrialsParamColumns));
 setpref(g, 'TrialsColumnOrder', cellstr(obj.trialsColumnOrder()));
 setpref(g, 'TrialsLabelParams', cellstr(obj.TrialsLabelParams));
 setpref(g, 'ShowRunDiagram', logical(obj.RunDiagramCheckBox.Value));
+setpref(g, 'DiagramLayout', char(obj.FlowLayoutDropDown.Value));
 setpref(g, 'MonitorResources', logical(obj.RunMonitorCheckBox.Value));
 setpref(g, 'QueueSortingRuns', logical(obj.RunKSQueueCheckBox.Value));
 setpref(g, 'VizOptions', struct( ...

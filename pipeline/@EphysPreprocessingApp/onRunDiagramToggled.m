@@ -8,7 +8,7 @@ function onRunDiagramToggled(obj)
 
 show = logical(obj.RunDiagramCheckBox.Value);
 if show
-    obj.RunSplitGrid.ColumnWidth = {'1x', '1x'};
+    obj.RunSplitGrid.ColumnWidth = {'3x', '1x'};
     obj.RunSplitGrid.ColumnSpacing = 10;
 else
     obj.RunSplitGrid.ColumnWidth = {'1x', 0};

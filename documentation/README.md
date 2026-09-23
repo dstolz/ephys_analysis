@@ -50,48 +50,64 @@ the API generator, the link check and the app screenshots).
 
 ```mermaid
 flowchart LR
-    subgraph MATLAB
-        APP[EphysPreprocessingApp<br/>GUI] --> CFG[EphysPipelineConfig<br/>JSON config]
-        CFG --> PIPE[EphysPipeline<br/>plan / run]
-        SCR[EphysPipelineScript<br/>generated scripts] -.-> CFG
-        APP --> PDA[ProbeDesignerApp]
-        PIPE --> PRJ[EphysProject<br/>many recordings]
-        PRJ --> DS[EphysDataset<br/>one recording]
-        DS --> RD[EphysReader<br/>IntanReader / OpenEphysReader / BinaryReader]
-        DS --> DT[DatasetTracker<br/>file inventory]
-        I2M[intan2matlab] --> DS
-        CX[ChronuxDataset<br/>Chronux connector] --> DS
-        FT[FieldTripExport] --> DS
-        EP[readEpsychSession] --> DS
-        ANA[EphysAnalysisApp<br/>analysis GUI] --> ACFG[EphysAnalysisConfig<br/>analysis config]
-        ACFG --> ARUN[EphysAnalysisRunner<br/>figures + reports]
-        ASCR[EphysAnalysisScript<br/>generated scripts] -.-> ACFG
-        ARUN --> DOUT[DatasetOutputs<br/>one dataset's outputs]
-        APP -. Open analysis app .-> ANA
+    RAW(["Raw data"])
+    RAW --- REC[("recording folder<br/>*.rhd, info.rhd + *.dat,<br/>Open Ephys Record Node,<br/>or recording.json + .bin")]
+    RAW --- BEH[(Epsych2 session .mat)]
+
+    REC -- digitalEvents --> EVT[("_events.mat<br/>digital-input events")]
+    REC -- artifactIntervals --> ART[("_artifacts.json<br/>artifact intervals")]
+    REC -- toBin --> BIN[(".bin<br/>Kilosort4 input")]
+    REC -- toMat --> MAT[("_extract.mat<br/>LFP / MUA / SPIKE / AUX<br/>+ digital events")]
+    REC -- spikesToMat --> SPK[("_spikes.mat<br/>detected + sorted spikes")]
+    BEH -- behaviorToMat ----> BMAT[("_behavior.mat<br/>trials + pairing")]
+
+    ART -. erased .-> BIN
+    ART -. dropped .-> SPK
+    BIN -- "Kilosort4<br/>run_ks4.py" --> KS[("kilosort4/<br/>phy files")]
+    PRB[("probe .json<br/>ProbeDesignerApp")] -.-> KS
+    KS -. readSortedUnits .-> SPK
+    EVT -. pairTrials .-> BMAT
+
+    subgraph EXP["exports"]
+        CHX[(_chronux.mat)]
+        FTX[(_fieldtrip.mat)]
+        EPO[(_epochs.mat)]
     end
-    subgraph Python["Python (conda env, via system())"]
-        KS[run_ks4.py<br/>Kilosort4 on .bin]
-        PT[probe_tool.py<br/>probeinterface]
-    end
-    RAW[(recording folder<br/>*.rhd, info.rhd + *.dat,<br/>Open Ephys Record Node,<br/>or recording.json + .bin)] --> RD
-    BEH[(Epsych2 session .mat)] --> EP
-    DS -- toBin + runKilosort --> KS
-    PDA --> PT
-    KS --> OUT[(kilosort4/<br/>phy files)]
-    OUT -. readSortedUnits .-> DS
-    DS -- toMat --> MAT[(_extract.mat)]
-    DS -- spikesToMat --> SPK[(_spikes.mat)]
-    DS -- behaviorToMat --> BMAT[(_behavior.mat)]
-    DS -- exportChronux --> CHX[(_chronux.mat)]
-    DS -- exportFieldTrip --> FTX[(_fieldtrip.mat)]
-    DS -- exportEpochs --> EPO[(_epochs.mat)]
-    MAT -.-> DOUT
-    SPK -.-> DOUT
-    BMAT -.-> DOUT
-    ARUN --> FIGS[(figures .png / .svg / .eps / .pdf<br/>HTML + PDF reports)]
+    MAT -- exportChronux --> CHX
+    MAT -- exportFieldTrip --> FTX
+    MAT -- exportEpochs --> EPO
+    SPK & KS -.-> EXP
+    BMAT -.-> EPO
     CHX -.-> CHRONUX[/Chronux/]
     FTX -.-> FIELDTRIP[/FieldTrip/]
+
+    MAT -- EphysAnalysisRunner --> FIGS[("figures + reports<br/>.png / .svg / .eps / .pdf,<br/>HTML + PDF")]
+    SPK & KS & BMAT -.-> FIGS
 ```
+
+Each file hangs from the one it is made from, and the solid arrow names what
+makes it (mostly an `EphysDataset` method); dashed arrows are further inputs.
+Behavior pairing reads the cached digital events, and threshold detection
+drops spikes inside artifact periods. The exports and the analysis take their
+signals and events from `_extract.mat`, detected spikes from `_spikes.mat` and
+sorted units straight from `kilosort4/`; epochs and figures also read the
+paired trials in `_behavior.mat`. The common reference (CAR / CMR), when set,
+is subtracted as the recording is streamed, so artifact detection, the `.bin`
+and threshold detection all see it.
+
+The code that drives the tree: `EphysPreprocessingApp` or a generated
+`EphysPipelineScript` sets up an `EphysPipelineConfig`, and `EphysPipeline`
+runs its steps over an `EphysProject`, one `EphysDataset` per recording, read
+through an `EphysReader` (`IntanReader` / `OpenEphysReader` / `BinaryReader`).
+`readEpsychSession` reads the Epsych2 session, `intan2matlab` is a thin
+wrapper around `deriveSignals` (what `toMat` saves), `exportChronux` packages
+through `ChronuxDataset` and `exportFieldTrip` through `FieldTripExport`, and
+`DatasetTracker` keeps the inventory of files on disk. Kilosort4
+(`run_ks4.py`) and probeinterface (`probe_tool.py`, behind `ProbeDesignerApp`)
+run in a conda Python through `system()`. On the analysis side,
+`EphysAnalysisApp` or an `EphysAnalysisScript` sets up an
+`EphysAnalysisConfig`, and `EphysAnalysisRunner` reads the processed files
+through `DatasetOutputs`, never the recording.
 
 **Steps** of a run, in order (each optional except the probe preflight):
 `probe` → `behavior` → `artifacts` → `sorting` → `signals` → `spikes` →

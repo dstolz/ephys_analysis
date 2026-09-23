@@ -7,8 +7,8 @@ function buildRunTab(obj)
 %   merged log and the background Kilosort4 runs being monitored (Stop
 %   runs... stops running ones, Stop queue drops the queued ones). With
 %   Show the run diagram ticked, a diagram of the run's steps (the one
-%   underway highlighted, each with its percentage) takes the right half of
-%   the right side (onRunDiagramToggled, runDiagramHTML). With Monitor CPU,
+%   underway highlighted, each with its percentage) takes the right quarter
+%   of the right side (onRunDiagramToggled, runDiagramHTML). With Monitor CPU,
 %   memory, disk and GPU ticked, their use is shown under the Steps panel
 %   (onResourceMonitorToggled, resource_monitor.ps1).
 

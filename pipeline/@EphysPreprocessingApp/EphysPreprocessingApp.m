@@ -55,7 +55,7 @@ classdef EphysPreprocessingApp < handle
     %                results (background runs' rows follow them to done /
     %                error), log, Stop runs... / Stop queue; optionally a diagram of the
     %                run's steps (the one underway highlighted, each with
-    %                its % done) in the right half, and CPU / memory / disk /
+    %                its % done) in the right quarter, and CPU / memory / disk /
     %                GPU use under the steps
     %     Visualize  plot a window, mark manual artifact periods
     %     Review     inspect sorted units

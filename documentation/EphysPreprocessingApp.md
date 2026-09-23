@@ -931,8 +931,8 @@ default web browser, same as **Save as HTML...** but without the save dialog.
   `done` or `error` when the run finishes, with the time it ran added to
   `Seconds`.
 - **Show the run diagram** (under the Run buttons) splits the right side in
-  two: the progress bars, issues, results and log keep the left half and a
-  diagram of the run takes the right half. It draws every step in execution
+  two, 3:1: the progress bars, issues, results and log keep the left three
+  quarters and a diagram of the run takes the right quarter. It draws every step in execution
   order (Probe check, Behavior, Artifacts, Sorting, Signals, Spikes, Export),
   in the Diagram tab's step colours, each with a line saying what it does
   under the working config. The step underway is tinted, framed in its
@@ -1342,7 +1342,7 @@ them, the Run checklist ↔ tab sync and its Parallel controls, scan + selection
 the active dataset's highlight under the token filters, plan, the Sorting tab's Optimize for probe (each answer to the offer to generate a
 missing parameter file, including a probe map without positions, loading the
 file, the default-probe fallback, the Probe tab's listing and info) and Reset to defaults, one step through the pipeline,
-the run diagram (its half of the right side, the last run followed while hidden, a run's steps and percentages
+the run diagram (its quarter of the right side, the last run followed while hidden, a run's steps and percentages
 event by event, a cancel, the preview that follows the checklist, the preference),
 resource monitoring (a sample's figures and colours, n/a readings, live samples from the sampler, the preference, the sampler
 exiting and removing its folder when unticked), the Clean up tab's preview (every file listed, a raw

@@ -38,6 +38,56 @@ An `EphysDataset` can:
 The source recording files are **never modified**. Every write goes to a new
 file: `.bin`, JSON sidecar, manifest, Kilosort4 run folder, or `.mat`.
 
+The diagram shows how one dataset ties its files together. It reads the
+recording folder through its reader, keeps its state in the manifest, points
+to associated files by path, and writes everything else to the output folder.
+File names leave out the `<Name>` prefix, and each output names the method
+that writes it.
+
+```mermaid
+flowchart TB
+    subgraph REC["Recording folder (Folder)"]
+        RAW[("source files, never modified<br/>*.rhd · info.rhd + *.dat<br/>Open Ephys session<br/>recording.json + data file")]
+        MAN[("_manifest.json<br/>saved state")]
+    end
+
+    subgraph ASSOC["Associated files (anywhere)"]
+        direction TB
+        PRB[("probe .json<br/>ProbeFile")]
+        SES[("Epsych2 session .mat<br/>BehaviorFile")]
+        PHY[("sorted output<br/>SortingDir")]
+    end
+
+    RD["EphysReader<br/>IntanReader / OpenEphysReader / BinaryReader"]
+
+    subgraph DS["EphysDataset (one recording)"]
+        ID["Identity<br/>Folder · Name · Files · Reader"]
+        META["Metadata (refreshMetadata)<br/>RecordingFormat · Fs · NumChannels<br/>ChannelNames · DigInNames<br/>Duration · PerFile"]
+        CONF["Configuration<br/>ProbeFile · ExcludeChannels · ReferenceExclude<br/>ManualArtifacts · ArtifactConfig<br/>TrialConfig · TrialPairing<br/>SortingDir · BehaviorFile"]
+    end
+
+    subgraph OUT["Output folder (Folder, OutputDir or OutputRoot/Name)"]
+        direction TB
+        BIN[(".bin + .json<br/>toBin")]
+        KS[("kilosort4/<br/>runKilosort")]
+        EXT[("_extract_TYPE.mat<br/>toMat")]
+        SPK[("_spikes.mat<br/>spikesToMat")]
+        BEHM[("_behavior.mat<br/>behaviorToMat")]
+        EXP[("_chronux.mat · _fieldtrip.mat<br/>_epochs.mat<br/>exportChronux · exportFieldTrip<br/>exportEpochs")]
+        EVC[("_events.mat<br/>digitalEvents")]
+    end
+
+    RAW --> RD
+    RD -- "readData · streamPlan · readChunkUV" --> DS
+    MAN <-->|"applyManifest / writeManifest"| DS
+    ASSOC -. by path .-> CONF
+    DS -- writes --> OUT
+```
+
+The sorted units are read (`readSortedUnits`) from `SortingDir` when it is
+set, else from the Kilosort4 output under `kilosort4/`; see
+[Sorted output](#sorted-output).
+
 ---
 
 ## Acquisition readers

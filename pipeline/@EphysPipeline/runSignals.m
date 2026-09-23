@@ -3,9 +3,10 @@ function runSignals(obj, opts)
 %   The options come from EphysPipelineConfig.signalOptions (with the
 %   dataset's manifest exclusions applied per Signals.ExcludeHandling).
 %   Behavior data is written by the behavior step, not here. The common
-%   reference of Artifacts.Reference (CAR / CMR) is subtracted from the
-%   recording first, as for the .bin and spike detection (the datasets'
-%   ArtifactConfig, see deriveSignals). With
+%   reference of Artifacts.Reference (CAR / CMR; the datasets'
+%   ArtifactConfig) is subtracted, once, from the signals whose
+%   Signals.<TYPE>_Reference is on (MUA and SPIKE by default, not the LFP;
+%   see deriveSignals' referenceSignals). With
 %   Signals.BlankArtifacts the dataset's artifact periods (the manual ones,
 %   plus the automatic detection when Artifacts.ApplyToSignals, as Sorting
 %   and Spikes take them: artifactIntervalsForStep) are erased before any
@@ -51,8 +52,8 @@ for k = 1:n
         end
         if opts.DryRun
             what = "would write " + strjoin(sigOpts.dataTypeOut, "+");
-            if c.Artifacts.Reference ~= "none"
-                what = what + ", " + upper(c.Artifacts.Reference) + " referenced";
+            if c.Artifacts.Reference ~= "none" && ~isempty(sigOpts.referenceSignals)
+                what = what + ", " + strjoin(sigOpts.referenceSignals, "+") + " " + upper(c.Artifacts.Reference) + " referenced";
             end
             if G.BlankArtifacts
                 what = what + ", artifact periods erased (" + ...
@@ -78,8 +79,8 @@ for k = 1:n
             obj.log("[signals] %s: no aux (accelerometer) inputs recorded; AUX not written", d.Name);
         end
         if r.reference.mode ~= "none"
-            obj.log("[signals] %s: common %s reference over %d channel(s)", d.Name, ...
-                upper(r.reference.mode), numel(r.reference.channels));
+            obj.log("[signals] %s: common %s reference over %d channel(s), subtracted from %s", d.Name, ...
+                upper(r.reference.mode), numel(r.reference.channels), strjoin(r.reference.signals, ", "));
         end
         erased = "";
         if G.BlankArtifacts

@@ -315,7 +315,7 @@ classdef EphysPipelineScript
             end
             L(end+1, 1) = "    try";
             L(end+1, 1) = "        channels = EphysPipelineConfig.spikeChannels(spikes, d);";
-            if K.Source ~= "sorted" && K.RejectArtifacts
+            if K.Source ~= "sorted" && K.ArtifactMode ~= "none"
                 if cfg.Artifacts.ApplyToSpikes
                     L(end+1, 1) = "        iv = artifactIntervals(d);";
                 else
@@ -326,7 +326,7 @@ classdef EphysPipelineScript
                 L(end+1, 1) = "        extra = {};";
             end
             L(end+1, 1) = "        r = d.spikesToMat('File', outFile, 'Source', spikes.Source, 'DetectOptions', detectOptions, ...";
-            L(end+1, 1) = "            'Channels', channels, 'RejectArtifacts', spikes.RejectArtifacts, 'Groups', spikes.Groups, ...";
+            L(end+1, 1) = "            'Channels', channels, 'ArtifactMode', spikes.ArtifactMode, 'Groups', spikes.Groups, ...";
             L(end+1, 1) = "            'IncludeNoise', spikes.IncludeNoise, 'Templates', spikes.Templates, ...";
             L(end+1, 1) = "            'MatVersion', spikes.MatVersion, 'Overwrite', spikes.Overwrite, extra{:});";
             L(end+1, 1) = "        fprintf('%s: wrote %s\n', d.Name, r.file);";

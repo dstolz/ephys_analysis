@@ -5,10 +5,11 @@ function [Y, ev, info] = deriveSignals(obj, opts)
 %   (traditional *.rhd, one-file-per-signal, one-file-per-channel) -- then
 %   derives the requested continuous signals and the digital-input events.
 %   The dataset's common reference (ArtifactConfig.Reference: CAR / CMR over
-%   referenceChannels, applyReference) is subtracted from the amplifier data
-%   first, as the .bin and spike detection take it, and the artifact periods
-%   (artifactIntervals) are erased after it, so LFP, MUA and SPIKE all derive
-%   from the referenced, cleaned recording.
+%   referenceChannels, referenceTrace) is subtracted, once, from the signals
+%   referenceSignals names (MUA and SPIKE by default; the LFP is taken as
+%   recorded), as the .bin and spike detection take it, and the artifact
+%   periods (artifactIntervals) are erased after it, so every signal derives
+%   from the cleaned recording.
 %   This is the implementation behind INTAN2MATLAB, which is a thin wrapper
 %   around it: option names, processing and outputs are the same.
 %
@@ -47,9 +48,10 @@ function [Y, ev, info] = deriveSignals(obj, opts)
 %           (amplifier labels from labelField, in the column order of Y), origFs,
 %           invertedLines (the lines whose events are low runs), badChannels
 %           (the interpolation, see below), LFP/MUA/SPIKE sub-structs (Fs,
-%           nSamples; LFP also bpLoHi, NotchHz, NotchBW and a text
-%           description of the filter applied; MUA also IntegrationHz and
-%           bpLoHi) for the requested types, AUX (Fs, nSamples, labels,
+%           nSamples, reference: the common reference subtracted from that
+%           signal, "none" | "car" | "cmr"; LFP also bpLoHi, NotchHz,
+%           NotchBW and a text description of the filter applied; MUA also
+%           IntegrationHz and bpLoHi) for the requested types, AUX (Fs, nSamples, labels,
 %           units) when present, and importOptions (the options used, with
 %           LFP_Fs / MUA_Fs / SPIKE_Fs the rates produced, SPIKE_Fs = origFs
 %           when Inf, badChannels the columns actually interpolated, and
@@ -59,9 +61,11 @@ function [Y, ev, info] = deriveSignals(obj, opts)
 %           column ("geometry" | "columns") and weights [nKept x nBad] (each
 %           geometry column's weights over the kept columns, summing to 1;
 %           zero for a "columns" fill).
-%           INFO.reference: the common reference subtracted first: mode
-%           ("none" | "car" | "cmr") and channels (the recording channels
-%           it was taken over, referenceChannels; empty for "none").
+%           INFO.reference: the common reference: mode ("none" | "car" |
+%           "cmr"), channels (the recording channels it was taken over,
+%           referenceChannels) and signals (the derived signals it was
+%           subtracted from). mode is "none", with no channels or signals,
+%           when it was subtracted from none of them.
 %           INFO.artifacts: the artifactIntervals option, what was erased
 %           before any signal was derived: intervals ([k x 2] [tStart tEnd)
 %           seconds on the recording's continuous clock, merged; zeros(0,2)
@@ -135,13 +139,15 @@ function [Y, ev, info] = deriveSignals(obj, opts)
 %                        (default "": the dataset's ProbeFile); EphysPipeline
 %                        passes the probe it sorts with (probeFor), the config's
 %                        default for a dataset without a probe of its own
-%     reference          logical  true  subtract the dataset's common
-%                        reference (ArtifactConfig.Reference; nothing for
-%                        "none"), sample by sample over every channel of the
-%                        recording, so with a reference all channels are read
-%                        and keepAmpChannels picks from the referenced data.
-%                        false: the recording as stored (readChunkUV's
-%                        Reference=false). Reported in INFO.reference
+%     referenceSignals   string array  ["MUA" "SPIKE"]  the signals the
+%                        dataset's common reference (ArtifactConfig.Reference;
+%                        nothing for "none") is subtracted from, sample by
+%                        sample: any of "LFP", "MUA", "SPIKE" ([] = none, the
+%                        recording as stored, readChunkUV's Reference=false).
+%                        The reference is taken over every channel of the
+%                        recording, so with one all channels are read and
+%                        keepAmpChannels picks from them. Reported in
+%                        INFO.reference and INFO.<type>.reference
 %     artifactIntervals  [k x 2] seconds  zeros(0,2)  artifact periods
 %                        (EphysDataset.artifactIntervals: recording-relative,
 %                        half-open) erased in the amplifier data before any
@@ -173,9 +179,13 @@ function [Y, ev, info] = deriveSignals(obj, opts)
 %   amplifier data in place. Peak memory is about the single-precision
 %   recording plus the derived signals plus the double-precision working
 %   copies of one block of channels (at most about the recording again).
-%   The common reference is subtracted in place, a block of rows at a time;
-%   with a reference and keepAmpChannels every channel is read, so the kept
-%   columns are copied out of the whole referenced recording once.
+%   The common reference is computed once, a block of rows at a time, as one
+%   [nSamples x 1] trace, and subtracted in place from the kept columns once
+%   the signals taken as recorded are derived; with a reference and
+%   keepAmpChannels every channel is read, so the kept columns are copied
+%   out of the whole recording once. A SPIKE band taken as recorded next to
+%   a referenced signal cannot overwrite the amplifier data, so it costs one
+%   more copy of the recording.
 %
 %   Requires the Signal Processing Toolbox (BUTTER, FILTFILT, RESAMPLE);
 %   automatic bad-channel detection also needs ZSCORE (Statistics and
@@ -203,7 +213,7 @@ arguments
     opts.lineNames {mustBeNameList} = []
     opts.invertedLines {mustBeNameList} = []
     opts.probeFile (1,1) string = ""
-    opts.reference (1,1) logical = true
+    opts.referenceSignals (1,:) string = ["MUA" "SPIKE"]
     opts.artifactIntervals (:,2) double {mustBeFinite} = zeros(0, 2)
     opts.ProgressFcn = []
 end
@@ -221,6 +231,12 @@ if ~isempty(badType)
     error('EphysDataset:deriveSignals:dataTypeOut', ...
         'Unknown dataTypeOut value(s): %s. Use "LFP", "MUA", "SPIKE" and/or "AUX".', ...
         strjoin(badType, ', '));
+end
+badRef = setdiff(opts.referenceSignals, ["LFP" "MUA" "SPIKE"]);
+if ~isempty(badRef)
+    error('EphysDataset:deriveSignals:referenceSignals', ...
+        'Unknown referenceSignals value(s): %s. Use "LFP", "MUA" and/or "SPIKE".', ...
+        strjoin(badRef, ', '));
 end
 if opts.MUA_bpLoHi(1) >= opts.MUA_bpLoHi(2)
     error('EphysDataset:deriveSignals:MUA_bpLoHiOrder', ...
@@ -291,11 +307,25 @@ end
 artifacts = EphysDataset.mergeIntervals(opts.artifactIntervals);
 opts = rmfield(opts, 'artifactIntervals');   % reported in info.artifacts, not importOptions
 
-% The common reference is taken over every channel of the recording, so with
-% one the whole recording is read and the kept channels are picked after it.
-refMode = "none";
-if opts.reference
-    refMode = string(EphysDataset.normalizeArtifactConfig(obj.ArtifactConfig).Reference);
+% The amplifier signals derived, and those the common reference is
+% subtracted from (none when ArtifactConfig.Reference is "none"). The
+% reference is taken over every channel of the recording, so with one the
+% whole recording is read and the kept channels are picked after it.
+ampTypes = ["LFP" "MUA" "SPIKE"];
+ampTypes = ampTypes([has.LFP has.MUA has.SPIKE]);
+refMode = string(EphysDataset.normalizeArtifactConfig(obj.ArtifactConfig).Reference);
+refTypes = ampTypes(ismember(ampTypes, opts.referenceSignals));
+if refMode == "none" || isempty(refTypes)
+    refMode = "none";
+    refTypes = strings(1, 0);
+end
+% Up to two passes over the amplifier data: the signals taken as recorded,
+% then, once the reference is subtracted in place, the ones that take it.
+passes = struct('types', {ampTypes(~ismember(ampTypes, refTypes)), refTypes}, ...
+    'referenced', {false, true});
+passes = passes(arrayfun(@(p) ~isempty(p.types), passes));
+if isempty(passes)
+    passes = struct('types', strings(1, 0), 'referenced', false);   % AUX only: the periods are still erased
 end
 readKeep = opts.keepAmpChannels(:).';
 if refMode ~= "none"
@@ -309,7 +339,7 @@ end
 
 % Progress steps: one per file read, then one per processing stage.
 nRead  = obj.NumFiles;
-nProc  = (refMode ~= "none") + ~isempty(artifacts) + has.LFP + lfpFilter + has.MUA + has.SPIKE + ~isempty(opts.badChannels) ...
+nProc  = (refMode ~= "none") + numel(passes) * ~isempty(artifacts) + has.LFP + lfpFilter + has.MUA + has.SPIKE + ~isempty(opts.badChannels) ...
     + ~isempty(opts.channelRemap) + 1;   % +1 = digital events
 nSteps = nRead + nProc;
 
@@ -332,12 +362,14 @@ end
 origFs = data.Fs;
 
 % --- the common reference, over every channel; then the kept channels ---
-ref = struct('mode', refMode, 'channels', zeros(1, 0));
+% One [nSamples x 1] trace, subtracted later from the signals that take it.
+ref = struct('mode', refMode, 'channels', zeros(1, 0), 'signals', refTypes);
+R = [];
 if refMode ~= "none"
     ref.channels = obj.referenceChannels();
-    nDone = reportProgress(progressFcn, nDone, nSteps, sprintf('Common %s reference over %d channel(s)', ...
-        upper(refMode), numel(ref.channels)));
-    AMPSIG = referenceRows(obj, AMPSIG);
+    nDone = reportProgress(progressFcn, nDone, nSteps, sprintf('Common %s reference over %d channel(s), for %s', ...
+        upper(refMode), numel(ref.channels), strjoin(refTypes, ", ")));
+    R = referenceRows(obj, AMPSIG);
     if ~isempty(opts.keepAmpChannels)
         keepCh = opts.keepAmpChannels(:).';
         AMPSIG = AMPSIG(:, keepCh);
@@ -347,16 +379,11 @@ if refMode ~= "none"
 end
 [nSamp, nCol] = size(AMPSIG);
 
-% --- erase the artifact periods before any filter or resampler sees them ---
-% In place, run by run: a line across each period between the 1 ms levels on
-% either side, so no signal carries an artifact or its filter ringing.
+% The samples the artifact periods cover, erased in each pass below.
 art = struct('intervals', artifacts, 'fill', "line", 'nSamples', 0);
+runs = zeros(0, 2);
 if ~isempty(artifacts)
     runs = EphysDataset.artifactSamples(artifacts, origFs, nSamp);
-    nDone = reportProgress(progressFcn, nDone, nSteps, ...
-        sprintf('Erasing %d artifact period(s) (line fill)', size(artifacts, 1)));
-    AMPSIG = bridgeRuns(AMPSIG, runs(:, 1), runs(:, 2), [], zeros(1, nCol, 'like', AMPSIG), ...
-        [], max(1, round(1e-3 * origFs)));
     art.nSamples = sum(runs(:, 2) - runs(:, 1) + 1);
 end
 % The rates the signals are produced at (RESAMPLE's P/Q), checked against
@@ -393,33 +420,64 @@ LFP   = single([]);
 MUA   = single([]);
 SPIKE = single([]);
 
-% --- filter / resample a block of channels at a time (blockColumns) into
-% single outputs, filtering in double; AMPSIG is freed after its last use
-% (the spike band at the original rate takes over its memory) ---
+% --- per pass: subtract the reference (the referenced pass), erase the
+% artifact periods, then filter / resample a block of channels at a time
+% (blockColumns) into single outputs, filtering in double. AMPSIG is freed
+% after its last use (the spike band at the original rate takes over its
+% memory in the last pass) ---
+% The erase is in place, run by run: a line across each period between the
+% 1 ms levels on either side, so no signal carries an artifact or its filter
+% ringing. A line depends only on the samples outside the periods, which the
+% first pass's fill leaves as they were, so the referenced pass's fill is
+% the referenced recording's own.
 k = blockColumns(nCol);
-if has.LFP
-    nDone = reportProgress(progressFcn, nDone, nSteps, ...
-        sprintf('LFP: resampling to %g Hz', opts.LFP_Fs));
-    LFP = resampleColumns(AMPSIG, rates.LFP, k);
-    if lfpFilter
-        nDone = reportProgress(progressFcn, nDone, nSteps, ...
-            "LFP: " + describeLFPFilter(opts));
-        LFP = filterLFP(LFP, opts);
+for p = 1:numel(passes)
+    types = passes(p).types;
+    last = p == numel(passes);
+    if passes(p).referenced
+        AMPSIG = subtractRows(AMPSIG, R);
+        R = [];
     end
-end
-if has.MUA
-    % Bandpass at origFs -> rectify -> resample to MUA_Fs -> moving-mean
-    % integration on the MUA_Fs grid.
-    nDone = reportProgress(progressFcn, nDone, nSteps, ...
-        sprintf('MUA: bandpass [%g %g] Hz, rectify, resample to %g Hz, integrate', ...
-        opts.MUA_bpLoHi, opts.MUA_Fs));
-    MUA = muaColumns(obj, AMPSIG, opts, origFs, rates.MUA, k);
-end
-if has.SPIKE
-    nDone = reportProgress(progressFcn, nDone, nSteps, ...
-        sprintf('SPIKE: bandpass [%g %g] Hz', opts.SPIKE_bpLoHi));
-    AMPSIG = spikeBand(obj, AMPSIG, opts, rates.SPIKE, k);
-    SPIKE = AMPSIG;
+    if ~isempty(artifacts)
+        forTypes = "";
+        if numel(passes) > 1 && passes(p).referenced
+            forTypes = ", for " + strjoin(types, ", ") + " (referenced)";
+        elseif numel(passes) > 1
+            forTypes = ", for " + strjoin(types, ", ") + " (as recorded)";
+        end
+        nDone = reportProgress(progressFcn, nDone, nSteps, ...
+            sprintf('Erasing %d artifact period(s) (line fill)%s', size(artifacts, 1), forTypes));
+        AMPSIG = bridgeRuns(AMPSIG, runs(:, 1), runs(:, 2), [], zeros(1, nCol, 'like', AMPSIG), ...
+            [], max(1, round(1e-3 * origFs)));
+    end
+    if any(types == "LFP")
+        nDone = reportProgress(progressFcn, nDone, nSteps, ...
+            sprintf('LFP: resampling to %g Hz', opts.LFP_Fs));
+        LFP = resampleColumns(AMPSIG, rates.LFP, k);
+        if lfpFilter
+            nDone = reportProgress(progressFcn, nDone, nSteps, ...
+                "LFP: " + describeLFPFilter(opts));
+            LFP = filterLFP(LFP, opts);
+        end
+    end
+    if any(types == "MUA")
+        % Bandpass at origFs -> rectify -> resample to MUA_Fs -> moving-mean
+        % integration on the MUA_Fs grid.
+        nDone = reportProgress(progressFcn, nDone, nSteps, ...
+            sprintf('MUA: bandpass [%g %g] Hz, rectify, resample to %g Hz, integrate', ...
+            opts.MUA_bpLoHi, opts.MUA_Fs));
+        MUA = muaColumns(obj, AMPSIG, opts, origFs, rates.MUA, k);
+    end
+    if any(types == "SPIKE")
+        nDone = reportProgress(progressFcn, nDone, nSteps, ...
+            sprintf('SPIKE: bandpass [%g %g] Hz', opts.SPIKE_bpLoHi));
+        if last
+            AMPSIG = spikeBand(obj, AMPSIG, opts, rates.SPIKE, k);   % in place: its last use
+            SPIKE = AMPSIG;
+        else
+            SPIKE = spikeBand(obj, AMPSIG, opts, rates.SPIKE, k);    % a copy: the next pass needs AMPSIG
+        end
+    end
 end
 clear AMPSIG
 
@@ -490,7 +548,7 @@ info.labels          = labels(:);
 info.origFs          = origFs;
 info.invertedLines   = invertedApplied;   % digital lines whose events are low runs
 info.badChannels     = bad;               % what was interpolated, and how
-info.reference       = ref;               % the common reference subtracted first
+info.reference       = ref;               % the common reference, and the signals it was subtracted from
 info.artifacts       = art;               % what was erased before deriving
 if has.LFP
     info.LFP.Fs       = opts.LFP_Fs;
@@ -509,6 +567,10 @@ if has.MUA
     info.MUA.IntegrationHz = opts.MUA_IntegrationHz;
     info.MUA.bpLoHi        = opts.MUA_bpLoHi;
     info.MUA.nSamples      = size(Y.MUA, 1);
+end
+for s = ampTypes   % the reference each signal carries (also in its own file)
+    info.(s).reference = "none";
+    if any(refTypes == s); info.(s).reference = refMode; end
 end
 if has.AUX
     info.AUX.Fs       = auxFs;
@@ -578,16 +640,30 @@ labels = cellstr(names);
 end
 
 
-function X = referenceRows(obj, X)
-%referenceRows  Subtract the common reference (applyReference) from X, in
-%   place, a block of rows at a time: each sample is referenced on its own,
-%   so the result is the same as for the whole matrix at once, without a
-%   second copy of the recording.
+function R = referenceRows(obj, X)
+%referenceRows  The common reference of X (referenceTrace), [nRows x 1] in
+%   X's class, a block of rows at a time: each sample is referenced on its
+%   own, so the result is the same as for the whole matrix at once, with a
+%   bounded copy.
 nRows = size(X, 1);
+R = zeros(nRows, 1, 'like', X);
 blk = max(1, floor(2^24 / max(1, size(X, 2))));   % about 16M samples per block
 for r0 = 1:blk:nRows
     r = r0:min(nRows, r0 + blk - 1);
-    X(r, :) = obj.applyReference(X(r, :));
+    R(r) = obj.referenceTrace(X(r, :));
+end
+end
+
+
+function X = subtractRows(X, R)
+%subtractRows  X - R (the [nRows x 1] reference) from every column, in place,
+%   a block of rows at a time, so the recording is not copied (call as
+%   X = subtractRows(X, R)).
+nRows = size(X, 1);
+blk = max(1, floor(2^24 / max(1, size(X, 2))));
+for r0 = 1:blk:nRows
+    r = r0:min(nRows, r0 + blk - 1);
+    X(r, :) = X(r, :) - R(r);
 end
 end
 

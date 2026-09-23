@@ -4,6 +4,10 @@ function s = signalOptions(cfg, opts)
 %   passed to toMat as SignalOptions. Only the options relevant to the ticked
 %   signals are set; everything else stays at deriveSignals' defaults.
 %
+%   referenceSignals is always set: the ticked signals among LFP / MUA /
+%   SPIKE whose <TYPE>_Reference is on (the common reference of
+%   Artifacts.Reference, which the datasets' ArtifactConfig carries).
+%
 %   KeepChannels, BadList and the manifest exclusions are recording channels
 %   (1-based, in header order); ChannelRemap indexes the kept channels.
 %   deriveSignals takes bad channels as columns of the kept data, so the bad
@@ -42,6 +46,9 @@ EphysPipelineConfig.validateSuffix(cfg.Suffix);
 
 s = struct();
 s.dataTypeOut = types(sel);
+% The common reference (Artifacts.Reference) goes to the ticked signals only.
+refs = [cfg.LFP_Reference cfg.MUA_Reference cfg.SPIKE_Reference false];
+s.referenceSignals = types(sel & refs);
 s.labelField  = string(cfg.LabelField);
 if ~isempty(cfg.LineNames)
     s.lineNames = cfg.LineNames;

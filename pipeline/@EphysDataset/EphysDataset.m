@@ -244,6 +244,7 @@ classdef EphysDataset < handle
         summary = analyzeArtifacts(obj, opts)
         nl     = noiseLevels(obj, opts)
         X      = applyReference(obj, X)
+        r      = referenceTrace(obj, X)
         [bad, info] = suggestReferenceExclude(obj, opts)
         tf     = prepareReference(obj)
         ch     = referenceChannels(obj)
@@ -1178,6 +1179,7 @@ classdef EphysDataset < handle
         end
 
         [units, info] = readPhyUnits(resultsDir, opts)
+        [W, info] = readPhyWaveforms(resultsDir, samples, opts)
         id = nameIdentity(name, pattern)
         E = relabelEvents(E, labelField, lineNames)
         [natives, names] = parseLineNames(lineNames)

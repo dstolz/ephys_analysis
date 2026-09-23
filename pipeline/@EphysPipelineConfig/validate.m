@@ -206,6 +206,9 @@ if K.Enabled
         if ~(K.WindowMs(1) < K.WindowMs(2))
             add("spikes", "WindowMs", "error", "WindowMs must be [before after] with before < after.");
         end
+        if ~ismember(K.ArtifactMode, ["reject" "erase" "none"])
+            add("spikes", "ArtifactMode", "error", "ArtifactMode must be reject, erase or none.");
+        end
         if ~ismember(K.Channels, ["all" "excludeManifest" "list"])
             add("spikes", "Channels", "error", "Channels must be all, excludeManifest or list.");
         elseif K.Channels == "list"

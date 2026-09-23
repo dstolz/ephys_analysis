@@ -272,6 +272,14 @@ check(isfile(res.scriptPath), 'run_ks4.py written');
 sett = jsondecode(fileread(res.settingsPath));
 check(sett.n_chan_bin == numAmp, 'settings n_chan_bin');
 check(sett.fs == Fs, 'settings fs');
+check(~isfield(sett, 'do_CAR'), 'no common reference in the .bin: Kilosort4''s own do_CAR is left as it is');
+acfg0 = ds.ArtifactConfig;
+acfgR = acfg0; acfgR.Reference = "cmr"; ds.ArtifactConfig = acfgR;
+resR = ds.runKilosort(DryRun=true, ExtraSettings=struct('do_CAR', true));
+settR = jsondecode(fileread(resR.settingsPath));
+ds.ArtifactConfig = acfg0;
+check(isfield(settR, 'do_CAR') && isequal(settR.do_CAR, false), ...
+    'a .bin that carries the common reference is not referenced again: do_CAR = false, over ExtraSettings');
 check(contains(res.command, '"C:\miniconda3\python.exe"'), 'command quotes python path');
 check(contains(res.command, '"'+string(res.scriptPath)+'"') || contains(res.command, res.scriptPath), ...
     'command references script');
@@ -1166,6 +1174,27 @@ writeNPY(npyF, int64([5 6 7]));
 check(isequal(readNPY(npyF), int64([5; 6; 7])), 'writeNPY 1-D round trip');
 
 fprintf('\n== 18. spikesToMat (detected + sorted, artifact rejection) ==\n');
+% detectSpikes' ArtifactIntervals erase the periods before detection: every
+% chunk and the context carried into it has the covered samples NaN, which
+% is the whole recording detected in one block with those rows NaN.
+ivE = [3000 5000] / Fs;                          % recording samples 3000..4999: rows 3001..5000
+[~, ~, iE] = dsSpk.detectSpikes('MaxChunkSamples', 2000, absArgs{:}, 'ArtifactIntervals', ivE);
+XrecE = Xrec; XrecE(3001:5000, :) = NaN;
+[~, ~, iEb] = dsSpk.detectSpikes(XrecE, absArgs{:});
+check(isequal(iE.index, iEb.index) && isequal(iE.index{1}, recIdx(recIdx < 3001 | recIdx > 5000)) ...
+    && isequal(iE.artifacts.intervals, ivE) && iE.artifacts.nSamples == 2000, ...
+    'ArtifactIntervals: the streamed detection erases the periods in every chunk, as one block with those rows NaN');
+[~, ~, iEf] = dsSpk.detectSpikes('MaxChunkSamples', 2000, 'ArtifactIntervals', ivE);
+check(~any(iEf.index{1} >= 3001 & iEf.index{1} <= 5000) && any(iEf.index{1} == 6000), ...
+    'filtered, the erased period has no event and the ones beyond it are still found');
+errId = '';
+try
+    dsSpk.detectSpikes(Xrec, absArgs{:}, 'ArtifactIntervals', ivE);
+catch ME
+    errId = ME.identifier;
+end
+check(strcmp(errId, 'EphysDataset:detectSpikes:BlockOption'), 'ArtifactIntervals is refused for a data block (erase it yourself)');
+
 spkOut = fullfile(root, 'spikes_out');
 dsSpk.OutputDir = spkOut;
 dopt = struct('Filter', false, 'ThresholdMethod', "absolute", 'Threshold', 100);
@@ -1197,8 +1226,20 @@ dsSpk.ManualArtifacts = [4009 5999] / Fs;   % the two events' samples: start ins
 o2b = dsSpk.spikesToMat(DetectOptions=dopt, Overwrite=true, Channels=1);
 check(isequal(o2b.nRejectedArtifact, 1), 'a period rejects the event on its first sample but not the one on its end (half-open)');
 dsSpk.ManualArtifacts = [4000 6100] / Fs;
-o3 = dsSpk.spikesToMat(DetectOptions=dopt, Overwrite=true, Channels=1, RejectArtifacts=false);
-check(isequal(o3.nDetected, 10), 'RejectArtifacts=false keeps every event');
+o3 = dsSpk.spikesToMat(DetectOptions=dopt, Overwrite=true, Channels=1, ArtifactMode="none");
+check(isequal(o3.nDetected, 10), 'ArtifactMode "none" keeps every event');
+o5 = dsSpk.spikesToMat(DetectOptions=dopt, Overwrite=true, Channels=1, ArtifactMode="erase");
+M5 = load(o5.file);
+check(isequal(o5.nDetected, 8) && isequal(o5.nRejectedArtifact, 0) && isequal(M5.detected.ts{1}, M2.detected.ts{1}) ...
+    && M5.detected.detection.artifactMode == "erase" && M5.detected.info.artifacts.nSamples == 2100, ...
+    'ArtifactMode "erase": the period is erased before detection, so its events are never found and none is left to reject');
+errId = '';
+try
+    dsSpk.spikesToMat(DetectOptions=setfield(dopt, 'ArtifactIntervals', [0 1]), Overwrite=true); %#ok<SFLD>
+catch ME
+    errId = ME.identifier;
+end
+check(strcmp(errId, 'EphysDataset:spikesToMat:DetectOption'), 'the periods go through ArtifactMode / ArtifactIntervals, not DetectOptions');
 o3b = dsSpk.spikesToMat(DetectOptions=dopt, Overwrite=true, Channels=1, ArtifactIntervals=[0 0.0001]);
 check(isequal(o3b.nRejectedArtifact, 0) && isequal(o3b.nDetected, 10), 'explicit ArtifactIntervals override the manual periods');
 % Many periods - overlapping, touching, reversed, empty - reject exactly the
@@ -1210,7 +1251,7 @@ ivR(1:10:end, :) = ivR(1:10:end, [2 1]);          % reversed: empty
 ivR(2:10:end, 2) = ivR(2:10:end, 1);              % empty
 ivR(3:10:end, 2) = ivR(4:10:end, 1);              % touching the next
 doptR = struct('Filter', false, 'ThresholdMethod', "absolute", 'Threshold', 12, 'MinPeriodMs', 0.2);
-oAll = dsSpk.spikesToMat(DetectOptions=doptR, Overwrite=true, RejectArtifacts=false);
+oAll = dsSpk.spikesToMat(DetectOptions=doptR, Overwrite=true, ArtifactMode="none");
 MAll = load(oAll.file);
 tsAll = MAll.detected.ts;
 oRej = dsSpk.spikesToMat(DetectOptions=doptR, Overwrite=true, ArtifactIntervals=ivR);

@@ -4,7 +4,8 @@ function out = spikesToMat(obj, opts)
 %   spike events from up to two sources:
 %     * "detect"  voltage-threshold detection over the whole recording with
 %                 EphysDataset.detectSpikes (one entry per channel), with
-%                 events inside artifact periods removed;
+%                 the artifact periods erased first or the events inside
+%                 them removed (ArtifactMode);
 %     * "sorted"  the sorted units associated with the dataset, read with
 %                 EphysDataset.readSortedUnits (Kilosort4 / phy output, with
 %                 phy-curated labels).
@@ -20,8 +21,9 @@ function out = spikesToMat(obj, opts)
 %                 [] when waveforms were not requested, info (detectSpikes'
 %                 info, filtered to the kept events), channels (1-based
 %                 recording channels, in order), channelNames, and detection
-%                 (the options used, the artifact intervals applied and
-%                 nRejectedArtifact per channel)
+%                 (the options used, artifactMode, the artifact intervals
+%                 applied and nRejectedArtifact per channel; with "erase"
+%                 info.artifacts says how many samples were erased)
 %     units       struct or []: the readSortedUnits struct (unitId, group,
 %                 times, samples, channel, templateWaveform, ...)
 %     conversion  provenance (tool, created, dataset, sourceFolder, ...)
@@ -36,10 +38,20 @@ function out = spikesToMat(obj, opts)
 %                       include Fs, ChannelOrder or ProgressFcn here.
 %     Channels          1-based recording channels to detect on, in order
 %                       ([] = all)
-%     RejectArtifacts   true (default): drop detected events inside the
-%                       artifact periods (ArtifactIntervals, else
-%                       ds.artifactIntervals(): manual periods always, the
-%                       automatic detector when ds.ArtifactConfig.Enabled)
+%     ArtifactMode      what detection does with the artifact periods
+%                       (ArtifactIntervals, else ds.artifactIntervals():
+%                       manual periods always, the automatic detector when
+%                       ds.ArtifactConfig.Enabled):
+%                         "reject" (default) detect on the recording as
+%                                  read, then drop the events inside a period
+%                         "erase"  erase the periods before detection
+%                                  (detectSpikes' ArtifactIntervals: NaN, left
+%                                  out of the thresholds, a line for the
+%                                  band-pass), so detection runs on the
+%                                  cleaned recording: no event lies inside a
+%                                  period and no artifact rings into the
+%                                  samples around it
+%                         "none"   ignore them
 %     ArtifactIntervals [k x 2] seconds to use instead of ds.artifactIntervals()
 %                       ([] = none; default NaN = ds.artifactIntervals())
 %     Groups            sorted units to keep by phy label (default ["good" "mua"])
@@ -61,7 +73,7 @@ arguments
     opts.Source (1,1) string {mustBeMember(opts.Source, ["detect","sorted","both"])} = "detect"
     opts.DetectOptions (1,1) struct = struct()
     opts.Channels (1,:) double {mustBeInteger, mustBePositive} = []
-    opts.RejectArtifacts (1,1) logical = true
+    opts.ArtifactMode (1,1) string {mustBeMember(opts.ArtifactMode, ["reject","erase","none"])} = "reject"
     opts.ArtifactIntervals double = NaN
     opts.Groups (1,:) string = ["good" "mua"]
     opts.IncludeNoise (1,1) logical = false
@@ -87,10 +99,11 @@ if strlength(outDir) > 0 && ~isfolder(outDir)
         error('EphysDataset:spikesToMat:MkdirFailed', 'Could not create %s: %s', outDir, msg);
     end
 end
-for bad = ["Fs" "ChannelOrder" "ProgressFcn" "Files"]
+for bad = ["Fs" "ChannelOrder" "ProgressFcn" "Files" "ArtifactIntervals"]
     if isfield(opts.DetectOptions, bad)
         error('EphysDataset:spikesToMat:DetectOption', ...
-            'Pass %s to spikesToMat itself (Channels / ProgressFcn), not inside DetectOptions.', bad);
+            ['Pass %s to spikesToMat itself (Channels / ProgressFcn / ArtifactMode ' ...
+             'and ArtifactIntervals), not inside DetectOptions.'], bad);
     end
 end
 
@@ -108,7 +121,7 @@ if doDetect
     if isnan(obj.Fs) || isempty(obj.PerFile); obj.refreshMetadata(); end
 
     iv = zeros(0, 2);
-    if opts.RejectArtifacts
+    if opts.ArtifactMode ~= "none"
         [iv, given] = explicitIntervals(opts.ArtifactIntervals);
         if ~given
             progress(opts.ProgressFcn, step, nSteps, "Resolving artifact periods");
@@ -127,6 +140,9 @@ if doDetect
     dopts = opts.DetectOptions;
     wantWf = isfield(dopts, 'Waveforms') && logical(dopts.Waveforms);
     dopts.Waveforms = wantWf;
+    if opts.ArtifactMode == "erase"
+        dopts.ArtifactIntervals = iv;   % detection runs on the cleaned recording
+    end
     args = namedargs2cell(dopts);
     cb = [];
     if ~isempty(opts.ProgressFcn)
@@ -137,7 +153,8 @@ if doDetect
     step = step + 1;
 
     % Drop events inside artifact periods, keeping every per-channel array
-    % (times, waveforms, indices, amplitudes, counts) consistent.
+    % (times, waveforms, indices, amplitudes, counts) consistent. After an
+    % erase there are none: an erased sample never crosses threshold.
     [ivStart, ivEnd] = sampleIntervals(iv, obj.Fs);
     nCh = numel(ts);
     nRej = zeros(1, nCh);
@@ -162,7 +179,7 @@ if doDetect
     detected.channelNames = channelNamesFor(obj, channels);
     detected.detection    = struct( ...
         'options',           opts.DetectOptions, ...
-        'rejectArtifacts',   opts.RejectArtifacts, ...
+        'artifactMode',      opts.ArtifactMode, ...
         'artifactIntervals', iv, ...
         'nRejectedArtifact', nRej, ...
         'timeConvention',    "t = (index-1)/Fs, recording-relative");

@@ -5,16 +5,19 @@ function test_SortedUnits()
 %   its template units (whitened / bin / uV, unwhitening with the transpose
 %   of whitening_mat_inv.npy, Kilosort4's scale and invert_sign), its
 %   per-unit grouping against a plain reference, channelLayout (probe chanMap
-%   values are .bin rows) and runKilosort(DryRun=true) leaving an existing
-%   run's files alone. Uses phy fixtures and tiny synthetic Intan
-%   recordings; no Python, Kilosort4 or toolboxes are needed.
+%   values are .bin rows), runKilosort(DryRun=true) leaving an existing
+%   run's files alone and readPhyWaveforms (the spikes' windows in the
+%   sorted .bin: alignment, channels, units, reference, high-pass, a moved
+%   .bin, Kilosort4's preprocessed copy). Uses phy fixtures and tiny
+%   synthetic Intan recordings; no Python or Kilosort4 is needed, and of the
+%   toolboxes only the Signal Processing Toolbox (the high-pass).
 %
 %   Usage:  test_SortedUnits
 %
 %   The fixtures live in a temp folder which is deleted on completion.
 %
 %   See also EphysDataset.readPhyUnits, EphysDataset.channelLayout,
-%   EphysDataset.runKilosort.
+%   EphysDataset.runKilosort, EphysDataset.readPhyWaveforms.
 
 here = fileparts(mfilename('fullpath'));
 addpath(here);
@@ -220,6 +223,89 @@ check(readJsonFile(dryX.settingsPath).bin_scale == 7, 'a given .bin: bin_scale f
 delete(fullfile(root, 'other.json'));
 dryX = ds.runKilosort(DryRun=true, BinFile=binX);
 check(~isfield(readJsonFile(dryX.settingsPath), 'bin_scale'), 'a given .bin without a sidecar: no bin_scale');
+
+%% ---- 6. readPhyWaveforms -----------------------------------------------------------------
+fprintf('\n== 6. spike waveforms from the sorted .bin (readPhyWaveforms) ==\n');
+d6 = fullfile(root, 'phy6');
+makePhyFixture(d6, fs, ChannelMap=[4 0 2], NChan=3, SettingsJson=true, BinScale=2);   % templates: nt 8
+nBin = 5; nSampB = 3000; binRows = [5 1 3];
+rng(7);
+tB = (0:nSampB - 1) / fs;
+B = round(randn(nBin, nSampB) * 20 + 500 * sin(2 * pi * 5 * tB + (1:nBin).'));     % noise + a slow drift
+spk = [1 100 700 1500 2990 2995];                     % 0-based; the first and last windows leave the file
+for r = 1:nBin
+    B(r, spk + 1) = B(r, spk + 1) - 300 * r;          % a trough on the spike's sample
+    B(r, spk + 2) = B(r, spk + 2) + 100 * r;
+end
+fid = fopen(fullfile(d6, 'rec.bin'), 'w', 'ieee-le'); fwrite(fid, int16(B), 'int16'); fclose(fid);
+writeParams = @(datPath, extra) writeText(fullfile(d6, 'params.py'), sprintf( ...
+    ['dat_path = %s\nn_channels_dat = %d\noffset = 0\nsample_rate = %g\ndtype = ''int16''\n' ...
+     'hp_filtered = %s\n'], datPath, nBin, fs, extra));
+writeParams(sprintf('[''%s'']', strrep(fullfile(d6, 'rec.bin'), '\', '/')), 'False');
+S6 = readJsonFile(fullfile(d6, 'settings.json'));
+S6.do_CAR = false;
+writeJsonFile(fullfile(d6, 'settings.json'), S6);
+    function X = cut(rows, s, nt0, nt, sc)
+        X = double(B(rows, s - nt0 + (1:nt))).' / sc;
+    end
+[W, wi] = EphysDataset.readPhyWaveforms(d6, int64(spk), Filter=false);
+ok = isequal(size(W), [8 3 4]) && wi.skipped == 2 && isequal(wi.samples, int64([100; 700; 1500; 2990])) ...
+    && wi.nt0min == 2 && isequal(wi.binRows, binRows) && wi.units == "uV" && ~wi.car && isnan(wi.highpassHz);
+for k = 1:4
+    X = cut(binRows, double(wi.samples(k)), 2, 8, 2);
+    ok = ok && max(abs(W(:, :, k) - (X - mean(X, 1))), [], 'all') < 1e-9;
+end
+[~, iMin] = min(W(:, 1, 1));
+check(ok && iMin == wi.nt0min + 1, ['the templates'' window (nt from templates.npy, nt0min = floor(20*nt/61)) of ' ...
+    'the channel_map rows, in uV (bin_scale), window means removed; windows that leave the file are skipped']);
+check(isequal(wi.timeMs, (0:7) / fs * 1000) && endsWith(wi.dataFile, "rec.bin"), ...
+    'the time axis is the templates'' and dat_path is read from params.py''s list');
+W2 = EphysDataset.readPhyWaveforms(d6, spk, Filter=false, Channels=[3 1]);
+check(isequal(W2, W(:, [3 1], :)), 'Channels picks sorted channels');
+[Wa, ia] = EphysDataset.readPhyWaveforms(d6, spk, Filter=false, MaxSpikes=2);
+[Wb, ib] = EphysDataset.readPhyWaveforms(d6, spk, Filter=false, MaxSpikes=2);
+check(size(Wa, 3) == 2 && isequal(Wa, Wb) && isequal(ia.samples, ib.samples) && issorted(ia.samples) ...
+    && all(ismember(ia.samples, wi.samples)), 'MaxSpikes: that many of the spikes that fit, the same ones each call');
+S6 = rmfield(S6, 'do_CAR');
+writeJsonFile(fullfile(d6, 'settings.json'), S6);
+[W, wi] = EphysDataset.readPhyWaveforms(d6, spk, Filter=false);
+X = cut(binRows, 700, 2, 8, 2); X = X - mean(X, 1); X = X - median(X, 2);
+check(wi.car && max(abs(W(:, :, 2) - X), [], 'all') < 1e-9, ...
+    'no do_CAR in settings.json: Kilosort4''s default, the median across the sorted channels is subtracted');
+S6.do_CAR = false; S6.nt = 61;
+writeJsonFile(fullfile(d6, 'settings.json'), S6);
+[W, wi] = EphysDataset.readPhyWaveforms(d6, [700 1500]);
+[z, p, k0] = butter(3, 300 / (fs / 2), 'high');
+[sos, g] = zp2sos(z, p, k0);
+F = filtfilt(sos, g, double(B(binRows, :)).' / 2);        % the whole trace filtered, as Kilosort4 does
+ok = isequal(size(W), [61 3 2]) && wi.nt0min == 20 && wi.highpassHz == 300;
+for k = 1:2
+    ref = F(double(wi.samples(k)) - 20 + (1:61), :);
+    ok = ok && max(abs(W(:, :, k) - ref), [], 'all') < 0.01 * max(abs(ref), [], 'all');
+end
+check(ok, 'the high-pass over the padded window matches filtering the whole trace (within 1%); nt from settings.json');
+writeParams('''C:/nowhere/at/all/rec.bin''', 'False');
+[~, wi] = EphysDataset.readPhyWaveforms(d6, spk, Filter=false);
+check(strcmp(wi.dataFile, fullfile(d6, 'rec.bin')), 'a dat_path that is not there: the file of that name in the results folder');
+writeParams('''C:/nowhere/at/all/gone.bin''', 'False');
+check(strcmp(errorId(@() EphysDataset.readPhyWaveforms(d6, spk)), 'EphysDataset:readPhyWaveforms:NoDataFile'), ...
+    'no such file anywhere: NoDataFile');
+check(strcmp(errorId(@() EphysDataset.readPhyWaveforms(d6, spk, DataFile=fullfile(d6, 'rec.bin'), Channels=4)), ...
+    'EphysDataset:readPhyWaveforms:BadChannels'), 'a channel that was not sorted: BadChannels');
+check(strcmp(errorId(@() EphysDataset.readPhyWaveforms(root, spk)), 'EphysDataset:readPhyWaveforms:NoParams'), ...
+    'no params.py: NoParams');
+% Kilosort4's preprocessed copy: its whitened data x 200, unwhitened as the templates are.
+Winv6 = [1 0.5 0; 0 1 0; 0.25 0 2];
+writeNPY(fullfile(d6, 'whitening_mat_inv.npy'), single(Winv6));
+Bw = round(randn(nBin, nSampB) * 300);
+fid = fopen(fullfile(d6, 'temp_wh.dat'), 'w', 'ieee-le'); fwrite(fid, int16(Bw), 'int16'); fclose(fid);
+writeParams('''temp_wh.dat''', 'True');
+S6 = rmfield(S6, 'nt');
+writeJsonFile(fullfile(d6, 'settings.json'), S6);
+[W, wi] = EphysDataset.readPhyWaveforms(d6, spk);
+X = double(Bw(binRows, 1500 - 2 + (1:8))).' / 200 * Winv6.' / 2;
+check(wi.units == "uV" && ~wi.car && isnan(wi.highpassHz) && max(abs(W(:, :, 3) - X), [], 'all') < 1e-9, ...
+    'hp_filtered (temp_wh.dat): used as it is, /200 and unwhitened with whitening_mat_inv.npy into uV');
 
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0

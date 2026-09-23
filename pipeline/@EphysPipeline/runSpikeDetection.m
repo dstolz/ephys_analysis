@@ -2,8 +2,9 @@ function runSpikeDetection(obj, opts)
 %runSpikeDetection  Detected and/or sorted spikes .mat per dataset (spikesToMat).
 %   Detection options come from EphysPipelineConfig.detectOptions, the
 %   channels from Spikes.Channels (all / manifest exclusions removed / list),
-%   artifact rejection from the manual periods plus the cached automatic
-%   detection when Artifacts.ApplyToSpikes. Sorted units are read through
+%   the artifact periods (Spikes.ArtifactMode "reject": the events inside
+%   them dropped; "erase": erased before detection) from the manual periods
+%   plus the cached automatic detection when Artifacts.ApplyToSpikes. Sorted units are read through
 %   the dataset's sorting association; a dataset whose hand-picked
 %   sorted-output folder is not there is skipped, never read from another
 %   sort. Output: <Spikes.OutputDir or output folder>/<Name><Suffix>.mat.
@@ -55,7 +56,7 @@ for k = 1:n
         end
         args = {};
         lo = 0;   % share of this dataset's progress an artifact detection took
-        if K.Source ~= "sorted" && K.RejectArtifacts
+        if K.Source ~= "sorted" && K.ArtifactMode ~= "none"
             obj.progress("spikes", d.Name, k, n, 0, 1, "artifact intervals");
             [iv, src] = obj.artifactIntervalsForStep(d, c.Artifacts.ApplyToSpikes, ...   % a detection fills the first half
                 @(done, total, msg) obj.progress("spikes", d.Name, k, n, done / max(total, 1) / 2, 1, "artifact intervals, " + msg));
@@ -64,11 +65,14 @@ for k = 1:n
         end
         cb = @(done, total, msg) obj.progress("spikes", d.Name, k, n, lo + (1 - lo) * done / max(total, 1), 1, msg);
         r = d.spikesToMat('File', out, 'Source', K.Source, 'DetectOptions', dopt, 'Channels', channels, ...
-            'RejectArtifacts', K.RejectArtifacts, 'Groups', K.Groups, 'IncludeNoise', K.IncludeNoise, ...
+            'ArtifactMode', K.ArtifactMode, 'Groups', K.Groups, 'IncludeNoise', K.IncludeNoise, ...
             'Templates', K.Templates, 'MatVersion', K.MatVersion, ...
             'Overwrite', K.Overwrite, 'ProgressFcn', cb, args{:});
         msg = sprintf("%s: %d unit(s), %d detected event(s), %d rejected", K.Source, r.nUnits, ...
             sum(r.nDetected), sum(r.nRejectedArtifact));
+        if K.Source ~= "sorted" && K.ArtifactMode == "erase"
+            msg = msg + sprintf(", %d artifact period(s) erased before detection", size(iv, 1));
+        end
         obj.log("[spikes] %s: wrote %s (%s)", d.Name, r.file, msg);
         obj.addResult("spikes", d.Name, "done", msg, r.file, toc(t0));
     catch ME

@@ -69,7 +69,8 @@ function [units, info] = readPhyUnits(resultsDir, opts)
 %                       in the data it sorted (high-passed, referenced,
 %                       whitened; rebuilt from their PC features), unwhitened
 %                       with whitening_mat_inv.npy. Not a raw-spike average
-%     templateFull      [nS x nChanSorted x nU] the same on every sorted
+%                       (EphysDataset.readPhyWaveforms cuts the spikes)
+%     templateFull     [nS x nChanSorted x nU] the same on every sorted
 %                       channel (FullTemplates) else []
 %     templateTimeMs    [1 x nS]
 %     templateUnits     what the template values are:
@@ -100,8 +101,8 @@ function [units, info] = readPhyUnits(resultsDir, opts)
 %   Warning EphysDataset:readPhyUnits:OtherGroup names cluster labels that
 %   map to class "other".
 %
-%   See also EphysDataset.readSortedUnits, EphysDataset.resolvePhyDir,
-%   ChronuxDataset.spikes, readNPY.
+%   See also EphysDataset.readSortedUnits, EphysDataset.readPhyWaveforms,
+%   EphysDataset.resolvePhyDir, ChronuxDataset.spikes, readNPY.
 
 arguments
     resultsDir (1,1) string
@@ -498,43 +499,6 @@ q = strlength(s) >= 2 & startsWith(s, '"') & endsWith(s, '"');
 if any(q)
     s(q) = replace(extractBetween(s(q), 2, strlength(s(q)) - 1), '""', '"');
 end
-end
-
-
-function [M, units] = templateConversion(folder, nC)
-%templateConversion  WF * M puts an [nS x nC] templates.npy template in UNITS.
-%   Kilosort4 whitens the data it sorts as W * X (X [channel x time]) and
-%   saves inv(W) as whitening_mat_inv.npy, so a [time x channel] template
-%   goes back to the data's units as WF * inv(W).'. W is not symmetric (each
-%   row is one channel's local whitening filter), so the transpose matters.
-%   The run's settings.json then undoes Kilosort4's own scale and
-%   invert_sign and gives the .bin's scale (bin_scale, runKilosort). M is []
-%   (keep the template as stored) without a usable whitening_mat_inv.npy.
-M = []; units = "whitened";
-Winv = readOptionalNPY(fullfile(folder, 'whitening_mat_inv.npy'), []);
-if ~isequal(size(Winv), [nC nC]); return; end
-factor = 1;
-units = "bin";
-cfg = readJsonFile(fullfile(folder, 'settings.json'), ErrorOnFail=false);
-if isstruct(cfg)
-    if isfield(cfg, 'invert_sign') && isequal(cfg.invert_sign, true)
-        factor = -factor;
-    end
-    if isfield(cfg, 'scale') && isFactor(cfg.scale)
-        factor = factor / cfg.scale;
-    end
-    if isfield(cfg, 'bin_scale') && isFactor(cfg.bin_scale)
-        factor = factor / cfg.bin_scale;
-        units = "uV";
-    end
-end
-M = Winv.' * factor;
-end
-
-
-function tf = isFactor(v)
-%isFactor  A finite, non-zero numeric scalar.
-tf = isnumeric(v) && isscalar(v) && isfinite(v) && v ~= 0;
 end
 
 

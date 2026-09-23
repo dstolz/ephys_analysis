@@ -141,6 +141,18 @@ function [ts, wf, info] = detectSpikes(obj, X, opts)
 %                      NaN = automatic). The cap is always limited by free
 %                      memory - about six copies of one chunk per worker - so
 %                      a 12-worker pool typically runs 4-5 chunks at a time.
+%     ArtifactIntervals (:,2) double  artifact periods erased before
+%                      detection (default none): [tStart tEnd) seconds on the
+%                      clock of the returned timestamps (the recording's,
+%                      TimeOffset aside), as EphysDataset.artifactIntervals
+%                      gives them. The samples they cover
+%                      (EphysDataset.artifactSamples, those the .bin and
+%                      spike rejection take) are set to NaN in every chunk
+%                      read, context included, so they stay out of the noise
+%                      estimates, never cross threshold, and the band-pass
+%                      runs a line across them (see Conventions): an
+%                      artifact cannot ring into its neighbours or raise the
+%                      threshold. Reported in INFO.artifacts.
 %
 %   Memory: one chunk plus the padding is held at a time (per worker with
 %   UseParallel), but the returned
@@ -192,6 +204,8 @@ function [ts, wf, info] = detectSpikes(obj, X, opts)
 %     edgePadMs, edgePadSamples  context actually carried across boundaries
 %     chunks  struct array (name, sampleOffset, nSamples) of the chunks read
 %     files   the chunk names, in the order read
+%     artifacts  the ArtifactIntervals erased: intervals (merged; zeros(0,2)
+%             for none) and nSamples (recording samples set to NaN)
 %
 %   Examples
 %   --------
@@ -247,6 +261,7 @@ arguments
     opts.ProgressFcn = []
     opts.UseParallel (1,1) logical = false
     opts.MaxWorkers (1,1) double = NaN
+    opts.ArtifactIntervals (:,2) double {mustBeFinite} = zeros(0, 2)
 end
 
 if isempty(opts.Waveforms)
@@ -256,13 +271,14 @@ else
 end
 
 streamOnly = ["Files" "ChannelOrder" "MaxChunkSamples" "EdgePadMs" "ProgressFcn" ...
-              "UseParallel" "MaxWorkers"];
+              "UseParallel" "MaxWorkers" "ArtifactIntervals"];
 
 if ~isempty(X)
     % ---- block mode: detect on the matrix the caller handed us -------------
     given = streamOnly([~isempty(opts.Files), ~isempty(opts.ChannelOrder), ...
         ~isnan(opts.MaxChunkSamples), ~isnan(opts.EdgePadMs), ...
-        ~isempty(opts.ProgressFcn), opts.UseParallel, ~isnan(opts.MaxWorkers)]);
+        ~isempty(opts.ProgressFcn), opts.UseParallel, ~isnan(opts.MaxWorkers), ...
+        ~isempty(opts.ArtifactIntervals)]);
     if ~isempty(given)
         error('EphysDataset:detectSpikes:BlockOption', ...
             ['%s appl%s only when detecting over a whole recording ' ...
@@ -311,6 +327,11 @@ end
 blockOpts = rmfield(opts, cellstr(streamOnly));
 blockOpts.Fs = Fs;
 blockOpts.TimeOffset = 0;
+
+% The recording samples the artifact periods cover, [first last] 1-based,
+% erased (NaN) in every chunk before it is detected.
+artIv = EphysDataset.mergeIntervals(opts.ArtifactIntervals);
+artRuns = EphysDataset.artifactSamples(artIv, Fs, Inf);
 
 % Context carried across chunk boundaries: enough for filter settling plus
 % whatever the alignment window, the waveform window and the minimum detection
@@ -365,7 +386,7 @@ if ~isempty(pool)
     offs = [plan.sampleOffset];
     contiguous = obj.supportsRandomAccess() && all(isfinite(offs)) ...
         && all(offs(2:end) == offs(1:end-1) + [plan(1:end-1).nSamples]);
-    R = mapChunks(@(i) parallelChunk(obj, plan, i, starts(i), pad, chanOrder, blockOpts, doWave, contiguous), ...
+    R = mapChunks(@(i) parallelChunk(obj, plan, i, starts(i), pad, chanOrder, blockOpts, doWave, contiguous, artRuns), ...
         reshape(string({plan.name}), 1, []), Pool=pool, NumWorkers=nWorkers, ...
         ProgressFcn=opts.ProgressFcn);
 else
@@ -392,7 +413,7 @@ else
 
         B = [tail; Xc];
         R{i} = detectChunk(obj, B, plan(i).name, consumed, size(tail, 1), ...
-            pad, blockOpts, doWave);
+            pad, blockOpts, doWave, artRuns);
 
         consumed = consumed + size(Xc, 1);
         tail     = B(max(1, size(B,1) - 2*pad + 1):end, :);
@@ -516,6 +537,10 @@ info.edgePadSamples     = pad;
 info.edgePadMs          = 1e3 * pad / Fs;
 info.chunks             = chunkInfo;
 info.files              = string({plan.name});
+erased = artRuns(artRuns(:, 1) <= nSamplesTotal, :);
+erased(:, 2) = min(erased(:, 2), nSamplesTotal);
+info.artifacts          = struct('intervals', artIv, ...
+    'nSamples', sum(erased(:, 2) - erased(:, 1) + 1));
 
 clear restoreWarning     % restore the warning state before the summary below
 degAny = any(logical(degAll), 1);
@@ -549,10 +574,12 @@ X = X(:, chanOrder);
 end
 
 
-function R = detectChunk(obj, B, name, chunkFirst0, nCtx, pad, blockOpts, doWave)
+function R = detectChunk(obj, B, name, chunkFirst0, nCtx, pad, blockOpts, doWave, artRuns)
 %detectChunk  Detect on one context-prefixed chunk and split its events.
 %   B is [nCtx rows of the preceding recording; the chunk], chunkFirst0 the
-%   0-based recording index of the chunk's first sample. Events in rows this
+%   0-based recording index of the chunk's first sample. The rows the
+%   artifact runs ARTRUNS ([first last] 1-based recording samples) cover are
+%   erased (NaN) first, context included. Events in rows this
 %   chunk finalizes go to idx/amp/wf/nRej/nDrop; events in the last pad samples
 %   (held back as the next chunk's context) go to the pend* fields, which the
 %   caller keeps only for the final chunk. Indices are recording-global 1-based.
@@ -563,6 +590,12 @@ total0  = chunkFirst0 + n;                       % samples read including this c
 rep0    = chunkFirst0 - min(pad, chunkFirst0);   % first sample not yet finalized
 rowLo   = rep0 - first0 + 1;                     % rows of B finalized by this chunk
 rowHi   = total0 - min(pad, total0) - first0;
+
+% Erase the artifact periods: NaN stays out of the noise estimates, never
+% crosses threshold, and the band-pass runs a line across it.
+for j = find(artRuns(:, 2) > first0 & artRuns(:, 1) <= first0 + size(B, 1)).'
+    B(max(1, artRuns(j, 1) - first0):min(size(B, 1), artRuns(j, 2) - first0), :) = NaN;
+end
 
 [~, wfB, infoB] = detectBlock(obj, B, blockOpts, doWave);
 
@@ -598,7 +631,7 @@ R.info = infoB;
 end
 
 
-function R = parallelChunk(obj, plan, i, chunkFirst0, pad, chanOrder, blockOpts, doWave, contiguous)
+function R = parallelChunk(obj, plan, i, chunkFirst0, pad, chanOrder, blockOpts, doWave, contiguous, artRuns)
 %parallelChunk  Worker body for UseParallel: read chunk i and its context.
 %   The context is the last min(2*pad, chunkFirst0) samples before the chunk -
 %   exactly the tail the serial loop would carry in - read as one window when
@@ -646,7 +679,7 @@ else
 end
 
 R = detectChunk(obj, [ctx; Xc], plan(i).name, chunkFirst0, nCtx, pad, ...
-    blockOpts, doWave);
+    blockOpts, doWave, artRuns);
 end
 
 

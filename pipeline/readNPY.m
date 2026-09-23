@@ -15,7 +15,8 @@ function [data, shape] = readNPY(filename, opts)
 %   DATA = READNPY(FILENAME, Range=[FIRST LAST]) reads only elements
 %   FIRST..LAST (1-based, LAST clipped to the array length) of a 1-D array
 %   as a column, seeking past the rest; SHAPE is still the whole array's.
-%   Range=[1 0] reads nothing and just returns the shape.
+%   Range=[1 0] reads nothing and just returns the shape, of an array of
+%   any shape.
 %
 %   See also EphysPreprocessingApp.loadReviewResults, ChronuxDataset.spikes.
 
@@ -58,12 +59,12 @@ end
 mtype = npyType(descr);
 if all(isfinite(opts.Range))
     n = prod(shape);
-    if n ~= max(shape)
-        error('readNPY:range', 'Range reads 1-D arrays only; %s has shape %s.', filename, mat2str(shape));
-    end
     first = max(1, opts.Range(1));
     last = min(opts.Range(2), n);
     nRead = max(0, last - first + 1);
+    if nRead > 0 && n ~= max(shape)
+        error('readNPY:range', 'Range reads 1-D arrays only; %s has shape %s.', filename, mat2str(shape));
+    end
     if nRead > 0 && first > 1
         fseek(fid, (first - 1) * str2double(descr(3:end)), 'cof');
     end

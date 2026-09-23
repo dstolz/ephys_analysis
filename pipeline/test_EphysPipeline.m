@@ -487,11 +487,18 @@ if license('test', 'Signal_Toolbox')
     logs = strings(0, 1);
     ws = warning('off', 'EphysDataset:prepareReference:FewChannels');
     pipe.Config = cfgRef; pipe.reset(); pipe.runSignals();
+    Mref0 = load(pipe.Results.Output(1));
+    check(pipe.Results.Status(1) == "done" && Mref0.info.reference.mode == "none" && Mref0.info.LFP.reference == "none", ...
+        'Artifacts.Reference "car" with Signals.LFP_Reference off (the default): the LFP is taken as recorded');
+    cfgRef.Signals.LFP_Reference = true;
+    logs = strings(0, 1);
+    pipe.Config = cfgRef; pipe.reset(); pipe.runSignals();
     warning(ws);
     Mref = load(pipe.Results.Output(1));
-    check(pipe.Results.Status(1) == "done" && Mref.info.reference.mode == "car" ...
-        && isequal(Mref.info.reference.channels, 1:numAmp) && any(contains(logs, "common CAR reference over 4 channel(s)")), ...
-        'Artifacts.Reference "car": the Signals step references the recording too, and logs it');
+    check(pipe.Results.Status(1) == "done" && Mref.info.reference.mode == "car" && Mref.info.LFP.reference == "car" ...
+        && isequal(Mref.info.reference.channels, 1:numAmp) ...
+        && any(contains(logs, "common CAR reference over 4 channel(s), subtracted from LFP")), ...
+        'Signals.LFP_Reference on: the Signals step references the LFP too, and logs it');
     [d1.ReferenceExclude, d1.ReferenceExcludeSource] = refState{:};
     pipe.Config = cfg;
     cfgM = cfg; cfgM.Signals.MUA = true;

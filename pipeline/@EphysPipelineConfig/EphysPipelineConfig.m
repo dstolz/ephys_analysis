@@ -18,10 +18,12 @@ classdef EphysPipelineConfig
     %     Probe      DefaultProbeFile, WriteDefaultToManifest
     %     Behavior   Enabled, SearchDirs, Match, MaxStartOffsetMin, Overwrite,
     %                WriteFile, PairTrials, AutoApprove, TrialLine
-    %     Artifacts  Reference ("none" | "car" | "cmr", with the
-    %                ReferenceBadLow / ReferenceBadHigh noise bounds that
-    %                suggest channels to leave out of it), Enabled + detector /
-    %                filter settings, ApplyTo*, CacheIntervals
+    %     Artifacts  Reference ("none" | "car" | "cmr": the common reference
+    %                every step subtracts once from its read of the
+    %                recording, with the ReferenceBadLow / ReferenceBadHigh
+    %                noise bounds that suggest channels to leave out of it),
+    %                Enabled + detector / filter settings, ApplyTo*,
+    %                CacheIntervals
     %     Sorting    Enabled, PythonExe, CondaEnv, Execution, MaxConcurrent (background runs at
     %                once; the others wait for a free slot), Devices
     %                (torch devices such as "cuda:0" "cuda:1" shared out
@@ -31,7 +33,10 @@ classdef EphysPipelineConfig
     %     Signals    Enabled + the derived-signal (toMat) settings,
     %                BlankArtifacts (erase the artifact periods before
     %                deriving, and record them in every file; the automatic
-    %                ones with Artifacts.ApplyToSignals),
+    %                ones with Artifacts.ApplyToSignals), LFP_Reference /
+    %                MUA_Reference / SPIKE_Reference (which signals the
+    %                common reference of Artifacts.Reference is subtracted
+    %                from; not the LFP by default),
     %                ExcludeHandling, LabelField ("custom" | "native" names),
     %                LineNames ("native=name" digital-line names) and
     %                InvertedLines (digital-line polarity); the line naming

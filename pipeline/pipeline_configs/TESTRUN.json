@@ -174,7 +174,7 @@
     "EdgeHandling": "nan",
     "Channels": "all",
     "ChannelList": "",
-    "RejectArtifacts": true,
+    "ArtifactMode": "reject",
     "MaxChunkSamples": "NaN",
     "EdgePadMs": "NaN",
     "Groups": [

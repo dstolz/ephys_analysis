@@ -59,6 +59,14 @@ function result = runKilosort(obj, opts)
 %   once its process exits, so a caller can poll for completion of a
 %   background run (EphysDataset.sortRunState).
 %
+%   The recording is referenced once: when the .bin carries the common
+%   reference (ArtifactConfig.Reference "car" / "cmr", which toBin
+%   subtracts; for a BinFile given, the reference its sidecar records),
+%   settings.json sets do_CAR = false, so Kilosort4 does not subtract its own
+%   (the median across the probe's channels) on top of it, whatever
+%   ExtraSettings says. With Reference "none" Kilosort4's do_CAR is the one
+%   reference, as ExtraSettings leaves it (on by default).
+%
 %   settings.json also records the .bin's scale, its units per uV
 %   (bin_scale: ds.Scale when this call writes the .bin, else the .bin's
 %   sidecar), which readPhyUnits needs to give the templates in uV.
@@ -154,9 +162,10 @@ probeFile = absPath(probeFile);
 
 % n_chan_bin and fs: opts -> .bin JSON sidecar -> dataset metadata. The
 % .bin's units per uV: ds.Scale when toBin writes it here, else the sidecar.
-[nChanBin, fsVal, binScale] = resolveBinMeta(binFile, opts, obj);
+[nChanBin, fsVal, binScale, binRef] = resolveBinMeta(binFile, opts, obj);
 if ~binGiven
     binScale = obj.Scale;
+    binRef = string(EphysDataset.normalizeArtifactConfig(obj.ArtifactConfig).Reference);   % what toBin subtracts
 end
 
 if ~isfolder(runDir)
@@ -196,6 +205,15 @@ end
 extraNames = fieldnames(opts.ExtraSettings);
 for k = 1:numel(extraNames)
     settings.(extraNames{k}) = opts.ExtraSettings.(extraNames{k});
+end
+% A .bin that carries the common reference is not referenced again:
+% Kilosort4's do_CAR would subtract the median across the probe's channels
+% on top of it.
+if ismember(binRef, ["car" "cmr"])
+    if isfield(settings, 'do_CAR') && ~isequal(settings.do_CAR, false)
+        fprintf('do_CAR turned off: the .bin already carries the common %s reference.\n', upper(binRef));
+    end
+    settings.do_CAR = false;
 end
 
 settingsPath = fullfile(runDir, 'settings.json');
@@ -281,10 +299,13 @@ tf = ~isempty(regexp(d, '^([A-Za-z]:[\\/]|[\\/]{2}|[\\/])', 'once'));
 end
 
 
-function [nChanBin, fsVal, binScale] = resolveBinMeta(binFile, opts, obj)
+function [nChanBin, fsVal, binScale, binRef] = resolveBinMeta(binFile, opts, obj)
+%resolveBinMeta  n_chan_bin, fs, units per uV and the common reference
+%   ("none" | "car" | "cmr"; "" = not recorded) of a .bin, from its sidecar.
 nChanBin = opts.NChanBin;
 fsVal    = opts.Fs;
 binScale = NaN;
+binRef   = "";
 % Try the .bin JSON sidecar
 [d, n] = fileparts(binFile);
 sidecar = fullfile(d, [n '.json']);
@@ -295,6 +316,9 @@ if isfile(sidecar)
         if isnan(fsVal)    && isfield(meta, 'fs');         fsVal    = meta.fs;         end
         if isfield(meta, 'scale') && isnumeric(meta.scale) && isscalar(meta.scale)
             binScale = double(meta.scale);
+        end
+        if isfield(meta, 'reference') && isstruct(meta.reference) && isfield(meta.reference, 'mode')
+            binRef = string(meta.reference.mode);
         end
     catch
     end

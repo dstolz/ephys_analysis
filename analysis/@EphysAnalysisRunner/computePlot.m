@@ -3,7 +3,8 @@ function [R, E, G] = computePlot(obj, src, spec) %#ok<INUSD>
 %   [R, E, G] = r.computePlot(SRC, SPEC) with SRC from source() and SPEC from
 %   Config.plotFor(id):
 %     psth / raster / heatmap of spikes
-%         [E, G] = epochTable(src, spec.ref, Window=spec.window, Selection=spec.selection)
+%         [E, G] = epochTable(src, spec.ref, Window=spec.window, Selection=spec.selection,
+%             Baseline=) (the artifact test covers a baseline outside the window)
 %         [st, meta] = selectUnits(src, spec.units)
 %         R = spikePSTH(st, E, Window=[pre post], BinSec=, SmoothSec=,
 %             Baseline=, BaselineMode=, MaskAfterStop=, Raster=, Groups=G, Meta=meta)
@@ -30,7 +31,7 @@ isSignal = ismember(spec.source, EphysAnalysisConfig.SignalSources);
 E = [];
 switch spec.kind
     case {"psth" "raster" "heatmap"}
-        [E, G] = epochTable(src, spec.ref, Window=w, Selection=spec.selection);
+        [E, G] = epochTable(src, spec.ref, Window=w, Selection=spec.selection, Baseline=b);
         if isSignal
             [Y, fs, meta] = selectChannels(src, spec.source, Channels=spec.channels);
             R = evokedPotential(Y, fs, E, Window=[w.pre w.post], Baseline=b, Groups=G, Meta=meta, Units=meta.units(1));
@@ -41,16 +42,16 @@ switch spec.kind
                 Raster=spec.kind == "raster" || (spec.kind == "psth" && spec.withRaster), Groups=G, Meta=meta);
         end
     case "evoked"
-        [E, G] = epochTable(src, spec.ref, Window=w, Selection=spec.selection);
+        [E, G] = epochTable(src, spec.ref, Window=w, Selection=spec.selection, Baseline=b);
         [Y, fs, meta] = selectChannels(src, spec.source, Channels=spec.channels);
         R = evokedPotential(Y, fs, E, Window=[w.pre w.post], Baseline=b, Groups=G, Meta=meta, Units=meta.units(1));
     case "rate"
-        [E, G] = epochTable(src, spec.ref, Window=w, Selection=spec.selection);
+        [E, G] = epochTable(src, spec.ref, Window=w, Selection=spec.selection, Baseline=b);
         [st, meta] = selectUnits(src, spec.units);
         R = firingRate(st, E, Baseline=b, Normalize=spec.baseline.Mode, Groups=G, Meta=meta);
     case "tuning"
         cols = [spec.param spec.seriesParam];
-        [E, G] = epochTable(src, spec.ref, Window=w, Selection=spec.selection, Columns=cols(cols ~= ""));
+        [E, G] = epochTable(src, spec.ref, Window=w, Selection=spec.selection, Baseline=b, Columns=cols(cols ~= ""));
         [st, meta] = selectUnits(src, spec.units);
         F = firingRate(st, E, Baseline=b, Normalize=spec.baseline.Mode, Groups=G, Meta=meta);
         series = [];
@@ -58,7 +59,7 @@ switch spec.kind
         R = tuningCurve(F.rate, E.(spec.param), Series=series, Param=spec.param, SeriesParam=spec.seriesParam, ...
             Meta=meta, Units=F.units);
     case "corrmap"
-        [E, G] = epochTable(src, spec.ref, Window=w, Selection=spec.selection);
+        [E, G] = epochTable(src, spec.ref, Window=w, Selection=spec.selection, Baseline=b);
         [st, meta] = selectUnits(src, spec.units);
         R = unitCorrelation(st, E, Metric=spec.metric, Type=spec.correlation, BinSec=spec.bins.BinSec, ...
             SmoothSec=spec.bins.SmoothSec, Baseline=b, BaselineMode=spec.baseline.Mode, Groups=G, Meta=meta);

@@ -236,7 +236,7 @@ classdef EphysAnalysisScript
             w = lit([spec.window.pre spec.window.post]);
             b = "[]";
             if spec.baseline.Mode ~= "none"; b = lit(spec.baseline.Window); end
-            epochs = "[E, G] = epochTable(src, spec.ref, Window=spec.window, Selection=spec.selection);";
+            epochs = "[E, G] = epochTable(src, spec.ref, Window=spec.window, Selection=spec.selection, Baseline=" + b + ");";
             isSignal = ismember(spec.source, EphysAnalysisConfig.SignalSources);
             L = strings(0, 1);
             switch spec.kind
@@ -263,7 +263,7 @@ classdef EphysAnalysisScript
                 case "tuning"
                     cols = [spec.param spec.seriesParam];
                     cols = cols(cols ~= "");
-                    L(end+1, 1) = "[E, G] = epochTable(src, spec.ref, Window=spec.window, Selection=spec.selection, Columns=" + lit(cols) + ");";
+                    L(end+1, 1) = "[E, G] = epochTable(src, spec.ref, Window=spec.window, Selection=spec.selection, Baseline=" + b + ", Columns=" + lit(cols) + ");";
                     L(end+1, 1) = "[st, meta] = selectUnits(src, spec.units);";
                     L(end+1, 1) = "F = firingRate(st, E, Baseline=" + b + ", Normalize=" + lit(spec.baseline.Mode) + ", Groups=G, Meta=meta);";
                     series = "[]";

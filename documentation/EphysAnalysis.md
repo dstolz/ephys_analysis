@@ -66,7 +66,7 @@ analysis needs. **No signal and no spike time is loaded**: `selectUnits` and
 | `name`, `key`, `folder`, `outputs` | the dataset, its key (`Key=` option), output folder and `DatasetOutputs` |
 | `fs`, `durationSec` | recording rate and length: the manifest's `metadata.fs` / `duration_s`, else the extract (`info.origFs`, `info.<SIG>.nSamples / Fs`), else the pairing. Rates divide by `durationSec`, never by the time of the last spike. `fs` is also the rate the digital-event rows count at (`t = row/fs`), which `epochTable` uses |
 | `events` | line → `[k x 2]` `[t_on t_off]` s, **polarity applied**, from the extract (the smallest extract file's `events`) |
-| `artifacts` | `[k x 2]` `[tStart tEnd)` s on the continuous clock (row r at `(r − 1)/fs`): the artifact periods the Signals step erased (that file's `info.artifacts.intervals`; `zeros(0,2)` when none). `epochTable` drops the epochs that touch one |
+| `artifacts` | `[k x 2]` `[tStart tEnd)` s on the continuous clock (row r at `(r − 1)/fs`): the artifact periods the Signals step erased (that file's `info.artifacts.intervals`; `zeros(0,2)` when none). `epochTable` drops the epochs that touch one, for spike plots too. Only these periods count: with `Signals.BlankArtifacts` off (or `Artifacts.ApplyToSignals` off while sorting or detection used the automatic periods) the periods erased before sorting or detection are not here |
 | `invertedLines`, `lines` | lines inverted; table `Line, Count, MeanDurationSec, First, Last, Inverted` |
 | `labels` | amplifier channel labels (`info.labels`) |
 | `signals`, `signalFs` | `LFP / MUA / SPIKE / AUX` → extract present, and its rate |
@@ -160,7 +160,7 @@ ungrouped set is dark grey. Without paired trials there is one group
 
 ### `epochTable`
 
-`[E, G] = epochTable(src, ref, Window=win, Selection=sel, Incomplete="drop", Artifacts="drop", Columns=[])`
+`[E, G] = epochTable(src, ref, Window=win, Selection=sel, Incomplete="drop", Artifacts="drop", Baseline=[], Columns=[])`
 gives one row per epoch, by time: `epoch, trial, t0, t0Continuous, t1,
 tStart, tStop, duration, complete, artifact, groupIndex, group` and the `groupBy` (and
 `Columns`) parameters of each epoch's trial. `t0` is the digital-event time
@@ -172,8 +172,10 @@ recording and, in `"between"` mode, has its stop event; incomplete epochs are
 dropped unless `Incomplete="keep"`. `artifact` means the window, shifted to
 the continuous clock (by `t0Continuous - t0`), touches one of `src.artifacts`
 (half-open periods: `EphysDataset.overlapsIntervals`); those epochs are
-dropped, for the signals and the spikes alike, unless `Artifacts="keep"`,
+dropped, for signal and spike plots alike, unless `Artifacts="keep"`,
 which keeps them flagged (so with the default the column is always false).
+`Baseline=[b0 b1]` (s from `t0`) widens that test to a baseline window that
+reaches outside `[tStart, tStop]`; the runner passes each plot's baseline.
 `G.n` is the number of epochs per group,
 `G.nTrials` the kept trials. `E.Properties.UserData` records `ref`, `window`,
 `selection`, `scope`, `nEvents`, `nDroppedNoStop`, `nDroppedEdge`,

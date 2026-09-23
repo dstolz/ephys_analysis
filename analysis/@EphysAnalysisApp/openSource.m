@@ -45,7 +45,7 @@ else
     if opts.Recordings ~= ""; cfg.Source.Recordings = opts.Recordings; end
     if ~isempty(opts.Datasets)
         cfg.Source.Selection = "list";
-        cfg.Source.Datasets = opts.Datasets;
+        cfg.Source.Datasets = EphysProject.normalizeKey(opts.Datasets);
         if isscalar(opts.Datasets)
             [~, leaf] = fileparts(opts.Datasets);
             cfg.Name = string(leaf) + " quick look";

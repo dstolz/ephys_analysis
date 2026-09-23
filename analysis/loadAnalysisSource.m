@@ -26,7 +26,10 @@ function src = loadAnalysisSource(out, opts)
 %                       r at (r-1)/Fs): the artifact periods the Signals
 %                       step erased (the extract's info.artifacts.intervals;
 %                       zeros(0,2) when none). epochTable drops the epochs
-%                       that touch one
+%                       that touch one, for spike plots too. Only these
+%                       periods count: with Signals.BlankArtifacts off the
+%                       periods erased before sorting or detection are not
+%                       here
 %     invertedLines     lines whose polarity was inverted
 %     lines             table: Line, Count, MeanDurationSec, First, Last,
 %                       Inverted

@@ -13,7 +13,7 @@ classdef EphysAnalysisRunner < handle
     %   One plot on one dataset is always the same sequence of public calls
     %   (see computePlot, runDataset):
     %     src = loadAnalysisSource(out)
-    %     [E, G] = epochTable(src, spec.ref, Window=, Selection=)
+    %     [E, G] = epochTable(src, spec.ref, Window=, Selection=, Baseline=)
     %     [st, meta] = selectUnits(src, spec.units)      (or selectChannels)
     %     R = spikePSTH / evokedPotential / firingRate (+ tuningCurve) /
     %         unitSummary + probeMapValues

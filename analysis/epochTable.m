@@ -45,8 +45,11 @@ function [E, G] = epochTable(src, ref, opts)
 %     Incomplete   "drop" (default): drop epochs that are not complete;
 %                  "keep": keep them (evokedPotential then pads with NaN)
 %     Artifacts    "drop" (default): drop epochs that touch an artifact
-%                  period (src.artifacts), for the signals and the spikes
+%                  period (src.artifacts), for signal and spike plots
 %                  alike; "keep": keep them, flagged in the artifact column
+%     Baseline     [b0 b1] s from t0 ([] = none, the default): the baseline
+%                  window the compute functions read, which the artifact
+%                  test also covers when it reaches outside the window
 %     Columns      further trial columns to copy onto each epoch (e.g. the
 %                  tuning parameter)
 %
@@ -67,6 +70,7 @@ arguments
     opts.Selection = []
     opts.Incomplete (1,1) string {mustBeMember(opts.Incomplete, ["drop" "keep"])} = "drop"
     opts.Artifacts (1,1) string {mustBeMember(opts.Artifacts, ["drop" "keep"])} = "drop"
+    opts.Baseline double = []
     opts.Columns (1,:) string = string.empty(1,0)
 end
 
@@ -120,7 +124,13 @@ t0Continuous = (round((t0 - ref.offsetSec) * src.fs) - 1) / src.fs + ref.offsetS
 artifact = false(nEv, 1);
 if isfield(src, 'artifacts') && ~isempty(src.artifacts)
     shift = t0 - t0Continuous;
-    artifact = EphysDataset.overlapsIntervals(tStart - shift, tStop - shift, src.artifacts);
+    aStart = tStart;
+    aStop = tStop;
+    if numel(opts.Baseline) == 2   % a baseline outside the window is read too
+        aStart = min(aStart, t0 + opts.Baseline(1));
+        aStop = max(aStop, t0 + opts.Baseline(2));
+    end
+    artifact = EphysDataset.overlapsIntervals(aStart - shift, aStop - shift, src.artifacts);
 end
 
 % --- groups ---------------------------------------------------------------------

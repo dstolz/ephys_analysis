@@ -7,7 +7,9 @@ function txt = plotCaption(spec, R)
 %      (n = 4, 5); 12 sorted units (su, mua)"
 %   A tuning curve ignores the trial groups: its caption counts the epochs
 %   of each curve instead ("n = 12 epochs", or "one curve per TrialType
-%   (n = 5, 7 epochs)"). A spikePSTH result whose whole bins (counted from
+%   (n = 5, 7 epochs)"). Epochs left out for touching an artifact period
+%   are counted ("3 epoch(s) touching an artifact period left out"). A
+%   spikePSTH result whose whole bins (counted from
 %   the event, R.window) span less than the window says so: "window
 %   [-0.2 0.8] s (whole bins: [-0.18 0.78] s)". The reports print it under
 %   each figure.
@@ -89,6 +91,9 @@ if spec.kind == "tuning"
     else
         parts(end+1) = sprintf("n = %d epochs", sum(n));
     end
+end
+if isfield(U, 'nDroppedArtifact') && U.nDroppedArtifact > 0
+    parts(end+1) = sprintf("%d epoch(s) touching an artifact period left out", U.nDroppedArtifact);
 end
 if spec.kind == "psth"
     switch spec.normalize

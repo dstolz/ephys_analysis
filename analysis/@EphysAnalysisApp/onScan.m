@@ -20,7 +20,7 @@ obj.Runner = r;
 obj.ScannedSource = cfg.Source;
 n = numel(r.Keys);
 if cfg.Source.Mode == "project" && cfg.Source.Selection == "list"
-    obj.Ticked = ismember(r.Keys, cfg.Source.Datasets);
+    obj.Ticked = ismember(r.Keys, EphysProject.normalizeKey(cfg.Source.Datasets));   % as the runner's findByKey
 else
     obj.Ticked = true(1, n);
 end

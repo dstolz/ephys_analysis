@@ -1,5 +1,8 @@
 function applyAlignControls(~, C, ref, win, sel)
 %applyAlignControls  Show an event reference, window and selection in a control set.
+%   The fields without a control (the stop event's offset, interval length
+%   and time range; the selection's explicit trial rows) are not shown:
+%   gatherAlignControls keeps them from the values it is given.
 ref = EphysAnalysisConfig.normalizeSection("EventRef", ref);   % shown as is, checked elsewhere
 C.Line.Value = char(ref.line);
 C.Edge.Value = char(ref.edge);
@@ -22,10 +25,11 @@ if ~isempty(w.stop)
     C.StopLine.Value = char(s.line);
     C.StopEdge.Value = char(s.edge);
     C.StopWhich.Value = char(s.which);
+    C.StopN.Value = s.n;
     C.StopScope.Value = char(s.scope);
 end
 on = matlab.lang.OnOffSwitchState(C.StopOn.Value);
-set([C.StopLine C.StopEdge C.StopWhich C.StopScope], 'Enable', on);
+set([C.StopLine C.StopEdge C.StopWhich C.StopN C.StopScope], 'Enable', on);
 
 s = EphysAnalysisConfig.normalizeSection("TrialSelection", sel);
 C.Filter.Value = char(s.filter);

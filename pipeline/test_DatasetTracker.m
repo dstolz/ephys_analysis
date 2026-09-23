@@ -116,6 +116,10 @@ err = dt.KilosortRuns(~[dt.KilosortRuns.HasResults]);
 check(err.State == "error" && err.Message == "boom", 'errored run state + message');
 latest = dt.latestKilosortRun();
 check(latest.HasResults, 'latestKilosortRun prefers a run with results');
+r1 = DatasetTracker.kilosortRunAt(ks1);
+check(isequal(r1, done) && isempty(DatasetTracker.kilosortRunAt(recA)) ...
+    && isempty(DatasetTracker.kilosortRunAt(fullfile(root, 'nope'))), ...
+    'kilosortRunAt reads one known run folder as the scan does ([] without a run)');
 
 % ---- 5. Accessors / tables ----------------------------------------------
 fprintf('\n== 5. accessors + tabular views ==\n');

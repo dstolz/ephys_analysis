@@ -10,10 +10,11 @@ n  = numel(ds);
 nProbe = 0; nKS = 0;
 for k = 1:n
     pf = string(ds(k).ProbeFile);
+    if pf == ""; pf = obj.Config.Probe.DefaultProbeFile; end   % EphysPipeline.probeFor
     if strlength(pf) > 0 && isfile(char(pf)); nProbe = nProbe + 1; end
     if ds(k).hasKilosortResults(); nKS = nKS + 1; end
 end
-if nProbe < n && obj.Config.Probe.DefaultProbeFile == ""
+if nProbe < n
     hint = sprintf("Assign a probe on the Probe tab (%d/%d have one).", nProbe, n);
 elseif isempty(obj.Config.enabledSteps())
     hint = "Enable steps on their tabs (or the Run tab), then Run pipeline.";

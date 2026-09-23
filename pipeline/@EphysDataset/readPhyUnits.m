@@ -45,8 +45,9 @@ function [units, info] = readPhyUnits(resultsDir, opts)
 %     datasetKey        Identity.datasetKey ("" without an Identity)
 %     channel           1-based peak channel of the RECORDING (see channelMap)
 %     channelName       its native name, e.g. "A-012" ("" without ChannelNames)
-%     channelNumber     its hardware number, the probe chanMap value (NaN
-%                       without ChannelNumbers)
+%     channelNumber     its hardware number (NaN without ChannelNumbers); not
+%                       the probe chanMap value, which is channel - 1 (the
+%                       .bin row)
 %     ksChannel         1-based peak channel among the SORTED channels
 %     shank             from channel_shanks.npy (0 when absent)
 %     peakX, peakY      site position of the peak channel, probe units (um),
@@ -60,14 +61,33 @@ function [units, info] = readPhyUnits(resultsDir, opts)
 %     times             {nU x 1} seconds: samples / fs (recording-relative,
 %                       the same clock as readData's t)
 %     amplitude         cluster_Amplitude.tsv, else median amplitudes.npy
+%                       (Kilosort4's units, from the whitened data)
 %     contamPct         cluster_ContamPct.tsv (NaN when absent)
-%     templateWaveform  {nU x 1} [nS x 1] peak-channel template, unwhitened
-%                       when whitening_mat_inv.npy exists, scaled by the
-%                       unit's median amplitude (what the Review tab plots)
-%     templateFull      [nS x nChanSorted x nU] (FullTemplates) else []
+%     templateWaveform  {nU x 1} [nS x 1] the unit's template on its peak
+%                       channel, in templateUnits (what the Review tab plots):
+%                       templates.npy, Kilosort4's mean of the unit's spikes
+%                       in the data it sorted (high-passed, referenced,
+%                       whitened; rebuilt from their PC features), unwhitened
+%                       with whitening_mat_inv.npy. Not a raw-spike average
+%     templateFull      [nS x nChanSorted x nU] the same on every sorted
+%                       channel (FullTemplates) else []
 %     templateTimeMs    [1 x nS]
-%   and per-run scalars: fs, resultsDir, groupSource ("phy" | "kilosort" |
-%   "none"), curated, labelFile, durationSec (last spike), nChannelsSorted,
+%     templateUnits     what the template values are:
+%                       "uV"        unwhitened, and divided by the .bin's
+%                                   scale, its units per uV (bin_scale in the
+%                                   run's settings.json; runKilosort writes it)
+%                       "bin"       unwhitened, in the sorted .bin's units (no
+%                                   bin_scale)
+%                       "whitened"  as Kilosort4 stores them (no usable
+%                                   whitening_mat_inv.npy)
+%                       ""          no templates read
+%                       Unwhitened templates also undo Kilosort4's own scale
+%                       setting and invert_sign from settings.json.
+%   and per-run scalars: fs, resultsDir, groupSource ("phy" when phy wrote
+%   cluster_group.tsv, header "cluster_id<TAB>group"; "kilosort" for
+%   Kilosort's own call, which Kilosort4 also copies to cluster_group.tsv
+%   with the header "cluster_id<TAB>KSLabel"; "none"), curated (groupSource
+%   is "phy"), labelFile, durationSec (last spike), nChannelsSorted,
 %   channelMap ([nChanSorted x 1] 1-based recording channels),
 %   channelMapSource ("manual" | "channel_map.npy" | "identity"), readAt.
 %
@@ -141,11 +161,14 @@ spikeAmp = readOptionalNPY(fullfile(dir0, 'amplitudes.npy'), nan(numel(spikeClu)
 spikeAmp = double(spikeAmp(:));
 if numel(spikeAmp) ~= numel(spikeClu); spikeAmp = nan(numel(spikeClu), 1); end
 
-unitId = unique(spikeClu);
-unitId = unitId(:);
+[unitId, ~, spikeUnitIdx] = unique(spikeClu);
 nU = numel(unitId);
-[~, spikeUnitIdx] = ismember(spikeClu, unitId);
 nSpikes = accumarray(spikeUnitIdx, 1, [nU 1]);
+% The spikes grouped by unit once, in file order (sort is stable): unit u
+% holds spikes byUnit(first(u):last(u)).
+[~, byUnit] = sort(spikeUnitIdx);
+last  = cumsum(nSpikes);
+first = last - nSpikes + 1;
 
 % --- labels: phy curation first, then Kilosort's own call ------------------
 [lblIds, lblTxt, labelFile, groupSource] = readClusterLabels(dir0);
@@ -160,9 +183,10 @@ group(group == "") = "unsorted";
 % --- amplitude / contamination side tables ---------------------------------
 ampTsv    = lookupByID(dir0, 'cluster_Amplitude.tsv', unitId);
 contamTsv = lookupByID(dir0, 'cluster_ContamPct.tsv', unitId);
+ampByUnit = spikeAmp(byUnit);
 medAmp = nan(nU, 1);
 for u = 1:nU
-    medAmp(u) = median(spikeAmp(spikeUnitIdx == u), 'omitnan');
+    medAmp(u) = median(ampByUnit(first(u):last(u)), 'omitnan');
 end
 amplitude = ampTsv;
 amplitude(~isfinite(amplitude)) = medAmp(~isfinite(amplitude));
@@ -174,6 +198,7 @@ wfFull    = [];
 p2pAll    = [];
 tms       = zeros(1, 0);
 nChSorted = NaN;
+templateUnits = "";
 fTmpl = fullfile(dir0, 'templates.npy');
 if opts.Templates && isfile(fTmpl)
     templates = double(readNPY(fTmpl));                    % [nT nS nC]
@@ -181,22 +206,18 @@ if opts.Templates && isfile(fTmpl)
     spikeTmpl = readOptionalNPY(fullfile(dir0, 'spike_templates.npy'), spikeClu);
     spikeTmpl = double(spikeTmpl(:));
     if numel(spikeTmpl) ~= numel(spikeClu); spikeTmpl = spikeClu; end
-    Winv = readOptionalNPY(fullfile(dir0, 'whitening_mat_inv.npy'), []);
-    canUnwhiten = ~isempty(Winv) && isequal(size(Winv), [nChSorted nChSorted]);
+    tmplByUnit = spikeTmpl(byUnit);
+    [toUnits, templateUnits] = templateConversion(dir0, nChSorted);
     tms = (0:nS-1) / fs * 1000;
     if opts.FullTemplates; wfFull = zeros(nS, nChSorted, nU); end
     p2pAll = nan(nU, nChSorted);
     for u = 1:nU
-        sel = spikeUnitIdx == u;
-        tIdx = mode(spikeTmpl(sel)) + 1;                   % robust to KS reindexing
+        tIdx = mode(tmplByUnit(first(u):last(u))) + 1;     % robust to KS reindexing
         if ~(tIdx >= 1 && tIdx <= nT)
             tIdx = min(max(unitId(u) + 1, 1), nT);
         end
         wf = reshape(templates(tIdx, :, :), nS, nChSorted);
-        if canUnwhiten; wf = wf * Winv; end
-        a = medAmp(u);
-        if ~isfinite(a) || a == 0; a = 1; end
-        wf = wf * a;
+        if ~isempty(toUnits); wf = wf * toUnits; end
         p2p = max(wf, [], 1) - min(wf, [], 1);
         [~, pk] = max(p2p);
         ksChannel(u) = pk;
@@ -279,12 +300,15 @@ if ~isempty(opts.Groups)
     end
 end
 keptIdx = find(keep);
-[~, spikeUnitIdxKept] = ismember(spikeUnitIdx, keptIdx);   % 0 for dropped units
+keptRow = zeros(nU, 1);
+keptRow(keptIdx) = 1:numel(keptIdx);
+spikeUnitIdxKept = keptRow(spikeUnitIdx);                  % 0 for dropped units
 
 samples = cell(numel(keptIdx), 1);
 times   = cell(numel(keptIdx), 1);
 for k = 1:numel(keptIdx)
-    s = sort(spikeSamples(spikeUnitIdx == keptIdx(k)));
+    u = keptIdx(k);
+    s = sort(spikeSamples(byUnit(first(u):last(u))));
     samples{k} = s;
     times{k}   = double(s) / fs;
 end
@@ -323,6 +347,7 @@ units.contamPct        = contamTsv(keptIdx);
 units.templateWaveform = wfPeak(keptIdx);
 if isempty(wfFull); units.templateFull = []; else; units.templateFull = wfFull(:, :, keptIdx); end
 units.templateTimeMs   = tms;
+units.templateUnits    = templateUnits;
 units.fs               = fs;
 units.resultsDir       = string(dir0);
 units.groupSource      = groupSource;
@@ -402,27 +427,22 @@ end
 
 
 function [ids, labels, file, source] = readClusterLabels(folder)
-%readClusterLabels  cluster ids + labels; cluster_group.tsv (phy curation)
-%   wins over cluster_KSLabel.tsv (Kilosort's own call), as phy shows them.
+%readClusterLabels  cluster ids + labels; cluster_group.tsv wins over
+%   cluster_KSLabel.tsv (Kilosort's own call), as phy shows them. SOURCE is
+%   "phy" only when phy wrote cluster_group.tsv (header "cluster_id<TAB>group"):
+%   Kilosort4 copies cluster_KSLabel.tsv there on every run, header and all.
 ids = []; labels = strings(0, 1); file = ""; source = "none";
-cands = ["cluster_group.tsv", "cluster_KSLabel.tsv"];
-srcs  = ["phy", "kilosort"];
-for k = 1:numel(cands)
-    fp = fullfile(folder, cands(k));
-    if ~isfile(fp); continue; end
-    try
-        T = readtable(fp, 'FileType', 'text', 'Delimiter', '\t', ...
-            'TextType', 'string', 'VariableNamingRule', 'preserve');
-    catch
-        continue
-    end
-    if width(T) < 2 || height(T) == 0; continue; end
-    ids    = double(T{:, 1});
-    labels = string(T{:, 2});
-    labels = labels(:);
-    labels(ismissing(labels)) = "";                % blank cell -> "unsorted" below
+for name = ["cluster_group.tsv", "cluster_KSLabel.tsv"]
+    fp = fullfile(folder, name);
+    [tid, txt, header] = readTsv(fp);
+    if numel(header) < 2 || isempty(tid); continue; end
+    ids    = tid;
+    labels = txt;                                  % blank cell "" -> "unsorted" below
     file   = string(fp);
-    source = srcs(k);
+    source = "kilosort";
+    if name == "cluster_group.tsv" && EphysDataset.phyCurated(folder)
+        source = "phy";
+    end
     return
 end
 end
@@ -431,19 +451,90 @@ end
 function v = lookupByID(folder, fname, ids)
 %lookupByID  Numeric column 2 of a phy .tsv aligned to IDS (NaN when absent).
 v = nan(numel(ids), 1);
-fp = fullfile(folder, fname);
-if ~isfile(fp); return; end
+[tid, txt, header] = readTsv(fullfile(folder, fname));
+if numel(header) < 2 || isempty(tid); return; end
+[tf, loc] = ismember(ids, tid);
+vals = str2double(txt);
+v(tf) = vals(loc(tf));
+end
+
+
+function [ids, vals, header] = readTsv(file)
+%readTsv  The first two columns of a phy .tsv (tab-separated, a header row).
+%   IDS [n x 1] double: column 1 (NaN where it is no number). VALS [n x 1]
+%   string: column 2, trimmed ("" for a blank or missing cell). HEADER: the
+%   header row's cells. Blank lines are skipped, and a cell in double quotes
+%   (Python's csv writer, which phy uses) loses them. Empty outputs for a
+%   missing or unreadable file. fileread + split, not readtable: this runs
+%   on every read of a sort, and readtable takes 30x longer or more.
+ids = zeros(0, 1); vals = strings(0, 1); header = strings(1, 0);
+if ~isfile(file); return; end
 try
-    T = readtable(fp, 'FileType', 'text', 'Delimiter', '\t', ...
-        'VariableNamingRule', 'preserve');
+    lines = splitlines(string(fileread(file)));
 catch
     return
 end
-if width(T) < 2 || height(T) == 0; return; end
-tid = double(T{:, 1});
-[tf, loc] = ismember(ids, tid);
-vals = double(T{:, 2});
-v(tf) = vals(loc(tf));
+lines = lines(strtrim(lines) ~= "");
+if isempty(lines); return; end
+tab = sprintf('\t');
+header = unquote(strtrim(split(lines(1), tab))).';
+rows = lines(2:end);
+c1 = rows;
+c2 = strings(size(rows));
+hasTab = contains(rows, tab);
+c1(hasTab) = extractBefore(rows(hasTab), tab);
+rest = extractAfter(rows(hasTab), tab);
+more = contains(rest, tab);
+rest(more) = extractBefore(rest(more), tab);
+c2(hasTab) = rest;
+ids  = str2double(unquote(strtrim(c1)));
+vals = unquote(strtrim(c2));
+end
+
+
+function s = unquote(s)
+%unquote  A csv-quoted cell ("a ""b""") to its text (a "b").
+q = strlength(s) >= 2 & startsWith(s, '"') & endsWith(s, '"');
+if any(q)
+    s(q) = replace(extractBetween(s(q), 2, strlength(s(q)) - 1), '""', '"');
+end
+end
+
+
+function [M, units] = templateConversion(folder, nC)
+%templateConversion  WF * M puts an [nS x nC] templates.npy template in UNITS.
+%   Kilosort4 whitens the data it sorts as W * X (X [channel x time]) and
+%   saves inv(W) as whitening_mat_inv.npy, so a [time x channel] template
+%   goes back to the data's units as WF * inv(W).'. W is not symmetric (each
+%   row is one channel's local whitening filter), so the transpose matters.
+%   The run's settings.json then undoes Kilosort4's own scale and
+%   invert_sign and gives the .bin's scale (bin_scale, runKilosort). M is []
+%   (keep the template as stored) without a usable whitening_mat_inv.npy.
+M = []; units = "whitened";
+Winv = readOptionalNPY(fullfile(folder, 'whitening_mat_inv.npy'), []);
+if ~isequal(size(Winv), [nC nC]); return; end
+factor = 1;
+units = "bin";
+cfg = readJsonFile(fullfile(folder, 'settings.json'), ErrorOnFail=false);
+if isstruct(cfg)
+    if isfield(cfg, 'invert_sign') && isequal(cfg.invert_sign, true)
+        factor = -factor;
+    end
+    if isfield(cfg, 'scale') && isFactor(cfg.scale)
+        factor = factor / cfg.scale;
+    end
+    if isfield(cfg, 'bin_scale') && isFactor(cfg.bin_scale)
+        factor = factor / cfg.bin_scale;
+        units = "uV";
+    end
+end
+M = Winv.' * factor;
+end
+
+
+function tf = isFactor(v)
+%isFactor  A finite, non-zero numeric scalar.
+tf = isnumeric(v) && isscalar(v) && isfinite(v) && v ~= 0;
 end
 
 

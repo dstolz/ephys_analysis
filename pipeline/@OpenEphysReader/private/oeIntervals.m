@@ -27,20 +27,21 @@ for L = 1:nLines
         high = false;
     end
     on = 1;
-    out = zeros(0, 2);
+    out = zeros(numel(s) + 1, 2);                  % at most one interval per edge, plus the last
+    m = 0;
     for k = 1:numel(s)
         if st(k) == 1
             if ~high; on = s(k); high = true; end
         elseif high
             off = min(s(k) - 1, nRows);
-            if off >= on && on <= nRows; out(end+1, :) = [on off]; end %#ok<AGROW>
+            if off >= on && on <= nRows; m = m + 1; out(m, :) = [on off]; end
             high = false;
         end
     end
     if high && on <= nRows
-        out(end+1, :) = [on nRows]; %#ok<AGROW>
+        m = m + 1; out(m, :) = [on nRows];
     end
-    iv{L} = out;
+    iv{L} = out(1:m, :);
 end
 end
 

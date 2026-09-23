@@ -9,12 +9,23 @@ function onApplyExclude(obj, scope)
 %   out-of-range entries are dropped with a warning in the status label. The
 %   exclusions live on EphysDataset.ExcludeChannels and are applied as a derived
 %   probe at run time (see EphysDataset.runKilosort); nothing on disk changes here.
+%   Text that does not parse (EphysPipelineConfig.parseOrderedList) changes
+%   nothing: an alert says why and the field shows the list in force again.
 
 if isempty(obj.Project) || obj.Project.NumDatasets == 0
     return
 end
-
-ch = EphysDataset.parseChannelList(obj.ExcludeChannelsField.Value);
+if obj.refuseWhileRunning("Exclude channels")
+    obj.syncExcludeField();
+    return
+end
+try
+    ch = reshape(unique(EphysPipelineConfig.parseOrderedList(obj.ExcludeChannelsField.Value, "Exclude channels")), 1, []);
+catch ME
+    obj.syncExcludeField();
+    uialert(obj.Fig, string(ME.message) + newline + "The exclusions are unchanged.", "Exclude channels");
+    return
+end
 
 switch scope
     case "selected"
@@ -42,8 +53,8 @@ for k = 1:numel(targets)
         nTrim = nTrim + (numel(ch) - numel(keep));
     end
     t.ExcludeChannels = keep;
-    t.writeManifest();   % persist the updated exclusions
 end
+obj.saveManifests(targets);   % persist the updated exclusions
 
 % Reflect the (possibly trimmed) list for the active dataset and redraw.
 obj.syncExcludeField();

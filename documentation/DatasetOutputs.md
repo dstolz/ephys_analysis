@@ -65,7 +65,13 @@ not matter, so configured `Suffix` values are found:
 | `artifacts` | `<Name>_artifacts.json` | `EphysPipeline` artifact cache |
 
 A file whose `conversion.dataset` / `export.dataset` names a different dataset
-is skipped. This separates `rec1` from `rec1_b` in a shared folder. Every file
+is skipped. This separates `rec1` from `rec1_b` in a shared folder. Built from
+a dataset, a file whose provenance `sourceFolder` is another recording's is
+skipped too (`EphysDataset.isOwnSource`: the dataset's `Folder`, or a folder
+ending with its `DatasetKey`, so the outputs of a project moved to another
+drive or root still count), so of two recordings with the same name
+(`mouse1/rec`, `mouse2/rec`) neither picks up the other's files. The skipped
+files are listed in `Foreign`. Every file
 found is listed in `Candidates` (`Kind`, `File`, `Signal`, `Modified`, `Bytes`).
 When a kind has several files, **the newest wins**.
 
@@ -73,7 +79,10 @@ The other two paths are resolved when they are read:
 
 - **`SortingDir`**: the dataset's `sortingResultsDir()` when it holds
   `params.py`, else the manifest's `sorting.results_dir`, else the standard
-  `kilosort4` layout under the roots.
+  `kilosort4` layout under the roots. A hand-picked folder (the dataset's
+  `SortingDir`, or `"manual"` in the manifest) stays the path in effect even
+  while it is not there, so a discovered sort never replaces it; reading
+  `Units` then raises `DatasetOutputs:Missing` (`not found at <path>`).
 - **`BehaviorFile`**: the newest `<Name>_behavior.mat`. Until one has been
   written, it is the associated Epsych2 session: the dataset's `BehaviorFile`,
   else the manifest's `behavior.file`. Both load into the same struct.
@@ -110,15 +119,16 @@ out.pathSource("fieldtrip")    % "manual" | "discovered" | "dataset" | "manifest
 | `Manifest`, `Artifacts` | the decoded JSON |
 
 Each read loads from disk again unless `CacheData` is on. A missing file
-raises `DatasetOutputs:Missing`, and the message names the roots searched and
-the property to set.
+raises `DatasetOutputs:Missing`, and the message names the roots searched (or,
+for a path in effect with nothing there, `not found at <path>`) and the
+property to set.
 
 | Method | Does |
 | --- | --- |
 | `has(kind)` | true when the file (or `params.py`) exists; `kind` is a `Kinds` value or `"LFP"` / `"MUA"` / `"SPIKE"` / `"AUX"` |
 | `load(kind, vars...)` | loads only the listed variables, e.g. `out.load("fieldtrip", "data_LFP", "event")` |
 | `readUnits(Name=Value)` | `Units` with reader options (`Groups`, `IncludeNoise`, `Templates`, ...) |
-| `signalFile(type)` | the extract file that holds a signal (`""` when none) |
+| `signalFile(type)` | the extract file that holds a signal (`""` when none); a combined file's `info` is loaded once per path, size and modification time (until `refresh()`) |
 | `inventory()` | table per kind: `Property`, `Path`, `Source`, `Exists`, `Bytes`, `Modified`, `NumCandidates` |
 | `refresh()`, `clearCache()` | re-scan; free cached data |
 
@@ -143,5 +153,8 @@ end
 [`test_DatasetOutputs.m`](../pipeline/test_DatasetOutputs.m) covers classification
 by variables, how decoys are rejected (name prefix, provenance, partial files),
 newest-wins selection, merged and per-signal extracts, units, behavior from
-the written file and from the session, pinning and `SearchDirs`, caching, and
-dataset mode on a small universal-format recording.
+the written file and from the session, pinning and `SearchDirs`, caching,
+dataset mode on a small universal-format recording, and two recordings with
+one name sharing an output folder (the recorded source folder decides, also
+after the project moved), a hand-picked sort that is not there, and a combined
+extract that changes.

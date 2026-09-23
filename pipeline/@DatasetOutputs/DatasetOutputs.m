@@ -28,15 +28,21 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
     %     epochs     export + epochs               (exportEpochs)
     %     behavior   behavior + conversion         (behaviorToMat)
     %   A file whose provenance struct (conversion / export) names another
-    %   dataset is skipped. <Name>_manifest.json and <Name>_artifacts.json are
-    %   found by name. When several files of one kind exist, the newest wins;
-    %   every candidate is listed in Candidates.
+    %   dataset is skipped and listed in Foreign: another dataset name, or -
+    %   built from a dataset - another recording folder (sourceFolder, see
+    %   EphysDataset.isOwnSource), so of two recordings with the same name
+    %   (mouse1/rec, mouse2/rec) neither picks up the other's files.
+    %   <Name>_manifest.json and <Name>_artifacts.json are found by name.
+    %   When several files of one kind exist, the newest wins; every
+    %   candidate is listed in Candidates.
     %
     %   Search roots: the dataset's outputFolder() and Folder (or FOLDER when
     %   constructed from a folder), plus SearchDirs, recursively unless
     %   Recursive=false. Sorted units come from the dataset's
     %   sortingResultsDir(), else the manifest's sorting.results_dir, else the
-    %   standard kilosort4 layouts under the roots. BehaviorFile is the
+    %   standard kilosort4 layouts under the roots; a hand-picked folder (the
+    %   dataset's SortingDir, or "manual" in the manifest) is kept even while
+    %   it is not there, so no other sort is used instead. BehaviorFile is the
     %   <Name>_behavior.mat file; until one has been written it falls back to
     %   the associated Epsych2 session (the dataset's BehaviorFile, else the
     %   manifest's behavior.file), which loads into the same struct.
@@ -86,6 +92,7 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
     properties (SetAccess = protected)
         Dataset = []                      % the EphysDataset, when built from one
         Candidates table = DatasetOutputs.emptyCandidates()  % every file found
+        Foreign (:,1) string = strings(0, 1)  % files named like this dataset's whose provenance names another
         LastRefreshed datetime = NaT
     end
 
@@ -137,6 +144,7 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
             'sorting', string.empty(1,0), 'behavior', string.empty(1,0), ...
             'manifest', string.empty(1,0), 'artifacts', string.empty(1,0))
         Cache = []
+        InfoSignals = []   % combined extract file -> the signal types its info holds (signalFile)
     end
 
     methods
@@ -156,6 +164,7 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
                 opts.AutoRefresh (1,1) logical = true
             end
             obj.Cache = containers.Map('KeyType', 'char', 'ValueType', 'any');
+            obj.InfoSignals = containers.Map('KeyType', 'char', 'ValueType', 'any');
             obj.SearchDirs = opts.SearchDirs;
             obj.Recursive  = opts.Recursive;
             obj.CacheData  = opts.CacheData;
@@ -190,7 +199,9 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
                 error('DatasetOutputs:NoName', 'Set Name before refreshing.');
             end
             obj.clearCache();
+            remove(obj.InfoSignals, keys(obj.InfoSignals));
             T = DatasetOutputs.emptyCandidates();
+            foreign = strings(0, 1);
             prefix = "^" + string(regexptranslate('escape', char(obj.Name))) + "([_\-. ].*)?";
             for root = obj.Roots
                 mats = listFiles(root, "*.mat", obj.Recursive);
@@ -198,7 +209,11 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
                     m = mats(k);
                     if isempty(regexpi(m.name, prefix + "\.mat$", 'once')); continue; end
                     [kind, prov] = classifyMat(m.path);
-                    if kind == "" || ~obj.belongs(m.path, prov); continue; end
+                    if kind == ""; continue; end
+                    if ~obj.belongs(m.path, prov)
+                        foreign(end+1, 1) = m.path; %#ok<AGROW>
+                        continue
+                    end
                     sig = "";
                     if kind == "extract"
                         tok = regexp(m.name, '_(LFP|MUA|SPIKE|AUX)\.mat$', 'tokens', 'once');
@@ -216,6 +231,8 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
             [~, keep] = unique(lower(T.File), 'stable');
             T = T(keep, :);
             obj.Candidates = sortrows(T, 'Modified', 'descend');
+            [~, keep] = unique(lower(foreign), 'stable');
+            obj.Foreign = foreign(keep);
             obj.LastRefreshed = datetime('now');
         end
 
@@ -352,7 +369,8 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
         function f = signalFile(obj, type)
             %signalFile  The extract file holding signal TYPE ("" when none).
             %   Per-type files (<...>_LFP.mat) and combined files are searched
-            %   newest first; a combined file is checked by loading its info.
+            %   newest first; a combined file is checked by loading its info,
+            %   once (until the file changes or refresh()).
             type = upper(string(type));
             f = string.empty(1,0);
             for c = obj.resolve("extract")
@@ -362,13 +380,9 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
                     if tok{1} == type; f = c; return; end
                     continue
                 end
-                try
-                    I = load(c, 'info');
-                    if isfield(I, 'info') && isfield(I.info, type)
-                        f = c;
-                        return
-                    end
-                catch
+                if any(obj.infoSignals(c) == type)
+                    f = c;
+                    return
                 end
             end
         end
@@ -446,14 +460,17 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
             ds = obj.Dataset;
             switch kind
                 case "sorting"
-                    if ~isempty(ds) && isfile(fullfile(ds.sortingResultsDir(), 'params.py'))
+                    % A hand-picked folder is the association even while it
+                    % is not there: no other sort is used instead.
+                    if ~isempty(ds) && (ds.SortingDir ~= "" || isfile(fullfile(ds.sortingResultsDir(), 'params.py')))
                         f = string(ds.sortingResultsDir()); src = "dataset";
                         return
                     end
                     m = obj.manifestStruct();
                     if isfield(m, 'sorting') && isstruct(m.sorting) && isfield(m.sorting, 'results_dir')
                         d = string(m.sorting.results_dir);
-                        if d ~= "" && isfile(fullfile(d, 'params.py'))
+                        manual = isfield(m.sorting, 'source') && string(m.sorting.source) == "manual";
+                        if isscalar(d) && d ~= "" && (manual || isfile(fullfile(d, 'params.py')))
                             f = d; src = "manifest";
                             return
                         end
@@ -516,6 +533,26 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
             obj.clearCache();
         end
 
+        function types = infoSignals(obj, file)
+            %infoSignals  Signal types the info of a combined extract FILE holds.
+            %   Loaded once per file, size and modification time.
+            s = dir(file);
+            k = char(lower(file) + sprintf("|%.15g|%d", max([s.datenum 0]), max([s.bytes 0])));
+            if isKey(obj.InfoSignals, k)
+                types = obj.InfoSignals(k);
+                return
+            end
+            types = string.empty(1, 0);
+            try
+                I = load(file, 'info');
+                if isfield(I, 'info') && isstruct(I.info)
+                    types = intersect(DatasetOutputs.SignalTypes, string(fieldnames(I.info)).', 'stable');
+                end
+            catch
+            end
+            obj.InfoSignals(k) = types;
+        end
+
         function m = manifestStruct(obj)
             %manifestStruct  The decoded manifest, or struct() (never errors).
             m = struct();
@@ -535,29 +572,40 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
 
         function tf = belongs(obj, file, prov)
             %belongs  False when FILE's provenance names another dataset.
+            %   Another dataset name, or - built from a dataset - another
+            %   recording folder (sourceFolder, EphysDataset.isOwnSource).
             tf = true;
             if prov == ""; return; end
             try
                 P = load(file, prov);
                 p = P.(prov);
-                if isstruct(p) && isfield(p, 'dataset') && strlength(string(p.dataset)) > 0
+                if ~isstruct(p); return; end
+                if isfield(p, 'dataset') && strlength(string(p.dataset)) > 0
                     tf = strcmpi(string(p.dataset), obj.Name);
+                end
+                if tf && ~isempty(obj.Dataset) && isfield(p, 'sourceFolder') && strlength(string(p.sourceFolder)) > 0
+                    tf = obj.Dataset.isOwnSource(string(p.sourceFolder));
                 end
             catch
             end
         end
 
         function missing(obj, kind)
+            where = obj.Roots;
+            if isempty(where); where = "(no folders)"; end
+            where = "searched " + strjoin(where, ", ");
             if ismember(kind, DatasetOutputs.Kinds)
                 prop = DatasetOutputs.PathProps(DatasetOutputs.Kinds == kind);
+                f = obj.resolve(kind);
+                if ~isempty(f)   % a path in effect, but nothing there (moved, or on a disk not connected?)
+                    where = "not found at " + strjoin(f, ", ");
+                end
             else
                 prop = "ExtractFiles";
             end
-            roots = obj.Roots;
-            if isempty(roots); roots = "(no folders)"; end
             error('DatasetOutputs:Missing', ...
-                'No %s output found for dataset "%s" (searched %s). Set %s to its location, or refresh() after writing it.', ...
-                kind, obj.Name, strjoin(roots, ", "), prop);
+                'No %s output found for dataset "%s" (%s). Set %s to its location, or refresh() after writing it.', ...
+                kind, obj.Name, where, prop);
         end
     end
 

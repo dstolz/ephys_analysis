@@ -6,11 +6,12 @@ function [S, errMsg] = gatherSortingSection(obj)
 %   fields are parsed with EphysPipelineConfig.ks4ParamFromText) and the
 %   extra JSON.
 %   ERRMSG names the first control whose text does not parse ("" when all
-%   parse); S still holds every other value.
+%   parse); that parameter keeps the working config's value in S, and
+%   gatherConfig refuses the config (so do Run and Save).
 %
 %   See also applySortingSection, EphysPipelineConfig.ks4Settings.
 
-S = EphysPipelineConfig.defaults("Sorting");
+S = obj.Config.Sorting;
 errMsg = "";
 if isempty(obj.PythonExeField) || ~isvalid(obj.PythonExeField)
     return

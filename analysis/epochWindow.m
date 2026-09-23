@@ -9,7 +9,9 @@ function win = epochWindow(s, opts)
 %            around its event t0 -- PSTHs, evoked potentials, heatmaps.
 %            "between": each epoch spans [t0 + pre, t1 + post], where t1 is
 %            the stop event that follows t0 -- rates and tuning over a
-%            variable-length period, e.g. Platform onset -> offset
+%            variable-length period, e.g. RespWindow onset -> offset (a
+%            line whose intervals span trials, such as Platform, in
+%            recording scope)
 %     pre, post   seconds (fixed: pre <= post)
 %     stop   [] or an eventRef (struct or line name): the event that ends the
 %            epoch. Required in "between" mode. In "fixed" mode it still

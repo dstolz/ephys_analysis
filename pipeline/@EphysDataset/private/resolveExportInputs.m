@@ -6,19 +6,31 @@ function in = resolveExportInputs(obj, opts, who)
 %     in.units     readSortedUnits struct or []
 %     in.detected  spikesToMat detected struct or []
 %     in.events    dig-in events struct (or empty struct)
+%     in.eventFs   the recording rate, the clock the event times count rows
+%                  of (t = row/eventFs): info.origFs, else the dataset's Fs,
+%                  else NaN
 %     in.sources   provenance (extractFile, spikesFile, sortingDir)
 %
-%   opts fields: Extract, Signals, Units, Detected, Events, Groups.
+%   opts fields: Extract, Signals, Units, Detected, Events, Groups, Sources.
 %
 %   Extract may be one file, several files (e.g. the per-signal-type files of
 %   toMat(SeparateFiles=true), merged here: Y / info signals from every file,
 %   everything else from the first) or a struct. The default "" is
 %   <outputFolder>/<Name>_extract.mat, or when that does not exist the
-%   <Name>_extract_<TYPE>.mat files that do.
+%   <Name>_extract_<TYPE>.mat files that do. With Signals given, a per-type
+%   file (<...>_<TYPE>.mat) of another signal is not read.
+%
+%   Sources (extractFile, spikesFile, sortingDir) is the provenance of inputs
+%   passed in as structs; what is read from files here replaces it.
 
 in = struct('S', [], 'signals', string.empty(1,0), 'units', [], 'detected', [], ...
-    'events', struct(), 'sources', struct());
+    'events', struct(), 'eventFs', NaN, 'sources', struct());
 src = struct('extractFile', "", 'spikesFile', "", 'sortingDir', "");
+if isfield(opts, 'Sources')
+    for fld = intersect(string(fieldnames(opts.Sources)).', string(fieldnames(src)).')
+        src.(fld) = string(opts.Sources.(fld));
+    end
+end
 
 % --- extract (continuous signals) ------------------------------------------
 ex = opts.Extract;
@@ -35,6 +47,13 @@ elseif isstring(ex) || ischar(ex) || iscellstr(ex)
                 f = perType(isfile(perType));
             end
         end
+    end
+    if ~isempty(opts.Signals)
+        % the per-type files of other signals are not read (when none is left,
+        % every file is, and the missing signal is reported below)
+        keep = ~endsWith(f, "_" + ["LFP" "MUA" "SPIKE" "AUX"] + ".mat", 'IgnoreCase', true) ...
+            | endsWith(f, "_" + opts.Signals + ".mat", 'IgnoreCase', true);
+        if any(keep); f = f(keep); end
     end
     missingFiles = f(~isfile(f));
     if isempty(f) || ~isempty(missingFiles)
@@ -77,6 +96,8 @@ end
 if opts.Events && isfield(S, 'events') && isstruct(S.events)
     in.events = S.events;
 end
+if isfield(S.info, 'origFs'); in.eventFs = double(S.info.origFs); end
+if ~isfinite(in.eventFs) && ~isnan(obj.Fs); in.eventFs = obj.Fs; end
 
 % --- sorted units -----------------------------------------------------------
 u = opts.Units;

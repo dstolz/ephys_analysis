@@ -2,8 +2,9 @@ function test_ChronuxDataset()
 %test_ChronuxDataset  Verification suite for the Chronux dataset connector.
 %   Checks the conversions ChronuxDataset performs -- params/taper construction,
 %   channel and time selection, trial sample alignment, the point-process and
-%   binned spike formats, digital-input onsets, and the Kilosort4/phy spike
-%   source (with real .npy fixtures, which also exercises READNPY). Every check
+%   binned spike formats, digital-input onsets, the Kilosort4/phy spike
+%   source (with real .npy fixtures, which also exercises READNPY), and
+%   EXTRACT_TRIALS, which follows the same onset rule. Every check
 %   is on values this code computes, so neither Chronux, MATLAB toolboxes beyond
 %   base MATLAB, nor real Intan recordings are needed.
 %
@@ -107,16 +108,20 @@ check(threw(@() cx.continuous(Channels=4)), 'continuous rejects an out-of-range 
 fprintf('\n== 3. trials: sample alignment and trial policies ==\n');
 
 Y = zeros(n, 2);
-Y(500, 1) = 7;     % the sample at t = 0.500 s under the event convention
-Y(501, 1) = 9;     % the sample at t = 0.500 s under the continuous convention
+Y(500, 1) = 7;     % the row whose dig-in time is t = row/Fs = 0.500 s
+Y(501, 1) = 9;     % the sample at t = (row-1)/Fs = 0.500 s, the continuous convention
 Y(:, 2)   = 1:n;
 cy = ChronuxDataset(Y, Fs=Fs);
 
-D = cy.trials(0.5, [0 0], Channels=1);                       % OnsetRule "event"
-check(isequal(size(D), [1 1]) && D == 7, ...
-    'OnsetRule "event" maps t to sample round(t*Fs) (the dig-in convention)');
+[D, ~, ~, di] = cy.trials(0.5, [0 0], Channels=1);           % OnsetRule "event"
+check(isequal(size(D), [1 1]) && D == 7 && di.eventFs == Fs, ...
+    'OnsetRule "event" on a matrix source (events on its own clock) maps t to row round(t*Fs), the dig-in row');
 D = cy.trials(0.5, [0 0], Channels=1, OnsetRule="sample");
 check(D == 9, 'OnsetRule "sample" maps t to sample round(t*Fs)+1');
+[D, ~, ~, di] = cy.trials(0.5, [0 0], Channels=1, EventFs=30000);
+check(D == 9 && di.eventFs == 30000 && di.onsetSamples == 501, ...
+    'EventFs: recording row 15000 at 30 kHz (continuous 0.49997 s) is the 1 kHz row nearest it, 501');
+check(threw(@() cy.trials(0.5, [0 0], EventFs=-1)), 'a non-positive EventFs is refused');
 
 [D, pd, T, di] = cy.trials([0.5 0.6], [-0.002 0.003], Channels=2);
 check(isequal(size(D), [6 2]), 'trials returns [nTime x nTrials] for one channel');
@@ -191,9 +196,26 @@ check(isequal(on, [0.5; 1.5]) && isequal(ei.droppedDuration, 2), ...
 check(threw(@() cm.eventOnsets("nosuchline")), 'eventOnsets rejects an unknown line');
 
 [D, ~, ~, di] = cm.trials(cm.eventOnsets("din0"), [-0.1 0.1], Channels=1);
-check(di.nTrials == 3 && isequal(di.onsetSamples, [500 1000 1500]), ...
-    'dig-in onsets map back to their own samples at the LFP rate');
-check(isequal(D(:, 1).', 400:600), 'the epoch holds the recording samples around the onset');
+check(di.nTrials == 3 && di.eventFs == 30000 && isequal(di.onsetSamples, [501 1001 1501]), ...
+    'dig-in onsets (rows 15000.. at origFs 30 kHz) land on the LFP sample nearest their row (501 is t = 0.500 s)');
+check(isequal(D(:, 1).', 401:601), 'the epoch holds the LFP samples around the onset');
+Sr = Sx;  Sr.info.origFs = 1000;                    % LFP at the recording rate
+cr = ChronuxDataset(Sr, Signal="LFP");
+[~, ~, ~, dr] = cr.trials([0.5 1.0 1.5], [0 0], Channels=1);
+check(dr.eventFs == 1000 && isequal(dr.onsetSamples, [500 1000 1500]), ...
+    'at the recording rate a dig-in onset maps back to exactly the row that produced it');
+
+% No bias at a derived rate: 1000 onsets on random rows of a 30 kHz
+% recording each land on the 1 kHz sample nearest the row's continuous time.
+rng(5);
+rows = randi([3000 1500000], 1000, 1);
+Sb = Sx;  Sb.Y.LFP = zeros(50001, 1, 'single');  Sb.info.labels = {'A-000'};
+cb = ChronuxDataset(Sb, Signal="LFP");
+[~, ~, ~, db] = cb.trials(rows / 30000, [0 0]);
+err = (db.onsetSamples(:) - 1) - (rows - 1) / 30;   % in LFP samples, + = late
+check(max(abs(err)) <= 0.5 + 1e-9 && abs(mean(err)) < 0.05, ...
+    sprintf('derived-rate onsets land on the nearest sample (error %.3f..%.3f, mean %+.4f LFP samples)', ...
+    min(err), max(err), mean(err)));
 
 %% =====================================================================
 fprintf('\n== 5. spikes: point-process struct array ==\n');
@@ -247,6 +269,22 @@ check(numel(st) == 1 && isequal(sti.droppedIncomplete, 2), ...
 clear w
 st = cs.spikeTrials([1.0 2.95], [-0.1 0.1], Spikes={train}, Incomplete="keep");
 check(numel(st) == 2, 'Incomplete="keep" returns the truncated trial');
+
+% The sorted search picks exactly what a scan of the whole train would: on a
+% 1 ms grid, with repeated spike times and spikes on the window edges.
+rng(9);
+trainR = [round(rand(3000, 1) * 2900) / 1000; 0.9; 1.0; 1.0; 1.1; 1.1];
+onR = [1.0; round(rand(200, 1) * 2600 + 200) / 1000];
+st = cs.spikeTrials(onR, [-0.1 0.1], Spikes={trainR(randperm(numel(trainR)))}, ...
+    TimeBase="absolute", Incomplete="keep");
+same = true;
+for k = 1:numel(onR)
+    ref = sort(trainR(trainR > onR(k) - 0.1 & trainR <= onR(k) + 0.1));
+    same = same && isequal(st(k).times, ref);
+end
+check(same && nnz(trainR == 1.1) >= 2 && nnz(st(1).times == 1.1) == nnz(trainR == 1.1) ...
+    && ~any(st(1).times == 0.9), ...
+    'spikeTrials equals the scan t > E+tPre & t <= E+tPost (ties, spikes on the edges)');
 check(threw(@() cs.spikeTrials(1.0, [-0.1 0.1], Spikes={train, train})), ...
     'spikeTrials refuses to guess which unit to epoch');
 
@@ -266,6 +304,16 @@ check(bi.maxCount == 2 && isequal(bi.counts, 3), 'info reports the busiest bin a
 [cnt, ~, ~, bi] = cs.binnedSpikes(Times={[0.5 1.5 2.5]}, BinFs=2, TimeRange=[0 2]);
 check(isequal(size(cnt), [4 1]) && sum(cnt) == 2 && bi.droppedOutsideRange == 1, ...
     'spikes outside the binning window are dropped and reported');
+[cnt, ~, ~, bi] = cs.binnedSpikes(Times={[0.1 0.2 0.3 0.4 0.5]}, BinFs=10);
+check(sum(cnt) == 5 && bi.droppedOutsideRange == 0 && bi.nBins == 6 && cnt(end) == 1 ...
+    && abs(bi.timeRange(2) - 0.6) < 1e-12, ...
+    'without TimeRange every supplied spike is binned, the last one in the bin it opens');
+[cnt, ~, tb, bi] = cs.binnedSpikes(Times={[-0.15 0.05], 0.3}, BinFs=10);
+check(isequal(cnt, [1 0; 0 0; 1 0; 0 0; 0 0; 0 1]) && abs(tb(1) + 0.2) < 1e-12 ...
+    && bi.droppedOutsideRange == 0, ...
+    'negative times (e.g. "onset" trial stamps) are binned too, on the grid k/BinFs');
+check(threw(@() cs.binnedSpikes(Times={zeros(0, 1)}, BinFs=10)), ...
+    'no spike and no TimeRange: the window is empty');
 
 %% =====================================================================
 fprintf('\n== 8. Kilosort4 / phy spike source (real .npy fixtures) ==\n');
@@ -309,7 +357,29 @@ check(threw(@() ck.spikes(Source="kilosort", ResultsDir=emptyDir, TimeRange=[0 2
     'a folder without Kilosort output errors');
 
 %% =====================================================================
-fprintf('\n== 9. guard rails ==\n');
+fprintf('\n== 9. extract_trials: FieldTrip TRL, the same onset rule ==\n');
+
+sig = (1:1000).' * [1 -1];                            % 1 kHz, value = row (and -row)
+[R, Tx, trl] = extract_trials(sig, [0.3 0.6], 1000, [-0.1 0.2]);   % a row of onsets
+check(isequal(trl, [200 500 -100; 500 800 -100]), ...
+    'TRL is [begsample endsample offset] for every onset (a row vector of onsets too)');
+check(isequal(size(R), [301 2 2]) && isequal(R(:, 1, 1), (200:500).') && isequal(R(:, 2, 2), -(500:800).') ...
+    && Tx(101) == 0 && R(101, 1, 1) == 300, ...
+    'R is [nTime x nChan x nTrials]; T = 0 on the onset row');
+cxx = ChronuxDataset(sig, Fs=1000);
+check(isequal(cxx.trials([0.3 0.6], [-0.1 0.2], Channels=1), squeeze(R(:, 1, :))), ...
+    'extract_trials cuts the rows ChronuxDataset.trials cuts');
+[~, Tx, trl] = extract_trials(sig, 0.3, 1000, [0.05 0.1]);
+check(isequal(trl, [350 400 50]) && abs(Tx(1) - 0.05) < 1e-12 && numel(Tx) == 51, ...
+    'a window after the onset (tPre > 0): TRL and T start at tPre');
+[R, ~, trl] = extract_trials(sig, 0.3, 1000, [-0.1 0.2], EventFs=30000);
+check(trl(1) == 201 && R(101, 1) == 301, ...
+    'EventFs: row 9000 at 30 kHz (0.29997 s) falls on 1 kHz row 301 (0.300 s)');
+R = extract_trials(sig, 0.05, 1000, [-0.1 0.2]);
+check(all(isnan(R(1:51, 1))) && R(52, 1) == 1, 'samples before the signal are NaN');
+
+%% =====================================================================
+fprintf('\n== 10. guard rails ==\n');
 
 check(threw(@() ChronuxDataset(zeros(10, 2))), 'a matrix source without Fs errors');
 check(threw(@() ChronuxDataset("no_such_folder_xyz")), 'a nonexistent source errors');

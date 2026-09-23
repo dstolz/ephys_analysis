@@ -4,8 +4,9 @@ function runSpikeDetection(obj, opts)
 %   channels from Spikes.Channels (all / manifest exclusions removed / list),
 %   artifact rejection from the manual periods plus the cached automatic
 %   detection when Artifacts.ApplyToSpikes. Sorted units are read through
-%   the dataset's sorting association. Output: <Spikes.OutputDir or output
-%   folder>/<Name><Suffix>.mat.
+%   the dataset's sorting association; a dataset whose hand-picked
+%   sorted-output folder is not there is skipped, never read from another
+%   sort. Output: <Spikes.OutputDir or output folder>/<Name><Suffix>.mat.
 %
 %   Options: Datasets (indices), DryRun (log only).
 
@@ -34,7 +35,10 @@ for k = 1:n
         obj.addResult("spikes", d.Name, "skipped", "no recording files", out, toc(t0));
         continue
     end
-    if K.Source ~= "detect" && ~d.hasKilosortResults()
+    if K.Source ~= "detect" && d.sortingMissing()
+        obj.addResult("spikes", d.Name, "skipped", "the sorted-output folder is not there: " + d.SortingDir, out, toc(t0));
+        continue
+    elseif K.Source ~= "detect" && ~d.hasKilosortResults()
         obj.addResult("spikes", d.Name, "skipped", "no sorting output for Source=" + K.Source, out, toc(t0));
         continue
     end

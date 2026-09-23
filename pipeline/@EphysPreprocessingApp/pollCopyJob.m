@@ -3,8 +3,13 @@ function pollCopyJob(obj)
 %   copySessions(job) reads whatever the detached engine has reported since
 %   the last tick, calls the job's ProgressFcn and LogFcn with it, and returns
 %   the session table with each row's status as it now stands. When the batch
-%   is finished the timer stops and finishCopyRun takes over.
+%   is finished the timer stops and finishCopyRun takes over. With the app's
+%   figure gone the timer stops (the copy engine carries on).
 
+if isempty(obj.Fig) || ~isvalid(obj.Fig)
+    obj.stopCopyMonitor();
+    return
+end
 job = obj.CopyJob;
 if isempty(job)
     obj.stopCopyMonitor();

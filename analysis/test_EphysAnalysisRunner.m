@@ -2,12 +2,16 @@ function test_EphysAnalysisRunner()
 %test_EphysAnalysisRunner  Verification suite for the runner, exports, reports and scripts.
 %   Over a small synthetic project run through the pipeline: plan() and its
 %   skip reasons; run() writing PNG + SVG figures named by the pattern (and
-%   paged grids), an HTML report with embedded PNGs and a multi-page PDF;
-%   cancel(); driven synthetic units firing more in the stimulus window; and
-%   script equivalence -- the compact and the standalone script, run into
+%   paged grids), an HTML report with embedded PNGs (made from the exported
+%   pages) and a multi-page PDF, leaving no figure open, with percent-encoded
+%   links, and not rewriting existing pages with Overwrite off; cancel();
+%   driven synthetic units firing more in the stimulus window; script
+%   equivalence -- the compact and the standalone script, run into
 %   separate roots, pass checkcode and write the same figures (pixel for
 %   pixel) and the same HTML report (timestamps, image bytes and the config
-%   aside).
+%   aside); real results rendered (a stack's row labels, Style.YLim on
+%   PSTHs, rasters and evoked stacks, a tuning caption); and a failing
+%   export closing its page in the runner and the standalone script.
 %
 %   Usage:  test_EphysAnalysisRunner
 
@@ -49,15 +53,15 @@ cfg = cfg.addPlot(struct('kind', "psth", 'bins', struct('BinSec', 0.02, 'SmoothS
 cfg = cfg.addPlot(struct('kind', "raster", 'selection', struct('groupBy', string.empty(1, 0))), Id="raster_stim");
 cfg = cfg.addPlot(struct('kind', "evoked", 'source', "LFP", 'window', struct('pre', -0.1, 'post', 0.4), ...
     'baseline', struct('Mode', "subtract", 'Window', [-0.1 0])), Id="lfp_stim");
-cfg = cfg.addPlot(struct('kind', "rate", 'ref', struct('line', "Platform", 'scope', "trial"), ...
-    'window', struct('mode', "between", 'pre', 0, 'post', 0, 'stop', struct('line', "Platform", 'edge', "offset", 'scope', "trial")), ...
-    'selection', struct('filter', "Hit | Miss", 'groupBy', "Depth")), Id="rate_platform");
+cfg = cfg.addPlot(struct('kind', "rate", 'ref', struct('line', "RespWindow", 'scope', "trial"), ...
+    'window', struct('mode', "between", 'pre', 0, 'post', 0, 'stop', struct('line', "RespWindow", 'edge', "offset", 'scope', "trial")), ...
+    'selection', struct('filter', "Hit | Miss", 'groupBy', "Depth")), Id="rate_resp");
 cfg = cfg.addPlot(struct('kind', "tuning", 'param', "Depth", 'window', struct('pre', 0, 'post', 0.5), ...
     'selection', struct('groupBy', string.empty(1, 0))), Id="tuning_depth");
 cfg = cfg.addPlot(struct('kind', "heatmap", 'source', "detected"), Id="heat_det");
 cfg = cfg.addPlot(struct('kind', "probemap", 'source', "detected", 'value', "rate"), Id="rate_map");
-cfg = cfg.addPlot(struct('kind', "corrmap", 'metric', "peak", 'correlation', "spearman", 'ref', struct('line', "Platform", 'scope', "trial"), ...
-    'window', struct('mode', "between", 'pre', 0, 'post', 0, 'stop', struct('line', "Platform", 'edge', "offset", 'scope', "trial"))), Id="corr_platform");
+cfg = cfg.addPlot(struct('kind', "corrmap", 'metric', "peak", 'correlation', "spearman", 'ref', struct('line', "RespWindow", 'scope', "trial"), ...
+    'window', struct('mode', "between", 'pre', 0, 'post', 0, 'stop', struct('line', "RespWindow", 'edge', "offset", 'scope', "trial"))), Id="corr_resp");
 cfg = cfg.addPlot(struct('kind', "evoked", 'source', "SPIKE"), Id="spike_band");
 cfg = cfg.addPlot(struct('kind', "psth", 'ref', struct('line', "Nope")), Id="no_line");
 outMain = fullfile(root, 'outMain');
@@ -84,7 +88,9 @@ src = r.source(1);
 check(isstruct(src) && src.name == names(1) && r.Sources.isKey(char(F.keys(1))), 'source() loads and caches a dataset');
 
 fprintf('\n== 2. run: figures, HTML and PDF reports ==\n');
+nFig = numel(findall(groot, 'Type', 'figure'));
 R = r.run();
+check(numel(findall(groot, 'Type', 'figure')) == nFig, 'the run leaves no figure open');
 done = R(R.Status == "done", :);
 check(height(R) == 2 * (numel(cfg.Plots)) && height(done) == 2 * (numel(cfg.Plots) - 2) ...
     && all(R.Status(ismember(R.Plot, ["spike_band" "no_line"])) == "skipped"), ...
@@ -100,13 +106,29 @@ html = fullfile(outMain, "analysis_report.html");
 pdf = fullfile(outMain, "analysis_report.pdf");
 check(isfile(html) && isfile(pdf) && isequal(sort(r.ReportFiles), sort([string(html) string(pdf)])), 'both reports written');
 H = string(fileread(html));
-check(contains(H, "data:image/png;base64,") && contains(H, "psth_stim") && contains(H, "rate_platform") ...
+check(contains(H, "data:image/png;base64,") && contains(H, "psth_stim") && contains(H, "rate_resp") ...
     && contains(H, "no SPIKE extract") && contains(H, "Digital lines") && contains(H, "<pre class=""config"">") ...
     && count(H, "<img ") >= 2 * (numel(cfg.Plots) - 2), 'the HTML embeds every figure, the skips, the summaries and the config');
 check(count(H, "_psth_stim_p1.png") == 4 && contains(H, "href=""" + names(1) + "/"), 'the HTML links the exported files relatively');
+check(relativePath("C:\out\rep", "C:\out\Rat#3\a b.png") == "../Rat%233/a%20b.png" ...
+    && relativePath("C:\out\rep", "C:\out\rep\x 100%.png") == "x%20100%25.png" ...
+    && relativePath("C:\out\rep", "D:\data\Rat#3\a.png") == "file:///D:/data/Rat%233/a.png" ...
+    && relativePath("C:\out\rep", "\\srv\share\a b.png") == "file://srv/share/a%20b.png" ...
+    && relativePath(pwd, "sub\x#1.png") == "sub/x%231.png", ...
+    'report links: each segment percent-encoded ("#", "%", spaces), relative paths from pwd, file:// on another drive or share');
+E1 = [r.Report.datasets.entries];
+E1 = E1([E1.status] == "done");
+check(~isempty(E1) && all(arrayfun(@(e) numel(e.images) == plotPageCount(e.R, e.spec) && e.images{1}.format == "png", E1)), ...
+    'a "both" report holds the image of every exported page (the HTML draws nothing again) and each result for the PDF');
 pdfText = fileread(pdf);
 nPages = numel(regexp(pdfText, '/Type\s*/Page[^s]', 'match'));
 check(nPages >= 1 + 2 + 2 * (numel(cfg.Plots) - 2), sprintf('the PDF has a title page, a page per dataset and every figure (%d pages)', nPages));
+ro = cfg; ro.Export.Overwrite = false; ro.Report.Enabled = false;
+pages = dir(fullfile(outMain, names(1), names(1) + "_psth_stim_p*.*"));
+T3 = EphysAnalysisRunner(ro, LogFcn=[]).run(Datasets=1, Plots="psth_stim");
+again = dir(fullfile(outMain, names(1), names(1) + "_psth_stim_p*.*"));
+check(T3.Status == "done" && numel(split(T3.Files, "; ")) == numel(pages) && isequal([pages.datenum], [again.datenum]), ...
+    'Overwrite off: a page whose files all exist is listed, not written again');
 
 fprintf('\n== 3. cancel ==\n');
 calls = 0;
@@ -170,6 +192,58 @@ fprintf('    (PNG files byte-identical: %s)\n', string(sameBytes));
 ha = normalizeHtml(fileread(fullfile(outA, 'analysis_report.html')));
 hb = normalizeHtml(fileread(fullfile(outB, 'analysis_report.html')));
 check(strlength(ha) > 1000 && ha == hb, 'the HTML reports are equal once timestamps, image bytes and the config are set aside');
+
+fprintf('\n== 6. rendering real results ==\n');
+src = r.source(1);
+fig = newExportFigure(cfg.Export);
+figCloser = onCleanup(@() close(fig));
+spec = cfg.plotFor("psth_stim");
+spec.stack = true; spec.style.MaxTiles = 16;
+[Rs, ~, Gs] = r.computePlot(src, spec);
+h = renderPlot(Rs, spec, fig);
+ax = h.axes(1);
+yyaxis(ax, 'left');
+check(ismember("nTrials", string(Gs.Properties.VariableNames)) && string(ax.YLabel.String) == "Depth" ...
+    && isequal(string(ax.YTickLabel(:)), compose("%.6g", Gs.Depth)), ...
+    'a stack of real epochTable groups (which carry nTrials) labels its rows by the groupBy parameter alone');
+spec = cfg.plotFor("psth_stim"); spec.style.YLim = [0 2];
+Rp = r.computePlot(src, spec);
+h = renderPlot(Rp, spec, fig);
+nE = numel(Rp.epochGroup);
+check(isequal(h.rasterAxes(1).YLim, [0.5 nE + 0.5]) && isequal(h.axes(1).YLim, [0 2]), ...
+    sprintf('Style.YLim sets a PSTH''s rates, never its raster (all %d epochs stay in view)', nE));
+spec = cfg.plotFor("raster_stim"); spec.style.YLim = [0 2];
+Rr = r.computePlot(src, spec);
+h = renderPlot(Rr, spec, fig);
+check(all(arrayfun(@(a) isequal(a.YLim, [0.5 numel(Rr.epochGroup) + 0.5]), h.axes)), 'a raster plot shows every epoch whatever Style.YLim');
+spec = cfg.plotFor("lfp_stim"); spec.style.YLim = [-50 50];
+Rv = r.computePlot(src, spec);
+h = renderPlot(Rv, spec, fig);
+ax = h.axes(1);
+check(spec.layout == "stack" && numel(ax.YTick) == size(Rv.mean, 2) && ax.YLim(1) < min(ax.YTick) && ax.YLim(2) > max(ax.YTick), ...
+    'an evoked stack ignores Style.YLim: every channel stays in view');
+spec = cfg.plotFor("tuning_depth"); spec.selection.groupBy = "Depth";
+Rt = r.computePlot(src, spec);
+cap = plotCaption(spec, Rt);
+check(~contains(cap, "groups by") && contains(cap, sprintf("n = %d epochs", sum(Rt.n, 'all'))), ...
+    "a tuning caption counts its curve's epochs, not the trial groups it ignores: " + cap);
+clear figCloser
+
+fprintf('\n== 7. a failing export closes its page ==\n');
+bad = cfg;
+bad.Plots = bad.Plots(bad.plotIndex("psth_stim"));
+bad.Source.Selection = "list"; bad.Source.Datasets = F.keys(1);
+bad.Export.Folder = fullfile(root, "bad|folder", "{Name}");   % cannot be created
+bad.Report.Enabled = false;
+nFig = numel(findall(groot, 'Type', 'figure'));
+Tb = EphysAnalysisRunner(bad, LogFcn=[]).run();
+check(height(Tb) == 1 && Tb.Status == "error" && numel(findall(groot, 'Type', 'figure')) == nFig, ...
+    'runner: the page whose export fails is closed; the plot is an error row');
+badFile = fullfile(root, 'scripts', 'run_bad.m');
+EphysAnalysisScript.standalone(bad, File=badFile);
+outBad = runScript(badFile);
+check(contains(outBad, "FAILED") && numel(findall(groot, 'Type', 'figure')) == nFig, ...
+    'standalone script: the page whose export fails is closed too');
 
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0

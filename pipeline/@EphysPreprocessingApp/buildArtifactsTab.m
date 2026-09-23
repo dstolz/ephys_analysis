@@ -343,12 +343,12 @@ obj.ArtRefDropDown = uidropdown(rg, ...
     "ValueChangedFcn", changed);
 obj.ArtRefDropDown.Layout.Row = 1; obj.ArtRefDropDown.Layout.Column = 2;
 
-lab(rg, "Good noise (x mean):", 2);
+lab(rg, "Good noise (x median):", 2);
 bg = uigridlayout(rg, [1 3]);
 bg.Layout.Row = 2; bg.Layout.Column = 2;
 bg.Padding = [0 0 0 0]; bg.ColumnSpacing = 6;
 bg.ColumnWidth = {'1x', 'fit', '1x'};
-tip = "A channel whose noise floor lies outside this band, relative to the mean across channels, " + ...
+tip = "A channel whose noise floor lies outside this band, relative to the median across channels, " + ...
     "is suggested to stay out of the reference (Ludwig et al. 2009: 0.3 to 2; broken sites run 3-6x).";
 obj.ArtRefLowField = uieditfield(bg, "numeric", "Value", 0.3, "Limits", [0 Inf], ...
     "ValueDisplayFormat", "%.3g", "Tooltip", tip, "ValueChangedFcn", changed);

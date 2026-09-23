@@ -361,15 +361,23 @@ classdef EphysPipelineConfig
 
         function txt = ks4ParamText(kind, value)
             %ks4ParamText  Typed KS4 value -> text for an edit field.
+            %   Numbers are written in the shortest form that reads back as
+            %   the same double (ks4ParamFromText), so a gather / save never
+            %   rounds a value: 0.1953125 stays "0.1953125" (string() would
+            %   give "0.19531").
             switch string(kind)
                 case "floatinf"
-                    if isempty(value) || ~isfinite(value); txt = "Infinity"; else; txt = string(value); end
+                    if isempty(value) || ~isfinite(value); txt = "Infinity"; else; txt = numText(value); end
                 case "nullable"
-                    if isempty(value) || (isnumeric(value) && any(isnan(value))); txt = ""; else; txt = string(value); end
+                    if isempty(value) || (isnumeric(value) && any(isnan(value))); txt = ""; else; txt = numText(value); end
                 case "vector"
-                    if isempty(value); txt = ""; else; txt = strjoin(string(value(:).'), ", "); end
+                    if isempty(value); txt = ""; else; txt = strjoin(arrayfun(@numText, value(:).'), ", "); end
                 otherwise
-                    txt = string(value);
+                    if isnumeric(value) && isscalar(value)
+                        txt = numText(value);
+                    else
+                        txt = string(value);
+                    end
             end
         end
 
@@ -394,8 +402,12 @@ classdef EphysPipelineConfig
                     if t == ""
                         value = double.empty(1, 0);
                     else
-                        value = sscanf(char(replace(t, ",", " ")), '%g').';
-                        ok = ~isempty(value) && ~any(isnan(value));
+                        % Every character must be read: sscanf stops at the
+                        % first thing that is no number ("0.5;0.5" gives 0.5).
+                        s = char(replace(t, ",", " "));
+                        [value, ~, ~, next] = sscanf(s, '%g');
+                        value = value.';
+                        ok = ~isempty(value) && ~any(isnan(value)) && next > numel(s);
                     end
                 case "bool"
                     value = any(lower(t) == ["1" "true" "yes" "on"]);
@@ -406,4 +418,21 @@ classdef EphysPipelineConfig
             end
         end
     end
+end
+
+
+function txt = numText(v)
+%numText  The shortest text of number V that str2double reads back as V.
+%   Whole numbers print in full ("120000", not "1.2e+05"); others take the
+%   fewest significant digits (5 to 17) that give V back exactly.
+if v == round(v) && abs(v) < 1e15
+    txt = string(sprintf('%d', v));
+    return
+end
+for p = 5:17
+    txt = string(sprintf('%.*g', p, v));
+    if str2double(txt) == v
+        return
+    end
+end
 end

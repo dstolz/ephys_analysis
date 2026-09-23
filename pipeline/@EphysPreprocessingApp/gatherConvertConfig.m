@@ -43,6 +43,9 @@ cfg.SPIKE_bpLoHi       = [obj.ConvSpikeLoField.Value, obj.ConvSpikeHiField.Value
 cfg.LabelField   = string(obj.ConvLabelFieldDropDown.Value);
 % Digital-line names and polarity are edited in the Trials tab's lines
 % table; entries for lines not listed there (another dataset's lines) are kept.
+% The table shows the names under the working config's label field, so a
+% name is a rename when it differs from the line's default name under that
+% label field (a new label field refills the table: onConvertControlsChanged).
 L = obj.TrialsLinesTable.Data;
 cfg.LineNames = obj.Config.Signals.LineNames;
 if istable(L) && height(L) > 0
@@ -50,7 +53,7 @@ if istable(L) && height(L) > 0
     cfg.InvertedLines = reshape(unique([setdiff(obj.Config.Signals.InvertedLines, shown, 'stable'), ...
         reshape(shown(logical(L.Inverted)), 1, [])], 'stable'), 1, []);
     if ~isempty(obj.TrialsEvents)
-        E = EphysDataset.relabelEvents(obj.TrialsEvents, cfg.LabelField, string.empty(1, 0));
+        E = EphysDataset.relabelEvents(obj.TrialsEvents, obj.Config.Signals.LabelField, string.empty(1, 0));
         natives = string(L.Native);
         [kept, ~] = EphysDataset.parseLineNames(cfg.LineNames);
         others = cfg.LineNames(~ismember(lower(kept), lower(natives)));

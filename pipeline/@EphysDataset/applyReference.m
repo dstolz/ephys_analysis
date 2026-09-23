@@ -17,8 +17,10 @@ function X = applyReference(obj, X)
 %
 %   readChunkUV and readWindowUV call this on every read, so the reference
 %   comes before artifact detection, the noise levels of the artifact fill,
-%   the Kilosort4 .bin and spike detection. readData (the derived LFP / MUA
-%   signals) is not referenced.
+%   the Kilosort4 .bin and spike detection. The one exception is the
+%   "commonmode" artifact detector, which looks for the very mean this
+%   subtracts and so reads the chunk unreferenced. readData (the derived
+%   LFP / MUA signals) is not referenced.
 %
 %   See also EphysDataset.referenceChannels, EphysDataset.suggestReferenceExclude,
 %   EphysDataset.prepareReference.

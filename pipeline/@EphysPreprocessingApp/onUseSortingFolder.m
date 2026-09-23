@@ -1,5 +1,6 @@
 function onUseSortingFolder(obj)
 %onUseSortingFolder  Pin a Kilosort4 / phy results folder to the active dataset.
+if obj.refuseWhileRunning("Use folder"); return; end
 d = obj.currentDataset();
 if isempty(d)
     uialert(obj.Fig, "Scan a project first.", "Sorting");
@@ -17,7 +18,7 @@ if ~isfile(fullfile(r, 'params.py'))
     return
 end
 d.SortingDir = string(r);
-d.writeManifest();
+obj.saveManifests(d);
 obj.refreshDatasetsTable();
 obj.refreshSortingLabel();
 obj.ReviewDatasetIdx = -1;   % the Review tab reloads it

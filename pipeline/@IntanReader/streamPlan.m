@@ -10,7 +10,9 @@ function plan = streamPlan(obj, opts)
 %   long-standing one-file-in-memory invariant). For the split formats
 %   (one-file-per-signal / one-file-per-channel) the single big amplifier .dat is
 %   carved into fixed-size sample windows so peak memory stays bounded just as it
-%   does for the per-file traditional path.
+%   does for the per-file traditional path; a leftover last window shorter
+%   than one second joins the one before it (EphysReader.planWindows), so no
+%   chunk is too short to filter.
 %
 %   Options
 %   -------
@@ -24,7 +26,10 @@ function plan = streamPlan(obj, opts)
 %     kind          "rhd" | "split"
 %     name          display label (file name, or "samples a-b")
 %     file          full path to the *.rhd file ("" for split chunks)
-%     sampleOffset  0-based recording-global sample offset (0 for rhd chunks)
+%     sampleOffset  0-based recording-global offset of the chunk's first
+%                   sample: for rhd chunks the samples of the files before it
+%                   in the recording (all files, chronological), whatever
+%                   Files lists; NaN for a file the header parse did not see
 %     nSamples      amplifier samples in this chunk (NaN if header not parsed)
 %
 %   See also EphysDataset.readChunkUV, EphysDataset.toBin, EphysDataset.readSplitWindow.
@@ -52,17 +57,19 @@ switch obj.RecordingFormat
         n = numel(fileList);
         plan = repmat(proto, 1, n);
         pfNames = string.empty(1,0);
+        starts = [];
         if ~isempty(obj.PerFile) && isfield(obj.PerFile, 'name')
             pfNames = string({obj.PerFile.name});
+            starts = cumsum([0 obj.PerFile.numAmplifierSamples]);
         end
         for i = 1:n
-            ns = NaN;
+            ns = NaN; s0 = NaN;
             j = find(pfNames == fileList(i), 1);
-            if ~isempty(j); ns = obj.PerFile(j).numAmplifierSamples; end
+            if ~isempty(j); ns = obj.PerFile(j).numAmplifierSamples; s0 = starts(j); end
             plan(i).kind         = "rhd";
             plan(i).name         = fileList(i);
             plan(i).file         = fullfile(obj.Folder, fileList(i));
-            plan(i).sampleOffset = 0;
+            plan(i).sampleOffset = s0;
             plan(i).nSamples     = ns;
         end
 
@@ -75,16 +82,14 @@ switch obj.RecordingFormat
             maxc = max(round(L.Fs), floor(2.5e8 / (max(L.nChan, 1) * 8)));
         end
         maxc = max(1, maxc);
-        nChunks = max(1, ceil(total / maxc));
-        plan = repmat(proto, 1, nChunks);
-        for i = 1:nChunks
-            off = (i - 1) * maxc;
-            len = min(maxc, total - off);
+        [off, len] = EphysReader.planWindows(total, maxc, round(L.Fs));
+        plan = repmat(proto, 1, numel(off));
+        for i = 1:numel(off)
             plan(i).kind         = "split";
-            plan(i).name         = sprintf('samples %d-%d', off + 1, off + len);
+            plan(i).name         = sprintf('samples %d-%d', off(i) + 1, off(i) + len(i));
             plan(i).file         = "";
-            plan(i).sampleOffset = off;
-            plan(i).nSamples     = len;
+            plan(i).sampleOffset = off(i);
+            plan(i).nSamples     = len(i);
         end
 
     otherwise

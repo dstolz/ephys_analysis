@@ -19,23 +19,33 @@ function [data, params, T, info] = trials(obj, onsets, twin, opts)
 %   With sample offsets s0 = round(tPre*Fs) and s1 = round(tPost*Fs), trial i
 %   is rows base(i)+s0 ... base(i)+s1 of the signal, so nTime = s1-s0+1 and
 %   T = (s0:s1)/Fs. The onset row base(i) follows OnsetRule:
-%     "event"  (default) base = round(t*Fs). Digital-input event times are
-%              reported as t = row/Fs (readData, deriveSignals, eventOnsets),
-%              so this maps an onset back to exactly the sample that produced
-%              it. It is the same indexing EXTRACT_TRIALS uses.
+%     "event"  (default) base = round((t - 1/EventFs)*Fs) + 1. Digital-input
+%              event times are t = row/EventFs on the recording's own sample
+%              clock (readData, deriveSignals, eventOnsets; EventFs is the
+%              recording rate), and that row lies at continuous time
+%              t - 1/EventFs, so base is the signal row nearest the sample
+%              that produced the event: that very sample at the recording
+%              rate (base = round(t*Fs)), the nearest sample of a derived
+%              signal at its own rate (within half a sample). It is the same
+%              indexing EXTRACT_TRIALS uses.
 %     "sample" base = round(t*Fs)+1, the sample whose own time (k-1)/Fs is
 %              nearest the onset. Use it for times taken from a continuous
-%              time base (readData's t, info.LFP.time, spike times).
-%   The two differ by one sample; at a derived rate (LFP_Fs) the digital-input
-%   convention and the resampled grid cannot agree better than that anyway, so
-%   treat the onset as accurate to +/-1 sample of the signal's own rate.
-%   Chronux's createdatamatc uses floor(t*Fs)+1 and a right-exclusive window,
-%   so it returns one sample fewer, starting one sample later, than "sample".
+%              time base (readData's t, a derived signal's row times
+%              (k-1)/Fs, spike times).
+%   Chronux's createdatamatc anchors a trial on row floor(t*Fs)+1 -- the row
+%   "sample" picks, or one earlier when t*Fs has a fractional part of 0.5 or
+%   more -- and its window is right-exclusive, so it returns one sample fewer
+%   (rows anchor+s0 ... anchor+s1-1). Handed digital-input times as they are,
+%   it anchors each onset 1/EventFs late: t - 1/EventFs is the event's time
+%   on the continuous clock.
 %
 %   Options
 %   -------
 %     Channels    [] (all, default), column indices, or channel labels
 %     OnsetRule   "event" (default) | "sample", above
+%     EventFs     rate of the clock "event" onsets count rows of (default: the
+%                 recording rate the signal was read or derived from,
+%                 Info.origFs; Fs for a matrix source, which has none)
 %     Incomplete  what to do when a window runs past the start or end of the
 %                 recording: "drop" (default, with a warning), "nan" (keep the
 %                 trial, pad the missing samples with NaN - Chronux will then
@@ -50,9 +60,10 @@ function [data, params, T, info] = trials(obj, onsets, twin, opts)
 %     Tapers, Pad, Fpass, Err, TrialAve   per-call params overrides
 %
 %   INFO reports the selection: channels, labels, twin, sampleOffsets [s0 s1],
-%   onsetRule, nTime, nTrials, nChan, keptTrials (indices into ONSETS),
-%   onsets/onsetSamples of the kept trials, droppedIncomplete,
-%   droppedNonFinite, detrend, class, fs, signal, units.
+%   onsetRule, eventFs (the EventFs "event" used), nTime, nTrials, nChan,
+%   keptTrials (indices into ONSETS), onsets/onsetSamples (base) of the kept
+%   trials, droppedIncomplete, droppedNonFinite, detrend, class, fs, signal,
+%   units.
 %
 %   Example
 %   -------
@@ -71,6 +82,7 @@ arguments
     opts.Channels = []
     opts.OnsetRule (1,1) string {mustBeMember(opts.OnsetRule, ...
         ["event","sample"])} = "event"
+    opts.EventFs (1,1) double = NaN     % NaN = Info.origFs, else Fs
     opts.Incomplete (1,1) string {mustBeMember(opts.Incomplete, ...
         ["drop","nan","error"])} = "drop"
     opts.NonFinite (1,1) string {mustBeMember(opts.NonFinite, ...
@@ -96,6 +108,20 @@ end
 Fs = obj.Fs;
 nSamp = size(obj.Data, 1);
 
+% The clock digital-input onsets count rows of: the recording rate, which a
+% matrix source does not know (its events are taken to be on its own clock).
+eventFs = opts.EventFs;
+if isnan(eventFs)
+    eventFs = Fs;
+    if isfield(obj.Info, 'origFs') && isscalar(obj.Info.origFs) ...
+            && isfinite(obj.Info.origFs) && obj.Info.origFs > 0
+        eventFs = double(obj.Info.origFs);
+    end
+end
+if ~(eventFs > 0)
+    error('ChronuxDataset:BadEventFs', 'EventFs must be a positive rate; got %g.', eventFs);
+end
+
 s0 = round(twin(1) * Fs);
 s1 = round(twin(2) * Fs);
 if s1 < s0
@@ -107,7 +133,7 @@ T    = (s0:s1) / Fs;              % [1 x nTime] seconds relative to the onset
 nTime = numel(offs);
 
 switch opts.OnsetRule
-    case "event",  base = round(onsets * Fs);
+    case "event",  base = round((onsets - 1/eventFs) * Fs) + 1;   % the row's continuous time
     case "sample", base = round(onsets * Fs) + 1;
 end
 
@@ -209,6 +235,7 @@ info.labels            = labels;
 info.twin              = twin;
 info.sampleOffsets     = [s0 s1];
 info.onsetRule         = opts.OnsetRule;
+info.eventFs           = eventFs;
 info.nTime             = nTime;
 info.nTrials           = nTrials;
 info.nChan             = nChan;

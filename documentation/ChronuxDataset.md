@@ -63,8 +63,8 @@ change to `Signal` or `SignalOptions`.
 
 | `Signal` | Where the data comes from |
 | --- | --- |
-| `"LFP"`, `"MUA"`, `"SPIKE"` | `EphysDataset.deriveSignals(SignalOptions..., dataTypeOut=Signal)` — see [intan2matlab](intan2matlab.md) |
-| `"RAW"` | `EphysDataset.readData` — broadband amplifier data at the recording rate, unfiltered (only `keepAmpChannels`, `labelField`, `lineNames` and `invertedLines` apply from `SignalOptions`) |
+| `"LFP"`, `"MUA"`, `"SPIKE"` | `EphysDataset.deriveSignals(SignalOptions..., dataTypeOut=Signal)` — see [intan2matlab](intan2matlab.md); the line naming and polarity `SignalOptions` leaves unset come from the dataset's `TrialConfig` |
+| `"RAW"` | `EphysDataset.readData` — broadband amplifier data at the recording rate, unfiltered (only `keepAmpChannels`, `labelField`, `lineNames` and `invertedLines` apply from `SignalOptions`; line naming and polarity it leaves unset (`""` / `[]`) come from the dataset's `TrialConfig`, as for `pairTrials`) |
 
 `dataTypeOut` must **not** appear in `SignalOptions`; the `Signal` property is
 what selects the signal.
@@ -97,8 +97,9 @@ Read-only: `Dataset`, `SourceType` (`"dataset"`, `"file"`, `"struct"`,
   seconds, recording-relative (first sample of the first file is `t = 0`) —
   `readData`'s `t` vector.
 - Digital-input event times keep the convention they are produced with,
-  **`t = row/Fs`**, one sample later than the continuous `t` for the same row.
-  See [Conventions](README.md#time-and-indexing-conventions).
+  **`t = row/origFs`** on the recording's clock (`origFs` = `Info.origFs`, the
+  recording rate), one recording sample later than the continuous `t` for the
+  same row. See [Conventions](README.md#time-and-indexing-conventions).
 - Spike times are seconds on the same recording-relative clock:
   `sample_index / sample_rate` for Kilosort output, `(row-1)/Fs` for
   `detectSpikes`.
@@ -111,16 +112,23 @@ row `base(i)` follows `OnsetRule`:
 
 | `OnsetRule` | `base` | Use it for |
 | --- | --- | --- |
-| `"event"` (default) | `round(t*Fs)` | digital-input onsets (`t = row/Fs`), which map back to exactly the sample that produced them. Same indexing as [`extract_trials`](../extract_trials.m) |
-| `"sample"` | `round(t*Fs)+1` | times on a continuous time base (`readData`'s `t`, `info.LFP.time`, spike times) |
+| `"event"` (default) | `round((t - 1/EventFs)*Fs) + 1` | digital-input onsets (`t = row/EventFs`; `EventFs` is the recording rate, `Info.origFs`, or `Fs` for a matrix source, and the option `EventFs` sets it). Row *r* lies at `(r-1)/EventFs`, so this is the signal sample nearest the one that produced the onset: that very row at the recording rate, within half a sample at a derived rate. Same indexing as [`extract_trials`](../extract_trials.m) (`EventFs`) |
+| `"sample"` | `round(t*Fs)+1` | times on a continuous time base (`readData`'s `t`, a derived signal's row times, `(k-1)/Fs`, spike times) |
 
-The two differ by one sample. At a derived rate (`LFP_Fs`) the digital-input
-convention and the resampled grid cannot agree more closely than that, so treat
-a trial onset as accurate to ±1 sample of the signal's own rate.
+At the recording rate the two rules differ by exactly one sample. At a derived
+rate `"event"` lands on the nearest sample, without bias: 1000 random 30 kHz
+onsets on a 1 kHz LFP land between −0.5 and +0.5 samples of their recording
+row's time. `round(t*Fs)`, which ignores the one-sample offset of dig-in
+times, would put them about one sample early on average, so an evoked
+response would peak 1 ms late at 1 kHz (0.5 ms at 2 kHz). An onset exactly
+halfway between two samples goes to either one.
 
-Chronux's own `createdatamatc(data, E, Fs, win)` uses `floor(E*Fs)+1` and a
-right-exclusive window, so it returns one sample fewer, starting one sample
-later, than `OnsetRule="sample"`. Note also that its `win` is `[winl winr]`,
+Chronux's own `createdatamatc(data, E, Fs, win)` anchors each trial on row
+`floor(E*Fs)+1` — the row `OnsetRule="sample"` picks, or one earlier when
+`E*Fs` has a fractional part of 0.5 or more — and its window is
+right-exclusive, so it returns one sample fewer. Handed digital-input times as
+they are, it anchors each onset `1/origFs` late; pass `E = t - 1/origFs`. Note
+also that its `win` is `[winl winr]`,
 **both positive**, where `twin` here is `[tPre tPost]` with `tPre` normally
 negative: `win = [-tPre tPost]`.
 
@@ -198,6 +206,7 @@ Event-aligned epochs; `twin` defaults to `[-0.2 0.5]`. One channel gives
 | --- | --- | --- |
 | `Channels` | `[]` (all) | as above |
 | `OnsetRule` | `"event"` | see [Trial sample alignment](#trial-sample-alignment) |
+| `EventFs` | `Info.origFs` (`Fs` for a matrix source) | the rate of the clock `"event"` onsets count rows of: the recording rate the signal was read or derived from |
 | `Incomplete` | `"drop"` | window past the start/end of the recording: drop (with a warning), `"nan"` (keep, pad with NaN), or `"error"` |
 | `NonFinite` | `"drop"` | trial whose in-range samples contain NaN/Inf: drop (with a warning), `"keep"`, or `"error"`. Samples padded by `Incomplete="nan"` are not counted here |
 | `Detrend` | `"none"` | applied per trial and channel |
@@ -206,7 +215,8 @@ Event-aligned epochs; `twin` defaults to `[-0.2 0.5]`. One channel gives
 
 `info` names every trial that was kept (`keptTrials`, indices into `onsets`) and
 every one that was not (`droppedIncomplete`, `droppedNonFinite`), plus
-`sampleOffsets`, `onsetSamples`, `onsets`, `nTime`, `nTrials`, `nChan`, `T`.
+`sampleOffsets`, `onsetRule`, `eventFs` (the `EventFs` `"event"` used),
+`onsetSamples`, `onsets`, `nTime`, `nTrials`, `nChan`, `T`.
 
 ### `[data, params, t, info] = cx.spikes(Name=Value)`
 
@@ -248,13 +258,18 @@ source holds several), `TimeBase`, `Incomplete` (`"drop"` by default — a
 truncated window holds fewer spikes than it should, which biases both the rate
 and the spectrum), `Spikes` (epoch a struct array you already have),
 `Source` / `Times` / `ResultsDir` / `Units` / `Groups` / `DetectOptions`
-(forwarded to `spikes`), `SpikeFs`, and the params overrides.
+(forwarded to `spikes`), `SpikeFs`, and the params overrides. The spikes of each trial are found with a sorted
+search over the train (the same selection as a scan, far faster).
 
 ### `[data, params, t, info] = cx.binnedSpikes(Name=Value)`
 
 Counts per bin, `[nBins x nUnits]` (or `x nTrials` when handed the output of
 `spikeTrials`). Bin *k* covers `[t0+(k-1)/BinFs, t0+k/BinFs)`, half-open, and a
-trailing partial bin is dropped; `t` holds each bin's **left edge**. Counts are
+trailing partial bin of a given `TimeRange` is dropped; `t` holds each bin's
+**left edge**. With `Times` and no `TimeRange`, the bins run from 0 (or from
+the start of the earliest spike's bin on the `k/BinFs` grid when a spike is
+negative, such as `spikeTrials`' `"onset"` stamps) through the bin holding the
+last spike, so every supplied spike is counted. Counts are
 counts — never rates, never smoothed. Chronux's binned routines report the rate
 as `mean(count)*Fs`, so `params.Fs` is the bin rate.
 
@@ -360,7 +375,7 @@ isequal(bi.nBins, ci.nSamples)      % true: bin k starts on sample k
 | Memory | `continuous` and `trials` copy the samples they return (and cast to double by default), on top of the whole signal held by `loadSignal` |
 | Point-process grid size | `t` has `(t1-t0)*SpikeFs + 1` points and Chronux computes DPSS over all of it; a warning fires above 10⁷ points. Lower `SpikeFs` or shorten `TimeRange` |
 | `trialave` and channels | Chronux averages the second dimension: for `continuous` those are channels, for `trials` they are trials |
-| Derived-rate onsets | a dig-in onset is accurate to ±1 sample of the derived rate (1 ms at `LFP_Fs = 1000`) |
+| Derived-rate onsets | a dig-in onset lands on the derived signal's sample nearest its recording row (within half a sample, ±0.5 ms at `LFP_Fs = 1000`); at the recording rate on exactly that row |
 | `Signal="SPIKE"` + `Source="detect"` | the signal is already band-passed and `detectSpikes` filters again by default; the call warns and points at `DetectOptions=struct('Filter',false)` |
 | Kilosort channel ids | `spikes` reports cluster ids as sorted, not channels; peak channels are in the `units` struct from `EphysDataset.readSortedUnits` (`channel`, 1-based recording channel) |
 | Chronux not required | preparing data never calls Chronux; only your analysis does |
@@ -394,13 +409,14 @@ a temp folder and deletes them afterwards. It covers:
 | --- | --- |
 | 1 | `makeParams` / `tapersFor` / `toPointProcess` validation |
 | 2 | matrix source and `continuous` (channels, time range, detrend, class) |
-| 3 | `trials`: both onset rules, exact rows, incomplete and non-finite policies |
-| 4 | a `toMat`-shaped `.mat` source, the same data as a struct source, and `eventOnsets` |
+| 3 | `trials`: both onset rules, `EventFs`, exact rows, incomplete and non-finite policies |
+| 4 | a `toMat`-shaped `.mat` source, the same data as a struct source, `eventOnsets`, and dig-in onsets on the nearest LFP sample, without bias |
 | 5 | `spikes`: struct array, analysis window, `TimeRange` |
-| 6 | `spikeTrials`: the `createdatamatpt` selection rule and time bases |
-| 7 | `binnedSpikes`: half-open bins and exact counts |
+| 6 | `spikeTrials`: the `createdatamatpt` selection rule and time bases; the sorted search equals a scan (ties, spikes on the window edges) |
+| 7 | `binnedSpikes`: half-open bins and exact counts; without `TimeRange` every supplied spike is binned, negative times included |
 | 8 | the Kilosort4 / phy source, with real `.npy` fixtures written by `writeNPY` (also covers `readNPY`) |
-| 9 | guard rails |
+| 9 | `extract_trials`: the FieldTrip `trl` and the same onset rule |
+| 10 | guard rails |
 
 Neither Chronux, real recordings, nor MATLAB toolboxes beyond base MATLAB are
 needed to run it.

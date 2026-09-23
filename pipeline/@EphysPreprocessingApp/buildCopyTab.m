@@ -87,7 +87,8 @@ lbl = uilabel(bar, "Text", "Min duration (min):", "Tooltip", ...
 lbl.Layout.Row = 1; lbl.Layout.Column = 7;
 obj.CopyMinDurationField = uieditfield(bar, "numeric", "Value", 2, "Limits", [0 Inf], "Tooltip", lbl.Tooltip);
 obj.CopyMinDurationField.Layout.Row = 1; obj.CopyMinDurationField.Layout.Column = 8;
-lbl = uilabel(bar, "Text", "Verify:", "Tooltip", "After copying: compare file sizes, or sizes and SHA-256 (reads every file twice).");
+lbl = uilabel(bar, "Text", "Verify:", "Tooltip", "After copying: compare each file's size and modified time with its source's, " + ...
+    "or also its SHA-256 (reads every file twice more; not again for a session whose manifest already records them).");
 lbl.Layout.Row = 1; lbl.Layout.Column = 9;
 obj.CopyVerifyDropDown = uidropdown(bar, "Items", ["size", "hash"], "Value", "size", "Tooltip", lbl.Tooltip);
 obj.CopyVerifyDropDown.Layout.Row = 1; obj.CopyVerifyDropDown.Layout.Column = 10;
@@ -171,7 +172,8 @@ fields = {
     "Every (min):", "CopyScheduleEveryField", 60, [5 1440], ...
         "How often Windows starts a copy (5 to 1440 min). Runs are on the clock: every 60 min is on the hour."
     "Days back:", "CopyScheduleDaysField", 3, [1 366], ...
-        "Each run looks for the sessions of this many days, ending today (1: today only). Sessions already copied are recognised by their sizes and left alone."
+        "Each run looks for the sessions of this many days, ending today (1: today only). Sessions already copied (their session_manifest.json says so, " + ...
+        "or Clean up removed files from them) are left alone; a run never copies files back."
     "Quiet (min):", "CopyScheduleQuietField", 15, [0 1440], ...
         "A session whose source changed within this many minutes is left for a later run, so a recording that is still being written, or synced to the source, is never copied half way."};
 for k = 1:size(fields, 1)

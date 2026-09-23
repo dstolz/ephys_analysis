@@ -5,10 +5,12 @@ arguments
     obj (1,1) EphysPreprocessingApp
     status (1,1) string {mustBeMember(status, ["approved" "unreviewed"])}
 end
+if obj.refuseWhileRunning("Trial pairing"); return; end
 P = obj.TrialsPairing;
 d = obj.currentDataset();
 if isempty(P) || isempty(d); return; end
 file = d.setTrialPairing(P, status);
+obj.saveManifests(d);   % says so when the manifest (which holds the pairing) could not be written
 P.status = status;
 P.autoApproved = false;
 P.recorded = true;

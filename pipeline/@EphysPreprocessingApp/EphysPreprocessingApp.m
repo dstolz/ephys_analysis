@@ -269,7 +269,7 @@ classdef EphysPreprocessingApp < handle
         % --- Artifacts tab ---
         ArtDatasetDropDown  matlab.ui.control.DropDown
         ArtRefDropDown      matlab.ui.control.DropDown           % common reference: none / car / cmr
-        ArtRefLowField      matlab.ui.control.NumericEditField   % good-noise band (x mean) of the suggestion
+        ArtRefLowField      matlab.ui.control.NumericEditField   % good-noise band (x median) of the suggestion
         ArtRefHighField     matlab.ui.control.NumericEditField
         ArtRefExcludeField  matlab.ui.control.EditField          % active dataset's channels left out of the reference
         ArtRefSuggestButton matlab.ui.control.Button
@@ -552,7 +552,8 @@ classdef EphysPreprocessingApp < handle
     properties
         Project EphysProject = EphysProject.empty
         % The active dataset (index into Project.Datasets, 0 = none): what the
-        % single-dataset controls on every tab work on. Set only by selectDataset.
+        % single-dataset controls on every tab work on. Set by selectDataset,
+        % and by onScan, which finds the same recording in the new project.
         SelectedDatasetIdx (1,1) double = 0
         DatasetPickers matlab.ui.control.DropDown   % every tab's Dataset box (datasetPicker)
         HiddenSelectedKeys (1,:) string = string.empty(1,0)   % ticked dataset keys hidden by the token filters
@@ -562,11 +563,18 @@ classdef EphysPreprocessingApp < handle
         Config EphysPipelineConfig = EphysPipelineConfig()   % working copy
         SavedConfigStruct struct = struct()                   % last saved / opened state
         Applying (1,1) logical = false     % true while applyConfig pushes values (suppresses onConfigChanged)
+        % Config values a control could not show while applyConfig pushed a
+        % config ("Section.Field = value (shown as ...)"; setControlValue).
+        ApplyRejected (1,:) string = string.empty(1,0)
         RecentConfigs (1,:) string = string.empty(1,0)
         ScriptFolder (1,1) string = ""
 
         % --- run state ---
         Pipe = []                          % the EphysPipeline being run (for Cancel)
+        % The last Run's Results table (Step, Dataset, Status, Message,
+        % Output, Seconds), kept while a Plan fills the results table: the
+        % monitor restates a background run's row here as the run ends.
+        RunResults table = EphysPipeline.emptyResults()
         RunActive (1,1) logical = false
         % The Run tab diagram's model: phase, times, results so far, one entry
         % per step (resetRunDiagram / updateRunDiagram / finishRunDiagram).
@@ -589,9 +597,11 @@ classdef EphysPreprocessingApp < handle
 
         % --- Visualize interaction state (display-only, in-memory) ---
         Viewer = []
-        VizDetectedIntervals = zeros(0, 2)
         VizTimeOffset (1,1) double = 0
-        VizDatasetIndex (1,1) double = 0     % dataset the plot shows (may differ from the active one)
+        % The dataset the plot shows (may differ from the active one). A
+        % handle, so a rescan that rebuilds the datasets cannot point it at
+        % another recording (onScan rebinds it to the same folder).
+        VizDataset EphysDataset = EphysDataset.empty
         VizChannels (1,:) double = double.empty(1,0)
         VizMemoryBudget (1,1) double = 0
         VizArtMode (1,1) logical = false
@@ -638,7 +648,7 @@ classdef EphysPreprocessingApp < handle
         CopyJob = []                                    % copySessions job while a background copy runs ([] when idle)
         CopyRows (:,1) double = zeros(0, 1)             % CopySessions rows that job was made from, in order
         CopyMonitorTimer = []                           % timer polling CopyJob (startCopyMonitor)
-        CopyCancelRequested (1,1) logical = false       % Cancel copy was pressed; the engine stops between files
+        CopyCancelRequested (1,1) logical = false       % Cancel copy was pressed; the engine stops at once
         CopyStarted = []                                % tic when the running batch was launched (rate and time left)
         CopyRateHistory (:,2) double = zeros(0, 2)      % [seconds, bytes] over the last few seconds
         CopyLiveRow (1,1) double = 0                    % CopySessions row the engine is inside (0: none)
@@ -652,6 +662,11 @@ classdef EphysPreprocessingApp < handle
         ReviewData = struct([])
         ReviewSelectedUnit (1,1) double = 0
         ReviewDatasetIdx (1,1) double = 0    % dataset the tab last showed (-1 = reload; syncReviewDataset)
+
+        % Epsych2 session summaries for the Project table's Behavior column,
+        % by file (epsychSessionMeta, read again when the file changes;
+        % refreshDatasetsTable). A containers.Map, made on first use.
+        EpsychMetaCache = []
 
         % --- Clean up tab state (in memory) ---
         CleanupPlan = []                                        % planLocalCleanup table + Subject, Include ([] = no preview)
@@ -703,7 +718,9 @@ classdef EphysPreprocessingApp < handle
 
         % --- config model ---
         cfg = gatherConfig(obj)
-        applyConfig(obj, cfg, opts)
+        rejected = applyConfig(obj, cfg, opts)
+        setControlValue(obj, ctrl, value, name)
+        t = numberText(obj, v)
         onConfigChanged(obj)
         updateTitle(obj)
         syncStepEnableStates(obj)
@@ -748,6 +765,8 @@ classdef EphysPreprocessingApp < handle
 
         % --- running ---
         pipe = buildPipeline(obj)
+        tf = projectAtRoot(obj, root)
+        tf = refuseWhileRunning(obj, what)
         runPipeline(obj, opts)
         onPipelineProgress(obj, evt)
         onRunStep(obj, step)
@@ -798,7 +817,7 @@ classdef EphysPreprocessingApp < handle
 
         % --- Project tab ---
         onScan(obj)
-        refreshDatasetsTable(obj)
+        refreshDatasetsTable(obj, opts)
         onNameTokensChanged(obj)
         setNameTokenChecks(obj, tokenNames, shown)
         syncTokenFilters(obj, tokenNames, values)
@@ -815,6 +834,7 @@ classdef EphysPreprocessingApp < handle
         idx = selectedDatasetIndices(obj)
         applyConfigToProject(obj, P)
         applyArtifactConfigToProject(obj)
+        ok = saveManifests(obj, ds)
 
         % --- the active dataset (Dataset menu, every tab's Dataset box, Project-table row) ---
         selectDataset(obj, idx, opts)
@@ -868,6 +888,7 @@ classdef EphysPreprocessingApp < handle
         onVizButtonDown(obj)
         onVizButtonUp(obj)
         drawVizArtifacts(obj)
+        [iv, why] = vizDetectedIntervals(obj)
         applyVizChannelOrder(obj)
         applyVizChannelColor(obj)
         onVizModeChanged(obj)
@@ -904,7 +925,7 @@ classdef EphysPreprocessingApp < handle
 
         % --- Sorting tab ---
         onBrowsePython(obj)
-        setDropIfMember(obj, dd, value)
+        setDropIfMember(obj, dd, value, name)
         onOptimizeKS4ForProbe(obj, ifMissing)
         onResetKS4Params(obj)
         p = defaultPythonExe(obj)
@@ -974,6 +995,7 @@ classdef EphysPreprocessingApp < handle
         loadPreferences(obj)
         savePreferences(obj)
         onClose(obj)
+        stopTimers(obj)
         setStatus(obj, message, hint)
         hint = suggestNextStep(obj)
         onTabChanged(obj)

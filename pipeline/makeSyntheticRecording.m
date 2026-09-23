@@ -64,8 +64,11 @@ function T = makeSyntheticRecording(folder, opts)
 %     FileSeconds    30 (also the size of the chunks generated in memory)
 %     AcqTime        nominal start of the recording (default: 2 min ago). The
 %                    Epsych2 session starts 65 s earlier, as in the lab. The
-%                    data files are stamped with these times so the readers
-%                    date the recording correctly (T.fileTimesSet)
+%                    Intan files are named from it as RHX names them and
+%                    stamped as RHX leaves them: each data file with the
+%                    time it was closed (the end of its data), info.rhd
+%                    with the start (T.fileTimesSet says whether the
+%                    stamping worked)
 %     Seed           1 (the same seed gives the same data in every format)
 %     Probe          struct chanMap / xc / yc / kcoords for the site geometry
 %                    (default makeSyntheticProbe(NumChannels))
@@ -448,7 +451,7 @@ for sIdx = 1:nSeg
                 DigInNative=lineNative, AuxRaw=auxRaw, AuxNames=auxNames, AuxNative=auxNative, ...
                 Version=[3 0], FirstTimestamp=s0, ...
                 Notes=[sprintf("Synthetic recording (%s scenario, seed %d) written by makeSyntheticRecording", scenario, opts.Seed), "", ""]);
-            files(end+1) = fname; fileTimes(end+1) = ft; %#ok<AGROW>
+            files(end+1) = fname; fileTimes(end+1) = ft + seconds(n / Fs); %#ok<AGROW> RHX: closed at its end
         case "one-file-per-signal"
             fwrite(fids.amp, int16(min(max(round(X / uvPerBit), -32768), 32767)).', 'int16');
             fwrite(fids.time, int32(s0 + (0:n-1)), 'int32');
@@ -481,8 +484,9 @@ if isOE
     if isfield(oeW, 'closeAll'); oeW.closeAll(); end
 end
 switch fmt
-    case "one-file-per-signal"
-        fileTimes = repmat(acq, 1, numel(files));
+    case "traditional"              % RHX: each file closed at its end (the times set above)
+    case "one-file-per-signal"      % RHX: info.rhd written at the start, the .dat files closed at the end
+        fileTimes = [acq, repmat(acq + seconds(nSamp / Fs), 1, numel(files) - 1)];
     case "binary"
         BinaryReader.writeDescriptor(folder, struct( ...
             'name', name, 'data_file', name + ".bin", 'dtype', "int16", 'n_chan', nCh, 'fs', Fs, ...

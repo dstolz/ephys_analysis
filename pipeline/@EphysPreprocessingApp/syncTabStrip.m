@@ -117,21 +117,28 @@ end
 
 
 function [state, tip] = probeState(P, sel, defaultProbe)
+%probeState  The selected datasets' probes: each its own, else the default
+%   (EphysPipeline.probeFor), and whether the file is there.
 if isempty(sel)
     state = "neutral"; tip = "Scan a project to check probe assignments.";
     return
 end
-missing = 0;
-for i = sel
-    pf = P.Datasets(i).ProbeFile;
-    if pf == "" || ~isfile(pf); missing = missing + 1; end
-end
-if missing == 0
-    state = "ok"; tip = "Every selected dataset has a probe.";
-elseif defaultProbe ~= ""
-    state = "ok"; tip = sprintf("%d selected dataset(s) will use the default probe.", missing);
+own = arrayfun(@(i) P.Datasets(i).ProbeFile, sel);
+nDefault = nnz(own == "");
+probe = own;
+probe(own == "") = defaultProbe;
+nNone = nnz(probe == "");
+nGone = nnz(probe ~= "" & ~arrayfun(@isfile, probe));
+if nNone + nGone > 0
+    state = "warn";
+    tip = strings(1, 0);
+    if nNone > 0; tip(end+1) = sprintf("%d of %d selected dataset(s) have no probe.", nNone, numel(sel)); end
+    if nGone > 0; tip(end+1) = sprintf("%d selected dataset(s) have a probe file that is not there.", nGone); end
+    tip = strjoin(tip, " ");
+elseif nDefault > 0
+    state = "ok"; tip = sprintf("%d selected dataset(s) will use the default probe.", nDefault);
 else
-    state = "warn"; tip = sprintf("%d of %d selected dataset(s) have no probe.", missing, numel(sel));
+    state = "ok"; tip = "Every selected dataset has a probe.";
 end
 end
 

@@ -1,13 +1,19 @@
 function test_EphysPipeline()
 %test_EphysPipeline  Verification suite for the config-driven runner.
-%   Builds a synthetic project (two recordings with the same leaf name, a
-%   probe, a phy fixture associated with one recording, an Epsych2 session
-%   file, a hand-made extract) and checks dataset selection by key, plan()
-%   (writes nothing; flags existing / duplicate outputs, missing probe,
-%   missing sorting output, missing extract), the sorting dry run, spike
-%   detection against direct calls, the exports, the behavior association,
-%   the artifact cache and cancellation. Steps needing the Signal Processing
-%   Toolbox (toMat) are checked only when it is licensed.
+%   Builds a synthetic project (two recordings of one subject started in the
+%   same minute, a probe, a phy fixture associated with one recording, an
+%   Epsych2 session file, a hand-made extract) and checks dataset selection
+%   by key, plan() (writes nothing; flags existing / duplicate outputs,
+%   missing probe, missing sorting output, missing extract), the probe and
+%   behavior preflights (the default probe, a session file that is not
+%   there), the sorting dry run, spike detection against direct calls, the
+%   exports, the artifact cache, run(DryRun=true) writing nothing and
+%   cancellation. Then, on projects of their own: two recordings with the
+%   same name under one output root, an unsorted dataset that cannot label
+%   units, associations whose files are offline, an unreadable manifest,
+%   Kilosort4 runs already queued or going, and the manifest's own parsing.
+%   Steps needing the Signal Processing Toolbox (toMat) are checked only when
+%   it is licensed.
 %
 %   Usage:  test_EphysPipeline
 
@@ -45,7 +51,7 @@ ampRaw = uint16(randi([0 65535], numAmp, nSamp));
 digRaw = zeros(1, nSamp); digRaw(50:70) = 1;
 proj = fullfile(root, 'proj');
 f1 = fullfile(proj, 'mouse1', 'M1_260101_120000'); mkdir(f1);
-f2 = fullfile(proj, 'mouse2', 'M1_260101_120000'); mkdir(f2);
+f2 = fullfile(proj, 'mouse2', 'M1_260101_120030'); mkdir(f2);   % same subject, same start minute
 writeSyntheticRHD(fullfile(f1, 'mouseA_260101T120000_260101_120004.rhd'), ampRaw, digRaw, Fs, spb);
 writeSyntheticRHD(fullfile(f2, 'other_rec.rhd'), ampRaw, digRaw, Fs, spb);
 probeFile = fullfile(root, 'probe.json');
@@ -87,6 +93,13 @@ check(numel(d1) == 1 && d1.ProbeFile == string(probeFile) && d1.SortingDir == st
     && isequal(d1.ManualArtifacts, [0.001 0.002]), 'manifest state restored by the project refresh');
 check(startsWith(d1.OutputDir, outRoot) && isequal(fieldnames(d1.ArtifactConfig), fieldnames(EphysDataset.defaultArtifactConfig())), ...
     'output dir under OutputRoot; artifact config pushed');
+i2 = pipe.Project.findByKey("mouse2/M1_260101_120030");
+check(isnan(pipe.Project.Datasets(i2).Fs) && ~isfile(pipe.Project.Datasets(i2).manifestFile()) && ~isnan(d1.Fs), ...
+    'constructing the pipeline refreshes the selected datasets only');
+cfg0 = cfg; cfg0.Project.OutputRoot = "";
+pipe.Config = cfg0;
+check(d1.OutputDir == "" && d1.outputFolder() == d1.Folder, 'clearing Project.OutputRoot puts the outputs next to the recording again');
+pipe.Config = cfg;
 cfgAll = cfg; cfgAll.Project.Selection = "all";
 pAll = EphysPipeline(cfgAll, Project=pipe.Project, Refresh=false);
 check(isequal(pAll.DatasetIdx, [1 2]), 'Selection="all" selects every dataset');
@@ -112,7 +125,7 @@ pipe.Config = cfgE;
 T = pipe.plan();
 check(all(T.Status(startsWith(T.Step, "export")) == "no extract file"), 'export without an extract is flagged');
 pipe.Config = cfg;
-cfgS = cfg; cfgS.Spikes.Source = "sorted"; cfgS.Project.Datasets = "mouse2/M1_260101_120000";
+cfgS = cfg; cfgS.Spikes.Source = "sorted"; cfgS.Project.Datasets = "mouse2/M1_260101_120030";
 p2 = EphysPipeline(cfgS, Project=pipe.Project, Refresh=false);
 T2 = p2.plan();
 check(T2.Status(T2.Step == "spikes") == "no sorting output" && T2.Status(T2.Step == "probe") == "no probe" ...
@@ -120,14 +133,13 @@ check(T2.Status(T2.Step == "spikes") == "no sorting output" && T2.Status(T2.Step
 cfgD = cfg; cfgD.Project.Selection = "all";
 pD = EphysPipeline(cfgD, Project=pipe.Project, Refresh=false);
 TD = pD.plan(Steps="signals");
-check(all(TD.Status == "duplicate output"), 'two datasets with the same name under one OutputRoot collide');
-check(strcmp(errorId(@() pD.run(Steps="signals")), 'EphysPipeline:PlanInvalid'), 'run refuses a plan with duplicate outputs');
+check(height(TD) == 2 && all(TD.Status == "ready"), 'recordings with different names share no output under one OutputRoot');
 % Both fixtures are subject M1 starting 2026-01-01 12:00, so their unit labels would collide.
 cfgU = cfgD; cfgU.Spikes.Source = "sorted";
 pU = EphysPipeline(cfgU, Project=pipe.Project, Refresh=false);
 TU = pU.plan(Steps="spikes");
 rowU = TU.Key == "mouse1/M1_260101_120000";
-check(TU.Status(rowU) == "error: unit label collision" && contains(TU.Note(rowU), "mouse2/M1_260101_120000") ...
+check(TU.Status(rowU) == "error: unit label collision" && contains(TU.Note(rowU), "mouse2/M1_260101_120030") ...
     && TU.Status(~rowU) == "no sorting output", ...
     'a sorted dataset sharing subject + start minute with another selected dataset cannot label its units');
 check(strcmp(errorId(@() pU.run(Steps="spikes")), 'EphysPipeline:PlanInvalid'), 'run refuses unit label collisions');
@@ -147,10 +159,11 @@ cfgN = cfg; cfgN.Signals.LFP_Fs = 60000;
 pN = EphysPipeline(cfgN, Project=pipe.Project, Refresh=false);
 TN = pN.plan(Steps="signals");
 check(startsWith(TN.Status(1), "error: LFP_Fs"), 'a rate above the recording rate is flagged per dataset');
-cfgP = cfg; cfgP.Probe.DefaultProbeFile = bigProbe; cfgP.Project.Datasets = "mouse2/M1_260101_120000";
-pP = EphysPipeline(cfgP, Project=pipe.Project, Refresh=false);
+cfgP = cfg; cfgP.Probe.DefaultProbeFile = bigProbe; cfgP.Project.Datasets = "mouse2/M1_260101_120030";
+pP = EphysPipeline(cfgP, Project=pipe.Project);   % refreshes mouse2: its channel count
 TP = pP.plan(Steps="probe");
-check(TP.Status(1) == "ready" && contains(TP.Note(1), "default"), 'default probe assignment is planned');
+check(TP.Status(1) == "probe-channel mismatch" && contains(TP.Note(1), "default probe") && TP.Output(1) == string(bigProbe), ...
+    'plan checks the default probe for a dataset without one');
 cfgV = cfg; cfgV.Sorting.PythonExe = "";
 pV = EphysPipeline(cfgV, Project=pipe.Project, Refresh=false);
 check(strcmp(errorId(@() pV.run()), 'EphysPipeline:ConfigInvalid'), 'run refuses an invalid config');
@@ -158,9 +171,26 @@ check(strcmp(errorId(@() pV.run()), 'EphysPipeline:ConfigInvalid'), 'run refuses
 fprintf('\n== 3. probe + behavior preflights ==\n');
 pP.checkProbes();
 dP = pP.selected();
-check(dP.ProbeFile == string(bigProbe) && pP.Results.Status(1) == "probe-channel mismatch", ...
-    'default probe assigned; 8-site probe vs 4-channel recording is a mismatch');
+mP = readJsonFile(dP.manifestFile());
+check(dP.ProbeFile == "" && pP.Results.Output(1) == string(bigProbe) && pP.Results.Status(1) == "probe-channel mismatch" ...
+    && string(mP.probe.file) == "", ...
+    'the default probe is used, neither assigned nor saved; 8-site probe vs 4-channel recording is a mismatch');
+cfgP2 = cfgP; cfgP2.Probe.DefaultProbeFile = probeFile;
+pP.Config = cfgP2;
+check(pP.probeFor(dP) == string(probeFile), 'an edited default probe applies at once');
+cfgW = cfgP; cfgW.Probe.WriteDefaultToManifest = true;
+pP.Config = cfgW; pP.reset();
+pP.checkProbes(DryRun=true);
+mP = readJsonFile(dP.manifestFile());
+check(dP.ProbeFile == "" && string(mP.probe.file) == "" && contains(pP.Results.Message(1), "dry run"), ...
+    'WriteDefaultToManifest in a dry run: the default is not saved');
+pP.reset();
+pP.checkProbes();
+mP = readJsonFile(dP.manifestFile());
+check(dP.ProbeFile == string(bigProbe) && string(mP.probe.file) == string(bigProbe) && mP.probe.exists, ...
+    'WriteDefaultToManifest assigns the default probe and saves it');
 dP.ProbeFile = "";
+dP.writeManifest();
 cfg.Behavior.Enabled = true; cfg.Behavior.SearchDirs = behDir;
 pipe.Config = cfg;
 pipe.reset();
@@ -176,6 +206,32 @@ check(any(pipe.Results.Step == "behavior:file" & pipe.Results.Output == behOut) 
 pipe.reset();
 pipe.checkBehavior();
 check(pipe.Results.Status(1) == "associated", 'existing association kept unless Overwrite');
+% The session file offline (a disk or share not connected): the association stays.
+behFile = d1.BehaviorFile;
+movefile(behFile, behFile + ".offline");
+pipe.reset();
+pipe.checkBehavior();
+Tb = pipe.plan(Steps="behavior");
+rep = pipe.Project.refresh(Datasets=pipe.DatasetIdx);
+m = readJsonFile(d1.manifestFile());
+check(pipe.Results.Status(1) == "behavior file missing" && height(pipe.Results) == 1 && Tb.Status(1) == "behavior file missing" ...
+    && d1.BehaviorFile == behFile && rep.Manifest && string(m.behavior.file) == behFile && ~m.behavior.exists, ...
+    'a session file that is not there keeps its association (step, plan, refresh and manifest)');
+movefile(behFile + ".offline", behFile);
+% A dry run matches, but associates, pairs and writes nothing.
+d1.BehaviorFile = "";
+delete(behOut);
+pipe.reset();
+pipe.checkBehavior(DryRun=true);
+R = pipe.Results;
+m = readJsonFile(d1.manifestFile());
+check(R.Status(R.Step == "behavior") == "dry run" && R.Output(R.Step == "behavior") == behFile && d1.BehaviorFile == "" ...
+    && nnz(startsWith(R.Step, "behavior:")) == 2 && all(R.Status(startsWith(R.Step, "behavior:")) == "dry run") ...
+    && ~isfile(behOut) && string(m.behavior.file) == behFile, ...
+    'checkBehavior(DryRun=true) says what it would associate, pair and write, and changes nothing');
+d1.BehaviorFile = behFile;
+pipe.reset();
+pipe.checkBehavior();
 
 fprintf('\n== 4. artifacts cache ==\n');
 cfg.Artifacts.Enabled = true; cfg.Artifacts.Method = "microvolts"; cfg.Artifacts.Threshold = 3000; cfg.Artifacts.MinChannels = 1;
@@ -187,14 +243,24 @@ check(isfile(cacheFile) && contains(pipe.Results.Message(1), "computed"), 'inter
 pipe.reset(); logs = strings(0, 1);
 pipe.runArtifacts();
 check(contains(pipe.Results.Message(1), "cache"), 'second run reuses the cache');
+cached = readJsonFile(cacheFile);
 d1.ManualArtifacts = [0.001 0.002; 0.005 0.006];
 pipe.reset();
 pipe.runArtifacts();
-check(contains(pipe.Results.Message(1), "computed"), 'changing the manual periods invalidates the cache');
+ivM = pipe.artifactIntervalsFor(d1);
+check(contains(pipe.Results.Message(1), "cache") && isequal(readJsonFile(cacheFile), cached) ...
+    && isequal(ivM, d1.artifactIntervals()), ...
+    'a new manual period needs no new detection: the cached detection is merged with the manual periods');
+check(string(cached.schema) == "ephys-artifacts/3" && isequal(EphysDataset.mergeIntervals([d1.ManualArtifacts; ...
+    reshape(cached.intervals, [], 2)]), ivM), 'the cache holds the automatic detection alone');
 cfgA = cfg; cfgA.Artifacts.Threshold = 2000;
 pipe.Config = cfgA; pipe.reset(); pipe.runArtifacts();
 check(contains(pipe.Results.Message(1), "computed"), 'changing the settings invalidates the cache');
 pipe.Config = cfg;
+d1.ExcludeChannels = 3;
+pipe.reset(); pipe.runArtifacts();
+check(contains(pipe.Results.Message(1), "computed"), 'changing the excluded channels invalidates the cache');
+d1.ExcludeChannels = [];
 d1.ManualArtifacts = [0.001 0.002];
 d1.writeManifest();
 cfgQ = cfg; cfgQ.Parallel.Enabled = true; cfgQ.Artifacts.CacheIntervals = false;
@@ -203,8 +269,10 @@ pipe.runArtifacts();
 ivQ = pipe.artifactIntervalsFor(d1);
 check(contains(pipe.Results.Message(1), "computed") && isequal(ivQ, d1.artifactIntervals()) ...
     && any(contains(logs, "parallel")), 'Parallel.Enabled reaches artifactIntervals (one chunk: serial) and is logged');
-check(any(contains(logs, "interval(s) computed, covering")), ...
+check(any(contains(logs, "interval(s) computed") & contains(logs, "covering")), ...
     'the artifact log line reports how much of the recording the intervals cover');
+check(any(contains(logs, "detected earlier in this run")), ...
+    'without the cache file a detection is still made once per run (reused by the next step)');
 manual0 = d1.ManualArtifacts;
 d1.ManualArtifacts = [0 d1.NumSamples / d1.Fs];
 logs = strings(0, 1);
@@ -217,12 +285,13 @@ pipe.Config = cfg;
 fprintf('\n== 5. sorting dry run ==\n');
 cfg.Sorting.DryRun = true;
 pipe.Config = cfg;
-pipe.reset();
+pipe.reset(); logs = strings(0, 1);
 pipe.runSorting();
 R = pipe.Results;
 if R.Status(1) ~= "dry run"; disp(R); end
 check(R.Status(1) == "dry run" && endsWith(R.Output(1), "settings.json") && isfile(R.Output(1)) ...
     && contains(R.Message(1), "settings.json"), 'dry run writes settings.json (runKilosort)');
+check(~any(contains(logs, "[artifacts]")) && ~isfile(d1.BinFile), 'a sorting dry run detects no artifacts and writes no .bin');
 st = readJsonFile(R.Output(1));
 ks = EphysPipelineConfig.ks4Settings(cfg.Sorting);
 check(all(isfield(st, fieldnames(ks))), 'settings.json carries the config''s Kilosort4 settings');
@@ -287,6 +356,16 @@ check(isequal(Cd.LFP.data, C.LFP.data) && isequal(Cd.sp, C.sp) && isequal(Cd.spD
     'pipeline export equals a direct exportChronux call');
 pipe.reset(); pipe.runExport();
 check(all(pipe.Results.Status == "skipped"), 'existing exports are skipped');
+cfgF = cfg; cfgF.Signals.MUA = true; cfgF.Signals.Enabled = false;   % an MUA file that was never written
+pipe.Config = cfgF;
+TF = pipe.plan(Steps="export");
+cfgF.Export.Signals = "LFP";
+pipe.Config = cfgF;
+TF2 = pipe.plan(Steps="export");
+check(all(TF.Status == "no extract file") && ~any(TF2.Status == "no extract file") ...
+    && isequal(pipe.exportExtractFiles(d1), extract), ...
+    'with Export.Signals (separate files) an export needs only the extract files of those signals');
+pipe.Config = cfg;
 
 cfgP = cfg; cfgP.Export.Formats = "epochs"; cfgP.Export.EpochWindow = [-0.001 0.002];
 pipe.Config = cfgP; pipe.reset(); pipe.runExport();
@@ -303,10 +382,17 @@ pipe.Config = cfg;
 
 fprintf('\n== 8. run(), dry run and cancel ==\n');
 cfg.Sorting.Enabled = false; cfg.Signals.Enabled = false; cfg.Export.Overwrite = true; cfg.Spikes.Overwrite = true;
+cfg.Behavior.PairTrials = true; cfg.Behavior.Overwrite = true;
 pipe.Config = cfg;
+before = fileState([string(d1.Folder) string(d1.outputFolder())]);
 R = pipe.run(DryRun=true);
 check(all(R.Status(R.Step == "spikes") == "dry run") && all(R.Status(startsWith(R.Step, "export")) == "dry run"), ...
     'run(DryRun=true) executes no writing step');
+check(all(R.Status(ismember(R.Step, ["behavior" "behavior:pairing" "behavior:file" "artifacts"])) == "dry run") ...
+    && isequal(fileState([string(d1.Folder) string(d1.outputFolder())]), before), ...
+    'the behavior and artifacts steps of a dry run write nothing either (no manifest, cache or behavior file)');
+cfg.Behavior.Overwrite = false;
+pipe.Config = cfg;
 R = pipe.run(Steps=["spikes" "export"]);
 check(isequal(unique(R.Step, 'stable'), ["spikes"; "export:chronux"; "export:fieldtrip"]) && all(R.Status == "done"), ...
     'run(Steps=...) runs the given steps in canonical order');
@@ -318,10 +404,10 @@ evts = struct('step', {}, 'dataset', {}, 'index', {}, 'count', {}, 'done', {}, '
 cfgE = cfg; cfgE.Artifacts.CacheIntervals = false;   % so Spikes has to detect the artifacts itself
 pipe.Config = cfgE;
 pipe.ProgressFcn = @recordEvent;
-pipe.run(Steps=["probe" "artifacts" "spikes" "export"]);
+pipe.run(Steps=["probe" "spikes" "export"]);
 names = [evts.step];
 starts = evts([evts.index] == 0);
-check(isequal([starts.step], ["probe" "artifacts" "spikes" "export"]) && all([starts.dataset] == "") ...
+check(isequal([starts.step], ["probe" "spikes" "export"]) && all([starts.dataset] == "") ...
     && all([starts.message] == "starting"), 'run() announces each step as it starts (dataset "", index 0)');
 [~, pos] = ismember(names, EphysPipelineConfig.StepNames);
 check(all(pos > 0) && issorted(pos) && any(names == "spikes" & startsWith([evts.message], "artifact intervals, detecting")) ...
@@ -333,6 +419,13 @@ for s = reshape(unique(names), 1, [])
     grows = grows && all(diff(frac(names == s)) >= 0);
 end
 check(grows && frac(find(names == "export", 1, 'last')) == 1, 'each step''s fraction only grows, reaching 1 as export ends');
+evts = evts([]); logs = strings(0, 1);
+pipe.run(Steps=["artifacts" "spikes"]);
+names = [evts.step];
+check(any(names == "artifacts" & startsWith([evts.message], "detecting")) ...
+    && ~any(names == "spikes" & startsWith([evts.message], "artifact intervals, detecting")) ...
+    && any(contains(logs, "detected earlier in this run")), ...
+    'with CacheIntervals off, Spikes reuses the detection the artifacts step made in the same run');
 pipe.ProgressFcn = @(evt) cancelOnProbe(evt, pipe);
     function cancelOnProbe(evt, p)
         if evt.step == "probe" && evt.index > 0; p.cancel(); end
@@ -394,13 +487,219 @@ if license('test', 'Signal_Toolbox')
     pipe.Config = cfgQ; pipe.reset(); pipe.runSignals();
     Mq = load(pipe.Results.Output(1));
     check(size(Mq.Y.LFP, 2) == numAmp - 1, 'ExcludeHandling="drop" removes manifest exclusions');
+    cfgI = cfg; cfgI.Signals.ExcludeHandling = "interpolate"; cfgI.Probe.DefaultProbeFile = probeFile;
+    own = d1.ProbeFile;
+    d1.ProbeFile = "";
+    pipe.Config = cfgI; pipe.reset(); pipe.runSignals();
+    Mi = load(pipe.Results.Output(1));
+    d1.ProbeFile = own;
+    check(pipe.Results.Status(1) == "done" && isequal(Mi.info.badChannels.channels, 2) ...
+        && isequal(Mi.info.badChannels.method, "geometry"), ...
+        'an interpolated exclusion of a dataset without a probe is placed on the default probe');
     d1.ExcludeChannels = [];
 else
     fprintf('  (skipped: no Signal Processing Toolbox)\n');
 end
 
+fprintf('\n== 10. Kilosort4 runs already queued or going; a cancel after the hand-off ==\n');
+cfgK = cfg; cfgK.Sorting.Enabled = true; cfgK.Sorting.Execution = "background"; cfgK.Sorting.DryRun = false;
+cfgK.Artifacts.ApplyToSorting = false;   % the manual periods only: no detection needed
+pipe.Config = cfgK;
+pipe.reset();
+handed = struct('d', {}, 'res', {});
+pipe.QueueFcn = @queueAndCancel;
+    function queueAndCancel(d, res)
+        handed(end+1) = struct('d', d, 'res', res);
+        pipe.cancel();   % right after the hand-off: the run is queued and stays so
+    end
+ws = warning('off', 'EphysDataset:toBin:Clipping');   % full-range random samples
+id = errorId(@() pipe.runSorting());
+warning(ws);
+R = pipe.Results;
+check(strcmp(id, 'EphysPipeline:Cancelled') && height(R) == 1 && R.Status(1) == "queued" && isscalar(handed), ...
+    'a cancel after the run was handed to the queue keeps its "queued" row (no "cancelled before launch")');
+res = handed(1).res;
+binTime = dir(d1.BinFile).datenum;
+pipe.QueueFcn = [];
+pipe.PriorRuns = EphysPipeline.sortRun(d1.Name, res, Queued=true);
+writelines('{"state": "done"}', res.statusFile);   % a stale status of an earlier run: the run is still queued
+Tk = pipe.plan(Steps="sorting");
+pipe.reset();
+pipe.runSorting();
+R = pipe.Results;
+check(R.Status(1) == "skipped" && contains(R.Message(1), "already queued") && Tk.Status(1) == "skip: Kilosort4 queued" ...
+    && dir(d1.BinFile).datenum == binTime && pipe.PriorRuns.queued && isnat(pipe.PriorRuns.started), ...
+    'a dataset with a queued Kilosort4 run is skipped (plan and step) and its .bin left alone');
+delete(res.statusFile);
+pipe.PriorRuns = EphysPipeline.sortRun(d1.Name, res);   % started, no status yet: running
+pipe.reset();
+pipe.runSorting();
+check(pipe.Results.Status(1) == "skipped" && contains(pipe.Results.Message(1), "already running") ...
+    && dir(d1.BinFile).datenum == binTime, 'a dataset whose Kilosort4 run is still going is skipped');
+writelines('{"state": "done"}', res.statusFile);
+Tk = pipe.plan(Steps="sorting");
+check(~startsWith(Tk.Status(1), "skip:"), 'a finished run no longer holds the dataset back');
+pipe.PriorRuns = EphysPipeline.emptyRuns();
+pipe.Config = cfg;
+
+fprintf('\n== 11. two recordings with the same name under one output root ==\n');
+projS = fullfile(root, 'projS');
+g1 = fullfile(projS, 'm1', 'rec'); g2 = fullfile(projS, 'm2', 'rec'); gc = fullfile(projS, 'calibration');
+for g = string({g1, g2, gc})
+    mkdir(g);
+    writeSyntheticRHD(fullfile(g, 'a.rhd'), ampRaw, digRaw, Fs, spb);
+end
+cfgR = EphysPipelineConfig();
+cfgR.Project.Root = projS; cfgR.Project.OutputRoot = fullfile(root, 'outS');
+cfgR.Project.Selection = "list"; cfgR.Project.Datasets = "m2/rec";
+cfgR.Signals.Enabled = true;
+pR = EphysPipeline(cfgR);
+pR.LogFcn = [];
+TR = pR.plan();
+check(all(startsWith(TR.Status(TR.Step ~= "probe"), "error: output folder shared with m1/rec")) ...
+    && strcmp(errorId(@() pR.run()), 'EphysPipeline:PlanInvalid'), ...
+    'a dataset whose output folder another discovered dataset maps to is refused, also when that one is not selected');
+cfgR.Project.Datasets = "m1/rec";
+pR.Config = cfgR;
+TR = pR.plan();
+check(startsWith(TR.Status(TR.Step == "signals"), "error: output folder shared with m2/rec"), '... either way round');
+cfgR.Project.OutputRoot = "";
+pR.Config = cfgR;
+TR = pR.plan();
+check(~any(startsWith(TR.Status, ["error" "duplicate"])), 'without an output root each recording keeps its outputs in its own folder');
+cfgR.Signals.OutputDir = fullfile(root, 'sharedSignals');
+pR.Config = cfgR;
+TR = pR.plan();
+check(TR.Status(TR.Step == "signals") == "duplicate output" && contains(TR.Note(TR.Step == "signals"), "m2/rec"), ...
+    'one file name in a shared Signals.OutputDir: a duplicate output, the other dataset unselected');
+cfgR.Signals.OutputDir = "";
+cfgR.Project.OutputRoot = fullfile(root, 'outS');
+pR.Config = cfgR;
+PR = pR.Project;
+e1 = PR.Datasets(PR.findByKey("m1/rec"));
+e2 = PR.Datasets(PR.findByKey("m2/rec"));
+foreignFile = string(fullfile(e1.outputFolder(), 'rec_extract_LFP.mat'));
+mkdir(e1.outputFolder());
+X = struct('Y', struct('LFP', single(1)), 'info', struct('LFP', struct('Fs', 1000)), ...
+    'conversion', struct('dataset', "rec", 'sourceFolder', e1.Folder));
+save(foreignFile, '-struct', 'X');
+o1 = e1.outputs(); o2 = e2.outputs();
+Tc = planLocalCleanup(e2, Remove="signals");
+check(o1.has("LFP") && ~o2.has("LFP") && any(o2.Foreign == foreignFile) ...
+    && Tc.Action(Tc.File == foreignFile) == "keep", ...
+    'm2/rec neither loads nor cleans up the extract whose provenance names m1/rec (the same output folder)');
+% An unsorted dataset whose name cannot label units: its exports leave the units out, epochs too.
+cfgR.Project.Datasets = "calibration";
+cfgR.Export.Enabled = true; cfgR.Export.Formats = ["chronux" "epochs"]; cfgR.Export.IncludeUnits = true;
+pR.Config = cfgR;
+TR = pR.plan(Steps=["signals" "export"]);
+isExport = startsWith(TR.Step, "export:");
+check(nnz(isExport) == 2 && all(TR.Status(isExport) == "ready") && all(contains(TR.Note(isExport), "left out")), ...
+    'no unit identity error for exports that leave the units out (the epochs row included)');
+
+fprintf('\n== 12. associations offline, an unreadable manifest, manifest parsing ==\n');
+projO = fullfile(root, 'projO');
+h1 = fullfile(projO, 'M3_260103_090000'); mkdir(h1);
+writeSyntheticRHD(fullfile(h1, 'a.rhd'), ampRaw, digRaw, Fs, spb);
+usb = fullfile(root, 'usb');            % a disk that is not connected
+curated = string(fullfile(usb, 'curated'));
+offProbe = string(fullfile(usb, 'probe.json'));
+offBeh = string(fullfile(usb, 'beh.mat'));
+eo = EphysDataset(h1);
+eo.SortingDir = curated; eo.ProbeFile = offProbe; eo.BehaviorFile = offBeh;
+eo.writeManifest();
+makePhyFixture(fullfile(h1, 'kilosort4'), Fs, ChannelMap=[0 1 2 3]);   % an uncurated sort next to the recording
+cfgO = EphysPipelineConfig(); cfgO.Project.Root = projO;
+cfgO.Spikes.Enabled = true; cfgO.Spikes.Source = "sorted";
+cfgO.Sorting.Enabled = true; cfgO.Sorting.PythonExe = "C:\envs\ks\python.exe"; cfgO.Sorting.Execution = "blocking";
+cfgO.Sorting.SkipExisting = true;
+pO = EphysPipeline(cfgO);               % the scan applies the manifest and writes it again
+pO.LogFcn = [];
+eo = pO.selected();
+mo = readJsonFile(eo.manifestFile());
+check(eo.SortingDir == curated && eo.ProbeFile == offProbe && eo.BehaviorFile == offBeh ...
+    && string(mo.sorting.source) == "manual" && string(mo.sorting.results_dir) == curated && ~mo.sorting.exists ...
+    && string(mo.probe.file) == offProbe && ~mo.probe.exists && string(mo.behavior.file) == offBeh, ...
+    'a scan while the associations are offline keeps them, in the dataset and in the rewritten manifest');
+check(mo.kilosort.has_results && string(mo.kilosort.results_dir) == string(eo.kilosortDir()), ...
+    'the manifest''s kilosort block describes the run in kilosortDir');
+TO = pO.plan();
+check(TO.Status(TO.Step == "spikes") == "error: sorting folder missing" && contains(TO.Note(TO.Step == "spikes"), curated) ...
+    && TO.Status(TO.Step == "probe") == "probe file missing" && TO.Status(TO.Step == "sorting") == "probe file missing", ...
+    'plan names the missing folder and probe instead of using the kilosort4 sort next to the recording');
+oo = eo.outputs();
+check(oo.SortingDir == curated && ~oo.has("sorting") && strcmp(errorId(@() oo.Units), 'DatasetOutputs:Missing'), ...
+    'DatasetOutputs keeps the hand-picked folder too: no fallback to the uncurated sort');
+pO.reset(); pO.runSpikeDetection();
+check(pO.Results.Status(1) == "skipped" && contains(pO.Results.Message(1), curated), 'the spikes step skips it, naming the folder');
+makePhyFixture(curated, Fs, ChannelMap=[0 1 2 3]);   % the disk is back
+writeJsonFile(offProbe, struct('chanMap', 0:numAmp-1, 'xc', zeros(1, numAmp), 'yc', (0:numAmp-1) * 20, ...
+    'kcoords', zeros(1, numAmp), 'n_chan', numAmp));
+TO = pO.plan();
+check(eo.hasKilosortResults() && TO.Status(TO.Step == "spikes") == "ready" ...
+    && TO.Status(TO.Step == "sorting") == "exists: skip (SkipExisting)", 'with the disk back the association works again');
+% Kilosort4 4.x writes its own cluster_group.tsv (a copy of cluster_KSLabel.tsv) on every run.
+fid = fopen(fullfile(h1, 'kilosort4', 'cluster_group.tsv'), 'w');
+fprintf(fid, 'cluster_id\tKSLabel\n0\tmua\n1\tgood\n2\tgood\n');
+fclose(fid);
+eo.SortingDir = "";
+sAuto = eo.sortingStruct();
+eo.SortingDir = curated;
+sCur = eo.sortingStruct();
+check(~sAuto.curated && sAuto.num_units == 3 && sCur.curated && EphysDataset.phyCurated(curated) ...
+    && ~EphysDataset.phyCurated(fullfile(h1, 'kilosort4')), ...
+    'curated means phy''s cluster_group.tsv (header "group"), not the copy Kilosort4 writes');
+% A manifest this code cannot read is neither applied nor replaced.
+mf = eo.manifestFile();
+for bad = ["{""schema"": ""intan-dataset-manifest/9"", ""probe"": {""file"": ""x""}}", "{not json"]
+    writelines(bad, mf);
+    txt0 = fileread(mf);
+    ws = warning();
+    warning('off', 'EphysDataset:applyManifest:Schema');
+    warning('off', 'EphysDataset:applyManifest:Unreadable');
+    warning('off', 'EphysDataset:writeManifest:Kept');
+    rep = pO.Project.refresh();
+    wrote = eo.writeManifest();
+    warning(ws);
+    check(strcmp(fileread(mf), txt0) && ~rep.Manifest(1) && contains(rep.Message(1), "manifest not read") && ~wrote, ...
+        "a manifest " + ternaryText(startsWith(bad, "{not"), "that is not JSON", "of an unknown schema") + ...
+        " is left as it is by a scan and by a later write");
+end
+% Channel lists in a manifest are parsed, never evaluated.
+marker = fullfile(tempdir, "manifestEvalProbe" + string(datetime('now', 'Format', 'yyyyMMddHHmmssSSS')));
+writeJsonFile(mf, struct('schema', "intan-dataset-manifest/2", 'exclude_channels', "mkdir('" + marker + "')", ...
+    'reference_exclude', struct('channels', "1:3 5-6", 'source', "manual")));
+eo.applyManifest();
+evaluated = isfolder(marker);
+if evaluated; rmdir(marker); end
+check(~evaluated && isempty(eo.ExcludeChannels) && isequal(eo.ReferenceExclude, [1 2 3 5 6]), ...
+    'manifest channel lists are parsed, never evaluated');
+check(isequal(EphysDataset.parseChannelList("[1:4 9]"), [1 2 3 4 9]) ...
+    && isequal(EphysDataset.parseChannelList("1, 3, 5 - 8"), [1 3 5 6 7 8]) ...
+    && isequal(EphysDataset.parseChannelList("1:2:9"), [1 3 5 7 9]) && isempty(EphysDataset.parseChannelList("1, x")) ...
+    && isempty(EphysDataset.parseChannelList("")) && isequal(EphysDataset.formatChannelList([1 3 5 6 7 8]), "1,3,5-8"), ...
+    'channel lists: numbers, a-b / a:b ranges, steps and brackets; anything else gives no channels');
+
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0
     error('test_EphysPipeline:Failures', '%d checks failed.', nFail);
 end
+end
+
+
+function S = fileState(folders)
+%fileState  Every file under FOLDERS with its size and modification time, sorted.
+S = strings(0, 1);
+for f = unique(folders)
+    D = dir(fullfile(f, '**', '*'));
+    for k = find(~[D.isdir])
+        S(end+1, 1) = sprintf("%s|%d|%.10f", fullfile(D(k).folder, D(k).name), D(k).bytes, D(k).datenum); %#ok<AGROW>
+    end
+end
+S = sort(S);
+end
+
+
+function t = ternaryText(cond, a, b)
+if cond; t = string(a); else; t = string(b); end
 end

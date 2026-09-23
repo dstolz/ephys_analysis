@@ -9,6 +9,9 @@ end
 s = d.sortingStruct();
 if s.results_dir == ""
     txt = sprintf("%s: no sorted output yet (auto: %s).", d.Name, d.kilosortDir());
+elseif ~s.exists
+    txt = sprintf("%s: manual association -> %s\nThat folder is not there now: no other sort stands in for it.", ...
+        d.Name, s.results_dir);
 else
     cur = "uncurated (cluster_KSLabel.tsv)";
     if s.curated; cur = "phy-curated (cluster_group.tsv)"; end

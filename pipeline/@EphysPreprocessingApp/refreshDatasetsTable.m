@@ -1,4 +1,4 @@
-function refreshDatasetsTable(obj)
+function refreshDatasetsTable(obj, opts)
 %refreshDatasetsTable  Rebuild the datasets table from project metadata.
 %   Preserves the existing "Select" ticks (matched by key). The tokens ticked
 %   under the name pattern become columns after Name (table variables
@@ -8,6 +8,25 @@ function refreshDatasetsTable(obj)
 %   is baked into the table variables (see orderColumns), so it survives
 %   rebuilds that change the column set. The token filters above the table
 %   hide rows; ticks on hidden rows are kept in HiddenSelectedKeys.
+%
+%   refreshDatasetsTable(Datasets=IDX) only recomputes the cells of the
+%   datasets IDX (indices into Project.Datasets) in the rows the table
+%   shows (the Kilosort4 monitor, as a run starts or ends); it rebuilds the
+%   whole table when the table does not hold those datasets' rows. The
+%   Behavior column reads each Epsych2 session file's summary once, and
+%   again only when the file changes (EpsychMetaCache).
+%
+%   A probe, sorted-output folder or Epsych2 session that is associated but
+%   not there now (a disk or share not connected) reads "missing: <name>";
+%   a dataset without a probe of its own shows the config's default probe
+%   as "default: <name>" (EphysPipeline.probeFor).
+arguments
+    obj (1,1) EphysPreprocessingApp
+    opts.Datasets (1,:) double = []
+end
+if ~isempty(opts.Datasets) && refreshRows(obj, opts.Datasets)
+    return
+end
 
 [tokenNames, shown, patternMsg] = nameTokenSettings(obj);
 tokenVars = "Token_" + shown;
@@ -51,7 +70,6 @@ nMatched = 0;
 
 for i = 1:n
     d = obj.Project.Datasets(i);
-    Name(i)   = d.Name;
     if patternMsg == ""
         [vals, ~, ok] = parseNameTokens(d.Name, obj.NamePatternField.Value);
         if ok
@@ -59,50 +77,10 @@ for i = 1:n
             AllTokens(i, :) = vals;
         end
     end
-    Format(i) = d.RecordingFormat;
-    if ~isnat(d.AcqDate)
-        AcqDate(i) = string(datetime(d.AcqDate, 'Format', 'yyyy-MM-dd HH:mm'));
-    end
-    NumChannels(i) = d.NumChannels;
-    Fs(i) = d.Fs;
-    if ~isnan(d.Duration); DurationMin(i) = d.Duration / 60; end
-    if d.ProbeFile ~= "" && isfile(d.ProbeFile)
-        [~, pn, pe] = fileparts(d.ProbeFile);
-        Probe(i) = pn + pe;
-    else
-        Probe(i) = "-";
-    end
-    if isempty(d.ExcludeChannels)
-        Exclude(i) = "-";
-    else
-        Exclude(i) = EphysDataset.formatChannelList(d.ExcludeChannels);
-    end
-    s = d.sortingStruct();
-    if s.results_dir == ""
-        Sorting(i) = "-";
-    else
-        txt = s.source;
-        if isfinite(s.num_units); txt = txt + sprintf(": %d units", s.num_units); end
-        if s.curated; txt = txt + ", curated"; end
-        Sorting(i) = txt;
-    end
-    if d.BehaviorFile == "" || ~isfile(d.BehaviorFile)
-        Behavior(i) = "-";
-    else
-        try
-            m = epsychSessionMeta(d.BehaviorFile);
-            Behavior(i) = sprintf("%s (%d trials)", m.subject, m.nTrials);
-        catch
-            [~, bf, be] = fileparts(d.BehaviorFile);
-            Behavior(i) = bf + be;
-        end
-        if ~isempty(d.TrialPairing)
-            Behavior(i) = Behavior(i) + ", pairing " + d.TrialPairing.status;
-            if d.TrialPairing.auto_approved
-                Behavior(i) = Behavior(i) + " (auto)";
-            end
-        end
-    end
+    c = datasetCells(obj, d);
+    Name(i) = c.Name; AcqDate(i) = c.AcqDate; NumChannels(i) = c.NumChannels; Fs(i) = c.Fs;
+    DurationMin(i) = c.DurationMin; Format(i) = c.Format; Probe(i) = c.Probe;
+    Exclude(i) = c.Exclude; Sorting(i) = c.Sorting; Behavior(i) = c.Behavior;
 end
 
 % Token filters: rebuild the dropdowns when the tokens change, refresh their
@@ -121,7 +99,7 @@ end
 [~, loc] = ismember(shown, tokenNames);
 DatasetIdx = (1:n)';
 T = [table(Select, Name), array2table(AllTokens(:, loc), 'VariableNames', cellstr(tokenVars)), ...
-    table(Key, AcqDate, NumChannels, Fs, round(DurationMin, 2), Format, ...
+    table(Key, AcqDate, NumChannels, Fs, DurationMin, Format, ...
     Probe, Exclude, Sorting, Behavior, DatasetIdx)];
 T.Properties.VariableNames = cellstr(vars);
 obj.HiddenSelectedKeys = reshape(Key(~keep & Select), 1, []);
@@ -161,6 +139,104 @@ if n > 0
     obj.updatePhyButtonState();
     obj.syncTabStrip();
 end
+end
+
+
+function done = refreshRows(obj, idx)
+%refreshRows  Recompute the cells of datasets IDX in the rows the table shows.
+%   False (nothing done) when the table does not hold this project's rows.
+T = obj.DatasetsTable.Data;
+done = false;
+if isempty(obj.Project) || ~istable(T) || ~all(ismember({'Key', 'DatasetIdx'}, T.Properties.VariableNames))
+    return
+end
+for i = idx(idx >= 1 & idx <= obj.Project.NumDatasets)
+    r = find(T.DatasetIdx == i, 1);
+    if isempty(r); continue; end   % hidden by the token filters: the next rebuild has it
+    if ~strcmpi(T.Key(r), obj.Project.datasetKey(i)); return; end
+    c = datasetCells(obj, obj.Project.Datasets(i));
+    for f = string(fieldnames(c)).'
+        T.(f)(r) = c.(f);
+    end
+end
+obj.DatasetsTable.Data = T;
+obj.highlightDatasetRow();
+obj.updatePhyButtonState();
+done = true;
+end
+
+
+function c = datasetCells(obj, d)
+%datasetCells  The cells of dataset D's row that come from its metadata,
+%   probe, exclusions, sorted output and Epsych2 session.
+c = struct('Name', d.Name, 'AcqDate', "", 'NumChannels', d.NumChannels, 'Fs', d.Fs, ...
+    'DurationMin', 0, 'Format', d.RecordingFormat, 'Probe', "-", 'Exclude', "-", ...
+    'Sorting', "-", 'Behavior', "-");
+if ~isnat(d.AcqDate)
+    c.AcqDate = string(datetime(d.AcqDate, 'Format', 'yyyy-MM-dd HH:mm'));
+end
+if ~isnan(d.Duration); c.DurationMin = round(d.Duration / 60, 2); end
+if d.ProbeFile ~= ""
+    c.Probe = fileName(d.ProbeFile);
+    if ~isfile(d.ProbeFile); c.Probe = "missing: " + c.Probe; end
+elseif obj.Config.Probe.DefaultProbeFile ~= ""
+    c.Probe = "default: " + fileName(obj.Config.Probe.DefaultProbeFile);
+end
+if ~isempty(d.ExcludeChannels)
+    c.Exclude = EphysDataset.formatChannelList(d.ExcludeChannels);
+end
+s = d.sortingStruct();
+if s.results_dir ~= "" && ~s.exists
+    c.Sorting = "missing: " + s.source;
+elseif s.results_dir ~= ""
+    txt = s.source;
+    if isfinite(s.num_units); txt = txt + sprintf(": %d units", s.num_units); end
+    if s.curated; txt = txt + ", curated"; end
+    c.Sorting = txt;
+end
+if d.BehaviorFile ~= "" && ~isfile(d.BehaviorFile)
+    c.Behavior = "missing: " + fileName(d.BehaviorFile);
+elseif d.BehaviorFile ~= ""
+    try
+        m = sessionMeta(obj, d.BehaviorFile);
+        c.Behavior = sprintf("%s (%d trials)", m.subject, m.nTrials);
+    catch
+        c.Behavior = fileName(d.BehaviorFile);
+    end
+    if ~isempty(d.TrialPairing)
+        c.Behavior = c.Behavior + ", pairing " + d.TrialPairing.status;
+        if d.TrialPairing.auto_approved
+            c.Behavior = c.Behavior + " (auto)";
+        end
+    end
+end
+end
+
+
+function s = fileName(f)
+%fileName  The name and extension of file F.
+[~, n, e] = fileparts(f);
+s = string(n) + e;
+end
+
+
+function m = sessionMeta(obj, file)
+%sessionMeta  epsychSessionMeta(FILE), read again only when the file's
+%   modification time or size changed since it was last read.
+if isempty(obj.EpsychMetaCache)
+    obj.EpsychMetaCache = containers.Map('KeyType', 'char', 'ValueType', 'any');
+end
+key = char(file);
+f = dir(key);
+if isKey(obj.EpsychMetaCache, key)
+    e = obj.EpsychMetaCache(key);
+    if e.datenum == f.datenum && e.bytes == f.bytes
+        m = e.meta;
+        return
+    end
+end
+m = epsychSessionMeta(file);
+obj.EpsychMetaCache(key) = struct('datenum', f.datenum, 'bytes', f.bytes, 'meta', m);
 end
 
 

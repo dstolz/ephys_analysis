@@ -1,17 +1,24 @@
 function makePhyFixture(dir0, fs, opts)
 %makePhyFixture  Write a small Kilosort4/phy results folder (test fixture).
 %   makePhyFixture(dir0, fs, ChannelMap=[0 1 2 3], NChan=4, SettingsJson=true,
-%                  ClusterIds=[0 1 2], Shanks=zeros(1,NChan), Positions=[])
+%                  ClusterIds=[0 1 2], Shanks=zeros(1,NChan), Positions=[],
+%                  PhyCurated=true, WhiteningInv=[], BinScale=NaN)
 %   Three clusters: 0 (good, spikes at 300/600/30000), 1 (mua, 900/1500),
 %   2 (noise, 45000). cluster_group.tsv labels them good/mua/noise while
 %   cluster_KSLabel.tsv says mua/good/good (so curation must win). Templates
 %   [3 x 8 x NChan] put cluster 0's peak on sorted channel 2, cluster 1's on
-%   the last channel, cluster 2's on channel 1; amplitudes give cluster 0 a
-%   median of 1.5 and cluster 1 a median of 2. SettingsJson=true adds a
-%   settings.json, as a runKilosort run folder has.
+%   the last channel, cluster 2's on channel 1, in Kilosort4's whitened
+%   units (no whitening_mat_inv.npy, so readPhyUnits keeps them as they
+%   are); amplitudes give cluster 0 a median of 1.5 and cluster 1 a median
+%   of 2. SettingsJson=true adds a settings.json, as a runKilosort run
+%   folder has.
 %   ClusterIds renames the three clusters in spike_clusters.npy and both .tsv
 %   files (spike_templates.npy keeps 0..2). Shanks writes channel_shanks.npy;
 %   Positions ([NChan x 2], um) writes channel_positions.npy (none when empty).
+%   PhyCurated=false writes cluster_group.tsv as Kilosort4 does on every run,
+%   a copy of cluster_KSLabel.tsv (header cluster_id<TAB>KSLabel).
+%   WhiteningInv ([NChan x NChan]) writes whitening_mat_inv.npy; BinScale
+%   puts bin_scale (the .bin's units per uV) in settings.json.
 %
 %   See also EphysDataset.readPhyUnits, writeNPY.
 arguments
@@ -23,6 +30,9 @@ arguments
     opts.ClusterIds (1,3) double = [0 1 2]
     opts.Shanks (1,:) double = []
     opts.Positions (:,2) double = zeros(0, 2)
+    opts.PhyCurated (1,1) logical = true
+    opts.WhiteningInv double = []
+    opts.BinScale (1,1) double = NaN
 end
 if ~isfolder(dir0); mkdir(dir0); end
 nC = opts.NChan;
@@ -46,16 +56,25 @@ writeNPY(fullfile(dir0, 'channel_shanks.npy'), int32(shanks(:)));
 if ~isempty(opts.Positions)
     writeNPY(fullfile(dir0, 'channel_positions.npy'), double(opts.Positions));
 end
+if ~isempty(opts.WhiteningInv)
+    writeNPY(fullfile(dir0, 'whitening_mat_inv.npy'), single(opts.WhiteningInv));
+end
 fid = fopen(fullfile(dir0, 'params.py'), 'w');
 fprintf(fid, 'dat_path = "x.bin"\nn_channels_dat = %d\ndtype = "int16"\nsample_rate = %g.\n', nC, fs);
-fclose(fid);
-fid = fopen(fullfile(dir0, 'cluster_group.tsv'), 'w');
-fprintf(fid, 'cluster_id\tgroup\n%d\tgood\n%d\tmua\n%d\tnoise\n', opts.ClusterIds);
 fclose(fid);
 fid = fopen(fullfile(dir0, 'cluster_KSLabel.tsv'), 'w');
 fprintf(fid, 'cluster_id\tKSLabel\n%d\tmua\n%d\tgood\n%d\tgood\n', opts.ClusterIds);
 fclose(fid);
+if opts.PhyCurated
+    fid = fopen(fullfile(dir0, 'cluster_group.tsv'), 'w');
+    fprintf(fid, 'cluster_id\tgroup\n%d\tgood\n%d\tmua\n%d\tnoise\n', opts.ClusterIds);
+    fclose(fid);
+else
+    copyfile(fullfile(dir0, 'cluster_KSLabel.tsv'), fullfile(dir0, 'cluster_group.tsv'));
+end
 if opts.SettingsJson
-    writeJsonFile(fullfile(dir0, 'settings.json'), struct('n_chan_bin', nC, 'fs', fs));
+    s = struct('n_chan_bin', nC, 'fs', fs);
+    if isfinite(opts.BinScale); s.bin_scale = opts.BinScale; end
+    writeJsonFile(fullfile(dir0, 'settings.json'), s);
 end
 end

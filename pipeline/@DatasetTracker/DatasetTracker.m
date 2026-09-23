@@ -319,13 +319,11 @@ classdef DatasetTracker < handle
         function runs = discoverKilosortRuns(obj)
             %discoverKilosortRuns  Find kilosort4 output folders and their state.
             %   A run folder is any directory containing a recognized Kilosort4
-            %   marker (spike output, the generated run script/settings, or the
-            %   status file). State and the input bin/probe come from the files
-            %   runKilosort writes (ks4_status.json / settings.json).
-            markers = ["spike_clusters.npy", "params.py", "run_ks4.py", ...
-                "settings.json", "ks4_status.json"];
+            %   marker (DatasetTracker.KilosortMarkers: spike output, the
+            %   generated run script/settings, or the status file); each is
+            %   read by kilosortRunAt.
             dirs = string.empty(1, 0);
-            for m = markers
+            for m = DatasetTracker.KilosortMarkers
                 D = obj.findFiles(m);
                 if ~isempty(D)
                     dirs = [dirs, string({D.folder})]; %#ok<AGROW>
@@ -334,45 +332,7 @@ classdef DatasetTracker < handle
             dirs = unique(dirs, 'stable');
             runs = DatasetTracker.emptyKSRuns();
             for i = 1:numel(dirs)
-                d = char(dirs(i));
-                [~, leaf] = fileparts(d);
-                hasResults = isfile(fullfile(d, 'spike_clusters.npy'));
-
-                state = ""; message = "";
-                statusFile = fullfile(d, 'ks4_status.json');
-                if isfile(statusFile)
-                    st = DatasetTracker.readJson(statusFile);
-                    state   = string(getfielddef(st, 'state', ""));
-                    message = string(getfielddef(st, 'message', ""));
-                elseif hasResults
-                    state = "done";   % results present, no status file (older run)
-                end
-
-                settingsFile = fullfile(d, 'settings.json');
-                binFile = ""; probeFile = ""; fs = NaN; nChanBin = NaN;
-                if isfile(settingsFile)
-                    sj = DatasetTracker.readJson(settingsFile);
-                    binFile   = string(getfielddef(sj, 'filename', ""));
-                    probeFile = string(getfielddef(sj, 'probe', ""));
-                    fs        = getfielddef(sj, 'fs', NaN);
-                    nChanBin  = getfielddef(sj, 'n_chan_bin', NaN);
-                end
-
-                runs(i).Name         = string(leaf);
-                runs(i).Dir          = dirs(i);
-                runs(i).HasResults   = hasResults;
-                runs(i).State        = state;
-                runs(i).Message      = message;
-                runs(i).NumUnits     = countClusters(d);
-                runs(i).SettingsPath = string(ternary(isfile(settingsFile), settingsFile, ""));
-                runs(i).ScriptPath   = string(ternary(isfile(fullfile(d,'run_ks4.py')), fullfile(d,'run_ks4.py'), ""));
-                runs(i).LogPath      = string(ternary(isfile(fullfile(d,'ks4_run.log')), fullfile(d,'ks4_run.log'), ""));
-                runs(i).StatusPath   = string(ternary(isfile(statusFile), statusFile, ""));
-                runs(i).BinFile      = binFile;
-                runs(i).ProbeFile    = probeFile;
-                runs(i).Fs           = fs;
-                runs(i).NChanBin     = nChanBin;
-                runs(i).Modified     = folderModified(d);
+                runs(i) = runInfo(dirs(i));
             end
         end
 
@@ -409,6 +369,12 @@ classdef DatasetTracker < handle
         end
     end
 
+    properties (Constant)
+        % Files whose presence makes a folder a Kilosort4 run folder.
+        KilosortMarkers = ["spike_clusters.npy", "params.py", "run_ks4.py", ...
+            "settings.json", "ks4_status.json"]
+    end
+
     methods (Static)
         function dt = fromDataset(ds)
             %fromDataset  Build a tracker for an existing EphysDataset's folder.
@@ -416,6 +382,24 @@ classdef DatasetTracker < handle
                 ds (1,1) EphysDataset
             end
             dt = DatasetTracker(ds.Folder);
+        end
+
+        function r = kilosortRunAt(folder)
+            %kilosortRunAt  The Kilosort4 run in one known folder, [] when there is none.
+            %   R = DatasetTracker.kilosortRunAt(FOLDER) is the KilosortRuns
+            %   element (see emptyKSRuns) of FOLDER when it holds one of the
+            %   KilosortMarkers: state and the input bin / probe come from the
+            %   files runKilosort writes (ks4_status.json / settings.json). No
+            %   other folder is scanned, so it is cheap where the run folder is
+            %   known (EphysDataset.kilosortDir, for the dataset manifest).
+            arguments
+                folder (1,1) string
+            end
+            r = [];
+            if ~isfolder(folder) || ~any(isfile(fullfile(folder, DatasetTracker.KilosortMarkers)))
+                return
+            end
+            r = runInfo(folder);
         end
 
         %% Shared discovery / parsing helpers ------------------------------
@@ -586,6 +570,51 @@ end
 
 
 %% ===== file-local helpers ==================================================
+
+function r = runInfo(folder)
+%runInfo  The emptyKSRuns element describing the Kilosort4 run folder FOLDER.
+d = char(folder);
+[~, leaf] = fileparts(d);
+hasResults = isfile(fullfile(d, 'spike_clusters.npy'));
+
+state = ""; message = "";
+statusFile = fullfile(d, 'ks4_status.json');
+if isfile(statusFile)
+    st = DatasetTracker.readJson(statusFile);
+    state   = string(getfielddef(st, 'state', ""));
+    message = string(getfielddef(st, 'message', ""));
+elseif hasResults
+    state = "done";   % results present, no status file (older run)
+end
+
+settingsFile = fullfile(d, 'settings.json');
+binFile = ""; probeFile = ""; fs = NaN; nChanBin = NaN;
+if isfile(settingsFile)
+    sj = DatasetTracker.readJson(settingsFile);
+    binFile   = string(getfielddef(sj, 'filename', ""));
+    probeFile = string(getfielddef(sj, 'probe', ""));
+    fs        = getfielddef(sj, 'fs', NaN);
+    nChanBin  = getfielddef(sj, 'n_chan_bin', NaN);
+end
+
+r = DatasetTracker.emptyKSRuns();
+r(1).Name         = string(leaf);
+r(1).Dir          = string(folder);
+r(1).HasResults   = hasResults;
+r(1).State        = state;
+r(1).Message      = message;
+r(1).NumUnits     = countClusters(d);
+r(1).SettingsPath = string(ternary(isfile(settingsFile), settingsFile, ""));
+r(1).ScriptPath   = string(ternary(isfile(fullfile(d,'run_ks4.py')), fullfile(d,'run_ks4.py'), ""));
+r(1).LogPath      = string(ternary(isfile(fullfile(d,'ks4_run.log')), fullfile(d,'ks4_run.log'), ""));
+r(1).StatusPath   = string(ternary(isfile(statusFile), statusFile, ""));
+r(1).BinFile      = binFile;
+r(1).ProbeFile    = probeFile;
+r(1).Fs           = fs;
+r(1).NChanBin     = nChanBin;
+r(1).Modified     = folderModified(d);
+end
+
 
 function n = countClusters(folder)
 %countClusters  Count clusters from a phy/KS .tsv (cheap; no .npy read).

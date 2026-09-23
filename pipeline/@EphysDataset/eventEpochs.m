@@ -20,7 +20,8 @@ function E = eventEpochs(obj, opts)
 %     event      how the epochs were defined: source ("line" | "behavior" |
 %                "times"), name (the digital line, the trial line of the
 %                pairing, or "times"), window [tPre tPost] seconds,
-%                onsetRule, nEpochs, nTotalEvents, onsets / offsets /
+%                onsetRule, eventFs (the recording rate, the clock the event
+%                times count rows of), nEpochs, nTotalEvents, onsets / offsets /
 %                durations (seconds, one row per epoch), recordingRange and
 %                its source, nIncomplete, what the selection left out
 %                (droppedDuration / droppedTimeRange for a line,
@@ -29,9 +30,11 @@ function E = eventEpochs(obj, opts)
 %                Which event or trial each epoch came from is a column of the
 %                trials table
 %     trials     table, one row per epoch: EpochIndex, EpochOnset,
-%                EpochOffset, EpochDuration, EpochComplete, plus EventIndex
-%                (row in the line's event list) or BehaviorRow and the
-%                behavior trial columns when the events came from a session
+%                EpochOffset, EpochDuration, EpochComplete (the window lies
+%                inside the recording and inside every signal, so no sample of
+%                the epoch is NaN padding), plus EventIndex (row in the
+%                line's event list) or BehaviorRow and the behavior trial
+%                columns when the events came from a session
 %     signals    struct, one field per exported signal (LFP / MUA / SPIKE /
 %                AUX): data [nTime x nEpochs x nChan] in the signal's units,
 %                t [1 x nTime] seconds relative to the onset, fs, labels,
@@ -61,6 +64,8 @@ function E = eventEpochs(obj, opts)
 %     Groups         phy groups to keep when reading units (["good" "mua"])
 %     Detected       true (default: <Name>_spikes.mat when present) | a
 %                    spikes file | a detected struct | false
+%     Sources        provenance of inputs passed as structs, as in
+%                    exportChronux
 %     Events         true (default): use the extract's digital-input events;
 %                    EventSource="line" needs them
 %     EventSource    "line" (default) digital-input line | "behavior" the
@@ -99,6 +104,7 @@ arguments
     opts.Units = []
     opts.Groups (1,:) string = ["good" "mua"]
     opts.Detected = true
+    opts.Sources struct = struct()
     opts.Events (1,1) logical = true
     opts.EventSource (1,1) string {mustBeMember(opts.EventSource, ...
         ["line","behavior","times"])} = "line"
@@ -138,6 +144,7 @@ ev = struct();
 ev.source        = opts.EventSource;
 ev.window        = twin;
 ev.onsetRule     = opts.OnsetRule;
+ev.eventFs       = in.eventFs;    % NaN: unknown, each signal takes its own rate
 ev.lines         = string.empty(1,0);
 if isstruct(in.events)
     ev.lines = string(fieldnames(in.events)).';
@@ -218,11 +225,37 @@ ev.offsets   = offsets;
 ev.durations = offsets - onsets;
 ev.nEpochs   = nEp;
 
+% --- continuous signals -------------------------------------------------------
+S = struct();
+inSignals = true(nEp, 1);          % every signal holds all of the epoch's rows
+for sig = in.signals
+    cxs = ChronuxDataset(in.S, Signal=sig);
+    [data, ~, T, tinfo] = cxs.trials(onsets, twin, OnsetRule=opts.OnsetRule, ...
+        EventFs=ev.eventFs, Incomplete=opts.Incomplete, NonFinite=opts.NonFinite, ...
+        Class=opts.Class);
+    data = reshape(data, tinfo.nTime, tinfo.nTrials, tinfo.nChan);
+    S.(sig) = struct( ...
+        'data',   data, ...
+        't',      T, ...
+        'fs',     tinfo.fs, ...
+        'labels', string(tinfo.labels(:)).', ...
+        'units',  string(tinfo.units), ...
+        'nEpochs', tinfo.nTrials, ...
+        'nTime',  tinfo.nTime, ...
+        'nChan',  tinfo.nChan, ...
+        'nIncomplete', numel(tinfo.droppedIncomplete), ...
+        'nNonFinite', numel(tinfo.droppedNonFinite), ...
+        'info',   tinfo);
+    inSignals(tinfo.droppedIncomplete) = false;    % NaN-padded or dropped rows
+end
+
 % --- which windows fit inside the recording ----------------------------------
+% In seconds (what the spike epochs are cut from) and in the rows of every
+% signal, so an epoch with NaN padding is never marked complete.
 [recRange, recSource] = recordingRange(obj, in.S, in.signals);
-complete = true(nEp, 1);
+complete = inSignals;
 if all(isfinite(recRange))
-    complete = (onsets + twin(1)) >= recRange(1) & (onsets + twin(2)) <= recRange(2);
+    complete = complete & (onsets + twin(1)) >= recRange(1) & (onsets + twin(2)) <= recRange(2);
 end
 ev.recordingRange       = recRange;
 ev.recordingRangeSource = recSource;
@@ -244,25 +277,14 @@ switch opts.EventSource
         V = [V, b.trials(behaviorRows, :)];
 end
 
-% --- continuous signals -------------------------------------------------------
-S = struct();
-for sig = in.signals
-    cxs = ChronuxDataset(in.S, Signal=sig);
-    [data, ~, T, tinfo] = cxs.trials(onsets, twin, OnsetRule=opts.OnsetRule, ...
-        Incomplete=opts.Incomplete, NonFinite=opts.NonFinite, Class=opts.Class);
-    data = reshape(data, tinfo.nTime, tinfo.nTrials, tinfo.nChan);
-    S.(sig) = struct( ...
-        'data',   data, ...
-        't',      T, ...
-        'fs',     tinfo.fs, ...
-        'labels', string(tinfo.labels(:)).', ...
-        'units',  string(tinfo.units), ...
-        'nEpochs', tinfo.nTrials, ...
-        'nTime',  tinfo.nTime, ...
-        'nChan',  tinfo.nChan, ...
-        'nIncomplete', numel(tinfo.droppedIncomplete), ...
-        'nNonFinite', numel(tinfo.droppedNonFinite), ...
-        'info',   tinfo);
+% --- the onsets on the spikes' clock ---------------------------------------------
+% Spike times are on the continuous clock, (sample-1)/Fs. A digital-event onset
+% (OnsetRule "event") t = row/eventFs is one recording sample later than that
+% clock, so the spikes are cut around the onset's own recording row, (row-1)/
+% eventFs, computed from the row so a spike in that sample is at exactly 0.
+spikeOnsets = onsets;
+if opts.OnsetRule == "event" && isfinite(ev.eventFs)
+    spikeOnsets = (round(onsets * ev.eventFs) - 1) / ev.eventFs;
 end
 
 % --- sorted units -------------------------------------------------------------
@@ -272,7 +294,7 @@ if ~isempty(in.units)
     U = repmat(emptyUnitTemplate(), 1, nU);
     sp = ChronuxDataset.toPointProcess(in.units.times);
     for u = 1:nU
-        [ep, cnt] = epochSpikes(cx, sp(u), onsets, twin, opts.SpikeTimeBase);
+        [ep, cnt] = epochSpikes(cx, sp(u), spikeOnsets, twin, opts.SpikeTimeBase);
         U(u).id          = in.units.unitId(u);
         U(u).label       = fieldOrDefault(in.units, 'label', u, "");
         U(u).class       = fieldOrDefault(in.units, 'class', u, "");
@@ -291,7 +313,7 @@ if ~isempty(in.detected)
     D = repmat(struct('channel', NaN, 'channelName', "", 'times', {{}}, 'counts', []), 1, nCh);
     spD = ChronuxDataset.toPointProcess(in.detected.ts);
     for c = 1:nCh
-        [ep, cnt] = epochSpikes(cx, spD(c), onsets, twin, opts.SpikeTimeBase);
+        [ep, cnt] = epochSpikes(cx, spD(c), spikeOnsets, twin, opts.SpikeTimeBase);
         D(c).channel     = fieldOrDefault(in.detected, 'channels', c, NaN);
         D(c).channelName = fieldOrDefault(in.detected, 'channelNames', c, "");
         D(c).times       = ep;
@@ -318,7 +340,7 @@ E.signals  = S;
 E.units    = U;
 E.detected = D;
 E.spikes   = struct('timeBase', opts.SpikeTimeBase, 'window', twin, ...
-    'rule', "t > onset+tPre and t <= onset+tPost (ChronuxDataset.spikeTrials)", ...
+    'rule', "t > onset+tPre and t <= onset+tPost (ChronuxDataset.spikeTrials), onset on the spikes' clock: (row-1)/eventFs for a digital-event onset (OnsetRule ""event"")", ...
     'nUnits', numel(U), 'nDetectedChannels', numel(D));
 E.behavior = B;
 E.meta = struct( ...
@@ -338,9 +360,11 @@ E.meta = struct( ...
     'nonFinite',    opts.NonFinite, ...
     'class',        opts.Class, ...
     'conventions',  struct( ...
-        'epochs',  "trial i is rows base(i)+round(tPre*Fs) ... base(i)+round(tPost*Fs); t is relative to the onset", ...
-        'onsets',  "seconds on the recording clock (t = row/Fs for digital-input and paired trial times)", ...
-        'spikes',  "half-open window, stamped per spikes.timeBase"));
+        'epochs',  "trial i is rows base(i)+round(tPre*Fs) ... base(i)+round(tPost*Fs) of each signal, " + ...
+                   baseRule(opts.OnsetRule) + "; t is relative to the onset", ...
+        'onsets',  "seconds on the recording clock (t = row/eventFs for digital-input and paired trial times)", ...
+        'complete', "EpochComplete: the window lies inside the recording and inside every signal (no NaN padding)", ...
+        'spikes',  "half-open window around the onset's recording row ((row-1)/eventFs, the spikes' clock), stamped per spikes.timeBase"));
 end
 
 
@@ -440,6 +464,17 @@ if dur > 0
 else
     range  = [-Inf Inf];
     source = "unknown";
+end
+end
+
+
+function s = baseRule(onsetRule)
+%baseRule  The onset row base(i) of ChronuxDataset.trials' OnsetRule, as text.
+switch onsetRule
+    case "event"
+        s = "base(i) = round((onset - 1/eventFs)*Fs) + 1, the signal row nearest the onset's recording row";
+    case "sample"
+        s = "base(i) = round(onset*Fs) + 1, the signal row nearest the onset on the continuous clock (row k at (k-1)/Fs)";
 end
 end
 

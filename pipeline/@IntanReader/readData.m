@@ -41,9 +41,9 @@ function data = readData(obj, opts)
 %     source         struct with Folder/Name
 %
 %   Digital events follow intan2matlab: the dig-in channel count is fixed from
-%   the FIRST file (later extra lines are ignored), contiguous high segments
-%   are labeled with bwlabel (diff-based fallback if Image Processing Toolbox
-%   is unavailable), and times are reported in seconds on the original Fs grid.
+%   the FIRST file (later extra lines are ignored), contiguous high runs are
+%   found file by file and joined across file boundaries (EphysReader.highRuns
+%   / joinRuns), and times are reported in seconds on the original Fs grid.
 %
 %   See also READ_INTAN_RHD2000_FILE_MODIFIED, MATRIX2KILOSORT, EXTRACT_TRIALS.
 
@@ -111,23 +111,26 @@ for i = 1:nFiles
         warning('IntanReader:readData:NoData', ...
             'No amplifier data in %s; skipping.', fileList(i));
         AMP{i} = zeros(0, 0);
-        digCell{i} = zeros(0, ndid);
+        digCell{i} = false(0, ndid);
         continue
     end
 
-    X = S.amplifier_data.';  % [nSamples x nChan], microvolts
+    % Kept channels first, then the cast, then [nSamples x nChan]: only the
+    % kept channels are ever copied.
+    X = S.amplifier_data;    % [nChan x nSamples], microvolts
+    S.amplifier_data = [];
+    if ~isempty(opts.KeepChannels)
+        if max(opts.KeepChannels) > size(X, 1)
+            error('IntanReader:readData:BadKeepChannels', ...
+                'KeepChannels references channel %d but file has %d.', ...
+                max(opts.KeepChannels), size(X, 1));
+        end
+        X = X(opts.KeepChannels, :);
+    end
     if opts.Precision == "single"
         X = single(X);
     end
-
-    if ~isempty(opts.KeepChannels)
-        if max(opts.KeepChannels) > size(X, 2)
-            error('IntanReader:readData:BadKeepChannels', ...
-                'KeepChannels references channel %d but file has %d.', ...
-                max(opts.KeepChannels), size(X, 2));
-        end
-        X = X(:, opts.KeepChannels);
-    end
+    X = X.';
 
     AMP{i} = X;
     fileSampleCounts(i) = size(X, 1);
@@ -155,11 +158,11 @@ for i = 1:nFiles
         end
     end
 
-    % Dig-in (use first-file line count only)
+    % Dig-in (use first-file line count only), as logical
     if ndid > 0 && isfield(S, 'board_dig_in_data') && ~isempty(S.board_dig_in_data)
-        digCell{i} = S.board_dig_in_data(1:ndid, :).';  % [nSamples x ndid]
+        digCell{i} = S.board_dig_in_data(1:ndid, :).' > 0;  % [nSamples x ndid]
     else
-        digCell{i} = zeros(size(X, 1), ndid);
+        digCell{i} = false(size(X, 1), ndid);
     end
 
     if opts.IncludeADC && isfield(S, 'board_adc_data') && ~isempty(S.board_adc_data)
@@ -173,23 +176,28 @@ end
 % Concatenate
 if opts.Concatenate
     amplifier = cat(1, AMP{:});
-    digData   = cat(1, digCell{:});
     boardADC  = ternaryCat(opts.IncludeADC, ADC);
     aux       = ternaryCat(opts.IncludeAux, AUX);
 else
     amplifier = AMP;
-    digData   = digCell;
     boardADC  = ADC;
     aux       = AUX;
 end
+clear AMP
 
-% Build events from concatenated dig lines (seconds on Fs grid), keyed by
-% the native line names (EphysDataset renames them)
+% Build events from the dig lines of the files in order (seconds on the Fs
+% grid; a run high across a file boundary is one event), keyed by the native
+% line names (EphysDataset renames them)
 events = struct();
-if opts.Concatenate && ndid > 0 && ~isempty(digData)
+if opts.Concatenate && ndid > 0 && sum(fileSampleCounts) > 0
     names = matlab.lang.makeValidName(cellstr(digInNative));
+    offsets = [0 cumsum(fileSampleCounts)];
     for j = 1:ndid
-        events.(names{j}) = highSegments(digData(:, j), Fs);
+        runs = cell(1, nFiles);
+        for i = find(fileSampleCounts > 0)
+            runs{i} = EphysReader.highRuns(digCell{i}(:, j), offsets(i));
+        end
+        events.(names{j}) = EphysReader.joinRuns(runs) ./ Fs;
     end
 end
 
@@ -236,32 +244,5 @@ if flag && ~all(cellfun(@isempty, C))
     out = cat(1, C{:});
 else
     out = [];
-end
-end
-
-
-function iv = highSegments(x, Fs)
-%highSegments  Return [k x 2] [t_on t_off] (s) for contiguous high runs of x.
-x = x(:) > 0;
-if license('test', 'Image_Toolbox') && exist('bwlabel', 'file')
-    ev = bwlabel(x);
-    u  = unique(ev(ev > 0));
-    if isempty(u)
-        iv = zeros(0, 2);
-        return
-    end
-    on  = arrayfun(@(a) find(ev == a, 1, 'first'), u);
-    off = arrayfun(@(a) find(ev == a, 1, 'last'),  u);
-    iv  = [on off] ./ Fs;
-else
-    % diff-based fallback (no Image Processing Toolbox)
-    d = diff([0; x; 0]);
-    on  = find(d == 1);
-    off = find(d == -1) - 1;
-    if isempty(on)
-        iv = zeros(0, 2);
-    else
-        iv = [on off] ./ Fs;
-    end
 end
 end

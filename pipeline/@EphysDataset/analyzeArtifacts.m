@@ -6,7 +6,8 @@ function summary = analyzeArtifacts(obj, opts)
 %   detectArtifacts on each chunk with the dataset's ArtifactConfig, and
 %   accumulates statistics WITHOUT writing anything to disk. It is the read-only
 %   counterpart to toBin's blanking step, used by the Artifacts tab to preview
-%   how much of the recording would be zeroed.
+%   how much of the recording would be zeroed. ExcludeChannels take no part
+%   in the detection (as in artifactIntervals) and count 0 in channelCounts.
 %
 %   Options (any omitted option falls back to ds.ArtifactConfig)
 %   -----------------------------------------------------------
@@ -30,6 +31,7 @@ function summary = analyzeArtifacts(obj, opts)
 %     method, threshold, rmsWindowMs, mergeGapMs, minChannels, padMs
 %     fs, nSamples, durationSec, nChan, channelNames
 %     channelCounts  [1 x nChan]  samples each channel exceeded its threshold
+%                    (0 for ExcludeChannels)
 %     channelPct     [1 x nChan]  channelCounts as percent of nSamples
 %     nBlanked       combined samples flagged (would be zeroed on every channel)
 %     fraction       nBlanked / nSamples
@@ -102,10 +104,15 @@ end
 
 Fs = obj.Fs;
 nChunks = numel(plan);
+chanOrder = opts.ChannelOrder;
+% The columns (after ChannelOrder) that take part in detection: every one but
+% the ExcludeChannels.
+recCh = chanOrder;
+if isempty(recCh); recCh = 1:obj.NumChannels; end
 filt = struct('use', useFilter, 'type', fType, 'cutoff', fCut, 'order', fOrd);
 det  = struct('method', method, 'threshold', thr, 'rmsWindowMs', rmsWinMs, ...
-    'minChannels', minCh, 'mergeGapMs', mergeGapMs, 'padMs', padMs);
-chanOrder = opts.ChannelOrder;
+    'minChannels', minCh, 'mergeGapMs', mergeGapMs, 'padMs', padMs, ...
+    'channels', find(~ismember(recCh, obj.ExcludeChannels)));
 
 pool = [];
 nWorkers = 1;

@@ -17,6 +17,9 @@ function info = matrixToBin(obj, X, opts)
 %     ChannelsAreRows logical      true if X is [nChan x nSamples] (default false)
 %     WriteMeta      logical       default true
 %
+%   Like toBin, it refuses (EphysDataset:matrixToBin:WouldOverwriteRecording)
+%   a BinFile or JSON sidecar that is one of the recording's own files.
+%
 %   See also MATRIX2KILOSORT, EphysDataset.toBin, EphysDataset.readData.
 
 arguments
@@ -36,6 +39,14 @@ binFile = opts.BinFile; if binFile == ""; binFile = obj.BinFile; end
 scale   = opts.Scale;   if isnan(scale); scale = obj.Scale; end
 dtype   = opts.Dtype;   if dtype == "";  dtype = obj.Dtype; end
 Fs      = opts.Fs;      if isnan(Fs);    Fs = obj.Fs; end
+
+% Never write over the recording itself - the paths matrix2kilosort opens: the
+% file (".bin" added when it has no extension) and its JSON sidecar.
+[d, n, e] = fileparts(binFile);
+if e == ""; e = ".bin"; end
+targets = string(fullfile(d, n + e));
+if opts.WriteMeta; targets(end+1) = fullfile(d, n + ".json"); end
+refuseRecordingFiles(obj, targets, "matrixToBin");
 
 outDir = fileparts(char(binFile));
 if outDir ~= "" && ~isfolder(outDir)

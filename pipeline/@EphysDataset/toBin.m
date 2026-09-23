@@ -29,6 +29,9 @@ function info = toBin(obj, opts)
 %     OverlapSamples (1,1) double  samples carried across file edges (overlap mode)
 %     Blank          (1,1) logical  force automatic artifact detect + blank.
 %                    When false, blanking still runs if ds.ArtifactConfig.Enabled.
+%                    ExcludeChannels take no part in the detection, and the
+%                    "commonmode" method measures the chunk before the common
+%                    reference is subtracted (see detectArtifacts).
 %     ArtifactMethod / ArtifactThreshold / ArtifactRmsWindowMs / ArtifactMergeGapMs /
 %     ArtifactMinChannels / ArtifactPadMs   detection params; each falls back to
 %                    ds.ArtifactConfig when left at its default. See
@@ -39,10 +42,15 @@ function info = toBin(obj, opts)
 %     ArtifactFill   "noise" | "zero"  what replaces the artifact samples
 %                    (default: ds.ArtifactConfig.Fill, "noise"). Kilosort4
 %                    reads a block of zeros across every channel as a signal
-%                    discontinuity, so the periods are filled with per-channel
-%                    Gaussian noise matched to the recording's own noise level.
+%                    discontinuity, so each period is filled with a straight
+%                    line between the signal's level on either side plus
+%                    per-channel Gaussian noise matched to the recording's own
+%                    noise level (blankArtifacts): the fill follows the local
+%                    broadband level, so its edges leave no step. A period cut
+%                    by a chunk boundary is held at the level before it up to
+%                    the boundary and continues from there in the next chunk.
 %     NoiseBandHz    (1,1) double  band the noise level is measured in: the
-%                    level is taken on a high-pass-filtered view of the whole
+%                    level is taken on a high-pass-filtered view of the
 %                    recording at this cut-off, the band a sorter works in
 %                    (default ds.ArtifactConfig.NoiseBandHz, 300 Hz; 0 =
 %                    broadband). Ignored when Filter is on - the level is then
@@ -52,10 +60,16 @@ function info = toBin(obj, opts)
 %                    itself 0; set that to NaN for a new draw each run)
 %     NoiseLevels    struct  precomputed levels from ds.noiseLevels() (sigma /
 %                    center, microvolts, one per written channel). Default
-%                    struct([]): toBin measures them itself, in one extra
-%                    streaming pass over the recording before it writes.
+%                    struct([]): toBin measures them itself before it writes,
+%                    on up to 16 chunks spread evenly over the recording.
 %     WriteMeta      (1,1) logical  write JSON sidecar (default true)
-%     BinFile        (1,1) string   override output path (default ds.BinFile)
+%     BinFile        (1,1) string   override output path (default ds.BinFile);
+%                    a bare file name goes in ds.outputFolder()
+%
+%   toBin never writes over the recording itself: a BinFile (or its JSON
+%   sidecar) that is one of the recording's files - a universal-format
+%   recording's data file named <Name>.bin in the output folder, say - is
+%   refused before anything is opened (EphysDataset:toBin:WouldOverwriteRecording).
 %
 %   Output INFO struct: filename, dtype, nChan, nSamples, fs, scale, offset,
 %   nClipped, nBytes, metaFile (if written), nManualBlanked, nAutoBlanked,
@@ -112,13 +126,25 @@ end
 if isnan(obj.Fs) || isempty(obj.PerFile)
     obj.refreshMetadata();
 end
-% Settle the common reference's channels before any chunk is read.
-obj.prepareReference();
 
 % Resolve config (per-call -> dataset defaults)
 scale = opts.Scale;  if isnan(scale); scale = obj.Scale; end
 dtype = opts.Dtype;  if dtype == "";  dtype = obj.Dtype; end
 binFile = opts.BinFile; if binFile == ""; binFile = obj.BinFile; end
+if fileparts(binFile) == ""            % a bare file name goes in the output folder
+    binFile = fullfile(obj.outputFolder(), binFile);
+end
+[mDir, mName] = fileparts(binFile);
+metaFile = fullfile(mDir, mName + ".json");
+% Never write over the recording itself: a universal-format recording's data
+% file can be <Name>.bin in the very folder the .bin goes to by default, and
+% opening it for writing would truncate it.
+targets = binFile;
+if opts.WriteMeta; targets(end+1) = metaFile; end
+refuseRecordingFiles(obj, targets, "toBin");
+
+% Settle the common reference's channels before any chunk is read.
+obj.prepareReference();
 
 % Resolve automatic artifact-blanking config (per-call -> ds.ArtifactConfig).
 % Blanking runs when the Blank option is set OR the dataset config is enabled.
@@ -158,13 +184,8 @@ if isempty(plan)
 end
 
 % Ensure output folder exists
-outDir = fileparts(char(binFile));
-if outDir == ""
-    outDir = char(obj.outputFolder());
-    binFile = fullfile(outDir, binFile);
-end
-if ~isfolder(outDir)
-    mkdir(outDir);
+if ~isfolder(mDir)
+    mkdir(mDir);
 end
 
 % dtype -> class + saturation range (mirrors matrix2kilosort)
@@ -173,12 +194,14 @@ end
 % Overlap mode needs filtering on
 useOverlap = opts.Filter && opts.FilterEdgeMode == "overlap" && opts.OverlapSamples > 0;
 
-% How the artifact samples are erased. "noise" replaces them with per-channel
-% Gaussian noise at the recording's own level instead of zeros, so nothing in
-% the .bin reads to Kilosort4 as a signal discontinuity (a zeroed block breaks
-% its whitening, threshold and drift estimates). Measuring that level costs one
-% extra streaming pass before this one - skipped when there is nothing to
-% blank, or when the caller already has the levels.
+% How the artifact samples are erased. "noise" replaces them with a line
+% between the levels on either side plus per-channel Gaussian noise at the
+% recording's own level instead of zeros, so nothing in the .bin reads to
+% Kilosort4 as a signal discontinuity (a zeroed block breaks its whitening,
+% threshold and drift estimates). Measuring that level reads up to 16 chunks
+% spread over the recording before the writing pass - enough for a robust
+% per-channel level (within ~1% of the whole recording's) - and is skipped when
+% there is nothing to blank, or when the caller already has the levels.
 willBlank  = doBlank || ~isempty(listIv);
 noiseFill  = struct([]);
 fillStream = [];
@@ -187,7 +210,7 @@ if artFill == "noise" && willBlank
     if isempty(fieldnames(nl))
         fprintf('Measuring the recording''s noise level (%s) for the artifact fill...\n', ...
             bandNote(opts, noiseBand));
-        nlArgs = [{'Files', opts.Files, 'ChannelOrder', opts.ChannelOrder}, ...
+        nlArgs = [{'Files', opts.Files, 'ChannelOrder', opts.ChannelOrder, 'MaxChunks', 16}, ...
             noiseFilterArgs(opts, noiseBand)];
         nl = obj.noiseLevels(nlArgs{:});
     elseif ~all(isfield(nl, {'sigma', 'center'}))
@@ -213,6 +236,16 @@ else
         'NoiseCenter', noiseFill.center, 'Stream', fillStream};
 end
 
+% Automatic detection leaves ExcludeChannels out (a dead or broken site - which
+% after a common reference also carries the reference's inverse - must not
+% erase a period on every channel). The "commonmode" method looks for the mean
+% a common reference subtracts, so it measures each chunk before the reference
+% is taken, over the channels that take part.
+recCh = opts.ChannelOrder;
+if isempty(recCh); recCh = 1:obj.NumChannels; end
+detCols  = find(~ismember(recCh, obj.ExcludeChannels));   % columns of the written data
+cmDetect = doBlank && artMethod == "commonmode";
+
 fid = fopen(binFile, 'w', 'ieee-le');
 if fid < 0
     error('EphysDataset:toBin:OpenFailed', 'Could not open %s for writing.', binFile);
@@ -230,10 +263,15 @@ autoChanCounts = [];  % [1 x nChanOut] per-channel exceedance counts
 artWinMsUsed   = NaN; % resolved running-RMS window (ms), for reporting
 Fs        = obj.Fs;
 tailRaw   = [];  % carried raw samples for overlap edge mode
+tailCm    = [];  % the same for the common mode
+fillCtx   = [];  % clean samples a run at the top of the next chunk fills from
+edgeRows  = max(1, round(1e-3 * Fs));   % the 1 ms blankArtifacts averages at a run's edge
 
 fprintf('Streaming %d chunk(s) -> %s\n', numel(plan), binFile);
 for i = 1:numel(plan)
-    X = obj.readChunkUV(plan(i));  % [nSamples x nChan], microvolts (all channels)
+    % [nSamples x nChan], microvolts (all channels), referenced below when it
+    % is read as recorded for the common-mode detector
+    X = obj.readChunkUV(plan(i), Reference=~cmDetect);
 
     if isempty(X)
         warning('EphysDataset:toBin:NoData', 'No amplifier data in %s; skipping.', plan(i).name);
@@ -251,14 +289,19 @@ for i = 1:numel(plan)
              'A flat int16 .bin cannot represent this.'], ...
             firstNumChan, thisNumChan, plan(i).name);
     end
+    if ~isempty(opts.ChannelOrder) && max(opts.ChannelOrder) > thisNumChan
+        error('EphysDataset:toBin:BadChannelOrder', ...
+            'ChannelOrder references channel %d but file has %d.', ...
+            max(opts.ChannelOrder), thisNumChan);
+    end
+
+    if cmDetect
+        cm = mean(X(:, recCh(detCols)), 2);   % before the reference removes it
+        X = obj.applyReference(X);
+    end
 
     % Channel reorder/subset
     if ~isempty(opts.ChannelOrder)
-        if max(opts.ChannelOrder) > thisNumChan
-            error('EphysDataset:toBin:BadChannelOrder', ...
-                'ChannelOrder references channel %d but file has %d.', ...
-                max(opts.ChannelOrder), thisNumChan);
-        end
         X = X(:, opts.ChannelOrder);
     end
     if isnan(nChanOut)
@@ -267,48 +310,51 @@ for i = 1:numel(plan)
 
     % Filtering (optionally with overlap across file boundaries)
     if opts.Filter
-        if useOverlap && ~isempty(tailRaw)
-            nPad = size(tailRaw, 1);
-            Xf = obj.filterContinuous([tailRaw; X], Type=opts.FilterType, ...
-                Cutoff=opts.FilterCutoff, Order=opts.FilterOrder, Fs=Fs);
-            Xf = Xf(nPad+1:end, :);
-        else
-            Xf = obj.filterContinuous(X, Type=opts.FilterType, ...
-                Cutoff=opts.FilterCutoff, Order=opts.FilterOrder, Fs=Fs);
+        [X, tailRaw] = filterChunk(obj, X, tailRaw, opts, useOverlap, Fs);
+        if cmDetect
+            [cm, tailCm] = filterChunk(obj, cm, tailCm, opts, useOverlap, Fs);
         end
-        if useOverlap
-            k = min(opts.OverlapSamples, size(X, 1));
-            tailRaw = X(end-k+1:end, :);  % carry RAW (pre-filter) tail
-        end
-        X = Xf;
     end
 
-    % Automatic artifact detection + blanking (per-channel amplitude deviation).
+    % The samples to erase: the automatic detector's (per-channel amplitude
+    % deviation, or the common mode) and the listed periods - the
+    % ArtifactIntervals option, else the manual periods (Visualize tab).
+    % Those are recording-relative, so they are mapped into this chunk with
+    % the running sample offset (nSamples = samples written from earlier
+    % chunks). Both are erased in one pass, so a fill spans each whole run.
+    erase = false(size(X, 1), 1);
     if doBlank
-        [mask, ~, astats] = obj.detectArtifacts(X, Method=artMethod, ...
-            Threshold=artThr, RmsWindowMs=artWinMs, MinChannels=artMinCh, ...
-            MergeGapMs=artGapMs, PadMs=artPadMs, Fs=Fs);
-        X = obj.blankArtifacts(X, mask, fillArgs{:});
-        nAutoBlanked   = nAutoBlanked + nnz(mask);
+        if cmDetect
+            [amask, ~, astats] = obj.detectArtifacts(cm, Method="commonmode", ...
+                Threshold=artThr, MergeGapMs=artGapMs, PadMs=artPadMs, Fs=Fs);
+            counts = zeros(1, size(X, 2));
+            counts(detCols) = astats.channelExceedCounts;
+        else
+            [amask, ~, astats] = obj.detectArtifacts(X, Method=artMethod, ...
+                Threshold=artThr, RmsWindowMs=artWinMs, MinChannels=artMinCh, ...
+                MergeGapMs=artGapMs, PadMs=artPadMs, Fs=Fs, Channels=detCols);
+            counts = astats.channelExceedCounts;
+        end
+        erase = amask;
+        nAutoBlanked   = nAutoBlanked + nnz(amask);
         nAutoIntervals = nAutoIntervals + astats.numIntervals;
         if isempty(autoChanCounts)
-            autoChanCounts = astats.channelExceedCounts;
+            autoChanCounts = counts;
         else
-            autoChanCounts = autoChanCounts + astats.channelExceedCounts;
+            autoChanCounts = autoChanCounts + counts;
         end
         if isnan(artWinMsUsed); artWinMsUsed = astats.rmsWindowMs; end
     end
-
-    % Listed artifact periods: the ArtifactIntervals option, else the manual
-    % periods (Visualize tab). Recording-relative, so map them into this file
-    % using the running sample offset (nSamples = samples written from
-    % earlier files).
     if ~isempty(listIv)
         mmask = obj.manualArtifactMask(size(X, 1), nSamples, Fs, listIv);
-        if any(mmask)
-            X = obj.blankArtifacts(X, mmask, fillArgs{:});
-            nManualBlanked = nManualBlanked + nnz(mmask);
-        end
+        nManualBlanked = nManualBlanked + nnz(mmask);
+        erase = erase | mmask;
+    end
+    if any(erase)
+        X = obj.blankArtifacts(X, erase, fillArgs{:}, Context=fillCtx);
+    end
+    if ~isempty(noiseFill)
+        fillCtx = fillContext(fillCtx, X, erase, edgeRows);
     end
 
     % Scale -> [nChan x nSamples] (channel fastest) -> cast -> write
@@ -382,7 +428,6 @@ end
 
 % JSON sidecar (bookkeeping; Kilosort4 does not read it)
 if opts.WriteMeta
-    [mDir, mName] = fileparts(binFile);
     meta = struct('n_chan_bin', nChanOut, 'fs', Fs, 'dtype', char(dtype), ...
         'n_samples', nSamples, 'byte_order', 'little-endian', 'scale', scale, ...
         'offset', opts.Offset, 'bin_file', char(binFile), ...
@@ -396,7 +441,6 @@ if opts.WriteMeta
     % Assigned, not passed to struct(): an empty struct value there would
     % collapse the whole meta struct to 0x0.
     meta.noise_fill = noiseFill;
-    metaFile = fullfile(mDir, mName + ".json");
     writeJson(meta, metaFile);
     info.metaFile = char(metaFile);
 end
@@ -423,6 +467,43 @@ r = struct('mode', char(acfg.Reference), 'channels', double.empty(1, 0));
 if string(acfg.Reference) ~= "none"
     r.channels = obj.referenceChannels();
 end
+end
+
+
+function [X, tail] = filterChunk(obj, X, tail, opts, useOverlap, Fs)
+%filterChunk  The write filter on one chunk; in the overlap edge mode the raw
+%   TAIL of the previous chunk is filtered with it, and this chunk's is
+%   returned for the next.
+if useOverlap && ~isempty(tail)
+    nPad = size(tail, 1);
+    Xf = obj.filterContinuous([tail; X], Type=opts.FilterType, ...
+        Cutoff=opts.FilterCutoff, Order=opts.FilterOrder, Fs=Fs);
+    Xf = Xf(nPad+1:end, :);
+else
+    Xf = obj.filterContinuous(X, Type=opts.FilterType, ...
+        Cutoff=opts.FilterCutoff, Order=opts.FilterOrder, Fs=Fs);
+end
+if useOverlap
+    k = min(opts.OverlapSamples, size(X, 1));
+    tail = X(end-k+1:end, :);  % carry RAW (pre-filter) tail
+end
+X = Xf;
+end
+
+
+function ctx = fillContext(ctx, X, erase, w)
+%fillContext  The clean samples a run at the top of the next chunk fills from.
+%   Up to W of the chunk's last clean rows, not reaching back into a run:
+%   its final rows when it ends clean, else the rows before the run it ends
+%   in. A chunk erased from its first row to its last keeps CTX, the rows
+%   before the run it continues.
+last = find(~erase, 1, 'last');
+if isempty(last)
+    return
+end
+prev = find(erase(1:last), 1, 'last');      % the run before that clean stretch
+if isempty(prev); prev = 0; end
+ctx = X(max(prev + 1, last - w + 1):last, :);
 end
 
 

@@ -10,6 +10,7 @@ function onDetectArtifacts(obj)
 %
 %   See also EphysDataset.analyzeArtifacts, buildArtifactsTab, showArtifactView.
 
+if obj.refuseWhileRunning("Detect / Preview"); return; end
 d = obj.currentDataset();
 if isempty(d)
     uialert(obj.Fig, "Scan a project first.", "Artifacts");

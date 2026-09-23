@@ -14,7 +14,8 @@ The other classes use it so that they share one definition of "a recording",
 - `EphysProject.discover` and `findRecordings` both use the reader registry
   (`EphysReader.findAllRecordingFolders`), so a folder is a recording for the
   tracker exactly when a reader claims it.
-- `EphysDataset.tracker()` / `manifestStruct()` use `latestKilosortRun`.
+- `EphysDataset.tracker()` returns a tracker; `EphysDataset.manifestStruct()`
+  describes the run in `kilosortDir()` with `kilosortRunAt`.
 - The GUI's Probe tab uses `probeMeta` / `readJson`.
 - The GUI's Review tab uses `latestKilosortRun`.
 
@@ -57,9 +58,9 @@ written.
 ### Recordings (`emptyRecordings` schema)
 
 A recording is any folder that a registered [acquisition reader](EphysDataset.md#acquisition-readers)
-claims: one that **directly** contains a `*.rhd` file (Intan), or a
-`recording.json` descriptor (the universal binary format). Files are listed in
-`datenum` order.
+claims: one that **directly** contains a `*.rhd` file (Intan), a
+`recording.json` descriptor (the universal binary format), or an Open Ephys GUI
+session folder. `Files` are the reader's.
 
 | Field | Meaning |
 | --- | --- |
@@ -67,14 +68,15 @@ claims: one that **directly** contains a `*.rhd` file (Intan), or a
 | `Folder` | full path |
 | `Files` | file names |
 | `NumFiles` | count |
-| `Format` | the reader's `RecordingFormat` (`traditional`, `one-file-per-signal`, `one-file-per-channel`, `binary`) |
-| `Reader` | `"intan"` or `"binary"` |
-| `AcqDate` | earliest `datenum` |
+| `Format` | the reader's `RecordingFormat` (`traditional`, `one-file-per-signal`, `one-file-per-channel`, `binary`, `openephys-binary`, `openephys-legacy`, `openephys-nwb`) |
+| `Reader` | `"intan"`, `"binary"` or `"openephys"` |
+| `AcqDate` | the reader's recording start (see [`AcqDate`](EphysDataset.md#metadata-read-only-filled-by-refreshmetadata)) |
 | `Bytes` | total bytes of the listed files |
 | `IsRoot` | the folder is the tracker root |
 
 For Intan split layouts only `info.rhd` is counted, so `Bytes` does not include
-the `.dat` files.
+the `.dat` files. A binary recording's files are `recording.json`, the data
+file and the `dig_in_file` when it names one, so `Bytes` includes that too.
 
 ### Probe files (`emptyProbes` schema)
 
@@ -104,7 +106,8 @@ Every `*.bin` is listed. The `<name>.json` sidecar written by
 ### Kilosort4 runs (`emptyKSRuns` schema)
 
 A run folder is any folder containing one of `spike_clusters.npy`, `params.py`,
-`run_ks4.py`, `settings.json` or `ks4_status.json`.
+`run_ks4.py`, `settings.json` or `ks4_status.json` (the constant
+`DatasetTracker.KilosortMarkers`).
 
 | Field | Meaning |
 | --- | --- |
@@ -146,6 +149,7 @@ These are public so the other Intan classes can reuse one implementation.
 | `readJson(path)` | `jsondecode(fileread(path))`, or `[]` on any failure |
 | `classifyJson(s)` | see the rules below |
 | `probeMeta(s)` | `nChan`, `nShank`, `depth`, `notes` from a decoded probe |
+| `kilosortRunAt(folder)` | the `KilosortRuns` element of one known run folder, `[]` when it holds none of the `KilosortMarkers`; nothing else is scanned |
 | `emptyRecordings()`, `emptyProbes()`, `emptyBins()`, `emptyKSRuns()` | 0×0 templates that define the schemas |
 
 `classifyJson(s)` applies these rules, most specific first:

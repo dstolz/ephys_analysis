@@ -2,7 +2,8 @@ function runSorting(obj, opts)
 %runSorting  Kilosort4 for each selected dataset.
 %   EphysDataset.runKilosort writes the recording to a .bin and Kilosort4
 %   runs on it, with the config's typed Kilosort4 settings
-%   (EphysPipelineConfig.ks4Settings) and the artifact intervals (manual
+%   (EphysPipelineConfig.ks4Settings), the dataset's probe (probeFor: its
+%   own, else Probe.DefaultProbeFile) and the artifact intervals (manual
 %   periods always; the cached automatic detection when
 %   Artifacts.ApplyToSorting) blanked in the .bin. The manifest is rewritten
 %   after each launch / completion.
@@ -15,10 +16,10 @@ function runSorting(obj, opts)
 %     background  at most Sorting.MaxConcurrent at a time: the launch waits
 %                 for a free slot. A slot frees when a run finishes, fails
 %                 or its process exits (EphysDataset.sortRunState). Runs in
-%                 PriorRuns take slots too. The step returns once the last
-%                 dataset has started. Each launch is appended to
-%                 LaunchedRuns and passed to LaunchFcn. SortingWaiting
-%                 counts the datasets still to start.
+%                 PriorRuns take slots too (queued ones do not). The step
+%                 returns once the last dataset has started. Each launch is
+%                 appended to LaunchedRuns and passed to LaunchFcn.
+%                 SortingWaiting counts the datasets still to start.
 %     queued      background with QueueFcn set: nothing starts here. Each
 %                 prepared run goes to QueueFcn(d, res) and its row says
 %                 "queued"; the owner of QueueFcn starts it with
@@ -28,8 +29,17 @@ function runSorting(obj, opts)
 %   Sorting.Devices shares torch devices out: a background run gets the one
 %   the fewest running runs use (sortingSlot), a blocking run the first.
 %
+%   Skipped ("skipped" rows): a dataset without recording files, one with a
+%   Kilosort4 run queued or still going (activeRun: PriorRuns or
+%   LaunchedRuns), so its .bin is never rewritten under a running sort,
+%   one without a probe or whose probe file is not there, and with
+%   Sorting.SkipExisting one already sorted (also when its hand-picked
+%   sorted-output folder is not there now). A cancel stops the datasets not
+%   started yet; a run already launched, queued or finished carries on and
+%   keeps its row.
+%
 %   Options: Datasets (indices), DryRun (write settings.json + the driver
-%   only).
+%   only; no .bin, so no artifact detection).
 
 arguments
     obj (1,1) EphysPipeline
@@ -54,7 +64,7 @@ n = numel(ds);
 why = strings(1, n);
 whyOut = strings(1, n);
 for k = 1:n
-    [why(k), whyOut(k)] = skipReason(ds(k), S);
+    [why(k), whyOut(k)] = skipReason(obj, ds(k), S);
 end
 obj.SortingWaiting = nnz(why == "");
 
@@ -70,11 +80,16 @@ for k = 1:n
         continue
     end
     try
-        obj.progress("sorting", d.Name, k, n, 0, 2, "artifact intervals");
-        iv = obj.artifactIntervalsForStep(d, c.Artifacts.ApplyToSorting, ...   % a detection fills the first half
-            @(done, total, msg) obj.progress("sorting", d.Name, k, n, done / max(total, 1), 2, "artifact intervals, " + msg));
+        if dry
+            iv = [];   % a dry run writes no .bin: nothing to blank, so nothing to detect
+        else
+            obj.progress("sorting", d.Name, k, n, 0, 2, "artifact intervals");
+            iv = obj.artifactIntervalsForStep(d, c.Artifacts.ApplyToSorting, ...   % a detection fills the first half
+                @(done, total, msg) obj.progress("sorting", d.Name, k, n, done / max(total, 1), 2, "artifact intervals, " + msg));
+        end
         obj.progress("sorting", d.Name, k, n, 1, 2, ternary(dry, "writing run files", "writing the .bin and run files"));
-        res = d.runKilosort(ExtraSettings=ks4, ArtifactIntervals=iv, DryRun=dry, Launch=false);
+        res = d.runKilosort(ProbeFile=obj.probeFor(d), ExtraSettings=ks4, ArtifactIntervals=iv, ...
+            DryRun=dry, Launch=false);
         if dry
             obj.log("[sorting] %s: dry run, wrote %s", d.Name, res.settingsPath);
             obj.addResult("sorting", d.Name, "dry run", "wrote settings.json + driver", res.settingsPath, toc(t0));
@@ -84,8 +99,8 @@ for k = 1:n
             obj.progress("sorting", d.Name, k, n, 1, 2, "running Kilosort4" + onDevice(device));
             res = d.launchSorting(res, Wait=true, Device=device);
             if res.status == 0
-                obj.log("[sorting] %s: done -> %s", d.Name, res.resultsDir);
-                obj.addResult("sorting", d.Name, "done", "Kilosort4 finished", res.resultsDir, toc(t0));
+                obj.log("[sorting] %s: done -> %s%s", d.Name, res.resultsDir, asideNote(res));
+                obj.addResult("sorting", d.Name, "done", "Kilosort4 finished" + asideNote(res), res.resultsDir, toc(t0));
             else
                 obj.log("[sorting] %s: Kilosort4 exited with status %d", d.Name, res.status);
                 obj.addResult("sorting", d.Name, "error", sprintf("exit status %d (see %s)", res.status, res.stdoutLog), ...
@@ -99,17 +114,25 @@ for k = 1:n
             device = waitForSlot(obj, S, d.Name, k, n);
             obj.progress("sorting", d.Name, k, n, 1, 2, "launching Kilosort4" + onDevice(device));
             res = d.launchSorting(res, Wait=false, Device=device);
-            obj.log("[sorting] %s: launched in the background%s -> %s", d.Name, onDevice(device), res.resultsDir);
+            obj.log("[sorting] %s: launched in the background%s -> %s%s", d.Name, onDevice(device), ...
+                res.resultsDir, asideNote(res));
             run = EphysPipeline.sortRun(d.Name, res);
             obj.LaunchedRuns(end+1) = run;
-            obj.addResult("sorting", d.Name, "launched", "background run" + onDevice(device), res.resultsDir, toc(t0));
+            obj.addResult("sorting", d.Name, "launched", "background run" + onDevice(device) + asideNote(res), ...
+                res.resultsDir, toc(t0));
             if ~isempty(obj.LaunchFcn)
                 obj.LaunchFcn(run);
             end
         end
         obj.SortingWaiting = nnz(why(k+1:end) == "");
         d.writeManifest();
-        obj.progress("sorting", d.Name, k, n, 2, 2, "done");
+        try
+            obj.progress("sorting", d.Name, k, n, 2, 2, "done");
+        catch
+            % The run has started (or finished, or is queued) and carries on:
+            % its row stands. A cancel raised here stops the datasets still
+            % to start (CancelRequested).
+        end
     catch ME
         obj.SortingWaiting = nnz(why(k+1:end) == "");   % whether or not it launched
         if strcmp(ME.identifier, 'EphysPipeline:Cancelled')
@@ -127,25 +150,38 @@ end
 end
 
 
-function [why, out] = skipReason(d, S)
+function [why, out] = skipReason(obj, d, S)
 %skipReason  Why dataset D is not sorted ("" = it is) and the output to show.
 why = "";
 out = "";
+probe = obj.probeFor(d);
+run = obj.activeRun(d);
 if d.NumFiles == 0 || d.RecordingFormat == "unknown"
     why = "no recording files";
-elseif d.ProbeFile == ""
+elseif ~isempty(run)
+    why = "Kilosort4 is already " + ternary(run.queued, "queued", "running") + " for this dataset";
+    out = run.resultsDir;
+elseif probe == ""
     why = "no probe";
+elseif ~isfile(probe)
+    why = "probe file missing";
+    out = probe;
 elseif S.SkipExisting && d.hasKilosortResults()
     why = "sorted output exists (SkipExisting)";
     out = string(d.sortingResultsDir());
+elseif S.SkipExisting && d.sortingMissing()
+    why = "sorted output recorded (SkipExisting), its folder is not there now";
+    out = d.SortingDir;
 end
 end
 
 
 function device = waitForSlot(obj, S, name, k, n)
 %waitForSlot  Wait for one of the Sorting.MaxConcurrent slots, reporting the
-%   counts (a cancel ends the wait); the device the run is to use.
+%   counts (a cancel ends the wait); the device the run is to use. Queued
+%   runs in PriorRuns are not going, so they take no slot.
 runs = [obj.PriorRuns(:); obj.LaunchedRuns(:)];
+runs = runs(~[runs.queued]);
 device = waitForSortingSlot(runs, S.MaxConcurrent, Devices=S.Devices, ...
     TickFcn=@(nRunning, nFinished) obj.progress("sorting", name, k, n, 1, 2, ...
     sprintf("waiting for a free Kilosort4 slot (%d at a time): %d running, %d finished, %d still to start", ...
@@ -157,6 +193,16 @@ function t = onDevice(device)
 %onDevice  " on cuda:1", or "" without a device.
 t = "";
 if device ~= ""; t = " on " + device; end
+end
+
+
+function t = asideNote(res)
+%asideNote  "; the earlier sort's curation moved to <folder>" when launchSorting
+%   set it aside (res.previousDir), else "".
+t = "";
+if isfield(res, 'previousDir') && res.previousDir ~= ""
+    t = "; the earlier sort's curation moved to " + res.previousDir;
+end
 end
 
 

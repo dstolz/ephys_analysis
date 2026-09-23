@@ -35,11 +35,14 @@ function h = renderPSTH(R, target, opts)
 %     Page        page of units in grid layout (MaxTiles per page)
 %     Style       EphysAnalysisConfig.defaults("Style") fields (LineWidth,
 %                 ShowSEM, ShowStop, ShowZeroLine, Colormap, FontSize, XLim,
-%                 YLim, Grid, Legend, MaxTiles); a stack ignores YLim and
-%                 Legend (its rows are labelled)
+%                 YLim, Grid, Legend, MaxTiles); YLim is for the rate
+%                 panels (the rasters show every epoch), and a stack
+%                 ignores YLim and Legend (its rows are labelled)
 %
 %   H: layout (tiled layout or []), axes (rate panels), rasterAxes, step
-%   (each rate panel's row step in its y units; NaN when not stacked).
+%   (each rate panel's row step in its y units; NaN when not stacked). A
+%   raster and its rate panel get the same x limits; the axes are not
+%   linked (a caller that wants linked zoom can link them).
 %
 %   See also spikePSTH, renderRaster, renderPlot.
 
@@ -114,7 +117,6 @@ for j = 1:numel(idx)
             ra = nexttile(tl, ((r - 1) * rowsPer) * nc + c);
             rasterInto(ra, R, u, style, colors);
             if look.stack; set(ra, 'YDir', 'normal'); end
-            styleAxes(ra, style);
             ra.XTickLabel = [];
             title(ra, names(u), 'FontWeight', 'normal', 'Interpreter', 'none');
             rax(end+1) = ra; %#ok<AGROW>
@@ -133,11 +135,6 @@ for j = 1:numel(idx)
     end
     if r == nr || ~isempty(ax0); xlabel(ax, 'Time (s)'); end
     axs(j) = ax;
-end
-if withRaster && ~isempty(rax)
-    for j = 1:numel(rax)
-        linkaxes([rax(j) axs(j)], 'x');
-    end
 end
 h.layout = tl; h.axes = axs; h.rasterAxes = rax; h.step = step;
 end
@@ -253,7 +250,7 @@ xlim(ax, W);
 flat = style;
 flat.YLim = [];
 styleAxes(ax, flat);
-[labels, name] = rowLabels(R.groups);
+[labels, name] = rowLabels(R);
 set(ax, 'YTick', base, 'YTickLabel', labels(1:nG), 'TickLabelInterpreter', 'none');
 ylim(ax, yl);
 if show.left; ylabel(ax, name, 'Interpreter', 'none'); end
@@ -311,10 +308,22 @@ end
 end
 
 
-function [labels, name] = rowLabels(G)
+function [labels, name] = rowLabels(R)
 %rowLabels  Each group's value (its groupBy columns) and the parameter names.
-%   Without groupBy columns: the group labels, and "Group".
-extra = setdiff(string(G.Properties.VariableNames), ["index" "label" "color" "n"], 'stable');
+%   The parameters are the trial selection's groupBy (R.epochs' UserData,
+%   from epochTable); a result without it (put together by hand) takes the
+%   group table's columns other than its bookkeeping (index, label, color,
+%   n, nTrials). Without any: the group labels, and "Group".
+G = R.groups;
+vars = string(G.Properties.VariableNames);
+extra = string.empty(1, 0);
+if isfield(R, 'epochs') && istable(R.epochs) && isfield(R.epochs.Properties.UserData, 'selection')
+    extra = R.epochs.Properties.UserData.selection.groupBy;
+end
+if isempty(extra)
+    extra = setdiff(vars, ["index" "label" "color" "n" "nTrials"], 'stable');
+end
+extra = extra(ismember(extra, vars));
 if isempty(extra)
     labels = string(G.label);
     name = "Group";

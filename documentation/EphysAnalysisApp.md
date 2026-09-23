@@ -22,7 +22,7 @@ EphysAnalysisApp("D:\EPHYS_synthetic")     % a project processed by the pipeline
 2. **Alignment**: align to `Stim` onset, group by `Depth`; the count shows
    the epochs per group.
 3. **Plots**: *Add* a PSTH, an evoked potential (source LFP), a rate plot
-   (e.g. `Platform` onset → offset: untick *Default event* / *Default
+   (e.g. `RespWindow` onset → offset: untick *Default event* / *Default
    window*), a tuning curve (parameter `Depth`), a heatmap, a probe map and
    a unit correlation;
    each previews on the active dataset.
@@ -75,10 +75,15 @@ own:
   which (first / last / all / nth, n), scope (auto / trial / recording),
   offset, interval length and time range.
 - *Epoch window*: fixed `[t0+pre, t0+post]` or between `[t0+pre,
-  stop+post]`, with the stop event (line, edge, which, scope).
+  stop+post]`, with the stop event (line, edge, which with its *n* for
+  `"nth"`, scope).
 - *Trial selection*: filter (**?** lists the trial columns, the response
   words and the functions a filter may use), response words, pairing flags,
   up to two group-by parameters, order, max groups.
+
+The stop event's offset, interval length and time range, and the selection's
+explicit trial rows, have no controls: they keep the config's values through
+every edit.
 
 On the right, for the active dataset: *"N epochs from M of T trials (scope);
 groups ..."* (or why there are none), a bar of epochs per group in the group
@@ -94,12 +99,14 @@ colours, and the kept trials with their group and number of epochs.
   line PSTH, mask after the stop event; the PSTH's normalization (none, unit
   peak, group peak), **Filled** and its opacity (blank = automatic), and
   **Stack groups** with its spacing (a row per group, labelled by value on
-  the left and by peak rate on the right; y limits and legend are off for a
+  the left and by peak rate on the right; the legend is off for a
   stack); the tuning parameter and series; the probe-map value;
   the heatmap and unit-correlation row order; the unit correlation's epoch
   rate (mean or peak; bins apply to peak) and correlation (Pearson or
   Spearman); tiles per page, font size, SEM, stop marks, legend,
-  grid, y limits, line width; group colours (*lines*: the trial selection's
+  grid, y limits (offered only where a rate or amplitude axis takes them:
+  unstacked PSTHs, the evoked butterfly and grid, rates, tuning curves), line
+  width; group colours (*lines*: the trial selection's
   colours; a colormap; or one colour such as *black* or `#1f77b4`, typed in)
   and heat colours (*auto*: parula, or blueWhiteRed for unit
   correlations). **Default event / window / selection**:
@@ -188,7 +195,9 @@ results and the report.
 its methods: the five tabs; the scan; the active dataset's lines and
 parameters; grouping by Depth from the Alignment controls; adding a PSTH and
 an LFP evoked potential and previewing both; editing the bins and the
-plot's own event; the gather / apply round trip; Save As, New, reopen;
+plot's own event; y limits offered only where they apply; the gather / apply
+round trip, keeping the fields without a control (the stop event's offset,
+length and time range, trial rows) and the stop's *n*; Save As, New, reopen;
 generating scripts; Validate, Plan and a run of one plot writing figures
 and the report; closing. The user's `EphysAnalysisApp` preferences are
 restored afterwards.

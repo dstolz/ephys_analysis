@@ -3,8 +3,9 @@ function [st, meta] = selectUnits(src, usel)
 %   [ST, META] = selectUnits(SRC, USEL) loads spike times for the dataset SRC
 %   (loadAnalysisSource) through SRC.outputs (cached when it has CacheData)
 %   and returns
-%     ST     {nUnits x 1} spike times, s (recording-relative, the clock of
-%            the digital events)
+%     ST     {nUnits x 1} spike times, s (recording-relative, on the
+%            continuous clock of the signals: (sample-1)/Fs; see epochTable's
+%            t0Continuous for the digital events on that clock)
 %     META   table, one row per unit: label, unitId, class, channel (1-based
 %            recording channel), channelName, shank, x, y (probe position,
 %            um; NaN when unknown), nSpikes
@@ -17,8 +18,9 @@ function [st, meta] = selectUnits(src, usel)
 %   USEL fields (EphysAnalysisConfig.defaults("UnitSelection"); a struct or
 %   [] for the defaults)
 %     source    "units": the sorted units -- the spikes file's units when
-%               it has them, else the sorting folder (DatasetOutputs.
-%               readUnits); "detected": the spikes file's detections
+%               it has them, else the sorting folder (DatasetOutputs.load
+%               ("sorting"), read once per dataset when the outputs cache
+%               data); "detected": the spikes file's detections
 %     classes   sorted-unit classes kept, e.g. ["su" "mua"] ([] = all)
 %     groups    phy groups kept ([] = all)
 %     ids       unit ids (units) or channels (detected) kept ([] = all)
@@ -51,7 +53,7 @@ switch usel.source
             S = out.load("spikes", "units");
             U = S.units;
         else
-            U = out.readUnits();
+            U = out.load("sorting");
         end
         nU = numel(U.unitId);
         meta = table(col(U, 'label', strings(nU, 1)), double(U.unitId(:)), col(U, 'class', strings(nU, 1)), ...

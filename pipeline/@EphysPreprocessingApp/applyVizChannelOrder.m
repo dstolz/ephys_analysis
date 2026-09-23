@@ -1,8 +1,9 @@
 function applyVizChannelOrder(obj)
 %applyVizChannelOrder  Apply or clear the Viewer's channel display order per
-%   the "Sort by probe map" checkbox, using the probe assigned to the
-%   currently-loaded Visualize dataset (EphysDataset.ProbeFile) and the
-%   channel list last plotted (obj.VizChannels). Safe to call any time -- a
+%   the "Sort by probe map" checkbox, using the probe of the currently-loaded
+%   Visualize dataset (its ProbeFile, else the config's default probe, as
+%   EphysPipeline.probeFor) and the channel list last plotted
+%   (obj.VizChannels). Safe to call any time -- a
 %   no-op when there is no live Viewer -- and never re-reads or re-filters
 %   data, so it can run directly off the checkbox as well as after every Plot.
 
@@ -18,6 +19,7 @@ end
 d = obj.currentVizDataset();
 pf = "";
 if ~isempty(d); pf = string(d.ProbeFile); end
+if pf == ""; pf = obj.Config.Probe.DefaultProbeFile; end
 
 order = probeDepthOrder(pf, obj.VizChannels);
 obj.Viewer.setChannelOrder(order);

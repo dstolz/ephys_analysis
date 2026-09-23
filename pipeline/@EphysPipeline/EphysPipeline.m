@@ -12,7 +12,8 @@ classdef EphysPipeline < handle
     %     R = pipe.run(Steps=["signals" "export"]);
     %
     %   Steps, in execution order (EphysPipelineConfig.StepNames):
-    %     probe      checkProbes        assign the default probe, check channel counts
+    %     probe      checkProbes        check each probe (the default where none is
+    %                                   assigned, see probeFor) against the channel count
     %     behavior   checkBehavior      associate Epsych2 sessions (matchEpsychSession),
     %                                   pair trials with the trial line (pairTrials)
     %     artifacts  runArtifacts       compute + cache artifact intervals
@@ -21,7 +22,10 @@ classdef EphysPipeline < handle
     %     spikes     runSpikeDetection  detected and/or sorted spikes .mat (spikesToMat)
     %     export     runExport          analysis-toolbox / epoch files (Export.Formats)
     %   Each step method can be called directly (it then runs even if the
-    %   step is disabled in the config).
+    %   step is disabled in the config); call checkRun() first for the checks
+    %   run() makes before any step (config errors, blocking plan rows). Each
+    %   takes DryRun=true: it then writes nothing and records "dry run" rows
+    %   saying what it would do.
     %
     %   Progress and cancellation
     %     ProgressFcn(evt) receives struct(step, dataset, index, count, done,
@@ -48,9 +52,12 @@ classdef EphysPipeline < handle
     %     as it starts, so a monitor can follow it while the rest wait.
     %     SortingWaiting is how many datasets the step has still to start.
     %     PriorRuns lists runs started elsewhere (e.g. by an earlier run the
-    %     app still monitors), in LaunchedRuns' shape; while they are going
-    %     they take slots too. Sorting.Devices shares GPUs out: each run
-    %     gets the one the fewest running runs use (sortingSlot).
+    %     app still monitors), in LaunchedRuns' shape, queued ones (queued
+    %     true, see sortRun) included; while they are going they take slots
+    %     too. A dataset with a run in PriorRuns or LaunchedRuns that is
+    %     queued or still going is skipped (activeRun), so its .bin is never
+    %     rewritten under Kilosort4. Sorting.Devices shares GPUs out: each
+    %     run gets the one the fewest running runs use (sortingSlot).
     %     With QueueFcn set, runSorting starts nothing itself: it writes
     %     each dataset's run files and passes the prepared run to
     %     QueueFcn(d, res), whose owner starts it later with
@@ -78,6 +85,13 @@ classdef EphysPipeline < handle
         SortingWaiting (1,1) double = 0
     end
 
+    properties (Access = private)
+        % Automatic artifact detections of this run (artifactIntervalsFor),
+        % by dataset folder and fingerprint, so the steps that need them
+        % detect once even with Artifacts.CacheIntervals off. reset() empties it.
+        Detections = []
+    end
+
     methods
         % --- methods defined in separate files ---
         T = plan(obj, opts)
@@ -89,11 +103,16 @@ classdef EphysPipeline < handle
 
         function obj = EphysPipeline(cfg, opts)
             %EphysPipeline  Build the project for a config (or use a given one).
+            %   The project's datasets are found and the config applied to
+            %   them all; only the selected ones are then refreshed (headers
+            %   and manifests, EphysProject.refresh). Refresh=false skips
+            %   that (e.g. for a Project= the app has scanned already).
             arguments
                 cfg (1,1) EphysPipelineConfig
                 opts.Project = []
                 opts.Refresh (1,1) logical = true
             end
+            obj.Detections = containers.Map('KeyType', 'char', 'ValueType', 'any');
             if isempty(opts.Project)
                 if cfg.Project.Root == "" || ~isfolder(cfg.Project.Root)
                     error('EphysPipeline:NoRoot', 'Project root does not exist: "%s".', cfg.Project.Root);
@@ -102,14 +121,13 @@ classdef EphysPipeline < handle
                     PythonExe=cfg.Sorting.PythonExe, CondaEnv=cfg.Sorting.CondaEnv, ...
                     NamePattern=cfg.Project.NamePattern, Recursive=cfg.Project.Recursive, ...
                     ReaderOptions=cfg.Acquisition);
-                obj.Project.refresh();
             else
                 obj.Project = opts.Project;
-                if opts.Refresh
-                    obj.Project.refresh();
-                end
             end
-            obj.Config = cfg;   % set.Config pushes the settings onto the datasets
+            obj.Config = cfg;   % set.Config pushes the settings onto the datasets and selects them
+            if opts.Refresh
+                obj.Project.refresh(Datasets=obj.DatasetIdx);
+            end
         end
 
         function set.Config(obj, cfg)
@@ -145,11 +163,73 @@ classdef EphysPipeline < handle
         end
 
         function reset(obj)
-            %reset  Clear Results, LaunchedRuns and the cancel flag.
+            %reset  Clear Results, LaunchedRuns, this run's artifact detections and the cancel flag.
             obj.Results = EphysPipeline.emptyResults();
             obj.LaunchedRuns = EphysPipeline.emptyRuns();
             obj.SortingWaiting = 0;
             obj.CancelRequested = false;
+            obj.Detections = containers.Map('KeyType', 'char', 'ValueType', 'any');
+        end
+
+        function T = checkRun(obj, opts)
+            %checkRun  The checks run() makes before any step: validate, then plan.
+            %   T = pipe.checkRun(Steps=...) errors with
+            %   EphysPipeline:ConfigInvalid on a config error (validate; its
+            %   warnings are logged) and with EphysPipeline:PlanInvalid on a
+            %   blocking plan row (Status "duplicate ..." or "error: ..."), else
+            %   returns the plan of the steps (default: the enabled ones). A
+            %   script that calls the step methods one by one calls it first.
+            %
+            %   See also EphysPipeline.run, EphysPipeline.plan, EphysPipelineConfig.validate.
+            arguments
+                obj (1,1) EphysPipeline
+                opts.Steps (1,:) string = string.empty(1,0)
+            end
+            issues = obj.Config.validate();
+            if any(issues.Severity == "error")
+                e = issues(issues.Severity == "error", :);
+                error('EphysPipeline:ConfigInvalid', 'The config has %d error(s):\n%s', height(e), ...
+                    strjoin(e.Step + "." + e.Field + ": " + e.Message, newline));
+            end
+            for w = issues.Message(issues.Severity == "warning").'
+                obj.log("[validate] warning: %s", w);
+            end
+            T = obj.plan(Steps=opts.Steps);
+            blocking = T(startsWith(T.Status, "duplicate") | startsWith(T.Status, "error"), :);
+            if ~isempty(blocking)
+                error('EphysPipeline:PlanInvalid', 'The plan has %d blocking row(s):\n%s', height(blocking), ...
+                    strjoin(blocking.Step + " " + blocking.Dataset + ": " + blocking.Status + " " + blocking.Note, newline));
+            end
+        end
+
+        function f = probeFor(obj, d)
+            %probeFor  The probe file dataset D is sorted with.
+            %   Its own ProbeFile (from its manifest), else the config's
+            %   Probe.DefaultProbeFile, read at each call, so an edited
+            %   default applies at once; "" for none. The default is not
+            %   assigned to D unless Probe.WriteDefaultToManifest (checkProbes).
+            f = d.ProbeFile;
+            if f == ""
+                f = obj.Config.Probe.DefaultProbeFile;
+            end
+        end
+
+        function run = activeRun(obj, d)
+            %activeRun  A Kilosort4 run for dataset D that is queued or still going, [] when none.
+            %   Looks through PriorRuns and LaunchedRuns for a run writing into
+            %   D's kilosort4 folder (resultsDir, whose .bin sits beside it)
+            %   that is not done: queued, or running by its status file
+            %   (EphysDataset.sortRunState). runSorting skips such a dataset.
+            run = [];
+            runs = [obj.PriorRuns(:); obj.LaunchedRuns(:)];
+            if isempty(runs); return; end
+            mine = runs(EphysDataset.pathKey([runs.resultsDir]) == EphysDataset.pathKey(d.kilosortDir()));
+            for r = reshape(mine, 1, [])
+                if ~r.done && (r.queued || EphysDataset.sortRunState(r.statusFile) == "running")
+                    run = r;
+                    return
+                end
+            end
         end
 
         function log(obj, fmt, varargin)
@@ -254,6 +334,21 @@ classdef EphysPipeline < handle
             end
         end
 
+        function f = exportExtractFiles(obj, d)
+            %exportExtractFiles  The extract files the Export step reads for dataset D.
+            %   The Signals step's files (outputPathFor "signals"), or - with
+            %   Signals.SeparateFiles and a non-empty Export.Signals - only the
+            %   <Name><Suffix>_<TYPE>.mat files of those signal types. An _AUX
+            %   file that was never written is left out (recordedSignalFiles).
+            c = obj.Config;
+            if c.Signals.SeparateFiles && ~isempty(c.Export.Signals)
+                f = EphysDataset.signalFiles(obj.outputPathFor("signals:base", d), upper(c.Export.Signals));
+            else
+                f = obj.outputPathFor("signals", d);
+            end
+            f = EphysDataset.recordedSignalFiles(f);
+        end
+
         function o = outputsFor(obj, d, varargin)
             %outputsFor  DatasetOutputs for dataset D, including the step folders.
             %   OUT = pipe.outputsFor(d) is d.outputs() with the configured
@@ -272,10 +367,19 @@ classdef EphysPipeline < handle
 
         %% --- preflight steps ----------------------------------------------------
         function checkProbes(obj, opts)
-            %checkProbes  Assign the default probe where missing; check channel counts.
+            %checkProbes  Check each dataset's probe against its channel count.
+            %   The probe is the dataset's own, else Probe.DefaultProbeFile
+            %   (probeFor). With Probe.WriteDefaultToManifest the default is
+            %   assigned (ProbeFile) and saved to the manifest; otherwise it
+            %   is only used, never assigned, so no later manifest write
+            %   records it and an edited default applies at once. Status:
+            %   "ok", "no probe", "probe file missing" or "probe-channel
+            %   mismatch". DryRun: the default is not saved (the note says it
+            %   would be).
             arguments
                 obj (1,1) EphysPipeline
                 opts.Datasets (1,:) double = []
+                opts.DryRun (1,1) logical = false
             end
             c = obj.Config.Probe;
             ds = obj.selected(opts.Datasets);
@@ -283,32 +387,23 @@ classdef EphysPipeline < handle
                 d = ds(k);
                 obj.progress("probe", d.Name, k, numel(ds), 0, 1, "checking the probe");
                 t0 = tic;
+                probe = obj.probeFor(d);
                 note = "";
-                if d.ProbeFile == "" && c.DefaultProbeFile ~= ""
-                    d.ProbeFile = c.DefaultProbeFile;
-                    note = "default probe assigned";
-                    if c.WriteDefaultToManifest
+                if d.ProbeFile == "" && probe ~= ""
+                    note = "default probe";
+                    if c.WriteDefaultToManifest && opts.DryRun
+                        note = "default probe, would be saved to the manifest (dry run)";
+                    elseif c.WriteDefaultToManifest
+                        d.ProbeFile = probe;
                         d.writeManifest();
-                        note = note + " (saved to manifest)";
+                        note = "default probe, saved to the manifest";
                     end
                 end
-                if d.ProbeFile == ""
-                    st = "no probe";
-                elseif ~isfile(d.ProbeFile)
-                    st = "probe file missing";
-                    note = string(d.ProbeFile);
-                else
-                    pm = DatasetTracker.probeMeta(readJsonFile(d.ProbeFile, ErrorOnFail=false));
-                    if isfinite(pm.nChan) && ~isnan(d.NumChannels) && pm.nChan > d.NumChannels
-                        st = "probe-channel mismatch";
-                        note = sprintf("probe has %d sites, recording %d channels", pm.nChan, d.NumChannels);
-                    else
-                        st = "ok";
-                        if note == ""; note = string(d.ProbeFile); end
-                    end
-                end
+                [st, detail] = EphysPipeline.probeStatus(probe, d);
+                parts = [note detail];
+                note = strjoin(parts(parts ~= ""), "; ");
                 obj.log("[probe] %s: %s %s", d.Name, st, note);
-                obj.addResult("probe", d.Name, st, note, d.ProbeFile, toc(t0));
+                obj.addResult("probe", d.Name, st, note, probe, toc(t0));
             end
         end
 
@@ -331,9 +426,16 @@ classdef EphysPipeline < handle
             %   and a WARNING log line; resolve it on the app's Trials tab).
             %   The pairing columns are written into the behavior file either
             %   way.
+            %
+            %   An associated session is kept unless Behavior.Overwrite, also
+            %   while its file is not there ("behavior file missing": a disk or
+            %   share that is not connected), so no other session replaces it.
+            %   DryRun: sessions are matched, but nothing is associated,
+            %   paired or written; "dry run" rows say what would be.
             arguments
                 obj (1,1) EphysPipeline
                 opts.Datasets (1,:) double = []
+                opts.DryRun (1,1) logical = false
             end
             c = obj.Config.Behavior;
             ds = obj.selected(opts.Datasets);
@@ -343,28 +445,54 @@ classdef EphysPipeline < handle
                 d = ds(k);
                 obj.progress("behavior", d.Name, k, numel(ds), 0, 1, "Epsych2 session");
                 t0 = tic;
-                if d.BehaviorFile ~= "" && isfile(d.BehaviorFile) && ~c.Overwrite
-                    obj.addResult("behavior", d.Name, "associated", "kept existing association", d.BehaviorFile, toc(t0));
+                session = d.BehaviorFile;
+                if session ~= "" && ~c.Overwrite
+                    if isfile(session)
+                        obj.addResult("behavior", d.Name, "associated", "kept existing association", session, toc(t0));
+                    else
+                        obj.log("[behavior] %s: the associated session file is not there: %s", d.Name, session);
+                        obj.addResult("behavior", d.Name, "behavior file missing", ...
+                            "the association is kept while its file is not there (Behavior.Overwrite re-matches)", session, toc(t0));
+                    end
                 else
                     m = matchEpsychSession(T, d, Match=c.Match, MaxStartOffsetMin=c.MaxStartOffsetMin);
-                    if m.file ~= ""
+                    msg = m.reason;
+                    if m.file ~= "" && opts.DryRun
+                        st = "dry run";
+                        msg = "would associate it (" + m.method + "): " + m.reason;
+                        session = m.file;
+                    elseif m.file ~= ""
                         d.BehaviorFile = m.file;
                         d.writeManifest();
                         st = "matched (" + m.method + ")";
+                        session = m.file;
                     elseif m.ambiguous
                         st = "ambiguous";
                     else
                         st = "unmatched";
                     end
-                    obj.log("[behavior] %s: %s - %s", d.Name, st, m.reason);
-                    obj.addResult("behavior", d.Name, st, m.reason, m.file, toc(t0));
+                    obj.log("[behavior] %s: %s - %s", d.Name, st, msg);
+                    obj.addResult("behavior", d.Name, st, msg, m.file, toc(t0));
+                end
+                if session == "" || ~isfile(session)
+                    continue
+                end
+                out = obj.outputPathFor("behavior", d);
+                if opts.DryRun
+                    if c.PairTrials
+                        obj.addResult("behavior:pairing", d.Name, "dry run", ...
+                            "would pair the trials with the " + c.TrialLine + " intervals", d.manifestFile(), 0);
+                    end
+                    if c.WriteFile
+                        obj.addResult("behavior:file", d.Name, "dry run", "would write the behavior file", out, 0);
+                    end
+                    continue
                 end
                 P = [];
-                if c.PairTrials && d.BehaviorFile ~= "" && isfile(d.BehaviorFile)
+                if c.PairTrials
                     P = obj.pairTrialsFor(d, k, numel(ds));
                 end
-                if c.WriteFile && d.BehaviorFile ~= "" && isfile(d.BehaviorFile)
-                    out = obj.outputPathFor("behavior", d);
+                if c.WriteFile
                     try
                         r = d.behaviorToMat(File=out, Overwrite=true, Pairing=P);
                         obj.log("[behavior] %s: wrote %s (%d trials)", d.Name, r.file, r.nTrials);
@@ -424,13 +552,17 @@ classdef EphysPipeline < handle
         %% --- artifacts ----------------------------------------------------------------
         function runArtifacts(obj, opts)
             %runArtifacts  Compute (and cache) the artifact intervals of each dataset.
+            %   See artifactIntervalsFor. DryRun: nothing is read or written;
+            %   a "dry run" row says what would be done.
             arguments
                 obj (1,1) EphysPipeline
                 opts.Datasets (1,:) double = []
+                opts.DryRun (1,1) logical = false
             end
             ds = obj.selected(opts.Datasets);
             n = numel(ds);
-            if n > 0; obj.logParallel("artifacts"); end
+            if n > 0 && ~opts.DryRun; obj.logParallel("artifacts"); end
+            A = obj.Config.Artifacts;
             for k = 1:n
                 d = ds(k);
                 if obj.CancelRequested
@@ -438,6 +570,19 @@ classdef EphysPipeline < handle
                     continue
                 end
                 t0 = tic;
+                if opts.DryRun
+                    out = obj.outputPathFor("artifacts", d);
+                    if ~A.Enabled
+                        what = "would use the manual periods only (auto-detection off)";
+                    elseif A.CacheIntervals && isfile(out)
+                        what = "would reuse the cached detection when the settings match, else detect";
+                    else
+                        what = "would detect artifacts over the whole recording";
+                    end
+                    obj.log("[artifacts] %s: dry run - %s", d.Name, what);
+                    obj.addResult("artifacts", d.Name, "dry run", what, out, toc(t0));
+                    continue
+                end
                 try
                     obj.progress("artifacts", d.Name, k, n, 0, 1, "artifact intervals");
                     [iv, src] = obj.artifactIntervalsFor(d, ...
@@ -459,36 +604,41 @@ classdef EphysPipeline < handle
         end
 
         function [iv, source] = artifactIntervalsFor(obj, d, report)
-            %artifactIntervalsFor  Artifact intervals for D, from the cache when valid.
-            %   The cache (<outputFolder>/<Name>_artifacts.json) is keyed by a
-            %   fingerprint of its schema, the artifact config, the manual
-            %   periods and the recording files, so a change to any of them
-            %   recomputes. Schema 2: half-open [tStart tEnd) intervals.
-            %   SOURCE is "cache", "computed" or the manual-only note.
-            %   REPORT(done, total, message) hears how far a detection is, so
-            %   the step that needs the intervals can report it as its own
-            %   progress; by default it goes out as the artifacts step on
-            %   dataset 1 of 1.
+            %artifactIntervalsFor  Artifact intervals for D: the manual periods plus the automatic detection.
+            %   The automatic detection alone is cached
+            %   (<outputFolder>/<Name>_artifacts.json, when
+            %   Artifacts.CacheIntervals) and kept for the rest of the run
+            %   (until reset), keyed by a fingerprint of what decides it: the
+            %   schema, the detector settings, the channels of the common
+            %   reference, ExcludeChannels and the recording files; a change
+            %   to any of them detects again. The manual periods are merged in
+            %   on every call (EphysDataset.mergeIntervals), so marking one on
+            %   the Visualize tab needs no new detection. Schema 3: half-open
+            %   [tStart tEnd) intervals of the automatic detection. SOURCE is
+            %   "computed", "cache", "reused" (detected earlier in this run) or
+            %   the manual-only note. REPORT(done, total, message) hears how
+            %   far a detection is, so the step that needs the intervals can
+            %   report it as its own progress; by default it goes out as the
+            %   artifacts step on dataset 1 of 1.
             if nargin < 3
                 report = @(done, total, msg) obj.progress("artifacts", d.Name, 1, 1, done, total, msg);
             end
             a = obj.Config.Artifacts;
             acfg = EphysPipelineConfig.artifactConfig(a);
             d.ArtifactConfig = acfg;
-            manual = d.ManualArtifacts;
-            if isempty(manual); manual = zeros(0, 2); end
             if ~acfg.Enabled
                 iv = d.artifactIntervals(IncludeAuto=false);
                 source = "manual periods only (auto-detection off)";
                 return
             end
-            schema = "ephys-artifacts/2";
-            % Keyed by what decides the intervals: the fill fields say how the
+            schema = "ephys-artifacts/3";
+            % Keyed by what decides the detection: the fill fields say how the
             % periods are erased, not which they are, so a change there must
             % not throw away a detection.
             det = rmfield(acfg, intersect(fieldnames(acfg), {'Fill', 'NoiseBandHz', 'NoiseSeed'}));
             % Detection runs on the common-referenced signal, so the channels
-            % the reference is taken over decide the intervals too.
+            % the reference is taken over decide the intervals too, and it
+            % leaves out the excluded channels.
             refCh = [];
             if acfg.Reference ~= "none"
                 if d.prepareReference()
@@ -497,31 +647,39 @@ classdef EphysPipeline < handle
                 end
                 refCh = d.referenceChannels();
             end
-            fp = string(jsonencode(struct('schema', schema, 'config', det, 'manual', manual, ...
-                'reference', refCh, 'files', cellstr(d.Files(:).'), 'nSamples', d.NumSamples)));
+            fp = string(jsonencode(struct('schema', schema, 'config', det, 'reference', refCh, ...
+                'exclude', d.ExcludeChannels, 'files', cellstr(d.Files(:).'), 'nSamples', d.NumSamples)));
+            key = char(EphysDataset.pathKey(d.Folder) + "|" + fp);
             cacheFile = obj.outputPathFor("artifacts", d);
-            if a.CacheIntervals && isfile(cacheFile)
+            source = "";
+            if isKey(obj.Detections, key)
+                auto = obj.Detections(key);
+                source = "reused";
+                how = "detected earlier in this run";
+            elseif a.CacheIntervals && isfile(cacheFile)
                 c = readJsonFile(cacheFile, ErrorOnFail=false);
-                if isstruct(c) && isfield(c, 'fingerprint') && string(c.fingerprint) == fp
-                    iv = c.intervals;
-                    if isempty(iv); iv = zeros(0, 2); end
-                    if isvector(iv) && numel(iv) == 2; iv = double(iv(:)).'; end
-                    iv = double(iv);
+                if isstruct(c) && all(isfield(c, {'fingerprint', 'intervals'})) && string(c.fingerprint) == fp
+                    auto = double(reshape(c.intervals, [], 2));
                     source = "cache";
-                    obj.log("[artifacts] %s: %d interval(s) from cache%s", d.Name, size(iv, 1), coverageNote(iv, d));
-                    return
+                    how = "from cache";
                 end
             end
-            cb = @(i, nChunks, name) report(i - 1, nChunks, "detecting: " + string(name));
-            popt = namedargs2cell(EphysPipelineConfig.parallelOptions(obj.Config.Parallel));
-            iv = d.artifactIntervals('ProgressFcn', cb, popt{:});
-            source = "computed";
-            if a.CacheIntervals
-                writeJsonFile(cacheFile, struct('schema', schema, 'dataset', d.Name, ...
-                    'fingerprint', fp, 'intervals', iv, 'nIntervals', size(iv, 1), ...
-                    'created', string(datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss'))));
+            if source == ""
+                cb = @(i, nChunks, name) report(i - 1, nChunks, "detecting: " + string(name));
+                popt = namedargs2cell(EphysPipelineConfig.parallelOptions(obj.Config.Parallel));
+                auto = d.artifactIntervals('IncludeManual', false, 'ProgressFcn', cb, popt{:});
+                source = "computed";
+                how = "computed";
+                if a.CacheIntervals
+                    writeJsonFile(cacheFile, struct('schema', schema, 'dataset', d.Name, ...
+                        'fingerprint', fp, 'intervals', auto, 'nIntervals', size(auto, 1), ...
+                        'created', string(datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss'))));
+                end
             end
-            obj.log("[artifacts] %s: %d interval(s) computed%s", d.Name, size(iv, 1), coverageNote(iv, d));
+            obj.Detections(key) = auto;
+            iv = EphysDataset.mergeIntervals([d.ManualArtifacts; auto]);
+            obj.log("[artifacts] %s: %d interval(s) %s, %d manual period(s)%s", d.Name, size(auto, 1), how, ...
+                size(d.ManualArtifacts, 1), coverageNote(iv, d));
         end
 
         function [iv, source] = artifactIntervalsForStep(obj, d, applyAuto, report)
@@ -541,9 +699,11 @@ classdef EphysPipeline < handle
         function applyConfigToDatasets(cfg, P)
             %applyConfigToDatasets  Push the config's shared settings onto every dataset.
             %   Sets PythonExe, CondaEnv, ArtifactConfig, TrialConfig,
-            %   ReaderOptions (Acquisition), OutputDir (<OutputRoot>/<Name> when
-            %   an output root is set), and the NamePattern and DatasetKey that
-            %   label sorted units. A changed Acquisition section changes which
+            %   ReaderOptions (Acquisition), OutputDir (<OutputRoot>/<Name>, or
+            %   "" - outputs next to the recording - without an output root),
+            %   and the NamePattern and DatasetKey that label sorted units. Two
+            %   recordings with the same name share <OutputRoot>/<Name>: plan()
+            %   stops a run on either. A changed Acquisition section changes which
             %   folders are recordings (Open Ephys modes): rescan the project
             %   (EphysProject.discover) for that. Never touches
             %   the per-dataset manifest state: ProbeFile, ExcludeChannels,
@@ -570,6 +730,8 @@ classdef EphysPipeline < handle
                 d.DatasetKey     = EphysProject.relativeKey(P.Root, d.Folder);
                 if cfg.Project.OutputRoot ~= ""
                     d.OutputDir = fullfile(cfg.Project.OutputRoot, d.Name);
+                else
+                    d.OutputDir = "";
                 end
             end
         end
@@ -582,20 +744,56 @@ classdef EphysPipeline < handle
 
         function s = emptyRuns()
             %emptyRuns  0x0 struct array in the shape of LaunchedRuns.
-            %   Name, statusFile, resultsDir, logFile (ks4_run.log), logPos
-            %   (bytes of the log already shown), done, device (torch device,
-            %   "" = Kilosort4's choice) and started (datetime).
+            %   Name, statusFile, resultsDir (the run's kilosort4 folder: it
+            %   identifies the dataset, see activeRun), logFile (ks4_run.log),
+            %   logPos (bytes of the log already shown), done, device (torch
+            %   device, "" = Kilosort4's choice), started (datetime; NaT while
+            %   queued) and queued (true for a prepared run not started yet).
             s = struct('Name', {}, 'statusFile', {}, 'resultsDir', {}, ...
-                'logFile', {}, 'logPos', {}, 'done', {}, 'device', {}, 'started', {});
+                'logFile', {}, 'logPos', {}, 'done', {}, 'device', {}, 'started', {}, 'queued', {});
         end
 
-        function run = sortRun(name, res)
+        function run = sortRun(name, res, opts)
             %sortRun  The LaunchedRuns element for a run launchSorting started.
             %   RUN = EphysPipeline.sortRun(NAME, RES): NAME is the dataset's,
             %   RES what EphysDataset.launchSorting returned.
+            %   RUN = EphysPipeline.sortRun(NAME, RES, Queued=true) describes a
+            %   run prepared (runKilosort with Launch=false, RES its result) and
+            %   waiting in a queue, for PriorRuns: queued, started NaT.
+            arguments
+                name
+                res (1,1) struct
+                opts.Queued (1,1) logical = false
+            end
+            started = datetime('now');
+            if opts.Queued; started = NaT; end
             run = struct('Name', string(name), 'statusFile', string(res.statusFile), ...
                 'resultsDir', string(res.resultsDir), 'logFile', string(res.stdoutLog), ...
-                'logPos', 0, 'done', false, 'device', string(res.device), 'started', datetime('now'));
+                'logPos', 0, 'done', false, 'device', string(res.device), 'started', started, ...
+                'queued', opts.Queued);
+        end
+
+        function [st, note] = probeStatus(probe, d)
+            %probeStatus  How the probe file PROBE fits dataset D, and a note.
+            %   ST is "no probe", "probe file missing", "probe-channel
+            %   mismatch" (more sites than recorded channels) or "ok"; NOTE is
+            %   the file, or the two counts. Shared by checkProbes and plan.
+            note = "";
+            if probe == ""
+                st = "no probe";
+            elseif ~isfile(probe)
+                st = "probe file missing";
+                note = probe;
+            else
+                pm = DatasetTracker.probeMeta(readJsonFile(probe, ErrorOnFail=false));
+                if isfinite(pm.nChan) && ~isnan(d.NumChannels) && pm.nChan > d.NumChannels
+                    st = "probe-channel mismatch";
+                    note = sprintf("probe has %d sites, recording %d channels", pm.nChan, d.NumChannels);
+                else
+                    st = "ok";
+                    note = probe;
+                end
+            end
         end
 
         function T = restateResult(T, step, dataset, output, status, message, addSeconds)

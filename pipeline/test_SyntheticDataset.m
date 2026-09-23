@@ -234,7 +234,7 @@ app.selectTab(app.TabVisualize);
 app.VizChannelsField.Value = sprintf('1:%d', nCh);   % the display options come from the user's preferences
 app.VizFileDropDown.Value = '(all)';
 app.onPlotVisualization();
-check(app.VizDatasetIndex == row1 && strcmp(app.VizArtButton.Enable, 'on'), 'Visualize plots the active dataset');
+check(app.VizDataset == app.Project.Datasets(row1) && strcmp(app.VizArtButton.Enable, 'on'), 'Visualize plots the active dataset');
 
 dd = app.SpkDatasetDropDown;   % choose in one tab's Dataset box
 dd.Value = row2;

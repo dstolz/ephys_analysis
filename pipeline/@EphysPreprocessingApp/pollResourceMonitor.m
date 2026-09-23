@@ -2,7 +2,7 @@ function pollResourceMonitor(obj)
 %pollResourceMonitor  Timer callback: show the sampler's latest sample.
 %   Does nothing while another tab is showing. When no fresh sample has
 %   come for 15 s (the sampler died, or never started), it is restarted.
-if ~isvalid(obj.Fig)
+if isempty(obj.Fig) || ~isvalid(obj.Fig)
     obj.stopResourceMonitor();
     return
 end

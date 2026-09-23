@@ -4,7 +4,10 @@ function test_EphysPreprocessingApp()
 %   opens a config over a synthetic project, and checks: config -> controls ->
 %   config round trip, the unsaved-changes marker, scan + selection ticks,
 %   plan, the Sorting tab's Optimize for probe / Reset to defaults, running
-%   one step through EphysPipeline, save, and that the app's
+%   one step through EphysPipeline, save, a config for another project
+%   root, a rescan that keeps the active dataset, the Visualize bins and
+%   overlay, the Kilosort4 monitor and queue, the phy launch, a figure
+%   deleted without Close, and that the app's
 %   preferences are restored afterwards. Dialogs that would block (uiconfirm)
 %   are never triggered because the config is kept clean before New / Close.
 %
@@ -207,6 +210,24 @@ check(contains(app.issueURL("feature", "t", "b"), "labels=enhancement"), ...
 check(cut && strlength(long) <= 7000 && contains(long, "was%20too%20long%20for%20the%20address"), ...
     'a report too long for the address is cut and says so in the body');
 
+fprintf('\n== 1d. a config with values the controls cannot show ==\n');
+bad = cfg;
+bad.Name = "cannot show";
+bad.Artifacts.Threshold = NaN;            % detection is off: validate lets it pass
+bad.Behavior.MaxStartOffsetMin = 0;       % Behavior is off; the field wants more than 0
+bad.Spikes.Source = "nonsense";
+badFile = fullfile(root, 'cannot_show.json');
+bad.save(badFile);
+ok = app.openConfigFile(badFile);
+check(ok && app.Config.Name == "cannot show" && numel(app.ApplyRejected) == 3 ...
+    && contains(join(app.ApplyRejected), "Artifacts.Threshold = NaN") && contains(join(app.ApplyRejected), "Behavior.MaxStartOffsetMin = 0") ...
+    && contains(join(app.ApplyRejected), "Spikes.Source") && app.Config.Artifacts.Threshold == app.ArtThresholdField.Value ...
+    && app.Config.Behavior.MaxStartOffsetMin == app.BehMaxOffsetField.Value && startsWith(app.Fig.Name, "*"), ...
+    'a config with values its fields cannot show opens: those are listed, the config holds what the fields show and is marked unsaved');
+ok = app.openConfigFile(cfgFile);
+check(ok && isempty(app.ApplyRejected) && ~startsWith(app.Fig.Name, "*") && app.Config.Spikes.Source == "both", ...
+    'the good config opens clean again');
+
 fprintf('\n== 2. edits and the unsaved marker ==\n');
 app.SpkThresholdField.Value = '1500';
 app.onSpikesControlsChanged();
@@ -241,6 +262,56 @@ app.ParamControls.tmax.Value = 'abc';
 [~, msg] = app.gatherSortingSection();
 check(msg ~= "", 'an unparseable KS4 field is reported');
 app.ParamControls.tmax.Value = 'Infinity';
+app.ParamControls.drift_smoothing.Value = '1, 2, 3';
+app.onConfigChanged();
+app.ParamControls.drift_smoothing.Value = 'x, 2, 3';
+app.onConfigChanged();
+[S, msg] = app.gatherSortingSection();
+check(isequal(app.Config.Sorting.KS4.drift_smoothing, [1 2 3]) && isequal(S.KS4.drift_smoothing, [1 2 3]) ...
+    && contains(msg, "drift_smoothing") && contains(app.StatusBar.Text, "drift_smoothing") && ~app.onSaveConfig(), ...
+    'a Kilosort4 field that does not parse keeps the value in force (not the default), is reported, and Save refuses');
+app.ParamControls.drift_smoothing.Value = '0.5, 0.5, 0.5';
+app.onConfigChanged();
+K0 = app.Config.Spikes;
+K = K0; K.Threshold = 0.1953125; K.MaxAmplitudeUV = 123.456789; K.EdgePadMs = 0.1;
+app.applySpikesSection(K);
+gK = app.gatherSpikesSection();
+check(strcmp(app.SpkThresholdField.Value, '0.1953125') && gK.Threshold == 0.1953125 ...
+    && gK.MaxAmplitudeUV == 123.456789 && gK.EdgePadMs == 0.1, ...
+    'numbers in the Spikes text fields are written in full and read back unchanged (0.1953125, not 0.19531)');
+app.applySpikesSection(K0);
+app.ArtMethodDropDown.Value = 'microvolts';
+app.onArtifactControlsChanged();
+check(app.ArtThresholdField.Value == 1500 && app.Config.Artifacts.Threshold == 1500, ...
+    'switching Method to Absolute microvolts takes its own default threshold (1500 uV), not the running-RMS 9');
+app.ArtThresholdField.Value = 800;
+app.onArtifactControlsChanged();
+app.ArtMethodDropDown.Value = 'commonmode';
+app.onArtifactControlsChanged();
+check(app.ArtThresholdField.Value == 800, 'a threshold typed for the previous method is kept');
+app.ArtMethodDropDown.Value = 'rms';
+app.ArtThresholdField.Value = 1500;
+app.onArtifactControlsChanged();
+check(app.ArtThresholdField.Value == 9 && app.Config.Artifacts.Method == "rms", ...
+    'back to running RMS from the common-mode default: 9 robust SDs again');
+A0 = app.Config.Artifacts;
+A2 = A0; A2.Filter = true; A2.FilterType = "bandpass"; A2.FilterCutoff = [300 3000]; A2.FilterOrder = 2;
+app.applyArtifactsSection(A2);
+app.Config.Artifacts = A2;   % as applyConfig leaves it
+app.ArtHighpassField.Value = 400;
+app.onArtifactControlsChanged();
+gA = app.Config.Artifacts;
+check(gA.FilterType == "bandpass" && gA.FilterOrder == 2 && isequal(gA.FilterCutoff, [400 3000]), ...
+    'the filter type, order and upper band edge (no control) are kept; the High-pass field sets the band''s lower edge');
+A3 = A0; A3.Filter = true; A3.FilterType = "lowpass"; A3.FilterCutoff = 250;
+app.applyArtifactsSection(A3);
+app.Config.Artifacts = A3;
+app.onArtifactControlsChanged();
+check(app.Config.Artifacts.FilterType == "lowpass" && app.Config.Artifacts.FilterCutoff == 250 ...
+    && strcmp(app.ArtHighpassField.Enable, 'off'), 'a low-pass filter keeps its cut-off, and the High-pass field is off');
+app.applyArtifactsSection(A0);
+app.Config.Artifacts = A0;
+app.onArtifactControlsChanged();
 
 fprintf('\n== 3. scan, selection, plan ==\n');
 app.onScan();
@@ -265,6 +336,16 @@ check(app.SelectedDatasetIdx == 1 && app.DatasetMenuItems(1).Checked && numel(ap
 app.onDatasetCellSelection(struct('Indices', [1 1]));
 check(contains(app.SortResultsLabel.Text, "manual") && size(app.ArtManualTable.Data, 1) == 1, ...
     'selecting a row shows its sorting association and manual periods');
+check(~isempty(app.EpsychMetaCache) && isKey(app.EpsychMetaCache, char(behFile)) ...
+    && contains(app.DatasetsTable.Data.Behavior(1), "(1 trials)"), ...
+    'the Behavior column reads the session summary once and keeps it until the file changes');
+app.ExcludeChannelsField.Value = '1,5,32-40,4O';
+app.onApplyExclude("selected");
+app.ArtRefExcludeField.Value = '2,x';
+app.onReferenceExcludeEdited();
+check(isempty(app.currentDataset().ExcludeChannels) && strcmp(app.ExcludeChannelsField.Value, '') ...
+    && isempty(app.currentDataset().ReferenceExclude) && app.ArtRefExcludeField.Value == "", ...
+    'a channel list that does not parse ("4O", "x") changes nothing and the fields show the lists in force');
 app.onPlan();
 P = app.RunResultsTable.Data;
 check(istable(P) && any(P.Step == "spikes" & P.Status == "ready"), 'plan lists the spikes step as ready');
@@ -457,6 +538,14 @@ app.onArtifactControlsChanged();
 app.selectDataset(1, Reset=true);
 check(~app.ArtProbeOrderCheckBox.Value && isequal(app.ArtViewShankDropDown.ItemsData, {'all'}), ...
     'without the probe again the probe controls go back off');
+app.ProbeDefaultField.Value = char(probe2);
+app.onConfigChanged();
+check(app.ArtProbeOrderCheckBox.Value && isequal(app.ArtViewShankDropDown.ItemsData, {'all', '1', '2'}), ...
+    'a dataset without a probe of its own is laid out on the default probe (as the pipeline uses it)');
+app.ProbeDefaultField.Value = '';
+app.onConfigChanged();
+check(~app.ArtProbeOrderCheckBox.Value && isequal(app.ArtViewShankDropDown.ItemsData, {'all'}), ...
+    'and without a default probe the probe controls go back off');
 
 fprintf('\n== 3a. name tokens ==\n');
 check(isequal(string({app.NameTokenChecks.Text}), ["SubjectID" "Date" "Time"]) && isequal([app.NameTokenChecks.Value], [true false false]) ...
@@ -728,6 +817,13 @@ app.TrialsLinesTable.Data.Name(1) = "";
 app.onTrialsLinesEdited(struct('Indices', [1 2], 'PreviousData', "Trial", 'NewData', ""));
 check(isempty(app.Config.Signals.LineNames) && app.Config.Behavior.TrialLine == "din0" ...
     && app.TrialsLinesTable.Data.Name(1) == "din0", 'a blank name goes back to the default name and drops the entry');
+app.ConvLabelFieldDropDown.Value = 'native';
+app.onConvertControlsChanged();
+check(isempty(app.Config.Signals.LineNames) && app.TrialsLinesTable.Data.Name(1) == "DIN-00", ...
+    'switching Label field to native renames no line (no LineNames entry) and the lines table shows the native names');
+app.ConvLabelFieldDropDown.Value = 'custom';
+app.onConvertControlsChanged();
+check(isempty(app.Config.Signals.LineNames) && app.TrialsLinesTable.Data.Name(1) == "din0", 'and back to the custom names');
 
 vE = matlab.lang.makeValidName("epsych_" + dT.Name);
 vB = matlab.lang.makeValidName("behavior_" + dT.Name);
@@ -894,6 +990,18 @@ check(isequal(ids, 1) && notes == "two cells?" && app.ReviewData.notes(app.Revie
     && string(app.ReviewUnitsTable.Data{row, 11}) == "two cells?", 'editing a Notes cell saves cluster_notes.tsv');
 app.syncReviewDataset();
 check(app.ReviewData.notes(app.ReviewData.clusterID == 1) == "two cells?", 'the note is read back on reload');
+settingsFile = fullfile(phyDir, 'settings.json');
+S0 = readJsonFile(settingsFile);
+S1 = S0; S1.tmin = 0.005;   % Kilosort4 sorted from 5 ms on
+writeJsonFile(settingsFile, S1);
+app.syncReviewDataset();
+R = app.ReviewData;
+dR = app.currentDataset();
+check(abs(R.durSec - (dR.Duration - 0.005)) < 1e-9 && all(abs(R.firingRate - R.nSpikes / R.durSec) < 1e-9) ...
+    && any(contains(string(app.ReviewSummaryLabel.Text), "Sorted")), ...
+    'firing rates are over the sorted part of the recording: tmin (settings.json) to its end, not to the last spike');
+writeJsonFile(settingsFile, S0);
+app.syncReviewDataset();
 
 fprintf('\n== 4b. Run tab: the run diagram ==\n');
 check(app.RunDiagramPanel.Visible == "off" && isequal(app.RunSplitGrid.ColumnWidth, {'1x', 0}) ...
@@ -1284,6 +1392,235 @@ check(app.Config.Name == "Untitled" && app.Config.File == "" && ~app.SpkEnableCh
 ok = app.openConfigFile(cfgFile);
 check(ok && app.Config.Spikes.Threshold == 1500 && any(app.RecentConfigs == string(cfgFile)), 'reopen + recent list');
 check(ispref(g, 'LastConfigFile') && strcmp(getpref(g, 'LastConfigFile'), cfgFile), 'the last config file is remembered');
+
+fprintf('\n== 6. a config for another root; a rescan; Visualize bins and overlay ==\n');
+% A second project: recM002 (one file) and recM003, five files of 512
+% samples with one spike at recording sample 2500 of channel 1 - a long
+% recording in small, whose Visualize bins cross the file boundaries.
+root2 = fullfile(root, 'proj2');
+flatRaw = repmat(uint16(32768), numAmp, 4 * spb);
+flatDig = zeros(1, 4 * spb);
+fM2 = fullfile(root2, 'recM002_260102_120000'); mkdir(fM2);
+writeSyntheticRHD(fullfile(fM2, 'recM002.rhd'), flatRaw, flatDig, Fs, spb);
+fM3 = fullfile(root2, 'recM003_260103_120000'); mkdir(fM3);
+tSpike = 2500;   % 0-based recording sample
+for k = 1:5
+    raw = flatRaw;
+    s = tSpike - (k - 1) * 4 * spb;
+    if s >= 0 && s < 4 * spb; raw(1, s + 1) = 32768 + 5000; end   % 975 uV
+    fk = fullfile(fM3, sprintf('recM003_part%d.rhd', k));
+    writeSyntheticRHD(fk, raw, flatDig, Fs, spb, FirstTimestamp=(k - 1) * 4 * spb);
+    setFileModifiedTime(fk, datetime(2026, 1, 3, 12, 0, k));   % the files' order
+end
+cfgB = cfg;
+cfgB.Name = "second project";
+cfgB.Project.Root = root2;
+cfgB.Project.OutputRoot = fullfile(root, 'out2');
+cfgB.Project.Selection = "list";
+cfgB.Project.Datasets = "recM003_260103_120000";
+cfgBFile = fullfile(root, 'second_project.json');
+cfgB = cfgB.save(cfgBFile);
+app.onScan();   % gui_test.json's project
+check(app.Project.NumDatasets == 1 && app.projectAtRoot(proj), 'the first project is scanned');
+ok = app.openConfigFile(cfgBFile);
+check(ok && isempty(app.Project) && height(app.DatasetsTable.Data) == 0 && app.Config.Project.Selection == "list" ...
+    && isequal(app.Config.Project.Datasets, "recM003_260103_120000"), ...
+    'opening a config for another root drops the scanned project and keeps the config''s selection');
+id = "";
+try
+    app.buildPipeline();
+catch ME
+    id = string(ME.identifier);
+end
+check(id == "EphysPreprocessingApp:NoProject", 'before its Scan, a run or plan refuses');
+app.onScan();
+T = app.DatasetsTable.Data;
+check(app.Project.NumDatasets == 2 && isequal(T.Select(T.Name == "recM003_260103_120000"), true) && nnz(T.Select) == 1 ...
+    && app.Config.Project.Selection == "list" && isequal(app.Config.Project.Datasets, "recM003_260103_120000"), ...
+    'Scan loads the config''s datasets and ticks its selection (not "all")');
+app.RootPathField.Value = char(proj);   % edited, not scanned
+app.onConfigChanged();
+id = "";
+try
+    app.buildPipeline();
+catch ME
+    id = string(ME.identifier);
+end
+check(id == "EphysPreprocessingApp:OtherProject" && isequal(app.Config.Project.Datasets, "recM003_260103_120000"), ...
+    'with the root edited, a run or plan refuses the datasets scanned under the other root, and the selection is kept');
+app.RootPathField.Value = char(root2);
+app.onConfigChanged();
+names = [app.Project.Datasets.Name];
+dM2 = app.Project.Datasets(names == "recM002_260102_120000");
+dM3 = app.Project.Datasets(names == "recM003_260103_120000");
+dM2.ManualArtifacts = [0.001 0.002]; dM2.writeManifest();
+dM3.ManualArtifacts = [0.03 0.031]; dM3.writeManifest();
+app.selectDataset(find(names == "recM003_260103_120000"));
+app.selectTab(app.TabVisualize);
+app.VizChannelsField.Value = '1';
+app.VizFileDropDown.Value = '(all)';
+app.VizHighpassField.Value = ''; app.VizLowpassField.Value = '';
+app.VizRefDropDown.Value = 'none'; app.VizDetrendCheckBox.Value = false;
+app.VizModeDropDown.Value = 'traces';
+app.VizStartField.Value = 0; app.VizDurField.Value = 1;
+app.VizMemoryBudget = 1150;   % 5 x 512 samples of one channel: 9-sample bins
+app.onPlotVisualization();
+hl = findobj(app.VizAxes, 'Type', 'line');
+[~, iPk] = max(hl(1).YData);
+tPk = hl(1).XData(iPk);
+check(contains(app.VizStatusLabel.Text, "Decimated 9x") && app.Viewer.NumSamples == ceil(5 * 4 * spb / 9) ...
+    && tPk <= tSpike / Fs && tPk > (tSpike - 9) / Fs, ...
+    'decimated bins run across the files: the spike in the last file is drawn within one bin of its recording time, and the last bin holds the last samples');
+check(isempty(app.vizDetectedIntervals()) && contains(app.VizArtStatusLabel.Text, "Detect / Preview") ...
+    && numel(findobj(app.VizAxes, 'Type', 'constantregion')) == 1, ...
+    'before a Detect / Preview only the manual period is shaded (red), and the tab says where detected periods come from');
+app.selectTab(app.TabArtifacts);
+app.ArtMethodDropDown.Value = 'microvolts';
+app.onArtifactControlsChanged();
+app.ArtThresholdField.Value = 500;
+app.ArtMinChannelsField.Value = 1;
+app.onArtifactControlsChanged();
+app.onDetectArtifacts();
+app.selectTab(app.TabVisualize);   % the overlay follows the preview
+iv = app.vizDetectedIntervals();
+tMid = (tSpike + 0.5) / Fs;   % inside the spike's sample, [tSpike tSpike+1) / Fs
+check(size(iv, 1) == 1 && iv(1, 1) < tMid && iv(1, 2) > tMid ...
+    && numel(findobj(app.VizAxes, 'Type', 'constantregion')) == 2 && contains(app.VizArtStatusLabel.Text, "1 detected"), ...
+    'after a Detect / Preview the plot shades the preview''s detection (orange) beside the manual period (red)');
+app.selectTab(app.TabArtifacts);
+app.ArtThresholdField.Value = 600;
+app.onArtifactControlsChanged();
+app.selectTab(app.TabVisualize);
+check(isempty(app.vizDetectedIntervals()) && contains(app.VizArtStatusLabel.Text, "changed") ...
+    && numel(findobj(app.VizAxes, 'Type', 'constantregion')) == 1, ...
+    'a detection setting changed since the preview: nothing is shaded orange, and the tab says so');
+app.applyArtifactsSection(cfgB.Artifacts);
+app.onArtifactControlsChanged();
+fM1 = fullfile(root2, 'recM001_260101_120000'); mkdir(fM1);
+writeSyntheticRHD(fullfile(fM1, 'recM001.rhd'), flatRaw, flatDig, Fs, spb);
+app.onScan();
+names = [app.Project.Datasets.Name];
+dM2 = app.Project.Datasets(names == "recM002_260102_120000");
+dM3 = app.Project.Datasets(names == "recM003_260103_120000");
+iM3 = find(names == "recM003_260103_120000");
+check(app.Project.NumDatasets == 3 && app.currentDataset() == dM3 && app.VizDataset == dM3 ...
+    && strcmp(app.VizArtButton.Enable, 'on') && ~contains(app.VizStatusLabel.Text, "Press Plot"), ...
+    'a rescan that finds a dataset in front keeps recM003 active, and its plot current (a mark goes to recM003)');
+app.onVizArtClear();
+check(isempty(dM3.ManualArtifacts) && isequal(dM2.ManualArtifacts, [0.001 0.002]), ...
+    'Clear Artifacts clears the plotted recM003''s periods, not those of the dataset now in its old place');
+dM3.SortingDir = phyDir;
+app.refreshDatasetsTable(Datasets=iM3);
+T = app.DatasetsTable.Data;
+r = T.DatasetIdx == iM3;
+check(startsWith(T.Sorting(r), "manual") && T.Select(r), 'refreshing one dataset''s row updates its cells and keeps its tick');
+dM3.SortingDir = fullfile(root, 'not_there');
+app.refreshDatasetsTable(Datasets=iM3);
+app.selectTab(app.TabReview);
+T = app.DatasetsTable.Data;
+check(T.Sorting(r) == "missing: manual" && contains(string(app.ReviewSummaryLabel.Text), "not there now") ...
+    && isempty(app.ReviewData), ...
+    'a hand-picked sorted-output folder that is not there reads "missing", and the Review tab says so instead of showing another sort');
+dM3.SortingDir = "";
+app.ProbeDefaultField.Value = char(probe4);
+app.onConfigChanged();
+check(all(app.DatasetsTable.Data.Probe == "default: probe4.json"), 'datasets without a probe of their own show the default probe');
+app.ProbeDefaultField.Value = '';
+app.onConfigChanged();
+app.RunActive = true;   % as while a blocking run is under way
+P0 = app.Project;
+ref0 = dM3.ArtifactConfig.Reference;
+app.ArtRefDropDown.Value = 'car';
+app.onArtifactControlsChanged();
+app.onScan();
+app.ExcludeChannelsField.Value = '1';
+app.onApplyExclude("selected");
+check(app.Config.Artifacts.Reference == "car" && dM3.ArtifactConfig.Reference == ref0 && app.Project == P0 ...
+    && isempty(dM3.ExcludeChannels), ...
+    'while a run is under way config edits wait for its end, and Scan and per-dataset edits are refused');
+app.RunActive = false;
+app.ArtRefDropDown.Value = 'none';
+app.onArtifactControlsChanged();
+app.selectTab(app.TabProject);
+badManifest = fullfile(fM1, "recM001_260101_120000_manifest.json");
+writelines("not json", badManifest);
+app.onScan();
+check(contains(app.StatusBar.Text, "1 with a problem") && strtrim(string(fileread(badManifest))) == "not json", ...
+    'a manifest that cannot be read is reported after the scan and left as it is');
+delete(badManifest);
+app.onScan();
+names = [app.Project.Datasets.Name];
+dM2 = app.Project.Datasets(names == "recM002_260102_120000");
+dM3 = app.Project.Datasets(names == "recM003_260103_120000");
+
+fprintf('\n== 6b. a Plan while a background Kilosort4 run is going ==\n');
+bgDir = fullfile(root, 'bg_run'); mkdir(bgDir);
+bgStatus = fullfile(bgDir, 'ks4_status.json');
+app.KSRuns = EphysPipeline.sortRun("recM003_260103_120000", struct('statusFile', bgStatus, ...
+    'resultsDir', bgDir, 'stdoutLog', "", 'device', ""));
+app.RunResults = EphysPipeline.emptyResults();
+app.RunResults(1, :) = {"sorting", "recM003_260103_120000", "launched", "background run", string(bgDir), 1};
+app.startKSMonitor();
+app.onPlan();   % the results table now holds the plan
+writelines('{"state": "done"}', bgStatus);
+t0 = tic;
+while toc(t0) < 20 && ~isempty(app.KSRuns); pause(0.25); end
+T = app.RunResultsTable.Data;
+check(isempty(app.KSRuns) && app.RunResults.Status(1) == "done" && ismember("Key", T.Properties.VariableNames) ...
+    && contains(strjoin(string(app.KSLogArea.Value), newline), "[done] recM003_260103_120000"), ...
+    'a run that ends while a Plan fills the results table is marked done in the Run''s results, and the monitor goes on');
+
+fprintf('\n== 6c. the queue: each dataset once; a plan skips a queued one ==\n');
+holdDir = fullfile(root, 'hold_run'); mkdir(holdDir);
+holdStatus = fullfile(holdDir, 'ks4_status.json');
+app.KSRuns = EphysPipeline.sortRun("hold", struct('statusFile', holdStatus, ...
+    'resultsDir', holdDir, 'stdoutLog', "", 'device', ""));   % takes the only slot
+prep = struct('statusFile', string(fullfile(dM3.kilosortDir(), 'ks4_status.json')), ...
+    'resultsDir', string(dM3.kilosortDir()), 'stdoutLog', "", 'device', "", 'dryRun', false);
+app.queueKSRun(dM3, prep);
+app.queueKSRun(dM3, prep);
+prepHold = prep;
+prepHold.resultsDir = string(holdDir);   % the folder of the run going
+app.queueKSRun(dM2, prepHold);
+check(numel(app.KSQueue) == 1 && count(strjoin(string(app.KSLogArea.Value), newline), "not queued again") == 2, ...
+    'a dataset whose Kilosort4 folder already has a run queued or going is not queued again');
+pipe = app.buildPipeline();
+Tp = pipe.plan(Steps="sorting");
+check(any([pipe.PriorRuns.queued]) && Tp.Status(Tp.Dataset == "recM003_260103_120000") == "skip: Kilosort4 queued", ...
+    'the queued run is one of the pipeline''s PriorRuns, so a plan (and a run) leaves its dataset alone');
+app.onStopKSQueue();
+writelines('{"state": "done"}', holdStatus);
+t0 = tic;
+while toc(t0) < 20 && ~isempty(app.KSRuns); pause(0.25); end
+
+fprintf('\n== 6d. phy starts in a folder whose path holds & and spaces ==\n');
+phyHome = fullfile(root, 'Mouse & Rat', 'kilo sort4');
+mkdir(phyHome);
+writelines("dat_path = 'recording.bin'", fullfile(phyHome, 'params.py'));
+fakePhy = fullfile(root, 'fake phy.cmd');
+writelines(["@echo off"; "cd > launched.txt"; "if exist params.py echo params.py found>> launched.txt"
+    "echo %*>> launched.txt"], fakePhy, LineEnding="\r\n");
+phyCmd0 = app.PhyCmdField.Value;
+app.PhyCmdField.Value = ['"' fakePhy '"'];
+app.launchPhy(phyHome, "Mouse & Rat");
+marker = fullfile(phyHome, 'launched.txt');
+t0 = tic;
+while toc(t0) < 15 && ~(isfile(marker) && numel(readlines(marker)) >= 3); pause(0.25); end
+L = strings(0, 1);
+if isfile(marker); L = strtrim(readlines(marker)); end
+check(~isempty(L) && strcmpi(L(1), phyHome) && any(L == "params.py found") && any(L == "template-gui params.py"), ...
+    'phy is started in the results folder, also when its path holds & and spaces');
+app.PhyCmdField.Value = phyCmd0;
+
+fprintf('\n== 7. deleting the figure (not Close) stops the timers ==\n');
+never = fullfile(root, 'never_run');
+app.KSRuns = EphysPipeline.sortRun("never", struct('statusFile', fullfile(never, 'ks4_status.json'), ...
+    'resultsDir', never, 'stdoutLog', "", 'device', ""));
+app.startKSMonitor();
+tK = app.KSMonitorTimer;
+delete(app.Fig);   % as close all force does
+check(~isvalid(tK) && isempty(app.KSMonitorTimer) && isempty(timerfindall('Name', 'EphysPreprocessingAppMonitor')), ...
+    'deleting the figure stops the Kilosort4 monitor (the figure''s DeleteFcn)');
 
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0

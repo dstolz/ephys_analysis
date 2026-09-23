@@ -1,6 +1,12 @@
 function onExportConfigCopy(obj)
 %onExportConfigCopy  Write a copy of the working config without changing its file.
-cfg = obj.gatherConfig();
+%   Refused while a text field does not parse (gatherConfig).
+try
+    cfg = obj.gatherConfig();
+catch ME
+    uialert(obj.Fig, string(ME.message), "Export copy");
+    return
+end
 start = char(obj.defaultConfigFolder());
 [f, p] = uiputfile({'*.json', 'Pipeline config (*.json)'}, "Export a copy of the config", ...
     fullfile(start, 'pipeline_copy.json'));

@@ -6,7 +6,9 @@ function test_EphysDataset()
 %   EphysProject discovery and runKilosort(DryRun=true). Section 10 builds split-format
 %   fixtures (info.rhd + flat .dat files) for the one-file-per-signal and
 %   one-file-per-channel layouts and checks metadata, readData and a byte-correct
-%   toBin for both; section 14 streams detectSpikes over a whole (split) recording
+%   toBin for both; section 8c checks that toBin never writes over the
+%   recording and that its noise fill follows the signal across periods and
+%   chunk boundaries; section 14 streams detectSpikes over a whole (split) recording
 %   and requires it to match the single-block result exactly. Sections 15-16
 %   cover the JSON helpers, the v2 manifest (manual artifacts, sorting and
 %   behavior associations), EphysProject.refresh / relative keys, and the
@@ -133,6 +135,31 @@ t = (0:totalSamples-1).'/Fs;
 sig = 100*sin(2*pi*10*t) + 500;          % 10 Hz + big DC offset, single chan
 hp = ds.filterContinuous(sig, Type="highpass", Cutoff=300, Fs=Fs);
 check(abs(mean(hp)) < 1, 'highpass removes DC offset');
+% Low cut-offs at a high rate: second-order sections stay finite and exact
+% where the transfer-function form gave NaN ([1 300] Hz) or a 1% error (1 Hz).
+t20 = (0:10*20000-1).' / 20000;
+x20 = 100 * sin(2*pi*50*t20) + 100 * sin(2*pi*2000*t20);
+mid = 60001:140000;                       % 3-7 s: clear of the edge transients
+y20 = ds.filterContinuous(x20, Type="bandpass", Cutoff=[1 300], Fs=20000);
+check(all(isfinite(y20)) && max(abs(y20(mid) - 100 * sin(2*pi*50*t20(mid)))) < 0.5, ...
+    'a [1 300] Hz band-pass at 20 kHz is finite, keeps 50 Hz and removes 2 kHz');
+y1 = ds.filterContinuous(x20, Type="highpass", Cutoff=1, Fs=20000);
+check(max(abs(y1(mid) - x20(mid))) < 0.1, 'a 1 Hz high-pass at 20 kHz leaves 50 Hz and 2 kHz as they are');
+% The spike band keeps the (3x faster) transfer-function form: it matches the
+% sections to far below a microvolt, and a 2nd-order high-pass (one section,
+% which FILTFILT could mistake for a transfer function) filters as it should.
+[zb, pb, kb] = butter(4, [500 5000] / 10000, 'bandpass');
+[sb, gb] = zp2sos(zb, pb, kb);
+ySpk = ds.filterContinuous(x20, Type="bandpass", Cutoff=[500 5000], Fs=20000);
+refSpk = filtfilt(sb, gb, x20);
+check(max(abs(ySpk(mid) - refSpk(mid))) < 1e-6, 'a [500 5000] Hz band-pass matches its second-order sections');
+[zh, ph, kh] = butter(2, 300 / 10000, 'high');
+[sh, gh] = zp2sos(zh, ph, kh);
+lastwarn('');
+y2 = ds.filterContinuous(x20, Type="highpass", Cutoff=300, Order=2, Fs=20000);
+ref2 = filtfilt(sh(1:3) * gh, sh(4:6), x20);
+check(max(abs(y2(mid) - ref2(mid))) < 1e-6 && isempty(lastwarn), ...
+    'a 2nd-order 300 Hz high-pass filters as one section, without an ambiguity warning');
 
 X = 5*randn(totalSamples, numAmp);
 X(100:105, :) = X(100:105, :) + 2000;    % multi-channel transient
@@ -146,6 +173,17 @@ check(isequal(iv1, [100 101; 300 310] / Fs) && isequal(ds.manualArtifactMask(100
     'intervals are [first, last+1)/Fs (a one-sample artifact is one sample long) and mask back to the flagged samples');
 check(isequal(find(ds.manualArtifactMask(1000, 200, Fs, iv1 + 200 / Fs)).', [101 301:310]), ...
     'the mask of a later block (sample offset) finds the same rows');
+% Channels: the columns left out never flag a sample, never count toward
+% MinChannels and report 0 exceedances; none at all flags nothing.
+Xch = 5 * randn(2000, 4); Xch(500:510, 1:2) = 3000;
+mAll = ds.detectArtifacts(Xch, Method="microvolts", Threshold=1500, MinChannels=2, Fs=Fs);
+[mSub, ~, stSub] = ds.detectArtifacts(Xch, Method="microvolts", Threshold=1500, MinChannels=2, ...
+    Fs=Fs, Channels=[2 3 4]);
+mNone = ds.detectArtifacts(Xch, Method="microvolts", Threshold=1500, MinChannels=1, Fs=Fs, Channels=[]);
+[mCm, ~, stCm] = ds.detectArtifacts(Xch, Method="commonmode", Threshold=1000, Fs=Fs, Channels=[1 2]);
+check(nnz(mAll) == 11 && ~any(mSub) && isequal(stSub.channelExceedCounts, [0 11 0 0]) && ~any(mNone) ...
+    && nnz(mCm) == 11 && isequal(stCm.channelExceedCounts, [11 11 0 0]), ...
+    'detectArtifacts(Channels=...) leaves the other columns out (0 exceedances); [] flags nothing');
 Xb = ds.blankArtifacts(X, mask, Fill="zero");
 check(all(all(Xb(mask,:) == 0)), 'blankArtifacts zeroes flagged rows');
 % Fill="noise": the flagged rows become Gaussian noise at the level given, the
@@ -159,6 +197,28 @@ check(isequal(Xn, ds.blankArtifacts(X, mask, Fill="noise", NoiseSigma=5, NoiseCe
     'the same seed fills identically');
 check(strcmp(errorIdOf(@() ds.blankArtifacts(X, mask, Fill="noise", NoiseSigma=[1 2])), ...
     'EphysDataset:blankArtifacts:BadNoiseLevels'), 'a noise level per channel must cover every channel');
+% Inside a slow wave the fill is a line from the level before the run (the
+% mean of its last 1 ms, 30 samples) to the level after it, plus the noise,
+% so its edges leave no step.
+tw6 = (0:5999).' / Fs;
+W6 = 300 * sin(2*pi*6*tw6 + [0 1]) + 5 * randn(6000, 2);
+m6 = false(6000, 1); m6(2001:3500) = true;
+Wn = ds.blankArtifacts(W6, m6, Fill="noise", NoiseSigma=5, Stream=seeded());
+a6 = mean(W6(1971:2000, :)); b6 = mean(W6(3501:3530, :));
+res6 = Wn(2001:3500, :) - (a6 + (b6 - a6) .* ((1:1500).' / 1501));
+check(max(abs([Wn(2001, :) - Wn(2000, :), Wn(3501, :) - Wn(3500, :)])) < 30 ...
+    && abs(std(res6(:)) - 5) < 0.5 && abs(mean(res6(:))) < 0.5 && isequal(Wn(~m6, :), W6(~m6, :)), ...
+    'the noise fill bridges the levels on either side of a run: noise around a line, no step');
+% A run at the top of a block starts from Context (the end of the previous
+% chunk); without it, it is held at the level after it.
+m6b = false(6000, 1); m6b(1:500) = true;
+ctx6 = W6(1:40, :) + 100;
+a6b = mean(ctx6(end-29:end, :)); b6b = mean(W6(501:530, :));
+Wc = ds.blankArtifacts(W6, m6b, Fill="noise", NoiseSigma=0, Context=ctx6);
+Wh = ds.blankArtifacts(W6, m6b, Fill="noise", NoiseSigma=0);
+check(max(abs(Wc(1:500, :) - (a6b + (b6b - a6b) .* ((1:500).' / 501))), [], 'all') < 1e-9 ...
+    && max(abs(Wh(1:500, :) - b6b), [], 'all') < 1e-9, ...
+    'a run at the top of a block bridges from Context''s last 1 ms, else holds the level after it');
 % Whole-recording levels: one robust SD and centre per channel, every chunk of
 % the recording counted (the fill toBin draws from).
 nl = ds.noiseLevels();
@@ -244,6 +304,94 @@ check(strcmp(errorIdOf(@() ds.runKilosort(ArtifactIntervals=[0 ds.NumSamples / d
 [share, covered] = EphysDataset.silencedFraction([0 1; 0.5 2; 3 10], 4);
 check(abs(covered - 3) < 1e-12 && abs(share - 0.75) < 1e-12, 'silencedFraction clips and unions the intervals');
 ds.ManualArtifacts = zeros(0, 2);
+
+fprintf('\n== 8c. toBin: the recording is never overwritten; the fill follows the signal ==\n');
+% A universal-format recording whose data file is named after its folder -
+% where toBin writes <Name>.bin when no output folder is set. A slow wave
+% (6 Hz common, 3 Hz per channel) under 8 uV of noise.
+rng(21);
+FsB = 30000; nB = 2 * FsB; tB = (0:nB-1).' / FsB;
+XB = 250 * sin(2*pi*6*tB) + 80 * sin(2*pi*3*tB + (0:7)) + 8 * randn(nB, 8);
+brDir = fullfile(root, 'binrec');
+mkdir(brDir);
+dataB = fullfile(brDir, 'binrec.bin');
+fid = fopen(dataB, 'w', 'ieee-le'); fwrite(fid, single(XB.'), 'single'); fclose(fid);
+BinaryReader.writeDescriptor(brDir, struct('data_file', "binrec.bin", 'dtype', "float32", ...
+    'n_chan', 8, 'fs', FsB, 'gain_to_uV', 1, 'offset', 0));
+rawB = readBin(dataB);
+dsB = EphysDataset(brDir);
+over = 'EphysDataset:toBin:WouldOverwriteRecording';
+check(strcmp(errorIdOf(@() dsB.toBin(BinFile=dataB)), over) ...
+    && strcmp(errorIdOf(@() dsB.toBin(BinFile="binrec.bin")), over), ...
+    'toBin refuses to write over the recording''s data file (full path, or a bare name in the output folder)');
+if ispc
+    check(strcmp(errorIdOf(@() dsB.toBin(BinFile=upper(dataB))), over), ...
+        'the paths are compared ignoring case on Windows');
+end
+check(strcmp(errorIdOf(@() dsB.toBin(BinFile=fullfile(brDir, 'recording.bin'))), over), ...
+    'nor over its recording.json with the .bin''s JSON sidecar');
+overM = 'EphysDataset:matrixToBin:WouldOverwriteRecording';
+check(strcmp(errorIdOf(@() dsB.matrixToBin(XB, BinFile=dataB)), overM) ...
+    && strcmp(errorIdOf(@() dsB.matrixToBin(XB, BinFile=fullfile(brDir, 'binrec'))), overM), ...
+    'matrixToBin refuses it too (".bin" added as matrix2kilosort adds it)');
+check(isequal(readBin(dataB), rawB), 'the recording is untouched');
+
+% A 50 ms period inside the slow wave: the fill runs from the level before it
+% to the level after it, so the .bin has no step at its edges (a fill at ~0 uV
+% jumped 100-300 uV there).
+dsB.OutputDir = fullfile(root, 'binrec_out');
+t0B = 0.7237; t1B = t0B + 0.05;
+iBr = dsB.toBin(ArtifactIntervals=[t0B t1B], WriteMeta=false);
+BB = reshape(double(typecast(readBin(iBr.filename), 'int16')), 8, []).' / dsB.Scale;
+onB = round(t0B * FsB) + 1; offB = round(t1B * FsB);
+jB = [BB(onB, :) - BB(onB-1, :), BB(offB+1, :) - BB(offB, :)];
+aB = mean(BB(onB-30:onB-1, :)); bB = mean(BB(offB+1:offB+30, :));
+resB = BB(onB:offB, :) - (aB + (bB - aB) .* ((1:offB-onB+1).' / (offB - onB + 2)));
+check(max(abs(jB)) < 6 * 8 && abs(std(resB(:)) / 8 - 1) < 0.15 && iBr.nManualBlanked == offB - onB + 1, ...
+    sprintf('no step at the period''s edges (max %.0f uV, noise 8 uV); the fill is noise around a line', max(abs(jB))));
+
+% Three *.rhd files are three chunks. A period across the file 1|2 boundary
+% (rows 2401-2700) is held at the level before it to the end of file 1, and
+% continues from there in file 2; a period that begins on file 3's first row
+% (5121) starts from file 2's last clean samples. Without that carry the fill
+% would jump 60-110 uV at the chunk boundary: the wave goes from 38 to -74 uV
+% across the first period and from 45 to 111 uV across the second.
+trDir = fullfile(root, 'fill_rhd');
+mkdir(trDir);
+nPer = 20 * spb;                                   % 2560 samples per file
+XT = 300 * sin(2*pi*6*(0:3*nPer-1) / Fs) + 5 * randn(numAmp, 3*nPer);
+codes = uint16(round(XT / 0.195) + 32768);
+for f = 1:3
+    ft = fullfile(trDir, sprintf('fill_%03d.rhd', f));
+    writeSyntheticRHD(ft, codes(:, (f-1)*nPer+1:f*nPer), zeros(1, nPer), Fs, spb);
+    java.io.File(ft).setLastModified(int64(1.0e12 + 60000 * f));
+end
+dsT = EphysDataset(trDir);
+dsT.OutputDir = fullfile(root, 'fill_rhd_out');
+iT = dsT.toBin(ArtifactIntervals=[2400 2700; 5120 5300] / Fs, WriteMeta=false);
+BT = reshape(double(typecast(readBin(iT.filename), 'int16')), numAmp, []).' * 0.195;
+edgesT = [2400 2700 2560 5120 5300];               % row r vs r+1: edges, and the chunk boundaries
+jT = BT(edgesT + 1, :) - BT(edgesT, :);
+check(iT.nManualBlanked == 480 && max(abs(jT(:))) < 50, ...
+    sprintf('a fill cut by a chunk boundary carries on across it (max step %.0f uV, noise 5 uV)', max(abs(jT(:)))));
+
+% The fill level comes from up to 16 chunks spread over the recording, not a
+% full pass: 18 one-file chunks here.
+mcDir = fullfile(root, 'many_chunks');
+mkdir(mcDir);
+for f = 1:18
+    fm = fullfile(mcDir, sprintf('mc_%03d.rhd', f));
+    writeSyntheticRHD(fm, uint16(32768 + round(20 * randn(numAmp, 2*spb))), zeros(1, 2*spb), Fs, spb);
+    java.io.File(fm).setLastModified(int64(1.0e12 + 60000 * f));
+end
+dsM = EphysDataset(mcDir);
+dsM.OutputDir = fullfile(root, 'many_chunks_out');
+iM = dsM.toBin(ArtifactIntervals=[0.001 0.002], WriteMeta=false);
+nlArgs = {'Filter', true, 'FilterType', "highpass", 'FilterCutoff', 300, 'FilterOrder', 4};
+nl16 = dsM.noiseLevels(nlArgs{:}, MaxChunks=16);
+nlAll = dsM.noiseLevels(nlArgs{:});
+check(nl16.nChunks == 16 && nlAll.nChunks == 18 && isequal(iM.noiseFill.sigma, nl16.sigma) ...
+    && ~isequal(nl16.sigma, nlAll.sigma), 'toBin measures the fill level on 16 chunks spread over the recording');
 
 fprintf('\n== 9. DatasetTracker integration (ds / project) ==\n');
 % ds.OutputDir = out_stream (section 4); section 8 wrote a dry-run kilosort4/
@@ -481,6 +629,13 @@ check(all(arrayfun(@(k) min(abs(info4.index{1} - k)), spkIdx) == 0), ...
 check(infoF.filterApplied && isequal(infoF.band, [500 5000]), 'default band 500-5000 Hz');
 check(all(arrayfun(@(k) min(abs(infoF.index{1} - k)), spkIdx) <= 3), ...
     'band-pass detection within 3 samples of each true trough');
+% NaN samples (blankArtifacts(Fill="nan")): the band-pass runs across them
+% on a straight line, they stay NaN, and nothing is detected in or around them.
+Xnan = Xs; Xnan(30501:32500, :) = NaN;          % the trough at 31500 inside
+[~, ~, iNan] = ds.detectSpikes(Xnan, Threshold=8);
+keptIdx = spkIdx(spkIdx <= 30500 | spkIdx > 32500);
+check(isequal(iNan.count, [numel(keptIdx) 10]) && all(abs(iNan.index{1} - keptIdx) <= 3), ...
+    'detectSpikes filters around NaN samples: every trough outside them, nothing in or next to them');
 
 % Polarity / alignment
 [~, ~, infoP] = ds.detectSpikes(-Xs, Filter=false, Threshold=8, ...
@@ -622,6 +777,15 @@ check(iCh.nChan == 1 && isequal(iCh.index{1}, recIdx(1:4)), ...
 check(all(arrayfun(@(k) min(abs(iDef.index{1} - k)), recIdx) <= 3), ...
     'band-pass streaming detects every injected trough within 3 samples');
 check(iDef.edgePadSamples >= round(0.010*Fs), 'edge padding at least EdgePadMs');
+% A low band edge rings for longer than 10 ms: the context grows to 4 periods
+% of it, and the streamed band-pass matches the single block at the joins
+% (the trough at 9000 sits one pad from a block that ends on another spike).
+loArgs = {'Band', [100 5000], 'ThresholdMethod', "absolute", 'Threshold', 12, 'MinPeriodMs', 0.2};
+[~, ~, iLoB] = dsSpk.detectSpikes(Xrec, loArgs{:});
+[~, ~, iLoS] = dsSpk.detectSpikes(loArgs{:}, 'MaxChunkSamples', 2000);
+check(iLoS.edgePadSamples == 4 * Fs / 100 && isequal(iLoS.index, iLoB.index) ...
+    && max(abs(iLoS.amplitude{1} - iLoB.amplitude{1})) < 0.02, ...
+    'a [100 5000] Hz band streams with 4 periods of 100 Hz of context and matches the single block');
 
 % Progress reporting runs once per chunk.
 nProg = 0;
@@ -927,7 +1091,8 @@ check(isequal(U.ksChannel, [2; 4]) && isequal(U.channel, [3; 1]), ...
 check(U.channelMapSource == "channel_map.npy", 'channel map read from channel_map.npy');
 check(numel(U.templateWaveform{1}) == 8 && isempty(U.templateFull) && numel(U.templateTimeMs) == 8, ...
     'peak-channel template waveform, no full templates by default');
-check(abs(U.templateWaveform{1}(3) - (-50 * 1.5)) < 1e-9, 'template scaled by the unit median amplitude');
+check(U.templateWaveform{1}(3) == -50 && U.templateUnits == "whitened", ...
+    'the template as Kilosort4 stores it (no whitening_mat_inv.npy), not scaled by the amplitude');
 check(isequal(U.amplitude, [1.5; 2]) && isnan(U.contamPct(1)), 'amplitude from amplitudes.npy; contam NaN when absent');
 check(numel(ui.spikeSamples) == 6 && isequal(ui.spikeUnitIdx(:).', [1 1 2 2 1 0]), ...
     'info carries per-spike arrays; dropped clusters map to 0');
@@ -1036,6 +1201,30 @@ o3 = dsSpk.spikesToMat(DetectOptions=dopt, Overwrite=true, Channels=1, RejectArt
 check(isequal(o3.nDetected, 10), 'RejectArtifacts=false keeps every event');
 o3b = dsSpk.spikesToMat(DetectOptions=dopt, Overwrite=true, Channels=1, ArtifactIntervals=[0 0.0001]);
 check(isequal(o3b.nRejectedArtifact, 0) && isequal(o3b.nDetected, 10), 'explicit ArtifactIntervals override the manual periods');
+% Many periods - overlapping, touching, reversed, empty - reject exactly the
+% events the one-period-at-a-time rule [round(t0*Fs), round(t1*Fs)) does.
+rng(31);
+ivR = sort(rand(200, 1)) * nSampRec / Fs;
+ivR = [ivR, ivR + rand(200, 1) * 0.002];
+ivR(1:10:end, :) = ivR(1:10:end, [2 1]);          % reversed: empty
+ivR(2:10:end, 2) = ivR(2:10:end, 1);              % empty
+ivR(3:10:end, 2) = ivR(4:10:end, 1);              % touching the next
+doptR = struct('Filter', false, 'ThresholdMethod', "absolute", 'Threshold', 12, 'MinPeriodMs', 0.2);
+oAll = dsSpk.spikesToMat(DetectOptions=doptR, Overwrite=true, RejectArtifacts=false);
+MAll = load(oAll.file);
+tsAll = MAll.detected.ts;
+oRej = dsSpk.spikesToMat(DetectOptions=doptR, Overwrite=true, ArtifactIntervals=ivR);
+expRej = zeros(1, 2);
+for c = 1:2
+    g = round(tsAll{c} * Fs);
+    hit = false(size(g));
+    for k = 1:size(ivR, 1)
+        hit = hit | (g >= round(ivR(k, 1) * Fs) & g < round(ivR(k, 2) * Fs));
+    end
+    expRej(c) = nnz(hit);
+end
+check(isequal(oRej.nRejectedArtifact, expRej) && all(expRej > 0) && isequal(oRej.nDetected, oAll.nDetected - expRej), ...
+    sprintf('200 overlapping / touching / reversed periods reject exactly the per-period rule''s %d + %d events', expRej));
 dopt2 = dopt; dopt2.Waveforms = true;
 o4 = dsSpk.spikesToMat(DetectOptions=dopt2, Overwrite=true, Channels=1);
 M4 = load(o4.file);
@@ -1086,8 +1275,8 @@ end
 fprintf('\n== 19. acquisition readers: registry, BinaryReader, discovery ==\n');
 check(isa(ds.Reader, 'IntanReader') && ds.Reader.Kind == "intan" && ds.RecordingFormat == "traditional", ...
     'EphysDataset picks IntanReader for a *.rhd folder');
-check(isa(dsig.Reader, 'IntanReader') && dsig.supportsRandomAccess() && ~ds.supportsRandomAccess(), ...
-    'random access only for the split layouts');
+check(isa(dsig.Reader, 'IntanReader') && dsig.supportsRandomAccess() && ds.supportsRandomAccess(), ...
+    'random access for every Intan layout (traditional files block by block)');
 check(isequal(sort(EphysReader.readerClasses()), sort(["IntanReader" "BinaryReader" "OpenEphysReader"])), 'built-in reader registry');
 check(isempty(EphysReader.forFolder(fullfile(root, 'proj', 'empty_decoy'))), 'no reader claims an empty folder');
 check(strcmp(DatasetTracker.classifyJson(struct('schema', "ephys-recording/1")), 'recording-descriptor'), ...
@@ -1124,8 +1313,11 @@ du1 = dsu.readData(KeepChannels=[3 1], Precision="single");
 check(isa(du1.amplifier, 'single') && isequal(du1.channelOrder, [3 1]) ...
     && isequal(du1.channelNames, ds.ChannelNames([3 1])), 'KeepChannels / Precision honoured');
 planU = dsu.streamPlan(MaxChunkSamples=100);
-check(numel(planU) == ceil(totalSamples / 100) && planU(1).kind == "window" && planU(2).sampleOffset == 100, ...
-    'binary streamPlan windows');
+% 512 samples in windows of 100: the 12 left over (under a second) join the last
+% window rather than make a chunk too short for the streaming filters.
+check(numel(planU) == floor(totalSamples / 100) && planU(end).nSamples == 100 + mod(totalSamples, 100) ...
+    && planU(1).kind == "window" && planU(2).sampleOffset == 100, ...
+    'binary streamPlan windows (a short leftover joins the last one)');
 Xw = dsu.readChunkUV(planU(2));
 check(isequal(size(Xw), [100 numAmp]) && max(abs(Xw(:) - reshape(Xsrc(101:200, :), [], 1))) < 1e-9, 'readChunkUV window');
 check(dsu.supportsRandomAccess() && max(abs(reshape(dsu.readWindowUV(5, 3) - Xsrc(6:8, :), [], 1))) < 1e-9, 'readWindowUV');
@@ -1326,13 +1518,25 @@ layProbe = fullfile(lay, 'probe.json');
 writeJsonFile(layProbe, struct('chanMap', [0; 2; 5; 7], 'xc', zeros(4, 1), 'yc', [0; 10; 20; 30], 'kcoords', [1; 1; 2; 2]));
 dl.ProbeFile = layProbe;
 L = dl.channelLayout();
-check(L.hasProbe && isequaln(L.shank, [2 1 2 1 NaN]) && isequaln(L.y, [20 10 30 0 NaN]) ...
-    && isequal(L.order, [2 4 3 1 5]) && isequal(L.shanks, [1 2]), ...
-    'chanMap values are hardware numbers: by shank, top down, the channel off the probe last');
+% chanMap values are .bin rows (channel c <-> value c - 1), as for sorting,
+% whatever the hardware numbers [5 2 7 0 9]: only channels 1 and 3 (values
+% 0 and 2) are on this probe.
+check(L.hasProbe && isequaln(L.shank, [1 NaN 1 NaN NaN]) && isequaln(L.y, [0 NaN 10 NaN NaN]) ...
+    && isequal(L.order, [3 1 2 4 5]) && isequal(L.shanks, 1), ...
+    'chanMap values are .bin rows, whatever the hardware numbers: top down, the channels off the probe last');
 writeJsonFile(layProbe, struct('chanMap', [0; 2; 5; 7], 'xc', [0; 10; 0; 10], 'yc', zeros(4, 1)));
 L = dl.channelLayout();
-check(isequaln(L.shank, [1 1 1 1 NaN]) && isequal(L.order, [1 4 2 3 5]), ...
+check(isequaln(L.shank, [1 NaN 1 NaN NaN]) && isequal(L.order, [1 3 2 4 5]), ...
     'without kcoords every site is on shank 1; a row runs left to right');
+otherProbe = fullfile(lay, 'other.json');
+writeJsonFile(otherProbe, struct('chanMap', (0:4).', 'xc', zeros(5, 1), 'yc', (0:4).' * 10));
+dl.ProbeFile = "";
+Lo = dl.channelLayout(ProbeFile=otherProbe);
+check(Lo.hasProbe && isequal(Lo.order, 5:-1:1) && ~dl.channelLayout().hasProbe, ...
+    'ProbeFile= places the channels of a dataset without a probe (the default probe)');
+dl.ProbeFile = layProbe;
+Lo = dl.channelLayout(ProbeFile=otherProbe);
+check(isequal(Lo.order, 5:-1:1) && all(isfinite(Lo.y)), 'ProbeFile= wins over the dataset''s own probe');
 
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0

@@ -1,9 +1,11 @@
 function P = gatherProjectSection(obj)
 %gatherProjectSection  Project section from the Project tab.
-%   The dataset selection follows the table ticks once a project is
-%   scanned (any tick, shown or filtered out -> "list" of root-relative
-%   keys; none -> "all");
-%   before a scan the applied config's selection is kept.
+%   The dataset selection follows the table ticks while the scanned project
+%   is the one under the tab's root (any tick, shown or filtered out ->
+%   "list" of root-relative keys; none -> "all"). Before a scan, and while
+%   the scanned project is another root's (the root was edited, or a config
+%   for another root is not scanned yet), the working config's selection is
+%   kept.
 P = obj.Config.Project;
 P.Root       = string(strtrim(obj.RootPathField.Value));
 P.Recursive  = logical(obj.RecursiveCheckBox.Value);
@@ -14,7 +16,7 @@ if ~isempty(checks)
     shown = string({checks.Text});
     P.TokenColumns = strjoin(shown(logical([checks.Value])), ", ");
 end
-if ~isempty(obj.Project) && obj.Project.NumDatasets > 0
+if ~isempty(obj.Project) && obj.Project.NumDatasets > 0 && obj.projectAtRoot(P.Root)
     T = obj.DatasetsTable.Data;
     if istable(T) && any(strcmp('Select', T.Properties.VariableNames))
         idx = obj.tickedDatasetIndices();

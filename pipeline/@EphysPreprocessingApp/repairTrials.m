@@ -3,9 +3,11 @@ function repairTrials(obj, cuts)
 %   CUTS is "recorded", "none" or a struct (trials, intervals), see
 %   EphysDataset.pairTrials. With Behavior.AutoApprove, a "recorded"
 %   pairing (Load, a setting change) whose counts match without cuts is
-%   approved at once (EphysDataset.autoApproveTrialPairing); Reset cuts and
-%   cut edits leave the approval to the user. Cuts that cannot be applied
-%   leave the shown pairing as it is (and put the spinners back).
+%   approved at once (EphysDataset.autoApproveTrialPairing), except while a
+%   run is under way (the pairing is saved in the manifest the run holds);
+%   Reset cuts and cut edits leave the approval to the user. Cuts that
+%   cannot be applied leave the shown pairing as it is (and put the spinners
+%   back).
 d = obj.currentDataset();
 if isempty(d) || isempty(obj.TrialsEvents); return; end
 try
@@ -23,7 +25,7 @@ catch ME
     return
 end
 auto = false;
-if ~isstruct(cuts) && string(cuts) == "recorded" && obj.Config.Behavior.AutoApprove
+if ~isstruct(cuts) && string(cuts) == "recorded" && obj.Config.Behavior.AutoApprove && ~obj.RunActive
     [P, auto] = d.autoApproveTrialPairing(P);
 end
 obj.TrialsPairing = P;

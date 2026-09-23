@@ -8,6 +8,7 @@ function finishVizArtDrag(obj)
     end
     obj.VizArtPreview = gobjects(0, 1);
 
+    if obj.refuseWhileRunning("Mark Artifacts"); return; end
     d = obj.currentVizDataset();
     if isempty(d); return; end
 
@@ -35,7 +36,7 @@ function finishVizArtDrag(obj)
         end
     end
     if changed
-        d.writeManifest();             % periods persist in the manifest
+        obj.saveManifests(d);          % periods persist in the manifest
     end
     if ~isempty(obj.Viewer) && isvalid(obj.Viewer); obj.Viewer.render(); end
     obj.updateVizArtStatus();

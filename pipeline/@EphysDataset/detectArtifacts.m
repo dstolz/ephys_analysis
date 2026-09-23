@@ -24,12 +24,23 @@ function [mask, intervals, stats] = detectArtifacts(obj, X, opts)
 %                    sample is flagged on a channel when z > Threshold.
 %       "microvolts" absolute amplitude threshold in microvolts (|x| > Threshold).
 %       "commonmode" flag the across-channel mean when |mean| > Threshold (uV).
+%                    Give it the signal as recorded: a common reference
+%                    (CAR / CMR) subtracts that very mean, so on referenced
+%                    data it stays near 0 (artifactIntervals, analyzeArtifacts
+%                    and toBin read it unreferenced for this method).
 %     Threshold   scalar; default 9 (rms, in robust SD), 8 (mad),
 %                 1500 (microvolts/commonmode)
 %     RmsWindowMs running-RMS window length in milliseconds (Method "rms" only);
 %                 default ~1 ms. Converted to samples with Fs.
 %     MinChannels minimum channels that must exceed simultaneously (default 2;
 %                 ignored for "commonmode")
+%     Channels    columns of X that take part (default NaN: all of them).
+%                 The others never flag a sample, count toward MinChannels
+%                 or enter the common mode, and report 0 in
+%                 channelExceedCounts; the streaming callers leave
+%                 ExcludeChannels out this way, so dead or broken sites
+%                 cannot erase a period on every channel. [] = none: nothing
+%                 is flagged.
 %     MergeGapMs  milliseconds; gaps of <= MergeGapMs of clean signal between two
 %                 flagged runs are filled so they blank as one continuous
 %                 artifact block ("stitching"). Applied before PadMs. Default 0.
@@ -41,8 +52,8 @@ function [mask, intervals, stats] = detectArtifacts(obj, X, opts)
 %   STATS fields: method, threshold, rmsWindowMs, minChannels, mergeGapMs,
 %   padMs, fraction (of samples flagged), numIntervals, and
 %   channelExceedCounts [1 x nChan] - the number of samples each channel
-%   exceeded its threshold (before the MinChannels combination), used to
-%   summarize artifacts per channel.
+%   exceeded its threshold (before the MinChannels combination; 0 for the
+%   channels Channels leaves out), used to summarize artifacts per channel.
 %
 %   See also EphysDataset.blankArtifacts, EphysDataset.toBin, EphysDataset.analyzeArtifacts.
 
@@ -57,6 +68,7 @@ arguments
     opts.MergeGapMs (1,1) double {mustBeNonnegative} = 0
     opts.PadMs (1,1) double {mustBeNonnegative} = 0
     opts.Fs (1,1) double = NaN
+    opts.Channels (1,:) double = NaN
 end
 
 Fs = opts.Fs;
@@ -79,6 +91,19 @@ end
 [nSamples, nChan] = size(X);
 rmsWindowMs = NaN;   % reported in stats; only set for the "rms" method
 
+% The columns that take part; the rest are left out of X here and report 0.
+ch = opts.Channels;
+if isscalar(ch) && isnan(ch)
+    ch = 1:nChan;
+elseif ~all(ch >= 1 & ch <= nChan & ch == round(ch))
+    error('EphysDataset:detectArtifacts:BadChannels', ...
+        'Channels must be column indices of X (1 to %d).', nChan);
+end
+if ~isequal(ch, 1:nChan)
+    X = X(:, ch);
+end
+nDet = numel(ch);
+
 % Convert the millisecond options to samples with the data sample rate.
 mergeGapSamp = round(opts.MergeGapMs * 1e-3 * Fs);
 padSamp      = round(opts.PadMs      * 1e-3 * Fs);
@@ -95,33 +120,39 @@ switch opts.Method
             w = max(1, round(opts.RmsWindowMs * 1e-3 * Fs));
         end
         rmsWindowMs = 1e3 * w / Fs;           % actual window after rounding
-        r = sqrt(movmean(X.^2, w, 1));        % [nSamples x nChan]
+        r = sqrt(movmean(X.^2, w, 1));        % [nSamples x nDet]
         med = median(r, 1);
         sd  = median(abs(r - med), 1) * 1.4826;   % robust SD of the RMS
         sd(sd == 0) = eps;
         z = (r - med) ./ sd;                  % positive => elevated amplitude
         exceed = z > thr;
-        mask = sum(exceed, 2) >= min(opts.MinChannels, nChan);
+        mask = sum(exceed, 2) >= min(opts.MinChannels, nDet);
+        counts = sum(exceed, 1);
 
     case "mad"
         med = median(X, 1);
         madv = median(abs(X - med), 1) * 1.4826;
         madv(madv == 0) = eps;
-        z = abs(X - med) ./ madv;          % [nSamples x nChan]
+        z = abs(X - med) ./ madv;          % [nSamples x nDet]
         exceed = z > thr;
-        mask = sum(exceed, 2) >= min(opts.MinChannels, nChan);
+        mask = sum(exceed, 2) >= min(opts.MinChannels, nDet);
+        counts = sum(exceed, 1);
 
     case "microvolts"
         exceed = abs(X) > thr;
-        mask = sum(exceed, 2) >= min(opts.MinChannels, nChan);
+        mask = sum(exceed, 2) >= min(opts.MinChannels, nDet);
+        counts = sum(exceed, 1);
 
     case "commonmode"
         cm = mean(X, 2);
         mask = abs(cm) > thr;
-        exceed = repmat(mask, 1, nChan);
+        counts = repmat(nnz(mask), 1, nDet);
 end
 
 mask = mask(:);
+if nDet == 0
+    mask = false(nSamples, 1);     % no channel takes part: nothing to flag
+end
 
 % Stitch flagged epochs separated by short clean gaps into one block.
 if mergeGapSamp > 0 && any(mask)
@@ -144,7 +175,8 @@ stats.mergeGapMs  = opts.MergeGapMs;
 stats.padMs       = opts.PadMs;
 stats.fraction    = nnz(mask) / max(nSamples, 1);
 stats.numIntervals = size(intervals, 1);
-stats.channelExceedCounts = sum(exceed, 1);
+stats.channelExceedCounts = zeros(1, nChan);
+stats.channelExceedCounts(ch) = counts;
 end
 
 

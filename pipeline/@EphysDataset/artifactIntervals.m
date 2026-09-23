@@ -2,7 +2,8 @@ function iv = artifactIntervals(obj, opts)
 %artifactIntervals  Merged artifact periods (seconds) erased before sorting.
 %   IV = ds.artifactIntervals() returns a [k x 2] matrix of [tStart tEnd] in
 %   seconds, recording-relative (file 1 = t0), combining:
-%     * every manual period in ds.ManualArtifacts (always included), and
+%     * every manual period in ds.ManualArtifacts (unless IncludeManual is
+%       false), and
 %     * the automatic amplitude-deviation detector's intervals when
 %       ds.ArtifactConfig.Enabled (or opts.IncludeAuto) is true.
 %   Overlapping / adjacent periods are merged into one. Every period is
@@ -17,11 +18,16 @@ function iv = artifactIntervals(obj, opts)
 %   (per worker with UseParallel), so the preview and the actual run agree.
 %   Each chunk's intervals are shifted by the running sample offset so they are
 %   global (recording-relative). The result does not depend on UseParallel.
+%   ExcludeChannels take no part in the detection: a dead or broken site
+%   (which after a common reference also carries the reference's inverse)
+%   must not erase a period on every channel.
 %
 %   Options (auto-detection params; each omitted option falls back to
 %   ds.ArtifactConfig)
 %   -------------------------------------------------------------------
 %     IncludeAuto  logical  run the detector (default = ds.ArtifactConfig.Enabled)
+%     IncludeManual logical  add ds.ManualArtifacts (default true; false gives
+%       the automatic detection alone, as EphysPipeline caches it)
 %     Files        (1,:) string  subset/order of files (default: all)
 %     Method/Threshold/RmsWindowMs/MergeGapMs/MinChannels/PadMs   detection params
 %     Filter/FilterType/FilterCutoff/FilterOrder   detect on a filtered view
@@ -41,6 +47,7 @@ function iv = artifactIntervals(obj, opts)
 arguments
     obj (1,1) EphysDataset
     opts.IncludeAuto = []           % [] -> ds.ArtifactConfig.Enabled
+    opts.IncludeManual (1,1) logical = true
     opts.Files (1,:) string = string.empty(1,0)
     opts.Method (1,1) string = ""
     opts.Threshold (1,1) double = NaN
@@ -69,9 +76,10 @@ else
     includeAuto = logical(includeAuto);
 end
 
-% Manual periods are always included (explicit user intent).
+% Manual periods are included (explicit user intent) unless the caller wants
+% the automatic detection alone.
 manual = obj.ManualArtifacts;
-if isempty(manual); manual = zeros(0, 2); end
+if isempty(manual) || ~opts.IncludeManual; manual = zeros(0, 2); end
 
 if ~includeAuto
     iv = mergeIntervals(manual);
@@ -105,7 +113,8 @@ plan = obj.streamPlan(Files=opts.Files, MaxChunkSamples=opts.MaxChunkSamples);
 nChunks = numel(plan);
 filt = struct('use', useFilter, 'type', fType, 'cutoff', fCut, 'order', fOrd);
 det  = struct('method', method, 'threshold', thr, 'rmsWindowMs', rmsWinMs, ...
-    'minChannels', minCh, 'mergeGapMs', mergeGap, 'padMs', padMs);
+    'minChannels', minCh, 'mergeGapMs', mergeGap, 'padMs', padMs, ...
+    'channels', setdiff(1:obj.NumChannels, obj.ExcludeChannels));
 
 pool = [];
 nWorkers = 1;

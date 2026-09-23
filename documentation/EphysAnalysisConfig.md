@@ -51,7 +51,10 @@ fields are dropped (listed in `LoadWarnings` after `load`). Text where a
 number belongs is `EphysAnalysisConfig:BadValue`.
 
 Plot ids must be unique (`EphysAnalysisConfig:DuplicatePlotId`); a plot
-without one gets `"<kind>_<n>"`.
+without one gets `"<kind>_<n>"`. `validate` also requires them to stay
+distinct as file names: `{Plot}` replaces every character outside
+`A-Z a-z 0-9 _ - .` by `_`, and Windows ignores case, so `"psth 1"` or
+`"PSTH_1"` next to `"psth_1"` is an error.
 
 ## JSON example
 
@@ -76,10 +79,10 @@ without one gets `"<kind>_<n>"`.
       "layout": "grid", "withRaster": true, "histStyle": "bar", "fill": true, "fillAlpha": "NaN", "normalize": "none",
       "stack": false, "stackSpacing": 1.1, "maskAfterStop": false, "param": "", "seriesParam": "",
       "value": "rate", "order": "depth", "metric": "mean", "correlation": "pearson", "style": { "MaxTiles": 16, "...": "..." } },
-    { "id": "rate_platform", "kind": "rate", "source": "units",
-      "ref": { "line": "Platform", "edge": "onset", "which": "first", "scope": "trial", "...": "..." },
+    { "id": "rate_resp", "kind": "rate", "source": "units",
+      "ref": { "line": "RespWindow", "edge": "onset", "which": "first", "scope": "trial", "...": "..." },
       "window": { "mode": "between", "pre": 0, "post": 0,
-                  "stop": { "line": "Platform", "edge": "offset", "which": "first", "scope": "trial", "...": "..." } },
+                  "stop": { "line": "RespWindow", "edge": "offset", "which": "first", "scope": "trial", "...": "..." } },
       "selection": { "filter": "Hit | Miss", "groupBy": "Depth", "...": "..." },
       "baseline": { "Mode": "subtract", "Window": [-0.5, 0] }, "...": "..." } ],
   "Export": { "Enabled": true, "Formats": ["png", "svg"], "Folder": "{OutputFolder}\\analysis",
@@ -147,7 +150,7 @@ A plot's `units` (its `source` is the plot's `source`):
 | `Colormap` | `"lines"` | group colours: `"lines"` keeps selectTrials' colours; any colormap name resamples them; a colour name or hex code (`"black"`, `"#1f77b4"`) gives every group that colour |
 | `HeatColormap` | `""` | heatmaps, probe maps and unit correlations; `""` = parula, or `blueWhiteRed` for corrmap |
 | `FontSize` | 9 | |
-| `YLim`, `XLim`, `CLim` | `[]` | fixed limits (`[]` = automatic); a stacked PSTH ignores `YLim` |
+| `YLim`, `XLim`, `CLim` | `[]` | fixed limits (`[]` = automatic). `YLim` is used by the unstacked PSTH rate panels, the evoked butterfly and grid layouts, and the rate and tuning plots only: rasters show every epoch, and a stacked PSTH and an evoked stack ignore it |
 | `Grid`, `Legend` | `true` | |
 | `MaxTiles` | 16 | tiles per page in grid layouts |
 | `StackSpacing` | `NaN` | evoked `"stack"` offset (NaN = 1.2 x the 90th percentile of the channels' ranges) |
@@ -156,7 +159,7 @@ A plot's `units` (its `source` is the plot's `source`):
 
 | Field | Default | Meaning |
 | --- | --- | --- |
-| `id` | auto | unique; names exported files (`{Plot}`) |
+| `id` | auto | unique, also as a file name (sanitized, case-blind: see above); names exported files (`{Plot}`) |
 | `kind` | `"psth"` | one of the kinds below |
 | `enabled` | `true` | |
 | `title` | `""` | `""` = automatic |
@@ -164,7 +167,7 @@ A plot's `units` (its `source` is the plot's `source`):
 | `units` | UnitSelection | spike sources |
 | `channels` | `[]` | signal columns drawn |
 | `ref`, `window`, `selection` | `"default"` | or the plot's own EventRef / EpochWindow / TrialSelection |
-| `bins` | `BinSec` 0.01, `SmoothSec` 0.01 | PSTH bins and Gaussian SD, s (0 = no smoothing); also a corrmap's `"peak"` rate |
+| `bins` | `BinSec` 0.01, `SmoothSec` 0.01 | PSTH bins (whole multiples of `BinSec` from the event) and Gaussian SD, s (0 = no smoothing); also a corrmap's `"peak"` rate |
 | `baseline` | `Mode "none"`, `Window [-0.2 0]` | see the kinds |
 | `layout` | `""` | `""` = the kind's default |
 | `withRaster` | `true` | psth: a raster above each unit |
@@ -215,7 +218,7 @@ they overlap (`stackSpacing` below 1) the lower one is in front.
   dashed mark in its own row. There is no legend (the rows are labelled),
   and `Style.YLim` is not used.
 - The raster above each tile is flipped to match, its first group at the
-  bottom.
+  bottom; like every raster it ignores `Style.YLim`.
 - A plot with one group is drawn unstacked.
 
 ## Export
@@ -225,10 +228,10 @@ they overlap (`stackSpacing` below 1) the lower one is in front.
 | `Enabled` | `true` | write figure files |
 | `Formats` | `["png" "svg"]` | any of `png`, `eps`, `svg`, `pdf` |
 | `Folder` | `{OutputFolder}\analysis` | folder tokens (below) |
-| `FilenamePattern` | `{Name}_{Plot}` | `{Name}` (dataset) `{Plot}` `{Kind}` `{Group}` `{Unit}` `{Index}` `{Date}`; a paged plot adds `_p<page>` unless `{Index}` or `{Unit}` is used |
+| `FilenamePattern` | `{Name}_{Plot}` | `{Name}` (dataset) `{Plot}` `{Kind}` `{Group}` `{Unit}` `{Index}` `{Date}`; a paged plot adds `_p<page>` unless the pattern tells its pages apart: `{Index}`, or `{Unit}` with a unit filled in (a paged evoked grid's `{Unit}` is `all` on every page) |
 | `Dpi` | 150 | PNG resolution |
 | `FigureSizeCm` | `[18 12]` | figure size |
-| `Overwrite` | `true` | `false`: pages whose files all exist are not written again |
+| `Overwrite` | `true` | `false`: a page whose files all exist is not written again, nor drawn unless the HTML report needs its image |
 
 ## Report
 
@@ -261,9 +264,10 @@ dataset's output folder), `{Root}`, `{Name}` (the dataset), `{Date}`
 | Source | a "list" selection with no datasets; an OutputRoot that does not exist | warning |
 | Defaults, Plots | the event reference, window and selection are valid (`pre <= post`, a `"between"` window has a stop, `groupBy` has at most 2 parameters, ...) | error |
 | Defaults, Plots | a filter that does not parse | warning (it is checked against each dataset's trials when it runs) |
-| Plots | at least one enabled; the kind exists; the source, layout, window mode and baseline mode fit the kind; tuning names its parameter; `BinSec > 0`, `SmoothSec >= 0`; a baseline window `[b0 b1]` with `b0 < b1`; probemap value, psth `histStyle` bar / line, `normalize` none / unitPeak / groupPeak, `fillAlpha` 0-1 or NaN, `stackSpacing > 0`; heatmap order; corrmap order, metric and correlation; `maxUnits >= 1`; `MaxTiles`, `FontSize`, `LineWidth` positive | error |
+| Plots | at least one enabled; ids that stay distinct once `{Plot}` has sanitized them (case-blind); the kind exists; the source, layout, window mode and baseline mode fit the kind; tuning names its parameter; `BinSec > 0`, `SmoothSec >= 0`; a baseline window `[b0 b1]` with `b0 < b1`; probemap value, psth `histStyle` bar / line, `normalize` none / unitPeak / groupPeak, `fillAlpha` 0-1 or NaN, `stackSpacing > 0`; heatmap order; corrmap order, metric and correlation; `maxUnits >= 1`; `MaxTiles`, `FontSize`, `LineWidth` positive | error |
 | Plots | a `HeatColormap` that is not a colormap function; a `Colormap` that is neither a colormap function nor a colour | warning |
 | Export | formats are png / eps / svg / pdf (and at least one when enabled); `Dpi`, `FigureSizeCm`; the folder and file-name patterns use known tokens | error |
+| Export | a file-name pattern without `{Plot}` while several plots are enabled (`{Kind}` is enough when the enabled plots all differ in kind); neither the folder nor the file-name pattern names the dataset (`{OutputFolder}` or `{Name}`), unless the source is a single folder: files that would overwrite each other | warning |
 | Report | Format, EmbedFormat, `Dpi`, a plain `FileName`, the folder pattern | error |
 | Report | `{OutputFolder}` in a report over every dataset | warning |
 
@@ -271,5 +275,6 @@ dataset's output folder), `{Root}`, `{Name}` (the dataset), `{Date}`
 
 `test_EphysAnalysisConfig`: defaults, save / load round trips (Inf, NaN,
 one- and two-item lists, `"default"` sentinels, stop events), `plotFor`,
-auto and duplicate ids, a cell of partial plots, every validate rule,
-`LoadWarnings`, `BadSchema`, `BadValue` and `figureFileName`.
+auto and duplicate ids, a cell of partial plots, every validate rule (ids
+and patterns whose files would collide included), `LoadWarnings`,
+`BadSchema`, `BadValue`, `figureFileName` and `plotFileName`'s page suffix.

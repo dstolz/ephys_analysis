@@ -8,8 +8,9 @@ import traceback
 RUN_ARGS = ('do_CAR', 'invert_sign', 'save_extra_vars', 'save_preprocessed_copy',
             'bad_channels', 'clear_cache', 'torch_thread_lim')
 
-# settings.json keys this driver consumes itself.
-DRIVER_KEYS = ('probe', 'data_dtype', 'torch_device')
+# settings.json keys this driver consumes itself, or leaves alone: bin_scale
+# (the .bin's units per uV) is for EphysDataset.readPhyUnits, not Kilosort4.
+DRIVER_KEYS = ('probe', 'data_dtype', 'torch_device', 'bin_scale')
 
 
 def device_arg(argv):

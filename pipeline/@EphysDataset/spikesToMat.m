@@ -138,10 +138,11 @@ if doDetect
 
     % Drop events inside artifact periods, keeping every per-channel array
     % (times, waveforms, indices, amplitudes, counts) consistent.
+    [ivStart, ivEnd] = sampleIntervals(iv, obj.Fs);
     nCh = numel(ts);
     nRej = zeros(1, nCh);
     for c = 1:nCh
-        keep = ~inIntervals(ts{c}, iv, obj.Fs);
+        keep = ~inIntervals(ts{c}, ivStart, ivEnd, obj.Fs);
         nRej(c) = nnz(~keep);
         if all(keep); continue; end
         ts{c} = ts{c}(keep);
@@ -231,15 +232,43 @@ if ~isempty(fcn); fcn(done, total, msg); end
 end
 
 
-function tf = inIntervals(t, iv, Fs)
-%inIntervals  True for each event on a sample inside any [t0 t1) period.
-%   Compared in samples (t = index/Fs, 0-based), as manualArtifactMask counts
-%   them: round(t0*Fs) up to but not including round(t1*Fs).
+function [s, e] = sampleIntervals(iv, Fs)
+%sampleIntervals  [t0 t1) second periods as sorted, disjoint sample ranges.
+%   Each period covers samples round(t0*Fs) up to but not including
+%   round(t1*Fs), as manualArtifactMask counts them (t = index/Fs, 0-based).
+%   Empty ranges are dropped and overlapping or touching ones merged, so S is
+%   strictly increasing and every sample lies in at most one [S(k), E(k)).
+s = zeros(0, 1);
+e = zeros(0, 1);
+if isempty(iv)
+    return
+end
+r = round(iv * Fs);
+r = sortrows(r(r(:, 2) > r(:, 1), :), 1);
+for k = 1:size(r, 1)
+    if ~isempty(s) && r(k, 1) <= e(end)
+        e(end) = max(e(end), r(k, 2));
+    else
+        s(end+1, 1) = r(k, 1); %#ok<AGROW>
+        e(end+1, 1) = r(k, 2); %#ok<AGROW>
+    end
+end
+end
+
+
+function tf = inIntervals(t, s, e, Fs)
+%inIntervals  True for each event on a sample inside a [S(k), E(k)) range.
+%   S, E from sampleIntervals. Each event is looked up in the sorted starts
+%   (the last range starting at or before its sample) rather than tested
+%   against every range.
 g = round(t * Fs);
 tf = false(size(t));
-for k = 1:size(iv, 1)
-    tf = tf | (g >= round(iv(k, 1) * Fs) & g < round(iv(k, 2) * Fs));
+if isempty(s) || isempty(g)
+    return
 end
+k = discretize(g, [s; Inf]);         % NaN before the first range
+ok = ~isnan(k);
+tf(ok) = g(ok) < e(k(ok));
 end
 
 

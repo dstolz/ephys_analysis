@@ -9,8 +9,10 @@ function test_SortingConcurrency()
 %   without a status, runs started elsewhere (PriorRuns), a cancel while
 %   waiting, blocking runs, GPUs shared out (Sorting.Devices, the
 %   driver's --device), runs handed to a queue (QueueFcn, launchSorting),
-%   restated result rows and stopping a run that is going
-%   (stopSortRun). Windows only (the stand-ins are batch files).
+%   restated result rows, stopping a run that is going (stopSortRun),
+%   runs whose paths hold & ^ ( ) and spaces (ks4_launch.cmd), and a new
+%   sort setting an earlier sort's curation aside (previous_*). Windows
+%   only (the stand-ins are batch files).
 %
 %   Usage:  test_SortingConcurrency
 
@@ -239,6 +241,87 @@ check(~EphysDataset.stopSortRun(res.statusFile), 'a run that is not going is lef
 [free, ~, nRun, nFin] = sortingSlot(res, 1);
 check(free && nRun == 0 && nFin == 1, 'a stopped run frees its slot');
 
+fprintf('\n== 13. paths with & ^ ( ) and spaces ==\n');
+odd = fullfile(root, 'R&D (x)^y');   % the stand-in and the run folders below it
+mkdir(odd);
+tl = fullfile(root, 'timeline13.txt');
+fake = makeFake(odd, 'fake py.cmd', tl, true);
+S = runScenario(proj, probeFile, 1, fake, fullfile(odd, 'out 13'));
+[maxRun, nEvents] = concurrency(tl);
+check(numel(S.launched) == 3 && all(S.results.Status == "launched") && nEvents == 6 && maxRun == 1 ...
+    && all(arrayfun(@(r) EphysDataset.sortRunState(r.statusFile) == "done", S.launched)), ...
+    'background runs start, one at a time, and finish');
+check(S.allExited && all(arrayfun(@(r) isfile(fullfile(r.resultsDir, 'ks4_launch.cmd')), S.launched)), ...
+    'each left its exit marker, and its ks4_launch.cmd in the run folder');
+tl = fullfile(root, 'timeline13b.txt');
+fake = makeFake(odd, 'fake13b.cmd', tl, true);
+S = runScenario(proj, probeFile, 1, fake, fullfile(odd, 'out 13b'), Execution="blocking");
+[~, nEvents] = concurrency(tl);
+check(all(S.results.Status == "done") && nEvents == 6, 'blocking runs');
+tl = fullfile(root, 'timeline13d.txt');
+fake = makeFake(root, 'fake13d.cmd', tl, true);
+S = runScenario(proj, probeFile, 1, fake, fullfile(root, ['Donn' char(233) 'es ' char(181) 'V'], 'out 13d'));
+check(numel(S.launched) == 3 && S.allExited && all(arrayfun(@(r) EphysDataset.sortRunState(r.statusFile) == "done", S.launched)), ...
+    'run folders whose names are not ASCII (ks4_launch.cmd is UTF-8)');
+tl = fullfile(root, 'timeline13c.txt');
+fake = makeFake(odd, 'fake13c.cmd', tl, true, 30);
+S = runScenario(proj, probeFile, 1, fake, fullfile(odd, 'out 13c'), Queue=true);
+res = S.queued(1).d.launchSorting(S.queued(1).res, Wait=false);
+t0 = tic;
+while toc(t0) < 10 && ~isfile(tl); pause(0.1); end
+[stopped, msg] = EphysDataset.stopSortRun(res.statusFile);
+check(stopped && ~isempty(regexp(msg, '^stopped [1-9]\d* process\(es\)$', 'once')) ...
+    && EphysDataset.sortRunState(res.statusFile) == "cancelled", sprintf('stopSortRun ends such a run (%s)', msg));
+pause(3);
+L = strtrim(readlines(tl)); L(L == "") = [];
+check(isscalar(L) && startsWith(L, "start") && waitForExits(res), 'its stand-in never reached its end; the launcher closed');
+
+fprintf('\n== 14. a new sort sets the earlier sort''s curation aside ==\n');
+d = EphysDataset(fullfile(proj, 'M1_260101_120000'));
+d.OutputDir = fullfile(root, 'out14');
+d.ProbeFile = probeFile;
+d.PythonExe = makeFake(root, 'fake14.cmd', fullfile(root, 'timeline14.txt'), true);
+ks = d.kilosortDir();
+makePhyFixture(ks, Fs);   % an earlier sort, curated in phy
+EphysDataset.writeUnitNotes(ks, [0; 1], ["clear refractory period"; "two cells?"]);
+writelines(["cluster_id" + sprintf('\t') + "quality"; "0" + sprintf('\t') + "great"], fullfile(ks, 'cluster_quality.tsv'));
+writelines("cluster_id", fullfile(ks, 'cluster_info.tsv'));
+mkdir(fullfile(ks, '.phy'));
+writelines("cache", fullfile(ks, '.phy', 'memcache.pkl'));
+curation = ["cluster_group.tsv" "cluster_info.tsv" "cluster_notes.tsv" "cluster_quality.tsv"];
+res = d.runKilosort(Launch=false);
+fid = fopen(fullfile(ks, 'cluster_notes.tsv'), 'r');   % held open, as phy would
+errId = '';
+try
+    d.launchSorting(res, Wait=true);
+catch ME
+    errId = ME.identifier;
+end
+fclose(fid);
+check(strcmp(errId, 'EphysDataset:launchSorting:SetAsideFailed') && all(isfile(fullfile(ks, curation))) ...
+    && isempty(dir(fullfile(ks, 'previous_*'))), ...
+    'a file that cannot be moved: nothing starts, the files moved so far are back');
+res = d.launchSorting(res, Wait=true);
+prev = res.previousDir;
+check(startsWith(prev, fullfile(ks, 'previous_')) && all(isfile(fullfile(prev, curation))) ...
+    && isfile(fullfile(prev, '.phy', 'memcache.pkl')) && res.status == 0, ...
+    'moved: the notes, phy''s labels, a custom label, cluster_info.tsv and .phy');
+check(~any(isfile(fullfile(ks, curation))) && ~isfolder(fullfile(ks, '.phy')) ...
+    && all(isfile(fullfile(ks, ["cluster_KSLabel.tsv" "spike_clusters.npy" "templates.npy"]))), ...
+    'Kilosort4''s own output stays for the new sort to overwrite');
+[ids, notes] = EphysDataset.readUnitNotes(prev);
+U = EphysDataset.readPhyUnits(ks, IncludeNoise=true);
+check(isequal(ids, [0; 1]) && notes(2) == "two cells?" && all(U.notes == "") && ~U.curated, ...
+    'the earlier notes are kept there, and none land on the new sort''s units');
+runs = d.tracker().KilosortRuns;
+check(isscalar(runs) && strcmp(runs.Dir, ks), 'DatasetTracker does not take the previous_ folder for a sort');
+res = d.launchSorting(res, Wait=true);
+check(res.previousDir == "" && isscalar(dir(fullfile(ks, 'previous_*'))), 'nothing to set aside: no new folder');
+copyfile(fullfile(ks, 'cluster_KSLabel.tsv'), fullfile(ks, 'cluster_group.tsv'));
+res = d.launchSorting(res, Wait=true);
+check(res.previousDir == "" && isfile(fullfile(ks, 'cluster_group.tsv')), ...
+    'Kilosort4''s own cluster_group.tsv (a copy of cluster_KSLabel.tsv) is not curation');
+
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0
     error('test_SortingConcurrency:Failures', '%d checks failed.', nFail);
@@ -337,13 +420,14 @@ function fake = makeFake(folder, name, timeline, writeStatus, seconds)
 %makeFake  A stand-in python.exe: note start / end, sleep, write the status.
 %   Called as <fake> <driver.py> <config.json> [--device <device>]; the
 %   driver sits in the run folder, where the pipeline expects
-%   ks4_status.json (%~dp1). The start / end lines carry the run folder
-%   and the device arguments. It sleeps about SECONDS (default 2).
+%   ks4_status.json (%~dp1). The start / end lines carry the run folder (in
+%   quotes, for folders with & in them) and the device arguments. It sleeps
+%   about SECONDS (default 2).
 if nargin < 5; seconds = 2; end
 L = ["@echo off"
-    "echo start %~dp1 %3 %4>> """ + timeline + """"
+    "echo start ""%~dp1"" %3 %4>> """ + timeline + """"
     "ping -n " + (seconds + 1) + " 127.0.0.1 > nul"
-    "echo end %~dp1 %3 %4>> """ + timeline + """"];
+    "echo end ""%~dp1"" %3 %4>> """ + timeline + """"];
 if writeStatus
     L(end+1) = "echo {""state"": ""done"", ""num_units"": 0}> ""%~dp1ks4_status.json""";
 else

@@ -4,6 +4,7 @@ function onAssignProbe(obj, scope)
 %                         active dataset when none are ticked
 %   scope = "all"      -> every dataset in the project
 
+if obj.refuseWhileRunning("Assign probe"); return; end
 pf = obj.selectedProbeFile();
 if pf == "" || ~isfile(pf)
     uialert(obj.Fig, "Select a probe in the table first.", "Assign probe");
@@ -34,9 +35,17 @@ switch scope
         return
 end
 
+ch = zeros(1, 0);
+if scope == "all"
+    try
+        ch = reshape(unique(EphysPipelineConfig.parseOrderedList(obj.ExcludeChannelsField.Value, "Exclude channels")), 1, []);
+    catch ME
+        uialert(obj.Fig, string(ME.message) + newline + "Nothing was assigned.", "Assign probe");
+        return
+    end
+end
 nProbe = localProbeCount(pf);
 mismatch = 0;
-ch = EphysDataset.parseChannelList(obj.ExcludeChannelsField.Value);
 nTrim = 0;
 for k = 1:numel(targets)
     targets(k).ProbeFile = pf;
@@ -53,9 +62,7 @@ for k = 1:numel(targets)
     end
 end
 
-for k = 1:numel(targets)
-    targets(k).writeManifest();   % persist the new probe (+ exclusions) assignment
-end
+obj.saveManifests(targets);   % persist the new probe (+ exclusions) assignment
 
 obj.refreshDatasetsTable();
 obj.syncArtProbeControls();   % the active dataset's probe may have changed

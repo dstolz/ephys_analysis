@@ -4,8 +4,10 @@ function test_FieldTripExport()
 %   readSortedUnits struct and a spikesToMat detected struct against the
 %   FieldTrip datatype conventions (raw: trial{1} [nChan x N], time = (k-1)/Fs,
 %   sampleinfo, hdr; spike: label/timestamp in samples; event: 1-based sample,
-%   duration in samples). No FieldTrip installation is needed; when FieldTrip
-%   is already on the path, ft_datatype_raw / ft_datatype_spike are run too.
+%   duration in samples, on the recording's event clock at a derived rate),
+%   and the events exportFieldTrip gives each signal. No FieldTrip
+%   installation is needed; when FieldTrip is already on the path,
+%   ft_datatype_raw / ft_datatype_spike are run too.
 %
 %   Usage:  test_FieldTripExport
 
@@ -93,13 +95,36 @@ check(ev(1).duration == 101 && ev(2).duration == 51 && ev(1).value == 1 && ev(1)
     'duration is the pulse length in samples (inclusive)');
 evR = FieldTripExport.event(S.events, origFs);
 check(evR(1).sample == 3000 && evR(1).duration == 3001, 'events at the recording rate');
+evL = FieldTripExport.event(S.events, Fs, EventFs=origFs);
+check(evL(1).sample == 101 && evL(2).sample == 501 && evL(1).duration == 101, ...
+    'at a derived rate: row 3000 of 30 kHz (continuous 0.09997 s) is 1 kHz sample 101 (0.100 s)');
+evX = FieldTripExport.event(struct('InTrial', [180001 240000] / 30000), 1000, EventFs=30000);
+check(evX.sample == 6001 && evX.duration == 2001, ...
+    'an onset at recording row 180001 (30 kHz) is LFP sample 6001 at 1 kHz (t = 6.000 s), not 6000');
 ev0 = FieldTripExport.event(struct(), Fs);
 check(isstruct(ev0) && isempty(ev0) && all(isfield(ev0, {'type', 'sample', 'value', 'offset', 'duration'})), ...
     'no lines -> empty event struct with the FieldTrip fields');
 evU = FieldTripExport.event(struct('b', [0.9 1.0], 'a', [0.1 0.2]), Fs);
 check(strcmp(evU(1).type, 'a') && strcmp(evU(2).type, 'b'), 'events are sorted by sample');
 
-fprintf('\n== 5. validation ==\n');
+fprintf('\n== 5. exportFieldTrip: each signal''s events on its own clock ==\n');
+root = fullfile(tempdir, sprintf('FieldTripExport_test_%s', datestr(now, 'yyyymmdd_HHMMSSFFF'))); %#ok<TNOW1,DATST>
+mkdir(root);
+cleanup = onCleanup(@() rmdir(root, 's'));
+mkdir(fullfile(root, 'rec'));
+ds = EphysDataset(fullfile(root, 'rec'), AutoMetadata=false);
+ds.OutputDir = fullfile(root, 'out');
+Se = S;
+Se.Y.LFP = single(zeros(7000, nCh));                          % 7 s of LFP at 1 kHz
+Se.events = struct('InTrial', [180001 240000] / origFs);      % recording rows at 30 kHz
+oF = ds.exportFieldTrip(Extract=Se, Units=false, Detected=false, Validate=false);
+F = load(oF.file);
+check(F.data_LFP.cfg.event(1).sample == 6001 && F.data_LFP.time{1}(6001) == 6 ...
+    && F.event(1).sample == 180001 && F.export.eventFs == origFs, ...
+    'cfg.event of data_LFP is at the LFP rate on the nearest sample; event stays at the recording rate');
+clear cleanup
+
+fprintf('\n== 6. validation ==\n');
 hasFT = FieldTripExport.hasFieldTrip();
 [ok, msg] = FieldTripExport.validate(data, "raw");
 if hasFT

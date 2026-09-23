@@ -8,8 +8,10 @@ function X = readChunkUV(obj, chunk)
 %   sees the raw count). An empty result ([] or 0x0) means the chunk held no
 %   amplifier data and should be skipped.
 %
-%   - "rhd"   chunks read a whole traditional *.rhd file via
-%             READ_INTAN_RHD2000_FILE_MODIFIED (microvolts = 0.195*(uint16-32768)).
+%   - "rhd"   chunks read the amplifier data of a whole traditional *.rhd
+%             file (microvolts = 0.195*(uint16-32768)) straight from its data
+%             blocks (rhdRows: the values READ_INTAN_RHD2000_FILE_MODIFIED
+%             gives, without decoding the file's other signals).
 %   - "split" chunks read a sample window from the flat int16 .dat file(s) via
 %             EphysDataset.readSplitWindow (microvolts = 0.195*int16).
 %   Both produce microvolts on the same scale, so downstream processing is
@@ -25,12 +27,14 @@ end
 
 switch chunk.kind
     case "rhd"
-        S = read_Intan_RHD2000_file_modified(chunk.file, Verbosity="silent");
-        if ~isfield(S, 'amplifier_data') || isempty(S.amplifier_data)
+        [~, stem, ext] = fileparts(chunk.file);
+        name = string(stem) + string(ext);
+        hdr = obj.rhdHeader(name);
+        if hdr.numAmplifierChannels == 0 || hdr.numAmplifierSamples == 0
             X = zeros(0, 0);
             return
         end
-        X = S.amplifier_data.';   % [nSamp x nChan], microvolts
+        X = obj.rhdRows(name, 1, hdr.numAmplifierSamples);   % [nSamp x nChan], microvolts
 
     case "split"
         X = obj.readSplitWindow(chunk.sampleOffset, chunk.nSamples);

@@ -10,7 +10,10 @@ function h = renderEvoked(R, target, opts)
 %             page), groups overlaid with SEM bands
 %     Page    page of channels in grid layout
 %     Style   EphysAnalysisConfig.defaults("Style") fields; StackSpacing
-%             (NaN = 1.2 x the 90th percentile of the channels' ranges)
+%             (NaN = 1.2 x the 90th percentile of the channels' ranges).
+%             YLim sets the amplitude axis of the butterfly and grid
+%             layouts; a stack ignores it (its offsets set the y axis, so
+%             every channel stays in view)
 %
 %   An axes TARGET gets the stack (or the first tile of the other layouts).
 %   H: layout (tiled layout or []), axes, spacing (stack).
@@ -63,7 +66,9 @@ switch opts.Layout
         set(ax, 'YTick', fliplr(offs), 'YTickLabel', flipud(R.labels(order)), 'TickLabelInterpreter', 'none');
         ylim(ax, [offs(end) - spacing, spacing]);
         xlim(ax, t([1 end]));
-        styleAxes(ax, style);
+        flat = style;
+        flat.YLim = [];
+        styleAxes(ax, flat);
         xlabel(ax, 'Time (s)');
         ylabel(ax, sprintf('Channel (%s per row)', compactNumber(spacing) + " " + unitText(R.units)));
         if style.Legend && nG > 1

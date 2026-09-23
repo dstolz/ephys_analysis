@@ -5,7 +5,8 @@ function R = unitCorrelation(spikeTimes, E, opts)
 %   epochs have their own lengths) and correlates the units pairwise over
 %   the epochs of each group: an [nUnits x nUnits] matrix per group (the
 %   trial-to-trial covariation of the units' responses). ST is {nUnits x 1}
-%   spike times, s. Pure: no I/O, no graphics.
+%   spike times, s, on the continuous clock; the windows are moved to it
+%   by t0Continuous - t0 (see epochTable). Pure: no I/O, no graphics.
 %
 %   Options
 %     Metric         "mean" (default): spikes in the window / its length |
@@ -16,7 +17,8 @@ function R = unitCorrelation(spikeTimes, E, opts)
 %                    ties averaged)
 %     BinSec         bin width for "peak", s (default 0.01)
 %     SmoothSec      Gaussian SD for "peak", s (0 = none, the default)
-%     Baseline       [b0 b1] s around t0: the baseline window of each epoch
+%     Baseline       [b0 b1] s around the event: the baseline window of
+%                    each epoch
 %     BaselineMode   "none" (default) | "subtract" (each epoch's response
 %                    minus its own baseline rate; scaling a unit's
 %                    responses would not change a correlation)
@@ -70,19 +72,22 @@ if opts.Metric == "peak"
     edges = (0:nB) * opts.BinSec;
     whole = edges(2:end).' <= dur.' + 1e-9;   % [nBins x nEpochs]: bins inside each window
 end
+shift = E.t0Continuous - E.t0;   % the digital-event clock -> the spikes' clock
+wStart = E.tStart + shift;
+wStop = E.tStop + shift;
 resp = NaN(nE, nU);
 for u = 1:nU
     s = sort(double(st{u}(:)));
     if opts.Metric == "mean"
-        resp(:, u) = (countBelow(s, E.tStop) - countBelow(s, E.tStart)) ./ dur;
+        resp(:, u) = (countBelow(s, wStop) - countBelow(s, wStart)) ./ dur;
     else
-        r = binCounts(s, E.tStart, edges) / opts.BinSec;
+        r = binCounts(s, wStart, edges) / opts.BinSec;
         r(~whole) = NaN;
         r = gaussianSmooth(r, opts.SmoothSec / opts.BinSec);
         resp(:, u) = max(r, [], 1, 'omitnan').';
     end
     if useBase
-        base = (countBelow(s, E.t0 + b(2)) - countBelow(s, E.t0 + b(1))) / (b(2) - b(1));
+        base = (countBelow(s, E.t0Continuous + b(2)) - countBelow(s, E.t0Continuous + b(1))) / (b(2) - b(1));
         resp(:, u) = resp(:, u) - base;
     end
 end

@@ -49,13 +49,13 @@ returns the defaults and is the single source of truth for field names.
 | `Project` | – | `Root`, `Recursive` (`true`: search every sub-folder of `Root` for recordings; `false`: only `Root` and the folders directly in it), `OutputRoot` (`""` = outputs next to each recording), `Selection` (`"all"` or `"list"`), `Datasets` (root-relative keys, see [Dataset keys](#dataset-keys)), `NamePattern` (`"{SubjectID}_{Date:yyMMdd}_{Time:HHmmss}"`, see [Dataset name tokens](#dataset-name-tokens); also labels sorted units, see [Unit labels](#unit-labels)), `TokenColumns` (list text, `"SubjectID"`: tokens shown as app table columns) |
 | `Acquisition` | – | reader options, see [Acquisition](#acquisition): `OpenEphys.Recordings` (`"concatenate"`), `OpenEphys.RecordNode` (`""`), `OpenEphys.Stream` (`""`) |
 | `Parallel` | – | `Enabled` (run the chunks of the artifacts and spike-detection steps on a process pool), `MaxWorkers` (`NaN` = automatic; always capped by free memory); see [Parallel execution](#parallel-execution) |
-| `Probe` | `probe` (always runs) | `DefaultProbeFile` (assigned to datasets without a probe), `WriteDefaultToManifest` |
+| `Probe` | `probe` (always runs) | `DefaultProbeFile` (used for datasets without a probe of their own: for sorting, to place the derived signals' bad channels, and for the app's Artifacts lanes), `WriteDefaultToManifest` (`true`: also assign it to them and save it to their manifests) |
 | `Behavior` | `behavior` | `Enabled`, `SearchDirs`, `Match` (`"prefix"`, `"time"`, `"prefix-then-time"`), `MaxStartOffsetMin` (30), `Overwrite`, `WriteFile` (`true`: write `<Name>_behavior.mat` for every associated dataset), `PairTrials` (`true`), `AutoApprove` (`false`: approve a pairing whose trial and interval counts match without cuts), `TrialLine` (`"InTrial"`) |
-| `Artifacts` | `artifacts` | `Reference` (`"none"`, `"car"` or `"cmr"`: the common reference subtracted before detection, sorting and spike detection), `ReferenceBadLow`, `ReferenceBadHigh` (the noise band, as a multiple of the mean, outside which a channel is suggested to stay out of the reference), `Enabled` (automatic detection; manual periods always apply), `Method`, `Threshold`, `RmsWindowMs`, `MergeGapMs`, `MinChannels`, `PadMs`, `Filter`, `FilterType`, `FilterCutoff`, `FilterOrder`, `Fill` (`"noise"` or `"zero"`: what replaces the artifact samples), `NoiseBandHz`, `NoiseSeed`, `ApplyToSorting`, `ApplyToSpikes`, `CacheIntervals` |
+| `Artifacts` | `artifacts` | `Reference` (`"none"`, `"car"` or `"cmr"`: the common reference subtracted before detection, sorting and spike detection), `ReferenceBadLow`, `ReferenceBadHigh` (the noise band, as a multiple of the median, outside which a channel is suggested to stay out of the reference), `Enabled` (automatic detection; manual periods always apply), `Method`, `Threshold`, `RmsWindowMs`, `MergeGapMs`, `MinChannels`, `PadMs`, `Filter`, `FilterType`, `FilterCutoff` (a scalar, or `[lo hi]` for a band-pass), `FilterOrder`, `Fill` (`"noise"` or `"zero"`: what replaces the artifact samples), `NoiseBandHz`, `NoiseSeed`, `ApplyToSorting`, `ApplyToSpikes`, `CacheIntervals` |
 | `Sorting` | `sorting` | `Enabled`, `PythonExe`, `CondaEnv`, `Execution` (`"background"` or `"blocking"`), `MaxConcurrent` (background runs at once, default 1; see [Background Kilosort4 runs](#background-kilosort4-runs)), `Devices` (torch devices shared out among the runs, e.g. `["cuda:0" "cuda:1"]`; empty = Kilosort4's choice), `DryRun`, `SkipExisting`, `KS4` (one typed field per `kilosortParamSpec` entry), `KS4ExtraJSON` |
-| `Signals` | `signals` | `Enabled`, `OutputDir`, `Suffix` (`"_extract"`), `SeparateFiles` (`true`: `<Name><Suffix>_<TYPE>.mat` per signal type), `MatVersion`, `Overwrite`, `LFP` / `MUA` / `SPIKE`, `LFP_Fs`, `LFP_HighpassOn/Hz`, `LFP_LowpassOn/Hz`, `LFP_NotchOn/Hz/BW`, `MUA_Fs`, `MUA_IntegrationHz`, `MUA_bpLoHi`, `SPIKE_KeepOriginal`, `SPIKE_Fs`, `SPIKE_bpLoHi`, `LabelField` (`"custom"` or `"native"`: which name labels channels, aux inputs and digital lines), `LineNames` (`"native=name"` entries naming digital lines, e.g. `"TTL4=InTrial"`; see [line names](#digital-line-names)), `InvertedLines` (digital lines with inverted polarity: onset = falling edge; see [polarity](#digital-line-polarity)), `KeepChannels`, `BadMode`, `BadThreshold`, `BadList`, `ChannelRemap`, `ExcludeHandling` (`"none"`, `"drop"`, `"interpolate"`: what to do with the manifest's excluded channels) |
+| `Signals` | `signals` | `Enabled`, `OutputDir`, `Suffix` (`"_extract"`), `SeparateFiles` (`true`: `<Name><Suffix>_<TYPE>.mat` per signal type), `MatVersion`, `Overwrite`, `LFP` / `MUA` / `SPIKE`, `LFP_Fs`, `LFP_HighpassOn/Hz`, `LFP_LowpassOn/Hz`, `LFP_NotchOn/Hz/BW`, `MUA_Fs`, `MUA_IntegrationHz`, `MUA_bpLoHi`, `SPIKE_KeepOriginal`, `SPIKE_Fs`, `SPIKE_bpLoHi`, `LabelField` (`"custom"` or `"native"`: which name labels channels, aux inputs and digital lines), `LineNames` (`"native=name"` entries naming digital lines, e.g. `"TTL4=InTrial"`; see [line names](#digital-line-names)), `InvertedLines` (digital lines with inverted polarity: onset = falling edge; see [polarity](#digital-line-polarity)), `KeepChannels`, `BadMode`, `BadThreshold`, `BadList` (recording channels, like `KeepChannels`), `ChannelRemap`, `ExcludeHandling` (`"none"`, `"drop"`, `"interpolate"`: what to do with the manifest's excluded channels) |
 | `Spikes` | `spikes` | `Enabled`, `Source` (`"detect"`, `"sorted"`, `"both"`), the `detectSpikes` options (`Filter`, `Band`, `FilterOrder`, `Polarity`, `ThresholdMethod`, `Threshold` (`NaN` = the method's default), `Align`, `AlignWindowMs`, `MinPeriodMs`, `MaxAmplitudeUV`, `Waveforms`, `WindowMs`, `WaveformSource`, `EdgeHandling`, `MaxChunkSamples`, `EdgePadMs`), `Channels` (`"all"`, `"excludeManifest"`, `"list"`) + `ChannelList`, `RejectArtifacts`, the sorted-unit options (`Groups`, `IncludeNoise`, `Templates`), `OutputDir`, `Suffix` (`"_spikes"`), `MatVersion`, `Overwrite` |
-| `Export` | `export` | `Enabled`, `Formats` (subset of `["chronux" "fieldtrip" "epochs"]`), `Signals` (`[]` = every signal in the extract), `IncludeUnits`, `IncludeDetected`, `IncludeEvents`, `Groups`, `Validate`, the epoch settings `EpochSource` (`"line"` / `"behavior"`), `EpochLine`, `EpochWindow` (`[tPre tPost]` s), `EpochOnsetRule`, `EpochIncomplete`, `EpochNonFinite`, `EpochSpikeTimeBase`, `EpochClass`, `OutputDir`, `MatVersion`, `Overwrite` |
+| `Export` | `export` | `Enabled`, `Formats` (subset of `["chronux" "fieldtrip" "epochs"]`), `Signals` (`[]` = every signal in the extract), `IncludeUnits`, `IncludeDetected`, `IncludeEvents`, `Groups`, `Validate`, the epoch settings `EpochSource` (`"line"` / `"behavior"`), `EpochLine`, `EpochWindow` (`[tPre tPost]` s), `EpochOnsetRule` (`"event"`, the default: digital-input times, each placed on every signal's sample nearest its recording row, `round((t − 1/origFs)·Fs) + 1`; `"sample"`: times on the continuous clock, `round(t·Fs) + 1`), `EpochIncomplete`, `EpochNonFinite`, `EpochSpikeTimeBase`, `EpochClass`, `OutputDir`, `MatVersion`, `Overwrite` |
 
 `Name` and `Description` are free text. `File` (where the config was loaded
 from or saved to) and `LoadWarnings` are transient.
@@ -63,7 +63,11 @@ from or saved to) and `LoadWarnings` are transient.
 Channel lists (`KeepChannels`, `BadList`, `ChannelRemap`, `ChannelList`) and the
 notch list are kept as typed text and parsed when a run starts
 (`parseOrderedList`, `parseFreqList`: order and repeats are kept, anything
-unparseable is an error).
+unparseable is an error). `KeepChannels`, `BadList`, `Spikes.ChannelList` and
+the manifest exclusions are recording channels (1-based, in header order);
+`ChannelRemap` indexes the kept channels. `signalOptions` maps `BadList` and
+the `"interpolate"` exclusions to columns of the kept data, which is what
+`deriveSignals` takes, and drops the channels that are not kept.
 
 ### Acquisition
 
@@ -84,7 +88,9 @@ it needs a rescan; the app rescans on every change.
 
 `cfg.save(file)` / `EphysPipelineConfig.load(file)`; the on-disk schema is in
 [file-formats.md](file-formats.md#pipeline-config-json). `Inf`, `NaN` and empty
-values round-trip exactly (`isequaln(load(save(cfg)), cfg)`). A file with
+values round-trip exactly (`isequaln(load(save(cfg)), cfg)`), and so does a
+band-pass `Artifacts.FilterCutoff` (`[lo hi]`, a row where the default is a
+scalar). A file with
 another `schema` or a newer `version` raises `EphysPipelineConfig:BadSchema`;
 there is no migration. Unknown fields are dropped and listed in
 `LoadWarnings`.
@@ -100,7 +106,10 @@ sorting run cannot feed the sorted-unit consumers (`Spikes.Source` `"sorted"` /
 `Sorting.Execution = "blocking"` or run those steps later. When those
 consumers are on, `Project.NamePattern` must be able to label units (a
 `SubjectID` token and `Date` / `Time` tokens with datetime formats); otherwise
-it is an error.
+it is an error. With `Artifacts.Enabled` and `Method` `"microvolts"` or
+`"commonmode"`, a `Threshold` below 50 µV is a warning: a robust-SD multiplier
+(the `rms` / `mad` default, 9) read as microvolts sits inside the noise and
+flags almost every sample.
 
 The `Parallel` checks: `MaxWorkers` must be `NaN` or a whole number ≥ 1
 (error); `Enabled` without a licensed Parallel Computing Toolbox is a warning
@@ -127,7 +136,7 @@ warnings.
 | `file = writeKS4Params(probeFile, values, Description=, Reasons=, Overwrite=)` | writes a struct of typed Kilosort4 parameters as the probe's parameter file. Errors `EphysPipelineConfig:ParamsExist`, `:BadParams` |
 | `[values, report] = ks4ProbeDefaults(probe, ExcludeChannels=)` | good defaults for `KS4ProbeParams` derived from a probe `.json` file or struct ([rules](EphysPreprocessingApp.md#optimize-for-probe)). `report`: `Probe`, `Summary`, `Geometry` (sites, shanks, row / lateral / nearest-contact spacing, width, span), `Reasons` (per parameter) and `Notes`. Errors `EphysPipelineConfig:BadProbe`, `:ProbeEmpty` |
 | `ks4ParamsFile(probeFile)` | the probe's parameter file path, `<folder>/<probe>.ks4.json` |
-| `ks4ParamText`, `ks4ParamFromText`, `kilosortParamSpec` | the typed Kilosort4 parameter spec and its text form (used by the GUI) |
+| `ks4ParamText`, `ks4ParamFromText`, `kilosortParamSpec` | the typed Kilosort4 parameter spec and its text form (used by the GUI); `ks4ParamText` writes each number in the shortest form that reads back as the same double, so a value round-trips exactly |
 | `validateSuffix(s)` | rejects `\ / : * ? " < > \|` |
 | `datasetKey(root, folder)` | root-relative key with forward slashes |
 
@@ -145,8 +154,15 @@ Dataset names are folder leaves and are not unique (`mouse1/sess1` and
 `mouse2/sess1`). The config's `Project.Datasets` therefore holds
 **root-relative keys** with forward slashes (`"mouse1/sess1"`), and
 `EphysProject.datasetKey(i)` / `findByKey(key)` map between them and datasets.
-`plan()` flags two selected datasets that would write the same
-`<OutputRoot>/<Name>` file as `duplicate output`, which is an error.
+`plan()` compares the output folders and files of the selected datasets with
+those of every dataset in the project, selected or not, from names and
+folders alone. Two recordings with the same name under one
+`Project.OutputRoot` share `<OutputRoot>/<Name>`, where each would read or
+overwrite the other's outputs, so the rows of either are
+`error: output folder shared with <key>`: rename one recording folder, or
+leave `OutputRoot` empty (outputs next to each recording). A file two datasets
+would both write (the same name in a configured step `OutputDir`) is
+`duplicate output`. Both stop the run.
 
 ### Dataset name tokens
 
@@ -230,16 +246,19 @@ su = T(T.class == "su" & T.subject == "1255" & T.shank == 2, :);
 ### Construction
 
 ```matlab
-pipe = EphysPipeline(cfg)                         % EphysProject(cfg.Project.Root, ...) + refresh()
+pipe = EphysPipeline(cfg)                         % EphysProject(cfg.Project.Root, ...) + refresh() of the selected datasets
 pipe = EphysPipeline(cfg, Project=P)              % reuse a project (the GUI's)
 pipe = EphysPipeline(cfg, Project=P, Refresh=false)
 ```
 
 Construction always calls `EphysPipeline.applyConfigToDatasets(cfg, P)`
-(pushes `PythonExe`, `CondaEnv`, `ArtifactConfig`, `OutputDir`,
-`NamePattern` and `DatasetKey` into every dataset; never touches `ProbeFile`,
-`SortingDir` or `BehaviorFile`)
-and `selectDatasets()`. Assigning a new `Config` does both again.
+(pushes `PythonExe`, `CondaEnv`, `ArtifactConfig`, `TrialConfig`,
+`ReaderOptions`, `OutputDir` (`<OutputRoot>/<Name>`, or `""` without an output
+root), `NamePattern` and `DatasetKey` into every dataset; never touches
+`ProbeFile`, `SortingDir` or `BehaviorFile`)
+and `selectDatasets()`. Assigning a new `Config` does both again. Only the
+selected datasets are then refreshed (`EphysProject.refresh(Datasets=)`:
+headers and manifests); `Refresh=false` skips that.
 `EphysPipeline:NoRoot` when the root does not exist.
 
 ### Properties
@@ -252,9 +271,9 @@ and `selectDatasets()`. Assigning a new `Config` does both again.
 | `LogFcn` | one line per event (default `fprintf`) |
 | `CancelRequested` | set by `cancel()` |
 | `Results` | table `Step`, `Dataset`, `Status`, `Message`, `Output`, `Seconds`, one row per step × dataset |
-| `LaunchedRuns` | background Kilosort4 runs (`Name`, `statusFile`, `resultsDir`, `logFile`, `logPos`, `done`, `device`, `started`; `EphysPipeline.emptyRuns()`), the shape the app's monitor consumes. `EphysPipeline.sortRun(name, res)` builds one from a `launchSorting` result |
+| `LaunchedRuns` | background Kilosort4 runs (`Name`, `statusFile`, `resultsDir` (the run's kilosort4 folder, which identifies the dataset), `logFile`, `logPos`, `done`, `device`, `started` (`NaT` while queued), `queued`; `EphysPipeline.emptyRuns()`), the shape the app's monitor consumes. `EphysPipeline.sortRun(name, res)` builds one from a `launchSorting` result; `sortRun(name, res, Queued=true)` one for a prepared run waiting in a queue |
 | `LaunchFcn` | `LaunchFcn(run)` is called with each background run (a `LaunchedRuns` element) as soon as it starts (default none) |
-| `PriorRuns` | background runs started elsewhere, in `LaunchedRuns`' shape; while they are running they take slots of `Sorting.MaxConcurrent`, and their `device` counts when GPUs are shared out |
+| `PriorRuns` | background runs started elsewhere, in `LaunchedRuns`' shape, queued ones included; while they are running they take slots of `Sorting.MaxConcurrent` (queued ones do not), and their `device` counts when GPUs are shared out. A dataset with a run here or in `LaunchedRuns` that is queued or still going is not sorted again (`activeRun`) |
 | `QueueFcn` | `QueueFcn(d, res)`: when set, background runs are not started by the step but handed over prepared ([below](#background-kilosort4-runs)); default none |
 | `SortingWaiting` | how many datasets the sorting step has still to start (or, with `QueueFcn`, to hand over) |
 
@@ -266,39 +285,52 @@ and `selectDatasets()`. Assigning a new `Config` does both again.
 | Status | Meaning |
 | --- | --- |
 | `ready` | will run |
-| `ok` / `associated` | probe already assigned / behavior file already associated |
+| `ok` / `associated` | the probe (the dataset's own, else `Probe.DefaultProbeFile`: `probeFor`) fits / behavior file already associated |
+| `behavior file missing` | the associated session file is not there (a disk or share not connected); the association is kept, and nothing is paired or written |
 | `exists: skip`, `exists: overwrite` | the output file exists; `Overwrite` decides |
 | `exists: skip (SkipExisting)`, `exists: will re-sort` | sorted output exists |
+| `skip: Kilosort4 queued`, `skip: Kilosort4 running` | a Kilosort4 run for this dataset waits in a queue or is going (`PriorRuns`, `LaunchedRuns`) |
 | `no recording files` | the folder holds no readable recording |
-| `no probe`, `probe file missing`, `probe-channel mismatch` | probe preflight |
+| `no probe`, `probe file missing`, `probe-channel mismatch` | probe preflight; the sorting row is `no probe` or `probe file missing` too |
 | `no sorting output` | `Spikes.Source` needs sorted units this dataset lacks |
-| `no extract file` | export needs the Signals output |
-| `duplicate output` | two selected datasets would write the same file |
+| `no extract file` | export needs the Signals output (the files of `Export.Signals` only: `exportExtractFiles`) |
+| `duplicate output` | another dataset of the project, selected or not, writes the same file (the same name in a configured step `OutputDir`) |
+| `error: output folder shared with <key>` | another dataset of the project has the same name, so both would use `<OutputRoot>/<Name>` (see [Dataset keys](#dataset-keys)) |
+| `error: sorting folder missing` | the step reads sorted units but the dataset's hand-picked sorted-output folder (`SortingDir`) is not there; a sort is never read from anywhere else |
 | `error: unit identity` | the step reads sorted units but the name gives no subject and start (see [Unit labels](#unit-labels)) |
 | `error: unit label collision` | another selected or sorted dataset has the same subject and start minute |
 | `error: ...` | a setting cannot apply (for example `LFP_Fs` above the recording rate) |
 
+The probe row's status is the probe step's own (`EphysPipeline.probeStatus`).
 Rows whose status starts with `duplicate` or `error` stop `run()`
 (`EphysPipeline:PlanInvalid`); a config with validation errors stops it before
-that (`EphysPipeline:ConfigInvalid`).
+that (`EphysPipeline:ConfigInvalid`). `T = pipe.checkRun(Steps=)` makes these
+checks (it validates, logs the warnings, plans, and raises either error) and
+returns the plan; `run()` calls it, and a script that calls the step methods
+one by one calls it first.
 
 ### Run
 
-`R = pipe.run(Steps=[], DryRun=false)` validates, plans, then runs each enabled
-step in `EphysPipelineConfig.StepNames` order:
+`R = pipe.run(Steps=[], DryRun=false)` validates, plans (`checkRun`), then runs each enabled
+step in `EphysPipelineConfig.StepNames` order. With `DryRun=true` every step
+runs with `DryRun`: nothing is written (no manifest, cache, behavior or
+output file), no artifact detection streams the recording, and each step
+records `dry run` rows saying what it would do; the sorting step writes only
+its `settings.json` and `run_ks4.py`, into `kilosort4\dryrun`.
 
 | Step | Method | Does |
 | --- | --- | --- |
-| `probe` | `checkProbes()` | assigns `Probe.DefaultProbeFile` to datasets without a probe (written to the manifest when `WriteDefaultToManifest`), reports channel-count mismatches |
-| `behavior` | `checkBehavior()` | for datasets without a `BehaviorFile` (or all with `Overwrite`) runs `findEpsychSessions` over `SearchDirs` and `matchEpsychSession`; sets `BehaviorFile`, writes the manifest; reports unmatched and ambiguous datasets. With `WriteFile`, every dataset that ends up associated (matched or kept) gets `behaviorToMat` → `<outputFolder>/<Name>_behavior.mat`, rewritten each run (result step `behavior:file`). With `PairTrials`, trials are first paired with the `TrialLine` intervals (`EphysDataset.pairTrials`, result step `behavior:pairing`): a recorded pairing that still matches is reused (`approved`, `auto-approved` or `needs review`); with `AutoApprove`, a pairing whose counts match without cuts is approved (`auto-approved`, `EphysDataset.autoApproveTrialPairing`); anything else is recorded in the manifest as unreviewed (`needs review`, or `count mismatch`); `no trial line` when the recording has no such line. The pairing columns go into the behavior file |
+| `probe` | `checkProbes()` | checks each dataset's probe (`probeFor`: its own, else `Probe.DefaultProbeFile`, read at each call) against its channel count. The default is assigned to a dataset, and saved to its manifest, only with `WriteDefaultToManifest`; otherwise it is only used |
+| `behavior` | `checkBehavior()` | for datasets without a `BehaviorFile` (or all with `Overwrite`) runs `findEpsychSessions` over `SearchDirs` and `matchEpsychSession`; sets `BehaviorFile`, writes the manifest; reports unmatched and ambiguous datasets. An associated session is kept unless `Overwrite`, also while its file is not there (`behavior file missing`: nothing is paired or written). With `WriteFile`, every dataset that ends up associated (matched or kept) gets `behaviorToMat` → `<outputFolder>/<Name>_behavior.mat`, rewritten each run (result step `behavior:file`). With `PairTrials`, trials are first paired with the `TrialLine` intervals (`EphysDataset.pairTrials`, result step `behavior:pairing`): a recorded pairing that still matches is reused (`approved`, `auto-approved` or `needs review`); with `AutoApprove`, a pairing whose counts match without cuts is approved (`auto-approved`, `EphysDataset.autoApproveTrialPairing`); anything else is recorded in the manifest as unreviewed (`needs review`, or `count mismatch`); `no trial line` when the recording has no such line. The pairing columns go into the behavior file |
 | `artifacts` | `runArtifacts()` | computes `artifactIntervals()` per dataset and caches them (see below) |
-| `sorting` | `runSorting()` | `runKilosort(ExtraSettings=ks4Settings, ArtifactIntervals=, DryRun=, Launch=false)` (writes the `.bin` with the artifact periods erased; a dry run writes only `settings.json` and `run_ks4.py`), then `launchSorting(res, Wait=, Device=)` and `writeManifest`. Background runs go at most `Sorting.MaxConcurrent` at a time, spread over `Sorting.Devices` ([below](#background-kilosort4-runs)), and are listed in `LaunchedRuns` with status `launched`; with `QueueFcn` set they are handed over with status `queued` |
-| `signals` | `runSignals()` | `toMat(File=, SeparateFiles=, SignalOptions=, MatVersion=, Overwrite=, ProgressFcn=)` with the configured exclude handling |
-| `spikes` | `runSpikeDetection()` | `spikesToMat(Source=, DetectOptions=, Channels=, ArtifactIntervals=, Groups=, IncludeNoise=, Templates=, ...)` |
-| `export` | `runExport()` | per format `exportChronux(...)` / `exportFieldTrip(...)` / `exportEpochs(...)` from the extract file, with units, detected spikes and events as configured. The `epochs` format organizes the same data by event — one epoch per digital pulse (`EpochSource = "line"`) or per paired trial (`"behavior"`, which also carries the session's trial columns) — over `EpochWindow` ([`EphysDataset.eventEpochs`](EphysDataset.md#event-organized-epoched-data)) |
+| `sorting` | `runSorting()` | `runKilosort(ProbeFile=probeFor(d), ExtraSettings=ks4Settings, ArtifactIntervals=, DryRun=, Launch=false)` (writes the `.bin` with the artifact periods erased; a dry run writes only `settings.json` and `run_ks4.py`, into `kilosort4\dryrun`, and detects nothing), then `launchSorting(res, Wait=, Device=)` and `writeManifest`. Background runs go at most `Sorting.MaxConcurrent` at a time, spread over `Sorting.Devices` ([below](#background-kilosort4-runs)), and are listed in `LaunchedRuns` with status `launched`; with `QueueFcn` set they are handed over with status `queued`. Skipped: a dataset with a Kilosort4 run queued or still going (`activeRun`), so its `.bin` is never rewritten under a running sort; one without a probe or whose probe file is not there; with `SkipExisting`, one already sorted (also when its hand-picked sorted-output folder is not there now). A cancel stops the datasets not started yet; a run already launched, queued or finished keeps its row |
+| `signals` | `runSignals()` | `toMat(File=, SeparateFiles=, SignalOptions=, MatVersion=, Overwrite=, ProgressFcn=)` with the configured exclude handling. When bad channels are to be interpolated (`BadList`, or the manifest exclusions with `ExcludeHandling = "interpolate"`), `SignalOptions.probeFile` is `probeFor(d)`: the dataset's own probe, else `Probe.DefaultProbeFile`, whose geometry places them |
+| `spikes` | `runSpikeDetection()` | `spikesToMat(Source=, DetectOptions=, Channels=, ArtifactIntervals=, Groups=, IncludeNoise=, Templates=, ...)`; with `Source` `"sorted"` / `"both"`, a dataset whose hand-picked sorted-output folder is not there is skipped, never read from another sort |
+| `export` | `runExport()` | per format `exportChronux(...)` / `exportFieldTrip(...)` / `exportEpochs(...)`, with units, detected spikes and events as configured. A dataset's inputs are read once for all its formats and passed to each (`Sources` names the files): the extract files of `Export.Signals` (per-type files of other signals are not read), the sorted units and the spikes file; `plan()` and `runExport` find the extract files by the same rule (`exportExtractFiles`). With `IncludeUnits`, a dataset whose hand-picked sorted-output folder is not there is skipped. The `epochs` format organizes the same data by event — one epoch per digital pulse (`EpochSource = "line"`) or per paired trial (`"behavior"`, which also carries the session's trial columns) — over `EpochWindow` ([`EphysDataset.eventEpochs`](EphysDataset.md#event-organized-epoched-data)) |
 
 Each step method can be called directly; it then runs even when the step is
-disabled in the config. Result statuses are `done`, `skipped`, `dry run`,
+disabled in the config. Call `checkRun()` first for the checks `run()` makes;
+each step method takes `Datasets=` (indices) and `DryRun=true`. Result statuses are `done`, `skipped`, `dry run`,
 `launched`, `queued`, `error`, `cancelled` and `not run`. Errors on one dataset are
 recorded and the run continues with the next. Work that ends after its step
 has returned (a background Kilosort4 run) can restate its row with
@@ -306,13 +338,29 @@ has returned (a background Kilosort4 run) can restate its row with
 static `EphysPipeline.restateResult(T, ...)` does the same to any results
 table.
 
+Helpers: `f = pipe.probeFor(d)` is the probe file a dataset is sorted with,
+and whose geometry places its bad channels in the signals step (its own, else
+`Probe.DefaultProbeFile`, read at each call; `""` for none);
+`[st, note] = EphysPipeline.probeStatus(probe, d)` how that probe fits the
+dataset (`ok`, `no probe`, `probe file missing`, `probe-channel mismatch`);
+`run = pipe.activeRun(d)` a Kilosort4 run of the dataset in `PriorRuns` or
+`LaunchedRuns` that is queued or still going (`[]` when none); and
+`f = pipe.exportExtractFiles(d)` the extract files the Export step reads (with
+`Signals.SeparateFiles` and a non-empty `Export.Signals`, only those signal
+types' files).
+
 **Artifact cache.** `artifactIntervalsFor(d)` returns the intervals for a
 dataset: manual periods always, automatic detections when `Artifacts.Enabled`.
-Automatic detection streams the whole recording, so the result is cached in
+Automatic detection streams the whole recording, so its result - the
+automatic detection alone - is cached in
 `<outputFolder>/<Name>_artifacts.json` (schema in
 [file-formats.md](file-formats.md#artifact-cache)), keyed by a fingerprint of
-the artifact config and the manual periods. A cache with a different
-fingerprint is recomputed. `ApplyToSorting` / `ApplyToSpikes` decide whether
+what decides it: the detector settings, the channels of the common reference,
+`ExcludeChannels` and the recording files. A cache with a different
+fingerprint is recomputed. The manual periods are merged in on every call, so
+marking one needs no new detection. A detection is also kept for the rest of
+the run (`reused`), so the steps that need it detect once even with
+`CacheIntervals` off. `ApplyToSorting` / `ApplyToSpikes` decide whether
 the automatic detections reach those steps (manual periods always do).
 
 **Cancel.** `pipe.cancel()` makes the next progress notification throw
@@ -331,8 +379,9 @@ files are therefore ready while the current runs sort. A slot frees when a
 run's `ks4_status.json` says it is done or failed, or its process has exited
 without writing one
 ([`EphysDataset.sortRunState`](EphysDataset.md#running-kilosort4)). Runs listed
-in `PriorRuns` take slots too; the app passes the runs it is still
-following. While it waits, the step reports `waiting for a free Kilosort4
+in `PriorRuns` take slots too (queued ones do not); the app passes the runs it
+is still following, and a dataset with a run there that is queued or going is
+skipped. While it waits, the step reports `waiting for a free Kilosort4
 slot (N at a time): R running, F finished, W still to start`, and `cancel()`
 stops the wait. The dataset it was waiting to start and the rest are marked
 `cancelled`, and runs already started carry on. The step returns once the
@@ -432,9 +481,11 @@ deletes a pool.
 What to expect: each chunk is read by its worker, so several workers read the
 disk at once. On an internal SSD the steps scale with the worker cap; on a slow
 external disk concurrent reads can be no faster than one, so compare the
-`Seconds` column of `Results` before relying on it. For traditional `*.rhd`
-recordings the spike detector also re-reads the preceding file for context,
-roughly doubling its I/O.
+`Seconds` column of `Results` before relying on it. The spike detector's
+workers read the context before their chunk as one short window
+(`readWindowUV`, which every built-in reader supports), not the whole
+preceding file; only a `Files` list that skips or reorders files makes them
+read the previous listed chunk.
 
 ---
 
@@ -447,8 +498,8 @@ txt = EphysPipelineScript.standalone(cfg, File="run_subj1_standalone.m");
 
 | Form | Contents |
 | --- | --- |
-| `compact` | loads the JSON config, builds an `EphysPipeline`, prints `plan()`, then one `pipe.<step>()` line per step. Disabled steps are written commented out. Override hints for the output root, the selection, the execution mode and the background runs at once are included as comments. Keep the config file next to it |
-| `standalone` | every parameter written out as MATLAB literals, in `%%` sections; builds `EphysProject` + `refresh()`, selects datasets by key, and calls `artifactIntervals`, `runKilosort`, `toMat`, `spikesToMat`, `exportChronux`, `exportFieldTrip` and the Epsych2 functions directly. It never references the pipeline classes, so it documents exactly what a run does and needs no config file. The config JSON is embedded in the header comment |
+| `compact` | loads the JSON config, builds an `EphysPipeline`, calls `checkRun()` (`run()`'s checks: a config error or a blocking plan row stops the script) and prints the plan, then one `pipe.<step>()` line per step. Disabled steps are written commented out. Override hints for the output root, the selection, the execution mode and the background runs at once are included as comments. Keep the config file next to it |
+| `standalone` | every parameter written out as MATLAB literals, in `%%` sections; builds `EphysProject`, selects datasets by key, `refresh()`es them, pushes `ArtifactConfig` and `TrialConfig` onto them, and calls `artifactIntervals`, `runKilosort`, `toMat`, `spikesToMat`, the exporters and the Epsych2 functions directly. Each step does what the runner's does: the behavior step pairs and approves trials as `checkBehavior` does, the default probe is used without being assigned (unless `WriteDefaultToManifest`), for sorting and to place the derived signals' bad channels, and each dataset's export inputs are read once (only the extract files of `Export.Signals`) and passed to every format with their `Sources`. The runner's cache of artifact detections and its plan checks are left out. It never references the pipeline classes, so it documents exactly what a run does and needs no config file. The config JSON is embedded in the header comment |
 
 Both scripts write to separate output folders when their config does, and
 the two produce identical `_extract.mat`, `_spikes.mat`, `_chronux.mat`,
@@ -484,7 +535,8 @@ On a dataset: `ds.BehaviorFile`, `ds.readBehavior()` (the three outputs above),
 `startTime`, `nTrials`, or `[]`), and `ds.behaviorToMat()`, which saves that
 struct once as `<outputFolder>/<Name>_behavior.mat` (the behavior step does
 this when `Behavior.WriteFile`). No other output carries behavior data. The
-manifest records `file`, `subject`, `start_time` and `n_trials`.
+manifest records `file` (as recorded, even while it is not there), `exists`,
+`subject`, `start_time` and `n_trials`.
 
 ### Digital-line names
 
@@ -514,10 +566,13 @@ lists the lines whose TTL logic is inverted:
 relabelling. An inverted line's intervals are the complement of its high runs
 within the recording, so a low stretch at either end of the recording counts,
 just as a high stretch there does for a normal line. It applies everywhere
-events are produced: `deriveSignals` / `toMat` (option `invertedLines`;
+events are produced: `deriveSignals` / `toMat` (option `invertedLines`, by
+default the dataset's `TrialConfig.InvertedLines`, also for a hand-run
+`toMat` / `deriveSignals` and `ChronuxDataset`'s derived signals;
 `info.invertedLines` lists the lines inverted), and therefore the Chronux and
-FieldTrip exports built from the extract; `ChronuxDataset` with `Signal="RAW"`;
-`intan2matlab`; and the trial pairing. Names a recording does not have are
+FieldTrip exports built from the extract; `ChronuxDataset` with `Signal="RAW"`
+(`SignalOptions.invertedLines`, else `TrialConfig.InvertedLines`, with the line
+naming from `TrialConfig` too); `intan2matlab`; and the trial pairing. Names a recording does not have are
 ignored. The events cache (`<Name>_events.mat`) keeps the raw high runs.
 
 ### Pairing trials with the trial line
@@ -552,7 +607,9 @@ universal events struct:
   had it applied with `InvertedLines` empty.
 - **Output.** `interval`, `onset` / `offset` (s, `t = row/Fs`), `onsetSample` /
   `offsetSample` (1-based rows at `Fs`), `signalSamples.<SIG>`
-  (`round(t * SignalFs.<SIG>)`, the `ChronuxDataset.trials` onset rule),
+  (`round((t − 1/Fs) · SignalFs.<SIG>) + 1`: row r at `Fs` lies at
+  `(r − 1)/Fs` on the continuous clock, and this is the signal's sample nearest
+  it, the `ChronuxDataset.trials` `"event"` onset rule),
   `flag` (`ok`, `partial`, `cut`, `unpaired`), `intervals` and `events`
   (polarity applied), `partialIntervals`, `unpairedTrials`,
   `unpairedIntervals`, `lines.<line>` (per trial, the intervals of every other

@@ -29,7 +29,9 @@ out = ds.toMat(SignalOptions=struct('dataTypeOut', ["LFP" "SPIKE"]));
 1. **Read** the whole recording with `readData(Precision="single")`:
    traditional files in chronological order, or the split `.dat` files. Only
    `keepAmpChannels` are kept, in the given order. Digital events are extracted
-   here, at the original rate.
+   here, at the original rate, and named and polarized by `labelField`,
+   `lineNames` and `invertedLines`, which default to the dataset's
+   `TrialConfig`; explicit values win.
 2. **LFP**, if requested: `resample` to `LFP_Fs`. If `LFP_bpLoHi` is not
    `[0 Inf]`, or `LFP_NotchHz` is non-empty, filters are then applied **at
    `LFP_Fs`**, one channel at a time in double precision:
@@ -41,26 +43,54 @@ out = ds.toMat(SignalOptions=struct('dataTypeOut', ["LFP" "SPIKE"]));
    a window of `round(MUA_Fs / MUA_IntegrationHz)` samples.
 4. **SPIKE**, if requested: `resample` to `SPIKE_Fs` (skipped when `Inf` or
    equal to the original rate) → 4th-order Butterworth bandpass `SPIKE_bpLoHi`
-   designed at `SPIKE_Fs` (`filtfilt`).
-5. **Bad channels**, if given: the listed columns are set to `NaN` in every
-   derived signal and filled with `fillmissing(..., 'makima', 2)`.
-   - This is interpolation across **neighboring columns in the kept order**. It
-     does not use probe geometry.
+   designed at `SPIKE_Fs` (`filtfilt`). At the original rate the spike band
+   overwrites the amplifier data in place.
+
+   The MUA and SPIKE bandpasses run in double through
+   `EphysDataset.filterContinuous` (stable second-order sections at low
+   cut-offs, the exact and faster transfer function otherwise), one channel at
+   a time (8 at a time from 64 channels up), into single outputs.
+5. **Bad channels**, if given: the listed **columns** (after `keepAmpChannels`,
+   before `channelRemap`: column c is recording channel `keepAmpChannels(c)`)
+   are replaced in every signal by the 1/distance-weighted mean of the 4
+   nearest good sites on the same shank (and any as near as the 4th), placed by
+   the probe (`channelLayout` of `probeFile`, else of the dataset's
+   `ProbeFile`). Without a probe layout, or for a site off the probe or with no
+   good site on its shank, the warning
+   `EphysDataset:deriveSignals:BadChannelGeometry` is issued and the column is
+   interpolated across the neighbouring columns with
+   `fillmissing(..., 'makima', 2)`.
+   - Bad lists are checked before anything is read
+     (`EphysDataset:deriveSignals:BadChannels`): positive integers within the
+     column count, and not every column.
+   - `info.badChannels` records the columns, their recording channels, the
+     method per column (`"geometry"` or `"columns"`) and the weights.
    - A negative scalar `badChannels = -z` auto-flags channels with
      `abs(zscore(rms(Y.LFP))) > z`, computed on the LFP after any LFP filtering.
      This requires `"LFP"` and uses `zscore`, from the Statistics and Machine
      Learning Toolbox.
-6. **Remap**, if given: `channelRemap` reorders the columns of every signal, and
-   `info.labels` is reordered to match.
+6. **Remap**, if given: `channelRemap` reorders the columns of every signal (a
+   permutation of all of them in place), and `info.labels` is reordered to
+   match.
+
+**Resampling.** `resample` needs an integer ratio `P/Q`, taken from `rat`:
+exact for any rate with a short decimal expansion (24414.0625 Hz to 1000 Hz is
+128/3125), with `P` and `Q` up to 2^18 and `P·Q` within `int32`. A ratio that
+needs larger factors is approximated (the tolerance loosened up to 1e-4), and
+the rate actually produced is the one reported in `info.<type>.Fs` and
+`info.importOptions`. A ratio that cannot be had at all raises
+`EphysDataset:deriveSignals:ResampleRatio`.
 
 ## Options
 
 | Option | Default | Notes |
 | --- | --- | --- |
-| `dataTypeOut` | `"LFP"` | any of `"LFP"`, `"MUA"`, `"SPIKE"` |
+| `dataTypeOut` | `"LFP"` | any of `"LFP"`, `"MUA"`, `"SPIKE"`, `"AUX"` |
 | `keepAmpChannels` | `[]` (all) | 1-based amplifier channels, read in this order |
 | `channelRemap` | `[]` | final column order, 1-based into the kept channels |
-| `badChannels` | `[]` | column indices (after keep, before remap), or a negative scalar for auto |
+| `badChannels` | `[]` | column indices (after keep, before remap), interpolated from the probe geometry; or a negative scalar for auto |
+| `probeFile` | `""` (the dataset's `ProbeFile`) | `deriveSignals` / `toMat`: the probe `.json` whose geometry places the bad channels; `EphysPipeline` passes the probe it sorts with (`probeFor`: the dataset's own, else the config's default). Recorded in `info.importOptions` |
+| `ProbeFile` | `""` | `intan2matlab` only: the probe `.json` placing the channels for the bad-channel interpolation (a bare `EphysDataset(folder)` has none). Not stored in `info.importOptions` |
 | `LFP_Fs` | 1000 Hz | |
 | `LFP_bpLoHi` | `[0 Inf]` | `0` = no high-pass, `Inf` = no low-pass. Finite edges must be < `LFP_Fs/2` |
 | `LFP_NotchHz` | `[]` | notch centers, e.g. `[60 120 180]`. Each needs `f − BW/2 > 0` and `f + BW/2 < LFP_Fs/2` |
@@ -70,8 +100,9 @@ out = ds.toMat(SignalOptions=struct('dataTypeOut', ["LFP" "SPIKE"]));
 | `MUA_bpLoHi` | `[300 5000]` | high edge < original Fs/2 |
 | `SPIKE_Fs` | `Inf` (original rate) | |
 | `SPIKE_bpLoHi` | `[300 5000]` | high edge < `SPIKE_Fs/2` |
-| `labelField` | `"custom"` | or `"native"`; labels `info.labels` (and the aux labels) and names the `events` fields |
-| `lineNames` | `[]` | `"native=name"` digital-line names overriding `labelField` (e.g. `"DIGITAL-IN-04=InTrial"`, Open Ephys `"TTL4=InTrial"`) |
+| `labelField` | `""`: the dataset's `TrialConfig.LabelField` (`intan2matlab`: `"custom"`) | `"custom"` or `"native"`; labels `info.labels` (and the aux labels) and names the `events` fields |
+| `lineNames` | `[]`: `TrialConfig.LineNames` (`intan2matlab`: none) | `"native=name"` digital-line names overriding `labelField` (e.g. `"DIGITAL-IN-04=InTrial"`, Open Ephys `"TTL4=InTrial"`) |
+| `invertedLines` | `[]`: `TrialConfig.InvertedLines` (`intan2matlab`: none) | digital lines with inverted TTL polarity (on while low): their `events` rows are the low runs, onset = falling edge; `info.invertedLines` lists the lines inverted |
 | `ProgressFcn` | `[]` | `ProgressFcn(nDone, nTotal, message)`: one step per file read, one per processing stage, then `(nTotal, nTotal, "Done")`. It may throw to abort. Not stored in `info` |
 
 All options are validated before any data is read. Band edges are checked
@@ -85,8 +116,11 @@ LFP high-pass, and longer for lower cut-offs.
 
 ## Outputs
 
-**`Y`**: a struct with `LFP`, `MUA`, `SPIKE`, each `[nSamples x nChan]`.
-Signals that were not requested are `single([])`.
+**`Y`**: a struct with `LFP`, `MUA`, `SPIKE`, each `[nSamples x nChan]`, and
+`AUX` (the aux inputs, `[nSamples x nAux]` volts at their own rate, not
+affected by `keepAmpChannels`, `badChannels` or `channelRemap`). Signals that
+were not requested are `single([])`. Row k of a signal is at
+`(k-1)/info.<type>.Fs`.
 
 **`events`**: one field per digital-input line. The field name is the line's
 `lineNames` entry, else its `labelField` name, passed through
@@ -104,21 +138,31 @@ base. Onset/offset times are (1-based sample index)/Fs; see
 | `recordingFormat` | layout |
 | `labels` | amplifier labels in `Y` column order |
 | `origFs` | amplifier sample rate |
-| `LFP` | `Fs`, `bpLoHi`, `NotchHz`, `NotchBW`, `filter` (text description of the filters applied), `time` |
-| `MUA` | `Fs`, `IntegrationHz`, `bpLoHi`, `time` |
-| `SPIKE` | `Fs`, `time` |
-| `importOptions` | the options actually used: `SPIKE_Fs` replaced by `origFs` when `Inf`, and `badChannels` replaced by the channels actually interpolated |
+| `invertedLines` | the digital lines whose events are low runs |
+| `badChannels` | what was interpolated, and how: `columns` (before `channelRemap`), `channels` (their recording channels), `method` per column (`"geometry"` or `"columns"`) and `weights` (`[nKept x nBad]`, each geometry column's weights over the kept columns) |
+| `LFP` | `Fs`, `bpLoHi`, `NotchHz`, `NotchBW`, `filter` (text description of the filters applied), `nSamples` |
+| `MUA` | `Fs`, `IntegrationHz`, `bpLoHi`, `nSamples` |
+| `SPIKE` | `Fs`, `nSamples` |
+| `AUX` | `Fs`, `nSamples`, `labels`, `units` (`"volts"`), when the recording has aux inputs |
+| `importOptions` | the options actually used: the rates produced (`LFP_Fs`, `MUA_Fs`, `SPIKE_Fs`; `SPIKE_Fs` = `origFs` when `Inf`), `badChannels` the columns actually interpolated, and `labelField` / `lineNames` / `invertedLines` as resolved |
 
-The `LFP`/`MUA`/`SPIKE` sub-structs exist only for requested signals. Each
-`time` vector is `(0:n−1)'/Fs`.
+The `LFP`/`MUA`/`SPIKE`/`AUX` sub-structs exist only for requested signals.
+Row k of a signal is at `(k-1)/Fs`; `nSamples` is the row count (there are no
+time vectors).
 
 ## Memory and requirements
 
-- Amplifier data is read as `single`. The help text puts peak memory at about
-  twice the single-precision recording.
+- Amplifier data is read as `single`, only the kept channels (split and binary
+  recordings stream one window at a time into a preallocated single matrix).
+  Each signal is then derived a block of channels at a time into a
+  preallocated single matrix, and the spike band at the original rate takes
+  over the amplifier data's memory. The help text puts peak memory at about the
+  single-precision recording plus the derived signals plus the
+  double-precision working copies of one block of channels (at most about the
+  recording again); measured, about 1.7x the single-precision recording with
+  16 channels and 2.3x with 64, not counting the read.
 - Requires the Signal Processing Toolbox (`butter`, `filtfilt`, `resample`,
-  `zp2sos`). `bwlabel` (Image Processing Toolbox) is used for events when
-  present, with an equivalent fallback otherwise. Auto bad-channel detection
+  `zp2sos`, `sos2tf`). Auto bad-channel detection
   needs `zscore` (Statistics and Machine Learning Toolbox).
 - `intan2matlab`'s console progress bar uses
   [`compute/parfor_progress.m`](../vendor/compute/parfor_progress.m).

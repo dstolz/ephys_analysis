@@ -23,8 +23,12 @@ function out = exportChronux(obj, opts)
 %                 channel, or []
 %     units       the readSortedUnits struct (ids, labels, channels, ...) or []
 %     detected    the spikesToMat detected struct or []
-%     events      dig-in lines -> [k x 2] [t_on t_off] seconds (t = row/Fs)
-%     export      provenance: tool, created, dataset, sources, signals
+%     events      dig-in lines -> [k x 2] [t_on t_off] seconds, t = row/eventFs
+%                 on the recording's clock: on a signal at Fs that is row
+%                 round((t - 1/eventFs)*Fs) + 1 (ChronuxDataset.trials' "event"
+%                 rule)
+%     export      provenance: tool, created, dataset, sources, signals,
+%                 eventFs (the recording rate), timeConventions
 %
 %   Options
 %   -------
@@ -32,14 +36,19 @@ function out = exportChronux(obj, opts)
 %     Extract    "" (default: <outputFolder>/<Name>_extract.mat, else the
 %                <Name>_extract_<TYPE>.mat files present), other extract
 %                file(s) -- several are merged, e.g. the per-type files of
-%                toMat(SeparateFiles=true) -- or a toMat-shaped struct
-%                (Y, events, info)
+%                toMat(SeparateFiles=true), of which only those of Signals
+%                are read -- or a toMat-shaped struct (Y, events, info)
 %     Signals    subset of ["LFP" "MUA" "SPIKE" "AUX"] ([] = all present)
 %     Units      [] (default: the associated sorted units when present) |
 %                a units struct | false (none)
 %     Groups     phy groups to keep when reading units (default ["good" "mua"])
 %     Detected   true (default: <Name>_spikes.mat when present) | a spikes
 %                file | a detected struct | false
+%     Sources    provenance to record for inputs passed as structs: a struct
+%                with any of extractFile, spikesFile, sortingDir (what is
+%                read from files here replaces it). EphysPipeline.runExport
+%                reads a dataset's inputs once and passes them to every format
+%                this way
 %     Events     true (default) | false
 %     Overwrite  false (default): error if File exists
 %     MatVersion "-v7.3" (default) | "-v7"
@@ -55,6 +64,7 @@ arguments
     opts.Units = []
     opts.Groups (1,:) string = ["good" "mua"]
     opts.Detected = true
+    opts.Sources struct = struct()
     opts.Events (1,1) logical = true
     opts.Overwrite (1,1) logical = false
     opts.MatVersion (1,1) string {mustBeMember(opts.MatVersion, ["-v7.3", "-v7"])} = "-v7.3"
@@ -100,11 +110,13 @@ S.export = struct( ...
     'dataset',    obj.Name, ...
     'sourceFolder', obj.Folder, ...
     'signals',    in.signals, ...
+    'eventFs',    in.eventFs, ...
     'nUnits',     numel(S.sp), ...
     'nDetectedChannels', numel(S.spDetected), ...
     'sources',    in.sources, ...
     'timeConventions', struct('continuous', "t = (sample-1)/Fs", ...
-        'events', "t = row/Fs (1-based row)", 'spikes', "seconds on the recording clock"));
+        'events', "t = row/eventFs (1-based row of the recording); row round((t - 1/eventFs)*Fs) + 1 of a signal at Fs", ...
+        'spikes', "seconds on the recording clock"));
 
 EphysDataset.saveAtomically(file, S, opts.MatVersion);
 

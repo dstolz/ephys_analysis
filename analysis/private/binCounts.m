@@ -4,30 +4,26 @@ function [counts, rel, ep] = binCounts(s, t0, edges)
 %   in the bins EDGES (s, relative to each event, ascending) around every
 %   event T0: COUNTS is [nBins x nEvents]. Bins are half-open [a, b): a
 %   spike exactly at T0 + EDGES(end) is not counted. REL are the spike times
-%   relative to their event and EP the event of each (column vectors; a
-%   spike inside two overlapping windows appears twice). Work is
-%   O(nSpikes + nEvents) plus the spikes inside the windows.
+%   relative to their event and EP the event of each (column vectors, by
+%   event then time; a spike inside two overlapping windows appears
+%   twice). One vectorized pass over every (spike, window) pair: work is
+%   O(nSpikes + nEvents) plus the spikes inside the windows. An event that
+%   is not finite counts nothing.
 
-s = sort(double(s(:)));
+s = double(s(:));
+if ~issorted(s); s = sort(s); end       % spike trains usually come sorted
 t0 = double(t0(:));
 nE = numel(t0);
 nB = numel(edges) - 1;
-counts = zeros(nB, nE);
-a = countBelow(s, t0 + edges(1)) + 1;   % first spike at or after the window start
-b = countBelow(s, t0 + edges(end));     % last spike before the window end
-wantRaster = nargout > 1;
-relc = cell(nE, 1); epc = cell(nE, 1);
-for e = 1:nE
-    if b(e) < a(e); continue; end
-    r = s(a(e):b(e)) - t0(e);
-    counts(:, e) = histcounts(r, edges).';
-    if wantRaster
-        relc{e} = r;
-        epc{e} = repmat(e, numel(r), 1);
-    end
-end
-if wantRaster
-    rel = vertcat(relc{:}, zeros(0, 1));
-    ep = vertcat(epc{:}, zeros(0, 1));
-end
+a = countBelow(s, t0 + edges(1)) + 1;   % first spike at or after each window start
+b = countBelow(s, t0 + edges(end));     % last spike before each window end
+n = b - a + 1;                          % spikes per window
+n(~(n > 0)) = 0;
+ep = reshape(repelem((1:nE).', n), [], 1);   % the window of each (spike, window) pair
+first = cumsum([0; n(1:end-1)]);        % pairs before each window's
+k = (1:sum(n)).' - first(ep) + a(ep) - 1;   % the spike of each pair: a(e) .. b(e)
+rel = s(k) - t0(ep);
+bin = discretize(rel, edges);           % as histcounts: [a, b), the last bin [a, b]
+ok = ~isnan(bin);
+counts = reshape(accumarray(bin(ok) + nB * (ep(ok) - 1), 1, [nB * nE 1]), nB, nE);   % [bin, event] as one index
 end

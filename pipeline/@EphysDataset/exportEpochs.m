@@ -35,9 +35,9 @@ function out = exportEpochs(obj, opts)
 %     File       target (default <outputFolder>/<Name>_epochs.mat)
 %     Overwrite  false (default): error if File exists
 %     MatVersion "-v7.3" (default) | "-v7"
-%     Extract, Signals, Units, Groups, Detected, Events, EventSource,
-%     EventLine, Times, Behavior, Window, OnsetRule, Incomplete, NonFinite,
-%     SpikeTimeBase, Class, MinDurationSec, MaxDurationSec
+%     Extract, Signals, Units, Groups, Detected, Sources, Events,
+%     EventSource, EventLine, Times, Behavior, Window, OnsetRule, Incomplete,
+%     NonFinite, SpikeTimeBase, Class, MinDurationSec, MaxDurationSec
 %                as in EphysDataset.eventEpochs
 %
 %   OUT fields: file, bytes, seconds, signals, nEpochs, nUnits,
@@ -56,6 +56,7 @@ arguments
     opts.Units = []
     opts.Groups (1,:) string = ["good" "mua"]
     opts.Detected = true
+    opts.Sources struct = struct()
     opts.Events (1,1) logical = true
     opts.EventSource (1,1) string = "line"
     opts.EventLine (1,1) string = ""

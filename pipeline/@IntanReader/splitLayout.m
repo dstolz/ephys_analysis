@@ -36,7 +36,11 @@ function L = splitLayout(obj)
 %     ampFiles     1xnChan per-channel paths (one-file-per-channel) or empty
 %     timeFile     time.dat path
 %     digInFile    digitalin.dat path (one-file-per-signal) or ""
-%     digInFiles   1xN board-DIN-*.dat paths (one-file-per-channel) or empty
+%     digInFiles   one-file-per-channel: 1 x nDig per-line files, found as
+%                  board-<native name>.dat (RHX: board-DIGITAL-IN-01.dat),
+%                  else board-DIN-<native_order, 2 digits>.dat (the older
+%                  RHD2000 Interface); "" for a line with neither. Empty for
+%                  one-file-per-signal
 %     adcFile      analogin.dat path (one-file-per-signal) or ""
 %     auxFile      auxiliary.dat path (one-file-per-signal) or ""
 %
@@ -127,12 +131,15 @@ switch fmt
         d = dir(char(files(1)));
         L.nSamp = floor(d.bytes / 2);               % int16 = 2 bytes/sample
         L.ampDatenum = d.datenum;
-        % Per-channel digital-in files, named by native_order (best-effort).
+        % Per-line digital-in files: RHX names them after the line's native
+        % name, the RHD2000 Interface after its native_order.
         if ~isempty(L.digInOrders)
             df = strings(1, numel(L.digInOrders));
             for k = 1:numel(L.digInOrders)
-                df(k) = string(fullfile(folder, ...
-                    sprintf('board-DIN-%02d.dat', L.digInOrders(k))));
+                cand = string(fullfile(folder, ["board-" + L.digInNative(k) + ".dat", ...
+                    sprintf("board-DIN-%02d.dat", L.digInOrders(k))]));
+                hit = find(isfile(cand), 1);
+                if ~isempty(hit); df(k) = cand(hit); end
             end
             L.digInFiles = df;
         end

@@ -1,6 +1,7 @@
 function onRefreshMetadata(obj)
 %onRefreshMetadata  Force re-parse of headers for all datasets, then refresh.
 
+if obj.refuseWhileRunning("Refresh metadata"); return; end
 if isempty(obj.Project) || obj.Project.NumDatasets == 0
     uialert(obj.Fig, "Scan a parent directory first.", "Refresh metadata");
     return

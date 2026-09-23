@@ -3,8 +3,10 @@ function [stopped, message] = stopSortRun(statusFile)
 %   [STOPPED, MESSAGE] = EphysDataset.stopSortRun(STATUSFILE) ends the run
 %   whose ks4_status.json is STATUSFILE (a launchSorting result's
 %   statusFile, or a LaunchedRuns element's). Every process whose command
-%   line names the run folder's driver (<run folder>\run_ks4.py: the
-%   launcher's cmd.exe, conda, Python) is ended with its child processes (taskkill /T on Windows, pkill elsewhere). Then
+%   line names the run folder's driver (<run folder>\run_ks4.py: the cmd.exe
+%   that ks4_launch.cmd runs the command in, conda, Python) is ended with its
+%   child processes (taskkill /T on Windows, pkill elsewhere);
+%   ks4_launch.cmd itself goes on to write the exit marker and ends. Then
 %   ks4_status.json is written as {"state": "cancelled", "message":
 %   "stopped by the user"} and the SortExitMarker beside it, so
 %   sortRunState reports "cancelled" and the run's slot frees. Whatever

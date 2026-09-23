@@ -30,12 +30,17 @@ written as the strings `"NaN"` / `"Inf"`.
 ├─ <Name>_events.mat                    digital-input events cache (digitalEvents; trial pairing)
 ├─ <Name>_chronux.mat                   Chronux export (exportChronux; the Export step)
 ├─ <Name>_fieldtrip.mat                 FieldTrip export (exportFieldTrip; the Export step)
-├─ <Name>.bin + <Name>.json             EphysDataset.toBin (the Sorting step)
+├─ <Name>.bin + <Name>.json             EphysDataset.toBin (the Sorting step); <Name>_ks4.bin + <Name>_ks4.json
+│                                       when <Name>.bin or <Name>.json is one of the recording's own files
 └─ kilosort4/                           kilosortDir()
-   ├─ settings.json, run_ks4.py         run settings, copy of the driver used for this run
+   ├─ settings.json, run_ks4.py         run settings (with bin_scale), copy of the driver used for this run
+   ├─ ks4_launch.cmd                    the batch file a background run is started through (Windows)
    ├─ ks4_run.log                       captured stdout/stderr
    ├─ ks4_status.json                   {"state": "done"|"error", ...}
+   ├─ ks4_exit.txt                      empty exit marker of a background run
    ├─ <probe>_excluded.json             derived probe when channels are excluded
+   ├─ dryrun/                           a dry run's settings.json, run_ks4.py (and derived probe)
+   ├─ previous_<yyyyMMdd_HHmmss>/       an earlier sort's curation, moved aside by a new sort (launchSorting)
    └─ params.py, spike_*.npy, templates.npy, cluster_*.tsv, ...
                                         Kilosort4 phy output (cluster_notes.tsv holds per-unit notes)
 
@@ -89,7 +94,10 @@ Only `recording.json` marks a folder as a recording, so the `.bin` + sidecar
 pairs that `toBin` writes into output folders are never mistaken for one.
 `RecordingFormat` for these datasets is `"binary"`; the manifest's `reader` is
 `"binary"`. The optional `"channel_numbers": [0, 1, ...]` gives each channel's
-hardware number (what a probe `chanMap` refers to; default `0..n_chan-1`).
+hardware number, reported with sorted units (default `0..n_chan-1`; a probe's
+`chanMap` indexes `.bin` rows, not these). The reader's `Files` are
+`recording.json`, `data_file` and `dig_in_file` (when named), so the clean-up
+and `DatasetTracker` treat the digital-input file as part of the recording.
 
 ---
 
@@ -167,8 +175,17 @@ other modes ignore part folders.
 
 Path: `<Destination>/<SUBJ>/<recording folder name>/session_manifest.json`.
 Written by `copySessions` (the app's Copy tab and each scheduled copy) in every
-session folder it copies or finds already present; one that is already there
-is left as it is.
+session folder it copies or finds already present (not by a dry run). A
+manifest that records a finished copy (`copy.status` `"copied"` or
+`"already_present"`) is kept while the batch finds the session complete and
+takes no checksums; one left by a cancelled or failed copy is replaced. With
+`Verify="hash"`, a session found complete whose manifest records a finished
+copy verified with checksums (`copy.verify` `"hash"`), matching
+`sha256Source` / `sha256Destination` for every file and the sizes the files
+have now, is `already_present` without its files being read again. A
+scheduled run leaves a folder whose manifest records a finished copy (or that
+holds a clean-up record) as it is, except a recording copied on its own
+(`pairingStatus` `"recording_only"`) that now pairs: it gains its ePsych file.
 
 ```text
 {
@@ -192,7 +209,8 @@ is left as it is.
                        "parts": [ { "source", "name", "sizeBytes", "sourceSizeBytes",
                                     "nTrials", "sha256Source" }, ... ] }
   },
-  "copy": { "status", "message", "verify": "size" | "hash", "ifExists", "numFiles",
+  "copy": { "status": "copied" | "already_present" | "failed" | "cancelled", "message",
+            "verify": "size" | "hash", "ifExists", "numFiles",
             "totalBytes", "filesAlreadyPresent", "startedAt", "finishedAt",
             "host", "user", "robocopyLog" },
   "tool": { "name": "copySessions", "version": "3.0.0", "gitCommit": <hash or ""> }
@@ -263,7 +281,7 @@ Schema `intan-dataset-manifest/2` (`null` where a value is `NaN`):
     "acq_date": <"yyyy-MM-dd HH:mm:ss" or "">, "files": [<file names>]
   },
   "probe": {
-    "file": <probe .json path or "">, "num_channels": <n>, "num_shanks": <n>,
+    "file": <probe .json path or "">, "exists": <bool>, "num_channels": <n>, "num_shanks": <n>,
     "depth_um": <max(yc)-min(yc)>, "notes": <string>
   },
   "exclude_channels": <compact list, e.g. "5,17-18", or "">,
@@ -273,10 +291,10 @@ Schema `intan-dataset-manifest/2` (`null` where a value is `NaN`):
   "bin":      { "file": <BinFile path>, "exists": <true|false> },
   "kilosort": { "has_results": <bool>, "results_dir": <path or "">,
                 "num_units": <n or null>, "state": <string> },
-  "sorting":  { "results_dir": <folder holding params.py, or "">,
-                "source": "auto" | "manual", "curated": <bool>,
+  "sorting":  { "results_dir": <SortingDir as recorded, else the folder holding params.py, or "">,
+                "source": "auto" | "manual", "exists": <bool>, "curated": <bool>,
                 "num_units": <n or null>, "updated": <"yyyy-MM-dd HH:mm:ss" or ""> },
-  "behavior": { "file": <Epsych2 .mat or "">, "subject": <string>,
+  "behavior": { "file": <Epsych2 .mat or "">, "exists": <bool>, "subject": <string>,
                 "start_time": <"yyyy-MM-dd HH:mm:ss" or "">, "n_trials": <n or null>,
                 "pairing": null | { "status": "unreviewed" | "approved", "auto_approved": <bool>,
                   "cut_trials": [<from start>, <from end>], "cut_intervals": [<from start>, <from end>],
@@ -285,25 +303,41 @@ Schema `intan-dataset-manifest/2` (`null` where a value is `NaN`):
 }
 ```
 
+- The associations (`probe.file`, `sorting.results_dir` when `"manual"`,
+  `behavior.file`) are written as recorded, even while their file or folder is
+  not there; `exists` says whether it is there now (for `sorting`: whether
+  `results_dir` holds `params.py`).
 - `sorting` is the sorted-output association (`EphysDataset.sortingResultsDir`):
   `source` is `"manual"` when `SortingDir` was set explicitly (GUI **Use
   folder...**), else `"auto"` (`kilosort4/`).
-  `curated` is true when `cluster_group.tsv` exists (phy was used).
-- `kilosort` is the `DatasetTracker.latestKilosortRun()` block, kept for the
-  tracker tables; `state` comes from `kilosort4/ks4_status.json`, or is
-  `"done"` when results exist without a status file.
+  `curated` is true when phy saved the unit labels: `cluster_group.tsv` with
+  the header `cluster_id<TAB>group` (Kilosort4 writes its own copy of
+  `cluster_KSLabel.tsv` there, header `cluster_id<TAB>KSLabel`).
+- `kilosort` describes the run in `kilosortDir()`
+  (`DatasetTracker.kilosortRunAt`), kept for the tracker tables; `state` comes
+  from `kilosort4/ks4_status.json`, or is `"done"` when results exist without a
+  status file.
+- `exclude_channels` and `reference_exclude.channels` are compact lists
+  (`formatChannelList`); they are read back with `parseChannelList`, which
+  parses (never evaluates) numbers and ranges such as `"1 2 5-8"`,
+  `"[1:4 9]"` or `N:S:M`.
 - `reference_exclude` lists the channels (1-based) kept out of the common
   reference (`Artifacts.Reference` `"car"` / `"cmr"`). `source` is
   `"suggested"` (by the noise-floor rule, `suggestReferenceExclude`),
   `"manual"` (typed on the Artifacts tab), or `""` (never set: the first
   referenced read suggests it).
-- `applyManifest()` restores `probe.file` (if the file exists),
-  `exclude_channels`, `reference_exclude`, `manual_artifacts`, a `"manual"` `sorting.results_dir`
-  (if its `params.py` still exists) and `behavior.file` (if it exists).
+- `applyManifest()` restores `probe.file`, `exclude_channels`,
+  `reference_exclude`, `manual_artifacts`, a `"manual"`
+  `sorting.results_dir`, `behavior.file` and `behavior.pairing`, the
+  associations as recorded even while their file or folder is not there (the
+  steps then report them missing rather than use something else).
   Detector and step settings are **not** stored here; they are
   in the pipeline config.
 - Schema `/1` manifests (probe + exclusions only) are still read; `/2` is a
-  superset. Any other schema is ignored with a warning.
+  superset. A manifest that is not valid JSON or has any other schema (a newer
+  version's, say) is ignored with a warning and never overwritten:
+  `writeManifest` leaves it for you to fix or delete
+  (`EphysDataset:writeManifest:Kept`).
 
 ---
 
@@ -351,16 +385,18 @@ Path: `<outputFolder>/<Name>_artifacts.json`. Written by
 `EphysPipeline.artifactIntervalsFor` when `Artifacts.CacheIntervals` is on.
 
 ```text
-{ "schema": "ephys-artifacts/2", "dataset": <Name>, "fingerprint": <string>,
+{ "schema": "ephys-artifacts/3", "dataset": <Name>, "fingerprint": <string>,
   "intervals": [[t0, t1], ...], "nIntervals": <n>, "created": <timestamp> }
 ```
 
-`intervals` are recording-relative seconds, half-open on the 0-based sample
-clock: a period `[t0, t1)` covers samples `round(t0*fs)` to `round(t1*fs) - 1`,
-the samples `toBin` erases in the `.bin`. `fingerprint` is
-`jsonencode` of the schema, the artifact config, the manual periods and the
-recording files; a cache whose fingerprint differs from the current settings
-(including one written under schema 1) is recomputed.
+`intervals` are the automatic detection alone, in recording-relative seconds,
+half-open on the 0-based sample clock: a period `[t0, t1)` covers samples
+`round(t0*fs)` to `round(t1*fs) - 1`, the samples `toBin` erases in the `.bin`.
+The manual periods are not stored here: they are merged in when the cache is
+read. `fingerprint` is `jsonencode` of the schema, the detector settings (the
+fill fields left out), the channels of the common reference, `ExcludeChannels`
+and the recording files; a cache whose fingerprint differs from the current
+settings (including one written under an earlier schema) is recomputed.
 
 ---
 
@@ -380,8 +416,9 @@ the shape `kilosort.io.load_probe` accepts:
 }
 ```
 
-- `chanMap`: **0-based** channel per site. Throughout the MATLAB code, the
-  1-based `.bin` channel of a site is `chanMap + 1`; sites are not matched to
+- `chanMap`: **0-based** channel per site. Throughout the MATLAB code (sorting,
+  `readPhyUnits`, `channelLayout` and the analysis probe maps), the 1-based
+  `.bin` channel of a site is `chanMap + 1`; sites are not matched to
   channels by hardware number (see
   [python-drivers.md](python-drivers.md#channel-numbering-caveat)).
 - `xc`, `yc`: site positions in µm.
@@ -435,10 +472,13 @@ generates it from the current parameters or from the probe layout. Read by
 
 ## `.bin` JSON sidecar
 
-Path: `<outputFolder>/<Name>.json`, next to the `.bin`. Written by
+Path: `<outputFolder>/<Name>.json` (`<Name>_ks4.json` beside a
+`<Name>_ks4.bin`), next to the `.bin`. Written by
 `EphysDataset.toBin` (`WriteMeta=true`). Kilosort4 does not read it.
-`runKilosort` reads `n_chan_bin` / `fs` from it, and `DatasetTracker` reads
-`n_chan_bin`, `fs`, `n_samples` and `source_folder`.
+`runKilosort` reads `n_chan_bin` / `fs` (and, for a `.bin` it did not write,
+`scale`) from it, and `DatasetTracker` reads
+`n_chan_bin`, `fs`, `n_samples` and `source_folder`; the clean-up keeps a
+`.bin` whose `source_folder` is another recording's.
 
 | Field | Meaning |
 | --- | --- |
@@ -447,7 +487,7 @@ Path: `<outputFolder>/<Name>.json`, next to the `.bin`. Written by
 | `manual_artifacts` | `[k x 2]` seconds (the `ManualArtifacts` in effect) |
 | `n_manual_blanked` | samples erased by manual periods |
 | `artifact_fill` | `"noise"` or `"zero"`: what replaced the artifact samples |
-| `noise_fill` | `bandHz`, `seed`, and the `sigma` / `center` per channel the fill was drawn from (`[]` for a zero fill) |
+| `noise_fill` | `bandHz`, `seed`, `sigma` (per channel, the SD of the fill's noise) and `center` (per channel, the level of a period with no clean sample on either side); `[]` for a zero fill |
 | `auto_artifacts` | `enabled`, `method`, `threshold`, `rmsWindowMs`, `mergeGapMs`, `minChannels`, `padMs`, `nBlanked`, `fraction`, `pctDuration`, `nIntervals`, `channelCounts` |
 | `reference` | `mode` (`"none"`, `"car"` or `"cmr"`) and `channels`, the 1-based channels the common reference was taken over (`[]` for none) |
 | `created` | timestamp |
@@ -459,10 +499,12 @@ writes its own sidecar. See that function's help for its fields.
 
 ## `settings.json`
 
-Path: `<ResultsDir>/settings.json`. Fields: `n_chan_bin`, `fs`, `data_dtype`
+Path: `<ResultsDir>/settings.json` (a dry run's: `<ResultsDir>/dryrun/settings.json`,
+which still names `ResultsDir` as `results_dir`). Fields: `n_chan_bin`, `fs`, `data_dtype`
 (from `ds.Dtype`), `filename` (the `.bin`), `probe` (original or
-`_excluded.json` probe), `results_dir`, plus any `ExtraSettings` fields. Paths
-use forward slashes. A `torch_device` field picks the GPU; the `--device`
+`_excluded.json` probe), `results_dir`, `bin_scale` (the `.bin`'s units per
+µV, for `readPhyUnits`; `run_ks4.py` does not pass it to Kilosort4), plus any
+`ExtraSettings` fields. Paths use forward slashes. A `torch_device` field picks the GPU; the `--device`
 argument a run gets from `Sorting.Devices` overrides it (the device a run
 used is in `ks4_run.log` and the manifest's `launchSorting` entry, not
 here).
@@ -485,11 +527,12 @@ The GUI's background monitor polls this file every 3 s.
 ## `ks4_exit.txt`
 
 Path: next to `ks4_status.json`. An empty file that the background launcher
-writes once the Python process has exited, however it ended. A run with this
+(on Windows `ks4_launch.cmd` in the run folder) writes once the Python process has
+exited, however it ended; `launchSorting` writes it when the launch itself
+fails. A run with this
 file but no status file failed before the driver could report (a missing
 Python or conda env, a crash). `EphysDataset.sortRunState` reads the two
-together. `stopSortRun` writes it too, since the launcher it ends never
-gets to. Deleted before each launch.
+together. `stopSortRun` writes it too. Deleted before each launch.
 
 ## Kilosort4 / phy output
 
@@ -500,8 +543,14 @@ that holds `params.py`:
 - Required: `spike_times.npy`, `spike_clusters.npy`.
 - Optional: `amplitudes.npy`, `templates.npy`, `spike_templates.npy`,
   `channel_map.npy`, `channel_shanks.npy`, `channel_positions.npy`,
-  `whitening_mat_inv.npy`, `cluster_group.tsv` (phy's curated labels, preferred)
-  else `cluster_KSLabel.tsv`, `cluster_Amplitude.tsv`, `cluster_ContamPct.tsv`.
+  `whitening_mat_inv.npy` (its transpose unwhitens the templates),
+  `cluster_group.tsv` (preferred) else `cluster_KSLabel.tsv`,
+  `cluster_Amplitude.tsv`, `cluster_ContamPct.tsv`. Kilosort4 writes its own
+  `cluster_group.tsv`, a copy of `cluster_KSLabel.tsv` with the header
+  `cluster_id<TAB>KSLabel`; only one with the header `cluster_id<TAB>group`
+  holds phy's curated labels (`groupSource` `"phy"`, `curated`).
+- Templates: `settings.json`'s `bin_scale` puts them in µV
+  (`units.templateUnits`).
 - Sample rate: `sample_rate` from `params.py`; otherwise the call errors
   unless `FsFallback=` is given (never a silent 30 kHz).
 - Unit position: `channel_positions.npy` gives each unit's peak site and
@@ -531,14 +580,14 @@ cluster with the field name `notes` to edit the same text.
 
 Default `<outputFolder>/<Name>_extract.mat`, or with `SeparateFiles` (the
 Signals step's default) one `<outputFolder>/<Name>_extract_<TYPE>.mat` per
-signal type (`LFP`, `MUA`, `SPIKE`), each holding only that signal in `Y` and
-`info`:
+signal type (`LFP`, `MUA`, `SPIKE`, and `AUX` when the recording has aux
+inputs), each holding only that signal in `Y` and `info`:
 
 | Variable | Contents |
 | --- | --- |
-| `Y` | struct with `LFP`, `MUA`, `SPIKE` (`single`, `[nSamples x nChan]`); unrequested fields are `single([])` |
+| `Y` | struct with `LFP`, `MUA`, `SPIKE` (`single`, `[nSamples x nChan]`) and `AUX`; unrequested fields are `single([])`. Row k of a signal is at `(k-1)/info.<type>.Fs` |
 | `events` | struct, one field per digital-input line, `[k x 2]` `[t_on t_off]` seconds; onset = rising edge, or falling edge for the lines in `info.invertedLines` (`Signals.InvertedLines`) |
-| `info` | see [intan2matlab.md](intan2matlab.md#outputs) |
+| `info` | per signal `Fs` and `nSamples` (the row count; there are no time vectors), `origFs`, `labels`, `invertedLines`, `badChannels` (the columns interpolated, their recording channels, the method per column and the weights), `importOptions`, ...; see [intan2matlab.md](intan2matlab.md#outputs) |
 | `conversion` | `tool`, `created`, `dataset`, `sourceFolder`, `recordingFormat`, `matFileVersion`, `matlabVersion` |
 
 ## Spikes `.mat` (`EphysDataset.spikesToMat`; the Spikes step)
@@ -549,7 +598,7 @@ sources that were not requested are `[]`.
 | Variable | Contents |
 | --- | --- |
 | `detected` | `ts {1 x nChan}` spike times (s, `(index-1)/Fs`, recording-relative); `wf {1 x nChan}` `[nSpikes x nWin]` µV or `[]`; `info` (`detectSpikes` info filtered to the kept events); `channels` (1-based recording channels); `channelNames`; `detection` (options used, artifact intervals applied, `nRejectedArtifact` per channel) |
-| `units` | the `readSortedUnits` struct, one row per unit: `unitId`, `label` (`su042_1255_260908T1039`), `class`, `group`, `notes`, `subject`, `recordingStart`, `datasetKey`, `channel`, `channelName`, `ksChannel`, `shank`, `peakX`, `peakY`, `x`, `y`, `nSpikes`, `samples`, `times`, `amplitude`, `contamPct`, `templateWaveform`, `templateTimeMs`, plus `fs`, `resultsDir`, `groupSource`, `curated`, `channelMap`, `channelMapSource`, ... ([fields](EphysDataset.md#reading-sorted-units)). `unitTable` turns it into a table |
+| `units` | the `readSortedUnits` struct, one row per unit: `unitId`, `label` (`su042_1255_260908T1039`), `class`, `group`, `notes`, `subject`, `recordingStart`, `datasetKey`, `channel`, `channelName`, `ksChannel`, `shank`, `peakX`, `peakY`, `x`, `y`, `nSpikes`, `samples`, `times`, `amplitude`, `contamPct`, `templateWaveform`, `templateTimeMs`, plus `templateUnits` (`"uV"`, `"bin"`, `"whitened"` or `""`), `fs`, `resultsDir`, `groupSource`, `curated`, `channelMap`, `channelMapSource`, ... ([fields](EphysDataset.md#reading-sorted-units)). `unitTable` turns it into a table |
 | `conversion` | provenance |
 
 ## Behavior `.mat` (`EphysDataset.behaviorToMat`; the behavior step)
@@ -560,6 +609,7 @@ dataset's Epsych2 session data. No other output carries a `behavior` variable.
 | Variable | Contents |
 | --- | --- |
 | `behavior` | `EphysDataset.behaviorStruct`: `trials` (table, one row per trial), `info` (the Epsych2 `Info` snapshot), `meta`, `file`, `subject`, `startTime`, `nTrials`, `pairing` (`[]` when trials were not paired) |
+| `conversion` | `tool`, `created`, `dataset`, `sourceFolder`, `behaviorFile` (the Epsych2 session) |
 
 When trials were paired (`Behavior.PairTrials`), `behavior.trials` also has:
 
@@ -568,7 +618,7 @@ When trials were paired (`Behavior.PairTrials`), `behavior.trials` also has:
 | `TrialInterval` | index into the trial line's intervals (`NaN` = cut or unpaired); trials pair in order after the cuts |
 | `TrialOnset`, `TrialOffset` | seconds on the recording clock, `t = row/Fs` |
 | `TrialOnsetSample`, `TrialOffsetSample` | 1-based rows at the recording rate (first / last on sample) |
-| `TrialOnsetSample_<SIG>`, `TrialOffsetSample_<SIG>` | `round(t * Fs_SIG)` for each enabled derived signal (LFP, MUA, resampled SPIKE); the rates are in `pairing.signalFs` |
+| `TrialOnsetSample_<SIG>`, `TrialOffsetSample_<SIG>` | `round((t - 1/Fs) * Fs_SIG) + 1` (`Fs` = `pairing.Fs`, the recording rate) for each enabled derived signal (LFP, MUA, resampled SPIKE): the row of that signal nearest the recording row; the rates are in `pairing.signalFs` |
 | `PairingFlag` | `"ok"`, `"partial"` (the interval begins at the first or ends at the last sample of the recording), `"cut"` (dropped by the cuts), `"unpaired"` (no interval left for it) |
 | `TrialEvents` | struct per trial: one field per other digital line, `[n x 2]` seconds of its intervals that overlap the trial (polarity applied) |
 | `TrialEventSamples` | the same in rows at the recording rate |
@@ -579,7 +629,6 @@ automatically with `Behavior.AutoApprove`), `autoApproved`, `trialLine`, `invert
 counts dropped before pairing), `countMismatch`, `warnings`,
 `partialIntervals`, `unpairedTrials`, `unpairedIntervals`, `fingerprint`,
 `summary` and `conventions`.
-| `conversion` | `tool`, `created`, `dataset`, `sourceFolder`, `behaviorFile` (the Epsych2 session) |
 
 ## Chronux export (`EphysDataset.exportChronux`; the Export step)
 
@@ -592,8 +641,8 @@ Chronux functions take; no Chronux function is called to produce it.
 | `sp` | `1 x nUnits` struct array with field `times` (sorted units), or `[]` |
 | `spDetected` | the same for threshold-detected spikes, one element per channel, or `[]` |
 | `units`, `detected` | the source structs (`units` as in the spikes file, same order as `sp`), or `[]` |
-| `events` | dig-in lines → `[k x 2]` seconds |
-| `export` | `tool`, `created`, `dataset`, `sources`, `signals` |
+| `events` | dig-in lines → `[k x 2]` seconds, `t = row/eventFs` on the recording's clock: on a signal at `Fs` that is row `round((t - 1/eventFs)*Fs) + 1` |
+| `export` | `tool`, `created`, `dataset`, `sourceFolder`, `sources`, `signals`, `eventFs` (the recording rate), `nUnits`, `nDetectedChannels`, `timeConventions` (`continuous`, `events`, `spikes`) |
 
 ## FieldTrip export (`EphysDataset.exportFieldTrip`; the Export step)
 
@@ -603,7 +652,7 @@ Default `<outputFolder>/<Name>_fieldtrip.mat`. Structures follow
 
 | Variable | Contents |
 | --- | --- |
-| `data_LFP` / `data_MUA` / `data_SPIKE` | raw structures, one trial spanning the signal; `cfg.event` holds the events at that signal's rate |
+| `data_LFP` / `data_MUA` / `data_SPIKE` / `data_AUX` | raw structures, one trial spanning the signal; `cfg.event` holds the events at that signal's rate, each on the sample nearest its recording row |
 | `spike` | spike structure of the sorted units (`label` = unit labels such as `su042_1255_260908T1039`, `timestamp` in recording samples; `hdr.orig` keeps the unit fields: class, identity, location, notes), or `[]` |
 | `spikeDetected` | the same, one "unit" per detected channel, or `[]` |
 | `event` | event struct array at the recording rate |
@@ -618,7 +667,7 @@ Nothing is averaged, smoothed or resampled.
 
 | Variable | Contents |
 | --- | --- |
-| `epochs` | `event` (source, name, window, onsets / offsets / durations, recording range, what was dropped), `trials` (one row per epoch: `EpochIndex`, `EpochOnset`, `EpochOffset`, `EpochDuration`, `EpochComplete`, plus `EventIndex` or `BehaviorRow` and the behavior trial columns), `signals` (per signal: `data` `[nTime x nEpochs x nChan]`, `t` relative to the onset, `fs`, `labels`, `units`, `info`), `units` (per unit: `id`, `label`, `class`, `group`, `channel`, `times` `{1 x nEpochs}`, `counts`), `detected`, `spikes` (the stamping rule), `behavior`, `meta` |
+| `epochs` | `event` (source, name, window, onset rule, `eventFs` (the recording rate the event times count rows of), onsets / offsets / durations, recording range, what was dropped), `trials` (one row per epoch: `EpochIndex`, `EpochOnset`, `EpochOffset`, `EpochDuration`, `EpochComplete` (the window lies inside the recording and inside every signal's rows), plus `EventIndex` or `BehaviorRow` and the behavior trial columns), `signals` (per signal: `data` `[nTime x nEpochs x nChan]`, `t` relative to the onset, `fs`, `labels`, `units`, `info`), `units` (per unit: `id`, `label`, `class`, `group`, `channel`, `times` `{1 x nEpochs}`, `counts`), `detected`, `spikes` (the stamping rule), `behavior`, `meta` |
 | `export` | `tool`, `created`, `dataset`, `sources`, `signals`, `eventSource`, `eventName`, `window`, `nEpochs`, the policies applied and the time conventions |
 
 The same alignment drives the [`analysis`](EphysAnalysis.md) figures, which
@@ -626,10 +675,15 @@ index signals with the same event rule; this file is for taking the aligned
 data elsewhere.
 
 Epoch *i* of a signal holds rows `base(i)+round(tPre*Fs) … base(i)+round(tPost*Fs)`
-with `base(i) = round(onset*Fs)` (`EpochOnsetRule = "event"`); samples outside
-the recording are `NaN` and `EpochComplete` is false for that row. A spike
-belongs to epoch *i* when `t > onset+tPre` and `t <= onset+tPost`, stamped by
-`epochs.spikes.timeBase` (`"onset"`: 0 at the event).
+with `base(i) = round((onset - 1/eventFs)*Fs) + 1` (`EpochOnsetRule =
+"event"`: the signal row nearest the onset's recording row), or
+`round(onset*Fs) + 1` (`"sample"`); samples outside the recording are `NaN`,
+and `EpochComplete` is true only when the window lies inside the recording (in
+seconds) and inside every signal's rows. A spike belongs to epoch *i* when
+`t > onset+tPre` and `t <= onset+tPost`, the onset taken on the spikes' clock
+(`(row - 1)/eventFs` for a digital-event onset, so a spike in the onset's own
+sample is at 0), stamped by `epochs.spikes.timeBase` (`"onset"`: 0 at the
+event).
 
 All six `.mat` writers save to `~<name>.partial.mat` and rename only after a
 warning-free `save()` in which every variable is confirmed present
@@ -663,8 +717,10 @@ dataset's other outputs. The file-name pattern takes `{Name}` (the dataset),
 `{Plot}` (the plot id), `{Kind}`, `{Group}` (`all`), `{Unit}` (the first unit
 of a paged grid's page, else `all`), `{Index}` (the page) and `{Date}`
 (yyyyMMdd); token values are cleaned to `[A-Za-z0-9_.-]`. A plot drawn on
-several pages whose pattern names neither `{Index}` nor `{Unit}` gets
-`_p<page>`: with the default `{Name}_{Plot}`,
+several pages gets `_p<page>` unless its pattern tells the pages apart: it
+names `{Index}`, or `{Unit}` with a unit filled in (a paged evoked grid's
+`{Unit}` is `all` on every page, so it gets `_p<page>` too). With the default
+`{Name}_{Plot}`,
 
 ```
 <outputFolder>/analysis/SYNTH-01_260918_101500_psth_stim_p1.png
@@ -682,8 +738,11 @@ several pages whose pattern names neither `{Index}` nor `{Unit}` gets
   summary tables (recording, digital lines, trials by pairing flag and
   response, units by class and shank, the highest rates) and every plot:
   its pages as `data:image/png;base64` images (or inline SVG with
-  `EmbedFormat = "svg"`), the caption, relative links to the exported files
-  and the plot's parameters (folded); plots that were skipped or failed with
+  `EmbedFormat = "svg"`), made from the figures that were exported (an
+  exported `.svg` is reused), the caption, links to the exported files
+  (relative to the report's folder, each path segment percent-encoded as
+  UTF-8; a `file://` URL on another drive or share) and the plot's parameters
+  (folded); plots that were skipped or failed with
   the reason; the config JSON at the end (folded).
 - **PDF**: a title page, a summary page per dataset (listing skipped and
   failed plots) and every plot's pages drawn again as vector pages

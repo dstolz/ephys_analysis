@@ -144,7 +144,9 @@ classdef EphysProject < handle
         function pushConfig(obj, d)
             %pushConfig  Copy shared defaults into one EphysDataset.
             %   Also sets its NamePattern and DatasetKey (folder relative to Root),
-            %   which label its sorted units.
+            %   which label its sorted units, and its OutputDir:
+            %   <OutputRoot>/<Name>, or "" (outputs next to the recording)
+            %   without an OutputRoot.
             arguments
                 obj (1,1) EphysProject
                 d (1,1) EphysDataset
@@ -162,6 +164,8 @@ classdef EphysProject < handle
             end
             if obj.OutputRoot ~= ""
                 d.OutputDir = fullfile(obj.OutputRoot, d.Name);
+            else
+                d.OutputDir = "";
             end
         end
 

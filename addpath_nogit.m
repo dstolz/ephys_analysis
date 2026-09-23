@@ -1,10 +1,13 @@
 function r = addpath_nogit(rootpth)
-% ADDPATH_NOGIT Add folder and subfolders to MATLAB path, excluding `.git` directories.
+% ADDPATH_NOGIT Add folder and subfolders to MATLAB path, excluding hidden (`.git`, `.claude`, ...) directories.
 %
-%   r = ADDPATH_NOGIT(rootpth) adds the specified folder `rootpth` and all 
-%   its subfolders to the MATLAB search path, except for any directories 
-%   containing `.git` in their names. The function ensures compatibility 
-%   with different operating systems by using the appropriate path 
+%   r = ADDPATH_NOGIT(rootpth) adds the specified folder `rootpth` and all
+%   its subfolders to the MATLAB search path, except for hidden folders
+%   below it (any folder whose name starts with a dot, such as `.git`,
+%   `.github` or `.claude`) and everything inside them. `.claude/worktrees`
+%   holds whole checkouts of a repository, which would otherwise shadow the
+%   real code. The function ensures compatibility
+%   with different operating systems by using the appropriate path
 %   separator (`;` for Windows, `:` for others).
 %
 %   Input:
@@ -16,12 +19,13 @@ function r = addpath_nogit(rootpth)
 %           the filtered directories.
 %
 %   Example:
-%       % Add all subfolders of 'my_project', excluding `.git` directories
+%       % Add all subfolders of 'my_project', excluding hidden directories
 %       addpath_nogit('C:\my_project');
 %
 %   Notes:
-%       - This function uses `genpath` to generate the list of subfolders 
-%         and filters out those containing `.git`.
+%       - This function uses `genpath` to generate the list of subfolders
+%         and filters out the hidden ones. Only the part below `rootpth`
+%         is checked, so a root that itself sits in a hidden folder works.
 %       - The `mustBeFolder` validation ensures that `rootpth` is a valid 
 %         folder.
 %       - If no output argument is provided, the result is not returned.
@@ -39,7 +43,8 @@ pth = genpath(rootpth);
 
 pth = split(pth,sep);
 
-i = cellfun(@(a) isempty(a) || contains(a,'.git'),pth);
+rel = cellfun(@(a) a(min(numel(rootpth), numel(a))+1:end), pth, 'UniformOutput', false);
+i = cellfun(@isempty, pth) | ~cellfun(@isempty, regexp(rel, '(^|[\\/])\.', 'once'));
 
 pth(i) = [];
 

@@ -3,7 +3,8 @@ function rasterInto(ax, R, u, style, colors)
 %   Epochs are rows, sorted by group then time, first on top; each group's
 %   rows sit on a pale band of its colour. All ticks are one line object
 %   (NaN-separated), so even long rasters export small. With ShowStop each
-%   epoch's stop event is a dot.
+%   epoch's stop event is a dot. The axes are styled (styleAxes) without
+%   Style.YLim: that is for rates, and every row stays in view.
 nE = numel(R.epochGroup);
 [~, order] = sortrows([R.epochGroup(:) (1:nE).']);
 row = zeros(nE, 1);
@@ -37,4 +38,6 @@ set(ax, 'YDir', 'reverse');
 xlim(ax, W);
 ylim(ax, [0.5 max(1, nE) + 0.5]);
 ylabel(ax, 'Epoch');
+style.YLim = [];
+styleAxes(ax, style);
 end

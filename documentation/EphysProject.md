@@ -21,7 +21,7 @@ P = EphysProject(root, AutoDiscover=false)   % set config, call P.discover() lat
 | Option | Default | Meaning |
 | --- | --- | --- |
 | `ProbeFile`, `PythonExe`, `CondaEnv` | `""` | pushed to every dataset |
-| `OutputRoot` | `""` | when set, each dataset's `OutputDir` = `OutputRoot/<Name>` |
+| `OutputRoot` | `""` | when set, each dataset's `OutputDir` = `OutputRoot/<Name>`; `""`: outputs next to each recording |
 | `Scale` | `1/0.195` | pushed to every dataset |
 | `Dtype` | `"int16"` | pushed to every dataset |
 | `NamePattern` | `EphysDataset.DefaultNamePattern` | name pattern pushed to every dataset; its `SubjectID`, `Date` and `Time` tokens label sorted units (see [Unit labels](EphysDataset.md#unit-labels)) |
@@ -67,26 +67,32 @@ One `EphysDataset` is created per folder with `AutoMetadata=false` (headers are
 not parsed yet), and `pushConfig` is applied to each. If nothing is found,
 `Datasets` is emptied and a warning is issued (`EphysProject:NoData`).
 
-**`report = refresh(Name=Value)`** runs, for every dataset:
+**`report = refresh(Name=Value)`** runs, for every dataset (or the
+`Datasets=` indices):
 
 1. `refreshMetadata()`: header-only metadata (Fs, channels, duration);
 2. `applyManifest()`: restore the probe, channel exclusions, manual artifact
    periods, sorting and behavior associations from
-   `<Folder>/<Name>_manifest.json`, then `associateFolderBehavior()`: a
-   dataset with no behavior file takes the one Epsych2 session file in its
-   own folder, which is where the app's Copy tab puts it;
+   `<Folder>/<Name>_manifest.json`, as recorded, also while their files are
+   not there; then, when no behavior file is recorded,
+   `associateFolderBehavior()`: the dataset takes the one Epsych2 session file
+   in its own folder, which is where the app's Copy tab puts it;
 3. `writeManifest()`: rewrite the manifest with the fresh metadata.
 
+A manifest that is there but cannot be read (not JSON, or an unknown schema)
+is neither applied nor rewritten: it is left as it is, and the report says so.
 This is what the GUI's Scan does and what `EphysPipeline` and generated scripts
 call, so headless runs and the app agree on the state of each dataset. Options:
-`ApplyManifest`, `WriteManifest` (default true), `Force` (re-parse cached
+`Datasets` (indices, default all), `ApplyManifest`, `WriteManifest` (default
+true), `Force` (re-parse cached
 headers), `ProgressFcn(i, n, name)`, `CancelFcn()`. Failures warn and are
 recorded in the returned table (`Dataset`, `Key`, `Metadata`, `Manifest`,
-`Message`) instead of interrupting the loop.
+`Message`; one row per dataset refreshed) instead of interrupting the loop.
 
 **`pushConfig(d)`** copies `ProbeFile`, `PythonExe`, `CondaEnv`, `Scale`,
 `Dtype`, `NamePattern`, `Manifest`, the dataset's key (`DatasetKey`, saved
-with its sorted units) and (when `OutputRoot` is set) `OutputDir = OutputRoot/<Name>`
+with its sorted units) and `OutputDir` (`OutputRoot/<Name>`, or `""`,
+outputs next to the recording, without an `OutputRoot`)
 into one dataset. This **overwrites** that dataset's `ProbeFile`. The GUI and
 the pipeline deliberately avoid calling it after scanning so per-dataset probe
 assignments survive (`EphysPipeline.applyConfigToDatasets` sets everything

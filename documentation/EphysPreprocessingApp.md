@@ -90,18 +90,38 @@ unsaved marker. **Open** / **New** push a config into the controls
 (`applyConfig`). Each step has an **Enabled** box on its own tab; the Run
 tab's checklist shows the same boxes.
 
-Text fields that hold lists (channels, notch frequencies, KS4 vectors) are
-kept as typed; they are parsed when a run starts, and a run reports the first
-field it cannot parse.
+Opening a config whose values some fields cannot show (a number outside a
+field's limits, an unknown dropdown value) lists them in an alert: those
+fields show another value, the working config is what the controls show, and
+the title marks it unsaved. A config the controls cannot show at all is
+refused, and the one shown before stays (at startup: the defaults). A config
+for another project root drops the scanned project, whose ticks do not become
+the config's selection: **Run** and **Plan** then need a **Scan** of the
+config's root (`EphysPreprocessingApp:NoProject` /
+`EphysPreprocessingApp:OtherProject`).
+
+Text fields that hold channel lists and notch frequencies are kept as typed;
+they are parsed when a run starts, and a run reports the first field it
+cannot parse. The Kilosort4 parameter fields are parsed on every edit: while
+one does not parse, the working config keeps its last good values, the status
+bar says why (`EphysPreprocessingApp:SortingNumber`), and **Run**, **Save**,
+**Save as**, **Export copy**, **Validate** and **Generate script** refuse.
+
+While a run is under way, config edits are not pushed onto the datasets it is
+processing (they are when it ends), **Scan** and **Refresh metadata** are
+off, and the edits that change the datasets are refused: probe, exclusions,
+**Left out** and **Suggest**, **Detect / Preview**, behavior **Associate
+file** / **Clear**, manual periods, the sorted-output folder, the Trials
+tab's approve, prefetch and write, and the Open Ephys options (a rescan).
 
 ### Which dataset does an action act on?
 
 There are two kinds of target. Batch work uses the **ticked** rows of the
 Project table. Everything that works on one dataset uses the **active
 dataset**. There is always exactly one active dataset once a project is
-scanned (the first one after a scan, or the one that was active if it is
-still there). You choose it in any of three places, and all of them always
-show the same one:
+scanned (after a rescan, the one that was active, found again by its folder
+when it is still there; else the first). You choose it in any of three
+places, and all of them always show the same one:
 
 - the **Dataset menu** (the active dataset is checked). It lists the datasets
   ticked in the Project table, including ticked rows the token filters hide;
@@ -118,7 +138,9 @@ cleared: a loaded trial pairing, the Artifacts preview and the Spikes
 preview. The Review tab loads the new dataset's sorted output (at once when
 the tab is open, else when you open it). A Visualize plot of the previous
 dataset stays on screen, but the status line names the dataset it shows and
-**Mark Artifacts** / **Clear Artifacts** are off until you press **Plot**.
+**Mark Artifacts** / **Clear Artifacts** are off until you press **Plot**. A
+plot stays tied to the dataset it was drawn from: a rescan finds that
+recording again by its folder.
 
 | Action | Target |
 | --- | --- |
@@ -204,12 +226,12 @@ end
 | Ambiguity margin (s) | default 30; see below |
 | Min duration (min) | default 2. A recording shorter than this is never paired; see below. 0 pairs every recording |
 | Find sessions | pair by name, using the **Duration** of each recording (from its headers: Intan `.rhd` headers and `.dat` sizes, the Open Ephys sample counts of every recording in the session) for the minimum; then read the **Trials** (elements of the ePsych file's `Data`) of the listed sessions. A header that cannot be read is logged and leaves the cell blank. **Format** says which reader reads the folder (Intan, Open Ephys, Binary; blank when none does) |
-| Verify | checked once a session has been copied. `size`: every copy has its source's size; `hash`: also a SHA-256 checksum of the source and the copy (reads every file twice more, in the engine) |
-| If it exists | a destination folder that exists, is not empty and does not match the source: `resume` (default) completes it, copying only the files that are missing or differ; `skip` leaves it alone; `error` reports it as `failed`. One that already matches is reported `already_present`. A file that is not in the source is never touched |
+| Verify | checked once a session has been copied. `size`: every copy has its source's size and modified time (to 2 s): robocopy gives a file its full size as soon as it starts it and the source's time only once it has finished it, so the size alone would pass a file stopped part way; `hash`: also a SHA-256 checksum of the source and the copy (reads every file twice more, in the engine), not read again for a session whose manifest already records matching checksums |
+| If it exists | a destination folder that exists, is not empty and does not match the source (by size and time): `resume` (default) completes it, copying only the files that are missing or differ; `skip` leaves it alone; `error` reports it as `failed`. One that already matches is reported `already_present`. A file that is not in the source is never touched. A row whose session folder already holds another behavior file (the other pairing's: stitched against not stitched) fails whatever this says: remove that file by hand to copy the row |
 | Stitch selected rows | merges the selected rows (click, then Ctrl- or Shift-click) into one `stitched` session: they must hold exactly one recording folder and at least two ePsych files. See [Stitching](#stitching-epsych-files) |
 | Unstitch | puts the selected stitched rows back as Find sessions paired them |
-| Preview (dry run) | reports what a copy would do, including a free-space check and how much of a partial copy is already there; writes nothing |
-| Copy selected | copies the ticked rows **in the background**: the app stays usable, a progress panel opens above the table and the table's **Result** column tracks each row (see [Watching a copy](#watching-a-copy)). The button becomes **Cancel copy**, which stops after the file being copied (what has been copied is kept, and `resume` completes it later) |
+| Preview (dry run) | reports what a copy would do, including a free-space check, how much of a partial copy is already there and how much is left to copy; writes nothing |
+| Copy selected | copies the ticked rows **in the background**: the app stays usable, a progress panel opens above the table and the table's **Result** column tracks each row (see [Watching a copy](#watching-a-copy)). The button becomes **Cancel copy**, which stops at once: robocopy is ended, or the SHA-256 being taken stops part way, and the row becomes `cancelled`. The file being copied or checksummed is left part way; what has been copied is kept, and **Copy selected** (`resume`) completes it later |
 | After copying, open the copied sessions as the project | sets the Project root to the folder holding the copied sessions, scans it and makes the first copied session the active dataset (for an Open Ephys session split into one dataset per recording, its first part folder) |
 
 ### Watching a copy
@@ -223,14 +245,16 @@ table, and closes again when the batch is done:
 | bar + percentage | the whole batch, counting the checksum pass as the two extra reads it is (`Verify=hash` makes copying the first third of the work) |
 | detail line | the bytes of the batch that have moved, then the file the engine is on: `4.9 GB of 11.2 GB   amplifier.dat` |
 | rate + time left | measured from the bytes themselves over the last 15 s, and from the fraction and how long it has taken so far. Neither is shown until there is enough of the copy to measure |
-| **Result** column | the session being copied shows its own percentage (`copying 42%`, `verifying 42%`), the sessions behind it in the batch show `waiting`, and each becomes `copied` / `already_present` / `failed` when the batch is verified |
+| **Result** column | the session being copied shows its own percentage (`copying 42%`, `verifying 42%`), the sessions behind it in the batch show `waiting`, and each becomes `copied` / `already_present` / `failed` when the batch is verified, or `cancelled` |
 | **Copy** tab button | goes blue (busy) for as long as a copy is running, so it is visible from whichever tab the app has moved on to |
 
-The percentage moves inside a single large file, not just between sessions:
-robocopy says nothing until it exits, so the engine sizes the session's
-destination files about once a second while it runs, and reports how far each
-SHA-256 has read. Closing the app stops the watching, not the copy
-(see [`copySessions`](../pipeline/copySessions.m)).
+The copy percentage moves file by file, never ahead of what has been
+copied: robocopy says nothing until it exits, so while it runs the engine
+looks at the session's destination files about once a second and counts the
+ones that are finished (the source's size and modified time). A large file
+counts only once it is finished. The checksum percentage moves within a file,
+as far as each SHA-256 has read. Closing the app stops the watching, not the
+copy (see [`copySessions`](../pipeline/copySessions.m)).
 
 **Pairing.** Names are parsed with strict, fully anchored patterns; any other
 name in the subject folders is skipped and listed in the log. Candidate
@@ -255,7 +279,8 @@ recordings: it is copied whole, and its duration is that of all of them.
 
 **Copying.** Nothing in the source tree is modified, renamed, moved or deleted.
 Before anything is copied, the free space under Destination is checked against
-the total size, and the copy stops if there is too little.
+what is left to copy (the whole size of each missing or unfinished file,
+nothing for a finished one), and the copy stops if there is too little.
 
 The copying itself does not happen in MATLAB. `copySessions` plans the batch,
 writes it as a job file and launches
@@ -266,7 +291,10 @@ per source folder** rather than once per file — a folder of 200 files costs on
 robocopy call instead of 200, which is worth seconds to minutes per session.
 `/MIR`, `/MOV` and `/PURGE` are never used, so a file in the destination that is
 not in the source is left alone; `/E` keeps empty source subfolders. Exit codes
-8 and above are failures. The engine reports one JSON line per file, which the
+8 and above, and negative ones, are failures. A robocopy ended from Task
+Manager or `taskkill` exits with code 1 as if all went well, so after each
+session the engine checks every file whose source has not changed since
+robocopy started: one that is not finished fails the session. The engine reports one JSON line per file, which the
 app tails; MATLAB keeps the decisions (what may be copied, what counts as
 verified, the ePsych stitching, the manifest).
 
@@ -278,17 +306,25 @@ closing the app — it finishes on its own, and the app says so before it closes
 starting again, and it skips a file that is already there with the same size and
 timestamp. With `If it exists = resume` a destination that holds part of a
 session is therefore completed rather than refused: the missing files are
-copied, the short or mismatched ones finished, and the rest left untouched. This
+copied, the short or mismatched ones finished, and the rest left untouched. A
+file robocopy was stopped in has its full size but not the source's time, so
+it is copied again. This
 is what makes a cancelled copy, a full disk or a dropped network share
 recoverable — press **Copy selected** again. `skip` and `error` keep the old
 behaviour and never write into such a folder.
 
 **Verification.** A whole session is copied before any of it is checked, so a
 session that fails verification keeps its complete partial copy and is marked
-`failed`. MATLAB checks each destination file's size itself; with `hash` the
+`failed`. MATLAB checks each destination file's size and modified time itself;
+with `hash` the
 engine is then run a second time to take the SHA-256 of every source and
-destination file. Each session is handled separately, so one failure does not
-stop the others. `session_manifest.json`
+destination file, except for a session found complete whose manifest records a
+finished copy with matching checksums: it is `already_present` and its files
+are not read again. Each session is handled separately, so one failure does not
+stop the others. `session_manifest.json` is written for every session copied
+or found present (not by **Preview**); one that records a finished copy is kept
+while the session is found complete, and one left by a cancelled or failed
+copy is replaced. The manifest
 ([schema](file-formats.md#copy-manifest-session_manifestjson)) records the
 source and destination paths, the reader of the recording, both times and Δt,
 the pairing status, every file's size (and hashes),
@@ -325,7 +361,9 @@ trials as they do. With `hash`, its `Data` and `Info` must also equal a fresh
 stitch of the sources, and the SHA-256 of every source and of the file are
 recorded. A destination that already holds a stitched file made from other
 versions of the sources is `skipped` (or `failed`), like any other differing
-copy.
+copy. A session folder copied earlier with the other pairing (its ePsych file
+unstitched, or stitched when this row is not) fails the row: remove that
+behavior file by hand first.
 
 ### Scheduled copy
 
@@ -344,7 +382,7 @@ is its own:
 | --- | --- |
 | Subjects | subject IDs separated by spaces or commas; each is searched as **Find sessions** searches it. Blank: the Subject ID above |
 | Every (min) | how often Windows starts a run, 5 to 1440 (default 60). Runs are on the clock: every 60 min is on the hour, every 15 min on the quarter hours |
-| Days back | each run searches this many days, ending today (default 3; 1 = today only). A session already copied is recognised by its sizes and left alone, so looking back costs little. It is how a run missed while the computer was off, or the source unreachable, is caught up |
+| Days back | each run searches this many days, ending today (default 3; 1 = today only). A session already copied (its `session_manifest.json` records a finished copy, or Clean up has removed files from it) is left alone, so looking back costs little, and a run never copies files back; a recording copied on its own that now pairs still gains its ePsych file. It is how a run missed while the computer was off, or the source unreachable, is caught up |
 | Quiet (min) | a session whose source changed within this many minutes is left for a later run (default 15), so a recording that is still being written, or still being synced to the source, is never copied half way. Every file and folder of the session counts |
 | Run | **while I am signed in** (default): whenever you are signed in to Windows, with the screen locked too; no password. **even when I am signed out**: also after a restart or a sign-out. Windows asks for your password once, in a console window of its own, and keeps it with the task; the app never sees it. Save again after a password change. Some accounts are not allowed to run tasks while signed out: Windows then refuses, and the status line says so. Mapped drive letters do not exist outside a sign-in, so in this mode their paths are saved as UNC paths (`S:/...` becomes `\\server\share\...`) |
 | Save schedule | saves the settings and creates (or replaces) the task |
@@ -367,10 +405,11 @@ log and on the status line:
 
 | Status | Session |
 | --- | --- |
+| `already_present` | a session copied before: its `session_manifest.json` records a finished copy, or Clean up removed files from it (`<Name>_cleanup.json`). It is left as it is even when files are missing from it: copying files back is done on the Copy tab. A recording copied on its own before its ePsych file existed is the exception: once it pairs, the run adds the ePsych file |
 | `ambiguous` | an ambiguous pairing, never copied automatically (as on the Copy tab) |
 | `unpaired` | recording only or ePsych only |
 | `needs_stitching` | a paired recording with another ePsych file that starts during it: ePsych was restarted. Stitch the files on the Copy tab and copy it from there |
-| `stitched_by_hand` | a session copied by hand with stitched ePsych files (its `session_manifest.json` says so): copying its paired row would add a second behavior file to the folder |
+| `stitched_by_hand` | a session copied by hand with stitched ePsych files (its `session_manifest.json` says so), also when a later ePsych file starts during the recording: copying its paired row would add a second behavior file to the folder |
 | `skipped` | its source changed within the quiet time, or another copy is writing it at that moment. A later run takes it |
 
 **Two copies never write one session.** Every copy batch in flight (from the
@@ -403,8 +442,8 @@ sch.remove();
 | Control | Meaning |
 | --- | --- |
 | Config name, Description | `cfg.Name`, `cfg.Description` |
-| Project root + Browse... + Recursive + **Scan** | `Project.Root`, `Project.Recursive`. Scan builds `EphysProject(root, Recursive=, ReaderOptions=)` (every folder that a registered reader claims: Intan `*.rhd` / `info.rhd`, an Open Ephys GUI session folder (the folder holding `Record Node <id>`), or `recording.json`; with Recursive unticked only the root and the folders directly in it are searched), then `P.refresh()`: header metadata, `applyManifest` (probe, exclusions, manual periods, sorting and behavior associations), `associateFolderBehavior` (a dataset with no behavior file takes the one Epsych2 file in its own folder), `writeManifest`. A progress dialog with Cancel; datasets whose headers fail keep `NaN` metadata and a warning is printed |
-| Refresh metadata | re-parse all headers |
+| Project root + Browse... + Recursive + **Scan** | `Project.Root`, `Project.Recursive`. Scan builds `EphysProject(root, Recursive=, ReaderOptions=)` (every folder that a registered reader claims: Intan `*.rhd` / `info.rhd`, an Open Ephys GUI session folder (the folder holding `Record Node <id>`), or `recording.json`; with Recursive unticked only the root and the folders directly in it are searched), then `P.refresh()`: header metadata, `applyManifest` (probe, exclusions, manual periods, sorting and behavior associations), `associateFolderBehavior` (a dataset with no behavior file takes the one Epsych2 file in its own folder), `writeManifest`. A progress dialog with Cancel; datasets whose headers fail keep `NaN` metadata, and an alert lists the datasets whose headers or manifest could not be read (a manifest that cannot be read is left as it is). Off while a run is under way |
+| Refresh metadata | re-parse all headers (off while a run is under way) |
 | Output root + Browse... | `Project.OutputRoot`: each dataset writes to `<root>/<Name>`; blank = next to the recording |
 | Name pattern + Columns | `Project.NamePattern`: tokens parsed from each dataset name (see [`parseNameTokens`](EphysPipeline.md#dataset-name-tokens)); one checkbox per token, ticked tokens (`Project.TokenColumns`, default `SubjectID`) become table columns after Name. The label shows how many names match, or the pattern error. After a scan that found Open Ephys sessions whose names do not match, the status bar suggests `{SubjectID}_{Date:yyyy-MM-dd}_{Time:HH-mm-ss}*` |
 | Open Ephys: recordings, Record node, Stream | the [`Acquisition` section](EphysPipeline.md#acquisition): what a session with several recordings is (**join recordings** = one dataset, **one dataset per recording** = part folders created in the session folder, **single recording only** = refused), which Record Node and which continuous stream to read (blank = automatic). A change rescans the project, since it changes which folders are datasets |
@@ -415,9 +454,14 @@ sch.remove();
 Table columns (drag a header to reorder; the order is kept across refreshes
 and saved in the app preferences): **Select**, Name, the ticked name tokens
 (`-` when the name does not match the pattern), **Key** (root-relative, what the config
-stores), Acq date, # chan, Fs (Hz), Duration (min), Format, Probe, Exclude,
-**Sorting** (units, `curated` when phy labels exist, `auto` / `manual`),
-**Behavior** (subject, trial count and the recorded pairing status). Ticks are written to
+stores), Acq date, # chan, Fs (Hz), Duration (min), Format, Probe
+(`default: <file>` when the dataset has none of its own and the config's
+default probe applies), Exclude,
+**Sorting** (units, `curated` when phy saved the labels, `auto` / `manual`),
+**Behavior** (subject, trial count and the recorded pairing status). A probe,
+hand-picked sorted-output folder or Epsych2 session that is associated but not
+there now (a disk or share not connected) reads `missing: <file>`
+(`missing: manual` for the sorted-output folder). Ticks are written to
 `Project.Datasets` as keys; with no ticks `Project.Selection` is `"all"`.
 Clicking a row makes its dataset the active one; its row is highlighted.
 
@@ -490,15 +534,20 @@ Probe maps are Kilosort4 probe `.json` files
   folder...** (copies the probe's `.ks4.json` parameter file too, when it has
   one); **Edit probe .json...**.
 - **Dataset** + **Exclude channels** (1-based, `1,5,32-40`): the exclusions
-  of the active dataset, written to its manifest. How exclusions reach each step:
+  of the active dataset, written to its manifest. The list is parsed
+  strictly: text that does not parse changes nothing, an alert says why and
+  the field shows the list in force again. How exclusions reach each step:
   [EphysDataset → Channel exclusions](EphysDataset.md#channel-exclusions) for
   sorting; `Signals.ExcludeHandling` for derived signals;
   `Spikes.Channels = "excludeManifest"` for detection.
 - **Assign to selected datasets** (ticked rows) / **Assign to all datasets** set `ProbeFile`
   (and, for all, the Exclude field) and write the manifests.
-- **Default probe** (`Probe.DefaultProbeFile`) + **Use selected**: the probe
-  the `probe` preflight assigns to datasets that have none; **Write default to
-  manifest** persists that assignment.
+- **Default probe** (`Probe.DefaultProbeFile`) + **Use selected probe**: the
+  probe used for every dataset that has none of its own (the probe check,
+  sorting, the derived signals' bad-channel geometry, the Artifacts viewer's
+  lanes); it is not assigned to them. **Save to manifests**
+  (`Probe.WriteDefaultToManifest`) makes the run's probe check assign it and
+  save it in their manifests.
 
 ## Artifacts
 
@@ -512,22 +561,25 @@ the preview's summary with its per-channel table.
 | Control | Maps to |
 | --- | --- |
 | Reference: *None* / *CAR: common average* / *CMR: common median* | `Artifacts.Reference` (`"none"` / `"car"` / `"cmr"`): subtract, sample by sample, the mean or median of the good channels from every channel before anything else - artifact detection, the noise level of the fill, the Kilosort4 `.bin` and spike detection. The preview and the viewer show the referenced signal. The derived LFP / MUA signals are not referenced. See [Common reference](EphysDataset.md#common-reference-car--cmr) |
-| Good noise (x mean): *low* to *high* | `Artifacts.ReferenceBadLow`, `ReferenceBadHigh` (0.3 and 2, Ludwig et al. 2009): a channel whose noise floor lies outside this band, relative to the mean across channels, is suggested to stay out of the reference |
-| Left out, **Suggest** | the active dataset's `ReferenceExclude` (written to its manifest): channels kept out of the average, though still referenced. **Suggest** measures each channel's noise floor on a sample of the recording and fills the field (each channel's ratio goes to the log); typing a list marks it set by hand. A dataset whose list was never set gets the suggestion on its first referenced run or preview. Channels excluded on the Probe tab stay out of the reference too |
+| Good noise (x median): *low* to *high* | `Artifacts.ReferenceBadLow`, `ReferenceBadHigh` (0.3 and 2, Ludwig et al. 2009): a channel whose noise floor lies outside this band, relative to the median across channels, is suggested to stay out of the reference |
+| Left out, **Suggest** | the active dataset's `ReferenceExclude` (written to its manifest): channels kept out of the average, though still referenced. **Suggest** measures each channel's noise floor on a sample of the recording and fills the field (each channel's ratio goes to the log); typing a list marks it set by hand. A list that does not parse changes nothing (an alert says why). A dataset whose list was never set gets the suggestion on its first referenced run or preview. Channels excluded on the Probe tab stay out of the reference too |
 | **Enabled** | `Artifacts.Enabled`: run automatic detection (manual periods always apply) |
 | Dataset | the active dataset: the one **Detect / Preview** analyzes and whose manual periods are listed |
 | Method, Threshold, RMS window, Stitch gap, Pad, Min channels | `Artifacts.Method`, `Threshold`, `RmsWindowMs`, `MergeGapMs`, `PadMs`, `MinChannels` |
-| Filter before detecting, High-pass (Hz) | `Artifacts.Filter`, `FilterCutoff` (with `FilterType`, `FilterOrder`). These now apply to runs as well as the preview |
-| Erase with: *Gaussian noise (recording level)* / *Zeros* | `Artifacts.Fill` (`"noise"` / `"zero"`): what replaces the artifact samples, manual periods included. Noise by default - Kilosort4 reads a block of zeros across every channel as a signal discontinuity. Its level is measured over the whole recording above `Artifacts.NoiseBandHz` (300 Hz), and `Artifacts.NoiseSeed` makes a rerun repeat; neither has a control here |
+| Filter before detecting, High-pass (Hz) | `Artifacts.Filter`, and `FilterCutoff`: a high-pass filter's cut-off, or a band-pass filter's lower edge. `FilterType`, `FilterOrder` and a band's upper edge have no control and keep the config's values; with a low-pass filter (a config written by hand or by a script) the field is off. They apply to runs as well as the preview |
+| Erase with: *Gaussian noise (recording level)* / *Zeros* | `Artifacts.Fill` (`"noise"` / `"zero"`): what replaces the artifact samples, manual periods included. Noise by default - Kilosort4 reads a block of zeros across every channel as a signal discontinuity. Each period becomes a straight line between the signal's levels on either side plus that noise; its level is measured on up to 16 chunks spread over the recording, above `Artifacts.NoiseBandHz` (300 Hz), and `Artifacts.NoiseSeed` makes a rerun repeat; neither has a control here |
 | Erase in sorting (in the .bin Kilosort4 sorts) / Reject detected spikes inside the periods | `Artifacts.ApplyToSorting`, `ApplyToSpikes` |
 | Cache intervals | `Artifacts.CacheIntervals` (`<Name>_artifacts.json`) |
-| Order channels by probe layout | display only, not saved: the viewer's lanes and the per-channel table in probe order (below). Needs a probe assigned to the dataset, and is ticked by default when it has one |
+| Order channels by probe layout | display only, not saved: the viewer's lanes and the per-channel table in probe order (below). Needs a probe (the dataset's, else the config's default probe), and is ticked by default when there is one |
 | **Detect / Preview** | `analyzeArtifacts` over the active dataset (streamed, read-only; on the process pool when the Run tab's **Parallel** box is ticked): summary + per-channel table, and the detected artifacts in the viewer |
 | Detected artifacts: ◀ / number / ▶, Context (ms), Channels, Shank, Colour by shank, Scale, **Reset view** | the artifact viewer (display only, below) |
 | Manual periods table, **Edit in Visualize**, **Clear** | the active dataset's `ManualArtifacts` (written to its manifest) |
 
-The Threshold field is sent as-is for every method: with *Absolute microvolts*
-/ *Common-mode* the default 9 means 9 µV.
+Changing **Method** replaces the threshold with the new method's default
+(*Running RMS* 9, *MAD* 8, *Absolute microvolts* / *Common-mode* 1500 µV) when the
+field still holds the previous method's default; a threshold typed for the
+previous method stays. `validate` warns about an *Absolute microvolts* or
+*Common-mode* threshold below 50 µV.
 
 **Artifact viewer.** After a preview, the middle plot shows one
 detected artifact at a time (◀ / ▶ or type its number), with **Context** ms of
@@ -547,24 +599,29 @@ kept signal: six robust SDs of the signal outside the artifacts (at most the who
 window's fit), so the artifact and any leftover of it are clipped and you can
 check that none of it is left on either side. **Manual** takes the lane spacing typed in **Lanes
 (uV)**; otherwise that field shows the spacing drawn, and typing in it switches
-to Manual (0 goes back to fitting). Readers without random access (Intan
-traditional `*.rhd`) read the file that holds the artifact once and keep it
-while you step through that file's artifacts. A new active dataset clears the
-viewer.
+to Manual (0 goes back to fitting). Every built-in reader reads just the
+window shown (an Intan traditional file block by block); a third-party reader
+without random access reads the chunk that holds the artifact once and keeps
+it while you step through that chunk's artifacts. A new active dataset clears
+the viewer.
 
-**Probe layout.** With a probe assigned to the dataset (Probe tab), *Order
-channels by probe layout* is ticked by default. The lanes are then drawn as
+**Probe layout.** With a probe (the dataset's, assigned on the Probe tab, else
+the config's default probe), *Order channels by probe layout* is ticked by
+default. The lanes are then drawn as
 the channels sit on the probe: shank by shank, from the top of each shank down
 (larger `yc` first, as the Probe tab draws the probe), with a dotted line
 between shanks. The per-channel table follows the same order and gains a Shank
 column. **Shank** limits the lanes to one shank's channels, and **Channels**
 still picks the ones the artifact is largest on. **Colour by shank** (on by
 default) draws each shank's kept signal in its own colour, named in the
-legend. Removed samples stay red. The probe's `chanMap` values are matched to
-the recording's hardware channel numbers
+legend. Removed samples stay red. The probe's `chanMap` values are `.bin`
+rows, as for sorting: recording channel `c` sits at the site whose `chanMap`
+value is `c − 1`
 ([`EphysDataset.channelLayout`](EphysDataset.md#probe-layout)). The detectors
 treat every channel alike, so the order only changes the display. Changing the
-active dataset, or assigning it a probe, resets the checkbox to its default.
+active dataset, assigning it a probe, or, for a dataset without one, changing
+the default probe (an edit, or an opened config) resets the checkbox to its
+default.
 
 **Scaling.** Keep the pointer over the plot:
 
@@ -595,7 +652,7 @@ artifact periods erased (noise by default, see the Artifacts tab) and runs
 | --- | --- |
 | Enable the Sorting step, Skip datasets already sorted | `Sorting.Enabled`, `SkipExisting` |
 | Python exe (+ Browse), Conda env | `Sorting.PythonExe` (seeded from a `kilosort` conda env under `%LOCALAPPDATA%` / `%USERPROFILE%` when a new config is created), `CondaEnv` |
-| Phy command | preference `PhyCmd` (blank = `conda run -n phy phy`) |
+| Phy command | preference `PhyCmd` (blank = `conda run -n phy phy`). phy is started in the sorted-output folder with `pushd` and delayed expansion, so a folder whose path holds `&` or spaces, or a UNC folder, works |
 | Execution (background / blocking), Dry run | `Sorting.Execution`, `DryRun`. How many background runs go at once is set on the [Run](#run) tab |
 | note about artifact periods | read-only: the periods set on the Artifacts tab are erased in the `.bin` Kilosort4 sorts |
 | Kilosort4 parameters (five groups, from `EphysPipelineConfig.kilosortParamSpec`), Extra settings (JSON), Kilosort4 parameter docs link | `Sorting.KS4`, `KS4ExtraJSON`. Control kinds: int / float / bool as typed; `nullable` blank = omitted; `floatinf` blank / `inf` = omitted; `vector` = comma- or space-separated |
@@ -608,10 +665,18 @@ artifact periods erased (noise by default, see the Artifacts tab) and runs
 Each background run is handed to a MATLAB `timer` (every 3 s) as soon as it
 starts: it appends new log lines, logs `[done]` / `[error]` (a run whose
 process exits without a status file is an error), rewrites the dataset's
-manifest and refreshes the table. The progress label reads *Background
+manifest and refreshes the Project table rows of the datasets whose run
+started or ended (only those). An error in the monitor is logged as
+`[error]`, and the monitor restarts itself. The progress label reads *Background
 Kilosort4: F of T finished (R running, W waiting to start)*, where *waiting*
 counts the datasets the run has not started yet for want of a free slot. The
-timer stops when every tracked run has finished and none is waiting. Closing
+timer stops when every tracked run has finished and none is waiting. A re-sort
+moves the earlier sort's curation aside first
+(`previous_<yyyyMMdd_HHmmss>` in the results folder, see
+[launchSorting](EphysDataset.md#result--launchsortingresult-wait-device)), and
+its result row and log line say where it went. A dataset with a Kilosort4 run
+queued or still going is skipped (`skip: Kilosort4 queued` /
+`skip: Kilosort4 running` in the plan) and never queued twice. Closing
 the app stops the timer but not Python processes already running. With
 automatic artifact detection on, each dataset's scan runs **in MATLAB,
 synchronously**, before Python is launched (and is cached afterwards).
@@ -688,8 +753,11 @@ Derived LFP / MUA / SPIKE `.mat` files with `EphysDataset.toMat`
   (`MUA_Fs`, integration, band), SPIKE (keep original rate / `SPIKE_Fs`, band).
 - **Channels**: label field (`custom` / `native` names for channels, aux
   inputs and digital lines; lines renamed on the Trials tab keep their
-  names), keep channels, bad channels (none / manual list /
-  auto + threshold), channel remap, **Manifest exclusions** (`none` / `drop` /
+  names), keep channels, bad channels (none / manual list of recording
+  channels, like keep channels, those not kept being ignored / auto +
+  threshold; interpolated from the probe geometry: the dataset's probe, else
+  the config's default), channel remap,
+  **Manifest exclusions** (`none` / `drop` /
   `interpolate`). Lists keep order and repeats; anything unparseable is an
   error. **Reset to defaults**.
 - The **targets table** is `plan(Steps="signals")` for the selected datasets
@@ -718,7 +786,7 @@ Files for external toolboxes, and the same data organized by event,
 `Export.*`. Nothing about spectra, tapers or Chronux functions appears here:
 the app only writes files.
 
-- **Chronux** (`<Name>_chronux.mat`, [format](file-formats.md#chronux-export)),
+- **Chronux** (`<Name>_chronux.mat`, [format](file-formats.md#chronux-export-ephysdatasetexportchronux-the-export-step)),
   **FieldTrip** (`<Name>_fieldtrip.mat`,
   [FieldTripExport](FieldTripExport.md)) and **Event epochs**
   (`<Name>_epochs.mat`, the same data organized by event —
@@ -831,10 +899,14 @@ default web browser, same as **Save as HTML...** but without the save dialog.
   the Artifacts tab's **Detect / Preview** and spike detection; see
   [Parallel execution](EphysPipeline.md#parallel-execution).
 - **Validate config** fills the issues table (`cfg.validate()`); **Plan** fills
-  the results table with `pipe.plan()` (writes nothing).
+  the results table with `pipe.plan()` (writes nothing). The last Run's results
+  are kept behind it: the monitor goes on restating its background runs there.
 - **Run**, **Dry run**, **Cancel**: `EphysPipeline.run` with progress bars
   (overall and per step), the results table (`Step`, `Dataset`, `Status`,
-  `Message`, `Output`, `Seconds`) and a timestamped log. Cancel takes effect at
+  `Message`, `Output`, `Seconds`) and a timestamped log. A plan with blocking
+  rows (`checkRun`: duplicate outputs, `error: ...`) stops the Run before it
+  starts, with an alert listing them. **Scan** and **Refresh metadata** are
+  off while it runs. Cancel takes effect at
   the next progress boundary; outputs are written atomically, so a cancelled
   dataset leaves no complete-looking file. A background Kilosort4 run's row
   says `launched` (or `queued`) when the Run ends. The monitor turns it into
@@ -902,19 +974,25 @@ filter per chunk) into a
 [`MultiChannelViewer`](../vendor/plotting/@MultiChannelViewer/MultiChannelViewer.m)
 cache with a memory budget (min(2 GB, ⅓ of available memory) on Windows,
 1 GB elsewhere, never below 250 MB). Longer spans are **peak-decimated** on
-load; the status line reports the factor.
+load; the status line reports the factor. **Plot** reads the whole recording
+(or the chosen file), whatever window is shown first, so on a slow disk a
+long recording takes minutes.
 
-**Artifact overlays**: orange = automatic detections computed with the
-Artifacts settings on the **cached display data** (after display processing
-and decimation, so they can differ from what a run silences); red = manual
-periods. **Mark Artifacts** toggles marking mode (left-drag adds a period,
+**Artifact overlays**: orange = the Artifacts tab's **Detect / Preview**
+intervals of the plotted dataset (the detector a run uses, over the whole
+recording), while its detection settings are still the ones the preview ran
+with; otherwise none is shaded, and the status line says why. A run's cached
+detection is not shown, and nothing is detected on the displayed data. Red =
+manual periods. **Mark Artifacts** toggles marking mode (left-drag adds a period,
 click inside a red region removes it); **Clear Artifacts** removes all. Manual
 periods are written to the dataset's manifest, so they survive a rescan and a
 restart.
 
-When decimation is active, the trailing samples of each chunk that do not fill
-a bin are dropped, so displayed time can lag true time by up to (factor − 1)
-samples per chunk. Drawing uses `xregion` (MATLAB R2023a or later).
+When decimation is active, each point is a bin's peak (the most extreme
+sample per channel) drawn at the time of the bin's first sample. The samples
+of a chunk short of a whole bin carry into the next chunk and the last ones
+make one partial bin, so displayed time is exact to within one bin, with no
+lag building up. Drawing uses `xregion` (MATLAB R2023a or later).
 
 ## Review
 
@@ -928,12 +1006,15 @@ dataset whose name does not match `Project.NamePattern`, is read with
 - **Dataset**: the active dataset. Its associated sorted output (else the
   latest Kilosort4 run the `DatasetTracker` finds) loads when the tab opens
   and whenever the active dataset changes while it is open. A dataset without
-  sorted output clears the tab. **Browse...** / **Load** accept any results
+  sorted output clears the tab, and so does one whose hand-picked
+  sorted-output folder is not there now: the tab says so, and no other sort
+  stands in for it. **Browse...** / **Load** accept any results
   folder, a dataset folder or a `kilosort4` folder (the folder itself, else
   its `kilosort4` subfolder). **Open folder in explorer**, **Open in phy**.
 - **Summary**: the dataset key and label form (or the folder and why labels
-  are short), Fs, duration, channels, shanks, unit counts by label, total
-  spikes, mean rate, units per shank.
+  are short), Fs, the sorted time (**Sorted:** its length and span), channels,
+  shanks, unit counts by label, total spikes, mean rate over the sorted time,
+  units per shank.
 - **Units table**: Unit, Group (phy's `cluster_group.tsv` when present, else
   `cluster_KSLabel.tsv`), Shank, Ch (the peak channel's native name, else its
   recording channel number), X / Y (µm, the template centre on the probe),
@@ -945,12 +1026,18 @@ dataset whose name does not match `Project.NamePattern`, is read with
   file phy uses for a `notes` label, so the Spikes and Export steps and
   `unitTable` carry it. A note that cannot be saved is put back, with an
   alert.
-- **Plots**: units per shank; waveforms (templates × median amplitude,
-  unwhitened when possible, not raw-spike averages); amplitude vs time (at most
-  30,000 spikes); firing rate per unit.
+- **Plots**: units per shank; waveforms (Kilosort4's templates, unwhitened
+  when possible, not scaled by the amplitude and not raw-spike averages; the
+  axis label gives their units, `units.templateUnits`: µV, `.bin` units or
+  whitened units); amplitude vs time (at most 30,000 spikes, over the sorted
+  time); firing rate per unit.
 
-Firing rates are spike count ÷ the time of the **last spike**, not the
-recording duration. The units struct also carries `ksChannel` (the peak
+Firing rates are spike counts over the **sorted time**: from Kilosort4's
+`tmin` to `min(tmax, the recording's end)` (the run's `settings.json`; 0 and
+the end by default). The recording's length is the active dataset's when the
+folder is its sort, else that of the `.bin` the settings name; only when
+neither is known does the last spike end the span, and the summary says so.
+The units struct also carries `ksChannel` (the peak
 channel among the sorted channels), `channel` (the 1-based recording channel),
 the peak site (`peakX`, `peakY`) and the class and identity fields.
 
@@ -972,7 +1059,7 @@ without the app.
 | --- | --- | --- |
 | Raw recording files | the recording files the Copy tab copied into the session folder (for Open Ephys, everything under its Record Nodes), as listed in its `session_manifest.json` | each file's source, as recorded there, still exists **with the same size**. A recording not copied by the Copy tab has no known source and is always kept, as are the session files of an Open Ephys dataset that is one part folder of several |
 | Kilosort4's filtered copy of the recording | `temp_wh.dat` under the dataset's `kilosort4` folder or its sorted-output folder | none; the sorted units do not need it, phy's trace view does |
-| Sorting input .bin | `<Name>.bin` + `<Name>.json` in the output folder, written by `toBin` for Kilosort4 to sort | never the data file of a binary-format recording |
+| Sorting input .bin | the dataset's `BinFile` (`<Name>.bin`, or `<Name>_ks4.bin` beside a binary-format recording's own `<Name>.bin`) + its `.json` in the output folder, written by `toBin` for Kilosort4 to sort | never the data file of a binary-format recording |
 
 **Remove what a preprocessing step wrote**: one tick box per step that writes
 files, none ticked by default. Everything the step wrote goes, to run it again
@@ -997,8 +1084,11 @@ file and stays.
 
 **Always kept**: the outputs of the steps not ticked, the dataset manifest,
 the copy record (`session_manifest.json`, the robocopy log), the Epsych2
-session file, the clean-up record and any other file. Nothing on the source is
-touched.
+session file, the clean-up record, the files another recording wrote into a
+shared output folder (a `.mat` whose provenance names another dataset or
+recording folder, see [DatasetOutputs](DatasetOutputs.md#discovery); the
+`.bin` and the `kilosort4` folder when the `.bin`'s sidecar names another
+recording folder) and any other file. Nothing on the source is touched.
 
 **Removed files go**, a choice that applies to the preview as it is
 (changing it keeps the preview):
@@ -1023,7 +1113,9 @@ touched.
   follows the choice) acts on the preview as shown, after a confirmation that
   says how the files go, lists what goes by kind or step with its size and
   what remains, and warns when phy curation or unit notes go with a sorting
-  and, when raw files are among them, that those datasets cannot be run,
+  (curation only when phy wrote the labels: a `cluster_group.tsv` with the
+  header `cluster_id<TAB>group`, not Kilosort4's copy of its own) and, when
+  raw files are among them, that those datasets cannot be run,
   viewed or scanned until they are copied back. Changing a tick box or the
   dataset selection discards the preview, so the button waits for a new
   Preview. It refuses while the pipeline, a copy or a Kilosort4 run is under
@@ -1160,7 +1252,7 @@ preference: its settings live in its own file, which its Windows task reads.
 | pipeline config `.json` | File → Save / Save as / Export copy (default folder `pipeline/pipeline_configs`) |
 | generated `.m` script | File → Generate script |
 | `<Folder>/<Name>_manifest.json` | scan, probe assignment, exclusion change, manual artifact edit, sorting / behavior association, each sorting launch and completion |
-| `<outputFolder>/<Name>.bin` + `.json`, `<outputFolder>/kilosort4/{settings.json, run_ks4.py, ks4_run.log, ks4_status.json}` and the phy files (plus `<probe>_excluded.json` with excluded channels) | Sorting (dry run writes only `settings.json` and `run_ks4.py`) |
+| `<outputFolder>/<Name>.bin` (or `<Name>_ks4.bin`) + `.json`, `<outputFolder>/kilosort4/{settings.json, run_ks4.py, ks4_launch.cmd, ks4_run.log, ks4_status.json, ks4_exit.txt}` and the phy files (plus `<probe>_excluded.json` with excluded channels, and `previous_<yyyyMMdd_HHmmss>/` holding an earlier sort's curation) | Sorting (a dry run writes only `settings.json` and `run_ks4.py`, into `kilosort4/dryrun/`) |
 | `<outputFolder>/<Name>_artifacts.json` | Artifacts (cache) |
 | `<Name>_extract_<TYPE>.mat` (or `<Name>_extract.mat`), `<Name>_spikes.mat`, `<Name>_chronux.mat`, `<Name>_fieldtrip.mat`, `<Name>_epochs.mat` | Signals, Spikes, Export |
 | probe `.json` in the probe folder | Import, Designer save, Notes edit |
@@ -1194,13 +1286,13 @@ app.KSQueue                       % prepared runs waiting for a slot (Queue the 
 | --- | --- |
 | `EphysPreprocessingApp.m` | properties, constructor, method declarations |
 | `buildUI.m`, `buildMenus.m`, `build*Tab.m` | UI construction |
-| `gatherConfig.m`, `applyConfig.m`, `gather*/apply*Section.m`, `gather/applyConvertConfig.m`, `gather/applySortingSection.m`, `onConfigChanged.m`, `syncStepEnableStates.m`, `updateTitle.m` | config model |
+| `gatherConfig.m`, `applyConfig.m`, `gather*/apply*Section.m`, `gather/applyConvertConfig.m`, `gather/applySortingSection.m`, `setControlValue.m`, `numberText.m`, `onConfigChanged.m`, `syncStepEnableStates.m`, `updateTitle.m` | config model (`setControlValue`: a config value into a control, noting one it cannot show; `numberText`: a number as the shortest text that reads back the same) |
 | `onNewConfig.m`, `onOpenConfig.m`, `openConfigFile.m`, `onSaveConfig.m`, `onSaveConfigAs.m`, `onExportConfigCopy.m`, `onGenerateScript.m`, `onCreateSyntheticProject.m`, `createSyntheticProject.m`, `onOpenAnalysisApp.m`, `confirmDiscard.m`, `addRecentConfig.m`, `refreshRecentMenu.m` | File menu |
-| `buildPipeline.m`, `runPipeline.m`, `onRunStep.m`, `onCancelRun.m`, `onValidate.m`, `onPlan.m`, `refreshStepPlan.m`, `onPipelineProgress.m`, `runLog.m`, `setRunBar.m`, `showIssues.m`, `onParallelControlsChanged.m` | running |
+| `buildPipeline.m`, `runPipeline.m`, `onRunStep.m`, `onCancelRun.m`, `onValidate.m`, `onPlan.m`, `refreshStepPlan.m`, `onPipelineProgress.m`, `runLog.m`, `setRunBar.m`, `showIssues.m`, `onParallelControlsChanged.m`, `projectAtRoot.m`, `refuseWhileRunning.m` | running (`projectAtRoot`: whether the scanned project is the config's; `refuseWhileRunning`: the alert that refuses a dataset edit during a run) |
 | `onRunDiagramToggled.m`, `resetRunDiagram.m`, `updateRunDiagram.m`, `finishRunDiagram.m`, `refreshRunDiagram.m`, `runDiagramHTML.m` | the Run tab's diagram of the run: show / hide, its model (start, progress events, end), what is sent to the page, the page |
 | `onResourceMonitorToggled.m`, `startResourceMonitor.m`, `stopResourceMonitor.m`, `pollResourceMonitor.m`, `showResourceSample.m`, [`resource_monitor.ps1`](../pipeline/resource_monitor.ps1) | the Run tab's resource monitoring: show / hide, launching and stopping the sampler, the timer reading it, the display |
 | `buildTrialsTab.m`, `onTrialsLoad.m`, `repairTrials.m`, `refreshTrialsView.m`, `refreshTrialsTable.m`, `refreshTrialsPlot.m`, `trialsColumnOrder.m`, `onTrialsTableMenu.m`, `onTrialsPlotMenu.m`, `onTrialsCutsChanged.m`, `syncTrialsCuts.m`, `onTrialsApprove.m`, `onTrialsPrefetch.m`, `onTrialsWriteBehavior.m`, `onTrialsToWorkspace.m`, `onTrialsSettingsChanged.m`, `clearTrialsView.m`, `fillTrialsLines.m`, `setTrialsLineItems.m`, `syncTrialsButtons.m` | Trials tab |
-| `onScan.m`, `refreshDatasetsTable.m`, `onDatasetCellSelection.m`, `onSelectDatasets.m`, `onRefreshMetadata.m`, `onAssociateBehavior.m`, `onClearBehavior.m`, `onBrowseBehaviorDir.m` | Project tab |
+| `onScan.m`, `refreshDatasetsTable.m`, `onDatasetCellSelection.m`, `onSelectDatasets.m`, `onRefreshMetadata.m`, `onAssociateBehavior.m`, `onClearBehavior.m`, `onBrowseBehaviorDir.m`, `saveManifests.m` | Project tab (`saveManifests`: the manifests after a per-dataset edit, with an alert for one that could not be written) |
 | `selectDataset.m`, `currentDataset.m`, `populateDatasetPickers.m`, `refreshDatasetMenu.m`, `refreshDatasetPickers.m`, `datasetPicker.m`, `highlightDatasetRow.m` | the active dataset: Dataset menu, every tab's Dataset box, the highlighted table row |
 | `refreshProbeList.m`, `onProbeSelected.m`, `onImportProbe.m`, `onDesignProbe.m`, `runProbeTool.m`, `onAssignProbe.m`, `onApplyExclude.m`, `onUseSelectedProbeAsDefault.m`, `probe_tool.py` | Probe tab |
 | `onDetectArtifacts.m`, `showArtifactView.m`, `drawArtifactView.m`, `onArtViewInput.m`, `syncArtProbeControls.m`, `refreshArtChannelTable.m`, `refreshManualArtifactsTable.m`, `onClearManualArtifacts.m` | Artifacts tab |
@@ -1209,12 +1301,13 @@ app.KSQueue                       % prepared runs waiting for a slot (Queue the 
 | `queueKSRun.m`, `onStopKSQueue.m`, `onStopKSRuns.m`, `stopKSRuns.m`, `markKSResult.m` | background Kilosort4 runs: the queue the monitor starts from, Stop queue, Stop runs..., restating a run's result row |
 | `onSpikesPreview.m`, `syncSpikesEnableStates.m` | Spikes tab |
 | `onBrowseExportOutput.m`, `onExportEpochsToWorkspace.m` | Export tab (output folder, Epochs to workspace) |
-| `onPlotVisualization.m`, `onVizButtonDown/Up.m`, `drawVizArtifacts.m`, `finishVizArtDrag.m`, `applyVizChannelOrder.m`, `applyVizChannelColor.m`, `syncVizDataset.m` | Visualize tab |
+| `onPlotVisualization.m`, `onVizButtonDown/Up.m`, `drawVizArtifacts.m`, `vizDetectedIntervals.m`, `finishVizArtDrag.m`, `applyVizChannelOrder.m`, `applyVizChannelColor.m`, `syncVizDataset.m` | Visualize tab (`vizDetectedIntervals`: the Artifacts preview's intervals the plot shades, or why none) |
 | `buildFlowTab.m`, `refreshFlowChart.m`, `flowChartHTML.m`, `onSaveFlowChart.m`, `onOpenFlowChartInBrowser.m`, `onFlowNavigate.m`, `flowNavControls.m`, `clearFlowHighlight.m` | Diagram tab |
 | `buildCopyTab.m`, `onCopyFind.m`, `onCopyRun.m`, `refreshCopyTable.m`, `onCopyTableEdited.m`, `onCopyStitch.m`, `onCopyUnstitch.m`, `onBrowseCopyFolder.m`, `copyLog.m`, `onCopyCancel.m`, `startCopyMonitor.m`, `stopCopyMonitor.m`, `pollCopyJob.m`, `setCopyRunning.m`, `applyCopyResult.m`, `finishCopyRun.m`, `showCopyProgress.m`, `copySummaryText.m`, `refreshCopySchedule.m`, `onCopyScheduleSave.m`, `onCopyScheduleRemove.m`, `onCopyScheduleRunNow.m`, `onCopyScheduleLog.m`; `pipeline/findCopySessions.m`, `pipeline/stitchCopySessions.m`, `pipeline/copySessions.m`, `pipeline/copy_engine.ps1`, `pipeline/stitchEpsychSessions.m`, `pipeline/CopySchedule.m` | Copy tab, the pairing / stitching / copy functions it calls, the detached copy engine, and the scheduled copy (its Windows task and what each run does) |
 | `loadReviewResults.m`, `renderReviewPlots.m`, `syncReviewDataset.m` | Review tab |
 | `buildCleanupTab.m`, `onCleanupPreview.m`, `onCleanupRun.m`, `runCleanup.m`, `onCleanupMethodChanged.m`, `onCleanupBrowseDest.m`, `onCleanupSettingsChanged.m`, `refreshCleanupScope.m`, `refreshCleanupTable.m`; `pipeline/planLocalCleanup.m`, `pipeline/runLocalCleanup.m` | Clean up tab and the functions that decide and remove |
 | `load/savePreferences.m` | preferences |
+| `stopTimers.m` | stops the app's timers (Kilosort4, copy and resource monitors, the scheduled copy's refresh) on close, and when the figure is deleted any other way |
 | `helpURL.m`, `onHelp.m` | Help menu (wiki pages) |
 | `onReportIssue.m`, `issueReport.m`, `issueURL.m` | Help menu (GitHub issue / feature request) |
 | `pipeline/showAbout.m`, `pipeline/ephysVersion.m` | Help menu (About; shared with EphysAnalysisApp). The release number is set by hand in `ephysVersion.m` |
@@ -1240,7 +1333,22 @@ save / reopen and the recent list,
 the Help menu's wiki pages and its issue items (what a bug report and a
 feature request carry, that an unticked section is left out, the percent-encoded
 address with its label, and that a report too long for the address is cut and
-says so). It
+says so), a config with values its fields cannot show (listed, the config
+marked unsaved), a Kilosort4 field that does not parse (the value in force
+kept and reported, Save refused), numbers written in full, a new Method's own
+default threshold, the filter settings without a control kept, the Behavior
+column's session summaries read once, channel lists that do not parse
+changing nothing, a dataset without a probe laid out on the default probe,
+firing rates over the sorted time, a config for another root and a rescan
+(the active dataset and a Visualize plot followed by their folder, decimated
+bins across files, the orange overlay from the Artifacts preview only while
+its settings hold), a hand-picked sorted-output folder that is not there
+(`missing`, and the Review tab says so), the default probe in the Project
+table, edits, scans and per-dataset changes during a run, an unreadable
+manifest reported after a scan, a Plan while a background run is going, the
+queue (each dataset once; a plan skips a queued one), phy started in a folder
+whose path holds `&` and spaces, and the timers stopped when the figure is
+deleted. It
 restores the user's preferences afterwards.
 [`test_CopySessions.m`](../pipeline/test_CopySessions.m) (a `matlab.unittest`
 class; `run_all_tests` runs it too) builds fake source trees in a temporary

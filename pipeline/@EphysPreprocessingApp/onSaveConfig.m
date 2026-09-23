@@ -1,7 +1,13 @@
 function ok = onSaveConfig(obj)
 %onSaveConfig  Save the working config to its file (Save As when it has none).
+%   Refused while a text field does not parse (gatherConfig).
 ok = false;
-cfg = obj.gatherConfig();
+try
+    cfg = obj.gatherConfig();
+catch ME
+    uialert(obj.Fig, string(ME.message), "Save config");
+    return
+end
 if cfg.File == ""
     ok = obj.onSaveConfigAs();
     return

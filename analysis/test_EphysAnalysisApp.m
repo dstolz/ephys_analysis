@@ -5,7 +5,9 @@ function test_EphysAnalysisApp()
 %   datasets table; the active dataset's lines and parameters; grouping by
 %   Depth from the Alignment controls (the epoch count reports the groups);
 %   adding a PSTH and previewing it into the preview panel; editing the plot
-%   (bins, its own event reference); the gather / apply round trip; save
+%   (bins, its own event reference); y limits offered only where they apply;
+%   the gather / apply round trip, keeping the fields without a control
+%   (stop-event offset, length and time range, trial rows); save
 %   and reopen; a standalone script from the app's config; a run of one
 %   plot writing its figures and report; closing. The user's preferences
 %   (group EphysAnalysisApp) are restored afterwards.
@@ -116,6 +118,15 @@ app.onConfigChanged("plot");
 app.refreshPreview(Force=true);
 check(~isempty(app.PreviewResult) && app.PreviewResult.kind == "evoked" && ~isempty(findall(app.PreviewPanel, 'Type', 'axes')), ...
     'the LFP evoked potential previews');
+ylStack = string(E.ylim.Enable);
+E.layout.Value = 'grid'; app.syncPlotEditorEnable();
+ylGrid = string(E.ylim.Enable);
+E.layout.Value = 'stack'; app.syncPlotEditorEnable();
+app.onAddPlot("raster");
+ylRaster = string(E.ylim.Enable);
+app.onRemovePlot();
+check(ylStack == "off" && ylGrid == "on" && ylRaster == "off" && numel(app.Config.Plots) == 2 && app.SelectedPlot == 2, ...
+    'y limits are off where they would hide rows (an evoked stack, a raster), on for an evoked grid');
 app.onPlotSelected(1);
 check(app.SelectedPlot == 1 && app.PlotEditor.binMs.Value == 20 && app.PlotEditor.stack.Value ...
     && string(app.PlotEditor.normalize.Value) == "groupPeak" && isempty(app.PlotEditor.fillAlpha.Value) ...
@@ -126,6 +137,18 @@ c1 = app.gatherConfig();
 app.applyConfig(c1);
 c2 = app.gatherConfig();
 check(c1.isequalConfig(c2), 'gatherConfig -> applyConfig -> gatherConfig is the same config');
+c3 = c1;
+c3.Defaults.Window.stop = struct('line', "Stim", 'edge', "offset", 'which', "nth", 'n', 2, 'scope', "trial", ...
+    'offsetSec', 0.05, 'minDurationSec', 0.01, 'maxDurationSec', 5, 'timeRange', [0 60]);
+c3.Defaults.Selection.trials = [1 3 5];
+c3.Plots(1).window = c3.Defaults.Window;
+c3.Plots(1).selection = c3.Defaults.Selection;
+app.applyConfig(c3);
+app.onConfigChanged("defaults");   % an edit re-gathers the config from the controls
+c4 = app.gatherConfig();
+check(c4.isequalConfig(c3) && app.AlignControls.StopN.Value == 2 && app.PlotAlignControls.StopN.Value == 2, ...
+    'a re-gather keeps what has no control (the stop event''s offset, length and time range; trial rows) and the stop''s n');
+app.applyConfig(c1);
 outRoot = fullfile(root, 'out');
 app.ExportControls.Folder.Value = fullfile(outRoot, '{Name}');
 app.ExportControls.svg.Value = false;

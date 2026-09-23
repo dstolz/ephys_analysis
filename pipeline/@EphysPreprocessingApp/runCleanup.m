@@ -45,11 +45,9 @@ cleanupLog(obj, summary);
 
 % the manifests record the sorting and .bin on disk: bring them up to date
 if any(done) && ~isempty(obj.Project)
-    for d = obj.Project.Datasets(:).'
-        if any(done & R.Folder == string(d.Folder) & R.Dataset == string(d.Name))
-            d.writeManifest();
-        end
-    end
+    ds = obj.Project.Datasets;
+    touched = arrayfun(@(d) any(done & R.Folder == string(d.Folder) & R.Dataset == string(d.Name)), ds);
+    obj.saveManifests(ds(touched));
     obj.refreshDatasetsTable();
     obj.refreshSortingLabel();
     obj.ReviewDatasetIdx = -1;   % the Review tab reloads

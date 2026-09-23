@@ -12,9 +12,10 @@ function [data, params, t, info] = binnedSpikes(obj, opts)
 %
 %   Binning rule: bin k covers [t0+(k-1)/BinFs, t0+k/BinFs), half-open, so
 %   every spike falls in exactly one bin. nBins = floor((t1-t0)*BinFs), i.e. a
-%   trailing partial bin is dropped rather than being short of time; T(k) is
-%   the bin's left edge, the same convention as the continuous time base
-%   (sample k at t = (k-1)/Fs). Counts are counts, never rates or smoothed.
+%   trailing partial bin of a given TimeRange is dropped rather than being
+%   short of time; T(k) is the bin's left edge, the same convention as the
+%   continuous time base (sample k at t = (k-1)/Fs). Counts are counts, never
+%   rates or smoothed.
 %
 %   Options
 %   -------
@@ -26,8 +27,11 @@ function [data, params, t, info] = binnedSpikes(obj, opts)
 %                 typical; bins coarse enough to hold several spikes blur the
 %                 process, and info.maxCount reports the worst case
 %     TimeRange   [t0 t1] seconds covered by the bins. Default: the analysis
-%                 window cx.spikes would use (the recording), or [0 max(t)]
-%                 when times are supplied directly
+%                 window cx.spikes would use (the recording). With times
+%                 supplied directly, unset ends cover every spike: whole bins
+%                 from t0 = 0 (or the start of the earliest spike's bin on the
+%                 grid k/BinFs, when a spike is negative) through the bin
+%                 holding the last spike
 %     Source, ResultsDir, Units, Groups, DetectOptions   forwarded to
 %                 ChronuxDataset.spikes when Times is not given
 %     Tapers, Pad, Fpass, Err, TrialAve   per-call params overrides
@@ -61,6 +65,7 @@ if ~isfinite(binFs) || binFs <= 0
 end
 
 % --- the spike trains and the window they live in -----------------------
+nBins = NaN;                           % set below when the spikes fix the end
 if isempty(opts.Times)
     [S, ~, ~, sinfo] = obj.spikes(Source=opts.Source, ResultsDir=opts.ResultsDir, ...
         Units=opts.Units, Groups=opts.Groups, DetectOptions=opts.DetectOptions, ...
@@ -71,13 +76,23 @@ else
     S = ChronuxDataset.toPointProcess(opts.Times);
     labels = "unit" + string(1:numel(S));
     tr = opts.TimeRange;
-    if isinf(tr(1)); tr(1) = 0; end
-    if isinf(tr(2))
-        last = 0;
-        for k = 1:numel(S)
-            if ~isempty(S(k).times); last = max(last, S(k).times(end)); end
+    v = vertcat(S.times);              % every supplied spike
+    if isinf(tr(1))
+        tr(1) = 0;
+        if ~isempty(v) && min(v) < 0   % e.g. spikeTrials' "onset" stamps
+            tr(1) = floor(min(v) * binFs) / binFs;
+            if tr(1) > min(v); tr(1) = tr(1) - 1 / binFs; end
         end
-        tr(2) = last;
+    end
+    if isinf(tr(2))
+        tr(2) = tr(1);                 % no spike: an empty window (error below)
+        if ~isempty(v)
+            % whole bins through the one holding the last spike, which the
+            % half-open test below would otherwise leave out
+            nBins = floor((max(v) - tr(1)) * binFs) + 1;
+            if tr(1) + nBins / binFs <= max(v); nBins = nBins + 1; end
+            tr(2) = tr(1) + nBins / binFs;
+        end
     end
 end
 if ~(tr(2) > tr(1))
@@ -85,7 +100,9 @@ if ~(tr(2) > tr(1))
         'The binning window [%g %g] s is empty.', tr(1), tr(2));
 end
 
-nBins = floor((tr(2) - tr(1)) * binFs + 1e-9);
+if isnan(nBins)
+    nBins = floor((tr(2) - tr(1)) * binFs + 1e-9);
+end
 if nBins < 1
     error('ChronuxDataset:NoBins', ...
         'A %g s window at BinFs = %g Hz gives no whole bin.', tr(2) - tr(1), binFs);

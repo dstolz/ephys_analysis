@@ -59,8 +59,8 @@ C.TimeTo.Layout.Row = 5; C.TimeTo.Layout.Column = 4;
 
 % --- window ------------------------------------------------------------------------
 C.WindowPanel = uipanel(g, "Title", "Epoch window");
-wg = uigridlayout(C.WindowPanel, [4 4]);
-wg.RowHeight = repmat({22}, 1, 4);
+wg = uigridlayout(C.WindowPanel, [5 4]);
+wg.RowHeight = repmat({22}, 1, 5);
 wg.ColumnWidth = {80, '1x', 80, '1x'};
 wg.RowSpacing = 4;
 lab(wg, "Mode:", 1, 1);
@@ -84,8 +84,13 @@ lab(wg, "Stop which:", 4, 1);
 C.StopWhich = uidropdown(wg, "Items", ["first" "last" "all" "nth"], "ValueChangedFcn", cb, ...
     "Tooltip", "Among the stop events at or after each epoch's event.");
 C.StopWhich.Layout.Row = 4; C.StopWhich.Layout.Column = 2;
+lab(wg, "n:", 4, 3);
+C.StopN = uispinner(wg, "Limits", [1 Inf], "Step", 1, "Value", 1, "RoundFractionalValues", "on", "ValueChangedFcn", cb, ...
+    "Tooltip", "The stop event ""nth"" takes.");
+C.StopN.Layout.Row = 4; C.StopN.Layout.Column = 4;
+lab(wg, "Stop scope:", 5, 1);
 C.StopScope = uidropdown(wg, "Items", ["auto" "trial" "recording"], "ValueChangedFcn", cb);
-C.StopScope.Layout.Row = 4; C.StopScope.Layout.Column = [3 4];
+C.StopScope.Layout.Row = 5; C.StopScope.Layout.Column = 2;
 
 % --- selection -----------------------------------------------------------------------
 C.SelectionPanel = uipanel(g, "Title", "Trial selection");

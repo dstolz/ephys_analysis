@@ -34,6 +34,10 @@ switch obj.Tabs.SelectedTab
         obj.refreshFlowChart();
     case obj.TabVisualize
         msg = "Visualize: plot a short window; drag to mark manual artifacts.";
+        if ~isempty(obj.Viewer) && isvalid(obj.Viewer)
+            obj.drawVizArtifacts();   % the Artifacts tab's preview may have changed
+            obj.updateVizArtStatus();
+        end
     case obj.TabReview
         msg = "Review: the active dataset's sorted units (or Browse... for any results folder).";
     case obj.TabCleanup

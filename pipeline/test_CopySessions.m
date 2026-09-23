@@ -3,9 +3,13 @@ classdef test_CopySessions < matlab.unittest.TestCase
     %   Builds fake source trees (ePsych files, Intan folders with small dummy
     %   files and synthetic Open Ephys sessions under a second recording root)
     %   in a temporary folder. Tests that copy need robocopy and are
-    %   skipped off Windows. scheduleRunsAsAWindowsTask and appSchedulesACopy
-    %   create a Windows task under \ephys_analysis_test and remove it again;
-    %   the first has Windows start MATLAB for a scheduled run (about a minute).
+    %   skipped off Windows. Some stand in for files larger than the disk with
+    %   NTFS sparse files (fsutil; they take no space), lock a source file so
+    %   that robocopy waits to try it again, and end their own robocopy from
+    %   outside (found by the destination in its command line).
+    %   scheduleRunsAsAWindowsTask and appSchedulesACopy create a Windows task
+    %   under \ephys_analysis_test and remove it again; the first has Windows
+    %   start MATLAB for a scheduled run (about a minute).
     %
     %   Usage
     %     runtests("test_CopySessions")
@@ -531,13 +535,14 @@ classdef test_CopySessions < matlab.unittest.TestCase
         end
 
         function checksumCatchesSameSizeCorruption(tc)
-            % The same number of different bytes passes the size check and
-            % fails the SHA-256 checksum of that file, which stops the session.
+            % The same number of different bytes, the copy's time kept (a
+            % silent corruption), passes the size check and fails the SHA-256
+            % checksum of that file, which stops the session.
             tc.assumeTrue(ispc, "robocopy needs Windows");
             tc.addPair("260916T110742", "260916_110907");
             T = tc.find(tc.Subj, "260916");
             src = dir(fullfile(T.RecordingDir, "amplifier.dat"));
-            corrupt = @(f) tc.overwriteIf(f, "amplifier.dat", zeros(1, src.bytes, 'uint8'));
+            corrupt = @(f) tc.overwriteIf(f, "amplifier.dat", zeros(1, src.bytes, 'uint8'), true);
 
             R = copySessions(T, DestRoot=fullfile(tc.Root, "size_only"), DryRun=false, ...
                 BeforeVerifyFcn=corrupt, LogFcn=@(~) []);
@@ -789,6 +794,283 @@ classdef test_CopySessions < matlab.unittest.TestCase
             tc.verifyFalse(isfolder(R.DestDir), "nothing is created for a cancelled batch");
         end
 
+        % ---------------------------------------------------------------- partial copies, manifests
+        function aCopyStoppedPartWayIsNotPresent(tc)
+            % robocopy gives a file its full size as soon as it starts it and
+            % the source's time only once it has finished it: a copy stopped
+            % part way has the right size, and only its time tells. It is
+            % completed, never taken as present, and the check after a copy
+            % looks at the time too.
+            tc.assumeTrue(ispc, "robocopy needs Windows");
+            tc.addPair("260916T110742", "260916_110907");
+            tc.age(fullfile(tc.Root, "nas"), hours(1));
+            T = tc.find(tc.Subj, "260916");
+            R = copySessions(T, DestRoot=tc.Dest, DryRun=false, LogFcn=@(~) []);
+            tc.verifyEqual(R.CopyStatus, "copied", R.Message);
+            amp = fullfile(R.DestDir, "amplifier.dat");
+            src = dir(fullfile(T.RecordingDir, "amplifier.dat"));
+            tc.writeBytes(amp, zeros(1, src.bytes, 'uint8'));   % full size, zeros, the time of now
+
+            R = copySessions(T, DestRoot=tc.Dest, LogFcn=@(~) []);
+            tc.verifyEqual(R.CopyStatus, "planned", "not already present");
+            tc.verifySubstring(char(R.Message), 'would complete a partial copy');
+            tc.verifySubstring(char(R.Message), '4 of 5 file(s) already there, 293.0 KB to copy (amplifier.dat modified');
+            R = copySessions(T, DestRoot=tc.Dest, DryRun=false, LogFcn=@(~) []);
+            tc.verifyEqual(R.CopyStatus, "copied", R.Message);
+            fid = fopen(amp);
+            got = fread(fid, inf, '*uint8');
+            fclose(fid);
+            tc.verifyEqual(got.', uint8(mod(0:300000, 256)), "the copy holds the source's bytes");
+
+            touch = @(f) tc.touchIf(f, "amplifier.dat");
+            R = copySessions(T, DestRoot=fullfile(tc.Root, "other"), DryRun=false, BeforeVerifyFcn=touch, LogFcn=@(~) []);
+            tc.verifyEqual(R.CopyStatus, "failed");
+            tc.verifySubstring(char(R.Message), 'VERIFICATION FAILED (amplifier.dat modified');
+        end
+
+        function robocopyEndedFromOutsideFailsTheSession(tc)
+            % robocopy ended from outside (Task Manager, taskkill) exits with
+            % code 1, as if it had copied everything: the engine sees the file
+            % it did not finish, and the session fails rather than being
+            % reported copied. Ended with code -1 (another program's Kill),
+            % it fails too, rather than passing for a cancel. A later copy
+            % completes it.
+            tc.assumeTrue(ispc, "robocopy needs Windows");
+            tc.addPair("260916T110742", "260916_110907");
+            tc.age(fullfile(tc.Root, "nas"), hours(1));
+            T = tc.find(tc.Subj, "260916");
+            amp = fullfile(T.RecordingDir, "amplifier.dat");
+            ends = {@(pid) system(sprintf('taskkill /F /PID %d', pid)), ...
+                @(pid) System.Diagnostics.Process.GetProcessById(pid).Kill()};
+            said = ["robocopy ended without finishing amplifier.dat", "robocopy failed (exit code -1)"];
+            for k = 1:2
+                lock = tc.lockFile(amp);                     % robocopy waits 5 s to try it again
+                [R, job] = copySessions(T, DestRoot=tc.Dest, DryRun=false, Background=true, LogFcn=@(~) []);
+                tc.assertEqual(R.CopyStatus, "copying");
+                pid = [];
+                t0 = tic;
+                while isempty(pid) && toc(t0) < 20
+                    pid = tc.robocopyFor(R.DestDir);
+                end
+                tc.assertNotEmpty(pid, "the session's robocopy was not found");
+                ends{k}(pid);
+                lock.Dispose();
+                polls = 0;
+                while ~job.Done
+                    pause(0.1);
+                    [R, job] = copySessions(job);
+                    polls = polls + 1;
+                    tc.assertLessThan(polls, 600, "the copy never finished");
+                end
+                tc.verifyEqual(R.CopyStatus, "failed", R.Message);
+                tc.verifySubstring(char(R.Message), char(said(k)));
+                m = jsondecode(fileread(fullfile(R.DestDir, "session_manifest.json")));
+                tc.verifyEqual(string(m.copy.status), "failed");
+            end
+
+            R = copySessions(T, DestRoot=tc.Dest, DryRun=false, LogFcn=@(~) []);
+            tc.verifyEqual(R.CopyStatus, "copied", R.Message);
+        end
+
+        function aStaleLookingHeartbeatIsNotADeadEngine(tc)
+            % After the computer slept, the engine's heartbeat is old by the
+            % clock until the engine beats again. Only a beat that stops
+            % changing while MATLAB watches means the engine is gone.
+            tc.assumeTrue(ispc, "robocopy needs Windows");
+            tc.addPair("260916T110742", "260916_110907");
+            T = tc.find(tc.Subj, "260916");
+            lock = tc.lockFile(fullfile(T.RecordingDir, "amplifier.dat"));   % robocopy waits 5 s to retry it
+            [~, job] = copySessions(T, DestRoot=tc.Dest, DryRun=false, Background=true, LogFcn=@(~) []);
+            beat = fullfile(job.Dir, "copy_heartbeat");
+            t0 = tic;
+            while ~isfile(beat) && toc(t0) < 20
+                pause(0.02);
+            end
+            tc.assertTrue(isfile(beat), "the engine never beat");
+            ms = posixtime(datetime('now', 'TimeZone', 'local') - minutes(10)) * 1000;
+            tc.assertTrue(java.io.File(beat).setLastModified(ms), "cannot set the time of " + beat);
+            [R, job] = copySessions(job);
+            tc.verifyEqual(R.CopyStatus, "copying", "a beat 10 min old by the clock is not a dead engine");
+            lock.Dispose();
+            polls = 0;
+            while ~job.Done
+                pause(0.1);
+                [R, job] = copySessions(job);
+                polls = polls + 1;
+                tc.assertLessThan(polls, 600, "the copy never finished");
+            end
+            tc.verifyEqual(R.CopyStatus, "copied", R.Message);
+        end
+
+        function freeSpaceCountsWhatIsLeftToCopy(tc)
+            % A session larger than the free space, all but a few files
+            % already copied, is resumed; one complete but not yet
+            % checksummed needs no space at all. Only copying it afresh is
+            % refused. (Sparse files: they take no space. Every copy here is
+            % cancelled once checked, before anything is copied.)
+            tc.assumeTrue(ispc, "sparse files and robocopy need Windows");
+            [~, i] = tc.addPair("260916T110742", "260916_110907");
+            free = double(java.io.File(tc.Root).getUsableSpace());
+            tc.assumeGreaterThan(free, 0, "the free space cannot be read");
+            bytes = free + 10 * 2^30;
+            amp = fullfile(i, "amplifier.dat");
+            delete(amp);
+            tc.sparseFile(amp, bytes);
+            T = tc.find(tc.Subj, "260916");
+
+            fresh = fullfile(tc.Root, "fresh");
+            tc.verifyError(@() copySessions(T, DestRoot=fresh, DryRun=false, CancelFcn=@() true, LogFcn=@(~) []), ...
+                'copySessions:InsufficientSpace');
+            tc.verifyFalse(isfolder(fresh), "nothing is written");
+
+            dest = T.DestDir;
+            mkdir(dest);
+            tc.sparseFile(fullfile(dest, "amplifier.dat"), bytes);
+            tc.sameTime(fullfile(dest, "amplifier.dat"), amp);   % finished, as robocopy leaves it
+            R = copySessions(T, DestRoot=tc.Dest, LogFcn=@(~) []);
+            tc.verifyEqual(R.CopyStatus, "planned");
+            tc.verifySubstring(char(R.Message), '1 of 5 file(s) already there');
+            tc.verifyFalse(contains(R.Message, "not enough free space"), R.Message);
+            R = copySessions(T, DestRoot=tc.Dest, DryRun=false, CancelFcn=@() true, LogFcn=@(~) []);
+            tc.verifyEqual(R.CopyStatus, "cancelled", "checked, not refused");
+
+            ms = java.io.File(amp).lastModified() + 3600e3;   % not finished: copied again, whole
+            tc.assertTrue(java.io.File(fullfile(dest, "amplifier.dat")).setLastModified(ms));
+            R = copySessions(T, DestRoot=tc.Dest, LogFcn=@(~) []);
+            tc.verifySubstring(char(R.Message), 'not enough free space');
+
+            tc.sameTime(fullfile(dest, "amplifier.dat"), amp);
+            [~, en, ex] = fileparts(T.EpsychFile);
+            for f = ["abc.txt", "info.rhd", fullfile("sub", "nested.bin"), en + ex]
+                from = fullfile(i, f);
+                if f == en + ex; from = T.EpsychFile; end
+                if ~isfolder(fileparts(fullfile(dest, f))); mkdir(fileparts(fullfile(dest, f))); end
+                copyfile(from, fullfile(dest, f));
+                tc.sameTime(fullfile(dest, f), from);
+            end
+            R = copySessions(T, DestRoot=tc.Dest, DryRun=false, Verify="hash", CancelFcn=@() true, LogFcn=@(~) []);
+            tc.verifyEqual(R.CopyStatus, "cancelled", "a checksum pass needs no space");
+        end
+
+        function cancelWhileChecksummingIsCancelled(tc)
+            % A cancel during the SHA-256 pass stops it part way through a
+            % big file, and the session is reported cancelled, not failed.
+            % The copy was complete before, so its manifest is kept.
+            tc.assumeTrue(ispc, "sparse files and robocopy need Windows");
+            [~, i] = tc.addPair("260916T110742", "260916_110907");
+            T = tc.find(tc.Subj, "260916");
+            R = copySessions(T, DestRoot=tc.Dest, DryRun=false, LogFcn=@(~) []);
+            tc.verifyEqual(R.CopyStatus, "copied", R.Message);
+            manifest = fileread(R.ManifestFile);
+            amp = fullfile(i, "amplifier.dat");   % 20 GB each side: about 25 s of checksums
+            delete(amp);
+            tc.sparseFile(amp, 20 * 2^30);
+            delete(fullfile(R.DestDir, "amplifier.dat"));
+            tc.sparseFile(fullfile(R.DestDir, "amplifier.dat"), 20 * 2^30);
+            tc.sameTime(fullfile(R.DestDir, "amplifier.dat"), amp);
+            T = tc.find(tc.Subj, "260916");
+            R = copySessions(T, DestRoot=tc.Dest, LogFcn=@(~) []);
+            tc.assertEqual(R.CopyStatus, "already_present", "robocopy must have nothing to copy: " + R.Message);
+
+            seen = containers.Map('KeyType', 'char', 'ValueType', 'any');
+            t0 = tic;
+            R = copySessions(T, DestRoot=tc.Dest, DryRun=false, Verify="hash", ...
+                ProgressFcn=@(~, ~, info) noteVerifying(seen, info), CancelFcn=@() isKey(seen, 'verifying'), ...
+                LogFcn=@(~) []);
+            tc.verifyLessThan(toc(t0), 12, "the checksum of a big file stops part way");
+            tc.verifyEqual(R.CopyStatus, "cancelled", R.Message);
+            tc.verifySubstring(char(R.Message), 'cancelled while checksumming');
+            tc.verifyEqual(fileread(fullfile(R.DestDir, "session_manifest.json")), manifest, ...
+                "the manifest of the finished copy is kept");
+        end
+
+        function aSessionFolderNeverGetsASecondBehaviorFile(tc)
+            % A session copied with its first ePsych file alone is not
+            % stitched into, and one copied stitched does not take the single
+            % file: the folder would hold two behavior files, and Scan would
+            % associate neither. The manifest keeps the pairing the folder was
+            % copied with; removing the other file by hand lets the copy go.
+            tc.assumeTrue(ispc, "robocopy needs Windows");
+            e1 = tc.addPair("260916T110742", "260916_110907");
+            tc.addSession("260916T110742", 3);
+            tc.addSession("260916T114000", 2);
+            T = tc.find(tc.Subj, "260916");
+            tc.assertEqual(T.Status, ["paired"; "epsych_only"]);
+            S = stitchCopySessions(T, [1 2]);
+            [~, n1, x1] = fileparts(e1);
+            single = n1 + x1;
+            stitched = n1 + "_stitched.mat";
+
+            R = copySessions(T(1, :), DestRoot=tc.Dest, DryRun=false, LogFcn=@(~) []);
+            tc.verifyEqual(R.CopyStatus, "copied", R.Message);
+            for dryRun = [true false]
+                R = copySessions(S, DestRoot=tc.Dest, DryRun=dryRun, LogFcn=@(~) []);
+                tc.verifyEqual(R.CopyStatus, "failed");
+                tc.verifySubstring(char(R.Message), char("already holds " + single + ...
+                    " from an earlier paired copy; remove it by hand first"));
+            end
+            tc.verifyFalse(isfile(fullfile(R.DestDir, stitched)), "no stitched file next to the single one");
+            m = jsondecode(fileread(fullfile(R.DestDir, "session_manifest.json")));
+            tc.verifyEqual(string(m.pairingStatus), "paired");
+
+            delete(fullfile(R.DestDir, single));
+            R = copySessions(S, DestRoot=tc.Dest, DryRun=false, LogFcn=@(~) []);
+            tc.verifyEqual(R.CopyStatus, "copied", R.Message);
+            tc.verifyEqual(height(findEpsychSessions(R.DestDir, Recursive=false)), 1);
+
+            other = fullfile(tc.Root, "other");
+            R = copySessions(S, DestRoot=other, DryRun=false, LogFcn=@(~) []);
+            tc.verifyEqual(R.CopyStatus, "copied", R.Message);
+            R = copySessions(T(1, :), DestRoot=other, DryRun=false, LogFcn=@(~) []);
+            tc.verifyEqual(R.CopyStatus, "failed");
+            tc.verifySubstring(char(R.Message), char("already holds " + stitched + " from an earlier stitched copy"));
+            tc.verifyFalse(isfile(fullfile(R.DestDir, single)), "no single file next to the stitched one");
+            m = jsondecode(fileread(fullfile(R.DestDir, "session_manifest.json")));
+            tc.verifyEqual(string(m.pairingStatus), "stitched");
+        end
+
+        function manifestsAreWrittenAndKept(tc)
+            % A session found complete gets a manifest when it has none, or
+            % only one of a copy that did not finish; the manifest of a
+            % finished copy is kept, and with Verify="hash" checksums that it
+            % already records are not taken again.
+            tc.assumeTrue(ispc, "robocopy needs Windows");
+            tc.addPair("260916T110742", "260916_110907");
+            T = tc.find(tc.Subj, "260916");
+            R = copySessions(T, DestRoot=tc.Dest, DryRun=false, Verify="hash", LogFcn=@(~) []);
+            tc.verifyEqual(R.CopyStatus, "copied", R.Message);
+            f = R.ManifestFile;
+            first = fileread(f);
+
+            phases = containers.Map('KeyType', 'double', 'ValueType', 'any');
+            R = copySessions(T, DestRoot=tc.Dest, DryRun=false, Verify="hash", ...
+                ProgressFcn=@(~, ~, info) appendLog(phases, info.Phase), LogFcn=@(~) []);
+            tc.verifyEqual(R.CopyStatus, "already_present", R.Message);
+            tc.verifySubstring(char(R.Message), 'checksummed when it was copied');
+            tc.verifyFalse(any(string(phases.values) == "verifying"), "no file is read again");
+            tc.verifyEqual(fileread(f), first, "the manifest of the copy is kept");
+
+            delete(f);
+            R = copySessions(T, DestRoot=tc.Dest, DryRun=false, LogFcn=@(~) []);
+            tc.verifyEqual(R.CopyStatus, "already_present", R.Message);
+            tc.assertTrue(isfile(f), "a session found complete gets its manifest");
+            m = jsondecode(fileread(f));
+            tc.verifyEqual(string(m.copy.status), "already_present");
+
+            m.copy.status = "cancelled";
+            writeJsonFile(f, m);
+            R = copySessions(T, DestRoot=tc.Dest, DryRun=false, LogFcn=@(~) []);
+            tc.verifyEqual(R.CopyStatus, "already_present", R.Message);
+            m = jsondecode(fileread(f));
+            tc.verifyEqual(string(m.copy.status), "already_present", "the manifest of a cancelled copy is replaced");
+
+            R = copySessions(T, DestRoot=tc.Dest, DryRun=false, Verify="hash", LogFcn=@(~) []);
+            tc.verifyEqual(R.CopyStatus, "already_present", R.Message);
+            tc.verifySubstring(char(R.Message), 'hash check', "no checksums recorded yet: they are taken");
+            R = copySessions(T, DestRoot=tc.Dest, DryRun=false, Verify="hash", LogFcn=@(~) []);
+            tc.verifySubstring(char(R.Message), 'checksummed when it was copied', "and then recorded");
+        end
+
         % ---------------------------------------------------------------- still changing, in flight
         function quietTimeLeavesAChangingSessionForLater(tc)
             % A session whose source changed within MinQuietTime may still be
@@ -903,6 +1185,98 @@ classdef test_CopySessions < matlab.unittest.TestCase
             tc.verifyEqual(out.Sessions.Status, ["stitched_by_hand"; "unpaired"]);
             [~, n, x] = fileparts(T.EpsychFile(1));
             tc.verifyFalse(isfile(fullfile(R.DestDir, n + x)), "still one behavior file in the session folder");
+        end
+
+        function scheduledCopyDoesNotAskToStitchAStitchedSession(tc)
+            % A restarted session is reported as needing stitching until a
+            % person stitches and copies it; then both of its rows are the
+            % copy made by hand, not a session still to stitch.
+            tc.assumeTrue(ispc, "robocopy needs Windows");
+            [~, R] = tc.addSyntheticIntan("260916_110907");
+            tc.addSession("260916T110742", 3);                 % 85 s before: paired
+            later = datetime(2026, 9, 16, 11, 9, 7) + seconds(floor(R.duration / 2));
+            tc.addSession(string(later, 'yyMMdd''T''HHmmss'), 2);   % ePsych restarted
+            mkdir(tc.Dest);
+            s = tc.schedule(MinDurationMin=0, MaxLagMin=0);
+            day = datetime(2026, 9, 16);
+            out = CopySchedule.copyNew(s, Today=day, LogFcn=@(~) []);
+            tc.verifyEqual(out.Sessions.Status, ["needs_stitching"; "needs_stitching"]);
+            T = tc.find(tc.Subj, "260916", 'MinRecordingDuration', minutes(0), 'MaxLagTime', minutes(0));
+            C = copySessions(stitchCopySessions(T, [1 2]), DestRoot=tc.Dest, DryRun=false, LogFcn=@(~) []);
+            tc.verifyEqual(C.CopyStatus, "copied", C.Message);
+            out = CopySchedule.copyNew(s, Today=day, LogFcn=@(~) []);
+            tc.verifyEqual(out.Sessions.Status, ["stitched_by_hand"; "stitched_by_hand"]);
+        end
+
+        function scheduledCopyAddsTheEpsychFileOfARecordingCopiedAlone(tc)
+            % A recording copied on its own before its ePsych file existed
+            % gains that file once it pairs; the paired copy is then left
+            % alone, and so is a recording-only copy cleaned up since.
+            tc.assumeTrue(ispc, "robocopy needs Windows");
+            tc.addIntan(tc.Subj, "260916_110907");
+            mkdir(tc.Dest);
+            s = tc.schedule(IncludeUnpaired=true);
+            day = datetime(2026, 9, 16);
+            out = CopySchedule.copyNew(s, Today=day, LogFcn=@(~) []);
+            tc.verifyEqual(out.Sessions.Status, "copied", out.Sessions.Message);
+            f = tc.addEpsych(tc.Subj, "260916T110742");        % 85 s before: now paired
+            out = CopySchedule.copyNew(s, Today=day, LogFcn=@(~) []);
+            tc.verifyEqual(out.Sessions.Status, "copied", out.Sessions.Message);
+            [~, n, x] = fileparts(f);
+            tc.verifyTrue(isfile(fullfile(out.Sessions.DestDir, n + x)), "the ePsych file is added");
+            out = CopySchedule.copyNew(s, Today=day, LogFcn=@(~) []);
+            tc.verifyEqual(out.Sessions.Status, "already_present");
+
+            % the same, but Clean up has been at the recording-only copy
+            tc.addIntan(tc.Subj, "260916_150000");
+            out = CopySchedule.copyNew(s, Today=day, LogFcn=@(~) []);
+            alone = out.Sessions.Session == tc.Subj + "_260916_150000";
+            tc.verifyEqual(out.Sessions.Status(alone), "copied", out.Sessions.Message(alone));
+            dest = out.Sessions.DestDir(alone);
+            writeJsonFile(fullfile(dest, tc.Subj + "_260916_150000_cleanup.json"), ...
+                struct('schema', "ephys-local-cleanup/2"));
+            tc.addEpsych(tc.Subj, "260916T145900");
+            out = CopySchedule.copyNew(s, Today=day, LogFcn=@(~) []);
+            alone = out.Sessions.DestDir == dest;
+            tc.verifyEqual(out.Sessions.Status(alone), "already_present");
+            tc.verifySubstring(char(out.Sessions.Message(alone)), 'cleaned up since');
+        end
+
+        function scheduledCopyNeverCopiesFilesBack(tc)
+            % A file missing from a session copied before was removed on
+            % purpose (Clean up) or by hand: a run leaves the session as it
+            % is. A copy that did not finish is completed, unless Clean up has
+            % removed files from it since.
+            tc.assumeTrue(ispc, "robocopy needs Windows");
+            tc.addPair("260916T110742", "260916_110907");
+            mkdir(tc.Dest);
+            s = tc.schedule();
+            day = datetime(2026, 9, 16);
+            out = CopySchedule.copyNew(s, Today=day, LogFcn=@(~) []);
+            tc.verifyEqual(out.Sessions.Status, "copied", out.Sessions.Message);
+            dest = out.Sessions.DestDir;
+            amp = fullfile(dest, "amplifier.dat");
+            delete(amp);                                     % as Clean up removes a raw file
+            out = CopySchedule.copyNew(s, Today=day, LogFcn=@(~) []);
+            tc.verifyEqual(out.Sessions.Status, "already_present");
+            tc.verifySubstring(char(out.Sessions.Message), 'already copied (its session_manifest.json says copied)');
+            tc.verifyFalse(isfile(amp), "the file is not copied back");
+
+            f = fullfile(dest, "session_manifest.json");
+            m = jsondecode(fileread(f));
+            m.copy.status = "cancelled";                     % a copy that did not finish ...
+            writeJsonFile(f, m);
+            record = fullfile(dest, out.Sessions.Session + "_cleanup.json");
+            writeJsonFile(record, struct('schema', "ephys-local-cleanup/2"));   % ... cleaned up since
+            out = CopySchedule.copyNew(s, Today=day, LogFcn=@(~) []);
+            tc.verifyEqual(out.Sessions.Status, "already_present");
+            tc.verifySubstring(char(out.Sessions.Message), 'cleaned up since');
+            tc.verifyFalse(isfile(amp), "the file is not copied back");
+
+            delete(record);
+            out = CopySchedule.copyNew(s, Today=day, LogFcn=@(~) []);
+            tc.verifyEqual(out.Sessions.Status, "copied", out.Sessions.Message);
+            tc.verifyTrue(isfile(amp), "an unfinished copy is completed");
         end
 
         function scheduledCopyReportsWhatStopsIt(tc)
@@ -1229,10 +1603,61 @@ classdef test_CopySessions < matlab.unittest.TestCase
             fclose(fid);
         end
 
-        function overwriteIf(tc, f, name, bytes)
-            %overwriteIf  Replace a just-copied file named NAME (a BeforeVerifyFcn).
+        function touchIf(tc, f, name)
+            %touchIf  Give a just-copied file named NAME the time of now (a BeforeVerifyFcn).
             [~, n, x] = fileparts(f);
-            if n + x == name; tc.writeBytes(f, bytes); end
+            if n + x ~= name; return; end
+            ms = posixtime(datetime('now', 'TimeZone', 'local')) * 1000;
+            tc.assertTrue(java.io.File(f).setLastModified(ms), "cannot set the time of " + f);
+        end
+
+        function sameTime(~, f, like)
+            %sameTime  Give file F the last write time of file LIKE, exactly, as robocopy does.
+            System.IO.File.SetLastWriteTimeUtc(char(f), System.IO.File.GetLastWriteTimeUtc(char(like)));
+        end
+
+        function sparseFile(tc, f, bytes)
+            %sparseFile  A file of BYTES zeros that takes no disk space (an NTFS sparse file).
+            fclose(fopen(f, 'w'));
+            [s1, o1] = system(sprintf('fsutil sparse setflag "%s"', f));
+            [s2, o2] = system(sprintf('fsutil file seteof "%s" %d', f, bytes));
+            tc.assumeEqual([s1 s2], [0 0], "cannot make a sparse file: " + o1 + o2);
+        end
+
+        function lock = lockFile(tc, f)
+            %lockFile  Open F so that no other process can read it until LOCK.Dispose().
+            %   robocopy then fails to open it and waits 5 s (/W:5) to try again.
+            lock = System.IO.File.Open(char(f), System.IO.FileMode.Open, System.IO.FileAccess.Read, ...
+                System.IO.FileShare.None);
+            tc.addTeardown(@() lock.Dispose());
+        end
+
+        function pid = robocopyFor(~, dest)
+            %robocopyFor  The process ID of a robocopy.exe copying into DEST ([] when none).
+            NET.addAssembly('System.Management');
+            q = System.Management.ManagementObjectSearcher( ...
+                "SELECT ProcessId, CommandLine FROM Win32_Process WHERE Name = 'robocopy.exe'");
+            e = q.Get().GetEnumerator();
+            pid = [];
+            while e.MoveNext()
+                line = e.Current.GetPropertyValue('CommandLine');
+                if ~isempty(line) && contains(lower(string(char(line))), lower(dest))
+                    pid = double(e.Current.GetPropertyValue('ProcessId'));
+                    return
+                end
+            end
+        end
+
+        function overwriteIf(tc, f, name, bytes, keepTime)
+            %overwriteIf  Replace a just-copied file named NAME (a BeforeVerifyFcn).
+            %   KEEPTIME (default false) gives it back its time afterwards.
+            [~, n, x] = fileparts(f);
+            if n + x ~= name; return; end
+            ms = java.io.File(f).lastModified();
+            tc.writeBytes(f, bytes);
+            if nargin > 4 && keepTime
+                tc.assertTrue(java.io.File(f).setLastModified(ms), "cannot set the time of " + f);
+            end
         end
 
         function L = listTree(~, root)
@@ -1262,4 +1687,12 @@ end
 
 function appendLog(map, msg)
 map(map.Count + 1) = string(msg); %#ok<NASGU> containers.Map is a handle
+end
+
+
+function noteVerifying(map, info)
+%noteVerifying  Remember that the checksum pass has begun (a ProgressFcn; the Map is a handle).
+if info.Phase == "verifying"
+    map('verifying') = true; %#ok<NASGU>
+end
 end

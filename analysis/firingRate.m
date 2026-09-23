@@ -3,11 +3,14 @@ function R = firingRate(spikeTimes, E, opts)
 %   R = firingRate(ST, E, Name=Value) counts the spikes of every train in ST
 %   ({nUnits x 1} spike times, s) inside each epoch window of E (epochTable:
 %   [tStart, tStop), so "between" epochs have their own lengths) and
-%   divides by the window's length. Pure: no I/O, no graphics.
+%   divides by the window's length. The windows are moved to the spikes'
+%   continuous clock first, by t0Continuous - t0 (see epochTable), so a
+%   spike in the event's own sample is at the event. Pure: no I/O, no
+%   graphics.
 %
 %   Options
-%     Baseline    [b0 b1] s around t0: the baseline window of each epoch
-%                 ([] = none)
+%     Baseline    [b0 b1] s around the event: the baseline window of each
+%                 epoch ([] = none)
 %     Normalize   "none" (default) | "subtract" (rate - that epoch's
 %                 baseline rate) | "ratio" (rate / the unit's mean baseline
 %                 rate) | "zscore" ((rate - mean baseline) / SD of the
@@ -49,13 +52,14 @@ if opts.Normalize ~= "none" && ~useBase
 end
 
 dur = E.tStop - E.tStart;
+shift = E.t0Continuous - E.t0;   % the digital-event clock -> the spikes' clock
 count = zeros(nE, nU);
 base = NaN(nE, nU);
 for u = 1:nU
     s = sort(double(st{u}(:)));
-    count(:, u) = countIn(s, E.tStart, E.tStop);
+    count(:, u) = countIn(s, E.tStart + shift, E.tStop + shift);
     if useBase
-        base(:, u) = countIn(s, E.t0 + b(1), E.t0 + b(2)) / (b(2) - b(1));
+        base(:, u) = countIn(s, E.t0Continuous + b(1), E.t0Continuous + b(2)) / (b(2) - b(1));
     end
 end
 raw = count ./ dur;

@@ -19,7 +19,14 @@ function pollKSRuns(obj)
 %   The progress label says how many runs finished, are running and are
 %   still to start (queued, or waiting in the pipeline's sorting step). The
 %   monitor stops once every run has finished and none is left to start.
+%   Only a tick in which a run started or finished refreshes the Project
+%   table, and then only those datasets' rows. An error in one run's
+%   handling, or in starting the queue, is logged and the others go on.
 
+if isempty(obj.Fig) || ~isvalid(obj.Fig)   % the app went without onClose
+    obj.stopKSMonitor();
+    return
+end
 if isempty(obj.KSRuns) && isempty(obj.KSQueue)
     obj.stopKSMonitor();
     syncStopButtons(obj, 0);
@@ -27,38 +34,31 @@ if isempty(obj.KSRuns) && isempty(obj.KSQueue)
 end
 
 pending = 0;
+changed = zeros(1, 0);   % KSRuns indices that started or finished this tick
 for i = 1:numel(obj.KSRuns)
     if obj.KSRuns(i).done
         continue
     end
-
-    % Stream any new log output for this run into the status box.
-    obj.KSRuns(i).logPos = tailLog(obj, obj.KSRuns(i));
-
-    [state, msg] = EphysDataset.sortRunState(obj.KSRuns(i).statusFile);
+    try
+        % Stream any new log output for this run into the status box.
+        obj.KSRuns(i).logPos = tailLog(obj, obj.KSRuns(i));
+        [state, msg] = EphysDataset.sortRunState(obj.KSRuns(i).statusFile);
+    catch ME
+        obj.log("[error] %s - could not read how the run stands: %s", obj.KSRuns(i).Name, ME.message);
+        pending = pending + 1;   % asked again next tick
+        continue
+    end
     if state == "running"
         pending = pending + 1;
         continue
     end
-
-    % Run finished: flush the tail of its log before reporting status.
-    obj.KSRuns(i).logPos = tailLog(obj, obj.KSRuns(i));
-
     obj.KSRuns(i).done = true;
-    run = obj.KSRuns(i);
-    % Record the completed sort in the dataset's manifest.
-    updateManifestFor(obj, run.Name);
-    took = 0;
-    if ~isnat(run.started); took = round(seconds(datetime('now') - run.started), 1); end
-    if state == "done"
-        obj.log("[done] %s - Kilosort4 complete (%s)", run.Name, run.resultsDir);
-        obj.markKSResult(run.Name, run.resultsDir, "done", "Kilosort4 finished" + onDevice(run.device), took);
-    elseif state == "cancelled"
-        obj.log("[stopped] %s - Kilosort4 stopped by the user", run.Name);
-        obj.markKSResult(run.Name, run.resultsDir, "cancelled", "stopped before it finished", took);
-    else
-        obj.log("[error] %s - Kilosort4 failed: %s", run.Name, msg);
-        obj.markKSResult(run.Name, run.resultsDir, "error", "Kilosort4 failed: " + msg, took);
+    changed(end+1) = i; %#ok<AGROW>
+    try
+        obj.KSRuns(i).logPos = tailLog(obj, obj.KSRuns(i));   % flush the tail of its log first
+        reportFinished(obj, obj.KSRuns(i), state, msg);
+    catch ME
+        obj.log("[error] %s - the run ended (%s) but recording it failed: %s", obj.KSRuns(i).Name, state, ME.message);
     end
 end
 
@@ -66,7 +66,15 @@ end
 % for slots itself (its PriorRuns are the runs already here).
 ownSlots = obj.RunActive && ~isempty(obj.Pipe) && isvalid(obj.Pipe) && isempty(obj.Pipe.QueueFcn);
 if ~isempty(obj.KSQueue) && ~ownSlots
-    pending = pending + startQueued(obj, obj.Config.Sorting);
+    n0 = numel(obj.KSRuns);
+    try
+        startQueued(obj, obj.Config.Sorting);
+    catch ME
+        obj.log("[error] starting the queued Kilosort4 runs failed: %s", ME.message);
+    end
+    started = n0 + 1:numel(obj.KSRuns);
+    pending = pending + numel(started);
+    changed = [changed, started];
 end
 
 % Datasets still to start: queued here, or waiting in the running pipeline.
@@ -87,9 +95,17 @@ if ~isempty(obj.RunKSLabel) && isvalid(obj.RunKSLabel)
 end
 syncStopButtons(obj, pending);
 
-% Refresh the datasets table so the Bin/results columns reflect new outputs.
-obj.refreshDatasetsTable();
-obj.ReviewDatasetIdx = -1;   % the Review tab reloads
+% The Project table follows the datasets whose run started or finished.
+if ~isempty(changed)
+    ix = unique(arrayfun(@(k) runDataset(obj, obj.KSRuns(k)), changed));
+    ix = ix(ix > 0);
+    if ~isempty(ix)
+        obj.refreshDatasetsTable(Datasets=ix);
+        if ismember(obj.SelectedDatasetIdx, ix)
+            obj.ReviewDatasetIdx = -1;   % its sorted output changed: the Review tab reloads
+        end
+    end
+end
 
 if pending == 0 && waiting == 0
     obj.log("=== all %d background run(s) complete ===", nTot);
@@ -103,9 +119,32 @@ end
 
 %% ---- local helpers ----------------------------------------------------
 
-function nStarted = startQueued(obj, S)
+function reportFinished(obj, run, state, msg)
+%reportFinished  Record a run that ended: its manifest, the log, its result row.
+ix = runDataset(obj, run);
+if ix > 0
+    lastwarn("");
+    if ~obj.Project.Datasets(ix).writeManifest()   % the completed sort, on disk and in the table
+        obj.log("[error] %s - its manifest was not rewritten: %s", run.Name, lastwarn());
+    end
+end
+took = 0;
+if ~isnat(run.started); took = round(seconds(datetime('now') - run.started), 1); end
+if state == "done"
+    obj.log("[done] %s - Kilosort4 complete (%s)", run.Name, run.resultsDir);
+    obj.markKSResult(run.Name, run.resultsDir, "done", "Kilosort4 finished" + onDevice(run.device), took);
+elseif state == "cancelled"
+    obj.log("[stopped] %s - Kilosort4 stopped by the user", run.Name);
+    obj.markKSResult(run.Name, run.resultsDir, "cancelled", "stopped before it finished", took);
+else
+    obj.log("[error] %s - Kilosort4 failed: %s", run.Name, msg);
+    obj.markKSResult(run.Name, run.resultsDir, "error", "Kilosort4 failed: " + msg, took);
+end
+end
+
+
+function startQueued(obj, S)
 %startQueued  Start queued runs, first in first out, while a slot is free.
-nStarted = 0;
 while ~isempty(obj.KSQueue)
     running = obj.KSRuns(~[obj.KSRuns.done]);
     [free, device] = sortingSlot(running, max(1, S.MaxConcurrent), S.Devices);
@@ -115,16 +154,17 @@ while ~isempty(obj.KSQueue)
     q = obj.KSQueue(1);
     obj.KSQueue(1) = [];
     try
-        res = q.dataset.launchSorting(q.prepared, Wait=false, Device=device);
+        res = q.dataset.launchSorting(q.prepared, Wait=false, Device=device);   % LaunchFailed / SetAsideFailed throw
     catch ME
         obj.log("[error] %s - Kilosort4 did not start: %s", q.Name, ME.message);
         obj.markKSResult(q.Name, q.prepared.resultsDir, "error", "did not start: " + string(ME.message));
         continue
     end
     obj.KSRuns(end+1) = EphysPipeline.sortRun(q.Name, res);
-    nStarted = nStarted + 1;
-    obj.log("[sorting] %s: launched from the queue%s -> %s", q.Name, onDevice(device), res.resultsDir);
-    obj.markKSResult(q.Name, res.resultsDir, "launched", "background run, started from the queue" + onDevice(device));
+    aside = "";
+    if res.previousDir ~= ""; aside = "; the earlier sort's curation moved to " + res.previousDir; end
+    obj.log("[sorting] %s: launched from the queue%s -> %s%s", q.Name, onDevice(device), res.resultsDir, aside);
+    obj.markKSResult(q.Name, res.resultsDir, "launched", "background run, started from the queue" + onDevice(device) + aside);
 end
 end
 
@@ -150,16 +190,18 @@ if device ~= ""; t = " on " + device; end
 end
 
 
-function updateManifestFor(obj, name)
-%updateManifestFor  Refresh the manifest of the dataset named NAME (if scanned),
-%   so a completed background sort is reflected on disk and in the table.
+function ix = runDataset(obj, run)
+%runDataset  Index of the scanned dataset RUN sorts (0 when none): the one
+%   whose Kilosort4 folder is the run's results folder, else the first of
+%   its name.
+ix = 0;
 if isempty(obj.Project) || obj.Project.NumDatasets == 0; return; end
-ix = find([obj.Project.Datasets.Name] == string(name), 1);
-if isempty(ix); return; end
-try
-    obj.Project.Datasets(ix).writeManifest();
-catch
+dirs = arrayfun(@(d) string(d.kilosortDir()), obj.Project.Datasets);
+ix = find(EphysDataset.pathKey(dirs) == EphysDataset.pathKey(run.resultsDir), 1);
+if isempty(ix)
+    ix = find([obj.Project.Datasets.Name] == string(run.Name), 1);
 end
+if isempty(ix); ix = 0; end
 end
 
 

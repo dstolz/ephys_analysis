@@ -5,7 +5,12 @@ function txt = plotCaption(spec, R)
 %     "PSTH, Stim onset, first per trial; window [-0.2 0.8] s; bins 10 ms,
 %      smooth 20 ms; trials: PairingFlag ok & Hit; groups by Depth
 %      (n = 4, 5); 12 sorted units (su, mua)"
-%   The reports print it under each figure.
+%   A tuning curve ignores the trial groups: its caption counts the epochs
+%   of each curve instead ("n = 12 epochs", or "one curve per TrialType
+%   (n = 5, 7 epochs)"). A spikePSTH result whose whole bins (counted from
+%   the event, R.window) span less than the window says so: "window
+%   [-0.2 0.8] s (whole bins: [-0.18 0.78] s)". The reports print it under
+%   each figure.
 %
 %   See also renderPlot, writeHtmlReport, writePdfReport.
 
@@ -36,6 +41,9 @@ if isfield(U, 'ref')
         parts(end+1) = sprintf("window %s%s to %s %s%s", r.line, offs(w.pre), w.stop.line, w.stop.edge, offs(w.post));
     else
         parts(end+1) = sprintf("window [%g %g] s", w.pre, w.post);
+        if R.kind == "psth" && isfield(R, 'window') && numel(R.window) == 2 && max(abs(R.window(:).' - [w.pre w.post])) > 1e-9
+            parts(end) = parts(end) + sprintf(" (whole bins: [%g %g] s)", R.window(1), R.window(2));   % bins count from the event
+        end
         if ~isempty(w.stop); parts(end+1) = "stop at " + w.stop.line + " " + w.stop.edge; end
     end
 end
@@ -66,16 +74,21 @@ if isfield(U, 'selection')
     if s.filter ~= "";           tr(end+1) = "(" + s.filter + ")"; end
     if ~isempty(s.trials);       tr(end+1) = "rows " + mat2str(s.trials); end
     if ~isempty(tr) && U.nTrials > 0; parts(end+1) = "trials: " + strjoin(tr, " & "); end
-    n = R.n(:).';
-    if spec.kind == "tuning"; n = sum(R.n, 1); end
-    if ~isempty(s.groupBy)
-        parts(end+1) = sprintf("groups by %s (n = %s)", strjoin(s.groupBy, " x "), strjoin(string(n), ", "));
-    elseif isfield(R, 'epochs')
-        parts(end+1) = sprintf("n = %d epochs", height(R.epochs));
+    if spec.kind ~= "tuning"   % a tuning plot's curves are its series (below), not the trial groups
+        if ~isempty(s.groupBy)
+            parts(end+1) = sprintf("groups by %s (n = %s)", strjoin(s.groupBy, " x "), strjoin(string(R.n(:).'), ", "));
+        elseif isfield(R, 'epochs')
+            parts(end+1) = sprintf("n = %d epochs", height(R.epochs));
+        end
     end
 end
-if spec.kind == "tuning" && R.seriesParam ~= ""
-    parts(end+1) = "one curve per " + R.seriesParam;
+if spec.kind == "tuning"
+    n = sum(R.n, 1);   % epochs per curve
+    if R.seriesParam ~= ""
+        parts(end+1) = sprintf("one curve per %s (n = %s epochs)", R.seriesParam, strjoin(string(n), ", "));
+    else
+        parts(end+1) = sprintf("n = %d epochs", sum(n));
+    end
 end
 if spec.kind == "psth"
     switch spec.normalize

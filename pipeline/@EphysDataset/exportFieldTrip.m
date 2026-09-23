@@ -14,19 +14,22 @@ function out = exportFieldTrip(obj, opts)
 %                 (data_AUX: accelerometer inputs, chanunit V), one trial
 %                 spanning the signal (label, time, trial [nChan x N], fsample,
 %                 sampleinfo, hdr, cfg). Each carries its own events at its own
-%                 rate in cfg.event, ready for ft_definetrial.
+%                 rate in cfg.event, ready for ft_definetrial: each onset on the
+%                 signal's sample nearest the recording sample that produced
+%                 it (FieldTripExport.event with EventFs = the recording rate).
 %     spike       FieldTrip spike structure of the sorted units (label,
 %                 timestamp in recording samples, hdr, cfg) or []
 %     spikeDetected  the same for threshold-detected spikes (one "unit" per
 %                 channel) or []
 %     event       FieldTrip event struct array at the recording rate
 %     export      provenance: tool, created, dataset, sources, signals,
-%                 validation (per structure: ok / message)
+%                 eventFs (the recording rate), validation (per structure:
+%                 ok / message)
 %
 %   Options
 %   -------
-%     File, Extract, Signals, Units, Groups, Detected, Events, Overwrite,
-%     MatVersion   as in exportChronux
+%     File, Extract, Signals, Units, Groups, Detected, Sources, Events,
+%     Overwrite, MatVersion   as in exportChronux
 %     Validate   true (default): when FieldTrip is on the path run
 %                ft_datatype_raw / ft_datatype_spike on the structures and
 %                record the outcome (warn on failure); no-op otherwise
@@ -42,6 +45,7 @@ arguments
     opts.Units = []
     opts.Groups (1,:) string = ["good" "mua"]
     opts.Detected = true
+    opts.Sources struct = struct()
     opts.Events (1,1) logical = true
     opts.Overwrite (1,1) logical = false
     opts.MatVersion (1,1) string {mustBeMember(opts.MatVersion, ["-v7.3", "-v7"])} = "-v7.3"
@@ -60,15 +64,15 @@ end
 
 in = resolveExportInputs(obj, opts, 'exportFieldTrip');
 
-origFs = NaN;
-if isfield(in.S.info, 'origFs'); origFs = double(in.S.info.origFs); end
-if ~isfinite(origFs) && ~isnan(obj.Fs); origFs = obj.Fs; end
+origFs = in.eventFs;               % the clock the event times count rows of
+evClock = {};
+if isfinite(origFs); evClock = {'EventFs', origFs}; end
 
 validation = struct();
 S = struct();
 for sig = in.signals
     data = FieldTripExport.raw(in.S, sig);
-    data.cfg.event = FieldTripExport.event(in.events, data.fsample);
+    data.cfg.event = FieldTripExport.event(in.events, data.fsample, evClock{:});
     if opts.Validate
         [ok, msg] = FieldTripExport.validate(data, "raw");
         validation.("data_" + sig) = struct('ok', ok, 'message', msg);

@@ -26,7 +26,7 @@ classdef OpenEphysReader < EphysReader
     %   Channels: the headstage channels of one continuous stream are the
     %   amplifier channels (microvolts = int16 * bit_volts); AUX channels
     %   (volts) are the accelerometer inputs and ADC channels (volts) the
-    %   board ADC. Channel numbers (what a probe chanMap refers to) are "CH13"
+    %   board ADC. Channel numbers (the hardware numbers reported with sorted units) are "CH13"
     %   -> 12, else the name's trailing digits, else the position. Digital
     %   lines are named TTL1..TTLn (native = custom); name them with
     %   Signals.LineNames ("TTL4=InTrial").
@@ -183,16 +183,15 @@ classdef OpenEphysReader < EphysReader
                 maxc = max(round(obj.Fs), floor(2.5e8 / (max(obj.NumChannels, 1) * 8)));
             end
             maxc = max(1, maxc);
-            nChunks = max(1, ceil(total / maxc));
-            plan = repmat(proto, 1, nChunks);
-            for i = 1:nChunks
-                off = (i - 1) * maxc;
-                len = min(maxc, total - off);
+            % A leftover last window shorter than one second joins the one before it.
+            [off, len] = EphysReader.planWindows(total, maxc, round(obj.Fs));
+            plan = repmat(proto, 1, numel(off));
+            for i = 1:numel(off)
                 plan(i).kind         = "window";
-                plan(i).name         = sprintf('samples %d-%d', off + 1, off + len);
+                plan(i).name         = sprintf('samples %d-%d', off(i) + 1, off(i) + len(i));
                 plan(i).file         = "";
-                plan(i).sampleOffset = off;
-                plan(i).nSamples     = len;
+                plan(i).sampleOffset = off(i);
+                plan(i).nSamples     = len(i);
             end
         end
 

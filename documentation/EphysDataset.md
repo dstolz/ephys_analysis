@@ -57,8 +57,15 @@ on-disk format and answers five questions:
 Optional: `readWindowUV(sampleOffset, nSamp)` with `supportsRandomAccess()`
 true (bounded random access, used to carry context across chunks),
 and `readDigitalEvents(ProgressFcn=)` (the digital lines without the amplifier
-data; the default reads the recording keeping one channel). Static:
-`claims(folder)`, `findRecordingFolders(root, recursive, options)`.
+data; the default reads the recording keeping one channel). `IntanReader`,
+`BinaryReader` and `OpenEphysReader` override it and decode only the digital
+inputs, in bounded pieces: an Intan traditional file's digital words, block by
+block; a split recording's `digitalin.dat` or per-line files, window by window;
+a binary recording's `dig_in_file`, window by window; the Open Ephys event
+files. Static: `claims(folder)`, `findRecordingFolders(root, recursive,
+options)`, and the helpers `EphysReader.highRuns` / `joinRuns` (a line's high
+runs, block by block, joined across the block boundaries), `wordBit` (one line
+of 16-bit digital words) and `planWindows` (a stream plan's sample windows).
 
 **Registry.** `EphysReader.forFolder(folder, Options=)` asks each class in
 `EphysReader.readerClasses()` whether it claims the folder and builds the
@@ -89,16 +96,16 @@ keys `events` by each line's **native** name (`DIGITAL_IN_04`, `TTL4`);
 [Digital-line names](#digital-line-names)).
 
 **Channel numbers.** `ChannelNumbers` holds the 0-based hardware number of each
-amplifier channel: the value a probe `chanMap` refers to. Intan: the trailing
+amplifier channel. Intan: the trailing
 digits of the native name (`A-012` is 12); Open Ephys: `CH13` is 12 (else the
 trailing digits); `recording.json`: its `channel_numbers`, else `0..n-1`. They
 are unique: when the names do not give distinct numbers (a two-port Intan
 recording with `A-000` and `B-000`), every channel is numbered by its position
-`0..n-1` and `EphysReader:ChannelNumbersNotUnique` warns. Sorting does not
-match by number: the probe's `chanMap` indexes `.bin` rows (positions), so a
-recording with a channel disabled at acquisition needs a probe that accounts
-for the gap. The numbers are reported with the sorted units
-(`channelNumber`).
+`0..n-1` and `EphysReader:ChannelNumbersNotUnique` warns. They are not what a
+probe's `chanMap` indexes: its values are `.bin` rows (positions), for sorting
+and every probe display alike, so a recording with a channel disabled at
+acquisition needs a probe that accounts for the gap. The numbers are reported
+with the sorted units (`channelNumber`).
 
 The dataset's `readData`, `streamPlan`, `readChunkUV`, `readWindowUV`,
 `supportsRandomAccess`, `refreshMetadata`, `discoverFiles` and `detectFormat`
@@ -128,7 +135,7 @@ and the sample count comes from the `.dat` file size (see `splitLayout`).
 
 | Layout | Conversion used |
 | --- | --- |
-| traditional | `read_Intan_RHD2000_file_modified` output: µV = 0.195 × (uint16 − 32768) |
+| traditional | µV = 0.195 × (uint16 − 32768), with the same values whether a whole file is read (`read_Intan_RHD2000_file_modified`) or a chunk or window straight from the data blocks (`readChunkUV`, `readWindowUV`, through `IntanReader.sliceDataBlocks`) |
 | split (`*.dat`) | µV = 0.195 × int16 (no 32768 offset) |
 
 Split-layout auxiliary signals (`readSplitAll`, one-file-per-signal only):
@@ -139,10 +146,13 @@ Split-layout auxiliary signals (`readSplitAll`, one-file-per-signal only):
 | aux input | `auxiliary.dat` (uint16) | 37.4e-6 × raw V, at `Fs/4` |
 | digital in | `digitalin.dat` (uint16, packed bits) | bit `native_order` of each enabled line |
 
-For one-file-per-channel recordings, digital inputs are read from
-`board-DIN-<native_order, 2 digits>.dat` when **all** those files exist.
-Otherwise there are no events. Board ADC and aux are **not** read for that layout
-(returned as `[]`).
+For one-file-per-channel recordings, each digital input is read from
+`board-<native name>.dat` (RHX: `board-DIGITAL-IN-01.dat`), else
+`board-DIN-<native_order, 2 digits>.dat` (the older RHD2000 Interface). A line
+with neither file is left out with the warning
+`IntanReader:splitDigitalEvents:NoDigitalFile`, which a one-file-per-signal
+recording without `digitalin.dat` gives too. Board ADC and aux are **not** read
+for the one-file-per-channel layout (returned as `[]`).
 
 ### Open Ephys sessions
 
@@ -267,7 +277,7 @@ The constructor errors (`EphysDataset:NoFolder`) if the folder does not exist.
 | Property | Type | Meaning |
 | --- | --- | --- |
 | `Folder` | string | recording folder |
-| `Files` | string row | traditional: every `*.rhd`, sorted by file `datenum` (chronological); split: `"info.rhd"`; binary: the descriptor and the data file; Open Ephys: the data and event files of the selected recordings, relative to `Folder` (`..\Record Node 101\...` for a part folder) |
+| `Files` | string row | traditional: every `*.rhd`, sorted by file `datenum` (chronological); split: `"info.rhd"`; binary: the descriptor, the data file and the `dig_in_file` when it names one; Open Ephys: the data and event files of the selected recordings, relative to `Folder` (`..\Record Node 101\...` for a part folder) |
 | `Name` | string | dataset name (defaults to the folder leaf). Its `SubjectID`, `Date` and `Time` tokens label the sorted units; see [Unit labels](#unit-labels) |
 | `Reader` | `EphysReader` | the acquisition reader (created by the constructor from the registry) |
 
@@ -282,7 +292,7 @@ The constructor errors (`EphysDataset:NoFolder`) if the folder does not exist.
 | `ChannelNumbers` | 0-based hardware numbers (see [channel numbers](#acquisition-readers)) |
 | `DigInNames` / `DigInNativeNames` | digital-line custom / native names (Open Ephys: `TTL1..` for both) |
 | `Duration` | total duration (s) = sum of per-file `recordTime` |
-| `AcqDate` | recording start: earliest file `datenum` (traditional), the amplifier `.dat` `datenum` (split), the descriptor's `acq_date` (binary), the Software Time message (Open Ephys) |
+| `AcqDate` | recording start: the time in the RHX name `<prefix>_yyMMdd_HHmmss` (of the first `*.rhd` file, traditional; of the folder, split), else worked back from a modification time, which RHX sets when it closes a file: the first file's less that file's duration (traditional), `amplifier.dat`'s (the first `amp-*.dat`'s) less the recording's duration (split), to the second; the descriptor's `acq_date` (binary); the Software Time message (Open Ephys) |
 | `NumFiles` | number of `*.rhd` files (1 for split layouts; Open Ephys: recordings) |
 | `PerFile` | struct array, one element per file: `name`, `bytesPerBlock`, `numDataBlocks`, `numAmplifierSamples`, `recordTime`, `numAmplifierChannels`, `numBoardDigIn`, `headerBytes`, `datenum`, `partialBlock`, `dataPresent` (Open Ephys: one per recording, plus `experiment`, `recording`, `numGaps`) |
 
@@ -313,7 +323,7 @@ The constructor errors (`EphysDataset:NoFolder`) if the folder does not exist.
 
 | Property | Value |
 | --- | --- |
-| `BinFile` | `fullfile(outputFolder(), Name + ".bin")` |
+| `BinFile` | `<outputFolder>/<Name>.bin`, or `<Name>_ks4.bin` when `<Name>.bin` or `<Name>.json` there is one of the recording's own files ([Writing a Kilosort4 `.bin`](#writing-a-kilosort4-bin)) |
 | `NumSamples` | `sum([PerFile.numAmplifierSamples])`, or `NaN` before metadata is parsed |
 
 ---
@@ -351,7 +361,7 @@ For many datasets with one set of settings, use [`EphysPipeline`](EphysPipeline.
 ### Discovery and metadata
 
 **`discoverFiles()`** asks the reader to inventory the folder and fills
-`Files`, `NumFiles`, `RecordingFormat` and (from file dates) `AcqDate`. The
+`Files`, `NumFiles`, `RecordingFormat` and `AcqDate` (the recording start). The
 constructor calls it, and so does `refreshMetadata`.
 
 **`refreshMetadata()`** re-runs `discoverFiles`, then (for `IntanReader`):
@@ -360,11 +370,12 @@ constructor calls it, and so does `refreshMetadata`.
   `parseIntanHeader` (header only, no amplifier matrix allocated). Channel names,
   `Fs` and `NumChannels` come from the first file. Two checks apply to later files:
   - A different amplifier channel count raises
-    `EphysDataset:refreshMetadata:ChannelMismatch`, because a flat `.bin`
+    `IntanReader:refreshMetadata:ChannelMismatch`, because a flat `.bin`
     cannot represent a mid-recording channel change.
   - A truncated trailing data block warns
-    (`EphysDataset:refreshMetadata:PartialBlock`), and only whole blocks are
-    counted.
+    (`IntanReader:refreshMetadata:PartialBlock`), and only whole blocks are
+    counted; every read (`readData`, `readChunkUV`, `readWindowUV`,
+    `readDigitalEvents`) uses only those.
 - **split layouts**: parses `info.rhd` and derives the sample count from the
   `.dat` size (`splitLayout`). `PerFile` gets a single entry named `"info.rhd"`.
 
@@ -409,7 +420,7 @@ struct, whose digital lines are then named (see
 | `IncludeADC`, `IncludeAux` | `false` | also return board ADC / aux input |
 | `Concatenate` | `true` | concatenate files in time (`false` returns per-file cells) |
 | `ProgressFcn` | none | called as `ProgressFcn(i, nFiles, fileName)` before each file |
-| `Precision` | `"double"` | `"single"` casts each file as read (about half the peak memory) |
+| `Precision` | `"double"` | `"single"` holds the samples in single precision (about half the peak memory) |
 | `LabelField` | `TrialConfig.LabelField` | `"custom"` or `"native"`: each digital line's default name |
 | `LineNames` | `TrialConfig.LineNames` | `"native=name"` entries naming lines (`"TTL4=InTrial"`) |
 
@@ -421,24 +432,31 @@ line, `[k x 2]` `[t_on t_off]` seconds); `digInNames`; `digInNativeNames`;
 
 Behavior worth knowing:
 
+- Only the `KeepChannels` are held, in the requested `Precision`: split and
+  binary recordings are read one `streamPlan` window at a time into one
+  preallocated matrix; traditional files and Open Ephys recordings are read
+  one at a time, their kept channels cast as read.
 - A traditional file with no amplifier data is skipped with a warning
-  (`EphysDataset:readData:NoData`).
+  (`IntanReader:readData:NoData`).
 - The digital-input line count is fixed by the **first** file. Extra lines in
   later files are ignored (the same policy as the original `intan2matlab`).
-- Events are contiguous high runs of each line, found with `bwlabel` when the
-  Image Processing Toolbox is present or an equivalent `diff` fallback otherwise.
-  Onset and offset times are reported as **(1-based sample index) / Fs**. See
+- Events are the contiguous high runs of each line, found block by block
+  (file by file, window by window) and joined across the boundaries, so a line
+  high across a file boundary is one event. Onset and offset times are reported
+  as **(1-based sample index) / Fs**. See
   [Time conventions](README.md#time-and-indexing-conventions).
 - With `Concatenate=false`, `events` is empty and `t` is `[]`.
 
 #### Digital-line names
 
-Readers key `events` by each line's native name. `readData` and
-`digitalEvents` then name every line through
+Readers key `events` by each line's native name. `readData`,
+`digitalEvents` and `deriveSignals` then name every line through
 [`EphysDataset.relabelEvents`](../pipeline/@EphysDataset/relabelEvents.m):
 its `LineNames` entry when there is one (`"native=name"`, the native name
 matched without case), else its custom name (`LabelField = "custom"`) or its
-native name (`"native"`). Intan lines have both (`DIGITAL-IN-04` named
+native name (`"native"`). Their `LabelField` and `LineNames` (and
+`deriveSignals`' `invertedLines`, the [polarity](EphysPipeline.md#digital-line-polarity))
+default to the dataset's `TrialConfig`; explicit values win. Intan lines have both (`DIGITAL-IN-04` named
 `InTrial` in RHX); Open Ephys lines have only `TTL1..`, so name them with
 `LineNames = ["TTL4=InTrial" ...]`. `digInNames` holds the final names,
 `TrialConfig.TrialLine` and `InvertedLines` refer to them, and two lines ending
@@ -450,19 +468,27 @@ with the same name throw `EphysDataset:relabelEvents:Duplicate`.
 chunks to stream. Each element has `kind` (`"rhd"`, `"split"` or `"window"`),
 `name`, `file`, `sampleOffset` and `nSamples`.
 
-- traditional: one chunk per `*.rhd` file.
+- traditional: one chunk per `*.rhd` file; its `sampleOffset` is the file's
+  offset in the recording (the samples of every file before it, whatever
+  `Files` lists).
 - split, binary and Open Ephys: fixed-size sample windows over the recording
   (an Open Ephys window may span a recording boundary). The default chunk size
   is `max(round(Fs), floor(2.5e8 / (nChan·8)))` samples, about 250 MB of
-  double but never less than about 1 s.
+  double but never less than about 1 s. A leftover last window shorter than
+  1 s joins the one before it (`EphysReader.planWindows`), so the last chunk
+  can hold up to `MaxChunkSamples` + 1 s − 1 samples and no chunk is too short
+  for `filtfilt`.
 
 **`X = readChunkUV(chunk)`** reads one `streamPlan` element and returns
-`[nSamp x nChan]` double µV with **all** channels in header order. An empty
+`[nSamp x nChan]` double µV with **all** channels in header order. A
+traditional chunk is read straight from the file's data blocks. An empty
 result means the chunk held no amplifier data.
 
 **`X = readWindowUV(sampleOffset, nSamp)`** reads a sample window directly from
 the data file(s) when the reader supports random access
-(`supportsRandomAccess()`: split Intan layouts, binary recordings and Open
+(`supportsRandomAccess()`: every Intan layout - traditional files block by
+block, across files, except that a file saved before version 3.0 with the
+software notch filter on is read whole - plus binary recordings and Open
 Ephys sessions). It
 returns `[nSamp x nChan]` double µV. A short final window returns only the rows
 present. For one-file-per-channel, the result is trimmed to the shortest
@@ -476,7 +502,12 @@ across layouts and readers and hold one chunk in memory at a time.
 
 **`Y = filterContinuous(X, Type=..., Cutoff=..., Order=..., Fs=...)`** applies a
 zero-phase Butterworth filter (`butter` + `filtfilt`) column-wise to
-`[nSamples x nChan]` data. The result is double.
+`[nSamples x nChan]` data. It filters in double; the result has the class of
+`X`. A cut-off below 0.5% of Nyquist (or `Order` > 4) is applied as
+second-order sections, which stay stable at 1 Hz or for a `[1 300]` band at
+20-30 kHz, where the transfer-function form loses precision or gives `NaN`;
+above that the transfer function (from `sos2tf`) is exact to about 1e-6 µV and
+about 3x faster, so it is used there.
 
 | Option | Default |
 | --- | --- |
@@ -501,7 +532,8 @@ sample by sample, before anything else sees the data:
 It is applied in `readChunkUV` and `readWindowUV` (**`X = applyReference(X)`**),
 so artifact detection, `noiseLevels` (the artifact fill), `toBin` (the
 Kilosort4 `.bin`), `detectSpikes` and the app's views all see the referenced
-signal. Each sample is referenced on its own, so chunk and window reads agree
+signal, except the `"commonmode"` artifact detector, which looks for the very
+mean the reference subtracts and so reads each chunk unreferenced. Each sample is referenced on its own, so chunk and window reads agree
 exactly. `readChunkUV(chunk, Reference=false)` and
 `readWindowUV(offset, n, Reference=false)` return the recording as stored.
 `readData` (the derived LFP / MUA signals) is never referenced.
@@ -512,16 +544,18 @@ left out is still referenced; it only stays out of the average.
 
 **`[bad, info] = suggestReferenceExclude(Name=Value)`** applies the paper's
 rule: a channel is good when its noise floor lies between
-`ReferenceBadLow` (0.3) and `ReferenceBadHigh` (2) times the mean noise floor
-across the channels. Dead or shorted sites fall below that band; broken or
+`ReferenceBadLow` (0.3) and `ReferenceBadHigh` (2) times the **median** noise
+floor across the channels (not the paper's mean, which a few floating channels
+could push up far enough to put every good channel below 0.3x). Dead or
+shorted sites fall below that band; broken or
 high-impedance sites (typically 3-6x) rise above it. The noise floor is the
 robust SD (1.4826 x MAD) of the **unreferenced** signal above `CutoffHz`
 (default `NoiseBandHz`, 300 Hz), measured on `MaxChunks` (default 8) chunks
 spread over the recording. Spikes and artifacts barely move it, as with the
 paper's SD after removing threshold crossings. `ExcludeChannels` are neither
-counted in the mean nor suggested. Options: `Low`, `High`, `CutoffHz`,
+counted in the median nor suggested. Options: `Low`, `High`, `CutoffHz`,
 `MaxChunks` (`Inf` = every chunk), `ProgressFcn`. `info` holds `sigma`,
-`ratio`, `meanSigma`, `low`, `high`, `cutoffHz`, `bad`, `excluded`,
+`ratio`, `medianSigma`, `low`, `high`, `cutoffHz`, `bad`, `excluded`,
 `channelNames`, `nChunks` and a one-line `summary`. The function changes
 nothing.
 
@@ -529,7 +563,11 @@ nothing.
 point (`toBin`, `artifactIntervals`, `analyzeArtifacts`, `noiseLevels`,
 `detectSpikes`), before any chunk is read. With a reference on and
 `ReferenceExcludeSource` still `""` (never set), it takes the suggestion,
-marks it `"suggested"` and writes the manifest. A list set by hand
+marks it `"suggested"` and writes the manifest. A suggestion that would leave
+fewer than `MinReferenceChannels` (5) channels in the reference is not
+applied: it warns (`EphysDataset:prepareReference:SuggestionNotApplied`),
+leaves no channel out, and still marks the list `"suggested"`, so it is not
+worked out again on every read. A list set by hand
 (`"manual"`) is never replaced. A reference over fewer than
 `MinReferenceChannels` (5) channels warns
 (`EphysDataset:prepareReference:FewChannels`), because one large unit can
@@ -550,17 +588,25 @@ of an in-memory `[nSamples x nChan]` block.
 | `"rms"` (default) | the running RMS (window `RmsWindowMs`, default about 1 ms) is more than `Threshold` robust SDs (1.4826 × MAD of the RMS) above that channel's median RMS |
 | `"mad"` | \|x − median\| / (1.4826 × MAD) > `Threshold` |
 | `"microvolts"` | \|x\| > `Threshold` µV |
-| `"commonmode"` | \|mean across channels\| > `Threshold` µV (applies to all channels at once) |
+| `"commonmode"` | \|mean across channels\| > `Threshold` µV (applies to all channels at once); measured on the signal as recorded, since a common reference subtracts that very mean (`artifactIntervals`, `analyzeArtifacts` and `toBin` read it unreferenced) |
 
-A sample is flagged overall when at least `min(MinChannels, nChan)` channels
-exceed at once (ignored for `commonmode`). Flagged runs separated by at most
+`Channels` (default: every column) lists the columns that take part: the others
+never flag a sample, never count toward `MinChannels` or enter the common mode,
+and report 0 in `channelExceedCounts`; `[]` flags nothing. The streaming
+callers (`artifactIntervals`, `analyzeArtifacts`, `toBin`) leave
+`ExcludeChannels` out this way, so a dead or broken site cannot erase a period
+on every channel.
+
+A sample is flagged overall when at least `min(MinChannels, n)` of the `n`
+channels that take part exceed at once (ignored for `commonmode`). Flagged runs separated by at most
 `MergeGapMs` of clean signal are then stitched together, and finally each run is
 padded by `PadMs` on both sides.
 
 - Default `Threshold` when not given: rms 9, mad 8, microvolts/commonmode 1500.
 - `stats` fields: `method`, `threshold`, `rmsWindowMs` (actual window after
   rounding), `minChannels`, `mergeGapMs`, `padMs`, `fraction`, `numIntervals`,
-  and `channelExceedCounts` (per channel, before the `MinChannels` combination).
+  and `channelExceedCounts` (per channel, before the `MinChannels` combination;
+  0 for the channels `Channels` leaves out).
 - `intervals` are `[k x 2]` seconds, one per flagged run, **half-open** on the
   0-based sample clock (sample `g` is at `g/Fs`): rows `a..b` give
   `[a-1, b)/Fs`, so a one-sample artifact is one sample long.
@@ -569,30 +615,42 @@ padded by `PadMs` on both sides.
 channel. `Fill` is `"zero"` (default), `"noise"`, `"hold"` (repeat the last
 clean sample; 0 if the run starts at row 1) or `"nan"`.
 
-`Fill="noise"` draws per-channel Gaussian noise instead: Kilosort4 reads a
+`Fill="noise"` replaces each flagged run, per channel, with a straight line
+from the mean of the 1 ms of clean samples before it to the mean of the 1 ms
+after it, plus Gaussian noise. A run with clean samples on one side only is
+held at that side's level; with none, at `NoiseCenter`. Kilosort4 reads a
 block of zeros across every channel as a signal discontinuity, and its
-whitening, thresholds and drift estimate all assume continuous noise. This is
+whitening, thresholds and drift estimate all assume continuous noise; a fill
+off the local level would leave a step at each edge that a sorter's high-pass
+turns into spike-like transients. This is
 what the pipeline uses (`ArtifactConfig.Fill`, default `"noise"`), for the
 manual periods as much as the detected ones. Its options:
 
 | Option | Default | Meaning |
 | --- | --- | --- |
-| `NoiseSigma` | `[]` | scalar or `[1 x nChan]` SD of the fill, in the units of `X` (microvolts). Empty: the robust SD (1.4826 x MAD) of the rows the mask leaves clean |
-| `NoiseCenter` | `[]` | scalar or `[1 x nChan]` mean of the fill. Empty: the median of those same rows |
+| `NoiseSigma` | `[]` | scalar or `[1 x nChan]` SD of the noise, in the units of `X` (microvolts). Empty: the robust SD (1.4826 x MAD) of the rows the mask leaves clean |
+| `NoiseCenter` | `[]` | scalar or `[1 x nChan]` level of a run with no clean sample on either side. Empty: the median of those same rows (of every row when there are none) |
+| `Context` | `[]` | `[k x nChan]` clean samples that came just before `X` (the end of the previous chunk of a stream): a run at `X`'s first row starts from their mean. Empty: such a run is held at the level after it |
+| `Fs` | `ds.Fs` | the rate the 1 ms is counted in |
 | `Stream` | `[]` | a `RandStream`, so a run repeats. Empty: the global stream |
 
 A `NoiseSigma`/`NoiseCenter` that is neither scalar nor one value per channel
-raises `EphysDataset:blankArtifacts:BadNoiseLevels`.
+raises `EphysDataset:blankArtifacts:BadNoiseLevels`; no sample rate,
+`EphysDataset:blankArtifacts:NoFs`; a `Context` whose columns are not the
+channels, `EphysDataset:blankArtifacts:BadContext`.
 
-**`nl = noiseLevels(Name=Value)`** measures that level over the **whole
-recording**, streaming it one chunk at a time and writing nothing. Every chunk
+**`nl = noiseLevels(Name=Value)`** measures that level over the recording,
+streaming it one chunk at a time and writing nothing: every chunk by default,
+or at most `MaxChunks` spread evenly over it. Every chunk read
 contributes its per-channel median and robust SD; the levels returned are the
-medians of those across every chunk. Both statistics are robust, so the
+medians of those across the chunks. Both statistics are robust, so the
 artifacts about to be replaced cannot inflate the noise replacing them, and no
 detection is needed here.
 
 Options: `Files`, `ChannelOrder`, `Filter` / `FilterType` / `FilterCutoff` /
-`FilterOrder` (**the band to measure in** - see below), `MaxChunkSamples`,
+`FilterOrder` (**the band to measure in** - see below), `Reference` (`true`:
+the common-referenced signal the fill sits in; `false`: the recording as
+stored), `MaxChunks` (`Inf`), `MaxChunkSamples`,
 `UseParallel` / `MaxWorkers`, `ProgressFcn`. Output fields: `sigma`
 `[1 x nChan]` and `center` `[1 x nChan]` (microvolts), `nChan`,
 `channelNames`, `nChunks`, `nSamples`, `fs`, `filtered`, `filterType`,
@@ -606,7 +664,8 @@ filters, and otherwise on a high-pass view at `ArtifactConfig.NoiseBandHz`
 
 **`summary = analyzeArtifacts(Name=Value)`** streams the whole recording, runs
 `detectArtifacts` on each chunk with `ArtifactConfig` (per-call options
-override), and accumulates statistics **without writing anything**. The GUI's
+override), and accumulates statistics **without writing anything**.
+`ExcludeChannels` take no part in the detection (0 in `channelCounts`). The GUI's
 Artifacts tab uses it for its preview. Options: `Files`, `ChannelOrder`, the
 detection parameters, `Filter` / `FilterType` / `FilterCutoff` / `FilterOrder`
 (detect on a filtered view; default from `ArtifactConfig`), `MaxChunkSamples`,
@@ -628,10 +687,12 @@ each chunk, and runs are not stitched across chunk boundaries.
 periods (seconds) that the Sorting step passes to `runKilosort`, which erases
 them in the `.bin`:
 
-- all `ManualArtifacts` (always included), plus
+- all `ManualArtifacts` (unless `IncludeManual=false`, which gives the
+  automatic detection alone, as the pipeline caches it), plus
 - automatic intervals from the same chunked detector, when
   `ArtifactConfig.Enabled` is true (or `IncludeAuto=true`). Each chunk's intervals
-  are shifted by the running sample offset.
+  are shifted by the running sample offset. `ExcludeChannels` take no part in
+  the detection.
 
 Overlapping or touching periods are merged, so an artifact that runs across a
 chunk boundary comes back as one period. Empty periods (`tEnd <= tStart`,
@@ -654,7 +715,7 @@ Every artifact period, manual or detected, is **half-open** `[t0, t1)` on that
 clock, and every route removes the same samples, `round(t0·Fs)` up to but not
 including `round(t1·Fs)`: `.bin` blanking (`toBin`, `manualArtifactMask`) and
 spike rejection in `spikesToMat` (an event at `t` is dropped when `round(t·Fs)` is
-in that range).
+in that range, found with one sorted lookup over the merged ranges).
 
 #### Default artifact configuration
 
@@ -663,7 +724,7 @@ in that range).
 | Field | Default | Meaning |
 | --- | --- | --- |
 | `Reference` | `"none"` | common reference subtracted before everything else: `"none"`, `"car"` or `"cmr"` ([above](#common-reference-car--cmr)) |
-| `ReferenceBadLow`, `ReferenceBadHigh` | `0.3`, `2` | noise-floor band, as a multiple of the mean across channels, outside which `suggestReferenceExclude` leaves a channel out of the reference |
+| `ReferenceBadLow`, `ReferenceBadHigh` | `0.3`, `2` | noise-floor band, as a multiple of the median across channels, outside which `suggestReferenceExclude` leaves a channel out of the reference |
 | `Enabled` | `false` | `toBin` blanks, and `artifactIntervals` includes auto detections, only when true |
 | `Method` | `"rms"` | detector method |
 | `Threshold` | `9` | robust SDs (µV for microvolts/commonmode) |
@@ -750,8 +811,7 @@ two events closer than `MinPeriodMs`.
 
 **Timestamps** are `t = (row − 1)/Fs + TimeOffset`: the convention used by
 `readData`'s `t` vector and by Kilosort/phy sample indices, and one sample
-earlier than the `t = row/Fs` convention of `detectArtifacts` intervals and
-digital-input events. `info.index` holds the 1-based rows of `X`.
+earlier than the `t = row/Fs` convention of digital-input events. `info.index` holds the 1-based rows of `X`.
 
 #### Whole-recording mode
 
@@ -783,9 +843,9 @@ whole recording.
 | `Files` | all | subset/order of `*.rhd` files (traditional format only); timestamps stay relative to the first sample read |
 | `ChannelOrder` | all | 1-based reorder/subset of amplifier channels, applied to every chunk (as in `toBin`) |
 | `MaxChunkSamples` | `streamPlan` default | cap on samples per chunk for the split and binary formats |
-| `UseParallel` | `false` | detect the chunks on a process pool (Parallel Computing Toolbox): the open one, else one sized to the worker cap. Identical result; falls back to serial with `EphysDataset:detectSpikes:SerialFallback` when the toolbox, the pool or a chunk's sample count is missing, when a thread pool is open, or when memory allows fewer than two workers |
+| `UseParallel` | `false` | detect the chunks on a process pool (Parallel Computing Toolbox): the open one, else one sized to the worker cap. Identical result; falls back to serial with `EphysDataset:detectSpikes:SerialFallback` when the toolbox, the pool or a chunk's sample count is missing, when a thread pool is open, or when memory allows fewer than two workers. A worker reads its chunk's context with `readWindowUV` when the plan's chunks follow each other in the recording (every built-in reader supports it); a `Files` list that skips or reorders files gives it the previous listed chunk, as the serial loop does |
 | `MaxWorkers` | `NaN` (automatic) | cap on chunks in flight at once; always limited by free memory (about six copies of one chunk per worker), so a 12-worker pool typically runs 4-5 chunks at a time |
-| `EdgePadMs` | `10` | context carried across chunk boundaries; always at least the waveform window, the alignment window and the minimum detection period |
+| `EdgePadMs` | `10` | context carried across chunk boundaries; always at least the waveform window, the alignment window, the minimum detection period and, when filtering, 4 periods of `Band(1)`, over which the band-pass settles (40 ms at 100 Hz) |
 | `ProgressFcn` | none | `ProgressFcn(i, nChunks, chunkName)`: before each chunk (serial), or on the client as each chunk finishes (parallel; `i` = chunks done). Throwing from it aborts the run and cancels the outstanding chunks |
 
 Passing any of these with a data block raises
@@ -797,7 +857,9 @@ the whole recording.
 enough to characterize the noise (a second or more) and expect chunk-to-chunk
 variation if you stream. Non-finite samples (for example NaN from
 `blankArtifacts(Fill="nan")`) are excluded from the estimates and never cross
-threshold. A channel whose threshold works out non-positive or non-finite (flat
+threshold; the band-pass runs on a straight line across them (held flat at the
+ends), so they do not ring into their neighbours, and they are `NaN` again in
+the filtered trace. A channel whose threshold works out non-positive or non-finite (flat
 or empty signal) gets `Inf` instead, so nothing is detected there rather than
 everything; it is flagged in `info.degenerate` and warned about
 (`EphysDataset:detectSpikes:DegenerateThreshold`).
@@ -849,15 +911,19 @@ seen on several channels is detected once per channel.
 override). The file has no header, is little-endian, and has the channel index
 varying fastest. It holds one chunk in memory at a time. Per chunk, in order:
 
-1. read µV (`readChunkUV`);
+1. read µV (`readChunkUV`; for `"commonmode"` detection the common mode of the
+   channels that take part is taken before the reference is subtracted);
 2. check the channel count (error `EphysDataset:toBin:ChannelMismatch` if it
    changes);
 3. reorder/subset (`ChannelOrder`);
 4. filter, if `Filter=true` (default **off**; Kilosort4 filters internally);
-5. auto-detect and erase artifacts, if `Blank=true` **or**
-   `ArtifactConfig.Enabled`, and no `ArtifactIntervals` list is given;
-6. erase `ArtifactIntervals` when given, else `ManualArtifacts` (mapped with the
-   running sample offset);
+5. find the samples to erase: the automatic detector's, if `Blank=true` **or**
+   `ArtifactConfig.Enabled` and no `ArtifactIntervals` list is given
+   (`ExcludeChannels` take no part), and those of `ArtifactIntervals` when
+   given, else of `ManualArtifacts` (mapped with the running sample offset);
+6. erase them in one pass (`blankArtifacts`); a period cut by a chunk boundary
+   is held at the level before it up to the boundary and continues from there
+   in the next chunk;
 7. compute `scale × x + Offset`, count out-of-range samples, cast, write.
 
 | Option | Default |
@@ -871,21 +937,28 @@ varying fastest. It holds one chunk in memory at a time. Per chunk, in order:
 | `ArtifactIntervals` | `NaN`: `ManualArtifacts` plus detection as above. A `[k x 2]` list of seconds replaces both, and `[]` erases nothing. `runKilosort` passes its intervals here |
 | `ArtifactFill` | `""`: `ArtifactConfig.Fill` (`"noise"`). `"zero"` writes zeros instead |
 | `NoiseBandHz`, `NoiseSeed` | `NaN`: `ArtifactConfig.NoiseBandHz` / `.NoiseSeed` |
-| `NoiseLevels` | `struct([])`: measured by `noiseLevels()` in one extra streaming pass before the writing one. Pass measured ones (`sigma`, `center`) to skip it |
+| `NoiseLevels` | `struct([])`: measured by `noiseLevels(MaxChunks=16)` before the writing pass, on up to 16 chunks spread evenly over the recording (within about 1% of the whole recording's level). Pass measured ones (`sigma`, `center`) to skip it |
 | `WriteMeta` | `true` (writes a `<name>.json` sidecar next to the `.bin`) |
-| `BinFile` | `ds.BinFile` |
+| `BinFile` | `ds.BinFile`; a bare file name goes in `outputFolder()` |
 
 With the default scale `1/0.195`, µV are converted back to native int16 ADC
 units. For integer dtypes, values outside the class range are **clipped** by the
 cast. Clipping is counted (`info.nClipped`) and reported by a warning
 (`EphysDataset:toBin:Clipping`).
 
-A noise fill costs **one extra pass over the recording** (`noiseLevels`) before
-the writing pass, and only when the call has something to erase (the detector
+A noise fill first reads up to 16 chunks spread over the recording
+(`noiseLevels`), and only when the call has something to erase (the detector
 is on, or a period list is in effect). The level is
 measured once for the whole file and one seeded `RandStream` (`NoiseSeed`)
 draws every period, so the same recording and settings write the same `.bin`
 byte for byte.
+
+`toBin` never writes over the recording: a `BinFile`, or its JSON sidecar, that
+is one of the recording's own files is refused before anything is opened
+(`EphysDataset:toBin:WouldOverwriteRecording`). `BinFile` is therefore
+`<outputFolder>/<Name>.bin`, or `<Name>_ks4.bin` when `<Name>.bin` or
+`<Name>.json` there is one of the recording's files (a universal-format
+recording whose data file is `<Name>.bin`, with its outputs next to it).
 
 `info` fields: `filename`, `dtype`, `nChan`, `nSamples`, `fs`, `scale`,
 `offset`, `byteOrder`, `nClipped`, `nManualArtifacts`, `nManualBlanked`,
@@ -901,7 +974,9 @@ byte for byte.
 `Scale`/`Dtype`/`Fs`. Options: `BinFile`, `Scale`, `Offset`, `Dtype`, `Fs`,
 `ChannelOrder`, `ChannelsAreRows`, `WriteMeta`. The code comments state that,
 for the same data and options, it produces a file byte-identical to `toBin`;
-`test_EphysDataset` section 4 checks this.
+`test_EphysDataset` section 4 checks this. Like `toBin`, it refuses a
+`BinFile` or sidecar that is one of the recording's own files
+(`EphysDataset:matrixToBin:WouldOverwriteRecording`).
 
 ### Running Kilosort4
 
@@ -922,7 +997,9 @@ It launches Python through `system()` (not MATLAB's `pyenv`) as either
   later. `EphysPipeline.runSorting` waits for a free slot in between, and the
   app's monitor starts queued runs this way
   ([Background Kilosort4 runs](EphysPipeline.md#background-kilosort4-runs));
-- deletes any stale `ks4_status.json` and `ks4_exit.txt` before launching;
+- moves an earlier sort's curation out of the results folder and deletes any
+  stale `ks4_status.json` and `ks4_exit.txt` before launching (`launchSorting`,
+  below);
 - supports blocking (`Wait=true`, default) or detached background (`Wait=false`)
   execution.
 
@@ -936,6 +1013,22 @@ calls it itself unless `Launch=false`.
 | `Wait` | `true`: block until Kilosort4 finishes; `false` launches it detached |
 | `Device` | `""`: the torch device for this run (`"cuda:0"`, `"cuda:1"`, `"cpu"`), passed to the driver as `--device`. It overrides a `torch_device` in the run's settings. `""` leaves the device to those settings, or to Kilosort4 (the first GPU) |
 
+Kilosort4 overwrites its own output in the results folder but not the curation
+of an earlier sort there, and its cluster ids start again at 0, so that sort's
+notes and phy labels would land on unrelated units. Before a run they are moved
+into `<resultsDir>\previous_<yyyyMMdd_HHmmss>` (never deleted;
+`result.previousDir`): `cluster_notes.tsv`, phy's `cluster_group.tsv` (header
+`cluster_id<TAB>group`; Kilosort4's own copy of `cluster_KSLabel.tsv` stays),
+`cluster_info.tsv`, any other `cluster_*.tsv` but Kilosort4's `cluster_KSLabel`
+/ `ContamPct` / `Amplitude`, and phy's `.phy` cache. When a file cannot be moved
+(phy has the folder open), those already moved go back and
+`EphysDataset:launchSorting:SetAsideFailed` is thrown before anything starts.
+
+On Windows a background run is started through a batch file written to the run
+folder, `<runDir>\ks4_launch.cmd`, so paths with `&` or `^` in them work. A
+launch that fails writes the exit marker (so the slot frees) and throws
+`EphysDataset:launchSorting:LaunchFailed`.
+
 `[stopped, message] = EphysDataset.stopSortRun(statusFile)` stops a
 background run that is going. Every process whose command line names the run
 folder's driver (the launcher's `cmd.exe`, conda, Python) is ended with its
@@ -948,7 +1041,8 @@ What Kilosort4 wrote so far stays. A blocking run cannot be stopped this way.
 `launchSorting` errors on a dry run's result (`EphysDataset:launchSorting:DryRun`) and on a
 device that `EphysDataset.isTorchDevice` rejects (only `cpu`, `mps`, `cuda`
 and `cuda:N`). It returns the result with `command` (as run, `--device`
-included), `status`, `wait`, `background`, `device` and `launched` (`true`)
+included), `status`, `wait`, `background`, `device`, `launched` (`true`) and
+`previousDir` (`""` when there was nothing to move)
 set, and adds a `launchSorting` entry to the manifest.
 
 In blocking mode, output is captured and written to `ks4_run.log` after the
@@ -973,7 +1067,16 @@ artifact intervals (`ArtifactIntervals`, else `artifactIntervals()`) as
 writes `settings.json` and a copy of
 [`run_ks4.py`](../pipeline/@EphysDataset/run_ks4.py) into `ResultsDir` (default
 `kilosortDir()`) and calls `kilosort.run_kilosort`. The phy output lands
-directly in that folder.
+directly in that folder. A dry run writes no `.bin` and puts its
+`settings.json` and `run_ks4.py` only into `<ResultsDir>\dryrun`
+(`result.runDir`), never over the files of a run already there, which record
+how its results were made; its `settings.json` still names `ResultsDir` as
+`results_dir`.
+
+`settings.json` also records `bin_scale`, the `.bin`'s units per µV (`Scale`
+when this call writes the `.bin`, else the sidecar's `scale`), which
+`readPhyUnits` needs to give templates in µV; `run_ks4.py` does not pass it to
+Kilosort4.
 
 - Kilosort4 high-passes and references (`do_CAR`) the `.bin` itself.
 - Computing `ArtifactIntervals` with `ArtifactConfig.Enabled` scans the **whole
@@ -1000,15 +1103,17 @@ directly in that folder.
   (`false` writes the `.bin` and `settings.json` and returns; see
   `launchSorting`).
 - `result` fields: `status`, `command`, `driverCommand`, `stdoutLog`,
-  `scriptPath`, `settingsPath`, `resultsDir` and `runDir` (the same folder),
+  `scriptPath`, `settingsPath`, `resultsDir` (where Kilosort4 writes its
+  output), `runDir` (the folder holding `settings.json` and `run_ks4.py`:
+  `resultsDir`, or `resultsDir\dryrun` for a dry run),
   `binFile`, `probeFile`, `excludeChannels`, `nExcludedChannels`, `dryRun`,
-  `wait`, `statusFile`, `background`, `device`, `launched`.
+  `wait`, `statusFile`, `background`, `device`, `launched`, `previousDir`.
 
 #### Channel exclusions
 
 `ExcludeChannels` holds 1-based indices of the recording's amplifier channels
 (the `.bin` row order). `runKilosort` writes `<probe>_excluded.json` into the
-results folder with every probe site whose `chanMap + 1` is in the list removed
+run folder (`result.runDir`) with every probe site whose `chanMap + 1` is in the list removed
 from `chanMap`, `xc`, `yc` and `kcoords`. `n_chan` is unchanged (it equals
 `n_chan_bin`), the channels stay in the `.bin`, and the original probe file is
 not modified. There is no automatic bad-channel detection.
@@ -1022,7 +1127,9 @@ not modified. There is no automatic bad-channel detection.
   `SortingDir` when set (a folder you chose, anywhere; the GUI's **Use
   folder...**), else `kilosortResultsDir()`. The manifest records it as
   `sorting` with `source` `"manual"` / `"auto"`, and a manual folder is
-  restored on the next scan as long as its `params.py` still exists.
+  restored on the next scan as recorded, even while it is not there (a disk
+  that is not connected): `sortingMissing()` is then true, and the steps that
+  read sorted units report it missing instead of using another sort.
 - `hasPhyOutput()` is true when that folder has `params.py`;
   `hasKilosortResults()` when it has `spike_clusters.npy`.
 - `EphysDataset.resolvePhyDir(folder)` (static) returns `folder` when it holds
@@ -1059,26 +1166,34 @@ so they agree on labels, times, channels and notes.
 | `group` | the phy / Kilosort label as written (`good` / `mua` / `noise` / `unsorted` / other) |
 | `notes` | text from `cluster_notes.tsv` next to the sort (`""` when none); see [Unit notes](#unit-notes) |
 | `subject`, `recordingStart`, `datasetKey` | the recording the unit came from (`""` / `NaT` / `""` without an `Identity`) |
-| `channel`, `channelName`, `channelNumber` | 1-based peak **recording** channel, its native name (`"A-012"`, `"CH13"`; `""` without `ChannelNames`) and its hardware number (`NaN` without `ChannelNumbers`) |
+| `channel`, `channelName`, `channelNumber` | 1-based peak **recording** channel, its native name (`"A-012"`, `"CH13"`; `""` without `ChannelNames`) and its hardware number (`NaN` without `ChannelNumbers`; not the probe `chanMap` value, which is `channel − 1`, the `.bin` row) |
 | `ksChannel` | peak channel among the sorted channels |
 | `shank` | from `channel_shanks.npy` (0 when absent) |
 | `peakX`, `peakY` | site position of the peak channel (probe units, µm) from `channel_positions.npy` |
 | `x`, `y` | template centre: site positions weighted by the template's peak-to-peak amplitude, over the channels on the peak channel's shank with at least 25% of the peak amplitude (`NaN` without templates or positions) |
 | `nSpikes`, `samples`, `times` | spike count, 0-based int64 samples, `samples / fs` (recording-relative) |
-| `amplitude`, `contamPct` | `cluster_Amplitude.tsv` (else median `amplitudes.npy`), `cluster_ContamPct.tsv` |
-| `templateWaveform`, `templateFull`, `templateTimeMs` | peak-channel template (unwhitened when possible, scaled by the median amplitude), every channel's template (`FullTemplates`), time axis |
+| `amplitude`, `contamPct` | `cluster_Amplitude.tsv` (else median `amplitudes.npy`; Kilosort4's units, from the whitened data), `cluster_ContamPct.tsv` |
+| `templateWaveform`, `templateFull`, `templateTimeMs` | peak-channel template: `templates.npy`, Kilosort4's mean of the unit's spikes in the high-passed, whitened data it sorted, unwhitened with `whitening_mat_inv.npy` transposed and not scaled by the amplitude; every channel's template (`FullTemplates`); time axis |
+| `templateUnits` | what the template values are: `"uV"` (unwhitened and divided by the `.bin`'s units per µV, `bin_scale` in the run's `settings.json`), `"bin"` (unwhitened, in the `.bin`'s units: no `bin_scale`), `"whitened"` (as Kilosort4 stores them: no usable `whitening_mat_inv.npy`) or `""` (no templates read). Unwhitened templates also undo Kilosort4's `scale` and `invert_sign` settings |
 
 Plus per-run scalars `fs`, `resultsDir`,
-`groupSource` (`"phy"` when `cluster_group.tsv` exists, else `"kilosort"` from
-`cluster_KSLabel.tsv`, else `"none"`), `curated`, `labelFile`, `durationSec`,
+`groupSource` (`"phy"` only when `cluster_group.tsv`'s header is
+`cluster_id<TAB>group`, as phy writes it; `"kilosort"` for Kilosort's own call,
+`cluster_KSLabel.tsv`, which Kilosort4 also copies to `cluster_group.tsv` with
+the header `cluster_id<TAB>KSLabel`; else `"none"`), `curated` (`groupSource`
+is `"phy"`), `labelFile`, `durationSec`,
 `nChannelsSorted`, `channelMap`, `channelMapSource` (`"manual"`,
 `"channel_map.npy"` or `"identity"`), `readAt`. A second output carries the
 per-spike arrays for plotting. Error identifiers:
 `EphysDataset:readPhyUnits:NoResultsDir` / `NoOutput` / `NoSampleRate` /
 `Mismatch` / `NoClusterLabels` / `NoGroupMatch` / `BadIdentity`.
 
-Raw waveforms at the sorted spike times are not extracted; `templateWaveform`
-is the template. [`unitTable`](../pipeline/unitTable.m) turns one or more
+The spikes are grouped by unit once, and the `.tsv` tables are parsed
+directly rather than through `readtable`, so a large sort reads quickly. Raw
+waveforms at the sorted spike times are not extracted; `templateWaveform`
+is the template. A new sort of the same folder sets the earlier sort's unit
+notes and phy labels aside (`launchSorting`, above).
+[`unitTable`](../pipeline/unitTable.m) turns one or more
 `units` structs or saved files into a table (see
 [Unit labels](EphysPipeline.md#unit-labels)).
 
@@ -1113,7 +1228,7 @@ su042_1255_260908T1039
   `readSortedUnits` calls it before reading any sorter output, so units are
   never written without their recording.
 - The recording time comes from the name (Intan RHX names files from the
-  recording start), not from `AcqDate`, which is a file time.
+  recording start), not from `AcqDate`.
 - Two recordings of one subject that start in the same minute would share
   labels. `EphysProject.unitIdentities` reports them as `collision`, and the
   pipeline's `plan()` stops the steps that would write those units.
@@ -1136,6 +1251,14 @@ Notes column of the app's Review tab; every read picks them up as
 
 **`[Y, ev, info] = deriveSignals(Name=Value)`** reads the whole recording through
 `readData` (single precision; any layout) and derives the requested signals.
+The MUA and spike-band filters run in double through `filterContinuous`, a
+block of channels at a time, into single outputs. Bad channels (`badChannels`,
+columns of the kept data) are interpolated from the probe geometry
+(`channelLayout`) of the `probeFile` option, else of `ProbeFile`;
+`EphysPipeline` passes the probe it sorts with, so a dataset without a probe
+of its own uses the config's default probe. `labelField`, `lineNames` and
+`invertedLines` default to the dataset's `TrialConfig`. Row k of a signal is at
+`(k − 1) / info.<type>.Fs`, and `info.<type>.nSamples` is its row count.
 `intan2matlab` is a thin wrapper around it. The full option list, processing
 order and outputs are documented in [intan2matlab.md](intan2matlab.md).
 
@@ -1149,14 +1272,14 @@ per-type file has the same variables, with `Y` / `info` holding only its signal.
 | --- | --- |
 | `File` | `<outputFolder>/<Name>_extract.mat` (the base name when `SeparateFiles`) |
 | `SeparateFiles` | `false`: one file; `true`: one file per signal type |
-| `SignalOptions` | `struct()`: `deriveSignals` options |
+| `SignalOptions` | `struct()`: `deriveSignals` options (omitted `labelField`, `lineNames` and `invertedLines`: `TrialConfig`) |
 | `MatVersion` | `"-v7.3"` (or `"-v7"`) |
 | `Overwrite` | `false`: error `EphysDataset:toMat:Exists` if any output file exists |
 | `ProgressFcn` | none: `ProgressFcn(nDone, nTotal, message)`, with the save counted as one extra step |
 
-`out` fields: `file` and `bytes` (one per file written), `seconds`, `matVersion`, `recordingFormat`,
+`out` fields: `file`, `types` (the signal type(s) in each file) and `bytes` (one per file written), `seconds`, `matVersion`, `recordingFormat`,
 `origFs`, `signals` (name, nSamples, nChannels, class, Fs), `events` (name,
-count), `badChannels`.
+count), `badChannels` (the columns interpolated; `info.badChannels` says how).
 
 **`EphysDataset.saveAtomically(file, S, matVersion)`** (static) is the writer
 behind `toMat`, `spikesToMat`, `behaviorToMat` and both exporters: the struct's fields are
@@ -1195,12 +1318,15 @@ per channel), `units`, `conversion`. Sources not requested are
 the derived signals as `LFP` / `MUA` / `SPIKE` structs (`data`, `params`, `t`,
 `labels`, `info`, built by [`ChronuxDataset.continuous`](ChronuxDataset.md)),
 the sorted units as `sp` (the `mtspectrumpt` input form) and detected spikes
-as `spDetected`, plus `units`, `detected`, `events` and `export`.
-No Chronux function is called.
+as `spDetected`, plus `units`, `detected`, `events` (`t = row/eventFs` on the
+recording's clock) and `export` (provenance, with `eventFs`, the recording
+rate, and `timeConventions`). No Chronux function is called.
 
 **`out = exportFieldTrip(Name=Value)`** writes
 `<outputFolder>/<Name>_fieldtrip.mat` with FieldTrip raw / spike / event
-structures built by [`FieldTripExport`](FieldTripExport.md). FieldTrip is
+structures built by [`FieldTripExport`](FieldTripExport.md); each `data_<SIG>`
+carries its events at its own rate in `cfg.event`, each onset on the signal's
+sample nearest its recording row. FieldTrip is
 never required; with `Validate=true` (default) the structures are checked with
 `ft_datatype_raw` / `ft_datatype_spike` when FieldTrip is on the path.
 
@@ -1213,11 +1339,12 @@ The Chronux and FieldTrip exporters take the same options:
 | Option | Default | Meaning |
 | --- | --- | --- |
 | `File` | `<Name>_chronux.mat` / `<Name>_fieldtrip.mat` | target |
-| `Extract` | `<outputFolder>/<Name>_extract.mat`, else the `<Name>_extract_<TYPE>.mat` files present | other extract file(s) (several are merged), or a `toMat`-shaped struct (`Y`, `events`, `info`) |
-| `Signals` | all present | subset of `["LFP" "MUA" "SPIKE"]` |
+| `Extract` | `<outputFolder>/<Name>_extract.mat`, else the `<Name>_extract_<TYPE>.mat` files present | other extract file(s) (several are merged; with `Signals`, the per-type files of other signals are not read), or a `toMat`-shaped struct (`Y`, `events`, `info`) |
+| `Signals` | all present | subset of `["LFP" "MUA" "SPIKE" "AUX"]` |
 | `Units` | the associated sorted units | a units struct, or `false` |
 | `Groups` | `["good" "mua"]` | phy labels kept when reading units |
 | `Detected` | `<Name>_spikes.mat` when present | a spikes file, a `detected` struct, or `false` |
+| `Sources` | `struct()` | provenance to record for inputs passed as structs (`extractFile`, `spikesFile`, `sortingDir`); what is read from files replaces it. `EphysPipeline.runExport` reads a dataset's inputs once and passes them to every format this way |
 | `Events` | `true` | include the digital-input events |
 | `Overwrite`, `MatVersion` | `false`, `"-v7.3"` | |
 
@@ -1242,8 +1369,8 @@ that runs past the recording is padded with `NaN` and flagged.
 
 | Field of `E` | Contents |
 | --- | --- |
-| `event` | `source` (`"line"` / `"behavior"` / `"times"`), `name`, `window`, `onsetRule`, `nEpochs`, `onsets` / `offsets` / `durations`, `recordingRange` (+ its source), `lines`, what the selection dropped, and `pairingStatus` for the behavior source |
-| `trials` | table, one row per epoch: `EpochIndex`, `EpochOnset`, `EpochOffset`, `EpochDuration`, `EpochComplete`, plus `EventIndex` (row in the line's event list) or `BehaviorRow` and every behavior trial column |
+| `event` | `source` (`"line"` / `"behavior"` / `"times"`), `name`, `window`, `onsetRule`, `eventFs` (the recording rate, the clock the event times count rows of), `nEpochs`, `onsets` / `offsets` / `durations`, `recordingRange` (+ its source), `lines`, what the selection dropped, and `pairingStatus` for the behavior source |
+| `trials` | table, one row per epoch: `EpochIndex`, `EpochOnset`, `EpochOffset`, `EpochDuration`, `EpochComplete` (the window lies inside the recording and inside every signal's rows, so no sample of the epoch is `NaN` padding), plus `EventIndex` (row in the line's event list) or `BehaviorRow` and every behavior trial column |
 | `signals` | one struct per signal: `data` `[nTime x nEpochs x nChan]`, `t` (seconds relative to the onset), `fs`, `labels`, `units`, `nIncomplete`, `nNonFinite`, `info` (`keptTrials` names the epochs the data holds) |
 | `units` | `1 x nUnits`: `id`, `label`, `class`, `group`, `channel`, `channelName`, `times` (`1 x nEpochs` cell), `counts` |
 | `detected` | the same per detected channel (`channel`, `channelName`, `times`, `counts`), or `[]` |
@@ -1255,24 +1382,27 @@ that runs past the recording is padded with `NaN` and flagged.
 | `EventLine` | `""` | the line; blank uses `TrialConfig.TrialLine` when the extract has it, else the only line |
 | `Behavior` | `<Name>_behavior.mat`, else the associated session with its recorded pairing | a behavior file or a `behaviorStruct`; a pairing that is not approved warns (`EphysDataset:eventEpochs:PairingNotApproved`) |
 | `Window` | `[-0.2 0.5]` | `[tPre tPost]` seconds around the onset |
-| `OnsetRule` | `"event"` | `"event"` / `"sample"`, as in `ChronuxDataset.trials` |
+| `OnsetRule` | `"event"` | `"event"` / `"sample"`, as in `ChronuxDataset.trials`: `"event"` puts an onset on row `round((t − 1/eventFs)·Fs) + 1` of each signal, the sample nearest its recording row |
 | `Incomplete` | `"nan"` | window past the recording: pad with `NaN`, `"drop"` or `"error"` |
 | `NonFinite` | `"keep"` | epoch with `NaN`/`Inf` samples (blanked artifacts): keep, `"drop"` or `"error"` |
 | `SpikeTimeBase` | `"onset"` | `"onset"` (0 at the event), `"window"` (0 at the window start), `"absolute"` |
 | `Class` | `"double"` | `"single"` / `"asis"` for the epoched samples |
 | `MinDurationSec`, `MaxDurationSec` | `0`, `Inf` | pulse-length filter for the `"line"` source |
-| `Extract`, `Signals`, `Units`, `Groups`, `Detected`, `Events` | as above | |
+| `Extract`, `Signals`, `Units`, `Groups`, `Detected`, `Sources`, `Events` | as above | |
 | `File`, `Overwrite`, `MatVersion` (`exportEpochs`) | `<Name>_epochs.mat`, `false`, `"-v7.3"` | |
 
 With `Incomplete="drop"` or `NonFinite="drop"` a signal holds fewer epochs than
 the trials table has rows, and its `info.keptTrials` names the rows it kept;
-the spike epochs always cover every row.
+the spike epochs always cover every row. With `OnsetRule="event"` the spikes
+are cut around the onset's recording row, `(row − 1)/eventFs` on the spikes'
+clock, so a spike in the onset's own sample is at 0.
 
 This is the data itself, organized by event, for an analysis of your own. For
 quick-look figures from the same alignment — PSTHs, evoked potentials, tuning,
 with trial filtering and grouping — use
 [`analysis`](EphysAnalysis.md#event-reference-window-selection), whose
-`epochTable` indexes signals with the same event rule (`round(t*Fs)`).
+`epochTable` indexes signals with the same event rule
+(`round((t − 1/eventFs)·Fs) + 1`).
 
 ```matlab
 E = ds.eventEpochs(EventSource="behavior", Window=[-0.2 0.5]);
@@ -1285,13 +1415,18 @@ raster = E.units(3).times(hit);                           % spike times per tria
 
 - `BehaviorFile` is the associated session `.mat` (set by the GUI, by
   `EphysPipeline.checkBehavior`, by a scan, or by hand); it is recorded in the
-  manifest (`behavior`: `file`, `subject`, `start_time`, `n_trials`) and
-  restored on the next scan if the file still exists.
+  manifest (`behavior`: `file`, `exists`, `subject`, `start_time`, `n_trials`)
+  and restored on the next scan as recorded, even while the file is not there
+  (the behavior step then reports `behavior file missing`, and pairs and writes
+  nothing).
 - `tf = associateFolderBehavior()` sets `BehaviorFile` when none is associated
-  (or its file is gone) and the recording folder holds exactly one Epsych2
+  (a recorded one is kept even while its file is not there) and the recording
+  folder holds exactly one Epsych2
   session file at its top level (`findEpsychSessions(Folder, Recursive=false)`).
   That is where the app's Copy tab puts a session's ePsych file, or its
-  stitched file. With none or several it changes nothing. `EphysProject.refresh`
+  stitched file. With none or several it changes nothing; several warn
+  (`EphysDataset:associateFolderBehavior:SeveralBehaviorFiles`), naming them,
+  since a session folder is meant to hold one. `EphysProject.refresh`
   calls it after `applyManifest`, so a scan associates copied sessions without
   any `Behavior.SearchDirs`. The behavior, signals, spikes and export outputs
   do not hold `Data` and `Info`, so they are never taken for a session.
@@ -1310,7 +1445,8 @@ raster = E.units(3).times(hit);                           % spike times per tria
 - `E = digitalEvents(LabelField=, LineNames=, Relabel=true, Cache=true, Refresh=false, ProgressFcn=)`
   returns the dig-in `events` (high runs), `Fs`, `nSamples`, `digInNames`
   (the final line names), `digInNativeNames` and `digInDefaultNames` (the
-  names without `LineNames`) through `EphysReader.readDigitalEvents`. The
+  names without `LineNames`) through `EphysReader.readDigitalEvents` (the
+  built-in readers decode only the digital inputs, with bounded memory). The
   reader's native-keyed result is cached as `<outputFolder>/<Name>_events.mat`
   (keyed by the reader, the files and the sample count) and the lines are
   named after loading, so renaming a line never re-reads the recording.
@@ -1351,26 +1487,43 @@ is in [file-formats.md](file-formats.md#dataset-manifest).
 
 - `manifestFile()` returns the path.
 - `manifestStruct()` builds the snapshot: metadata, reader, probe, exclusions,
-  manual artifact periods, `.bin` state, the latest Kilosort4 run from
-  `tracker()`, the sorted-output association (`sortingStruct()`), the behavior
-  association (`behaviorManifest()`).
-- `writeManifest()` writes it atomically (`writeJsonFile`). Failures only warn
-  (`EphysDataset:writeManifest:Failed`).
-- `applyManifest()` restores `ProbeFile` (if the file still exists),
+  manual artifact periods, `.bin` state, the Kilosort4 run in `kilosortDir()`
+  (`DatasetTracker.kilosortRunAt`), the sorted-output association
+  (`sortingStruct()`), the behavior association (`behaviorManifest()`). The
+  associations (probe, sorting, behavior) are written as recorded, with
+  `exists` saying whether their file or folder is there now.
+- `tf = writeManifest()` writes it atomically (`writeJsonFile`); `tf` is true
+  when it did. A manifest file it cannot read (not JSON, or an unknown schema
+  such as a newer version's) is never replaced: it warns
+  (`EphysDataset:writeManifest:Kept`) and leaves the file for you to fix or
+  delete. Other failures only warn (`EphysDataset:writeManifest:Failed`).
+- `[tf, why] = applyManifest()` restores `ProbeFile`,
   `ExcludeChannels`, `ReferenceExclude` with its `ReferenceExcludeSource`
-  (`reference_exclude`), `ManualArtifacts`, a manual `SortingDir` (if its
-  `params.py` still exists) and `BehaviorFile` (if the file exists). Header
+  (`reference_exclude`), `ManualArtifacts`, a manual `SortingDir`,
+  `BehaviorFile` and `TrialPairing`. The probe, sorting folder and behavior
+  file are restored as recorded even while they are not there (an unplugged
+  disk, a share that is down): the steps then report them missing rather than
+  use something else, and the next `writeManifest` keeps them. `why` says why
+  a manifest was ignored (`"not valid JSON"`, `"unknown schema ..."`; warnings
+  `EphysDataset:applyManifest:Unreadable` / `:Schema`). Header
   metadata is always re-parsed. `ArtifactConfig` is not stored
   here; they belong to the [pipeline config](EphysPipeline.md). Schema `/1`
   manifests (probe + exclusions only) are still read.
+- `[m, why] = EphysDataset.readManifest(file)` (static) decodes a manifest, or
+  says why it cannot be used (`"missing"`, `"not valid JSON"`,
+  `"unknown schema ..."`).
 
 ### Probe layout
 
 ```matlab
 L = ds.channelLayout();
+L = ds.channelLayout(ProbeFile=f);   % another probe: the one used when the dataset has none
 ```
 
-Places the amplifier channels on the probe in `ProbeFile`. A Kilosort4 probe
+Places the amplifier channels on the probe in `ProbeFile`, or in the file
+given with `ProbeFile=` when it is not `""`: the probe a dataset is used with
+when it has none of its own (the pipeline config's default,
+`EphysPipeline.probeFor`). A Kilosort4 probe
 `.json` gives `chanMap`, `xc`, `yc` and `kcoords`. The result has one entry
 per channel, in recording order (the columns `readWindowUV` and `readChunkUV`
 return):
@@ -1383,11 +1536,15 @@ return):
 | `order` | `[1 x nChan]` the channels as they sit on the probe: by shank, then from the top of the shank down (`yc` descending, as the Probe tab draws it), then left to right. Channels not on the probe come last, in recording order |
 | `shanks` | the shanks holding at least one channel, ascending |
 
-`chanMap` values are hardware channel numbers (`ChannelNumbers`, or `0..nChan-1`
-when those are unknown), so a recording that skips channels still lands on the
-right sites. Without a usable probe, every channel is off it and `order` is
-`1:nChan`. The file is read on every call. The app's Artifacts tab uses this
-to draw its lanes in probe order.
+`chanMap` values are `.bin` rows, 0-based: channel `c` (in recording order)
+sits at the site whose `chanMap` value is `c − 1`, as Kilosort4 and
+`readPhyUnits` read the probe, whatever the hardware numbers
+(`ChannelNumbers`). A recording with a channel disabled at acquisition needs a
+probe that accounts for the gap, as for sorting. Without a usable probe, every
+channel is off it and `order` is `1:nChan`. The file is read on every call. The app's Artifacts tab uses this
+to draw its lanes in probe order (a dataset without a probe on the config's
+default probe), and `deriveSignals` to place the bad channels it
+interpolates.
 
 ### Other helpers
 
@@ -1400,8 +1557,14 @@ to draw its lanes in probe order.
 | `EphysDataset.parseLineNames(list)` | `[natives, names]` of `"native=name"` entries (static) |
 | `EphysDataset.resolveFilterOptions(cfg, opts)` | filter options merged over an `ArtifactConfig` (static) |
 | `ds.noiseLevels()` | per-channel noise level of the whole recording, for the artifact fill |
-| `EphysDataset.parseChannelList(s)` | sorted, unique, positive integer row vector from `"1,3,5-8"`, `"1 3 5:8"` or a numeric vector. Hyphens become colons and the text goes through `str2num` |
+| `EphysDataset.parseChannelList(s)` | sorted, unique, positive integer row vector from a numeric vector or text of numbers and ranges separated by commas, semicolons or spaces, optionally in brackets: `"1 2 5-8"`, `"[1:4 9]"`, `N-M` / `N:M`, `N:S:M` (step `S`). The text is parsed, never evaluated; anything not of that form gives `[]` |
 | `EphysDataset.formatChannelList(ch)` | compact `"1,3,5-8"` string |
+| `ds.isRecordingFile(files)` | whether any of the full paths is one of the recording's own files (see `BinFile`) |
+| `ds.isOwnSource(folder)` | whether the source folder an output recorded (its provenance's `sourceFolder`, a sidecar's `source_folder`) is this recording's: `Folder`, or a path ending with `DatasetKey`, so outputs still count after the project moved; false for another recording with the same name |
+| `ds.sortingMissing()` | true when a hand-picked `SortingDir` holds no `params.py` now |
+| `EphysDataset.phyCurated(resultsDir)` | true when phy saved the unit labels there: `cluster_group.tsv` with the header `cluster_id<TAB>group` (static) |
+| `EphysDataset.pathKey(p)` | paths as comparable keys: `/` separators, no trailing separator, lower case on Windows (static) |
+| `EphysDataset.mergeIntervals(iv)` | the sorted union of half-open `[k x 2]` second intervals, the rule of `artifactIntervals` (static) |
 
 ---
 
@@ -1410,14 +1573,16 @@ to draw its lanes in probe order.
 | Identifier | Raised when |
 | --- | --- |
 | `EphysDataset:NoFolder` | constructor folder missing |
-| `EphysDataset:refreshMetadata:ChannelMismatch`, `EphysDataset:toBin:ChannelMismatch` | amplifier channel count changes between files |
-| `EphysDataset:splitLayout:NoHeader` / `NoAmplifier` / `NoChannels` | split recording incomplete |
+| `IntanReader:refreshMetadata:ChannelMismatch`, `EphysDataset:toBin:ChannelMismatch` | amplifier channel count changes between files |
+| `IntanReader:splitLayout:NoHeader` / `NoAmplifier` / `NoChannels` | split recording incomplete |
 | `EphysDataset:readData:NoFiles`, `EphysDataset:toBin:NoFiles` | no recording files |
 | `EphysDataset:LineNames`, `EphysDataset:relabelEvents:Duplicate` | a malformed `LineNames` entry, or two lines with the same final name |
 | `OpenEphysReader:MultipleRecordings` | `"single"` mode and a session with several recordings |
 | `OpenEphysReader:NoNode` / `NoStream` / `NoRecording` | the configured Record Node or stream (or a part folder's recording) is not in the session |
-| `EphysDataset:readData:BadKeepChannels`, `EphysDataset:toBin:BadChannelOrder`, `EphysDataset:noiseLevels:BadChannelOrder` | channel index out of range |
+| `IntanReader:readData:BadKeepChannels` (`BinaryReader:BadKeepChannels`, `OpenEphysReader:BadKeepChannels`), `EphysDataset:toBin:BadChannelOrder`, `EphysDataset:noiseLevels:BadChannelOrder`, `EphysDataset:detectArtifacts:BadChannels` | channel index out of range |
 | `EphysDataset:blankArtifacts:BadNoiseLevels`, `EphysDataset:toBin:BadNoiseLevels` | a noise level per channel that does not cover every channel, or `NoiseLevels` without `sigma`/`center` |
+| `EphysDataset:blankArtifacts:NoFs` / `BadContext` | a noise fill without a sample rate, or a `Context` whose columns are not the channels |
+| `EphysDataset:toBin:WouldOverwriteRecording`, `EphysDataset:matrixToBin:WouldOverwriteRecording` | the `.bin` or its sidecar is one of the recording's own files |
 | `EphysDataset:toBin:BadNoiseBand` | `NoiseBandHz` is negative or not finite |
 | `EphysDataset:noiseLevels:NoFiles` / `NoData` | nothing to measure the noise level on |
 | `EphysDataset:filterContinuous:CutoffAboveNyquist` | cutoff ≥ Fs/2 |
@@ -1429,6 +1594,7 @@ to draw its lanes in probe order.
 | `EphysDataset:detectSpikes:BadChannelOrder` / `ChannelMismatch` | `ChannelOrder` out of range, or the channel count changes between chunks |
 | `EphysDataset:runKilosort:NoPython` / `NoProbe` / `ProbeMissing` / `BinMissing` | run prerequisites missing |
 | `EphysDataset:runKilosort:MostlySilenced` | the artifact intervals cover more than `MaxSilencedFraction` of the recording |
+| `EphysDataset:launchSorting:DryRun` / `LaunchFailed` / `SetAsideFailed` | a dry run's result, a background launch that did not start, or an earlier sort's curation that could not be moved aside |
 | `EphysDataset:BadArtifactIntervals` | an `ArtifactIntervals` option that is not `[k x 2]` |
 | `EphysDataset:toMat:Exists` / `SaveWarning` / `SaveIncomplete` | `.mat` output refused or discarded (also used by `saveAtomically`) |
 | `EphysDataset:spikesToMat:Exists`, `EphysDataset:exportChronux:Exists`, `EphysDataset:exportFieldTrip:Exists` | target file exists and `Overwrite` is off |
@@ -1450,29 +1616,68 @@ deletes them afterwards. It covers:
 | 3 | `readData` (concatenation + events) |
 | 4 | `toBin` streaming vs `matrix2kilosort` byte identity |
 | 5 | `.bin` → microvolts round-trip |
-| 6 | `filterContinuous` + `detectArtifacts` |
+| 6 | `filterContinuous` (low cut-offs: a `[1 300]` Hz band and a 1 Hz high-pass at 20 kHz stay finite and exact; the spike band's transfer function matches its sections) + `detectArtifacts` (half-open intervals, `Channels`) + `blankArtifacts` (the noise fill's line between the levels on either side, `Context`) |
 | 7 | `EphysProject` discovery |
 | 8 | `runKilosort(DryRun=true)` |
 | 8b | explicit artifact intervals in the `.bin` (noise fill, seed, zero fill, `MostlySilenced` refusal) |
+| 8c | `toBin` / `matrixToBin` refuse the recording's own files and leave it untouched; no step at a filled period's edges; a period cut by a chunk boundary carries on across it; the fill level from 16 chunks |
 | 9 | `DatasetTracker` integration |
 | 10 | split layouts (metadata, `readData`, byte-correct `toBin`) |
 | 11 | `artifactIntervals` (manual merge + automatic streaming; parallel == serial, `MaxWorkers=1` fall-back) |
 | 12 | `runKilosort(DryRun=true)` with excluded channels (derived probe) |
-| 13 | `detectSpikes` (injected troughs: alignment, thresholds, polarity, minimum period, waveforms, edges, guards) |
-| 14 | `detectSpikes` over a whole recording (streamed in 6 chunks: identical to the single-block result, boundary-straddling waveforms, `ChannelOrder`, `ProgressFcn`, guards, `UseParallel` / `MaxWorkers`, worker errors, cancel, parallel `artifactIntervals` / `analyzeArtifacts` over split chunks) |
+| 13 | `detectSpikes` (injected troughs: alignment, thresholds, polarity, minimum period, waveforms, edges, `NaN` samples, guards) |
+| 14 | `detectSpikes` over a whole recording (streamed in 6 chunks: identical to the single-block result, boundary-straddling waveforms, the longer context of a low band edge, `ChannelOrder`, `ProgressFcn`, guards, `UseParallel` / `MaxWorkers`, worker errors, cancel, parallel `artifactIntervals` / `analyzeArtifacts` over split chunks) |
 | 15 | `writeJsonFile` / `readJsonFile`, manifest v2 round trip (manual periods, sorting, behavior), v1 manifests, `sortingResultsDir` precedence, `EphysProject` keys and `refresh`, including `associateFolderBehavior` (one file associated, two left alone, an existing association kept) |
 | 16 | the `ArtifactConfig` pre-detection filter (preview and `artifactIntervals` agree; single-chunk `UseParallel` is silent) |
-| 17 | `readPhyUnits` / `readSortedUnits` (times = samples/fs, phy labels beat Kilosort labels, groups, channel mapping, `FsFallback`) |
-| 18 | `spikesToMat` (detected + sorted, artifact rejection, waveforms, unit labels and identity saved, no behavior variable, no partial file left) |
-| 19 | the reader registry, `BinaryReader` (same microvolts through `readData`, `streamPlan` / `readChunkUV` and `readWindowUV`), discovery of both kinds, `runKilosort` dry-run settings on the universal format |
+| 17 | `readPhyUnits` / `readSortedUnits` (times = samples/fs, phy labels beat Kilosort labels, groups, channel mapping, `FsFallback`, a template as stored and not scaled by the amplitude) |
+| 18 | `spikesToMat` (detected + sorted, artifact rejection - also over 200 overlapping, touching, reversed and empty periods -, waveforms, unit labels and identity saved, no behavior variable, no partial file left) |
+| 19 | the reader registry, `BinaryReader` (same microvolts through `readData`, `streamPlan` / `readChunkUV` and `readWindowUV`), random access for every Intan layout, a short last window joined to the one before, discovery of both kinds, `runKilosort` dry-run settings on the universal format |
+| 20 | `exportChronux` / `exportFieldTrip`, `readBehavior` / `behaviorStruct` / `behaviorToMat` |
+| 21 | `channelLayout` (`chanMap` values are `.bin` rows) |
 
 [`test_OpenEphysReader.m`](../pipeline/test_OpenEphysReader.m) writes Open
 Ephys sessions in every record engine (and the GUI 0.5 file names) with the
 synthetic writers and covers metadata, exact samples across recordings and
 gaps, TTL intervals per format, AUX and ADC, discovery, record node / stream
 selection, the three recording modes, line naming and the events cache, a
-synthetic Open Ephys project through `EphysPipeline`.
-| 20 | `exportChronux` / `exportFieldTrip`, `readBehavior` / `behaviorStruct` / `behaviorToMat` |
+synthetic Open Ephys project through `EphysPipeline`, and (§7) 20 000
+one-sample TTL pulses and a stream plan's short last chunk.
+
+[`test_IntanReader.m`](../pipeline/test_IntanReader.m) writes small RHD2000
+recordings in every data-block layout (60 / 128 samples per block, aux,
+supply, temperature, ADC, digital inputs and outputs, disabled channels, the
+software notch) and every layout on disk, and covers whole-file reads, a
+truncated last block (no file left open), window reads across files,
+`readDigitalEvents` against `readData`'s events without the amplifier data,
+the run helpers (`highRuns` / `joinRuns` / `planWindows`), the
+one-file-per-channel digital file names and the warning for a missing one,
+`AcqDate` from RHX names and from modification times (and the Epsych2 session
+it matches), the `streamPlan` chunks, and `readData`'s `KeepChannels` /
+`Precision`.
+
+[`test_BinaryReader.m`](../pipeline/test_BinaryReader.m) covers
+`readDigitalEvents` from `dig_in_file` alone (named and unnamed lines, a line
+high across a read window, the descriptor's `events` map, a missing
+`dig_in_file`), `readData` (samples, `KeepChannels` / `Precision`, a data file
+shorter than `n_samples`), `Files` listing `dig_in_file` (so the clean-up
+counts it as the recording's own), and `streamPlan`.
+
+[`test_SortedUnits.m`](../pipeline/test_SortedUnits.m) covers `readPhyUnits`'
+`.tsv` tables (phy's `cluster_group.tsv` against Kilosort4's copy of
+`cluster_KSLabel.tsv`; CRLF, quoted and blank cells), its template units
+(whitened / `bin` / µV, unwhitening with the transpose of
+`whitening_mat_inv.npy`, Kilosort4's `scale` and `invert_sign`), its per-unit
+grouping, `channelLayout` and `runKilosort(DryRun=true)` leaving an existing
+run's files alone.
+
+[`test_CommonReference.m`](../pipeline/test_CommonReference.m) covers the
+common reference (no reference, the suggested channels, `prepareReference`
+and the manifest, CAR and CMR, exclusions, `toBin`) and, in §7-9, the
+`Artifacts` config's reference fields and its warning for a microvolt
+threshold below 50 µV, floating channels against the median-based suggestion
+(a suggestion that would leave too few channels is not applied), and the
+common-mode detector under a reference, with `ExcludeChannels` taking no part
+in artifact detection.
 
 [`test_UnitLabels.m`](../pipeline/test_UnitLabels.m) covers unit labels:
 `parseNameTokens` formats, `nameIdentity`, class and id padding, identity

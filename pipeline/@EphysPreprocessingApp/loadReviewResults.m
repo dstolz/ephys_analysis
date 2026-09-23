@@ -10,6 +10,10 @@ function loadReviewResults(obj)
 %   any other folder gives "<class><id>" labels. Notes typed in the Notes
 %   column are saved by onReviewNoteEdited.
 %
+%   Firing rates are spike counts over the part of the recording the sort
+%   covers (sortedSpan): Kilosort4 sorts from tmin to tmax (its
+%   settings.json) and counts spike times from the recording's start.
+%
 %   .npy files are read with the repository's small reader (READNPY, in
 %   pipeline/); no external toolbox is required. Numeric arrays are assumed
 %   little-endian, which is what Kilosort4 writes on x86.
@@ -48,8 +52,7 @@ try
     [U0, ui, labelNote] = readReviewUnits(obj, folder);
     fs = U0.fs;
     U  = numel(U0.unitId);
-    durSec = U0.durationSec;
-    if ~(durSec > 0); durSec = NaN; end
+    [span, spanText] = sortedSpan(obj, folder, U0.durationSec);
 
     nCh = U0.nChannelsSorted;
     if ~isfinite(nCh); nCh = numel(ui.chanShanks); end
@@ -64,7 +67,9 @@ try
     R = struct();
     R.folder   = folder;
     R.fs       = fs;
-    R.durSec   = durSec;
+    R.span     = span;         % [start end] s of the recording the sort covers (NaN: unknown)
+    R.spanText = spanText;
+    R.durSec   = diff(span);
     R.nChan    = nCh;
     R.chanShanks = chanShanks;
     R.chanPos  = ui.chanPos;
@@ -77,7 +82,7 @@ try
     R.groupSource = U0.groupSource;
     R.notes    = U0.notes;
     R.nSpikes  = U0.nSpikes;
-    R.firingRate = U0.nSpikes / durSec;
+    R.firingRate = U0.nSpikes / R.durSec;   % per second of the sorted time
     R.peakChan = U0.ksChannel;
     R.recChan  = U0.channel;
     R.channelName = U0.channelName;
@@ -128,7 +133,7 @@ else
 end
 lines(end+1) = sprintf("Fs      : %g kHz", R.fs / 1000);
 if isfinite(R.durSec)
-    lines(end+1) = sprintf("Duration: %s (%.1f s)", durStr(R.durSec), R.durSec);
+    lines(end+1) = sprintf("Sorted  : %s (%.1f to %.1f s%s)", durStr(R.durSec), R.span(1), R.span(2), R.spanText);
 end
 lines(end+1) = sprintf("Channels: %d   Shanks: %d", R.nChan, R.nShank);
 lines(end+1) = "";
@@ -136,7 +141,7 @@ lines(end+1) = sprintf("Total units : %d", U);
 lines(end+1) = sprintf("  good=%d  mua=%d  other=%d", R.nGood, R.nMua, U - R.nGood - R.nMua);
 lines(end+1) = sprintf("Total spikes: %s", commaSep(sum(R.nSpikes)));
 if isfinite(R.durSec)
-    lines(end+1) = sprintf("Mean rate   : %.1f Hz/unit", mean(R.firingRate, 'omitnan'));
+    lines(end+1) = sprintf("Mean rate   : %.1f Hz/unit (over the sorted time)", mean(R.firingRate, 'omitnan'));
 end
 lines(end+1) = "";
 lines(end+1) = "Units per shank:";
@@ -193,6 +198,57 @@ if ~isempty(d) && ownsFolder(d, folder)
     end
 end
 [U0, ui] = EphysDataset.readPhyUnits(folder, IncludeNoise=true, FullTemplates=true);
+end
+
+
+function [span, txt] = sortedSpan(obj, folder, lastSpike)
+%sortedSpan  The part of the recording the sort in FOLDER covers, [start end] s.
+%   Kilosort4 sorts from tmin to tmax (the run's settings.json; 0 and the
+%   end by default), and its spike times count from the recording's start
+%   (its io.py adds tmin back), so the sort covers tmin to min(tmax,
+%   duration). The duration is the active dataset's when FOLDER is its
+%   sort, else that of the .bin the settings name; without either, the
+%   last spike (LASTSPIKE, s) ends the span and TXT says so. NaN when
+%   nothing gives an end past tmin.
+S = readJsonFile(fullfile(folder, 'settings.json'), ErrorOnFail=false);
+tmin = 0;
+tmax = Inf;
+dur = NaN;
+if isstruct(S)
+    if isfield(S, 'tmin') && isnumeric(S.tmin) && isscalar(S.tmin) && S.tmin > 0; tmin = double(S.tmin); end
+    if isfield(S, 'tmax') && isnumeric(S.tmax) && isscalar(S.tmax) && S.tmax > 0; tmax = double(S.tmax); end
+end
+d = obj.currentDataset();
+if ~isempty(d) && ownsFolder(d, folder) && d.Duration > 0
+    dur = d.Duration;
+elseif isstruct(S) && all(isfield(S, {'filename', 'n_chan_bin', 'fs'}))
+    dur = binSeconds(S);
+end
+txt = "";
+tEnd = min(tmax, dur);
+if ~(tEnd > tmin)
+    tEnd = min(tmax, lastSpike);
+    txt = "; to the last spike: the recording's length is unknown";
+end
+span = [tmin tEnd];
+if ~(tEnd > tmin); span = [NaN NaN]; end
+end
+
+
+function sec = binSeconds(S)
+%binSeconds  Seconds of recording in the .bin that Kilosort4 settings S name (NaN: unknown).
+sec = NaN;
+f = dir(char(string(S.filename)));
+if ~isscalar(f); return; end
+dtype = "int16";
+if isfield(S, 'data_dtype'); dtype = string(S.data_dtype); end
+switch dtype
+    case {"int16", "uint16"}; bytes = 2;
+    case {"int32", "uint32", "float32"}; bytes = 4;
+    case "float64"; bytes = 8;
+    otherwise; return
+end
+sec = f.bytes / (double(S.n_chan_bin) * bytes) / double(S.fs);
 end
 
 

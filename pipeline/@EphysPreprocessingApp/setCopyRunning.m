@@ -11,7 +11,8 @@ if running
     set(others, "Enable", "off");
     obj.CopyRunButton.Text = "Cancel copy";
     styleButton(obj.CopyRunButton, "danger");
-    obj.CopyRunButton.Tooltip = "Stop after the file being copied now. What has been copied is kept and can be completed later.";
+    obj.CopyRunButton.Tooltip = "Stop the copy now: the file being copied or checksummed is left part way; " + ...
+        "what has been copied is kept, and Copy selected (resume) completes it later.";
     obj.CopyRunButton.ButtonPushedFcn = @(~,~) obj.onCopyCancel();
 else
     set(others, "Enable", "on");

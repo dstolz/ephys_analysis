@@ -21,9 +21,12 @@ classdef FieldTripExport
     %     spike_times), hdr.Fs the sorter's rate, FirstTimeStamp = 0,
     %     TimeStampPerSample = 1. No trial fields: cut trials in FieldTrip
     %     with ft_spike_maketrials.
-    %   - event: one element per digital-input pulse, sample = round(t_on*Fs)
-    %     (1-based, the sample that produced the onset with t = row/Fs),
-    %     duration = pulse length in samples (inclusive), value = 1.
+    %   - event: one element per digital-input pulse, value = 1. Pulse times
+    %     are t = row/origFs on the recording's clock, so row r is at
+    %     continuous time (r-1)/origFs, and at a signal's rate Fs sample =
+    %     round((t_on - 1/origFs)*Fs) + 1 (1-based): the sample that produced
+    %     the onset at the recording rate, the nearest sample of a derived
+    %     signal. duration = pulse length in samples at Fs (inclusive).
     %
     %   See also EphysDataset.exportFieldTrip, EphysDataset.exportChronux.
 
@@ -124,14 +127,20 @@ classdef FieldTripExport
             spike.cfg = struct('previous', [], 'exporter', "FieldTripExport.spikeFromDetected");
         end
 
-        function ev = event(events, Fs)
+        function ev = event(events, Fs, opts)
             %event  FieldTrip event struct array from dig-in [t_on t_off] intervals.
-            %   ev = FieldTripExport.event(events, Fs): one element per pulse,
-            %   type = line name, sample = round(t_on*Fs) (1-based), value = 1,
-            %   offset = 0, duration = pulse length in samples (inclusive).
+            %   ev = FieldTripExport.event(events, Fs, EventFs=origFs): one
+            %   element per pulse at a signal's rate Fs, type = line name,
+            %   value = 1, offset = 0, sample = round((t_on - 1/EventFs)*Fs) + 1
+            %   (1-based), duration = round((t_off - t_on)*Fs) + 1 (samples,
+            %   inclusive). The times count rows of the EventFs clock (t =
+            %   row/EventFs, the recording rate), so sample is the row that
+            %   produced the onset when Fs = EventFs (the default) and the
+            %   nearest sample of a signal derived at another rate.
             arguments
                 events struct
                 Fs (1,1) double {mustBePositive}
+                opts.EventFs (1,1) double {mustBePositive} = Fs
             end
             ev = struct('type', {}, 'sample', {}, 'value', {}, 'offset', {}, 'duration', {});
             if isempty(events); return; end
@@ -142,7 +151,7 @@ classdef FieldTripExport
                 iv = double(iv);
                 if isvector(iv) && numel(iv) == 2; iv = iv(:).'; end
                 for r = 1:size(iv, 1)
-                    s = round(iv(r, 1) * Fs);
+                    s = round((iv(r, 1) - 1 / opts.EventFs) * Fs) + 1;
                     d = round((iv(r, 2) - iv(r, 1)) * Fs) + 1;
                     ev(end+1) = struct('type', fn{k}, 'sample', s, 'value', 1, ...
                         'offset', 0, 'duration', d); %#ok<AGROW>

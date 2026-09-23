@@ -20,7 +20,8 @@ function result = runKilosort(obj, opts)
 %                    (default ds.ExcludeChannels). Excluded channels stay in the
 %                    .bin (n_chan_bin is unchanged) but are removed from the
 %                    probe's chanMap/xc/yc/kcoords via a derived probe written to
-%                    the results dir; the original probe .json is never modified.
+%                    the run folder (result.runDir); the original probe .json
+%                    is never modified.
 %     BinFile        existing .bin to sort as is (default: write ds.BinFile
 %                    from the recording first)
 %     ArtifactIntervals [k x 2] seconds to blank when writing the .bin
@@ -31,7 +32,14 @@ function result = runKilosort(obj, opts)
 %     NChanBin       n_chan_bin override (default from .bin JSON sidecar or NumChannels)
 %     Fs             sample rate override (default ds.Fs)
 %     ExtraSettings  scalar struct merged into settings.json
-%     DryRun         (1,1) logical  write files + build command, do NOT spawn (default false)
+%     DryRun         (1,1) logical  write the run files + build the command,
+%                    do NOT spawn (default false). The files go to
+%                    <ResultsDir>\dryrun (result.runDir), never into ResultsDir
+%                    itself, so the settings.json and run_ks4.py of a run
+%                    already there (the record of how its results were made)
+%                    stay as they are. The dry run's settings.json still
+%                    names ResultsDir as results_dir, as the real run's would.
+%                    No .bin is written.
 %     Wait           (1,1) logical  block until Kilosort4 finishes (default true).
 %                    When false, the process is launched detached (background)
 %                    with stdout/stderr redirected to the log, and the call
@@ -51,12 +59,20 @@ function result = runKilosort(obj, opts)
 %   once its process exits, so a caller can poll for completion of a
 %   background run (EphysDataset.sortRunState).
 %
+%   settings.json also records the .bin's scale, its units per uV
+%   (bin_scale: ds.Scale when this call writes the .bin, else the .bin's
+%   sidecar), which readPhyUnits needs to give the templates in uV.
+%   run_ks4.py does not pass it to Kilosort4.
+%
 %   Python/conda exe and conda env resolve most-specific-first:
 %   per-call opts -> dataset property -> (manager default, when pushed down).
 %
 %   RESULT struct: status, command, driverCommand, stdoutLog, scriptPath,
-%   settingsPath, resultsDir, runDir, binFile, probeFile, dryRun, wait,
-%   statusFile, background, device, launched.
+%   settingsPath, resultsDir (where Kilosort4 writes its output), runDir
+%   (the folder holding settings.json and run_ks4.py: resultsDir, or
+%   resultsDir\dryrun for a dry run), binFile, probeFile, excludeChannels,
+%   nExcludedChannels, dryRun, wait, statusFile, background, device,
+%   launched, previousDir (see launchSorting).
 %
 %   See also EphysDataset.launchSorting, EphysDataset.toBin, EPHYSPROJECT.
 
@@ -107,6 +123,12 @@ else
     resultsDir = obj.kilosortDir();
 end
 resultsDir = absPath(resultsDir);
+% A dry run writes its files to a folder of its own: the settings.json and
+% run_ks4.py of a run already in resultsDir record how its results were made.
+runDir = resultsDir;
+if opts.DryRun
+    runDir = fullfile(resultsDir, 'dryrun');
+end
 
 % Write the .bin from the recording, blanking the artifact intervals.
 if ~binGiven && ~opts.DryRun
@@ -130,11 +152,15 @@ end
 binFile   = absPath(binFile);
 probeFile = absPath(probeFile);
 
-% n_chan_bin and fs: opts -> .bin JSON sidecar -> dataset metadata
-[nChanBin, fsVal] = resolveBinMeta(binFile, opts, obj);
+% n_chan_bin and fs: opts -> .bin JSON sidecar -> dataset metadata. The
+% .bin's units per uV: ds.Scale when toBin writes it here, else the sidecar.
+[nChanBin, fsVal, binScale] = resolveBinMeta(binFile, opts, obj);
+if ~binGiven
+    binScale = obj.Scale;
+end
 
-if ~isfolder(resultsDir)
-    mkdir(resultsDir);
+if ~isfolder(runDir)
+    mkdir(runDir);
 end
 
 % Validate probe channel count against n_chan_bin (warn only)
@@ -142,13 +168,13 @@ checkProbeChannels(probeFile, nChanBin);
 
 % Per-recording channel exclusions: drop the listed channels from the probe
 % (keeping n_chan == n_chan_bin) so Kilosort4 ignores them. Write the reduced
-% map to a derived probe in the results dir; never touch the original .json.
+% map to a derived probe in the run dir; never touch the original .json.
 excludeCh = opts.ExcludeChannels;
 if isempty(excludeCh); excludeCh = obj.ExcludeChannels; end
 excludeCh = EphysDataset.parseChannelList(excludeCh);
 nExcluded = 0;
 if ~isempty(excludeCh)
-    [probeFile, nExcluded] = writeExcludedProbe(probeFile, excludeCh, resultsDir, nChanBin);
+    [probeFile, nExcluded] = writeExcludedProbe(probeFile, excludeCh, runDir, nChanBin);
     if nExcluded > 0
         fprintf('Excluding %d channel(s) from sorting: %s\n', ...
             nExcluded, char(EphysDataset.formatChannelList(excludeCh)));
@@ -163,14 +189,17 @@ settings.data_dtype = char(obj.Dtype);
 settings.filename   = strrep(binFile, '\', '/');     % forward slashes are JSON-safe
 settings.probe      = strrep(probeFile, '\', '/');
 settings.results_dir = strrep(resultsDir, '\', '/');
+if isfinite(binScale)
+    settings.bin_scale = binScale;                   % for readPhyUnits, not Kilosort4
+end
 % Merge ExtraSettings
 extraNames = fieldnames(opts.ExtraSettings);
 for k = 1:numel(extraNames)
     settings.(extraNames{k}) = opts.ExtraSettings.(extraNames{k});
 end
 
-settingsPath = fullfile(resultsDir, 'settings.json');
-scriptPath   = fullfile(resultsDir, 'run_ks4.py');
+settingsPath = fullfile(runDir, 'settings.json');
+scriptPath   = fullfile(runDir, 'run_ks4.py');
 stdoutLog    = fullfile(resultsDir, 'ks4_run.log');
 statusFile   = fullfile(resultsDir, 'ks4_status.json');
 
@@ -191,7 +220,7 @@ result.stdoutLog    = char(stdoutLog);
 result.scriptPath   = char(scriptPath);
 result.settingsPath = char(settingsPath);
 result.resultsDir   = resultsDir;
-result.runDir       = resultsDir;
+result.runDir       = runDir;
 result.binFile      = binFile;
 result.probeFile    = probeFile;
 result.excludeChannels = excludeCh;
@@ -203,6 +232,7 @@ result.background   = false;
 result.driverCommand = command;   % launchSorting adds --device
 result.device       = "";
 result.launched     = false;
+result.previousDir  = "";      % launchSorting: where an earlier sort's curation went
 
 if opts.DryRun
     fprintf('[DryRun] Wrote %s and %s\n', settingsPath, scriptPath);
@@ -251,17 +281,21 @@ tf = ~isempty(regexp(d, '^([A-Za-z]:[\\/]|[\\/]{2}|[\\/])', 'once'));
 end
 
 
-function [nChanBin, fsVal] = resolveBinMeta(binFile, opts, obj)
+function [nChanBin, fsVal, binScale] = resolveBinMeta(binFile, opts, obj)
 nChanBin = opts.NChanBin;
 fsVal    = opts.Fs;
+binScale = NaN;
 % Try the .bin JSON sidecar
 [d, n] = fileparts(binFile);
 sidecar = fullfile(d, [n '.json']);
-if (isnan(nChanBin) || isnan(fsVal)) && isfile(sidecar)
+if isfile(sidecar)
     try
         meta = jsondecode(fileread(sidecar));
         if isnan(nChanBin) && isfield(meta, 'n_chan_bin'); nChanBin = meta.n_chan_bin; end
         if isnan(fsVal)    && isfield(meta, 'fs');         fsVal    = meta.fs;         end
+        if isfield(meta, 'scale') && isnumeric(meta.scale) && isscalar(meta.scale)
+            binScale = double(meta.scale);
+        end
     catch
     end
 end

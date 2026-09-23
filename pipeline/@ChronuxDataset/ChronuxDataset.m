@@ -61,11 +61,14 @@ classdef ChronuxDataset < handle
     %   --------------------------------
     %   - Continuous data is in microvolts, sample k is at t = (k-1)/Fs seconds,
     %     recording-relative (the first sample of the first file is t = 0). This
-    %     is the convention of EphysDataset.readData's t vector.
+    %     is the convention of EphysDataset.readData's t vector, and a derived
+    %     signal (LFP, MUA) starts on the same t = 0 at its own rate.
     %   - Digital-input event times (eventOnsets) keep the convention they are
-    %     produced with, t = row/Fs, one sample later than the t above. trials
-    %     maps an onset back to sample round(t*Fs), so a trial triggered by a
-    %     dig-in onset starts on exactly the sample that produced it.
+    %     produced with, t = row/origFs on the recording's own sample clock
+    %     (origFs, Info.origFs), one recording sample later than the t above.
+    %     trials (OnsetRule "event") puts an onset on signal row
+    %     round((t - 1/origFs)*Fs) + 1: exactly the sample that produced it at
+    %     the recording rate, the nearest sample of a derived signal.
     %   - Spike times are in seconds on the same recording-relative clock.
     %   - No method resamples, rescales, detrends (unless asked), or fills
     %     values. Trials whose window leaves the recording, or that contain
@@ -99,7 +102,9 @@ classdef ChronuxDataset < handle
         % Options forwarded to EphysDataset.deriveSignals when the signal is
         % loaded (LFP_Fs, LFP_bpLoHi, MUA_bpLoHi, keepAmpChannels, labelField,
         % ...). dataTypeOut must not be set here - use the Signal property.
-        % For Signal = "RAW" only keepAmpChannels and labelField apply.
+        % For Signal = "RAW" only keepAmpChannels, labelField, lineNames and
+        % invertedLines apply. Line naming and polarity left unset come from
+        % the dataset's TrialConfig.
         SignalOptions struct = struct()
 
         % Sample rate (Hz) of the time grid used for point-process data: it

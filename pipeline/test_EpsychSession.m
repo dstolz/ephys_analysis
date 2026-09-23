@@ -178,6 +178,18 @@ save(fNoT, 'Data', 'Info');
 check(strcmp(stitchError(string({fA, fNoT})), 'stitchEpsychSessions:NoStartTime'), 'a session with no time is refused');
 check(strcmp(stitchError(string({fA, fD})), 'readEpsychSession:NotEpsych'), 'a file that is not a session is refused');
 
+% A session folder holding two Epsych2 files associates neither, and says so.
+two = fullfile(root, 'twoSessions');
+mkdir(two);
+copyfile(fA, fullfile(two, 'subjA_260101T120000.mat'));
+copyfile(fOut, fullfile(two, 'subjA_260101T120000_stitched.mat'));
+dsTwo = EphysDataset(two, AutoMetadata=false);
+lastwarn('');
+tfTwo = dsTwo.associateFolderBehavior();     % prints the warning (lastwarn needs it on)
+[~, wid] = lastwarn();
+check(~tfTwo && dsTwo.BehaviorFile == "" && strcmp(wid, 'EphysDataset:associateFolderBehavior:SeveralBehaviorFiles'), ...
+    'two Epsych2 files in a session folder: none is associated, with a warning');
+
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0
     error('test_EpsychSession:Failures', '%d checks failed.', nFail);

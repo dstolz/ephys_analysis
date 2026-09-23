@@ -10,7 +10,9 @@ function issues = validate(obj, opts)
 %     Defaults  the event reference, window and selection are valid (a
 %               filter that does not parse is a warning: it is checked
 %               against each dataset's trials when it runs)
-%     Plots     at least one enabled; kind is one of Kinds; source fits the
+%     Plots     at least one enabled; ids stay distinct as file names
+%               ({Plot} replaces characters outside A-Z a-z 0-9 _ - . by
+%               "_", and Windows ignores case); kind is one of Kinds; source fits the
 %               kind (units / detected for spike kinds, LFP / MUA / SPIKE /
 %               AUX for signal kinds); layout fits the kind; "between"
 %               windows only for rate / tuning / corrmap, and with a stop
@@ -21,7 +23,10 @@ function issues = validate(obj, opts)
 %               heatmap order; corrmap order, metric and correlation; style
 %               values
 %     Export    formats are png / eps / svg / pdf; Dpi, FigureSizeCm; the
-%               folder and file-name patterns use known tokens
+%               folder and file-name patterns use known tokens; a warning
+%               when the files of two enabled plots, or of two datasets,
+%               would get the same names (no {Plot} -- or {Kind} for plots
+%               of different kinds -- no {Name} / {OutputFolder})
 %     Report    Format html / pdf / both; EmbedFormat png / svg; Dpi;
 %               FileName; the folder pattern
 %
@@ -85,6 +90,15 @@ checkSelection(D.Selection, "Defaults", "Selection");
 K = EphysAnalysisConfig.plotKinds();
 if isempty(obj.Plots) || ~any([obj.Plots.enabled])
     add("Plots", "enabled", "error", "No plot is enabled.");
+end
+ids = obj.plotIds();
+key = lower(regexprep(ids, '[^\w\-\.]', '_'));   % the id as {Plot} writes it (figureFileName), case-blind (Windows)
+for u = unique(key)
+    same = ids(key == u);
+    if numel(same) > 1
+        add("Plots", same(end) + ".id", "error", "Plot ids " + strjoin("""" + same + """", " and ") + ...
+            " name the same files: {Plot} replaces characters outside A-Z a-z 0-9 _ - . by ""_"", and Windows ignores case.");
+    end
 end
 for k = 1:numel(obj.Plots)
     p = obj.Plots(k);
@@ -200,6 +214,15 @@ if ~(numel(X.FigureSizeCm) == 2 && all(X.FigureSizeCm > 0))
 end
 checkPattern(X.FilenamePattern, "file", "Export", "FilenamePattern");
 checkPattern(X.Folder, "folder", "Export", "Folder");
+on = obj.Plots([obj.Plots.enabled]);
+if numel(on) > 1 && ~contains(X.FilenamePattern, "{Plot}") ...
+        && ~(contains(X.FilenamePattern, "{Kind}") && numel(unique([on.kind])) == numel(on))
+    add("Export", "FilenamePattern", "warning", sprintf("The file-name pattern has no {Plot}, so the %d enabled plots' files overwrite each other.", numel(on)));
+end
+if ~contains(X.Folder, ["{OutputFolder}" "{Name}"]) && ~contains(X.FilenamePattern, "{Name}") ...
+        && ~(S.Mode == "folders" && numel(S.Folders) <= 1)
+    add("Export", "Folder", "warning", "Neither the export folder nor the file-name pattern names the dataset ({OutputFolder} or {Name}), so the datasets' files overwrite each other.");
+end
 
 % --- Report -------------------------------------------------------------------------------
 P = obj.Report;

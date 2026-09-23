@@ -8,10 +8,11 @@ function [onsets, info] = eventOnsets(obj, name, opts)
 %   durations, the line name and what was filtered out.
 %
 %   The events are the ones EphysDataset.readData / deriveSignals extracted
-%   (contiguous high segments of each line, times on the original amplifier
-%   grid with t = row/Fs). Feed them straight to trials / spikeTrials: trials'
-%   default OnsetRule "event" maps such a time back to exactly the sample that
-%   produced it.
+%   (the contiguous on segments of each line, times on the recording's own
+%   sample grid with t = row/origFs). Feed them straight to trials /
+%   spikeTrials: trials' default OnsetRule "event" puts such a time on the
+%   signal sample nearest the one that produced it (that very sample at the
+%   recording rate).
 %
 %   Options
 %   -------

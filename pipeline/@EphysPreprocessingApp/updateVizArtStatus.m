@@ -1,21 +1,25 @@
 function updateVizArtStatus(obj)
     % Refresh the artifact-count label under the Visualize controls,
-    % reporting both auto-detected (orange) and manual (red) periods.
+    % reporting both the detected (orange, the Artifacts tab's preview;
+    % whether a run removes them) and the manual (red) periods.
     if isempty(obj.VizArtStatusLabel) || ~isvalid(obj.VizArtStatusLabel); return; end
 
-    nDet = size(obj.VizDetectedIntervals, 1);
-    detTxt = "";
-    if nDet > 0
-        detTxt = sprintf("%d detected (orange). ", nDet);
+    [det, why] = obj.vizDetectedIntervals();
+    nDet = size(det, 1);
+    if why ~= ""
+        detTxt = why + " ";
+    elseif nDet == 0
+        detTxt = "No artifacts detected with these settings. ";
+    elseif logical(obj.ArtEnableCheckBox.Value) && (logical(obj.ArtApplySortingCheckBox.Value) ...
+            || logical(obj.ArtApplySpikesCheckBox.Value))
+        detTxt = sprintf("%d detected (orange; a run removes them). ", nDet);
+    else
+        detTxt = sprintf("%d detected (orange; a run keeps them: detection or its uses are off). ", nDet);
     end
 
     d = obj.currentVizDataset();
     if isempty(d) || isempty(d.ManualArtifacts)
-        if nDet > 0
-            obj.VizArtStatusLabel.Text = detTxt + "No manual artifacts.";
-        else
-            obj.VizArtStatusLabel.Text = "No artifacts detected or defined.";
-        end
+        obj.VizArtStatusLabel.Text = detTxt + "No manual artifacts.";
         return
     end
     iv = d.ManualArtifacts;

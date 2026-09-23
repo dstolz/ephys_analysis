@@ -11,16 +11,19 @@ classdef EphysAnalysisRunner < handle
     %     R = r.run();             % compute, render, export, report
     %
     %   One plot on one dataset is always the same sequence of public calls
-    %   (see computePlot, renderPlotFigures, runDataset):
+    %   (see computePlot, runDataset):
     %     src = loadAnalysisSource(out)
     %     [E, G] = epochTable(src, spec.ref, Window=, Selection=)
     %     [st, meta] = selectUnits(src, spec.units)      (or selectChannels)
     %     R = spikePSTH / evokedPotential / firingRate (+ tuningCurve) /
     %         unitSummary + probeMapValues
-    %     fig = newExportFigure(cfg.Export); renderPlot(R, spec, fig, Page=p)
-    %     exportFigure(fig, <folder>/<figureFileName(...)>, Format=, Dpi=)
-    %     addReportFigure(report, spec, R, Files=)
-    %   and then writeHtmlReport / writePdfReport.
+    %     per page, one at a time:
+    %       fig = newExportFigure(cfg.Export); h = renderPlot(R, spec, fig, Page=p)
+    %       exportFigure(fig, <folder>/<plotFileName(...)>, Format=, Dpi=)
+    %       reportImage(fig, report, Title=h.title, Files=)   (HTML report)
+    %     addReportFigure(report, spec, R, Files=, Images=)
+    %   and then writeHtmlReport / writePdfReport. The app previews a page
+    %   with renderPlotFigures.
     %
     %   Properties
     %     Config        the EphysAnalysisConfig
@@ -62,7 +65,7 @@ classdef EphysAnalysisRunner < handle
         src = source(obj, k)
         T = plan(obj, opts)
         [R, E, G] = computePlot(obj, src, spec)
-        figs = renderPlotFigures(obj, R, spec, opts)
+        h = renderPlotFigures(obj, R, spec, opts)
         rows = runDataset(obj, k, opts)
         T = run(obj, opts)
         cancel(obj)

@@ -63,10 +63,14 @@ switch method
 end
 msg = [head; groupLines(obj, rm); ""
     sprintf("%d file(s), %s, remain.", height(kept), bytesText(sum(kept.Bytes))); how];
-curated = unique(rm.Dataset(rm.Category == "sorting" & endsWith(lower(rm.File), ["cluster_group.tsv" "cluster_notes.tsv"])));
+% Kilosort4 writes a cluster_group.tsv of its own: only phy's is curation.
+notes = rm.Category == "sorting" & endsWith(lower(rm.File), "cluster_notes.tsv");
+labels = find(rm.Category == "sorting" & endsWith(lower(rm.File), "cluster_group.tsv"));
+labels = labels(arrayfun(@(r) EphysDataset.phyCurated(fileparts(rm.File(r))), labels));
+curated = unique(rm.Dataset([find(notes); labels]));
 if ~isempty(curated)
     msg = [msg; ""; sprintf("The sorted units of %d dataset(s) carry phy curation or unit notes " + ...
-        "(cluster_group.tsv / cluster_notes.tsv), which go with them.", numel(curated))];
+        "(phy's cluster_group.tsv / cluster_notes.tsv), which go with them.", numel(curated))];
 end
 if ~isempty(hidden)
     msg = [msg; ""; sprintf("%d of the files to remove are ticked but hidden by the search, Subject or Show filters.", numel(hidden))];

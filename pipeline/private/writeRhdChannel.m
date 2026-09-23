@@ -1,12 +1,16 @@
-function writeRhdChannel(fid, nativeName, customName, nativeOrder, signalType)
+function writeRhdChannel(fid, nativeName, customName, nativeOrder, signalType, enabled)
 %writeRhdChannel  One channel record of an RHD2000 header (test fixture).
-%   signalType 0 = amplifier, 1 = aux input, 4 = board digital input.
+%   signalType 0 = amplifier, 1 = aux input, 2 = supply voltage, 3 = board
+%   ADC, 4 = board digital input, 5 = board digital output. ENABLED false
+%   (default true) writes a disabled channel: the readers skip it and the
+%   data blocks hold no samples for it.
+if nargin < 6; enabled = true; end
 writeQString(fid, nativeName);
 writeQString(fid, customName);
 fwrite(fid, nativeOrder, 'int16');   % native_order
 fwrite(fid, 0, 'int16');             % custom_order
 fwrite(fid, signalType, 'int16');    % signal_type
-fwrite(fid, 1, 'int16');             % channel_enabled
+fwrite(fid, double(enabled), 'int16');   % channel_enabled
 fwrite(fid, 0, 'int16');             % chip_channel
 fwrite(fid, 0, 'int16');             % board_stream
 fwrite(fid, 0, 'int16');             % voltage_trigger_mode

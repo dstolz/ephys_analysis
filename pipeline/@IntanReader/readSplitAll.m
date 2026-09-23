@@ -6,14 +6,20 @@ function data = readSplitAll(obj, opts)
 %   which layout a folder uses. readData delegates here whenever the recording is
 %   not traditional; see readData for the option and field documentation.
 %
+%   The amplifier data are read one streamPlan window at a time into a
+%   matrix of the requested Precision that holds only KeepChannels, so the
+%   whole recording is never held in double; the digital inputs are decoded
+%   window by window too (splitDigitalEvents).
+%
 %   Supported per layout
 %   --------------------
 %     amplifier (microvolts) and digital-input events are read for BOTH split
 %     layouts. Board ADC and aux input are read only for one-file-per-signal
 %     (the well-defined analogin.dat / auxiliary.dat); for one-file-per-channel
 %     they return [] (the per-channel ADC/aux files are not yet mapped). Digital
-%     events for one-file-per-channel are read from board-DIN-<order>.dat when
-%     those files are present, and are otherwise empty.
+%     events for one-file-per-channel are read from each line's
+%     board-<native name>.dat (RHX) or board-DIN-<nn>.dat file; a line without
+%     either is left out with a warning (see splitLayout).
 %
 %   See also EphysDataset.readData, EphysDataset.splitLayout,
 %   EphysDataset.readSplitWindow.
@@ -39,29 +45,37 @@ if ~isempty(opts.ProgressFcn)
     opts.ProgressFcn(1, 1, "info.rhd");
 end
 
-% --- Amplifier (whole recording; readData concatenates everything anyway) -----
-X = obj.readSplitWindow(0, L.nSamp);   % [nSamp x nChan], microvolts
-if opts.Precision == "single"
-    X = single(X);
-end
+% --- Amplifier: streamPlan windows into one matrix of KeepChannels ----------
 keep = opts.KeepChannels;
-if ~isempty(keep)
-    if max(keep) > size(X, 2)
-        error('IntanReader:readSplitAll:BadKeepChannels', ...
-            'KeepChannels references channel %d but recording has %d.', ...
-            max(keep), size(X, 2));
-    end
-    X = X(:, keep);
-    channelNames = L.ampCustom(keep);
-    nativeNames  = L.ampNative(keep);
-else
+if ~isempty(keep) && max(keep) > L.nChan
+    error('IntanReader:readSplitAll:BadKeepChannels', ...
+        'KeepChannels references channel %d but recording has %d.', ...
+        max(keep), L.nChan);
+end
+if isempty(keep)
+    cols = 1:L.nChan;
     channelNames = L.ampCustom;
     nativeNames  = L.ampNative;
+else
+    cols = keep;
+    channelNames = L.ampCustom(keep);
+    nativeNames  = L.ampNative(keep);
 end
-nSamp = size(X, 1);
+X = zeros(L.nSamp, numel(cols), opts.Precision);
+nSamp = 0;
+for c = obj.streamPlan()
+    W = obj.readSplitWindow(c.sampleOffset, c.nSamples);   % [got x nChan], microvolts
+    X(nSamp + (1:size(W, 1)), :) = W(:, cols);
+    nSamp = nSamp + size(W, 1);
+    if size(W, 1) < c.nSamples; break; end                  % a shorter file ends the data
+end
+clear W
+if nSamp < size(X, 1)
+    X = X(1:nSamp, :);
+end
 
 % --- Digital-input events -----------------------------------------------------
-[events, digInNames, digInNative, digData] = readSplitDigital(L, nSamp, Fs);
+[events, digInNames, digInNative] = obj.splitDigitalEvents(nSamp);
 
 % --- Optional board ADC / aux (one-file-per-signal only) ----------------------
 boardADC = [];
@@ -86,7 +100,6 @@ if opts.Concatenate
     t = (0:nSamp-1).' / Fs;
 else
     amplifier = {X};
-    digData   = {digData}; %#ok<NASGU> (non-concatenated callers ignore events)
     t = [];
 end
 
@@ -117,53 +130,6 @@ end
 
 
 % =========================================================================
-function [events, digInNames, digInNative, digData] = readSplitDigital(L, nSamp, Fs)
-%readSplitDigital  Decode dig-in lines into per-line [nSamp x nLine] + events.
-%   Events are keyed by the native dig-in names (EphysDataset renames them).
-events      = struct();
-digInNames  = L.digInNames;
-digInNative = L.digInNative;
-nLine       = numel(digInNames);
-digData     = zeros(nSamp, max(nLine, 0));
-
-if nLine == 0
-    return
-end
-
-switch L.format
-    case "one-file-per-signal"
-        if L.digInFile == "" || ~isfile(L.digInFile)
-            digInNames  = string.empty(1,0);
-            digInNative = string.empty(1,0);
-            digData     = zeros(nSamp, 0);
-            return
-        end
-        raw = readDatVector(L.digInFile, nSamp, 'uint16');   % [n x 1] packed bits
-        for j = 1:nLine
-            bit = L.digInOrders(j);
-            digData(1:numel(raw), j) = double(bitand(uint32(raw), 2^bit) > 0);
-        end
-
-    case "one-file-per-channel"
-        if isempty(L.digInFiles) || ~all(arrayfun(@(f) isfile(f), L.digInFiles))
-            digInNames  = string.empty(1,0);
-            digInNative = string.empty(1,0);
-            digData     = zeros(nSamp, 0);
-            return
-        end
-        for j = 1:nLine
-            raw = readDatVector(L.digInFiles(j), nSamp, 'uint16');
-            digData(1:numel(raw), j) = double(raw > 0);
-        end
-end
-
-names = matlab.lang.makeValidName(cellstr(digInNative));
-for j = 1:numel(names)
-    events.(names{j}) = highSegments(digData(:, j), Fs);
-end
-end
-
-
 function adc = readSplitADC(L, nSamp)
 %readSplitADC  Board ADC (volts), one-file-per-signal only; [] otherwise.
 adc = [];
@@ -212,38 +178,5 @@ if nAmpSamp > 0 && abs(nAuxSamp - nAmpSamp) <= 4
     auxFs = L.Fs;
 else
     auxFs = L.Fs / 4;
-end
-end
-
-
-function v = readDatVector(file, nSamp, prec)
-%readDatVector  Read up to nSamp values from a flat .dat file as a column.
-fid = fopen(char(file), 'r', 'ieee-le');
-if fid < 0
-    v = zeros(0, 1);
-    return
-end
-v = fread(fid, nSamp, [prec '=>double']);
-fclose(fid);
-end
-
-
-function iv = highSegments(x, Fs)
-%highSegments  [k x 2] [t_on t_off] (s) for contiguous high runs of x.
-%   Mirrors the helper in readData so split-format events use the same
-%   intan2matlab-compatible onset/offset convention.
-x = x(:) > 0;
-if license('test', 'Image_Toolbox') && exist('bwlabel', 'file')
-    ev = bwlabel(x);
-    u  = unique(ev(ev > 0));
-    if isempty(u); iv = zeros(0, 2); return; end
-    on  = arrayfun(@(a) find(ev == a, 1, 'first'), u);
-    off = arrayfun(@(a) find(ev == a, 1, 'last'),  u);
-    iv  = [on off] ./ Fs;
-else
-    d = diff([0; x; 0]);
-    on  = find(d == 1);
-    off = find(d == -1) - 1;
-    if isempty(on); iv = zeros(0, 2); else; iv = [on off] ./ Fs; end
 end
 end

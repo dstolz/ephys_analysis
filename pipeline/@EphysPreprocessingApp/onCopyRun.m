@@ -101,5 +101,5 @@ obj.CopyJob = job;
 obj.setCopyRunning(true);
 obj.startCopyMonitor();
 obj.setStatus(sprintf("Copying %d session(s) in the background.", nnz(R.CopyStatus == "copying")), ...
-    "The app stays usable; Cancel copy stops after the file being copied.");
+    "The app stays usable; Cancel copy stops the copy now, and Copy selected (resume) completes it later.");
 end

@@ -42,7 +42,9 @@ everything except sorting and probe design.
    addpath_nogit(pwd)
    ```
    This adds the repo (including `pipeline` and the vendored `vendor/` helpers) to
-   the path while skipping `.git` folders. Save the path (`savepath`) if you
+   the path while skipping hidden folders such as `.git` and `.claude` (Claude
+   Code keeps whole checkouts in `.claude/worktrees`, which would otherwise
+   shadow the real code). Save the path (`savepath`) if you
    want this to persist across MATLAB restarts, or re-run it each session.
 
 ## 3. (Recommended) Set up an NVIDIA GPU

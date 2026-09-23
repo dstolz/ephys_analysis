@@ -2,13 +2,17 @@ function test_EphysAnalysisEpochs()
 %test_EphysAnalysisEpochs  Verification suite for sources, event references and epochs.
 %   Runs a small synthetic project (clean + late-start scenarios, trial
 %   pairings approved with the scenario's cuts) through the pipeline and
-%   checks loadAnalysisSource against the generator's truth, then
-%   resolveEvents / epochTable: trial-scope alignment to the first Stim of
-%   each trial, "Trial" alignment to the trial onsets, recording scope,
-%   grouping by Depth, response selection and filters, Platform onset ->
-%   offset ("between") epochs, selectUnits for sorted units and detections,
-%   the error identifiers and the fallback to recording scope without
-%   behavior.
+%   checks loadAnalysisSource against the generator's truth (and, without a
+%   manifest, the extract's rate and row count), then resolveEvents /
+%   epochTable: trial-scope alignment to the first Stim of each trial, the
+%   events on the continuous clock, "Trial" alignment to the trial onsets,
+%   recording scope, grouping by Depth, response selection and filters,
+%   intervals belonging to the trial that holds their edge (lines that span
+%   trials, touching trials, both scopes alike), RespWindow onset -> offset
+%   ("between") epochs, selectUnits for sorted units (from the spikes file
+%   and, cached, from the sorting folder) and detections, a spike in the
+%   event's own sample at 0, the error identifiers and the fallback to
+%   recording scope without behavior.
 %
 %   Usage:  test_EphysAnalysisEpochs
 
@@ -66,6 +70,15 @@ check(src.signals.LFP && src.signals.MUA && src.signals.AUX && ~src.signals.SPIK
     && src.signalFs.MUA == 2000 && numel(src.labels) == numel(T1.channelNames), 'signals, their rates and the channel labels');
 check(src.hasUnits && src.unitsFrom == "spikes" && src.hasDetected && isstruct(src.probe) && numel(src.probe.xc) == numel(T1.channelNames), ...
     'units from the spikes file, detections and the probe map');
+bare = fullfile(root, 'X-1');                     % an extract alone: no manifest, no behavior
+mkdir(bare);
+Y = struct('LFP', zeros(250, 2, 'single'));
+info = struct('origFs', 20000, 'labels', {{'a'; 'b'}}, 'LFP', struct('Fs', 1000, 'nSamples', 250));
+events = struct('Stim', [0.01 0.02]);
+save(fullfile(bare, 'X-1_extract_LFP.mat'), 'Y', 'info', 'events');
+sb = loadAnalysisSource(string(bare));
+check(sb.fs == 20000 && sb.durationSec == 0.25 && sb.signalFs.LFP == 1000 && isequal(sb.events.Stim, [0.01 0.02]) && ~sb.hasBehavior, ...
+    'without a manifest: fs is the extract''s origFs and durationSec its row count over the rate (info.LFP.nSamples / Fs)');
 
 fprintf('\n== 2. trial scope: first Stim of each trial ==\n');
 [E, G] = epochTable(src, eventRef(line="Stim", scope="trial"), Window=epochWindow(pre=-0.2, post=0.5));
@@ -76,6 +89,8 @@ check(max(abs(E.t0 - T1.events.Stim(:, 1))) < 1e-9 && all(E.complete) && all(abs
     && height(G) == 1 && G.label == "all" && G.n == 12, 'the onsets are the written Stim onsets; one group "all"');
 U = E.Properties.UserData;
 check(U.scope == "trial" && U.nEvents == 12 && U.nTrialsSelected == 12 && U.ref.line == "Stim", 'UserData records the alignment');
+check(isequal(E.t0Continuous, (round(E.t0 * src.fs) - 1) / src.fs) && max(abs(E.t0Continuous - (E.t0 - 1 / src.fs))) < 1e-12, ...
+    't0Continuous is each event''s sample on the continuous clock: (row-1)/Fs = t0 - 1/Fs');
 
 fprintf('\n== 3. "Trial" = the trial onsets; recording scope ==\n');
 E = epochTable(src, eventRef(line="Trial"), Window=epochWindow(pre=-0.5, post=1));
@@ -89,7 +104,8 @@ check(height(E) == size(T1.events.Stim, 1) && all(E.groupIndex == 1) && isequal(
 E = epochTable(src, eventRef(line="Stim", scope="recording", which="first"));
 check(height(E) == 1, 'recording scope "first" is the first Stim of the recording');
 E = epochTable(src, eventRef(line="Stim", scope="trial", offsetSec=0.25));
-check(max(abs(E.t0 - (firstStim + 0.25))) < 1e-12, 'offsetSec shifts every event');
+check(max(abs(E.t0 - (firstStim + 0.25))) < 1e-12 && max(abs(E.t0Continuous - (firstStim - 1 / src.fs + 0.25))) < 1e-12, ...
+    'offsetSec shifts every event, on both clocks');
 
 fprintf('\n== 4. selection and groups ==\n');
 [trials, ~] = readEpsychSession(T1.behaviorFile);
@@ -116,14 +132,57 @@ check(isequal(find(m4), find(trials.Depth(1:3) == 0.25)), 'a single "=" compares
 check(height(E) == 12 && height(G) == numel(unique(trials.TrialType)) && isequal(E.TrialType, trials.TrialType), ...
     'recording scope with groups: each event takes its trial''s group');
 
-fprintf('\n== 5. between: Platform onset -> offset ==\n');
-ref = eventRef(line="Platform", edge="onset", which="first", scope="trial");
-stop = eventRef(line="Platform", edge="offset", which="first", scope="trial");
+fprintf('\n== 5. an interval belongs to the trial holding its edge; between windows ==\n');
+rw = src.events.RespWindow;
+ref = eventRef(line="RespWindow", edge="onset", which="first", scope="trial");
+stop = eventRef(line="RespWindow", edge="offset", which="first", scope="trial");
 E = epochTable(src, ref, Window=epochWindow(mode="between", pre=0, post=0, stop=stop));
-pl = arrayfun(@(i) src.trials.TrialEvents(i).Platform(1, :), (1:12).', 'UniformOutput', false);
-pl = vertcat(pl{:});
-check(height(E) == 12 && max(abs(E.t0 - pl(:, 1))) == 0 && max(abs(E.t1 - pl(:, 2))) == 0 ...
-    && max(abs(E.duration - (pl(:, 2) - pl(:, 1)))) < 1e-12, 'each epoch spans its Platform interval');
+check(height(E) == 12 && isequal(E.trial, (1:12).') && max(abs(E.t0 - rw(:, 1))) == 0 && max(abs(E.t1 - rw(:, 2))) == 0 ...
+    && max(abs(E.duration - (rw(:, 2) - rw(:, 1)))) < 1e-12, 'RespWindow onset -> offset: each epoch spans its trial''s interval');
+on = src.trials.TrialOnset; off = src.trials.TrialOffset;
+pl = src.events.Platform;
+nOverlap = sum(arrayfun(@(i) size(src.trials.TrialEvents(i).Platform, 1), 1:12));
+check(~any(arrayfun(@(x) any(on <= x & off >= x), pl(:))) && nOverlap > size(pl, 1) ...
+    && strcmp(errorId(@() epochTable(src, eventRef(line="Platform", which="all", scope="trial"))), 'resolveEvents:NoEvents'), ...
+    sprintf('Platform: its %d intervals overlap trials %d times but no edge lies in a trial, so trial scope has no event', size(pl, 1), nOverlap));
+E = epochTable(src, eventRef(line="Platform", which="all", scope="recording"), ...
+    Window=epochWindow(mode="between", pre=0, post=0, stop=eventRef(line="Platform", edge="offset", scope="recording")));
+check(height(E) == size(pl, 1) && isequal([E.t0 E.t1], pl) && all(isnan(E.trial)), ...
+    'Platform in recording scope: one epoch per interval, each outside the trials');
+ok = true;
+for ln = ["Stim" "RespWindow" "Trough"]
+    for ed = ["onset" "offset"]
+        [ta, ra] = resolveEvents(src, eventRef(line=ln, edge=ed, which="all", scope="trial"));
+        [tb, rb] = resolveEvents(src, eventRef(line=ln, edge=ed, which="all", scope="recording"));
+        ok = ok && isequal([ta ra], [tb(isfinite(rb)) rb(isfinite(rb))]);
+    end
+end
+check(ok, 'Stim, RespWindow, Trough: trial scope "all" is recording scope "all" less the events between trials');
+iv = [on(2) + 0.1, on(5) + 0.1                    % starts in trial 2, runs into trial 5
+      on(7) - 1, off(7) - 0.1                     % starts before trial 7, ends in it
+      off(9), on(10)                              % from trial 9's last sample to trial 10's first
+      on(11) + 0.2, on(11) + 0.3];                % inside trial 11
+sl = withLine(src, "Long", iv);
+[t, tr] = resolveEvents(sl, eventRef(line="Long", which="all", scope="trial"));
+[t2, tr2] = resolveEvents(sl, eventRef(line="Long", edge="offset", which="all", scope="trial"));
+[t3, tr3] = resolveEvents(sl, eventRef(line="Long", which="all", scope="recording"));
+check(isequal([t tr], [iv([1 3 4], 1) [2; 9; 11]]) && isequal([t2 tr2], [iv(:, 2) [5; 7; 10; 11]]) ...
+    && isequaln([t3 tr3], [iv(:, 1) [2; NaN; 9; 11]]), ...
+    'an interval spanning trials counts once, for the trial holding its onset (or offset), in both scopes');
+E = epochTable(sl, eventRef(line="Long", scope="trial"), ...
+    Window=epochWindow(mode="between", pre=0, post=0, stop=eventRef(line="Long", edge="offset", scope="trial")));
+spk = {sort([iv(1, 1) + (iv(1, 2) - iv(1, 1)) * (0:99).' / 100; iv(4, 1) + 0.1 * (0:39).' / 40])};
+Fl = firingRate(spk, E);
+check(isequal(E.trial, [2; 9; 11]) && isequal(E.t1, iv([1 3 4], 2)) && sum(Fl.count) == 140, ...
+    'between its onset and offset: one epoch per interval (its stop found past the trial''s end); 140 spikes counted once');
+st2 = src;
+st2.trials.TrialOffset(3) = st2.trials.TrialOnset(4);         % trials 3 and 4 touch
+b34 = st2.trials.TrialOnset(4);
+st2 = withLine(st2, "Edge", [b34, b34 + 0.2]);
+[t, tr] = resolveEvents(st2, eventRef(line="Edge", which="all", scope="trial"));
+[t2, tr2] = resolveEvents(st2, eventRef(line="Edge", which="all", scope="recording"));
+check(isequal([t tr], [b34 3]) && isequal([t2 tr2], [b34 3]) && size(st2.trials.TrialEvents(4).Edge, 1) == 1, ...
+    'an edge on the boundary of two touching trials counts once, for the earlier trial, in both scopes');
 E = epochTable(src, eventRef(line="Stim"), Window=epochWindow(pre=-0.2, post=1, stop=eventRef(line="Stim", edge="offset")));
 check(all(abs(E.t1 - E.t0 - 0.5) < 2e-3) && all(E.complete), 'a fixed window with a stop fills t1 (Stim offset, 0.5 s later)');
 E = epochTable(src, eventRef(line="Trial"), Window=epochWindow(mode="between", pre=-0.1, post=0.1, stop=eventRef(line="Trial", edge="offset")));
@@ -147,6 +206,25 @@ check(numel(st) == numel(T1.units) && isequal(meta.nSpikes, cellfun(@numel, st))
     'every sorted unit, with its peak channel and spike count');
 tr = T1.units(1).samples;
 check(max(abs(st{1} - (tr - 1) / T1.Fs)) < 1e-9, 'unit spike times are (sample-1)/Fs');
+sa = withLine(src, "AtSpike", [tr(1:5) tr(1:5) + 10] / T1.Fs);   % an event in the sample of each of five spikes
+E = epochTable(sa, eventRef(line="AtSpike", which="all", scope="recording"), Window=epochWindow(pre=-0.01, post=0.01));
+Rs = spikePSTH(st(1), E, Window=[-0.01 0.01], BinSec=0.01);
+check(height(E) == 5 && nnz(Rs.raster(1).times == 0) == 5 && isequal(sort(Rs.raster(1).epoch(Rs.raster(1).times == 0)), (1:5).'), ...
+    'a spike in the event''s own sample is at exactly 0 (epochTable''s t0Continuous, spikePSTH)');
+srcS = src; srcS.unitsFrom = "sorting";          % units read from the sorting folder (a spikes file made with Source "detect")
+out = src.outputs;
+U0 = out.readUnits();
+[stS, metaS] = selectUnits(srcS, struct('source', "units", 'classes', string.empty(1,0)));
+check(isequal(metaS.unitId, double(U0.unitId(:))) && isequal(stS, cellfun(@(x) double(x(:)), U0.times(:), 'UniformOutput', false)), ...
+    'units from the sorting folder are DatasetOutputs.readUnits''s');
+sortCopy = fullfile(root, 'sorting_copy');
+copyfile(out.SortingDir, sortCopy);
+out.SortingDir = sortCopy;
+selectUnits(srcS, struct('source', "units"));
+rmdir(sortCopy, 's');
+id = errorId(@() selectUnits(srcS, struct('source', "units")));
+out.SortingDir = "";
+check(isempty(id), 'the sorting folder is read once: a second selectUnits uses the outputs'' cache (the folder is gone by then)');
 [st, meta] = selectUnits(src, struct('source', "units", 'classes', "su"));
 check(all(meta.class == "su") && numel(st) == nnz([T1.units.label] == "good"), 'classes "su" keeps the good units');
 [st, meta] = selectUnits(src, struct('source', "detected"));
@@ -169,6 +247,8 @@ check(contains(msg, "no detection channel is left") && contains(msg, "shanks are
 [Y, fs, cm] = selectChannels(src, "LFP", Channels=[2 4]);
 check(fs == 1000 && size(Y, 2) == 2 && isequal(cm.channel, [2; 4]) && isequal(cm.recordingChannel, [2; 4]) ...
     && all(cm.units == "uV") && abs(size(Y, 1) / fs - T1.duration) < 0.01, 'selectChannels: LFP columns with their sites');
+Yall = selectChannels(src, "LFP");
+check(isequal(Yall(:, [2 4]), Y) && isequal(Yall, src.outputs.load("LFP").Y.LFP), 'selectChannels with every channel gives the cached signal as it is');
 
 fprintf('\n== 8. errors and the no-behavior fallback ==\n');
 check(strcmp(errorId(@() epochTable(src, eventRef(line="Nope"))), 'resolveEvents:NoLine'), 'an unknown line: resolveEvents:NoLine');
@@ -205,6 +285,18 @@ end
 
 function G = selectTrialsGroups(src, sel)
 [~, G] = selectTrials(src, sel);
+end
+
+
+function src = withLine(src, name, iv)
+%withLine  SRC with one more digital line: its intervals in events and, by the
+%   pairing's overlap rule (pairEpsychTrials), in every trial's TrialEvents.
+src.events.(name) = iv;
+TE = src.trials.TrialEvents;
+for i = 1:numel(TE)
+    TE(i).(name) = iv(iv(:, 1) <= src.trials.TrialOffset(i) & iv(:, 2) >= src.trials.TrialOnset(i), :);
+end
+src.trials.TrialEvents = TE;
 end
 
 

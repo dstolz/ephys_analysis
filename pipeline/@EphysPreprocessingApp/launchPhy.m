@@ -5,8 +5,11 @@ function launchPhy(obj, resultsDir, label)
 %   command" field; phy lives in its own conda env (see INSTALL.md), so the
 %   default (when the field is blank) is that env's phy executable, falling
 %   back to `conda run -n phy phy` when it cannot be found. phy reads
-%   params.py relative to its working directory, so the launcher cd's into
-%   the results dir first.
+%   params.py relative to its working directory, so the launcher changes to
+%   the results dir first: on Windows with pushd, which takes a UNC folder
+%   (cd /d does not), the folder passed in an environment variable that the
+%   new window reads after parsing its command line (delayed expansion), so
+%   no character of the path (&, ^, %, spaces) can split the command.
 %
 %   See also EphysPreprocessingApp.onLaunchPhy, EphysPreprocessingApp.onReviewOpenPhy.
 
@@ -26,7 +29,8 @@ inner = sprintf('%s template-gui params.py', phyCmd);
 if ispc
     % start returns 0 even when the command fails, so pause keeps the window
     % open to show the error; cmd /s /c keeps the inner quotes verbatim.
-    cmd = sprintf('start "phy" cmd /s /c "cd /d "%s" && %s || pause"', resultsDir, inner);
+    setenv('EPHYS_PHY_DIR', resultsDir);   % inherited by the new window
+    cmd = sprintf('start "phy" cmd /v:on /s /c "pushd "!EPHYS_PHY_DIR!" && %s || pause"', inner);
 else
     cmd = sprintf('cd "%s" && %s &', resultsDir, inner);
 end

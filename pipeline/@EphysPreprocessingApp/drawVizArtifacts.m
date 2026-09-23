@@ -1,8 +1,9 @@
 function drawVizArtifacts(obj)
 %drawVizArtifacts  Redraw the artifact regions on the Visualize axes.
 %   Clears any previously drawn xregion handles and repaints both:
-%     - automatically detected artifacts (orange) for the loaded window, cached
-%       in obj.VizDetectedIntervals (window-relative seconds);
+%     - the detected artifacts (orange): the Artifacts tab's preview of the
+%       plotted dataset while its settings still hold (vizDetectedIntervals),
+%       recording-relative, shifted onto the displayed time axis;
 %     - manually marked periods (red) from the current dataset's ManualArtifacts,
 %       converted from recording-relative to the displayed time axis.
 %   Passed to obj.Viewer as PostRenderFcn, so it runs after every render (pan,
@@ -19,9 +20,10 @@ end
 obj.VizArtPatches = gobjects(0, 1);
 
 h = gobjects(0, 1);
+tOff = obj.VizTimeOffset;
 
-% Detected artifacts (orange) - already in displayed-window seconds.
-det = obj.VizDetectedIntervals;
+% Detected artifacts (orange) - recording-relative, shifted onto the displayed axis.
+det = obj.vizDetectedIntervals() - tOff;
 for k = 1:size(det, 1)
     h(end+1, 1) = xregion(ax, det(k, 1), det(k, 2), ...
         'FaceColor', [0.95 0.6 0.1], 'FaceAlpha', 0.15); %#ok<AGROW>
@@ -30,7 +32,6 @@ end
 % Manual artifacts (red) - recording-relative, shifted onto the displayed axis.
 d = obj.currentVizDataset();
 if ~isempty(d) && ~isempty(d.ManualArtifacts)
-    tOff = obj.VizTimeOffset;
     iv = d.ManualArtifacts - tOff;        % -> displayed-axis seconds
     for k = 1:size(iv, 1)
         h(end+1, 1) = xregion(ax, iv(k, 1), iv(k, 2), ...

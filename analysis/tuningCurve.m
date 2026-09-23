@@ -13,12 +13,13 @@ function R = tuningCurve(rates, x, opts)
 %     Meta, Labels  unit table / labels as in spikePSTH
 %     Units         unit of RATES (default "spikes/s")
 %
-%   Epochs whose X (or Series) is missing are left out. R fields: kind
-%   "tuning", x (sorted unique values: numeric ascending, text
-%   alphabetical), xIsNumeric, series (labels), seriesValues, mean / sem
-%   [nX x nUnits x nSeries], n [nX x nSeries], groups (one row per series:
-%   index, label, color), param, seriesParam, labels, meta, units, params,
-%   created.
+%   Epochs whose X (or Series) is missing are left out; when that leaves
+%   none (e.g. recording-scope events that all fall outside the trials) it
+%   is tuningCurve:NoValues. R fields: kind "tuning", x (sorted unique
+%   values: numeric ascending, text alphabetical), xIsNumeric, series
+%   (labels), seriesValues, mean / sem [nX x nUnits x nSeries], n [nX x
+%   nSeries], groups (one row per series: index, label, color), param,
+%   seriesParam, labels, meta, units, params, created.
 %
 %   See also firingRate, epochTable, renderTuning.
 
@@ -54,6 +55,15 @@ else
     end
     sIsNumeric = isnumeric(s) || islogical(s);
     if sIsNumeric; s = double(s); ok = ok & isfinite(s); else; s = string(s); ok = ok & ~ismissing(s); end
+end
+if ~any(ok)
+    what = opts.Param;
+    if ~isempty(opts.Series)
+        sp = opts.SeriesParam;
+        if sp == ""; sp = "the series"; end
+        what = what + " and " + sp;
+    end
+    error('tuningCurve:NoValues', 'None of the %d epoch(s) has a value of %s (epochs outside the trials have none).', nE, what);
 end
 ux = unique(x(ok));
 us = unique(s(ok));

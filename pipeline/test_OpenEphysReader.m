@@ -289,6 +289,24 @@ U = d1.readSortedUnits();
 check(numel(U.unitId) == numel(T1.units) && all(U.channelNumber == U.channel - 1) && all(U.channelName == "CH" + U.channel), ...
     'sorted units carry the Open Ephys channel names and numbers');
 
+%% ---- 7. many TTL pulses; the stream plan's last chunk -----------------------------------
+fprintf('\n== 7. many TTL pulses, stream plan ==\n');
+nP = 20000; nS = 2 * nP + 10;
+Wp = zeros(nS, 1); Wp(2:2:2 * nP) = 1;                    % a one-sample pulse every other sample
+sP = fullfile(root, 'S3_2026-07-07_16-35-39_pulses');
+Wr = writeOpenEphysBinary(sP, struct('Fs', Fs, 'NumChannels', nCh));
+Wr.begin(1, 1, first, t0);
+Wr.append(zeros(nS, nCh), Wp, [], []);
+Wr.finish();
+if isfield(Wr, 'closeAll'); Wr.closeAll(); end
+tic; Ep = EphysDataset(sP).digitalEvents(Cache=false); tP = toc;
+check(isequal(round(Ep.events.TTL1 * Fs), repmat((2:2:2 * nP).', 1, 2)), ...
+    sprintf('%d one-sample TTL pulses, each an interval (%.1f s)', nP, tP));
+dPl = EphysDataset(fullfile(root, "S1_2026-07-07_16-35-39_binary"));
+pl = dPl.streamPlan(MaxChunkSamples=3000);
+check(isequal([pl.sampleOffset], [0 3000]) && isequal([pl.nSamples], [3000 n1 + n2 - 3000]), ...
+    'a last chunk shorter than a second joins the one before it');
+
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0
     error('test_OpenEphysReader:Failed', '%d checks failed.', nFail);

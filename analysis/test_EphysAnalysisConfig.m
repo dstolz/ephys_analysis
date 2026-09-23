@@ -3,7 +3,8 @@ function test_EphysAnalysisConfig()
 %   Defaults, JSON save / load round trips (Inf, NaN, empty lists, one-item
 %   lists, "default" sentinels, a heterogeneous Plots array), plotFor's
 %   merge of the Defaults, plot ids (auto ids, DuplicatePlotId), every
-%   validate rule, LoadWarnings, BadSchema and figureFileName.
+%   validate rule (ids and patterns whose files would collide too),
+%   LoadWarnings, BadSchema, figureFileName and plotFileName's page suffix.
 %
 %   Usage:  test_EphysAnalysisConfig
 
@@ -38,6 +39,10 @@ nPass = 0; nFail = 0;
     function tf = hasIssue(cfg, field, sev)
         I = cfg.validate(CheckPaths=false);
         tf = any(contains(I.Field, field) & I.Severity == sev);
+    end
+    function tf = exportIssue(cfg, field)
+        I = cfg.validate(CheckPaths=false);
+        tf = any(I.Section == "Export" & I.Field == field & I.Severity == "warning");
     end
 
 fprintf('\n== 1. defaults and a JSON round trip ==\n');
@@ -183,6 +188,18 @@ ok = cfg; ok.Plots(1).style.Colormap = "black"; ok.Plots(2).style.Colormap = "#1
 check(~hasIssue(ok, "Colormap", "warning"), 'a single colour ("black", "#1f77b4") or a colormap function are group colours');
 bad = cfg; bad.Plots(1).style.Colormap = "nope";
 check(hasIssue(bad, "Colormap", "warning"), 'an unknown group colour warns');
+bad = cfg.addPlot("raster", Id="psth 1");
+bad2 = cfg.addPlot("raster", Id="PSTH_1");
+check(hasIssue(bad, "psth 1.id", "error") && hasIssue(bad2, "PSTH_1.id", "error") && ~hasIssue(cfg, ".id", "error"), ...
+    'plot ids that {Plot} or a case-blind file system would merge ("psth 1", "PSTH_1" vs "psth_1") are errors');
+bad = cfg; bad.Export.FilenamePattern = "{Name}_{Unit}";
+ok = cfg; ok.Export.FilenamePattern = "{Name}_{Kind}";
+check(exportIssue(bad, "FilenamePattern") && ~exportIssue(ok, "FilenamePattern") && ~exportIssue(cfg, "FilenamePattern"), ...
+    'a file-name pattern without {Plot} warns when enabled plots would share names ({Kind} is enough for plots of different kinds)');
+bad = cfg; bad.Export.Folder = fullfile(root, "figs"); bad.Export.FilenamePattern = "{Plot}";
+ok = bad; ok.Source.Mode = "folders"; ok.Source.Folders = string(root);
+check(exportIssue(bad, "Folder") && ~exportIssue(ok, "Folder") && ~exportIssue(cfg, "Folder"), ...
+    'an export folder and pattern that name no dataset warn, unless there is one dataset folder');
 rt = cfg;
 rt.Plots(1).stack = true; rt.Plots(1).stackSpacing = 0.8; rt.Plots(1).normalize = "groupPeak";
 rt.Plots(1).fill = false; rt.Plots(1).fillAlpha = 0.3; rt.Plots(1).style.Colormap = "black";
@@ -223,6 +240,17 @@ check(strcmp(errorId(@() figureFileName("{Name}_{Bogus}", struct('Name', "a"))),
     && strcmp(errorId(@() figureFileName("{Name}_{Plot}", struct('Name', "a"))), 'figureFileName:MissingToken') ...
     && strcmp(errorId(@() figureFileName("{Name", struct('Name', "a"))), 'figureFileName:BadPattern'), ...
     'unknown and missing tokens, unmatched braces');
+ev = EphysAnalysisConfig.normalizePlot(struct('kind', "evoked", 'id', "lfp", 'layout', "grid"));
+ch = struct('labels', "A-" + compose("%03d", (0:31).'));
+check(plotFileName("{Name}_{Plot}_{Unit}", "DS1", ev, ch, 1, 2) == "DS1_lfp_all_p1" ...
+    && plotFileName("{Name}_{Plot}_{Unit}", "DS1", ev, ch, 2, 2) == "DS1_lfp_all_p2", ...
+    'plotFileName: a paged evoked grid, whose {Unit} is "all", still gets _p<page>');
+ps = EphysAnalysisConfig.normalizePlot(struct('kind', "psth", 'id', "psth"));
+un = struct('labels', "su" + compose("%03d", (1:32).'));
+check(plotFileName("{Name}_{Plot}_{Unit}", "DS1", ps, un, 2, 2) == "DS1_psth_su017" ...
+    && plotFileName("{Name}_{Plot}_{Index}", "DS1", ps, un, 2, 2) == "DS1_psth_2" ...
+    && plotFileName("{Name}_{Plot}", "DS1", ps, un, 2, 2) == "DS1_psth_p2" && plotFileName("{Name}_{Plot}", "DS1", ps, un, 1, 1) == "DS1_psth", ...
+    'plotFileName: a unit grid''s pages are told apart by {Unit} (its first unit) or {Index}, else by _p<page>');
 
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0

@@ -7,7 +7,10 @@ function [s, unknown] = normalizeSection(section, in)
 %     structs (KS4) recursively; the strings "Inf", "-Inf", "NaN"
 %     (writeJsonFile NonFinite="string") and JSON null ([]) become numbers
 %   - drops fields the defaults do not have and returns their names
-%   Nullable Kilosort4 parameters (default []) stay [] when empty.
+%   Nullable Kilosort4 parameters (default []) stay [] when empty. The
+%   fields of RowFields have a scalar default but take a row too
+%   (Artifacts.FilterCutoff: 300, or [lo hi] for a band-pass), so they are
+%   kept as a row.
 %
 %   See also EphysPipelineConfig.defaults, writeJsonFile.
 
@@ -18,6 +21,13 @@ end
 
 def = EphysPipelineConfig.defaults(section);
 [s, unknown] = coerceStruct(def, in, section);
+end
+
+
+function tf = isRowField(path)
+%isRowField  Numeric fields whose scalar default stands for a row value.
+RowFields = "Artifacts.FilterCutoff";
+tf = any(path == RowFields);
 end
 
 
@@ -87,6 +97,12 @@ if isnumeric(d)
     if isempty(d)
         % nullable: [] stays [], otherwise a row of what was given
         if ~isempty(v); v = reshape(double(v), 1, []); end
+    elseif isscalar(d) && isRowField(path)
+        if isempty(v)
+            v = d;
+        else
+            v = reshape(double(v), 1, []);
+        end
     elseif isscalar(d)
         if isempty(v)
             v = d;

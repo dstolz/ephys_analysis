@@ -96,6 +96,45 @@ classdef test_LocalCleanup < matlab.unittest.TestCase
             data = T(endsWith(T.File, ".bin"), :);
             tc.verifyNotEmpty(data);
             tc.verifyTrue(all(data.Category == "raw" & data.Action == "keep"));
+
+            % Its sorting .bin is <Name>_ks4.bin, so toBin never writes over
+            % the recording; that pair is what "bin" removes.
+            raw = fullfile(local, tc.Name + ".bin");
+            tc.verifyEqual(d.BinFile, string(fullfile(local, tc.Name + "_ks4.bin")));
+            before = tc.bytesOf(raw);
+            d.toBin();
+            tc.verifyEqual(tc.bytesOf(raw), before, 'toBin leaves the recording''s data file as it was');
+            T = planLocalCleanup(d, Remove="bin");
+            pair = fullfile(local, tc.Name + ["_ks4.bin" "_ks4.json"]);
+            tc.verifyEqual(T.Category(ismember(T.File, pair)).', ["bin" "bin"]);
+            tc.verifyTrue(all(T.Action(ismember(T.File, pair)) == "remove"));
+            tc.verifyEqual([T.Category(T.File == raw) T.Action(T.File == raw)], ["raw" "keep"]);
+        end
+
+        function anotherRecordingsOutputsAreKept(tc)
+            % Two recordings with one name share <OutputRoot>/<Name>: what the
+            % other one wrote there (its .bin and sort, a .mat whose
+            % provenance names it) never goes with this dataset's outputs.
+            out = fullfile(tc.Root, "out", tc.Name);
+            other = fullfile(tc.Root, "EPHYS", "SYNTH-02", tc.Name);
+            mkdir(fullfile(out, "kilosort4"));
+            tc.writeBytes(fullfile(out, "kilosort4", "spike_times.npy"), 100);
+            tc.writeBytes(fullfile(out, tc.Name + ".bin"), 3000);
+            writeJsonFile(fullfile(out, tc.Name + ".json"), struct('n_chan_bin', 4, ...
+                'bin_file', fullfile(out, tc.Name + ".bin"), 'source_folder', other));
+            tc.writeMat(fullfile(out, tc.Name + "_extract_LFP.mat"), ...
+                struct('Y', 1, 'info', 1, 'conversion', struct('dataset', tc.Name, 'sourceFolder', other)));
+            tc.writeMat(fullfile(out, tc.Name + "_spikes.mat"), ...
+                struct('detected', 1, 'units', 1, 'conversion', struct('dataset', tc.Name, 'sourceFolder', tc.Local)));
+            d = tc.dataset();
+            d.OutputDir = out;
+            d.DatasetKey = "SYNTH-01/" + tc.Name;
+            T = planLocalCleanup(d, Remove=["bin" "sorting" "signals" "spikes"]);
+            tc.verifyEqual(T.Action(T.File == fullfile(out, tc.Name + "_spikes.mat")), "remove", 'its own output still goes');
+            for f = [fullfile(out, "kilosort4", "spike_times.npy"), fullfile(out, tc.Name + [".bin" ".json" "_extract_LFP.mat"])]
+                tc.verifyEqual(T.Action(T.File == f), "keep", f);
+            end
+            tc.verifySubstring(T.Reason(T.File == fullfile(out, tc.Name + ".bin")), other);
         end
 
         function runRemovesOnlyTheRemoveRowsAndKeepsARecord(tc)
@@ -424,6 +463,12 @@ classdef test_LocalCleanup < matlab.unittest.TestCase
         function writeBytes(file, n)
             fid = fopen(file, 'w');
             fwrite(fid, zeros(1, n, 'uint8'), 'uint8');
+            fclose(fid);
+        end
+
+        function b = bytesOf(file)
+            fid = fopen(file, 'r');
+            b = fread(fid, inf, '*uint8');
             fclose(fid);
         end
 

@@ -3,12 +3,15 @@ function syncPlotEditorEnable(obj)
 %   Unit rows for spike sources (classes and groups for sorted units only),
 %   bins for PSTHs / rasters / spike heatmaps, raster, bar / line,
 %   normalize, fill (its opacity when filled), stack (its spacing when
-%   stacked; no y limits or legend then) and masking for PSTHs, parameter
+%   stacked; no legend then) and masking for PSTHs, parameter
 %   rows for tuning, value for probe maps, row order for
 %   heatmaps and unit correlations, epoch rate and correlation for unit
 %   correlations (bins only for their peak rate), group colours for the
 %   kinds with groups, heat colours for heatmaps / probe maps / unit
-%   correlations, line width for PSTHs / evoked / tuning, tiles for paged grids, and the plot's own event / window /
+%   correlations, line width for PSTHs / evoked / tuning, y limits where a
+%   rate or amplitude axis takes them (unstacked PSTHs, evoked butterfly and
+%   grid, rates, tuning; never rasters, stacks, heatmaps or maps), tiles
+%   for paged grids, and the plot's own event / window /
 %   selection only where its "Default ..." box is unticked (not for probe
 %   maps, which align to nothing).
 E = obj.PlotEditor;
@@ -48,7 +51,8 @@ stacked = psth && E.stack.Value;
 en([E.withRaster E.histStyle E.normalize E.fill E.stack], psth);
 en(E.fillAlpha, psth && E.fill.Value);
 en(E.stackSpacing, stacked);
-en([E.ylim E.legend], ~stacked);
+en(E.legend, ~stacked);
+en(E.ylim, (psth && ~stacked) || (kind == "evoked" && string(E.layout.Value) ~= "stack") || ismember(kind, ["rate" "tuning"]));
 en(E.colormap, ismember(kind, ["psth" "raster" "evoked" "rate" "tuning"]));
 en(E.heatColormap, ismember(kind, ["heatmap" "probemap" "corrmap"]));
 en(E.lineWidth, ismember(kind, ["psth" "evoked" "tuning"]));
@@ -65,7 +69,7 @@ setPanel(obj.PlotAlignControls.WindowPanel, aligned && ~E.defaultWindow.Value);
 setPanel(obj.PlotAlignControls.SelectionPanel, aligned && ~E.defaultSelection.Value);
 C = obj.PlotAlignControls;
 if aligned && ~E.defaultWindow.Value
-    en([C.StopLine C.StopEdge C.StopWhich C.StopScope], C.StopOn.Value);
+    en([C.StopLine C.StopEdge C.StopWhich C.StopN C.StopScope], C.StopOn.Value);
 end
 end
 

@@ -151,10 +151,17 @@ E = onsets(keepTrial);
 nTrials = numel(E);
 
 % --- epoch (the createdatamatpt selection rule) -------------------------
+% With the train sorted, n(x) = the number of spikes <= x (a binary search,
+% ties included) makes trial k's spikes times(n(E+tPre)+1 : n(E+tPost)),
+% i.e. t > E+tPre and t <= E+tPost, without scanning the train per trial.
+if ~issorted(times); times = sort(times); end
+edges = [-Inf; times(:); Inf];
+nPre  = discretize(E + twin(1), edges) - 1;
+nPost = discretize(E + twin(2), edges) - 1;
 data = struct('times', cell(1, nTrials));
 counts = zeros(1, nTrials);
 for k = 1:nTrials
-    v = times(times > E(k) + twin(1) & times <= E(k) + twin(2));
+    v = times(nPre(k) + 1 : nPost(k));
     switch opts.TimeBase
         case "window",   v = v - E(k) - twin(1);
         case "onset",    v = v - E(k);

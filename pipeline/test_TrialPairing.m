@@ -6,7 +6,8 @@ function test_TrialPairing()
 %   line idle at the recording start, inverted lines, nested lines,
 %   derived-signal samples), then EphysDataset.digitalEvents / pairTrials /
 %   setTrialPairing / behaviorToMat on a synthetic RHD recording,
-%   inverted-line events in toMat and ChronuxDataset, and the pipeline's
+%   inverted-line events in toMat and ChronuxDataset (from SignalOptions or
+%   the dataset's TrialConfig), and the pipeline's
 %   behavior step (record, approve, reuse, stale after a config change, a
 %   count mismatch reported).
 %
@@ -63,8 +64,14 @@ P = pairEpsychTrials(trials, events, Fs, NumSamples=N, SignalFs=struct('LFP', 50
 check(isequal(P.interval, (1:n).') && P.nPaired == n && ~P.countMismatch && isempty(P.warnings) ...
     && isempty(wid) && all(P.flag == "ok"), 'every trial pairs in order with its interval, nothing to warn about');
 check(isequal(P.onsetSample, round(on * Fs)) && isequal(P.offsetSample, round(off * Fs)), 'samples are rows at Fs (t = row/Fs)');
-check(isfield(P.signalSamples, 'LFP') && ~isfield(P.signalSamples, 'Bad') && isequal(P.signalSamples.LFP(:, 1), round(on * 500)), ...
-    'derived-signal samples round(t*Fs) for valid rates only');
+check(isfield(P.signalSamples, 'LFP') && ~isfield(P.signalSamples, 'Bad') ...
+    && isequal(P.signalSamples.LFP, round(([on off] - 1 / Fs) * 500) + 1), ...
+    'derived-signal samples round((t - 1/Fs)*signalFs) + 1 for valid rates only');
+PX = pairEpsychTrials(trials(1, :), struct('InTrial', [180001 240000] / 30000), 30000, ...
+    SignalFs=struct('LFP', 1000));
+check(PX.onsetSample == 180001 && isequal(PX.signalSamples.LFP, [6001 8001]) ...
+    && PX.columns.TrialOnsetSample_LFP == 6001, ...
+    'recording row 180001 at 30 kHz (continuous t = 6.000 s) is LFP row 6001 at 1 kHz, not 6000');
 check(size(P.lines.Stim{3}, 1) == 2 && size(P.lines.Stim{1}, 1) == 1 && isempty(P.lines.Reward{2}) ...
     && ~isfield(P.lines, 'InTrial'), 'other lines nested per trial by overlap');
 check(isequal(P.intervals, iv) && isequal(P.events.Stim, sortrows(stim)) && isempty(P.partialIntervals) ...
@@ -254,8 +261,9 @@ check(~dB.TrialPairing.auto_approved, 'approving by hand clears the automatic ma
 o = d.behaviorToMat(Pairing=PR);
 B = load(o.file);
 bt = B.behavior.trials;
+lfpRow = round((onR(1) - 1) / Fs2 * 250) + 1;       % row 1200 lies at 1.199 s: 250 Hz row 301 (1.200 s)
 check(o.paired && all(ismember(["ToneLevel" "TrialOnset" "TrialOnsetSample" "TrialOnsetSample_LFP" "PairingFlag"], string(bt.Properties.VariableNames))) ...
-    && isequaln(bt.TrialOnsetSample, [NaN; onR(1:k-1)]) && bt.TrialOnsetSample_LFP(2) == round(onR(1) / Fs2 * 250) ...
+    && isequaln(bt.TrialOnsetSample, [NaN; onR(1:k-1)]) && bt.TrialOnsetSample_LFP(2) == lfpRow && lfpRow == 301 ...
     && B.behavior.pairing.status == "approved" && B.behavior.pairing.signalFs.LFP == 250 ...
     && isequal(B.behavior.pairing.cutTrials, [1 0]) && B.behavior.pairing.countMismatch, ...
     'behaviorToMat writes the pairing columns and summary');
@@ -287,6 +295,38 @@ end
 cx = ChronuxDataset(d, Signal="RAW", SignalOptions=struct('invertedLines', "din0"));
 cx.loadSignal();
 check(isequal(round(cx.Events.din0 * Fs2), lowRows), 'ChronuxDataset RAW honours invertedLines');
+dI = EphysDataset(recDir);                                  % the line polarity and naming of TrialConfig
+dI.OutputDir = d.OutputDir;
+tcI = d.TrialConfig; tcI.InvertedLines = "din0"; dI.TrialConfig = tcI;
+cx = ChronuxDataset(dI, Signal="RAW");
+cx.loadSignal();
+check(isequal(round(cx.Events.din0 * Fs2), lowRows) && isequal(cx.Info.invertedLines, "din0"), ...
+    'ChronuxDataset RAW takes the line polarity from TrialConfig when SignalOptions leaves it out');
+cx = ChronuxDataset(dI, Signal="RAW", SignalOptions=struct('invertedLines', string.empty(1, 0)));
+cx.loadSignal();
+check(isequal(round(cx.Events.din0 * Fs2), [onR offR]), 'an explicit empty invertedLines overrides TrialConfig');
+tcN = tcI; tcN.LabelField = "native"; tcN.LineNames = "DIN-00=Trig"; tcN.InvertedLines = "Trig";
+dI.TrialConfig = tcN;
+cx = ChronuxDataset(dI, Signal="RAW");
+cx.loadSignal();
+check(isequal(fieldnames(cx.Events), {'Trig'}) && isequal(round(cx.Events.Trig * Fs2), lowRows) ...
+    && isequal(cx.ChannelLabels, ["A-000" "A-001"]), ...
+    'ChronuxDataset RAW takes the label field and line names from TrialConfig too');
+if license('test', 'Signal_Toolbox')
+    % These two need deriveSignals to take labelField / lineNames /
+    % invertedLines it is not given from TrialConfig, as readData does.
+    dI.TrialConfig = tcI;
+    cx = ChronuxDataset(dI, Signal="LFP", SignalOptions=struct('LFP_Fs', 250));
+    cx.loadSignal();
+    check(isequal(round(cx.Events.din0 * Fs2), lowRows), ...
+        'ChronuxDataset LFP takes the line polarity from TrialConfig (deriveSignals falls back to it)');
+    dI.TrialConfig = tcN;
+    cx = ChronuxDataset(dI, Signal="LFP", SignalOptions=struct('LFP_Fs', 250));
+    cx.loadSignal();
+    check(isequal(fieldnames(cx.Events), {'Trig'}) && isequal(round(cx.Events.Trig * Fs2), lowRows) ...
+        && isequal(cx.ChannelLabels, ["A-000" "A-001"]), ...
+        'ChronuxDataset LFP takes the label field and line names from TrialConfig (deriveSignals falls back)');
+end
 
 fprintf('\n== 8. pipeline behavior step ==\n');
 delete(d.manifestFile());
@@ -306,7 +346,8 @@ check(any(R.Step == "behavior:pairing" & R.Status == "needs review") && dp.Trial
     'a new pairing is recorded and reported as needing review');
 B = load(pipe.outputPathFor("behavior", dp));
 check(ismember("TrialOnsetSample_LFP", string(B.behavior.trials.Properties.VariableNames)) ...
-    && B.behavior.trials.TrialOnsetSample_LFP(1) == round(onR(1) / Fs2 * 500), 'the behavior file carries the pairing (LFP rate from the config)');
+    && B.behavior.trials.TrialOnsetSample_LFP(1) == round((onR(1) / Fs2 - 1 / Fs2) * 500) + 1, ...
+    'the behavior file carries the pairing (LFP rate from the config)');
 dp.setTrialPairing(dp.pairTrials(), "approved");
 B = load(pipe.outputPathFor("behavior", dp));
 check(B.behavior.pairing.status == "approved", 'approving after the behavior step brings its behavior file up to date');

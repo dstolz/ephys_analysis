@@ -5,7 +5,7 @@ function test_CommonReference()
 %   dead (flat) channel, then checks:
 %     1. Reference "none" reads the recording as stored
 %     2. suggestReferenceExclude flags the broken and the dead channel
-%        (Ludwig et al. 2009: noise floor outside 0.3-2x the mean)
+%        (Ludwig et al. 2009: noise floor outside 0.3-2x the median)
 %     3. prepareReference takes the suggestion once, saves it in the
 %        manifest, and never replaces a list set by hand
 %     4. CAR / CMR subtract the mean / median of the good channels, sample
@@ -14,6 +14,10 @@ function test_CommonReference()
 %        none is an error
 %     6. toBin records the reference in its info and sidecar
 %     7. the Artifacts config section carries and validates the settings
+%     8. a few floating channels do not get every channel suggested, and a
+%        suggestion that would leave too few channels is not applied
+%     9. the common-mode detector still finds artifacts under a common
+%        reference, and ExcludeChannels take no part in artifact detection
 %   No Intan files, toolboxes or Python are needed.
 %
 %   Usage:  test_CommonReference
@@ -177,9 +181,121 @@ check(any(iss.Step == "artifacts" & iss.Field == "ReferenceBadLow" & iss.Severit
 cfg.Artifacts.ReferenceBadLow = 0.3;
 iss = cfg.validate();
 check(~any(iss.Step == "artifacts" & iss.Severity == "error"), 'a valid reference passes');
+% A microvolt threshold that is really a robust-SD multiplier flags everything.
+cfg.Artifacts.Enabled = true;
+cfg.Artifacts.Method = "microvolts";
+cfg.Artifacts.Threshold = 9;
+iss = cfg.validate();
+check(any(iss.Step == "artifacts" & iss.Field == "Threshold" & iss.Severity == "warning") ...
+    && ~any(iss.Step == "artifacts" & iss.Severity == "error"), 'a 9 uV microvolts threshold warns');
+cfg.Artifacts.Method = "commonmode";
+iss = cfg.validate();
+check(any(iss.Step == "artifacts" & iss.Field == "Threshold" & iss.Severity == "warning"), ...
+    'so does a 9 uV common-mode threshold');
+cfg.Artifacts.Threshold = 1500;
+iss1 = cfg.validate();
+cfg.Artifacts.Method = "rms";
+cfg.Artifacts.Threshold = 9;
+iss2 = cfg.validate();
+check(~any(iss1.Field == "Threshold") && ~any(iss2.Field == "Threshold"), ...
+    'a 1500 uV common-mode threshold and a 9 SD rms threshold do not');
+
+fprintf('\n== 8. floating channels and the suggestion ==\n');
+% 13 good channels at 8 uV and 3 floating ones at 200 uV: the mean noise
+% (~44 uV) would put every good channel below 0.3x; the median does not.
+rng(12);
+Xf = 8 * randn(2 * Fs, 16);
+Xf(:, [4 9 15]) = 200 * randn(2 * Fs, 3);
+dsF = EphysDataset(writeRecording(root, 'floatrec', Xf, Fs));
+[badF, infoF] = dsF.suggestReferenceExclude();
+check(isequal(badF, [4 9 15]) && abs(infoF.medianSigma - 8) < 0.5, ...
+    sprintf('only the floating channels are suggested (got [%s])', num2str(badF)));
+dsF.ArtifactConfig.Reference = "car";
+dsF.prepareReference();
+check(isequal(dsF.referenceChannels(), setdiff(1:16, [4 9 15])), 'the reference is taken over the 13 good channels');
+% Six channels whose suggestion (the quietest and the loudest) would leave
+% four: it is not applied, and not worked out again.
+X6 = randn(2 * Fs, 6) .* [2 5 8 8 11 40];
+ds6 = EphysDataset(writeRecording(root, 'sixrec', X6, Fs));
+check(isequal(ds6.suggestReferenceExclude(), [1 6]), 'the six-channel fixture suggests channels 1 and 6');
+ds6.ArtifactConfig.Reference = "car";
+lastwarn('');
+ws = warning('off', 'EphysDataset:prepareReference:SuggestionNotApplied');
+ds6.prepareReference();
+warning(ws);
+[~, wid] = lastwarn();
+check(strcmp(wid, 'EphysDataset:prepareReference:SuggestionNotApplied') && isempty(ds6.ReferenceExclude) ...
+    && ds6.ReferenceExcludeSource == "suggested" && isequal(ds6.referenceChannels(), 1:6), ...
+    'a suggestion leaving fewer than 5 channels warns and leaves no channel out');
+check(~ds6.prepareReference(), 'and is not suggested again');
+
+fprintf('\n== 9. artifact detection, reference and exclusions ==\n');
+% Five 3 mV artifacts common to 16 channels with per-channel gains 0.6-1.4:
+% under a common reference the referenced channels' mean is ~0, so the
+% common-mode detector has to measure the recording as stored.
+rng(13);
+Xc = 8 * randn(3 * Fs, 16);
+at = round([0.4 0.9 1.4 1.9 2.4] * Fs);
+for s = at
+    Xc(s:s+39, :) = Xc(s:s+39, :) + 3000 * (0.6 + 0.8 * (0:15) / 15);
+end
+dsC = EphysDataset(writeRecording(root, 'cmrec', Xc, Fs));
+dsC.ReferenceExcludeSource = "manual";            % every channel in the reference
+dsC.ArtifactConfig.Enabled = true;
+dsC.ArtifactConfig.Method = "commonmode";
+dsC.ArtifactConfig.Threshold = 1500;
+flagged = @(iv) arrayfun(@(s) any(iv(:, 1) <= (s + 19) / Fs & iv(:, 2) > (s + 19) / Fs), at);
+for ref = ["none" "car" "cmr"]
+    dsC.ArtifactConfig.Reference = ref;
+    ivC = dsC.artifactIntervals();
+    smC = dsC.analyzeArtifacts();
+    check(all(flagged(ivC)) && size(ivC, 1) == 5 && smC.nIntervals == 5, ...
+        sprintf('reference "%s": the common-mode detector flags all 5 artifacts', ref));
+end
+dsC.OutputDir = fullfile(root, 'cm_out');
+iC = dsC.toBin(Blank=true, WriteMeta=false);       % reference "cmr" from the loop
+check(iC.autoArtifact.nIntervals == 5 && iC.nAutoBlanked == smC.nBlanked, ...
+    'toBin''s own common-mode detection flags them under the reference too');
+% Ten pops on channels 1 and 2 only, both excluded from sorting: they satisfy
+% MinChannels = 2 by themselves, but excluded channels take no part.
+rng(14);
+Xe = 8 * randn(3 * Fs, 16);
+pops = round((0.2:0.25:2.45) * Fs);
+for s = pops
+    Xe(s:s+19, 1:2) = Xe(s:s+19, 1:2) + 2000;
+end
+dsE = EphysDataset(writeRecording(root, 'exrec', Xe, Fs));
+dsE.ArtifactConfig.Enabled = true;                 % rms, 9 robust SDs, MinChannels 2
+check(size(dsE.artifactIntervals(), 1) == numel(pops), 'the pops are flagged while channels 1-2 take part');
+dsE.ExcludeChannels = [1 2];
+smE = dsE.analyzeArtifacts();
+check(isempty(dsE.artifactIntervals()) && smE.nBlanked == 0 && numel(smE.channelCounts) == 16 ...
+    && all(smE.channelCounts(1:2) == 0), 'excluded channels flag nothing and count 0 in the summary');
+smO = dsE.analyzeArtifacts(ChannelOrder=[2 5 1]);
+check(numel(smO.channelCounts) == 3 && smO.channelCounts(1) == 0 && smO.channelCounts(3) == 0, ...
+    'with a ChannelOrder the excluded channels are found by their recording number');
+dsE.OutputDir = fullfile(root, 'ex_out');
+iE = dsE.toBin(Blank=true, WriteMeta=false);
+check(iE.nAutoBlanked == 0 && numel(iE.autoArtifact.channelCounts) == 16, ...
+    'toBin''s own detection leaves the excluded channels out too');
+dsE.ArtifactConfig.Reference = "car";
+dsE.ReferenceExcludeSource = "manual";
+check(isempty(dsE.artifactIntervals()), 'also under a common reference');
 
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0
     error('test_CommonReference:Failures', '%d checks failed.', nFail);
 end
+end
+
+
+function recDir = writeRecording(root, name, X, Fs)
+%writeRecording  A universal-binary recording (float32, microvolts) of X.
+recDir = fullfile(root, name);
+mkdir(recDir);
+fid = fopen(fullfile(recDir, [name '.bin']), 'w', 'ieee-le');
+fwrite(fid, single(X.'), 'single');
+fclose(fid);
+BinaryReader.writeDescriptor(recDir, struct('data_file', string(name) + ".bin", 'dtype', "float32", ...
+    'n_chan', size(X, 2), 'fs', Fs, 'gain_to_uV', 1, 'offset', 0));
 end

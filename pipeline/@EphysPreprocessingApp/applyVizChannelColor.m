@@ -1,8 +1,9 @@
 function applyVizChannelColor(obj)
 %applyVizChannelColor  Apply or clear the Viewer's "color by shank" trace
-%   coloring per the "Color channels by shank" checkbox, using the probe
-%   assigned to the currently-loaded Visualize dataset (EphysDataset.ProbeFile)
-%   and the channel list last plotted (obj.VizChannels). Safe to call any time
+%   coloring per the "Color channels by shank" checkbox, using the probe of
+%   the currently-loaded Visualize dataset (its ProbeFile, else the config's
+%   default probe, as EphysPipeline.probeFor) and the channel list last
+%   plotted (obj.VizChannels). Safe to call any time
 %   -- a no-op when there is no live Viewer -- and never re-reads or
 %   re-filters data, so it can run directly off the checkbox as well as after
 %   every Plot.
@@ -19,6 +20,7 @@ end
 d = obj.currentVizDataset();
 pf = "";
 if ~isempty(d); pf = string(d.ProbeFile); end
+if pf == ""; pf = obj.Config.Probe.DefaultProbeFile; end
 
 groups = probeShankGroups(pf, obj.VizChannels);
 obj.Viewer.setChannelGroups(groups);

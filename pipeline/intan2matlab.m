@@ -5,7 +5,7 @@ function [Y, events, info] = intan2matlab(RHDroot, options)
 %   and returns the requested continuous signals and metadata.
 %
 %   This function is a thin wrapper around EphysDataset:
-%       ds = EphysDataset(RHDroot);
+%       ds = EphysDataset(RHDroot, ProbeFile=options.ProbeFile);
 %       [Y, EVENTS, INFO] = ds.deriveSignals(options...);
 %   so reading, processing and file discovery are shared with the rest of the
 %   Intan pipeline, and every layout EphysDataset reads is supported:
@@ -42,6 +42,9 @@ function [Y, events, info] = intan2matlab(RHDroot, options)
 %               using options.SPIKE_bpLoHi (Hz, designed at SPIKE_Fs, i.e. the
 %               rate of the data being filtered).
 %
+%           The Butterworth filters run with FILTFILT in double precision,
+%           a block of channels at a time (see EphysDataset.deriveSignals).
+%
 %   EVENTS  struct
 %           One field per digital input line. Field names are the custom or
 %           native digital input names (options.labelField), overridden by
@@ -54,13 +57,20 @@ function [Y, events, info] = intan2matlab(RHDroot, options)
 %             • INFO.recordingFolder, INFO.filenames, INFO.recordingFormat
 %             • INFO.labels (amplifier channel labels from options.labelField)
 %             • INFO.origFs (amplifier sample rate)
-%             • Per-stream sampling and time vectors (seconds):
+%             • Per-stream sample rate and sample count (row k of Y.<type>
+%               is at t = (k-1)/Fs seconds):
 %                 - INFO.LFP.Fs,   INFO.LFP.bpLoHi, INFO.LFP.NotchHz,
 %                   INFO.LFP.NotchBW, INFO.LFP.filter (text description of
-%                   the LFP filters applied), INFO.LFP.time
-%                 - INFO.MUA.Fs,   INFO.MUA.IntegrationHz, INFO.MUA.bpLoHi, INFO.MUA.time
-%                 - INFO.SPIKE.Fs, INFO.SPIKE.time
-%             • INFO.importOptions (the OPTIONS struct passed in)
+%                   the LFP filters applied), INFO.LFP.nSamples
+%                 - INFO.MUA.Fs,   INFO.MUA.IntegrationHz, INFO.MUA.bpLoHi, INFO.MUA.nSamples
+%                 - INFO.SPIKE.Fs, INFO.SPIKE.nSamples
+%               Fs is the rate actually produced: the requested rate, unless
+%               the ratio to the recording rate needs RESAMPLE factors above
+%               2^18 (see EphysDataset.deriveSignals).
+%             • INFO.badChannels (columns and recording channels
+%               interpolated, method per channel and weights)
+%             • INFO.importOptions (the OPTIONS struct used, see
+%               EphysDataset.deriveSignals)
 %
 %   Syntax
 %   ------
@@ -84,14 +94,22 @@ function [Y, events, info] = intan2matlab(RHDroot, options)
 %       columns of Y.
 %
 %   options.badChannels        integer vector or scalar []
-%       1-based channel indices to spatially interpolate across columns
-%       AFTER concatenation using FILLMISSING(...,'makima',2). Indices refer
-%       to the columns after keepAmpChannels and BEFORE channelRemap.
+%       1-based COLUMN indices (after keepAmpChannels, BEFORE channelRemap;
+%       column c is amplifier channel keepAmpChannels(c)) to replace in
+%       every signal by spatial interpolation. With options.ProbeFile each
+%       is the inverse-distance weighted mean of the 4 nearest good sites
+%       on its shank; without a probe (or for a channel with no good site
+%       on its shank) a warning is issued and it is interpolated across the
+%       neighbouring columns with FILLMISSING(...,'makima',2).
 %       If a scalar negative value is provided, channels are auto-flagged as
 %       outliers by abs(zscore(rms(LFP))) > abs(value) (heuristic), computed
 %       on Y.LFP after any LFP filtering; this requires "LFP" in
 %       dataTypeOut. The channels actually interpolated are recorded in
-%       INFO.importOptions.badChannels.
+%       INFO.importOptions.badChannels and INFO.badChannels.
+%
+%   options.ProbeFile          string         ""
+%       Kilosort4 probe .json (chanMap, xc, yc, kcoords) placing the
+%       channels, for the badChannels interpolation. "" = none.
 %
 %   options.LFP_Fs             scalar Hz      1000
 %       Target LFP sampling rate for Y.LFP.
@@ -157,24 +175,24 @@ function [Y, events, info] = intan2matlab(RHDroot, options)
 %       stage) and once more as ProgressFcn(nTotal, nTotal, "Done") at the
 %       end. nDone is the number of steps already completed. The callback may
 %       throw an error to abort the import. When empty, progress is printed to
-%       the command window with PARFOR_PROGRESS. The handle is not stored in
-%       INFO.importOptions.
+%       the command window with PARFOR_PROGRESS. The handle (and ProbeFile)
+%       is not stored in INFO.importOptions.
 %
 %   Notes
 %   -----
 %   • Traditional *.rhd data are read with READ_INTAN_RHD2000_FILE_MODIFIED;
 %     split layouts with EphysDataset's .dat readers (see EphysDataset.readData).
-%   • Digital events are identified by labeling contiguous high segments of
-%     the concatenated digital input samples; event times are returned in
-%     seconds at origFs.
+%   • Digital events are the HIGH runs of each digital input line (the LOW
+%     runs for options.invertedLines): [t_on t_off] = the run's first and
+%     last row / origFs, in seconds.
 %   • Output signals are stored as SINGLE to reduce memory footprint.
 %   • Errors are raised with EphysDataset:deriveSignals:* identifiers.
 %
 %   Requirements
 %   ------------
-%   Signal Processing Toolbox (BUTTER, FILTFILT, RESAMPLE). BWLABEL (Image
-%   Processing Toolbox) is used for events when available, with an equivalent
-%   fallback otherwise.
+%   Signal Processing Toolbox (BUTTER, FILTFILT, RESAMPLE); ZSCORE
+%   (Statistics and Machine Learning Toolbox) for automatic bad-channel
+%   detection only.
 %
 %   See also EPHYSDATASET, EphysDataset.deriveSignals, EphysDataset.toMat,
 %   READ_INTAN_RHD2000_FILE_MODIFIED, RESAMPLE, BUTTER, FILTFILT, FILLMISSING
@@ -197,10 +215,11 @@ arguments
     options.labelField (1,1) string = "custom"
     options.lineNames (1,:) string = string.empty(1,0)
     options.invertedLines (1,:) string = string.empty(1,0)
+    options.ProbeFile (1,1) string = ""
     options.ProgressFcn = []
 end
 
-ds = EphysDataset(RHDroot);
+ds = EphysDataset(RHDroot, ProbeFile=options.ProbeFile);
 if ds.NumFiles == 0
     error('INTAN2MATLAB:NoFiles', 'No Intan recording files found in %s', RHDroot);
 end
@@ -211,7 +230,7 @@ if isempty(progressFcn)
         ds.RecordingFormat, ds.NumFiles, RHDroot);
     progressFcn = @consoleProgress;
 end
-args = namedargs2cell(rmfield(options, 'ProgressFcn'));
+args = namedargs2cell(rmfield(options, {'ProgressFcn', 'ProbeFile'}));
 [Y, events, info] = ds.deriveSignals(args{:}, 'ProgressFcn', progressFcn);
 
 if isscalar(options.badChannels) && options.badChannels < 0

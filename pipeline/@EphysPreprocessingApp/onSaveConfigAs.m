@@ -1,7 +1,13 @@
 function ok = onSaveConfigAs(obj)
 %onSaveConfigAs  Pick a file and save the working config there.
+%   Refused while a text field does not parse (gatherConfig).
 ok = false;
-cfg = obj.gatherConfig();
+try
+    cfg = obj.gatherConfig();
+catch ME
+    uialert(obj.Fig, string(ME.message), "Save config");
+    return
+end
 start = char(cfg.File);
 if isempty(start)
     d = char(obj.defaultConfigFolder());

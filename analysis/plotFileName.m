@@ -4,9 +4,12 @@ function f = plotFileName(pattern, name, spec, R, page, nPages)
 %   Export.FilenamePattern (figureFileName) with Name = NAME (the dataset),
 %   Plot = SPEC.id, Kind = SPEC.kind, Group = "all", Unit = the first unit on
 %   the page of a paged psth / raster / tuning grid ("all" otherwise), Index =
-%   PAGE and Date = today, and appends "_p<PAGE>" when NPAGES > 1 and the
-%   pattern names neither {Index} nor {Unit}, so pages never overwrite each
-%   other.
+%   PAGE and Date = today, and appends "_p<PAGE>" when NPAGES > 1 unless the
+%   pattern already tells the pages apart: it names {Index}, or {Unit} with
+%   a unit filled in (a paged evoked grid's {Unit} is "all" on every page),
+%   so pages never overwrite each other. Plots are told apart by {Plot}:
+%   EphysAnalysisConfig.validate checks that the ids stay distinct once
+%   sanitized and that a pattern without {Plot} serves one plot only.
 %
 %   See also figureFileName, exportFigure, EphysAnalysisRunner.runDataset.
 
@@ -18,7 +21,8 @@ if nPages > 1 && isfield(R, 'labels') && ismember(spec.kind, ["psth" "raster" "t
 end
 f = figureFileName(pattern, struct('Name', name, 'Plot', spec.id, 'Kind', spec.kind, 'Group', "all", ...
     'Unit', unit, 'Index', page));
-if nPages > 1 && ~contains(pattern, ["{Index}" "{Unit}"])
+named = contains(pattern, "{Index}") || (contains(pattern, "{Unit}") && unit ~= "all");
+if nPages > 1 && ~named
     f = f + "_p" + page;
 end
 end

@@ -64,24 +64,40 @@ function [R, job] = copySessions(T, varargin)
 %   its CancelFcn starts returning true, or by creating job.CancelFile.
 %
 %   Destination checks. A destination folder that exists and is not empty is
-%   compared with the source by size (a checksum is never read at planning
-%   time). When every source file is there with the same size, and a stitched
-%   row's file passes the checks above, the row is "already_present" and left
-%   untouched. Otherwise IfExists decides what happens to the files that are
-%   missing or differ:
+%   compared with the source by size and modified time (a checksum is never
+%   read at planning time): a file is complete when it has its source's size
+%   and time, to 2 s. The size alone cannot tell: robocopy gives a file its
+%   full size as soon as it starts it and the source's time only once it has
+%   finished it, so a copy stopped part way has the right size. When every
+%   source file is there, complete, and a stitched row's file passes the
+%   checks above, the row is "already_present" and left untouched. Otherwise
+%   IfExists decides what happens to the files that are missing or differ:
 %     "resume" (default)  complete the copy: robocopy copies the missing files
-%                         and finishes or replaces the ones whose size differs,
-%                         and everything already correct is left untouched.
-%                         The row reports "copied" with how many files it
-%                         already held. Files in the destination that are not
-%                         in the source are never touched or removed.
+%                         and finishes or replaces the ones whose size or time
+%                         differs, and everything already complete is left
+%                         untouched. The row reports "copied" with how many
+%                         files it already held. Files in the destination that
+%                         are not in the source are never touched or removed.
 %     "skip"              report "skipped" and write nothing
 %     "error"             report "failed" and write nothing
 %   There is no overwrite option: no destination file is replaced except one
 %   whose own source says it is incomplete or different. Before copying, the
-%   free space under DestRoot is checked against the total size of the rows to
-%   copy; too little space throws copySessions:InsufficientSpace before any
-%   file is written (a dry run reports it in the log and Message instead).
+%   free space under DestRoot is checked against what the rows still need:
+%   the whole size of each file that is missing or not complete (robocopy may
+%   write it again from the start), nothing for a complete one. Too little
+%   space throws copySessions:InsufficientSpace before any file is written (a
+%   dry run reports it in the log and Message instead).
+%
+%   One behavior file per session folder. Scan associates the one behavior
+%   file in a session folder with its recording, so a row whose destination
+%   already holds another one fails before anything is written, whatever
+%   IfExists says: an Epsych2 session at its top level, or a file named
+%   <subject>_yyMMddTHHmmss.mat or ..._stitched.mat, that the row does not
+%   write itself (say the session was copied earlier with its ePsych files
+%   stitched, and this row does not stitch them, or the other way round).
+%   Remove that file by hand to copy the row. A copy therefore never changes
+%   the pairing a session folder was copied with while the other pairing's
+%   behavior file is there.
 %
 %   Sessions that are still changing. With MinQuietTime, a row whose source
 %   changed more recently than that (any file or folder of the
@@ -94,13 +110,17 @@ function [R, job] = copySessions(T, varargin)
 %   is how they see each other.
 %
 %   Verification. Once the engine has copied a session, MATLAB checks every
-%   file itself: the destination file must have the source's size, and the
-%   source must not have changed size since it was listed. With Verify="hash"
-%   the engine is then run a second time to take the SHA-256 of every source
-%   and destination file, which reads each of them once more, and the two must
-%   match. Every file of a session is copied before any of them is checked, so
-%   a session that fails verification keeps its whole partial copy and is
-%   marked "failed"; the manifest records the sizes and checksums seen.
+%   file itself: the destination file must have the source's size and
+%   modified time (to 2 s), and the source must not have changed size since
+%   it was listed. With Verify="hash" the engine is then run a second time to
+%   take the SHA-256 of every source and destination file, which reads each
+%   of them once more, and the two must match. Every file of a session is
+%   copied before any of them is checked, so a session that fails
+%   verification keeps its whole partial copy and is marked "failed"; the
+%   manifest records the sizes and checksums seen. A session found complete
+%   whose session_manifest.json records a finished copy with matching
+%   checksums of every file (and the sizes they have now) is "already_present"
+%   with Verify="hash" too: its files are not read again.
 %
 %   Each row is handled on its own so one failure does not stop the batch.
 %
@@ -145,7 +165,11 @@ function [R, job] = copySessions(T, varargin)
 %   hashes when computed), for a stitched row the stitched file and each
 %   source ePsych file (epsych.stitch), the copy start / finish times, host
 %   name, user name, this function's version and the git commit of this
-%   code when git can tell.
+%   code when git can tell. It is written in the session folder of every row
+%   copied, or found already present (not by a dry run). A manifest recording
+%   a finished copy (copy.status "copied" or "already_present") is left as it
+%   is while the batch finds the session complete and takes no checksums; one
+%   left by a cancelled or failed copy is replaced.
 %
 %   Examples
 %     T = findCopySessions("SUBJ-ID-1255", "260916");
@@ -191,7 +215,7 @@ end
 
 startPhase(job, "copy");
 job.State = "copying";
-job.Launched = tic;
+job.Polled = tic;
 if opts.Background
     R = job.Result;
     return
@@ -276,8 +300,11 @@ items = cell(n, 1);
 subdirs = cell(n, 1);
 stitches = cell(n, 1);
 groups = cell(n, 1);
-present = zeros(n, 1);       % files already correct in the destination
+files = cell(n, 1);          % manifest records of a destination found complete
+stitchRecs = cell(n, 1);
+present = zeros(n, 1);       % files already complete in the destination
 wasPresent = false(n, 1);    % every file was already there
+toWrite = zeros(n, 1);       % bytes still to be written into the destination
 
 for r = 1:n
     try
@@ -349,20 +376,46 @@ for r = 1:n
             continue
         end
         if ~isfolder(dest) || numel(dir(dest)) <= 2
+            toWrite(r) = R.TotalBytes(r);
             [R.CopyStatus(r), R.Message(r)] = deal("planned", ...
                 plannedMessage(items{r}, stitches{r}, parts, R.NumFiles(r), R.TotalBytes(r), dest));
             continue
         end
 
-        % The destination exists: compare it with the source by size only.
-        [same, why, ~, nOK] = verifySizes(items{r}, dest, false);
+        % The destination exists. It must not hold a behavior file this row
+        % does not write: the folder would end up with two.
+        manifest = readJsonFile(fullfile(dest, MANIFEST), ErrorOnFail=false);
+        other = otherBehaviorFile(dest, R.Subject(r), items{r}, stitches{r});
+        if other ~= ""
+            earlier = "an earlier copy";
+            if isstruct(manifest) && isfield(manifest, 'pairingStatus') && ischar(manifest.pairingStatus) ...
+                    && ~isempty(manifest.pairingStatus)
+                earlier = "an earlier " + string(manifest.pairingStatus) + " copy";
+            end
+            [R.CopyStatus(r), R.Message(r)] = deal("failed", ...
+                "the session folder already holds " + other + " from " + earlier + "; remove it by hand first");
+            continue
+        end
+
+        % Compare it with the source by size and modified time only.
+        [same, why, files{r}, nOK, toWrite(r)] = verifySizes(items{r}, dest, false);
         present(r) = nOK;
-        if same && ~isempty(stitches{r})
-            [same, why] = verifyStitch(stitches{r}, dest, "size", false);
+        if ~isempty(stitches{r})
+            stitchOK = false;
+            if same
+                [stitchOK, why, stitchRecs{r}] = verifyStitch(stitches{r}, dest, "size", false);
+            end
+            if ~stitchOK
+                same = false;
+                toWrite(r) = toWrite(r) + sum(stitches{r}.bytes);
+            end
         end
         if same
             wasPresent(r) = true;
-            if opts.Verify == "size" || opts.DryRun
+            if opts.Verify == "hash" && checksummedCopy(manifest, items{r}, stitches{r})
+                [R.CopyStatus(r), R.Message(r)] = deal("already_present", ...
+                    "destination already holds an identical copy, checksummed when it was copied (" + MANIFEST + ")");
+            elseif opts.Verify == "size" || opts.DryRun
                 [R.CopyStatus(r), R.Message(r)] = deal("already_present", ...
                     "destination already holds an identical copy (size check)");
             else
@@ -372,8 +425,8 @@ for r = 1:n
             end
         elseif opts.IfExists == "resume"
             [R.CopyStatus(r), R.Message(r)] = deal("planned", sprintf( ...
-                "would complete a partial copy in %s: %d of %d file(s) already there (%s)", ...
-                dest, nOK, numel(items{r}), why));
+                "would complete a partial copy in %s: %d of %d file(s) already there, %s to copy (%s)", ...
+                dest, nOK, numel(items{r}), bytesText(toWrite(r)), why));
         elseif opts.IfExists == "skip"
             [R.CopyStatus(r), R.Message(r)] = deal("skipped", ...
                 "destination exists and differs from the source (" + why + "); nothing overwritten");
@@ -406,16 +459,23 @@ job.Stitches = stitches;
 job.Groups = groups;
 job.Files = cell(n, 1);
 job.StitchRecs = cell(n, 1);
+found = R.CopyStatus == "already_present";   % their manifest lists what planning saw
+job.Files(found) = files(found);
+job.StitchRecs(found) = stitchRecs(found);
 job.Hashes = struct('index', {}, 'rel', {}, 'src', {}, 'dst', {}, 'err', {});
 job.Errors = struct('index', {}, 'message', {});
-job.Launched = tic;
+job.Polled = tic;        % the engine's heartbeat, as watchHeartbeat last saw it
+job.Beat = -1;
+job.Quiet = 0;
 job.Present = present;
 job.WasPresent = wasPresent;
+job.Hashed = false(n, 1);   % the rows whose checksums this batch compared
 job.ToCopy = find(R.CopyStatus == "planned");
 job.SessionNow = 0;      % row of R the engine is working on (0: none yet)
 job.SessionsDone = 0;    % sessions it has finished in this phase
 job.PhaseBytes = 0;      % bytes of the batch it has copied (or checksummed) in this phase
 job.Total = sum(R.TotalBytes(job.ToCopy));
+job.Need = sum(toWrite(job.ToCopy));
 job.Work = max(job.Total * (1 + 2 * (opts.Verify == "hash")), 1);
 job.BytesBase = 0;
 job.Result = R;
@@ -423,9 +483,9 @@ job.Result = R;
 % --- free space ------------------------------------------------------------------
 if ~isempty(job.ToCopy)
     free = usableBytes(opts.DestRoot);
-    if isfinite(free) && job.Total > free
+    if isfinite(free) && job.Need > free
         msg = sprintf("Not enough space under %s: %s to copy, %s free.", ...
-            opts.DestRoot, bytesText(job.Total), bytesText(free));
+            opts.DestRoot, bytesText(job.Need), bytesText(free));
         if opts.DryRun
             job.LogFcn("WARNING: " + msg);
             job.R.Message(job.ToCopy) = job.R.Message(job.ToCopy) + " (WARNING: not enough free space)";
@@ -435,12 +495,16 @@ if ~isempty(job.ToCopy)
     end
 end
 
+% A session found complete gets its manifest now: no engine will run for it.
+if ~opts.DryRun
+    job = writeManifests(job, find(found).');
+end
 for r = 1:n
     job.LogFcn(sprintf("%s: %s - %s", rowName(job.R, r), job.R.CopyStatus(r), job.R.Message(r)));
 end
 if opts.DryRun || isempty(job.ToCopy)
     job.LogFcn(sprintf("%s: %d session(s) to copy (%s).", ...
-        ternary(opts.DryRun, "Dry run", "Copy"), numel(job.ToCopy), bytesText(job.Total)));
+        ternary(opts.DryRun, "Dry run", "Copy"), numel(job.ToCopy), bytesText(job.Need)));
     job.Done = true;
     job.State = "done";
     job.Result = job.R;
@@ -546,10 +610,10 @@ job = drainEvents(job, phase);
 
 statusFile = phaseFile(job, phase, "status.json");
 if ~isfile(statusFile)
-    quiet = engineSilentFor(job, phase);
-    if quiet > seconds(120)
+    job = watchHeartbeat(job, phase);
+    if job.Quiet > 120
         job = failBatch(job, sprintf( ...
-            "the copy engine stopped responding (nothing for %.0f s); anything copied is kept", seconds(quiet)));
+            "the copy engine stopped responding (nothing for %.0f s); anything copied is kept", job.Quiet));
     end
     return
 end
@@ -571,7 +635,9 @@ if phase == "copy"
         job.PhaseBytes = 0;
         startPhase(job, "hash");
         job.State = "hashing";
-        job.Launched = tic;
+        job.Polled = tic;
+        job.Beat = -1;
+        job.Quiet = 0;
         return
     end
     job = finishBatch(job);
@@ -672,16 +738,24 @@ end
 end
 
 
-function d = engineSilentFor(job, phase)
-%engineSilentFor  How long since the engine last said anything.
+function job = watchHeartbeat(job, phase)
+%watchHeartbeat  Update job.Quiet: how long, in seconds, the engine has not beaten.
 %   The engine beats every couple of seconds, including while robocopy is
-%   working on one big file, so a stale beat means it is gone rather than busy.
-hb = phaseFile(job, phase, "heartbeat");
-info = dir(hb);
-if isscalar(info)
-    d = max(seconds(0), datetime('now') - datetime(info.datenum, 'ConvertFrom', 'datenum'));
+%   working on one big file, so a beat that has not changed for two minutes
+%   means it is gone rather than busy. That is measured in MATLAB's own time
+%   between polls, never from the beat's age on the wall clock, and a long
+%   gap between two polls counts for 10 s at most: after the computer slept,
+%   or MATLAB was busy, the engine needs a moment to beat again.
+info = dir(phaseFile(job, phase, "heartbeat"));
+beat = -1;   % none yet: the engine has not started
+if isscalar(info); beat = info.datenum; end
+gap = min(toc(job.Polled), 10);
+job.Polled = tic;
+if beat ~= job.Beat
+    job.Beat = beat;
+    job.Quiet = 0;
 else
-    d = seconds(toc(job.Launched));   % it has not started yet
+    job.Quiet = job.Quiet + gap;
 end
 end
 
@@ -791,6 +865,7 @@ for r = job.ToCopy.'
         job.R.Message(r) = "cancelled while checksumming; the copy is kept in " + dest;
         continue
     end
+    job.Hashed(r) = true;
     files = job.Files{r};
     bad = strings(0, 1);
     for k = 1:numel(files)
@@ -838,17 +913,10 @@ end
 
 function job = finishBatch(job)
 %finishBatch  Set every row's final status, write the manifests and clean up.
-tool = struct('name', "copySessions", 'version', job.Version, 'gitCommit', gitCommit());
-host = hostName();
-user = string(getenv('USERNAME'));
-if user == ""; user = string(getenv('USER')); end
-
-rows = union(job.ToCopy(:).', find(job.R.CopyStatus == "already_present").');
+%   The rows found already present when the batch was planned got their
+%   manifests then.
+rows = job.ToCopy(:).';
 for r = rows
-    dest = job.R.DestDir(r);
-    if job.R.CopyStatus(r) == "already_present" && isfile(fullfile(dest, job.Manifest))
-        continue   % it already has its manifest; do not replace a fuller one
-    end
     if job.R.CopyStatus(r) == "copying"
         it = job.Items{r};
         stitch = job.Stitches{r};
@@ -870,17 +938,10 @@ for r = rows
                 job.Opts.Verify, resumeNote(job, r, numel(it)));
         end
     end
-    if isfolder(dest)
-        try
-            job.R.ManifestFile(r) = writeManifest(job, r, dest, tool, host, user);
-        catch ME
-            job.R.Message(r) = job.R.Message(r) + "; manifest not written: " + ME.message;
-            if job.R.CopyStatus(r) == "copied"; job.R.CopyStatus(r) = "failed"; end
-        end
-    end
-    if ismember(r, job.ToCopy)   % the others were reported when the batch was planned
-        job.LogFcn(sprintf("%s: %s - %s", rowName(job.R, r), job.R.CopyStatus(r), job.R.Message(r)));
-    end
+end
+job = writeManifests(job, rows);
+for r = rows   % the others were reported when the batch was planned
+    job.LogFcn(sprintf("%s: %s - %s", rowName(job.R, r), job.R.CopyStatus(r), job.R.Message(r)));
 end
 
 job.SessionNow = 0;
@@ -1001,6 +1062,35 @@ end
 end
 
 
+function f = otherBehaviorFile(dest, subject, items, stitch)
+%otherBehaviorFile  A behavior file in session folder DEST that the row does not write ("" when none).
+%   Scan associates the one Epsych2 session at the top of a session folder
+%   with its recording (associateFolderBehavior), and with two it associates
+%   none. Besides the Epsych2 sessions there, a file named as copies name
+%   behavior files (<subject>_yyMMddTHHmmss.mat or ..._stitched.mat) counts,
+%   even one that is only partly copied. The row's own files (ITEMS, and the
+%   stitched file of STITCH) do not.
+names = strings(0, 1);
+S = findEpsychSessions(dest, Recursive=false);
+for k = 1:height(S)
+    [~, n, x] = fileparts(S.File(k));
+    names(end+1, 1) = n + x; %#ok<AGROW>
+end
+D = dir(fullfile(dest, '*.mat'));
+expr = "^" + regexptranslate('escape', char(subject)) + "_\d{6}T\d{6}(_stitched)?\.mat$";
+for k = 1:numel(D)
+    if ~D(k).isdir && ~isempty(regexpi(D(k).name, expr, 'once'))
+        names(end+1, 1) = string(D(k).name); %#ok<AGROW>
+    end
+end
+mine = [items.rel];
+if ~isempty(stitch); mine = [mine, stitch.rel]; end
+names = unique(names(~ismember(lower(names), lower(mine))));
+f = "";
+if ~isempty(names); f = names(1); end
+end
+
+
 function t = sourceChanged(items, subdirs, groups, stitch)
 %sourceChanged  When a row's sources last changed (NaT when unknown).
 %   The newest of its files and folders: a folder changes when a file is
@@ -1032,14 +1122,22 @@ end
 % verification
 % =============================================================================
 
-function [same, why, files, nOK] = verifySizes(items, dest, checkSource)
-%verifySizes  Compare source files with their destination copies by size.
-%   SAME is true when every file is there with the size it was listed with.
-%   CHECKSOURCE also requires each source file still to have that size.
-%   FILES are the manifest records and NOK the number of files already correct.
+function [same, why, files, nOK, need] = verifySizes(items, dest, checkSource)
+%verifySizes  Compare source files with their destination copies by size and modified time.
+%   A copy is complete when it has its source's size and modified time, to
+%   2 s (the resolution of FAT and of some SMB servers). The size alone
+%   cannot tell: robocopy gives a file its full size as soon as it starts
+%   it, and the source's time only once it has finished it.
+%   SAME is true when every file is there, complete. CHECKSOURCE also
+%   requires each source file still to have the size it was listed with.
+%   FILES are the manifest records, NOK the number of files already
+%   complete, and NEED the bytes still to be written: the whole size of each
+%   file that is missing or not complete (robocopy may write it again from
+%   the start).
 files = fileRecords(items, dest);
 bad = strings(0, 1);
 nOK = 0;
+need = 0;
 for k = 1:numel(items)
     s = dir(items(k).src);
     srcBytes = NaN;
@@ -1048,6 +1146,7 @@ for k = 1:numel(items)
     d = dir(files(k).destination);
     if ~isscalar(d) || d.isdir
         bad(end+1) = items(k).rel + " missing"; %#ok<AGROW>
+        need = need + items(k).bytes;
         continue
     end
     files(k).destSizeBytes = int64(d.bytes);
@@ -1055,9 +1154,14 @@ for k = 1:numel(items)
         bad(end+1) = items(k).rel + " changed on the source during the copy"; %#ok<AGROW>
     elseif d.bytes ~= srcBytes
         bad(end+1) = sprintf("%s size %d, source %d", items(k).rel, d.bytes, srcBytes); %#ok<AGROW>
+    elseif abs(d.datenum - s.datenum) * 86400 > 2
+        bad(end+1) = sprintf("%s modified %s, source %s", items(k).rel, ...
+            datenumText(d.datenum), datenumText(s.datenum)); %#ok<AGROW>
     else
         nOK = nOK + 1;
+        continue
     end
+    need = need + items(k).bytes;
 end
 same = isempty(bad);
 why = "";
@@ -1206,6 +1310,122 @@ m.copy = struct('status', R.CopyStatus(r), 'message', R.Message(r), 'verify', jo
 m.tool = tool;
 f = string(fullfile(dest, job.Manifest));
 writeJsonFile(f, m);
+end
+
+
+function job = writeManifests(job, rows)
+%writeManifests  Write session_manifest.json in the session folder of each of ROWS.
+%   A manifest that records a finished copy is kept while the batch found
+%   the session complete, changed nothing in it and compared no checksums:
+%   it describes the copy better than a new one would. Any other is
+%   replaced, so one left by a cancelled or failed copy does not outlive the
+%   session being found complete.
+tool = [];   % filled in once a manifest is to be written: asking git takes a moment
+host = "";
+user = "";
+for r = rows(:).'
+    dest = job.R.DestDir(r);
+    if ~isfolder(dest)
+        continue
+    end
+    if job.WasPresent(r) && ~job.Hashed(r) ...
+            && finishedCopy(readJsonFile(fullfile(dest, job.Manifest), ErrorOnFail=false))
+        continue
+    end
+    if isempty(tool)
+        tool = struct('name', "copySessions", 'version', job.Version, 'gitCommit', gitCommit());
+        host = hostName();
+        user = string(getenv('USERNAME'));
+        if user == ""; user = string(getenv('USER')); end
+    end
+    try
+        job.R.ManifestFile(r) = writeManifest(job, r, dest, tool, host, user);
+    catch ME
+        job.R.Message(r) = job.R.Message(r) + "; manifest not written: " + ME.message;
+        if job.R.CopyStatus(r) == "copied"; job.R.CopyStatus(r) = "failed"; end
+    end
+end
+end
+
+
+function tf = finishedCopy(m)
+%finishedCopy  True when manifest M (as read, [] for none) records a copy that finished.
+tf = isstruct(m) && isscalar(m) && isfield(m, 'copy') && isstruct(m.copy) && isscalar(m.copy) ...
+    && isfield(m.copy, 'status') && ischar(m.copy.status) ...
+    && any(string(m.copy.status) == ["copied", "already_present"]);
+end
+
+
+function tf = checksummedCopy(m, items, stitch)
+%checksummedCopy  True when manifest M records the SHA-256 of every file of a row, matching.
+%   M must record a finished copy verified with checksums, list each of
+%   ITEMS with the size it has now and equal checksums of its source and
+%   its copy, and for a stitched row the checksum of the stitched file made
+%   from sources of the sizes they have now. The files themselves are
+%   checked against their sources by size and time before this is asked.
+%   A manifest that does not say so, in any way, gives false.
+tf = false;
+if ~finishedCopy(m) || ~isfield(m.copy, 'verify') || ~isequal(m.copy.verify, 'hash')
+    return
+end
+recs = [manifestList(m, 'recording', 'files'); manifestList(m, 'epsych', 'files')];
+rel = strings(numel(recs), 1);
+for i = 1:numel(recs)
+    if isstruct(recs{i}) && isscalar(recs{i}) && isfield(recs{i}, 'relativePath') && ischar(recs{i}.relativePath)
+        rel(i) = string(recs{i}.relativePath);
+    end
+end
+for k = 1:numel(items)
+    i = find(rel == items(k).rel, 1);
+    if isempty(i); return; end
+    x = recs{i};
+    if ~all(isfield(x, {'sizeBytes', 'sha256Source', 'sha256Destination'})) || ~isnumeric(x.sizeBytes) ...
+            || ~isequal(double(x.sizeBytes), items(k).bytes) || ~ischar(x.sha256Source) ...
+            || numel(x.sha256Source) ~= 64 || ~isequal(x.sha256Destination, x.sha256Source)
+        return
+    end
+end
+if ~isempty(stitch)
+    s = [];
+    if isfield(m, 'epsych') && isstruct(m.epsych) && isscalar(m.epsych) && isfield(m.epsych, 'stitch')
+        s = m.epsych.stitch;
+    end
+    if ~isstruct(s) || ~isscalar(s) || ~isfield(s, 'sha256') || ~ischar(s.sha256) || numel(s.sha256) ~= 64
+        return
+    end
+    parts = manifestList(m.epsych, 'stitch', 'parts');
+    bytes = NaN(numel(parts), 1);
+    for i = 1:numel(parts)
+        x = parts{i};
+        if isstruct(x) && isscalar(x) && isfield(x, 'sizeBytes') && isnumeric(x.sizeBytes) && isscalar(x.sizeBytes)
+            bytes(i) = double(x.sizeBytes);
+        end
+    end
+    if ~isequal(bytes, stitch.bytes(:))
+        return
+    end
+end
+tf = true;
+end
+
+
+function c = manifestList(s, field, list)
+%manifestList  S.(FIELD).(LIST) of a decoded manifest as a column cell ({} when absent).
+%   jsondecode gives a list of records as a struct array, or as a cell when
+%   the records differ in their fields.
+c = {};
+if ~isstruct(s) || ~isscalar(s) || ~isfield(s, field) || ~isstruct(s.(field)) || ~isscalar(s.(field)) ...
+        || ~isfield(s.(field), list)
+    return
+end
+c = s.(field).(list);
+if isstruct(c)
+    c = num2cell(c(:));
+elseif iscell(c)
+    c = c(:);
+else
+    c = {};
+end
 end
 
 
@@ -1415,6 +1635,12 @@ end
 function v = durSeconds(d)
 v = [];
 if isduration(d) && ~isnan(d); v = seconds(d); end
+end
+
+
+function s = datenumText(d)
+%datenumText  A file time as dir gives it (a datenum) as "yyyy-MM-dd HH:mm:ss".
+s = string(datetime(d, 'ConvertFrom', 'datenum'), 'yyyy-MM-dd HH:mm:ss');
 end
 
 

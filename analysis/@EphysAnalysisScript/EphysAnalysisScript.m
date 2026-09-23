@@ -13,8 +13,9 @@ classdef EphysAnalysisScript
     %                                 selectUnits / selectChannels, spikePSTH
     %                                 / evokedPotential / firingRate /
     %                                 tuningCurve / unitCorrelation / unitSummary +
-    %                                 probeMapValues, newExportFigure,
-    %                                 renderPlot, exportFigure, the report
+    %                                 probeMapValues, then a page at a time
+    %                                 newExportFigure, renderPlot,
+    %                                 exportFigure and reportImage, the report
     %                                 calls. It never uses EphysAnalysisRunner,
     %                                 so it documents exactly what a run does.
     %   Both return the script text; pass File= to write it.
@@ -127,6 +128,7 @@ classdef EphysAnalysisScript
             L = [L; EphysPipelineScript.structLiteral("exportOpts", X)];
             L = [L; EphysPipelineScript.structLiteral("reportOpts", P)];
             doReport = P.Enabled;
+            withImages = doReport && P.Format ~= "pdf";   % the HTML report embeds each exported page
             if doReport
                 L = [L; EphysAnalysisScript.chunkedLiteral("configJson", cfg.toJson(Pretty=false))];
                 L(end+1, 1) = "config = EphysAnalysisConfig.fromStruct(jsondecode(configJson)).toStruct();   % printed in the report";
@@ -165,25 +167,18 @@ classdef EphysAnalysisScript
                 L(end+1, 1) = "            R.spec = spec;"; %#ok<AGROW>
                 L(end+1, 1) = "            files = strings(1, 0);"; %#ok<AGROW>
                 if X.Enabled
-                    L(end+1, 1) = "            n = plotPageCount(R, spec);"; %#ok<AGROW>
-                    L(end+1, 1) = "            for p = 1:n"; %#ok<AGROW>
-                    L(end+1, 1) = "                fig = newExportFigure(exportOpts);"; %#ok<AGROW>
-                    L(end+1, 1) = "                renderPlot(R, spec, fig, Page=p);"; %#ok<AGROW>
-                    L(end+1, 1) = "                base = fullfile(folder, plotFileName(exportOpts.FilenamePattern, name, spec, R, p, n));"; %#ok<AGROW>
-                    L(end+1, 1) = "                want = base + ""."" + exportOpts.Formats;"; %#ok<AGROW>
-                    L(end+1, 1) = "                if ~exportOpts.Overwrite && all(isfile(want))"; %#ok<AGROW>
-                    L(end+1, 1) = "                    files = [files want]; %#ok<AGROW>"; %#ok<AGROW>
-                    L(end+1, 1) = "                else"; %#ok<AGROW>
-                    L(end+1, 1) = "                    files = [files exportFigure(fig, base, Format=exportOpts.Formats, Dpi=exportOpts.Dpi)]; %#ok<AGROW>"; %#ok<AGROW>
-                    L(end+1, 1) = "                end"; %#ok<AGROW>
-                    L(end+1, 1) = "                close(fig);"; %#ok<AGROW>
-                    L(end+1, 1) = "            end"; %#ok<AGROW>
+                    L = [L; "            " + EphysAnalysisScript.pageLines(withImages)]; %#ok<AGROW>
                 end
-                if doReport
+                if X.Enabled && withImages
+                    L(end+1, 1) = "            report = addReportFigure(report, spec, R, Files=files, Images=images);"; %#ok<AGROW>
+                elseif doReport
                     L(end+1, 1) = "            report = addReportFigure(report, spec, R, Files=files);"; %#ok<AGROW>
                 end
                 L(end+1, 1) = "            fprintf('%s: %s done (%d file(s))\n', name, spec.id, numel(files));"; %#ok<AGROW>
                 L(end+1, 1) = "        catch ME"; %#ok<AGROW>
+                if X.Enabled
+                    L(end+1, 1) = "            clear closer   % the page a failure left open"; %#ok<AGROW>
+                end
                 if doReport
                     L(end+1, 1) = "            report = addReportFigure(report, spec, [], Status=""error"", Message=string(ME.message));"; %#ok<AGROW>
                 end
@@ -287,6 +282,44 @@ classdef EphysAnalysisScript
                     L(end+1, 1) = "E = [];";
             end
             L(end+1, 1) = "R.epochs = E;";
+        end
+
+        function L = pageLines(withImages)
+            %pageLines  The export loop of one plot, a page at a time, as EphysAnalysisRunner.runDataset draws it.
+            %   WITHIMAGES: the HTML report's image of each page comes from its figure (reportImage).
+            L = strings(0, 1);
+            L(end+1, 1) = "n = plotPageCount(R, spec);";
+            if withImages
+                L(end+1, 1) = "images = cell(1, n);   % each page as the HTML report embeds it";
+            end
+            L(end+1, 1) = "for p = 1:n";
+            L(end+1, 1) = "    base = fullfile(folder, plotFileName(exportOpts.FilenamePattern, name, spec, R, p, n));";
+            L(end+1, 1) = "    want = base + ""."" + exportOpts.Formats;";
+            if withImages
+                L(end+1, 1) = "    kept = ~exportOpts.Overwrite && all(isfile(want));   % its files exist: drawn for the report only";
+                L(end+1, 1) = "    fig = newExportFigure(exportOpts);";
+                L(end+1, 1) = "    closer = onCleanup(@() close(fig));   % closes the page on a failure too";
+                L(end+1, 1) = "    h = renderPlot(R, spec, fig, Page=p);";
+                L(end+1, 1) = "    written = strings(1, 0);";
+                L(end+1, 1) = "    if kept";
+                L(end+1, 1) = "        files = [files want]; %#ok<AGROW>";
+                L(end+1, 1) = "    else";
+                L(end+1, 1) = "        written = exportFigure(fig, base, Format=exportOpts.Formats, Dpi=exportOpts.Dpi);";
+                L(end+1, 1) = "        files = [files written]; %#ok<AGROW>";
+                L(end+1, 1) = "    end";
+                L(end+1, 1) = "    images{p} = reportImage(fig, report, Title=h.title, Files=written);";
+            else
+                L(end+1, 1) = "    if ~exportOpts.Overwrite && all(isfile(want))   % its files exist: not drawn or written again";
+                L(end+1, 1) = "        files = [files want]; %#ok<AGROW>";
+                L(end+1, 1) = "        continue";
+                L(end+1, 1) = "    end";
+                L(end+1, 1) = "    fig = newExportFigure(exportOpts);";
+                L(end+1, 1) = "    closer = onCleanup(@() close(fig));   % closes the page on a failure too";
+                L(end+1, 1) = "    renderPlot(R, spec, fig, Page=p);";
+                L(end+1, 1) = "    files = [files exportFigure(fig, base, Format=exportOpts.Formats, Dpi=exportOpts.Dpi)]; %#ok<AGROW>";
+            end
+            L(end+1, 1) = "    clear closer";
+            L(end+1, 1) = "end";
         end
 
         function L = reportLines(folderExpr, nameExpr, perDataset)

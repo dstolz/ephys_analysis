@@ -1,14 +1,18 @@
 function test_EphysAnalysisCompute()
 %test_EphysAnalysisCompute  Verification suite for the compute and render functions.
 %   No recording is needed: seeded Poisson spike trains and synthetic
-%   signals check spikePSTH (rates, SEM, half-open bins, baseline, smoothing,
-%   stop masking, rasters), firingRate ("between" windows, baselines),
-%   tuningCurve, evokedPotential (the event onset rule, NaN padding and drop
-%   counts, baseline), the trial-filter compiler, unitCorrelation (Pearson
-%   and Spearman against corrcoef, peak rates, partial bins, baseline,
-%   groups, degenerate units), and that every renderer
-%   draws into a classic figure's axes, a uifigure's uiaxes and a figure
-%   (tiled layout), including renderPlot's pages and titles.
+%   signals check spikePSTH (rates, SEM, half-open bins aligned to the
+%   event, baseline, smoothing, stop masking, rasters), a spike in the
+%   event's own sample at 0 (spikePSTH, firingRate, unitCorrelation),
+%   firingRate ("between" windows, baselines), tuningCurve (and
+%   tuningCurve:NoValues), evokedPotential (the event's own row at the
+%   recording rate, a bump on the event's sample peaking at 0 at derived
+%   rates, NaN padding and drop counts, baseline), the trial-filter
+%   compiler, unitCorrelation (Pearson and Spearman against corrcoef, peak
+%   rates, partial bins, baseline, groups, degenerate units), that every
+%   renderer draws into a classic figure's axes, a uifigure's uiaxes and a
+%   figure (tiled layout), including renderPlot's pages and titles, and
+%   binCounts / countBelow against brute force.
 %
 %   Usage:  test_EphysAnalysisCompute
 
@@ -56,6 +60,25 @@ one = epochs(10, 1);
 Rb = spikePSTH({[10 - 0.2; 10.5; 10.1]}, one, Window=[-0.2 0.5], BinSec=0.01);
 check(sum(Rb.count) == 2 && Rb.count(1) == 1 && max(abs(sort(Rb.raster.times).' - [-0.2 0.1])) < 1e-12, ...
     'half-open bins: a spike at t0+pre counts, one at t0+post does not');
+Ra = spikePSTH({st}, E, Window=[-0.25 0.5], BinSec=0.1);
+check(max(abs(Ra.edges - (-2:5) * 0.1)) < 1e-12 && isequal(Ra.window, Ra.edges([1 end])) && isequal(Ra.params.Window, [-0.25 0.5]) ...
+    && sum(Ra.count(:)) == sum(arrayfun(@(a) nnz(st >= a - 0.2 & st < a + 0.5), t0)), ...
+    'bins are whole multiples of BinSec from the event: [-0.25 0.5] in 0.1 s bins covers [-0.2 0.5] (R.window)');
+Rq = spikePSTH({st}, E, Window=[-0.2 0.5], BinSec=0.015);
+check(any(Rq.edges == 0) && abs(Rq.window(1) + 0.195) < 1e-12 && abs(Rq.window(2) - 0.495) < 1e-12 && numel(Rq.t) == 46, ...
+    'no bin straddles the event: [-0.2 0.5] in 15 ms bins covers [-0.195 0.495], an edge at 0');
+check(strcmp(errorId(@() spikePSTH({st}, E, Window=[-0.005 0.004], BinSec=0.01)), 'spikePSTH:BadWindow'), ...
+    'a window that holds no whole bin: spikePSTH:BadWindow');
+fsRec = 30000;
+r = 90000;                                          % an event at recording row r: t0 = r/Fs
+Ek = epochs(r / fsRec, 1, fsRec);
+Ek.tStart = Ek.t0; Ek.tStop = Ek.t0 + 0.01;
+sp = {(r - 1) / fsRec};                             % a spike in the event's own sample: (row-1)/Fs
+Rk = spikePSTH(sp, Ek, Window=[-0.01 0.01], BinSec=0.01);
+Fk = firingRate(sp, Ek);
+Ck = unitCorrelation(sp, Ek);
+check(isequal(Rk.count(:).', [0 1]) && Rk.raster.times == 0 && Fk.count == 1 && Ck.response == 100, ...
+    'a spike in the event''s own sample is at 0: in the bin after the event, and in a window that starts at it');
 R0 = spikePSTH({st}, E, Window=[-0.2 0.5], BinSec=0.05, Baseline=[-0.2 0], BaselineMode="subtract");
 check(abs(mean(R0.rate)) < 0.05 * lambda && abs(R0.baselineRate - lambda) / lambda < 0.05 && R0.units == "spikes/s - baseline", ...
     sprintf('baseline subtraction of a flat train is %.2f (about 0)', mean(R0.rate)));
@@ -103,28 +126,46 @@ check(isequal(Tc.x, [0; 1; 2; 3]) && max(abs(Tc.mean(:, 1, 1) - (10 + 5 * (0:3).
     && isequal(Tc.series, ["Kind = a"; "Kind = b"]), 'the curves recover 10 + 5 x and the series offset');
 Tt = tuningCurve(rates(:, 1), string(x));
 check(~Tt.xIsNumeric && isequal(Tt.x, ["0"; "1"; "2"; "3"]) && Tt.series == "all", 'a text parameter works too');
+check(strcmp(errorId(@() tuningCurve(rates, NaN(size(x)), Param="Depth")), 'tuningCurve:NoValues') ...
+    && strcmp(errorId(@() tuningCurve(rates, x, Series=repmat(string(missing), size(x)), Param="Depth", SeriesParam="Kind")), 'tuningCurve:NoValues'), ...
+    'no epoch with a parameter value (events outside the trials): tuningCurve:NoValues');
 
-fprintf('\n== 4. evokedPotential: the event rule, padding, baseline ==\n');
+fprintf('\n== 4. evokedPotential: the event''s sample, padding, baseline ==\n');
 fs = 1000;
 Y = single(0.01 * randn(20000, 3));
-tEv = [0.05; 3.0005; 7.2; 12.001];            % digital-event times (row/Fs)
-rows = round(tEv * fs);
+rows = [50; 3001; 7200; 12001];               % recording rows of the events (the signal is at the recording rate)
+tEv = rows / fs;                              % their digital-event times, row/Fs
 Y(rows(2:end), 2) = 100;
-Ev = epochs(tEv, [1; 1; 2; 2]);
+Ev = epochs(tEv, [1; 1; 2; 2], fs);
 Rv = evokedPotential(Y, fs, Ev, Window=[-0.1 0.2]);
 k0 = find(Rv.t == 0);
 check(Rv.droppedEdge == 1 && isequal(Rv.nEpochs, [1; 2]) && isequal(Rv.keptEpochs, [2; 3; 4]) ...
     && abs(Rv.mean(k0, 2, 1) - 100) < 0.1 && abs(Rv.mean(k0, 2, 2) - 100) < 0.1 ...
     && max(abs(Rv.mean([1:k0-1 k0+1:end], 2, 2))) < 0.1 && isequal(Rv.sampleOffsets, [-100 200]) && numel(Rv.t) == 301, ...
-    'the deflection at row round(t*Fs) sits at t = 0; the epoch leaving the signal is dropped');
+    'at the recording rate the event''s own row sits at t = 0; the epoch leaving the signal is dropped');
 Rn = evokedPotential(Y, fs, Ev, Window=[-0.1 0.2], Incomplete="nan", KeepEpochs=true);
 check(Rn.droppedEdge == 0 && isequal(Rn.nEpochs, [2; 2]) && all(isnan(Rn.data(1:51, 1, 1))) && ~any(isnan(Rn.data(52:end, 1, 1))) ...
     && size(Rn.data, 3) == 4 && isa(Rn.data, 'single'), 'Incomplete "nan" keeps it, NaN before the recording start');
 Yo = Y + 50;
 Yo(1950:2050, 3) = NaN;
-Rb = evokedPotential(Yo, fs, epochs([2; 3.0005; 7.2], [1; 1; 1]), Window=[-0.1 0.2], Baseline=[-0.1 -0.01], Channels=[2 3]);
+Rb = evokedPotential(Yo, fs, epochs([2; 3.001; 7.2], [1; 1; 1], fs), Window=[-0.1 0.2], Baseline=[-0.1 -0.01], Channels=[2 3]);
 check(abs(Rb.mean(k0, 1) - 100) < 0.2 && max(abs(Rb.mean(1:90, 1))) < 0.1 && Rb.droppedNonFinite == 1 ...
     && isequal(Rb.channels, [2; 3]) && Rb.nEpochs == 2, 'baseline subtraction; epochs with NaN samples are dropped and counted');
+fsRec = 30000;
+rEv = [30001; 60008; 90014; 120023];          % recording rows: 0, 7, 13 and 22 thirtieths past a 1 kHz sample
+tEv = rEv / fsRec;
+Ev = epochs(tEv, ones(4, 1), fsRec);
+sd = 0.002;                                   % a 2 ms Gaussian bump centred on each event's sample, (row-1)/Fs
+bump = @(fsSig) single(sum(exp(-((0:round(4.2 * fsSig) - 1).' / fsSig - (rEv.' - 1) / fsRec) .^ 2 / (2 * sd ^ 2)), 2));
+okPeak = true; pk = strings(0, 1);
+for fsSig = [1000 2000 5000 fsRec]            % derived rows k at (k-1)/fsSig, as resample makes them
+    Rd = evokedPotential(bump(fsSig), fsSig, Ev, Window=[-0.01 0.01], KeepEpochs=true);
+    [~, i] = max(squeeze(Rd.data(:, 1, :)), [], 1);
+    okPeak = okPeak && all(Rd.t(i) == 0);
+    pk(end+1) = sprintf("%g Hz: %s ms", fsSig, mat2str(1000 * Rd.t(i).')); %#ok<AGROW>
+end
+check(okPeak && all(abs(Rd.data(Rd.t == 0, 1, :) - 1) < 1e-6, 'all'), ...
+    "a bump on the event's sample peaks at t = 0 at every rate, the sample nearest it (" + strjoin(pk, "; ") + ")");
 
 fprintf('\n== 5. the trial-filter compiler ==\n');
 Tt = table([1313; 1154; 2376; 2180], [0.5; 1; 0; 0], ["a"; "b"; "a"; "c"], ...
@@ -393,6 +434,30 @@ check(strcmp(errorId(@() unitCorrelation({uA}, Eb, Metric="peak", BinSec=1)), 'u
     && strcmp(errorId(@() unitCorrelation({uA}, Ec, BaselineMode="subtract")), 'unitCorrelation:BadBaseline'), ...
     'a window shorter than a bin, and subtract without a baseline window, are errors');
 
+fprintf('\n== 8. binCounts and countBelow against brute force ==\n');
+okC = true; okB = true;
+for trial = 1:200
+    s = sort(round(1000 * 20 * rand(randi([0 300]), 1)) / 1000);       % ms grid: ties with events
+    t0 = sort(round(100 * 20 * rand(randi([0 30]), 1)) / 100);
+    switch mod(trial, 3)
+        case 0, edges = (-20:50) * 0.01;
+        case 1, edges = (-4:10) / 8;
+        case 2, edges = [-0.2 0];
+    end
+    if ~isempty(t0) && ~isempty(s)                                       % spikes exactly on edges and at the window ends
+        e = randi(numel(t0), 20, 1);
+        s = sort([s; t0(e) + edges(randi(numel(edges), 20, 1)).'; t0(e) + edges(end); t0(e) + edges(1)]);
+    end
+    x = [t0; s(1:min(5, end)); NaN; Inf];
+    okB = okB && isequaln(countBelow(s, x), [arrayfun(@(v) nnz(s < v), x(1:end-2)); NaN; NaN]);
+    if mod(trial, 4) == 0; s = s(randperm(numel(s))); end                % an unsorted train
+    [c1, r1, e1] = binCounts(s, t0, edges);
+    [c2, r2, e2] = binCountsRef(s, t0, edges);
+    okC = okC && isequal(c1, c2) && isequal(r1, r2) && isequal(e1, e2);
+end
+check(okB, 'countBelow (binary search) = the count of spikes strictly below, with ties, NaN and Inf');
+check(okC, 'binCounts (one vectorized pass) = histcounts per event: counts, raster times and events, spikes on bin edges included');
+
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0
     error('test_EphysAnalysisCompute:Failures', '%d checks failed.', nFail);
@@ -432,12 +497,32 @@ end
 end
 
 
-function E = epochs(t0, g)
+function E = epochs(t0, g, fsRec)
 %epochs  A minimal epochTable-shaped table for fixed windows.
+%   T0 are digital-event times row/FSREC of a FSREC-Hz recording
+%   (t0Continuous = (row-1)/FSREC, as epochTable makes it); FSREC Inf
+%   (default): T0 is on the continuous clock already.
+if nargin < 3; fsRec = Inf; end
 t0 = t0(:); g = g(:);
 n = numel(t0);
-E = table((1:n).', NaN(n, 1), t0, NaN(n, 1), t0 - 0.2, t0 + 0.5, repmat(0.7, n, 1), true(n, 1), g, "group " + g, ...
-    'VariableNames', {'epoch', 'trial', 't0', 't1', 'tStart', 'tStop', 'duration', 'complete', 'groupIndex', 'group'});
+tc = t0;
+if isfinite(fsRec); tc = (round(t0 * fsRec) - 1) / fsRec; end
+E = table((1:n).', NaN(n, 1), t0, tc, NaN(n, 1), t0 - 0.2, t0 + 0.5, repmat(0.7, n, 1), true(n, 1), g, "group " + g, ...
+    'VariableNames', {'epoch', 'trial', 't0', 't0Continuous', 't1', 'tStart', 'tStop', 'duration', 'complete', 'groupIndex', 'group'});
+end
+
+
+function [c, rel, ep] = binCountsRef(s, t0, edges)
+%binCountsRef  binCounts the slow way: each event's spikes by comparison, histcounts per event.
+s = sort(s(:));
+c = zeros(numel(edges) - 1, numel(t0));
+rel = zeros(0, 1); ep = zeros(0, 1);
+for e = 1:numel(t0)
+    r = s(s >= t0(e) + edges(1) & s < t0(e) + edges(end)) - t0(e);
+    c(:, e) = histcounts(r, edges).';
+    rel = [rel; r]; %#ok<AGROW>
+    ep = [ep; repmat(e, numel(r), 1)]; %#ok<AGROW>
+end
 end
 
 

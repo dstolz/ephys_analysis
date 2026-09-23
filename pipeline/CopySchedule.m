@@ -25,16 +25,24 @@ classdef CopySchedule
     %   What a run copies. For each subject, the sessions of the days
     %   [today - LookBackDays + 1, today] are found and paired as Find sessions
     %   pairs them, and the paired ones are copied (IncludeUnpaired adds the
-    %   recording-only and ePsych-only ones) with IfExists and Verify as set: a
-    %   session already copied is recognised by its sizes and left alone, and
-    %   one copied part way is completed. A run leaves alone, and reports:
+    %   recording-only and ePsych-only ones) with IfExists and Verify as set:
+    %   one whose copy did not finish (cancelled, failed, or cut off) is
+    %   completed. A run leaves alone, and reports:
+    %     already_present   a session copied before: its session_manifest.json
+    %                       records a finished copy, or Clean up removed files
+    %                       from it (its <Name>_cleanup.json). It is left as it
+    %                       is even when files are missing from it: copying
+    %                       files back is done on the Copy tab. A recording
+    %                       copied on its own before its ePsych file existed
+    %                       is not: once it pairs, the run adds the ePsych file
     %     ambiguous         a pairing that is ambiguous (never copied
     %                       automatically, as on the Copy tab)
     %     needs_stitching   a paired recording with another ePsych file that
     %                       starts during it: ePsych was restarted, and the
     %                       files are to be stitched by hand on the Copy tab
     %     stitched_by_hand  a session whose copy was made by hand, stitched
-    %                       (its session_manifest.json says so)
+    %                       (its session_manifest.json says so), with the
+    %                       ePsych files it was stitched from
     %     unpaired          a recording-only or ePsych-only session, unless
     %                       IncludeUnpaired
     %     skipped           a session whose source changed within the last
@@ -588,13 +596,19 @@ if ~s.IncludeUnpaired
 end
 
 % An ePsych file that starts during a paired recording: ePsych was
-% restarted, and its files belong stitched together, which a person decides.
+% restarted, and its files belong stitched together, which a person decides
+% (once they have, the session is left as they copied it, below).
 for p = find(st == "paired").'
     if isnan(T.RecordingDuration(p)); continue; end
     during = find(st == "epsych_only" & T.EpsychTime >= T.RecordingTime(p) ...
         & T.EpsychTime <= T.RecordingTime(p) + T.RecordingDuration(p));
     if isempty(during); continue; end
     rows = [p; during];
+    if stitchedCopy(T.DestDir(p))
+        status(rows) = "stitched_by_hand";
+        message(rows) = "copied by hand with stitched ePsych files; left as it is";
+        continue
+    end
     status(rows) = "needs_stitching";
     message(rows) = leafName(T.RecordingDir(p)) + " has more than one ePsych file (" + ...
         strjoin(leafName(T.EpsychFile(rows)), ", ") + "): stitch them on the Copy tab, then copy";
@@ -608,6 +622,17 @@ for r = find(status == "").'
         message(r) = "copied by hand with stitched ePsych files; left as it is";
     end
 end
+
+% A session copied before is left as it is. A file missing from it was
+% removed on purpose (Clean up) or by hand, and copying it back is done on
+% the Copy tab, never by a run.
+for r = find(status == "").'
+    why = copiedBefore(T.DestDir(r), st(r));
+    if why ~= ""
+        status(r) = "already_present";
+        message(r) = why + "; a scheduled run leaves it as it is";
+    end
+end
 end
 
 
@@ -619,6 +644,33 @@ try
     m = jsondecode(fileread(f));
     tf = isfield(m, 'pairingStatus') && string(m.pairingStatus) == "stitched";
 catch
+end
+end
+
+
+function why = copiedBefore(dest, pairing)
+%copiedBefore  Why session folder DEST counts as copied before ("" when it does not).
+%   Its session_manifest.json records a finished copy (copy.status "copied"
+%   or "already_present"), or Clean up has removed files from it: it holds
+%   a <Name>_cleanup.json (runLocalCleanup). A recording copied on its own
+%   before its ePsych file existed (pairingStatus "recording_only") whose row
+%   now pairs (PAIRING "paired") does not count: the run adds its ePsych file,
+%   unless Clean up has been at the folder since.
+why = "";
+m = readJsonFile(fullfile(dest, "session_manifest.json"), ErrorOnFail=false);
+if isstruct(m) && isscalar(m) && isfield(m, 'copy') && isstruct(m.copy) && isscalar(m.copy) ...
+        && isfield(m.copy, 'status') && ischar(m.copy.status) ...
+        && any(string(m.copy.status) == ["copied", "already_present"])
+    gainsEpsych = pairing == "paired" && isfield(m, 'pairingStatus') ...
+        && ischar(m.pairingStatus) && string(m.pairingStatus) == "recording_only";
+    if ~gainsEpsych
+        why = "already copied (its session_manifest.json says " + string(m.copy.status) + ")";
+    end
+end
+D = dir(fullfile(dest, "*_cleanup.json"));
+D = D(~[D.isdir]);
+if ~isempty(D)
+    why = "already copied, and cleaned up since (" + string(D(1).name) + ")";
 end
 end
 
@@ -655,7 +707,9 @@ lines = [
     "if not ""%RESULT%""==""0"" pause"];
 writeText(cmdFile, strjoin(lines, char([13 10])) + char([13 10]));
 cleanup = onCleanup(@() cellfun(@deleteIfFile, {cmdFile, resultFile}));
-system(sprintf('start "Scheduled copy" /wait cmd /c ""%s""', cmdFile));
+% cmd /c @"<file>": the path stays quoted for both shells, so & or ^ in it
+% cannot split the command (as for the Kilosort4 launcher, backgroundCommand).
+system(sprintf('start "Scheduled copy" /wait cmd /c @"%s"', cmdFile));
 result = "";
 if isfile(resultFile)
     result = strtrim(string(fileread(resultFile)));

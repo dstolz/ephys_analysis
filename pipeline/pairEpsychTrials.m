@@ -66,8 +66,11 @@ function P = pairEpsychTrials(trials, events, Fs, opts)
 %     onset, offset   [nTrials x 1] seconds (t = row/Fs), NaN when unpaired
 %     onsetSample, offsetSample   1-based rows at Fs (first / last on sample)
 %     signalFs        struct: <signal> -> rate used (valid SignalFs entries)
-%     signalSamples   struct: <signal> -> [nTrials x 2] round(t * signalFs)
-%                     (ChronuxDataset.trials' "event" onset rule)
+%     signalSamples   struct: <signal> -> [nTrials x 2] 1-based rows of that
+%                     signal, round((t - 1/Fs) * signalFs) + 1: row r at Fs
+%                     lies at (r-1)/Fs on the continuous clock, and this is
+%                     the signal's sample nearest it (ChronuxDataset.trials'
+%                     "event" onset rule)
 %     flag            [nTrials x 1] "ok" | "partial" | "cut" | "unpaired"
 %     partialIntervals   intervals touching the recording start or end
 %     unpairedTrials, unpairedIntervals   kept, but left without a partner
@@ -170,7 +173,7 @@ for sig = string(fieldnames(opts.SignalFs)).'
     fsSig = double(opts.SignalFs.(sig));
     if isscalar(fsSig) && isfinite(fsSig) && fsSig > 0
         P.signalFs.(sig) = fsSig;
-        P.signalSamples.(sig) = round([P.onset P.offset] * fsSig);
+        P.signalSamples.(sig) = round(([P.onset P.offset] - 1/Fs) * fsSig) + 1;
     end
 end
 

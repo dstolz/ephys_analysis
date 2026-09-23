@@ -4,7 +4,7 @@ function n = plotPageCount(R, spec)
 %   "grid") and of channels (evoked "grid") hold Style.MaxTiles tiles per
 %   page; every other plot is one page.
 %
-%   See also renderPlot, EphysAnalysisRunner.renderPlotFigures.
+%   See also renderPlot, EphysAnalysisRunner.runDataset.
 
 spec = plotSpecFor(R, spec);
 per = max(1, round(spec.style.MaxTiles));

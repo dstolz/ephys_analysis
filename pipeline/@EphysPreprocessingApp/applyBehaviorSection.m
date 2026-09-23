@@ -3,8 +3,8 @@ function applyBehaviorSection(obj, B)
 B = EphysPipelineConfig.normalizeSection("Behavior", B);
 obj.BehEnableCheckBox.Value = logical(B.Enabled);
 obj.BehSearchDirsField.Value = char(strjoin(B.SearchDirs, "; "));
-obj.setDropIfMember(obj.BehMatchDropDown, B.Match);
-obj.BehMaxOffsetField.Value = B.MaxStartOffsetMin;
+obj.setDropIfMember(obj.BehMatchDropDown, B.Match, "Behavior.Match");
+obj.setControlValue(obj.BehMaxOffsetField, B.MaxStartOffsetMin, "Behavior.MaxStartOffsetMin");
 obj.BehOverwriteCheckBox.Value = logical(B.Overwrite);
 obj.BehWriteFileCheckBox.Value = logical(B.WriteFile);
 obj.TrialsPairCheckBox.Value = logical(B.PairTrials);

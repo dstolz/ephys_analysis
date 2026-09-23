@@ -6,7 +6,7 @@ function fig = newExportFigure(exportSection)
 %   [18 12]) and paper size to match. Always a classic figure, never a
 %   uifigure: EPS and SVG export, and print, need one. Close it when done.
 %
-%   See also exportFigure, renderPlot, EphysAnalysisRunner.renderPlotFigures.
+%   See also exportFigure, renderPlot, EphysAnalysisRunner.runDataset.
 
 arguments
     exportSection = struct()

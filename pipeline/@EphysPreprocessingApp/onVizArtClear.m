@@ -1,12 +1,13 @@
 function onVizArtClear(obj)
-    % Remove all manual artifact periods for the current dataset.
+    % Remove all manual artifact periods of the dataset the plot shows.
+    if obj.refuseWhileRunning("Clear Artifacts"); return; end
     d = obj.currentVizDataset();
     if isempty(d) || isempty(d.ManualArtifacts)
         obj.updateVizArtStatus();
         return
     end
     d.ManualArtifacts = zeros(0, 2);
-    d.writeManifest();                 % periods persist in the manifest
+    obj.saveManifests(d);              % periods persist in the manifest
     if ~isempty(obj.Viewer) && isvalid(obj.Viewer); obj.Viewer.render(); end
     obj.updateVizArtStatus();
 end

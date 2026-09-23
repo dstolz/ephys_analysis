@@ -76,7 +76,7 @@ classdef EphysDataset < handle
         NumChannels  (1,1) double = NaN          % amplifier channel count
         ChannelNames (1,:) string = string.empty(1,0)  % custom channel names
         NativeNames  (1,:) string = string.empty(1,0)  % native (hardware) channel names
-        ChannelNumbers (1,:) double = double.empty(1,0) % 0-based hardware numbers: what probe chanMap values refer to
+        ChannelNumbers (1,:) double = double.empty(1,0) % 0-based hardware numbers (units.channelNumber); probe chanMap values are .bin rows, not these
         DigInNames   (1,:) string = string.empty(1,0)  % digital-line custom names
         DigInNativeNames (1,:) string = string.empty(1,0) % digital-line native names (DIGITAL-IN-04, TTL4)
         Duration     (1,1) double = NaN          % total recording duration (s)
@@ -128,8 +128,9 @@ classdef EphysDataset < handle
         % Sorted-output association. "" = auto-discover the Kilosort4/phy
         % results under outputFolder() (see kilosortResultsDir); a non-empty
         % folder pins the association explicitly (e.g. results sorted elsewhere
-        % or a phy-curated copy). Persisted in the manifest as sorting.source
-        % "manual". See sortingResultsDir, readSortedUnits.
+        % or a phy-curated copy), and nothing replaces it while the folder is
+        % not there (sortingMissing). Persisted in the manifest as
+        % sorting.source "manual". See sortingResultsDir, readSortedUnits.
         SortingDir (1,1) string = ""
 
         % Unit identity. NamePattern (parseNameTokens) splits Name into the
@@ -188,7 +189,7 @@ classdef EphysDataset < handle
     end
 
     properties (Dependent)
-        BinFile     % full path to the .bin (OutputDir/Name.bin)
+        BinFile     % full path to the .bin (outputFolder/Name.bin, or Name_ks4.bin, see get.BinFile)
         NumSamples  % total amplifier samples across files (sum of PerFile)
     end
 
@@ -254,7 +255,7 @@ classdef EphysDataset < handle
         result = runKilosort(obj, opts)
         result = launchSorting(obj, result, opts)
         iv     = artifactIntervals(obj, opts)
-        L      = channelLayout(obj)
+        L      = channelLayout(obj, opts)
         [Y, ev, info] = deriveSignals(obj, opts)   % "events" is reserved in classdef
         out    = toMat(obj, opts)
 
@@ -487,7 +488,15 @@ classdef EphysDataset < handle
 
         %% Dependent getters
         function f = get.BinFile(obj)
-            f = fullfile(obj.outputFolder(), obj.Name + ".bin");
+            % <outputFolder>/<Name>.bin, or <Name>_ks4.bin when <Name>.bin or
+            % its <Name>.json sidecar is one of the recording's own files (a
+            % binary-format recording keeps its samples in <folder leaf>.bin),
+            % so toBin never writes over the recording.
+            stem = obj.Name;
+            if obj.isRecordingFile(fullfile(obj.outputFolder(), stem + [".bin" ".json"]))
+                stem = stem + "_ks4";
+            end
+            f = fullfile(obj.outputFolder(), stem + ".bin");
         end
 
         function n = get.NumSamples(obj)
@@ -515,6 +524,38 @@ classdef EphysDataset < handle
             else
                 p = obj.OutputDir;
             end
+        end
+
+        function tf = isRecordingFile(obj, files)
+            %isRecordingFile  True when any of FILES (full paths) is one of the recording's own files.
+            %   The reader's Files, below Folder. See BinFile.
+            tf = false;
+            if isempty(obj.Files) || obj.Folder == ""; return; end
+            own = EphysDataset.pathKey(fullfile(obj.Folder, obj.Files));
+            tf = any(ismember(EphysDataset.pathKey(files), own));
+        end
+
+        function tf = isOwnSource(obj, folder)
+            %isOwnSource  Whether FOLDER, the source folder an output recorded, is this recording's.
+            %   TF = ds.isOwnSource(FOLDER) for the sourceFolder in an output's
+            %   provenance (conversion / export) or the source_folder of a .bin
+            %   sidecar: true when it is Folder, or ends with the dataset's
+            %   DatasetKey (its folder below the project root), so outputs still
+            %   count after the project moved to another drive or root. Without
+            %   a key (no project, or the root itself) the folder's name is
+            %   compared. False for another recording's folder: for the dataset
+            %   mouse2/rec, the outputs of mouse1/rec, whose files have the same
+            %   names. See DatasetOutputs.
+            f = EphysDataset.pathKey(folder);
+            if f == EphysDataset.pathKey(obj.Folder)
+                tf = true;
+                return
+            end
+            key = EphysDataset.pathKey(obj.DatasetKey);
+            if key == "" || key == "." || startsWith(key, "/") || ~isempty(regexp(key, '^[a-zA-Z]:', 'once'))
+                key = string(regexp(char(EphysDataset.pathKey(obj.Folder)), '[^/]+$', 'match', 'once'));
+            end
+            tf = strlength(key) > 0 && (f == key || endsWith(f, "/" + key));
         end
 
         function dt = tracker(obj)
@@ -574,12 +615,21 @@ classdef EphysDataset < handle
             %   a phy-curated copy or results sorted on another machine), else
             %   the auto-discovered kilosortResultsDir(). Every consumer of
             %   sorted output (Review tab, phy launch, readSortedUnits,
-            %   ChronuxDataset.spikes) goes through this accessor.
+            %   ChronuxDataset.spikes) goes through this accessor. A SortingDir
+            %   that is not there is still returned (see sortingMissing).
             if obj.SortingDir ~= ""
                 p = char(obj.SortingDir);
             else
                 p = obj.kilosortResultsDir();
             end
+        end
+
+        function tf = sortingMissing(obj)
+            %sortingMissing  True when the hand-picked SortingDir holds no sorted output now.
+            %   The association is kept (e.g. a phy-curated copy on a disk
+            %   that is not connected): the steps that read sorted units
+            %   report the missing folder instead of using another sort.
+            tf = obj.SortingDir ~= "" && ~isfile(fullfile(obj.SortingDir, 'params.py'));
         end
 
         function id = unitIdentity(obj)
@@ -631,10 +681,10 @@ classdef EphysDataset < handle
         function m = manifestStruct(obj)
             %manifestStruct  Snapshot of this dataset (metadata, probe, channel
             %   exclusions, .bin and Kilosort4 output state) ready for jsonencode.
-            %   The filesystem inventory (.bin / probe / kilosort4 runs) is taken
-            %   from the DatasetTracker so the manifest and the GUI tables agree.
-            dt = obj.tracker();
-
+            %   The kilosort block describes the run in kilosortDir()
+            %   (DatasetTracker.kilosortRunAt, as the GUI tables do). The
+            %   associations (probe, sorting, behavior) are written as recorded,
+            %   with "exists" saying whether their file or folder is there now.
             m = struct();
             m.schema           = EphysDataset.ManifestSchema;
             m.name             = obj.Name;
@@ -653,11 +703,11 @@ classdef EphysDataset < handle
                 'duration_s', obj.Duration, 'num_files', obj.NumFiles, ...
                 'acq_date', acq, 'files', obj.Files);
 
-            probe = struct('file', "", 'num_channels', NaN, 'num_shanks', NaN, ...
-                'depth_um', NaN, 'notes', "");
+            probe = struct('file', obj.ProbeFile, 'exists', false, 'num_channels', NaN, ...
+                'num_shanks', NaN, 'depth_um', NaN, 'notes', "");
             if obj.ProbeFile ~= "" && isfile(obj.ProbeFile)
                 pm = DatasetTracker.probeMeta(DatasetTracker.readJson(obj.ProbeFile));
-                probe.file         = obj.ProbeFile;
+                probe.exists       = true;
                 probe.num_channels = pm.nChan;
                 probe.num_shanks   = pm.nShank;
                 probe.depth_um     = pm.depth;
@@ -683,7 +733,7 @@ classdef EphysDataset < handle
 
             ks = struct('has_results', false, 'results_dir', "", ...
                 'num_units', NaN, 'state', "");
-            run = dt.latestKilosortRun();
+            run = DatasetTracker.kilosortRunAt(obj.kilosortDir());
             if ~isempty(run)
                 ks.has_results = run.HasResults;
                 ks.results_dir = run.Dir;
@@ -699,43 +749,65 @@ classdef EphysDataset < handle
             m.behavior = obj.behaviorManifest();
         end
 
-        function writeManifest(obj)
+        function tf = writeManifest(obj)
             %writeManifest  Write/refresh this dataset's JSON manifest on disk.
             %   Called by the app whenever metadata, the assigned probe/exclusions,
-            %   or Kilosort4 output change. Failures warn but never interrupt the
+            %   or Kilosort4 output change. TF is true when it was written.
+            %   A manifest file this code cannot read (not JSON, or an unknown
+            %   schema such as a newer version's) is never replaced: it warns
+            %   (EphysDataset:writeManifest:Kept) and leaves the file for you to
+            %   fix or delete. Other failures warn too but never interrupt the
             %   caller (the manifest is a convenience, not the source of truth).
+            tf = false;
             if obj.Folder == "" || ~isfolder(obj.Folder); return; end
+            f = obj.manifestFile();
+            [~, why] = EphysDataset.readManifest(f);
+            if why ~= "" && why ~= "missing"
+                warning('EphysDataset:writeManifest:Kept', ...
+                    'Not writing the manifest of %s: %s cannot be read (%s). It is left as it is; fix or delete it.', ...
+                    obj.Name, f, why);
+                return
+            end
             try
-                writeJsonFile(obj.manifestFile(), obj.manifestStruct());
+                writeJsonFile(f, obj.manifestStruct());
+                tf = true;
             catch ME
                 warning('EphysDataset:writeManifest:Failed', ...
                     'Could not write manifest for %s: %s', obj.Name, ME.message);
             end
         end
 
-        function tf = applyManifest(obj)
+        function [tf, why] = applyManifest(obj)
             %applyManifest  Restore the editable per-dataset state from the
             %   on-disk manifest (if present) so a re-scan recovers prior work:
             %   probe file, channel exclusions, manual artifact periods, an
-            %   explicit ("manual") sorting folder and the behavior file.
-            %   Returns true when a manifest was found and read. Header metadata
-            %   is always re-parsed. Schema /1 (probe + exclusions only) and /2
-            %   are accepted; any other schema is ignored with a warning.
+            %   explicit ("manual") sorting folder and the behavior file. The
+            %   probe, sorting folder and behavior file are restored as
+            %   recorded even while they are not there (an unplugged disk, a
+            %   share that is down): the steps then report them missing rather
+            %   than use something else, and the next writeManifest keeps them.
+            %   TF is true when a manifest was found and read. WHY is "" then,
+            %   and when there is none; otherwise it says why the manifest was
+            %   ignored ("not valid JSON", "unknown schema ..."), with a warning
+            %   (EphysDataset:applyManifest:Unreadable / :Schema). Header
+            %   metadata is always re-parsed. Schema /1 (probe + exclusions
+            %   only) and /2 are accepted.
             tf = false;
             f = obj.manifestFile();
-            if ~isfile(f); return; end
-            m = readJsonFile(f, ErrorOnFail=false);
-            if isempty(m) || ~isstruct(m); return; end
-            schema = "";
-            if isfield(m, 'schema'); schema = string(m.schema); end
-            if ~ismember(schema, EphysDataset.ManifestSchemasAccepted)
-                warning('EphysDataset:applyManifest:Schema', ...
-                    'Ignoring manifest %s with unknown schema "%s".', f, schema);
+            [m, why] = EphysDataset.readManifest(f);
+            if why == "missing"
+                why = "";
+                return
+            elseif startsWith(why, "unknown schema")
+                warning('EphysDataset:applyManifest:Schema', 'Ignoring manifest %s: %s.', f, why);
+                return
+            elseif why ~= ""
+                warning('EphysDataset:applyManifest:Unreadable', 'Ignoring manifest %s: %s.', f, why);
                 return
             end
             if isfield(m, 'probe') && isstruct(m.probe) && isfield(m.probe, 'file')
                 pf = string(m.probe.file);
-                if pf ~= "" && isfile(pf); obj.ProbeFile = pf; end
+                if isscalar(pf) && pf ~= ""; obj.ProbeFile = pf; end
             end
             if isfield(m, 'exclude_channels')
                 obj.ExcludeChannels = EphysDataset.parseChannelList(string(m.exclude_channels));
@@ -765,14 +837,12 @@ classdef EphysDataset < handle
                     && isfield(m.sorting, 'source') && isfield(m.sorting, 'results_dir')
                 if string(m.sorting.source) == "manual"
                     sd = string(m.sorting.results_dir);
-                    if sd ~= "" && isfile(fullfile(sd, 'params.py'))
-                        obj.SortingDir = sd;
-                    end
+                    if isscalar(sd) && sd ~= ""; obj.SortingDir = sd; end
                 end
             end
             if isfield(m, 'behavior') && isstruct(m.behavior) && isfield(m.behavior, 'file')
                 bf = string(m.behavior.file);
-                if bf ~= "" && isfile(bf); obj.BehaviorFile = bf; end
+                if isscalar(bf) && bf ~= ""; obj.BehaviorFile = bf; end
             end
             if isfield(m, 'behavior') && isstruct(m.behavior) && isfield(m.behavior, 'pairing')
                 obj.TrialPairing = EphysDataset.normalizeTrialPairing(m.behavior.pairing);
@@ -782,13 +852,15 @@ classdef EphysDataset < handle
 
         function s = behaviorManifest(obj)
             %behaviorManifest  Manifest block for the associated Epsych2 session.
-            %   file, subject, start_time, n_trials (only Info is read; any
-            %   read failure leaves the summary fields empty) and pairing (the
+            %   file (as recorded, even while it is not there), exists,
+            %   subject, start_time, n_trials (only Info is read; any read
+            %   failure leaves the summary fields empty) and pairing (the
             %   recorded TrialPairing, [] when none).
-            s = struct('file', obj.BehaviorFile, 'subject', "", 'start_time', "", 'n_trials', NaN, ...
-                'pairing', []);
+            s = struct('file', obj.BehaviorFile, 'exists', false, 'subject', "", 'start_time', "", ...
+                'n_trials', NaN, 'pairing', []);
             if ~isempty(obj.TrialPairing); s.pairing = obj.TrialPairing; end
             if obj.BehaviorFile == "" || ~isfile(obj.BehaviorFile); return; end
+            s.exists = true;
             try
                 meta = epsychSessionMeta(obj.BehaviorFile);
                 s.subject  = meta.subject;
@@ -802,20 +874,30 @@ classdef EphysDataset < handle
 
         function s = sortingStruct(obj)
             %sortingStruct  Manifest block describing the sorted-output association.
-            %   results_dir  folder holding params.py ("" when none exists yet)
+            %   results_dir  SortingDir when set (as recorded, even while it is
+            %                not there), else the kilosort4 folder once it holds
+            %                params.py ("" before)
             %   source       "manual" when SortingDir is set, else "auto"
-            %   curated      true when a phy cluster_group.tsv is present
+            %   exists       true when results_dir holds params.py
+            %   curated      true when phy saved the unit labels there
+            %                (EphysDataset.phyCurated)
             %   num_units    rows of the label table (NaN when none)
             %   updated      modification time of spike_clusters.npy ("" if none)
-            s = struct('results_dir', "", 'source', "auto", 'curated', false, ...
+            s = struct('results_dir', "", 'source', "auto", 'exists', false, 'curated', false, ...
                 'num_units', NaN, 'updated', "");
-            if obj.SortingDir ~= ""; s.source = "manual"; end
+            if obj.SortingDir ~= ""
+                s.source = "manual";
+                s.results_dir = obj.SortingDir;
+            end
             p = obj.sortingResultsDir();
             if ~isfile(fullfile(p, 'params.py')); return; end
             s.results_dir = string(p);
+            s.exists = true;
+            s.curated = EphysDataset.phyCurated(p);
             grp = fullfile(p, 'cluster_group.tsv');
-            s.curated = isfile(grp);
-            if ~s.curated; grp = fullfile(p, 'cluster_KSLabel.tsv'); end
+            if ~s.curated && isfile(fullfile(p, 'cluster_KSLabel.tsv'))
+                grp = fullfile(p, 'cluster_KSLabel.tsv');
+            end
             if isfile(grp)
                 try
                     lines = splitlines(strtrim(string(fileread(grp))));
@@ -876,8 +958,8 @@ classdef EphysDataset < handle
             %   the mean across channels (suggestReferenceExclude).
             cfg = struct( ...
                 'Reference',    "none", ...  % "none" | "car" (mean) | "cmr" (median)
-                'ReferenceBadLow',  0.3, ... % x mean noise: quieter channels are left out of the reference
-                'ReferenceBadHigh', 2, ...   % x mean noise: noisier channels are left out of the reference
+                'ReferenceBadLow',  0.3, ... % x median noise: quieter channels are left out of the reference
+                'ReferenceBadHigh', 2, ...   % x median noise: noisier channels are left out of the reference
                 'Enabled',      false, ...   % toBin blanks only when true
                 'Method',       "rms", ...   % running-RMS amplitude deviation
                 'Threshold',    9, ...       % robust SDs above per-channel baseline
@@ -962,6 +1044,85 @@ classdef EphysDataset < handle
                 end
             end
             cfg = def;
+        end
+
+        function [m, why] = readManifest(file)
+            %readManifest  A dataset manifest decoded, or why it cannot be used.
+            %   [M, WHY] = EphysDataset.readManifest(FILE): WHY is "" when FILE
+            %   holds a manifest of an accepted schema (ManifestSchemasAccepted)
+            %   and M is its struct; else M is [] and WHY is "missing" (no
+            %   FILE), "not valid JSON" or "unknown schema ""<schema>""".
+            m = [];
+            if ~isfile(file)
+                why = "missing";
+                return
+            end
+            s = readJsonFile(file, ErrorOnFail=false);
+            if isempty(s) || ~isstruct(s) || ~isscalar(s)
+                why = "not valid JSON";
+                return
+            end
+            schema = "";
+            if isfield(s, 'schema') && (ischar(s.schema) || isstring(s.schema)) && isscalar(string(s.schema))
+                schema = string(s.schema);
+            end
+            if ~ismember(schema, EphysDataset.ManifestSchemasAccepted)
+                why = "unknown schema """ + schema + """";
+                return
+            end
+            m = s;
+            why = "";
+        end
+
+        function tf = phyCurated(resultsDir)
+            %phyCurated  True when phy saved the unit labels in RESULTSDIR.
+            %   phy writes cluster_group.tsv with the header
+            %   "cluster_id<TAB>group". Kilosort4 (4.1.7) also writes a
+            %   cluster_group.tsv on every run - a copy of cluster_KSLabel.tsv
+            %   that keeps the "KSLabel" header - so only the header tells a
+            %   curated sort. Only the first line is read.
+            tf = false;
+            fid = fopen(fullfile(char(resultsDir), 'cluster_group.tsv'), 'r');
+            if fid < 0; return; end
+            head = fgetl(fid);
+            fclose(fid);
+            if ~ischar(head); return; end
+            cols = strtrim(split(string(head), char(9)));
+            tf = numel(cols) >= 2 && strcmpi(cols(2), "group");
+        end
+
+        function k = pathKey(p)
+            %pathKey  Paths as comparable keys: "/" separators, no trailing
+            %   separator, lower case on Windows (whose paths ignore case).
+            k = EphysProject.normalizeKey(p);
+            if ispc; k = lower(k); end
+        end
+
+        function iv = mergeIntervals(iv)
+            %mergeIntervals  Sorted union of [k x 2] half-open second intervals.
+            %   Overlapping or touching periods ([a b) and [b c)) become one;
+            %   empty ones are dropped. Returns zeros(0, 2) for none. The rule
+            %   of artifactIntervals, for callers that merge cached automatic
+            %   detections with the manual periods.
+            if isempty(iv)
+                iv = zeros(0, 2);
+                return
+            end
+            iv = iv(iv(:, 2) > iv(:, 1), :);
+            if isempty(iv)
+                iv = zeros(0, 2);
+                return
+            end
+            iv = sortrows(iv, 1);
+            out = iv(1, :);
+            for k = 2:size(iv, 1)
+                if iv(k, 1) <= out(end, 2)
+                    out(end, 2) = max(out(end, 2), iv(k, 2));
+                else
+                    out(end+1, :) = iv(k, :); %#ok<AGROW>
+                end
+            end
+            iv = out;
         end
 
         [units, info] = readPhyUnits(resultsDir, opts)
@@ -1155,20 +1316,38 @@ classdef EphysDataset < handle
         end
 
         function ch = parseChannelList(s)
-            %parseChannelList  Parse "1,3,5-8" / "1 3 5:8" / [] into channel indices.
-            %   Accepts a char/string spec (commas, spaces, colon or hyphen
-            %   ranges) or a numeric vector. Returns a sorted, unique row vector
-            %   of positive integers (empty when nothing valid is given).
+            %parseChannelList  Parse "1,3,5-8" / "1 3 5:8" / "[1:4 9]" / [] into channel indices.
+            %   Accepts a numeric vector, or text of numbers and ranges
+            %   separated by commas, semicolons or spaces, optionally in
+            %   brackets: N, N-M or N:M (inclusive), N:S:M or N-S-M (step S).
+            %   The text is parsed, never evaluated (it comes from manifests
+            %   and edit fields). Returns a sorted, unique row vector of
+            %   positive integers; empty when nothing is given or any part is
+            %   not of that form.
+            ch = double.empty(1, 0);
             if isnumeric(s)
-                ch = s(:).';
+                v = double(s(:).');
             else
-                t = char(string(s));
-                t = strrep(strrep(t, ',', ' '), '-', ':');  % hyphen ranges -> colon
-                ch = str2num(t); %#ok<ST2NM>  % supports colon ranges like 5:8
+                t = regexprep(char(strjoin(string(s), " ")), '[\[\],;]', ' ');
+                t = strtrim(regexprep(t, '\s*([-:])\s*', '$1'));   % "5 - 8" -> "5-8"
+                if isempty(t); return; end
+                v = [];
+                for tok = regexp(t, '\s+', 'split')
+                    p = strsplit(tok{1}, {'-', ':'});
+                    if numel(p) > 3 || any(cellfun(@isempty, regexp(p, '^\d+(\.\d*)?$', 'once')))
+                        return   % not a number or range: nothing is parsed
+                    end
+                    p = str2double(p);
+                    switch numel(p)
+                        case 1; v = [v, p]; %#ok<AGROW>
+                        case 2; v = [v, p(1):p(2)]; %#ok<AGROW>
+                        case 3; v = [v, p(1):p(2):p(3)]; %#ok<AGROW>
+                    end
+                end
             end
-            if isempty(ch); ch = double.empty(1,0); return; end
-            ch = round(ch(:).');
-            ch = unique(ch(ch >= 1));
+            if isempty(v); return; end
+            v = round(v);
+            ch = unique(v(v >= 1));
         end
 
         function s = formatChannelList(ch)

@@ -2,20 +2,26 @@ function R = spikePSTH(spikeTimes, E, opts)
 %spikePSTH  Peri-event time histograms of spike trains, per group.
 %   R = spikePSTH(ST, E, Name=Value) bins the spike trains ST ({nUnits x 1}
 %   of spike times in s, or one vector) around the epochs of E (epochTable:
-%   t0, t1, groupIndex, group) and averages them per group. Pure: no I/O,
-%   no graphics. (Named spikePSTH so it does not shadow Chronux's psth.)
+%   t0, t0Continuous, t1, groupIndex, group) and averages them per group.
+%   Spike times are on the continuous clock ((sample-1)/Fs) and are taken
+%   relative to each epoch's t0Continuous, the event on that clock, so a
+%   spike in the event's own sample is at 0. Pure: no I/O, no graphics.
+%   (Named spikePSTH so it does not shadow Chronux's psth.)
 %
 %   Options
-%     Window         [pre post] s around t0 (default [-0.2 0.5])
-%     BinSec         bin width, s (default 0.01). Bins are half-open [a, b)
-%                    from Window(1); a spike exactly at t0 + Window(2) is not
-%                    counted. When the window is not a whole number of bins
-%                    it is cut to the last whole bin
+%     Window         [pre post] s around the event (default [-0.2 0.5])
+%     BinSec         bin width, s (default 0.01). Bins are whole multiples
+%                    of BinSec from the event, [k, k+1) x BinSec, so the
+%                    event is always an edge and no bin mixes spikes from
+%                    before and after it; they are half-open (a spike
+%                    exactly at a bin's end is in the next one). Window
+%                    shrinks to the whole bins inside it (R.window): [-0.25
+%                    0.5] in 0.1 s bins is [-0.2 0.5]
 %     SmoothSec      Gaussian SD, s, applied to each epoch's rate before
 %                    averaging (0 = none; renormalized at the edges)
-%     Baseline       [b0 b1] s around t0 whose rate is the baseline (spikes
-%                    in [t0+b0, t0+b1), counted directly, so it may lie
-%                    outside Window)
+%     Baseline       [b0 b1] s around the event whose rate is the baseline
+%                    (spikes in [b0, b1) from the event, counted directly,
+%                    so it may lie outside Window)
 %     BaselineMode   "none" (default) | "subtract" (rate - baseline) |
 %                    "zscore" ((rate - mean) / SD over the group's epochs) |
 %                    "percent" (100 (rate - mean) / mean)
@@ -27,14 +33,18 @@ function R = spikePSTH(spikeTimes, E, opts)
 %     Meta           unit table (selectUnits); its label names the units
 %     Labels         unit labels (default Meta.label, else "u1", ...)
 %
-%   R fields: kind "psth", t (bin centres, column), edges, rate / sem / count
-%   [nBins x nUnits x nGroups] (rate and sem in spikes/s or the baseline
-%   unit; count = spikes summed over the epochs), nEpochs [nGroups x 1],
-%   raster (1 x nUnits struct: times relative to t0, epoch = row of E,
-%   group), epochGroup / epochStop [nEpochs x 1] (group and t1 - t0 of
-%   every epoch), stopMean [nGroups x 1] mean t1 - t0, baselineRate / baselineSD
-%   [nUnits x nGroups], groups, labels, meta, n (= nEpochs), units, params,
-%   created.
+%   R fields: kind "psth", t (bin centres, column), edges, window (the span
+%   the bins cover, edges([1 end]); params.Window is the one asked for),
+%   rate / sem / count [nBins x nUnits x nGroups] (rate and sem in spikes/s
+%   or the baseline unit; count = spikes summed over the epochs), nEpochs
+%   [nGroups x 1], raster (1 x nUnits struct: times relative to the event,
+%   epoch = row of E, group), epochGroup / epochStop [nEpochs x 1] (group
+%   and t1 - t0 of every epoch), stopMean [nGroups x 1] mean t1 - t0,
+%   baselineRate / baselineSD [nUnits x nGroups], groups, labels, meta, n
+%   (= nEpochs), units, params, created.
+%
+%   Errors: spikePSTH:BadWindow (pre >= post, or no whole bin fits),
+%   spikePSTH:BadBaseline.
 %
 %   See also epochTable, selectUnits, firingRate, renderPSTH, renderRaster.
 
@@ -59,16 +69,19 @@ W = opts.Window;
 if ~(W(2) > W(1))
     error('spikePSTH:BadWindow', 'Window must be [pre post] with pre < post.');
 end
-nB = max(1, floor(diff(W) / opts.BinSec + 1e-9));
-wEnd = W(1) + nB * opts.BinSec;
-if abs(wEnd - W(2)) < 1e-9 * max(1, abs(W(2))); wEnd = W(2); end
-edges = linspace(W(1), wEnd, nB + 1);
+bin = opts.BinSec;
+edges = (ceil(W(1) / bin - 1e-9) : floor(W(2) / bin + 1e-9)) * bin;   % whole bins, an edge at the event
+nB = numel(edges) - 1;
+if nB < 1
+    error('spikePSTH:BadWindow', 'Window [%g %g] s holds no whole %g s bin aligned to the event.', W(1), W(2), bin);
+end
 t = (edges(1:end-1) + edges(2:end)).' / 2;
 
 G = groupsFor(E, opts.Groups);
 nG = height(G);
 gIdx = E.groupIndex;
 nE = height(E);
+ta = E.t0Continuous;   % the events on the spikes' clock
 stopRel = E.t1 - E.t0;
 
 useBase = opts.BaselineMode ~= "none";
@@ -90,7 +103,7 @@ if opts.MaskAfterStop
 end
 for u = 1:nU
     if opts.Raster
-        [c, rel, ep] = binCounts(st{u}, E.t0, edges);
+        [c, rel, ep] = binCounts(st{u}, ta, edges);
         keepR = true(size(rel));
         if opts.MaskAfterStop
             keepR = ~(isfinite(stopRel(ep)) & rel >= stopRel(ep));
@@ -99,7 +112,7 @@ for u = 1:nU
         raster(u).epoch = ep(keepR);
         raster(u).group = gIdx(ep(keepR));
     else
-        c = binCounts(st{u}, E.t0, edges);
+        c = binCounts(st{u}, ta, edges);
     end
     r = c / opts.BinSec;
     r(mask) = NaN;
@@ -108,7 +121,7 @@ for u = 1:nU
         r = gaussianSmooth(r, opts.SmoothSec / opts.BinSec);
     end
     if useBase
-        bc = binCounts(st{u}, E.t0, [b(1) b(2)]);
+        bc = binCounts(st{u}, ta, [b(1) b(2)]);
         br = bc(:) / (b(2) - b(1));
     end
     for g = 1:nG
@@ -147,6 +160,7 @@ R = struct();
 R.kind = "psth";
 R.t = t;
 R.edges = edges;
+R.window = edges([1 end]);
 R.rate = rate;
 R.sem = sem;
 R.count = count;

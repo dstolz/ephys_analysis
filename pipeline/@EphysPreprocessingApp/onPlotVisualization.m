@@ -19,7 +19,12 @@ function onPlotVisualization(obj)
 %        resolution span would exceed it, peak-decimates on load: each bin keeps
 %        the most extreme sample per channel (preserving spike amplitude) and the
 %        cached sample rate is reduced to match. This bounds RAM regardless of
-%        recording length while keeping the whole span navigable.
+%        recording length while keeping the whole span navigable. The bins
+%        run across the chunks: the samples of a chunk short of a whole bin
+%        are carried into the next one, and the recording's last samples
+%        make one partial bin, so bin j always holds recording samples
+%        (j-1)*DECIM to j*DECIM-1 and is drawn at the time of the first,
+%        with no lag building up from chunk to chunk.
 %
 %   The cached matrix is handed to obj.Viewer (a plotting/@MultiChannelViewer),
 %   which owns all navigation from there: pan/zoom/scale entirely from the
@@ -27,6 +32,9 @@ function onPlotVisualization(obj)
 %   decimated to fit memory, the effective (reduced) Fs is passed to the
 %   viewer instead; true recording time is preserved everywhere because
 %   tt = sampleIndex / Fs.
+%
+%   The detected artifacts shaded orange are the Artifacts tab's preview
+%   (vizDetectedIntervals); nothing is detected on the displayed data.
 
 idx = obj.SelectedDatasetIdx;
 if idx < 1 || isempty(obj.Project) || idx > obj.Project.NumDatasets
@@ -105,11 +113,11 @@ try
     FsTrue = d.Fs;
     nChunks = numel(plan);
 
-    % Preallocate the cache at the decimated length (capacity from header
-    % counts; trimmed to the actual filled length afterwards). No concatenation.
-    outLen = sum(floor(chunkSamples / decim));
-    outLen = max(outLen, 1);
-    X = zeros(outLen, nCh, 'single');
+    % Preallocate the cache at the decimated length: one row per DECIM
+    % samples of the whole span, the last one a partial bin (capacity from
+    % header counts; trimmed to the actual filled length afterwards).
+    X = zeros(max(ceil(Ntot / decim), 1), nCh, 'single');
+    carry = zeros(0, nCh, 'single');   % samples short of a whole bin, for the next chunk
 
     row = 0;                 % rows filled so far
     for i = 1:nChunks
@@ -135,16 +143,15 @@ try
         Xi = preprocessChunk(d, Xi, pp, FsTrue);
 
         if decim > 1
-            Xi = peakDecimate(Xi, decim);   % [floor(m/decim) x nCh] single
+            Xi = [carry; Xi]; %#ok<AGROW>
+            use = floor(size(Xi, 1) / decim) * decim;
+            carry = Xi(use+1:end, :);
+            Xi = peakDecimate(Xi(1:use, :), decim);   % [use/decim x nCh] single
         end
-
-        m = size(Xi, 1);
-        if m == 0; continue; end
-        if row + m > size(X, 1)             % grow defensively (partial blocks)
-            X(row + m, nCh) = single(0);
-        end
-        X(row + (1:m), :) = Xi;
-        row = row + m;
+        [X, row] = appendRows(X, row, Xi);
+    end
+    if ~isempty(carry)                      % the last samples: one partial bin
+        [X, row] = appendRows(X, row, peakDecimate(carry, size(carry, 1)));
     end
 
     X = X(1:row, :);                        % trim unused capacity
@@ -171,14 +178,11 @@ try
     end
 
     % App-specific bookkeeping the generic MultiChannelViewer doesn't need to
-    % know about: automatically detected artifacts for this window (display
-    % overlay only; uses the same detector as the Artifacts tab/.bin write,
-    % window-relative seconds) and the recording-relative time offset. Drawn
-    % by drawVizArtifacts, which the Viewer calls after every render via
-    % PostRenderFcn.
-    obj.VizDetectedIntervals = computeDetectedIntervals(d, X, Fs);
+    % know about: the dataset shown and the recording-relative time offset,
+    % which place the artifact overlays (drawVizArtifacts, which the Viewer
+    % calls after every render via PostRenderFcn).
     obj.VizTimeOffset = tOffset;
-    obj.VizDatasetIndex = idx;
+    obj.VizDataset = d;
     obj.VizChannels = chans;
 
     chanNames = compose("ch%d", chans(:).');
@@ -232,9 +236,7 @@ try
     obj.VizStatusLabel.UserData = obj.VizStatusLabel.Text;   % shown again by syncVizDataset
     obj.syncVizDataset();
 
-    nDet = size(obj.VizDetectedIntervals, 1);
-    obj.setStatus(sprintf("Plotted %s: %d ch, %.2f s (%d artifact interval(s) detected).", ...
-        d.Name, nCh, nSamp / Fs, nDet), ...
+    obj.setStatus(sprintf("Plotted %s: %d ch, %.2f s.", d.Name, nCh, nSamp / Fs), ...
         "Scroll/drag to navigate; toggle 'Mark Artifacts' to add manual periods.");
 catch ME
     if isvalid(dlg); close(dlg); end
@@ -244,27 +246,15 @@ end
 end
 
 
-function iv = computeDetectedIntervals(d, X, Fs)
-%computeDetectedIntervals  Run the automatic artifact detector on the loaded
-%   window and return its intervals [k x 2] in window-relative seconds. Uses the
-%   dataset's current ArtifactConfig (the same settings the Artifacts tab and
-%   the runs use), including its optional pre-detection filter. Returns 0x2 on
-%   any failure or when nothing is flagged.
-iv = zeros(0, 2); %#ok<PREALL>  default when detection fails or flags nothing
-try
-    cfg = EphysDataset.normalizeArtifactConfig(d.ArtifactConfig);
-    X = double(X);
-    if logical(cfg.Filter)
-        X = d.filterContinuous(X, Type=cfg.FilterType, ...
-            Cutoff=cfg.FilterCutoff, Order=cfg.FilterOrder, Fs=Fs);
-    end
-    [~, iv] = d.detectArtifacts(X, Method=cfg.Method, ...
-        Threshold=cfg.Threshold, RmsWindowMs=cfg.RmsWindowMs, ...
-        MinChannels=cfg.MinChannels, MergeGapMs=cfg.MergeGapMs, ...
-        PadMs=cfg.PadMs, Fs=Fs);
-catch
-    iv = zeros(0, 2);
+function [X, row] = appendRows(X, row, Xi)
+%appendRows  Put the rows XI after the ROW rows filled in X (growing it if need be).
+m = size(Xi, 1);
+if m == 0; return; end
+if row + m > size(X, 1)             % grow defensively (header counts short)
+    X(row + m, size(X, 2)) = single(0);
 end
+X(row + (1:m), :) = Xi;
+row = row + m;
 end
 
 
@@ -295,18 +285,15 @@ end
 
 function Y = peakDecimate(Xc, decim)
 %peakDecimate  Reduce [m x nCh] by keeping the most extreme sample per bin.
-%   Each output sample is, per channel, the bin value with the largest absolute
-%   magnitude (signed). This preserves spike amplitude in the overview far better
-%   than averaging, while keeping a uniform reduced sample rate (one row per bin)
-%   so the cached array stays [N x nCh] and downstream code is unchanged.
+%   M is a multiple of DECIM (onPlotVisualization carries the rest into the
+%   next chunk). Each output sample is, per channel, the bin value with the
+%   largest absolute magnitude (signed). This preserves spike amplitude in the
+%   overview far better than averaging, while keeping a uniform reduced sample
+%   rate (one row per bin) so the cached array stays [N x nCh] and downstream
+%   code is unchanged.
 [m, nCh] = size(Xc);
-nb = floor(m / decim);
-if nb < 1
-    Y = Xc;     % chunk shorter than one bin; keep as-is
-    return
-end
-use = nb * decim;
-R   = reshape(Xc(1:use, :), decim, nb, nCh);
+nb = m / decim;
+R   = reshape(Xc, decim, nb, nCh);
 mx  = max(R, [], 1);                 % [1 x nb x nCh]
 mn  = min(R, [], 1);
 keepMax = abs(mx) >= abs(mn);

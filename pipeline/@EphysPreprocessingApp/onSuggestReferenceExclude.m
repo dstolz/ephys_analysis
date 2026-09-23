@@ -1,13 +1,14 @@
 function onSuggestReferenceExclude(obj)
 %onSuggestReferenceExclude  Suggest the active dataset's channels to leave out
 %   of the common reference (EphysDataset.suggestReferenceExclude: a noise
-%   floor outside the Good noise band, relative to the mean across channels,
+%   floor outside the Good noise band, relative to the median across channels,
 %   as in Ludwig et al. 2009). The suggestion replaces the dataset's list,
 %   marked "suggested", and is saved in its manifest; edit the Left out field
 %   to change it. Each channel's ratio goes to the log.
 %
 %   See also onReferenceExcludeEdited, refreshReferencePanel.
 
+if obj.refuseWhileRunning("Suggest"); return; end
 d = obj.currentDataset();
 if isempty(d)
     uialert(obj.Fig, "Scan a project first.", "Common reference");
@@ -30,7 +31,7 @@ if isvalid(dlg); close(dlg); end
 
 d.ReferenceExclude = bad;
 d.ReferenceExcludeSource = "suggested";
-d.writeManifest();
+obj.saveManifests(d);
 
 names = info.channelNames;
 for k = 1:numel(info.ratio)
@@ -39,7 +40,7 @@ for k = 1:numel(info.ratio)
     else
         mark = "";
         if ismember(k, bad); mark = "  <- left out"; end
-        obj.log("[reference] %s ch %d (%s): %.2f uV, %.2fx mean%s", ...
+        obj.log("[reference] %s ch %d (%s): %.2f uV, %.2fx median%s", ...
             d.Name, k, names(k), info.sigma(k), info.ratio(k), mark);
     end
 end

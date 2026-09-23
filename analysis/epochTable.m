@@ -6,10 +6,17 @@ function [E, G] = epochTable(src, ref, opts)
 %   (structs or [] for the defaults). E has one row per epoch, by time:
 %     epoch        1..n
 %     trial        row of src.trials the epoch belongs to (NaN: none)
-%     t0           the event, s (t = row/Fs)
+%     t0           the event, s: a digital-event time, t = row/Fs of the
+%                  recording (Fs = src.fs), as src.events and TrialOnset
+%     t0Continuous the same event on the continuous clock of the signals
+%                  and spike times (row k at (k-1)/Fs): t0 - 1/src.fs, the
+%                  time of the recording sample r that produced it,
+%                  computed as (r-1)/Fs (+ REF.offsetSec) so that it equals
+%                  the time of a spike in that sample exactly. The compute
+%                  functions align signals and spikes to it
 %     t1           the stop event (WIN.stop), s; NaN without one
-%     tStart, tStop   the window: [t0+pre, t0+post] ("fixed") or
-%                  [t0+pre, t1+post] ("between")
+%     tStart, tStop   the window, on the clock of t0: [t0+pre, t0+post]
+%                  ("fixed") or [t0+pre, t1+post] ("between")
 %     duration     tStop - tStart
 %     complete     the window lies inside the recording (0 .. durationSec)
 %                  and, in "between" mode, has its stop event
@@ -18,9 +25,13 @@ function [E, G] = epochTable(src, ref, opts)
 %   G is selectTrials' groups table with n replaced by the number of epochs
 %   in each group and nTrials added (the kept trials of the group).
 %
-%   The stop event of an epoch is the first (REF.which of WIN.stop) stop
-%   event at or after t0: in the same trial when the epoch has one (stop
-%   scope "trial" or "auto"), else over the recording.
+%   The events are those of resolveEvents: an interval belongs to the trial
+%   that holds its edge. The stop event of an epoch is the first
+%   (REF.which of WIN.stop) stop event at or after t0: in the same trial
+%   when the epoch has one (stop scope "trial" or "auto"), among the
+%   intervals overlapping that trial (its TrialEvents), so the offset of an
+%   interval that runs on past the trial still ends the epoch; else over
+%   the recording.
 %   With a restrictive selection (filter, response, trials or groupBy) in
 %   recording scope, events outside the kept trials are dropped.
 %
@@ -35,9 +46,10 @@ function [E, G] = epochTable(src, ref, opts)
 %   E.Properties.UserData holds ref, window, selection, scope, nEvents,
 %   nDroppedNoStop, nDroppedEdge, nTrials, nTrialsSelected and dataset.
 %   Errors: epochTable:NoEpochs (every event dropped), epochTable:NoColumn,
-%   and those of resolveEvents / selectTrials.
+%   epochTable:NoRate (src.fs unknown), and those of resolveEvents /
+%   selectTrials.
 %
-%   See also eventRef, epochWindow, trialSelection, resolveEvents, psth,
+%   See also eventRef, epochWindow, trialSelection, resolveEvents, spikePSTH,
 %   evokedPotential, firingRate.
 
 arguments
@@ -52,6 +64,9 @@ end
 ref = eventRef(ref);
 win = epochWindow(opts.Window);
 sel = trialSelection(opts.Selection);
+if ~(isfinite(src.fs) && src.fs > 0)
+    error('epochTable:NoRate', '%s: the recording''s sample rate (src.fs) is unknown, so its events cannot be placed on the clock of the signals and spikes.', src.name);
+end
 [mask, G, gi] = selectTrials(src, sel);
 restrictive = sel.filter ~= "" || ~isempty(sel.response) || ~isempty(sel.trials) || ~isempty(sel.groupBy);
 scope = ref.scope;
@@ -115,7 +130,10 @@ duration = duration(keep); complete = complete(keep); groupIndex = groupIndex(ke
 n = numel(t0);
 epoch = (1:n).';
 group = G.label(groupIndex);
-E = table(epoch, trial, t0, t1, tStart, tStop, duration, complete, groupIndex, group);
+% the event at recording row r (t0 = r/Fs + offsetSec) happened at (r-1)/Fs
+% on the continuous clock: from the row, bit for bit a spike time (sample-1)/Fs
+t0Continuous = (round((t0 - ref.offsetSec) * src.fs) - 1) / src.fs + ref.offsetSec;
+E = table(epoch, trial, t0, t0Continuous, t1, tStart, tStop, duration, complete, groupIndex, group);
 
 % --- per-epoch trial values -------------------------------------------------------
 cols = unique([sel.groupBy, opts.Columns], 'stable');

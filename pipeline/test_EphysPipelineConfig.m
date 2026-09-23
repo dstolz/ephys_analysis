@@ -72,6 +72,12 @@ check(cfg.Parallel.MaxWorkers == 4 && islogical(cfg.Parallel.Enabled) && ~cfg.Pa
     'a partial Parallel section is coerced and completed');
 c5 = EphysPipelineConfig.fromStruct(struct('Spikes', struct('UseParallel', true)));
 check(any(contains(c5.LoadWarnings, "Spikes.UseParallel")), 'Spikes.UseParallel from an older file is dropped with a warning');
+cfg.Artifacts = struct('FilterType', "bandpass", 'FilterCutoff', [300; 3000]);
+cA = cfg; cA.Artifacts.Enabled = true; cA.Artifacts.Filter = true;
+check(isequal(cfg.Artifacts.FilterCutoff, [300 3000]) && ~any(cA.validate(CheckPaths=false).Field == "FilterCutoff"), ...
+    'a band-pass FilterCutoff [lo hi] is kept as a row (and validates)');
+cfg.Artifacts.FilterCutoff = 250;
+check(isequal(cfg.Artifacts.FilterCutoff, 250), 'a scalar FilterCutoff stays a scalar');
 
 fprintf('\n== 2. save / load round trip ==\n');
 cfg = EphysPipelineConfig();
@@ -94,6 +100,7 @@ cfg.Export.Formats = "chronux";
 cfg.Export.Signals = string.empty(1,0);
 cfg.Behavior.SearchDirs = ["D:\beh" "E:\beh"];
 cfg.Parallel.Enabled = true; cfg.Parallel.MaxWorkers = NaN;
+cfg.Artifacts.FilterType = "bandpass"; cfg.Artifacts.FilterCutoff = [300 3000];
 f = fullfile(root, 'cfg.json');
 cfg = cfg.save(f);
 check(isfile(f) && cfg.File == string(f), 'save writes the file and records File');
@@ -112,6 +119,7 @@ check(isequal(c3.Spikes.WindowMs, [-1 2]) && isequal(c3.Sorting.KS4.drift_smooth
 check(c3.File == string(f) && isempty(c3.LoadWarnings), 'File is set and nothing was dropped');
 check(c3.Parallel.Enabled && isnan(c3.Parallel.MaxWorkers) && contains(txt, '"MaxWorkers": "NaN"'), ...
     'the Parallel section round-trips (NaN MaxWorkers as a string)');
+check(isequal(c3.Artifacts.FilterCutoff, [300 3000]), 'a band-pass FilterCutoff survives the JSON round trip');
 bad = fullfile(root, 'bad.json');
 writeJsonFile(bad, struct('schema', "something-else", 'version', 1));
 check(strcmp(errorId(@() EphysPipelineConfig.load(bad)), 'EphysPipelineConfig:BadSchema'), 'wrong schema is refused');
@@ -146,6 +154,23 @@ check(EphysPipelineConfig.ks4ParamText('floatinf', Inf) == "Infinity" && EphysPi
 [v3, ok3] = EphysPipelineConfig.ks4ParamFromText('vector', '1, 2 3');
 [~, ok4] = EphysPipelineConfig.ks4ParamFromText('float', 'abc');
 check(isinf(v1) && ok1 && isempty(v2) && ok2 && isequal(v3, [1 2 3]) && ok3 && ~ok4, 'ks4ParamFromText parses edit-field text');
+[~, ok5] = EphysPipelineConfig.ks4ParamFromText('vector', '0.5;0.5;0.5');
+[~, ok6] = EphysPipelineConfig.ks4ParamFromText('vector', '1 2 x');
+check(~ok5 && ~ok6, 'ks4ParamFromText refuses a vector it cannot read to the end (no partial parse)');
+check(EphysPipelineConfig.ks4ParamText('nullable', 0.1953125) == "0.1953125" ...
+    && EphysPipelineConfig.ks4ParamText('float', 123.456789) == "123.456789" ...
+    && EphysPipelineConfig.ks4ParamText('int', 120000) == "120000" && EphysPipelineConfig.ks4ParamText('float', 0.25) == "0.25", ...
+    'ks4ParamText writes a value in full, in the shortest form (string() would round 0.1953125 to 0.19531)');
+rng(11);
+vals = [0.1953125, 123.456789, 1/3, pi, 1e-7, 6.02214076e23, -2.5, 12345.678901234, 100 * rand(1, 20)];
+exact = true;
+for kind = ["float" "floatinf" "nullable"]
+    for v = vals
+        exact = exact && EphysPipelineConfig.ks4ParamFromText(kind, EphysPipelineConfig.ks4ParamText(kind, v)) == v;
+    end
+end
+exact = exact && isequal(EphysPipelineConfig.ks4ParamFromText('vector', EphysPipelineConfig.ks4ParamText('vector', vals)), vals);
+check(exact, 'ks4ParamText -> ks4ParamFromText gives every value back exactly (float, floatinf, nullable, vector)');
 
 fprintf('\n== 3b. ks4ProbeDefaults ==\n');
 S0 = EphysPipelineConfig.defaults("Sorting");

@@ -7,6 +7,9 @@ function refreshMetadata(obj)
 %   IntanReader.parseIntanHeader (header-only; no amplifier matrix is
 %   allocated) and populates Fs, NumChannels, ChannelNames, NativeNames,
 %   DigInNames, Duration, AcqDate, NumFiles and the PerFile struct array.
+%   The parsed headers are kept for the window reads. AcqDate is the
+%   recording start: the time in the first file's RHX name, else that
+%   file's modification time (when RHX closed it) less its duration.
 %
 %   The amplifier channel count is taken from the FIRST file; a hard error is
 %   raised if any later file disagrees, because a flat int16 .bin cannot
@@ -43,8 +46,7 @@ pf = struct('name', {}, 'bytesPerBlock', {}, 'numDataBlocks', {}, ...
 
 firstNumChan = NaN;
 for i = 1:obj.NumFiles
-    ffn = fullfile(obj.Folder, obj.Files(i));
-    hdr = IntanReader.parseIntanHeader(ffn);
+    hdr = obj.rhdHeader(obj.Files(i));
 
     if i == 1
         firstNumChan = hdr.numAmplifierChannels;
@@ -79,7 +81,7 @@ end
 
 obj.PerFile  = pf;
 obj.Duration = sum([pf.recordTime]);
-obj.AcqDate  = datetime(min([pf.datenum]), 'ConvertFrom', 'datenum');
+obj.AcqDate  = obj.startTime();
 
 end
 
@@ -91,7 +93,9 @@ function refreshSplitMetadata(obj)
 %   from the .dat file size(s) (the header has no data blocks). Mirrors the
 %   PerFile summary the traditional path builds, with a single entry standing in
 %   for the whole recording, so downstream code (NumSamples, the GUI tables,
-%   onPlotVisualization) is unchanged.
+%   onPlotVisualization) is unchanged. AcqDate is the recording start: the
+%   time in the folder's RHX name, else amplifier.dat's modification time
+%   (the end of the recording) less its duration.
 L = obj.splitLayout();
 
 obj.Fs           = L.Fs;
@@ -117,6 +121,6 @@ obj.PerFile = struct( ...
     'dataPresent',          nSamp > 0);
 
 obj.Duration = nSamp / L.Fs;
-obj.AcqDate  = datetime(L.ampDatenum, 'ConvertFrom', 'datenum');
+obj.AcqDate  = obj.startTime();
 
 end

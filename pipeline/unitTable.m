@@ -19,7 +19,8 @@ function T = unitTable(units, opts)
 %     group           phy / Kilosort label ("good", "mua", ...)
 %     channel         peak recording channel (1-based)
 %     channelName     its native name, e.g. "A-012"
-%     channelNumber   its hardware number (the probe chanMap value)
+%     channelNumber   its hardware number (A-012 -> 12); the probe chanMap
+%                     value is channel - 1
 %     ksChannel       peak channel among the sorted channels
 %     shank
 %     peakX, peakY    site position of the peak channel (probe units, um)

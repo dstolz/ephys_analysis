@@ -16,8 +16,11 @@ function loadSignal(obj, opts)
 %         EphysDataset.readData, i.e. the broadband amplifier data at the
 %         recording rate, unfiltered. Only keepAmpChannels, labelField,
 %         lineNames and invertedLines are honoured from SignalOptions (mapped
-%         to KeepChannels / LabelField / LineNames); any other field is an
-%         error, because the derived-signal options have no meaning here.
+%         to KeepChannels / LabelField / LineNames, and the line polarity);
+%         any other field is an error, because the derived-signal options
+%         have no meaning here. labelField, lineNames and invertedLines that
+%         are not set (or are "" / []) come from the dataset's TrialConfig,
+%         as for pairTrials; a string list, even an empty one, is used as is.
 %     EphysDataset, Signal "AUX"
 %         The same, with the aux (accelerometer) inputs: volts at the aux
 %         rate, ChannelLabels info.AUX.labels; an error when none were recorded.
@@ -29,7 +32,9 @@ function loadSignal(obj, opts)
 %         Nothing to read; Data was set at construction.
 %
 %   No values are modified: the samples are the ones deriveSignals / readData
-%   produced, in microvolts, sample k at t = (k-1)/Fs seconds.
+%   produced, in microvolts, sample k at t = (k-1)/Fs seconds. Info.origFs is
+%   the recording rate, the clock the digital-input event times count rows
+%   of (t = row/origFs); a matrix source has none.
 %
 %   See also EphysDataset.deriveSignals, EphysDataset.readData,
 %   EphysDataset.toMat.
@@ -129,8 +134,10 @@ obj.Fs   = double(S.info.(sig).Fs);
 if isfield(S, 'events') && isstruct(S.events)
     obj.Events = S.events;
 end
+origFs = NaN;                       % unknown in a hand-made struct without it
+if isfield(S.info, 'origFs'); origFs = double(S.info.origFs); end
 obj.Info = struct('source', sourceLabel, 'file', file, 'signal', sig, ...
-    'fs', obj.Fs, 'units', units, 'derived', S.info);
+    'fs', obj.Fs, 'units', units, 'origFs', origFs, 'derived', S.info);
 obj.Loaded = true;
 end
 
@@ -143,40 +150,45 @@ if isempty(ds) || ~isa(ds, 'EphysDataset')
 end
 
 if obj.Signal == "RAW"
+    so = obj.SignalOptions;
     known = ["keepAmpChannels", "labelField", "lineNames", "invertedLines"];
-    extra = setdiff(string(fieldnames(obj.SignalOptions)).', known);
+    extra = setdiff(string(fieldnames(so)).', known);
     if ~isempty(extra)
         error('ChronuxDataset:RawOptions', ...
             ['Signal "RAW" reads through EphysDataset.readData, which does not ' ...
              'take the derived-signal options %s. Only keepAmpChannels, ' ...
              'labelField, lineNames and invertedLines apply.'], strjoin(extra, ', '));
     end
-    args = {};
-    if isfield(obj.SignalOptions, 'keepAmpChannels')
-        args = [args, {'KeepChannels', obj.SignalOptions.keepAmpChannels}];
+    % Line naming and polarity: SignalOptions, else ("" / [] / unset) the
+    % dataset's TrialConfig, as readData and pairTrials resolve them.
+    labelField = "";
+    lineNames  = [];
+    inv        = [];
+    if isfield(so, 'labelField');    labelField = string(so.labelField); end
+    if isfield(so, 'lineNames');     lineNames  = so.lineNames;          end
+    if isfield(so, 'invertedLines'); inv        = so.invertedLines;      end
+    [labelField, lineNames] = ds.lineNaming(labelField, lineNames);
+    if isnumeric(inv)
+        inv = ds.TrialConfig.InvertedLines;
     end
-    if isfield(obj.SignalOptions, 'labelField')
-        args = [args, {'LabelField', string(obj.SignalOptions.labelField)}];
-    end
-    if isfield(obj.SignalOptions, 'lineNames')
-        args = [args, {'LineNames', string(obj.SignalOptions.lineNames)}];
+    args = {'LabelField', labelField, 'LineNames', lineNames};
+    if isfield(so, 'keepAmpChannels')
+        args = [args, {'KeepChannels', so.keepAmpChannels}];
     end
     d = ds.readData(args{:});
     obj.Data = d.amplifier;
     obj.Fs   = d.Fs;
-    if isfield(obj.SignalOptions, 'labelField') && ...
-            string(obj.SignalOptions.labelField) == "native"
+    if labelField == "native"
         obj.ChannelLabels = d.nativeNames;
     else
         obj.ChannelLabels = d.channelNames;
     end
-    inv = string.empty(1, 0);
-    if isfield(obj.SignalOptions, 'invertedLines'); inv = string(obj.SignalOptions.invertedLines); end
-    obj.Events = digitalLinePolarity(d.events, inv, size(d.amplifier, 1), d.Fs);
+    [obj.Events, inverted] = digitalLinePolarity(d.events, reshape(string(inv), 1, []), ...
+        size(d.amplifier, 1), d.Fs);
     obj.Info = struct('source', "dataset", 'folder', ds.Folder, 'name', ds.Name, ...
-        'signal', "RAW", 'fs', obj.Fs, 'units', "microvolts", ...
+        'signal', "RAW", 'fs', obj.Fs, 'units', "microvolts", 'origFs', d.Fs, ...
         'recordingFormat', ds.RecordingFormat, 'files', d.files, ...
-        'filtered', false);
+        'invertedLines', inverted, 'filtered', false);
     obj.Loaded = true;
     return
 end
@@ -186,6 +198,8 @@ if isfield(obj.SignalOptions, 'dataTypeOut')
         ['Do not set dataTypeOut in SignalOptions; the Signal property ' ...
          '("%s") selects which signal this connector serves.'], obj.Signal);
 end
+% Only what SignalOptions sets is passed on, so deriveSignals resolves the
+% rest itself (the line naming and polarity from the dataset's TrialConfig).
 args = namedargs2cell(obj.SignalOptions);
 [Y, ev, info] = ds.deriveSignals(args{:}, 'dataTypeOut', obj.Signal);
 

@@ -10,8 +10,12 @@ function file = writeHtmlReport(report, file, opts)
 %   file beside it is needed; opening it needs only a browser.
 %
 %   Options: EmbedFormat ("png" | "svg"; default the report's), Dpi (PNG
-%   resolution; default the report's). Plots whose images were rendered
-%   when they were added (an HTML-only report) are used as they are.
+%   resolution; default the report's). The images a plot was added with
+%   (addReportFigure) are used as they are; a plot added without them is
+%   drawn again from its result, as is one that kept its result (a "pdf" /
+%   "both" report) when EmbedFormat or Dpi is given here. Every link to an
+%   exported file is relative to FILE's folder (a file:// URL on another
+%   drive) and percent-encoded.
 %
 %   See also writePdfReport, newAnalysisReport, EphysAnalysisRunner.run.
 
@@ -22,6 +26,7 @@ arguments
     opts.Dpi (1,1) double = NaN
 end
 
+redraw = opts.EmbedFormat ~= "" || isfinite(opts.Dpi);
 if opts.EmbedFormat ~= ""; report.options.EmbedFormat = opts.EmbedFormat; end
 if isfinite(opts.Dpi); report.options.Dpi = opts.Dpi; end
 folder = fileparts(file);
@@ -75,7 +80,7 @@ for d = 1:numel(report.datasets)
             continue
         end
         images = e.images;
-        if isempty(images) && ~isempty(e.R)
+        if ~isempty(e.R) && (isempty(images) || redraw)
             images = reportImages(e.R, e.spec, report);
         end
         for p = 1:numel(images)

@@ -13,8 +13,12 @@ function src = loadAnalysisSource(out, opts)
 %     folder            the dataset's output folder
 %     outputs           the DatasetOutputs
 %     fs, durationSec   recording rate and length (the manifest's metadata,
-%                       else the extract), NaN when unknown. Rates and counts
-%                       use durationSec, never the time of the last spike
+%                       else the extract: info.origFs and info.<SIG>.nSamples
+%                       / Fs, else the pairing), NaN when unknown. Rates and
+%                       counts use durationSec, never the time of the last
+%                       spike. fs is also the rate the digital-event times
+%                       count rows of (t = row/fs), which epochTable uses to
+%                       place events on the clock of the signals and spikes
 %     events            struct: line -> [k x 2] [t_on t_off] s, t = row/Fs,
 %                       polarity applied (from the extract; struct() when
 %                       there is none)
@@ -131,8 +135,8 @@ if ~isempty(files)
         for sig = sigs
             if isfield(I, sig) && isstruct(I.(sig)) && isfield(I.(sig), 'Fs')
                 src.signalFs.(sig) = double(I.(sig).Fs);
-                if isnan(src.durationSec) && isfield(I.(sig), 'time')
-                    src.durationSec = numel(I.(sig).time) / double(I.(sig).Fs);
+                if isnan(src.durationSec) && isfield(I.(sig), 'nSamples')
+                    src.durationSec = double(I.(sig).nSamples) / double(I.(sig).Fs);
                 end
             end
         end

@@ -4,12 +4,18 @@ function s = signalOptions(cfg, opts)
 %   passed to toMat as SignalOptions. Only the options relevant to the ticked
 %   signals are set; everything else stays at deriveSignals' defaults.
 %
+%   KeepChannels, BadList and the manifest exclusions are recording channels
+%   (1-based, in header order); ChannelRemap indexes the kept channels.
+%   deriveSignals takes bad channels as columns of the kept data, so the bad
+%   list and the "interpolate" exclusions are mapped to the column(s) holding
+%   each channel; a channel that is not kept has no column and is left out.
+%
 %   Options
 %     ExcludeChannels  the dataset's manifest exclusions (1-based), applied
 %                      per Signals.ExcludeHandling:
 %                        "none"        ignored (default)
 %                        "drop"        removed from the kept channels
-%                        "interpolate" added to the manual bad-channel list
+%                        "interpolate" added to the bad channels
 %     NumChannels      the recording's channel count (needed by "drop" when
 %                      no explicit keep list is given)
 %
@@ -80,7 +86,7 @@ switch string(cfg.BadMode)
             error('EphysPipelineConfig:SignalsBadList', ...
                 'Bad channels is set to "Manual list" but the list is empty.');
         end
-        s.badChannels = bad;
+        s.badChannels = keptColumns(bad, keep);
     case "auto"
         if ~cfg.LFP
             error('EphysPipelineConfig:SignalsAutoBadNeedsLFP', ...
@@ -96,13 +102,16 @@ switch string(cfg.BadMode)
 end
 if cfg.ExcludeHandling == "interpolate" && ~isempty(excl)
     if isfield(s, 'badChannels') && all(s.badChannels > 0)
-        s.badChannels = unique([s.badChannels(:).', excl]);
+        s.badChannels = union(s.badChannels, keptColumns(excl, keep));
     elseif ~isfield(s, 'badChannels')
-        s.badChannels = excl;
+        s.badChannels = keptColumns(excl, keep);
     else
         error('EphysPipelineConfig:SignalsExcludeHandling', ...
             'ExcludeHandling="interpolate" cannot be combined with automatic bad-channel detection.');
     end
+end
+if isfield(s, 'badChannels') && isempty(s.badChannels)
+    s = rmfield(s, 'badChannels');   % none of the bad channels is kept
 end
 
 remap = EphysPipelineConfig.parseOrderedList(cfg.ChannelRemap, "Channel remap");
@@ -163,5 +172,17 @@ function checkBand(lohi, what)
 if ~(lohi(1) < lohi(2))
     error('EphysPipelineConfig:SignalsBand', ...
         '%s: low edge (%g Hz) must be below the high edge (%g Hz).', what, lohi(1), lohi(2));
+end
+end
+
+
+function cols = keptColumns(ch, keep)
+%keptColumns  Columns of the kept data holding recording channels CH.
+%   Without a keep list column c is channel c; otherwise every column whose
+%   kept channel is in CH (a channel kept twice has two), ascending.
+if isempty(keep)
+    cols = unique(ch(:).');
+else
+    cols = find(ismember(keep, ch));
 end
 end

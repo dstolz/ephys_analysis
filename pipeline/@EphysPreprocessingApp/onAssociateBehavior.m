@@ -1,5 +1,6 @@
 function onAssociateBehavior(obj)
 %onAssociateBehavior  Pick an Epsych2 session file for the active dataset.
+if obj.refuseWhileRunning("Associate file"); return; end
 d = obj.currentDataset();
 if isempty(d)
     uialert(obj.Fig, "Scan a project first.", "Behavior");
@@ -21,7 +22,7 @@ catch ME
     return
 end
 d.BehaviorFile = string(file);
-d.writeManifest();
+obj.saveManifests(d);
 obj.refreshDatasetsTable();
 obj.setStatus(sprintf("%s: associated %s (%s, %d trials).", d.Name, f, meta.subject, meta.nTrials), "");
 end

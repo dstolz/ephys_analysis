@@ -19,6 +19,23 @@ _DO NOT PROCESS UNLESS MOVED TO THE TO DO LIST_
 - **Keep the queue across app restarts.** Closing the app drops the queued runs, although their files are written. The queue could be saved (dataset key + prepared result) and offered back on the next launch.
 - **Publish the Clean up changes to the wiki.** The Clean-up tab page, the File-Formats clean-up record (schema /2) and the `app-cleanup-tab.png` screenshot (`tools/wiki/wikiScreenshots.m`, Shots="app-cleanup-tab.png") describe the old tab.
 - **Warn when runs at once share one GPU.** With `MaxConcurrent` > 1 and zero or one `Devices`, every run goes on the same GPU. On a small card like this laptop's 4 GB RTX 500 that risks CUDA out-of-memory errors. A validation warning (or an info line on the Run tab) would flag it.
+- **Visualize: read only the window shown.** Plot still streams the whole recording and decimates it; for a long 64-channel recording that is tens of GB per Plot. Design from the review (item 10 below):
+  - A "Window (full rate) / Whole recording (decimated)" choice. Window mode reads [Start − pad, Start + Window + pad] with `readWindowUV`, or only the overlapping chunks for traditional `.rhd`.
+  - `MultiChannelViewer` would need a `TimeOffset` and a `TotalDuration` (so panning can pass the cached span) and a `ViewChangedFcn`. The app re-reads, debounced, when the view leaves the cached span.
+  - A 2 s × 64-channel read is about 7.7 MB (about 0.1 s).
+- **Visualize: show a run's cached artifact detection.** The orange overlay now shows only the Artifacts tab's Detect / Preview of the plotted dataset while its settings still hold. A static, read-only `EphysPipeline.cachedDetection(cfg, d)` would let `vizDetectedIntervals` fall back to what a run detected:
+  - It shares the fingerprint with `artifactIntervalsFor`, factored out.
+  - It returns ok = false when detection is off, or when a reference is on and `ReferenceExcludeSource` is "".
+- **Old Intan files: the software notch filter.** For `.rhd` files older than v3.0 recorded with the software notch on, `read_Intan_RHD2000_file_modified` applies Intan's notch with a per-sample loop. The loop restarts at every file, and `toBin` writes the notch-filtered data. A `filter()` form that carries its state across files would be faster and continuous. No built-in form matched the loop exactly, so it needs a reference test against the loop.
+- **PDF reports draw every page again.** The HTML report now reuses the figures the runner already drew. The PDF report still draws each page a second time (as vector graphics).
+- **Small API tidy-ups found in the review:**
+  - `EphysDataset.setTrialPairing` could return whether it wrote the manifest. The Trials tab's Approve writes the manifest a second time to find out.
+  - A public `EphysPipelineConfig.numberText`, so the app's copy can go.
+  - Visualize's "Sort by probe map" and channel colours read the probe `.json` themselves (`applyVizChannelOrder`, `applyVizChannelColor`). They sort bottom-up, while the Artifacts viewer (`channelLayout`) sorts top-down. They could use `channelLayout(ProbeFile=)`.
+- **Flow chart text: bad channels.** `flowChartHTML.m` line 287 labels the bad-channel step "spatial makima". Bad channels are now interpolated from the probe geometry, with makima across columns only as the fallback. This was left alone because another session is refactoring the diagram.
+- **Check classdef method declarations against their files.** MATLAB reports a declaration that lists fewer inputs than its method file only when the method is called. The review found one this way: the analysis app could not open. A small check could compare each declaration's input and output count with the `function` line of its file (the review's one-off script did this for all 445 declarations), as a test or under `tools/`.
+- **Check the docs' test tables against the new checks.** The review's doc pass covered the fixes but did not compare every test description with its suite. The suites that grew most are `test_CopySessions` and `test_LocalCleanup` (described in EphysPreprocessingApp.md), and `test_EphysPipeline`, `test_SortingConcurrency`, `test_EphysPipelineScript`, `test_TrialPairing`, `test_EventEpochs`, `test_EpsychSession` and `test_EphysPipelineConfig` (in the tests tables).
+- **Tests build extract `info` structs with `time` vectors.** `test_ChronuxDataset` (line 171) and `test_FieldTripExport` (line 34) still hand-make `info.LFP.time`, which extracts no longer have. `info.LFP.nSamples` would match real files.
 
 
 
@@ -82,7 +99,7 @@ _DO NOT PROCESS UNLESS MOVED TO THE TO DO LIST_
    - **`restoreAppPrefs.m`:** re-applies that backup if a run has to be killed.
    - **`README.md`:** the whole update workflow (snapshot the commit with `git archive`, generate, hand edits, screenshots, link check, footer, push) and the traps.
    - Linked from `documentation/README.md`. Tested: generator, link check, and the screenshots (all eight taken, in two runs).
-9. **Clean up: remove a preprocessing step's output; delete, recycle or move** (done 2026-09-22; not committed yet).
+9. **Clean up: remove a preprocessing step's output; delete, recycle or move** (done 2026-09-22; committed as `bf2bb68`).
    - **Steps:** new tick boxes on the Clean up tab, one per step that writes files (none ticked by default). Sorting (Kilosort4) takes the whole `kilosort4` folder (sorted units, phy curation, unit notes, logs, the sorter's copy of the recording) and `<Name>.bin` + `.json`; Signals, Spikes and Export take their `.mat` files; Behavior takes `<Name>_behavior.mat` and the events cache; Artifacts the artifact cache. A sorted-output folder chosen by hand is kept. `.mat` outputs are recognised by their variables (`DatasetOutputs`), so configured suffixes and the config's step output folders count. Leftover `~<name>.partial.mat` files go with their step. `planLocalCleanup` gained `Remove` values for the steps, a `SearchDirs` option, and `Step`, `Root` and `Key` columns.
    - **Where files go:** a new **Removed files go** choice: Delete permanently (default), Move to the Recycle Bin, or Move to a folder (with Browse...). `runLocalCleanup` gained `Method`, `Destination`, `ProgressFcn` and `CancelFcn`, and removes the folders it empties.
      - **Recycle Bin:** a file is skipped, not deleted for good, when Windows would not keep it: a network or removable drive, a bin set to delete at once, a file bigger than the bin's maximum size (read per volume from the registry), or a path of 260+ characters. Afterwards each file is looked up in the bin's `$I` records, and one not found there is reported.
@@ -91,3 +108,62 @@ _DO NOT PROCESS UNLESS MOVED TO THE TO DO LIST_
    - **Record:** `<Name>_cleanup.json` is now schema `ephys-local-cleanup/2`. Each run has `method` and `destination`, and each file has `step`, `to` and `note`.
    - **Tests:** `test_LocalCleanup` has 15 tests, all passing: removing the sorting step, finding outputs by their contents, the hand-picked folder, move, cancel, and a real Recycle Bin round trip that empties its own items afterwards. `test_EphysPreprocessingApp` passes 205/205, with new 4d checks.
    - **Not tested here:** a move between drives (this machine's temp folder and the only other writable fixed drive, G:, are not a safe pair to test on), and the Recycle Bin refusal on a real removable or network drive. The check logic was run against C: (fixed; the 50,772 MB cap read correctly), S: (network) and a UNC path.
+10. **Review of the pipeline and basic analysis: errors and inefficiencies** (done 2026-09-23; committed in one commit, together with this entry).
+    - **How:** separate review passes covered the readers; derived signals, artifacts and spike detection; events, trials and exports; orchestration and scripts; sorting and units; copying; the preprocessing app; analysis computations; and analysis plots and reports. Together they found about 100 issues. Each issue was checked against the code, then fixed in one of ten fix sets. Each set was built in its own worktree and merged by hand. The Run / Flow diagram files were not touched, because another session is refactoring them.
+    - **Could lose or corrupt data (fixed):**
+      - With no output root, the sorting `.bin` was `<Name>.bin` in the dataset folder. For a binary-format recording that is the recording's own data file, and `toBin` opened it for writing. The sorting `.bin` is now `<Name>_ks4.bin`, and `toBin` / `matrixToBin` refuse to write any recording file.
+      - A scan while a drive was offline dropped the probe, sorted-output folder and behavior file from each manifest, because their targets were missing, and the refresh wrote that back. These associations are now kept, and an unreadable manifest is never overwritten.
+      - Copying:
+        - A file robocopy was stopped in passed as complete, because robocopy sizes a file when it starts. Size and modified time are now both checked.
+        - A robocopy ended from outside (exit 1) with a file unfinished now fails the session.
+        - A resume could add the other pairing's behavior file to a session folder.
+        - Scheduled runs re-hashed every session and refilled sessions that Clean up had emptied.
+      - Re-sorting into the same folder kept the old `cluster_notes.tsv`, so old notes attached to new cluster ids, and it overwrote phy curation without a word. Both now move to `previous_<time>`.
+      - Signals:
+        - Manifest exclusions (recording channels) were used as column numbers, so the wrong columns were interpolated and the output could widen.
+        - Bad channels were interpolated across neighbouring columns in header order, which crosses shanks on the H64LP. A bad channel is now the 1/distance-weighted mean of the 4 nearest good sites on its own shank. The sites are placed by the dataset's own probe, else the default probe.
+      - The noise that replaces artifacts in the sorting `.bin` had its level measured on a high-passed view of broadband data. That left a step at every artifact edge. The fill now bridges between the clean data on either side.
+      - App:
+        - Opening a config for another root while a project was scanned ran the old project with the new config.
+        - Plan, while background runs were pending, killed the Kilosort4 monitor.
+        - A rescan kept the active dataset by its position, so manual periods could land on another recording.
+        - Config edits made during a run reached the datasets being processed.
+      - Plots: a PSTH's y-limits were applied to its raster, so groups vanished, and stacked PSTH labels included the trial count.
+    - **Timing (one-sample offsets):**
+      - Event onsets at derived rates were about one sample early in Chronux trials, event epochs, FieldTrip events, trial pairing and evoked potentials.
+      - Spike epochs, and the analysis PSTH, firing rate and correlation, were one recording sample off the events.
+      - PSTH bins now start at the event.
+      - Visualize's decimation drifted (250 ms after 2 h), which put manual periods early.
+      - The conventions throughout: continuous samples and spikes are at (row − 1)/Fs, and digital events at row/Fs.
+    - **Numerics:**
+      - `filterContinuous` used transfer-function coefficients, which are unstable at low cut-offs (NaN at [100 3000] Hz in single precision). It now uses second-order sections, unless every edge is at least 0.005 × Nyquist and the order is at most 4. In that case the result is the same to 1e-6 µV and 3× faster.
+      - MUA and SPIKE are filtered in double precision, and non-integer sample rates resample (`rat`).
+      - Artifact detection: the common-mode detector no longer reads the re-referenced data, and excluded channels no longer count toward it. The reference's automatic exclusion uses the median.
+    - **Speed and memory:**
+      - Digital events no longer read every amplifier channel, which cost up to 2.7 GB per recorded minute for binary recordings. Edge detection is now linear in the number of samples.
+      - Traditional `.rhd` files are read by window, so parallel spike detection no longer reads the whole previous file.
+      - `readPhyUnits` is several times faster.
+      - The artifact cache no longer changes when manual periods do, so detection runs once per run instead of three times.
+      - Export reads each dataset's inputs once for all formats.
+      - The Kilosort4 monitor refreshes only the table rows that changed.
+      - Analysis:
+        - Sorted units are cached across plots, and `selectChannels` makes no copy.
+        - Bin counts are vectorized.
+        - PSTHs render without `linkaxes`, which took two thirds of the render time.
+        - The HTML report reuses the figures already drawn.
+        - `test_EphysAnalysisRunner` went from 302 s to 159 s.
+    - **Sorting and units:**
+      - `channelLayout` reads probe `chanMap` values as `.bin` rows, as Kilosort4 does, not as hardware channel numbers.
+      - Templates are unwhitened with `Winv.'` and scaled to µV when the run recorded its `bin_scale`; `templateUnits` says which.
+      - A sort counts as curated only when phy wrote the labels.
+      - Background launches go through `ks4_launch.cmd`, so paths with `&` or `^` work, and a launch that fails writes the exit marker.
+      - Manifest channel lists are parsed without `str2num`.
+    - **API changes (no back-compat, as agreed):**
+      - The Signals bad list is recording channels.
+      - `info.<SIG>.time` is gone; use `info.<SIG>.nSamples`.
+      - The sorting `.bin` is `<Name>_ks4.bin`, and dry-run files go to `<runDir>\dryrun`.
+      - New options: `artifactIntervals(IncludeManual=)`, `channelLayout(ProbeFile=)` and `deriveSignals(probeFile=)`.
+      - `spikePSTH` returns `R.window` (whole bins).
+    - **Tests:** new suites `test_IntanReader`, `test_BinaryReader`, `test_DeriveSignals` and `test_SortedUnits`, and new checks in most of the other suites (35 in the app suite). **Full run** (2026-09-23, R2025a, all 28 suites in one process, about 12 min): all pass. The first full run caught one more error. `EphysAnalysisApp`'s classdef still declared `gatherAlignControls(obj, C)` after the method file gained three inputs, so the analysis app could not open ("Too many input arguments"). With the declaration fixed, `test_EphysAnalysisApp` passes 32/32. A scan of all 445 method declarations in `pipeline/` and `analysis/` against their files found no other mismatch.
+    - **Docs:** `documentation/` is updated. `pipeline/INSTALL.md` notes that `addpath_nogit` now skips hidden folders, so `.claude/worktrees` copies no longer shadow the code.
+    - **Left for later:** see Suggested TO DOs: windowed Visualize, a run's cached detection in Visualize, the old notch loop, PDF report redraws, and the small API tidy-ups.

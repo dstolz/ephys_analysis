@@ -111,7 +111,15 @@ if A.Enabled
     if ~ismember(A.Method, ["rms" "mad" "microvolts" "commonmode"])
         add("artifacts", "Method", "error", "Unknown artifact method """ + A.Method + """.");
     end
-    if ~(A.Threshold > 0); add("artifacts", "Threshold", "error", "Threshold must be positive."); end
+    if ~(A.Threshold > 0)
+        add("artifacts", "Threshold", "error", "Threshold must be positive.");
+    elseif ismember(A.Method, ["microvolts" "commonmode"]) && A.Threshold < 50
+        % A robust-SD multiplier (the rms / mad default, 9) read as microvolts
+        % sits inside the noise and flags almost every sample.
+        add("artifacts", "Threshold", "warning", sprintf(['The %s threshold is in microvolts; ' ...
+            '%g uV is within the noise and flags almost every sample (the default is 1500).'], ...
+            A.Method, A.Threshold));
+    end
     if ~(A.MinChannels >= 1); add("artifacts", "MinChannels", "error", "MinChannels must be >= 1."); end
     if A.Filter
         if any(~(A.FilterCutoff > 0)); add("artifacts", "FilterCutoff", "error", "Filter cut-off must be positive."); end

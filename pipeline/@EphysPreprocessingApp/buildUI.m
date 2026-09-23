@@ -9,6 +9,7 @@ function buildUI(obj)
 pos = [120 90 1240 800];   % default; overridden by the saved preference
 obj.Fig = uifigure("Name", "Ephys preprocessing", "Position", pos);
 obj.Fig.CloseRequestFcn = @(~,~) obj.onClose();
+obj.Fig.DeleteFcn = @(~,~) obj.stopTimers();   % also when deleted without onClose
 
 obj.buildMenus();
 

@@ -21,9 +21,11 @@ function T = planLocalCleanup(datasets, opts)
 %                    under the dataset's kilosort4 folder or its
 %                    sorted-output folder. The sorted units do not need it;
 %                    phy's trace view does.
-%     "bin"          <Name>.bin and its <Name>.json sidecar written by toBin: the
-%                    flat binary Kilosort4 sorts (never a raw recording
-%                    file). As above, only phy's trace view needs it.
+%     "bin"          the .bin toBin writes (the dataset's BinFile: <Name>.bin,
+%                    or <Name>_ks4.bin when the recording's own data file is
+%                    <Name>.bin) and its .json sidecar: the flat binary
+%                    Kilosort4 sorts (never a raw recording file). As above,
+%                    only phy's trace view needs it.
 %   Everything one preprocessing step wrote (the step names of
 %   EphysPipelineConfig.StepNames), to run the step again or drop it:
 %     "sorting"      the dataset's kilosort4 folder (kilosortDir: the sorted
@@ -44,6 +46,11 @@ function T = planLocalCleanup(datasets, opts)
 %   failed write left (~<name>.partial.mat) go with their step. The probe
 %   step writes no file, and what the dataset manifest records (probe,
 %   exclusions, trial pairing, a hand-picked sorted-output folder) stays.
+%   Files another recording wrote are always kept: a .mat whose provenance
+%   names another dataset or recording folder (DatasetOutputs.Foreign), and
+%   the .bin and kilosort4 folder when the .bin's sidecar names another
+%   recording folder (two recordings with the same name share
+%   <OutputRoot>/<Name>).
 %
 %   Everything else is kept: the outputs of the steps not selected, the
 %   dataset and copy manifests, the clean-up record, the Epsych2 session
@@ -107,7 +114,7 @@ name = string(d.Name);
 key = string(d.DatasetKey);
 if key == ""; key = name; end
 
-[outputKind, found] = datasetOutputs(d, searchDirs);
+[outputKind, found, foreign] = datasetOutputs(d, searchDirs);
 files = addFiles(listFiles(unique([folder outDir ksDir sortDir], 'stable')), found);
 n = numel(files);
 T = emptyPlan();
@@ -116,6 +123,8 @@ if n == 0; return; end
 copied = copyRecord(folder);
 rawNames = rawRecordingNames(d);
 roots = [folder outDir searchDirs];
+[~, binStem] = fileparts(d.BinFile);    % <Name>, or <Name>_ks4 beside a recording file <Name>.bin
+otherSort = sortSource(d);              % the recording folder another dataset's .bin and sort came from
 
 rows = cell(n, 1);
 for k = 1:n
@@ -152,6 +161,13 @@ for k = 1:n
     elseif (inFolder && any(lower(ext) == [".rhd" ".rhs" ".dat"])) || any(rel == rawNames)
         r.Category = "raw"; r.What = "Raw recording";
         r.Reason = "Not copied by the Copy tab (no session_manifest.json lists it), so no source copy is known.";
+    elseif isKey(foreign, char(fileKey))
+        r.Category = "output"; r.What = "Another dataset's output";
+        r.Reason = "Its provenance names another dataset or recording folder, so it is not this dataset's to remove.";
+    elseif otherSort ~= "" && (under(p, ksDir) || (samePath(p, outDir) ...
+            && any(lower(leaf) == lower(binStem + [".bin" ".json"]))))
+        r.Category = "sorting"; r.What = "Another recording's sort or .bin";
+        r.Reason = "Written for " + otherSort + ", which shares this output folder (the same name), so it is kept.";
     elseif lower(leaf) == "temp_wh.dat" && (under(p, ksDir) || under(p, sortDir))
         r.Category = "sorter_copy"; r.What = "Kilosort4's filtered copy of the recording";
         if under(p, ksDir); r.Step = "sorting"; end
@@ -163,8 +179,8 @@ for k = 1:n
         else
             r.Reason = "Kilosort4's copy of the recording is not selected for removal.";
         end
-    elseif samePath(p, outDir) && any(lower(leaf) == lower(name + [".bin" ".json"])) ...
-            && (isfile(fullfile(outDir, name + ".bin")) || isBinSidecar(f.path))
+    elseif samePath(p, outDir) && any(lower(leaf) == lower(binStem + [".bin" ".json"])) ...
+            && (isfile(d.BinFile) || isBinSidecar(f.path))
         r.Category = "bin"; r.What = "Sorting input .bin (toBin)"; r.Step = "sorting";
         if any(remove == "bin")
             r.Action = "remove";
@@ -250,20 +266,26 @@ end
 end
 
 
-function [kind, found] = datasetOutputs(d, searchDirs)
-%datasetOutputs  The dataset's outputs found by DatasetOutputs (file -> kind) and their files.
+function [kind, found, foreign] = datasetOutputs(d, searchDirs)
+%datasetOutputs  The dataset's outputs found by DatasetOutputs (file -> kind), their
+%   files, and the files it skipped as another dataset's (a set of lower-case paths).
 kind = containers.Map('KeyType', 'char', 'ValueType', 'any');
+foreign = containers.Map('KeyType', 'char', 'ValueType', 'logical');
 found = struct('path', {}, 'bytes', {});
 ws = warning('off');   % a .mat it cannot read is not classified; no need to say so here
 restoreWarnings = onCleanup(@() warning(ws));
 try
-    C = DatasetOutputs(d, SearchDirs=searchDirs).Candidates;
+    O = DatasetOutputs(d, SearchDirs=searchDirs);
 catch
     return
 end
+C = O.Candidates;
 for k = 1:height(C)
     kind(char(lower(C.File(k)))) = C.Kind(k);
     found(end+1) = struct('path', C.File(k), 'bytes', C.Bytes(k)); %#ok<AGROW>
+end
+for f = O.Foreign.'
+    foreign(char(lower(f))) = true;
 end
 end
 
@@ -272,6 +294,21 @@ function tf = isBinSidecar(file)
 %isBinSidecar  True for toBin's JSON sidecar (it names the .bin and its channel count).
 m = readJsonFile(file, ErrorOnFail=false);
 tf = isstruct(m) && isfield(m, 'n_chan_bin') && isfield(m, 'bin_file');
+end
+
+
+function folder = sortSource(d)
+%sortSource  The recording folder the .bin in D's output folder came from, when
+%   it is another recording's ("" otherwise): its toBin sidecar records it. Two
+%   recordings with the same name share <OutputRoot>/<Name>, and whichever
+%   sorted last wrote the .bin and the kilosort4 folder there.
+folder = "";
+[p, stem] = fileparts(d.BinFile);
+m = readJsonFile(fullfile(p, stem + ".json"), ErrorOnFail=false);
+if isstruct(m) && isfield(m, 'n_chan_bin') && isfield(m, 'source_folder') ...
+        && strlength(string(m.source_folder)) > 0 && ~d.isOwnSource(string(m.source_folder))
+    folder = string(m.source_folder);
+end
 end
 
 

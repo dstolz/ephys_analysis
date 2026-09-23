@@ -10,7 +10,10 @@ conda run -n <CondaEnv> "<PythonExe>" "<script>" <args...>     % when CondaEnv i
 
 The scripts below are checked into the repository. The sorting driver is
 **copied** into each run folder before it is executed, so every run keeps the
-exact script it used.
+exact script it used. A background sorting run on Windows goes through a
+batch file written to the run folder, `ks4_launch.cmd`, which runs that
+command (every path in quotes of its own, so paths with `&` or `^` work) and
+then writes the exit marker `ks4_exit.txt`.
 
 | Script | Called by | Environment needs |
 | --- | --- | --- |
@@ -27,8 +30,10 @@ kilosort 4.1.7, probeinterface 0.3.2, torch 2.7.1.
 Usage: `run_ks4.py <settings.json> [--device <torch device>]`.
 
 1. Loads the probe with `kilosort.io.load_probe(cfg['probe'])`.
-2. Sorts the other `settings.json` keys (except `probe`, `data_dtype` and
-   `torch_device`) with `split_settings`:
+2. Sorts the other `settings.json` keys (except the driver's own keys
+   `probe`, `data_dtype`, `torch_device` and `bin_scale`, the `.bin`'s units
+   per µV that `readPhyUnits` reads and Kilosort4 is not given) with
+   `split_settings`:
    - `run_kilosort` arguments (`do_CAR`, `invert_sign`, `save_extra_vars`,
      `save_preprocessed_copy`, `bad_channels`, `clear_cache`,
      `torch_thread_lim`) are passed as arguments;
@@ -50,7 +55,9 @@ or `{"state": "error", "message", "traceback"}`) in `results_dir` and prints
 
 The probe's `chanMap` values index `.bin` rows (0-based positions), as do
 `ExcludeChannels` (1-based). Probe sites are not matched to channels by their
-hardware number (`EphysDataset.ChannelNumbers`). The two agree when the
+hardware number (`EphysDataset.ChannelNumbers`), for sorting and in the app
+alike: the Artifacts tab's probe order (`channelLayout`) and the analysis
+probe maps read `chanMap` as `.bin` rows too. The two agree when the
 channel numbers equal the positions (0, 1, 2, … with no gaps). When channels
 were disabled at acquisition (gaps in the numbering), the probe must already
 account for the gap. A recording spanning more than one Intan port (`A-000`

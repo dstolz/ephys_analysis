@@ -117,7 +117,9 @@ function [ts, wf, info] = detectSpikes(obj, X, opts)
 %                      formats (see streamPlan)
 %     EdgePadMs        (1,1) double  context carried across chunk boundaries
 %                      (default 10 ms; always at least the waveform window, the
-%                      alignment window and the minimum detection period)
+%                      alignment window, the minimum detection period and,
+%                      when filtering, 4 periods of the band's low edge, over
+%                      which the band-pass settles: 40 ms for Band(1) = 100 Hz)
 %     ProgressFcn      function handle  ProgressFcn(i, nChunks, chunkName),
 %                      called before each chunk (serial) or on the client as
 %                      each chunk finishes (UseParallel; i is then the number
@@ -157,7 +159,9 @@ function [ts, wf, info] = detectSpikes(obj, X, opts)
 %   enough to characterize the noise (a second or more) and expect chunk-to-chunk
 %   variation when streaming. Non-finite samples (e.g. NaN from
 %   blankArtifacts(Fill="nan")) are excluded from the estimates and never cross
-%   threshold.
+%   threshold; the band-pass sees them as a straight line between the finite
+%   samples around them (held flat at the ends), so they do not ring into
+%   their neighbours, and they are NaN again in the filtered trace.
 %
 %   INFO fields
 %   -----------
@@ -310,14 +314,21 @@ blockOpts.TimeOffset = 0;
 
 % Context carried across chunk boundaries: enough for filter settling plus
 % whatever the alignment window, the waveform window and the minimum detection
-% period need, so a boundary never truncates any of them.
+% period need, so a boundary never truncates any of them. The band-pass rings
+% for a few periods of its low edge, so a low Band(1) needs more than the
+% default 10 ms: 4 periods leave a join within ~0.01 uV of the unbroken trace,
+% even with a large spike right at the end of the block that is filtered.
 padMs = opts.EdgePadMs;
 if isnan(padMs); padMs = 10; end
 mustBeNonnegative(padMs)
 w0 = round(opts.WindowMs(1) * 1e-3 * Fs);
 w1 = round(opts.WindowMs(2) * 1e-3 * Fs);
 minPerSamp = max(1, round(opts.MinPeriodMs * 1e-3 * Fs));
-pad = max([1, round(padMs * 1e-3 * Fs), ...
+settle = 0;
+if opts.Filter
+    settle = ceil(4 * Fs / opts.Band(1));
+end
+pad = max([1, round(padMs * 1e-3 * Fs), settle, ...
            max(0, round(opts.AlignWindowMs * 1e-3 * Fs)), ...
            minPerSamp, abs(w0), abs(w1)]);
 
@@ -347,7 +358,14 @@ if ~isempty(pool)
     % most nWorkers chunks in flight and reports progress on the client.
     starts = [0 cumsum([plan.nSamples])];
     chanOrder = opts.ChannelOrder;
-    R = mapChunks(@(i) parallelChunk(obj, plan, i, starts(i), pad, chanOrder, blockOpts, doWave), ...
+    % A window read gives the samples before a chunk in the recording; that is
+    % the serial loop's context only when the chunks follow each other there
+    % (every file, in order). A Files list that skips or reorders files is
+    % given the previous listed chunk instead, as the serial loop gives it.
+    offs = [plan.sampleOffset];
+    contiguous = obj.supportsRandomAccess() && all(isfinite(offs)) ...
+        && all(offs(2:end) == offs(1:end-1) + [plan(1:end-1).nSamples]);
+    R = mapChunks(@(i) parallelChunk(obj, plan, i, starts(i), pad, chanOrder, blockOpts, doWave, contiguous), ...
         reshape(string({plan.name}), 1, []), Pool=pool, NumWorkers=nWorkers, ...
         ProgressFcn=opts.ProgressFcn);
 else
@@ -580,11 +598,12 @@ R.info = infoB;
 end
 
 
-function R = parallelChunk(obj, plan, i, chunkFirst0, pad, chanOrder, blockOpts, doWave)
+function R = parallelChunk(obj, plan, i, chunkFirst0, pad, chanOrder, blockOpts, doWave, contiguous)
 %parallelChunk  Worker body for UseParallel: read chunk i and its context.
 %   The context is the last min(2*pad, chunkFirst0) samples before the chunk -
-%   exactly the tail the serial loop would carry in - read from the split .dat
-%   window directly, or from as many preceding *.rhd files as it spans.
+%   exactly the tail the serial loop would carry in - read as one window when
+%   the plan's chunks follow each other in the recording (CONTIGUOUS), else
+%   from as many preceding listed chunks as it spans.
 wstate = warning('off', 'EphysDataset:detectSpikes:DegenerateThreshold');
 restoreWarning = onCleanup(@() warning(wstate)); %#ok<NASGU>
 
@@ -603,7 +622,7 @@ end
 nCtx = min(2*pad, chunkFirst0);
 if nCtx == 0
     ctx = zeros(0, size(Xc, 2));
-elseif obj.supportsRandomAccess()
+elseif contiguous
     ctx = obj.readWindowUV(plan(i).sampleOffset - nCtx, nCtx);
     if ~isempty(chanOrder); ctx = ctx(:, chanOrder); end
 else
@@ -691,8 +710,18 @@ if opts.Filter
             ['Band upper edge (%g Hz) must be below Nyquist (%g Hz). Lower Band ' ...
              'or set Filter=false.'], opts.Band(2), Fs/2);
     end
-    Xf = obj.filterContinuous(X, Type="bandpass", Cutoff=opts.Band, ...
-        Order=opts.FilterOrder, Fs=Fs);
+    % FILTFILT refuses non-finite samples (NaN from blankArtifacts(Fill="nan")):
+    % it filters a straight line across them instead - no step to ring - and
+    % they are NaN again afterwards, so they cannot cross threshold.
+    bad = ~isfinite(X);
+    if any(bad, 'all')
+        Xf = obj.filterContinuous(bridgeNonFinite(X, bad), Type="bandpass", ...
+            Cutoff=opts.Band, Order=opts.FilterOrder, Fs=Fs);
+        Xf(bad) = NaN;
+    else
+        Xf = obj.filterContinuous(X, Type="bandpass", Cutoff=opts.Band, ...
+            Order=opts.FilterOrder, Fs=Fs);
+    end
 else
     Xf = X;
 end
@@ -886,6 +915,16 @@ info.nEdgeWindows       = nEdge;
 info.nRejectedAmplitude = nRejAmp;
 info.maxAmplitudeUV     = opts.MaxAmplitudeUV;
 info.timeOffset         = opts.TimeOffset;
+end
+
+
+function X = bridgeNonFinite(X, bad)
+%bridgeNonFinite  The samples flagged BAD replaced, per channel, by a straight
+%   line between the finite samples around them (held at the nearest finite
+%   sample at either end; 0 on a channel with fewer than two).
+X(bad) = NaN;
+X = fillmissing(X, 'linear', 1, 'EndValues', 'nearest');
+X(isnan(X)) = 0;
 end
 
 

@@ -32,6 +32,9 @@ function hdr = parseIntanHeader(ffn)
 %     numAmplifierSamples     numSamplesPerDataBlock * numDataBlocks
 %     recordTime              numAmplifierSamples / sampleRate (s)
 %     boardMode               board mode (ADC scaling)
+%     notchFrequency          software notch set during the recording (0 |
+%                             50 | 60 Hz); READ_INTAN_RHD2000_FILE_MODIFIED
+%                             applies it to files before version 3.0
 %     mainVersion/secondaryVersion
 %     headerBytes             byte offset where data blocks begin
 %     dataPresent             true if any data blocks follow the header
@@ -78,7 +81,13 @@ desired_dsp_cutoff     = fread(fid, 1, 'single'); %#ok<NASGU>
 desired_lower_bw       = fread(fid, 1, 'single'); %#ok<NASGU>
 desired_upper_bw       = fread(fid, 1, 'single'); %#ok<NASGU>
 
-notch_filter_mode      = fread(fid, 1, 'int16'); %#ok<NASGU>
+notch_filter_mode      = fread(fid, 1, 'int16');
+notch_filter_frequency = 0;
+if notch_filter_mode == 1
+    notch_filter_frequency = 50;
+elseif notch_filter_mode == 2
+    notch_filter_frequency = 60;
+end
 
 desired_impedance_freq = fread(fid, 1, 'single'); %#ok<NASGU>
 actual_impedance_freq  = fread(fid, 1, 'single'); %#ok<NASGU>
@@ -229,6 +238,7 @@ hdr = struct( ...
     'numAmplifierSamples',      num_amplifier_samples, ...
     'recordTime',               record_time, ...
     'boardMode',                board_mode, ...
+    'notchFrequency',           notch_filter_frequency, ...
     'mainVersion',              data_file_main_version_number, ...
     'secondaryVersion',         data_file_secondary_version_number, ...
     'headerBytes',              header_bytes, ...

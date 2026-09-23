@@ -3,7 +3,8 @@ function h = renderRaster(R, target, opts)
 %   H = renderRaster(R, TARGET, Page=, Style=) draws one raster per unit of
 %   the page (MaxTiles per page): epochs as rows, sorted by group then time,
 %   each group on a pale band of its colour; all ticks of a tile are one
-%   line object. An axes TARGET gets the first unit of the page.
+%   line object. An axes TARGET gets the first unit of the page. Every row
+%   is shown: Style.YLim does not apply to rasters.
 %
 %   H: layout (tiled layout or []), axes.
 %
@@ -30,7 +31,6 @@ names = shortUnitLabels(R.labels);
 for j = 1:numel(idx)
     if ~isempty(ax0); ax = ax0; else; ax = nexttile(tl, j); end
     rasterInto(ax, R, idx(j), style, colors);
-    styleAxes(ax, style);
     title(ax, names(idx(j)), 'FontWeight', 'normal', 'Interpreter', 'none');
     r = ceil(j / nc);
     if r == nr || ~isempty(ax0); xlabel(ax, 'Time (s)'); end

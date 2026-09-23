@@ -4,11 +4,13 @@ function R = evokedPotential(Y, fs, E, opts)
 %   (epochTable) out of the signal Y ([nSamples x nChan], row k at
 %   t = (k-1)/FS) and averages them per group. Pure: no I/O, no graphics.
 %
-%   Epoch e covers rows round(t0(e) * FS) + (s0:s1) with s0 = round(pre*FS)
-%   and s1 = round(post*FS): the "event" onset rule of
-%   ChronuxDataset.trials and the pairing's TrialOnsetSample_<SIG>, under
-%   which a digital-event time t = row/Fs maps back to the sample that
-%   produced it. R.t = (s0:s1)'/FS.
+%   Epoch e covers rows base(e) + (s0:s1) with s0 = round(pre*FS), s1 =
+%   round(post*FS) and base(e) = round(E.t0Continuous(e) * FS) + 1: the row
+%   of Y nearest the event's time on the continuous clock (the digital
+%   event t0 = r/Fs at recording row r happened at (r-1)/Fs, see
+%   epochTable), so at every rate offset 0 is the sample nearest the one
+%   that produced the event -- at the recording's own rate, that very
+%   sample. R.t = (s0:s1)'/FS.
 %
 %   Options
 %     Window      [pre post] s (default [-0.1 0.5])
@@ -27,9 +29,13 @@ function R = evokedPotential(Y, fs, E, opts)
 %
 %   R fields: kind "evoked", t, mean / sem [nTime x nChan x nGroups],
 %   nEpochs [nGroups x 1] (kept), data, channels, labels, fs, units,
-%   sampleOffsets [s0 s1], onsetRule "event", keptEpochs (rows of E),
-%   droppedEdge, droppedNonFinite, groups, meta, n (= nEpochs), params,
+%   sampleOffsets [s0 s1], onsetRule "event" (offset 0 is the sample
+%   nearest the one that produced the event, above), keptEpochs (rows of
+%   E), droppedEdge, droppedNonFinite, groups, meta, n (= nEpochs), params,
 %   created.
+%
+%   Only the epochs' rows of the used channels are read from Y, so Y (e.g.
+%   the outputs' cached signal) is never copied whole.
 %
 %   See also epochTable, selectChannels, renderEvoked, renderHeatmap.
 
@@ -78,14 +84,13 @@ end
 G = groupsFor(E, opts.Groups);
 nG = height(G);
 nE = height(E);
-base = round(E.t0 * fs);
+base = round(E.t0Continuous * fs) + 1;
 S = zeros(nT, nC, nG); SS = zeros(nT, nC, nG); N = zeros(nT, nC, nG);
 kept = false(nE, 1);
 dropEdge = 0; dropNonFinite = 0;
 if opts.KeepEpochs; data = zeros(nT, nC, nE, 'single'); else; data = []; end
-Ysel = Y(:, ch);
 for e = 1:nE
-    [X, inside] = epochSamples(Ysel, base(e), s0, s1);
+    [X, inside] = epochSamples(Y, base(e), s0, s1, ch);
     if opts.Incomplete == "drop"
         if ~inside; dropEdge = dropEdge + 1; continue; end
         if any(~isfinite(X(:))); dropNonFinite = dropNonFinite + 1; continue; end

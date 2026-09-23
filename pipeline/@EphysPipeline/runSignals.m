@@ -39,6 +39,9 @@ for k = 1:n
     end
     try
         sigOpts = EphysPipelineConfig.signalOptions(G, ExcludeChannels=d.ExcludeChannels, NumChannels=d.NumChannels);
+        if isfield(sigOpts, 'badChannels')
+            sigOpts.probeFile = obj.probeFor(d);   % the geometry for them: its own probe, else the default
+        end
         if opts.DryRun
             obj.log("[signals] %s: dry run -> %s (%s)", d.Name, strjoin(out, ", "), strjoin(sigOpts.dataTypeOut, "+"));
             addRows("dry run", "would write " + strjoin(sigOpts.dataTypeOut, "+"));

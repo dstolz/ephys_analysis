@@ -6,6 +6,9 @@ function test_DatasetOutputs()
 %   belong to other datasets, and checks discovery, pinning and on-demand
 %   loading, both for a folder alone and for an EphysDataset (a tiny
 %   universal-format recording, so no Intan files or toolboxes are needed).
+%   Then: two recordings with one name whose outputs share a folder (the
+%   recorded source folder decides, also after the project moved), a
+%   hand-picked sort that is not there, and a combined extract that changes.
 %
 %   Usage:  test_DatasetOutputs
 %
@@ -186,6 +189,59 @@ check(od.BehaviorFile == r.file && od.Behavior.nTrials == 2, 'behaviorToMat outp
 
 disp(od);   % must not load any data
 check(true, 'display shows paths without loading data');
+
+%% ---- 5. another recording, a sort that is not there, a changed extract ----
+fprintf('\n== 5. provenance folders, offline sorts, changed extracts ==\n');
+% m1/rec1 and m2/rec1: the same name, so under one output root one folder.
+shared = fullfile(root, 'outShared', name);
+mkdir(shared);
+rA = fullfile(root, 'proj', 'm1', name);
+rB = fullfile(root, 'proj', 'm2', name);
+for r = string({rA, rB})
+    mkdir(r);
+    fid = fopen(fullfile(r, 'data.bin'), 'w'); fwrite(fid, zeros(2, 100, 'int16'), 'int16'); fclose(fid);
+    BinaryReader.writeDescriptor(r, struct('data_file', "data.bin", 'dtype', "int16", 'n_chan', 2, 'fs', 1000, ...
+        'gain_to_uV', 0.195, 'offset', 0));
+end
+dsA = EphysDataset(rA); dsA.DatasetKey = "m1/" + name; dsA.OutputDir = shared;
+dsB = EphysDataset(rB); dsB.DatasetKey = "m2/" + name; dsB.OutputDir = shared;
+S = struct('Y', struct('LFP', single(ones(10, 2))), 'info', struct('LFP', struct('Fs', 1000)), ...
+    'conversion', struct('dataset', name, 'sourceFolder', rA));
+save(fullfile(shared, 'rec1_extract_LFP.mat'), '-struct', 'S');
+oA = dsA.outputs(); oB = dsB.outputs();
+check(oA.has("LFP") && isempty(oA.Foreign) && ~oB.has("LFP") ...
+    && isequal(oB.Foreign, string(fullfile(shared, 'rec1_extract_LFP.mat'))), ...
+    'a file whose provenance names another recording''s folder is not this dataset''s (it is listed in Foreign)');
+Sp = struct('detected', struct('ts', {{1}}), 'units', [], ...
+    'conversion', struct('dataset', name, 'sourceFolder', "Z:\old_drive\proj\m2\" + name));
+save(fullfile(shared, 'rec1_spikes.mat'), '-struct', 'Sp');
+oA.refresh(); oB.refresh();
+check(oB.has("spikes") && ~oA.has("spikes") && dsB.isOwnSource(rB) && ~dsB.isOwnSource(rA), ...
+    'after the project moved (another drive or root) the folder below the root still decides (DatasetKey)');
+% A hand-picked sort recorded in the manifest stays the association while it is not there.
+fm = fullfile(root, 'fm', name);
+makePhyFixture(fullfile(fm, 'kilosort4'), 30000);
+writeJsonFile(fullfile(fm, name + "_manifest.json"), struct('schema', "intan-dataset-manifest/2", 'name', name, ...
+    'sorting', struct('results_dir', "Z:\unplugged\curated", 'source', "manual")));
+of = DatasetOutputs(fm);
+errId = ''; errMsg = '';
+try
+    of.Units;
+catch ME
+    errId = ME.identifier; errMsg = ME.message;
+end
+check(of.SortingDir == "Z:\unplugged\curated" && of.pathSource("sorting") == "manifest" && ~of.has("sorting") ...
+    && strcmp(errId, 'DatasetOutputs:Missing') && contains(errMsg, "not found at Z:\unplugged\curated"), ...
+    'a hand-picked sort that is not there is not replaced by the kilosort4 sort beside it; reading it names the folder');
+% A combined extract is read for its signal list once, and again when it changes.
+oc = DatasetOutputs(out);
+comb = string(fullfile(out, 'rec1_custom.mat'));
+check(oc.signalFile("MUA") == comb && oc.signalFile("LFP") == comb && oc.signalFile("MUA") == comb, ...
+    'signalFile finds the signals of a combined extract');
+C2 = load(comb);
+C2.Y.MUA = single([]); C2.info = rmfield(C2.info, 'MUA');
+save(comb, '-struct', 'C2');
+check(isempty(oc.signalFile("MUA")) && oc.signalFile("LFP") == comb, 'a changed combined extract is read again');
 
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0

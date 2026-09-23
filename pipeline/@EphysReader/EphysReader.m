@@ -20,9 +20,11 @@ classdef (Abstract) EphysReader < handle
     %   Channel numbers
     %   ---------------
     %   ChannelNumbers holds the 0-based hardware number of each amplifier
-    %   channel: the value a probe chanMap refers to. They are unique; a reader
-    %   that cannot make them unique numbers the channels by position (0..n-1)
-    %   and warns EphysReader:ChannelNumbersNotUnique. Intan: the trailing
+    %   channel, reported with sorted units (units.channelNumber). A probe's
+    %   chanMap does not refer to them: its values are .bin rows (recording
+    %   order, 0-based), for sorting and every probe display alike. They are
+    %   unique; a reader that cannot make them unique numbers the channels by
+    %   position (0..n-1) and warns EphysReader:ChannelNumbersNotUnique. Intan: the trailing
     %   digits of the native name ("A-012" -> 12); Open Ephys: "CH13" -> 12;
     %   recording.json: its channel_numbers, else 0..n-1.
     %
@@ -82,7 +84,7 @@ classdef (Abstract) EphysReader < handle
         NumChannels      (1,1) double = NaN
         ChannelNames     (1,:) string = string.empty(1,0)
         NativeNames      (1,:) string = string.empty(1,0)
-        ChannelNumbers   (1,:) double = double.empty(1,0)   % 0-based hardware numbers (probe chanMap values)
+        ChannelNumbers   (1,:) double = double.empty(1,0)   % 0-based hardware numbers (not probe chanMap values: those are .bin rows)
         DigInNames       (1,:) string = string.empty(1,0)
         DigInNativeNames (1,:) string = string.empty(1,0)
         Duration         (1,1) double = NaN
@@ -220,14 +222,69 @@ classdef (Abstract) EphysReader < handle
             %highSegments  [k x 2] [t_on t_off] (s) for contiguous high runs of x.
             %   Times use the 1-based row index divided by Fs (t = row/Fs), the
             %   convention every reader's digital-input events follow.
+            iv = EphysReader.highRuns(x) ./ Fs;
+        end
+
+        function R = highRuns(x, offset)
+            %highRuns  [k x 2] [first last] rows of the contiguous high runs of x.
+            %   R = EphysReader.highRuns(x) lists the runs of x > 0 as 1-based
+            %   row pairs; highRuns(x, OFFSET) adds OFFSET to both, so a long
+            %   line can be decoded one block at a time: take each block's
+            %   runs with its offset (the rows before it) and join them with
+            %   joinRuns. Only logical temporaries are made (1 byte a sample).
+            if nargin < 2; offset = 0; end
             x = x(:) > 0;
-            d = diff([0; x; 0]);
-            on  = find(d == 1);
-            off = find(d == -1) - 1;
-            if isempty(on)
-                iv = zeros(0, 2);
+            if isempty(x)
+                R = zeros(0, 2);
+                return
+            end
+            on  = find(x & ~[false; x(1:end-1)]);
+            off = find(x & ~[x(2:end); false]);
+            R = [on off] + offset;
+        end
+
+        function R = joinRuns(parts)
+            %joinRuns  The runs of a whole line from the runs of its blocks.
+            %   R = EphysReader.joinRuns(PARTS) stacks the cell PARTS of [k x 2]
+            %   row runs (highRuns of consecutive blocks, in order, each with
+            %   its offset) and joins a run that ends on a block's last row
+            %   with the run that starts on the next block's first row.
+            R = vertcat(zeros(0, 2), parts{:});
+            if size(R, 1) < 2; return; end
+            cont = R(2:end, 1) == R(1:end-1, 2) + 1;    % run k+1 continues run k
+            if any(cont)
+                R = [R([true; ~cont], 1), R([~cont; true], 2)];
+            end
+        end
+
+        function x = wordBit(w, bit)
+            %wordBit  True where bit BIT (0-based) of the uint16 words W is set.
+            %   A 16-bit digital word has no bit outside 0..15; such a line
+            %   is never high.
+            if bit >= 0 && bit < 16 && bit == round(bit)
+                x = bitand(w, uint16(2^bit)) > 0;
             else
-                iv = [on off] ./ Fs;
+                x = false(size(w));
+            end
+        end
+
+        function [off, len] = planWindows(total, maxChunk, minLast)
+            %planWindows  0-based offsets and lengths of a streamPlan's sample windows.
+            %   [OFF, LEN] = EphysReader.planWindows(TOTAL, MAXCHUNK, MINLAST)
+            %   cuts TOTAL samples into windows of MAXCHUNK samples, the last
+            %   one holding what is left. A leftover (a last window shorter
+            %   than MAXCHUNK) shorter than MINLAST - the plans pass one
+            %   second of samples - joins the window before it, so no chunk
+            %   is too short for the streaming passes' filters (filtfilt needs
+            %   more samples than three times the filter order). TOTAL = 0
+            %   gives one empty window.
+            n = max(1, ceil(total / maxChunk));
+            off = (0:n-1) * maxChunk;
+            len = min(maxChunk, total - off);
+            if n > 1 && len(end) < maxChunk && len(end) < minLast
+                len(end-1) = len(end-1) + len(end);
+                off(end) = [];
+                len(end) = [];
             end
         end
 
@@ -249,8 +306,8 @@ classdef (Abstract) EphysReader < handle
         function nums = checkChannelNumbers(nums, where)
             %checkChannelNumbers  NUMS when they are unique whole numbers >= 0, else 0..n-1.
             %   The fallback warns EphysReader:ChannelNumbersNotUnique naming
-            %   WHERE (the recording), because probe chanMap values then refer
-            %   to channel positions.
+            %   WHERE (the recording), because the hardware numbers reported
+            %   with sorted units are then channel positions.
             nums = double(reshape(nums, 1, []));
             n = numel(nums);
             if n == 0; nums = double.empty(1, 0); return; end
@@ -259,7 +316,7 @@ classdef (Abstract) EphysReader < handle
             if ~ok
                 warning('EphysReader:ChannelNumbersNotUnique', ...
                     ['%s: the channel names do not give %d distinct channel numbers; ' ...
-                     'channels are numbered by position (0..%d), which is what probe chanMap values then refer to.'], ...
+                     'channels are numbered by position (0..%d).'], ...
                     where, n, n - 1);
                 nums = 0:n-1;
             end

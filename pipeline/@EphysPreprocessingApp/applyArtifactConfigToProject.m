@@ -1,6 +1,8 @@
 function applyArtifactConfigToProject(obj)
 %applyArtifactConfigToProject  Push the Artifacts section onto every dataset.
-if isempty(obj.Project) || obj.Project.NumDatasets == 0; return; end
+%   Not while a run is under way: the datasets keep the settings it started
+%   with.
+if isempty(obj.Project) || obj.Project.NumDatasets == 0 || obj.RunActive; return; end
 if ~obj.Applying
     obj.Config.Artifacts = obj.gatherArtifactsSection();
 end

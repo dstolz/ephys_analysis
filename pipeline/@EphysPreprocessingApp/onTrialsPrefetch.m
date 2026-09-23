@@ -10,6 +10,7 @@ function onTrialsPrefetch(obj)
 %   (EphysDataset.autoApproveTrialPairing). Cancel stops before the next
 %   recording file; the datasets finished so far stay cached.
 dlgTitle = "Prefetch digital lines";
+if obj.refuseWhileRunning(dlgTitle); return; end
 if isempty(obj.Project) || obj.Project.NumDatasets == 0
     uialert(obj.Fig, "Scan a project first (Project tab).", dlgTitle);
     return

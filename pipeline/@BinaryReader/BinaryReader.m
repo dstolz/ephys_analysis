@@ -18,7 +18,7 @@ classdef BinaryReader < EphysReader
     %       "channel_names": ["ch1", ...],              (optional; default "ch1".."chN")
     %       "native_names":  ["A-000", ...],            (optional; default = channel_names)
     %       "channel_numbers": [0, 1, ...],             (optional; default 0..n_chan-1) the
-    %                                                   hardware number a probe chanMap refers to
+    %                                                   hardware numbers, reported with sorted units
     %       "dig_in_names":  ["din0", ...],             (optional)
     %       "dig_in_file":   "digitalin.dat",           (optional) uint16 per sample, bit k = line k
     %       "events":        {"din0": [[t_on, t_off], ...]},   (optional) seconds, t = row/Fs
@@ -36,6 +36,11 @@ classdef BinaryReader < EphysReader
     %   unchanged. Only recording.json is used to recognise a folder, so the
     %   .bin + <name>.json sidecar pairs that toBin writes into output folders
     %   are never mistaken for recordings.
+    %
+    %   Files lists what makes up the recording: recording.json, data_file and
+    %   dig_in_file (when the descriptor names one); NumFiles is 1. The
+    %   digital inputs are decoded from dig_in_file one window at a time
+    %   (readDigitalEvents never reads the samples).
     %
     %   See also EphysReader, IntanReader, EphysDataset.toBin.
 
@@ -76,6 +81,9 @@ classdef BinaryReader < EphysReader
             obj.RecordingFormat = "binary";
             obj.DataFile = string(fullfile(obj.Folder, d.data_file));
             obj.Files = [string(BinaryReader.DescriptorName), string(d.data_file)];
+            if isfield(d, 'dig_in_file') && strlength(string(d.dig_in_file)) > 0
+                obj.Files = unique([obj.Files, string(d.dig_in_file)], 'stable');
+            end
             obj.NumFiles = 1;
             if isfield(d, 'name') && strlength(string(d.name)) > 0
                 obj.Name = string(d.name);
@@ -158,16 +166,15 @@ classdef BinaryReader < EphysReader
                 maxc = max(round(obj.Fs), floor(2.5e8 / (max(obj.NumChannels, 1) * 8)));
             end
             maxc = max(1, maxc);
-            nChunks = max(1, ceil(total / maxc));
-            plan = repmat(proto, 1, nChunks);
-            for i = 1:nChunks
-                off = (i - 1) * maxc;
-                len = min(maxc, total - off);
+            % A leftover last window shorter than one second joins the one before it.
+            [off, len] = EphysReader.planWindows(total, maxc, round(obj.Fs));
+            plan = repmat(proto, 1, numel(off));
+            for i = 1:numel(off)
                 plan(i).kind         = "window";
-                plan(i).name         = sprintf('samples %d-%d', off + 1, off + len);
+                plan(i).name         = sprintf('samples %d-%d', off(i) + 1, off(i) + len(i));
                 plan(i).file         = obj.DataFile;
-                plan(i).sampleOffset = off;
-                plan(i).nSamples     = len;
+                plan(i).sampleOffset = off(i);
+                plan(i).nSamples     = len(i);
             end
         end
 
@@ -217,6 +224,10 @@ classdef BinaryReader < EphysReader
         end
 
         function data = readData(obj, opts)
+            %readData  The whole recording as the universal data struct (EphysReader).
+            %   The samples are read one streamPlan window at a time into a
+            %   matrix of the requested Precision holding only KeepChannels,
+            %   so the whole recording is never held in double.
             arguments
                 obj (1,1) BinaryReader
                 opts.Files (1,:) string = string.empty(1,0) %#ok<INUSA>
@@ -235,8 +246,6 @@ classdef BinaryReader < EphysReader
                 opts.ProgressFcn(1, 1, string(obj.Descriptor.data_file));
             end
             nSamp = obj.sampleCount();
-            X = obj.readWindowUV(0, nSamp);
-            if opts.Precision == "single"; X = single(X); end
             keep = opts.KeepChannels;
             if ~isempty(keep)
                 if max(keep) > obj.NumChannels
@@ -244,7 +253,6 @@ classdef BinaryReader < EphysReader
                         'KeepChannels references channel %d but the recording has %d.', ...
                         max(keep), obj.NumChannels);
                 end
-                X = X(:, keep);
                 channelNames = obj.ChannelNames(keep);
                 nativeNames  = obj.NativeNames(keep);
                 order = keep;
@@ -252,6 +260,18 @@ classdef BinaryReader < EphysReader
                 channelNames = obj.ChannelNames;
                 nativeNames  = obj.NativeNames;
                 order = 1:obj.NumChannels;
+            end
+            X = zeros(nSamp, numel(order), opts.Precision);
+            got = 0;
+            for c = obj.streamPlan()
+                W = obj.readWindowUV(c.sampleOffset, c.nSamples);   % [rows x nChan], microvolts
+                X(got + (1:size(W, 1)), :) = W(:, order);
+                got = got + size(W, 1);
+                if size(W, 1) < c.nSamples; break; end              % the file ends early
+            end
+            clear W
+            if got < nSamp
+                X = X(1:got, :);
             end
 
             [events, digNames] = obj.readEvents(nSamp);
@@ -275,6 +295,38 @@ classdef BinaryReader < EphysReader
             data.fileSampleCounts = nSamp;
             data.units            = "microvolts";
             data.source           = struct('Folder', obj.Folder, 'Name', obj.Name);
+        end
+
+        function E = readDigitalEvents(obj, opts)
+            %readDigitalEvents  Digital-input events from the descriptor or dig_in_file alone.
+            %   E = r.readDigitalEvents() returns what readData's events are
+            %   (events keyed by the line names, Fs, nSamples = the samples
+            %   in the data file, digInNames = digInNativeNames) without
+            %   reading the samples: dig_in_file is decoded one window at a
+            %   time, or the descriptor's "events" map is used.
+            %   ProgressFcn(1, 1, dataFile) is called once, as by readData.
+            arguments
+                obj (1,1) BinaryReader
+                opts.ProgressFcn = []
+            end
+            if isnan(obj.Fs) || isempty(obj.PerFile); obj.refreshMetadata(); end
+            if obj.RecordingFormat ~= "binary"
+                error('BinaryReader:NoFiles', 'No %s in %s', BinaryReader.DescriptorName, obj.Folder);
+            end
+            if ~isempty(opts.ProgressFcn)
+                opts.ProgressFcn(1, 1, string(obj.Descriptor.data_file));
+            end
+            nSamp = obj.sampleCount();
+            [events, names] = obj.readEvents(nSamp);
+            % readData returns the rows the data file holds (fewer when it is
+            % shorter than n_samples says)
+            [~, bytes] = BinaryReader.precisionFor(string(obj.Descriptor.dtype));
+            s = dir(obj.DataFile);
+            if ~isempty(s)
+                nSamp = min(nSamp, ceil(s.bytes / (bytes * obj.NumChannels)));
+            end
+            E = struct('events', events, 'Fs', obj.Fs, 'nSamples', nSamp, ...
+                'digInNames', names, 'digInNativeNames', names);
         end
     end
 
@@ -307,6 +359,9 @@ classdef BinaryReader < EphysReader
         function [events, names] = readEvents(obj, nSamp)
             %readEvents  Digital-input intervals from the descriptor or dig_in_file.
             %   Keyed by the line names (the format has one name per line).
+            %   dig_in_file is decoded one window of uint16 words at a time;
+            %   without dig_in_names its lines are din0.. up to the highest
+            %   bit ever set (at least one line).
             d = obj.Descriptor;
             names = obj.DigInNames;
             events = struct();
@@ -317,16 +372,30 @@ classdef BinaryReader < EphysReader
                 else
                     fid = fopen(f, 'r', obj.byteOrder());
                     closer = onCleanup(@() fclose(fid)); %#ok<NASGU>
-                    raw = fread(fid, nSamp, 'uint16=>double');
                     nLines = numel(names);
-                    if nLines == 0
-                        nLines = max(1, ceil(log2(max(raw) + 1)));
+                    bits = 0:nLines-1;
+                    if nLines == 0; bits = 0:15; end          % every bit until the used ones are known
+                    runs = repmat({cell(1, 0)}, numel(bits), 1);
+                    top = uint16(0);                          % highest word seen
+                    got = 0;
+                    while got < nSamp
+                        w = fread(fid, min(2^22, nSamp - got), 'uint16=>uint16');
+                        if isempty(w); break; end
+                        top = max(top, max(w));
+                        for k = 1:numel(bits)
+                            runs{k}{end+1} = EphysReader.highRuns(EphysReader.wordBit(w, bits(k)), got);
+                        end
+                        got = got + numel(w);
+                    end
+                    if nLines == 0 && got > 0
+                        nLines = max(1, ceil(log2(double(top) + 1)));
                         names = "din" + string(0:nLines-1);
+                    elseif nLines == 0
+                        names = string.empty(1, 0);
                     end
                     for k = 1:nLines
-                        line = bitand(raw, 2^(k-1)) > 0;
                         events.(matlab.lang.makeValidName(char(names(k)))) = ...
-                            EphysReader.highSegments(line, obj.Fs);
+                            EphysReader.joinRuns(runs{k}) ./ obj.Fs;
                     end
                     return
                 end

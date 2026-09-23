@@ -1,12 +1,18 @@
 function onGenerateScript(obj, kind)
 %onGenerateScript  Write a compact or standalone script for the working config.
 %   The compact form loads the saved JSON, so unsaved changes are saved
-%   first (with a prompt).
+%   first (with a prompt). Refused while a text field does not parse
+%   (gatherConfig).
 arguments
     obj (1,1) EphysPreprocessingApp
     kind (1,1) string {mustBeMember(kind, ["compact", "standalone"])}
 end
-cfg = obj.gatherConfig();
+try
+    cfg = obj.gatherConfig();
+catch ME
+    uialert(obj.Fig, string(ME.message), "Generate script");
+    return
+end
 if kind == "compact"
     dirty = cfg.File == "" || ~isequaln(cfg.toStruct(), obj.SavedConfigStruct);
     if dirty

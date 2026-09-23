@@ -171,7 +171,8 @@ E.grid = uicheckbox(sg, "Text", "Grid", "Value", true, "ValueChangedFcn", change
 r = r + 1;
 lab(fg, "Y limits:", r, 1);
 E.ylim = uieditfield(fg, "text", "Placeholder", "auto, or e.g. 0 40", "ValueChangedFcn", changed, ...
-    "Tooltip", "Not for stacked PSTHs: their spacing sets the rows.");
+    "Tooltip", "The rate or amplitude axis: PSTHs (not their rasters, nor a stack: its spacing sets the rows), " + ...
+    "evoked butterfly and grid (a stack's offsets set its rows), rates, tuning curves.");
 place(E.ylim, r, 2);
 lab(fg, "Line width:", r, 3);
 E.lineWidth = uispinner(fg, "Limits", [0.25 6], "Step", 0.25, "Value", 1.2, "ValueChangedFcn", changed, ...

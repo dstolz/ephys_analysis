@@ -15,7 +15,9 @@ function [Y, fs, meta] = selectChannels(src, signal, opts)
 %
 %   The whole signal is read once per dataset (a MUA at 2 kHz x 64 channels
 %   x 1 h is ~1.8 GB in single), so load one signal at a time and clear the
-%   outputs' cache between datasets (EphysAnalysisRunner does).
+%   outputs' cache between datasets (EphysAnalysisRunner does). With every
+%   channel in order (CH [] or 1:nChannels) Y is the cached signal itself,
+%   not a copy; only a subset or a new order makes one.
 %
 %   Errors: selectChannels:NoSignal, selectChannels:BadChannels.
 %
@@ -45,7 +47,9 @@ if any(ch < 1 | ch > nCh | ch ~= round(ch))
     error('selectChannels:BadChannels', '%s %s has %d channel(s); Channels asks for %s.', ...
         src.name, signal, nCh, mat2str(ch));
 end
-Y = Y(:, ch);
+if ~isequal(ch, 1:nCh)
+    Y = Y(:, ch);   % indexing copies: only for a real subset or reorder
+end
 if signal == "AUX"
     labels = strings(nCh, 1);
     if isfield(I, 'labels'); labels = reshape(string(I.labels), [], 1); end

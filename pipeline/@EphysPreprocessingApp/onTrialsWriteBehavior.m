@@ -1,5 +1,6 @@
 function onTrialsWriteBehavior(obj)
 %onTrialsWriteBehavior  Write <name>_behavior.mat with the shown pairing.
+if obj.refuseWhileRunning("Write behavior .mat"); return; end
 P = obj.TrialsPairing;
 d = obj.currentDataset();
 if isempty(P) || isempty(d); return; end

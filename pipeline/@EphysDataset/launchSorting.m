@@ -23,10 +23,27 @@ function result = launchSorting(obj, result, opts)
 %   The run folder's ks4_status.json and exit marker are deleted first, so
 %   they reflect this run only. A background run leaves an empty
 %   EphysDataset.SortExitMarker beside its status once its process exits
-%   (EphysDataset.sortRunState).
+%   (EphysDataset.sortRunState). On Windows it is started through a batch
+%   file written to the run folder, ks4_launch.cmd, so that paths with & or
+%   ^ in them survive; a launcher that does not start writes the exit marker
+%   and throws EphysDataset:launchSorting:LaunchFailed.
+%
+%   Kilosort4 overwrites its own output in the results folder but not the
+%   curation of an earlier sort there, and its cluster ids start again at
+%   0, so that sort's notes and phy labels would land on unrelated units.
+%   They are moved first into <results folder>\previous_<yyyyMMdd_HHmmss>
+%   (never deleted): cluster_notes.tsv, phy's cluster_group.tsv (header
+%   "cluster_id<TAB>group"; Kilosort4's own copy of cluster_KSLabel.tsv
+%   stays), cluster_info.tsv, any other cluster_*.tsv but Kilosort4's
+%   cluster_KSLabel / ContamPct / Amplitude, and phy's .phy cache. Phy's
+%   merges and splits live in spike_clusters.npy, which the new sort
+%   replaces. When a file cannot be moved (phy has the folder open), the
+%   ones already moved go back and EphysDataset:launchSorting:SetAsideFailed
+%   is thrown before anything starts.
 %
 %   RESULT comes back with command (as run, --device included), status,
-%   wait, background, device and launched (true) set.
+%   wait, background, device, launched (true) and previousDir (the
+%   previous_* folder, "" when there was nothing to move) set.
 %
 %   See also EphysDataset.runKilosort, EphysDataset.sortRunState, waitForSortingSlot.
 
@@ -54,7 +71,9 @@ end
 what = "Kilosort4";
 title = 'Kilosort4';
 
-% Clear any stale status / exit marker so they reflect this run only.
+% The earlier sort's curation goes aside, then any stale status / exit
+% marker, so they reflect this run only.
+previousDir = setAsideCuration(result.resultsDir);
 if isfile(statusFile)
     delete(statusFile);
 end
@@ -75,12 +94,14 @@ if opts.Wait
             '%s exited with status %d. See log: %s', what, status, result.stdoutLog);
     end
 else
-    bgCommand = backgroundCommand(command, result.stdoutLog, exitFile, title);
+    launcher = fullfile(result.runDir, 'ks4_launch.cmd');
+    bgCommand = backgroundCommand(command, result.stdoutLog, exitFile, launcher, title);
     fprintf('Launching %s (background):\n  %s\n', what, bgCommand);
     status = system(bgCommand);   % returns immediately
     if status ~= 0
-        warning('EphysDataset:launchSorting:LaunchFailed', ...
-            'Background launch returned status %d. See log: %s', status, result.stdoutLog);
+        fclose(fopen(exitFile, 'w'));   % nothing runs: sortRunState reports an error, the slot is free
+        error('EphysDataset:launchSorting:LaunchFailed', ...
+            'The background launch of %s returned status %d: %s', what, status, bgCommand);
     end
 end
 
@@ -90,10 +111,52 @@ result.wait       = opts.Wait;
 result.background = ~opts.Wait;
 result.device     = opts.Device;
 result.launched   = true;
+result.previousDir = previousDir;
 
 if ~isempty(obj.Manifest) && isa(obj.Manifest, 'Manifest')
     obj.Manifest.add("launchSorting", "Spawned " + what, ...
         struct('command', command, 'status', status, 'wait', opts.Wait, ...
-        'device', opts.Device, 'resultsDir', result.resultsDir));
+        'device', opts.Device, 'resultsDir', result.resultsDir, 'previousDir', previousDir));
 end
+end
+
+
+function previous = setAsideCuration(resultsDir)
+%setAsideCuration  Move an earlier sort's curation out of RESULTSDIR.
+%   Returns the previous_<yyyyMMdd_HHmmss> folder the files went to, ""
+%   when there was nothing to move. See launchSorting's help for the files.
+ksOwn = ["cluster_KSLabel.tsv" "cluster_ContamPct.tsv" "cluster_Amplitude.tsv"];
+D = dir(fullfile(resultsDir, 'cluster_*.tsv'));
+names = string({D(~[D.isdir]).name});
+names = names(~ismember(lower(names), lower(ksOwn)));
+group = strcmpi(names, "cluster_group.tsv");
+if any(group) && ~EphysDataset.phyCurated(resultsDir)
+    names(group) = [];                            % Kilosort4's copy of cluster_KSLabel.tsv
+end
+if isfolder(fullfile(resultsDir, '.phy'))
+    names(end+1) = ".phy";
+end
+previous = "";
+if isempty(names); return; end
+stamp = "previous_" + string(datetime('now', 'Format', 'yyyyMMdd_HHmmss'));
+previous = string(fullfile(resultsDir, stamp));
+n = 1;
+while isfolder(previous) || isfile(previous)   % a second new sort within the same second
+    n = n + 1;
+    previous = string(fullfile(resultsDir, stamp + "_" + n));
+end
+mkdir(previous);
+for k = 1:numel(names)
+    [ok, msg] = movefile(fullfile(resultsDir, names(k)), fullfile(previous, names(k)));
+    if ~ok
+        for j = 1:k - 1                           % put them back: a retry starts over
+            movefile(fullfile(previous, names(j)), fullfile(resultsDir, names(j)));
+        end
+        [~, ~] = rmdir(previous);
+        error('EphysDataset:launchSorting:SetAsideFailed', ...
+            ['Could not move %s of the earlier sort out of the way of the new one (%s). ' ...
+             'Close phy if it has %s open.'], names(k), msg, resultsDir);
+    end
+end
+fprintf('Moved the earlier sort''s curation (%s) to %s\n', strjoin(names, ", "), previous);
 end

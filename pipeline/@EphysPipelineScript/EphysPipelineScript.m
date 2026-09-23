@@ -1,7 +1,9 @@
 classdef EphysPipelineScript
     % EphysPipelineScript  Generate MATLAB scripts that reproduce a config's run.
     %   Two forms:
-    %     compact(cfg, ConfigFile=)   a short script that loads the JSON config
+    %     compact(cfg, ConfigFile=)   a short script that loads the JSON config,
+    %                                 makes run()'s checks (checkRun: config
+    %                                 errors and blocking plan rows stop it)
     %                                 and calls one EphysPipeline method per
     %                                 step (disabled steps are written out
     %                                 commented). Keep the config next to it.
@@ -11,7 +13,11 @@ classdef EphysPipelineScript
     %                                 builders of EphysPipelineConfig) directly,
     %                                 never the EphysPipeline runner, so it
     %                                 documents exactly what a run does and
-    %                                 needs no config file.
+    %                                 needs no config file. Each step does what
+    %                                 the runner's does (the behavior step's
+    %                                 trial pairing and approval included); the
+    %                                 runner's cache of artifact detections and
+    %                                 its plan checks are left out.
     %   Both return the script text; pass File= to write it (write()).
     %
     %   The literal(value) helper renders strings, string lists, numbers
@@ -52,7 +58,8 @@ classdef EphysPipelineScript
             L(end+1, 1) = "% cfg.Sorting.MaxConcurrent = 2;   % background Kilosort4 runs at once";
             L(end+1, 1) = "";
             L(end+1, 1) = "pipe = EphysPipeline(cfg);      % scans the project root, applies the manifests";
-            L(end+1, 1) = "disp(pipe.plan());              % what will run; writes nothing";
+            L(end+1, 1) = "planned = pipe.checkRun();      % run()'s checks: a config error or a blocking plan row stops here";
+            L(end+1, 1) = "disp(planned);                  % what will run";
             L(end+1, 1) = "";
             calls = struct('probe', "pipe.checkProbes();", 'behavior', "pipe.checkBehavior();", ...
                 'artifacts', "pipe.runArtifacts();", 'sorting', "pipe.runSorting();", ...
@@ -100,7 +107,6 @@ classdef EphysPipelineScript
             L(end+1, 1) = "P = EphysProject(root, OutputRoot=outputRoot, PythonExe=" + lit(cfg.Sorting.PythonExe) + ...
                 ", CondaEnv=" + lit(cfg.Sorting.CondaEnv) + ", NamePattern=" + lit(cfg.Project.NamePattern) + ...
                 ", Recursive=" + lit(cfg.Project.Recursive) + ", ReaderOptions=readerOptions);";
-            L(end+1, 1) = "P.refresh();                       % headers + per-dataset manifests (probe, exclusions, ...)";
             if cfg.Project.Selection == "list"
                 L(end+1, 1) = "keys = " + lit(cfg.Project.Datasets) + ";   % root-relative dataset keys";
                 L(end+1, 1) = "idx = P.findByKey(keys);";
@@ -108,11 +114,13 @@ classdef EphysPipelineScript
             else
                 L(end+1, 1) = "idx = 1:P.NumDatasets;             % every dataset under the root";
             end
+            L(end+1, 1) = "P.refresh(Datasets=idx);           % headers + per-dataset manifests (probe, exclusions, ...)";
             L(end+1, 1) = "I = P.unitIdentities(Among=idx);   % subject + recording start that label sorted units";
             L(end+1, 1) = "if any(I.Status ~= ""ok""); disp(I(I.Status ~= ""ok"", [""Key"" ""Status"" ""Message""])); end";
             L(end+1, 1) = "";
             L(end+1, 1) = "% Shared settings pushed onto every dataset";
             L = [L; EphysPipelineScript.structLiteral("artifactConfig", EphysPipelineConfig.artifactConfig(cfg.Artifacts))];
+            L = [L; EphysPipelineScript.structLiteral("trialConfig", EphysPipelineConfig.trialConfig(cfg))];
             L = [L; EphysPipelineScript.structLiteral("parallelOpts", EphysPipelineConfig.parallelOptions(cfg.Parallel))];
             L(end+1, 1) = "parallelArgs = namedargs2cell(parallelOpts);   % UseParallel / MaxWorkers for the chunked steps";
             L(end+1, 1) = "for k = idx";
@@ -120,21 +128,24 @@ classdef EphysPipelineScript
             L(end+1, 1) = "    d.PythonExe = " + lit(cfg.Sorting.PythonExe) + ";";
             L(end+1, 1) = "    d.CondaEnv = " + lit(cfg.Sorting.CondaEnv) + ";";
             L(end+1, 1) = "    d.ArtifactConfig = artifactConfig;";
+            L(end+1, 1) = "    d.TrialConfig = trialConfig;        % trial line, line names and polarity, signal rates";
             L(end+1, 1) = "end";
             L(end+1, 1) = "";
 
             % --- probe ---------------------------------------------------------------
             L(end+1, 1) = "%% Probe (preflight)";
-            L(end+1, 1) = "defaultProbe = " + lit(cfg.Probe.DefaultProbeFile) + ";";
+            L(end+1, 1) = "defaultProbe = " + lit(cfg.Probe.DefaultProbeFile) + ";   % for datasets without a probe of their own";
             L(end+1, 1) = "for k = idx";
             L(end+1, 1) = "    d = P.Datasets(k);";
-            L(end+1, 1) = "    if d.ProbeFile == """" && defaultProbe ~= """"";
-            L(end+1, 1) = "        d.ProbeFile = defaultProbe;";
+            L(end+1, 1) = "    probe = d.ProbeFile;";
+            L(end+1, 1) = "    if probe == """"; probe = defaultProbe; end";
             if cfg.Probe.WriteDefaultToManifest
+                L(end+1, 1) = "    if d.ProbeFile == """" && probe ~= """"";
+                L(end+1, 1) = "        d.ProbeFile = probe;   % the default, saved to the manifest (Probe.WriteDefaultToManifest)";
                 L(end+1, 1) = "        d.writeManifest();";
+                L(end+1, 1) = "    end";
             end
-            L(end+1, 1) = "    end";
-            L(end+1, 1) = "    fprintf('%s: probe %s\n', d.Name, d.ProbeFile);";
+            L(end+1, 1) = "    fprintf('%s: probe %s\n', d.Name, probe);";
             L(end+1, 1) = "end";
             L(end+1, 1) = "";
 
@@ -144,19 +155,47 @@ classdef EphysPipelineScript
             L(end+1, 1) = "sessions = findEpsychSessions(" + lit(B.SearchDirs) + ");";
             L(end+1, 1) = "for k = idx";
             L(end+1, 1) = "    d = P.Datasets(k);";
-            L(end+1, 1) = "    if d.BehaviorFile == """" || ~isfile(d.BehaviorFile) || " + lit(logical(B.Overwrite));
-            L(end+1, 1) = "        m = matchEpsychSession(sessions, d, Match=" + lit(B.Match) + ...
-                ", MaxStartOffsetMin=" + lit(B.MaxStartOffsetMin) + ");";
-            L(end+1, 1) = "        if m.file ~= """"";
-            L(end+1, 1) = "            d.BehaviorFile = m.file;";
-            L(end+1, 1) = "            d.writeManifest();";
-            L(end+1, 1) = "        end";
-            L(end+1, 1) = "        fprintf('%s: behavior %s (%s)\n', d.Name, m.file, m.reason);";
-            L(end+1, 1) = "    end";
+            match = "matchEpsychSession(sessions, d, Match=" + lit(B.Match) + ", MaxStartOffsetMin=" + lit(B.MaxStartOffsetMin) + ")";
+            ind = "    ";
+            note = "   % Behavior.Overwrite: matched again";
+            if ~B.Overwrite
+                L(end+1, 1) = "    if d.BehaviorFile ~= """"   % an association is kept, also while its file is not there";
+                L(end+1, 1) = "        fprintf('%s: behavior %s (kept)\n', d.Name, d.BehaviorFile);";
+                L(end+1, 1) = "    else";
+                ind = "        ";
+                note = "";
+            end
+            L(end+1, 1) = ind + "m = " + match + ";" + note;
+            L(end+1, 1) = ind + "if m.file ~= """"";
+            L(end+1, 1) = ind + "    d.BehaviorFile = m.file;";
+            L(end+1, 1) = ind + "    d.writeManifest();";
+            L(end+1, 1) = ind + "end";
+            L(end+1, 1) = ind + "fprintf('%s: behavior %s (%s)\n', d.Name, m.file, m.reason);";
+            if ~B.Overwrite
+                L(end+1, 1) = "    end";
+            end
+            L(end+1, 1) = "    if d.BehaviorFile == """" || ~isfile(d.BehaviorFile); continue; end";
+            L(end+1, 1) = "    pairing = [];";
+            if B.PairTrials
+                L(end+1, 1) = "    try   % the trials, in order, with the " + B.TrialLine + " intervals (a recorded pairing's cuts are reused)";
+                L(end+1, 1) = "        pairing = d.pairTrials(Warn=false);";
+                if B.AutoApprove
+                    L(end+1, 1) = "        pairing = d.autoApproveTrialPairing(pairing);   % Behavior.AutoApprove: counts that match without cuts";
+                end
+                L(end+1, 1) = "        if ~pairing.recorded; d.setTrialPairing(pairing, ""unreviewed""); end";
+                L(end+1, 1) = "        fprintf('%s: pairing %s - %s\n', d.Name, pairing.status, pairing.summary);";
+                L(end+1, 1) = "        if pairing.countMismatch; fprintf(2, '%s: WARNING %s\n', d.Name, strjoin(pairing.warnings, "" "")); end";
+                L(end+1, 1) = "    catch ME";
+                L(end+1, 1) = "        fprintf(2, '%s: pairing FAILED: %s\n', d.Name, ME.message);";
+                L(end+1, 1) = "        pairing = [];";
+                L(end+1, 1) = "    end";
+            end
             if B.WriteFile
-                L(end+1, 1) = "    if d.BehaviorFile ~= """" && isfile(d.BehaviorFile)";
-                L(end+1, 1) = "        r = d.behaviorToMat(Overwrite=true);   % <Name>_behavior.mat, the one copy of the behavior data";
+                L(end+1, 1) = "    try   % <outputFolder>/<Name>_behavior.mat, the one copy of the behavior data";
+                L(end+1, 1) = "        r = d.behaviorToMat(Overwrite=true, Pairing=pairing);";
                 L(end+1, 1) = "        fprintf('%s: wrote %s\n', d.Name, r.file);";
+                L(end+1, 1) = "    catch ME";
+                L(end+1, 1) = "        fprintf(2, '%s: behavior file FAILED: %s\n', d.Name, ME.message);";
                 L(end+1, 1) = "    end";
             end
             L(end+1, 1) = "end";
@@ -183,18 +222,23 @@ classdef EphysPipelineScript
             end
             L(end+1, 1) = "for k = idx";
             L(end+1, 1) = "    d = P.Datasets(k);";
-            L(end+1, 1) = "    if d.ProbeFile == """"; fprintf('%s: no probe, skipped\n', d.Name); continue; end";
+            L(end+1, 1) = "    probe = d.ProbeFile;";
+            L(end+1, 1) = "    if probe == """"; probe = defaultProbe; end";
+            L(end+1, 1) = "    if probe == """"; fprintf('%s: no probe, skipped\n', d.Name); continue; end";
+            L(end+1, 1) = "    if ~isfile(probe); fprintf('%s: probe file missing (%s), skipped\n', d.Name, probe); continue; end";
             if S.SkipExisting
-                L(end+1, 1) = "    if d.hasKilosortResults(); fprintf('%s: already sorted, skipped\n', d.Name); continue; end";
+                L(end+1, 1) = "    if d.hasKilosortResults() || d.sortingMissing(); fprintf('%s: already sorted, skipped\n', d.Name); continue; end";
             end
             L(end+1, 1) = "    try";
-            if cfg.Artifacts.ApplyToSorting
+            if S.DryRun
+                L(end+1, 1) = "        iv = [];   % a dry run writes no .bin, so nothing is blanked";
+            elseif cfg.Artifacts.ApplyToSorting
                 L(end+1, 1) = "        iv = artifactIntervals(d);";
             else
                 L(end+1, 1) = "        iv = d.artifactIntervals(IncludeAuto=false);";
             end
             if background
-                L(end+1, 1) = "        res = d.runKilosort(ExtraSettings=ks4, ArtifactIntervals=iv, Launch=false);   % write the run files";
+                L(end+1, 1) = "        res = d.runKilosort(ProbeFile=probe, ExtraSettings=ks4, ArtifactIntervals=iv, Launch=false);   % write the run files";
                 if devices
                     L(end+1, 1) = "        device = waitForSortingSlot(launched, maxConcurrent, Devices=devices);";
                     L(end+1, 1) = "        res = d.launchSorting(res, Wait=false, Device=device);";
@@ -206,7 +250,7 @@ classdef EphysPipelineScript
             else
                 devArg = "";
                 if devices; devArg = ", Device=" + lit(S.Devices(1)); end
-                L(end+1, 1) = "        res = d.runKilosort(ExtraSettings=ks4, ArtifactIntervals=iv, DryRun=" + ...
+                L(end+1, 1) = "        res = d.runKilosort(ProbeFile=probe, ExtraSettings=ks4, ArtifactIntervals=iv, DryRun=" + ...
                     lit(logical(S.DryRun)) + ", Wait=" + lit(S.Execution == "blocking") + devArg + ");";
             end
             L(end+1, 1) = "        d.writeManifest();";
@@ -237,6 +281,10 @@ classdef EphysPipelineScript
             L(end+1, 1) = "    if any(isfile(outFiles)) && ~signals.Overwrite; fprintf('%s: %s exists, skipped\n', d.Name, strjoin(outFiles, ', ')); continue; end";
             L(end+1, 1) = "    try";
             L(end+1, 1) = "        sigOpts = EphysPipelineConfig.signalOptions(signals, ExcludeChannels=d.ExcludeChannels, NumChannels=d.NumChannels);";
+            L(end+1, 1) = "        if isfield(sigOpts, 'badChannels')   % the geometry for them: its own probe, else the default";
+            L(end+1, 1) = "            sigOpts.probeFile = d.ProbeFile;";
+            L(end+1, 1) = "            if sigOpts.probeFile == """"; sigOpts.probeFile = defaultProbe; end";
+            L(end+1, 1) = "        end";
             L(end+1, 1) = "        r = d.toMat(File=outFile, SeparateFiles=signals.SeparateFiles, SignalOptions=sigOpts, MatVersion=signals.MatVersion, Overwrite=signals.Overwrite);";
             L(end+1, 1) = "        fprintf('%s: wrote %s\n', d.Name, strjoin(r.file, ', '));";
             L(end+1, 1) = "    catch ME";
@@ -283,28 +331,82 @@ classdef EphysPipelineScript
             % --- export --------------------------------------------------------------
             L = [L; EphysPipelineScript.stepHeader("Export: analysis-toolbox and epoch files",cfg.stepEnabled("export"))];
             E = cfg.Export;
+            % The extract files Export reads (EphysPipeline.exportExtractFiles):
+            % with separate files, only those of Export.Signals when it lists any.
+            if G.SeparateFiles && ~isempty(E.Signals)
+                exFilesExpr = "EphysDataset.signalFiles(fullfile(" + EphysPipelineScript.outDirExpr(G.OutputDir) + ...
+                    ", d.Name + " + lit(G.Suffix) + " + "".mat""), " + lit(upper(E.Signals)) + ")";
+            else
+                exFilesExpr = sigFilesExpr;
+            end
             L(end+1, 1) = "formats = " + lit(E.Formats) + ";";
             L(end+1, 1) = "for k = idx";
             L(end+1, 1) = "    d = P.Datasets(k);";
-            L(end+1, 1) = "    extract = EphysDataset.recordedSignalFiles(" + sigFilesExpr + ");";
-            L(end+1, 1) = "    spikesFile = fullfile(" + EphysPipelineScript.outDirExpr(K.OutputDir) + ", d.Name + " + lit(K.Suffix) + " + "".mat"");";
+            L(end+1, 1) = "    extract = EphysDataset.recordedSignalFiles(" + exFilesExpr + ");";
             L(end+1, 1) = "    if isempty(extract) || ~all(isfile(extract)); fprintf('%s: no extract file, skipped\n', d.Name); continue; end";
-            L(end+1, 1) = "    for fmt = formats";
-            L(end+1, 1) = "        outFile = fullfile(" + EphysPipelineScript.outDirExpr(E.OutputDir) + ", d.Name + ""_"" + fmt + "".mat"");";
-            L(end+1, 1) = "        if isfile(outFile) && ~" + lit(logical(E.Overwrite)) + "; fprintf('%s: %s exists, skipped\n', d.Name, outFile); continue; end";
+            if E.IncludeUnits
+                L(end+1, 1) = "    if d.sortingMissing(); fprintf(2, '%s: the sorted-output folder %s is not there, skipped\n', d.Name, d.SortingDir); continue; end";
+            end
+            L(end+1, 1) = "    outFiles = fullfile(" + EphysPipelineScript.outDirExpr(E.OutputDir) + ", d.Name + ""_"" + formats + "".mat"");";
+            if ~E.Overwrite
+                L(end+1, 1) = "    if all(isfile(outFiles)); fprintf('%s: %s exist, skipped\n', d.Name, strjoin(outFiles, ', ')); continue; end";
+            end
+            L(end+1, 1) = "    try   % the inputs, read once for every format";
+            L(end+1, 1) = "        S = load(extract(1));";
+            L(end+1, 1) = "        for f = extract(2:end)   % each per-type file adds its signal";
+            L(end+1, 1) = "            X = load(f);";
+            L(end+1, 1) = "            for sig = [""LFP"" ""MUA"" ""SPIKE"" ""AUX""]";
+            L(end+1, 1) = "                if isfield(X.Y, sig) && ~isempty(X.Y.(sig)) && isfield(X.info, sig)";
+            L(end+1, 1) = "                    S.Y.(sig) = X.Y.(sig); S.info.(sig) = X.info.(sig);";
+            L(end+1, 1) = "                end";
+            L(end+1, 1) = "            end";
+            L(end+1, 1) = "        end";
+            if E.IncludeUnits
+                L(end+1, 1) = "        units = false;";
+                L(end+1, 1) = "        if d.hasKilosortResults(); units = d.readSortedUnits(Groups=" + lit(E.Groups) + "); end";
+            end
+            if E.IncludeDetected
+                L(end+1, 1) = "        detected = false;";
+                L(end+1, 1) = "        spikesFile = fullfile(" + EphysPipelineScript.outDirExpr(K.OutputDir) + ", d.Name + " + lit(K.Suffix) + " + "".mat"");";
+                L(end+1, 1) = "        if isfile(spikesFile)";
+                L(end+1, 1) = "            M = load(spikesFile, 'detected');";
+                L(end+1, 1) = "            if isfield(M, 'detected') && ~isempty(M.detected); detected = M.detected; end";
+                L(end+1, 1) = "        end";
+            end
+            L(end+1, 1) = "        % where the inputs came from, as each exporter records it (Sources)";
+            L(end+1, 1) = "        sources = struct('extractFile', strjoin(extract, ""; ""), 'spikesFile', """", 'sortingDir', """");";
+            if E.IncludeUnits
+                L(end+1, 1) = "        if isstruct(units); sources.sortingDir = string(d.sortingResultsDir()); end";
+            end
+            if E.IncludeDetected
+                L(end+1, 1) = "        if isstruct(detected); sources.spikesFile = spikesFile; end";
+            end
+            L(end+1, 1) = "    catch ME";
+            L(end+1, 1) = "        fprintf(2, '%s: export inputs FAILED: %s\n', d.Name, ME.message);";
+            L(end+1, 1) = "        continue";
+            L(end+1, 1) = "    end";
+            L(end+1, 1) = "    for j = 1:numel(formats)";
+            L(end+1, 1) = "        fmt = formats(j);";
+            if ~E.Overwrite
+                L(end+1, 1) = "        if isfile(outFiles(j)); fprintf('%s: %s exists, skipped\n', d.Name, outFiles(j)); continue; end";
+            end
             L(end+1, 1) = "        try";
             L(end+1, 1) = "            o = EphysPipelineConfig.exportOptions(" + EphysPipelineScript.inlineStruct(E) + ", fmt);";
-            if E.IncludeDetected
-                L(end+1, 1) = "            if isfile(spikesFile); o.Detected = spikesFile; else; o.Detected = false; end";
+            if E.IncludeUnits
+                L(end+1, 1) = "            o.Units = units;";
             end
+            if E.IncludeDetected
+                L(end+1, 1) = "            o.Detected = detected;";
+            end
+            L(end+1, 1) = "            o.Sources = sources;";
             L(end+1, 1) = "            args = namedargs2cell(o);";
             L(end+1, 1) = "            switch fmt";
             L(end+1, 1) = "                case ""chronux""";
-            L(end+1, 1) = "                    r = d.exportChronux('File', outFile, 'Extract', extract, args{:});";
+            L(end+1, 1) = "                    r = d.exportChronux('File', outFiles(j), 'Extract', S, args{:});";
             L(end+1, 1) = "                case ""fieldtrip""";
-            L(end+1, 1) = "                    r = d.exportFieldTrip('File', outFile, 'Extract', extract, args{:});";
+            L(end+1, 1) = "                    r = d.exportFieldTrip('File', outFiles(j), 'Extract', S, args{:});";
             L(end+1, 1) = "                case ""epochs""";
-            L(end+1, 1) = "                    r = d.exportEpochs('File', outFile, 'Extract', extract, args{:});";
+            L(end+1, 1) = "                    r = d.exportEpochs('File', outFiles(j), 'Extract', S, args{:});";
             L(end+1, 1) = "                otherwise";
             L(end+1, 1) = "                    error('Unknown export format ""%s"".', fmt);";
             L(end+1, 1) = "            end";

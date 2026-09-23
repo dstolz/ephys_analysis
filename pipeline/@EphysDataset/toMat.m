@@ -29,6 +29,7 @@ function out = toMat(obj, opts)
 %     SeparateFiles  false (default): one file; true: one file per signal
 %     SignalOptions  struct of deriveSignals options (dataTypeOut, LFP_Fs,
 %                    keepAmpChannels, ...); omitted fields use its defaults
+%                    (labelField, lineNames and invertedLines: TrialConfig)
 %     MatVersion     "-v7.3" (default, any size) | "-v7"
 %     Overwrite      false (default): error if File (or any per-type
 %                    file) already exists
@@ -40,8 +41,8 @@ function out = toMat(obj, opts)
 %   OUT fields: file (one per file written, in dataTypeOut order when
 %   SeparateFiles), types (the signal type(s) in each file), bytes (per file), seconds, matVersion, recordingFormat, origFs,
 %   signals (struct array: name, nSamples, nChannels, class, Fs), events
-%   (struct array: name, count), badChannels (the channels actually
-%   interpolated, from info.importOptions).
+%   (struct array: name, count), badChannels (the columns actually
+%   interpolated, from info.importOptions; info.badChannels says how).
 %
 %   See also EphysDataset.deriveSignals, INTAN2MATLAB.
 

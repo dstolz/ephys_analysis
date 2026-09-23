@@ -2,7 +2,8 @@ function p = gatherPlotEditor(obj)
 %gatherPlotEditor  The selected plot as the editor shows it (normalized).
 %   Fields the editor has no control for keep their values. With a "Default
 %   ..." box ticked the plot's ref / window / selection is "default";
-%   untick it to take the values in the controls below.
+%   untick it to take the values in the controls below (set on the plot's
+%   own values, else the Defaults they showed: gatherAlignControls).
 E = obj.PlotEditor;
 p = obj.Config.Plots(obj.SelectedPlot);
 p.enabled = E.enabled.Value;
@@ -56,7 +57,12 @@ p.style.Colormap = strtrim(string(E.colormap.Value));
 if p.style.Colormap == ""; p.style.Colormap = "lines"; end
 p.style.HeatColormap = string(E.heatColormap.Value);
 if p.style.HeatColormap == "auto"; p.style.HeatColormap = ""; end
-[ref, win, sel] = obj.gatherAlignControls(obj.PlotAlignControls);
+D = obj.Config.Defaults;
+ref = D.EventRef; win = D.Window; sel = D.Selection;
+if isstruct(p.ref); ref = p.ref; end
+if isstruct(p.window); win = p.window; end
+if isstruct(p.selection); sel = p.selection; end
+[ref, win, sel] = obj.gatherAlignControls(obj.PlotAlignControls, ref, win, sel);
 if E.defaultRef.Value; p.ref = "default"; else; p.ref = ref; end
 if E.defaultWindow.Value; p.window = "default"; else; p.window = win; end
 if E.defaultSelection.Value; p.selection = "default"; else; p.selection = sel; end

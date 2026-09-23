@@ -1,8 +1,9 @@
 function d = currentVizDataset(obj)
     % Dataset handle backing the currently cached Visualize data ([] none).
+    % It is the dataset the plot was made from (VizDataset), even when a
+    % rescan dropped it; syncVizDataset then turns artifact marking off.
     d = EphysDataset.empty;
-    i = obj.VizDatasetIndex;
-    if i >= 1 && ~isempty(obj.Project) && i <= obj.Project.NumDatasets
-        d = obj.Project.Datasets(i);
+    if ~isempty(obj.VizDataset) && isvalid(obj.VizDataset)
+        d = obj.VizDataset;
     end
 end

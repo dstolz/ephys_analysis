@@ -2,7 +2,11 @@ function X = filterContinuous(obj, X, opts)
 %filterContinuous  Zero-phase Butterworth filtering of [nSamples x nChan] data.
 %   Y = ds.filterContinuous(X) high-pass filters X (default 300 Hz) using a
 %   zero-phase 4th-order Butterworth design and FILTFILT, applied column-wise
-%   (time down the rows, channels across the columns).
+%   (time down the rows, channels across the columns). A cut-off below 0.5%
+%   of Nyquist (or Order > 4) is applied as second-order sections, which stay
+%   stable far below the sample rate (1 Hz, or a [1 300] band at 20-30 kHz),
+%   where the transfer-function form loses precision or produces NaN; above
+%   that the transfer function is exact and ~3x faster, so it is used there.
 %
 %   Y = ds.filterContinuous(X, opts) with name-value options:
 %     Type    "highpass" | "lowpass" | "bandpass"   (default "highpass")
@@ -19,9 +23,9 @@ function X = filterContinuous(obj, X, opts)
 %   integer data as a signed or floating-point type (high-pass output is
 %   bipolar and would clip at zero).
 %
-%   Requires the Signal Processing Toolbox (BUTTER, FILTFILT).
+%   Requires the Signal Processing Toolbox (BUTTER, ZP2SOS, SOS2TF, FILTFILT).
 %
-%   See also BUTTER, FILTFILT, EphysDataset.toBin.
+%   See also BUTTER, ZP2SOS, FILTFILT, EphysDataset.toBin.
 
 arguments
     obj (1,1) EphysDataset
@@ -53,7 +57,7 @@ switch opts.Type
             error('EphysDataset:filterContinuous:CutoffAboveNyquist', ...
                 'Cutoff (%g Hz) must be below Nyquist (%g Hz).', opts.Cutoff, nyq);
         end
-        [b, a] = butter(opts.Order, opts.Cutoff / nyq, 'high');
+        [z, p, k] = butter(opts.Order, opts.Cutoff / nyq, 'high');
 
     case "lowpass"
         if ~isscalar(opts.Cutoff)
@@ -64,7 +68,7 @@ switch opts.Type
             error('EphysDataset:filterContinuous:CutoffAboveNyquist', ...
                 'Cutoff (%g Hz) must be below Nyquist (%g Hz).', opts.Cutoff, nyq);
         end
-        [b, a] = butter(opts.Order, opts.Cutoff / nyq, 'low');
+        [z, p, k] = butter(opts.Order, opts.Cutoff / nyq, 'low');
 
     case "bandpass"
         if numel(opts.Cutoff) ~= 2
@@ -79,11 +83,26 @@ switch opts.Type
             error('EphysDataset:filterContinuous:CutoffAboveNyquist', ...
                 'Upper cutoff (%g Hz) must be below Nyquist (%g Hz).', opts.Cutoff(2), nyq);
         end
-        [b, a] = butter(opts.Order, opts.Cutoff / nyq, 'bandpass');
+        [z, p, k] = butter(opts.Order, opts.Cutoff / nyq, 'bandpass');
 end
 
+% Second-order sections keep a low cut-off stable: the [b,a] polynomials of a
+% [10 300] Hz band at 30 kHz give NaN and a 1 Hz high-pass is off by ~1.5 uV.
+% But FILTFILT runs sections ~3x slower, so the transfer-function form is kept
+% where it is exact - every cut-off at least 0.5% of Nyquist (75 Hz at 30 kHz)
+% and Order <= 4, where the two agree to ~1e-6 uV - which covers the spike and
+% artifact bands. A single section (a 2nd-order high- or low-pass) goes as
+% [b,a] too: FILTFILT cannot tell a 1x6 section from a transfer function, and
+% at second order both forms are equally stable.
 % filtfilt operates column-wise -> [nSamples x nChan] is already correct.
 % Filter in double for numerical stability, then return in the input class.
+[sos, g] = zp2sos(z, p, k);
+if size(sos, 1) == 1 || (opts.Order <= 4 && min(opts.Cutoff / nyq) >= 0.005)
+    [b, a] = sos2tf(sos, g);
+    coeffs = {b, a};
+else
+    coeffs = {sos, g};
+end
 inClass = class(X);
-X = cast(filtfilt(b, a, double(X)), inClass);
+X = cast(filtfilt(coeffs{:}, double(X)), inClass);
 end

@@ -5,7 +5,7 @@ obj.RunParallelCheckBox.Value = logical(P.Enabled);
 if isnan(P.MaxWorkers)
     obj.RunMaxWorkersField.Value = '';
 else
-    obj.RunMaxWorkersField.Value = char(string(P.MaxWorkers));
+    obj.RunMaxWorkersField.Value = obj.numberText(P.MaxWorkers);
 end
 obj.RunMaxWorkersField.Enable = matlab.lang.OnOffSwitchState(logical(P.Enabled));
 end

@@ -14,11 +14,13 @@ function ref = eventRef(s, opts)
 %     which           "first" | "last" | "all" | "nth" interval (per trial in
 %                     trial scope, over the whole recording otherwise)
 %     n               the interval taken when which = "nth"
-%     scope           "trial": the intervals of the line that overlap each
-%                     selected trial (behavior TrialEvents); "recording":
-%                     every interval of the line (the extract's events);
-%                     "auto" (default): trial when the dataset has paired
-%                     trials, else recording
+%     scope           "trial": the intervals of the line whose edge lies
+%                     inside each selected trial, [TrialOnset, TrialOffset]
+%                     (an interval spanning several trials counts once, for
+%                     the trial holding its edge); "recording": every
+%                     interval of the line (the extract's events); "auto"
+%                     (default): trial when the dataset has paired trials,
+%                     else recording
 %     minDurationSec, maxDurationSec   keep intervals whose length lies in
 %                     this range (default 0 .. Inf)
 %     timeRange       [a b] s: keep intervals whose chosen edge lies in this
@@ -27,8 +29,9 @@ function ref = eventRef(s, opts)
 %     offsetSec       added to every resulting event time
 %
 %   Event times are the digital-event convention t = row/Fs, polarity
-%   applied (see pairEpsychTrials). Errors: eventRef:BadValue,
-%   eventRef:UnknownField.
+%   applied (see pairEpsychTrials); epochTable adds each event's time on
+%   the continuous clock of the signals and spikes (t0Continuous). Errors:
+%   eventRef:BadValue, eventRef:UnknownField.
 %
 %   See also resolveEvents, epochTable, epochWindow, trialSelection.
 

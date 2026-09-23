@@ -9,6 +9,12 @@ function tf = prepareReference(obj)
 %   channels, marks them "suggested" and writes the manifest so the choice
 %   can be reviewed (Artifacts tab). TF is true when it did so.
 %
+%   A suggestion that would leave fewer than MinReferenceChannels (5)
+%   channels in the reference is not applied: it warns
+%   (EphysDataset:prepareReference:SuggestionNotApplied) and leaves no channel
+%   out, still marked "suggested" so it is not worked out again on every
+%   read. Review the noise floors and set ReferenceExclude by hand then.
+%
 %   A reference over fewer than MinReferenceChannels (5) channels warns: one
 %   large unit can then dominate the average and appear on every channel
 %   (Ludwig et al. 2009).
@@ -22,6 +28,15 @@ if string(acfg.Reference) == "none"
 end
 if obj.ReferenceExcludeSource == ""
     [bad, info] = obj.suggestReferenceExclude();
+    nLeft = numel(setdiff(1:numel(info.sigma), [obj.ExcludeChannels, bad]));
+    if ~isempty(bad) && nLeft < EphysDataset.MinReferenceChannels
+        warning('EphysDataset:prepareReference:SuggestionNotApplied', ...
+            ['The suggested channels (%s) would leave %d channel(s) in the common reference ' ...
+             'of %s (fewer than %d), so none is left out: %s. Set ReferenceExclude by hand.'], ...
+            char(EphysDataset.formatChannelList(bad)), nLeft, obj.Name, ...
+            EphysDataset.MinReferenceChannels, info.summary);
+        bad = double.empty(1, 0);
+    end
     obj.ReferenceExclude = bad;
     obj.ReferenceExcludeSource = "suggested";
     fprintf('Common reference (%s) of %s: %s.\n', upper(acfg.Reference), obj.Name, info.summary);

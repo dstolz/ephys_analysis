@@ -7,19 +7,26 @@ function r = artifactChunk(obj, chunk, chanOrder, filt, det, Fs)
 %     intervals      [k x 2] chunk-local seconds (detectArtifacts convention)
 %     nBlanked       samples flagged on the combined mask
 %     channelCounts  [1 x nChan] samples each channel exceeded its threshold
+%                    (0 for the channels DET.channels leaves out)
 %     numIntervals   contiguous flagged runs in this chunk
 %     rmsWindowMs    the RMS window actually used
 %   or [] when the chunk held no amplifier data. It is the single per-chunk
 %   function shared by artifactIntervals and analyzeArtifacts, run serially or
 %   on a process pool by mapChunks; the chunk itself never leaves the worker.
 %
+%   The chunk is read common-referenced (applyReference), except for the
+%   "commonmode" method: the reference subtracts the very mean that method
+%   looks for, so it reads the chunk as recorded.
+%
 %   FILT: struct(use, type, cutoff, order); DET: struct(method, threshold,
-%   rmsWindowMs, minChannels, mergeGapMs, padMs).
+%   rmsWindowMs, minChannels, mergeGapMs, padMs, channels), channels being
+%   the columns (after CHANORDER) that take part in detection.
 %
 %   See also mapChunks, EphysDataset.detectArtifacts, EphysDataset.readChunkUV.
 
 r = [];
-X = obj.readChunkUV(chunk);   % [nSamples x nChan], microvolts, all channels
+% [nSamples x nChan], microvolts, all channels
+X = obj.readChunkUV(chunk, Reference=det.method ~= "commonmode");
 if isempty(X)
     return
 end
@@ -41,7 +48,7 @@ end
 [mask, intervals, st] = obj.detectArtifacts(X, Method=det.method, ...
     Threshold=det.threshold, RmsWindowMs=det.rmsWindowMs, ...
     MinChannels=det.minChannels, MergeGapMs=det.mergeGapMs, ...
-    PadMs=det.padMs, Fs=Fs);
+    PadMs=det.padMs, Fs=Fs, Channels=det.channels);
 
 r = struct();
 r.nSamples      = size(X, 1);

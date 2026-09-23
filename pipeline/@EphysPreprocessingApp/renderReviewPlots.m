@@ -68,7 +68,7 @@ if sel < 1 || sel > numel(R.clusterID)
         end
     end
     xlabel(ax, "Time (ms)");
-    ylabel(ax, "Amplitude (a.u.)");
+    ylabel(ax, "Amplitude (" + templateUnitText(R.units.templateUnits) + ")");
     title(ax, "Mean waveforms (peak channel, all units)");
     if R.nShank > 1
         legend(ax, 'Location', 'best', 'Box', 'off');
@@ -109,6 +109,18 @@ grid(ax, 'on');
 end
 
 
+function s = templateUnitText(units)
+%templateUnitText  What the template values are in, for an axis label
+%   (EphysDataset.readPhyUnits templateUnits).
+switch units
+    case "uV";       s = "\muV";
+    case "bin";      s = "bin units (int16 counts)";
+    case "whitened"; s = "whitened units";
+    otherwise;       s = "a.u.";
+end
+end
+
+
 function plotAmplitudes(ax, R, sel)
 %plotAmplitudes  Spike amplitude vs time: all units (colored), or one unit.
 cla(ax, 'reset');
@@ -142,7 +154,7 @@ end
 xlabel(ax, "Time (s)");
 ylabel(ax, "Amplitude (a.u.)");
 grid(ax, 'on');
-if isfinite(R.durSec) && R.durSec > 0; xlim(ax, [0 R.durSec]); end
+if all(isfinite(R.span)); xlim(ax, R.span); end   % the sorted part of the recording
 end
 
 

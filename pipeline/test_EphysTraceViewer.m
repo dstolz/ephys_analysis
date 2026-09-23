@@ -143,6 +143,13 @@ check(isequal(ax.XLim, [1.1 1.6]) && isequal(v.LastRender, r0), ...
     'a pan inside the margin moves the axes limits only (no draw)');
 v.setView(2.2, 0.5);
 check(v.TStart == 2.2 && ax.XLim(1) == 2.2 && ~isequal(v.LastRender, r0), 'a pan past the margin draws again');
+v.setView(1.25, 0.5);
+b0 = v.LastRender.bin;
+v.setView(1.1875, 0.625);                   % one wheel notch out: the finer samples in memory still serve
+[x, y] = lanePoints(traceLines(ax), 3);
+[~, iPk] = max(y);
+check(~v.LastRender.read && v.LastRender.bin == b0 && x(iPk) <= 1.5 && x(iPk) > 1.5 - b0 / Fs, ...
+    'a small zoom out redraws from the finer samples in memory, each bin at its own time');
 check(isequal(ax.YTickLabel(end), {'ch1'}) && numel(ax.YTick) == 8 && isequal(ax.YLim, [-7.5 0.5]), ...
     'lanes: first channel on top, their names as ticks');
 v.setView(0, 3);

@@ -12,8 +12,9 @@ classdef EphysTraceSource < handle
     %   so a window of a long recording costs about what the window holds:
     %
     %     "recording"  the dataset's reader: readWindowUV for readers with
-    %                  random access, else the streamPlan chunks (one *.rhd
-    %                  file) holding the window, the last ones kept in memory.
+    %                  random access (every current reader), else the
+    %                  streamPlan chunks holding the window, the last ones
+    %                  kept in memory.
     %                  Reference "pipeline" reads it with the dataset's common
     %                  reference (as every step reads it), "none" as stored.
     %     "bin"        the int16 .bin (EphysDataset.toBin): channel-major
@@ -76,7 +77,7 @@ classdef EphysTraceSource < handle
         Loaded = []                            % a -v7 extract's signal, once loaded
         Plan = []                              % streamPlan (readers without random access)
         PlanStarts = []                        % first row of each chunk
-        Chunks = struct('index', {}, 'reference', {}, 'X', {})   % most recent last
+        Chunks = struct('index', {}, 'key', {}, 'X', {})   % most recent last
     end
 
     methods
@@ -200,6 +201,7 @@ classdef EphysTraceSource < handle
             skip = @(what, ME) "Cannot read " + what + ": " + string(ME.message);
             try
                 if ds.NumFiles == 0; ds.discoverFiles(); end
+                if ds.NumFiles > 0 && (isnan(ds.Fs) || isempty(ds.PerFile)); ds.refreshMetadata(); end
                 if ds.NumFiles > 0 && isfinite(ds.Fs) && isfinite(ds.NumSamples)
                     S(end+1) = EphysTraceSource.recording(ds);
                 end
@@ -419,7 +421,7 @@ classdef EphysTraceSource < handle
         function C = chunk(obj, i)
             % Chunk I of the stream plan as single, from memory when it was read lately.
             for j = numel(obj.Chunks):-1:1
-                if obj.Chunks(j).index == i && obj.Chunks(j).reference == obj.Reference
+                if obj.Chunks(j).index == i && obj.Chunks(j).key == obj.key()
                     c = obj.Chunks(j);
                     obj.Chunks(j) = [];
                     obj.Chunks(end+1) = c;     % most recent last
@@ -428,7 +430,7 @@ classdef EphysTraceSource < handle
                 end
             end
             C = single(obj.Dataset.readChunkUV(obj.Plan(i), Reference=obj.Reference == "pipeline"));
-            obj.Chunks(end+1) = struct('index', i, 'reference', obj.Reference, 'X', C);
+            obj.Chunks(end+1) = struct('index', i, 'key', obj.key(), 'X', C);
             % Keep the latest chunks within the budget (at least the two newest,
             % so a window across a chunk boundary is not read twice).
             while numel(obj.Chunks) > 2 && sum(arrayfun(@(c) numel(c.X) * 4, obj.Chunks)) > obj.ChunkCacheBytes

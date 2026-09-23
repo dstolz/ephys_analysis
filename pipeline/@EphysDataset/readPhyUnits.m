@@ -72,7 +72,9 @@ function [units, info] = readPhyUnits(resultsDir, opts)
 %                       (EphysDataset.readPhyWaveforms cuts the spikes)
 %     templateFull     [nS x nChanSorted x nU] the same on every sorted
 %                       channel (FullTemplates) else []
-%     templateTimeMs    [1 x nS]
+%     templateTimeMs    [1 x nS] ms from the spike: 0 is the template
+%                       sample Kilosort4 puts on the spike time (nt0min in
+%                       settings.json, else floor(20*nS/61))
 %     templateUnits     what the template values are:
 %                       "uV"        unwhitened, and divided by the .bin's
 %                                   scale, its units per uV (bin_scale in the
@@ -209,7 +211,7 @@ if opts.Templates && isfile(fTmpl)
     if numel(spikeTmpl) ~= numel(spikeClu); spikeTmpl = spikeClu; end
     tmplByUnit = spikeTmpl(byUnit);
     [toUnits, templateUnits] = templateConversion(dir0, nChSorted);
-    tms = (0:nS-1) / fs * 1000;
+    tms = ((0:nS-1) - templatePeakSample(dir0, nS)) / fs * 1000;   % 0 = the spike's sample
     if opts.FullTemplates; wfFull = zeros(nS, nChSorted, nU); end
     p2pAll = nan(nU, nChSorted);
     for u = 1:nU
@@ -372,6 +374,16 @@ end
 
 
 %% ---------------------------------------------------------------------------
+function k = templatePeakSample(folder, nS)
+%templatePeakSample  The 0-based template sample on the spike time (Kilosort4's nt0min).
+k = floor(20 * nS / 61);
+S = readJsonFile(fullfile(folder, 'settings.json'), ErrorOnFail=false);
+if isstruct(S) && isfield(S, 'nt0min') && isnumeric(S.nt0min) && isscalar(S.nt0min) && isfinite(S.nt0min)
+    k = double(S.nt0min);
+end
+end
+
+
 function c = groupClass(group, folder)
 %groupClass  Unit class used in labels: good -> su, mua, noise, unsorted -> uns.
 c = repmat("other", size(group));

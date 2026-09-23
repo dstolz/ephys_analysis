@@ -47,7 +47,7 @@ function [W, info] = readPhyWaveforms(resultsDir, samples, opts)
 %
 %   INFO: samples (the spikes read, 0-based int64, in time order), skipped,
 %   channels (sorted channels of W), binRows (their 1-based rows of the data
-%   file), timeMs [1 x nt] (the templates' time axis), nt0min (W(nt0min+1,
+%   file), timeMs [1 x nt] (ms from the spike, as templateTimeMs), nt0min (W(nt0min+1,
 %   :, k) is the spike's sample), units, dataFile, fs, highpassHz (NaN when
 %   not filtered here), car (the median was subtracted here).
 %
@@ -184,7 +184,7 @@ info.samples    = s;
 info.skipped    = skipped;
 info.channels   = chans.';
 info.binRows    = binRowsAll(chans).';
-info.timeMs     = (0:nt-1) / fs * 1000;
+info.timeMs     = ((0:nt-1) - nt0min) / fs * 1000;   % 0 = the spike's sample
 info.nt0min     = nt0min;
 info.units      = units;
 info.dataFile   = string(dataFile);

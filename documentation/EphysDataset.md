@@ -1248,7 +1248,7 @@ so they agree on labels, times, channels and notes.
 | `x`, `y` | template centre: site positions weighted by the template's peak-to-peak amplitude, over the channels on the peak channel's shank with at least 25% of the peak amplitude (`NaN` without templates or positions) |
 | `nSpikes`, `samples`, `times` | spike count, 0-based int64 samples, `samples / fs` (recording-relative) |
 | `amplitude`, `contamPct` | `cluster_Amplitude.tsv` (else median `amplitudes.npy`; Kilosort4's units, from the whitened data), `cluster_ContamPct.tsv` |
-| `templateWaveform`, `templateFull`, `templateTimeMs` | peak-channel template: `templates.npy`, Kilosort4's mean of the unit's spikes in the high-passed, whitened data it sorted, unwhitened with `whitening_mat_inv.npy` transposed and not scaled by the amplitude; every channel's template (`FullTemplates`); time axis |
+| `templateWaveform`, `templateFull`, `templateTimeMs` | peak-channel template: `templates.npy`, Kilosort4's mean of the unit's spikes in the high-passed, whitened data it sorted, unwhitened with `whitening_mat_inv.npy` transposed and not scaled by the amplitude; every channel's template (`FullTemplates`); time axis, ms from the spike (0 is the template sample Kilosort4 puts on the spike time, `nt0min`) |
 | `templateUnits` | what the template values are: `"uV"` (unwhitened and divided by the `.bin`'s units per µV, `bin_scale` in the run's `settings.json`), `"bin"` (unwhitened, in the `.bin`'s units: no `bin_scale`), `"whitened"` (as Kilosort4 stores them: no usable `whitening_mat_inv.npy`) or `""` (no templates read). Unwhitened templates also undo Kilosort4's `scale` and `invert_sign` settings |
 
 Plus per-run scalars `fs`, `resultsDir`,

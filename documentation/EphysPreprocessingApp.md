@@ -1114,9 +1114,9 @@ over an [`EphysTraceSource`](../pipeline/EphysTraceSource.m)) reads only the
 window shown, with up to one window of margin on each side, and reduces each
 lane to the min and max of every bin of about one pixel column. A draw
 therefore costs about the same at any zoom and never scales with the
-recording's length. Readers with random access read just those rows
-(`readWindowUV`); a traditional `.rhd` recording is read a whole file at a time
-and the last files read are kept (up to 1.5 GB). A `.bin` is read with `fread`
+recording's length. The recording readers (Intan, Open Ephys, binary) all read
+just those rows (`readWindowUV`); a reader without random access would be read a
+`streamPlan` chunk at a time, the last chunks kept (up to 1.5 GB). A `.bin` is read with `fread`
 and its min / max are taken on the stored integers; a `-v7.3` extract is read a
 window of rows at a time with `h5read`, and a `-v7` one is loaded once. No file
 is held open between reads. One view is at most `MaxReadSamples` (2^27 samples

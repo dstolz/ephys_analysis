@@ -122,6 +122,7 @@ classdef EphysTraceViewer < handle
         Cache = []          % processed full-rate samples: key, r0, X, set
         Drawn = []          % what the axes show: span, b
         Timer = []
+        AxesListener = []   % deletes the viewer with its axes
         Drag = []
         AutoPending (1,1) logical = true
         Rate = []           % overview spike density ([] = work it out at the next draw)
@@ -158,6 +159,7 @@ classdef EphysTraceViewer < handle
                 obj.OvView = patch(ov, 'XData', [0 1 1 0], 'YData', [0 0 1 1], 'FaceColor', [0 0.45 0.74], ...
                     'FaceAlpha', 0.25, 'EdgeColor', [0 0.45 0.74], 'HitTest', 'off', 'PickableParts', 'none');
             end
+            obj.AxesListener = listener(ax, 'ObjectBeingDestroyed', @(~, ~) delete(obj));
             obj.render();
         end
 
@@ -166,6 +168,7 @@ classdef EphysTraceViewer < handle
                 stop(obj.Timer);
                 delete(obj.Timer);
             end
+            delete(obj.AxesListener);
         end
 
         function d = get.TotalDuration(obj)
@@ -431,7 +434,7 @@ classdef EphysTraceViewer < handle
 
         function beginDrag(obj, point)
             %beginDrag  Start panning at POINT (figure pixels).
-            pp = obj.Axes.InnerPosition;
+            pp = plotPixels(obj.Axes);
             obj.Drag = struct('p0', point(1:2), 't0', obj.TStart, 'lane0', obj.FirstLane, ...
                 'secPerPix', obj.TWidth / max(pp(3), 1), 'lanesPerPix', obj.VisibleLanes / max(pp(4), 1), ...
                 'moved', false);
@@ -504,7 +507,7 @@ classdef EphysTraceViewer < handle
             try
                 if ~isempty(obj.Source) && ~isempty(obj.Channels)
                     [T, R] = obj.traceSlice(span, vis, lanes, R);
-                    span = T.span;
+                    if ~isempty(T); span = T.span; end   % empty: a source with no samples
                 end
             catch ME
                 R.error = string(ME.message);
@@ -734,10 +737,12 @@ classdef EphysTraceViewer < handle
             % about one min / max pair per pixel column.
             src = obj.Source;
             fs = src.Fs;
-            px = max(200, obj.Axes.InnerPosition(3));
+            pp = plotPixels(obj.Axes);
+            px = max(200, pp(3));
             b = max(1, floor(obj.TWidth * fs / px));
-            R.bin = b;
             env = obj.ensureEnvelope(b);
+            b = env.b;   % a reused envelope may be finer than asked
+            R.bin = b;
             R.read = env.didRead;
             if isempty(env.mn)
                 T = [];
@@ -864,7 +869,6 @@ classdef EphysTraceViewer < handle
                 X = X(:, set);
             end
             if obj.Reference ~= "none" && size(X, 2) > 1
-                X = X - median(X, 1);
                 if obj.Reference == "car"
                     X = X - mean(X, 2);
                 else
@@ -997,7 +1001,8 @@ classdef EphysTraceViewer < handle
             Y = cell(nPal, 1);
             visSet = false(1, max(numel(lanes.kind), 1));
             visSet(vis) = true;
-            px = max(200, obj.Axes.InnerPosition(3));
+            pp = plotPixels(obj.Axes);
+            px = max(200, pp(3));
             haveTrace = ~isempty(T) && ~isempty(T.lanes) && obj.Mode == "traces";
             for i = 1:numel(obj.Layers)
                 L = obj.Layers(i);
@@ -1031,7 +1036,7 @@ classdef EphysTraceViewer < handle
                             R.notes(end+1) = L.name + ": waveforms need a spike-band trace (10 kHz or more), ticks shown";
                         end
                         style = "ticks";
-                    elseif raster && isempty(L.wf) && isempty(L.template)
+                    elseif raster && all(cellfun(@isempty, [L.wf, L.template]))
                         style = "ticks";
                     end
                 end
@@ -1363,13 +1368,24 @@ i = lo;
 end
 
 
+function pp = plotPixels(ax)
+% The plot box [x y w h] in pixels: a uiaxes' InnerPosition is in pixels; a
+% plain axes' may be normalized, and its Position is that box.
+pp = ax.InnerPosition;
+if isprop(ax, 'Units') && ~strcmp(ax.Units, 'pixels')
+    pp = getpixelposition(ax);
+end
+end
+
+
 function [xs, ys] = traceSegments(T, t, lane, winMs, spacing)
 % The drawn trace over each spike's window ([nPts+1 x n], NaN row last):
 % the points of the spike's lane from T+winMs(1) to T+winMs(2).
 n = numel(t);
 m = 1 + (T.b > 1);                         % points per bin
 nb = size(T.mn, 1);
-first = floor(((t + winMs(1) / 1e3) * T.fs - T.r0) / T.b) + 1;
+row = round((t + winMs(1) / 1e3) * T.fs);  % the window's first sample (0-based)
+first = floor((row - T.r0) / T.b) + 1;
 L = max(1, ceil(diff(winMs) / 1e3 * T.fs / T.b) + 1);
 B = first(:).' + (0:L - 1).';              % [L x n] bins
 B = min(max(B, 1), nb);

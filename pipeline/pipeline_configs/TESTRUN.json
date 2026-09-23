@@ -51,6 +51,7 @@
     "FilterOrder": 4,
     "ApplyToSorting": false,
     "ApplyToSpikes": false,
+    "ApplyToSignals": false,
     "CacheIntervals": true
   },
   "Sorting": {

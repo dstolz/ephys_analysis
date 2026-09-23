@@ -254,6 +254,15 @@ if E.Enabled
         if ~ismember(E.EpochSource, ["line" "behavior"])
             add("export", "EpochSource", "error", "Epoch events come from a digital line or the paired trials (line / behavior).");
         end
+        % eventEpochs' choices, checked here so a bad value fails validation, not every dataset
+        choices = struct('EpochOnsetRule', ["event" "sample"], 'EpochIncomplete', ["nan" "drop" "error"], ...
+            'EpochNonFinite', ["keep" "drop" "error"], 'EpochArtifacts', ["drop" "keep"], ...
+            'EpochSpikeTimeBase', ["onset" "window" "absolute"], 'EpochClass', ["double" "single" "asis"]);
+        for f = string(fieldnames(choices)).'
+            if isfield(E, f) && ~(isscalar(string(E.(f))) && ismember(string(E.(f)), choices.(f)))
+                add("export", f, "error", sprintf("%s must be one of %s.", f, strjoin(choices.(f), ", ")));
+            end
+        end
         if E.EpochSource == "line" && ~E.IncludeEvents
             add("export", "IncludeEvents", "error", "Epochs around a digital line need the digital-input events.");
         end

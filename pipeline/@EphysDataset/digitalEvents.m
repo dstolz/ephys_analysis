@@ -38,8 +38,13 @@ obj.requireReader('digitalEvents');
 if isnan(obj.Fs) || isempty(obj.PerFile)
     obj.refreshMetadata();
 end
+modified = zeros(1, numel(obj.Files));   % a file written again (a replaced recording) is read again
+for k = 1:numel(obj.Files)
+    f = dir(fullfile(obj.Folder, obj.Files(k)));
+    if isscalar(f); modified(k) = round(f.datenum * 86400); end
+end
 fp = string(jsonencode(struct('reader', string(obj.Reader.Kind), ...
-    'files', {cellstr(obj.Files(:).')}, 'nSamples', obj.NumSamples)));
+    'files', {cellstr(obj.Files(:).')}, 'nSamples', obj.NumSamples, 'modified', modified)));
 cacheFile = fullfile(obj.outputFolder(), obj.Name + "_events.mat");
 
 E = [];

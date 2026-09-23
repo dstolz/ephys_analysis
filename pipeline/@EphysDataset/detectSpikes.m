@@ -438,6 +438,7 @@ infoRef   = R(1).info;
 thrAll    = vertcat(R.threshold);
 noiseAll  = vertcat(R.noise);
 degAll    = vertcat(R.degenerate);
+erasedAll = vertcat(R.erased);
 chunkInfo = struct('name', {R.name}, 'sampleOffset', {R.sampleOffset}, ...
     'nSamples', {R.nSamples});
 
@@ -543,7 +544,7 @@ info.artifacts          = struct('intervals', artIv, ...
     'nSamples', sum(erased(:, 2) - erased(:, 1) + 1));
 
 clear restoreWarning     % restore the warning state before the summary below
-degAny = any(logical(degAll), 1);
+degAny = any(logical(degAll) & ~erasedAll, 1);   % a chunk erased whole is not a flat signal
 if any(degAny)
     warning('EphysDataset:detectSpikes:DegenerateThreshold', ...
         ['Non-positive or non-finite threshold on channel(s) %s in at least one ' ...
@@ -601,7 +602,7 @@ end
 
 R = struct('name', name, 'sampleOffset', chunkFirst0, 'nSamples', n, ...
     'nChan', nChan, 'threshold', infoB.threshold, 'noise', infoB.noise, ...
-    'degenerate', infoB.degenerate);
+    'degenerate', infoB.degenerate, 'erased', all(isnan(B), 1));   % erased: every sample in an artifact period
 [R.idx, R.amp, R.wf, R.pendIdx, R.pendAmp, R.pendWf] = deal(cell(1, nChan));
 [R.nRej, R.nDrop, R.pendRej, R.pendDrop] = deal(zeros(1, nChan));
 for c = 1:nChan

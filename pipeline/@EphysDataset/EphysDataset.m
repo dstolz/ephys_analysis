@@ -1135,12 +1135,12 @@ classdef EphysDataset < handle
             %   round(b*FS) - 1, the samples a detectArtifacts interval came
             %   from, so every route that erases or rejects them (the .bin,
             %   the derived signals, spike rejection) takes the same samples.
+            %   A reversed period (b < a) is empty, as in mergeIntervals.
             %   See also manualArtifactMask, intervalRows.
             rows = zeros(0, 2);
             if isempty(iv) || nSamp < 1; return; end
-            a = min(iv(:, 1), iv(:, 2));
-            b = max(iv(:, 1), iv(:, 2));
-            r = [max(1, round(a * Fs) + 1), min(nSamp, round(b * Fs))];
+            iv = iv(iv(:, 2) > iv(:, 1), :);
+            r = [max(1, round(iv(:, 1) * Fs) + 1), min(nSamp, round(iv(:, 2) * Fs))];
             rows = mergeRows(r(r(:, 2) >= r(:, 1), :));
         end
 
@@ -1167,15 +1167,19 @@ classdef EphysDataset < handle
             %   for each window (closed, seconds) that overlaps one of the
             %   half-open [k x 2] second periods IV: a <= tStop and b > tStart.
             %   Windows and periods on the same clock (the continuous one,
-            %   row r at (r-1)/Fs, for artifact periods).
+            %   row r at (r-1)/Fs, for artifact periods). The edges are
+            %   compared 1 ns apart, far below a sample, so a window edge
+            %   that should equal a period edge but is one rounding off it
+            %   (0.3 - 0.1 vs 0.2) counts as equal.
             tf = false(size(tStart));
             iv = EphysDataset.mergeIntervals(iv);
             if isempty(iv) || isempty(tStart); return; end
+            tol = 1e-9;
             % The only period that can overlap is the last one starting at or
             % before tStop (the merged periods are disjoint and sorted).
-            j = discretize(tStop, [iv(:, 1); Inf]);
+            j = discretize(tStop + tol, [iv(:, 1); Inf]);
             has = ~isnan(j);
-            tf(has) = reshape(iv(j(has), 2), [], 1) > reshape(tStart(has), [], 1);
+            tf(has) = reshape(iv(j(has), 2), [], 1) > reshape(tStart(has), [], 1) + tol;
         end
 
         [units, info] = readPhyUnits(resultsDir, opts)

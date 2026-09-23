@@ -744,7 +744,7 @@ each chunk, and runs are not stitched across chunk boundaries.
 periods (seconds) that the pipeline passes to `runKilosort`, which erases them
 in the `.bin`, to `deriveSignals` (`artifactIntervals`), which erases them
 before any signal is derived, and to `spikesToMat`, which rejects the events
-inside them:
+inside them or (`ArtifactMode="erase"`) erases them before detection:
 
 - all `ManualArtifacts` (unless `IncludeManual=false`, which gives the
   automatic detection alone, as the pipeline caches it), plus
@@ -775,9 +775,9 @@ Every artifact period, manual or detected, is **half-open** `[t0, t1)` on that
 clock, and every route removes the same samples, `round(t0·Fs)` up to but not
 including `round(t1·Fs)`: `.bin` blanking (`toBin`, `manualArtifactMask`), the
 data the derived signals are computed from (`deriveSignals`' `artifactIntervals`,
-[below](#derived-signals-the-intan2matlab-processing)) and spike rejection in
-`spikesToMat` (an event at `t` is dropped when `round(t·Fs)` is in that range,
-found with one sorted lookup over the merged ranges). Three static helpers state
+[below](#derived-signals-the-intan2matlab-processing)) and spike rejection or
+erasure in `spikesToMat` (an event at `t` is dropped when `round(t·Fs)` is in
+that range, found with one sorted lookup over the merged ranges). Three static helpers state
 the rule:
 
 | Static | Returns |

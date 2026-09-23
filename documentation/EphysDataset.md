@@ -1497,6 +1497,8 @@ is in [file-formats.md](file-formats.md#dataset-manifest).
   such as a newer version's) is never replaced: it warns
   (`EphysDataset:writeManifest:Kept`) and leaves the file for you to fix or
   delete. Other failures only warn (`EphysDataset:writeManifest:Failed`).
+- `ManifestViewerApp(ds)` shows it in a window
+  ([ManifestViewerApp](ManifestViewerApp.md)).
 - `[tf, why] = applyManifest()` restores `ProbeFile`,
   `ExcludeChannels`, `ReferenceExclude` with its `ReferenceExcludeSource`
   (`reference_exclude`), `ManualArtifacts`, a manual `SortingDir`,

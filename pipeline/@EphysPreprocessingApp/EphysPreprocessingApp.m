@@ -119,6 +119,7 @@ classdef EphysPreprocessingApp < handle
         DatasetTickedItems matlab.ui.container.Menu   % top of the menu: the ticked datasets (UserData = dataset index)
         DatasetAllMenu     matlab.ui.container.Menu   % "All datasets" submenu
         DatasetMenuItems   matlab.ui.container.Menu   % its items, one per dataset (index = dataset index)
+        DatasetManifestItem matlab.ui.container.Menu  % bottom of the menu: View manifest (onViewManifest)
         RunMenu            matlab.ui.container.Menu
         HelpMenu           matlab.ui.container.Menu   % wiki pages (helpURL, onHelp) + the issue items (onReportIssue)
 
@@ -842,6 +843,7 @@ classdef EphysPreprocessingApp < handle
         populateDatasetPickers(obj)
         refreshDatasetMenu(obj)
         refreshDatasetPickers(obj)
+        onViewManifest(obj)
         dd = datasetPicker(obj, parent)
         highlightDatasetRow(obj, opts)
 

@@ -6,12 +6,13 @@ function buildMenus(obj)
 %   and Close. Dataset chooses the active dataset, the one every tab's
 %   single-dataset controls work on (see selectDataset): it lists the
 %   datasets ticked in the Project table, with every dataset in an "All
-%   datasets" submenu. Run mirrors the Run tab's buttons. Help opens pages
-%   of the GitHub wiki: the one for the tab that is shown, the home page
-%   and the main guides, and at the bottom files against the repository
-%   itself: Report an issue and Request a feature compose a GitHub issue
-%   from this session (onReportIssue). About, last, shows the version of
-%   the code (showAbout).
+%   datasets" submenu, and View manifest opens the active dataset's
+%   manifest in a ManifestViewerApp (onViewManifest). Run mirrors the Run
+%   tab's buttons. Help opens pages of the GitHub wiki: the one for the tab
+%   that is shown, the home page and the main guides, and at the bottom
+%   files against the repository itself: Report an issue and Request a
+%   feature compose a GitHub issue from this session (onReportIssue).
+%   About, last, shows the version of the code (showAbout).
 
 % --- File ------------------------------------------------------------------
 obj.FileMenu = uimenu(obj.Fig, "Text", "File");
@@ -46,6 +47,9 @@ uimenu(obj.FileMenu, "Text", "Close", "Separator", "on", ...
 obj.DatasetMenu = uimenu(obj.Fig, "Text", "Dataset", ...
     "Tooltip", "The active dataset: what the single-dataset controls on every tab work on. Also chosen by clicking a Project-table row or in any tab's Dataset box.");
 obj.DatasetAllMenu = uimenu(obj.DatasetMenu, "Text", "All datasets", "Separator", "on", "Enable", "off");
+obj.DatasetManifestItem = uimenu(obj.DatasetMenu, "Text", "View manifest...", "Separator", "on", ...
+    "Tooltip", "Open the active dataset's <Name>_manifest.json in the manifest viewer.", ...
+    "MenuSelectedFcn", @(~,~) obj.onViewManifest());
 obj.refreshDatasetMenu();
 
 % --- Run ---------------------------------------------------------------------

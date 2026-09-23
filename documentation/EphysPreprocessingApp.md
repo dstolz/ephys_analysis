@@ -53,7 +53,9 @@ background monitor and saves preferences.
     [Synthetic test project](#synthetic-test-project)), Open analysis app...
     ([EphysAnalysisApp](EphysAnalysisApp.md) on this project), Close.
   - **Dataset**: one checkable item per scanned dataset; the checked one is
-    the [active dataset](#which-dataset-does-an-action-act-on).
+    the [active dataset](#which-dataset-does-an-action-act-on). **View
+    manifest...** at the bottom opens the active dataset's manifest in the
+    [manifest viewer](ManifestViewerApp.md).
   - **Run**: Validate config, Plan, Run pipeline (Ctrl+R), Dry run, Cancel.
   - **Help**: opens the [GitHub wiki](https://github.com/dstolz/ephys_analysis/wiki)
     in the browser. Help for this tab (the page for the tab that is shown),
@@ -1294,6 +1296,7 @@ app.KSQueue                       % prepared runs waiting for a slot (Queue the 
 | `buildTrialsTab.m`, `onTrialsLoad.m`, `repairTrials.m`, `refreshTrialsView.m`, `refreshTrialsTable.m`, `refreshTrialsPlot.m`, `trialsColumnOrder.m`, `onTrialsTableMenu.m`, `onTrialsPlotMenu.m`, `onTrialsCutsChanged.m`, `syncTrialsCuts.m`, `onTrialsApprove.m`, `onTrialsPrefetch.m`, `onTrialsWriteBehavior.m`, `onTrialsToWorkspace.m`, `onTrialsSettingsChanged.m`, `clearTrialsView.m`, `fillTrialsLines.m`, `setTrialsLineItems.m`, `syncTrialsButtons.m` | Trials tab |
 | `onScan.m`, `refreshDatasetsTable.m`, `onDatasetCellSelection.m`, `onSelectDatasets.m`, `onRefreshMetadata.m`, `onAssociateBehavior.m`, `onClearBehavior.m`, `onBrowseBehaviorDir.m`, `saveManifests.m` | Project tab (`saveManifests`: the manifests after a per-dataset edit, with an alert for one that could not be written) |
 | `selectDataset.m`, `currentDataset.m`, `populateDatasetPickers.m`, `refreshDatasetMenu.m`, `refreshDatasetPickers.m`, `datasetPicker.m`, `highlightDatasetRow.m` | the active dataset: Dataset menu, every tab's Dataset box, the highlighted table row |
+| `onViewManifest.m`; `pipeline/ManifestViewerApp.m` | Dataset menu → View manifest... and the viewer it opens |
 | `refreshProbeList.m`, `onProbeSelected.m`, `onImportProbe.m`, `onDesignProbe.m`, `runProbeTool.m`, `onAssignProbe.m`, `onApplyExclude.m`, `onUseSelectedProbeAsDefault.m`, `probe_tool.py` | Probe tab |
 | `onDetectArtifacts.m`, `showArtifactView.m`, `drawArtifactView.m`, `onArtViewInput.m`, `syncArtProbeControls.m`, `refreshArtChannelTable.m`, `refreshManualArtifactsTable.m`, `onClearManualArtifacts.m` | Artifacts tab |
 | `routeFigureInput.m` | shares the figure's wheel and key callbacks between the Artifacts tab's plot and the Visualize viewer |

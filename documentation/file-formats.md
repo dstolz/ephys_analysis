@@ -264,6 +264,8 @@ Path: `<Folder>/<Name>_manifest.json`. Written by `EphysDataset.writeManifest`;
 rewrites it after restoring the saved state with `applyManifest`. The GUI
 also writes it on probe assignment, exclusion changes, manual artifact edits,
 sorting and behavior associations, and each sorting launch / completion.
+**Dataset → View manifest...** shows it in the
+[`ManifestViewerApp`](ManifestViewerApp.md).
 
 Schema `intan-dataset-manifest/2` (`null` where a value is `NaN`):
 

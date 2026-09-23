@@ -30,6 +30,7 @@ on `pipeline`; `pipeline` does not depend on it. See [Analysis](EphysAnalysis.md
 | [EphysPreprocessingApp](EphysPreprocessingApp.md) | the GUI, tab by tab, its config model and preferences |
 | [Copying sessions](EphysPreprocessingApp.md#copy) | `findCopySessions`, `stitchCopySessions`, `copySessions`, `CopySchedule`: pairing recording folders (Intan RHX, Open Ephys GUI sessions) with ePsych files on the source and copying them to local session folders, by hand or on a schedule |
 | [ProbeDesignerApp](ProbeDesignerApp.md) | building a Kilosort4 probe `.json` from probeinterface |
+| [ManifestViewerApp](ManifestViewerApp.md) | viewing one dataset manifest, with its paths checked on disk |
 | [intan2matlab](intan2matlab.md) | `intan2matlab` / `deriveSignals` / `toMat`: LFP, MUA, SPIKE and digital events |
 | [ChronuxDataset](ChronuxDataset.md) | connector that hands recordings, trials and spike trains to the Chronux toolbox |
 | [FieldTripExport](FieldTripExport.md) | FieldTrip raw / spike / event structures and `exportFieldTrip` |
@@ -102,7 +103,9 @@ through an `EphysReader` (`IntanReader` / `OpenEphysReader` / `BinaryReader`).
 `readEpsychSession` reads the Epsych2 session, `intan2matlab` is a thin
 wrapper around `deriveSignals` (what `toMat` saves), `exportChronux` packages
 through `ChronuxDataset` and `exportFieldTrip` through `FieldTripExport`, and
-`DatasetTracker` keeps the inventory of files on disk. Kilosort4
+`DatasetTracker` keeps the inventory of files on disk. Each dataset keeps its
+state in `<Name>_manifest.json` (`writeManifest` / `applyManifest`), which
+`ManifestViewerApp` shows (**Dataset → View manifest...**). Kilosort4
 (`run_ks4.py`) and probeinterface (`probe_tool.py`, behind `ProbeDesignerApp`)
 run in a conda Python through `system()`. On the analysis side,
 `EphysAnalysisApp` or an `EphysAnalysisScript` sets up an
@@ -349,6 +352,7 @@ test_EphysPipeline       % one suite
 | `test_EpsychSession` | Epsych2 readers and matching |
 | `test_EphysPipelineConfig`, `test_EphysPipeline`, `test_EphysPipelineScript` | config, runner, scripts |
 | `test_EphysPreprocessingApp` | the GUI's config model, headless |
+| `test_ManifestViewerApp` | the manifest viewer, headless: the Summary checks, opening from a file, a folder or a dataset, the plots, the default probe, Rewrite |
 | `test_SyntheticDataset` | `makeSyntheticProject` / `makeSyntheticRecording`: the written lines, sessions, spikes, aux and artifacts read back; pairing per scenario; the other layouts (Open Ephys included); the config through the pipeline; the app's File-menu action |
 | `test_EphysAnalysisCompute` (analysis/) | compute functions on seeded spike trains and signals, the trial-filter compiler, every renderer |
 | `test_EphysAnalysisEpochs` (analysis/) | sources, event references, epochs, trial selection and grouping against the synthetic truth |

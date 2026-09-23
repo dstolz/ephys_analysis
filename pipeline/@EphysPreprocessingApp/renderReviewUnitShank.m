@@ -38,7 +38,7 @@ chans = find(R.chanShanks == R.chanShanks(pk));
 n = obj.ReviewShankCountSpinner.Value;
 key = struct('folder', string(R.folder), 'unit', R.clusterID(u), 'n', n);
 C = obj.ReviewSpikeWaves;
-if isempty(C) || ~isequal(C.key, key)
+if isempty(C) || ~isequal(C.key, key) || C.err ~= ""   % a failed read is tried again
     C = struct('key', key, 'W', [], 'info', [], 'err', "", 'errId', "");
     pointer = obj.Fig.Pointer;
     obj.Fig.Pointer = 'watch';

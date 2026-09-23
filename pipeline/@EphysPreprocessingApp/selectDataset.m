@@ -56,7 +56,7 @@ obj.refreshManualArtifactsTable();
 obj.refreshReferencePanel();
 obj.syncVizDataset();
 shown = obj.currentVizDataset();
-if idx > 0 && obj.Tabs.SelectedTab == obj.TabVisualize && (isempty(shown) || shown ~= obj.currentDataset())
+if idx > 0 && obj.Tabs.SelectedTab == obj.TabVisualize && (isempty(shown) || shown ~= obj.currentDataset() || isempty(obj.VizData))
     obj.onPlotVisualization();
 end
 if obj.Tabs.SelectedTab == obj.TabReview && obj.ReviewDatasetIdx ~= idx

@@ -762,9 +762,9 @@ Derived LFP / MUA / SPIKE `.mat` files with `EphysDataset.toMat`
   periods (the manual ones, plus the automatic detection when the Artifacts
   tab's *Erase in the signals* is ticked) become a straight line between the
   levels on either side, so no filter or resampler spreads an artifact into
-  the samples around it. Every file records them (`info.artifacts`), and
-  Export's epochs and the analysis leave out the epochs that touch one. AUX is
-  not changed.
+  the samples around it. Every file records them (`info.artifacts`), and the
+  analysis and Export's epochs (with *Artifact periods: drop*) leave out the
+  epochs that touch one. AUX is not changed.
 - **Common reference: LFP / MUA / SPIKE**, the row below it:
   `Signals.LFP_Reference` / `MUA_Reference` / `SPIKE_Reference` (off / on /
   on by default), which signals the common reference set on the Artifacts tab

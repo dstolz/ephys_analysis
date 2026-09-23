@@ -37,6 +37,7 @@ if ispref(g, 'ShowRunDiagram'); rmpref(g, 'ShowRunDiagram'); end
 if ispref(g, 'DiagramView'); rmpref(g, 'DiagramView'); end
 if ispref(g, 'DiagramLayout'); rmpref(g, 'DiagramLayout'); end
 if ispref(g, 'CleanupOptions'); rmpref(g, 'CleanupOptions'); end
+if ispref(g, 'VizOptions'); rmpref(g, 'VizOptions'); end
 
 nPass = 0; nFail = 0;
     function check(cond, msg)
@@ -174,7 +175,11 @@ spkErase = allOn;
 spkErase.Spikes.ArtifactMode = "erase";
 app.applyConfig(spkErase);
 perE = string(app.FlowHTML.HTMLSource);
-check(count(perE, "<div class=""n k-src") == 1 ...
+spE = strfind(perE, "<li class=""c-spikes"">");
+eE = strfind(perE, "NaN: out of the thresholds,");
+fE = sort([strfind(perE, ">Butterworth bandpass</div>"), strfind(perE, ">Bandpass filter</div>")]);
+eraseFirst = isscalar(eE) && any(spE < eE) && any(fE > eE) && ~any(fE > max(spE(spE < eE)) & fE < eE);
+check(count(perE, "<div class=""n k-src") == 1 && eraseFirst ...
     && contains(perE, ">Artifact periods</div><div class=""d"">from Artifacts</div></div><span class=""stem""></span><ul><li class=""c-spikes"">") ...
     && ~contains(perE, ">Reject in Spikes</div>") && contains(perE, "NaN: out of the thresholds,"), ...
     'Spikes.ArtifactMode "erase": Spikes hangs from the artifact periods too, erasing them before its filter');
@@ -536,9 +541,14 @@ app.onArtifactControlsChanged();
 check(nKept() == numAmp * (nSamp - nnz(allMask)) ...
     && contains(app.ArtViewNoteLabel.Text, "removes: erased in the signals (LFP / MUA / SPIKE)."), ...
     'with the signals the one use ticked, a run still removes the detected artifacts');
+app.SigBlankArtifactsCheckBox.Value = false;
+app.onArtifactControlsChanged();
+check(nKept() == numAmp * (nSamp - nnz(manMask)) && contains(app.ArtViewNoteLabel.Text, "No step takes the detected artifacts"), ...
+    'the signals use ticked but the Signals tab not erasing the periods: a run keeps the detected artifacts');
+app.SigBlankArtifactsCheckBox.Value = true;
 app.ArtApplySignalsCheckBox.Value = false;
 app.onArtifactControlsChanged();
-check(nKept() == numAmp * (nSamp - nnz(manMask)) && contains(app.ArtViewNoteLabel.Text, "all off"), ...
+check(nKept() == numAmp * (nSamp - nnz(manMask)) && contains(app.ArtViewNoteLabel.Text, "No step takes the detected artifacts"), ...
     'with no use ticked a run keeps the detected artifacts');
 app.ArtApplySortingCheckBox.Value = true; app.ArtApplySpikesCheckBox.Value = true;
 app.ArtApplySignalsCheckBox.Value = true;

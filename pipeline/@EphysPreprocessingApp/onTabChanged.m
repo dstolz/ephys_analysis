@@ -36,7 +36,7 @@ switch obj.Tabs.SelectedTab
         msg = "Visualize: any signal of the active dataset with its spikes; wheel zooms, drag pans.";
         d = obj.currentDataset();
         shown = obj.currentVizDataset();
-        if ~isempty(d) && (isempty(shown) || shown ~= d)
+        if ~isempty(d) && (isempty(shown) || shown ~= d || isempty(obj.VizData))
             obj.onPlotVisualization();      % it sets the status line itself
             return
         end

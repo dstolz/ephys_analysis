@@ -2,8 +2,9 @@ function buildFlowTab(obj)
 %buildFlowTab  Flow tab: a flow chart of the processing the working config does.
 %   The View drop-down picks what it draws (a preference, DiagramView):
 %   - Every parameter (flowChartHTML): one tree from the raw recording, a
-%     branch per step that reads it (Artifacts, Sorting, Signals, Spikes),
-%     drawn top-down through every filter / reference / detection stage
+%     branch per step that reads it (Artifacts, Signals, Spikes; Sorting,
+%     and Signals / Spikes while they erase the periods, hang from the
+%     artifact periods), drawn top-down through every filter / reference / detection stage
 %     with its parameters to the files written, with the steps that read
 %     those files instead hanging from them (sorted units under Sorting,
 %     Export under the Signals extract). The Layout drop-down switches to a

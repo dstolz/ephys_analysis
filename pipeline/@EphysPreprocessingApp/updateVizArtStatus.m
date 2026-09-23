@@ -11,7 +11,8 @@ function updateVizArtStatus(obj)
     elseif nDet == 0
         detTxt = "No artifacts detected with these settings. ";
     elseif logical(obj.ArtEnableCheckBox.Value) && (logical(obj.ArtApplySortingCheckBox.Value) ...
-            || logical(obj.ArtApplySpikesCheckBox.Value) || logical(obj.ArtApplySignalsCheckBox.Value))
+            || (logical(obj.ArtApplySpikesCheckBox.Value) && string(obj.SpkArtifactModeDropDown.Value) ~= "none") ...
+            || (logical(obj.ArtApplySignalsCheckBox.Value) && logical(obj.SigBlankArtifactsCheckBox.Value)))
         detTxt = sprintf("%d detected (orange; a run removes them). ", nDet);
     else
         detTxt = sprintf("%d detected (orange; a run keeps them: detection or its uses are off). ", nDet);

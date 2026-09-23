@@ -311,8 +311,17 @@ end
 
 function tf = autoRemoved(obj)
 % Whether a run removes the detected artifacts, with the controls as they are.
-tf = logical(obj.ArtEnableCheckBox.Value) && (logical(obj.ArtApplySortingCheckBox.Value) ...
-    || logical(obj.ArtApplySpikesCheckBox.Value) || logical(obj.ArtApplySignalsCheckBox.Value));
+tf = logical(obj.ArtEnableCheckBox.Value) && any(autoUses(obj));
+end
+
+
+function u = autoUses(obj)
+% [sorting spikes signals]: the steps that take the detected artifacts. Spike
+% detection ignores every period when its Artifacts mode is "none", and the
+% signals erase none unless the Signals tab erases the periods first.
+u = [logical(obj.ArtApplySortingCheckBox.Value), ...
+    logical(obj.ArtApplySpikesCheckBox.Value) && string(obj.SpkArtifactModeDropDown.Value) ~= "none", ...
+    logical(obj.ArtApplySignalsCheckBox.Value) && logical(obj.SigBlankArtifactsCheckBox.Value)];
 end
 
 
@@ -322,20 +331,23 @@ s = "";
 color = [0.3 0.3 0.3];
 if ~V.previewed; return; end
 if autoRemoved(obj)
+    u = autoUses(obj);
     uses = strings(1, 0);
-    if logical(obj.ArtApplySortingCheckBox.Value)
+    if u(1)
         uses(end+1) = "replaced on every channel for sorting";
     end
-    if logical(obj.ArtApplySpikesCheckBox.Value)
+    if u(2) && string(obj.SpkArtifactModeDropDown.Value) == "erase"
+        uses(end+1) = "erased before spike detection";
+    elseif u(2)
         uses(end+1) = "spikes inside are rejected";
     end
-    if logical(obj.ArtApplySignalsCheckBox.Value)
+    if u(3)
         uses(end+1) = "erased in the signals (LFP / MUA / SPIKE)";
     end
     s = "Red is what a run removes: " + strjoin(uses, "; ") + ". Black is kept.";
 elseif logical(obj.ArtEnableCheckBox.Value)
-    s = "Erasing in sorting and in the signals and rejecting spikes are all off, so a run keeps the " + ...
-        "detected artifacts (black). Manual periods (red) are always removed.";
+    s = "No step takes the detected artifacts (erasing in sorting or in the signals, spike detection's " + ...
+        "Artifacts mode), so a run keeps them (black). Manual periods (red) are always removed.";
 else
     s = "Automatic detection is off, so a run keeps the detected artifacts (black). " + ...
         "Manual periods (red) are always removed.";

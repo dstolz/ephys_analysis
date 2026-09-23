@@ -29,7 +29,9 @@ every = what == "all";
 
 if every || what == "source"
     key = string(obj.VizSourceDropDown.Value);
-    obj.VizSourceKind = key;
+    if what == "source"
+        obj.VizSourceKind = key;   % the user's pick, kept across datasets (not a fallback)
+    end
     src = [];
     for s = D.sources
         if sourceKey(s) == key; src = s; break; end

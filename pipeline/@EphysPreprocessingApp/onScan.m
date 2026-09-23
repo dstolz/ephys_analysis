@@ -59,7 +59,10 @@ try
     obj.Project = P;
     obj.SelectedDatasetIdx = sameFolder(P, active);   % 0: the first dataset (populateDatasetPickers)
     ix = sameFolder(P, obj.VizDataset);
-    if ix > 0; obj.VizDataset = P.Datasets(ix); end   % the plot shows that recording still
+    if ix > 0   % the plot shows that recording still, loaded again through the new dataset
+        obj.VizDataset = P.Datasets(ix);
+        obj.VizData = [];   % its sources read through the old dataset object
+    end
     obj.refreshDatasetsTable();
     obj.applySelectionToTable(obj.Config.Project);
     obj.populateDatasetPickers();

@@ -78,7 +78,7 @@ end
 if ispref(g, 'VizOptions')
     v = getpref(g, 'VizOptions');
     if isstruct(v)
-        applyIf(v, 'source',    @(x) set(obj, 'VizSourceKind', string(x)));
+        applyIf(v, 'source',    @(x) setVizSourceKind(obj, x));   % the app is no SetGet: set() would throw
         applyIf(v, 'channels',  @(x) set(obj.VizChannelsField, 'Value', char(x)));
         applyIf(v, 'lanes',     @(x) set(obj.VizLanesField, 'Value', x));
         applyIf(v, 'duration',  @(x) set(obj.VizDurField, 'Value', x));
@@ -172,6 +172,11 @@ if ~opened
     cfg.Sorting.PythonExe = obj.defaultPythonExe();
     obj.applyConfig(cfg, MarkSaved=true);
 end
+end
+
+
+function setVizSourceKind(obj, x)
+obj.VizSourceKind = string(x);
 end
 
 

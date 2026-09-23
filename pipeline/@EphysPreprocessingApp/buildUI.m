@@ -28,8 +28,9 @@ obj.TabHost.SizeChangedFcn = @(~,~) fitTabGroup(obj);
 buildStatusBar(obj, outer);
 
 % Tabs in workflow order (Copy first: pulling sessions from the source comes
-% before everything); the Diagram chart and the utility tabs come last, Clean
-% up (freeing local disk space once a dataset is done) at the very end.
+% before everything); the Diagram chart and the utility tabs come last
+% (Synthetic writes test datasets), Clean up (freeing local disk space once
+% a dataset is done) at the very end.
 obj.TabCopy       = uitab(obj.Tabs, "Title", "Copy");
 obj.TabProject   = uitab(obj.Tabs, "Title", "Project");
 obj.TabTrials    = uitab(obj.Tabs, "Title", "Trials");
@@ -43,10 +44,11 @@ obj.TabFlow      = uitab(obj.Tabs, "Title", "Diagram");
 obj.TabRun       = uitab(obj.Tabs, "Title", "Run");
 obj.TabVisualize = uitab(obj.Tabs, "Title", "Visualize");
 obj.TabReview    = uitab(obj.Tabs, "Title", "Review");
+obj.TabSynthetic = uitab(obj.Tabs, "Title", "Synthetic");
 obj.TabCleanup   = uitab(obj.Tabs, "Title", "Clean up");
 obj.TabList = [obj.TabCopy, obj.TabProject, obj.TabTrials, obj.TabProbe, obj.TabArtifacts, ...
     obj.TabSorting, obj.TabSignals, obj.TabSpikes, obj.TabExport, obj.TabFlow, ...
-    obj.TabRun, obj.TabVisualize, obj.TabReview, obj.TabCleanup];
+    obj.TabRun, obj.TabVisualize, obj.TabReview, obj.TabSynthetic, obj.TabCleanup];
 
 buildTabStrip(obj, outer);
 fitTabGroup(obj);
@@ -64,6 +66,7 @@ obj.buildExportTab();
 obj.buildFlowTab();
 obj.buildRunTab();
 obj.buildReviewTab();
+obj.buildSyntheticTab();
 obj.buildCleanupTab();
 styleButtons(obj);   % before syncTabStrip, which colours the tab strip by status
 
@@ -81,8 +84,8 @@ styleButton(findall(obj.Fig, "Type", "uibutton", "-or", "Type", "uistatebutton")
 styleButton([obj.CopyFindButton, obj.CopyRunButton, obj.ScanButton, obj.TrialsLoadButton, ...
     obj.AssignSelectedButton, obj.ArtDetectButton, obj.RunStepSortingButton, obj.RunStepSignalsButton, obj.RunStepSpikesButton, ...
     obj.RunStepExportButton, obj.RunButton, obj.VizPlotButton, obj.LoadReviewButton, ...
-    obj.CleanupPreviewButton], "primary");
-styleButton([obj.TrialsApproveButton, obj.CopyScheduleSaveButton], "confirm");
+    obj.SynthPreviewButton, obj.CleanupPreviewButton], "primary");
+styleButton([obj.TrialsApproveButton, obj.CopyScheduleSaveButton, obj.SynthGenerateButton], "confirm");
 styleButton([obj.CleanupRunButton, obj.RunCancelButton, obj.RunKSStopRunsButton, obj.RunKSStopQueueButton, ...
     obj.CopyScheduleRemoveButton, obj.ArtManualClearButton, obj.VizArtClearButton], "danger");
 end
@@ -94,7 +97,7 @@ n = numel(obj.TabList);
 sg = uigridlayout(parent, [2 n + 1]);
 sg.Layout.Row = 1; sg.Layout.Column = 1;
 sg.RowHeight     = {'1x', 3};
-sg.ColumnWidth   = [repmat({82}, 1, n), {'1x'}];   % 14 tabs fit the default 1240 px width
+sg.ColumnWidth   = [repmat({77}, 1, n), {'1x'}];   % 15 tabs fit the default 1240 px width
 sg.RowSpacing    = 1;
 sg.ColumnSpacing = 3;
 sg.Padding       = [6 3 6 0];

@@ -329,6 +329,12 @@ recordings with spiking units, LFP, artifacts, the lab's six digital lines
 and accelerometer inputs, an Epsych2 session per recording, ground-truth
 sorted output and a ready pipeline config. See
 [EphysPreprocessingApp → Synthetic test project](EphysPreprocessingApp.md#synthetic-test-project).
+To shape the data yourself, the app's **Synthetic** tab (or
+[`SyntheticDesign`](../pipeline/SyntheticDesign.m) with
+[`makeSyntheticRecording`](../pipeline/makeSyntheticRecording.m)) links units and
+LFP oscillations or evoked potentials to the events of the built-in task or
+of a real Epsych2 session ([`syntheticSessionSchedule`](../pipeline/syntheticSessionSchedule.m));
+see [EphysPreprocessingApp → Synthetic](EphysPreprocessingApp.md#synthetic).
 
 ```matlab
 cd C:\src\ephys_analysis\pipeline
@@ -354,6 +360,7 @@ test_EphysPipeline       % one suite
 | `test_EphysPreprocessingApp` | the GUI's config model, headless |
 | `test_ManifestViewerApp` | the manifest viewer, headless: the Summary checks, opening from a file, a folder or a dataset, the plots, the default probe, Rewrite |
 | `test_SyntheticDataset` | `makeSyntheticProject` / `makeSyntheticRecording`: the written lines, sessions, spikes, aux and artifacts read back; pairing per scenario; the other layouts (Open Ephys included); the config through the pipeline; the app's File-menu action |
+| `test_SyntheticGenerator` | `SyntheticDesign` (validation, JSON), the built-in model, responses and LFP at their latency after the edge, `PreviewOnly` = what is written, schedules from a dataset's Epsych2 session (recorded lines, rebuilt lines, tuning, locked vs induced oscillations, `MaxDuration`), the app's Synthetic tab |
 | `test_EphysAnalysisCompute` (analysis/) | compute functions on seeded spike trains and signals, the trial-filter compiler, every renderer |
 | `test_EphysAnalysisEpochs` (analysis/) | sources, event references, epochs, trial selection and grouping against the synthetic truth |
 | `test_EphysAnalysisConfig` (analysis/) | the analysis config: JSON round trips, `plotFor`, validation |

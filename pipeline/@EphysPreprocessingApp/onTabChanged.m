@@ -40,6 +40,9 @@ switch obj.Tabs.SelectedTab
         end
     case obj.TabReview
         msg = "Review: the active dataset's sorted units (or Browse... for any results folder).";
+    case obj.TabSynthetic
+        msg = "Synthetic: choose where the events come from, set up units and LFP, Preview, then Generate.";
+        obj.onSynthSourceChanged();   % the active dataset may have changed while the tab was hidden
     case obj.TabCleanup
         msg = "Clean up: Preview what would be removed from the selected datasets and what would remain, then Remove files.";
         obj.refreshCleanupScope();

@@ -59,6 +59,16 @@ classdef EphysPreprocessingApp < handle
     %                GPU use under the steps
     %     Visualize  plot a window, mark manual artifact periods
     %     Review     inspect sorted units
+    %     Synthetic  design and write a synthetic dataset (makeSyntheticRecording):
+    %                events from the built-in task or from the active
+    %                dataset's Epsych2 session (its recorded lines, or lines
+    %                rebuilt from the session's parameters); spiking units
+    %                whose rate follows a line's edges (latency, duration,
+    %                shape, gain, jitter, tuned to an Epsych2 parameter) and
+    %                event-locked LFP (phase-locked or induced oscillations,
+    %                evoked potentials, a depth profile); preview the
+    %                spikes, rasters, PSTHs and LFP it will write, then
+    %                Generate. Not a pipeline step
     %     Clean up   free local disk space once datasets are preprocessed, or
     %                remove what chosen preprocessing steps wrote: preview
     %                every local file of the selected datasets as Remove or
@@ -96,8 +106,9 @@ classdef EphysPreprocessingApp < handle
     %   Review folder, last / recent config files, script folder, the
     %   datasets-table column order, the Trials-table parameter columns and
     %   column order, the Trials-plot label parameters, the Visualize
-    %   display options, the Copy tab settings and the Run tab's Show the
-    %   run diagram and Monitor CPU, memory, disk and GPU switches.
+    %   display options, the Copy tab settings, the Synthetic tab's settings
+    %   and design, and the Run tab's Show the run diagram and Monitor CPU,
+    %   memory, disk and GPU switches.
     %
     %   Usage
     %     EphysPreprocessingApp;            % launch
@@ -141,6 +152,7 @@ classdef EphysPreprocessingApp < handle
         TabFlow      matlab.ui.container.Tab
         TabVisualize matlab.ui.container.Tab
         TabReview    matlab.ui.container.Tab
+        TabSynthetic matlab.ui.container.Tab
         TabCleanup   matlab.ui.container.Tab
 
         % --- Copy tab (settings are preferences; findCopySessions / copySessions) ---
@@ -370,6 +382,57 @@ classdef EphysPreprocessingApp < handle
         ReviewWaveAxes      matlab.ui.control.UIAxes
         ReviewAmpAxes       matlab.ui.control.UIAxes
         ReviewRateAxes      matlab.ui.control.UIAxes
+
+        % --- Synthetic tab (makeSyntheticRecording; every setting is a preference) ---
+        SynthSourceDropDown   matlab.ui.control.DropDown          % ItemsData "task" | "recording" | "session"
+        SynthDatasetDropDown  matlab.ui.control.DropDown          % datasetPicker
+        SynthLoadButton       matlab.ui.control.Button
+        SynthPreviewButton    matlab.ui.control.Button
+        SynthGenerateButton   matlab.ui.control.Button
+        SynthStatusLabel      matlab.ui.control.Label
+        SynthTrialsSpinner    matlab.ui.control.Spinner           % built-in task: trials
+        SynthScenarioDropDown matlab.ui.control.DropDown          % built-in task: scenario
+        SynthTrialDurField    matlab.ui.control.EditField         % rebuilt session: trial duration (ms expression)
+        SynthLinesTable       matlab.ui.control.Table             % rebuilt session: Line | Onset | Duration (ms expressions)
+        SynthAddLineButton    matlab.ui.control.Button
+        SynthRemoveLineButton matlab.ui.control.Button
+        SynthFormatDropDown   matlab.ui.control.DropDown
+        SynthFsField          matlab.ui.control.NumericEditField
+        SynthChannelsField    matlab.ui.control.NumericEditField
+        SynthSeedField        matlab.ui.control.NumericEditField
+        SynthSubjectField     matlab.ui.control.EditField
+        SynthFileSecondsField matlab.ui.control.NumericEditField
+        SynthMaxDurField      matlab.ui.control.NumericEditField  % dataset sources: length limit (s), 0 = whole
+        SynthSortedCheckBox   matlab.ui.control.CheckBox
+        SynthArtifactsCheckBox matlab.ui.control.CheckBox
+        SynthProbeLabel       matlab.ui.control.Label
+        SynthUnitsTable       matlab.ui.control.Table             % SyntheticDesign.Units (synthColumns order)
+        SynthAddUnitButton    matlab.ui.control.Button
+        SynthRemoveUnitButton matlab.ui.control.Button
+        SynthBuiltInButton    matlab.ui.control.Button
+        SynthClearButton      matlab.ui.control.Button
+        SynthLFPTable         matlab.ui.control.Table             % SyntheticDesign.LFP (synthColumns order)
+        SynthAddOscButton     matlab.ui.control.Button
+        SynthAddEvokedButton  matlab.ui.control.Button
+        SynthRemoveLFPButton  matlab.ui.control.Button
+        SynthRhythmField      matlab.ui.control.NumericEditField  % SyntheticDesign.Background
+        SynthPinkField        matlab.ui.control.NumericEditField
+        SynthNoiseField       matlab.ui.control.NumericEditField
+        SynthLineNoiseField   matlab.ui.control.NumericEditField
+        SynthLineFreqDropDown matlab.ui.control.DropDown
+        SynthOutputField      matlab.ui.control.EditField         % output root ("" = <project root>_synthetic)
+        SynthBrowseOutputButton matlab.ui.control.Button
+        SynthLoadDesignButton matlab.ui.control.Button
+        SynthSaveDesignButton matlab.ui.control.Button
+        SynthUnitDropDown     matlab.ui.control.DropDown          % preview: the unit shown (ItemsData = index)
+        SynthLFPDropDown      matlab.ui.control.DropDown          % preview: the LFP component shown
+        SynthTimelineStartField matlab.ui.control.NumericEditField
+        SynthTimelineSpanField  matlab.ui.control.NumericEditField
+        SynthTimelineAxes     matlab.ui.control.UIAxes
+        SynthRasterAxes       matlab.ui.control.UIAxes
+        SynthPSTHAxes         matlab.ui.control.UIAxes
+        SynthLFPAxes          matlab.ui.control.UIAxes
+        SynthProfileAxes      matlab.ui.control.UIAxes
 
         % --- Clean up tab (planLocalCleanup / runLocalCleanup; the kinds ticked and where files go are preferences) ---
         CleanupScopeLabel         matlab.ui.control.Label
@@ -671,6 +734,11 @@ classdef EphysPreprocessingApp < handle
         % refreshDatasetsTable). A containers.Map, made on first use.
         EpsychMetaCache = []
 
+        % --- Synthetic tab state (in memory) ---
+        SynthSource = []                     % the schedule loaded (syntheticTaskSchedule / syntheticSessionSchedule)
+        SynthSourceKey (1,1) string = ""     % what it was loaded for (synthSourceKey)
+        SynthModel = []                      % the last preview: makeSyntheticRecording(PreviewOnly=true)
+
         % --- Clean up tab state (in memory) ---
         CleanupPlan = []                                        % planLocalCleanup table + Subject, Include ([] = no preview)
         CleanupPlanKeys (1,:) string = string.empty(1, 0)       % dataset keys it was made for
@@ -717,6 +785,7 @@ classdef EphysPreprocessingApp < handle
         buildFlowTab(obj)
         buildVisualizeTab(obj)
         buildReviewTab(obj)
+        buildSyntheticTab(obj)
         buildCleanupTab(obj)
 
         % --- config model ---
@@ -983,6 +1052,25 @@ classdef EphysPreprocessingApp < handle
         onReviewUnitSelected(obj, evt)
         onReviewNoteEdited(obj, evt)
         onReviewAllUnits(obj)
+
+        % --- Synthetic tab ---
+        ok = onSynthLoadSource(obj)
+        ok = onSynthPreview(obj)
+        renderSynthPreview(obj)
+        onSynthGenerate(obj)
+        T = generateSynthetic(obj, opts)
+        onSynthDesign(obj, action)
+        onSynthControlsChanged(obj, what)
+        onSynthSourceChanged(obj)
+        syncSynthControls(obj)
+        D = gatherSynthDesign(obj)
+        applySynthDesign(obj, D)
+        [vars, names, widths] = synthColumns(obj, kind)
+        [lines, params, trialLine] = synthSourceLists(obj)
+        key = synthSourceKey(obj)
+        [args, acq] = synthGeneratorArgs(obj)
+        root = synthOutputRoot(obj)
+        [folder, why] = synthOutputFolder(obj, acq)
 
         % --- Clean up tab ---
         onCleanupPreview(obj)

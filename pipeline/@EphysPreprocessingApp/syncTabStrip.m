@@ -75,6 +75,8 @@ for k = 1:numel(tabs)
             end
         case obj.TabFlow
             state = "neutral"; tip = "Diagram of the working config.";
+        case obj.TabSynthetic
+            state = "neutral"; tip = "Design, preview and write a synthetic dataset, its events from the built-in task or the active dataset's Epsych2 session.";
         case obj.TabCleanup
             state = "neutral"; tip = "Remove local raw recordings and sorter copies to free disk space; outputs are kept.";
         otherwise

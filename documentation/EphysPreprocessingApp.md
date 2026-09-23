@@ -19,6 +19,8 @@ for the preprocessing pipeline. It edits **one pipeline config**
 - export Chronux- and FieldTrip-shaped files;
 - associate Epsych2 behavior sessions;
 - review sorted units and open them in phy;
+- write synthetic datasets whose spikes and LFP follow the events of the
+  built-in task or of a real Epsych2 session;
 - free local disk space once datasets are preprocessed (raw recordings with a
   verified copy on the source, sorter copies of the recording);
 - save the config, and generate scripts that reproduce the run.
@@ -72,7 +74,7 @@ background monitor and saves preferences.
 - **Title**: the config name and file; `*` in front while the config has
   unsaved changes.
 - **Tabs**, in workflow order: **Copy, Project, Trials, Probe, Artifacts, Sorting,
-  Signals, Spikes, Export, Diagram, Run, Visualize, Review, Clean up**. The app opens on
+  Signals, Spikes, Export, Diagram, Run, Visualize, Review, Synthetic, Clean up**. The app opens on
   Project. Each tab button is
   coloured by its status, and its tooltip says why: grey = step disabled,
   green = ready, amber = needs attention (config warnings, selected datasets
@@ -1059,6 +1061,112 @@ The units struct also carries `ksChannel` (the peak
 channel among the sorted channels), `channel` (the 1-based recording channel),
 the peak site (`peakX`, `peakY`) and the class and identity fields.
 
+## Synthetic
+
+Designs, previews and writes one synthetic dataset with
+[`makeSyntheticRecording`](../pipeline/makeSyntheticRecording.m): a
+recording, a copy of its Epsych2 session, ground-truth sorted output and a
+manifest. The neural signals are a [`SyntheticDesign`](../pipeline/SyntheticDesign.m);
+the events they follow come from a schedule. It is not a pipeline step.
+
+**Timing from** picks the schedule:
+
+| Choice | Events | Session written |
+| --- | --- | --- |
+| Built-in task | the AM-detection task drawn from the seed (six lines as on the lab's rig; **Task trials**, **Scenario** as in [Synthetic test project](#synthetic-test-project)) | a synthetic one |
+| Active dataset: recorded lines + Epsych2 session | the active dataset's own digital lines (read once with `digitalEvents`, cached next to its outputs), with its line polarity applied, at the same rows over the same length; its trials from its pairing, with the reviewed cuts | a copy of the dataset's session |
+| Active dataset: Epsych2 session only | rebuilt from the session: each trial ends at its `computerTimestamp` and lasts **Trial (ms)**; the trial line is on for it, and each row of the lines table (**Line**, **Onset (ms)**, **Duration (ms)**) adds a line that goes on Onset ms after the trial starts. All three are expressions over the trial's numeric parameters (`StimDelay + RespWinDelay`); blank = automatic: Stim, RespWindow and a Trough poke per response when the session has those parameters | a copy of the dataset's session |
+
+The session copy keeps `Data` as saved; `Info` gets the tab's **Subject**, its
+new file name and `Info.Synthetic` (the source file, subject and dataset). The
+source is only read. **Load source** reads the schedule (a dataset source also
+sets **Fs**, **Channels** and **Subject**, the session's subject + `-SYN`, to
+the dataset's, and fills in the automatic lines); **Preview** and
+**Generate...** load it first when needed. Choosing another active dataset
+drops a loaded dataset schedule.
+
+**Recording**: format (the Intan layouts, the binary format, or an Open Ephys
+session in the Binary, Open Ephys or NWB format), **Fs**, **Channels**,
+**Seed** (the same seed and settings give the same data), **Subject**, **File
+(s)** per `.rhd` file, **Max (s)** (dataset sources: stop the recording early;
+lines still on end at the last sample, so the pairing has a mismatch to
+resolve, as when a recording is stopped early), **Sorted output** and
+**Artifacts**. The sites are the dataset's probe (its own, else the config's
+default) when it has enough of them, and that probe goes into the new
+manifest; otherwise a synthetic probe is written as `<Name>_probe.json`. The
+line under the fields says which.
+
+**Units (spikes)**, one row per unit. A unit fires at **Baseline (Hz)**; when
+**Event** names a line, its rate around every **Edge** (onset or offset) of
+that line, from **Latency (ms)** for **Duration (ms)**, is baseline × (1 +
+(**Gain** − 1) × envelope). **Shape** sets the envelope: sustained (flat), transient
+(a raised-cosine bump) or phasic-tonic (a bump over the first 30 % on a 40 %
+plateau). Gain above 1 excites, below 1 suppresses. **Jitter (ms)** is the SD
+of the latency from event to event. **Parameter** scales the response by an
+Epsych2 trial parameter, normalized to 0..1 over the session, rising or
+falling with it (**Tuning**). Events outside any trial respond fully. **Channel**, **Amplitude (uV)**
+and **Width (ms)** shape the waveform, spread over the neighbouring sites.
+NaN means random (channel: spread the units evenly), drawn from the seed.
+**Add unit**, **Remove** (the selected rows), **Built-in design**
+(makeSyntheticRecording's default for the channel count: random units, half
+driven by Stim, one suppressed, and an evoked potential) and **Clear**.
+
+**Event-linked LFP**, one row per component, each locked to a line's edges:
+an **oscillation** (**Freq (Hz)**, **Amplitude (uV)**, a Tukey envelope with
+**Rise (ms)** ramps over **Duration (ms)**; **Locked** = the same phase on
+every event, so it survives averaging; unticked, a random phase each time,
+so only its power is event-locked) or an **evoked** potential (an alpha
+function peaking **Rise (ms)** after the latency, signed amplitude). **Profile**
+spreads it over the probe's depth (site `yc`): uniform, superficial, middle,
+deep, or reversal (the sign flips at mid depth). **Parameter** / **Tuning**
+scale the amplitude as for units.
+
+**Background**: the ongoing 1.7 / 7.3 / 12.5 Hz rhythms (× **Rhythms**),
+the slow 1/f-like noise, the white noise and line noise (50 or 60 Hz).
+**Output**: **Folder** (blank: `<project root>_synthetic` next to the
+project), **Load design...** / **Save design...** (JSON,
+`SyntheticDesign.save` / `load`).
+
+**Preview** runs `makeSyntheticRecording` with `PreviewOnly=true`, the same
+options Generate passes, so it shows the spikes that are then written:
+
+- the lines and every unit's spikes over **From (s)** for **Span** s,
+  artifacts shaded, a linked unit's ticks in its line's colour;
+- the **Unit** box's unit: a raster around its event's edges (up to 150
+  events, sorted by its parameter), and a PSTH split by that parameter's
+  values, the model's rate dashed. A unit with no event is shown around the
+  trial line's onsets;
+- the **LFP** box's component on its peak channel around up to 20 of its
+  events: single events grey, their mean black, the model's mean dashed and
+  an oscillation's envelope dotted (an induced one averages away while its
+  envelope does not);
+- the probe's sites coloured by the component's gain, the peak ringed.
+
+**Generate...** checks the design against the source's lines and parameters,
+confirms the folder and the size, and writes
+`<Folder>\<Subject>\<Subject>_<yymmdd>_<HHmmss>` (Open Ephys formats:
+`<Subject>_<yyyy-MM-dd>_<HH-mm-ss>`), named from the recording's start: the
+source dataset's, or two minutes ago for the task. A folder that already
+holds a synthetic dataset is replaced only after a second confirmation;
+another non-empty one is refused. A dataset written under the project root is
+scanned in at once and made active. Every dataset also holds
+`<Name>_synthetic.json`: the seed, the schedule's source and the design.
+
+The same from the command line:
+
+```matlab
+ds = app.currentDataset();                               % or any EphysDataset with a BehaviorFile
+S = syntheticSessionSchedule(ds);                        % its recorded lines + session (Timing="session": rebuilt)
+D = SyntheticDesign();
+u = SyntheticDesign.newUnit("tone", "Stim");             % phasic-tonic, gain 4, 15 ms latency
+u.Parameter = "Depth";                                   % grows with the AM depth
+D.Units = u;
+D.LFP = SyntheticDesign.newLFP("oscillation", "Stim");   % 40 Hz, phase-locked
+T = makeSyntheticRecording("D:\scratch\SYN-01_260101_120000", Subject="SYN-01", Session=S, Design=D);
+```
+
+The settings and the design are preferences.
+
 ---
 
 ## Clean up
@@ -1254,6 +1362,7 @@ Only what is **not** part of a config lives here:
 | `TrialsLabelParams` | the Epsych2 parameters written as trial labels in the Trials plot |
 | `VizOptions` | the Visualize tab's display settings |
 | `CopyOptions` | the Copy tab's subject, roots, pairing and copy options (not the dates) |
+| `SynthOptions` | the Synthetic tab's settings and its design (as `SyntheticDesign` JSON in `design`) |
 | `ShowRunDiagram` | the Run tab's **Show the run diagram** switch |
 | `MonitorResources` | the Run tab's **Monitor CPU, memory, disk and GPU** switch |
 | `QueueSortingRuns` | the Run tab's **Queue the waiting runs; the Run goes on** switch |
@@ -1275,6 +1384,7 @@ preference: its settings live in its own file, which its Windows task reads.
 | `<Name>_extract_<TYPE>.mat` (or `<Name>_extract.mat`), `<Name>_spikes.mat`, `<Name>_chronux.mat`, `<Name>_fieldtrip.mat`, `<Name>_epochs.mat` | Signals, Spikes, Export |
 | probe `.json` in the probe folder | Import, Designer save, Notes edit |
 | `<parent>/synthetic_ephys/...` | File → Create synthetic test project (recordings, sessions, sorted output, probe, config, README) |
+| `<Folder>/<Subject>/<Subject>_<start>/`: the recording, the session copy, `kilosort4/` (ground truth), `<Name>_manifest.json`, `<Name>_synthetic.json` and, with a synthetic probe, `<Name>_probe.json`; a design `.json` | Synthetic → Generate... (Preview writes nothing); Save design... |
 | `<Destination>/<SUBJ>/<recording folder>/`: the copied files (for a stitched session, `<earliest ePsych file>_stitched.mat` instead of the ePsych files), `session_manifest.json`, `session_copy_robocopy.log` | Copy → Copy selected, in the background (Preview writes nothing); each scheduled run |
 | `%LOCALAPPDATA%\ephys_analysis\copy_jobs\<batch>\`: the copy engine's job, progress and heartbeat files | while a copy batch is in flight; removed when it ends |
 | `%LOCALAPPDATA%\ephys_analysis\copy_schedule\`: `schedule.json`, `task.xml`, `startup.m`; the Windows task `\ephys_analysis\Copy sessions (<user>)` | Copy → Save schedule (Remove deletes the task and the first two) |
@@ -1324,6 +1434,7 @@ app.KSQueue                       % prepared runs waiting for a slot (Queue the 
 | `buildFlowTab.m`, `refreshFlowChart.m`, `flowChartHTML.m`, `onSaveFlowChart.m`, `onOpenFlowChartInBrowser.m`, `onFlowNavigate.m`, `flowNavControls.m`, `clearFlowHighlight.m` | Diagram tab |
 | `buildCopyTab.m`, `onCopyFind.m`, `onCopyRun.m`, `refreshCopyTable.m`, `onCopyTableEdited.m`, `onCopyStitch.m`, `onCopyUnstitch.m`, `onBrowseCopyFolder.m`, `copyLog.m`, `onCopyCancel.m`, `startCopyMonitor.m`, `stopCopyMonitor.m`, `pollCopyJob.m`, `setCopyRunning.m`, `applyCopyResult.m`, `finishCopyRun.m`, `showCopyProgress.m`, `copySummaryText.m`, `refreshCopySchedule.m`, `onCopyScheduleSave.m`, `onCopyScheduleRemove.m`, `onCopyScheduleRunNow.m`, `onCopyScheduleLog.m`; `pipeline/findCopySessions.m`, `pipeline/stitchCopySessions.m`, `pipeline/copySessions.m`, `pipeline/copy_engine.ps1`, `pipeline/stitchEpsychSessions.m`, `pipeline/CopySchedule.m` | Copy tab, the pairing / stitching / copy functions it calls, the detached copy engine, and the scheduled copy (its Windows task and what each run does) |
 | `loadReviewResults.m`, `renderReviewPlots.m`, `syncReviewDataset.m` | Review tab |
+| `buildSyntheticTab.m`, `onSynthLoadSource.m`, `onSynthPreview.m`, `renderSynthPreview.m`, `onSynthGenerate.m`, `generateSynthetic.m`, `onSynthDesign.m`, `onSynthControlsChanged.m`, `onSynthSourceChanged.m`, `syncSynthControls.m`, `gather/applySynthDesign.m`, `synthColumns.m`, `synthSourceLists.m`, `synthSourceKey.m`, `synthGeneratorArgs.m`, `synthOutputRoot.m`, `synthOutputFolder.m`; `pipeline/SyntheticDesign.m`, `pipeline/syntheticModel.m`, `pipeline/syntheticTaskSchedule.m`, `pipeline/syntheticSessionSchedule.m`, `pipeline/makeSyntheticRecording.m` | Synthetic tab (`generateSynthetic`: Generate without its questions; `synthGeneratorArgs`: the options Preview and Generate share) and the generator |
 | `buildCleanupTab.m`, `onCleanupPreview.m`, `onCleanupRun.m`, `runCleanup.m`, `onCleanupMethodChanged.m`, `onCleanupBrowseDest.m`, `onCleanupSettingsChanged.m`, `refreshCleanupScope.m`, `refreshCleanupTable.m`; `pipeline/planLocalCleanup.m`, `pipeline/runLocalCleanup.m` | Clean up tab and the functions that decide and remove |
 | `load/savePreferences.m` | preferences |
 | `stopTimers.m` | stops the app's timers (Kilosort4, copy and resource monitors, the scheduled copy's refresh) on close, and when the figure is deleted any other way |
@@ -1369,6 +1480,13 @@ queue (each dataset once; a plan skips a queued one), phy started in a folder
 whose path holds `&` and spaces, and the timers stopped when the figure is
 deleted. It
 restores the user's preferences afterwards.
+[`test_SyntheticGenerator.m`](../pipeline/test_SyntheticGenerator.m) checks the
+generator behind the Synthetic tab, then drives the tab headlessly: the built-in
+design with an added unit and oscillation, Preview (every plot drawn, the Unit
+and LFP boxes), Generate writing exactly the previewed spikes and refusing an
+existing folder, a dataset source (its rate, channels, subject and own probe
+taken over), a dataset written under the project root scanned in and made
+active, the rebuilt lines filled in and editable, and the preferences.
 [`test_CopySessions.m`](../pipeline/test_CopySessions.m) (a `matlab.unittest`
 class; `run_all_tests` runs it too) builds fake source trees in a temporary
 folder. It checks pairing (a single session, interleaved sessions resolved

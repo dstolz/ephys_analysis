@@ -7,8 +7,8 @@ d.ManualArtifacts = zeros(0, 2);
 obj.saveManifests(d);
 obj.refreshManualArtifactsTable();
 shown = obj.currentVizDataset();
-if ~isempty(obj.Viewer) && isvalid(obj.Viewer) && ~isempty(shown) && shown == d
-    obj.Viewer.render();
+if ~isempty(shown) && shown == d
+    obj.refreshVizShading();
 end
 obj.updateVizArtStatus();
 obj.setStatus(d.Name + ": manual artifact periods cleared.", "");

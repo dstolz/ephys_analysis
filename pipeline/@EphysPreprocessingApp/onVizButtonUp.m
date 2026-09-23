@@ -1,15 +1,16 @@
 function onVizButtonUp(obj)
-%onVizButtonUp  End an in-progress drag gesture (artifact marking or pan).
-%   Finalizes an artifact-marking gesture first (it owns the plain left
-%   button); otherwise delegates to obj.Viewer, which owns the pan gesture and
-%   clears its own WindowButtonMotionFcn.
+%onVizButtonUp  End the Visualize gesture in progress (artifact marking, pan or seek).
 
-if isstruct(obj.VizArtDrag) && isfield(obj.VizArtDrag, 'active') && obj.VizArtDrag.active
-    obj.finishVizArtDrag();
-    return
-end
-
-if ~isempty(obj.Viewer) && isvalid(obj.Viewer)
-    obj.Viewer.onButtonUp();
+gesture = obj.VizGesture;
+obj.VizGesture = "";
+if gesture == ""; return; end
+if isvalid(obj.Fig); obj.Fig.WindowButtonMotionFcn = ''; end
+switch gesture
+    case "mark"
+        obj.finishVizArtDrag();
+    case "pan"
+        if ~isempty(obj.Viewer) && isvalid(obj.Viewer)
+            obj.Viewer.endDrag();
+        end
 end
 end

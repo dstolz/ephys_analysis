@@ -5,8 +5,9 @@ function test_EphysPreprocessingApp()
 %   config round trip, the unsaved-changes marker, scan + selection ticks,
 %   plan, the Sorting tab's Optimize for probe / Reset to defaults, running
 %   one step through EphysPipeline, save, a config for another project
-%   root, a rescan that keeps the active dataset, the Visualize bins and
-%   overlay, the Kilosort4 monitor and queue, the phy launch, a figure
+%   root, a rescan that keeps the active dataset, the Visualize tab (a
+%   recording read across its files, keys, wheel and shading), the
+%   Kilosort4 monitor and queue, the phy launch, a figure
 %   deleted without Close, and that the app's
 %   preferences are restored afterwards. Dialogs that would block (uiconfirm)
 %   are never triggered because the config is kept clean before New / Close.
@@ -33,6 +34,7 @@ if ispref(g, 'TrialsColumnOrder'); rmpref(g, 'TrialsColumnOrder'); end
 if ispref(g, 'TrialsLabelParams'); rmpref(g, 'TrialsLabelParams'); end
 if ispref(g, 'MonitorResources'); rmpref(g, 'MonitorResources'); end
 if ispref(g, 'ShowRunDiagram'); rmpref(g, 'ShowRunDiagram'); end
+if ispref(g, 'DiagramView'); rmpref(g, 'DiagramView'); end
 if ispref(g, 'DiagramLayout'); rmpref(g, 'DiagramLayout'); end
 if ispref(g, 'CleanupOptions'); rmpref(g, 'CleanupOptions'); end
 
@@ -116,6 +118,7 @@ allOn = loaded;
 allOn.Artifacts.Enabled = true; allOn.Sorting.Enabled = true; allOn.Signals.Enabled = true;
 allOn.Signals.LFP = true; allOn.Signals.MUA = true; allOn.Signals.SPIKE = true; allOn.Signals.AUX = true;
 allOn.Export.Enabled = true; allOn.Export.Formats = ["chronux" "fieldtrip" "epochs"];
+allOn.Artifacts.Reference = "cmr";
 app.applyConfig(allOn);
 full = string(app.FlowHTML.HTMLSource);
 targets = unique(strip(split(join(string(regexp(full, '(?<=data-nav=")[^"]+', 'match')), ","), ",")));
@@ -127,24 +130,27 @@ check(numel(targets) > 50 && isempty(missing) && contains(full, "sendEventToMATL
 check(isempty(regexp(full, '<div class="n k-[a-z]+( dim)?">', 'once')) ...
     && numel(regexp(full, '<div class="n k-step( dim)?" data-nav=')) == 6 && count(full, "<div class=""n k-src") == 1, ...
     'one tree from one recording box; no box is left without a target, and each of the 6 step boxes has one too');
-refAt = strfind(full, "data-nav=""ArtRefDropDown,");   % Artifacts, Sorting, Signals, Spikes
-if numel(refAt) == 4
-    sortAt = [strfind(full, "<li class=""c-sorting"">"), refAt(2), ...
-        strfind(full, ">Blank artifact periods</div>"), strfind(full, ">Write .bin</div>")];
-else
-    sortAt = [];
-end
+refAt = strfind(full, "data-nav=""ArtRefDropDown,");   % once: every step subtracts it once from its read
+check(isscalar(refAt) && strfind(full, "<div class=""n k-src") < refAt && refAt < strfind(full, "<li class=""c-artifacts"">") ...
+    && contains(full, "median of the good channels, subtracted once from each<br>as each step reads the recording<br>not Signals") ...
+    && contains(full, ">LFP</div><div class=""d"">amplifier<br>as recorded (no common reference)</div>") ...
+    && contains(full, ">MUA</div><div class=""d"">amplifier<br>common CMR referenced</div>") ...
+    && contains(full, ">KS4 CAR</div><div class=""d"">off (do_CAR = false): the .bin<br>already carries the common reference</div>"), ...
+    ['the common reference is drawn once, between the recording and the steps; the LFP says it is taken as recorded, ' ...
+     'the MUA that it is referenced, and Kilosort4''s own CAR is off']);
+sortAt = [strfind(full, "<li class=""c-sorting"">"), ...
+    strfind(full, ">Blank artifact periods</div>"), strfind(full, ">Write .bin</div>")];
 check(~isempty(regexp(full, ['>Artifact periods</div><div class="d">[^<]*(<br>[^<]*)*</div></div>' ...
     '<span class="stem"></span><ul><li class="c-sorting">'], 'once')) ...
-    && numel(sortAt) == 4 && issorted(sortAt), ...
-    'Sorting hangs from the artifact periods, and writes its .bin after the common reference and the blanking');
+    && numel(sortAt) == 3 && issorted(sortAt), ...
+    'Sorting hangs from the artifact periods, and writes its .bin after the blanking');
 sigAt = [strfind(full, ">Artifact periods</div>"), strfind(full, "<li class=""c-signals"">"), ...
-    refAt(3), strfind(full, ">Channel selection</div>"), ...
+    strfind(full, ">Channel selection</div>"), ...
     strfind(full, ">Erase artifact periods</div>"), strfind(full, ">LFP</div>"), strfind(full, ">MUA</div>"), ...
     strfind(full, ">SPIKE</div>"), strfind(full, ">AUX</div>"), strfind(full, ">Reject in Spikes</div>")];
-check(numel(refAt) == 4 && numel(sigAt) == 10 && issorted(sigAt) && contains(full, "a line across each, before any filter") ...
+check(numel(sigAt) == 9 && issorted(sigAt) && contains(full, "a line across each, before any filter") ...
     && contains(full, "touching an artifact period: dropped"), ...
-    ['Signals hangs from the artifact periods too: the common reference, the channel selection, then the periods ' ...
+    ['Signals hangs from the artifact periods too: the channel selection, then the periods ' ...
      'erased before LFP / MUA / SPIKE (AUX after); its epochs drop the ones that touch a period']);
 noErase = allOn;
 noErase.Signals.BlankArtifacts = false;
@@ -153,7 +159,7 @@ raw = string(app.FlowHTML.HTMLSource);
 at = [strfind(raw, ">Reject in Spikes</div>"), strfind(raw, "<li class=""c-signals"">")];
 check(numel(at) == 2 && issorted(at) && contains(raw, "Erase artifact periods</div><div class=""d"">off (as recorded)") ...
     && startsWith(app.FlowSummaryLabel.Text, "4 of 4"), ...
-    'with the Signals erase switch off, Signals hangs from the recording again and its erase box is drawn off');
+    'with the Signals erase switch off, Signals hangs from the recording (its reference) again and its erase box is drawn off');
 app.applyConfig(allOn);
 app.FlowLayoutDropDown.Value = "steps";
 app.onFlowLayoutChanged();
@@ -164,6 +170,14 @@ check(count(per, "<div class=""n k-src") == 2 && contains(per, "Downstream (read
     && contains(per, ">Artifact periods</div><div class=""d"">from Artifacts</div></div><span class=""stem""></span><ul><li class=""c-signals"">") ...
     && contains(per, "from Sorting") && contains(per, "from Signals") && string(getpref(g, 'DiagramLayout')) == "steps", ...
     'Layout "Tree per step": a tree from the recording for Artifacts and Spikes; Sorting and Signals (under the artifact periods), sorted units and Export downstream; saved as a preference');
+spkErase = allOn;
+spkErase.Spikes.ArtifactMode = "erase";
+app.applyConfig(spkErase);
+perE = string(app.FlowHTML.HTMLSource);
+check(count(perE, "<div class=""n k-src") == 1 ...
+    && contains(perE, ">Artifact periods</div><div class=""d"">from Artifacts</div></div><span class=""stem""></span><ul><li class=""c-spikes"">") ...
+    && ~contains(perE, ">Reject in Spikes</div>") && contains(perE, "NaN: out of the thresholds,"), ...
+    'Spikes.ArtifactMode "erase": Spikes hangs from the artifact periods too, erasing them before its filter');
 app.FlowLayoutDropDown.Value = "tree";
 app.onFlowLayoutChanged();
 app.applyConfig(loaded);
@@ -181,6 +195,49 @@ app.onFlowNavigate(struct('HTMLEventName', 'navigate', ...
     'HTMLEventData', struct('nav', 'NoSuchField', 'title', 'Gone')));
 check(app.Tabs.SelectedTab == app.TabFlow && contains(app.StatusBar.Text, "no setting to open"), ...
     'a box pointing at a control that no longer exists says so instead of navigating');
+
+fprintf('\n== 1a. Diagram: the data-flow overview ==\n');
+flowOn = allOn;
+flowOn.Behavior.Enabled = true;
+flowOn.Export.IncludeDetected = true; flowOn.Export.EpochSource = "behavior";
+app.applyConfig(flowOn);
+app.FlowViewDropDown.Value = "overview";
+app.onFlowViewChanged();
+ov = string(app.FlowHTML.HTMLSource);
+check(contains(ov, "Preprocessing data flow: gui test") && contains(ov, "<svg class=""flow""") ...
+    && count(ov, "<g class=""node c-") == 10 && count(ov, "<g class=""edge ") == 17 ...
+    && app.FlowLayoutDropDown.Enable == "off" && startsWith(app.FlowSummaryLabel.Text, "7 of 7 steps enabled") ...
+    && string(getpref(g, 'DiagramView')) == "overview", ...
+    'View "Data-flow overview": a box per input and step, 17 arrows between them, Layout off, all 7 steps counted; saved as a preference');
+[~, ~, M] = app.flowOverviewHTML();
+[nCross, nOverlap, nThrough, nBadEnd] = flowGeometry(M);
+check(nThrough == 0 && nOverlap == 0 && nBadEnd == 0 && nCross <= 2, sprintf(['the overview''s arrows never run ' ...
+    'through a box or share a stretch between sources and each ends on its target''s top (%d crossing(s), at most 2)'], nCross));
+targets = unique(strip(split(join(string(regexp(ov, '(?<=data-nav=")[^"]+', 'match')), ","), ",")));
+missing = targets(arrayfun(@(t) isempty(app.flowNavControls(t)), targets));
+msg = sprintf('every one of the %d controls the overview''s boxes point at exists', numel(targets));
+if ~isempty(missing); msg = msg + " (missing: " + join(missing, ", ") + ")"; end
+check(numel(targets) > 30 && isempty(missing) && contains(ov, "sendEventToMATLAB('navigate'"), msg);
+reads = @(M, a, b) M.edges([M.edges.from] == a & [M.edges.to] == b).on;
+check(reads(M, "artifacts", "signals") && reads(M, "sorting", "spikes") && reads(M, "behavior", "export") ...
+    && reads(M, "spikes", "export") && ~any([M.edges.dim]), ...
+    'with every step on, Signals reads the artifact periods, Spikes the sorted units, Export the behavior and spikes files');
+flowOff = flowOn;
+flowOff.Signals.BlankArtifacts = false; flowOff.Sorting.Enabled = false; flowOff.Spikes.Source = "detect";
+flowOff.Export.Formats = strings(1, 0);
+app.applyConfig(flowOff);
+[ovOff, sumOff, M] = app.flowOverviewHTML();
+check(~reads(M, "artifacts", "signals") && ~reads(M, "sorting", "spikes") && ~reads(M, "behavior", "export") ...
+    && all([M.edges([M.edges.to] == "sorting").dim]) && ~any([M.edges([M.edges.to] ~= "sorting").dim]) ...
+    && contains(ovOff, "<g class=""edge c-artifacts off"" data-from=""artifacts"" data-to=""signals"">") ...
+    && contains(ovOff, ">No format ticked</text>") && startsWith(sumOff, "6 of 7") ...
+    && contains(string(app.FlowHTML.HTMLSource), ">No format ticked</text>"), ...
+    'the reads a config leaves off are dashed, the arrows into a disabled step fade with it, and the shown chart follows edits');
+app.FlowViewDropDown.Value = "detail";
+app.onFlowViewChanged();
+check(app.FlowLayoutDropDown.Enable == "on" && contains(string(app.FlowHTML.HTMLSource), "Preprocessing diagram: gui test") ...
+    && string(getpref(g, 'DiagramView')) == "detail", 'back on "Every parameter": the detail chart, with Layout on again');
+app.applyConfig(loaded);
 app.selectTab(app.TabProject);
 g2 = app.gatherConfig();
 check(g2.isequalConfig(app.Config) && isequaln(g2.toStruct(), cfg.toStruct()), 'gatherConfig reproduces the loaded config exactly');
@@ -398,6 +455,34 @@ check(isscalar(mv) && isscalar(mvT) && any(mvT.Data.Field == "Periods" & mvT.Dat
     'Dataset > View manifest opens the active dataset''s manifest in a viewer');
 close(mv);
 check(~any(isvalid(mv)), 'closing the viewer window closes it');
+check(app.ToolsTargetLabel.Text == "recA_260101_120000" && app.ToolsManifestButton.Enable == "on" ...
+    && app.ToolsAnalysisButton.Enable == "on" && app.ToolsFolderButton.Enable == "on" ...
+    && app.ToolsPhyButton.Enable == matlab.lang.OnOffSwitchState(app.currentDataset().hasPhyOutput()), ...
+    'the Tools panel names the active dataset; phy only with sorted output');
+app.ToolsScopeDropDown.Value = 'ticked';
+app.syncToolsPanel();
+check(app.ToolsTargetLabel.Text == "recA_260101_120000 (none ticked: every dataset)", ...
+    'Tools on the ticked datasets with none ticked: every dataset, as a run takes them');
+app.onSelectDatasets("all");
+check(app.ToolsTargetLabel.Text == "1 ticked: recA_260101_120000", 'ticking a row names it in the Tools panel');
+app.onOpenTool("manifest");
+mv = findall(groot, 'Type', 'figure', 'Name', "Manifest - recA_260101_120000_manifest.json");
+check(isscalar(mv) && contains(app.StatusBar.Text, "Opened the manifest of recA_260101_120000"), ...
+    'Tools > Manifest viewer opens the ticked dataset''s manifest');
+close(mv);
+if exist('EphysAnalysisApp', 'class')
+    an = app.onOpenAnalysisApp(app.toolTargets());
+    anS = an.Config.Source;
+    check(isvalid(an.Fig) && anS.Mode == "project" && anS.Root == app.Project.Root && anS.Selection == "all" ...
+        && height(an.DatasetsTable.Data) == 1 && contains(app.StatusBar.Text, "Opened the analysis app on"), ...
+        'Tools > Analysis app on every dataset opens the analysis app on the whole project');
+    delete(an.Fig);   % not onClose: that saves the analysis app's preferences
+else
+    fprintf('  (analysis folder not on the path: Tools > Analysis app not checked)\n');
+end
+app.onSelectDatasets("none");
+app.ToolsScopeDropDown.Value = 'active';
+app.syncToolsPanel();
 check(~isempty(app.EpsychMetaCache) && isKey(app.EpsychMetaCache, char(behFile)) ...
     && contains(app.DatasetsTable.Data.Behavior(1), "(1 trials)"), ...
     'the Behavior column reads the session summary once and keeps it until the file changes');
@@ -1070,6 +1155,41 @@ check(abs(R.durSec - (dR.Duration - 0.005)) < 1e-9 && all(abs(R.firingRate - R.n
     'firing rates are over the sorted part of the recording: tmin (settings.json) to its end, not to the last spike');
 writeJsonFile(settingsFile, S0);
 app.syncReviewDataset();
+ax = app.ReviewUnitShankAxes;
+check(ax.Title.String == "Unit on its shank" && contains(string(findobj(ax, 'Type', 'text').String), "Pick a unit"), ...
+    'with no unit selected the shank plot asks for one');
+binX = zeros(4, 46000, 'int16');                 % the sort's dat_path, x.bin: troughs at its spikes
+binX(2, [300 600 30000] + 1) = -500;
+binX(4, [900 1500] + 1) = -800;
+fid = fopen(fullfile(phyDir, 'x.bin'), 'w', 'ieee-le'); fwrite(fid, binX, 'int16'); fclose(fid);
+row = find(cellfun(@(v) isequal(v, 0), app.ReviewUnitsTable.Data(:, 1)), 1);
+app.onReviewUnitSelected(struct('Indices', [row 1]));
+nOf = @(type) numel(findobj(ax, 'Type', type));
+check(contains(string(ax.Title.String), "su000_recA_260101T1200 on shank 0") ...
+    && string(ax.Subtitle.String) == "3 of 3 spikes, mean " + char(177) + " SD" ...
+    && isequal(size(app.ReviewSpikeWaves.W), [8 4 3]) && nOf('line') == 4 + 4 + 1 && nOf('patch') == 4 ...
+    && any(string(get(findobj(ax, 'Type', 'text'), 'String')) == "A-001"), ...
+    'selecting a unit draws its spikes, their mean and SD band on every site of its shank, labelled by channel, and a scale bar');
+reads = app.ReviewSpikeWaves;
+app.ReviewShankBandDropDown.Value = 'none';
+app.renderReviewUnitShank();
+n1 = nOf('patch');
+app.ReviewShankSpikesCheckBox.Value = false;
+app.renderReviewUnitShank();
+n2 = nOf('line');
+app.ReviewShankSpikesCheckBox.Value = true; app.ReviewShankMeanCheckBox.Value = false;
+app.renderReviewUnitShank();
+check(n1 == 0 && n2 == 4 + 1 && nOf('line') == 4 + 1 && isequal(app.ReviewSpikeWaves, reads), ...
+    'Spikes, Mean and the band each switch their part; the spikes are not read again');
+app.ReviewShankMeanCheckBox.Value = true; app.ReviewShankBandDropDown.Value = 'SD';
+app.onReviewAllUnits();
+check(ax.Title.String == "Unit on its shank", '"Show all units" clears the shank plot');
+delete(fullfile(phyDir, 'x.bin'));
+app.syncReviewDataset();
+app.onReviewUnitSelected(struct('Indices', [row 1]));
+check(startsWith(string(ax.Subtitle.String), "Template: the sorted .bin is not there") && nOf('line') == 4 + 1 ...
+    && contains(string(app.StatusBar.Text), "its template is shown"), ...
+    'without the sorted .bin the unit''s template is drawn instead, and the status bar says why');
 
 fprintf('\n== 4b. Run tab: the run diagram ==\n');
 check(app.RunDiagramPanel.Visible == "off" && isequal(app.RunSplitGrid.ColumnWidth, {'1x', 0}) ...
@@ -1461,10 +1581,10 @@ ok = app.openConfigFile(cfgFile);
 check(ok && app.Config.Spikes.Threshold == 1500 && any(app.RecentConfigs == string(cfgFile)), 'reopen + recent list');
 check(ispref(g, 'LastConfigFile') && strcmp(getpref(g, 'LastConfigFile'), cfgFile), 'the last config file is remembered');
 
-fprintf('\n== 6. a config for another root; a rescan; Visualize bins and overlay ==\n');
+fprintf('\n== 6. a config for another root; a rescan; the Visualize tab ==\n');
 % A second project: recM002 (one file) and recM003, five files of 512
 % samples with one spike at recording sample 2500 of channel 1 - a long
-% recording in small, whose Visualize bins cross the file boundaries.
+% recording in small, which Visualize reads across the file boundaries.
 root2 = fullfile(root, 'proj2');
 flatRaw = repmat(uint16(32768), numAmp, 4 * spb);
 flatDig = zeros(1, 4 * spb);
@@ -1524,23 +1644,52 @@ dM3 = app.Project.Datasets(names == "recM003_260103_120000");
 dM2.ManualArtifacts = [0.001 0.002]; dM2.writeManifest();
 dM3.ManualArtifacts = [0.03 0.031]; dM3.writeManifest();
 app.selectDataset(find(names == "recM003_260103_120000"));
-app.selectTab(app.TabVisualize);
+app.selectTab(app.TabVisualize);   % opening the tab loads the active dataset
+app.Viewer.RenderDelay = 0;
+check(app.VizDataset == dM3 && isequal(app.VizSourceDropDown.ItemsData, {'recording'}) ...
+    && app.Viewer.Source.Kind == "recording" && app.Viewer.Source.Reference == "pipeline", ...
+    'opening the tab loads the active dataset: its recording, the only signal it has, read as the pipeline reads it');
 app.VizChannelsField.Value = '1';
-app.VizFileDropDown.Value = '(all)';
 app.VizHighpassField.Value = ''; app.VizLowpassField.Value = '';
-app.VizRefDropDown.Value = 'none'; app.VizDetrendCheckBox.Value = false;
+app.VizRefDropDown.Value = 'none'; app.VizOffsetCheckBox.Value = false;
 app.VizModeDropDown.Value = 'traces';
-app.VizStartField.Value = 0; app.VizDurField.Value = 1;
-app.VizMemoryBudget = 1150;   % 5 x 512 samples of one channel: 9-sample bins
-app.onPlotVisualization();
-hl = findobj(app.VizAxes, 'Type', 'line');
-[~, iPk] = max(hl(1).YData);
-tPk = hl(1).XData(iPk);
-check(contains(app.VizStatusLabel.Text, "Decimated 9x") && app.Viewer.NumSamples == ceil(5 * 4 * spb / 9) ...
-    && tPk <= tSpike / Fs && tPk > (tSpike - 9) / Fs, ...
-    'decimated bins run across the files: the spike in the last file is drawn within one bin of its recording time, and the last bin holds the last samples');
+app.onVizControlsChanged("channels");
+app.onVizControlsChanged("processing");
+app.onVizControlsChanged("mode");
+nTot = 5 * 4 * spb;
+app.Viewer.setView(0, nTot / Fs);   % the whole recording: five files, read a chunk at a time
+b = app.Viewer.LastRender.bin;
+[x, y] = vizTrace(app.VizAxes);
+[~, iPk] = max(y);
+check(app.Viewer.Channels == 1 && app.Viewer.Source.Reference == "none" && b > 1 ...
+    && x(iPk) <= tSpike / Fs && x(iPk) > (tSpike - b) / Fs && x(end) > (nTot - 2 * b) / Fs, ...
+    'the whole recording in min / max bins across the files: the spike in the last file at its bin''s first sample, the last bin at the end');
+app.Viewer.setView((tSpike - 5) / Fs, 10 / Fs);
+[x, y] = vizTrace(app.VizAxes);
+[~, iPk] = max(y);
+check(app.Viewer.LastRender.bin == 1 && abs(x(iPk) - tSpike / Fs) < 1e-9 && app.VizStartField.Value == app.Viewer.TStart, ...
+    'zoomed in, the spike is drawn at its own sample, (row-1)/Fs, and the Start field follows the view');
+pp = getpixelposition(app.VizAxes, true);
+app.Fig.CurrentPoint = pp(1:2) + pp(3:4) / 2;   % the pointer over the plot
+t0 = app.Viewer.TStart;
+w0 = app.Viewer.TWidth;   % 20 samples: no view is narrower
+app.Fig.WindowKeyPressFcn(app.Fig, struct('Key', 'rightarrow', 'Modifier', {{}}, 'Character', ''));
+t1 = app.Viewer.TStart;
+app.Fig.WindowScrollWheelFcn(app.Fig, struct('VerticalScrollCount', 1));
+w1 = app.Viewer.TWidth;
+t2 = app.Viewer.TStart;
+app.VizToolbarButtons(2).ButtonPushedFcn(app.VizToolbarButtons(2), []);   % Page >
+check(abs(w0 - 20 / Fs) < 1e-12 && abs(t1 - t0 - w0 / 4) < 1e-9 && abs(w1 - 1.25 * w0) < 1e-9 ...
+    && abs(app.Viewer.TStart - t2 - w1) < 1e-9, ...
+    'with the pointer over the plot the right arrow pans, the wheel zooms time; Page > moves a window');
+app.Fig.CurrentPoint = [1 1];
+w2 = app.Viewer.TWidth;
+app.Fig.WindowScrollWheelFcn(app.Fig, struct('VerticalScrollCount', 1));
+check(app.Viewer.TWidth == w2, 'the wheel away from the plot leaves it alone');
+app.Viewer.setView(0, nTot / Fs);
+p = findall(app.VizAxes, 'Type', 'patch', 'Visible', 'on');
 check(isempty(app.vizDetectedIntervals()) && contains(app.VizArtStatusLabel.Text, "Detect / Preview") ...
-    && numel(findobj(app.VizAxes, 'Type', 'constantregion')) == 1, ...
+    && isscalar(p) && isequal(p.FaceColor, [0.85 0.2 0.2]), ...
     'before a Detect / Preview only the manual period is shaded (red), and the tab says where detected periods come from');
 app.selectTab(app.TabArtifacts);
 app.ArtMethodDropDown.Value = 'microvolts';
@@ -1552,15 +1701,17 @@ app.onDetectArtifacts();
 app.selectTab(app.TabVisualize);   % the overlay follows the preview
 iv = app.vizDetectedIntervals();
 tMid = (tSpike + 0.5) / Fs;   % inside the spike's sample, [tSpike tSpike+1) / Fs
+p = findall(app.VizAxes, 'Type', 'patch', 'Visible', 'on');
 check(size(iv, 1) == 1 && iv(1, 1) < tMid && iv(1, 2) > tMid ...
-    && numel(findobj(app.VizAxes, 'Type', 'constantregion')) == 2 && contains(app.VizArtStatusLabel.Text, "1 detected"), ...
+    && numel(p) == 2 && any(arrayfun(@(h) isequal(h.FaceColor, [0.95 0.6 0.1]), p)) ...
+    && contains(app.VizArtStatusLabel.Text, "1 detected"), ...
     'after a Detect / Preview the plot shades the preview''s detection (orange) beside the manual period (red)');
 app.selectTab(app.TabArtifacts);
 app.ArtThresholdField.Value = 600;
 app.onArtifactControlsChanged();
 app.selectTab(app.TabVisualize);
 check(isempty(app.vizDetectedIntervals()) && contains(app.VizArtStatusLabel.Text, "changed") ...
-    && numel(findobj(app.VizAxes, 'Type', 'constantregion')) == 1, ...
+    && isscalar(findall(app.VizAxes, 'Type', 'patch', 'Visible', 'on')), ...
     'a detection setting changed since the preview: nothing is shaded orange, and the tab says so');
 app.applyArtifactsSection(cfgB.Artifacts);
 app.onArtifactControlsChanged();
@@ -1572,7 +1723,7 @@ dM2 = app.Project.Datasets(names == "recM002_260102_120000");
 dM3 = app.Project.Datasets(names == "recM003_260103_120000");
 iM3 = find(names == "recM003_260103_120000");
 check(app.Project.NumDatasets == 3 && app.currentDataset() == dM3 && app.VizDataset == dM3 ...
-    && strcmp(app.VizArtButton.Enable, 'on') && ~contains(app.VizStatusLabel.Text, "Press Plot"), ...
+    && strcmp(app.VizArtButton.Enable, 'on') && ~contains(app.VizStatusLabel.Text, "The plot shows"), ...
     'a rescan that finds a dataset in front keeps recM003 active, and its plot current (a mark goes to recM003)');
 app.onVizArtClear();
 check(isempty(dM3.ManualArtifacts) && isequal(dM2.ManualArtifacts, [0.001 0.002]), ...
@@ -1726,4 +1877,60 @@ end
 function tip = tabTip(app, tab)
 %tabTip  Status tooltip of TAB's button in the tab strip.
 tip = string(app.TabButtons(app.TabList == tab).Tooltip);
+end
+
+
+function [nCross, nOverlap, nThrough, nBadEnd] = flowGeometry(M)
+%flowGeometry  Check the Diagram overview's routing (flowOverviewHTML's MODEL):
+%   the points where arrows from different sources cross, the stretches two
+%   of them share, the pieces running through a box, and the arrows that do
+%   not end going down onto the top of their target.
+ids = [M.nodes.id];
+R = vertcat(M.nodes.rect);
+S = zeros(0, 5);   % x1 y1 x2 y2 source
+nThrough = 0; nBadEnd = 0;
+for k = 1:numel(M.edges)
+    p = M.edges(k).points;
+    t = R(ids == M.edges(k).to, :);
+    nBadEnd = nBadEnd + ~(abs(p(end, 2) - t(2)) < 0.01 && p(end, 1) > t(1) && p(end, 1) < t(1) + t(3) ...
+        && abs(p(end - 1, 1) - p(end, 1)) < 0.01 && p(end - 1, 2) < p(end, 2));
+    for j = 1:size(p, 1) - 1
+        a = p(j, :); b = p(j + 1, :);
+        S(end + 1, :) = [a, b, find(ids == M.edges(k).from)]; %#ok<AGROW>
+        nThrough = nThrough + nnz(max(a(1), b(1)) > R(:, 1) + 0.5 & min(a(1), b(1)) < R(:, 1) + R(:, 3) - 0.5 ...
+            & max(a(2), b(2)) > R(:, 2) + 0.5 & min(a(2), b(2)) < R(:, 2) + R(:, 4) - 0.5);
+    end
+end
+isH = abs(S(:, 2) - S(:, 4)) < 1e-6;
+at = zeros(0, 4);
+nOverlap = 0;
+for i = 1:size(S, 1)
+    for j = i + 1:size(S, 1)
+        a = S(i, :); b = S(j, :);
+        if a(5) == b(5); continue; end   % one source's arrows share their first stretch
+        if isH(i) ~= isH(j)
+            if isH(i); h = a; v = b; else; h = b; v = a; end
+            if v(1) > min(h(1), h(3)) + 0.5 && v(1) < max(h(1), h(3)) - 0.5 ...
+                    && h(2) > min(v(2), v(4)) + 0.5 && h(2) < max(v(2), v(4)) - 0.5
+                at(end + 1, :) = round([v(1), h(2), sort([a(5), b(5)])]); %#ok<AGROW>
+            end
+        else   % both horizontal (same y, x ends 1 and 3) or both vertical (same x, y ends 2 and 4)
+            if isH(i); c = 2; r = [1 3]; else; c = 1; r = [2 4]; end
+            nOverlap = nOverlap + (abs(a(c) - b(c)) < 0.5 ...
+                && min(max(a(r)), max(b(r))) - max(min(a(r)), min(b(r))) > 0.5);
+        end
+    end
+end
+nCross = size(unique(at, 'rows'), 1);
+end
+
+
+function [x, y] = vizTrace(ax)
+% The points of the Visualize plot's trace lines (width 0.5) that hold data.
+x = []; y = [];
+for h = findall(ax, 'Type', 'line', 'LineWidth', 0.5, 'Visible', 'on').'
+    if all(isnan(h.YData)); continue; end
+    in = ~isnan(h.YData);
+    x = [x; h.XData(in).']; y = [y; h.YData(in).']; %#ok<AGROW>
+end
 end

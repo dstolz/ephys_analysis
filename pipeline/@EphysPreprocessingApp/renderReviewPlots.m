@@ -1,9 +1,11 @@
 function renderReviewPlots(obj)
-%renderReviewPlots  Draw the four Review-tab axes from cached ReviewData.
+%renderReviewPlots  Draw the Review-tab axes from cached ReviewData.
 %   Units-per-shank and firing-rate plots always show every unit; the waveform
 %   and amplitude plots show all units when nothing is selected, or focus on
 %   obj.ReviewSelectedUnit (a row index into ReviewData) when a table row is
-%   picked. Reads only the cache, so it is cheap to call on every selection.
+%   picked. These four read only the cache, so they are cheap to call on
+%   every selection; the fifth, the selected unit's spikes on its shank
+%   (renderReviewUnitShank), reads that unit's spikes once.
 
 if isempty(obj.ReviewData); return; end
 R = obj.ReviewData;
@@ -20,6 +22,7 @@ plotUnitsPerShank(obj.ReviewShankAxes, R, shankColors);
 plotWaveforms(obj.ReviewWaveAxes, R, sel, shankColors, shankIdx);
 plotAmplitudes(obj.ReviewAmpAxes, R, sel);
 plotFiringRates(obj.ReviewRateAxes, R, sel, shankColors, shankIdx);
+obj.renderReviewUnitShank();
 end
 
 

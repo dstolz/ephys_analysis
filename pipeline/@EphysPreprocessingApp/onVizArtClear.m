@@ -8,6 +8,6 @@ function onVizArtClear(obj)
     end
     d.ManualArtifacts = zeros(0, 2);
     obj.saveManifests(d);              % periods persist in the manifest
-    if ~isempty(obj.Viewer) && isvalid(obj.Viewer); obj.Viewer.render(); end
+    obj.refreshVizShading();
     obj.updateVizArtStatus();
 end

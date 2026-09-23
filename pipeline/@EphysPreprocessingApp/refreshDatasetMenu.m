@@ -5,8 +5,9 @@ function refreshDatasetMenu(obj)
 %   the "All datasets" submenu that holds every dataset (filled by
 %   populateDatasetPickers). An item makes its dataset active (selectDataset);
 %   the active one is checked here and in the submenu. Every tab's Dataset
-%   box is limited to the same datasets (refreshDatasetPickers). Called
-%   whenever the ticks change.
+%   box is limited to the same datasets (refreshDatasetPickers), and the
+%   Tools panel names them (syncToolsPanel). Called whenever the ticks
+%   change.
 delete(obj.DatasetTickedItems(isvalid(obj.DatasetTickedItems)));
 obj.DatasetTickedItems = matlab.ui.container.Menu.empty(1, 0);
 
@@ -33,4 +34,5 @@ end
 obj.DatasetMenu.Children = [obj.DatasetManifestItem; obj.DatasetAllMenu; flipud(obj.DatasetTickedItems(:))];
 
 obj.refreshDatasetPickers();
+obj.syncToolsPanel();
 end

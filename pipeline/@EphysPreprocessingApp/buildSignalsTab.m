@@ -13,7 +13,7 @@ g.Padding     = [10 10 10 10];
 opt = uipanel(g, "Title", "Signal options (config: Signals; EphysDataset.deriveSignals / toMat)");
 opt.Layout.Column = 1;
 
-nRows = 28;
+nRows = 29;
 cg = uigridlayout(opt, [nRows 5]);
 cg.Scrollable  = "on";
 cg.RowHeight   = repmat({26}, 1, nRows);
@@ -99,6 +99,24 @@ obj.SigBlankArtifactsCheckBox = uicheckbox(cg, "Text", ...
         "AUX is not changed.", ...
     "ValueChangedFcn", changed);
 obj.SigBlankArtifactsCheckBox.Layout.Row = r; obj.SigBlankArtifactsCheckBox.Layout.Column = [1 5];
+
+r = r + 1;
+refTip = "The common reference set on the Artifacts tab (CAR / CMR over the good channels), subtracted " + ...
+    "once, sample by sample, from the signals ticked here before they are derived. It usually suits " + ...
+    "MUA and SPIKE, which it rids of noise shared by every channel; the LFP is usually kept as " + ...
+    "recorded, since the reference removes the LFP that the channels share. Nothing is subtracted " + ...
+    "while the reference is None. Each file records it (info.<TYPE>.reference).";
+l = lab(cg, "Common reference:", r);
+l.Tooltip = refTip;
+obj.SigRefLFPCheckBox = uicheckbox(cg, "Text", "LFP", "Value", false, ...
+    "Tooltip", "LFP_Reference: " + refTip, "ValueChangedFcn", changed);
+obj.SigRefLFPCheckBox.Layout.Row = r; obj.SigRefLFPCheckBox.Layout.Column = 2;
+obj.SigRefMUACheckBox = uicheckbox(cg, "Text", "MUA", "Value", true, ...
+    "Tooltip", "MUA_Reference: " + refTip, "ValueChangedFcn", changed);
+obj.SigRefMUACheckBox.Layout.Row = r; obj.SigRefMUACheckBox.Layout.Column = 3;
+obj.SigRefSPIKECheckBox = uicheckbox(cg, "Text", "SPIKE", "Value", true, ...
+    "Tooltip", "SPIKE_Reference: " + refTip, "ValueChangedFcn", changed);
+obj.SigRefSPIKECheckBox.Layout.Row = r; obj.SigRefSPIKECheckBox.Layout.Column = [4 5];
 
 % --- LFP ---
 r = r + 1;
@@ -236,7 +254,7 @@ obj.ConvRemapField.Layout.Row = r; obj.ConvRemapField.Layout.Column = [2 5];
 
 r = r + 1;
 note = uilabel(cg, "WordWrap", "on", "FontColor", [0.4 0.4 0.4], "Text", ...
-    "Order: common reference (Artifacts tab) -> keep channels -> erase artifact periods -> LFP (resample, then filters) / MUA / SPIKE -> interpolate bad channels -> remap. Lists accept 1-based indices and ranges (1-16, 20, 32-17); order is kept.");
+    "Order: keep channels -> common reference (the signals ticked above; taken over every channel) -> erase artifact periods -> LFP (resample, then filters) / MUA / SPIKE -> interpolate bad channels -> remap. Lists accept 1-based indices and ranges (1-16, 20, 32-17); order is kept.");
 note.Layout.Row = r; note.Layout.Column = [1 5];
 cg.RowHeight{r} = 40;
 

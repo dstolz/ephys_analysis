@@ -7,7 +7,7 @@ function loadPreferences(obj)
 %   column order, the Trials-plot label parameters, the Visualize
 %   display options, the Copy tab settings (subject, roots, pairing and
 %   copy options; not the dates), the Synthetic tab's settings and
-%   design, the Run tab's Show the run diagram,
+%   design, the Diagram tab's view and layout, the Run tab's Show the run diagram,
 %   Monitor CPU, memory, disk and GPU and Queue the waiting runs, and the
 %   kinds of file the Clean up tab removes.
 %   Everything else lives in the config; the last config file is reopened
@@ -56,6 +56,9 @@ end
 if ispref(g, 'TrialsColumnOrder')
     obj.TrialsColumnOrder = reshape(string(getpref(g, 'TrialsColumnOrder')), 1, []);
 end
+if ispref(g, 'DiagramView') && ismember(string(getpref(g, 'DiagramView')), ["detail" "overview"])
+    obj.FlowViewDropDown.Value = string(getpref(g, 'DiagramView'));
+end
 if ispref(g, 'DiagramLayout') && ismember(string(getpref(g, 'DiagramLayout')), ["tree" "steps"])
     obj.FlowLayoutDropDown.Value = string(getpref(g, 'DiagramLayout'));
 end
@@ -75,14 +78,26 @@ end
 if ispref(g, 'VizOptions')
     v = getpref(g, 'VizOptions');
     if isstruct(v)
+        applyIf(v, 'source',    @(x) set(obj, 'VizSourceKind', string(x)));
         applyIf(v, 'channels',  @(x) set(obj.VizChannelsField, 'Value', char(x)));
+        applyIf(v, 'lanes',     @(x) set(obj.VizLanesField, 'Value', x));
         applyIf(v, 'duration',  @(x) set(obj.VizDurField, 'Value', x));
         applyIf(v, 'highpass',  @(x) set(obj.VizHighpassField, 'Value', char(x)));
         applyIf(v, 'lowpass',   @(x) set(obj.VizLowpassField, 'Value', char(x)));
         applyIf(v, 'order',     @(x) set(obj.VizOrderField, 'Value', x));
-        applyIf(v, 'reference', @(x) set(obj.VizRefDropDown, 'Value', char(x)));
-        applyIf(v, 'detrend',   @(x) set(obj.VizDetrendCheckBox, 'Value', logical(x)));
-        applyIf(v, 'spacing',   @(x) set(obj.VizSpacingField, 'Value', x));
+        applyIf(v, 'referenceMode', @(x) set(obj.VizRefDropDown, 'Value', char(x)));
+        applyIf(v, 'removeOffset', @(x) set(obj.VizOffsetCheckBox, 'Value', logical(x)));
+        applyIf(v, 'units',     @(x) set(obj.VizUnitsCheckBox, 'Value', logical(x)));
+        applyIf(v, 'unitStyle', @(x) set(obj.VizUnitStyleDropDown, 'Value', char(x)));
+        applyIf(v, 'unitGroups', @(x) set(obj.VizUnitGroupsDropDown, 'Value', char(x)));
+        applyIf(v, 'detected',  @(x) set(obj.VizDetectedCheckBox, 'Value', logical(x)));
+        applyIf(v, 'detectedStyle', @(x) set(obj.VizDetectedStyleDropDown, 'Value', char(x)));
+        applyIf(v, 'placement', @(x) set(obj.VizPlacementDropDown, 'Value', char(x)));
+        applyIf(v, 'mode',      @(x) set(obj.VizModeDropDown, 'Value', char(x)));
+        applyIf(v, 'colormap',  @(x) set(obj.VizColormapDropDown, 'Value', char(x)));
+        applyIf(v, 'probeOrder', @(x) set(obj.VizSortByProbeCheckBox, 'Value', logical(x)));
+        applyIf(v, 'shankColor', @(x) set(obj.VizColorByShankCheckBox, 'Value', logical(x)));
+        applyIf(v, 'shading',   @(x) set(obj.VizShadingCheckBox, 'Value', logical(x)));
     end
 end
 

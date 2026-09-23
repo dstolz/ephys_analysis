@@ -23,6 +23,9 @@ cfg.MUA   = logical(obj.ConvMUACheckBox.Value);
 cfg.SPIKE = logical(obj.ConvSPIKECheckBox.Value);
 cfg.AUX   = logical(obj.ConvAUXCheckBox.Value);
 cfg.BlankArtifacts = logical(obj.SigBlankArtifactsCheckBox.Value);
+cfg.LFP_Reference   = logical(obj.SigRefLFPCheckBox.Value);
+cfg.MUA_Reference   = logical(obj.SigRefMUACheckBox.Value);
+cfg.SPIKE_Reference = logical(obj.SigRefSPIKECheckBox.Value);
 
 cfg.LFP_Fs            = obj.ConvLFPFsField.Value;
 cfg.LFP_HighpassOn    = logical(obj.ConvLFPHighpassCheckBox.Value);

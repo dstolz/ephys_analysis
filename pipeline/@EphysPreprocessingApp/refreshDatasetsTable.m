@@ -136,7 +136,7 @@ end
 obj.NameTokenStatusLabel.Text = msg;
 
 if n > 0
-    obj.updatePhyButtonState();
+    obj.syncToolsPanel();
     obj.syncTabStrip();
 end
 end
@@ -161,7 +161,7 @@ for i = idx(idx >= 1 & idx <= obj.Project.NumDatasets)
 end
 obj.DatasetsTable.Data = T;
 obj.highlightDatasetRow();
-obj.updatePhyButtonState();
+obj.syncToolsPanel();
 done = true;
 end
 

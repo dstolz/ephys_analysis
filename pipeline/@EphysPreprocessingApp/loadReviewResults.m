@@ -49,7 +49,7 @@ cleanup = onCleanup(@() closeIfValid(dlg));
 try
     % One canonical reader for every consumer of sorted output. Every cluster
     % is shown here (IncludeNoise), labels prefer the phy curation file.
-    [U0, ui, labelNote] = readReviewUnits(obj, folder);
+    [U0, ui, labelNote, nativeNames] = readReviewUnits(obj, folder);
     fs = U0.fs;
     U  = numel(U0.unitId);
     [span, spanText] = sortedSpan(obj, folder, U0.durationSec);
@@ -73,6 +73,7 @@ try
     R.nChan    = nCh;
     R.chanShanks = chanShanks;
     R.chanPos  = ui.chanPos;
+    R.chanLabels = channelLabels(U0.channelMap, nCh, nativeNames);
     R.shankIDs = unique(chanShanks);
     R.nShank   = numel(R.shankIDs);
     R.clusterID = U0.unitId;
@@ -103,6 +104,7 @@ try
 
     obj.ReviewData = R;
     obj.ReviewSelectedUnit = 0;
+    obj.ReviewSpikeWaves = struct([]);
 
     fillSummary(obj, R);
     fillUnitsTable(obj, R);
@@ -181,14 +183,17 @@ obj.ReviewUnitsTable.Selection = [];
 end
 
 
-function [U0, ui, note] = readReviewUnits(obj, folder)
+function [U0, ui, note, names] = readReviewUnits(obj, folder)
 %readReviewUnits  Units in FOLDER, with the active dataset's identity when it owns FOLDER.
+%   NAMES: that dataset's native channel names (none for any other folder).
 note = "not the active dataset's sort";
+names = strings(1, 0);
 d = obj.currentDataset();
 if ~isempty(d) && ownsFolder(d, folder)
     try
         [U0, ui] = d.readSortedUnits(ResultsDir=folder, IncludeNoise=true, FullTemplates=true);
         note = "";
+        names = string(d.NativeNames);
         return
     catch ME
         if ~startsWith(string(ME.identifier), "EphysDataset:unitIdentity:")
@@ -258,6 +263,18 @@ f = lower(EphysProject.normalizeKey(folder));
 roots = [string(d.Folder), string(d.outputFolder()), d.SortingDir];
 roots = lower(EphysProject.normalizeKey(roots(roots ~= "")));
 tf = any(f == roots) || any(startsWith(f, roots + "/"));
+end
+
+
+function lbl = channelLabels(channelMap, nCh, names)
+%channelLabels  Each sorted channel's name ("A-012"), else its recording channel number.
+lbl = strings(nCh, 1);
+n = min(nCh, numel(channelMap));
+rec = channelMap(1:n);
+lbl(1:n) = string(rec);
+ok = find(isfinite(rec) & rec >= 1 & rec <= numel(names));
+ok = ok(names(rec(ok)) ~= "");
+lbl(ok) = names(rec(ok));
 end
 
 

@@ -24,7 +24,7 @@ obj.setDropIfMember(obj.SpkWaveSourceDropDown, K.WaveformSource, "Spikes.Wavefor
 obj.setDropIfMember(obj.SpkEdgeDropDown, K.EdgeHandling, "Spikes.EdgeHandling");
 obj.setDropIfMember(obj.SpkChannelsDropDown, K.Channels, "Spikes.Channels");
 obj.SpkChannelListField.Value = char(K.ChannelList);
-obj.SpkRejectArtifactsCheckBox.Value = logical(K.RejectArtifacts);
+obj.setDropIfMember(obj.SpkArtifactModeDropDown, K.ArtifactMode, "Spikes.ArtifactMode");
 obj.SpkChunkField.Value = numText(obj, K.MaxChunkSamples, "");
 obj.SpkEdgePadField.Value = numText(obj, K.EdgePadMs, "");
 obj.SpkGroupsField.Value = char(strjoin(K.Groups, ", "));

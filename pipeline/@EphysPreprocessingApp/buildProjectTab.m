@@ -1,7 +1,9 @@
 function buildProjectTab(obj)
 %buildProjectTab  Config name, project root / output root, name pattern,
-%   Open Ephys reader options, dataset table, selection helpers and the
-%   Epsych2 behavior association panel.
+%   Open Ephys reader options, dataset table, selection helpers, the Tools
+%   panel beside the table (the datasets in the manifest viewer, the
+%   analysis app, phy or the file browser) and the Epsych2 behavior
+%   association panel.
 %   The dataset table's Select column is the config's dataset selection
 %   (Project.Selection / Project.Datasets); the Behavior panel edits the
 %   config's Behavior section and associates session files per dataset.
@@ -108,10 +110,10 @@ obj.OEStreamField = uieditfield(oe, "text", "Placeholder", "automatic", ...
 obj.OEStreamField.Layout.Column = 5;
 
 % --- row 2: table toolbar ----------------------------------------------------
-tb = uigridlayout(g, [1 6]);
+tb = uigridlayout(g, [1 5]);
 tb.Layout.Row = 2;
 tb.RowHeight   = {30};
-tb.ColumnWidth = {'fit', 60, 60, 'fit', 'fit', '1x'};
+tb.ColumnWidth = {'fit', 60, 60, 'fit', '1x'};
 tb.Padding     = [0 0 0 0];
 lbl = uilabel(tb, "Text", "Datasets", "FontWeight", "bold");
 lbl.Layout.Column = 1;
@@ -121,26 +123,28 @@ obj.SelectAllButton.Layout.Column = 2;
 obj.SelectNoneButton = uibutton(tb, "Text", "None", "Tooltip", "Untick every dataset, shown or filtered out (= run all)", ...
     "ButtonPushedFcn", @(~,~) obj.onSelectDatasets("none"));
 obj.SelectNoneButton.Layout.Column = 3;
-obj.LaunchPhyButton = uibutton(tb, "Text", "Open in phy", ...
-    "ButtonPushedFcn", @(~,~) obj.onLaunchPhy(), "Enable", "off", ...
-    "Tooltip", "Launch phy template-gui on the active dataset's sorted output (the highlighted row).");
-obj.LaunchPhyButton.Layout.Column = 4;
 % One filter dropdown per name-pattern token (see syncTokenFilters).
 obj.NameTokenFilterGrid = uigridlayout(tb, [1 1]);
-obj.NameTokenFilterGrid.Layout.Column = 5;
+obj.NameTokenFilterGrid.Layout.Column = 4;
 obj.NameTokenFilterGrid.RowHeight = {'fit'};
 obj.NameTokenFilterGrid.ColumnWidth = {'fit'};
 obj.NameTokenFilterGrid.Padding   = [12 0 0 0];
 obj.ScanStatusLabel = uilabel(tb, "Text", "No datasets scanned yet.", "FontColor", [0.4 0.4 0.4], ...
     "HorizontalAlignment", "right");
-obj.ScanStatusLabel.Layout.Column = 6;
+obj.ScanStatusLabel.Layout.Column = 5;
 
-% --- row 3: datasets table ---------------------------------------------------
+% --- row 3: datasets table, and the Tools panel beside it --------------------
 % Columns (headers, widths, the trailing hidden "DatasetIdx" that maps a row
 % back to obj.Project.Datasets) are laid out by refreshDatasetsTable. Headers
 % can be dragged into a new order, which refreshes keep.
-obj.DatasetsTable = uitable(g, "ColumnRearrangeable", "on");
-obj.DatasetsTable.Layout.Row = 3;
+mid = uigridlayout(g, [1 2]);
+mid.Layout.Row = 3;
+mid.RowHeight   = {'1x'};
+mid.ColumnWidth = {'1x', 190};
+mid.Padding     = [0 0 0 0];
+obj.DatasetsTable = uitable(mid, "ColumnRearrangeable", "on");
+obj.DatasetsTable.Layout.Row = 1; obj.DatasetsTable.Layout.Column = 1;
+buildToolsPanel(obj, mid);
 % Clicking a row makes its dataset the active one (highlighted; see selectDataset).
 obj.DatasetsTable.CellSelectionCallback = @(~,evt) obj.onDatasetCellSelection(evt);
 % Select is the only editable column: a tick changes the selection and the Dataset menu.
@@ -204,4 +208,39 @@ end
 function ticksEdited(obj)
 obj.refreshDatasetMenu();
 obj.onConfigChanged();
+end
+
+
+function buildToolsPanel(obj, parent)
+%buildToolsPanel  Open the active or the ticked datasets in another program.
+%   The scope box chooses the datasets (toolTargets), the label names them
+%   and each button opens them in one program (onOpenTool). Everything
+%   is off until a scan (syncToolsPanel).
+tp = uipanel(parent, "Title", "Tools");
+tp.Layout.Row = 1; tp.Layout.Column = 2;
+tg = uigridlayout(tp, [7 1]);
+tg.RowHeight   = {'fit', 'fit', 30, 30, 30, 30, '1x'};
+tg.ColumnWidth = {'1x'};
+tg.RowSpacing  = 6;
+tg.Padding     = [8 8 8 8];
+obj.ToolsScopeDropDown = uidropdown(tg, "Items", {'Active dataset', 'Ticked datasets'}, ...
+    "ItemsData", {'active', 'ticked'}, "Value", 'active', ...
+    "Tooltip", ["What the buttons below open:" ...
+        "Active dataset: the highlighted row" ...
+        "Ticked datasets: the ticked rows, or every dataset when none is ticked"], ...
+    "ValueChangedFcn", @(~,~) obj.syncToolsPanel());
+obj.ToolsTargetLabel = uilabel(tg, "Text", "Scan a project first.", "WordWrap", "on", ...
+    "FontColor", [0.4 0.4 0.4]);
+obj.ToolsManifestButton = uibutton(tg, "Text", "Manifest viewer", "Enable", "off", ...
+    "Tooltip", "Open each dataset's <Name>_manifest.json in the manifest viewer, a window each.", ...
+    "ButtonPushedFcn", @(~,~) obj.onOpenTool("manifest"));
+obj.ToolsAnalysisButton = uibutton(tg, "Text", "Analysis app", "Enable", "off", ...
+    "Tooltip", "Open the analysis app (PSTHs, rasters, evoked potentials, rates, tuning, probe maps) on these datasets' outputs, all in one window.", ...
+    "ButtonPushedFcn", @(~,~) obj.onOpenTool("analysis"));
+obj.ToolsPhyButton = uibutton(tg, "Text", "phy", "Enable", "off", ...
+    "Tooltip", "Launch phy template-gui on each dataset's sorted output (the ones with a params.py), a window each.", ...
+    "ButtonPushedFcn", @(~,~) obj.onOpenTool("phy"));
+obj.ToolsFolderButton = uibutton(tg, "Text", "Output folder", "Enable", "off", ...
+    "Tooltip", "Open each dataset's output folder in the file browser.", ...
+    "ButtonPushedFcn", @(~,~) obj.onOpenTool("folder"));
 end

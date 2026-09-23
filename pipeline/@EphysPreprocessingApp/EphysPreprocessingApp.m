@@ -26,7 +26,9 @@ classdef EphysPreprocessingApp < handle
     %                (CopySchedule); the tab saves it and shows its last run
     %     Project    config name, project root / output root, dataset table
     %                (the Select column is the config's dataset selection),
-    %                Epsych2 behavior associations
+    %                a Tools panel that opens the active or the ticked
+    %                datasets in the manifest viewer, the analysis app, phy
+    %                or the file browser, Epsych2 behavior associations
     %     Trials     pair Epsych2 trials in order with the trial digital line,
     %                per-line TTL polarity, resolve a trial / interval count
     %                mismatch by cutting from either end, approve the pairing
@@ -43,11 +45,14 @@ classdef EphysPreprocessingApp < handle
     %     Signals    derived LFP / MUA / SPIKE / AUX (.mat) settings, plan, Run
     %     Spikes     threshold detection / sorted units (.mat), preview, Run
     %     Export     analysis-toolbox and epoch files (one per format), plan, Run
-    %     Diagram    diagram of the working config: one tree from the raw
-    %                recording, a branch per step (filters, references,
-    %                detection parameters, files written), with the steps
-    %                that read those files hanging from them, or a tree
-    %                per step (Layout); Save as HTML
+    %     Diagram    diagram of the working config (View): every parameter,
+    %                as one tree from the raw recording, a branch per step
+    %                (filters, references, detection parameters, files
+    %                written), with the steps that read those files hanging
+    %                from them, or a tree per step (Layout); or a data-flow
+    %                overview, every step as one box with the files it
+    %                writes and an arrow to each step that reads them;
+    %                Save as HTML
     %     Run        step checklist (with how many background Kilosort4 runs
     %                go at once, the GPUs they share and whether the Run
     %                hands the waiting ones to the monitor's queue),
@@ -57,7 +62,10 @@ classdef EphysPreprocessingApp < handle
     %                run's steps (the one underway highlighted, each with
     %                its % done) in the right quarter, and CPU / memory / disk /
     %                GPU use under the steps
-    %     Visualize  plot a window, mark manual artifact periods
+    %     Visualize  any signal of the active dataset (recording, Sorting .bin,
+    %                LFP / MUA / SPIKE / AUX) with its sorted units and
+    %                detected spikes, read a window at a time; mark manual
+    %                artifact periods
     %     Review     inspect sorted units
     %     Synthetic  design and write a synthetic dataset (makeSyntheticRecording):
     %                events from the built-in task or from the active
@@ -107,7 +115,8 @@ classdef EphysPreprocessingApp < handle
     %   datasets-table column order, the Trials-table parameter columns and
     %   column order, the Trials-plot label parameters, the Visualize
     %   display options, the Copy tab settings, the Synthetic tab's settings
-    %   and design, and the Run tab's Show the run diagram and Monitor CPU,
+    %   and design, the Diagram tab's view and layout, and the Run tab's
+    %   Show the run diagram and Monitor CPU,
     %   memory, disk and GPU switches.
     %
     %   Usage
@@ -208,7 +217,6 @@ classdef EphysPreprocessingApp < handle
         OEStreamField        matlab.ui.control.EditField  % Acquisition.OpenEphys.Stream ("" = automatic)
         ScanButton        matlab.ui.control.Button
         RefreshMetaButton matlab.ui.control.Button
-        LaunchPhyButton   matlab.ui.control.Button
         SelectAllButton   matlab.ui.control.Button
         SelectNoneButton  matlab.ui.control.Button
         OutputRootField   matlab.ui.control.EditField
@@ -221,6 +229,13 @@ classdef EphysPreprocessingApp < handle
         NameTokenFilters  matlab.ui.control.DropDown   % one per pattern token: row filter (UserData = token name)
         DatasetsTable     matlab.ui.control.Table
         ScanStatusLabel   matlab.ui.control.Label
+        % Tools panel (beside the table): open datasets in other programs (onOpenTool)
+        ToolsScopeDropDown  matlab.ui.control.DropDown   % ItemsData "active" | "ticked" (toolTargets)
+        ToolsTargetLabel    matlab.ui.control.Label      % names what the buttons open (syncToolsPanel)
+        ToolsManifestButton matlab.ui.control.Button
+        ToolsAnalysisButton matlab.ui.control.Button
+        ToolsPhyButton      matlab.ui.control.Button
+        ToolsFolderButton   matlab.ui.control.Button
         BehEnableCheckBox    matlab.ui.control.CheckBox
         BehSearchDirsField   matlab.ui.control.EditField
         BehBrowseButton      matlab.ui.control.Button
@@ -258,27 +273,39 @@ classdef EphysPreprocessingApp < handle
 
         % --- Visualize tab ---
         VizDatasetDropDown matlab.ui.control.DropDown
-        VizFileDropDown    matlab.ui.control.DropDown
+        VizSourceDropDown  matlab.ui.control.DropDown     % the signal shown (Show)
+        VizSourceNoteLabel matlab.ui.control.Label        % what that signal is
         VizChannelsField   matlab.ui.control.EditField
-        VizStartField      matlab.ui.control.NumericEditField
-        VizDurField        matlab.ui.control.NumericEditField
+        VizLanesField      matlab.ui.control.NumericEditField   % lanes shown at once
+        VizRefDropDown     matlab.ui.control.DropDown
         VizHighpassField   matlab.ui.control.EditField
         VizLowpassField    matlab.ui.control.EditField
         VizOrderField      matlab.ui.control.NumericEditField
-        VizRefDropDown     matlab.ui.control.DropDown
-        VizDetrendCheckBox matlab.ui.control.CheckBox
+        VizOffsetCheckBox  matlab.ui.control.CheckBox     % centre each lane on its median
+        VizPlotButton      matlab.ui.control.Button       % Reload data
+        VizUnitsCheckBox   matlab.ui.control.CheckBox
+        VizUnitStyleDropDown matlab.ui.control.DropDown   % ticks / waveforms
+        VizUnitGroupsDropDown matlab.ui.control.DropDown  % which units by label
+        VizDetectedCheckBox matlab.ui.control.CheckBox
+        VizDetectedStyleDropDown matlab.ui.control.DropDown
+        VizPlacementDropDown matlab.ui.control.DropDown   % spikes on their channel's lane / lanes of their own
+        VizSpikesLabel     matlab.ui.control.Label
+        VizStartField      matlab.ui.control.NumericEditField
+        VizDurField        matlab.ui.control.NumericEditField
         VizSpacingField    matlab.ui.control.NumericEditField
         VizModeDropDown    matlab.ui.control.DropDown
         VizColormapDropDown matlab.ui.control.DropDown
         VizSortByProbeCheckBox matlab.ui.control.CheckBox
         VizColorByShankCheckBox matlab.ui.control.CheckBox
-        VizPlotButton      matlab.ui.control.Button
+        VizShadingCheckBox matlab.ui.control.CheckBox
         VizArtButton       matlab.ui.control.StateButton
         VizArtClearButton  matlab.ui.control.Button
         VizArtStatusLabel  matlab.ui.control.Label
-        VizAxes            matlab.ui.control.UIAxes
-        VizStatusLabel     matlab.ui.control.Label
         VizHelpLabel       matlab.ui.control.Label
+        VizToolbarButtons  % 1 x 8 matlab.ui.control.Button: page, zoom, scale, auto scale, reset
+        VizStatusLabel     matlab.ui.control.Label
+        VizAxes            matlab.ui.control.UIAxes
+        VizOverviewAxes    matlab.ui.control.UIAxes       % the whole recording under the plot
 
         % --- Artifacts tab ---
         ArtDatasetDropDown  matlab.ui.control.DropDown
@@ -383,6 +410,11 @@ classdef EphysPreprocessingApp < handle
         ReviewWaveAxes      matlab.ui.control.UIAxes
         ReviewAmpAxes       matlab.ui.control.UIAxes
         ReviewRateAxes      matlab.ui.control.UIAxes
+        ReviewUnitShankAxes matlab.ui.control.UIAxes          % the selected unit's spikes on its shank
+        ReviewShankSpikesCheckBox matlab.ui.control.CheckBox
+        ReviewShankCountSpinner matlab.ui.control.Spinner
+        ReviewShankMeanCheckBox matlab.ui.control.CheckBox
+        ReviewShankBandDropDown matlab.ui.control.DropDown
 
         % --- Synthetic tab (makeSyntheticRecording; every setting is a preference) ---
         SynthSourceDropDown   matlab.ui.control.DropDown          % ItemsData "task" | "recording" | "session"
@@ -469,6 +501,9 @@ classdef EphysPreprocessingApp < handle
         ConvSPIKECheckBox       matlab.ui.control.CheckBox
         ConvAUXCheckBox         matlab.ui.control.CheckBox
         SigBlankArtifactsCheckBox matlab.ui.control.CheckBox   % erase the artifact periods before deriving
+        SigRefLFPCheckBox       matlab.ui.control.CheckBox     % the common reference subtracted from the LFP
+        SigRefMUACheckBox       matlab.ui.control.CheckBox     % ... from the MUA
+        SigRefSPIKECheckBox     matlab.ui.control.CheckBox     % ... from the SPIKE band
         ConvLFPFsField          matlab.ui.control.NumericEditField
         ConvLFPHighpassCheckBox matlab.ui.control.CheckBox
         ConvLFPHighpassField    matlab.ui.control.NumericEditField
@@ -518,7 +553,7 @@ classdef EphysPreprocessingApp < handle
         SpkEdgeDropDown      matlab.ui.control.DropDown
         SpkChannelsDropDown  matlab.ui.control.DropDown
         SpkChannelListField  matlab.ui.control.EditField
-        SpkRejectArtifactsCheckBox matlab.ui.control.CheckBox
+        SpkArtifactModeDropDown matlab.ui.control.DropDown   % artifact periods: reject / erase / none
         SpkChunkField        matlab.ui.control.EditField
         SpkEdgePadField      matlab.ui.control.EditField
         SpkGroupsField       matlab.ui.control.EditField
@@ -570,6 +605,7 @@ classdef EphysPreprocessingApp < handle
         FlowRefreshButton matlab.ui.control.Button
         FlowSaveButton    matlab.ui.control.Button
         FlowOpenButton    matlab.ui.control.Button
+        FlowViewDropDown  matlab.ui.control.DropDown   % every parameter | data-flow overview (a preference)
         FlowLayoutDropDown matlab.ui.control.DropDown
         FlowSummaryLabel  matlab.ui.control.Label
         FlowHTML          matlab.ui.control.HTML
@@ -665,18 +701,18 @@ classdef EphysPreprocessingApp < handle
         KSMonitorTimer = []
 
         % --- Visualize interaction state (display-only, in-memory) ---
-        Viewer = []
-        VizTimeOffset (1,1) double = 0
+        Viewer = []                % EphysTraceViewer on VizAxes
         % The dataset the plot shows (may differ from the active one). A
         % handle, so a rescan that rebuilds the datasets cannot point it at
         % another recording (onScan rebinds it to the same folder).
         VizDataset EphysDataset = EphysDataset.empty
-        VizChannels (1,:) double = double.empty(1,0)
-        VizMemoryBudget (1,1) double = 0
+        % What was loaded for it (onPlotVisualization): sources (its
+        % EphysTraceSource array), units, detected, layers, notes.
+        VizData = []
+        VizSourceKind (1,1) string = "recording"   % the kind shown, kept across datasets
+        VizGesture (1,1) string = ""               % "pan" | "seek" | "mark" while a button is held
         VizArtMode (1,1) logical = false
         VizArtDrag = struct('active', false)
-        VizArtPatches = gobjects(0,1)
-        VizArtPreview = gobjects(0,1)
 
         % --- Artifacts tab viewer (in memory; showArtifactView / drawArtifactView) ---
         % intervals: the last preview's detected artifacts (recording-relative
@@ -694,9 +730,9 @@ classdef EphysPreprocessingApp < handle
             'drawn', struct('key', [], 'span', [0 1], 'factor', 1, 'decimated', false), 'gain', 1, ...
             'layout', [], 'layoutKey', "", 'mods', strings(1, 0))
 
-        % Figure wheel / key handlers installed before routeFigureInput (the
-        % Visualize viewer's): they get the events when the Artifacts tab is
-        % not showing.
+        % Figure wheel / key handlers installed before routeFigureInput:
+        % they get the events when neither the Artifacts nor the Visualize
+        % tab is showing.
         FigInput struct = struct('scroll', [], 'key', [], 'release', [])
 
         % --- Trials tab state (in memory; the pairing is saved via Approve) ---
@@ -731,6 +767,7 @@ classdef EphysPreprocessingApp < handle
         ReviewData = struct([])
         ReviewSelectedUnit (1,1) double = 0
         ReviewDatasetIdx (1,1) double = 0    % dataset the tab last showed (-1 = reload; syncReviewDataset)
+        ReviewSpikeWaves = struct([])        % the last unit's spikes read for the shank plot (renderReviewUnitShank)
 
         % Epsych2 session summaries for the Project table's Behavior column,
         % by file (epsychSessionMeta, read again when the file changes;
@@ -831,7 +868,7 @@ classdef EphysPreprocessingApp < handle
         onExportConfigCopy(obj)
         onGenerateScript(obj, kind)
         onCreateSyntheticProject(obj)
-        onOpenAnalysisApp(obj)
+        a = onOpenAnalysisApp(obj, idx)
         S = createSyntheticProject(obj, root, opts)
         ok = confirmDiscard(obj)
         addRecentConfig(obj, file)
@@ -905,7 +942,6 @@ classdef EphysPreprocessingApp < handle
         onBrowseBehaviorDir(obj)
         onAssociateBehavior(obj)
         onClearBehavior(obj)
-        updatePhyButtonState(obj)
         idx = selectedDatasetIndices(obj)
         applyConfigToProject(obj, P)
         applyArtifactConfigToProject(obj)
@@ -917,9 +953,15 @@ classdef EphysPreprocessingApp < handle
         populateDatasetPickers(obj)
         refreshDatasetMenu(obj)
         refreshDatasetPickers(obj)
-        onViewManifest(obj)
+        onViewManifest(obj, idx)
         dd = datasetPicker(obj, parent)
         highlightDatasetRow(obj, opts)
+
+        % --- Tools panel (Project tab): the datasets in other programs ---
+        idx = toolTargets(obj)
+        syncToolsPanel(obj)
+        onOpenTool(obj, tool)
+        onOpenOutputFolder(obj, idx)
 
         % --- Trials tab ---
         onTrialsLoad(obj, mode)
@@ -961,23 +1003,21 @@ classdef EphysPreprocessingApp < handle
 
         % --- Visualize tab ---
         onPlotVisualization(obj)
+        applyVizSettings(obj, what)
+        onVizControlsChanged(obj, what)
+        onVizViewChanged(obj)
+        tf = onVizInput(obj, kind, evt)
         onVizButtonDown(obj)
         onVizButtonUp(obj)
-        drawVizArtifacts(obj)
+        refreshVizShading(obj, draw)
         [iv, why] = vizDetectedIntervals(obj)
-        applyVizChannelOrder(obj)
-        applyVizChannelColor(obj)
-        onVizModeChanged(obj)
-        onVizColormapChanged(obj)
         tf = vizActive(obj)
-        tf = cursorOverAxes(obj)
         d = currentVizDataset(obj)
         onVizArtToggle(obj, val)
         onVizArtClear(obj)
         onVizArtMotion(obj)
         finishVizArtDrag(obj)
         updateVizArtStatus(obj)
-        populateVizFiles(obj)
         syncVizDataset(obj)
 
         % --- Probe tab ---
@@ -1008,7 +1048,7 @@ classdef EphysPreprocessingApp < handle
         onUseSortingFolder(obj)
         onUseAutoSorting(obj)
         refreshSortingLabel(obj)
-        onLaunchPhy(obj)
+        onLaunchPhy(obj, idx)
         launchPhy(obj, resultsDir, label)
         startKSMonitor(obj)
         stopKSMonitor(obj)
@@ -1037,9 +1077,11 @@ classdef EphysPreprocessingApp < handle
 
         % --- Flow tab ---
         refreshFlowChart(obj)
-        [html, summary] = flowChartHTML(obj, layout)
+        [html, summary] = flowChartHTML(obj, opts)
+        [html, summary, model] = flowOverviewHTML(obj)
         onSaveFlowChart(obj)
         onOpenFlowChartInBrowser(obj)
+        onFlowViewChanged(obj)
         onFlowLayoutChanged(obj)
         onFlowNavigate(obj, evt)
         ctrls = flowNavControls(obj, target)
@@ -1048,6 +1090,7 @@ classdef EphysPreprocessingApp < handle
         % --- Review tab ---
         loadReviewResults(obj)
         renderReviewPlots(obj)
+        renderReviewUnitShank(obj)
         onBrowseReviewFolder(obj)
         onOpenReviewFolder(obj)
         onReviewOpenPhy(obj)

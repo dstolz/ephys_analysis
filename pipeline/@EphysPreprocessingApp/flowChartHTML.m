@@ -1,14 +1,23 @@
-function [html, summary] = flowChartHTML(obj, layout)
+function [html, summary] = flowChartHTML(obj, opts)
 %flowChartHTML  Flow chart of the working config as a standalone HTML page.
-%   [HTML, SUMMARY] = app.flowChartHTML() draws one tree from the raw
-%   recording. It branches into Artifacts, Signals (LFP / MUA / SPIKE / AUX
-%   / digital events) and Spikes (threshold detection), and runs each
-%   through its stages, with their filter, reference and detection
-%   parameters, to what the step writes. Sorting (Kilosort4 on a .bin) and
-%   Signals hang from the artifact periods, because each erases them from
-%   the recording before it reads it: the .bin, and the amplifier data the
-%   LFP / MUA / SPIKE are derived from (Signals only while
-%   Signals.BlankArtifacts; with it off Signals hangs from the recording).
+%   [HTML, SUMMARY] = app.flowChartHTML() draws the Diagram tab's view
+%   (FlowViewDropDown): "detail", every step with all its parameters
+%   (below), or "overview", only the steps and the data that flows between
+%   them (flowOverviewHTML).
+%
+%   The detail view draws one tree from the raw
+%   recording. The common reference (Artifacts.Reference) comes right under
+%   it, drawn once: every step subtracts it once from its own read of the
+%   recording (the Signals it leaves out, such as the LFP, say so on their
+%   own branch). The tree then branches into Artifacts, Signals (LFP / MUA /
+%   SPIKE / AUX / digital events) and Spikes (threshold detection), and runs
+%   each through its stages, with their filter and detection parameters, to
+%   what the step writes. Sorting (Kilosort4 on a .bin), Signals and Spikes
+%   hang from the artifact periods when they erase them from the recording
+%   before they read it: the .bin always, the amplifier data the LFP / MUA /
+%   SPIKE are derived from while Signals.BlankArtifacts, the trace spikes
+%   are detected on while Spikes.ArtifactMode is "erase"; otherwise the step
+%   hangs from the reference.
 %   The steps that read an output rather than the recording hang from the
 %   file they read: sorted units for the Spikes file under Sorting's
 %   output, Export under the Signals extract.
@@ -16,12 +25,14 @@ function [html, summary] = flowChartHTML(obj, layout)
 %   leaves off are drawn dashed; disabled steps are faded. Artifact periods
 %   feeding Sorting / Signals / Spikes are marked in the Artifacts colour.
 %
-%   app.flowChartHTML(LAYOUT) picks the layout: "tree" (the one tree above)
-%   or "steps" (a tree of its own for each step that reads the recording,
-%   each from the recording box, then the steps hung from another step's
-%   output -- Sorting and Signals from the artifact periods too -- as
-%   downstream trees, each under the box it reads). Default: the Diagram tab's Layout
-%   drop-down (FlowLayoutDropDown).
+%   Its Layout is "tree" (the one tree above) or "steps" (a tree of its own
+%   for each step that reads the recording, each from the recording box,
+%   then the steps hung from another step's output -- Sorting and Signals
+%   from the artifact periods too -- as downstream trees, each under the box
+%   it reads), as picked on the Diagram tab (FlowLayoutDropDown).
+%
+%   app.flowChartHTML(View=V, Layout=L) picks them instead: V "detail" or
+%   "overview", L "tree" or "steps" (the detail view's only).
 %
 %   Each box names the control(s) that set what it shows (its node target,
 %   written into the page as data-nav). In the app a click on a box sends
@@ -32,16 +43,21 @@ function [html, summary] = flowChartHTML(obj, layout)
 %   rate, channel count, probe and exclusions), so it mirrors what
 %   EphysPipeline would run. SUMMARY is a one-line description for the tab.
 %
-%   See also onFlowNavigate, flowNavControls, EphysDataset.deriveSignals,
-%   EphysDataset.detectSpikes, EphysDataset.detectArtifacts,
-%   EphysDataset.runKilosort.
+%   See also flowOverviewHTML, onFlowNavigate, flowNavControls,
+%   EphysDataset.deriveSignals, EphysDataset.detectSpikes,
+%   EphysDataset.detectArtifacts, EphysDataset.runKilosort.
 
-if nargin < 2
-    layout = "tree";
-    if ~isempty(obj.FlowLayoutDropDown) && isvalid(obj.FlowLayoutDropDown)
-        layout = string(obj.FlowLayoutDropDown.Value);
-    end
+arguments
+    obj
+    opts.View (1,1) string {mustBeMember(opts.View, ["" "detail" "overview"])} = ""
+    opts.Layout (1,1) string {mustBeMember(opts.Layout, ["" "tree" "steps"])} = ""
 end
+view = pick(opts.View, obj.FlowViewDropDown, "detail");
+if view == "overview"
+    [html, summary] = obj.flowOverviewHTML();
+    return
+end
+layout = pick(opts.Layout, obj.FlowLayoutDropDown, "tree");
 cfg = obj.Config;
 d = obj.currentDataset();
 dsName = ternary(isempty(d), "<Name>", d.Name);
@@ -50,15 +66,16 @@ sorting = sortingTree(cfg, d, unitsTree(cfg, dsName));
 signals = signalsTree(cfg, dsName, exportTree(cfg, dsName));
 spikes = spikesTree(cfg, dsName);
 % The steps that erase the artifact periods before they read the recording
-% hang from them; Signals does only while BlankArtifacts is on.
-if cfg.Signals.BlankArtifacts
-    artifacts = artifactsTree(cfg, {sorting, signals});
-    steps = {artifacts, spikes};
-else
-    artifacts = artifactsTree(cfg, {sorting});
-    steps = {artifacts, signals, spikes};
-end
-raw = rawNode(d);
+% hang from them: Sorting always, Signals while BlankArtifacts is on, Spikes
+% while its ArtifactMode is "erase". The others hang from the reference.
+hung = {sorting};
+steps = {};
+if cfg.Signals.BlankArtifacts; hung{end+1} = signals; else; steps{end+1} = signals; end
+if cfg.Spikes.ArtifactMode == "erase"; hung{end+1} = spikes; else; steps{end+1} = spikes; end
+artifacts = artifactsTree(cfg, hung);
+steps = [{artifacts}, steps];
+% The recording and, once, the common reference every step's read takes.
+raw = chain({rawNode(d), referenceNode(cfg)});
 
 % Sorting and Signals read the recording too, wherever they hang.
 readers = {artifacts, sorting, signals, spikes};
@@ -97,13 +114,10 @@ end
 function n = artifactsTree(cfg, readers)
 %artifactsTree  The detection chain, ending in the artifact periods that
 %   READERS (the steps that erase them before reading the recording:
-%   Sorting's .bin, Signals' amplifier data) and the Spikes rejection read.
+%   Sorting's .bin, Signals' amplifier data, Spikes' detection trace) and
+%   the Spikes rejection read.
 A = cfg.Artifacts;
-if A.Method == "commonmode"
-    ref = referenceNode(A, "the common-mode detector reads before it");
-else
-    ref = referenceNode(A);
-end
+K = cfg.Spikes;
 filtTarget = "ArtFilterCheckBox,ArtHighpassField";
 if A.Filter
     filt = node("op", "Butterworth " + A.FilterType, ...
@@ -122,7 +136,8 @@ switch A.Method
     case "microvolts"
         det = node("op", "Absolute amplitude", "flag |x| > " + numOr(thr, "1500") + " uV", detTarget);
     otherwise
-        det = node("op", "Common-mode mean", ["mean across channels", "flag |mean| > " + numOr(thr, "1500") + " uV"], detTarget);
+        det = node("op", "Common-mode mean", ["mean across channels", "flag |mean| > " + numOr(thr, "1500") + " uV", ...
+            "on the recording as stored (the reference is that mean)"], detTarget);
 end
 if A.Method == "commonmode"
     coinc = node("off", "Channel coincidence", "n/a for commonmode", "ArtMinChannelsField");
@@ -135,38 +150,59 @@ out = node("out", "Automatic intervals", ["[t_on t_off] s", ...
     ternary(A.CacheIntervals, "cached while recording + settings match", "recomputed by each step")], ...
     "ArtCacheCheckBox,ArtDetectButton");
 
-toSpk = linkNode(cfg.Spikes.Enabled && cfg.Spikes.Source ~= "sorted" && cfg.Spikes.RejectArtifacts, ...
-    A.Enabled && A.ApplyToSpikes, "Reject in Spikes", "ApplyToSpikes", "ArtApplySpikesCheckBox");
+% Spikes erasing the periods is one of the READERS; rejecting or ignoring
+% them, it hangs from the reference and gets a box here.
+switch K.ArtifactMode
+    case "reject"
+        readers{end+1} = linkNode(K.Enabled && K.Source ~= "sorted", A.Enabled && A.ApplyToSpikes, ...
+            "Reject in Spikes", "ApplyToSpikes", "ArtApplySpikesCheckBox,SpkArtifactModeDropDown");
+    case "none"
+        readers{end+1} = node("off", "Spikes", "ignores the periods", "SpkArtifactModeDropDown");
+end
 periods = node("link", "Artifact periods", ...
     [ternary(A.Enabled, "automatic + manual", "manual only (detection off)"), "manual: marked on Visualize"], ...
     "ArtManualTable,ArtEditVizButton");
-periods.children = [readers, {toSpk}];
+periods.children = readers;
 
 n = step("artifacts", "Artifacts", A.Enabled, ...
     ternary(A.Enabled, "", "Detection is off: only the manual periods reach Sorting / Signals / Spikes."), ...
     "ArtEnableCheckBox", ...
     {node("op", "Read in chunks", ["one file / bounded window per chunk", parallelText(cfg.Parallel)], ...
     "RunParallelCheckBox,RunMaxWorkersField"), ...
-    ref, filt, det, coinc, merge, pad, out});
+    filt, det, coinc, merge, pad, out});
 % Hung on after step(): the manual periods apply with detection off too, so
 % they do not fade with it.
 n = hangFromEnd(n, {periods});
 end
 
 
-function n = referenceNode(A, note)
-%referenceNode  The Artifacts section's common reference, which every
-%   read of the recording subtracts: artifact detection, the Kilosort4 .bin,
-%   the derived signals and spike detection (EphysDataset.applyReference),
-%   detection on or off.
+function n = referenceNode(cfg)
+%referenceNode  The common reference (Artifacts.Reference), drawn once
+%   between the recording and the steps: each step subtracts it once,
+%   sample by sample, from its own read of the recording - artifact
+%   detection, the Kilosort4 .bin (whose own do_CAR is then off), spike
+%   detection and the Signals ticked for it (EphysDataset.applyReference /
+%   referenceTrace). What leaves it out is listed.
+A = cfg.Artifacts;
+G = cfg.Signals;
 target = "ArtRefDropDown,ArtRefLowField,ArtRefHighField";
 switch A.Reference
-    case "car"; n = node("op", "Common average reference", "mean of the good channels, subtracted from each", target);
-    case "cmr"; n = node("op", "Common median reference", "median of the good channels, subtracted from each", target);
+    case "car"; n = node("op", "Common average reference", "mean of the good channels, subtracted once from each", target);
+    case "cmr"; n = node("op", "Common median reference", "median of the good channels, subtracted once from each", target);
     otherwise;  n = node("off", "Common reference", "none (as recorded)", target);
 end
-if nargin > 1 && n.kind == "op"
-    n.detail(end+1) = note;
+if n.kind ~= "op"
+    return
+end
+n.target = target + ",SigRefLFPCheckBox,SigRefMUACheckBox,SigRefSPIKECheckBox";
+n.detail(end+1) = "as each step reads the recording";
+types = ["LFP" "MUA" "SPIKE"];
+off = types([G.LFP G.MUA G.SPIKE] & ~[G.LFP_Reference G.MUA_Reference G.SPIKE_Reference]);
+if ~isempty(off)
+    n.detail(end+1) = "not Signals' " + join(off, " / ");
+end
+if A.Method == "commonmode"
+    n.detail(end+1) = "not the common-mode artifact detector";
 end
 end
 
@@ -183,10 +219,11 @@ end
 
 
 function n = sortingTree(cfg, d, units)
-% The recording, with the Artifacts section's common reference and the
-% artifact periods erased, goes to a .bin and into Kilosort4, which crops
-% (tmin/tmax) and references (do_CAR) itself. UNITS (reading the sorted
-% units into the Spikes file) hangs from the sorted units.
+% The recording, with the common reference and the artifact periods
+% erased, goes to a .bin and into Kilosort4, which crops (tmin/tmax) and,
+% only when the .bin carries no common reference, references (do_CAR)
+% itself. UNITS (reading the sorted units into the Spikes file) hangs from
+% the sorted units.
 S = cfg.Sorting; K = S.KS4;
 A = cfg.Artifacts;
 
@@ -213,7 +250,14 @@ blank = node("link", "Blank artifact periods", ...
     "ArtApplySortingCheckBox,ArtFillDropDown");
 
 hp = node("op", "KS4 high-pass", sprintf("%g Hz", K.highpass_cutoff), "ks4.highpass_cutoff");
-ksCar = node("op", "KS4 CAR", "do_CAR (common average)", "ExtraSettingsArea");
+ks4 = EphysPipelineConfig.ks4Settings(S);
+if A.Reference ~= "none"
+    ksCar = node("off", "KS4 CAR", ["off (do_CAR = false): the .bin", "already carries the common reference"], "ArtRefDropDown");
+elseif isfield(ks4, 'do_CAR') && isequal(ks4.do_CAR, false)
+    ksCar = node("off", "KS4 CAR", "off (do_CAR = false in the extra settings)", "ExtraSettingsArea");
+else
+    ksCar = node("op", "KS4 CAR", ["do_CAR: median across the probe's channels", "the one common reference here"], "ExtraSettingsArea");
+end
 art = onOff(isfinite(K.artifact_threshold), "KS4 artifact threshold", ...
     sprintf("zero batches >= %g ADC counts", K.artifact_threshold), "off", "ks4.artifact_threshold");
 white = node("op", "Whitening", [sprintf("%d nearest channels", K.whitening_range), ...
@@ -234,7 +278,7 @@ out.children = {units};
 
 n = step("sorting", "Sorting", S.Enabled, sortingNote(S), ...
     "SortEnableCheckBox,SortSkipExistingCheckBox,ExecModeDropDown,DryRunCheckBox", ...
-    {referenceNode(A), blank, ...
+    {blank, ...
     node("stage", "Write .bin", ["the recording, int16, channel-interleaved", "<Name>.bin (toBin)"], "PythonExeField,CondaEnvField"), ...
     node("op", "Attach probe map", [probe, "chanMap indexes .bin rows"], "ProbeDatasetDropDown,ProbeDefaultField,ExcludeChannelsField"), ...
     node("stage", "Kilosort4", "run_kilosort", ksStage), ...
@@ -256,15 +300,19 @@ end
 
 function n = signalsTree(cfg, dsName, export)
 %signalsTree  EXPORT (reading the extract) hangs from the first signal file.
-%   The common reference (over every channel) comes first, then the channel
-%   selection, and the artifact periods are erased in the amplifier data LFP /
-%   MUA / SPIKE derive from; AUX and the digital inputs come from the read as
-%   they are.
+%   The channel selection comes first, and the artifact periods are erased
+%   in the amplifier data LFP / MUA / SPIKE derive from. Each of those says
+%   whether it takes the common reference drawn above the steps (taken over
+%   every channel, before the selection); AUX and the digital inputs come
+%   from the read as they are.
 G = cfg.Signals;
 A = cfg.Artifacts;
 types = ["LFP" "MUA" "SPIKE" "AUX"];
 host = types(find([G.LFP G.MUA G.SPIKE G.AUX], 1));
 kids = @(type) exportUnder(host, type, export);
+stage = @(type, on) node("stage", type, ternary(on && A.Reference ~= "none", ...
+    ["amplifier", "common " + upper(A.Reference) + " referenced"], ["amplifier", "as recorded (no common reference)"]), ...
+    "Conv" + type + "CheckBox,SigRef" + type + "CheckBox");
 
 sel = strings(1, 0);
 if G.KeepChannels ~= ""; sel(end+1) = "keep " + G.KeepChannels; end
@@ -290,14 +338,14 @@ if G.LFP
     end
     notch = onOff(G.LFP_NotchOn, "Notch", [G.LFP_NotchHz + " Hz", sprintf("width %g Hz, order 2, zero-phase", G.LFP_NotchBW)], "off", ...
         "ConvLFPNotchCheckBox,ConvLFPNotchField,ConvLFPNotchBWField");
-    branches{1} = chain([{node("stage", "LFP", "amplifier", "ConvLFPCheckBox"), ...
+    branches{1} = chain([{stage("LFP", G.LFP_Reference), ...
         node("op", "Resample", sprintf("-> %g Hz (anti-aliased)", G.LFP_Fs), "ConvLFPFsField"), band, notch}, ampTail(G, "LFP", dsName, kids("LFP"))]);
 else
     branches{1} = node("off", "LFP", "not computed", "ConvLFPCheckBox");
 end
 if G.MUA
     win = max(1, round(G.MUA_Fs / G.MUA_IntegrationHz));
-    branches{2} = chain([{node("stage", "MUA", "amplifier", "ConvMUACheckBox"), ...
+    branches{2} = chain([{stage("MUA", G.MUA_Reference), ...
         node("op", "Butterworth bandpass", [sprintf("%g - %g Hz, order 4", G.MUA_bpLoHi), "zero-phase at original rate"], ...
             "ConvMUALoField,ConvMUAHiField"), ...
         node("op", "Rectify", "|x|", "ConvMUACheckBox"), ...
@@ -310,7 +358,7 @@ end
 if G.SPIKE
     rs = onOff(~G.SPIKE_KeepOriginal, "Resample", sprintf("-> %g Hz", G.SPIKE_Fs), "off (original rate)", ...
         "ConvSpikeOrigCheckBox,ConvSpikeFsField");
-    branches{3} = chain([{node("stage", "SPIKE", "amplifier", "ConvSPIKECheckBox"), rs, ...
+    branches{3} = chain([{stage("SPIKE", G.SPIKE_Reference), rs, ...
         node("op", "Butterworth bandpass", [sprintf("%g - %g Hz, order 4", G.SPIKE_bpLoHi), "zero-phase"], ...
             "ConvSpikeLoField,ConvSpikeHiField")}, ampTail(G, "SPIKE", dsName, kids("SPIKE"))]);
 else
@@ -341,10 +389,8 @@ else
 end
 erase.children = branches(1:3);
 chan.children = {erase};
-ref = referenceNode(A, "over every channel, before the channel selection");
-ref.children = {chan};
 read = node("op", "Read whole recording", "single precision, uV", "SigEnableCheckBox");
-read.children = [{ref}, branches(4:5)];
+read.children = [{chan}, branches(4:5)];
 n = step("signals", "Signals", G.Enabled, "", "SigEnableCheckBox", {read});
 end
 
@@ -426,11 +472,19 @@ minP = node("op", "Minimum period", sprintf("%g ms between events", K.MinPeriodM
 maxA = onOff(isfinite(K.MaxAmplitudeUV), "Amplitude cap", sprintf("drop |amplitude| > %g uV", K.MaxAmplitudeUV), "off", "SpkMaxAmpField");
 wave = onOff(K.Waveforms, "Waveforms", [sprintf("[%g %g] ms", K.WindowMs), K.WaveformSource + " trace", "edges: " + K.EdgeHandling], ...
     "off (timestamps only)", "SpkWaveformsCheckBox,SpkWinBeforeField,SpkWinAfterField,SpkWaveSourceDropDown,SpkEdgeDropDown");
-if K.RejectArtifacts
-    rej = node("link", "Reject artifact periods", ternary(A.Enabled && A.ApplyToSpikes, "manual + automatic", "manual periods only"), ...
-        "SpkRejectArtifactsCheckBox");
-else
-    rej = node("off", "Reject artifact periods", "off", "SpkRejectArtifactsCheckBox");
+% The artifact periods: erased before the filter (the step then hangs from
+% them), or the events inside them rejected after detection.
+artTarget = "SpkArtifactModeDropDown,ArtApplySpikesCheckBox";
+periods = ternary(A.Enabled && A.ApplyToSpikes, "manual + automatic", "manual periods only");
+erase = {};
+switch K.ArtifactMode
+    case "erase"
+        erase = {node("link", "Erase artifact periods", [periods, "NaN: out of the thresholds,", "a line across each for the filter"], artTarget)};
+        rej = {};
+    case "reject"
+        rej = {node("link", "Reject artifact periods", [periods, "events inside them dropped"], artTarget)};
+    otherwise
+        rej = {node("off", "Artifact periods", "ignored", artTarget)};
 end
 lines = [dsName + K.Suffix + ".mat", K.MatVersion];
 if K.Source == "both"; lines(end+1) = "+ sorted units (under Sorting)"; end
@@ -439,9 +493,9 @@ out = node("out", "Detected spikes", lines, "SpkOutputDirField,SpkSuffixField,Sp
 n = step("spikes", "Spikes", K.Enabled && K.Source ~= "sorted", ...
     ternary(K.Source == "sorted", "Source is 'sorted': no threshold detection runs.", ""), ...
     "SpkEnableCheckBox,SpkSourceDropDown", ...
-    {node("op", "Stream chunks", chunk, "SpkChunkField,SpkEdgePadField"), referenceNode(A), ...
-    node("op", "Channels", ch, "SpkChannelsDropDown,SpkChannelListField"), ...
-    filt, thr, align, minP, maxA, wave, rej, out});
+    [{node("op", "Stream chunks", chunk, "SpkChunkField,SpkEdgePadField"), ...
+    node("op", "Channels", ch, "SpkChannelsDropDown,SpkChannelListField")}, erase, ...
+    {filt, thr, align, minP, maxA, wave}, rej, {out}]);
 end
 
 
@@ -578,8 +632,9 @@ end
 % =========================================================================
 
 function h = treeHTML(raw, steps)
-%treeHTML  The "tree" layout: every step hangs from one recording box.
-raw.children = steps;
+%treeHTML  The "tree" layout: every step hangs from one recording box
+%   (under the common reference, the last box of RAW's run).
+raw = hangFromEnd(raw, steps);
 h = "<div class=""card""><div class=""tree""><ul>" + nodeHTML(raw) + "</ul></div></div>";
 end
 
@@ -591,8 +646,7 @@ function h = stepsHTML(raw, steps)
 top = strings(1, 0); down = strings(1, 0);
 for k = 1:numel(steps)
     [s, cut] = detach(steps{k}, steps{k}.title);
-    r = raw;
-    r.children = {s};
+    r = hangFromEnd(raw, {s});
     top(end+1) = treeCard(r); %#ok<AGROW>
     for j = 1:numel(cut)
         down(end+1) = treeCard(cut{j}); %#ok<AGROW>
@@ -834,6 +888,18 @@ end
 function t = fileName(p)
 [~, b, e] = fileparts(p);
 t = string(b) + string(e);
+end
+
+
+function v = pick(given, dropDown, fallback)
+%pick  GIVEN, else the drop-down's value, else FALLBACK (before the tab is built).
+v = given;
+if v == ""
+    v = string(fallback);
+    if ~isempty(dropDown) && isvalid(dropDown)
+        v = string(dropDown.Value);
+    end
+end
 end
 
 

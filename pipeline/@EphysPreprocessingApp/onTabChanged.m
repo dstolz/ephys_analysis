@@ -30,12 +30,18 @@ switch obj.Tabs.SelectedTab
     case obj.TabRun
         msg = "Run: validate, plan, then run the enabled steps.";
     case obj.TabFlow
-        msg = "Flow: the processing each enabled step applies, from the raw recording to the files written.";
+        msg = "Diagram: every parameter each step applies, or (View) how the data flows from step to step.";
         obj.refreshFlowChart();
     case obj.TabVisualize
-        msg = "Visualize: plot a short window; drag to mark manual artifacts.";
-        if ~isempty(obj.Viewer) && isvalid(obj.Viewer)
-            obj.drawVizArtifacts();   % the Artifacts tab's preview may have changed
+        msg = "Visualize: any signal of the active dataset with its spikes; wheel zooms, drag pans.";
+        d = obj.currentDataset();
+        shown = obj.currentVizDataset();
+        if ~isempty(d) && (isempty(shown) || shown ~= d)
+            obj.onPlotVisualization();      % it sets the status line itself
+            return
+        end
+        if ~isempty(shown)
+            obj.refreshVizShading();         % the Artifacts tab's preview may have changed
             obj.updateVizArtStatus();
         end
     case obj.TabReview

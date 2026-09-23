@@ -5,6 +5,9 @@ function syncConvertEnableStates(obj)
     lfp = obj.ConvLFPCheckBox.Value;
     mua = obj.ConvMUACheckBox.Value;
     spk = obj.ConvSPIKECheckBox.Value;
+    obj.SigRefLFPCheckBox.Enable   = onOff(lfp);
+    obj.SigRefMUACheckBox.Enable   = onOff(mua);
+    obj.SigRefSPIKECheckBox.Enable = onOff(spk);
     obj.ConvLFPFsField.Enable = onOff(lfp);
     set([obj.ConvLFPHighpassCheckBox, obj.ConvLFPLowpassCheckBox, ...
         obj.ConvLFPNotchCheckBox], 'Enable', onOff(lfp));

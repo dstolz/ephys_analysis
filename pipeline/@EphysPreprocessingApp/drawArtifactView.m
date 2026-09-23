@@ -29,7 +29,7 @@ function drawArtifactView(obj)
 %   window it shows why (no preview yet, nothing detected, a read error).
 %   Called on every change to those controls; it never reads data.
 %
-%   See also showArtifactView, onArtViewInput, onDetectArtifacts, drawVizArtifacts.
+%   See also showArtifactView, onArtViewInput, onDetectArtifacts, refreshVizShading.
 
 ax = obj.ArtViewAxes;
 if isempty(ax) || ~isvalid(ax); return; end

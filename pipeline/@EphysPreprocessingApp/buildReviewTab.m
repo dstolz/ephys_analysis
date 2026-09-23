@@ -4,10 +4,13 @@ function buildReviewTab(obj)
 %   dataset changes (syncReviewDataset); Browse... / Load take any other
 %   kilosort4/ output folder. The left column shows aggregate stats and a
 %   per-unit table, the right column shows units-per-shank, mean waveforms,
-%   spike amplitudes over time, and per-unit firing rates. Selecting a table row focuses the waveform and
-%   amplitude plots on that single unit; "Show all units" clears the focus.
-%   All parsing happens once in loadReviewResults; selection only re-renders
-%   from the cached ReviewData. See loadReviewResults / renderReviewPlots.
+%   spike amplitudes over time, and per-unit firing rates, and beside them,
+%   full height, the selected unit's spikes on the shank it was detected on.
+%   Selecting a table row focuses the waveform and amplitude plots on that
+%   single unit and draws its spikes; "Show all units" clears the focus.
+%   All parsing happens once in loadReviewResults; selection re-renders from
+%   the cached ReviewData and reads only the selected unit's spikes. See
+%   loadReviewResults / renderReviewPlots / renderReviewUnitShank.
 
 g = uigridlayout(obj.TabReview, [1 2]);
 g.ColumnWidth = {470, '1x'};
@@ -74,9 +77,10 @@ obj.ReviewUnitsTable.Layout.Row = 7;
 obj.ReviewAllUnitsButton = uibutton(left, "Text", "Show all units", ...
     "ButtonPushedFcn", @(~,~) obj.onReviewAllUnits());
 
-% =================== right column: 2x2 axes ===================
-right = uigridlayout(g, [2 2]);
+% =================== right column: 2x2 axes + the unit on its shank ===================
+right = uigridlayout(g, [2 3]);
 right.Layout.Column = 2;
+right.ColumnWidth = {'1x', '1x', '1x'};
 right.RowSpacing = 14;
 right.ColumnSpacing = 14;
 
@@ -95,4 +99,33 @@ title(obj.ReviewAmpAxes, "Amplitudes over time");
 obj.ReviewRateAxes = uiaxes(right);
 obj.ReviewRateAxes.Layout.Row = 2; obj.ReviewRateAxes.Layout.Column = 2;
 title(obj.ReviewRateAxes, "Firing rate per unit");
+
+% The selected unit's spikes at the sites of the shank it was detected on,
+% full height: what to draw above it (renderReviewUnitShank).
+sp = uigridlayout(right, [2 1]);
+sp.Layout.Row = [1 2]; sp.Layout.Column = 3;
+sp.RowHeight = {30, '1x'};
+sp.Padding = [0 0 0 0];
+sp.RowSpacing = 4;
+sc = uigridlayout(sp, [1 4]);
+sc.ColumnWidth = {'fit', 70, 'fit', 70};
+sc.Padding = [0 0 0 0];
+sc.ColumnSpacing = 6;
+redraw = @(~,~) obj.renderReviewUnitShank();
+obj.ReviewShankSpikesCheckBox = uicheckbox(sc, "Text", "Spikes", "Value", true, ...
+    "Tooltip", "Draw the unit's spikes, cut from the sorted .bin", ...
+    "ValueChangedFcn", redraw);
+obj.ReviewShankCountSpinner = uispinner(sc, "Limits", [10 2000], "Step", 50, "Value", 100, ...
+    "RoundFractionalValues", "on", ...
+    "Tooltip", "How many of the unit's spikes to read (picked at random, the same ones each time); the mean is over these", ...
+    "ValueChangedFcn", redraw);
+obj.ReviewShankMeanCheckBox = uicheckbox(sc, "Text", "Mean " + char(177), "Value", true, ...
+    "Tooltip", "Draw the spikes' mean with an error band", ...
+    "ValueChangedFcn", redraw);
+obj.ReviewShankBandDropDown = uidropdown(sc, "Items", {'SD', 'SEM', 'none'}, "Value", 'SD', ...
+    "Tooltip", "Error band around the mean: standard deviation, standard error of the mean, or none", ...
+    "ValueChangedFcn", redraw);
+obj.ReviewUnitShankAxes = uiaxes(sp);
+obj.ReviewUnitShankAxes.Layout.Row = 2;
+title(obj.ReviewUnitShankAxes, "Unit on its shank");
 end

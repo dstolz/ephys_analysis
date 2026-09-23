@@ -12,8 +12,8 @@ function selectDataset(obj, idx, opts)
 %   When the active dataset changes, results shown for the previous one are
 %   cleared (a loaded trial pairing, the Artifacts and Spikes previews), the
 %   Review tab loads the new one's sorted output (now if it is open, else
-%   when it is next opened) and a Visualize plot of the previous one is
-%   flagged. IDX 0 = none (no datasets scanned).
+%   when it is next opened) and so does the Visualize tab (a plot of the
+%   previous one is flagged until then). IDX 0 = none (no datasets scanned).
 %
 %   Options: FromTable (the choice is a click on the table, whose row need
 %   not be scrolled to) and Reset (the datasets were rebuilt by a scan:
@@ -44,18 +44,21 @@ obj.highlightDatasetRow(Scroll=~opts.FromTable);
 % --- views of the active dataset ---------------------------------------------
 if changed
     clearResults(obj);
-    obj.populateVizFiles();
     obj.ReviewDatasetIdx = -1;   % reload when the Review tab shows
     obj.onSynthSourceChanged();  % a schedule read from the previous dataset no longer applies
 end
 obj.syncExcludeField();
 obj.onProbeSelected();
 obj.syncArtProbeControls();
-obj.updatePhyButtonState();
+obj.syncToolsPanel();
 obj.refreshSortingLabel();
 obj.refreshManualArtifactsTable();
 obj.refreshReferencePanel();
 obj.syncVizDataset();
+shown = obj.currentVizDataset();
+if idx > 0 && obj.Tabs.SelectedTab == obj.TabVisualize && (isempty(shown) || shown ~= obj.currentDataset())
+    obj.onPlotVisualization();
+end
 if obj.Tabs.SelectedTab == obj.TabReview && obj.ReviewDatasetIdx ~= idx
     obj.syncReviewDataset();
 end

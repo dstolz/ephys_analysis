@@ -1,17 +1,16 @@
 function routeFigureInput(obj)
-%routeFigureInput  Share the figure's wheel and key callbacks with the
-%   Artifacts tab's plot. The Visualize viewer (MultiChannelViewer) takes
-%   the figure's WindowScrollWheelFcn / WindowKeyPressFcn /
-%   WindowKeyReleaseFcn when it is first plotted, so this wraps whatever is
-%   installed (kept in FigInput): while the Artifacts tab is showing, wheel
-%   turns and key presses go to onArtViewInput (what it does not take is
-%   dropped), and on any other tab to the handler wrapped. Key releases
-%   always go to it. Presses and releases also keep ArtView.mods, the
-%   modifiers held, as wheel events carry none. Called when the Artifacts
-%   tab is built and again after the viewer attaches its callbacks
-%   (onPlotVisualization); wrapping itself is a no-op.
+%routeFigureInput  Share the figure's wheel and key callbacks between the
+%   plots that take them. This wraps whatever WindowScrollWheelFcn /
+%   WindowKeyPressFcn / WindowKeyReleaseFcn is installed (kept in
+%   FigInput): while the Artifacts tab is showing, wheel turns and key
+%   presses go to onArtViewInput, while the Visualize tab is showing to
+%   onVizInput (what either does not take is dropped), and on any other
+%   tab to the handler wrapped. Key releases always go to it. Presses and
+%   releases also keep ArtView.mods, the modifiers held, as wheel events
+%   carry none. Called when the Artifacts tab is built; wrapping itself is
+%   a no-op.
 %
-%   See also onArtViewInput, onPlotVisualization, MultiChannelViewer.
+%   See also onArtViewInput, onVizInput.
 
 fig = obj.Fig;
 kinds = ["scroll", "key", "release"];
@@ -31,9 +30,14 @@ function routeInput(obj, kind, src, evt)
 if kind ~= "scroll"
     obj.ArtView.mods = string(evt.Modifier);
 end
-if kind ~= "release" && isvalid(obj.Tabs) && obj.Tabs.SelectedTab == obj.TabArtifacts
-    obj.onArtViewInput(kind, evt);
-    return
+if kind ~= "release" && isvalid(obj.Tabs)
+    if obj.Tabs.SelectedTab == obj.TabArtifacts
+        obj.onArtViewInput(kind, evt);
+        return
+    elseif obj.Tabs.SelectedTab == obj.TabVisualize
+        obj.onVizInput(kind, evt);
+        return
+    end
 end
 prev = obj.FigInput.(kind);
 if isa(prev, 'function_handle')

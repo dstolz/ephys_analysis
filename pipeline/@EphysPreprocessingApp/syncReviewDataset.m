@@ -45,8 +45,9 @@ function clearReview(obj, message)
 %clearReview  Empty the summary, units table and plots.
 obj.ReviewData = struct([]);
 obj.ReviewSelectedUnit = 0;
+obj.ReviewSpikeWaves = struct([]);
 obj.ReviewUnitsTable.Data = {};
-for ax = [obj.ReviewShankAxes, obj.ReviewWaveAxes, obj.ReviewAmpAxes, obj.ReviewRateAxes]
+for ax = [obj.ReviewShankAxes, obj.ReviewWaveAxes, obj.ReviewAmpAxes, obj.ReviewRateAxes, obj.ReviewUnitShankAxes]
     cla(ax, 'reset');
 end
 obj.ReviewSummaryLabel.Text = message;

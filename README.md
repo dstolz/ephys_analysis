@@ -1,5 +1,6 @@
 # ephys_analysis
 
+See [https://github.com/dstolz/ephys_analysis/wiki](ephys_analysis Wiki) for detailed documentation.
 
 See [documentation/README.md](documentation/README.md) for the full pipeline
 reference and [pipeline/INSTALL.md](pipeline/INSTALL.md) for setup.

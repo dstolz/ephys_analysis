@@ -85,7 +85,13 @@ end
 
 function rows = selectedRows(tbl, n)
 rows = [];
-if ~isempty(tbl.Selection); rows = unique(tbl.Selection(:, 1)).'; end
+if ~isempty(tbl.Selection)
+    if tbl.SelectionType == "row"   % a vector of rows (multiselect)
+        rows = unique(tbl.Selection(:)).';
+    else
+        rows = unique(tbl.Selection(:, 1)).';
+    end
+end
 if isempty(rows) && n > 0; rows = n; end
 rows = rows(rows >= 1 & rows <= n);
 end

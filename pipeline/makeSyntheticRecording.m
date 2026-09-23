@@ -107,7 +107,9 @@ function T = makeSyntheticRecording(folder, opts)
 %                    previews this, so the preview is what Generate writes)
 %     SortedOutput   true
 %     Artifacts      true
-%     InvertedLines  lines written with inverted logic: on = low (default none)
+%     InvertedLines  lines written with inverted logic: on = low (default
+%                    none; with a Session, the lines its source inverts,
+%                    except for the Open Ephys formats, which cannot)
 %     WriteManifest  true
 %     ProgressFcn    ProgressFcn(fraction, message)
 %
@@ -148,7 +150,7 @@ arguments
     opts.NumChannels (1,1) double = NaN
     opts.FileSeconds (1,1) double {mustBePositive} = 30
     opts.AcqTime datetime = NaT
-    opts.Seed (1,1) double = 1
+    opts.Seed (1,1) double {mustBeInteger, mustBeInRange(opts.Seed, 0, 4294967295)} = 1
     opts.Probe (1,1) struct = struct()
     opts.ProbeFile (1,1) string = ""
     opts.WriteProbe (1,1) logical = false
@@ -161,6 +163,8 @@ arguments
     opts.ProgressFcn = []
 end
 
+rngState = rng;                     % the caller's generator, put back at the end
+restoreRng = onCleanup(@() rng(rngState)); %#ok<NASGU>
 rng(opts.Seed, 'twister');
 fromSession = ~isempty(fieldnames(opts.Session));
 S = opts.Session;
@@ -229,6 +233,7 @@ if fromSession
         nSamp = min(nSamp, ceil(S.duration * Fs / spb) * spb);
     end
     cuts = struct('trials', [NaN NaN], 'intervals', [NaN NaN]);
+    S = alignToRate(S, Fs, nSamp);
 else
     S = syntheticTaskSchedule(NumTrials=opts.NumTrials, Scenario=opts.Scenario);
     scenario = opts.Scenario;
@@ -251,6 +256,10 @@ end
 bad = setdiff(opts.InvertedLines, lineNames);
 if ~isempty(bad)
     error('makeSyntheticRecording:InvertedLines', 'Unknown line(s) in InvertedLines: %s', strjoin(bad, ', '));
+end
+inverted = opts.InvertedLines;
+if fromSession && isempty(inverted) && ~isOE && isfield(S, 'invertedLines')
+    inverted = intersect(reshape(string(S.invertedLines), 1, []), lineNames, 'stable');   % as the source records them
 end
 
 % --- the probe --------------------------------------------------------------------
@@ -380,7 +389,7 @@ for sIdx = 1:nSeg
             r1 = max(iv(i, 1), s0 + 1) - s0; r2 = min(iv(i, 2), s0 + n) - s0;
             W(r1:r2) = bitor(W(r1:r2), bit);
         end
-        if ismember(lineNames(k), opts.InvertedLines)
+        if ismember(lineNames(k), inverted)
             W = bitxor(W, bit);
         end
     end
@@ -627,7 +636,7 @@ if isOE; T.channelNames = "CH" + (1:nCh); end
 T.digInNames    = lineNames;
 T.digInOrders   = lineBits;
 T.trialLine     = trialLine;
-T.invertedLines = opts.InvertedLines;
+T.invertedLines = inverted;
 T.events        = events;
 T.nTrials       = N;
 T.nIntervals    = nIntervals;
@@ -638,7 +647,7 @@ T.lfp           = lfp;
 T.design        = D;
 T.source        = source;
 T.designFile    = string(designFile);
-T.artifacts     = artRows / Fs;
+T.artifacts     = [artRows(:, 1) - 1, artRows(:, 2)] / Fs;   % [a b) on the continuous clock
 T.aux           = struct('names', auxNames, 'Fs', auxFs, 'offset', auxOffset);   % Open Ephys: volts - 1.2255
 T.sortedDir     = string(sortedDir);
 T.manifestFile  = manifestFile;
@@ -651,6 +660,36 @@ end
 
 
 %% ---------------------------------------------------------------------------
+function S = alignToRate(S, Fs, nSamp)
+%alignToRate  A schedule of recorded lines at the rate and length written.
+%   Recorded lines are at t = row/S.Fs. At another rate each edge goes to
+%   the sample of its own, round((t - 1/S.Fs)*Fs) + 1, as events map onto
+%   any signal. A line still on at the source's last sample stays on to the
+%   end when the recording is padded to whole blocks, so a partial interval
+%   does not become a complete one.
+if ~(isfield(S, 'timing') && S.timing == "recording" && isfinite(S.Fs) && isfinite(S.nSamples)); return; end
+if Fs ~= S.Fs
+    map = @(t) (round((t - 1 / S.Fs) * Fs) + 1) / Fs;
+else
+    map = @(t) t;
+end
+tLast = S.nSamples / S.Fs;           % the source's last row
+tEnd = nSamp / Fs;
+for ln = reshape(string(fieldnames(S.events)), 1, [])
+    iv = S.events.(ln);
+    if isempty(iv); continue; end
+    open = iv(:, 2) >= tLast - 0.5 / S.Fs;
+    iv = map(iv);
+    iv(open, 2) = max(iv(open, 2), tEnd);
+    S.events.(ln) = iv;
+end
+open = S.trials.Offset >= tLast - 0.5 / S.Fs;
+S.trials.Onset = map(S.trials.Onset);
+S.trials.Offset = map(S.trials.Offset);
+S.trials.Offset(open) = max(S.trials.Offset(open), tEnd);
+end
+
+
 function trials = truthTrials(S, trialRows, trialInterval, Fs)
 %truthTrials  One row per Epsych2 trial: where its trial-line interval was written.
 N = height(S.trials);

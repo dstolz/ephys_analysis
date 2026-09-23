@@ -106,12 +106,12 @@ end
         v = double(trials.(param));
         lo = min(v(isfinite(v))); hi = max(v(isfinite(v)));
         has = ~isnan(trialOf);
-        x = ones(nnz(has), 1);
+        x = ones(nnz(has), 1);   % a parameter with one value: every event responds fully
         if ~isempty(lo) && hi > lo
             x = (v(trialOf(has)) - lo) / (hi - lo);
-            x(~isfinite(x)) = 0;
+            if tuning == "decreasing"; x = 1 - x; end
+            x(~isfinite(x)) = 0;   % a trial without a value does not respond, either way
         end
-        if tuning == "decreasing"; x = 1 - x; end
         sc(has) = x;
     end
 
@@ -129,13 +129,17 @@ gain = drawNaN(U.Gain,       @(k) 2 + 3 * rand(k, 1));
 nt = round(0.002 * Fs) + 1;                 % 2 ms template (61 samples at 30 kHz)
 p0 = round(nt / 3);                         % the trough sits here
 tmsT = ((1:nt) - p0).' / Fs * 1000;
+kT = max(2, round(0.1e-3 * Fs));            % 0.1 ms raised-cosine ends: a wide spike leaves no step
+taper = ones(nt, 1);
+taper(1:kT) = 0.5 - 0.5 * cos(pi * (0:kT-1).' / kT);
+taper(end-kT+1:end) = flipud(taper(1:kT));
 units = struct('id', {}, 'name', {}, 'peakChannel', {}, 'amplitudeUV', {}, 'widthMs', {}, ...
     'baselineHz', {}, 'event', {}, 'edge', {}, 'shape', {}, 'gain', {}, 'latencyMs', {}, ...
     'durationMs', {}, 'jitterMs', {}, 'parameter', {}, 'tuning', {}, 'modulation', {}, ...
     'samples', {}, 'scales', {}, 'template', {}, 'eventTimes', {}, 'starts', {}, ...
     'durations', {}, 'eventScale', {}, 'eventTrial', {});
 for u = 1:nU
-    w = amp(u) * (-exp(-tmsT.^2 / (2 * wid(u)^2)) + 0.3 * exp(-(tmsT - 0.6).^2 / (2 * 0.45^2)));
+    w = taper .* amp(u) .* (-exp(-tmsT.^2 / (2 * wid(u)^2)) + 0.3 * exp(-(tmsT - 0.6).^2 / (2 * 0.45^2)));
     d = hypot(xc - xc(ch(u)), yc - yc(ch(u)));
     tmpl = w * exp(-d.^2 / (2 * 40^2)).';                      % [nt x nCh]
 
@@ -431,12 +435,16 @@ end
 
 function tt = candidates(rMax, L)
 %candidates  Spike candidates over [0, L) s at rMax Hz, at least 2 ms apart (sorted, unique).
+%   The intervals are 2 ms plus an exponential one at rE, so that their rate,
+%   1 / (0.002 + 1/rE), is rMax (at most 450 Hz: the dead time caps it at 500).
 tt = zeros(0, 1);
 if ~(rMax > 0); return; end
+rMax = min(rMax, 450);
+rE = rMax / (1 - 0.002 * rMax);
 t0 = 0;
 while t0 < L
     n = ceil((L - t0) * rMax * 1.1) + 20;
-    c = t0 + cumsum(0.002 - log(rand(n, 1)) / rMax);
+    c = t0 + cumsum(0.002 - log(rand(n, 1)) / rE);
     tt = [tt; c(c < L)]; %#ok<AGROW>
     t0 = c(end);
 end

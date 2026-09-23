@@ -1326,8 +1326,14 @@ options Generate passes, so it shows the spikes that are then written:
 - the **LFP** box's component on its peak channel around up to 20 of its
   events: single events grey, their mean black, the model's mean dashed and
   an oscillation's envelope dotted (an induced one averages away while its
-  envelope does not);
+  envelope does not). The grey single events are drawn with fresh noise
+  each time, so only their mean and the model match what is written;
 - the probe's sites coloured by the component's gain, the peak ringed.
+
+The generator seeds MATLAB's random numbers with **Seed** and puts the
+caller's generator back afterwards. A source whose config inverts a line
+(`Trials.InvertedLines`) has that line written inverted too (not for the
+Open Ephys formats), so the synthetic dataset reads the same under that config.
 
 **Generate...** checks the design against the source's lines and parameters,
 confirms the folder and the size, and writes

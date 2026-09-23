@@ -59,7 +59,7 @@ obj.SynthSourceKey = obj.synthSourceKey();
 if isfinite(S.Fs) && S.Fs >= obj.SynthFsField.Limits(1) && S.Fs <= obj.SynthFsField.Limits(2)
     obj.SynthFsField.Value = S.Fs;
 end
-if isfinite(S.nChannels) && S.nChannels >= 2
+if isfinite(S.nChannels) && S.nChannels >= 2 && S.nChannels <= obj.SynthChannelsField.Limits(2)
     obj.SynthChannelsField.Value = S.nChannels;
 end
 obj.SynthSubjectField.Value = char(regexprep(S.subject, '[^\w\-]', '-') + "-SYN");

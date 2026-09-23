@@ -61,6 +61,8 @@ function S = syntheticSessionSchedule(source, opts)
 %     probeFile        its own probe, else ProbeFile
 %     ownProbe         true when probeFile is the dataset's own
 %     cuts             the pairing's cuts (recording timing), else [0 0]s
+%     invertedLines    the lines the source's config inverts (polarity was
+%                      applied to events, so the writer inverts them back)
 %     trialDuration, rules   the expressions used (session timing)
 %     summary          one line describing the schedule
 %
@@ -118,6 +120,7 @@ S.acqTime = NaT;
 S.cuts = struct('trials', [0 0], 'intervals', [0 0]);
 S.trialDuration = ""; S.rules = table(strings(0, 1), strings(0, 1), strings(0, 1), 'VariableNames', {'Name', 'Onset', 'Duration'});
 S.note = "";
+S.invertedLines = string.empty(1, 0);
 if ~isempty(ds)
     if isnan(ds.Fs) || isempty(ds.PerFile)
         try ds.refreshMetadata(); catch, end
@@ -173,6 +176,7 @@ S.nSamples = E.nSamples;
 S.duration = E.nSamples / E.Fs;
 S.trials = [table(P.onset(:), P.offset(:), 'VariableNames', {'Onset', 'Offset'}), parameterTable(T)];
 S.cuts = struct('trials', P.cutTrials, 'intervals', P.cutIntervals);
+S.invertedLines = intersect(reshape(string(P.invertedLines), 1, []), S.lineNames, 'stable');
 if ~isempty(P.warnings); S.note = strjoin(P.warnings, " "); end
 end
 
@@ -231,6 +235,11 @@ if isempty(tEnd)
     S.note = strtrim(S.note + " The session has no trial timestamps: trials follow one another ITIDur apart.");
 end
 on = tEnd - dur;
+[onS, order] = sort(on);
+nOverlap = nnz(onS(2:end) <= tEnd(order(1:end-1)));
+if nOverlap > 0   % the trial line merges them, so pairing finds fewer intervals than trials
+    S.note = strtrim(S.note + sprintf(" %d trial(s) start before the one before ends; the trial line merges them (shorten TrialDuration).", nOverlap));
+end
 t0 = min(on) - opts.LeadSeconds;            % the recording starts here (session-relative)
 on = on - t0; off = tEnd - t0;
 
@@ -243,6 +252,9 @@ for k = 1:height(rules)
     events.(rules.Name(k)) = sortrows([on(ok) + a(ok), on(ok) + a(ok) + d(ok)]);
 end
 S.lineNames = [trialLine, reshape(rules.Name, 1, [])];
+if ~isempty(ds)
+    S.invertedLines = intersect(reshape(string(ds.TrialConfig.InvertedLines), 1, []), S.lineNames, 'stable');
+end
 S.trialLine = trialLine;
 S.events = events;
 S.duration = max([off; cellfun(@(x) max([x(:); 0]), struct2cell(events))]) + opts.TailSeconds;

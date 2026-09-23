@@ -30,6 +30,7 @@ end
 txt = txt + " (" + U.scope + " scope)";
 if U.nDroppedNoStop > 0; txt = txt + sprintf("; %d without a stop event", U.nDroppedNoStop); end
 if U.nDroppedEdge > 0; txt = txt + sprintf("; %d leave the recording", U.nDroppedEdge); end
+if U.nDroppedArtifact > 0; txt = txt + sprintf("; %d touch an artifact period", U.nDroppedArtifact); end
 txt = txt + ". Groups: " + strjoin(G.label + " (" + G.n + ")", "; ");
 L.Text = txt;
 L.FontColor = [0.1 0.1 0.1];

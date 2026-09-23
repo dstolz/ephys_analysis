@@ -22,6 +22,11 @@ function src = loadAnalysisSource(out, opts)
 %     events            struct: line -> [k x 2] [t_on t_off] s, t = row/Fs,
 %                       polarity applied (from the extract; struct() when
 %                       there is none)
+%     artifacts         [k x 2] [tStart tEnd) s on the continuous clock (row
+%                       r at (r-1)/Fs): the artifact periods the Signals
+%                       step erased (the extract's info.artifacts.intervals;
+%                       zeros(0,2) when none). epochTable drops the epochs
+%                       that touch one
 %     invertedLines     lines whose polarity was inverted
 %     lines             table: Line, Count, MeanDurationSec, First, Last,
 %                       Inverted
@@ -102,6 +107,7 @@ sigs = DatasetOutputs.SignalTypes;
 src.signals = cell2struct(num2cell(false(1, numel(sigs))), cellstr(sigs), 2);
 src.signalFs = cell2struct(num2cell(NaN(1, numel(sigs))), cellstr(sigs), 2);
 src.events = struct();
+src.artifacts = zeros(0, 2);
 src.invertedLines = string.empty(1, 0);
 src.labels = string.empty(0, 1);
 files = string.empty(1, 0);
@@ -125,6 +131,9 @@ if ~isempty(files)
         I = L.info;
         if isfield(I, 'invertedLines'); src.invertedLines = reshape(string(I.invertedLines), 1, []); end
         if isfield(I, 'labels'); src.labels = reshape(string(I.labels), [], 1); end
+        if isfield(I, 'artifacts') && isstruct(I.artifacts)
+            src.artifacts = reshape(double(I.artifacts.intervals), [], 2);
+        end
         if isnan(src.fs) && isfield(I, 'origFs'); src.fs = double(I.origFs); end
         if isfield(I, 'importOptions') && isstruct(I.importOptions)
             o = I.importOptions;

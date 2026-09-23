@@ -507,8 +507,8 @@ t0 = t0(:); g = g(:);
 n = numel(t0);
 tc = t0;
 if isfinite(fsRec); tc = (round(t0 * fsRec) - 1) / fsRec; end
-E = table((1:n).', NaN(n, 1), t0, tc, NaN(n, 1), t0 - 0.2, t0 + 0.5, repmat(0.7, n, 1), true(n, 1), g, "group " + g, ...
-    'VariableNames', {'epoch', 'trial', 't0', 't0Continuous', 't1', 'tStart', 'tStop', 'duration', 'complete', 'groupIndex', 'group'});
+E = table((1:n).', NaN(n, 1), t0, tc, NaN(n, 1), t0 - 0.2, t0 + 0.5, repmat(0.7, n, 1), true(n, 1), false(n, 1), g, "group " + g, ...
+    'VariableNames', {'epoch', 'trial', 't0', 't0Continuous', 't1', 'tStart', 'tStop', 'duration', 'complete', 'artifact', 'groupIndex', 'group'});
 end
 
 

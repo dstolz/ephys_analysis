@@ -73,12 +73,15 @@ check(src.hasUnits && src.unitsFrom == "spikes" && src.hasDetected && isstruct(s
 bare = fullfile(root, 'X-1');                     % an extract alone: no manifest, no behavior
 mkdir(bare);
 Y = struct('LFP', zeros(250, 2, 'single'));
-info = struct('origFs', 20000, 'labels', {{'a'; 'b'}}, 'LFP', struct('Fs', 1000, 'nSamples', 250));
+info = struct('origFs', 20000, 'labels', {{'a'; 'b'}}, 'LFP', struct('Fs', 1000, 'nSamples', 250), ...
+    'artifacts', struct('intervals', [0.1 0.12], 'fill', "line", 'nSamples', 400));
 events = struct('Stim', [0.01 0.02]);
 save(fullfile(bare, 'X-1_extract_LFP.mat'), 'Y', 'info', 'events');
 sb = loadAnalysisSource(string(bare));
 check(sb.fs == 20000 && sb.durationSec == 0.25 && sb.signalFs.LFP == 1000 && isequal(sb.events.Stim, [0.01 0.02]) && ~sb.hasBehavior, ...
     'without a manifest: fs is the extract''s origFs and durationSec its row count over the rate (info.LFP.nSamples / Fs)');
+check(isequal(sb.artifacts, [0.1 0.12]) && isequal(src.artifacts, zeros(0, 2)), ...
+    'artifacts: the periods the Signals step erased (info.artifacts), none for the fixture (detection off, no manual periods)');
 
 fprintf('\n== 2. trial scope: first Stim of each trial ==\n');
 [E, G] = epochTable(src, eventRef(line="Stim", scope="trial"), Window=epochWindow(pre=-0.2, post=0.5));
@@ -91,6 +94,22 @@ U = E.Properties.UserData;
 check(U.scope == "trial" && U.nEvents == 12 && U.nTrialsSelected == 12 && U.ref.line == "Stim", 'UserData records the alignment');
 check(isequal(E.t0Continuous, (round(E.t0 * src.fs) - 1) / src.fs) && max(abs(E.t0Continuous - (E.t0 - 1 / src.fs))) < 1e-12, ...
     't0Continuous is each event''s sample on the continuous clock: (row-1)/Fs = t0 - 1/Fs');
+
+fprintf('\n== 2a. epochs that touch an artifact period ==\n');
+stim = {src, eventRef(line="Stim", scope="trial"), 'Window', epochWindow(pre=-0.2, post=0.5)};
+E0 = epochTable(stim{:});
+winStart = E0.tStart - (E0.t0 - E0.t0Continuous);    % each window's start on the continuous clock
+sArt = src;
+sArt.artifacts = [winStart(3) - 0.01, winStart(3) + 0.001; winStart(5) - 0.01, winStart(5)];
+stimA = stim; stimA{1} = sArt;
+[Ea, Ga] = epochTable(stimA{:});
+check(height(Ea) == 11 && ~ismember(3, Ea.trial) && ismember(5, Ea.trial) && ~any(Ea.artifact) ...
+    && Ea.Properties.UserData.nDroppedArtifact == 1 && Ga.n == 11, ...
+    ['Artifacts="drop" (default): the epoch whose window touches a period is left out; ' ...
+     'a period ending exactly at a window''s start (half-open) does not touch it']);
+Ek = epochTable(stimA{:}, Artifacts="keep");
+check(height(Ek) == 12 && isequal(find(Ek.artifact), 3) && Ek.Properties.UserData.nDroppedArtifact == 0 ...
+    && isequal(Ek.t0, E0.t0), 'Artifacts="keep": every epoch, the one that touches a period flagged');
 
 fprintf('\n== 3. "Trial" = the trial onsets; recording scope ==\n');
 E = epochTable(src, eventRef(line="Trial"), Window=epochWindow(pre=-0.5, post=1));

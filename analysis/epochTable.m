@@ -20,6 +20,10 @@ function [E, G] = epochTable(src, ref, opts)
 %     duration     tStop - tStart
 %     complete     the window lies inside the recording (0 .. durationSec)
 %                  and, in "between" mode, has its stop event
+%     artifact     the window, on the continuous clock (shifted by
+%                  t0Continuous - t0), touches one of src.artifacts, the
+%                  periods the Signals step erased (always false with the
+%                  default Artifacts="drop", which leaves those epochs out)
 %     groupIndex, group   the epoch's group (row / label of G)
 %     <groupBy parameters and Columns>   the trial's values
 %   G is selectTrials' groups table with n replaced by the number of epochs
@@ -40,11 +44,15 @@ function [E, G] = epochTable(src, ref, opts)
 %     Selection    trialSelection (default trialSelection())
 %     Incomplete   "drop" (default): drop epochs that are not complete;
 %                  "keep": keep them (evokedPotential then pads with NaN)
+%     Artifacts    "drop" (default): drop epochs that touch an artifact
+%                  period (src.artifacts), for the signals and the spikes
+%                  alike; "keep": keep them, flagged in the artifact column
 %     Columns      further trial columns to copy onto each epoch (e.g. the
 %                  tuning parameter)
 %
 %   E.Properties.UserData holds ref, window, selection, scope, nEvents,
-%   nDroppedNoStop, nDroppedEdge, nTrials, nTrialsSelected and dataset.
+%   nDroppedNoStop, nDroppedEdge, nDroppedArtifact, nTrials,
+%   nTrialsSelected and dataset.
 %   Errors: epochTable:NoEpochs (every event dropped), epochTable:NoColumn,
 %   epochTable:NoRate (src.fs unknown), and those of resolveEvents /
 %   selectTrials.
@@ -58,6 +66,7 @@ arguments
     opts.Window = []
     opts.Selection = []
     opts.Incomplete (1,1) string {mustBeMember(opts.Incomplete, ["drop" "keep"])} = "drop"
+    opts.Artifacts (1,1) string {mustBeMember(opts.Artifacts, ["drop" "keep"])} = "drop"
     opts.Columns (1,:) string = string.empty(1,0)
 end
 
@@ -103,6 +112,17 @@ complete = hasStop & inRec & okLen;
 nNoStop = nnz(~hasStop | ~okLen);
 nEdge = nnz(hasStop & okLen & ~inRec);
 
+% the event at recording row r (t0 = r/Fs + offsetSec) happened at (r-1)/Fs
+% on the continuous clock: from the row, bit for bit a spike time (sample-1)/Fs
+t0Continuous = (round((t0 - ref.offsetSec) * src.fs) - 1) / src.fs + ref.offsetSec;
+
+% --- artifact periods: on the continuous clock, as the window shifted there -------
+artifact = false(nEv, 1);
+if isfield(src, 'artifacts') && ~isempty(src.artifacts)
+    shift = t0 - t0Continuous;
+    artifact = EphysDataset.overlapsIntervals(tStart - shift, tStop - shift, src.artifacts);
+end
+
 % --- groups ---------------------------------------------------------------------
 groupIndex = ones(nEv, 1);
 if src.hasTrials
@@ -118,22 +138,25 @@ if opts.Incomplete == "drop"
     keep = complete;
 end
 keep = keep & groupIndex > 0;
+nArtifact = nnz(keep & artifact);   % otherwise usable epochs that touch a period
+if opts.Artifacts == "drop"
+    keep = keep & ~artifact;
+end
 if ~any(keep)
     why = strings(0, 1);
     if nNoStop > 0; why(end+1) = sprintf("%d without a stop event", nNoStop); end
     if nEdge > 0;   why(end+1) = sprintf("%d with a window outside the recording", nEdge); end
+    if nArtifact > 0 && opts.Artifacts == "drop"; why(end+1) = sprintf("%d touching an artifact period", nArtifact); end
     error('epochTable:NoEpochs', '%s: none of the %d %s event(s) makes a usable epoch (%s).', ...
         src.name, nEv, ref.line, strjoin(why, "; "));
 end
-t0 = t0(keep); t1 = t1(keep); trial = trial(keep); tStart = tStart(keep); tStop = tStop(keep);
-duration = duration(keep); complete = complete(keep); groupIndex = groupIndex(keep);
+t0 = t0(keep); t0Continuous = t0Continuous(keep); t1 = t1(keep); trial = trial(keep);
+tStart = tStart(keep); tStop = tStop(keep); duration = duration(keep);
+complete = complete(keep); artifact = artifact(keep); groupIndex = groupIndex(keep);
 n = numel(t0);
 epoch = (1:n).';
 group = G.label(groupIndex);
-% the event at recording row r (t0 = r/Fs + offsetSec) happened at (r-1)/Fs
-% on the continuous clock: from the row, bit for bit a spike time (sample-1)/Fs
-t0Continuous = (round((t0 - ref.offsetSec) * src.fs) - 1) / src.fs + ref.offsetSec;
-E = table(epoch, trial, t0, t0Continuous, t1, tStart, tStop, duration, complete, groupIndex, group);
+E = table(epoch, trial, t0, t0Continuous, t1, tStart, tStop, duration, complete, artifact, groupIndex, group);
 
 % --- per-epoch trial values -------------------------------------------------------
 cols = unique([sel.groupBy, opts.Columns], 'stable');
@@ -159,7 +182,8 @@ G.nTrials = G.n;
 G.n = accumarray(groupIndex, 1, [height(G) 1]);
 E.Properties.UserData = struct('ref', ref, 'window', win, 'selection', sel, 'scope', scope, ...
     'nEvents', nEv, 'nDroppedNoStop', nNoStop * (opts.Incomplete == "drop"), ...
-    'nDroppedEdge', nEdge * (opts.Incomplete == "drop"), 'nTrials', src.nTrials, ...
+    'nDroppedEdge', nEdge * (opts.Incomplete == "drop"), ...
+    'nDroppedArtifact', nArtifact * (opts.Artifacts == "drop"), 'nTrials', src.nTrials, ...
     'nTrialsSelected', nnz(mask), 'dataset', src.name);
 end
 

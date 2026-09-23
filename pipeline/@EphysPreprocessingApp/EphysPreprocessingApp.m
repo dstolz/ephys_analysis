@@ -965,7 +965,7 @@ classdef EphysPreprocessingApp < handle
 
         % --- Flow tab ---
         refreshFlowChart(obj)
-        [html, summary] = flowChartHTML(obj)
+        [html, summary] = flowChartHTML(obj, layout)
         onSaveFlowChart(obj)
         onOpenFlowChartInBrowser(obj)
         onFlowLayoutChanged(obj)

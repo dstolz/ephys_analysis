@@ -542,6 +542,37 @@ check(~startsWith(Tk.Status(1), "skip:"), 'a finished run no longer holds the da
 pipe.PriorRuns = EphysPipeline.emptyRuns();
 pipe.Config = cfg;
 
+fprintf('\n== 10a. Kilosort4 sorts the recording with the artifact periods erased ==\n');
+cfgB = cfgK;
+cfgB.Artifacts.Threshold = 6300; cfgB.Artifacts.MergeGapMs = 0; cfgB.Artifacts.PadMs = 0;   % a few % of the full-range noise, not most of it
+cfgB.Artifacts.ApplyToSorting = true;
+pipe.QueueFcn = @(d, res) [];   % write each run's .bin and files, start none
+[binDir, binName] = fileparts(d1.BinFile);
+binMeta = fullfile(binDir, binName + ".json");   % toBin's sidecar: the periods it erased
+blanked = @(iv) nnz(d1.manualArtifactMask(d1.NumSamples, 0, d1.Fs, iv));
+ws = warning('off', 'EphysDataset:toBin:Clipping');
+pipe.Config = cfgB; pipe.reset();
+pipe.runSorting();
+ivAll = pipe.artifactIntervalsFor(d1);
+ivManual = d1.artifactIntervals(IncludeAuto=false);
+meta = readJsonFile(binMeta);
+erased = reshape(meta.manual_artifacts, [], 2);
+check(pipe.Results.Status(1) == "queued" && size(ivAll, 1) > size(ivManual, 1) ...
+    && isequal(size(erased), size(ivAll)) && max(abs(erased - ivAll), [], 'all') < 1e-9 ...
+    && meta.n_manual_blanked == blanked(ivAll) && meta.n_manual_blanked > blanked(ivManual), ...
+    'the Sorting step writes the .bin with the manual and the automatic artifact periods erased');
+cfgB.Artifacts.ApplyToSorting = false;
+pipe.Config = cfgB; pipe.reset();
+pipe.runSorting();
+meta = readJsonFile(binMeta);
+erased = reshape(meta.manual_artifacts, [], 2);
+check(pipe.Results.Status(1) == "queued" && isequal(size(erased), size(ivManual)) ...
+    && max(abs(erased - ivManual), [], 'all') < 1e-9 && meta.n_manual_blanked == blanked(ivManual), ...
+    'with ApplyToSorting off the .bin has the manual periods erased only');
+warning(ws);
+pipe.QueueFcn = [];
+pipe.Config = cfg;
+
 fprintf('\n== 11. two recordings with the same name under one output root ==\n');
 projS = fullfile(root, 'projS');
 g1 = fullfile(projS, 'm1', 'rec'); g2 = fullfile(projS, 'm2', 'rec'); gc = fullfile(projS, 'calibration');

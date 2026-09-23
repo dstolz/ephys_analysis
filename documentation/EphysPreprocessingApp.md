@@ -815,10 +815,13 @@ shown and on every config edit while it is open. It is one tree: the raw
 recording at the top branches into the steps that read it, each drawn
 top-down from its own coloured step box to the files it writes:
 
-- **Artifacts**: chunked reading, the detection filter, the detector (method,
-  window, threshold), channel coincidence, merge / pad, the automatic
-  intervals, and where they go with the manual periods (Sorting, Spikes).
-- **Sorting**: the `.bin` write, blanked artifact periods, the probe map
+- **Artifacts**: chunked reading, the common reference, the detection
+  filter, the detector (method, window, threshold), channel coincidence,
+  merge / pad, the automatic intervals, and the artifact periods
+  (automatic and manual) that Sorting and Spikes read.
+- **Sorting** hangs from those artifact periods, because Kilosort4 sorts the
+  recording with them erased: the common reference, the blanked artifact
+  periods (noise-filled or zeroed), the `.bin` write, the probe map
   (`chanMap` indexes `.bin` rows; manifest exclusions), then Kilosort4
   (`run_kilosort`): crop, its own high-pass, CAR, artifact threshold,
   whitening, drift correction, template matching and clustering, ending in
@@ -829,18 +832,23 @@ top-down from its own coloured step box to the files it writes:
   with bad-channel interpolation, the channel remap and the output file.
   Export hangs from the first signal file (from the digital events when no
   amplifier signal is computed): its inputs, then one branch per format.
-- **Spikes**: chunking, channels, bandpass, threshold, alignment, minimum
-  period, amplitude cap, waveforms, artifact rejection and the spikes file.
+- **Spikes**: chunking, the common reference, channels, bandpass, threshold,
+  alignment, minimum period, amplitude cap, waveforms, artifact rejection and
+  the spikes file.
 
-Reading the sorted units into the spikes file (*Spikes: sorted units*) hangs
-from Sorting's output. Stages the config leaves off are dashed, a disabled
-step's branch is faded (a step hanging from it keeps its own state), and
-artifact periods feeding another step are marked orange.
+The common reference (Artifacts tab, **Reference**) is drawn in each of the
+three branches that read the recording through it; the derived signals are
+not referenced. Reading the sorted units into the spikes file (*Spikes:
+sorted units*) hangs from Sorting's output. Stages the config leaves off are
+dashed, a disabled step's branch is faded (a step hanging from it keeps its
+own state, and so do the artifact periods: the manual ones apply with
+detection off), and artifact periods feeding another step are marked orange.
 
-**Layout** switches to **Tree per step**: a tree of its own for each step that
-reads the recording, each from the recording box, then the steps that read
-their outputs (sorted units, Export) under **Downstream**, each under a box
-for the file it reads. The choice is kept as a preference.
+**Layout** switches to **Tree per step**: a tree of its own for Artifacts,
+Signals and Spikes, each from the recording box, then the steps hung from
+another step's output (Sorting from the artifact periods, the sorted units,
+Export) under **Downstream**, each under a box for what it reads. The choice
+is kept as a preference.
 
 With an active dataset the recording node shows its name, rate and channel
 count, and the Sorting branch shows its probe and exclusions.

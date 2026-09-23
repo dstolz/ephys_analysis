@@ -1,22 +1,24 @@
 function [html, summary] = flowChartHTML(obj, layout)
 %flowChartHTML  Flow chart of the working config as a standalone HTML page.
 %   [HTML, SUMMARY] = app.flowChartHTML() draws one tree from the raw
-%   recording. It branches into the steps that read the recording --
-%   Artifacts, Sorting (Kilosort4 on a .bin), Signals (LFP / MUA / SPIKE /
-%   AUX / digital events) and Spikes (threshold detection) -- and runs each
+%   recording. It branches into Artifacts, Signals (LFP / MUA / SPIKE / AUX
+%   / digital events) and Spikes (threshold detection), and runs each
 %   through its stages, with their filter, reference and detection
-%   parameters, to what the step writes. The steps that read those outputs
-%   instead of the recording hang from the file they read: sorted units for
-%   the Spikes file under Sorting's output, Export under the Signals extract.
+%   parameters, to what the step writes. Sorting (Kilosort4 on a .bin)
+%   hangs from the artifact periods, because its .bin is the recording with
+%   those periods erased. The steps that read an output rather than the
+%   recording hang from the file they read: sorted units for the Spikes
+%   file under Sorting's output, Export under the Signals extract.
 %   Each step's branch starts with a box in its colour. Stages the config
 %   leaves off are drawn dashed; disabled steps are faded. Artifact periods
 %   feeding Sorting / Spikes are marked in the Artifacts colour.
 %
 %   app.flowChartHTML(LAYOUT) picks the layout: "tree" (the one tree above)
 %   or "steps" (a tree of its own for each step that reads the recording,
-%   each from the recording box, then the steps that read their outputs as
-%   downstream trees, each under the file it reads). Default: the Diagram
-%   tab's Layout drop-down (FlowLayoutDropDown).
+%   each from the recording box, then the steps hung from another step's
+%   output -- Sorting from the artifact periods too -- as downstream trees,
+%   each under the box it reads). Default: the Diagram tab's Layout
+%   drop-down (FlowLayoutDropDown).
 %
 %   Each box names the control(s) that set what it shows (its node target,
 %   written into the page as data-nav). In the app a click on a box sends
@@ -41,12 +43,14 @@ cfg = obj.Config;
 d = obj.currentDataset();
 dsName = ternary(isempty(d), "<Name>", d.Name);
 
-steps = {artifactsTree(cfg), sortingTree(cfg, d, unitsTree(cfg, dsName)), ...
-    signalsTree(cfg, dsName, exportTree(cfg, dsName)), spikesTree(cfg, dsName)};
+sorting = sortingTree(cfg, d, unitsTree(cfg, dsName));
+steps = {artifactsTree(cfg, sorting), signalsTree(cfg, dsName, exportTree(cfg, dsName)), ...
+    spikesTree(cfg, dsName)};
 raw = rawNode(d);
 
-nOn = sum(cellfun(@(s) ~s.dim, steps));
-summary = sprintf("%d of %d raw-data step(s) enabled", nOn, numel(steps));
+% Sorting reads the recording too (it writes the .bin from it).
+nOn = sum(cellfun(@(s) ~s.dim, [steps, {sorting}]));
+summary = sprintf("%d of %d raw-data step(s) enabled", nOn, numel(steps) + 1);
 if ~isempty(d)
     summary = summary + " | recording: " + d.Name;
 end
@@ -77,8 +81,15 @@ n = node("src", "Raw recording", [d.Name, info], "RootPathField,DatasetsTable");
 end
 
 
-function n = artifactsTree(cfg)
+function n = artifactsTree(cfg, sorting)
+%artifactsTree  The detection chain, ending in the artifact periods that
+%   SORTING (its .bin has them erased) and the Spikes rejection read.
 A = cfg.Artifacts;
+if A.Method == "commonmode"
+    ref = referenceNode(A, "the common-mode detector reads before it");
+else
+    ref = referenceNode(A);
+end
 filtTarget = "ArtFilterCheckBox,ArtHighpassField";
 if A.Filter
     filt = node("op", "Butterworth " + A.FilterType, ...
@@ -110,19 +121,38 @@ out = node("out", "Automatic intervals", ["[t_on t_off] s", ...
     ternary(A.CacheIntervals, "cached while recording + settings match", "recomputed by each step")], ...
     "ArtCacheCheckBox,ArtDetectButton");
 
-toSort = linkNode(cfg.Sorting.Enabled, A.Enabled && A.ApplyToSorting, "Silence in Sorting", "ApplyToSorting", "ArtApplySortingCheckBox");
-toSpk  = linkNode(cfg.Spikes.Enabled && cfg.Spikes.Source ~= "sorted" && cfg.Spikes.RejectArtifacts, ...
+toSpk = linkNode(cfg.Spikes.Enabled && cfg.Spikes.Source ~= "sorted" && cfg.Spikes.RejectArtifacts, ...
     A.Enabled && A.ApplyToSpikes, "Reject in Spikes", "ApplyToSpikes", "ArtApplySpikesCheckBox");
-manual = node("data", "+ manual periods", "marked on Visualize; always applied", "ArtManualTable,ArtEditVizButton");
-manual.children = {toSort, toSpk};
-out.children = {manual};
+periods = node("link", "Artifact periods", ...
+    [ternary(A.Enabled, "automatic + manual", "manual only (detection off)"), "manual: marked on Visualize"], ...
+    "ArtManualTable,ArtEditVizButton");
+periods.children = {sorting, toSpk};
 
 n = step("artifacts", "Artifacts", A.Enabled, ...
     ternary(A.Enabled, "", "Detection is off: only the manual periods reach Sorting / Spikes."), ...
     "ArtEnableCheckBox", ...
     {node("op", "Read in chunks", ["one file / bounded window per chunk", parallelText(cfg.Parallel)], ...
     "RunParallelCheckBox,RunMaxWorkersField"), ...
-    filt, det, coinc, merge, pad, out});
+    ref, filt, det, coinc, merge, pad, out});
+% Hung on after step(): the manual periods apply with detection off too, so
+% they do not fade with it.
+n = hangFromEnd(n, {periods});
+end
+
+
+function n = referenceNode(A, note)
+%referenceNode  The Artifacts section's common reference, which every
+%   streaming read subtracts: artifact detection, the Kilosort4 .bin and
+%   spike detection (EphysDataset.applyReference), detection on or off.
+target = "ArtRefDropDown,ArtRefLowField,ArtRefHighField";
+switch A.Reference
+    case "car"; n = node("op", "Common average reference", "mean of the good channels, subtracted from each", target);
+    case "cmr"; n = node("op", "Common median reference", "median of the good channels, subtracted from each", target);
+    otherwise;  n = node("off", "Common reference", "none (as recorded)", target);
+end
+if nargin > 1 && n.kind == "op"
+    n.detail(end+1) = note;
+end
 end
 
 
@@ -138,7 +168,8 @@ end
 
 
 function n = sortingTree(cfg, d, units)
-% The recording goes to a .bin and straight into Kilosort4, which crops
+% The recording, with the Artifacts section's common reference and the
+% artifact periods erased, goes to a .bin and into Kilosort4, which crops
 % (tmin/tmax) and references (do_CAR) itself. UNITS (reading the sorted
 % units into the Spikes file) hangs from the sorted units.
 S = cfg.Sorting; K = S.KS4;
@@ -161,10 +192,10 @@ if ~isempty(d) && ~isempty(d.ExcludeChannels)
     probe(end+1) = "excluding " + compactList(d.ExcludeChannels);
 end
 
-erased = ternary(A.Fill == "noise", " in the .bin, noise-filled", " in the .bin, zeroed");
 blank = node("link", "Blank artifact periods", ...
-    ternary(A.Enabled && A.ApplyToSorting, "manual + automatic" + erased, "manual periods only" + erased), ...
-    "ArtApplySortingCheckBox");
+    [ternary(A.Enabled && A.ApplyToSorting, "manual + automatic", "manual periods only"), ...
+    ternary(A.Fill == "noise", "noise-filled", "zeroed") + " before the .bin is written"], ...
+    "ArtApplySortingCheckBox,ArtFillDropDown");
 
 hp = node("op", "KS4 high-pass", sprintf("%g Hz", K.highpass_cutoff), "ks4.highpass_cutoff");
 ksCar = node("op", "KS4 CAR", "do_CAR (common average)", "ExtraSettingsArea");
@@ -188,7 +219,8 @@ out.children = {units};
 
 n = step("sorting", "Sorting", S.Enabled, sortingNote(S), ...
     "SortEnableCheckBox,SortSkipExistingCheckBox,ExecModeDropDown,DryRunCheckBox", ...
-    {node("stage", "Write .bin", ["int16, channel-interleaved", "<Name>.bin (toBin)"], "PythonExeField,CondaEnvField"), blank, ...
+    {referenceNode(A), blank, ...
+    node("stage", "Write .bin", ["the recording, int16, channel-interleaved", "<Name>.bin (toBin)"], "PythonExeField,CondaEnvField"), ...
     node("op", "Attach probe map", [probe, "chanMap indexes .bin rows"], "ProbeDatasetDropDown,ProbeDefaultField,ExcludeChannelsField"), ...
     node("stage", "Kilosort4", "run_kilosort", ksStage), ...
     crop, hp, ksCar, art, white, drift, det, clu, out});
@@ -375,7 +407,7 @@ out = node("out", "Detected spikes", lines, "SpkOutputDirField,SpkSuffixField,Sp
 n = step("spikes", "Spikes", K.Enabled && K.Source ~= "sorted", ...
     ternary(K.Source == "sorted", "Source is 'sorted': no threshold detection runs.", ""), ...
     "SpkEnableCheckBox,SpkSourceDropDown", ...
-    {node("op", "Stream chunks", chunk, "SpkChunkField,SpkEdgePadField"), ...
+    {node("op", "Stream chunks", chunk, "SpkChunkField,SpkEdgePadField"), referenceNode(A), ...
     node("op", "Channels", ch, "SpkChannelsDropDown,SpkChannelListField"), ...
     filt, thr, align, minP, maxA, wave, rej, out});
 end
@@ -493,6 +525,17 @@ for k = numel(list) - 1:-1:1
     p = list{k};
     p.children = [p.children, {n}];
     n = p;
+end
+end
+
+
+function n = hangFromEnd(n, kids)
+%hangFromEnd  Hang KIDS under the last box of the straight run N starts
+%   (chain, step), keeping their own faded state.
+if isempty(n.children)
+    n.children = kids;
+else
+    n.children{end} = hangFromEnd(n.children{end}, kids);
 end
 end
 

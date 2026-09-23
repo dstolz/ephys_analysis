@@ -9,7 +9,8 @@ function files = wikiScreenshots(outFolder, opts)
 %                           dataset loaded with TrialType labels
 %     app-sorting-tab.png   Sorting tab
 %     app-export-tab.png    Export tab with the epochs format ticked
-%     app-diagram-tab.png   Diagram tab
+%     app-diagram-tab.png   Diagram tab, Every parameter view
+%     app-diagram-overview.png  Diagram tab, Data-flow overview view
 %     app-run-plan.png      Run tab after Validate + Plan (run diagram and
 %                           resource monitor shown)
 %     app-run-results.png   Run tab after a full serial run
@@ -43,7 +44,7 @@ arguments
     outFolder (1,1) string
     opts.Source (1,1) string = string(fileparts(fileparts(fileparts(mfilename('fullpath')))))
     opts.Shots (1,:) string = ["app-project-tab.png" "app-trials-clean.png" "app-sorting-tab.png" ...
-        "app-export-tab.png" "app-diagram-tab.png" "app-run-plan.png" "app-run-results.png" "app-cleanup-tab.png"]
+        "app-export-tab.png" "app-diagram-tab.png" "app-diagram-overview.png" "app-run-plan.png" "app-run-results.png" "app-cleanup-tab.png"]
     opts.Project (1,1) string = ""
     opts.Wait (1,1) double {mustBeNonnegative} = 2
 end
@@ -67,7 +68,7 @@ if ispref(g); saved = getpref(g); end
 save(fullfile(outFolder, 'prefs_backup.mat'), 'saved');
 restore = onCleanup(@() restorePrefs(g, saved));
 for p = ["LastConfigFile" "DatasetsColumnOrder" "TrialsParamColumns" "TrialsColumnOrder" "TrialsLabelParams" ...
-        "MonitorResources" "ShowRunDiagram" "CleanupOptions" "FigurePosition" "QueueSortingRuns"]
+        "MonitorResources" "ShowRunDiagram" "DiagramView" "DiagramLayout" "CleanupOptions" "FigurePosition" "QueueSortingRuns"]
     if ispref(g, p); rmpref(g, p); end
 end
 
@@ -113,6 +114,13 @@ app.selectTab(app.TabExport);
 shot("app-export-tab.png", 1);
 app.selectTab(app.TabFlow);
 shot("app-diagram-tab.png", 2.5);
+if want("app-diagram-overview.png")
+    app.FlowViewDropDown.Value = "overview";
+    app.onFlowViewChanged();
+    shot("app-diagram-overview.png", 2.5);
+    app.FlowViewDropDown.Value = "detail";
+    app.onFlowViewChanged();
+end
 
 if want("app-run-plan.png") || want("app-run-results.png")
     app.RunParallelCheckBox.Value = false;   % a serial run

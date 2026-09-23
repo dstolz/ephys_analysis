@@ -25,7 +25,7 @@ everything except sorting and probe design.
 
 ## 1. Install MATLAB
 
-1. Install MATLAB R2023a or later (the Visualize tab uses `xregion`; the code
+1. Install MATLAB R2023a or later (the Artifacts tab uses `xregion`; the code
    also relies on `arguments`-block validation and string arrays). The code
    is developed and tested on R2025a.
 2. In the Add-On Explorer / installer, make sure **Signal Processing Toolbox**

@@ -13,7 +13,9 @@ From the GUI: **Dataset → View manifest...** opens the manifest of the
 [active dataset](EphysPreprocessingApp.md#which-dataset-does-an-action-act-on)
 ([`onViewManifest`](../pipeline/@EphysPreprocessingApp/onViewManifest.m)),
 with the config's default probe (`Probe.DefaultProbeFile`). A dataset with no
-manifest on disk yet gets one written first.
+manifest on disk yet gets one written first. The Project tab's **Tools** panel
+(**Manifest viewer**) does the same for the active dataset or for every
+ticked one, a window each.
 
 Programmatically:
 

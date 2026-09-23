@@ -140,16 +140,16 @@ places, and all of them always show the same one:
 When the active dataset changes, results shown for the previous one are
 cleared: a loaded trial pairing, the Artifacts preview and the Spikes
 preview. The Review tab loads the new dataset's sorted output (at once when
-the tab is open, else when you open it). A Visualize plot of the previous
-dataset stays on screen, but the status line names the dataset it shows and
-**Mark Artifacts** / **Clear Artifacts** are off until you press **Plot**. A
-plot stays tied to the dataset it was drawn from: a rescan finds that
-recording again by its folder.
+the tab is open, else when you open it), and so does the Visualize tab. Until
+it does, a Visualize plot of the previous dataset stays on screen, the status
+line names the dataset it shows and **Mark Artifacts** / **Clear Artifacts**
+are off. A plot stays tied to the dataset it was drawn from: a rescan finds
+that recording again by its folder.
 
 | Action | Target |
 | --- | --- |
-| Trials: every control; Probe: Exclude channels, the channel-count check; Artifacts: Detect / Preview, manual periods table; Sorting: Use folder / Use auto / Open in phy, Optimize for probe (the default probe when the dataset has none); Spikes: Preview; Visualize: Plot; Review; Project: Associate file / Clear, Open in phy | the **active dataset** |
-| Run pipeline, Run this step, Plan, Signals / Export target tables | the rows **ticked** in the Project table (`Project.Selection = "list"`), or **all** datasets when none are ticked (`"all"`) |
+| Trials: every control; Probe: Exclude channels, the channel-count check; Artifacts: Detect / Preview, manual periods table; Sorting: Use folder / Use auto / Open in phy, Optimize for probe (the default probe when the dataset has none); Spikes: Preview; Visualize; Review; Project: Associate file / Clear, the Tools panel set to **Active dataset** | the **active dataset** |
+| Run pipeline, Run this step, Plan, Signals / Export target tables; Project: the Tools panel set to **Ticked datasets** | the rows **ticked** in the Project table (`Project.Selection = "list"`), or **all** datasets when none are ticked (`"all"`) |
 | Probe: Assign to selected datasets | the rows **ticked** in the Project table, or the **active dataset** when none are ticked |
 | Probe: Assign to all datasets | every dataset |
 
@@ -453,7 +453,7 @@ sch.remove();
 | Open Ephys: recordings, Record node, Stream | the [`Acquisition` section](EphysPipeline.md#acquisition): what a session with several recordings is (**join recordings** = one dataset, **one dataset per recording** = part folders created in the session folder, **single recording only** = refused), which Record Node and which continuous stream to read (blank = automatic). A change rescans the project, since it changes which folders are datasets |
 | Filter | one editable dropdown per name-pattern token, listing the values found (`-` = the name does not match). Rows whose token does not match are hidden; type `*` / `?` wildcards or comma-separated alternatives (case-insensitive). Filters are a view only: they are not saved, and ticks on hidden rows stay in the selection (the label shows `showing k of n (m ticked hidden)`) |
 | All / None | **All** ticks every shown row; **None** unticks every row, shown or hidden |
-| Open in phy | the active dataset's associated sorted output (enabled only when it has `params.py`) |
+| **Tools** panel (beside the table) | opens datasets in another program. The box on top chooses which: **Active dataset** (the highlighted row) or **Ticked datasets** (the ticked rows, or every dataset when none is ticked, as a run takes them); the label under it names them, and how many of several have sorted output. **Manifest viewer**: each one's `<Name>_manifest.json` in a [manifest viewer](ManifestViewerApp.md), a window each, cascaded (the same as Dataset → View manifest...). **Analysis app**: one [analysis app](EphysAnalysisApp.md) on the project with those datasets selected (a new config in project mode with `Source.Selection = "list"` and their keys: it lists every dataset but ticks only these to run, the first of them active; `"all"` when they are every dataset); needs the repository's `analysis` folder on the path. **phy**: phy's template-gui on each one's associated sorted output, a window each (on only when one of them has `params.py`; the others are skipped). **Output folder**: each one's output folder in the file browser (an alert names those not written yet). Opening more than four windows at once asks first |
 
 Table columns (drag a header to reorder; the order is kept across refreshes
 and saved in the app preferences): **Select**, Name, the ticked name tokens
@@ -564,7 +564,7 @@ the preview's summary with its per-channel table.
 
 | Control | Maps to |
 | --- | --- |
-| Reference: *None* / *CAR: common average* / *CMR: common median* | `Artifacts.Reference` (`"none"` / `"car"` / `"cmr"`): subtract, sample by sample, the mean or median of the good channels from every channel before anything else - artifact detection, the noise level of the fill, the Kilosort4 `.bin`, the derived LFP / MUA / SPIKE signals and spike detection. The preview and the viewer show the referenced signal. See [Common reference](EphysDataset.md#common-reference-car--cmr) |
+| Reference: *None* / *CAR: common average* / *CMR: common median* | `Artifacts.Reference` (`"none"` / `"car"` / `"cmr"`), a setting for the whole pipeline (the panel is titled *Common reference, for every step*): subtract, sample by sample, the mean or median of the good channels from every channel, once, as each step reads the recording - artifact detection, the noise level of the fill, the Kilosort4 `.bin` (Kilosort4's own `do_CAR` is then turned off, so it is not referenced twice), spike detection, and the derived signals ticked on the Signals tab (MUA and SPIKE by default, not the LFP). The preview and the viewer show the referenced signal. See [Common reference](EphysDataset.md#common-reference-car--cmr) |
 | Good noise (x median): *low* to *high* | `Artifacts.ReferenceBadLow`, `ReferenceBadHigh` (0.3 and 2, Ludwig et al. 2009): a channel whose noise floor lies outside this band, relative to the median across channels, is suggested to stay out of the reference |
 | Left out, **Suggest** | the active dataset's `ReferenceExclude` (written to its manifest): channels kept out of the average, though still referenced. **Suggest** measures each channel's noise floor on a sample of the recording and fills the field (each channel's ratio goes to the log); typing a list marks it set by hand. A list that does not parse changes nothing (an alert says why). A dataset whose list was never set gets the suggestion on its first referenced run or preview. Channels excluded on the Probe tab stay out of the reference too |
 | **Enabled** | `Artifacts.Enabled`: run automatic detection (manual periods always apply) |
@@ -572,7 +572,7 @@ the preview's summary with its per-channel table.
 | Method, Threshold, RMS window, Stitch gap, Pad, Min channels | `Artifacts.Method`, `Threshold`, `RmsWindowMs`, `MergeGapMs`, `PadMs`, `MinChannels` |
 | Filter before detecting, High-pass (Hz) | `Artifacts.Filter`, and `FilterCutoff`: a high-pass filter's cut-off, or a band-pass filter's lower edge. `FilterType`, `FilterOrder` and a band's upper edge have no control and keep the config's values; with a low-pass filter (a config written by hand or by a script) the field is off. They apply to runs as well as the preview |
 | Erase with: *Gaussian noise (recording level)* / *Zeros* | `Artifacts.Fill` (`"noise"` / `"zero"`): what replaces the artifact samples, manual periods included. Noise by default - Kilosort4 reads a block of zeros across every channel as a signal discontinuity. Each period becomes a straight line between the signal's levels on either side plus that noise; its level is measured on up to 16 chunks spread over the recording, above `Artifacts.NoiseBandHz` (300 Hz), and `Artifacts.NoiseSeed` makes a rerun repeat; neither has a control here |
-| Erase in sorting (in the .bin Kilosort4 sorts) / Reject detected spikes inside the periods / Erase in the signals (LFP / MUA / SPIKE, before filtering) | `Artifacts.ApplyToSorting`, `ApplyToSpikes`, `ApplyToSignals`: whether the detected artifacts reach those steps (manual periods always do). The signals take any periods only while the Signals tab's *Erase the artifact periods first* is ticked |
+| Erase in sorting (in the .bin Kilosort4 sorts) / Apply in spike detection (reject or erase: Spikes tab) / Erase in the signals (LFP / MUA / SPIKE, before filtering) | `Artifacts.ApplyToSorting`, `ApplyToSpikes`, `ApplyToSignals`: whether the detected artifacts reach those steps (manual periods always do). The signals take any periods only while the Signals tab's *Erase the artifact periods first* is ticked, and spike detection only while the Spikes tab's *Artifact periods* does not ignore them |
 | Cache intervals | `Artifacts.CacheIntervals` (`<Name>_artifacts.json`) |
 | Order channels by probe layout | display only, not saved: the viewer's lanes and the per-channel table in probe order (below). Needs a probe (the dataset's, else the config's default probe), and is ticked by default when there is one |
 | **Detect / Preview** | `analyzeArtifacts` over the active dataset (streamed, read-only; on the process pool when the Run tab's **Parallel** box is ticked): summary + per-channel table, and the detected artifacts in the viewer |
@@ -597,7 +597,7 @@ line). Detected artifacts are shaded orange,
 with the one shown outlined, and manual periods are shaded red, as on the
 Visualize tab. What counts as removed follows the controls as they are set:
 manual periods always, and detected artifacts only when **Enabled** is ticked
-together with *Erase in sorting*, *Reject detected spikes* or *Erase in the
+together with *Erase in sorting*, *Apply in spike detection* or *Erase in the
 signals*. The line above the plot says which of them apply, and it warns when a detection setting has changed
 since the preview. **Scale** fits the lanes to the whole window, or to the
 kept signal: six robust SDs of the signal outside the artifacts (at most the whole
@@ -645,7 +645,7 @@ The time zoom is kept while the same artifact is
 shown, and a long window is redrawn in finer detail as you zoom in. The
 y-axis label gives the lane spacing in µV and says when larger values are
 clipped. On other tabs the wheel and keys work
-as before (the Visualize viewer's shortcuts).
+as before (on the Visualize tab, its own shortcuts).
 
 ## Sorting
 
@@ -764,9 +764,19 @@ Derived LFP / MUA / SPIKE `.mat` files with `EphysDataset.toMat`
   levels on either side, so no filter or resampler spreads an artifact into
   the samples around it. Every file records them (`info.artifacts`), and
   Export's epochs and the analysis leave out the epochs that touch one. AUX is
-  not changed. The tab's note gives the order: keep channels → erase artifact
-  periods → LFP (resample, then filters) / MUA / SPIKE → interpolate bad
-  channels → remap.
+  not changed.
+- **Common reference: LFP / MUA / SPIKE**, the row below it:
+  `Signals.LFP_Reference` / `MUA_Reference` / `SPIKE_Reference` (off / on /
+  on by default), which signals the common reference set on the Artifacts tab
+  is subtracted from, once, before they are derived. It suits MUA and SPIKE,
+  which it rids of the noise every channel shares; the LFP is usually kept as
+  recorded, since the reference would take out the LFP the channels share.
+  Each box is on only while its signal is ticked, and nothing is subtracted
+  while the reference is *None*. Every file records what its signal took
+  (`info.<TYPE>.reference`). The tab's note gives the order: keep channels →
+  common reference (the signals ticked for it; taken over every channel) →
+  erase artifact periods → LFP (resample, then filters) / MUA / SPIKE →
+  interpolate bad channels → remap.
 - **Channels**: label field (`custom` / `native` names for channels, aux
   inputs and digital lines; lines renamed on the Trials tab keep their
   names), keep channels, bad channels (none / manual list of recording
@@ -788,7 +798,11 @@ Spike events per dataset with `EphysDataset.spikesToMat`, `Spikes.*`.
 - **Filter** (band, order), **Threshold** (method, value, polarity, max
   amplitude), **Events** (align, window, min period), **Waveforms** (on/off,
   window, source, edge handling), **Channels & artifacts** (all / manifest
-  exclusions / list; reject events inside artifact periods), **Chunking**
+  exclusions / list; **Artifact periods**, `Spikes.ArtifactMode`: *Reject the
+  events inside them* (default), *Erase them before detection (the cleaned
+  recording)*, whose samples then stay out of the thresholds and are bridged
+  by a line for the band-pass, so an artifact neither rings into the samples
+  around it nor raises the threshold, or *Ignore them*), **Chunking**
   (chunk cap, edge pad; the parallel switch is on the Run tab), **Sorted units** (groups, include noise,
   templates), **Output** (folder, suffix `_spikes`, MAT version, overwrite).
 - **Dataset** + **Preview**: detects on the first *n* seconds of the active
@@ -829,58 +843,81 @@ the app only writes files.
 ## Diagram
 
 A diagram of what the working config does, redrawn whenever the tab is
-shown and on every config edit while it is open. It is one tree: the raw
-recording at the top branches into the steps that read it, each drawn
-top-down from its own coloured step box to the files it writes:
+shown and on every config edit while it is open. **View** picks one of two
+drawings, and the choice is kept as a preference:
 
-- **Artifacts**: chunked reading, the common reference, the detection
+- **Every parameter** (the default): every step's stages with their
+  parameters, described next.
+- **Data-flow overview**: only the steps and the data passing between them
+  (see [Data-flow overview](#data-flow-overview)).
+
+**Every parameter** is one tree: the raw
+recording at the top, then the common reference, drawn once, and under it
+the steps that read the recording, each drawn top-down from its own coloured
+step box to the files it writes:
+
+- **Common reference** (Artifacts tab, **Reference**): the one box for the
+  whole pipeline, since every step subtracts it once from its own read of the
+  recording. It lists what leaves it out: the Signals not ticked for it
+  (*not Signals' LFP* by default) and the common-mode artifact detector,
+  which looks for the very mean it subtracts. Dashed *none (as recorded)*
+  when it is off.
+- **Artifacts**: chunked reading, the detection
   filter, the detector (method, window, threshold), channel coincidence,
   merge / pad, the automatic intervals, and the artifact periods
   (automatic and manual) that Sorting, Signals and Spikes read. Its boxes
-  below the periods are Sorting, Signals, then *Reject in Spikes*.
-- **Sorting** and **Signals** hang from those artifact periods, because each
-  erases them from the recording before reading it: the `.bin`, and the
-  amplifier data LFP / MUA / SPIKE are derived from. Signals hangs there only
-  while `Signals.BlankArtifacts` is on; with it off it hangs from the raw
-  recording. Sorting: the common reference, the blanked artifact
+  below the periods are Sorting, Signals and then Spikes when they hang
+  there, else *Reject in Spikes* (or a dashed *Spikes: ignores the periods*).
+- **Sorting**, **Signals** and **Spikes** hang from those artifact periods
+  when they erase them from the recording before reading it: Sorting always
+  (the `.bin`), Signals while `Signals.BlankArtifacts` is on (the amplifier
+  data LFP / MUA / SPIKE are derived from), Spikes while
+  `Spikes.ArtifactMode` is `"erase"` (the trace it detects on). Otherwise
+  they hang from the common reference. Sorting: the blanked artifact
   periods (noise-filled or zeroed), the `.bin` write, the probe map
   (`chanMap` indexes `.bin` rows; manifest exclusions), then Kilosort4
-  (`run_kilosort`): crop, its own high-pass, CAR, artifact threshold,
+  (`run_kilosort`): crop, its own high-pass, CAR (dashed *off (do_CAR =
+  false)* while the `.bin` carries the common reference, so the recording is
+  referenced once), artifact threshold,
   whitening, drift correction, template matching and clustering, ending in
   the phy-ready sorted units in `kilosort4/`.
-- **Signals**: the common reference (over every channel), channel selection,
+- **Signals**: channel selection,
   then an *Erase artifact periods* box
   (orange: *manual + automatic* or *manual periods only*, *a line across each,
   before any filter*, *recorded in every file*; dashed *off (as recorded)*
   when `Signals.BlankArtifacts` is off) over the LFP (resample, band filter,
   notch), MUA (bandpass, rectify, resample, integrate) and SPIKE (resample,
-  bandpass) branches; the AUX and digital-event branches hang from the read
-  beside the reference, since neither is referenced or channel-selected. The amplifier branches end with bad-channel
+  bandpass) branches, each of whose first box says whether it takes the
+  common reference (*common CMR referenced*) or not (*as recorded (no common
+  reference)*); the AUX and digital-event branches hang from the read
+  beside the channel selection, since neither is referenced or
+  channel-selected. The amplifier branches end with bad-channel
   interpolation, the channel remap and the output file. Export hangs from the
   first signal file (from the digital events when no amplifier signal is
   computed): its inputs, then one branch per format; the *Event epochs* box
   says whether epochs touching an artifact period are dropped or kept,
   flagged.
-- **Spikes**: chunking, the common reference, channels, bandpass, threshold,
-  alignment, minimum period, amplitude cap, waveforms, artifact rejection and
-  the spikes file.
+- **Spikes**: chunking, channels, the erased artifact periods (with
+  `ArtifactMode` `"erase"`: *NaN: out of the thresholds, a line across each
+  for the filter*), bandpass, threshold, alignment, minimum period, amplitude
+  cap, waveforms, artifact rejection (with `"reject"`; dashed *ignored* with
+  `"none"`) and the spikes file.
 
-The common reference (Artifacts tab, **Reference**) is drawn in each of the
-four branches that read the recording through it (Artifacts, Sorting,
-Signals, Spikes). Reading the sorted units into the spikes file (*Spikes:
+Reading the sorted units into the spikes file (*Spikes:
 sorted units*) hangs from Sorting's output. Stages the config leaves off are
 dashed, a disabled step's branch is faded (a step hanging from it keeps its
 own state, and so do the artifact periods: the manual ones apply with
 detection off), and artifact periods feeding another step are marked orange.
 
-**Layout** switches to **Tree per step**: a tree of its own for Artifacts and
-Spikes (and Signals while `Signals.BlankArtifacts` is off), each from the
-recording box, then the steps hung from another step's output (Sorting and
-Signals from the artifact periods, the sorted units, Export) under
+**Layout** (this view only; it is off in the overview) switches to **Tree per step**: a tree of its own for Artifacts and
+Spikes (Spikes only while it does not erase the periods, and Signals too
+while `Signals.BlankArtifacts` is off), each from the recording box and its
+common reference, then the steps hung from another step's output (Sorting,
+Signals and Spikes from the artifact periods, the sorted units, Export) under
 **Downstream**, each under a box for what it reads (*Artifact periods, from
 Artifacts*). The choice is kept as a preference. In either layout the tab's
 summary line (`N of 4 raw-data step(s) enabled`) counts Artifacts, Sorting,
-Signals and Spikes, wherever Sorting and Signals hang.
+Signals and Spikes, wherever they hang.
 
 With an active dataset the recording node shows its name, rate and channel
 count, and the Sorting branch shows its probe and exclusions.
@@ -897,9 +934,47 @@ box. Boxes lead where the setting lives rather than where they are drawn, so
 chunks* opens the Run tab's parallel settings, and the recording box opens the
 project root. Keyboard: tab to a box and press Enter or Space.
 
-**Save as HTML...** writes the chart as a standalone page. Saved pages are not
-clickable: the boxes only come alive when the app's HTML component calls the
-page's `setup()`.
+### Data-flow overview
+
+Every pipeline step as one box in its colour, with the files it writes hung
+under it. The three inputs are above them: the raw recording, the Epsych2
+sessions (their search folders and how they are matched) and the probe map
+(the active dataset's own, else the default). The recording box also stands
+for the dataset's manifest (probe, channel exclusions, manual artifact
+periods) and names the common reference. An arrow runs from each input or
+written file to every step that reads it, in the colour of whatever wrote
+it:
+
+| Step | Reads | Writes |
+| --- | --- | --- |
+| Probe check (always runs) | the recording's channel count, the probe map | nothing, or the default probe into the manifest (`Probe.WriteDefaultToManifest`) |
+| Behavior | the Epsych2 sessions; the recording's trial line (`PairTrials`) | the trial pairing (in the manifest; reviewed on the Trials tab), `<Name>_behavior.mat` (`WriteFile`) |
+| Artifacts | the recording, and the manual periods in its manifest | the artifact periods: automatic (cached in `<Name>_artifacts.json`) + manual |
+| Sorting | the recording, the artifact periods (always blanked), the probe map | `kilosort4/`, the sorted units |
+| Signals | the recording; the artifact periods (`BlankArtifacts`) | the signal files, `<Name>_extract_<TYPE>.mat` |
+| Spikes | the recording and the artifact periods (threshold detection; the periods rejected or erased first, unless `ArtifactMode` is none); the sorted units (`Source` sorted or both) | `<Name>_spikes.mat` |
+| Export | the signal files; the sorted units (`IncludeUnits`); the spikes file (`IncludeDetected`); the behavior file (epochs around the paired trials) | one file per format |
+
+A read the config leaves off is drawn dashed and grey, and a file the config
+does not write is a dashed box. A disabled step and the arrows into it are
+faded. The arrows out of its files keep their colour, since a file written
+by an earlier run still feeds the steps after it. The artifact periods never
+fade, because the manual ones apply with detection off. The summary line
+counts all seven steps (`N of 7 steps enabled`).
+
+The arrows run at right angles through the gaps between the boxes, never
+through one. The arrows from one source share their first stretch, like the
+branches of a tree, and two different sources never share a line (a few
+arrows cross). Hover over a box (or tab to it) to light up its arrows and
+the boxes at their other ends. In a browser (**Open in Browser**), hovering
+over an arrow shows what it carries, or why it is off. As in the other view,
+a click on a box opens the setting behind it. Use **Every parameter** for
+the parameters themselves.
+
+**Save as HTML...** writes the chart shown, in the view picked, as a
+standalone page. Saved pages are not clickable: the boxes only come alive
+when the app's HTML component calls the page's `setup()`. The overview's
+hover highlighting works in a saved page too.
 
 **Open in Browser** writes the chart to a temp file and opens it in your
 default web browser, same as **Save as HTML...** but without the save dialog.
@@ -1006,28 +1081,94 @@ default web browser, same as **Save as HTML...** but without the save dialog.
 
 ## Visualize
 
-Display-only time-domain plots of the active dataset; the data on disk is
-never modified.
+Any signal of the active dataset, with its spikes over it, read a window at a
+time. Nothing on disk is changed except the manual artifact periods you mark,
+which go to the dataset's manifest.
+
+The tab loads the active dataset when it opens, and again whenever the active
+dataset changes while it is open (`onPlotVisualization`). It finds what the
+dataset has on disk with `EphysDataset.outputs`: the recording (when its files
+can be read), the Sorting `.bin`, the Signals step's LFP / MUA / SPIKE / AUX,
+the associated sorted units and the Spikes step's detected spikes. **Reload
+data** finds them again after a run has written new files. While the tab is
+hidden the plot keeps the dataset it shows; the status line then names both
+datasets and marking artifacts is off until the tab shows the active one.
 
 | Control | Meaning |
 | --- | --- |
-| Dataset | the active dataset. After you choose another one, the plot still shows the previous dataset until you press **Plot**: the status line says so, and marking artifacts is off |
-| File | `(all)` or one recording file (multi-file recordings only) |
-| Channels | e.g. `1:16` or `1 3 5` (1-based) |
-| Start (s), Window (s) | initial view |
-| High-pass / Low-pass (Hz), Filter order | blank = off; both set = bandpass (`filterContinuous`) |
-| Reference, Detrend | None / common average / common median; subtract each chunk's mean |
-| Plot type, Trace spacing, Heatmap colors | Traces / Heatmap |
-| Sort channels by probe map, Color channels by shank | from the dataset's probe |
+| Show | the continuous signal drawn, from the files this dataset has: *Recording* (as every step reads it), *Sorting .bin* (what Kilosort4 sorted: artifact periods filled, the common reference subtracted when one was on, from its JSON sidecar), *LFP* / *MUA* / *SPIKE* / *AUX* (the extract files), or *None (spikes only)*. The line under it says what the signal is (its band, its reference, the periods erased). The kind shown is kept from one dataset to the next |
+| Channels, Lanes | recording channels to draw (`all`, or e.g. `1:16`, `1 3 5`; for a signal whose columns were kept or reordered, its columns are matched to recording channels through its `importOptions`); lanes shown at once |
+| Reference | the recording only: *As the pipeline (Artifacts tab)* (the config's common reference over its good channels, as every step reads the recording) / *None (as recorded)* / *Common average (mean)* / *Common median* across the channels shown, taken on the recording as stored, so one reference at most is ever applied. The other signals carry their own |
+| High-pass / Low-pass, Filter order | a display filter on any signal (`filterContinuous`, zero phase); blank = off, both = band-pass. Each window is read with a margin so the filter settles. A new filter or reference rescales the traces |
+| Remove offset | centre each lane on its median in the window drawn |
+| Sorted units | ticks or waveforms, one colour per unit (twelve colours, in probe order); *Units*: all but noise / good + MUA / good only, by phy's labels (else Kilosort4's) |
+| Detected spikes | ticks or waveforms, one colour per channel |
+| Draw on | *Their channel's lane* (a unit on its peak channel) or *Lanes of their own* (a raster lane per unit / channel after the traces). With *None* they always get their own lanes |
+| Start, Window, Spacing | the view, which follows every pan and zoom; type to jump. Spacing is the voltage between neighbouring lanes (the scale bar at the top right) |
+| Plot, Colours | traces, or a heatmap of each bin's extreme per lane (colour range ± Spacing) |
+| Order by probe, Colour by shank | lanes by shank, top of the shank first, with a dotted line between shanks (`channelLayout` on the dataset's probe, else the config's default probe); the units' and channels' own lanes follow the same order |
+| Shade artifact periods | orange and red, see below |
 
-**Plot** streams the data one chunk at a time (detrend → re-reference →
-filter per chunk) into a
-[`MultiChannelViewer`](../vendor/plotting/@MultiChannelViewer/MultiChannelViewer.m)
-cache with a memory budget (min(2 GB, ⅓ of available memory) on Windows,
-1 GB elsewhere, never below 250 MB). Longer spans are **peak-decimated** on
-load; the status line reports the factor. **Plot** reads the whole recording
-(or the chosen file), whatever window is shown first, so on a slow disk a
-long recording takes minutes.
+**Reading.** The viewer ([`EphysTraceViewer`](../pipeline/EphysTraceViewer.m)
+over an [`EphysTraceSource`](../pipeline/EphysTraceSource.m)) reads only the
+window shown, with up to one window of margin on each side, and reduces each
+lane to the min and max of every bin of about one pixel column. A draw
+therefore costs about the same at any zoom and never scales with the
+recording's length. Readers with random access read just those rows
+(`readWindowUV`); a traditional `.rhd` recording is read a whole file at a time
+and the last files read are kept (up to 1.5 GB). A `.bin` is read with `fread`
+and its min / max are taken on the stored integers; a `-v7.3` extract is read a
+window of rows at a time with `h5read`, and a `-v7` one is loaded once. No file
+is held open between reads. One view is at most `MaxReadSamples` (2^27 samples
+× channels, about 70 s of 64 channels at 30 kHz) wide.
+
+**Timing.** Row k of every signal is drawn at (k − 1)/Fs seconds on the
+recording's clock, as sorted spike times and the artifact periods are; a bin is
+drawn at its first sample. Zoomed in to one sample per bin, every sample is
+exact.
+
+**Speed.** A pan inside the margin only moves the axes limits. A zoom or a pan
+past it draws again from the samples kept in memory (up to 2^26 samples ×
+channels) and reads the disk only for rows it does not hold. Lanes of one colour
+are one line and each spike colour is one line, so the graphics stay small
+whatever the channel or unit count. Wheel turns faster than a draw are merged.
+On the workstation (64 channels at 30 kHz, `.bin`), a pan inside the margin
+takes about 40 ms, a voltage scale or lane scroll 40–90 ms, a zoom out to 60 s
+about 0.3 s.
+
+**Spikes.** *Ticks*: one per spike, drawn in the top half of its channel's lane
+for sorted units and in the bottom half for detected spikes (so the two stay
+apart), or across its own lane; ticks that would fall on one pixel column of one
+lane are drawn once. *Waveforms*: on a trace lane the trace itself is recoloured
+over each spike's window, as phy's trace view does (a unit's template window,
+at most −1 to 1.5 ms; a detected spike's `windowMs`). On its own lane (or with
+no trace) the stored waveform is drawn: the detected snippet in µV, or the
+unit's template (in µV when the sort has `bin_scale`, else scaled to the lane).
+With more than 4,000 spikes in view, or on a trace below 10 kHz, waveforms fall
+back to ticks and the status line says so.
+
+**Interaction**, with the pointer over the plot:
+
+| Input | Action |
+| --- | --- |
+| wheel | zoom time about the pointer |
+| Ctrl+wheel | scale the voltage |
+| Shift+wheel | scroll the lanes |
+| drag | pan time and lanes (with **Mark Artifacts** on: the right button) |
+| ← / → | pan a quarter window; Ctrl: a whole window |
+| Shift+← / → | zoom time out / in |
+| Page Up / Page Down | a whole window |
+| ↑ / ↓, + / − | scale the voltage |
+| Shift+↑ / ↓ | scroll the lanes |
+| Home / End | the recording's start / end |
+| A, R | auto scale; reset the view (2 s from the current start, top lane, auto scale) |
+| Escape | turn artifact marking off |
+
+The toolbar above the plot does the same with buttons (**< Page**, **Page >**,
+**Zoom in / out**, **Taller / Shorter**, **Auto scale**, **Reset view**). The
+strip under the plot shows the whole recording, the view as a blue box, the
+spike rate of the layers shown and the artifact periods; click or drag in it to
+move there.
 
 **Artifact overlays**: orange = the Artifacts tab's **Detect / Preview**
 intervals of the plotted dataset (the detector a run uses, over the whole
@@ -1036,16 +1177,10 @@ with; otherwise none is shaded, and the status line says why. A run's cached
 detection is not shown, and nothing is detected on the displayed data. Red =
 manual periods. The artifact status line counts both and says where a run
 erases the manual periods: in the `.bin`, and in the signals too while the
-Signals tab's *Erase the artifact periods first* is ticked. **Mark Artifacts** toggles marking mode (left-drag adds a period,
-click inside a red region removes it); **Clear Artifacts** removes all. Manual
-periods are written to the dataset's manifest, so they survive a rescan and a
-restart.
-
-When decimation is active, each point is a bin's peak (the most extreme
-sample per channel) drawn at the time of the bin's first sample. The samples
-of a chunk short of a whole bin carry into the next chunk and the last ones
-make one partial bin, so displayed time is exact to within one bin, with no
-lag building up. Drawing uses `xregion` (MATLAB R2023a or later).
+Signals tab's *Erase the artifact periods first* is ticked. **Mark Artifacts**
+toggles marking mode (left-drag adds a period, click inside a red region
+removes it); **Clear Artifacts** removes all. Manual periods are written to
+the dataset's manifest, so they survive a rescan and a restart.
 
 ## Review
 
@@ -1084,6 +1219,25 @@ dataset whose name does not match `Project.NamePattern`, is read with
   axis label gives their units, `units.templateUnits`: µV, `.bin` units or
   whitened units); amplitude vs time (at most 30,000 spikes, over the sorted
   time); firing rate per unit.
+- **Unit on its shank** (the full-height plot on the right): the selected
+  unit's spikes at every site of the shank it was detected on (its peak
+  channel's). Each site is drawn where it sits on the probe
+  (`channel_positions.npy`) and labelled with its channel. The peak channel
+  is drawn in red, and a scale bar gives amplitude and time.
+  - **Spikes** draws the spikes as thin lines. The number beside it is how
+    many to read, picked at random (the same ones each time).
+  - **Mean ±** adds their mean with an error band: **SD**, **SEM** or
+    **none**.
+  - The spikes are cut from the sorted `.bin` (`params.py`'s `dat_path`) by
+    [`EphysDataset.readPhyWaveforms`](EphysDataset.md#reading-sorted-units).
+    They are prepared as Kilosort4 saw them, referenced and high-passed but
+    not whitened, in the templates' units (µV when `settings.json` has
+    `bin_scale`).
+  - A unit's spikes are read once. Changing Spikes, Mean or the band redraws
+    without reading again; changing the count reads again.
+  - When the `.bin` is not there (a Clean up removed it, or its disk is not
+    connected), the unit's template is drawn in its place. The subtitle says
+    so, and the status bar names the file.
 
 Firing rates are spike counts over the **sorted time**: from Kilosort4's
 `tmin` to `min(tmax, the recording's end)` (the run's `settings.json`; 0 and
@@ -1396,6 +1550,7 @@ Only what is **not** part of a config lives here:
 | `VizOptions` | the Visualize tab's display settings |
 | `CopyOptions` | the Copy tab's subject, roots, pairing and copy options (not the dates) |
 | `SynthOptions` | the Synthetic tab's settings and its design (as `SyntheticDesign` JSON in `design`) |
+| `DiagramView`, `DiagramLayout` | the Diagram tab's **View** (`detail` \| `overview`) and **Layout** (`tree` \| `steps`) |
 | `ShowRunDiagram` | the Run tab's **Show the run diagram** switch |
 | `MonitorResources` | the Run tab's **Monitor CPU, memory, disk and GPU** switch |
 | `QueueSortingRuns` | the Run tab's **Queue the waiting runs; the Run goes on** switch |
@@ -1456,6 +1611,7 @@ app.KSQueue                       % prepared runs waiting for a slot (Queue the 
 | `onScan.m`, `refreshDatasetsTable.m`, `onDatasetCellSelection.m`, `onSelectDatasets.m`, `onRefreshMetadata.m`, `onAssociateBehavior.m`, `onClearBehavior.m`, `onBrowseBehaviorDir.m`, `saveManifests.m` | Project tab (`saveManifests`: the manifests after a per-dataset edit, with an alert for one that could not be written) |
 | `selectDataset.m`, `currentDataset.m`, `populateDatasetPickers.m`, `refreshDatasetMenu.m`, `refreshDatasetPickers.m`, `datasetPicker.m`, `highlightDatasetRow.m` | the active dataset: Dataset menu, every tab's Dataset box, the highlighted table row |
 | `onViewManifest.m`; `pipeline/ManifestViewerApp.m` | Dataset menu → View manifest... and the viewer it opens |
+| `toolTargets.m`, `syncToolsPanel.m`, `onOpenTool.m`, `onOpenOutputFolder.m` | the Project tab's Tools panel: which datasets it opens, its label and buttons, the dispatch to `onViewManifest` / `onOpenAnalysisApp` / `onLaunchPhy`, the output folders |
 | `refreshProbeList.m`, `onProbeSelected.m`, `onImportProbe.m`, `onDesignProbe.m`, `runProbeTool.m`, `onAssignProbe.m`, `onApplyExclude.m`, `onUseSelectedProbeAsDefault.m`, `probe_tool.py` | Probe tab |
 | `onDetectArtifacts.m`, `showArtifactView.m`, `drawArtifactView.m`, `onArtViewInput.m`, `syncArtProbeControls.m`, `refreshArtChannelTable.m`, `refreshManualArtifactsTable.m`, `onClearManualArtifacts.m` | Artifacts tab |
 | `routeFigureInput.m` | shares the figure's wheel and key callbacks between the Artifacts tab's plot and the Visualize viewer |
@@ -1463,8 +1619,8 @@ app.KSQueue                       % prepared runs waiting for a slot (Queue the 
 | `queueKSRun.m`, `onStopKSQueue.m`, `onStopKSRuns.m`, `stopKSRuns.m`, `markKSResult.m` | background Kilosort4 runs: the queue the monitor starts from, Stop queue, Stop runs..., restating a run's result row |
 | `onSpikesPreview.m`, `syncSpikesEnableStates.m` | Spikes tab |
 | `onBrowseExportOutput.m`, `onExportEpochsToWorkspace.m` | Export tab (output folder, Epochs to workspace) |
-| `onPlotVisualization.m`, `onVizButtonDown/Up.m`, `drawVizArtifacts.m`, `vizDetectedIntervals.m`, `finishVizArtDrag.m`, `applyVizChannelOrder.m`, `applyVizChannelColor.m`, `syncVizDataset.m` | Visualize tab (`vizDetectedIntervals`: the Artifacts preview's intervals the plot shades, or why none) |
-| `buildFlowTab.m`, `refreshFlowChart.m`, `flowChartHTML.m`, `onSaveFlowChart.m`, `onOpenFlowChartInBrowser.m`, `onFlowNavigate.m`, `flowNavControls.m`, `clearFlowHighlight.m` | Diagram tab |
+| `onPlotVisualization.m`, `applyVizSettings.m`, `onVizControlsChanged.m`, `onVizViewChanged.m`, `onVizInput.m`, `onVizButtonDown/Up.m`, `refreshVizShading.m`, `vizDetectedIntervals.m`, `finishVizArtDrag.m`, `syncVizDataset.m`; `pipeline/EphysTraceViewer.m`, `pipeline/EphysTraceSource.m` | Visualize tab: loading the active dataset's signals and spikes, the controls, the wheel / keys / drags, the shading (`vizDetectedIntervals`: the Artifacts preview's intervals the plot shades, or why none); the viewer and the windowed sources behind it |
+| `buildFlowTab.m`, `refreshFlowChart.m`, `flowChartHTML.m`, `flowOverviewHTML.m`, `onFlowViewChanged.m`, `onFlowLayoutChanged.m`, `onSaveFlowChart.m`, `onOpenFlowChartInBrowser.m`, `onFlowNavigate.m`, `flowNavControls.m`, `clearFlowHighlight.m` | Diagram tab: the page in the view picked (every parameter; the data-flow overview, laid out and routed in `flowOverviewHTML`), save / open, a box's click |
 | `buildCopyTab.m`, `onCopyFind.m`, `onCopyRun.m`, `refreshCopyTable.m`, `onCopyTableEdited.m`, `onCopyStitch.m`, `onCopyUnstitch.m`, `onBrowseCopyFolder.m`, `copyLog.m`, `onCopyCancel.m`, `startCopyMonitor.m`, `stopCopyMonitor.m`, `pollCopyJob.m`, `setCopyRunning.m`, `applyCopyResult.m`, `finishCopyRun.m`, `showCopyProgress.m`, `copySummaryText.m`, `refreshCopySchedule.m`, `onCopyScheduleSave.m`, `onCopyScheduleRemove.m`, `onCopyScheduleRunNow.m`, `onCopyScheduleLog.m`; `pipeline/findCopySessions.m`, `pipeline/stitchCopySessions.m`, `pipeline/copySessions.m`, `pipeline/copy_engine.ps1`, `pipeline/stitchEpsychSessions.m`, `pipeline/CopySchedule.m` | Copy tab, the pairing / stitching / copy functions it calls, the detached copy engine, and the scheduled copy (its Windows task and what each run does) |
 | `loadReviewResults.m`, `renderReviewPlots.m`, `syncReviewDataset.m` | Review tab |
 | `buildSyntheticTab.m`, `onSynthLoadSource.m`, `onSynthPreview.m`, `renderSynthPreview.m`, `onSynthGenerate.m`, `generateSynthetic.m`, `onSynthDesign.m`, `onSynthControlsChanged.m`, `onSynthSourceChanged.m`, `syncSynthControls.m`, `gather/applySynthDesign.m`, `synthColumns.m`, `synthSourceLists.m`, `synthSourceKey.m`, `synthGeneratorArgs.m`, `synthOutputRoot.m`, `synthOutputFolder.m`; `pipeline/SyntheticDesign.m`, `pipeline/syntheticModel.m`, `pipeline/syntheticTaskSchedule.m`, `pipeline/syntheticSessionSchedule.m`, `pipeline/makeSyntheticRecording.m` | Synthetic tab (`generateSynthetic`: Generate without its questions; `synthGeneratorArgs`: the options Preview and Generate share) and the generator |
@@ -1481,7 +1637,9 @@ app.KSQueue                       % prepared runs waiting for a slot (Queue the 
 the app headlessly over a synthetic project: config → controls → config round
 trip, the unsaved marker, the Diagram of the loaded config and its refresh on edits, that every box in a
 chart of all the steps points at controls that exist and that clicking one opens its tab and marks
-them, the Run checklist ↔ tab sync and its Parallel controls, scan + selection ticks
+them, the data-flow overview (its boxes and arrows, that no arrow runs through a box or shares a line
+with another source's and at most two cross, the reads a config leaves off, the arrows into a disabled
+step, the View preference and Layout turned off), the Run checklist ↔ tab sync and its Parallel controls, scan + selection ticks
 (and the ticked datasets in the Dataset menu),
 the active dataset's highlight under the token filters, plan, the Sorting tab's Optimize for probe (each answer to the offer to generate a
 missing parameter file, including a probe map without positions, loading the
@@ -1503,8 +1661,11 @@ default threshold, the filter settings without a control kept, the Behavior
 column's session summaries read once, channel lists that do not parse
 changing nothing, a dataset without a probe laid out on the default probe,
 firing rates over the sorted time, a config for another root and a rescan
-(the active dataset and a Visualize plot followed by their folder, decimated
-bins across files, the orange overlay from the Artifacts preview only while
+(the active dataset and a Visualize plot followed by their folder; the
+Visualize tab loading the active dataset when it opens, a multi-file recording
+drawn across its files with the spike at its bin's first sample and, zoomed in,
+at its own sample, the arrow keys, wheel and Page button acting only with the
+pointer over the plot, the orange overlay from the Artifacts preview only while
 its settings hold), a hand-picked sorted-output folder that is not there
 (`missing`, and the Review tab says so), the default probe in the Project
 table, edits, scans and per-dataset changes during a run, an unreadable
@@ -1569,6 +1730,19 @@ datasets) or the Project table updates all of them, the Dataset menu and every
 tab's Dataset box list only
 the ticked rows,
 clears the previous dataset's pairing and previews, flags a Visualize plot of
-the previous dataset and loads the Review tab; the Trials tab pairs the clean
+the previous dataset (and, with the tab open, loads the new one at once; opening
+it loads the recording with its sorted units drawn) and loads the Review tab; the Trials tab pairs the clean
 dataset, warns about the late-start one and resolves it with the expected
 cuts.
+
+[`test_EphysTraceViewer.m`](../pipeline/test_EphysTraceViewer.m) checks the
+Visualize tab's viewer without the app, on a small universal-format recording
+with a `.bin`, a `-v7.3` LFP extract (columns reordered) and a `-v7` MUA
+extract: which sources a dataset has and that each reads exactly the rows
+asked for (the `.bin` through its scale, its min / max on the stored integers,
+HDF5 windows, a loaded `-v7` signal, the recording channel of each column);
+samples at (row − 1)/Fs and a binned spike at its bin's first sample; a zoom in
+drawn from memory, a pan inside the margin moving only the limits; the voltage
+scale, auto scale, lanes, heatmap and shading; sorted units and detected spikes
+as ticks, as the recoloured trace and as stored waveforms on their own lanes,
+spikes only, the read limit, the wheel, keys, drags and the overview.

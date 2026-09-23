@@ -40,6 +40,7 @@ project root and output root.
 | `EphysAnalysisApp` | the last config (preference `LastConfigFile`), else the defaults |
 | `EphysAnalysisApp("D:\EPHYS")` | a new config in project mode on that root, scanned |
 | `EphysAnalysisApp("D:\EPHYS", OutputRoot="E:\out")` | the same with the project's output root |
+| `EphysAnalysisApp("D:\EPHYS", Datasets=["subj1/day1" "subj1/day2"])` | the same with only those datasets selected (root-relative keys; `Source.Selection = "list"`): every dataset is listed, but only these are ticked to run, and the first of them is active; one dataset names the config. The preprocessing app's Tools panel opens it this way |
 | `EphysAnalysisApp("D:\out\subj1_day1")` | a folder holding `<Name>_manifest.json` or `<Name>_extract*.mat`: a new config in folders mode with that folder |
 | `EphysAnalysisApp("am.json")` | that analysis config (its source scanned when it exists) |
 | `app = EphysAnalysisApp(...)` | the same, keeping a handle |

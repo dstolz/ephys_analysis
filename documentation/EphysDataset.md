@@ -571,7 +571,7 @@ Every cutoff must be below Nyquist. Requires the Signal Processing Toolbox.
 ### Common reference (CAR / CMR)
 
 `ArtifactConfig.Reference` subtracts one global reference from every channel,
-sample by sample, before anything else sees the data:
+sample by sample, once, as each step reads the recording:
 
 | `Reference` | Reference subtracted |
 | --- | --- |
@@ -586,9 +586,14 @@ signal, except the `"commonmode"` artifact detector, which looks for the very
 mean the reference subtracts and so reads each chunk unreferenced. Each sample is referenced on its own, so chunk and window reads agree
 exactly. `readChunkUV(chunk, Reference=false)` and
 `readWindowUV(offset, n, Reference=false)` return the recording as stored.
-`deriveSignals` subtracts it too, over the whole recording it reads (a block
-of rows at a time), so the derived LFP / MUA / SPIKE are referenced alike;
-`readData` itself returns the recording as stored.
+`deriveSignals` computes the same reference (**`r = referenceTrace(X)`**, the
+`[nSamples x 1]` trace `applyReference` subtracts) over the whole recording it
+reads, a block of rows at a time, and subtracts it from the derived signals its
+`referenceSignals` names: MUA and SPIKE by default, while the LFP is taken as
+recorded, since the reference would take out the LFP every channel shares.
+`toBin` writes the reference into the `.bin`, so `runKilosort` turns Kilosort4's
+own `do_CAR` off and the recording is never referenced twice. `readData` itself
+returns the recording as stored.
 
 **`ch = referenceChannels()`**: the channels the reference is taken over,
 which is every channel except `ExcludeChannels` and `ReferenceExclude`. A channel
@@ -787,7 +792,7 @@ the rule:
 
 | Field | Default | Meaning |
 | --- | --- | --- |
-| `Reference` | `"none"` | common reference subtracted before everything else: `"none"`, `"car"` or `"cmr"` ([above](#common-reference-car--cmr)) |
+| `Reference` | `"none"` | common reference subtracted once from every read of the recording (`deriveSignals`: from the `referenceSignals` only): `"none"`, `"car"` or `"cmr"` ([above](#common-reference-car--cmr)) |
 | `ReferenceBadLow`, `ReferenceBadHigh` | `0.3`, `2` | noise-floor band, as a multiple of the median across channels, outside which `suggestReferenceExclude` leaves a channel out of the reference |
 | `Enabled` | `false` | `toBin` blanks, and `artifactIntervals` includes auto detections, only when true |
 | `Method` | `"rms"` | detector method |
@@ -911,6 +916,7 @@ whole recording.
 | `MaxWorkers` | `NaN` (automatic) | cap on chunks in flight at once; always limited by free memory (about six copies of one chunk per worker), so a 12-worker pool typically runs 4-5 chunks at a time |
 | `EdgePadMs` | `10` | context carried across chunk boundaries; always at least the waveform window, the alignment window, the minimum detection period and, when filtering, 4 periods of `Band(1)`, over which the band-pass settles (40 ms at 100 Hz) |
 | `ProgressFcn` | none | `ProgressFcn(i, nChunks, chunkName)`: before each chunk (serial), or on the client as each chunk finishes (parallel; `i` = chunks done). Throwing from it aborts the run and cancels the outstanding chunks |
+| `ArtifactIntervals` | none | `[k x 2]` artifact periods, `[tStart tEnd)` seconds on the timestamps' clock (the recording's, `TimeOffset` aside), erased before detection: the samples they cover (`artifactSamples`) are set to `NaN` in every chunk and the context carried into it, so they stay out of the thresholds, never cross one, and the band-pass runs a line across them (see below). `info.artifacts` reports `intervals` (merged) and `nSamples` (erased). `spikesToMat(ArtifactMode="erase")` passes them |
 
 Passing any of these with a data block raises
 `EphysDataset:detectSpikes:BlockOption`. One chunk plus its padding is held at a
@@ -1142,7 +1148,12 @@ when this call writes the `.bin`, else the sidecar's `scale`), which
 `readPhyUnits` needs to give templates in µV; `run_ks4.py` does not pass it to
 Kilosort4.
 
-- Kilosort4 high-passes and references (`do_CAR`) the `.bin` itself.
+- Kilosort4 high-passes the `.bin` itself. Its own reference (`do_CAR`, the
+  median across the probe's channels) is turned off (`do_CAR = false` in
+  `settings.json`, over `ExtraSettings`) whenever the `.bin` carries the common
+  reference (`ArtifactConfig.Reference` `"car"` / `"cmr"`; for a `BinFile`
+  given, the reference its sidecar records), so the recording is referenced
+  once. With `"none"` it is Kilosort4's to apply, on by default.
 - Computing `ArtifactIntervals` with `ArtifactConfig.Enabled` scans the **whole
   recording in MATLAB** before Python is launched, even for a background run.
 - The probe's `chanMap` indexes `.bin` rows directly; sites are not matched to
@@ -1253,10 +1264,52 @@ per-spike arrays for plotting. Error identifiers:
 `Mismatch` / `NoClusterLabels` / `NoGroupMatch` / `BadIdentity`.
 
 The spikes are grouped by unit once, and the `.tsv` tables are parsed
-directly rather than through `readtable`, so a large sort reads quickly. Raw
-waveforms at the sorted spike times are not extracted; `templateWaveform`
-is the template. A new sort of the same folder sets the earlier sort's unit
-notes and phy labels aside (`launchSorting`, above).
+directly rather than through `readtable`, so a large sort reads quickly.
+`templateWaveform` is the template; the spikes themselves are cut by
+`readPhyWaveforms` (below). A new sort of the same folder sets the earlier
+sort's unit notes and phy labels aside (`launchSorting`, above).
+
+**`[W, info] = EphysDataset.readPhyWaveforms(resultsDir, samples, Name=Value)`**
+(static) cuts one window per spike from the binary file the sort's
+`params.py` names (`dat_path`: the `.bin` `runKilosort` wrote), prepared the
+way Kilosort4 saw the data before whitening. So the windows compare directly
+with the templates: the same channels, time axis and units. The Review tab
+draws them (see [Review](EphysPreprocessingApp.md#review)).
+
+- `samples` are `spike_times.npy` values, e.g. `units.samples{u}`. Each window
+  is `samples − nt0min + (0:nt−1)`, so `W(:, c, k)` lines up with
+  `units.templateTimeMs` and `templateFull(:, c, u)`. `nt` and `nt0min` come
+  from `settings.json`, else from `templates.npy`'s length and Kilosort4's
+  default `floor(20·nt/61)`. A spike whose window leaves the file is skipped
+  (`info.skipped`).
+- The windows are the sorted channels (`channel_map.npy` rows of the file),
+  with each window's channel means removed. The median across the sorted
+  channels is subtracted when Kilosort4 did (`do_CAR` in `settings.json`, on
+  by default; `runKilosort` turns it off when the `.bin` carries the common
+  reference). Kilosort4's zero-phase high-pass (a 3rd-order Butterworth at
+  `highpass_cutoff`, 300 Hz by default) runs over each window plus 10 ms on
+  either side.
+- `W` is `[nt × nChannels × nSpikes]` in `info.units`: `"uV"` when
+  `settings.json` has `bin_scale`, else `"bin"`. Kilosort4's own preprocessed
+  copy (`hp_filtered = True`, `temp_wh.dat`) is used as it is and unwhitened
+  like the templates (`"whitened"` without `whitening_mat_inv.npy`).
+- A `dat_path` that is not there (the output folder moved) falls back to a
+  file of the same name in the results folder or one of the two folders
+  above it.
+
+| Option | Default | Meaning |
+| --- | --- | --- |
+| `Channels` | all | sorted channels to return (1-based, as `units.ksChannel`) |
+| `MaxSpikes` | `Inf` | read at most this many of the spikes whose window fits, picked at random with a fixed seed (the same call gives the same spikes) |
+| `Filter` | `true` | apply the high-pass |
+| `DataFile` | `""` | binary file to read instead of `dat_path` |
+
+`info`: `samples` (the spikes read, in time order), `skipped`, `channels`,
+`binRows` (their 1-based rows of the file), `timeMs`, `nt0min`, `units`,
+`dataFile`, `fs`, `highpassHz` (`NaN` when not filtered here), `car`. Error
+identifiers: `EphysDataset:readPhyWaveforms:NoResultsDir` / `NoParams` /
+`BadParams` / `NoDataFile` / `BadChannels`. The high-pass needs the Signal
+Processing Toolbox.
 [`unitTable`](../pipeline/unitTable.m) turns one or more
 `units` structs or saved files into a table (see
 [Unit labels](EphysPipeline.md#unit-labels)).
@@ -1324,11 +1377,18 @@ of its own uses the config's default probe. `labelField`, `lineNames` and
 `invertedLines` default to the dataset's `TrialConfig`. Row k of a signal is at
 `(k − 1) / info.<type>.Fs`, and `info.<type>.nSamples` is its row count.
 The dataset's common reference (`ArtifactConfig.Reference`, [above](#common-reference-car--cmr))
-is subtracted first, over every channel of the recording, so with a
-reference every channel is read and `keepAmpChannels` picks from the
-referenced data (`reference=false` reads the recording as stored);
-`info.reference` reports it: `mode` and `channels` (the channels it was
-taken over). With `artifactIntervals` (`[k x 2]` recording-relative seconds, half-open;
+is subtracted, once, from the signals `referenceSignals` names (default
+`["MUA" "SPIKE"]`; `[]` for none): the LFP is taken as recorded unless it is
+listed. The reference is taken over every channel of the recording, so with
+one every channel is read and `keepAmpChannels` picks from them. The signals
+taken as recorded are derived first; then the reference is subtracted in
+place and the referenced ones are derived, so a mix costs one read (and one
+more copy of the recording only for a SPIKE band taken as recorded next to a
+referenced signal). `info.reference` reports it: `mode`, `channels` (the
+channels it was taken over) and `signals` (the signals it was subtracted
+from; `mode` is `"none"` when there are none), and each signal's
+`info.<TYPE>.reference` says `"none"`, `"car"` or `"cmr"`, so a per-type file
+carries its own. With `artifactIntervals` (`[k x 2]` recording-relative seconds, half-open;
 default none) the samples those periods cover (`artifactSamples`) are replaced
 in the amplifier data, per channel, by a straight line from the mean of the
 1 ms before the period to the mean of the 1 ms after it, before any signal is
@@ -1381,14 +1441,15 @@ with spike events from up to two sources
 | `Source` | `"detect"` | `"detect"` (threshold detection over the whole recording, one entry per channel), `"sorted"` (the associated units via `readSortedUnits`) or `"both"` |
 | `DetectOptions` | `struct()` | `detectSpikes` options (`Filter`, `Band`, `ThresholdMethod`, `Threshold`, `Waveforms`, `WindowMs`, `MaxChunkSamples`, `UseParallel`, `MaxWorkers`, ...) |
 | `Channels` | `[]` (all) | 1-based recording channels to detect on, in order |
-| `RejectArtifacts` | `true` | drop detected events inside the artifact periods (`ArtifactIntervals`, else `artifactIntervals()`) |
+| `ArtifactMode` | `"reject"` | what detection does with the artifact periods (`ArtifactIntervals`, else `artifactIntervals()`): `"reject"` detects on the recording as read and drops the events inside a period; `"erase"` erases the periods before detection (`detectSpikes`' `ArtifactIntervals`), so detection runs on the cleaned recording: the erased samples stay out of the thresholds, the band-pass runs a line across them, and no event lies inside a period or comes from an artifact ringing into its neighbours; `"none"` ignores them |
 | `ArtifactIntervals` | computed | `[k x 2]` seconds |
 | `Groups`, `IncludeNoise`, `Templates` | `["good" "mua"]`, `false`, `true` | sorted-unit options |
 | `File`, `MatVersion`, `Overwrite`, `ProgressFcn` | as `toMat` | |
 
 Variables: `detected` (`ts`, `wf`, `info`, `channels`, `channelNames`,
-`detection` with the options, the intervals applied and `nRejectedArtifact`
-per channel), `units`, `conversion`. Sources not requested are
+`detection` with the options, `artifactMode`, the intervals applied and
+`nRejectedArtifact` per channel; after an erase, `info.artifacts` holds the
+periods and the number of samples erased), `units`, `conversion`. Sources not requested are
 `[]`; the file is rewritten as a whole. `out`: `file`, `bytes`, `seconds`,
 `source`, `nChannels`, `nDetected`, `nRejectedArtifact`, `nUnits`, `matVersion`.
 
@@ -1700,6 +1761,7 @@ interpolates.
 | `EphysDataset:spikesToMat:Exists`, `EphysDataset:exportChronux:Exists`, `EphysDataset:exportFieldTrip:Exists` | target file exists and `Overwrite` is off |
 | `EphysDataset:readPhyUnits:NoResultsDir` / `NoOutput` / `NoSampleRate` / `Mismatch` / `NoClusterLabels` / `NoGroupMatch` | sorted output missing or inconsistent |
 | `EphysDataset:readPhyUnits:BadIdentity` | an `Identity` struct without `subject`, `recordingStart`, `labelSuffix` and `datasetKey` |
+| `EphysDataset:readPhyWaveforms:NoResultsDir` / `NoParams` / `BadParams` / `NoDataFile` / `BadChannels` | no sort, no usable `params.py`, the sorted `.bin` not found, or a channel that was not sorted |
 | `EphysDataset:unitIdentity:Pattern` / `NoMatch` / `Subject` / `DateTime` | the dataset name cannot label sorted units (see [Unit labels](#unit-labels)) |
 | `EphysDataset:writeUnitNotes:Size` / `NoResultsDir` / `Write` | notes and ids do not pair up, or the notes file cannot be written |
 
@@ -1767,8 +1829,10 @@ counts it as the recording's own), and `streamPlan`.
 `cluster_KSLabel.tsv`; CRLF, quoted and blank cells), its template units
 (whitened / `bin` / µV, unwhitening with the transpose of
 `whitening_mat_inv.npy`, Kilosort4's `scale` and `invert_sign`), its per-unit
-grouping, `channelLayout` and `runKilosort(DryRun=true)` leaving an existing
-run's files alone.
+grouping, `channelLayout`, `runKilosort(DryRun=true)` leaving an existing
+run's files alone and `readPhyWaveforms` (alignment with the templates,
+channels, µV, the median reference, the high-pass against filtering the whole
+trace, `MaxSpikes`, a moved `.bin`, Kilosort4's preprocessed copy).
 
 [`test_CommonReference.m`](../pipeline/test_CommonReference.m) covers the
 common reference (no reference, the suggested channels, `prepareReference`

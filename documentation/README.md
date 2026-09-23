@@ -31,6 +31,7 @@ on `pipeline`; `pipeline` does not depend on it. See [Analysis](EphysAnalysis.md
 | [Copying sessions](EphysPreprocessingApp.md#copy) | `findCopySessions`, `stitchCopySessions`, `copySessions`, `CopySchedule`: pairing recording folders (Intan RHX, Open Ephys GUI sessions) with ePsych files on the source and copying them to local session folders, by hand or on a schedule |
 | [ProbeDesignerApp](ProbeDesignerApp.md) | building a Kilosort4 probe `.json` from probeinterface |
 | [ManifestViewerApp](ManifestViewerApp.md) | viewing one dataset manifest, with its paths checked on disk |
+| [Visualize](EphysPreprocessingApp.md#visualize) | `EphysTraceSource` (the recording, the Sorting `.bin` or a derived signal, read a window at a time) and `EphysTraceViewer` (stacked lanes with sorted units and detected spikes over them), behind the app's Visualize tab |
 | [intan2matlab](intan2matlab.md) | `intan2matlab` / `deriveSignals` / `toMat`: LFP, MUA, SPIKE and digital events |
 | [ChronuxDataset](ChronuxDataset.md) | connector that hands recordings, trials and spike trains to the Chronux toolbox |
 | [FieldTripExport](FieldTripExport.md) | FieldTrip raw / spike / event structures and `exportFieldTrip` |
@@ -92,13 +93,16 @@ makes it (mostly an `EphysDataset` method); dashed arrows are further inputs.
 Behavior pairing reads the cached digital events. The artifact periods are
 erased in the `.bin` and, before any filter, in the data LFP / MUA / SPIKE are
 derived from (`Signals.BlankArtifacts`, which also records them in
-`_extract.mat`), and threshold detection drops spikes inside them. The exports
+`_extract.mat`), and threshold detection drops the spikes inside them or, with
+`Spikes.ArtifactMode = "erase"`, erases them before it filters. The exports
 and the analysis take their signals, events and artifact periods from
 `_extract.mat` (epochs that touch a period are dropped by default), detected
 spikes from `_spikes.mat` and sorted units straight from `kilosort4/`; epochs and figures also read the
 paired trials in `_behavior.mat`. The common reference (CAR / CMR), when set,
-is subtracted as the recording is streamed, so artifact detection, the `.bin`
-and threshold detection all see it.
+is subtracted once as each step reads the recording, so artifact detection, the
+`.bin` (Kilosort4's own `do_CAR` is then off) and threshold detection all see
+it, and so do the derived signals ticked for it (MUA and SPIKE by default; the
+LFP is kept as recorded).
 
 The code that drives the tree: `EphysPreprocessingApp` or a generated
 `EphysPipelineScript` sets up an `EphysPipelineConfig`, and `EphysPipeline`
@@ -127,8 +131,9 @@ The artifact periods (the manual ones, plus the automatic detection per
 `Artifacts.ApplyToSorting` / `ApplyToSignals` / `ApplyToSpikes`) reach three
 steps: Sorting erases them in the `.bin`, Signals erases them in the amplifier
 data before it derives LFP / MUA / SPIKE (`Signals.BlankArtifacts`; AUX and
-the digital events are not touched), and Spikes rejects the events inside them
-(`Spikes.RejectArtifacts`).
+the digital events are not touched), and Spikes either rejects the events
+inside them or erases them before detection, so it runs on the cleaned
+recording (`Spikes.ArtifactMode` `"reject"` / `"erase"`).
 
 ## Quick start
 
@@ -279,10 +284,10 @@ Collected from the code. Each is explained on the linked page.
 | --- | --- | --- |
 | Artifacts tab threshold | the GUI always sends the Threshold field; changing Method swaps it for the new method's default while it still holds the old one's (a hand-typed value stays, so 9 under *Absolute microvolts* / *Common-mode* means 9 µV); `validate` warns when such a threshold is below 50 µV | [App → Artifacts](EphysPreprocessingApp.md#artifacts) |
 | Visualize overlay | orange is the Artifacts tab's Detect / Preview of the plotted dataset, shown only while its detection settings still hold; a run's cached detection is not shown | [App → Visualize](EphysPreprocessingApp.md#visualize) |
-| Visualize decimation | each point is a bin's peak drawn at the bin's start, so displayed time is exact to within one bin, with no drift | [App → Visualize](EphysPreprocessingApp.md#visualize) |
-| Visualize reading | **Plot** streams the whole recording whatever window is shown, so on a slow disk a long recording takes minutes | [App → Visualize](EphysPreprocessingApp.md#visualize) |
+| Visualize resolution | each lane is the min and max of every bin of about one pixel column, drawn at the bin's first sample; zoomed in to a sample per bin, every sample at (row − 1)/Fs, the clock of sorted spike times and the artifact periods | [App → Visualize](EphysPreprocessingApp.md#visualize) |
+| Visualize reading | only the window shown is read (with up to a window of margin each side), so any recording length opens at once; one view is at most `MaxReadSamples` (2^27 samples × channels: about 70 s of 64 channels at 30 kHz) wide; a traditional `.rhd` recording is read a whole file at a time, and the last files read are kept | [App → Visualize](EphysPreprocessingApp.md#visualize) |
 | Sorted-output association | a hand-picked folder is restored on rescan as recorded, even while it is not there; the steps that read sorted units then report it missing (`error: sorting folder missing`) instead of using another sort | [EphysDataset → Sorted output](EphysDataset.md#sorted-output) |
-| Sorted waveforms | `templateWaveform` is Kilosort4's template (its mean of the unit's spikes in the whitened, high-passed data), unwhitened with `whitening_mat_inv.npy` (transposed), in µV when the run's `settings.json` has `bin_scale` (`runKilosort` writes it), else in `.bin` units (`units.templateUnits` says which); it is not scaled by the amplitude and not a raw-spike average; raw waveforms at sorted spike times are not extracted | [EphysDataset → Reading sorted units](EphysDataset.md#reading-sorted-units) |
+| Sorted waveforms | `templateWaveform` is Kilosort4's template (its mean of the unit's spikes in the whitened, high-passed data), unwhitened with `whitening_mat_inv.npy` (transposed), in µV when the run's `settings.json` has `bin_scale` (`runKilosort` writes it), else in `.bin` units (`units.templateUnits` says which); it is not scaled by the amplitude and not a raw-spike average. `EphysDataset.readPhyWaveforms` cuts the spikes themselves from the sorted `.bin`, prepared as Kilosort4 saw them before whitening, on the templates' time axis and in their units | [EphysDataset → Reading sorted units](EphysDataset.md#reading-sorted-units) |
 | Review firing rates | spike count ÷ the sorted time, from Kilosort4's `tmin` to `min(tmax, recording end)`; the time of the last spike only when the recording's length is unknown | [App → Review](EphysPreprocessingApp.md#review) |
 | Epsych2 trials | paired **in order** with the intervals of the trial line, not by timestamps (`pairEpsychTrials` / `ds.pairTrials`, the behavior step's `PairTrials`, the Trials tab), and reviewed before approval (`setTrialPairing`, `autoApproveTrialPairing`); the pairing goes into `<Name>_behavior.mat` and the behavior-sourced epochs | [EphysPipeline → Pairing trials](EphysPipeline.md#pairing-trials-with-the-trial-line) |
 | Background sorting + dependent steps | a background sorting run cannot feed `Spikes` (sorted) or `Export` (units) in the same run; `validate` reports it | [EphysPipeline → Validation](EphysPipeline.md#validation) |
@@ -295,7 +300,7 @@ Collected from the code. Each is explained on the linked page.
 | Derived-signal bad channels | interpolated from the probe geometry (the 1/distance-weighted mean of the 4 nearest good sites on the same shank; in a pipeline run, a dataset without a probe of its own uses the default probe); without a probe, or for a site off the probe or with no good site on its shank, across the neighbouring **columns** (`makima`), with a warning | [intan2matlab](intan2matlab.md#processing-order) |
 | Chronux `createdatamatc` | the connector puts a dig-in onset on the signal sample nearest its recording row (exact at the recording rate, within half a sample at a derived rate); Chronux's own `createdatamatc` anchors on `floor(t·Fs) + 1` and drops the window's last sample, so handed dig-in times it lands `1/origFs` late. Use `cx.trials`, or pass `t − 1/origFs` | [ChronuxDataset](ChronuxDataset.md#trial-sample-alignment) |
 | Chronux point-process grid | left to itself `mtspectrumpt` normalizes by the span of the spikes, not the recording; pass the `t` the connector returns | [ChronuxDataset](ChronuxDataset.md#why-t-matters-for-point-processes) |
-| MATLAB version | the Visualize tab uses `xregion` (R2023a+); the code is developed on R2025a | [INSTALL.md](../pipeline/INSTALL.md) |
+| MATLAB version | the Artifacts tab uses `xregion` (R2023a+); the code is developed on R2025a | [INSTALL.md](../pipeline/INSTALL.md) |
 | Parallel steps | the worker count is capped by free memory (4-5 on a 32 GB machine), not by the pool size; every worker reads the disk, so on a slow external disk a parallel step can be no faster than serial; the results are identical either way | [EphysPipeline → Parallel execution](EphysPipeline.md#parallel-execution) |
 
 ## Dependencies
@@ -318,7 +323,6 @@ Collected from the code. Each is explained on the linked page.
 | --- | --- |
 | [`read_Intan_RHD2000_file_modified`](../pipeline/read_Intan_RHD2000_file_modified.m) | `IntanReader`, traditional `*.rhd` |
 | [`matrix2kilosort`](../matrix2kilosort.m) | `EphysDataset.matrixToBin` |
-| [`MultiChannelViewer`](../vendor/plotting/@MultiChannelViewer/MultiChannelViewer.m) | GUI Visualize tab |
 | [`Manifest`](../vendor/tools/Manifest.m) | optional provenance log |
 | [`parfor_progress`](../vendor/compute/parfor_progress.m) | `intan2matlab` console progress |
 | [`addpath_nogit`](../addpath_nogit.m) | path setup |
@@ -368,7 +372,7 @@ test_EphysPipeline       % one suite
 | `test_EphysDataset` | readers, layouts, streaming, artifacts, spikes, `.bin`, dry runs, manifest v2, sorted units, `spikesToMat`, exports, behavior |
 | `test_IntanReader` | the Intan reader: every data-block and on-disk layout, truncated last blocks, window reads across files, `readDigitalEvents` without the amplifier data, the run helpers, one-file-per-channel digital files, the recording start (`AcqDate`), `streamPlan` chunks, `KeepChannels` / `Precision` |
 | `test_BinaryReader` | the universal binary reader: `readDigitalEvents` from `dig_in_file` alone, `readData`, `Files` listing `dig_in_file`, `streamPlan` |
-| `test_SortedUnits` | `readPhyUnits`' label tables, template units and per-unit grouping; `channelLayout` (`chanMap` values are `.bin` rows); `runKilosort(DryRun=true)` leaving an existing run alone |
+| `test_SortedUnits` | `readPhyUnits`' label tables, template units and per-unit grouping; `channelLayout` (`chanMap` values are `.bin` rows); `runKilosort(DryRun=true)` leaving an existing run alone; `readPhyWaveforms` (the spikes' windows in the sorted `.bin`) |
 | `test_DeriveSignals` | derived signals: bad channels as columns (the config's recording channels mapped to them), interpolated from the probe geometry or, without one, across columns; automatic detection; the MUA / SPIKE filters in double; non-integer rates; `info.<type>.nSamples`; line naming and polarity from `TrialConfig`; artifact periods erased before deriving (the line fill, `info.artifacts`, no filter ringing outside the period, AUX untouched) |
 | `test_OpenEphysReader` | Open Ephys sessions (Binary, Open Ephys format, NWB): metadata, samples across recordings and gaps, TTL lines, AUX / ADC, discovery, record node / stream, the recording modes, line names, the pipeline on a synthetic Open Ephys project |
 | `test_EphysProject` (in `test_EphysDataset` §7 / §15) | discovery, keys, `refresh` |
@@ -379,6 +383,7 @@ test_EphysPipeline       % one suite
 | `test_EpsychSession` | Epsych2 readers and matching |
 | `test_EphysPipelineConfig`, `test_EphysPipeline`, `test_EphysPipelineScript` | config, runner, scripts |
 | `test_EphysPreprocessingApp` | the GUI's config model, headless |
+| `test_EphysTraceViewer` | the Visualize viewer without the app: every source kind reads exactly the rows asked for (the `.bin` scale and its integer min / max, HDF5 windows, `-v7` extracts, recording channels); timing of samples and bins; drawing from memory; spike layers as ticks, recoloured traces and stored waveforms; the wheel, keys and drags |
 | `test_ManifestViewerApp` | the manifest viewer, headless: the Summary checks, opening from a file, a folder or a dataset, the plots, the default probe, Rewrite |
 | `test_SyntheticDataset` | `makeSyntheticProject` / `makeSyntheticRecording`: the written lines, sessions, spikes, aux and artifacts read back; pairing per scenario; the other layouts (Open Ephys included); the config through the pipeline; the app's File-menu action |
 | `test_SyntheticGenerator` | `SyntheticDesign` (validation, JSON), the built-in model, responses and LFP at their latency after the edge, `PreviewOnly` = what is written, schedules from a dataset's Epsych2 session (recorded lines, rebuilt lines, tuning, locked vs induced oscillations, `MaxDuration`), the app's Synthetic tab |

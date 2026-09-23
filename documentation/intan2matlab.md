@@ -33,11 +33,17 @@ out = ds.toMat(SignalOptions=struct('dataTypeOut', ["LFP" "SPIKE"]));
    `lineNames` and `invertedLines`, which default to the dataset's
    `TrialConfig`; explicit values win.
    With a common reference (the dataset's `ArtifactConfig.Reference`,
-   `"car"` or `"cmr"`; `intan2matlab`'s own dataset has none) every channel
-   is read, the reference is subtracted sample by sample over
-   `referenceChannels` (`applyReference`, a block of rows at a time, in
-   place), and `keepAmpChannels` are picked after it. `reference=false`
-   skips it.
+   `"car"` or `"cmr"`; `intan2matlab`'s own dataset has none) and a
+   requested signal in `referenceSignals` (MUA and SPIKE by default), every
+   channel is read, the reference is computed once, sample by sample, over
+   `referenceChannels` (`referenceTrace`, a block of rows at a time), and
+   `keepAmpChannels` are picked after it. The signals not in
+   `referenceSignals` (the LFP by default) are derived first, from the
+   recording as stored (steps 2-5); then the reference is subtracted in place
+   from the kept channels and the referenced signals are derived, the
+   artifact periods erased again between the referenced levels (step 2
+   depends only on the samples outside the periods, so the second fill is
+   the referenced recording's own).
 2. **Artifact periods**, if given (`artifactIntervals`, merged): the samples
    each period covers (`EphysDataset.artifactSamples`: 0-based
    `round(t0·Fs)` .. `round(t1·Fs) − 1`, the samples the `.bin` and spike
@@ -120,7 +126,7 @@ the rate actually produced is the one reported in `info.<type>.Fs` and
 | `labelField` | `""`: the dataset's `TrialConfig.LabelField` (`intan2matlab`: `"custom"`) | `"custom"` or `"native"`; labels `info.labels` (and the aux labels) and names the `events` fields |
 | `lineNames` | `[]`: `TrialConfig.LineNames` (`intan2matlab`: none) | `"native=name"` digital-line names overriding `labelField` (e.g. `"DIGITAL-IN-04=InTrial"`, Open Ephys `"TTL4=InTrial"`) |
 | `invertedLines` | `[]`: `TrialConfig.InvertedLines` (`intan2matlab`: none) | digital lines with inverted TTL polarity (on while low): their `events` rows are the low runs, onset = falling edge; `info.invertedLines` lists the lines inverted |
-| `reference` | `true` | `deriveSignals` / `toMat`: subtract the dataset's common reference (`ArtifactConfig.Reference`; nothing for `"none"`) before anything else (step 1); `false` reads the recording as stored. Reported in `info.reference` |
+| `referenceSignals` | `["MUA" "SPIKE"]` | `deriveSignals` / `toMat`: the signals the dataset's common reference (`ArtifactConfig.Reference`; nothing for `"none"`) is subtracted from, any of `"LFP"`, `"MUA"`, `"SPIKE"` (`[]` = none: the recording as stored). The LFP is taken as recorded by default, since the reference takes out the LFP every channel shares (step 1). Reported in `info.reference` and `info.<TYPE>.reference` |
 | `artifactIntervals` | `zeros(0,2)` | `[k x 2]` artifact periods, `[tStart tEnd)` seconds from the recording start (half-open, as `EphysDataset.artifactIntervals` gives them), erased before any signal is derived (step 2). Reported in `info.artifacts`, not stored in `info.importOptions` |
 | `ProgressFcn` | `[]` | `ProgressFcn(nDone, nTotal, message)`: one step per file read, one per processing stage (erasing the artifact periods is one), then `(nTotal, nTotal, "Done")`. It may throw to abort. Not stored in `info` |
 
@@ -158,12 +164,12 @@ base. Onset/offset times are (1-based sample index)/Fs; see
 | `labels` | amplifier labels in `Y` column order |
 | `origFs` | amplifier sample rate |
 | `invertedLines` | the digital lines whose events are low runs |
-| `reference` | the common reference subtracted first: `mode` (`"none"`, `"car"` or `"cmr"`) and `channels` (the recording channels it was taken over) |
+| `reference` | the common reference: `mode` (`"none"`, `"car"` or `"cmr"`), `channels` (the recording channels it was taken over) and `signals` (the derived signals it was subtracted from); `mode` is `"none"` when it was subtracted from none |
 | `badChannels` | what was interpolated, and how: `columns` (before `channelRemap`), `channels` (their recording channels), `method` per column (`"geometry"` or `"columns"`) and `weights` (`[nKept x nBad]`, each geometry column's weights over the kept columns) |
 | `artifacts` | what was erased before any signal was derived: `intervals` (`[k x 2]` `[tStart tEnd)` seconds on the continuous clock, merged; `zeros(0,2)` for none), `fill` (`"line"`) and `nSamples` (recording samples replaced). They hold for every signal and rate: on a signal at `Fs` (row r at `(r−1)/Fs`) a period touches the rows `EphysDataset.intervalRows(intervals, Fs, nRows)` gives |
-| `LFP` | `Fs`, `bpLoHi`, `NotchHz`, `NotchBW`, `filter` (text description of the filters applied), `nSamples` |
-| `MUA` | `Fs`, `IntegrationHz`, `bpLoHi`, `nSamples` |
-| `SPIKE` | `Fs`, `nSamples` |
+| `LFP` | `Fs`, `bpLoHi`, `NotchHz`, `NotchBW`, `filter` (text description of the filters applied), `nSamples`, `reference` |
+| `MUA` | `Fs`, `IntegrationHz`, `bpLoHi`, `nSamples`, `reference` |
+| `SPIKE` | `Fs`, `nSamples`, `reference` (each: the common reference subtracted from that signal, `"none"`, `"car"` or `"cmr"`) |
 | `AUX` | `Fs`, `nSamples`, `labels`, `units` (`"volts"`), when the recording has aux inputs |
 | `importOptions` | the options actually used: the rates produced (`LFP_Fs`, `MUA_Fs`, `SPIKE_Fs`; `SPIKE_Fs` = `origFs` when `Inf`), `badChannels` the columns actually interpolated, and `labelField` / `lineNames` / `invertedLines` as resolved |
 

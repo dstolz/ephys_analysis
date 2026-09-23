@@ -65,7 +65,8 @@ git clone https://github.com/dstolz/ephys_analysis.wiki.git C:\temp\wiki
 
    Then copy the files into the wiki's `images/`. The script covers:
    app-project-tab, app-trials-clean, app-sorting-tab, app-export-tab,
-   app-diagram-tab, app-run-plan, app-run-results and app-cleanup-tab. The
+   app-diagram-tab, app-diagram-overview, app-run-plan, app-run-results and
+   app-cleanup-tab. The
    other images (Copy, Probe, Artifacts, Signals, Spikes, Review, Visualize,
    the Trials mismatch pair) were made by hand-written drives of the app in
    the same way.

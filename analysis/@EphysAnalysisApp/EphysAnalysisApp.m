@@ -43,6 +43,7 @@ classdef EphysAnalysisApp < handle
     %     EphysAnalysisApp                      % the last config, or defaults
     %     EphysAnalysisApp("D:\EPHYS")          % a pipeline project root
     %     EphysAnalysisApp("D:\EPHYS", OutputRoot="E:\out", NamePattern=..., Recordings="separate")
+    %     EphysAnalysisApp("D:\EPHYS", Datasets=["subj1/day1" "subj1/day2"])  % only these ticked (root-relative keys)
     %     EphysAnalysisApp("D:\out\subj1_day1") % one dataset's output folder
     %     EphysAnalysisApp("am_quicklook.json") % an analysis config
     %     app = EphysAnalysisApp(...);          % keep a handle
@@ -164,12 +165,13 @@ classdef EphysAnalysisApp < handle
                 opts.OutputRoot (1,1) string = ""
                 opts.NamePattern (1,1) string = ""
                 opts.Recordings (1,1) string = ""
+                opts.Datasets (1,:) string = string.empty(1,0)
             end
             obj.buildUI();
             obj.loadPreferences(source == "");
             if source ~= ""
                 obj.openSource(source, OutputRoot=opts.OutputRoot, NamePattern=opts.NamePattern, ...
-                    Recordings=opts.Recordings);
+                    Recordings=opts.Recordings, Datasets=opts.Datasets);
             end
             obj.updateTitle();
             if nargout == 0

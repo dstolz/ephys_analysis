@@ -25,10 +25,11 @@ neither output is derived from the other.
 
 | Call | Returns |
 | --- | --- |
-| `data = FieldTripExport.raw(S, "LFP", Class="double")` | a raw structure with **one trial spanning the signal**: `label` (`nChan x 1` cellstr), `time{1}` = `(k-1)/Fs`, `trial{1}` = `[nChan x N]` (the transpose of the pipeline's `[N x nChan]`), `fsample`, `sampleinfo = [1 N]`, `hdr` (`Fs`, `nChans`, `nSamples`, `nSamplesPre = 0`, `nTrials = 1`, `label`, `chantype`, `chanunit = {'uV'}`, `FirstTimeStamp = 0`, `TimeStampPerSample = origFs/Fs`), `cfg` (`exportFieldTrip` adds `cfg.event` at this signal's rate, each onset on the sample nearest its recording row) |
+| `data = FieldTripExport.raw(S, "LFP", Class="double")` | a raw structure with **one trial spanning the signal**: `label` (`nChan x 1` cellstr), `time{1}` = `(k-1)/Fs`, `trial{1}` = `[nChan x N]` (the transpose of the pipeline's `[N x nChan]`), `fsample`, `sampleinfo = [1 N]`, `hdr` (`Fs`, `nChans`, `nSamples`, `nSamplesPre = 0`, `nTrials = 1`, `label`, `chantype`, `chanunit = {'uV'}`, `FirstTimeStamp = 0`, `TimeStampPerSample = origFs/Fs`), `cfg` (`exportFieldTrip` adds `cfg.event` at this signal's rate, each onset on the sample nearest its recording row, and `cfg.artfctdef.preprocessing.artifact`, below) |
 | `spike = FieldTripExport.spike(units)` | a spike structure: `label` (`1 x nUnits`, the unit labels, e.g. `su042_1255_260908T1039`), `timestamp{u}` = 0-based recording samples (Kilosort's `spike_times`), `hdr` (`Fs = units.fs`, `FirstTimeStamp = 0`, `TimeStampPerSample = 1`), `cfg`. No `time` / `trial` fields: cut trials in FieldTrip with `ft_spike_maketrials` |
 | `spike = FieldTripExport.spikeFromDetected(detected)` | the same, one "unit" per detected channel |
 | `event = FieldTripExport.event(events, Fs, EventFs=)` | struct array, one element per digital-input pulse at a signal's rate `Fs`: `type` (line name), `sample = round((t_on - 1/EventFs)*Fs) + 1` (1-based; the pulse times count rows of the `EventFs` clock, `t = row/EventFs`, so at `Fs = EventFs`, the default, it is the row that produced the onset, and otherwise the nearest sample of the signal), `value = 1`, `offset = 0`, `duration = round((t_off - t_on)*Fs) + 1` (samples, inclusive), sorted by sample. `exportFieldTrip` passes the recording rate as `EventFs` |
+| `art = FieldTripExport.artifact(intervals, data)` | the artifact periods `intervals` (`[k x 2]` `[tStart tEnd)` seconds on the continuous clock, as the extract's `info.artifacts.intervals`) as `[begsample endsample]` rows of the raw structure `data`, on its `sampleinfo`: every sample of the signal a period touches (`EphysDataset.intervalRows`), so a period shorter than one sample of a derived signal still marks one. It is the matrix `ft_rejectartifact` reads from `cfg.artfctdef.<type>.artifact`; `[]` with no periods. `exportFieldTrip` stores it in each signal's `cfg.artfctdef.preprocessing.artifact` |
 | `r = FieldTripExport.validate(data \| spike)` | runs `ft_datatype_raw` / `ft_datatype_spike` when FieldTrip is on the path and reports `ok` / `message`; a no-op otherwise |
 | `FieldTripExport.hasFieldTrip()` | is FieldTrip on the path? |
 
@@ -61,7 +62,9 @@ out = ds.exportFieldTrip(Extract=S, Units=units, File="D:\ft\subj1.mat", Overwri
 
 Variables in the file: `data_LFP` / `data_MUA` / `data_SPIKE` / `data_AUX`, `spike`,
 `spikeDetected`, `event` and `export` (provenance: `tool`,
-`created`, `dataset`, `sources`, `signals`, `eventFs`, `validation`). Absent
+`created`, `dataset`, `sources`, `signals`, `eventFs`, `artifacts` (the
+extract's `info.artifacts`: the periods erased before the signals were
+derived, in seconds), `validation`). Absent
 inputs are stored as `[]`. The file is written atomically
 (`EphysDataset.saveAtomically`). Schema summary in
 [file-formats.md](file-formats.md#fieldtrip-export-ephysdatasetexportfieldtrip-the-export-step).
@@ -85,6 +88,10 @@ LFP samples through `hdr.TimeStampPerSample`. FieldTrip's samples mode puts a
 spike on trial sample *k* at `(k - begsample + 0.5)/Fs + offset/Fs`, so a spike
 on the onset's own row reads 0 to +1 LFP sample.
 
+Each `data_<SIG>.cfg.artfctdef.preprocessing.artifact` lists the samples of
+that signal the erased artifact periods cover, on its `sampleinfo`: the
+matrix `ft_rejectartifact` reads to reject the trials that touch one.
+
 ## Tests
 
 [`test_FieldTripExport.m`](../pipeline/test_FieldTripExport.m): `raw`
@@ -93,6 +100,9 @@ on the onset's own row reads 0 to +1 LFP sample.
 samples, `FirstTimeStamp == 0`, no `time` / `trial`), `event` (`sample` = the
 row at the recording rate; with `EventFs` the nearest sample at a derived
 rate, row 180001 at 30 kHz → 6001 at 1 kHz; durations, ordering),
-`exportFieldTrip`'s per-signal `cfg.event`, the `export` variable names, and
+`exportFieldTrip`'s per-signal `cfg.event`, `artifact` (the periods as
+`[begsample endsample]` at the LFP rate, a period shorter than one sample
+included; at the recording rate exactly its own samples; `[]` with none) and
+each signal's `cfg.artfctdef.preprocessing.artifact`, the `export` variable names, and
 `Validate` as a no-op without FieldTrip (the checks run `ft_datatype_raw` /
 `ft_datatype_spike` when a FieldTrip checkout is on the path).

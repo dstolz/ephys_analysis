@@ -86,7 +86,9 @@ explicit trial rows, have no controls: they keep the config's values through
 every edit.
 
 On the right, for the active dataset: *"N epochs from M of T trials (scope);
-groups ..."* (or why there are none), a bar of epochs per group in the group
+groups ..."*, with the epochs dropped for having no stop event, leaving the
+recording or touching an artifact period (*"; N touch an artifact period"*),
+or why there are none, a bar of epochs per group in the group
 colours, and the kept trials with their group and number of epochs.
 
 ### Plots tab

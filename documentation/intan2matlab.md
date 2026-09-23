@@ -32,16 +32,33 @@ out = ds.toMat(SignalOptions=struct('dataTypeOut', ["LFP" "SPIKE"]));
    here, at the original rate, and named and polarized by `labelField`,
    `lineNames` and `invertedLines`, which default to the dataset's
    `TrialConfig`; explicit values win.
-2. **LFP**, if requested: `resample` to `LFP_Fs`. If `LFP_bpLoHi` is not
+   With a common reference (the dataset's `ArtifactConfig.Reference`,
+   `"car"` or `"cmr"`; `intan2matlab`'s own dataset has none) every channel
+   is read, the reference is subtracted sample by sample over
+   `referenceChannels` (`applyReference`, a block of rows at a time, in
+   place), and `keepAmpChannels` are picked after it. `reference=false`
+   skips it.
+2. **Artifact periods**, if given (`artifactIntervals`, merged): the samples
+   each period covers (`EphysDataset.artifactSamples`: 0-based
+   `round(t0·Fs)` .. `round(t1·Fs) − 1`, the samples the `.bin` and spike
+   rejection take) are replaced in the amplifier data, per channel, by a
+   straight line from the mean of the 1 ms before the period to the mean of
+   the 1 ms after it (a period at an end of the recording is held at the level
+   on its other side). LFP, MUA and SPIKE all derive from the filled data, so
+   no filter or resampler spreads an artifact past its period: a 20 mV, 50 ms
+   artifact otherwise leaves about 770 µV in a 1 Hz high-passed LFP 0.3 s
+   away and 120–150 µV in MUA / SPIKE 5 ms away; filled, under 0.1 µV. AUX and
+   the digital events are not touched.
+3. **LFP**, if requested: `resample` to `LFP_Fs`. If `LFP_bpLoHi` is not
    `[0 Inf]`, or `LFP_NotchHz` is non-empty, filters are then applied **at
    `LFP_Fs`**, one channel at a time in double precision:
    - a 4th-order Butterworth high-pass, low-pass or bandpass;
    - a 2nd-order Butterworth band-stop for each notch frequency;
    - each as second-order sections, applied with `filtfilt`.
-3. **MUA**, if requested: 4th-order Butterworth bandpass `MUA_bpLoHi` at the
+4. **MUA**, if requested: 4th-order Butterworth bandpass `MUA_bpLoHi` at the
    original rate (`filtfilt`) → `abs` → `resample` to `MUA_Fs` → `movmean` with
    a window of `round(MUA_Fs / MUA_IntegrationHz)` samples.
-4. **SPIKE**, if requested: `resample` to `SPIKE_Fs` (skipped when `Inf` or
+5. **SPIKE**, if requested: `resample` to `SPIKE_Fs` (skipped when `Inf` or
    equal to the original rate) → 4th-order Butterworth bandpass `SPIKE_bpLoHi`
    designed at `SPIKE_Fs` (`filtfilt`). At the original rate the spike band
    overwrites the amplifier data in place.
@@ -50,7 +67,7 @@ out = ds.toMat(SignalOptions=struct('dataTypeOut', ["LFP" "SPIKE"]));
    `EphysDataset.filterContinuous` (stable second-order sections at low
    cut-offs, the exact and faster transfer function otherwise), one channel at
    a time (8 at a time from 64 channels up), into single outputs.
-5. **Bad channels**, if given: the listed **columns** (after `keepAmpChannels`,
+6. **Bad channels**, if given: the listed **columns** (after `keepAmpChannels`,
    before `channelRemap`: column c is recording channel `keepAmpChannels(c)`)
    are replaced in every signal by the 1/distance-weighted mean of the 4
    nearest good sites on the same shank (and any as near as the 4th), placed by
@@ -69,7 +86,7 @@ out = ds.toMat(SignalOptions=struct('dataTypeOut', ["LFP" "SPIKE"]));
      `abs(zscore(rms(Y.LFP))) > z`, computed on the LFP after any LFP filtering.
      This requires `"LFP"` and uses `zscore`, from the Statistics and Machine
      Learning Toolbox.
-6. **Remap**, if given: `channelRemap` reorders the columns of every signal (a
+7. **Remap**, if given: `channelRemap` reorders the columns of every signal (a
    permutation of all of them in place), and `info.labels` is reordered to
    match.
 
@@ -103,7 +120,9 @@ the rate actually produced is the one reported in `info.<type>.Fs` and
 | `labelField` | `""`: the dataset's `TrialConfig.LabelField` (`intan2matlab`: `"custom"`) | `"custom"` or `"native"`; labels `info.labels` (and the aux labels) and names the `events` fields |
 | `lineNames` | `[]`: `TrialConfig.LineNames` (`intan2matlab`: none) | `"native=name"` digital-line names overriding `labelField` (e.g. `"DIGITAL-IN-04=InTrial"`, Open Ephys `"TTL4=InTrial"`) |
 | `invertedLines` | `[]`: `TrialConfig.InvertedLines` (`intan2matlab`: none) | digital lines with inverted TTL polarity (on while low): their `events` rows are the low runs, onset = falling edge; `info.invertedLines` lists the lines inverted |
-| `ProgressFcn` | `[]` | `ProgressFcn(nDone, nTotal, message)`: one step per file read, one per processing stage, then `(nTotal, nTotal, "Done")`. It may throw to abort. Not stored in `info` |
+| `reference` | `true` | `deriveSignals` / `toMat`: subtract the dataset's common reference (`ArtifactConfig.Reference`; nothing for `"none"`) before anything else (step 1); `false` reads the recording as stored. Reported in `info.reference` |
+| `artifactIntervals` | `zeros(0,2)` | `[k x 2]` artifact periods, `[tStart tEnd)` seconds from the recording start (half-open, as `EphysDataset.artifactIntervals` gives them), erased before any signal is derived (step 2). Reported in `info.artifacts`, not stored in `info.importOptions` |
+| `ProgressFcn` | `[]` | `ProgressFcn(nDone, nTotal, message)`: one step per file read, one per processing stage (erasing the artifact periods is one), then `(nTotal, nTotal, "Done")`. It may throw to abort. Not stored in `info` |
 
 All options are validated before any data is read. Band edges are checked
 against the header sample rate, and checked again against the rate actually read
@@ -139,7 +158,9 @@ base. Onset/offset times are (1-based sample index)/Fs; see
 | `labels` | amplifier labels in `Y` column order |
 | `origFs` | amplifier sample rate |
 | `invertedLines` | the digital lines whose events are low runs |
+| `reference` | the common reference subtracted first: `mode` (`"none"`, `"car"` or `"cmr"`) and `channels` (the recording channels it was taken over) |
 | `badChannels` | what was interpolated, and how: `columns` (before `channelRemap`), `channels` (their recording channels), `method` per column (`"geometry"` or `"columns"`) and `weights` (`[nKept x nBad]`, each geometry column's weights over the kept columns) |
+| `artifacts` | what was erased before any signal was derived: `intervals` (`[k x 2]` `[tStart tEnd)` seconds on the continuous clock, merged; `zeros(0,2)` for none), `fill` (`"line"`) and `nSamples` (recording samples replaced). They hold for every signal and rate: on a signal at `Fs` (row r at `(r−1)/Fs`) a period touches the rows `EphysDataset.intervalRows(intervals, Fs, nRows)` gives |
 | `LFP` | `Fs`, `bpLoHi`, `NotchHz`, `NotchBW`, `filter` (text description of the filters applied), `nSamples` |
 | `MUA` | `Fs`, `IntegrationHz`, `bpLoHi`, `nSamples` |
 | `SPIKE` | `Fs`, `nSamples` |

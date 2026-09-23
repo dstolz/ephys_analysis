@@ -63,6 +63,7 @@ flowchart LR
     BEH -- behaviorToMat ----> BMAT[("_behavior.mat<br/>trials + pairing")]
 
     ART -. erased .-> BIN
+    ART -. erased .-> MAT
     ART -. dropped .-> SPK
     BIN -- "Kilosort4<br/>run_ks4.py" --> KS[("kilosort4/<br/>phy files")]
     PRB[("probe .json<br/>ProbeDesignerApp")] -.-> KS
@@ -88,10 +89,13 @@ flowchart LR
 
 Each file hangs from the one it is made from, and the solid arrow names what
 makes it (mostly an `EphysDataset` method); dashed arrows are further inputs.
-Behavior pairing reads the cached digital events, and threshold detection
-drops spikes inside artifact periods. The exports and the analysis take their
-signals and events from `_extract.mat`, detected spikes from `_spikes.mat` and
-sorted units straight from `kilosort4/`; epochs and figures also read the
+Behavior pairing reads the cached digital events. The artifact periods are
+erased in the `.bin` and, before any filter, in the data LFP / MUA / SPIKE are
+derived from (`Signals.BlankArtifacts`, which also records them in
+`_extract.mat`), and threshold detection drops spikes inside them. The exports
+and the analysis take their signals, events and artifact periods from
+`_extract.mat` (epochs that touch a period are dropped by default), detected
+spikes from `_spikes.mat` and sorted units straight from `kilosort4/`; epochs and figures also read the
 paired trials in `_behavior.mat`. The common reference (CAR / CMR), when set,
 is subtracted as the recording is streamed, so artifact detection, the `.bin`
 and threshold detection all see it.
@@ -118,6 +122,13 @@ through `DatasetOutputs`, never the recording.
 
 Sorting has one path: `EphysDataset.runKilosort` writes the recording to a
 `.bin` (`toBin`, artifact periods erased) and runs Kilosort4 on it.
+
+The artifact periods (the manual ones, plus the automatic detection per
+`Artifacts.ApplyToSorting` / `ApplyToSignals` / `ApplyToSpikes`) reach three
+steps: Sorting erases them in the `.bin`, Signals erases them in the amplifier
+data before it derives LFP / MUA / SPIKE (`Signals.BlankArtifacts`; AUX and
+the digital events are not touched), and Spikes rejects the events inside them
+(`Spikes.RejectArtifacts`).
 
 ## Quick start
 
@@ -223,7 +234,16 @@ probe that accounts for the gap; see
 - `detectArtifacts` intervals are half-open on the continuous clock: the
   flagged rows a..b give `[a − 1, b) / Fs`, so a one-sample artifact is one
   sample long. An artifact period `[t0, t1)` erases exactly rows
-  `round(t0·Fs) + 1` .. `round(t1·Fs)`.
+  `round(t0·Fs) + 1` .. `round(t1·Fs)` at the recording rate
+  (`EphysDataset.artifactSamples`), in the `.bin`, in the data the signals are
+  derived from and in spike rejection alike.
+- On a signal at any rate, the rows a period touches are those whose sample
+  period `[(r − 1)/Fs, r/Fs)` overlaps it (`EphysDataset.intervalRows`), so a
+  period shorter than one row of a derived signal still marks one (the
+  FieldTrip `cfg.artfctdef.preprocessing.artifact` rows). An epoch touches a
+  period when its closed window on the continuous clock, onset + `[tPre tPost]`
+  with a digital-event onset moved to its recording row, overlaps it
+  (`EphysDataset.overlapsIntervals`: `t0 <= tStop` and `t1 > tStart`).
 - Manual artifact periods and `artifactIntervals` output are
   **recording-relative** seconds (the first sample of the first file is t = 0).
 - FieldTrip `event.sample` is, at the recording rate, the row itself; spike
@@ -234,8 +254,9 @@ probe that accounts for the gap; see
 
 No class modifies recording files. Sorting never modifies the probe `.json` it
 uses: channel exclusions go through a derived probe. Artifacts are erased in
-the written `.bin`, never in the source - by default (`ArtifactConfig.Fill`)
-each period becomes a straight line between the signal's level on either side
+the written `.bin` and in the in-memory copy the derived signals are computed
+from (a straight line across each period), never in the source. In the `.bin`,
+by default (`ArtifactConfig.Fill`) each period becomes a straight line between the signal's level on either side
 plus per-channel Gaussian noise at the recording's own level, because a sorter
 reads a block of zeros across every channel as a signal discontinuity, and a
 fill off the local level would leave a step at each edge that a sorter's
@@ -348,13 +369,13 @@ test_EphysPipeline       % one suite
 | `test_IntanReader` | the Intan reader: every data-block and on-disk layout, truncated last blocks, window reads across files, `readDigitalEvents` without the amplifier data, the run helpers, one-file-per-channel digital files, the recording start (`AcqDate`), `streamPlan` chunks, `KeepChannels` / `Precision` |
 | `test_BinaryReader` | the universal binary reader: `readDigitalEvents` from `dig_in_file` alone, `readData`, `Files` listing `dig_in_file`, `streamPlan` |
 | `test_SortedUnits` | `readPhyUnits`' label tables, template units and per-unit grouping; `channelLayout` (`chanMap` values are `.bin` rows); `runKilosort(DryRun=true)` leaving an existing run alone |
-| `test_DeriveSignals` | derived signals: bad channels as columns (the config's recording channels mapped to them), interpolated from the probe geometry or, without one, across columns; automatic detection; the MUA / SPIKE filters in double; non-integer rates; `info.<type>.nSamples`; line naming and polarity from `TrialConfig` |
+| `test_DeriveSignals` | derived signals: bad channels as columns (the config's recording channels mapped to them), interpolated from the probe geometry or, without one, across columns; automatic detection; the MUA / SPIKE filters in double; non-integer rates; `info.<type>.nSamples`; line naming and polarity from `TrialConfig`; artifact periods erased before deriving (the line fill, `info.artifacts`, no filter ringing outside the period, AUX untouched) |
 | `test_OpenEphysReader` | Open Ephys sessions (Binary, Open Ephys format, NWB): metadata, samples across recordings and gaps, TTL lines, AUX / ADC, discovery, record node / stream, the recording modes, line names, the pipeline on a synthetic Open Ephys project |
 | `test_EphysProject` (in `test_EphysDataset` §7 / §15) | discovery, keys, `refresh` |
 | `test_DatasetTracker` | the filesystem inventory |
 | `test_ChronuxDataset` | the Chronux connector |
-| `test_FieldTripExport` | the FieldTrip structures |
-| `test_EventEpochs` | the event-organized export: sample alignment, spike windows, the trials table, the behavior source, the epoch settings |
+| `test_FieldTripExport` | the FieldTrip structures, the artifact matrix |
+| `test_EventEpochs` | the event-organized export: sample alignment, spike windows, the trials table, the behavior source, the epoch settings, epochs touching an artifact period |
 | `test_EpsychSession` | Epsych2 readers and matching |
 | `test_EphysPipelineConfig`, `test_EphysPipeline`, `test_EphysPipelineScript` | config, runner, scripts |
 | `test_EphysPreprocessingApp` | the GUI's config model, headless |

@@ -361,12 +361,13 @@ which holds `H64LP_4x16.json` as a starting point.
   "Probe":     { "DefaultProbeFile", "WriteDefaultToManifest" },
   "Behavior":  { "Enabled", "SearchDirs", "Match", "MaxStartOffsetMin", "Overwrite", "WriteFile",
                  "PairTrials", "AutoApprove", "TrialLine" },
-  "Artifacts": { "Reference", "ReferenceBadLow", "ReferenceBadHigh", "Enabled", "Method", "Threshold", ... , "Fill", "NoiseBandHz", "NoiseSeed", "ApplyToSorting", "ApplyToSpikes", "CacheIntervals" },
+  "Artifacts": { "Reference", "ReferenceBadLow", "ReferenceBadHigh", "Enabled", "Method", "Threshold", ... , "Fill", "NoiseBandHz", "NoiseSeed", "ApplyToSorting", "ApplyToSpikes", "ApplyToSignals", "CacheIntervals" },
   "Sorting":   { "Enabled", "PythonExe", "CondaEnv", "Execution", "MaxConcurrent", "Devices", "DryRun", "SkipExisting",
                  "KS4": {...}, "KS4ExtraJSON" },
-  "Signals":   { "Enabled", "OutputDir", "Suffix", ... , "LabelField", "LineNames", "InvertedLines", ... , "ExcludeHandling" },
+  "Signals":   { "Enabled", "OutputDir", "Suffix", ... , "BlankArtifacts", ... , "LabelField", "LineNames", "InvertedLines", ... ,
+                 "ExcludeHandling" },
   "Spikes":    { "Enabled", "Source", ... , "Groups", "IncludeNoise", "Templates", "OutputDir", "Suffix", ... },
-  "Export":    { "Enabled", "Formats", "Signals", "IncludeUnits", ... }
+  "Export":    { "Enabled", "Formats", "Signals", "IncludeUnits", ... , "EpochNonFinite", "EpochArtifacts", ... }
 }
 ```
 
@@ -589,7 +590,7 @@ inputs), each holding only that signal in `Y` and `info`:
 | --- | --- |
 | `Y` | struct with `LFP`, `MUA`, `SPIKE` (`single`, `[nSamples x nChan]`) and `AUX`; unrequested fields are `single([])`. Row k of a signal is at `(k-1)/info.<type>.Fs` |
 | `events` | struct, one field per digital-input line, `[k x 2]` `[t_on t_off]` seconds; onset = rising edge, or falling edge for the lines in `info.invertedLines` (`Signals.InvertedLines`) |
-| `info` | per signal `Fs` and `nSamples` (the row count; there are no time vectors), `origFs`, `labels`, `invertedLines`, `badChannels` (the columns interpolated, their recording channels, the method per column and the weights), `importOptions`, ...; see [intan2matlab.md](intan2matlab.md#outputs) |
+| `info` | per signal `Fs` and `nSamples` (the row count; there are no time vectors), `origFs`, `labels`, `invertedLines`, `badChannels` (the columns interpolated, their recording channels, the method per column and the weights), `reference` (the common reference subtracted first: `mode`, `channels`), `artifacts` (the periods erased before any signal was derived: `intervals` `[k x 2]` `[tStart tEnd)` s on the continuous clock, `fill` `"line"`, `nSamples` replaced; in every file, combined or per type), `importOptions`, ...; see [intan2matlab.md](intan2matlab.md#outputs) |
 | `conversion` | `tool`, `created`, `dataset`, `sourceFolder`, `recordingFormat`, `matFileVersion`, `matlabVersion` |
 
 ## Spikes `.mat` (`EphysDataset.spikesToMat`; the Spikes step)
@@ -644,7 +645,8 @@ Chronux functions take; no Chronux function is called to produce it.
 | `spDetected` | the same for threshold-detected spikes, one element per channel, or `[]` |
 | `units`, `detected` | the source structs (`units` as in the spikes file, same order as `sp`), or `[]` |
 | `events` | dig-in lines → `[k x 2]` seconds, `t = row/eventFs` on the recording's clock: on a signal at `Fs` that is row `round((t - 1/eventFs)*Fs) + 1` |
-| `export` | `tool`, `created`, `dataset`, `sourceFolder`, `sources`, `signals`, `eventFs` (the recording rate), `nUnits`, `nDetectedChannels`, `timeConventions` (`continuous`, `events`, `spikes`) |
+| `artifacts` | the extract's `info.artifacts`: `intervals` (`[k x 2]` `[tStart tEnd)` seconds on the continuous clock, the periods erased before the signals were derived; on a signal at `Fs` they touch rows `EphysDataset.intervalRows(intervals, Fs, nRows)`), `fill`, `nSamples`. No intervals: nothing was erased |
+| `export` | `tool`, `created`, `dataset`, `sourceFolder`, `sources`, `signals`, `eventFs` (the recording rate), `nUnits`, `nDetectedChannels`, `timeConventions` (`continuous`, `events`, `spikes`, `artifacts`) |
 
 ## FieldTrip export (`EphysDataset.exportFieldTrip`; the Export step)
 
@@ -654,11 +656,11 @@ Default `<outputFolder>/<Name>_fieldtrip.mat`. Structures follow
 
 | Variable | Contents |
 | --- | --- |
-| `data_LFP` / `data_MUA` / `data_SPIKE` / `data_AUX` | raw structures, one trial spanning the signal; `cfg.event` holds the events at that signal's rate, each on the sample nearest its recording row |
+| `data_LFP` / `data_MUA` / `data_SPIKE` / `data_AUX` | raw structures, one trial spanning the signal; `cfg.event` holds the events at that signal's rate, each on the sample nearest its recording row; `cfg.artfctdef.preprocessing.artifact` the artifact periods erased before the signals were derived, `[begsample endsample]` rows of that signal on its `sampleinfo` (every sample a period touches; `[]` with none), the matrix `ft_rejectartifact` reads |
 | `spike` | spike structure of the sorted units (`label` = unit labels such as `su042_1255_260908T1039`, `timestamp` in recording samples; `hdr.orig` keeps the unit fields: class, identity, location, notes), or `[]` |
 | `spikeDetected` | the same, one "unit" per detected channel, or `[]` |
 | `event` | event struct array at the recording rate |
-| `export` | `tool`, `created`, `dataset`, `sources`, `signals`, `eventFs`, `validation` |
+| `export` | `tool`, `created`, `dataset`, `sources`, `signals`, `eventFs`, `artifacts` (the extract's `info.artifacts`, the periods in seconds), `validation` |
 
 ## Epoch export (`EphysDataset.exportEpochs`; the Export step)
 
@@ -669,7 +671,7 @@ Nothing is averaged, smoothed or resampled.
 
 | Variable | Contents |
 | --- | --- |
-| `epochs` | `event` (source, name, window, onset rule, `eventFs` (the recording rate the event times count rows of), onsets / offsets / durations, recording range, what was dropped), `trials` (one row per epoch: `EpochIndex`, `EpochOnset`, `EpochOffset`, `EpochDuration`, `EpochComplete` (the window lies inside the recording and inside every signal's rows), plus `EventIndex` or `BehaviorRow` and the behavior trial columns), `signals` (per signal: `data` `[nTime x nEpochs x nChan]`, `t` relative to the onset, `fs`, `labels`, `units`, `info`), `units` (per unit: `id`, `label`, `class`, `group`, `channel`, `times` `{1 x nEpochs}`, `counts`), `detected`, `spikes` (the stamping rule), `behavior`, `meta` |
+| `epochs` | `event` (source, name, window, onset rule, `eventFs` (the recording rate the event times count rows of), onsets / offsets / durations, recording range, what was dropped, `nArtifact`), `trials` (one row per epoch: `EpochIndex`, `EpochOnset`, `EpochOffset`, `EpochDuration`, `EpochComplete` (the window lies inside the recording and inside every signal's rows), `EpochArtifact` (the window touches an artifact period), plus `EventIndex` or `BehaviorRow` and the behavior trial columns), `signals` (per signal: `data` `[nTime x nEpochs x nChan]`, `t` relative to the onset, `fs`, `labels`, `units`, `nArtifact`, `info` with `keptTrials` and `droppedArtifact`), `units` (per unit: `id`, `label`, `class`, `group`, `channel`, `times` `{1 x nEpochs}`, `counts`), `detected`, `spikes` (the stamping rule), `behavior`, `artifacts` (the extract's `info.artifacts`), `meta` |
 | `export` | `tool`, `created`, `dataset`, `sources`, `signals`, `eventSource`, `eventName`, `window`, `nEpochs`, the policies applied and the time conventions |
 
 The same alignment drives the [`analysis`](EphysAnalysis.md) figures, which
@@ -685,7 +687,12 @@ seconds) and inside every signal's rows. A spike belongs to epoch *i* when
 `t > onset+tPre` and `t <= onset+tPost`, the onset taken on the spikes' clock
 (`(row - 1)/eventFs` for a digital-event onset, so a spike in the onset's own
 sample is at 0), stamped by `epochs.spikes.timeBase` (`"onset"`: 0 at the
-event).
+event). `EpochArtifact` is true when the epoch's window on the continuous
+clock, onset + `[tPre tPost]` with the onset taken the same way, overlaps a
+half-open period of `epochs.artifacts.intervals`; with `EpochArtifacts =
+"drop"` (the default) that epoch is left out of every signal
+(`info.keptTrials`, `info.droppedArtifact`), while the trials table and the
+spike epochs keep it.
 
 All six `.mat` writers save to `~<name>.partial.mat` and rename only after a
 warning-free `save()` in which every variable is confirmed present

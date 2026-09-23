@@ -586,7 +586,9 @@ signal, except the `"commonmode"` artifact detector, which looks for the very
 mean the reference subtracts and so reads each chunk unreferenced. Each sample is referenced on its own, so chunk and window reads agree
 exactly. `readChunkUV(chunk, Reference=false)` and
 `readWindowUV(offset, n, Reference=false)` return the recording as stored.
-`readData` (the derived LFP / MUA signals) is never referenced.
+`deriveSignals` subtracts it too, over the whole recording it reads (a block
+of rows at a time), so the derived LFP / MUA / SPIKE are referenced alike;
+`readData` itself returns the recording as stored.
 
 **`ch = referenceChannels()`**: the channels the reference is taken over,
 which is every channel except `ExcludeChannels` and `ReferenceExclude`. A channel
@@ -734,8 +736,10 @@ Detection runs **per chunk**. The robust baseline (median/MAD) is computed withi
 each chunk, and runs are not stitched across chunk boundaries.
 
 **`iv = artifactIntervals(Name=Value)`** returns the merged `[k x 2]` list of
-periods (seconds) that the Sorting step passes to `runKilosort`, which erases
-them in the `.bin`:
+periods (seconds) that the pipeline passes to `runKilosort`, which erases them
+in the `.bin`, to `deriveSignals` (`artifactIntervals`), which erases them
+before any signal is derived, and to `spikesToMat`, which rejects the events
+inside them:
 
 - all `ManualArtifacts` (unless `IncludeManual=false`, which gives the
   automatic detection alone, as the pipeline caches it), plus
@@ -759,13 +763,23 @@ intervals are the same in either mode.
   overlaps.
 - `mask = manualArtifactMask(nSamp, sampleOffset, Fs, iv)` returns the per-block
   logical mask `toBin` uses, for the intervals `iv` (default `ManualArtifacts`). It covers samples `round(t0·Fs) … round(t1·Fs) − 1` as
-  0-based absolute indices.
+  0-based absolute indices (`EphysDataset.artifactSamples`, mapped into the
+  block).
 
 Every artifact period, manual or detected, is **half-open** `[t0, t1)` on that
 clock, and every route removes the same samples, `round(t0·Fs)` up to but not
-including `round(t1·Fs)`: `.bin` blanking (`toBin`, `manualArtifactMask`) and
-spike rejection in `spikesToMat` (an event at `t` is dropped when `round(t·Fs)` is
-in that range, found with one sorted lookup over the merged ranges).
+including `round(t1·Fs)`: `.bin` blanking (`toBin`, `manualArtifactMask`), the
+data the derived signals are computed from (`deriveSignals`' `artifactIntervals`,
+[below](#derived-signals-the-intan2matlab-processing)) and spike rejection in
+`spikesToMat` (an event at `t` is dropped when `round(t·Fs)` is in that range,
+found with one sorted lookup over the merged ranges). Three static helpers state
+the rule:
+
+| Static | Returns |
+| --- | --- |
+| `rows = EphysDataset.artifactSamples(iv, Fs, nSamp)` | the `[first last]` 1-based rows a period replaces at the recording rate `Fs` (`nSamp` rows): 0-based `round(t0·Fs)` .. `round(t1·Fs) − 1`, merged where they touch |
+| `rows = EphysDataset.intervalRows(iv, Fs, nRows)` | the `[first last]` rows of a signal at any rate (row r at `(r − 1)/Fs`, `nRows` rows) whose sample period `[(r − 1)/Fs, r/Fs)` overlaps a period, merged where they touch. At the recording rate that is `artifactSamples`' rows for periods on the sample grid; at a derived rate every row a period falls in is kept, so a period shorter than one row still marks one (`FieldTripExport.artifact`) |
+| `tf = EphysDataset.overlapsIntervals(tStart, tStop, iv)` | which closed windows `[tStart tStop]` touch a period: `t0 <= tStop` and `t1 > tStart`, windows and periods on the same clock (`eventEpochs`' `EpochArtifact`, the analysis `epochTable`) |
 
 #### Default artifact configuration
 
@@ -1309,6 +1323,19 @@ columns of the kept data) are interpolated from the probe geometry
 of its own uses the config's default probe. `labelField`, `lineNames` and
 `invertedLines` default to the dataset's `TrialConfig`. Row k of a signal is at
 `(k − 1) / info.<type>.Fs`, and `info.<type>.nSamples` is its row count.
+The dataset's common reference (`ArtifactConfig.Reference`, [above](#common-reference-car--cmr))
+is subtracted first, over every channel of the recording, so with a
+reference every channel is read and `keepAmpChannels` picks from the
+referenced data (`reference=false` reads the recording as stored);
+`info.reference` reports it: `mode` and `channels` (the channels it was
+taken over). With `artifactIntervals` (`[k x 2]` recording-relative seconds, half-open;
+default none) the samples those periods cover (`artifactSamples`) are replaced
+in the amplifier data, per channel, by a straight line from the mean of the
+1 ms before the period to the mean of the 1 ms after it, before any signal is
+derived: LFP, MUA and SPIKE all derive from the filled data, so no filter or
+resampler spreads an artifact into its neighbours. AUX and the digital events
+are not touched. `info.artifacts` reports it: `intervals` (merged; `zeros(0,2)`
+for none), `fill` (`"line"`) and `nSamples` (recording samples replaced).
 `intan2matlab` is a thin wrapper around it. The full option list, processing
 order and outputs are documented in [intan2matlab.md](intan2matlab.md).
 
@@ -1317,6 +1344,8 @@ order and outputs are documented in [intan2matlab.md](intan2matlab.md).
 with `SeparateFiles=true` to one MAT-file per signal type,
 `<File without .mat>_<TYPE>.mat` (names from `EphysDataset.signalFiles`). Each
 per-type file has the same variables, with `Y` / `info` holding only its signal.
+Every file carries `info.artifacts`, so whatever reads one signal knows which
+of its rows the erased periods cover.
 
 | Option | Default |
 | --- | --- |
@@ -1329,7 +1358,9 @@ per-type file has the same variables, with `Y` / `info` holding only its signal.
 
 `out` fields: `file`, `types` (the signal type(s) in each file) and `bytes` (one per file written), `seconds`, `matVersion`, `recordingFormat`,
 `origFs`, `signals` (name, nSamples, nChannels, class, Fs), `events` (name,
-count), `badChannels` (the columns interpolated; `info.badChannels` says how).
+count), `badChannels` (the columns interpolated; `info.badChannels` says how),
+`reference` (`info.reference`), `artifacts` (`info.artifacts`: the periods
+erased and the samples replaced).
 
 **`EphysDataset.saveAtomically(file, S, matVersion)`** (static) is the writer
 behind `toMat`, `spikesToMat`, `behaviorToMat` and both exporters: the struct's fields are
@@ -1369,14 +1400,22 @@ the derived signals as `LFP` / `MUA` / `SPIKE` structs (`data`, `params`, `t`,
 `labels`, `info`, built by [`ChronuxDataset.continuous`](ChronuxDataset.md)),
 the sorted units as `sp` (the `mtspectrumpt` input form) and detected spikes
 as `spDetected`, plus `units`, `detected`, `events` (`t = row/eventFs` on the
-recording's clock) and `export` (provenance, with `eventFs`, the recording
-rate, and `timeConventions`). No Chronux function is called.
+recording's clock), `artifacts` (the extract's `info.artifacts`: the periods
+erased before the signals were derived, `[tStart tEnd)` seconds on the
+continuous clock, with `fill` and `nSamples`; no intervals when nothing was
+erased) and `export` (provenance, with `eventFs`, the recording
+rate, and `timeConventions`, including `artifacts`). No Chronux function is called.
 
 **`out = exportFieldTrip(Name=Value)`** writes
 `<outputFolder>/<Name>_fieldtrip.mat` with FieldTrip raw / spike / event
 structures built by [`FieldTripExport`](FieldTripExport.md); each `data_<SIG>`
 carries its events at its own rate in `cfg.event`, each onset on the signal's
-sample nearest its recording row. FieldTrip is
+sample nearest its recording row, and the artifact periods erased before the
+signals were derived in `cfg.artfctdef.preprocessing.artifact`: `[begsample
+endsample]` rows at the signal's rate on its `sampleinfo`, the matrix
+`ft_rejectartifact` reads (`FieldTripExport.artifact`; `[]` with none).
+`export.artifacts` holds the extract's `info.artifacts` (the periods in
+seconds). FieldTrip is
 never required; with `Validate=true` (default) the structures are checked with
 `ft_datatype_raw` / `ft_datatype_spike` when FieldTrip is on the path.
 
@@ -1414,17 +1453,21 @@ without writing a file. It selects and re-packages: the epochs are cut by
 (continuous) and
 [`ChronuxDataset.spikeTrials`](ChronuxDataset.md#data-params-t-info--cxspiketrialsonsets-twin-namevalue)
 (spike times), so the sample alignment and the half-open spike window are
-exactly the documented ones, and no epoch is dropped by default — a window
-that runs past the recording is padded with `NaN` and flagged.
+exactly the documented ones, and no epoch is silently dropped by default — a
+window that runs past the recording is padded with `NaN` and flagged
+(`EpochComplete`), and one that touches an artifact period of the extract (its
+`info.artifacts`, the periods erased before the signals were derived) is
+flagged (`EpochArtifact`) and left out of the continuous signals.
 
 | Field of `E` | Contents |
 | --- | --- |
-| `event` | `source` (`"line"` / `"behavior"` / `"times"`), `name`, `window`, `onsetRule`, `eventFs` (the recording rate, the clock the event times count rows of), `nEpochs`, `onsets` / `offsets` / `durations`, `recordingRange` (+ its source), `lines`, what the selection dropped, and `pairingStatus` for the behavior source |
-| `trials` | table, one row per epoch: `EpochIndex`, `EpochOnset`, `EpochOffset`, `EpochDuration`, `EpochComplete` (the window lies inside the recording and inside every signal's rows, so no sample of the epoch is `NaN` padding), plus `EventIndex` (row in the line's event list) or `BehaviorRow` and every behavior trial column |
-| `signals` | one struct per signal: `data` `[nTime x nEpochs x nChan]`, `t` (seconds relative to the onset), `fs`, `labels`, `units`, `nIncomplete`, `nNonFinite`, `info` (`keptTrials` names the epochs the data holds) |
+| `event` | `source` (`"line"` / `"behavior"` / `"times"`), `name`, `window`, `onsetRule`, `eventFs` (the recording rate, the clock the event times count rows of), `nEpochs`, `onsets` / `offsets` / `durations`, `recordingRange` (+ its source), `lines`, what the selection dropped, `nArtifact` (epochs that touch an artifact period), and `pairingStatus` for the behavior source |
+| `trials` | table, one row per epoch: `EpochIndex`, `EpochOnset`, `EpochOffset`, `EpochDuration`, `EpochComplete` (the window lies inside the recording and inside every signal's rows, so no sample of the epoch is `NaN` padding), `EpochArtifact` (the window on the continuous clock, onset + `[tPre tPost]` with an `"event"` onset moved to its recording row `(row − 1)/eventFs`, overlaps a period of `artifacts.intervals`), plus `EventIndex` (row in the line's event list) or `BehaviorRow` and every behavior trial column |
+| `signals` | one struct per signal: `data` `[nTime x nEpochs x nChan]`, `t` (seconds relative to the onset), `fs`, `labels`, `units`, `nIncomplete`, `nNonFinite`, `nArtifact`, `info` (`keptTrials` names the epochs the data holds; `droppedArtifact` the ones left out for an artifact period) |
 | `units` | `1 x nUnits`: `id`, `label`, `class`, `group`, `channel`, `channelName`, `times` (`1 x nEpochs` cell), `counts` |
 | `detected` | the same per detected channel (`channel`, `channelName`, `times`, `counts`), or `[]` |
-| `spikes`, `behavior`, `meta` | how the spike times are stamped; the session and pairing the events came from; provenance |
+| `artifacts` | the extract's artifact periods (`info.artifacts`: `intervals` `[k x 2]` `[tStart tEnd)` s on the continuous clock, `fill`, `nSamples`) |
+| `spikes`, `behavior`, `meta` | how the spike times are stamped; the session and pairing the events came from; provenance (with `artifacts`, the option, `nArtifact`, and `conventions.artifact`) |
 
 | Option | Default | Meaning |
 | --- | --- | --- |
@@ -1434,16 +1477,19 @@ that runs past the recording is padded with `NaN` and flagged.
 | `Window` | `[-0.2 0.5]` | `[tPre tPost]` seconds around the onset |
 | `OnsetRule` | `"event"` | `"event"` / `"sample"`, as in `ChronuxDataset.trials`: `"event"` puts an onset on row `round((t − 1/eventFs)·Fs) + 1` of each signal, the sample nearest its recording row |
 | `Incomplete` | `"nan"` | window past the recording: pad with `NaN`, `"drop"` or `"error"` |
-| `NonFinite` | `"keep"` | epoch with `NaN`/`Inf` samples (blanked artifacts): keep, `"drop"` or `"error"` |
+| `NonFinite` | `"keep"` | epoch with `NaN`/`Inf` samples: keep, `"drop"` or `"error"` |
+| `Artifacts` | `"drop"` | epoch whose window touches an artifact period of the extract: `"drop"` (flagged in `EpochArtifact` and left out of the signals) or `"keep"` (flagged only) |
 | `SpikeTimeBase` | `"onset"` | `"onset"` (0 at the event), `"window"` (0 at the window start), `"absolute"` |
 | `Class` | `"double"` | `"single"` / `"asis"` for the epoched samples |
 | `MinDurationSec`, `MaxDurationSec` | `0`, `Inf` | pulse-length filter for the `"line"` source |
 | `Extract`, `Signals`, `Units`, `Groups`, `Detected`, `Sources`, `Events` | as above | |
 | `File`, `Overwrite`, `MatVersion` (`exportEpochs`) | `<Name>_epochs.mat`, `false`, `"-v7.3"` | |
 
-With `Incomplete="drop"` or `NonFinite="drop"` a signal holds fewer epochs than
-the trials table has rows, and its `info.keptTrials` names the rows it kept;
-the spike epochs always cover every row. With `OnsetRule="event"` the spikes
+With `Incomplete="drop"`, `NonFinite="drop"` or `Artifacts="drop"` a signal
+holds fewer epochs than the trials table has rows, and its `info.keptTrials`
+names the rows it kept; the spike epochs always cover every row. `exportEpochs`'
+`out` adds `nArtifact` (epochs that touch an artifact period) and `artifacts`
+(the `Artifacts` option). With `OnsetRule="event"` the spikes
 are cut around the onset's recording row, `(row − 1)/eventFs` on the spikes'
 clock, so a spike in the onset's own sample is at 0.
 
@@ -1456,7 +1502,8 @@ with trial filtering and grouping — use
 
 ```matlab
 E = ds.eventEpochs(EventSource="behavior", Window=[-0.2 0.5]);
-lfp = E.signals.LFP.data(:, E.trials.EpochComplete, 1);   % [nTime x nEpochs]
+k = E.signals.LFP.info.keptTrials;                        % the epochs the LFP holds
+lfp = E.signals.LFP.data(:, E.trials.EpochComplete(k), 1);   % [nTime x nEpochs]
 hit = E.trials.ResponseCode == 1;                         % a session column
 raster = E.units(3).times(hit);                           % spike times per trial
 ```
@@ -1617,6 +1664,7 @@ interpolates.
 | `EphysDataset.phyCurated(resultsDir)` | true when phy saved the unit labels there: `cluster_group.tsv` with the header `cluster_id<TAB>group` (static) |
 | `EphysDataset.pathKey(p)` | paths as comparable keys: `/` separators, no trailing separator, lower case on Windows (static) |
 | `EphysDataset.mergeIntervals(iv)` | the sorted union of half-open `[k x 2]` second intervals, the rule of `artifactIntervals` (static) |
+| `EphysDataset.artifactSamples(iv, Fs, nSamp)`, `intervalRows(iv, Fs, nRows)`, `overlapsIntervals(tStart, tStop, iv)` | the rows a period replaces at the recording rate, the rows it touches on a signal at any rate, and which windows touch one ([Manual periods](#manual-periods)) (static) |
 
 ---
 

@@ -66,6 +66,7 @@ analysis needs. **No signal and no spike time is loaded**: `selectUnits` and
 | `name`, `key`, `folder`, `outputs` | the dataset, its key (`Key=` option), output folder and `DatasetOutputs` |
 | `fs`, `durationSec` | recording rate and length: the manifest's `metadata.fs` / `duration_s`, else the extract (`info.origFs`, `info.<SIG>.nSamples / Fs`), else the pairing. Rates divide by `durationSec`, never by the time of the last spike. `fs` is also the rate the digital-event rows count at (`t = row/fs`), which `epochTable` uses |
 | `events` | line → `[k x 2]` `[t_on t_off]` s, **polarity applied**, from the extract (the smallest extract file's `events`) |
+| `artifacts` | `[k x 2]` `[tStart tEnd)` s on the continuous clock (row r at `(r − 1)/fs`): the artifact periods the Signals step erased (that file's `info.artifacts.intervals`; `zeros(0,2)` when none). `epochTable` drops the epochs that touch one |
 | `invertedLines`, `lines` | lines inverted; table `Line, Count, MeanDurationSec, First, Last, Inverted` |
 | `labels` | amplifier channel labels (`info.labels`) |
 | `signals`, `signalFs` | `LFP / MUA / SPIKE / AUX` → extract present, and its rate |
@@ -159,19 +160,24 @@ ungrouped set is dark grey. Without paired trials there is one group
 
 ### `epochTable`
 
-`[E, G] = epochTable(src, ref, Window=win, Selection=sel, Incomplete="drop", Columns=[])`
+`[E, G] = epochTable(src, ref, Window=win, Selection=sel, Incomplete="drop", Artifacts="drop", Columns=[])`
 gives one row per epoch, by time: `epoch, trial, t0, t0Continuous, t1,
-tStart, tStop, duration, complete, groupIndex, group` and the `groupBy` (and
+tStart, tStop, duration, complete, artifact, groupIndex, group` and the `groupBy` (and
 `Columns`) parameters of each epoch's trial. `t0` is the digital-event time
 (`t = row/fs`); `t0Continuous` is the same event on the continuous clock of the
 signals and spike times, `(row-1)/fs` = `t0 - 1/fs` (plus `offsetSec`),
 computed from the row so that it equals the time of a spike in that sample.
 `tStart` / `tStop` are on the clock of `t0`. `complete` means the window lies inside the
 recording and, in `"between"` mode, has its stop event; incomplete epochs are
-dropped unless `Incomplete="keep"`. `G.n` is the number of epochs per group,
+dropped unless `Incomplete="keep"`. `artifact` means the window, shifted to
+the continuous clock (by `t0Continuous - t0`), touches one of `src.artifacts`
+(half-open periods: `EphysDataset.overlapsIntervals`); those epochs are
+dropped, for the signals and the spikes alike, unless `Artifacts="keep"`,
+which keeps them flagged (so with the default the column is always false).
+`G.n` is the number of epochs per group,
 `G.nTrials` the kept trials. `E.Properties.UserData` records `ref`, `window`,
-`selection`, `scope`, `nEvents`, `nDroppedNoStop`, `nDroppedEdge`, `nTrials`,
-`nTrialsSelected` and `dataset`. Nothing usable is `epochTable:NoEpochs`; an
+`selection`, `scope`, `nEvents`, `nDroppedNoStop`, `nDroppedEdge`,
+`nDroppedArtifact`, `nTrials`, `nTrialsSelected` and `dataset`. Nothing usable is `epochTable:NoEpochs`; an
 unknown `src.fs` is `epochTable:NoRate`.
 
 ### Units and channels
@@ -357,7 +363,7 @@ separate roots and requires pixel-identical figures and equal HTML reports.
 | Suite | Covers |
 | --- | --- |
 | `test_EphysAnalysisCompute` | no fixture: `spikePSTH` on seeded Poisson trains (rate, SEM, half-open bins, bins that are whole multiples from the event and `R.window`, `spikePSTH:BadWindow`, a spike in the event's own sample at 0, baselines, smoothing, stop masking), `firingRate` over between windows, `tuningCurve` (and `tuningCurve:NoValues`), `evokedPotential` (event rule: the event's own row at `t = 0`; padding, drop counts, baseline), the filter compiler, `unitCorrelation` (Pearson and Spearman against `corrcoef`, peak rates and partial bins, baseline, groups, constant units), `binCounts` and `countBelow` against brute force, every renderer into axes, uiaxes, figure and uipanel, PSTH fills, normalization and stacks (row steps, value and peak axes), `renderPlot` pages and titles |
-| `test_EphysAnalysisEpochs` | the fixture: `loadAnalysisSource` against the generator's truth (`durationSec` from `info.LFP.nSamples`), `t0Continuous` and `offsetSec` on both clocks, trial / recording scope, `"Trial"`, an interval belonging to the trial holding its edge (spanning trials, touching trials, `Platform` in recording scope), `groupBy`, response and filter selection, between windows, approved cuts, `selectUnits` / `selectChannels` (every channel gives the cached signal as it is), error identifiers, the no-behavior fallback |
+| `test_EphysAnalysisEpochs` | the fixture: `loadAnalysisSource` against the generator's truth (`durationSec` from `info.LFP.nSamples`), `t0Continuous` and `offsetSec` on both clocks, trial / recording scope, `"Trial"`, an interval belonging to the trial holding its edge (spanning trials, touching trials, `Platform` in recording scope), `groupBy`, response and filter selection, between windows, approved cuts, `selectUnits` / `selectChannels` (every channel gives the cached signal as it is), error identifiers, the no-behavior fallback, `src.artifacts` and the epochs that touch one (dropped by default; a period ending at a window's start does not touch it; kept and flagged with `Artifacts="keep"`) |
 | `test_EphysAnalysisConfig` | see [EphysAnalysisConfig](EphysAnalysisConfig.md#tests) |
 | `test_EphysAnalysisRunner` | the fixture: `plan` skip reasons, `run` exports and paged names (no figure left open), HTML and PDF reports (percent-encoded and `file://` links; a `"both"` report holds the image of every exported page and each result), `Overwrite` off, rendering real results (a stack of real `epochTable` groups labelled by the `groupBy` parameter, a raster showing every epoch and an evoked stack whatever `Style.YLim`), a failing export closing its page (runner and standalone script), cancel, driven units, compact vs standalone script equivalence |
 | `test_EphysAnalysisApp` | see [EphysAnalysisApp](EphysAnalysisApp.md#tests) |

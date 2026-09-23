@@ -564,7 +564,7 @@ the preview's summary with its per-channel table.
 
 | Control | Maps to |
 | --- | --- |
-| Reference: *None* / *CAR: common average* / *CMR: common median* | `Artifacts.Reference` (`"none"` / `"car"` / `"cmr"`): subtract, sample by sample, the mean or median of the good channels from every channel before anything else - artifact detection, the noise level of the fill, the Kilosort4 `.bin` and spike detection. The preview and the viewer show the referenced signal. The derived LFP / MUA signals are not referenced. See [Common reference](EphysDataset.md#common-reference-car--cmr) |
+| Reference: *None* / *CAR: common average* / *CMR: common median* | `Artifacts.Reference` (`"none"` / `"car"` / `"cmr"`): subtract, sample by sample, the mean or median of the good channels from every channel before anything else - artifact detection, the noise level of the fill, the Kilosort4 `.bin`, the derived LFP / MUA / SPIKE signals and spike detection. The preview and the viewer show the referenced signal. See [Common reference](EphysDataset.md#common-reference-car--cmr) |
 | Good noise (x median): *low* to *high* | `Artifacts.ReferenceBadLow`, `ReferenceBadHigh` (0.3 and 2, Ludwig et al. 2009): a channel whose noise floor lies outside this band, relative to the median across channels, is suggested to stay out of the reference |
 | Left out, **Suggest** | the active dataset's `ReferenceExclude` (written to its manifest): channels kept out of the average, though still referenced. **Suggest** measures each channel's noise floor on a sample of the recording and fills the field (each channel's ratio goes to the log); typing a list marks it set by hand. A list that does not parse changes nothing (an alert says why). A dataset whose list was never set gets the suggestion on its first referenced run or preview. Channels excluded on the Probe tab stay out of the reference too |
 | **Enabled** | `Artifacts.Enabled`: run automatic detection (manual periods always apply) |
@@ -572,7 +572,7 @@ the preview's summary with its per-channel table.
 | Method, Threshold, RMS window, Stitch gap, Pad, Min channels | `Artifacts.Method`, `Threshold`, `RmsWindowMs`, `MergeGapMs`, `PadMs`, `MinChannels` |
 | Filter before detecting, High-pass (Hz) | `Artifacts.Filter`, and `FilterCutoff`: a high-pass filter's cut-off, or a band-pass filter's lower edge. `FilterType`, `FilterOrder` and a band's upper edge have no control and keep the config's values; with a low-pass filter (a config written by hand or by a script) the field is off. They apply to runs as well as the preview |
 | Erase with: *Gaussian noise (recording level)* / *Zeros* | `Artifacts.Fill` (`"noise"` / `"zero"`): what replaces the artifact samples, manual periods included. Noise by default - Kilosort4 reads a block of zeros across every channel as a signal discontinuity. Each period becomes a straight line between the signal's levels on either side plus that noise; its level is measured on up to 16 chunks spread over the recording, above `Artifacts.NoiseBandHz` (300 Hz), and `Artifacts.NoiseSeed` makes a rerun repeat; neither has a control here |
-| Erase in sorting (in the .bin Kilosort4 sorts) / Reject detected spikes inside the periods | `Artifacts.ApplyToSorting`, `ApplyToSpikes` |
+| Erase in sorting (in the .bin Kilosort4 sorts) / Reject detected spikes inside the periods / Erase in the signals (LFP / MUA / SPIKE, before filtering) | `Artifacts.ApplyToSorting`, `ApplyToSpikes`, `ApplyToSignals`: whether the detected artifacts reach those steps (manual periods always do). The signals take any periods only while the Signals tab's *Erase the artifact periods first* is ticked |
 | Cache intervals | `Artifacts.CacheIntervals` (`<Name>_artifacts.json`) |
 | Order channels by probe layout | display only, not saved: the viewer's lanes and the per-channel table in probe order (below). Needs a probe (the dataset's, else the config's default probe), and is ticked by default when there is one |
 | **Detect / Preview** | `analyzeArtifacts` over the active dataset (streamed, read-only; on the process pool when the Run tab's **Parallel** box is ticked): summary + per-channel table, and the detected artifacts in the viewer |
@@ -591,13 +591,14 @@ signal either side (0 = auto: twice the artifact's length, 25 ms to 5 s). It
 draws the signal the detector saw (high-passed when *High-pass before
 detecting* is ticked) for the **Channels** the artifact is largest on, one lane
 each, against time from the artifact's start. Samples a run would remove are
-**red** and those it keeps are **black** (red is what gets replaced, by
-noise or by zeros as *Erase with* says). Detected artifacts are shaded orange,
+**red** and those it keeps are **black** (red is what gets replaced: in the
+`.bin` by noise or by zeros as *Erase with* says, in the signals by a straight
+line). Detected artifacts are shaded orange,
 with the one shown outlined, and manual periods are shaded red, as on the
 Visualize tab. What counts as removed follows the controls as they are set:
 manual periods always, and detected artifacts only when **Enabled** is ticked
-together with *Erase in sorting* or *Reject detected spikes*. The line above
-the plot says which applies, and it warns when a detection setting has changed
+together with *Erase in sorting*, *Reject detected spikes* or *Erase in the
+signals*. The line above the plot says which of them apply, and it warns when a detection setting has changed
 since the preview. **Scale** fits the lanes to the whole window, or to the
 kept signal: six robust SDs of the signal outside the artifacts (at most the whole
 window's fit), so the artifact and any leftover of it are clipped and you can
@@ -755,6 +756,17 @@ Derived LFP / MUA / SPIKE `.mat` files with `EphysDataset.toMat`
   `_SPIKE.mat`; one plan / result row per file).
 - **Signals**: LFP (`LFP_Fs`, high-pass, low-pass, notch + width), MUA
   (`MUA_Fs`, integration, band), SPIKE (keep original rate / `SPIKE_Fs`, band).
+- **Erase the artifact periods first (a line across each), and record them in
+  every file**, under the signal-type row: `Signals.BlankArtifacts` (on by
+  default). Before LFP / MUA / SPIKE are derived, the dataset's artifact
+  periods (the manual ones, plus the automatic detection when the Artifacts
+  tab's *Erase in the signals* is ticked) become a straight line between the
+  levels on either side, so no filter or resampler spreads an artifact into
+  the samples around it. Every file records them (`info.artifacts`), and
+  Export's epochs and the analysis leave out the epochs that touch one. AUX is
+  not changed. The tab's note gives the order: keep channels → erase artifact
+  periods → LFP (resample, then filters) / MUA / SPIKE → interpolate bad
+  channels → remap.
 - **Channels**: label field (`custom` / `native` names for channels, aux
   inputs and digital lines; lines renamed on the Trials tab keep their
   names), keep channels, bad channels (none / manual list of recording
@@ -801,7 +813,11 @@ the app only writes files.
 - **Event epochs**: where the onsets come from (a digital-input line, or the
   paired behavior trials, which bring their session columns with them), the
   line, the window around each onset, what to do with a window that runs past
-  the recording or holds blanked (`NaN`) samples, how the per-epoch spike
+  the recording or holds `NaN` / `Inf` samples, what to do with an epoch that
+  touches an artifact period the Signals step erased (**Artifact periods:**
+  *touching one: drop the epoch*, the default, leaves it out of the signals as
+  the analysis does; *touching one: keep it (flagged)*; the trials table flags
+  it either way, `Export.EpochArtifacts`), how the per-epoch spike
   times are stamped, the class of the epoched samples and the onset rule.
   **Epochs to workspace** builds that struct for the dataset selected on the
   Project tab with these settings and puts it in the base workspace as
@@ -820,37 +836,51 @@ top-down from its own coloured step box to the files it writes:
 - **Artifacts**: chunked reading, the common reference, the detection
   filter, the detector (method, window, threshold), channel coincidence,
   merge / pad, the automatic intervals, and the artifact periods
-  (automatic and manual) that Sorting and Spikes read.
-- **Sorting** hangs from those artifact periods, because Kilosort4 sorts the
-  recording with them erased: the common reference, the blanked artifact
+  (automatic and manual) that Sorting, Signals and Spikes read. Its boxes
+  below the periods are Sorting, Signals, then *Reject in Spikes*.
+- **Sorting** and **Signals** hang from those artifact periods, because each
+  erases them from the recording before reading it: the `.bin`, and the
+  amplifier data LFP / MUA / SPIKE are derived from. Signals hangs there only
+  while `Signals.BlankArtifacts` is on; with it off it hangs from the raw
+  recording. Sorting: the common reference, the blanked artifact
   periods (noise-filled or zeroed), the `.bin` write, the probe map
   (`chanMap` indexes `.bin` rows; manifest exclusions), then Kilosort4
   (`run_kilosort`): crop, its own high-pass, CAR, artifact threshold,
   whitening, drift correction, template matching and clustering, ending in
   the phy-ready sorted units in `kilosort4/`.
-- **Signals**: channel selection, then one branch each for LFP (resample,
-  band filter, notch), MUA (bandpass, rectify, resample, integrate), SPIKE
-  (resample, bandpass), AUX and the digital events; the amplifier branches end
-  with bad-channel interpolation, the channel remap and the output file.
-  Export hangs from the first signal file (from the digital events when no
-  amplifier signal is computed): its inputs, then one branch per format.
+- **Signals**: the common reference (over every channel), channel selection,
+  then an *Erase artifact periods* box
+  (orange: *manual + automatic* or *manual periods only*, *a line across each,
+  before any filter*, *recorded in every file*; dashed *off (as recorded)*
+  when `Signals.BlankArtifacts` is off) over the LFP (resample, band filter,
+  notch), MUA (bandpass, rectify, resample, integrate) and SPIKE (resample,
+  bandpass) branches; the AUX and digital-event branches hang from the read
+  beside the reference, since neither is referenced or channel-selected. The amplifier branches end with bad-channel
+  interpolation, the channel remap and the output file. Export hangs from the
+  first signal file (from the digital events when no amplifier signal is
+  computed): its inputs, then one branch per format; the *Event epochs* box
+  says whether epochs touching an artifact period are dropped or kept,
+  flagged.
 - **Spikes**: chunking, the common reference, channels, bandpass, threshold,
   alignment, minimum period, amplitude cap, waveforms, artifact rejection and
   the spikes file.
 
 The common reference (Artifacts tab, **Reference**) is drawn in each of the
-three branches that read the recording through it; the derived signals are
-not referenced. Reading the sorted units into the spikes file (*Spikes:
+four branches that read the recording through it (Artifacts, Sorting,
+Signals, Spikes). Reading the sorted units into the spikes file (*Spikes:
 sorted units*) hangs from Sorting's output. Stages the config leaves off are
 dashed, a disabled step's branch is faded (a step hanging from it keeps its
 own state, and so do the artifact periods: the manual ones apply with
 detection off), and artifact periods feeding another step are marked orange.
 
-**Layout** switches to **Tree per step**: a tree of its own for Artifacts,
-Signals and Spikes, each from the recording box, then the steps hung from
-another step's output (Sorting from the artifact periods, the sorted units,
-Export) under **Downstream**, each under a box for what it reads. The choice
-is kept as a preference.
+**Layout** switches to **Tree per step**: a tree of its own for Artifacts and
+Spikes (and Signals while `Signals.BlankArtifacts` is off), each from the
+recording box, then the steps hung from another step's output (Sorting and
+Signals from the artifact periods, the sorted units, Export) under
+**Downstream**, each under a box for what it reads (*Artifact periods, from
+Artifacts*). The choice is kept as a preference. In either layout the tab's
+summary line (`N of 4 raw-data step(s) enabled`) counts Artifacts, Sorting,
+Signals and Spikes, wherever Sorting and Signals hang.
 
 With an active dataset the recording node shows its name, rate and channel
 count, and the Sorting branch shows its probe and exclusions.
@@ -862,7 +892,8 @@ box for the method, the threshold and the polarity; *Drift correction* for
 `nblocks`, `sig_interp`, `binning_depth`, `dmin` and `dminx`) — all of them are
 marked, and the first one decides the tab. A step box opens its **Enable**
 box. Boxes lead where the setting lives rather than where they are drawn, so
-*Blank artifact periods* in the Sorting tree opens the Artifacts tab, *Read in
+*Blank artifact periods* in the Sorting tree opens the Artifacts tab,
+*Erase artifact periods* in the Signals tree the Signals tab, *Read in
 chunks* opens the Run tab's parallel settings, and the recording box opens the
 project root. Keyboard: tab to a box and press Enter or Space.
 
@@ -1003,7 +1034,9 @@ intervals of the plotted dataset (the detector a run uses, over the whole
 recording), while its detection settings are still the ones the preview ran
 with; otherwise none is shaded, and the status line says why. A run's cached
 detection is not shown, and nothing is detected on the displayed data. Red =
-manual periods. **Mark Artifacts** toggles marking mode (left-drag adds a period,
+manual periods. The artifact status line counts both and says where a run
+erases the manual periods: in the `.bin`, and in the signals too while the
+Signals tab's *Erase the artifact periods first* is ticked. **Mark Artifacts** toggles marking mode (left-drag adds a period,
 click inside a red region removes it); **Clear Artifacts** removes all. Manual
 periods are written to the dataset's manifest, so they survive a rescan and a
 restart.

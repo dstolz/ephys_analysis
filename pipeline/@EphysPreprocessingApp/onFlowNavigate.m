@@ -6,8 +6,15 @@ function onFlowNavigate(obj, evt)
 %   scrolled into view and focused, and every control of the box is
 %   highlighted until the next tab change (clearFlowHighlight).
 %
+%   The page also reports each zoom or pan ('zoom'), which is kept per view
+%   (FlowZoom) for the next redraw of that view (refreshFlowChart).
+%
 %   See also flowNavControls, flowChartHTML, buildFlowTab.
 
+if strcmp(evt.HTMLEventName, 'zoom')
+    keepZoom(obj, evt.HTMLEventData);
+    return
+end
 if ~strcmp(evt.HTMLEventName, 'navigate'); return; end
 [target, title] = eventFields(evt.HTMLEventData);
 if target == ""; return; end
@@ -32,6 +39,23 @@ catch
 end
 where = ternary(isempty(tab), "this config", "the " + string(tab.Title) + " tab");
 obj.setStatus("Diagram: " + title + " is set on " + where + ".", "");
+end
+
+
+function keepZoom(obj, v)
+%keepZoom  Keep the zoom a Diagram page reports, under the view it names.
+if ~(isstruct(v) && isscalar(v) && all(isfield(v, {'key', 'auto', 'scale', 'x', 'y'})))
+    return
+end
+key = asText(v.key);
+num = @(a) isnumeric(a) && isscalar(a) && isfinite(a);
+if ~ismember(key, ["overview" "detail_tree" "detail_steps"]) || ~num(v.scale) || v.scale <= 0 ...
+        || ~num(v.x) || ~num(v.y)
+    return
+end
+auto = asText(v.auto);
+if ~ismember(auto, ["fit" "actual"]); auto = ""; end
+obj.FlowZoom.(key) = struct('key', key, 'auto', auto, 'scale', v.scale, 'x', v.x, 'y', v.y);
 end
 
 

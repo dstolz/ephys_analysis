@@ -113,13 +113,13 @@ shot("app-sorting-tab.png", 1);
 app.selectTab(app.TabExport);
 shot("app-export-tab.png", 1);
 app.selectTab(app.TabFlow);
+app.FlowViewDropDown.Value = "detail";   % the overview is the default
+app.onFlowViewChanged();
 shot("app-diagram-tab.png", 2.5);
 if want("app-diagram-overview.png")
     app.FlowViewDropDown.Value = "overview";
     app.onFlowViewChanged();
     shot("app-diagram-overview.png", 2.5);
-    app.FlowViewDropDown.Value = "detail";
-    app.onFlowViewChanged();
 end
 
 if want("app-run-plan.png") || want("app-run-results.png")

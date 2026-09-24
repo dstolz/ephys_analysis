@@ -1,9 +1,12 @@
 function [html, summary] = flowChartHTML(obj, opts)
 %flowChartHTML  Flow chart of the working config as a standalone HTML page.
 %   [HTML, SUMMARY] = app.flowChartHTML() draws the Diagram tab's view
-%   (FlowViewDropDown): "detail", every step with all its parameters
-%   (below), or "overview", only the steps and the data that flows between
-%   them (flowOverviewHTML).
+%   (FlowViewDropDown): "overview" (the default), only the steps and the
+%   data that flows between them (flowOverviewHTML), or "detail", every
+%   step with all its parameters (below).
+%
+%   Either page draws in a viewport it zooms and pans (flowZoom): the
+%   detail view opens at 100%, the overview fitted to the viewport.
 %
 %   The detail view draws one tree from the raw
 %   recording. The common reference (Artifacts.Reference) comes right under
@@ -52,7 +55,7 @@ arguments
     opts.View (1,1) string {mustBeMember(opts.View, ["" "detail" "overview"])} = ""
     opts.Layout (1,1) string {mustBeMember(opts.Layout, ["" "tree" "steps"])} = ""
 end
-view = pick(opts.View, obj.FlowViewDropDown, "detail");
+view = pick(opts.View, obj.FlowViewDropDown, "overview");
 if view == "overview"
     [html, summary] = obj.flowOverviewHTML();
     return
@@ -86,12 +89,13 @@ if ~isempty(d)
 end
 
 pageTitle = "Preprocessing diagram: " + cfg.Name;
+zoom = flowZoom("detail_" + layout, "actual");
 body = "<h1>" + esc(pageTitle) + "</h1>" + legendHTML() ...
-    + "<div class=""hint"">Click any box to open the setting it draws.</div>" ...
-    + ternary(layout == "steps", stepsHTML(raw, steps), treeHTML(raw, steps)) ...
-    + "<script>" + js() + "</script>";
+    + "<div class=""hint"">Click any box to open the setting it draws. Scroll to zoom, drag to pan.</div>" ...
+    + zoom.open + ternary(layout == "steps", stepsHTML(raw, steps), treeHTML(raw, steps)) + zoom.close ...
+    + "<script>" + zoom.js + newline + js() + "</script>";
 html = "<!DOCTYPE html><html><head><meta charset=""utf-8""><title>" + esc(pageTitle) + "</title><style>" ...
-    + css() + "</style></head><body>" + body + "</body></html>";
+    + zoom.css + css() + "</style></head><body>" + body + "</body></html>";
 end
 
 
@@ -744,10 +748,13 @@ function s = js()
 %js  Page script: make every box with a target open it in the app.
 %   setup() is called only by the app's HTML component (matlab.ui.control.HTML),
 %   so a saved page keeps its boxes plain: the class it adds to <body> is what
-%   turns on the pointer, the hover and the hint line.
+%   turns on the pointer, the hover and the hint line. It also puts the page
+%   back at the zoom it was left in, and reports each zoom or pan (flowZoom).
 s = join([ ...
     "function setup(htmlComponent) {"
     "  document.body.classList.add('live');"
+    "  flowZoom.restore(htmlComponent.Data);"
+    "  flowZoom.onChange(function (v) { htmlComponent.sendEventToMATLAB('zoom', v); });"
     "  var boxes = document.querySelectorAll('[data-nav]');"
     "  for (var i = 0; i < boxes.length; i++) {"
     "    (function (el) {"
@@ -774,9 +781,10 @@ end
 
 function s = css()
 s = join([ ...
-    "body{font:12px/1.35 'Segoe UI',system-ui,sans-serif;color:#1f2328;background:#f4f5f7;margin:0;padding:10px 14px 24px}"
+    "body{font:12px/1.35 'Segoe UI',system-ui,sans-serif;color:#1f2328;background:#f4f5f7;margin:0;padding:10px 14px}"
     "h1{font-size:15px;margin:0 0 6px}"
     "h2{font-size:13px;margin:16px 0 8px;color:#57606a;font-weight:600}"
+    ".zoomview{margin-top:6px;border-top:1px solid #d0d7de}"
     ".legend{--acc:#8c959f;--tint:#f0f1f3;display:flex;flex-wrap:wrap;gap:6px}"
     ".legend .n{display:inline-block;padding:2px 8px;min-width:0}"
     ".card{--acc:#8c959f;--tint:#f0f1f3;display:inline-block;min-width:100%;margin-top:12px;background:#fff;border:1px solid #d0d7de;border-radius:8px;padding:12px;box-sizing:border-box}"

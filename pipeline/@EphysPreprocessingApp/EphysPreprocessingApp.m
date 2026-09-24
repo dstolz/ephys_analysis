@@ -613,6 +613,10 @@ classdef EphysPreprocessingApp < handle
         % Controls a click in the Diagram marked, with the look to put back
         % (onFlowNavigate / clearFlowHighlight).
         FlowHighlight struct = struct('Control', {}, 'Saved', {})
+        % The zoom each Diagram view was left in (a field per view: overview,
+        % detail_tree, detail_steps), handed back to its page on a redraw
+        % (onFlowNavigate / refreshFlowChart, flowZoom).
+        FlowZoom struct = struct()
 
         % --- Run tab ---
         RunBehaviorCheckBox  matlab.ui.control.CheckBox

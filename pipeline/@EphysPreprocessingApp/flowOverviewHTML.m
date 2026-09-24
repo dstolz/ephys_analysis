@@ -13,7 +13,9 @@ function [html, summary, model] = flowOverviewHTML(obj)
 %   (flowChartHTML). Hovering a box lights its arrows and the boxes at
 %   their other ends, in the app and in a saved page.
 %
-%   The page is one SVG laid out here rather than by the browser. The boxes
+%   The page is one SVG laid out here rather than by the browser, drawn at
+%   its own size in a viewport that opens fitted to it and zooms and pans
+%   (flowZoom). The boxes
 %   sit on a fixed grid of five columns, a row per stage of the flow, and
 %   the arrows are routed at right angles through the gaps between rows and
 %   columns: none runs through a box, and no two sources share a line
@@ -56,13 +58,14 @@ svg = sprintf("<svg class=""flow"" xmlns=""http://www.w3.org/2000/svg"" viewBox=
     W, H, W, H, esc(pageTitle)) ...
     + joinHTML([arrayfun(@edgeSVG, E, "UniformOutput", false), arrayfun(@nodeSVG, N, "UniformOutput", false)]) ...
     + "</svg>";
+zoom = flowZoom("overview", "fit");
 body = "<h1>" + esc(pageTitle) + "</h1>" + legendHTML() ...
-    + "<div class=""note"">Arrows carry data in the colour of what wrote it. Hover a box to trace what it reads and writes.</div>" ...
+    + "<div class=""note"">Arrows carry data in the colour of what wrote it. Hover a box to trace what it reads and writes. Scroll to zoom, drag to pan.</div>" ...
     + "<div class=""hint"">Click any box to open the setting it draws.</div>" ...
-    + "<div class=""card"">" + svg + "</div>" ...
-    + "<script>" + js() + "</script>";
+    + zoom.open + svg + zoom.close ...
+    + "<script>" + zoom.js + newline + js() + "</script>";
 html = "<!DOCTYPE html><html><head><meta charset=""utf-8""><title>" + esc(pageTitle) + "</title><style>" ...
-    + css() + "</style></head><body>" + body + "</body></html>";
+    + zoom.css + css() + "</style></head><body>" + body + "</body></html>";
 
 model = struct('nodes', struct('id', {N.id}, 'title', {N.title}, 'target', {N.target}, ...
     'rect', arrayfun(@(n) [n.x n.y n.w n.h], N, "UniformOutput", false)), ...
@@ -77,20 +80,33 @@ end
 function N = inputNodes(cfg, d)
 %inputNodes  What the pipeline starts from, in the top row.
 B = cfg.Behavior;
-if isempty(B.SearchDirs)
-    where = "no search folder set";
-elseif isscalar(B.SearchDirs)
-    where = "in " + fileName(B.SearchDirs);
+if ~B.Search
+    % No search: the session associated by hand (or in the recording folder).
+    if isempty(d)
+        where = "no active dataset";
+    elseif d.BehaviorFile == ""
+        where = "none associated with " + d.Name;
+    else
+        where = fileName(d.BehaviorFile);
+    end
+    epsych = node("epsych", "epsych", "in", 0, 0, "Epsych2 sessions", ...
+        ["associated by hand; no search", where], "BehSearchCheckBox,BehAssociateButton");
 else
-    where = sprintf("in %d folders", numel(B.SearchDirs));
+    if isempty(B.SearchDirs)
+        where = "no search folder set";
+    elseif isscalar(B.SearchDirs)
+        where = "in " + fileName(B.SearchDirs);
+    else
+        where = sprintf("in %d folders", numel(B.SearchDirs));
+    end
+    switch B.Match
+        case "prefix"; how = "matched by name prefix";
+        case "time";   how = sprintf("matched by start time (%g min)", B.MaxStartOffsetMin);
+        otherwise;     how = "matched by name, then start time";
+    end
+    epsych = node("epsych", "epsych", "in", 0, 0, "Epsych2 sessions", [where, how], ...
+        "BehSearchCheckBox,BehSearchDirsField,BehMatchDropDown,BehMaxOffsetField");
 end
-switch B.Match
-    case "prefix"; how = "matched by name prefix";
-    case "time";   how = sprintf("matched by start time (%g min)", B.MaxStartOffsetMin);
-    otherwise;     how = "matched by name, then start time";
-end
-epsych = node("epsych", "epsych", "in", 0, 0, "Epsych2 sessions", [where, how], ...
-    "BehSearchDirsField,BehMatchDropDown,BehMaxOffsetField");
 
 if isempty(d)
     rec = "no active dataset";
@@ -140,11 +156,12 @@ else
 end
 
 B = cfg.Behavior;
-lines = "matches each recording to its session";
+lines = ternary(B.Search, "matches each recording to its session", "uses each recording's associated session");
 if B.PairTrials
     lines(end+1) = "pairs its trials with the " + B.TrialLine + " line" + ternary(B.AutoApprove, ", auto-approving clean ones", "");
 end
-behavior = step("behavior", 1, 0, "Behavior", B.Enabled, lines, "BehEnableCheckBox,BehOverwriteCheckBox");
+behavior = step("behavior", 1, 0, "Behavior", B.Enabled, lines, ...
+    ternary(B.Search, "BehEnableCheckBox,BehSearchCheckBox,BehOverwriteCheckBox", "BehEnableCheckBox,BehSearchCheckBox"));
 if B.PairTrials
     behavior.outs = pill("out", "Trial pairing", "in the manifest; review on Trials", ...
         "TrialsPairCheckBox,TrialsLineDropDown,TrialsAutoApproveCheckBox", false);
@@ -269,7 +286,7 @@ else
     toSpikes = ternary(K.ArtifactMode == "erase", "erased before detection", "events in them rejected");
 end
 E = [ ...
-    edge("epsych", "behavior", true, "the session files to match"), ...
+    edge("epsych", "behavior", true, ternary(B.Search, "the session files to match", "the associated session files (no search)")), ...
     edge("rec", "behavior", B.PairTrials, ternary(B.PairTrials, "the " + B.TrialLine + " line, to pair the trials", "off: no trial pairing")), ...
     edge("rec", "artifacts", true, "the recording, and the manual periods in its manifest"), ...
     edge("rec", "probe", true, "the channel count"), ...
@@ -672,11 +689,14 @@ end
 
 function s = js()
 %js  Page script. setup() is called only by the app's HTML component, so
-%   only there does a click open a box's controls (as on the detail view).
-%   The tracing on hover or focus runs in a saved page too.
+%   only there does a click open a box's controls (as on the detail view),
+%   and is the zoom kept (flowZoom). The tracing on hover or focus runs in a
+%   saved page too.
 s = join([ ...
     "function setup(htmlComponent) {"
     "  document.body.classList.add('live');"
+    "  flowZoom.restore(htmlComponent.Data);"
+    "  flowZoom.onChange(function (v) { htmlComponent.sendEventToMATLAB('zoom', v); });"
     "  var boxes = document.querySelectorAll('[data-nav]');"
     "  for (var i = 0; i < boxes.length; i++) {"
     "    (function (el) {"
@@ -728,7 +748,7 @@ end
 
 function s = css()
 s = join([ ...
-    "body{font:12px/1.35 'Segoe UI',system-ui,sans-serif;color:#1f2328;background:#f4f5f7;margin:0;padding:10px 14px 24px}"
+    "body{font:12px/1.35 'Segoe UI',system-ui,sans-serif;color:#1f2328;background:#f4f5f7;margin:0;padding:10px 14px}"
     "h1{font-size:15px;margin:0 0 6px}"
     ".legend{display:flex;flex-wrap:wrap;align-items:center;gap:6px}"
     ".lg{display:inline-block;padding:2px 8px;border:1px solid #afb8c1;border-radius:6px;background:#fff;font-size:11.5px}"
@@ -743,8 +763,9 @@ s = join([ ...
     ".la i{display:inline-block;width:26px;border-top:2px solid #57606a}"
     ".la.off i{border-top:2px dashed #afb8c1}"
     ".note{font-size:11px;color:#57606a;margin:6px 0 0}"
-    ".card{margin-top:10px;background:#fff;border:1px solid #d0d7de;border-radius:8px;padding:10px;box-sizing:border-box;overflow-x:auto}"
-    ".flow{display:block;width:100%;height:auto;margin:0 auto}"
+    ".zoomview{margin-top:10px;background:#fff;border:1px solid #d0d7de;border-radius:8px}"
+    ".zoomstage{width:max-content;padding:0}"
+    ".flow{display:block}"
     % Colours: the step (or input) each box and arrow belongs to, as on the
     % detail view and the Run tab's diagram.
     ".c-rec{--acc:#57606a;--tint:#24292f}"

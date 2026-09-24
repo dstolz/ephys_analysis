@@ -1,6 +1,7 @@
 function buildFlowTab(obj)
 %buildFlowTab  Flow tab: a flow chart of the processing the working config does.
-%   The View drop-down picks what it draws (a preference, DiagramView):
+%   The View drop-down picks what it draws (a preference, DiagramView; the
+%   overview by default):
 %   - Every parameter (flowChartHTML): one tree from the raw recording, a
 %     branch per step that reads it (Artifacts, Signals, Spikes; Sorting,
 %     and Signals / Spikes while they erase the periods, hang from the
@@ -15,7 +16,9 @@ function buildFlowTab(obj)
 %     that reads it. Layout does not apply.
 %   Shown in an HTML component; refreshed when the tab is shown and whenever
 %   the config changes while it is (syncStepEnableStates). Clicking a box
-%   opens the setting it draws (onFlowNavigate).
+%   opens the setting it draws (onFlowNavigate). The page zooms (its buttons,
+%   the mouse wheel) and pans (a drag) in place (flowZoom); each view keeps
+%   its zoom across redraws for the session (FlowZoom).
 
 g = uigridlayout(obj.TabFlow, [2 1]);
 g.RowHeight = {'fit', '1x'};
@@ -36,7 +39,7 @@ obj.FlowOpenButton = uibutton(bar, "Text", "Open in Browser", ...
     "ButtonPushedFcn", @(~,~) obj.onOpenFlowChartInBrowser());
 uilabel(bar, "Text", "View:", "HorizontalAlignment", "right");
 obj.FlowViewDropDown = uidropdown(bar, "Items", ["Every parameter", "Data-flow overview"], ...
-    "ItemsData", ["detail", "overview"], "Value", "detail", ...
+    "ItemsData", ["detail", "overview"], "Value", "overview", ...
     "Tooltip", "Every step with all its parameters, or an overview of how the data flows from step to step.", ...
     "ValueChangedFcn", @(~,~) obj.onFlowViewChanged());
 uilabel(bar, "Text", "Layout:", "HorizontalAlignment", "right");

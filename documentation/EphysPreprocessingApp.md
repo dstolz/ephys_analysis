@@ -853,10 +853,21 @@ A diagram of what the working config does, redrawn whenever the tab is
 shown and on every config edit while it is open. **View** picks one of two
 drawings, and the choice is kept as a preference:
 
-- **Every parameter** (the default): every step's stages with their
-  parameters, described next.
-- **Data-flow overview**: only the steps and the data passing between them
-  (see [Data-flow overview](#data-flow-overview)).
+- **Every parameter**: every step's stages with their parameters, described
+  next.
+- **Data-flow overview** (the default): only the steps and the data passing
+  between them (see [Data-flow overview](#data-flow-overview)).
+
+Either drawing sits in a frame you can zoom and pan. The buttons at its top
+right zoom out (**−**), back to actual size (the percentage shown), in
+(**+**) and **Fit** the whole diagram in the frame. The mouse wheel zooms
+about the pointer, and dragging the diagram pans it (a drag never opens a
+box; a click still does). The overview opens fitted to the frame and
+follows it as the window resizes; Every parameter opens at 100% from the
+top. Once zoomed or panned, a view keeps its place until you close the app,
+even as the diagram is redrawn (on a config edit, or on leaving and coming
+back to the tab); each view, and each layout of Every parameter, keeps its
+own.
 
 **Every parameter** is one tree: the raw
 recording at the top, then the common reference, drawn once, and under it
@@ -945,7 +956,8 @@ project root. Keyboard: tab to a box and press Enter or Space.
 
 Every pipeline step as one box in its colour, with the files it writes hung
 under it. The three inputs are above them: the raw recording, the Epsych2
-sessions (their search folders and how they are matched) and the probe map
+sessions (their search folders and how they are matched, or, with
+`Behavior.Search` off, the active dataset's associated session) and the probe map
 (the active dataset's own, else the default). The recording box also stands
 for the dataset's manifest (probe, channel exclusions, manual artifact
 periods) and names the common reference. An arrow runs from each input or
@@ -981,7 +993,8 @@ the parameters themselves.
 **Save as HTML...** writes the chart shown, in the view picked, as a
 standalone page. Saved pages are not clickable: the boxes only come alive
 when the app's HTML component calls the page's `setup()`. The overview's
-hover highlighting works in a saved page too.
+hover highlighting, and the zoom and pan, work in a saved page too; a
+printed page shows the whole diagram at 100%.
 
 **Open in Browser** writes the chart to a temp file and opens it in your
 default web browser, same as **Save as HTML...** but without the save dialog.

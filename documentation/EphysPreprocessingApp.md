@@ -1249,12 +1249,16 @@ dataset whose name does not match `Project.NamePattern`, is read with
   file phy uses for a `notes` label, so the Spikes and Export steps and
   `unitTable` carry it. A note that cannot be saved is put back, with an
   alert.
-- **Plots**: units per shank; waveforms (Kilosort4's templates, unwhitened
-  when possible, not scaled by the amplitude and not raw-spike averages; the
-  axis label gives their units, `units.templateUnits`: µV, `.bin` units or
-  whitened units); amplitude vs time (at most 30,000 spikes, over the sorted
-  time); firing rate per unit.
-- **Unit on its shank** (the full-height plot on the right): the selected
+- **Plots**: the selected unit's inter-spike interval histogram (intervals up
+  to 50 ms in 0.5 ms bins; those under the 1.5 ms refractory period in red,
+  and the subtitle gives their share of all intervals) and autocorrelogram
+  (±50 ms in 0.5 ms bins, as the rate in Hz of the unit's other spikes at each
+  lag from one of its spikes; the refractory period is shaded and a dashed
+  line marks the unit's mean firing rate, the level of no correlation); both
+  ask for a unit when none is selected. Below them, amplitude vs time (at
+  most 30,000 spikes, over the sorted time). Under the unit on its shank,
+  smaller: units per shank and firing rate per unit.
+- **Unit on its shank** (the large plot on the right): the selected
   unit's spikes at every site of the shank it was detected on (its peak
   channel's). Each site is drawn where it sits on the probe
   (`channel_positions.npy`) and labelled with its channel. The peak channel

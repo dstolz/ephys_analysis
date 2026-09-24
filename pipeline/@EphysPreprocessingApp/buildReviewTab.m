@@ -3,10 +3,11 @@ function buildReviewTab(obj)
 %   The active dataset's sorted output loads when the tab opens or the
 %   dataset changes (syncReviewDataset); Browse... / Load take any other
 %   kilosort4/ output folder. The left column shows aggregate stats and a
-%   per-unit table, the right column shows units-per-shank, mean waveforms,
-%   spike amplitudes over time, and per-unit firing rates, and beside them,
-%   full height, the selected unit's spikes on the shank it was detected on.
-%   Selecting a table row focuses the waveform and amplitude plots on that
+%   per-unit table. On the right, the selected unit's inter-spike interval
+%   histogram and autocorrelogram sit above spike amplitudes over time, and
+%   beside them, largest, the selected unit's spikes on the shank it was
+%   detected on, with units per shank and per-unit firing rates below it.
+%   Selecting a table row focuses the timing and amplitude plots on that
 %   single unit and draws its spikes; "Show all units" clears the focus.
 %   All parsing happens once in loadReviewResults; selection re-renders from
 %   the cached ReviewData and reads only the selected unit's spikes. See
@@ -77,34 +78,31 @@ obj.ReviewUnitsTable.Layout.Row = 7;
 obj.ReviewAllUnitsButton = uibutton(left, "Text", "Show all units", ...
     "ButtonPushedFcn", @(~,~) obj.onReviewAllUnits());
 
-% =================== right column: 2x2 axes + the unit on its shank ===================
+% =================== right: ISI + ACG over amplitudes | the unit on its shank ===================
 right = uigridlayout(g, [2 3]);
 right.Layout.Column = 2;
 right.ColumnWidth = {'1x', '1x', '1x'};
 right.RowSpacing = 14;
 right.ColumnSpacing = 14;
 
-obj.ReviewShankAxes = uiaxes(right);
-obj.ReviewShankAxes.Layout.Row = 1; obj.ReviewShankAxes.Layout.Column = 1;
-title(obj.ReviewShankAxes, "Units per shank");
+obj.ReviewISIAxes = uiaxes(right);
+obj.ReviewISIAxes.Layout.Row = 1; obj.ReviewISIAxes.Layout.Column = 1;
+title(obj.ReviewISIAxes, "Inter-spike intervals");
 
-obj.ReviewWaveAxes = uiaxes(right);
-obj.ReviewWaveAxes.Layout.Row = 1; obj.ReviewWaveAxes.Layout.Column = 2;
-title(obj.ReviewWaveAxes, "Mean waveforms");
+obj.ReviewACGAxes = uiaxes(right);
+obj.ReviewACGAxes.Layout.Row = 1; obj.ReviewACGAxes.Layout.Column = 2;
+title(obj.ReviewACGAxes, "Autocorrelogram");
 
 obj.ReviewAmpAxes = uiaxes(right);
-obj.ReviewAmpAxes.Layout.Row = 2; obj.ReviewAmpAxes.Layout.Column = 1;
+obj.ReviewAmpAxes.Layout.Row = 2; obj.ReviewAmpAxes.Layout.Column = [1 2];
 title(obj.ReviewAmpAxes, "Amplitudes over time");
 
-obj.ReviewRateAxes = uiaxes(right);
-obj.ReviewRateAxes.Layout.Row = 2; obj.ReviewRateAxes.Layout.Column = 2;
-title(obj.ReviewRateAxes, "Firing rate per unit");
-
 % The selected unit's spikes at the sites of the shank it was detected on,
-% full height: what to draw above it (renderReviewUnitShank).
-sp = uigridlayout(right, [2 1]);
+% most of the height, with what to draw above it (renderReviewUnitShank);
+% units per shank and firing rates, smaller, below it.
+sp = uigridlayout(right, [4 1]);
 sp.Layout.Row = [1 2]; sp.Layout.Column = 3;
-sp.RowHeight = {30, '1x'};
+sp.RowHeight = {30, '2.5x', '1x', '1x'};
 sp.Padding = [0 0 0 0];
 sp.RowSpacing = 4;
 sc = uigridlayout(sp, [1 4]);
@@ -128,4 +126,12 @@ obj.ReviewShankBandDropDown = uidropdown(sc, "Items", {'SD', 'SEM', 'none'}, "Va
 obj.ReviewUnitShankAxes = uiaxes(sp);
 obj.ReviewUnitShankAxes.Layout.Row = 2;
 title(obj.ReviewUnitShankAxes, "Unit on its shank");
+
+obj.ReviewShankAxes = uiaxes(sp);
+obj.ReviewShankAxes.Layout.Row = 3;
+title(obj.ReviewShankAxes, "Units per shank");
+
+obj.ReviewRateAxes = uiaxes(sp);
+obj.ReviewRateAxes.Layout.Row = 4;
+title(obj.ReviewRateAxes, "Firing rate per unit");
 end

@@ -51,18 +51,12 @@ try
     % is shown here (IncludeNoise), labels prefer the phy curation file.
     [U0, ui, labelNote, nativeNames] = readReviewUnits(obj, folder);
     fs = U0.fs;
-    U  = numel(U0.unitId);
     [span, spanText] = sortedSpan(obj, folder, U0.durationSec);
 
     nCh = U0.nChannelsSorted;
     if ~isfinite(nCh); nCh = numel(ui.chanShanks); end
     chanShanks = ui.chanShanks;
     if numel(chanShanks) < nCh; chanShanks(end+1:nCh, 1) = 0; end
-
-    wfPeak = zeros(numel(U0.templateTimeMs), U);
-    for u = 1:U
-        if ~isempty(U0.templateWaveform{u}); wfPeak(:, u) = U0.templateWaveform{u}; end
-    end
 
     R = struct();
     R.folder   = folder;
@@ -93,7 +87,6 @@ try
     R.ampUnit  = U0.amplitude;
     R.contam   = U0.contamPct;
     R.tms      = U0.templateTimeMs;
-    R.wfPeak   = wfPeak;
     R.wfFull   = U0.templateFull;
     R.spikeSec = double(ui.spikeSamples) / fs;
     R.spikeAmp = ui.spikeAmplitudes;

@@ -1,25 +1,26 @@
 function renderReviewPlots(obj)
 %renderReviewPlots  Draw the Review-tab axes from cached ReviewData.
-%   Units-per-shank and firing-rate plots always show every unit; the waveform
-%   and amplitude plots show all units when nothing is selected, or focus on
+%   Units-per-shank and firing-rate plots always show every unit; the
+%   amplitude plot shows all units when nothing is selected, or focuses on
 %   obj.ReviewSelectedUnit (a row index into ReviewData) when a table row is
-%   picked. These four read only the cache, so they are cheap to call on
-%   every selection; the fifth, the selected unit's spikes on its shank
-%   (renderReviewUnitShank), reads that unit's spikes once.
+%   picked; the inter-spike interval histogram and autocorrelogram show the
+%   selected unit only. These five read only the cache, so they are cheap to
+%   call on every selection; the sixth, the selected unit's spikes on its
+%   shank (renderReviewUnitShank), reads that unit's spikes once.
 
 if isempty(obj.ReviewData); return; end
 R = obj.ReviewData;
 sel = obj.ReviewSelectedUnit;
-U = numel(R.clusterID);
 
-% Per-shank color, reused across panels for consistency.
+% Per-shank color for the firing-rate bars.
 nSh = max(R.nShank, 1);
 shankColors = lines(nSh);
 [~, shankIdx] = ismember(R.shank, R.shankIDs);
 shankIdx(shankIdx < 1) = 1;
 
-plotUnitsPerShank(obj.ReviewShankAxes, R, shankColors);
-plotWaveforms(obj.ReviewWaveAxes, R, sel, shankColors, shankIdx);
+plotUnitsPerShank(obj.ReviewShankAxes, R);
+plotISI(obj.ReviewISIAxes, R, sel);
+plotACG(obj.ReviewACGAxes, R, sel);
 plotAmplitudes(obj.ReviewAmpAxes, R, sel);
 plotFiringRates(obj.ReviewRateAxes, R, sel, shankColors, shankIdx);
 obj.renderReviewUnitShank();
@@ -27,9 +28,10 @@ end
 
 
 %% ---------------------------------------------------------------------------
-function plotUnitsPerShank(ax, R, shankColors)
+function plotUnitsPerShank(ax, R)
 %plotUnitsPerShank  Stacked good/mua/other counts per shank.
 cla(ax, 'reset');
+ax.FontSize = 9;
 nSh = R.nShank;
 counts = zeros(nSh, 3);   % [good mua other]
 for s = 1:nSh
@@ -47,80 +49,107 @@ ax.XTickLabel = string(R.shankIDs);
 xlabel(ax, "Shank");
 ylabel(ax, "# units");
 title(ax, sprintf("Units per shank (%d total)", numel(R.clusterID)));
-legend(ax, {'good', 'mua', 'other'}, 'Location', 'best', 'Box', 'off');
+legend(ax, {'good', 'mua', 'other'}, 'Location', 'eastoutside', 'Box', 'off');
 grid(ax, 'on');
 end
 
 
-function plotWaveforms(ax, R, sel, shankColors, shankIdx)
-%plotWaveforms  Overlay peak-channel templates (all), or one unit's footprint.
+function plotISI(ax, R, sel)
+%plotISI  The selected unit's inter-spike intervals up to 50 ms, those
+%   inside the refractory period (REFRACTORYMS) in red.
 cla(ax, 'reset');
+t = unitSpikeTimes(R, sel);
+if numel(t) < 2
+    showMessage(ax, "Inter-spike intervals", unitPrompt(R, sel));
+    return
+end
+isi = diff(t) * 1000;                                    % ms
+edges = 0:0.5:50;
+n = histcounts(isi, edges);
+b = bar(ax, edges(1:end-1) + 0.25, n, 1, 'FaceColor', 'flat', 'EdgeColor', 'none');
+inRefractory = edges(2:end).' <= refractoryMs();
+b.CData = [0 0.35 0.75] .* ~inRefractory + [0.85 0.1 0.1] .* inRefractory;
+xlim(ax, edges([1 end]));
+xlabel(ax, "Inter-spike interval (ms)");
+ylabel(ax, "# intervals");
+title(ax, sprintf("%s ISI", R.unitLabel(sel)), 'Interpreter', 'none');
+subtitle(ax, sprintf("%.2f%% of %s intervals < %g ms", ...
+    100 * mean(isi < refractoryMs()), thousands(numel(isi)), refractoryMs()));
+grid(ax, 'on');
+end
+
+
+function plotACG(ax, R, sel)
+%plotACG  The selected unit's autocorrelogram over +/-50 ms, as the rate
+%   (Hz) of its other spikes at each lag from one of its spikes; the dashed
+%   line is its mean firing rate, the level of no correlation.
+cla(ax, 'reset');
+t = unitSpikeTimes(R, sel);
+if numel(t) < 2
+    showMessage(ax, "Autocorrelogram", unitPrompt(R, sel));
+    return
+end
+maxLag = 0.05;                                           % s
+binSec = 0.0005;
+lags = cell(0, 1);
+for k = 1:numel(t) - 1       % k-th next spike; lags only grow with k (sorted times)
+    d = t(1 + k:end) - t(1:end - k);
+    d = d(d <= maxLag);
+    if isempty(d); break; end
+    lags{end + 1, 1} = d; %#ok<AGROW>
+end
+lags = vertcat(lags{:}, zeros(0, 1));
+edges = -maxLag:binSec:maxLag;
+n = histcounts([-lags; lags], edges) / (numel(t) * binSec);
+bar(ax, (edges(1:end-1) + binSec / 2) * 1000, n, 1, 'FaceColor', [0 0.35 0.75], 'EdgeColor', 'none');
 hold(ax, 'on');
-if sel < 1 || sel > numel(R.clusterID)
-    % All units: peak-channel mean waveform, colored by shank.
-    seen = false(R.nShank, 1);
-    for u = 1:numel(R.clusterID)
-        si = shankIdx(u);
-        if ~seen(si)
-            seen(si) = true;
-            plot(ax, R.tms, R.wfPeak(:, u), 'Color', shankColors(si, :), ...
-                'LineWidth', 1, 'DisplayName', sprintf('shank %g', R.shankIDs(si)));
-        else
-            plot(ax, R.tms, R.wfPeak(:, u), 'Color', shankColors(si, :), ...
-                'LineWidth', 1, 'HandleVisibility', 'off');
-        end
-    end
-    xlabel(ax, "Time (ms)");
-    ylabel(ax, "Amplitude (" + templateUnitText(R.units.templateUnits) + ")");
-    title(ax, "Mean waveforms (peak channel, all units)");
-    if R.nShank > 1
-        legend(ax, 'Location', 'best', 'Box', 'off');
-    end
-else
-    % Single unit: stack the strongest channels by depth.
-    wf = R.wfFull(:, :, sel);                 % [nS x nCh]
-    p2p = max(wf, [], 1) - min(wf, [], 1);
-    K = min(8, size(wf, 2));
-    [~, ord] = maxk(p2p, K);
-    if ~isempty(R.chanPos) && size(R.chanPos, 1) >= max(ord)
-        [~, byDepth] = sort(R.chanPos(ord, 2), 'descend');
-        ord = ord(byDepth);
-    else
-        ord = sort(ord);
-    end
-    offset = 1.2 * max(p2p(ord));
-    if offset == 0; offset = 1; end
-    yt = zeros(K, 1);
-    for k = 1:K
-        base = (K - k) * offset;
-        yt(k) = base;
-        isPk = ord(k) == R.peakChan(sel);
-        c = [0.2 0.2 0.2];
-        if isPk; c = [0.85 0.1 0.1]; end
-        plot(ax, R.tms, wf(:, ord(k)) + base, 'Color', c, ...
-            'LineWidth', 1 + isPk);
-    end
-    ax.YTick = flipud(yt);
-    ax.YTickLabel = flipud(string(ord(:)));
-    ylabel(ax, "Channel");
-    xlabel(ax, "Time (ms)");
-    title(ax, sprintf("%s waveform (top %d ch, peak ch %d)", ...
-        R.unitLabel(sel), K, R.peakChan(sel)), 'Interpreter', 'none');
+r = refractoryMs();
+yl = [0 max([n(:); R.firingRate(sel); 1]) * 1.05];
+patch(ax, [-r r r -r], yl([1 1 2 2]), [0.85 0.1 0.1], 'FaceAlpha', 0.12, 'EdgeColor', 'none');
+if isfinite(R.firingRate(sel))
+    yline(ax, R.firingRate(sel), '--', 'Color', [0.3 0.3 0.3]);
 end
 hold(ax, 'off');
+xlim(ax, [-maxLag maxLag] * 1000);
+ylim(ax, yl);
+xlabel(ax, "Lag (ms)");
+ylabel(ax, "Rate (Hz)");
+title(ax, sprintf("%s autocorrelogram", R.unitLabel(sel)), 'Interpreter', 'none');
 grid(ax, 'on');
 end
 
 
-function s = templateUnitText(units)
-%templateUnitText  What the template values are in, for an axis label
-%   (EphysDataset.readPhyUnits templateUnits).
-switch units
-    case "uV";       s = "\muV";
-    case "bin";      s = "bin units (int16 counts)";
-    case "whitened"; s = "whitened units";
-    otherwise;       s = "a.u.";
+function t = unitSpikeTimes(R, sel)
+%unitSpikeTimes  The selected unit's spike times (s), sorted; empty with no unit selected.
+t = zeros(0, 1);
+if sel >= 1 && sel <= numel(R.clusterID)
+    t = sort(R.spikeSec(R.spikeUnitIdx == sel));
+    t = t(:);
 end
+end
+
+
+function msg = unitPrompt(R, sel)
+if sel >= 1 && sel <= numel(R.clusterID)
+    msg = "Fewer than two spikes.";
+else
+    msg = "Pick a unit in the table.";
+end
+end
+
+
+function ms = refractoryMs()
+%refractoryMs  The refractory period the ISI and autocorrelogram plots mark.
+ms = 1.5;
+end
+
+
+function showMessage(ax, ttl, msg)
+%showMessage  An empty axes with a title and a line of text in the middle.
+title(ax, ttl, 'Interpreter', 'none');
+text(ax, 0.5, 0.5, msg, 'Units', 'normalized', 'HorizontalAlignment', 'center', ...
+    'Color', [0.4 0.4 0.4], 'FontSize', 11);
+ax.XTick = []; ax.YTick = [];
 end
 
 
@@ -164,6 +193,7 @@ end
 function plotFiringRates(ax, R, sel, shankColors, shankIdx)
 %plotFiringRates  Per-unit firing rate, bars colored by shank.
 cla(ax, 'reset');
+ax.FontSize = 9;
 U = numel(R.clusterID);
 b = bar(ax, 1:U, R.firingRate, 'FaceColor', 'flat');
 b.CData = shankColors(shankIdx, :);

@@ -412,7 +412,8 @@ classdef EphysPreprocessingApp < handle
         ReviewUnitsTable    matlab.ui.control.Table
         ReviewAllUnitsButton matlab.ui.control.Button
         ReviewShankAxes     matlab.ui.control.UIAxes
-        ReviewWaveAxes      matlab.ui.control.UIAxes
+        ReviewISIAxes       matlab.ui.control.UIAxes          % the selected unit's inter-spike intervals
+        ReviewACGAxes       matlab.ui.control.UIAxes          % the selected unit's autocorrelogram
         ReviewAmpAxes       matlab.ui.control.UIAxes
         ReviewRateAxes      matlab.ui.control.UIAxes
         ReviewUnitShankAxes matlab.ui.control.UIAxes          % the selected unit's spikes on its shank

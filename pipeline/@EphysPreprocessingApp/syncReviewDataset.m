@@ -47,7 +47,7 @@ obj.ReviewData = struct([]);
 obj.ReviewSelectedUnit = 0;
 obj.ReviewSpikeWaves = struct([]);
 obj.ReviewUnitsTable.Data = {};
-for ax = [obj.ReviewShankAxes, obj.ReviewWaveAxes, obj.ReviewAmpAxes, obj.ReviewRateAxes, obj.ReviewUnitShankAxes]
+for ax = [obj.ReviewShankAxes, obj.ReviewISIAxes, obj.ReviewACGAxes, obj.ReviewAmpAxes, obj.ReviewRateAxes, obj.ReviewUnitShankAxes]
     cla(ax, 'reset');
 end
 obj.ReviewSummaryLabel.Text = message;

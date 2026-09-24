@@ -9,4 +9,6 @@ setpref(g, 'RecentConfigs', cellstr(obj.RecentConfigs));
 setpref(g, 'ScriptFolder', char(obj.ScriptFolder));
 setpref(g, 'AutoPreview', logical(obj.AutoPreviewCheckBox.Value));
 setpref(g, 'PreviewMaxMB', obj.PreviewMaxMB);
+S = obj.PlotSections;
+setpref(g, 'PlotSectionsCollapsed', cellstr([string.empty(1, 0) S(~[S.Expanded]).Name]));
 end

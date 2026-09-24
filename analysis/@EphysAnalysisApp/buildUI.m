@@ -36,7 +36,9 @@ end
 
 function styleButtons(obj)
 %styleButtons  Every button a size up; the main actions in colour (styleButton).
-styleButton(findall(obj.Fig, "Type", "uibutton", "-or", "Type", "uistatebutton"));
+%   The plot editor's section headers (formSection) keep their header look.
+b = findall(obj.Fig, "Type", "uibutton", "-or", "Type", "uistatebutton");
+styleButton(b(~strcmp(get(b, "Tag"), "formSectionToggle")));
 styleButton([obj.ScanButton, obj.PreviewButton, obj.RunButton], "primary");
 styleButton(obj.CancelButton, "danger");
 end

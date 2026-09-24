@@ -1,9 +1,10 @@
 function p = gatherPlotEditor(obj)
 %gatherPlotEditor  The selected plot as the editor shows it (normalized).
-%   Fields the editor has no control for keep their values. With a "Default
-%   ..." box ticked the plot's ref / window / selection is "default";
-%   untick it to take the values in the controls below (set on the plot's
-%   own values, else the Defaults they showed: gatherAlignControls).
+%   Fields the editor has no control for keep their values. With a section's
+%   "Use default" box ticked the plot's ref / window / selection is
+%   "default"; unticked (or edited: onPlotAlignEdited), the plot takes the
+%   values in that section's controls (set on the plot's own values, else
+%   the Defaults they showed: gatherAlignControls).
 E = obj.PlotEditor;
 p = obj.Config.Plots(obj.SelectedPlot);
 p.enabled = E.enabled.Value;

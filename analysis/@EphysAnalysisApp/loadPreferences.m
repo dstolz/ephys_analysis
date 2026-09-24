@@ -1,7 +1,8 @@
 function loadPreferences(obj, openLast)
 %loadPreferences  Restore the app's preferences; OPENLAST: reopen the last config.
 %   Group EphysAnalysisApp: FigurePosition, LastConfigFile, RecentConfigs,
-%   ScriptFolder, AutoPreview, PreviewMaxMB. Everything else is the config.
+%   ScriptFolder, AutoPreview, PreviewMaxMB, PlotSectionsCollapsed (the
+%   plot editor's collapsed sections). Everything else is the config.
 if nargin < 2; openLast = true; end
 g = obj.PrefGroup;
 if ispref(g, 'FigurePosition')
@@ -22,6 +23,13 @@ if ispref(g, 'AutoPreview'); obj.AutoPreviewCheckBox.Value = isequal(getpref(g, 
 if ispref(g, 'PreviewMaxMB')
     v = getpref(g, 'PreviewMaxMB');
     if isnumeric(v) && isscalar(v) && v > 0; obj.PreviewMaxMB = v; end
+end
+if ispref(g, 'PlotSectionsCollapsed')
+    shut = string(getpref(g, 'PlotSectionsCollapsed'));
+    for i = 1:numel(obj.PlotSections)
+        obj.PlotSections(i).Expanded = ~ismember(obj.PlotSections(i).Name, shut);
+    end
+    obj.layoutPlotEditor();
 end
 obj.refreshRecentMenu();
 opened = false;

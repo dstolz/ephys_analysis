@@ -15,5 +15,5 @@ wasApplying = obj.Applying;
 obj.Applying = true;
 obj.applyAlignControls(obj.PlotAlignControls, ref, win, sel);
 obj.Applying = wasApplying;
-obj.syncPlotEditorEnable();
+obj.syncPlotEditor();
 end

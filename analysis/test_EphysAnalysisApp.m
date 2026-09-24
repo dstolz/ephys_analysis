@@ -5,7 +5,11 @@ function test_EphysAnalysisApp()
 %   datasets table; the active dataset's lines and parameters; grouping by
 %   Depth from the Alignment controls (the epoch count reports the groups);
 %   adding a PSTH and previewing it into the preview panel; editing the plot
-%   (bins, its own event reference); y limits offered only where they apply;
+%   (bins; an edit in a "Use default" section giving the plot its own event
+%   reference or window, ticking it again going back); the editor showing
+%   only the rows and sections a plot uses (y limits, heat colours, the
+%   alignment sections), greying out the ones its options switch off, and
+%   collapsing a section;
 %   the gather / apply round trip, keeping the fields without a control
 %   (stop-event offset, length and time range, trial rows); save
 %   and reopen; a standalone script from the app's config; a run of one
@@ -28,6 +32,7 @@ savedPrefs = [];
 if ispref(g); savedPrefs = getpref(g); end
 cleanup = onCleanup(@() restorePrefsAndRoot(g, savedPrefs, root));
 if ispref(g, 'LastConfigFile'); setpref(g, 'LastConfigFile', ''); end
+if ispref(g, 'PlotSectionsCollapsed'); rmpref(g, 'PlotSectionsCollapsed'); end
 
 nPass = 0; nFail = 0;
     function check(cond, msg)
@@ -95,19 +100,34 @@ app.refreshPreview(Force=true);
 axs = findall(app.PreviewPanel, 'Type', 'axes');
 check(~isempty(axs) && ~isempty(app.PreviewResult) && app.PreviewResult.kind == "psth" && isfinite(app.PreviewSeconds), ...
     sprintf('the preview draws %d axes into the preview panel', numel(axs)));
-app.PlotEditor.binMs.Value = 20;
-app.PlotEditor.defaultRef.Value = false;
-app.onConfigChanged("plot");
-app.PlotAlignControls.Line.Value = 'Trial';
-app.onConfigChanged("plot");
-p = app.Config.Plots(1);
-check(p.bins.BinSec == 0.02 && isstruct(p.ref) && p.ref.line == "Trial" && isequal(p.window, "default") ...
-    && app.PlotAlignControls.Line.Enable == "on" && app.PlotAlignControls.Pre.Enable == "off", ...
-    'editing the bins and the plot''s own event reference; the default window stays default');
 E = app.PlotEditor;
-check(E.stack.Enable == "on" && E.normalize.Enable == "on" && E.fill.Enable == "on" && E.fillAlpha.Enable == "on" ...
-    && E.stackSpacing.Enable == "off" && E.colormap.Enable == "on" && E.heatColormap.Enable == "off", ...
-    'a PSTH offers stack, normalize, fill, opacity and group colours; spacing waits for Stack; heat colours are off');
+A = app.PlotAlignControls;
+check(E.defaultRef.Value && E.defaultWindow.Value && A.Line.Enable == "on" && A.Pre.Enable == "on" ...
+    && A.Filter.Enable == "on" && shown(A.Line) && shown(A.Pre) && shown(A.Filter), ...
+    'the event, window and selection sections are shown and editable while they use the defaults');
+E.binMs.Value = 20;
+app.onConfigChanged("plot");
+A.Line.Value = 'Trial';
+app.onPlotAlignEdited("ref");
+p = app.Config.Plots(1);
+check(p.bins.BinSec == 0.02 && isstruct(p.ref) && p.ref.line == "Trial" && ~E.defaultRef.Value ...
+    && isequal(p.window, "default") && E.defaultWindow.Value && app.Config.Defaults.EventRef.line == "Stim", ...
+    'editing the bins; editing the event line gives the plot its own event reference; the window stays default');
+A.Pre.Value = -0.35;
+app.onPlotAlignEdited("window");
+p = app.Config.Plots(1);
+check(isstruct(p.window) && p.window.pre == -0.35 && ~E.defaultWindow.Value && app.Config.Defaults.Window.pre ~= -0.35, ...
+    'editing the window''s pre gives the plot its own window; the Alignment tab''s is unchanged');
+E.defaultWindow.Value = true;
+app.onPlotDefaultToggled();
+p = app.Config.Plots(1);
+check(isequal(p.window, "default") && A.Pre.Value == app.Config.Defaults.Window.pre && isstruct(p.ref), ...
+    'ticking Use default again goes back to (and shows) the default window');
+check(shown(E.stack) && shown(E.normalize) && shown(E.fill) && shown(E.fillAlpha) && shown(E.colormap) ...
+    && E.fillAlpha.Enable == "on" && E.stackSpacing.Enable == "off" && ~shown(E.heatColormap) && ~shown(E.param) ...
+    && ~shown(E.value) && ~shown(E.metric) && string(A.Mode.ItemsData) == "fixed", ...
+    ['a PSTH shows stack, normalize, fill, opacity and group colours (spacing waits for Stack), not heat colours ' ...
+    'or other kinds'' rows; its window is fixed']);
 E.stack.Value = true; E.normalize.Value = 'groupPeak'; E.fill.Value = false; E.stackSpacing.Value = 0.8;
 E.colormap.Value = 'black'; E.lineWidth.Value = 2;
 app.onConfigChanged("plot");
@@ -120,23 +140,36 @@ app.refreshPreview(Force=true);
 axs = findall(app.PreviewPanel, 'Type', 'axes');
 check(any(arrayfun(@(a) numel(a.YAxis) == 2, axs)) == (nG > 1), 'the preview draws the stack (value and peak axes)');
 app.onAddPlot("evoked");
-check(app.SelectedPlot == 2 && any(string(app.PlotEditor.source.Items) == "LFP") && app.PlotEditor.binMs.Enable == "off" ...
-    && app.PlotEditor.withRaster.Enable == "off" && app.PlotEditor.stack.Enable == "off" && app.PlotEditor.fill.Enable == "off" ...
-    && app.PlotEditor.lineWidth.Enable == "on", 'an evoked plot offers signals and disables the spike and PSTH rows');
+check(app.SelectedPlot == 2 && string(E.source.Value) == "LFP" && ~any(string(E.source.Items) == "units") ...
+    && ~shown(E.binMs) && ~shown(E.withRaster) && ~shown(E.stack) && ~shown(E.fill) && ~shown(E.classes.su) && ~shown(E.ids) ...
+    && shown(E.channels) && shown(E.baselineMode) && shown(E.lineWidth), ...
+    'an evoked plot reads LFP and shows its channels and baseline, not the unit, bin or PSTH rows');
 app.PlotEditor.source.Value = 'LFP';
 app.onConfigChanged("plot");
 app.refreshPreview(Force=true);
 check(~isempty(app.PreviewResult) && app.PreviewResult.kind == "evoked" && ~isempty(findall(app.PreviewPanel, 'Type', 'axes')), ...
     'the LFP evoked potential previews');
-ylStack = string(E.ylim.Enable);
-E.layout.Value = 'grid'; app.syncPlotEditorEnable();
-ylGrid = string(E.ylim.Enable);
-E.layout.Value = 'stack'; app.syncPlotEditorEnable();
+ylStack = shown(E.ylim);
+E.layout.Value = 'grid'; app.syncPlotEditor();
+ylGrid = shown(E.ylim);
+E.layout.Value = 'stack'; app.syncPlotEditor();
 app.onAddPlot("raster");
-ylRaster = string(E.ylim.Enable);
+ylRaster = shown(E.ylim);
 app.onRemovePlot();
-check(ylStack == "off" && ylGrid == "on" && ylRaster == "off" && numel(app.Config.Plots) == 2 && app.SelectedPlot == 2, ...
-    'y limits are off where they would hide rows (an evoked stack, a raster), on for an evoked grid');
+check(~ylStack && ylGrid && ~ylRaster && numel(app.Config.Plots) == 2 && app.SelectedPlot == 2, ...
+    'y limits are hidden where they would hide rows (an evoked stack, a raster), shown for an evoked grid');
+app.onAddPlot("probemap");
+sec = app.PlotSections;
+check(~shown(E.defaultRef) && ~shown(A.Line) && ~shown(A.Pre) && ~shown(A.Filter) && ~shown(E.baselineMode) ...
+    && shown(E.value) && shown(E.heatColormap) && ~shown(E.colormap) && ~shown(E.maxTiles), ...
+    'a probe map hides the event, window, selection and baseline; it shows its value and heat colours');
+app.onRemovePlot();
+app.onPlotSelected(1);
+app.onPlotSectionToggled("style");
+collapsed = ~shown(E.fontSize) && shown(sec([sec.Name] == "style").Toggle);
+app.onPlotSectionToggled("style");
+check(collapsed && shown(E.fontSize), 'the Appearance section collapses to its header and expands again');
+app.onPlotSectionToggled("bins");
 app.onPlotSelected(1);
 check(app.SelectedPlot == 1 && app.PlotEditor.binMs.Value == 20 && app.PlotEditor.stack.Value ...
     && string(app.PlotEditor.normalize.Value) == "groupPeak" && isempty(app.PlotEditor.fillAlpha.Value) ...
@@ -197,13 +230,27 @@ check(any(contains(string(app.LogArea.Value), "psth_1 done")), 'the Log tab has 
 
 fprintf('\n== 6. close ==\n');
 app.savePreferences();
-check(strcmp(getpref(g, 'LastConfigFile'), cfgFile), 'the last config is remembered');
+check(strcmp(getpref(g, 'LastConfigFile'), cfgFile) && isequal(string(getpref(g, 'PlotSectionsCollapsed')), "bins"), ...
+    'the last config and the collapsed plot-editor section are remembered');
 app.onClose();
 check(~isvalid(app.Fig), 'Close (clean config) closes the window');
 
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0
     error('test_EphysAnalysisApp:Failures', '%d checks failed.', nFail);
+end
+end
+
+
+function tf = shown(h)
+%shown  H and every container above it are visible (hidden row, section or collapsed).
+tf = true;
+while ~isempty(h) && ~isa(h, 'matlab.ui.Figure')
+    if isprop(h, 'Visible') && h.Visible == "off"
+        tf = false;
+        return
+    end
+    h = h.Parent;
 end
 end
 

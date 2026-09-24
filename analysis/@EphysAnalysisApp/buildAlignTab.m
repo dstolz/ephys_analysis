@@ -10,9 +10,14 @@ left.Padding = [0 0 0 0];
 note = uilabel(left, "Text", "Defaults: every plot whose event / window / selection is ""default"" uses these.", ...
     "FontColor", [0.35 0.35 0.35]);
 note.Layout.Row = 1;
-host = uipanel(left, "BorderType", "none");
+host = uigridlayout(left, [3 1]);
 host.Layout.Row = 2;
-obj.AlignControls = obj.buildAlignControls(host, @() obj.onConfigChanged("defaults"));
+host.RowHeight = {'fit', 'fit', 'fit'};
+host.Padding = [0 0 0 0];
+host.RowSpacing = 6;
+panels = [uipanel(host, "Title", "Event reference (align to)") uipanel(host, "Title", "Epoch window") ...
+    uipanel(host, "Title", "Trial selection")];
+obj.AlignControls = obj.buildAlignControls(panels, @(~) obj.onConfigChanged("defaults"));
 
 right = uigridlayout(g, [4 2]);
 right.RowHeight = {22, 'fit', '1x', '1x'};

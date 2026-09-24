@@ -27,14 +27,13 @@ switch what
             obj.ScanLabel.Text = "The source changed: Scan to list its datasets.";
         end
     case "defaults"
-        C = obj.AlignControls;
-        set([C.StopLine C.StopEdge C.StopWhich C.StopN C.StopScope], 'Enable', matlab.lang.OnOffSwitchState(C.StopOn.Value));
+        syncAlignEnable(obj.AlignControls);
         obj.refreshAlignPreview();
         obj.applyPlotEditorDefaults();
         obj.autoPreview();
     case "plot"
         obj.refreshPlotList();
-        obj.syncPlotEditorEnable();
+        obj.syncPlotEditor();
         obj.autoPreview();
 end
 obj.updateTitle();

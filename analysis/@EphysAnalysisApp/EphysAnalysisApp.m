@@ -20,10 +20,13 @@ classdef EphysAnalysisApp < handle
     %                groups on the active dataset
     %     Plots      the plots: add (psth, raster, evoked, rate, tuning,
     %                heatmap, probemap, corrmap), remove, duplicate, reorder, enable;
-    %                an editor whose rows follow the kind, the plot's own event
-    %                / window / selection when "use defaults" is off, and a
-    %                preview on the active dataset (auto-preview while a
-    %                preview takes under 2 s)
+    %                an editor in collapsible sections (units & channels,
+    %                event reference, epoch window, trial selection, bins &
+    %                baseline, the kind's options, appearance) showing only the
+    %                options the plot uses -- its event / window / selection
+    %                the Alignment tab's while "Use default" is ticked, its own
+    %                once edited -- and a preview on the active dataset
+    %                (auto-preview while a preview takes under 2 s)
     %     Export     figure formats, folder and file-name pattern, the report
     %                (HTML / PDF), Validate, Plan, Run over the ticked
     %                datasets (cancelable), results, open the report / folder
@@ -37,7 +40,7 @@ classdef EphysAnalysisApp < handle
     %   Preferences (getpref group 'EphysAnalysisApp'): FigurePosition,
     %   LastConfigFile, RecentConfigs, ScriptFolder, AutoPreview,
     %   PreviewMaxMB (signal previews of larger extracts wait for the Preview
-    %   button).
+    %   button), PlotSectionsCollapsed (the plot editor's collapsed sections).
     %
     %   Usage
     %     EphysAnalysisApp                      % the last config, or defaults
@@ -101,8 +104,10 @@ classdef EphysAnalysisApp < handle
         DuplicatePlotButton matlab.ui.control.Button
         UpPlotButton       matlab.ui.control.Button
         DownPlotButton     matlab.ui.control.Button
+        PlotEditorGrid     matlab.ui.container.GridLayout   % the editor's column of sections
+        PlotSections struct = struct([])         % the editor's sections (formSection), top to bottom
         PlotEditor struct = struct()             % plot-editor controls by field
-        PlotAlignControls struct = struct()      % the plot's own event / window / selection
+        PlotAlignControls struct = struct()      % the plot's event / window / selection (buildAlignControls)
         PlotsDatasetDropDown matlab.ui.control.DropDown
         PreviewPanel       matlab.ui.container.Panel
         PreviewButton      matlab.ui.control.Button
@@ -187,7 +192,7 @@ classdef EphysAnalysisApp < handle
         buildPlotsTab(obj)
         buildExportTab(obj)
         buildLogTab(obj)
-        C = buildAlignControls(obj, parent, changed)
+        C = buildAlignControls(obj, parents, changed)
         applyAlignControls(obj, C, ref, win, sel)
         [ref, win, sel] = gatherAlignControls(obj, C, ref, win, sel)
         fillAlignItems(obj, C)
@@ -208,7 +213,8 @@ classdef EphysAnalysisApp < handle
         p = gatherPlotEditor(obj)
         applyPlotEditor(obj)
         applyPlotEditorDefaults(obj)
-        syncPlotEditorEnable(obj)
+        syncPlotEditor(obj)
+        layoutPlotEditor(obj)
         refreshPlotList(obj)
 
         % --- file menu ---
@@ -246,6 +252,9 @@ classdef EphysAnalysisApp < handle
         onDuplicatePlot(obj)
         onMovePlot(obj, step)
         onPlotSelected(obj, k)
+        onPlotSectionToggled(obj, name)
+        onPlotAlignEdited(obj, part)
+        onPlotDefaultToggled(obj)
         refreshPreview(obj, opts)
         onPreviewPage(obj, step)
         onAutoPreviewToggled(obj)

@@ -21,10 +21,11 @@ EphysAnalysisApp("D:\EPHYS_synthetic")     % a project processed by the pipeline
 1. **Data**: the project is scanned; click a dataset to make it active.
 2. **Alignment**: align to `Stim` onset, group by `Depth`; the count shows
    the epochs per group.
-3. **Plots**: *Add* a PSTH, an evoked potential (source LFP), a rate plot
-   (e.g. `RespWindow` onset → offset: untick *Default event* / *Default
-   window*), a tuning curve (parameter `Depth`), a heatmap, a probe map and
-   a unit correlation;
+3. **Plots**: *Add* a PSTH, an evoked potential (it reads LFP), a rate plot
+   (e.g. `RespWindow` onset → offset: set the line in its *Event reference*
+   section and the stop event in its *Epoch window* section, which gives the
+   plot its own), a tuning curve (parameter `Depth`), a heatmap, a probe map
+   and a unit correlation;
    each previews on the active dataset.
 4. **Export**: tick png / svg / pdf, *Run*; *Open report*.
 5. **File → Generate script → Standalone** to get the same figures from a
@@ -96,25 +97,38 @@ colours, and the kept trials with their group and number of epochs.
 
 - The plot list (`<id> (<kind>)`, disabled ones marked *(off)*): **Add** a
   kind, **Remove**, **Duplicate**, **Up / Down** (the run and report order).
-- The editor. Its rows follow the kind and source (`syncPlotEditorEnable`):
-  enabled, id, title, source, layout; unit classes, ids, max units, channels,
-  shanks; bin and smoothing (ms); baseline mode and window; raster, bar or
-  line PSTH, mask after the stop event; the PSTH's normalization (none, unit
-  peak, group peak), **Filled** and its opacity (blank = automatic), and
-  **Stack groups** with its spacing (a row per group, labelled by value on
-  the left and by peak rate on the right; the legend is off for a
-  stack); the tuning parameter and series; the probe-map value;
-  the heatmap and unit-correlation row order; the unit correlation's epoch
-  rate (mean or peak; bins apply to peak) and correlation (Pearson or
-  Spearman); tiles per page, font size, SEM, stop marks, legend,
-  grid, y limits (offered only where a rate or amplitude axis takes them:
-  unstacked PSTHs, the evoked butterfly and grid, rates, tuning curves), line
-  width; group colours (*lines*: the trial selection's
-  colours; a colormap; or one colour such as *black* or `#1f77b4`, typed in)
-  and heat colours (*auto*: parula, or blueWhiteRed for unit
-  correlations). **Default event / window / selection**:
-  untick one to give the plot its own, in the panels below (the same
-  controls as the Alignment tab).
+- The editor: the plot's kind (with a line on what it draws), **Enabled**,
+  id, title, source and layout on top, then sections that collapse under
+  their headers (**▼** / **►**; which are collapsed is remembered):
+
+  | Section | Rows |
+  | --- | --- |
+  | Units & channels (*Channels* for a signal) | unit classes (sorted units), ids, max units, shanks, channels |
+  | Event reference, Epoch window, Trial selection | the Alignment tab's controls, for this plot |
+  | Bins & baseline (*Baseline* without bins) | bin and smoothing (ms), mask after the stop event, baseline mode and window |
+  | *Kind* options | PSTH: raster above, bar or line, normalization (none, unit peak, group peak), **Filled** and its opacity (blank = automatic), **Stack groups** and its spacing (a row per group, labelled by value on the left and by peak rate on the right); tuning: parameter and series; probe map: value; heatmap: row order; unit correlation: row order, epoch rate (mean or peak) and correlation (Pearson or Spearman) |
+  | Appearance | tiles per page, font size, line width, y limits, group colours (*lines*: the trial selection's colours; a colormap; or one colour such as *black* or `#1f77b4`, typed in), heat colours (*auto*: parula, or blueWhiteRed for unit correlations), SEM, stop marks, legend, grid |
+
+  Only what the selected plot uses is shown (`syncPlotEditor`): its kind,
+  source and layout decide. A probe map has no event, window, selection or
+  baseline; bins are for PSTHs, rasters, spike heatmaps and unit
+  correlations; y limits only where a rate or amplitude axis takes them
+  (PSTHs, rates, tuning curves, the evoked butterfly and grid); tiles only
+  for paged grids; group colours, legend and SEM only where groups are drawn
+  as lines or bars; heat colours only for heatmaps, probe maps and unit
+  correlations. The window modes offered are the kind's (*between* only for
+  rates, tuning curves and unit correlations). Rows that another option
+  switches off stay in place, greyed out: the opacity until *Filled*, the
+  spacing until *Stack groups* (a stack has no y limits or legend), the
+  baseline window until a baseline mode, a unit correlation's bins until
+  its *peak* rate, the mask and stop marks until the window has a stop
+  event, *n* until *nth*.
+
+  **Use default**, in the header of the Event reference, Epoch window and
+  Trial selection sections: ticked, the section shows the Alignment tab's
+  values and the plot uses them. The controls stay editable: an edit gives
+  the plot its own values (the defaults with the edit) and unticks the box;
+  ticking it again goes back to the defaults.
 - The preview: on the active dataset, through the runner. **Preview** always
   computes (also for large signals); with **Auto** on, every edit redraws it
   while a preview takes under 2 s. Paged grids have `<` / `>`. A plot the
@@ -160,6 +174,7 @@ Group `EphysAnalysisApp` (`getpref`); everything else is in the config.
 | `ScriptFolder` | where Generate script offers to save |
 | `AutoPreview` | the Plots tab's Auto box |
 | `PreviewMaxMB` | signal extracts larger than this (default 500 MB) are previewed only with the Preview button |
+| `PlotSectionsCollapsed` | the plot editor's collapsed sections |
 
 ## Why is my plot skipped?
 
@@ -184,8 +199,9 @@ results and the report.
 
 | Part | Files |
 | --- | --- |
-| building | `buildUI`, `buildMenus`, `buildDataTab`, `buildAlignTab`, `buildPlotsTab`, `buildExportTab`, `buildLogTab`, `buildAlignControls` |
+| building | `buildUI`, `buildMenus`, `buildDataTab`, `buildAlignTab`, `buildPlotsTab`, `buildExportTab`, `buildLogTab`, `buildAlignControls`; the editor's collapsible sections in `private/` (`formSection`, `formRow`, `formShow`, `formLayout`) |
 | config model | `gatherConfig` / `applyConfig`, `gather*` / `apply*Section`, `gatherAlignControls` / `applyAlignControls`, `gatherPlotEditor` / `applyPlotEditor`, `onConfigChanged`, `updateTitle`, `confirmDiscard` |
+| plot editor | `syncPlotEditor` (what shows, what is enabled, what the drop-downs offer: `private/plotEditorChoices`), `layoutPlotEditor`, `onPlotSectionToggled`, `onPlotAlignEdited`, `onPlotDefaultToggled`, `applyPlotEditorDefaults` |
 | data | `openSource`, `onScan`, `refreshDatasetsTable`, `selectDataset`, `refreshDatasetInfo` |
 | previews | `refreshAlignPreview`, `refreshPreview`, `autoPreview`, `onPreviewPage` |
 | running | `onValidate`, `onPlan`, `onRunExport`, `onCancelRun` |
@@ -197,10 +213,14 @@ results and the report.
 (a small synthetic project run through the pipeline) and drives it through
 its methods: the five tabs; the scan; the active dataset's lines and
 parameters; grouping by Depth from the Alignment controls; adding a PSTH and
-an LFP evoked potential and previewing both; editing the bins and the
-plot's own event; y limits offered only where they apply; the gather / apply
+an LFP evoked potential and previewing both; editing the bins; an edit in a
+*Use default* section giving the plot its own event or window, and ticking
+it again going back; the editor showing only the rows and sections a plot
+uses (y limits, heat colours, a probe map's missing alignment) and greying
+out the ones its options switch off; collapsing a section; the gather / apply
 round trip, keeping the fields without a control (the stop event's offset,
 length and time range, trial rows) and the stop's *n*; Save As, New, reopen;
 generating scripts; Validate, Plan and a run of one plot writing figures
-and the report; closing. The user's `EphysAnalysisApp` preferences are
-restored afterwards.
+and the report; the preferences remembered (the last config, the collapsed
+section); closing. The user's `EphysAnalysisApp` preferences are restored
+afterwards.

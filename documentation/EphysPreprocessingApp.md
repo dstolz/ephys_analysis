@@ -469,18 +469,25 @@ there now (a disk or share not connected) reads `missing: <file>`
 `Project.Datasets` as keys; with no ticks `Project.Selection` is `"all"`.
 Clicking a row makes its dataset the active one; its row is highlighted.
 
-**Behavior (Epsych2)** panel: **Match sessions as a pipeline step**
-(`Behavior.Enabled`), search folders + **Add folder...**, match rule (`prefix,
-then time` / `prefix only` / `time only`) and max start offset
-(`Behavior.*`), **Find sessions for selected** (what `findEpsychSessions` sees
-and what `matchEpsychSession` would pick for the active dataset),
-**Re-match existing** (`Behavior.Overwrite`), **Write behavior .mat**
-(`Behavior.WriteFile`), **Associate file...** (pick a
-session `.mat` for the active dataset by hand) and **Clear**. Associations are
-written to the manifest. Nothing is plotted here. When the behavior step runs
-with **Write behavior .mat** on, each associated session is saved once as
-`<Name>_behavior.mat` in the dataset's output folder; the Signals, Spikes and
-Export outputs do not carry behavior data.
+**Behavior (Epsych2)** panel: **Behavior as a pipeline step**
+(`Behavior.Enabled`), **Search** (`Behavior.Search`), search folders + **Add
+folder...**, match rule (`prefix, then time` / `prefix only` / `time only`)
+and max start offset (`Behavior.*`), **Find sessions for selected** (runs the
+behavior step on the ticked datasets), **Re-match existing**
+(`Behavior.Overwrite`), **Write behavior .mat** (`Behavior.WriteFile`),
+**Associate file...** (pick a session `.mat` for the active dataset by hand)
+and **Clear**. Associations are written to the manifest. Nothing is plotted
+here. When the behavior step runs with **Write behavior .mat** on, each
+associated session is saved once as `<Name>_behavior.mat` in the dataset's
+output folder; the Signals, Spikes and Export outputs do not carry behavior
+data.
+
+With **Search** off the step searches no folder and matches nothing: it pairs
+and writes only the sessions already associated (by hand, or the one session
+file in the recording folder that a scan associates), and reports a dataset
+without one as `no session`. The search folders, match rule, offset and
+**Re-match existing** are greyed out, and the step button reads **Write
+behavior for selected**.
 
 ## Trials
 

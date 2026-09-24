@@ -2,6 +2,7 @@ function B = gatherBehaviorSection(obj)
 %gatherBehaviorSection  Behavior section from the Project tab's panel.
 B = obj.Config.Behavior;
 B.Enabled = logical(obj.BehEnableCheckBox.Value);
+B.Search = logical(obj.BehSearchCheckBox.Value);
 dirs = strtrim(split(string(obj.BehSearchDirsField.Value), ";"));
 B.SearchDirs = reshape(dirs(dirs ~= ""), 1, []);
 B.Match = string(obj.BehMatchDropDown.Value);

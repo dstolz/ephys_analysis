@@ -232,6 +232,34 @@ check(R.Status(R.Step == "behavior") == "dry run" && R.Output(R.Step == "behavio
 d1.BehaviorFile = behFile;
 pipe.reset();
 pipe.checkBehavior();
+% Behavior.Search off: no folder is searched; the associated session is
+% paired and written, a dataset without one is "no session".
+cfgNS = cfg; cfgNS.Behavior.Search = false; cfgNS.Behavior.Overwrite = true;
+cfgNS.Behavior.SearchDirs = fullfile(root, 'no_such_folder');
+pipe.Config = cfgNS;
+check(~any(cfgNS.validate(CheckPaths=true).Field == "SearchDirs"), 'Behavior.Search off: SearchDirs is not checked');
+delete(behOut);
+pipe.reset(); logs = strings(0, 1);
+pipe.checkBehavior();
+R = pipe.Results;
+check(R.Status(R.Step == "behavior") == "associated" && d1.BehaviorFile == behFile && isfile(behOut) ...
+    && any(R.Step == "behavior:file" & R.Status == "done") && ~any(contains(logs, "session file(s) under")) ...
+    && any(contains(logs, "no search")), ...
+    'Behavior.Search off: the associated session is kept (even with Overwrite) and its behavior file written, with no search');
+d1.BehaviorFile = "";
+delete(behOut);
+pipe.reset();
+pipe.checkBehavior();
+R = pipe.Results;
+Tb = pipe.plan(Steps="behavior");
+check(height(R) == 1 && R.Status(1) == "no session" && ~isfile(behOut) && d1.BehaviorFile == "" ...
+    && Tb.Status(1) == "no session", ...
+    'Behavior.Search off: a dataset without a session is "no session" (step and plan), nothing matched or written');
+d1.BehaviorFile = behFile;
+d1.writeManifest();
+pipe.Config = cfg;
+pipe.reset();
+pipe.checkBehavior();
 
 fprintf('\n== 4. artifacts cache ==\n');
 cfg.Artifacts.Enabled = true; cfg.Artifacts.Method = "microvolts"; cfg.Artifacts.Threshold = 3000; cfg.Artifacts.MinChannels = 1;

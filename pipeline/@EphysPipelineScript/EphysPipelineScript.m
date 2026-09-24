@@ -152,27 +152,34 @@ classdef EphysPipelineScript
             % --- behavior ------------------------------------------------------------
             L = [L; EphysPipelineScript.stepHeader("Behavior (Epsych2 sessions)", cfg.stepEnabled("behavior"))];
             B = cfg.Behavior;
-            L(end+1, 1) = "sessions = findEpsychSessions(" + lit(B.SearchDirs) + ");";
+            if B.Search
+                L(end+1, 1) = "sessions = findEpsychSessions(" + lit(B.SearchDirs) + ");";
+            end
             L(end+1, 1) = "for k = idx";
             L(end+1, 1) = "    d = P.Datasets(k);";
-            match = "matchEpsychSession(sessions, d, Match=" + lit(B.Match) + ", MaxStartOffsetMin=" + lit(B.MaxStartOffsetMin) + ")";
-            ind = "    ";
-            note = "   % Behavior.Overwrite: matched again";
-            if ~B.Overwrite
-                L(end+1, 1) = "    if d.BehaviorFile ~= """"   % an association is kept, also while its file is not there";
-                L(end+1, 1) = "        fprintf('%s: behavior %s (kept)\n', d.Name, d.BehaviorFile);";
-                L(end+1, 1) = "    else";
-                ind = "        ";
-                note = "";
-            end
-            L(end+1, 1) = ind + "m = " + match + ";" + note;
-            L(end+1, 1) = ind + "if m.file ~= """"";
-            L(end+1, 1) = ind + "    d.BehaviorFile = m.file;";
-            L(end+1, 1) = ind + "    d.writeManifest();";
-            L(end+1, 1) = ind + "end";
-            L(end+1, 1) = ind + "fprintf('%s: behavior %s (%s)\n', d.Name, m.file, m.reason);";
-            if ~B.Overwrite
-                L(end+1, 1) = "    end";
+            if B.Search
+                match = "matchEpsychSession(sessions, d, Match=" + lit(B.Match) + ", MaxStartOffsetMin=" + lit(B.MaxStartOffsetMin) + ")";
+                ind = "    ";
+                note = "   % Behavior.Overwrite: matched again";
+                if ~B.Overwrite
+                    L(end+1, 1) = "    if d.BehaviorFile ~= """"   % an association is kept, also while its file is not there";
+                    L(end+1, 1) = "        fprintf('%s: behavior %s (kept)\n', d.Name, d.BehaviorFile);";
+                    L(end+1, 1) = "    else";
+                    ind = "        ";
+                    note = "";
+                end
+                L(end+1, 1) = ind + "m = " + match + ";" + note;
+                L(end+1, 1) = ind + "if m.file ~= """"";
+                L(end+1, 1) = ind + "    d.BehaviorFile = m.file;";
+                L(end+1, 1) = ind + "    d.writeManifest();";
+                L(end+1, 1) = ind + "end";
+                L(end+1, 1) = ind + "fprintf('%s: behavior %s (%s)\n', d.Name, m.file, m.reason);";
+                if ~B.Overwrite
+                    L(end+1, 1) = "    end";
+                end
+            else
+                L(end+1, 1) = "    % Behavior.Search is off: only a session already associated (by hand, or in the recording folder)";
+                L(end+1, 1) = "    if d.BehaviorFile == """"; fprintf('%s: no session associated\n', d.Name); end";
             end
             L(end+1, 1) = "    if d.BehaviorFile == """" || ~isfile(d.BehaviorFile); continue; end";
             L(end+1, 1) = "    pairing = [];";

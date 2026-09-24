@@ -16,7 +16,8 @@ classdef EphysPipelineConfig
     %     Parallel   Enabled, MaxWorkers (NaN = automatic): run the chunks of
     %                the artifacts and spike-detection steps on a process pool
     %     Probe      DefaultProbeFile, WriteDefaultToManifest
-    %     Behavior   Enabled, SearchDirs, Match, MaxStartOffsetMin, Overwrite,
+    %     Behavior   Enabled, Search (off: the associated sessions only, no
+    %                search), SearchDirs, Match, MaxStartOffsetMin, Overwrite,
     %                WriteFile, PairTrials, AutoApprove, TrialLine
     %     Artifacts  Reference ("none" | "car" | "cmr": the common reference
     %                every step subtracts once from its read of the

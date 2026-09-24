@@ -235,6 +235,13 @@ check(contains(txtBeh, "pairing = d.pairTrials(Warn=false);") && contains(txtBeh
     'the standalone behavior step pairs, approves matching counts, records the pairing and writes it into the behavior file');
 mB = checkcode(behStandalone, '-id');
 check(isempty(mB) || ~any(isErr(mB)), 'the standalone script with the behavior step has no checkcode errors');
+cfgBehNS = cfgBehB; cfgBehNS.Behavior.Search = false;
+behNoSearch = fullfile(root, 'scripts', 'run_behavior_nosearch.m');
+txtNS = EphysPipelineScript.standalone(cfgBehNS, File=behNoSearch);
+mNS = checkcode(behNoSearch, '-id');
+check(~contains(txtNS, "findEpsychSessions") && ~contains(txtNS, "matchEpsychSession") ...
+    && contains(txtNS, "r = d.behaviorToMat(Overwrite=true, Pairing=pairing);") && (isempty(mNS) || ~any(isErr(mNS))), ...
+    'Behavior.Search off: the standalone behavior step pairs and writes the associated sessions without a search');
 runScript(behCompact);
 outS = runScript(behStandalone);
 check(~contains(outS, "FAILED"), 'the standalone behavior script reported no failures');

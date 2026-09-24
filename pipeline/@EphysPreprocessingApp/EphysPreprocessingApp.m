@@ -237,6 +237,7 @@ classdef EphysPreprocessingApp < handle
         ToolsPhyButton      matlab.ui.control.Button
         ToolsFolderButton   matlab.ui.control.Button
         BehEnableCheckBox    matlab.ui.control.CheckBox
+        BehSearchCheckBox    matlab.ui.control.CheckBox
         BehSearchDirsField   matlab.ui.control.EditField
         BehBrowseButton      matlab.ui.control.Button
         BehMatchDropDown     matlab.ui.control.DropDown

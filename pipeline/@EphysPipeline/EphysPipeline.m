@@ -14,8 +14,9 @@ classdef EphysPipeline < handle
     %   Steps, in execution order (EphysPipelineConfig.StepNames):
     %     probe      checkProbes        check each probe (the default where none is
     %                                   assigned, see probeFor) against the channel count
-    %     behavior   checkBehavior      associate Epsych2 sessions (matchEpsychSession),
-    %                                   pair trials with the trial line (pairTrials)
+    %     behavior   checkBehavior      associate Epsych2 sessions (matchEpsychSession;
+    %                                   Behavior.Search), pair trials with the
+    %                                   trial line (pairTrials), write the behavior file
     %     artifacts  runArtifacts       compute + cache artifact intervals
     %     sorting    runSorting         Kilosort4 on a .bin (runKilosort)
     %     signals    runSignals         derived LFP/MUA/SPIKE/AUX .mat (toMat)
@@ -430,6 +431,10 @@ classdef EphysPipeline < handle
             %   An associated session is kept unless Behavior.Overwrite, also
             %   while its file is not there ("behavior file missing": a disk or
             %   share that is not connected), so no other session replaces it.
+            %   With Behavior.Search off, SearchDirs is not searched and
+            %   nothing is matched: only the sessions already associated (by
+            %   hand, or the one in the recording folder) are paired and
+            %   written, and a dataset without one is reported "no session".
             %   DryRun: sessions are matched, but nothing is associated,
             %   paired or written; "dry run" rows say what would be.
             arguments
@@ -439,14 +444,22 @@ classdef EphysPipeline < handle
             end
             c = obj.Config.Behavior;
             ds = obj.selected(opts.Datasets);
-            T = findEpsychSessions(c.SearchDirs);
-            obj.log("[behavior] %d Epsych2 session file(s) under %s", height(T), strjoin(c.SearchDirs, "; "));
+            if c.Search
+                T = findEpsychSessions(c.SearchDirs);
+                obj.log("[behavior] %d Epsych2 session file(s) under %s", height(T), strjoin(c.SearchDirs, "; "));
+            else
+                obj.log("[behavior] no search (Behavior.Search is off): the associated sessions only");
+            end
             for k = 1:numel(ds)
                 d = ds(k);
                 obj.progress("behavior", d.Name, k, numel(ds), 0, 1, "Epsych2 session");
                 t0 = tic;
                 session = d.BehaviorFile;
-                if session ~= "" && ~c.Overwrite
+                if session == "" && ~c.Search
+                    obj.log("[behavior] %s: no associated session", d.Name);
+                    obj.addResult("behavior", d.Name, "no session", ...
+                        "no session associated (Behavior.Search is off: associate one by hand)", "", toc(t0));
+                elseif session ~= "" && (~c.Overwrite || ~c.Search)
                     if isfile(session)
                         obj.addResult("behavior", d.Name, "associated", "kept existing association", session, toc(t0));
                     else

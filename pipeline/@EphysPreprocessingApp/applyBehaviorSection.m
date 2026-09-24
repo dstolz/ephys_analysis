@@ -2,6 +2,7 @@ function applyBehaviorSection(obj, B)
 %applyBehaviorSection  Behavior section -> Project tab's panel.
 B = EphysPipelineConfig.normalizeSection("Behavior", B);
 obj.BehEnableCheckBox.Value = logical(B.Enabled);
+obj.BehSearchCheckBox.Value = logical(B.Search);
 obj.BehSearchDirsField.Value = char(strjoin(B.SearchDirs, "; "));
 obj.setDropIfMember(obj.BehMatchDropDown, B.Match, "Behavior.Match");
 obj.setControlValue(obj.BehMaxOffsetField, B.MaxStartOffsetMin, "Behavior.MaxStartOffsetMin");

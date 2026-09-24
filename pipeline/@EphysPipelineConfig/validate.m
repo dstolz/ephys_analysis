@@ -72,7 +72,9 @@ end
 % --- Behavior --------------------------------------------------------------------
 B = obj.Behavior;
 if B.Enabled
-    if isempty(B.SearchDirs)
+    if ~B.Search
+        % the associated sessions only: SearchDirs is not read
+    elseif isempty(B.SearchDirs)
         add("behavior", "SearchDirs", "warning", "No search folders for Epsych2 sessions; nothing can be matched.");
     elseif opts.CheckPaths
         for d = B.SearchDirs

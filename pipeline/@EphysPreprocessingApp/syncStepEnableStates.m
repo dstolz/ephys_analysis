@@ -27,6 +27,23 @@ end
 if ~isempty(obj.RunKSQueueCheckBox) && isvalid(obj.RunKSQueueCheckBox)
     obj.RunKSQueueCheckBox.Enable = matlab.lang.OnOffSwitchState(cfg.Sorting.Execution == "background");
 end
+% Behavior.Search off: the step uses the associated sessions only, so the
+% search settings are idle and the step button no longer finds sessions.
+search = cfg.Behavior.Search;
+ctrls = {obj.BehSearchDirsField, obj.BehBrowseButton, obj.BehMatchDropDown, obj.BehMaxOffsetField, obj.BehOverwriteCheckBox};
+for k = 1:numel(ctrls)
+    h = ctrls{k};
+    if ~isempty(h) && isvalid(h); h.Enable = matlab.lang.OnOffSwitchState(search); end
+end
+if ~isempty(obj.BehFindButton) && isvalid(obj.BehFindButton)
+    if search
+        obj.BehFindButton.Text = "Find sessions for selected";
+        obj.BehFindButton.Tooltip = "Run the behavior step on the selected datasets: search the folders for a session for each one that has none, then pair and write as set.";
+    else
+        obj.BehFindButton.Text = "Write behavior for selected";
+        obj.BehFindButton.Tooltip = "Run the behavior step on the selected datasets without a search: pair and write the sessions already associated, as set.";
+    end
+end
 if ~isempty(obj.RunSelectionLabel) && isvalid(obj.RunSelectionLabel)
     if isempty(obj.Project) || obj.Project.NumDatasets == 0
         obj.RunSelectionLabel.Text = "Selection: scan a project root first.";

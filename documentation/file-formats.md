@@ -359,7 +359,7 @@ which holds `H64LP_4x16.json` as a starting point.
   "Acquisition": { "OpenEphys": { "Recordings", "RecordNode", "Stream" } },
   "Parallel":  { "Enabled", "MaxWorkers" },
   "Probe":     { "DefaultProbeFile", "WriteDefaultToManifest" },
-  "Behavior":  { "Enabled", "SearchDirs", "Match", "MaxStartOffsetMin", "Overwrite", "WriteFile",
+  "Behavior":  { "Enabled", "Search", "SearchDirs", "Match", "MaxStartOffsetMin", "Overwrite", "WriteFile",
                  "PairTrials", "AutoApprove", "TrialLine" },
   "Artifacts": { "Reference", "ReferenceBadLow", "ReferenceBadHigh", "Enabled", "Method", "Threshold", ... , "Fill", "NoiseBandHz", "NoiseSeed", "ApplyToSorting", "ApplyToSpikes", "ApplyToSignals", "CacheIntervals" },
   "Sorting":   { "Enabled", "PythonExe", "CondaEnv", "Execution", "MaxConcurrent", "Devices", "DryRun", "SkipExisting",

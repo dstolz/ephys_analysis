@@ -9,6 +9,7 @@ function T = plan(obj, opts)
 %     associated                   the associated Epsych2 session is kept
 %     behavior file missing        the associated session file is not there
 %                                  (kept; nothing is paired or written)
+%     no session                   none associated and Behavior.Search is off
 %     exists: skip / overwrite     the output file exists (Overwrite decides)
 %     exists: skip (SkipExisting)  sorted output exists and Sorting.SkipExisting
 %     skip: Kilosort4 running / queued
@@ -98,9 +99,12 @@ for step = steps
                     end
                     note = strjoin([note(note ~= ""), pr], "; ");
                 end
-                if d.BehaviorFile ~= "" && ~c.Behavior.Overwrite && isfile(d.BehaviorFile)
+                keep = ~c.Behavior.Overwrite || ~c.Behavior.Search;
+                if d.BehaviorFile == "" && ~c.Behavior.Search
+                    add(step, k, "", "no session", "no session associated (Behavior.Search is off: associate one by hand)");
+                elseif d.BehaviorFile ~= "" && keep && isfile(d.BehaviorFile)
                     add(step, k, d.BehaviorFile, "associated", note);
-                elseif d.BehaviorFile ~= "" && ~c.Behavior.Overwrite
+                elseif d.BehaviorFile ~= "" && keep
                     add(step, k, d.BehaviorFile, "behavior file missing", ...
                         "the association is kept (Behavior.Overwrite re-matches); nothing is paired or written");
                 else

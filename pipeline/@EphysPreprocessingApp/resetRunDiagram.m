@@ -59,7 +59,11 @@ if cfg.Probe.DefaultProbeFile ~= ""
 end
 
 B = cfg.Behavior;
-w(2) = "match Epsych2 sessions";
+if B.Search
+    w(2) = "match Epsych2 sessions";
+else
+    w(2) = "associated Epsych2 sessions (no search)";
+end
 if B.PairTrials; w(2) = w(2) + ", pair trials"; end
 if B.WriteFile; w(2) = w(2) + ", write the behavior file"; end
 

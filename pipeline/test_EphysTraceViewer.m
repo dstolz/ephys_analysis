@@ -13,7 +13,8 @@ function test_EphysTraceViewer()
 %       voltage scale, lanes and their names, heatmap mode, shading,
 %       sorted-unit and detected-spike layers as ticks, as the trace
 %       recoloured and as stored waveforms on their own lanes, spikes only
-%       (no trace), the read limit, the wheel, keys and drags.
+%       (no trace), the read limit, the wheel, keys and drags, and event
+%       lines over the traces (onset on its own sample) and as TTL rows.
 %
 %   Usage:  test_EphysTraceViewer
 %
@@ -256,6 +257,52 @@ check(moved && abs(v.TStart - 100 * 0.8 / w0) < 1e-9,'a drag to the left pans la
 v.seekOverview(2);
 check(abs(v.TStart + v.TWidth / 2 - 2) < 1e-9, 'the overview centres the view on a time');
 
+fprintf('\n== 5. events ==\n');
+% TTL1 turns on at the spike's row: 0-based sample sp is row sp+1, at
+% (sp+1)/Fs on the events' clock; it stays on through row 1.6*Fs.
+ev = struct('TTL1', [(sp + 1) / Fs, 1.6; 2.0, 2.1], 'Stim', zeros(0, 2));
+E = EphysTraceViewer.eventLines(ev, Fs);
+check(isequal([E.name], ["TTL1" "Stim"]) && abs(E(1).on(1) - 1.5) < 1e-12 && E(1).off(1) == 1.6 ...
+    && isempty(E(2).on) && all([E.show]), ...
+    'eventLines: an onset at row/Fs moves to the trace clock, (row-1)/Fs; the offset is the first row after the last on row');
+v.setSource(rec);
+v.setVisibleLanes(8);
+v.RemoveOffset = false;
+v.setSpacing(1000);
+v.setEvents(E);
+v.EventOverlay = true;
+v.EventStrip = false;
+v.setView(1.5 - 5 / Fs, 10 / Fs);
+[x, y] = lanePoints(traceLines(ax), 3);
+[~, iPk] = max(y);
+[mx, my, ms] = eventPoints(ax);
+on = ms == "-";
+check(any(on) && all(abs(mx(on) - 1.5) < 1e-12) && abs(x(iPk) - 1.5) < 1e-12 ...
+    && min(my(on)) == ax.YLim(1) && max(my(on)) == 0.5 && ax.YLim(2) == 0.5, ...
+    'over the traces: the onset marker sits on the spike''s own sample, across the lanes, and adds no rows');
+v.setView(0, 3);
+[mx, ~, ms] = eventPoints(ax);
+on = sort(unique(mx(ms == "-"))).';
+check(numel(on) == 2 && all(abs(on - [1.5, 2.0 - 1 / Fs]) < 1e-12) && isequal(sort(unique(mx(ms == ":"))).', [1.6 2.1]), ...
+    'onsets solid, offsets dotted');
+v.EventOverlay = false;
+v.EventStrip = true;
+v.render();
+pp = ax.InnerPosition;
+rowPx = (ax.YLim(2) - 0.5) / diff(ax.YLim) * pp(4) / 2;
+[mx, my, ms] = eventPoints(ax);
+hiY = max(my);
+check(all(ms == "-") && abs(rowPx - v.EventRowPixels) < 0.5 && isequal(ax.YTickLabel(end - 1:end), {'Stim'; 'TTL1'}) ...
+    && all(my > 0.5) && any(abs(mx - 1.5) < 1e-12 & my == hiY) && any(abs(mx - 1.6) < 1e-12 & my == hiY) ...
+    && ~any(mx > 1.6 & mx < 1.99 & my == hiY), ...
+    'above the traces: a TTL row per line (EventRowPixels tall, TTL1 on top), high from onset to offset');
+v.setEventShow([true false]);
+v.render();
+check(ax.YTickLabel{end} == "TTL1" && ~any(strcmp(ax.YTickLabel, 'Stim')), 'a line not shown takes no row');
+v.EventStrip = false;
+v.render();
+check(isempty(eventPoints(ax)) && ax.YLim(2) == 0.5, 'events off: nothing drawn, no rows');
+
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 clear figCleanup cleanup
 if nFail > 0
@@ -281,6 +328,19 @@ for i = 1:numel(h)
     in = seg == lane & ~isnan(Y);
     x = X(in); y = Y(in);
     return
+end
+end
+
+
+function [x, y, style] = eventPoints(ax)
+% Every data vertex of the viewer's event lines (width 1) and its line style.
+h = findall(ax, 'Type', 'line', 'LineWidth', 1, 'Visible', 'on');
+x = []; y = []; style = strings(0, 1);
+for i = 1:numel(h)
+    X = h(i).XData(:); Y = h(i).YData(:);
+    k = ~isnan(X);
+    x = [x; X(k)]; y = [y; Y(k)]; %#ok<AGROW>
+    style = [style; repmat(string(h(i).LineStyle), nnz(k), 1)]; %#ok<AGROW>
 end
 end
 

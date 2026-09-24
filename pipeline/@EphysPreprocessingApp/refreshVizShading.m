@@ -1,8 +1,9 @@
 function refreshVizShading(obj, draw)
 %refreshVizShading  Give the viewer the artifact periods to shade (and draw).
 %   Orange: the detected artifacts of the Artifacts tab's Detect / Preview
-%   of the plotted dataset while its settings still hold
-%   (vizDetectedIntervals); red: the plotted dataset's manual periods.
+%   of the plotted dataset while its settings still hold, else those the
+%   last run detected (<Name>_artifacts.json; vizDetectedIntervals); red:
+%   the plotted dataset's manual periods.
 %   Both recording-relative seconds, on the plot's own time axis. None
 %   with "Shade artifact periods" unticked. DRAW (default true) redraws.
 %

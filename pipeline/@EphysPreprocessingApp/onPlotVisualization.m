@@ -3,8 +3,10 @@ function onPlotVisualization(obj)
 %   Finds what the dataset has on disk (EphysDataset.outputs): the
 %   recording when its files can be read, the Sorting .bin, the Signals
 %   step's LFP / MUA / SPIKE / AUX (EphysTraceSource.forDataset), its
-%   sorted units (readSortedUnits on the associated sort) and the Spikes
-%   step's detected spikes (<Name>_spikes.mat). The Show box then offers
+%   sorted units (readSortedUnits on the associated sort), the Spikes
+%   step's detected spikes (<Name>_spikes.mat), the artifact periods the
+%   last run detected (<Name>_artifacts.json) and the digital-input events
+%   (loadVizEvents). The Show box then offers
 %   those signals, keeping the kind shown before when this dataset has it,
 %   and the viewer draws the window in the Start / Window fields. Nothing
 %   is read beyond that window: the signals are read a window at a time as
@@ -31,8 +33,21 @@ dlg = uiprogressdlg(obj.Fig, "Title", "Visualize", "Indeterminate", "on", ...
     "Message", "Finding the processed files of " + d.Name + "...");
 closer = onCleanup(@() delete(dlg));
 notes = strings(1, 0);
+artifacts = [];
 try
     out = d.outputs();
+    if out.has("artifacts")
+        % The automatic detection the last run used (refreshVizShading).
+        try
+            A = out.Artifacts;
+            if isstruct(A) && isfield(A, 'intervals')
+                artifacts = struct('intervals', double(reshape(A.intervals, [], 2)), ...
+                    'file', string(out.ArtifactsFile));
+            end
+        catch ME
+            notes(end+1) = "Artifact periods of the last run not read: " + string(ME.message);
+        end
+    end
     [sources, skipped] = EphysTraceSource.forDataset(d, Outputs=out);
     notes = [notes, skipped];
 
@@ -72,8 +87,11 @@ if ~isempty(detected) && ~isempty(detected.ts)
 end
 
 obj.VizData = struct('sources', sources, 'units', units, 'detected', detected, ...
-    'layers', layers, 'notes', notes);
+    'layers', layers, 'notes', notes, 'events', EphysTraceViewer.emptyEvents(), 'eventsNote', "", ...
+    'artifacts', artifacts);
 obj.VizDataset = d;
+dlg.Message = "Reading the events of " + d.Name + "...";
+obj.loadVizEvents(out, false);
 
 % The Show box: this dataset's signals, then "None" when it has spikes.
 names = cell(1, numel(sources));

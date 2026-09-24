@@ -48,6 +48,14 @@ classdef EphysTraceViewer < handle
     %                  10 kHz, fall back to ticks (LastRender.notes says so)
     %   Each unit or channel takes a colour of Palette.
     %
+    %   Events (setEvents, eventLines): digital-input lines, each drawn
+    %     over the traces   (EventOverlay) a solid line at every onset and
+    %                       a dotted one at every offset, across the lanes
+    %     above the traces  (EventStrip) as a TTL trace, one row per line
+    %                       (EventRowPixels tall) above the top lane
+    %   An event line's ON is its first on row and OFF the first row after
+    %   it, on the traces' clock, so a marker sits on the sample it names.
+    %
     %   Interaction (the app routes the figure's events here)
     %   -----------------------------------------------------
     %     handleScroll(count, mods, t)  wheel: zoom time about T; Ctrl: scale
@@ -59,7 +67,8 @@ classdef EphysTraceViewer < handle
     %     beginDrag / dragTo / endDrag  drag to pan time (and lanes)
     %     seekOverview(t)               centre the view on T (overview strip)
     %   and programmatically: setView, zoomTime, panTime, scaleVoltage,
-    %   setSpacing, autoScale, scrollLanes, setVisibleLanes, resetView.
+    %   setSpacing, autoScale, scrollLanes, setVisibleLanes, resetView;
+    %   setEvents / setEventShow with EventOverlay / EventStrip.
     %
     %   See also EphysTraceSource, EphysPreprocessingApp.
 
@@ -68,6 +77,7 @@ classdef EphysTraceViewer < handle
         OverviewAxes = []                      % optional strip: the whole recording
         Source = []                            % EphysTraceSource, or [] (spikes only)
         Layers struct = EphysTraceViewer.emptyLayers()
+        Events struct = EphysTraceViewer.emptyEvents()   % event lines (eventLines)
         Channels (1,:) double = double.empty(1,0)   % source columns, in lane order
         TStart (1,1) double = 0                % left edge of the view (s)
         TWidth (1,1) double = 2                % width of the view (s)
@@ -88,6 +98,9 @@ classdef EphysTraceViewer < handle
         Reference (1,1) string {mustBeMember(Reference, ["none" "car" "cmr"])} = "none"   % across the channels shown
         RemoveOffset (1,1) logical = true      % centre each lane on its median in view
         Shading struct = struct('intervals', {}, 'color', {}, 'alpha', {})   % shaded periods (s)
+        EventOverlay (1,1) logical = false     % event onsets / offsets drawn across the lanes
+        EventStrip (1,1) logical = false       % event lines drawn as TTL traces above the lanes
+        EventRowPixels (1,1) double {mustBePositive} = 16   % height of a TTL row (at most 40% of the plot together)
         Duration (1,1) double = NaN            % time axis length without a source (s)
         DefaultWidth (1,1) double = 2          % window of resetView (s)
         MaxReadSamples (1,1) double = 2^27     % samples x channels one draw may read
@@ -108,6 +121,10 @@ classdef EphysTraceViewer < handle
     properties (Access = private)
         TraceLines = gobjects(0, 1)
         SpikeLines = gobjects(0, 1)
+        EventMarks = gobjects(0, 1)    % per event line: onsets (2i-1), offsets (2i)
+        EventTraces = gobjects(0, 1)   % per event line: its TTL trace
+        StripLine = gobjects(0)        % between the TTL rows and the lanes
+        StripBase (1,1) double = 0.5   % y of the top lanes' edge (the TTL rows sit above)
         ShadePatches = gobjects(0, 1)
         Image = gobjects(0)
         BreakLine = gobjects(0)
@@ -141,6 +158,8 @@ classdef EphysTraceViewer < handle
                 'Visible', 'off', 'HitTest', 'off', 'PickableParts', 'none');
             obj.BreakLine = line(ax, NaN, NaN, 'Color', [0.6 0.6 0.6], 'LineStyle', ':', ...
                 'HitTest', 'off', 'PickableParts', 'none');
+            obj.StripLine = line(ax, NaN, NaN, 'Color', [0.7 0.7 0.7], 'LineWidth', 0.75, ...
+                'HitTest', 'off', 'PickableParts', 'none');
             obj.SelectPatch = patch(ax, 'XData', NaN, 'YData', NaN, 'FaceColor', [0.85 0.2 0.2], ...
                 'FaceAlpha', 0.15, 'EdgeColor', 'none', 'Visible', 'off', 'HitTest', 'off', 'PickableParts', 'none');
             obj.ScaleLine = line(ax, NaN, NaN, 'Color', [0 0 0], 'LineWidth', 2, ...
@@ -158,6 +177,9 @@ classdef EphysTraceViewer < handle
                 obj.OvRate = line(ov, NaN, NaN, 'Color', [0.35 0.35 0.35], 'HitTest', 'off', 'PickableParts', 'none');
                 obj.OvView = patch(ov, 'XData', [0 1 1 0], 'YData', [0 0 1 1], 'FaceColor', [0 0.45 0.74], ...
                     'FaceAlpha', 0.25, 'EdgeColor', [0 0.45 0.74], 'HitTest', 'off', 'PickableParts', 'none');
+                text(ov, 0.004, 0.94, "whole recording: click or drag to go there", 'Units', 'normalized', ...
+                    'VerticalAlignment', 'top', 'FontSize', 8, 'Color', [0.45 0.45 0.45], ...
+                    'Interpreter', 'none', 'HitTest', 'off', 'PickableParts', 'none');
             end
             obj.AxesListener = listener(ax, 'ObjectBeingDestroyed', @(~, ~) delete(obj));
             obj.render();
@@ -281,6 +303,28 @@ classdef EphysTraceViewer < handle
             obj.Drawn = [];
             obj.clampView();
             obj.updateRate();
+        end
+
+        function setEvents(obj, events)
+            %setEvents  Event lines to draw (an eventLines struct; [] = none).
+            if isempty(events)
+                events = EphysTraceViewer.emptyEvents();
+            end
+            obj.Events = events;
+            obj.Drawn = [];
+        end
+
+        function setEventShow(obj, show)
+            %setEventShow  Which event lines are drawn (SHOW, one per line).
+            arguments
+                obj (1,1) EphysTraceViewer
+                show (1,:) logical
+            end
+            if numel(show) ~= numel(obj.Events); return; end
+            for i = 1:numel(show)
+                obj.Events(i).show = show(i);
+            end
+            obj.Drawn = [];
         end
 
         function setSelection(obj, iv)
@@ -521,22 +565,25 @@ classdef EphysTraceViewer < handle
             R = obj.drawSpikes(T, lanes, vis, span, R);
             obj.drawShading(span, lanes);
             obj.drawBreaks(span, lanes, vis);
+            S = obj.stripRows(vis);
+            obj.drawEvents(span, S);
             obj.Drawn = struct('span', span);
             obj.Message.String = msg;
 
-            % Axes: the view, the lanes shown, their names.
+            % Axes: the view, the lanes shown and the TTL rows above them, their names.
             ax.XLim = [obj.TStart, obj.TStart + obj.TWidth];
-            if isempty(vis)
-                ax.YLim = [-0.5 0.5];
-                ax.YTick = [];
-            else
-                ax.YLim = [-(vis(end) - 1) - 0.5, -(vis(1) - 1) + 0.5];
+            ticks = zeros(1, 0);
+            labels = strings(1, 0);
+            if ~isempty(vis)
                 every = max(1, ceil(numel(vis) / 48));
                 shown = vis(end:-every:1);
                 shown = shown(shown >= vis(1));
-                ax.YTick = -(shown - 1);
-                ax.YTickLabel = lanes.label(shown);
+                ticks = -(shown - 1);
+                labels = lanes.label(shown);
             end
+            ax.YLim = [S.bottom, S.base + numel(S.idx) * S.h];
+            ax.YTick = [ticks, fliplr(S.y)];
+            ax.YTickLabel = [labels, fliplr([obj.Events(S.idx).name])];
             obj.placeScale();
             obj.updateOverview();
             R.seconds = toc(tic0);
@@ -551,6 +598,54 @@ classdef EphysTraceViewer < handle
             L = struct('name', {}, 'kind', {}, 'style', {}, 'placement', {}, 'labels', {}, ...
                 'channels', {}, 'colorIndex', {}, 'order', {}, 'show', {}, 't', {}, 'g', {}, 'k', {}, ...
                 'wf', {}, 'template', {}, 'wfTimeMs', {}, 'templateUV', {}, 'winMs', {});
+        end
+
+        function E = emptyEvents()
+            %emptyEvents  The struct every event line has (no lines).
+            %   name, on / off [k x 1] (s, the traces' clock: the first on row
+            %   and the first row after it), color, show.
+            E = struct('name', {}, 'on', {}, 'off', {}, 'color', {}, 'show', {});
+        end
+
+        function E = eventLines(events, eventFs, opts)
+            %eventLines  Event lines from a digital-input events struct.
+            %   EVENTS has one field per line, [k x 2] [t_on t_off] seconds at
+            %   t = row/EVENTFS (the first and last on rows, as the readers,
+            %   digitalLinePolarity and the Signals step's extract give them).
+            %   On the traces' clock, (row-1)/Fs, a line turns on at
+            %   t_on - 1/EVENTFS and off at t_off (the first row after its
+            %   last on row). EVENTFS NaN (unknown) leaves the times as they
+            %   are. Each line takes a colour of Palette.
+            arguments
+                events
+                eventFs (1,1) double = NaN
+                opts.Palette (:,3) double = EphysTraceViewer.eventPalette()
+            end
+            E = EphysTraceViewer.emptyEvents();
+            if ~isstruct(events) || ~isscalar(events); return; end
+            shift = 0;
+            if eventFs > 0 && isfinite(eventFs); shift = 1 / eventFs; end
+            names = string(fieldnames(events)).';
+            nP = size(opts.Palette, 1);
+            for k = 1:numel(names)
+                iv = double(events.(names(k)));
+                if isempty(iv); iv = zeros(0, 2); end
+                iv = sortrows(reshape(iv, [], 2));
+                E(end+1) = struct('name', names(k), 'on', iv(:, 1) - shift, 'off', iv(:, 2), ...
+                    'color', opts.Palette(mod(k - 1, nP) + 1, :), 'show', true); %#ok<AGROW>
+            end
+        end
+
+        function P = eventPalette()
+            %eventPalette  Colours of the event lines, apart from the spikes' palette.
+            P = [0.80 0.00 0.55
+                 0.00 0.50 0.25
+                 0.95 0.45 0.00
+                 0.25 0.25 0.95
+                 0.55 0.40 0.00
+                 0.00 0.55 0.70
+                 0.60 0.00 0.00
+                 0.40 0.40 0.40];
         end
 
         function L = unitLayer(units, opts)
@@ -968,14 +1063,18 @@ classdef EphysTraceViewer < handle
         end
 
         function h = poolLine(obj, pool, i)
-            % Line I of POOL ("TraceLines" | "SpikeLines"), made when it is new.
+            % Line I of POOL ("TraceLines" | "SpikeLines" | "EventMarks" |
+            % "EventTraces"), made when it is new.
             H = obj.(pool);
-            if i <= numel(H) && isvalid(H(i))
+            if i <= numel(H) && isgraphics(H(i))   % a gap left by a later line is a placeholder
                 h = H(i);
                 return
             end
-            width = 0.5;
-            if pool == "SpikeLines"; width = 1.2; end
+            switch pool
+                case "TraceLines", width = 0.5;
+                case "SpikeLines", width = 1.2;
+                otherwise,         width = 1;     % the events
+            end
             h = line(obj.Axes, NaN, NaN, 'LineWidth', width, 'HitTest', 'off', 'PickableParts', 'none');
             H(i, 1) = h;
             obj.(pool) = H;
@@ -983,10 +1082,12 @@ classdef EphysTraceViewer < handle
         end
 
         function restack(obj)
-            % Front to back: text, scale, selection, spikes, traces, breaks, shading, heatmap.
+            % Front to back: text, scale, selection, spikes, event markers,
+            % traces, TTL traces, breaks, shading, heatmap.
             ax = obj.Axes;
             front = [obj.Message; obj.ScaleText; obj.ScaleLine; obj.SelectPatch; obj.SpikeLines(:); ...
-                obj.TraceLines(:); obj.BreakLine; obj.ShadePatches(:); obj.Image];
+                obj.EventMarks(:); obj.TraceLines(:); obj.EventTraces(:); obj.StripLine; obj.BreakLine; ...
+                obj.ShadePatches(:); obj.Image];
             front = front(isgraphics(front));
             kids = ax.Children;
             others = kids(~ismember(kids, front));
@@ -1122,6 +1223,99 @@ classdef EphysTraceViewer < handle
             xs = [t(:).' + tms / 1e3; NaN(1, n)];
         end
 
+        %% events
+        function S = stripRows(obj, vis)
+            % The lanes' bottom and top edges (bottom, base) and the TTL rows
+            % above them: the event lines drawn there (idx), their centres
+            % (y, top row first) and the row height (h, axes units, so a row
+            % is EventRowPixels tall; the rows at most 40% of the plot).
+            if isempty(vis)
+                S = struct('bottom', -0.5, 'base', 0.5);
+            else
+                S = struct('bottom', -(vis(end) - 1) - 0.5, 'base', -(vis(1) - 1) + 0.5);
+            end
+            S.idx = zeros(1, 0);
+            if obj.EventStrip && ~isempty(obj.Events)
+                S.idx = find([obj.Events.show]);
+            end
+            n = numel(S.idx);
+            S.h = 0;
+            if n > 0
+                pp = plotPixels(obj.Axes);
+                P = max(pp(4), 50);
+                stripPx = min(n * obj.EventRowPixels, 0.4 * P);
+                S.h = stripPx / n * (S.base - S.bottom) / (P - stripPx);
+            end
+            S.y = S.base + (n - (1:n) + 0.5) * S.h;
+            obj.StripBase = S.base;
+        end
+
+        function drawEvents(obj, span, S)
+            % Each event line shown: its onsets (solid) and offsets (dotted)
+            % across the lanes, one per pixel column (EventOverlay), and its
+            % TTL trace in its row above them (EventStrip, rows S).
+            E = obj.Events;
+            pp = plotPixels(obj.Axes);
+            px = max(200, pp(3));
+            row = zeros(1, numel(E));
+            row(S.idx) = 1:numel(S.idx);
+            styles = ["-" ":"];
+            for i = 1:numel(E)
+                ev = E(i);
+                t = {ev.on, ev.off};
+                for m = 1:2
+                    tm = zeros(0, 1);
+                    if obj.EventOverlay && ev.show
+                        tm = t{m}(t{m} >= span(1) & t{m} <= span(2));
+                        [~, first] = unique(floor((tm - obj.TStart) / obj.TWidth * px), 'stable');
+                        tm = tm(first);
+                    end
+                    k = 2 * (i - 1) + m;
+                    if isempty(tm)
+                        obj.hidePooled("EventMarks", k);
+                        continue
+                    end
+                    n = numel(tm);
+                    set(obj.poolLine("EventMarks", k), 'XData', reshape([tm, tm, NaN(n, 1)].', [], 1), ...
+                        'YData', repmat([S.bottom; S.base; NaN], n, 1), 'Color', ev.color, ...
+                        'LineStyle', styles(m), 'Visible', 'on');
+                end
+                if row(i) == 0
+                    obj.hidePooled("EventTraces", i);
+                    continue
+                end
+                lo = S.y(row(i)) - 0.3 * S.h;
+                hi = S.y(row(i)) + 0.3 * S.h;
+                k0 = bsearch(ev.off, span(1)) + 1;   % the periods that reach into SPAN
+                k1 = bsearch(ev.on, span(2));
+                on = max(ev.on(k0:k1), span(1));
+                off = min(ev.off(k0:k1), span(2));
+                n = numel(on);
+                set(obj.poolLine("EventTraces", i), ...
+                    'XData', [span(1); reshape([on, on, off, off].', [], 1); span(2)], ...
+                    'YData', [lo; repmat([lo; hi; hi; lo], n, 1); lo], 'Color', ev.color, 'Visible', 'on');
+            end
+            for k = 2 * numel(E) + 1:numel(obj.EventMarks)
+                obj.hidePooled("EventMarks", k);
+            end
+            for k = numel(E) + 1:numel(obj.EventTraces)
+                obj.hidePooled("EventTraces", k);
+            end
+            if isempty(S.idx)
+                set(obj.StripLine, 'XData', NaN, 'YData', NaN, 'Visible', 'off');
+            else
+                set(obj.StripLine, 'XData', span, 'YData', [S.base S.base], 'Visible', 'on');
+            end
+        end
+
+        function hidePooled(obj, pool, i)
+            % Empty and hide line I of POOL, when it was ever made.
+            H = obj.(pool);
+            if i <= numel(H) && isgraphics(H(i))
+                set(H(i), 'XData', [], 'YData', [], 'Visible', 'off');
+            end
+        end
+
         %% shading, breaks, scale, overview
         function drawShading(obj, span, lanes) %#ok<INUSD>
             S = obj.Shading;
@@ -1180,6 +1374,7 @@ classdef EphysTraceViewer < handle
                 return
             end
             x = xl(2) - 0.012 * diff(xl);
+            yl(2) = min(yl(2), obj.StripBase);   % below the TTL rows
             top = yl(2) - 0.15;
             if obj.Mode == "heatmap"
                 set(obj.ScaleLine, 'XData', NaN, 'YData', NaN);

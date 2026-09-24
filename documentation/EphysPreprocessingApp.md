@@ -1124,6 +1124,7 @@ datasets and marking artifacts is off until the tab shows the active one.
 | Sorted units | ticks or waveforms, one colour per unit (twelve colours, in probe order); *Units*: all but noise / good + MUA / good only, by phy's labels (else Kilosort4's) |
 | Detected spikes | ticks or waveforms, one colour per channel |
 | Draw on | *Their channel's lane* (a unit on its peak channel) or *Lanes of their own* (a raster lane per unit / channel after the traces). With *None* they always get their own lanes |
+| Events: Draw, Lines | the digital-input events: *Over the traces* (a solid line at each onset, a dotted one at each offset, across the lanes), *Above the traces (TTL)* (each line as a TTL trace in a 16-pixel row of its own above the top lane), *Both* or *Off*; *Lines* picks the lines drawn (at first every line with an event). **Read events** reads them from the recording when nothing else has them, see below |
 | Start, Window, Spacing | the view, which follows every pan and zoom; type to jump. Spacing is the voltage between neighbouring lanes (the scale bar at the top right) |
 | Plot, Colours | traces, or a heatmap of each bin's extreme per lane (colour range ± Spacing) |
 | Order by probe, Colour by shank | lanes by shank, top of the shank first, with a dotted line between shanks (`channelLayout` on the dataset's probe, else the config's default probe); the units' and channels' own lanes follow the same order |
@@ -1167,7 +1168,19 @@ unit's template (in µV when the sort has `bin_scale`, else scaled to the lane).
 With more than 4,000 spikes in view, or on a trace below 10 kHz, waveforms fall
 back to ticks and the status line says so.
 
-**Interaction**, with the pointer over the plot:
+**Events.** The events come from the Signals step's extract (lines named and
+their polarity applied as when the step ran), else from the dataset's events
+file `<Name>_events.mat` (written by the Trials tab, a Signals run or **Read
+events**), which gets the polarity of the dataset's `InvertedLines`. With
+neither, **Read events** reads the digital inputs from the recording (for
+some formats the whole recording) and keeps them in that file. An onset at
+row r (t = r/Fs on the events' clock) is drawn at (r − 1)/Fs, on the sample the
+line turned on; an offset at the first row after the last on row. Markers that
+would fall on one pixel column are drawn once.
+
+**Interaction.** The **?** button at the right end of the toolbar opens a
+small window listing these; it can stay open beside the plot. With the pointer
+over the plot:
 
 | Input | Action |
 | --- | --- |
@@ -1188,14 +1201,16 @@ The toolbar above the plot does the same with buttons (**< Page**, **Page >**,
 **Zoom in / out**, **Taller / Shorter**, **Auto scale**, **Reset view**). The
 strip under the plot shows the whole recording, the view as a blue box, the
 spike rate of the layers shown and the artifact periods; click or drag in it to
-move there.
+centre the plot there.
 
 **Artifact overlays**: orange = the Artifacts tab's **Detect / Preview**
 intervals of the plotted dataset (the detector a run uses, over the whole
 recording), while its detection settings are still the ones the preview ran
-with; otherwise none is shaded, and the status line says why. A run's cached
-detection is not shown, and nothing is detected on the displayed data. Red =
-manual periods. The artifact status line counts both and says where a run
+with; otherwise the automatic detection the last run used
+(`<Name>_artifacts.json`, read with the plot: what was erased from the
+processed files), and the status line says which. With neither, none is
+shaded and the status line says why. Nothing is detected on the displayed
+data. Red = manual periods. The artifact status line counts both and says where a run
 erases the manual periods: in the `.bin`, and in the signals too while the
 Signals tab's *Erase the artifact periods first* is ticked. **Mark Artifacts**
 toggles marking mode (left-drag adds a period, click inside a red region
@@ -1645,8 +1660,8 @@ app.KSQueue                       % prepared runs waiting for a slot (Queue the 
 | `queueKSRun.m`, `onStopKSQueue.m`, `onStopKSRuns.m`, `stopKSRuns.m`, `markKSResult.m` | background Kilosort4 runs: the queue the monitor starts from, Stop queue, Stop runs..., restating a run's result row |
 | `onSpikesPreview.m`, `syncSpikesEnableStates.m` | Spikes tab |
 | `onBrowseExportOutput.m`, `onExportEpochsToWorkspace.m` | Export tab (output folder, Epochs to workspace) |
-| `onPlotVisualization.m`, `applyVizSettings.m`, `onVizControlsChanged.m`, `onVizViewChanged.m`, `onVizInput.m`, `onVizButtonDown/Up.m`, `refreshVizShading.m`, `vizDetectedIntervals.m`, `finishVizArtDrag.m`, `syncVizDataset.m`; `pipeline/EphysTraceViewer.m`, `pipeline/EphysTraceSource.m` | Visualize tab: loading the active dataset's signals and spikes, the controls, the wheel / keys / drags, the shading (`vizDetectedIntervals`: the Artifacts preview's intervals the plot shades, or why none); the viewer and the windowed sources behind it |
-| `buildFlowTab.m`, `refreshFlowChart.m`, `flowChartHTML.m`, `flowOverviewHTML.m`, `onFlowViewChanged.m`, `onFlowLayoutChanged.m`, `onSaveFlowChart.m`, `onOpenFlowChartInBrowser.m`, `onFlowNavigate.m`, `flowNavControls.m`, `clearFlowHighlight.m` | Diagram tab: the page in the view picked (every parameter; the data-flow overview, laid out and routed in `flowOverviewHTML`), save / open, a box's click |
+| `onPlotVisualization.m`, `applyVizSettings.m`, `onVizControlsChanged.m`, `onVizViewChanged.m`, `onVizInput.m`, `onVizButtonDown/Up.m`, `refreshVizShading.m`, `vizDetectedIntervals.m`, `finishVizArtDrag.m`, `syncVizDataset.m`, `loadVizEvents.m`, `onVizReadEvents.m`, `showVizHelp.m`; `pipeline/EphysTraceViewer.m`, `pipeline/EphysTraceSource.m` | Visualize tab: loading the active dataset's signals and spikes, the controls, the wheel / keys / drags, the shading (`vizDetectedIntervals`: the Artifacts preview's intervals the plot shades, or why none); the digital-input events and Read events; the "?" window of mouse and key controls; the viewer and the windowed sources behind it |
+| `buildFlowTab.m`, `refreshFlowChart.m`, `flowChartHTML.m`, `flowOverviewHTML.m`, `onFlowViewChanged.m`, `onFlowLayoutChanged.m`, `onSaveFlowChart.m`, `onOpenFlowChartInBrowser.m`, `onFlowNavigate.m`, `flowNavControls.m`, `clearFlowHighlight.m`, `private/flowZoom.m` | Diagram tab: the page in the view picked (every parameter; the data-flow overview, laid out and routed in `flowOverviewHTML`), its zoom and pan (`flowZoom`, kept per view), save / open, a box's click |
 | `buildCopyTab.m`, `onCopyFind.m`, `onCopyRun.m`, `refreshCopyTable.m`, `onCopyTableEdited.m`, `onCopyStitch.m`, `onCopyUnstitch.m`, `onBrowseCopyFolder.m`, `copyLog.m`, `onCopyCancel.m`, `startCopyMonitor.m`, `stopCopyMonitor.m`, `pollCopyJob.m`, `setCopyRunning.m`, `applyCopyResult.m`, `finishCopyRun.m`, `showCopyProgress.m`, `copySummaryText.m`, `refreshCopySchedule.m`, `onCopyScheduleSave.m`, `onCopyScheduleRemove.m`, `onCopyScheduleRunNow.m`, `onCopyScheduleLog.m`; `pipeline/findCopySessions.m`, `pipeline/stitchCopySessions.m`, `pipeline/copySessions.m`, `pipeline/copy_engine.ps1`, `pipeline/stitchEpsychSessions.m`, `pipeline/CopySchedule.m` | Copy tab, the pairing / stitching / copy functions it calls, the detached copy engine, and the scheduled copy (its Windows task and what each run does) |
 | `loadReviewResults.m`, `renderReviewPlots.m`, `syncReviewDataset.m` | Review tab |
 | `buildSyntheticTab.m`, `onSynthLoadSource.m`, `onSynthPreview.m`, `renderSynthPreview.m`, `onSynthGenerate.m`, `generateSynthetic.m`, `onSynthDesign.m`, `onSynthControlsChanged.m`, `onSynthSourceChanged.m`, `syncSynthControls.m`, `gather/applySynthDesign.m`, `synthColumns.m`, `synthSourceLists.m`, `synthSourceKey.m`, `synthGeneratorArgs.m`, `synthOutputRoot.m`, `synthOutputFolder.m`; `pipeline/SyntheticDesign.m`, `pipeline/syntheticModel.m`, `pipeline/syntheticTaskSchedule.m`, `pipeline/syntheticSessionSchedule.m`, `pipeline/makeSyntheticRecording.m` | Synthetic tab (`generateSynthetic`: Generate without its questions; `synthGeneratorArgs`: the options Preview and Generate share) and the generator |

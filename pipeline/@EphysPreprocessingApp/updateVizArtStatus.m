@@ -4,9 +4,15 @@ function updateVizArtStatus(obj)
     % whether a run removes them) and the manual (red) periods.
     if isempty(obj.VizArtStatusLabel) || ~isvalid(obj.VizArtStatusLabel); return; end
 
-    [det, why] = obj.vizDetectedIntervals();
+    [det, why, source] = obj.vizDetectedIntervals();
     nDet = size(det, 1);
-    if why ~= ""
+    if source == "run"
+        [~, f, e] = fileparts(obj.VizData.artifacts.file);
+        detTxt = sprintf("%d detected by the last run (orange, %s%s). ", nDet, f, e);
+        if why ~= ""
+            detTxt = detTxt + "For the current settings: " + why + " ";
+        end
+    elseif why ~= ""
         detTxt = why + " ";
     elseif nDet == 0
         detTxt = "No artifacts detected with these settings. ";

@@ -8,10 +8,11 @@ function buildVisualizeTab(obj)
 %   onPlotVisualization finds its processed files, and Reload finds them
 %   again after a run. Every other control applies at once and never
 %   changes a file, except the manual artifact periods (Mark Artifacts),
-%   which are written to the dataset's manifest.
+%   which are written to the dataset's manifest. The "?" button at the
+%   end of the toolbar lists the mouse and key controls (showVizHelp).
 %
 %   See also onPlotVisualization, onVizControlsChanged, onVizInput,
-%   EphysTraceViewer, EphysTraceSource.
+%   showVizHelp, EphysTraceViewer, EphysTraceSource.
 
 g = uigridlayout(obj.TabVisualize, [1 2]);
 g.ColumnWidth = {384, '1x'};
@@ -21,7 +22,7 @@ g.Padding     = [10 10 10 10];
 ctrl = uipanel(g, "Title", "Display options (never change the data)");
 ctrl.Layout.Column = 1;
 
-nRows = 26;
+nRows = 28;
 cg = uigridlayout(ctrl, [nRows 4]);
 cg.RowHeight   = [repmat({'fit'}, 1, nRows - 1), {'1x'}];
 cg.ColumnWidth = {84, 80, 66, 80};   % fixed: wrapped labels never widen the panel
@@ -144,6 +145,34 @@ obj.VizSpikesLabel = uilabel(cg, "Text", "", "WordWrap", "on", "FontColor", [0.4
 obj.VizSpikesLabel.Layout.Row = row; obj.VizSpikesLabel.Layout.Column = [1 4];
 
 row = row + 1;
+heading(cg, "Events (digital inputs)", row);
+
+row = row + 1;
+lab(cg, "Draw:", row);
+obj.VizEventsDropDown = uidropdown(cg, "Items", {'Off', 'Over the traces', 'Above the traces (TTL)', 'Both'}, ...
+    "ItemsData", {'off', 'overlay', 'strip', 'both'}, "Value", 'strip', "ValueChangedFcn", changed("events"), ...
+    "Tooltip", ["Over the traces: a solid line at each onset and a dotted one at each offset, " ...
+        "across the lanes. Above the traces: each line as a TTL trace in a row of its own."]);
+obj.VizEventsDropDown.Layout.Row = row; obj.VizEventsDropDown.Layout.Column = [2 4];
+
+row = row + 1;
+lab(cg, "Lines:", row);
+obj.VizEventLinesListBox = uilistbox(cg, "Items", {}, "Multiselect", "on", ...
+    "Tooltip", "The lines drawn (Ctrl+click for several). Lines with no event start unselected.", ...
+    "ValueChangedFcn", changed("events"));
+obj.VizEventLinesListBox.Layout.Row = row; obj.VizEventLinesListBox.Layout.Column = [2 4];
+cg.RowHeight{row} = 66;
+
+row = row + 1;
+obj.VizEventsLabel = uilabel(cg, "Text", "", "WordWrap", "on", "FontColor", [0.4 0.4 0.4]);
+obj.VizEventsLabel.Layout.Row = row; obj.VizEventsLabel.Layout.Column = [1 3];
+obj.VizEventsReadButton = uibutton(cg, "Text", "Read events", "Enable", "off", ...
+    "Tooltip", ["Read the recording's digital inputs (can mean reading the whole recording; " ...
+        "kept in <Name>_events.mat for next time)."], ...
+    "ButtonPushedFcn", @(~, ~) obj.onVizReadEvents());
+obj.VizEventsReadButton.Layout.Row = row; obj.VizEventsReadButton.Layout.Column = 4;
+
+row = row + 1;
 heading(cg, "View", row);
 
 row = row + 1;
@@ -206,11 +235,6 @@ obj.VizArtStatusLabel = uilabel(cg, "Text", "No artifacts defined.", "WordWrap",
     "FontColor", [0.6 0.2 0.2]);
 obj.VizArtStatusLabel.Layout.Row = row; obj.VizArtStatusLabel.Layout.Column = [1 4];
 
-row = row + 1;
-obj.VizHelpLabel = uilabel(cg, "WordWrap", "on", "FontColor", [0.3 0.3 0.3], ...
-    "VerticalAlignment", "top", "Text", helpText());
-obj.VizHelpLabel.Layout.Row = row; obj.VizHelpLabel.Layout.Column = [1 4];
-
 % --- right: toolbar, plot, overview -----------------------------------------
 rg = uigridlayout(g, [3 1]);
 rg.Layout.Column = 2;
@@ -218,11 +242,11 @@ rg.RowHeight = {30, '1x', 64};
 rg.Padding = [0 0 0 0];
 rg.RowSpacing = 4;
 
-tb = uigridlayout(rg, [1 9]);
+tb = uigridlayout(rg, [1 10]);
 tb.Layout.Row = 1;
 tb.Padding = [0 0 0 0];
 tb.ColumnSpacing = 4;
-tb.ColumnWidth = {70, 70, 70, 70, 70, 70, 80, 80, '1x'};
+tb.ColumnWidth = {70, 70, 70, 70, 70, 70, 80, 80, '1x', 30};
 act = @(f) @(~, ~) vizAction(obj, f);
 specs = { ...
     "< Page",   "Back one window (Page Up)",               @(v) v.panTime(-1); ...
@@ -241,6 +265,10 @@ for k = 1:size(specs, 1)
 end
 obj.VizStatusLabel = uilabel(tb, "Text", "", "FontColor", [0.4 0.4 0.4], "WordWrap", "on");
 obj.VizStatusLabel.Layout.Column = 9;
+obj.VizHelpButton = uibutton(tb, "Text", "", "Icon", "question", ...
+    "Tooltip", "Mouse and keyboard controls of the plot", ...
+    "ButtonPushedFcn", @(~, ~) obj.showVizHelp());
+obj.VizHelpButton.Layout.Column = 10;
 
 obj.VizAxes = uiaxes(rg);
 obj.VizAxes.Layout.Row = 2;
@@ -254,11 +282,24 @@ obj.Viewer.ViewChangedFcn = @(~) obj.onVizViewChanged();
 obj.Viewer.BusyFcn = @(msg) vizBusy(obj, msg);
 obj.Viewer.render();
 
-% The figure's buttons: drag to pan, click or drag the overview, mark
-% artifacts (onVizButtonDown); the wheel and keys come through
+% The figure's buttons: drag to pan, mark artifacts (onVizButtonDown); a
+% press on the overview strip is its own (vizSeekStart), so it takes the
+% time clicked from the strip itself; the wheel and keys come through
 % routeFigureInput (onVizInput).
 obj.Fig.WindowButtonDownFcn = @(~, ~) obj.onVizButtonDown();
 obj.Fig.WindowButtonUpFcn   = @(~, ~) obj.onVizButtonUp();
+obj.VizOverviewAxes.ButtonDownFcn = @(~, evt) vizSeekStart(obj, evt.IntersectionPoint(1));
+end
+
+
+function vizSeekStart(obj, t)
+%vizSeekStart  A press on the overview strip: centre the view on time T; a drag follows the pointer.
+if ~obj.vizActive(); return; end
+v = obj.Viewer;
+ov = obj.VizOverviewAxes;
+obj.VizGesture = "seek";
+v.seekOverview(t);
+obj.Fig.WindowButtonMotionFcn = @(~, ~) v.seekOverview(ov.CurrentPoint(1, 1));
 end
 
 
@@ -301,24 +342,4 @@ if nargin < 4; col = 1; end
 l = uilabel(parent, "Text", txt);
 l.Layout.Row = row;
 l.Layout.Column = col;
-end
-
-
-function s = helpText()
-%helpText  Mouse / keyboard cheatsheet shown under the controls.
-s = sprintf([ ...
-    'With the pointer over the plot:\n' ...
-    '  wheel ............... zoom time about the pointer\n' ...
-    '  Ctrl+wheel .......... scale the voltage\n' ...
-    '  Shift+wheel ......... scroll the lanes\n' ...
-    '  drag ................ pan time (and lanes)\n' ...
-    '  <- / -> ............. pan a quarter window\n' ...
-    '  Shift+<- / -> ....... zoom time out / in\n' ...
-    '  Page Up / Down ...... a whole window\n' ...
-    '  Up / Down, + / - .... scale the voltage\n' ...
-    '  Shift+Up / Down ..... scroll the lanes\n' ...
-    '  Home / End .......... start / end\n' ...
-    '  A ................... auto scale    R ... reset view\n' ...
-    'Overview strip: click or drag to move there.\n' ...
-    'Mark Artifacts on: drag to mark a period, click a red one to remove it.']);
 end

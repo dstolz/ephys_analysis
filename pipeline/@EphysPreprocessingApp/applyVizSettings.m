@@ -14,6 +14,9 @@ function applyVizSettings(obj, what)
 %     "spikes"      the Sorted units / Detected spikes layers: shown or
 %                   not, ticks or waveforms, where they are drawn, which
 %                   units by label; and the counts under them
+%     "events"      the digital-input events (VizData.events): drawn over
+%                   the traces, above them as TTL rows, both or not; the
+%                   lines picked in the Lines list
 %     "lanes", "mode", "shading"   lanes shown, traces / heatmap and its
 %                   colours, the artifact periods shaded
 %     "all"         everything
@@ -147,6 +150,19 @@ if every || what == "spikes"
     if ~hasUnits; txt = ["no sorted units", txt]; end
     if ~hasDet; txt(end+1) = "no detected spikes"; end
     obj.VizSpikesLabel.Text = strjoin(txt, "; ") + ".";
+end
+
+if every || what == "events"
+    E = EphysTraceViewer.emptyEvents();
+    if isfield(D, 'events'); E = D.events; end
+    v.setEvents(E);
+    mode = string(obj.VizEventsDropDown.Value);
+    v.EventOverlay = any(mode == ["overlay" "both"]);
+    v.EventStrip = any(mode == ["strip" "both"]);
+    if ~isempty(E)
+        v.setEventShow(ismember([E.name], string(obj.VizEventLinesListBox.Value)));
+    end
+    obj.VizEventLinesListBox.Enable = matlab.lang.OnOffSwitchState(~isempty(E));
 end
 
 if every || what == "lanes"

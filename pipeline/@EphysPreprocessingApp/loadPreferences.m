@@ -98,6 +98,7 @@ if ispref(g, 'VizOptions')
         applyIf(v, 'probeOrder', @(x) set(obj.VizSortByProbeCheckBox, 'Value', logical(x)));
         applyIf(v, 'shankColor', @(x) set(obj.VizColorByShankCheckBox, 'Value', logical(x)));
         applyIf(v, 'shading',   @(x) set(obj.VizShadingCheckBox, 'Value', logical(x)));
+        applyIf(v, 'events',    @(x) set(obj.VizEventsDropDown, 'Value', char(x)));
     end
 end
 

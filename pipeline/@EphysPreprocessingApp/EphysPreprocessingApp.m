@@ -302,7 +302,11 @@ classdef EphysPreprocessingApp < handle
         VizArtButton       matlab.ui.control.StateButton
         VizArtClearButton  matlab.ui.control.Button
         VizArtStatusLabel  matlab.ui.control.Label
-        VizHelpLabel       matlab.ui.control.Label
+        VizEventsDropDown  matlab.ui.control.DropDown     % events: off / over the traces / above them / both
+        VizEventLinesListBox matlab.ui.control.ListBox    % the event lines drawn
+        VizEventsLabel     matlab.ui.control.Label        % where the events came from
+        VizEventsReadButton matlab.ui.control.Button      % read the recording's digital inputs
+        VizHelpButton      matlab.ui.control.Button       % "?": showVizHelp
         VizToolbarButtons  % 1 x 8 matlab.ui.control.Button: page, zoom, scale, auto scale, reset
         VizStatusLabel     matlab.ui.control.Label
         VizAxes            matlab.ui.control.UIAxes
@@ -712,8 +716,10 @@ classdef EphysPreprocessingApp < handle
         % another recording (onScan rebinds it to the same folder).
         VizDataset EphysDataset = EphysDataset.empty
         % What was loaded for it (onPlotVisualization): sources (its
-        % EphysTraceSource array), units, detected, layers, notes.
+        % EphysTraceSource array), units, detected, layers, notes, events
+        % (EphysTraceViewer.eventLines) and eventsNote (where they came from).
         VizData = []
+        VizHelpFig = []            % the "?" window (showVizHelp)
         VizSourceKind (1,1) string = "recording"   % the kind shown, kept across datasets
         VizGesture (1,1) string = ""               % "pan" | "seek" | "mark" while a button is held
         VizArtMode (1,1) logical = false
@@ -1015,7 +1021,7 @@ classdef EphysPreprocessingApp < handle
         onVizButtonDown(obj)
         onVizButtonUp(obj)
         refreshVizShading(obj, draw)
-        [iv, why] = vizDetectedIntervals(obj)
+        [iv, why, source] = vizDetectedIntervals(obj)
         tf = vizActive(obj)
         d = currentVizDataset(obj)
         onVizArtToggle(obj, val)
@@ -1024,6 +1030,9 @@ classdef EphysPreprocessingApp < handle
         finishVizArtDrag(obj)
         updateVizArtStatus(obj)
         syncVizDataset(obj)
+        loadVizEvents(obj, out, read)
+        onVizReadEvents(obj)
+        showVizHelp(obj)
 
         % --- Probe tab ---
         refreshProbeList(obj)

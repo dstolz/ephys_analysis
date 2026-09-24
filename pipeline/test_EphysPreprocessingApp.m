@@ -1723,6 +1723,43 @@ app.Fig.CurrentPoint = [1 1];
 w2 = app.Viewer.TWidth;
 app.Fig.WindowScrollWheelFcn(app.Fig, struct('VerticalScrollCount', 1));
 check(app.Viewer.TWidth == w2, 'the wheel away from the plot leaves it alone');
+tSeek = 0.6 * nTot / Fs;
+% A click on the overview strip, as MATLAB delivers it: the figure's button
+% down, the strip's own ButtonDownFcn (with the point clicked), the button up.
+ov = app.VizOverviewAxes;
+app.Fig.WindowButtonDownFcn(app.Fig, []);
+ov.ButtonDownFcn(ov, struct('IntersectionPoint', [tSeek 0.5 0]));
+app.Fig.WindowButtonUpFcn(app.Fig, []);
+check(abs(app.Viewer.TStart + app.Viewer.TWidth / 2 - tSeek) < 1e-9 && app.VizGesture == "" ...
+    && isempty(app.Fig.WindowButtonMotionFcn), 'a click on the overview strip centres the plot on that time, and the release ends the gesture');
+app.VizHelpButton.ButtonPushedFcn(app.VizHelpButton, []);
+hHelp = app.VizHelpFig;
+app.VizHelpButton.ButtonPushedFcn(app.VizHelpButton, []);
+helpTxt = string(get(findall(hHelp, 'Type', 'uilabel'), 'Text'));
+check(isvalid(hHelp) && app.VizHelpFig == hHelp && contains(helpTxt, "Ctrl+wheel") && contains(helpTxt, "Overview strip") ...
+    && string(app.VizHelpButton.Icon) == "question" && ~isprop(app, 'VizHelpLabel'), ...
+    'the "?" button opens the mouse and keys window (once, pressed again it comes to the front); the panel no longer lists them');
+delete(hHelp);
+check(app.VizEventsReadButton.Enable == "on" && contains(app.VizEventsLabel.Text, "No events yet") ...
+    && isempty(app.Viewer.Events), ...
+    'no Signals extract and no events file: no events are loaded, and Read events is offered');
+app.onVizReadEvents();
+check(contains(app.VizEventsLabel.Text, "read from the recording") && app.VizEventsReadButton.Enable == "off" ...
+    && isfile(fullfile(dM3.outputFolder(), dM3.Name + "_events.mat")), ...
+    'Read events reads the digital inputs and keeps them in <Name>_events.mat');
+app.VizData.events = EphysTraceViewer.eventLines(struct('TTL1', [(tSpike + 1) / Fs, (tSpike + 20) / Fs]), Fs);
+app.VizEventLinesListBox.Items = {'TTL1'};
+app.VizEventLinesListBox.Value = {'TTL1'};
+app.VizEventsDropDown.Value = 'both';
+app.onVizControlsChanged("events");
+app.Viewer.setView((tSpike - 5) / Fs, 40 / Fs);
+hOn = findall(app.VizAxes, 'Type', 'line', 'LineWidth', 1, 'LineStyle', '-', 'Visible', 'on');
+xOn = cell2mat(get(hOn, {'XData'}).');
+check(numel(hOn) == 2 && any(abs(xOn - tSpike / Fs) < 1e-12) && strcmp(app.VizAxes.YTickLabel{end}, 'TTL1') ...
+    && app.VizAxes.YLim(2) > 0.5, ...
+    'Events "Both": an onset marker on the sample the line turned on, and the line''s TTL row above the traces');
+app.VizEventsDropDown.Value = 'strip';
+app.onVizControlsChanged("events");
 app.Viewer.setView(0, nTot / Fs);
 p = findall(app.VizAxes, 'Type', 'patch', 'Visible', 'on');
 check(isempty(app.vizDetectedIntervals()) && contains(app.VizArtStatusLabel.Text, "Detect / Preview") ...
@@ -1750,6 +1787,17 @@ app.selectTab(app.TabVisualize);
 check(isempty(app.vizDetectedIntervals()) && contains(app.VizArtStatusLabel.Text, "changed") ...
     && isscalar(findall(app.VizAxes, 'Type', 'patch', 'Visible', 'on')), ...
     'a detection setting changed since the preview: nothing is shaded orange, and the tab says so');
+fArt = fullfile(dM3.outputFolder(), dM3.Name + "_artifacts.json");
+writeJsonFile(fArt, struct('schema', "ephys-artifacts/3", 'dataset', dM3.Name, 'fingerprint', "test", ...
+    'intervals', [0.01 0.012], 'nIntervals', 1));
+app.onPlotVisualization();                     % Reload data: finds the run's file
+p = findall(app.VizAxes, 'Type', 'patch', 'Visible', 'on');
+orange = p(arrayfun(@(h) isequal(h.FaceColor, [0.95 0.6 0.1]), p));
+check(isscalar(orange) && abs(min(orange.XData, [], 'all') - 0.01) < 1e-12 ...
+    && contains(app.VizArtStatusLabel.Text, "1 detected by the last run") && contains(app.VizArtStatusLabel.Text, "changed"), ...
+    'with no current preview, the periods the last run detected (<Name>_artifacts.json) are shaded orange, and the tab says so');
+delete(fArt);
+app.onPlotVisualization();
 app.applyArtifactsSection(cfgB.Artifacts);
 app.onArtifactControlsChanged();
 fM1 = fullfile(root2, 'recM001_260101_120000'); mkdir(fM1);

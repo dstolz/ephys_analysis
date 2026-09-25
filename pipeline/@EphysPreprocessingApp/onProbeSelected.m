@@ -129,31 +129,78 @@ shanks = unique(kcoords);
 cmap = lines(max(numel(shanks), 1));
 for s = 1:numel(shanks)
     m = kcoords == shanks(s) & ~isExcl;
-    scatter(ax, xc(m), yc(m), 36, cmap(s,:), "filled", ...
-        "MarkerEdgeColor", [0.2 0.2 0.2], ...
+    if ~any(m); continue; end
+    h = scatter(ax, xc(m), yc(m), 44, cmap(s,:), "filled", ...
+        "MarkerEdgeColor", [0.15 0.15 0.15], ...
         "DisplayName", sprintf("shank %g", shanks(s)));
+    addSiteDataTips(h, binCh(m), shanks(s));
 end
 if any(isExcl)
-    scatter(ax, xc(isExcl), yc(isExcl), 48, [0.5 0.5 0.5], "x", ...
-        "LineWidth", 1.5, "DisplayName", "excluded");
+    h = scatter(ax, xc(isExcl), yc(isExcl), 60, [0.5 0.5 0.5], "x", ...
+        "LineWidth", 1.8, "DisplayName", "excluded");
+    addSiteDataTips(h, binCh(isExcl), kcoords(isExcl));
 end
 
-% Optional per-site channel-number labels (1-based .bin channel), offset a
-% touch to the right of each marker so they don't sit on top of it.
+% Optional per-site channel-number labels (1-based .bin channel). Sites sit in
+% staggered columns 10-20 um apart, so labels go outward -- the left column of
+% a shank labels to the left, the right column to the right -- which keeps
+% neighbours in one column from overprinting each other.
 if showNumbers
-    dx = 0.02 * max(max(xc) - min(xc), 1);
-    text(ax, xc + dx, yc, string(binCh), "FontSize", 7, ...
-        "Color", [0.15 0.15 0.15], "Clipping", "on", ...
-        "HorizontalAlignment", "left", "VerticalAlignment", "middle");
+    dx = 0.025 * max(max(xc) - min(xc), 1);
+    left = false(n, 1);
+    for s = 1:numel(shanks)
+        m = kcoords == shanks(s);
+        xr = [min(xc(m)) max(xc(m))];
+        if diff(xr) > 1
+            left(m) = xc(m) < mean(xr);
+        end
+    end
+    txtColor = [0.05 0.05 0.05];
+    txtColor = repmat(txtColor, n, 1);
+    txtColor(isExcl, :) = 0.45;
+    for side = [true false]
+        m = left == side;
+        if ~any(m); continue; end
+        if side
+            ha = "right"; sgn = -1;
+        else
+            ha = "left"; sgn = 1;
+        end
+        t = text(ax, xc(m) + sgn*dx, yc(m), string(binCh(m)), ...
+            "FontSize", 10, "FontWeight", "bold", "Clipping", "on", ...
+            "HorizontalAlignment", ha, "VerticalAlignment", "middle");
+        set(t, {"Color"}, num2cell(txtColor(m, :), 2));
+    end
 end
 hold(ax, "off");
 
+% Pad the limits so the outermost markers and their labels are not clipped.
+padX = max(0.10 * max(range(xc), 1), 15);
+padY = max(0.04 * max(range(yc), 1), 15);
 axis(ax, "equal");
+xlim(ax, [min(xc) - padX, max(xc) + padX]);
+ylim(ax, [min(yc) - padY, max(yc) + padY]);
+box(ax, "on");
 grid(ax, "on");
+ax.GridAlpha = 0.25;
+ax.FontSize = 11;
 title(ax, sprintf("Channel arrangement (%d sites, %d excluded)", n, nnz(isExcl)));
 xlabel(ax, "x (\mum)");
 ylabel(ax, "y (\mum)");
 if numel(shanks) > 1 || any(isExcl)
-    legend(ax, "Location", "eastoutside");
+    % Below the plot: a side legend eats the width the x axis needs.
+    lg = legend(ax, "Location", "southoutside", "Orientation", "horizontal");
+    lg.NumColumns = min(numel(shanks) + any(isExcl), 5);
+    lg.FontSize = 10;
+end
+end
+
+
+function addSiteDataTips(h, binCh, shank)
+%addSiteDataTips  Hover text for a site scatter: recording channel and shank.
+try
+    h.DataTipTemplate.DataTipRows(end+1) = dataTipTextRow("channel", binCh);
+    h.DataTipTemplate.DataTipRows(end+1) = dataTipTextRow("shank", shank(:) + zeros(size(binCh)));
+catch
 end
 end

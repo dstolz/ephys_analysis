@@ -324,7 +324,7 @@ classdef ProbeDesignerApp < handle
             specPath = string(tempname) + ".json";
             outPath  = string(tempname) + ".json";
             try
-                obj.writeJsonFile(spec, specPath);
+                writeJsonFile(specPath, spec);
                 obj.App.runProbeTool("generate", specPath, outPath);
                 d = jsondecode(fileread(outPath));
             catch ME
@@ -487,7 +487,7 @@ classdef ProbeDesignerApp < handle
             ks4.n_chan  = max([obj.Built.n_chan, numel(chanMap), max(chanMap) + 1]);
 
             try
-                obj.writeJsonFile(ks4, outPath);
+                writeProbeMap(outPath, ks4);   % lists for every site array, one contact or many
             catch ME
                 obj.setStatus(['Write failed: ' ME.message], true); return
             end
@@ -512,19 +512,6 @@ classdef ProbeDesignerApp < handle
             else
                 obj.StatusLabel.FontColor = [0 0 0];
             end
-        end
-
-        function writeJsonFile(~, s, file)
-            try
-                txt = jsonencode(s, 'PrettyPrint', true);
-            catch
-                txt = jsonencode(s);
-            end
-            fid = fopen(file, 'w');
-            if fid < 0
-                error('ProbeDesignerApp:WriteFailed', 'Could not write %s', file);
-            end
-            fwrite(fid, txt, 'char'); fclose(fid);
         end
     end
 end

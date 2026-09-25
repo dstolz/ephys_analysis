@@ -4,8 +4,10 @@ function result = runKilosort(obj, opts)
 %   blanking the artifact intervals), writes a settings.json and a run_ks4.py
 %   into the results dir, then launches Kilosort4 by calling a configurable
 %   python/conda executable through SYSTEM (not MATLAB's pyenv).
-%   ds.ProbeFile must point to an existing Kilosort4 probe .json (this class
-%   never generates probe maps).
+%   ds.ProbeFile must point to an existing Kilosort4 probe .json that
+%   Kilosort4 can read (probeMapProblems; a probe with problems is refused
+%   with EphysDataset:runKilosort:BadProbe before anything is written). This
+%   class never generates probe maps.
 %
 %   The probe's chanMap indexes .bin rows (0-based) directly: sites are not
 %   matched to channels by their native number, so a recording with a
@@ -119,6 +121,13 @@ if probeFile == ""
 end
 if ~isfile(probeFile)
     error('EphysDataset:runKilosort:ProbeMissing', 'Probe file not found: %s', probeFile);
+end
+% Refuse a probe Kilosort4 could not read before the .bin is written: every
+% problem here would otherwise only surface inside Kilosort4, minutes later.
+problems = probeMapProblems(probeFile);
+if ~isempty(problems)
+    error('EphysDataset:runKilosort:BadProbe', 'Kilosort4 could not read the probe %s:\n  %s', ...
+        probeFile, strjoin(problems, newline + "  "));
 end
 if ~opts.DryRun && binGiven && ~isfile(binFile)
     error('EphysDataset:runKilosort:BinMissing', '.bin not found: %s', binFile);
@@ -333,20 +342,13 @@ end
 
 
 function checkProbeChannels(probeFile, nChanBin)
-try
-    probe = jsondecode(fileread(probeFile));
-catch ME
-    error('EphysDataset:runKilosort:BadProbeJson', ...
-        'Probe file is not valid JSON: %s (%s)', probeFile, ME.message);
-end
-nProbe = NaN;
-% n_chan, but never fewer than the mapped sites: an n_chan written from a
-% 0-based map's max index is one short of numel(chanMap); prefer the map.
-nMap = NaN;
-if isfield(probe, 'chanMap'); nMap = numel(probe.chanMap); end
-if isfield(probe, 'n_chan');  nProbe = double(probe.n_chan); end
-if ~isnan(nMap); nProbe = max([nProbe, nMap], [], 'omitnan'); end
-if ~isnan(nProbe) && nProbe ~= nChanBin
+%checkProbeChannels  Warn when the probe's channel count differs from n_chan_bin.
+%   The probe has passed probeMapProblems. n_chan, but never fewer than the
+%   mapped sites: an n_chan written from a 0-based map's max index is one
+%   short of numel(chanMap); prefer the map.
+probe = readJsonFile(probeFile);
+nProbe = max(double(probe.n_chan), numel(probe.chanMap));
+if nProbe ~= nChanBin
     warning('EphysDataset:runKilosort:ProbeChannelMismatch', ...
         'Probe channel count (%d) differs from n_chan_bin (%d).', nProbe, nChanBin);
 end
@@ -358,45 +360,30 @@ function [derivedFile, nExcluded] = writeExcludedProbe(probeFile, excludeCh, res
 %   excludeCh are 1-based .bin channels; a probe site is kept unless its
 %   chanMap value + 1 is in excludeCh. n_chan is preserved so it still matches
 %   n_chan_bin. Returns the original file unchanged when nothing is dropped.
+%   The probe has passed probeMapProblems; the derived one goes through
+%   writeProbeMap, so a single site left is still a list Kilosort4 reads.
 derivedFile = string(probeFile);
-nExcluded   = 0;
-try
-    probe = jsondecode(fileread(probeFile));
-catch ME
-    error('EphysDataset:runKilosort:BadProbeJson', ...
-        'Probe file is not valid JSON: %s (%s)', probeFile, ME.message);
-end
-
-if isfield(probe, 'chanMap') && ~isempty(probe.chanMap)
-    cm = double(probe.chanMap(:));
-elseif isfield(probe, 'xc')
-    cm = (0:numel(probe.xc)-1).';   % KS4 defaults chanMap to 0..n-1
-else
-    warning('EphysDataset:runKilosort:NoChanMap', ...
-        'Probe has no chanMap/xc; cannot exclude channels. Using full probe.');
-    return
-end
-
+probe = readJsonFile(probeFile);
+cm = double(probe.chanMap(:));
 keep = ~ismember(cm + 1, excludeCh(:));
 nExcluded = nnz(~keep);
 if nExcluded == 0
     return   % nothing in excludeCh is on this probe; keep the original
 end
-
-% Filter the per-site arrays in lockstep; leave n_chan and all other fields.
-% chanMap is written explicitly as the kept original indices so the mapping to
-% .bin rows stays correct even if the source probe omitted chanMap.
-for f = ["xc", "yc", "kcoords"]
-    if isfield(probe, f) && numel(probe.(f)) == numel(keep)
-        v = probe.(f);
-        probe.(f) = v(keep);
-    end
+if ~any(keep)
+    error('EphysDataset:runKilosort:AllExcluded', ...
+        'Every site of the probe %s is excluded; nothing is left to sort.', probeFile);
 end
-probe.chanMap = cm(keep);
+
+% Filter the per-site arrays in lockstep; n_chan and the other fields stay.
+for f = ["chanMap" "xc" "yc" "kcoords"]
+    v = probe.(f);
+    probe.(f) = v(keep);
+end
 
 [~, pn] = fileparts(char(probeFile));
 derivedFile = string(fullfile(char(resultsDir), pn + "_excluded.json"));
-writeSettings(probe, derivedFile);
+writeProbeMap(derivedFile, probe);
 
 nKept = numel(cm) - nExcluded;
 if nKept ~= nChanBin

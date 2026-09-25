@@ -90,6 +90,7 @@ Only those classified as `"probe"` are kept.
 | `NumShanks` | `numel(unique(kcoords))` |
 | `DepthUm` | `max(yc) − min(yc)` |
 | `Notes` | optional `notes` field |
+| `Problems` | why Kilosort4 could not read the probe (`probeMapProblems`, semicolon-joined), `""` when it can |
 | `IsDerived` | file name ends in `_excluded`, i.e. a probe derived by `runKilosort` for channel exclusion |
 
 ### Bin files (`emptyBins` schema)
@@ -148,7 +149,7 @@ These are public so the other Intan classes can reuse one implementation.
 | `findRecordingFolders(root, recursive, options)` | folder paths only |
 | `readJson(path)` | `jsondecode(fileread(path))`, or `[]` on any failure |
 | `classifyJson(s)` | see the rules below |
-| `probeMeta(s)` | `nChan`, `nShank`, `depth`, `notes` from a decoded probe |
+| `probeMeta(s)` | `nChan`, `nShank`, `depth`, `notes`, `problems` (`probeMapProblems(s)`) from a decoded probe |
 | `kilosortRunAt(folder)` | the `KilosortRuns` element of one known run folder, `[]` when it holds none of the `KilosortMarkers`; nothing else is scanned |
 | `emptyRecordings()`, `emptyProbes()`, `emptyBins()`, `emptyKSRuns()` | 0×0 templates that define the schemas |
 

@@ -538,7 +538,10 @@ Probe maps are Kilosort4 probe `.json` files
 - **Probe info** shows the file, `n_chan`, `chanMap` length, shank count,
   whether the probe has a Kilosort4 parameter file
   ([Optimize for probe](#optimize-for-probe)), and a channel-count check
-  (`OK` / `MISMATCH`) against the active dataset.
+  (`OK` / `MISMATCH`) against the active dataset. When Kilosort4 could not
+  read the probe (`probeMapProblems`: no `kcoords`, an extra list, ...), the
+  check line says why in red instead; `runKilosort` refuses the probe with the
+  same reasons.
 - The **preview plot** shows sites by shank; excluded sites are gray `x`.
   **Show channel numbers** labels each site with its 1-based channel.
 - **Design probe from probeinterface...** opens

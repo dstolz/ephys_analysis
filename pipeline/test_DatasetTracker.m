@@ -94,6 +94,10 @@ check(dt.ProbeFiles(1).NumChannels == 16, 'probe channel count');
 check(dt.ProbeFiles(1).NumShanks == 1, 'probe shank count');
 check(dt.ProbeFiles(1).Notes == "linear16", 'probe notes');
 check(~dt.ProbeFiles(1).IsDerived, 'probe not flagged derived');
+check(dt.ProbeFiles(1).Problems == "", 'a complete probe has no problems');
+pmNo = DatasetTracker.probeMeta(struct('chanMap', 0:3, 'xc', zeros(1,4), 'yc', (0:3)*20, 'n_chan', 4));
+check(isscalar(pmNo.problems) && startsWith(pmNo.problems, "no kcoords"), ...
+    'probeMeta names what stops Kilosort4 reading a probe (no kcoords)');
 
 % ---- 3. Bin files + sidecar ---------------------------------------------
 fprintf('\n== 3. bin discovery + sidecar parse ==\n');

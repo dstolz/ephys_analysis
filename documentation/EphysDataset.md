@@ -1169,6 +1169,10 @@ Kilosort4.
   sidecar, then `NumChannels`/`Fs`.
 - `data_dtype` in `settings.json` is `ds.Dtype`. If you wrote the `.bin` with a
   `Dtype=` override, pass a matching dataset `Dtype`.
+- The probe is checked with [`probeMapProblems`](file-formats.md#kilosort4-probe-json)
+  before the `.bin` is written: one Kilosort4 could not read (no `kcoords`,
+  an extra list, site arrays of different lengths, ...) is refused with
+  `EphysDataset:runKilosort:BadProbe`, the message listing every reason.
 - The probe channel count is compared with `n_chan_bin`. A mismatch only warns
   (`EphysDataset:runKilosort:ProbeChannelMismatch`).
 - Options: `PythonExe`, `CondaEnv`, `ProbeFile`, `ExcludeChannels`, `BinFile`
@@ -1191,7 +1195,10 @@ Kilosort4.
 run folder (`result.runDir`) with every probe site whose `chanMap + 1` is in the list removed
 from `chanMap`, `xc`, `yc` and `kcoords`. `n_chan` is unchanged (it equals
 `n_chan_bin`), the channels stay in the `.bin`, and the original probe file is
-not modified. There is no automatic bad-channel detection.
+not modified. The derived probe is written by `writeProbeMap`, so with one
+site left its arrays are still JSON lists, as Kilosort4 needs; excluding every
+site is refused (`EphysDataset:runKilosort:AllExcluded`). There is no
+automatic bad-channel detection.
 
 #### Sorted output
 
@@ -1754,6 +1761,7 @@ interpolates.
 | `EphysDataset:detectSpikes:BlockOption` / `FsNotAllowed` | a whole-recording option passed with a data block, or `Fs` passed without one |
 | `EphysDataset:detectSpikes:BadChannelOrder` / `ChannelMismatch` | `ChannelOrder` out of range, or the channel count changes between chunks |
 | `EphysDataset:runKilosort:NoPython` / `NoProbe` / `ProbeMissing` / `BinMissing` | run prerequisites missing |
+| `EphysDataset:runKilosort:BadProbe` / `AllExcluded` | a probe Kilosort4 could not read (`probeMapProblems`, the message lists why), or exclusions that leave no site |
 | `EphysDataset:runKilosort:MostlySilenced` | the artifact intervals cover more than `MaxSilencedFraction` of the recording |
 | `EphysDataset:launchSorting:DryRun` / `LaunchFailed` / `SetAsideFailed` | a dry run's result, a background launch that did not start, or an earlier sort's curation that could not be moved aside |
 | `EphysDataset:BadArtifactIntervals` | an `ArtifactIntervals` option that is not `[k x 2]` |
@@ -1780,16 +1788,16 @@ deletes them afterwards. It covers:
 | 5 | `.bin` → microvolts round-trip |
 | 6 | `filterContinuous` (low cut-offs: a `[1 300]` Hz band and a 1 Hz high-pass at 20 kHz stay finite and exact; the spike band's transfer function matches its sections) + `detectArtifacts` (half-open intervals, `Channels`) + `blankArtifacts` (the noise fill's line between the levels on either side, `Context`) |
 | 7 | `EphysProject` discovery |
-| 8 | `runKilosort(DryRun=true)` |
+| 8 | `runKilosort(DryRun=true)`; a probe without `kcoords` refused (`BadProbe`) |
 | 8b | explicit artifact intervals in the `.bin` (noise fill, seed, zero fill, `MostlySilenced` refusal) |
 | 8c | `toBin` / `matrixToBin` refuse the recording's own files and leave it untouched; no step at a filled period's edges; a period cut by a chunk boundary carries on across it; the fill level from 16 chunks |
 | 9 | `DatasetTracker` integration |
 | 10 | split layouts (metadata, `readData`, byte-correct `toBin`) |
 | 11 | `artifactIntervals` (manual merge + automatic streaming; parallel == serial, `MaxWorkers=1` fall-back) |
-| 12 | `runKilosort(DryRun=true)` with excluded channels (derived probe) |
+| 12 | `runKilosort(DryRun=true)` with excluded channels (derived probe; one site left is still written as lists; every site excluded is refused) |
 | 13 | `detectSpikes` (injected troughs: alignment, thresholds, polarity, minimum period, waveforms, edges, `NaN` samples, guards) |
 | 14 | `detectSpikes` over a whole recording (streamed in 6 chunks: identical to the single-block result, boundary-straddling waveforms, the longer context of a low band edge, `ChannelOrder`, `ProgressFcn`, guards, `UseParallel` / `MaxWorkers`, worker errors, cancel, parallel `artifactIntervals` / `analyzeArtifacts` over split chunks) |
-| 15 | `writeJsonFile` / `readJsonFile`, manifest v2 round trip (manual periods, sorting, behavior), v1 manifests, `sortingResultsDir` precedence, `EphysProject` keys and `refresh`, including `associateFolderBehavior` (one file associated, two left alone, an existing association kept) |
+| 15 | `writeJsonFile` / `readJsonFile`, `probeMapProblems` / `writeProbeMap` (every reason Kilosort4 could not read a probe; a one-site map written as lists; a bad map refused), manifest v2 round trip (manual periods, sorting, behavior), v1 manifests, `sortingResultsDir` precedence, `EphysProject` keys and `refresh`, including `associateFolderBehavior` (one file associated, two left alone, an existing association kept) |
 | 16 | the `ArtifactConfig` pre-detection filter (preview and `artifactIntervals` agree; single-chunk `UseParallel` is silent) |
 | 17 | `readPhyUnits` / `readSortedUnits` (times = samples/fs, phy labels beat Kilosort labels, groups, channel mapping, `FsFallback`, a template as stored and not scaled by the amplitude) |
 | 18 | `spikesToMat` (detected + sorted, artifact rejection - also over 200 overlapping, touching, reversed and empty periods -, waveforms, unit labels and identity saved, no behavior variable, no partial file left) |

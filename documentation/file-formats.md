@@ -406,7 +406,7 @@ settings (including one written under an earlier schema) is recomputed.
 ## Kilosort4 probe JSON
 
 Stored in [`pipeline/probes`](../pipeline/probes/README.md) by default. This is
-the shape `kilosort.io.load_probe` accepts:
+the shape `kilosort.io.load_probe` accepts (checked against Kilosort 4.1.7):
 
 ```json
 {
@@ -419,18 +419,37 @@ the shape `kilosort.io.load_probe` accepts:
 }
 ```
 
-- `chanMap`: **0-based** channel per site. Throughout the MATLAB code (sorting,
+- `chanMap`: **0-based** channel per site, integers. Throughout the MATLAB code (sorting,
   `readPhyUnits`, `channelLayout` and the analysis probe maps), the 1-based
   `.bin` channel of a site is `chanMap + 1`; sites are not matched to
   channels by hardware number (see
   [python-drivers.md](python-drivers.md#channel-numbering-caveat)).
 - `xc`, `yc`: site positions in µm.
-- `kcoords`: shank per site. Optional; treated as all zeros when absent.
-- `n_chan`: total channels. Every channel-count check in the code uses
-  `max(n_chan, numel(chanMap))`, ignoring a missing `n_chan`. An `n_chan`
-  smaller than the map length is treated as wrong.
-- `notes`: optional. The GUI Probe tab edits it in place with a minimal textual
+- `kcoords`: shank per site, **required**. Kilosort4 places its templates per
+  `kcoords` value and has no default for a JSON probe (it stops with a
+  `KeyError`); all zeros on a single shank. The readers (`channelLayout`,
+  `DatasetTracker.probeMeta`, the analysis probe maps) still draw a map
+  without it, as one shank.
+- `n_chan`: total channels, a positive integer, required by Kilosort4. Every
+  channel-count check in the code uses `max(n_chan, numel(chanMap))`. An
+  `n_chan` smaller than the map length is treated as wrong.
+- `notes`: optional text. The GUI Probe tab edits it in place with a minimal textual
   replacement, so the rest of the file's formatting is preserved.
+- **No other list.** Kilosort4 turns every JSON array in the file into one
+  value per site and then requires equal lengths, so a list of site names,
+  say, stops the probe loading. Other text, a number or a nested object is
+  left alone.
+- Every site array is a JSON list, even for one site. MATLAB's `jsonencode`
+  writes a one-element array as a bare number, which Kilosort4 rejects, so
+  probe maps are written through [`writeProbeMap`](../pipeline/writeProbeMap.m)
+  (`makeSyntheticProbe`, the designer's Save, the derived `_excluded` probe).
+
+[`probeMapProblems`](../pipeline/probeMapProblems.m) checks all of this on a
+file or a decoded struct and returns one line per problem, none when
+Kilosort4 reads the probe. `runKilosort` refuses a probe with problems before
+writing the `.bin` (`EphysDataset:runKilosort:BadProbe`), `writeProbeMap`
+refuses to write one (`writeProbeMap:BadProbe`), and the Probe tab and
+`DatasetTracker.probeMeta` report them.
 
 ---
 

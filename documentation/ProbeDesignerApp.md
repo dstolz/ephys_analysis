@@ -68,7 +68,8 @@ ProbeDesignerApp(app)          % or ProbeDesignerApp(app, nChanHint)
 
 ## What is written
 
-On save, the wiring is converted back to 0-based and written as:
+On save, the wiring is converted back to 0-based and written through
+`writeProbeMap` (every site array a JSON list, one contact or many) as:
 
 ```json
 {

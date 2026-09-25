@@ -8,8 +8,9 @@ function p = makeSyntheticProbe(nChan, opts)
 %   the map is the identity, so channel numbers, .bin rows and probe sites
 %   agree, as in the lab's H64LP maps.
 %
-%   P = makeSyntheticProbe(nChan, File=f) also writes the JSON (the shape
-%   kilosort.io.load_probe accepts, see pipeline/probes/README.md) to F.
+%   P = makeSyntheticProbe(nChan, File=f) also writes the JSON to F through
+%   writeProbeMap (the shape kilosort.io.load_probe accepts, see
+%   pipeline/probes/README.md).
 %
 %   See also makeSyntheticRecording, makeSyntheticProject.
 
@@ -34,6 +35,6 @@ p.kcoords = shank.';
 p.n_chan  = nChan;
 
 if opts.File ~= ""
-    writeJsonFile(opts.File, p);
+    writeProbeMap(opts.File, p);
 end
 end

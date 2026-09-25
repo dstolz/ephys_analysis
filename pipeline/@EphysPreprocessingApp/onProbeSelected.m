@@ -1,5 +1,6 @@
 function onProbeSelected(obj)
-%onProbeSelected  Show probe metadata and run the simple channel-count check.
+%onProbeSelected  Show probe metadata, whether Kilosort4 can read the probe
+%   (probeMapProblems) and the simple channel-count check.
 
 pf = obj.selectedProbeFile();
 if pf == "" || ~isfile(pf)
@@ -10,6 +11,7 @@ if pf == "" || ~isfile(pf)
 end
 
 [nProbe, info] = probeChannelCount(pf);
+problems = probeMapProblems(pf);
 
 % Compare against the active dataset.
 d = obj.currentDataset();
@@ -30,6 +32,14 @@ else
 end
 obj.ProbeInfoLabel.Text = sprintf("%s%s\nn_chan: %s\n%s\n%s", pn, pe, ...
     num2str(nProbe), info, ks4Txt);
+
+% A probe Kilosort4 could not read: say why, in place of the count check
+% (runKilosort refuses it with the same reasons).
+if ~isempty(problems)
+    obj.ProbeCheckLabel.Text = "Kilosort4 cannot read this probe: " + strjoin(problems, "; ");
+    obj.ProbeCheckLabel.FontColor = [0.8 0 0];
+    return
+end
 
 if isempty(d) || isnan(d.NumChannels)
     obj.ProbeCheckLabel.Text = "Scan a project to check the channel count against a dataset.";

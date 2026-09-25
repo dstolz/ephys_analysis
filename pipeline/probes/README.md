@@ -20,23 +20,39 @@ Kilosort4 probe `.json` files have the shape produced by
 ```
 
 - `chanMap` — 0-based channel indices into the `.bin` (length = number of
-  recorded/used channels).
+  recorded/used channels), integers.
 - `xc`, `yc` — electrode x/y coordinates in microns (same length as `chanMap`).
-- `kcoords` — shank/group index per channel (optional; defaults to all zeros).
-- `n_chan` — total channel count. The app reports `n_chan` when present,
-  otherwise it falls back to `numel(chanMap)`. Because a `chanMap` can never
-  have more sites than the total channel count, an `n_chan` that is smaller
-  than `numel(chanMap)` is treated as invalid (e.g. accidentally written from
-  a 0-based map's *max index*, which is one short of the count) and the map
-  length is used instead.
+- `kcoords` — shank/group index per channel, **required**: Kilosort4 places
+  its templates per shank and has no default for the field (a probe without
+  it stops with a `KeyError`). All zeros on a single-shank probe.
+- `n_chan` — total channel count, a positive integer, required. Because a
+  `chanMap` can never have more sites than the total channel count, an
+  `n_chan` that is smaller than `numel(chanMap)` is treated as invalid (e.g.
+  accidentally written from a 0-based map's *max index*, which is one short
+  of the count) and the map length is used instead.
+- `notes` — optional text.
+- Nothing else in the file may be a list: Kilosort4 reads every JSON array
+  as one value per site and then requires equal lengths, so a list of site
+  names, say, stops the probe loading. Other text, numbers and nested objects
+  are ignored.
+- Each site array is a JSON list even for a single site (`"chanMap": [0]`).
+  MATLAB's `jsonencode` writes a one-element array as a bare number, which
+  Kilosort4 rejects, so write probe maps with `writeProbeMap`, never
+  `jsonencode` / `writeJsonFile` directly.
+
+`probeMapProblems(file)` lists what would stop Kilosort4 reading a probe
+(nothing when it reads it). `EphysDataset.runKilosort` refuses such a probe
+before writing the `.bin` (`EphysDataset:runKilosort:BadProbe`), and the Probe
+tab shows the reasons in red when the probe is selected.
 
 ## Channel-count checking
 
 The app does a *simple* check: it compares the probe's channel count
-(`n_chan`, else `numel(chanMap)`) against the selected dataset's amplifier
-channel count (`EphysDataset.NumChannels`). A mismatch is flagged but never
-blocks you — Kilosort4 itself will also warn at run time
-(`EphysDataset.runKilosort` calls `checkProbeChannels`).
+(`n_chan`, never fewer than `numel(chanMap)`) against the selected dataset's
+amplifier channel count (`EphysDataset.NumChannels`). A mismatch is flagged
+but never blocks you — `EphysDataset.runKilosort` warns the same way
+(`checkProbeChannels`) and Kilosort4 stops only when a `chanMap` value
+reaches `n_chan_bin`.
 
 Drop your probe `.json` files in this folder to have them appear automatically.
 

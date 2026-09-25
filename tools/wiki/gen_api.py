@@ -1006,6 +1006,7 @@ PIPE_GROUPS = [
     ("Units and names", ["unitTable", "parseNameTokens"]),
     ("Derived signals and conversion", ["intan2matlab", "matrix2kilosort", "extract_trials"]),
     ("Synthetic data", ["makeSyntheticProject", "makeSyntheticRecording", "makeSyntheticProbe"]),
+    ("Probe maps", ["probeMapProblems", "writeProbeMap"]),
     ("File I/O", ["readJsonFile", "writeJsonFile", "readNPY", "writeNPY", "read_Intan_RHD2000_file_modified"]),
     ("Tests", ["run_all_tests"]),
 ]

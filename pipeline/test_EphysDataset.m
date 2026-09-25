@@ -264,6 +264,19 @@ probe = struct('chanMap', 0:numAmp-1, 'xc', zeros(1,numAmp), 'yc', (0:numAmp-1)*
     'kcoords', zeros(1,numAmp), 'n_chan', numAmp);
 fid = fopen(probeFile,'w'); fwrite(fid, jsonencode(probe), 'char'); fclose(fid);
 
+% A probe Kilosort4 could not read (no kcoords: it has no default) is refused
+% before any run file is written.
+noShank = fullfile(root, 'probe_noshank.json');
+writeJsonFile(noShank, rmfield(probe, 'kcoords'));
+errId = ''; errMsg = '';
+try
+    ds.runKilosort(DryRun=true, ProbeFile=noShank, PythonExe="C:\miniconda3\python.exe");
+catch ME
+    errId = ME.identifier; errMsg = ME.message;
+end
+check(strcmp(errId, 'EphysDataset:runKilosort:BadProbe') && contains(errMsg, 'kcoords'), ...
+    'a probe without kcoords is refused (BadProbe) with the reason');
+
 ds.ProbeFile = probeFile;
 ds.PythonExe = "C:\miniconda3\python.exe";
 res = ds.runKilosort(DryRun=true);
@@ -593,6 +606,21 @@ check(isequal(prX.chanMap(:).', [0 2:numAmp-1]) && prX.n_chan == numAmp && setX.
     'the derived probe drops chanMap 1 and keeps n_chan == n_chan_bin');
 check(strcmpi(strrep(setX.probe, '/', filesep), resX.probeFile), 'settings.json points at the derived probe');
 check(endsWith(char(resX.resultsDir), 'kilosort4'), 'results dir is the kilosort4 run folder');
+% All but one channel excluded: the derived probe still holds JSON lists
+% (jsonencode alone would write bare numbers, which Kilosort4 rejects);
+% excluding every channel is refused.
+resOne = dsr.runKilosort(DryRun=true, ExcludeChannels=2:numAmp);
+txtOne = fileread(resOne.probeFile);
+check(resOne.nExcludedChannels == numAmp - 1 && ~isempty(regexp(txtOne, '"chanMap":\s*\[\s*0\s*\]', 'once')) ...
+    && ~isempty(regexp(txtOne, '"kcoords":\s*\[\s*0\s*\]', 'once')), ...
+    'a derived probe with one site left writes its site arrays as lists, as Kilosort4 needs');
+errId = '';
+try
+    dsr.runKilosort(DryRun=true, ExcludeChannels=1:numAmp);
+catch ME
+    errId = ME.identifier;
+end
+check(strcmp(errId, 'EphysDataset:runKilosort:AllExcluded'), 'excluding every channel is refused');
 
 fprintf('\n== 13. detectSpikes (voltage thresholding) ==\n');
 FsSpk = ds.Fs;                      % 30000
@@ -914,6 +942,47 @@ catch ME
     errId = ME.identifier;
 end
 check(strcmp(errId, 'readJsonFile:NotFound'), 'readJsonFile errors on a missing file by default');
+
+% probeMapProblems / writeProbeMap: what Kilosort 4.1.7 reads from a probe .json.
+good = struct('chanMap', [0 1], 'xc', [0 0], 'yc', [0 20], 'kcoords', [0 0], 'n_chan', 2, 'notes', "two");
+check(isempty(probeMapProblems(good)), 'a complete probe map has no problems');
+pr = probeMapProblems(rmfield(good, 'kcoords'));
+check(isscalar(pr) && startsWith(pr, "no kcoords"), 'kcoords is required: Kilosort4 has no default for it');
+ex = good; ex.siteNames = {'a', 'b'};
+pr = probeMapProblems(ex);
+check(isscalar(pr) && contains(pr, "'siteNames' is a list"), 'any other list in the file stops Kilosort4 loading it');
+ex = good; ex.version = 2; ex.source = struct('vendor', "x");
+check(isempty(probeMapProblems(ex)), 'a number or a nested object beside the site arrays is fine');
+bad = good; bad.yc = [0 20 40]; bad.chanMap = [0 1.5]; bad.n_chan = 0;
+pr = probeMapProblems(bad);
+check(numel(pr) == 3 && any(contains(pr, "differ in length")) && any(contains(pr, "0-based integer")) ...
+    && any(contains(pr, "n_chan")), 'mismatched lengths, a fractional chanMap and a bad n_chan are each named');
+prNone = probeMapProblems(fullfile(root, 'nope.json'));
+noProbe = fullfile(root, 'noprobe.json');   % a JSON file, but no probe: every field is missing
+writeJsonFile(noProbe, struct('b', 3));
+prJson = probeMapProblems(noProbe);
+check(numel(probeMapProblems(struct('extra', [1 2]))) == 6 ...
+    && isscalar(prNone) && startsWith(prNone, "file not found") ...
+    && numel(prJson) == 5 && startsWith(prJson(1), "no chanMap"), ...
+    'every missing field is named; a missing file and a JSON file that is no probe are reported');
+% A null decodes like an empty list, which Kilosort4 would reject as one, so it is flagged too.
+check(any(startsWith(probeMapProblems(jf), "'a' is a list")), 'a null field is flagged as a list');
+pm = fullfile(root, 'probe_one.json');
+writeProbeMap(pm, struct('chanMap', 3, 'xc', 0, 'yc', 0, 'kcoords', 0, 'n_chan', 4));
+txt = fileread(pm);
+check(~isempty(regexp(txt, '"chanMap":\s*\[\s*3\s*\]', 'once')) && ~isempty(regexp(txt, '"kcoords":\s*\[\s*0\s*\]', 'once')) ...
+    && ~isempty(regexp(txt, '"n_chan":\s*4', 'once')), ...
+    'writeProbeMap writes a one-site map with every site array as a JSON list and n_chan bare');
+pj = readJsonFile(pm);
+check(pj.chanMap == 3 && pj.n_chan == 4 && isempty(probeMapProblems(pm)), 'and it reads back as a probe without problems');
+errId = '';
+try
+    writeProbeMap(pm, rmfield(good, 'xc'));
+catch ME
+    errId = ME.identifier;
+end
+check(strcmp(errId, 'writeProbeMap:BadProbe') && readJsonFile(pm).chanMap == 3, ...
+    'writeProbeMap refuses a probe Kilosort4 could not read and leaves the file alone');
 
 % Manifest v2 round trip on a copy of the two-file dataset.
 mdsDir = fullfile(root, 'mds');

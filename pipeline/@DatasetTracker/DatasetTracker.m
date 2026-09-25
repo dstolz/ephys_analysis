@@ -267,7 +267,8 @@ classdef DatasetTracker < handle
             %   Every *.json is parsed once and classified; only those that are
             %   probe maps (chanMap or xc/yc, not a .bin sidecar / KS settings /
             %   status file) are kept. Channel/shank/depth/notes are read like
-            %   EphysPreprocessingApp.refreshProbeList.
+            %   EphysPreprocessingApp.refreshProbeList; Problems says why
+            %   Kilosort4 could not read the probe ("" when it can).
             D = obj.findFiles('*.json');
             probes = DatasetTracker.emptyProbes();
             k = 0;
@@ -286,6 +287,7 @@ classdef DatasetTracker < handle
                 probes(k).NumShanks   = m.nShank;
                 probes(k).DepthUm      = m.depth;
                 probes(k).Notes       = m.notes;
+                probes(k).Problems    = strjoin(m.problems, "; ");
                 % Derived per-sort probe written by runKilosort (writeExcludedProbe).
                 probes(k).IsDerived   = endsWith(leaf, "_excluded");
             end
@@ -510,13 +512,17 @@ classdef DatasetTracker < handle
         end
 
         function m = probeMeta(s)
-            %probeMeta  Channel/shank/depth/notes from a parsed probe struct.
+            %probeMeta  Channel/shank/depth/notes/problems from a parsed probe struct.
             %   Single source of truth for probe-map metadata, reused by the
             %   app's Probe tab (see EphysPreprocessingApp.refreshProbeList).
-            m = struct('nChan', NaN, 'nShank', NaN, 'depth', NaN, 'notes', "");
+            %   problems is probeMapProblems(s): one line per reason Kilosort4
+            %   could not read the probe, empty when it can.
+            m = struct('nChan', NaN, 'nShank', NaN, 'depth', NaN, 'notes', "", ...
+                'problems', strings(0, 1));
             if isempty(s) || ~isstruct(s)
                 return
             end
+            m.problems = probeMapProblems(s);
             % Channel count: trust n_chan, but a chanMap can never have more
             % sites than total channels, so an n_chan that is missing or
             % SMALLER than numel(chanMap) (e.g. written from a 0-based map's
@@ -547,7 +553,7 @@ classdef DatasetTracker < handle
         function s = emptyProbes()
             %emptyProbes  0x0 struct array; one element per probe .json.
             s = struct('Name', {}, 'Path', {}, 'NumChannels', {}, ...
-                'NumShanks', {}, 'DepthUm', {}, 'Notes', {}, 'IsDerived', {});
+                'NumShanks', {}, 'DepthUm', {}, 'Notes', {}, 'Problems', {}, 'IsDerived', {});
         end
 
         function s = emptyBins()

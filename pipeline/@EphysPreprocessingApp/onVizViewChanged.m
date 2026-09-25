@@ -2,7 +2,8 @@ function onVizViewChanged(obj)
 %onVizViewChanged  The viewer moved: show its view in the fields and the status line.
 %   Called by obj.Viewer after every draw and every pan inside what is
 %   drawn (EphysTraceViewer.ViewChangedFcn), so it only sets values.
-%   The status line names the dataset, signal and time shown, or says
+%   The status line names the dataset, signal and time shown (and the
+%   event onset the toolbar's arrows stepped to, while it is), or says
 %   the plot shows another dataset than the active one (syncVizDataset).
 %
 %   See also buildVisualizeTab, syncVizDataset.
@@ -33,6 +34,10 @@ what = "spikes";
 if ~isempty(v.Source); what = v.Source.Name; end
 txt = sprintf("%s | %s | %.4g - %.4g s of %.4g s", shown.Name, what, v.TStart, ...
     v.TStart + v.TWidth, v.TotalDuration);
+J = v.EventJump;
+if ~isempty(J) && J.tStart == v.TStart && J.width == v.TWidth
+    txt = txt + sprintf(" | %s onset %d of %d at %.4f s", J.name, J.index, J.count, J.t);
+end
 R = v.LastRender;
 if R.error ~= ""
     txt = txt + " | " + R.error;

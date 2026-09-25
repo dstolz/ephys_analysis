@@ -163,6 +163,7 @@ if every || what == "events"
         v.setEventShow(ismember([E.name], string(obj.VizEventLinesListBox.Value)));
     end
     obj.VizEventLinesListBox.Enable = matlab.lang.OnOffSwitchState(~isempty(E));
+    fillEventJump(obj, E);
 end
 
 if every || what == "lanes"
@@ -178,6 +179,34 @@ end
 if every || what == "shading"
     obj.refreshVizShading(false);
 end
+end
+
+
+function fillEventJump(obj, E)
+% The toolbar's event line (the jump arrows): every line with its onset
+% count. The line picked stays while the lines are the same; new lines
+% (another dataset, events read) start on the dataset's trial line, else
+% the first line with an onset.
+dd = obj.VizEventJumpDropDown;
+names = cell(1, 0);
+if ~isempty(E); names = cellstr([E.name]); end
+n = arrayfun(@(e) numel(e.on), E);
+keep = isequal(dd.ItemsData, names) && ~isempty(names);
+before = dd.Value;
+set(dd, 'Items', cellstr(compose("%s (%d)", string(names(:)), n(:))).', 'ItemsData', names);
+if keep
+    dd.Value = before;
+elseif ~isempty(names)
+    trial = "";
+    d = obj.currentVizDataset();
+    if ~isempty(d) && isfield(d.TrialConfig, 'TrialLine'); trial = string(d.TrialConfig.TrialLine); end
+    k = find([E.name] == trial, 1);
+    if isempty(k); k = find(n > 0, 1); end
+    if isempty(k); k = 1; end
+    dd.Value = names{k};
+end
+on = matlab.lang.OnOffSwitchState(any(n > 0));
+set([dd, obj.VizEventPrevButton, obj.VizEventNextButton], 'Enable', on);
 end
 
 

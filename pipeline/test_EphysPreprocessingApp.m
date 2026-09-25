@@ -1773,6 +1773,30 @@ xOn = cell2mat(get(hOn, {'XData'}).');
 check(numel(hOn) == 2 && any(abs(xOn - tSpike / Fs) < 1e-12) && strcmp(app.VizAxes.YTickLabel{end}, 'TTL1') ...
     && app.VizAxes.YLim(2) > 0.5, ...
     'Events "Both": an onset marker on the sample the line turned on, and the line''s TTL row above the traces');
+dd = app.VizEventJumpDropDown;
+check(isequal(dd.ItemsData, {'TTL1'}) && isequal(dd.Items, {'TTL1 (1)'}) && strcmp(dd.Value, 'TTL1') ...
+    && dd.Enable == "on" && app.VizEventNextButton.Enable == "on", ...
+    'the toolbar''s event box lists every line with its onsets; without a trial line it starts on the first line with one');
+app.Viewer.setView(0, 40 / Fs);
+app.VizEventNextButton.ButtonPushedFcn(app.VizEventNextButton, []);
+check(abs(app.Viewer.TStart - (tSpike - 10) / Fs) < 1e-9 && abs(app.Viewer.TWidth - 40 / Fs) < 1e-12 ...
+    && contains(app.VizStatusLabel.Text, "TTL1 onset 1 of 1"), ...
+    'the next-onset arrow puts the line''s onset a quarter into the window, and the status line names it');
+app.VizEventNextButton.ButtonPushedFcn(app.VizEventNextButton, []);
+tHeld = app.Viewer.TStart;
+app.VizEventPrevButton.ButtonPushedFcn(app.VizEventPrevButton, []);
+check(contains(app.VizStatusLabel.Text, "No earlier TTL1 onset") && app.Viewer.TStart == tHeld, ...
+    'with no onset that way the view stays and the status line says so');
+evKeep = app.VizData.events;
+app.VizData.events = EphysTraceViewer.eventLines(struct('Stim', [1 2] / Fs, 'InTrial', [3 4] / Fs), Fs);
+app.onVizControlsChanged("events");
+check(dM3.TrialConfig.TrialLine == "InTrial" && strcmp(dd.Value, 'InTrial'), ...
+    'new event lines: the box starts on the dataset''s trial line');
+dd.Value = 'Stim';
+app.onVizControlsChanged("events");
+check(strcmp(dd.Value, 'Stim'), 'a line picked in the box stays while the lines are the same');
+app.VizData.events = evKeep;
+app.onVizControlsChanged("events");
 app.VizEventsDropDown.Value = 'strip';
 app.onVizControlsChanged("events");
 app.Viewer.setView(0, nTot / Fs);

@@ -8,11 +8,13 @@ function buildVisualizeTab(obj)
 %   onPlotVisualization finds its processed files, and Reload finds them
 %   again after a run. Every other control applies at once and never
 %   changes a file, except the manual artifact periods (Mark Artifacts),
-%   which are written to the dataset's manifest. The "?" button at the
-%   end of the toolbar lists the mouse and key controls (showVizHelp).
+%   which are written to the dataset's manifest. At the right of the
+%   toolbar an event line's arrows step the view from onset to onset
+%   (onVizEventJump), and the "?" lists the mouse and key controls
+%   (showVizHelp).
 %
 %   See also onPlotVisualization, onVizControlsChanged, onVizInput,
-%   showVizHelp, EphysTraceViewer, EphysTraceSource.
+%   onVizEventJump, showVizHelp, EphysTraceViewer, EphysTraceSource.
 
 g = uigridlayout(obj.TabVisualize, [1 2]);
 g.ColumnWidth = {384, '1x'};
@@ -235,18 +237,20 @@ obj.VizArtStatusLabel = uilabel(cg, "Text", "No artifacts defined.", "WordWrap",
     "FontColor", [0.6 0.2 0.2]);
 obj.VizArtStatusLabel.Layout.Row = row; obj.VizArtStatusLabel.Layout.Column = [1 4];
 
-% --- right: toolbar, plot, overview -----------------------------------------
-rg = uigridlayout(g, [3 1]);
+% --- right: toolbar, status line, plot, overview ----------------------------
+% The toolbar: the view's buttons on the left; on the right the event line
+% to step through, its previous / next onset (onVizEventJump) and the "?".
+rg = uigridlayout(g, [4 1]);
 rg.Layout.Column = 2;
-rg.RowHeight = {30, '1x', 64};
+rg.RowHeight = {30, 'fit', '1x', 64};
 rg.Padding = [0 0 0 0];
 rg.RowSpacing = 4;
 
-tb = uigridlayout(rg, [1 10]);
+tb = uigridlayout(rg, [1 13]);
 tb.Layout.Row = 1;
 tb.Padding = [0 0 0 0];
 tb.ColumnSpacing = 4;
-tb.ColumnWidth = {70, 70, 70, 70, 70, 70, 80, 80, '1x', 30};
+tb.ColumnWidth = [repmat({'fit'}, 1, 8), {'1x', 130, 34, 34, 30}];
 act = @(f) @(~, ~) vizAction(obj, f);
 specs = { ...
     "< Page",   "Back one window (Page Up)",               @(v) v.panTime(-1); ...
@@ -263,18 +267,31 @@ for k = 1:size(specs, 1)
     b.Layout.Column = k;
     obj.VizToolbarButtons(k) = b;
 end
-obj.VizStatusLabel = uilabel(tb, "Text", "", "FontColor", [0.4 0.4 0.4], "WordWrap", "on");
-obj.VizStatusLabel.Layout.Column = 9;
+obj.VizEventJumpDropDown = uidropdown(tb, "Items", {}, "Enable", "off", ...
+    "Tooltip", ["The event line the arrows step through (its onsets in brackets). " ...
+        "It starts on the dataset's trial line."]);
+obj.VizEventJumpDropDown.Layout.Column = 10;
+obj.VizEventPrevButton = uibutton(tb, "Text", char(9664), "Enable", "off", ...
+    "Tooltip", "The line's previous onset (the window keeps its width)", ...
+    "ButtonPushedFcn", @(~, ~) obj.onVizEventJump(-1));
+obj.VizEventPrevButton.Layout.Column = 11;
+obj.VizEventNextButton = uibutton(tb, "Text", char(9654), "Enable", "off", ...
+    "Tooltip", "The line's next onset (the window keeps its width)", ...
+    "ButtonPushedFcn", @(~, ~) obj.onVizEventJump(1));
+obj.VizEventNextButton.Layout.Column = 12;
 obj.VizHelpButton = uibutton(tb, "Text", "", "Icon", "question", ...
     "Tooltip", "Mouse and keyboard controls of the plot", ...
     "ButtonPushedFcn", @(~, ~) obj.showVizHelp());
-obj.VizHelpButton.Layout.Column = 10;
+obj.VizHelpButton.Layout.Column = 13;
+
+obj.VizStatusLabel = uilabel(rg, "Text", "", "FontColor", [0.4 0.4 0.4], "WordWrap", "on");
+obj.VizStatusLabel.Layout.Row = 2;
 
 obj.VizAxes = uiaxes(rg);
-obj.VizAxes.Layout.Row = 2;
+obj.VizAxes.Layout.Row = 3;
 xlabel(obj.VizAxes, "Time (s)");
 obj.VizOverviewAxes = uiaxes(rg);
-obj.VizOverviewAxes.Layout.Row = 3;
+obj.VizOverviewAxes.Layout.Row = 4;
 obj.VizOverviewAxes.FontSize = 9;
 
 obj.Viewer = EphysTraceViewer(obj.VizAxes, OverviewAxes=obj.VizOverviewAxes);

@@ -302,6 +302,29 @@ check(ax.YTickLabel{end} == "TTL1" && ~any(strcmp(ax.YTickLabel, 'Stim')), 'a li
 v.EventStrip = false;
 v.render();
 check(isempty(eventPoints(ax)) && ax.YLim(2) == 0.5, 'events off: nothing drawn, no rows');
+on1 = E(1).on;   % TTL1: 1.5 and 2.0 - 1/Fs
+v.setView(0, 0.4);
+[t1, k1, n1] = v.jumpToEvent("TTL1", 1);
+s1 = v.TStart;
+[t2, k2] = v.jumpToEvent("TTL1", 1);
+s2 = v.TStart;
+[t3, k3] = v.jumpToEvent("TTL1", 1);
+check(t1 == on1(1) && k1 == 1 && n1 == 2 && abs(s1 - (on1(1) - 0.1)) < 1e-12 ...
+    && t2 == on1(2) && k2 == 2 && abs(s2 - (on1(2) - 0.1)) < 1e-12 && isempty(t3) && isempty(k3) && v.TStart == s2 ...
+    && v.EventJump.index == 2 && v.TWidth == 0.4, ...
+    'jumpToEvent: each next onset a quarter into the window, the width kept; past the last one the view stays');
+[t4, k4] = v.jumpToEvent("TTL1", -1);
+[t5, ~, n5] = v.jumpToEvent("Stim", 1);
+check(t4 == on1(1) && k4 == 1 && abs(v.TStart - (on1(1) - 0.1)) < 1e-12 && isempty(t5) && n5 == 0 ...
+    && isempty(v.jumpToEvent("nope", 1)), 'jumpToEvent: back to the previous onset; a line with no onsets, or no such line, stays');
+v.setView(0, 3);   % the whole recording: every jump is held at the start
+[t6, k6] = v.jumpToEvent("TTL1", 1);
+[t7, k7] = v.jumpToEvent("TTL1", 1);
+[t8, k8] = v.jumpToEvent("TTL1", -1);
+check(t6 == on1(1) && k6 == 1 && t7 == on1(2) && k7 == 2 && t8 == on1(1) && k8 == 1 && v.TStart == 0, ...
+    'a view held at the recording''s edge still steps one onset at a time, from the onset last jumped to');
+v.setEvents(E);
+check(isempty(v.EventJump), 'new events forget the last jump');
 
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 clear figCleanup cleanup

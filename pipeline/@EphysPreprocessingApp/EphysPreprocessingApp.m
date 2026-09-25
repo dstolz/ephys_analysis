@@ -306,6 +306,9 @@ classdef EphysPreprocessingApp < handle
         VizEventLinesListBox matlab.ui.control.ListBox    % the event lines drawn
         VizEventsLabel     matlab.ui.control.Label        % where the events came from
         VizEventsReadButton matlab.ui.control.Button      % read the recording's digital inputs
+        VizEventJumpDropDown matlab.ui.control.DropDown   % the event line the jump buttons step through
+        VizEventPrevButton matlab.ui.control.Button       % its previous onset (onVizEventJump)
+        VizEventNextButton matlab.ui.control.Button       % its next onset
         VizHelpButton      matlab.ui.control.Button       % "?": showVizHelp
         VizToolbarButtons  % 1 x 8 matlab.ui.control.Button: page, zoom, scale, auto scale, reset
         VizStatusLabel     matlab.ui.control.Label
@@ -1033,6 +1036,7 @@ classdef EphysPreprocessingApp < handle
         syncVizDataset(obj)
         loadVizEvents(obj, out, read)
         onVizReadEvents(obj)
+        onVizEventJump(obj, direction)
         showVizHelp(obj)
 
         % --- Probe tab ---

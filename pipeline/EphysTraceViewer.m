@@ -55,6 +55,8 @@ classdef EphysTraceViewer < handle
     %                       (EventRowPixels tall) above the top lane
     %   An event line's ON is its first on row and OFF the first row after
     %   it, on the traces' clock, so a marker sits on the sample it names.
+    %   jumpToEvent steps the view to a line's next or previous onset,
+    %   shown EventJumpLead of the way into the window.
     %
     %   Interaction (the app routes the figure's events here)
     %   -----------------------------------------------------
@@ -67,8 +69,8 @@ classdef EphysTraceViewer < handle
     %     beginDrag / dragTo / endDrag  drag to pan time (and lanes)
     %     seekOverview(t)               centre the view on T (overview strip)
     %   and programmatically: setView, zoomTime, panTime, scaleVoltage,
-    %   setSpacing, autoScale, scrollLanes, setVisibleLanes, resetView;
-    %   setEvents / setEventShow with EventOverlay / EventStrip.
+    %   setSpacing, autoScale, scrollLanes, setVisibleLanes, resetView,
+    %   jumpToEvent; setEvents / setEventShow with EventOverlay / EventStrip.
     %
     %   See also EphysTraceSource, EphysPreprocessingApp.
 
@@ -83,6 +85,10 @@ classdef EphysTraceViewer < handle
         TWidth (1,1) double = 2                % width of the view (s)
         Spacing (1,1) double = 100             % source units between lanes
         FirstLane (1,1) double = 1             % top lane shown
+        % The last jumpToEvent (empty until one): the line's name, the
+        % onset's index of count, its time t, and the view it set (tStart,
+        % width; the view has not moved since while they match it).
+        EventJump struct = struct('name', {}, 'index', {}, 'count', {}, 't', {}, 'tStart', {}, 'width', {})
         LastRender struct = struct('bin', NaN, 'read', false, 'seconds', 0, ...
             'nSpikes', 0, 'styles', strings(1, 0), 'notes', strings(1, 0), 'error', "")
     end
@@ -101,6 +107,7 @@ classdef EphysTraceViewer < handle
         EventOverlay (1,1) logical = false     % event onsets / offsets drawn across the lanes
         EventStrip (1,1) logical = false       % event lines drawn as TTL traces above the lanes
         EventRowPixels (1,1) double {mustBePositive} = 16   % height of a TTL row (at most 40% of the plot together)
+        EventJumpLead (1,1) double {mustBeInRange(EventJumpLead, 0, 1)} = 0.25   % where jumpToEvent puts the onset (fraction of the window)
         Duration (1,1) double = NaN            % time axis length without a source (s)
         DefaultWidth (1,1) double = 2          % window of resetView (s)
         MaxReadSamples (1,1) double = 2^27     % samples x channels one draw may read
@@ -311,6 +318,7 @@ classdef EphysTraceViewer < handle
                 events = EphysTraceViewer.emptyEvents();
             end
             obj.Events = events;
+            obj.EventJump = obj.EventJump([]);
             obj.Drawn = [];
         end
 
@@ -425,6 +433,48 @@ classdef EphysTraceViewer < handle
         function seekOverview(obj, t)
             %seekOverview  Centre the view on T seconds.
             obj.setView(t - obj.TWidth / 2, obj.TWidth);
+        end
+
+        function [t, k, n] = jumpToEvent(obj, name, direction)
+            %jumpToEvent  Show the next (DIRECTION 1) or previous (-1) onset of event line NAME.
+            %   The onset is put EventJumpLead of the way into the window, the
+            %   width kept. The step counts from the onset last jumped to while
+            %   the view has not moved since (so a view held at either end of
+            %   the recording still steps one onset at a time), else from the
+            %   point EventJumpLead into the view. T is the onset shown, K its
+            %   number and N the line's onsets; T and K are [] (the view left
+            %   alone) when there is no such onset.
+            arguments
+                obj (1,1) EphysTraceViewer
+                name (1,1) string
+                direction (1,1) double {mustBeMember(direction, [-1 1])}
+            end
+            t = []; k = []; n = 0;
+            i = find([obj.Events.name] == name, 1);
+            if isempty(i); return; end
+            on = obj.Events(i).on;
+            n = numel(on);
+            J = obj.EventJump;
+            if ~isempty(J) && J.name == name && J.tStart == obj.TStart && J.width == obj.TWidth
+                ref = J.t;
+            else
+                ref = obj.TStart + obj.EventJumpLead * obj.TWidth;
+            end
+            tol = 1e-6;   % s: well under a sample, above the rounding of TStart + lead
+            if direction > 0
+                k = find(on > ref + tol, 1);
+            else
+                k = find(on < ref - tol, 1, 'last');
+            end
+            if isempty(k); k = []; return; end
+            t = on(k);
+            % Where setView will put the view, kept before it draws (and
+            % notifies), so ViewChangedFcn already sees the jump.
+            obj.TStart = t - obj.EventJumpLead * obj.TWidth;
+            obj.clampView();
+            obj.EventJump = struct('name', name, 'index', k, 'count', n, 't', t, ...
+                'tStart', obj.TStart, 'width', obj.TWidth);
+            obj.setView(obj.TStart, obj.TWidth);
         end
 
         %% --- input -------------------------------------------------------------

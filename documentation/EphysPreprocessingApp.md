@@ -75,7 +75,8 @@ background monitor and saves preferences.
   unsaved changes.
 - **Tabs**, in workflow order: **Copy, Project, Trials, Probe, Artifacts, Sorting,
   Signals, Spikes, Export, Diagram, Run, Visualize, Review, Synthetic, Clean up**. The app opens on
-  Project. Each tab button is
+  Project. Each tab button shows an icon above its title
+  (`pipeline/icons/tabs/<title>.svg`, lower case without spaces) and is
   coloured by its status, and its tooltip says why: grey = step disabled,
   green = ready, amber = needs attention (config warnings, selected datasets
   without a probe, trial pairings not approved, no datasets scanned), red =

@@ -14,7 +14,7 @@ obj.Fig.DeleteFcn = @(~,~) obj.stopTimers();   % also when deleted without onClo
 obj.buildMenus();
 
 outer = uigridlayout(obj.Fig, [3 1]);
-outer.RowHeight   = {34, '1x', 24};
+outer.RowHeight   = {52, '1x', 24};
 outer.ColumnWidth = {'1x'};
 outer.RowSpacing  = 0;
 outer.Padding     = [0 0 0 0];
@@ -93,6 +93,9 @@ end
 
 function buildTabStrip(obj, parent)
 %buildTabStrip  One button per tab plus a thin underline row for the selection.
+%   Each button shows its icon above the title: pipeline/icons/tabs/<title>.svg,
+%   the title lower case without spaces ("Clean up" -> cleanup.svg).
+iconDir = fullfile(fileparts(fileparts(mfilename("fullpath"))), "icons", "tabs");
 n = numel(obj.TabList);
 sg = uigridlayout(parent, [2 n + 1]);
 sg.Layout.Row = 1; sg.Layout.Column = 1;
@@ -103,7 +106,8 @@ sg.ColumnSpacing = 3;
 sg.Padding       = [6 3 6 0];
 for k = n:-1:1
     tab = obj.TabList(k);
-    b = uibutton(sg, "Text", tab.Title, "ButtonPushedFcn", @(~,~) obj.selectTab(tab));
+    b = uibutton(sg, "Text", tab.Title, "ButtonPushedFcn", @(~,~) obj.selectTab(tab), ...
+        "Icon", fullfile(iconDir, lower(erase(tab.Title, " ")) + ".svg"), "IconAlignment", "top");
     b.Layout.Row = 1; b.Layout.Column = k;
     m = uipanel(sg, "BorderType", "none", "BackgroundColor", [0.15 0.45 0.80], "Visible", "off");
     m.Layout.Row = 2; m.Layout.Column = k;

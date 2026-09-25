@@ -9,7 +9,8 @@ function loadPreferences(obj)
 %   copy options; not the dates), the Synthetic tab's settings and
 %   design, the Diagram tab's view and layout, the Run tab's Show the run diagram,
 %   Monitor CPU, memory, disk and GPU and Queue the waiting runs, and the
-%   kinds of file the Clean up tab removes.
+%   kinds of file the Clean up tab removes, and the last Python exe set
+%   (the Python a new config starts with, see defaultPythonExe).
 %   Everything else lives in the config; the last config file is reopened
 %   at launch (defaults otherwise).
 

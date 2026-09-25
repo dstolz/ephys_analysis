@@ -42,7 +42,7 @@ obj.SortSkipExistingCheckBox.Layout.Row = r; obj.SortSkipExistingCheckBox.Layout
 r = r + 1;
 lab(cg, "Python exe:", r);
 obj.PythonExeField = uieditfield(cg, "text", "Placeholder", "kilosort env python.exe", ...
-    "ValueChangedFcn", changed);
+    "ValueChangedFcn", @(~,~) pythonChanged(obj));
 obj.PythonExeField.Layout.Row = r; obj.PythonExeField.Layout.Column = [2 4];
 obj.BrowsePythonButton = uibutton(cg, "Text", "...", ...
     "ButtonPushedFcn", @(~,~) obj.onBrowsePython());
@@ -204,4 +204,12 @@ function sep(parent, txt, row)
 l = uilabel(parent, "Text", txt, "FontWeight", "bold");
 l.Layout.Row = row;
 l.Layout.Column = [1 5];
+end
+
+
+function pythonChanged(obj)
+%pythonChanged  Remember an existing python as the new-config default.
+p = strtrim(string(obj.PythonExeField.Value));
+if p ~= "" && isfile(p); setpref(obj.PrefGroup, 'PythonExe', char(p)); end
+obj.onConfigChanged();
 end

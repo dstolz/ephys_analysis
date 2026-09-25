@@ -67,9 +67,10 @@ PyTorch instead — everything still works, just slower.
 
 1. Install [Miniconda for Windows](https://docs.conda.io/en/latest/miniconda.html)
    (the 64-bit installer). Default install location is fine
-   (`%USERPROFILE%\miniconda3` or `%LOCALAPPDATA%\miniconda3` — the app's
-   "Browse Python exe" picker and `EphysPreprocessingApp.defaultPythonExe()` both
-   look for these paths automatically).
+   (`%USERPROFILE%\miniconda3` or `%LOCALAPPDATA%\miniconda3` — a new config
+   in the app starts with the `kilosort` env's python found there, or under
+   `CONDA_EXE`, `%ProgramData%` or `C:\`; once you set a Python exe the app
+   remembers it and new configs start with that instead).
 2. Open **Anaconda Prompt (miniconda3)** from the Start menu and create the
    environment the app expects, named `kilosort`:
    ```bat

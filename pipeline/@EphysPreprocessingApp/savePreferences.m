@@ -13,6 +13,8 @@ setpref(g, 'ReviewFolder',  char(obj.ReviewFolderField.Value));
 setpref(g, 'ScriptFolder',  char(obj.ScriptFolder));
 setpref(g, 'RecentConfigs', cellstr(obj.RecentConfigs));
 setpref(g, 'LastConfigFile', char(obj.Config.File));
+py = strtrim(string(obj.PythonExeField.Value));
+if py ~= "" && isfile(py); setpref(g, 'PythonExe', char(py)); end   % defaultPythonExe
 order = obj.DatasetsColumnOrder;
 T = obj.DatasetsTable.Data;
 dco = obj.DatasetsTable.DisplayColumnOrder;

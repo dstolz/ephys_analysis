@@ -3,8 +3,9 @@ function onTrialsLoad(obj, mode)
 %   mode "recorded" reuses the manifest's cuts when they still match;
 %   "none" pairs every trial with every interval in order (Reset cuts). The
 %   events are kept in memory (TrialsEvents) so cuts and setting changes
-%   re-pair without re-reading. The session's trials are re-read on every
-%   Load (TrialsSession: the table's parameter columns).
+%   re-pair without re-reading. The trials (the Epsych2 session's, or the TDT
+%   block's epocs: EphysDataset.readBehavior) are re-read on every Load
+%   (TrialsSession: the table's parameter columns).
 arguments
     obj (1,1) EphysPreprocessingApp
     mode (1,1) string {mustBeMember(mode, ["recorded" "none"])} = "recorded"
@@ -14,9 +15,9 @@ if isempty(d)
     obj.setStatus("Trials: scan a project and pick a dataset first.");
     return
 end
-if d.BehaviorFile == "" || ~isfile(d.BehaviorFile)
+if trialSource(d) == ""
     obj.clearTrialsView();
-    obj.TrialsSummaryLabel.Text = sprintf("%s has no Epsych2 session associated (Project tab).", d.Name);
+    obj.TrialsSummaryLabel.Text = sprintf("%s has no trial source: no Epsych2 session associated (Project tab), and no TDT epoc store named as the trial line.", d.Name);
     obj.TrialsSummaryLabel.FontColor = [0.7 0.1 0.1];
     return
 end

@@ -901,7 +901,7 @@ app.refreshTrialsTable();
 TT = app.TrialsTable.Data;
 app.onTrialsTableMenu(cm, struct('InteractionInformation', struct('Column', [])));
 sub = findobj(cm.Children, 'flat', 'Text', 'Parameter columns');
-item = findobj(sub, 'Text', 'Response (not in this session)');
+item = findobj(sub, 'Text', 'Response (not in these trials)');
 check(isequal(string(TT.Properties.VariableNames), ["Param_isTest", vars(1:8), "Param_ToneLevel", "OtherLines"]) ...
     && isscalar(item) && logical(item.Checked), 'a re-added column returns to its place; a parameter the session lacks is listed, not shown');
 item.MenuSelectedFcn(item, []);
@@ -993,7 +993,7 @@ check(isscalar(hLab) && string(hLab.String) == "ToneLevel=60, isTest=false" && c
 app.TrialsLabelParams = ["ToneLevel" "Response"];   % Response: chosen for another dataset
 app.refreshTrialsPlot();
 app.onTrialsPlotMenu();
-item = findobj(app.TrialsLabelsMenu, 'Text', 'Response (not in this session)');
+item = findobj(app.TrialsLabelsMenu, 'Text', 'Response (not in these trials)');
 hLab = findall(app.TrialsAxes, "Tag", "trialLabels");
 check(isscalar(item) && logical(item.Checked) && string(hLab.String) == "60", ...
     'a label parameter the session lacks is listed, not written');
@@ -1050,7 +1050,7 @@ check(BT.behavior.trials.TrialOnsetSample(1) == 50 && BT.behavior.pairing.status
 app.onTrialsToWorkspace("epsych");
 E = evalin('base', vE);
 check(isequal(E, load(dT.BehaviorFile)) && contains(app.StatusBar.Text, vE), ...
-    'Epsych2 to workspace puts the session file as saved in the base workspace and names the variable');
+    'Trial source to workspace puts the Epsych2 session file as saved in the base workspace and names the variable');
 app.onTrialsToWorkspace("behavior");
 BW = evalin('base', vB);
 check(isequal(BW, BT.behavior) && contains(app.StatusBar.Text, vB), ...

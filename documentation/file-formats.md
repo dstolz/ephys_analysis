@@ -194,7 +194,7 @@ holds a clean-up record) as it is, except a recording copied on its own
   "pairingStatus": "paired" | "stitched" | "recording_only" | "epsych_only",
   "deltaT_s": <ePsych start - recording start, s; null when unpaired>,
   "recording": {
-    "reader": "intan" | "openephys" | "binary" | "",   the reader that read the folder (findCopySessions' Reader column)
+    "reader": "intan" | "openephys" | "binary" | "tdt" | "",   the reader that read the folder (findCopySessions' Reader column)
     "sourceDir": <source recording folder>, "destDir": <session folder>,
     "time": <recording start from the folder name, ISO 8601>,
     "files": [ { "relativePath": <path below the folder, e.g. "Record Node 101\experiment1\...">,

@@ -7,7 +7,7 @@ obj.TrialsPairing = [];
 obj.refreshTrialsView();
 d = obj.currentDataset();
 if isempty(d)
-    obj.TrialsSummaryLabel.Text = "Scan a project, pick a dataset with an Epsych2 session and press Load.";
+    obj.TrialsSummaryLabel.Text = "Scan a project, pick a dataset with a trial source (Epsych2 session or TDT epocs) and press Load.";
 else
     obj.TrialsSummaryLabel.Text = "Press Load to read the digital lines of " + d.Name + " and pair its trials.";
 end

@@ -1,7 +1,7 @@
 function onTrialsTableMenu(obj, menu, evt)
 %onTrialsTableMenu  Build the Trials table's context menu as it opens.
 %   Remove "<name>" when a parameter column was right-clicked; Parameter
-%   columns: one checked item per Epsych2 parameter of the loaded session
+%   columns: one checked item per trial parameter of the loaded trials
 %   (TrialIndex is always a column), then the chosen parameters this
 %   session lacks, which can be unticked, each list in alphabetical order
 %   ignoring case; Reset column order. The choices
@@ -33,11 +33,11 @@ for p = params
 end
 missing = alphabetical(shown(~ismember(shown, params)));
 for k = 1:numel(missing)
-    uimenu(sub, "Text", missing(k) + " (not in this session)", "Checked", true, "Separator", k == 1 && ~isempty(params), ...
+    uimenu(sub, "Text", missing(k) + " (not in these trials)", "Checked", true, "Separator", k == 1 && ~isempty(params), ...
         "MenuSelectedFcn", @(~,~) setParams(obj, shown(shown ~= missing(k))));
 end
 if isempty(sub.Children)
-    uimenu(sub, "Text", "Load a dataset to list its Epsych2 parameters", "Enable", "off");
+    uimenu(sub, "Text", "Load a dataset to list its trial parameters", "Enable", "off");
 end
 
 uimenu(menu, "Text", "Reset column order", "Separator", "on", ...

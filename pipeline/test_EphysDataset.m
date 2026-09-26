@@ -1387,7 +1387,7 @@ check(isa(ds.Reader, 'IntanReader') && ds.Reader.Kind == "intan" && ds.Recording
     'EphysDataset picks IntanReader for a *.rhd folder');
 check(isa(dsig.Reader, 'IntanReader') && dsig.supportsRandomAccess() && ds.supportsRandomAccess(), ...
     'random access for every Intan layout (traditional files block by block)');
-check(isequal(sort(EphysReader.readerClasses()), sort(["IntanReader" "BinaryReader" "OpenEphysReader"])), 'built-in reader registry');
+check(isequal(sort(EphysReader.readerClasses()), sort(["IntanReader" "BinaryReader" "OpenEphysReader" "TDTReader"])), 'built-in reader registry');
 check(isempty(EphysReader.forFolder(fullfile(root, 'proj', 'empty_decoy'))), 'no reader claims an empty folder');
 check(strcmp(DatasetTracker.classifyJson(struct('schema', "ephys-recording/1")), 'recording-descriptor'), ...
     'classifyJson recognises a recording descriptor');

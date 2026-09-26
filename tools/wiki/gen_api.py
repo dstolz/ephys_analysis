@@ -1058,7 +1058,7 @@ def main(do_splice=True):
         pages["API-" + n] = g
     # readers
     g = []
-    for n in ["EphysReader", "IntanReader", "BinaryReader", "OpenEphysReader"]:
+    for n in ["EphysReader", "IntanReader", "BinaryReader", "OpenEphysReader", "TDTReader"]:
         cls = load_class(pdir("pipeline", "@" + n))
         sec = [f"### {n}", ""] + class_section(cls)
         write_gen(n, sec)

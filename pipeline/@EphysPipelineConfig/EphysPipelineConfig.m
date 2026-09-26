@@ -12,7 +12,8 @@ classdef EphysPipelineConfig
     %                TokenColumns (tokens shown as dataset-table columns)
     %     Acquisition  reader options: OpenEphys.Recordings ("concatenate" |
     %                "separate" | "single"), OpenEphys.RecordNode,
-    %                OpenEphys.Stream (see OpenEphysReader)
+    %                OpenEphys.Stream (see OpenEphysReader); TDT.Stream,
+    %                TDT.GainToMicrovolts (see TDTReader)
     %     Parallel   Enabled, MaxWorkers (NaN = automatic): run the chunks of
     %                the artifacts and spike-detection steps on a process pool
     %     Probe      DefaultProbeFile, WriteDefaultToManifest

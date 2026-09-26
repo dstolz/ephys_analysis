@@ -54,6 +54,11 @@ if OE.RecordNode ~= "" && isempty(regexp(OE.RecordNode, '^\d+$', 'once'))
     add("acquisition", "OpenEphys.RecordNode", "error", ...
         "OpenEphys.RecordNode must be empty or a Record Node id (digits, e.g. 101).");
 end
+TD = obj.Acquisition.TDT;
+if ~(isnan(TD.GainToMicrovolts) || (isfinite(TD.GainToMicrovolts) && TD.GainToMicrovolts > 0))
+    add("acquisition", "TDT.GainToMicrovolts", "error", ...
+        "TDT.GainToMicrovolts must be NaN (automatic) or a positive number of microvolts per stored unit.");
+end
 
 % --- Probe (always) ------------------------------------------------------------
 if obj.Probe.DefaultProbeFile ~= "" && opts.CheckPaths && ~isfile(obj.Probe.DefaultProbeFile)

@@ -26,7 +26,8 @@ classdef (Abstract) EphysReader < handle
     %   unique; a reader that cannot make them unique numbers the channels by
     %   position (0..n-1) and warns EphysReader:ChannelNumbersNotUnique. Intan: the trailing
     %   digits of the native name ("A-012" -> 12); Open Ephys: "CH13" -> 12;
-    %   recording.json: its channel_numbers, else 0..n-1.
+    %   TDT: the stream's channel k -> k-1; recording.json: its
+    %   channel_numbers, else 0..n-1.
     %
     %   Universal data struct (what readData returns, for every reader)
     %   ---------------------------------------------------------------
@@ -56,8 +57,8 @@ classdef (Abstract) EphysReader < handle
     %   --------------
     %   Readers are built as READER(folder, options), where OPTIONS is the
     %   pipeline config's Acquisition section (e.g. options.OpenEphys holds the
-    %   Open Ephys recording mode, record node and stream). A reader reads its
-    %   own sub-struct and ignores the rest.
+    %   Open Ephys recording mode, record node and stream; options.TDT the TDT
+    %   stream and gain). A reader reads its own sub-struct and ignores the rest.
     %
     %   Registry
     %   --------
@@ -65,11 +66,12 @@ classdef (Abstract) EphysReader < handle
     %   class in EphysReader.readerClasses() whether it claims the folder.
     %   Built-in: IntanReader (Intan RHD2000 *.rhd, info.rhd + .dat layouts),
     %   BinaryReader (the universal recording.json + flat binary format, see
-    %   BinaryReader) and OpenEphysReader (Open Ephys GUI sessions: Binary,
-    %   Open Ephys and NWB formats). Add your own with
+    %   BinaryReader), OpenEphysReader (Open Ephys GUI sessions: Binary,
+    %   Open Ephys and NWB formats) and TDTReader (TDT Synapse / OpenEx
+    %   blocks: TSQ / TEV / SEV). Add your own with
     %   EphysReader.register("MyReader").
     %
-    %   See also EphysDataset, IntanReader, BinaryReader, OpenEphysReader.
+    %   See also EphysDataset, IntanReader, BinaryReader, OpenEphysReader, TDTReader.
 
     properties (SetAccess = protected)
         Folder          (1,1) string = ""      % recording folder
@@ -93,7 +95,7 @@ classdef (Abstract) EphysReader < handle
     end
 
     properties (Abstract, Constant)
-        Kind    % short reader id, e.g. "intan", "binary", "openephys"
+        Kind    % short reader id, e.g. "intan", "binary", "openephys", "tdt"
     end
 
     methods (Abstract)
@@ -154,7 +156,7 @@ classdef (Abstract) EphysReader < handle
     methods (Static)
         function classes = readerClasses()
             %readerClasses  Reader class names, built-ins first, then registered.
-            classes = ["IntanReader", "BinaryReader", "OpenEphysReader", EphysReader.registered()];
+            classes = ["IntanReader", "BinaryReader", "OpenEphysReader", "TDTReader", EphysReader.registered()];
         end
 
         function register(className)

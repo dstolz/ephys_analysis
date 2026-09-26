@@ -126,14 +126,15 @@ first that does as `Reader(folder, options)`;
 
 **Reader options.** `options` is the pipeline config's
 [`Acquisition` section](EphysPipeline.md#acquisition); each reader reads its
-own sub-struct (`options.OpenEphys`) and ignores the rest. Intan and binary
-recordings need none.
+own sub-struct (`options.OpenEphys`, `options.TDT`) and ignores the rest.
+Intan and binary recordings need none.
 
 | Reader | `RecordingFormat` | Claims a folder with |
 | --- | --- | --- |
 | [`IntanReader`](../pipeline/@IntanReader/IntanReader.m) | `"traditional"`, `"one-file-per-signal"`, `"one-file-per-channel"` | `*.rhd` (see [layouts](#supported-recording-layouts)) |
 | [`BinaryReader`](../pipeline/@BinaryReader/BinaryReader.m) | `"binary"` | `recording.json` next to a flat channel-major binary ([format](file-formats.md#universal-recording-format-recordingjson)). Any other system can be brought in by converting to this; `BinaryReader.writeDescriptor(folder, spec)` writes the descriptor |
 | [`OpenEphysReader`](../pipeline/@OpenEphysReader/OpenEphysReader.m) | `"openephys-binary"`, `"openephys-legacy"`, `"openephys-nwb"` | a `Record Node <id>` folder with data in one of the Open Ephys GUI's record engines, or an `openephys-part.json` part folder (see [Open Ephys sessions](#open-ephys-sessions)) |
+| [`TDTReader`](../pipeline/@TDTReader/TDTReader.m) | `"tdt"` | one `*.tsq` file (a TDT block), or `*.sev` files without one (see [TDT Synapse blocks](#tdt-synapse-blocks)) |
 
 **Universal data struct** (what `readData` returns for every reader):
 `amplifier` `[nSamples x nChan]` microvolts (double or single); `Fs`; `t`
@@ -148,7 +149,8 @@ keys `events` by each line's **native** name (`DIGITAL_IN_04`, `TTL4`);
 **Channel numbers.** `ChannelNumbers` holds the 0-based hardware number of each
 amplifier channel. Intan: the trailing
 digits of the native name (`A-012` is 12); Open Ephys: `CH13` is 12 (else the
-trailing digits); `recording.json`: its `channel_numbers`, else `0..n-1`. They
+trailing digits); TDT: the stream's channel `k` (`Ch13`) is `k-1` (12);
+`recording.json`: its `channel_numbers`, else `0..n-1`. They
 are unique: when the names do not give distinct numbers (a two-port Intan
 recording with `A-000` and `B-000`), every channel is numbered by its position
 `0..n-1` and `EphysReader:ChannelNumbersNotUnique` warns. They are not what a
@@ -160,7 +162,7 @@ with the sorted units (`channelNumber`).
 The dataset's `readData`, `streamPlan`, `readChunkUV`, `readWindowUV`,
 `supportsRandomAccess`, `refreshMetadata`, `discoverFiles` and `detectFormat`
 delegate to the reader; `ds.Reader` exposes it. The manifest records
-`reader` (`"intan"`, `"binary"` or `"openephys"`).
+`reader` (`"intan"`, `"binary"`, `"openephys"` or `"tdt"`).
 
 ---
 
@@ -291,6 +293,76 @@ the `.continuous` header's `date_created` or the NWB `session_start_time`
 of `structure.oebin`. `PerFile` has one entry per recording (`name`
 `"exp1/rec2"`, `experiment`, `recording`, `numAmplifierSamples`,
 `recordTime`, `datenum`, `numGaps`).
+
+### TDT Synapse blocks
+
+`TDTReader` reads a block folder of a TDT tank as Synapse (or OpenEx) writes
+it, from the files themselves (no TDT SDK). The parsing follows TDT's own
+readers (`TDTbin2mat` / `SEV2mat`, and `tdt.read_block` in Python), and the
+epocs come out as they return them.
+
+| File | Holds |
+| --- | --- |
+| `<name>.tsq` | 40-byte event headers in time order: the block start and stop marks, one header per stream chunk, snippet, epoc event and scalar |
+| `<name>.tev` | the samples of the stream chunks (and snippet waveforms) |
+| `<name>.Tbk` | store notes: whether a store is enabled, a secondary epoc's primary (`HeadName`), the sampling rate |
+| `*.sev` | one file per channel of a stream stored as discrete files (Synapse), with unique channel files (OpenEx) or by an RS4: a 40-byte header, then the samples; long recordings split by hour (`-1h`, `-2h`, ...) |
+
+The **block folder** (one `*.tsq`, or `*.sev` files without one) is the
+dataset; the tank folder is not. Synapse names blocks
+`Subject-yymmdd-hhmmss`, which
+[`TDTReader.DefaultNamePattern`](../pipeline/@TDTReader/TDTReader.m),
+`"{SubjectID}-{Date:yyMMdd}-{Time:HHmmss}"`, matches.
+
+**Amplifier stream.** One stream store is the amplifier channels.
+`Acquisition.TDT.Stream` names it (`"Wav1"`); blank reads the stream with the
+most channels, and among those the highest rate
+(`TDTReader:SeveralStreams` warns when more than one stream has that many
+channels, e.g. a raw and an LFP stream of the same headstage). Every stream is
+listed in `ds.Reader.Streams`. Channels are named `Ch<k>` from the store's
+channel number `k`. Microvolts = stored value × `Acquisition.TDT.GainToMicrovolts`;
+`NaN` (default) is 1e6 for float32 / float64 streams, which TDT stores in
+volts. A stream stored as integers carries no scale to volts in the block, so
+it needs `GainToMicrovolts` (`TDTReader:NeedGain` otherwise). A stream in the
+TEV file is read chunk by chunk through the chunk index in the TSQ; a SEV
+stream file by file, hours in order.
+
+**Samples.** Rows are the stored samples. The first row is at
+`ds.Reader.StreamStart` seconds from the block start: the first chunk's time
+(TEV), or the RS4 log's start sample (SEV; 0 otherwise). When the chunk times
+of a TEV stream jump (samples the device did not store),
+`TDTReader:Gaps` warns and the samples are not zero-filled; epocs are placed
+by the time of the chunk they fall in. A SEV stream whose RS4 log reports gaps
+is refused (`TDTReader:SevGaps`).
+
+**Epocs.** Every epoc store is one line of `events`, named by the store
+(native = custom, so `DigInNames` are the store names, `PC0_`, `Freq`, ...;
+name them with `Signals.LineNames`, `"PC0_=InTrial"`). The epocs are built as
+TDT's readers build them: times rounded to TDT's 195312.5 Hz tick; a store
+with a buddy offset store takes its offsets from it (a first offset before the
+first onset adds an onset at 0; a last onset without an offset gets `Inf`); an
+onset-only store runs to the next onset (`Inf` for the last); a secondary
+epoc (`HeadName` `Levl|Freq` in the `.Tbk`) takes its primary's offsets; a
+store whose values are exactly 3 and 4 (iCon) has its value-3 events as
+onsets and its value-4 events as offsets. Each epoc then covers the stream
+rows from the first row at or after its onset to the last row before its
+offset (`t = row/Fs`, as every reader's events); an `Inf` offset runs to the
+last row; an epoc shorter than one sample keeps one row; an epoc that starts
+after the last row, or ends before the first, is left out of the line.
+`ds.Reader.readEpocs()` returns every epoc store as TDT's readers do
+(`onset` / `offset` in seconds from the block start, `value`, `buddy`, `icon`)
+with each epoc's `interval` on the recording clock (the numbers in `events`;
+`NaN` for the epocs the line leaves out). Stores that did not pair one to one
+warn `TDTReader:Epocs`.
+
+**Start time (`AcqDate`)** is the block start from the TSQ start mark
+(seconds since 1970, UTC, converted to local time). `PerFile` has one entry,
+the block (`store`, `storage` `"tev"` / `"sev"`, `numAmplifierSamples`).
+
+**Not read:** snippet stores (Synapse's online spike sorting), scalar stores,
+`Notes.txt`, and the RS4 `"rawpacked"` format (`TDTReader:Unsupported`).
+TSQ stores the `.Tbk` marks disabled (`Enabled = 2`) are skipped, as TDT's
+readers skip them.
 
 ---
 
@@ -1747,7 +1819,9 @@ interpolates.
 | `EphysDataset:LineNames`, `EphysDataset:relabelEvents:Duplicate` | a malformed `LineNames` entry, or two lines with the same final name |
 | `OpenEphysReader:MultipleRecordings` | `"single"` mode and a session with several recordings |
 | `OpenEphysReader:NoNode` / `NoStream` / `NoRecording` | the configured Record Node or stream (or a part folder's recording) is not in the session |
-| `IntanReader:readData:BadKeepChannels` (`BinaryReader:BadKeepChannels`, `OpenEphysReader:BadKeepChannels`), `EphysDataset:toBin:BadChannelOrder`, `EphysDataset:noiseLevels:BadChannelOrder`, `EphysDataset:detectArtifacts:BadChannels` | channel index out of range |
+| `TDTReader:NoStream` / `NeedGain` / `BadGain` | the configured stream is not in the block (or the block has none); an integer stream without `Acquisition.TDT.GainToMicrovolts`; a gain that is not `NaN` or positive |
+| `TDTReader:BadTsq` / `BadSev` / `SevGaps` / `Unsupported` / `ChunkSize` / `TevTruncated` | a TSQ without the block start mark; SEV files without a usable header, of mixed formats or rates, or missing for a channel / hour; an RS4 log reporting gaps; the rawpacked format; stream chunks of different sizes; a TEV file shorter than its chunk index |
+| `IntanReader:readData:BadKeepChannels` (`BinaryReader:BadKeepChannels`, `OpenEphysReader:BadKeepChannels`, `TDTReader:BadKeepChannels`), `EphysDataset:toBin:BadChannelOrder`, `EphysDataset:noiseLevels:BadChannelOrder`, `EphysDataset:detectArtifacts:BadChannels` | channel index out of range |
 | `EphysDataset:blankArtifacts:BadNoiseLevels`, `EphysDataset:toBin:BadNoiseLevels` | a noise level per channel that does not cover every channel, or `NoiseLevels` without `sigma`/`center` |
 | `EphysDataset:blankArtifacts:NoFs` / `BadContext` | a noise fill without a sample rate, or a `Context` whose columns are not the channels |
 | `EphysDataset:toBin:WouldOverwriteRecording`, `EphysDataset:matrixToBin:WouldOverwriteRecording` | the `.bin` or its sidecar is one of the recording's own files |
@@ -1812,6 +1886,16 @@ gaps, TTL intervals per format, AUX and ADC, discovery, record node / stream
 selection, the three recording modes, line naming and the events cache, a
 synthetic Open Ephys project through `EphysPipeline`, and (§7) 20 000
 one-sample TTL pulses and a stream plan's short last chunk.
+
+[`test_TDTReader.m`](../pipeline/test_TDTReader.m) writes TDT blocks with the
+synthetic writer (`writeTDTBlock`: TSQ, TEV, Tbk and SEV files) and covers
+discovery (block folders in a tank, SEV-only blocks), metadata, exact samples
+from TEV chunks and SEV files, the stream choice and the gain, the epocs as
+TDT's readers return them (buddy offsets, onset-only stores, a secondary
+epoc, a strobe high at the start, iCon values, disabled stores) and their rows
+on the stream grid (epocs outside the stream, a stream that starts late, gaps
+between chunks), line naming and the events cache, and the `Acquisition.TDT`
+options.
 
 [`test_IntanReader.m`](../pipeline/test_IntanReader.m) writes small RHD2000
 recordings in every data-block layout (60 / 128 samples per block, aux,

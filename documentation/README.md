@@ -107,7 +107,7 @@ LFP is kept as recorded).
 The code that drives the tree: `EphysPreprocessingApp` or a generated
 `EphysPipelineScript` sets up an `EphysPipelineConfig`, and `EphysPipeline`
 runs its steps over an `EphysProject`, one `EphysDataset` per recording, read
-through an `EphysReader` (`IntanReader` / `OpenEphysReader` / `BinaryReader`).
+through an `EphysReader` (`IntanReader` / `OpenEphysReader` / `TDTReader` / `BinaryReader`).
 `readEpsychSession` reads the Epsych2 session, `intan2matlab` is a thin
 wrapper around `deriveSignals` (what `toMat` saves), `exportChronux` packages
 through `ChronuxDataset` and `exportFieldTrip` through `FieldTripExport`, and
@@ -187,6 +187,7 @@ C = load("D:\out\subj1_day1\subj1_day1_chronux.mat");
 | `OpenEphysReader` | openephys-binary | an Open Ephys GUI session folder: `Record Node <id>/experiment*/recording*/structure.oebin` + `continuous.dat` |
 | `OpenEphysReader` | openephys-legacy | `Record Node <id>/*.continuous` + `.events` (the Open Ephys format; GUI 0.4 / 0.5 names too) |
 | `OpenEphysReader` | openephys-nwb | `Record Node <id>/experiment*.nwb` (NWB 2) |
+| `TDTReader` | tdt | a TDT Synapse / OpenEx block folder: `*.tsq` + `*.tev` (+ `*.Tbk`), and `*.sev` per channel for streams stored as discrete files; epoc stores are the event lines |
 | `BinaryReader` | binary (universal) | `recording.json` + one flat channel-major file |
 
 All read identically through `streamPlan` / `readChunkUV` and return the same
@@ -375,6 +376,7 @@ test_EphysPipeline       % one suite
 | `test_SortedUnits` | `readPhyUnits`' label tables, template units and per-unit grouping; `channelLayout` (`chanMap` values are `.bin` rows); `runKilosort(DryRun=true)` leaving an existing run alone; `readPhyWaveforms` (the spikes' windows in the sorted `.bin`) |
 | `test_DeriveSignals` | derived signals: bad channels as columns (the config's recording channels mapped to them), interpolated from the probe geometry or, without one, across columns; automatic detection; the MUA / SPIKE filters in double; non-integer rates; `info.<type>.nSamples`; line naming and polarity from `TrialConfig`; artifact periods erased before deriving (the line fill, `info.artifacts`, no filter ringing outside the period, AUX untouched) |
 | `test_OpenEphysReader` | Open Ephys sessions (Binary, Open Ephys format, NWB): metadata, samples across recordings and gaps, TTL lines, AUX / ADC, discovery, record node / stream, the recording modes, line names, the pipeline on a synthetic Open Ephys project |
+| `test_TDTReader` | TDT Synapse blocks (TSQ / TEV / Tbk / SEV): discovery, metadata, exact samples from TEV chunks and SEV files, stream choice and gain, epocs as TDT's readers return them and their rows on the stream grid (late stream start, gaps), disabled stores, line names, `Acquisition.TDT` |
 | `test_EphysProject` (in `test_EphysDataset` §7 / §15) | discovery, keys, `refresh` |
 | `test_DatasetTracker` | the filesystem inventory |
 | `test_ChronuxDataset` | the Chronux connector |

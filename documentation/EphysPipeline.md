@@ -47,7 +47,7 @@ returns the defaults and is the single source of truth for field names.
 | Section | Step | Holds |
 | --- | --- | --- |
 | `Project` | – | `Root`, `Recursive` (`true`: search every sub-folder of `Root` for recordings; `false`: only `Root` and the folders directly in it), `OutputRoot` (`""` = outputs next to each recording), `Selection` (`"all"` or `"list"`), `Datasets` (root-relative keys, see [Dataset keys](#dataset-keys)), `NamePattern` (`"{SubjectID}_{Date:yyMMdd}_{Time:HHmmss}"`, see [Dataset name tokens](#dataset-name-tokens); also labels sorted units, see [Unit labels](#unit-labels)), `TokenColumns` (list text, `"SubjectID"`: tokens shown as app table columns) |
-| `Acquisition` | – | reader options, see [Acquisition](#acquisition): `OpenEphys.Recordings` (`"concatenate"`), `OpenEphys.RecordNode` (`""`), `OpenEphys.Stream` (`""`) |
+| `Acquisition` | – | reader options, see [Acquisition](#acquisition): `OpenEphys.Recordings` (`"concatenate"`), `OpenEphys.RecordNode` (`""`), `OpenEphys.Stream` (`""`), `TDT.Stream` (`""`), `TDT.GainToMicrovolts` (`NaN`) |
 | `Parallel` | – | `Enabled` (run the chunks of the artifacts and spike-detection steps on a process pool), `MaxWorkers` (`NaN` = automatic; always capped by free memory); see [Parallel execution](#parallel-execution) |
 | `Probe` | `probe` (always runs) | `DefaultProbeFile` (used for datasets without a probe of their own: for sorting, to place the derived signals' bad channels, and for the app's Artifacts lanes), `WriteDefaultToManifest` (`true`: also assign it to them and save it to their manifests) |
 | `Behavior` | `behavior` | `Enabled`, `Search` (`true`; `false`: no search or matching, only the sessions already associated), `SearchDirs`, `Match` (`"prefix"`, `"time"`, `"prefix-then-time"`), `MaxStartOffsetMin` (30), `Overwrite`, `WriteFile` (`true`: write `<Name>_behavior.mat` for every associated dataset), `PairTrials` (`true`), `AutoApprove` (`false`: approve a pairing whose trial and interval counts match without cuts), `TrialLine` (`"InTrial"`) |
@@ -79,8 +79,11 @@ Reader options, pushed to every dataset as `ReaderOptions` and used by
 | `OpenEphys.Recordings` | `"concatenate"` | an Open Ephys session with several recordings is one dataset (`"concatenate"`), one dataset per recording in part folders (`"separate"`), or refused (`"single"`); see [Open Ephys sessions](EphysDataset.md#open-ephys-sessions) |
 | `OpenEphys.RecordNode` | `""` | Record Node id to read; `""` = the only one (the lowest id, with a warning, when there are several) |
 | `OpenEphys.Stream` | `""` | continuous stream to read, by name; `""` = the stream with the most headstage channels |
+| `TDT.Stream` | `""` | TDT stream store read as the amplifier channels (`"Wav1"`); `""` = the stream with the most channels, the highest rate among those (a warning when several have that many channels); see [TDT Synapse blocks](EphysDataset.md#tdt-synapse-blocks) |
+| `TDT.GainToMicrovolts` | `NaN` | microvolts per stored unit; `NaN` = 1e6 for float streams (TDT stores them in volts); required for a stream stored as integers |
 
-`validate()` checks the mode and that `RecordNode` is blank or digits. The
+`validate()` checks the mode, that `RecordNode` is blank or digits, and that
+`TDT.GainToMicrovolts` is `NaN` or positive. The
 section decides which folders are datasets (in `"separate"` mode), so changing
 it needs a rescan; the app rescans on every change.
 
@@ -656,6 +659,7 @@ the behavior file.
 | [`test_TrialPairing.m`](../pipeline/test_TrialPairing.m) | `pairEpsychTrials`: equal counts, a recording started late or stopped early (partial intervals at the edges, the count-mismatch warning, the cuts that resolve it), an inverted line idle at the recording start, cut validation, nested lines, derived-signal samples; `digitalEvents` cache; `pairTrials` / `setTrialPairing` manifest round trip with cuts and staleness; `autoApproveTrialPairing` (only matching counts without cuts, the `auto_approved` mark); `behaviorToMat(Pairing=)`; the behavior step records, reuses and reports pairings, `AutoApprove` and a count mismatch included |
 | [`test_EphysPipelineScript.m`](../pipeline/test_EphysPipelineScript.m) | both scripts are `checkcode`-clean, run, and produce identical outputs; the standalone text never mentions the pipeline classes; disabled steps are commented out in the compact script; `literal` round-trips; the standalone script carries the `Parallel` section into the chunked steps and the artifact periods into its signals step |
 | [`test_OpenEphysReader.m`](../pipeline/test_OpenEphysReader.m) | Open Ephys sessions in every record engine; the `Acquisition` modes; `LineNames` validation and naming; a synthetic Open Ephys project through `EphysPipeline` |
+| [`test_TDTReader.m`](../pipeline/test_TDTReader.m) | TDT Synapse blocks: samples from TEV and SEV, stream choice and gain, epocs and their rows, `Acquisition.TDT` |
 | [`test_UnitLabels.m`](../pipeline/test_UnitLabels.m) | `nameIdentity` (literal prefix, non-matching names, pattern, subject and date errors, dates and times with separators), class and id padding, identity columns, peak site and template centre, `writeUnitNotes` / `readUnitNotes`, `readSortedUnits` identity errors, `EphysProject.unitIdentities` collisions, `unitTable` (columns, filtering, duplicates, files, refreshed notes) |
 | [`test_EpsychSession.m`](../pipeline/test_EpsychSession.m) | synthetic `Data` / `Info` files; `NotEpsych`; matching by prefix, by time, and ambiguity |
 

@@ -212,9 +212,18 @@ classdef EphysPreprocessingApp < handle
         RootPathField     matlab.ui.control.EditField
         BrowseRootButton  matlab.ui.control.Button
         RecursiveCheckBox matlab.ui.control.CheckBox
+        % Source settings panel (under the table): the active dataset's recording system (syncSourcePanel)
+        SourcePanel          matlab.ui.container.Panel
+        SourceGrid           matlab.ui.container.GridLayout   % rows: note, Open Ephys, TDT
+        SourceNoteLabel      matlab.ui.control.Label          % no active dataset, or a system without settings
+        SourceOEGrid         matlab.ui.container.GridLayout
         OERecordingsDropDown matlab.ui.control.DropDown   % Acquisition.OpenEphys.Recordings
         OERecordNodeField    matlab.ui.control.EditField  % Acquisition.OpenEphys.RecordNode ("" = automatic)
         OEStreamField        matlab.ui.control.EditField  % Acquisition.OpenEphys.Stream ("" = automatic)
+        SourceTDTGrid        matlab.ui.container.GridLayout
+        TDTStreamDropDown    matlab.ui.control.DropDown   % Acquisition.TDT.Stream (editable; "automatic" = "")
+        TDTGainField         matlab.ui.control.EditField  % Acquisition.TDT.GainToMicrovolts ("" = automatic, NaN)
+        TDTStatusLabel       matlab.ui.control.Label      % the stream the active block reads
         ScanButton        matlab.ui.control.Button
         RefreshMetaButton matlab.ui.control.Button
         SelectAllButton   matlab.ui.control.Button
@@ -975,6 +984,7 @@ classdef EphysPreprocessingApp < handle
         % --- Tools panel (Project tab): the datasets in other programs ---
         idx = toolTargets(obj)
         syncToolsPanel(obj)
+        syncSourcePanel(obj)
         onOpenTool(obj, tool)
         onOpenOutputFolder(obj, idx)
 

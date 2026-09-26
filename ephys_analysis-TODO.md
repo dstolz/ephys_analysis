@@ -15,7 +15,6 @@ _(nothing open)_
 ## Suggested TO DOs
 _DO NOT PROCESS UNLESS MOVED TO THE TO DO LIST_
 
-- **TDT: GUI controls for `Acquisition.TDT`.** `TDTReader` reads `Acquisition.TDT.Stream` and `Acquisition.TDT.GainToMicrovolts` from the config, but the Project tab has controls only for the Open Ephys options; the TDT options are set in the config file or script for now. Needs the control names and wording agreed first.
 - **TDT: epoc trials on the Trials tab.** Trials from a TDT block's epocs (no Epsych2 session, `Behavior.TrialLine` an epoc store) are paired and written by the behavior step, but the app's Trials tab loads only Epsych2 sessions (`onTrialsLoad` / `onTrialsPrefetch` check `BehaviorFile`), and its labels say "Epsych2". Needs the wording agreed first.
 - **TDT: the analysis module's reader options.** `EphysAnalysisRunner` / `EphysAnalysisScript` pass only `OpenEphys.Recordings` as `ReaderOptions`, so a TDT project whose pipeline config sets `Acquisition.TDT.Stream` or `GainToMicrovolts` is read with the defaults there.
 - **TDT: copying sessions and synthetic projects.** `findCopySessions`' default `NamePatterns` do not include `TDTReader.DefaultNamePattern`, and `makeSyntheticProject` cannot write TDT blocks (the test writer `private/writeTDTBlock.m` could back a `Format="tdt"`).

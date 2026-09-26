@@ -810,7 +810,12 @@ app.onScan();
 check(app.RecursiveCheckBox.Value && app.Config.Project.Recursive && app.Project.Recursive, ...
     'applying the section restores Recursive');
 
-fprintf('\n== 3b1. Project tab: Open Ephys reader options ==\n');
+fprintf('\n== 3b1. Project tab: source settings (Open Ephys, TDT) ==\n');
+app.selectDataset(1);
+check(app.SourcePanel.Title == "Source settings: Intan" && app.SourceNoteLabel.Visible == "on" ...
+    && app.SourceOEGrid.Visible == "off" && app.SourceTDTGrid.Visible == "off" ...
+    && contains(app.SourceNoteLabel.Text, "no source settings"), ...
+    'an Intan dataset is active: the Source settings panel says Intan has none');
 check(app.Config.Acquisition.OpenEphys.Recordings == "concatenate" && string(app.OERecordingsDropDown.Value) == "concatenate", ...
     'Open Ephys sessions are joined by default');
 app.OERecordingsDropDown.Value = 'separate';
@@ -830,6 +835,22 @@ app.syncTabStrip();
 check(contains(tabTip(app, app.TabProject), "RecordNode"), 'an invalid Open Ephys option shows on the Project tab''s button');
 app.Config.Acquisition = cfg.Acquisition;
 app.syncTabStrip();
+check(string(app.TDTStreamDropDown.Value) == "automatic" && app.TDTGainField.Value == "", ...
+    'the TDT options are automatic by default');
+app.TDTStreamDropDown.Value = 'Wav1';
+app.TDTGainField.Value = '0.5';
+app.onAcquisitionChanged();
+check(app.Config.Acquisition.TDT.Stream == "Wav1" && app.Config.Acquisition.TDT.GainToMicrovolts == 0.5 ...
+    && isequal(app.Project.Datasets(1).ReaderOptions, app.Config.Acquisition), ...
+    'the TDT stream and gain are saved in Acquisition.TDT and pushed to the datasets');
+app.TDTGainField.Value = 'abc';
+app.onAcquisitionChanged();
+check(app.Config.Acquisition.TDT.GainToMicrovolts == 0.5, 'a TDT gain that is not a number is refused');
+app.applyAcquisitionSection(cfg.Acquisition);
+app.onAcquisitionChanged();
+check(app.Config.Acquisition.TDT.Stream == "" && isnan(app.Config.Acquisition.TDT.GainToMicrovolts) ...
+    && string(app.TDTStreamDropDown.Value) == "automatic" && app.TDTGainField.Value == "", ...
+    'applying the section restores the TDT defaults');
 
 fprintf('\n== 3b. Trials tab: load, cut, approve, polarity ==\n');
 app.selectDataset(1);
@@ -1954,6 +1975,40 @@ if isfile(marker); L = strtrim(readlines(marker)); end
 check(~isempty(L) && strcmpi(L(1), phyHome) && any(L == "params.py found") && any(L == "template-gui params.py"), ...
     'phy is started in the results folder, also when its path holds & and spaces');
 app.PhyCmdField.Value = phyCmd0;
+
+fprintf('\n== 6e. Source settings for a TDT block ==\n');
+proj3 = fullfile(root, 'proj3');
+FsT = 24414.0625;
+spec = struct('Name', 'Subj9-260105-120000', 'StartTime', posixtime(datetime(2026, 1, 5, 12, 0, 0, 'TimeZone', 'local')));
+spec.Streams = [struct('Name', 'Wav1', 'Fs', FsT, 'Data', single(randn(2560, 4) * 1e-4), 'Npts', 256, 'Sev', false, ...
+        'T0', 0, 'ChunkTimes', [], 'Rate', [], 'Decimate', [], 'Channels', []), ...
+    struct('Name', 'LFP1', 'Fs', FsT / 8, 'Data', int16(randi([-300 300], 320, 2)), 'Npts', 32, 'Sev', false, ...
+        'T0', 0, 'ChunkTimes', [], 'Rate', [], 'Decimate', [], 'Channels', [])];
+spec.Epocs = struct([]);
+writeTDTBlock(fullfile(proj3, spec.Name), spec);
+app.RootPathField.Value = char(proj3);
+app.onConfigChanged();
+app.onScan();
+app.selectDataset(1);
+check(app.SourcePanel.Title == "Source settings: TDT (Synapse)" && app.SourceTDTGrid.Visible == "on" ...
+    && app.SourceOEGrid.Visible == "off" && app.SourceNoteLabel.Visible == "off", ...
+    'a TDT block is active: the panel shows the TDT settings only');
+check(all(ismember({'automatic' 'Wav1' 'LFP1'}, app.TDTStreamDropDown.Items)) && startsWith(app.TDTStatusLabel.Text, "reads Wav1") ...
+    && contains(app.TDTStatusLabel.Tooltip, "LFP1: 2 channels"), ...
+    'the Stream list holds the block''s streams; the status says which one is read');
+app.TDTStreamDropDown.Value = 'LFP1';
+app.onAcquisitionChanged();
+app.selectDataset(1);
+check(app.Config.Acquisition.TDT.Stream == "LFP1" && contains(app.TDTStatusLabel.Text, "set the gain"), ...
+    'an integer stream without a gain: the status asks for one');
+app.TDTGainField.Value = '0.5';
+app.onAcquisitionChanged();
+app.selectDataset(1);
+dT3 = app.currentDataset();
+check(startsWith(app.TDTStatusLabel.Text, "reads LFP1") && dT3.Fs == FsT / 8 && dT3.NumChannels == 2, ...
+    'with a gain the rescan reads the chosen stream');
+app.applyAcquisitionSection(cfg.Acquisition);
+app.onAcquisitionChanged();
 
 fprintf('\n== 7. deleting the figure (not Close) stops the timers ==\n');
 never = fullfile(root, 'never_run');

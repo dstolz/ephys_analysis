@@ -1,24 +1,25 @@
 function buildProjectTab(obj)
 %buildProjectTab  Config name, project root / output root, name pattern,
-%   Open Ephys reader options, dataset table, selection helpers, the Tools
-%   panel beside the table (the datasets in the manifest viewer, the
-%   analysis app, phy or the file browser) and the Epsych2 behavior
-%   association panel.
+%   dataset table, selection helpers, the Tools panel beside the table (the
+%   datasets in the manifest viewer, the analysis app, phy or the file
+%   browser), the Source settings panel under it (the reader options of the
+%   active dataset's recording system: Open Ephys, TDT; see
+%   syncSourcePanel) and the Epsych2 behavior association panel.
 %   The dataset table's Select column is the config's dataset selection
 %   (Project.Selection / Project.Datasets); the Behavior panel edits the
 %   config's Behavior section and associates session files per dataset.
 
-g = uigridlayout(obj.TabProject, [4 1]);
-g.RowHeight   = {'fit', 'fit', '1x', 'fit'};
+g = uigridlayout(obj.TabProject, [5 1]);
+g.RowHeight   = {'fit', 'fit', '1x', 'fit', 'fit'};
 g.ColumnWidth = {'1x'};
 g.Padding     = [10 10 10 10];
 g.RowSpacing  = 8;
 changed = @(~,~) obj.onConfigChanged();
 
-% --- rows 1-5: config name / project root / output root / name pattern / Open Ephys
-top = uigridlayout(g, [5 8]);
+% --- rows 1-4: config name / project root / output root / name pattern
+top = uigridlayout(g, [4 8]);
 top.Layout.Row = 1;
-top.RowHeight   = {'fit', 30, 'fit', 'fit', 'fit'};
+top.RowHeight   = {'fit', 30, 'fit', 'fit'};
 top.ColumnWidth = {'fit', 460, 'fit', 'fit', 'fit', 'fit', 360, '1x'};
 top.Padding     = [0 0 0 0];
 
@@ -80,35 +81,6 @@ obj.NameTokenGrid.Padding   = [0 0 0 0];
 obj.NameTokenStatusLabel = uilabel(top, "Text", "", "FontColor", [0.4 0.4 0.4]);
 obj.NameTokenStatusLabel.Layout.Row = 4; obj.NameTokenStatusLabel.Layout.Column = 8;
 
-oeTip = "Open Ephys GUI sessions (Binary, Open Ephys or NWB format). Changing these rescans the project.";
-lbl = uilabel(top, "Text", "Open Ephys:", "Tooltip", oeTip);
-lbl.Layout.Row = 5; lbl.Layout.Column = 1;
-oe = uigridlayout(top, [1 5]);
-oe.Layout.Row = 5; oe.Layout.Column = [2 8];
-oe.ColumnWidth = {230, 'fit', 90, 'fit', 180};
-oe.Padding = [0 0 0 0];
-obj.OERecordingsDropDown = uidropdown(oe, ...
-    "Items", {'join recordings (one dataset)', 'one dataset per recording', 'single recording only'}, ...
-    "ItemsData", {'concatenate', 'separate', 'single'}, "Value", 'concatenate', ...
-    "Tooltip", ["A session with several recordings (recording stopped and restarted, or acquisition restarted):" ...
-        "join: one dataset, the recordings end to end" ...
-        "one dataset per recording: a part folder per recording inside the session folder (created by the scan), named from its start time" ...
-        "single: a session must hold one recording"], ...
-    "ValueChangedFcn", @(~,~) obj.onAcquisitionChanged());
-obj.OERecordingsDropDown.Layout.Column = 1;
-lbl = uilabel(oe, "Text", "Record node:", "HorizontalAlignment", "right");
-lbl.Layout.Column = 2;
-obj.OERecordNodeField = uieditfield(oe, "text", "Placeholder", "automatic", ...
-    "Tooltip", "Record Node id to read (e.g. 101). Blank: the only one, or the lowest id when a session has several.", ...
-    "ValueChangedFcn", @(~,~) obj.onAcquisitionChanged());
-obj.OERecordNodeField.Layout.Column = 3;
-lbl = uilabel(oe, "Text", "Stream:", "HorizontalAlignment", "right");
-lbl.Layout.Column = 4;
-obj.OEStreamField = uieditfield(oe, "text", "Placeholder", "automatic", ...
-    "Tooltip", "Continuous stream to read (its name, e.g. Rhythm Data). Blank: the stream with the most headstage channels.", ...
-    "ValueChangedFcn", @(~,~) obj.onAcquisitionChanged());
-obj.OEStreamField.Layout.Column = 5;
-
 % --- row 2: table toolbar ----------------------------------------------------
 tb = uigridlayout(g, [1 5]);
 tb.Layout.Row = 2;
@@ -150,9 +122,12 @@ obj.DatasetsTable.CellSelectionCallback = @(~,evt) obj.onDatasetCellSelection(ev
 % Select is the only editable column: a tick changes the selection and the Dataset menu.
 obj.DatasetsTable.CellEditCallback = @(~,~) ticksEdited(obj);
 
-% --- row 4: behavior (Epsych2) panel -----------------------------------------
+% --- row 4: source settings of the active dataset's recording system ---------
+buildSourcePanel(obj, g);
+
+% --- row 5: behavior (Epsych2) panel -----------------------------------------
 bp = uipanel(g, "Title", "Behavior: Epsych2 session files (associated per dataset, saved in the manifest)");
-bp.Layout.Row = 4;
+bp.Layout.Row = 5;
 bg = uigridlayout(bp, [2 9]);
 bg.RowHeight   = {'fit', 30};
 bg.ColumnWidth = {'fit', 'fit', 460, 'fit', 'fit', 'fit', 'fit', '1x', 'fit'};
@@ -212,6 +187,85 @@ end
 function ticksEdited(obj)
 obj.refreshDatasetMenu();
 obj.onConfigChanged();
+end
+
+
+function buildSourcePanel(obj, parent)
+%buildSourcePanel  The reader options of the active dataset's recording system.
+%   One row per system with settings (Open Ephys, TDT) and a note row; only
+%   the row of the active dataset's system shows (syncSourcePanel). The
+%   options are the config's Acquisition section, so they apply to every
+%   dataset of that system in the project; a change rescans the project
+%   (onAcquisitionChanged).
+obj.SourcePanel = uipanel(parent, "Title", "Source settings");
+obj.SourcePanel.Layout.Row = 4;
+obj.SourceGrid = uigridlayout(obj.SourcePanel, [3 1]);
+obj.SourceGrid.RowHeight   = {'fit', 0, 0};
+obj.SourceGrid.ColumnWidth = {'1x'};
+obj.SourceGrid.RowSpacing  = 0;
+obj.SourceGrid.Padding     = [8 4 8 4];
+obj.SourceNoteLabel = uilabel(obj.SourceGrid, "Text", "Scan a project first.", "FontColor", [0.4 0.4 0.4]);
+obj.SourceNoteLabel.Layout.Row = 1;
+changed = @(~,~) obj.onAcquisitionChanged();
+scope = " Applies to every %s in the project; a change rescans it.";
+
+% --- Open Ephys: Acquisition.OpenEphys -----------------------------------------
+oe = uigridlayout(obj.SourceGrid, [1 6]);
+oe.Layout.Row = 2;
+oe.RowHeight   = {'fit'};
+oe.ColumnWidth = {230, 'fit', 90, 'fit', 180, '1x'};
+oe.Padding     = [0 0 0 0];
+oe.Visible     = "off";
+obj.SourceOEGrid = oe;
+obj.OERecordingsDropDown = uidropdown(oe, ...
+    "Items", {'join recordings (one dataset)', 'one dataset per recording', 'single recording only'}, ...
+    "ItemsData", {'concatenate', 'separate', 'single'}, "Value", 'concatenate', ...
+    "Tooltip", ["A session with several recordings (recording stopped and restarted, or acquisition restarted):" ...
+        "join: one dataset, the recordings end to end" ...
+        "one dataset per recording: a part folder per recording inside the session folder (created by the scan), named from its start time" ...
+        "single: a session must hold one recording" ...
+        sprintf(strtrim(scope), "Open Ephys session")], ...
+    "ValueChangedFcn", changed);
+obj.OERecordingsDropDown.Layout.Column = 1;
+lbl = uilabel(oe, "Text", "Record node:", "HorizontalAlignment", "right");
+lbl.Layout.Column = 2;
+obj.OERecordNodeField = uieditfield(oe, "text", "Placeholder", "automatic", ...
+    "Tooltip", "Record Node id to read (e.g. 101). Blank: the only one, or the lowest id when a session has several." ...
+        + sprintf(scope, "Open Ephys session"), ...
+    "ValueChangedFcn", changed);
+obj.OERecordNodeField.Layout.Column = 3;
+lbl = uilabel(oe, "Text", "Stream:", "HorizontalAlignment", "right");
+lbl.Layout.Column = 4;
+obj.OEStreamField = uieditfield(oe, "text", "Placeholder", "automatic", ...
+    "Tooltip", "Continuous stream to read (its name, e.g. Rhythm Data). Blank: the stream with the most headstage channels." ...
+        + sprintf(scope, "Open Ephys session"), ...
+    "ValueChangedFcn", changed);
+obj.OEStreamField.Layout.Column = 5;
+
+% --- TDT: Acquisition.TDT --------------------------------------------------------
+td = uigridlayout(obj.SourceGrid, [1 5]);
+td.Layout.Row = 3;
+td.RowHeight   = {'fit'};
+td.ColumnWidth = {'fit', 180, 'fit', 110, '1x'};
+td.Padding     = [0 0 0 0];
+td.Visible     = "off";
+obj.SourceTDTGrid = td;
+lbl = uilabel(td, "Text", "Stream:", "HorizontalAlignment", "right");
+lbl.Layout.Column = 1;
+obj.TDTStreamDropDown = uidropdown(td, "Items", {'automatic'}, "Value", 'automatic', "Editable", "on", ...
+    "Tooltip", "The stream store read as the amplifier channels (pick one of the active block's, or type a name). automatic: the stream with the most channels, the highest rate among those." ...
+        + sprintf(scope, "TDT block"), ...
+    "ValueChangedFcn", changed);
+obj.TDTStreamDropDown.Layout.Column = 2;
+lbl = uilabel(td, "Text", "Gain (µV per unit):", "HorizontalAlignment", "right");
+lbl.Layout.Column = 3;
+obj.TDTGainField = uieditfield(td, "text", "Placeholder", "automatic", ...
+    "Tooltip", "Microvolts per stored value. Blank: 1e6 for float streams (TDT stores them in volts). A stream stored as integers needs it: the block does not record its scale." ...
+        + sprintf(scope, "TDT block"), ...
+    "ValueChangedFcn", changed);
+obj.TDTGainField.Layout.Column = 4;
+obj.TDTStatusLabel = uilabel(td, "Text", "", "FontColor", [0.4 0.4 0.4]);
+obj.TDTStatusLabel.Layout.Column = 5;
 end
 
 

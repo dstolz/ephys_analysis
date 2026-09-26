@@ -139,6 +139,7 @@ if n > 0
     obj.syncToolsPanel();
     obj.syncTabStrip();
 end
+obj.syncSourcePanel();
 end
 
 
@@ -162,6 +163,7 @@ end
 obj.DatasetsTable.Data = T;
 obj.highlightDatasetRow();
 obj.syncToolsPanel();
+obj.syncSourcePanel();
 done = true;
 end
 

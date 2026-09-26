@@ -313,9 +313,11 @@ E9 = d9.digitalEvents(Relabel=false);
 ok9 = numel(T9.lineNames) == numel(fieldnames(T9.events));
 for ln = T9.lineNames
     kv = split(ln, "=");
-    ok9 = ok9 && isequal(reshape(round(E9.events.(kv(1)) * Fs9), [], 2), reshape(round(T9.events.(kv(2)) * Fs9), [], 2));
+    got = zeros(0, 2);   % a line never active writes no epocs, so the block has no store for it
+    if isfield(E9.events, kv(1)); got = E9.events.(kv(1)); end
+    ok9 = ok9 && isequal(reshape(round(got * Fs9), [], 2), reshape(round(T9.events.(kv(2)) * Fs9), [], 2));
 end
-check(ok9 && startsWith(T9.lineNames(1), "PC0_="), 'each line reads back at the rows it was written (store PCn_ = its name)');
+check(ok9 && startsWith(T9.lineNames(1), "PC0_="), 'each line reads back at the rows it was written (store PCn_ = its name; a line never active has none)');
 tc = d9.TrialConfig; tc.LineNames = T9.lineNames; tc.TrialLine = T9.trialLine; d9.TrialConfig = tc;
 d9.BehaviorFile = T9.behaviorFile;
 P9 = d9.pairTrials(Cuts=T9.expectedCuts, Warn=false);

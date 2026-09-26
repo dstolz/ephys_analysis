@@ -1,0 +1,23 @@
+{
+  "schema": "ephys-hardware/1",
+  "kind": "package",
+  "manufacturer": "neuronexus",
+  "name": "H32",
+  "model": "H32 / MRH32 package (Omnetics 36)",
+  "channels": 32,
+  "view": "looking into the pins, side printed NEURONEXUS up",
+  "faces": [
+    {
+      "id": "main",
+      "connector": "omnetics-nano-36",
+      "gender": "male",
+      "rows": [
+        "GUIDE REF1 18 27 28 29 17 30 31 32 1 2 3 16 4 5 6 15 GND GUIDE",
+        "GUIDE GND 20 21 22 23 19 24 25 26 7 8 9 14 10 11 12 13 REF2 GUIDE"
+      ]
+    }
+  ],
+  "verifiedHeadstages": ["intan/RHD2132-32ch"],
+  "notes": "Cells are probe site numbers. The map notes that the printed side may vary. H32 + Intan RHD2132 in the reference orientation reproduces probeinterface's H32>RHD2132 wiring pathway for all 32 sites.",
+  "source": "https://www.neuronexus.com/files/probemapping/32-channel/H32-Maps.pdf"
+}

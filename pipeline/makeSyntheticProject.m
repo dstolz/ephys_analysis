@@ -259,7 +259,7 @@ if startsWith(opts.Format, "openephys-")
     w('Signals.LineNames: TTL1=Trough, TTL2=Platform, TTL3=Stim, TTL4=InTrial (the trial line),');
     w('TTL5=RespWindow, TTL6=Commutator (never active, so never seen). %d recording(s) per session.', opts.Parts);
     w('Amplifier data holds LFP');
-elseif isTDT
+elseif opts.Format == "tdt"
     w('Every recording: a TDT Synapse block (<subject>-yymmdd-hhmmss: .tsq + .tev), %.10g Hz, stream', opts.Fs);
     w('Wav1 of %d channels (Ch1..) in float32 volts, no AUX, strobe epoc stores PC0_..PC5_ named by', opts.NumChannels);
     w('the config''s Signals.LineNames: PC0_=Trough, PC1_=Platform, PC2_=Stim, PC3_=InTrial (the trial');

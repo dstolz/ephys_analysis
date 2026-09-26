@@ -1,0 +1,15 @@
+{
+  "schema": "ephys-hardware/1",
+  "kind": "connector",
+  "manufacturer": "omnetics",
+  "name": "omnetics-nano-18",
+  "channels": 18,
+  "family": "omnetics-nano-18",
+  "rows": 2,
+  "cols": 10,
+  "guides": [[1, 1], [1, 10]],
+  "oneWay": true,
+  "pitchMm": 0.635,
+  "notes": "Omnetics Nano, 18 positions: the top row has 8 pins between two guide posts, the bottom row 10 pins (a face is 2 x 10). The guide posts sit on one row only, so it mates one way; the rotated orientation is reported as a problem.",
+  "source": "https://intantech.com/RHD_headstages.html"
+}

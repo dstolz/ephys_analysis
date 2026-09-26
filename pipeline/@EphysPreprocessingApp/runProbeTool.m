@@ -6,8 +6,10 @@ function result = runProbeTool(obj, varargin)
 %   captures stdout, raises on a PROBE_TOOL_ERROR marker or non-zero exit, and
 %   returns the JSON the script prints on its last output line, jsondecoded:
 %
-%     list-library            -> struct mapping manufacturer -> {probe names}
+%     list-library            -> list of {manufacturer, probes}
 %     get-library / generate  -> struct with fields out, n_contacts
+%     get-contacts            -> struct with fields out, n_contacts (the
+%                                file holds contact_ids, x, y, shank_ids)
 %     describe                -> struct positions/shank_ids/device_channel_indices/...
 %
 %   probeinterface lives only in that env; the app itself stores and consumes
@@ -15,10 +17,12 @@ function result = runProbeTool(obj, varargin)
 %
 %   Uses the same env-python-or-`conda run` dispatch as
 %   EphysDataset.runKilosort (env python directly when no conda env is set;
-%   conda is not required to be on PATH in that case).
+%   conda is not required to be on PATH in that case). The command itself is
+%   assembled by the static runProbeToolWith, which ChannelMapperApp also
+%   uses when it runs on its own.
 %
-%   See also EphysPreprocessingApp.onDesignProbe, ProbeDesignerApp,
-%   EphysDataset.runKilosort.
+%   See also EphysPreprocessingApp.runProbeToolWith, EphysPreprocessingApp.onDesignProbe,
+%   ProbeDesignerApp, ChannelMapperApp, EphysDataset.runKilosort.
 
 if isempty(varargin)
     error('EphysPreprocessingApp:runProbeTool:NoSubcommand', ...
@@ -33,48 +37,5 @@ if pythonExe == ""
          'Kilosort tab (the same env used for sorting).']);
 end
 
-script = fullfile(fileparts(mfilename('fullpath')), 'probe_tool.py');
-if ~isfile(script)
-    error('EphysPreprocessingApp:runProbeTool:ScriptMissing', ...
-        'probe_tool.py not found next to EphysPreprocessingApp: %s', script);
-end
-
-% Double-quote every token; keep native paths (cmd/python handle them as-is),
-% mirroring runKilosort's command assembly.
-tokens = string(varargin);
-quoted = strjoin(arrayfun(@(t) """" + t + """", tokens), " ");
-if condaEnv ~= ""
-    command = sprintf('conda run -n %s "%s" "%s" %s', condaEnv, pythonExe, script, quoted);
-else
-    command = sprintf('"%s" "%s" %s', pythonExe, script, quoted);
-end
-
-[status, out] = system(command);
-raw = string(out);
-
-if status ~= 0 || contains(raw, "PROBE_TOOL_ERROR")
-    error('EphysPreprocessingApp:runProbeTool:Failed', ...
-        'probe_tool.py %s failed (status %d):\n%s', tokens(1), status, strtrim(raw));
-end
-
-result = decodeLastJson(raw);
-end
-
-
-function value = decodeLastJson(raw)
-%decodeLastJson  Return the last stdout line that parses as JSON (else the raw
-%   text). Scanning from the end skips any leading warnings the env may print
-%   (e.g. a first-time probeinterface library download) before the payload.
-lines = splitlines(strtrim(raw));
-for k = numel(lines):-1:1
-    ln = strtrim(lines(k));
-    if ln == ""; continue; end
-    try
-        value = jsondecode(ln);
-        return
-    catch
-        % not this line; keep scanning upward
-    end
-end
-value = raw;   % nothing decoded; hand back what we got
+result = EphysPreprocessingApp.runProbeToolWith(pythonExe, condaEnv, varargin{:});
 end

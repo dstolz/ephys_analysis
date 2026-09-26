@@ -2,7 +2,8 @@ function buildMenus(obj)
 %buildMenus  File / Dataset / Run / Help menus.
 %   File holds the pipeline-config lifecycle (New, Open, Open recent, Save,
 %   Save As, Export copy, Generate script), Create synthetic test project,
-%   Open analysis app (EphysAnalysisApp on this project; onOpenAnalysisApp)
+%   Open analysis app (EphysAnalysisApp on this project; onOpenAnalysisApp),
+%   Channel mapper (ChannelMapperApp; onOpenChannelMapper)
 %   and Close. Dataset chooses the active dataset, the one every tab's
 %   single-dataset controls work on (see selectDataset): it lists the
 %   datasets ticked in the Project table, with every dataset in an "All
@@ -39,6 +40,9 @@ uimenu(obj.FileMenu, "Text", "Create synthetic test project...", "Separator", "o
 uimenu(obj.FileMenu, "Text", "Open analysis app...", ...
     "Tooltip", "Quick-look figures (PSTHs, evoked potentials, rates, tuning, probe maps) of this project's outputs.", ...
     "MenuSelectedFcn", @(~,~) obj.onOpenAnalysisApp());
+uimenu(obj.FileMenu, "Text", "Channel mapper...", ...
+    "Tooltip", "Map probe sites through the package and headstage to recording rows, and export the Kilosort4 probe .json.", ...
+    "MenuSelectedFcn", @(~,~) obj.onOpenChannelMapper());
 uimenu(obj.FileMenu, "Text", "Close", "Separator", "on", ...
     "MenuSelectedFcn", @(~,~) obj.onClose());
 

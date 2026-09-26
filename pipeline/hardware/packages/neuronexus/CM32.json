@@ -1,0 +1,23 @@
+{
+  "schema": "ephys-hardware/1",
+  "kind": "package",
+  "manufacturer": "neuronexus",
+  "name": "CM32",
+  "model": "CM32 / MRCM32 package (Omnetics 36)",
+  "channels": 32,
+  "view": "looking into the pins, side printed NEURONEXUS up",
+  "faces": [
+    {
+      "id": "main",
+      "connector": "omnetics-nano-36",
+      "gender": "male",
+      "rows": [
+        "GUIDE REF1 21 22 24 26 28 30 20 19 14 13 3 5 7 9 11 12 GND GUIDE",
+        "GUIDE GND 23 25 27 29 31 32 18 17 16 15 1 2 4 6 8 10 REF2 GUIDE"
+      ]
+    }
+  ],
+  "verifiedHeadstages": [],
+  "notes": "Cells are probe site numbers. The map notes that the printed side may vary.",
+  "source": "https://www.neuronexus.com/files/probemapping/32-channel/CM32-Maps.pdf"
+}

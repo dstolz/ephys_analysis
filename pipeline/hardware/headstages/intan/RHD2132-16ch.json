@@ -1,0 +1,24 @@
+{
+  "schema": "ephys-hardware/1",
+  "kind": "headstage",
+  "manufacturer": "intan",
+  "name": "RHD2132-16ch",
+  "model": "RHD2132 16-channel headstage (C3334 / C3335), Omnetics A79041",
+  "channels": 16,
+  "channelLabel": "in%d",
+  "hardwareChannels": [8, 23],
+  "view": "looking into the electrode connector, chip side of the PCB up",
+  "faces": [
+    {
+      "id": "main",
+      "connector": "omnetics-nano-18",
+      "gender": "female",
+      "rows": [
+        "GUIDE 19 18 17 16 15 14 13 12 GUIDE",
+        "REF 20 21 22 23 8 9 10 11 GND"
+      ]
+    }
+  ],
+  "notes": "Transcribed from the electrode connector pinout on Intan's RHD headstage page (RHD2132_16ch_electrode_connector). The 16-channel headstage wires amplifier inputs in8..in23 of the RHD2132; recorded in order they are rows 0..15.",
+  "source": "https://intantech.com/RHD_headstages.html"
+}

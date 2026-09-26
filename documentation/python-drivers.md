@@ -18,7 +18,7 @@ then writes the exit marker `ks4_exit.txt`.
 | Script | Called by | Environment needs |
 | --- | --- | --- |
 | [`run_ks4.py`](../pipeline/@EphysDataset/run_ks4.py) | `EphysDataset.runKilosort` (the pipeline's Sorting step) | kilosort, torch |
-| [`probe_tool.py`](../pipeline/@EphysPreprocessingApp/probe_tool.py) | `EphysPreprocessingApp.runProbeTool` / `ProbeDesignerApp` | probeinterface |
+| [`probe_tool.py`](../pipeline/@EphysPreprocessingApp/probe_tool.py) | `EphysPreprocessingApp.runProbeTool` (`runProbeToolWith`) / `ProbeDesignerApp` / `ChannelMapperApp` | probeinterface |
 
 Versions known to work are listed in [INSTALL.md](../pipeline/INSTALL.md):
 kilosort 4.1.7, probeinterface 0.3.2, torch 2.7.1.
@@ -73,6 +73,7 @@ Usage:
 ```text
 probe_tool.py list-library [--tag TAG]
 probe_tool.py get-library <manufacturer> <probe_name> <out.json> [--name N] [--notes S] [--wiring w0,w1,...] [--n-chan K]
+probe_tool.py get-contacts <manufacturer> <probe_name> <out.json>
 probe_tool.py generate <spec.json> <out.json>
 probe_tool.py describe <in.json>
 ```
@@ -81,6 +82,7 @@ probe_tool.py describe <in.json>
 | --- | --- |
 | `list-library` | prints a JSON array of `{manufacturer, probes}`. If probeinterface lacks the listing helpers, it falls back to `neuronexus`, `cambridgeneurotech` and `plexon` with empty probe lists |
 | `get-library` | `probeinterface.get_probe(...)` → KS4 JSON written to `out.json`; prints `{out, n_contacts}` |
+| `get-contacts` | `probeinterface.get_probe(...)` → `{manufacturer, probe, contact_ids, x, y, shank_ids}` written to `out.json` (not a KS4 file: the contact ids are the vendor's site numbers, for `ChannelMapperApp`'s probe designs); prints `{out, n_contacts}` |
 | `generate` | the spec `{type, params, name, notes, n_chan, wiring}` is built with `generate_linear_probe`, `generate_multi_columns_probe` or `generate_tetrode` → KS4 JSON; prints `{out, n_contacts}` |
 | `describe` | prints positions / shank ids / device channel indices / `n_chan` / notes for a KS4 JSON or a probeinterface JSON |
 
@@ -91,6 +93,8 @@ The conversion to KS4 JSON (`pi_probe_to_ks4`) works as follows:
 - `chanMap` is the explicit `--wiring` if given, else the probe's
   `device_channel_indices` if present and all ≥ 0, else `0..n−1`.
 - `n_chan` defaults to `max(n, max(chanMap)+1)`.
+
+`runProbeTool` takes the Python and conda env from the Kilosort tab and hands them to the static `EphysPreprocessingApp.runProbeToolWith`, which assembles the command. `ChannelMapperApp` opened on its own calls `runProbeToolWith` with the Python the app last used (its `PythonExe` preference).
 
 On failure the script prints `PROBE_TOOL_ERROR: ...` and exits 1.
 `runProbeTool` raises `EphysPreprocessingApp:runProbeTool:Failed` on a non-zero exit

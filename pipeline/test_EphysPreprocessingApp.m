@@ -824,12 +824,12 @@ app.OEStreamField.Value = 'Rhythm Data';
 app.onAcquisitionChanged();
 A = app.Config.Acquisition.OpenEphys;
 check(A.Recordings == "separate" && A.RecordNode == "104" && A.Stream == "Rhythm Data" ...
-    && isequal(app.Project.ReaderOptions, app.Config.Acquisition) && isequal(app.Project.Datasets(1).ReaderOptions, app.Config.Acquisition), ...
+    && isequaln(app.Project.ReaderOptions, app.Config.Acquisition) && isequaln(app.Project.Datasets(1).ReaderOptions, app.Config.Acquisition), ...
     'the Open Ephys options are saved in Acquisition and a rescan pushes them to the project and datasets');
 app.applyAcquisitionSection(cfg.Acquisition);
 app.onAcquisitionChanged();
 check(app.Config.Acquisition.OpenEphys.Recordings == "concatenate" && app.OERecordNodeField.Value == "" ...
-    && isequal(app.Project.ReaderOptions, cfg.Acquisition), 'applying the section restores the defaults');
+    && isequaln(app.Project.ReaderOptions, cfg.Acquisition), 'applying the section restores the defaults');
 app.Config.Acquisition.OpenEphys.RecordNode = "node";
 app.syncTabStrip();
 check(contains(tabTip(app, app.TabProject), "RecordNode"), 'an invalid Open Ephys option shows on the Project tab''s button');
@@ -841,7 +841,7 @@ app.TDTStreamDropDown.Value = 'Wav1';
 app.TDTGainField.Value = '0.5';
 app.onAcquisitionChanged();
 check(app.Config.Acquisition.TDT.Stream == "Wav1" && app.Config.Acquisition.TDT.GainToMicrovolts == 0.5 ...
-    && isequal(app.Project.Datasets(1).ReaderOptions, app.Config.Acquisition), ...
+    && isequaln(app.Project.Datasets(1).ReaderOptions, app.Config.Acquisition), ...
     'the TDT stream and gain are saved in Acquisition.TDT and pushed to the datasets');
 app.TDTGainField.Value = 'abc';
 app.onAcquisitionChanged();
@@ -1129,6 +1129,18 @@ check(~isempty(row) && ~any(endsWith(app.ProbePaths, ".ks4.json")), 'the probe l
 app.selectProbeRow(row);
 check(contains(app.ProbeInfoLabel.Text, "Kilosort4 parameters: square4.ks4.json"), ...
     'the Probe tab names the selected probe''s parameter file');
+sidecar = ChannelMap.sidecarFile(probeFile);
+writeJsonFile(sidecar, struct('schema', 'ephys-channel-map/1', 'probeFile', 'square4.json'));
+app.refreshProbeList();
+check(~any(endsWith(app.ProbePaths, ".chanmap.json")) && any(app.ProbePaths == string(probeFile)), ...
+    'the probe list leaves out a probe''s .chanmap.json sidecar (ChannelMapperApp)');
+delete(sidecar);
+check(isa(app.ChannelMapperButton, 'matlab.ui.control.Button') && isvalid(app.ChannelMapperButton) && ...
+    app.ChannelMapperButton.Text == "Map channels...", 'the Probe tab has the Map channels button');
+mapper = app.onOpenChannelMapper();
+check(isa(mapper, 'ChannelMapperApp') && mapper.App == app && isvalid(mapper.Fig) && ~isempty(mapper.Result), ...
+    'Map channels opens a ChannelMapperApp with this app as its parent');
+delete(mapper);
 app.ProbeFolderField.Value = probeFolder;
 app.refreshProbeList();
 delete(paramsFile);

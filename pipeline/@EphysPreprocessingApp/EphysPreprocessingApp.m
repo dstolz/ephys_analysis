@@ -36,7 +36,8 @@ classdef EphysPreprocessingApp < handle
     %                (or auto approve the ones whose counts match), prefetch
     %                the digital lines of every ticked dataset at once
     %     Probe      probe library, preview, assignment, per-dataset channel
-    %                exclusions, the config's default probe
+    %                exclusions, the config's default probe; the probe
+    %                designer and the channel mapper (ChannelMapperApp)
     %     Artifacts  automatic detection settings + preview, a viewer that steps
     %                through the detected artifacts (what a run removes and
     %                keeps around each), manual periods
@@ -376,6 +377,7 @@ classdef EphysPreprocessingApp < handle
         ImportProbeButton   matlab.ui.control.Button
         EditProbeJSONButton matlab.ui.control.Button
         DesignProbeButton   matlab.ui.control.Button
+        ChannelMapperButton matlab.ui.control.Button   % Map channels...: ChannelMapperApp (onOpenChannelMapper)
         RefreshProbesButton matlab.ui.control.Button
         ProbeTable          matlab.ui.control.Table
         ProbeInfoLabel      matlab.ui.control.Label
@@ -1055,6 +1057,7 @@ classdef EphysPreprocessingApp < handle
         onProbeSelected(obj)
         onImportProbe(obj)
         onDesignProbe(obj)
+        m = onOpenChannelMapper(obj)
         result = runProbeTool(obj, varargin)
         onAssignProbe(obj, scope)
         onApplyExclude(obj, scope)
@@ -1173,5 +1176,10 @@ classdef EphysPreprocessingApp < handle
         onReportIssue(obj, kind)
         body = issueReport(obj, kind, opts)
         [url, truncated] = issueURL(obj, kind, title, body)
+    end
+
+    methods (Static)
+        % --- methods defined in separate files ---
+        result = runProbeToolWith(pythonExe, condaEnv, varargin)
     end
 end

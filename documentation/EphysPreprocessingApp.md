@@ -538,8 +538,8 @@ Probe maps are Kilosort4 probe `.json` files
 [`pipeline/probes`](../pipeline/probes/README.md).
 
 - **Probe folder** + **Browse...** + **Refresh** list every probe `*.json` in
-  the folder (not recursive; a probe's `<probe>.ks4.json` parameter file is not
-  listed). The **probe table** shows Probe, Ch, Shanks, Depth
+  the folder (not recursive; a probe's `<probe>.ks4.json` parameter file and
+  `<probe>.chanmap.json` channel-map sidecar are not listed). The **probe table** shows Probe, Ch, Shanks, Depth
   (µm) and Notes; the Notes cell is editable and written back into the file.
 - **Probe info** shows the file, `n_chan`, `chanMap` length, shank count,
   whether the probe has a Kilosort4 parameter file
@@ -552,8 +552,15 @@ Probe maps are Kilosort4 probe `.json` files
   **Show channel numbers** labels each site with its 1-based channel.
 - **Design probe from probeinterface...** opens
   [`ProbeDesignerApp`](ProbeDesignerApp.md); **Import probe .json into
-  folder...** (copies the probe's `.ks4.json` parameter file too, when it has
-  one); **Edit probe .json...**.
+  folder...** (copies the probe's `.ks4.json` parameter file and
+  `.chanmap.json` sidecar too, when it has them); **Edit probe .json...**.
+- **Map channels...** (also **File → Channel mapper...**) opens
+  [`ChannelMapperApp`](ChannelMapperApp.md). It follows each site of a probe
+  design through its package (NeuroNexus H32, H64LP ...) and headstage (Intan
+  RHD2132, RHD2164 ...) to its recording row. It shows the map as a table you
+  can copy and as pictures of the mated connectors, and exports the Kilosort4
+  probe `.json` into this folder. Recording rows can come from the active
+  dataset's channel numbers.
 - **Dataset** + **Exclude channels** (1-based, `1,5,32-40`): the exclusions
   of the active dataset, written to its manifest. The list is parsed
   strictly: text that does not parse changes nothing, an alert says why and

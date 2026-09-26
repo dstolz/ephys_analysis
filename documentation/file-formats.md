@@ -50,7 +50,15 @@ written as the strings `"NaN"` / `"Inf"`.
 
 <probe folder>/                         pipeline/probes by default
 ├─ <probe>.json                         Kilosort4 probe map
-└─ <probe>.ks4.json                     its Kilosort4 parameters (writeKS4Params; Sorting → Optimize for probe)
+├─ <probe>.ks4.json                     its Kilosort4 parameters (writeKS4Params; Sorting → Optimize for probe)
+└─ <probe>.chanmap.json                 the chain it was mapped from (ChannelMapperApp export)
+
+pipeline/hardware/                      the channel mapper's hardware bank (HardwareBank)
+├─ connectors/<name>.json               connector families
+├─ headstages/<manufacturer>/<name>.json
+├─ packages/<manufacturer>/<name>.json
+├─ probes/<manufacturer>/<name>.json    probe designs (site geometry)
+└─ mappings/<name>.json                 saved chains (ChannelMapperApp → Save mapping)
 ```
 
 Output folders for the Signals, Spikes and Export steps can each be redirected
@@ -488,7 +496,88 @@ generates it from the current parameters or from the probe layout. Read by
 - Generated files hold `EphysPipelineConfig.KS4ProbeParams` (`nblocks`, `dmin`,
   `dminx`, `nearest_chans`, `nearest_templates`, `min_template_size`,
   `x_centers`).
-- The Probe tab does not list `*.ks4.json` files as probes.
+- The Probe tab does not list `*.ks4.json` files (or `*.chanmap.json`
+  sidecars) as probes.
+
+---
+
+## Channel-map sidecar (`<probe>.chanmap.json`)
+
+Path: next to the probe map, `<folder>/<probe>.chanmap.json` for
+`<folder>/<probe>.json` (`ChannelMap.sidecarFile`;
+`EphysPipelineConfig.ChanMapSidecarSuffix`). Written with the probe map by
+`ChannelMap.exportKS4` (**Export Kilosort4 probe .json...** in
+[`ChannelMapperApp`](ChannelMapperApp.md)). Read by
+`ChannelMapperApp.loadMapping`, which reopens the chain. The pipeline does not
+read it.
+
+```json
+{
+  "schema":    "ephys-channel-map/1",
+  "probeFile": "A1x32-6mm-50-177_H32_RHD2132-32ch.json",
+  "mapping":   { "...": "a saved mapping, as in pipeline/hardware/mappings" },
+  "result": {
+    "site":            [1, 2, "..."],
+    "hardwareChannel": [16, 17, "..."],
+    "recordingRow0":   [16, 17, "..."],
+    "flag":            ["", "", "..."]
+  },
+  "trust":   "verified",
+  "written": "2026-09-26T16:40:12",
+  "app":     "ChannelMapperApp 0.1.0 (commit ... on main, ...)"
+}
+```
+
+- `mapping`: the chain: probe design, package, headstages with their channel
+  offsets, mates and orientations, and how the rows were chosen (see
+  [Hardware bank](#hardware-bank-pipelinehardware)).
+- `result`: one entry per site of the design. `recordingRow0` is the 0-based
+  recording row (the probe map's `chanMap` for the sites it kept); `null` and
+  a `flag` (`GND`, `REF`, `NC`, `unmated`, `not recorded` ...) for a site that
+  reaches no recorded channel.
+- `trust`: `verified`, `rule-derived` or `unverified` (see
+  [ChannelMapperApp](ChannelMapperApp.md#workflow)).
+- It never holds a top-level `chanMap`, `xc` or `yc`, so the dataset
+  inventory (`DatasetTracker.classifyJson`) does not take it for a probe. The
+  Probe tab does not list it, and **Import probe .json into folder...**
+  copies it along with its probe.
+
+## Hardware bank (`pipeline/hardware`)
+
+Path: `pipeline/hardware` (`HardwareBank.defaultFolder`), or any folder with
+the same layout (the channel mapper's **Browse...**). One JSON file per entry,
+`<kind folder>/<manufacturer>/<name>.json` (connectors and mappings have no
+manufacturer folder). Read by `HardwareBank`, written by
+`HardwareBank.saveEntry` (the channel mapper's editor and **Save mapping**).
+
+Every file has `"schema": "ephys-hardware/1"`, a `kind` that matches its
+folder (`connector`, `headstage`, `package`, `probe`, `mapping`; `adaptor`
+is reserved), `manufacturer`, `name`, `channels`, `notes` and `source`.
+
+- `connector`: `family`, `rows`, `cols`, `guides` (`[row, column]` of each
+  guide post), `oneWay`, `pitchMm`.
+- `headstage` / `package`: `faces`, each with an `id`, a `connector`, a
+  `gender` (female headstage, male package) and `rows`. Each row is a line of
+  text written as the vendor draws the connector looking into it, with the
+  guide posts: `"GUIDE REF1 18 27 ... GND GUIDE"`.
+  - A package's cells are site numbers, exactly `1..channels`. A headstage's
+    cells are 0-based hardware channels.
+  - A headstage adds `channelLabel` (`in%d`) and `hardwareChannels` (the first
+    and last).
+  - A package adds `verifiedHeadstages`, the headstages its chain has been
+    checked against.
+- `probe`: `shanks`, `sites` (the vendor's 1-based numbers), `x`, `y` (µm,
+  y from the tip up), `shank` (from 1), `defaultPackage`, `template`,
+  `pitchUm`, `geometrySource`.
+- `mapping`: `probe`, `package`, `adaptors`, `headstages` (`id`,
+  `channelOffset`), `mates` (`from` `package:<face>`, `to`
+  `headstage[<i>]:<face>`, `orientation` `reference` or `rotated`), `rows`
+  (`mode` `in-order`, `dataset` or `custom`, `channelNumbers`, `dataset`),
+  `result`, `problems`, `trust`.
+
+Every list is a JSON list, even with one element. The cell tokens, the
+mating rule and full examples are in
+[pipeline/hardware/README.md](../pipeline/hardware/README.md).
 
 ---
 

@@ -105,6 +105,9 @@ classdef EphysPipelineConfig
         % A probe map <name>.json keeps its Kilosort4 parameters in <name>.ks4.json.
         KS4ParamsSuffix = ".ks4.json"
         KS4ParamsSchema = "ephys-ks4-params/1"
+        % ... and, when ChannelMapperApp wrote it, the chain it came from in
+        % <name>.chanmap.json (ChannelMap.exportKS4).
+        ChanMapSidecarSuffix = ".chanmap.json"
     end
 
     methods

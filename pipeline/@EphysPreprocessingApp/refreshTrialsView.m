@@ -21,7 +21,7 @@ else
     state = "NOT RECORDED - review, then Approve"; color = [0.75 0.4 0];
 end
 if P.stale
-    state = state + " (the recorded pairing no longer matched the session or the lines; its cuts were dropped)";
+    state = state + " (the recorded pairing no longer matched the trials or the lines; its cuts were dropped)";
     color = [0.7 0.1 0.1];
 end
 txt = sprintf("%s: %s.  %s.", d.Name, state, P.summary);

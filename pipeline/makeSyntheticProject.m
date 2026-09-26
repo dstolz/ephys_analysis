@@ -46,10 +46,14 @@ function S = makeSyntheticProject(root, opts)
 %     Subject        "SYNTH-01"
 %     Scenarios      ["clean" "late-start" "early-stop" "spurious"] (any subset / order)
 %     Format         "traditional" (default) | "one-file-per-signal" | "binary" |
-%                    "openephys-binary" | "openephys-legacy" | "openephys-nwb". For
-%                    the Open Ephys formats the config sets Project.NamePattern
-%                    to OpenEphysReader.DefaultNamePattern and names the TTL
-%                    lines (Signals.LineNames: TTL4=InTrial, ...)
+%                    "openephys-binary" | "openephys-legacy" | "openephys-nwb" |
+%                    "tdt". For the Open Ephys formats the config sets
+%                    Project.NamePattern to OpenEphysReader.DefaultNamePattern
+%                    and names the TTL lines (Signals.LineNames: TTL4=InTrial,
+%                    ...); for "tdt" (TDT Synapse blocks <Subject>-yymmdd-hhmmss)
+%                    to TDTReader.DefaultNamePattern and the epoc stores
+%                    (PC3_=InTrial, ...), at a TDT rate (the presets' 24414.0625
+%                    / 12207.03125 Hz; Fs must divide 195312.5 Hz), without AUX
 %     Parts          1: Open Ephys formats only, recordings per session (see
 %                    makeSyntheticRecording)
 %     Seed           1 (dataset k uses Seed + k - 1)
@@ -75,7 +79,7 @@ arguments
     opts.Subject (1,1) string = "SYNTH-01"
     opts.Scenarios (1,:) string {mustBeMember(opts.Scenarios, ["clean" "late-start" "early-stop" "spurious"])} = ["clean" "late-start" "early-stop" "spurious"]
     opts.Format (1,1) string {mustBeMember(opts.Format, ["traditional" "one-file-per-signal" "binary" ...
-        "openephys-binary" "openephys-legacy" "openephys-nwb"])} = "traditional"
+        "openephys-binary" "openephys-legacy" "openephys-nwb" "tdt"])} = "traditional"
     opts.Parts (1,1) double {mustBeInteger, mustBePositive} = 1
     opts.Fs (1,1) double = NaN
     opts.NumChannels (1,1) double = NaN
@@ -91,9 +95,14 @@ end
 
 configName = 'synthetic_pipeline.json';
 isOE = startsWith(opts.Format, "openephys-");
+isTDT = opts.Format == "tdt";
 switch opts.Preset
     case "standard", def = struct('Fs', 30000, 'NumChannels', 16, 'NumTrials', 12, 'FileSeconds', 30);
     case "small",    def = struct('Fs', 20000, 'NumChannels', 8,  'NumTrials', 6,  'FileSeconds', 10);
+end
+if isTDT                                   % TDT rates: 195312.5 Hz / 8 and / 16
+    def.Fs = 24414.0625;
+    if opts.Preset == "small"; def.Fs = 12207.03125; end
 end
 for f = ["Fs" "NumChannels" "NumTrials" "FileSeconds"]
     if isnan(opts.(f)); opts.(f) = def.(f); end
@@ -134,7 +143,10 @@ for k = 1:n
     acq = base - days(n - k);                       % one recording per day, the last one today
     acq.Format = 'yyMMdd_HHmmss';
     if isOE; acq.Format = 'yyyy-MM-dd_HH-mm-ss'; end  % the Open Ephys GUI's session folder
-    folder = fullfile(root, opts.Subject, opts.Subject + "_" + string(acq));
+    if isTDT; acq.Format = 'yyMMdd-HHmmss'; end       % Synapse's block name
+    sep = "_";
+    if isTDT; sep = "-"; end
+    folder = fullfile(root, opts.Subject, opts.Subject + sep + string(acq));
     parts = 1;
     if isOE; parts = opts.Parts; end
     T = makeSyntheticRecording(folder, Subject=opts.Subject, Scenario=opts.Scenarios(k), ...
@@ -159,6 +171,10 @@ if isOE
     cfg.Project.NamePattern = OpenEphysReader.DefaultNamePattern;
     cfg.Signals.LineNames = datasets(1).lineNames;   % TTL1=Trough, ..., TTL4=InTrial, ...
 end
+if isTDT
+    cfg.Project.NamePattern = TDTReader.DefaultNamePattern;
+    cfg.Signals.LineNames = datasets(1).lineNames;   % PC0_=Trough, ..., PC3_=InTrial, ...
+end
 cfg.Probe.DefaultProbeFile = probeFile;
 cfg.Probe.WriteDefaultToManifest = true;
 cfg.Behavior.Enabled = true;
@@ -173,7 +189,7 @@ cfg.Signals.Enabled = true;
 cfg.Signals.LFP = true;
 cfg.Signals.MUA = true;
 cfg.Signals.SPIKE = false;
-cfg.Signals.AUX = opts.Format ~= "binary";
+cfg.Signals.AUX = ~ismember(opts.Format, ["binary" "tdt"]);
 cfg.Signals.LFP_Fs = 1000;
 cfg.Signals.InvertedLines = opts.InvertedLines;
 cfg.Spikes.Enabled = true;
@@ -243,6 +259,11 @@ if startsWith(opts.Format, "openephys-")
     w('Signals.LineNames: TTL1=Trough, TTL2=Platform, TTL3=Stim, TTL4=InTrial (the trial line),');
     w('TTL5=RespWindow, TTL6=Commutator (never active, so never seen). %d recording(s) per session.', opts.Parts);
     w('Amplifier data holds LFP');
+elseif isTDT
+    w('Every recording: a TDT Synapse block (<subject>-yymmdd-hhmmss: .tsq + .tev), %.10g Hz, stream', opts.Fs);
+    w('Wav1 of %d channels (Ch1..) in float32 volts, no AUX, strobe epoc stores PC0_..PC5_ named by', opts.NumChannels);
+    w('the config''s Signals.LineNames: PC0_=Trough, PC1_=Platform, PC2_=Stim, PC3_=InTrial (the trial');
+    w('line), PC4_=RespWindow, PC5_=Commutator (never active, so never seen). Amplifier data holds LFP');
 else
     w('Every recording: %s layout, %g Hz, %d amplifier channels (A-000..), 3 accelerometer inputs', opts.Format, opts.Fs, opts.NumChannels);
     w('(accelX/Y/Z, Intan layouts only), 6 digital lines in RHX order: Trough, Platform, Stim,');

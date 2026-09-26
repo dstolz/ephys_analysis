@@ -298,6 +298,54 @@ check(any(R8.Step == "behavior:pairing" & R8.Status == "auto-approved") && any(R
     && isequal(Bp.behavior.trials.Levl, [10; 20; 30; 40]) && d8.TrialPairing.status == "approved", ...
     'the behavior step pairs and writes the epoc trials of a block without a session');
 
+%% ---- 9. synthetic TDT recordings and project -------------------------------------------
+fprintf('\n== 9. synthetic TDT recordings and project ==\n');
+Fs9 = 12207.03125;   % 195312.5 / 16
+T9 = makeSyntheticRecording(fullfile(root, 'syn', 'SYN-01', 'SYN-01-260102-120000'), Format="tdt", ...
+    Subject="SYN-01", Scenario="spurious", Fs=Fs9, NumChannels=4, NumTrials=5, FileSeconds=4, ...
+    SortedOutput=false, Artifacts=false, Seed=3);
+d9 = EphysDataset(T9.folder);
+check(d9.Reader.Kind == "tdt" && d9.Fs == Fs9 && d9.NumSamples == T9.nSamples && d9.NumChannels == 4 ...
+    && isequal(d9.ChannelNames, T9.channelNames) && mod(T9.nSamples, 256) == 0 ...
+    && abs(seconds(d9.AcqDate - T9.acqTime)) < 1e-3, ...
+    'makeSyntheticRecording "tdt": a block the reader reads (rate, samples, channels, start)');
+E9 = d9.digitalEvents(Relabel=false);
+ok9 = numel(T9.lineNames) == numel(fieldnames(T9.events));
+for ln = T9.lineNames
+    kv = split(ln, "=");
+    ok9 = ok9 && isequal(reshape(round(E9.events.(kv(1)) * Fs9), [], 2), reshape(round(T9.events.(kv(2)) * Fs9), [], 2));
+end
+check(ok9 && startsWith(T9.lineNames(1), "PC0_="), 'each line reads back at the rows it was written (store PCn_ = its name)');
+tc = d9.TrialConfig; tc.LineNames = T9.lineNames; tc.TrialLine = T9.trialLine; d9.TrialConfig = tc;
+d9.BehaviorFile = T9.behaviorFile;
+P9 = d9.pairTrials(Cuts=T9.expectedCuts, Warn=false);
+ok9 = ~isnan(T9.trials.Onset);
+check(P9.source == "epsych2" && P9.nPaired == nnz(ok9) && ~P9.countMismatch ...
+    && isequal(round(P9.onset(~isnan(P9.onset)) * Fs9), round(T9.trials.Onset(ok9) * Fs9)), ...
+    'with its Epsych2 session and the expected cuts, the trials pair at the written onsets');
+d9.BehaviorFile = "";
+[src, store] = d9.behaviorSource();
+T9e = d9.readBehavior();
+k9 = find(endsWith(T9.lineNames, "=" + T9.trialLine), 1);
+check(src == "epocs" && store == extractBefore(T9.lineNames(k9), "=") && height(T9e) == T9.nIntervals, ...
+    'without the session, the trial line''s epocs give the trials, one per interval');
+
+S9 = makeSyntheticProject(fullfile(root, 'synproj'), Format="tdt", Preset="small", Scenarios="clean", ...
+    SortedOutput=false, Artifacts=false);
+cfg9 = EphysPipelineConfig.load(S9.configFile);
+check(S9.format == "tdt" && cfg9.Project.NamePattern == TDTReader.DefaultNamePattern ...
+    && isequal(cfg9.Signals.LineNames, S9.datasets(1).lineNames) && ~cfg9.Signals.AUX ...
+    && S9.datasets(1).Fs == 195312.5 / 16, 'makeSyntheticProject "tdt": the config names the epoc stores, no AUX, a TDT rate');
+pipe9 = EphysPipeline(cfg9);
+pipe9.LogFcn = [];
+pipe9.checkBehavior();
+d9p = pipe9.Project.Datasets(1);
+P9p = d9p.pairTrials(Warn=false);
+check(pipe9.Project.NumDatasets == 1 && d9p.Reader.Kind == "tdt" && P9p.source == "epsych2" ...
+    && ~P9p.countMismatch && P9p.nPaired == S9.datasets(1).nTrials ...
+    && any(pipe9.Results.Step == "behavior:pairing" & pipe9.Results.Status ~= "error"), ...
+    'the pipeline finds the block, its session, and pairs every trial');
+
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0
     error('test_TDTReader:Failed', '%d checks failed.', nFail);

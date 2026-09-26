@@ -29,9 +29,10 @@ classdef EphysPreprocessingApp < handle
     %                a Tools panel that opens the active or the ticked
     %                datasets in the manifest viewer, the analysis app, phy
     %                or the file browser, Epsych2 behavior associations
-    %     Trials     pair Epsych2 trials in order with the trial digital line,
-    %                per-line TTL polarity, resolve a trial / interval count
-    %                mismatch by cutting from either end, approve the pairing
+    %     Trials     pair the trials (Epsych2 session or TDT epocs) in order
+    %                with the trial digital line, per-line TTL polarity,
+    %                resolve a trial / interval count mismatch by cutting
+    %                from either end, approve the pairing
     %                (or auto approve the ones whose counts match), prefetch
     %                the digital lines of every ticked dataset at once
     %     Probe      probe library, preview, assignment, per-dataset channel
@@ -764,8 +765,8 @@ classdef EphysPreprocessingApp < handle
         TrialsEventsIdx (1,1) double = 0     % dataset index TrialsEvents belongs to
         TrialsPairing = []                   % EphysDataset.pairTrials result shown
         TrialsSession = []                   % EphysDataset.readBehavior trials of the loaded dataset
-        TrialsParamColumns (1,:) string = string.empty(1,0)  % Epsych2 parameters shown as Trials-table columns (a preference)
-        TrialsLabelParams (1,:) string = string.empty(1,0)   % Epsych2 parameters shown as trial labels in the Trials plot (a preference)
+        TrialsParamColumns (1,:) string = string.empty(1,0)  % trial parameters shown as Trials-table columns (a preference)
+        TrialsLabelParams (1,:) string = string.empty(1,0)   % trial parameters shown as trial labels in the Trials plot (a preference)
         TrialsColumnOrder (1,:) string = string.empty(1,0)   % Trials-table variables in display order (a preference)
 
         % --- Copy tab state (in memory) ---

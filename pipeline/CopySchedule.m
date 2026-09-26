@@ -56,7 +56,8 @@ classdef CopySchedule
     %     RecordingRoots    roots of the recording folders (string array, or one
     %                       string of them separated by semicolons); the folder
     %                       names are matched with findCopySessions' default
-    %                       NamePatterns (Intan RHX and Open Ephys GUI)
+    %                       NamePatterns (Intan RHX, Open Ephys GUI and TDT
+    %                       Synapse blocks)
     %     MaxLeadMin, MaxLagMin, MarginSec, MinDurationMin
     %                       pairing, as findCopySessions (minutes / seconds)
     %     Verify            "size" (default) | "hash"

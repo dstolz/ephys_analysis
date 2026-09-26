@@ -20,6 +20,7 @@ classdef test_CopySessions < matlab.unittest.TestCase
         Epsych    string   % fake ePsych root
         Intan     string   % fake Intan root (the first recording root)
         OpenEphys string   % fake Open Ephys root (created by addSyntheticOpenEphys)
+        TDT       string   % fake TDT root: a tank per subject (created by addSyntheticTDT)
         Dest      string   % local destination root (not created)
     end
 
@@ -34,6 +35,7 @@ classdef test_CopySessions < matlab.unittest.TestCase
             tc.Epsych = fullfile(tc.Root, "nas", "epsych_files", "Data");
             tc.Intan = fullfile(tc.Root, "nas", "intan_files", "Data");
             tc.OpenEphys = fullfile(tc.Root, "nas", "openephys_files", "Data");
+            tc.TDT = fullfile(tc.Root, "nas", "tdt_files", "Data");
             tc.Dest = fullfile(tc.Root, "EPHYS");
             mkdir(tc.Epsych);
             mkdir(tc.Intan);
@@ -264,6 +266,22 @@ classdef test_CopySessions < matlab.unittest.TestCase
             tc.verifyEqual(T.Status, ["epsych_only"; "epsych_only"]);
             tc.verifyEqual(S.Path, o);
             tc.verifySubstring(char(S.Reason), 'does not match');
+        end
+
+        function tdtBlockPaired(tc)
+            % A TDT Synapse block (<subject>-yymmdd-hhmmss) in a tank named by
+            % the subject pairs like an Intan folder with the default name
+            % patterns; its duration and reader come from its headers.
+            [b, R] = tc.addSyntheticTDT("260916-110907");
+            e = tc.addEpsych(tc.Subj, "260916T110742");
+            T = tc.find(tc.Subj, "260916", RecordingRoots=tc.TDT, MinRecordingDuration=seconds(0));
+            tc.verifyEqual(T.Status, "paired");
+            tc.verifyEqual([T.RecordingDir, T.EpsychFile], [b, e]);
+            tc.verifyEqual(T.Reader, "tdt");
+            tc.verifyEqual(T.RecordingTime, datetime(2026, 9, 16, 11, 9, 7));
+            tc.verifyEqual(T.DeltaT, -seconds(85));
+            tc.verifyEqual(seconds(T.RecordingDuration), R.duration, 'AbsTol', 1e-9);
+            tc.verifyEqual(T.DestDir, string(fullfile(tc.Dest, tc.Subj, tc.Subj + "-260916-110907")));
         end
 
         function openEphysBadNamesSkipped(tc)
@@ -1548,6 +1566,14 @@ classdef test_CopySessions < matlab.unittest.TestCase
             d = string(fullfile(tc.OpenEphys, tc.Subj, tc.Subj + "_" + name));
             R = makeSyntheticRecording(d, Subject=tc.Subj, Format="openephys-binary", ...
                 NumChannels=2, NumTrials=4, Fs=2000, SortedOutput=false, Artifacts=false, WriteManifest=false);
+            delete(R.behaviorFile);
+        end
+
+        function [d, R] = addSyntheticTDT(tc, stamp)
+            %addSyntheticTDT  A TDT block <Subj>-<stamp> in the subject's tank under tc.TDT.
+            d = string(fullfile(tc.TDT, tc.Subj, tc.Subj + "-" + stamp));
+            R = makeSyntheticRecording(d, Subject=tc.Subj, Format="tdt", NumChannels=2, NumTrials=4, ...
+                Fs=3051.7578125, SortedOutput=false, Artifacts=false, WriteManifest=false);
             delete(R.behaviorFile);
         end
 

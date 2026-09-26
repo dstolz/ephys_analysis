@@ -147,6 +147,8 @@ classdef EphysDataset < handle
         % behavior.file. A scan (EphysProject.refresh) fills it from the one
         % Epsych2 file in the recording folder when none is associated (see
         % associateFolderBehavior). See readBehavior, readEpsychSession.
+        % Without one, a TDT block's epocs can give the trials (see
+        % behaviorSource).
         BehaviorFile (1,1) string = ""
 
         % How Epsych2 trials are paired with a digital line (pairTrials) and
@@ -235,6 +237,7 @@ classdef EphysDataset < handle
         E      = eventEpochs(obj, opts)
         out    = exportEpochs(obj, opts)
         [trials, info, meta] = readBehavior(obj)
+        [src, store] = behaviorSource(obj)
         b      = behaviorStruct(obj, opts)
         out    = behaviorToMat(obj, opts)
         tf     = associateFolderBehavior(obj)

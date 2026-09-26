@@ -10,8 +10,13 @@ function P = pairTrials(obj, opts)
 %   exactly as approved. Nothing is written; see setTrialPairing to record or
 %   approve a result.
 %
+%   Trials from a TDT block's epocs (behaviorSource "epocs") are paired the
+%   same way, with the intervals of the trial store's own event line, so
+%   they pair one to one; such a new result is "approved" (autoApproved).
+%
 %   P is the pairEpsychTrials struct plus
 %     status       "approved" | "unreviewed" (recorded or new)
+%     source       "epsych2" | "epocs" (behaviorSource)
 %     autoApproved true when the recorded approval was automatic
 %                  (autoApproveTrialPairing)
 %     recorded     true when the cuts came from TrialPairing
@@ -45,6 +50,7 @@ arguments
 end
 
 tc = obj.TrialConfig;
+[src, store] = obj.behaviorSource();
 trials = obj.readBehavior();
 if isempty(opts.Events)
     E = obj.digitalEvents(ProgressFcn=opts.ProgressFcn);
@@ -57,6 +63,7 @@ fp = "";
 if isfield(E.events, trialLine)
     rows = round(double(E.events.(trialLine)) * E.Fs);
     [~, stem, ext] = fileparts(obj.BehaviorFile);
+    if src == "epocs"; stem = "epocs:" + store; ext = ""; end
     fp = sprintf("%s%s|%d trials|%s|inverted:%s|%d intervals|%.0f|%.0f", stem, ext, height(trials), ...
         trialLine, strjoin(sort(string(tc.InvertedLines)), ","), size(rows, 1), sum(rows(:, 1)), sum(rows(:, 2)));
 end
@@ -90,10 +97,14 @@ P = pairEpsychTrials(trials, E.events, E.Fs, TrialLine=trialLine, ...
 if recorded
     P.status = rec.status;
     P.autoApproved = rec.auto_approved;
+elseif src == "epocs" && ~P.countMismatch && ~any(cutT) && ~any(cutI)
+    P.status = "approved";                  % epocs and their line are the same events
+    P.autoApproved = true;
 else
     P.status = "unreviewed";
     P.autoApproved = false;
 end
+P.source = src;
 P.recorded = recorded;
 P.stale = stale;
 P.fingerprint = fp;

@@ -355,6 +355,24 @@ with each epoc's `interval` on the recording clock (the numbers in `events`;
 `NaN` for the epocs the line leaves out). Stores that did not pair one to one
 warn `TDTReader:Epocs`.
 
+**Epocs as trials.** Without an Epsych2 session, a block whose
+`Behavior.TrialLine` is one of its epoc stores gets its trials from the epocs
+(`ds.behaviorSource()` = `"epocs"`, `ds.readBehavior()`, built by
+`ds.Reader.epocTrials(store)`). Each epoc of that store that lies on the
+stream is one trial, in order, so trial *i* is interval *i* of the store's
+line. The trials table has `TrialIndex`, the trial store's own values, and
+one column per other epoc store (not `Tick`, Synapse's 1 s clock), named by
+its final line name: the value the store holds at the trial's onset, from the
+epoc active then (an epoc starting up to one sample after the trial's onset
+still counts; the latest onset wins; an epoc without an offset counts only
+within that sample of its onset); `NaN` when none is active, e.g. a strobe
+that ended before the trial. `info.WriteParams` lists those columns (the
+analysis module's parameters); `meta.file` is `""` and
+`meta.responseCodeField` `""` (no response codes). `pairTrials` pairs them with
+the store's line one to one and marks a new result `approved`
+(`autoApproved`); the behavior step then writes `<Name>_behavior.mat` as for
+an Epsych2 session.
+
 **Start time (`AcqDate`)** is the block start from the TSQ start mark
 (seconds since 1970, UTC, converted to local time). `PerFile` has one entry,
 the block (`store`, `storage` `"tev"` / `"sev"`, `numAmplifierSamples`).
@@ -1668,7 +1686,13 @@ raster = E.units(3).times(hit);                           % spike times per tria
   any `Behavior.SearchDirs`. The behavior, signals, spikes and export outputs
   do not hold `Data` and `Info`, so they are never taken for a session.
 - `[trials, info, meta] = readBehavior()` is
-  [`readEpsychSession(BehaviorFile)`](EphysPipeline.md#epsych2-sessions).
+  [`readEpsychSession(BehaviorFile)`](EphysPipeline.md#epsych2-sessions), or,
+  without a session, a TDT block's epoc trials when `TrialConfig.TrialLine` is
+  one of its epoc stores (see below).
+- `[src, store] = behaviorSource()` says where the trials come from:
+  `"epsych2"` (a session is associated, also while its file is not there; it
+  always wins), `"epocs"` (a TDT block whose trial line, by its final name, is
+  the epoc store `store`) or `""`.
 - `behaviorStruct()` returns `struct(trials, info, meta, file, subject,
   startTime, nTrials)` or `[]`.
 - `out = behaviorToMat(File=, MatVersion=, Overwrite=)` saves that struct once,
@@ -1692,8 +1716,9 @@ raster = E.units(3).times(hit);                           % spike times per tria
   pairs the session's trials, in order, with `TrialConfig.TrialLine`
   ([`pairEpsychTrials`](EphysPipeline.md#pairing-trials-with-the-trial-line)).
   It reuses the cuts of `TrialPairing` while the fingerprint still matches.
-  It adds `status`, `autoApproved`, `recorded`, `stale` and `fingerprint` to
-  the result.
+  It adds `status`, `autoApproved`, `recorded`, `stale`, `fingerprint` and
+  `source` (`behaviorSource`) to the result. Epoc trials pair one to one with
+  their own line; a new such result is `approved` (`autoApproved`).
 - `file = setTrialPairing(P, "unreviewed"|"approved", Auto=false)` records
   the cuts in the manifest (`Auto=true` marks an approval as automatic);
   `setTrialPairing([])` clears it. An existing

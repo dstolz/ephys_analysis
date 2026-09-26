@@ -329,6 +329,46 @@ classdef TDTReader < EphysReader
                     'value', {}, 'icon', {}, 'interval', {}); end
         end
 
+        function T = epocTrials(obj, trialStore)
+            %epocTrials  Trials from the epocs: one per epoc of TRIALSTORE, with parameters.
+            %   T = r.epocTrials(STORE) takes each epoc of the store STORE that
+            %   lies on the stream (the epocs of its event line, in order) as
+            %   one trial and returns a struct:
+            %     store      STORE
+            %     index      [n x 1] which of the store's epocs (readEpocs order)
+            %     onset / offset / value   [n x 1] those epocs (s from the block
+            %                start; value = the store's strobe value)
+            %     params     struct array, one per other epoc store except
+            %                "Tick" (Synapse's 1 s clock), in store order: name,
+            %                value [n x 1] = the value that store holds at each
+            %                trial's onset: the epoc active then, where one that
+            %                starts up to one sample after the trial still counts
+            %                and the latest onset wins; NaN when none (see
+            %                tdtValueAtOnsets)
+            %   Errors with TDTReader:NoEpocStore when STORE is not an epoc store.
+            arguments
+                obj (1,1) TDTReader
+                trialStore (1,1) string
+            end
+            E = obj.readEpocs();
+            k = find(string({E.name}) == trialStore, 1);
+            if isempty(k)
+                error('TDTReader:NoEpocStore', '%s has no epoc store "%s" (epoc stores: %s).', ...
+                    obj.Name, trialStore, strjoin(string({E.name}), ", "));
+            end
+            in = ~isnan(E(k).interval(:, 1));
+            T = struct('store', trialStore, 'index', find(in), 'onset', E(k).onset(in), ...
+                'offset', E(k).offset(in), 'value', E(k).value(in));
+            params = struct('name', {}, 'value', {});
+            tol = 1 / obj.Fs;
+            for j = [1:k-1, k+1:numel(E)]
+                if string(E(j).name) == "Tick"; continue; end
+                params(end+1) = struct('name', string(E(j).name), 'value', ...
+                    tdtValueAtOnsets(T.onset, E(j).onset, E(j).offset, E(j).value, tol)); %#ok<AGROW>
+            end
+            T.params = params;
+        end
+
         function row = rowAtOrAfter(obj, t)
             %rowAtOrAfter  First stream row (1-based) at or after block time T (s).
             %   Row r of a chunk starting at time c holds the sample at

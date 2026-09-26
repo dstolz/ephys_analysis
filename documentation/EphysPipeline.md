@@ -550,6 +550,22 @@ this when `Behavior.WriteFile`). No other output carries behavior data. The
 manifest records `file` (as recorded, even while it is not there), `exists`,
 `subject`, `start_time` and `n_trials`.
 
+**TDT epocs as trials.** A TDT block without an associated Epsych2 session
+whose `Behavior.TrialLine` is one of its epoc stores (`"Freq"`, or the name
+`Signals.LineNames` gives it) takes its trials from the epocs
+(`ds.behaviorSource()` is `"epocs"`; an associated Epsych2 session always
+wins). Each epoc of that store on the stream is one trial, and every other
+epoc store except `Tick` is a parameter column holding the value that store
+has at the trial's onset (see
+[TDT Synapse blocks](EphysDataset.md#tdt-synapse-blocks)). The behavior step
+pairs them with the store's own event line, which matches one to one, so the
+pairing is approved automatically (`auto-approved`), and writes
+`<Name>_behavior.mat` as for a session: epoch exports, the analysis module's
+grouping, filters and tuning parameters use them unchanged. The step's
+association row still reports the Epsych2 outcome (`no session`,
+`unmatched`). There are no response codes: a response selection raises
+`selectTrials:NoRespCode`. The app's Trials tab still loads only Epsych2 sessions.
+
 ### Digital-line names
 
 Readers name digital lines by their native names (`DIGITAL-IN-04` on Intan,

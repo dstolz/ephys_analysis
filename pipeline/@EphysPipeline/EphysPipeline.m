@@ -437,6 +437,13 @@ classdef EphysPipeline < handle
             %   written, and a dataset without one is reported "no session".
             %   DryRun: sessions are matched, but nothing is associated,
             %   paired or written; "dry run" rows say what would be.
+            %
+            %   A TDT block without an Epsych2 session whose TrialLine is one
+            %   of its epoc stores is paired and written from its epocs
+            %   (EphysDataset.behaviorSource "epocs"): the association row
+            %   still reports the Epsych2 outcome, and the pairing is approved
+            %   automatically ("auto-approved"), the epocs and the trial line
+            %   being the same events.
             arguments
                 obj (1,1) EphysPipeline
                 opts.Datasets (1,:) double = []
@@ -487,7 +494,17 @@ classdef EphysPipeline < handle
                     obj.log("[behavior] %s: %s - %s", d.Name, st, msg);
                     obj.addResult("behavior", d.Name, st, msg, m.file, toc(t0));
                 end
-                if session == "" || ~isfile(session)
+                if session == ""
+                    % No Epsych2 session: a TDT block's epocs can give the trials.
+                    src = ""; store = "";
+                    try
+                        [src, store] = d.behaviorSource();
+                    catch ME
+                        obj.log("[behavior] %s: the epoc trials could not be checked: %s", d.Name, ME.message);
+                    end
+                    if src ~= "epocs"; continue; end
+                    obj.log("[behavior] %s: no Epsych2 session; the trials are the epocs of %s", d.Name, store);
+                elseif ~isfile(session)
                     continue
                 end
                 out = obj.outputPathFor("behavior", d);
@@ -533,7 +550,8 @@ classdef EphysPipeline < handle
                     P = d.autoApproveTrialPairing(P);
                 end
                 if ~P.recorded
-                    d.setTrialPairing(P, "unreviewed");
+                    % "unreviewed", or "approved" for trials from a TDT block's epocs
+                    d.setTrialPairing(P, P.status, Auto=P.autoApproved);
                 end
                 if P.status ~= "approved"
                     st = "needs review";

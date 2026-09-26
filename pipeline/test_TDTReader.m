@@ -245,6 +245,59 @@ A = EphysPipelineConfig.normalizeSection("Acquisition", struct('TDT', struct('Ga
 check(isnan(A.TDT.GainToMicrovolts) && A.TDT.Stream == "Wav1" && isfield(A, 'OpenEphys'), ...
     'normalizeSection fills and coerces Acquisition.TDT');
 
+%% ---- 8. trials from the epocs --------------------------------------------------------------
+fprintf('\n== 8. trials from the epocs ==\n');
+tc = ds.TrialConfig; tc.LineNames = string.empty(1, 0); tc.TrialLine = "InTrial"; ds.TrialConfig = tc;
+check(ds.behaviorSource() == "", 'a trial line that is not an epoc store: no trials');
+tc.TrialLine = "Freq"; ds.TrialConfig = tc;
+[src, store] = ds.behaviorSource();
+check(src == "epocs" && store == "Freq", 'no Epsych2 session and the trial line is an epoc store: the epocs give the trials');
+[Tt, info, meta] = ds.readBehavior();
+nan4 = NaN(4, 1);
+check(isequal(string(Tt.Properties.VariableNames), ["TrialIndex" "Freq" "Levl" "PC0_" "Late"]) ...
+    && isequal(Tt.TrialIndex, (1:4).') && isequal(Tt.Freq, [1000; 2000; 4000; 8000]) && isequal(Tt.Levl, [10; 20; 30; 40]) ...
+    && isequaln(Tt.PC0_, nan4) && isequaln(Tt.Late, nan4), ...
+    'one trial per epoc; each other store''s value at the trial onset (NaN when none is active); no Tick');
+check(isequal(string(info.WriteParams), ["Freq" "Levl" "PC0_" "Late"]) && info.TrialStore == "Freq" ...
+    && meta.file == "" && meta.responseCodeField == "" && meta.nTrials == 4, ...
+    'info lists the parameters (WriteParams); no session file, no response codes');
+P = ds.pairTrials(Warn=false);
+check(P.source == "epocs" && P.status == "approved" && P.autoApproved && ~P.countMismatch && P.nPaired == 4 ...
+    && isequal(round(P.onset * Fs), [1001; 3001; 5001; 7001]) && isequal(round(P.offset * Fs), [1500; 3500; 5500; 7500]), ...
+    'the epoc trials pair one to one with their own line, approved');
+ds.setTrialPairing(P, P.status, Auto=P.autoApproved);
+b = ds.behaviorStruct(Pairing=P);
+check(b.file == "" && b.nTrials == 4 && b.pairing.source == "epocs" && all(ismember(["TrialOnset" "Levl"], ...
+    string(b.trials.Properties.VariableNames))), 'behaviorStruct: the epoc trials with the pairing columns');
+bo = ds.behaviorToMat(File=fullfile(root, 'beh', ds.Name + "_behavior.mat"), Pairing=P);
+Bb = load(bo.file);
+check(bo.nTrials == 4 && bo.paired && isequal(Bb.behavior.trials.Levl, [10; 20; 30; 40]), 'behaviorToMat writes them');
+tc.LineNames = "Freq=Stim"; tc.TrialLine = "Stim"; ds.TrialConfig = tc;
+[src, store] = ds.behaviorSource();
+Tn = ds.readBehavior();
+check(src == "epocs" && store == "Freq" && isequal(Tn.Stim, Tt.Freq), 'a renamed line: the trial line and the columns use the final names');
+ds.BehaviorFile = fullfile(root, 'no_such_session.mat');
+check(ds.behaviorSource() == "epsych2", 'an associated Epsych2 session wins over the epocs');
+ds.BehaviorFile = "";
+proj8 = fullfile(root, 'proj8');
+mkdir(proj8);
+copyfile(blk, fullfile(proj8, spec.Name));
+cfg8 = EphysPipelineConfig();
+cfg8.Project.Root = proj8;
+cfg8.Project.OutputRoot = fullfile(root, 'pout');
+cfg8.Behavior.Enabled = true;
+cfg8.Behavior.Search = false;
+cfg8.Behavior.TrialLine = "Freq";
+pipe8 = EphysPipeline(cfg8);
+pipe8.LogFcn = [];
+pipe8.checkBehavior();
+R8 = pipe8.Results;
+d8 = pipe8.Project.Datasets(1);
+Bp = load(pipe8.outputPathFor("behavior", d8));
+check(any(R8.Step == "behavior:pairing" & R8.Status == "auto-approved") && any(R8.Step == "behavior:file" & R8.Status == "done") ...
+    && isequal(Bp.behavior.trials.Levl, [10; 20; 30; 40]) && d8.TrialPairing.status == "approved", ...
+    'the behavior step pairs and writes the epoc trials of a block without a session');
+
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0
     error('test_TDTReader:Failed', '%d checks failed.', nFail);

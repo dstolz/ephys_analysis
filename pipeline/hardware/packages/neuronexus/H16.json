@@ -1,0 +1,23 @@
+{
+  "schema": "ephys-hardware/1",
+  "kind": "package",
+  "manufacturer": "neuronexus",
+  "name": "H16",
+  "model": "H16 / MRH16 package (Omnetics 18)",
+  "channels": 16,
+  "view": "looking into the pins, side printed NEURONEXUS up",
+  "faces": [
+    {
+      "id": "main",
+      "connector": "omnetics-nano-18",
+      "gender": "male",
+      "rows": [
+        "GUIDE 14 15 9 16 1 8 2 3 GUIDE",
+        "GND 12 11 10 13 4 7 6 5 REF"
+      ]
+    }
+  ],
+  "verifiedHeadstages": [],
+  "notes": "Cells are probe site numbers. The map notes that the printed side may vary.",
+  "source": "https://www.neuronexus.com/files/probemapping/16-channel/H16-Maps.pdf"
+}

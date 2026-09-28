@@ -98,3 +98,24 @@ on first fetch, then caches) and **writes a plain Kilosort4 `.json` in the schem
 above** into this folder — so everything downstream is unchanged. Editing the
 wiring/name/notes and saving is done MATLAB-side; probeinterface is only the
 front door.
+
+## Where the wiring comes from (the channel mapper)
+
+A probe map's `chanMap` is the 0-based `.bin` row of each site, and working it
+out by hand is error-prone. The site goes through the probe's package
+(NeuroNexus H32, H64LP ...), the Omnetics connector (which fits two ways),
+the headstage's inputs (Intan `in0..in31`) and the order the recording stores
+the channels in. **Probe tab → Map channels...** (`ChannelMapperApp`)
+composes that chain from the hardware bank in
+[`pipeline/hardware`](../hardware/README.md). It shows each site's path, and
+**Export Kilosort4 probe .json...** writes the probe map into this folder
+with a `<probe>.chanmap.json` sidecar that records the chain it came from
+(format in
+[file-formats.md](../../documentation/file-formats.md#channel-map-sidecar-probechanmapjson)).
+Sidecars are not listed as probes, and **Import probe .json into folder...**
+copies them along.
+
+`H64LP_4x16lin_probemap.json` is what the mapper gives for a NeuroNexus
+A4x16-Poly2-5mm-20s-lin-160 on an H64LP package, plugged into an Intan
+RHD2164 in the reference orientation; `test_ChannelMapper` checks this. See
+[ChannelMapperApp](../../documentation/ChannelMapperApp.md).

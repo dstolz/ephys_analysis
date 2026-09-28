@@ -2,7 +2,7 @@ function refreshTrialsTable(obj)
 %refreshTrialsTable  The Trials table from TrialsPairing and the loaded session.
 %   Fixed columns: trial, TrialIndex, interval, onset / offset (s and
 %   sample), flag and the other lines overlapping the trial. After Flag come
-%   the Epsych2 parameters in TrialsParamColumns that the session has (table
+%   the trial parameters in TrialsParamColumns that the session has (table
 %   variables "Param_<name>", so a parameter cannot collide with a fixed
 %   column), in the order they were added. Rows are coloured by flag.
 %

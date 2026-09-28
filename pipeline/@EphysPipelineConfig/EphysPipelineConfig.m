@@ -12,7 +12,8 @@ classdef EphysPipelineConfig
     %                TokenColumns (tokens shown as dataset-table columns)
     %     Acquisition  reader options: OpenEphys.Recordings ("concatenate" |
     %                "separate" | "single"), OpenEphys.RecordNode,
-    %                OpenEphys.Stream (see OpenEphysReader)
+    %                OpenEphys.Stream (see OpenEphysReader); TDT.Stream,
+    %                TDT.GainToMicrovolts (see TDTReader)
     %     Parallel   Enabled, MaxWorkers (NaN = automatic): run the chunks of
     %                the artifacts and spike-detection steps on a process pool
     %     Probe      DefaultProbeFile, WriteDefaultToManifest
@@ -104,6 +105,9 @@ classdef EphysPipelineConfig
         % A probe map <name>.json keeps its Kilosort4 parameters in <name>.ks4.json.
         KS4ParamsSuffix = ".ks4.json"
         KS4ParamsSchema = "ephys-ks4-params/1"
+        % ... and, when ChannelMapperApp wrote it, the chain it came from in
+        % <name>.chanmap.json (ChannelMap.exportKS4).
+        ChanMapSidecarSuffix = ".chanmap.json"
     end
 
     methods

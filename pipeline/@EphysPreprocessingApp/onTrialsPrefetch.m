@@ -1,6 +1,7 @@
 function onTrialsPrefetch(obj)
 %onTrialsPrefetch  Read and cache the digital lines of every ticked dataset.
-%   For each ticked dataset (Project tab) with an Epsych2 session, reads
+%   For each ticked dataset (Project tab) with a trial source (an Epsych2 session, or
+%   TDT epocs naming the trial line), reads
 %   the digital lines once through EphysDataset.digitalEvents, which saves
 %   them as <outputFolder>/<Name>_events.mat. Load, the behavior step and
 %   the pairing then take them from that file instead of reading the
@@ -20,12 +21,11 @@ if isempty(idx)
     uialert(obj.Fig, "Tick the datasets to prefetch in the Select column of the Project tab.", dlgTitle);
     return
 end
-hasBeh = arrayfun(@(i) obj.Project.Datasets(i).BehaviorFile ~= "" ...
-    && isfile(obj.Project.Datasets(i).BehaviorFile), idx);
+hasBeh = arrayfun(@(i) trialSource(obj.Project.Datasets(i)) ~= "", idx);
 nSkipped = nnz(~hasBeh);
 idx = idx(hasBeh);
 if isempty(idx)
-    uialert(obj.Fig, "None of the ticked datasets has an Epsych2 session associated (Project tab).", dlgTitle);
+    uialert(obj.Fig, "None of the ticked datasets has a trial source (an Epsych2 session associated on the Project tab, or a TDT epoc store named as the trial line).", dlgTitle);
     return
 end
 auto = obj.Config.Behavior.AutoApprove;
@@ -87,7 +87,7 @@ end
 
 msg = sprintf("Prefetch: digital lines of %d dataset(s) ready (%d read, %d already cached) in %s", ...
     nRead + nCached, nRead, nCached, string(duration(0, 0, round(toc(t0)), "Format", "hh:mm:ss")));
-if nSkipped > 0; msg = msg + sprintf("; %d skipped (no Epsych2 session)", nSkipped); end
+if nSkipped > 0; msg = msg + sprintf("; %d skipped (no trial source)", nSkipped); end
 if ~isempty(failed); msg = msg + sprintf("; %d failed", numel(failed)); end
 if nNotDone > 0; msg = msg + sprintf("; cancelled with %d not done", nNotDone); end
 msg = msg + ".";

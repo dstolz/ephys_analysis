@@ -4,7 +4,8 @@ classdef EphysDataset < handle
     %   through an EphysReader chosen for the folder (see Reader): IntanReader
     %   for the Intan RHX layouts, BinaryReader for the universal recording.json
     %   + flat binary format, OpenEphysReader for Open Ephys GUI sessions
-    %   (Binary, Open Ephys and NWB formats), or any registered reader, so
+    %   (Binary, Open Ephys and NWB formats), TDTReader for TDT Synapse
+    %   blocks, or any registered reader, so
     %   nothing above this class depends on the acquisition system.
     %   It discovers the files, gathers header metadata cheaply (without reading
     %   amplifier data), reads/filters/screens the data, streams a Kilosort4 .bin
@@ -146,6 +147,8 @@ classdef EphysDataset < handle
         % behavior.file. A scan (EphysProject.refresh) fills it from the one
         % Epsych2 file in the recording folder when none is associated (see
         % associateFolderBehavior). See readBehavior, readEpsychSession.
+        % Without one, a TDT block's epocs can give the trials (see
+        % behaviorSource).
         BehaviorFile (1,1) string = ""
 
         % How Epsych2 trials are paired with a digital line (pairTrials) and
@@ -234,6 +237,7 @@ classdef EphysDataset < handle
         E      = eventEpochs(obj, opts)
         out    = exportEpochs(obj, opts)
         [trials, info, meta] = readBehavior(obj)
+        [src, store] = behaviorSource(obj)
         b      = behaviorStruct(obj, opts)
         out    = behaviorToMat(obj, opts)
         tf     = associateFolderBehavior(obj)
@@ -922,8 +926,9 @@ classdef EphysDataset < handle
             %detectFormat  RecordingFormat of the reader that claims FOLDER.
             %   "traditional" | "one-file-per-signal" | "one-file-per-channel"
             %   (IntanReader), "binary" (BinaryReader), "openephys-binary" |
-            %   "openephys-legacy" | "openephys-nwb" (OpenEphysReader), or
-            %   "unknown" when no registered reader recognises the folder.
+            %   "openephys-legacy" | "openephys-nwb" (OpenEphysReader), "tdt"
+            %   (TDTReader), or "unknown" when no registered reader recognises
+            %   the folder.
             %   ReaderOptions= passes the reader options.
             arguments
                 folder (1,1) string

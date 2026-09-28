@@ -5,7 +5,7 @@ function refreshTrialsPlot(obj)
 %   edge). The trial line's bars are coloured by pairing state, and dotted
 %   lines across every row mark its onsets and offsets. Each paired trial can
 %   carry a text label above the trial line, starting at its onset, with its
-%   values of the Epsych2 parameters in TrialsLabelParams that the session
+%   values of the trial parameters in TrialsLabelParams that the session
 %   has: the value alone for one parameter, name=value for several. The
 %   plot's context menu shows or hides the onset / offset lines, the grid
 %   lines and the labels (onTrialsPlotMenu).

@@ -8,7 +8,9 @@ function b = behaviorStruct(obj, opts)
 %     meta       file, stem, subject, startTime, nTrials, responseCodeField...
 %     file, subject, startTime, nTrials   copied from meta for convenience
 %     pairing    [] unless a pairing is given (below)
-%   Returns [] when no behavior file is associated or it no longer exists.
+%   Returns [] when no behavior file is associated or it no longer exists,
+%   unless the trials come from a TDT block's epocs (behaviorSource
+%   "epocs"; file is "" then, see readBehavior).
 %
 %   B = ds.behaviorStruct(Pairing=P) with P from pairTrials also appends the
 %   pairing columns to trials (TrialOnset / TrialOffset seconds, sample rows
@@ -29,10 +31,14 @@ arguments
 end
 
 b = [];
-if obj.BehaviorFile == "" || ~isfile(obj.BehaviorFile)
+src = obj.behaviorSource();
+if src == "epocs"
+    [trials, info, meta] = obj.readBehavior();
+elseif obj.BehaviorFile == "" || ~isfile(obj.BehaviorFile)
     return
+else
+    [trials, info, meta] = readEpsychSession(obj.BehaviorFile);
 end
-[trials, info, meta] = readEpsychSession(obj.BehaviorFile);
 pairing = [];
 P = opts.Pairing;
 if ~isempty(P)
@@ -52,6 +58,7 @@ if ~isempty(P)
             "partialIntervals" "unpairedTrials" "unpairedIntervals" "fingerprint" "summary"]
         pairing.(f) = P.(f);
     end
+    pairing.source = src;
     pairing.conventions = "trials pair in order with the trial line's intervals after the cuts; " + ...
         "seconds: t = row/Fs on the recording clock; *Sample: 1-based row at Fs; " + ...
         "*Sample_<SIG>: round((t - 1/Fs) * signalFs.<SIG>) + 1, the 1-based row of that signal nearest the recording row; " + ...

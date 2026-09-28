@@ -1,0 +1,32 @@
+{
+  "schema": "ephys-hardware/1",
+  "kind": "package",
+  "manufacturer": "neuronexus",
+  "name": "H64LP",
+  "model": "H64LP / MRH64LP package (2 x Omnetics 36)",
+  "channels": 64,
+  "view": "looking into the pins, side printed NEURONEXUS up; top is the connector nearer the print",
+  "faces": [
+    {
+      "id": "top",
+      "connector": "omnetics-nano-36",
+      "gender": "male",
+      "rows": [
+        "GUIDE REF4 37 39 40 42 43 45 46 48 17 19 20 22 23 25 26 28 GND GUIDE",
+        "GUIDE GND 36 38 35 41 34 44 33 47 18 32 21 31 24 30 27 29 REF3 GUIDE"
+      ]
+    },
+    {
+      "id": "bottom",
+      "connector": "omnetics-nano-36",
+      "gender": "male",
+      "rows": [
+        "GUIDE REF1 64 62 60 58 56 54 52 50 15 13 11 9 7 5 3 1 GND GUIDE",
+        "GUIDE GND 63 61 59 57 55 53 51 49 16 14 12 10 8 6 4 2 REF2 GUIDE"
+      ]
+    }
+  ],
+  "verifiedHeadstages": ["intan/RHD2164-64ch"],
+  "notes": "Cells are probe site numbers. The map notes that the printed side may vary. H64LP + Intan RHD2164 in the reference orientation (top to top, bottom to bottom) reproduces the lab's pipeline/probes/H64LP_4x16lin_probemap.json for all 64 sites.",
+  "source": "https://www.neuronexus.com/wp-content/uploads/2026/09/H64LP-MRH64LP-Maps-20230110.pdf"
+}

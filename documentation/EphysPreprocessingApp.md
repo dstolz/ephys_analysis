@@ -117,7 +117,7 @@ processing (they are when it ends), **Scan** and **Refresh metadata** are
 off, and the edits that change the datasets are refused: probe, exclusions,
 **Left out** and **Suggest**, **Detect / Preview**, behavior **Associate
 file** / **Clear**, manual periods, the sorted-output folder, the Trials
-tab's approve, prefetch and write, and the Open Ephys options (a rescan).
+tab's approve, prefetch and write, and the Source settings (a rescan).
 
 ### Which dataset does an action act on?
 
@@ -194,10 +194,12 @@ different PCs and clocks):
 | ePsych behavior file | `<ePsych root>/<SUBJ>/<SUBJ>_<yyMMdd>T<HHmmss>.mat` |
 | Intan RHX recording folder | `<recording root>/<SUBJ>/<SUBJ>_<yyMMdd>_<HHmmss>/` |
 | Open Ephys GUI session folder | `<recording root>/<SUBJ>/<SUBJ>_<yyyy-MM-dd>_<HH-mm-ss>[<appended text>]/` (holding `Record Node <id>`) |
+| TDT Synapse block | `<recording root>/<SUBJ>/<SUBJ>-<yyMMdd>-<HHmmss>/` (a tank named by the subject, holding the block's `.tsq` / `.tev`) |
 
 A recording folder is recognised by its name (the name patterns
-`{SubjectID}_{Date:yyMMdd}_{Time:HHmmss}` and
-`{SubjectID}_{Date:yyyy-MM-dd}_{Time:HH-mm-ss}*`, with the subject ID matched
+`{SubjectID}_{Date:yyMMdd}_{Time:HHmmss}`,
+`{SubjectID}_{Date:yyyy-MM-dd}_{Time:HH-mm-ss}*` and
+`{SubjectID}-{Date:yyMMdd}-{Time:HHmmss}` (TDT), with the subject ID matched
 exactly), and read by whichever reader claims it. A session is copied to
 `<Destination>/<SUBJ>/<recording folder name>/`: the recording folder's
 whole contents (for Open Ephys, the Record Nodes and everything under them),
@@ -451,9 +453,9 @@ sch.remove();
 | Refresh metadata | re-parse all headers (off while a run is under way) |
 | Output root + Browse... | `Project.OutputRoot`: each dataset writes to `<root>/<Name>`; blank = next to the recording |
 | Name pattern + Columns | `Project.NamePattern`: tokens parsed from each dataset name (see [`parseNameTokens`](EphysPipeline.md#dataset-name-tokens)); one checkbox per token, ticked tokens (`Project.TokenColumns`, default `SubjectID`) become table columns after Name. The label shows how many names match, or the pattern error. After a scan that found Open Ephys sessions whose names do not match, the status bar suggests `{SubjectID}_{Date:yyyy-MM-dd}_{Time:HH-mm-ss}*` |
-| Open Ephys: recordings, Record node, Stream | the [`Acquisition` section](EphysPipeline.md#acquisition): what a session with several recordings is (**join recordings** = one dataset, **one dataset per recording** = part folders created in the session folder, **single recording only** = refused), which Record Node and which continuous stream to read (blank = automatic). A change rescans the project, since it changes which folders are datasets |
 | Filter | one editable dropdown per name-pattern token, listing the values found (`-` = the name does not match). Rows whose token does not match are hidden; type `*` / `?` wildcards or comma-separated alternatives (case-insensitive). Filters are a view only: they are not saved, and ticks on hidden rows stay in the selection (the label shows `showing k of n (m ticked hidden)`) |
 | All / None | **All** ticks every shown row; **None** unticks every row, shown or hidden |
+| **Source settings** panel (under the table) | the reader options of the **active dataset's** recording system (the [`Acquisition` section](EphysPipeline.md#acquisition)); the panel's title names the system and only its controls show. They are the config's, so they apply to every dataset of that system in the project, and a change rescans the project. **Open Ephys**: what a session with several recordings is (**join recordings** = one dataset, **one dataset per recording** = part folders created in the session folder, **single recording only** = refused), **Record node** and **Stream** (blank = automatic). **TDT (Synapse)**: **Stream** (`Acquisition.TDT.Stream`: an editable list of the active block's stream stores, or a typed name; **automatic** = the stream with the most channels, the highest rate among those) and **Gain (µV per unit)** (`Acquisition.TDT.GainToMicrovolts`: blank = 1e6 for float streams, which TDT stores in volts; needed for a stream stored as integers; a value that is not a number is refused in the status bar), and a line saying what the active block reads (its tooltip lists the block's streams). Intan and binary recordings have no source settings; without an active dataset the panel says so. The Open Ephys options therefore show only once an Open Ephys dataset is scanned and active (a config file can set them before a scan) |
 | **Tools** panel (beside the table) | opens datasets in another program. The box on top chooses which: **Active dataset** (the highlighted row) or **Ticked datasets** (the ticked rows, or every dataset when none is ticked, as a run takes them); the label under it names them, and how many of several have sorted output. **Manifest viewer**: each one's `<Name>_manifest.json` in a [manifest viewer](ManifestViewerApp.md), a window each, cascaded (the same as Dataset → View manifest...). **Analysis app**: one [analysis app](EphysAnalysisApp.md) on the project with those datasets selected (a new config in project mode with `Source.Selection = "list"` and their keys: it lists every dataset but ticks only these to run, the first of them active; `"all"` when they are every dataset); needs the repository's `analysis` folder on the path. **phy**: phy's template-gui on each one's associated sorted output, a window each (on only when one of them has `params.py`; the others are skipped). **Output folder**: each one's output folder in the file browser (an alert names those not written yet). Opening more than four windows at once asks first |
 
 Table columns (drag a header to reorder; the order is kept across refreshes
@@ -492,24 +494,28 @@ behavior for selected**.
 
 ## Trials
 
-Review how each Epsych2 trial is paired with the trial digital line (see
-[pairing](EphysPipeline.md#pairing-trials-with-the-trial-line)).
+Review how each trial is paired with the trial digital line (see
+[pairing](EphysPipeline.md#pairing-trials-with-the-trial-line)). The trials
+come from the dataset's trial source: its Epsych2 session, or, for a TDT block
+without one, the epocs of the store named as the trial line
+(`EphysDataset.behaviorSource`; those pair one to one with their own line and
+are approved as paired). A dataset with neither has nothing to load.
 
 | Control | What it does |
 | --- | --- |
 | Dataset + **Load** | the active dataset. Load reads its digital lines (`digitalEvents`: cached on disk after the first read, kept in memory while it stays active) and pairs the trials in order, reusing the cuts recorded in the manifest when they still match. Choosing another dataset clears the pairing shown, including cuts not yet approved |
-| **Prefetch ticked** | reads and caches the digital lines of every ticked dataset (Project tab) that has an Epsych2 session, one after the other (`digitalEvents` for each), so a later Load, the pairing and the behavior step take them from `<Name>_events.mat` instead of reading the recording. A dataset whose cache is still current is only checked. With **Auto approve** on, each dataset is also paired and a pairing whose counts match is approved. The progress dialog names the dataset and the file being read; **Cancel** stops before the next file and keeps what was cached. The status bar sums it up (read, already cached, skipped for want of a session, failed; with Auto approve, approved automatically / already approved / need review), and an alert lists the pairings that need review and any failures |
+| **Prefetch ticked** | reads and caches the digital lines of every ticked dataset (Project tab) that has a trial source (an Epsych2 session or TDT epocs), one after the other (`digitalEvents` for each), so a later Load, the pairing and the behavior step take them from `<Name>_events.mat` instead of reading the recording. A dataset whose cache is still current is only checked. With **Auto approve** on, each dataset is also paired and a pairing whose counts match is approved. The progress dialog names the dataset and the file being read; **Cancel** stops before the next file and keeps what was cached. The status bar sums it up (read, already cached, skipped for want of a trial source, failed; with Auto approve, approved automatically / already approved / need review), and an alert lists the pairings that need review and any failures |
 | **Reset cuts** | drops the cuts (shown and recorded) and pairs every trial with every interval in order again |
 | **Approve pairing** / **Mark unreviewed** | `setTrialPairing(P, "approved" / "unreviewed")`: saves the shown cuts in the manifest, and rewrites an existing `<Name>_behavior.mat` with them (the status bar says so). Without that file, run the behavior step or press **Write behavior .mat** |
 | **Write behavior .mat** | `behaviorToMat(Pairing=P)` now, without running the step |
-| **Epsych2 to workspace** | loads the associated Epsych2 session file as saved (`Data`, `Info`) into the base workspace as `epsych_<Name>`; an alert and the status bar give the variable's name. A variable of that name is replaced |
+| **Trial source to workspace** | loads the trial source into the base workspace: the associated Epsych2 session file as saved (`Data`, `Info`) as `epsych_<Name>`, or a TDT block's epoc stores (`TDTReader.readEpocs`, one element per store) as `epocs_<Name>`; an alert and the status bar give the variable's name. A variable of that name is replaced |
 | **Behavior to workspace** | loads the `behavior` struct of `<Name>_behavior.mat` (trials with the pairing columns, `info`, `meta`, `pairing`, ...) into the base workspace as `behavior_<Name>`, the same way. The file must exist: run the behavior step or press **Write behavior .mat** first |
 | **Pair trials in the behavior step**, **Trial line** | `Behavior.PairTrials`, `Behavior.TrialLine` |
-| **Auto approve when the counts match** | `Behavior.AutoApprove` (off by default): a pairing is approved as soon as it is paired (Load, a setting change, **Prefetch ticked**, the behavior step) when it cuts nothing and the Epsych2 trials and the trial-line intervals are equal in number (`EphysDataset.autoApproveTrialPairing`). The manifest marks the approval as automatic (`auto_approved`), the summary reads *APPROVED automatically* and the Project table *pairing approved (auto)*; an existing `<Name>_behavior.mat` is rewritten with the approved pairing. A count mismatch, and a pairing whose cuts resolved one, still need **Approve**. **Reset cuts** and cut edits never approve; approving by hand replaces the automatic mark |
+| **Auto approve when the counts match** | `Behavior.AutoApprove` (off by default): a pairing is approved as soon as it is paired (Load, a setting change, **Prefetch ticked**, the behavior step) when it cuts nothing and the trials and the trial-line intervals are equal in number (`EphysDataset.autoApproveTrialPairing`). The manifest marks the approval as automatic (`auto_approved`), the summary reads *APPROVED automatically* and the Project table *pairing approved (auto)*; an existing `<Name>_behavior.mat` is rewritten with the approved pairing. A count mismatch, and a pairing whose cuts resolved one, still need **Approve**. **Reset cuts** and cut edits never approve; approving by hand replaces the automatic mark |
 | Lines table (**Native**, **Name**, **Intervals**, **Inverted**) | one row per digital line: its native name (`DIGITAL-IN-04`, Open Ephys `TTL4`), its name, and its interval count. Editing **Name** writes a `Signals.LineNames` entry `native=name` (a name equal to the line's default, or a blank cell, removes it) and re-pairs from the lines already read, without reading the recording again; the trial line and the inverted lines follow the new name. Name the Open Ephys TTL lines here (`TTL4` → `InTrial`). Ticked **Inverted** lines are `Signals.InvertedLines`: on while low, so an event's onset is the falling edge and its offset the rising edge (the last low sample). Names and polarity apply to the pairing and to the events the Signals step writes (and so to the exports) |
-| **Resolve a count mismatch** | four spinners: Epsych2 trials and trial-line intervals to cut from the start and from the end before pairing. They belong to the dataset (its manifest), not to the config; cuts that would drop more than there is are refused |
-| Trials table | trial, `TrialIndex`, interval, onset / offset (s), onset / offset sample, flag (orange = partial: the interval touches the recording start or end; grey = cut; red = unpaired), the other lines overlapping the trial. Click a header to sort, drag it to move the column. Right-click for **Parameter columns** (the session's Epsych2 parameters in alphabetical order; tick one, e.g. `TrialType` or a response code, to show it after Flag), **Remove "*name*"** (on a parameter column) and **Reset column order**. The chosen parameters and the column order are preferences, so they apply to every dataset and the next session; a parameter a session lacks is not shown there (the menu lists it as *not in this session*) and returns to its place for sessions that have it. Values that are not one number, text or date per trial are shown as text. A sort is not kept when the table refreshes (Load, a cut, a setting or a column change) |
-| Plot | the digital lines over the recording: one bar per event, from its onset to its offset. A normal line's bars run from each rising edge to the next falling edge; an inverted line's (row label `(inverted)`) from each falling edge to the next rising edge. The trial line's bars are coloured by pairing state (paired, partial, cut, unpaired), and dotted lines across every row mark its onsets and offsets. Right-click the plot to show or hide those lines (shown by default) and the grid lines (hidden by default), and for **Trial labels**: the loaded session's Epsych2 parameters in alphabetical order (`TrialIndex` included). A ticked parameter writes each paired trial's value above the trial line, starting at the trial's onset; with several ticked, each label reads `name=value, name=value` in the order ticked, and the plot title names them. **No labels** clears them. Like the table's parameter columns, the choice is a preference: it applies to every dataset and the next session, and a parameter a session lacks is listed as *not in this session* and not written. Zoom and pan are horizontal only: the mouse wheel zooms time in and out about the cursor, dragging pans time |
+| **Resolve a count mismatch** | four spinners: trials and trial-line intervals to cut from the start and from the end before pairing. They belong to the dataset (its manifest), not to the config; cuts that would drop more than there is are refused |
+| Trials table | trial, `TrialIndex`, interval, onset / offset (s), onset / offset sample, flag (orange = partial: the interval touches the recording start or end; grey = cut; red = unpaired), the other lines overlapping the trial. Click a header to sort, drag it to move the column. Right-click for **Parameter columns** (the loaded trials' parameters in alphabetical order: Epsych2 parameters, or the other epoc stores' values at each trial onset; tick one, e.g. `TrialType` or a response code, to show it after Flag), **Remove "*name*"** (on a parameter column) and **Reset column order**. The chosen parameters and the column order are preferences, so they apply to every dataset and the next session; a parameter a session lacks is not shown there (the menu lists it as *not in these trials*) and returns to its place for sessions that have it. Values that are not one number, text or date per trial are shown as text. A sort is not kept when the table refreshes (Load, a cut, a setting or a column change) |
+| Plot | the digital lines over the recording: one bar per event, from its onset to its offset. A normal line's bars run from each rising edge to the next falling edge; an inverted line's (row label `(inverted)`) from each falling edge to the next rising edge. The trial line's bars are coloured by pairing state (paired, partial, cut, unpaired), and dotted lines across every row mark its onsets and offsets. Right-click the plot to show or hide those lines (shown by default) and the grid lines (hidden by default), and for **Trial labels**: the loaded trials' parameters in alphabetical order (`TrialIndex` included). A ticked parameter writes each paired trial's value above the trial line, starting at the trial's onset; with several ticked, each label reads `name=value, name=value` in the order ticked, and the plot title names them. **No labels** clears them. Like the table's parameter columns, the choice is a preference: it applies to every dataset and the next session, and a parameter a session lacks is listed as *not in these trials* and not written. Zoom and pan are horizontal only: the mouse wheel zooms time in and out about the cursor, dragging pans time |
 
 The summary line says whether the pairing is approved (by hand or
 automatically), recorded but not reviewed, or new, whether a recorded pairing went stale (the session, the
@@ -532,8 +538,8 @@ Probe maps are Kilosort4 probe `.json` files
 [`pipeline/probes`](../pipeline/probes/README.md).
 
 - **Probe folder** + **Browse...** + **Refresh** list every probe `*.json` in
-  the folder (not recursive; a probe's `<probe>.ks4.json` parameter file is not
-  listed). The **probe table** shows Probe, Ch, Shanks, Depth
+  the folder (not recursive; a probe's `<probe>.ks4.json` parameter file and
+  `<probe>.chanmap.json` channel-map sidecar are not listed). The **probe table** shows Probe, Ch, Shanks, Depth
   (µm) and Notes; the Notes cell is editable and written back into the file.
 - **Probe info** shows the file, `n_chan`, `chanMap` length, shank count,
   whether the probe has a Kilosort4 parameter file
@@ -546,8 +552,15 @@ Probe maps are Kilosort4 probe `.json` files
   **Show channel numbers** labels each site with its 1-based channel.
 - **Design probe from probeinterface...** opens
   [`ProbeDesignerApp`](ProbeDesignerApp.md); **Import probe .json into
-  folder...** (copies the probe's `.ks4.json` parameter file too, when it has
-  one); **Edit probe .json...**.
+  folder...** (copies the probe's `.ks4.json` parameter file and
+  `.chanmap.json` sidecar too, when it has them); **Edit probe .json...**.
+- **Map channels...** (also **File → Channel mapper...**) opens
+  [`ChannelMapperApp`](ChannelMapperApp.md). It follows each site of a probe
+  design through its package (NeuroNexus H32, H64LP ...) and headstage (Intan
+  RHD2132, RHD2164 ...) to its recording row. It shows the map as a table you
+  can copy and as pictures of the mated connectors, and exports the Kilosort4
+  probe `.json` into this folder. Recording rows can come from the active
+  dataset's channel numbers.
 - **Dataset** + **Exclude channels** (1-based, `1,5,32-40`): the exclusions
   of the active dataset, written to its manifest. The list is parsed
   strictly: text that does not parse changes nothing, an alert says why and
@@ -1545,7 +1558,10 @@ The four recordings differ in how they cover their session, so the
 
 `makeSyntheticProject` also takes `Scenarios`, `Format`
 (`"one-file-per-signal"`, `"binary"`, `"openephys-binary"`,
-`"openephys-legacy"`, `"openephys-nwb"`), `Parts` (Open Ephys: recordings per
+`"openephys-legacy"`, `"openephys-nwb"`, `"tdt"`: TDT Synapse blocks
+`<Subject>-<yyMMdd>-<HHmmss>` at 24414.0625 Hz, or 12207.03125 Hz for the small
+preset, the lines as epoc stores `PC0_`, `PC1_`, ... named by
+`Signals.LineNames`, no AUX; function only, not offered by the app's menu), `Parts` (Open Ephys: recordings per
 session, each boundary in an inter-trial interval), `Fs`, `NumChannels`, `NumTrials`,
 `FileSeconds`, `Seed`, `InvertedLines` (lines written active-low), `SortedOutput`,
 `Artifacts` and `Overwrite`; its result holds the truth of every dataset
@@ -1593,8 +1609,8 @@ Only what is **not** part of a config lives here:
 | `ProbeFolder`, `PhyCmd`, `ReviewFolder`, `ScriptFolder` | paths |
 | `LastConfigFile`, `RecentConfigs` | reopened on launch; the File → Open recent list |
 | `DatasetsColumnOrder` | the Project table's column order (table variable names) |
-| `TrialsParamColumns`, `TrialsColumnOrder` | the Epsych2 parameters shown in the Trials table, and its column order (table variable names; a parameter column is `Param_<name>`) |
-| `TrialsLabelParams` | the Epsych2 parameters written as trial labels in the Trials plot |
+| `TrialsParamColumns`, `TrialsColumnOrder` | the trial parameters shown in the Trials table, and its column order (table variable names; a parameter column is `Param_<name>`) |
+| `TrialsLabelParams` | the trial parameters written as trial labels in the Trials plot |
 | `VizOptions` | the Visualize tab's display settings |
 | `CopyOptions` | the Copy tab's subject, roots, pairing and copy options (not the dates) |
 | `SynthOptions` | the Synthetic tab's settings and its design (as `SyntheticDesign` JSON in `design`) |
@@ -1689,7 +1705,9 @@ them, the data-flow overview (its boxes and arrows, that no arrow runs through a
 with another source's and at most two cross, the reads a config leaves off, the arrows into a disabled
 step, the View preference and Layout turned off), the Run checklist ↔ tab sync and its Parallel controls, scan + selection ticks
 (and the ticked datasets in the Dataset menu),
-the active dataset's highlight under the token filters, plan, the Sorting tab's Optimize for probe (each answer to the offer to generate a
+the active dataset's highlight under the token filters, the Source settings panel (the active dataset's system: Intan's
+note, the Open Ephys and TDT options saved and pushed to the datasets, a TDT gain that is not a number refused, a TDT
+block's stream list and status, an integer stream asking for a gain), plan, the Sorting tab's Optimize for probe (each answer to the offer to generate a
 missing parameter file, including a probe map without positions, loading the
 file, the default-probe fallback, the Probe tab's listing and info) and Reset to defaults, one step through the pipeline,
 the run diagram (its quarter of the right side, the last run followed while hidden, a run's steps and percentages

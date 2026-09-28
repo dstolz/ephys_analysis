@@ -809,7 +809,12 @@ app.onScan();
 check(app.RecursiveCheckBox.Value && app.Config.Project.Recursive && app.Project.Recursive, ...
     'applying the section restores Recursive');
 
-fprintf('\n== 3b1. Project tab: Open Ephys reader options ==\n');
+fprintf('\n== 3b1. Project tab: source settings (Open Ephys, TDT) ==\n');
+app.selectDataset(1);
+check(app.SourcePanel.Title == "Source settings: Intan" && app.SourceNoteLabel.Visible == "on" ...
+    && app.SourceOEGrid.Visible == "off" && app.SourceTDTGrid.Visible == "off" ...
+    && contains(app.SourceNoteLabel.Text, "no source settings"), ...
+    'an Intan dataset is active: the Source settings panel says Intan has none');
 check(app.Config.Acquisition.OpenEphys.Recordings == "concatenate" && string(app.OERecordingsDropDown.Value) == "concatenate", ...
     'Open Ephys sessions are joined by default');
 app.OERecordingsDropDown.Value = 'separate';
@@ -818,17 +823,33 @@ app.OEStreamField.Value = 'Rhythm Data';
 app.onAcquisitionChanged();
 A = app.Config.Acquisition.OpenEphys;
 check(A.Recordings == "separate" && A.RecordNode == "104" && A.Stream == "Rhythm Data" ...
-    && isequal(app.Project.ReaderOptions, app.Config.Acquisition) && isequal(app.Project.Datasets(1).ReaderOptions, app.Config.Acquisition), ...
+    && isequaln(app.Project.ReaderOptions, app.Config.Acquisition) && isequaln(app.Project.Datasets(1).ReaderOptions, app.Config.Acquisition), ...
     'the Open Ephys options are saved in Acquisition and a rescan pushes them to the project and datasets');
 app.applyAcquisitionSection(cfg.Acquisition);
 app.onAcquisitionChanged();
 check(app.Config.Acquisition.OpenEphys.Recordings == "concatenate" && app.OERecordNodeField.Value == "" ...
-    && isequal(app.Project.ReaderOptions, cfg.Acquisition), 'applying the section restores the defaults');
+    && isequaln(app.Project.ReaderOptions, cfg.Acquisition), 'applying the section restores the defaults');
 app.Config.Acquisition.OpenEphys.RecordNode = "node";
 app.syncTabStrip();
 check(contains(tabTip(app, app.TabProject), "RecordNode"), 'an invalid Open Ephys option shows on the Project tab''s button');
 app.Config.Acquisition = cfg.Acquisition;
 app.syncTabStrip();
+check(string(app.TDTStreamDropDown.Value) == "automatic" && app.TDTGainField.Value == "", ...
+    'the TDT options are automatic by default');
+app.TDTStreamDropDown.Value = 'Wav1';
+app.TDTGainField.Value = '0.5';
+app.onAcquisitionChanged();
+check(app.Config.Acquisition.TDT.Stream == "Wav1" && app.Config.Acquisition.TDT.GainToMicrovolts == 0.5 ...
+    && isequaln(app.Project.Datasets(1).ReaderOptions, app.Config.Acquisition), ...
+    'the TDT stream and gain are saved in Acquisition.TDT and pushed to the datasets');
+app.TDTGainField.Value = 'abc';
+app.onAcquisitionChanged();
+check(app.Config.Acquisition.TDT.GainToMicrovolts == 0.5, 'a TDT gain that is not a number is refused');
+app.applyAcquisitionSection(cfg.Acquisition);
+app.onAcquisitionChanged();
+check(app.Config.Acquisition.TDT.Stream == "" && isnan(app.Config.Acquisition.TDT.GainToMicrovolts) ...
+    && string(app.TDTStreamDropDown.Value) == "automatic" && app.TDTGainField.Value == "", ...
+    'applying the section restores the TDT defaults');
 
 fprintf('\n== 3b. Trials tab: load, cut, approve, polarity ==\n');
 app.selectDataset(1);
@@ -879,7 +900,7 @@ app.refreshTrialsTable();
 TT = app.TrialsTable.Data;
 app.onTrialsTableMenu(cm, struct('InteractionInformation', struct('Column', [])));
 sub = findobj(cm.Children, 'flat', 'Text', 'Parameter columns');
-item = findobj(sub, 'Text', 'Response (not in this session)');
+item = findobj(sub, 'Text', 'Response (not in these trials)');
 check(isequal(string(TT.Properties.VariableNames), ["Param_isTest", vars(1:8), "Param_ToneLevel", "OtherLines"]) ...
     && isscalar(item) && logical(item.Checked), 'a re-added column returns to its place; a parameter the session lacks is listed, not shown');
 item.MenuSelectedFcn(item, []);
@@ -971,7 +992,7 @@ check(isscalar(hLab) && string(hLab.String) == "ToneLevel=60, isTest=false" && c
 app.TrialsLabelParams = ["ToneLevel" "Response"];   % Response: chosen for another dataset
 app.refreshTrialsPlot();
 app.onTrialsPlotMenu();
-item = findobj(app.TrialsLabelsMenu, 'Text', 'Response (not in this session)');
+item = findobj(app.TrialsLabelsMenu, 'Text', 'Response (not in these trials)');
 hLab = findall(app.TrialsAxes, "Tag", "trialLabels");
 check(isscalar(item) && logical(item.Checked) && string(hLab.String) == "60", ...
     'a label parameter the session lacks is listed, not written');
@@ -1028,7 +1049,7 @@ check(BT.behavior.trials.TrialOnsetSample(1) == 50 && BT.behavior.pairing.status
 app.onTrialsToWorkspace("epsych");
 E = evalin('base', vE);
 check(isequal(E, load(dT.BehaviorFile)) && contains(app.StatusBar.Text, vE), ...
-    'Epsych2 to workspace puts the session file as saved in the base workspace and names the variable');
+    'Trial source to workspace puts the Epsych2 session file as saved in the base workspace and names the variable');
 app.onTrialsToWorkspace("behavior");
 BW = evalin('base', vB);
 check(isequal(BW, BT.behavior) && contains(app.StatusBar.Text, vB), ...
@@ -1107,6 +1128,18 @@ check(~isempty(row) && ~any(endsWith(app.ProbePaths, ".ks4.json")), 'the probe l
 app.selectProbeRow(row);
 check(contains(app.ProbeInfoLabel.Text, "Kilosort4 parameters: square4.ks4.json"), ...
     'the Probe tab names the selected probe''s parameter file');
+sidecar = ChannelMap.sidecarFile(probeFile);
+writeJsonFile(sidecar, struct('schema', 'ephys-channel-map/1', 'probeFile', 'square4.json'));
+app.refreshProbeList();
+check(~any(endsWith(app.ProbePaths, ".chanmap.json")) && any(app.ProbePaths == string(probeFile)), ...
+    'the probe list leaves out a probe''s .chanmap.json sidecar (ChannelMapperApp)');
+delete(sidecar);
+check(isa(app.ChannelMapperButton, 'matlab.ui.control.Button') && isvalid(app.ChannelMapperButton) && ...
+    app.ChannelMapperButton.Text == "Map channels...", 'the Probe tab has the Map channels button');
+mapper = app.onOpenChannelMapper();
+check(isa(mapper, 'ChannelMapperApp') && mapper.App == app && isvalid(mapper.Fig) && ~isempty(mapper.Result), ...
+    'Map channels opens a ChannelMapperApp with this app as its parent');
+delete(mapper);
 app.ProbeFolderField.Value = probeFolder;
 app.refreshProbeList();
 delete(paramsFile);
@@ -1953,6 +1986,40 @@ if isfile(marker); L = strtrim(readlines(marker)); end
 check(~isempty(L) && strcmpi(L(1), phyHome) && any(L == "params.py found") && any(L == "template-gui params.py"), ...
     'phy is started in the results folder, also when its path holds & and spaces');
 app.PhyCmdField.Value = phyCmd0;
+
+fprintf('\n== 6e. Source settings for a TDT block ==\n');
+proj3 = fullfile(root, 'proj3');
+FsT = 24414.0625;
+spec = struct('Name', 'Subj9-260105-120000', 'StartTime', posixtime(datetime(2026, 1, 5, 12, 0, 0, 'TimeZone', 'local')));
+spec.Streams = [struct('Name', 'Wav1', 'Fs', FsT, 'Data', single(randn(2560, 4) * 1e-4), 'Npts', 256, 'Sev', false, ...
+        'T0', 0, 'ChunkTimes', [], 'Rate', [], 'Decimate', [], 'Channels', []), ...
+    struct('Name', 'LFP1', 'Fs', FsT / 8, 'Data', int16(randi([-300 300], 320, 2)), 'Npts', 32, 'Sev', false, ...
+        'T0', 0, 'ChunkTimes', [], 'Rate', [], 'Decimate', [], 'Channels', [])];
+spec.Epocs = struct([]);
+writeTDTBlock(fullfile(proj3, spec.Name), spec);
+app.RootPathField.Value = char(proj3);
+app.onConfigChanged();
+app.onScan();
+app.selectDataset(1);
+check(app.SourcePanel.Title == "Source settings: TDT (Synapse)" && app.SourceTDTGrid.Visible == "on" ...
+    && app.SourceOEGrid.Visible == "off" && app.SourceNoteLabel.Visible == "off", ...
+    'a TDT block is active: the panel shows the TDT settings only');
+check(all(ismember({'automatic' 'Wav1' 'LFP1'}, app.TDTStreamDropDown.Items)) && startsWith(app.TDTStatusLabel.Text, "reads Wav1") ...
+    && contains(app.TDTStatusLabel.Tooltip, "LFP1: 2 channels"), ...
+    'the Stream list holds the block''s streams; the status says which one is read');
+app.TDTStreamDropDown.Value = 'LFP1';
+app.onAcquisitionChanged();
+app.selectDataset(1);
+check(app.Config.Acquisition.TDT.Stream == "LFP1" && contains(app.TDTStatusLabel.Text, "set the gain"), ...
+    'an integer stream without a gain: the status asks for one');
+app.TDTGainField.Value = '0.5';
+app.onAcquisitionChanged();
+app.selectDataset(1);
+dT3 = app.currentDataset();
+check(startsWith(app.TDTStatusLabel.Text, "reads LFP1") && dT3.Fs == FsT / 8 && dT3.NumChannels == 2, ...
+    'with a gain the rescan reads the chosen stream');
+app.applyAcquisitionSection(cfg.Acquisition);
+app.onAcquisitionChanged();
 
 fprintf('\n== 7. deleting the figure (not Close) stops the timers ==\n');
 never = fullfile(root, 'never_run');

@@ -71,7 +71,14 @@ function T = makeSyntheticRecording(folder, opts)
 %                    the session folder, holding "Record Node 101"; channels
 %                    CH1.., lines TTL1.. in the schedule's order, name them
 %                    with Signals.LineNames, see T.lineNames; the sample
-%                    count is a multiple of 1024)
+%                    count is a multiple of 1024) | "tdt" (a TDT Synapse
+%                    block: FOLDER is the block folder, holding
+%                    <name>.tsq / .tev; stream Wav1 of Ch1.. in float32
+%                    volts; each line a strobe epoc store PC0_, PC1_, .. in
+%                    the schedule's order, named with Signals.LineNames, see
+%                    T.lineNames; no aux inputs; Fs must divide TDT's
+%                    195312.5 Hz clock, default 24414.0625; the sample count
+%                    is a multiple of 256)
 %     Parts          1 (Open Ephys formats): split the session into this many
 %                    recordings (recording stopped and restarted, 2 s apart),
 %                    each boundary outside the trial line's intervals. T.events is
@@ -80,7 +87,8 @@ function T = makeSyntheticRecording(folder, opts)
 %                    starts is lost where the format cannot know it (the Open
 %                    Ephys format without an edge in that recording; NWB in
 %                    a recording without any edge)
-%     Fs             30000 (with Session: the source's rate when known)
+%     Fs             30000 (with Session: the source's rate when known;
+%                    "tdt": 24414.0625, or the source's when it is a TDT rate)
 %     NumChannels    16 (at least 2; with Session: the source's count)
 %     FileSeconds    30 (also the size of the chunks generated in memory)
 %     AcqTime        nominal start of the recording (default: with Session,
@@ -109,7 +117,7 @@ function T = makeSyntheticRecording(folder, opts)
 %     Artifacts      true
 %     InvertedLines  lines written with inverted logic: on = low (default
 %                    none; with a Session, the lines its source inverts,
-%                    except for the Open Ephys formats, which cannot)
+%                    except for the Open Ephys and TDT formats, which cannot)
 %     WriteManifest  true
 %     ProgressFcn    ProgressFcn(fraction, message)
 %
@@ -145,7 +153,7 @@ arguments
     opts.NumTrials (1,1) double {mustBeInteger, mustBeGreaterThanOrEqual(opts.NumTrials, 4)} = 12
     opts.MaxDuration (1,1) double {mustBePositive} = Inf
     opts.Format (1,1) string {mustBeMember(opts.Format, ["traditional" "one-file-per-signal" "binary" ...
-        "openephys-binary" "openephys-legacy" "openephys-nwb"])} = "traditional"
+        "openephys-binary" "openephys-legacy" "openephys-nwb" "tdt"])} = "traditional"
     opts.Fs (1,1) double = NaN
     opts.NumChannels (1,1) double = NaN
     opts.FileSeconds (1,1) double {mustBePositive} = 30
@@ -174,10 +182,17 @@ end
 if ~fromSession && isfinite(opts.MaxDuration)
     error('makeSyntheticRecording:MaxDuration', 'MaxDuration applies with a Session only.');
 end
+isTDT = opts.Format == "tdt";
+tdtRate = @(f) isfinite(f) && f > 0 && abs(195312.5 / f - round(195312.5 / f)) < 1e-9;
 Fs = opts.Fs;
 if isnan(Fs)
     Fs = 30000;
-    if fromSession && isfinite(S.Fs); Fs = S.Fs; end
+    if isTDT; Fs = 24414.0625; end
+    if fromSession && isfinite(S.Fs) && (~isTDT || tdtRate(S.Fs)); Fs = S.Fs; end
+end
+if isTDT && ~tdtRate(Fs)
+    error('makeSyntheticRecording:TDTRate', ...
+        'A TDT block''s rate must divide 195312.5 Hz (e.g. 24414.0625 or 12207.03125); %g does not.', Fs);
 end
 nCh = opts.NumChannels;
 if isnan(nCh)
@@ -195,11 +210,14 @@ isOE = startsWith(fmt, "openephys-");
 if opts.Parts > 1 && ~isOE
     error('makeSyntheticRecording:Parts', 'Parts applies to the Open Ephys formats only.');
 end
-if isOE && ~isempty(opts.InvertedLines)
-    error('makeSyntheticRecording:InvertedLines', 'InvertedLines is not supported for the Open Ephys formats.');
+if (isOE || isTDT) && ~isempty(opts.InvertedLines)
+    error('makeSyntheticRecording:InvertedLines', 'InvertedLines is not supported for the Open Ephys and TDT formats.');
 end
 if isOE
     spb = 1024;   % whole Open Ephys records: no zero padding at the end of a recording
+end
+if isTDT
+    spb = 256;    % whole TDT stream chunks
 end
 D = opts.Design;
 if isempty(D); D = SyntheticDesign.builtIn(nCh); end
@@ -258,7 +276,7 @@ if ~isempty(bad)
     error('makeSyntheticRecording:InvertedLines', 'Unknown line(s) in InvertedLines: %s', strjoin(bad, ', '));
 end
 inverted = opts.InvertedLines;
-if fromSession && isempty(inverted) && ~isOE && isfield(S, 'invertedLines')
+if fromSession && isempty(inverted) && ~isOE && ~isTDT && isfield(S, 'invertedLines')
     inverted = intersect(reshape(string(S.invertedLines), 1, []), lineNames, 'stable');   % as the source records them
 end
 
@@ -292,12 +310,14 @@ auxNames   = ["accelX" "accelY" "accelZ"];
 auxNative  = "A-AUX" + string(1:3);
 lineNative = "DIGITAL-IN-" + string(compose('%02d', (1:nLines).')).';
 lineOrders = 1:nLines;                  % RHX: DIGITAL-IN-01 is bit 1 of the word
-if fmt == "binary" || isOE
-    lineBits = 0:nLines-1;              % recording.json: bit k = dig_in_names(k+1); Open Ephys: TTL k+1
+if fmt == "binary" || isOE || isTDT
+    lineBits = 0:nLines-1;              % recording.json: bit k = dig_in_names(k+1); Open Ephys: TTL k+1; TDT: store k
 else
     lineBits = lineOrders;
 end
 oeLineNames = "TTL" + (1:nLines) + "=" + lineNames;
+tdtStores = "PC" + string(cellstr(dec2hex(0:nLines-1))).' + "_";   % PC0_, PC1_, ..., PCF_
+tdtLineNames = tdtStores + "=" + lineNames;
 
 % --- the model: lines at Fs, units, LFP, background -------------------------------
 M = syntheticModel(S, D, Fs, nSamp, struct('xc', xc, 'yc', yc), Artifacts=opts.Artifacts);
@@ -367,6 +387,12 @@ if isOE
     oePart = 1;
     oeW.begin(1, 1, firstSample, acq);
 end
+tdtW = [];
+if isTDT
+    tdtW = writeTDTStream('open', [], char(folder), struct('Name', char(name), 'Fs', Fs, ...
+        'NumChannels', nCh, 'StartTime', posixtime(datetime(acq, 'TimeZone', 'local')), ...
+        'LineStores', {cellstr(tdtStores)}));
+end
 if fromSession
     notes = [sprintf("Synthetic recording (seed %d) written by makeSyntheticRecording", opts.Seed), ...
         "Schedule from the Epsych2 session of " + S.source, ""];
@@ -422,6 +448,8 @@ for sIdx = 1:nSeg
         case "binary"
             fwrite(fids.amp, int16(min(max(round(X / uvPerBit), -32768), 32767)).', 'int16');
             fwrite(fids.dig, W, 'uint16');
+        case "tdt"
+            tdtW = writeTDTStream('append', tdtW, X, W);
         otherwise   % Open Ephys: AUX held for 4 samples, stored as (raw - 32768) * 37.4 uV
             A = repelem((double(auxRaw.') - 32768) * auxVoltsPerBit, 4, 1);
             A = A(1:n, :);
@@ -445,6 +473,9 @@ if isOE
     oeW.finish();
     if isfield(oeW, 'closeAll'); oeW.closeAll(); end
 end
+if isTDT
+    writeTDTStream('close', tdtW);
+end
 switch fmt
     case "traditional"              % RHX: each file closed at its end (the times set above)
     case "one-file-per-signal"      % RHX: info.rhd written at the start, the .dat files closed at the end
@@ -460,7 +491,7 @@ switch fmt
             'acq_date', fmtTime(acq, 'yyyy-MM-dd HH:mm:ss'), 'source', src));
         files = ["recording.json", files];
         fileTimes = repmat(acq, 1, numel(files));
-    otherwise   % Open Ephys: start times are in the session's own files
+    otherwise   % Open Ephys, TDT: start times are in the recording's own files
         Dir = dir(fullfile(folder, '**', '*'));
         Dir = Dir(~[Dir.isdir]);
         files = string(erase(fullfile({Dir.folder}, {Dir.name}), [char(folder) filesep]));
@@ -527,7 +558,7 @@ if opts.SortedOutput
     writeNPY(fullfile(sortedDir, 'channel_positions.npy'), [xc yc]);
     writeNPY(fullfile(sortedDir, 'channel_shanks.npy'), int32(kcoords));
     fid = fopen(fullfile(sortedDir, 'params.py'), 'w');
-    fprintf(fid, 'dat_path = ''temp_wh.dat''\nn_channels_dat = %d\ndtype = ''int16''\noffset = 0\nsample_rate = %g\nhp_filtered = True\n', nCh, Fs);
+    fprintf(fid, 'dat_path = ''temp_wh.dat''\nn_channels_dat = %d\ndtype = ''int16''\noffset = 0\nsample_rate = %.10g\nhp_filtered = True\n', nCh, Fs);
     fclose(fid);
     labels = repmat("mua", 1, nU); labels(ampUV >= 100) = "good";
     fid = fopen(fullfile(sortedDir, 'cluster_KSLabel.tsv'), 'w');
@@ -610,7 +641,7 @@ trials = truthTrials(S, trialRows, trialInterval, Fs);
 Dir = dir(fullfile(folder, '**', '*'));
 auxFs = Fs / 4;
 if fmt == "one-file-per-signal"; auxFs = Fs; end
-if fmt == "binary"; auxFs = NaN; end
+if fmt == "binary" || isTDT; auxFs = NaN; end
 auxOffset = 0;
 if isOE; auxOffset = -32768 * auxVoltsPerBit; end
 lfp = M.lfp;
@@ -624,6 +655,7 @@ T.format        = fmt;
 T.parts         = partEnd;
 T.lineNames     = string.empty(1, 0);
 if isOE; T.lineNames = oeLineNames; end
+if isTDT; T.lineNames = tdtLineNames; end
 T.Fs            = Fs;
 T.nSamples      = nSamp;
 T.duration      = L;
@@ -633,6 +665,7 @@ T.sessionStart  = sessionStart;
 T.behaviorFile  = string(behFile);
 T.channelNames  = ampNames;
 if isOE; T.channelNames = "CH" + (1:nCh); end
+if isTDT; T.channelNames = "Ch" + (1:nCh); end
 T.digInNames    = lineNames;
 T.digInOrders   = lineBits;
 T.trialLine     = trialLine;

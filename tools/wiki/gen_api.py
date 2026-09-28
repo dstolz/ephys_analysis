@@ -1005,9 +1005,11 @@ PIPE_GROUPS = [
     ("Background Kilosort4 runs", ["sortingSlot", "waitForSortingSlot"]),
     ("Units and names", ["unitTable", "parseNameTokens"]),
     ("Derived signals and conversion", ["intan2matlab", "matrix2kilosort", "extract_trials"]),
-    ("Synthetic data", ["makeSyntheticProject", "makeSyntheticRecording", "makeSyntheticProbe"]),
+    ("Synthetic data", ["makeSyntheticProject", "makeSyntheticRecording", "makeSyntheticProbe",
+                        "syntheticModel", "syntheticSessionSchedule", "syntheticTaskSchedule"]),
     ("Probe maps", ["probeMapProblems", "writeProbeMap"]),
     ("File I/O", ["readJsonFile", "writeJsonFile", "readNPY", "writeNPY", "read_Intan_RHD2000_file_modified"]),
+    ("App helpers", ["ephysVersion", "showAbout", "styleButton"]),
     ("Tests", ["run_all_tests"]),
 ]
 
@@ -1040,7 +1042,14 @@ def main(do_splice=True):
         "ChronuxDataset": pdir("pipeline", "@ChronuxDataset"),
         "FieldTripExport": pdir("pipeline", "@FieldTripExport"),
         "ProbeDesignerApp": pdir("pipeline", "ProbeDesignerApp.m"),
+        "ChannelMapperApp": pdir("pipeline", "@ChannelMapperApp"),
+        "ChannelMap": pdir("pipeline", "ChannelMap.m"),
+        "HardwareBank": pdir("pipeline", "HardwareBank.m"),
         "CopySchedule": pdir("pipeline", "CopySchedule.m"),
+        "EphysTraceViewer": pdir("pipeline", "EphysTraceViewer.m"),
+        "EphysTraceSource": pdir("pipeline", "EphysTraceSource.m"),
+        "ManifestViewerApp": pdir("pipeline", "ManifestViewerApp.m"),
+        "SyntheticDesign": pdir("pipeline", "SyntheticDesign.m"),
         "EphysAnalysisConfig": pdir("analysis", "@EphysAnalysisConfig"),
         "EphysAnalysisRunner": pdir("analysis", "@EphysAnalysisRunner"),
         "EphysAnalysisScript": pdir("analysis", "@EphysAnalysisScript"),
@@ -1052,7 +1061,7 @@ def main(do_splice=True):
         pages["API-" + n] = g
     # readers
     g = []
-    for n in ["EphysReader", "IntanReader", "BinaryReader", "OpenEphysReader"]:
+    for n in ["EphysReader", "IntanReader", "BinaryReader", "OpenEphysReader", "TDTReader"]:
         cls = load_class(pdir("pipeline", "@" + n))
         sec = [f"### {n}", ""] + class_section(cls)
         write_gen(n, sec)

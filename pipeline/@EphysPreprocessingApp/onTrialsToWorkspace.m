@@ -1,7 +1,10 @@
 function onTrialsToWorkspace(obj, source)
 %onTrialsToWorkspace  Put the active dataset's behavior data in the base workspace.
-%   source "epsych" loads the associated Epsych2 session file as saved (a
-%   struct of its variables: Data, Info) as epsych_<name>; "behavior" loads
+%   source "epsych" loads the dataset's trial source as read: the associated
+%   Epsych2 session file as saved (a struct of its variables: Data, Info) as
+%   epsych_<name>, or, for a TDT block whose trials are epocs, its epoc
+%   stores (TDTReader.readEpocs: one element per store) as epocs_<name>;
+%   "behavior" loads
 %   the behavior struct of <name>_behavior.mat (EphysDataset.behaviorStruct:
 %   trials with the pairing columns, info, meta, pairing, ...) as
 %   behavior_<name> (made a valid name, cut to namelengthmax). A variable of
@@ -17,12 +20,20 @@ if isempty(d)
     obj.setStatus("Trials: scan a project and pick a dataset first.");
     return
 end
+src = "";
 if source == "epsych"
-    file = d.BehaviorFile;
-    what = "Epsych2 session";
-    if file == "" || ~isfile(file)
-        uialert(obj.Fig, d.Name + " has no Epsych2 session associated (Project tab).", dlgTitle);
-        return
+    src = trialSource(d);
+    switch src
+        case "epsych2"
+            file = d.BehaviorFile;
+            what = "Epsych2 session";
+        case "epocs"
+            file = d.Reader.Folder;
+            what = "TDT epocs";
+        otherwise
+            uialert(obj.Fig, d.Name + " has no trial source: no Epsych2 session associated (Project tab), " + ...
+                "and no TDT epoc store named as the trial line.", dlgTitle);
+            return
     end
 else
     file = string(fullfile(d.outputFolder(), d.Name + "_behavior.mat"));   % EphysPipeline.outputPathFor("behavior")
@@ -34,10 +45,15 @@ else
     end
 end
 
+prefix = source;
 try
-    if source == "epsych"
+    if src == "epsych2"
         value = load(file);
         nTrials = numel(value.Data);
+    elseif src == "epocs"
+        value = d.Reader.readEpocs();
+        nTrials = height(d.readBehavior());
+        prefix = "epocs";
     else
         L = load(file, 'behavior');
         value = L.behavior;
@@ -48,7 +64,7 @@ catch ME
     return
 end
 
-name = string(matlab.lang.makeValidName(source + "_" + d.Name));   % also cut to namelengthmax
+name = string(matlab.lang.makeValidName(prefix + "_" + d.Name));   % also cut to namelengthmax
 replaced = evalin('base', "exist('" + name + "', 'var')") == 1;
 assignin('base', name, value);
 

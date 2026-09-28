@@ -2,8 +2,9 @@ function [T, skipped] = findCopySessions(subjID, dateSpec, opts)
 %findCopySessions  Pair ePsych behavior files with recordings on the source by name.
 %   T = findCopySessions(subjID, dateSpec) lists one subject's sessions on the
 %   source tree for a day (or a range of days) and pairs each recording folder
-%   (Intan RHX, Open Ephys GUI or any other format a registered EphysReader
-%   reads) with its ePsych behavior file from the times in their names.
+%   (Intan RHX, Open Ephys GUI, TDT Synapse block or any other format a
+%   registered EphysReader reads) with its ePsych behavior file from the
+%   times in their names.
 %   Nothing is written to either tree; of the files, only headers are read:
 %   those of every recording taking part in the pairing (for
 %   MinRecordingDuration and the RecordingDuration column) and the ePsych
@@ -14,8 +15,10 @@ function [T, skipped] = findCopySessions(subjID, dateSpec, opts)
 %     ePsych      <EpsychRoot>/<SUBJ>/<SUBJ>_<yyMMdd>T<HHmmss>.mat     (file)
 %     recording   <RecordingRoot>/<SUBJ>/<name>                        (folder)
 %   where <name> matches one of NamePatterns with SubjectID = SUBJ (see
-%   parseNameTokens): by default Intan's <SUBJ>_<yyMMdd>_<HHmmss> and the Open
-%   Ephys GUI's <SUBJ>_<yyyy-MM-dd>_<HH-mm-ss>[<appended text>]. Anything else
+%   parseNameTokens): by default Intan's <SUBJ>_<yyMMdd>_<HHmmss>, the Open
+%   Ephys GUI's <SUBJ>_<yyyy-MM-dd>_<HH-mm-ss>[<appended text>] and a TDT
+%   Synapse block's <SUBJ>-<yyMMdd>-<HHmmss> (a tank named by the subject
+%   holding its blocks). Anything else
 %   in the subject folders is logged and skipped (never guessed at); it is
 %   also returned in SKIPPED.
 %
@@ -51,7 +54,8 @@ function [T, skipped] = findCopySessions(subjID, dateSpec, opts)
 %     RecordingRoots   string list (default "S:/RIG3_Backup_2025/intan_files/Data"):
 %                      roots holding one folder of recording folders per subject
 %     NamePatterns     recording folder name patterns (default
-%                      [EphysDataset.DefaultNamePattern, OpenEphysReader.DefaultNamePattern])
+%                      [EphysDataset.DefaultNamePattern, OpenEphysReader.DefaultNamePattern,
+%                      TDTReader.DefaultNamePattern])
 %     ReaderOptions    reader options for reading the recordings' headers
 %                      (a pipeline config's Acquisition section; default struct())
 %     DestRoot         (default "D:/EPHYS") only fills the DestDir column
@@ -78,7 +82,7 @@ function [T, skipped] = findCopySessions(subjID, dateSpec, opts)
 %     RecordingDuration  duration of the recording from its headers (NaN
 %                    without a folder or when they cannot be read)
 %     Reader         the reader that reads it: "intan" | "openephys" |
-%                    "binary" | "" (none, or no folder)
+%                    "tdt" | "binary" | "" (none, or no folder)
 %     EpsychTrials   double, trials in the ePsych file (epsychSessionMeta;
 %                    NaN without a file or when it cannot be read)
 %     StitchFiles    cell, strings(0, 1) on every row: stitchCopySessions
@@ -110,7 +114,8 @@ arguments
     dateSpec {mustBeDateSpec}
     opts.EpsychRoot (1,1) string = "S:/RIG3_Backup_2025/epsych_files/Data"
     opts.RecordingRoots (1,:) string {mustBeNonempty} = "S:/RIG3_Backup_2025/intan_files/Data"
-    opts.NamePatterns (1,:) string {mustBeNonempty} = [EphysDataset.DefaultNamePattern, OpenEphysReader.DefaultNamePattern]
+    opts.NamePatterns (1,:) string {mustBeNonempty} = [EphysDataset.DefaultNamePattern, OpenEphysReader.DefaultNamePattern, ...
+        TDTReader.DefaultNamePattern]
     opts.ReaderOptions struct = struct()
     opts.DestRoot (1,1) string = "D:/EPHYS"
     opts.MaxLeadTime (1,1) duration {mustBeNonnegativeDuration} = minutes(10)

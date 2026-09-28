@@ -1,6 +1,6 @@
 function onTrialsPlotMenu(obj)
 %onTrialsPlotMenu  Rebuild the Trials plot's "Trial labels" list as its context menu opens.
-%   One checked item per Epsych2 parameter of the loaded session (TrialIndex
+%   One checked item per trial parameter of the loaded trials (TrialIndex
 %   included), then the chosen parameters this session lacks, which can be
 %   unticked, each list in alphabetical order ignoring case; No labels. A
 %   ticked parameter labels every paired trial with its value above the
@@ -20,11 +20,11 @@ for p = params
 end
 missing = alphabetical(shown(~ismember(shown, params)));
 for k = 1:numel(missing)
-    uimenu(sub, "Text", missing(k) + " (not in this session)", "Checked", true, "Separator", k == 1 && ~isempty(params), ...
+    uimenu(sub, "Text", missing(k) + " (not in these trials)", "Checked", true, "Separator", k == 1 && ~isempty(params), ...
         "MenuSelectedFcn", @(~,~) setLabels(obj, shown(shown ~= missing(k))));
 end
 if isempty(sub.Children)
-    uimenu(sub, "Text", "Load a dataset to list its Epsych2 parameters", "Enable", "off");
+    uimenu(sub, "Text", "Load a dataset to list its trial parameters", "Enable", "off");
 elseif ~isempty(shown)
     uimenu(sub, "Text", "No labels", "Separator", "on", ...
         "MenuSelectedFcn", @(~,~) setLabels(obj, string.empty(1, 0)));

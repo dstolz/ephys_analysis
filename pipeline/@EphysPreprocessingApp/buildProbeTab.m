@@ -35,14 +35,17 @@ obj.ProbeTable.ColumnWidth = {'fit', 45, 60, 85, '1x'};
 obj.ProbeTable.CellSelectionCallback = @(~,evt) obj.onProbeRowSelected(evt);
 obj.ProbeTable.CellEditCallback = @(~,evt) obj.onProbeNotesEdited(evt);
 
-% Row 3: design / import / edit
-br = uigridlayout(left, [1 4]);
+% Row 3: design / map / import / edit
+br = uigridlayout(left, [1 5]);
 br.Layout.Row = 3;
-br.ColumnWidth = {'fit', 'fit', 'fit', '1x'};
+br.ColumnWidth = {'fit', 'fit', 'fit', 'fit', '1x'};
 br.Padding = [0 0 0 0];
 obj.DesignProbeButton = uibutton(br, "Text", "Design probe (probeinterface)...", ...
     "Tooltip", "Pick a manufactured probe from the probeinterface library or generate a geometry, wire it to channels, and save a Kilosort4 .json.", ...
     "ButtonPushedFcn", @(~,~) obj.onDesignProbe());
+obj.ChannelMapperButton = uibutton(br, "Text", "Map channels...", ...
+    "Tooltip", "Channel mapper: probe sites -> package -> headstage channels -> recording rows, from the hardware bank (NeuroNexus packages, Intan headstages). Copy the map or export the Kilosort4 .json.", ...
+    "ButtonPushedFcn", @(~,~) obj.onOpenChannelMapper());
 obj.ImportProbeButton = uibutton(br, "Text", "Import probe .json into folder...", ...
     "ButtonPushedFcn", @(~,~) obj.onImportProbe());
 obj.EditProbeJSONButton = uibutton(br, "Text", "Edit probe .json...", ...

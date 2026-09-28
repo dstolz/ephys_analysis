@@ -21,7 +21,8 @@ function out = behaviorToMat(obj, opts)
 %     Pairing     [] (default) or a pairTrials result to add to the trials
 %
 %   Errors with EphysDataset:behaviorToMat:NoFile when no Epsych2 session is
-%   associated (BehaviorFile) or it no longer exists.
+%   associated (BehaviorFile) or it no longer exists, unless the trials come
+%   from a TDT block's epocs (behaviorSource "epocs"; behaviorFile is "").
 %
 %   OUT fields: file, bytes, seconds, behaviorFile, nTrials, paired (true
 %   when the pairing columns were written).
@@ -38,7 +39,7 @@ arguments
 end
 
 t0 = tic;
-if obj.BehaviorFile == "" || ~isfile(obj.BehaviorFile)
+if obj.behaviorSource() ~= "epocs" && (obj.BehaviorFile == "" || ~isfile(obj.BehaviorFile))
     error('EphysDataset:behaviorToMat:NoFile', ...
         'No Epsych2 session is associated with %s (set BehaviorFile).', obj.Name);
 end

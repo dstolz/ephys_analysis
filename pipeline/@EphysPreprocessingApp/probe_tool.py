@@ -8,12 +8,15 @@ so this script converts a probeinterface Probe into that schema on the way out.
 Invoked by @EphysPreprocessingApp/runProbeTool.m through the same env python /
 `conda run` mechanism as run_ks4.py. All results are emitted as
 JSON on stdout (list-library, describe) or written to <out.json> (get-library,
-generate); a leading "PROBE_TOOL_ERROR" line + non-zero exit signals failure.
+get-contacts, generate); a leading "PROBE_TOOL_ERROR" line + non-zero exit
+signals failure. get-contacts writes a probe's contact ids, positions and
+shank ids (not a KS4 file) for ChannelMapperApp's probe designs.
 
 Usage:
   probe_tool.py list-library [--tag TAG]
   probe_tool.py get-library <manufacturer> <probe_name> <out.json>
                             [--name N] [--notes S] [--wiring w0,w1,...] [--n-chan K]
+  probe_tool.py get-contacts <manufacturer> <probe_name> <out.json>
   probe_tool.py generate <spec.json> <out.json>
   probe_tool.py describe <in.json>
 """
@@ -139,6 +142,35 @@ def cmd_get_library(args):
     print(json.dumps({'out': out_path, 'n_contacts': len(d['chanMap'])}))
 
 
+def cmd_get_contacts(args):
+    # The contacts of a library probe as the vendor numbers them, for
+    # ChannelMapperApp's probe designs: contact_ids (strings; NeuroNexus ids
+    # are the site numbers of the package maps), positions and shank_ids, in
+    # probeinterface's contact order. No chanMap: the mapper derives it.
+    if len(args) < 3:
+        raise SystemExit('usage: get-contacts <manufacturer> <probe_name> <out.json>')
+    manufacturer, probe_name, out_path = args[0], args[1], args[2]
+    from probeinterface import get_probe
+    probe = get_probe(manufacturer=manufacturer, probe_name=probe_name)
+    np = _np()
+    pos = np.asarray(probe.contact_positions, dtype=float)
+    n = pos.shape[0]
+    ids = getattr(probe, 'contact_ids', None)
+    ids = [str(v) for v in ids] if ids is not None and len(ids) == n else [''] * n
+    sh = getattr(probe, 'shank_ids', None)
+    sh = [str(v) for v in sh] if sh is not None and len(sh) == n else [''] * n
+    d = {
+        'manufacturer': manufacturer,
+        'probe': probe_name,
+        'contact_ids': ids,
+        'x': [_round(v) for v in pos[:, 0]],
+        'y': [_round(v) for v in (pos[:, 1] if pos.shape[1] > 1 else np.zeros(n))],
+        'shank_ids': sh,
+    }
+    _write_ks4(d, out_path)
+    print(json.dumps({'out': out_path, 'n_contacts': n}))
+
+
 def cmd_generate(args):
     if len(args) < 2:
         raise SystemExit('usage: generate <spec.json> <out.json>')
@@ -237,6 +269,7 @@ def _opt_wiring(args, flag):
 COMMANDS = {
     'list-library': cmd_list_library,
     'get-library': cmd_get_library,
+    'get-contacts': cmd_get_contacts,
     'generate': cmd_generate,
     'describe': cmd_describe,
 }

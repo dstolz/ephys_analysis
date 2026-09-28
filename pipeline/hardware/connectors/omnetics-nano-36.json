@@ -1,0 +1,15 @@
+{
+  "schema": "ephys-hardware/1",
+  "kind": "connector",
+  "manufacturer": "omnetics",
+  "name": "omnetics-nano-36",
+  "channels": 36,
+  "family": "omnetics-nano-36",
+  "rows": 2,
+  "cols": 20,
+  "guides": [[1, 1], [1, 20], [2, 1], [2, 20]],
+  "oneWay": false,
+  "pitchMm": 0.635,
+  "notes": "Omnetics Nano, 36 positions in two rows of 18, with a guide post at each end of each row (drawn as GUIDE cells, so a face is 2 x 20). The four symmetric guide posts let it mate both ways (reference and rotated 180 degrees); on NeuroNexus packages and Intan headstages both ways keep GND on GND and REF on REF, but the channel map differs.",
+  "source": "https://intantech.com/RHD_headstages.html"
+}

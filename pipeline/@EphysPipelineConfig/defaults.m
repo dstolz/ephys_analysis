@@ -29,7 +29,10 @@ switch section
             'OpenEphys', struct( ...
                 'Recordings', "concatenate", ... % "concatenate" | "separate" | "single": several recordings in one session
                 'RecordNode', "", ...            % Record Node id ("" = the only one; the lowest id when several)
-                'Stream',     ""));              % continuous stream ("" = the one with the most headstage channels)
+                'Stream',     ""), ...           % continuous stream ("" = the one with the most headstage channels)
+            'TDT', struct( ...
+                'Stream',           "", ...      % stream store read as the amplifier channels ("" = the most channels, then the highest rate)
+                'GainToMicrovolts', NaN));       % microvolts per stored unit (NaN = 1e6 for float streams, which TDT stores in volts)
 
     case "Parallel"
         s = struct( ...

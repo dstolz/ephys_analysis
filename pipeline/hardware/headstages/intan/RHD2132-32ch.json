@@ -1,0 +1,24 @@
+{
+  "schema": "ephys-hardware/1",
+  "kind": "headstage",
+  "manufacturer": "intan",
+  "name": "RHD2132-32ch",
+  "model": "RHD2132 32-channel headstage (C3314 / C3324), Omnetics A79025",
+  "channels": 32,
+  "channelLabel": "in%d",
+  "hardwareChannels": [0, 31],
+  "view": "looking into the electrode connector, chip side of the PCB up",
+  "faces": [
+    {
+      "id": "main",
+      "connector": "omnetics-nano-36",
+      "gender": "female",
+      "rows": [
+        "GUIDE GND 23 22 21 20 19 18 17 16 15 14 13 12 11 10 9 8 REF GUIDE",
+        "GUIDE REF 24 25 26 27 28 29 30 31 0 1 2 3 4 5 6 7 GND GUIDE"
+      ]
+    }
+  ],
+  "notes": "Transcribed from the electrode connector pinout on Intan's RHD headstage page (RHD2132_amp_board_electrode_connector). Cells are the chip's amplifier inputs in0..in31.",
+  "source": "https://intantech.com/RHD_headstages.html"
+}

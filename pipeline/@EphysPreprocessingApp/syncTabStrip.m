@@ -149,14 +149,14 @@ function [state, tip] = trialsState(P, sel)
 nBeh = 0; nApproved = 0;
 for i = sel
     d = P.Datasets(i);
-    if d.BehaviorFile == "" || ~isfile(d.BehaviorFile); continue; end
+    if trialSource(d, true) == ""; continue; end
     nBeh = nBeh + 1;
     if ~isempty(d.TrialPairing) && d.TrialPairing.status == "approved"
         nApproved = nApproved + 1;
     end
 end
 if nBeh == 0
-    state = "neutral"; tip = "No selected dataset has an Epsych2 session.";
+    state = "neutral"; tip = "No selected dataset has a trial source (Epsych2 session or TDT epocs).";
 elseif nApproved < nBeh
     state = "warn"; tip = sprintf("%d of %d trial pairing(s) approved.", nApproved, nBeh);
 else

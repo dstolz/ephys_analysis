@@ -181,7 +181,9 @@ classdef EphysPipelineScript
                 L(end+1, 1) = "    % Behavior.Search is off: only a session already associated (by hand, or in the recording folder)";
                 L(end+1, 1) = "    if d.BehaviorFile == """"; fprintf('%s: no session associated\n', d.Name); end";
             end
-            L(end+1, 1) = "    if d.BehaviorFile == """" || ~isfile(d.BehaviorFile); continue; end";
+            L(end+1, 1) = "    % without an Epsych2 session, a TDT block's epocs give the trials when the trial line is an epoc store";
+            L(end+1, 1) = "    if d.BehaviorFile == """" && d.behaviorSource() ~= ""epocs""; continue; end";
+            L(end+1, 1) = "    if d.BehaviorFile ~= """" && ~isfile(d.BehaviorFile); continue; end";
             L(end+1, 1) = "    pairing = [];";
             if B.PairTrials
                 L(end+1, 1) = "    try   % the trials, in order, with the " + B.TrialLine + " intervals (a recorded pairing's cuts are reused)";
@@ -189,7 +191,7 @@ classdef EphysPipelineScript
                 if B.AutoApprove
                     L(end+1, 1) = "        pairing = d.autoApproveTrialPairing(pairing);   % Behavior.AutoApprove: counts that match without cuts";
                 end
-                L(end+1, 1) = "        if ~pairing.recorded; d.setTrialPairing(pairing, ""unreviewed""); end";
+                L(end+1, 1) = "        if ~pairing.recorded; d.setTrialPairing(pairing, pairing.status, Auto=pairing.autoApproved); end   % ""unreviewed"", or approved epoc trials";
                 L(end+1, 1) = "        fprintf('%s: pairing %s - %s\n', d.Name, pairing.status, pairing.summary);";
                 L(end+1, 1) = "        if pairing.countMismatch; fprintf(2, '%s: WARNING %s\n', d.Name, strjoin(pairing.warnings, "" "")); end";
                 L(end+1, 1) = "    catch ME";

@@ -29,13 +29,15 @@ classdef EphysPreprocessingApp < handle
     %                a Tools panel that opens the active or the ticked
     %                datasets in the manifest viewer, the analysis app, phy
     %                or the file browser, Epsych2 behavior associations
-    %     Trials     pair Epsych2 trials in order with the trial digital line,
-    %                per-line TTL polarity, resolve a trial / interval count
-    %                mismatch by cutting from either end, approve the pairing
+    %     Trials     pair the trials (Epsych2 session or TDT epocs) in order
+    %                with the trial digital line, per-line TTL polarity,
+    %                resolve a trial / interval count mismatch by cutting
+    %                from either end, approve the pairing
     %                (or auto approve the ones whose counts match), prefetch
     %                the digital lines of every ticked dataset at once
     %     Probe      probe library, preview, assignment, per-dataset channel
-    %                exclusions, the config's default probe
+    %                exclusions, the config's default probe; the probe
+    %                designer and the channel mapper (ChannelMapperApp)
     %     Artifacts  automatic detection settings + preview, a viewer that steps
     %                through the detected artifacts (what a run removes and
     %                keeps around each), manual periods
@@ -212,9 +214,18 @@ classdef EphysPreprocessingApp < handle
         RootPathField     matlab.ui.control.EditField
         BrowseRootButton  matlab.ui.control.Button
         RecursiveCheckBox matlab.ui.control.CheckBox
+        % Source settings panel (under the table): the active dataset's recording system (syncSourcePanel)
+        SourcePanel          matlab.ui.container.Panel
+        SourceGrid           matlab.ui.container.GridLayout   % rows: note, Open Ephys, TDT
+        SourceNoteLabel      matlab.ui.control.Label          % no active dataset, or a system without settings
+        SourceOEGrid         matlab.ui.container.GridLayout
         OERecordingsDropDown matlab.ui.control.DropDown   % Acquisition.OpenEphys.Recordings
         OERecordNodeField    matlab.ui.control.EditField  % Acquisition.OpenEphys.RecordNode ("" = automatic)
         OEStreamField        matlab.ui.control.EditField  % Acquisition.OpenEphys.Stream ("" = automatic)
+        SourceTDTGrid        matlab.ui.container.GridLayout
+        TDTStreamDropDown    matlab.ui.control.DropDown   % Acquisition.TDT.Stream (editable; "automatic" = "")
+        TDTGainField         matlab.ui.control.EditField  % Acquisition.TDT.GainToMicrovolts ("" = automatic, NaN)
+        TDTStatusLabel       matlab.ui.control.Label      % the stream the active block reads
         ScanButton        matlab.ui.control.Button
         RefreshMetaButton matlab.ui.control.Button
         SelectAllButton   matlab.ui.control.Button
@@ -366,6 +377,7 @@ classdef EphysPreprocessingApp < handle
         ImportProbeButton   matlab.ui.control.Button
         EditProbeJSONButton matlab.ui.control.Button
         DesignProbeButton   matlab.ui.control.Button
+        ChannelMapperButton matlab.ui.control.Button   % Map channels...: ChannelMapperApp (onOpenChannelMapper)
         RefreshProbesButton matlab.ui.control.Button
         ProbeTable          matlab.ui.control.Table
         ProbeInfoLabel      matlab.ui.control.Label
@@ -751,8 +763,8 @@ classdef EphysPreprocessingApp < handle
         TrialsEventsIdx (1,1) double = 0     % dataset index TrialsEvents belongs to
         TrialsPairing = []                   % EphysDataset.pairTrials result shown
         TrialsSession = []                   % EphysDataset.readBehavior trials of the loaded dataset
-        TrialsParamColumns (1,:) string = string.empty(1,0)  % Epsych2 parameters shown as Trials-table columns (a preference)
-        TrialsLabelParams (1,:) string = string.empty(1,0)   % Epsych2 parameters shown as trial labels in the Trials plot (a preference)
+        TrialsParamColumns (1,:) string = string.empty(1,0)  % trial parameters shown as Trials-table columns (a preference)
+        TrialsLabelParams (1,:) string = string.empty(1,0)   % trial parameters shown as trial labels in the Trials plot (a preference)
         TrialsColumnOrder (1,:) string = string.empty(1,0)   % Trials-table variables in display order (a preference)
 
         % --- Copy tab state (in memory) ---
@@ -971,6 +983,7 @@ classdef EphysPreprocessingApp < handle
         % --- Tools panel (Project tab): the datasets in other programs ---
         idx = toolTargets(obj)
         syncToolsPanel(obj)
+        syncSourcePanel(obj)
         onOpenTool(obj, tool)
         onOpenOutputFolder(obj, idx)
 
@@ -1040,6 +1053,7 @@ classdef EphysPreprocessingApp < handle
         onProbeSelected(obj)
         onImportProbe(obj)
         onDesignProbe(obj)
+        m = onOpenChannelMapper(obj)
         result = runProbeTool(obj, varargin)
         onAssignProbe(obj, scope)
         onApplyExclude(obj, scope)
@@ -1158,5 +1172,10 @@ classdef EphysPreprocessingApp < handle
         onReportIssue(obj, kind)
         body = issueReport(obj, kind, opts)
         [url, truncated] = issueURL(obj, kind, title, body)
+    end
+
+    methods (Static)
+        % --- methods defined in separate files ---
+        result = runProbeToolWith(pythonExe, condaEnv, varargin)
     end
 end

@@ -2,14 +2,15 @@ function [stopped, message] = stopSortRun(statusFile)
 %stopSortRun  Stop a background Kilosort4 run that is going.
 %   [STOPPED, MESSAGE] = EphysDataset.stopSortRun(STATUSFILE) ends the run
 %   whose ks4_status.json is STATUSFILE (a launchSorting result's
-%   statusFile, or a LaunchedRuns element's). Every process whose command
-%   line names the run folder's driver (<run folder>\run_ks4.py: the cmd.exe
-%   that ks4_launch.cmd runs the command in, conda, Python) is ended with its
-%   child processes (taskkill /T on Windows, pkill elsewhere);
-%   ks4_launch.cmd itself goes on to write the exit marker and ends. Then
-%   ks4_status.json is written as {"state": "cancelled", "message":
-%   "stopped by the user"} and the SortExitMarker beside it, so
-%   sortRunState reports "cancelled" and the run's slot frees. Whatever
+%   statusFile, or a LaunchedRuns element's). First ks4_status.json is
+%   written as {"state": "cancelled", "message": "stopped by the user"}, so
+%   sortRunState reports "cancelled" from then on and the run's slot frees.
+%   Then every process whose command line names the run folder's driver
+%   (<run folder>\run_ks4.py: the cmd.exe that ks4_launch.cmd runs the
+%   command in, conda, Python) is ended with its child processes (taskkill
+%   /T on Windows, pkill elsewhere); ks4_launch.cmd itself goes on to write
+%   the exit marker and ends, and the SortExitMarker is written here all
+%   the same. Whatever
 %   Kilosort4 had written so far stays in the run folder.
 %
 %   STOPPED is false, and nothing is touched, when the run is not running
@@ -35,6 +36,12 @@ end
 runDir = fileparts(char(statusFile));
 pattern = [runDir filesep 'run_'];
 
+% The status goes first: once the processes are gone ks4_launch.cmd writes
+% the exit marker, and a monitor polling while the search below runs (the
+% app's timer fires during system()) would otherwise find a run that exited
+% without a status and report it as failed.
+writeJsonFile(char(statusFile), struct('state', "cancelled", 'message', "stopped by the user"));
+
 % The pattern goes through the environment, so no command line but the
 % run's own processes holds it (not the shell that runs the search).
 old = getenv('EPHYS_STOP_PATTERN');
@@ -53,7 +60,6 @@ n = str2double(regexp(strtrim(out), '\d+$', 'match', 'once'));
 if isnan(n); n = 0; end
 clear restore
 
-writeJsonFile(char(statusFile), struct('state', "cancelled", 'message', "stopped by the user"));
 fclose(fopen(fullfile(runDir, char(EphysDataset.SortExitMarker)), 'w'));
 stopped = true;
 message = sprintf("stopped %d process(es)", n);

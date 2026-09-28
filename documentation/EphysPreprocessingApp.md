@@ -803,9 +803,10 @@ Derived LFP / MUA / SPIKE `.mat` files with `EphysDataset.toMat`
 
 ## Spikes
 
-Spike events per dataset with `EphysDataset.spikesToMat`, `Spikes.*`.
+Threshold-detected spike events per dataset with `EphysDataset.spikesToMat`,
+`Spikes.*`. This step does not read the sorted units: they stay in the
+sorting folder, where Export and the analysis read them.
 
-- **Source**: threshold detection, sorted units, or both.
 - **Filter** (band, order), **Threshold** (method, value, polarity, max
   amplitude), **Events** (align, window, min period), **Waveforms** (on/off,
   window, source, edge handling), **Channels & artifacts** (all / manifest
@@ -814,8 +815,8 @@ Spike events per dataset with `EphysDataset.spikesToMat`, `Spikes.*`.
   recording)*, whose samples then stay out of the thresholds and are bridged
   by a line for the band-pass, so an artifact neither rings into the samples
   around it nor raises the threshold, or *Ignore them*), **Chunking**
-  (chunk cap, edge pad; the parallel switch is on the Run tab), **Sorted units** (groups, include noise,
-  templates), **Output** (folder, suffix `_spikes`, MAT version, overwrite).
+  (chunk cap, edge pad; the parallel switch is on the Run tab), **Output**
+  (folder, suffix `_spikes`, MAT version, overwrite).
 - **Dataset** + **Preview**: detects on the first *n* seconds of the active
   dataset with the tab's settings and lists per-channel thresholds, counts and
   rates.
@@ -925,9 +926,7 @@ step box to the files it writes:
   cap, waveforms, artifact rejection (with `"reject"`; dashed *ignored* with
   `"none"`) and the spikes file.
 
-Reading the sorted units into the spikes file (*Spikes:
-sorted units*) hangs from Sorting's output. Stages the config leaves off are
-dashed, a disabled step's branch is faded (a step hanging from it keeps its
+Stages the config leaves off are dashed, a disabled step's branch is faded (a step hanging from it keeps its
 own state, and so do the artifact periods: the manual ones apply with
 detection off), and artifact periods feeding another step are marked orange.
 
@@ -935,7 +934,7 @@ detection off), and artifact periods feeding another step are marked orange.
 Spikes (Spikes only while it does not erase the periods, and Signals too
 while `Signals.BlankArtifacts` is off), each from the recording box and its
 common reference, then the steps hung from another step's output (Sorting,
-Signals and Spikes from the artifact periods, the sorted units, Export) under
+Signals and Spikes from the artifact periods, Export) under
 **Downstream**, each under a box for what it reads (*Artifact periods, from
 Artifacts*). The choice is kept as a preference. In either layout the tab's
 summary line (`N of 4 raw-data step(s) enabled`) counts Artifacts, Sorting,
@@ -975,7 +974,7 @@ it:
 | Artifacts | the recording, and the manual periods in its manifest | the artifact periods: automatic (cached in `<Name>_artifacts.json`) + manual |
 | Sorting | the recording, the artifact periods (always blanked), the probe map | `kilosort4/`, the sorted units |
 | Signals | the recording; the artifact periods (`BlankArtifacts`) | the signal files, `<Name>_extract_<TYPE>.mat` |
-| Spikes | the recording and the artifact periods (threshold detection; the periods rejected or erased first, unless `ArtifactMode` is none); the sorted units (`Source` sorted or both) | `<Name>_spikes.mat` |
+| Spikes | the recording and the artifact periods (threshold detection; the periods rejected or erased first, unless `ArtifactMode` is none) | `<Name>_spikes.mat` |
 | Export | the signal files; the sorted units (`IncludeUnits`); the spikes file (`IncludeDetected`); the behavior file (epochs around the paired trials) | one file per format |
 
 A read the config leaves off is drawn dashed and grey, and a file the config

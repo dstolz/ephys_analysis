@@ -5,7 +5,6 @@ function applySpikesSection(obj, K)
 %   reported (setControlValue).
 K = EphysPipelineConfig.normalizeSection("Spikes", K);
 obj.SpkEnableCheckBox.Value = logical(K.Enabled);
-obj.setDropIfMember(obj.SpkSourceDropDown, K.Source, "Spikes.Source");
 obj.SpkFilterCheckBox.Value = logical(K.Filter);
 obj.setControlValue(obj.SpkBandLoField, K.Band(1), "Spikes.Band");
 obj.setControlValue(obj.SpkBandHiField, K.Band(2), "Spikes.Band");
@@ -27,9 +26,6 @@ obj.SpkChannelListField.Value = char(K.ChannelList);
 obj.setDropIfMember(obj.SpkArtifactModeDropDown, K.ArtifactMode, "Spikes.ArtifactMode");
 obj.SpkChunkField.Value = numText(obj, K.MaxChunkSamples, "");
 obj.SpkEdgePadField.Value = numText(obj, K.EdgePadMs, "");
-obj.SpkGroupsField.Value = char(strjoin(K.Groups, ", "));
-obj.SpkIncludeNoiseCheckBox.Value = logical(K.IncludeNoise);
-obj.SpkTemplatesCheckBox.Value = logical(K.Templates);
 obj.SpkOutputDirField.Value = char(K.OutputDir);
 obj.SpkSuffixField.Value = char(K.Suffix);
 obj.setDropIfMember(obj.SpkMatVersionDropDown, K.MatVersion, "Spikes.MatVersion");

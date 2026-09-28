@@ -40,7 +40,7 @@ if isempty(have)
 else
     add("Signals", strjoin(have + " (" + arrayfun(@(s) num(src.signalFs.(s)), have) + " Hz)", ", "));
 end
-add("Sorted units", yesNo(src.hasUnits, "from the " + src.unitsFrom + " " + ternary(src.unitsFrom == "spikes", "file", "folder")));
+add("Sorted units", yesNo(src.hasUnits, "from the sorting folder"));
 add("Detected spikes", yesNo(src.hasDetected, ""));
 if src.hasBehavior
     p = "trials not paired";
@@ -118,9 +118,4 @@ if tf
 else
     s = "no";
 end
-end
-
-
-function s = ternary(c, a, b)
-if c; s = a; else; s = b; end
 end

@@ -543,7 +543,6 @@ classdef EphysPreprocessingApp < handle
 
         % --- Spikes tab ---
         SpkEnableCheckBox    matlab.ui.control.CheckBox
-        SpkSourceDropDown    matlab.ui.control.DropDown
         SpkFilterCheckBox    matlab.ui.control.CheckBox
         SpkBandLoField       matlab.ui.control.NumericEditField
         SpkBandHiField       matlab.ui.control.NumericEditField
@@ -565,9 +564,6 @@ classdef EphysPreprocessingApp < handle
         SpkArtifactModeDropDown matlab.ui.control.DropDown   % artifact periods: reject / erase / none
         SpkChunkField        matlab.ui.control.EditField
         SpkEdgePadField      matlab.ui.control.EditField
-        SpkGroupsField       matlab.ui.control.EditField
-        SpkIncludeNoiseCheckBox matlab.ui.control.CheckBox
-        SpkTemplatesCheckBox matlab.ui.control.CheckBox
         SpkOutputDirField    matlab.ui.control.EditField
         SpkBrowseOutputButton matlab.ui.control.Button
         SpkSuffixField       matlab.ui.control.EditField

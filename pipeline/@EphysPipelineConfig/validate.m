@@ -195,40 +195,32 @@ end
 % --- Spikes ----------------------------------------------------------------------
 K = obj.Spikes;
 if K.Enabled
-    if ~ismember(K.Source, ["detect" "sorted" "both"])
-        add("spikes", "Source", "error", "Source must be detect, sorted or both.");
+    if K.Filter && ~(K.Band(1) < K.Band(2) && K.Band(1) > 0)
+        add("spikes", "Band", "error", "Band must be [lo hi] with 0 < lo < hi.");
     end
-    if K.Source ~= "sorted"
-        if K.Filter && ~(K.Band(1) < K.Band(2) && K.Band(1) > 0)
-            add("spikes", "Band", "error", "Band must be [lo hi] with 0 < lo < hi.");
-        end
-        if isfinite(K.Threshold) && ~(K.Threshold > 0)
-            add("spikes", "Threshold", "error", "Threshold must be positive (or NaN for the method default).");
-        end
-        if ~(K.WindowMs(1) < K.WindowMs(2))
-            add("spikes", "WindowMs", "error", "WindowMs must be [before after] with before < after.");
-        end
-        if ~ismember(K.ArtifactMode, ["reject" "erase" "none"])
-            add("spikes", "ArtifactMode", "error", "ArtifactMode must be reject, erase or none.");
-        end
-        if ~ismember(K.Channels, ["all" "excludeManifest" "list"])
-            add("spikes", "Channels", "error", "Channels must be all, excludeManifest or list.");
-        elseif K.Channels == "list"
-            try
-                ch = EphysPipelineConfig.parseOrderedList(K.ChannelList, "Spikes channel list");
-                if isempty(ch); add("spikes", "ChannelList", "error", "Channels is ""list"" but the list is empty."); end
-            catch ME
-                add("spikes", "ChannelList", "error", string(ME.message));
-            end
-        end
+    if isfinite(K.Threshold) && ~(K.Threshold > 0)
+        add("spikes", "Threshold", "error", "Threshold must be positive (or NaN for the method default).");
+    end
+    if ~(K.WindowMs(1) < K.WindowMs(2))
+        add("spikes", "WindowMs", "error", "WindowMs must be [before after] with before < after.");
+    end
+    if ~ismember(K.ArtifactMode, ["reject" "erase" "none"])
+        add("spikes", "ArtifactMode", "error", "ArtifactMode must be reject, erase or none.");
+    end
+    if ~ismember(K.Channels, ["all" "excludeManifest" "list"])
+        add("spikes", "Channels", "error", "Channels must be all, excludeManifest or list.");
+    elseif K.Channels == "list"
         try
-            EphysPipelineConfig.validateSuffix(K.Suffix);
+            ch = EphysPipelineConfig.parseOrderedList(K.ChannelList, "Spikes channel list");
+            if isempty(ch); add("spikes", "ChannelList", "error", "Channels is ""list"" but the list is empty."); end
         catch ME
-            add("spikes", "Suffix", "error", string(ME.message));
+            add("spikes", "ChannelList", "error", string(ME.message));
         end
     end
-    if K.Source ~= "detect" && isempty(K.Groups) && ~K.IncludeNoise
-        add("spikes", "Groups", "warning", "No unit groups selected; every non-noise cluster is kept.");
+    try
+        EphysPipelineConfig.validateSuffix(K.Suffix);
+    catch ME
+        add("spikes", "Suffix", "error", string(ME.message));
     end
 end
 
@@ -244,7 +236,7 @@ if E.Enabled
     if ~G.Enabled
         add("export", "Signals", "warning", "The Signals step is off; each dataset needs an existing extract file.");
     end
-    if E.IncludeDetected && ~(K.Enabled && K.Source ~= "sorted")
+    if E.IncludeDetected && ~K.Enabled
         add("export", "IncludeDetected", "warning", "Detected spikes are included only where a spikes file already exists.");
     end
     if any(E.Formats == "epochs")
@@ -275,7 +267,7 @@ if E.Enabled
 end
 
 % --- cross-step ------------------------------------------------------------------
-needsSorted = (K.Enabled && K.Source ~= "detect") || (E.Enabled && E.IncludeUnits);
+needsSorted = E.Enabled && E.IncludeUnits;
 if needsSorted && patternParses
     id = EphysDataset.nameIdentity("", P.NamePattern);
     if id.reason == "pattern"

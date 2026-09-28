@@ -182,7 +182,7 @@ The runner's `plotSkipReason`, shown by the preview, Plan and the results:
 
 | Reason | Cause | Fix |
 | --- | --- | --- |
-| no sorted units | no spikes file with units and no sorting folder | run the Spikes step with sorted units, or sort |
+| no sorted units | no sorting folder | sort the dataset, or associate its sorted-output folder |
 | no detected spikes | the spikes file has no threshold detections | run the Spikes step with detection |
 | no LFP extract (MUA, SPIKE, AUX) | the Signals step did not write that signal | enable it in the pipeline's Signals step |
 | no paired trials | trial scope, the `Trial` line, a filter / response / group-by or a tuning plot on a dataset without paired trials | approve the pairing on the preprocessing app's Trials tab and write the behavior file; or align in recording scope without a selection |

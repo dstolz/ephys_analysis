@@ -162,7 +162,7 @@ ds.PythonExe = "C:\Users\me\miniconda3\envs\kilosort\python.exe";
 res = ds.runKilosort();              % writes the .bin, blocks until Kilosort4 finishes
 U   = ds.readSortedUnits();          % the sorted units (phy labels, times, channels)
 out = ds.toMat(SignalOptions=struct('dataTypeOut', ["LFP" "MUA"]));
-out = ds.spikesToMat(Source="both");
+out = ds.spikesToMat();             % threshold-detected spikes
 out = ds.exportChronux();  out = ds.exportFieldTrip();
 E   = ds.eventEpochs(EventSource="behavior");   % the same data, one epoch per trial
 out = ds.exportEpochs();                        % E, saved as _epochs.mat

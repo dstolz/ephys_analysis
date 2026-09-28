@@ -76,7 +76,6 @@ cfg.Name = "gui test";
 cfg.Project.Root = proj;
 cfg.Project.OutputRoot = outRoot;
 cfg.Spikes.Enabled = true; cfg.Spikes.Filter = false; cfg.Spikes.ThresholdMethod = "absolute"; cfg.Spikes.Threshold = 2000;
-cfg.Spikes.Source = "both";
 cfg.Export.Formats = "chronux";
 cfg.Sorting.KS4.nblocks = 3; cfg.Sorting.KS4.dmin = 12;
 cfg.Parallel.Enabled = true; cfg.Parallel.MaxWorkers = 3;
@@ -243,15 +242,15 @@ msg = sprintf('every one of the %d controls the overview''s boxes point at exist
 if ~isempty(missing); msg = msg + " (missing: " + join(missing, ", ") + ")"; end
 check(numel(targets) > 30 && isempty(missing) && contains(ov, "sendEventToMATLAB('navigate'"), msg);
 reads = @(M, a, b) M.edges([M.edges.from] == a & [M.edges.to] == b).on;
-check(reads(M, "artifacts", "signals") && reads(M, "sorting", "spikes") && reads(M, "behavior", "export") ...
-    && reads(M, "spikes", "export") && ~any([M.edges.dim]), ...
-    'with every step on, Signals reads the artifact periods, Spikes the sorted units, Export the behavior and spikes files');
+check(reads(M, "artifacts", "signals") && reads(M, "artifacts", "spikes") && reads(M, "behavior", "export") ...
+    && reads(M, "spikes", "export") && ~any([M.edges.dim]) && ~any([M.edges.from] == "sorting" & [M.edges.to] == "spikes"), ...
+    'with every step on, Signals and Spikes read the artifact periods, Export the behavior and spikes files; Spikes never reads the sort');
 flowOff = flowOn;
-flowOff.Signals.BlankArtifacts = false; flowOff.Sorting.Enabled = false; flowOff.Spikes.Source = "detect";
+flowOff.Signals.BlankArtifacts = false; flowOff.Sorting.Enabled = false; flowOff.Spikes.ArtifactMode = "none";
 flowOff.Export.Formats = strings(1, 0);
 app.applyConfig(flowOff);
 [ovOff, sumOff, M] = app.flowOverviewHTML();
-check(~reads(M, "artifacts", "signals") && ~reads(M, "sorting", "spikes") && ~reads(M, "behavior", "export") ...
+check(~reads(M, "artifacts", "signals") && ~reads(M, "artifacts", "spikes") && ~reads(M, "behavior", "export") ...
     && all([M.edges([M.edges.to] == "sorting").dim]) && ~any([M.edges([M.edges.to] ~= "sorting").dim]) ...
     && contains(ovOff, "<g class=""edge c-artifacts off"" data-from=""artifacts"" data-to=""signals"">") ...
     && contains(ovOff, ">No format ticked</text>") && startsWith(sumOff, "6 of 7") ...
@@ -358,17 +357,17 @@ bad = cfg;
 bad.Name = "cannot show";
 bad.Artifacts.Threshold = NaN;            % detection is off: validate lets it pass
 bad.Behavior.MaxStartOffsetMin = 0;       % Behavior is off; the field wants more than 0
-bad.Spikes.Source = "nonsense";
+bad.Spikes.Polarity = "nonsense";
 badFile = fullfile(root, 'cannot_show.json');
 bad.save(badFile);
 ok = app.openConfigFile(badFile);
 check(ok && app.Config.Name == "cannot show" && numel(app.ApplyRejected) == 3 ...
     && contains(join(app.ApplyRejected), "Artifacts.Threshold = NaN") && contains(join(app.ApplyRejected), "Behavior.MaxStartOffsetMin = 0") ...
-    && contains(join(app.ApplyRejected), "Spikes.Source") && app.Config.Artifacts.Threshold == app.ArtThresholdField.Value ...
+    && contains(join(app.ApplyRejected), "Spikes.Polarity") && app.Config.Artifacts.Threshold == app.ArtThresholdField.Value ...
     && app.Config.Behavior.MaxStartOffsetMin == app.BehMaxOffsetField.Value && startsWith(app.Fig.Name, "*"), ...
     'a config with values its fields cannot show opens: those are listed, the config holds what the fields show and is marked unsaved');
 ok = app.openConfigFile(cfgFile);
-check(ok && isempty(app.ApplyRejected) && ~startsWith(app.Fig.Name, "*") && app.Config.Spikes.Source == "both", ...
+check(ok && isempty(app.ApplyRejected) && ~startsWith(app.Fig.Name, "*") && app.Config.Spikes.Polarity == "negative", ...
     'the good config opens clean again');
 
 fprintf('\n== 2. edits and the unsaved marker ==\n');
@@ -1152,8 +1151,8 @@ R = app.RunResultsTable.Data;
 spikesFile = fullfile(outRoot, 'recA_260101_120000', 'recA_260101_120000_spikes.mat');
 check(istable(R) && any(R.Step == "spikes" & R.Status == "done") && isfile(spikesFile), 'the Spikes step ran and wrote its file');
 M = load(spikesFile);
-check(~isempty(M.detected) && isequal(M.units.unitId, [0; 1]) && M.detected.detection.options.Threshold == 1500, ...
-    'the file reflects the edited threshold and the sorted units');
+check(~isempty(M.detected) && ~isfield(M, 'units') && M.detected.detection.options.Threshold == 1500, ...
+    'the file reflects the edited threshold and holds the detections only');
 check(~app.RunActive && strcmp(app.RunButton.Enable, 'on'), 'run state is reset afterwards');
 app.runLog("the report reads this line");
 runTail = string(app.RunLogArea.Value);

@@ -17,10 +17,10 @@ function [st, meta] = selectUnits(src, usel)
 %
 %   USEL fields (EphysAnalysisConfig.defaults("UnitSelection"); a struct or
 %   [] for the defaults)
-%     source    "units": the sorted units -- the spikes file's units when
-%               it has them, else the sorting folder (DatasetOutputs.load
-%               ("sorting"), read once per dataset when the outputs cache
-%               data); "detected": the spikes file's detections
+%     source    "units": the sorted units in the sorting folder
+%               (DatasetOutputs.load("sorting"), read once per dataset when
+%               the outputs cache data); "detected": the spikes file's
+%               threshold detections
 %     classes   sorted-unit classes kept, e.g. ["su" "mua"] ([] = all)
 %     groups    phy groups kept ([] = all)
 %     ids       unit ids (units) or channels (detected) kept ([] = all)
@@ -47,14 +47,9 @@ out = src.outputs;
 switch usel.source
     case "units"
         if ~src.hasUnits
-            error('selectUnits:NoUnits', '%s has no sorted units (no spikes file with units, no sorting folder).', src.name);
+            error('selectUnits:NoUnits', '%s has no sorted units (no sorting folder).', src.name);
         end
-        if src.unitsFrom == "spikes"
-            S = out.load("spikes", "units");
-            U = S.units;
-        else
-            U = out.load("sorting");
-        end
+        U = out.load("sorting");
         nU = numel(U.unitId);
         meta = table(col(U, 'label', strings(nU, 1)), double(U.unitId(:)), col(U, 'class', strings(nU, 1)), ...
             double(col(U, 'channel', NaN(nU, 1))), col(U, 'channelName', strings(nU, 1)), ...

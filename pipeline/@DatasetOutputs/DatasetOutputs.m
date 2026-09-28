@@ -22,7 +22,7 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
     %   each one by the variables it holds, not by its suffix, so configured
     %   Signals/Spikes suffixes and output folders are found too:
     %     extract    Y + info                     (toMat; the Signals step)
-    %     spikes     detected + units + conversion (spikesToMat)
+    %     spikes     detected + conversion (spikesToMat)
     %     chronux    export + sp                   (exportChronux)
     %     fieldtrip  export + event / spike / data_* (exportFieldTrip)
     %     epochs     export + epochs               (exportEpochs)
@@ -690,7 +690,7 @@ elseif ismember("export", v) && any(ismember(["sp" "spDetected"], v))
 elseif ismember("export", v) && (any(ismember(["event" "spike" "spikeDetected"], v)) ...
         || any(startsWith(v, "data_")))
     kind = "fieldtrip"; prov = "export";
-elseif all(ismember(["detected" "units" "conversion"], v))
+elseif all(ismember(["detected" "conversion"], v))
     kind = "spikes"; prov = "conversion";
 elseif all(ismember(["Y" "info"], v))
     kind = "extract";

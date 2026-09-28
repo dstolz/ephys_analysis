@@ -397,7 +397,7 @@ out = ds.toMat(File="D:\out\subj1.mat", SignalOptions=struct('dataTypeOut', "LFP
 
 % --- Sorted units, spikes file, exports ---
 U   = ds.readSortedUnits(Groups=["good" "mua"]);   % the associated Kilosort4 / phy output
-out = ds.spikesToMat(Source="both");                % <Name>_spikes.mat: detected + units
+out = ds.spikesToMat();                             % <Name>_spikes.mat: threshold detections
 out = ds.exportChronux();                           % <Name>_chronux.mat
 out = ds.exportFieldTrip();                         % <Name>_fieldtrip.mat
 ```
@@ -1318,7 +1318,7 @@ identifiers: `EphysDataset:readPhyWaveforms:NoResultsDir` / `NoParams` /
 `BadParams` / `NoDataFile` / `BadChannels`. The high-pass needs the Signal
 Processing Toolbox.
 [`unitTable`](../pipeline/unitTable.m) turns one or more
-`units` structs or saved files into a table (see
+`units` structs or Chronux export files into a table (see
 [Unit labels](EphysPipeline.md#unit-labels)).
 
 #### Unit labels
@@ -1440,25 +1440,25 @@ cancelled run leaves no complete-looking file.
 ### Spikes file
 
 **`out = spikesToMat(Name=Value)`** writes `<outputFolder>/<Name>_spikes.mat`
-with spike events from up to two sources
-([schema](file-formats.md#spikes-mat-ephysdatasetspikestomat-the-spikes-step)):
+with threshold detections over the whole recording, one entry per channel
+([schema](file-formats.md#spikes-mat-ephysdatasetspikestomat-the-spikes-step)).
+Sorted units are not copied into it; read them from the sorting folder with
+`readSortedUnits`.
 
 | Option | Default | Meaning |
 | --- | --- | --- |
-| `Source` | `"detect"` | `"detect"` (threshold detection over the whole recording, one entry per channel), `"sorted"` (the associated units via `readSortedUnits`) or `"both"` |
 | `DetectOptions` | `struct()` | `detectSpikes` options (`Filter`, `Band`, `ThresholdMethod`, `Threshold`, `Waveforms`, `WindowMs`, `MaxChunkSamples`, `UseParallel`, `MaxWorkers`, ...) |
 | `Channels` | `[]` (all) | 1-based recording channels to detect on, in order |
 | `ArtifactMode` | `"reject"` | what detection does with the artifact periods (`ArtifactIntervals`, else `artifactIntervals()`): `"reject"` detects on the recording as read and drops the events inside a period; `"erase"` erases the periods before detection (`detectSpikes`' `ArtifactIntervals`), so detection runs on the cleaned recording: the erased samples stay out of the thresholds, the band-pass runs a line across them, and no event lies inside a period or comes from an artifact ringing into its neighbours; `"none"` ignores them |
 | `ArtifactIntervals` | computed | `[k x 2]` seconds |
-| `Groups`, `IncludeNoise`, `Templates` | `["good" "mua"]`, `false`, `true` | sorted-unit options |
 | `File`, `MatVersion`, `Overwrite`, `ProgressFcn` | as `toMat` | |
 
 Variables: `detected` (`ts`, `wf`, `info`, `channels`, `channelNames`,
 `detection` with the options, `artifactMode`, the intervals applied and
 `nRejectedArtifact` per channel; after an erase, `info.artifacts` holds the
-periods and the number of samples erased), `units`, `conversion`. Sources not requested are
-`[]`; the file is rewritten as a whole. `out`: `file`, `bytes`, `seconds`,
-`source`, `nChannels`, `nDetected`, `nRejectedArtifact`, `nUnits`, `matVersion`.
+periods and the number of samples erased), `conversion`. The file is rewritten
+as a whole. `out`: `file`, `bytes`, `seconds`, `nChannels`, `nDetected`,
+`nRejectedArtifact`, `matVersion`.
 
 ### Exports
 

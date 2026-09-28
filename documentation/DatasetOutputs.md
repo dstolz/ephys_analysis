@@ -56,7 +56,7 @@ not matter, so configured `Suffix` values are found:
 | Kind | Variables | Written by |
 | --- | --- | --- |
 | `extract` | `Y` + `info` | `toMat` (Signals step); `<...>_LFP.mat` etc. are per-type files |
-| `spikes` | `detected` + `units` + `conversion` | `spikesToMat` |
+| `spikes` | `detected` + `conversion` | `spikesToMat` |
 | `behavior` | `behavior` + `conversion` | `behaviorToMat` (behavior step) |
 | `chronux` | `export` + `sp` / `spDetected` | `exportChronux` |
 | `fieldtrip` | `export` + `event` / `spike` / `data_*` | `exportFieldTrip` |

@@ -1,10 +1,10 @@
 function buildSpikesTab(obj)
-%buildSpikesTab  Spikes step: threshold detection and/or sorted units -> .mat.
+%buildSpikesTab  Spikes step: threshold detection -> .mat.
 %   Edits the config's Spikes section (gatherSpikesSection /
-%   applySpikesSection): source, detection settings (EphysDataset.detectSpikes),
-%   sorted-unit settings (readSortedUnits) and output. The right panel
-%   previews detection on a short window of the active dataset and
-%   runs the step.
+%   applySpikesSection): detection settings (EphysDataset.detectSpikes) and
+%   output. Sorted units are not read here; they stay in the sorting folder.
+%   The right panel previews detection on a short window of the active
+%   dataset and runs the step.
 
 g = uigridlayout(obj.TabSpikes, [1 2]);
 g.ColumnWidth = {660, '1x'};
@@ -13,7 +13,7 @@ changed = @(~,~) obj.onSpikesControlsChanged();
 
 opt = uipanel(g, "Title", "Spike options (config: Spikes; EphysDataset.spikesToMat)");
 opt.Layout.Column = 1;
-nRows = 24;
+nRows = 22;
 cg = uigridlayout(opt, [nRows 5]);
 cg.Scrollable  = "on";
 cg.RowHeight   = repmat({26}, 1, nRows);
@@ -23,13 +23,6 @@ r = 1;
 obj.SpkEnableCheckBox = uicheckbox(cg, "Text", "Enable the Spikes step", "FontWeight", "bold", ...
     "Value", false, "ValueChangedFcn", changed);
 obj.SpkEnableCheckBox.Layout.Row = r; obj.SpkEnableCheckBox.Layout.Column = [1 2];
-l = lab(cg, "Source:", r); l.Layout.Column = 3;
-obj.SpkSourceDropDown = uidropdown(cg, ...
-    "Items", {'Threshold detection', 'Sorted units (Kilosort / phy)', 'Both'}, ...
-    "ItemsData", {'detect', 'sorted', 'both'}, "Value", 'detect', ...
-    "Tooltip", "detect: EphysDataset.detectSpikes over the whole recording; sorted: the units associated with each dataset.", ...
-    "ValueChangedFcn", changed);
-obj.SpkSourceDropDown.Layout.Row = r; obj.SpkSourceDropDown.Layout.Column = [4 5];
 
 % --- Filter ---
 r = r + 1; sep(cg, "Detection: filter", r);
@@ -144,20 +137,6 @@ l = lab(cg, "Edge pad (ms):", r); l.Layout.Column = 3;
 obj.SpkEdgePadField = uieditfield(cg, "text", "Placeholder", "blank = auto", ...
     "Tooltip", "Context carried across chunk boundaries. Blank = auto (10 ms).", "ValueChangedFcn", changed);
 obj.SpkEdgePadField.Layout.Row = r; obj.SpkEdgePadField.Layout.Column = 4;
-
-% --- Sorted units ---
-r = r + 1; sep(cg, "Sorted units (Kilosort4 / phy output associated with each dataset)", r);
-r = r + 1;
-lab(cg, "Groups:", r);
-obj.SpkGroupsField = uieditfield(cg, "text", "Value", "good, mua", ...
-    "Tooltip", "phy labels to keep (cluster_group.tsv, else cluster_KSLabel.tsv). Blank = every non-noise cluster.", ...
-    "ValueChangedFcn", changed);
-obj.SpkGroupsField.Layout.Row = r; obj.SpkGroupsField.Layout.Column = 2;
-obj.SpkIncludeNoiseCheckBox = uicheckbox(cg, "Text", "Include noise", "Value", false, "ValueChangedFcn", changed);
-obj.SpkIncludeNoiseCheckBox.Layout.Row = r; obj.SpkIncludeNoiseCheckBox.Layout.Column = 3;
-obj.SpkTemplatesCheckBox = uicheckbox(cg, "Text", "Template waveforms", "Value", true, ...
-    "Tooltip", "Read templates.npy for peak channels and mean waveforms.", "ValueChangedFcn", changed);
-obj.SpkTemplatesCheckBox.Layout.Row = r; obj.SpkTemplatesCheckBox.Layout.Column = [4 5];
 
 % --- Output ---
 r = r + 1; sep(cg, "Output", r);

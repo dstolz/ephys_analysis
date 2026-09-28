@@ -125,32 +125,34 @@ pipe.Config = cfgE;
 T = pipe.plan();
 check(all(T.Status(startsWith(T.Step, "export")) == "no extract file"), 'export without an extract is flagged');
 pipe.Config = cfg;
-cfgS = cfg; cfgS.Spikes.Source = "sorted"; cfgS.Project.Datasets = "mouse2/M1_260101_120030";
+cfgS = cfg; cfgS.Project.Datasets = "mouse2/M1_260101_120030";
 p2 = EphysPipeline(cfgS, Project=pipe.Project, Refresh=false);
 T2 = p2.plan();
-check(T2.Status(T2.Step == "spikes") == "no sorting output" && T2.Status(T2.Step == "probe") == "no probe" ...
-    && T2.Status(T2.Step == "sorting") == "no probe", 'missing sorting output and probe are flagged');
+check(T2.Status(T2.Step == "spikes") == "ready" && T2.Status(T2.Step == "probe") == "no probe" ...
+    && T2.Status(T2.Step == "sorting") == "no probe" && all(T2.Note(startsWith(T2.Step, "export")) == "no sorted units (left out)"), ...
+    'a missing probe is flagged; spikes needs no sort; export leaves the absent units out');
 cfgD = cfg; cfgD.Project.Selection = "all";
 pD = EphysPipeline(cfgD, Project=pipe.Project, Refresh=false);
 TD = pD.plan(Steps="signals");
 check(height(TD) == 2 && all(TD.Status == "ready"), 'recordings with different names share no output under one OutputRoot');
 % Both fixtures are subject M1 starting 2026-01-01 12:00, so their unit labels would collide.
-cfgU = cfgD; cfgU.Spikes.Source = "sorted";
-pU = EphysPipeline(cfgU, Project=pipe.Project, Refresh=false);
-TU = pU.plan(Steps="spikes");
-rowU = TU.Key == "mouse1/M1_260101_120000";
-check(TU.Status(rowU) == "error: unit label collision" && contains(TU.Note(rowU), "mouse2/M1_260101_120030") ...
-    && TU.Status(~rowU) == "no sorting output", ...
+pU = EphysPipeline(cfgD, Project=pipe.Project, Refresh=false);
+TU = pU.plan(Steps=["signals" "export"]);
+isExp = startsWith(TU.Step, "export");
+rowU = isExp & TU.Key == "mouse1/M1_260101_120000";
+check(all(TU.Status(rowU) == "error: unit label collision") && all(contains(TU.Note(rowU), "mouse2/M1_260101_120030")) ...
+    && all(TU.Status(isExp & ~rowU) == "ready"), ...
     'a sorted dataset sharing subject + start minute with another selected dataset cannot label its units');
-check(strcmp(errorId(@() pU.run(Steps="spikes")), 'EphysPipeline:PlanInvalid'), 'run refuses unit label collisions');
-cfgI = cfg; cfgI.Spikes.Source = "sorted"; cfgI.Project.NamePattern = "X-{SubjectID}_{Date:yyMMdd}_{Time:HHmmss}";
+check(strcmp(errorId(@() pU.run(Steps=["signals" "export"])), 'EphysPipeline:PlanInvalid'), 'run refuses unit label collisions');
+cfgI = cfg; cfgI.Project.NamePattern = "X-{SubjectID}_{Date:yyMMdd}_{Time:HHmmss}";
 pI = EphysPipeline(cfgI, Project=pipe.Project, Refresh=false);
 check(all([pI.Project.Datasets.NamePattern] == cfgI.Project.NamePattern), 'the config''s NamePattern is pushed onto the datasets');
 TI = pI.plan(Steps=["signals" "spikes" "export"]);
-check(TI.Status(TI.Step == "spikes") == "error: unit identity" && all(TI.Status(startsWith(TI.Step, "export")) == "error: unit identity") ...
-    && contains(TI.Note(TI.Step == "spikes"), "does not match") && TI.Status(TI.Step == "signals") == "ready", ...
+rowI = find(startsWith(TI.Step, "export"));
+check(all(TI.Status(rowI) == "error: unit identity") && contains(TI.Note(rowI(1)), "does not match") ...
+    && TI.Status(TI.Step == "signals") == "ready" && TI.Status(TI.Step == "spikes") == "ready", ...
     'a name that does not match NamePattern stops only the steps that read sorted units');
-cfgI.Spikes.Source = "detect"; cfgI.Export.IncludeUnits = false;
+cfgI.Export.IncludeUnits = false;
 pI.Config = cfgI;
 TI = pI.plan(Steps=["signals" "spikes" "export"]);
 check(~any(startsWith(TI.Status, "error")), 'steps that do not read sorted units ignore the name');
@@ -327,7 +329,6 @@ cfg.Sorting.DryRun = false; cfg.Sorting.Enabled = false;
 
 fprintf('\n== 6. spikes step ==\n');
 cfg.Spikes.Filter = false; cfg.Spikes.ThresholdMethod = "absolute"; cfg.Spikes.Threshold = 2000;
-cfg.Spikes.Source = "both";
 pipe.Config = cfg;
 pipe.reset();
 pipe.runSpikeDetection();
@@ -338,18 +339,17 @@ iv = pipe.artifactIntervalsFor(d1);
 [tsRef, ~, ~] = d1.detectSpikes(Filter=false, ThresholdMethod="absolute", Threshold=2000);
 tsRef = cellfun(@(t) t(~any(t >= iv(:, 1).' & t <= iv(:, 2).', 2)), tsRef, 'UniformOutput', false);
 check(isequal(M.detected.ts, tsRef), 'detected times equal detectSpikes with the artifact periods removed');
+check(isequal(sort(fieldnames(M)), {'conversion'; 'detected'}), 'the spikes file holds the detections only (no units, no behavior)');
 uRef = d1.readSortedUnits(Groups=["good" "mua"]);
-check(isequal(M.units.unitId, uRef.unitId) && isequal(M.units.times, uRef.times), 'units equal readSortedUnits');
-check(M.units.label(1) == "su000_M1_260101T1200" && M.units.datasetKey(1) == "mouse1/M1_260101_120000" ...
-    && M.units.subject(1) == "M1", 'saved units carry the label and the project-relative dataset key');
-check(~isfield(M, 'behavior'), 'no behavior variable in the spikes file');
+check(uRef.label(1) == "su000_M1_260101T1200" && uRef.datasetKey(1) == "mouse1/M1_260101_120000" ...
+    && uRef.subject(1) == "M1", 'sorted units carry the label and the project-relative dataset key');
 pipe.reset();
 pipe.runSpikeDetection();
 check(pipe.Results.Status(1) == "skipped" && contains(pipe.Results.Message(1), "exists"), 'existing output is skipped without Overwrite');
-cfgX = cfg; cfgX.Spikes.Channels = "list"; cfgX.Spikes.ChannelList = "2"; cfgX.Spikes.Overwrite = true; cfgX.Spikes.Source = "detect";
+cfgX = cfg; cfgX.Spikes.Channels = "list"; cfgX.Spikes.ChannelList = "2"; cfgX.Spikes.Overwrite = true;
 pipe.Config = cfgX; pipe.reset(); pipe.runSpikeDetection();
 M2 = load(pipe.Results.Output(1));
-check(isequal(M2.detected.channels, 2) && isempty(M2.units), 'channel list + Source="detect"');
+check(isequal(M2.detected.channels, 2), 'channel list');
 cfgP = cfg; cfgP.Parallel.Enabled = true; cfgP.Spikes.Overwrite = true;
 pipe.Config = cfgP; pipe.reset(); logs = strings(0, 1); pipe.runSpikeDetection();
 M3 = load(pipe.Results.Output(1));
@@ -718,7 +718,8 @@ eo.SortingDir = curated; eo.ProbeFile = offProbe; eo.BehaviorFile = offBeh;
 eo.writeManifest();
 makePhyFixture(fullfile(h1, 'kilosort4'), Fs, ChannelMap=[0 1 2 3]);   % an uncurated sort next to the recording
 cfgO = EphysPipelineConfig(); cfgO.Project.Root = projO;
-cfgO.Spikes.Enabled = true; cfgO.Spikes.Source = "sorted";
+cfgO.Spikes.Enabled = true; cfgO.Signals.Enabled = true;
+cfgO.Export.Enabled = true; cfgO.Export.Formats = "chronux";   % IncludeUnits: reads the sorted units
 cfgO.Sorting.Enabled = true; cfgO.Sorting.PythonExe = "C:\envs\ks\python.exe"; cfgO.Sorting.Execution = "blocking";
 cfgO.Sorting.SkipExisting = true;
 pO = EphysPipeline(cfgO);               % the scan applies the manifest and writes it again
@@ -732,19 +733,18 @@ check(eo.SortingDir == curated && eo.ProbeFile == offProbe && eo.BehaviorFile ==
 check(mo.kilosort.has_results && string(mo.kilosort.results_dir) == string(eo.kilosortDir()), ...
     'the manifest''s kilosort block describes the run in kilosortDir');
 TO = pO.plan();
-check(TO.Status(TO.Step == "spikes") == "error: sorting folder missing" && contains(TO.Note(TO.Step == "spikes"), curated) ...
+check(TO.Status(TO.Step == "export:chronux") == "error: sorting folder missing" && contains(TO.Note(TO.Step == "export:chronux"), curated) ...
+    && TO.Status(TO.Step == "spikes") == "ready" ...
     && TO.Status(TO.Step == "probe") == "probe file missing" && TO.Status(TO.Step == "sorting") == "probe file missing", ...
     'plan names the missing folder and probe instead of using the kilosort4 sort next to the recording');
 oo = eo.outputs();
 check(oo.SortingDir == curated && ~oo.has("sorting") && strcmp(errorId(@() oo.Units), 'DatasetOutputs:Missing'), ...
     'DatasetOutputs keeps the hand-picked folder too: no fallback to the uncurated sort');
-pO.reset(); pO.runSpikeDetection();
-check(pO.Results.Status(1) == "skipped" && contains(pO.Results.Message(1), curated), 'the spikes step skips it, naming the folder');
 makePhyFixture(curated, Fs, ChannelMap=[0 1 2 3]);   % the disk is back
 writeJsonFile(offProbe, struct('chanMap', 0:numAmp-1, 'xc', zeros(1, numAmp), 'yc', (0:numAmp-1) * 20, ...
     'kcoords', zeros(1, numAmp), 'n_chan', numAmp));
 TO = pO.plan();
-check(eo.hasKilosortResults() && TO.Status(TO.Step == "spikes") == "ready" ...
+check(eo.hasKilosortResults() && TO.Status(TO.Step == "export:chronux") == "ready" ...
     && TO.Status(TO.Step == "sorting") == "exists: skip (SkipExisting)", 'with the disk back the association works again');
 % Kilosort4 4.x writes its own cluster_group.tsv (a copy of cluster_KSLabel.tsv) on every run.
 fid = fopen(fullfile(h1, 'kilosort4', 'cluster_group.tsv'), 'w');

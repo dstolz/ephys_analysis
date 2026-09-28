@@ -21,9 +21,8 @@ function [html, summary] = flowChartHTML(obj, opts)
 %   SPIKE are derived from while Signals.BlankArtifacts, the trace spikes
 %   are detected on while Spikes.ArtifactMode is "erase"; otherwise the step
 %   hangs from the reference.
-%   The steps that read an output rather than the recording hang from the
-%   file they read: sorted units for the Spikes file under Sorting's
-%   output, Export under the Signals extract.
+%   Export reads outputs rather than the recording, so it hangs from the
+%   file it reads: the Signals extract.
 %   Each step's branch starts with a box in its colour. Stages the config
 %   leaves off are drawn dashed; disabled steps are faded. Artifact periods
 %   feeding Sorting / Signals / Spikes are marked in the Artifacts colour.
@@ -65,7 +64,7 @@ cfg = obj.Config;
 d = obj.currentDataset();
 dsName = ternary(isempty(d), "<Name>", d.Name);
 
-sorting = sortingTree(cfg, d, unitsTree(cfg, dsName));
+sorting = sortingTree(cfg, d);
 signals = signalsTree(cfg, dsName, exportTree(cfg, dsName));
 spikes = spikesTree(cfg, dsName);
 % The steps that erase the artifact periods before they read the recording
@@ -158,7 +157,7 @@ out = node("out", "Automatic intervals", ["[t_on t_off] s", ...
 % them, it hangs from the reference and gets a box here.
 switch K.ArtifactMode
     case "reject"
-        readers{end+1} = linkNode(K.Enabled && K.Source ~= "sorted", A.Enabled && A.ApplyToSpikes, ...
+        readers{end+1} = linkNode(K.Enabled, A.Enabled && A.ApplyToSpikes, ...
             "Reject in Spikes", "ApplyToSpikes", "ArtApplySpikesCheckBox,SpkArtifactModeDropDown");
     case "none"
         readers{end+1} = node("off", "Spikes", "ignores the periods", "SpkArtifactModeDropDown");
@@ -222,12 +221,11 @@ end
 end
 
 
-function n = sortingTree(cfg, d, units)
+function n = sortingTree(cfg, d)
 % The recording, with the common reference and the artifact periods
 % erased, goes to a .bin and into Kilosort4, which crops (tmin/tmax) and,
 % only when the .bin carries no common reference, references (do_CAR)
-% itself. UNITS (reading the sorted units into the Spikes file) hangs from
-% the sorted units.
+% itself.
 S = cfg.Sorting; K = S.KS4;
 A = cfg.Artifacts;
 
@@ -278,7 +276,6 @@ outTarget = "SortDatasetDropDown,SortUseFolderButton,SortPhyButton";
 ksStage = "KSOptimizeButton,KSResetButton";
 
 out = node("out", "Sorted units", ["kilosort4/", "phy-ready"], outTarget);
-out.children = {units};
 
 n = step("sorting", "Sorting", S.Enabled, sortingNote(S), ...
     "SortEnableCheckBox,SortSkipExistingCheckBox,ExecModeDropDown,DryRunCheckBox", ...
@@ -490,29 +487,13 @@ switch K.ArtifactMode
     otherwise
         rej = {node("off", "Artifact periods", "ignored", artTarget)};
 end
-lines = [dsName + K.Suffix + ".mat", K.MatVersion];
-if K.Source == "both"; lines(end+1) = "+ sorted units (under Sorting)"; end
-out = node("out", "Detected spikes", lines, "SpkOutputDirField,SpkSuffixField,SpkOverwriteCheckBox,SpkMatVersionDropDown");
+out = node("out", "Detected spikes", [dsName + K.Suffix + ".mat", K.MatVersion], ...
+    "SpkOutputDirField,SpkSuffixField,SpkOverwriteCheckBox,SpkMatVersionDropDown");
 
-n = step("spikes", "Spikes", K.Enabled && K.Source ~= "sorted", ...
-    ternary(K.Source == "sorted", "Source is 'sorted': no threshold detection runs.", ""), ...
-    "SpkEnableCheckBox,SpkSourceDropDown", ...
+n = step("spikes", "Spikes", K.Enabled, "", "SpkEnableCheckBox", ...
     [{node("op", "Stream chunks", chunk, "SpkChunkField,SpkEdgePadField"), ...
     node("op", "Channels", ch, "SpkChannelsDropDown,SpkChannelListField")}, erase, ...
     {filt, thr, align, minP, maxA, wave}, rej, {out}]);
-end
-
-
-function n = unitsTree(cfg, dsName)
-K = cfg.Spikes;
-lines = "groups: " + joinOr(K.Groups, "every non-noise cluster");
-if K.IncludeNoise; lines(end+1) = "+ noise clusters"; end
-if K.Templates; lines(end+1) = "+ templates"; end
-n = step("spikes", "Spikes: sorted units", K.Enabled && K.Source ~= "detect", ...
-    ternary(K.Source == "detect", "Source is 'detect': sorted units are not read.", ""), "SpkSourceDropDown", ...
-    {node("op", "Unit selection", lines, "SpkGroupsField,SpkIncludeNoiseCheckBox,SpkTemplatesCheckBox"), ...
-    node("out", "Spikes file", [dsName + K.Suffix + ".mat", K.MatVersion], ...
-        "SpkOutputDirField,SpkSuffixField,SpkOverwriteCheckBox,SpkMatVersionDropDown")});
 end
 
 

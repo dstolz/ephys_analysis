@@ -177,7 +177,6 @@ cfg.Signals.AUX = opts.Format ~= "binary";
 cfg.Signals.LFP_Fs = 1000;
 cfg.Signals.InvertedLines = opts.InvertedLines;
 cfg.Spikes.Enabled = true;
-if opts.SortedOutput; cfg.Spikes.Source = "both"; else; cfg.Spikes.Source = "detect"; end
 cfg.Spikes.Waveforms = true;
 cfg.Export.Enabled = true;
 cfg.Export.Formats = ["chronux" "fieldtrip"];

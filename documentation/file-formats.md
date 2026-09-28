@@ -366,7 +366,7 @@ which holds `H64LP_4x16.json` as a starting point.
                  "KS4": {...}, "KS4ExtraJSON" },
   "Signals":   { "Enabled", "OutputDir", "Suffix", ... , "BlankArtifacts", ... , "LabelField", "LineNames", "InvertedLines", ... ,
                  "ExcludeHandling" },
-  "Spikes":    { "Enabled", "Source", ... , "Groups", "IncludeNoise", "Templates", "OutputDir", "Suffix", ... },
+  "Spikes":    { "Enabled", ... , "ArtifactMode", "OutputDir", "Suffix", ... },
   "Export":    { "Enabled", "Formats", "Signals", "IncludeUnits", ... , "EpochNonFinite", "EpochArtifacts", ... }
 }
 ```
@@ -618,13 +618,12 @@ inputs), each holding only that signal in `Y` and `info`:
 
 ## Spikes `.mat` (`EphysDataset.spikesToMat`; the Spikes step)
 
-Default `<outputFolder>/<Name>_spikes.mat`. The file is rewritten as a whole;
-sources that were not requested are `[]`.
+Default `<outputFolder>/<Name>_spikes.mat`: threshold detections only. The file
+is rewritten as a whole. Sorted units are not in it; they stay in the sorting folder.
 
 | Variable | Contents |
 | --- | --- |
 | `detected` | `ts {1 x nChan}` spike times (s, `(index-1)/Fs`, recording-relative); `wf {1 x nChan}` `[nSpikes x nWin]` µV or `[]`; `info` (`detectSpikes` info filtered to the kept events); `channels` (1-based recording channels); `channelNames`; `detection` (options used, `artifactMode` (`"reject"`, `"erase"` or `"none"`), artifact intervals applied, `nRejectedArtifact` per channel; after an erase `info.artifacts` gives the periods and the samples erased) |
-| `units` | the `readSortedUnits` struct, one row per unit: `unitId`, `label` (`su042_1255_260908T1039`), `class`, `group`, `notes`, `subject`, `recordingStart`, `datasetKey`, `channel`, `channelName`, `ksChannel`, `shank`, `peakX`, `peakY`, `x`, `y`, `nSpikes`, `samples`, `times`, `amplitude`, `contamPct`, `templateWaveform`, `templateTimeMs`, plus `templateUnits` (`"uV"`, `"bin"`, `"whitened"` or `""`), `fs`, `resultsDir`, `groupSource`, `curated`, `channelMap`, `channelMapSource`, ... ([fields](EphysDataset.md#reading-sorted-units)). `unitTable` turns it into a table |
 | `conversion` | provenance |
 
 ## Behavior `.mat` (`EphysDataset.behaviorToMat`; the behavior step)
@@ -666,7 +665,8 @@ Chronux functions take; no Chronux function is called to produce it.
 | `LFP` / `MUA` / `SPIKE` | one struct per exported signal: `data` `[nSamples x nChan]` double µV, `params` (Chronux params with `Fs` = the signal rate), `t` (`(k-1)/Fs`), `labels`, `info` |
 | `sp` | `1 x nUnits` struct array with field `times` (sorted units), or `[]` |
 | `spDetected` | the same for threshold-detected spikes, one element per channel, or `[]` |
-| `units`, `detected` | the source structs (`units` as in the spikes file, same order as `sp`), or `[]` |
+| `units` | the `readSortedUnits` struct, one row per unit: `unitId`, `label` (`su042_1255_260908T1039`), `class`, `group`, `notes`, `subject`, `recordingStart`, `datasetKey`, `channel`, `channelName`, `ksChannel`, `shank`, `peakX`, `peakY`, `x`, `y`, `nSpikes`, `samples`, `times`, `amplitude`, `contamPct`, `templateWaveform`, `templateTimeMs`, plus `templateUnits` (`"uV"`, `"bin"`, `"whitened"` or `""`), `fs`, `resultsDir`, `groupSource`, `curated`, `channelMap`, `channelMapSource`, ... ([fields](EphysDataset.md#reading-sorted-units)), same order as `sp`, or `[]`. `unitTable` turns it into a table |
+| `detected` | the spikes file's `detected` struct, or `[]` |
 | `events` | dig-in lines → `[k x 2]` seconds, `t = row/eventFs` on the recording's clock: on a signal at `Fs` that is row `round((t - 1/eventFs)*Fs) + 1` |
 | `artifacts` | the extract's `info.artifacts`: `intervals` (`[k x 2]` `[tStart tEnd)` seconds on the continuous clock, the periods erased before the signals were derived; on a signal at `Fs` they touch rows `EphysDataset.intervalRows(intervals, Fs, nRows)`), `fill`, `nSamples`. No intervals: nothing was erased |
 | `export` | `tool`, `created`, `dataset`, `sourceFolder`, `sources`, `signals`, `eventFs` (the recording rate), `nUnits`, `nDetectedChannels`, `timeConventions` (`continuous`, `events`, `spikes`, `artifacts`) |

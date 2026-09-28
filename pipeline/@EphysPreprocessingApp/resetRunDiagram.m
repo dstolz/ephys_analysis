@@ -101,11 +101,7 @@ else
     w(5) = join(types, " + ") + " .mat";
 end
 
-switch cfg.Spikes.Source
-    case "detect"; w(6) = "threshold detection .mat";
-    case "sorted"; w(6) = "sorted units .mat";
-    otherwise;     w(6) = "threshold detection + sorted units .mat";
-end
+w(6) = "threshold detection .mat";
 
 fmts = replace(cfg.Export.Formats, ["chronux" "fieldtrip" "epochs"], ["Chronux" "FieldTrip" "event epoch"]);
 if isempty(fmts)

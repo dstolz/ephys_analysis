@@ -222,26 +222,20 @@ signals.outs = pill("out", "Signal files", file, ...
     "ConvOutputDirField,ConvSuffixField,ConvSeparateFilesCheckBox,ConvMatVersionDropDown", true);
 
 K = cfg.Spikes;
-switch K.Source
-    case "detect"; lines = "threshold detection";
-    case "sorted"; lines = "reads the sorted units";
-    otherwise;     lines = "threshold detection + sorted units";
+lines = "threshold detection";
+switch K.ArtifactMode
+    case "reject"; lines(end+1) = "rejects events in artifact periods";
+    case "erase";  lines(end+1) = "artifact periods erased first";
+    otherwise;     lines(end+1) = "ignores the artifact periods";
 end
-if K.Source ~= "sorted"
-    switch K.ArtifactMode
-        case "reject"; lines(end+1) = "rejects events in artifact periods";
-        case "erase";  lines(end+1) = "artifact periods erased first";
-        otherwise;     lines(end+1) = "ignores the artifact periods";
-    end
-end
-spikes = step("spikes", 3, 3, "Spikes", K.Enabled, lines, "SpkEnableCheckBox,SpkSourceDropDown");
+spikes = step("spikes", 2, 4, "Spikes", K.Enabled, lines, "SpkEnableCheckBox");
 spikes.outs = pill("out", "Spikes file", dsName + K.Suffix + ".mat", ...
     "SpkOutputDirField,SpkSuffixField,SpkOverwriteCheckBox,SpkMatVersionDropDown", true);
 
 X = cfg.Export;
 lines = "signals: " + joinOr(X.Signals, "all") + ternary(X.IncludeEvents, ", with events", "");
 lines(end+1) = "one file per format";
-export = step("export", 4, 2, "Export", X.Enabled, lines, "ExpEnableCheckBox");
+export = step("export", 3, 2, "Export", X.Enabled, lines, "ExpEnableCheckBox");
 if ismember("chronux", X.Formats)
     export.outs(end+1) = pill("out", "Chronux file", dsName + "_chronux.mat", "ExpChronuxCheckBox,ExpOutputDirField", false);
 end
@@ -276,11 +270,8 @@ function E = edgeList(cfg)
 %   otherwise it runs down the lane (grid units: column k's centre, or
 %   k + 0.5 for the gap right of column k), then across to its target.
 B = cfg.Behavior; G = cfg.Signals; K = cfg.Spikes; X = cfg.Export;
-detect = K.Source ~= "sorted";
 byTrial = ismember("epochs", X.Formats) && X.EpochSource == "behavior";
-if ~detect
-    toSpikes = "off: no threshold detection";
-elseif K.ArtifactMode == "none"
+if K.ArtifactMode == "none"
     toSpikes = "off: Spikes.ArtifactMode is none";
 else
     toSpikes = ternary(K.ArtifactMode == "erase", "erased before detection", "events in them rejected");
@@ -296,9 +287,8 @@ E = [ ...
     edge("artifacts", "sorting", true, "blanked before the .bin is written"), ...
     edge("rec", "sorting", true, "the recording, written to the .bin", NaN), ...
     edge("probemap", "sorting", true, "the channel map", NaN), ...
-    edge("artifacts", "spikes", detect && K.ArtifactMode ~= "none", toSpikes, 2), ...
-    edge("sorting", "spikes", K.Source ~= "detect", ternary(K.Source ~= "detect", "the units read into the spikes file", "off: Spikes.Source is detect")), ...
-    edge("rec", "spikes", detect, ternary(detect, "the recording, for threshold detection", "off: Spikes.Source is sorted"), 3.5), ...
+    edge("artifacts", "spikes", K.ArtifactMode ~= "none", toSpikes), ...
+    edge("rec", "spikes", true, "the recording, for threshold detection", 3.5), ...
     edge("behavior", "export", byTrial, ternary(byTrial, "the paired trials the epochs are cut around" ...
         + ternary(B.WriteFile, "", " (from the session and its recorded pairing, with no behavior file)"), ...
         "off: no epochs around the paired trials"), 0), ...

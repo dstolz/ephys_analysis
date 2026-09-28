@@ -4,8 +4,9 @@ function F = makeAnalysisFixture(root, opts)
 %   under ROOT/proj, approves each dataset's trial pairing with the cuts its
 %   scenario needs (so every dataset has correctly paired trials), runs the
 %   generated pipeline config with the Behavior, Signals (LFP + MUA + AUX)
-%   and Spikes (detected + sorted) steps -- no sorting, artifacts or export
-%   -- and returns
+%   and Spikes (threshold detection) steps -- no sorting, artifacts or
+%   export; the sorted units are the ground-truth sorting folder -- and
+%   returns
 %     root, proj, configFile, truth (makeSyntheticProject's datasets),
 %     names, folders (output folders), keys, outputs (DatasetOutputs per
 %     dataset, CacheData=true), results (the pipeline's Results)
@@ -41,7 +42,6 @@ cfg.Export.Enabled = false;
 cfg.Signals.Enabled = true;
 cfg.Signals.LFP = true; cfg.Signals.MUA = true; cfg.Signals.SPIKE = false; cfg.Signals.AUX = true;
 cfg.Spikes.Enabled = true;
-cfg.Spikes.Source = "both";
 pipe = EphysPipeline(cfg, Project=P, Refresh=false);
 pipe.LogFcn = [];
 R = pipe.run();

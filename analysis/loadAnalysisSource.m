@@ -51,8 +51,7 @@ function src = loadAnalysisSource(out, opts)
 %     subject, startTime   from the behavior ("" / NaT without)
 %     probe, probeFile  the probe map (decoded JSON: chanMap 0-based, xc, yc,
 %                       kcoords) from the manifest's probe.file, or []
-%     hasUnits, unitsFrom   sorted units exist: "spikes" (the spikes file's
-%                       units, preferred) | "sorting" (the sorting folder) | ""
+%     hasUnits          the sorting folder holds sorted units
 %     hasDetected       the spikes file holds threshold detections
 %     spikesFile        the spikes file ("" when none)
 %
@@ -213,22 +212,12 @@ src.lines = linesTable(src.events, src.invertedLines);
 % --- spikes / units -----------------------------------------------------------------------
 src.spikesFile = "";
 src.hasDetected = false;
-src.hasUnits = false;
-src.unitsFrom = "";
+src.hasUnits = out.has("sorting");
 if out.has("spikes")
     src.spikesFile = string(out.SpikesFile);
     w = whos('-file', src.spikesFile);
     names = string({w.name});
-    nonEmpty = @(v) any(names == v) && prod(w(names == v).size) > 0;
-    src.hasDetected = nonEmpty("detected");
-    if nonEmpty("units")
-        src.hasUnits = true;
-        src.unitsFrom = "spikes";
-    end
-end
-if ~src.hasUnits && out.has("sorting")
-    src.hasUnits = true;
-    src.unitsFrom = "sorting";
+    src.hasDetected = any(names == "detected") && prod(w(names == "detected").size) > 0;
 end
 end
 

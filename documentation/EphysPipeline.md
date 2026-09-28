@@ -23,7 +23,7 @@ cfg.Name = "LFP + spikes";
 cfg.Project.Root = "D:\EPHYS\subj1";
 cfg.Project.OutputRoot = "D:\EPHYS\subj1_out";
 cfg.Signals.Enabled = true;                  % LFP .mat per dataset
-cfg.Spikes.Enabled = true;  cfg.Spikes.Source = "both";
+cfg.Spikes.Enabled = true;                   % threshold-detected spikes
 cfg.Export.Enabled = true;  cfg.Export.Formats = ["chronux" "fieldtrip" "epochs"];
 cfg = cfg.save("D:\EPHYS\subj1\pipeline.json");
 
@@ -54,7 +54,7 @@ returns the defaults and is the single source of truth for field names.
 | `Artifacts` | `artifacts` | `Reference` (`"none"`, `"car"` or `"cmr"`: the common reference every step subtracts once from its read of the recording: detection, sorting (Kilosort4's own `do_CAR` is then off), spike detection and the derived signals of `Signals.<TYPE>_Reference`), `ReferenceBadLow`, `ReferenceBadHigh` (the noise band, as a multiple of the median, outside which a channel is suggested to stay out of the reference), `Enabled` (automatic detection; manual periods always apply), `Method`, `Threshold`, `RmsWindowMs`, `MergeGapMs`, `MinChannels`, `PadMs`, `Filter`, `FilterType`, `FilterCutoff` (a scalar, or `[lo hi]` for a band-pass), `FilterOrder`, `Fill` (`"noise"` or `"zero"`: what replaces the artifact samples), `NoiseBandHz`, `NoiseSeed`, `ApplyToSorting`, `ApplyToSpikes`, `ApplyToSignals` (whether the automatic detections reach those steps; manual periods always do), `CacheIntervals` |
 | `Sorting` | `sorting` | `Enabled`, `PythonExe`, `CondaEnv`, `Execution` (`"background"` or `"blocking"`), `MaxConcurrent` (background runs at once, default 1; see [Background Kilosort4 runs](#background-kilosort4-runs)), `Devices` (torch devices shared out among the runs, e.g. `["cuda:0" "cuda:1"]`; empty = Kilosort4's choice), `DryRun`, `SkipExisting`, `KS4` (one typed field per `kilosortParamSpec` entry), `KS4ExtraJSON` |
 | `Signals` | `signals` | `Enabled`, `OutputDir`, `Suffix` (`"_extract"`), `SeparateFiles` (`true`: `<Name><Suffix>_<TYPE>.mat` per signal type), `MatVersion`, `Overwrite`, `LFP` / `MUA` / `SPIKE`, `LFP_Reference` / `MUA_Reference` / `SPIKE_Reference` (`false` / `true` / `true`: which signals the common reference of `Artifacts.Reference` is subtracted from; the LFP is taken as recorded by default), `BlankArtifacts` (`true`: erase the dataset's artifact periods, a straight line across each, before any signal is derived, and record them in every file as `info.artifacts`; `false`: the recording as it is, no periods recorded), `LFP_Fs`, `LFP_HighpassOn/Hz`, `LFP_LowpassOn/Hz`, `LFP_NotchOn/Hz/BW`, `MUA_Fs`, `MUA_IntegrationHz`, `MUA_bpLoHi`, `SPIKE_KeepOriginal`, `SPIKE_Fs`, `SPIKE_bpLoHi`, `LabelField` (`"custom"` or `"native"`: which name labels channels, aux inputs and digital lines), `LineNames` (`"native=name"` entries naming digital lines, e.g. `"TTL4=InTrial"`; see [line names](#digital-line-names)), `InvertedLines` (digital lines with inverted polarity: onset = falling edge; see [polarity](#digital-line-polarity)), `KeepChannels`, `BadMode`, `BadThreshold`, `BadList` (recording channels, like `KeepChannels`), `ChannelRemap`, `ExcludeHandling` (`"none"`, `"drop"`, `"interpolate"`: what to do with the manifest's excluded channels) |
-| `Spikes` | `spikes` | `Enabled`, `Source` (`"detect"`, `"sorted"`, `"both"`), the `detectSpikes` options (`Filter`, `Band`, `FilterOrder`, `Polarity`, `ThresholdMethod`, `Threshold` (`NaN` = the method's default), `Align`, `AlignWindowMs`, `MinPeriodMs`, `MaxAmplitudeUV`, `Waveforms`, `WindowMs`, `WaveformSource`, `EdgeHandling`, `MaxChunkSamples`, `EdgePadMs`), `Channels` (`"all"`, `"excludeManifest"`, `"list"`) + `ChannelList`, `ArtifactMode` (`"reject"`: drop the events inside the artifact periods; `"erase"`: erase the periods before detection, which then runs on the cleaned recording; `"none"`: ignore them), the sorted-unit options (`Groups`, `IncludeNoise`, `Templates`), `OutputDir`, `Suffix` (`"_spikes"`), `MatVersion`, `Overwrite` |
+| `Spikes` | `spikes` | `Enabled`, the `detectSpikes` options (`Filter`, `Band`, `FilterOrder`, `Polarity`, `ThresholdMethod`, `Threshold` (`NaN` = the method's default), `Align`, `AlignWindowMs`, `MinPeriodMs`, `MaxAmplitudeUV`, `Waveforms`, `WindowMs`, `WaveformSource`, `EdgeHandling`, `MaxChunkSamples`, `EdgePadMs`), `Channels` (`"all"`, `"excludeManifest"`, `"list"`) + `ChannelList`, `ArtifactMode` (`"reject"`: drop the events inside the artifact periods; `"erase"`: erase the periods before detection, which then runs on the cleaned recording; `"none"`: ignore them), `OutputDir`, `Suffix` (`"_spikes"`), `MatVersion`, `Overwrite` |
 | `Export` | `export` | `Enabled`, `Formats` (subset of `["chronux" "fieldtrip" "epochs"]`), `Signals` (`[]` = every signal in the extract), `IncludeUnits`, `IncludeDetected`, `IncludeEvents`, `Groups`, `Validate`, the epoch settings `EpochSource` (`"line"` / `"behavior"`), `EpochLine`, `EpochWindow` (`[tPre tPost]` s), `EpochOnsetRule` (`"event"`, the default: digital-input times, each placed on every signal's sample nearest its recording row, `round((t − 1/origFs)·Fs) + 1`; `"sample"`: times on the continuous clock, `round(t·Fs) + 1`), `EpochIncomplete`, `EpochNonFinite`, `EpochArtifacts` (`"drop"`: an epoch whose window touches an artifact period of the extract is left out of the signals; `"keep"`: flagged only), `EpochSpikeTimeBase`, `EpochClass`, `OutputDir`, `MatVersion`, `Overwrite` |
 
 `Name` and `Description` are free text. `File` (where the config was loaded
@@ -101,10 +101,9 @@ there is no migration. Unknown fields are dropped and listed in
 `Message`). `Project`, `Acquisition`, `Parallel` and `Probe` are always checked; a step section only when
 it is enabled (`Signals.LabelField` and `Signals.LineNames` also when
 `Behavior` is, since they name the trial line). Severity `"error"` stops `run()`. Cross-step rule: a background
-sorting run cannot feed the sorted-unit consumers (`Spikes.Source` `"sorted"` /
-`"both"`, `Export.IncludeUnits`) in the same run; set
-`Sorting.Execution = "blocking"` or run those steps later. When those
-consumers are on, `Project.NamePattern` must be able to label units (a
+sorting run cannot feed the sorted-unit consumer (`Export.IncludeUnits`) in
+the same run; set `Sorting.Execution = "blocking"` or run Export later. When
+that consumer is on, `Project.NamePattern` must be able to label units (a
 `SubjectID` token and `Date` / `Time` tokens with datetime formats); otherwise
 it is an error. With `Artifacts.Enabled` and `Method` `"microvolts"` or
 `"commonmode"`, a `Threshold` below 50 µV is a warning: a robust-SD multiplier
@@ -206,7 +205,7 @@ leads back to its recording wherever it ends up:
 | recording start, to the minute | `260908T1039` | `Date` + `Time` tokens |
 
 `su042_1255_260908T1039` splits with `split(labels, "_")` and filters with
-`startsWith(labels, "su")`. The saved `units` struct carries the same facts as
+`startsWith(labels, "su")`. The `units` struct carries the same facts as
 columns (`class`, `subject`, `recordingStart` to the second, `datasetKey` =
 root-relative folder), with the unit's location (`channel`, `channelName`,
 `ksChannel`, `shank`, peak site `peakX` / `peakY`, template centre `x` / `y`)
@@ -214,8 +213,8 @@ and `notes` (see [Reading sorted units](EphysDataset.md#reading-sorted-units)).
 A unit is identified by `datasetKey` + `unitId`.
 
 - **Names that do not match.** A dataset whose name gives no subject and start
-  cannot label units. Its spikes (`Source` `"sorted"` / `"both"`) and export
-  (`IncludeUnits`) rows plan as `error: unit identity`, and
+  cannot label units. Its export rows (`IncludeUnits`) plan as
+  `error: unit identity`, and
   `ds.readSortedUnits()` throws `EphysDataset:unitIdentity:*`.
 - **Collisions.** Two recordings of one subject starting in the same minute
   would share labels. `T = P.unitIdentities(Among=idx, NamePattern="")` lists
@@ -224,7 +223,7 @@ A unit is identified by `datasetKey` + `unitId`.
   checks the selected datasets plus every dataset that is already sorted and
   marks the unit rows `error: unit label collision`.
 - **Tables.** [`T = unitTable(units)`](../pipeline/unitTable.m) takes `units`
-  structs or `<Name>_spikes.mat` / `<Name>_chronux.mat` files and returns one
+  structs or `<Name>_chronux.mat` files and returns one
   row per unit (`label`, `class`, `subject`, `recordingStart`, `datasetKey`,
   `unitId`, `group`, `channel`, `channelName`, `ksChannel`, `shank`, `peakX`,
   `peakY`, `x`, `y`, `notes`, `nSpikes`, `amplitude`, `contamPct`, `curated`,
@@ -234,7 +233,7 @@ A unit is identified by `datasetKey` + `unitId`.
   (`unitTable:DuplicateLabel`).
 
 ```matlab
-f  = dir("D:\out\**\*_spikes.mat");
+f  = dir("D:\out\**\*_chronux.mat");
 T  = unitTable(string(fullfile({f.folder}, {f.name})));
 su = T(T.class == "su" & T.subject == "1255" & T.shank == 2, :);
 ```
@@ -292,7 +291,6 @@ headers and manifests); `Refresh=false` skips that.
 | `skip: Kilosort4 queued`, `skip: Kilosort4 running` | a Kilosort4 run for this dataset waits in a queue or is going (`PriorRuns`, `LaunchedRuns`) |
 | `no recording files` | the folder holds no readable recording |
 | `no probe`, `probe file missing`, `probe-channel mismatch` | probe preflight; the sorting row is `no probe` or `probe file missing` too |
-| `no sorting output` | `Spikes.Source` needs sorted units this dataset lacks |
 | `no extract file` | export needs the Signals output (the files of `Export.Signals` only: `exportExtractFiles`) |
 | `duplicate output` | another dataset of the project, selected or not, writes the same file (the same name in a configured step `OutputDir`) |
 | `error: output folder shared with <key>` | another dataset of the project has the same name, so both would use `<OutputRoot>/<Name>` (see [Dataset keys](#dataset-keys)) |
@@ -325,7 +323,7 @@ its `settings.json` and `run_ks4.py`, into `kilosort4\dryrun`.
 | `artifacts` | `runArtifacts()` | computes `artifactIntervals()` per dataset and caches them (see below) |
 | `sorting` | `runSorting()` | `runKilosort(ProbeFile=probeFor(d), ExtraSettings=ks4Settings, ArtifactIntervals=, DryRun=, Launch=false)` (writes the `.bin` with the artifact periods erased; a dry run writes only `settings.json` and `run_ks4.py`, into `kilosort4\dryrun`, and detects nothing), then `launchSorting(res, Wait=, Device=)` and `writeManifest`. Background runs go at most `Sorting.MaxConcurrent` at a time, spread over `Sorting.Devices` ([below](#background-kilosort4-runs)), and are listed in `LaunchedRuns` with status `launched`; with `QueueFcn` set they are handed over with status `queued`. Skipped: a dataset with a Kilosort4 run queued or still going (`activeRun`), so its `.bin` is never rewritten under a running sort; one without a probe or whose probe file is not there; with `SkipExisting`, one already sorted (also when its hand-picked sorted-output folder is not there now). A cancel stops the datasets not started yet; a run already launched, queued or finished keeps its row |
 | `signals` | `runSignals()` | `toMat(File=, SeparateFiles=, SignalOptions=, MatVersion=, Overwrite=, ProgressFcn=)` with the configured exclude handling. `SignalOptions.referenceSignals` lists the computed signals whose `<TYPE>_Reference` is on; with `Artifacts.Reference` set, the log says `common CAR reference over N channel(s), subtracted from MUA, SPIKE` and a dry run `MUA+SPIKE CAR referenced`. When bad channels are to be interpolated (`BadList`, or the manifest exclusions with `ExcludeHandling = "interpolate"`), `SignalOptions.probeFile` is `probeFor(d)`: the dataset's own probe, else `Probe.DefaultProbeFile`, whose geometry places them. With `Signals.BlankArtifacts`, the dataset's artifact periods (`artifactIntervalsForStep(d, Artifacts.ApplyToSignals, ...)`, as Sorting and Spikes take them) go in as `SignalOptions.artifactIntervals` and are erased before any signal is derived; the log says `N artifact period(s) erased before deriving (<source>, <samples> samples)` and each result message ends `, N artifact period(s) erased`. A dry run says `artifact periods erased (manual + automatic)` or `(manual)` |
-| `spikes` | `runSpikeDetection()` | `spikesToMat(Source=, DetectOptions=, Channels=, ArtifactMode=, ArtifactIntervals=, Groups=, IncludeNoise=, Templates=, ...)` (with `ArtifactMode` `"erase"` the result message ends `, N artifact period(s) erased before detection`); with `Source` `"sorted"` / `"both"`, a dataset whose hand-picked sorted-output folder is not there is skipped, never read from another sort |
+| `spikes` | `runSpikeDetection()` | `spikesToMat(DetectOptions=, Channels=, ArtifactMode=, ArtifactIntervals=, ...)`: threshold detection only; the sorted units stay in the sorting folder (with `ArtifactMode` `"erase"` the result message ends `, N artifact period(s) erased before detection`) |
 | `export` | `runExport()` | per format `exportChronux(...)` / `exportFieldTrip(...)` / `exportEpochs(...)`, with units, detected spikes and events as configured. A dataset's inputs are read once for all its formats and passed to each (`Sources` names the files): the extract files of `Export.Signals` (per-type files of other signals are not read), the sorted units and the spikes file; `plan()` and `runExport` find the extract files by the same rule (`exportExtractFiles`). With `IncludeUnits`, a dataset whose hand-picked sorted-output folder is not there is skipped. The `epochs` format organizes the same data by event — one epoch per digital pulse (`EpochSource = "line"`) or per paired trial (`"behavior"`, which also carries the session's trial columns) — over `EpochWindow` ([`EphysDataset.eventEpochs`](EphysDataset.md#event-organized-epoched-data)); when epochs touch an artifact period of the extract, its result message adds `, N touch an artifact period (left out of the signals)` (`EpochArtifacts = "drop"`) or `(kept, flagged)` |
 
 Each step method can be called directly; it then runs even when the step is

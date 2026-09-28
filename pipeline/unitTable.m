@@ -2,13 +2,13 @@ function T = unitTable(units, opts)
 %unitTable  One row per sorted unit: label, recording, location and notes.
 %   T = unitTable(UNITS) turns sorted units into a table to filter, sort and
 %   join across recordings:
-%     T = unitTable(["D:\out\A_spikes.mat" "D:\out\B_spikes.mat"]);
+%     T = unitTable({dsA.readSortedUnits(), dsB.readSortedUnits()});
 %     su = T(T.class == "su" & T.subject == "1255", :);
 %     deep = T(T.shank == 2 & T.y > 400, :);
 %   UNITS is a units struct (EphysDataset.readSortedUnits / readPhyUnits), a
 %   struct or cell array of them, or .mat file path(s) holding a "units"
-%   variable (<Name>_spikes.mat, <Name>_chronux.mat). Entries without sorted
-%   units (units = []) are skipped.
+%   variable (<Name>_chronux.mat). Entries without sorted units
+%   (units = []) are skipped.
 %
 %   Columns
 %     label           "su042_1255_260908T1039": class, unit id, subject,

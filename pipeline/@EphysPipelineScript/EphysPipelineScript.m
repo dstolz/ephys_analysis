@@ -309,7 +309,7 @@ classdef EphysPipelineScript
             L = [L; EphysPipelineScript.stepFooter(cfg.stepEnabled("signals"))];
 
             % --- spikes --------------------------------------------------------------
-            L = [L; EphysPipelineScript.stepHeader("Spikes: detected and/or sorted (spikesToMat)", cfg.stepEnabled("spikes"))];
+            L = [L; EphysPipelineScript.stepHeader("Spikes: threshold detection (spikesToMat)", cfg.stepEnabled("spikes"))];
             K = cfg.Spikes;
             L = [L; EphysPipelineScript.structLiteral("spikes", K)];
             L = [L; EphysPipelineScript.structLiteral("detectOptions", EphysPipelineConfig.detectOptions(K, cfg.Parallel))];
@@ -317,12 +317,9 @@ classdef EphysPipelineScript
             L(end+1, 1) = "    d = P.Datasets(k);";
             L(end+1, 1) = "    outFile = fullfile(" + EphysPipelineScript.outDirExpr(K.OutputDir) + ", d.Name + " + lit(K.Suffix) + " + "".mat"");";
             L(end+1, 1) = "    if isfile(outFile) && ~spikes.Overwrite; fprintf('%s: %s exists, skipped\n', d.Name, outFile); continue; end";
-            if K.Source ~= "detect"
-                L(end+1, 1) = "    if ~d.hasKilosortResults(); fprintf('%s: no sorted units, skipped\n', d.Name); continue; end";
-            end
             L(end+1, 1) = "    try";
             L(end+1, 1) = "        channels = EphysPipelineConfig.spikeChannels(spikes, d);";
-            if K.Source ~= "sorted" && K.ArtifactMode ~= "none"
+            if K.ArtifactMode ~= "none"
                 if cfg.Artifacts.ApplyToSpikes
                     L(end+1, 1) = "        iv = artifactIntervals(d);";
                 else
@@ -332,9 +329,8 @@ classdef EphysPipelineScript
             else
                 L(end+1, 1) = "        extra = {};";
             end
-            L(end+1, 1) = "        r = d.spikesToMat('File', outFile, 'Source', spikes.Source, 'DetectOptions', detectOptions, ...";
-            L(end+1, 1) = "            'Channels', channels, 'ArtifactMode', spikes.ArtifactMode, 'Groups', spikes.Groups, ...";
-            L(end+1, 1) = "            'IncludeNoise', spikes.IncludeNoise, 'Templates', spikes.Templates, ...";
+            L(end+1, 1) = "        r = d.spikesToMat('File', outFile, 'DetectOptions', detectOptions, ...";
+            L(end+1, 1) = "            'Channels', channels, 'ArtifactMode', spikes.ArtifactMode, ...";
             L(end+1, 1) = "            'MatVersion', spikes.MatVersion, 'Overwrite', spikes.Overwrite, extra{:});";
             L(end+1, 1) = "        fprintf('%s: wrote %s\n', d.Name, r.file);";
             L(end+1, 1) = "    catch ME";

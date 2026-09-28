@@ -168,19 +168,14 @@ for step = steps
 
             case "spikes"
                 out = obj.outputPathFor("spikes", d);
-                units = c.Spikes.Source ~= "detect";
                 if ~hasFiles
                     add(step, k, out, "no recording files", "");
-                elseif units && d.sortingMissing()
-                    add(step, k, out, "error: sorting folder missing", missingSortNote(d));
-                elseif units && ~d.hasKilosortResults()
-                    add(step, k, out, "no sorting output", "Source = " + c.Spikes.Source);
                 elseif isfile(out) && ~c.Spikes.Overwrite
-                    add(step, k, out, "exists: skip", "", units);
+                    add(step, k, out, "exists: skip", "");
                 elseif isfile(out)
-                    add(step, k, out, "exists: overwrite", "", units);
+                    add(step, k, out, "exists: overwrite", "");
                 else
-                    add(step, k, out, "ready", "", units);
+                    add(step, k, out, "ready", "");
                 end
 
             case "export"

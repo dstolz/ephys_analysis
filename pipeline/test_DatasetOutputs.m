@@ -58,7 +58,7 @@ S.info = struct('LFP', struct('Fs', 1000), 'MUA', struct('Fs', 1000), 'labels', 
 save(fullfile(out, 'rec1_custom.mat'), '-struct', 'S');     % suffix need not be "_extract"
 
 % Spikes, exports and behavior, classified by their variables.
-Sp = struct('detected', struct('ts', {{1, 2}}), 'units', [], 'conversion', conv(name));
+Sp = struct('detected', struct('ts', {{1, 2}}), 'conversion', conv(name));
 save(fullfile(out, 'rec1_spikes.mat'), '-struct', 'Sp');
 C = struct('LFP', struct('data', 1), 'sp', struct('times', {1}), 'spDetected', [], ...
     'events', ev, 'export', conv(name));
@@ -212,7 +212,7 @@ oA = dsA.outputs(); oB = dsB.outputs();
 check(oA.has("LFP") && isempty(oA.Foreign) && ~oB.has("LFP") ...
     && isequal(oB.Foreign, string(fullfile(shared, 'rec1_extract_LFP.mat'))), ...
     'a file whose provenance names another recording''s folder is not this dataset''s (it is listed in Foreign)');
-Sp = struct('detected', struct('ts', {{1}}), 'units', [], ...
+Sp = struct('detected', struct('ts', {{1}}), ...
     'conversion', struct('dataset', name, 'sourceFolder', "Z:\old_drive\proj\m2\" + name));
 save(fullfile(shared, 'rec1_spikes.mat'), '-struct', 'Sp');
 oA.refresh(); oB.refresh();

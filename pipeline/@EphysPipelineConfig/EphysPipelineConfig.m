@@ -42,8 +42,8 @@ classdef EphysPipelineConfig
     %                LineNames ("native=name" digital-line names) and
     %                InvertedLines (digital-line polarity); the line naming
     %                and polarity are also used by the trial pairing
-    %     Spikes     Enabled, Source, detection settings, sorted-unit settings,
-    %                output settings
+    %     Spikes     Enabled, threshold-detection settings, output settings
+    %                (sorted units stay in the sorting folder)
     %     Export     Enabled, Formats (a subset of ExportFormats: the
     %                analysis-toolbox files and the event-organized epochs),
     %                what to include, the Epoch* settings of the epoch format

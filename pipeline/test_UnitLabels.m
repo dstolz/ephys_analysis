@@ -246,17 +246,17 @@ lastwarn('');
 T = unitTable({UA, UB});
 [~, wid] = lastwarn();
 check(height(T) == 4 && strcmp(wid, 'unitTable:DuplicateLabel'), 'colliding recordings warn about shared labels');
-spikesFile = fullfile(root, 'A_spikes.mat');
-units = UA; detected = []; %#ok<NASGU>
-save(spikesFile, 'units', 'detected');
-emptyFile = fullfile(root, 'D_spikes.mat');
+unitsFile = fullfile(root, 'A_chronux.mat');
+units = UA; %#ok<NASGU>
+save(unitsFile, 'units');
+emptyFile = fullfile(root, 'D_chronux.mat');
 units = []; %#ok<NASGU>
-save(emptyFile, 'units', 'detected');
-EphysDataset.writeUnitNotes(UA.resultsDir, 1, "added after the spikes file");
-T = unitTable([string(spikesFile) string(emptyFile)]);
-check(height(T) == 2 && T.notes(T.unitId == 1) == "added after the spikes file", ...
+save(emptyFile, 'units');
+EphysDataset.writeUnitNotes(UA.resultsDir, 1, "added after the file was saved");
+T = unitTable([string(unitsFile) string(emptyFile)]);
+check(height(T) == 2 && T.notes(T.unitId == 1) == "added after the file was saved", ...
     'files load; units = [] is skipped; notes are refreshed from the sort folder');
-T = unitTable(spikesFile, RefreshNotes=false);
+T = unitTable(unitsFile, RefreshNotes=false);
 check(T.notes(T.unitId == 1) == "", 'RefreshNotes=false keeps the saved notes');
 check(strcmp(errorId(@() unitTable(fullfile(root, 'nope.mat'))), 'unitTable:NoFile'), 'a missing file is an error');
 

@@ -33,10 +33,11 @@ disp(pipe.plan());  pipe.run();
 
 Every sorted unit is labelled with its class, cluster id, subject and recording
 start (`su042_1255_260908T1039`), and carries its channel, shank, position and
-notes. Gather them across recordings into one table:
+notes. Gather them across recordings (here from the Chronux export files) into
+one table:
 
 ```matlab
-f  = dir("D:\EPHYS\out\**\*_spikes.mat");
+f  = dir("D:\EPHYS\out\**\*_chronux.mat");
 T  = unitTable(string(fullfile({f.folder}, {f.name})));
 su = T(T.class == "su" & T.subject == "1255", :);
 ```

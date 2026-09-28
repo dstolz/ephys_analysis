@@ -76,7 +76,7 @@ analysis needs. **No signal and no spike time is loaded**: `selectUnits` and
 | `respField` | `"RespCode"`, `"ResponseCode"` or `""` |
 | `trialLine`, `subject`, `startTime` | from the pairing and the session |
 | `probe`, `probeFile` | the manifest's `probe.file`, decoded (`chanMap` 0-based, `xc`, `yc` µm, `kcoords`) |
-| `hasUnits`, `unitsFrom` | sorted units exist: `"spikes"` (the spikes file's `units`, preferred) or `"sorting"` (the sorting folder, read once through `DatasetOutputs.load("sorting")`) |
+| `hasUnits` | the sorting folder holds sorted units (read once through `DatasetOutputs.load("sorting")`) |
 | `hasDetected`, `spikesFile` | the spikes file holds threshold detections |
 
 ## Event reference, window, selection

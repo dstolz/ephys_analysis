@@ -75,7 +75,7 @@ cfg.Description = "generated-script equivalence";
 cfg.Project.Root = proj;
 cfg.Sorting.Enabled = true; cfg.Sorting.PythonExe = "C:\envs\ks\python.exe"; cfg.Sorting.DryRun = true;
 cfg.Sorting.Execution = "blocking"; cfg.Sorting.KS4.nblocks = 2; cfg.Sorting.KS4ExtraJSON = "{""x_centers"": 2}";
-cfg.Spikes.Enabled = true; cfg.Spikes.Source = "both"; cfg.Spikes.Filter = false;
+cfg.Spikes.Enabled = true; cfg.Spikes.Filter = false;
 cfg.Spikes.ThresholdMethod = "absolute"; cfg.Spikes.Threshold = 2000;
 cfg.Export.Enabled = true; cfg.Export.Formats = ["chronux" "fieldtrip"]; cfg.Export.IncludeDetected = true;
 cfg.Artifacts.Enabled = false;

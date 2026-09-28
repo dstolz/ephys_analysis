@@ -68,8 +68,8 @@ check(src.hasBehavior && src.hasTrials && src.nTrials == 12 && src.trialLine == 
     'paired trials, the trial line, RespCode and the Epsych2 parameters');
 check(src.signals.LFP && src.signals.MUA && src.signals.AUX && ~src.signals.SPIKE && src.signalFs.LFP == 1000 ...
     && src.signalFs.MUA == 2000 && numel(src.labels) == numel(T1.channelNames), 'signals, their rates and the channel labels');
-check(src.hasUnits && src.unitsFrom == "spikes" && src.hasDetected && isstruct(src.probe) && numel(src.probe.xc) == numel(T1.channelNames), ...
-    'units from the spikes file, detections and the probe map');
+check(src.hasUnits && src.hasDetected && isstruct(src.probe) && numel(src.probe.xc) == numel(T1.channelNames), ...
+    'units from the sorting folder, detections from the spikes file and the probe map');
 bare = fullfile(root, 'X-1');                     % an extract alone: no manifest, no behavior
 mkdir(bare);
 Y = struct('LFP', zeros(250, 2, 'single'));
@@ -233,7 +233,7 @@ E = epochTable(sa, eventRef(line="AtSpike", which="all", scope="recording"), Win
 Rs = spikePSTH(st(1), E, Window=[-0.01 0.01], BinSec=0.01);
 check(height(E) == 5 && nnz(Rs.raster(1).times == 0) == 5 && isequal(sort(Rs.raster(1).epoch(Rs.raster(1).times == 0)), (1:5).'), ...
     'a spike in the event''s own sample is at exactly 0 (epochTable''s t0Continuous, spikePSTH)');
-srcS = src; srcS.unitsFrom = "sorting";          % units read from the sorting folder (a spikes file made with Source "detect")
+srcS = src;
 out = src.outputs;
 U0 = out.readUnits();
 [stS, metaS] = selectUnits(srcS, struct('source', "units", 'classes', string.empty(1,0)));

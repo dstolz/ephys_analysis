@@ -47,8 +47,8 @@ check(isequal(cfg.Spikes.Band, [500 5000]) && isnan(cfg.Spikes.Threshold) && isi
     && isempty(cfg.Sorting.KS4.dmin) && isinf(cfg.Sorting.KS4.tmax) && cfg.Sorting.KS4.nblocks == 0 ...
     && islogical(cfg.Sorting.KS4.templates_from_data) && isequal(cfg.Sorting.KS4.drift_smoothing, [0.5 0.5 0.5]), ...
     'typed defaults (bands, NaN/Inf autos, nullable [], KS4 typed per spec)');
-cfg.Spikes = struct('Threshold', "4", 'Band', {{"300", "3000"}}, 'Source', 'sorted', 'Waveforms', "true");
-check(cfg.Spikes.Threshold == 4 && isequal(cfg.Spikes.Band, [300 3000]) && cfg.Spikes.Source == "sorted" ...
+cfg.Spikes = struct('Threshold', "4", 'Band', {{"300", "3000"}}, 'Align', 'peak', 'Waveforms', "true");
+check(cfg.Spikes.Threshold == 4 && isequal(cfg.Spikes.Band, [300 3000]) && cfg.Spikes.Align == "peak" ...
     && islogical(cfg.Spikes.Waveforms) && cfg.Spikes.Waveforms && cfg.Spikes.Polarity == "negative", ...
     'assigning a partial section fills the rest and coerces types');
 cfg.Project.Datasets = "mouse1/sess1";
@@ -95,7 +95,7 @@ cfg.Sorting.KS4ExtraJSON = "{""foo"": 1}";
 cfg.Spikes.Threshold = NaN;
 cfg.Spikes.MaxAmplitudeUV = Inf;
 cfg.Spikes.WindowMs = [-1 2];
-cfg.Spikes.Groups = "good";
+cfg.Export.Groups = "good";
 cfg.Export.Formats = "chronux";
 cfg.Export.Signals = string.empty(1,0);
 cfg.Behavior.SearchDirs = ["D:\beh" "E:\beh"];
@@ -111,7 +111,7 @@ check(contains(txt, '"schema": "ephys-pipeline-config"') && contains(txt, '"vers
 c3 = EphysPipelineConfig.load(f);
 check(c3.isequalConfig(cfg) && isequaln(c3.toStruct(), cfg.toStruct()), 'load reproduces the config exactly (isequaln)');
 check(isequal(c3.Project.Datasets, "only/one") && isequal(c3.Export.Formats, "chronux") ...
-    && isequal(c3.Spikes.Groups, "good") && isequal(size(c3.Export.Signals), [1 0]) ...
+    && isequal(c3.Export.Groups, "good") && isequal(size(c3.Export.Signals), [1 0]) ...
     && isequal(c3.Behavior.SearchDirs, ["D:\beh" "E:\beh"]), 'one-element and empty string lists survive');
 check(isequal(c3.Spikes.WindowMs, [-1 2]) && isequal(c3.Sorting.KS4.drift_smoothing, [1 2 3]) ...
     && c3.Sorting.KS4.dmin == 25 && isinf(c3.Sorting.KS4.artifact_threshold) && isempty(c3.Sorting.KS4.n_chan_bin), ...
@@ -412,7 +412,7 @@ cfg.Sorting.Enabled = true;
 iss = cfg.validate();
 check(any(iss.Step == "sorting" & iss.Field == "PythonExe" & iss.Severity == "error"), 'sorting needs PythonExe');
 cfg.Sorting.PythonExe = "C:\nope\python.exe";
-cfg.Spikes.Source = "sorted";
+cfg.Export.Enabled = true;   % IncludeUnits: reads the sorted units
 iss = cfg.validate();
 check(any(iss.Step == "sorting" & iss.Field == "Execution" & iss.Severity == "error") ...
     && any(iss.Field == "PythonExe" & iss.Severity == "warning"), ...
@@ -508,11 +508,11 @@ check(ok && isequal(n, ["SubjectID" "Date" "Time"]) && isequal(v, ["SUBJ-ID-1245
 check(~ok && isequal(v, ["" "" ""]), 'a non-matching name gives empty tokens');
 cfgV = EphysPipelineConfig();
 cfgV.Project.NamePattern = "{SubjectID}_{Date:yyMMdd}";
-cfgV.Spikes.Enabled = true; cfgV.Spikes.Source = "sorted"; cfgV.Export.Enabled = false;
+cfgV.Export.Enabled = true; cfgV.Export.IncludeUnits = true;
 iss = cfgV.validate(CheckPaths=false);
 check(any(iss.Field == "NamePattern" & iss.Severity == "error" & contains(iss.Message, "Time")), ...
     'steps reading sorted units need SubjectID, Date and Time tokens (they label the units)');
-cfgV.Spikes.Source = "detect";
+cfgV.Export.IncludeUnits = false;
 iss = cfgV.validate(CheckPaths=false);
 check(~any(iss.Field == "NamePattern"), 'without sorted units the pattern only feeds the dataset table');
 [v, n, ok] = parseNameTokens("M7_rig(2)_260916_extra", "{Subject}_{Rig:rig\((\d)\)}_{Date:yyMMdd}*");

@@ -7,8 +7,9 @@ so that each update repeats the last one instead of rebuilding it.
 | --- | --- |
 | `gen_api.py` | Generates the reference part of every `API-*` page from the `.m` sources. It needs no MATLAB. |
 | `check_links.py` | Checks every page's links, anchors and images before a push. |
-| `wikiScreenshots.m` | Takes the app screenshots headlessly over a synthetic project. |
-| `restoreAppPrefs.m` | Puts the app's preferences back if a screenshot run had to be killed. |
+| `wikiScreenshots.m` | Takes the preprocessing app's screenshots headlessly over a synthetic project, and runs it. |
+| `wikiToolScreenshots.m` | Takes the other windows' screenshots (probe designer, channel mapper, manifest viewer, analysis app) over that project. |
+| `restoreAppPrefs.m` | Puts the apps' preferences back if a screenshot run had to be killed. |
 
 ## Updating the wiki
 
@@ -57,19 +58,37 @@ git clone https://github.com/dstolz/ephys_analysis.wiki.git C:\temp\wiki
    Running-Pipelines-from-Scripts, Working-with-Datasets, Architecture,
    Testing and Troubleshooting-and-FAQ.
 
-4. **Retake the screenshots the change affects**, with MATLAB R2025a:
+4. **Retake the screenshots the change affects**, with MATLAB R2025a. First
+   the preprocessing app, which also writes and runs the synthetic project:
 
    ```bat
-   matlab -batch "addpath('C:\src\ephys_analysis\tools\wiki'); wikiScreenshots('C:\temp\shots', Source='C:\temp\src', Shots={'app-run-plan.png','app-run-results.png'})"
+   matlab -batch "addpath('C:\src\ephys_analysis\tools\wiki'); wikiScreenshots('C:\temp\shots', Source='C:\temp\src', Project='C:\temp\wiki_shots\synthetic_ephys')"
    ```
 
-   Then copy the files into the wiki's `images/`. The script covers:
-   app-project-tab, app-trials-clean, app-sorting-tab, app-export-tab,
-   app-diagram-tab, app-diagram-overview, app-run-plan, app-run-results and
-   app-cleanup-tab. The
-   other images (Copy, Probe, Artifacts, Signals, Spikes, Review, Visualize,
-   the Trials mismatch pair) were made by hand-written drives of the app in
-   the same way.
+   Then the other windows, over that project:
+
+   ```bat
+   matlab -batch "addpath('C:\src\ephys_analysis\tools\wiki'); wikiToolScreenshots('C:\temp\shots', Source='C:\temp\src', Project='C:\temp\wiki_shots\synthetic_ephys')"
+   ```
+
+   Copy the files into the wiki's `images/`. Every image there comes from
+   one of the two scripts, except `flow-full.png` (a browser capture of the
+   page the Diagram tab's **Save as HTML...** writes):
+
+   - `wikiScreenshots`: every `app-*.png`. That is the Copy, Project,
+     Trials (clean, mismatch, resolved), Probe, Artifacts, Sorting,
+     Signals, Spikes, Export, Diagram (both views), Synthetic, Run (plan,
+     results), Visualize (traces, heatmap), Review (unit, notes) and Clean
+     up tabs.
+   - `wikiToolScreenshots`: `probe-designer`, `channel-mapper`,
+     `manifest-viewer`, the analysis app's four tabs (`analysis-*-tab`) and
+     the three example figures its run writes (`analysis-example-*`).
+
+   Each script's help says what each shot shows. `Shots={...}` takes a
+   subset. A `Project=` folder that already holds a synthetic project is
+   reused, so a subset of Visualize or Review shots needs no new run; the
+   Run shots always run it. `wikiToolScreenshots` needs a project that has
+   been run.
 
 5. **Check the links**, update `_Footer.md` to the commit, then commit and push:
 
@@ -84,9 +103,10 @@ git clone https://github.com/dstolz/ephys_analysis.wiki.git C:\temp\wiki
 
 ## Things that bite
 
-- **Preferences.** `wikiScreenshots` and the app's test suites back up and
-  restore the same `EphysPreprocessingApp` preferences, so never run two
-  app-driving MATLABs at once. Check first:
+- **Preferences.** Both scripts and the apps' test suites back up and
+  restore the same preferences (`EphysPreprocessingApp`, and for
+  `wikiToolScreenshots` also `EphysAnalysisApp` and `ChannelMapperApp`), so
+  never run two app-driving MATLABs at once. Check first:
   `Get-CimInstance Win32_Process -Filter "Name='MATLAB.exe'"`.
 - **`exportapp` can hang, or capture a stale frame on a busy machine.** Two
   things reduce it: the script stops the resource monitor's timer before the

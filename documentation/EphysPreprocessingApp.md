@@ -156,7 +156,7 @@ that recording again by its folder.
 
 ## Typical workflow
 
-0. **Copy** (when the recordings are still on the source): find the subject's
+0. **Copy** (when the recordings are still on the source): find the subjects'
    sessions for the day, check the pairing, **Preview (dry run)**, then
    **Copy selected**. The copy runs in the background, so the rest of the app
    stays usable; the copied sessions open as the project when it finishes. If
@@ -215,6 +215,8 @@ script:
 
 ```matlab
 T = findCopySessions("SUBJ-ID-1255", "260916");                 % or [datetime datetime]
+T = findCopySessions("SUBJ-ID-12*", "260916");                  % every subject whose folder matches
+T = findCopySessions("", "260916");                             % every subject
 R = copySessions(T(T.Status == "paired", :));               % dry run (the default)
 R = copySessions(T(T.Status == "paired", :), DryRun=false, Verify="hash");
 T = stitchCopySessions(T, [2 3]);                               % one recording, two ePsych files
@@ -227,8 +229,8 @@ end
 
 | Control | Meaning |
 | --- | --- |
-| Subject ID, From, To | the subject (matched exactly: `SUBJ-ID-125` never matches `SUBJ-ID-1255_...`) and an inclusive range of days (To blank = one day) |
-| ePsych root, Recording roots, Destination | defaults `S:/RIG3_Backup_2025/epsych_files/Data`, `S:/RIG3_Backup_2025/intan_files/Data`, `D:/EPHYS`. **Recording roots** is a list separated by `;` (e.g. an Intan share and an Open Ephys share); its **Browse...** adds a folder to the list |
+| Subject ID, From, To | the subjects and an inclusive range of days (To blank = one day). **Subject ID** takes one or more IDs and patterns separated by spaces or commas. An ID is matched exactly: `SUBJ-ID-125` never matches `SUBJ-ID-1255_...`. In a pattern `*` stands for any run of characters and `?` for any one character, matched against the whole names of the subject folders under the roots (case sensitive, as the file names are): `SUBJ-ID-12*` is `SUBJ-ID-120`, `SUBJ-ID-1255`, ..., `SUBJ-ID-12?` only the 10-character ones. Blank (or `*`) is every subject, i.e. every folder directly under the ePsych root and the recording roots. Each subject is paired on its own, and the table lists one subject after another |
+| ePsych root, Recording roots, Destination | defaults `S:/RIG3_Backup_2025/epsych_files/Data`, `S:/RIG3_Backup_2025/intan_files/Data`, `D:/EPHYS`. **Recording roots** is a list separated by `;` (e.g. an Intan share and an Open Ephys share); its **Browse...** adds a folder to the list. Each box is an editable drop-down: type a folder or pick one of the last 10 entered in that box (typed, picked or browsed to; newest first, each folder once whatever its case or slashes; for Recording roots, whole `;` lists). **Forget...** opens that box's list to remove entries from it (the box keeps what it shows, and no folder is touched). The lists are kept with the other Copy tab preferences |
 | Max lead (min), Max lag (min) | an ePsych file is a candidate for a recording when it starts no more than *lead* before it (default 10) and no more than *lag* after it (default 2, for clock skew) |
 | Ambiguity margin (s) | default 30; see below |
 | Min duration (min) | default 2. A recording shorter than this is never paired; see below. 0 pairs every recording |
@@ -387,7 +389,7 @@ is its own:
 
 | Control | Meaning |
 | --- | --- |
-| Subjects | subject IDs separated by spaces or commas; each is searched as **Find sessions** searches it. Blank: the Subject ID above |
+| Subjects | subject IDs and patterns separated by spaces or commas, searched as **Find sessions** searches them; `*` alone is every subject. Each run looks at the subject folders on the source again, so a subject that matches is copied from the first run after its folder appears. Blank: the Subject ID above; blank there too: `*` |
 | Every (min) | how often Windows starts a run, 5 to 1440 (default 60). Runs are on the clock: every 60 min is on the hour, every 15 min on the quarter hours |
 | Days back | each run searches this many days, ending today (default 3; 1 = today only). A session already copied (its `session_manifest.json` records a finished copy, or Clean up has removed files from it) is left alone, so looking back costs little, and a run never copies files back; a recording copied on its own that now pairs still gains its ePsych file. It is how a run missed while the computer was off, or the source unreachable, is caught up |
 | Quiet (min) | a session whose source changed within this many minutes is left for a later run (default 15), so a recording that is still being written, or still being synced to the source, is never copied half way. Every file and folder of the session counts |
@@ -436,7 +438,7 @@ moving either. MATLAB starts in the schedule's folder and runs the empty
 ```matlab
 sch = CopySchedule;                        % this Windows user's schedule
 s = CopySchedule.defaults();               % roots, pairing, EveryMin=60, LookBackDays=3, QuietMin=15, ...
-s.Subjects = ["SUBJ-ID-1255" "SUBJ-ID-1256"];
+s.Subjects = ["SUBJ-ID-1255" "SUBJ-ID-13*"];   % or "*": every subject
 sch.save(s);                               % write the settings, create the task
 st = sch.status();                         % next run, last run, problems
 sch.startNow();                            % a run now, in the background
@@ -1751,7 +1753,8 @@ active, the rebuilt lines filled in and editable, and the preferences.
 class; `run_all_tests` runs it too) builds fake source trees in a temporary
 folder. It checks pairing (a single session, interleaved sessions resolved
 one-to-one, unpaired files on either side, exact and near ties, clock skew,
-midnight, similar subject IDs, malformed names). It checks copying: a dry run
+midnight, similar subject IDs, subject patterns and every subject, malformed
+names). It checks copying: a dry run
 writes nothing; a hash-verified copy writes its manifest; an existing
 destination is skipped, reported as an error or already present; a partial copy
 is completed by `resume` (the short file finished, the missing one copied, the

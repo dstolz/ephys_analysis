@@ -2,13 +2,17 @@ function onCopyScheduleSave(obj)
 %onCopyScheduleSave  Save the scheduled copy and create its Windows task (CopySchedule.save).
 %   The schedule copies with the Copy tab's roots, destination, pairing and
 %   copy options as they are now, plus its own subjects (blank: the Subject
-%   ID above), interval, days back, quiet time and when it may run. For
-%   "even when I am signed out" the app first says that Windows will ask
-%   for the password in a window of its own, and waits for that window.
+%   ID above; blank there too: "*", every subject), interval, days back,
+%   quiet time and when it may run. For "even when I am signed out" the app
+%   first says that Windows will ask for the password in a window of its
+%   own, and waits for that window.
 title = "Scheduled copy";
 subjects = strtrim(string(obj.CopyScheduleSubjectsField.Value));
 if subjects == ""
     subjects = strtrim(string(obj.CopySubjectField.Value));
+end
+if subjects == ""
+    subjects = "*";
 end
 s = CopySchedule.defaults();
 s.Subjects = subjects;
@@ -58,8 +62,8 @@ catch ME
 end
 close(dlg);
 obj.copyLog(sprintf("Scheduled copy saved: %s, every %g min, sessions of the last %d day(s), to %s (Windows task %s).", ...
-    strjoin(s.Subjects, ", "), s.EveryMin, s.LookBackDays, s.DestRoot, obj.CopyScheduler.TaskName));
+    CopySchedule.subjectText(s.Subjects), s.EveryMin, s.LookBackDays, s.DestRoot, obj.CopyScheduler.TaskName));
 obj.refreshCopySchedule(Fill=true);
-obj.setStatus("Scheduled copy saved: " + strjoin(s.Subjects, ", ") + ".", ...
+obj.setStatus("Scheduled copy saved: " + CopySchedule.subjectText(s.Subjects) + ".", ...
     "It runs through Windows Task Scheduler whether or not the app is open; Run now tries it at once.");
 end

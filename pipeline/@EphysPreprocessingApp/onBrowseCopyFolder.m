@@ -1,6 +1,8 @@
 function onBrowseCopyFolder(obj, field)
-%onBrowseCopyFolder  Pick a folder for one of the Copy tab's root fields.
-%   The Recording roots field is a list: the folder picked is added to it.
+%onBrowseCopyFolder  Pick a folder for one of the Copy tab's root boxes.
+%   The Recording roots box is a list: the folder picked is added to it.
+%   What the box then shows goes to the top of its recent list
+%   (rememberCopyFolder).
 isList = field == obj.CopyRecordingRootsField;
 roots = string(field.Value);
 if isList
@@ -17,5 +19,6 @@ if isList && ~any(strcmpi(roots, d))
 elseif ~isList
     field.Value = d;
 end
+obj.rememberCopyFolder(field);
 obj.savePreferences();
 end

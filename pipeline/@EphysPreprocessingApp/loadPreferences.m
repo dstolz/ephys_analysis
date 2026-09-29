@@ -5,8 +5,8 @@ function loadPreferences(obj)
 %   the Review folder, the last / recent config files, the script folder,
 %   the datasets-table column order, the Trials-table parameter columns and
 %   column order, the Trials-plot label parameters, the Visualize
-%   display options, the Copy tab settings (subject, roots, pairing and
-%   copy options; not the dates), the Synthetic tab's settings and
+%   display options, the Copy tab settings (subject, roots and their recent
+%   lists, pairing and copy options; not the dates), the Synthetic tab's settings and
 %   design, the Diagram tab's view and layout, the Run tab's Show the run diagram,
 %   Monitor CPU, memory, disk and GPU and Queue the waiting runs, and the
 %   kinds of file the Clean up tab removes, and the last Python exe set
@@ -108,6 +108,10 @@ if ispref(g, 'CopyOptions')
     v = getpref(g, 'CopyOptions');
     if isstruct(v)
         applyIf(v, 'subject',    @(x) set(obj.CopySubjectField, 'Value', char(x)));
+        % each box's list before its value: a new list moves the value to its first entry
+        applyIf(v, 'epsychRootRecent', @(x) set(obj.CopyEpsychRootField, 'Items', cellstr(x)));
+        applyIf(v, 'recordingRootsRecent', @(x) set(obj.CopyRecordingRootsField, 'Items', cellstr(x)));
+        applyIf(v, 'destRootRecent', @(x) set(obj.CopyDestRootField, 'Items', cellstr(x)));
         applyIf(v, 'epsychRoot', @(x) set(obj.CopyEpsychRootField, 'Value', char(x)));
         applyIf(v, 'recordingRoots', @(x) set(obj.CopyRecordingRootsField, 'Value', char(x)));
         applyIf(v, 'destRoot',   @(x) set(obj.CopyDestRootField, 'Value', char(x)));

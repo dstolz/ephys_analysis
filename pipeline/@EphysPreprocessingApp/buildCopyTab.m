@@ -1,5 +1,5 @@
 function buildCopyTab(obj)
-%buildCopyTab  Copy tab: find one subject's sessions on the source, pair each
+%buildCopyTab  Copy tab: find subjects' sessions on the source, pair each
 %   recording (Intan RHX folder or Open Ephys GUI session) with its ePsych
 %   file by the times in their names
 %   (findCopySessions), and copy the ticked sessions to local session folders
@@ -9,7 +9,10 @@ function buildCopyTab(obj)
 %   MATLAB open (CopySchedule). The app only collects the settings, shows the
 %   pairing and passes the ticked rows on; the pairing, stitching, copy and
 %   schedule rules live in those functions. The settings are preferences, not
-%   part of the config; the schedule keeps its own settings file.
+%   part of the config; the schedule keeps its own settings file. The roots
+%   and the destination are editable drop-downs that list the folders last
+%   entered in them (rememberCopyFolder); Forget... drops entries from a list
+%   (onForgetCopyFolders).
 
 g = uigridlayout(obj.TabCopy, [7 1]);
 g.RowHeight   = {'fit', 'fit', 0, 'fit', 'fit', '2x', '1x'};   % row 3 is the progress panel, collapsed while idle
@@ -19,16 +22,19 @@ g.RowSpacing  = 8;
 obj.CopyGrid = g;
 
 % --- session search ----------------------------------------------------------
-top = uigridlayout(g, [4 8]);
+top = uigridlayout(g, [4 9]);
 top.Layout.Row = 1;
 top.RowHeight   = {30, 'fit', 'fit', 'fit'};
-top.ColumnWidth = {'fit', 170, 'fit', 130, 'fit', 130, 'fit', '1x'};
+top.ColumnWidth = {'fit', 210, 'fit', 130, 'fit', 130, 'fit', 'fit', '1x'};
 top.Padding     = [0 0 0 0];
 
-lbl = uilabel(top, "Text", "Subject ID:");
+tip = "Subject IDs, separated by spaces or commas. An ID must match the subject folder and file names exactly; " + ...
+    "* stands for any characters and ? for any one (SUBJ-ID-12* is every subject whose folder name starts SUBJ-ID-12). " + ...
+    "Blank: every subject with a folder under the roots.";
+lbl = uilabel(top, "Text", "Subject ID:", "Tooltip", tip);
 lbl.Layout.Row = 1; lbl.Layout.Column = 1;
-obj.CopySubjectField = uieditfield(top, "text", "Placeholder", "e.g. SUBJ-ID-1255", ...
-    "Tooltip", "Must match the subject folder and file names exactly.");
+obj.CopySubjectField = uieditfield(top, "text", "Placeholder", "e.g. SUBJ-ID-12* (blank: all)", ...
+    "Tooltip", tip);
 obj.CopySubjectField.Layout.Row = 1; obj.CopySubjectField.Layout.Column = 2;
 lbl = uilabel(top, "Text", "From:");
 lbl.Layout.Row = 1; lbl.Layout.Column = 3;
@@ -44,23 +50,28 @@ obj.CopyFindButton = uibutton(top, "Text", "Find sessions", ...
     "ButtonPushedFcn", @(~,~) obj.onCopyFind());
 obj.CopyFindButton.Layout.Row = 1; obj.CopyFindButton.Layout.Column = 7;
 
-roots = {"ePsych root:", "CopyEpsychRootField", "Source folder holding one folder of ePsych .mat files per subject."
-         "Recording roots:", "CopyRecordingRootsField", ...
+roots = {"ePsych root:", "CopyEpsychRootField", 'S:/RIG3_Backup_2025/epsych_files/Data', ...
+            "Source folder holding one folder of ePsych .mat files per subject."
+         "Recording roots:", "CopyRecordingRootsField", 'S:/RIG3_Backup_2025/intan_files/Data', ...
             "Source folders holding one folder of recordings per subject: Intan RHX folders <subject>_yyMMdd_HHmmss " + ...
             "and Open Ephys GUI sessions <subject>_yyyy-MM-dd_HH-mm-ss. Separate several roots with "";""; Browse adds one."
-         "Destination:", "CopyDestRootField",   "Local root; each session is copied to <root>/<subject>/<recording folder name>."};
+         "Destination:", "CopyDestRootField", 'D:/EPHYS', ...
+            "Local root; each session is copied to <root>/<subject>/<recording folder name>."};
 for k = 1:3
-    lbl = uilabel(top, "Text", roots{k, 1}, "Tooltip", roots{k, 3});
+    tip = roots{k, 4} + " Type a folder, or pick one of the last entered from the list.";
+    lbl = uilabel(top, "Text", roots{k, 1}, "Tooltip", tip);
     lbl.Layout.Row = k + 1; lbl.Layout.Column = 1;
-    f = uieditfield(top, "text", "Tooltip", roots{k, 3});
+    f = uidropdown(top, "Editable", "on", "Items", roots(k, 3), "Value", roots{k, 3}, "Tooltip", tip, ...
+        "ValueChangedFcn", @(src, ~) obj.rememberCopyFolder(src));
     f.Layout.Row = k + 1; f.Layout.Column = [2 6];
     obj.(roots{k, 2}) = f;
     b = uibutton(top, "Text", "Browse...", "ButtonPushedFcn", @(~,~) obj.onBrowseCopyFolder(f));
     b.Layout.Row = k + 1; b.Layout.Column = 7;
+    b = uibutton(top, "Text", "Forget...", ...
+        "Tooltip", "Remove entries from this list. Only the list changes: no folder is touched.", ...
+        "ButtonPushedFcn", @(~,~) obj.onForgetCopyFolders(f));
+    b.Layout.Row = k + 1; b.Layout.Column = 8;
 end
-obj.CopyEpsychRootField.Value = 'S:/RIG3_Backup_2025/epsych_files/Data';
-obj.CopyRecordingRootsField.Value = 'S:/RIG3_Backup_2025/intan_files/Data';
-obj.CopyDestRootField.Value   = 'D:/EPHYS';
 
 % --- pairing and copy options + actions --------------------------------------------
 bar = uigridlayout(g, [3 15]);
@@ -108,7 +119,8 @@ obj.CopyRunButton = uibutton(bar, "Text", "Copy selected", ...
     "ButtonPushedFcn", @(~,~) obj.onCopyRun(false));
 obj.CopyRunButton.Layout.Row = 1; obj.CopyRunButton.Layout.Column = 15;
 
-obj.CopySummaryLabel = uilabel(bar, "Text", "Enter a subject and dates, then Find sessions.", "FontColor", [0.4 0.4 0.4]);
+obj.CopySummaryLabel = uilabel(bar, "Text", "Enter the subjects (blank: every subject) and dates, then Find sessions.", ...
+    "FontColor", [0.4 0.4 0.4]);
 obj.CopySummaryLabel.Layout.Row = 2; obj.CopySummaryLabel.Layout.Column = [1 12];
 obj.CopyScanAfterCheckBox = uicheckbox(bar, "Text", "After copying, open the copied sessions as the project", "Value", true, ...
     "Tooltip", "Set the Project root to the folder holding the copied sessions and Scan it.");
@@ -161,11 +173,13 @@ sg.ColumnWidth = {'fit', '1x', 'fit', 55, 'fit', 50, 'fit', 50, 'fit', 250, 'fit
 sg.Padding     = [8 6 8 6];
 sg.RowSpacing  = 6;
 
-tip = "Subject IDs to copy, separated by spaces or commas; each is searched as Find sessions searches it. Blank: the Subject ID above.";
+tip = "Subject IDs to copy, separated by spaces or commas, searched as Find sessions searches them: * and ? are wildcards, " + ...
+    "* alone is every subject. Each run looks at the subject folders again, so a new subject that matches is copied too. " + ...
+    "Blank: the Subject ID above (blank there too: every subject).";
 lbl = uilabel(sg, "Text", "Subjects:", "Tooltip", tip);
 lbl.Layout.Row = 1; lbl.Layout.Column = 1;
 obj.CopyScheduleSubjectsField = uieditfield(sg, "text", "Tooltip", tip, ...
-    "Placeholder", "e.g. SUBJ-ID-1255 SUBJ-ID-1256 (blank: the Subject ID above)");
+    "Placeholder", "e.g. SUBJ-ID-1255 SUBJ-ID-13*, or * for every subject (blank: the Subject ID above)");
 obj.CopyScheduleSubjectsField.Layout.Row = 1; obj.CopyScheduleSubjectsField.Layout.Column = 2;
 
 fields = {

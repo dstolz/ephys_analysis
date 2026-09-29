@@ -14,7 +14,7 @@ classdef CopySchedule
     %
     %     sch = CopySchedule;                   % this Windows user's schedule
     %     s = CopySchedule.defaults();
-    %     s.Subjects = "SUBJ-ID-1255";
+    %     s.Subjects = "SUBJ-ID-1255";          % or "SUBJ-ID-12*", or "*" for every subject
     %     sch.save(s);                          % write the settings, create the task
     %     st = sch.status();                    % the task, its next run, the last run
     %     sch.startNow();                       % a run now, in the background
@@ -51,7 +51,13 @@ classdef CopySchedule
     %                       at that moment (copySessions); a later run takes it
     %
     %   Settings (CopySchedule.defaults)
-    %     Subjects          subject IDs (string array)
+    %     Subjects          subject IDs and patterns (string array), searched as
+    %                       findCopySessions searches them: "SUBJ-ID-12*" is
+    %                       every subject whose folder name starts SUBJ-ID-12,
+    %                       "*" every subject. Each run looks at the subject
+    %                       folders on the source again, so a new subject that
+    %                       matches is copied from the first run after its
+    %                       folder appears
     %     EpsychRoot, DestRoot
     %     RecordingRoots    roots of the recording folders (string array, or one
     %                       string of them separated by semicolons); the folder
@@ -293,8 +299,9 @@ classdef CopySchedule
         function s = normalize(s)
             %normalize  Settings with the defaults filled in, types fixed and values checked.
             %   Errors with CopySchedule:BadSettings naming the first bad value.
-            %   Subjects may be one string of IDs separated by commas, semicolons
-            %   or spaces. Fields that are not settings are dropped.
+            %   Subjects may be one string of IDs and patterns separated by
+            %   commas, semicolons or spaces; with "*" among them it is "*".
+            %   Fields that are not settings are dropped.
             if ~isstruct(s) || ~isscalar(s)
                 error('CopySchedule:BadSettings', 'The settings must be a scalar struct.');
             end
@@ -307,7 +314,7 @@ classdef CopySchedule
             s = d;
             s.Subjects = subjectList(s.Subjects);
             if isempty(s.Subjects)
-                error('CopySchedule:BadSettings', 'Name at least one subject to copy.');
+                error('CopySchedule:BadSettings', 'Name at least one subject to copy (* for every subject).');
             end
             for f = ["EpsychRoot", "DestRoot"]
                 s.(f) = strtrim(string(s.(f)));
@@ -340,10 +347,11 @@ classdef CopySchedule
 
         function out = copyNew(s, opts)
             %copyNew  One run's work, in this MATLAB: find the new sessions and copy them.
-            %   OUT = CopySchedule.copyNew(S) searches each subject of S over
-            %   the last S.LookBackDays days and copies what a scheduled run
-            %   copies (see the class help). It asks nothing and opens nothing.
-            %   OUT has
+            %   OUT = CopySchedule.copyNew(S) searches the subjects of S (the
+            %   IDs, and the subject folders its patterns match now) over the
+            %   last S.LookBackDays days and copies what a scheduled run copies
+            %   (see the class help), one subject after another. It asks
+            %   nothing and opens nothing. OUT has
             %     Days      [first last] day searched
             %     Sessions  table (Subject, Session, DestDir, Status, Message),
             %               one row per session found; Status is one of
@@ -366,17 +374,18 @@ classdef CopySchedule
                 logFcn("ERROR: " + out.Errors(end));
                 return
             end
-            for subj = s.Subjects
-                try
-                    T = findCopySessions(subj, [day0 day1], EpsychRoot=s.EpsychRoot, RecordingRoots=s.RecordingRoots, ...
-                        DestRoot=s.DestRoot, MaxLeadTime=minutes(s.MaxLeadMin), MaxLagTime=minutes(s.MaxLagMin), ...
-                        AmbiguityMargin=seconds(s.MarginSec), MinRecordingDuration=minutes(s.MinDurationMin), ...
-                        LogFcn=logFcn);
-                catch ME
-                    out.Errors(end+1, 1) = subj + ": " + ME.message;
-                    logFcn("ERROR: " + out.Errors(end));
-                    continue
-                end
+            try
+                found = findCopySessions(s.Subjects, [day0 day1], EpsychRoot=s.EpsychRoot, RecordingRoots=s.RecordingRoots, ...
+                    DestRoot=s.DestRoot, MaxLeadTime=minutes(s.MaxLeadMin), MaxLagTime=minutes(s.MaxLagMin), ...
+                    AmbiguityMargin=seconds(s.MarginSec), MinRecordingDuration=minutes(s.MinDurationMin), ...
+                    LogFcn=logFcn);
+            catch ME
+                out.Errors(end+1, 1) = string(ME.message);
+                logFcn("ERROR: " + out.Errors(end));
+                return
+            end
+            for subj = unique(found.Subject, 'stable').'
+                T = found(found.Subject == subj, :);
                 [status, message] = withheld(T, s);
                 take = status == "";
                 for r = find(~take).'
@@ -428,7 +437,7 @@ classdef CopySchedule
             try
                 s = CopySchedule.normalize(readJsonFile(file));
                 logFcn(sprintf("Scheduled copy started: %s, the last %d day(s), to %s (process %d on %s).", ...
-                    strjoin(s.Subjects, ", "), s.LookBackDays, s.DestRoot, info.Pid, info.Host));
+                    CopySchedule.subjectText(s.Subjects), s.LookBackDays, s.DestRoot, info.Pid, info.Host));
                 out = CopySchedule.copyNew(s, LogFcn=logFcn);
                 info.Days = string(out.Days, 'yyyy-MM-dd');
                 info.Errors = out.Errors;
@@ -451,6 +460,16 @@ classdef CopySchedule
             info.Finished = isoText(datetime('now'));
             writeJsonFile(lastFile, info);
             logFcn(sprintf("Scheduled copy %s: %s", info.State, summary));
+        end
+
+        function t = subjectText(subjects)
+            %subjectText  The Subjects setting in words: "SUBJ-ID-1255, SUBJ-ID-13*", or "every subject" for "*".
+            subjects = string(subjects);
+            if isequal(subjects, "*")
+                t = "every subject";
+            else
+                t = strjoin(subjects, ", ");
+            end
         end
 
         function s = countText(status)
@@ -487,7 +506,7 @@ classdef CopySchedule
             user = windowsUser();
             description = sprintf("Copies new recording sessions of %s to %s every %d min. " + ...
                 "Made by ephys_analysis (CopySchedule); change it on the Copy tab of EphysPreprocessingApp.", ...
-                strjoin(s.Subjects, ", "), s.DestRoot, s.EveryMin);
+                CopySchedule.subjectText(s.Subjects), s.DestRoot, s.EveryMin);
             lines = [
                 "<?xml version=""1.0"" encoding=""UTF-16""?>"
                 "<Task version=""1.2"" xmlns=""http://schemas.microsoft.com/windows/2004/02/mit/task"">"
@@ -934,13 +953,16 @@ end
 
 
 function list = subjectList(x)
-%subjectList  Subject IDs as a row of strings, from a list or one string of them.
+%subjectList  Subject IDs and patterns as a row of strings, from a list or one string of them.
 x = strjoin(string(x), " ");
 list = split(strtrim(x), regexpPattern("[,;\s]+")).';
 list = unique(list(list ~= ""), 'stable');
-bad = list(contains(list, ["\", "/", ":", "*", "?", """", "<", ">", "|"]));
+if any(list == "*")
+    list = "*";
+end
+bad = list(contains(list, ["\", "/", ":", """", "<", ">", "|"]) | ismember(list, [".", ".."]));
 if ~isempty(bad)
-    error('CopySchedule:BadSettings', 'Not a subject ID: %s', bad(1));
+    error('CopySchedule:BadSettings', 'Not a subject ID or pattern: %s', bad(1));
 end
 end
 

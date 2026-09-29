@@ -171,9 +171,11 @@ classdef EphysPreprocessingApp < handle
         CopyFromDatePicker    matlab.ui.control.DatePicker
         CopyToDatePicker      matlab.ui.control.DatePicker
         CopyFindButton        matlab.ui.control.Button
-        CopyEpsychRootField   matlab.ui.control.EditField
-        CopyRecordingRootsField  matlab.ui.control.EditField   % one or more roots, separated by ";"
-        CopyDestRootField     matlab.ui.control.EditField
+        % The roots and the destination: editable drop-downs whose Items are
+        % the folders last entered in them (rememberCopyFolder).
+        CopyEpsychRootField   matlab.ui.control.DropDown
+        CopyRecordingRootsField  matlab.ui.control.DropDown   % one or more roots, separated by ";"
+        CopyDestRootField     matlab.ui.control.DropDown
         CopyMaxLeadField      matlab.ui.control.NumericEditField   % minutes
         CopyMaxLagField       matlab.ui.control.NumericEditField   % minutes
         CopyMarginField       matlab.ui.control.NumericEditField   % seconds
@@ -942,6 +944,9 @@ classdef EphysPreprocessingApp < handle
         onCopyStitch(obj)
         onCopyUnstitch(obj)
         onBrowseCopyFolder(obj, field)
+        rememberCopyFolder(obj, field)
+        forgetCopyFolders(obj, field, folders)
+        onForgetCopyFolders(obj, field)
         roots = copyRecordingRoots(obj)
         copyLog(obj, msg)
         refreshCopySchedule(obj, opts)

@@ -58,14 +58,19 @@ end
 
 if n == 0
     if isempty(obj.CopySessions)
-        obj.CopySummaryLabel.Text = "Enter a subject and dates, then Find sessions.";
+        obj.CopySummaryLabel.Text = "Enter the subjects (blank: every subject) and dates, then Find sessions.";
     else
         obj.CopySummaryLabel.Text = "No sessions found for these days.";
     end
 else
     counts = arrayfun(@(s) nnz(T.Status == s), ["paired", "stitched", "recording_only", "epsych_only", "ambiguous"]);
-    obj.CopySummaryLabel.Text = sprintf("%d paired, %d stitched, %d recording only, %d ePsych only, %d ambiguous; %d ticked.", ...
+    txt = sprintf("%d paired, %d stitched, %d recording only, %d ePsych only, %d ambiguous; %d ticked.", ...
         counts, nnz(obj.CopyTicked));
+    nSubj = numel(unique(T.Subject));
+    if nSubj > 1
+        txt = sprintf("%d subjects: %s", nSubj, txt);
+    end
+    obj.CopySummaryLabel.Text = txt;
 end
 end
 

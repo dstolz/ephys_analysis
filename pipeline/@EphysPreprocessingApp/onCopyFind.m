@@ -1,13 +1,13 @@
 function onCopyFind(obj)
-%onCopyFind  List and pair the subject's source sessions for the chosen days (findCopySessions).
-%   Paired rows are ticked; unpaired rows can be ticked by hand; ambiguous
-%   rows cannot be ticked.
+%onCopyFind  List and pair the subjects' source sessions for the chosen days (findCopySessions).
+%   The Subject ID field holds IDs and patterns (SUBJ-ID-12*) as
+%   findCopySessions takes them; blank is every subject. Paired rows are
+%   ticked; unpaired rows can be ticked by hand; ambiguous rows cannot be
+%   ticked.
 
 subj = strtrim(string(obj.CopySubjectField.Value));
-if subj == ""
-    uialert(obj.Fig, "Enter a subject ID first.", "Find sessions");
-    return
-end
+what = subj;
+if any(subj == ["", "*"]); what = "every subject"; end
 d0 = obj.CopyFromDatePicker.Value;
 d1 = obj.CopyToDatePicker.Value;
 if isempty(d0) || isnat(d0)
@@ -20,10 +20,10 @@ obj.savePreferences();
 obj.CopyFindButton.Enable = "off";
 cleanup = onCleanup(@() set(obj.CopyFindButton, "Enable", "on"));
 dlg = uiprogressdlg(obj.Fig, "Title", "Find sessions", "Indeterminate", "on", ...
-    "Message", sprintf("Listing %s on the source...", subj));
+    "Message", sprintf("Listing %s on the source...", what));
 drawnow;
 try
-    obj.copyLog(sprintf("Find sessions: %s, %s to %s", subj, string(d0, 'yyyy-MM-dd'), string(d1, 'yyyy-MM-dd')));
+    obj.copyLog(sprintf("Find sessions: %s, %s to %s", what, string(d0, 'yyyy-MM-dd'), string(d1, 'yyyy-MM-dd')));
     T = findCopySessions(subj, [d0 d1], ...
         EpsychRoot=string(obj.CopyEpsychRootField.Value), ...
         RecordingRoots=obj.copyRecordingRoots(), ...

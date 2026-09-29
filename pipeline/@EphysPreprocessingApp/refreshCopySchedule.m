@@ -79,7 +79,7 @@ when = "while you are signed in";
 if st.RunWhen == "always"; when = "signed in or not"; end
 head = sprintf("Every %g min, %s", st.EveryMin, when);
 if ~isempty(s)
-    head = head + ": " + strjoin(s.Subjects, ", ") + " to " + s.DestRoot;
+    head = head + ": " + CopySchedule.subjectText(s.Subjects) + " to " + s.DestRoot;
 end
 parts(end+1) = head + ".";
 if st.Running
@@ -108,7 +108,7 @@ txt = strjoin(parts, " ");
 % --- the tooltip: the settings, then the last run in detail ---------------------------
 lines = strings(0, 1);
 if ~isempty(s)
-    lines(end+1) = "Subjects: " + strjoin(s.Subjects, ", ");
+    lines(end+1) = "Subjects: " + CopySchedule.subjectText(s.Subjects);
     lines(end+1) = "From: " + s.EpsychRoot + " (ePsych), " + strjoin(s.RecordingRoots, "; ") + " (recordings)";
     lines(end+1) = "To: " + s.DestRoot;
     lines(end+1) = sprintf("Sessions of the last %d day(s), quiet for %g min; Verify %s; If it exists %s%s", ...

@@ -211,6 +211,56 @@ classdef test_CopySessions < matlab.unittest.TestCase
             tc.verifyTrue(contains(T.RecordingDir, "SUBJ-ID-1255" + filesep + "SUBJ-ID-1255_"));
         end
 
+        function subjectPatternsAndEverySubject(tc)
+            % A pattern stands for the subject folders under the roots whose
+            % names it matches (* any characters, ? one), blank for every
+            % subject. Each subject pairs on its own, and the rows come one
+            % subject after another.
+            e125 = tc.addEpsych("SUBJ-ID-125", "260916T110742");
+            i125 = tc.addIntan("SUBJ-ID-125", "260916_110907");      % -85 s
+            e1255 = tc.addEpsych(tc.Subj, "260916T110700");
+            i1255 = tc.addIntan(tc.Subj, "260916_110830");          % -90 s; SUBJ-ID-125's file is -48 s from it
+            tc.addIntan("SUBJ-ID-128", "260916_100000");            % a subject with recordings only
+            tc.addEpsych("SUBJ-ID-130", "260916T080000");           % and one with ePsych files only
+            mkdir(fullfile(tc.Epsych, "notes"));                     % a folder is a subject, however named
+            tc.addFile(fullfile(tc.Intan, "readme.txt"));            % a file never is
+
+            logged = containers.Map('KeyType', 'double', 'ValueType', 'any');
+            T = tc.find("SUBJ-ID-12*", "260916", LogFcn=@(m) appendLog(logged, m));
+            tc.verifyEqual(T.Subject, ["SUBJ-ID-125"; "SUBJ-ID-1255"; "SUBJ-ID-128"]);
+            tc.verifyEqual(T.Status, ["paired"; "paired"; "recording_only"]);
+            tc.verifyEqual([T.EpsychFile(1:2), T.RecordingDir(1:2)], [e125, i125; e1255, i1255], ...
+                "one subject's ePsych file never pairs with another's recording");
+            tc.verifyEqual(T.DestDir(3), string(fullfile(tc.Dest, "SUBJ-ID-128", "SUBJ-ID-128_260916_100000")));
+            lines = string(logged.values);
+            tc.verifyTrue(any(lines == "SUBJ-ID-12* matches 3 subject(s): SUBJ-ID-125, SUBJ-ID-1255, SUBJ-ID-128"));
+            tc.verifyEqual(lines(end), "SUBJ-ID-12*: 3 subject(s), 260916 to 260916: 2 paired, 1 recording only, " + ...
+                "0 ePsych only, 0 ambiguous, 0 name(s) skipped");
+
+            T = tc.find("SUBJ-ID-12?", "260916");
+            tc.verifyEqual(unique(T.Subject), ["SUBJ-ID-125"; "SUBJ-ID-128"], "? is one character");
+            T = tc.find("SUBJ-ID-125, SUBJ-ID-13*", "260916");
+            tc.verifyEqual(T.Subject, ["SUBJ-ID-125"; "SUBJ-ID-130"], "an ID in a list stays exact");
+            tc.verifyEqual(T.Status, ["paired"; "epsych_only"]);
+            T = tc.find(["SUBJ-ID-1255" "SUBJ-ID-12*"], "260916");
+            tc.verifyEqual(T.Subject, ["SUBJ-ID-125"; "SUBJ-ID-1255"; "SUBJ-ID-128"], "each subject once");
+
+            every = ["SUBJ-ID-125"; "SUBJ-ID-1255"; "SUBJ-ID-128"; "SUBJ-ID-130"];
+            for blank = {"", "  ", "*", strings(1, 0), "SUBJ-ID-125 *"}
+                T = tc.find(blank{1}, "260916");
+                tc.verifyEqual(unique(T.Subject, 'stable'), every, "every subject");
+            end
+
+            logged = containers.Map('KeyType', 'double', 'ValueType', 'any');
+            T = tc.find("subj-id-12*", "260916", LogFcn=@(m) appendLog(logged, m));
+            tc.verifyEmpty(T, "a pattern is case sensitive, as the names are");
+            tc.verifyTrue(ismember("StitchFiles", string(T.Properties.VariableNames)), "an empty T has every column");
+            tc.verifyTrue(any(string(logged.values) == "No subject folder matches subj-id-12*"));
+            for bad = ["../SUBJ-ID-125", "..", "SUBJ:125", "SUBJ|*"]
+                tc.verifyError(@() tc.find(bad, "260916"), 'findCopySessions:BadSubject');
+            end
+        end
+
         function malformedNamesSkippedAndLogged(tc)
             tc.addEpsych(tc.Subj, "260916T110742");
             tc.addIntan(tc.Subj, "260916_110907");
@@ -727,6 +777,13 @@ classdef test_CopySessions < matlab.unittest.TestCase
             tc.verifyTrue(all(ismember(["Duration" "Trials"], string(app.CopyTable.Data.Properties.VariableNames))));
             tc.verifyTrue(contains(string(app.CopyLogArea.Value{end}), "1 paired"));
 
+            app.CopySubjectField.Value = '';                 % blank: every subject, one here
+            app.onCopyFind();
+            tc.verifyEqual(app.CopySessions.Status, T.Status);
+            logLines = string(app.CopyLogArea.Value);
+            tc.verifyTrue(any(startsWith(logLines, "Find sessions: every subject, 2026-09-16")));
+            tc.verifyTrue(startsWith(logLines(end), "Every subject: 1 subject(s), 260916 to 260916: 1 paired"));
+
             amb = find(T.Status == "ambiguous", 1);
             app.onCopyTableEdited(struct('Indices', [amb 1], 'NewData', true));
             tc.verifyFalse(app.CopyTicked(amb), "an ambiguous row cannot be ticked");
@@ -800,6 +857,63 @@ classdef test_CopySessions < matlab.unittest.TestCase
             tc.verifyEqual(app.CopySessions.EpsychFile, found.EpsychFile);
             tc.verifyEqual(app.CopyTicked, [true; false; false]);
             tc.verifyEqual(app.CopyStatus, strings(3, 1));
+        end
+
+        function appRemembersRecentFolders(tc)
+            % The root and destination boxes list the folders entered in
+            % them, newest first, each once, at most 10; Forget removes
+            % entries and leaves the box as it is; the lists are preferences.
+            g = EphysPreprocessingApp.PrefGroup;
+            saved = [];
+            if ispref(g); saved = getpref(g); end
+            tc.addTeardown(@() restorePrefs(g, saved));
+            if ispref(g, 'LastConfigFile'); setpref(g, 'LastConfigFile', ''); end
+
+            app = EphysPreprocessingApp;
+            tc.addTeardown(@() delete(app.Fig(isvalid(app.Fig))));
+            f = app.CopyDestRootField;
+            f.Items = {};
+            for d = ["D:/A", "D:/B", " d:\a\ ", "D:/C"]
+                f.Value = char(d);
+                f.ValueChangedFcn(f, []);   % as when a folder is typed or picked
+            end
+            tc.verifyEqual(string(f.Items), ["D:/C" "d:\a\" "D:/B"], "newest first, the same folder once");
+            tc.verifyEqual(string(f.Value), "D:/C");
+            for k = 1:12
+                f.Value = sprintf('E:/%d', k);
+                app.rememberCopyFolder(f);
+            end
+            tc.verifyEqual(string(f.Items), "E:/" + string(12:-1:3), "at most 10");
+
+            r = app.CopyRecordingRootsField;
+            r.Items = {};
+            r.Value = 'S:/intan; S:/oe';
+            app.rememberCopyFolder(r);
+            r.Value = 's:\intan;S:/OE/';
+            app.rememberCopyFolder(r);
+            r.Value = 'S:/intan';
+            app.rememberCopyFolder(r);
+            tc.verifyEqual(string(r.Items), ["S:/intan" "s:\intan;S:/OE/"], "whole lists, compared root by root");
+            tc.verifyEqual(app.copyRecordingRoots(), "S:/intan");
+
+            f.Value = 'E:/12';
+            app.forgetCopyFolders(f, ["E:/12" "E:/5"]);
+            tc.verifyEqual(string(f.Items), "E:/" + string([11:-1:6, 4 3]));
+            tc.verifyEqual(string(f.Value), "E:/12", "the box keeps what it shows");
+            p = getpref(g, 'CopyOptions');
+            tc.verifyEqual(string(p.destRootRecent), string(f.Items), "Forget saves the list at once");
+
+            app.CopyEpsychRootField.Items = {};
+            app.CopyEpsychRootField.Value = 'S:/epsych';
+            app.savePreferences();
+            delete(app.Fig);
+            app = EphysPreprocessingApp;
+            tc.addTeardown(@() delete(app.Fig(isvalid(app.Fig))));
+            tc.verifyEqual(string(app.CopyDestRootField.Items), "E:/" + string([11:-1:6, 4 3]));
+            tc.verifyEqual(string(app.CopyDestRootField.Value), "E:/12");
+            tc.verifyEqual(string(app.CopyRecordingRootsField.Items), ["S:/intan" "s:\intan;S:/OE/"]);
+            tc.verifyEmpty(app.CopyEpsychRootField.Items, "an emptied list stays empty");
+            tc.verifyEqual(string(app.CopyEpsychRootField.Value), "S:/epsych");
         end
 
         function cancelStopsBeforeCopying(tc)
@@ -1308,7 +1422,37 @@ classdef test_CopySessions < matlab.unittest.TestCase
             mkdir(tc.Dest);
             s.EpsychRoot = fullfile(tc.Root, "not_mounted");
             out = CopySchedule.copyNew(s, Today=datetime(2026, 9, 16), LogFcn=@(~) []);
-            tc.verifySubstring(char(out.Errors), char(tc.Subj + ": Folder not found"));
+            tc.verifySubstring(char(out.Errors), 'Folder not found');
+        end
+
+        function scheduledCopyFindsNewSubjects(tc)
+            % A pattern is matched against the subject folders on every run,
+            % so a subject whose folder appears later is copied too; "*" is
+            % every subject.
+            tc.assumeTrue(ispc, "robocopy needs Windows");
+            tc.addPair("260916T110742", "260916_110907");
+            tc.addEpsych("SUBJ-ID-999", "260916T120000");
+            tc.addIntan("SUBJ-ID-999", "260916_120100");
+            mkdir(tc.Dest);
+            day = datetime(2026, 9, 16);
+            s = tc.schedule(Subjects="SUBJ-ID-12*");
+            out = CopySchedule.copyNew(s, Today=day, LogFcn=@(~) []);
+            tc.verifyEqual(out.Sessions.Subject, tc.Subj);
+            tc.verifyEqual(out.Sessions.Status, "copied", out.Sessions.Message);
+
+            other = "SUBJ-ID-120";                               % a new subject
+            tc.addEpsych(other, "260916T130000");
+            tc.addIntan(other, "260916_130100");
+            out = CopySchedule.copyNew(s, Today=day, LogFcn=@(~) []);
+            tc.verifyEqual(out.Sessions.Subject, [other; tc.Subj]);
+            tc.verifyEqual(out.Sessions.Status, ["copied"; "already_present"], strjoin(out.Sessions.Message, newline));
+            tc.verifyTrue(isfolder(fullfile(tc.Dest, other, other + "_260916_130100")));
+            tc.verifyFalse(isfolder(fullfile(tc.Dest, "SUBJ-ID-999")), "a subject the pattern does not match");
+
+            out = CopySchedule.copyNew(tc.schedule(Subjects="*"), Today=day, LogFcn=@(~) []);
+            tc.verifyEqual(out.Sessions.Subject, [other; tc.Subj; "SUBJ-ID-999"]);
+            tc.verifyEqual(out.Sessions.Status, ["already_present"; "already_present"; "copied"], ...
+                strjoin(out.Sessions.Message, newline));
         end
 
         function runTaskKeepsALogAndASummary(tc)
@@ -1345,7 +1489,14 @@ classdef test_CopySessions < matlab.unittest.TestCase
             tc.verifyEqual(s.EveryMin, 30);
             tc.verifyEqual([s.RunWhen, s.Verify, s.IfExists], ["signed_in", "size", "resume"]);
             tc.verifyEqual(string(fieldnames(s)), string(fieldnames(CopySchedule.defaults())));
+            s = CopySchedule.normalize(struct('Subjects', "SUBJ-ID-12*, A-?"));
+            tc.verifyEqual(s.Subjects, ["SUBJ-ID-12*", "A-?"], "patterns");
+            tc.verifyEqual(CopySchedule.subjectText(s.Subjects), "SUBJ-ID-12*, A-?");
+            s = CopySchedule.normalize(struct('Subjects', "A-1 * B-2*"));
+            tc.verifyEqual(s.Subjects, "*", "* takes in every other subject");
+            tc.verifyEqual(CopySchedule.subjectText(s.Subjects), "every subject");
             bad = {struct('Subjects', ""), struct('Subjects', "A", 'EveryMin', 2), ...
+                struct('Subjects', ".."), struct('Subjects', "A|*"), ...
                 struct('Subjects', "A", 'LookBackDays', 1.5), struct('Subjects', "A/B"), ...
                 struct('Subjects', "A", 'RunWhen', "sometimes"), struct('Subjects', "A", 'DestRoot', "")};
             for k = 1:numel(bad)
@@ -1474,6 +1625,14 @@ classdef test_CopySessions < matlab.unittest.TestCase
             tc.verifySubstring(txt, "Not run yet.");
             tc.verifyEqual(string(app.CopyScheduleRunNowButton.Enable), "on");
             tc.verifySubstring(string(app.CopyLogArea.Value{end}), "Scheduled copy saved");
+
+            app.CopySubjectField.Value = '';                   % blank both: every subject
+            app.CopyScheduleSubjectsField.Value = '';
+            app.onCopyScheduleSave();
+            s = sch.read();
+            tc.verifyEqual(s.Subjects, "*");
+            tc.verifyEqual(string(app.CopyScheduleSubjectsField.Value), "*");
+            tc.verifySubstring(string(app.CopyScheduleStatusLabel.Text), ": every subject to " + tc.Dest);
 
             app.onCopyScheduleRemove();
             st = sch.status();

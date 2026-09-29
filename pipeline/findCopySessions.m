@@ -1,14 +1,26 @@
-function [T, skipped] = findCopySessions(subjID, dateSpec, opts)
+function [T, skipped] = findCopySessions(subjects, dateSpec, opts)
 %findCopySessions  Pair ePsych behavior files with recordings on the source by name.
-%   T = findCopySessions(subjID, dateSpec) lists one subject's sessions on the
-%   source tree for a day (or a range of days) and pairs each recording folder
-%   (Intan RHX, Open Ephys GUI, TDT Synapse block or any other format a
+%   T = findCopySessions(subjects, dateSpec) lists the subjects' sessions on
+%   the source tree for a day (or a range of days) and pairs each recording
+%   folder (Intan RHX, Open Ephys GUI, TDT Synapse block or any other format a
 %   registered EphysReader reads) with its ePsych behavior file from the
 %   times in their names.
 %   Nothing is written to either tree; of the files, only headers are read:
 %   those of every recording taking part in the pairing (for
 %   MinRecordingDuration and the RecordingDuration column) and the ePsych
 %   files of the listed sessions (for the EpsychTrials column).
+%
+%   subjects
+%     "SUBJ-ID-1255"          one subject, by its exact ID
+%     "SUBJ-ID-12*"           every subject whose folder name matches the
+%                             pattern, whole and case sensitive: * stands for
+%                             any run of characters, ? for any one character
+%     "" or "*"               every subject
+%   or several of these, as a string list or one string separated by spaces,
+%   commas or semicolons. A pattern is matched against the names of the
+%   folders directly under EpsychRoot and RecordingRoots, so a subject with
+%   a folder under any one of them is found. Each subject is paired on its
+%   own: one subject's ePsych files never pair with another's recordings.
 %
 %   Names are matched whole, and the subject ID must match exactly
 %   (SUBJ-ID-125 never matches SUBJ-ID-1255_...):
@@ -67,7 +79,7 @@ function [T, skipped] = findCopySessions(subjID, dateSpec, opts)
 %     LogFcn          function handle taking one string (default: print it)
 %
 %   T has one row per recording folder plus one per ePsych file left
-%   unpaired, sorted by time:
+%   unpaired, sorted by subject, then by time:
 %     Subject        string
 %     RecordingDir   string, full path ("" for an ePsych-only row)
 %     RecordingTime  datetime from the folder name (NaT for an ePsych-only row)
@@ -96,21 +108,25 @@ function [T, skipped] = findCopySessions(subjID, dateSpec, opts)
 %
 %   Errors with findCopySessions:RootNotFound when EpsychRoot or a
 %   RecordingRoots folder is not a folder (e.g. the source drive is not
-%   mounted), and with findCopySessions:BadPattern when a name pattern cannot
-%   give a subject and a start time. A missing subject folder under an
-%   existing root is logged and treated as empty.
+%   mounted), with findCopySessions:BadPattern when a name pattern cannot
+%   give a subject and a start time, and with findCopySessions:BadSubject
+%   when a subject holds a character a folder name cannot (\ / : " < > |).
+%   A missing subject folder under an existing root is logged and treated
+%   as empty; so is a subject pattern that matches no folder.
 %
 %   Examples
 %     T = findCopySessions("SUBJ-ID-1255", "260916");
 %     T = findCopySessions("SUBJ-ID-1255", datetime(2026,9,14) + [0 3], ...
 %             MaxLeadTime=minutes(5));
+%     T = findCopySessions("SUBJ-ID-12*", "260916");       % SUBJ-ID-120, SUBJ-ID-1255, ...
+%     T = findCopySessions("", ["260914" "260916"]);        % every subject
 %     R = copySessions(T(T.Status == "paired", :), DryRun=true);
 %
 %   See also copySessions, stitchCopySessions, findEpsychSessions,
 %   matchEpsychSession.
 
 arguments
-    subjID (1,1) string {mustBeNonzeroLengthText}
+    subjects string
     dateSpec {mustBeDateSpec}
     opts.EpsychRoot (1,1) string = "S:/RIG3_Backup_2025/epsych_files/Data"
     opts.RecordingRoots (1,:) string {mustBeNonempty} = "S:/RIG3_Backup_2025/intan_files/Data"
@@ -129,7 +145,7 @@ logFcn = opts.LogFcn;
 if isempty(logFcn)
     logFcn = @(msg) fprintf('%s\n', msg);
 end
-subjID = strtrim(subjID);
+spec = subjectSpec(subjects);
 [day0, day1] = parseDateSpec(dateSpec);
 
 for r = [opts.EpsychRoot, opts.RecordingRoots]
@@ -145,6 +161,33 @@ for p = opts.NamePatterns
     end
 end
 
+ids = resolveSubjects(spec, [opts.EpsychRoot, opts.RecordingRoots], logFcn);
+T = emptySessions();
+skipped = table(strings(0, 1), strings(0, 1), 'VariableNames', {'Path', 'Reason'});
+for subj = ids.'
+    [Ts, Ss] = subjectSessions(subj, day0, day1, opts, logFcn);
+    T = [T; Ts];                   %#ok<AGROW>
+    skipped = [skipped; Ss];       %#ok<AGROW>
+end
+T.DeltaT.Format = 'mm:ss';
+T.RecordingDuration.Format = 'hh:mm:ss';
+
+% --- one subject after another, each by time ---------------------------------------
+sortTime = T.RecordingTime;
+sortTime(isnat(sortTime)) = T.EpsychTime(isnat(sortTime));
+[~, order] = sortrows(table(T.Subject, sortTime));
+T = T(order, :);
+
+if ~(isscalar(spec) && isscalar(ids) && spec == ids)   % a total, unless one subject was asked for by its ID
+    counts = arrayfun(@(s) nnz(T.Status == s), ["paired" "recording_only" "epsych_only" "ambiguous"]);
+    logFcn(sprintf("%s: %d subject(s), %s to %s: %d paired, %d recording only, %d ePsych only, %d ambiguous, %d name(s) skipped", ...
+        specText(spec), numel(ids), string(day0, 'yyMMdd'), string(day1, 'yyMMdd'), counts, height(skipped)));
+end
+end
+
+
+function [T, skipped] = subjectSessions(subjID, day0, day1, opts, logFcn)
+%subjectSessions  One subject's rows of T, and the names skipped in its folders.
 skipped = table(strings(0, 1), strings(0, 1), 'VariableNames', {'Path', 'Reason'});
     function skip(path, reason)
         skipped(end+1, :) = {string(path), string(reason)};
@@ -266,38 +309,95 @@ for j = find(~usedE).'
     end
 end
 
-names = {'Subject', 'RecordingDir', 'RecordingTime', 'EpsychFile', 'EpsychTime', 'DeltaT', 'Status', 'DestDir', 'Note', ...
-    'RecordingDuration', 'Reader'};
-if isempty(rows)
-    T = table(strings(0, 1), strings(0, 1), NaT(0, 1), strings(0, 1), NaT(0, 1), duration.empty(0, 1), ...
-        strings(0, 1), strings(0, 1), strings(0, 1), duration.empty(0, 1), strings(0, 1), 'VariableNames', names);
-else
-    T = cell2table(rows, 'VariableNames', names);
-    T.DeltaT.Format = 'mm:ss';
+% --- keep rows touching the requested days -----------------------------------------
+T = emptySessions();
+if ~isempty(rows)
+    T = cell2table(rows, 'VariableNames', T.Properties.VariableNames(1:size(rows, 2)));
+    inRange = @(t) ~isnat(t) & t >= day0 & t < day1 + days(1);
+    T = T(inRange(T.RecordingTime) | inRange(T.EpsychTime), :);
+    T.EpsychTrials = NaN(height(T), 1);
+    T.StitchFiles = repmat({strings(0, 1)}, height(T), 1);
 end
-T.RecordingDuration.Format = 'hh:mm:ss';
-
-% --- keep rows touching the requested days, sort by time ---------------------------
-inRange = @(t) ~isnat(t) & t >= day0 & t < day1 + days(1);
-T = T(inRange(T.RecordingTime) | inRange(T.EpsychTime), :);
-sortTime = T.RecordingTime;
-sortTime(isnat(sortTime)) = T.EpsychTime(isnat(sortTime));
-[~, order] = sort(sortTime);
-T = T(order, :);
 
 % --- trial count, for the listed rows only ------------------------------------------
-T.EpsychTrials = NaN(height(T), 1);
 for k = 1:height(T)
     if T.EpsychFile(k) ~= ""
         [T.EpsychTrials(k), msg] = epsychTrials(T.EpsychFile(k));
         if msg ~= ""; logFcn(sprintf("Could not read the ePsych file %s: %s", T.EpsychFile(k), msg)); end
     end
 end
-T.StitchFiles = repmat({strings(0, 1)}, height(T), 1);
 
 counts = arrayfun(@(s) nnz(T.Status == s), ["paired" "recording_only" "epsych_only" "ambiguous"]);
 logFcn(sprintf("%s, %s to %s: %d paired, %d recording only, %d ePsych only, %d ambiguous, %d name(s) skipped", ...
     subjID, string(day0, 'yyMMdd'), string(day1, 'yyMMdd'), counts, height(skipped)));
+end
+
+
+function spec = subjectSpec(subjects)
+%subjectSpec  The subject IDs and patterns asked for, as a row; "*" (every subject) when none.
+spec = split(strjoin(reshape(strtrim(subjects), 1, []), " "), regexpPattern("[,;\s]+")).';
+spec = unique(spec(spec ~= ""), 'stable');
+if isempty(spec) || any(spec == "*")
+    spec = "*";
+end
+bad = spec(contains(spec, ["\", "/", ":", """", "<", ">", "|"]) | ismember(spec, [".", ".."]));
+if ~isempty(bad)
+    error('findCopySessions:BadSubject', 'Not a subject ID or pattern: %s', bad(1));
+end
+end
+
+
+function subjects = resolveSubjects(spec, roots, logFcn)
+%resolveSubjects  The subjects SPEC names, sorted, each once (a column).
+%   An exact ID is taken as it is (a missing folder is logged later, as for
+%   any subject); a pattern (* or ?) stands for the subject folders under
+%   ROOTS whose names it matches.
+isPattern = contains(spec, ["*", "?"]);
+subjects = spec(~isPattern).';
+if any(isPattern)
+    names = subjectFolders(roots);
+    for p = spec(isPattern)
+        rx = "^" + replace(string(regexptranslate('escape', char(p))), ["\*", "\?"], [".*", "."]) + "$";
+        hit = names(~cellfun(@isempty, regexp(cellstr(names), rx, 'once')));
+        if isempty(hit)
+            logFcn(sprintf("No subject folder matches %s", p));
+        else
+            logFcn(sprintf("%s matches %d subject(s): %s", p, numel(hit), strjoin(hit, ", ")));
+        end
+        subjects = [subjects; hit]; %#ok<AGROW>
+    end
+end
+subjects = unique(subjects);
+end
+
+
+function names = subjectFolders(roots)
+%subjectFolders  Names of the folders directly under ROOTS: the subjects there (a column).
+names = strings(0, 1);
+for r = roots
+    D = dir(r);
+    D = D([D.isdir] & ~ismember({D.name}, {'.', '..'}));
+    names = [names; reshape(string({D.name}), [], 1)]; %#ok<AGROW>
+end
+names = unique(names);
+end
+
+
+function s = specText(spec)
+%specText  The subjects asked for, in words.
+if isequal(spec, "*")
+    s = "Every subject";
+else
+    s = strjoin(spec, ", ");
+end
+end
+
+
+function T = emptySessions()
+T = table(strings(0, 1), strings(0, 1), NaT(0, 1), strings(0, 1), NaT(0, 1), duration.empty(0, 1), ...
+    strings(0, 1), strings(0, 1), strings(0, 1), duration.empty(0, 1), strings(0, 1), zeros(0, 1), cell(0, 1), ...
+    'VariableNames', {'Subject', 'RecordingDir', 'RecordingTime', 'EpsychFile', 'EpsychTime', 'DeltaT', 'Status', ...
+    'DestDir', 'Note', 'RecordingDuration', 'Reader', 'EpsychTrials', 'StitchFiles'});
 end
 
 

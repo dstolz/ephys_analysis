@@ -54,6 +54,7 @@ m.probe = struct('file', probeFile, 'exists', true, 'num_channels', 16, 'num_sha
 m.exclude_channels = "2,5,20";
 m.reference_exclude = struct('channels', "7,30", 'source', "manual");
 m.manual_artifacts = [1 2; 10 12; 95 130];
+m.artifact_adjustments = [20 21 19.5 21.25];   % one row: jsondecode gives it back as a vector
 m.bin = struct('file', string(fullfile(rec, 'missing.bin')), 'exists', true);
 m.kilosort = struct('has_results', false, 'results_dir', "", 'num_units', NaN, 'state', "");
 m.sorting = struct('results_dir', string(fullfile(root, 'nowhere')), 'source', "manual", 'exists', true, ...
@@ -82,6 +83,10 @@ r = T(T.Field == "Reference exclude", :);
 check(rowIs(T, "Reference exclude", "warn") && contains(r.Check, "set by hand") && contains(r.Check, "2 left out"), ...
     'reference exclusion: counted, source named, beyond the channel count: warning');
 check(rowIs(T, "Out of range", "warn"), 'artifact period past the end: warning');
+aS = T.Section == "Detected artifacts moved by hand";
+check(any(aS & T.Field == "Artifacts" & T.Value == "1") && any(aS & T.Field == "Change" & startsWith(T.Value, "0.75 s")) ...
+    && ~any(aS & T.Field == "Out of range") && ~any(T.Section == "Other" & startsWith(T.Field, "artifact_adjustments")), ...
+    'a moved detected artifact: counted in a section of its own, a single row read back from the vector');
 check(rowIs(T, "Pairing", "warn"), 'unreviewed pairing: warning');
 r = T(T.Section == "Behavior" & T.Field == "Start", :);
 check(contains(r.Check, "-1.1 min"), 'behavior start relative to the recording');

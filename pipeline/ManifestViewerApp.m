@@ -589,6 +589,23 @@ if isfield(m, 'manual_artifacts')
     end
 end
 
+if isfield(m, 'artifact_adjustments')
+    S = "Detected artifacts moved by hand";
+    aa = artifactMatrix(m.artifact_adjustments, 4);
+    R = addRow(R, S, "Artifacts", sprintf('%d', height(aa)), "", ...
+        "used with these bounds while the detector finds them as it did (Artifacts tab)");
+    if ~isempty(aa)
+        R = addRow(R, S, "Change", sprintf('%.4g s in all', sum((aa(:, 4) - aa(:, 3)) - (aa(:, 2) - aa(:, 1)))), ...
+            "", "the moved spans' total length minus the detected spans'");
+    end
+    bad = aa(:, 4) <= aa(:, 3) | aa(:, 3) < 0;
+    if ~isnan(dur); bad = bad | aa(:, 4) > dur; end
+    if any(bad)
+        R = addRow(R, S, "Out of range", mat2str(find(bad).'), "warn", ...
+            "moved spans that end before they start or fall outside the recording");
+    end
+end
+
 if isfield(m, 'bin') && isstruct(m.bin)
     S = "Binary (.bin)";
     bf = txtOf(getf(m.bin, 'file', ""));
@@ -664,7 +681,8 @@ if isfield(m, 'behavior') && isstruct(m.behavior)
 end
 
 known = ["schema" "name" "folder" "recording_format" "reader" "updated" "metadata" "probe" ...
-    "exclude_channels" "reference_exclude" "manual_artifacts" "bin" "kilosort" "sorting" "behavior"];
+    "exclude_channels" "reference_exclude" "manual_artifacts" "artifact_adjustments" "bin" "kilosort" ...
+    "sorting" "behavior"];
 other = setdiff(string(fieldnames(m)).', known, 'stable');
 for f = other
     if isstruct(m.(f)) && isscalar(m.(f))
@@ -767,14 +785,16 @@ else
 end
 end
 
-function ma = artifactMatrix(v)
-% manual_artifacts as [k x 2] (jsondecode collapses one period to a 1x2 / 2x1).
-ma = zeros(0, 2);
+function ma = artifactMatrix(v, nCol)
+% manual_artifacts as [k x 2], artifact_adjustments as [k x 4] (NCOL):
+% jsondecode collapses one row to a vector.
+if nargin < 2; nCol = 2; end
+ma = zeros(0, nCol);
 if isempty(v) || ~isnumeric(v); return; end
 v = double(v);
-if numel(v) == 2
+if isvector(v) && numel(v) == nCol
     ma = v(:).';
-elseif size(v, 2) == 2
+elseif size(v, 2) == nCol
     ma = v;
 end
 end

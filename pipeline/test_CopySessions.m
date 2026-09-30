@@ -780,9 +780,9 @@ classdef test_CopySessions < matlab.unittest.TestCase
             app.CopySubjectField.Value = '';                 % blank: every subject, one here
             app.onCopyFind();
             tc.verifyEqual(app.CopySessions.Status, T.Status);
-            logLines = string(app.CopyLogArea.Value);
-            tc.verifyTrue(any(startsWith(logLines, "Find sessions: every subject, 2026-09-16")));
-            tc.verifyTrue(startsWith(logLines(end), "Every subject: 1 subject(s), 260916 to 260916: 1 paired"));
+            logLines = string(app.CopyLogArea.Value);        % each after its time stamp
+            tc.verifyTrue(any(contains(logLines, "  Find sessions: every subject, 2026-09-16")));
+            tc.verifySubstring(logLines(end), "  Every subject: 1 subject(s), 260916 to 260916: 1 paired");
 
             amb = find(T.Status == "ambiguous", 1);
             app.onCopyTableEdited(struct('Indices', [amb 1], 'NewData', true));

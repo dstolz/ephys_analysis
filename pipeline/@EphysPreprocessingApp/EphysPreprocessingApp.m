@@ -363,12 +363,14 @@ classdef EphysPreprocessingApp < handle
         ArtViewSpinner      matlab.ui.control.Spinner
         ArtViewCountLabel   matlab.ui.control.Label
         ArtViewNextButton   matlab.ui.control.Button
+        ArtViewRestoreButton matlab.ui.control.Button            % the chosen artifact's bounds back as detected
         ArtViewContextField matlab.ui.control.NumericEditField
         ArtViewChannelsField matlab.ui.control.NumericEditField
         ArtViewScaleDropDown matlab.ui.control.DropDown
         ArtViewLanesField   matlab.ui.control.NumericEditField   % uV between lanes (Scale: Manual)
         ArtViewShankDropDown matlab.ui.control.DropDown
         ArtViewShankColorCheckBox matlab.ui.control.CheckBox
+        ArtViewShadeButton  matlab.ui.control.StateButton        % shade the artifacts over the signal (S)
         ArtViewResetButton  matlab.ui.control.Button
         ArtViewNoteLabel    matlab.ui.control.Label              % what red / black mean on a run
         ArtViewAxes         matlab.ui.control.UIAxes
@@ -749,16 +751,21 @@ classdef EphysPreprocessingApp < handle
         % (the window's key, its full time span and envelope resolution);
         % gain: the voltage scale (onArtViewInput); layout / layoutKey: the
         % active dataset's channelLayout and the dataset + probe it is for;
-        % mods: the modifier keys held (wheel events carry none).
+        % mods: the modifier keys held (wheel events carry none); edit: a
+        % bound being moved (onArtViewInput): armed while Ctrl is held,
+        % bound "on" / "off" while one is dragged to time x (ms), and the
+        % pointer and axes interactions to put back after.
         ArtView struct = struct('intervals', zeros(0, 2), 'previewed', false, ...
             'settings', struct(), 'summary', [], 'chunk', [], 'win', [], ...
             'drawn', struct('key', [], 'span', [0 1], 'factor', 1, 'decimated', false), 'gain', 1, ...
-            'layout', [], 'layoutKey', "", 'mods', strings(1, 0))
+            'layout', [], 'layoutKey', "", 'mods', strings(1, 0), ...
+            'edit', struct('armed', false, 'bound', "", 'x', NaN, 'pointer', 'arrow', 'interactions', []))
 
-        % Figure wheel / key handlers installed before routeFigureInput:
-        % they get the events when neither the Artifacts nor the Visualize
-        % tab is showing.
-        FigInput struct = struct('scroll', [], 'key', [], 'release', [])
+        % Figure wheel / key / button handlers installed before
+        % routeFigureInput: they get the events when neither the Artifacts
+        % nor the Visualize tab is showing (the buttons: when the Artifacts
+        % tab is not).
+        FigInput struct = struct('scroll', [], 'key', [], 'release', [], 'down', [], 'up', [])
 
         % --- Trials tab state (in memory; the pairing is saved via Approve) ---
         TrialsEvents = []                    % EphysDataset.digitalEvents(Relabel=false) of the loaded dataset (native-keyed; see namedTrialsEvents)

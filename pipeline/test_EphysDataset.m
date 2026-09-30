@@ -590,6 +590,38 @@ ivaS = dsi.artifactIntervals(UseParallel=true, MaxWorkers=1);
 [~, wid] = lastwarn;
 check(isequal(ivaS, iva) && strcmp(wid, 'EphysDataset:artifactIntervals:SerialFallback'), ...
     'MaxWorkers=1 falls back to serial with a warning');
+% Bounds moved by hand (ArtifactAdjustments): the detection alone stays as
+% found; with the manual part a moved detection takes its new bounds.
+auto = dsi.artifactIntervals(IncludeManual=false);
+Fsi = dsi.Fs;
+ka = find(auto(:, 1) >= 5 / Fsi & diff(auto, 1, 2) >= 3 / Fsi, 1);
+a1 = auto(ka, :);
+dsi.setArtifactAdjustment(a1, a1 + [-3.2 4.1] / Fsi);   % put on the sample grid
+check(size(dsi.ArtifactAdjustments, 1) == 1 && isequal(dsi.ArtifactAdjustments(1:2), a1) ...
+    && max(abs(dsi.ArtifactAdjustments(3:4) - (a1 + [-3 4] / Fsi))) < 1e-12, ...
+    'setArtifactAdjustment records the detected bounds and the moved ones, on the sample grid');
+[adjA, movedA, rowA] = dsi.adjustArtifacts(auto);
+check(isequal(find(movedA), ka) && rowA(ka) == 1 && isequal(adjA(ka, :), dsi.ArtifactAdjustments(3:4)) ...
+    && isequal(adjA(~movedA, :), auto(~movedA, :)), 'adjustArtifacts moves the matching detection only, row for row');
+check(isequal(dsi.artifactIntervals(IncludeManual=false), auto) ...
+    && isequal(dsi.artifactIntervals(), EphysDataset.mergeIntervals([dsi.ManualArtifacts; adjA])), ...
+    'artifactIntervals: IncludeManual=false is the detection as found; the default applies the moved bounds');
+dsi.setArtifactAdjustment(a1, a1 + [1 -1] / Fsi);
+check(size(dsi.ArtifactAdjustments, 1) == 1 && max(abs(dsi.ArtifactAdjustments(3:4) - (a1 + [1 -1] / Fsi))) < 1e-12, ...
+    'moving it again replaces the adjustment (here shrinking it)');
+try
+    dsi.setArtifactAdjustment(a1, [a1(1) a1(1)]);
+    emptyErr = "";
+catch e
+    emptyErr = string(e.identifier);
+end
+check(emptyErr == "EphysDataset:setArtifactAdjustment:Empty" && size(dsi.ArtifactAdjustments, 1) == 1, ...
+    'bounds that keep no sample are refused, the adjustment kept');
+dsi.setArtifactAdjustment(a1, a1);
+check(isempty(dsi.ArtifactAdjustments), 'bounds on the detected samples put it back as detected');
+dsi.ArtifactAdjustments = [a1 + 1, a1 + [0.5 2]];   % a detection no longer found
+check(isequal(dsi.artifactIntervals(), iva), 'an adjustment whose detection is not found changes nothing');
+dsi.ArtifactAdjustments = zeros(0, 4);
 
 fprintf('\n== 12. runKilosort(DryRun=true) with excluded channels ==\n');
 dsr = EphysDataset(dsFolder);
@@ -1023,10 +1055,20 @@ check(ds2.SortingDir == string(sortDir) && strcmp(ds2.sortingResultsDir(), sortD
 check(ds2.BehaviorFile == string(behFile), 'applyManifest restores the behavior file');
 
 dsm.ManualArtifacts = [0.003 0.004];
+dsm.ArtifactAdjustments = [0.01 0.011 0.0095 0.0112];
 dsm.writeManifest();
 ds3 = EphysDataset(mdsDir);
 ds3.applyManifest();
 check(isequal(ds3.ManualArtifacts, [0.003 0.004]), 'a single manual period survives the jsondecode collapse');
+check(isequal(ds3.ArtifactAdjustments, [0.01 0.011 0.0095 0.0112]), ...
+    'a moved detected artifact is saved in the manifest and restored (one row survives the collapse)');
+dsm.ArtifactAdjustments = [0.01 0.011 0.0095 0.0112; 0.02 0.021 0.02 0.0215];
+dsm.writeManifest();
+ds3b = EphysDataset(mdsDir);
+ds3b.applyManifest();
+check(isequal(ds3b.ArtifactAdjustments, dsm.ArtifactAdjustments), 'several moved artifacts round-trip');
+dsm.ArtifactAdjustments = zeros(0, 4);
+dsm.writeManifest();
 ds3.SortingDir = "";
 check(strcmp(ds3.sortingResultsDir(), ds3.kilosortResultsDir()) && ~ds3.hasKilosortResults(), ...
     'sortingResultsDir falls back to kilosortResultsDir when SortingDir is empty');

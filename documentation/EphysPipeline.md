@@ -358,8 +358,10 @@ automatic detection alone - is cached in
 [file-formats.md](file-formats.md#artifact-cache)), keyed by a fingerprint of
 what decides it: the detector settings, the channels of the common reference,
 `ExcludeChannels` and the recording files. A cache with a different
-fingerprint is recomputed. The manual periods are merged in on every call, so
-marking one needs no new detection. A detection is also kept for the rest of
+fingerprint is recomputed. The bounds moved by hand on the Artifacts tab
+(`d.ArtifactAdjustments`, applied with `EphysDataset.adjustArtifacts`) and the
+manual periods are applied on every call, so moving a bound or marking a
+period needs no new detection; the cache keeps the detection as found. A detection is also kept for the rest of
 the run (`reused`), so the steps that need it detect once even with
 `CacheIntervals` off. `ApplyToSorting` / `ApplyToSpikes` / `ApplyToSignals`
 decide whether the automatic detections reach those steps (manual periods

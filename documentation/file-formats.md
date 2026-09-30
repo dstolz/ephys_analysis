@@ -298,6 +298,7 @@ Schema `intan-dataset-manifest/2` (`null` where a value is `NaN`):
   "reference_exclude": { "channels": <compact list or "">,   left out of the common reference
                          "source": "" | "suggested" | "manual" },
   "manual_artifacts": [[<t0>, <t1>], ...],          seconds, recording-relative
+  "artifact_adjustments": [[<det0>, <det1>, <t0>, <t1>], ...],   detected artifacts moved by hand, seconds
   "bin":      { "file": <BinFile path>, "exists": <true|false> },
   "kilosort": { "has_results": <bool>, "results_dir": <path or "">,
                 "num_units": <n or null>, "state": <string> },
@@ -336,8 +337,14 @@ Schema `intan-dataset-manifest/2` (`null` where a value is `NaN`):
   `"suggested"` (by the noise-floor rule, `suggestReferenceExclude`),
   `"manual"` (typed on the Artifacts tab), or `""` (never set: the first
   referenced read suggests it).
+- `artifact_adjustments` lists the detected artifacts whose onset or offset
+  was moved by hand (the GUI's Artifacts tab): the artifact as the detector
+  found it, `[det0 det1)`, then the bounds used instead, `[t0 t1)`
+  (`EphysDataset.ArtifactAdjustments`). A detection is matched by its bounds
+  to a quarter of a sample; one the detector no longer finds is not applied.
+  One adjustment is written as a flat `[det0, det1, t0, t1]`.
 - `applyManifest()` restores `probe.file`, `exclude_channels`,
-  `reference_exclude`, `manual_artifacts`, a `"manual"`
+  `reference_exclude`, `manual_artifacts`, `artifact_adjustments`, a `"manual"`
   `sorting.results_dir`, `behavior.file` and `behavior.pairing`, the
   associations as recorded even while their file or folder is not there (the
   steps then report them missing rather than use something else).

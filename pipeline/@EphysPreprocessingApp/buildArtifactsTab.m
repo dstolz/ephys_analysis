@@ -20,7 +20,10 @@ function buildArtifactsTab(obj)
 %   summary with its per-channel table. With a probe assigned to the
 %   dataset the viewer and the table can follow the probe layout, show one
 %   shank and colour the channels by shank (syncArtProbeControls). The
-%   wheel and keys scale the plot's voltage and time (onArtViewInput).
+%   wheel and keys scale the plot's voltage and time, S or Shade artifacts
+%   turns the shading off and on, and Ctrl+drag moves the chosen artifact's
+%   onset or offset, kept for the dataset (Restore bounds puts them back;
+%   onArtViewInput).
 %
 %   See also EphysDataset.detectArtifacts, EphysDataset.analyzeArtifacts,
 %   EphysDataset.artifactIntervals, EphysDataset.channelLayout,
@@ -205,9 +208,9 @@ mid.Padding = [0 0 0 0];
 mid.RowSpacing = 4;
 mid.RowHeight = {'fit', 'fit', 'fit', 'fit', '1x', 'fit'};
 
-nav = uigridlayout(mid, [1 8]);
+nav = uigridlayout(mid, [1 9]);
 nav.Padding = [0 0 0 0]; nav.ColumnSpacing = 6;
-nav.ColumnWidth = {'fit', 34, 64, 'fit', 34, '1x', 'fit', 60};
+nav.ColumnWidth = {'fit', 34, 64, 'fit', 34, 'fit', '1x', 'fit', 60};
 uilabel(nav, "Text", "Detected artifacts", "FontWeight", "bold");
 obj.ArtViewPrevButton = uibutton(nav, "Text", char(9664), "Tooltip", "Previous artifact", ...
     "ButtonPushedFcn", @(~,~) stepArtifact(obj, -1));
@@ -217,6 +220,10 @@ obj.ArtViewSpinner = uispinner(nav, "Limits", [1 Inf], "Step", 1, "RoundFraction
 obj.ArtViewCountLabel = uilabel(nav, "Text", "of 0");
 obj.ArtViewNextButton = uibutton(nav, "Text", char(9654), "Tooltip", "Next artifact", ...
     "ButtonPushedFcn", @(~,~) stepArtifact(obj, 1));
+obj.ArtViewRestoreButton = uibutton(nav, "Text", "Restore bounds", "Enable", "off", "Tooltip", ...
+    "Put this artifact's onset and offset back where the detector found them " + ...
+    "(Ctrl+drag over the plot moves them).", ...
+    "ButtonPushedFcn", @(~,~) obj.onArtViewInput("restore", []));
 uilabel(nav, "Text", "");
 uilabel(nav, "Text", "Context (ms):", "HorizontalAlignment", "right");
 obj.ArtViewContextField = uieditfield(nav, "numeric", "Value", 0, "Limits", [0 60000], ...
@@ -241,9 +248,9 @@ obj.ArtViewShankColorCheckBox = uicheckbox(chans, "Text", "Colour by shank", "Va
     "Draw each shank's kept signal in its own colour (needs a probe assigned to the dataset).", ...
     "ValueChangedFcn", @(~,~) obj.drawArtifactView());
 
-sc = uigridlayout(mid, [1 6]);
+sc = uigridlayout(mid, [1 7]);
 sc.Padding = [0 0 0 0]; sc.ColumnSpacing = 6;
-sc.ColumnWidth = {'fit', 150, 'fit', 70, '1x', 'fit'};
+sc.ColumnWidth = {'fit', 150, 'fit', 70, '1x', 'fit', 'fit'};
 uilabel(sc, "Text", "Scale:");
 obj.ArtViewScaleDropDown = uidropdown(sc, "Items", {'Fit the artifact', 'Fit the kept signal', 'Manual'}, ...
     "ItemsData", {'artifact', 'kept', 'manual'}, "Value", 'artifact', ...
@@ -256,6 +263,11 @@ obj.ArtViewLanesField = uieditfield(sc, "numeric", "Value", 0, "Limits", [0 Inf]
     "Microvolts between lanes: shows the spacing drawn; type one to set it by hand (Scale: Manual).", ...
     "ValueChangedFcn", @(~,~) lanesChanged(obj));
 uilabel(sc, "Text", "");
+obj.ArtViewShadeButton = uibutton(sc, "state", "Text", "Shade artifacts", "Value", true, ...
+    "Tooltip", "Shade the detected artifacts (orange) and the manual periods (red) over the " + ...
+    "signal; off to see the signal under them (S over the plot). The chosen artifact's bounds " + ...
+    "stay drawn as dashed lines.", ...
+    "ValueChangedFcn", @(~,~) obj.onArtViewInput("shade", []));
 obj.ArtViewResetButton = uibutton(sc, "Text", "Reset view", ...
     "Tooltip", "Show the whole window at the Scale fit (R over the plot)", ...
     "ButtonPushedFcn", @(~,~) obj.onArtViewInput("reset", []));
@@ -272,7 +284,8 @@ obj.drawArtifactView();   % the empty state
 uilabel(mid, "WordWrap", "on", "FontColor", [0.45 0.45 0.45], "Text", ...
     "Pointer over the plot: wheel zooms time, drag or " + char(8592) + "/" + char(8594) + ...
     " pans, Shift+" + char(8592) + "/" + char(8594) + " zooms time, Ctrl+wheel, " + ...
-    char(8593) + "/" + char(8595) + " or +/" + char(8722) + " scale the voltage, R resets.");
+    char(8593) + "/" + char(8595) + " or +/" + char(8722) + " scale the voltage, S shades, R resets. " + ...
+    "Hold Ctrl and drag to move the artifact's nearer bound (dashed); it is saved for the dataset.");
 
 % =========== right: the preview's summary and per-channel table ===========
 right = uigridlayout(g, [3 1]);
@@ -290,7 +303,7 @@ obj.ArtSummaryLabel = uilabel(sg, "Text", "Pick a dataset and press Detect / Pre
 obj.ArtChannelTable = uitable(right, "RowName", {});
 obj.refreshArtChannelTable();   % its columns
 
-obj.routeFigureInput();         % the wheel and keys on the plot
+obj.routeFigureInput();         % the wheel, keys and buttons on the plot
 end
 
 

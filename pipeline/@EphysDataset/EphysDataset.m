@@ -175,6 +175,17 @@ classdef EphysDataset < handle
         % manualArtifactMask.
         ManualArtifacts (:,2) double = zeros(0,2)
 
+        % Detected artifacts whose bounds were moved by hand (Artifacts tab):
+        % [k x 4] of [detStart detEnd tStart tEnd] in seconds,
+        % recording-relative. The detected artifact [detStart detEnd) - one
+        % row of the detector's output, as analyzeArtifacts lists it - is
+        % used as [tStart tEnd) wherever the automatic detection applies
+        % (adjustArtifacts: artifactIntervals, EphysPipeline, the Visualize
+        % overlay); an adjustment whose artifact the detector no longer
+        % finds is left alone. Saved in the manifest. See
+        % setArtifactAdjustment.
+        ArtifactAdjustments (:,4) double = zeros(0,4)
+
         % Automatic artifact-detection configuration applied by toBin (when
         % Enabled) to zero large per-channel amplitude deviations before the
         % .bin is written; never touches the recording files. Set from the Artifacts
@@ -255,6 +266,8 @@ classdef EphysDataset < handle
         X      = blankArtifacts(obj, X, mask, opts)
         mask   = manualArtifactMask(obj, nSamp, sampleOffset, Fs, iv)
         addArtifact(obj, t0, t1)
+        [iv, adjusted, row] = adjustArtifacts(obj, iv)
+        setArtifactAdjustment(obj, detected, bounds)
         info   = toBin(obj, opts)
         info   = matrixToBin(obj, X, opts)
         result = runKilosort(obj, opts)
@@ -734,7 +747,13 @@ classdef EphysDataset < handle
             if isempty(ma); ma = zeros(0, 2); end
             m.manual_artifacts = ma;
 
-            m.bin = struct('file', obj.BinFile, 'exists', isfile(obj.BinFile));
+            % Detected artifacts moved by hand ([k x 4]: the detected bounds,
+            % then the bounds used; see ArtifactAdjustments).
+            aa = obj.ArtifactAdjustments;
+            if isempty(aa); aa = zeros(0, 4); end
+            m.artifact_adjustments = aa;
+
+            m.bin =struct('file', obj.BinFile, 'exists', isfile(obj.BinFile));
 
             ks = struct('has_results', false, 'results_dir', "", ...
                 'num_units', NaN, 'state', "");
@@ -785,7 +804,8 @@ classdef EphysDataset < handle
         function [tf, why] = applyManifest(obj)
             %applyManifest  Restore the editable per-dataset state from the
             %   on-disk manifest (if present) so a re-scan recovers prior work:
-            %   probe file, channel exclusions, manual artifact periods, an
+            %   probe file, channel exclusions, manual artifact periods, the
+            %   detected artifacts' bounds moved by hand, an
             %   explicit ("manual") sorting folder and the behavior file. The
             %   probe, sorting folder and behavior file are restored as
             %   recorded even while they are not there (an unplugged disk, a
@@ -837,6 +857,17 @@ classdef EphysDataset < handle
                 if size(ma, 2) == 2
                     obj.ManualArtifacts = ma;
                 end
+            end
+            if isfield(m, 'artifact_adjustments')
+                aa = m.artifact_adjustments;
+                if isnumeric(aa) && isvector(aa) && numel(aa) == 4
+                    aa = double(aa(:)).';           % jsondecode collapsed 1x4
+                elseif isnumeric(aa) && size(aa, 2) == 4
+                    aa = double(aa);
+                else
+                    aa = zeros(0, 4);
+                end
+                obj.ArtifactAdjustments = aa;
             end
             if isfield(m, 'sorting') && isstruct(m.sorting) ...
                     && isfield(m.sorting, 'source') && isfield(m.sorting, 'results_dir')

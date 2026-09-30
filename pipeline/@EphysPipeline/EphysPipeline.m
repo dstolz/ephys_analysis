@@ -642,9 +642,12 @@ classdef EphysPipeline < handle
             %   (until reset), keyed by a fingerprint of what decides it: the
             %   schema, the detector settings, the channels of the common
             %   reference, ExcludeChannels and the recording files; a change
-            %   to any of them detects again. The manual periods are merged in
-            %   on every call (EphysDataset.mergeIntervals), so marking one on
-            %   the Visualize tab needs no new detection. Schema 3: half-open
+            %   to any of them detects again. The bounds moved by hand
+            %   (d.ArtifactAdjustments, EphysDataset.adjustArtifacts) are
+            %   applied and the manual periods merged in on every call
+            %   (EphysDataset.mergeIntervals), so moving a bound on the
+            %   Artifacts tab or marking a period on the Visualize tab needs
+            %   no new detection. Schema 3: half-open
             %   [tStart tEnd) intervals of the automatic detection. SOURCE is
             %   "computed", "cache", "reused" (detected earlier in this run) or
             %   the manual-only note. REPORT(done, total, message) hears how
@@ -708,9 +711,14 @@ classdef EphysPipeline < handle
                 end
             end
             obj.Detections(key) = auto;
-            iv = EphysDataset.mergeIntervals([d.ManualArtifacts; auto]);
-            obj.log("[artifacts] %s: %d interval(s) %s, %d manual period(s)%s", d.Name, size(auto, 1), how, ...
-                size(d.ManualArtifacts, 1), coverageNote(iv, d));
+            [adj, moved] = d.adjustArtifacts(auto);
+            iv = EphysDataset.mergeIntervals([d.ManualArtifacts; adj]);
+            movedNote = "";
+            if any(moved)
+                movedNote = sprintf(" (%d with bounds moved by hand)", nnz(moved));
+            end
+            obj.log("[artifacts] %s: %d interval(s) %s%s, %d manual period(s)%s", d.Name, size(auto, 1), how, ...
+                movedNote, size(d.ManualArtifacts, 1), coverageNote(iv, d));
         end
 
         function [iv, source] = artifactIntervalsForStep(obj, d, applyAuto, report)

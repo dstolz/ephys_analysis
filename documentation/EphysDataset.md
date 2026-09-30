@@ -450,6 +450,7 @@ The constructor errors (`EphysDataset:NoFolder`) if the folder does not exist.
 | `OutputDir` | `""` | output folder (`""` = `Folder`) |
 | `Manifest` | empty | optional provenance `Manifest` object |
 | `ManualArtifacts` | `zeros(0,2)` | manual artifact periods, `[tStart tEnd)` seconds (half-open), recording-relative. Saved to and restored from the dataset manifest |
+| `ArtifactAdjustments` | `zeros(0,4)` | detected artifacts whose bounds were moved by hand: `[detStart detEnd tStart tEnd]` seconds, recording-relative; see [Moved bounds](#moved-bounds). Saved to and restored from the dataset manifest |
 | `ArtifactConfig` | `defaultArtifactConfig()` | automatic artifact-detector settings |
 | `SortingDir` | `""` | an explicit sorted-output folder (the one holding `params.py`). `""` = auto-discover under `kilosortDir()`; see [Sorted output](#sorted-output) |
 | `BehaviorFile` | `""` | the associated Epsych2 session `.mat`; see [Behavior](#behavior-epsych2) |
@@ -837,11 +838,13 @@ before any signal is derived, and to `spikesToMat`, which rejects the events
 inside them or (`ArtifactMode="erase"`) erases them before detection:
 
 - all `ManualArtifacts` (unless `IncludeManual=false`, which gives the
-  automatic detection alone, as the pipeline caches it), plus
+  automatic detection alone, as found and as the pipeline caches it), plus
 - automatic intervals from the same chunked detector, when
   `ArtifactConfig.Enabled` is true (or `IncludeAuto=true`). Each chunk's intervals
   are shifted by the running sample offset. `ExcludeChannels` take no part in
-  the detection.
+  the detection. The bounds moved by hand in `ArtifactAdjustments` are applied
+  to them before the merge ([Moved bounds](#moved-bounds); not with
+  `IncludeManual=false`).
 
 Overlapping or touching periods are merged, so an artifact that runs across a
 chunk boundary comes back as one period. Empty periods (`tEnd <= tStart`,
@@ -860,6 +863,34 @@ intervals are the same in either mode.
   logical mask `toBin` uses, for the intervals `iv` (default `ManualArtifacts`). It covers samples `round(t0·Fs) … round(t1·Fs) − 1` as
   0-based absolute indices (`EphysDataset.artifactSamples`, mapped into the
   block).
+
+#### Moved bounds
+
+A detected artifact's onset or offset can be moved by hand (the GUI's
+Artifacts tab: Ctrl+drag on its viewer). `ArtifactAdjustments` keeps each one
+as `[detStart detEnd tStart tEnd]`: the artifact as the detector found it (one
+row of `analyzeArtifacts`' `intervals`, one chunk's run), then the bounds used
+instead.
+
+- `setArtifactAdjustment(detected, bounds)` records `bounds` for the detected
+  artifact `detected`, replacing an earlier adjustment of it. The bounds are
+  put on the sample grid and inside the recording and must keep a sample
+  (`EphysDataset:setArtifactAdjustment:Empty`). Bounds on the detected
+  samples, or `[]`, put it back as detected. The caller writes the manifest.
+- `[iv, adjusted, row] = adjustArtifacts(iv)` returns detected artifacts
+  `iv` row for row, the moved ones with their new bounds. A row is matched by
+  its detected bounds to a quarter of a sample, and nothing is merged.
+  `adjusted` flags the moved rows and `row` gives their `ArtifactAdjustments`
+  row.
+
+`artifactIntervals`, `EphysPipeline.artifactIntervalsFor` (on the cached
+detection, which stays as found) and the GUI's Visualize overlay apply them.
+An adjustment whose artifact the detector no longer finds (other settings,
+another common reference) is not applied. It stays in the list and applies
+again if those settings come back. `toBin`'s own chunk-by-chunk detection
+(`Blank`, or `ArtifactConfig.Enabled` without `ArtifactIntervals`) erases the
+detections as found and warns (`EphysDataset:toBin:AdjustmentsIgnored`); pass
+`ArtifactIntervals=ds.artifactIntervals()`, as `runKilosort` does.
 
 Every artifact period, manual or detected, is **half-open** `[t0, t1)` on that
 clock, and every route removes the same samples, `round(t0·Fs)` up to but not
@@ -1763,7 +1794,8 @@ is in [file-formats.md](file-formats.md#dataset-manifest).
   ([ManifestViewerApp](ManifestViewerApp.md)).
 - `[tf, why] = applyManifest()` restores `ProbeFile`,
   `ExcludeChannels`, `ReferenceExclude` with its `ReferenceExcludeSource`
-  (`reference_exclude`), `ManualArtifacts`, a manual `SortingDir`,
+  (`reference_exclude`), `ManualArtifacts`, `ArtifactAdjustments`
+  (`artifact_adjustments`), a manual `SortingDir`,
   `BehaviorFile` and `TrialPairing`. The probe, sorting folder and behavior
   file are restored as recorded even while they are not there (an unplugged
   disk, a share that is down): the steps then report them missing rather than

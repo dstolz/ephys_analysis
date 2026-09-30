@@ -585,6 +585,93 @@ check(startsWith(app.ArtViewNoteLabel.Text, "Detection settings changed"), 'a ch
 app.ArtThresholdField.Value = 6300;
 app.onArtifactControlsChanged();
 check(startsWith(app.ArtViewNoteLabel.Text, "Red is what"), 'setting it back clears the mark');
+
+% Moving a bound: Ctrl arms it (the pointer shows which bound), Ctrl+drag
+% moves the nearer one on the sample grid, the release keeps it for the dataset.
+% An artifact with a few samples clear of every other period either side
+% (allMask: row g + 1 is sample g).
+kMove = 0;
+for kc = 1:nArt
+    sOn = round(sm.intervals(kc, 1) * Fs); sOff = round(sm.intervals(kc, 2) * Fs);
+    if sOn >= 4 && sOff + 4 <= nSamp && ~any(allMask(sOn - 2:sOn)) && ~any(allMask(sOff + 1:sOff + 4))
+        kMove = kc;
+        break
+    end
+end
+check(kMove > 0, 'the fixture has an artifact with room to move its bounds');
+det1 = sm.intervals(kMove, :);
+app.ArtViewSpinner.Value = kMove;
+app.showArtifactView();
+app.selectTab(app.TabArtifacts);
+drawnow;
+pp = getpixelposition(ax, true);
+box = [pp(1:2) + ax.InnerPosition(1:2) - ax.OuterPosition(1:2), ax.InnerPosition(3:4)];
+at = @(xms) [box(1) + (xms - ax.XLim(1)) / diff(ax.XLim) * box(3), box(2) + box(4) / 2];   % ms -> pixel
+samp = 1e3 / Fs;                          % one sample, in the plot's ms
+kEvt = @(k, mods) struct('Key', k, 'Modifier', {mods});
+pan0 = ax.Interactions;
+app.Fig.CurrentPoint = at(-samp);         % just before the onset
+app.Fig.WindowKeyPressFcn(app.Fig, kEvt('control', {'control'}));
+check(app.ArtView.edit.armed && strcmp(app.Fig.Pointer, 'left') && isempty(ax.Interactions), ...
+    'Ctrl over the plot: a resize pointer for the nearer bound, the axes'' own pan off');
+app.Fig.CurrentPoint = at(1e3 * diff(det1) + samp);
+app.Fig.WindowButtonMotionFcn(app.Fig, []);
+check(strcmp(app.Fig.Pointer, 'right'), 'past the offset the pointer shows the offset');
+app.Fig.CurrentPoint = at(-samp);
+app.Fig.SelectionType = 'alt';            % Ctrl+press
+app.Fig.WindowButtonDownFcn(app.Fig, []);
+app.Fig.CurrentPoint = at(-2.2 * samp);
+app.Fig.WindowButtonMotionFcn(app.Fig, []);
+onLine = findobj(ax, 'Tag', 'artOnset');
+check(app.ArtView.edit.bound == "on" && abs(onLine.Value + 2 * samp) < 1e-9, ...
+    'Ctrl+drag moves the dashed onset with the pointer, on the sample grid');
+app.Fig.WindowButtonUpFcn(app.Fig, []);
+dA = app.Project.Datasets(1);
+moved1 = [det1(1) - 2 / Fs, det1(2)];
+mA = readJsonFile(dA.manifestFile());
+check(size(dA.ArtifactAdjustments, 1) == 1 && max(abs(dA.ArtifactAdjustments - [det1 moved1])) < 1e-12 ...
+    && numel(mA.artifact_adjustments) == 4 && contains(ax.Title.String, "moved by hand") ...
+    && contains(app.ArtViewCountLabel.Text, "1 moved") && strcmp(app.ArtViewRestoreButton.Enable, 'on') ...
+    && numel(findobj(ax, 'Tag', 'artDetected')) == 2 && contains(app.StatusBar.Text, "onset moved"), ...
+    'the release moves the onset two samples earlier for the dataset (its manifest); the detected bounds stay dotted');
+movedMask = manMask | dA.manualArtifactMask(nSamp, 0, Fs, dA.adjustArtifacts(sm.intervals));
+check(nKept() == numAmp * (nSamp - nnz(movedMask)) && nnz(movedMask) == nnz(allMask) + 2, ...
+    'a run removes the moved span: two more samples red');
+app.Fig.CurrentPoint = at(1e3 * diff(det1) + 0.4 * samp);
+app.Fig.WindowButtonDownFcn(app.Fig, []);
+app.Fig.CurrentPoint = at(1e3 * diff(det1) + 3 * samp);
+app.Fig.WindowButtonMotionFcn(app.Fig, []);
+app.Fig.WindowButtonUpFcn(app.Fig, []);
+check(size(dA.ArtifactAdjustments, 1) == 1 && max(abs(dA.ArtifactAdjustments(3:4) - (moved1 + [0 3 / Fs]))) < 1e-12, ...
+    'a second drag moves the offset of the same artifact (one adjustment, both bounds)');
+app.Fig.WindowKeyReleaseFcn(app.Fig, kEvt('control', {}));
+check(~app.ArtView.edit.armed && strcmp(app.Fig.Pointer, 'arrow') && isequal(ax.Interactions, pan0) ...
+    && isempty(app.Fig.WindowButtonMotionFcn), 'letting go of Ctrl puts the pointer and the pan back');
+app.Fig.SelectionType = 'normal';
+app.Fig.WindowButtonDownFcn(app.Fig, []);
+app.Fig.WindowButtonUpFcn(app.Fig, []);
+check(size(dA.ArtifactAdjustments, 1) == 1 && max(abs(dA.ArtifactAdjustments(3:4) - (moved1 + [0 3 / Fs]))) < 1e-12, ...
+    'a press without Ctrl moves nothing');
+% Shading: S over the plot and the button toggle it; the chosen bounds stay.
+nReg = numel(findobj(ax, 'Type', 'constantregion'));
+app.Fig.CurrentPoint = at(0);
+app.Fig.WindowKeyPressFcn(app.Fig, kEvt('s', {}));
+check(~app.ArtViewShadeButton.Value && isempty(findobj(ax, 'Type', 'constantregion')) && nReg > 0 ...
+    && isscalar(findobj(ax, 'Tag', 'artOnset')) && isscalar(findobj(ax, 'Tag', 'artOffset')), ...
+    'S turns the shading off; the chosen artifact''s bounds stay drawn');
+app.ArtViewShadeButton.Value = true;
+app.ArtViewShadeButton.ValueChangedFcn(app.ArtViewShadeButton, []);
+check(numel(findobj(ax, 'Type', 'constantregion')) == nReg && isequal(app.ArtViewShadeButton.BackgroundColor, [1 0.8 0.3]), ...
+    'Shade artifacts turns it back on (amber while on)');
+app.ArtViewRestoreButton.ButtonPushedFcn(app.ArtViewRestoreButton, []);
+mA = readJsonFile(dA.manifestFile());
+check(isempty(dA.ArtifactAdjustments) && ~contains(ax.Title.String, "moved") && app.ArtViewCountLabel.Text == "of " + nArt ...
+    && strcmp(app.ArtViewRestoreButton.Enable, 'off') && isempty(findobj(ax, 'Tag', 'artDetected')) ...
+    && nKept() == numAmp * (nSamp - nnz(allMask)) && isempty(mA.artifact_adjustments), ...
+    'Restore bounds puts the artifact back as detected (and in the manifest)');
+app.selectTab(app.TabProject);
+app.ArtViewSpinner.Value = 1;
+app.showArtifactView();
 app.ArtViewNextButton.ButtonPushedFcn(app.ArtViewNextButton, []);
 check(app.ArtViewSpinner.Value == 2 && startsWith(ax.Title.String, "Artifact 2 of") ...
     && strcmp(app.ArtViewPrevButton.Enable, 'on'), 'Next steps to the second artifact');
@@ -651,7 +738,7 @@ app.onDetectArtifacts();
 w = app.ArtView.win;
 lanes = @() string(ax.YTickLabel(:)).';   % bottom lane first
 artT = app.ArtChannelTable.Data;
-check(isequal(lanes(), w.names([1 3 2 4])) && numel(findall(ax, 'Type', 'constantline')) == 1 ...
+check(isequal(lanes(), w.names([1 3 2 4])) && isscalar(findall(ax, 'Type', 'constantline', 'InterceptAxis', 'y')) ...
     && isequal(cell2mat(artT(:, 1)).', [4 2 3 1]) && isequal(cell2mat(artT(:, 3)).', [1 1 2 2]), ...
     'the lanes and the table follow the probe (a dotted line between the shanks, a Shank column)');
 k1 = findobj(ax, 'Type', 'line', 'DisplayName', 'Shank 1');
@@ -660,7 +747,7 @@ check(~isempty(k1) && ~isempty(k2) && ~isequal(k1(1).Color, k2(1).Color) ...
     && isempty(findobj(ax, 'Type', 'line', 'DisplayName', 'Kept')), 'colour by shank: each shank in its own colour');
 app.ArtProbeOrderCheckBox.Value = false;
 app.ArtProbeOrderCheckBox.ValueChangedFcn(app.ArtProbeOrderCheckBox, []);
-check(isequal(lanes(), w.names(4:-1:1)) && isempty(findall(ax, 'Type', 'constantline')) ...
+check(isequal(lanes(), w.names(4:-1:1)) && isempty(findall(ax, 'Type', 'constantline', 'InterceptAxis', 'y')) ...
     && isequal(cell2mat(app.ArtChannelTable.Data(:, 1)).', 1:4), 'unticked: recording order again, plot and table');
 app.ArtViewShankDropDown.Value = '2';
 app.drawArtifactView();

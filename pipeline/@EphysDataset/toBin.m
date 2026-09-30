@@ -29,6 +29,9 @@ function info = toBin(obj, opts)
 %     OverlapSamples (1,1) double  samples carried across file edges (overlap mode)
 %     Blank          (1,1) logical  force automatic artifact detect + blank.
 %                    When false, blanking still runs if ds.ArtifactConfig.Enabled.
+%                    It erases the detections as found, so bounds moved by
+%                    hand (ArtifactAdjustments) warn and are not applied:
+%                    pass ArtifactIntervals=ds.artifactIntervals() for them.
 %                    ExcludeChannels take no part in the detection, and the
 %                    "commonmode" method measures the chunk before the common
 %                    reference is subtracted (see detectArtifacts).
@@ -157,6 +160,14 @@ if ~givenIv
     if isempty(listIv); listIv = zeros(0, 2); end
 end
 doBlank   = ~givenIv && (opts.Blank || acfg.Enabled);
+if doBlank && ~isempty(obj.ArtifactAdjustments)
+    % The chunk-by-chunk detection below cannot move a bound into a chunk
+    % already written; artifactIntervals applies them.
+    warning('EphysDataset:toBin:AdjustmentsIgnored', ...
+        ['%s has %d detected artifact(s) with bounds moved by hand; toBin''s own detection ' ...
+        'erases them as detected. Pass ArtifactIntervals=ds.artifactIntervals() to erase them ' ...
+        'as moved (runKilosort and the pipeline do).'], obj.Name, size(obj.ArtifactAdjustments, 1));
+end
 artMethod = opts.ArtifactMethod;        if artMethod == "";       artMethod = acfg.Method;      end
 artThr    = opts.ArtifactThreshold;     if isnan(artThr);         artThr    = acfg.Threshold;   end
 artWinMs  = opts.ArtifactRmsWindowMs;   if isnan(artWinMs);       artWinMs  = acfg.RmsWindowMs;  end

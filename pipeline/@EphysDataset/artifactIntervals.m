@@ -5,7 +5,9 @@ function iv = artifactIntervals(obj, opts)
 %     * every manual period in ds.ManualArtifacts (unless IncludeManual is
 %       false), and
 %     * the automatic amplitude-deviation detector's intervals when
-%       ds.ArtifactConfig.Enabled (or opts.IncludeAuto) is true.
+%       ds.ArtifactConfig.Enabled (or opts.IncludeAuto) is true, with the
+%       bounds moved by hand in ds.ArtifactAdjustments (adjustArtifacts;
+%       unless IncludeManual is false).
 %   Overlapping / adjacent periods are merged into one. Every period is
 %   half-open, [tStart tEnd) on the 0-based sample clock (detectArtifacts,
 %   manualArtifactMask), so an artifact cut by a chunk boundary comes back as
@@ -26,8 +28,9 @@ function iv = artifactIntervals(obj, opts)
 %   ds.ArtifactConfig)
 %   -------------------------------------------------------------------
 %     IncludeAuto  logical  run the detector (default = ds.ArtifactConfig.Enabled)
-%     IncludeManual logical  add ds.ManualArtifacts (default true; false gives
-%       the automatic detection alone, as EphysPipeline caches it)
+%     IncludeManual logical  add ds.ManualArtifacts and apply
+%       ds.ArtifactAdjustments (default true; false gives the automatic
+%       detection alone, as the detector finds it and EphysPipeline caches it)
 %     Files        (1,:) string  subset/order of files (default: all)
 %     Method/Threshold/RmsWindowMs/MergeGapMs/MinChannels/PadMs   detection params
 %     Filter/FilterType/FilterCutoff/FilterOrder   detect on a filtered view
@@ -138,6 +141,9 @@ for i = 1:nChunks
         auto = [auto; r.intervals + offsetSamp / Fs]; %#ok<AGROW> shift to global seconds
     end
     offsetSamp = offsetSamp + r.nSamples;
+end
+if opts.IncludeManual
+    auto = obj.adjustArtifacts(auto);   % the bounds moved by hand, before any merge
 end
 
 iv = mergeIntervals([manual; auto]);

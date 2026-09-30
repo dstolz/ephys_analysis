@@ -2,10 +2,14 @@ function drawArtifactView(obj)
 %drawArtifactView  Draw one detected artifact: what a run removes and keeps.
 %   Draws ArtView.win (read by showArtifactView) on the Artifacts tab's
 %   axes: the channels the artifact is largest on (ArtViewChannelsField), one
-%   lane each, against time from the artifact's start. Samples a run would
-%   remove are red and the ones it keeps black. Detected artifacts are shaded
-%   orange (the chosen one outlined) and manual periods red, as on the
-%   Visualize tab. What is removed follows the controls as they are now:
+%   lane each, against time from the artifact's detected start. Samples a
+%   run would remove are red and the ones it keeps black. Detected artifacts
+%   are shaded orange and manual periods red, as on the Visualize tab, while
+%   the shading is on (ArtViewShadeButton, the S key); the chosen artifact's
+%   bounds are dashed lines either way, the ones a Ctrl+drag moves
+%   (onArtViewInput). Detected artifacts are drawn with the bounds moved by
+%   hand (EphysDataset.adjustArtifacts); a moved one also shows where the
+%   detector put them (dotted grey). What is removed follows the controls as they are now:
 %   manual periods always, the detected artifacts when automatic detection
 %   is enabled and silences them in sorting or rejects spikes inside them.
 %   The line above the axes says which, and flags a preview whose detection
@@ -37,7 +41,13 @@ V = obj.ArtView;
 n = size(V.intervals, 1);
 L = V.layout;
 hasProbe = ~isempty(L) && L.hasProbe;
-syncControls(obj, n, hasProbe);
+d = obj.currentDataset();
+ivAll = V.intervals;                 % the preview's detections, bounds as moved by hand
+moved = false(n, 1);
+if ~isempty(d)
+    [ivAll, moved] = d.adjustArtifacts(ivAll);
+end
+syncControls(obj, n, hasProbe, moved);
 [obj.ArtViewNoteLabel.Text, obj.ArtViewNoteLabel.FontColor] = removalNote(obj, V);
 
 prevX = ax.XLim;
@@ -69,18 +79,22 @@ if isempty(w) || isfield(w, 'error')
 end
 
 % --- what a run removes -------------------------------------------------------
-d = obj.currentDataset();
 [m, nCh] = size(w.X);
+inWin = @(iv) iv(:, 2) >= w.s0 / w.Fs & iv(:, 1) <= (w.s0 + m - 1) / w.Fs;
 manual = zeros(0, 2);
 if ~isempty(d) && ~isempty(d.ManualArtifacts)
     manual = d.ManualArtifacts;
-    manual = manual(manual(:, 2) >= w.s0 / w.Fs & manual(:, 1) <= (w.s0 + m - 1) / w.Fs, :);
+    manual = manual(inWin(manual), :);
 end
+shown = inWin(ivAll);                % the detected artifacts in the window
+chosen = ivAll(w.k, :);
 maskManual = false(m, 1);
+maskDetected = false(m, 1);
 if ~isempty(d)
     maskManual = d.manualArtifactMask(m, w.s0, w.Fs, manual);
+    maskDetected = d.manualArtifactMask(m, w.s0, w.Fs, ivAll(shown, :));
 end
-removed = maskManual | (autoRemoved(obj) & w.maskDetected);
+removed = maskManual | (autoRemoved(obj) & maskDetected);
 
 % --- channels: the ones the artifact stands out most on (on the chosen shank) --
 kept = ~removed;
@@ -128,7 +142,7 @@ if fixed
 elseif scale == "kept"
     % Robust spread of the signal outside every artifact, so leftovers at an
     % artifact's edges (or artifacts a run keeps) are clipped, not fitted.
-    bg = ~(maskManual | w.maskDetected);
+    bg = ~(maskManual | maskDetected);
     if ~any(bg); bg = kept; end
     half = min(6 * max(1.4826 * median(abs(Y(bg, :)), 1)), max(abs(Y), [], 'all'));
 else
@@ -145,7 +159,7 @@ obj.ArtViewLanesField.Value = spacing;         % shows the spacing drawn
 offsets = (nShow - 1:-1:0) * spacing;         % first channel on top
 
 % --- time: the whole window, or the zoom kept from the last draw of it ---------
-t = ((w.s0 + (0:m - 1)') / w.Fs - w.on) * 1e3;   % ms from the artifact's start
+t = ((w.s0 + (0:m - 1)') / w.Fs - w.on) * 1e3;   % ms from the artifact's detected start
 span = [t(1) t(end)];
 if span(2) <= span(1); span = span(1) + [-1 1]; end
 key = [w.k, w.s0, m];
@@ -167,19 +181,28 @@ yRem  = Y + offsets;    yRem(~wide, :) = NaN;
 hold(ax, 'on');
 rel = @(s) (s - w.on) * 1e3;
 hDet = gobjects(0, 1);
-for i = 1:size(w.detected, 1)
-    r = xregion(ax, rel(w.detected(i, 1)), rel(w.detected(i, 2)), ...
-        'FaceColor', [0.95 0.6 0.1], 'FaceAlpha', 0.18, 'DisplayName', "Detected artifact");
-    if abs(w.detected(i, 1) - w.on) < 0.5 / w.Fs && abs(w.detected(i, 2) - w.off) < 0.5 / w.Fs
-        set(r, 'EdgeColor', [0.8 0.4 0], 'LineWidth', 1, 'LineStyle', '--');   % the chosen one
-    end
-    hDet(end+1, 1) = r; %#ok<AGROW>
-end
 hMan = gobjects(0, 1);
-for i = 1:size(manual, 1)
-    hMan(end+1, 1) = xregion(ax, rel(manual(i, 1)), rel(manual(i, 2)), ...
-        'FaceColor', [0.85 0.2 0.2], 'FaceAlpha', 0.15, 'DisplayName', "Manual period"); %#ok<AGROW>
+if logical(obj.ArtViewShadeButton.Value)
+    for i = find(shown).'
+        r = xregion(ax, rel(ivAll(i, 1)), rel(ivAll(i, 2)), ...
+            'FaceColor', [0.95 0.6 0.1], 'FaceAlpha', 0.18, 'DisplayName', "Detected artifact");
+        if i == w.k
+            r.Tag = 'artChosen';             % follows a Ctrl+drag of its bounds
+        end
+        hDet(end+1, 1) = r; %#ok<AGROW>
+    end
+    for i = 1:size(manual, 1)
+        hMan(end+1, 1) = xregion(ax, rel(manual(i, 1)), rel(manual(i, 2)), ...
+            'FaceColor', [0.85 0.2 0.2], 'FaceAlpha', 0.15, 'DisplayName', "Manual period"); %#ok<AGROW>
+    end
 end
+% The chosen artifact's bounds, the lines a Ctrl+drag moves; where the
+% detector put them when they have been moved.
+if moved(w.k)
+    xline(ax, rel([w.on w.off]), ':', 'Color', [0.45 0.45 0.45], 'LineWidth', 1, 'Tag', 'artDetected');
+end
+xline(ax, rel(chosen(1)), '--', 'Color', [0.8 0.4 0], 'LineWidth', 1.2, 'Tag', 'artOnset');
+xline(ax, rel(chosen(2)), '--', 'Color', [0.8 0.4 0], 'LineWidth', 1.2, 'Tag', 'artOffset');
 if byProbe
     sh = L.shank(ch);                        % a dotted line between shanks
     for i = find(~sameShank(sh(1:end-1), sh(2:end)))
@@ -208,8 +231,14 @@ legend(ax, hLeg, 'Location', 'southoutside', 'NumColumns', min(numel(hLeg), 4), 
 
 set(ax, 'XLim', xl, 'YLim', [-0.5, nShow - 0.5] * spacing, 'TickLabelInterpreter', 'none', ...
     'YTick', (0:nShow - 1) * spacing, 'YTickLabel', w.names(ch(end:-1:1)));
-xlabel(ax, "Time from the artifact's start (ms)");
-title(ax, sprintf('Artifact %d of %d at %.4f s, %s long', w.k, w.n, w.on, durationText(w.off - w.on)));
+if moved(w.k)
+    xlabel(ax, "Time from the artifact's detected start (ms)");
+    title(ax, sprintf('Artifact %d of %d at %.4f s, %s long (bounds moved by hand)', ...
+        w.k, w.n, chosen(1), durationText(diff(chosen))));
+else
+    xlabel(ax, "Time from the artifact's start (ms)");
+    title(ax, sprintf('Artifact %d of %d at %.4f s, %s long', w.k, w.n, chosen(1), durationText(diff(chosen))));
+end
 where = "";
 if numel(pool) < nCh
     where = " on shank " + shankSel;
@@ -290,13 +319,21 @@ v = [a, a + wid];
 end
 
 
-function syncControls(obj, n, hasProbe)
-% Spinner range and the enable state of the viewer's controls.
+function syncControls(obj, n, hasProbe, moved)
+% Spinner range, the count (with how many have bounds moved by hand) and the
+% enable state of the viewer's controls. MOVED flags the moved ones.
 has = n > 0;
 sp = obj.ArtViewSpinner;
 sp.Limits = [1 max(n, 1)];     % clamps Value
 sp.Enable = matlab.lang.OnOffSwitchState(has);
 obj.ArtViewCountLabel.Text = "of " + n;
+if any(moved)
+    obj.ArtViewCountLabel.Text = sprintf("of %d, %d moved", n, nnz(moved));
+end
+k = min(max(round(sp.Value), 1), max(n, 1));
+obj.ArtViewRestoreButton.Enable = matlab.lang.OnOffSwitchState(has && moved(min(k, end)) ...
+    && isstruct(obj.ArtView.win) && ~isfield(obj.ArtView.win, 'error'));
+obj.ArtViewShadeButton.Enable = matlab.lang.OnOffSwitchState(has);
 obj.ArtViewPrevButton.Enable = matlab.lang.OnOffSwitchState(has && sp.Value > 1);
 obj.ArtViewNextButton.Enable = matlab.lang.OnOffSwitchState(has && sp.Value < n);
 obj.ArtViewContextField.Enable = matlab.lang.OnOffSwitchState(has);

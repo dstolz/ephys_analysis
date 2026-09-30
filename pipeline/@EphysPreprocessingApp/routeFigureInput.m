@@ -1,20 +1,24 @@
 function routeFigureInput(obj)
-%routeFigureInput  Share the figure's wheel and key callbacks between the
-%   plots that take them. This wraps whatever WindowScrollWheelFcn /
-%   WindowKeyPressFcn / WindowKeyReleaseFcn is installed (kept in
-%   FigInput): while the Artifacts tab is showing, wheel turns and key
-%   presses go to onArtViewInput, while the Visualize tab is showing to
-%   onVizInput (what either does not take is dropped), and on any other
-%   tab to the handler wrapped. Key releases always go to it. Presses and
-%   releases also keep ArtView.mods, the modifiers held, as wheel events
-%   carry none. Called when the Artifacts tab is built; wrapping itself is
-%   a no-op.
+%routeFigureInput  Share the figure's wheel, key and button callbacks between
+%   the plots that take them. This wraps whatever WindowScrollWheelFcn /
+%   WindowKeyPressFcn / WindowKeyReleaseFcn / WindowButtonDownFcn /
+%   WindowButtonUpFcn is installed (kept in FigInput): while the Artifacts
+%   tab is showing, wheel turns, key presses and button presses and
+%   releases go to onArtViewInput, while the Visualize tab is showing the
+%   wheel and keys go to onVizInput (what either does not take is dropped),
+%   and otherwise to the handler wrapped (the Visualize tab's buttons are
+%   its own, onVizButtonDown / onVizButtonUp). Key releases go to
+%   onArtViewInput on any tab (letting go of Ctrl ends its bound editing)
+%   and then always to the handler wrapped. Presses and releases also keep
+%   ArtView.mods, the modifiers held, as wheel events carry none. Called
+%   when the Artifacts tab is built; wrapping itself is a no-op.
 %
 %   See also onArtViewInput, onVizInput.
 
 fig = obj.Fig;
-kinds = ["scroll", "key", "release"];
-props = {'WindowScrollWheelFcn', 'WindowKeyPressFcn', 'WindowKeyReleaseFcn'};
+kinds = ["scroll", "key", "release", "down", "up"];
+props = {'WindowScrollWheelFcn', 'WindowKeyPressFcn', 'WindowKeyReleaseFcn', ...
+    'WindowButtonDownFcn', 'WindowButtonUpFcn'};
 for i = 1:numel(kinds)
     f = fig.(props{i});
     if ~isRouter(f)
@@ -27,14 +31,16 @@ end
 
 
 function routeInput(obj, kind, src, evt)
-if kind ~= "scroll"
+if kind == "key" || kind == "release"
     obj.ArtView.mods = string(evt.Modifier);
 end
-if kind ~= "release" && isvalid(obj.Tabs)
+if kind == "release"
+    obj.onArtViewInput(kind, evt);
+elseif isvalid(obj.Tabs)
     if obj.Tabs.SelectedTab == obj.TabArtifacts
         obj.onArtViewInput(kind, evt);
         return
-    elseif obj.Tabs.SelectedTab == obj.TabVisualize
+    elseif obj.Tabs.SelectedTab == obj.TabVisualize && (kind == "scroll" || kind == "key")
         obj.onVizInput(kind, evt);
         return
     end

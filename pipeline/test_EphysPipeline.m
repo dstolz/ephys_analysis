@@ -283,6 +283,19 @@ check(contains(pipe.Results.Message(1), "cache") && isequal(readJsonFile(cacheFi
     'a new manual period needs no new detection: the cached detection is merged with the manual periods');
 check(string(cached.schema) == "ephys-artifacts/3" && isequal(EphysDataset.mergeIntervals([d1.ManualArtifacts; ...
     reshape(cached.intervals, [], 2)]), ivM), 'the cache holds the automatic detection alone');
+% A detected artifact moved by hand: applied to the cached detection, which stays as found.
+autoC = reshape(cached.intervals, [], 2);
+apart = ~EphysDataset.overlapsIntervals(autoC(:, 1), autoC(:, 2), d1.ManualArtifacts) & diff(autoC, 1, 2) >= 3 / d1.Fs;
+[~, kC] = max(diff(autoC, 1, 2) .* apart);   % the longest clear of the manual periods
+d1.setArtifactAdjustment(autoC(kC, :), autoC(kC, :) + [1 -1] / d1.Fs);
+pipe.reset(); logs = strings(0, 1);
+pipe.runArtifacts();
+ivA = pipe.artifactIntervalsFor(d1);
+check(contains(pipe.Results.Message(1), "cache") && isequal(readJsonFile(cacheFile), cached) ...
+    && isequal(ivA, EphysDataset.mergeIntervals([d1.ManualArtifacts; d1.adjustArtifacts(autoC)])) ...
+    && isequal(ivA, d1.artifactIntervals()) && ~isequal(ivA, ivM) && any(contains(logs, "1 with bounds moved by hand")), ...
+    'a moved bound needs no new detection: the cached detection takes it (logged)');
+d1.ArtifactAdjustments = zeros(0, 4);
 cfgA = cfg; cfgA.Artifacts.Threshold = 2000;
 pipe.Config = cfgA; pipe.reset(); pipe.runArtifacts();
 check(contains(pipe.Results.Message(1), "computed"), 'changing the settings invalidates the cache');

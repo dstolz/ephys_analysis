@@ -9,6 +9,8 @@ function [iv, why, source] = vizDetectedIntervals(obj)
 %     SOURCE "run"      else the automatic detection the last run used,
 %                       from <Name>_artifacts.json (loaded with the plot):
 %                       what was erased from the processed files shown
+%   Either way with the bounds moved by hand on the Artifacts tab
+%   (EphysDataset.adjustArtifacts), as a run uses them.
 %   Otherwise IV is empty, SOURCE "" and WHY says what to do (WHY is also
 %   set beside a "run" SOURCE when a preview would say more; "" with the
 %   preview). Nothing is detected on the displayed (filtered, referenced,
@@ -25,14 +27,14 @@ elseif ~V.previewed
 elseif ~isequaln(rmfield(detectionSettings(obj), 'Enabled'), rmfield(V.settings, 'Enabled'))
     why = "The detection settings changed since the last Detect / Preview: preview again on the Artifacts tab to see detected periods.";
 else
-    iv = V.intervals;
+    iv = d.adjustArtifacts(V.intervals);
     why = "";
     source = "preview";
     return
 end
 D = obj.VizData;
 if isstruct(D) && isfield(D, 'artifacts') && isstruct(D.artifacts)
-    iv = D.artifacts.intervals;
+    iv = d.adjustArtifacts(D.artifacts.intervals);
     source = "run";
 end
 end

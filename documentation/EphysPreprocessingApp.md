@@ -602,7 +602,8 @@ the preview's summary with its per-channel table.
 | Cache intervals | `Artifacts.CacheIntervals` (`<Name>_artifacts.json`) |
 | Order channels by probe layout | display only, not saved: the viewer's lanes and the per-channel table in probe order (below). Needs a probe (the dataset's, else the config's default probe), and is ticked by default when there is one |
 | **Detect / Preview** | `analyzeArtifacts` over the active dataset (streamed, read-only; on the process pool when the Run tab's **Parallel** box is ticked): summary + per-channel table, and the detected artifacts in the viewer |
-| Detected artifacts: ◀ / number / ▶, Context (ms), Channels, Shank, Colour by shank, Scale, **Reset view** | the artifact viewer (display only, below) |
+| Detected artifacts: ◀ / number / ▶, Context (ms), Channels, Shank, Colour by shank, Scale, **Shade artifacts**, **Reset view** | the artifact viewer (display only, below) |
+| Ctrl+drag on the viewer, **Restore bounds** | the active dataset's `ArtifactAdjustments`: detected artifacts with their onset or offset moved by hand (written to its manifest; *Moving a detected artifact's bounds*, below) |
 | Manual periods table, **Edit in Visualize**, **Clear** | the active dataset's `ManualArtifacts` (written to its manifest) |
 
 Changing **Method** replaces the threshold with the new method's default
@@ -619,9 +620,10 @@ detecting* is ticked) for the **Channels** the artifact is largest on, one lane
 each, against time from the artifact's start. Samples a run would remove are
 **red** and those it keeps are **black** (red is what gets replaced: in the
 `.bin` by noise or by zeros as *Erase with* says, in the signals by a straight
-line). Detected artifacts are shaded orange,
-with the one shown outlined, and manual periods are shaded red, as on the
-Visualize tab. What counts as removed follows the controls as they are set:
+line). Detected artifacts are shaded orange and manual periods red, as on the
+Visualize tab, and the one shown has dashed lines at its onset and offset.
+**Shade artifacts** (amber while on) or **S** over the plot turns the shading
+off to show the signal under it; the dashed bounds stay. What counts as removed follows the controls as they are set:
 manual periods always, and detected artifacts only when **Enabled** is ticked
 together with *Erase in sorting*, *Apply in spike detection* or *Erase in the
 signals*. The line above the plot says which of them apply, and it warns when a detection setting has changed
@@ -663,7 +665,9 @@ default.
 | drag, ← / → | pan time |
 | Shift+← / Shift+→ | zoom time out / in |
 | ↑ / ↓, + / − | scale the voltage up / down |
+| S, **Shade artifacts** | shading on / off |
 | R, **Reset view** | show the whole window at the Scale fit |
+| Ctrl+drag | move the artifact's onset or offset (below) |
 
 The voltage scale carries over from one artifact to the next until **Reset
 view** or a new **Scale**; with Manual the voltage keys change **Lanes**.
@@ -672,6 +676,29 @@ shown, and a long window is redrawn in finer detail as you zoom in. The
 y-axis label gives the lane spacing in µV and says when larger values are
 clipped. On other tabs the wheel and keys work
 as before (on the Visualize tab, its own shortcuts).
+
+**Moving a detected artifact's bounds.** Hold **Ctrl** with the pointer over
+the plot: it turns into a left or right
+resize arrow for the shown artifact's bound nearer to it (onset or offset),
+and the plot's own drag-to-pan pauses. Drag with Ctrl held to move that bound.
+The dashed line (and the shading) follow the pointer, on the sample grid and at
+least a sample from the other bound. Letting go of the button records the new
+bounds for the active dataset (`EphysDataset.setArtifactAdjustment`, saved in
+its manifest as `artifact_adjustments`), and the plot redraws what a run would
+remove with them. The title says *bounds moved by hand*, the count says how
+many are moved, dotted grey lines mark where the detector put the bounds, and
+time stays measured from the detected start. **Restore bounds** puts the
+shown artifact back as detected. Moving is refused while a run is under way.
+
+A moved artifact is found again by its detected bounds
+(`EphysDataset.adjustArtifacts`). Every step that uses the automatic
+detection takes it with the moved bounds: `artifactIntervals`, the
+pipeline's cached detection (`EphysPipeline.artifactIntervalsFor`; no new
+detection is needed) and the Visualize overlay. When other detection settings
+no longer find the artifact, the adjustment is not applied. It stays in the
+manifest and applies again if those settings come back. `toBin`'s own
+chunk-by-chunk detection (a direct call without `ArtifactIntervals`) cannot
+apply them and warns (`EphysDataset:toBin:AdjustmentsIgnored`).
 
 ## Sorting
 

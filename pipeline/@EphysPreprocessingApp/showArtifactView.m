@@ -5,9 +5,11 @@ function showArtifactView(obj)
 %   the recording from Context before its start to Context after its end
 %   (ArtViewContextField; 0 = twice its length, 25 ms to 5 s), as the
 %   detector saw it: filtered when the preview filtered before detecting,
-%   broadband otherwise. The window, the detected artifacts inside it and
-%   the chosen artifact's own span go to ArtView.win, and drawArtifactView
-%   draws them with the manual periods. Display only: nothing is written.
+%   broadband otherwise. Its start and end are the detector's and, when
+%   they were moved by hand (EphysDataset.adjustArtifacts), the moved ones
+%   too. The window and the chosen artifact's detected span go to
+%   ArtView.win, and drawArtifactView draws them with the other detected
+%   artifacts and the manual periods. Display only: nothing is written.
 %
 %   Readers with random access read just the window. The others read the
 %   chunk holding the artifact (one *.rhd file) and keep it in ArtView.chunk,
@@ -28,18 +30,19 @@ end
 
 k = min(max(round(obj.ArtViewSpinner.Value), 1), n);
 Fs = d.Fs;
-on = iv(k, 1);
+on = iv(k, 1);                        % as detected: the plot's time origin
 off = iv(k, 2);
+bounds = d.adjustArtifacts(iv(k, :)); % as a run uses it
 ctxMs = obj.ArtViewContextField.Value;
 if ctxMs <= 0
-    ctxMs = min(max(25, 2e3 * (off - on)), 5000);
+    ctxMs = min(max(25, 2e3 * diff(bounds)), 5000);
 end
 acfg = obj.ArtView.settings;          % what the preview detected with
 
 % Window in 0-based recording samples (the manualArtifactMask convention:
 % sample g is at g / Fs), plus a margin that absorbs the filter's edges.
-a = max(0, floor((on - ctxMs / 1e3) * Fs));
-b = ceil((off + ctxMs / 1e3) * Fs);
+a = max(0, floor((min(on, bounds(1)) - ctxMs / 1e3) * Fs));
+b = ceil((max(off, bounds(2)) + ctxMs / 1e3) * Fs);
 pad = 0;
 if acfg.Filter
     pad = round(max(0.05, 10 / min(acfg.FilterCutoff)) * Fs);
@@ -68,8 +71,6 @@ catch ME
 end
 
 m = size(X, 1);
-detected = iv(iv(:, 2) >= s0 / Fs & iv(:, 1) <= (s0 + m - 1) / Fs, :);
-
 names = string(d.ChannelNames);
 if numel(names) ~= size(X, 2)
     names = compose("ch%d", 1:size(X, 2));
@@ -81,11 +82,10 @@ w.n = n;
 w.X = X;                  % [m x nChan] microvolts, as detected
 w.s0 = s0;                % 0-based recording sample of row 1
 w.Fs = Fs;
-w.on = on;
+w.on = on;                % the artifact as detected (recording s)
 w.off = off;
 w.names = reshape(names, 1, []);
-w.detected = detected;    % detected artifacts in the window (recording s)
-w.maskDetected = d.manualArtifactMask(m, s0, Fs, detected);
+% The detected samples pick the channels drawn, so moving a bound keeps them.
 w.maskFocus = d.manualArtifactMask(m, s0, Fs, iv(k, :));
 w.view = viewNote(acfg);
 obj.ArtView.win = w;

@@ -203,16 +203,27 @@ classdef EphysPipeline < handle
             end
         end
 
-        function f = probeFor(obj, d)
+        function [f, source] = probeFor(obj, d)
             %probeFor  The probe file dataset D is sorted with.
-            %   Its own ProbeFile (from its manifest), else the config's
-            %   Probe.DefaultProbeFile, read at each call, so an edited
-            %   default applies at once; "" for none. The default is not
-            %   assigned to D unless Probe.WriteDefaultToManifest (checkProbes).
+            %   Its own ProbeFile (from its manifest), else - with
+            %   Probe.AutoAssign - the first probe rule matching its subject
+            %   (probeRule), else the config's Probe.DefaultProbeFile, read at
+            %   each call, so an edited default applies at once; "" for none.
+            %   SOURCE is "own", "rule", "default" or "". A rule's probe is
+            %   assigned to D (and saved) by checkProbes / assignProbeRules; the
+            %   default only with Probe.WriteDefaultToManifest.
+            c = obj.Config.Probe;
             f = d.ProbeFile;
-            if f == ""
-                f = obj.Config.Probe.DefaultProbeFile;
+            source = "own";
+            if f == "" && c.AutoAssign
+                f = EphysPipeline.probeRule(d, c.RuleSubjects, c.RuleProbes);
+                source = "rule";
             end
+            if f == ""
+                f = c.DefaultProbeFile;
+                source = "default";
+            end
+            if f == ""; source = ""; end
         end
 
         function run = activeRun(obj, d)
@@ -388,9 +399,19 @@ classdef EphysPipeline < handle
                 d = ds(k);
                 obj.progress("probe", d.Name, k, numel(ds), 0, 1, "checking the probe");
                 t0 = tic;
-                probe = obj.probeFor(d);
+                [probe, src] = obj.probeFor(d);
                 note = "";
-                if d.ProbeFile == "" && probe ~= ""
+                if src == "rule"
+                    if ~isfile(probe)
+                        note = "probe rule, not assigned";   % a missing file is reported below, never saved
+                    elseif opts.DryRun
+                        note = "probe rule, would be saved to the manifest (dry run)";
+                    else
+                        d.ProbeFile = probe;
+                        d.writeManifest();
+                        note = "probe rule, saved to the manifest";
+                    end
+                elseif d.ProbeFile == "" && probe ~= ""
                     note = "default probe";
                     if c.WriteDefaultToManifest && opts.DryRun
                         note = "default probe, would be saved to the manifest (dry run)";
@@ -810,6 +831,70 @@ classdef EphysPipeline < handle
                 'resultsDir', string(res.resultsDir), 'logFile', string(res.stdoutLog), ...
                 'logPos', 0, 'done', false, 'device', string(res.device), 'started', started, ...
                 'queued', opts.Queued);
+        end
+
+        function [probe, rule] = probeRule(d, subjects, probes)
+            %probeRule  The probe of the first rule whose subject pattern matches dataset D.
+            %   [PROBE, RULE] = EphysPipeline.probeRule(D, SUBJECTS, PROBES):
+            %   SUBJECTS(k) is a pattern (* and ?, not case sensitive; "*"
+            %   matches every dataset) for the SubjectID that D's name
+            %   carries (D.NamePattern), PROBES(k) the probe file of that rule.
+            %   The first match wins. PROBE is "" and RULE 0 for none; a name
+            %   that does not parse has no subject and only a "*" rule matches
+            %   it.
+            probe = "";
+            rule = 0;
+            subjects = string(subjects); probes = string(probes);
+            n = min(numel(subjects), numel(probes));
+            if n == 0; return; end
+            subject = "";
+            try
+                [v, names, ok] = parseNameTokens(d.Name, d.NamePattern);
+                if ok && any(names == "SubjectID"); subject = v(names == "SubjectID"); end
+            catch
+            end
+            for k = 1:n
+                pat = strtrim(subjects(k));
+                if pat == ""; continue; end
+                rx = "^" + string(regexptranslate('wildcard', char(pat))) + "$";
+                if (pat == "*" || subject ~= "") && ~isempty(regexpi(subject, rx, 'once'))
+                    probe = strtrim(probes(k));
+                    rule = k;
+                    return
+                end
+            end
+        end
+
+        function T = assignProbeRules(datasets, subjects, probes, opts)
+            %assignProbeRules  Assign each dataset without a probe the probe of its matching rule.
+            %   T = EphysPipeline.assignProbeRules(DATASETS, SUBJECTS, PROBES)
+            %   sets ProbeFile on every dataset that has none and matches a
+            %   rule (probeRule) and saves its manifest; a dataset's own probe
+            %   is never replaced (Overwrite=true replaces it), nor is a rule
+            %   whose probe file is not there applied. DryRun=true
+            %   changes nothing. T has one row per assigned (or, dry,
+            %   assignable) dataset: Dataset, Subject rule, Probe, Saved
+            %   (the manifest was written; false in a dry run).
+            arguments
+                datasets (1,:) EphysDataset
+                subjects (1,:) string
+                probes (1,:) string
+                opts.Overwrite (1,1) logical = false
+                opts.DryRun (1,1) logical = false
+            end
+            T = table('Size', [0 4], 'VariableTypes', {'string', 'string', 'string', 'logical'}, ...
+                'VariableNames', {'Dataset', 'Rule', 'Probe', 'Saved'});
+            for d = datasets
+                if d.ProbeFile ~= "" && ~opts.Overwrite; continue; end
+                [pf, k] = EphysPipeline.probeRule(d, subjects, probes);
+                if k == 0 || pf == d.ProbeFile || ~isfile(pf); continue; end   % a missing probe file is never saved
+                saved = false;
+                if ~opts.DryRun
+                    d.ProbeFile = pf;
+                    saved = d.writeManifest();
+                end
+                T(end+1, :) = {d.Name, strtrim(subjects(k)), pf, saved}; %#ok<AGROW>
+            end
         end
 
         function [st, note] = probeStatus(probe, d)

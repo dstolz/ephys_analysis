@@ -64,6 +64,18 @@ end
 if obj.Probe.DefaultProbeFile ~= "" && opts.CheckPaths && ~isfile(obj.Probe.DefaultProbeFile)
     add("probe", "DefaultProbeFile", "error", "Default probe file not found: " + obj.Probe.DefaultProbeFile);
 end
+PR = obj.Probe;
+if numel(PR.RuleSubjects) ~= numel(PR.RuleProbes)
+    add("probe", "RuleSubjects", "error", "RuleSubjects and RuleProbes must have one entry each per rule.");
+else
+    for k = 1:numel(PR.RuleSubjects)
+        if strtrim(PR.RuleSubjects(k)) == "" || strtrim(PR.RuleProbes(k)) == ""
+            add("probe", "RuleSubjects", "error", sprintf("Probe rule %d needs both a subject pattern and a probe file.", k));
+        elseif opts.CheckPaths && ~isfile(PR.RuleProbes(k))
+            add("probe", "RuleProbes", "error", sprintf("Probe rule %d (%s): probe file not found: %s", k, PR.RuleSubjects(k), PR.RuleProbes(k)));
+        end
+    end
+end
 
 % --- Parallel (always) -----------------------------------------------------------
 PL = obj.Parallel;

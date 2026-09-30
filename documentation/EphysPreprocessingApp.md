@@ -578,6 +578,19 @@ Probe maps are Kilosort4 probe `.json` files
   lanes); it is not assigned to them. **Save to manifests**
   (`Probe.WriteDefaultToManifest`) makes the run's probe check assign it and
   save it in their manifests.
+- **Probe rules (by subject)**: a table of *Subject* pattern → *Probe file*
+  (`Probe.RuleSubjects` / `Probe.RuleProbes`). The subject is the `SubjectID`
+  token of the dataset name (Project → Name pattern); the pattern takes `*`
+  and `?`, is not case sensitive, and `*` matches every dataset in the project.
+  The first matching rule gives a dataset its probe. **Add rule (selected
+  probe)** adds a row for the active dataset's subject and the probe selected
+  above; edit the cells for a group of subjects (`su04*`). **Apply rules now**
+  assigns the probe of the matching rule to every dataset that has none of its
+  own and saves it in the manifest. With **Assign automatically**
+  (`Probe.AutoAssign`) the rules are applied on every Scan and in the run's
+  probe check. A dataset's own probe is never replaced, and a rule whose probe
+  file is missing assigns nothing (the probe check reports it). Rules go
+  before the default probe, which still covers the datasets no rule matches.
 
 ## Artifacts
 
@@ -617,7 +630,7 @@ detected artifact at a time (◀ / ▶ or type its number), with **Context** ms 
 signal either side (0 = auto: twice the artifact's length, 25 ms to 5 s). It
 draws the signal the detector saw (high-passed when *High-pass before
 detecting* is ticked) for the **Channels** the artifact is largest on, one lane
-each, against time from the artifact's start. Samples a run would remove are
+each, against recording time (s). Samples a run would remove are
 **red** and those it keeps are **black** (red is what gets replaced: in the
 `.bin` by noise or by zeros as *Erase with* says, in the signals by a straight
 line). Detected artifacts are shaded orange and manual periods red, as on the
@@ -656,7 +669,7 @@ active dataset, assigning it a probe, or, for a dataset without one, changing
 the default probe (an edit, or an opened config) resets the checkbox to its
 default.
 
-**Scaling.** Keep the pointer over the plot:
+**Scaling and stepping.** The plot's x axis is recording time (s). Keep the pointer over the plot:
 
 | Input | Does |
 | --- | --- |
@@ -665,6 +678,8 @@ default.
 | drag, ← / → | pan time |
 | Shift+← / Shift+→ | zoom time out / in |
 | ↑ / ↓, + / − | scale the voltage up / down |
+| PgDn or N, PgUp or P | next / previous artifact (with Shift, ten on) |
+| End, Home | last / first artifact |
 | S, **Shade artifacts** | shading on / off |
 | R, **Reset view** | show the whole window at the Scale fit |
 | Ctrl+drag | move the artifact's onset or offset (below) |
@@ -1011,7 +1026,7 @@ it:
 
 | Step | Reads | Writes |
 | --- | --- | --- |
-| Probe check (always runs) | the recording's channel count, the probe map | nothing, or the default probe into the manifest (`Probe.WriteDefaultToManifest`) |
+| Probe check (always runs) | the recording's channel count, the probe map | nothing, a probe rule's probe (`Probe.AutoAssign`) or the default probe (`Probe.WriteDefaultToManifest`) into the manifest |
 | Behavior | the Epsych2 sessions; the recording's trial line (`PairTrials`) | the trial pairing (in the manifest; reviewed on the Trials tab), `<Name>_behavior.mat` (`WriteFile`) |
 | Artifacts | the recording, and the manual periods in its manifest | the artifact periods: automatic (cached in `<Name>_artifacts.json`) + manual |
 | Sorting | the recording, the artifact periods (always blanked), the probe map | `kilosort4/`, the sorted units |
@@ -1641,6 +1656,7 @@ Only what is **not** part of a config lives here:
 | `TrialsParamColumns`, `TrialsColumnOrder` | the trial parameters shown in the Trials table, and its column order (table variable names; a parameter column is `Param_<name>`) |
 | `TrialsLabelParams` | the trial parameters written as trial labels in the Trials plot |
 | `VizOptions` | the Visualize tab's display settings |
+| `ArtifactViewOptions` | the Artifacts tab's viewer options: Context, Channels, Scale (and Lanes when Manual), Colour by shank, Shade artifacts. The detection settings and the reference are the config's; Order by probe and Shank follow the dataset's probe |
 | `CopyOptions` | the Copy tab's subject, roots, pairing and copy options (not the dates) |
 | `SynthOptions` | the Synthetic tab's settings and its design (as `SyntheticDesign` JSON in `design`) |
 | `DiagramView`, `DiagramLayout` | the Diagram tab's **View** (`detail` \| `overview`) and **Layout** (`tree` \| `steps`) |

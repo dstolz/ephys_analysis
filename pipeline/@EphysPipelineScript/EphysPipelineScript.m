@@ -135,6 +135,12 @@ classdef EphysPipelineScript
             % --- probe ---------------------------------------------------------------
             L(end+1, 1) = "%% Probe (preflight)";
             L(end+1, 1) = "defaultProbe = " + lit(cfg.Probe.DefaultProbeFile) + ";   % for datasets without a probe of their own";
+            if cfg.Probe.AutoAssign && ~isempty(cfg.Probe.RuleSubjects)
+                L(end+1, 1) = "ruleSubjects = " + lit(cfg.Probe.RuleSubjects) + ";   % probe rules: subject pattern -> probe file, first match wins";
+                L(end+1, 1) = "ruleProbes   = " + lit(cfg.Probe.RuleProbes) + ";";
+                L(end+1, 1) = "assigned = EphysPipeline.assignProbeRules(P.Datasets(idx), ruleSubjects, ruleProbes);   % never replaces a dataset's own probe; saves the manifests";
+                L(end+1, 1) = "if ~isempty(assigned); disp(assigned); end";
+            end
             L(end+1, 1) = "for k = idx";
             L(end+1, 1) = "    d = P.Datasets(k);";
             L(end+1, 1) = "    probe = d.ProbeFile;";

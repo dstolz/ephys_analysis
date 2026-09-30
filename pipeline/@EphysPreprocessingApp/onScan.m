@@ -56,6 +56,11 @@ try
         CancelFcn=@() dlg.CancelRequested);
     close(dlg);
 
+    nRule = 0;   % datasets that took the probe of a matching probe rule
+    if obj.Config.Probe.AutoAssign
+        nRule = height(EphysPipeline.assignProbeRules(P.Datasets, obj.Config.Probe.RuleSubjects, obj.Config.Probe.RuleProbes));
+    end
+
     obj.Project = P;
     obj.SelectedDatasetIdx = sameFolder(P, active);   % 0: the first dataset (populateDatasetPickers)
     ix = sameFolder(P, obj.VizDataset);
@@ -68,7 +73,11 @@ try
     obj.populateDatasetPickers();
     obj.syncStepEnableStates();
     obj.ScanStatusLabel.Text = sprintf("Found %d dataset(s) under %s", n, root);
-    obj.setStatus(sprintf("Scanned %s: found %d dataset(s).", root, n), namePatternHint(P, obj.Config.Project.NamePattern));
+    scanMsg = sprintf("Scanned %s: found %d dataset(s).", root, n);
+    if nRule > 0
+        scanMsg = scanMsg + sprintf(" Probe rules assigned a probe to %d.", nRule);
+    end
+    obj.setStatus(scanMsg, namePatternHint(P, obj.Config.Project.NamePattern));
     bad = report(report.Message ~= "" & report.Message ~= "cancelled", :);
     if height(bad) > 0
         obj.setStatus(sprintf("Scanned %s: found %d dataset(s), %d with a problem.", root, n, height(bad)), ...

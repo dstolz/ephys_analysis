@@ -110,6 +110,13 @@ check(contains(txtC, "planned = pipe.checkRun();") && ~contains(txtC, "disp(pipe
     'compact script makes run()''s checks before the first step');
 check(~contains(txtS, "EphysPipeline(") && ~contains(txtS, "EphysPipelineConfig.load(") && ~contains(txtS, "pipe."), ...
     'standalone script never uses the runner or a config file');
+cfgPr = cfgB; cfgPr.Probe.RuleSubjects = ["su04*" "su05"]; cfgPr.Probe.RuleProbes = ["a.json" "b.json"];
+check(~contains(EphysPipelineScript.standalone(cfgPr), "assignProbeRules"), 'the script ignores probe rules without AutoAssign');
+cfgPr.Probe.AutoAssign = true;
+txtPr = EphysPipelineScript.standalone(cfgPr);
+check(contains(txtPr, 'ruleSubjects = ["su04*" "su05"];') && contains(txtPr, 'ruleProbes   = ["a.json" "b.json"];') ...
+    && contains(txtPr, "EphysPipeline.assignProbeRules(P.Datasets(idx), ruleSubjects, ruleProbes)"), ...
+    'standalone script assigns the probe rules before the probe check');
 cfgBg = cfgB; cfgBg.Sorting.Execution = "background"; cfgBg.Sorting.DryRun = false; cfgBg.Sorting.MaxConcurrent = 2;
 txtBg = EphysPipelineScript.standalone(cfgBg);
 check(contains(txtBg, "maxConcurrent = 2;") && contains(txtBg, "launched = [];") ...

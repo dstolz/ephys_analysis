@@ -16,7 +16,8 @@ classdef EphysPipelineConfig
     %                TDT.GainToMicrovolts (see TDTReader)
     %     Parallel   Enabled, MaxWorkers (NaN = automatic): run the chunks of
     %                the artifacts and spike-detection steps on a process pool
-    %     Probe      DefaultProbeFile, WriteDefaultToManifest
+    %     Probe      DefaultProbeFile, WriteDefaultToManifest, AutoAssign +
+    %                RuleSubjects / RuleProbes (probe rules by subject pattern)
     %     Behavior   Enabled, Search (off: the associated sessions only, no
     %                search), SearchDirs, Match, MaxStartOffsetMin, Overwrite,
     %                WriteFile, PairTrials, AutoApprove, TrialLine

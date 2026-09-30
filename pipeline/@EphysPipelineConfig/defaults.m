@@ -42,7 +42,10 @@ switch section
     case "Probe"
         s = struct( ...
             'DefaultProbeFile',       "", ...  % assigned to datasets without a probe
-            'WriteDefaultToManifest', false);
+            'WriteDefaultToManifest', false, ...
+            'AutoAssign',   false, ...                % apply the rules below to datasets without a probe (on Scan, in the probe check)
+            'RuleSubjects', string.empty(1,0), ...    % subject patterns (* and ?; "*" = every dataset), first match wins
+            'RuleProbes',   string.empty(1,0));       % the probe file of each rule
 
     case "Behavior"
         s = struct( ...

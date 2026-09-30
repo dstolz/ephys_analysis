@@ -9,9 +9,9 @@ g.ColumnWidth = {'1x', 460};
 g.Padding     = [10 10 10 10];
 
 % =================== left: library + actions ===================
-left = uigridlayout(g, [7 1]);
+left = uigridlayout(g, [8 1]);
 left.Layout.Column = 1;
-left.RowHeight = {'fit', '1x', 30, 'fit', 30, 'fit', 'fit'};
+left.RowHeight = {'fit', '1x', 30, 'fit', 30, 'fit', 'fit', 130};
 left.Padding   = [0 0 0 0];
 
 % Row 1: probe folder
@@ -97,6 +97,36 @@ obj.ProbeWriteDefaultCheckBox = uicheckbox(fg, "Text", "Save to manifests", "Val
     "Tooltip", "The run's probe check also assigns the default probe to each dataset without one and saves it in its manifest.", ...
     "ValueChangedFcn", @(~,~) obj.onConfigChanged());
 obj.ProbeWriteDefaultCheckBox.Layout.Row = 3; obj.ProbeWriteDefaultCheckBox.Layout.Column = 4;
+
+% Row 8: probe rules - a probe for every dataset of a subject (or of the whole project)
+rp = uipanel(left, "Title", "Probe rules (by subject)");
+rp.Layout.Row = 8;
+rg = uigridlayout(rp, [1 2]);
+rg.ColumnWidth = {'1x', 210};
+rg.Padding = [6 6 6 6];
+obj.ProbeRulesTable = uitable(rg);
+obj.ProbeRulesTable.ColumnName = {'Subject', 'Probe file'};
+obj.ProbeRulesTable.ColumnEditable = [true true];
+obj.ProbeRulesTable.ColumnWidth = {110, '1x'};
+obj.ProbeRulesTable.Data = cell(0, 2);
+obj.ProbeRulesTable.Tooltip = "First matching rule wins. Subject: the SubjectID in the dataset name (* and ?; * = every dataset in the project).";
+obj.ProbeRulesTable.CellEditCallback = @(~,~) obj.onConfigChanged();
+obj.ProbeRulesTable.CellSelectionCallback = @(src, evt) set(src, "UserData", unique(evt.Indices(:, 1)).');
+bg = uigridlayout(rg, [4 1]);
+bg.RowHeight = {28, 28, 28, 'fit'};
+bg.Padding = [0 0 0 0];
+bg.RowSpacing = 4;
+obj.AddProbeRuleButton = uibutton(bg, "Text", "Add rule (selected probe)", ...
+    "Tooltip", "New rule for the active dataset's subject (* when there is none) with the probe selected in the table.", ...
+    "ButtonPushedFcn", @(~,~) obj.onAddProbeRule());
+obj.RemoveProbeRuleButton = uibutton(bg, "Text", "Remove rule", ...
+    "ButtonPushedFcn", @(~,~) obj.onRemoveProbeRule());
+obj.ApplyProbeRulesButton = uibutton(bg, "Text", "Apply rules now", ...
+    "Tooltip", "Assign, and save in the manifest, the probe of the matching rule to every dataset that has no probe of its own.", ...
+    "ButtonPushedFcn", @(~,~) obj.onApplyProbeRules());
+obj.ProbeAutoAssignCheckBox = uicheckbox(bg, "Text", "Assign automatically", "Value", false, ...
+    "Tooltip", "Apply the rules to datasets without a probe when the project is scanned and in the run's probe check.", ...
+    "ValueChangedFcn", @(~,~) obj.onConfigChanged());
 
 % =================== right: probe info + preview ===================
 infoPanel = uipanel(g, "Title", "Probe info");

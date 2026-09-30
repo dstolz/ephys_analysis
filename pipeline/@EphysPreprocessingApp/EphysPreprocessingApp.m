@@ -395,6 +395,11 @@ classdef EphysPreprocessingApp < handle
         ProbeDefaultField   matlab.ui.control.EditField
         ProbeUseSelectedButton matlab.ui.control.Button
         ProbeWriteDefaultCheckBox matlab.ui.control.CheckBox
+        ProbeRulesTable     matlab.ui.control.Table     % Probe.RuleSubjects / RuleProbes
+        AddProbeRuleButton  matlab.ui.control.Button
+        RemoveProbeRuleButton matlab.ui.control.Button
+        ApplyProbeRulesButton matlab.ui.control.Button
+        ProbeAutoAssignCheckBox matlab.ui.control.CheckBox   % Probe.AutoAssign
 
         % --- Sorting tab ---
         SortEnableCheckBox  matlab.ui.control.CheckBox
@@ -1068,6 +1073,9 @@ classdef EphysPreprocessingApp < handle
         m = onOpenChannelMapper(obj)
         result = runProbeTool(obj, varargin)
         onAssignProbe(obj, scope)
+        onAddProbeRule(obj)
+        onRemoveProbeRule(obj)
+        onApplyProbeRules(obj)
         onApplyExclude(obj, scope)
         onBrowseProbeFolder(obj)
         pf = selectedProbeFile(obj)

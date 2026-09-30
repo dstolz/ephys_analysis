@@ -193,6 +193,42 @@ check(dP.ProbeFile == string(bigProbe) && string(mP.probe.file) == string(bigPro
     'WriteDefaultToManifest assigns the default probe and saves it');
 dP.ProbeFile = "";
 dP.writeManifest();
+cfgR = cfgP; cfgR.Probe.DefaultProbeFile = bigProbe;
+cfgR.Probe.RuleSubjects = ["zz*" "m?"]; cfgR.Probe.RuleProbes = string({bigProbe, probeFile});
+pP.Config = cfgR; pP.reset();
+[pf, src] = pP.probeFor(dP);
+check(pf == string(bigProbe) && src == "default", 'probe rules are ignored without AutoAssign: the default applies');
+cfgR.Probe.AutoAssign = true;
+pP.Config = cfgR;
+[pf, src] = pP.probeFor(dP);
+check(pf == string(probeFile) && src == "rule" && pP.plan(Steps="probe").Status(1) == "ok", ...
+    'with AutoAssign the first matching rule (subject pattern, not case sensitive) beats the default');
+[pf, k] = EphysPipeline.probeRule(dP, ["zz*" "*"], string({bigProbe, probeFile}));
+check(pf == string(probeFile) && k == 2, 'a "*" rule matches every dataset');
+pP.checkProbes(DryRun=true);
+mP = readJsonFile(dP.manifestFile());
+check(dP.ProbeFile == "" && string(mP.probe.file) == "" && contains(pP.Results.Message(1), "probe rule") ...
+    && contains(pP.Results.Message(1), "dry run"), 'a dry run does not save the rule''s probe');
+pP.reset();
+pP.checkProbes();
+mP = readJsonFile(dP.manifestFile());
+check(dP.ProbeFile == string(probeFile) && string(mP.probe.file) == string(probeFile) && pP.Results.Status(1) == "ok", ...
+    'the probe check assigns the rule''s probe and saves it in the manifest');
+ownDs = pipe.Project.Datasets(1);
+T = EphysPipeline.assignProbeRules(pipe.Project.Datasets, "*", bigProbe);
+check(ownDs.ProbeFile == string(probeFile) && isempty(T), 'a dataset''s own probe is never replaced by a rule');
+T = EphysPipeline.assignProbeRules(pipe.Project.Datasets, "*", fullfile(root, 'nope.json'));
+check(isempty(T), 'a rule whose probe file is missing assigns nothing');
+dP.ProbeFile = "";
+T = EphysPipeline.assignProbeRules(pipe.Project.Datasets, "zz*", bigProbe);
+check(isempty(T) && dP.ProbeFile == "", 'a subject no rule matches is left without a probe');
+T = EphysPipeline.assignProbeRules(pipe.Project.Datasets, ["zz*" "m1"], string({bigProbe, bigProbe}));
+check(height(T) == 1 && T.Dataset == string(dP.Name) && T.Saved && dP.ProbeFile == string(bigProbe), ...
+    'assignProbeRules assigns by subject pattern and saves the manifest');
+cfgBad = cfgR; cfgBad.Probe.RuleSubjects = ["a" "b"]; cfgBad.Probe.RuleProbes = string(probeFile);
+check(any(contains(cfgBad.validate().Message, "one entry each")), 'validate flags rules with mismatched lists');
+dP.ProbeFile = "";
+dP.writeManifest();
 cfg.Behavior.Enabled = true; cfg.Behavior.SearchDirs = behDir;
 pipe.Config = cfg;
 pipe.reset();

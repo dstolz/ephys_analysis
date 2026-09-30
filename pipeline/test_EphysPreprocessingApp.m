@@ -845,6 +845,33 @@ check(numel(app.NameTokenFilters) == 2 && isequal(string(app.NameTokenFilters(2)
     'one filter dropdown per token, listing the parsed values');
 app.onSelectDatasets("all");
 app.NameTokenFilters(2).Value = 'B';
+fprintf('\n== 2z. probe rules ==\n');
+app.ProbeRulesTable.Data = {'rec*', char(probe2); 'zz', char(probe2)};
+app.onConfigChanged();
+check(isequal(app.Config.Probe.RuleSubjects, ["rec*" "zz"]) && isequal(app.Config.Probe.RuleProbes, [string(probe2) string(probe2)]) ...
+    && ~app.Config.Probe.AutoAssign, 'the rules table is the config''s probe rules');
+dA.ProbeFile = "";
+app.onApplyProbeRules();
+mA = readJsonFile(dA.manifestFile());
+check(dA.ProbeFile == string(probe2) && string(mA.probe.file) == string(probe2), ...
+    'Apply rules now assigns the matching rule''s probe to a dataset without one and saves the manifest');
+app.ProbeRulesTable.UserData = 2;
+app.onRemoveProbeRule();
+check(isequal(app.Config.Probe.RuleSubjects, "rec*") && dA.ProbeFile == string(probe2), ...
+    'Remove rule drops the selected rule; datasets keep the probe they got');
+app.ProbeAutoAssignCheckBox.Value = true;
+app.onConfigChanged();
+S = app.gatherProbeSection();
+app.applyProbeSection(S);
+check(app.Config.Probe.AutoAssign && height(app.ProbeRulesTable.Data) == 1 && app.ProbeAutoAssignCheckBox.Value, ...
+    'the auto-assign option and the rules round-trip through the config');
+app.ProbeAutoAssignCheckBox.Value = false;
+app.ProbeRulesTable.Data = cell(0, 2);
+app.onConfigChanged();
+dA.ProbeFile = "";
+dA.writeManifest();
+check(isempty(app.Config.Probe.RuleSubjects) && isempty(app.Config.Probe.RuleProbes), 'an empty rules table is an empty rule list');
+
 app.refreshDatasetsTable();
 app.onConfigChanged();
 check(height(app.DatasetsTable.Data) == 0 && app.HiddenSelectedKeys == "recA_260101_120000" && isequal(app.selectedDatasetIndices(), 1) ...

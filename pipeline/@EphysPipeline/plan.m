@@ -76,9 +76,11 @@ for step = steps
         hasFiles = d.NumFiles > 0 && d.RecordingFormat ~= "unknown";
         switch step
             case "probe"
-                probe = obj.probeFor(d);
+                [probe, src] = obj.probeFor(d);
                 [st, note] = EphysPipeline.probeStatus(probe, d);
-                if d.ProbeFile == "" && probe ~= ""
+                if src == "rule"
+                    note = "probe rule, will be saved to the manifest" + ternary(note == "", "", "; " + note);
+                elseif d.ProbeFile == "" && probe ~= ""
                     note = "default probe" + ternary(c.Probe.WriteDefaultToManifest, ", will be saved to the manifest", "") ...
                         + ternary(note == "", "", "; " + note);
                 end

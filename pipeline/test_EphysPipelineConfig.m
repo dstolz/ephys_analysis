@@ -60,6 +60,9 @@ check(isstring(cfg.Export.Formats) && isempty(cfg.Export.Formats), 'an empty lis
 [s, unknown] = EphysPipelineConfig.normalizeSection("Probe", struct('Nope', 1, 'DefaultProbeFile', 'p.json'));
 check(isequal(unknown, "Probe.Nope") && s.DefaultProbeFile == "p.json" && islogical(s.WriteDefaultToManifest), ...
     'unknown fields are reported and dropped');
+pr = EphysPipelineConfig.normalizeSection("Probe", struct('AutoAssign', "true", 'RuleSubjects', {{"a*", "b"}}, 'RuleProbes', "p.json"));
+check(pr.AutoAssign && isequal(pr.RuleSubjects, ["a*" "b"]) && isequal(pr.RuleProbes, "p.json") ...
+    && isempty(EphysPipelineConfig.defaults("Probe").RuleSubjects), 'probe rules: lists of subject patterns and probe files, none by default');
 check(strcmp(errorId(@() EphysPipelineConfig.normalizeSection("Spikes", struct('Threshold', 'abc'))), ...
     'EphysPipelineConfig:BadValue'), 'a non-numeric value for a numeric field errors');
 check(strcmp(errorId(@() EphysPipelineConfig.defaults("Nope")), 'EphysPipelineConfig:BadSection'), 'unknown section errors');

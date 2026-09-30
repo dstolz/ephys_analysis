@@ -373,7 +373,7 @@ which holds `H64LP_4x16.json` as a starting point.
   "Project":   { "Root", "Recursive", "OutputRoot", "Selection", "Datasets", "NamePattern", "TokenColumns" },
   "Acquisition": { "OpenEphys": { "Recordings", "RecordNode", "Stream" }, "TDT": { "Stream", "GainToMicrovolts" } },
   "Parallel":  { "Enabled", "MaxWorkers" },
-  "Probe":     { "DefaultProbeFile", "WriteDefaultToManifest" },
+  "Probe":     { "DefaultProbeFile", "WriteDefaultToManifest", "AutoAssign", "RuleSubjects", "RuleProbes" },
   "Behavior":  { "Enabled", "Search", "SearchDirs", "Match", "MaxStartOffsetMin", "Overwrite", "WriteFile",
                  "PairTrials", "AutoApprove", "TrialLine" },
   "Artifacts": { "Reference", "ReferenceBadLow", "ReferenceBadHigh", "Enabled", "Method", "Threshold", ... , "Fill", "NoiseBandHz", "NoiseSeed", "ApplyToSorting", "ApplyToSpikes", "ApplyToSignals", "CacheIntervals" },

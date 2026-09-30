@@ -2,7 +2,7 @@ function drawArtifactView(obj)
 %drawArtifactView  Draw one detected artifact: what a run removes and keeps.
 %   Draws ArtView.win (read by showArtifactView) on the Artifacts tab's
 %   axes: the channels the artifact is largest on (ArtViewChannelsField), one
-%   lane each, against time from the artifact's detected start. Samples a
+%   lane each, against recording time (s). Samples a
 %   run would remove are red and the ones it keeps black. Detected artifacts
 %   are shaded orange and manual periods red, as on the Visualize tab, while
 %   the shading is on (ArtViewShadeButton, the S key); the chosen artifact's
@@ -159,9 +159,9 @@ obj.ArtViewLanesField.Value = spacing;         % shows the spacing drawn
 offsets = (nShow - 1:-1:0) * spacing;         % first channel on top
 
 % --- time: the whole window, or the zoom kept from the last draw of it ---------
-t = ((w.s0 + (0:m - 1)') / w.Fs - w.on) * 1e3;   % ms from the artifact's detected start
+t = (w.s0 + (0:m - 1)') / w.Fs;   % recording time (s)
 span = [t(1) t(end)];
-if span(2) <= span(1); span = span(1) + [-1 1]; end
+if span(2) <= span(1); span = span(1) + [-1 1] * 1e-3; end
 key = [w.k, w.s0, m];
 xl = span;
 if isequal(V.drawn.key, key)
@@ -179,12 +179,11 @@ yKept = Y + offsets;    yKept(removed, :) = NaN;
 yRem  = Y + offsets;    yRem(~wide, :) = NaN;
 
 hold(ax, 'on');
-rel = @(s) (s - w.on) * 1e3;
 hDet = gobjects(0, 1);
 hMan = gobjects(0, 1);
 if logical(obj.ArtViewShadeButton.Value)
     for i = find(shown).'
-        r = xregion(ax, rel(ivAll(i, 1)), rel(ivAll(i, 2)), ...
+        r = xregion(ax, ivAll(i, 1), ivAll(i, 2), ...
             'FaceColor', [0.95 0.6 0.1], 'FaceAlpha', 0.18, 'DisplayName', "Detected artifact");
         if i == w.k
             r.Tag = 'artChosen';             % follows a Ctrl+drag of its bounds
@@ -192,17 +191,17 @@ if logical(obj.ArtViewShadeButton.Value)
         hDet(end+1, 1) = r; %#ok<AGROW>
     end
     for i = 1:size(manual, 1)
-        hMan(end+1, 1) = xregion(ax, rel(manual(i, 1)), rel(manual(i, 2)), ...
+        hMan(end+1, 1) = xregion(ax, manual(i, 1), manual(i, 2), ...
             'FaceColor', [0.85 0.2 0.2], 'FaceAlpha', 0.15, 'DisplayName', "Manual period"); %#ok<AGROW>
     end
 end
 % The chosen artifact's bounds, the lines a Ctrl+drag moves; where the
 % detector put them when they have been moved.
 if moved(w.k)
-    xline(ax, rel([w.on w.off]), ':', 'Color', [0.45 0.45 0.45], 'LineWidth', 1, 'Tag', 'artDetected');
+    xline(ax, [w.on w.off], ':', 'Color', [0.45 0.45 0.45], 'LineWidth', 1, 'Tag', 'artDetected');
 end
-xline(ax, rel(chosen(1)), '--', 'Color', [0.8 0.4 0], 'LineWidth', 1.2, 'Tag', 'artOnset');
-xline(ax, rel(chosen(2)), '--', 'Color', [0.8 0.4 0], 'LineWidth', 1.2, 'Tag', 'artOffset');
+xline(ax, chosen(1), '--', 'Color', [0.8 0.4 0], 'LineWidth', 1.2, 'Tag', 'artOnset');
+xline(ax, chosen(2), '--', 'Color', [0.8 0.4 0], 'LineWidth', 1.2, 'Tag', 'artOffset');
 if byProbe
     sh = L.shank(ch);                        % a dotted line between shanks
     for i = find(~sameShank(sh(1:end-1), sh(2:end)))
@@ -231,12 +230,12 @@ legend(ax, hLeg, 'Location', 'southoutside', 'NumColumns', min(numel(hLeg), 4), 
 
 set(ax, 'XLim', xl, 'YLim', [-0.5, nShow - 0.5] * spacing, 'TickLabelInterpreter', 'none', ...
     'YTick', (0:nShow - 1) * spacing, 'YTickLabel', w.names(ch(end:-1:1)));
+xlabel(ax, "Recording time (s)");
+ax.XAxis.Exponent = 0;                       % whole seconds, not an offset or a power of ten
 if moved(w.k)
-    xlabel(ax, "Time from the artifact's detected start (ms)");
     title(ax, sprintf('Artifact %d of %d at %.4f s, %s long (bounds moved by hand)', ...
         w.k, w.n, chosen(1), durationText(diff(chosen))));
 else
-    xlabel(ax, "Time from the artifact's start (ms)");
     title(ax, sprintf('Artifact %d of %d at %.4f s, %s long', w.k, w.n, chosen(1), durationText(diff(chosen))));
 end
 where = "";

@@ -606,8 +606,8 @@ app.selectTab(app.TabArtifacts);
 drawnow;
 pp = getpixelposition(ax, true);
 box = [pp(1:2) + ax.InnerPosition(1:2) - ax.OuterPosition(1:2), ax.InnerPosition(3:4)];
-at = @(xms) [box(1) + (xms - ax.XLim(1)) / diff(ax.XLim) * box(3), box(2) + box(4) / 2];   % ms -> pixel
-samp = 1e3 / Fs;                          % one sample, in the plot's ms
+at = @(xms) [box(1) + (det1(1) + xms / 1e3 - ax.XLim(1)) / diff(ax.XLim) * box(3), box(2) + box(4) / 2];   % ms from the onset -> pixel
+samp = 1e3 / Fs;                          % one sample, in ms
 kEvt = @(k, mods) struct('Key', k, 'Modifier', {mods});
 pan0 = ax.Interactions;
 app.Fig.CurrentPoint = at(-samp);         % just before the onset
@@ -623,7 +623,7 @@ app.Fig.WindowButtonDownFcn(app.Fig, []);
 app.Fig.CurrentPoint = at(-2.2 * samp);
 app.Fig.WindowButtonMotionFcn(app.Fig, []);
 onLine = findobj(ax, 'Tag', 'artOnset');
-check(app.ArtView.edit.bound == "on" && abs(onLine.Value + 2 * samp) < 1e-9, ...
+check(app.ArtView.edit.bound == "on" && abs(onLine.Value - (det1(1) - 2 / Fs)) < 1e-9, ...
     'Ctrl+drag moves the dashed onset with the pointer, on the sample grid');
 app.Fig.WindowButtonUpFcn(app.Fig, []);
 dA = app.Project.Datasets(1);
@@ -652,6 +652,25 @@ app.Fig.WindowButtonDownFcn(app.Fig, []);
 app.Fig.WindowButtonUpFcn(app.Fig, []);
 check(size(dA.ArtifactAdjustments, 1) == 1 && max(abs(dA.ArtifactAdjustments(3:4) - (moved1 + [0 3 / Fs]))) < 1e-12, ...
     'a press without Ctrl moves nothing');
+% Stepping keys, pointer over the plot: N / PgDn next, P / PgUp previous, Home / End first / last.
+app.Fig.CurrentPoint = at(0);
+kAll = @(k, mods) app.onArtViewInput("key", struct('Key', k, 'Modifier', {mods}));
+kAll('home', {});
+check(app.ArtViewSpinner.Value == 1, 'Home shows the first artifact');
+kAll('pagedown', {});
+check(app.ArtViewSpinner.Value == min(2, nArt) && startsWith(ax.Title.String, "Artifact " + min(2, nArt) + " of"), 'PgDn steps to the next artifact');
+kAll('p', {});
+check(app.ArtViewSpinner.Value == 1, 'P steps back');
+kAll('pageup', {});
+check(app.ArtViewSpinner.Value == 1, 'stepping back from the first stays on it');
+kAll('end', {});
+check(app.ArtViewSpinner.Value == nArt, 'End shows the last artifact');
+kAll('n', {});
+check(app.ArtViewSpinner.Value == nArt, 'stepping on from the last stays on it');
+kAll('pageup', {'shift'});
+check(app.ArtViewSpinner.Value == max(nArt - 10, 1), 'Shift+PgUp steps ten back, to the first at most');
+app.ArtViewSpinner.Value = kMove;
+app.showArtifactView();
 % Shading: S over the plot and the button toggle it; the chosen bounds stay.
 nReg = numel(findobj(ax, 'Type', 'constantregion'));
 app.Fig.CurrentPoint = at(0);
@@ -678,7 +697,9 @@ check(app.ArtViewSpinner.Value == 2 && startsWith(ax.Title.String, "Artifact 2 o
 app.ArtViewContextField.Value = 1;
 app.ArtViewContextField.ValueChangedFcn(app.ArtViewContextField, []);
 iv2 = sm.intervals(2, :);
-check(diff(ax.XLim) <= 1e3 * diff(iv2) + 2 + 2e3 / Fs, 'Context sets the signal shown around it (ms)');
+check(diff(ax.XLim) <= diff(iv2) + 2e-3 + 2 / Fs, 'Context sets the signal shown around it (ms)');
+check(ax.XLim(1) > iv2(1) - 1 && ax.XLim(2) < iv2(2) + 1 && strcmp(ax.XLabel.String, 'Recording time (s)'), ...
+    'the x axis is recording time (s), not time from the artifact');
 app.ArtViewChannelsField.Value = 2;
 app.drawArtifactView();
 fitAll = diff(ax.YLim);
@@ -824,27 +845,6 @@ app.onConfigChanged();
 check(~app.ArtProbeOrderCheckBox.Value && isequal(app.ArtViewShankDropDown.ItemsData, {'all'}), ...
     'and without a default probe the probe controls go back off');
 
-fprintf('\n== 3a. name tokens ==\n');
-check(isequal(string({app.NameTokenChecks.Text}), ["SubjectID" "Date" "Time"]) && isequal([app.NameTokenChecks.Value], [true false false]) ...
-    && T.Token_SubjectID(1) == "recA" && string(app.DatasetsTable.ColumnName{3}) == "SubjectID" ...
-    && app.NameTokenStatusLabel.Text == "1 of 1 names match", ...
-    'default pattern: one checkbox per token, SubjectID shown, the name matches');
-app.NamePatternField.Value = '{Stem}{Letter:[A-Z]}_*';
-app.onNameTokensChanged();
-check(isequal(string({app.NameTokenChecks.Text}), ["Stem" "Letter"]) && ~any([app.NameTokenChecks.Value]) ...
-    && ~any(startsWith(app.DatasetsTable.Data.Properties.VariableNames, 'Token_')) ...
-    && app.NameTokenStatusLabel.Text == "1 of 1 names match", 'a new pattern rebuilds the checkboxes');
-app.NameTokenChecks(2).Value = true; app.NameTokenChecks(1).Value = true;
-app.onNameTokensChanged();
-T = app.DatasetsTable.Data;
-check(T.Token_Stem(1) == "rec" && T.Token_Letter(1) == "A" && isequal(reshape(string(app.DatasetsTable.ColumnName(3:4)), 1, []), ["Stem" "Letter"]) ...
-    && app.Config.Project.NamePattern == "{Stem}{Letter:[A-Z]}_*" && app.Config.Project.TokenColumns == "Stem, Letter" ...
-    && numel(app.DatasetsTable.ColumnWidth) == width(T) && startsWith(app.Fig.Name, "*"), ...
-    'ticked tokens become columns in pattern order and are saved in the config');
-check(numel(app.NameTokenFilters) == 2 && isequal(string(app.NameTokenFilters(2).Items), ["(any)" "A"]), ...
-    'one filter dropdown per token, listing the parsed values');
-app.onSelectDatasets("all");
-app.NameTokenFilters(2).Value = 'B';
 fprintf('\n== 2z. probe rules ==\n');
 app.ProbeRulesTable.Data = {'rec*', char(probe2); 'zz', char(probe2)};
 app.onConfigChanged();
@@ -872,6 +872,27 @@ dA.ProbeFile = "";
 dA.writeManifest();
 check(isempty(app.Config.Probe.RuleSubjects) && isempty(app.Config.Probe.RuleProbes), 'an empty rules table is an empty rule list');
 
+fprintf('\n== 3a. name tokens ==\n');
+check(isequal(string({app.NameTokenChecks.Text}), ["SubjectID" "Date" "Time"]) && isequal([app.NameTokenChecks.Value], [true false false]) ...
+    && T.Token_SubjectID(1) == "recA" && string(app.DatasetsTable.ColumnName{3}) == "SubjectID" ...
+    && app.NameTokenStatusLabel.Text == "1 of 1 names match", ...
+    'default pattern: one checkbox per token, SubjectID shown, the name matches');
+app.NamePatternField.Value = '{Stem}{Letter:[A-Z]}_*';
+app.onNameTokensChanged();
+check(isequal(string({app.NameTokenChecks.Text}), ["Stem" "Letter"]) && ~any([app.NameTokenChecks.Value]) ...
+    && ~any(startsWith(app.DatasetsTable.Data.Properties.VariableNames, 'Token_')) ...
+    && app.NameTokenStatusLabel.Text == "1 of 1 names match", 'a new pattern rebuilds the checkboxes');
+app.NameTokenChecks(2).Value = true; app.NameTokenChecks(1).Value = true;
+app.onNameTokensChanged();
+T = app.DatasetsTable.Data;
+check(T.Token_Stem(1) == "rec" && T.Token_Letter(1) == "A" && isequal(reshape(string(app.DatasetsTable.ColumnName(3:4)), 1, []), ["Stem" "Letter"]) ...
+    && app.Config.Project.NamePattern == "{Stem}{Letter:[A-Z]}_*" && app.Config.Project.TokenColumns == "Stem, Letter" ...
+    && numel(app.DatasetsTable.ColumnWidth) == width(T) && startsWith(app.Fig.Name, "*"), ...
+    'ticked tokens become columns in pattern order and are saved in the config');
+check(numel(app.NameTokenFilters) == 2 && isequal(string(app.NameTokenFilters(2).Items), ["(any)" "A"]), ...
+    'one filter dropdown per token, listing the parsed values');
+app.onSelectDatasets("all");
+app.NameTokenFilters(2).Value = 'B';
 app.refreshDatasetsTable();
 app.onConfigChanged();
 check(height(app.DatasetsTable.Data) == 0 && app.HiddenSelectedKeys == "recA_260101_120000" && isequal(app.selectedDatasetIndices(), 1) ...
@@ -1779,6 +1800,27 @@ check(app.Config.Name == "Untitled" && app.Config.File == "" && ~app.SpkEnableCh
 ok = app.openConfigFile(cfgFile);
 check(ok && app.Config.Spikes.Threshold == 1500 && any(app.RecentConfigs == string(cfgFile)), 'reopen + recent list');
 check(ispref(g, 'LastConfigFile') && strcmp(getpref(g, 'LastConfigFile'), cfgFile), 'the last config file is remembered');
+
+% the Artifacts tab's viewer options come back in a new window
+app.ArtViewContextField.Value = 40;
+app.ArtViewChannelsField.Value = 5;
+app.ArtViewShankColorCheckBox.Value = false;
+app.ArtViewShadeButton.Value = false;
+app.ArtViewScaleDropDown.Value = 'manual';
+app.ArtViewLanesField.Value = 150;
+app.savePreferences();
+app2 = EphysPreprocessingApp;
+app2Cleanup = onCleanup(@() delete(app2.Fig));
+check(app2.ArtViewContextField.Value == 40 && app2.ArtViewChannelsField.Value == 5 ...
+    && ~app2.ArtViewShankColorCheckBox.Value && ~app2.ArtViewShadeButton.Value ...
+    && app2.ArtViewScaleDropDown.Value == "manual" && app2.ArtViewLanesField.Value == 150, ...
+    'the Artifacts viewer options are recalled by a new window (Shade artifacts drawn off)');
+check(app2.ArtThresholdField.Value == app.ArtThresholdField.Value ...
+    && strcmp(app2.ArtMethodDropDown.Value, app.ArtMethodDropDown.Value), ...
+    'the detection settings come back with the config');
+clear app2Cleanup
+app.ArtViewContextField.Value = 0; app.ArtViewChannelsField.Value = 8; app.ArtViewShankColorCheckBox.Value = true;
+app.ArtViewShadeButton.Value = true; app.ArtViewScaleDropDown.Value = 'artifact'; app.ArtViewLanesField.Value = 0;
 
 fprintf('\n== 6. a config for another root; a rescan; the Visualize tab ==\n');
 % A second project: recM002 (one file) and recM003, five files of 512

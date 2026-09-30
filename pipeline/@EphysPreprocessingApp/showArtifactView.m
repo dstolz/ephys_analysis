@@ -30,7 +30,7 @@ end
 
 k = min(max(round(obj.ArtViewSpinner.Value), 1), n);
 Fs = d.Fs;
-on = iv(k, 1);                        % as detected: the plot's time origin
+on = iv(k, 1);                        % as detected
 off = iv(k, 2);
 bounds = d.adjustArtifacts(iv(k, :)); % as a run uses it
 ctxMs = obj.ArtViewContextField.Value;

@@ -11,6 +11,8 @@ function tf = onArtViewInput(obj, kind, evt)
 %     left / right arrow ......... pan time by a quarter of the view
 %     Shift+left / right arrow ... zoom time out / in about the view's centre
 %     up / down arrow, + / - ..... scale the voltage up / down
+%     page down / n, page up / p . next / previous artifact (Shift: 10 on)
+%     end, home .................. last / first artifact
 %     s .......................... shading on / off (as Shade artifacts)
 %     r .......................... reset (as Reset view)
 %   Dragging pans too (the axes' own pan, along time only). The voltage
@@ -96,6 +98,14 @@ switch kind
                 if shift; zoomTime(obj, 1 / 1.5, []); else; panTime(obj, 0.25); end
             case "leftarrow"
                 if shift; zoomTime(obj, 1.5, []); else; panTime(obj, -0.25); end
+            case {"pagedown", "n"}
+                gotoArtifact(obj, obj.ArtViewSpinner.Value + ifelse(shift, 10, 1));
+            case {"pageup", "p"}
+                gotoArtifact(obj, obj.ArtViewSpinner.Value - ifelse(shift, 10, 1));
+            case "home"
+                gotoArtifact(obj, 1);
+            case "end"
+                gotoArtifact(obj, Inf);
             case "s"
                 obj.ArtViewShadeButton.Value = ~obj.ArtViewShadeButton.Value;
                 shadeChanged(obj);
@@ -109,6 +119,17 @@ switch kind
         return
 end
 tf = true;
+end
+
+
+function gotoArtifact(obj, k)
+% Show artifact K (in recording order), kept inside 1 to the count.
+sp = obj.ArtViewSpinner;
+k = min(max(round(k), sp.Limits(1)), sp.Limits(2));
+if k ~= sp.Value
+    sp.Value = k;
+    obj.showArtifactView();
+end
 end
 
 
@@ -126,14 +147,14 @@ end
 
 
 function zoomTime(obj, f, anchor)
-% The view F times wider, ANCHOR (ms; [] = the view's centre) staying put.
+% The view F times wider, ANCHOR (s; [] = the view's centre) staying put.
 % No narrower than 20 samples.
 ax = obj.ArtViewAxes;
 xl = ax.XLim;
 if isempty(anchor) || ~isfinite(anchor); anchor = mean(xl); end
 anchor = min(max(anchor, xl(1)), xl(2));
 span = obj.ArtView.drawn.span;
-wid = min(max(diff(xl) * f, min(20e3 / obj.ArtView.win.Fs, diff(span))), diff(span));
+wid = min(max(diff(xl) * f, min(20 / obj.ArtView.win.Fs, diff(span))), diff(span));
 a = anchor - (anchor - xl(1)) * wid / diff(xl);
 setTime(obj, [a, a + wid]);
 end
@@ -147,7 +168,7 @@ end
 
 
 function setTime(obj, xl)
-% Show XL (ms), moved inside the window drawn. A zoom finer than the
+% Show XL (s), moved inside the window drawn. A zoom finer than the
 % envelope drawn is redrawn (drawArtifactView keeps the XLim set here).
 D = obj.ArtView.drawn;
 wid = min(diff(xl), diff(D.span));
@@ -247,7 +268,7 @@ end
 
 function [b, x] = nearBound(obj)
 % The chosen artifact's bound nearer the pointer ("on" / "off") and the
-% pointer's time X (ms); "" with the pointer off the plot box (over the
+% pointer's time X (s); "" with the pointer off the plot box (over the
 % labels or the legend, say) or nothing drawn.
 b = "";
 x = NaN;
@@ -270,7 +291,7 @@ end
 
 
 function [x, inside] = pointerTime(obj)
-% The figure's pointer as a time X (ms) on the plot, and whether it is in
+% The figure's pointer as a time X (s) on the plot, and whether it is in
 % the plot box. Read from the figure's CurrentPoint through the axes' inner
 % box (getpixelposition gives the outer one, in the figure), as a uiaxes'
 % own CurrentPoint cannot be set.
@@ -284,9 +305,9 @@ end
 
 
 function c = chosenBounds(obj)
-% The chosen artifact's [onset offset] as a run uses them, in the plot's ms.
+% The chosen artifact's [onset offset] as a run uses them, in the plot's s.
 w = obj.ArtView.win;
-c = (obj.currentDataset().adjustArtifacts([w.on w.off]) - w.on) * 1e3;
+c = obj.currentDataset().adjustArtifacts([w.on w.off]);
 end
 
 
@@ -322,7 +343,7 @@ end
 
 
 function dragBound(obj, x)
-% The bound being moved follows the pointer (X, ms; default the pointer's),
+% The bound being moved follows the pointer (X, s; default the pointer's),
 % on the sample grid, inside the view and at least a sample from the other.
 E = obj.ArtView.edit;
 if E.bound == ""; return; end
@@ -333,9 +354,9 @@ if nargin < 2
 end
 xl = ax.XLim;
 x = min(max(x, xl(1)), xl(2));
-x = (round((w.on + x / 1e3) * w.Fs) / w.Fs - w.on) * 1e3;   % the sample grid
+x = round(x * w.Fs) / w.Fs;   % the sample grid
 c = chosenBounds(obj);
-one = 1e3 / w.Fs;
+one = 1 / w.Fs;
 if E.bound == "on"
     x = min(x, c(2) - one);
     c(1) = x;
@@ -379,7 +400,7 @@ end
 detected = [w.on w.off];
 bounds = d.adjustArtifacts(detected);
 was = bounds;
-bounds(1 + (bound == "off")) = w.on + x / 1e3;
+bounds(1 + (bound == "off")) = x;
 if isequal(round(bounds * w.Fs), round(was * w.Fs))
     obj.drawArtifactView();
     return

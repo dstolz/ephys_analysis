@@ -3,7 +3,8 @@ function loadPreferences(obj)
 %   Preferences (group EphysPreprocessingApp) hold only what is not part of
 %   a pipeline config: figure geometry, the probe folder, the phy command,
 %   the Review folder, the last / recent config files, the script folder,
-%   the datasets-table column order, the Trials-table parameter columns and
+%   the datasets-table column order, the Artifacts tab's viewer options
+%   (context, channels, scale, lanes, colour by shank, shading), the Trials-table parameter columns and
 %   column order, the Trials-plot label parameters, the Visualize
 %   display options, the Copy tab settings (subject, roots and their recent
 %   lists, pairing and copy options; not the dates), the Synthetic tab's settings and
@@ -100,6 +101,27 @@ if ispref(g, 'VizOptions')
         applyIf(v, 'shankColor', @(x) set(obj.VizColorByShankCheckBox, 'Value', logical(x)));
         applyIf(v, 'shading',   @(x) set(obj.VizShadingCheckBox, 'Value', logical(x)));
         applyIf(v, 'events',    @(x) set(obj.VizEventsDropDown, 'Value', char(x)));
+    end
+end
+
+% --- Artifacts tab viewer options (one struct; the detection settings are the config's) ---
+if ispref(g, 'ArtifactViewOptions')
+    v = getpref(g, 'ArtifactViewOptions');
+    if isstruct(v)
+        applyIf(v, 'context',    @(x) set(obj.ArtViewContextField, 'Value', x));
+        applyIf(v, 'channels',   @(x) set(obj.ArtViewChannelsField, 'Value', x));
+        applyIf(v, 'scale',      @(x) set(obj.ArtViewScaleDropDown, 'Value', char(x)));
+        applyIf(v, 'lanes',      @(x) set(obj.ArtViewLanesField, 'Value', x));
+        applyIf(v, 'shankColor', @(x) set(obj.ArtViewShankColorCheckBox, 'Value', logical(x)));
+        applyIf(v, 'shade',      @(x) set(obj.ArtViewShadeButton, 'Value', logical(x)));
+        if obj.ArtViewScaleDropDown.Value == "manual" && obj.ArtViewLanesField.Value <= 0
+            obj.ArtViewScaleDropDown.Value = 'artifact';
+        end
+        if obj.ArtViewShadeButton.Value
+            styleButton(obj.ArtViewShadeButton, "active");
+        else
+            styleButton(obj.ArtViewShadeButton);
+        end
     end
 end
 

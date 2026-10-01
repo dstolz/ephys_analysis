@@ -188,7 +188,7 @@ else
     periods = "manual only";
 end
 artifacts = step("artifacts", 1, 2, "Artifacts", A.Enabled, lines, "ArtEnableCheckBox");
-artifacts.outs = pill("link", "Artifact periods", periods, "ArtManualTable,ArtEditVizButton", true);
+artifacts.outs = pill("link", "Artifact periods", periods, "ArtManualTable,ArtMarkButton", true);
 artifacts.outs.dim = false;   % the manual periods apply with detection off too
 
 S = cfg.Sorting;

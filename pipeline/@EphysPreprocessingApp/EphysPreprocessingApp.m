@@ -312,8 +312,7 @@ classdef EphysPreprocessingApp < handle
         VizSortByProbeCheckBox matlab.ui.control.CheckBox
         VizTraceColorDropDown matlab.ui.control.DropDown
         VizShadingCheckBox matlab.ui.control.CheckBox
-        VizArtButton       matlab.ui.control.StateButton
-        VizArtClearButton  matlab.ui.control.Button
+        VizArtEditButton   matlab.ui.control.Button       % go to the Artifacts tab, where the periods are marked
         VizArtStatusLabel  matlab.ui.control.Label
         VizEventsDropDown  matlab.ui.control.DropDown     % events: off / over the traces / above them / both
         VizEventLinesListBox matlab.ui.control.ListBox    % the event lines drawn
@@ -356,9 +355,18 @@ classdef EphysPreprocessingApp < handle
         ArtChannelTable     matlab.ui.control.Table
         ArtStatusLabel      matlab.ui.control.Label
         ArtManualLabel      matlab.ui.control.Label
-        ArtEditVizButton    matlab.ui.control.Button
+        ArtMarkButton       matlab.ui.control.StateButton        % Mark artifacts: drag over the recording to mark a period
         ArtManualClearButton matlab.ui.control.Button
         ArtManualTable      matlab.ui.control.Table
+        ArtViewTabs         matlab.ui.container.TabGroup         % the middle column: detected artifacts / mark manual periods
+        ArtTabDetected      matlab.ui.container.Tab
+        ArtTabMark          matlab.ui.container.Tab
+        ArtMarkToolbarButtons  % 1 x 8 matlab.ui.control.Button: page, zoom, scale, auto scale, reset
+        ArtMarkLanesField   matlab.ui.control.NumericEditField   % lanes shown at once
+        ArtMarkHighpassField matlab.ui.control.EditField         % display high-pass (Hz), blank = off
+        ArtMarkStatusLabel  matlab.ui.control.Label
+        ArtMarkAxes         matlab.ui.control.UIAxes
+        ArtMarkOverviewAxes matlab.ui.control.UIAxes             % the whole recording under the plot
         ArtViewPrevButton   matlab.ui.control.Button             % artifact viewer (showArtifactView)
         ArtViewSpinner      matlab.ui.control.Spinner
         ArtViewCountLabel   matlab.ui.control.Label
@@ -743,9 +751,17 @@ classdef EphysPreprocessingApp < handle
         VizData = []
         VizHelpFig = []            % the "?" window (showVizHelp)
         VizSourceKind (1,1) string = "recording"   % the kind shown, kept across datasets
-        VizGesture (1,1) string = ""               % "pan" | "seek" | "mark" while a button is held
-        VizArtMode (1,1) logical = false
-        VizArtDrag = struct('active', false)
+        VizGesture (1,1) string = ""               % "pan" | "seek" while a button is held
+
+        % --- Artifacts tab, Mark manual periods view (display-only, in-memory) ---
+        % The recording of the active dataset in an EphysTraceViewer on
+        % ArtMarkAxes (syncArtMark loads it when the view is shown); a drag
+        % over it with ArtMarkMode on adds a manual period (onArtMarkInput).
+        ArtMarkViewer = []
+        ArtMarkDataset EphysDataset = EphysDataset.empty   % the dataset it shows (a handle)
+        ArtMarkMode (1,1) logical = false
+        ArtMarkGesture (1,1) string = ""           % "pan" | "seek" | "mark" while a button is held
+        ArtMarkDrag = struct('active', false)
 
         % --- Artifacts tab viewer (in memory; showArtifactView / drawArtifactView) ---
         % intervals: the last preview's detected artifacts (recording-relative
@@ -1039,6 +1055,13 @@ classdef EphysPreprocessingApp < handle
         showArtifactView(obj)
         drawArtifactView(obj)
         tf = onArtViewInput(obj, kind, evt)
+        onArtViewTabChanged(obj)
+        syncArtMark(obj)
+        applyArtMarkSettings(obj, what)
+        onArtMarkViewChanged(obj)
+        refreshArtMarkShading(obj, draw)
+        tf = artMarkActive(obj)
+        tf = onArtMarkInput(obj, kind, evt)
         syncArtProbeControls(obj)
         refreshArtChannelTable(obj)
         routeFigureInput(obj)
@@ -1055,10 +1078,6 @@ classdef EphysPreprocessingApp < handle
         [iv, why, source] = vizDetectedIntervals(obj)
         tf = vizActive(obj)
         d = currentVizDataset(obj)
-        onVizArtToggle(obj, val)
-        onVizArtClear(obj)
-        onVizArtMotion(obj)
-        finishVizArtDrag(obj)
         updateVizArtStatus(obj)
         syncVizDataset(obj)
         loadVizEvents(obj, out, read)

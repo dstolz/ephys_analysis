@@ -748,7 +748,7 @@ classdef EphysDataset < handle
                 'source', obj.ReferenceExcludeSource);
 
             % Manual artifact periods ([k x 2] seconds, recording-relative) so
-            % periods marked on the Visualize tab survive a rescan / restart.
+            % periods marked on the Artifacts tab survive a rescan / restart.
             ma = obj.ManualArtifacts;
             if isempty(ma); ma = zeros(0, 2); end
             m.manual_artifacts = ma;

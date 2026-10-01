@@ -9,8 +9,8 @@ function tf = onVizInput(obj, kind, evt)
 %     Shift+wheel ...... scroll the lanes
 %     keys ............. EphysTraceViewer.handleKey (arrows, Page Up / Down,
 %                        Home / End, + / -, A auto scale, R reset)
-%   Escape turns artifact marking off. Wheel events carry no modifiers, so
-%   the wheel reads ArtView.mods (the keys held, kept by routeFigureInput).
+%   Wheel events carry no modifiers, so the wheel reads ArtView.mods (the
+%   keys held, kept by routeFigureInput).
 %
 %   See also routeFigureInput, EphysTraceViewer.handleScroll,
 %   EphysTraceViewer.handleKey.
@@ -23,12 +23,6 @@ switch kind
         v.handleScroll(evt.VerticalScrollCount, obj.ArtView.mods, obj.VizAxes.CurrentPoint(1, 1));
         tf = true;
     case "key"
-        if string(evt.Key) == "escape" && obj.VizArtMode
-            obj.VizArtButton.Value = false;
-            obj.onVizArtToggle(false);
-            tf = true;
-            return
-        end
         tf = v.handleKey(evt.Key, evt.Modifier);
 end
 end

@@ -59,6 +59,7 @@ obj.refreshSortingLabel();
 obj.refreshManualArtifactsTable();
 obj.refreshReferencePanel();
 obj.syncVizDataset();
+obj.syncArtMark();
 shown = obj.currentVizDataset();
 if idx > 0 && obj.Tabs.SelectedTab == obj.TabVisualize && (isempty(shown) || shown ~= obj.currentDataset() || isempty(obj.VizData))
     obj.onPlotVisualization();

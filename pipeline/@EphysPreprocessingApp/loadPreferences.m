@@ -4,7 +4,8 @@ function loadPreferences(obj)
 %   a pipeline config: figure geometry, the probe folder, the phy command,
 %   the Review folder, the last / recent config files, the script folder,
 %   the datasets-table column order, the Artifacts tab's viewer options
-%   (context, channels, scale, lanes, colour by shank, shading), the Trials-table parameter columns and
+%   (context, channels, scale, lanes, colour by shank, shading, and the
+%   Mark manual periods view's lanes and high-pass), the Trials-table parameter columns and
 %   column order, the Trials-plot label parameters, the Visualize
 %   display options, the Copy tab settings (subject, roots and their recent
 %   lists, pairing and copy options; not the dates), the Synthetic tab's settings and
@@ -114,6 +115,8 @@ if ispref(g, 'ArtifactViewOptions')
         applyIf(v, 'lanes',      @(x) set(obj.ArtViewLanesField, 'Value', x));
         applyIf(v, 'shankColor', @(x) set(obj.ArtViewShankColorCheckBox, 'Value', logical(x)));
         applyIf(v, 'shade',      @(x) set(obj.ArtViewShadeButton, 'Value', logical(x)));
+        applyIf(v, 'markLanes',  @(x) set(obj.ArtMarkLanesField, 'Value', x));
+        applyIf(v, 'markHighpass', @(x) set(obj.ArtMarkHighpassField, 'Value', char(x)));
         if obj.ArtViewScaleDropDown.Value == "manual" && obj.ArtViewLanesField.Value <= 0
             obj.ArtViewScaleDropDown.Value = 'artifact';
         end

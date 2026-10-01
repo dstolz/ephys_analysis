@@ -143,8 +143,7 @@ cleared: a loaded trial pairing, the Artifacts preview and the Spikes
 preview. The Review tab loads the new dataset's sorted output (at once when
 the tab is open, else when you open it), and so does the Visualize tab. Until
 it does, a Visualize plot of the previous dataset stays on screen, the status
-line names the dataset it shows and **Mark Artifacts** / **Clear Artifacts**
-are off. A plot stays tied to the dataset it was drawn from: a rescan finds
+line names the dataset it shows. A plot stays tied to the dataset it was drawn from: a rescan finds
 that recording again by its folder.
 
 | Action | Target |
@@ -598,8 +597,9 @@ The automatic detector
 ([`EphysDataset.detectArtifacts`](EphysDataset.md#artifact-detection-and-blanking))
 and the manual periods, after the common reference. The tab has three
 columns: the common reference and the detection settings with the active
-dataset's manual periods below them, the artifact viewer at full height, and
-the preview's summary with its per-channel table.
+dataset's manual periods below them, the viewers at full height (**Detected
+artifacts**, and **Mark manual periods** to mark the periods on the
+recording), and the preview's summary with its per-channel table.
 
 | Control | Maps to |
 | --- | --- |
@@ -613,11 +613,12 @@ the preview's summary with its per-channel table.
 | Erase with: *Gaussian noise (recording level)* / *Zeros* | `Artifacts.Fill` (`"noise"` / `"zero"`): what replaces the artifact samples, manual periods included. Noise by default - Kilosort4 reads a block of zeros across every channel as a signal discontinuity. Each period becomes a straight line between the signal's levels on either side plus that noise; its level is measured on up to 16 chunks spread over the recording, above `Artifacts.NoiseBandHz` (300 Hz), and `Artifacts.NoiseSeed` makes a rerun repeat; neither has a control here |
 | Erase in sorting (in the .bin Kilosort4 sorts) / Apply in spike detection (reject or erase: Spikes tab) / Erase in the signals (LFP / MUA / SPIKE, before filtering) | `Artifacts.ApplyToSorting`, `ApplyToSpikes`, `ApplyToSignals`: whether the detected artifacts reach those steps (manual periods always do). The signals take any periods only while the Signals tab's *Erase the artifact periods first* is ticked, and spike detection only while the Spikes tab's *Artifact periods* does not ignore them |
 | Cache intervals | `Artifacts.CacheIntervals` (`<Name>_artifacts.json`) |
-| Order channels by probe layout | display only, not saved: the viewer's lanes and the per-channel table in probe order (below). Needs a probe (the dataset's, else the config's default probe), and is ticked by default when there is one |
+| Order channels by probe layout | display only, not saved: the lanes of both viewers and the per-channel table in probe order (below). Needs a probe (the dataset's, else the config's default probe), and is ticked by default when there is one |
 | **Detect / Preview** | `analyzeArtifacts` over the active dataset (streamed, read-only; on the process pool when the Run tab's **Parallel** box is ticked): summary + per-channel table, and the detected artifacts in the viewer |
 | Detected artifacts: ◀ / number / ▶, Context (ms), Channels, Shank, Colour by shank, Scale, **Shade artifacts**, **Reset view** | the artifact viewer (display only, below) |
 | Ctrl+drag on the viewer, **Restore bounds** | the active dataset's `ArtifactAdjustments`: detected artifacts with their onset or offset moved by hand (written to its manifest; *Moving a detected artifact's bounds*, below) |
-| Manual periods table, **Edit in Visualize**, **Clear** | the active dataset's `ManualArtifacts` (written to its manifest) |
+| Manual periods table, **Mark artifacts**, **Clear** | the active dataset's `ManualArtifacts` (written to its manifest); **Mark artifacts** marks them on the recording in **Mark manual periods** (below), **Clear** removes them all |
+| Mark manual periods: toolbar, Lanes, High-pass (Hz) | the recording viewer (display only, below) |
 
 Changing **Method** replaces the threshold with the new method's default
 (*Running RMS* 9, *MAD* 8, *Absolute microvolts* / *Common-mode* 1500 µV) when the
@@ -634,7 +635,7 @@ each, against recording time (s). Samples a run would remove are
 **red** and those it keeps are **black** (red is what gets replaced: in the
 `.bin` by noise or by zeros as *Erase with* says, in the signals by a straight
 line). Detected artifacts are shaded orange and manual periods red, as on the
-Visualize tab, and the one shown has dashed lines at its onset and offset.
+Visualize tab and in **Mark manual periods**, and the one shown has dashed lines at its onset and offset.
 **Shade artifacts** (amber while on) or **S** over the plot turns the shading
 off to show the signal under it; the dashed bounds stay. What counts as removed follows the controls as they are set:
 manual periods always, and detected artifacts only when **Enabled** is ticked
@@ -714,6 +715,34 @@ no longer find the artifact, the adjustment is not applied. It stays in the
 manifest and applies again if those settings come back. `toBin`'s own
 chunk-by-chunk detection (a direct call without `ArtifactIntervals`) cannot
 apply them and warns (`EphysDataset:toBin:AdjustmentsIgnored`).
+
+**Marking manual periods.** The viewer column has two views, picked by the tabs
+above it. **Mark manual periods** shows the active dataset's recording through
+the same viewer as the Visualize tab
+([`EphysTraceViewer`](../pipeline/EphysTraceViewer.m)): a window at a time, read
+through the common reference this tab sets (the recording as every step reads
+it), with the detected artifacts of the last **Detect / Preview** shaded orange
+(not once a detection setting has changed since it) and the manual periods red.
+It loads when it is picked, and again when the active dataset changes while it
+is showing; the lanes follow *Order channels by probe layout*, and **Lanes** and
+**High-pass (Hz)** (blank = off, display only) are its own, remembered between
+sessions. The toolbar buttons and the strip under the plot (the whole
+recording; click or drag to go there) work as on Visualize.
+
+Turn on **Mark artifacts** (left column, under the periods table; it opens
+this view) and the left button marks: drag over the plot to add the period
+dragged over (a red band follows the pointer; it merges with the periods it
+touches and is kept inside the recording), or click a marked period to remove
+it. The right button, or any button while marking is off, pans. A drag shorter
+than four pixels counts as a click. The periods go to the dataset's manifest at
+once and the table follows; **Clear** removes them all. Marking stops by itself
+when you leave the view, the tab or the dataset, and with **Esc**. It is refused
+while a run is under way.
+
+With the pointer over the plot, the keys and wheel are those of the Visualize
+tab (*Interaction*, below): the wheel zooms time, Ctrl+wheel scales the voltage,
+Shift+wheel scrolls the lanes, arrows and Page Up / Down move, A auto-scales and
+R resets.
 
 ## Sorting
 
@@ -1168,8 +1197,9 @@ default web browser, same as **Save as HTML...** but without the save dialog.
 ## Visualize
 
 Any signal of the active dataset, with its spikes over it, read a window at a
-time. Nothing on disk is changed except the manual artifact periods you mark,
-which go to the dataset's manifest.
+time. Nothing on disk is changed: the artifact periods are only shaded here
+(the manual ones are marked on the [Artifacts](#artifacts) tab, in **Mark
+manual periods**).
 
 The tab loads the active dataset when it opens, and again whenever the active
 dataset changes while it is open (`onPlotVisualization`). It finds what the
@@ -1178,7 +1208,7 @@ can be read), the Sorting `.bin`, the Signals step's LFP / MUA / SPIKE / AUX,
 the associated sorted units and the Spikes step's detected spikes. **Reload
 data** finds them again after a run has written new files. While the tab is
 hidden the plot keeps the dataset it shows; the status line then names both
-datasets and marking artifacts is off until the tab shows the active one.
+datasets.
 
 | Control | Meaning |
 | --- | --- |
@@ -1254,7 +1284,7 @@ over the plot:
 | wheel | zoom time about the pointer |
 | Ctrl+wheel | scale the voltage |
 | Shift+wheel | scroll the lanes |
-| drag | pan time and lanes (with **Mark Artifacts** on: the right button) |
+| drag | pan time and lanes |
 | ← / → | pan a quarter window; Ctrl: a whole window |
 | Shift+← / → | zoom time out / in |
 | Page Up / Page Down | a whole window |
@@ -1262,7 +1292,6 @@ over the plot:
 | Shift+↑ / ↓ | scroll the lanes |
 | Home / End | the recording's start / end |
 | A, R | auto scale; reset the view (2 s from the current start, top lane, auto scale) |
-| Escape | turn artifact marking off |
 
 The toolbar above the plot does the same with buttons (**< Page**, **Page >**,
 **Zoom in / out**, **Taller / Shorter**, **Auto scale**, **Reset view**). The
@@ -1279,9 +1308,9 @@ processed files), and the status line says which. With neither, none is
 shaded and the status line says why. Nothing is detected on the displayed
 data. Red = manual periods. The artifact status line counts both and says where a run
 erases the manual periods: in the `.bin`, and in the signals too while the
-Signals tab's *Erase the artifact periods first* is ticked. **Mark Artifacts**
-toggles marking mode (left-drag adds a period, click inside a red region
-removes it); **Clear Artifacts** removes all. Manual periods are written to
+Signals tab's *Erase the artifact periods first* is ticked. **Mark them on the
+Artifacts tab** opens that tab on its **Mark manual periods** view, where
+the periods are added, removed and cleared. Manual periods are written to
 the dataset's manifest, so they survive a rescan and a restart.
 
 ## Review
@@ -1729,13 +1758,13 @@ app.KSQueue                       % prepared runs waiting for a slot (Queue the 
 | `onViewManifest.m`; `pipeline/ManifestViewerApp.m` | Dataset menu → View manifest... and the viewer it opens |
 | `toolTargets.m`, `syncToolsPanel.m`, `onOpenTool.m`, `onOpenOutputFolder.m` | the Project tab's Tools panel: which datasets it opens, its label and buttons, the dispatch to `onViewManifest` / `onOpenAnalysisApp` / `onLaunchPhy`, the output folders |
 | `refreshProbeList.m`, `onProbeSelected.m`, `onImportProbe.m`, `onDesignProbe.m`, `runProbeTool.m`, `onAssignProbe.m`, `onApplyExclude.m`, `onUseSelectedProbeAsDefault.m`, `probe_tool.py` | Probe tab |
-| `onDetectArtifacts.m`, `showArtifactView.m`, `drawArtifactView.m`, `onArtViewInput.m`, `syncArtProbeControls.m`, `refreshArtChannelTable.m`, `refreshManualArtifactsTable.m`, `onClearManualArtifacts.m` | Artifacts tab |
-| `routeFigureInput.m` | shares the figure's wheel and key callbacks between the Artifacts tab's plot and the Visualize viewer |
+| `onDetectArtifacts.m`, `showArtifactView.m`, `drawArtifactView.m`, `onArtViewInput.m`, `syncArtProbeControls.m`, `refreshArtChannelTable.m`, `refreshManualArtifactsTable.m`, `onClearManualArtifacts.m`, `onArtViewTabChanged.m`, `syncArtMark.m`, `applyArtMarkSettings.m`, `refreshArtMarkShading.m`, `onArtMarkViewChanged.m`, `onArtMarkInput.m`, `artMarkActive.m` | Artifacts tab: the detector's preview and viewer, and the Mark manual periods view (the recording, with periods marked on it) |
+| `routeFigureInput.m` | shares the figure's wheel, key and button callbacks between the Artifacts tab's two plots and the Visualize viewer |
 | `onOptimizeKS4ForProbe.m`, `onResetKS4Params.m`, `onUseSortingFolder.m`, `onUseAutoSorting.m`, `refreshSortingLabel.m`, `pollKSRuns.m`, `onLaunchPhy.m`, `launchPhy.m` | Sorting tab and phy |
 | `queueKSRun.m`, `onStopKSQueue.m`, `onStopKSRuns.m`, `stopKSRuns.m`, `markKSResult.m` | background Kilosort4 runs: the queue the monitor starts from, Stop queue, Stop runs..., restating a run's result row |
 | `onSpikesPreview.m`, `syncSpikesEnableStates.m` | Spikes tab |
 | `onBrowseExportOutput.m`, `onExportEpochsToWorkspace.m` | Export tab (output folder, Epochs to workspace) |
-| `onPlotVisualization.m`, `applyVizSettings.m`, `onVizControlsChanged.m`, `onVizViewChanged.m`, `onVizInput.m`, `onVizButtonDown/Up.m`, `refreshVizShading.m`, `vizDetectedIntervals.m`, `finishVizArtDrag.m`, `syncVizDataset.m`, `loadVizEvents.m`, `onVizReadEvents.m`, `showVizHelp.m`; `pipeline/EphysTraceViewer.m`, `pipeline/EphysTraceSource.m` | Visualize tab: loading the active dataset's signals and spikes, the controls, the wheel / keys / drags, the shading (`vizDetectedIntervals`: the Artifacts preview's intervals the plot shades, or why none); the digital-input events and Read events; the "?" window of mouse and key controls; the viewer and the windowed sources behind it |
+| `onPlotVisualization.m`, `applyVizSettings.m`, `onVizControlsChanged.m`, `onVizViewChanged.m`, `onVizInput.m`, `onVizButtonDown/Up.m`, `refreshVizShading.m`, `vizDetectedIntervals.m`, `syncVizDataset.m`, `loadVizEvents.m`, `onVizReadEvents.m`, `showVizHelp.m`; `pipeline/EphysTraceViewer.m`, `pipeline/EphysTraceSource.m` | Visualize tab: loading the active dataset's signals and spikes, the controls, the wheel / keys / drags, the shading (`vizDetectedIntervals`: the Artifacts preview's intervals the plot shades, or why none); the digital-input events and Read events; the "?" window of mouse and key controls; the viewer and the windowed sources behind it |
 | `buildFlowTab.m`, `refreshFlowChart.m`, `flowChartHTML.m`, `flowOverviewHTML.m`, `onFlowViewChanged.m`, `onFlowLayoutChanged.m`, `onSaveFlowChart.m`, `onOpenFlowChartInBrowser.m`, `onFlowNavigate.m`, `flowNavControls.m`, `clearFlowHighlight.m`, `private/flowZoom.m` | Diagram tab: the page in the view picked (every parameter; the data-flow overview, laid out and routed in `flowOverviewHTML`), its zoom and pan (`flowZoom`, kept per view), save / open, a box's click |
 | `buildCopyTab.m`, `onCopyFind.m`, `onCopyRun.m`, `refreshCopyTable.m`, `onCopyTableEdited.m`, `onCopyStitch.m`, `onCopyUnstitch.m`, `onBrowseCopyFolder.m`, `copyLog.m`, `onCopyCancel.m`, `startCopyMonitor.m`, `stopCopyMonitor.m`, `pollCopyJob.m`, `setCopyRunning.m`, `applyCopyResult.m`, `finishCopyRun.m`, `showCopyProgress.m`, `copySummaryText.m`, `refreshCopySchedule.m`, `onCopyScheduleSave.m`, `onCopyScheduleRemove.m`, `onCopyScheduleRunNow.m`, `onCopyScheduleLog.m`; `pipeline/findCopySessions.m`, `pipeline/stitchCopySessions.m`, `pipeline/copySessions.m`, `pipeline/copy_engine.ps1`, `pipeline/stitchEpsychSessions.m`, `pipeline/CopySchedule.m` | Copy tab, the pairing / stitching / copy functions it calls, the detached copy engine, and the scheduled copy (its Windows task and what each run does) |
 | `loadReviewResults.m`, `renderReviewPlots.m`, `syncReviewDataset.m` | Review tab |

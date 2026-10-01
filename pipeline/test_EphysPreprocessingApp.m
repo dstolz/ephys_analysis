@@ -38,6 +38,7 @@ if ispref(g, 'DiagramView'); rmpref(g, 'DiagramView'); end
 if ispref(g, 'DiagramLayout'); rmpref(g, 'DiagramLayout'); end
 if ispref(g, 'CleanupOptions'); rmpref(g, 'CleanupOptions'); end
 if ispref(g, 'VizOptions'); rmpref(g, 'VizOptions'); end
+if ispref(g, 'ArtifactViewOptions'); rmpref(g, 'ArtifactViewOptions'); end
 
 nPass = 0; nFail = 0;
     function check(cond, msg)
@@ -851,6 +852,159 @@ app.ProbeDefaultField.Value = '';
 app.onConfigChanged();
 check(~app.ArtProbeOrderCheckBox.Value && isequal(app.ArtViewShankDropDown.ItemsData, {'all'}), ...
     'and without a default probe the probe controls go back off');
+
+fprintf('\n== 3a0c. Artifacts tab: Mark manual periods ==\n');
+app.selectTab(app.TabArtifacts);
+check(app.ArtViewTabs.SelectedTab == app.ArtTabDetected && isempty(app.ArtMarkDataset) && ~app.ArtMarkMode ...
+    && app.ArtMarkButton.Enable == "on" && ~isprop(app, 'VizArtButton'), ...
+    'the viewer column opens on Detected artifacts: the recording is not read until the other view is picked, and the Visualize tab no longer marks');
+app.ArtViewTabs.SelectedTab = app.ArtTabMark;
+app.ArtViewTabs.SelectionChangedFcn(app.ArtViewTabs, []);
+mv = app.ArtMarkViewer;
+mv.RenderDelay = 0;
+mx = app.ArtMarkAxes;
+check(app.ArtMarkDataset == dA && mv.Source.Kind == "recording" && mv.Source.Reference == "pipeline" ...
+    && isequal(mv.Channels, 1:4) && isequal(mv.Shading(2).intervals, dA.ManualArtifacts) && isempty(mv.Shading(1).intervals) ...
+    && contains(app.ArtMarkStatusLabel.Text, dA.Name) && contains(app.ArtMarkStatusLabel.Text, "1 manual period"), ...
+    'Mark manual periods loads the active dataset''s recording, read as the pipeline reads it, with its manual periods shaded');
+dA.ProbeFile = probe2;
+app.syncArtProbeControls();
+check(isequal(mv.Channels, [4 2 3 1]) && isequal(mv.LaneBreaks, 2), ...
+    'with a probe the lanes follow it (a dotted line between the shanks), as the other plot does');
+app.ArtProbeOrderCheckBox.Value = false;
+app.ArtProbeOrderCheckBox.ValueChangedFcn(app.ArtProbeOrderCheckBox, []);
+check(isequal(mv.Channels, 1:4) && isempty(mv.LaneBreaks), 'Order channels by probe layout unticked: recording order');
+dA.ProbeFile = "";
+app.syncArtProbeControls();
+app.ArtMarkLanesField.Value = 2;
+app.ArtMarkLanesField.ValueChangedFcn(app.ArtMarkLanesField, []);
+app.ArtMarkHighpassField.Value = '300';
+app.ArtMarkHighpassField.ValueChangedFcn(app.ArtMarkHighpassField, []);
+check(mv.VisibleLanes == 2 && mv.Filter.type == "highpass" && mv.Filter.cutoff == 300, ...
+    'Lanes and High-pass reach the viewer');
+app.ArtMarkHighpassField.Value = '';
+app.ArtMarkHighpassField.ValueChangedFcn(app.ArtMarkHighpassField, []);
+check(mv.Filter.type == "", 'a blank High-pass is off');
+
+% The detected artifacts of a preview are shaded orange, and not once its settings changed.
+app.ArtMethodDropDown.Value = 'microvolts';
+app.ArtThresholdField.Value = 6300;
+app.ArtMinChannelsField.Value = 1;
+app.onArtifactControlsChanged();
+app.onDetectArtifacts();
+check(~isempty(app.ArtView.intervals) && isequal(mv.Shading(1).intervals, dA.adjustArtifacts(app.ArtView.intervals)), ...
+    'Detect / Preview shades the detected artifacts in the Mark manual periods view');
+app.ArtThresholdField.Value = 6400;
+app.onArtifactControlsChanged();
+check(isempty(mv.Shading(1).intervals), 'a detection setting changed since the preview: nothing is shaded orange');
+app.applyArtifactsSection(art0);
+app.onArtifactControlsChanged();
+
+% Marking: the pointer is placed through the figure, as in the Artifacts plot's bound editing.
+pxAt = @(t) markPixel(mx, t);
+app.ArtMarkButton.Value = true;
+app.ArtMarkButton.ValueChangedFcn(app.ArtMarkButton, []);
+check(app.ArtMarkMode && contains(app.ArtMarkButton.Text, "ON") && strcmp(app.Fig.Pointer, 'crosshair'), ...
+    'Mark artifacts on: a crosshair over the figure');
+manual0 = dA.ManualArtifacts;
+nRed = @() nnz(arrayfun(@(h) isequal(h.FaceColor, [0.85 0.2 0.2]), findall(mx, 'Type', 'patch', 'Visible', 'on')));
+nRed0 = nRed();
+app.Fig.CurrentPoint = pxAt(0.005);
+app.Fig.WindowButtonDownFcn(app.Fig, []);
+app.Fig.CurrentPoint = pxAt(0.009);
+app.Fig.WindowButtonMotionFcn(app.Fig, []);
+inFlight = nRed() == nRed0 + 1;     % the rubber band
+app.Fig.WindowButtonUpFcn(app.Fig, []);
+mA = readJsonFile(dA.manifestFile());
+check(inFlight && size(dA.ManualArtifacts, 1) == 2 && max(abs(dA.ManualArtifacts(2, :) - [0.005 0.009])) < 1e-9 ...
+    && isequal(dA.ManualArtifacts(1, :), manual0) && size(app.ArtManualTable.Data, 1) == 2 ...
+    && isequal(size(mA.manual_artifacts), [2 2]) && app.ArtMarkGesture == "" && isempty(app.Fig.WindowButtonMotionFcn) ...
+    && size(mv.Shading(2).intervals, 1) == 2 && contains(app.ArtMarkStatusLabel.Text, "2 manual period"), ...
+    'a drag over the plot marks a period (a rubber band while dragging): saved in the manifest, listed, shaded');
+app.Fig.CurrentPoint = pxAt(0.007);
+app.Fig.WindowButtonDownFcn(app.Fig, []);
+app.Fig.WindowButtonUpFcn(app.Fig, []);
+check(isequal(dA.ManualArtifacts, manual0) && size(app.ArtManualTable.Data, 1) == 1 ...
+    && max(abs(reshape(readJsonFile(dA.manifestFile()).manual_artifacts, 1, []) - manual0)) < 1e-12, ...
+    'a click on a marked period removes it');
+app.Fig.CurrentPoint = pxAt(0.0001);   % a short drag is a click: nothing under it, nothing changes
+app.Fig.WindowButtonDownFcn(app.Fig, []);
+app.Fig.WindowButtonUpFcn(app.Fig, []);
+check(isequal(dA.ManualArtifacts, manual0), 'a click where nothing is marked changes nothing');
+app.Fig.CurrentPoint = pxAt(0.012);
+app.Fig.WindowButtonDownFcn(app.Fig, []);
+app.Fig.CurrentPoint = pxAt(mv.TotalDuration + 0.01);   % released past the end of the plot
+app.Fig.WindowButtonUpFcn(app.Fig, []);
+check(size(dA.ManualArtifacts, 1) == 2 && abs(dA.ManualArtifacts(2, 1) - 0.012) < 1e-9 ...
+    && abs(dA.ManualArtifacts(2, 2) - mv.TotalDuration) < 1e-12, ...
+    'a drag past the end of the recording is kept inside it');
+app.onClearManualArtifacts();
+check(isempty(dA.ManualArtifacts) && isempty(mv.Shading(2).intervals) && isempty(app.ArtManualTable.Data), ...
+    'Clear removes the periods, and the view follows');
+app.RunActive = true;
+app.Fig.CurrentPoint = pxAt(0.005);
+app.Fig.WindowButtonDownFcn(app.Fig, []);
+app.Fig.CurrentPoint = pxAt(0.009);
+app.Fig.WindowButtonUpFcn(app.Fig, []);
+app.RunActive = false;
+check(isempty(dA.ManualArtifacts), 'while a run is under way a mark is refused');
+
+% Panning, zooming and keys, with the pointer over the plot.
+app.Fig.WindowKeyPressFcn(app.Fig, struct('Key', 'escape', 'Modifier', {{}}));
+check(~app.ArtMarkMode && ~app.ArtMarkButton.Value && strcmp(app.Fig.Pointer, 'arrow') && contains(app.ArtMarkButton.Text, "off"), ...
+    'Escape turns marking off');
+mv.setView(0.004, 0.004);
+app.Fig.CurrentPoint = pxAt(0.006);
+app.Fig.WindowButtonDownFcn(app.Fig, []);
+app.Fig.CurrentPoint = pxAt(0.0055);
+app.Fig.WindowButtonMotionFcn(app.Fig, []);
+app.Fig.WindowButtonUpFcn(app.Fig, []);
+check(mv.TStart > 0.004 && isempty(dA.ManualArtifacts), 'with marking off a drag pans');
+app.Fig.CurrentPoint = pxAt(mv.TStart + mv.TWidth / 2);
+w0 = mv.TWidth;
+app.Fig.WindowScrollWheelFcn(app.Fig, struct('VerticalScrollCount', 1));
+t0 = mv.TStart;
+app.Fig.WindowKeyPressFcn(app.Fig, struct('Key', 'leftarrow', 'Modifier', {{}}));
+check(abs(mv.TWidth - 1.25 * w0) < 1e-12 && mv.TStart < t0, 'the wheel zooms time and the arrows pan');
+app.Fig.CurrentPoint = [1 1];
+t0 = mv.TStart;
+app.Fig.WindowKeyPressFcn(app.Fig, struct('Key', 'leftarrow', 'Modifier', {{}}));
+check(mv.TStart == t0, 'with the pointer off the plot the keys are left alone');
+app.ArtMarkToolbarButtons(1).ButtonPushedFcn(app.ArtMarkToolbarButtons(1), []);
+check(mv.TStart < t0 || mv.TStart == 0, 'the toolbar''s Page < moves a window back');
+ovx = app.ArtMarkOverviewAxes;
+app.Fig.WindowButtonDownFcn(app.Fig, []);
+ovx.ButtonDownFcn(ovx, struct('IntersectionPoint', [0.012 0.5 0]));
+app.Fig.WindowButtonUpFcn(app.Fig, []);
+check(abs(mv.TStart + mv.TWidth / 2 - 0.012) < 1e-9 || mv.TStart + mv.TWidth >= mv.TotalDuration - 1e-12, ...
+    'a click on the overview strip centres the plot there');
+
+% Marking follows the tab and the dataset.
+app.ArtMarkButton.Value = true;
+app.ArtMarkButton.ValueChangedFcn(app.ArtMarkButton, []);
+app.ArtViewTabs.SelectedTab = app.ArtTabDetected;
+app.ArtViewTabs.SelectionChangedFcn(app.ArtViewTabs, []);
+check(~app.ArtMarkMode && ~app.ArtMarkButton.Value, 'leaving Mark manual periods stops marking');
+app.ArtMarkButton.Value = true;
+app.ArtMarkButton.ValueChangedFcn(app.ArtMarkButton, []);
+check(app.ArtMarkMode && app.ArtViewTabs.SelectedTab == app.ArtTabMark, ...
+    'turning Mark artifacts on opens the Mark manual periods view');
+app.selectTab(app.TabProject);
+check(~app.ArtMarkMode && app.ArtMarkDataset == dA, ...
+    'leaving the Artifacts tab stops marking and keeps the recording loaded');
+app.selectDataset(1, Reset=true);
+check(app.ArtMarkDataset == dA, 'the same dataset chosen again keeps its view');
+app.RunActive = true;
+app.ArtMarkButton.Value = true;
+app.selectTab(app.TabArtifacts);
+app.ArtMarkButton.ValueChangedFcn(app.ArtMarkButton, []);
+app.RunActive = false;
+check(~app.ArtMarkMode && ~app.ArtMarkButton.Value, 'while a run is under way marking cannot be turned on');
+app.ArtViewTabs.SelectedTab = app.ArtTabDetected;
+app.ArtViewTabs.SelectionChangedFcn(app.ArtViewTabs, []);
+dA.ManualArtifacts = manual0; dA.writeManifest();   % as the fixture had it
+app.refreshManualArtifactsTable();
+app.selectTab(app.TabProject);
 
 fprintf('\n== 2z. probe rules ==\n');
 app.ProbeRulesTable.Data = {'rec*', char(probe2); 'zz', char(probe2)};
@@ -2043,11 +2197,11 @@ dM2 = app.Project.Datasets(names == "recM002_260102_120000");
 dM3 = app.Project.Datasets(names == "recM003_260103_120000");
 iM3 = find(names == "recM003_260103_120000");
 check(app.Project.NumDatasets == 3 && app.currentDataset() == dM3 && app.VizDataset == dM3 ...
-    && strcmp(app.VizArtButton.Enable, 'on') && ~contains(app.VizStatusLabel.Text, "The plot shows"), ...
-    'a rescan that finds a dataset in front keeps recM003 active, and its plot current (a mark goes to recM003)');
-app.onVizArtClear();
+    && ~contains(app.VizStatusLabel.Text, "The plot shows"), ...
+    'a rescan that finds a dataset in front keeps recM003 active, and its plot current');
+app.onClearManualArtifacts();
 check(isempty(dM3.ManualArtifacts) && isequal(dM2.ManualArtifacts, [0.001 0.002]), ...
-    'Clear Artifacts clears the plotted recM003''s periods, not those of the dataset now in its old place');
+    'Clear clears the active recM003''s periods, not those of the dataset now in its old place');
 dM3.SortingDir = phyDir;
 app.refreshDatasetsTable(Datasets=iM3);
 T = app.DatasetsTable.Data;
@@ -2287,4 +2441,12 @@ for h = findall(ax, 'Type', 'line', 'LineWidth', 0.5, 'Visible', 'on').'
     in = ~isnan(h.YData);
     x = [x; h.XData(in).']; y = [y; h.YData(in).']; %#ok<AGROW>
 end
+end
+
+
+function p = markPixel(ax, t)
+% The figure pixel at time T, mid-height of the inner box of the uiaxes AX.
+pp = getpixelposition(ax, true);
+box = [pp(1:2) + ax.InnerPosition(1:2) - ax.OuterPosition(1:2), ax.InnerPosition(3:4)];
+p = [box(1) + (t - ax.XLim(1)) / diff(ax.XLim) * box(3), box(2) + box(4) / 2];
 end

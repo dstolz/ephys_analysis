@@ -6,12 +6,12 @@ function buildVisualizeTab(obj)
 %   (obj.Viewer) that reads only the window shown. Opening the tab (or
 %   choosing another dataset while it is open) loads the active dataset:
 %   onPlotVisualization finds its processed files, and Reload finds them
-%   again after a run. Every other control applies at once and never
-%   changes a file, except the manual artifact periods (Mark Artifacts),
-%   which are written to the dataset's manifest. At the right of the
-%   toolbar an event line's arrows step the view from onset to onset
-%   (onVizEventJump), and the "?" lists the mouse and key controls
-%   (showVizHelp).
+%   again after a run. Every control applies at once and never changes a
+%   file: the detected and manual artifact periods are only shaded here
+%   (the manual ones are marked on the Artifacts tab, syncArtMark). At the
+%   right of the toolbar an event line's arrows step the view from onset
+%   to onset (onVizEventJump), and the "?" lists the mouse and key
+%   controls (showVizHelp).
 %
 %   See also onPlotVisualization, onVizControlsChanged, onVizInput,
 %   onVizEventJump, showVizHelp, EphysTraceViewer, EphysTraceSource.
@@ -224,18 +224,14 @@ obj.VizColormapDropDown = uidropdown(cg, "Items", {'turbo', 'parula', 'hot', 'gr
 obj.VizColormapDropDown.Layout.Row = row; obj.VizColormapDropDown.Layout.Column = 4;
 
 row = row + 1;
-heading(cg, "Manual artifact periods", row);
+heading(cg, "Artifact periods", row);
 
 row = row + 1;
-obj.VizArtButton = uibutton(cg, "state", "Text", "Mark Artifacts: off", ...
-    "Tooltip", ["Toggle artifact marking. When on: drag on the plot to mark a period; click a " ...
-        "marked region to remove it (drag with the right button to pan). Periods are saved " ...
-        "to the dataset's manifest and erased from the .bin and the signals by a run."], ...
-    "ValueChangedFcn", @(src, ~) obj.onVizArtToggle(src.Value));
-obj.VizArtButton.Layout.Row = row; obj.VizArtButton.Layout.Column = [1 2];
-obj.VizArtClearButton = uibutton(cg, "Text", "Clear Artifacts", ...
-    "ButtonPushedFcn", @(~, ~) obj.onVizArtClear());
-obj.VizArtClearButton.Layout.Row = row; obj.VizArtClearButton.Layout.Column = [3 4];
+obj.VizArtEditButton = uibutton(cg, "Text", "Mark them on the Artifacts tab", ...
+    "Tooltip", ["The detected periods (orange) and the manual ones (red) are shaded here. " ...
+        "Manual periods are marked, and cleared, on the Artifacts tab."], ...
+    "ButtonPushedFcn", @(~, ~) vizToMarkView(obj));
+obj.VizArtEditButton.Layout.Row = row; obj.VizArtEditButton.Layout.Column = [1 4];
 cg.RowHeight{row} = 30;
 
 row = row + 1;
@@ -305,7 +301,7 @@ obj.Viewer.ViewChangedFcn = @(~) obj.onVizViewChanged();
 obj.Viewer.BusyFcn = @(msg) vizBusy(obj, msg);
 obj.Viewer.render();
 
-% The figure's buttons: drag to pan, mark artifacts (onVizButtonDown); a
+% The figure's buttons: drag to pan (onVizButtonDown); a
 % press on the overview strip is its own (vizSeekStart), so it takes the
 % time clicked from the strip itself; the wheel and keys come through
 % routeFigureInput (onVizInput).
@@ -323,6 +319,13 @@ ov = obj.VizOverviewAxes;
 obj.VizGesture = "seek";
 v.seekOverview(t);
 obj.Fig.WindowButtonMotionFcn = @(~, ~) v.seekOverview(ov.CurrentPoint(1, 1));
+end
+
+
+function vizToMarkView(obj)
+%vizToMarkView  Open the Artifacts tab on its Mark manual periods view.
+obj.ArtViewTabs.SelectedTab = obj.ArtTabMark;
+obj.selectTab(obj.TabArtifacts);
 end
 
 

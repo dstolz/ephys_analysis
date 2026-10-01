@@ -2,9 +2,7 @@ function onVizButtonDown(obj)
 %onVizButtonDown  Begin a gesture on the Visualize plot.
 %   (A press on the overview strip is the strip's own ButtonDownFcn, see
 %   buildVisualizeTab: it centres the view there, and a drag follows.) On
-%   the plot, in artifact-marking mode a plain left press starts a
-%   rubber band that defines an artifact period (finishVizArtDrag);
-%   otherwise any press starts a pan that follows the pointer in time and
+%   the plot, any press starts a pan that follows the pointer in time and
 %   across the lanes (EphysTraceViewer.beginDrag). The figure's motion
 %   callback is set for the gesture and cleared by onVizButtonUp.
 
@@ -12,17 +10,6 @@ if ~obj.vizActive(); return; end
 v = obj.Viewer;
 fig = obj.Fig;
 if ~v.isOver(fig); return; end
-
-% Artifact marking takes the plain left button when its mode is on.
-if obj.VizArtMode && strcmp(fig.SelectionType, 'normal')
-    obj.VizGesture = "mark";
-    obj.VizArtDrag = struct( ...
-        'active', true, ...
-        'x0',     obj.VizAxes.CurrentPoint(1, 1), ...
-        'axPix',  obj.VizAxes.InnerPosition);
-    fig.WindowButtonMotionFcn = @(~, ~) obj.onVizArtMotion();
-    return
-end
 
 obj.VizGesture = "pan";
 v.beginDrag(fig.CurrentPoint);

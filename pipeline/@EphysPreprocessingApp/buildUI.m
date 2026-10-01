@@ -79,7 +79,7 @@ end
 function styleButtons(obj)
 %styleButtons  Every button a size up; the main actions in colour (styleButton).
 %   A button that changes role while the app runs restyles itself
-%   (setCopyRunning, onVizArtToggle, onArtViewInput's Shade artifacts).
+%   (setCopyRunning, onArtMarkInput's Mark artifacts, onArtViewInput's Shade artifacts).
 styleButton(findall(obj.Fig, "Type", "uibutton", "-or", "Type", "uistatebutton"));
 styleButton([obj.CopyFindButton, obj.CopyRunButton, obj.ScanButton, obj.TrialsLoadButton, ...
     obj.AssignSelectedButton, obj.ApplyProbeRulesButton, obj.ArtDetectButton, obj.RunStepSortingButton, obj.RunStepSignalsButton, obj.RunStepSpikesButton, ...
@@ -87,7 +87,7 @@ styleButton([obj.CopyFindButton, obj.CopyRunButton, obj.ScanButton, obj.TrialsLo
     obj.SynthPreviewButton, obj.CleanupPreviewButton], "primary");
 styleButton([obj.TrialsApproveButton, obj.CopyScheduleSaveButton, obj.SynthGenerateButton], "confirm");
 styleButton([obj.CleanupRunButton, obj.RunCancelButton, obj.RunKSStopRunsButton, obj.RunKSStopQueueButton, ...
-    obj.CopyScheduleRemoveButton, obj.ArtManualClearButton, obj.VizArtClearButton], "danger");
+    obj.CopyScheduleRemoveButton, obj.ArtManualClearButton], "danger");
 styleButton(obj.ArtViewShadeButton, "active");   % on at the start
 end
 

@@ -12,7 +12,7 @@ function styleButton(b, role)
 %                  schedule): green with bold white text
 %     "danger"     deletes or stops something (Delete files..., Cancel,
 %                  Stop runs...): red with bold white text
-%     "active"     a toggle that is on (Mark Artifacts): amber, bold
+%     "active"     a toggle that is on (Mark artifacts): amber, bold
 %   Primary, confirm and danger text is larger again. A disabled button
 %   fades on its own, so the colours need no change for that.
 %

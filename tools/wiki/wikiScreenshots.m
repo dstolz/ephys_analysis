@@ -322,7 +322,7 @@ if want("app-visualize-traces.png") || want("app-visualize-heatmap.png")
     if ~isempty(d.ManualArtifacts); t0 = max(0, d.ManualArtifacts(1, 1) - 2); end
     app.VizStartField.Value = t0;
     app.VizDurField.Value = 3;
-    app.VizColorByShankCheckBox.Value = true;
+    app.VizTraceColorDropDown.Value = 'shank';
     app.selectTab(app.TabVisualize);   % loads the dataset (onPlotVisualization)
     if any(strcmp(app.VizSourceDropDown.ItemsData, 'recording'))
         app.VizSourceDropDown.Value = 'recording';

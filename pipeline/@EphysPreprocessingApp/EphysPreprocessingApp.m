@@ -310,7 +310,7 @@ classdef EphysPreprocessingApp < handle
         VizModeDropDown    matlab.ui.control.DropDown
         VizColormapDropDown matlab.ui.control.DropDown
         VizSortByProbeCheckBox matlab.ui.control.CheckBox
-        VizColorByShankCheckBox matlab.ui.control.CheckBox
+        VizTraceColorDropDown matlab.ui.control.DropDown
         VizShadingCheckBox matlab.ui.control.CheckBox
         VizArtButton       matlab.ui.control.StateButton
         VizArtClearButton  matlab.ui.control.Button

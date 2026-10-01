@@ -44,7 +44,7 @@ if every || what == "source"
     obj.VizRefDropDown.Enable = matlab.lang.OnOffSwitchState(isRec);
     set([obj.VizHighpassField, obj.VizLowpassField, obj.VizOrderField, obj.VizOffsetCheckBox, ...
         obj.VizChannelsField, obj.VizSpacingField, obj.VizModeDropDown, obj.VizSortByProbeCheckBox, ...
-        obj.VizColorByShankCheckBox], 'Enable', matlab.lang.OnOffSwitchState(~isempty(src)));
+        obj.VizTraceColorDropDown], 'Enable', matlab.lang.OnOffSwitchState(~isempty(src)));
     if isempty(src)
         obj.VizSourceNoteLabel.Text = "Spikes only: one lane per unit or channel.";
     else
@@ -99,12 +99,11 @@ if every || what == "source" || what == "channels"
             [~, o] = sortrows([r(:), (1:numel(cols)).']);
             cols = cols(o);
             shank = shank(o);
+            rc = rc(o);
             breaks = find(~sameValue(shank(1:end-1), shank(2:end)));
         end
-        colors = [];
-        if ok && logical(obj.VizColorByShankCheckBox.Value)
-            colors = shankColors(shank, layout.shanks);
-        end
+        colors = traceColors(string(obj.VizTraceColorDropDown.Value), ...
+            string(obj.VizColormapDropDown.Value), ok, shank, layout, rc);
         v.setChannels(cols, colors, breaks);
     end
     % The spike layers' own lanes in the same order.
@@ -173,7 +172,8 @@ end
 if every || what == "mode"
     v.Mode = string(obj.VizModeDropDown.Value);
     v.Colormap = string(obj.VizColormapDropDown.Value);
-    obj.VizColormapDropDown.Enable = matlab.lang.OnOffSwitchState(v.Mode == "heatmap");
+    obj.VizColormapDropDown.Enable = matlab.lang.OnOffSwitchState(v.Mode == "heatmap" || ...
+        any(string(obj.VizTraceColorDropDown.Value) == ["depth" "channel"]));
 end
 
 if every || what == "shading"
@@ -279,6 +279,49 @@ end
 
 function tf = sameValue(a, b)
 tf = a == b | (isnan(a) & isnan(b));
+end
+
+
+function C = traceColors(kind, cmap, ok, shank, layout, rc)
+% The lanes' colours for the Traces choice: [] = the viewer's one colour
+% (black), a named colour for every lane, one per shank, or the colormap
+% spread by depth on the probe (yc, top = first colour) or by lane.
+% Shank and depth need a probe; without one the traces stay black.
+n = numel(shank);
+solid = struct('black', [0.15 0.15 0.15], 'blue', [0.00 0.45 0.74], 'red', [0.85 0.20 0.20], ...
+    'green', [0.13 0.55 0.13], 'magenta', [0.80 0.20 0.70], 'orange', [0.93 0.55 0.10], ...
+    'grey', [0.55 0.55 0.55]);
+C = [];
+switch kind
+    case "shank"
+        if ok; C = shankColors(shank, layout.shanks); end
+    case "depth"
+        if ok
+            y = NaN(1, n);
+            onMap = isfinite(rc) & rc >= 1 & rc <= numel(layout.y);
+            y(onMap) = layout.y(rc(onMap));
+            lo = min(y); hi = max(y);
+            f = (hi - y) ./ max(hi - lo, eps);      % 0 at the top of the probe
+            C = mapColors(cmap, f, n);
+        end
+    case "channel"
+        C = mapColors(cmap, (0:n - 1) ./ max(n - 1, 1), n);
+    otherwise
+        if isfield(solid, kind); C = repmat(solid.(char(kind)), n, 1); end
+end
+end
+
+
+function C = mapColors(cmap, f, n)
+% The colormap at fractions F in [0 1] (NaN = grey, off the probe).
+try
+    M = feval(char(cmap), 256);
+catch
+    M = turbo(256);
+end
+C = repmat([0.55 0.55 0.55], n, 1);
+ok = isfinite(f);
+C(ok, :) = M(round(f(ok) * 255) + 1, :);
 end
 
 

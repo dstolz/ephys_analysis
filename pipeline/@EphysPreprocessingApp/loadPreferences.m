@@ -98,7 +98,7 @@ if ispref(g, 'VizOptions')
         applyIf(v, 'mode',      @(x) set(obj.VizModeDropDown, 'Value', char(x)));
         applyIf(v, 'colormap',  @(x) set(obj.VizColormapDropDown, 'Value', char(x)));
         applyIf(v, 'probeOrder', @(x) set(obj.VizSortByProbeCheckBox, 'Value', logical(x)));
-        applyIf(v, 'shankColor', @(x) set(obj.VizColorByShankCheckBox, 'Value', logical(x)));
+        applyIf(v, 'traceColor', @(x) set(obj.VizTraceColorDropDown, 'Value', char(x)));
         applyIf(v, 'shading',   @(x) set(obj.VizShadingCheckBox, 'Value', logical(x)));
         applyIf(v, 'events',    @(x) set(obj.VizEventsDropDown, 'Value', char(x)));
     end

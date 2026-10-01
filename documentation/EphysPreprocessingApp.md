@@ -1193,7 +1193,8 @@ datasets and marking artifacts is off until the tab shows the active one.
 | Events: Draw, Lines | the digital-input events: *Over the traces* (a solid line at each onset, a dotted one at each offset, across the lanes), *Above the traces (TTL)* (each line as a TTL trace in a 16-pixel row of its own above the top lane), *Both* or *Off*; *Lines* picks the lines drawn (at first every line with an event). **Read events** reads them from the recording when nothing else has them, see below |
 | Start, Window, Spacing | the view, which follows every pan and zoom; type to jump. Spacing is the voltage between neighbouring lanes (the scale bar at the top right) |
 | Plot, Colours | traces, or a heatmap of each bin's extreme per lane (colour range ± Spacing) |
-| Order by probe, Colour by shank | lanes by shank, top of the shank first, with a dotted line between shanks (`channelLayout` on the dataset's probe, else the config's default probe); the units' and channels' own lanes follow the same order |
+| Order by probe | lanes by shank, top of the shank first, with a dotted line between shanks (`channelLayout` on the dataset's probe, else the config's default probe); the units' and channels' own lanes follow the same order |
+| Traces | trace colour: a solid colour (black, blue, red, green, magenta, orange, grey), **By shank** (needs a probe), or **By depth** (position on the probe, top first) / **By channel** (lane order) in the Colours colormap |
 | Shade artifact periods | orange and red, see below |
 
 **Reading.** The viewer ([`EphysTraceViewer`](../pipeline/EphysTraceViewer.m)

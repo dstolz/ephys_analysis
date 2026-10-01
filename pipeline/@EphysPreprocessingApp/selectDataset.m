@@ -59,7 +59,6 @@ obj.refreshSortingLabel();
 obj.refreshManualArtifactsTable();
 obj.refreshReferencePanel();
 obj.syncVizDataset();
-obj.syncArtMark();
 shown = obj.currentVizDataset();
 if idx > 0 && obj.Tabs.SelectedTab == obj.TabVisualize && (isempty(shown) || shown ~= obj.currentDataset() || isempty(obj.VizData))
     obj.onPlotVisualization();
@@ -87,7 +86,8 @@ obj.ArtView.intervals = zeros(0, 2);
 obj.ArtView.previewed = false;
 obj.ArtView.chunk = [];
 obj.ArtView.win = [];
-obj.drawArtifactView();
+obj.ArtView.free = [];
+obj.drawArtifactView();          % stops manual marking: no window is drawn
 obj.SpkPreviewTable.Data = cell(0, 5);
 obj.SpkPreviewLabel.Text = "";
 end

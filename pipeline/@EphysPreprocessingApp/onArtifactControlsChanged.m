@@ -15,7 +15,6 @@ obj.ArtHighpassField.Enable  = matlab.lang.OnOffSwitchState(logical(obj.ArtFilte
 obj.onConfigChanged();
 obj.refreshReferencePanel();
 obj.drawArtifactView();
-obj.refreshArtMarkShading();   % a stale preview is not shaded in the Mark manual periods view
 end
 
 

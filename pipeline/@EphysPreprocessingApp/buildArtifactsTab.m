@@ -7,14 +7,13 @@ function buildArtifactsTab(obj)
 %   when the step is enabled. Where the intervals are used (sorting, spike
 %   detection) is chosen here too. After a preview the viewer steps through
 %   the detected artifacts one at a time, each with the signal around it,
-%   the kept and removed samples drawn apart.
+%   the kept and removed samples drawn apart; Go to (s) shows any stretch
+%   of the recording instead.
 %
-%   The viewer column has two views (ArtViewTabs). Detected artifacts is the
-%   one above. Mark manual periods shows the active dataset's recording in
-%   an EphysTraceViewer (ArtMarkViewer, loaded by syncArtMark): with Mark
-%   artifacts on a drag over it adds a manual period and a click on a
-%   marked one removes it (onArtMarkInput); the detected artifacts are
-%   shaded orange and the manual periods red.
+%   One plot holds both kinds of period: the detected (automatic) artifacts
+%   shaded orange and the manual periods purple (artifactColors). With Mark
+%   artifacts on (under the periods table) a drag over the plot adds a
+%   manual period and a click on one removes it (onArtViewInput).
 %
 %   The common reference (CAR / CMR, config Artifacts.Reference) comes
 %   first, as it is subtracted before anything is detected; its panel also
@@ -34,8 +33,7 @@ function buildArtifactsTab(obj)
 %
 %   See also EphysDataset.detectArtifacts, EphysDataset.analyzeArtifacts,
 %   EphysDataset.artifactIntervals, EphysDataset.channelLayout,
-%   onDetectArtifacts, showArtifactView, drawArtifactView, syncArtMark,
-%   onArtMarkInput.
+%   onDetectArtifacts, showArtifactView, drawArtifactView, onArtViewInput.
 
 g = uigridlayout(obj.TabArtifacts, [1 3]);
 g.ColumnWidth = {400, '1x', 350};
@@ -62,7 +60,7 @@ cg.Scrollable  = "on";
 
 row = 1;
 obj.ArtEnableCheckBox = uicheckbox(cg, "Text", "Enable automatic detection", "FontWeight", "bold", "Value", false, ...
-    "Tooltip", "Manual periods (marked below, in Mark manual periods) always apply, whether or not this is on.", ...
+    "Tooltip", "Manual periods (Mark artifacts, below) always apply, whether or not this is on.", ...
     "ValueChangedFcn", changed);
 obj.ArtEnableCheckBox.Layout.Row = row; obj.ArtEnableCheckBox.Layout.Column = [1 2];
 
@@ -172,7 +170,7 @@ obj.ArtCacheCheckBox.Layout.Row = row; obj.ArtCacheCheckBox.Layout.Column = [1 2
 row = row + 1;
 obj.ArtProbeOrderCheckBox = uicheckbox(cg, "Text", "Order channels by probe layout", ...
     "Value", false, "Enable", "off", "Tooltip", ...
-    "Show the channels in the plots (Mark manual periods too) and the per-channel table as they sit on the probe: " + ...
+    "Show the channels in the plot and the per-channel table as they sit on the probe: " + ...
     "by shank, then from the top of each shank down. Needs a probe assigned to the dataset " + ...
     "(Probe tab), and is on by default when it has one. Detection is the same either way.", ...
     "ValueChangedFcn", @(~,~) probeOrderChanged(obj));
@@ -202,38 +200,34 @@ obj.ArtManualTable = uitable(mg, "ColumnName", {'Start (s)', 'End (s)', 'Duratio
     "ColumnWidth", {'1x', '1x', '1x'}, "RowName", {});
 obj.ArtManualTable.Layout.Row = 2; obj.ArtManualTable.Layout.Column = [1 2];
 obj.ArtMarkButton = uibutton(mg, "state", "Text", "Mark artifacts: off", "Enable", "off", ...
-    "Tooltip", ["Toggle artifact marking, on the recording in Mark manual periods. When on: drag on " ...
-        "the plot to mark a period; click a marked region to remove it (drag with the right button " ...
-        "to pan; Esc turns it off). Periods are saved to the dataset's manifest and erased from " ...
-        "the .bin and the signals by a run."], ...
-    "ValueChangedFcn", @(src, ~) obj.onArtMarkInput("toggle", src.Value));
+    "Tooltip", ["Toggle manual marking on the plot. When on: drag over the plot to mark a period " ...
+        "(purple); click a purple period to remove it (Esc turns it off). The plot shows a detected " ...
+        "artifact, or any stretch of the recording with Go to (s). Periods are saved to the " ...
+        "dataset's manifest and erased from the .bin and the signals by a run."], ...
+    "ValueChangedFcn", @(src, ~) obj.onArtViewInput("mark", src.Value));
 obj.ArtMarkButton.Layout.Row = 3; obj.ArtMarkButton.Layout.Column = 1;
 obj.ArtManualClearButton = uibutton(mg, "Text", "Clear", "ButtonPushedFcn", @(~,~) obj.onClearManualArtifacts());
 obj.ArtManualClearButton.Layout.Row = 3; obj.ArtManualClearButton.Layout.Column = 2;
 
-% =========== middle: the viewers, full height ===========
-% Detected artifacts: one at a time with the signal around it
-% (showArtifactView reads, drawArtifactView draws). Mark manual periods: the
-% recording, to mark periods on (buildMarkView).
-obj.ArtViewTabs = uitabgroup(g, "SelectionChangedFcn", @(~,~) obj.onArtViewTabChanged());
-obj.ArtViewTabs.Layout.Column = 2;
-obj.ArtTabDetected = uitab(obj.ArtViewTabs, "Title", "Detected artifacts");
-obj.ArtTabMark = uitab(obj.ArtViewTabs, "Title", "Mark manual periods");
-
-mid = uigridlayout(obj.ArtTabDetected, [6 1]);
-mid.Padding = [6 6 6 6];
+% =========== middle: the artifact viewer, full height ===========
+% One detected artifact at a time with the signal around it, or a stretch of
+% the recording (showArtifactView reads, drawArtifactView draws); the
+% detected and the manual periods are shaded on it, and marked on it.
+mid = uigridlayout(g, [6 1]);
+mid.Layout.Column = 2;
+mid.Padding = [0 0 0 0];
 mid.RowSpacing = 4;
 mid.RowHeight = {'fit', 'fit', 'fit', 'fit', '1x', 'fit'};
 
-nav = uigridlayout(mid, [1 9]);
+nav = uigridlayout(mid, [1 11]);
 nav.Padding = [0 0 0 0]; nav.ColumnSpacing = 6;
-nav.ColumnWidth = {'fit', 34, 64, 'fit', 34, 'fit', '1x', 'fit', 60};
+nav.ColumnWidth = {'fit', 34, 64, 'fit', 34, 'fit', '1x', 'fit', 70, 'fit', 60};
 uilabel(nav, "Text", "Detected artifacts", "FontWeight", "bold");
 obj.ArtViewPrevButton = uibutton(nav, "Text", char(9664), "Tooltip", "Previous artifact", ...
     "ButtonPushedFcn", @(~,~) stepArtifact(obj, -1));
 obj.ArtViewSpinner = uispinner(nav, "Limits", [1 Inf], "Step", 1, "RoundFractionalValues", "on", ...
     "Value", 1, "Tooltip", "Artifact number, in recording order", ...
-    "ValueChangedFcn", @(~,~) obj.showArtifactView());
+    "ValueChangedFcn", @(~,~) obj.showArtifactView("artifact"));
 obj.ArtViewCountLabel = uilabel(nav, "Text", "of 0");
 obj.ArtViewNextButton = uibutton(nav, "Text", char(9654), "Tooltip", "Next artifact", ...
     "ButtonPushedFcn", @(~,~) stepArtifact(obj, 1));
@@ -242,9 +236,17 @@ obj.ArtViewRestoreButton = uibutton(nav, "Text", "Restore bounds", "Enable", "of
     "(Ctrl+drag over the plot moves them).", ...
     "ButtonPushedFcn", @(~,~) obj.onArtViewInput("restore", []));
 uilabel(nav, "Text", "");
+uilabel(nav, "Text", "Go to (s):", "HorizontalAlignment", "right");
+obj.ArtViewGotoField = uieditfield(nav, "numeric", "Value", 0, "Limits", [0 Inf], ...
+    "ValueDisplayFormat", "%.4g", "Enable", "off", "Tooltip", ...
+    "Show the recording from this time, to mark manual periods anywhere: 2 s, or the width " + ...
+    "of the stretch shown (PgDn / PgUp then page through it). The artifact number goes back " + ...
+    "to the detected artifacts.", ...
+    "ValueChangedFcn", @(src, ~) gotoTime(obj, src.Value));
 uilabel(nav, "Text", "Context (ms):", "HorizontalAlignment", "right");
 obj.ArtViewContextField = uieditfield(nav, "numeric", "Value", 0, "Limits", [0 60000], ...
-    "Tooltip", "Signal shown before and after the artifact. 0 = auto (twice its length, 25 ms to 5 s).", ...
+    "Tooltip", "Signal shown before and after the artifact. 0 = auto (twice its length, 25 ms to 5 s). " + ...
+    "Not used for a stretch shown with Go to (s).", ...
     "ValueChangedFcn", @(~,~) obj.showArtifactView());
 
 chans = uigridlayout(mid, [1 6]);
@@ -281,7 +283,7 @@ obj.ArtViewLanesField = uieditfield(sc, "numeric", "Value", 0, "Limits", [0 Inf]
     "ValueChangedFcn", @(~,~) lanesChanged(obj));
 uilabel(sc, "Text", "");
 obj.ArtViewShadeButton = uibutton(sc, "state", "Text", "Shade artifacts", "Value", true, ...
-    "Tooltip", "Shade the detected artifacts (orange) and the manual periods (red) over the " + ...
+    "Tooltip", "Shade the detected artifacts (orange) and the manual periods (purple) over the " + ...
     "signal; off to see the signal under them (S over the plot). The chosen artifact's bounds " + ...
     "stay drawn as dashed lines.", ...
     "ValueChangedFcn", @(~,~) obj.onArtViewInput("shade", []));
@@ -302,10 +304,11 @@ uilabel(mid, "WordWrap", "on", "FontColor", [0.45 0.45 0.45], "Text", ...
     "Pointer over the plot: wheel zooms time, drag or " + char(8592) + "/" + char(8594) + ...
     " pans, Shift+" + char(8592) + "/" + char(8594) + " zooms time, Ctrl+wheel, " + ...
     char(8593) + "/" + char(8595) + " or +/" + char(8722) + " scale the voltage, S shades, R resets. " + ...
-    "PgDn / N and PgUp / P step to the next and previous artifact (Shift: ten), End and Home to the last and first. " + ...
-    "Hold Ctrl and drag to move the artifact's nearer bound (dashed); it is saved for the dataset.");
-
-buildMarkView(obj, obj.ArtTabMark);
+    "PgDn / N and PgUp / P step to the next and previous artifact (Shift: ten), End and Home to the last and first; " + ...
+    "on a stretch shown with Go to (s) they page through the recording. " + ...
+    "Hold Ctrl and drag to move the artifact's nearer bound (dashed); it is saved for the dataset. " + ...
+    "Orange: detected (automatic) artifacts; purple: manual periods. With Mark artifacts on, drag to mark a " + ...
+    "manual period and click a purple one to remove it; Esc stops marking.");
 
 % =========== right: the preview's summary and per-channel table ===========
 right = uigridlayout(g, [3 1]);
@@ -328,125 +331,42 @@ end
 
 
 function stepArtifact(obj, step)
-% Previous / next artifact; the spinner's limits keep it in range.
+% Previous / next artifact; the spinner's limits keep it in range. From a
+% stretch of the recording (Go to), the first artifact after its start or
+% the last before it.
 sp = obj.ArtViewSpinner;
-v = min(max(sp.Value + step, sp.Limits(1)), sp.Limits(2));
-if v ~= sp.Value
-    sp.Value = v;
-    obj.showArtifactView();
+free = obj.ArtView.free;
+if ~isempty(free)
+    iv = obj.ArtView.intervals;
+    if step > 0
+        v = find(iv(:, 1) >= free(1), 1);
+    else
+        v = find(iv(:, 1) < free(1), 1, 'last');
+    end
+    if isempty(v); return; end
+else
+    v = min(max(sp.Value + step, sp.Limits(1)), sp.Limits(2));
+    if v == sp.Value; return; end
 end
+sp.Value = v;
+obj.showArtifactView("artifact");
+end
+
+
+function gotoTime(obj, t)
+% Go to (s): the recording from time T, as wide as the stretch shown or 2 s.
+wid = 2;
+if ~isempty(obj.ArtView.free)
+    wid = diff(obj.ArtView.free);
+end
+obj.showArtifactView([t, t + wid]);
 end
 
 
 function probeOrderChanged(obj)
-% The table and the plots follow the probe order (or the recording order).
+% The table and the plot follow the probe order (or the recording order).
 obj.refreshArtChannelTable();
 obj.drawArtifactView();
-obj.applyArtMarkSettings("channels");
-if obj.artMarkActive(); obj.ArtMarkViewer.render(); end
-end
-
-
-function buildMarkView(obj, tab)
-% Mark manual periods: the recording of the active dataset to mark periods on.
-% The viewer is loaded when the view is shown (syncArtMark); the lanes and
-% the high-pass are its own display options, the channel order is the
-% tab's "Order channels by probe layout".
-g = uigridlayout(tab, [6 1]);
-g.RowHeight = {30, 'fit', 'fit', '1x', 64, 'fit'};
-g.Padding = [6 6 6 6];
-g.RowSpacing = 4;
-
-tb = uigridlayout(g, [1 9]);
-tb.Padding = [0 0 0 0];
-tb.ColumnSpacing = 4;
-tb.ColumnWidth = [repmat({'fit'}, 1, 8), {'1x'}];
-act = @(f) @(~, ~) markAction(obj, f);
-specs = { ...
-    "< Page",   "Back one window (Page Up)",               @(v) v.panTime(-1); ...
-    "Page >",   "Forward one window (Page Down)",          @(v) v.panTime(1); ...
-    "Zoom in",  "Narrower window (wheel up; Shift+Right)", @(v) v.zoomTime(1 / 1.5); ...
-    "Zoom out", "Wider window (wheel down; Shift+Left)",   @(v) v.zoomTime(1.5); ...
-    "Taller",   "Larger traces (Ctrl+wheel up; Up arrow)", @(v) v.scaleVoltage(1.5); ...
-    "Shorter",  "Smaller traces (Ctrl+wheel down; Down arrow)", @(v) v.scaleVoltage(1 / 1.5); ...
-    "Auto scale", "Fit the traces to the signal in view (A)", @(v) v.autoScale(); ...
-    "Reset view", "The default window, top lane, automatic scale (R)", @(v) v.resetView()};
-obj.ArtMarkToolbarButtons = gobjects(1, size(specs, 1));
-for k = 1:size(specs, 1)
-    b = uibutton(tb, "Text", specs{k, 1}, "Tooltip", specs{k, 2}, "ButtonPushedFcn", act(specs{k, 3}));
-    b.Layout.Column = k;
-    obj.ArtMarkToolbarButtons(k) = b;
-end
-
-og = uigridlayout(g, [1 5]);
-og.Padding = [0 0 0 0];
-og.ColumnSpacing = 6;
-og.ColumnWidth = {'fit', 60, 'fit', 70, '1x'};
-uilabel(og, "Text", "Lanes:");
-obj.ArtMarkLanesField = uieditfield(og, "numeric", "Value", 16, "Limits", [1 512], ...
-    "RoundFractionalValues", "on", "Tooltip", ...
-    "Lanes shown at once; scroll for the others (Shift+wheel, or drag up / down).", ...
-    "ValueChangedFcn", @(~,~) markChanged(obj, "lanes"));
-uilabel(og, "Text", "High-pass (Hz):", "HorizontalAlignment", "right");
-obj.ArtMarkHighpassField = uieditfield(og, "text", "Value", "", "Placeholder", "off", ...
-    "Tooltip", "Display high-pass cut-off (Hz); blank = off. Only the view is filtered, never the data.", ...
-    "ValueChangedFcn", @(~,~) markChanged(obj, "processing"));
-
-obj.ArtMarkStatusLabel = uilabel(g, "Text", "", "FontColor", [0.4 0.4 0.4], "WordWrap", "on");
-
-obj.ArtMarkAxes = uiaxes(g);
-xlabel(obj.ArtMarkAxes, "Time (s)");
-obj.ArtMarkOverviewAxes = uiaxes(g);
-obj.ArtMarkOverviewAxes.FontSize = 9;
-
-uilabel(g, "WordWrap", "on", "FontColor", [0.45 0.45 0.45], "Text", ...
-    "Turn on Mark artifacts (left), then drag over the plot to mark a period; click a marked one (red) to remove it. " + ...
-    "With it off, or with the right button, a drag pans. Wheel zooms time, Ctrl+wheel scales the voltage, Shift+wheel " + ...
-    "scrolls the lanes; arrows, Page Up / Down, Home / End, A (auto scale) and R (reset) as on the Visualize tab; " + ...
-    "Esc turns marking off. The strip below is the whole recording: click or drag to go there. " + ...
-    "Orange is what the last Detect / Preview found, red the manual periods.");
-
-obj.ArtMarkViewer = EphysTraceViewer(obj.ArtMarkAxes, OverviewAxes=obj.ArtMarkOverviewAxes);
-obj.ArtMarkViewer.ViewChangedFcn = @(~) obj.onArtMarkViewChanged();
-obj.ArtMarkViewer.BusyFcn = @(msg) markBusy(obj, msg);
-obj.ArtMarkViewer.render();
-% A press on the overview strip is its own (markSeekStart, as the Visualize
-% tab's); the other buttons, the wheel and the keys come through
-% routeFigureInput (onArtMarkInput).
-obj.ArtMarkOverviewAxes.ButtonDownFcn = @(~, evt) markSeekStart(obj, evt.IntersectionPoint(1));
-end
-
-
-function markChanged(obj, what)
-% A display option of the marking view changed: apply it and draw.
-obj.applyArtMarkSettings(what);
-if obj.artMarkActive(); obj.ArtMarkViewer.render(); end
-end
-
-
-function markAction(obj, f)
-% A toolbar button: act on the viewer when a dataset is shown.
-if obj.artMarkActive(); f(obj.ArtMarkViewer); end
-end
-
-
-function markBusy(obj, msg)
-% The status line while the viewer reads a long window.
-if msg ~= ""
-    obj.ArtMarkStatusLabel.Text = msg;
-    drawnow limitrate
-end
-end
-
-
-function markSeekStart(obj, t)
-% A press on the overview strip: centre the view on time T; a drag follows the pointer.
-if ~obj.artMarkActive(); return; end
-v = obj.ArtMarkViewer;
-ov = obj.ArtMarkOverviewAxes;
-obj.ArtMarkGesture = "seek";
-v.seekOverview(t);
-obj.Fig.WindowButtonMotionFcn = @(~, ~) v.seekOverview(ov.CurrentPoint(1, 1));
 end
 
 

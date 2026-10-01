@@ -355,20 +355,12 @@ classdef EphysPreprocessingApp < handle
         ArtChannelTable     matlab.ui.control.Table
         ArtStatusLabel      matlab.ui.control.Label
         ArtManualLabel      matlab.ui.control.Label
-        ArtMarkButton       matlab.ui.control.StateButton        % Mark artifacts: drag over the recording to mark a period
+        ArtMarkButton       matlab.ui.control.StateButton        % Mark artifacts: drag over the plot to mark a manual period
         ArtManualClearButton matlab.ui.control.Button
         ArtManualTable      matlab.ui.control.Table
-        ArtViewTabs         matlab.ui.container.TabGroup         % the middle column: detected artifacts / mark manual periods
-        ArtTabDetected      matlab.ui.container.Tab
-        ArtTabMark          matlab.ui.container.Tab
-        ArtMarkToolbarButtons  % 1 x 8 matlab.ui.control.Button: page, zoom, scale, auto scale, reset
-        ArtMarkLanesField   matlab.ui.control.NumericEditField   % lanes shown at once
-        ArtMarkHighpassField matlab.ui.control.EditField         % display high-pass (Hz), blank = off
-        ArtMarkStatusLabel  matlab.ui.control.Label
-        ArtMarkAxes         matlab.ui.control.UIAxes
-        ArtMarkOverviewAxes matlab.ui.control.UIAxes             % the whole recording under the plot
         ArtViewPrevButton   matlab.ui.control.Button             % artifact viewer (showArtifactView)
         ArtViewSpinner      matlab.ui.control.Spinner
+        ArtViewGotoField    matlab.ui.control.NumericEditField   % show the recording from this time (s)
         ArtViewCountLabel   matlab.ui.control.Label
         ArtViewNextButton   matlab.ui.control.Button
         ArtViewRestoreButton matlab.ui.control.Button            % the chosen artifact's bounds back as detected
@@ -753,35 +745,31 @@ classdef EphysPreprocessingApp < handle
         VizSourceKind (1,1) string = "recording"   % the kind shown, kept across datasets
         VizGesture (1,1) string = ""               % "pan" | "seek" while a button is held
 
-        % --- Artifacts tab, Mark manual periods view (display-only, in-memory) ---
-        % The recording of the active dataset in an EphysTraceViewer on
-        % ArtMarkAxes (syncArtMark loads it when the view is shown); a drag
-        % over it with ArtMarkMode on adds a manual period (onArtMarkInput).
-        ArtMarkViewer = []
-        ArtMarkDataset EphysDataset = EphysDataset.empty   % the dataset it shows (a handle)
-        ArtMarkMode (1,1) logical = false
-        ArtMarkGesture (1,1) string = ""           % "pan" | "seek" | "mark" while a button is held
-        ArtMarkDrag = struct('active', false)
-
         % --- Artifacts tab viewer (in memory; showArtifactView / drawArtifactView) ---
         % intervals: the last preview's detected artifacts (recording-relative
         % s) and previewed: whether a preview ran for the active dataset;
         % settings: the detection settings it ran with (a change makes it
         % stale); summary: its analyzeArtifacts result (the per-channel
         % table); chunk: the last chunk read, for readers without random
-        % access; win: the window being drawn; drawn: what the axes show
+        % access; win: the window being drawn; free: the stretch of the
+        % recording shown instead of an artifact ([start end] s; [] = the
+        % artifact of the spinner); drawn: what the axes show
         % (the window's key, its full time span and envelope resolution);
         % gain: the voltage scale (onArtViewInput); layout / layoutKey: the
         % active dataset's channelLayout and the dataset + probe it is for;
         % mods: the modifier keys held (wheel events carry none); edit: a
         % bound being moved (onArtViewInput): armed while Ctrl is held,
         % bound "on" / "off" while one is dragged to time x (ms), and the
-        % pointer and axes interactions to put back after.
+        % pointer and axes interactions to put back after; mark: Mark
+        % artifacts (onArtViewInput): on while it is, x0 the time (s) a
+        % drag marking a manual period started at (NaN when none), and the
+        % axes interactions to put back after.
         ArtView struct = struct('intervals', zeros(0, 2), 'previewed', false, ...
-            'settings', struct(), 'summary', [], 'chunk', [], 'win', [], ...
+            'settings', struct(), 'summary', [], 'chunk', [], 'win', [], 'free', [], ...
             'drawn', struct('key', [], 'span', [0 1], 'factor', 1, 'decimated', false), 'gain', 1, ...
             'layout', [], 'layoutKey', "", 'mods', strings(1, 0), ...
-            'edit', struct('armed', false, 'bound', "", 'x', NaN, 'pointer', 'arrow', 'interactions', []))
+            'edit', struct('armed', false, 'bound', "", 'x', NaN, 'pointer', 'arrow', 'interactions', []), ...
+            'mark', struct('on', false, 'x0', NaN, 'interactions', []))
 
         % Figure wheel / key / button handlers installed before
         % routeFigureInput: they get the events when neither the Artifacts
@@ -1052,16 +1040,9 @@ classdef EphysPreprocessingApp < handle
         onSuggestReferenceExclude(obj)
         onReferenceExcludeEdited(obj)
         onClearManualArtifacts(obj)
-        showArtifactView(obj)
+        showArtifactView(obj, span)
         drawArtifactView(obj)
         tf = onArtViewInput(obj, kind, evt)
-        onArtViewTabChanged(obj)
-        syncArtMark(obj)
-        applyArtMarkSettings(obj, what)
-        onArtMarkViewChanged(obj)
-        refreshArtMarkShading(obj, draw)
-        tf = artMarkActive(obj)
-        tf = onArtMarkInput(obj, kind, evt)
         syncArtProbeControls(obj)
         refreshArtChannelTable(obj)
         routeFigureInput(obj)

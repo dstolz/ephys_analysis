@@ -597,9 +597,9 @@ The automatic detector
 ([`EphysDataset.detectArtifacts`](EphysDataset.md#artifact-detection-and-blanking))
 and the manual periods, after the common reference. The tab has three
 columns: the common reference and the detection settings with the active
-dataset's manual periods below them, the viewers at full height (**Detected
-artifacts**, and **Mark manual periods** to mark the periods on the
-recording), and the preview's summary with its per-channel table.
+dataset's manual periods below them, the artifact viewer at full height (one
+plot, where the detected artifacts are reviewed and the manual periods
+marked), and the preview's summary with its per-channel table.
 
 | Control | Maps to |
 | --- | --- |
@@ -613,12 +613,11 @@ recording), and the preview's summary with its per-channel table.
 | Erase with: *Gaussian noise (recording level)* / *Zeros* | `Artifacts.Fill` (`"noise"` / `"zero"`): what replaces the artifact samples, manual periods included. Noise by default - Kilosort4 reads a block of zeros across every channel as a signal discontinuity. Each period becomes a straight line between the signal's levels on either side plus that noise; its level is measured on up to 16 chunks spread over the recording, above `Artifacts.NoiseBandHz` (300 Hz), and `Artifacts.NoiseSeed` makes a rerun repeat; neither has a control here |
 | Erase in sorting (in the .bin Kilosort4 sorts) / Apply in spike detection (reject or erase: Spikes tab) / Erase in the signals (LFP / MUA / SPIKE, before filtering) | `Artifacts.ApplyToSorting`, `ApplyToSpikes`, `ApplyToSignals`: whether the detected artifacts reach those steps (manual periods always do). The signals take any periods only while the Signals tab's *Erase the artifact periods first* is ticked, and spike detection only while the Spikes tab's *Artifact periods* does not ignore them |
 | Cache intervals | `Artifacts.CacheIntervals` (`<Name>_artifacts.json`) |
-| Order channels by probe layout | display only, not saved: the lanes of both viewers and the per-channel table in probe order (below). Needs a probe (the dataset's, else the config's default probe), and is ticked by default when there is one |
+| Order channels by probe layout | display only, not saved: the viewer's lanes and the per-channel table in probe order (below). Needs a probe (the dataset's, else the config's default probe), and is ticked by default when there is one |
 | **Detect / Preview** | `analyzeArtifacts` over the active dataset (streamed, read-only; on the process pool when the Run tab's **Parallel** box is ticked): summary + per-channel table, and the detected artifacts in the viewer |
-| Detected artifacts: ◀ / number / ▶, Context (ms), Channels, Shank, Colour by shank, Scale, **Shade artifacts**, **Reset view** | the artifact viewer (display only, below) |
+| Detected artifacts: ◀ / number / ▶, Go to (s), Context (ms), Channels, Shank, Colour by shank, Scale, **Shade artifacts**, **Reset view** | the artifact viewer (display only, below) |
 | Ctrl+drag on the viewer, **Restore bounds** | the active dataset's `ArtifactAdjustments`: detected artifacts with their onset or offset moved by hand (written to its manifest; *Moving a detected artifact's bounds*, below) |
-| Manual periods table, **Mark artifacts**, **Clear** | the active dataset's `ManualArtifacts` (written to its manifest); **Mark artifacts** marks them on the recording in **Mark manual periods** (below), **Clear** removes them all |
-| Mark manual periods: toolbar, Lanes, High-pass (Hz) | the recording viewer (display only, below) |
+| Manual periods table, **Mark artifacts**, **Clear** | the active dataset's `ManualArtifacts` (written to its manifest); **Mark artifacts** marks them on the viewer's plot (*Marking manual periods*, below), **Clear** removes them all |
 
 Changing **Method** replaces the threshold with the new method's default
 (*Running RMS* 9, *MAD* 8, *Absolute microvolts* / *Common-mode* 1500 µV) when the
@@ -634,8 +633,9 @@ detecting* is ticked) for the **Channels** the artifact is largest on, one lane
 each, against recording time (s). Samples a run would remove are
 **red** and those it keeps are **black** (red is what gets replaced: in the
 `.bin` by noise or by zeros as *Erase with* says, in the signals by a straight
-line). Detected artifacts are shaded orange and manual periods red, as on the
-Visualize tab and in **Mark manual periods**, and the one shown has dashed lines at its onset and offset.
+line). The two kinds of period are told apart by colour: detected (automatic)
+artifacts are shaded **orange** and manual periods **purple**, as on the
+Visualize tab, and the one shown has dashed lines at its onset and offset.
 **Shade artifacts** (amber while on) or **S** over the plot turns the shading
 off to show the signal under it; the dashed bounds stay. What counts as removed follows the controls as they are set:
 manual periods always, and detected artifacts only when **Enabled** is ticked
@@ -651,6 +651,17 @@ window shown (an Intan traditional file block by block); a third-party reader
 without random access reads the chunk that holds the artifact once and keeps
 it while you step through that chunk's artifacts. A new active dataset clears
 the viewer.
+
+**Go to (s)** shows a stretch of the recording instead of an artifact: from
+the time typed, 2 s long (or as wide as the stretch already shown), at most
+10 s and kept inside the recording, drawn as the detector sees it (filtered
+as the last preview, else as the detection settings say). No artifact is
+chosen, so there are no dashed bounds; every detected artifact and manual
+period in it is shaded, and the channels drawn are the ones largest in it.
+It works before any preview, so manual periods can be marked anywhere. On a
+stretch, PgDn / PgUp page to the next / previous stretch as wide and End /
+Home go to the recording's end / start; ◀ / ▶ go back to the detected
+artifacts (the last before the stretch, the first after its start).
 
 **Probe layout.** With a probe (the dataset's, assigned on the Probe tab, else
 the config's default probe), *Order channels by probe layout* is ticked by
@@ -679,11 +690,13 @@ default.
 | drag, ← / → | pan time |
 | Shift+← / Shift+→ | zoom time out / in |
 | ↑ / ↓, + / − | scale the voltage up / down |
-| PgDn or N, PgUp or P | next / previous artifact (with Shift, ten on) |
-| End, Home | last / first artifact |
+| PgDn or N, PgUp or P | next / previous artifact (with Shift, ten on); on a stretch, the next / previous stretch |
+| End, Home | last / first artifact; on a stretch, the recording's end / start |
 | S, **Shade artifacts** | shading on / off |
 | R, **Reset view** | show the whole window at the Scale fit |
 | Ctrl+drag | move the artifact's onset or offset (below) |
+| drag, click (with **Mark artifacts** on) | mark a manual period; remove the one clicked (below) |
+| Esc | turn **Mark artifacts** off |
 
 The voltage scale carries over from one artifact to the next until **Reset
 view** or a new **Scale**; with Manual the voltage keys change **Lanes**.
@@ -716,33 +729,19 @@ manifest and applies again if those settings come back. `toBin`'s own
 chunk-by-chunk detection (a direct call without `ArtifactIntervals`) cannot
 apply them and warns (`EphysDataset:toBin:AdjustmentsIgnored`).
 
-**Marking manual periods.** The viewer column has two views, picked by the tabs
-above it. **Mark manual periods** shows the active dataset's recording through
-the same viewer as the Visualize tab
-([`EphysTraceViewer`](../pipeline/EphysTraceViewer.m)): a window at a time, read
-through the common reference this tab sets (the recording as every step reads
-it), with the detected artifacts of the last **Detect / Preview** shaded orange
-(not once a detection setting has changed since it) and the manual periods red.
-It loads when it is picked, and again when the active dataset changes while it
-is showing; the lanes follow *Order channels by probe layout*, and **Lanes** and
-**High-pass (Hz)** (blank = off, display only) are its own, remembered between
-sessions. The toolbar buttons and the strip under the plot (the whole
-recording; click or drag to go there) work as on Visualize.
-
-Turn on **Mark artifacts** (left column, under the periods table; it opens
-this view) and the left button marks: drag over the plot to add the period
-dragged over (a red band follows the pointer; it merges with the periods it
-touches and is kept inside the recording), or click a marked period to remove
-it. The right button, or any button while marking is off, pans. A drag shorter
-than four pixels counts as a click. The periods go to the dataset's manifest at
-once and the table follows; **Clear** removes them all. Marking stops by itself
-when you leave the view, the tab or the dataset, and with **Esc**. It is refused
-while a run is under way.
-
-With the pointer over the plot, the keys and wheel are those of the Visualize
-tab (*Interaction*, below): the wheel zooms time, Ctrl+wheel scales the voltage,
-Shift+wheel scrolls the lanes, arrows and Page Up / Down move, A auto-scales and
-R resets.
+**Marking manual periods.** Manual periods are marked on the same plot. Turn
+on **Mark artifacts** (left column, under the periods table; amber while on,
+and the pointer is a crosshair) and the left button marks: drag over the plot
+to add the period dragged over (a purple band follows the pointer; it merges
+with the periods it touches and is kept inside the window shown), or click a
+purple period to remove it. A drag shorter than four pixels counts as a
+click. The plot's own drag-to-pan pauses while marking is on; the wheel and
+the arrows still move the view, and Ctrl+drag still moves a detected
+artifact's bound. Mark on an artifact's window, or anywhere with **Go to
+(s)**. The periods go to the dataset's manifest at once, and the table, the
+plot and a Visualize plot of the dataset follow; **Clear** removes them all.
+Marking needs a window drawn, stops by itself when you leave the tab or the
+dataset, and with **Esc**. It is refused while a run is under way.
 
 ## Sorting
 
@@ -1198,8 +1197,8 @@ default web browser, same as **Save as HTML...** but without the save dialog.
 
 Any signal of the active dataset, with its spikes over it, read a window at a
 time. Nothing on disk is changed: the artifact periods are only shaded here
-(the manual ones are marked on the [Artifacts](#artifacts) tab, in **Mark
-manual periods**).
+(the manual ones are marked on the [Artifacts](#artifacts) tab's plot;
+**Mark manual periods** opens it on the stretch shown here).
 
 The tab loads the active dataset when it opens, and again whenever the active
 dataset changes while it is open (`onPlotVisualization`). It finds what the
@@ -1306,11 +1305,13 @@ with; otherwise the automatic detection the last run used
 (`<Name>_artifacts.json`, read with the plot: what was erased from the
 processed files), and the status line says which. With neither, none is
 shaded and the status line says why. Nothing is detected on the displayed
-data. Red = manual periods. The artifact status line counts both and says where a run
+data. Purple = manual periods. The artifact status line counts both and says where a run
 erases the manual periods: in the `.bin`, and in the signals too while the
-Signals tab's *Erase the artifact periods first* is ticked. **Mark them on the
-Artifacts tab** opens that tab on its **Mark manual periods** view, where
-the periods are added, removed and cleared. Manual periods are written to
+Signals tab's *Erase the artifact periods first* is ticked. **Mark manual
+periods (Artifacts tab)** opens the Artifacts tab's plot on the stretch shown
+here (from its start, at most 10 s; *Go to (s)* there) with **Mark artifacts**
+on, where the periods are added, removed and cleared; with a plot of another
+dataset than the active one it just opens the tab. Manual periods are written to
 the dataset's manifest, so they survive a rescan and a restart.
 
 ## Review
@@ -1758,8 +1759,8 @@ app.KSQueue                       % prepared runs waiting for a slot (Queue the 
 | `onViewManifest.m`; `pipeline/ManifestViewerApp.m` | Dataset menu → View manifest... and the viewer it opens |
 | `toolTargets.m`, `syncToolsPanel.m`, `onOpenTool.m`, `onOpenOutputFolder.m` | the Project tab's Tools panel: which datasets it opens, its label and buttons, the dispatch to `onViewManifest` / `onOpenAnalysisApp` / `onLaunchPhy`, the output folders |
 | `refreshProbeList.m`, `onProbeSelected.m`, `onImportProbe.m`, `onDesignProbe.m`, `runProbeTool.m`, `onAssignProbe.m`, `onApplyExclude.m`, `onUseSelectedProbeAsDefault.m`, `probe_tool.py` | Probe tab |
-| `onDetectArtifacts.m`, `showArtifactView.m`, `drawArtifactView.m`, `onArtViewInput.m`, `syncArtProbeControls.m`, `refreshArtChannelTable.m`, `refreshManualArtifactsTable.m`, `onClearManualArtifacts.m`, `onArtViewTabChanged.m`, `syncArtMark.m`, `applyArtMarkSettings.m`, `refreshArtMarkShading.m`, `onArtMarkViewChanged.m`, `onArtMarkInput.m`, `artMarkActive.m` | Artifacts tab: the detector's preview and viewer, and the Mark manual periods view (the recording, with periods marked on it) |
-| `routeFigureInput.m` | shares the figure's wheel, key and button callbacks between the Artifacts tab's two plots and the Visualize viewer |
+| `onDetectArtifacts.m`, `showArtifactView.m`, `drawArtifactView.m`, `onArtViewInput.m`, `syncArtProbeControls.m`, `refreshArtChannelTable.m`, `refreshManualArtifactsTable.m`, `onClearManualArtifacts.m`, `private/artifactColors.m` | Artifacts tab: the detector's preview and the viewer, where detected artifacts are reviewed and manual periods marked (`onArtViewInput`); the orange / purple of the two kinds, shared with Visualize (`artifactColors`) |
+| `routeFigureInput.m` | shares the figure's wheel, key and button callbacks between the Artifacts tab's plot and the Visualize viewer |
 | `onOptimizeKS4ForProbe.m`, `onResetKS4Params.m`, `onUseSortingFolder.m`, `onUseAutoSorting.m`, `refreshSortingLabel.m`, `pollKSRuns.m`, `onLaunchPhy.m`, `launchPhy.m` | Sorting tab and phy |
 | `queueKSRun.m`, `onStopKSQueue.m`, `onStopKSRuns.m`, `stopKSRuns.m`, `markKSResult.m` | background Kilosort4 runs: the queue the monitor starts from, Stop queue, Stop runs..., restating a run's result row |
 | `onSpikesPreview.m`, `syncSpikesEnableStates.m` | Spikes tab |

@@ -51,8 +51,7 @@ try
     obj.ArtView.previewed = true;
     obj.ArtView.settings = EphysDataset.normalizeArtifactConfig(d.ArtifactConfig);
     obj.ArtViewSpinner.Value = 1;
-    obj.showArtifactView();
-    obj.refreshArtMarkShading();    % the orange periods of the Mark manual periods view
+    obj.showArtifactView("artifact");
 
     if logical(obj.ArtEnableCheckBox.Value)
         artHint = "Automatic detection is enabled; it applies on the next run.";

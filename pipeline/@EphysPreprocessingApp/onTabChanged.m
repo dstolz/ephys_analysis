@@ -2,7 +2,9 @@ function onTabChanged(obj)
 %onTabChanged  Refresh the tab strip, the status hint and per-tab previews on tab change.
 obj.syncTabStrip();
 obj.clearFlowHighlight();   % a control marked by a Diagram click stays marked only while its tab is shown
-obj.syncArtMark();          % loads the Artifacts tab's recording view when it opens on it; marking stops on leaving
+if obj.Tabs.SelectedTab ~= obj.TabArtifacts && obj.ArtView.mark.on
+    obj.onArtViewInput("mark", false);   % manual marking stops on leaving the Artifacts tab
+end
 switch obj.Tabs.SelectedTab
     case obj.TabCopy
         msg = "Copy: find a subject's sessions, check the pairing, Preview, then Copy selected (nothing on the source is changed).";
@@ -14,7 +16,7 @@ switch obj.Tabs.SelectedTab
     case obj.TabProbe
         msg = "Probe: pick a probe .json and assign it; exclusions are saved per dataset.";
     case obj.TabArtifacts
-        msg = "Artifacts: tune the detector and preview what would be silenced; mark manual periods on the recording.";
+        msg = "Artifacts: tune the detector and preview what would be silenced; mark manual periods on the plot.";
         obj.refreshManualArtifactsTable();
         obj.refreshReferencePanel();
     case obj.TabSorting

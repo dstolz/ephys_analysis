@@ -46,6 +46,4 @@ dd.Value = 'all';
 
 obj.refreshArtChannelTable();
 obj.drawArtifactView();
-obj.applyArtMarkSettings("channels");     % the Mark manual periods view's lanes follow the probe too
-if obj.artMarkActive(); obj.ArtMarkViewer.render(); end
 end

@@ -1,7 +1,7 @@
 function updateVizArtStatus(obj)
     % Refresh the artifact-count label under the Visualize controls,
     % reporting both the detected (orange, the Artifacts tab's preview;
-    % whether a run removes them) and the manual (red) periods.
+    % whether a run removes them) and the manual (purple) periods.
     if isempty(obj.VizArtStatusLabel) || ~isvalid(obj.VizArtStatusLabel); return; end
 
     [det, why, source] = obj.vizDetectedIntervals();
@@ -33,6 +33,6 @@ function updateVizArtStatus(obj)
     where = "the .bin";
     if logical(obj.SigBlankArtifactsCheckBox.Value); where = "the .bin and the signals"; end
     obj.VizArtStatusLabel.Text = detTxt + sprintf( ...
-        "%d manual period(s), %.3f s total (erased in %s).", ...
+        "%d manual period(s) (purple), %.3f s total (erased in %s).", ...
         size(iv, 1), sum(iv(:, 2) - iv(:, 1)), where);
 end

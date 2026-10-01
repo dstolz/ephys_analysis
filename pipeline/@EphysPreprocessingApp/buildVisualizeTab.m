@@ -8,7 +8,8 @@ function buildVisualizeTab(obj)
 %   onPlotVisualization finds its processed files, and Reload finds them
 %   again after a run. Every control applies at once and never changes a
 %   file: the detected and manual artifact periods are only shaded here
-%   (the manual ones are marked on the Artifacts tab, syncArtMark). At the
+%   (the manual ones are marked on the Artifacts tab's plot, which Mark
+%   manual periods opens on the stretch shown here, vizToMarkView). At the
 %   right of the toolbar an event line's arrows step the view from onset
 %   to onset (onVizEventJump), and the "?" lists the mouse and key
 %   controls (showVizHelp).
@@ -227,9 +228,10 @@ row = row + 1;
 heading(cg, "Artifact periods", row);
 
 row = row + 1;
-obj.VizArtEditButton = uibutton(cg, "Text", "Mark them on the Artifacts tab", ...
-    "Tooltip", ["The detected periods (orange) and the manual ones (red) are shaded here. " ...
-        "Manual periods are marked, and cleared, on the Artifacts tab."], ...
+obj.VizArtEditButton = uibutton(cg, "Text", "Mark manual periods (Artifacts tab)", ...
+    "Tooltip", ["The detected periods (orange) and the manual ones (purple) are shaded here. " ...
+        "This opens the Artifacts tab's plot on the stretch shown here (up to 10 s) with Mark " ...
+        "artifacts on: drag to mark a period, click one to remove it; Clear is there too."], ...
     "ButtonPushedFcn", @(~, ~) vizToMarkView(obj));
 obj.VizArtEditButton.Layout.Row = row; obj.VizArtEditButton.Layout.Column = [1 4];
 cg.RowHeight{row} = 30;
@@ -323,9 +325,19 @@ end
 
 
 function vizToMarkView(obj)
-%vizToMarkView  Open the Artifacts tab on its Mark manual periods view.
-obj.ArtViewTabs.SelectedTab = obj.ArtTabMark;
+%vizToMarkView  Open the Artifacts tab's plot on the stretch shown here, marking.
+%   The plot shows the recording from the start of this view, as wide (up
+%   to 10 s; showArtifactView), with Mark artifacts on. Periods go to the
+%   active dataset, so with a plot of another one (or none) the tab just opens.
 obj.selectTab(obj.TabArtifacts);
+v = obj.Viewer;
+shown = obj.currentVizDataset();
+d = obj.currentDataset();
+if isempty(d) || isempty(shown) || shown ~= d || isempty(v) || ~isvalid(v) || isempty(v.Source)
+    return
+end
+obj.showArtifactView([v.TStart, v.TStart + v.TWidth]);
+obj.onArtViewInput("mark", true);
 end
 
 

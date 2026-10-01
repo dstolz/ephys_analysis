@@ -1,20 +1,25 @@
 function tf = onArtViewInput(obj, kind, evt)
-%onArtViewInput  The Artifacts tab's plot: scale it, shade it, move a bound.
+%onArtViewInput  The Artifacts tab's plot: scale it, shade it, move a bound, mark a period.
 %   TF = obj.onArtViewInput(KIND, EVT) acts on the figure's wheel ("scroll"),
 %   key ("key", "release") and button ("down", "up") events, passed on by
 %   routeFigureInput while the Artifacts tab is showing (key releases on
-%   any tab), on Reset view ("reset"), Shade artifacts ("shade") and
-%   Restore bounds ("restore"), and returns whether it took the event. The
+%   any tab), on Reset view ("reset"), Shade artifacts ("shade"),
+%   Restore bounds ("restore") and Mark artifacts ("mark", EVT its value),
+%   and returns whether it took the event. The
 %   wheel and the keys act with the pointer over the plot:
 %     wheel, Shift+wheel ......... zoom time about the pointer
 %     Ctrl+wheel ................. scale the voltage (Ctrl+Shift+wheel too)
 %     left / right arrow ......... pan time by a quarter of the view
 %     Shift+left / right arrow ... zoom time out / in about the view's centre
 %     up / down arrow, + / - ..... scale the voltage up / down
-%     page down / n, page up / p . next / previous artifact (Shift: 10 on)
-%     end, home .................. last / first artifact
+%     page down / n, page up / p . next / previous artifact (Shift: 10 on);
+%                                  on a stretch of the recording (Go to),
+%                                  the next / previous stretch as wide
+%     end, home .................. last / first artifact; on a stretch, the
+%                                  end / start of the recording
 %     s .......................... shading on / off (as Shade artifacts)
 %     r .......................... reset (as Reset view)
+%     escape ..................... Mark artifacts off (anywhere)
 %   Dragging pans too (the axes' own pan, along time only). The voltage
 %   scale is ArtView.gain, a factor on the Scale fit kept from one artifact
 %   to the next until a reset or a new Scale (with Scale: Manual they
@@ -32,7 +37,21 @@ function tf = onArtViewInput(obj, kind, evt)
 %   the detected artifacts takes them so (artifactIntervals). Restore
 %   bounds puts them back as detected. Refused while a run is under way.
 %
-%   See also drawArtifactView, routeFigureInput, EphysDataset.adjustArtifacts.
+%   Marking a manual period: with Mark artifacts on, the pointer is a
+%   crosshair and a left-button drag over the plot marks the time dragged
+%   over (a purple band follows the pointer; EphysDataset.addArtifact
+%   merges it with the periods it touches), kept inside the window drawn;
+%   a click (under four pixels of movement) on a manual period removes it.
+%   The axes' own pan gives way to it (the wheel and the arrows still
+%   move the view), and Ctrl+drag still moves a bound. The periods go to
+%   the dataset's ManualArtifacts and its manifest (saveManifests), and
+%   the periods table, the plot and a Visualize plot of the dataset follow.
+%   Marking is refused while a run is under way, and stops with Escape,
+%   on leaving the tab (onTabChanged) and when no window is drawn
+%   (drawArtifactView).
+%
+%   See also drawArtifactView, routeFigureInput, EphysDataset.adjustArtifacts,
+%   EphysDataset.addArtifact.
 
 tf = false;
 switch kind
@@ -42,10 +61,13 @@ switch kind
         end
         return
     case "down"
-        tf = startBound(obj);
+        tf = startBound(obj) || startMark(obj);
         return
     case "up"
-        tf = finishBound(obj);
+        tf = finishBound(obj) || finishMark(obj);
+        return
+    case "mark"
+        tf = setMarking(obj, logical(evt));
         return
     case "shade"
         shadeChanged(obj);
@@ -57,6 +79,10 @@ switch kind
     case "key"
         if obj.ArtView.edit.armed && string(evt.Key) ~= "control" && ~any(string(evt.Modifier) == "control")
             armBound(obj, false);            % Ctrl was let go outside the figure
+        end
+        if string(evt.Key) == "escape" && obj.ArtView.mark.on
+            tf = setMarking(obj, false);
+            return
         end
 end
 w = obj.ArtView.win;
@@ -99,13 +125,21 @@ switch kind
             case "leftarrow"
                 if shift; zoomTime(obj, 1.5, []); else; panTime(obj, -0.25); end
             case {"pagedown", "n"}
-                gotoArtifact(obj, obj.ArtViewSpinner.Value + ifelse(shift, 10, 1));
+                if w.k == 0
+                    pageStretch(obj, 1);
+                else
+                    gotoArtifact(obj, obj.ArtViewSpinner.Value + ifelse(shift, 10, 1));
+                end
             case {"pageup", "p"}
-                gotoArtifact(obj, obj.ArtViewSpinner.Value - ifelse(shift, 10, 1));
+                if w.k == 0
+                    pageStretch(obj, -1);
+                else
+                    gotoArtifact(obj, obj.ArtViewSpinner.Value - ifelse(shift, 10, 1));
+                end
             case "home"
-                gotoArtifact(obj, 1);
+                if w.k == 0; pageStretch(obj, -Inf); else; gotoArtifact(obj, 1); end
             case "end"
-                gotoArtifact(obj, Inf);
+                if w.k == 0; pageStretch(obj, Inf); else; gotoArtifact(obj, Inf); end
             case "s"
                 obj.ArtViewShadeButton.Value = ~obj.ArtViewShadeButton.Value;
                 shadeChanged(obj);
@@ -128,8 +162,23 @@ sp = obj.ArtViewSpinner;
 k = min(max(round(k), sp.Limits(1)), sp.Limits(2));
 if k ~= sp.Value
     sp.Value = k;
-    obj.showArtifactView();
+    obj.showArtifactView("artifact");
 end
+end
+
+
+function pageStretch(obj, step)
+% A stretch of the recording (Go to): the next (STEP 1) or previous (-1)
+% one as wide, or the recording's end (Inf) or start (-Inf);
+% showArtifactView keeps it inside the recording.
+free = obj.ArtView.free;
+wid = diff(free);
+if isinf(step)
+    t0 = ifelse(step > 0, Inf, 0);
+else
+    t0 = free(1) + step * wid;
+end
+obj.showArtifactView([t0, t0 + wid]);
 end
 
 
@@ -269,11 +318,12 @@ end
 function [b, x] = nearBound(obj)
 % The chosen artifact's bound nearer the pointer ("on" / "off") and the
 % pointer's time X (s); "" with the pointer off the plot box (over the
-% labels or the legend, say) or nothing drawn.
+% labels or the legend, say), nothing drawn or no artifact chosen (a
+% stretch of the recording).
 b = "";
 x = NaN;
 w = obj.ArtView.win;
-if isempty(w) || isfield(w, 'error') || isempty(obj.currentDataset())
+if isempty(w) || isfield(w, 'error') || w.k == 0 || isempty(obj.currentDataset())
     return
 end
 [x, inside] = pointerTime(obj);
@@ -423,7 +473,7 @@ function tf = restoreBounds(obj)
 tf = false;
 w = obj.ArtView.win;
 d = obj.currentDataset();
-if isempty(w) || isfield(w, 'error') || isempty(d); return; end
+if isempty(w) || isfield(w, 'error') || w.k == 0 || isempty(d); return; end
 if obj.refuseWhileRunning("Restore bounds"); return; end
 [~, moved] = d.adjustArtifacts([w.on w.off]);
 if ~moved; return; end
@@ -432,6 +482,158 @@ obj.saveManifests(d);
 obj.drawArtifactView();
 obj.setStatus(sprintf("Artifact %d is back as detected: %.4f to %.4f s.", w.k, w.on, w.off));
 tf = true;
+end
+
+
+%% --- marking a manual period (Mark artifacts) ----------------------------------
+function tf = setMarking(obj, on)
+% Mark artifacts on or off: the button's text and colour, the pointer, and
+% the axes' own pan and data tips given way to the marking drag (kept to
+% put back; while a bound edit holds them, in its place). It stays off with
+% no window drawn or a run under way; turning it off drops a mark in progress.
+tf = true;
+w = obj.ArtView.win;
+if on && (isempty(w) || isfield(w, 'error') || isempty(obj.currentDataset()))
+    on = false;
+end
+if on && obj.refuseWhileRunning("Mark artifacts")
+    on = false;
+end
+b = obj.ArtMarkButton;
+b.Value = on;
+if on
+    b.Text = "Mark artifacts: ON (drag on the plot)";
+    styleButton(b, "active");
+else
+    b.Text = "Mark artifacts: off";
+    styleButton(b);
+end
+M = obj.ArtView.mark;
+if M.on == on; return; end
+E = obj.ArtView.edit;
+editing = E.armed || E.bound ~= "";
+ax = obj.ArtViewAxes;
+fig = obj.Fig;
+if on
+    if editing
+        M.interactions = E.interactions;
+        E.interactions = [];
+        E.pointer = 'crosshair';
+    else
+        M.interactions = ax.Interactions;
+        ax.Interactions = [];
+        if isvalid(fig); fig.Pointer = 'crosshair'; end
+    end
+else
+    if ~isnan(M.x0)                       % a mark in progress is dropped
+        M.x0 = NaN;
+        delete(findobj(ax, 'Tag', 'artMarkBand'));
+        if isvalid(fig) && ~editing; fig.WindowButtonMotionFcn = ''; end
+    end
+    if editing
+        E.interactions = M.interactions;
+        E.pointer = 'arrow';
+    else
+        if isvalid(ax); ax.Interactions = M.interactions; end
+        if isvalid(fig); fig.Pointer = 'arrow'; end
+    end
+    M.interactions = [];
+end
+M.on = on;
+obj.ArtView.mark = M;
+obj.ArtView.edit = E;
+end
+
+
+function tf = startMark(obj)
+% A plain left press over the plot box with marking on starts a mark: the
+% figure's motion stretches a band from there (markMotion).
+tf = false;
+M = obj.ArtView.mark;
+if ~M.on || ~strcmp(obj.Fig.SelectionType, 'normal'); return; end
+[x, inside] = pointerTime(obj);
+if ~inside; return; end
+M.x0 = x;
+obj.ArtView.mark = M;
+obj.Fig.WindowButtonMotionFcn = @(~, ~) markMotion(obj);
+tf = true;
+end
+
+
+function markMotion(obj)
+% The band between where the mark started and the pointer, inside the window.
+x0 = obj.ArtView.mark.x0;
+if isnan(x0); return; end
+ax = obj.ArtViewAxes;
+span = markSpan(obj, x0, pointerTime(obj));
+h = findobj(ax, 'Tag', 'artMarkBand');
+if span(2) <= span(1)
+    delete(h);
+elseif isempty(h)
+    col = artifactColors();
+    xregion(ax, span(1), span(2), 'FaceColor', col.manual, 'FaceAlpha', 0.35, ...
+        'Tag', 'artMarkBand');   % visible, so findobj finds it; the legend lists its own handles
+else
+    h(1).Value = span;
+end
+end
+
+
+function span = markSpan(obj, x0, x1)
+% [start end] (s) between X0 and X1, inside the window drawn.
+D = obj.ArtView.drawn.span;
+span = [max(min(x0, x1), D(1)), min(max(x0, x1), D(2))];
+end
+
+
+function tf = finishMark(obj)
+% The button let go after startMark: a drag adds the period dragged over, a
+% click (under four pixels) removes the manual period under it. Saved in the
+% dataset's manifest; the table, this plot and a Visualize plot follow.
+tf = false;
+M = obj.ArtView.mark;
+if isnan(M.x0); return; end
+x0 = M.x0;
+M.x0 = NaN;
+obj.ArtView.mark = M;
+tf = true;
+fig = obj.Fig;
+if obj.ArtView.edit.armed
+    fig.WindowButtonMotionFcn = @(~, ~) hoverBound(obj);
+else
+    fig.WindowButtonMotionFcn = '';
+end
+ax = obj.ArtViewAxes;
+delete(findobj(ax, 'Tag', 'artMarkBand'));
+d = obj.currentDataset();
+if isempty(d) || obj.refuseWhileRunning("Mark artifacts"); return; end
+
+x1 = pointerTime(obj);
+secPerPix = diff(ax.XLim) / max(ax.InnerPosition(3), 1);
+if abs(x1 - x0) >= 4 * secPerPix
+    span = markSpan(obj, x0, x1);
+    if span(2) <= span(1); return; end
+    d.addArtifact(span(1), span(2));
+    msg = sprintf("%s: manual period %.4f to %.4f s marked (saved in the manifest).", d.Name, span(1), span(2));
+else
+    iv = d.ManualArtifacts;
+    hit = [];
+    if ~isempty(iv)
+        hit = find(x0 >= iv(:, 1) & x0 <= iv(:, 2), 1);
+    end
+    if isempty(hit); return; end
+    msg = sprintf("%s: manual period %.4f to %.4f s removed.", d.Name, iv(hit, 1), iv(hit, 2));
+    iv(hit, :) = [];
+    d.ManualArtifacts = iv;
+end
+obj.saveManifests(d);                    % periods persist in the manifest
+obj.refreshManualArtifactsTable();       % redraws this plot too
+shown = obj.currentVizDataset();
+if ~isempty(shown) && shown == d
+    obj.refreshVizShading();
+end
+obj.updateVizArtStatus();
+obj.setStatus(msg);
 end
 
 

@@ -1,10 +1,12 @@
 function drawArtifactView(obj)
-%drawArtifactView  Draw one detected artifact: what a run removes and keeps.
+%drawArtifactView  Draw one detected artifact, or a stretch: what a run removes and keeps.
 %   Draws ArtView.win (read by showArtifactView) on the Artifacts tab's
-%   axes: the channels the artifact is largest on (ArtViewChannelsField), one
+%   axes: the channels the artifact is largest on (ArtViewChannelsField;
+%   on a stretch of the recording, the largest in it), one
 %   lane each, against recording time (s). Samples a
-%   run would remove are red and the ones it keeps black. Detected artifacts
-%   are shaded orange and manual periods red, as on the Visualize tab, while
+%   run would remove are red and the ones it keeps black. Detected
+%   (automatic) artifacts are shaded orange and manual periods purple
+%   (artifactColors), as on the Visualize tab, while
 %   the shading is on (ArtViewShadeButton, the S key); the chosen artifact's
 %   bounds are dashed lines either way, the ones a Ctrl+drag moves
 %   (onArtViewInput). Detected artifacts are drawn with the bounds moved by
@@ -31,7 +33,9 @@ function drawArtifactView(obj)
 %   window starts on its whole span. Long windows are drawn as a min / max
 %   envelope, finer as the zoom narrows (ArtView.drawn). Without a
 %   window it shows why (no preview yet, nothing detected, a read error).
-%   Called on every change to those controls; it never reads data.
+%   Called on every change to those controls; it never reads data. It also
+%   sets which of the viewer's controls apply, Mark artifacts and Go to (s)
+%   included: marking stops when no window is drawn.
 %
 %   See also showArtifactView, onArtViewInput, onDetectArtifacts, refreshVizShading.
 
@@ -66,9 +70,11 @@ if isempty(w) || isfield(w, 'error')
     if isstruct(w) && isfield(w, 'error')
         msg = "Could not read the artifact: " + w.error;
     elseif ~V.previewed
-        msg = "Press Detect / Preview to step through the detected artifacts here.";
+        msg = "Press Detect / Preview to step through the detected artifacts here," + newline + ...
+            "or Go to (s) to show the recording and mark manual periods on it.";
     elseif n == 0
-        msg = "No artifacts detected with these settings.";
+        msg = "No artifacts detected with these settings." + newline + ...
+            "Go to (s) shows the recording, to mark manual periods on it.";
     else
         msg = "";
     end
@@ -87,7 +93,12 @@ if ~isempty(d) && ~isempty(d.ManualArtifacts)
     manual = manual(inWin(manual), :);
 end
 shown = inWin(ivAll);                % the detected artifacts in the window
-chosen = ivAll(w.k, :);
+chosen = zeros(0, 2);                % none on a stretch of the recording
+isMoved = false;
+if w.k > 0
+    chosen = ivAll(w.k, :);
+    isMoved = moved(w.k);
+end
 maskManual = false(m, 1);
 maskDetected = false(m, 1);
 if ~isempty(d)
@@ -181,10 +192,11 @@ yRem  = Y + offsets;    yRem(~wide, :) = NaN;
 hold(ax, 'on');
 hDet = gobjects(0, 1);
 hMan = gobjects(0, 1);
+col = artifactColors();
 if logical(obj.ArtViewShadeButton.Value)
     for i = find(shown).'
         r = xregion(ax, ivAll(i, 1), ivAll(i, 2), ...
-            'FaceColor', [0.95 0.6 0.1], 'FaceAlpha', 0.18, 'DisplayName', "Detected artifact");
+            'FaceColor', col.auto, 'FaceAlpha', 0.18, 'DisplayName', "Detected (automatic)");
         if i == w.k
             r.Tag = 'artChosen';             % follows a Ctrl+drag of its bounds
         end
@@ -192,16 +204,18 @@ if logical(obj.ArtViewShadeButton.Value)
     end
     for i = 1:size(manual, 1)
         hMan(end+1, 1) = xregion(ax, manual(i, 1), manual(i, 2), ...
-            'FaceColor', [0.85 0.2 0.2], 'FaceAlpha', 0.15, 'DisplayName', "Manual period"); %#ok<AGROW>
+            'FaceColor', col.manual, 'FaceAlpha', 0.2, 'DisplayName', "Manual period"); %#ok<AGROW>
     end
 end
 % The chosen artifact's bounds, the lines a Ctrl+drag moves; where the
 % detector put them when they have been moved.
-if moved(w.k)
+if isMoved
     xline(ax, [w.on w.off], ':', 'Color', [0.45 0.45 0.45], 'LineWidth', 1, 'Tag', 'artDetected');
 end
-xline(ax, chosen(1), '--', 'Color', [0.8 0.4 0], 'LineWidth', 1.2, 'Tag', 'artOnset');
-xline(ax, chosen(2), '--', 'Color', [0.8 0.4 0], 'LineWidth', 1.2, 'Tag', 'artOffset');
+if ~isempty(chosen)
+    xline(ax, chosen(1), '--', 'Color', [0.8 0.4 0], 'LineWidth', 1.2, 'Tag', 'artOnset');
+    xline(ax, chosen(2), '--', 'Color', [0.8 0.4 0], 'LineWidth', 1.2, 'Tag', 'artOffset');
+end
 if byProbe
     sh = L.shank(ch);                        % a dotted line between shanks
     for i = find(~sameShank(sh(1:end-1), sh(2:end)))
@@ -232,7 +246,9 @@ set(ax, 'XLim', xl, 'YLim', [-0.5, nShow - 0.5] * spacing, 'TickLabelInterpreter
     'YTick', (0:nShow - 1) * spacing, 'YTickLabel', w.names(ch(end:-1:1)));
 xlabel(ax, "Recording time (s)");
 ax.XAxis.Exponent = 0;                       % whole seconds, not an offset or a power of ten
-if moved(w.k)
+if w.k == 0
+    title(ax, sprintf('Recording from %.4f to %.4f s', span(1), span(2)));
+elseif isMoved
     title(ax, sprintf('Artifact %d of %d at %.4f s, %s long (bounds moved by hand)', ...
         w.k, w.n, chosen(1), durationText(diff(chosen))));
 else
@@ -244,6 +260,8 @@ if numel(pool) < nCh
 end
 if nShow == numel(pool)
     chText = sprintf("all %d channels%s", nShow, where);
+elseif w.k == 0
+    chText = sprintf("the %d of %d channels%s largest here", nShow, numel(pool), where);
 else
     chText = sprintf("the %d of %d channels%s it is largest on", nShow, numel(pool), where);
 end
@@ -294,7 +312,7 @@ end
 
 function pal = shankPalette()
 % Shank colours: blues, greens, purple and grey, clear of the red of the
-% removed samples and the orange / red of the shadings (lines() is not).
+% removed samples and the orange of the detected artifacts (lines() is not).
 pal = [0.00 0.45 0.74
        0.13 0.55 0.13
        0.49 0.18 0.56
@@ -320,28 +338,46 @@ end
 
 function syncControls(obj, n, hasProbe, moved)
 % Spinner range, the count (with how many have bounds moved by hand) and the
-% enable state of the viewer's controls. MOVED flags the moved ones.
+% enable state of the viewer's controls. MOVED flags the moved ones. The
+% display controls apply while a window is drawn (an artifact or a
+% stretch), Go to while a dataset is active, Mark artifacts while a
+% window is drawn; marking stops when none is.
 has = n > 0;
+w = obj.ArtView.win;
+drawn = isstruct(w) && ~isfield(w, 'error');
+free = drawn && w.k == 0;
+onOff = @(tf) matlab.lang.OnOffSwitchState(tf);
 sp = obj.ArtViewSpinner;
 sp.Limits = [1 max(n, 1)];     % clamps Value
-sp.Enable = matlab.lang.OnOffSwitchState(has);
+sp.Enable = onOff(has);
 obj.ArtViewCountLabel.Text = "of " + n;
 if any(moved)
     obj.ArtViewCountLabel.Text = sprintf("of %d, %d moved", n, nnz(moved));
 end
 k = min(max(round(sp.Value), 1), max(n, 1));
-obj.ArtViewRestoreButton.Enable = matlab.lang.OnOffSwitchState(has && moved(min(k, end)) ...
-    && isstruct(obj.ArtView.win) && ~isfield(obj.ArtView.win, 'error'));
-obj.ArtViewShadeButton.Enable = matlab.lang.OnOffSwitchState(has);
-obj.ArtViewPrevButton.Enable = matlab.lang.OnOffSwitchState(has && sp.Value > 1);
-obj.ArtViewNextButton.Enable = matlab.lang.OnOffSwitchState(has && sp.Value < n);
-obj.ArtViewContextField.Enable = matlab.lang.OnOffSwitchState(has);
-obj.ArtViewChannelsField.Enable = matlab.lang.OnOffSwitchState(has);
-obj.ArtViewScaleDropDown.Enable = matlab.lang.OnOffSwitchState(has);
-obj.ArtViewLanesField.Enable = matlab.lang.OnOffSwitchState(has);
-obj.ArtViewShankDropDown.Enable = matlab.lang.OnOffSwitchState(has && hasProbe);
-obj.ArtViewShankColorCheckBox.Enable = matlab.lang.OnOffSwitchState(has && hasProbe);
-obj.ArtViewResetButton.Enable = matlab.lang.OnOffSwitchState(has);
+obj.ArtViewRestoreButton.Enable = onOff(has && drawn && ~free && moved(min(k, end)));
+obj.ArtViewShadeButton.Enable = onOff(drawn);
+if free
+    iv = obj.ArtView.intervals;
+    obj.ArtViewPrevButton.Enable = onOff(any(iv(:, 1) < obj.ArtView.free(1)));
+    obj.ArtViewNextButton.Enable = onOff(any(iv(:, 1) >= obj.ArtView.free(1)));
+    obj.ArtViewGotoField.Value = obj.ArtView.free(1);
+else
+    obj.ArtViewPrevButton.Enable = onOff(has && sp.Value > 1);
+    obj.ArtViewNextButton.Enable = onOff(has && sp.Value < n);
+end
+obj.ArtViewContextField.Enable = onOff(has && ~free);
+obj.ArtViewChannelsField.Enable = onOff(drawn);
+obj.ArtViewScaleDropDown.Enable = onOff(drawn);
+obj.ArtViewLanesField.Enable = onOff(drawn);
+obj.ArtViewShankDropDown.Enable = onOff(drawn && hasProbe);
+obj.ArtViewShankColorCheckBox.Enable = onOff(drawn && hasProbe);
+obj.ArtViewResetButton.Enable = onOff(drawn);
+obj.ArtViewGotoField.Enable = onOff(~isempty(obj.currentDataset()));
+obj.ArtMarkButton.Enable = onOff(drawn);
+if ~drawn && obj.ArtView.mark.on
+    obj.onArtViewInput("mark", false);
+end
 end
 
 
@@ -365,7 +401,13 @@ function [s, color] = removalNote(obj, V)
 % One line on what red and black mean on a run, and whether the preview is stale.
 s = "";
 color = [0.3 0.3 0.3];
-if ~V.previewed; return; end
+if ~V.previewed
+    if isstruct(V.win) && ~isfield(V.win, 'error')
+        s = "Red is what a run removes: the manual periods (purple). Black is kept. " + ...
+            "Detect / Preview shades the detected artifacts too (orange).";
+    end
+    return
+end
 if autoRemoved(obj)
     u = autoUses(obj);
     uses = strings(1, 0);
@@ -383,10 +425,10 @@ if autoRemoved(obj)
     s = "Red is what a run removes: " + strjoin(uses, "; ") + ". Black is kept.";
 elseif logical(obj.ArtEnableCheckBox.Value)
     s = "No step takes the detected artifacts (erasing in sorting or in the signals, spike detection's " + ...
-        "Artifacts mode), so a run keeps them (black). Manual periods (red) are always removed.";
+        "Artifacts mode), so a run keeps them (black). Manual periods (purple) are always removed.";
 else
     s = "Automatic detection is off, so a run keeps the detected artifacts (black). " + ...
-        "Manual periods (red) are always removed.";
+        "Manual periods (purple) are always removed.";
 end
 cur = EphysDataset.normalizeArtifactConfig(EphysPipelineConfig.artifactConfig(obj.gatherArtifactsSection()));
 if ~isequaln(rmfield(cur, 'Enabled'), rmfield(V.settings, 'Enabled'))

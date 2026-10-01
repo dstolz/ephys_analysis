@@ -6,9 +6,6 @@ if isempty(d) || isempty(d.ManualArtifacts); return; end
 d.ManualArtifacts = zeros(0, 2);
 obj.saveManifests(d);
 obj.refreshManualArtifactsTable();
-obj.refreshArtMarkShading();
-obj.onArtMarkViewChanged();
-obj.drawArtifactView();
 shown = obj.currentVizDataset();
 if ~isempty(shown) && shown == d
     obj.refreshVizShading();

@@ -149,6 +149,21 @@ check(msg == "" && ks.dmin == 20 && ks.tmax == 60 && ks.nblocks == 5 && isequal(
 S.KS4ExtraJSON = "{not json";
 [~, msg] = EphysPipelineConfig.ks4Settings(S);
 check(msg ~= "", 'bad extra JSON is reported');
+S0 = EphysPipelineConfig.defaults("Sorting");
+S0.KS4.shank_spacing = 250;
+ks = EphysPipelineConfig.ks4Settings(S0);
+check(EphysPipelineConfig.defaults("Sorting").KS4.shank_spacing == 0 && ks.shank_spacing == 250, ...
+    'shank_spacing (off by default) goes to runKilosort with the Kilosort4 settings');
+cS = EphysPipelineConfig();
+cS.Project.Root = root;
+cS.Sorting.Enabled = true; cS.Sorting.PythonExe = "python.exe";
+cS.Sorting.KS4.shank_spacing = -1;
+iss = cS.validate(CheckPaths=false);
+check(any(iss.Step == "sorting" & iss.Field == "KS4.shank_spacing" & iss.Severity == "error"), ...
+    'a negative shank_spacing is an error');
+cS.Sorting.KS4.shank_spacing = 300;
+iss = cS.validate(CheckPaths=false);
+check(~any(iss.Field == "KS4.shank_spacing"), 'a positive shank_spacing is fine');
 check(EphysPipelineConfig.ks4ParamText('floatinf', Inf) == "Infinity" && EphysPipelineConfig.ks4ParamText('nullable', []) == "" ...
     && EphysPipelineConfig.ks4ParamText('vector', [1 2]) == "1, 2" && EphysPipelineConfig.ks4ParamText('int', 3) == "3", ...
     'ks4ParamText renders typed values');

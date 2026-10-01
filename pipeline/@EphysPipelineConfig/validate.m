@@ -165,6 +165,9 @@ if S.Enabled
     if ~(S.KS4.nt > 0 && S.KS4.nt == round(S.KS4.nt) && mod(S.KS4.nt, 2) == 1)
         add("sorting", "KS4.nt", "error", "nt (spike template width) must be a positive odd integer.");
     end
+    if ~(isfinite(S.KS4.shank_spacing) && S.KS4.shank_spacing >= 0)
+        add("sorting", "KS4.shank_spacing", "error", "shank_spacing (extra distance between shanks for sorting) must be 0 um or more.");
+    end
     [ks4, msg] = EphysPipelineConfig.ks4Settings(S);
     if msg ~= ""; add("sorting", "KS4ExtraJSON", "error", msg); end
     badDev = S.Devices(~EphysDataset.isTorchDevice(S.Devices));

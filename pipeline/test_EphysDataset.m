@@ -654,6 +654,77 @@ catch ME
 end
 check(strcmp(errId, 'EphysDataset:runKilosort:AllExcluded'), 'excluding every channel is refused');
 
+fprintf('\n== 12b. runKilosort(DryRun=true) with shank_spacing ==\n');
+% Two shanks of two sites, 200 um apart. Kilosort4 sorts a copy with the
+% shanks further apart; the probe map stays as it is.
+probe2File = fullfile(root, 'probe_2shank.json');
+p2 = makeSyntheticProbe(numAmp, SitesPerShank=2, File=probe2File);
+px2 = p2.xc(:); py2 = p2.yc(:);
+txt2 = fileread(probe2File);
+dsr.ExcludeChannels = [];
+resS = dsr.runKilosort(DryRun=true, ProbeFile=probe2File, ExtraSettings=struct('shank_spacing', 300, 'nblocks', 0));
+setS = jsondecode(fileread(resS.settingsPath));
+prS = jsondecode(fileread(resS.probeFile));
+check(endsWith(string(resS.probeFile), "probe_2shank_spaced.json") && startsWith(string(resS.probeFile), string(resS.runDir)) ...
+    && resS.shankSpacing == 300 && strcmpi(resS.trueProbeFile, probe2File), ...
+    'shank_spacing: Kilosort4 sorts a derived <probe>_spaced.json in the run folder');
+check(max(abs(prS.xc(:) - (px2 + 300 * p2.kcoords(:)))) < 1e-9 && isequal(prS.yc(:), py2) ...
+    && isequal(prS.chanMap(:), p2.chanMap(:)) && isequal(prS.kcoords(:), p2.kcoords(:)), ...
+    'the second shank moves 300 um along x; y, chanMap and kcoords stay');
+check(strcmp(fileread(probe2File), txt2), 'the probe map itself is not changed');
+check(strcmpi(strrep(setS.probe, '/', filesep), resS.probeFile) && setS.shank_spacing == 300 ...
+    && strcmpi(strrep(setS.true_probe, '/', filesep), probe2File) && setS.nblocks == 0, ...
+    'settings.json: the spaced probe for Kilosort4, shank_spacing and the true probe for run_ks4.py');
+dsr.ExcludeChannels = 2;
+resSX = dsr.runKilosort(DryRun=true, ProbeFile=probe2File, ExtraSettings=struct('shank_spacing', 300));
+prSX = jsondecode(fileread(resSX.probeFile));
+check(endsWith(string(resSX.probeFile), "probe_2shank_excluded_spaced.json") ...
+    && endsWith(string(resSX.trueProbeFile), "probe_2shank_excluded.json") ...
+    && isequal(prSX.chanMap(:).', [0 2 3]) && isequal(prSX.xc(:), px2([1 3 4]) + [0; 300; 300]), ...
+    'with excluded channels: the excluded probe is spaced, and is the true probe');
+dsr.ExcludeChannels = [];
+res1 = dsr.runKilosort(DryRun=true, ExtraSettings=struct('shank_spacing', 300));   % section 8's one-shank probe
+set1 = jsondecode(fileread(res1.settingsPath));
+check(res1.shankSpacing == 0 && strcmpi(res1.probeFile, probeFile) && ~isfield(set1, 'true_probe') ...
+    && ~isfield(set1, 'shank_spacing'), 'a one-shank probe is sorted as it is');
+res0 = dsr.runKilosort(DryRun=true, ProbeFile=probe2File, ExtraSettings=struct('shank_spacing', 0));
+set0 = jsondecode(fileread(res0.settingsPath));
+check(res0.shankSpacing == 0 && strcmpi(res0.probeFile, probe2File) && ~isfield(set0, 'shank_spacing'), ...
+    'shank_spacing 0 leaves the probe alone and is not passed to Kilosort4');
+check(strcmp(errorIdOf(@() dsr.runKilosort(DryRun=true, ProbeFile=probe2File, ...
+    ExtraSettings=struct('shank_spacing', -5))), 'EphysDataset:runKilosort:BadShankSpacing'), ...
+    'a negative shank_spacing is refused');
+
+% run_ks4.py puts the true positions back in Kilosort4's output: channel
+% positions by chanMap (here in another order, one site dropped), spike
+% positions by the shift of the nearest site in the spaced layout.
+py = findNumpyPython();
+if py == ""
+    fprintf('  (restore_positions check skipped: no Python with NumPy)\n');
+else
+    ksOut = fullfile(root, 'ks_spaced_out'); mkdir(ksOut);
+    rows = [3 0 1];                                    % chanMap values Kilosort4 kept
+    writeNPY(fullfile(ksOut, 'channel_map.npy'), int32(rows));
+    writeNPY(fullfile(ksOut, 'channel_positions.npy'), single([prS.xc(rows + 1) prS.yc(rows + 1)]));
+    near = [3 3 0 1 1];                                % site each spike sits by
+    jit = [2 -4; -3 6; 1 1; -2 -7; 4 3];
+    writeNPY(fullfile(ksOut, 'spike_positions.npy'), single([prS.xc(near + 1) prS.yc(near + 1)] + jit));
+    pyScript = fullfile(root, 'restore_check.py');
+    fid = fopen(pyScript, 'w');
+    fprintf(fid, '%s\n', "import sys", "sys.path.insert(0, sys.argv[1])", "import run_ks4", ...
+        "run_ks4.restore_positions(sys.argv[2], sys.argv[3], sys.argv[4])");
+    fclose(fid);
+    [st, out] = system(sprintf('"%s" "%s" "%s" "%s" "%s" "%s"', py, pyScript, fileparts(resS.scriptPath), ...
+        ksOut, probe2File, resS.probeFile));
+    if st ~= 0; fprintf(2, '%s\n', out); end
+    cp = readNPY(fullfile(ksOut, 'channel_positions.npy'));
+    sp = readNPY(fullfile(ksOut, 'spike_positions.npy'));
+    check(st == 0 && isa(cp, 'single') && max(abs(double(cp) - [px2(rows + 1) py2(rows + 1)]), [], 'all') < 1e-4, ...
+        'restore_positions: channel_positions.npy has the true positions, matched by chanMap');
+    check(isa(sp, 'single') && max(abs(double(sp) - ([px2(near + 1) py2(near + 1)] + jit)), [], 'all') < 1e-4, ...
+        'restore_positions: each spike moves back by the shift of its nearest site');
+end
+
 fprintf('\n== 13. detectSpikes (voltage thresholding) ==\n');
 FsSpk = ds.Fs;                      % 30000
 rng(7);
@@ -1695,6 +1766,19 @@ end
 
 
 % =========================================================================
+function py = findNumpyPython()
+%findNumpyPython  A Python with NumPy: the kilosort env, else the miniconda base ("" for none).
+py = "";
+for base = [string(getenv('LOCALAPPDATA')), string(getenv('USERPROFILE'))]
+    for c = [fullfile(base, 'miniconda3', 'envs', 'kilosort', 'python.exe'), fullfile(base, 'miniconda3', 'python.exe')]
+        if ~isfile(c); continue; end
+        [st, ~] = system(sprintf('"%s" -c "import numpy"', c));
+        if st == 0; py = c; return; end
+    end
+end
+end
+
+
 function out = mergeTouching(iv)
 % Sorted half-open intervals joined where they overlap or touch (artifactIntervals' rule).
 out = zeros(0, 2);

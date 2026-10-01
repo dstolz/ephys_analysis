@@ -33,7 +33,17 @@ function result = runKilosort(obj, opts)
 %     ResultsDir     KS4 output dir (default OutputDir/kilosort4)
 %     NChanBin       n_chan_bin override (default from .bin JSON sidecar or NumChannels)
 %     Fs             sample rate override (default ds.Fs)
-%     ExtraSettings  scalar struct merged into settings.json
+%     ExtraSettings  scalar struct merged into settings.json. Its
+%                    shank_spacing (um, 0 = off) is not passed on as a
+%                    Kilosort4 setting: Kilosort4 sorts with a derived probe
+%                    <probe>_spaced.json in the run folder whose shanks
+%                    (kcoords groups, in order of their mean x) are that much
+%                    further apart along x; the probe .json is never
+%                    modified. settings.json records shank_spacing and the
+%                    unspaced probe as true_probe, and run_ks4.py puts its
+%                    positions back in channel_positions.npy and
+%                    spike_positions.npy once Kilosort4 finishes, so the
+%                    sorted output has the true layout.
 %     DryRun         (1,1) logical  write the run files + build the command,
 %                    do NOT spawn (default false). The files go to
 %                    <ResultsDir>\dryrun (result.runDir), never into ResultsDir
@@ -80,7 +90,10 @@ function result = runKilosort(obj, opts)
 %   RESULT struct: status, command, driverCommand, stdoutLog, scriptPath,
 %   settingsPath, resultsDir (where Kilosort4 writes its output), runDir
 %   (the folder holding settings.json and run_ks4.py: resultsDir, or
-%   resultsDir\dryrun for a dry run), binFile, probeFile, excludeChannels,
+%   resultsDir\dryrun for a dry run), binFile, probeFile (the probe
+%   Kilosort4 sorts with), trueProbeFile (the probe whose positions the
+%   output has: probeFile unless the shanks were spaced), shankSpacing (um
+%   added between shanks; 0 when none), excludeChannels,
 %   nExcludedChannels, dryRun, wait, statusFile, background, device,
 %   launched, previousDir (see launchSorting).
 %
@@ -131,6 +144,19 @@ if ~isempty(problems)
 end
 if ~opts.DryRun && binGiven && ~isfile(binFile)
     error('EphysDataset:runKilosort:BinMissing', '.bin not found: %s', binFile);
+end
+% shank_spacing is not a Kilosort4 setting: it says how far apart to move
+% the shanks in the probe Kilosort4 sorts with.
+extra = opts.ExtraSettings;
+shankSpacing = 0;
+if isfield(extra, 'shank_spacing')
+    shankSpacing = double(extra.shank_spacing);
+    extra = rmfield(extra, 'shank_spacing');
+    if isempty(shankSpacing); shankSpacing = 0; end
+    if ~(isscalar(shankSpacing) && isfinite(shankSpacing) && shankSpacing >= 0)
+        error('EphysDataset:runKilosort:BadShankSpacing', ...
+            'shank_spacing must be a distance of 0 um or more.');
+    end
 end
 
 % Results dir
@@ -199,6 +225,14 @@ if ~isempty(excludeCh)
     end
 end
 
+% Shank spacing: Kilosort4 sorts with a copy of the probe whose shanks are
+% further apart; run_ks4.py puts this probe's positions back in its output.
+trueProbe = string(probeFile);
+spaced = false;
+if shankSpacing > 0
+    [probeFile, spaced] = writeSpacedProbe(probeFile, shankSpacing, runDir);
+end
+
 % Build settings.json
 settings = struct();
 settings.n_chan_bin = nChanBin;
@@ -210,10 +244,14 @@ settings.results_dir = strrep(resultsDir, '\', '/');
 if isfinite(binScale)
     settings.bin_scale = binScale;                   % for readPhyUnits, not Kilosort4
 end
+if spaced
+    settings.shank_spacing = shankSpacing;               % for run_ks4.py, not Kilosort4
+    settings.true_probe = strrep(char(trueProbe), '\', '/');
+end
 % Merge ExtraSettings
-extraNames = fieldnames(opts.ExtraSettings);
+extraNames = fieldnames(extra);
 for k = 1:numel(extraNames)
-    settings.(extraNames{k}) = opts.ExtraSettings.(extraNames{k});
+    settings.(extraNames{k}) = extra.(extraNames{k});
 end
 % A .bin that carries the common reference is not referenced again:
 % Kilosort4's do_CAR would subtract the median across the probe's channels
@@ -250,6 +288,8 @@ result.resultsDir   = resultsDir;
 result.runDir       = runDir;
 result.binFile      = binFile;
 result.probeFile    = probeFile;
+result.trueProbeFile = trueProbe;
+result.shankSpacing = shankSpacing * spaced;
 result.excludeChannels = excludeCh;
 result.nExcludedChannels = nExcluded;
 result.dryRun       = opts.DryRun;
@@ -391,6 +431,47 @@ if nKept ~= nChanBin
     fprintf('Derived probe: %d of %d channel(s) retained for sorting.\n', ...
         nKept, nChanBin);
 end
+end
+
+
+function [derivedFile, spaced] = writeSpacedProbe(probeFile, spacing, runDir)
+%writeSpacedProbe  Write a probe .json with its shanks SPACING um further apart.
+%   Shanks are the kcoords groups, ordered by their mean x: the k-th (from
+%   0) moves k*SPACING um along x, so each pair of neighbouring shanks gains
+%   SPACING um and every shank keeps its own layout. Kilosort4 picks a
+%   channel's neighbours by distance alone (whitening_range, drift
+%   interpolation, template matching), so wider gaps keep them on one
+%   shank. Returns the original file (SPACED false) when the probe has one
+%   shank.
+derivedFile = string(probeFile);
+spaced = false;
+probe = readJsonFile(probeFile);
+x = double(probe.xc(:)); y = double(probe.yc(:)); k = double(probe.kcoords(:));
+shanks = unique(k);
+if numel(shanks) < 2
+    fprintf('shank_spacing: the probe has one shank, so Kilosort4 sorts it as it is.\n');
+    return
+end
+meanX = arrayfun(@(s) mean(x(k == s)), shanks);
+[~, order] = sort(meanX);
+rank = zeros(size(k));
+for r = 1:numel(shanks)
+    rank(k == shanks(order(r))) = r - 1;
+end
+xs = x + rank * spacing;
+probe.xc = reshape(xs, size(probe.xc));
+
+[~, pn] = fileparts(char(probeFile));
+derivedFile = string(fullfile(char(runDir), pn + "_spaced.json"));
+writeProbeMap(derivedFile, probe);
+spaced = true;
+
+% How far apart the shanks now are, next to the size of one shank.
+same = k == k.';
+d0 = hypot(x - x.', y - y.');
+d1 = hypot(xs - xs.', y - y.');
+fprintf(['Shanks %g um further apart for sorting: nearest sites on different shanks %.4g -> %.4g um ' ...
+    '(farthest sites on one shank %.4g um).\n'], spacing, min(d0(~same)), min(d1(~same)), max(d0(same)));
 end
 
 

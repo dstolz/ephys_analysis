@@ -31,8 +31,9 @@ Usage: `run_ks4.py <settings.json> [--device <torch device>]`.
 
 1. Loads the probe with `kilosort.io.load_probe(cfg['probe'])`.
 2. Sorts the other `settings.json` keys (except the driver's own keys
-   `probe`, `data_dtype`, `torch_device` and `bin_scale`, the `.bin`'s units
-   per µV that `readPhyUnits` reads and Kilosort4 is not given) with
+   `probe`, `data_dtype`, `torch_device`, `bin_scale` (the `.bin`'s units
+   per µV that `readPhyUnits` reads and Kilosort4 is not given),
+   `shank_spacing` and `true_probe`) with
    `split_settings`:
    - `run_kilosort` arguments (`do_CAR`, `invert_sign`, `save_extra_vars`,
      `save_preprocessed_copy`, `bad_channels`, `clear_cache`,
@@ -46,6 +47,11 @@ Usage: `run_ks4.py <settings.json> [--device <torch device>]`.
    first GPU (or the CPU).
 4. Calls `kilosort.run_kilosort(settings, probe, filename, data_dtype,
    results_dir, **run_args)`.
+5. With a `true_probe` (the probe was sorted with its shanks moved apart,
+   [shank spacing](EphysDataset.md#shank-spacing)), `restore_positions` writes
+   the true positions back: `channel_positions.npy` from `true_probe` by
+   `chanMap`, and `spike_positions.npy` moved back by the shift of each
+   spike's nearest site in the spaced layout.
 
 It writes `ks4_status.json` (`{"state": "done", "num_units", "dropped_params"}`
 or `{"state": "error", "message", "traceback"}`) in `results_dir` and prints

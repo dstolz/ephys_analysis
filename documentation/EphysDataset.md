@@ -1267,7 +1267,8 @@ how its results were made; its `settings.json` still names `ResultsDir` as
 `settings.json` also records `bin_scale`, the `.bin`'s units per µV (`Scale`
 when this call writes the `.bin`, else the sidecar's `scale`), which
 `readPhyUnits` needs to give templates in µV; `run_ks4.py` does not pass it to
-Kilosort4.
+Kilosort4. With [shank spacing](#shank-spacing) it also records
+`shank_spacing` and `true_probe`, which are for `run_ks4.py` too.
 
 - Kilosort4 high-passes the `.bin` itself. Its own reference (`do_CAR`, the
   median across the probe's channels) is turned off (`do_CAR = false` in
@@ -1298,7 +1299,8 @@ Kilosort4.
   (`EphysDataset:runKilosort:ProbeChannelMismatch`).
 - Options: `PythonExe`, `CondaEnv`, `ProbeFile`, `ExcludeChannels`, `BinFile`
   (an existing `.bin` to sort as is), `ResultsDir`, `NChanBin`, `Fs`,
-  `ExtraSettings` (merged into `settings.json`), `ArtifactIntervals` (`NaN` =
+  `ExtraSettings` (merged into `settings.json`; its `shank_spacing` is taken
+  out, see [Shank spacing](#shank-spacing)), `ArtifactIntervals` (`NaN` =
   `artifactIntervals()`, `[]` = none), `DryRun`, `Wait`, `Device`, `Launch`
   (`false` writes the `.bin` and `settings.json` and returns; see
   `launchSorting`).
@@ -1306,7 +1308,10 @@ Kilosort4.
   `scriptPath`, `settingsPath`, `resultsDir` (where Kilosort4 writes its
   output), `runDir` (the folder holding `settings.json` and `run_ks4.py`:
   `resultsDir`, or `resultsDir\dryrun` for a dry run),
-  `binFile`, `probeFile`, `excludeChannels`, `nExcludedChannels`, `dryRun`,
+  `binFile`, `probeFile` (the probe Kilosort4 sorts with), `trueProbeFile`
+  (the probe whose positions the output has: `probeFile` unless the shanks
+  were spaced), `shankSpacing` (µm added between shanks, 0 when none),
+  `excludeChannels`, `nExcludedChannels`, `dryRun`,
   `wait`, `statusFile`, `background`, `device`, `launched`, `previousDir`.
 
 #### Channel exclusions
@@ -1320,6 +1325,32 @@ not modified. The derived probe is written by `writeProbeMap`, so with one
 site left its arrays are still JSON lists, as Kilosort4 needs; excluding every
 site is refused (`EphysDataset:runKilosort:AllExcluded`). There is no
 automatic bad-channel detection.
+
+#### Shank spacing
+
+`ExtraSettings.shank_spacing` (µm, from `Sorting.KS4.shank_spacing`; 0 = off)
+moves the probe's shanks apart for the sort only. Kilosort4 picks a channel's
+neighbours by distance alone, so this keeps whitening and its other
+distance-based steps on one shank ([why and how much](kilosort4-notes.md#shank_spacing)).
+
+- `runKilosort` writes `<probe>_spaced.json` into the run folder. The shanks
+  (`kcoords` groups, in order of their mean `xc`) move 0, 1, 2, ... ×
+  `shank_spacing` µm along x. With excluded channels, the `_excluded.json`
+  probe is the one spaced (`<probe>_excluded_spaced.json`).
+- The probe map itself is never modified, and a one-shank probe is sorted as
+  it is.
+- `settings.json`'s `probe` names the spaced copy. `true_probe` names the
+  probe it came from, and `shank_spacing` records the distance. The run logs
+  the nearest distance between shanks before and after, next to the farthest
+  distance within one shank.
+- After Kilosort4 finishes, `run_ks4.py` gives the output the true layout
+  back. `channel_positions.npy` gets each site's position from `true_probe`,
+  matched by `chanMap`. Each spike in `spike_positions.npy` moves back by the
+  shift of its nearest site. `ops.npy` and Kilosort4's `spike_positions.png`
+  keep the spaced layout.
+- A negative or non-finite value is refused
+  (`EphysDataset:runKilosort:BadShankSpacing`; the config's `validate` reports
+  it too).
 
 #### Sorted output
 

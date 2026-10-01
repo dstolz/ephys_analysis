@@ -67,9 +67,9 @@ channel's whitening neighbourhood spans:
 
 For this probe, **8 – 12** is the more defensible range. Kilosort4 decides
 neighbours by distance alone, so the only way to whiten each shank strictly on
-its own channels is to space the shanks further apart in the probe map's `xc`.
-That also changes every other Kilosort4 step that works from channel
-distances.
+its own channels is to move the shanks further apart. Use
+[`shank_spacing`](#shank_spacing) for that: it moves them apart for the sort
+only and leaves the probe map as it is.
 
 To check a probe map `pf` (shanks are its `kcoords` groups):
 
@@ -95,3 +95,83 @@ end
   **Optimize for probe** then loads it like the other parameters. It is not
   one of the `KS4ProbeParams` that `ks4ProbeDefaults` derives from the layout
   ([Optimize for probe](EphysPreprocessingApp.md#optimize-for-probe)).
+
+## `shank_spacing`
+
+`shank_spacing` is the pipeline's own setting, not a Kilosort4 one. It puts
+extra distance between neighbouring shanks, in µm, for the sort only. The
+default 0 sorts the probe as it is.
+
+### What it does
+
+[`runKilosort`](EphysDataset.md#shank-spacing) writes a copy of the probe,
+`<probe>_spaced.json`, into the run folder, and Kilosort4 sorts with that copy:
+
+- The shanks are the `kcoords` groups, taken in order of their mean `xc`. The
+  *k*-th shank (counting from 0) moves *k* × `shank_spacing` µm along x. Each
+  pair of neighbouring shanks gains `shank_spacing` µm, and each shank keeps
+  its own layout.
+- The probe map is not changed. A one-shank probe is sorted as it is.
+- When Kilosort4 finishes, `run_ks4.py` writes the true positions back into
+  `channel_positions.npy` and `spike_positions.npy`. phy, the Review tab and
+  `readPhyUnits` then see the real layout.
+- What still shows the spaced layout: `ops.npy` (Kilosort4's record of the
+  run) and the `spike_positions.png` plot Kilosort4 draws during the run.
+
+Every Kilosort4 step that measures distances between channels then stays on
+one shank:
+
+| Step | How x-distance comes in |
+| --- | --- |
+| Whitening | the `whitening_range` nearest channels (above) |
+| Drift correction | interpolation kernel over all sites (`sig_interp`) |
+| Template matching | the nearest channels to each template centre (`nearest_chans`), within `max_channel_distance` |
+| Clustering | spikes grouped around `x_centers` (k-means on the sites' x) |
+| Spike positions | weighted mean over a template's nearest channels |
+
+Template centres are placed per `kcoords` shank already, so the spacing does
+not change how many there are.
+
+### Choosing a value
+
+The aim: for every site, the nearest site on another shank lies farther away
+than the farthest site on its own shank. Then a neighbourhood of up to one
+shank's worth of sites stays on its shank, whatever `whitening_range` is. A
+value that does this is about the farthest distance within one shank (parked
+sites included) minus the current distance between the nearest sites of two
+shanks. Each run logs both numbers after the spacing:
+
+```text
+Shanks 500 um further apart for sorting: nearest sites on different shanks 133.1 -> 632.8 um (farthest sites on one shank 630.1 um).
+```
+
+For the [H64LP 4×16](#example-h64lp-416), the farthest sites on one shank
+are 630 µm apart (the parked sites) and the nearest sites of two shanks are
+133 µm apart, so it needs about 500 µm. The number of shanks each channel's
+whitening neighbourhood spans (computed as in the check above, on the spaced
+`xc`):
+
+| `shank_spacing` | `whitening_range` 8 | 16 | 32 |
+| --- | --- | --- | --- |
+| 0 | 1 – 4 | 2 – 4 | 2 – 4 |
+| 300 | 1 – 2 | 1 – 3 | 2 – 3 |
+| 400 | 1 | 1 – 2 | 2 – 3 |
+| 500 | 1 | 1 | 2 – 3 |
+
+With 16 sites per shank, a `whitening_range` of 32 always takes in a second
+shank. So use `shank_spacing` together with a `whitening_range` of at most the
+sites on one shank.
+
+A larger value than needed should do no harm: in the 4.1.7 source, no step
+depends on the total width of the probe. Keep `x_centers` at least the number of
+shanks: clustering groups templates around `x_centers` positions found by
+k-means on the sites' x, and with the shanks far apart those positions fall
+on the shanks.
+
+### Setting it
+
+- **Per config:** `Sorting.KS4.shank_spacing` (the Sorting tab's
+  preprocessing group, next to `whitening_range`).
+- **Per probe:** add `"shank_spacing"` to the probe's
+  [`<probe>.ks4.json`](file-formats.md#kilosort4-probe-parameters-probeks4json).
+  **Optimize for probe** loads it with the other parameters.

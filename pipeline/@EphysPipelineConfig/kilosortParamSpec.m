@@ -22,6 +22,11 @@ function spec = kilosortParamSpec()
 %     default  default value (numeric, logical, or char per kind)
 %     tip      tooltip text
 %
+%   One entry is not a Kilosort4 setting: shank_spacing (um, 0 = off) is
+%   taken out by EphysDataset.runKilosort, which sorts with a copy of the
+%   probe whose shanks are that much further apart. It sits here so the
+%   Sorting tab, configs and <probe>.ks4.json files carry it like the rest.
+%
 %   Defaults mirror the lab's standard KS4 configuration. No MATLAB-side
 %   filtering is performed when writing the .bin; KS4 filters internally using
 %   highpass_cutoff below.
@@ -39,6 +44,10 @@ s = add(s, 'tmax',       'tmax',       g, 'floatinf', 'Infinity', 'End time, s (
 g = 'Preprocessing';
 s = add(s, 'highpass_cutoff',    'highpass_cutoff',    g, 'float',    300,        'KS4 high-pass cutoff, Hz (KS4 filters internally).');
 s = add(s, 'whitening_range',    'whitening_range',    g, 'int',      32,         'Number of nearby channels for whitening.');
+s = add(s, 'shank_spacing',      'shank_spacing',      g, 'float',    0,          ['Extra distance, um, put between neighbouring shanks for sorting only (0 = the probe as it is). ' ...
+    'Not a Kilosort4 setting: Kilosort4 sorts with a copy of the probe whose shanks are this much further apart along x, ' ...
+    'so whitening and the other steps that pick channels by distance stay on one shank. The probe map is not changed, ' ...
+    'and the sorted output gets the true site positions back.']);
 s = add(s, 'artifact_threshold', 'artifact_threshold', g, 'floatinf', 'Infinity', ['Zero out any batch with an absolute value at or above this amplitude (Infinity = off). ' ...
     'Units are raw ADC counts, not volts: KS4 applies it after its own high-pass filter and CAR, before whitening. ' ...
     'For Intan and Open Ephys headstage data 1 count = 0.195 uV, so 5000 is about 1 mV.']);

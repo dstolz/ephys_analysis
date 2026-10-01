@@ -373,7 +373,8 @@ check(R.Status(1) == "dry run" && endsWith(R.Output(1), "settings.json") && isfi
 check(~any(contains(logs, "[artifacts]")) && ~isfile(d1.BinFile), 'a sorting dry run detects no artifacts and writes no .bin');
 st = readJsonFile(R.Output(1));
 ks = EphysPipelineConfig.ks4Settings(cfg.Sorting);
-check(all(isfield(st, fieldnames(ks))), 'settings.json carries the config''s Kilosort4 settings');
+check(all(isfield(st, setdiff(fieldnames(ks), 'shank_spacing'))) && ~isfield(st, 'shank_spacing'), ...
+    'settings.json carries the config''s Kilosort4 settings (shank_spacing 0 is not one, so it is left out)');
 cfg.Sorting.DryRun = false; cfg.Sorting.Enabled = false;
 
 fprintf('\n== 6. spikes step ==\n');

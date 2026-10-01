@@ -41,6 +41,7 @@ written as the strings `"NaN"` / `"Inf"`.
    ├─ ks4_status.json                   {"state": "done"|"error", ...}
    ├─ ks4_exit.txt                      empty exit marker of a background run
    ├─ <probe>_excluded.json             derived probe when channels are excluded
+   ├─ <probe>_spaced.json               derived probe with the shanks moved apart (shank_spacing)
    ├─ dryrun/                           a dry run's settings.json, run_ks4.py (and derived probe)
    ├─ previous_<yyyyMMdd_HHmmss>/       an earlier sort's curation, moved aside by a new sort (launchSorting)
    └─ params.py, spike_*.npy, templates.npy, cluster_*.tsv, ...
@@ -622,9 +623,11 @@ writes its own sidecar. See that function's help for its fields.
 Path: `<ResultsDir>/settings.json` (a dry run's: `<ResultsDir>/dryrun/settings.json`,
 which still names `ResultsDir` as `results_dir`). Fields: `n_chan_bin`, `fs`, `data_dtype`
 (from `ds.Dtype`), `filename` (the `.bin`), `probe` (original or
-`_excluded.json` probe), `results_dir`, `bin_scale` (the `.bin`'s units per
-µV, for `readPhyUnits`; `run_ks4.py` does not pass it to Kilosort4), plus any
-`ExtraSettings` fields. Paths use forward slashes. A `torch_device` field picks the GPU; the `--device`
+`_excluded.json` / `_spaced.json` probe), `results_dir`, `bin_scale` (the `.bin`'s units per
+µV, for `readPhyUnits`; `run_ks4.py` does not pass it to Kilosort4), with
+[shank spacing](EphysDataset.md#shank-spacing) `shank_spacing` (µm) and
+`true_probe` (the unspaced probe, whose positions `run_ks4.py` writes back
+into the output), plus any `ExtraSettings` fields. Paths use forward slashes. A `torch_device` field picks the GPU; the `--device`
 argument a run gets from `Sorting.Devices` overrides it (the device a run
 used is in `ks4_run.log` and the manifest's `launchSorting` entry, not
 here).

@@ -77,7 +77,7 @@ cfg.Sorting.Enabled = true; cfg.Sorting.PythonExe = "C:\envs\ks\python.exe"; cfg
 cfg.Sorting.Execution = "blocking"; cfg.Sorting.KS4.nblocks = 2; cfg.Sorting.KS4ExtraJSON = "{""x_centers"": 2}";
 cfg.Spikes.Enabled = true; cfg.Spikes.Filter = false;
 cfg.Spikes.ThresholdMethod = "absolute"; cfg.Spikes.Threshold = 2000;
-cfg.Export.Enabled = true; cfg.Export.Formats = ["chronux" "fieldtrip"]; cfg.Export.IncludeDetected = true;
+cfg.Export.Enabled = true; cfg.Export.Formats = ["chronux" "fieldtrip" "kcsd"]; cfg.Export.IncludeDetected = true;
 cfg.Artifacts.Enabled = false;
 % signals off: an extract is written by hand into each output root instead
 cfg.Signals.Enabled = false;
@@ -190,6 +190,13 @@ for f = ["A1_260101_120000_spikes.mat" "A1_260101_120000_chronux.mat" "A1_260101
     A = stripVolatile(A); B = stripVolatile(B);
     check(isequaln(A, B), "identical " + f + " from both scripts");
 end
+kA = readNPZ(fullfile(outA, 'A1_260101_120000', 'A1_260101_120000_kcsd.npz'));
+kB = readNPZ(fullfile(outB, 'A1_260101_120000', 'A1_260101_120000_kcsd.npz'));
+mA = jsondecode(kA.meta); mB = jsondecode(kB.meta);
+check(isequaln(rmfield(kA, 'meta'), rmfield(kB, 'meta')) && isequaln(rmfield(mA, {'created' 'sources'}), rmfield(mB, {'created' 'sources'})) ...
+    && string(mA.sources.probeFile) == string(probeFile) && string(mB.sources.probeFile) == string(probeFile) ...
+    && isequal(size(kA.pots), [numAmp 256]), ...
+    'identical A1_260101_120000_kcsd.npz from both scripts, on the dataset''s probe');
 paths = {'filename', 'probe', 'results_dir'};   % under each script's own output root
 stA = rmfield(readJsonFile(fullfile(outA, 'A1_260101_120000', 'kilosort4', 'dryrun', 'settings.json')), paths);
 stB = rmfield(readJsonFile(fullfile(outB, 'A1_260101_120000', 'kilosort4', 'dryrun', 'settings.json')), paths);

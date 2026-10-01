@@ -253,9 +253,13 @@ if ismember("epochs", X.Formats)
     export.outs(end+1) = pill("out", "Epoch file", [dsName + "_epochs.mat", around], ...
         "ExpEpochsCheckBox,ExpEpochSourceDropDown,ExpEpochLineField", false);
 end
+if ismember("kcsd", X.Formats)
+    export.outs(end+1) = pill("out", "kCSD file", [dsName + "_kcsd.npz", "LFP on the probe"], ...
+        "ExpKCSDCheckBox,ExpOutputDirField", false);
+end
 if isempty(export.outs)
     export.outs = pill("off", "No format ticked", "nothing is written", ...
-        "ExpChronuxCheckBox,ExpFieldTripCheckBox,ExpEpochsCheckBox", false);
+        "ExpChronuxCheckBox,ExpFieldTripCheckBox,ExpEpochsCheckBox,ExpKCSDCheckBox", false);
 end
 
 N = [probe, behavior, artifacts, sorting, signals, spikes, export];

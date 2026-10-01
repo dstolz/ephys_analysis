@@ -531,8 +531,14 @@ if ismember("epochs", E.Formats)
         "ExpEpochsCheckBox,ExpEpochSourceDropDown,ExpEpochLineField,ExpEpochPreField,ExpEpochPostField,ExpEpochArtifactsDropDown"), ...
         node("out", "Epoch file", [dsName + "_epochs.mat", E.MatVersion], fileTarget)});
 end
+if ismember("kcsd", E.Formats)
+    kids{end+1} = chain({node("op", "kCSD-python arrays", ["ele_pos (mm, on the probe) + pots (LFP, mV)", ...
+        "interpolated bad channels left out", ternary(E.IncludeEvents, "events as LFP samples", "no events")], ...
+        "ExpKCSDCheckBox"), ...
+        node("out", "kCSD file", [dsName + "_kcsd.npz", "NumPy archive"], "ExpOutputDirField,ExpOverwriteCheckBox")});
+end
 if isempty(kids)
-    kids = {node("off", "Formats", "none ticked", "ExpChronuxCheckBox,ExpFieldTripCheckBox,ExpEpochsCheckBox")};
+    kids = {node("off", "Formats", "none ticked", "ExpChronuxCheckBox,ExpFieldTripCheckBox,ExpEpochsCheckBox,ExpKCSDCheckBox")};
 end
 inputs = node("data", "Export inputs", in, "ExpSignalsField,ExpUnitsCheckBox,ExpGroupsField,ExpDetectedCheckBox,ExpEventsCheckBox");
 inputs.children = kids;

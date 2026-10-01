@@ -1,9 +1,10 @@
 function [data, shape] = readNPY(filename, opts)
-%readNPY  Read a little-endian NumPy .npy array (numeric or bool).
+%readNPY  Read a little-endian NumPy .npy array (numeric, bool or unicode text).
 %   DATA = READNPY(FILENAME) reads a NumPy array file written by Kilosort4 /
 %   phy (spike_times.npy, spike_clusters.npy, templates.npy, ...) and returns
 %   it as a MATLAB array of the matching shape and class. The common dtypes are
-%   supported (int/uint 8..64, float32/64, bool) in either C or Fortran order.
+%   supported (int/uint 8..64, float32/64, bool, and fixed-width unicode
+%   '<Un', returned as a string array) in either C or Fortran order.
 %   Numeric data is assumed little-endian, which is what NumPy writes on x86.
 %
 %   [DATA, SHAPE] = READNPY(FILENAME) also returns the shape recorded in the
@@ -18,16 +19,26 @@ function [data, shape] = readNPY(filename, opts)
 %   Range=[1 0] reads nothing and just returns the shape, of an array of
 %   any shape.
 %
-%   See also EphysPreprocessingApp.loadReviewResults, ChronuxDataset.spikes.
+%   FILENAME may also be the id of a file open for reading ('l' machine
+%   format) positioned at the start of an array, e.g. a member stored in a
+%   .npz (readNPZ); the file is left open.
+%
+%   See also EphysPreprocessingApp.loadReviewResults, ChronuxDataset.spikes, readNPZ.
 
 arguments
-    filename (1,1) string
+    filename
     opts.Range (1,2) double = [NaN NaN]
 end
 
-fid = fopen(filename, 'r', 'l');
-if fid < 0; error('readNPY:open', 'Cannot open %s', filename); end
-closer = onCleanup(@() fclose(fid)); %#ok<NASGU>
+if isnumeric(filename)
+    fid = filename;
+    filename = string(fopen(fid));   % its name, for the messages
+else
+    filename = string(filename);
+    fid = fopen(filename, 'r', 'l');
+    if fid < 0; error('readNPY:open', 'Cannot open %s', filename); end
+    closer = onCleanup(@() fclose(fid));
+end
 
 magic = fread(fid, 6, '*uint8')';
 if ~isequal(magic, uint8([147 78 85 77 80 89]))   % \x93NUMPY
@@ -65,6 +76,9 @@ if all(isfinite(opts.Range))
     if nRead > 0 && n ~= max(shape)
         error('readNPY:range', 'Range reads 1-D arrays only; %s has shape %s.', filename, mat2str(shape));
     end
+    if nRead > 0 && descr(2) == 'U'
+        error('readNPY:range', 'Range reads numeric arrays only; %s holds text.', filename);
+    end
     if nRead > 0 && first > 1
         fseek(fid, (first - 1) * str2double(descr(3:end)), 'cof');
     end
@@ -72,7 +86,17 @@ if all(isfinite(opts.Range))
     if descr(2) == 'b'; data = logical(data); end
     return
 end
-data = fread(fid, prod(shape), ['*' mtype]);
+if descr(2) == 'U'   % fixed-width unicode: width uint32 code points per element
+    width = str2double(descr(3:end));
+    codes = reshape(fread(fid, prod(shape) * width, '*uint32'), width, []);
+    data = strings(size(codes, 2), 1);
+    for k = 1:numel(data)
+        c = codes(:, k);
+        data(k) = string(char(c(1:find(c, 1, 'last')).'));
+    end
+else
+    data = fread(fid, prod(shape), ['*' mtype]);
+end
 if descr(2) == 'b'; data = logical(data); end
 
 if fortran
@@ -97,6 +121,8 @@ switch kind
         mtype = sprintf('uint%d', bytes * 8);
     case 'b'
         mtype = 'uint8';   % bool stored as one byte; caller casts to logical
+    case 'U'
+        mtype = 'uint32';  % unicode code points, read by the caller
     otherwise
         error('readNPY:dtype', 'Unsupported NumPy dtype: %s', descr);
 end

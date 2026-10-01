@@ -47,6 +47,11 @@ classdef EphysDataset < handle
     %     E = ds.eventEpochs(EventSource="behavior", Window=[-0.2 0.5]);
     %     out = ds.exportEpochs();         % the same, saved as <Name>_epochs.mat
     %
+    %   Current source density (kCSD-python)
+    %   ------------------------------------
+    %     out = ds.exportKCSD();           % <Name>_kcsd.npz: ele_pos, pots, events
+    %
+    %
     %   Processed files, loaded on demand
     %   ---------------------------------
     %     out = ds.outputs();              % DatasetOutputs: finds every output
@@ -247,6 +252,7 @@ classdef EphysDataset < handle
         out    = exportFieldTrip(obj, opts)
         E      = eventEpochs(obj, opts)
         out    = exportEpochs(obj, opts)
+        out    = exportKCSD(obj, opts)
         [trials, info, meta] = readBehavior(obj)
         [src, store] = behaviorSource(obj)
         b      = behaviorStruct(obj, opts)

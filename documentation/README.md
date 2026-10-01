@@ -76,14 +76,17 @@ flowchart LR
         CHX[(_chronux.mat)]
         FTX[(_fieldtrip.mat)]
         EPO[(_epochs.mat)]
+        KCX[(_kcsd.npz)]
     end
     MAT -- exportChronux --> CHX
     MAT -- exportFieldTrip --> FTX
     MAT -- exportEpochs --> EPO
+    MAT -- exportKCSD --> KCX
     SPK & KS -.-> EXP
     BMAT -.-> EPO
     CHX -.-> CHRONUX[/Chronux/]
     FTX -.-> FIELDTRIP[/FieldTrip/]
+    KCX -.-> KCSD[/kCSD-python/]
 
     MAT -- EphysAnalysisRunner --> FIGS[("figures + reports<br/>.png / .svg / .eps / .pdf,<br/>HTML + PDF")]
     SPK & KS & BMAT -.-> FIGS
@@ -167,6 +170,7 @@ out = ds.spikesToMat();             % threshold-detected spikes
 out = ds.exportChronux();  out = ds.exportFieldTrip();
 E   = ds.eventEpochs(EventSource="behavior");   % the same data, one epoch per trial
 out = ds.exportEpochs();                        % E, saved as _epochs.mat
+out = ds.exportKCSD();                          % LFP + probe positions for kCSD-python, _kcsd.npz
 ```
 
 Chronux spectra from the export (needs [Chronux](http://chronux.org) on the path):
@@ -383,6 +387,7 @@ test_EphysPipeline       % one suite
 | `test_ChronuxDataset` | the Chronux connector |
 | `test_FieldTripExport` | the FieldTrip structures, the artifact matrix |
 | `test_EventEpochs` | the event-organized export: sample alignment, spike windows, the trials table, the behavior source, the epoch settings, epochs touching an artifact period |
+| `test_KCSDExport` | the kCSD-python export: the NumPy layer (`writeNPY` text and shapes, `writeNPZ` / `readNPZ`, zip64, NumPy's own archives), electrodes on the probe (order, 1-D / 2-D, column → channel mapping, bad and off-probe channels), events and artifacts as 0-based LFP samples, the file, `DatasetOutputs`' `kcsd` kind; with a Python that has NumPy (and kcsd), `numpy.load` and `KCSD1D` on the file |
 | `test_EpsychSession` | Epsych2 readers and matching |
 | `test_EphysPipelineConfig`, `test_EphysPipeline`, `test_EphysPipelineScript` | config, runner, scripts |
 | `test_EphysPreprocessingApp` | the GUI's config model, headless |

@@ -256,6 +256,13 @@ if E.Enabled
     if E.IncludeDetected && ~K.Enabled
         add("export", "IncludeDetected", "warning", "Detected spikes are included only where a spikes file already exists.");
     end
+    if any(E.Formats == "kcsd")
+        if ~isempty(E.Signals) && ~any(upper(E.Signals) == "LFP")
+            add("export", "Signals", "error", "The kCSD export writes the LFP, but Export.Signals leaves it out.");
+        elseif G.Enabled && ~G.LFP
+            add("export", "Formats", "warning", "The Signals step derives no LFP; the kCSD export needs an existing LFP extract.");
+        end
+    end
     if any(E.Formats == "epochs")
         w = E.EpochWindow;
         if numel(w) ~= 2 || w(2) <= w(1)

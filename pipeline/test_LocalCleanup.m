@@ -262,7 +262,14 @@ classdef test_LocalCleanup < matlab.unittest.TestCase
             tc.writeBytes(fullfile(tc.Local, tc.Name + "_artifacts.json"), 30);
             tc.writeBytes(fullfile(tc.Local, "~" + tc.Name + "_extract_MUA.partial.mat"), 70);
             tc.writeBytes(fullfile(tc.Local, tc.Name + "_notes.txt"), 10);
+            kcsdMeta = @(name) string(jsonencode(struct('tool', "EphysDataset.exportKCSD", 'dataset', name)));
+            writeNPZ(fullfile(shared, tc.Name + "_kcsd.npz"), struct('ele_pos', [0; 1], 'meta', kcsdMeta(tc.Name)), ...
+                Shapes=struct('meta', "scalar"));
+            writeNPZ(fullfile(tc.Local, tc.Name + "_b_kcsd.npz"), struct('ele_pos', [0; 1], 'meta', kcsdMeta("OTHER")), ...
+                Shapes=struct('meta', "scalar"));
+            tc.writeBytes(fullfile(tc.Local, "~" + tc.Name + "_kcsd.partial.npz"), 40);
             expect = [tc.Name + "_lfp.mat" "signals"; tc.Name + "_extract_LFP.mat" "signals"
+                "~" + tc.Name + "_kcsd.partial.npz" "export"
                 "~" + tc.Name + "_extract_MUA.partial.mat" "signals"; tc.Name + "_spk.mat" "spikes"
                 tc.Name + "_spikes.mat" "spikes"; tc.Name + "_behavior.mat" "behavior"
                 tc.Name + "_events.mat" "behavior"; tc.Name + "_artifacts.json" "artifacts"];
@@ -277,6 +284,10 @@ classdef test_LocalCleanup < matlab.unittest.TestCase
             tc.verifyEqual([ft.Step ft.Action ft.What ft.Root], ["export" "remove" "FieldTrip export" string(shared)], ...
                 'an output in a search folder is listed below that folder');
             tc.verifyFalse(any(contains(T.File, "OTHER_ft")), 'another dataset''s file in the search folder is not listed');
+            kc = T(T.File == fullfile(shared, tc.Name + "_kcsd.npz"), :);
+            tc.verifyEqual([kc.Step kc.Action kc.What], ["export" "remove" "kCSD export"], ...
+                'a kCSD .npz is placed by its meta member');
+            tc.verifyEqual(tc.action(T, tc.Name + "_b_kcsd.npz"), "keep", 'a .npz whose meta names another dataset stays');
             tc.verifyEqual(T.What(T.File == fullfile(tc.Local, "~" + tc.Name + "_extract_MUA.partial.mat")), ...
                 "Unfinished signals output (extract) (a failed write)");
             tc.verifyEqual(tc.action(T, tc.Name + "_notes.txt"), "keep");

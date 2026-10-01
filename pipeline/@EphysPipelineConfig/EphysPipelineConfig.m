@@ -47,8 +47,9 @@ classdef EphysPipelineConfig
     %     Spikes     Enabled, threshold-detection settings, output settings
     %                (sorted units stay in the sorting folder)
     %     Export     Enabled, Formats (a subset of ExportFormats: the
-    %                analysis-toolbox files and the event-organized epochs),
-    %                what to include, the Epoch* settings of the epoch format
+    %                analysis-toolbox files, kCSD-python's .npz and the
+    %                event-organized epochs), what to include, the Epoch*
+    %                settings of the epoch format
     %
     %   Usage
     %     cfg = EphysPipelineConfig();                 % defaults
@@ -96,9 +97,10 @@ classdef EphysPipelineConfig
         % Section that holds each step's settings.
         StepSections = ["Probe" "Behavior" "Artifacts" "Sorting" "Signals" "Spikes" "Export"]
         % Export formats the Export step can write: one per analysis
-        % toolbox, plus "epochs", the same data organized by event. Each has
+        % toolbox (kcsd: the LFP and probe positions for kCSD-python, a
+        % .npz), plus "epochs", the same data organized by event. Each has
         % an EphysDataset.export<Format> method.
-        ExportFormats = ["chronux" "fieldtrip" "epochs"]
+        ExportFormats = ["chronux" "fieldtrip" "epochs" "kcsd"]
         % Kilosort4 parameters that depend on the probe layout: what
         % ks4ProbeDefaults derives and what a probe's parameter file holds
         % when it is created from the Sorting tab.
@@ -349,7 +351,13 @@ classdef EphysPipelineConfig
             %exportOptions  Name-value struct for the export<Format> method of FMT.
             %   The shared options, plus Validate (fieldtrip) or the Epoch*
             %   settings under the epoch exporter's own names (epochs).
+            %   kcsd writes the LFP alone: Events and Overwrite only (the
+            %   caller adds the dataset's ProbeFile).
             e = EphysPipelineConfig.normalizeSection("Export", e);
+            if nargin > 1 && string(fmt) == "kcsd"
+                o = struct('Events', logical(e.IncludeEvents), 'Overwrite', logical(e.Overwrite));
+                return
+            end
             o = struct();
             if ~isempty(e.Signals); o.Signals = e.Signals; end
             if e.IncludeUnits;    o.Units = [];    else; o.Units = false;    end

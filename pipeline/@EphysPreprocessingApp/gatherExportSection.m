@@ -6,6 +6,7 @@ fm = string.empty(1, 0);
 if obj.ExpChronuxCheckBox.Value;   fm(end+1) = "chronux";   end
 if obj.ExpFieldTripCheckBox.Value; fm(end+1) = "fieldtrip"; end
 if obj.ExpEpochsCheckBox.Value;    fm(end+1) = "epochs";    end
+if obj.ExpKCSDCheckBox.Value;      fm(end+1) = "kcsd";      end
 E.Formats = fm;
 sig = upper(strtrim(split(string(obj.ExpSignalsField.Value), [",", ";", " "])));
 E.Signals = reshape(sig(sig ~= ""), 1, []);

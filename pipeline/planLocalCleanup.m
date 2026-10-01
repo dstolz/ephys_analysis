@@ -39,8 +39,10 @@ function T = planLocalCleanup(datasets, opts)
 %     "behavior"     <Name>_behavior.mat (behaviorToMat) and the digital
 %                    events cache <Name>_events.mat (trial pairing)
 %     "artifacts"    the artifact-interval cache <Name>_artifacts.json
-%     "export"       the Chronux, FieldTrip and epochs .mat files
-%   A .mat output is recognised by the variables it holds (DatasetOutputs),
+%     "export"       the Chronux, FieldTrip and epochs .mat files and the
+%                    kCSD .npz
+%   A .mat output is recognised by the variables it holds (a .npz by its
+%   meta member; DatasetOutputs),
 %   so outputs with configured suffixes are found too, else by its default
 %   name (<Name>_extract*, <Name>_spikes*, ...). Unfinished outputs that a
 %   failed write left (~<name>.partial.mat) go with their step. The probe
@@ -208,10 +210,10 @@ for k = 1:n
     else
         kind = "";
         if isKey(outputKind, char(fileKey)); kind = outputKind(char(fileKey)); end
-        partial = startsWith(lower(leaf), "~" + lower(name) + "_") && endsWith(lower(leaf), ".partial.mat");
+        partial = startsWith(lower(leaf), "~" + lower(name) + "_") && endsWith(lower(leaf), [".partial.mat" ".partial.npz"]);
         if kind == "" && (partial || startsWith(lower(leaf), lower(name) + "_"))
             kind = "other";
-            if partial || any(lower(ext) == [".mat" ".json"])
+            if partial || any(lower(ext) == [".mat" ".json" ".npz"])
                 byName = nameKind(lower(extractAfter(leaf, strlength(name) + 1 + partial)));
                 if byName ~= ""; kind = byName; end
             end
@@ -252,6 +254,7 @@ switch kind
     case "chronux";   what = "Chronux export";           step = "export";
     case "fieldtrip"; what = "FieldTrip export";         step = "export";
     case "epochs";    what = "Epochs export";            step = "export";
+    case "kcsd";      what = "kCSD export";              step = "export";
     otherwise;        what = "Pipeline output";          step = "";
 end
 end
@@ -260,7 +263,7 @@ end
 function kind = nameKind(rest)
 %nameKind  The output kind a <Name>_<rest> file's default name gives ("" = none).
 kind = "";
-for k = ["extract" "spikes" "behavior" "events" "artifacts" "chronux" "fieldtrip" "epochs"]
+for k = ["extract" "spikes" "behavior" "events" "artifacts" "chronux" "fieldtrip" "epochs" "kcsd"]
     if startsWith(rest, k); kind = k; return; end
 end
 end

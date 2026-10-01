@@ -327,6 +327,8 @@ classdef EphysPipeline < handle
                     f = fullfile(dirOr(c.Export.OutputDir, d), d.Name + "_fieldtrip.mat");
                 case "export:epochs"
                     f = fullfile(dirOr(c.Export.OutputDir, d), d.Name + "_epochs.mat");
+                case "export:kcsd"
+                    f = fullfile(dirOr(c.Export.OutputDir, d), d.Name + "_kcsd.npz");
                 case "sorting"
                     f = string(d.kilosortDir());
                 case "artifacts"

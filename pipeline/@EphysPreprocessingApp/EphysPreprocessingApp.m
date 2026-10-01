@@ -602,6 +602,7 @@ classdef EphysPreprocessingApp < handle
         ExpChronuxCheckBox   matlab.ui.control.CheckBox
         ExpFieldTripCheckBox matlab.ui.control.CheckBox
         ExpEpochsCheckBox    matlab.ui.control.CheckBox
+        ExpKCSDCheckBox      matlab.ui.control.CheckBox
         ExpSignalsField      matlab.ui.control.EditField
         ExpUnitsCheckBox     matlab.ui.control.CheckBox
         ExpGroupsField       matlab.ui.control.EditField

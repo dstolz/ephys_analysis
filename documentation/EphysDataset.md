@@ -73,7 +73,7 @@ flowchart TB
         EXT[("_extract_TYPE.mat<br/>toMat")]
         SPK[("_spikes.mat<br/>spikesToMat")]
         BEHM[("_behavior.mat<br/>behaviorToMat")]
-        EXP[("_chronux.mat · _fieldtrip.mat<br/>_epochs.mat<br/>exportChronux · exportFieldTrip<br/>exportEpochs")]
+        EXP[("_chronux.mat · _fieldtrip.mat<br/>_epochs.mat · _kcsd.npz<br/>exportChronux · exportFieldTrip<br/>exportEpochs · exportKCSD")]
         EVC[("_events.mat<br/>digitalEvents")]
     end
 
@@ -1695,6 +1695,39 @@ k = E.signals.LFP.info.keptTrials;                        % the epochs the LFP h
 lfp = E.signals.LFP.data(:, E.trials.EpochComplete(k), 1);   % [nTime x nEpochs]
 hit = E.trials.ResponseCode == 1;                         % a session column
 raster = E.units(3).times(hit);                           % spike times per trial
+```
+
+#### Current source density (kCSD-python)
+
+**`out = exportKCSD(Name=Value)`** writes the LFP and the probe positions of
+its channels to `<outputFolder>/<Name>_kcsd.npz`, a NumPy archive whose
+`ele_pos` (mm) and `pots` (mV) go straight into
+[kCSD-python](https://github.com/Neuroinflab/kCSD-python)'s `KCSD1D` /
+`KCSD2D` ([schema and a Python example](file-formats.md#kcsd-export-ephysdatasetexportkcsd-the-export-step)).
+Packaging is done by `KCSDExport`, which shares no code with the other
+exporters; Python is not needed to write it. The electrodes are the LFP
+channels on the probe less the bad channels the Signals step interpolated,
+in probe order; the layout is 1-D (position along the shank) on a single
+column of one shank, else 2-D. The events are written as 0-based LFP samples
+on the same rule as everywhere else, `round((t − 1/eventFs)·Fs)`.
+
+| Option | Default | |
+| --- | --- | --- |
+| `File` | `<outputFolder>/<Name>_kcsd.npz` | |
+| `Extract` | `""` | as in `exportChronux`; the extract must hold LFP |
+| `ProbeFile` | `""` = the dataset's `ProbeFile` | the probe the dataset is used with (the pipeline passes `probeFor(d)`: its own, a rule's or the default probe); no probe is an error |
+| `Dim` | `"auto"` | `1` or `2` to force the layout; `1` on several columns puts electrodes at one depth, which kCSD rejects (`KCSDExport:Duplicate`) |
+| `Sources`, `Events`, `Overwrite` | | as in `exportChronux` |
+
+`out` has `file`, `bytes`, `seconds`, `nElectrodes`, `dim`, `nExcluded`,
+`excluded` (a table: `column`, `recordingChannel`, `label`, `reason`),
+`nEvents`, `probeFile` and `sources`. `writeNPZ` / `readNPZ` (and
+`writeNPY` / `readNPY`, which also handle unicode text arrays and 0-d
+values) are the NumPy layer; `DatasetOutputs.KCSD` reads the file back.
+
+```matlab
+out = ds.exportKCSD(ProbeFile="C:\probes\A1x16.json");
+K = readNPZ(out.file, ["ele_pos" "pots" "fs"]);   % pots is [n_ele x N] mV
 ```
 
 ### Behavior (Epsych2)

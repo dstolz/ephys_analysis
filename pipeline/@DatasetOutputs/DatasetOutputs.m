@@ -26,8 +26,10 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
     %     chronux    export + sp                   (exportChronux)
     %     fieldtrip  export + event / spike / data_* (exportFieldTrip)
     %     epochs     export + epochs               (exportEpochs)
+    %   and each *.npz named like the dataset by its meta member:
+    %     kcsd       meta.tool EphysDataset.exportKCSD  (exportKCSD)
     %     behavior   behavior + conversion         (behaviorToMat)
-    %   A file whose provenance struct (conversion / export) names another
+    %   A file whose provenance (conversion / export struct, a .npz's meta) names another
     %   dataset is skipped and listed in Foreign: another dataset name, or -
     %   built from a dataset - another recording folder (sourceFolder, see
     %   EphysDataset.isOwnSource), so of two recordings with the same name
@@ -50,8 +52,8 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
     %   Manual paths
     %   ------------
     %   The path properties (ExtractFiles, SpikesFile, ChronuxFile,
-    %   FieldTripFile, EpochsFile, SortingDir, BehaviorFile, ManifestFile,
-    %   ArtifactsFile)
+    %   FieldTripFile, EpochsFile, KCSDFile, SortingDir, BehaviorFile,
+    %   ManifestFile, ArtifactsFile)
     %   always return the path in effect. Assigning one pins it; assigning ""
     %   returns it to discovery. pathSource(kind) says which applies.
     %
@@ -66,6 +68,8 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
     %                  that signal, with Y / info trimmed to it
     %     Spikes, Chronux, FieldTrip, Epochs   the file's variables as a struct
     %                  (Epochs: epochs + export, see EphysDataset.exportEpochs)
+    %     KCSD         the .npz arrays (readNPZ), meta decoded from its JSON
+    %                  (see EphysDataset.exportKCSD)
     %     Units        readSortedUnits (with a dataset) / readPhyUnits defaults
     %     Behavior     trials, info, meta, file, subject, startTime, nTrials
     %                  (the EphysDataset.behaviorStruct shape), from
@@ -79,7 +83,7 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
     %   See also EphysDataset.outputs, EphysPipeline.outputsFor, DatasetTracker,
     %   EphysDataset.toMat, EphysDataset.spikesToMat, EphysDataset.behaviorToMat,
     %   EphysDataset.exportChronux, EphysDataset.exportFieldTrip,
-    %   EphysDataset.exportEpochs.
+    %   EphysDataset.exportEpochs, EphysDataset.exportKCSD.
 
     properties
         Name       (1,1) string = ""      % dataset name; files must start with it
@@ -103,6 +107,7 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
         ChronuxFile     % exportChronux output
         FieldTripFile   % exportFieldTrip output
         EpochsFile      % exportEpochs output (event-organized data)
+        KCSDFile        % exportKCSD output (.npz for kCSD-python)
         SortingDir      % Kilosort4 / phy results folder
         BehaviorFile    % <Name>_behavior.mat, else the Epsych2 session .mat
         ManifestFile    % <Name>_manifest.json
@@ -121,6 +126,7 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
         Chronux
         FieldTrip
         Epochs
+        KCSD
         Behavior
         Manifest
         Artifacts
@@ -128,19 +134,19 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
     end
 
     properties (Constant)
-        Kinds = ["extract" "spikes" "chronux" "fieldtrip" "epochs" "sorting" "behavior" "manifest" "artifacts"]
+        Kinds = ["extract" "spikes" "chronux" "fieldtrip" "epochs" "kcsd" "sorting" "behavior" "manifest" "artifacts"]
         SignalTypes = ["LFP" "MUA" "SPIKE" "AUX"]
     end
 
     properties (Constant, Access = private)
         PathProps = ["ExtractFiles" "SpikesFile" "ChronuxFile" "FieldTripFile" ...
-                     "EpochsFile" "SortingDir" "BehaviorFile" "ManifestFile" "ArtifactsFile"]
+                     "EpochsFile" "KCSDFile" "SortingDir" "BehaviorFile" "ManifestFile" "ArtifactsFile"]
     end
 
     properties (Access = private)
         Pinned = struct('extract', string.empty(1,0), 'spikes', string.empty(1,0), ...
             'chronux', string.empty(1,0), 'fieldtrip', string.empty(1,0), ...
-            'epochs', string.empty(1,0), ...
+            'epochs', string.empty(1,0), 'kcsd', string.empty(1,0), ...
             'sorting', string.empty(1,0), 'behavior', string.empty(1,0), ...
             'manifest', string.empty(1,0), 'artifacts', string.empty(1,0))
         Cache = []
@@ -221,6 +227,18 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
                     end
                     T = [T; candidateRow(kind, m, sig)]; %#ok<AGROW>
                 end
+                npz = listFiles(root, "*.npz", obj.Recursive);
+                for k = 1:numel(npz)
+                    m = npz(k);
+                    if isempty(regexpi(m.name, prefix + "\.npz$", 'once')); continue; end
+                    meta = npzMeta(m.path);
+                    if ~isstruct(meta) || ~isfield(meta, 'tool') || string(meta.tool) ~= "EphysDataset.exportKCSD"; continue; end
+                    if ~obj.ownsProvenance(meta)
+                        foreign(end+1, 1) = m.path; %#ok<AGROW>
+                        continue
+                    end
+                    T = [T; candidateRow("kcsd", m, "")]; %#ok<AGROW>
+                end
                 for kind = ["manifest" "artifacts"]
                     js = listFiles(root, obj.Name + "_" + kind + ".json", obj.Recursive);
                     for k = 1:numel(js)
@@ -239,7 +257,7 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
         function tf = has(obj, kind)
             %has  True when the file (or folder) for KIND exists.
             %   KIND: "extract" | "spikes" | "chronux" | "fieldtrip" |
-            %   "epochs" | "sorting" | "behavior" | "manifest" | "artifacts" |
+            %   "epochs" | "kcsd" | "sorting" | "behavior" | "manifest" | "artifacts" |
             %   "LFP" | "MUA" | "SPIKE" | "AUX".
             kind = string(kind);
             if ismember(upper(kind), DatasetOutputs.SignalTypes)
@@ -325,6 +343,9 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
                     S = trimToSignal(loadMat(files, vars), kind);
                 case {"spikes", "chronux", "fieldtrip", "epochs"}
                     S = loadMat(files, vars);
+                case "kcsd"
+                    S = readNPZ(files, vars);
+                    if isfield(S, 'meta'); S.meta = jsondecode(S.meta); end
                 case "sorting"
                     S = obj.readUnits();
                 case "behavior"
@@ -400,6 +421,7 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
         function f = get.ChronuxFile(obj);   f = obj.resolve("chronux");   end
         function f = get.FieldTripFile(obj); f = obj.resolve("fieldtrip"); end
         function f = get.EpochsFile(obj);    f = obj.resolve("epochs");    end
+        function f = get.KCSDFile(obj);      f = obj.resolve("kcsd");      end
         function f = get.SortingDir(obj);    f = obj.resolve("sorting");   end
         function f = get.BehaviorFile(obj);  f = obj.resolve("behavior");  end
         function f = get.ManifestFile(obj);  f = obj.resolve("manifest");  end
@@ -410,6 +432,7 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
         function set.ChronuxFile(obj, f);   obj.pin("chronux", f);   end
         function set.FieldTripFile(obj, f); obj.pin("fieldtrip", f); end
         function set.EpochsFile(obj, f);    obj.pin("epochs", f);    end
+        function set.KCSDFile(obj, f);      obj.pin("kcsd", f);      end
         function set.SortingDir(obj, f);    obj.pin("sorting", f);   end
         function set.BehaviorFile(obj, f);  obj.pin("behavior", f);  end
         function set.ManifestFile(obj, f);  obj.pin("manifest", f);  end
@@ -426,6 +449,7 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
         function S = get.Chronux(obj);   S = obj.load("chronux");   end
         function S = get.FieldTrip(obj); S = obj.load("fieldtrip"); end
         function S = get.Epochs(obj);    S = obj.load("epochs");    end
+        function S = get.KCSD(obj);      S = obj.load("kcsd");      end
         function S = get.Behavior(obj);  S = obj.load("behavior");  end
         function S = get.Manifest(obj);  S = obj.load("manifest");  end
         function S = get.Artifacts(obj); S = obj.load("artifacts"); end
@@ -578,15 +602,21 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
             if prov == ""; return; end
             try
                 P = load(file, prov);
-                p = P.(prov);
-                if ~isstruct(p); return; end
-                if isfield(p, 'dataset') && strlength(string(p.dataset)) > 0
-                    tf = strcmpi(string(p.dataset), obj.Name);
-                end
-                if tf && ~isempty(obj.Dataset) && isfield(p, 'sourceFolder') && strlength(string(p.sourceFolder)) > 0
-                    tf = obj.Dataset.isOwnSource(string(p.sourceFolder));
-                end
+                tf = obj.ownsProvenance(P.(prov));
             catch
+            end
+        end
+
+        function tf = ownsProvenance(obj, p)
+            %ownsProvenance  False when provenance struct P names another
+            %   dataset, or - built from a dataset - another recording folder.
+            tf = true;
+            if ~isstruct(p); return; end
+            if isfield(p, 'dataset') && strlength(string(p.dataset)) > 0
+                tf = strcmpi(string(p.dataset), obj.Name);
+            end
+            if tf && ~isempty(obj.Dataset) && isfield(p, 'sourceFolder') && strlength(string(p.sourceFolder)) > 0
+                tf = obj.Dataset.isOwnSource(string(p.sourceFolder));
             end
         end
 
@@ -626,7 +656,7 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
         function s = getFooter(obj)
             if ~isscalar(obj); s = ''; return; end
             s = sprintf(['  Load on demand: Extract, LFP, MUA, SPIKE, AUX, Spikes, Units, ' ...
-                'Chronux, FieldTrip, Epochs, Behavior, Manifest, Artifacts\n' ...
+                'Chronux, FieldTrip, Epochs, KCSD, Behavior, Manifest, Artifacts\n' ...
                 '  See inventory(), has(kind), load(kind, vars...), readUnits(...)\n']);
         end
     end
@@ -697,6 +727,17 @@ elseif all(ismember(["Y" "info"], v))
     if ismember("conversion", v); prov = "conversion"; end
 elseif all(ismember(["behavior" "conversion"], v))
     kind = "behavior"; prov = "conversion";
+end
+end
+
+
+function meta = npzMeta(file)
+%npzMeta  The decoded JSON meta member of a .npz ([] when it has none or cannot be read).
+meta = [];
+try
+    M = readNPZ(file, "meta");
+    meta = jsondecode(M.meta);
+catch
 end
 end
 

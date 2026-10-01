@@ -6,7 +6,10 @@ function runExport(obj, opts)
 %   Spikes step's file (Export.IncludeDetected), events as configured. The
 %   "epochs" format organizes the same data by event, one epoch per digital
 %   pulse or paired trial (Export.Epoch* settings); the behavior columns of a
-%   paired session ride along with its trials table. Behavior data is not
+%   paired session ride along with its trials table. The "kcsd" format
+%   writes the LFP alone with the positions of its channels on the
+%   dataset's probe (probeFor) for kCSD-python, so neither the sorted units
+%   nor a missing sorting folder concern it. Behavior data is not
 %   exported here (see the behavior step). A dataset's inputs are read once
 %   and handed to every format: the extract files of the Export.Signals
 %   signals (per-type files of other signals are not read), the sorted units
@@ -50,16 +53,13 @@ for k = 1:n
             obj.addResult(step, d.Name, "skipped", "output exists (Overwrite is off)", out, toc(t0));
             continue
         end
-        if E.IncludeUnits && d.sortingMissing()
+        if E.IncludeUnits && fmt ~= "kcsd" && d.sortingMissing()
             % never export without the hand-picked sort, or with another one
             obj.addResult(step, d.Name, "skipped", "the sorted-output folder is not there: " + d.SortingDir, out, toc(t0));
             continue
         end
         try
             o = EphysPipelineConfig.exportOptions(E, fmt);
-            if E.IncludeDetected
-                if isfile(spikesFile); o.Detected = spikesFile; else; o.Detected = false; end
-            end
             if opts.DryRun
                 obj.log("[%s] %s: dry run -> %s", step, d.Name, out);
                 obj.addResult(step, d.Name, "dry run", "would write from " + strjoin(extract, ", "), out, toc(t0));
@@ -67,13 +67,17 @@ for k = 1:n
             end
             if isempty(in)
                 obj.progress("export", d.Name, k, n, j - 1, nFmt, fmt + ": reading the inputs");
-                in = exportInputs(d, extract, o);
+                in = exportInputs(d, extract, sharedInputOptions(E, spikesFile));
             end
             obj.progress("export", d.Name, k, n, j - 1, nFmt, fmt + ": exporting");
             o.Extract  = in.Extract;
-            o.Units    = in.Units;
-            o.Detected = in.Detected;
             o.Sources  = in.Sources;
+            if fmt == "kcsd"
+                o.ProbeFile = obj.probeFor(d);   % its own, a rule's or the default probe
+            else
+                o.Units    = in.Units;
+                o.Detected = in.Detected;
+            end
             args = namedargs2cell(o);
             switch fmt
                 case "chronux"
@@ -82,6 +86,8 @@ for k = 1:n
                     r = d.exportFieldTrip('File', out, args{:});
                 case "epochs"
                     r = d.exportEpochs('File', out, args{:});
+                case "kcsd"
+                    r = d.exportKCSD('File', out, args{:});
                 otherwise
                     error('EphysPipeline:BadFormat', 'Unknown export format "%s".', fmt);
             end
@@ -91,7 +97,12 @@ for k = 1:n
                 % The file is complete; a cancel raised here must not report it
                 % as "nothing written" (the next format records the cancel).
             end
-            msg = sprintf("%s; %d unit(s)", strjoin(r.signals, "+"), r.nUnits);
+            if fmt == "kcsd"
+                msg = string(sprintf("LFP; %d electrode(s) in %d-D, %d channel(s) left out; %d event(s)", ...
+                    r.nElectrodes, r.dim, r.nExcluded, r.nEvents));
+            else
+                msg = sprintf("%s; %d unit(s)", strjoin(r.signals, "+"), r.nUnits);
+            end
             if fmt == "epochs"
                 msg = string(msg) + sprintf("; %d epoch(s) of %s [%g %g] s", r.nEpochs, r.eventName, r.window(1), r.window(2));
                 if r.nArtifact > 0
@@ -113,6 +124,22 @@ for k = 1:n
 end
 if obj.CancelRequested
     error('EphysPipeline:Cancelled', 'Cancelled by user.');
+end
+end
+
+
+function o = sharedInputOptions(E, spikesFile)
+%sharedInputOptions  The options the dataset's inputs are read with, once for
+%   every format: the shared export options, the spikes file for
+%   IncludeDetected, and no sorted units when only kcsd (the LFP alone) is
+%   written.
+o = EphysPipelineConfig.exportOptions(E);
+if E.IncludeDetected
+    if isfile(spikesFile); o.Detected = spikesFile; else; o.Detected = false; end
+end
+if all(E.Formats == "kcsd")
+    o.Units = false;
+    o.Detected = false;
 end
 end
 

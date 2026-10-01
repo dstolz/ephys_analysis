@@ -137,7 +137,7 @@ loaded = app.Config;                       % put back after the every-branch cha
 allOn = loaded;
 allOn.Artifacts.Enabled = true; allOn.Sorting.Enabled = true; allOn.Signals.Enabled = true;
 allOn.Signals.LFP = true; allOn.Signals.MUA = true; allOn.Signals.SPIKE = true; allOn.Signals.AUX = true;
-allOn.Export.Enabled = true; allOn.Export.Formats = ["chronux" "fieldtrip" "epochs"];
+allOn.Export.Enabled = true; allOn.Export.Formats = ["chronux" "fieldtrip" "epochs" "kcsd"];
 allOn.Artifacts.Reference = "cmr";
 app.applyConfig(allOn);
 full = string(app.FlowHTML.HTMLSource);
@@ -292,6 +292,13 @@ check(~app.ExpEpochsCheckBox.Value && strcmp(app.ExpEpochSourceDropDown.Value, '
     && app.ExpEpochPreField.Value == -0.2 && strcmp(app.ExpEpochIncompleteDropDown.Value, 'nan') ...
     && strcmp(app.ExpEpochArtifactsDropDown.Value, 'drop'), ...
     'applyExportSection puts the epoch settings back');
+app.ExpKCSDCheckBox.Value = true;
+gK = app.gatherExportSection();
+check(any(gK.Formats == "kcsd"), 'the kCSD box adds the kcsd format');
+kc = app.Config.Export; kc.Formats = "kcsd";
+app.applyExportSection(kc);
+check(app.ExpKCSDCheckBox.Value && ~app.ExpChronuxCheckBox.Value, 'applyExportSection ticks the kCSD box for the kcsd format');
+app.applyExportSection(app.Config.Export);
 
 % the artifact periods in the signals: the Signals tab's switch and the Artifacts tab's use
 app.SigBlankArtifactsCheckBox.Value = false;

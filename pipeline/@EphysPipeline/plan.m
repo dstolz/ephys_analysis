@@ -186,8 +186,14 @@ for step = steps
                 for fmt = c.Export.Formats
                     out = obj.outputPathFor("export:" + fmt, d);
                     note = "";
-                    if c.Export.IncludeUnits && ~d.hasKilosortResults()
+                    withUnits = c.Export.IncludeUnits && fmt ~= "kcsd";   % kcsd writes the LFP alone
+                    if withUnits && ~d.hasKilosortResults()
                         note = "no sorted units (left out)";
+                    end
+                    kcsdProbe = "";
+                    if fmt == "kcsd"
+                        kcsdProbe = obj.probeFor(d);
+                        note = "LFP and probe positions for kCSD-python, interpolated bad channels left out";
                     end
                     if fmt == "epochs"
                         ep = sprintf("epochs [%g %g] s around ", c.Export.EpochWindow(1), c.Export.EpochWindow(2));
@@ -205,16 +211,22 @@ for step = steps
                         end
                         note = strjoin([note(note ~= ""), ep], "; ");
                     end
+                    fmtUnits = units && fmt ~= "kcsd";
                     if (isempty(extract) || ~all(isfile(extract))) && ~(c.Signals.Enabled && ismember("signals", steps))
                         add("export:" + fmt, k, out, "no extract file", "expected " + strjoin(extract(~isfile(extract)), ", "));
-                    elseif c.Export.IncludeUnits && d.sortingMissing()
+                    elseif withUnits && d.sortingMissing()
                         add("export:" + fmt, k, out, "error: sorting folder missing", missingSortNote(d));
+                    elseif fmt == "kcsd" && kcsdProbe == ""
+                        add("export:" + fmt, k, out, "error: no probe", ...
+                            "kCSD needs the electrode positions: assign a probe, a probe rule or the default probe");
+                    elseif fmt == "kcsd" && ~isfile(kcsdProbe)
+                        add("export:" + fmt, k, out, "error: probe file missing", kcsdProbe);
                     elseif isfile(out) && ~c.Export.Overwrite
-                        add("export:" + fmt, k, out, "exists: skip", note, units);
+                        add("export:" + fmt, k, out, "exists: skip", note, fmtUnits);
                     elseif isfile(out)
-                        add("export:" + fmt, k, out, "exists: overwrite", note, units);
+                        add("export:" + fmt, k, out, "exists: overwrite", note, fmtUnits);
                     else
-                        add("export:" + fmt, k, out, "ready", note, units);
+                        add("export:" + fmt, k, out, "ready", note, fmtUnits);
                     end
                 end
         end

@@ -61,6 +61,7 @@ not matter, so configured `Suffix` values are found:
 | `chronux` | `export` + `sp` / `spDetected` | `exportChronux` |
 | `fieldtrip` | `export` + `event` / `spike` / `data_*` | `exportFieldTrip` |
 | `epochs` | `export` + `epochs` | `exportEpochs` (event-organized data) |
+| `kcsd` | a `<Name>*.npz` whose `meta` member names `EphysDataset.exportKCSD` (and this dataset) | `exportKCSD` (kCSD-python) |
 | `manifest` | `<Name>_manifest.json` | `writeManifest` |
 | `artifacts` | `<Name>_artifacts.json` | `EphysPipeline` artifact cache |
 
@@ -94,7 +95,7 @@ The scan is a snapshot. Call `refresh()` after writing new outputs.
 | Property | Kind |
 | --- | --- |
 | `ExtractFiles` | the newest file per signal type plus the newest combined file, newest first |
-| `SpikesFile`, `ChronuxFile`, `FieldTripFile`, `EpochsFile`, `BehaviorFile`, `ManifestFile`, `ArtifactsFile` | one file |
+| `SpikesFile`, `ChronuxFile`, `FieldTripFile`, `EpochsFile`, `KCSDFile`, `BehaviorFile`, `ManifestFile`, `ArtifactsFile` | one file |
 | `SortingDir` | a phy results folder |
 
 Reading a path property returns the path in effect. **Assigning** one pins it.
@@ -114,6 +115,7 @@ out.pathSource("fieldtrip")    % "manual" | "discovered" | "dataset" | "manifest
 | `Extract` | every `ExtractFiles` file merged into one `toMat`-shaped struct (`Y`, `info`, `events`, `conversion`); when two files hold the same signal the newer one wins |
 | `LFP`, `MUA`, `SPIKE`, `AUX` | the `toMat`-shaped struct of the newest file holding that signal, with `Y` / `info` reduced to it |
 | `Spikes`, `Chronux`, `FieldTrip`, `Epochs` | the file's variables as a struct (`Epochs`: `epochs` + `export`, see [file-formats](file-formats.md#epoch-export-ephysdatasetexportepochs-the-export-step)) |
+| `KCSD` | the `.npz` arrays (`readNPZ`), `meta` decoded from its JSON ([file-formats](file-formats.md#kcsd-export-ephysdatasetexportkcsd-the-export-step)); `load("kcsd", "ele_pos", ...)` reads only those members |
 | `Units` | `ds.readSortedUnits(ResultsDir=SortingDir)` (full unit labels), or without a dataset `EphysDataset.readPhyUnits(SortingDir)` with the manifest's probe file (labels `<class><id>` only, no `subject` / `recordingStart` / `datasetKey`) |
 | `Behavior` | `trials`, `info`, `meta`, `file`, `subject`, `startTime`, `nTrials` |
 | `Manifest`, `Artifacts` | the decoded JSON |

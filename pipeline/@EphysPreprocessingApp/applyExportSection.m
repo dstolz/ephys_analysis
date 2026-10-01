@@ -5,6 +5,7 @@ obj.ExpEnableCheckBox.Value    = logical(E.Enabled);
 obj.ExpChronuxCheckBox.Value   = any(E.Formats == "chronux");
 obj.ExpFieldTripCheckBox.Value = any(E.Formats == "fieldtrip");
 obj.ExpEpochsCheckBox.Value    = any(E.Formats == "epochs");
+obj.ExpKCSDCheckBox.Value      = any(E.Formats == "kcsd");
 obj.ExpSignalsField.Value      = char(strjoin(E.Signals, ", "));
 obj.ExpUnitsCheckBox.Value     = logical(E.IncludeUnits);
 obj.ExpGroupsField.Value       = char(strjoin(E.Groups, ", "));

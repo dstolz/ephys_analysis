@@ -887,9 +887,15 @@ the app only writes files.
 
 - **Chronux** (`<Name>_chronux.mat`, [format](file-formats.md#chronux-export-ephysdatasetexportchronux-the-export-step)),
   **FieldTrip** (`<Name>_fieldtrip.mat`,
-  [FieldTripExport](FieldTripExport.md)) and **Event epochs**
+  [FieldTripExport](FieldTripExport.md)), **Event epochs**
   (`<Name>_epochs.mat`, the same data organized by event —
-  [`EphysDataset.eventEpochs`](EphysDataset.md#event-organized-epoched-data)).
+  [`EphysDataset.eventEpochs`](EphysDataset.md#event-organized-epoched-data))
+  and **kCSD-python** (`<Name>_kcsd.npz`, the LFP in mV and its channels'
+  probe positions in mm as `ele_pos` / `pots` for kCSD-python's `KCSD1D` /
+  `KCSD2D`, [format](file-formats.md#kcsd-export-ephysdatasetexportkcsd-the-export-step)).
+  kCSD needs a probe (the dataset's own, a rule's or the default) and leaves
+  out the interpolated bad channels; units and detected spikes are not part
+  of it.
 - What to include: signals (blank = every signal in the extract), sorted
   units (+ groups), detected spikes, events; **Validate with
   FieldTrip** when it is on the path.
@@ -1490,7 +1496,7 @@ or drop it:
 | Spikes | the spikes `.mat` (`<Name>_spikes.mat`) |
 | Behavior | `<Name>_behavior.mat` and the digital events cache `<Name>_events.mat` |
 | Artifacts | the artifact-interval cache `<Name>_artifacts.json` |
-| Export | the Chronux, FieldTrip and epochs `.mat` files |
+| Export | the Chronux, FieldTrip and epochs `.mat` files and the kCSD `.npz` |
 
 A `.mat` output is recognised by the variables it holds (as `DatasetOutputs`
 does), so outputs with a configured suffix count too, and the config's
@@ -1678,7 +1684,7 @@ preference: its settings live in its own file, which its Windows task reads.
 | `<Folder>/<Name>_manifest.json` | scan, probe assignment, exclusion change, manual artifact edit, sorting / behavior association, each sorting launch and completion |
 | `<outputFolder>/<Name>.bin` (or `<Name>_ks4.bin`) + `.json`, `<outputFolder>/kilosort4/{settings.json, run_ks4.py, ks4_launch.cmd, ks4_run.log, ks4_status.json, ks4_exit.txt}` and the phy files (plus `<probe>_excluded.json` with excluded channels, and `previous_<yyyyMMdd_HHmmss>/` holding an earlier sort's curation) | Sorting (a dry run writes only `settings.json` and `run_ks4.py`, into `kilosort4/dryrun/`) |
 | `<outputFolder>/<Name>_artifacts.json` | Artifacts (cache) |
-| `<Name>_extract_<TYPE>.mat` (or `<Name>_extract.mat`), `<Name>_spikes.mat`, `<Name>_chronux.mat`, `<Name>_fieldtrip.mat`, `<Name>_epochs.mat` | Signals, Spikes, Export |
+| `<Name>_extract_<TYPE>.mat` (or `<Name>_extract.mat`), `<Name>_spikes.mat`, `<Name>_chronux.mat`, `<Name>_fieldtrip.mat`, `<Name>_epochs.mat`, `<Name>_kcsd.npz` | Signals, Spikes, Export |
 | probe `.json` in the probe folder | Import, Designer save, Notes edit |
 | `<parent>/synthetic_ephys/...` | File → Create synthetic test project (recordings, sessions, sorted output, probe, config, README) |
 | `<Folder>/<Subject>/<Subject>_<start>/`: the recording, the session copy, `kilosort4/` (ground truth), `<Name>_manifest.json`, `<Name>_synthetic.json` and, with a synthetic probe, `<Name>_probe.json`; a design `.json` | Synthetic → Generate... (Preview writes nothing); Save design... |

@@ -384,6 +384,10 @@ eo = EphysPipelineConfig.exportOptions(E, "epochs");
 check(~isfield(eo, 'Validate') && eo.EventSource == "behavior" && isequal(eo.Window, [-0.1 0.4]) ...
     && eo.SpikeTimeBase == "window" && eo.Incomplete == "nan" && eo.OnsetRule == "event", ...
     'exportOptions for the epoch exporter uses its own option names');
+E.IncludeEvents = false; E.Overwrite = true;
+eo = EphysPipelineConfig.exportOptions(E, "kcsd");
+check(isequal(sort(string(fieldnames(eo))).', ["Events" "Overwrite"]) && ~eo.Events && eo.Overwrite, ...
+    'exportOptions for the kCSD exporter: events and overwrite only (the LFP alone)');
 
 fprintf('\n== 6. validate ==\n');
 cfg = EphysPipelineConfig();
@@ -491,6 +495,16 @@ iss = cfg.validate();
 check(~any(iss.Field == "Formats" & iss.Severity == "error") ...
     && any(iss.Field == "EpochWindow" & iss.Severity == "error"), ...
     '"epochs" is a known format; a reversed epoch window is an error');
+cfg.Export.Formats = ["chronux" "kcsd"]; cfg.Export.Signals = "MUA";
+iss = cfg.validate();
+check(~any(iss.Field == "Formats" & iss.Severity == "error") && any(iss.Field == "Signals" & iss.Severity == "error" & contains(iss.Message, "kCSD")), ...
+    '"kcsd" is a known format; it needs the LFP among Export.Signals');
+cfg.Export.Signals = strings(1, 0); cfg.Signals.Enabled = true; cfg.Signals.LFP = false; cfg.Signals.MUA = true;
+iss = cfg.validate();
+check(any(iss.Step == "export" & iss.Severity == "warning" & contains(iss.Message, "kCSD export needs an existing LFP")), ...
+    'a Signals step without LFP: the kCSD export warns');
+cfg.Signals = EphysPipelineConfig.defaults("Signals");
+cfg.Export.Formats = ["chronux" "epochs"];
 cfg.Export.EpochWindow = [-0.2 0.5];
 cfg.Export.IncludeEvents = false;
 iss = cfg.validate();

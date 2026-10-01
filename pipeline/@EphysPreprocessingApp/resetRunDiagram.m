@@ -103,7 +103,7 @@ end
 
 w(6) = "threshold detection .mat";
 
-fmts = replace(cfg.Export.Formats, ["chronux" "fieldtrip" "epochs"], ["Chronux" "FieldTrip" "event epoch"]);
+fmts = replace(cfg.Export.Formats, ["chronux" "fieldtrip" "epochs" "kcsd"], ["Chronux" "FieldTrip" "event epoch" "kCSD"]);
 if isempty(fmts)
     w(7) = "no format ticked";
 else

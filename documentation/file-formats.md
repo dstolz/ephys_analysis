@@ -30,6 +30,8 @@ written as the strings `"NaN"` / `"Inf"`.
 ├─ <Name>_events.mat                    digital-input events cache (digitalEvents; trial pairing)
 ├─ <Name>_chronux.mat                   Chronux export (exportChronux; the Export step)
 ├─ <Name>_fieldtrip.mat                 FieldTrip export (exportFieldTrip; the Export step)
+├─ <Name>_epochs.mat                    event-organized export (exportEpochs; the Export step)
+├─ <Name>_kcsd.npz                      kCSD-python export, a NumPy archive (exportKCSD; the Export step)
 ├─ <Name>.bin + <Name>.json             EphysDataset.toBin (the Sorting step); <Name>_ks4.bin + <Name>_ks4.json
 │                                       when <Name>.bin or <Name>.json is one of the recording's own files
 └─ kilosort4/                           kilosortDir()
@@ -812,6 +814,52 @@ half-open period of `epochs.artifacts.intervals`; with `EpochArtifacts =
 "drop"` (the default) that epoch is left out of every signal
 (`info.keptTrials`, `info.droppedArtifact`), while the trials table and the
 spike epochs keep it.
+
+## kCSD export (`EphysDataset.exportKCSD`; the Export step)
+
+Default `<outputFolder>/<Name>_kcsd.npz`: the LFP and the probe positions of
+its channels, as the arrays [kCSD-python](https://github.com/Neuroinflab/kCSD-python)'s
+estimators take (`KCSD1D(ele_pos, pots, ...)`, `KCSD2D`), in kCSD-python's
+units (mm, mV; its `sigma` is in S/m). It is a NumPy archive, read with
+`numpy.load`; in MATLAB, `readNPZ` or `DatasetOutputs.KCSD`. It is written
+uncompressed (as `numpy.savez` does), with zip64 records past 4 GB.
+
+```python
+import json, numpy as np
+from kcsd import KCSD1D, KCSD2D
+d = np.load("<Name>_kcsd.npz")
+line = list(d["event_names"]).index("Stim")
+on = d["event_onset_sample"][d["event_line"] == line]
+evoked = np.mean([d["pots"][:, i - 50 : i + 200] for i in on], axis=0)   # at fs = 1 kHz
+K = KCSD1D if d["ele_pos"].shape[1] == 1 else KCSD2D
+k = K(d["ele_pos"], evoked, sigma=0.3)
+k.cross_validate(Rs=np.array([0.05, 0.1, 0.2]), lambdas=np.logspace(-6, -1, 6))
+csd = k.values("CSD")
+```
+
+Electrodes are the LFP channels on the dataset's probe (its own, a probe rule's
+or the default probe) less the bad channels the Signals step interpolated. An
+interpolated trace is not a measurement, and kCSD needs no value on a missing
+site. They are listed in probe order: by shank, then from the top of the shank
+down, then left to right. The export stops with an error when there is no
+probe, when fewer than `dim + 1` electrodes are left, or when two electrodes
+share a position.
+
+| Array | Contents |
+| --- | --- |
+| `ele_pos` | `[n_ele x dim]` float64, mm. `dim` is 1 on a single column of one shank: the position along the shank, the probe's `yc` (larger = farther from the tip). Otherwise it is 2: (`xc`, `yc`) |
+| `pots` | `[n_ele x N]` float32 LFP in mV (the extract's µV / 1000), row *e* for electrode *e*; sample *i* (0-based) is at `i/fs` s on the continuous clock |
+| `fs` | 0-d float64, the LFP rate (Hz) |
+| `label`, `shank`, `x_um`, `y_um` | per electrode: its channel label, shank (the probe's `kcoords`) and site position in µm |
+| `extract_column`, `recording_channel` | per electrode, 1-based: its LFP column in the MATLAB extract and its amplifier channel |
+| `excluded_label`, `excluded_recording_channel`, `excluded_reason` | the LFP channels left out and why (`bad channel (interpolated by the Signals step)`, `not on the probe`) |
+| `event_names` | the digital-input lines |
+| `event_line`, `event_onset_s`, `event_offset_s`, `event_onset_sample`, `event_offset_sample` | one row per pulse, sorted by onset: 0-based index into `event_names`, the edges in seconds (`t = row/eventFs` on the recording's clock) and as int64 0-based LFP samples, `round((t - 1/eventFs)*fs)` (the LFP sample of the recording row that produced the edge). Empty with `Export.IncludeEvents` off |
+| `artifact_s`, `artifact_samples` | the artifact periods erased before the LFP was derived: `[k x 2]` `[tStart tEnd)` seconds, and the merged int64 0-based `[start stop)` LFP samples they touch, so `pots[:, start:stop]` is the erased stretch |
+| `meta` | 0-d unicode JSON: `tool`, `created`, `dataset`, `sourceFolder`, `sources` (`extractFile`, `probeFile`), `signal`, `fs`, `eventFs`, `nSamples`, `nElectrodes`, `dim`, `elePosAxes`, `units`, `lfp` (rate, band, notch, filter description, reference), `artifactFill`, `timeConventions` |
+
+Sorted units, detected spikes and behavior are not part of it. The `.npz` is
+written to `~<name>.partial.npz` and renamed once complete.
 
 All six `.mat` writers save to `~<name>.partial.mat` and rename only after a
 warning-free `save()` in which every variable is confirmed present

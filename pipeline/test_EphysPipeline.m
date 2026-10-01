@@ -455,6 +455,20 @@ check(isfield(P, 'epochs') && P.epochs.event.nEpochs == 1 && istable(P.epochs.tr
     && isequal(P.epochs.signals.LFP.data(:, 1, 1), double(Sx.Y.LFP(20:110, 1))) ...
     && numel(P.epochs.units) == 2 && numel(P.epochs.detected) == numAmp, ...
     'the epoch file holds the samples around the dig-in onset, with the units and detected spikes');
+cfgK = cfg; cfgK.Export.Formats = "kcsd";
+pipe.Config = cfgK; pipe.reset(); pipe.runExport();
+Rk = pipe.Results;
+check(height(Rk) == 1 && Rk.Step(1) == "export:kcsd" && Rk.Status(1) == "done" ...
+    && endsWith(Rk.Output(1), "_kcsd.npz") && contains(Rk.Message(1), "4 electrode(s) in 1-D"), ...
+    'the kcsd format writes <Name>_kcsd.npz on the dataset''s probe');
+K = readNPZ(Rk.Output(1), ["pots" "ele_pos" "meta"]);
+check(isequal(K.pots, (single(Sx.Y.LFP(:, [4 3 2 1])) / 1000).') && isequal(K.ele_pos, [60; 40; 20; 0] / 1000) ...
+    && string(jsondecode(K.meta).sources.probeFile) == string(probeFile), ...
+    'its pots are the extract''s LFP in mV, top of the probe first, from probeFor''s probe');
+d1.ProbeFile = "";
+TK = pipe.plan(Steps="export");
+check(TK.Status(TK.Step == "export:kcsd") == "error: no probe", 'a dataset with no probe: the plan says kcsd cannot run');
+d1.ProbeFile = probeFile;
 pipe.Config = cfg;
 
 fprintf('\n== 8. run(), dry run and cancel ==\n');
@@ -768,7 +782,7 @@ eo.writeManifest();
 makePhyFixture(fullfile(h1, 'kilosort4'), Fs, ChannelMap=[0 1 2 3]);   % an uncurated sort next to the recording
 cfgO = EphysPipelineConfig(); cfgO.Project.Root = projO;
 cfgO.Spikes.Enabled = true; cfgO.Signals.Enabled = true;
-cfgO.Export.Enabled = true; cfgO.Export.Formats = "chronux";   % IncludeUnits: reads the sorted units
+cfgO.Export.Enabled = true; cfgO.Export.Formats = ["chronux" "kcsd"];   % IncludeUnits: reads the sorted units
 cfgO.Sorting.Enabled = true; cfgO.Sorting.PythonExe = "C:\envs\ks\python.exe"; cfgO.Sorting.Execution = "blocking";
 cfgO.Sorting.SkipExisting = true;
 pO = EphysPipeline(cfgO);               % the scan applies the manifest and writes it again
@@ -786,6 +800,8 @@ check(TO.Status(TO.Step == "export:chronux") == "error: sorting folder missing" 
     && TO.Status(TO.Step == "spikes") == "ready" ...
     && TO.Status(TO.Step == "probe") == "probe file missing" && TO.Status(TO.Step == "sorting") == "probe file missing", ...
     'plan names the missing folder and probe instead of using the kilosort4 sort next to the recording');
+check(TO.Status(TO.Step == "export:kcsd") == "error: probe file missing" && TO.Note(TO.Step == "export:kcsd") == offProbe, ...
+    'the kcsd export needs no sort, but its probe file must be there');
 oo = eo.outputs();
 check(oo.SortingDir == curated && ~oo.has("sorting") && strcmp(errorId(@() oo.Units), 'DatasetOutputs:Missing'), ...
     'DatasetOutputs keeps the hand-picked folder too: no fallback to the uncurated sort');
@@ -795,6 +811,8 @@ writeJsonFile(offProbe, struct('chanMap', 0:numAmp-1, 'xc', zeros(1, numAmp), 'y
 TO = pO.plan();
 check(eo.hasKilosortResults() && TO.Status(TO.Step == "export:chronux") == "ready" ...
     && TO.Status(TO.Step == "sorting") == "exists: skip (SkipExisting)", 'with the disk back the association works again');
+check(TO.Status(TO.Step == "export:kcsd") == "ready" && endsWith(TO.Output(TO.Step == "export:kcsd"), "_kcsd.npz"), ...
+    'and the kcsd export is ready, to <Name>_kcsd.npz');
 % Kilosort4 4.x writes its own cluster_group.tsv (a copy of cluster_KSLabel.tsv) on every run.
 fid = fopen(fullfile(h1, 'kilosort4', 'cluster_group.tsv'), 'w');
 fprintf(fid, 'cluster_id\tKSLabel\n0\tmua\n1\tgood\n2\tgood\n');

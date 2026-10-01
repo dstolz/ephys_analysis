@@ -358,15 +358,28 @@ classdef EphysPipelineScript
             else
                 exFilesExpr = sigFilesExpr;
             end
+            % kcsd writes the LFP alone (a .npz for kCSD-python): no units,
+            % detected spikes or sorting folder, and the dataset's probe
+            hasKCSD = any(E.Formats == "kcsd");
+            withUnits = E.IncludeUnits && any(E.Formats ~= "kcsd");
+            withDetected = E.IncludeDetected && any(E.Formats ~= "kcsd");
             L(end+1, 1) = "formats = " + lit(E.Formats) + ";";
+            if hasKCSD
+                L(end+1, 1) = "exts = repmat("".mat"", size(formats));";
+                L(end+1, 1) = "exts(formats == ""kcsd"") = "".npz"";   % kCSD-python reads a NumPy archive";
+            end
             L(end+1, 1) = "for k = idx";
             L(end+1, 1) = "    d = P.Datasets(k);";
             L(end+1, 1) = "    extract = EphysDataset.recordedSignalFiles(" + exFilesExpr + ");";
             L(end+1, 1) = "    if isempty(extract) || ~all(isfile(extract)); fprintf('%s: no extract file, skipped\n', d.Name); continue; end";
-            if E.IncludeUnits
+            if withUnits && ~hasKCSD
                 L(end+1, 1) = "    if d.sortingMissing(); fprintf(2, '%s: the sorted-output folder %s is not there, skipped\n', d.Name, d.SortingDir); continue; end";
             end
-            L(end+1, 1) = "    outFiles = fullfile(" + EphysPipelineScript.outDirExpr(E.OutputDir) + ", d.Name + ""_"" + formats + "".mat"");";
+            if hasKCSD
+                L(end+1, 1) = "    outFiles = fullfile(" + EphysPipelineScript.outDirExpr(E.OutputDir) + ", d.Name + ""_"" + formats + exts);";
+            else
+                L(end+1, 1) = "    outFiles = fullfile(" + EphysPipelineScript.outDirExpr(E.OutputDir) + ", d.Name + ""_"" + formats + "".mat"");";
+            end
             if ~E.Overwrite
                 L(end+1, 1) = "    if all(isfile(outFiles)); fprintf('%s: %s exist, skipped\n', d.Name, strjoin(outFiles, ', ')); continue; end";
             end
@@ -380,11 +393,11 @@ classdef EphysPipelineScript
             L(end+1, 1) = "                end";
             L(end+1, 1) = "            end";
             L(end+1, 1) = "        end";
-            if E.IncludeUnits
+            if withUnits
                 L(end+1, 1) = "        units = false;";
                 L(end+1, 1) = "        if d.hasKilosortResults(); units = d.readSortedUnits(Groups=" + lit(E.Groups) + "); end";
             end
-            if E.IncludeDetected
+            if withDetected
                 L(end+1, 1) = "        detected = false;";
                 L(end+1, 1) = "        spikesFile = fullfile(" + EphysPipelineScript.outDirExpr(K.OutputDir) + ", d.Name + " + lit(K.Suffix) + " + "".mat"");";
                 L(end+1, 1) = "        if isfile(spikesFile)";
@@ -394,10 +407,10 @@ classdef EphysPipelineScript
             end
             L(end+1, 1) = "        % where the inputs came from, as each exporter records it (Sources)";
             L(end+1, 1) = "        sources = struct('extractFile', strjoin(extract, ""; ""), 'spikesFile', """", 'sortingDir', """");";
-            if E.IncludeUnits
+            if withUnits
                 L(end+1, 1) = "        if isstruct(units); sources.sortingDir = string(d.sortingResultsDir()); end";
             end
-            if E.IncludeDetected
+            if withDetected
                 L(end+1, 1) = "        if isstruct(detected); sources.spikesFile = spikesFile; end";
             end
             L(end+1, 1) = "    catch ME";
@@ -411,13 +424,32 @@ classdef EphysPipelineScript
             end
             L(end+1, 1) = "        try";
             L(end+1, 1) = "            o = EphysPipelineConfig.exportOptions(" + EphysPipelineScript.inlineStruct(E) + ", fmt);";
-            if E.IncludeUnits
-                L(end+1, 1) = "            o.Units = units;";
-            end
-            if E.IncludeDetected
-                L(end+1, 1) = "            o.Detected = detected;";
-            end
             L(end+1, 1) = "            o.Sources = sources;";
+            if hasKCSD
+                L(end+1, 1) = "            if fmt == ""kcsd""   % the LFP alone, on the dataset's probe";
+                L(end+1, 1) = "                o.ProbeFile = d.ProbeFile;";
+                L(end+1, 1) = "                if o.ProbeFile == """"; o.ProbeFile = defaultProbe; end";
+                if withUnits
+                    L(end+1, 1) = "            elseif d.sortingMissing()";
+                    L(end+1, 1) = "                fprintf(2, '%s: the sorted-output folder %s is not there, %s skipped\n', d.Name, d.SortingDir, fmt);";
+                    L(end+1, 1) = "                continue";
+                end
+                if withUnits || withDetected
+                    L(end+1, 1) = "            else";
+                end
+                ind = "    ";
+            else
+                ind = "";
+            end
+            if withUnits
+                L(end+1, 1) = ind + "            o.Units = units;";
+            end
+            if withDetected
+                L(end+1, 1) = ind + "            o.Detected = detected;";
+            end
+            if hasKCSD
+                L(end+1, 1) = "            end";
+            end
             L(end+1, 1) = "            args = namedargs2cell(o);";
             L(end+1, 1) = "            switch fmt";
             L(end+1, 1) = "                case ""chronux""";
@@ -426,6 +458,8 @@ classdef EphysPipelineScript
             L(end+1, 1) = "                    r = d.exportFieldTrip('File', outFiles(j), 'Extract', S, args{:});";
             L(end+1, 1) = "                case ""epochs""";
             L(end+1, 1) = "                    r = d.exportEpochs('File', outFiles(j), 'Extract', S, args{:});";
+            L(end+1, 1) = "                case ""kcsd""";
+            L(end+1, 1) = "                    r = d.exportKCSD('File', outFiles(j), 'Extract', S, args{:});";
             L(end+1, 1) = "                otherwise";
             L(end+1, 1) = "                    error('Unknown export format ""%s"".', fmt);";
             L(end+1, 1) = "            end";

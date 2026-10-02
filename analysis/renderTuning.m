@@ -4,7 +4,9 @@ function h = renderTuning(R, target, opts)
 %
 %   Layout
 %     "grid"     (default) one tile per unit (MaxTiles per page), one curve
-%                per series, mean +/- SEM over the epochs of each value
+%                per series, mean +/- SEM over the epochs of each value; units
+%                go by Style.SortShank / Style.SortDepth and are titled with
+%                their shank / depth for Style.LabelShank / Style.LabelDepth
 %     "overlay"  one panel: the mean over units, +/- SEM across units
 %   A text parameter is spaced evenly with its values as tick labels.
 %
@@ -44,12 +46,13 @@ if opts.Layout == "overlay"
 else
     [idx, nr, nc] = pageItems(nU, opts.Page, style.MaxTiles);
 end
-[tl, ax0] = renderLayout(target, nr, nc);
+[tl, ax0] = renderLayout(target, nr, nc, style);
 if ~isempty(ax0); idx = idx(1:min(1, end)); end
 axs = gobjects(1, numel(idx));
-names = shortUnitLabels(R.labels);
+names = siteLabels(shortUnitLabels(R.labels), R.meta, style);
+order = probeOrder(R.meta, nU, style);
 for j = 1:numel(idx)
-    u = idx(j);
+    u = order(idx(j));
     if ~isempty(ax0); ax = ax0; else; ax = nexttile(tl, j); end
     drawCurves(ax, xv, reshape(R.mean(:, u, :), nX, nS), reshape(R.sem(:, u, :), nX, nS), R, colors, style, j == 1);
     title(ax, names(u), 'FontWeight', 'normal', 'Interpreter', 'none');
@@ -57,6 +60,7 @@ for j = 1:numel(idx)
     if ceil(j / nc) < nr && isempty(ax0); xlabel(ax, ''); end
     axs(j) = ax;
 end
+cornerLabels(axs, nr, nc, style);
 h = struct('layout', tl, 'axes', axs);
 end
 

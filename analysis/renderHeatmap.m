@@ -6,9 +6,11 @@ function h = renderHeatmap(R, target, opts)
 %   of every tile) with Style.HeatColormap ("" = parula).
 %
 %   Order
-%     "depth"    (default) top of the probe first (probe y, else channel)
-%     "channel"  by channel
+%     "probe"    (default) as Style.SortShank / Style.SortDepth say: by shank,
+%                then top of the probe first (probe y); neither = as listed
 %     "peak"     by the time of each row's maximum (over the groups' mean)
+%   Style.LabelShank / Style.LabelDepth append the shank / depth to the row
+%   labels.
 %
 %   H: layout (tiled layout or []), axes, colorbar.
 %
@@ -17,7 +19,7 @@ function h = renderHeatmap(R, target, opts)
 arguments
     R (1,1) struct
     target
-    opts.Order (1,1) string {mustBeMember(opts.Order, ["depth" "channel" "peak"])} = "depth"
+    opts.Order (1,1) string {mustBeMember(opts.Order, ["probe" "peak"])} = "probe"
     opts.Style = struct()
 end
 
@@ -31,18 +33,14 @@ end
 [~, nR, nG] = size(V);
 t = R.t;
 switch opts.Order
-    case "depth"
-        order = depthOrder(R.meta, nR);
-    case "channel"
-        order = (1:nR).';
-        if istable(R.meta) && ismember("channel", string(R.meta.Properties.VariableNames))
-            [~, order] = sortrows([double(R.meta.channel) (1:nR).']);
-        end
+    case "probe"
+        order = probeOrder(R.meta, nR, style);
     case "peak"
         m = mean(V, 3, 'omitnan');
         [~, pk] = max(m, [], 1);
         [~, order] = sortrows([pk(:) (1:nR).']);
 end
+labels = siteLabels(shortUnitLabels(R.labels), R.meta, style);
 clim0 = style.CLim;
 if ~(numel(clim0) == 2 && clim0(2) > clim0(1))
     v = V(isfinite(V));
@@ -50,7 +48,7 @@ if ~(numel(clim0) == 2 && clim0(2) > clim0(1))
     if clim0(2) <= clim0(1); clim0 = clim0 + [-0.5 0.5]; end
 end
 [idx, nr, nc] = pageItems(nG, 1, max(nG, 1));
-[tl, ax0] = renderLayout(target, nr, nc);
+[tl, ax0] = renderLayout(target, nr, nc, style);
 if ~isempty(ax0); idx = idx(1:min(1, end)); end
 cmapName = style.HeatColormap;
 if cmapName == ""; cmapName = "parula"; end
@@ -69,7 +67,7 @@ for j = 1:numel(idx)
     grid(ax, 'off');
     ylim(ax, [0.5 nR + 0.5]);
     if nR <= 40
-        set(ax, 'YTick', 1:nR, 'YTickLabel', shortUnitLabels(R.labels(order)), 'TickLabelInterpreter', 'none', ...
+        set(ax, 'YTick', 1:nR, 'YTickLabel', labels(order), 'TickLabelInterpreter', 'none', ...
             'FontSize', max(6, style.FontSize - (nR > 20)));
     end
     title(ax, sprintf('%s (n = %d)', R.groups.label(g), R.n(g)), 'FontWeight', 'normal', 'Interpreter', 'none');
@@ -83,5 +81,6 @@ if ~isempty(axs)
     cb.Label.String = R.units;
     if ~isempty(tl); cb.Layout.Tile = 'east'; end
 end
+cornerLabels(axs, nr, nc, style);
 h = struct('layout', tl, 'axes', axs, 'colorbar', cb);
 end

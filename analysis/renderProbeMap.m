@@ -51,7 +51,7 @@ valueName = opts.ValueName;
 if valueName == ""; valueName = string(P.units); end
 shanks = unique(P.shank(:)).';
 nSh = numel(shanks);
-[tl, ax0] = renderLayout(target, 1, nSh);
+[tl, ax0] = renderLayout(target, 1, nSh, style);
 if ~isempty(ax0); shanks = shanks(1:min(1, end)); end
 clim0 = style.CLim;
 if ~(numel(clim0) == 2 && clim0(2) > clim0(1))

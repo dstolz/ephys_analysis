@@ -6,14 +6,14 @@ function [R, E, G] = computePlot(obj, src, spec) %#ok<INUSD>
 %         [E, G] = epochTable(src, spec.ref, Window=spec.window, Selection=spec.selection,
 %             Baseline=) (the artifact test covers a baseline outside the window)
 %         [st, meta] = selectUnits(src, spec.units)
-%         R = spikePSTH(st, E, Window=[pre post], BinSec=, SmoothSec=,
+%         R = spikePSTH(st, E, Window=[pre post], BinSec=, SmoothSec=, Measure=,
 %             Baseline=, BaselineMode=, MaskAfterStop=, Raster=, Groups=G, Meta=meta)
 %     evoked / heatmap of a signal
 %         [E, G] = epochTable(...)
 %         [Y, fs, meta] = selectChannels(src, spec.source, Channels=spec.channels)
 %         R = evokedPotential(Y, fs, E, Window=[pre post], Baseline=, Groups=G,
 %             Meta=meta, Units=)
-%     rate      firingRate(st, E, Baseline=, Normalize=spec.baseline.Mode, ...)
+%     rate      firingRate(st, E, Measure=, Baseline=, Normalize=spec.baseline.Mode, ...)
 %     tuning    epochTable(..., Columns=[param seriesParam]), firingRate, then
 %               tuningCurve(F.rate, E.(param), Series=E.(seriesParam), ...)
 %     corrmap   unitCorrelation(st, E, Metric=spec.metric, Type=spec.correlation,
@@ -38,7 +38,7 @@ switch spec.kind
         else
             [st, meta] = selectUnits(src, spec.units);
             R = spikePSTH(st, E, Window=[w.pre w.post], BinSec=spec.bins.BinSec, SmoothSec=spec.bins.SmoothSec, ...
-                Baseline=b, BaselineMode=spec.baseline.Mode, MaskAfterStop=spec.maskAfterStop, ...
+                Measure=spec.measure, Baseline=b, BaselineMode=spec.baseline.Mode, MaskAfterStop=spec.maskAfterStop, ...
                 Raster=spec.kind == "raster" || (spec.kind == "psth" && spec.withRaster), Groups=G, Meta=meta);
         end
     case "evoked"
@@ -48,12 +48,12 @@ switch spec.kind
     case "rate"
         [E, G] = epochTable(src, spec.ref, Window=w, Selection=spec.selection, Baseline=b);
         [st, meta] = selectUnits(src, spec.units);
-        R = firingRate(st, E, Baseline=b, Normalize=spec.baseline.Mode, Groups=G, Meta=meta);
+        R = firingRate(st, E, Measure=spec.measure, Baseline=b, Normalize=spec.baseline.Mode, Groups=G, Meta=meta);
     case "tuning"
         cols = [spec.param spec.seriesParam];
         [E, G] = epochTable(src, spec.ref, Window=w, Selection=spec.selection, Baseline=b, Columns=cols(cols ~= ""));
         [st, meta] = selectUnits(src, spec.units);
-        F = firingRate(st, E, Baseline=b, Normalize=spec.baseline.Mode, Groups=G, Meta=meta);
+        F = firingRate(st, E, Measure=spec.measure, Baseline=b, Normalize=spec.baseline.Mode, Groups=G, Meta=meta);
         series = [];
         if spec.seriesParam ~= ""; series = E.(spec.seriesParam); end
         R = tuningCurve(F.rate, E.(spec.param), Series=series, Param=spec.param, SeriesParam=spec.seriesParam, ...

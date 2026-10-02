@@ -88,7 +88,13 @@ switch section
             'CLim',         [], ...
             'Grid',         true, ...
             'Legend',       true, ...
+            'SortDepth',    true, ...       % units / channels: top of the probe first (probe y)
+            'SortShank',    false, ...      % ... grouped by shank first (depth then orders within a shank)
+            'LabelDepth',   false, ...      % append the probe depth (y, µm) to unit / channel labels
+            'LabelShank',   false, ...      % append the shank to unit / channel labels
             'MaxTiles',     16, ...         % tiles per page in grid layouts
+            'TileSpacing',  "compact", ...  % space between the tiles of a grid: "loose" | "compact" | "tight" | "none"
+            'CornerLabelsOnly', false, ...  % grids: axis labels on the bottom-left tile only
             'StackSpacing', NaN);           % evoked "stack" offset (NaN = automatic)
 
     case "Export"
@@ -129,6 +135,7 @@ switch section
             'window',        "default", ...     % "default" (Defaults.Window) or an EpochWindow
             'selection',     "default", ...     % "default" (Defaults.Selection) or a TrialSelection
             'bins',          struct('BinSec', 0.01, 'SmoothSec', 0.01), ...  % SmoothSec: Gaussian SD (0 = none)
+            'measure',       "rate", ...        % psth / heatmap of spikes / rate / tuning: "rate" (spikes/s) | "count" (spikes per bin or window) | "probability" (P(spike) per bin, or share of epochs with a spike)
             'baseline',      struct('Mode', "none", 'Window', [-0.2 0]), ...
             'layout',        "", ...            % "" = the kind's default layout
             'withRaster',    true, ...          % psth
@@ -142,7 +149,7 @@ switch section
             'param',         "", ...            % tuning: trial parameter on the x axis
             'seriesParam',   "", ...            % tuning: one curve per value of this parameter
             'value',         "rate", ...        % probemap: "rate" | "nSpikes" | "nUnits"
-            'order',         "depth", ...       % heatmap rows: "depth" | "channel" | "peak"; corrmap: "depth" | "channel"
+            'order',         "probe", ...       % heatmap rows: "probe" (the style's SortDepth / SortShank) | "peak"
             'metric',        "mean", ...        % corrmap: each epoch's "mean" or "peak" (binned) rate
             'correlation',   "pearson", ...     % corrmap: "pearson" | "spearman"
             'style',         EphysAnalysisConfig.defaults("Style"));

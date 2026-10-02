@@ -1,7 +1,9 @@
 function h = renderRaster(R, target, opts)
 %renderRaster  Draw the spike rasters of a spikePSTH result, one tile per unit.
 %   H = renderRaster(R, TARGET, Page=, Style=) draws one raster per unit of
-%   the page (MaxTiles per page): epochs as rows, sorted by group then time,
+%   the page (MaxTiles per page; units by Style.SortShank / Style.SortDepth,
+%   titled with their shank / depth for Style.LabelShank / Style.LabelDepth):
+%   epochs as rows, sorted by group then time,
 %   each group on a pale band of its colour; all ticks of a tile are one
 %   line object. An axes TARGET gets the first unit of the page. Every row
 %   is shown: Style.YLim does not apply to rasters.
@@ -24,14 +26,18 @@ end
 colors = groupPalette(R.groups, style);
 nU = numel(R.raster);
 [idx, nr, nc] = pageItems(nU, opts.Page, style.MaxTiles);
-[tl, ax0] = renderLayout(target, nr, nc);
+[tl, ax0] = renderLayout(target, nr, nc, style);
 if ~isempty(ax0); idx = idx(1:min(1, end)); end
 axs = gobjects(1, numel(idx));
-names = shortUnitLabels(R.labels);
+meta = [];
+if isfield(R, 'meta'); meta = R.meta; end
+names = siteLabels(shortUnitLabels(R.labels), meta, style);
+order = probeOrder(meta, nU, style);
 for j = 1:numel(idx)
+    u = order(idx(j));
     if ~isempty(ax0); ax = ax0; else; ax = nexttile(tl, j); end
-    rasterInto(ax, R, idx(j), style, colors);
-    title(ax, names(idx(j)), 'FontWeight', 'normal', 'Interpreter', 'none');
+    rasterInto(ax, R, u, style, colors);
+    title(ax, names(u), 'FontWeight', 'normal', 'Interpreter', 'none');
     r = ceil(j / nc);
     if r == nr || ~isempty(ax0); xlabel(ax, 'Time (s)'); end
     axs(j) = ax;
@@ -47,5 +53,6 @@ if ~isempty(axs) && style.Legend && height(R.groups) > 1
     legend(ax, lh, R.groups.label, 'Location', 'bestoutside', 'Box', 'off', 'Interpreter', 'none', ...
         'FontSize', max(6, style.FontSize - 1));
 end
+cornerLabels(axs, nr, nc, style);
 h = struct('layout', tl, 'axes', axs);
 end

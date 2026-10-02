@@ -20,7 +20,7 @@ function issues = validate(obj, opts)
 %               pre <= post; baseline mode fits the kind and its window is
 %               [b0 b1] with b0 < b1; psth histStyle, normalize,
 %               fillAlpha (0-1 or NaN) and stackSpacing (> 0); probemap value;
-%               heatmap order; corrmap order, metric and correlation; style
+%               heatmap order; corrmap metric and correlation; style
 %               values
 %     Export    formats are png / eps / svg / pdf; Dpi, FigureSizeCm; the
 %               folder and file-name patterns use known tokens; a warning
@@ -126,6 +126,9 @@ for k = 1:numel(obj.Plots)
                 p.kind, strjoin(between, " / ")));
         end
     end
+    if ~ismember(p.measure, ["rate" "count" "probability"])
+        add("Plots", f0 + ".measure", "error", "The measure is rate, count or probability.");
+    end
     if p.kind == "tuning" && strtrim(p.param) == ""
         add("Plots", f0 + ".param", "error", "A tuning plot needs param: the trial parameter on its x axis.");
     end
@@ -168,13 +171,10 @@ for k = 1:numel(obj.Plots)
     if p.kind == "probemap" && ~ismember(p.value, ["rate" "nSpikes" "nUnits"])
         add("Plots", f0 + ".value", "error", "A probe map shows rate, nSpikes or nUnits.");
     end
-    if p.kind == "heatmap" && ~ismember(p.order, ["depth" "channel" "peak"])
-        add("Plots", f0 + ".order", "error", "A heatmap orders its rows by depth, channel or peak.");
+    if p.kind == "heatmap" && ~ismember(p.order, ["probe" "peak"])
+        add("Plots", f0 + ".order", "error", "A heatmap orders its rows by probe (the style's sort options) or peak.");
     end
     if p.kind == "corrmap"
-        if ~ismember(p.order, ["depth" "channel"])
-            add("Plots", f0 + ".order", "error", "A unit correlation map orders its units by depth or channel.");
-        end
         if ~ismember(p.metric, ["mean" "peak"])
             add("Plots", f0 + ".metric", "error", "A unit correlation map correlates each epoch's mean or peak rate.");
         end
@@ -187,6 +187,9 @@ for k = 1:numel(obj.Plots)
     end
     st = p.style;
     if ~(st.MaxTiles >= 1); add("Plots", f0 + ".style.MaxTiles", "error", "MaxTiles must be >= 1."); end
+    if ~ismember(st.TileSpacing, ["loose" "compact" "tight" "none"])
+        add("Plots", f0 + ".style.TileSpacing", "error", "TileSpacing is loose, compact, tight or none.");
+    end
     if ~(st.FontSize > 0);  add("Plots", f0 + ".style.FontSize", "error", "FontSize must be positive."); end
     if ~(st.LineWidth > 0); add("Plots", f0 + ".style.LineWidth", "error", "LineWidth must be positive."); end
     for cm = ["Colormap" "HeatColormap"]

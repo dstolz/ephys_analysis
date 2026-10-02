@@ -124,6 +124,10 @@ place(E.smoothMs, r, 2);
 E.maskAfterStop = uicheckbox(S.Body, "Text", "Mask after the stop event", "ValueChangedFcn", changed, ...
     "Tooltip", "Drop each epoch's bins from its stop event on (the Epoch window's): the mean then covers the epochs still going.");
 place(E.maskAfterStop, r, [1 2]);
+[S, r] = formRow(S, "measure", "Measure:");
+E.measure = uidropdown(S.Body, "Items", ["rate" "count" "probability"], "ValueChangedFcn", changed, ...
+    "Tooltip", "rate: spikes/s; count: spikes per bin (or epoch window); probability: the share of epochs with a spike in the bin (or window).");
+place(E.measure, r, 2);
 [S, r] = formRow(S, "baselineMode", "Baseline:");
 E.baselineMode = uidropdown(S.Body, "Items", "none", "ValueChangedFcn", changed);
 place(E.baselineMode, r, 2);
@@ -173,8 +177,8 @@ place(E.seriesParam, r, 2);
 E.value = uidropdown(S.Body, "Items", ["rate" "nSpikes" "nUnits"], "ValueChangedFcn", changed, "Tooltip", "What colours each site.");
 place(E.value, r, 2);
 [S, r] = formRow(S, "order", "Row order:");
-E.order = uidropdown(S.Body, "Items", ["depth" "channel" "peak"], "ValueChangedFcn", changed, ...
-    "Tooltip", "The heatmap's rows; the unit correlation's rows and columns.");
+E.order = uidropdown(S.Body, "Items", ["probe" "peak"], "ValueChangedFcn", changed, ...
+    "Tooltip", "probe: the rows follow the Sort options (Appearance); peak: by the time of each row's maximum.");
 place(E.order, r, 2);
 [S, r] = formRow(S, "metric", "Epoch rate:");
 E.metric = uidropdown(S.Body, "Items", ["mean" "peak"], "ValueChangedFcn", changed, ...
@@ -191,6 +195,12 @@ S = formSection(eg, 8, "style", "Appearance");
 [S, r] = formRow(S, "maxTiles", "Tiles per page:");
 E.maxTiles = uispinner(S.Body, "Limits", [1 64], "Value", 16, "RoundFractionalValues", "on", "ValueChangedFcn", changed);
 place(E.maxTiles, r, 2);
+[S, r] = formRow(S, "tileSpacing", "Grid spacing:");
+sg2 = subgrid(S.Body, r, {'1x', 'fit'});
+E.tileSpacing = uidropdown(sg2, "Items", ["loose" "compact" "tight" "none"], "Value", "compact", "ValueChangedFcn", changed, ...
+    "Tooltip", "Space between the tiles of a grid (and round it).");
+E.cornerLabels = uicheckbox(sg2, "Text", "Labels on corner tile only", "ValueChangedFcn", changed, ...
+    "Tooltip", "Grids: axis labels on the bottom-left tile only.");
 [S, r] = formRow(S, "fontSize", "Font size:");
 E.fontSize = uispinner(S.Body, "Limits", [5 24], "Value", 9, "ValueChangedFcn", changed);
 place(E.fontSize, r, 2);
@@ -212,6 +222,20 @@ place(E.colormap, r, 2);
 E.heatColormap = uidropdown(S.Body, "Items", ["auto" "parula" "turbo" "hot" "gray" "jet" "cool" "blueWhiteRed"], ...
     "ValueChangedFcn", changed, "Tooltip", "auto: parula; blueWhiteRed for unit correlation.");
 place(E.heatColormap, r, 2);
+[S, r] = formRow(S, ["sortDepth" "sortShank"], "Sort by:");
+sog = subgrid(S.Body, r, {'fit', 'fit', '1x'});
+sog.ColumnSpacing = 12;
+E.sortDepth = uicheckbox(sog, "Text", "Depth", "Value", true, "ValueChangedFcn", changed, ...
+    "Tooltip", "Units / channels with the top of the probe first (probe y). Neither Depth nor Shank ticked: as listed.");
+E.sortShank = uicheckbox(sog, "Text", "Shank", "ValueChangedFcn", changed, ...
+    "Tooltip", "Units / channels grouped by shank first; with Depth, top of the probe first within each shank.");
+[S, r] = formRow(S, ["labelDepth" "labelShank"], "Label with:");
+lag = subgrid(S.Body, r, {'fit', 'fit', '1x'});
+lag.ColumnSpacing = 12;
+E.labelDepth = uicheckbox(lag, "Text", "Depth", "ValueChangedFcn", changed, ...
+    "Tooltip", "Append each unit's / channel's probe depth (y, µm) to its label.");
+E.labelShank = uicheckbox(lag, "Text", "Shank", "ValueChangedFcn", changed, ...
+    "Tooltip", "Append each unit's / channel's shank to its label.");
 [S, r] = formRow(S, ["showSEM" "showStop" "legend" "grid"], "Show:");
 shg = subgrid(S.Body, r, repmat({'fit'}, 1, 4));
 shg.ColumnSpacing = 12;

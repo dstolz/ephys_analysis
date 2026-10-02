@@ -16,11 +16,14 @@ function syncPlotEditor(obj)
 %     event, window, selection    every kind but probemap (aligns to nothing)
 %     bin, smoothing              psth, raster, heatmap of spikes, corrmap
 %     mask after the stop event   psth, raster, heatmap of spikes
+%     measure                     psth, rate, tuning, heatmap of spikes
 %     baseline                    every kind but raster and probemap
+%     grid spacing, corner labels every kind but rate (only grids use them)
 %     raster, PSTH as, normalize, fill, stack   psth
 %     parameter, series           tuning
 %     value                       probemap
-%     row order                   heatmap, corrmap
+%     row order                   heatmap
+%     sort by, label with         every kind but probemap (its sites are placed)
 %     epoch rate, correlation     corrmap
 %     tiles per page              the paged grids: raster; psth, tuning and evoked "grid"
 %     line width                  psth, evoked, tuning
@@ -72,6 +75,7 @@ v.ids = spikes; v.maxUnits = spikes; v.shanks = spikes;
 v.channels = true;
 v.binMs = binned; v.smoothMs = binned;
 v.maskAfterStop = binned && kind ~= "corrmap";
+v.measure = ismember(kind, ["psth" "rate" "tuning"]) || (kind == "heatmap" && spikes);
 v.baselineMode = ~ismember(kind, ["raster" "probemap"]);
 v.baseFrom = v.baselineMode;
 v.withRaster = psth; v.histStyle = psth; v.normalize = psth; v.fill = psth; v.stack = psth;
@@ -80,7 +84,9 @@ v.value = kind == "probemap";
 v.order = ismember(kind, ["heatmap" "corrmap"]);
 v.metric = kind == "corrmap"; v.correlation = v.metric;
 v.maxTiles = kind == "raster" || (ismember(kind, ["psth" "tuning" "evoked"]) && layout == "grid");
+v.tileSpacing = kind ~= "rate";
 v.fontSize = true;
+v.sortDepth = kind ~= "probemap"; v.labelDepth = v.sortDepth;
 v.lineWidth = ismember(kind, ["psth" "evoked" "tuning"]);
 v.ylim = ismember(kind, ["psth" "rate" "tuning"]) || (kind == "evoked" && layout ~= "stack");
 v.colormap = grouped;

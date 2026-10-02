@@ -249,8 +249,8 @@ classdef EphysAnalysisScript
                         raster = spec.kind == "raster" || (spec.kind == "psth" && spec.withRaster);
                         L(end+1, 1) = "[st, meta] = selectUnits(src, spec.units);";
                         L(end+1, 1) = "R = spikePSTH(st, E, Window=" + w + ", BinSec=" + lit(spec.bins.BinSec) + ...
-                            ", SmoothSec=" + lit(spec.bins.SmoothSec) + ", Baseline=" + b + ", BaselineMode=" + lit(spec.baseline.Mode) + ", ...";
-                        L(end+1, 1) = "    MaskAfterStop=" + lit(spec.maskAfterStop) + ", Raster=" + lit(raster) + ", Groups=G, Meta=meta);";
+                            ", SmoothSec=" + lit(spec.bins.SmoothSec) + ", Measure=" + lit(spec.measure) + ", ...";
+                        L(end+1, 1) = "    Baseline=" + b + ", BaselineMode=" + lit(spec.baseline.Mode) + ", MaskAfterStop=" + lit(spec.maskAfterStop) + ", Raster=" + lit(raster) + ", Groups=G, Meta=meta);";
                     end
                 case "evoked"
                     L(end+1, 1) = epochs;
@@ -259,13 +259,13 @@ classdef EphysAnalysisScript
                 case "rate"
                     L(end+1, 1) = epochs;
                     L(end+1, 1) = "[st, meta] = selectUnits(src, spec.units);";
-                    L(end+1, 1) = "R = firingRate(st, E, Baseline=" + b + ", Normalize=" + lit(spec.baseline.Mode) + ", Groups=G, Meta=meta);";
+                    L(end+1, 1) = "R = firingRate(st, E, Measure=" + lit(spec.measure) + ", Baseline=" + b + ", Normalize=" + lit(spec.baseline.Mode) + ", Groups=G, Meta=meta);";
                 case "tuning"
                     cols = [spec.param spec.seriesParam];
                     cols = cols(cols ~= "");
                     L(end+1, 1) = "[E, G] = epochTable(src, spec.ref, Window=spec.window, Selection=spec.selection, Baseline=" + b + ", Columns=" + lit(cols) + ");";
                     L(end+1, 1) = "[st, meta] = selectUnits(src, spec.units);";
-                    L(end+1, 1) = "F = firingRate(st, E, Baseline=" + b + ", Normalize=" + lit(spec.baseline.Mode) + ", Groups=G, Meta=meta);";
+                    L(end+1, 1) = "F = firingRate(st, E, Measure=" + lit(spec.measure) + ", Baseline=" + b + ", Normalize=" + lit(spec.baseline.Mode) + ", Groups=G, Meta=meta);";
                     series = "[]";
                     if spec.seriesParam ~= ""; series = "E.(" + lit(spec.seriesParam) + ")"; end
                     L(end+1, 1) = "R = tuningCurve(F.rate, E.(" + lit(spec.param) + "), Series=" + series + ", Param=" + lit(spec.param) + ...

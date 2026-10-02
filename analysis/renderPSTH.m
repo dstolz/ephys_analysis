@@ -35,7 +35,10 @@ function h = renderPSTH(R, target, opts)
 %     Page        page of units in grid layout (MaxTiles per page)
 %     Style       EphysAnalysisConfig.defaults("Style") fields (LineWidth,
 %                 ShowSEM, ShowStop, ShowZeroLine, Colormap, FontSize, XLim,
-%                 YLim, Grid, Legend, MaxTiles); YLim is for the rate
+%                 YLim, Grid, Legend, MaxTiles, SortShank, SortDepth,
+%                 LabelShank, LabelDepth: the grid's units go by shank, then
+%                 top of the probe first, and are titled with their shank /
+%                 depth); YLim is for the rate
 %                 panels (the rasters show every epoch), and a stack
 %                 ignores YLim and Legend (its rows are labelled)
 %
@@ -98,7 +101,7 @@ else
 end
 withRaster = opts.WithRaster && isfield(R, 'raster') && ~isempty(R.raster);
 rowsPer = 1 + withRaster;
-[tl, ax0] = renderLayout(target, nr * rowsPer, nc);
+[tl, ax0] = renderLayout(target, nr * rowsPer, nc, style);
 if ~isempty(ax0)
     idx = idx(1:min(1, end));
     withRaster = false;
@@ -106,9 +109,10 @@ end
 axs = gobjects(1, numel(idx));
 rax = gobjects(1, 0);
 step = NaN(1, numel(idx));
-names = shortUnitLabels(R.labels);
+names = siteLabels(shortUnitLabels(R.labels), R.meta, style);
+order = probeOrder(R.meta, nU, style);
 for j = 1:numel(idx)
-    u = idx(j);
+    u = order(idx(j));
     r = ceil(j / nc); c = j - (r - 1) * nc;
     if ~isempty(ax0)
         ax = ax0;
@@ -136,6 +140,8 @@ for j = 1:numel(idx)
     if r == nr || ~isempty(ax0); xlabel(ax, 'Time (s)'); end
     axs(j) = ax;
 end
+cornerLabels(axs, nr, nc, style);
+cornerLabels(rax, nr, nc, style);
 h.layout = tl; h.axes = axs; h.rasterAxes = rax; h.step = step;
 end
 

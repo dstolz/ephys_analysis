@@ -44,7 +44,7 @@ switch spec.kind
     case "probemap"
         h = renderProbeMap(R, [], target, Style=style);
     case "corrmap"
-        h = renderCorrMap(R, target, Order=spec.order, Style=style);
+        h = renderCorrMap(R, target, Style=style);
     otherwise
         error('renderPlot:BadKind', 'Unknown plot kind "%s".', spec.kind);
 end

@@ -3,11 +3,14 @@ function h = renderEvoked(R, target, opts)
 %   H = renderEvoked(R, TARGET, Name=Value)
 %
 %   Options
-%     Layout  "stack" (default): one panel, channels stacked top of the probe
-%             first (probe y, else channel order), groups in their colours;
+%     Layout  "stack" (default): one panel, channels stacked in probe order
+%             (Style.SortShank / Style.SortDepth: by shank, then top of the
+%             probe first; neither = as listed), groups in their colours;
 %             "butterfly": one tile per group, every channel overlaid,
-%             coloured by depth; "grid": one tile per channel (MaxTiles per
-%             page), groups overlaid with SEM bands
+%             coloured by that order; "grid": one tile per channel in that
+%             order (MaxTiles per page), groups overlaid with SEM bands.
+%             Style.LabelShank / Style.LabelDepth append the shank / depth
+%             to the channel labels
 %     Page    page of channels in grid layout
 %     Style   EphysAnalysisConfig.defaults("Style") fields; StackSpacing
 %             (NaN = 1.2 x the 90th percentile of the channels' ranges).
@@ -31,7 +34,8 @@ end
 style = EphysAnalysisConfig.normalizeSection("Style", opts.Style);
 colors = groupPalette(R.groups, style);
 [~, nC, nG] = size(R.mean);
-order = depthOrder(R.meta, nC);
+order = probeOrder(R.meta, nC, style);
+labels = siteLabels(R.labels, R.meta, style);
 t = R.t;
 h = struct('layout', [], 'axes', gobjects(0), 'spacing', NaN);
 yl = "Amplitude (" + unitText(R.units) + ")";
@@ -63,7 +67,7 @@ switch opts.Layout
         if style.ShowZeroLine; xline(ax, 0, ':', 'Color', [0.3 0.3 0.3], 'HandleVisibility', 'off'); end
         hold(ax, 'off');
         offs = -(0:nC-1) * spacing;
-        set(ax, 'YTick', fliplr(offs), 'YTickLabel', flipud(R.labels(order)), 'TickLabelInterpreter', 'none');
+        set(ax, 'YTick', fliplr(offs), 'YTickLabel', flipud(labels(order)), 'TickLabelInterpreter', 'none');
         ylim(ax, [offs(end) - spacing, spacing]);
         xlim(ax, t([1 end]));
         flat = style;
@@ -79,7 +83,7 @@ switch opts.Layout
 
     case "butterfly"
         [idx, nr, nc] = pageItems(nG, 1, max(nG, 1));
-        [tl, ax0] = renderLayout(target, nr, nc);
+        [tl, ax0] = renderLayout(target, nr, nc, style);
         if ~isempty(ax0); idx = idx(1:min(1, end)); end
         depthColors = parula(max(nC, 2));
         depthColors = depthColors(round(linspace(1, size(depthColors, 1) * 0.85, nC)), :);
@@ -104,14 +108,19 @@ switch opts.Layout
             colormap(axs(end), depthColors);
             cb = colorbar(axs(end));
             cb.Ticks = [0 1];
-            cb.TickLabels = {'top', 'deep'};
+            if style.SortDepth && ~style.SortShank
+                cb.TickLabels = {'top', 'deep'};
+            else
+                cb.TickLabels = {'first', 'last'};
+            end
             cb.Direction = 'reverse';
         end
+        cornerLabels(axs, nr, nc, style);
         h.layout = tl; h.axes = axs;
 
     case "grid"
         [idx, nr, nc] = pageItems(nC, opts.Page, style.MaxTiles);
-        [tl, ax0] = renderLayout(target, nr, nc);
+        [tl, ax0] = renderLayout(target, nr, nc, style);
         if ~isempty(ax0); idx = idx(1:min(1, end)); end
         axs = gobjects(1, numel(idx));
         for j = 1:numel(idx)
@@ -127,7 +136,7 @@ switch opts.Layout
             hold(ax, 'off');
             xlim(ax, t([1 end]));
             styleAxes(ax, style);
-            title(ax, R.labels(c), 'FontWeight', 'normal', 'Interpreter', 'none');
+            title(ax, labels(c), 'FontWeight', 'normal', 'Interpreter', 'none');
             if ceil(j / nc) == nr || ~isempty(ax0); xlabel(ax, 'Time (s)'); end
             if mod(j - 1, nc) == 0; ylabel(ax, yl); end
             if j == 1 && style.Legend && nG > 1
@@ -136,6 +145,7 @@ switch opts.Layout
             end
             axs(j) = ax;
         end
+        cornerLabels(axs, nr, nc, style);
         h.layout = tl; h.axes = axs;
 end
 end

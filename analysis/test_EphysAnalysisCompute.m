@@ -224,7 +224,7 @@ cases = {
     "heatmap evoked",      @(tg) renderHeatmap(Rv, tg)
     "probe map",           @(tg) renderProbeMap(Rq, [], tg)
     "probe map (values)",  @(tg) renderProbeMap([5 NaN 3 1 0 2 7 4], probe, tg)
-    "unit correlation",    @(tg) renderCorrMap(Rc, tg, Order="channel")
+    "unit correlation",    @(tg) renderCorrMap(Rc, tg, Style=struct('SortDepth', false))
     };
 fig = figure('Visible', 'off');
 ufig = uifigure('Visible', 'off');
@@ -295,7 +295,7 @@ fprintf('\n== 6b. stacked, normalized PSTHs ==\n');
 G3d = G3; G3d.Depth = [0; 0.5; 1];
 Rd = Rp; Rd.groups = G3d;
 f6 = figure('Visible', 'off');
-h = renderPSTH(Rd, f6, Stack=true, Style=struct('ShowSEM', false));
+h = renderPSTH(Rd, f6, Stack=true, Style=struct('SortDepth', false, 'ShowSEM', false));
 ax = h.axes(1);
 pk = reshape(max(Rd.rate(:, 1, :), [], 1), [], 1);
 stp = 1.1 * max(pk);
@@ -315,21 +315,21 @@ check(all(strcmp({h.rasterAxes.YDir}, 'normal')), 'the raster above a stack is f
 pa = findobj(ax, 'Type', 'patch');
 check(numel(pa) == 3 && all([pa.FaceAlpha] == 1), 'stacked rows are opaque by default');
 yl0 = ylL;
-h = renderPSTH(Rd, f6, Stack=true, Spacing=0.5, Style=struct('ShowSEM', false, 'YLim', [0 1]));
+h = renderPSTH(Rd, f6, Stack=true, Spacing=0.5, Style=struct('SortDepth', false, 'ShowSEM', false, 'YLim', [0 1]));
 ax = h.axes(1);
 check(abs(h.step(1) - 0.5 * max(pk)) < 1e-9 && max(abs(ax.YTick - (0:2) * 0.5 * max(pk))) < 1e-9 && ax.YLim(2) < yl0(2) ...
     && ax.YLim(2) > 1, 'Spacing 0.5 overlaps the rows; a stack ignores YLim');
-h = renderPSTH(Rd, f6, Stack=true, Normalize="groupPeak", Style=struct('ShowSEM', false));
+h = renderPSTH(Rd, f6, Stack=true, Normalize="groupPeak", Style=struct('SortDepth', false, 'ShowSEM', false));
 ax = h.axes(1);
 yyaxis(ax, 'right'); rt = ax.YTick; rl = string(ax.YTickLabel); yyaxis(ax, 'left');
 check(abs(h.step(1) - 1.1) < 1e-9 && max(abs(sort(rt(:)) - ((0:2).' * 1.1 + 1))) < 1e-9 && isequal(sort(rl(:)), sort(compose("%.3g", pk))), ...
     'groupPeak: every row peaks at 1 x its step unit; the right axis still gives each row''s peak rate');
-h = renderPSTH(Rd, f6, Normalize="unitPeak", Stack=false, Style=struct('ShowSEM', false));
+h = renderPSTH(Rd, f6, Normalize="unitPeak", Stack=false, Style=struct('SortDepth', false, 'ShowSEM', false));
 ax = h.axes(1);
 yd = get(findobj(ax, 'Type', 'patch'), 'YData');
 check(abs(max(cellfun(@max, yd)) - 1) < 1e-9 && string(ax.YLabel.String) == "Normalized (unit peak = 1)", ...
     'unitPeak unstacked: the tallest group reaches 1, and the y label says so');
-h = renderPSTH(Rd, f6, Layout="overlay", Normalize="unitPeak", Stack=true, Style=struct('ShowSEM', false));
+h = renderPSTH(Rd, f6, Layout="overlay", Normalize="unitPeak", Stack=true, Style=struct('SortDepth', false, 'ShowSEM', false));
 ax = h.axes(1);
 m = reshape(mean(Rd.rate ./ max(Rd.rate, [], [1 3]), 2, 'omitnan'), [], 3);
 yyaxis(ax, 'right'); rl = string(ax.YTickLabel); rlab = string(ax.YLabel.String); yyaxis(ax, 'left');
@@ -457,6 +457,57 @@ for trial = 1:200
 end
 check(okB, 'countBelow (binary search) = the count of spikes strictly below, with ties, NaN and Inf');
 check(okC, 'binCounts (one vectorized pass) = histcounts per event: counts, raster times and events, spikes on bin edges included');
+
+fprintf('\n== 8. Probe order, labels, measures, corner labels, spacing ==\n');
+ord = @(d, s) probeOrder(meta, 3, EphysAnalysisConfig.normalizeSection("Style", struct('SortDepth', d, 'SortShank', s))).';
+check(isequal(ord(true, false), [2 3 1]) && isequal(ord(false, true), [1 2 3]) && isequal(ord(true, true), [2 1 3]) ...
+    && isequal(ord(false, false), [1 2 3]), 'probeOrder: depth (top first), shank, shank then depth, neither = as listed');
+st0 = EphysAnalysisConfig.normalizeSection("Style", struct());
+stL = EphysAnalysisConfig.normalizeSection("Style", struct('LabelDepth', true, 'LabelShank', true));
+check(isequal(siteLabels(["u1"; "u2"; "u3"], meta, st0), ["u1"; "u2"; "u3"]) ...
+    && isequal(siteLabels(["u1"; "u2"; "u3"], meta, stL), ["u1 (sh0, 0 µm)"; "u2 (sh0, 100 µm)"; "u3 (sh1, 50 µm)"]) ...
+    && isequal(siteLabels(["u1"; "u2"], [], stL), ["u1"; "u2"]), 'siteLabels appends the shank and the depth, only when asked');
+fig8 = figure('Visible', 'off');
+h = renderRates(Rr, fig8, Style=struct('SortDepth', false, 'SortShank', true, 'LabelShank', true));
+check(isequal(string(h.axes.XTickLabel(:)), ["u1 (sh0)"; "u2 (sh0)"; "u3 (sh1)"]), 'rates: units by shank, labelled with it');
+h = renderRates(Rr, fig8);
+check(isequal(string(h.axes.XTickLabel(:)), ["u2"; "u3"; "u1"]), 'rates: top of the probe first by default');
+h = renderPSTH(Rp, fig8, Layout="grid", WithRaster=false, Style=struct('SortDepth', true, 'LabelDepth', true));
+check(isequal(arrayfun(@(a) string(a.Title.String), h.axes), ["u2 (100 µm)" "u3 (50 µm)" "u1 (0 µm)"]), 'PSTH tiles follow the depth order, titled with the depth');
+h = renderHeatmap(Rp, fig8, Style=struct('SortShank', true, 'SortDepth', true));
+check(isequal(string(h.axes(1).YTickLabel(:)), ["u2"; "u1"; "u3"]), 'heatmap rows: shank, then depth');
+h = renderCorrMap(Rc, fig8, Style=struct('SortDepth', false));
+check(isequal(string(h.axes(3).XTickLabel(:)), ["u1"; "u2"; "u3"]), 'unit correlation without sorting: as listed');
+% measures: bin 1 of epochs at 1..4 s holds 2, 1, 0, 0 spikes; bin 5 holds one (epoch 4)
+Em = epochs([1; 2; 3; 4], ones(4, 1));
+trainP = [1.05; 1.06; 2.05; 4.42];
+P2 = spikePSTH({trainP}, Em, Window=[0 0.5], BinSec=0.1, Measure="probability");
+C2 = spikePSTH({trainP}, Em, Window=[0 0.5], BinSec=0.1, Measure="count");
+R2 = spikePSTH({trainP}, Em, Window=[0 0.5], BinSec=0.1);
+check(abs(P2.rate(1) - 0.5) < 1e-12 && abs(C2.rate(1) - 0.75) < 1e-12 && abs(R2.rate(1) - 7.5) < 1e-9 && abs(P2.rate(5) - 0.25) < 1e-12, ...
+    'a bin holds P(spike) = 2/4 epochs, 0.75 spikes per epoch, or 7.5 spikes/s for the same spikes');
+check(P2.units == "P(spike)/bin" && C2.units == "spikes/bin" && R2.units == "spikes/s" && P2.measure == "probability", 'spikePSTH measures carry their units');
+Pb = spikePSTH({trainP}, Em, Window=[0 0.5], BinSec=0.1, Measure="probability", Baseline=[-0.2 0], BaselineMode="subtract");
+check(Pb.units == "P(spike)/bin - baseline" && Pb.baselineRate(1) == 0 && abs(Pb.rate(1) - 0.5) < 1e-12, 'a probability baseline is measured in the same bins');
+Fp = firingRate({trainP}, Em, Measure="probability");
+Fc = firingRate({trainP}, Em, Measure="count");
+Fr = firingRate({trainP}, Em);
+check(isequal(Fp.rate(:, 1).', [1 1 0 1]) && isequal(Fc.rate(:, 1).', [2 1 0 1]) && Fp.meanRate == 0.75 ...
+    && Fp.units == "P(spike)/window" && Fc.units == "spikes/window" && Fr.units == "spikes/s" && Fr.measure == "rate", ...
+    'firingRate: probability = share of epochs with a spike, count = spikes per window');
+% corner labels and spacing
+[~, nr8, nc8] = pageItems(3, 1, 6);
+corner = (nr8 - 1) * nc8 + 1;
+h = renderPSTH(Rp, fig8, Layout="grid", WithRaster=false, Style=struct('CornerLabelsOnly', true, 'MaxTiles', 6));
+has = arrayfun(@(a) string(a.XLabel.String) ~= "" || string(a.YLabel.String) ~= "", h.axes);
+check(nnz(has) == 1 && has(corner), 'corner labels: only the bottom-left tile keeps its axis labels');
+h = renderPSTH(Rp, fig8, Layout="grid", WithRaster=false, Style=struct('MaxTiles', 6));
+check(nnz(arrayfun(@(a) string(a.XLabel.String) ~= "" || string(a.YLabel.String) ~= "", h.axes)) > 1, 'without CornerLabelsOnly every outer tile is labelled');
+h = renderPSTH(Rp, fig8, Layout="grid", Style=struct('TileSpacing', "loose"));
+check(string(h.layout.TileSpacing) == "loose" && string(h.layout.Padding) == "loose", 'TileSpacing loose reaches the tiled layout');
+h = renderPSTH(Rp, fig8, Layout="grid", Style=struct('TileSpacing', "none"));
+check(string(h.layout.TileSpacing) == "none" && string(h.layout.Padding) == "tight", 'TileSpacing none: tight padding');
+delete(fig8);
 
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0

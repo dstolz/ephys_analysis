@@ -3,11 +3,11 @@ function ch = plotEditorChoices(kind, source)
 %   CH.Sources, CH.Layouts and CH.WindowModes are the kind's
 %   (EphysAnalysisConfig.plotKinds); CH.BaselineModes the modes its compute
 %   takes (subtract only for signals, beyond "none"); CH.Orders the heatmap
-%   and unit-correlation row orders (peak only for heatmaps).
+%   row orders.
 K = EphysAnalysisConfig.plotKinds();
 row = K(K.Kind == kind, :);
 ch = struct('Sources', row.Sources{1}, 'Layouts', row.Layouts{1}, 'WindowModes', row.WindowModes{1}, ...
-    'BaselineModes', "none", 'Orders', ["depth" "channel" "peak"]);
+    'BaselineModes', "none", 'Orders', ["probe" "peak"]);
 switch kind
     case {"psth" "raster" "heatmap"}
         ch.BaselineModes = ["none" "subtract" "zscore" "percent"];
@@ -17,5 +17,4 @@ switch kind
     case {"evoked" "corrmap"}
         ch.BaselineModes = ["none" "subtract"];
 end
-if kind == "corrmap"; ch.Orders = ["depth" "channel"]; end
 end

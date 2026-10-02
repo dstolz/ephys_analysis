@@ -19,9 +19,13 @@ function R = spikePSTH(spikeTimes, E, opts)
 %                    0.5] in 0.1 s bins is [-0.2 0.5]
 %     SmoothSec      Gaussian SD, s, applied to each epoch's rate before
 %                    averaging (0 = none; renormalized at the edges)
-%     Baseline       [b0 b1] s around the event whose rate is the baseline
+%     Measure        what each bin holds: "rate" (default, spikes/s) |
+%                    "count" (spikes per bin per epoch) | "probability" (the
+%                    share of epochs with at least one spike in the bin)
+%     Baseline       [b0 b1] s around the event whose measure is the baseline
 %                    (spikes in [b0, b1) from the event, counted directly,
-%                    so it may lie outside Window)
+%                    so it may lie outside Window; "probability" uses whole
+%                    BinSec bins from b0)
 %     BaselineMode   "none" (default) | "subtract" (rate - baseline) |
 %                    "zscore" ((rate - mean) / SD over the group's epochs) |
 %                    "percent" (100 (rate - mean) / mean)
@@ -35,8 +39,9 @@ function R = spikePSTH(spikeTimes, E, opts)
 %
 %   R fields: kind "psth", t (bin centres, column), edges, window (the span
 %   the bins cover, edges([1 end]); params.Window is the one asked for),
-%   rate / sem / count [nBins x nUnits x nGroups] (rate and sem in spikes/s
-%   or the baseline unit; count = spikes summed over the epochs), nEpochs
+%   rate / sem / count [nBins x nUnits x nGroups] (rate and sem in the
+%   Measure's unit, or the baseline's; count = spikes summed over the
+%   epochs), measure, nEpochs
 %   [nGroups x 1], raster (1 x nUnits struct: times relative to the event,
 %   epoch = row of E, group), epochGroup / epochStop [nEpochs x 1] (group
 %   and t1 - t0 of every epoch), stopMean [nGroups x 1] mean t1 - t0,
@@ -53,6 +58,7 @@ arguments
     E table
     opts.Window (1,2) double = [-0.2 0.5]
     opts.BinSec (1,1) double {mustBePositive} = 0.01
+    opts.Measure (1,1) string {mustBeMember(opts.Measure, ["rate" "count" "probability"])} = "rate"
     opts.SmoothSec (1,1) double {mustBeNonnegative} = 0
     opts.Baseline double = []
     opts.BaselineMode (1,1) string {mustBeMember(opts.BaselineMode, ["none" "subtract" "zscore" "percent"])} = "none"
@@ -90,6 +96,10 @@ if useBase
     if numel(b) ~= 2 || ~(b(2) > b(1))
         error('spikePSTH:BadBaseline', 'BaselineMode "%s" needs Baseline = [b0 b1] with b0 < b1.', opts.BaselineMode);
     end
+    baseEdges = b(1) + (0:floor((b(2) - b(1)) / bin + 1e-9)) * bin;   % "probability": whole bins from b0
+    if opts.Measure == "probability" && numel(baseEdges) < 2
+        error('spikePSTH:BadBaseline', 'A probability baseline needs a whole %g s bin: [%g %g] is shorter.', bin, b(1), b(2));
+    end
 end
 
 rate = NaN(nB, nU, nG); sem = NaN(nB, nU, nG); count = zeros(nB, nU, nG);
@@ -114,15 +124,28 @@ for u = 1:nU
     else
         c = binCounts(st{u}, ta, edges);
     end
-    r = c / opts.BinSec;
+    switch opts.Measure
+        case "rate",        r = c / opts.BinSec;
+        case "count",       r = c;
+        case "probability", r = double(c > 0);
+    end
     r(mask) = NaN;
     c(mask) = 0;
     if opts.SmoothSec > 0
         r = gaussianSmooth(r, opts.SmoothSec / opts.BinSec);
     end
     if useBase
-        bc = binCounts(st{u}, ta, [b(1) b(2)]);
-        br = bc(:) / (b(2) - b(1));
+        switch opts.Measure
+            case "rate"
+                bc = binCounts(st{u}, ta, [b(1) b(2)]);
+                br = bc(:) / (b(2) - b(1));
+            case "count"
+                bc = binCounts(st{u}, ta, [b(1) b(2)]);
+                br = bc(:) / (b(2) - b(1)) * opts.BinSec;   % spikes per bin
+            case "probability"
+                bc = binCounts(st{u}, ta, baseEdges);
+                br = mean(double(bc > 0), 1, 'omitnan').';
+        end
     end
     for g = 1:nG
         cols = gIdx == g;
@@ -175,13 +198,19 @@ R.groups = G;
 R.labels = unitLabels(nU, opts.Labels, opts.Meta);
 R.meta = opts.Meta;
 R.n = nEpochs;
+switch opts.Measure
+    case "rate",        unit = "spikes/s";
+    case "count",       unit = "spikes/bin";
+    case "probability", unit = "P(spike)/bin";
+end
 switch opts.BaselineMode
-    case "none",     R.units = "spikes/s";
-    case "subtract", R.units = "spikes/s - baseline";
+    case "none",     R.units = unit;
+    case "subtract", R.units = unit + " - baseline";
     case "zscore",   R.units = "z (baseline)";
     case "percent",  R.units = "% change from baseline";
 end
-R.params = struct('Window', W, 'BinSec', opts.BinSec, 'SmoothSec', opts.SmoothSec, ...
+R.measure = opts.Measure;
+R.params = struct('Window', W, 'BinSec', opts.BinSec, 'Measure', opts.Measure, 'SmoothSec', opts.SmoothSec, ...
     'Baseline', opts.Baseline, 'BaselineMode', opts.BaselineMode, 'MaskAfterStop', opts.MaskAfterStop, ...
     'Raster', opts.Raster);
 R.created = string(datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss'));

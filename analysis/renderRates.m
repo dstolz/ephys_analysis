@@ -1,8 +1,10 @@
 function h = renderRates(R, target, opts)
 %renderRates  Draw a firingRate result: rate per unit and group.
 %   H = renderRates(R, TARGET, Layout=, Style=) draws one panel, units along
-%   x (top of the probe first: probe y, else channel), groups side by side
-%   in their colours.
+%   x (by Style.SortShank / Style.SortDepth: by shank, then top of the probe
+%   first; neither = as listed), groups side by side in their colours.
+%   Style.LabelShank / Style.LabelDepth append the shank / depth to the unit
+%   labels.
 %
 %   Layout
 %     "bar"     (default) mean +/- SEM over each group's epochs
@@ -24,7 +26,7 @@ end
 style = EphysAnalysisConfig.normalizeSection("Style", opts.Style);
 colors = groupPalette(R.groups, style);
 [nU, nG] = size(R.meanRate);
-order = depthOrder(R.meta, nU);
+order = probeOrder(R.meta, nU, style);
 [tl, ax] = renderLayout(target, 1, 1);
 if isempty(ax); ax = nexttile(tl); end
 w = 0.8 / nG;                                   % width of one group's slot
@@ -64,10 +66,11 @@ for g = 1:nG
     end
 end
 hold(ax, 'off');
-labels = shortUnitLabels(R.labels(order));
+labels = siteLabels(shortUnitLabels(R.labels), R.meta, style);
+labels = labels(order);
 set(ax, 'XTick', 1:nU, 'XTickLabel', labels, 'TickLabelInterpreter', 'none');
 if nU > 8; ax.XTickLabelRotation = 60; end
-if nU > 40; ax.XTickLabel = []; xlabel(ax, sprintf('%d units (top of the probe first)', nU)); end
+if nU > 40; ax.XTickLabel = []; xlabel(ax, sprintf('%d units', nU)); end
 xlim(ax, [0.4 nU + 0.6]);
 styleAxes(ax, style);
 ylabel(ax, R.units);

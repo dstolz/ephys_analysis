@@ -1,13 +1,13 @@
 function h = renderCorrMap(R, target, opts)
 %renderCorrMap  Unit-by-unit correlation matrices, one tile per group.
-%   H = renderCorrMap(R, TARGET, Order=, Style=) draws a unitCorrelation
+%   H = renderCorrMap(R, TARGET, Style=) draws a unitCorrelation
 %   result as a square image per group on one colour scale (Style.CLim,
 %   else [-1 1]) with Style.HeatColormap ("" = blueWhiteRed). Each tile's
 %   title gives its group, the epochs used and the mean pairwise r.
 %
-%   Order
-%     "depth"    (default) top of the probe first (probe y, else channel)
-%     "channel"  by channel
+%   Units are ordered by Style.SortShank / Style.SortDepth (by shank, then
+%   top of the probe first; neither = as listed) and labelled with their
+%   shank / depth when Style.LabelShank / Style.LabelDepth say so.
 %
 %   H: layout (tiled layout or []), axes, colorbar.
 %
@@ -16,7 +16,6 @@ function h = renderCorrMap(R, target, opts)
 arguments
     R (1,1) struct
     target
-    opts.Order (1,1) string {mustBeMember(opts.Order, ["depth" "channel"])} = "depth"
     opts.Style = struct()
 end
 
@@ -26,22 +25,17 @@ if R.kind ~= "corrmap"
 end
 nU = size(R.r, 1);
 nG = size(R.r, 3);
-order = depthOrder(R.meta, nU);
-if opts.Order == "channel"
-    order = (1:nU).';
-    if istable(R.meta) && ismember("channel", string(R.meta.Properties.VariableNames))
-        [~, order] = sortrows([double(R.meta.channel) (1:nU).']);
-    end
-end
+order = probeOrder(R.meta, nU, style);
 clim0 = style.CLim;
 if ~(numel(clim0) == 2 && clim0(2) > clim0(1)); clim0 = [-1 1]; end
 cmapName = style.HeatColormap;
 if cmapName == ""; cmapName = "blueWhiteRed"; end
 cmap = feval(char(cmapName), 256);
 [idx, nr, nc] = pageItems(nG, 1, max(nG, 1));
-[tl, ax0] = renderLayout(target, nr, nc);
+[tl, ax0] = renderLayout(target, nr, nc, style);
 if ~isempty(ax0); idx = idx(1:min(1, end)); end
-labels = shortUnitLabels(R.labels(order));
+labels = siteLabels(shortUnitLabels(R.labels), R.meta, style);
+labels = labels(order);
 axs = gobjects(1, numel(idx));
 for j = 1:numel(idx)
     g = idx(j);
@@ -80,6 +74,7 @@ if ~isempty(axs)
     cb.Label.String = corrName(R.type) + " (" + R.metric + " rate)";
     if ~isempty(tl); cb.Layout.Tile = 'east'; end
 end
+cornerLabels(axs, nr, nc, style);
 h = struct('layout', tl, 'axes', axs, 'colorbar', cb);
 end
 

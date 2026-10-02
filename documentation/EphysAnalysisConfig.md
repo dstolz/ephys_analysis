@@ -78,7 +78,7 @@ distinct as file names: `{Plot}` replaces every character outside
       "bins": { "BinSec": 0.01, "SmoothSec": 0.01 }, "baseline": { "Mode": "none", "Window": [-0.2, 0] },
       "layout": "grid", "withRaster": true, "histStyle": "bar", "fill": true, "fillAlpha": "NaN", "normalize": "none",
       "stack": false, "stackSpacing": 1.1, "maskAfterStop": false, "param": "", "seriesParam": "",
-      "value": "rate", "order": "depth", "metric": "mean", "correlation": "pearson", "style": { "MaxTiles": 16, "...": "..." } },
+      "value": "rate", "order": "probe", "measure": "rate", "metric": "mean", "correlation": "pearson", "style": { "MaxTiles": 16, "...": "..." } },
     { "id": "rate_resp", "kind": "rate", "source": "units",
       "ref": { "line": "RespWindow", "edge": "onset", "which": "first", "scope": "trial", "...": "..." },
       "window": { "mode": "between", "pre": 0, "post": 0,
@@ -153,6 +153,11 @@ A plot's `units` (its `source` is the plot's `source`):
 | `YLim`, `XLim`, `CLim` | `[]` | fixed limits (`[]` = automatic). `YLim` is used by the unstacked PSTH rate panels, the evoked butterfly and grid layouts, and the rate and tuning plots only: rasters show every epoch, and a stacked PSTH and an evoked stack ignore it |
 | `Grid`, `Legend` | `true` | |
 | `MaxTiles` | 16 | tiles per page in grid layouts |
+| `TileSpacing` | `"compact"` | space between the tiles of a grid, and round it: `"loose"`, `"compact"`, `"tight"`, `"none"` |
+| `CornerLabelsOnly` | `false` | grids: axis labels on the bottom-left tile only (titles, ticks and colour bars stay) |
+| `SortDepth` | `true` | units / channels with the top of the probe first (probe `y`); applies to every kind but probemap (psth, raster, tuning tiles, rate bars, evoked, heatmap and corrmap rows) |
+| `SortShank` | `false` | units / channels grouped by shank first (ascending); with `SortDepth`, top first within each shank. Neither ticked: as listed |
+| `LabelDepth`, `LabelShank` | `false` | append the probe depth (`y`, µm) and / or the shank to the unit / channel labels, e.g. `su3 (sh1, 640 µm)` |
 | `StackSpacing` | `NaN` | evoked `"stack"` offset (NaN = 1.2 x the 90th percentile of the channels' ranges) |
 
 ## Plots
@@ -168,6 +173,7 @@ A plot's `units` (its `source` is the plot's `source`):
 | `channels` | `[]` | signal columns drawn |
 | `ref`, `window`, `selection` | `"default"` | or the plot's own EventRef / EpochWindow / TrialSelection |
 | `bins` | `BinSec` 0.01, `SmoothSec` 0.01 | PSTH bins (whole multiples of `BinSec` from the event) and Gaussian SD, s (0 = no smoothing); also a corrmap's `"peak"` rate |
+| `measure` | `"rate"` | psth, heatmap of spikes, rate, tuning: `"rate"` (spikes/s), `"count"` (spikes per bin, or per epoch window) or `"probability"` (the share of epochs with a spike in the bin, or window). The baseline is measured the same way |
 | `baseline` | `Mode "none"`, `Window [-0.2 0]` | see the kinds |
 | `layout` | `""` | `""` = the kind's default |
 | `withRaster` | `true` | psth: a raster above each unit |
@@ -180,7 +186,7 @@ A plot's `units` (its `source` is the plot's `source`):
 | `maskAfterStop` | `false` | psth: drop bins after each epoch's stop event |
 | `param`, `seriesParam` | `""` | tuning: x axis parameter; one curve per value of the series parameter |
 | `value` | `"rate"` | probemap: `"rate"`, `"nSpikes"`, `"nUnits"` |
-| `order` | `"depth"` | heatmap rows: `"depth"`, `"channel"`, `"peak"`; corrmap rows and columns: `"depth"`, `"channel"` |
+| `order` | `"probe"` | heatmap rows: `"probe"` (the style's `SortDepth` / `SortShank`) or `"peak"` (by the time of each row's maximum). A corrmap follows the style's sort options |
 | `metric` | `"mean"` | corrmap: each epoch's `"mean"` rate over its window, or its `"peak"` binned rate (`bins`) |
 | `correlation` | `"pearson"` | corrmap: `"pearson"` or `"spearman"` |
 | `style` | Style | |

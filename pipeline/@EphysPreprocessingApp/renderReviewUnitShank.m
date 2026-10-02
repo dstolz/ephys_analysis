@@ -35,24 +35,7 @@ chans = find(R.chanShanks == R.chanShanks(pk));
 [pos, placed] = sitePositions(R.chanPos, chans);
 
 % --- the unit's spikes: read once per unit and count -------------------------------
-n = obj.ReviewShankCountSpinner.Value;
-key = struct('folder', string(R.folder), 'unit', R.clusterID(u), 'n', n);
-C = obj.ReviewSpikeWaves;
-if isempty(C) || ~isequal(C.key, key) || C.err ~= ""   % a failed read is tried again
-    C = struct('key', key, 'W', [], 'info', [], 'err', "", 'errId', "");
-    pointer = obj.Fig.Pointer;
-    obj.Fig.Pointer = 'watch';
-    drawnow;
-    try
-        [C.W, C.info] = EphysDataset.readPhyWaveforms(R.folder, R.units.samples{u}, ...
-            Channels=chans, MaxSpikes=n);
-    catch ME
-        C.err = string(ME.message);
-        C.errId = string(ME.identifier);
-    end
-    obj.Fig.Pointer = pointer;
-    obj.ReviewSpikeWaves = C;
-end
+C = obj.reviewSpikeWaves(chans);
 
 K = size(C.W, 3);
 useSpikes = C.err == "" && K > 0;

@@ -6,7 +6,9 @@ function renderReviewPlots(obj)
 %   picked; the inter-spike interval histogram and autocorrelogram show the
 %   selected unit only. These five read only the cache, so they are cheap to
 %   call on every selection; the sixth, the selected unit's spikes on its
-%   shank (renderReviewUnitShank), reads that unit's spikes once.
+%   shank (renderReviewUnitShank), reads that unit's spikes once. The first
+%   three can carry the unit's waveform as a box at a compass point, scaled
+%   (the controls above them; drawWaveInsets).
 
 if isempty(obj.ReviewData); return; end
 R = obj.ReviewData;
@@ -24,6 +26,100 @@ plotACG(obj.ReviewACGAxes, R, sel);
 plotAmplitudes(obj.ReviewAmpAxes, R, sel);
 plotFiringRates(obj.ReviewRateAxes, R, sel, shankColors, shankIdx);
 obj.renderReviewUnitShank();
+drawWaveInsets(obj, R, sel);      % after the shank plot, which reads the spikes it shares
+end
+
+
+%% ---------------------------------------------------------------------------
+function drawWaveInsets(obj, R, sel)
+%drawWaveInsets  The unit's waveform on its peak channel, as a box on the timing plots.
+%   Mode, compass point and scale come from the controls above them. The
+%   spikes are the cache the shank plot reads (reviewSpikeWaves); without
+%   them (the .bin is gone) the unit's template is drawn instead.
+mode = obj.ReviewWaveModeDropDown.Value;
+if mode == "off" || sel < 1 || sel > numel(R.clusterID); return; end
+pk = R.peakChan(sel);
+if ~(isfinite(pk) && pk >= 1 && pk <= numel(R.chanShanks)) || isempty(R.wfFull); return; end
+chans = find(R.chanShanks == R.chanShanks(pk));
+C = obj.ReviewSpikeWaves;
+key = struct('folder', string(R.folder), 'unit', R.clusterID(sel), 'n', obj.ReviewShankCountSpinner.Value);
+if isempty(C) || ~isequal(C.key, key)
+    C = obj.reviewSpikeWaves(chans);
+end
+j = find(chans == pk, 1);
+if C.err == "" && size(C.W, 3) > 0
+    W = reshape(C.W(:, j, :), size(C.W, 1), []);       % samples x spikes
+    tms = C.info.timeMs(:);
+    units = C.info.units;
+    caption = R.chanLabels(pk);
+else
+    W = R.wfFull(:, pk, sel);
+    tms = R.tms(:);
+    units = R.units.templateUnits;
+    caption = R.chanLabels(pk) + " template";
+    mode = "mean";                                      % there are no spikes to sample
+end
+for ax = [obj.ReviewISIAxes, obj.ReviewACGAxes, obj.ReviewAmpAxes]
+    drawWaveInset(ax, W, tms, mode, obj.ReviewWaveLocDropDown.Value, ...
+        obj.ReviewWaveScaleSpinner.Value, caption, units);
+end
+end
+
+
+function drawWaveInset(ax, W, tms, mode, loc, scale, caption, units)
+%drawWaveInset  Box of mean (red) and / or spikes (blue) of W at compass point LOC of AX.
+%   W is [samples x spikes]; the box is a third of the axes' span each way
+%   times SCALE, set in data units from the limits the plot has now (held,
+%   so drawing it moves nothing), over a pale ground.
+xl = xlim(ax); yl = ylim(ax);
+xlim(ax, xl); ylim(ax, yl);
+sx = diff(xl); sy = diff(yl);
+f = min(scale / 3, 0.9);
+w = f * sx; h = f * sy;
+pad = 0.03;
+anchor = struct('N', [0.5 1], 'NE', [1 1], 'E', [1 0.5], 'SE', [1 0], 'S', [0.5 0], ...
+    'SW', [0 0], 'W', [0 0.5], 'NW', [0 1], 'C', [0.5 0.5]).(loc);
+x0 = xl(1) + pad * sx + anchor(1) * (sx - 2 * pad * sx - w);
+y0 = yl(1) + pad * sy + anchor(2) * (sy - 2 * pad * sy - h);
+
+M = mean(W, 2);
+showMean = mode == "mean" || mode == "both";
+showSpikes = (mode == "sample" || mode == "both") && size(W, 2) > 1;
+V = M;
+if showSpikes; V = [M, W]; end
+lo = min(V(:)); hi = max(V(:));
+if ~(hi > lo); lo = lo - 1; hi = hi + 1; end
+span = max(tms) - min(tms);
+if ~(span > 0); span = 1; end
+xw = x0 + 0.05 * w + ((tms - min(tms)) / span) * 0.9 * w;
+yOf = @(v) y0 + 0.05 * h + (v - lo) / (hi - lo) * 0.70 * h;     % the top fifth is the caption
+
+hold(ax, 'on');
+patch(ax, x0 + [0 w w 0], y0 + [0 0 h h], [1 1 1], 'FaceAlpha', 0.85, ...
+    'EdgeColor', [0.6 0.6 0.6], 'HitTest', 'off');
+if showSpikes
+    K = size(W, 2);
+    line(ax, repmat([xw; NaN], K, 1), reshape([yOf(W); nan(1, K)], [], 1), ...
+        'Color', [0.30 0.45 0.75 0.25], 'LineWidth', 0.5, 'HitTest', 'off');
+end
+if showMean
+    line(ax, xw, yOf(M), 'Color', [0.80 0.10 0.10], 'LineWidth', 1.5, 'HitTest', 'off');
+end
+hold(ax, 'off');
+text(ax, x0 + 0.05 * w, y0 + 0.97 * h, sprintf("%s, %.3g %s p-p", caption, max(M) - min(M), unitText(units)), ...
+    'FontSize', 7, 'Color', [0.3 0.3 0.3], 'VerticalAlignment', 'top', ...
+    'Interpreter', 'none', 'HitTest', 'off', 'Clipping', 'on');
+end
+
+
+function s = unitText(units)
+%unitText  The amplitude unit for a caption (EphysDataset.readPhyWaveforms units).
+switch units
+    case "uV";       s = char(181) + "V";
+    case "bin";      s = ".bin units";
+    case "whitened"; s = "whitened";
+    otherwise;       s = "a.u.";
+end
 end
 
 

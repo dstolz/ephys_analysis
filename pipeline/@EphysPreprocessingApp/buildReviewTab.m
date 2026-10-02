@@ -7,6 +7,8 @@ function buildReviewTab(obj)
 %   histogram and autocorrelogram sit above spike amplitudes over time, and
 %   beside them, largest, the selected unit's spikes on the shank it was
 %   detected on, with units per shank and per-unit firing rates below it.
+%   A row above the three timing plots overlays the unit's mean waveform
+%   and / or a subsample of its spikes on each, at a compass point, scaled.
 %   Selecting a table row focuses the timing and amplitude plots on that
 %   single unit and draws its spikes; "Show all units" clears the focus.
 %   All parsing happens once in loadReviewResults; selection re-renders from
@@ -79,29 +81,57 @@ obj.ReviewAllUnitsButton = uibutton(left, "Text", "Show all units", ...
     "ButtonPushedFcn", @(~,~) obj.onReviewAllUnits());
 
 % =================== right: ISI + ACG over amplitudes | the unit on its shank ===================
-right = uigridlayout(g, [2 3]);
+right = uigridlayout(g, [3 3]);
 right.Layout.Column = 2;
 right.ColumnWidth = {'1x', '1x', '1x'};
+right.RowHeight = {30, '1x', '1x'};
 right.RowSpacing = 14;
 right.ColumnSpacing = 14;
 
+% The waveform inset on the three timing plots: the unit's mean and / or a
+% subsample of its spikes on the peak channel, at a compass point of each plot
+% and scaled (renderReviewPlots).
+wr = uigridlayout(right, [1 6]);
+wr.Layout.Row = 1; wr.Layout.Column = [1 2];
+wr.ColumnWidth = {'fit', 130, 'fit', 110, 'fit', 70};
+wr.Padding = [0 0 0 0];
+wr.ColumnSpacing = 6;
+redrawPlots = @(~,~) obj.renderReviewPlots();
+uilabel(wr, "Text", "Waveform on plots:");
+obj.ReviewWaveModeDropDown = uidropdown(wr, ...
+    "Items", {'Off', 'Mean', 'Subsample', 'Mean + subsample'}, ...
+    "ItemsData", {'off', 'mean', 'sample', 'both'}, "Value", 'off', ...
+    "Tooltip", "Overlay the selected unit's waveform on its peak channel on the interval, autocorrelogram and amplitude plots: the mean, a subsample of its spikes (the number read for the shank plot), or both", ...
+    "ValueChangedFcn", redrawPlots);
+uilabel(wr, "Text", "at");
+obj.ReviewWaveLocDropDown = uidropdown(wr, ...
+    "Items", {'North', 'North-east', 'East', 'South-east', 'South', 'South-west', 'West', 'North-west', 'Centre'}, ...
+    "ItemsData", {'N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW', 'C'}, "Value", 'NE', ...
+    "Tooltip", "Where on each plot the waveform sits: north is the top edge, east the right", ...
+    "ValueChangedFcn", redrawPlots);
+uilabel(wr, "Text", "scale");
+obj.ReviewWaveScaleSpinner = uispinner(wr, "Limits", [0.25 3], "Step", 0.25, "Value", 1, ...
+    "ValueDisplayFormat", "%.2gx", ...
+    "Tooltip", "Size of the waveform box, a factor of its default (a third of each plot's width and height)", ...
+    "ValueChangedFcn", redrawPlots);
+
 obj.ReviewISIAxes = uiaxes(right);
-obj.ReviewISIAxes.Layout.Row = 1; obj.ReviewISIAxes.Layout.Column = 1;
+obj.ReviewISIAxes.Layout.Row = 2; obj.ReviewISIAxes.Layout.Column = 1;
 title(obj.ReviewISIAxes, "Inter-spike intervals");
 
 obj.ReviewACGAxes = uiaxes(right);
-obj.ReviewACGAxes.Layout.Row = 1; obj.ReviewACGAxes.Layout.Column = 2;
+obj.ReviewACGAxes.Layout.Row = 2; obj.ReviewACGAxes.Layout.Column = 2;
 title(obj.ReviewACGAxes, "Autocorrelogram");
 
 obj.ReviewAmpAxes = uiaxes(right);
-obj.ReviewAmpAxes.Layout.Row = 2; obj.ReviewAmpAxes.Layout.Column = [1 2];
+obj.ReviewAmpAxes.Layout.Row = 3; obj.ReviewAmpAxes.Layout.Column = [1 2];
 title(obj.ReviewAmpAxes, "Amplitudes over time");
 
 % The selected unit's spikes at the sites of the shank it was detected on,
 % most of the height, with what to draw above it (renderReviewUnitShank);
 % units per shank and firing rates, smaller, below it.
 sp = uigridlayout(right, [4 1]);
-sp.Layout.Row = [1 2]; sp.Layout.Column = 3;
+sp.Layout.Row = [1 3]; sp.Layout.Column = 3;
 sp.RowHeight = {30, '2.5x', '1x', '1x'};
 sp.Padding = [0 0 0 0];
 sp.RowSpacing = 4;

@@ -451,6 +451,9 @@ classdef EphysPreprocessingApp < handle
         ReviewShankCountSpinner matlab.ui.control.Spinner
         ReviewShankMeanCheckBox matlab.ui.control.CheckBox
         ReviewShankBandDropDown matlab.ui.control.DropDown
+        ReviewWaveModeDropDown  matlab.ui.control.DropDown        % waveform inset on the timing plots: off | mean | sample | both
+        ReviewWaveLocDropDown   matlab.ui.control.DropDown        % where it sits: N NE E SE S SW W NW C
+        ReviewWaveScaleSpinner  matlab.ui.control.Spinner         % its size, a factor
 
         % --- Synthetic tab (makeSyntheticRecording; every setting is a preference) ---
         SynthSourceDropDown   matlab.ui.control.DropDown          % ItemsData "task" | "recording" | "session"
@@ -1150,6 +1153,7 @@ classdef EphysPreprocessingApp < handle
         loadReviewResults(obj)
         renderReviewPlots(obj)
         renderReviewUnitShank(obj)
+        C = reviewSpikeWaves(obj, chans)
         onBrowseReviewFolder(obj)
         onOpenReviewFolder(obj)
         onReviewOpenPhy(obj)

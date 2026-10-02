@@ -1606,6 +1606,28 @@ check(isscalar(isiBar) && sum(isiBar.YData) == 1 && abs(isiBar.XData(isiBar.YDat
     && isscalar(findobj(app.ReviewACGAxes, 'Type', 'constantline')), ...
     'selecting a unit draws its ISI histogram (intervals to 50 ms, the refractory share) and its autocorrelogram in Hz with its mean rate');
 reads = app.ReviewSpikeWaves;
+ia = app.ReviewISIAxes;
+nIsi = @(type) numel(findobj(ia, 'Type', type));
+check(app.ReviewWaveModeDropDown.Value == "off" && nIsi('patch') == 0 && nIsi('line') == 0, ...
+    'the waveform overlay is off by default');
+app.ReviewWaveModeDropDown.Value = 'both'; app.ReviewWaveLocDropDown.Value = 'NE'; app.ReviewWaveScaleSpinner.Value = 1;
+app.renderReviewPlots();
+p = findobj(ia, 'Type', 'patch'); xl = xlim(ia); yl = ylim(ia);
+check(isscalar(p) && nIsi('line') == 2 && abs(range(p.XData) - diff(xl) / 3) < 1e-9 && abs(max(p.XData) - (xl(2) - 0.03 * diff(xl))) < 1e-9 ...
+    && abs(max(p.YData) - (yl(2) - 0.03 * diff(yl))) < 1e-9 && isequal(app.ReviewSpikeWaves, reads) ...
+    && nnz(contains(string(get(findobj(ia, 'Type', 'text'), 'String')), "A-001")) == 1, ...
+    'both: the spikes and the mean in a third-size box at the north-east of the interval plot, captioned with the peak channel; no re-read');
+app.ReviewWaveLocDropDown.Value = 'SW'; app.ReviewWaveScaleSpinner.Value = 2;
+app.renderReviewPlots();
+p = findobj(ia, 'Type', 'patch'); xl = xlim(ia); yl = ylim(ia);
+check(abs(min(p.XData) - (xl(1) + 0.03 * diff(xl))) < 1e-9 && abs(min(p.YData) - (yl(1) + 0.03 * diff(yl))) < 1e-9 ...
+    && abs(range(p.XData) - diff(xl) * 2 / 3) < 1e-9, 'south-west, scaled by 2: a box of two thirds of the plot in its lower left corner');
+app.ReviewWaveModeDropDown.Value = 'mean';
+app.renderReviewPlots();
+check(nIsi('line') == 1 && numel(findobj(app.ReviewACGAxes, 'Type', 'line')) == 1 && numel(findobj(app.ReviewAmpAxes, 'Type', 'line')) == 1, ...
+    'mean: one line in the box, on the autocorrelogram and amplitude plots too');
+app.ReviewWaveModeDropDown.Value = 'off'; app.ReviewWaveLocDropDown.Value = 'NE'; app.ReviewWaveScaleSpinner.Value = 1;
+app.renderReviewPlots();
 app.ReviewShankBandDropDown.Value = 'none';
 app.renderReviewUnitShank();
 n1 = nOf('patch');

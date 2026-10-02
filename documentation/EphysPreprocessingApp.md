@@ -1391,6 +1391,21 @@ dataset whose name does not match `Project.NamePattern`, is read with
   ask for a unit when none is selected. Below them, amplitude vs time (at
   most 30,000 spikes, over the sorted time). Under the unit on its shank,
   smaller: units per shank and firing rate per unit.
+- **Waveform on plots** (the row above the interval and autocorrelogram
+  plots): lays the selected unit's waveform on its peak channel over the
+  interval, autocorrelogram and amplitude plots, in a box over a pale ground.
+  It is **Off** by default.
+  - **Mean** draws the mean (red), **Subsample** the spikes (thin blue lines;
+    as many as the count beside Spikes under the shank plot, the same ones),
+    **Mean + subsample** both. The box is captioned with the channel and the
+    mean's peak-to-peak amplitude.
+  - **at** puts the box at a compass point of each plot: North is the top edge,
+    East the right, and so on round to North-west, with **Centre**.
+  - **scale** sizes the box: 1x is a third of the plot's width and height,
+    0.25x to 3x.
+  - It draws from the spikes the shank plot read, so changing it never reads
+    again. Without the sorted `.bin` the template is drawn instead, whatever
+    the mode.
 - **Unit on its shank** (the large plot on the right): the selected
   unit's spikes at every site of the shank it was detected on (its peak
   channel's). Each site is drawn where it sits on the probe

@@ -184,6 +184,34 @@ mNone = ds.detectArtifacts(Xch, Method="microvolts", Threshold=1500, MinChannels
 check(nnz(mAll) == 11 && ~any(mSub) && isequal(stSub.channelExceedCounts, [0 11 0 0]) && ~any(mNone) ...
     && nnz(mCm) == 11 && isequal(stCm.channelExceedCounts, [11 11 0 0]), ...
     'detectArtifacts(Channels=...) leaves the other columns out (0 exceedances); [] flags nothing');
+% measureArtifacts: a stretch scored by every method, as detection scores it.
+Xm = 5 * randn(RandStream('twister', 'Seed', 3), 3000, 4);   % its own stream: the global one is left alone
+Xm(1001:1060, 1:3) = Xm(1001:1060, 1:3) + 2400;   % a burst on three channels
+selM = false(3000, 1); selM(990:1070) = true;
+M = ds.measureArtifacts(Xm, selM, Fs=Fs, Channels=[1 2 3 4]);
+fl = @(meth) M.methods([M.methods.method] == meth);
+agree = true;
+for meth = ["rms", "mad", "microvolts", "commonmode"]
+    mk = ds.detectArtifacts(Xm, Method=meth, MinChannels=2, Fs=Fs);
+    e = fl(meth);
+    agree = agree && abs(e.fraction - mean(mk(selM))) < 1e-12 && e.flags == any(mk(selM));
+end
+check(agree && all([M.methods.flags]) && fl("microvolts").channelsOver == 3 ...
+    && isequal([M.methods.threshold], [9 8 1500 1500]) && M.nSamples == 81 && abs(M.durationSec - 81 / Fs) < 1e-15 ...
+    && all(M.peakUV(1:3) > 1900) && M.peakUV(4) < 100 && fl("mad").channelPeak(4) < 8, ...
+    'measureArtifacts scores a stretch as each detector would flag it (default thresholds, MinChannels)');
+quiet = false(3000, 1); quiet(2001:2100) = true;
+Mq = ds.measureArtifacts(Xm, quiet, Fs=Fs, Thresholds=[NaN NaN 50 NaN]);
+check(~any([Mq.methods.flags]) && Mq.methods(3).threshold == 50 && all(Mq.rmsUV < 10), ...
+    'a quiet stretch flags with no method; a threshold given replaces its default');
+Mx = ds.measureArtifacts(Xm, 1001:1060, Fs=Fs, Channels=[1 4], CommonMode=false);
+check(isnan(Mx.methods(4).peak) && ~Mx.methods(4).flags && all(isnan(Mx.methods(1).channelPeak([2 3]))) ...
+    && Mx.methods(3).channelsOver == 1 && ~Mx.methods(3).flags, ...
+    'channels left out report NaN and count toward nothing; CommonMode=false leaves common mode out');
+Mc = ds.measureArtifacts(Xm, 1001:1060, Fs=Fs, CommonModeX=zeros(size(Xm)));
+check(Mc.methods(4).peak == 0 && Mc.methods(3).flags, 'common mode is scored on CommonModeX when given');
+check(strcmp(errorIdOf(@() ds.measureArtifacts(Xm, false(10, 1), Fs=Fs)), 'EphysDataset:measureArtifacts:BadRows'), ...
+    'ROWS must match X');
 Xb = ds.blankArtifacts(X, mask, Fill="zero");
 check(all(all(Xb(mask,:) == 0)), 'blankArtifacts zeroes flagged rows');
 % Fill="noise": the flagged rows become Gaussian noise at the level given, the
@@ -1138,6 +1166,21 @@ dsm.writeManifest();
 ds3b = EphysDataset(mdsDir);
 ds3b.applyManifest();
 check(isequal(ds3b.ArtifactAdjustments, dsm.ArtifactAdjustments), 'several moved artifacts round-trip');
+m = readJsonFile(dsm.manifestFile());
+check(~m.artifacts.exists && isempty(m.artifacts.detected) && m.artifacts.manual == 1 && m.artifacts.adjusted == 2 ...
+    && isempty(m.artifacts.handling) && string(m.artifacts.file) == dsm.artifactsFile(), ...
+    'artifacts block without an interval file or a config: names the file, counts manual / moved, detected null, handling empty');
+writeJsonFile(dsm.artifactsFile(), struct('schema', "ephys-artifacts/3", 'dataset', dsm.Name, 'fingerprint', "x", ...
+    'intervals', [0.1 0.3; 1 1.5; 2 2.1], 'nIntervals', 3, 'created', "2026-10-02 00:30:00"));
+dsm.ArtifactHandling = struct('auto_detection', true, ...
+    'sorting', struct('periods', "manual + automatic", 'treatment', "noise fill"), 'noise_band_hz', 0, 'noise_seed', NaN);
+dsm.writeManifest();
+m = readJsonFile(dsm.manifestFile());
+check(m.artifacts.exists && m.artifacts.detected == 3 && abs(m.artifacts.detected_s - 0.8) < 1e-9 ...
+    && string(m.artifacts.created) == "2026-10-02 00:30:00" ...
+    && string(m.artifacts.handling.sorting.treatment) == "noise fill", ...
+    'artifacts block counts the detected artifacts in the interval file and records the handling');
+delete(dsm.artifactsFile());
 dsm.ArtifactAdjustments = zeros(0, 4);
 dsm.writeManifest();
 ds3.SortingDir = "";

@@ -65,6 +65,12 @@ set(ax, 'XLimMode', 'auto', 'YLimMode', 'auto', 'XTickMode', 'auto', ...
     'YTickMode', 'auto', 'YTickLabelMode', 'auto', 'Box', 'on');
 
 w = V.win;
+sel = V.sel;                         % the stretch measured, while its window is drawn
+if ~isempty(sel) && (isempty(w) || isfield(w, 'error') || ~isequal(sel.key, [w.k, w.s0, size(w.X, 1)]))
+    sel = [];
+    obj.ArtView.sel = [];
+    obj.measureArtifactSelection();  % back to its empty state
+end
 if isempty(w) || isfield(w, 'error')
     obj.ArtView.drawn.key = [];
     if isstruct(w) && isfield(w, 'error')
@@ -207,6 +213,11 @@ if logical(obj.ArtViewShadeButton.Value)
             'FaceColor', col.manual, 'FaceAlpha', 0.2, 'DisplayName', "Manual period"); %#ok<AGROW>
     end
 end
+hSel = gobjects(0, 1);               % the stretch measured (Measure), shading or not
+if ~isempty(sel)
+    hSel = xregion(ax, sel.span(1), sel.span(2), 'FaceColor', col.selection, 'FaceAlpha', 0.22, ...
+        'DisplayName', "Measured", 'Tag', 'artSelection');
+end
 % The chosen artifact's bounds, the lines a Ctrl+drag moves; where the
 % detector put them when they have been moved.
 if isMoved
@@ -237,7 +248,7 @@ hLeg = gobjects(0, 1);
 for j = first(:).'
     hLeg(end+1, 1) = legendLine(ax, hKept(keptName == keptName(j)), laneColor(j, :), keptName(j)); %#ok<AGROW>
 end
-hLeg = [hLeg; legendLine(ax, hRem, red, "Removed (replaced)"); hDet(1:min(1, end)); hMan(1:min(1, end))];
+hLeg = [hLeg; legendLine(ax, hRem, red, "Removed (replaced)"); hDet(1:min(1, end)); hMan(1:min(1, end)); hSel];
 hold(ax, 'off');
 legend(ax, hLeg, 'Location', 'southoutside', 'NumColumns', min(numel(hLeg), 4), ...
     'Box', 'off', 'AutoUpdate', 'off');
@@ -375,8 +386,11 @@ obj.ArtViewShankColorCheckBox.Enable = onOff(drawn && hasProbe);
 obj.ArtViewResetButton.Enable = onOff(drawn);
 obj.ArtViewGotoField.Enable = onOff(~isempty(obj.currentDataset()));
 obj.ArtMarkButton.Enable = onOff(drawn);
+if ~isempty(obj.ArtMeasureButton)
+    obj.ArtMeasureButton.Enable = onOff(drawn);
+end
 if ~drawn && obj.ArtView.mark.on
-    obj.onArtViewInput("mark", false);
+    obj.onArtViewInput("stop", []);
 end
 end
 

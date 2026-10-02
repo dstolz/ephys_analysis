@@ -3,7 +3,7 @@ function onTabChanged(obj)
 obj.syncTabStrip();
 obj.clearFlowHighlight();   % a control marked by a Diagram click stays marked only while its tab is shown
 if obj.Tabs.SelectedTab ~= obj.TabArtifacts && obj.ArtView.mark.on
-    obj.onArtViewInput("mark", false);   % manual marking stops on leaving the Artifacts tab
+    obj.onArtViewInput("stop", []);   % marking and measuring stop on leaving the Artifacts tab
 end
 switch obj.Tabs.SelectedTab
     case obj.TabCopy

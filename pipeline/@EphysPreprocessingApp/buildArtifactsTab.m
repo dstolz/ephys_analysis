@@ -31,6 +31,13 @@ function buildArtifactsTab(obj)
 %   onset or offset, kept for the dataset (Restore bounds puts them back;
 %   onArtViewInput).
 %
+%   Measure (beside Shade artifacts) turns a drag over the plot into a
+%   selection instead: the stretch dragged over is scored by every
+%   detection method at once (running RMS, MAD, absolute, common mode;
+%   measureArtifactSelection) and shown on the right column's Selection
+%   tab, per method and per channel, to see what each would make of it and
+%   how far it is from its threshold. A click clears the selection.
+%
 %   See also EphysDataset.detectArtifacts, EphysDataset.analyzeArtifacts,
 %   EphysDataset.artifactIntervals, EphysDataset.channelLayout,
 %   onDetectArtifacts, showArtifactView, drawArtifactView, onArtViewInput.
@@ -267,9 +274,9 @@ obj.ArtViewShankColorCheckBox = uicheckbox(chans, "Text", "Colour by shank", "Va
     "Draw each shank's kept signal in its own colour (needs a probe assigned to the dataset).", ...
     "ValueChangedFcn", @(~,~) obj.drawArtifactView());
 
-sc = uigridlayout(mid, [1 7]);
+sc = uigridlayout(mid, [1 8]);
 sc.Padding = [0 0 0 0]; sc.ColumnSpacing = 6;
-sc.ColumnWidth = {'fit', 150, 'fit', 70, '1x', 'fit', 'fit'};
+sc.ColumnWidth = {'fit', 150, 'fit', 70, '1x', 'fit', 'fit', 'fit'};
 uilabel(sc, "Text", "Scale:");
 obj.ArtViewScaleDropDown = uidropdown(sc, "Items", {'Fit the artifact', 'Fit the kept signal', 'Manual'}, ...
     "ItemsData", {'artifact', 'kept', 'manual'}, "Value", 'artifact', ...
@@ -282,6 +289,11 @@ obj.ArtViewLanesField = uieditfield(sc, "numeric", "Value", 0, "Limits", [0 Inf]
     "Microvolts between lanes: shows the spacing drawn; type one to set it by hand (Scale: Manual).", ...
     "ValueChangedFcn", @(~,~) lanesChanged(obj));
 uilabel(sc, "Text", "");
+obj.ArtMeasureButton = uibutton(sc, "state", "Text", "Measure: off", "Value", false, "Enable", "off", ...
+    "Tooltip", "Drag over the plot to select a stretch and score it with every detection method " + ...
+    "(running RMS, MAD, absolute, common mode) against the window shown; the results are on the " + ...
+    "Selection tab (right). A click clears the selection; Esc (or M) turns it off.", ...
+    "ValueChangedFcn", @(src, ~) obj.onArtViewInput("measure", src.Value));
 obj.ArtViewShadeButton = uibutton(sc, "state", "Text", "Shade artifacts", "Value", true, ...
     "Tooltip", "Shade the detected artifacts (orange) and the manual periods (purple) over the " + ...
     "signal; off to see the signal under them (S over the plot). The chosen artifact's bounds " + ...
@@ -308,12 +320,15 @@ uilabel(mid, "WordWrap", "on", "FontColor", [0.45 0.45 0.45], "Text", ...
     "on a stretch shown with Go to (s) they page through the recording. " + ...
     "Hold Ctrl and drag to move the artifact's nearer bound (dashed); it is saved for the dataset. " + ...
     "Orange: detected (automatic) artifacts; purple: manual periods. With Mark artifacts on, drag to mark a " + ...
-    "manual period and click a purple one to remove it; Esc stops marking.");
+    "manual period and click a purple one to remove it; Esc stops marking. With Measure on (M), drag to " + ...
+    "select a stretch (blue) and score it with every method (Selection tab, right); a click clears it.");
 
-% =========== right: the preview's summary and per-channel table ===========
-right = uigridlayout(g, [3 1]);
-right.Layout.Column = 3;
-right.Padding = [0 0 0 0];
+% =========== right: the preview's summary and per-channel table, and the selection's ===========
+obj.ArtResultTabs = uitabgroup(g);
+obj.ArtResultTabs.Layout.Column = 3;
+previewTab = uitab(obj.ArtResultTabs, "Title", "Preview");
+right = uigridlayout(previewTab, [3 1]);
+right.Padding = [4 6 4 4];
 right.RowSpacing = 6;
 right.RowHeight = {'fit', 215, '1x'};
 
@@ -325,6 +340,25 @@ obj.ArtSummaryLabel = uilabel(sg, "Text", "Pick a dataset and press Detect / Pre
     "VerticalAlignment", "top", "WordWrap", "on", "FontName", "monospaced", "FontColor", [0.2 0.2 0.2]);
 obj.ArtChannelTable = uitable(right, "RowName", {});
 obj.refreshArtChannelTable();   % its columns
+
+% The stretch selected with Measure, scored by every method.
+obj.ArtSelectionTab = uitab(obj.ArtResultTabs, "Title", "Selection");
+sel = uigridlayout(obj.ArtSelectionTab, [3 1]);
+sel.Padding = [4 6 4 4];
+sel.RowSpacing = 6;
+sel.RowHeight = {'fit', 125, '1x'};
+selPanel = uipanel(sel);
+pg = uigridlayout(selPanel, [1 1]);
+pg.Padding = [8 6 8 6];
+obj.ArtSelectionLabel = uilabel(pg, "VerticalAlignment", "top", "WordWrap", "on", ...
+    "FontColor", [0.2 0.2 0.2]);
+obj.ArtSelectionMethodTable = uitable(sel, "RowName", {}, "Tooltip", ...
+    "Each detection method on the selection: its largest statistic over the channels, its " + ...
+    "threshold (the method chosen on the left at the threshold set there, the others at their " + ...
+    "defaults), the channels that cross it, and the share of the selection it would flag " + ...
+    "(Min channels applied; no stitching or padding). Rows that would flag are shaded.");
+obj.ArtSelectionTable = uitable(sel, "RowName", {}, "ColumnSortable", true);
+obj.measureArtifactSelection();   % the empty state
 
 obj.routeFigureInput();         % the wheel, keys and buttons on the plot
 end

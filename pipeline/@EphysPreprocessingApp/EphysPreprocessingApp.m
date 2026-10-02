@@ -356,6 +356,12 @@ classdef EphysPreprocessingApp < handle
         ArtStatusLabel      matlab.ui.control.Label
         ArtManualLabel      matlab.ui.control.Label
         ArtMarkButton       matlab.ui.control.StateButton        % Mark artifacts: drag over the plot to mark a manual period
+        ArtMeasureButton    matlab.ui.control.StateButton        % Measure: drag over the plot to score a stretch (measureArtifactSelection)
+        ArtResultTabs       matlab.ui.container.TabGroup         % right column: Preview | Selection
+        ArtSelectionTab     matlab.ui.container.Tab
+        ArtSelectionLabel   matlab.ui.control.Label              % the selection scored by every method
+        ArtSelectionMethodTable matlab.ui.control.Table          % ... per method
+        ArtSelectionTable   matlab.ui.control.Table              % ... per channel
         ArtManualClearButton matlab.ui.control.Button
         ArtManualTable      matlab.ui.control.Table
         ArtViewPrevButton   matlab.ui.control.Button             % artifact viewer (showArtifactView)
@@ -763,13 +769,15 @@ classdef EphysPreprocessingApp < handle
         % pointer and axes interactions to put back after; mark: Mark
         % artifacts (onArtViewInput): on while it is, x0 the time (s) a
         % drag marking a manual period started at (NaN when none), and the
-        % axes interactions to put back after.
+        % axes interactions to put back after; kind "mark" or "measure"
+        % (Measure: the drag selects a stretch to score instead). sel: the
+        % stretch measured ([t0 t1] s, [] when none), on the window drawn.
         ArtView struct = struct('intervals', zeros(0, 2), 'previewed', false, ...
             'settings', struct(), 'summary', [], 'chunk', [], 'win', [], 'free', [], ...
             'drawn', struct('key', [], 'span', [0 1], 'factor', 1, 'decimated', false), 'gain', 1, ...
             'layout', [], 'layoutKey', "", 'mods', strings(1, 0), ...
             'edit', struct('armed', false, 'bound', "", 'x', NaN, 'pointer', 'arrow', 'interactions', []), ...
-            'mark', struct('on', false, 'x0', NaN, 'interactions', []))
+            'mark', struct('on', false, 'x0', NaN, 'interactions', [], 'kind', "mark"), 'sel', [])
 
         % Figure wheel / key / button handlers installed before
         % routeFigureInput: they get the events when neither the Artifacts
@@ -1045,6 +1053,7 @@ classdef EphysPreprocessingApp < handle
         tf = onArtViewInput(obj, kind, evt)
         syncArtProbeControls(obj)
         refreshArtChannelTable(obj)
+        measureArtifactSelection(obj)
         routeFigureInput(obj)
 
         % --- Visualize tab ---

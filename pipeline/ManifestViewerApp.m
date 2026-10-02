@@ -606,6 +606,43 @@ if isfield(m, 'artifact_adjustments')
     end
 end
 
+if isfield(m, 'artifacts') && isstruct(m.artifacts)
+    S = "Artifacts";
+    ar = m.artifacts;
+    af = txtOf(getf(ar, 'file', ""));
+    [lv, ck] = pathCheck(af, "file", getf(ar, 'exists', []));
+    if af ~= "" && lv == "missing"; ck = "not written (Artifacts.CacheIntervals off, or no detection yet)"; end
+    R = addRow(R, S, "Interval file", af, lv, ck);
+    nd = numOf(getf(ar, 'detected', NaN));
+    R = addRow(R, S, "Detected", fmtNum(nd, ""), "", ...
+        ternary(isnan(nd), "unknown: no interval file", "automatic detection, from the interval file"));
+    ds_ = numOf(getf(ar, 'detected_s', NaN));
+    if ~isnan(ds_)
+        val = sprintf('%.4g s', ds_);
+        if ~isnan(dur) && dur > 0; val = sprintf('%s (%.2g%% of the recording)', val, 100 * ds_ / dur); end
+        R = addRow(R, S, "Detected total", val);
+    end
+    R = addRow(R, S, "Created", txtOf(getf(ar, 'created', "")));
+    R = addRow(R, S, "Manual", fmtNum(numOf(getf(ar, 'manual', NaN)), ""));
+    R = addRow(R, S, "Moved by hand", fmtNum(numOf(getf(ar, 'adjusted', NaN)), ""));
+    hd = getf(ar, 'handling', []);
+    if isstruct(hd) && isscalar(hd)
+        R = addRow(R, S, "Auto-detection", yesNo(getf(hd, 'auto_detection', false)));
+        for stp = ["sorting" "spikes" "signals"]
+            if isstruct(getf(hd, stp, []))
+                per = txtOf(getf(hd, stp + ".periods", ""));
+                tr = txtOf(getf(hd, stp + ".treatment", ""));
+                if per ~= ""; tr = tr + " (" + per + ")"; end
+                R = addRow(R, S, "Handling: " + stp, tr);
+            end
+        end
+        R = addRow(R, S, "Noise band (Hz)", fmtNum(numOf(getf(hd, 'noise_band_hz', NaN)), ""), "", "0 = broadband");
+        R = addRow(R, S, "Noise seed", fmtNum(numOf(getf(hd, 'noise_seed', NaN)), ""), "", "empty = a new draw each run");
+    else
+        R = addRow(R, S, "Handling", "not recorded", "", "no pipeline config was applied when this was written");
+    end
+end
+
 if isfield(m, 'bin') && isstruct(m.bin)
     S = "Binary (.bin)";
     bf = txtOf(getf(m.bin, 'file', ""));
@@ -681,7 +718,7 @@ if isfield(m, 'behavior') && isstruct(m.behavior)
 end
 
 known = ["schema" "name" "folder" "recording_format" "reader" "updated" "metadata" "probe" ...
-    "exclude_channels" "reference_exclude" "manual_artifacts" "artifact_adjustments" "bin" "kilosort" ...
+    "exclude_channels" "reference_exclude" "manual_artifacts" "artifact_adjustments" "artifacts" "bin" "kilosort" ...
     "sorting" "behavior"];
 other = setdiff(string(fieldnames(m)).', known, 'stable');
 for f = other

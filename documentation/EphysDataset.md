@@ -759,6 +759,29 @@ padded by `PadMs` on both sides.
   0-based sample clock (sample `g` is at `g/Fs`): rows `a..b` give
   `[a-1, b)/Fs`, so a one-sample artifact is one sample long.
 
+**`M = measureArtifacts(X, rows, Name=Value)`** scores a stretch of an
+in-memory block with **every** method at once and writes nothing; the
+Artifacts tab's **Measure** uses it. `rows` (logical, one per row of `X`, or
+row indices) is the stretch. Each method computes its statistic exactly as
+`detectArtifacts` does (the same code), with the baselines (median / MAD)
+taken over all of `X`, as detection takes them over its chunk. So a stretch
+scores as detection would see it when `X` is the window around it. Options:
+`Fs`, `Thresholds` (`[rms mad microvolts commonmode]`; `NaN` entries take the
+defaults above), `RmsWindowMs`, `MinChannels`, `Channels` (as in
+`detectArtifacts`; the columns left out report `NaN`), `CommonModeX` (the same
+samples unreferenced, for `commonmode`; default `X`) and `CommonMode` (`false`
+leaves that method out, all `NaN`).
+
+`M` holds `nSamples`, `durationSec`, `nChan`, the stretch's per-channel
+`rmsUV`, `peakUV` (peak |x|) and `p2pUV`, `minChannels`, and `methods`, one
+entry per method: `method`, `label`, `unit` (`"SD"` / `"uV"`), `threshold`,
+`rmsWindowMs` (rms only), `channelPeak` (the peak statistic per channel),
+`peak` (the largest of those), `channelsOver` (channels whose peak crosses
+the threshold), `fraction` (share of the stretch's samples the method flags,
+`MinChannels` applied, with no stitching or padding) and `flags` (any).
+Errors: `EphysDataset:measureArtifacts:BadRows`, `:BadChannels`,
+`:BadCommonModeX`, `:NoFs`.
+
 **`Y = blankArtifacts(X, mask, Fill=...)`** replaces flagged rows on every
 channel. `Fill` is `"zero"` (default), `"noise"`, `"hold"` (repeat the last
 clean sample; 0 if the run starts at row 1) or `"nan"`.
@@ -1866,7 +1889,11 @@ is in [file-formats.md](file-formats.md#dataset-manifest).
   use something else, and the next `writeManifest` keeps them. `why` says why
   a manifest was ignored (`"not valid JSON"`, `"unknown schema ..."`; warnings
   `EphysDataset:applyManifest:Unreadable` / `:Schema`). Header
-  metadata is always re-parsed. `ArtifactConfig` is not stored
+  metadata is always re-parsed. The manifest's `artifacts` block (the
+  interval file `artifactsFile()`, the number of detected / manual / moved
+  artifacts, and `ArtifactHandling`: how sorting, spikes and signals treat
+  the periods) is written by `artifactsManifest()` and not read back.
+  `ArtifactConfig` is not stored
   here; they belong to the [pipeline config](EphysPipeline.md). Schema `/1`
   manifests (probe + exclusions only) are still read.
 - `[m, why] = EphysDataset.readManifest(file)` (static) decodes a manifest, or
@@ -1981,7 +2008,7 @@ deletes them afterwards. It covers:
 | 3 | `readData` (concatenation + events) |
 | 4 | `toBin` streaming vs `matrix2kilosort` byte identity |
 | 5 | `.bin` → microvolts round-trip |
-| 6 | `filterContinuous` (low cut-offs: a `[1 300]` Hz band and a 1 Hz high-pass at 20 kHz stay finite and exact; the spike band's transfer function matches its sections) + `detectArtifacts` (half-open intervals, `Channels`) + `blankArtifacts` (the noise fill's line between the levels on either side, `Context`) |
+| 6 | `filterContinuous` (low cut-offs: a `[1 300]` Hz band and a 1 Hz high-pass at 20 kHz stay finite and exact; the spike band's transfer function matches its sections) + `detectArtifacts` (half-open intervals, `Channels`) + `measureArtifacts` (agrees with each detector) + `blankArtifacts` (the noise fill's line between the levels on either side, `Context`) |
 | 7 | `EphysProject` discovery |
 | 8 | `runKilosort(DryRun=true)`; a probe without `kcoords` refused (`BadProbe`) |
 | 8b | explicit artifact intervals in the `.bin` (noise fill, seed, zero fill, `MostlySilenced` refusal) |

@@ -302,6 +302,16 @@ Schema `intan-dataset-manifest/2` (`null` where a value is `NaN`):
                          "source": "" | "suggested" | "manual" },
   "manual_artifacts": [[<t0>, <t1>], ...],          seconds, recording-relative
   "artifact_adjustments": [[<det0>, <det1>, <t0>, <t1>], ...],   detected artifacts moved by hand, seconds
+  "artifacts": {
+    "file": <path of <Name>_artifacts.json>, "exists": <bool>, "created": <"yyyy-MM-dd HH:mm:ss" or "">,
+    "detected": <n or null>, "detected_s": <total seconds or null>,
+    "manual": <n>, "adjusted": <n>,
+    "handling": [] | { "auto_detection": <bool>,
+                       "sorting": { "periods": <p>, "treatment": "noise fill" | "zero fill" },
+                       "spikes":  { "periods": <p>, "treatment": "events rejected" | "erased" | "none" },
+                       "signals": { "periods": <p>, "treatment": "erased" | "none" },
+                       "noise_band_hz": <Hz, 0 = broadband>, "noise_seed": <n or null> }
+  },
   "bin":      { "file": <BinFile path>, "exists": <true|false> },
   "kilosort": { "has_results": <bool>, "results_dir": <path or "">,
                 "num_units": <n or null>, "state": <string> },
@@ -346,6 +356,26 @@ Schema `intan-dataset-manifest/2` (`null` where a value is `NaN`):
   (`EphysDataset.ArtifactAdjustments`). A detection is matched by its bounds
   to a quarter of a sample; one the detector no longer finds is not applied.
   One adjustment is written as a flat `[det0, det1, t0, t1]`.
+- `artifacts` says how many artifacts were found, how the steps treat them and
+  which file holds their definitions. `file` is the artifact-interval file
+  ([below](#artifact-cache), `<Name>_artifacts.json`, written only
+  while `Artifacts.CacheIntervals` is on); `detected` and `detected_s` are the
+  number and total length of the automatically detected artifacts in it, and
+  `created` is when it was written (all three empty or null without the file:
+  the intervals themselves live only there). `manual` and `adjusted` count
+  `manual_artifacts` and `artifact_adjustments`. `handling` is the pipeline
+  config as it stood when the manifest was written
+  (`EphysPipelineConfig.artifactHandling`), `[]` until a config has been
+  applied. `periods` is `"manual + automatic"` or `"manual only"` (the
+  automatic ones apply to a step when detection is on and its
+  `Artifacts.ApplyTo<Step>` is), `""` when the step leaves the periods alone.
+  `treatment` is what the step does with them: the sorting `.bin` gets a line
+  across the period plus Gaussian noise matched to each channel's own noise
+  (`"noise fill"`, `noise_band_hz` and `noise_seed` from `Artifacts`) or zeros
+  (`"zero fill"`); Spikes drops the events inside them (`"events rejected"`) or
+  erases them before detection (`"erased"`); Signals erases them before
+  deriving. The manifest is rewritten after each detection, so `detected`
+  follows it; `applyManifest()` does not read this block.
 - `applyManifest()` restores `probe.file`, `exclude_channels`,
   `reference_exclude`, `manual_artifacts`, `artifact_adjustments`, a `"manual"`
   `sorting.results_dir`, `behavior.file` and `behavior.pairing`, the

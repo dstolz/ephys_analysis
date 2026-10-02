@@ -4,8 +4,9 @@ function tf = onArtViewInput(obj, kind, evt)
 %   key ("key", "release") and button ("down", "up") events, passed on by
 %   routeFigureInput while the Artifacts tab is showing (key releases on
 %   any tab), on Reset view ("reset"), Shade artifacts ("shade"),
-%   Restore bounds ("restore") and Mark artifacts ("mark", EVT its value),
-%   and returns whether it took the event. The
+%   Restore bounds ("restore"), Mark artifacts ("mark", EVT its value) and
+%   Measure ("measure", EVT its value), turns either off ("stop"), and
+%   returns whether it took the event. The
 %   wheel and the keys act with the pointer over the plot:
 %     wheel, Shift+wheel ......... zoom time about the pointer
 %     Ctrl+wheel ................. scale the voltage (Ctrl+Shift+wheel too)
@@ -19,7 +20,8 @@ function tf = onArtViewInput(obj, kind, evt)
 %                                  end / start of the recording
 %     s .......................... shading on / off (as Shade artifacts)
 %     r .......................... reset (as Reset view)
-%     escape ..................... Mark artifacts off (anywhere)
+%     m .......................... Measure on / off
+%     escape ..................... Mark artifacts / Measure off (anywhere)
 %   Dragging pans too (the axes' own pan, along time only). The voltage
 %   scale is ArtView.gain, a factor on the Scale fit kept from one artifact
 %   to the next until a reset or a new Scale (with Scale: Manual they
@@ -50,6 +52,13 @@ function tf = onArtViewInput(obj, kind, evt)
 %   on leaving the tab (onTabChanged) and when no window is drawn
 %   (drawArtifactView).
 %
+%   Measuring a stretch: Measure is the same drag in another mode (one of
+%   the two is on at a time; turning one on turns the other off). The time
+%   dragged over becomes ArtView.sel, kept with the window drawn and shaded
+%   blue on it, and measureArtifactSelection scores it with every detection
+%   method on the Selection tab, which comes to the front; a click clears
+%   it. Nothing is written, so it works during a run too.
+%
 %   See also drawArtifactView, routeFigureInput, EphysDataset.adjustArtifacts,
 %   EphysDataset.addArtifact.
 
@@ -67,7 +76,13 @@ switch kind
         tf = finishBound(obj) || finishMark(obj);
         return
     case "mark"
-        tf = setMarking(obj, logical(evt));
+        tf = setMarking(obj, logical(evt), "mark");
+        return
+    case "measure"
+        tf = setMarking(obj, logical(evt), "measure");
+        return
+    case "stop"
+        tf = setMarking(obj, false);     % whichever drag mode is on
         return
     case "shade"
         shadeChanged(obj);
@@ -146,6 +161,9 @@ switch kind
             case "r"
                 tf = obj.onArtViewInput("reset", []);
                 return
+            case "m"
+                M = obj.ArtView.mark;
+                setMarking(obj, ~(M.on && M.kind == "measure"), "measure");
             otherwise
                 return
         end
@@ -486,34 +504,39 @@ end
 
 
 %% --- marking a manual period (Mark artifacts) ----------------------------------
-function tf = setMarking(obj, on)
-% Mark artifacts on or off: the button's text and colour, the pointer, and
-% the axes' own pan and data tips given way to the marking drag (kept to
-% put back; while a bound edit holds them, in its place). It stays off with
-% no window drawn or a run under way; turning it off drops a mark in progress.
+function tf = setMarking(obj, on, kind)
+% Mark artifacts or Measure (KIND "mark" / "measure"; default the one on)
+% on or off: the buttons' text and colour, the pointer, and the axes' own
+% pan and data tips given way to the drag (kept to put back; while a bound
+% edit holds them, in its place). Turning one on while the other is on
+% switches the drag over. Marking stays off with no window drawn or a run
+% under way, measuring with no window; turning off drops a drag in progress.
 tf = true;
+M = obj.ArtView.mark;
+if nargin < 3; kind = M.kind; end
 w = obj.ArtView.win;
 if on && (isempty(w) || isfield(w, 'error') || isempty(obj.currentDataset()))
     on = false;
 end
-if on && obj.refuseWhileRunning("Mark artifacts")
+if on && kind == "mark" && obj.refuseWhileRunning("Mark artifacts")
     on = false;
 end
-b = obj.ArtMarkButton;
-b.Value = on;
-if on
-    b.Text = "Mark artifacts: ON (drag on the plot)";
-    styleButton(b, "active");
-else
-    b.Text = "Mark artifacts: off";
-    styleButton(b);
+if ~on && M.on && M.kind ~= kind
+    modeButtons(obj, true, M.kind);      % the other mode stays on
+    return
 end
-M = obj.ArtView.mark;
-if M.on == on; return; end
+modeButtons(obj, on, kind);
 E = obj.ArtView.edit;
 editing = E.armed || E.bound ~= "";
 ax = obj.ArtViewAxes;
 fig = obj.Fig;
+if on && M.on                            % switched over: the pointer stays given way
+    M = dropDrag(M, ax, fig, editing);
+    M.kind = kind;
+    obj.ArtView.mark = M;
+    return
+end
+if M.on == on; return; end
 if on
     if editing
         M.interactions = E.interactions;
@@ -525,11 +548,7 @@ if on
         if isvalid(fig); fig.Pointer = 'crosshair'; end
     end
 else
-    if ~isnan(M.x0)                       % a mark in progress is dropped
-        M.x0 = NaN;
-        delete(findobj(ax, 'Tag', 'artMarkBand'));
-        if isvalid(fig) && ~editing; fig.WindowButtonMotionFcn = ''; end
-    end
+    M = dropDrag(M, ax, fig, editing);
     if editing
         E.interactions = M.interactions;
         E.pointer = 'arrow';
@@ -540,8 +559,42 @@ else
     M.interactions = [];
 end
 M.on = on;
+M.kind = kind;
 obj.ArtView.mark = M;
 obj.ArtView.edit = E;
+end
+
+
+function M = dropDrag(M, ax, fig, editing)
+% A drag in progress (marking or measuring) is dropped.
+if isnan(M.x0); return; end
+M.x0 = NaN;
+delete(findobj(ax, 'Tag', 'artMarkBand'));
+if isvalid(fig) && ~editing; fig.WindowButtonMotionFcn = ''; end
+end
+
+
+function modeButtons(obj, on, kind)
+% Mark artifacts and Measure as the drag mode says: the one on in amber.
+b = obj.ArtMarkButton;
+b.Value = on && kind == "mark";
+if b.Value
+    b.Text = "Mark artifacts: ON (drag on the plot)";
+    styleButton(b, "active");
+else
+    b.Text = "Mark artifacts: off";
+    styleButton(b);
+end
+b = obj.ArtMeasureButton;
+if isempty(b) || ~isvalid(b); return; end
+b.Value = on && kind == "measure";
+if b.Value
+    b.Text = "Measure: ON";
+    styleButton(b, "active");
+else
+    b.Text = "Measure: off";
+    styleButton(b);
+end
 end
 
 
@@ -571,7 +624,11 @@ if span(2) <= span(1)
     delete(h);
 elseif isempty(h)
     col = artifactColors();
-    xregion(ax, span(1), span(2), 'FaceColor', col.manual, 'FaceAlpha', 0.35, ...
+    face = col.manual;
+    if obj.ArtView.mark.kind == "measure"
+        face = col.selection;
+    end
+    xregion(ax, span(1), span(2), 'FaceColor', face, 'FaceAlpha', 0.35, ...
         'Tag', 'artMarkBand');   % visible, so findobj finds it; the legend lists its own handles
 else
     h(1).Value = span;
@@ -605,12 +662,17 @@ else
 end
 ax = obj.ArtViewAxes;
 delete(findobj(ax, 'Tag', 'artMarkBand'));
+x1 = pointerTime(obj);
+secPerPix = diff(ax.XLim) / max(ax.InnerPosition(3), 1);
+dragged = abs(x1 - x0) >= 4 * secPerPix;
+if M.kind == "measure"
+    finishMeasure(obj, dragged, markSpan(obj, x0, x1));
+    return
+end
 d = obj.currentDataset();
 if isempty(d) || obj.refuseWhileRunning("Mark artifacts"); return; end
 
-x1 = pointerTime(obj);
-secPerPix = diff(ax.XLim) / max(ax.InnerPosition(3), 1);
-if abs(x1 - x0) >= 4 * secPerPix
+if dragged
     span = markSpan(obj, x0, x1);
     if span(2) <= span(1); return; end
     d.addArtifact(span(1), span(2));
@@ -634,6 +696,24 @@ if ~isempty(shown) && shown == d
 end
 obj.updateVizArtStatus();
 obj.setStatus(msg);
+end
+
+
+function finishMeasure(obj, dragged, span)
+% Measure: a drag selects SPAN on the window drawn and scores it (the
+% Selection tab comes to the front); a click clears the selection.
+w = obj.ArtView.win;
+if isempty(w) || isfield(w, 'error'); return; end
+if dragged && span(2) > span(1)
+    obj.ArtView.sel = struct('span', span, 'key', [w.k, w.s0, size(w.X, 1)], 'cmX', []);
+    obj.ArtResultTabs.SelectedTab = obj.ArtSelectionTab;
+elseif isempty(obj.ArtView.sel)
+    return
+else
+    obj.ArtView.sel = [];
+end
+obj.drawArtifactView();
+obj.measureArtifactSelection();
 end
 
 

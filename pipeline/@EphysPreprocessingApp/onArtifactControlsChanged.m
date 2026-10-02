@@ -15,6 +15,7 @@ obj.ArtHighpassField.Enable  = matlab.lang.OnOffSwitchState(logical(obj.ArtFilte
 obj.onConfigChanged();
 obj.refreshReferencePanel();
 obj.drawArtifactView();
+obj.measureArtifactSelection();   % a selection follows the thresholds
 end
 
 

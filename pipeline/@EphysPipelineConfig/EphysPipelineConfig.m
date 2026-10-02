@@ -299,6 +299,47 @@ classdef EphysPipelineConfig
             end
         end
 
+        function h = artifactHandling(cfg)
+            %artifactHandling  How each step treats the artifact periods, for the manifest.
+            %   H = EphysPipelineConfig.artifactHandling(CFG): a struct with
+            %   auto_detection (the Artifacts section's Enabled), and for
+            %   sorting, spikes and signals a struct of periods ("manual +
+            %   automatic", "manual only" or "" when the step leaves the
+            %   periods alone) and treatment: "noise fill" (a line across
+            %   the period plus Gaussian noise matched to each channel) or
+            %   "zero fill" for the sorting .bin; "events rejected",
+            %   "erased" (a line across the period) or "none" for spikes;
+            %   "erased" or "none" for signals. noise_band_hz and noise_seed
+            %   are the fill's settings. Read from the config as it stands,
+            %   not from what a run did (EphysDataset.manifestStruct).
+            arguments
+                cfg (1,1) EphysPipelineConfig
+            end
+            A = cfg.Artifacts;
+            auto = logical(A.Enabled);
+            h = struct('auto_detection', auto);
+            fill = "zero fill";
+            if string(A.Fill) == "noise"; fill = "noise fill"; end
+            h.sorting = step(A.ApplyToSorting, fill);
+            sm = string(cfg.Spikes.ArtifactMode);
+            tr = struct('reject', "events rejected", 'erase', "erased", 'none', "none");
+            h.spikes = step(A.ApplyToSpikes, tr.(sm), sm ~= "none");
+            h.signals = step(A.ApplyToSignals, "erased", logical(cfg.Signals.BlankArtifacts));
+            h.noise_band_hz = A.NoiseBandHz;
+            h.noise_seed = A.NoiseSeed;
+
+            function s = step(applyAuto, treatment, used)
+                if nargin < 3; used = true; end
+                if ~used
+                    s = struct('periods', "", 'treatment', "none");
+                elseif applyAuto && auto
+                    s = struct('periods', "manual + automatic", 'treatment', treatment);
+                else
+                    s = struct('periods', "manual only", 'treatment', treatment);
+                end
+            end
+        end
+
         function d = detectOptions(sp, par)
             %detectOptions  The Spikes section as spikesToMat DetectOptions.
             %   NaN-valued "auto" settings (Threshold, MaxChunkSamples,

@@ -937,6 +937,68 @@ check(abs(app.ArtView.free(2) - (nSamp - 1) / Fs) < 1e-12, 'End: the end of the 
 app.Fig.WindowKeyPressFcn(app.Fig, kEvt('home', {}));
 check(app.ArtView.free(1) == 0, 'Home: its start');
 
+% Measure: a drag selects a stretch and scores it with every method.
+colSel = [0.15 0.45 0.9];
+app.showArtifactView([0 0.012]);
+check(strcmp(app.ArtMeasureButton.Enable, 'on') && size(app.ArtSelectionMethodTable.Data, 1) == 0 ...
+    && contains(app.ArtSelectionLabel.Text, "Measure"), 'Measure is on offer once a window is drawn; no selection yet');
+app.ArtMeasureButton.Value = true;
+app.ArtMeasureButton.ValueChangedFcn(app.ArtMeasureButton, []);
+check(app.ArtView.mark.on && app.ArtView.mark.kind == "measure" && contains(app.ArtMeasureButton.Text, "ON") ...
+    && ~app.ArtMarkButton.Value && strcmp(app.Fig.Pointer, 'crosshair') && isempty(ax.Interactions), ...
+    'Measure on: the same crosshair drag, Mark artifacts off');
+drawnow;
+nMan0 = size(dA.ManualArtifacts, 1);
+app.Fig.SelectionType = 'normal';
+app.Fig.CurrentPoint = pxAt(0.005);
+app.Fig.WindowButtonDownFcn(app.Fig, []);
+app.Fig.CurrentPoint = pxAt(0.009);
+app.Fig.WindowButtonMotionFcn(app.Fig, []);
+band = findobj(ax, 'Tag', 'artMarkBand');
+inFlight = isscalar(band) && isequal(band.FaceColor, colSel);
+app.Fig.WindowButtonUpFcn(app.Fig, []);
+S = app.ArtView.sel;
+mt = app.ArtSelectionMethodTable.Data;
+check(inFlight && isstruct(S) && max(abs(S.span - [0.005 0.009])) < 1e-9 && size(dA.ManualArtifacts, 1) == nMan0 ...
+    && isscalar(findobj(ax, 'Tag', 'artSelection')) && nOf(colSel) == 1 ...
+    && app.ArtResultTabs.SelectedTab == app.ArtSelectionTab ...
+    && height(mt) == 4 && all(startsWith(string(mt.Method), ["Running RMS", "MAD", "Absolute", "Common mode"])) ...
+    && height(app.ArtSelectionTable.Data) == numAmp && startsWith(app.ArtSelectionLabel.Text, "0.0050 to 0.0090 s"), ...
+    'a Measure drag selects the stretch (blue), marks nothing, and scores it per method and per channel');
+wM = app.ArtView.win;
+rowsM = ((wM.s0 + (0:size(wM.X, 1) - 1)') / wM.Fs) >= 0.005 & ((wM.s0 + (0:size(wM.X, 1) - 1)') / wM.Fs) < 0.009;
+Mref = dA.measureArtifacts(wM.X, rowsM, Fs=wM.Fs);
+check(strcmp(mt.Peak{3}, sprintf('%.0f uV', Mref.methods(3).peak)) || strcmp(mt.Peak{3}, sprintf('%.3g uV', Mref.methods(3).peak)), ...
+    'the table shows measureArtifacts on the rows selected');
+app.ArtThresholdField.Value = 1;
+app.onArtifactControlsChanged();
+check(contains(app.ArtSelectionMethodTable.Data.Threshold{string(app.ArtMethodDropDown.Value) == ["rms" "mad" "microvolts" "commonmode"]}, "(set)") ...
+    && startsWith(app.ArtSelectionMethodTable.Data.Threshold{string(app.ArtMethodDropDown.Value) == ["rms" "mad" "microvolts" "commonmode"]}, "1 "), ...
+    'a new threshold on the left re-scores the selection');
+app.applyArtifactsSection(art0);
+app.onArtifactControlsChanged();
+app.ArtMarkButton.Value = true;
+app.ArtMarkButton.ValueChangedFcn(app.ArtMarkButton, []);
+check(app.ArtView.mark.on && app.ArtView.mark.kind == "mark" && ~app.ArtMeasureButton.Value && isstruct(app.ArtView.sel), ...
+    'Mark artifacts on switches Measure off; the selection stays');
+app.Fig.WindowKeyPressFcn(app.Fig, kEvt('m', {}));
+check(app.ArtView.mark.kind == "measure" && app.ArtMeasureButton.Value && ~app.ArtMarkButton.Value, 'M over the plot: Measure');
+app.Fig.CurrentPoint = pxAt(0.007);
+app.Fig.WindowButtonDownFcn(app.Fig, []);
+app.Fig.WindowButtonUpFcn(app.Fig, []);
+check(isempty(app.ArtView.sel) && nOf(colSel) == 0 && height(app.ArtSelectionMethodTable.Data) == 0, ...
+    'a click clears the selection');
+app.Fig.CurrentPoint = pxAt(0.005);
+app.Fig.WindowButtonDownFcn(app.Fig, []);
+app.Fig.CurrentPoint = pxAt(0.009);
+app.Fig.WindowButtonUpFcn(app.Fig, []);
+app.Fig.WindowKeyPressFcn(app.Fig, kEvt('pagedown', {}));
+check(isempty(app.ArtView.sel) && height(app.ArtSelectionMethodTable.Data) == 0, 'another window drops the selection');
+app.Fig.WindowKeyPressFcn(app.Fig, kEvt('escape', {}));
+check(~app.ArtView.mark.on && ~app.ArtMeasureButton.Value && isequal(ax.Interactions, pan0), ...
+    'Escape turns Measure off: the pan comes back');
+app.ArtResultTabs.SelectedTab = app.ArtResultTabs.Children(1);
+
 % With a preview: the detected artifacts orange beside the manual periods
 % purple, marking on an artifact's window, and back from a stretch to them.
 dA.ManualArtifacts = manual0;

@@ -150,6 +150,7 @@ else
     obj.ArtView.free = [s0, s0 + m - 1] / Fs;   % as read (a chunk may clip it)
 end
 w.view = viewNote(acfg);
+w.acfg = acfg;            % the settings it was read with (measureArtifactSelection)
 obj.ArtView.win = w;
 obj.drawArtifactView();
 end

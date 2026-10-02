@@ -89,7 +89,6 @@ if isnan(thr)
 end
 
 [nSamples, nChan] = size(X);
-rmsWindowMs = NaN;   % reported in stats; only set for the "rms" method
 
 % The columns that take part; the rest are left out of X here and report 0.
 ch = opts.Channels;
@@ -108,45 +107,16 @@ nDet = numel(ch);
 mergeGapSamp = round(opts.MergeGapMs * 1e-3 * Fs);
 padSamp      = round(opts.PadMs      * 1e-3 * Fs);
 
-switch opts.Method
-    case "rms"
-        % Per-channel running RMS amplitude, then a robust z-score of that RMS
-        % against the channel's own baseline (median / MAD of the RMS). Squaring
-        % makes it polarity-blind; the running window smooths single-sample
-        % spikes so genuine high-amplitude episodes stand out.
-        if isnan(opts.RmsWindowMs) || opts.RmsWindowMs <= 0
-            w = max(1, round(Fs * 0.001));   % ~1 ms default
-        else
-            w = max(1, round(opts.RmsWindowMs * 1e-3 * Fs));
-        end
-        rmsWindowMs = 1e3 * w / Fs;           % actual window after rounding
-        r = sqrt(movmean(X.^2, w, 1));        % [nSamples x nDet]
-        med = median(r, 1);
-        sd  = median(abs(r - med), 1) * 1.4826;   % robust SD of the RMS
-        sd(sd == 0) = eps;
-        z = (r - med) ./ sd;                  % positive => elevated amplitude
-        exceed = z > thr;
-        mask = sum(exceed, 2) >= min(opts.MinChannels, nDet);
-        counts = sum(exceed, 1);
-
-    case "mad"
-        med = median(X, 1);
-        madv = median(abs(X - med), 1) * 1.4826;
-        madv(madv == 0) = eps;
-        z = abs(X - med) ./ madv;          % [nSamples x nDet]
-        exceed = z > thr;
-        mask = sum(exceed, 2) >= min(opts.MinChannels, nDet);
-        counts = sum(exceed, 1);
-
-    case "microvolts"
-        exceed = abs(X) > thr;
-        mask = sum(exceed, 2) >= min(opts.MinChannels, nDet);
-        counts = sum(exceed, 1);
-
-    case "commonmode"
-        cm = mean(X, 2);
-        mask = abs(cm) > thr;
-        counts = repmat(nnz(mask), 1, nDet);
+% The statistic each method thresholds (artifactScore, shared with
+% measureArtifacts), then the channels that exceed it at each sample.
+[score, rmsWindowMs] = artifactScore(X, opts.Method, Fs, opts.RmsWindowMs);
+if opts.Method == "commonmode"
+    mask = score > thr;
+    counts = repmat(nnz(mask), 1, nDet);
+else
+    exceed = score > thr;
+    mask = sum(exceed, 2) >= min(opts.MinChannels, nDet);
+    counts = sum(exceed, 1);
 end
 
 mask = mask(:);

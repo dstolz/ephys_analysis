@@ -731,6 +731,7 @@ classdef EphysPipeline < handle
                     writeJsonFile(cacheFile, struct('schema', schema, 'dataset', d.Name, ...
                         'fingerprint', fp, 'intervals', auto, 'nIntervals', size(auto, 1), ...
                         'created', string(datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss'))));
+                    d.writeManifest();   % its artifacts block now counts this detection
                 end
             end
             obj.Detections(key) = auto;
@@ -781,8 +782,10 @@ classdef EphysPipeline < handle
             P.ReaderOptions = cfg.Acquisition;
             acfg = EphysPipelineConfig.artifactConfig(cfg.Artifacts);
             tcfg = EphysPipelineConfig.trialConfig(cfg);
+            handling = EphysPipelineConfig.artifactHandling(cfg);
             for k = 1:P.NumDatasets
                 d = P.Datasets(k);
+                d.ArtifactHandling = handling;
                 d.PythonExe      = cfg.Sorting.PythonExe;
                 d.CondaEnv       = cfg.Sorting.CondaEnv;
                 d.ArtifactConfig = acfg;

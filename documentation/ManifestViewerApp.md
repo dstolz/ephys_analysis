@@ -46,7 +46,7 @@ in the status line.
 
 | Tab | Shows |
 | --- | --- |
-| **Summary** | every field, grouped by section (General, Recording, Probe, Channels, Manual artifacts, Binary, Kilosort run, Sorting, Behavior, Other). Fields the viewer does not know are listed under Other, one row per leaf. The **Check** column is worked out when the file is loaded (see below) |
+| **Summary** | every field, grouped by section (General, Recording, Probe, Channels, Manual artifacts, Artifacts, Binary, Kilosort run, Sorting, Behavior, Other). Fields the viewer does not know are listed under Other, one row per leaf. The **Check** column is worked out when the file is loaded (see below) |
 | **Timeline & probe** | the recording span with the manual artifact periods in red. A marker above each period keeps short ones visible. The behavior session start is drawn as a line when it falls inside the recording, and given in the title otherwise. Below it is the probe geometry from `probe.file`, else the default probe. The excluded channels (`chanMap + 1`) are marked ✕ and the channels left out of the common reference are circled |
 | **Tree** | the decoded JSON as an expandable tree |
 | **JSON** | the file's text |

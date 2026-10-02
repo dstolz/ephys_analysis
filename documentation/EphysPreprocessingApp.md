@@ -599,7 +599,9 @@ and the manual periods, after the common reference. The tab has three
 columns: the common reference and the detection settings with the active
 dataset's manual periods below them, the artifact viewer at full height (one
 plot, where the detected artifacts are reviewed and the manual periods
-marked), and the preview's summary with its per-channel table.
+marked), and two tabs on the right: **Preview** (the preview's summary with
+its per-channel table) and **Selection** (a stretch measured with **Measure**,
+below).
 
 | Control | Maps to |
 | --- | --- |
@@ -616,6 +618,7 @@ marked), and the preview's summary with its per-channel table.
 | Order channels by probe layout | display only, not saved: the viewer's lanes and the per-channel table in probe order (below). Needs a probe (the dataset's, else the config's default probe), and is ticked by default when there is one |
 | **Detect / Preview** | `analyzeArtifacts` over the active dataset (streamed, read-only; on the process pool when the Run tab's **Parallel** box is ticked): summary + per-channel table, and the detected artifacts in the viewer |
 | Detected artifacts: ◀ / number / ▶, Go to (s), Context (ms), Channels, Shank, Colour by shank, Scale, **Shade artifacts**, **Reset view** | the artifact viewer (display only, below) |
+| **Measure**, the **Selection** tab | display only: a stretch dragged over the plot, scored by every detection method (*Measuring a stretch*, below) |
 | Ctrl+drag on the viewer, **Restore bounds** | the active dataset's `ArtifactAdjustments`: detected artifacts with their onset or offset moved by hand (written to its manifest; *Moving a detected artifact's bounds*, below) |
 | Manual periods table, **Mark artifacts**, **Clear** | the active dataset's `ManualArtifacts` (written to its manifest); **Mark artifacts** marks them on the viewer's plot (*Marking manual periods*, below), **Clear** removes them all |
 
@@ -696,7 +699,9 @@ default.
 | R, **Reset view** | show the whole window at the Scale fit |
 | Ctrl+drag | move the artifact's onset or offset (below) |
 | drag, click (with **Mark artifacts** on) | mark a manual period; remove the one clicked (below) |
-| Esc | turn **Mark artifacts** off |
+| M, **Measure** | Measure on / off |
+| drag, click (with **Measure** on) | select a stretch and score it; clear the selection (below) |
+| Esc | turn **Mark artifacts** or **Measure** off |
 
 The voltage scale carries over from one artifact to the next until **Reset
 view** or a new **Scale**; with Manual the voltage keys change **Lanes**.
@@ -742,6 +747,37 @@ artifact's bound. Mark on an artifact's window, or anywhere with **Go to
 plot and a Visualize plot of the dataset follow; **Clear** removes them all.
 Marking needs a window drawn, stops by itself when you leave the tab or the
 dataset, and with **Esc**. It is refused while a run is under way.
+
+**Measuring a stretch.** **Measure** (beside *Shade artifacts*, or **M** over
+the plot; amber while on) turns the same drag into a selection: the stretch
+dragged over is shaded **blue** and scored by every detection method at once
+([`EphysDataset.measureArtifacts`](EphysDataset.md#artifact-detection-and-blanking)).
+The **Selection** tab on the right comes to the front. It shows:
+
+- a summary: the stretch's span, length and samples, the window it was
+  measured against, and which methods would flag it;
+- one row per method (*Running RMS* with its window, *MAD*, *Absolute*,
+  *Common mode*) giving its peak statistic (robust SDs or µV), its threshold,
+  the channels over it, and the share of the stretch it would flag
+  (*Min channels* applied, no stitching or padding). Rows that would flag are
+  shaded;
+- one row per channel giving RMS z, MAD z, peak, RMS and peak-to-peak µV,
+  sorted by the method chosen on the left (any column sorts on a click).
+  The channels over its threshold are shaded.
+
+The baselines (median / MAD) are those of the whole window shown, as
+detection takes them over its chunk, so measure on a window with enough clean
+signal around the stretch (a wider **Context**, or **Go to (s)**). The method
+chosen on the left is held to its **Threshold** (marked *(set)*), and the
+others to their defaults. *Min channels*, the RMS window and the channels
+excluded on the Probe tab come from the left too. Editing them re-scores the
+selection. *Common mode* is scored on the signal as recorded, as its detector
+reads it: with a common reference the window is read again unreferenced. A
+reader that cannot read a window leaves it out and the summary says so. A
+click clears the selection, and another window (stepping, paging, a new
+dataset) drops it. **Mark artifacts** and **Measure** are one drag in two
+modes: turning one on turns the other off. Measuring writes nothing, so it
+works during a run too.
 
 ## Sorting
 

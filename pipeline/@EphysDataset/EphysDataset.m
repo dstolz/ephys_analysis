@@ -198,6 +198,13 @@ classdef EphysDataset < handle
         % samples with Fs). See detectArtifacts, analyzeArtifacts, toBin and
         % defaultArtifactConfig.
         ArtifactConfig struct = EphysDataset.defaultArtifactConfig()
+
+        % How the steps treat the artifact periods, as the pipeline config
+        % says (EphysPipelineConfig.artifactHandling, set with the rest of
+        % the config by EphysPipeline.applyConfigToDatasets). Written to the
+        % manifest's artifacts block; [] (written as null) until a config
+        % has been applied.
+        ArtifactHandling = []
     end
 
     properties (SetAccess = protected)
@@ -245,6 +252,7 @@ classdef EphysDataset < handle
         % --- methods defined in separate files in this @-folder ---
         X      = filterContinuous(obj, X, opts)
         [mask, intervals, stats] = detectArtifacts(obj, X, opts)
+        M      = measureArtifacts(obj, X, rows, opts)
         [ts, wf, info] = detectSpikes(obj, X, opts)
         [units, info] = readSortedUnits(obj, opts)
         out    = spikesToMat(obj, opts)
@@ -759,6 +767,8 @@ classdef EphysDataset < handle
             if isempty(aa); aa = zeros(0, 4); end
             m.artifact_adjustments = aa;
 
+            m.artifacts = obj.artifactsManifest();
+
             m.bin =struct('file', obj.BinFile, 'exists', isfile(obj.BinFile));
 
             ks = struct('has_results', false, 'results_dir', "", ...
@@ -890,6 +900,42 @@ classdef EphysDataset < handle
                 obj.TrialPairing = EphysDataset.normalizeTrialPairing(m.behavior.pairing);
             end
             tf = true;
+        end
+
+        function f = artifactsFile(obj)
+            %artifactsFile  Path of the artifact-interval file (<outputFolder>/<Name>_artifacts.json).
+            %   Written by EphysPipeline.artifactIntervalsFor when
+            %   Artifacts.CacheIntervals is on; it is not there otherwise.
+            f = fullfile(obj.outputFolder(), obj.Name + "_artifacts.json");
+        end
+
+        function s = artifactsManifest(obj)
+            %artifactsManifest  Manifest block describing the dataset's artifacts.
+            %   file / exists / created / detected / detected_s come from the
+            %   artifact-interval file (artifactsFile): the number of
+            %   automatically detected artifacts and their total length in
+            %   seconds, null when there is no readable file. manual and
+            %   adjusted count the manual periods and the detected artifacts
+            %   moved by hand. handling is ArtifactHandling (null before a
+            %   config is applied). The intervals themselves stay in the file.
+            f = obj.artifactsFile();
+            s = struct('file', f, 'exists', isfile(f), 'created', "", ...
+                'detected', NaN, 'detected_s', NaN, ...
+                'manual', size(obj.ManualArtifacts, 1), ...
+                'adjusted', size(obj.ArtifactAdjustments, 1), ...
+                'handling', []);
+            if s.exists
+                c = readJsonFile(f, ErrorOnFail=false);
+                if isstruct(c) && isfield(c, 'intervals')
+                    iv = double(reshape(c.intervals, [], 2));
+                    s.detected   = size(iv, 1);
+                    s.detected_s = sum(iv(:, 2) - iv(:, 1));
+                    if isfield(c, 'created'); s.created = string(c.created); end
+                end
+            end
+            if isstruct(obj.ArtifactHandling)
+                s.handling = obj.ArtifactHandling;
+            end
         end
 
         function s = behaviorManifest(obj)

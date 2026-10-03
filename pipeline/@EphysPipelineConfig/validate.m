@@ -150,6 +150,14 @@ end
 
 % --- Sorting ---------------------------------------------------------------------
 S = obj.Sorting;
+if ~ismember(S.Quality.unknown, ["pass" "fail"])
+    add("sorting", "Quality", "error", "Quality.unknown must be ""pass"" or ""fail"".");
+end
+for f = ["isiViolationsRatioMax" "presenceRatioMin" "amplitudeCutoffMax" "snrMin" "driftPtpMax" "firingRateMin"]
+    if S.Quality.(f) < 0
+        add("sorting", "Quality", "error", "Quality." + f + " must be NaN (not applied) or at least 0.");
+    end
+end
 if S.Enabled
     if S.PythonExe == ""
         add("sorting", "PythonExe", "error", "PythonExe is required to run Kilosort4.");

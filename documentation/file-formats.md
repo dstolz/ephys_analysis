@@ -934,6 +934,44 @@ script) carries the config; one written by a direct call to a writer (a
 standalone script, `ds.toMat(...)`) carries the code version only. With
 `dirty` true the commit alone does not reproduce the code.
 
+## Unit quality metrics (quality_metrics.json)
+
+Path: `<sort results folder>/quality_metrics.json`, written by
+`EphysDataset.unitQuality` / `unitQualityOf` (and so by
+`readSortedUnits(Quality=true)`, the exporters, the Review tab and
+`selectUnits` with a quality filter) as a cache. Schema `ephys-unit-quality/1`:
+
+```text
+{
+  "schema":   "ephys-unit-quality/1",
+  "inputs":   { "spike_times_npy": { "bytes", "modified" }, ... },   the files the metrics came from:
+              spike_times, spike_clusters, amplitudes, spike_positions, templates, params.py,
+              settings.json; "modified" in whole seconds (-1 / -1: the file is not there)
+  "key":      { "numSamples", "firstSample", "fs", "metrics" },   the sorted span and unitQualityMetrics options
+  "definitions": "SpikeInterface 0.105 quality metrics ...",
+  "clusters": [ { "unitId", "firingRate", "isiViolationsRatio", "isiViolationsCount", "presenceRatio",
+                  "amplitudeCutoff", "snr", "driftPtp", "driftStd", "driftMad" }, ... ],   every cluster of the
+              folder; the metrics as "%.17g" strings, which read back to the same doubles ("NaN" for NaN);
+              snr is not cached (it is the template over the noise below)
+  "noise":    { "channels": [...], "uV": [...] },   the noise of each recording channel measured for SNR
+  "provenance": { the code that wrote it }
+}
+```
+
+The file is used only while every entry of `inputs` and `key` still holds; a
+merge or split in phy rewrites `spike_clusters.npy` and so makes it stale.
+Deleting it costs only the time to compute it again.
+
+`quality_report.html` (same folder): the QC page `writeUnitQualityReport`
+writes (the Review tab's **QC report**). `sortSweep` writes each variant's
+sort to `<outputFolder>/kilosort4_sweep/<name>/`, each with its own
+`quality_metrics.json` and `quality_report.html`.
+
+In the exports, the units struct carries the metrics as column fields and
+`quality` (the settings, the span, how SNR was measured): `units` in
+`<Name>_chronux.mat`, `spike.hdr.orig` in `<Name>_fieldtrip.mat`; each unit of
+`<Name>_epochs.mat` has `quality`, a struct of its metrics ([] without them).
+
 ## Run records
 
 **Pipeline runs.** Path: `<Project.OutputRoot>/pipeline_runs/<runId>_<name>.json`,

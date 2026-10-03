@@ -34,7 +34,9 @@ classdef EphysPipelineConfig
     %                (torch devices such as "cuda:0" "cuda:1" shared out
     %                among the runs; none = Kilosort4's choice), DryRun,
     %                SkipExisting, KS4 (typed per kilosortParamSpec),
-    %                KS4ExtraJSON
+    %                KS4ExtraJSON, Quality (good-unit criteria on the quality
+    %                metrics, unitQualityCriteria: the Review tab, the QC
+    %                report)
     %     Signals    Enabled + the derived-signal (toMat) settings,
     %                BlankArtifacts (erase the artifact periods before
     %                deriving, and record them in every file; the automatic
@@ -50,7 +52,8 @@ classdef EphysPipelineConfig
     %                (sorted units stay in the sorting folder)
     %     Export     Enabled, Formats (a subset of ExportFormats: the
     %                analysis-toolbox files, kCSD-python's .npz and the
-    %                event-organized epochs), what to include, the Epoch*
+    %                event-organized epochs), what to include (UnitQuality:
+    %                the units carry their quality metrics), the Epoch*
     %                settings of the epoch format
     %
     %   Usage
@@ -406,6 +409,7 @@ classdef EphysPipelineConfig
             o = struct();
             if ~isempty(e.Signals); o.Signals = e.Signals; end
             if e.IncludeUnits;    o.Units = [];    else; o.Units = false;    end
+            o.UnitQuality = logical(e.UnitQuality);
             o.Detected = logical(e.IncludeDetected);
             o.Events   = logical(e.IncludeEvents);
             o.Groups     = e.Groups;

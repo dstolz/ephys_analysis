@@ -442,6 +442,8 @@ classdef EphysPreprocessingApp < handle
         ReviewSummaryLabel  matlab.ui.control.Label
         ReviewUnitsTable    matlab.ui.control.Table
         ReviewAllUnitsButton matlab.ui.control.Button
+        ReviewQCButton      matlab.ui.control.Button          % the loaded sort's QC report (writeUnitQualityReport)
+        ReviewCriteriaFields struct = struct()                % Sorting.Quality: one text field per threshold
         ReviewShankAxes     matlab.ui.control.UIAxes
         ReviewISIAxes       matlab.ui.control.UIAxes          % the selected unit's inter-spike intervals
         ReviewACGAxes       matlab.ui.control.UIAxes          % the selected unit's autocorrelogram
@@ -1163,6 +1165,8 @@ classdef EphysPreprocessingApp < handle
         onReviewUnitSelected(obj, evt)
         onReviewNoteEdited(obj, evt)
         onReviewAllUnits(obj)
+        onReviewCriteriaChanged(obj)
+        onReviewQCReport(obj)
 
         % --- Synthetic tab ---
         ok = onSynthLoadSource(obj)

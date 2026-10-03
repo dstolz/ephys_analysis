@@ -48,6 +48,11 @@ function out = exportChronux(obj, opts)
 %     Units      [] (default: the associated sorted units when present) |
 %                a units struct | false (none)
 %     Groups     phy groups to keep when reading units (default ["good" "mua"])
+%     UnitQuality  true (default): the units carry their quality metrics
+%                (EphysDataset.unitQuality: firingRate, isiViolationsRatio,
+%                presenceRatio, amplitudeCutoff, snr, drift...); a failure is a
+%                warning (EphysDataset:exportChronux:NoUnitQuality) and the
+%                units are written without them
 %     Detected   true (default: <Name>_spikes.mat when present) | a spikes
 %                file | a detected struct | false
 %     Sources    provenance to record for inputs passed as structs: a struct
@@ -69,6 +74,7 @@ arguments
     opts.Signals (1,:) string = string.empty(1,0)
     opts.Units = []
     opts.Groups (1,:) string = ["good" "mua"]
+    opts.UnitQuality (1,1) logical = true   % units read with their quality metrics (EphysDataset.unitQuality)
     opts.Detected = true
     opts.Sources struct = struct()
     opts.Events (1,1) logical = true

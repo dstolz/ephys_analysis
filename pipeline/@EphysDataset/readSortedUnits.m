@@ -12,6 +12,10 @@ function [units, info] = readSortedUnits(obj, opts)
 %
 %   Options: ResultsDir (override the folder), and every readPhyUnits option
 %   (Groups, IncludeNoise, Templates, FullTemplates, ChannelMap, FsFallback).
+%   Quality=true adds the quality metrics (EphysDataset.unitQuality:
+%   firingRate, isiViolationsRatio, presenceRatio, amplitudeCutoff, snr,
+%   drift...) as fields of UNITS, from the sort folder's cache when it is
+%   current.
 %
 %   See also EphysDataset.readPhyUnits, EphysDataset.unitIdentity,
 %   EphysDataset.sortingResultsDir,
@@ -26,6 +30,7 @@ arguments
     opts.FullTemplates (1,1) logical = false
     opts.ChannelMap (1,:) double = []
     opts.FsFallback (1,1) double = NaN
+    opts.Quality (1,1) logical = false
 end
 
 identity = obj.unitIdentity();
@@ -41,4 +46,7 @@ if isnan(fsFallback); fsFallback = obj.Fs; end
     Templates=opts.Templates, FullTemplates=opts.FullTemplates, ...
     ChannelMap=opts.ChannelMap, ChannelNumbers=obj.ChannelNumbers, ChannelNames=obj.NativeNames, ...
     FsFallback=fsFallback, Identity=identity);
+if opts.Quality
+    [units, ~] = obj.unitQuality(units, info);
+end
 end

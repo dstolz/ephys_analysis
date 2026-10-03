@@ -27,6 +27,7 @@ for c = string(fieldnames(E.classes)).'
 end
 E.ids.Value = listText(p.units.ids);
 E.maxUnits.Value = char(string(p.units.maxUnits));
+E.quality.Value = logical(p.units.quality.enabled);
 if ismember(p.source, EphysAnalysisConfig.SignalSources)
     E.channels.Value = listText(p.channels);
 else

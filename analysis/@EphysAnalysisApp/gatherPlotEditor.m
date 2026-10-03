@@ -18,6 +18,7 @@ if isempty(cls); cls = string.empty(1, 0); end
 p.units.classes = cls;
 p.units.ids = parseList(E.ids.Value);
 p.units.maxUnits = parseScalar(E.maxUnits.Value, Inf);
+p.units.quality.enabled = logical(E.quality.Value);
 ch = parseList(E.channels.Value);
 if ismember(p.source, EphysAnalysisConfig.SignalSources)
     p.channels = ch;

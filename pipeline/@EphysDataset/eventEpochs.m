@@ -47,8 +47,10 @@ function E = eventEpochs(obj, opts)
 %                data holds; droppedArtifact the ones left out for an
 %                artifact period)
 %     units      1 x nUnits struct array of the sorted units: id, label,
-%                class, group, channel, channelName, times {1 x nEpochs} and
-%                counts [1 x nEpochs]. Empty when no units were included
+%                class, group, channel, channelName, times {1 x nEpochs},
+%                counts [1 x nEpochs] and quality (the unit's quality
+%                metrics, EphysDataset.unitQuality, with UnitQuality; else
+%                []). Empty when no units were included
 %     detected   the same for threshold-detected spikes, one element per
 %                channel (channel, channelName, times, counts), or []
 %     spikes     how the spike times are stamped: timeBase, window, rule
@@ -71,6 +73,9 @@ function E = eventEpochs(obj, opts)
 %     Units          [] (default: the associated sorted units) | a units
 %                    struct | false (none)
 %     Groups         phy groups to keep when reading units (["good" "mua"])
+%     UnitQuality    true (default): each unit carries its quality metrics
+%                    (units.quality; EphysDataset.unitQuality); a failure is a
+%                    warning and they are left out
 %     Detected       true (default: <Name>_spikes.mat when present) | a
 %                    spikes file | a detected struct | false
 %     Sources        provenance of inputs passed as structs, as in
@@ -116,6 +121,7 @@ arguments
     opts.Signals (1,:) string = string.empty(1,0)
     opts.Units = []
     opts.Groups (1,:) string = ["good" "mua"]
+    opts.UnitQuality (1,1) logical = true   % units read with their quality metrics (EphysDataset.unitQuality)
     opts.Detected = true
     opts.Sources struct = struct()
     opts.Events (1,1) logical = true
@@ -334,6 +340,7 @@ if ~isempty(in.units)
         U(u).channelName = fieldOrDefault(in.units, 'channelName', u, "");
         U(u).times       = ep;
         U(u).counts      = cnt;
+        U(u).quality     = unitQualityOfRow(in.units, u);
     end
 end
 
@@ -525,7 +532,20 @@ end
 
 function u = emptyUnitTemplate()
 u = struct('id', NaN, 'label', "", 'class', "", 'group', "", ...
-    'channel', NaN, 'channelName', "", 'times', {{}}, 'counts', []);
+    'channel', NaN, 'channelName', "", 'times', {{}}, 'counts', [], 'quality', []);
+end
+
+
+function q = unitQualityOfRow(units, u)
+%unitQualityOfRow  Unit U's quality metrics (EphysDataset.unitQuality) as a struct, or [] without them.
+q = [];
+m = ["firingRate" "isiViolationsRatio" "isiViolationsCount" "presenceRatio" ...
+     "amplitudeCutoff" "snr" "driftPtp" "driftStd" "driftMad"];
+if ~all(isfield(units, m)); return; end
+q = struct();
+for f = m
+    q.(f) = double(units.(f)(u));
+end
 end
 
 

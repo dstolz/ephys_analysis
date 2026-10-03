@@ -1593,6 +1593,78 @@ Notes column of the app's Review tab; every read picks them up as
 - **`[ids, notes, file] = EphysDataset.readUnitNotes(resultsDir)`** reads them
   (empty outputs when there is no file).
 
+#### Unit quality metrics
+
+**`[units, Q] = ds.unitQuality()`** (or `ds.readSortedUnits(Quality=true)`)
+adds to each sorted unit the quality metrics of
+[SpikeInterface](https://spikeinterface.readthedocs.io) 0.105's
+`spikeinterface.metrics.quality`, with its default parameters, as column
+fields of `units` (`Q` is the same as a table). [`unitQualityMetrics`](../pipeline/unitQualityMetrics.m)
+computes them; `test_UnitQuality` checks every one against the values
+SpikeInterface itself gives ([`tools/golden/unit_quality_golden.py`](../tools/golden/unit_quality_golden.py)):
+
+| Field | Meaning | NaN when |
+| --- | --- | --- |
+| `firingRate` | spikes / the sorted span (Hz) | |
+| `isiViolationsRatio`, `isiViolationsCount` | V T / (2 N² (1.5 ms − 0)): the rate of a hypothetical contaminating unit relative to the unit's (Hill et al. 2011); V the intervals under 1.5 ms | |
+| `presenceRatio` | the fraction of the span's whole 60 s bins with a spike | the span is under 60 s |
+| `amplitudeCutoff` | the fraction of spikes missed below the detection threshold, from the histogram of Kilosort4's per-spike amplitudes (`amplitudes.npy`): 500 bins, smoothed and truncated to whole counts as SpikeInterface does; at most 0.5 | under 2500 spikes |
+| `snr` | the template's largest \|value\| on the peak channel (when `templateUnits` is `"uV"`) over the noise of the recording on that channel: `noiseLevels`, high-passed at the sort's `highpass_cutoff` (300 Hz) with a 3rd-order filter, as Kilosort4 filters, over 4 chunks | no uV templates |
+| `driftPtp`, `driftStd`, `driftMad` | the unit's median depth (`spike_positions.npy`'s y) in each whole 60 s interval with 100 spikes or more, less its median over all spikes: range, SD, MAD (µm) | no positions; fewer than 2 intervals; over half lacking spikes |
+
+The span is what Kilosort4 sorted: `tmin` to `tmax` of the sort's
+`settings.json` (the whole recording by default) of the `.bin` it names, else
+of the recording; spike times count from the recording's start, so the span's
+start is subtracted first. `units.quality` records the settings, the span and
+where its length came from, how SNR was measured and the cache. The metrics of
+every cluster of the folder, and the noise of each channel measured, are
+cached in `<resultsDir>/quality_metrics.json` ([format](file-formats.md#unit-quality-metrics-quality_metricsjson))
+with the size and time of the files they came from: a merge or split in phy,
+which rewrites `spike_clusters.npy`, makes it stale. **`EphysDataset.unitQualityOf(units,
+info, NumSamples=)`** does the same without a dataset (and without SNR unless
+given `NoiseFcn`).
+
+**Criteria.** [`unitQualityPass(units, criteria)`](../pipeline/unitQualityPass.m)
+says which units meet good-unit criteria ([`unitQualityCriteria`](../pipeline/unitQualityCriteria.m)):
+by default `isiViolationsRatio < 0.5`, `presenceRatio > 0.9` and
+`amplitudeCutoff < 0.1`, the Allen Institute's for its Visual Coding
+Neuropixels units, strict as there; `snrMin`, `driftPtpMax` and
+`firingRateMin` are off (NaN). A metric that is NaN is unknown and passes
+unless `unknown = "fail"`; the second and third outputs list the criteria
+each unit fails and those it could not be judged on. The pipeline config
+keeps its criteria in `Sorting.Quality` (the Review tab's QC column and QC
+report), the analysis config in `UnitSelection.quality` (`selectUnits`).
+
+**QC page.** [`writeUnitQualityReport(units)`](../pipeline/writeUnitQualityReport.m)
+writes `<resultsDir>/quality_report.html`: the units per class and how many
+meet the criteria, the criteria, a histogram of each metric with its
+threshold, and a row per unit with the failed metrics marked. One HTML file,
+no scripts, no external files.
+
+**Comparing sorter settings.** [`sortSweep(ds, variants)`](../pipeline/sortSweep.m)
+sorts the dataset once per variant (`struct('name', ..., 'settings', ...)`,
+the settings being `runKilosort`'s `ExtraSettings`) into
+`<outputFolder>/kilosort4_sweep/<name>`, every variant on the same `.bin`, and
+compares them: units per class, units meeting the criteria and the median of
+each metric (`R.summary`), every unit with its variant (`R.units`), a QC page
+per sort and, with `ReportFile=`, one page comparing them.
+`sortSweep(ds, folders)` compares sorts that exist; `DryRun=true` writes each
+variant's `settings.json` and `run_ks4.py` only.
+
+```matlab
+[units, Q] = ds.unitQuality();
+pass = unitQualityPass(units);                    % the default criteria
+writeUnitQualityReport(units);                    % kilosort4/quality_report.html
+v = struct('name', {"th8", "th10"}, 'settings', {struct('Th_universal', 8), struct('Th_universal', 10)});
+R = sortSweep(ds, v, ReportFile=fullfile(ds.outputFolder(), "sweep.html"));
+```
+
+The exporters (`exportChronux`, `exportFieldTrip`, `exportEpochs`) read the
+units with their metrics (`UnitQuality=true`, the default; the pipeline's
+`Export.UnitQuality`); a sort whose metrics cannot be computed is exported
+without them, with a warning (`EphysDataset:<exporter>:NoUnitQuality`).
+`unitTable` has a column per metric (NaN for units without them).
+
 ### Derived signals (the `intan2matlab` processing)
 
 **`[Y, ev, info] = deriveSignals(Name=Value)`** reads the whole recording through

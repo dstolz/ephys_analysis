@@ -22,7 +22,7 @@ function out = exportEpochs(obj, opts)
 %                signals   LFP / MUA / SPIKE / AUX: data [nTime x nEpochs x
 %                          nChan], t (seconds relative to the onset), fs,
 %                          labels, units, info
-%                units     1 x nUnits: id, label, class, group, channel,
+%                units     1 x nUnits: id, label, class, group, channel, quality,
 %                          times {1 x nEpochs}, counts
 %                detected  the same per detected channel, or []
 %                spikes    how the spike times are stamped
@@ -37,7 +37,7 @@ function out = exportEpochs(obj, opts)
 %     File       target (default <outputFolder>/<Name>_epochs.mat)
 %     Overwrite  false (default): error if File exists
 %     MatVersion "-v7.3" (default) | "-v7"
-%     Extract, Signals, Units, Groups, Detected, Sources, Events,
+%     Extract, Signals, Units, Groups, UnitQuality, Detected, Sources, Events,
 %     EventSource, EventLine, Times, Behavior, Window, OnsetRule, Incomplete,
 %     NonFinite, Artifacts, SpikeTimeBase, Class, MinDurationSec,
 %     MaxDurationSec
@@ -61,6 +61,7 @@ arguments
     opts.Signals (1,:) string = string.empty(1,0)
     opts.Units = []
     opts.Groups (1,:) string = ["good" "mua"]
+    opts.UnitQuality (1,1) logical = true   % units read with their quality metrics (EphysDataset.unitQuality)
     opts.Detected = true
     opts.Sources struct = struct()
     opts.Events (1,1) logical = true

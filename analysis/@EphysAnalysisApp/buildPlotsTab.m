@@ -84,6 +84,10 @@ end
 E.ids = uieditfield(S.Body, "text", "Placeholder", "all", "ValueChangedFcn", changed, ...
     "Tooltip", "Unit ids (sorted units) or channels (detections), e.g. 3 5 8:12.");
 place(E.ids, r, 2);
+[S, r] = formRow(S, "quality", "Quality:");
+E.quality = uicheckbox(S.Body, "Text", "Good units only", "Value", false, "ValueChangedFcn", changed, ...
+    "Tooltip", "Keep only the sorted units that meet the good-unit criteria (units.quality in the config: by default ISI violations ratio < 0.5, presence ratio > 0.9, amplitude cutoff < 0.1). The metrics are computed once per sort and cached in its folder.");
+place(E.quality, r, 2);
 [S, r] = formRow(S, "maxUnits", "Max units:");
 E.maxUnits = uieditfield(S.Body, "text", "Value", "Inf", "ValueChangedFcn", changed);
 place(E.maxUnits, r, 2);

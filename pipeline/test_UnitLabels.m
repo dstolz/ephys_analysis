@@ -234,13 +234,15 @@ UC = P.Datasets(iC).readSortedUnits(IncludeNoise=true);
 T = unitTable({UA, UC});
 check(isequal(string(T.Properties.VariableNames), ["label" "class" "subject" "recordingStart" "datasetKey" ...
     "unitId" "group" "channel" "channelName" "channelNumber" "ksChannel" "shank" "peakX" "peakY" "x" "y" "notes" ...
-    "nSpikes" "amplitude" "contamPct" "curated" "fs" "resultsDir" "times"]), 'column order');
+    "nSpikes" "amplitude" "contamPct" "firingRate" "isiViolationsRatio" "isiViolationsCount" "presenceRatio" ...
+    "amplitudeCutoff" "snr" "driftPtp" "driftStd" "driftMad" "curated" "fs" "resultsDir" "times"]), 'column order');
 check(height(T) == 5 && isstring(T.label) && isdatetime(T.recordingStart) && iscell(T.times) ...
     && isequal(T.times{1}, UA.times{1}), 'one row per unit, typed columns');
 su = T(T.class == "su" & T.subject == "S1", :);
 check(height(su) == 1 && su.label == "su000_S1_260101T1200" && su.datasetKey == keys(iA), 'filter by class and subject');
-check(width(unitTable(UA, Times=false)) == 23, 'Times=false drops the times column');
-check(height(unitTable([])) == 0 && width(unitTable([])) == 24, 'no units, an empty typed table');
+check(width(unitTable(UA, Times=false)) == 32, 'Times=false drops the times column');
+check(height(unitTable([])) == 0 && width(unitTable([])) == 33, 'no units, an empty typed table');
+check(all(isnan(T.snr)) && all(isnan(T.presenceRatio)), 'units read without quality metrics: NaN in their columns');
 check(strcmp(errorId(@() unitTable({UA, UA})), 'unitTable:DuplicateUnit'), 'the same unit twice is an error');
 UB = P.Datasets(iB).readSortedUnits();
 lastwarn('');

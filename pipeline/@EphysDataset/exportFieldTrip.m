@@ -34,8 +34,9 @@ function out = exportFieldTrip(obj, opts)
 %
 %   Options
 %   -------
-%     File, Extract, Signals, Units, Groups, Detected, Sources, Events,
-%     Overwrite, MatVersion   as in exportChronux
+%     File, Extract, Signals, Units, Groups, UnitQuality, Detected, Sources,
+%     Events, Overwrite, MatVersion   as in exportChronux (the quality
+%     metrics ride in spike.hdr.orig, the units struct)
 %     Validate   true (default): when FieldTrip is on the path run
 %                ft_datatype_raw / ft_datatype_spike on the structures and
 %                record the outcome (warn on failure); no-op otherwise
@@ -50,6 +51,7 @@ arguments
     opts.Signals (1,:) string = string.empty(1,0)
     opts.Units = []
     opts.Groups (1,:) string = ["good" "mua"]
+    opts.UnitQuality (1,1) logical = true   % units read with their quality metrics (EphysDataset.unitQuality)
     opts.Detected = true
     opts.Sources struct = struct()
     opts.Events (1,1) logical = true

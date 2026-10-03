@@ -51,6 +51,21 @@ says how to cut a release.
   `Spikes.ThresholdScope` in the config (default `"chunk"`, the behaviour so
   far) and **Noise measured over** on the Spikes tab; the spikes file records
   the scope (`detected.info.thresholdScope`). Suite `test_ThresholdScope`.
+- Unit quality metrics with SpikeInterface's definitions (`unitQualityMetrics`:
+  firing rate, ISI violations ratio and count, presence ratio, amplitude
+  cutoff, SNR, drift), every one checked against SpikeInterface's own values
+  (`tools/golden/unit_quality_golden.py`, `pipeline/testdata/`).
+  `EphysDataset.unitQuality` / `unitQualityOf` / `readSortedUnits(Quality=true)`
+  add them to the units, over the span Kilosort4 sorted, cached per sort in
+  `quality_metrics.json`. Good-unit criteria (`unitQualityCriteria`,
+  `unitQualityPass`; the Allen Institute's thresholds by default) in the
+  pipeline config (`Sorting.Quality`) and the analysis config
+  (`UnitSelection.quality`, applied by `selectUnits`). `unitTable` columns;
+  the exporters carry the metrics (`UnitQuality`, `Export.UnitQuality`, on by
+  default; a failure is a warning). Review tab: QC, ISIv, Pres, Cutoff and SNR
+  columns, editable criteria, **QC report** (`writeUnitQualityReport`, one HTML
+  page per sort). `sortSweep` sorts a dataset with several Kilosort4 settings
+  on the same `.bin` and compares the sorts. Suite `test_UnitQuality`.
 - `benchmarkDetection`: spike and artifact detection scored against synthetic
   ground truth (per-unit recall with its SNR; per-channel precision, duplicate
   and noise-crossing rates; artifact recall, coverage, edge errors and false

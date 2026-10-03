@@ -11,7 +11,7 @@ function syncPlotEditor(obj)
 %
 %   Shown for (spikes: units or detected; signals: LFP / MUA / SPIKE / AUX)
 %     layout                      the kinds with more than one
-%     unit classes                sorted units
+%     unit classes, quality       sorted units
 %     unit ids, max units, shanks spikes
 %     event, window, selection    every kind but probemap (aligns to nothing)
 %     bin, smoothing              psth, raster, heatmap of spikes, corrmap
@@ -71,6 +71,7 @@ v = struct();
 v.kind = true; v.note = true; v.id = true; v.title = true; v.source = true;
 v.layout = numel(ch.Layouts) > 1;
 v.classes = source == "units";
+v.quality = source == "units";
 v.ids = spikes; v.maxUnits = spikes; v.shanks = spikes;
 v.channels = true;
 v.binMs = binned; v.smoothMs = binned;

@@ -72,7 +72,8 @@ switch section
             'ids',      [], ...                 % unit ids kept ([] = all)
             'channels', [], ...                 % 1-based recording channels kept ([] = all)
             'shanks',   [], ...                 % shanks kept ([] = all)
-            'maxUnits', Inf);
+            'maxUnits', Inf, ...
+            'quality',  qualityDefaults());     % keep the sorted units that meet good-unit criteria (unitQualityPass)
 
     case "Style"
         s = struct( ...
@@ -156,5 +157,15 @@ switch section
 
     otherwise
         error('EphysAnalysisConfig:BadSection', 'Unknown section "%s".', section);
+end
+end
+
+
+function q = qualityDefaults()
+%qualityDefaults  UnitSelection.quality: off, with unitQualityCriteria's thresholds.
+q = struct('enabled', false);
+c = unitQualityCriteria();
+for f = string(fieldnames(c)).'
+    q.(f) = c.(f);
 end
 end

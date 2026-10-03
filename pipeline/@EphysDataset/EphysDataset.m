@@ -263,6 +263,7 @@ classdef EphysDataset < handle
         M      = measureArtifacts(obj, X, rows, opts)
         [ts, wf, info] = detectSpikes(obj, X, opts)
         [units, info] = readSortedUnits(obj, opts)
+        [units, Q] = unitQuality(obj, units, info, opts)
         out    = spikesToMat(obj, opts)
         out    = exportChronux(obj, opts)
         out    = exportFieldTrip(obj, opts)
@@ -1346,6 +1347,7 @@ classdef EphysDataset < handle
         end
 
         [units, info] = readPhyUnits(resultsDir, opts)
+        [units, Q] = unitQualityOf(units, info, opts)
         [W, info] = readPhyWaveforms(resultsDir, samples, opts)
         id = nameIdentity(name, pattern)
         E = relabelEvents(E, labelField, lineNames)

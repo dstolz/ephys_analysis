@@ -49,4 +49,10 @@ if ~isempty(obj.ExtraSettingsArea) && isvalid(obj.ExtraSettingsArea)
     if txt == ""; txt = "{" + newline + "}"; end
     obj.ExtraSettingsArea.Value = cellstr(splitlines(txt));
 end
+F = obj.ReviewCriteriaFields;
+for f = string(fieldnames(F)).'
+    if ~isvalid(F.(f)); continue; end
+    v = S.Quality.(f);
+    if isnan(v); F.(f).Value = ''; else; F.(f).Value = char(obj.numberText(v)); end
+end
 end

@@ -27,8 +27,17 @@ function [st, meta] = selectUnits(src, usel)
 %     channels  1-based recording channels kept ([] = all)
 %     shanks    shanks kept ([] = all): the probe map's kcoords values
 %     maxUnits  at most this many, in order
+%     quality   good-unit criteria (unitQualityCriteria's fields) and
+%               enabled: with enabled, the sorted units get their quality
+%               metrics (EphysDataset.unitQuality with the dataset, else
+%               unitQualityOf on the recording's length, without SNR; the
+%               sort folder's cache when current), only those that meet the
+%               criteria are kept (unitQualityPass), and META gains
+%               firingRate, isiViolationsRatio, presenceRatio,
+%               amplitudeCutoff, snr, driftPtp, qualityPass, qualityFails
+%               and qualityUnknown
 %
-%   Errors: selectUnits:NoUnits, selectUnits:NoDetected, selectUnits:NoneLeft,
+%   Errors: selectUnits:NoUnits, selectUnits:NoDetected, selectUnits:NoneLeft, selectUnits:NoQuality,
 %   selectUnits:BadSource.
 %
 %   See also loadAnalysisSource, psth, firingRate, unitSummary.
@@ -49,7 +58,12 @@ switch usel.source
         if ~src.hasUnits
             error('selectUnits:NoUnits', '%s has no sorted units (no sorting folder).', src.name);
         end
-        U = out.load("sorting");
+        q = usel.quality;
+        if q.enabled
+            U = withQuality(src, q);
+        else
+            U = out.load("sorting");
+        end
         nU = numel(U.unitId);
         meta = table(col(U, 'label', strings(nU, 1)), double(U.unitId(:)), col(U, 'class', strings(nU, 1)), ...
             double(col(U, 'channel', NaN(nU, 1))), col(U, 'channelName', strings(nU, 1)), ...
@@ -68,6 +82,16 @@ switch usel.source
         if ~isempty(usel.classes); keep = keep & ismember(meta.class, usel.classes); end
         if ~isempty(usel.groups);  keep = keep & ismember(groups, usel.groups); end
         if ~isempty(usel.ids);     keep = keep & ismember(meta.unitId, usel.ids); end
+        if q.enabled
+            [pass, why, unknown] = unitQualityPass(U, rmfield(q, 'enabled'));
+            for m = ["firingRate" "isiViolationsRatio" "presenceRatio" "amplitudeCutoff" "snr" "driftPtp"]
+                meta.(m) = double(U.(m)(:));
+            end
+            meta.qualityPass = pass;
+            meta.qualityFails = why;
+            meta.qualityUnknown = unknown;
+            keep = keep & pass;
+        end
     case "detected"
         if ~src.hasDetected
             error('selectUnits:NoDetected', '%s has no threshold detections (no spikes file with detected spikes).', src.name);
@@ -108,6 +132,28 @@ if isempty(idx)
 end
 st = st(idx);
 meta = meta(idx, :);
+end
+
+
+function U = withQuality(src, q)
+%withQuality  The sorted units with their quality metrics.
+%   With the dataset (its recording at hand), EphysDataset.unitQuality: the
+%   sort's length and, when an SNR threshold is set, the recording's noise.
+%   Without it, EphysDataset.unitQualityOf on the recording's length as
+%   SRC knows it (fs x durationSec), and no SNR. Both use the sort
+%   folder's quality_metrics.json when it is current.
+out = src.outputs;
+[U, info] = out.readUnits();
+if ~isempty(out.Dataset)
+    U = out.Dataset.unitQuality(U, info, Noise=isfinite(q.snrMin));
+    return
+end
+n = round(src.fs * src.durationSec);
+if ~(n > 0)
+    error('selectUnits:NoQuality', ...
+        '%s: the quality metrics need the recording''s length, and it is not known here.', src.name);
+end
+U = EphysDataset.unitQualityOf(U, info, NumSamples=n, NumSamplesSource="the dataset's metadata (fs x durationSec)");
 end
 
 

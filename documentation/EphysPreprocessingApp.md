@@ -1381,9 +1381,26 @@ dataset whose name does not match `Project.NamePattern`, is read with
 - **Units table**: Unit, Group (phy's `cluster_group.tsv` when present, else
   `cluster_KSLabel.tsv`), Shank, Ch (the peak channel's native name, else its
   recording channel number), X / Y (µm, the template centre on the probe),
-  #Spk, FR (Hz), Amp, Cont%, **Notes**. Clicking a row focuses the plots, whose
-  titles show the unit label; **Show all units** clears the focus. The table
-  scrolls sideways.
+  #Spk, FR (Hz), Amp, Cont%, **QC** (meets the criteria: yes / no), the
+  metrics it judges (ISIv: ISI violations ratio, Pres: presence ratio,
+  Cutoff: amplitude cutoff, SNR), **Notes**. The quality metrics are
+  computed when the sort loads ([`EphysDataset.unitQuality`](EphysDataset.md#unit-quality-metrics):
+  the active dataset's sort with SNR from the recording's noise; any other
+  folder without SNR, from the length of the `.bin` its `settings.json`
+  names) and cached in the sort folder's `quality_metrics.json`; the
+  Summary says how many units meet the criteria, or why the metrics could
+  not be computed. Clicking a row focuses the plots, whose titles show the
+  unit label; **Show all units** clears the focus. The table scrolls
+  sideways.
+- **Good-unit criteria** (above the table): ISI ratio <, Presence >, Cutoff <,
+  SNR >, Drift <, Rate > (blank = not applied), the config's
+  `Sorting.Quality` (default 0.5, 0.9 and 0.1 for the first three, the
+  Allen Institute's thresholds). Editing one judges the loaded units again at
+  once, without computing their metrics again.
+- **QC report**: writes the loaded sort's unit-quality page,
+  `quality_report.html` in the results folder ([`writeUnitQualityReport`](EphysDataset.md#unit-quality-metrics):
+  the criteria, a histogram per metric, a row per unit with its failed
+  metrics marked), and opens it in the browser.
 - **Notes**: the one editable column. Typing a note saves it at once to
   `cluster_notes.tsv` next to the sort (`EphysDataset.writeUnitNotes`), the
   file phy uses for a `notes` label, so the Spikes and Export steps and

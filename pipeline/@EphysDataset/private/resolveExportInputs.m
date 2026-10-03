@@ -15,7 +15,9 @@ function in = resolveExportInputs(obj, opts, who)
 %                  an extract passed as a struct without them
 %     in.sources   provenance (extractFile, spikesFile, sortingDir)
 %
-%   opts fields: Extract, Signals, Units, Detected, Events, Groups, Sources.
+%   opts fields: Extract, Signals, Units, Detected, Events, Groups, Sources,
+%   and UnitQuality (true: the units are read with their quality metrics,
+%   readSortedUnits(Quality=true)).
 %
 %   Extract may be one file, several files (e.g. the per-signal-type files of
 %   toMat(SeparateFiles=true), merged here: Y / info signals from every file,
@@ -117,7 +119,18 @@ elseif islogical(u) && ~u
     in.units = [];
 elseif isempty(u)
     if obj.hasKilosortResults()
-        in.units = obj.readSortedUnits(Groups=opts.Groups);
+        [in.units, uinfo] = obj.readSortedUnits(Groups=opts.Groups);
+        if isfield(opts, 'UnitQuality') && opts.UnitQuality
+            try
+                in.units = obj.unitQuality(in.units, uinfo);
+                % whether the metrics came from the sort's cache is not part of the export
+                in.units.quality = rmfield(in.units.quality, 'cache');
+            catch ME
+                warning(['EphysDataset:' who ':NoUnitQuality'], ...
+                    'The quality metrics of the units of %s could not be computed (%s); the units are exported without them.', ...
+                    obj.Name, ME.message);
+            end
+        end
         src.sortingDir = string(obj.sortingResultsDir());
     end
 else

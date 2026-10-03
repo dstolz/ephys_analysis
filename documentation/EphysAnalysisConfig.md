@@ -138,6 +138,7 @@ A plot's `units` (its `source` is the plot's `source`):
 | `channels` | `[]` | 1-based recording channels |
 | `shanks` | `[]` | shanks, as the probe map's `kcoords` values (single-shank maps usually use 0) |
 | `maxUnits` | `Inf` | at most this many, in order |
+| `quality` | `enabled` false, and [`unitQualityCriteria`](../pipeline/unitQualityCriteria.m)'s thresholds (`isiViolationsRatioMax` 0.5, `presenceRatioMin` 0.9, `amplitudeCutoffMax` 0.1; `snrMin`, `driftPtpMax`, `firingRateMin` off; `unknown` `"pass"`) | with `enabled`, only the sorted units that meet the criteria are kept: their quality metrics come from the dataset (`EphysDataset.unitQuality`; the recording's noise only when `snrMin` is set) or, without it, from the recording's length the source knows (no SNR), through the sort folder's `quality_metrics.json` when current. The units' metrics and `qualityPass` / `qualityFails` / `qualityUnknown` are added to the unit table ([Unit quality metrics](EphysDataset.md#unit-quality-metrics)) |
 
 ### Style
 

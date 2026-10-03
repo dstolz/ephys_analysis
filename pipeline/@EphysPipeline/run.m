@@ -14,7 +14,8 @@ function R = run(obj, opts)
 %     Steps    subset of EphysPipelineConfig.StepNames to run, in the
 %              canonical order ([] = the enabled steps)
 %     DryRun   true: every step runs with DryRun, so nothing is written
-%              (no manifest, cache, behavior or output file, no run record)
+%              (no manifest, cache, behavior or output file, no run record
+%              or script)
 %              and no artifact detection streams the recording; each step
 %              records "dry run" rows saying what it would do. Sorting
 %              writes its config / script only (runKilosort DryRun).
@@ -25,6 +26,11 @@ function R = run(obj, opts)
 %   finished, cancelled or failed, a run record goes to
 %   <OutputRoot or Root>/pipeline_runs/<runId>_<name>.json (RunRecordFile):
 %   the steps, datasets, config, code, machine and the Results rows.
+%
+%   Script: with Project.SaveScript on (the default), the run first saves
+%   the config's standalone script, every setting written out, as
+%   <Root>/pipeline_<name>.m (ScriptFile; see writeScript), replacing the
+%   one the previous run saved; the run record names it.
 %
 %   See also EphysPipeline.checkRun, EphysPipeline.plan, EphysPipelineConfig.validate.
 
@@ -49,6 +55,7 @@ obj.checkRun(Steps=steps);
 
 obj.reset();
 obj.RunRecordFile = "";
+obj.ScriptFile = "";
 started = datetime('now');
 obj.Provenance = ephysProvenance(Config=c, RunId=string(started, "yyyyMMdd'T'HHmmssSSS"));
 obj.log("=== Pipeline '%s': %d dataset(s); steps: %s%s ===", c.Name, numel(obj.DatasetIdx), ...
@@ -57,6 +64,11 @@ if isempty(obj.DatasetIdx)
     obj.log("No datasets selected; nothing to do.");
     R = obj.Results;
     return
+end
+
+if c.Project.SaveScript && ~opts.DryRun   % a dry run writes nothing
+    obj.ScriptFile = obj.writeScript(steps);
+    if obj.ScriptFile ~= ""; obj.log("Pipeline script: %s", obj.ScriptFile); end
 end
 
 t0 = tic;

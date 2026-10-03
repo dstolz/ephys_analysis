@@ -9,7 +9,9 @@ classdef EphysPipelineConfig
     %   Sections (one struct property each; see defaults(section))
     %     Project    Root, OutputRoot, Selection "all"|"list", Datasets (keys),
     %                NamePattern (dataset-name tokens, see parseNameTokens),
-    %                TokenColumns (tokens shown as dataset-table columns)
+    %                TokenColumns (tokens shown as dataset-table columns),
+    %                SaveScript (each run saves its standalone script in
+    %                Root, see EphysPipeline.writeScript)
     %     Acquisition  reader options: OpenEphys.Recordings ("concatenate" |
     %                "separate" | "single"), OpenEphys.RecordNode,
     %                OpenEphys.Stream (see OpenEphysReader); TDT.Stream,

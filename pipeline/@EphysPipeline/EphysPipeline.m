@@ -94,6 +94,17 @@ classdef EphysPipeline < handle
         % The run record the last run() wrote ("" for a dry run, or when it
         % could not be written): <OutputRoot or Root>/pipeline_runs/<runId>_<name>.json.
         RunRecordFile (1,1) string = ""
+
+        % The script the last run() saved ("" when Project.SaveScript is
+        % off, for a dry run, or when it was not saved): <Root>/pipeline_<name>.m.
+        % See writeScript.
+        ScriptFile (1,1) string = ""
+    end
+
+    properties (Constant)
+        % How the header line of a script writeScript saved starts ("% "
+        % before it): only such a file is replaced by the next run.
+        ScriptMarker = "Saved by EphysPipeline"
     end
 
     properties (Access = private)
@@ -339,11 +350,63 @@ classdef EphysPipeline < handle
                 rec.datasets = dsets;
                 rec.results = num2cell(table2struct(obj.Results)).';
                 rec.backgroundRuns = runs;
+                rec.script = obj.ScriptFile;
                 rec.provenance = rmfield(prov, 'config');
                 rec.config = obj.Config.toStruct();
                 writeJsonFile(file, rec, NonFinite="string");
             catch ME
                 warning('EphysPipeline:RunRecord', 'The run record could not be written (%s): %s', file, ME.message);
+                file = "";
+            end
+        end
+
+        function file = writeScript(obj, steps)
+            %writeScript  Save the config's standalone script in the project root.
+            %   FILE = pipe.writeScript(STEPS) writes <Root>/pipeline_<name>.m
+            %   (scriptFileFor): EphysPipelineScript.standalone of the config,
+            %   every setting written out, so the file holds what the run
+            %   used even when the config is not saved to a file. run()
+            %   calls it before the first step when Project.SaveScript is on
+            %   (not for a dry run). Its header names the run ("% Saved by
+            %   EphysPipeline.run, run <runId>": the id the run record and
+            %   every output of the run carry; called outside a run, "% Saved
+            %   by EphysPipeline.writeScript, outside a run"). STEPS are the
+            %   steps of that run, and when they are not the config's enabled
+            %   steps the header says so (the script runs the enabled steps).
+            %   Each run replaces the file writeScript saved before; a file of
+            %   that name it did not save (no "% " + ScriptMarker line in its
+            %   header) is left as it is (warning EphysPipeline:ScriptExists).
+            %   A script that cannot be written is a warning
+            %   (EphysPipeline:Script), never an error. FILE is "" when
+            %   nothing was saved.
+            arguments
+                obj (1,1) EphysPipeline
+                steps (1,:) string = obj.Config.enabledSteps()
+            end
+            file = "";
+            try
+                file = EphysPipeline.scriptFileFor(obj.Project.Root, obj.Config.Name);
+                if isfile(file) && ~EphysPipeline.isSavedScript(file)
+                    warning('EphysPipeline:ScriptExists', ...
+                        '%s is not a script a pipeline run saved; it is left as it is, and this run''s script is not saved.', file);
+                    file = "";
+                    return
+                end
+                prov = obj.provenance();
+                if prov.runId ~= ""
+                    note = EphysPipeline.ScriptMarker + ".run, run " + prov.runId + " (Project.SaveScript is on).";
+                else
+                    note = EphysPipeline.ScriptMarker + ".writeScript, outside a run.";
+                end
+                note(end+1) = "The next run of this config replaces this file: copy it to keep changes.";
+                enabled = obj.Config.enabledSteps();
+                if ~isequal(steps, enabled)
+                    note(end+1) = "That run ran " + strjoin(steps, ", ") + " only; this script runs the enabled steps (" + ...
+                        strjoin(enabled, ", ") + ").";
+                end
+                EphysPipelineScript.standalone(obj.Config, File=file, Note=note);
+            catch ME
+                warning('EphysPipeline:Script', 'The pipeline script could not be saved (%s): %s', file, ME.message);
                 file = "";
             end
         end
@@ -878,6 +941,42 @@ classdef EphysPipeline < handle
                     d.OutputDir = fullfile(cfg.Project.OutputRoot, d.Name);
                 else
                     d.OutputDir = "";
+                end
+            end
+        end
+
+        function file = scriptFileFor(root, name)
+            %scriptFileFor  Where a run saves its script: <ROOT>/pipeline_<NAME>.m.
+            %   NAME, the config name, becomes a MATLAB name: every run of
+            %   characters other than letters, digits and _ is one _, and
+            %   leading / trailing _ go ("" -> "config").
+            arguments
+                root (1,1) string
+                name (1,1) string
+            end
+            stem = regexprep(char(name), '\W+', '_');
+            stem = regexprep(stem, '^_+|_+$', '');
+            if isempty(stem); stem = 'config'; end
+            file = string(fullfile(char(root), ['pipeline_' stem '.m']));
+        end
+
+        function tf = isSavedScript(file)
+            %isSavedScript  Whether FILE is a script writeScript saved.
+            %   True when one of its first 10 lines starts with
+            %   "% " + ScriptMarker.
+            arguments
+                file (1,1) string
+            end
+            tf = false;
+            fid = fopen(file, 'r');
+            if fid < 0; return; end
+            closer = onCleanup(@() fclose(fid)); %#ok<NASGU>
+            for k = 1:10
+                line = fgetl(fid);
+                if ~ischar(line); break; end
+                if startsWith(strtrim(string(line)), "% " + EphysPipeline.ScriptMarker)
+                    tf = true;
+                    return
                 end
             end
         end

@@ -41,6 +41,13 @@ says how to cut a release.
   config, code, machine, Results) whether the run finishes, is cancelled or
   fails; `EphysAnalysisRunner.run` writes `analysis_runs/<runId>_<name>.json`
   in the report folder. Analysis reports show the code version.
+- `Project.SaveScript` (on by default; Project tab, **Save the pipeline script
+  on each run**): each pipeline run saves the config's standalone script as
+  `<Root>/pipeline_<name>.m` before its first step, replacing the one the
+  previous run saved and naming the run in its header; a file of that name
+  that no run saved is never overwritten. The run record names the script
+  (`script`). `EphysPipeline.writeScript`, `EphysPipeline.ScriptFile`,
+  `EphysPipelineScript.standalone(Note=)`; suite `test_PipelineScriptSave`.
 - `stringifyNonFinite` (moved out of `writeJsonFile`), `provenanceForJson`;
   suite `test_Provenance`.
 

@@ -19,6 +19,8 @@ classdef EphysPipelineScript
     %                                 runner's cache of artifact detections and
     %                                 its plan checks are left out.
     %   Both return the script text; pass File= to write it (write()).
+    %   standalone(cfg, Note=) adds comment lines to its header (a pipeline
+    %   run's saved script names the run there; EphysPipeline.writeScript).
     %
     %   The literal(value) helper renders strings, string lists, numbers
     %   (including Inf / NaN / []), logicals and structs so that
@@ -87,11 +89,15 @@ classdef EphysPipelineScript
             arguments
                 cfg (1,1) EphysPipelineConfig
                 opts.File (1,1) string = ""
+                opts.Note (1,:) string = string.empty(1,0)   % comment lines after the "Generated" line
             end
             lit = @EphysPipelineScript.literal;
             L = strings(0, 1);
             L(end+1, 1) = "%% Preprocessing pipeline: " + cfg.Name + " (standalone)";
             L(end+1, 1) = "% Generated " + string(datetime('now', 'Format', 'yyyy-MM-dd HH:mm')) + " by EphysPipelineScript.standalone.";
+            for n = opts.Note
+                L(end+1, 1) = "% " + n; %#ok<AGROW>
+            end
             L(end+1, 1) = "% Every setting is written out below; the script calls EphysProject / EphysDataset";
             L(end+1, 1) = "% directly and needs no config file. The config it came from, for reference:";
             for jl = splitlines(string(jsonencode(cfg.toStruct(), 'PrettyPrint', true))).'

@@ -216,6 +216,7 @@ classdef EphysPreprocessingApp < handle
         RootPathField     matlab.ui.control.EditField
         BrowseRootButton  matlab.ui.control.Button
         RecursiveCheckBox matlab.ui.control.CheckBox
+        SaveScriptCheckBox matlab.ui.control.CheckBox   % Project.SaveScript
         % Source settings panel (under the table): the active dataset's recording system (syncSourcePanel)
         SourcePanel          matlab.ui.container.Panel
         SourceGrid           matlab.ui.container.GridLayout   % rows: note, Open Ephys, TDT

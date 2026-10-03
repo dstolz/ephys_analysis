@@ -50,6 +50,10 @@ written as the strings `"NaN"` / `"Inf"`.
 <OutputRoot, else Root>/
 └─ pipeline_runs/<runId>_<name>.json    run record of each pipeline run (EphysPipeline.run; see Run records)
 
+<Root>/
+└─ pipeline_<name>.m                    standalone script of the config, saved by each pipeline run while
+                                        Project.SaveScript is on (EphysPipeline.writeScript); the next run replaces it
+
 <anywhere>/
 ├─ <config>.json                        pipeline config (EphysPipelineConfig.save; File → Save)
 └─ <script>.m                           generated script (EphysPipelineScript; File → Generate script)
@@ -949,6 +953,7 @@ failed (not for a dry run). Schema `ephys-pipeline-run/1`:
   "datasets": [ { "key", "name", "folder", "outputFolder" }, ... ],
   "results":  [ { "Step", "Dataset", "Status", "Message", "Output", "Seconds" }, ... ],   the Results table
   "backgroundRuns": [ { "name", "resultsDir", "device" }, ... ],   Kilosort4 runs started in the background
+  "script":   <the pipeline script the run saved, <Root>/pipeline_<name>.m; "" when none (Project.SaveScript)>,
   "provenance": { the Provenance fields above, without config },
   "config":   { the pipeline config, as its JSON file holds it }
 }

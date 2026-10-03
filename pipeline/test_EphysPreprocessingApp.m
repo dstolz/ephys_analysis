@@ -1523,6 +1523,10 @@ app.runPipeline(Steps="spikes");
 R = app.RunResultsTable.Data;
 spikesFile = fullfile(outRoot, 'recA_260101_120000', 'recA_260101_120000_spikes.mat');
 check(istable(R) && any(R.Step == "spikes" & R.Status == "done") && isfile(spikesFile), 'the Spikes step ran and wrote its file');
+scriptFile = EphysPipeline.scriptFileFor(app.Config.Project.Root, app.Config.Name);
+check(app.SaveScriptCheckBox.Value && app.Config.Project.SaveScript && isfile(scriptFile) ...
+    && contains(string(fileread(scriptFile)), "% That run ran spikes only;"), ...
+    'the run saved the pipeline script in the project root (Save the pipeline script on each run, on by default)');
 M = load(spikesFile);
 check(~isempty(M.detected) && ~isfield(M, 'units') && M.detected.detection.options.Threshold == 1500, ...
     'the file reflects the edited threshold and holds the detections only');

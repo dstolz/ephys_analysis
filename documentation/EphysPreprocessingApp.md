@@ -172,8 +172,9 @@ that recording again by its folder.
    **Spikes**, **Export**) and set their options. Each tab has **Run this
    step** for a single step over the selected datasets.
 6. **Run**: **Validate**, **Plan**, then **Run** (or **Dry run**).
-7. **File → Save config**, and **Generate script** if you want a script that
-   reproduces the run.
+7. **File → Save config**. Each run has already saved its standalone script
+   in the project root (**Save the pipeline script on each run**, Project
+   tab); **Generate script** writes either form wherever you choose.
 8. **Review**: inspect sorted units, or open them in phy.
 
 No data at hand? **File → Create synthetic test project...** writes a
@@ -452,6 +453,7 @@ sch.remove();
 | Config name, Description | `cfg.Name`, `cfg.Description` |
 | Project root + Browse... + Recursive + **Scan** | `Project.Root`, `Project.Recursive`. Scan builds `EphysProject(root, Recursive=, ReaderOptions=)` (every folder that a registered reader claims: Intan `*.rhd` / `info.rhd`, an Open Ephys GUI session folder (the folder holding `Record Node <id>`), or `recording.json`; with Recursive unticked only the root and the folders directly in it are searched), then `P.refresh()`: header metadata, `applyManifest` (probe, exclusions, manual periods, sorting and behavior associations), `associateFolderBehavior` (a dataset with no behavior file takes the one Epsych2 file in its own folder), `writeManifest`. A progress dialog with Cancel; datasets whose headers fail keep `NaN` metadata, and an alert lists the datasets whose headers or manifest could not be read (a manifest that cannot be read is left as it is). Off while a run is under way |
 | Refresh metadata | re-parse all headers (off while a run is under way) |
+| Save the pipeline script on each run | `Project.SaveScript` (default on): each run, not a dry run, saves the config's standalone script as `<project root>\pipeline_<config name>.m`, replacing the one the previous run saved; a file of that name that no run saved is left as it is ([details](EphysPipeline.md#run)) |
 | Output root + Browse... | `Project.OutputRoot`: each dataset writes to `<root>/<Name>`; blank = next to the recording |
 | Name pattern + Columns | `Project.NamePattern`: tokens parsed from each dataset name (see [`parseNameTokens`](EphysPipeline.md#dataset-name-tokens)); one checkbox per token, ticked tokens (`Project.TokenColumns`, default `SubjectID`) become table columns after Name. The label shows how many names match, or the pattern error. After a scan that found Open Ephys sessions whose names do not match, the status bar suggests `{SubjectID}_{Date:yyyy-MM-dd}_{Time:HH-mm-ss}*` |
 | Filter | one editable dropdown per name-pattern token, listing the values found (`-` = the name does not match). Rows whose token does not match are hidden; type `*` / `?` wildcards or comma-separated alternatives (case-insensitive). Filters are a view only: they are not saved, and ticks on hidden rows stay in the selection (the label shows `showing k of n (m ticked hidden)`) |
@@ -1765,6 +1767,8 @@ preference: its settings live in its own file, which its Windows task reads.
 | --- | --- |
 | pipeline config `.json` | File → Save / Save as / Export copy (default folder `pipeline/pipeline_configs`) |
 | generated `.m` script | File → Generate script |
+| `<project root>/pipeline_<config name>.m` | each run with **Save the pipeline script on each run** ticked (not a dry run) |
+| `<output root, else project root>/pipeline_runs/<runId>_<config name>.json` | each run (not a dry run): its run record |
 | `<Folder>/<Name>_manifest.json` | scan, probe assignment, exclusion change, manual artifact edit, sorting / behavior association, each sorting launch and completion |
 | `<outputFolder>/<Name>.bin` (or `<Name>_ks4.bin`) + `.json`, `<outputFolder>/kilosort4/{settings.json, run_ks4.py, ks4_launch.cmd, ks4_run.log, ks4_status.json, ks4_exit.txt}` and the phy files (plus `<probe>_excluded.json` with excluded channels, `<probe>_spaced.json` with `shank_spacing`, and `previous_<yyyyMMdd_HHmmss>/` holding an earlier sort's curation) | Sorting (a dry run writes only `settings.json` and `run_ks4.py`, into `kilosort4/dryrun/`) |
 | `<outputFolder>/<Name>_artifacts.json` | Artifacts (cache) |

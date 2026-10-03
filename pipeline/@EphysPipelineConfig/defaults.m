@@ -21,7 +21,8 @@ switch section
             'Selection',  "all", ...         % "all" | "list"
             'Datasets',   string.empty(1,0), ... % root-relative keys when "list"
             'NamePattern',  EphysDataset.DefaultNamePattern, ... % see parseNameTokens; labels sorted units
-            'TokenColumns', "SubjectID");     % list text: tokens shown as dataset-table columns
+            'TokenColumns', "SubjectID", ...  % list text: tokens shown as dataset-table columns
+            'SaveScript',   true);            % each run saves the standalone script as <Root>/pipeline_<Name>.m
 
     case "Acquisition"
         % Reader options (EphysReader): each reader reads its own sub-struct.

@@ -46,7 +46,7 @@ returns the defaults and is the single source of truth for field names.
 
 | Section | Step | Holds |
 | --- | --- | --- |
-| `Project` | – | `Root`, `Recursive` (`true`: search every sub-folder of `Root` for recordings; `false`: only `Root` and the folders directly in it), `OutputRoot` (`""` = outputs next to each recording), `Selection` (`"all"` or `"list"`), `Datasets` (root-relative keys, see [Dataset keys](#dataset-keys)), `NamePattern` (`"{SubjectID}_{Date:yyMMdd}_{Time:HHmmss}"`, see [Dataset name tokens](#dataset-name-tokens); also labels sorted units, see [Unit labels](#unit-labels)), `TokenColumns` (list text, `"SubjectID"`: tokens shown as app table columns) |
+| `Project` | – | `Root`, `Recursive` (`true`: search every sub-folder of `Root` for recordings; `false`: only `Root` and the folders directly in it), `OutputRoot` (`""` = outputs next to each recording), `Selection` (`"all"` or `"list"`), `Datasets` (root-relative keys, see [Dataset keys](#dataset-keys)), `NamePattern` (`"{SubjectID}_{Date:yyMMdd}_{Time:HHmmss}"`, see [Dataset name tokens](#dataset-name-tokens); also labels sorted units, see [Unit labels](#unit-labels)), `TokenColumns` (list text, `"SubjectID"`: tokens shown as app table columns), `SaveScript` (`true`: each run saves its standalone script as `<Root>/pipeline_<name>.m`, see [Run](#run)) |
 | `Acquisition` | – | reader options, see [Acquisition](#acquisition): `OpenEphys.Recordings` (`"concatenate"`), `OpenEphys.RecordNode` (`""`), `OpenEphys.Stream` (`""`), `TDT.Stream` (`""`), `TDT.GainToMicrovolts` (`NaN`) |
 | `Parallel` | – | `Enabled` (run the chunks of the artifacts and spike-detection steps on a process pool), `MaxWorkers` (`NaN` = automatic; always capped by free memory); see [Parallel execution](#parallel-execution) |
 | `Probe` | `probe` (always runs) | `DefaultProbeFile` (used for datasets without a probe of their own: for sorting, to place the derived signals' bad channels, and for the app's Artifacts lanes), `WriteDefaultToManifest` (`true`: also assign it to them and save it to their manifests), `AutoAssign` with `RuleSubjects` / `RuleProbes` (probe rules: the first subject pattern matching a dataset's `SubjectID` gives it that probe file; with `AutoAssign` the probe check assigns it and saves it to the manifest, before the default is used) |
@@ -278,6 +278,7 @@ headers and manifests); `Refresh=false` skips that.
 | `PriorRuns` | background runs started elsewhere, in `LaunchedRuns`' shape, queued ones included; while they are running they take slots of `Sorting.MaxConcurrent` (queued ones do not), and their `device` counts when GPUs are shared out. A dataset with a run here or in `LaunchedRuns` that is queued or still going is not sorted again (`activeRun`) |
 | `QueueFcn` | `QueueFcn(d, res)`: when set, background runs are not started by the step but handed over prepared ([below](#background-kilosort4-runs)); default none |
 | `SortingWaiting` | how many datasets the sorting step has still to start (or, with `QueueFcn`, to hand over) |
+| `RunRecordFile`, `ScriptFile` | the run record and the pipeline script the last `run()` wrote (`""` when none) |
 
 ### Plan
 
@@ -330,6 +331,24 @@ datasets, config, code, machine and every Results row
 ([format](file-formats.md#run-records)); `pipe.RunRecordFile` names it and
 the log ends with `Run record: <file>`. A step method called on its own
 records the config but no run id, and writes no record.
+
+**Pipeline script.** With `Project.SaveScript` on (the default), the run
+first saves the config's standalone script
+([`EphysPipelineScript.standalone`](#ephyspipelinescript): every setting
+written out, no config file needed) as `<Root>/pipeline_<name>.m`, the config
+name made a MATLAB name (`EphysPipeline.scriptFileFor`). It holds what the
+run used whether or not the config was saved. Its header names the run
+(`% Saved by EphysPipeline.run, run <runId>`, the id in every output and the
+run record) and, when the run ran only some steps, which; the script itself
+runs the config's enabled steps. Each run replaces the script the previous
+run saved, so copy it to keep edits; a file of that name that no run saved is
+left as it is (warning `EphysPipeline:ScriptExists`; a saved script has a
+`% Saved by EphysPipeline` line in its header). `pipe.ScriptFile` names
+the file (`""` when nothing was saved), the run record's `script` field too,
+and the log says `Pipeline script: <file>`. A dry run saves none; a script
+that cannot be written is a warning (`EphysPipeline:Script`) and the run goes
+on. `pipe.writeScript()` saves it on its own (its header then says
+`% Saved by EphysPipeline.writeScript, outside a run`).
 
 | Step | Method | Does |
 | --- | --- | --- |
@@ -542,7 +561,10 @@ the two produce identical `_extract.mat`, `_spikes.mat`, `_chronux.mat`,
 (including `Inf`, `NaN`, `[]`), logicals and structs so that
 `eval(literal(v))` reproduces `v`.
 
-The GUI's **File → Generate script** menu writes either form.
+The GUI's **File → Generate script** menu writes either form. Each pipeline
+run also saves the standalone form in the project root unless
+`Project.SaveScript` is off ([Run](#run)); `standalone(cfg, Note=)` adds the
+comment lines that name the run to its header.
 
 ---
 

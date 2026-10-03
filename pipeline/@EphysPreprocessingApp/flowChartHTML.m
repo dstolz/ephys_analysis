@@ -464,8 +464,12 @@ switch K.ThresholdMethod
     otherwise;         how = "thr = " + numOr(K.Threshold, "?") + " uV";
 end
 lines = [pol, how];
-if K.ThresholdMethod ~= "absolute"; lines(end+1) = "per chunk and channel"; end
-thr = node("op", "Threshold", lines, "SpkThreshMethodDropDown,SpkThresholdField,SpkPolarityDropDown");
+if K.ThresholdMethod ~= "absolute" && K.ThresholdScope == "recording"
+    lines(end+1) = "per channel, noise over the whole recording";
+elseif K.ThresholdMethod ~= "absolute"
+    lines(end+1) = "per chunk and channel";
+end
+thr = node("op", "Threshold", lines, "SpkThreshMethodDropDown,SpkThresholdField,SpkPolarityDropDown,SpkThreshScopeDropDown");
 
 align = onOff(K.Align ~= "none", "Align", sprintf("to %s within %g ms", K.Align, K.AlignWindowMs), "off (first crossing)", ...
     "SpkAlignDropDown,SpkAlignWindowField");

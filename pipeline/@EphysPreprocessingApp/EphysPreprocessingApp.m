@@ -580,6 +580,7 @@ classdef EphysPreprocessingApp < handle
         SpkFilterOrderField  matlab.ui.control.NumericEditField
         SpkPolarityDropDown  matlab.ui.control.DropDown
         SpkThreshMethodDropDown matlab.ui.control.DropDown
+        SpkThreshScopeDropDown  matlab.ui.control.DropDown   % Spikes.ThresholdScope
         SpkThresholdField    matlab.ui.control.EditField
         SpkMaxAmpField       matlab.ui.control.EditField
         SpkAlignDropDown     matlab.ui.control.DropDown

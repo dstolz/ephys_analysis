@@ -26,9 +26,11 @@ function out = spikesToMat(obj, opts)
 %   -------
 %     File              target path (default <outputFolder>/<Name>_spikes.mat)
 %     DetectOptions     struct of detectSpikes options (Filter, Band,
-%                       ThresholdMethod, Threshold, Waveforms, WindowMs,
-%                       MaxChunkSamples, UseParallel, MaxWorkers, ...). Do not
-%                       include Fs, ChannelOrder or ProgressFcn here.
+%                       ThresholdMethod, Threshold, ThresholdScope,
+%                       Waveforms, WindowMs, MaxChunkSamples, UseParallel,
+%                       MaxWorkers, ...). Do not include Fs, ChannelOrder or
+%                       ProgressFcn here. detected.info.thresholdScope says
+%                       whether the thresholds are per chunk or recording-wide.
 %     Channels          1-based recording channels to detect on, in order
 %                       ([] = all)
 %     ArtifactMode      what detection does with the artifact periods

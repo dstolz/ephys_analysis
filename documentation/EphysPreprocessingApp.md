@@ -931,7 +931,11 @@ Threshold-detected spike events per dataset with `EphysDataset.spikesToMat`,
 sorting folder, where Export and the analysis read them.
 
 - **Filter** (band, order), **Threshold** (method, value, polarity, max
-  amplitude), **Events** (align, window, min period), **Waveforms** (on/off,
+  amplitude; **Noise measured over**, `Spikes.ThresholdScope`: *each chunk*
+  (default) or *the whole recording*, one threshold per channel from a first
+  pass over the recording, see
+  [detectSpikes](EphysDataset.md#whole-recording-mode); off for *absolute*),
+  **Events** (align, window, min period), **Waveforms** (on/off,
   window, source, edge handling), **Channels & artifacts** (all / manifest
   exclusions / list; **Artifact periods**, `Spikes.ArtifactMode`: *Reject the
   events inside them* (default), *Erase them before detection (the cleaned
@@ -942,7 +946,8 @@ sorting folder, where Export and the analysis read them.
   (folder, suffix `_spikes`, MAT version, overwrite).
 - **Dataset** + **Preview**: detects on the first *n* seconds of the active
   dataset with the tab's settings and lists per-channel thresholds, counts and
-  rates.
+  rates. The preview's thresholds are always its window's own; with *the
+  whole recording* its label says so.
 - **Run this step** runs `EphysPipeline.runSpikeDetection`.
 
 ## Export

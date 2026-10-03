@@ -41,6 +41,16 @@ says how to cut a release.
   config, code, machine, Results) whether the run finishes, is cancelled or
   fails; `EphysAnalysisRunner.run` writes `analysis_runs/<runId>_<name>.json`
   in the report folder. Analysis reports show the code version.
+- Recording-wide spike-detection thresholds: `detectSpikes(ThresholdScope=
+  "recording")` measures each channel's noise over the whole recording in a
+  first pass (the same chunks, context, artifact erasing and band-pass as
+  detection; every sample counted once) and detects every chunk against it.
+  `std` / `rms` are exact; `mad` / `percentile` come from a 0.05 µV histogram
+  over ±2000 µV (`info.noiseEstimate` records how; a statistic beyond the
+  range or below one bin leaves the channel degenerate, with a warning).
+  `Spikes.ThresholdScope` in the config (default `"chunk"`, the behaviour so
+  far) and **Noise measured over** on the Spikes tab; the spikes file records
+  the scope (`detected.info.thresholdScope`). Suite `test_ThresholdScope`.
 - `Project.SaveScript` (on by default; Project tab, **Save the pipeline script
   on each run**): each pipeline run saves the config's standalone script as
   `<Root>/pipeline_<name>.m` before its first step, replacing the one the

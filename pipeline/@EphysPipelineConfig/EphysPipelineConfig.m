@@ -345,7 +345,8 @@ classdef EphysPipelineConfig
         function d = detectOptions(sp, par)
             %detectOptions  The Spikes section as spikesToMat DetectOptions.
             %   NaN-valued "auto" settings (Threshold, MaxChunkSamples,
-            %   EdgePadMs) are left out so detectSpikes uses its own defaults.
+            %   EdgePadMs) are left out so detectSpikes uses its own defaults,
+            %   and so is ThresholdScope "chunk" (its default).
             %   With a Parallel section as the second argument its options
             %   (parallelOptions: UseParallel, MaxWorkers) are added.
             sp = EphysPipelineConfig.normalizeSection("Spikes", sp);
@@ -356,6 +357,7 @@ classdef EphysPipelineConfig
                 'Waveforms', sp.Waveforms, 'WindowMs', sp.WindowMs, ...
                 'WaveformSource', sp.WaveformSource, 'EdgeHandling', sp.EdgeHandling);
             if isfinite(sp.Threshold);       d.Threshold       = sp.Threshold;       end
+            if sp.ThresholdScope ~= "chunk"; d.ThresholdScope  = sp.ThresholdScope;  end
             if isfinite(sp.MaxChunkSamples); d.MaxChunkSamples = sp.MaxChunkSamples; end
             if isfinite(sp.EdgePadMs);       d.EdgePadMs       = sp.EdgePadMs;       end
             if nargin > 1

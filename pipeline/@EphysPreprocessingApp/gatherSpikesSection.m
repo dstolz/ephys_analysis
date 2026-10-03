@@ -8,6 +8,7 @@ K.FilterOrder = max(1, round(obj.SpkFilterOrderField.Value));
 K.Polarity = string(obj.SpkPolarityDropDown.Value);
 K.ThresholdMethod = string(obj.SpkThreshMethodDropDown.Value);
 K.Threshold = numOrNaN(obj.SpkThresholdField.Value);
+K.ThresholdScope = string(obj.SpkThreshScopeDropDown.Value);
 K.MaxAmplitudeUV = numOrInf(obj.SpkMaxAmpField.Value);
 K.Align = string(obj.SpkAlignDropDown.Value);
 K.AlignWindowMs = obj.SpkAlignWindowField.Value;

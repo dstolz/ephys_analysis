@@ -1044,17 +1044,46 @@ first and last samples of the recording can truncate one — the reported region
 tile the recording exactly, so nothing is detected twice, and `MinPeriodMs` is
 re-applied across the joins.
 
-**Thresholds are still estimated per chunk** (`info.thresholdScope` is
-`"chunk"`): a chunk's noise estimate uses only that chunk's samples, exactly as
-it does for a block, so the threshold tracks the noise from chunk to chunk and
-`info.threshold` / `info.noise` / `info.degenerate` are `[nChunks x nChan]`. Use
-`ThresholdMethod="absolute"` for one fixed threshold in microvolts across the
-whole recording.
+**Thresholds are estimated per chunk by default** (`ThresholdScope="chunk"`,
+`info.thresholdScope`): a chunk's noise estimate uses only that chunk's
+samples, exactly as it does for a block, so the threshold tracks the noise from
+chunk to chunk (and with how the recording is split into files), and
+`info.threshold` / `info.noise` / `info.degenerate` are `[nChunks x nChan]`.
+
+**`ThresholdScope="recording"`** gives each channel one threshold from its
+noise over the whole recording. A first pass streams the recording as
+detection does (the same chunks, context, artifact erasing and band-pass) and
+counts every sample once, in the chunk that finalizes it; detection then runs
+with those thresholds, so they follow neither the file layout nor each chunk's
+noise, and a session's thresholds compare with another's. `info.threshold` /
+`info.noise` / `info.degenerate` are then `[1 x nChan]`, and
+`info.noiseEstimate` says how the noise was measured:
+
+| Method | Recording-wide estimate |
+| --- | --- |
+| `std` | exact: per-chunk counts, means and sums of squared deviations merged (Chan, Golub & LeVeque) |
+| `rms` | exact: the sum of squares over the count |
+| `mad` | median and MAD from a histogram of 0.05 µV bins over ±2000 µV with a piecewise-linear CDF (the MAD by bisection on F(m+d) − F(m−d) = 0.5). The noise level comes within ~0.1% of the exact value on a band-passed trace, and within ~0.2 µV on an unfiltered one, whose samples sit on the recording's steps (0.195 µV for Intan) so that its exact median and MAD are quantized too |
+| `percentile` | the same histogram of \|x\|: within one bin (0.05 µV) of the sample it estimates, the ⌈p·n⌉-th smallest \|x\| |
+| `absolute` | nothing to measure; the same thresholds either way (`noiseEstimate` is `[]`) |
+
+`noiseEstimate` fields: `method`, `estimator` (`"exact"` or `"histogram"`),
+`binUV` and `rangeUV` (`NaN` when exact), and per channel `nSamples` (samples
+counted), `nOutOfRange` (of them beyond ±`rangeUV`: counted, not placed),
+`beyondRange` (the median, MAD or percentile lies beyond the range: warning
+`EphysDataset:detectSpikes:NoiseBeyondRange`) and `belowResolution` (a MAD or
+percentile within one bin of 0, a flat channel: `noise` is `NaN`, not 0). Both
+leave the channel degenerate. The first pass reads the recording once more,
+chunk by chunk (`UseParallel` applies to detection only); `ProgressFcn` then
+counts both passes (`2 x nChunks` calls, the first `nChunks` named `noise
+level: <chunk>`). `ThresholdMethod="absolute"` is one fixed threshold in
+microvolts with either scope.
 
 | Option (whole-recording mode only) | Default | Meaning |
 | --- | --- | --- |
 | `Files` | all | subset/order of `*.rhd` files (traditional format only); timestamps stay relative to the first sample read |
 | `ChannelOrder` | all | 1-based reorder/subset of amplifier channels, applied to every chunk (as in `toBin`) |
+| `ThresholdScope` | `"chunk"` | `"chunk"`: each chunk's own noise; `"recording"`: each channel's noise over the whole recording (above) |
 | `MaxChunkSamples` | `streamPlan` default | cap on samples per chunk for the split and binary formats |
 | `UseParallel` | `false` | detect the chunks on a process pool (Parallel Computing Toolbox): the open one, else one sized to the worker cap. Identical result; falls back to serial with `EphysDataset:detectSpikes:SerialFallback` when the toolbox, the pool or a chunk's sample count is missing, when a thread pool is open, or when memory allows fewer than two workers. A worker reads its chunk's context with `readWindowUV` when the plan's chunks follow each other in the recording (every built-in reader supports it); a `Files` list that skips or reorders files gives it the previous listed chunk, as the serial loop does |
 | `MaxWorkers` | `NaN` (automatic) | cap on chunks in flight at once; always limited by free memory (about six copies of one chunk per worker), so a 12-worker pool typically runs 4-5 chunks at a time |
@@ -1093,8 +1122,9 @@ everything; it is flagged in `info.degenerate` and warned about
 report the values **after** rounding to samples.
 
 Whole-recording mode drops `rejectedIndex` / `droppedEdgeIndex` (they are
-chunk-local) and adds `source` (`"recording"`), `thresholdScope` (`"chunk"`),
-`edgePadMs` / `edgePadSamples`, `chunks` (a struct array of `name`,
+chunk-local) and adds `source` (`"recording"`), `thresholdScope` (`"chunk"` or
+`"recording"`), `noiseEstimate` (above; `[]` per chunk), `edgePadMs` /
+`edgePadSamples`, `chunks` (a struct array of `name`,
 `sampleOffset`, `nSamples` for the chunks read) and `files`.
 
 ```matlab

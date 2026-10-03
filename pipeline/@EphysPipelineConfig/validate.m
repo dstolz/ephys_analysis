@@ -224,6 +224,9 @@ if K.Enabled
     if ~(K.WindowMs(1) < K.WindowMs(2))
         add("spikes", "WindowMs", "error", "WindowMs must be [before after] with before < after.");
     end
+    if ~ismember(K.ThresholdScope, ["chunk" "recording"])
+        add("spikes", "ThresholdScope", "error", "ThresholdScope must be chunk or recording.");
+    end
     if ~ismember(K.ArtifactMode, ["reject" "erase" "none"])
         add("spikes", "ArtifactMode", "error", "ArtifactMode must be reject, erase or none.");
     end

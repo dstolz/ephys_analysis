@@ -48,7 +48,8 @@ on `pipeline`; `pipeline` does not depend on it. See [Analysis](EphysAnalysis.md
 Existing docs next to the code: [INSTALL.md](../pipeline/INSTALL.md) (Windows
 setup, conda environments, GPU),
 [probes/README.md](../pipeline/probes/README.md) (probe map format) and
-[tools/wiki/README.md](../tools/wiki/README.md) (updating the GitHub wiki:
+[tools/wiki/README.md](../tools/wiki/README.md) (updating the GitHub wiki, whose prose pages are generated
+from this folder, the one source (`gen_pages.py`):
 the API generator, the link check and the app screenshots).
 
 ## How the pieces fit

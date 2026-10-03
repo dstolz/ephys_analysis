@@ -1,0 +1,27 @@
+{
+  "comment": "Wiki prose pages generated from documentation/ (gen_pages.py). status: generated = documentation/ holds everything the page says, so the page is written whole from it; candidate = the wiki page still has content documentation/ lacks: it is generated for comparison (--out, --report) and written to a wiki clone only with --include-candidates, once that content has been merged into documentation/. Pages not listed (Home, Quick-Start, Output-Files, Troubleshooting-and-FAQ, the Scripting guide, Architecture, Extending-the-Pipeline, Testing, the sidebar and footer) stay hand-written in the wiki; the API-* pages come from gen_api.py.",
+  "pages": [
+    {"page": "Platforms", "source": "documentation/platforms.md", "status": "generated"},
+    {"page": "File-Formats", "source": "documentation/file-formats.md", "status": "candidate"},
+    {"page": "Python-Drivers", "source": "documentation/python-drivers.md", "status": "candidate"},
+    {"page": "Kilosort4-Notes", "source": "documentation/kilosort4-notes.md", "status": "candidate"},
+    {"page": "Installation", "source": "pipeline/INSTALL.md", "status": "candidate"},
+    {"page": "Analysis-App", "source": "documentation/EphysAnalysisApp.md", "status": "candidate"},
+    {"page": "Analysis-Configs", "source": "documentation/EphysAnalysisConfig.md", "status": "candidate"},
+    {"page": "Analysis-Scripting", "source": "documentation/EphysAnalysis.md", "status": "candidate"},
+    {"page": "App-Overview", "source": "documentation/EphysPreprocessingApp.md", "sections": ["Launching", "Window layout", "Typical workflow"], "status": "candidate"},
+    {"page": "Copy-Tab", "source": "documentation/EphysPreprocessingApp.md", "sections": ["Copy"], "status": "candidate"},
+    {"page": "Project-Tab", "source": "documentation/EphysPreprocessingApp.md", "sections": ["Project"], "status": "candidate"},
+    {"page": "Trials-Tab", "source": "documentation/EphysPreprocessingApp.md", "sections": ["Trials"], "status": "candidate"},
+    {"page": "Probe-Tab", "source": "documentation/EphysPreprocessingApp.md", "sections": ["Probe"], "status": "candidate"},
+    {"page": "Artifacts-Tab", "source": "documentation/EphysPreprocessingApp.md", "sections": ["Artifacts"], "status": "candidate"},
+    {"page": "Sorting-Tab", "source": "documentation/EphysPreprocessingApp.md", "sections": ["Sorting"], "status": "candidate"},
+    {"page": "Signals-Tab", "source": "documentation/EphysPreprocessingApp.md", "sections": ["Signals"], "status": "candidate"},
+    {"page": "Spikes-Tab", "source": "documentation/EphysPreprocessingApp.md", "sections": ["Spikes"], "status": "candidate"},
+    {"page": "Export-Tab", "source": "documentation/EphysPreprocessingApp.md", "sections": ["Export"], "status": "candidate"},
+    {"page": "Run-and-Flow-Tabs", "source": "documentation/EphysPreprocessingApp.md", "sections": ["Diagram", "Run"], "status": "candidate"},
+    {"page": "Visualize-Tab", "source": "documentation/EphysPreprocessingApp.md", "sections": ["Visualize"], "status": "candidate"},
+    {"page": "Review-Tab", "source": "documentation/EphysPreprocessingApp.md", "sections": ["Review"], "status": "candidate"},
+    {"page": "Clean-Up-Tab", "source": "documentation/EphysPreprocessingApp.md", "sections": ["Clean up"], "status": "candidate"}
+  ]
+}

@@ -129,6 +129,13 @@ says how to cut a release.
 
 ### Changed
 
+- `documentation/` is the one source of the wiki's prose pages.
+  `tools/wiki/gen_pages.py` generates them from it, and `pages.json` maps
+  each page to its file or sections. Links are rewritten to wiki pages, or
+  to GitHub, and the script never runs git. Platforms is generated. The
+  other 21 mapped pages are candidates until their wiki-only content is
+  merged into `documentation/`: `--report` shows how far each one differs
+  (`test_gen_pages.py`).
 - The preprocessing app's Diagram pages are drawn by a plain class,
   `PipelineDiagram` (`detail`, `overview`, `zoomFrame`), which needs no app:
   `PipelineDiagram.overview(cfg, [])` writes a config's diagram from a

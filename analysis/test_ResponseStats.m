@@ -120,6 +120,26 @@ classdef test_ResponseStats < matlab.unittest.TestCase
             tc.verifyEqual(T.baselineRate, mean(cB, 1).' / 0.4, 'RelTol', 1e-12);
         end
 
+        function withoutTests(tc)
+            [st, E, cR, cB] = fixture();
+            [T, info] = responseStats(st, E, Param="Level", Tests=false);   % no toolbox needed
+            tc.verifyFalse(info.tests);
+            tc.verifyTrue(all(isnan([T.pEvoked; T.qEvoked; T.pTuning; T.qTuning])), 'no p without the tests');
+            tc.verifyEqual(T.direction, strings(4, 1), 'no direction without the tests');
+            tc.verifyFalse(any(T.responsive) || any(T.tuned));
+            tc.verifyEqual(T.responseRate, mean(cR, 1).' / 0.2, 'RelTol', 1e-12);
+            tc.verifyEqual(T.baselineRate, mean(cB, 1).' / 0.2, 'RelTol', 1e-12);
+            tc.verifyEqual(info.levels, [10; 20; 30; 40]);
+            want = NaN(4, 4);
+            for k = 1:4
+                want(k, :) = mean(cR(E.Level == 10 * k, :), 1) / 0.2;
+            end
+            tc.verifyEqual(info.levelRate, want, 'RelTol', 1e-12, 'the mean response rate per level');
+            tc.verifyEqual(info.levelN, repmat(5, 4, 4), 'five epochs per level');
+            tc.verifyEqual(T.bestLevel(4), 40);
+            tc.verifyEqual(T.nLevels, repmat(4, 4, 1));
+        end
+
         function errors(tc)
             [st, E] = fixture();
             tc.verifyError(@() responseStats(st, E, Baseline=[0 -0.2]), 'responseStats:BadWindow');

@@ -39,7 +39,7 @@ function [st, meta] = selectUnits(src, usel, opts)
 %     response  responsiveness (responseStats) and enabled: with enabled,
 %               the units the selections above leave are tested over the
 %               events of the Ref option in the trials its Selection keeps.
-%               The epochs come from epochTable with one fixed window that
+%               The epochs come from responseEpochs: one fixed window that
 %               holds both test windows, so epochs whose window leaves the
 %               recording or touches an artifact period are dropped. Only
 %               the units that pass are kept. META gains baselineRate,
@@ -64,7 +64,7 @@ function [st, meta] = selectUnits(src, usel, opts)
 %   Errors: selectUnits:NoUnits, selectUnits:NoDetected, selectUnits:NoneLeft, selectUnits:NoQuality,
 %   selectUnits:BadSource, selectUnits:BadResponse, and responseStats' and epochTable's.
 %
-%   See also loadAnalysisSource, psth, firingRate, unitSummary, responseStats.
+%   See also loadAnalysisSource, psth, firingRate, unitSummary, responseStats, responseEpochs.
 
 arguments
     src (1,1) struct
@@ -202,7 +202,7 @@ end
 
 
 function [pass, R] = responsive(src, st, meta, r, opts)
-%responsive  responseStats over one fixed window holding both test windows; which units pass.
+%responsive  responseStats over responseEpochs (one fixed window holding both test windows); which units pass.
 if ~ismember(r.test, ["evoked" "tuning" "either" "both"])
     error('selectUnits:BadResponse', 'response.test is evoked, tuning, either or both (got "%s").', r.test);
 end
@@ -215,10 +215,7 @@ end
 if ~(numel(r.baseline) == 2 && numel(r.window) == 2 && r.baseline(2) > r.baseline(1) && r.window(2) > r.window(1))
     error('selectUnits:BadResponse', 'response.baseline and response.window must each be [from to] with from < to.');
 end
-win = struct('mode', "fixed", 'pre', min(r.baseline(1), r.window(1)), 'post', max(r.baseline(2), r.window(2)), 'stop', []);
-cols = string.empty(1, 0);
-if r.param ~= ""; cols = r.param; end
-E = epochTable(src, opts.Ref, Window=win, Selection=opts.Selection, Columns=cols);
+E = responseEpochs(src, opts.Ref, opts.Selection, Baseline=r.baseline, Window=r.window, Param=r.param);
 R = responseStats(st, E, Baseline=r.baseline, Window=r.window, Param=r.param, ...
     Correction=r.correction, Alpha=r.alpha, Meta=meta);
 evoked = R.responsive;

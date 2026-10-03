@@ -89,6 +89,17 @@ says how to cut a release.
   default) keeps only the units that respond: `selectUnits(..., Ref=,
   Selection=)` with the plot's events, plus the analysis app's
   **Responsive only** row. Suite `test_ResponseStats`.
+- Population analysis: `populationAnalysis` puts every unit of an analysis
+  config's datasets into one table. It holds each unit's PSTH, rates, the
+  response and tuning tests (one correction over every unit or per
+  dataset), per-level rates, PSTH peak and latency, and the quality
+  metrics. `populationSummary` groups the units by subject, dataset, class,
+  shank, depth bin or test outcome: counts, shares responsive and tuned,
+  rates, latencies, and mean PSTHs and tuning curves. `renderPopulation`
+  draws the PSTH, share, tuning and depth figures. `writePopulation`
+  writes the CSV tables, the figures and a JSON record with provenance.
+  `responseEpochs`; `responseStats(Tests=false)` gives the rates and
+  per-level rates without the toolbox. Suite `test_PopulationAnalysis`.
 - `stringifyNonFinite` (moved out of `writeJsonFile`), `provenanceForJson`;
   suite `test_Provenance`.
 

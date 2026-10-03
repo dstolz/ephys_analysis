@@ -281,9 +281,85 @@ adds only the counting and the p-value adjustment.
 `T` has one row per unit: `unit, label, nEpochs, baselineRate, responseRate,
 pEvoked, qEvoked, direction, responsive` and, with `Param`, `nLevels,
 pTuning, qTuning, tuned, bestLevel, bestRate`. A unit that is not tested has
-NaN p and q. `info` records the windows, `param`, `correction`, `alpha`,
-`nEpochs`, `nEpochsLeftOut`, `nTestedEvoked`, `nTestedTuning`, `counts` and
-the toolbox version. Without the toolbox it is `responseStats:NoToolbox`.
+NaN p and q and direction `""`. `info` records the windows, `param`,
+`correction`, `alpha`, `tests`, `nEpochs`, `nEpochsLeftOut`, `nTestedEvoked`,
+`nTestedTuning`, `counts`, the levels with the mean response rate and the
+epochs per level and unit (`levels`, `levelRate`, `levelN`), and the toolbox
+version. Without the toolbox it is `responseStats:NoToolbox`.
+`Tests=false` skips the tests, so no toolbox is needed: the rates, the
+per-level rates and `bestLevel` come out, with every p NaN.
+`responseEpochs(src, ref, sel, Baseline=, Window=, Param=)` makes the epochs
+of a test: the `epochTable` above.
+
+## Population analysis
+
+`[P, S] = populationAnalysis(cfg)` puts every unit of every dataset of an
+analysis config (or of an `EphysAnalysisRunner`) into one table and sums it
+up by group. `Ref`, `Window` (fixed) and `Selection` default to the config's
+`Defaults`. Per dataset it makes the same calls as a plot:
+`selectUnits(src, Units, Ref=, Selection=)`, `epochTable` and `spikePSTH`
+for each unit's PSTH (`BinSec`, `SmoothSec`, `Measure`, `BaselineMode` over
+`Baseline`), then `responseEpochs` and `responseStats` (`Baseline`,
+`Response`, `Param`, `Tests`).
+
+- **Correction family.** responseStats runs without a correction. The p
+  values are then adjusted once (`Correction`, default `"bh"`) over every
+  unit tested (`Family="all"`, the default) or over each dataset's units
+  (`Family="dataset"`).
+- **What is pooled.** The selection's `groupBy` is not used: a unit's PSTH
+  pools every epoch the selection keeps, and `Param` carries the
+  dependence on a trial parameter.
+- **No per-dataset response filter.** `Units.response` is refused
+  (`populationAnalysis:ResponseSelection`). Filter `P.units` by
+  `responsive` / `tuned` instead, so every unit counts in the family.
+- **Datasets left out.** A dataset that cannot be analysed is listed in
+  `P.datasets` (`status`, `message`). It warns
+  `populationAnalysis:DatasetSkipped` when it has nothing to analyse (no
+  units, events or epochs), else `populationAnalysis:DatasetFailed`.
+
+| `P` field | Holds |
+| --- | --- |
+| `units` | one row per unit: `dataset, datasetKey, subject` (the name pattern's SubjectID, else the behavior's), `selectUnits`' columns (with the quality metrics when `Units.quality` is on), `rateHz` (`nSpikes / durationSec`), `responseStats`' columns with q over the family, `psthPeak` and `psthLatency` (the highest PSTH bin whose centre lies in the response window, and its centre; NaN when every such bin is equal) |
+| `psth` | `t` (bin centres), `rate [nBins x nUnits]` (the rows of `units`), `units`, `window`, `binSec`, `smoothSec`, `measure`, `baselineMode` |
+| `tuning` | `param`, `levels` (every dataset's, sorted), `rate [nLevels x nUnits]` (mean response rate per level; NaN where a unit has no epoch of it), `n` |
+| `datasets` | `datasetKey, dataset, subject, status, message, nUnits, nEpochs, nTestEpochs, nTestEpochsLeftOut` |
+| `params`, `provenance`, `created` | every option as used; `ephysProvenance` |
+
+`S = populationSummary(P, GroupBy=, DepthBinUm=100, TuningNormalize="peak")`
+groups the units.
+
+- **Group keys.** Any of `subject`, `dataset`, `class`, `shank`, `depth`
+  (probe y in `DepthBinUm` bins), `direction`, `responsive` and `tuned`.
+  The default is `["subject" "class"]`; `[]` gives one group.
+- **`S.groups`.** One row per group: `nUnits`, `nDatasets`, mean and
+  median `rateHz`, `nTested`, `nResponsive`, `fracResponsive`, `nExcited`,
+  `nSuppressed`, `nTuningTested`, `nTuned`, `fracTuned`, `medianLatency`
+  (the responsive excited units) and the medians of the quality metrics
+  the units carry.
+- **Per-group curves.** `S.psth` and `S.tuning` hold each group's mean and
+  SEM across its units. With `TuningNormalize="peak"`, each unit's curve
+  is divided by its highest level first.
+
+`renderPopulation(P, S, kind, target)` draws `"psth"`, `"fractions"`
+(excited, suppressed and tuned shares of the units tested), `"tuning"` or
+`"depth"` (each unit's response against its probe y).
+`writePopulation(P, S, folder)` writes the following into a folder:
+
+- `population_units.csv`, `population_groups.csv`, `population_psth.csv`
+  and `population_tuning.csv`;
+- the figures (`Formats`, `Dpi`, `FigureSizeCm`);
+- `population.json`, holding the parameters, the dataset table, the
+  provenance and the files.
+
+`populationAnalysis(..., Folder=)` does all of that in one call, and
+returns the files as a third output.
+
+```matlab
+cfg = EphysAnalysisConfig.load("am.json");
+[P, S] = populationAnalysis(cfg, Param="Freq", GroupBy=["subject" "depth"], ...
+    Folder=fullfile(cfg.Source.Root, "population"));
+deep = P.units(P.units.responsive & P.units.y > 400, :);
+```
 
 ## Render
 
@@ -416,6 +492,7 @@ separate roots and requires pixel-identical figures and equal HTML reports.
 | `test_EphysAnalysisCompute` | no fixture: `spikePSTH` on seeded Poisson trains (rate, SEM, half-open bins, bins that are whole multiples from the event and `R.window`, `spikePSTH:BadWindow`, a spike in the event's own sample at 0, baselines, smoothing, stop masking), `firingRate` over between windows, `tuningCurve` (and `tuningCurve:NoValues`), `evokedPotential` (event rule: the event's own row at `t = 0`; padding, drop counts, baseline), the filter compiler, `unitCorrelation` (Pearson and Spearman against `corrcoef`, peak rates and partial bins, baseline, groups, constant units), `binCounts` and `countBelow` against brute force, every renderer into axes, uiaxes, figure and uipanel, PSTH fills, normalization and stacks (row steps, value and peak axes), `renderPlot` pages and titles |
 | `test_EphysAnalysisEpochs` | the fixture: `loadAnalysisSource` against the generator's truth (`durationSec` from `info.LFP.nSamples`), `t0Continuous` and `offsetSec` on both clocks, trial / recording scope, `"Trial"`, an interval belonging to the trial holding its edge (spanning trials, touching trials, `Platform` in recording scope), `groupBy`, response and filter selection, between windows, approved cuts, `selectUnits` / `selectChannels` (every channel gives the cached signal as it is), `selectUnits`' response test (the same as `responseStats` over its own epochs; direction and alpha; `selectUnits:NoneLeft`, `selectUnits:BadResponse`; `responseStats:NoToolbox` without the toolbox), error identifiers, the no-behavior fallback, `src.artifacts` and the epochs that touch one (dropped by default; a period ending at a window's start does not touch it; kept and flagged with `Artifacts="keep"`) |
 | `test_ResponseStats` | no fixture: `pAdjust` against statsmodels' `multipletests` (`pipeline/testdata/padjust_golden.json` from `tools/golden/padjust_golden.py`; NaN, ties, one value), `responseStats` on hand-made epochs with known counts (rates, p against `signrank` / `kruskalwallis` called directly, direction, correction, the epochs left out, rates for windows of different lengths, the errors). The tests that call the toolbox are skipped without it |
+| `test_PopulationAnalysis` | the fixture: `populationAnalysis`' units, rates, PSTHs and per-level rates equal the per-dataset calls (the selection's groups pooled); the summary's counts and means add up; the groupings (none, dataset × shank, depth bins); the correction over every unit or each dataset; the files written; the errors |
 | `test_EphysAnalysisConfig` | see [EphysAnalysisConfig](EphysAnalysisConfig.md#tests) |
 | `test_EphysAnalysisRunner` | the fixture: `plan` skip reasons, `run` exports and paged names (no figure left open), HTML and PDF reports (percent-encoded and `file://` links; a `"both"` report holds the image of every exported page and each result), `Overwrite` off, rendering real results (a stack of real `epochTable` groups labelled by the `groupBy` parameter, a raster showing every epoch and an evoked stack whatever `Style.YLim`), a failing export closing its page (runner and standalone script), cancel, driven units, compact vs standalone script equivalence |
 | `test_EphysAnalysisApp` | see [EphysAnalysisApp](EphysAnalysisApp.md#tests) |

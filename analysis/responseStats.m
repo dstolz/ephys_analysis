@@ -13,7 +13,7 @@ function [T, info] = responseStats(spikeTimes, E, opts)
 %              one-sided test for response > baseline (tail "right") gives
 %              the smaller p, "suppressed" when the one for response <
 %              baseline (tail "left") does, and "none" when the two agree
-%              to 1e-12 (equal rank sums), or for an untested unit
+%              to 1e-12 (equal rank sums)
 %     tuning   with Param: p = kruskalwallis(response, E.(Param), "off"):
 %              the Kruskal-Wallis test of the response window's rates
 %              across the parameter's levels. Epochs without a level are
@@ -35,7 +35,8 @@ function [T, info] = responseStats(spikeTimes, E, opts)
 %   the windows. An epoch table made for the test:
 %     E = epochTable(src, ref, Window=struct('pre', min(b0, w0), 'post', max(b1, w1)), ...
 %             Selection=sel, Columns=param);
-%   (selectUnits' response selection makes exactly this one.)
+%   (responseEpochs makes exactly this one; selectUnits' response selection
+%   uses it.)
 %
 %   T, one row per unit:
 %     unit           1..nUnits (the row of ST)
@@ -43,15 +44,21 @@ function [T, info] = responseStats(spikeTimes, E, opts)
 %     nEpochs        the epochs tested
 %     baselineRate, responseRate   mean rates over those epochs, spikes/s
 %     pEvoked, qEvoked (adjusted), direction, responsive
-%     with Param: nLevels, pTuning, qTuning (adjusted), tuned, bestLevel
-%     (the level with the highest mean response rate; on a tie, the first
-%     in sorted order) and bestRate (that mean, spikes/s)
-%   A unit that is not tested has NaN p and q, and is neither responsive
-%   nor tuned.
-%   INFO: baseline, window, param, correction, alpha, nEpochs,
+%     with Param: nLevels (the levels the unit has epochs of), pTuning,
+%     qTuning (adjusted), tuned, bestLevel (the level with the highest mean
+%     response rate; on a tie, the first in sorted order) and bestRate
+%     (that mean, spikes/s)
+%   A unit that is not tested has NaN p and q, direction "", and is
+%   neither responsive nor tuned.
+%   INFO: baseline, window, param, correction, alpha, tests, nEpochs,
 %   nEpochsLeftOut, nTestedEvoked, nTestedTuning, counts (true: the tests
-%   ran on counts), toolbox (the Statistics and Machine Learning Toolbox's
-%   version), created.
+%   ran on counts), levels (Param's levels, sorted), levelRate and levelN
+%   ([nLevels x nUnits]: the mean response rate, spikes/s, and the epochs,
+%   per level; NaN / 0 where a unit has none), toolbox (the Statistics and
+%   Machine Learning Toolbox's version), created.
+%
+%   Tests=false computes everything but the tests (no toolbox needed): the
+%   rates, the per-level rates and bestLevel, with every p NaN.
 %
 %   Errors: responseStats:NoToolbox, responseStats:BadWindow,
 %   responseStats:BadOption, responseStats:NoColumn,
@@ -69,6 +76,7 @@ arguments
     opts.Correction (1,1) string = "bh"
     opts.Alpha (1,1) double = 0.05
     opts.Meta = []
+    opts.Tests (1,1) logical = true
 end
 
 b = opts.Baseline;
@@ -86,7 +94,7 @@ end
 param = opts.Param;
 need = "signrank";
 if param ~= ""; need(end+1) = "kruskalwallis"; end
-if ~license('test', 'Statistics_Toolbox') || any(arrayfun(@(f) exist(f, 'file') == 0, need))
+if opts.Tests && (~license('test', 'Statistics_Toolbox') || any(arrayfun(@(f) exist(f, 'file') == 0, need)))
     error('responseStats:NoToolbox', ...
         'responseStats needs the Statistics and Machine Learning Toolbox (%s).', strjoin(need, ", "));
 end
@@ -141,19 +149,20 @@ end
 nEp = zeros(nU, 1);
 baseRate = NaN(nU, 1); respRate = NaN(nU, 1);
 pE = NaN(nU, 1);
-dirn = repmat("none", nU, 1);
+dirn = strings(nU, 1);
 for u = 1:nU
     ok = isfinite(xR(:, u)) & isfinite(xB(:, u));
     nEp(u) = nnz(ok);
     if nEp(u) == 0; continue; end
     baseRate(u) = mean(rateB(ok, u));
     respRate(u) = mean(rateR(ok, u));
+    if ~opts.Tests; continue; end
     x = xR(ok, u); y = xB(ok, u);
     pE(u) = signrank(x, y);
     pRight = signrank(x, y, 'tail', 'right');
     pLeft = signrank(x, y, 'tail', 'left');
     if abs(pRight - pLeft) <= 1e-12 * max(pRight, pLeft)
-        % equal rank sums: the two tails are equal up to rounding
+        dirn(u) = "none";    % equal rank sums: the two tails are equal up to rounding
     elseif pRight < pLeft
         dirn(u) = "excited";
     elseif pLeft < pRight
@@ -170,11 +179,13 @@ T = table((1:nU).', label, nEp, baseRate, respRate, pE, qE, dirn, qE <= opts.Alp
     'pEvoked', 'qEvoked', 'direction', 'responsive'});
 
 nTuned = 0;
+levels = []; levelRate = zeros(0, nU); levelN = zeros(0, nU);
 if param ~= ""
     lev = E.(param);
     if iscell(lev); lev = string(lev); end
     hasLev = ~ismissing(lev);
     [levels, ~, li] = unique(lev(hasLev));       % sorted
+    nL = numel(levels);
     nLev = zeros(nU, 1);
     pT = NaN(nU, 1);
     bestRate = NaN(nU, 1);
@@ -184,21 +195,24 @@ if param ~= ""
         best = strings(nU, 1);
         best(:) = missing;
     end
+    levelRate = NaN(nL, nU);
+    levelN = zeros(nL, nU);
     xL = xR(hasLev, :);
     rL = rateR(hasLev, :);
     for u = 1:nU
         ok = isfinite(xL(:, u));
         g = li(ok);
-        present = unique(g);
-        nLev(u) = numel(present);
-        if nLev(u) < 2; continue; end
+        if isempty(g); continue; end
+        levelRate(:, u) = accumarray(g, rL(ok, u), [nL 1], @mean, NaN);
+        levelN(:, u) = accumarray(g, 1, [nL 1]);
+        nLev(u) = nnz(levelN(:, u));
+        [bestRate(u), k] = max(levelRate(:, u));  % NaN (absent levels) is never the max
+        best(u) = levels(k);
+        if nLev(u) < 2 || ~opts.Tests; continue; end
         grp = lev(hasLev);
         grp = grp(ok);
         if isstring(grp); grp = cellstr(grp); end
         pT(u) = kruskalwallis(xL(ok, u), grp, 'off');
-        m = accumarray(g, rL(ok, u), [numel(levels) 1], @mean, NaN);
-        [bestRate(u), k] = max(m);                % NaN (absent levels) is never the max
-        best(u) = levels(k);
     end
     qT = pAdjust(pT, opts.Correction);
     T.nLevels = nLev;
@@ -216,13 +230,19 @@ info.window = w;
 info.param = param;
 info.correction = opts.Correction;
 info.alpha = opts.Alpha;
+info.tests = opts.Tests;
 info.nEpochs = nE;
 info.nEpochsLeftOut = nOut;
 info.nTestedEvoked = nnz(isfinite(pE));
 info.nTestedTuning = nTuned;
 info.counts = counts;
-v = ver('stats');
+info.levels = levels;
+info.levelRate = levelRate;
+info.levelN = levelN;
 info.toolbox = "";
-if ~isempty(v); info.toolbox = string(v(1).Name) + " " + string(v(1).Version) + " " + string(v(1).Release); end
+if opts.Tests
+    v = ver('stats');
+    if ~isempty(v); info.toolbox = string(v(1).Name) + " " + string(v(1).Version) + " " + string(v(1).Release); end
+end
 info.created = string(datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss'));
 end

@@ -28,6 +28,7 @@ nPass = 0; nFail = 0;
         else
             nFail = nFail + 1;
             fprintf(2, '  FAIL: %s\n', msg);
+            LegacySuiteTest.checkFailed(msg);   % one failure per check in run_all_tests' report
         end
     end
     function id = errorId(fcn)
@@ -202,11 +203,7 @@ else
 end
 
 fprintf('\n== 7. the app: File > Create synthetic test project ==\n');
-g = EphysPreprocessingApp.PrefGroup;
-savedPrefs = [];
-if ispref(g); savedPrefs = getpref(g); end
-prefCleanup = onCleanup(@() restorePrefs(g, savedPrefs));
-if ispref(g, 'LastConfigFile'); setpref(g, 'LastConfigFile', ''); end
+prefCleanup = AppPrefs.useTemporary(); %#ok<NASGU> preferences in a temporary file, never the user's
 app = EphysPreprocessingApp;
 appCleanup = onCleanup(@() closeApp(app));
 appRoot = fullfile(root, 'app_project');
@@ -341,14 +338,3 @@ end
 end
 
 
-function restorePrefs(g, savedPrefs)
-try
-    if ispref(g); rmpref(g); end
-    if isstruct(savedPrefs)
-        for f = string(fieldnames(savedPrefs)).'
-            setpref(g, char(f), savedPrefs.(f));
-        end
-    end
-catch
-end
-end

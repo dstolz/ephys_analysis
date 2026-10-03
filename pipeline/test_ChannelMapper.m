@@ -18,12 +18,8 @@ addpath(fileparts(here));
 root = fullfile(tempdir, sprintf('ChannelMapper_test_%s', char(datetime('now', 'Format', 'yyyyMMdd_HHmmssSSS'))));
 mkdir(root);
 g = 'ChannelMapperApp';
-savedPrefs = [];
-if ispref(g)
-    savedPrefs = getpref(g);
-    rmpref(g);
-end
-cleanup = onCleanup(@() restorePrefsAndRoot(g, savedPrefs, root));
+restorePrefs = AppPrefs.useTemporary(); %#ok<NASGU> preferences in a temporary file, never the user's
+cleanup = onCleanup(@() removeRoot(root));
 
 nPass = 0; nFail = 0;
     function check(cond, msg)
@@ -33,6 +29,7 @@ nPass = 0; nFail = 0;
         else
             nFail = nFail + 1;
             fprintf(2, '  FAIL: %s\n', msg);
+            LegacySuiteTest.checkFailed(msg);   % one failure per check in run_all_tests' report
         end
     end
 
@@ -395,7 +392,7 @@ m.onEditorSave();
 check(m.Bank.has("acme/dot4") && m.ProbeId == "acme/dot4", "a generated probe design saves and is selected");
 m.loadMapping("gui_test");
 close(m.Fig);
-check(~isvalid(m) && ispref(g, 'LastChain') && ispref(g, 'BankFolder'), "closing the window deletes it and saves the preferences");
+check(~isvalid(m) && AppPrefs.ispref(g, 'LastChain') && AppPrefs.ispref(g, 'BankFolder'), "closing the window deletes it and saves the preferences");
 m2 = ChannelMapperApp();
 check(m2.Bank.Folder == string(gb) && m2.PackageId == "neuronexus/H32" && m2.ProbeId == "neuronexus/A1x32-6mm-50-177", ...
     "reopened, it comes back on the same bank and chain");
@@ -496,18 +493,7 @@ end
 end
 
 
-function restorePrefsAndRoot(g, savedPrefs, root)
-try
-    if ispref(g)
-        rmpref(g);
-    end
-    if isstruct(savedPrefs)
-        for f = string(fieldnames(savedPrefs))'
-            setpref(g, char(f), savedPrefs.(f));
-        end
-    end
-catch
-end
+function removeRoot(root)
 try
     if isfolder(root)
         rmdir(root, 's');

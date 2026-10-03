@@ -5,8 +5,8 @@ function loadPreferences(obj, openLast)
 %   plot editor's collapsed sections). Everything else is the config.
 if nargin < 2; openLast = true; end
 g = obj.PrefGroup;
-if ispref(g, 'FigurePosition')
-    pos = getpref(g, 'FigurePosition');
+if AppPrefs.ispref(g, 'FigurePosition')
+    pos = AppPrefs.getpref(g, 'FigurePosition');
     if isnumeric(pos) && numel(pos) == 4 && all(pos(3:4) > 200)
         try
             r = groot().ScreenSize;
@@ -17,15 +17,15 @@ if ispref(g, 'FigurePosition')
         obj.Fig.Position = pos;
     end
 end
-if ispref(g, 'RecentConfigs'); obj.RecentConfigs = reshape(string(getpref(g, 'RecentConfigs')), 1, []); end
-if ispref(g, 'ScriptFolder'); obj.ScriptFolder = string(getpref(g, 'ScriptFolder')); end
-if ispref(g, 'AutoPreview'); obj.AutoPreviewCheckBox.Value = isequal(getpref(g, 'AutoPreview'), true); end
-if ispref(g, 'PreviewMaxMB')
-    v = getpref(g, 'PreviewMaxMB');
+if AppPrefs.ispref(g, 'RecentConfigs'); obj.RecentConfigs = reshape(string(AppPrefs.getpref(g, 'RecentConfigs')), 1, []); end
+if AppPrefs.ispref(g, 'ScriptFolder'); obj.ScriptFolder = string(AppPrefs.getpref(g, 'ScriptFolder')); end
+if AppPrefs.ispref(g, 'AutoPreview'); obj.AutoPreviewCheckBox.Value = isequal(AppPrefs.getpref(g, 'AutoPreview'), true); end
+if AppPrefs.ispref(g, 'PreviewMaxMB')
+    v = AppPrefs.getpref(g, 'PreviewMaxMB');
     if isnumeric(v) && isscalar(v) && v > 0; obj.PreviewMaxMB = v; end
 end
-if ispref(g, 'PlotSectionsCollapsed')
-    shut = string(getpref(g, 'PlotSectionsCollapsed'));
+if AppPrefs.ispref(g, 'PlotSectionsCollapsed')
+    shut = string(AppPrefs.getpref(g, 'PlotSectionsCollapsed'));
     for i = 1:numel(obj.PlotSections)
         obj.PlotSections(i).Expanded = ~ismember(obj.PlotSections(i).Name, shut);
     end
@@ -33,8 +33,8 @@ if ispref(g, 'PlotSectionsCollapsed')
 end
 obj.refreshRecentMenu();
 opened = false;
-if openLast && ispref(g, 'LastConfigFile')
-    f = string(getpref(g, 'LastConfigFile'));
+if openLast && AppPrefs.ispref(g, 'LastConfigFile')
+    f = string(AppPrefs.getpref(g, 'LastConfigFile'));
     if f ~= "" && isfile(f)
         opened = obj.openConfigFile(f);
     end

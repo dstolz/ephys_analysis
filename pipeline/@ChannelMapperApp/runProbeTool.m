@@ -10,8 +10,8 @@ if ~isempty(obj.App) && isvalid(obj.App)
     return
 end
 py = "";
-if ispref('EphysPreprocessingApp', 'PythonExe')
-    py = string(getpref('EphysPreprocessingApp', 'PythonExe'));
+if AppPrefs.ispref('EphysPreprocessingApp', 'PythonExe')
+    py = string(AppPrefs.getpref('EphysPreprocessingApp', 'PythonExe'));
 end
 if ~isscalar(py) || py == "" || ~isfile(py)
     error('ChannelMapperApp:NoPython', ['No Python with probeinterface is known. Set the Python exe once on the ' ...

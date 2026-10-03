@@ -349,10 +349,31 @@ structures with `ft_datatype_*` when FieldTrip is present.
 
 ## Tests
 
-Every suite is a function-style script that builds synthetic fixtures in a
-temp folder (shared builders in [`pipeline/private`](../pipeline/private)), prints
-PASS / FAIL lines and errors when anything fails. No real recordings, no
-Python and no optional toolbox are needed.
+Every suite builds synthetic fixtures in a temp folder (shared builders in
+[`pipeline/private`](../pipeline/private)). No real recordings, no Python and
+no optional toolbox are needed; tests that need one are skipped (reported as
+*Incomplete*) where it is missing. Suites come in two forms:
+
+- **TestCase classes** (`test_BinaryReader`, `test_CopySessions`,
+  `test_LocalCleanup`, `test_AppPrefs`, `test_RepositoryMetadata` and the
+  newer suites): `matlab.unittest.TestCase` classes, run with `runtests` or
+  `run_all_tests`. New suites take this form; `test_BinaryReader` is the
+  pattern for converting a function-style one (shared fixtures in
+  `TestClassSetup`, one test method per section, each `check(cond, msg)` as
+  `tc.verifyTrue(cond, msg)` with the same condition).
+- **Function-style suites** (the rest): scripts that print PASS / FAIL lines
+  and raise an error at the end when a check failed. `run_all_tests` runs
+  each as one test of [`LegacySuiteTest`](../pipeline/LegacySuiteTest.m),
+  and every failed check is reported as a failure of its own with its
+  message.
+
+[`run_all_tests`](../pipeline/run_all_tests.m) runs both kinds through
+`matlab.unittest`. It keeps every app's preferences in a temporary file for
+the run ([`AppPrefs`](../pipeline/AppPrefs.m)), so the tests never read or
+change your own and two MATLABs can run them at once. It writes a JUnit XML
+report (`JUnit=`), an HTML or Cobertura code-coverage report of `pipeline/`
+and `analysis/` (`Coverage=` / `CoverageXML=`), and can run a subset by name
+or by tag (`Tag=`).
 
 For trying the pipeline or the app by hand without real data,
 [`makeSyntheticProject`](../pipeline/makeSyntheticProject.m) (or the app's
@@ -370,15 +391,23 @@ see [EphysPreprocessingApp → Synthetic](EphysPreprocessingApp.md#synthetic).
 
 ```matlab
 cd C:\src\ephys_analysis\pipeline
-run_all_tests            % every test_*.m; errors if any fails
-test_EphysPipeline       % one suite
+run_all_tests                                  % every suite; errors if any test fails
+run_all_tests(["test_EphysPipeline" "test_BinaryReader"])   % some suites
+run_all_tests(JUnit="results\junit.xml", Coverage="results\coverage")
+test_EphysPipeline                             % a function-style suite on its own
+runtests("test_BinaryReader")                  % a TestCase suite on its own
 ```
+
+An app opened by hand while a suite runs in the same MATLAB uses the
+suite's temporary preferences, so close it before the run ends.
 
 | Suite | Covers |
 | --- | --- |
 | `test_EphysDataset` | readers, layouts, streaming, artifacts, spikes, `.bin`, dry runs, manifest v2, sorted units, `spikesToMat`, exports, behavior |
 | `test_IntanReader` | the Intan reader: every data-block and on-disk layout, truncated last blocks, window reads across files, `readDigitalEvents` without the amplifier data, the run helpers, one-file-per-channel digital files, the recording start (`AcqDate`), `streamPlan` chunks, `KeepChannels` / `Precision` |
 | `test_BinaryReader` | the universal binary reader: `readDigitalEvents` from `dig_in_file` alone, `readData`, `Files` listing `dig_in_file`, `streamPlan` |
+| `test_AppPrefs` | the apps' preference store: a file store's set / get / remove, nothing reaching MATLAB's own preferences, nested temporary stores, `AppPrefsFixture` |
+| `test_RepositoryMetadata` | `VERSION`, `CITATION.cff`, `CHANGELOG.md` and `ephysVersion` agree on the release number |
 | `test_SortedUnits` | `readPhyUnits`' label tables, template units and per-unit grouping; `channelLayout` (`chanMap` values are `.bin` rows); `runKilosort(DryRun=true)` leaving an existing run alone; `readPhyWaveforms` (the spikes' windows in the sorted `.bin`) |
 | `test_DeriveSignals` | derived signals: bad channels as columns (the config's recording channels mapped to them), interpolated from the probe geometry or, without one, across columns; automatic detection; the MUA / SPIKE filters in double; non-integer rates; `info.<type>.nSamples`; line naming and polarity from `TrialConfig`; artifact periods erased before deriving (the line fill, `info.artifacts`, no filter ringing outside the period, AUX untouched) |
 | `test_OpenEphysReader` | Open Ephys sessions (Binary, Open Ephys format, NWB): metadata, samples across recordings and gaps, TTL lines, AUX / ADC, discovery, record node / stream, the recording modes, line names, the pipeline on a synthetic Open Ephys project |

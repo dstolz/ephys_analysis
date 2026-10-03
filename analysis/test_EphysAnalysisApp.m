@@ -28,11 +28,8 @@ addpath(genpath(fullfile(repo, 'vendor')));
 root = fullfile(tempdir, sprintf('AnaApp_test_%s', datestr(now, 'yyyymmdd_HHMMSSFFF'))); %#ok<TNOW1,DATST>
 mkdir(root);
 g = EphysAnalysisApp.PrefGroup;
-savedPrefs = [];
-if ispref(g); savedPrefs = getpref(g); end
-cleanup = onCleanup(@() restorePrefsAndRoot(g, savedPrefs, root));
-if ispref(g, 'LastConfigFile'); setpref(g, 'LastConfigFile', ''); end
-if ispref(g, 'PlotSectionsCollapsed'); rmpref(g, 'PlotSectionsCollapsed'); end
+restorePrefs = AppPrefs.useTemporary(); %#ok<NASGU> preferences in a temporary file, never the user's
+cleanup = onCleanup(@() removeRoot(root));
 
 nPass = 0; nFail = 0;
     function check(cond, msg)
@@ -42,6 +39,7 @@ nPass = 0; nFail = 0;
         else
             nFail = nFail + 1;
             fprintf(2, '  FAIL: %s\n', msg);
+            LegacySuiteTest.checkFailed(msg);   % one failure per check in run_all_tests' report
         end
     end
 
@@ -230,7 +228,7 @@ check(any(contains(string(app.LogArea.Value), "psth_1 done")), 'the Log tab has 
 
 fprintf('\n== 6. close ==\n');
 app.savePreferences();
-check(strcmp(getpref(g, 'LastConfigFile'), cfgFile) && isequal(string(getpref(g, 'PlotSectionsCollapsed')), "bins"), ...
+check(strcmp(AppPrefs.getpref(g, 'LastConfigFile'), cfgFile) && isequal(string(AppPrefs.getpref(g, 'PlotSectionsCollapsed')), "bins"), ...
     'the last config and the collapsed plot-editor section are remembered');
 app.onClose();
 check(~isvalid(app.Fig), 'Close (clean config) closes the window');
@@ -265,16 +263,7 @@ end
 end
 
 
-function restorePrefsAndRoot(g, savedPrefs, root)
-try
-    if ispref(g); rmpref(g); end
-    if isstruct(savedPrefs)
-        for f = string(fieldnames(savedPrefs)).'
-            setpref(g, char(f), savedPrefs.(f));
-        end
-    end
-catch
-end
+function removeRoot(root)
 if isfolder(root)
     try
         rmdir(root, 's');

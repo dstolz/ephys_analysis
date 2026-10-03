@@ -13,9 +13,21 @@ says how to cut a release.
 - `LICENSE` (MIT), `THIRD_PARTY_NOTICES.md`, `CITATION.cff`, this changelog
   and a `VERSION` file that `ephysVersion` reads; `ephysVersion` also reports
   `git describe` (`Describe`).
+- `run_all_tests` runs every suite through `matlab.unittest`: JUnit XML
+  (`JUnit=`), HTML or Cobertura coverage (`Coverage=` / `CoverageXML=`),
+  selection by name or tag. Function-style suites run as `LegacySuiteTest`,
+  each failed check reported on its own; `findTestSuites` lists the suites.
+- `AppPrefs` and `AppPrefsFixture`: the apps keep their preferences through
+  one store, which tests and screenshot runs point at a temporary file.
+- Test suites `test_AppPrefs` and `test_RepositoryMetadata`.
 
 ### Changed
 
+- The apps and the screenshot tools no longer call `getpref` / `setpref`
+  directly. The test suites no longer back up, clear and restore your
+  preferences; they never touch them.
+- `test_BinaryReader` is a `matlab.unittest.TestCase` class (the pattern for
+  new suites), with the same checks.
 - `.gitignore` covers MATLAB backups and autosaves, test-runner output,
   `.claude/worktrees` and operating-system files.
 

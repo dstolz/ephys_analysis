@@ -22,23 +22,11 @@ addpath(genpath(fullfile(fileparts(here), 'vendor')));
 root = fullfile(tempdir, sprintf('App_test_%s', datestr(now, 'yyyymmdd_HHMMSSFFF'))); %#ok<TNOW1,DATST>
 mkdir(root);
 
-% Preserve the user's preferences (the app writes LastConfigFile / recents).
+% The app's preferences go to a temporary file for this suite (AppPrefs),
+% which starts empty; the user's own preferences are never read or written.
 g = EphysPreprocessingApp.PrefGroup;
-savedPrefs = [];
-if ispref(g); savedPrefs = getpref(g); end
-cleanup = onCleanup(@() restorePrefsAndRoot(g, savedPrefs, root)); %#ok<NASGU>
-if ispref(g, 'LastConfigFile'); setpref(g, 'LastConfigFile', ''); end
-if ispref(g, 'DatasetsColumnOrder'); rmpref(g, 'DatasetsColumnOrder'); end
-if ispref(g, 'TrialsParamColumns'); rmpref(g, 'TrialsParamColumns'); end
-if ispref(g, 'TrialsColumnOrder'); rmpref(g, 'TrialsColumnOrder'); end
-if ispref(g, 'TrialsLabelParams'); rmpref(g, 'TrialsLabelParams'); end
-if ispref(g, 'MonitorResources'); rmpref(g, 'MonitorResources'); end
-if ispref(g, 'ShowRunDiagram'); rmpref(g, 'ShowRunDiagram'); end
-if ispref(g, 'DiagramView'); rmpref(g, 'DiagramView'); end
-if ispref(g, 'DiagramLayout'); rmpref(g, 'DiagramLayout'); end
-if ispref(g, 'CleanupOptions'); rmpref(g, 'CleanupOptions'); end
-if ispref(g, 'VizOptions'); rmpref(g, 'VizOptions'); end
-if ispref(g, 'ArtifactViewOptions'); rmpref(g, 'ArtifactViewOptions'); end
+restorePrefs = AppPrefs.useTemporary(); %#ok<NASGU>
+cleanup = onCleanup(@() removeRoot(root)); %#ok<NASGU>
 
 nPass = 0; nFail = 0;
     function check(cond, msg)
@@ -48,6 +36,7 @@ nPass = 0; nFail = 0;
         else
             nFail = nFail + 1;
             fprintf(2, '  FAIL: %s\n', msg);
+            LegacySuiteTest.checkFailed(msg);   % one failure per check in run_all_tests' report
         end
     end
 
@@ -189,7 +178,7 @@ check(count(per, "<div class=""n k-src") == 2 && contains(per, "Downstream (read
     && numel(regexp(per, '<div class="n k-step( dim)?" data-nav=')) == 5 ...
     && contains(per, ">Artifact periods</div><div class=""d"">from Artifacts</div></div><span class=""stem""></span><ul><li class=""c-sorting"">") ...
     && contains(per, ">Artifact periods</div><div class=""d"">from Artifacts</div></div><span class=""stem""></span><ul><li class=""c-signals"">") ...
-    && ~contains(per, "from Sorting") && contains(per, "from Signals") && string(getpref(g, 'DiagramLayout')) == "steps", ...
+    && ~contains(per, "from Sorting") && contains(per, "from Signals") && string(AppPrefs.getpref(g, 'DiagramLayout')) == "steps", ...
     'Layout "Tree per step": a tree from the recording for Artifacts and Spikes; Sorting and Signals (under the artifact periods) and Export downstream; saved as a preference');
 spkErase = allOn;
 spkErase.Spikes.ArtifactMode = "erase";
@@ -232,7 +221,7 @@ ov = string(app.FlowHTML.HTMLSource);
 check(contains(ov, "Preprocessing data flow: gui test") && contains(ov, "<svg class=""flow""") ...
     && count(ov, "<g class=""node c-") == 10 && count(ov, "<g class=""edge ") == 16 ...
     && app.FlowLayoutDropDown.Enable == "off" && startsWith(app.FlowSummaryLabel.Text, "7 of 7 steps enabled") ...
-    && string(getpref(g, 'DiagramView')) == "overview", ...
+    && string(AppPrefs.getpref(g, 'DiagramView')) == "overview", ...
     'View "Data-flow overview": a box per input and step, 16 arrows between them, Layout off, all 7 steps counted; saved as a preference');
 [~, ~, M] = app.flowOverviewHTML();
 [nCross, nOverlap, nThrough, nBadEnd] = flowGeometry(M);
@@ -269,7 +258,7 @@ check(contains(ovNS, "associated by hand; no search") && contains(ovNS, "associa
 app.FlowViewDropDown.Value = "detail";
 app.onFlowViewChanged();
 check(app.FlowLayoutDropDown.Enable == "on" && contains(string(app.FlowHTML.HTMLSource), "Preprocessing diagram: gui test") ...
-    && string(getpref(g, 'DiagramView')) == "detail", 'back on "Every parameter": the detail chart, with Layout on again');
+    && string(AppPrefs.getpref(g, 'DiagramView')) == "detail", 'back on "Every parameter": the detail chart, with Layout on again');
 app.applyConfig(loaded);
 app.selectTab(app.TabProject);
 g2 = app.gatherConfig();
@@ -1265,8 +1254,8 @@ TT = app.TrialsTable.Data;
 check(TT.Param_Pos == "1 2" && TT.Param_Note == "abc" && isnan(TT.Param_Maybe), ...
     'multi-column and cell parameters are shown as text, empty numbers as NaN');
 app.savePreferences();
-check(isequal(string(getpref(g, 'TrialsParamColumns')), ["Pos" "Note" "Maybe"]) ...
-    && isequal(string(getpref(g, 'TrialsColumnOrder')), app.TrialsColumnOrder), 'the columns and their order are preferences');
+check(isequal(string(AppPrefs.getpref(g, 'TrialsParamColumns')), ["Pos" "Note" "Maybe"]) ...
+    && isequal(string(AppPrefs.getpref(g, 'TrialsColumnOrder')), app.TrialsColumnOrder), 'the columns and their order are preferences');
 app.TrialsTable.DisplayColumnOrder = [2 1 3:width(TT)];
 app.onTrialsTableMenu(cm, struct('InteractionInformation', struct('Column', [])));
 item = findobj(cm.Children, 'flat', 'Text', 'Reset column order');
@@ -1348,7 +1337,7 @@ hLab = findall(app.TrialsAxes, "Tag", "trialLabels");
 check(isscalar(item) && logical(item.Checked) && string(hLab.String) == "60", ...
     'a label parameter the session lacks is listed, not written');
 app.savePreferences();
-check(isequal(string(getpref(g, 'TrialsLabelParams')), ["ToneLevel" "Response"]), 'the label parameters are a preference');
+check(isequal(string(AppPrefs.getpref(g, 'TrialsLabelParams')), ["ToneLevel" "Response"]), 'the label parameters are a preference');
 item = findobj(app.TrialsLabelsMenu, 'Text', 'No labels');
 item.MenuSelectedFcn(item, []);
 check(isempty(app.TrialsLabelParams) && isempty(findall(app.TrialsAxes, "Tag", "trialLabels")) && app.TrialsAxes.YLim(2) == 1.6, ...
@@ -1697,7 +1686,7 @@ app.RunSignalsCheckBox.Value = false;
 app.RunSignalsCheckBox.ValueChangedFcn(app.RunSignalsCheckBox, []);
 check(app.RunDiagramHTML.Data.steps(5).label == "off", 'unticking a step takes it out of the preview');
 app.savePreferences();
-check(isequal(getpref(g, 'ShowRunDiagram'), true), 'the switch is saved as a preference');
+check(isequal(AppPrefs.getpref(g, 'ShowRunDiagram'), true), 'the switch is saved as a preference');
 app.RunDiagramCheckBox.Value = false;
 app.onRunDiagramToggled();
 check(app.RunDiagramPanel.Visible == "off" && isequal(app.RunSplitGrid.ColumnWidth, {'1x', 0}), ...
@@ -1737,7 +1726,7 @@ tx = string({app.RunMonitorTexts.Text});
 check(startsWith(string(app.RunMonitorNote.Text), "Sampled every") && endsWith(tx(1), "%") ...
     && endsWith(tx(2), " GB"), sprintf('live samples arrive within %.0f s', toc(t0)));
 app.savePreferences();
-check(isequal(getpref(g, 'MonitorResources'), true), 'the switch is saved as a preference');
+check(isequal(AppPrefs.getpref(g, 'MonitorResources'), true), 'the switch is saved as a preference');
 app.RunMonitorCheckBox.Value = false;
 app.onResourceMonitorToggled();
 t0 = tic;
@@ -1848,7 +1837,7 @@ check(height(R) == nnz(P.Action == "remove") && all(R.Status == "removed") && is
     && isfile(fullfile(f1, app.Project.Datasets(1).Name + "_cleanup.json")), ...
     'Move files moves them to <folder>\<dataset key>\..., removes the emptied kilosort4 folder, keeps a record and previews again');
 app.savePreferences();
-v = getpref(g, 'CleanupOptions');
+v = AppPrefs.getpref(g, 'CleanupOptions');
 check(isequal(string(v.steps), "sorting") && string(v.method) == "move" && string(v.destination) == string(moveDest), ...
     'the ticked steps, the method and the folder are saved as preferences');
 app.CleanupStepCheckBoxes(1).Value = false;
@@ -2036,7 +2025,7 @@ app.onNewConfig();
 check(app.Config.Name == "Untitled" && app.Config.File == "" && ~app.SpkEnableCheckBox.Value, 'New config resets to defaults');
 ok = app.openConfigFile(cfgFile);
 check(ok && app.Config.Spikes.Threshold == 1500 && any(app.RecentConfigs == string(cfgFile)), 'reopen + recent list');
-check(ispref(g, 'LastConfigFile') && strcmp(getpref(g, 'LastConfigFile'), cfgFile), 'the last config file is remembered');
+check(AppPrefs.ispref(g, 'LastConfigFile') && strcmp(AppPrefs.getpref(g, 'LastConfigFile'), cfgFile), 'the last config file is remembered');
 
 % the Artifacts tab's viewer options come back in a new window
 app.ArtViewContextField.Value = 40;
@@ -2453,16 +2442,7 @@ end
 end
 
 
-function restorePrefsAndRoot(g, savedPrefs, root)
-try
-    if ispref(g); rmpref(g); end
-    if isstruct(savedPrefs)
-        for f = string(fieldnames(savedPrefs)).'
-            setpref(g, char(f), savedPrefs.(f));
-        end
-    end
-catch
-end
+function removeRoot(root)
 if isfolder(root); rmdir(root, 's'); end
 end
 

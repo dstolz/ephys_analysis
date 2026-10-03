@@ -9,7 +9,7 @@ so that each update repeats the last one instead of rebuilding it.
 | `check_links.py` | Checks every page's links, anchors and images before a push. |
 | `wikiScreenshots.m` | Takes the preprocessing app's screenshots headlessly over a synthetic project, and runs it. |
 | `wikiToolScreenshots.m` | Takes the other windows' screenshots (probe designer, channel mapper, manifest viewer, analysis app) over that project. |
-| `restoreAppPrefs.m` | Puts the apps' preferences back if a screenshot run had to be killed. |
+| `restoreAppPrefs.m` | Puts back preferences from a backup an older version of the screenshot scripts left behind. The scripts now use a temporary preference store (`AppPrefs`), so a killed run leaves your preferences as they were. |
 
 ## Updating the wiki
 
@@ -103,15 +103,14 @@ git clone https://github.com/dstolz/ephys_analysis.wiki.git C:\temp\wiki
 
 ## Things that bite
 
-- **Preferences.** Both scripts and the apps' test suites back up and
-  restore the same preferences (`EphysPreprocessingApp`, and for
-  `wikiToolScreenshots` also `EphysAnalysisApp` and `ChannelMapperApp`), so
-  never run two app-driving MATLABs at once. Check first:
-  `Get-CimInstance Win32_Process -Filter "Name='MATLAB.exe'"`.
+- **Preferences.** The scripts and the apps' test suites keep the apps'
+  preferences in a temporary file of their own (`AppPrefs.useTemporary`),
+  so they never read or change yours, and two of them can run at once.
+  `Source=` must be a commit that has `AppPrefs`.
 - **`exportapp` can hang, or capture a stale frame on a busy machine.** Two
   things reduce it: the script stops the resource monitor's timer before the
   results shot, and it waits for rendering (`Wait=`). If a run hangs, kill
-  MATLAB and run `restoreAppPrefs('<out folder>\prefs_backup.mat')`.
+  MATLAB; your preferences are as they were.
 - **`-batch` strips double quotes.** Use single-quoted MATLAB strings and a
   cell array for `Shots`.
 - **GitHub wiki markdown.**

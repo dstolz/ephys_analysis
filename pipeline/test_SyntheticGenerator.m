@@ -31,6 +31,7 @@ nPass = 0; nFail = 0;
         else
             nFail = nFail + 1;
             fprintf(2, '  FAIL: %s\n', msg);
+            LegacySuiteTest.checkFailed(msg);   % one failure per check in run_all_tests' report
         end
     end
     function id = errorId(fcn)
@@ -276,11 +277,7 @@ check(isequal(string(fieldnames(E8.events)).', ["Trial" "Tone"]) && P8.nPaired =
 
 fprintf('\n== 7. the app''s Synthetic tab ==\n');
 g = 'EphysPreprocessingApp';
-savedPrefs = [];
-if ispref(g); savedPrefs = getpref(g); end
-prefsCleanup = onCleanup(@() restorePrefs(g, savedPrefs));
-if ispref(g, 'LastConfigFile'); setpref(g, 'LastConfigFile', ''); end
-if ispref(g, 'SynthOptions'); rmpref(g, 'SynthOptions'); end
+prefsCleanup = AppPrefs.useTemporary(); %#ok<NASGU> preferences in a temporary file, never the user's
 app = EphysPreprocessingApp;
 appCleanup = onCleanup(@() closeApp(app));
 check(any(app.TabList == app.TabSynthetic) && find(app.TabList == app.TabSynthetic) == numel(app.TabList) - 1, ...
@@ -355,7 +352,7 @@ check(ok && app.SynthSource.timing == "session" && size(app.SynthLinesTable.Data
 app.onSynthDesign("removeLine");
 check(isempty(app.SynthSource) && size(app.SynthLinesTable.Data, 1) == 2, 'editing the rebuilt lines drops the loaded schedule');
 app.savePreferences();
-v = getpref(g, 'SynthOptions');
+v = AppPrefs.getpref(g, 'SynthOptions');
 Dp = SyntheticDesign.fromStruct(jsondecode(v.design));
 check(v.source == "session" && isequal(Dp.Units.Name, app.gatherSynthDesign().Units.Name) && size(v.lines, 1) == 2, ...
     'the settings and the design are kept as preferences');
@@ -379,17 +376,6 @@ end
 end
 
 
-function restorePrefs(g, savedPrefs)
-try
-    if ispref(g); rmpref(g); end
-    if isstruct(savedPrefs)
-        for f = string(fieldnames(savedPrefs)).'
-            setpref(g, char(f), savedPrefs.(f));
-        end
-    end
-catch
-end
-end
 
 
 function rmdirQuiet(p)

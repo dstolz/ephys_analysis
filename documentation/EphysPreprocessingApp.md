@@ -1732,8 +1732,10 @@ Scripted, `app.issueReport("bug")` returns the same report (name-value
 
 ## Preferences
 
-Stored with `setpref` / `getpref` under the group `'EphysPreprocessingApp'`.
-Only what is **not** part of a config lives here:
+Stored under the group `'EphysPreprocessingApp'` through [`AppPrefs`](../pipeline/AppPrefs.m), which keeps
+them as MATLAB preferences unless the environment variable `EPHYS_APP_PREFS_FILE` names a file (the test
+suites and screenshot scripts use a temporary one, so they never change yours). Only what is **not** part
+of a config lives here:
 
 | Key | Contents |
 | --- | --- |
@@ -1753,7 +1755,7 @@ Only what is **not** part of a config lives here:
 | `QueueSortingRuns` | the Run tab's **Queue the waiting runs; the Run goes on** switch |
 | `CleanupOptions` | the Clean up tab's kinds of file and steps to remove, **Removed files go** and its folder, and **Show the files that remain** |
 
-To reset: `rmpref('EphysPreprocessingApp')` with the app closed. Older
+To reset: `AppPrefs.rmpref('EphysPreprocessingApp')` with the app closed. Older
 preference groups are not read. The [scheduled copy](#scheduled-copy) is not a
 preference: its settings live in its own file, which its Windows task reads.
 

@@ -71,7 +71,8 @@ Create synthetic test project...** in the GUI) writes synthetic recordings
 (Intan or Open Ephys) with Epsych2 sessions, sorted output and a ready config
 to run.
 
-Tests: `cd pipeline; run_all_tests`.
+Tests: `cd pipeline; run_all_tests` (all suites; `run_all_tests(JUnit="junit.xml")` also writes a
+JUnit report). The tests keep the apps' preferences in a temporary file, never yours.
 
 ## Versions, license and citation
 

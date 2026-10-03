@@ -164,7 +164,9 @@ or starting a new config asks to save them.
 
 ## Preferences
 
-Group `EphysAnalysisApp` (`getpref`); everything else is in the config.
+Group `EphysAnalysisApp`, kept through [`AppPrefs`](../pipeline/AppPrefs.m): MATLAB preferences, or the file
+named by the environment variable `EPHYS_APP_PREFS_FILE` (the tests' temporary store). Everything else
+is in the config.
 
 | Preference | Meaning |
 | --- | --- |

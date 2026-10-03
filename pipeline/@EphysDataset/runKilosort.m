@@ -202,7 +202,7 @@ probeFile = absPath(probeFile);
 % .bin's units per uV: ds.Scale when toBin writes it here, else the sidecar.
 [nChanBin, fsVal, binScale, binRef] = resolveBinMeta(binFile, opts, obj);
 if ~binGiven
-    binScale = obj.Scale;
+    binScale = obj.binScale();   % what toBin used above
     binRef = string(EphysDataset.normalizeArtifactConfig(obj.ArtifactConfig).Reference);   % what toBin subtracts
 elseif ~isfinite(binScale) || binRef == ""
     warning('EphysDataset:runKilosort:BinMetaUnknown', ...

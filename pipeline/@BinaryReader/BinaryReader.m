@@ -194,6 +194,20 @@ classdef BinaryReader < EphysReader
             tf = true;
         end
 
+        function S = storageFormat(obj)
+            %storageFormat  recording.json's dtype, offset and gain_to_uV.
+            S = storageFormat@EphysReader(obj);
+            d = obj.Descriptor;
+            if ~isfield(d, 'dtype'); return; end
+            gain = 1; off = 0;
+            if isfield(d, 'gain_to_uV'); gain = double(d.gain_to_uV); end
+            if isfield(d, 'offset'); off = double(d.offset); end
+            if ~isscalar(gain) || ~isscalar(off); return; end
+            S.gainUV(:) = gain;
+            S.class = string(BinaryReader.precisionFor(string(d.dtype)));
+            S.offset = off;
+        end
+
         function X = readWindowUV(obj, sampleOffset, nSamp)
             %readWindowUV  Samples [sampleOffset+1 .. sampleOffset+nSamp] in microvolts.
             arguments

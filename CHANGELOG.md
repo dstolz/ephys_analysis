@@ -30,7 +30,6 @@ says how to cut a release.
   cancel that could not be signalled and a clean-up that could not list a
   dataset's outputs. They are listed in `documentation/README.md`; suite
   `test_DataPathWarnings` checks six of them.
-
 - Provenance in every output: the release, git commit, branch, uncommitted
   changes and `git describe`, MATLAB, host, user and time (`ephysProvenance`),
   plus the run id and the full pipeline config when `EphysPipeline` writes it.
@@ -45,13 +44,17 @@ says how to cut a release.
 - `stringifyNonFinite` (moved out of `writeJsonFile`), `provenanceForJson`;
   suite `test_Provenance`.
 
-### Fixed
-
-- The guard that stops `toBin` writing over a recording file now resolves
-  `.` and `..` itself when MATLAB runs without Java.
-
 ### Changed
 
+- The Kilosort4 `.bin` keeps the recording's own resolution when it can:
+  `EphysDataset.Scale` and `EphysProject.Scale` default to `NaN`, meaning
+  `EphysDataset.binScale`, which uses 1 / the recording's µV per stored unit
+  when every channel shares it and one stored unit maps onto one int16 unit
+  (readers report their storage through `EphysReader.storageFormat`), else
+  `1/0.195` as before. Intan and Open Ephys headstage data are unchanged
+  (0.195 µV); a `recording.json` recording at another `gain_to_uV` is now
+  written to the integer instead of re-quantised. `toBin` returns
+  `scaleSource` and the sidecar records `scale_source`. Suite `test_BinScale`.
 - The apps and the screenshot tools no longer call `getpref` / `setpref`
   directly. The test suites no longer back up, clear and restore your
   preferences; they never touch them.
@@ -59,6 +62,11 @@ says how to cut a release.
   new suites), with the same checks.
 - `.gitignore` covers MATLAB backups and autosaves, test-runner output,
   `.claude/worktrees` and operating-system files.
+
+### Fixed
+
+- The guard that stops `toBin` writing over a recording file now resolves
+  `.` and `..` itself when MATLAB runs without Java.
 
 ## [0.1.0] - untagged
 

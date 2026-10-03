@@ -121,7 +121,7 @@ check(info.nBytes == numAmp * totalSamples * 2, 'byte invariant nBytes = nChan*n
 % In-memory write of the same data via matrixToBin
 ds2 = EphysDataset(dsFolder);
 ds2.OutputDir = fullfile(root, 'out_mem');
-info2 = ds2.matrixToBin(data.amplifier);   % uses Scale=1/0.195, Dtype int16
+info2 = ds2.matrixToBin(data.amplifier);   % Intan: binScale = 1/0.195 (its own resolution), Dtype int16
 b1 = readBin(info.filename);
 b2 = readBin(info2.filename);
 check(isequal(b1, b2), 'streaming toBin == matrix2kilosort (byte-identical)');
@@ -392,7 +392,7 @@ check(isequal(readBin(dataB), rawB), 'the recording is untouched');
 dsB.OutputDir = fullfile(root, 'binrec_out');
 t0B = 0.7237; t1B = t0B + 0.05;
 iBr = dsB.toBin(ArtifactIntervals=[t0B t1B], WriteMeta=false);
-BB = reshape(double(typecast(readBin(iBr.filename), 'int16')), 8, []).' / dsB.Scale;
+BB = reshape(double(typecast(readBin(iBr.filename), 'int16')), 8, []).' / iBr.scale;
 onB = round(t0B * FsB) + 1; offB = round(t1B * FsB);
 jB = [BB(onB, :) - BB(onB-1, :), BB(offB+1, :) - BB(offB, :)];
 aB = mean(BB(onB-30:onB-1, :)); bB = mean(BB(offB+1:offB+30, :));

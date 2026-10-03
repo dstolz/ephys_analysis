@@ -637,6 +637,7 @@ Path: `<outputFolder>/<Name>.json` (`<Name>_ks4.json` beside a
 | Field | Meaning |
 | --- | --- |
 | `n_chan_bin`, `fs`, `dtype`, `n_samples`, `byte_order`, `scale`, `offset` | what was written |
+| `scale_source` | where `scale` came from: `set: ...` (given), `native: ...` (the recording's own resolution, nothing quantised again) or `default: <why>` (`EphysDataset.binScale`) |
 | `bin_file`, `source_folder` | paths |
 | `manual_artifacts` | `[k x 2]` seconds (the `ManualArtifacts` in effect) |
 | `n_manual_blanked` | samples erased by manual periods |

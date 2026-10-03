@@ -99,6 +99,19 @@ classdef IntanReader < EphysReader
             tf = ismember(obj.RecordingFormat, ["traditional" "one-file-per-signal" "one-file-per-channel"]);
         end
 
+        function S = storageFormat(obj)
+            %storageFormat  0.195 uV per unit: uint16 less 32768 (traditional *.rhd), int16 (.dat).
+            n = obj.NumChannels;
+            if ~(n >= 0); n = 0; end
+            S = struct('gainUV', repmat(0.195, 1, n), 'class', "int16", 'offset', 0);
+            if obj.RecordingFormat == "traditional"
+                S.class = "uint16";
+                S.offset = 32768;
+            elseif ~ismember(obj.RecordingFormat, ["one-file-per-signal" "one-file-per-channel"])
+                S = storageFormat@EphysReader(obj);   % not an Intan layout: unknown
+            end
+        end
+
         function X = readWindowUV(obj, sampleOffset, nSamp)
             %readWindowUV  Samples [sampleOffset+1 .. sampleOffset+nSamp] in microvolts.
             %   Rows of the whole recording (every file, in order), all

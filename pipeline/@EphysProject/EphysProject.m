@@ -30,7 +30,7 @@ classdef EphysProject < handle
         PythonExe  (1,1) string = ""
         CondaEnv   (1,1) string = ""
         OutputRoot (1,1) string = ""    % per-dataset output goes under OutputRoot/<Name>
-        Scale      (1,1) double = 1/0.195
+        Scale      (1,1) double = NaN      % .bin units per uV; NaN = each dataset's own (EphysDataset.binScale)
         Dtype      (1,1) string = "int16"
         Manifest                          % optional shared Manifest
 
@@ -65,7 +65,7 @@ classdef EphysProject < handle
                 opts.PythonExe  (1,1) string = ""
                 opts.CondaEnv   (1,1) string = ""
                 opts.OutputRoot (1,1) string = ""
-                opts.Scale      (1,1) double = 1/0.195
+                opts.Scale      (1,1) double = NaN
                 opts.Dtype      (1,1) string = "int16"
                 opts.NamePattern (1,1) string = EphysDataset.DefaultNamePattern
                 opts.Recursive  (1,1) logical = true

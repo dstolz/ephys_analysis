@@ -400,7 +400,7 @@ ds = EphysDataset()                              % empty object (arrays/prealloc
 | `ProbeFile` | `""` | Kilosort4 probe `.json` |
 | `PythonExe` | `""` | Python executable used to launch Kilosort4 |
 | `CondaEnv` | `""` | when set, commands are run via `conda run -n <env>` |
-| `Scale` | `1/0.195` | multiplier applied before casting when writing `.bin` |
+| `Scale` | `NaN` | `.bin` units per µV; `NaN` = from the recording (`binScale`: its own resolution when that is lossless, else `1/0.195`) |
 | `Dtype` | `"int16"` | `.bin` sample class |
 | `OutputDir` | `""` | output folder; `""` means the recording folder |
 | `Manifest` | `[]` | optional `Manifest` object ([vendor/tools/Manifest.m](../vendor/tools/Manifest.m)) that receives provenance entries |
@@ -445,7 +445,7 @@ The constructor errors (`EphysDataset:NoFolder`) if the folder does not exist.
 | `ReferenceExclude` | `[]` | 1-based channels left out of the common reference, though still referenced (see [Common reference](#common-reference-car--cmr)). Saved to and restored from the dataset manifest |
 | `ReferenceExcludeSource` | `""` | where `ReferenceExclude` came from: `""` (never set: the first referenced read suggests it), `"suggested"` or `"manual"` |
 | `PythonExe`, `CondaEnv` | `""` | Python launch configuration |
-| `Scale` | `1/0.195` | `.bin` scale factor |
+| `Scale` | `NaN` | `.bin` units per µV (`NaN` = `binScale`) |
 | `Dtype` | `"int16"` | one of `int16`, `uint16`, `int32`, `single`, `float32` |
 | `OutputDir` | `""` | output folder (`""` = `Folder`) |
 | `Manifest` | empty | optional provenance `Manifest` object |
@@ -1143,7 +1143,7 @@ varying fastest. It holds one chunk in memory at a time. Per chunk, in order:
 | Option | Default |
 | --- | --- |
 | `Files`, `ChannelOrder` | all |
-| `Scale` / `Dtype` | `ds.Scale` / `ds.Dtype` |
+| `Scale` / `Dtype` | `ds.binScale(Dtype)` / `ds.Dtype` |
 | `Offset` | `0` |
 | `Filter`, `FilterType`, `FilterCutoff`, `FilterOrder` | off, `"highpass"`, `300`, `4` |
 | `FilterEdgeMode` | `"independent"` (each chunk filtered on its own). `"overlap"` prepends the previous chunk's last `OverlapSamples` raw samples before filtering |
@@ -1155,8 +1155,20 @@ varying fastest. It holds one chunk in memory at a time. Per chunk, in order:
 | `WriteMeta` | `true` (writes a `<name>.json` sidecar next to the `.bin`) |
 | `BinFile` | `ds.BinFile`; a bare file name goes in `outputFolder()` |
 
-With the default scale `1/0.195`, µV are converted back to native int16 ADC
-units. For integer dtypes, values outside the class range are **clipped** by the
+**The scale.** Without `Scale=` the `.bin` gets `ds.binScale(Dtype)`:
+`ds.Scale` when it is set, else the recording's own resolution, 1 / its µV
+per stored unit (`EphysReader.storageFormat`), when every channel shares one
+and one stored unit maps onto one unit of an int16 `.bin` without clipping
+(int16 samples, Intan's uint16 less 32768, or int8). The `.bin` then holds
+the recording's own integers and nothing is quantised again: Intan and Open
+Ephys headstage data at 0.195 µV, and a `recording.json` recording at its
+`gain_to_uV`. Otherwise (floating-point samples such as TDT's, channels at
+different resolutions, wider integers, a float `.bin`, a reader that cannot
+tell) the default `1/0.195` is used. `info.scaleSource` and the sidecar's
+`scale_source` say which, and why. Filtering, a common reference and an
+artifact fill change the values, so only an unprocessed `.bin` is lossless.
+
+For integer dtypes, values outside the class range are **clipped** by the
 cast. Clipping is counted (`info.nClipped`) and reported by a warning
 (`EphysDataset:toBin:Clipping`).
 
@@ -1287,7 +1299,7 @@ directly in that folder. A dry run writes no `.bin` and puts its
 how its results were made; its `settings.json` still names `ResultsDir` as
 `results_dir`.
 
-`settings.json` also records `bin_scale`, the `.bin`'s units per µV (`Scale`
+`settings.json` also records `bin_scale`, the `.bin`'s units per µV (`binScale()`
 when this call writes the `.bin`, else the sidecar's `scale`), which
 `readPhyUnits` needs to give templates in µV; `run_ks4.py` does not pass it to
 Kilosort4. With [shank spacing](#shank-spacing) it also records

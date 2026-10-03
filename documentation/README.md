@@ -206,8 +206,11 @@ record node / stream, TTL line names) and
 ### Units
 
 - Amplifier data is in **microvolts** everywhere in MATLAB.
-- `toBin` multiplies by `Scale` (default `1/0.195`) to go back to int16 ADC
-  counts. Out-of-range values are clipped, counted and warned about.
+- `toBin` multiplies by the `.bin`'s units per µV: the recording's own
+  resolution when one stored unit maps onto one int16 unit (Intan and Open
+  Ephys headstage data: 1/0.195, so the `.bin` holds the ADC counts), else
+  `1/0.195` (`EphysDataset.binScale`; the sidecar's `scale_source` says
+  which). Out-of-range values are clipped, counted and warned about.
 
 ### Channel indexing
 
@@ -433,6 +436,7 @@ suite's temporary preferences, so close it before the run ends.
 | `test_AppPrefs` | the apps' preference store: a file store's set / get / remove, nothing reaching MATLAB's own preferences, nested temporary stores, `AppPrefsFixture` |
 | `test_RepositoryMetadata` | `VERSION`, `CITATION.cff`, `CHANGELOG.md` and `ephysVersion` agree on the release number |
 | `test_Provenance` | `ephysProvenance` / `provenanceForJson`; a run's record (finished, cancelled; none for a dry run) and the run id, code and config in its outputs; a step called on its own (config, no run); a direct writer call (code only); `settings.json` |
+| `test_BinScale` | the `.bin` keeps the recording's resolution: Intan's 1/0.195, an int16 recording at another gain written to the integer, unclipped, uint16 with and without Intan's offset, floating-point samples and float `.bin`s on the default, a scale that is set, a project leaving each dataset its own |
 | `test_DataPathWarnings` | fallbacks that change a result warn: a binary `acq_date` that does not parse, an unreadable probe, a given `.bin` without a sidecar, an unreadable output file, a name pattern that does not parse, an Epsych2 start that does not convert; each fallback is as before |
 | `test_SortedUnits` | `readPhyUnits`' label tables, template units and per-unit grouping; `channelLayout` (`chanMap` values are `.bin` rows); `runKilosort(DryRun=true)` leaving an existing run alone; `readPhyWaveforms` (the spikes' windows in the sorted `.bin`) |
 | `test_DeriveSignals` | derived signals: bad channels as columns (the config's recording channels mapped to them), interpolated from the probe geometry or, without one, across columns; automatic detection; the MUA / SPIKE filters in double; non-integer rates; `info.<type>.nSamples`; line naming and polarity from `TrialConfig`; artifact periods erased before deriving (the line fill, `info.artifacts`, no filter ringing outside the period, AUX untouched) |

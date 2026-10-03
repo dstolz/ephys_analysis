@@ -226,6 +226,15 @@ classdef TDTReader < EphysReader
             tf = true;
         end
 
+        function S = storageFormat(obj)
+            %storageFormat  The stream's stored format and Gain (uV per stored unit).
+            S = storageFormat@EphysReader(obj);
+            if isempty(obj.Stream) || ~isfield(obj.Stream, 'fmt') || ~(obj.Gain > 0); return; end
+            S.gainUV(:) = obj.Gain;
+            S.class = string(obj.Stream.fmt);
+            S.offset = 0;
+        end
+
         function X = readWindowUV(obj, sampleOffset, nSamp)
             %readWindowUV  Rows [sampleOffset+1 .. sampleOffset+nSamp] in microvolts.
             arguments

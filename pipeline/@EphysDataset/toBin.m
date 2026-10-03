@@ -18,7 +18,10 @@ function info = toBin(obj, opts)
 %   -------
 %     Files          (1,:) string  subset/order of files (default: all, chronological)
 %     ChannelOrder   (1,:) double  1-based reorder/subset of amplifier channels
-%     Scale          (1,1) double  multiplier before cast (default ds.Scale)
+%     Scale          (1,1) double  multiplier before cast (default ds.binScale(Dtype):
+%                    ds.Scale when set, else the recording's own resolution
+%                    when one stored unit maps onto one .bin unit, else 1/0.195;
+%                    info.scaleSource and the sidecar's scale_source say which)
 %     Offset         (1,1) double  added after scaling (default 0)
 %     Dtype          string        on-disk class (default ds.Dtype)
 %     Filter         (1,1) logical  high/band-pass before writing (default false)
@@ -74,7 +77,8 @@ function info = toBin(obj, opts)
 %   recording's data file named <Name>.bin in the output folder, say - is
 %   refused before anything is opened (EphysDataset:toBin:WouldOverwriteRecording).
 %
-%   Output INFO struct: filename, dtype, nChan, nSamples, fs, scale, offset,
+%   Output INFO struct: filename, dtype, nChan, nSamples, fs, scale,
+%   scaleSource (where the scale came from, see Scale), offset,
 %   nClipped, nBytes, metaFile (if written), nManualBlanked, nAutoBlanked,
 %   artifactFill, noiseFill (struct: bandHz, seed, sigma, center - empty when
 %   filling with zeros) and autoArtifact (struct: enabled, method, threshold,
@@ -134,8 +138,10 @@ if isnan(obj.Fs) || isempty(obj.PerFile)
 end
 
 % Resolve config (per-call -> dataset defaults)
-scale = opts.Scale;  if isnan(scale); scale = obj.Scale; end
 dtype = opts.Dtype;  if dtype == "";  dtype = obj.Dtype; end
+scale = opts.Scale;
+scaleSource = "set: Scale=";
+if isnan(scale); [scale, scaleSource] = obj.binScale(dtype); end
 binFile = opts.BinFile; if binFile == ""; binFile = obj.BinFile; end
 if fileparts(binFile) == ""            % a bare file name goes in the output folder
     binFile = fullfile(obj.outputFolder(), binFile);
@@ -397,6 +403,7 @@ info.nChan     = nChanOut;
 info.nSamples  = nSamples;
 info.fs        = Fs;
 info.scale     = scale;
+info.scaleSource = scaleSource;
 info.offset    = opts.Offset;
 info.byteOrder = 'little-endian';
 info.nClipped  = nClipped;
@@ -444,6 +451,7 @@ end
 if opts.WriteMeta
     meta = struct('n_chan_bin', nChanOut, 'fs', Fs, 'dtype', char(dtype), ...
         'n_samples', nSamples, 'byte_order', 'little-endian', 'scale', scale, ...
+        'scale_source', char(scaleSource), ...
         'offset', opts.Offset, 'bin_file', char(binFile), ...
         'source_folder', char(obj.Folder), ...
         'manual_artifacts', listIv, ...

@@ -41,6 +41,8 @@ says how to cut a release.
   config, code, machine, Results) whether the run finishes, is cancelled or
   fails; `EphysAnalysisRunner.run` writes `analysis_runs/<runId>_<name>.json`
   in the report folder. Analysis reports show the code version.
+- `stringifyNonFinite` (moved out of `writeJsonFile`), `provenanceForJson`;
+  suite `test_Provenance`.
 - Recording-wide spike-detection thresholds: `detectSpikes(ThresholdScope=
   "recording")` measures each channel's noise over the whole recording in a
   first pass (the same chunks, context, artifact erasing and band-pass as
@@ -124,8 +126,6 @@ says how to cut a release.
   open, xdg-open). The seven places in the apps that open one now call it.
   Off Windows they had used four different fallbacks, and one ran macOS's
   `open` on Linux too. Suite `test_PlatformSupport`.
-- `stringifyNonFinite` (moved out of `writeJsonFile`), `provenanceForJson`;
-  suite `test_Provenance`.
 
 ### Changed
 

@@ -5,7 +5,8 @@ function [R, E, G] = computePlot(obj, src, spec) %#ok<INUSD>
 %     psth / raster / heatmap of spikes
 %         [E, G] = epochTable(src, spec.ref, Window=spec.window, Selection=spec.selection,
 %             Baseline=) (the artifact test covers a baseline outside the window)
-%         [st, meta] = selectUnits(src, spec.units)
+%         [st, meta] = selectUnits(src, spec.units, Ref=spec.ref, Selection=spec.selection)
+%             (Ref / Selection: the events of an enabled units.response test)
 %         R = spikePSTH(st, E, Window=[pre post], BinSec=, SmoothSec=, Measure=,
 %             Baseline=, BaselineMode=, MaskAfterStop=, Raster=, Groups=G, Meta=meta)
 %     evoked / heatmap of a signal
@@ -18,7 +19,7 @@ function [R, E, G] = computePlot(obj, src, spec) %#ok<INUSD>
 %               tuningCurve(F.rate, E.(param), Series=E.(seriesParam), ...)
 %     corrmap   unitCorrelation(st, E, Metric=spec.metric, Type=spec.correlation,
 %               BinSec=, SmoothSec=, Baseline=, BaselineMode=, Groups=G, Meta=meta)
-%     probemap  probeMapValues(unitSummary(src, Source=, Units=), src.probe, Value=)
+%     probemap  probeMapValues(unitSummary(src, Source=, Units=, Ref=, Selection=), src.probe, Value=)
 %   R also gets epochs (E), dataset (the name) and spec. EphysAnalysisScript
 %   writes these same calls out.
 %
@@ -36,7 +37,7 @@ switch spec.kind
             [Y, fs, meta] = selectChannels(src, spec.source, Channels=spec.channels);
             R = evokedPotential(Y, fs, E, Window=[w.pre w.post], Baseline=b, Groups=G, Meta=meta, Units=meta.units(1));
         else
-            [st, meta] = selectUnits(src, spec.units);
+            [st, meta] = selectUnits(src, spec.units, Ref=spec.ref, Selection=spec.selection);
             R = spikePSTH(st, E, Window=[w.pre w.post], BinSec=spec.bins.BinSec, SmoothSec=spec.bins.SmoothSec, ...
                 Measure=spec.measure, Baseline=b, BaselineMode=spec.baseline.Mode, MaskAfterStop=spec.maskAfterStop, ...
                 Raster=spec.kind == "raster" || (spec.kind == "psth" && spec.withRaster), Groups=G, Meta=meta);
@@ -47,12 +48,12 @@ switch spec.kind
         R = evokedPotential(Y, fs, E, Window=[w.pre w.post], Baseline=b, Groups=G, Meta=meta, Units=meta.units(1));
     case "rate"
         [E, G] = epochTable(src, spec.ref, Window=w, Selection=spec.selection, Baseline=b);
-        [st, meta] = selectUnits(src, spec.units);
+        [st, meta] = selectUnits(src, spec.units, Ref=spec.ref, Selection=spec.selection);
         R = firingRate(st, E, Measure=spec.measure, Baseline=b, Normalize=spec.baseline.Mode, Groups=G, Meta=meta);
     case "tuning"
         cols = [spec.param spec.seriesParam];
         [E, G] = epochTable(src, spec.ref, Window=w, Selection=spec.selection, Baseline=b, Columns=cols(cols ~= ""));
-        [st, meta] = selectUnits(src, spec.units);
+        [st, meta] = selectUnits(src, spec.units, Ref=spec.ref, Selection=spec.selection);
         F = firingRate(st, E, Measure=spec.measure, Baseline=b, Normalize=spec.baseline.Mode, Groups=G, Meta=meta);
         series = [];
         if spec.seriesParam ~= ""; series = E.(spec.seriesParam); end
@@ -60,11 +61,11 @@ switch spec.kind
             Meta=meta, Units=F.units);
     case "corrmap"
         [E, G] = epochTable(src, spec.ref, Window=w, Selection=spec.selection, Baseline=b);
-        [st, meta] = selectUnits(src, spec.units);
+        [st, meta] = selectUnits(src, spec.units, Ref=spec.ref, Selection=spec.selection);
         R = unitCorrelation(st, E, Metric=spec.metric, Type=spec.correlation, BinSec=spec.bins.BinSec, ...
             SmoothSec=spec.bins.SmoothSec, Baseline=b, BaselineMode=spec.baseline.Mode, Groups=G, Meta=meta);
     case "probemap"
-        T = unitSummary(src, Source=spec.source, Units=spec.units);
+        T = unitSummary(src, Source=spec.source, Units=spec.units, Ref=spec.ref, Selection=spec.selection);
         R = probeMapValues(T, src.probe, Value=spec.value);
         G = R.groups;
     otherwise

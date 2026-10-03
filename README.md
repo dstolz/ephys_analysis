@@ -14,8 +14,8 @@ reference and [pipeline/INSTALL.md](pipeline/INSTALL.md) for setup.
 | [`pipeline/pipeline_configs/`](pipeline/pipeline_configs) | starting-point pipeline configs (`H64LP_4x16.json`) |
 | [`analysis/`](analysis) | quick-look figures from the pipeline's outputs: `EphysAnalysisConfig` / `EphysAnalysisRunner` / `EphysAnalysisScript`, `EphysAnalysisApp`, PSTHs, evoked potentials, rates, tuning, heatmaps, probe maps, HTML / PDF reports ([docs](documentation/EphysAnalysis.md)) |
 | [`documentation/`](documentation) | Reference docs for the pipeline |
-| [`S_ExampleAnalysis.m`](S_ExampleAnalysis.m) | script walkthrough: project, detection, derived signals, the pipeline and its outputs |
-| [`extract_trials.m`](extract_trials.m), [`matrix2kilosort.m`](matrix2kilosort.m) | Top-level helpers used by `pipeline/` |
+| [`S_ExampleAnalysis.m`](S_ExampleAnalysis.m) | a walkthrough that runs on any machine, on a synthetic project it writes to `tempdir`: the project and a recording, trial pairing, the pipeline and its outputs, sorted units with quality metrics, a PSTH, response statistics and a population summary |
+| [`extract_trials.m`](extract_trials.m), [`matrix2kilosort.m`](matrix2kilosort.m) | Stand-alone helpers: `extract_trials` cuts trials out of a continuous signal around event times (not called by the pipeline; tested in `test_ChronuxDataset`), and `matrix2kilosort` writes a matrix as a Kilosort `.bin` (behind `EphysDataset.matrixToBin`) |
 | [`vendor/`](vendor) | Copies of a few `helper_fnc` utilities this pipeline depends on — see [vendor/README.md](vendor/README.md) |
 | [`toolboxes/chronux`](toolboxes/chronux) | Bundled copy of the [Chronux](http://chronux.org) toolbox, used with `ChronuxDataset` |
 
@@ -71,4 +71,19 @@ Create synthetic test project...** in the GUI) writes synthetic recordings
 (Intan or Open Ephys) with Epsych2 sessions, sorted output and a ready config
 to run.
 
-Tests: `cd pipeline; run_all_tests`.
+Tests: `cd pipeline; run_all_tests` (all suites; `run_all_tests(JUnit="junit.xml")` also writes a
+JUnit report). The tests keep the apps' preferences in a temporary file, never yours.
+
+## Versions, license and citation
+
+The release number is in [`VERSION`](VERSION) and every output records it
+with the git commit that wrote it (`ephysVersion`). Changes are listed in
+[CHANGELOG.md](CHANGELOG.md). To cut a release: move the changelog's
+*Unreleased* entries under the new number, set that number in `VERSION` and
+[`CITATION.cff`](CITATION.cff), merge to `main`, then tag the merge commit
+`v<number>` and publish a GitHub release from the tag.
+
+The code is released under the [MIT License](LICENSE). Bundled third-party
+code keeps its own terms: see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+To cite this software, use [`CITATION.cff`](CITATION.cff) (GitHub's *Cite
+this repository* button reads it).

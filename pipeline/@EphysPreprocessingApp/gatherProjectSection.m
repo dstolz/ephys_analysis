@@ -9,6 +9,7 @@ function P = gatherProjectSection(obj)
 P = obj.Config.Project;
 P.Root       = string(strtrim(obj.RootPathField.Value));
 P.Recursive  = logical(obj.RecursiveCheckBox.Value);
+P.SaveScript = logical(obj.SaveScriptCheckBox.Value);
 P.OutputRoot = string(strtrim(obj.OutputRootField.Value));
 P.NamePattern = string(obj.NamePatternField.Value);
 checks = obj.NameTokenChecks;

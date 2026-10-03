@@ -1,13 +1,15 @@
 function onCleanupFileTicked(obj, evt)
 %onCleanupFileTicked  Include or exclude one file of the Clean up preview (Include column).
-%   Only Remove rows can be ticked: a Keep row's tick is put back. The table
+%   Only Remove rows can be ticked: a Keep row's tick is put back, by
+%   filling the table again from the plan (in its sort). Otherwise the table
 %   is not rebuilt, so the user's sort stays; only the totals are updated.
-%   evt.Indices is the edited cell in Data, whatever the sort shows.
+%   evt.Indices is the edited cell in Data, whatever the sort shows, and
+%   CleanupRowMap gives its plan row.
 if isempty(obj.CleanupPlan) || evt.Indices(2) ~= 1; return; end
 r = evt.Indices(1);
 k = obj.CleanupRowMap(r);
 if obj.CleanupPlan.Action(k) ~= "remove"
-    obj.CleanupTable.Data{r, 1} = false;
+    obj.refreshCleanupTable();
     obj.setStatus("Clean up: " + obj.CleanupPlan.File(k) + " is kept (" + obj.CleanupPlan.Reason(k) + ")", "");
     return
 end

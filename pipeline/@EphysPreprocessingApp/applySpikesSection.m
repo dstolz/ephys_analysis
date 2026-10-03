@@ -12,6 +12,7 @@ obj.setControlValue(obj.SpkFilterOrderField, K.FilterOrder, "Spikes.FilterOrder"
 obj.setDropIfMember(obj.SpkPolarityDropDown, K.Polarity, "Spikes.Polarity");
 obj.setDropIfMember(obj.SpkThreshMethodDropDown, K.ThresholdMethod, "Spikes.ThresholdMethod");
 obj.SpkThresholdField.Value = numText(obj, K.Threshold, "");
+obj.setDropIfMember(obj.SpkThreshScopeDropDown, K.ThresholdScope, "Spikes.ThresholdScope");
 obj.SpkMaxAmpField.Value = numText(obj, K.MaxAmplitudeUV, "Inf");
 obj.setDropIfMember(obj.SpkAlignDropDown, K.Align, "Spikes.Align");
 obj.setControlValue(obj.SpkAlignWindowField, K.AlignWindowMs, "Spikes.AlignWindowMs");

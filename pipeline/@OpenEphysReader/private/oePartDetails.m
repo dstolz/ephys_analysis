@@ -262,14 +262,21 @@ t = NaT; src = "";
 if isfinite(part.startTimeMs)
     t = OpenEphysReader.fromEpochMs(part.startTimeMs); src = "sync_messages";
 else
+    why = "sync_messages has no Software Time";
     try
         s0 = h5read(file, '/session_start_time');
         t0 = OpenEphysReader.parseIsoLocal(string(s0));
-        if ~isnat(t0) && n > 0
+        if isnat(t0)
+            why = why + " and session_start_time """ + strjoin(string(s0), " ") + """ is not an ISO 8601 time";
+        elseif n > 0
             t = t0 + seconds((firstSample - syncAt(1)) / stream.Fs);
             src = "session_start_time";
         end
-    catch
+    catch ME
+        why = why + " and session_start_time cannot be read (" + string(ME.message) + ")";
+    end
+    if isnat(t) && n > 0
+        warning('OpenEphysReader:NoStartTime', '%s: the recording''s start is unknown: %s.', file, why);
     end
 end
 P = struct('nSamples', n, 'runs', runs, 'firstSample', firstSample, 'start', t, ...

@@ -47,6 +47,13 @@ written as the strings `"NaN"` / `"Inf"`.
    └─ params.py, spike_*.npy, templates.npy, cluster_*.tsv, ...
                                         Kilosort4 phy output (cluster_notes.tsv holds per-unit notes)
 
+<OutputRoot, else Root>/
+└─ pipeline_runs/<runId>_<name>.json    run record of each pipeline run (EphysPipeline.run; see Run records)
+
+<Root>/
+└─ pipeline_<name>.m                    standalone script of the config, saved by each pipeline run while
+                                        Project.SaveScript is on (EphysPipeline.writeScript); the next run replaces it
+
 <anywhere>/
 ├─ <config>.json                        pipeline config (EphysPipelineConfig.save; File → Save)
 └─ <script>.m                           generated script (EphysPipelineScript; File → Generate script)
@@ -634,6 +641,7 @@ Path: `<outputFolder>/<Name>.json` (`<Name>_ks4.json` beside a
 | Field | Meaning |
 | --- | --- |
 | `n_chan_bin`, `fs`, `dtype`, `n_samples`, `byte_order`, `scale`, `offset` | what was written |
+| `scale_source` | where `scale` came from: `set: ...` (given), `native: ...` (the recording's own resolution, nothing quantised again) or `default: <why>` (`EphysDataset.binScale`) |
 | `bin_file`, `source_folder` | paths |
 | `manual_artifacts` | `[k x 2]` seconds (the `ManualArtifacts` in effect) |
 | `n_manual_blanked` | samples erased by manual periods |
@@ -642,6 +650,7 @@ Path: `<outputFolder>/<Name>.json` (`<Name>_ks4.json` beside a
 | `auto_artifacts` | `enabled`, `method`, `threshold`, `rmsWindowMs`, `mergeGapMs`, `minChannels`, `padMs`, `nBlanked`, `fraction`, `pctDuration`, `nIntervals`, `channelCounts` |
 | `reference` | `mode` (`"none"`, `"car"` or `"cmr"`) and `channels`, the 1-based channels the common reference was taken over (`[]` for none). `runKilosort` reads `mode` and, for `"car"` / `"cmr"`, sets Kilosort4's `do_CAR = false` |
 | `created` | timestamp |
+| `provenance` | the code and config that wrote it ([Provenance](#provenance), as JSON) |
 
 `matrixToBin` delegates to [`matrix2kilosort`](../matrix2kilosort.m), which
 writes its own sidecar. See that function's help for its fields.
@@ -657,7 +666,9 @@ which still names `ResultsDir` as `results_dir`). Fields: `n_chan_bin`, `fs`, `d
 µV, for `readPhyUnits`; `run_ks4.py` does not pass it to Kilosort4), with
 [shank spacing](EphysDataset.md#shank-spacing) `shank_spacing` (µm) and
 `true_probe` (the unspaced probe, whose positions `run_ks4.py` writes back
-into the output), plus any `ExtraSettings` fields. Paths use forward slashes. A `torch_device` field picks the GPU; the `--device`
+into the output), `provenance` (the code and config that wrote the run,
+[Provenance](#provenance); `run_ks4.py` leaves it alone), plus any
+`ExtraSettings` fields. Paths use forward slashes. A `torch_device` field picks the GPU; the `--device`
 argument a run gets from `Sorting.Devices` overrides it (the device a run
 used is in `ks4_run.log` and the manifest's `launchSorting` entry, not
 here).
@@ -745,7 +756,7 @@ inputs), each holding only that signal in `Y` and `info`:
 | `Y` | struct with `LFP`, `MUA`, `SPIKE` (`single`, `[nSamples x nChan]`) and `AUX`; unrequested fields are `single([])`. Row k of a signal is at `(k-1)/info.<type>.Fs` |
 | `events` | struct, one field per digital-input line, `[k x 2]` `[t_on t_off]` seconds; onset = rising edge, or falling edge for the lines in `info.invertedLines` (`Signals.InvertedLines`) |
 | `info` | per signal `Fs` and `nSamples` (the row count; there are no time vectors), `origFs`, `labels`, `invertedLines`, `badChannels` (the columns interpolated, their recording channels, the method per column and the weights), `reference` (the common reference: `mode`, `channels`, and `signals`, the ones it was subtracted from; each signal's own `info.<TYPE>.reference` says `"none"`, `"car"` or `"cmr"`), `artifacts` (the periods erased before any signal was derived: `intervals` `[k x 2]` `[tStart tEnd)` s on the continuous clock, `fill` `"line"`, `nSamples` replaced; in every file, combined or per type), `importOptions`, ...; see [intan2matlab.md](intan2matlab.md#outputs) |
-| `conversion` | `tool`, `created`, `dataset`, `sourceFolder`, `recordingFormat`, `matFileVersion`, `matlabVersion` |
+| `conversion` | `tool`, `created`, `dataset`, `sourceFolder`, `recordingFormat`, `matFileVersion`, `matlabVersion`, `provenance` ([Provenance](#provenance)) |
 
 ## Spikes `.mat` (`EphysDataset.spikesToMat`; the Spikes step)
 
@@ -755,7 +766,7 @@ is rewritten as a whole. Sorted units are not in it; they stay in the sorting fo
 | Variable | Contents |
 | --- | --- |
 | `detected` | `ts {1 x nChan}` spike times (s, `(index-1)/Fs`, recording-relative); `wf {1 x nChan}` `[nSpikes x nWin]` µV or `[]`; `info` (`detectSpikes` info filtered to the kept events); `channels` (1-based recording channels); `channelNames`; `detection` (options used, `artifactMode` (`"reject"`, `"erase"` or `"none"`), artifact intervals applied, `nRejectedArtifact` per channel; after an erase `info.artifacts` gives the periods and the samples erased) |
-| `conversion` | provenance |
+| `conversion` | `tool`, `created`, `dataset`, `sourceFolder`, `recordingFormat`, `fs`, `matFileVersion`, `matlabVersion`, `provenance` ([Provenance](#provenance)) |
 
 ## Behavior `.mat` (`EphysDataset.behaviorToMat`; the behavior step)
 
@@ -765,7 +776,7 @@ dataset's Epsych2 session data. No other output carries a `behavior` variable.
 | Variable | Contents |
 | --- | --- |
 | `behavior` | `EphysDataset.behaviorStruct`: `trials` (table, one row per trial), `info` (the Epsych2 `Info` snapshot), `meta`, `file`, `subject`, `startTime`, `nTrials`, `pairing` (`[]` when trials were not paired) |
-| `conversion` | `tool`, `created`, `dataset`, `sourceFolder`, `behaviorFile` (the Epsych2 session) |
+| `conversion` | `tool`, `created`, `dataset`, `sourceFolder`, `behaviorFile` (the Epsych2 session), `provenance` ([Provenance](#provenance)) |
 
 When trials were paired (`Behavior.PairTrials`), `behavior.trials` also has:
 
@@ -800,7 +811,7 @@ Chronux functions take; no Chronux function is called to produce it.
 | `detected` | the spikes file's `detected` struct, or `[]` |
 | `events` | dig-in lines → `[k x 2]` seconds, `t = row/eventFs` on the recording's clock: on a signal at `Fs` that is row `round((t - 1/eventFs)*Fs) + 1` |
 | `artifacts` | the extract's `info.artifacts`: `intervals` (`[k x 2]` `[tStart tEnd)` seconds on the continuous clock, the periods erased before the signals were derived; on a signal at `Fs` they touch rows `EphysDataset.intervalRows(intervals, Fs, nRows)`), `fill`, `nSamples`. No intervals: nothing was erased |
-| `export` | `tool`, `created`, `dataset`, `sourceFolder`, `sources`, `signals`, `eventFs` (the recording rate), `nUnits`, `nDetectedChannels`, `timeConventions` (`continuous`, `events`, `spikes`, `artifacts`) |
+| `export` | `tool`, `created`, `dataset`, `sourceFolder`, `sources`, `signals`, `eventFs` (the recording rate), `nUnits`, `nDetectedChannels`, `timeConventions` (`continuous`, `events`, `spikes`, `artifacts`), `provenance` ([Provenance](#provenance)) |
 
 ## FieldTrip export (`EphysDataset.exportFieldTrip`; the Export step)
 
@@ -814,7 +825,7 @@ Default `<outputFolder>/<Name>_fieldtrip.mat`. Structures follow
 | `spike` | spike structure of the sorted units (`label` = unit labels such as `su042_1255_260908T1039`, `timestamp` in recording samples; `hdr.orig` keeps the unit fields: class, identity, location, notes), or `[]` |
 | `spikeDetected` | the same, one "unit" per detected channel, or `[]` |
 | `event` | event struct array at the recording rate |
-| `export` | `tool`, `created`, `dataset`, `sources`, `signals`, `eventFs`, `artifacts` (the extract's `info.artifacts`, the periods in seconds), `validation` |
+| `export` | `tool`, `created`, `dataset`, `sources`, `signals`, `eventFs`, `artifacts` (the extract's `info.artifacts`, the periods in seconds), `validation`, `provenance` ([Provenance](#provenance)) |
 
 ## Epoch export (`EphysDataset.exportEpochs`; the Export step)
 
@@ -826,7 +837,7 @@ Nothing is averaged, smoothed or resampled.
 | Variable | Contents |
 | --- | --- |
 | `epochs` | `event` (source, name, window, onset rule, `eventFs` (the recording rate the event times count rows of), onsets / offsets / durations, recording range, what was dropped, `nArtifact`), `trials` (one row per epoch: `EpochIndex`, `EpochOnset`, `EpochOffset`, `EpochDuration`, `EpochComplete` (the window lies inside the recording and inside every signal's rows), `EpochArtifact` (the window touches an artifact period), plus `EventIndex` or `BehaviorRow` and the behavior trial columns), `signals` (per signal: `data` `[nTime x nEpochs x nChan]`, `t` relative to the onset, `fs`, `labels`, `units`, `nArtifact`, `info` with `keptTrials` and `droppedArtifact`), `units` (per unit: `id`, `label`, `class`, `group`, `channel`, `times` `{1 x nEpochs}`, `counts`), `detected`, `spikes` (the stamping rule), `behavior`, `artifacts` (the extract's `info.artifacts`), `meta` |
-| `export` | `tool`, `created`, `dataset`, `sources`, `signals`, `eventSource`, `eventName`, `window`, `nEpochs`, the policies applied and the time conventions |
+| `export` | `tool`, `created`, `dataset`, `sources`, `signals`, `eventSource`, `eventName`, `window`, `nEpochs`, the policies applied and the time conventions, `provenance` ([Provenance](#provenance)) |
 
 The same alignment drives the [`analysis`](EphysAnalysis.md) figures, which
 index signals with the same event rule; this file is for taking the aligned
@@ -847,6 +858,34 @@ half-open period of `epochs.artifacts.intervals`; with `EpochArtifacts =
 "drop"` (the default) that epoch is left out of every signal
 (`info.keptTrials`, `info.droppedArtifact`), while the trials table and the
 spike epochs keep it.
+
+## NWB export (`EphysDataset.exportNWB`; the Export step)
+
+Default `<outputFolder>/<Name>.nwb`, an [NWB 2](https://www.nwb.org) HDF5
+file written by pynwb ([EphysDataset → NWB](EphysDataset.md#neurodata-without-borders-nwb)
+lists what it holds). Read it with pynwb, MatNWB or `h5read`:
+
+| Path | Contents |
+| --- | --- |
+| `/general/extracellular_ephys/electrodes` | `location`, `group` / `group_name`, `rel_x`, `rel_y` (µm; with a probe), `channel_name`, `recording_channel` (1-based), `interpolated` |
+| `/processing/ecephys/LFP/LFP` | `data` `(samples, channels)` float32 µV, attribute `conversion` 1e-6 (volts); `electrodes` (rows of the table); `starting_time` 0 with `rate` |
+| `/processing/ecephys/MUA/MUA`, `.../SPIKE/SPIKE` | the same for MUA and SPIKE (`FilteredEphys`) |
+| `/acquisition/AUX` | `data` `(samples, channels)` volts |
+| `/units` | `spike_times` + `spike_times_index`, `id`, `electrodes`, `class`, `sort_label`, `label`, `channel_name`, `peak_channel`, `shank`, `x_um`, `y_um`, `amplitude`, `contam_pct`, the quality metrics |
+| `/intervals/trials` | `start_time`, `stop_time` (continuous clock) and the trial columns |
+| `/intervals/<line>` | each digital line's pulses, `start_time` / `stop_time` (continuous clock) |
+| `/intervals/invalid_times` | the artifact periods erased, with `reason` |
+| `/general/notes` | JSON: `tool` (`EphysDataset.exportNWB`), `dataset`, `sourceFolder`, `sources`, `probeFile`, `provenance` ([Provenance](#provenance)); `DatasetOutputs` finds the file by it |
+
+Next to it, `<Name>_nwbinspector.json` holds every finding of nwbinspector
+(`file`, `created`, `versions`, `messages`: `importance`, `check`, `message`,
+`objectType`, `objectName`, `location`).
+
+```matlab
+lfp = h5read("<Name>.nwb", '/processing/ecephys/LFP/LFP/data').';   % [samples x channels] uV
+st  = h5read("<Name>.nwb", '/units/spike_times');
+ix  = h5read("<Name>.nwb", '/units/spike_times_index');            % unit k: st(ix(k-1)+1 : ix(k))
+```
 
 ## kCSD export (`EphysDataset.exportKCSD`; the Export step)
 
@@ -889,7 +928,7 @@ share a position.
 | `event_names` | the digital-input lines |
 | `event_line`, `event_onset_s`, `event_offset_s`, `event_onset_sample`, `event_offset_sample` | one row per pulse, sorted by onset: 0-based index into `event_names`, the edges in seconds (`t = row/eventFs` on the recording's clock) and as int64 0-based LFP samples, `round((t - 1/eventFs)*fs)` (the LFP sample of the recording row that produced the edge). Empty with `Export.IncludeEvents` off |
 | `artifact_s`, `artifact_samples` | the artifact periods erased before the LFP was derived: `[k x 2]` `[tStart tEnd)` seconds, and the merged int64 0-based `[start stop)` LFP samples they touch, so `pots[:, start:stop]` is the erased stretch |
-| `meta` | 0-d unicode JSON: `tool`, `created`, `dataset`, `sourceFolder`, `sources` (`extractFile`, `probeFile`), `signal`, `fs`, `eventFs`, `nSamples`, `nElectrodes`, `dim`, `elePosAxes`, `units`, `lfp` (rate, band, notch, filter description, reference), `artifactFill`, `timeConventions` |
+| `meta` | 0-d unicode JSON: `tool`, `created`, `dataset`, `sourceFolder`, `sources` (`extractFile`, `probeFile`), `signal`, `fs`, `eventFs`, `nSamples`, `nElectrodes`, `dim`, `elePosAxes`, `units`, `lfp` (rate, band, notch, filter description, reference), `artifactFill`, `timeConventions`, `provenance` ([Provenance](#provenance), as JSON) |
 
 Sorted units, detected spikes and behavior are not part of it. The `.npz` is
 written to `~<name>.partial.npz` and renamed once complete.
@@ -897,6 +936,106 @@ written to `~<name>.partial.npz` and renamed once complete.
 All six `.mat` writers save to `~<name>.partial.mat` and rename only after a
 warning-free `save()` in which every variable is confirmed present
 (`EphysDataset.saveAtomically`).
+
+## Provenance
+
+Every output records the code and the run that wrote it, as the struct
+`ephysProvenance` returns: in the `.mat` files as the `provenance` field of
+their `conversion` or `export` struct; in the JSON outputs (the `.bin`
+sidecar, `settings.json`, the kCSD `meta`) and the run records as an object
+whose non-finite numbers are written as the strings `"Inf"` / `"-Inf"` /
+`"NaN"`, as a config file holds them (`provenanceForJson`).
+
+| Field | Contents |
+| --- | --- |
+| `software` | `"ephys_analysis"` |
+| `version` | the release number in `VERSION` |
+| `commit`, `branch`, `dirty`, `describe` | the git commit checked out, its branch, whether tracked files had uncommitted changes, and `git describe --tags --always --dirty`; `""` / `false` when git cannot tell |
+| `code` | all of it on one line, as **Help → About** shows it |
+| `matlab`, `platform`, `host`, `user` | MATLAB's version string, `computer`, the machine and the user |
+| `created` | when the provenance was made, `yyyy-MM-ddTHH:mm:ss` |
+| `runId` | the pipeline run that wrote the output (`yyyyMMddTHHmmssSSS`, its start); `""` for a step called on its own or a writer called directly |
+| `configFile`, `config` | the pipeline config's file and the config itself (`EphysPipelineConfig.toStruct`; `EphysPipelineConfig.fromStruct(p.config)` rebuilds it); `""` and empty for a writer called directly |
+
+An output written in a run of `EphysPipeline` (the app's Run, a compact
+script) carries the config; one written by a direct call to a writer (a
+standalone script, `ds.toMat(...)`) carries the code version only. With
+`dirty` true the commit alone does not reproduce the code.
+
+## Unit quality metrics (quality_metrics.json)
+
+Path: `<sort results folder>/quality_metrics.json`, written by
+`EphysDataset.unitQuality` / `unitQualityOf` (and so by
+`readSortedUnits(Quality=true)`, the exporters, the Review tab and
+`selectUnits` with a quality filter) as a cache. Schema `ephys-unit-quality/1`:
+
+```text
+{
+  "schema":   "ephys-unit-quality/1",
+  "inputs":   { "spike_times_npy": { "bytes", "modified" }, ... },   the files the metrics came from:
+              spike_times, spike_clusters, amplitudes, spike_positions, templates, params.py,
+              settings.json; "modified" in whole seconds (-1 / -1: the file is not there)
+  "key":      { "numSamples", "firstSample", "fs", "metrics" },   the sorted span and unitQualityMetrics options
+  "definitions": "SpikeInterface 0.105 quality metrics ...",
+  "clusters": [ { "unitId", "firingRate", "isiViolationsRatio", "isiViolationsCount", "presenceRatio",
+                  "amplitudeCutoff", "snr", "driftPtp", "driftStd", "driftMad" }, ... ],   every cluster of the
+              folder; the metrics as "%.17g" strings, which read back to the same doubles ("NaN" for NaN);
+              snr is not cached (it is the template over the noise below)
+  "noise":    { "channels": [...], "uV": [...] },   the noise of each recording channel measured for SNR
+  "provenance": { the code that wrote it }
+}
+```
+
+The file is used only while every entry of `inputs` and `key` still holds; a
+merge or split in phy rewrites `spike_clusters.npy` and so makes it stale.
+Deleting it costs only the time to compute it again.
+
+`quality_report.html` (same folder): the QC page `writeUnitQualityReport`
+writes (the Review tab's **QC report**). `sortSweep` writes each variant's
+sort to `<outputFolder>/kilosort4_sweep/<name>/`, each with its own
+`quality_metrics.json` and `quality_report.html`.
+
+In the exports, the units struct carries the metrics as column fields and
+`quality` (the settings, the span, how SNR was measured): `units` in
+`<Name>_chronux.mat`, `spike.hdr.orig` in `<Name>_fieldtrip.mat`; each unit of
+`<Name>_epochs.mat` has `quality`, a struct of its metrics ([] without them).
+
+## Run records
+
+**Pipeline runs.** Path: `<Project.OutputRoot>/pipeline_runs/<runId>_<name>.json`,
+or under `Project.Root` without an output root. Written by
+`EphysPipeline.run` when the run ends, whether it finished, was cancelled or
+failed (not for a dry run). Schema `ephys-pipeline-run/1`:
+
+```text
+{
+  "schema":   "ephys-pipeline-run/1",
+  "runId":    <yyyyMMddTHHmmssSSS>,        the run's start; every output of the run names it
+  "name":     <config name>,
+  "outcome":  "finished" | "cancelled" | "failed",
+  "error":    <identifier: message of the error that stopped a failed run, else "">,
+  "started", "finished": <yyyy-MM-ddTHH:mm:ss>,  "seconds": <n>,
+  "steps":    [<steps run, in order>],
+  "datasets": [ { "key", "name", "folder", "outputFolder" }, ... ],
+  "results":  [ { "Step", "Dataset", "Status", "Message", "Output", "Seconds" }, ... ],   the Results table
+  "backgroundRuns": [ { "name", "resultsDir", "device" }, ... ],   Kilosort4 runs started in the background
+  "script":   <the pipeline script the run saved, <Root>/pipeline_<name>.m; "" when none (Project.SaveScript)>,
+  "provenance": { the Provenance fields above, without config },
+  "config":   { the pipeline config, as its JSON file holds it }
+}
+```
+
+`EphysPipeline.RunRecordFile` names the file the last run wrote. A record
+that cannot be written is a warning (`EphysPipeline:RunRecord`); the run's
+outputs are already on disk.
+
+**Analysis runs.** Path: `<report folder>/analysis_runs/<runId>_<name>.json`,
+the report folder being `Report.Folder` resolved for the first dataset
+(whether or not a report was written). Written by `EphysAnalysisRunner.run`;
+schema `ephys-analysis-run/1`: `runId`, `name`, `outcome` (`finished` |
+`cancelled`), `started`, `finished`, `seconds`, `datasets`, `plots`,
+`reportFiles`, `results` (the runner's Results rows), `provenance` and
+`config` (the analysis config). `EphysAnalysisRunner.RunRecordFile` names it.
 
 ## Analysis config JSON
 
@@ -943,7 +1082,8 @@ names `{Index}`, or `{Unit}` with a unit filled in (a paged evoked grid's
 (`Report.Format`); with `Report.PerDataset` one pair per dataset,
 `<FileName>_<dataset>.html`. The default folder is `{OutputRoot}\analysis`.
 
-- **HTML**: one self-contained file. A contents list; per dataset its
+- **HTML**: one self-contained file. Under the title, when it was made and
+  the code version, MATLAB and machine that made it. A contents list; per dataset its
   summary tables (recording, digital lines, trials by pairing flag and
   response, units by class and shank, the highest rates) and every plot:
   its pages as `data:image/png;base64` images (or inline SVG with
@@ -953,6 +1093,6 @@ names `{Index}`, or `{Unit}` with a unit filled in (a paged evoked grid's
   UTF-8; a `file://` URL on another drive or share) and the plot's parameters
   (folded); plots that were skipped or failed with
   the reason; the config JSON at the end (folded).
-- **PDF**: a title page, a summary page per dataset (listing skipped and
+- **PDF**: a title page (with the code version, MATLAB and machine), a summary page per dataset (listing skipped and
   failed plots) and every plot's pages drawn again as vector pages
   (`exportgraphics(ContentType="vector", Append=true)`).

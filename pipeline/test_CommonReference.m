@@ -43,6 +43,7 @@ nPass = 0; nFail = 0;
         else
             nFail = nFail + 1;
             fprintf(2, '  FAIL: %s\n', msg);
+            LegacySuiteTest.checkFailed(msg);   % one failure per check in run_all_tests' report
         end
     end
 
@@ -166,7 +167,7 @@ check(isfield(side, 'reference') && strcmp(side.reference.mode, 'car') ...
 fid = fopen(binInfo.filename, 'r', 'ieee-le');
 B = fread(fid, [nChan Inf], 'int16').';
 fclose(fid);
-check(max(abs(B(:) - round(expCar(:) * ds.Scale))) <= 1, 'the .bin holds the common-average-referenced signal');
+check(max(abs(B(:) - round(expCar(:) * binInfo.scale))) <= 1, 'the .bin holds the common-average-referenced signal');
 
 fprintf('\n== 7. config ==\n');
 a = EphysPipelineConfig.defaults("Artifacts");

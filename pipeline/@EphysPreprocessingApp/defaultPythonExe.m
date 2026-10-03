@@ -6,8 +6,8 @@ function p = defaultPythonExe(obj)
     % in the usual conda install folders, else "".
     p = "";
     g = obj.PrefGroup;
-    if ispref(g, 'PythonExe')
-        c = string(getpref(g, 'PythonExe'));
+    if AppPrefs.ispref(g, 'PythonExe')
+        c = string(AppPrefs.getpref(g, 'PythonExe'));
         if isscalar(c) && c ~= "" && isfile(c); p = c; return; end
     end
     roots = string.empty(1, 0);

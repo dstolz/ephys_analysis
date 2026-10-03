@@ -99,14 +99,37 @@ function [ts, wf, info] = detectSpikes(obj, X, opts)
 %   them), the regions tile the recording exactly so nothing is detected twice,
 %   and MinPeriodMs is re-applied across the joins.
 %
-%   Thresholds, however, are still estimated PER CHUNK (info.thresholdScope is
-%   "chunk"): the noise estimate of a chunk uses only that chunk's samples, as
-%   it does for a block, so the threshold varies from chunk to chunk with the
-%   noise. info.threshold / info.noise / info.degenerate are [nChunks x nChan]
-%   for this reason. Use ThresholdMethod="absolute" (microvolts) for one fixed
-%   threshold across the whole recording.
+%   Thresholds are estimated PER CHUNK by default (ThresholdScope "chunk";
+%   info.thresholdScope): the noise estimate of a chunk uses only that
+%   chunk's samples, as it does for a block, so the threshold varies from
+%   chunk to chunk with the noise, and with how the recording happens to be
+%   split into files. info.threshold / info.noise / info.degenerate are then
+%   [nChunks x nChan].
+%
+%   With ThresholdScope "recording", each channel gets one threshold from
+%   its noise over the WHOLE recording: a first pass streams the recording
+%   as detection does (the same chunks, context, artifact erasing and
+%   band-pass) and counts every sample once, then detection runs with those
+%   thresholds. The thresholds then follow neither the file layout nor each
+%   chunk's noise (only the band-pass's settling at chunk joins, ~0.01 uV,
+%   reaches them), and a session's thresholds compare with another's. "std"
+%   and "rms" are exact; "mad" (median and median absolute deviation) and
+%   "percentile" come from a histogram of 0.05 uV bins over +/-2000 uV
+%   (info.noiseEstimate says so): a percentile lies within one bin of the
+%   sample it estimates (the ceil(p*n)-th smallest |x|), and the noise
+%   level from the median and MAD within ~0.1% of the exact value on a
+%   band-passed trace, within ~0.2 uV on an unfiltered one (whose samples
+%   sit on the recording's steps, 0.195 uV for Intan, so its exact median
+%   and MAD are quantized too). A channel whose statistic lies beyond the
+%   range, or within one bin of 0, is left degenerate. The first pass reads the
+%   recording once more, chunk after chunk (UseParallel applies to the
+%   detection pass only). info.threshold / info.noise / info.degenerate are
+%   then [1 x nChan]. "absolute" thresholds are the same either way.
 %
 %   Extra options, accepted only in this mode
+%     ThresholdScope   (1,1) string  "chunk" (default: each chunk's own noise)
+%                      | "recording" (each channel's noise over the whole
+%                      recording; see above)
 %     Files            (1,:) string  subset/order of *.rhd files to detect on
 %                      (traditional format only; the split formats hold one
 %                      recording). Timestamps stay relative to the first sample
@@ -199,8 +222,20 @@ function [ts, wf, info] = detectSpikes(obj, X, opts)
 %
 %   Whole-recording mode drops rejectedIndex/droppedEdgeIndex (they are
 %   chunk-local) and adds:
-%     source "recording", thresholdScope "chunk"
-%     threshold / noise / degenerate as [nChunks x nChan]
+%     source "recording", thresholdScope "chunk" | "recording"
+%     threshold / noise / degenerate as [nChunks x nChan] ("chunk") or
+%             [1 x nChan] ("recording")
+%     noiseEstimate  how the recording-wide noise was measured ([] for
+%             "chunk", and for "absolute", which measures nothing): method,
+%             estimator ("exact" for std / rms, "histogram" for mad /
+%             percentile), binUV and rangeUV (the histogram; NaN when
+%             exact), nSamples [1 x nChan] samples counted, nOutOfRange
+%             [1 x nChan] of them beyond +/-rangeUV (counted, not placed),
+%             beyondRange [1 x nChan] (the statistic lies beyond
+%             +/-rangeUV: warning EphysDataset:detectSpikes:NoiseBeyondRange)
+%             and belowResolution [1 x nChan] (a MAD or percentile below
+%             one bin, a flat channel: noise NaN). Both leave the channel
+%             degenerate.
 %     edgePadMs, edgePadSamples  context actually carried across boundaries
 %     chunks  struct array (name, sampleOffset, nSamples) of the chunks read
 %     files   the chunk names, in the order read
@@ -254,6 +289,7 @@ arguments
     opts.Fs (1,1) double = NaN
     opts.TimeOffset (1,1) double = 0
     % --- whole-recording mode only (X omitted) ---
+    opts.ThresholdScope (1,1) string {mustBeMember(opts.ThresholdScope, ["chunk" "recording"])} = "chunk"
     opts.Files (1,:) string = string.empty(1,0)
     opts.ChannelOrder (1,:) double {mustBeInteger, mustBePositive} = []
     opts.MaxChunkSamples (1,1) double = NaN
@@ -271,14 +307,14 @@ else
 end
 
 streamOnly = ["Files" "ChannelOrder" "MaxChunkSamples" "EdgePadMs" "ProgressFcn" ...
-              "UseParallel" "MaxWorkers" "ArtifactIntervals"];
+              "UseParallel" "MaxWorkers" "ArtifactIntervals" "ThresholdScope"];
 
 if ~isempty(X)
     % ---- block mode: detect on the matrix the caller handed us -------------
     given = streamOnly([~isempty(opts.Files), ~isempty(opts.ChannelOrder), ...
         ~isnan(opts.MaxChunkSamples), ~isnan(opts.EdgePadMs), ...
         ~isempty(opts.ProgressFcn), opts.UseParallel, ~isnan(opts.MaxWorkers), ...
-        ~isempty(opts.ArtifactIntervals)]);
+        ~isempty(opts.ArtifactIntervals), opts.ThresholdScope ~= "chunk"]);
     if ~isempty(given)
         error('EphysDataset:detectSpikes:BlockOption', ...
             ['%s appl%s only when detecting over a whole recording ' ...
@@ -360,6 +396,26 @@ nChunks = numel(plan);
 wstate = warning('off', 'EphysDataset:detectSpikes:DegenerateThreshold');
 restoreWarning = onCleanup(@() warning(wstate));
 
+% ThresholdScope "recording": one threshold per channel, from its noise over
+% the whole recording (noisePass, a first pass over the same chunks); every
+% chunk is then detected against it. The option checks detectBlock makes come
+% first, so a bad option stops before the pass. "absolute" needs no pass.
+progress = opts.ProgressFcn;
+noiseEst = [];
+if opts.ThresholdScope == "recording" && opts.ThresholdMethod ~= "absolute"
+    checkWindow(blockOpts);
+    thrIn = thresholdInput(blockOpts);
+    checkBand(blockOpts, Fs);
+    passProgress = [];
+    if ~isempty(progress)
+        passProgress = @(i, n, name) opts.ProgressFcn(i, 2*n, "noise level: " + string(name));
+        progress = @(i, n, name) opts.ProgressFcn(n + i, 2*n, name);
+    end
+    noiseEst = noisePass(obj, plan, pad, blockOpts, Fs, artRuns, opts.ChannelOrder, thrIn, passProgress);
+    blockOpts.FixedThreshold = noiseEst.threshold;
+    blockOpts.FixedNoise = noiseEst.noise;
+end
+
 pool = [];
 nWorkers = 1;
 if opts.UseParallel && nChunks > 1
@@ -388,14 +444,14 @@ if ~isempty(pool)
         && all(offs(2:end) == offs(1:end-1) + [plan(1:end-1).nSamples]);
     R = mapChunks(@(i) parallelChunk(obj, plan, i, starts(i), pad, chanOrder, blockOpts, doWave, contiguous, artRuns), ...
         reshape(string({plan.name}), 1, []), Pool=pool, NumWorkers=nWorkers, ...
-        ProgressFcn=opts.ProgressFcn);
+        ProgressFcn=progress);
 else
     consumed = 0;       % samples read so far = 0-based index of the next sample
     tail     = [];      % trailing samples of the previous chunk, kept as context
     nChan    = NaN;
     for i = 1:nChunks
-        if ~isempty(opts.ProgressFcn)
-            opts.ProgressFcn(i, nChunks, plan(i).name);
+        if ~isempty(progress)
+            progress(i, nChunks, plan(i).name);
         end
 
         Xc = readChunk(obj, plan(i), opts.ChannelOrder);
@@ -519,10 +575,25 @@ info.nSamples       = nSamplesTotal;
 info.nChan          = nChan;
 info.durationSec    = durationSec;
 info.channelNames   = channelNames;
-info.thresholdScope = "chunk";
-info.threshold      = thrAll;
-info.noise          = noiseAll;
-info.degenerate     = logical(degAll);
+info.thresholdScope = opts.ThresholdScope;
+info.noiseEstimate  = [];
+if opts.ThresholdScope == "chunk"
+    info.threshold  = thrAll;
+    info.noise      = noiseAll;
+    info.degenerate = logical(degAll);
+elseif isempty(noiseEst)
+    % "absolute": the same threshold in every chunk, nothing measured; a
+    % channel is degenerate only when no chunk held a sample of it.
+    info.degenerate = all(logical(degAll), 1);
+    info.threshold  = repmat(thresholdInput(blockOpts), 1, nChan);
+    info.threshold(info.degenerate) = Inf;
+    info.noise      = nan(1, nChan);
+else
+    info.threshold  = noiseEst.threshold;
+    info.noise      = noiseEst.noise;
+    info.degenerate = noiseEst.degenerate;
+    info.noiseEstimate = rmfield(noiseEst, {'threshold', 'noise', 'degenerate'});
+end
 info.count          = count;
 if durationSec > 0
     info.rate = count / durationSec;
@@ -544,12 +615,33 @@ info.artifacts          = struct('intervals', artIv, ...
     'nSamples', sum(erased(:, 2) - erased(:, 1) + 1));
 
 clear restoreWarning     % restore the warning state before the summary below
-degAny = any(logical(degAll) & ~erasedAll, 1);   % a chunk erased whole is not a flat signal
-if any(degAny)
+if opts.ThresholdScope == "chunk"
+    degAny = any(logical(degAll) & ~erasedAll, 1);   % a chunk erased whole is not a flat signal
+    if any(degAny)
+        warning('EphysDataset:detectSpikes:DegenerateThreshold', ...
+            ['Non-positive or non-finite threshold on channel(s) %s in at least one ' ...
+             'chunk (flat or empty signal); no spikes detected there.'], ...
+            mat2str(find(degAny)));
+    end
+    return
+end
+beyond = false(1, nChan);
+if ~isempty(noiseEst)
+    beyond = noiseEst.beyondRange;
+end
+flat = info.degenerate & ~beyond;
+if any(flat)
     warning('EphysDataset:detectSpikes:DegenerateThreshold', ...
-        ['Non-positive or non-finite threshold on channel(s) %s in at least one ' ...
-         'chunk (flat or empty signal); no spikes detected there.'], ...
-        mat2str(find(degAny)));
+        ['Non-positive or non-finite recording-wide threshold on channel(s) %s (flat ' ...
+         'or empty signal, or a noise level below the %g uV the estimate resolves); ' ...
+         'no spikes detected there.'], mat2str(find(flat)), noiseBinUV());
+end
+if any(beyond)
+    warning('EphysDataset:detectSpikes:NoiseBeyondRange', ...
+        ['The noise level of channel(s) %s lies beyond the +/-%g uV the recording-wide ' ...
+         '"%s" estimate covers; no spikes detected there. ThresholdMethod "std", "rms" ' ...
+         'or "absolute", or ThresholdScope "chunk", have no such limit.'], ...
+        mat2str(find(beyond)), noiseRangeUV(), opts.ThresholdMethod);
 end
 end
 
@@ -594,9 +686,7 @@ rowHi   = total0 - min(pad, total0) - first0;
 
 % Erase the artifact periods: NaN stays out of the noise estimates, never
 % crosses threshold, and the band-pass runs a line across it.
-for j = find(artRuns(:, 2) > first0 & artRuns(:, 1) <= first0 + size(B, 1)).'
-    B(max(1, artRuns(j, 1) - first0):min(size(B, 1), artRuns(j, 2) - first0), :) = NaN;
-end
+B = eraseArtifactRows(B, first0, artRuns);
 
 [~, wfB, infoB] = detectBlock(obj, B, blockOpts, doWave);
 
@@ -707,58 +797,11 @@ if nSamples == 1 && nChan > 1
 end
 
 % ---- option checks -----------------------------------------------------
-if opts.WindowMs(1) > opts.WindowMs(2)
-    error('EphysDataset:detectSpikes:BadWindow', ...
-        'WindowMs must be [before after] with before <= after; got [%g %g].', ...
-        opts.WindowMs(1), opts.WindowMs(2));
-end
-
-thrIn = opts.Threshold;
-if isnan(thrIn)
-    switch opts.ThresholdMethod
-        case "percentile", thrIn = 99.9;
-        case "absolute"
-            error('EphysDataset:detectSpikes:NoThreshold', ...
-                'ThresholdMethod "absolute" requires Threshold in microvolts.');
-        otherwise,         thrIn = 4;    % mad / std / rms multiplier
-    end
-end
-if ~isfinite(thrIn) || thrIn <= 0
-    error('EphysDataset:detectSpikes:BadThreshold', ...
-        'Threshold must be finite and positive; got %g.', thrIn);
-end
-if opts.ThresholdMethod == "percentile" && thrIn > 100
-    error('EphysDataset:detectSpikes:BadPercentile', ...
-        'Threshold must be a percentile in (0 100] for ThresholdMethod "percentile"; got %g.', thrIn);
-end
+checkWindow(opts);
+thrIn = thresholdInput(opts);
 
 % ---- filtering ---------------------------------------------------------
-if opts.Filter
-    if opts.Band(1) >= opts.Band(2)
-        error('EphysDataset:detectSpikes:BadBand', ...
-            'Band must be [low high] with low < high; got [%g %g].', ...
-            opts.Band(1), opts.Band(2));
-    end
-    if opts.Band(2) >= Fs/2
-        error('EphysDataset:detectSpikes:BandAboveNyquist', ...
-            ['Band upper edge (%g Hz) must be below Nyquist (%g Hz). Lower Band ' ...
-             'or set Filter=false.'], opts.Band(2), Fs/2);
-    end
-    % FILTFILT refuses non-finite samples (NaN from blankArtifacts(Fill="nan")):
-    % it filters a straight line across them instead - no step to ring - and
-    % they are NaN again afterwards, so they cannot cross threshold.
-    bad = ~isfinite(X);
-    if any(bad, 'all')
-        Xf = obj.filterContinuous(bridgeNonFinite(X, bad), Type="bandpass", ...
-            Cutoff=opts.Band, Order=opts.FilterOrder, Fs=Fs);
-        Xf(bad) = NaN;
-    else
-        Xf = obj.filterContinuous(X, Type="bandpass", Cutoff=opts.Band, ...
-            Order=opts.FilterOrder, Fs=Fs);
-    end
-else
-    Xf = X;
-end
+Xf = blockFilter(obj, X, opts, Fs);
 
 % Waveforms are cut from the filtered trace unless the raw one was asked for.
 if opts.WaveformSource == "raw"
@@ -776,34 +819,48 @@ minPerSamp = max(1, round(opts.MinPeriodMs  * 1e-3 * Fs));
 
 
 % ---- per-channel thresholds -------------------------------------------
-thr        = inf(1, nChan);
-noise      = nan(1, nChan);
-degenerate = false(1, nChan);
-for c = 1:nChan
-    x  = Xf(:, c);
-    xv = x(isfinite(x));                 % noise estimates ignore NaN/Inf
-    if isempty(xv)
-        degenerate(c) = true;
-        continue
+if isfield(opts, 'FixedThreshold') && ~isempty(opts.FixedThreshold)
+    % ThresholdScope "recording": every block gets the thresholds of the
+    % whole recording (noisePass), not its own.
+    if numel(opts.FixedThreshold) ~= nChan
+        error('EphysDataset:detectSpikes:ChannelMismatch', ...
+            'The recording-wide thresholds are for %d channels; this block has %d.', ...
+            numel(opts.FixedThreshold), nChan);
     end
-    switch opts.ThresholdMethod
-        case "mad"
-            noise(c) = median(abs(xv - median(xv))) / 0.6745;
-            thr(c)   = thrIn * noise(c);
-        case "std"
-            noise(c) = std(xv);
-            thr(c)   = thrIn * noise(c);
-        case "rms"
-            noise(c) = sqrt(mean(xv.^2));
-            thr(c)   = thrIn * noise(c);
-        case "percentile"
-            thr(c)   = localPercentile(abs(xv), thrIn);
-        case "absolute"
-            thr(c)   = thrIn;
-    end
-    if ~isfinite(thr(c)) || thr(c) <= 0
-        degenerate(c) = true;
-        thr(c) = Inf;                    % detect nothing rather than everything
+    thr        = reshape(double(opts.FixedThreshold), 1, []);
+    noise      = reshape(double(opts.FixedNoise), 1, []);
+    degenerate = ~isfinite(thr) | thr <= 0;
+    thr(degenerate) = Inf;               % detect nothing rather than everything
+else
+    thr        = inf(1, nChan);
+    noise      = nan(1, nChan);
+    degenerate = false(1, nChan);
+    for c = 1:nChan
+        x  = Xf(:, c);
+        xv = x(isfinite(x));                 % noise estimates ignore NaN/Inf
+        if isempty(xv)
+            degenerate(c) = true;
+            continue
+        end
+        switch opts.ThresholdMethod
+            case "mad"
+                noise(c) = median(abs(xv - median(xv))) / 0.6745;
+                thr(c)   = thrIn * noise(c);
+            case "std"
+                noise(c) = std(xv);
+                thr(c)   = thrIn * noise(c);
+            case "rms"
+                noise(c) = sqrt(mean(xv.^2));
+                thr(c)   = thrIn * noise(c);
+            case "percentile"
+                thr(c)   = localPercentile(abs(xv), thrIn);
+            case "absolute"
+                thr(c)   = thrIn;
+        end
+        if ~isfinite(thr(c)) || thr(c) <= 0
+            degenerate(c) = true;
+            thr(c) = Inf;                    % detect nothing rather than everything
+        end
     end
 end
 if any(degenerate)
@@ -952,6 +1009,89 @@ info.timeOffset         = opts.TimeOffset;
 end
 
 
+function checkWindow(opts)
+%checkWindow  WindowMs must be [before after] with before <= after.
+if opts.WindowMs(1) > opts.WindowMs(2)
+    error('EphysDataset:detectSpikes:BadWindow', ...
+        'WindowMs must be [before after] with before <= after; got [%g %g].', ...
+        opts.WindowMs(1), opts.WindowMs(2));
+end
+end
+
+
+function thrIn = thresholdInput(opts)
+%thresholdInput  The Threshold option, checked; NaN gives the method's default.
+thrIn = opts.Threshold;
+if isnan(thrIn)
+    switch opts.ThresholdMethod
+        case "percentile", thrIn = 99.9;
+        case "absolute"
+            error('EphysDataset:detectSpikes:NoThreshold', ...
+                'ThresholdMethod "absolute" requires Threshold in microvolts.');
+        otherwise,         thrIn = 4;    % mad / std / rms multiplier
+    end
+end
+if ~isfinite(thrIn) || thrIn <= 0
+    error('EphysDataset:detectSpikes:BadThreshold', ...
+        'Threshold must be finite and positive; got %g.', thrIn);
+end
+if opts.ThresholdMethod == "percentile" && thrIn > 100
+    error('EphysDataset:detectSpikes:BadPercentile', ...
+        'Threshold must be a percentile in (0 100] for ThresholdMethod "percentile"; got %g.', thrIn);
+end
+end
+
+
+function checkBand(opts, Fs)
+%checkBand  With Filter on, Band must be [low high], low < high < Nyquist.
+if ~opts.Filter
+    return
+end
+if opts.Band(1) >= opts.Band(2)
+    error('EphysDataset:detectSpikes:BadBand', ...
+        'Band must be [low high] with low < high; got [%g %g].', ...
+        opts.Band(1), opts.Band(2));
+end
+if opts.Band(2) >= Fs/2
+    error('EphysDataset:detectSpikes:BandAboveNyquist', ...
+        ['Band upper edge (%g Hz) must be below Nyquist (%g Hz). Lower Band ' ...
+         'or set Filter=false.'], opts.Band(2), Fs/2);
+end
+end
+
+
+function Xf = blockFilter(obj, X, opts, Fs)
+%blockFilter  The trace detection runs on: X band-passed (Filter on), else X.
+if ~opts.Filter
+    Xf = X;
+    return
+end
+checkBand(opts, Fs);
+% FILTFILT refuses non-finite samples (NaN from blankArtifacts(Fill="nan")):
+% it filters a straight line across them instead - no step to ring - and
+% they are NaN again afterwards, so they cannot cross threshold.
+bad = ~isfinite(X);
+if any(bad, 'all')
+    Xf = obj.filterContinuous(bridgeNonFinite(X, bad), Type="bandpass", ...
+        Cutoff=opts.Band, Order=opts.FilterOrder, Fs=Fs);
+    Xf(bad) = NaN;
+else
+    Xf = obj.filterContinuous(X, Type="bandpass", Cutoff=opts.Band, ...
+        Order=opts.FilterOrder, Fs=Fs);
+end
+end
+
+
+function B = eraseArtifactRows(B, first0, artRuns)
+%eraseArtifactRows  NaN over the rows of B the artifact runs cover.
+%   B(1, :) is recording sample first0 + 1 (1-based); ARTRUNS are
+%   [first last] 1-based recording samples.
+for j = find(artRuns(:, 2) > first0 & artRuns(:, 1) <= first0 + size(B, 1)).'
+    B(max(1, artRuns(j, 1) - first0):min(size(B, 1), artRuns(j, 2) - first0), :) = NaN;
+end
+end
+
+
 function X = bridgeNonFinite(X, bad)
 %bridgeNonFinite  The samples flagged BAD replaced, per channel, by a straight
 %   line between the finite samples around them (held at the nearest finite
@@ -980,5 +1120,258 @@ elseif r >= n - 1
 else
     lo = floor(r);
     v  = x(lo + 1) + (r - lo) * (x(lo + 2) - x(lo + 1));
+end
+end
+
+
+function w = noiseBinUV()
+%noiseBinUV  Bin width (uV) of the recording-wide "mad" / "percentile" histograms.
+w = 0.05;
+end
+
+
+function r = noiseRangeUV()
+%noiseRangeUV  The histograms place samples within +/- this (uV); beyond, they are only counted.
+r = 2000;
+end
+
+
+function est = noisePass(obj, plan, pad, blockOpts, Fs, artRuns, chanOrder, thrIn, progress)
+%noisePass  Each channel's noise over the whole recording (ThresholdScope "recording").
+%   Streams PLAN as the serial detection loop does - each chunk after the
+%   last 2*PAD samples of the one before, the artifact runs erased, the
+%   band-pass (blockFilter) - and counts every recording sample once, in the
+%   chunk whose detection finalizes it: the rows detectChunk finalizes, and
+%   at the end the rows the last chunk holds back. Non-finite (erased)
+%   samples are not counted, as detectBlock leaves them out.
+%     "std"         exact: per-chunk counts, means and sums of squared
+%                   deviations merged (Chan, Golub & LeVeque 1979)
+%     "rms"         exact: the sum of squares over the count
+%     "mad"         histogram of noiseBinUV() bins over +/-noiseRangeUV()
+%                   (beyond it, counted at either end) with a piecewise-
+%                   linear CDF F: the median m is where F reaches 0.5, the
+%                   MAD the half-width d where F(m+d) - F(m-d) reaches 0.5
+%                   (bisection); noise = MAD / 0.6745, as detectBlock
+%     "percentile"  histogram of |x| alike; the threshold is where its CDF
+%                   reaches Threshold/100
+%   A statistic beyond the histogram's range cannot be placed (beyondRange);
+%   a MAD or percentile below one bin is not resolved (belowResolution: a
+%   flat channel), and its noise is NaN, not 0. Either leaves the channel
+%   degenerate (threshold Inf), as an empty or zero-noise one does.
+%   EST: threshold, noise, degenerate [1 x nChan], and what info.noiseEstimate
+%   reports: method, estimator ("histogram" | "exact"), binUV and rangeUV
+%   (NaN for "exact"), nSamples and nOutOfRange [1 x nChan], beyondRange
+%   and belowResolution [1 x nChan].
+method = blockOpts.ThresholdMethod;
+W  = noiseBinUV();
+Rg = noiseRangeUV();
+switch method
+    case "mad",        nb = round(2 * Rg / W) + 2;   % below -Rg | Rg/W*2 bins | from Rg up
+    case "percentile", nb = round(Rg / W) + 1;       % Rg/W bins of |x| | from Rg up
+    otherwise,         nb = 0;
+end
+
+nChunks  = numel(plan);
+consumed = 0;       % samples read so far = 0-based index of the next sample
+tail     = [];      % trailing samples of the previous chunk, kept as context
+nChan    = NaN;
+pend     = [];      % the latest chunk's held-back rows (filtered)
+acc      = [];
+for i = 1:nChunks
+    if ~isempty(progress)
+        progress(i, nChunks, plan(i).name);
+    end
+    Xc = readChunk(obj, plan(i), chanOrder);
+    if isempty(Xc)
+        continue
+    end
+    if isnan(nChan)
+        nChan = size(Xc, 2);
+        tail  = zeros(0, nChan);
+        acc   = struct('n', zeros(1, nChan), 'mean', zeros(1, nChan), 'm2', zeros(1, nChan), ...
+            'sumsq', zeros(1, nChan), 'counts', zeros(nb, nChan));
+    elseif size(Xc, 2) ~= nChan
+        error('EphysDataset:detectSpikes:ChannelMismatch', ...
+            'Chunk "%s" has %d channels; earlier chunks had %d.', ...
+            plan(i).name, size(Xc, 2), nChan);
+    end
+
+    B      = [tail; Xc];
+    first0 = consumed - size(tail, 1);           % 0-based index of B(1)
+    total0 = consumed + size(Xc, 1);
+    rowLo  = consumed - min(pad, consumed) - first0 + 1;   % as detectChunk
+    rowHi  = total0 - min(pad, total0) - first0;
+    Xf = blockFilter(obj, eraseArtifactRows(B, first0, artRuns), blockOpts, Fs);
+    acc  = accumulateNoise(acc, Xf(rowLo:rowHi, :), method, W, Rg, nb);
+    pend = Xf(rowHi+1:end, :);
+
+    consumed = total0;
+    tail     = B(max(1, size(B,1) - 2*pad + 1):end, :);
+end
+if isnan(nChan)
+    error('EphysDataset:detectSpikes:NoAmplifierData', ...
+        'No amplifier data was read from %s.', obj.Folder);
+end
+acc = accumulateNoise(acc, pend, method, W, Rg, nb);   % the recording's end has no next chunk
+
+noise  = nan(1, nChan);
+thr    = nan(1, nChan);
+beyond = false(1, nChan);              % the statistic lies beyond +/-Rg
+below  = false(1, nChan);              % ... within one bin of 0: not resolved
+nOut   = zeros(1, nChan);
+switch method
+    case "std"
+        ok = acc.n > 1;
+        noise(ok) = sqrt(acc.m2(ok) ./ (acc.n(ok) - 1));   % STD's N-1 normalization
+        noise(acc.n == 1) = 0;                             % std of one sample
+        thr = thrIn * noise;
+    case "rms"
+        ok = acc.n > 0;
+        noise(ok) = sqrt(acc.sumsq(ok) ./ acc.n(ok));
+        thr = thrIn * noise;
+    case "mad"
+        for c = find(acc.n > 0)
+            Fk = cumsum(acc.counts(:, c)) / acc.n(c);
+            Fk = Fk(1:end-1);                  % F at the knots -Rg:W:Rg (fraction below each)
+            [~, madUV, beyond(c)] = histMad(Fk, W, Rg);
+            below(c) = ~beyond(c) && madUV < W;
+            if ~beyond(c) && ~below(c)
+                noise(c) = madUV / 0.6745;
+            end
+            nOut(c) = acc.counts(1, c) + acc.counts(end, c);
+        end
+        thr = thrIn * noise;
+    case "percentile"
+        for c = find(acc.n > 0)
+            Fk = [0; cumsum(acc.counts(1:end-1, c)) / acc.n(c)];   % F at the knots 0:W:Rg
+            v  = invCdf(Fk, thrIn / 100, 0, W);
+            beyond(c) = isnan(v);
+            below(c)  = ~beyond(c) && v < W;
+            if ~beyond(c) && ~below(c)
+                thr(c) = v;
+            end
+            nOut(c) = acc.counts(end, c);
+        end
+end
+degenerate = ~isfinite(thr) | thr <= 0;
+thr(degenerate) = Inf;                  % detect nothing rather than everything
+
+est = struct();
+est.threshold   = thr;
+est.noise       = noise;
+est.degenerate  = degenerate;
+est.method      = method;
+if nb > 0
+    est.estimator = "histogram";
+    est.binUV     = W;
+    est.rangeUV   = Rg;
+else
+    est.estimator = "exact";
+    est.binUV     = NaN;
+    est.rangeUV   = NaN;
+end
+est.nSamples    = acc.n;
+est.nOutOfRange = nOut;
+est.beyondRange = beyond;
+est.belowResolution = below;
+end
+
+
+function acc = accumulateNoise(acc, Y, method, W, Rg, nb)
+%accumulateNoise  Add the finite samples of Y [n x nChan] to the running sums.
+if isempty(Y)
+    return
+end
+ok = isfinite(Y);
+nB = sum(ok, 1);
+switch method
+    case "std"
+        Y0 = Y; Y0(~ok) = 0;
+        mB = sum(Y0, 1) ./ max(nB, 1);
+        D  = (Y0 - mB) .* ok;
+        m2B = sum(D.^2, 1);
+        n = acc.n + nB;
+        has = nB > 0;
+        delta = mB - acc.mean;
+        acc.mean(has) = acc.mean(has) + delta(has) .* nB(has) ./ n(has);
+        acc.m2(has) = acc.m2(has) + m2B(has) + delta(has).^2 .* acc.n(has) .* nB(has) ./ n(has);
+    case "rms"
+        Y0 = Y; Y0(~ok) = 0;
+        acc.sumsq = acc.sumsq + sum(Y0.^2, 1);
+    case "mad"
+        k = min(floor((Y + Rg) / W) + 2, nb - 1);   % [-Rg + (k-2)W, -Rg + (k-1)W) -> k
+        k(Y < -Rg) = 1;
+        k(Y >= Rg) = nb;
+        acc.counts = acc.counts + binCounts(k, ok, nb);
+    case "percentile"
+        A = abs(Y);
+        k = min(floor(A / W) + 1, nb - 1);          % [(k-1)W, kW) -> k
+        k(A >= Rg) = nb;
+        acc.counts = acc.counts + binCounts(k, ok, nb);
+end
+acc.n = acc.n + nB;
+end
+
+
+function C = binCounts(k, ok, nb)
+%binCounts  [nb x nChan] counts of the bin indices K (one column per channel) where OK.
+nChan = size(k, 2);
+lin = k + (0:nChan-1) * nb;
+C = reshape(accumarray(lin(ok), 1, [nb * nChan, 1]), nb, nChan);
+end
+
+
+function [m, madUV, beyond] = histMad(Fk, W, Rg)
+%histMad  Median and MAD from the CDF knots FK at -Rg:W:Rg.
+%   The median is where the piecewise-linear CDF reaches 0.5; the MAD the
+%   half-width d at which F(m+d) - F(m-d) reaches 0.5, found by bisection
+%   on [0, Rg - |m|]. BEYOND: either lies outside the knots.
+madUV  = NaN;
+m      = invCdf(Fk, 0.5, -Rg, W);
+beyond = isnan(m);
+if beyond
+    return
+end
+lo = 0;
+hi = Rg - abs(m);
+if cdfAt(Fk, m + hi, W, Rg) - cdfAt(Fk, m - hi, W, Rg) < 0.5
+    beyond = true;
+    return
+end
+for it = 1:60
+    mid = (lo + hi) / 2;
+    if cdfAt(Fk, m + mid, W, Rg) - cdfAt(Fk, m - mid, W, Rg) >= 0.5
+        hi = mid;
+    else
+        lo = mid;
+    end
+end
+madUV = hi;
+end
+
+
+function x = invCdf(Fk, p, x0, W)
+%invCdf  Where the piecewise-linear CDF through the knots x0 + (0:K-1)*W
+%   first reaches P (NaN when it does so at the first knot or never).
+j = find(Fk >= p, 1);
+if isempty(j) || j == 1
+    x = NaN;
+    return
+end
+x = x0 + (j - 2) * W + W * (p - Fk(j - 1)) / (Fk(j) - Fk(j - 1));
+end
+
+
+function F = cdfAt(Fk, v, W, Rg)
+%cdfAt  The piecewise-linear CDF through the knots -Rg:W:Rg at V (constant beyond them).
+K = numel(Fk);
+t = (v + Rg) / W;                         % 0-based knot position
+if t <= 0
+    F = Fk(1);
+elseif t >= K - 1
+    F = Fk(K);
+else
+    j = floor(t);
+    F = Fk(j + 1) + (t - j) * (Fk(j + 2) - Fk(j + 1));
 end
 end

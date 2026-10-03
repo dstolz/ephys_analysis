@@ -73,9 +73,7 @@ R.Message = strings(n, 1);
 R.To = strings(n, 1);
 dest = checkDestination(opts, T);
 if opts.Method == "recycle"
-    if ~ispc
-        error('runLocalCleanup:Recycle', 'Method "recycle" needs Windows; use "delete" or "move".');
-    end
+    platformSupport("recycle", Require=true, ErrorId="runLocalCleanup:Recycle");
     prev = recycle('on');
     restoreRecycle = onCleanup(@() recycle(prev));
     bins = containers.Map('KeyType', 'char', 'ValueType', 'any');   % what each drive's bin takes

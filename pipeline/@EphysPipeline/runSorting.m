@@ -89,7 +89,7 @@ for k = 1:n
         end
         obj.progress("sorting", d.Name, k, n, 1, 2, ternary(dry, "writing run files", "writing the .bin and run files"));
         res = d.runKilosort(ProbeFile=obj.probeFor(d), ExtraSettings=ks4, ArtifactIntervals=iv, ...
-            DryRun=dry, Launch=false);
+            DryRun=dry, Launch=false, Provenance=obj.provenance());
         if dry
             obj.log("[sorting] %s: dry run, wrote %s", d.Name, res.settingsPath);
             obj.addResult("sorting", d.Name, "dry run", "wrote settings.json + driver", res.settingsPath, toc(t0));

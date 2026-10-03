@@ -5,7 +5,11 @@ function loadReviewResults(obj)
 %   amplitude, contamination, notes, mean waveform), caches them in
 %   obj.ReviewData, fills the summary label and units table, and draws the
 %   plots. Selecting a unit later only re-renders from the cache (see
-%   renderReviewPlots). A folder belonging to the active dataset is read with
+%   renderReviewPlots). The units' quality metrics come from
+%   EphysDataset.unitQuality (the active dataset's sort) or unitQualityOf
+%   (any other, without SNR), through the folder's quality_metrics.json when
+%   it is current; the QC column judges them by the criteria above the table
+%   (Sorting.Quality). A folder belonging to the active dataset is read with
 %   its identity, so units carry their full labels ("su042_1255_260908T1039");
 %   any other folder gives "<class><id>" labels. Notes typed in the Notes
 %   column are saved by onReviewNoteEdited.
@@ -93,14 +97,18 @@ try
     R.spikeUnitIdx = ui.spikeUnitIdx;
     R.nGood    = sum(R.group == "good");
     R.nMua     = sum(R.group == "mua");
-    R.units    = U0;
+    dlg.Message = "Quality metrics...";
+    [R.units, R.qualityNote] = reviewQuality(obj, folder, U0, ui);
+    [S, err] = obj.gatherSortingSection();
+    if err ~= ""; S = obj.Config.Sorting; end
+    R.qc = judgeUnits(R.units, S.Quality);
 
     obj.ReviewData = R;
     obj.ReviewSelectedUnit = 0;
     obj.ReviewSpikeWaves = struct([]);
 
     fillSummary(obj, R);
-    fillUnitsTable(obj, R);
+    obj.showReviewUnits();   % in the table's remembered sort, no row selected
     obj.renderReviewPlots();
 
     obj.setStatus(sprintf("Loaded results: %d unit(s) (good %d, mua %d).", ...
@@ -138,6 +146,11 @@ lines(end+1) = sprintf("Total spikes: %s", commaSep(sum(R.nSpikes)));
 if isfinite(R.durSec)
     lines(end+1) = sprintf("Mean rate   : %.1f Hz/unit (over the sorted time)", mean(R.firingRate, 'omitnan'));
 end
+if isfield(R, 'qc') && R.qc.has
+    lines(end+1) = sprintf("Quality     : %d of %d unit(s) meet the criteria (QC)", nnz(R.qc.pass), U);
+elseif isfield(R, 'qualityNote') && R.qualityNote ~= ""
+    lines(end+1) = "Quality     : not computed: " + R.qualityNote;
+end
 lines(end+1) = "";
 lines(end+1) = "Units per shank:";
 for s = 1:R.nShank
@@ -150,29 +163,33 @@ obj.ReviewSummaryLabel.Text = lines;
 end
 
 
-function fillUnitsTable(obj, R)
-%fillUnitsTable  Fill the per-unit table (one row per cluster).
-%   Columns: Unit, Group, Shank, Ch (name, else recording channel), X, Y
-%   (template centre), #Spk, FR, Amp, Cont%, Notes (editable).
-U = numel(R.clusterID);
-C = cell(U, 11);
-for u = 1:U
-    ch = R.channelName(u);
-    if ch == "" && isfinite(R.recChan(u)); ch = string(R.recChan(u)); end
-    C{u, 1}  = R.clusterID(u);
-    C{u, 2}  = char(R.group(u));
-    C{u, 3}  = R.shank(u);
-    C{u, 4}  = char(ch);
-    C{u, 5}  = round(R.x(u), 1);
-    C{u, 6}  = round(R.y(u), 1);
-    C{u, 7}  = R.nSpikes(u);
-    C{u, 8}  = round(R.firingRate(u), 2);
-    C{u, 9}  = round(R.ampUnit(u), 1);
-    C{u, 10} = round(R.contam(u), 1);
-    C{u, 11} = char(R.notes(u));
+function [U, note] = reviewQuality(obj, folder, U0, ui)
+%reviewQuality  The units with their quality metrics (EphysDataset.unitQuality), or as read.
+%   The active dataset's sort: ds.unitQuality (the sort's .bin length, else
+%   the recording's; the recording's noise for SNR). Any other folder:
+%   unitQualityOf on the length of the .bin its settings.json names, without
+%   SNR. Both use the folder's quality_metrics.json when it is current. A
+%   failure leaves the units as read; NOTE says why.
+U = U0; note = "";
+try
+    d = obj.currentDataset();
+    if ~isempty(d) && ownsFolder(d, folder)
+        U = d.unitQuality(U0, ui);
+        return
+    end
+    S = readJsonFile(fullfile(folder, 'settings.json'), ErrorOnFail=false);
+    total = NaN;
+    if isstruct(S) && all(isfield(S, {'filename', 'n_chan_bin', 'fs'}))
+        total = round(binSeconds(S) * U0.fs);
+    end
+    if ~(total > 0)
+        note = "the length of the sorted recording is unknown (no .bin, not the active dataset's sort)";
+        return
+    end
+    U = EphysDataset.unitQualityOf(U0, ui, NumSamples=total, NumSamplesSource="the sorted .bin");
+catch ME
+    note = string(ME.message);
 end
-obj.ReviewUnitsTable.Data = C;
-obj.ReviewUnitsTable.Selection = [];
 end
 
 

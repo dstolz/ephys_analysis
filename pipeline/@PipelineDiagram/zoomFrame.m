@@ -1,7 +1,7 @@
-function z = flowZoom(key, initial)
-%flowZoom  The Diagram pages' zoom and pan: a viewport, its buttons and script.
-%   Z = flowZoom(KEY, INITIAL) returns what a Diagram page (flowChartHTML,
-%   flowOverviewHTML) wraps its drawing in:
+function z = zoomFrame(key, initial)
+%zoomFrame  The diagram pages' zoom and pan: a viewport, its buttons and script.
+%   Z = PipelineDiagram.zoomFrame(KEY, INITIAL) returns what a diagram page
+%   (PipelineDiagram.detail, PipelineDiagram.overview) wraps its drawing in:
 %     open, close  HTML around the drawing: a viewport (filling the rest of
 %                  the page) with the zoom buttons, and the stage it moves
 %     css, js      the rules and the script (put the page's own after them)

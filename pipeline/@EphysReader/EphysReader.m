@@ -117,6 +117,21 @@ classdef (Abstract) EphysReader < handle
             tf = false;
         end
 
+        function S = storageFormat(obj)
+            %storageFormat  How the amplifier samples are stored in the recording's files.
+            %   S = r.storageFormat() returns a struct with
+            %     gainUV  [1 x NumChannels] microvolts per stored unit (NaN = unknown)
+            %     class   the stored class ("int16", "uint16", "int32", "single", ...;
+            %             "" = unknown)
+            %     offset  stored units subtracted before the gain (0 for none)
+            %   so that microvolts = (stored - offset) .* gainUV. EphysDataset.binScale
+            %   uses it to write the Kilosort4 .bin at the recording's own
+            %   resolution. This default knows nothing; readers override it.
+            n = obj.NumChannels;
+            if ~(n >= 0); n = 0; end
+            S = struct('gainUV', NaN(1, n), 'class', "", 'offset', 0);
+        end
+
         function X = readWindowUV(obj, sampleOffset, nSamp) %#ok<INUSD,STOUT>
             %readWindowUV  Bounded random-access read (override when supported).
             error('EphysReader:NotSupported', ...

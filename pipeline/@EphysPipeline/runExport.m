@@ -9,7 +9,10 @@ function runExport(obj, opts)
 %   paired session ride along with its trials table. The "kcsd" format
 %   writes the LFP alone with the positions of its channels on the
 %   dataset's probe (probeFor) for kCSD-python, so neither the sorted units
-%   nor a missing sorting folder concern it. Behavior data is not
+%   nor a missing sorting folder concern it. The "nwb" format writes an NWB
+%   2 file through Python (exportNWB: Export.NWB's metadata and Python,
+%   else the Sorting step's; the probe of probeFor; the trials of the
+%   behavior step's file). Behavior data is not otherwise
 %   exported here (see the behavior step). A dataset's inputs are read once
 %   and handed to every format: the extract files of the Export.Signals
 %   signals (per-type files of other signals are not read), the sorted units
@@ -72,11 +75,19 @@ for k = 1:n
             obj.progress("export", d.Name, k, n, j - 1, nFmt, fmt + ": exporting");
             o.Extract  = in.Extract;
             o.Sources  = in.Sources;
+            o.Provenance = obj.provenance();
             if fmt == "kcsd"
                 o.ProbeFile = obj.probeFor(d);   % its own, a rule's or the default probe
             else
                 o.Units    = in.Units;
                 o.Detected = in.Detected;
+            end
+            if fmt == "nwb"
+                o.ProbeFile = obj.probeFor(d);
+                if o.PythonExe == ""; o.PythonExe = c.Sorting.PythonExe; o.CondaEnv = c.Sorting.CondaEnv; end
+                % the run's provenance, the pairing of the behavior step's file
+                o.Behavior = obj.outputPathFor("behavior", d);
+                if ~isfile(o.Behavior); o.Behavior = ""; end
             end
             args = namedargs2cell(o);
             switch fmt
@@ -88,6 +99,8 @@ for k = 1:n
                     r = d.exportEpochs('File', out, args{:});
                 case "kcsd"
                     r = d.exportKCSD('File', out, args{:});
+                case "nwb"
+                    r = d.exportNWB('File', out, args{:});
                 otherwise
                     error('EphysPipeline:BadFormat', 'Unknown export format "%s".', fmt);
             end
@@ -100,6 +113,10 @@ for k = 1:n
             if fmt == "kcsd"
                 msg = string(sprintf("LFP; %d electrode(s) in %d-D, %d channel(s) left out; %d event(s)", ...
                     r.nElectrodes, r.dim, r.nExcluded, r.nEvents));
+            elseif fmt == "nwb"
+                serious = nnz(ismember(r.inspector.importance, ["ERROR" "PYNWB_VALIDATION" "CRITICAL"]));
+                msg = string(sprintf("%s; %d electrode(s), %d unit(s), %d trial(s), %d line(s); nwbinspector: %d finding(s), %d critical or above", ...
+                    strjoin(r.signals, "+"), r.nElectrodes, r.nUnits, r.nTrials, r.nEventLines, height(r.inspector), serious));
             else
                 msg = sprintf("%s; %d unit(s)", strjoin(r.signals, "+"), r.nUnits);
             end
@@ -148,9 +165,10 @@ function in = exportInputs(d, files, o)
 %exportInputs  Dataset D's export inputs, read once for all of its formats.
 %   Loads the extract FILES (one combined file, or per-type files that each
 %   add their own signal), the sorted units when o.Units asks for them ([] =
-%   the dataset's own, when it has any) and the detected spikes of the spikes
-%   file o.Detected. Sources names what was read, as each exporter records it
-%   when it reads the files itself.
+%   the dataset's own, when it has any; with o.UnitQuality, with their
+%   quality metrics, EphysDataset.unitQuality) and the detected spikes of
+%   the spikes file o.Detected. Sources names what was read, as each
+%   exporter records it when it reads the files itself.
 S = load(files(1));
 for f = files(2:end)
     T = load(f);
@@ -164,7 +182,18 @@ end
 src = struct('extractFile', strjoin(files, "; "), 'spikesFile', "", 'sortingDir', "");
 units = false;
 if isempty(o.Units) && d.hasKilosortResults()
-    units = d.readSortedUnits(Groups=o.Groups);
+    [units, uinfo] = d.readSortedUnits(Groups=o.Groups);
+    if isfield(o, 'UnitQuality') && o.UnitQuality
+        % as resolveExportInputs does for an exporter called on its own
+        try
+            units = d.unitQuality(units, uinfo);
+            units.quality = rmfield(units.quality, 'cache');   % not part of an export
+        catch ME
+            warning('EphysPipeline:runExport:NoUnitQuality', ...
+                'The quality metrics of the units of %s could not be computed (%s); the units are exported without them.', ...
+                d.Name, ME.message);
+        end
+    end
     src.sortingDir = string(d.sortingResultsDir());
 end
 detected = false;

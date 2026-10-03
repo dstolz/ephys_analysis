@@ -34,8 +34,9 @@ function out = exportFieldTrip(obj, opts)
 %
 %   Options
 %   -------
-%     File, Extract, Signals, Units, Groups, Detected, Sources, Events,
-%     Overwrite, MatVersion   as in exportChronux
+%     File, Extract, Signals, Units, Groups, UnitQuality, Detected, Sources,
+%     Events, Overwrite, MatVersion   as in exportChronux (the quality
+%     metrics ride in spike.hdr.orig, the units struct)
 %     Validate   true (default): when FieldTrip is on the path run
 %                ft_datatype_raw / ft_datatype_spike on the structures and
 %                record the outcome (warn on failure); no-op otherwise
@@ -50,13 +51,17 @@ arguments
     opts.Signals (1,:) string = string.empty(1,0)
     opts.Units = []
     opts.Groups (1,:) string = ["good" "mua"]
+    opts.UnitQuality (1,1) logical = true   % units read with their quality metrics (EphysDataset.unitQuality)
     opts.Detected = true
     opts.Sources struct = struct()
     opts.Events (1,1) logical = true
     opts.Overwrite (1,1) logical = false
     opts.MatVersion (1,1) string {mustBeMember(opts.MatVersion, ["-v7.3", "-v7"])} = "-v7.3"
     opts.Validate (1,1) logical = true
+    opts.Provenance = []   % ephysProvenance() of the run writing it ([] = made here)
 end
+prov = opts.Provenance;
+if isempty(prov); prov = ephysProvenance(); end
 
 t0 = tic;
 file = opts.File;
@@ -125,6 +130,7 @@ S.export = struct( ...
     'validation', validation, ...
     'fieldtripOnPath', FieldTripExport.hasFieldTrip());
 if ~isempty(in.units); S.export.nUnits = numel(in.units.unitId); else; S.export.nUnits = 0; end
+S.export.provenance = prov;
 
 EphysDataset.saveAtomically(file, S, opts.MatVersion);
 

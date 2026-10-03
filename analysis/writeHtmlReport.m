@@ -39,6 +39,11 @@ L(end+1) = "<h1>" + htmlEscape(report.title) + "</h1>";
 nPlots = sum(arrayfun(@(d) numel(d.entries), report.datasets));
 L(end+1) = "<p class=""meta"">Generated <span class=""created"">" + htmlEscape(report.created) + "</span> &middot; " ...
     + numel(report.datasets) + " dataset(s), " + nPlots + " plot(s)</p>";
+if isfield(report, 'provenance') && isstruct(report.provenance)
+    p = report.provenance;
+    L(end+1) = "<p class=""meta provenance"">ephys_analysis " + htmlEscape(p.code) + " &middot; MATLAB " ...
+        + htmlEscape(p.matlab) + " &middot; " + htmlEscape(p.host) + "</p>";
+end
 
 % --- contents ----------------------------------------------------------------------
 L(end+1) = "<nav><h2>Contents</h2><ol>";

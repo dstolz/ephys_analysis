@@ -4,7 +4,7 @@ function [S, errMsg] = gatherSortingSection(obj)
 %   Sorting struct filled from the controls: paths, execution mode, runs at
 %   once and GPUs (on the Run tab), dry run, the typed KS4 parameters (text
 %   fields are parsed with EphysPipelineConfig.ks4ParamFromText) and the
-%   extra JSON.
+%   extra JSON, and the good-unit criteria (Sorting.Quality) of the Review tab.
 %   ERRMSG names the first control whose text does not parse ("" when all
 %   parse); that parameter keeps the working config's value in S, and
 %   gatherConfig refuses the config (so do Run and Save).
@@ -62,6 +62,24 @@ if ~isempty(obj.ExtraSettingsArea) && isvalid(obj.ExtraSettingsArea)
         raw = "";
     end
     S.KS4ExtraJSON = raw;
+end
+% Good-unit criteria (Review tab): blank = not applied (NaN)
+F = obj.ReviewCriteriaFields;
+for f = string(fieldnames(F)).'
+    if ~isvalid(F.(f)); continue; end
+    t = strtrim(string(F.(f).Value));
+    if t == ""
+        S.Quality.(f) = NaN;
+        continue
+    end
+    v = str2double(t);
+    if isnan(v) || v < 0
+        if errMsg == ""
+            errMsg = "Good-unit criterion """ + f + """ must be a number of at least 0, or blank (got """ + t + """).";
+        end
+        continue
+    end
+    S.Quality.(f) = v;
 end
 end
 

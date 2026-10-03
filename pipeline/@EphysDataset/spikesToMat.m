@@ -26,9 +26,11 @@ function out = spikesToMat(obj, opts)
 %   -------
 %     File              target path (default <outputFolder>/<Name>_spikes.mat)
 %     DetectOptions     struct of detectSpikes options (Filter, Band,
-%                       ThresholdMethod, Threshold, Waveforms, WindowMs,
-%                       MaxChunkSamples, UseParallel, MaxWorkers, ...). Do not
-%                       include Fs, ChannelOrder or ProgressFcn here.
+%                       ThresholdMethod, Threshold, ThresholdScope,
+%                       Waveforms, WindowMs, MaxChunkSamples, UseParallel,
+%                       MaxWorkers, ...). Do not include Fs, ChannelOrder or
+%                       ProgressFcn here. detected.info.thresholdScope says
+%                       whether the thresholds are per chunk or recording-wide.
 %     Channels          1-based recording channels to detect on, in order
 %                       ([] = all)
 %     ArtifactMode      what detection does with the artifact periods
@@ -67,7 +69,10 @@ arguments
     opts.MatVersion (1,1) string {mustBeMember(opts.MatVersion, ["-v7.3", "-v7"])} = "-v7.3"
     opts.Overwrite (1,1) logical = false
     opts.ProgressFcn = []
+    opts.Provenance = []   % ephysProvenance() of the run writing it ([] = made here)
 end
+prov = opts.Provenance;
+if isempty(prov); prov = ephysProvenance(); end
 
 t0 = tic;
 file = opts.File;
@@ -177,6 +182,7 @@ S.conversion = struct( ...
     'fs',              obj.Fs, ...
     'matFileVersion',  opts.MatVersion, ...
     'matlabVersion',   string(version));
+S.conversion.provenance = prov;
 EphysDataset.saveAtomically(file, S, opts.MatVersion);
 
 d = dir(file);

@@ -3,10 +3,10 @@ function restoreAppPrefs(backupFile)
 %   restoreAppPrefs(BACKUPFILE) replaces each preference group saved in
 %   BACKUPFILE (variable 'saved': one field per group, holding the group's
 %   struct, or [] when the group did not exist) with what was saved.
-%   wikiScreenshots and wikiToolScreenshots write it to
-%   OUTFOLDER/prefs_backup.mat and call this when they end. Run it by hand
-%   when a run had to be killed before it could. Check first that no other
-%   app-driving MATLAB is running.
+%   Earlier versions of wikiScreenshots and wikiToolScreenshots wrote it to
+%   OUTFOLDER/prefs_backup.mat. They now keep the apps' preferences in a
+%   temporary file (AppPrefs.useTemporary) and never touch yours, so this
+%   is only needed for a backup left by an older run that was killed.
 %
 %   See also wikiScreenshots, wikiToolScreenshots.
 

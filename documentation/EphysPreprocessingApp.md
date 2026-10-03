@@ -172,8 +172,9 @@ that recording again by its folder.
    **Spikes**, **Export**) and set their options. Each tab has **Run this
    step** for a single step over the selected datasets.
 6. **Run**: **Validate**, **Plan**, then **Run** (or **Dry run**).
-7. **File → Save config**, and **Generate script** if you want a script that
-   reproduces the run.
+7. **File → Save config**. Each run has already saved its standalone script
+   in the project root (**Save the pipeline script on each run**, Project
+   tab); **Generate script** writes either form wherever you choose.
 8. **Review**: inspect sorted units, or open them in phy.
 
 No data at hand? **File → Create synthetic test project...** writes a
@@ -452,6 +453,7 @@ sch.remove();
 | Config name, Description | `cfg.Name`, `cfg.Description` |
 | Project root + Browse... + Recursive + **Scan** | `Project.Root`, `Project.Recursive`. Scan builds `EphysProject(root, Recursive=, ReaderOptions=)` (every folder that a registered reader claims: Intan `*.rhd` / `info.rhd`, an Open Ephys GUI session folder (the folder holding `Record Node <id>`), or `recording.json`; with Recursive unticked only the root and the folders directly in it are searched), then `P.refresh()`: header metadata, `applyManifest` (probe, exclusions, manual periods, sorting and behavior associations), `associateFolderBehavior` (a dataset with no behavior file takes the one Epsych2 file in its own folder), `writeManifest`. A progress dialog with Cancel; datasets whose headers fail keep `NaN` metadata, and an alert lists the datasets whose headers or manifest could not be read (a manifest that cannot be read is left as it is). Off while a run is under way |
 | Refresh metadata | re-parse all headers (off while a run is under way) |
+| Save the pipeline script on each run | `Project.SaveScript` (default on): each run, not a dry run, saves the config's standalone script as `<project root>\pipeline_<config name>.m`, replacing the one the previous run saved; a file of that name that no run saved is left as it is ([details](EphysPipeline.md#run)) |
 | Output root + Browse... | `Project.OutputRoot`: each dataset writes to `<root>/<Name>`; blank = next to the recording |
 | Name pattern + Columns | `Project.NamePattern`: tokens parsed from each dataset name (see [`parseNameTokens`](EphysPipeline.md#dataset-name-tokens)); one checkbox per token, ticked tokens (`Project.TokenColumns`, default `SubjectID`) become table columns after Name. The label shows how many names match, or the pattern error. After a scan that found Open Ephys sessions whose names do not match, the status bar suggests `{SubjectID}_{Date:yyyy-MM-dd}_{Time:HH-mm-ss}*` |
 | Filter | one editable dropdown per name-pattern token, listing the values found (`-` = the name does not match). Rows whose token does not match are hidden; type `*` / `?` wildcards or comma-separated alternatives (case-insensitive). Filters are a view only: they are not saved, and ticks on hidden rows stay in the selection (the label shows `showing k of n (m ticked hidden)`) |
@@ -460,7 +462,8 @@ sch.remove();
 | **Tools** panel (beside the table) | opens datasets in another program. The box on top chooses which: **Active dataset** (the highlighted row) or **Ticked datasets** (the ticked rows, or every dataset when none is ticked, as a run takes them); the label under it names them, and how many of several have sorted output. **Manifest viewer**: each one's `<Name>_manifest.json` in a [manifest viewer](ManifestViewerApp.md), a window each, cascaded (the same as Dataset → View manifest...). **Analysis app**: one [analysis app](EphysAnalysisApp.md) on the project with those datasets selected (a new config in project mode with `Source.Selection = "list"` and their keys: it lists every dataset but ticks only these to run, the first of them active; `"all"` when they are every dataset); needs the repository's `analysis` folder on the path. **phy**: phy's template-gui on each one's associated sorted output, a window each (on only when one of them has `params.py`; the others are skipped). **Output folder**: each one's output folder in the file browser (an alert names those not written yet). Opening more than four windows at once asks first |
 
 Table columns (drag a header to reorder; the order is kept across refreshes
-and saved in the app preferences): **Select**, Name, the ticked name tokens
+and saved in the app preferences; click a header to sort, and the sort is kept
+the same way, see [Sorted tables](#sorted-tables)): **Select**, Name, the ticked name tokens
 (`-` when the name does not match the pattern), **Key** (root-relative, what the config
 stores), Acq date, # chan, Fs (Hz), Duration (min), Format, Probe
 (`default: <file>` when the dataset has none of its own and the config's
@@ -515,7 +518,7 @@ are approved as paired). A dataset with neither has nothing to load.
 | **Auto approve when the counts match** | `Behavior.AutoApprove` (off by default): a pairing is approved as soon as it is paired (Load, a setting change, **Prefetch ticked**, the behavior step) when it cuts nothing and the trials and the trial-line intervals are equal in number (`EphysDataset.autoApproveTrialPairing`). The manifest marks the approval as automatic (`auto_approved`), the summary reads *APPROVED automatically* and the Project table *pairing approved (auto)*; an existing `<Name>_behavior.mat` is rewritten with the approved pairing. A count mismatch, and a pairing whose cuts resolved one, still need **Approve**. **Reset cuts** and cut edits never approve; approving by hand replaces the automatic mark |
 | Lines table (**Native**, **Name**, **Intervals**, **Inverted**) | one row per digital line: its native name (`DIGITAL-IN-04`, Open Ephys `TTL4`), its name, and its interval count. Editing **Name** writes a `Signals.LineNames` entry `native=name` (a name equal to the line's default, or a blank cell, removes it) and re-pairs from the lines already read, without reading the recording again; the trial line and the inverted lines follow the new name. Name the Open Ephys TTL lines here (`TTL4` → `InTrial`). Ticked **Inverted** lines are `Signals.InvertedLines`: on while low, so an event's onset is the falling edge and its offset the rising edge (the last low sample). Names and polarity apply to the pairing and to the events the Signals step writes (and so to the exports) |
 | **Resolve a count mismatch** | four spinners: trials and trial-line intervals to cut from the start and from the end before pairing. They belong to the dataset (its manifest), not to the config; cuts that would drop more than there is are refused |
-| Trials table | trial, `TrialIndex`, interval, onset / offset (s), onset / offset sample, flag (orange = partial: the interval touches the recording start or end; grey = cut; red = unpaired), the other lines overlapping the trial. Click a header to sort, drag it to move the column. Right-click for **Parameter columns** (the loaded trials' parameters in alphabetical order: Epsych2 parameters, or the other epoc stores' values at each trial onset; tick one, e.g. `TrialType` or a response code, to show it after Flag), **Remove "*name*"** (on a parameter column) and **Reset column order**. The chosen parameters and the column order are preferences, so they apply to every dataset and the next session; a parameter a session lacks is not shown there (the menu lists it as *not in these trials*) and returns to its place for sessions that have it. Values that are not one number, text or date per trial are shown as text. A sort is not kept when the table refreshes (Load, a cut, a setting or a column change) |
+| Trials table | trial, `TrialIndex`, interval, onset / offset (s), onset / offset sample, flag (orange = partial: the interval touches the recording start or end; grey = cut; red = unpaired), the other lines overlapping the trial. Click a header to sort, drag it to move the column. Right-click for **Parameter columns** (the loaded trials' parameters in alphabetical order: Epsych2 parameters, or the other epoc stores' values at each trial onset; tick one, e.g. `TrialType` or a response code, to show it after Flag), **Remove "*name*"** (on a parameter column) and **Reset column order**. The chosen parameters and the column order are preferences, so they apply to every dataset and the next session; a parameter a session lacks is not shown there (the menu lists it as *not in these trials*) and returns to its place for sessions that have it. Values that are not one number, text or date per trial are shown as text. A header click's sort is kept when the table refreshes (Load, a cut, a setting or a column change), for every dataset and the next session; the flag colours follow their rows, and right-click → **Clear sort** returns to trial order ([Sorted tables](#sorted-tables)) |
 | Plot | the digital lines over the recording: one bar per event, from its onset to its offset. A normal line's bars run from each rising edge to the next falling edge; an inverted line's (row label `(inverted)`) from each falling edge to the next rising edge. The trial line's bars are coloured by pairing state (paired, partial, cut, unpaired), and dotted lines across every row mark its onsets and offsets. Right-click the plot to show or hide those lines (shown by default) and the grid lines (hidden by default), and for **Trial labels**: the loaded trials' parameters in alphabetical order (`TrialIndex` included). A ticked parameter writes each paired trial's value above the trial line, starting at the trial's onset; with several ticked, each label reads `name=value, name=value` in the order ticked, and the plot title names them. **No labels** clears them. Like the table's parameter columns, the choice is a preference: it applies to every dataset and the next session, and a parameter a session lacks is listed as *not in these trials* and not written. Zoom and pan are horizontal only: the mouse wheel zooms time in and out about the cursor, dragging pans time |
 
 The summary line says whether the pairing is approved (by hand or
@@ -762,7 +765,9 @@ The **Selection** tab on the right comes to the front. It shows:
   (*Min channels* applied, no stitching or padding). Rows that would flag are
   shaded;
 - one row per channel giving RMS z, MAD z, peak, RMS and peak-to-peak µV,
-  sorted by the method chosen on the left (any column sorts on a click).
+  sorted by the method chosen on the left. Any column sorts on a click, and
+  that sort is kept for every selection and the next session; right-click →
+  **Clear sort** returns to the method's order ([Sorted tables](#sorted-tables)).
   The channels over its threshold are shaded.
 
 The baselines (median / MAD) are those of the whole window shown, as
@@ -929,7 +934,11 @@ Threshold-detected spike events per dataset with `EphysDataset.spikesToMat`,
 sorting folder, where Export and the analysis read them.
 
 - **Filter** (band, order), **Threshold** (method, value, polarity, max
-  amplitude), **Events** (align, window, min period), **Waveforms** (on/off,
+  amplitude; **Noise measured over**, `Spikes.ThresholdScope`: *each chunk*
+  (default) or *the whole recording*, one threshold per channel from a first
+  pass over the recording, see
+  [detectSpikes](EphysDataset.md#whole-recording-mode); off for *absolute*),
+  **Events** (align, window, min period), **Waveforms** (on/off,
   window, source, edge handling), **Channels & artifacts** (all / manifest
   exclusions / list; **Artifact periods**, `Spikes.ArtifactMode`: *Reject the
   events inside them* (default), *Erase them before detection (the cleaned
@@ -940,7 +949,8 @@ sorting folder, where Export and the analysis read them.
   (folder, suffix `_spikes`, MAT version, overwrite).
 - **Dataset** + **Preview**: detects on the first *n* seconds of the active
   dataset with the tab's settings and lists per-channel thresholds, counts and
-  rates.
+  rates. The preview's thresholds are always its window's own; with *the
+  whole recording* its label says so.
 - **Run this step** runs `EphysPipeline.runSpikeDetection`.
 
 ## Export
@@ -959,7 +969,15 @@ the app only writes files.
   `KCSD2D`, [format](file-formats.md#kcsd-export-ephysdatasetexportkcsd-the-export-step)).
   kCSD needs a probe (the dataset's own, a rule's or the default) and leaves
   out the interpolated bad channels; units and detected spikes are not part
-  of it.
+  of it. **NWB 2** (`<Name>.nwb`, [EphysDataset → NWB](EphysDataset.md#neurodata-without-borders-nwb))
+  holds the electrodes on the probe, the signals, the sorted units with
+  their quality metrics, the paired trials, the digital lines and the erased
+  periods. It is written by Python (pynwb) and checked with nwbinspector.
+- **NWB** (`Export.NWB`): the electrode location; the subject's species,
+  sex and age; the time zone the recording was made in; experimenter, lab
+  and institution; the Python and conda env (blank = the Sorting tab's); and
+  **Check with nwbinspector**. Anything left blank is not written, and
+  nwbinspector reports a subject without species, sex or age.
 - What to include: signals (blank = every signal in the extract), sorted
   units (+ groups), detected spikes, events; **Validate with
   FieldTrip** when it is on the path.
@@ -989,6 +1007,11 @@ drawings, and the choice is kept as a preference:
   next.
 - **Data-flow overview** (the default): only the steps and the data passing
   between them (see [Data-flow overview](#data-flow-overview)).
+
+Both are drawn by `PipelineDiagram`, which needs no app, so a script can
+write a config's diagram too:
+`writelines(PipelineDiagram.overview(cfg, []), "overview.html")`
+(`PipelineDiagram.detail(cfg, ds, Layout="steps")` for the other).
 
 Either drawing sits in a frame you can zoom and pan. The buttons at its top
 right zoom out (**−**), back to actual size (the percentage shown), in
@@ -1374,9 +1397,30 @@ dataset whose name does not match `Project.NamePattern`, is read with
 - **Units table**: Unit, Group (phy's `cluster_group.tsv` when present, else
   `cluster_KSLabel.tsv`), Shank, Ch (the peak channel's native name, else its
   recording channel number), X / Y (µm, the template centre on the probe),
-  #Spk, FR (Hz), Amp, Cont%, **Notes**. Clicking a row focuses the plots, whose
-  titles show the unit label; **Show all units** clears the focus. The table
-  scrolls sideways.
+  #Spk, FR (Hz), Amp, Cont%, **QC** (meets the criteria: yes / no), the
+  metrics it judges (ISIv: ISI violations ratio, Pres: presence ratio,
+  Cutoff: amplitude cutoff, SNR), **Notes**. The quality metrics are
+  computed when the sort loads ([`EphysDataset.unitQuality`](EphysDataset.md#unit-quality-metrics):
+  the active dataset's sort with SNR from the recording's noise; any other
+  folder without SNR, from the length of the `.bin` its `settings.json`
+  names) and cached in the sort folder's `quality_metrics.json`; the
+  Summary says how many units meet the criteria, or why the metrics could
+  not be computed. Clicking a row focuses the plots, whose titles show the
+  unit label; **Show all units** clears the focus. The table scrolls
+  sideways. Click a header to sort: the sort is kept for every sort loaded
+  and the next session, and right-click → **Clear sort** returns to cluster
+  order ([Sorted tables](#sorted-tables)). Rows are matched to units by the
+  cluster id, so a click, a note and the selected row reach the right unit
+  in any order.
+- **Good-unit criteria** (above the table): ISI ratio <, Presence >, Cutoff <,
+  SNR >, Drift <, Rate > (blank = not applied), the config's
+  `Sorting.Quality` (default 0.5, 0.9 and 0.1 for the first three, the
+  Allen Institute's thresholds). Editing one judges the loaded units again at
+  once, without computing their metrics again.
+- **QC report**: writes the loaded sort's unit-quality page,
+  `quality_report.html` in the results folder ([`writeUnitQualityReport`](EphysDataset.md#unit-quality-metrics):
+  the criteria, a histogram per metric, a row per unit with its failed
+  metrics marked), and opens it in the browser.
 - **Notes**: the one editable column. Typing a note saves it at once to
   `cluster_notes.tsv` next to the sort (`EphysDataset.writeUnitNotes`), the
   file phy uses for a `notes` label, so the Spikes and Export steps and
@@ -1610,7 +1654,11 @@ recording folder) and any other file. Nothing on the source is touched.
   File and **Why** (for a raw file, where its source copy is, or why it is
   kept: not found at the source, a different size, no copy record; for a
   step's file, that the step's output is selected). Remove rows come first,
-  largest first, tinted red; raw files that are kept are tinted amber. The
+  largest first, tinted red; raw files that are kept are tinted amber. A
+  click on a header sorts the rows instead, and that sort is kept for every
+  preview and the next session; right-click → **Clear sort** returns to this
+  order ([Sorted tables](#sorted-tables)). Each row is mapped to its file
+  in the plan, so a tick reaches its own file in any order. The
   line above the table totals both sides: *Would remove N file(s), X GB,
   from K of M dataset(s). N file(s), Y GB, remain.* **Show the files that
   remain** hides or shows the Keep rows. Previewing reads file listings, the
@@ -1730,10 +1778,36 @@ Scripted, `app.issueReport("bug")` returns the same report (name-value
 `Description`, `System`, `Config`, `Logs`, `MaxLogLines`) and
 `app.issueURL("bug", title, body)` the prefilled address.
 
+## Sorted tables
+
+Five tables sort on a header click: the Project table, the Trials table, the
+Review units table, the Clean up preview and the Artifacts tab's per-channel
+Selection table. A uitable sorts only what it shows, and the app fills a table
+again whenever its data changes (another dataset, a reload, an edit, a new
+preview). So the app keeps the click itself, the column and the direction the
+rows show ([`TableSort`](../pipeline/TableSort.m)), puts every new set of rows
+in that order, and saves it as the `TableSorts` preference at once: the sort
+holds for every dataset and the next session. Right-click a table for
+**Clear sort**, which names the sort it clears and returns the rows to the
+app's own order (the project's datasets, trial order, cluster id, Remove rows
+first and largest first, the chosen method's statistic). A column the rows
+do not have (a trial parameter another session lacks) leaves them in that
+order, and the sort applies again where the column is.
+
+The rows are sorted by that column alone, ties in the app's order. Numbers,
+dates and categories sort by value and text ignoring case; empty cells, NaN
+and missing values go last in either direction. Until the next refresh the
+rows are in the uitable's own sort, which may order missing values or
+mixed-case text differently. Every row keeps its link to its data in any order:
+datasets through their index, units through the cluster id, files through
+the plan row, trials and the flag colours through the trial number.
+
 ## Preferences
 
-Stored with `setpref` / `getpref` under the group `'EphysPreprocessingApp'`.
-Only what is **not** part of a config lives here:
+Stored under the group `'EphysPreprocessingApp'` through [`AppPrefs`](../pipeline/AppPrefs.m), which keeps
+them as MATLAB preferences unless the environment variable `EPHYS_APP_PREFS_FILE` names a file (the test
+suites and screenshot scripts use a temporary one, so they never change yours). Only what is **not** part
+of a config lives here:
 
 | Key | Contents |
 | --- | --- |
@@ -1741,6 +1815,7 @@ Only what is **not** part of a config lives here:
 | `ProbeFolder`, `PhyCmd`, `ReviewFolder`, `ScriptFolder` | paths |
 | `LastConfigFile`, `RecentConfigs` | reopened on launch; the File → Open recent list |
 | `DatasetsColumnOrder` | the Project table's column order (table variable names) |
+| `TableSorts` | the sort of each [sorted table](#sorted-tables): one field per table (`Datasets`, `Trials`, `Review`, `Cleanup`, `ArtSelection`), each the column last clicked (a table variable name; the header for the Review and Clean up tables) and its direction (`ascend` / `descend`) |
 | `TrialsParamColumns`, `TrialsColumnOrder` | the trial parameters shown in the Trials table, and its column order (table variable names; a parameter column is `Param_<name>`) |
 | `TrialsLabelParams` | the trial parameters written as trial labels in the Trials plot |
 | `VizOptions` | the Visualize tab's display settings |
@@ -1753,7 +1828,7 @@ Only what is **not** part of a config lives here:
 | `QueueSortingRuns` | the Run tab's **Queue the waiting runs; the Run goes on** switch |
 | `CleanupOptions` | the Clean up tab's kinds of file and steps to remove, **Removed files go** and its folder, and **Show the files that remain** |
 
-To reset: `rmpref('EphysPreprocessingApp')` with the app closed. Older
+To reset: `AppPrefs.rmpref('EphysPreprocessingApp')` with the app closed. Older
 preference groups are not read. The [scheduled copy](#scheduled-copy) is not a
 preference: its settings live in its own file, which its Windows task reads.
 
@@ -1763,10 +1838,12 @@ preference: its settings live in its own file, which its Windows task reads.
 | --- | --- |
 | pipeline config `.json` | File → Save / Save as / Export copy (default folder `pipeline/pipeline_configs`) |
 | generated `.m` script | File → Generate script |
+| `<project root>/pipeline_<config name>.m` | each run with **Save the pipeline script on each run** ticked (not a dry run) |
+| `<output root, else project root>/pipeline_runs/<runId>_<config name>.json` | each run (not a dry run): its run record |
 | `<Folder>/<Name>_manifest.json` | scan, probe assignment, exclusion change, manual artifact edit, sorting / behavior association, each sorting launch and completion |
 | `<outputFolder>/<Name>.bin` (or `<Name>_ks4.bin`) + `.json`, `<outputFolder>/kilosort4/{settings.json, run_ks4.py, ks4_launch.cmd, ks4_run.log, ks4_status.json, ks4_exit.txt}` and the phy files (plus `<probe>_excluded.json` with excluded channels, `<probe>_spaced.json` with `shank_spacing`, and `previous_<yyyyMMdd_HHmmss>/` holding an earlier sort's curation) | Sorting (a dry run writes only `settings.json` and `run_ks4.py`, into `kilosort4/dryrun/`) |
 | `<outputFolder>/<Name>_artifacts.json` | Artifacts (cache) |
-| `<Name>_extract_<TYPE>.mat` (or `<Name>_extract.mat`), `<Name>_spikes.mat`, `<Name>_chronux.mat`, `<Name>_fieldtrip.mat`, `<Name>_epochs.mat`, `<Name>_kcsd.npz` | Signals, Spikes, Export |
+| `<Name>_extract_<TYPE>.mat` (or `<Name>_extract.mat`), `<Name>_spikes.mat`, `<Name>_chronux.mat`, `<Name>_fieldtrip.mat`, `<Name>_epochs.mat`, `<Name>_kcsd.npz`, `<Name>.nwb` (+ `<Name>_nwbinspector.json`) | Signals, Spikes, Export |
 | probe `.json` in the probe folder | Import, Designer save, Notes edit |
 | `<parent>/synthetic_ephys/...` | File → Create synthetic test project (recordings, sessions, sorted output, probe, config, README) |
 | `<Folder>/<Subject>/<Subject>_<start>/`: the recording, the session copy, `kilosort4/` (ground truth), `<Name>_manifest.json`, `<Name>_synthetic.json` and, with a synthetic probe, `<Name>_probe.json`; a design `.json` | Synthetic → Generate... (Preview writes nothing); Save design... |
@@ -1817,16 +1894,17 @@ app.KSQueue                       % prepared runs waiting for a slot (Queue the 
 | `onSpikesPreview.m`, `syncSpikesEnableStates.m` | Spikes tab |
 | `onBrowseExportOutput.m`, `onExportEpochsToWorkspace.m` | Export tab (output folder, Epochs to workspace) |
 | `onPlotVisualization.m`, `applyVizSettings.m`, `onVizControlsChanged.m`, `onVizViewChanged.m`, `onVizInput.m`, `onVizButtonDown/Up.m`, `refreshVizShading.m`, `vizDetectedIntervals.m`, `syncVizDataset.m`, `loadVizEvents.m`, `onVizReadEvents.m`, `showVizHelp.m`; `pipeline/EphysTraceViewer.m`, `pipeline/EphysTraceSource.m` | Visualize tab: loading the active dataset's signals and spikes, the controls, the wheel / keys / drags, the shading (`vizDetectedIntervals`: the Artifacts preview's intervals the plot shades, or why none); the digital-input events and Read events; the "?" window of mouse and key controls; the viewer and the windowed sources behind it |
-| `buildFlowTab.m`, `refreshFlowChart.m`, `flowChartHTML.m`, `flowOverviewHTML.m`, `onFlowViewChanged.m`, `onFlowLayoutChanged.m`, `onSaveFlowChart.m`, `onOpenFlowChartInBrowser.m`, `onFlowNavigate.m`, `flowNavControls.m`, `clearFlowHighlight.m`, `private/flowZoom.m` | Diagram tab: the page in the view picked (every parameter; the data-flow overview, laid out and routed in `flowOverviewHTML`), its zoom and pan (`flowZoom`, kept per view), save / open, a box's click |
+| `buildFlowTab.m`, `refreshFlowChart.m`, `flowChartHTML.m`, `flowOverviewHTML.m`, `onFlowViewChanged.m`, `onFlowLayoutChanged.m`, `onSaveFlowChart.m`, `onOpenFlowChartInBrowser.m`, `onFlowNavigate.m`, `flowNavControls.m`, `clearFlowHighlight.m` | Diagram tab: the page in the view picked, drawn by [`PipelineDiagram`](../pipeline/@PipelineDiagram/PipelineDiagram.m), a plain class the app calls (`detail`: every parameter; `overview`: the data flow, laid out and routed there; `zoomFrame`: the zoom and pan, kept per view by the app), save / open, a box's click |
 | `buildCopyTab.m`, `onCopyFind.m`, `onCopyRun.m`, `refreshCopyTable.m`, `onCopyTableEdited.m`, `onCopyStitch.m`, `onCopyUnstitch.m`, `onBrowseCopyFolder.m`, `copyLog.m`, `onCopyCancel.m`, `startCopyMonitor.m`, `stopCopyMonitor.m`, `pollCopyJob.m`, `setCopyRunning.m`, `applyCopyResult.m`, `finishCopyRun.m`, `showCopyProgress.m`, `copySummaryText.m`, `refreshCopySchedule.m`, `onCopyScheduleSave.m`, `onCopyScheduleRemove.m`, `onCopyScheduleRunNow.m`, `onCopyScheduleLog.m`; `pipeline/findCopySessions.m`, `pipeline/stitchCopySessions.m`, `pipeline/copySessions.m`, `pipeline/copy_engine.ps1`, `pipeline/stitchEpsychSessions.m`, `pipeline/CopySchedule.m` | Copy tab, the pairing / stitching / copy functions it calls, the detached copy engine, and the scheduled copy (its Windows task and what each run does) |
-| `loadReviewResults.m`, `renderReviewPlots.m`, `syncReviewDataset.m` | Review tab |
+| `loadReviewResults.m`, `renderReviewPlots.m`, `syncReviewDataset.m`, `showReviewUnits.m` | Review tab (`showReviewUnits`: the units table in its sort, the selected unit's row kept) |
 | `buildSyntheticTab.m`, `onSynthLoadSource.m`, `onSynthPreview.m`, `renderSynthPreview.m`, `onSynthGenerate.m`, `generateSynthetic.m`, `onSynthDesign.m`, `onSynthControlsChanged.m`, `onSynthSourceChanged.m`, `syncSynthControls.m`, `gather/applySynthDesign.m`, `synthColumns.m`, `synthSourceLists.m`, `synthSourceKey.m`, `synthGeneratorArgs.m`, `synthOutputRoot.m`, `synthOutputFolder.m`; `pipeline/SyntheticDesign.m`, `pipeline/syntheticModel.m`, `pipeline/syntheticTaskSchedule.m`, `pipeline/syntheticSessionSchedule.m`, `pipeline/makeSyntheticRecording.m` | Synthetic tab (`generateSynthetic`: Generate without its questions; `synthGeneratorArgs`: the options Preview and Generate share) and the generator |
 | `buildCleanupTab.m`, `onCleanupPreview.m`, `onCleanupRun.m`, `runCleanup.m`, `onCleanupMethodChanged.m`, `onCleanupBrowseDest.m`, `onCleanupSettingsChanged.m`, `refreshCleanupScope.m`, `refreshCleanupTable.m`; `pipeline/planLocalCleanup.m`, `pipeline/runLocalCleanup.m` | Clean up tab and the functions that decide and remove |
 | `load/savePreferences.m` | preferences |
+| `tableSort.m`, `onTableSorted.m`, `onTableSortMenu.m`, `clearTableSort.m`, `private/sortMenuItem.m`, `private/sortableTable.m`, `private/saveTableSorts.m`; `pipeline/TableSort.m` | [sorted tables](#sorted-tables): a header click remembered and saved, applied whenever a table is filled, Clear sort |
 | `stopTimers.m` | stops the app's timers (Kilosort4, copy and resource monitors, the scheduled copy's refresh) on close, and when the figure is deleted any other way |
 | `helpURL.m`, `onHelp.m` | Help menu (wiki pages) |
 | `onReportIssue.m`, `issueReport.m`, `issueURL.m` | Help menu (GitHub issue / feature request) |
-| `pipeline/showAbout.m`, `pipeline/ephysVersion.m` | Help menu (About; shared with EphysAnalysisApp). The release number is set by hand in `ephysVersion.m` |
+| `pipeline/showAbout.m`, `pipeline/ephysVersion.m` | Help menu (About; shared with EphysAnalysisApp). The release number is the repository's `VERSION` file, which `ephysVersion` reads |
 
 ## Tests
 
@@ -1870,8 +1948,11 @@ its settings hold), a hand-picked sorted-output folder that is not there
 table, edits, scans and per-dataset changes during a run, an unreadable
 manifest reported after a scan, a Plan while a background run is going, the
 queue (each dataset once; a plan skips a queued one), phy started in a folder
-whose path holds `&` and spaces, and the timers stopped when the figure is
-deleted. It
+whose path holds `&` and spaces, the timers stopped when the figure is
+deleted, and the [sorted tables](#sorted-tables) (a kept sort applied to the
+Project, Review and Clean up tables, with row clicks, notes, ticks and the
+highlight still reaching their dataset, unit or file; a header click
+remembered and saved at once; Clear sort; a new window recalling a sort). It
 restores the user's preferences afterwards.
 [`test_SyntheticGenerator.m`](../pipeline/test_SyntheticGenerator.m) checks the
 generator behind the Synthetic tab, then drives the tab headlessly: the built-in

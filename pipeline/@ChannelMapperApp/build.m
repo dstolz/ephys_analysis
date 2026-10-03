@@ -231,11 +231,7 @@ end
 function openFolder(obj)
 %openFolder  The bank folder in the file browser.
 try
-    if ispc
-        winopen(char(obj.Bank.Folder));
-    else
-        web(char("file://" + obj.Bank.Folder));
-    end
+    openInSystem(obj.Bank.Folder);
 catch ME
     obj.setStatus("Could not open the folder: " + ME.message, true);
 end

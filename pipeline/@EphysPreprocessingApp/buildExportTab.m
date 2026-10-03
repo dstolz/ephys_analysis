@@ -15,7 +15,7 @@ changed = @(~,~) obj.onConfigChanged();
 
 opt = uipanel(g, "Title", "Export options (config: Export; EphysDataset.export<Format>)");
 opt.Layout.Column = 1;
-nRows = 20;
+nRows = 29;
 cg = uigridlayout(opt, [nRows 4]);
 cg.RowHeight   = repmat({26}, 1, nRows);
 cg.Scrollable  = "on";
@@ -48,6 +48,13 @@ obj.ExpKCSDCheckBox = uicheckbox(cg, "Text", "kCSD-python (<Name>_kcsd.npz)", "V
                 "channels are left out. Units and detected spikes are not part of it."], ...
     "ValueChangedFcn", changed);
 obj.ExpKCSDCheckBox.Layout.Row = r; obj.ExpKCSDCheckBox.Layout.Column = [3 4];
+r = r + 1;
+obj.ExpNWBCheckBox = uicheckbox(cg, "Text", "NWB 2 (<Name>.nwb)", "Value", false, ...
+    "Tooltip", ["Neurodata Without Borders: electrodes on the probe, the derived signals, the sorted units " ...
+                "with their quality metrics, the paired trials, the digital lines and the erased periods. " ...
+                "Written by Python (pynwb) and checked with nwbinspector; see the NWB settings below."], ...
+    "ValueChangedFcn", changed);
+obj.ExpNWBCheckBox.Layout.Row = r; obj.ExpNWBCheckBox.Layout.Column = [1 2];
 
 r = r + 1; sep(cg, "Contents", r);
 r = r + 1;
@@ -145,6 +152,60 @@ obj.ExpEpochOnsetRuleDropDown = uidropdown(cg, "Items", {'onset rule: event', 'o
                 "sample = round(t*Fs)+1, for times on a continuous time base. See ChronuxDataset.trials."], ...
     "ValueChangedFcn", changed);
 obj.ExpEpochOnsetRuleDropDown.Layout.Row = r; obj.ExpEpochOnsetRuleDropDown.Layout.Column = [3 4];
+
+r = r + 1; sep(cg, "NWB (EphysDataset.exportNWB)", r);
+r = r + 1;
+lab(cg, "Electrode location:", r);
+obj.ExpNWBLocationField = uieditfield(cg, "text", "Placeholder", "brain region (blank = unknown)", ...
+    "Tooltip", "Where the electrodes are, e.g. an Allen CCF region; written as each electrode's location.", ...
+    "ValueChangedFcn", changed);
+obj.ExpNWBLocationField.Layout.Row = r; obj.ExpNWBLocationField.Layout.Column = [2 4];
+r = r + 1;
+lab(cg, "Subject:", r);
+obj.ExpNWBSpeciesField = uieditfield(cg, "text", "Placeholder", "species, e.g. Mus musculus", ...
+    "Tooltip", "Latin binomial or NCBI taxonomy URL. Left blank, nothing is written and nwbinspector reports it.", ...
+    "ValueChangedFcn", changed);
+obj.ExpNWBSpeciesField.Layout.Row = r; obj.ExpNWBSpeciesField.Layout.Column = 2;
+obj.ExpNWBSexDropDown = uidropdown(cg, "Items", {'sex: not given', 'female (F)', 'male (M)', 'unknown (U)', 'other (O)'}, ...
+    "ItemsData", {'', 'F', 'M', 'U', 'O'}, "Value", '', "ValueChangedFcn", changed);
+obj.ExpNWBSexDropDown.Layout.Row = r; obj.ExpNWBSexDropDown.Layout.Column = [3 4];
+r = r + 1;
+lab(cg, "Age / time zone:", r);
+obj.ExpNWBAgeField = uieditfield(cg, "text", "Placeholder", "age, ISO 8601: P90D", ...
+    "Tooltip", "The subject's age as an ISO 8601 duration (P90D = 90 days, P12W = 12 weeks).", ...
+    "ValueChangedFcn", changed);
+obj.ExpNWBAgeField.Layout.Row = r; obj.ExpNWBAgeField.Layout.Column = 2;
+obj.ExpNWBTimeZoneField = uieditfield(cg, "text", "Placeholder", "time zone (blank = this computer's)", ...
+    "Tooltip", "IANA name of the time zone the recording was made in (America/New_York); the session start is written with it.", ...
+    "ValueChangedFcn", changed);
+obj.ExpNWBTimeZoneField.Layout.Row = r; obj.ExpNWBTimeZoneField.Layout.Column = [3 4];
+r = r + 1;
+lab(cg, "Experimenter:", r);
+obj.ExpNWBExperimenterField = uieditfield(cg, "text", "Placeholder", "Last, First; Last, First", ...
+    "Tooltip", "One person per ';' (each as Last, First).", "ValueChangedFcn", changed);
+obj.ExpNWBExperimenterField.Layout.Row = r; obj.ExpNWBExperimenterField.Layout.Column = [2 4];
+r = r + 1;
+lab(cg, "Lab / institution:", r);
+obj.ExpNWBLabField = uieditfield(cg, "text", "Placeholder", "lab", "ValueChangedFcn", changed);
+obj.ExpNWBLabField.Layout.Row = r; obj.ExpNWBLabField.Layout.Column = 2;
+obj.ExpNWBInstitutionField = uieditfield(cg, "text", "Placeholder", "institution", "ValueChangedFcn", changed);
+obj.ExpNWBInstitutionField.Layout.Row = r; obj.ExpNWBInstitutionField.Layout.Column = [3 4];
+r = r + 1;
+lab(cg, "Python (NWB):", r);
+obj.ExpNWBPythonField = uieditfield(cg, "text", "Placeholder", "blank = the Sorting tab's Python", ...
+    "Tooltip", "A Python with pynwb and nwbinspector (pip install pynwb nwbinspector); INSTALL.md.", ...
+    "ValueChangedFcn", changed);
+obj.ExpNWBPythonField.Layout.Row = r; obj.ExpNWBPythonField.Layout.Column = [2 4];
+r = r + 1;
+lab(cg, "Conda env (NWB):", r);
+obj.ExpNWBCondaField = uieditfield(cg, "text", "Placeholder", "blank = the Sorting tab's", ...
+    "Tooltip", "conda run -n <env> when set.", "ValueChangedFcn", changed);
+obj.ExpNWBCondaField.Layout.Row = r; obj.ExpNWBCondaField.Layout.Column = 2;
+obj.ExpNWBInspectCheckBox = uicheckbox(cg, "Text", "Check with nwbinspector", "Value", true, ...
+    "Tooltip", "Run nwbinspector (pynwb's validation and the NWB best practices) on each file; findings of " + ...
+        "importance CRITICAL or above are reported, all go to <Name>_nwbinspector.json.", ...
+    "ValueChangedFcn", changed);
+obj.ExpNWBInspectCheckBox.Layout.Row = r; obj.ExpNWBInspectCheckBox.Layout.Column = [3 4];
 
 r = r + 1; sep(cg, "Output", r);
 r = r + 1;

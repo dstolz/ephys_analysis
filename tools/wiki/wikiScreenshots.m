@@ -69,15 +69,13 @@ function files = wikiScreenshots(outFolder, opts)
 %   the project processed; the Review notes are written to its sorted
 %   output (cluster_notes.tsv).
 %
-%   The EphysPreprocessingApp preferences are backed up first (to
-%   OUTFOLDER/prefs_backup.mat), cleared so every shot shows the defaults,
-%   and restored when the function ends, even on an error. Only a killed
-%   MATLAB skips that (kill it if exportapp hangs: it has, now and then);
-%   then restoreAppPrefs(OUTFOLDER + "/prefs_backup.mat") puts them back.
-%   Never run it next to another app-driving MATLAB (the app's test suite
-%   included): both back up and restore the same preferences.
+%   The app keeps its preferences in a temporary file for the run
+%   (AppPrefs.useTemporary), so every shot shows the defaults and your own
+%   preferences are never read or changed, even when MATLAB has to be
+%   killed (kill it if exportapp hangs: it has, now and then). SOURCE must
+%   be a commit that has AppPrefs.
 %
-%   See also wikiToolScreenshots, restoreAppPrefs, EphysPreprocessingApp, exportapp.
+%   See also wikiToolScreenshots, AppPrefs, EphysPreprocessingApp, exportapp.
 
 arguments
     outFolder (1,1) string
@@ -109,18 +107,7 @@ if ~isfolder(work); mkdir(work); end
 removeWork = onCleanup(@() rmdir(work, 's'));
 files = strings(1, 0);
 
-groups = "EphysPreprocessingApp";
-saved = struct();
-for g = groups
-    saved.(g) = [];
-    if ispref(g); saved.(g) = getpref(g); end
-end
-backup = fullfile(outFolder, 'prefs_backup.mat');
-save(backup, 'saved');
-restore = onCleanup(@() restoreAppPrefs(backup));
-for g = groups
-    if ispref(g); rmpref(g); end
-end
+restorePrefs = AppPrefs.useTemporary(); %#ok<NASGU> the app starts from no preferences; yours are untouched
 
 app = EphysPreprocessingApp;
 closeApp = onCleanup(@() closeIt(app));

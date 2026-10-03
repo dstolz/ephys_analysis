@@ -295,7 +295,7 @@ classdef EphysTraceSource < handle
                 if isnan(ds.Fs); ds.refreshMetadata(); end
                 if isnan(nChan); nChan = ds.NumChannels; end
                 if isnan(fs); fs = ds.Fs; end
-                if isnan(scale); scale = ds.Scale; end
+                if isnan(scale); scale = ds.binScale(dtype); end
             end
             if ~(nChan >= 1 && fs > 0 && scale ~= 0)
                 error('EphysTraceSource:BinLayout', ...

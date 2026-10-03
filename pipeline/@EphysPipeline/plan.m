@@ -195,6 +195,9 @@ for step = steps
                         kcsdProbe = obj.probeFor(d);
                         note = "LFP and probe positions for kCSD-python, interpolated bad channels left out";
                     end
+                    if fmt == "nwb"
+                        note = strjoin([note(note ~= ""), "NWB 2 through pynwb, checked with nwbinspector"], "; ");
+                    end
                     if fmt == "epochs"
                         ep = sprintf("epochs [%g %g] s around ", c.Export.EpochWindow(1), c.Export.EpochWindow(2));
                         if c.Export.EpochSource == "behavior"

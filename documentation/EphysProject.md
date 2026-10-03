@@ -22,7 +22,7 @@ P = EphysProject(root, AutoDiscover=false)   % set config, call P.discover() lat
 | --- | --- | --- |
 | `ProbeFile`, `PythonExe`, `CondaEnv` | `""` | pushed to every dataset |
 | `OutputRoot` | `""` | when set, each dataset's `OutputDir` = `OutputRoot/<Name>`; `""`: outputs next to each recording |
-| `Scale` | `1/0.195` | pushed to every dataset |
+| `Scale` | `NaN` | pushed to every dataset; `NaN` leaves each its own recording's resolution (`EphysDataset.binScale`) |
 | `Dtype` | `"int16"` | pushed to every dataset |
 | `NamePattern` | `EphysDataset.DefaultNamePattern` | name pattern pushed to every dataset; its `SubjectID`, `Date` and `Time` tokens label sorted units (see [Unit labels](EphysDataset.md#unit-labels)) |
 | `Recursive` | `true` | `discover()` searches every sub-folder of `root`; `false` = only `root` and the folders directly in it |

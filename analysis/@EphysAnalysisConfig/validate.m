@@ -20,8 +20,10 @@ function issues = validate(obj, opts)
 %               pre <= post; baseline mode fits the kind and its window is
 %               [b0 b1] with b0 < b1; psth histStyle, normalize,
 %               fillAlpha (0-1 or NaN) and stackSpacing (> 0); probemap value;
-%               heatmap order; corrmap metric and correlation; style
-%               values
+%               heatmap order; corrmap metric and correlation; an enabled
+%               units.response test (test, param, windows, direction,
+%               correction, alpha, and the Statistics and Machine Learning
+%               Toolbox it needs); style values
 %     Export    formats are png / eps / svg / pdf; Dpi, FigureSizeCm; the
 %               folder and file-name patterns use known tokens; a warning
 %               when the files of two enabled plots, or of two datasets,
@@ -184,6 +186,32 @@ for k = 1:numel(obj.Plots)
     end
     if ~(p.units.maxUnits >= 1)
         add("Plots", f0 + ".units.maxUnits", "error", "maxUnits must be >= 1 (Inf = all).");
+    end
+    rs = p.units.response;
+    if rs.enabled && ismember(p.source, EphysAnalysisConfig.SpikeSources)
+        r0 = f0 + ".units.response";
+        if ~ismember(rs.test, ["evoked" "tuning" "either" "both"])
+            add("Plots", r0 + ".test", "error", "The response test is evoked, tuning, either or both.");
+        elseif rs.test ~= "evoked" && rs.param == ""
+            add("Plots", r0 + ".param", "error", "The tuning test needs the trial parameter (param).");
+        end
+        for wf = ["baseline" "window"]
+            if ~(numel(rs.(wf)) == 2 && all(isfinite(rs.(wf))) && rs.(wf)(2) > rs.(wf)(1))
+                add("Plots", r0 + "." + wf, "error", "The response test's " + wf + " must be [from to] with from < to (s from the event).");
+            end
+        end
+        if ~ismember(rs.direction, ["any" "excited" "suppressed"])
+            add("Plots", r0 + ".direction", "error", "The response direction is any, excited or suppressed.");
+        end
+        if ~ismember(rs.correction, ["bh" "holm" "bonferroni" "none"])
+            add("Plots", r0 + ".correction", "error", "The correction is bh, holm, bonferroni or none.");
+        end
+        if ~(rs.alpha > 0 && rs.alpha <= 1)
+            add("Plots", r0 + ".alpha", "error", "alpha must be in (0, 1].");
+        end
+        if ~(license('test', 'Statistics_Toolbox') && exist('signrank', 'file'))
+            add("Plots", r0 + ".enabled", "error", "The response test needs the Statistics and Machine Learning Toolbox (signrank, kruskalwallis).");
+        end
     end
     st = p.style;
     if ~(st.MaxTiles >= 1); add("Plots", f0 + ".style.MaxTiles", "error", "MaxTiles must be >= 1."); end

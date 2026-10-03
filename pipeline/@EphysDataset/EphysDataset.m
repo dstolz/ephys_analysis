@@ -51,6 +51,10 @@ classdef EphysDataset < handle
     %   ------------------------------------
     %     out = ds.exportKCSD();           % <Name>_kcsd.npz: ele_pos, pots, events
     %
+    %   Neurodata Without Borders
+    %   -------------------------
+    %     out = ds.exportNWB(PythonExe=..., Metadata=struct('Species', "Mus musculus"));   % <Name>.nwb
+    %
     %
     %   Processed files, loaded on demand
     %   ---------------------------------
@@ -120,7 +124,10 @@ classdef EphysDataset < handle
 
         PythonExe (1,1) string = ""              % python/conda exe path for KS4 spawn
         CondaEnv  (1,1) string = ""              % conda env name (uses `conda run -n` when set)
-        Scale     (1,1) double = 1/0.195         % int16 scale (restores native ADC resolution)
+        % .bin units per microvolt. NaN (default) = from the recording
+        % (binScale): its own resolution when that is lossless, else
+        % DefaultScale. A number sets it for every .bin this dataset writes.
+        Scale     (1,1) double = NaN
         Dtype     (1,1) string {mustBeMember(Dtype, ...
             ["int16","uint16","int32","single","float32"])} = "int16"
         OutputDir (1,1) string = ""              % output dir for .bin / KS4 results (default = Folder)
@@ -231,6 +238,11 @@ classdef EphysDataset < handle
         % OpenEphysReader.DefaultNamePattern.
         DefaultNamePattern = "{SubjectID}_{Date:yyMMdd}_{Time:HHmmss}"
 
+        % .bin units per microvolt when the recording's own resolution cannot
+        % be used (binScale): one unit per 0.195 uV, the Intan / Open Ephys
+        % headstage resolution, so +/-6.39 mV fit an int16 .bin.
+        DefaultScale = 1/0.195
+
         % Per-unit notes next to a sort, in phy's custom-label format.
         UnitNotesFile = "cluster_notes.tsv"
 
@@ -255,12 +267,14 @@ classdef EphysDataset < handle
         M      = measureArtifacts(obj, X, rows, opts)
         [ts, wf, info] = detectSpikes(obj, X, opts)
         [units, info] = readSortedUnits(obj, opts)
+        [units, Q] = unitQuality(obj, units, info, opts)
         out    = spikesToMat(obj, opts)
         out    = exportChronux(obj, opts)
         out    = exportFieldTrip(obj, opts)
         E      = eventEpochs(obj, opts)
         out    = exportEpochs(obj, opts)
         out    = exportKCSD(obj, opts)
+        out    = exportNWB(obj, opts)
         [trials, info, meta] = readBehavior(obj)
         [src, store] = behaviorSource(obj)
         b      = behaviorStruct(obj, opts)
@@ -300,7 +314,7 @@ classdef EphysDataset < handle
                 opts.ProbeFile (1,1) string = ""
                 opts.PythonExe (1,1) string = ""
                 opts.CondaEnv  (1,1) string = ""
-                opts.Scale     (1,1) double = 1/0.195
+                opts.Scale     (1,1) double = NaN
                 opts.Dtype     (1,1) string = "int16"
                 opts.OutputDir (1,1) string = ""
                 opts.Manifest  = []
@@ -546,6 +560,68 @@ classdef EphysDataset < handle
             if isempty(obj.Reader)
                 error('EphysDataset:NoReader', ...
                     '%s: no registered reader recognises %s.', what, obj.Folder);
+            end
+        end
+
+        function [scale, source] = binScale(obj, dtype)
+            %binScale  The .bin's units per microvolt for this recording.
+            %   [SCALE, SOURCE] = ds.binScale(DTYPE) is what toBin, matrixToBin and
+            %   runKilosort use when no Scale= is passed (DTYPE: the .bin's, default
+            %   ds.Dtype):
+            %     - ds.Scale when it is a number (SOURCE "set: ds.Scale");
+            %     - else the recording's own resolution, 1 / its microvolts per
+            %       stored unit (EphysReader.storageFormat), when every channel
+            %       has the same one and one stored unit maps onto one unit of
+            %       an int16 .bin without clipping: int16 samples, uint16 less
+            %       32768 (Intan's *.rhd) or int8. The .bin then holds the
+            %       recording's own integers: nothing is quantised again
+            %       (SOURCE starts "native");
+            %     - else DefaultScale (1/0.195), and SOURCE starts "default" and
+            %       says why (floating-point samples, mixed resolutions, wider
+            %       integers, a float .bin, or a reader that cannot tell).
+            %   Filtering, a common reference or an artifact fill change the
+            %   values, so only an unprocessed .bin is lossless.
+            arguments
+                obj (1,1) EphysDataset
+                dtype (1,1) string = ""
+            end
+            if dtype == ""; dtype = obj.Dtype; end
+            if isfinite(obj.Scale)
+                scale = obj.Scale;
+                source = "set: ds.Scale";
+                return
+            end
+            scale = EphysDataset.DefaultScale;
+            if dtype ~= "int16"
+                source = "default: the .bin is " + dtype + ", so the recording's resolution needs no matching";
+                return
+            end
+            try
+                if isempty(obj.Reader); obj.discoverFiles(); end
+                if isempty(obj.Reader)
+                    source = "default: no reader claims the folder";
+                    return
+                end
+                S = obj.Reader.storageFormat();
+            catch ME
+                source = "default: the reader cannot tell how the samples are stored (" + string(ME.message) + ")";
+                return
+            end
+            g = double(S.gainUV);
+            if isempty(g) || any(~isfinite(g)) || any(g <= 0)
+                source = "default: the reader does not give the recording's resolution";
+            elseif any(abs(g - g(1)) > 1e-9 * g(1))
+                source = "default: the channels are stored at different resolutions";
+            elseif ismember(S.class, ["single" "double"])
+                source = "default: the recording stores floating-point samples";
+            elseif ~((S.class == "int16" && S.offset == 0) || (S.class == "uint16" && S.offset == 32768) ...
+                    || (S.class == "int8" && S.offset == 0))
+                source = "default: the recording's " + S.class + " samples (offset " + S.offset + ...
+                    ") do not map one-to-one onto int16";
+            else
+                scale = 1 / g(1);
+                source = "native: one unit of the .bin is one stored unit of the recording (" + ...
+                    string(g(1)) + " uV)";
             end
         end
 
@@ -956,7 +1032,10 @@ classdef EphysDataset < handle
                 if ~isnat(meta.startTime)
                     s.start_time = string(datetime(meta.startTime, 'Format', 'yyyy-MM-dd HH:mm:ss'));
                 end
-            catch
+            catch ME
+                warning('EphysDataset:writeManifest:BehaviorMeta', ...
+                    'Cannot read the session details of %s (%s); the manifest leaves them blank.', ...
+                    obj.BehaviorFile, ME.message);
             end
         end
 
@@ -990,7 +1069,9 @@ classdef EphysDataset < handle
                 try
                     lines = splitlines(strtrim(string(fileread(grp))));
                     s.num_units = max(numel(lines) - 1, 0);   % minus header
-                catch
+                catch ME
+                    warning('EphysDataset:writeManifest:UnitCount', ...
+                        'Cannot read %s (%s); the manifest gives no unit count.', grp, ME.message);
                 end
             end
             spk = dir(fullfile(p, 'spike_clusters.npy'));
@@ -1271,6 +1352,7 @@ classdef EphysDataset < handle
         end
 
         [units, info] = readPhyUnits(resultsDir, opts)
+        [units, Q] = unitQualityOf(units, info, opts)
         [W, info] = readPhyWaveforms(resultsDir, samples, opts)
         id = nameIdentity(name, pattern)
         E = relabelEvents(E, labelField, lineNames)

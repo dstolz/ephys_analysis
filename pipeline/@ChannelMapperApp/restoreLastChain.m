@@ -3,9 +3,9 @@ function restoreLastChain(obj)
 %   Falls back to the bank's first saved mapping, then to its first
 %   package, when there is no remembered chain or its hardware is gone.
 g = obj.PrefGroup;
-if ispref(g, 'LastChain')
+if AppPrefs.ispref(g, 'LastChain')
     try
-        L = getpref(g, 'LastChain');
+        L = AppPrefs.getpref(g, 'LastChain');
         need = [string(L.package), string(L.headstage)];
         if string(L.probe) ~= ""
             need(end + 1) = string(L.probe);

@@ -7,7 +7,20 @@ if obj.ExpChronuxCheckBox.Value;   fm(end+1) = "chronux";   end
 if obj.ExpFieldTripCheckBox.Value; fm(end+1) = "fieldtrip"; end
 if obj.ExpEpochsCheckBox.Value;    fm(end+1) = "epochs";    end
 if obj.ExpKCSDCheckBox.Value;      fm(end+1) = "kcsd";      end
+if obj.ExpNWBCheckBox.Value;       fm(end+1) = "nwb";       end
 E.Formats = fm;
+E.NWB.Location    = string(strtrim(obj.ExpNWBLocationField.Value));
+E.NWB.Species     = string(strtrim(obj.ExpNWBSpeciesField.Value));
+E.NWB.Sex         = string(obj.ExpNWBSexDropDown.Value);
+E.NWB.Age         = string(strtrim(obj.ExpNWBAgeField.Value));
+E.NWB.TimeZone    = string(strtrim(obj.ExpNWBTimeZoneField.Value));
+who = strtrim(split(string(obj.ExpNWBExperimenterField.Value), ";"));
+E.NWB.Experimenter = reshape(who(who ~= ""), 1, []);
+E.NWB.Lab         = string(strtrim(obj.ExpNWBLabField.Value));
+E.NWB.Institution = string(strtrim(obj.ExpNWBInstitutionField.Value));
+E.NWB.PythonExe   = string(strtrim(obj.ExpNWBPythonField.Value));
+E.NWB.CondaEnv    = string(strtrim(obj.ExpNWBCondaField.Value));
+E.NWB.Inspect     = logical(obj.ExpNWBInspectCheckBox.Value);
 sig = upper(strtrim(split(string(obj.ExpSignalsField.Value), [",", ";", " "])));
 E.Signals = reshape(sig(sig ~= ""), 1, []);
 E.IncludeUnits    = logical(obj.ExpUnitsCheckBox.Value);

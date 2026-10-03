@@ -28,7 +28,7 @@ try
     if isempty(ch); ch = 1:size(X, 2); end
     X = X(:, ch);
     dopt = EphysPipelineConfig.detectOptions(K);
-    for f = ["MaxChunkSamples" "EdgePadMs"]
+    for f = ["MaxChunkSamples" "EdgePadMs" "ThresholdScope"]   % streaming options; the preview is one block
         if isfield(dopt, f); dopt = rmfield(dopt, f); end
     end
     dopt.Waveforms = false;
@@ -48,8 +48,12 @@ try
         C(c, :) = {ch(c), char(names(c)), round(thr(min(c, numel(thr))), 1), counts(c), round(counts(c) / (nS / d.Fs), 2)};
     end
     obj.SpkPreviewTable.Data = C;
-    obj.SpkPreviewLabel.Text = sprintf("%s: %.2f s, %d channel(s), %d event(s) (%s, %s).", d.Name, nS / d.Fs, ...
+    txt = sprintf("%s: %.2f s, %d channel(s), %d event(s) (%s, %s).", d.Name, nS / d.Fs, ...
         numel(ch), sum(counts), K.ThresholdMethod, K.Polarity);
+    if K.ThresholdScope == "recording" && K.ThresholdMethod ~= "absolute"
+        txt = txt + " Thresholds from this window; the step measures the whole recording.";
+    end
+    obj.SpkPreviewLabel.Text = txt;
 catch ME
     obj.SpkPreviewLabel.Text = "Preview failed: " + string(ME.message);
 end

@@ -1,0 +1,26 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+type: software
+title: "ephys_analysis"
+abstract: >-
+  A config-driven MATLAB pipeline for extracellular recordings: readers for
+  Intan RHD, Open Ephys, TDT Synapse and a universal binary format; artifact
+  screening; Kilosort4 sorting; derived LFP, MUA and spike-band signals;
+  spike detection; Epsych2 behavior pairing; exports for Chronux, FieldTrip,
+  kCSD-python and NWB; and quick-look analysis figures and reports.
+authors:
+  - family-names: Stolzberg
+    given-names: Daniel
+version: 0.1.0
+repository-code: "https://github.com/dstolz/ephys_analysis"
+url: "https://github.com/dstolz/ephys_analysis/wiki"
+license: MIT
+keywords:
+  - electrophysiology
+  - extracellular recording
+  - spike sorting
+  - Kilosort4
+  - MATLAB
+  - Intan
+  - Open Ephys
+  - NWB

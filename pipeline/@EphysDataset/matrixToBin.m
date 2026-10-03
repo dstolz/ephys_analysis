@@ -9,7 +9,7 @@ function info = matrixToBin(obj, X, opts)
 %   Options
 %   -------
 %     BinFile        (1,1) string  output path (default ds.BinFile)
-%     Scale          (1,1) double  default ds.Scale
+%     Scale          (1,1) double  default ds.binScale(Dtype) (see toBin)
 %     Offset         (1,1) double  default 0
 %     Dtype          string        default ds.Dtype
 %     Fs             (1,1) double  default ds.Fs
@@ -36,8 +36,8 @@ arguments
 end
 
 binFile = opts.BinFile; if binFile == ""; binFile = obj.BinFile; end
-scale   = opts.Scale;   if isnan(scale); scale = obj.Scale; end
 dtype   = opts.Dtype;   if dtype == "";  dtype = obj.Dtype; end
+scale   = opts.Scale;   if isnan(scale); scale = obj.binScale(dtype); end
 Fs      = opts.Fs;      if isnan(Fs);    Fs = obj.Fs; end
 
 % Never write over the recording itself - the paths matrix2kilosort opens: the

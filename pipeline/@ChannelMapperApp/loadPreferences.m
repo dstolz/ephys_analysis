@@ -3,8 +3,8 @@ function loadPreferences(obj)
 %   Preferences (group ChannelMapperApp): FigurePosition, BankFolder (read
 %   by the constructor) and LastChain (restoreLastChain).
 g = obj.PrefGroup;
-if ispref(g, 'FigurePosition')
-    pos = getpref(g, 'FigurePosition');
+if AppPrefs.ispref(g, 'FigurePosition')
+    pos = AppPrefs.getpref(g, 'FigurePosition');
     if isnumeric(pos) && numel(pos) == 4 && all(pos(3:4) > 100)
         obj.Fig.Position = clampToScreen(pos);
     end

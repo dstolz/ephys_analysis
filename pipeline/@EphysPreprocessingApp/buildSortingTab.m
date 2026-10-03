@@ -210,6 +210,6 @@ end
 function pythonChanged(obj)
 %pythonChanged  Remember an existing python as the new-config default.
 p = strtrim(string(obj.PythonExeField.Value));
-if p ~= "" && isfile(p); setpref(obj.PrefGroup, 'PythonExe', char(p)); end
+if p ~= "" && isfile(p); AppPrefs.setpref(obj.PrefGroup, 'PythonExe', char(p)); end
 obj.onConfigChanged();
 end

@@ -11,9 +11,10 @@ RUN_ARGS = ('do_CAR', 'invert_sign', 'save_extra_vars', 'save_preprocessed_copy'
 # settings.json keys this driver consumes itself, or leaves alone: bin_scale
 # (the .bin's units per uV) is for EphysDataset.readPhyUnits, not Kilosort4;
 # shank_spacing and true_probe say the probe was sorted with its shanks moved
-# apart (restore_positions).
+# apart (restore_positions); provenance records the code and config that wrote
+# the run (ephysProvenance).
 DRIVER_KEYS = ('probe', 'data_dtype', 'torch_device', 'bin_scale',
-               'shank_spacing', 'true_probe')
+               'shank_spacing', 'true_probe', 'provenance')
 
 
 def device_arg(argv):

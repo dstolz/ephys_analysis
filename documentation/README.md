@@ -36,7 +36,8 @@ on `pipeline`; `pipeline` does not depend on it. See [Analysis](EphysAnalysis.md
 | [intan2matlab](intan2matlab.md) | `intan2matlab` / `deriveSignals` / `toMat`: LFP, MUA, SPIKE and digital events |
 | [ChronuxDataset](ChronuxDataset.md) | connector that hands recordings, trials and spike trains to the Chronux toolbox |
 | [FieldTripExport](FieldTripExport.md) | FieldTrip raw / spike / event structures and `exportFieldTrip` |
-| [Analysis](EphysAnalysis.md) | the `analysis` folder: event references, epochs, trial selection and grouping, PSTH / evoked / rate / tuning computations, renderers, export, HTML / PDF reports, `EphysAnalysisRunner`, `EphysAnalysisScript` |
+| [Platforms](platforms.md) | what runs on Windows, macOS and Linux; `platformSupport`, `openInSystem` |
+| [Analysis](EphysAnalysis.md) | the `analysis` folder: event references, epochs, trial selection and grouping, PSTH / evoked / rate / tuning computations, response statistics, population analysis, renderers, export, HTML / PDF reports, `EphysAnalysisRunner`, `EphysAnalysisScript` |
 | [EphysAnalysisConfig](EphysAnalysisConfig.md) | the analysis config (JSON `ephys-analysis-config`): every field, plot kinds, validation, tokens |
 | [EphysAnalysisApp](EphysAnalysisApp.md) | the analysis GUI: Data, Alignment, Plots, Export and Log tabs, preferences, why a plot is skipped |
 | [Python drivers](python-drivers.md) | `run_ks4.py`, `probe_tool.py` |
@@ -47,7 +48,8 @@ on `pipeline`; `pipeline` does not depend on it. See [Analysis](EphysAnalysis.md
 Existing docs next to the code: [INSTALL.md](../pipeline/INSTALL.md) (Windows
 setup, conda environments, GPU),
 [probes/README.md](../pipeline/probes/README.md) (probe map format) and
-[tools/wiki/README.md](../tools/wiki/README.md) (updating the GitHub wiki:
+[tools/wiki/README.md](../tools/wiki/README.md) (updating the GitHub wiki, whose prose pages are generated
+from this folder, the one source (`gen_pages.py`):
 the API generator, the link check and the app screenshots).
 
 ## How the pieces fit
@@ -206,8 +208,11 @@ record node / stream, TTL line names) and
 ### Units
 
 - Amplifier data is in **microvolts** everywhere in MATLAB.
-- `toBin` multiplies by `Scale` (default `1/0.195`) to go back to int16 ADC
-  counts. Out-of-range values are clipped, counted and warned about.
+- `toBin` multiplies by the `.bin`'s units per µV: the recording's own
+  resolution when one stored unit maps onto one int16 unit (Intan and Open
+  Ephys headstage data: 1/0.195, so the `.bin` holds the ADC counts), else
+  `1/0.195` (`EphysDataset.binScale`; the sidecar's `scale_source` says
+  which). Out-of-range values are clipped, counted and warned about.
 
 ### Channel indexing
 
@@ -310,14 +315,40 @@ Collected from the code. Each is explained on the linked page.
 | MATLAB version | the Artifacts tab uses `xregion` (R2023a+); the code is developed on R2025a | [INSTALL.md](../pipeline/INSTALL.md) |
 | Parallel steps | the worker count is capped by free memory (4-5 on a 32 GB machine), not by the pool size; every worker reads the disk, so on a slow external disk a parallel step can be no faster than serial; the results are identical either way | [EphysPipeline → Parallel execution](EphysPipeline.md#parallel-execution) |
 
+### Warnings that mark a fallback
+
+When a file the pipeline reads cannot be read, or a value does not parse, and
+the fallback changes a result, it warns with one of these identifiers
+(`warning('off', id)` silences one). Fallbacks that change nothing (a cache
+read again, a progress callback, a best-effort clean-up) stay quiet.
+
+| Identifier | What fell back, and what was used instead |
+| --- | --- |
+| `EphysDataset:runKilosort:BadSidecar` | the `.bin` sidecar did not parse: `n_chan_bin` and `fs` from the dataset |
+| `EphysDataset:runKilosort:BinMetaUnknown` | a given `.bin` has no readable scale or common reference: no `bin_scale` in `settings.json`, Kilosort4's `do_CAR` as configured |
+| `EphysDataset:readPhyUnits:UnreadableTsv` | a phy `.tsv` could not be read and is treated as missing (an unread `cluster_group.tsv` means Kilosort's own labels are used) |
+| `EphysDataset:channelLayout:BadProbe` | the probe file cannot be read or has fields of the wrong type: the channels are off the probe |
+| `EphysDataset:writeManifest:BehaviorMeta`, `...:UnitCount` | the manifest leaves the session details or the unit count blank |
+| `EphysPipeline:probeFor:BadPattern` | the name pattern does not parse: only `*` probe rules match |
+| `BinaryReader:BadAcqDate` | `acq_date` is not `yyyy-MM-dd HH:mm:ss`: the data file's modified time is the start |
+| `IntanReader:NoStartTime`, `OpenEphysReader:NoStartTime` | the recording's start cannot be told: it is unknown (`NaT`) |
+| `OpenEphysReader:NoChannelType`, `...:NoElectrodes`, `...:UnreadableTTL` | an NWB stream lacks a readable `channel_type` (all channels are headstage channels), `electrodes` (channels numbered by position) or TTL series (no events from it) |
+| `epsychSessionMeta:BadStartTime` | an Epsych2 session's start does not convert: it cannot be matched by time |
+| `DatasetOutputs:Unreadable` | an output file, its provenance or the manifest cannot be read: the file is left out (or, for provenance, counted as the dataset's) |
+| `loadAnalysisSource:Manifest`, `reportSummaryTables:Units` | the analysis has no manifest metadata, or a report's unit tables are empty |
+| `copySessions:CancelFailed` | the cancel file could not be written: the copy engine was not told to stop |
+| `planLocalCleanup:Outputs` | a dataset's outputs could not be listed: none of its step outputs are planned for removal |
+
 ## Dependencies
 
 **MATLAB**:
 
 - Signal Processing Toolbox (required for filtering, resampling and derived
   signals).
-- Statistics and Machine Learning Toolbox (only for `zscore` in automatic
-  derived-signal bad-channel detection).
+- Statistics and Machine Learning Toolbox (`zscore` in automatic
+  derived-signal bad-channel detection; `signrank` and `kruskalwallis` in
+  the analysis module's response statistics, `responseStats` and the
+  *Responsive only* unit selection).
 - Parallel Computing Toolbox (optional; `Parallel.Enabled` in a pipeline
   config, or `UseParallel=true` on `detectSpikes`, `artifactIntervals` and
   `analyzeArtifacts`).
@@ -336,8 +367,9 @@ Collected from the code. Each is explained on the linked page.
 
 **Python**: a conda environment with kilosort, probeinterface and torch, plus
 an optional separate `phy` environment. Needed only for
-the sorting step and the probe designer. See [INSTALL.md](../pipeline/INSTALL.md)
-for known-good versions.
+the sorting step and the probe designer. The NWB export needs a Python with
+pynwb and nwbinspector (the same environment or another). See
+[INSTALL.md](../pipeline/INSTALL.md) for known-good versions.
 
 **Optional MATLAB toolboxes**: [Chronux](http://chronux.org) (bundled in
 [`toolboxes/chronux`](../toolboxes/chronux); add it with `addpath(genpath(...))`)
@@ -349,10 +381,31 @@ structures with `ft_datatype_*` when FieldTrip is present.
 
 ## Tests
 
-Every suite is a function-style script that builds synthetic fixtures in a
-temp folder (shared builders in [`pipeline/private`](../pipeline/private)), prints
-PASS / FAIL lines and errors when anything fails. No real recordings, no
-Python and no optional toolbox are needed.
+Every suite builds synthetic fixtures in a temp folder (shared builders in
+[`pipeline/private`](../pipeline/private)). No real recordings, no Python and
+no optional toolbox are needed; tests that need one are skipped (reported as
+*Incomplete*) where it is missing. Suites come in two forms:
+
+- **TestCase classes** (`test_BinaryReader`, `test_CopySessions`,
+  `test_LocalCleanup`, `test_AppPrefs`, `test_RepositoryMetadata` and the
+  newer suites): `matlab.unittest.TestCase` classes, run with `runtests` or
+  `run_all_tests`. New suites take this form; `test_BinaryReader` is the
+  pattern for converting a function-style one (shared fixtures in
+  `TestClassSetup`, one test method per section, each `check(cond, msg)` as
+  `tc.verifyTrue(cond, msg)` with the same condition).
+- **Function-style suites** (the rest): scripts that print PASS / FAIL lines
+  and raise an error at the end when a check failed. `run_all_tests` runs
+  each as one test of [`LegacySuiteTest`](../pipeline/LegacySuiteTest.m),
+  and every failed check is reported as a failure of its own with its
+  message.
+
+[`run_all_tests`](../pipeline/run_all_tests.m) runs both kinds through
+`matlab.unittest`. It keeps every app's preferences in a temporary file for
+the run ([`AppPrefs`](../pipeline/AppPrefs.m)), so the tests never read or
+change your own and two MATLABs can run them at once. It writes a JUnit XML
+report (`JUnit=`), an HTML or Cobertura code-coverage report of `pipeline/`
+and `analysis/` (`Coverage=` / `CoverageXML=`), and can run a subset by name
+or by tag (`Tag=`).
 
 For trying the pipeline or the app by hand without real data,
 [`makeSyntheticProject`](../pipeline/makeSyntheticProject.m) (or the app's
@@ -370,15 +423,26 @@ see [EphysPreprocessingApp → Synthetic](EphysPreprocessingApp.md#synthetic).
 
 ```matlab
 cd C:\src\ephys_analysis\pipeline
-run_all_tests            % every test_*.m; errors if any fails
-test_EphysPipeline       % one suite
+run_all_tests                                  % every suite; errors if any test fails
+run_all_tests(["test_EphysPipeline" "test_BinaryReader"])   % some suites
+run_all_tests(JUnit="results\junit.xml", Coverage="results\coverage")
+test_EphysPipeline                             % a function-style suite on its own
+runtests("test_BinaryReader")                  % a TestCase suite on its own
 ```
+
+An app opened by hand while a suite runs in the same MATLAB uses the
+suite's temporary preferences, so close it before the run ends.
 
 | Suite | Covers |
 | --- | --- |
 | `test_EphysDataset` | readers, layouts, streaming, artifacts, spikes, `.bin`, dry runs, manifest v2, sorted units, `spikesToMat`, exports, behavior |
 | `test_IntanReader` | the Intan reader: every data-block and on-disk layout, truncated last blocks, window reads across files, `readDigitalEvents` without the amplifier data, the run helpers, one-file-per-channel digital files, the recording start (`AcqDate`), `streamPlan` chunks, `KeepChannels` / `Precision` |
 | `test_BinaryReader` | the universal binary reader: `readDigitalEvents` from `dig_in_file` alone, `readData`, `Files` listing `dig_in_file`, `streamPlan` |
+| `test_AppPrefs` | the apps' preference store: a file store's set / get / remove, nothing reaching MATLAB's own preferences, nested temporary stores, `AppPrefsFixture` |
+| `test_RepositoryMetadata` | `VERSION`, `CITATION.cff`, `CHANGELOG.md` and `ephysVersion` agree on the release number |
+| `test_Provenance` | `ephysProvenance` / `provenanceForJson`; a run's record (finished, cancelled; none for a dry run) and the run id, code and config in its outputs; a step called on its own (config, no run); a direct writer call (code only); `settings.json` |
+| `test_BinScale` | the `.bin` keeps the recording's resolution: Intan's 1/0.195, an int16 recording at another gain written to the integer, unclipped, uint16 with and without Intan's offset, floating-point samples and float `.bin`s on the default, a scale that is set, a project leaving each dataset its own |
+| `test_DataPathWarnings` | fallbacks that change a result warn: a binary `acq_date` that does not parse, an unreadable probe, a given `.bin` without a sidecar, an unreadable output file, a name pattern that does not parse, an Epsych2 start that does not convert; each fallback is as before |
 | `test_SortedUnits` | `readPhyUnits`' label tables, template units and per-unit grouping; `channelLayout` (`chanMap` values are `.bin` rows); `runKilosort(DryRun=true)` leaving an existing run alone; `readPhyWaveforms` (the spikes' windows in the sorted `.bin`) |
 | `test_DeriveSignals` | derived signals: bad channels as columns (the config's recording channels mapped to them), interpolated from the probe geometry or, without one, across columns; automatic detection; the MUA / SPIKE filters in double; non-integer rates; `info.<type>.nSamples`; line naming and polarity from `TrialConfig`; artifact periods erased before deriving (the line fill, `info.artifacts`, no filter ringing outside the period, AUX untouched) |
 | `test_OpenEphysReader` | Open Ephys sessions (Binary, Open Ephys format, NWB): metadata, samples across recordings and gaps, TTL lines, AUX / ADC, discovery, record node / stream, the recording modes, line names, the pipeline on a synthetic Open Ephys project |
@@ -402,3 +466,44 @@ test_EphysPipeline       % one suite
 | `test_EphysAnalysisConfig` (analysis/) | the analysis config: JSON round trips, `plotFor`, validation |
 | `test_EphysAnalysisRunner` (analysis/) | plan, run, exports, HTML / PDF reports, cancel, compact vs standalone script equivalence |
 | `test_EphysAnalysisApp` (analysis/) | the analysis GUI, headless |
+| `test_ResponseStats` (analysis/) | `pAdjust` against statsmodels; `responseStats` on known counts against `signrank` / `kruskalwallis` called directly (toolbox tests skipped without it) |
+| `test_PopulationAnalysis` (analysis/) | `populationAnalysis` against the per-dataset calls, `populationSummary`, the files `writePopulation` writes |
+| `test_ReadNewLines` | `readNewLines` (the run monitor's log tail): whole lines from a byte offset, a partial line left for the next call, CRLF and carriage-return progress lines as a terminal shows them |
+| `test_PlatformSupport` | `platformSupport`'s table and its refusal on a platform where a feature is not available (skipped on Windows); `openInSystem`'s error |
+| `test_TableSort` | `TableSort`, the kept sort of the apps' tables: the order by number, text (ignoring case), date, duration, category and logical, ties in the order given, missing values last, cell columns by header, a column the rows lack; the column and direction a header click leaves, an edit ignored; the preference round trip |
+| `test_PipelineScriptSave` | each run saves the config's standalone script in the project root (`Project.SaveScript`), names the run in it, replaces only a script a run saved, none when off or for a dry run |
+| `test_ThresholdScope` | recording-wide detection thresholds: the whole recording's MAD / std / rms / percentile, independent of the chunk size, applied by detection; flat and out-of-range channels; progress over both passes; the spikes file and the config |
+| `test_DetectionBenchmark` | (tag `Benchmark`) spike and artifact detection scored against synthetic truth with `benchmarkDetection`: recall, precision, duplicates and noise crossings, artifact recall, coverage and edges, against regression floors ([below](#detection-benchmark)) |
+| `test_NWBExport` | the NWB export: every staged number against the inputs (signals as stored, electrodes on the probe, units, trial and pulse times on the continuous clock, the erased periods, the session start in its time zone) without Python; with a Python that has pynwb and nwbinspector (`NWB_PYTHON`, else `pyenv`), the file read back with `h5read`, nwbinspector's findings and `DatasetOutputs`' `nwb` kind; the errors |
+| `test_UnitQuality` | unit quality metrics: every metric equal to SpikeInterface's own on spike trains rebuilt from the integer generator of [`tools/golden/unit_quality_golden.py`](../tools/golden/unit_quality_golden.py) (golden values in `pipeline/testdata/`); SNR; the criteria; `ds.unitQuality` on a synthetic sort (fields, cache written, read, made stale by phy, SNR with uV templates); `unitTable`; the QC page; exports carrying the metrics; `sortSweep` comparing two sorts and dry-running two variants |
+
+### Detection benchmark
+
+[`benchmarkDetection`](../pipeline/benchmarkDetection.m) writes synthetic
+recordings whose truth is known (each unit's spike rows and its template on
+every site, each artifact period), runs `detectSpikes` over the whole
+recording and the automatic artifact detector (`analyzeArtifacts`), and
+scores them. Spikes are scored per unit on its peak channel (recall within
+0.5 ms) and per channel (each detection matched to a spike of a unit visible
+there, a duplicate within 3 ms of one, or an isolated noise crossing), with
+the true artifact periods erased first so the two detectors are scored apart;
+artifacts per true period (found, coverage, edge errors) and per detected
+interval (false ones). `R.summary` holds the headline numbers;
+`ReportFile=` writes everything, with the code version, as JSON.
+
+```matlab
+R = benchmarkDetection(Seeds=1:3);                         % default design and settings
+R = benchmarkDetection(DetectOptions=struct('ThresholdScope', "recording"));
+disp(R.units); disp(R.summary)
+```
+
+`test_DetectionBenchmark` holds the defaults to regression floors. A model of
+the same signal and detectors in Python (MATLAB could not be run where the
+floors were set) gave, over six seeds: recall >= 0.985 for units at SNR >= 6,
+0.82-0.88 at SNR 4.3; precision ~0.82; isolated noise crossings <= 0.56 Hz per
+channel; both artifacts found whole, edges within 0.5 ms, no false ones. It
+also gave about 0.5 duplicate detections per spike on the channels of the 140
+and 200 uV units: the band-passed waveform's later lobe crosses the threshold
+again more than `MinPeriodMs` (1 ms) after the trough. The test caps that
+rather than accepting it; raise the floors to the measured values once the
+suite has run in MATLAB.

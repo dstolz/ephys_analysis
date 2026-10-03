@@ -6,10 +6,8 @@ html = f(endsWith(f, ".html"));
 if ~isempty(html); f = html(1); else; f = f(1); end
 if endsWith(f, ".html")
     web("file:///" + replace(f, "\", "/"), '-browser');
-elseif ispc
-    winopen(f);
 else
-    web("file:///" + f, '-browser');
+    openInSystem(f);
 end
 obj.setStatus("Opened " + f);
 end

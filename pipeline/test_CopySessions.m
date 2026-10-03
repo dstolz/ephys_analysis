@@ -746,10 +746,7 @@ classdef test_CopySessions < matlab.unittest.TestCase
             % The Copy tab end to end: find, ambiguous rows refuse a tick,
             % dry run writes nothing, copy writes the ticked session.
             g = EphysPreprocessingApp.PrefGroup;
-            saved = [];
-            if ispref(g); saved = getpref(g); end
-            tc.addTeardown(@() restorePrefs(g, saved));
-            if ispref(g, 'LastConfigFile'); setpref(g, 'LastConfigFile', ''); end
+            tc.applyFixture(AppPrefsFixture);   % preferences in a temporary file, never the user's
 
             tc.addPair("260916T110742", "260916_110907");
             tc.addIntan(tc.Subj, "260916_150000");        % ambiguous: two ePsych files 60 s either side
@@ -808,7 +805,7 @@ classdef test_CopySessions < matlab.unittest.TestCase
             tc.verifyEqual(app.CopyStatus(1), "copied", app.CopyMessage(1));
             tc.verifyTrue(isfile(fullfile(tc.Dest, tc.Subj, tc.Subj + "_260916_110907", "session_manifest.json")));
             tc.verifyEqual(app.CopyTable.Data.Result(1), "copied");
-            p = getpref(g, 'CopyOptions');
+            p = AppPrefs.getpref(g, 'CopyOptions');
             tc.verifyEqual(string(p.destRoot), tc.Dest, "the Copy tab settings are preferences");
             tc.verifyEqual(p.minDurationMin, 2);
         end
@@ -816,10 +813,7 @@ classdef test_CopySessions < matlab.unittest.TestCase
         function appStitchAndUnstitch(tc)
             % Select an Intan row and an ePsych-only row, Stitch, then Unstitch.
             g = EphysPreprocessingApp.PrefGroup;
-            saved = [];
-            if ispref(g); saved = getpref(g); end
-            tc.addTeardown(@() restorePrefs(g, saved));
-            if ispref(g, 'LastConfigFile'); setpref(g, 'LastConfigFile', ''); end
+            tc.applyFixture(AppPrefsFixture);   % preferences in a temporary file, never the user's
 
             tc.addPair("260916T110742", "260916_110907");
             tc.addSession("260916T110742", 3);
@@ -864,10 +858,7 @@ classdef test_CopySessions < matlab.unittest.TestCase
             % them, newest first, each once, at most 10; Forget removes
             % entries and leaves the box as it is; the lists are preferences.
             g = EphysPreprocessingApp.PrefGroup;
-            saved = [];
-            if ispref(g); saved = getpref(g); end
-            tc.addTeardown(@() restorePrefs(g, saved));
-            if ispref(g, 'LastConfigFile'); setpref(g, 'LastConfigFile', ''); end
+            tc.applyFixture(AppPrefsFixture);   % preferences in a temporary file, never the user's
 
             app = EphysPreprocessingApp;
             tc.addTeardown(@() delete(app.Fig(isvalid(app.Fig))));
@@ -900,7 +891,7 @@ classdef test_CopySessions < matlab.unittest.TestCase
             app.forgetCopyFolders(f, ["E:/12" "E:/5"]);
             tc.verifyEqual(string(f.Items), "E:/" + string([11:-1:6, 4 3]));
             tc.verifyEqual(string(f.Value), "E:/12", "the box keeps what it shows");
-            p = getpref(g, 'CopyOptions');
+            p = AppPrefs.getpref(g, 'CopyOptions');
             tc.verifyEqual(string(p.destRootRecent), string(f.Items), "Forget saves the list at once");
 
             app.CopyEpsychRootField.Items = {};
@@ -1592,10 +1583,7 @@ classdef test_CopySessions < matlab.unittest.TestCase
             % and the Subject ID, the status line, Remove.
             tc.assumeTrue(ispc, "Task Scheduler needs Windows");
             g = EphysPreprocessingApp.PrefGroup;
-            saved = [];
-            if ispref(g); saved = getpref(g); end
-            tc.addTeardown(@() restorePrefs(g, saved));
-            if ispref(g, 'LastConfigFile'); setpref(g, 'LastConfigFile', ''); end
+            tc.applyFixture(AppPrefsFixture);   % preferences in a temporary file, never the user's
 
             app = EphysPreprocessingApp;
             tc.addTeardown(@() delete(app.Fig));
@@ -1851,16 +1839,6 @@ classdef test_CopySessions < matlab.unittest.TestCase
             L = sort(string(fullfile({D.folder}, {D.name})) + " " + string([D.bytes]) + " " + string([D.datenum]));
         end
     end
-end
-
-
-function restorePrefs(g, saved)
-if ispref(g); rmpref(g); end
-if isstruct(saved)
-    for f = string(fieldnames(saved)).'
-        setpref(g, char(f), saved.(f));
-    end
-end
 end
 
 

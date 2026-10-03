@@ -73,7 +73,7 @@ flowchart TB
         EXT[("_extract_TYPE.mat<br/>toMat")]
         SPK[("_spikes.mat<br/>spikesToMat")]
         BEHM[("_behavior.mat<br/>behaviorToMat")]
-        EXP[("_chronux.mat · _fieldtrip.mat<br/>_epochs.mat · _kcsd.npz<br/>exportChronux · exportFieldTrip<br/>exportEpochs · exportKCSD")]
+        EXP[("_chronux.mat · _fieldtrip.mat<br/>_epochs.mat · _kcsd.npz · .nwb<br/>exportChronux · exportFieldTrip<br/>exportEpochs · exportKCSD · exportNWB")]
         EVC[("_events.mat<br/>digitalEvents")]
     end
 
@@ -400,7 +400,7 @@ ds = EphysDataset()                              % empty object (arrays/prealloc
 | `ProbeFile` | `""` | Kilosort4 probe `.json` |
 | `PythonExe` | `""` | Python executable used to launch Kilosort4 |
 | `CondaEnv` | `""` | when set, commands are run via `conda run -n <env>` |
-| `Scale` | `1/0.195` | multiplier applied before casting when writing `.bin` |
+| `Scale` | `NaN` | `.bin` units per µV; `NaN` = from the recording (`binScale`: its own resolution when that is lossless, else `1/0.195`) |
 | `Dtype` | `"int16"` | `.bin` sample class |
 | `OutputDir` | `""` | output folder; `""` means the recording folder |
 | `Manifest` | `[]` | optional `Manifest` object ([vendor/tools/Manifest.m](../vendor/tools/Manifest.m)) that receives provenance entries |
@@ -445,7 +445,7 @@ The constructor errors (`EphysDataset:NoFolder`) if the folder does not exist.
 | `ReferenceExclude` | `[]` | 1-based channels left out of the common reference, though still referenced (see [Common reference](#common-reference-car--cmr)). Saved to and restored from the dataset manifest |
 | `ReferenceExcludeSource` | `""` | where `ReferenceExclude` came from: `""` (never set: the first referenced read suggests it), `"suggested"` or `"manual"` |
 | `PythonExe`, `CondaEnv` | `""` | Python launch configuration |
-| `Scale` | `1/0.195` | `.bin` scale factor |
+| `Scale` | `NaN` | `.bin` units per µV (`NaN` = `binScale`) |
 | `Dtype` | `"int16"` | one of `int16`, `uint16`, `int32`, `single`, `float32` |
 | `OutputDir` | `""` | output folder (`""` = `Folder`) |
 | `Manifest` | empty | optional provenance `Manifest` object |
@@ -1044,17 +1044,51 @@ first and last samples of the recording can truncate one — the reported region
 tile the recording exactly, so nothing is detected twice, and `MinPeriodMs` is
 re-applied across the joins.
 
-**Thresholds are still estimated per chunk** (`info.thresholdScope` is
-`"chunk"`): a chunk's noise estimate uses only that chunk's samples, exactly as
-it does for a block, so the threshold tracks the noise from chunk to chunk and
-`info.threshold` / `info.noise` / `info.degenerate` are `[nChunks x nChan]`. Use
-`ThresholdMethod="absolute"` for one fixed threshold in microvolts across the
-whole recording.
+**Thresholds are estimated per chunk by default** (`ThresholdScope="chunk"`,
+`info.thresholdScope`): a chunk's noise estimate uses only that chunk's
+samples, exactly as it does for a block, so the threshold tracks the noise from
+chunk to chunk (and with how the recording is split into files), and
+`info.threshold` / `info.noise` / `info.degenerate` are `[nChunks x nChan]`.
+
+**`ThresholdScope="recording"`** gives each channel one threshold from its
+noise over the whole recording. A first pass streams the recording as
+detection does (the same chunks, context, artifact erasing and band-pass) and
+counts every sample once, in the chunk that finalizes it; detection then runs
+with those thresholds, so they follow neither the file layout nor each chunk's
+noise, and a session's thresholds compare with another's. `info.threshold` /
+`info.noise` / `info.degenerate` are then `[1 x nChan]`, and
+`info.noiseEstimate` says how the noise was measured:
+
+| Method | Recording-wide estimate |
+| --- | --- |
+| `std` | exact: per-chunk counts, means and sums of squared deviations merged (Chan, Golub & LeVeque) |
+| `rms` | exact: the sum of squares over the count |
+| `mad` | median and MAD from a histogram of 0.05 µV bins over ±2000 µV with a piecewise-linear CDF (the MAD by bisection on F(m+d) − F(m−d) = 0.5). The noise level comes within ~0.1% of the exact value on a band-passed trace, and within ~0.2 µV on an unfiltered one, whose samples sit on the recording's steps (0.195 µV for Intan) so that its exact median and MAD are quantized too |
+| `percentile` | the same histogram of \|x\|: within one bin (0.05 µV) of the sample it estimates, the ⌈p·n⌉-th smallest \|x\| |
+| `absolute` | nothing to measure; the same thresholds either way (`noiseEstimate` is `[]`) |
+
+`noiseEstimate` fields: `method`, `estimator` (`"exact"` or `"histogram"`),
+`binUV` and `rangeUV` (`NaN` when exact), and per channel `nSamples` (samples
+counted), `nOutOfRange` (of them beyond ±`rangeUV`: counted, not placed),
+`beyondRange` (the median, MAD or percentile lies beyond the range: warning
+`EphysDataset:detectSpikes:NoiseBeyondRange`) and `belowResolution` (a MAD or
+percentile within one bin of 0, a flat channel: `noise` is `NaN`, not 0). Both
+leave the channel degenerate. The first pass reads the recording once more,
+chunk by chunk (`UseParallel` applies to detection only); `ProgressFcn` then
+counts both passes (`2 x nChunks` calls, the first `nChunks` named `noise
+level: <chunk>`). `ThresholdMethod="absolute"` is one fixed threshold in
+microvolts with either scope.
+
+How well detection finds spikes, and how often it reports noise or the same
+spike twice, is measured against synthetic ground truth by
+[`benchmarkDetection`](../pipeline/benchmarkDetection.m)
+([Detection benchmark](README.md#detection-benchmark)).
 
 | Option (whole-recording mode only) | Default | Meaning |
 | --- | --- | --- |
 | `Files` | all | subset/order of `*.rhd` files (traditional format only); timestamps stay relative to the first sample read |
 | `ChannelOrder` | all | 1-based reorder/subset of amplifier channels, applied to every chunk (as in `toBin`) |
+| `ThresholdScope` | `"chunk"` | `"chunk"`: each chunk's own noise; `"recording"`: each channel's noise over the whole recording (above) |
 | `MaxChunkSamples` | `streamPlan` default | cap on samples per chunk for the split and binary formats |
 | `UseParallel` | `false` | detect the chunks on a process pool (Parallel Computing Toolbox): the open one, else one sized to the worker cap. Identical result; falls back to serial with `EphysDataset:detectSpikes:SerialFallback` when the toolbox, the pool or a chunk's sample count is missing, when a thread pool is open, or when memory allows fewer than two workers. A worker reads its chunk's context with `readWindowUV` when the plan's chunks follow each other in the recording (every built-in reader supports it); a `Files` list that skips or reorders files gives it the previous listed chunk, as the serial loop does |
 | `MaxWorkers` | `NaN` (automatic) | cap on chunks in flight at once; always limited by free memory (about six copies of one chunk per worker), so a 12-worker pool typically runs 4-5 chunks at a time |
@@ -1093,8 +1127,9 @@ everything; it is flagged in `info.degenerate` and warned about
 report the values **after** rounding to samples.
 
 Whole-recording mode drops `rejectedIndex` / `droppedEdgeIndex` (they are
-chunk-local) and adds `source` (`"recording"`), `thresholdScope` (`"chunk"`),
-`edgePadMs` / `edgePadSamples`, `chunks` (a struct array of `name`,
+chunk-local) and adds `source` (`"recording"`), `thresholdScope` (`"chunk"` or
+`"recording"`), `noiseEstimate` (above; `[]` per chunk), `edgePadMs` /
+`edgePadSamples`, `chunks` (a struct array of `name`,
 `sampleOffset`, `nSamples` for the chunks read) and `files`.
 
 ```matlab
@@ -1143,7 +1178,7 @@ varying fastest. It holds one chunk in memory at a time. Per chunk, in order:
 | Option | Default |
 | --- | --- |
 | `Files`, `ChannelOrder` | all |
-| `Scale` / `Dtype` | `ds.Scale` / `ds.Dtype` |
+| `Scale` / `Dtype` | `ds.binScale(Dtype)` / `ds.Dtype` |
 | `Offset` | `0` |
 | `Filter`, `FilterType`, `FilterCutoff`, `FilterOrder` | off, `"highpass"`, `300`, `4` |
 | `FilterEdgeMode` | `"independent"` (each chunk filtered on its own). `"overlap"` prepends the previous chunk's last `OverlapSamples` raw samples before filtering |
@@ -1155,8 +1190,20 @@ varying fastest. It holds one chunk in memory at a time. Per chunk, in order:
 | `WriteMeta` | `true` (writes a `<name>.json` sidecar next to the `.bin`) |
 | `BinFile` | `ds.BinFile`; a bare file name goes in `outputFolder()` |
 
-With the default scale `1/0.195`, µV are converted back to native int16 ADC
-units. For integer dtypes, values outside the class range are **clipped** by the
+**The scale.** Without `Scale=` the `.bin` gets `ds.binScale(Dtype)`:
+`ds.Scale` when it is set, else the recording's own resolution, 1 / its µV
+per stored unit (`EphysReader.storageFormat`), when every channel shares one
+and one stored unit maps onto one unit of an int16 `.bin` without clipping
+(int16 samples, Intan's uint16 less 32768, or int8). The `.bin` then holds
+the recording's own integers and nothing is quantised again: Intan and Open
+Ephys headstage data at 0.195 µV, and a `recording.json` recording at its
+`gain_to_uV`. Otherwise (floating-point samples such as TDT's, channels at
+different resolutions, wider integers, a float `.bin`, a reader that cannot
+tell) the default `1/0.195` is used. `info.scaleSource` and the sidecar's
+`scale_source` say which, and why. Filtering, a common reference and an
+artifact fill change the values, so only an unprocessed `.bin` is lossless.
+
+For integer dtypes, values outside the class range are **clipped** by the
 cast. Clipping is counted (`info.nClipped`) and reported by a warning
 (`EphysDataset:toBin:Clipping`).
 
@@ -1287,7 +1334,7 @@ directly in that folder. A dry run writes no `.bin` and puts its
 how its results were made; its `settings.json` still names `ResultsDir` as
 `results_dir`.
 
-`settings.json` also records `bin_scale`, the `.bin`'s units per µV (`Scale`
+`settings.json` also records `bin_scale`, the `.bin`'s units per µV (`binScale()`
 when this call writes the `.bin`, else the sidecar's `scale`), which
 `readPhyUnits` needs to give templates in µV; `run_ks4.py` does not pass it to
 Kilosort4. With [shank spacing](#shank-spacing) it also records
@@ -1546,6 +1593,78 @@ Notes column of the app's Review tab; every read picks them up as
 - **`[ids, notes, file] = EphysDataset.readUnitNotes(resultsDir)`** reads them
   (empty outputs when there is no file).
 
+#### Unit quality metrics
+
+**`[units, Q] = ds.unitQuality()`** (or `ds.readSortedUnits(Quality=true)`)
+adds to each sorted unit the quality metrics of
+[SpikeInterface](https://spikeinterface.readthedocs.io) 0.105's
+`spikeinterface.metrics.quality`, with its default parameters, as column
+fields of `units` (`Q` is the same as a table). [`unitQualityMetrics`](../pipeline/unitQualityMetrics.m)
+computes them; `test_UnitQuality` checks every one against the values
+SpikeInterface itself gives ([`tools/golden/unit_quality_golden.py`](../tools/golden/unit_quality_golden.py)):
+
+| Field | Meaning | NaN when |
+| --- | --- | --- |
+| `firingRate` | spikes / the sorted span (Hz) | |
+| `isiViolationsRatio`, `isiViolationsCount` | V T / (2 N² (1.5 ms − 0)): the rate of a hypothetical contaminating unit relative to the unit's (Hill et al. 2011); V the intervals under 1.5 ms | |
+| `presenceRatio` | the fraction of the span's whole 60 s bins with a spike | the span is under 60 s |
+| `amplitudeCutoff` | the fraction of spikes missed below the detection threshold, from the histogram of Kilosort4's per-spike amplitudes (`amplitudes.npy`): 500 bins, smoothed and truncated to whole counts as SpikeInterface does; at most 0.5 | under 2500 spikes |
+| `snr` | the template's largest \|value\| on the peak channel (when `templateUnits` is `"uV"`) over the noise of the recording on that channel: `noiseLevels`, high-passed at the sort's `highpass_cutoff` (300 Hz) with a 3rd-order filter, as Kilosort4 filters, over 4 chunks | no uV templates |
+| `driftPtp`, `driftStd`, `driftMad` | the unit's median depth (`spike_positions.npy`'s y) in each whole 60 s interval with 100 spikes or more, less its median over all spikes: range, SD, MAD (µm) | no positions; fewer than 2 intervals; over half lacking spikes |
+
+The span is what Kilosort4 sorted: `tmin` to `tmax` of the sort's
+`settings.json` (the whole recording by default) of the `.bin` it names, else
+of the recording; spike times count from the recording's start, so the span's
+start is subtracted first. `units.quality` records the settings, the span and
+where its length came from, how SNR was measured and the cache. The metrics of
+every cluster of the folder, and the noise of each channel measured, are
+cached in `<resultsDir>/quality_metrics.json` ([format](file-formats.md#unit-quality-metrics-quality_metricsjson))
+with the size and time of the files they came from: a merge or split in phy,
+which rewrites `spike_clusters.npy`, makes it stale. **`EphysDataset.unitQualityOf(units,
+info, NumSamples=)`** does the same without a dataset (and without SNR unless
+given `NoiseFcn`).
+
+**Criteria.** [`unitQualityPass(units, criteria)`](../pipeline/unitQualityPass.m)
+says which units meet good-unit criteria ([`unitQualityCriteria`](../pipeline/unitQualityCriteria.m)):
+by default `isiViolationsRatio < 0.5`, `presenceRatio > 0.9` and
+`amplitudeCutoff < 0.1`, the Allen Institute's for its Visual Coding
+Neuropixels units, strict as there; `snrMin`, `driftPtpMax` and
+`firingRateMin` are off (NaN). A metric that is NaN is unknown and passes
+unless `unknown = "fail"`; the second and third outputs list the criteria
+each unit fails and those it could not be judged on. The pipeline config
+keeps its criteria in `Sorting.Quality` (the Review tab's QC column and QC
+report), the analysis config in `UnitSelection.quality` (`selectUnits`).
+
+**QC page.** [`writeUnitQualityReport(units)`](../pipeline/writeUnitQualityReport.m)
+writes `<resultsDir>/quality_report.html`: the units per class and how many
+meet the criteria, the criteria, a histogram of each metric with its
+threshold, and a row per unit with the failed metrics marked. One HTML file,
+no scripts, no external files.
+
+**Comparing sorter settings.** [`sortSweep(ds, variants)`](../pipeline/sortSweep.m)
+sorts the dataset once per variant (`struct('name', ..., 'settings', ...)`,
+the settings being `runKilosort`'s `ExtraSettings`) into
+`<outputFolder>/kilosort4_sweep/<name>`, every variant on the same `.bin`, and
+compares them: units per class, units meeting the criteria and the median of
+each metric (`R.summary`), every unit with its variant (`R.units`), a QC page
+per sort and, with `ReportFile=`, one page comparing them.
+`sortSweep(ds, folders)` compares sorts that exist; `DryRun=true` writes each
+variant's `settings.json` and `run_ks4.py` only.
+
+```matlab
+[units, Q] = ds.unitQuality();
+pass = unitQualityPass(units);                    % the default criteria
+writeUnitQualityReport(units);                    % kilosort4/quality_report.html
+v = struct('name', {"th8", "th10"}, 'settings', {struct('Th_universal', 8), struct('Th_universal', 10)});
+R = sortSweep(ds, v, ReportFile=fullfile(ds.outputFolder(), "sweep.html"));
+```
+
+The exporters (`exportChronux`, `exportFieldTrip`, `exportEpochs`) read the
+units with their metrics (`UnitQuality=true`, the default; the pipeline's
+`Export.UnitQuality`); a sort whose metrics cannot be computed is exported
+without them, with a warning (`EphysDataset:<exporter>:NoUnitQuality`).
+`unitTable` has a column per metric (NaN for units without them).
+
 ### Derived signals (the `intan2matlab` processing)
 
 **`[Y, ev, info] = deriveSignals(Name=Value)`** reads the whole recording through
@@ -1783,6 +1902,79 @@ values) are the NumPy layer; `DatasetOutputs.KCSD` reads the file back.
 out = ds.exportKCSD(ProbeFile="C:\probes\A1x16.json");
 K = readNPZ(out.file, ["ele_pos" "pots" "fs"]);   % pots is [n_ele x N] mV
 ```
+
+#### Neurodata Without Borders (NWB)
+
+**`out = exportNWB(Name=Value)`** writes `<outputFolder>/<Name>.nwb`, an
+[NWB 2](https://www.nwb.org) file, through Python. MATLAB stages the data
+in a folder next to the file: `stage.json` holds the structure and every
+text, `stage.npz` every number as held (`writeNPZ`), and each signal gets its
+own `.npy`. Then [`nwb_export.py`](python-drivers.md#nwb_exportpy) builds the
+file with [pynwb](https://pynwb.readthedocs.io) and checks it with
+[nwbinspector](https://nwbinspector.readthedocs.io), which runs pynwb's
+schema validation and the NWB best practices. The file is written as
+`~<name>.partial.nwb` and renamed when complete. The staging folder, which
+needs as much disk as the signals, is deleted afterwards. It needs a Python
+with pynwb and nwbinspector ([INSTALL.md](../pipeline/INSTALL.md)); no
+MATLAB toolbox.
+
+The file holds:
+
+| Where | What |
+| --- | --- |
+| `electrodes` | one row per amplifier channel the signals or units use, in recording order: the electrode group of its shank (`shank<k>`; `unmapped` off the probe; `electrodes` without a probe), `rel_x` / `rel_y` (µm on the probe, with a probe), `channel_name`, `recording_channel` (1-based), `interpolated` (a bad channel the Signals step replaced); `location` from `Metadata.Location`, else `"unknown"` |
+| `processing/ecephys` | `LFP` (an `LFP` container), `MUA` and `SPIKE` (each a `FilteredEphys`): `ElectricalSeries` of the extract's float32 µV as they are, `conversion` 1e-6 (volts), the signal's `rate`, `starting_time` 0; `filtering` lists the `importOptions` that made it, exactly |
+| `acquisition/AUX` | the accelerometer inputs, volts |
+| `units` | spike times (s), `id` = the cluster id, `electrodes` = the peak channel, `class`, `sort_label` (the phy / Kilosort label), `label`, `channel_name`, `peak_channel`, `shank`, `x_um` / `y_um`, `amplitude`, `contam_pct` and, with `UnitQuality`, the quality metrics under SpikeInterface's names (`firing_rate`, `isi_violations_ratio`, ...); `resolution` 1/Fs |
+| `trials` | the paired Epsych2 trials of the behavior file: `start_time` / `stop_time` from `TrialOnset` / `TrialOffset`, plus every column with one number, logical or text per trial; trials without a paired interval are left out (`out.nTrialsLeftOut`), columns of other shapes are listed in `out.trialColumnsLeftOut` |
+| `intervals/<line>` | each digital line's pulses (`TimeIntervals`) |
+| `invalid_times` | the artifact periods the Signals step erased |
+| `general` | `session_description`, `session_start_time` (the recording's start in `Metadata.TimeZone`), `session_id` = `Name`, the subject, experimenter, lab and institution from `Metadata`, `notes` = the provenance as JSON, `source_script` = the code version |
+
+NWB holds one clock. The digital inputs count rows (`t = row/Fs`), while
+signals and spikes put row `r` at `(r − 1)/Fs`. So every trial and pulse
+time is moved to the continuous clock, `(round(t·Fs) − 1)/Fs`, the time of
+the recording sample that produced it (as `epochTable`'s `t0Continuous`).
+Threshold-detected spikes are not exported: NWB has no table for them.
+Nothing is made up for metadata that is not given. nwbinspector reports a
+subject without species, sex or age as critical or as a best-practice
+violation, so give them in `Metadata`.
+
+| Option | Default | |
+| --- | --- | --- |
+| `File` | `<outputFolder>/<Name>.nwb` | |
+| `Extract`, `Signals`, `Units`, `Groups`, `UnitQuality`, `Sources`, `Events` | | as in `exportChronux` (`Detected` is accepted and ignored) |
+| `Trials`, `Behavior` | `true`, `""` | the paired trials of `<outputFolder>/<Name>_behavior.mat` when it exists, of another behavior file, or of a `behaviorStruct` |
+| `ProbeFile` | `""` = the dataset's | the probe that places the electrodes (the pipeline passes `probeFor(d)`) |
+| `Metadata` | `struct()` | the pipeline config's `Export.NWB` fields: `SessionDescription`, `ExperimentDescription`, `Experimenter`, `Lab`, `Institution`, `Keywords`, `Location`, `SubjectId` (`""` = the name pattern's SubjectID, else the behavior's), `Species`, `Sex`, `Age` (ISO 8601, `P90D`), `SubjectDescription`, `Strain`, `Genotype`, `TimeZone` (IANA; `""` = this computer's), `SessionStartTime` (`"yyyy-MM-dd HH:mm:ss"`; `""` = `AcqDate`, else the name pattern's) |
+| `PythonExe`, `CondaEnv` | `""` = the dataset's | a Python with pynwb and nwbinspector |
+| `Inspect` | `true` | run nwbinspector |
+| `KeepStaging`, `StageOnly` | `false` | keep the staging folder; write it and stop (no Python; `out.stage`) |
+| `Overwrite`, `Provenance` | | as in `exportChronux` |
+
+`out` has `file`, `bytes`, `seconds`, `signals`, `nElectrodes`, `nUnits`,
+`nTrials`, `nTrialsLeftOut`, `trialColumnsLeftOut`, `nEventLines`,
+`sessionStartTime`, `inspector` (a table of nwbinspector's findings:
+`importance`, `check`, `message`, `objectType`, `objectName`, `location`),
+`inspectorFile` (`<name>_nwbinspector.json`, every finding), `versions`
+(Python's packages), `sources` and `command`. Findings of importance
+`ERROR`, `PYNWB_VALIDATION` or `CRITICAL` warn
+(`EphysDataset:exportNWB:Inspector`). Errors: `EphysDataset:exportNWB:Exists`,
+`:NoPython`, `:ScriptMissing`, `:NoStartTime`, `:BadTimeZone`,
+`:NoBehavior`, `:Python` (the driver's message).
+
+```matlab
+out = ds.exportNWB(PythonExe="C:\miniconda3\envs\nwb\python.exe", Metadata=struct( ...
+    'Species', "Mus musculus", 'Sex', "F", 'Age', "P90D", 'Location', "AC", 'TimeZone', "America/New_York"));
+lfp = h5read(out.file, '/processing/ecephys/LFP/LFP/data').';   % [samples x channels], uV x 1e-6 = V
+```
+
+Why pynwb and not MatNWB: pynwb is NWB's reference implementation, and
+nwbinspector, the format's validator, runs only in Python. The repository
+already drives Python through `system()` for Kilosort4, so a Python
+environment is part of the setup. MatNWB would add a MATLAB dependency
+(installed, with its classes generated by `generateCore`) and still leave
+validation to Python.
 
 ### Behavior (Epsych2)
 

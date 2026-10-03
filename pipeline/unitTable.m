@@ -26,7 +26,13 @@ function T = unitTable(units, opts)
 %     peakX, peakY    site position of the peak channel (probe units, um)
 %     x, y            template centre (amplitude-weighted site position)
 %     notes           cluster_notes.tsv text (see EphysDataset.writeUnitNotes)
-%     nSpikes, amplitude, contamPct, curated, fs, resultsDir
+%     nSpikes, amplitude, contamPct
+%     firingRate, isiViolationsRatio, isiViolationsCount, presenceRatio,
+%     amplitudeCutoff, snr, driftPtp, driftStd, driftMad
+%                     quality metrics, when the units carry them
+%                     (readSortedUnits(Quality=true), EphysDataset.unitQuality;
+%                     unitQualityPass judges them); NaN otherwise
+%     curated, fs, resultsDir
 %     times           {spike times, s} (Times=true)
 %
 %   Options
@@ -164,6 +170,10 @@ T.notes          = string(col('notes', ""));
 T.nSpikes        = double(col('nSpikes', NaN));
 T.amplitude      = double(col('amplitude', NaN));
 T.contamPct      = double(col('contamPct', NaN));
+for m = ["firingRate" "isiViolationsRatio" "isiViolationsCount" "presenceRatio" ...
+         "amplitudeCutoff" "snr" "driftPtp" "driftStd" "driftMad"]
+    T.(m) = double(col(m, NaN));                  % quality metrics (EphysDataset.unitQuality); NaN when not computed
+end
 T.curated        = logical(perRun('curated', false));
 T.fs             = double(perRun('fs', NaN));
 T.resultsDir     = string(perRun('resultsDir', ""));

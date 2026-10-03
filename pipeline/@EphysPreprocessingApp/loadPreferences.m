@@ -3,7 +3,9 @@ function loadPreferences(obj)
 %   Preferences (group EphysPreprocessingApp) hold only what is not part of
 %   a pipeline config: figure geometry, the probe folder, the phy command,
 %   the Review folder, the last / recent config files, the script folder,
-%   the datasets-table column order, the Artifacts tab's viewer options
+%   the datasets-table column order, the sort of each sortable table
+%   (TableSorts: Project, Trials, Review units, Clean up and the
+%   Artifacts tab's per-channel Selection table), the Artifacts tab's viewer options
 %   (context, channels, scale, lanes, colour by shank, shading), the Trials-table parameter columns and
 %   column order, the Trials-plot label parameters, the Visualize
 %   display options, the Copy tab settings (subject, roots and their recent
@@ -17,68 +19,77 @@ function loadPreferences(obj)
 
 g = obj.PrefGroup;
 
-if ispref(g, 'FigurePosition')
-    pos = getpref(g, 'FigurePosition');
+if AppPrefs.ispref(g, 'FigurePosition')
+    pos = AppPrefs.getpref(g, 'FigurePosition');
     if isnumeric(pos) && numel(pos) == 4 && all(pos(3:4) > 100)
         obj.Fig.Position = clampToScreen(pos);
     end
 end
 
-if ispref(g, 'ProbeFolder')
-    p = getpref(g, 'ProbeFolder');
+if AppPrefs.ispref(g, 'ProbeFolder')
+    p = AppPrefs.getpref(g, 'ProbeFolder');
     if isfolder(p); obj.ProbeFolderField.Value = p; end
 end
 if obj.ProbeFolderField.Value == ""
     obj.ProbeFolderField.Value = char(obj.defaultProbeFolder());
 end
-if ispref(g, 'PhyCmd')
-    obj.PhyCmdField.Value = char(getpref(g, 'PhyCmd'));
+if AppPrefs.ispref(g, 'PhyCmd')
+    obj.PhyCmdField.Value = char(AppPrefs.getpref(g, 'PhyCmd'));
 end
-if ispref(g, 'ReviewFolder')
-    p = getpref(g, 'ReviewFolder');
+if AppPrefs.ispref(g, 'ReviewFolder')
+    p = AppPrefs.getpref(g, 'ReviewFolder');
     if isfolder(p); obj.ReviewFolderField.Value = p; end
 end
-if ispref(g, 'ScriptFolder')
-    obj.ScriptFolder = string(getpref(g, 'ScriptFolder'));
+if AppPrefs.ispref(g, 'ScriptFolder')
+    obj.ScriptFolder = string(AppPrefs.getpref(g, 'ScriptFolder'));
 end
-if ispref(g, 'RecentConfigs')
-    r = getpref(g, 'RecentConfigs');
+if AppPrefs.ispref(g, 'RecentConfigs')
+    r = AppPrefs.getpref(g, 'RecentConfigs');
     obj.RecentConfigs = reshape(string(r), 1, []);
 end
 obj.refreshRecentMenu();
-if ispref(g, 'DatasetsColumnOrder')
-    obj.DatasetsColumnOrder = reshape(string(getpref(g, 'DatasetsColumnOrder')), 1, []);
+if AppPrefs.ispref(g, 'DatasetsColumnOrder')
+    obj.DatasetsColumnOrder = reshape(string(AppPrefs.getpref(g, 'DatasetsColumnOrder')), 1, []);
 end
-if ispref(g, 'TrialsParamColumns')
-    obj.TrialsParamColumns = reshape(string(getpref(g, 'TrialsParamColumns')), 1, []);
+if AppPrefs.ispref(g, 'TableSorts')   % before the last config fills the tables
+    v = AppPrefs.getpref(g, 'TableSorts');
+    if isstruct(v) && isscalar(v)
+        for f = string(fieldnames(v)).'
+            s = TableSort.fromPref(v.(f));
+            if TableSort.isSorted(s); obj.TableSorts.(f) = s; end
+        end
+    end
 end
-if ispref(g, 'TrialsLabelParams')
-    obj.TrialsLabelParams = reshape(string(getpref(g, 'TrialsLabelParams')), 1, []);
+if AppPrefs.ispref(g, 'TrialsParamColumns')
+    obj.TrialsParamColumns = reshape(string(AppPrefs.getpref(g, 'TrialsParamColumns')), 1, []);
 end
-if ispref(g, 'TrialsColumnOrder')
-    obj.TrialsColumnOrder = reshape(string(getpref(g, 'TrialsColumnOrder')), 1, []);
+if AppPrefs.ispref(g, 'TrialsLabelParams')
+    obj.TrialsLabelParams = reshape(string(AppPrefs.getpref(g, 'TrialsLabelParams')), 1, []);
 end
-if ispref(g, 'DiagramView') && ismember(string(getpref(g, 'DiagramView')), ["detail" "overview"])
-    obj.FlowViewDropDown.Value = string(getpref(g, 'DiagramView'));
+if AppPrefs.ispref(g, 'TrialsColumnOrder')
+    obj.TrialsColumnOrder = reshape(string(AppPrefs.getpref(g, 'TrialsColumnOrder')), 1, []);
 end
-if ispref(g, 'DiagramLayout') && ismember(string(getpref(g, 'DiagramLayout')), ["tree" "steps"])
-    obj.FlowLayoutDropDown.Value = string(getpref(g, 'DiagramLayout'));
+if AppPrefs.ispref(g, 'DiagramView') && ismember(string(AppPrefs.getpref(g, 'DiagramView')), ["detail" "overview"])
+    obj.FlowViewDropDown.Value = string(AppPrefs.getpref(g, 'DiagramView'));
 end
-if ispref(g, 'ShowRunDiagram')
-    obj.RunDiagramCheckBox.Value = isequal(getpref(g, 'ShowRunDiagram'), true);
+if AppPrefs.ispref(g, 'DiagramLayout') && ismember(string(AppPrefs.getpref(g, 'DiagramLayout')), ["tree" "steps"])
+    obj.FlowLayoutDropDown.Value = string(AppPrefs.getpref(g, 'DiagramLayout'));
+end
+if AppPrefs.ispref(g, 'ShowRunDiagram')
+    obj.RunDiagramCheckBox.Value = isequal(AppPrefs.getpref(g, 'ShowRunDiagram'), true);
     obj.onRunDiagramToggled();
 end
-if ispref(g, 'MonitorResources')
-    obj.RunMonitorCheckBox.Value = isequal(getpref(g, 'MonitorResources'), true);
+if AppPrefs.ispref(g, 'MonitorResources')
+    obj.RunMonitorCheckBox.Value = isequal(AppPrefs.getpref(g, 'MonitorResources'), true);
     obj.onResourceMonitorToggled();
 end
-if ispref(g, 'QueueSortingRuns')
-    obj.RunKSQueueCheckBox.Value = isequal(getpref(g, 'QueueSortingRuns'), true);
+if AppPrefs.ispref(g, 'QueueSortingRuns')
+    obj.RunKSQueueCheckBox.Value = isequal(AppPrefs.getpref(g, 'QueueSortingRuns'), true);
 end
 
 % --- Visualize display options (one struct) ---
-if ispref(g, 'VizOptions')
-    v = getpref(g, 'VizOptions');
+if AppPrefs.ispref(g, 'VizOptions')
+    v = AppPrefs.getpref(g, 'VizOptions');
     if isstruct(v)
         applyIf(v, 'source',    @(x) setVizSourceKind(obj, x));   % the app is no SetGet: set() would throw
         applyIf(v, 'channels',  @(x) set(obj.VizChannelsField, 'Value', char(x)));
@@ -105,8 +116,8 @@ if ispref(g, 'VizOptions')
 end
 
 % --- Artifacts tab viewer options (one struct; the detection settings are the config's) ---
-if ispref(g, 'ArtifactViewOptions')
-    v = getpref(g, 'ArtifactViewOptions');
+if AppPrefs.ispref(g, 'ArtifactViewOptions')
+    v = AppPrefs.getpref(g, 'ArtifactViewOptions');
     if isstruct(v)
         applyIf(v, 'context',    @(x) set(obj.ArtViewContextField, 'Value', x));
         applyIf(v, 'channels',   @(x) set(obj.ArtViewChannelsField, 'Value', x));
@@ -126,8 +137,8 @@ if ispref(g, 'ArtifactViewOptions')
 end
 
 % --- Copy tab settings (one struct) ---
-if ispref(g, 'CopyOptions')
-    v = getpref(g, 'CopyOptions');
+if AppPrefs.ispref(g, 'CopyOptions')
+    v = AppPrefs.getpref(g, 'CopyOptions');
     if isstruct(v)
         applyIf(v, 'subject',    @(x) set(obj.CopySubjectField, 'Value', char(x)));
         % each box's list before its value: a new list moves the value to its first entry
@@ -148,8 +159,8 @@ if ispref(g, 'CopyOptions')
 end
 
 % --- Synthetic tab: its settings and the design (one struct; the design as JSON) ---
-if ispref(g, 'SynthOptions')
-    v = getpref(g, 'SynthOptions');
+if AppPrefs.ispref(g, 'SynthOptions')
+    v = AppPrefs.getpref(g, 'SynthOptions');
     if isstruct(v)
         applyIf(v, 'source',      @(x) set(obj.SynthSourceDropDown, 'Value', char(x)));
         applyIf(v, 'numTrials',   @(x) set(obj.SynthTrialsSpinner, 'Value', x));
@@ -173,8 +184,8 @@ if ispref(g, 'SynthOptions')
 end
 
 % --- Clean up tab: the kinds of file to remove and where they go (one struct) ---
-if ispref(g, 'CleanupOptions')
-    v = getpref(g, 'CleanupOptions');
+if AppPrefs.ispref(g, 'CleanupOptions')
+    v = AppPrefs.getpref(g, 'CleanupOptions');
     if isstruct(v)
         applyIf(v, 'raw',        @(x) set(obj.CleanupRawCheckBox, 'Value', logical(x)));
         applyIf(v, 'sorterCopy', @(x) set(obj.CleanupSorterCopyCheckBox, 'Value', logical(x)));
@@ -189,8 +200,8 @@ end
 
 % --- the config: last file, else defaults ---
 opened = false;
-if ispref(g, 'LastConfigFile')
-    f = string(getpref(g, 'LastConfigFile'));
+if AppPrefs.ispref(g, 'LastConfigFile')
+    f = string(AppPrefs.getpref(g, 'LastConfigFile'));
     if f ~= "" && isfile(f)
         opened = obj.openConfigFile(f);
     end

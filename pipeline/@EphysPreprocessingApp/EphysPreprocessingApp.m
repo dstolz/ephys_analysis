@@ -216,6 +216,7 @@ classdef EphysPreprocessingApp < handle
         RootPathField     matlab.ui.control.EditField
         BrowseRootButton  matlab.ui.control.Button
         RecursiveCheckBox matlab.ui.control.CheckBox
+        SaveScriptCheckBox matlab.ui.control.CheckBox   % Project.SaveScript
         % Source settings panel (under the table): the active dataset's recording system (syncSourcePanel)
         SourcePanel          matlab.ui.container.Panel
         SourceGrid           matlab.ui.container.GridLayout   % rows: note, Open Ephys, TDT
@@ -441,6 +442,8 @@ classdef EphysPreprocessingApp < handle
         ReviewSummaryLabel  matlab.ui.control.Label
         ReviewUnitsTable    matlab.ui.control.Table
         ReviewAllUnitsButton matlab.ui.control.Button
+        ReviewQCButton      matlab.ui.control.Button          % the loaded sort's QC report (writeUnitQualityReport)
+        ReviewCriteriaFields struct = struct()                % Sorting.Quality: one text field per threshold
         ReviewShankAxes     matlab.ui.control.UIAxes
         ReviewISIAxes       matlab.ui.control.UIAxes          % the selected unit's inter-spike intervals
         ReviewACGAxes       matlab.ui.control.UIAxes          % the selected unit's autocorrelogram
@@ -579,6 +582,7 @@ classdef EphysPreprocessingApp < handle
         SpkFilterOrderField  matlab.ui.control.NumericEditField
         SpkPolarityDropDown  matlab.ui.control.DropDown
         SpkThreshMethodDropDown matlab.ui.control.DropDown
+        SpkThreshScopeDropDown  matlab.ui.control.DropDown   % Spikes.ThresholdScope
         SpkThresholdField    matlab.ui.control.EditField
         SpkMaxAmpField       matlab.ui.control.EditField
         SpkAlignDropDown     matlab.ui.control.DropDown
@@ -612,6 +616,18 @@ classdef EphysPreprocessingApp < handle
         ExpFieldTripCheckBox matlab.ui.control.CheckBox
         ExpEpochsCheckBox    matlab.ui.control.CheckBox
         ExpKCSDCheckBox      matlab.ui.control.CheckBox
+        ExpNWBCheckBox       matlab.ui.control.CheckBox
+        ExpNWBLocationField  matlab.ui.control.EditField
+        ExpNWBSpeciesField   matlab.ui.control.EditField
+        ExpNWBSexDropDown    matlab.ui.control.DropDown
+        ExpNWBAgeField       matlab.ui.control.EditField
+        ExpNWBTimeZoneField  matlab.ui.control.EditField
+        ExpNWBExperimenterField matlab.ui.control.EditField
+        ExpNWBLabField       matlab.ui.control.EditField
+        ExpNWBInstitutionField matlab.ui.control.EditField
+        ExpNWBPythonField    matlab.ui.control.EditField
+        ExpNWBCondaField     matlab.ui.control.EditField
+        ExpNWBInspectCheckBox matlab.ui.control.CheckBox
         ExpSignalsField      matlab.ui.control.EditField
         ExpUnitsCheckBox     matlab.ui.control.CheckBox
         ExpGroupsField       matlab.ui.control.EditField
@@ -703,6 +719,7 @@ classdef EphysPreprocessingApp < handle
         DatasetPickers matlab.ui.control.DropDown   % every tab's Dataset box (datasetPicker)
         HiddenSelectedKeys (1,:) string = string.empty(1,0)   % ticked dataset keys hidden by the token filters
         DatasetsColumnOrder (1,:) string = string.empty(1,0)  % datasets-table variables in display order (a preference)
+        TableSorts (1,1) struct = struct()   % each sortable table's remembered sort, a TableSort state by table id (a preference; tableSort)
 
         % --- config model ---
         Config EphysPipelineConfig = EphysPipelineConfig()   % working copy
@@ -1161,6 +1178,9 @@ classdef EphysPreprocessingApp < handle
         onReviewUnitSelected(obj, evt)
         onReviewNoteEdited(obj, evt)
         onReviewAllUnits(obj)
+        onReviewCriteriaChanged(obj)
+        onReviewQCReport(obj)
+        showReviewUnits(obj)
 
         % --- Synthetic tab ---
         ok = onSynthLoadSource(obj)
@@ -1196,6 +1216,10 @@ classdef EphysPreprocessingApp < handle
         % --- app-wide ---
         loadPreferences(obj)
         savePreferences(obj)
+        s = tableSort(obj, id)
+        onTableSorted(obj, id, evt)
+        onTableSortMenu(obj, menu, id)
+        clearTableSort(obj, id)
         onClose(obj)
         stopTimers(obj)
         setStatus(obj, message, hint)

@@ -35,13 +35,12 @@ function files = wikiToolScreenshots(outFolder, opts)
 %     Shots    names of the shots to take (default: all, as listed above)
 %     Wait     seconds to let a window render before each shot (default 2)
 %
-%   The EphysPreprocessingApp, EphysAnalysisApp and ChannelMapperApp
-%   preferences are backed up first (to OUTFOLDER/prefs_backup.mat),
-%   cleared, and restored when the function ends; after a killed run,
-%   restoreAppPrefs(OUTFOLDER + "/prefs_backup.mat") puts them back. Never
-%   run it next to another app-driving MATLAB.
+%   The apps keep their preferences in a temporary file for the run
+%   (AppPrefs.useTemporary), so they start from the defaults and your own
+%   preferences are never read or changed. SOURCE must be a commit that
+%   has AppPrefs.
 %
-%   See also wikiScreenshots, restoreAppPrefs, EphysAnalysisApp, exportapp.
+%   See also wikiScreenshots, AppPrefs, EphysAnalysisApp, exportapp.
 
 arguments
     outFolder (1,1) string
@@ -63,18 +62,7 @@ if ~isfolder(outFolder); mkdir(outFolder); end
 proj = opts.Project;
 files = strings(1, 0);
 
-groups = ["EphysPreprocessingApp" "EphysAnalysisApp" "ChannelMapperApp"];
-saved = struct();
-for g = groups
-    saved.(g) = [];
-    if ispref(g); saved.(g) = getpref(g); end
-end
-backup = fullfile(outFolder, 'prefs_backup.mat');
-save(backup, 'saved');
-restore = onCleanup(@() restoreAppPrefs(backup));
-for g = groups
-    if ispref(g); rmpref(g); end
-end
+restorePrefs = AppPrefs.useTemporary(); %#ok<NASGU> the apps start from no preferences; yours are untouched
 
 % The designer and the mapper open from the preprocessing app (its Python
 % runs probeinterface, its probe folder takes what they save).

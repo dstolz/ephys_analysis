@@ -36,6 +36,7 @@ nPass = 0; nFail = 0;
         else
             nFail = nFail + 1;
             fprintf(2, '  FAIL: %s\n', msg);
+            LegacySuiteTest.checkFailed(msg);   % one failure per check in run_all_tests' report
         end
     end
     function id = errorId(fcn)

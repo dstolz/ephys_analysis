@@ -115,7 +115,10 @@ arguments
     opts.Wait (1,1) logical = true
     opts.Device (1,1) string = ""
     opts.Launch (1,1) logical = true
+    opts.Provenance = []   % ephysProvenance() of the run writing it ([] = made here)
 end
+prov = opts.Provenance;
+if isempty(prov); prov = ephysProvenance(); end
 
 % Resolve config (per-call -> dataset)
 pythonExe = firstNonEmpty(opts.PythonExe, obj.PythonExe);
@@ -188,7 +191,7 @@ if ~binGiven && ~opts.DryRun
              'or turn off artifact silencing for this dataset.'], 100 * share, size(iv, 1), ...
             covered, obj.NumSamples / obj.Fs, 100 * EphysDataset.MaxSilencedFraction);
     end
-    obj.toBin(ArtifactIntervals=iv);
+    obj.toBin(ArtifactIntervals=iv, Provenance=prov);
 end
 
 % Absolute paths (KS4 + system() want absolute, double-quoted paths)
@@ -199,8 +202,12 @@ probeFile = absPath(probeFile);
 % .bin's units per uV: ds.Scale when toBin writes it here, else the sidecar.
 [nChanBin, fsVal, binScale, binRef] = resolveBinMeta(binFile, opts, obj);
 if ~binGiven
-    binScale = obj.Scale;
+    binScale = obj.binScale();   % what toBin used above
     binRef = string(EphysDataset.normalizeArtifactConfig(obj.ArtifactConfig).Reference);   % what toBin subtracts
+elseif ~isfinite(binScale) || binRef == ""
+    warning('EphysDataset:runKilosort:BinMetaUnknown', ...
+        ['%s has no readable sidecar recording its scale and common reference: settings.json gets no ' ...
+         'bin_scale (the templates stay in .bin units) and Kilosort4''s do_CAR is left as configured.'], binFile);
 end
 
 if ~isfolder(runDir)
@@ -262,6 +269,7 @@ if ismember(binRef, ["car" "cmr"])
     end
     settings.do_CAR = false;
 end
+settings.provenance = provenanceForJson(prov);   % for the record; run_ks4.py does not pass it to Kilosort4
 
 settingsPath = fullfile(runDir, 'settings.json');
 scriptPath   = fullfile(runDir, 'run_ks4.py');
@@ -369,7 +377,10 @@ if isfile(sidecar)
         if isfield(meta, 'reference') && isstruct(meta.reference) && isfield(meta.reference, 'mode')
             binRef = string(meta.reference.mode);
         end
-    catch
+    catch ME
+        warning('EphysDataset:runKilosort:BadSidecar', ...
+            'Cannot read the .bin sidecar %s (%s); n_chan_bin and fs fall back to the dataset''s metadata.', ...
+            sidecar, ME.message);
     end
 end
 if isnan(nChanBin); nChanBin = obj.NumChannels; end

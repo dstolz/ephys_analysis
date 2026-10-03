@@ -110,8 +110,8 @@ classdef ChannelMapperApp < handle
             end
             obj.App = app;
             folder = opts.BankFolder;
-            if folder == "" && ispref(obj.PrefGroup, 'BankFolder')
-                f = string(getpref(obj.PrefGroup, 'BankFolder'));
+            if folder == "" && AppPrefs.ispref(obj.PrefGroup, 'BankFolder')
+                f = string(AppPrefs.getpref(obj.PrefGroup, 'BankFolder'));
                 if isscalar(f) && isfolder(f)
                     folder = f;
                 end

@@ -7,7 +7,8 @@ in a separate Python/conda environment) for spike sorting
 with **phy** as the curation viewer, and writes derived-signal and spike `.mat`
 files plus export files for external analysis toolboxes (Chronux and FieldTrip
 so far; more formats will be added). This guide covers everything needed to get a clean
-Windows 11 machine running the app end to end. Only MATLAB is required for
+Windows 11 machine running the app end to end (what runs on macOS and
+Linux: [platforms.md](../documentation/platforms.md)). Only MATLAB is required for
 everything except sorting and probe design.
 
 ## What you need, at a glance
@@ -19,6 +20,7 @@ everything except sorting and probe design.
 | `kilosort` conda env (kilosort, probeinterface, torch) | Runs the sorting step and the probe designer | Only for sorting / probe design |
 | NVIDIA GPU + driver | Kilosort4 runs dramatically faster on GPU | Recommended, not required |
 | `phy` conda env (phy) | Manual curation of sorting results | Optional |
+| A Python with pynwb and nwbinspector | The NWB export (`Export.Formats` `nwb`, `EphysDataset.exportNWB`) | Only for the NWB export |
 | [FieldTrip](https://www.fieldtriptoolbox.org/) on the MATLAB path | Validates the FieldTrip export; analysing it | Optional |
 | [Chronux](http://chronux.org) (bundled in `toolboxes/chronux`) | Analysing the Chronux export | Optional |
 | This repository (`ephys_analysis`) | Contains the app and MATLAB path helpers | Yes |
@@ -117,6 +119,23 @@ pip install phy --pre --upgrade
 
 Skip this if you don't plan to manually curate sorting results — Kilosort4
 still runs and writes phy-format output either way.
+
+### (Optional) A Python for the NWB export
+
+The NWB export writes the file with pynwb and checks it with nwbinspector.
+Either add them to the `kilosort` env or give them an env of their own. From
+Anaconda Prompt:
+
+```bat
+conda create -n nwb python=3.11 -y
+conda activate nwb
+pip install pynwb nwbinspector
+```
+
+Known to work: pynwb 4.2.0, hdmf 6.2.0, nwbinspector 0.7.2, h5py 3.16.0,
+numpy 2.4.6 (Python 3.11). On the Export tab, set **Python (NWB)** to that
+env's `python.exe` (`Export.NWB.PythonExe`). Left blank, the Sorting tab's
+Python is used.
 
 ## 6. Point the app at your Python environments
 

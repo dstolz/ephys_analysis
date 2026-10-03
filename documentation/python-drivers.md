@@ -19,6 +19,7 @@ then writes the exit marker `ks4_exit.txt`.
 | --- | --- | --- |
 | [`run_ks4.py`](../pipeline/@EphysDataset/run_ks4.py) | `EphysDataset.runKilosort` (the pipeline's Sorting step) | kilosort, torch |
 | [`probe_tool.py`](../pipeline/@EphysPreprocessingApp/probe_tool.py) | `EphysPreprocessingApp.runProbeTool` (`runProbeToolWith`) / `ProbeDesignerApp` / `ChannelMapperApp` | probeinterface |
+| [`nwb_export.py`](../pipeline/@EphysDataset/nwb_export.py) | `EphysDataset.exportNWB` (the Export step's `nwb` format) | pynwb, nwbinspector |
 
 Versions known to work are listed in [INSTALL.md](../pipeline/INSTALL.md):
 kilosort 4.1.7, probeinterface 0.3.2, torch 2.7.1.
@@ -106,3 +107,43 @@ On failure the script prints `PROBE_TOOL_ERROR: ...` and exits 1.
 `runProbeTool` raises `EphysPreprocessingApp:runProbeTool:Failed` on a non-zero exit
 or that marker. On success it `jsondecode`s the **last** stdout line that parses
 as JSON.
+
+---
+
+## `nwb_export.py`
+
+Usage: `nwb_export.py <stage.json>`. `EphysDataset.exportNWB` fills a staging
+folder `~<name>.nwbstage` next to the target and runs the script on it
+(`"<PythonExe>" "<script>" "<stage.json>"`, or through `conda run -n`).
+
+| Staging file | Contents |
+| --- | --- |
+| `stage.json` | format `ephys_analysis-nwb-stage/1`, the target, the session and subject metadata, the device, electrode groups and electrodes (text columns inline, numbers as keys into `stage.npz`), the signals (file, kind `lfp` / `filtered` / `aux`, filtering, description), the units' and trials' columns, the digital lines, the reason for the invalid times |
+| `stage.npz` | every number as MATLAB holds it (`writeNPZ`): rates, conversions, electrode positions and rows, spike times (concatenated) with the end index per unit, unit ids and electrodes, `units_resolution`, trial times and numeric columns, the lines' `[start stop]` tables, `invalid_times` |
+| `<SIG>.npy` | each signal as stored, shape `(channels, samples)` in C order, so a block of samples is one contiguous run per channel |
+
+The script:
+
+1. Builds an `NWBFile` with pynwb: the session (`session_start_time` from
+   the ISO time with its UTC offset that MATLAB computes, so Python needs no
+   time-zone database), the subject, the device, one electrode group per
+   shank, the electrodes table, and each signal in its container. The
+   signals are streamed from a memory map with `DataChunkIterator`, chunked
+   `(16384, channels)` and gzip-compressed (level 4) with `H5DataIO`. Then
+   come the units (`resolution` set), the trials, one `TimeIntervals` per
+   line with pulses, and `invalid_times` with a `reason` column.
+2. Writes `~<name>.partial.nwb` next to the target with `NWBHDF5IO`.
+3. Runs `nwbinspector.inspect_nwbfile` on it, which includes pynwb's
+   validation, unless `inspect` is false.
+4. Renames the file into place and writes `nwb_status.json`:
+   `{"state": "done", "file", "inspector": [messages], "versions"}`, or
+   `{"state": "error", "message", "traceback", "versions"}` after removing
+   the partial file. Its last line is `NWB_EXPORT_DONE` or
+   `NWB_EXPORT_ERROR`.
+
+Nothing is converted. Each signal keeps its dtype (float32 µV) with
+`conversion` 1e-6, and every time is written as MATLAB staged it.
+Known to work: Python 3.11, pynwb 4.2.0, hdmf 6.2.0, nwbinspector 0.7.2,
+h5py 3.16.0, numpy 2.4.6. The script ran on synthetic staging folders,
+including the shapes MATLAB's `jsonencode` gives one-element lists; reading
+the file back returned every staged value unchanged.

@@ -14,10 +14,23 @@ function R = run(obj, opts)
 %     Steps    subset of EphysPipelineConfig.StepNames to run, in the
 %              canonical order ([] = the enabled steps)
 %     DryRun   true: every step runs with DryRun, so nothing is written
-%              (no manifest, cache, behavior or output file) and no artifact
-%              detection streams the recording; each step records "dry run"
-%              rows saying what it would do. Sorting writes its config /
-%              script only (runKilosort DryRun).
+%              (no manifest, cache, behavior or output file, no run record
+%              or script)
+%              and no artifact detection streams the recording; each step
+%              records "dry run" rows saying what it would do. Sorting
+%              writes its config / script only (runKilosort DryRun).
+%
+%   Provenance: every output of the run records the code version, MATLAB,
+%   host, user, the config and the run's id (pipe.provenance(), stored in
+%   each file's conversion / export struct, or its JSON). When the run ends,
+%   finished, cancelled or failed, a run record goes to
+%   <OutputRoot or Root>/pipeline_runs/<runId>_<name>.json (RunRecordFile):
+%   the steps, datasets, config, code, machine and the Results rows.
+%
+%   Script: with Project.SaveScript on (the default), the run first saves
+%   the config's standalone script, every setting written out, as
+%   <Root>/pipeline_<name>.m (ScriptFile; see writeScript), replacing the
+%   one the previous run saved; the run record names it.
 %
 %   See also EphysPipeline.checkRun, EphysPipeline.plan, EphysPipelineConfig.validate.
 
@@ -41,6 +54,10 @@ end
 obj.checkRun(Steps=steps);
 
 obj.reset();
+obj.RunRecordFile = "";
+obj.ScriptFile = "";
+started = datetime('now');
+obj.Provenance = ephysProvenance(Config=c, RunId=string(started, "yyyyMMdd'T'HHmmssSSS"));
 obj.log("=== Pipeline '%s': %d dataset(s); steps: %s%s ===", c.Name, numel(obj.DatasetIdx), ...
     strjoin(steps, ", "), ternary(opts.DryRun, " [DRY RUN]", ""));
 if isempty(obj.DatasetIdx)
@@ -49,7 +66,14 @@ if isempty(obj.DatasetIdx)
     return
 end
 
+if c.Project.SaveScript && ~opts.DryRun   % a dry run writes nothing
+    obj.ScriptFile = obj.writeScript(steps);
+    if obj.ScriptFile ~= ""; obj.log("Pipeline script: %s", obj.ScriptFile); end
+end
+
 t0 = tic;
+outcome = "finished";
+failure = [];
 for step = steps
     obj.log("--- step: %s ---", step);
     try
@@ -68,11 +92,25 @@ for step = steps
     catch ME
         if strcmp(ME.identifier, 'EphysPipeline:Cancelled')
             obj.log("=== cancelled during %s after %.1f s ===", step, toc(t0));
-            R = obj.Results;
-            return
+            outcome = "cancelled";
+        else
+            outcome = "failed";
+            failure = ME;
         end
-        rethrow(ME);
+        break
     end
+end
+if ~opts.DryRun   % a dry run writes nothing, a record included
+    obj.RunRecordFile = obj.writeRunRecord(steps, started, outcome, failure);
+    if obj.RunRecordFile ~= ""; obj.log("Run record: %s", obj.RunRecordFile); end
+end
+obj.Provenance = [];   % a step called on its own afterwards is not part of this run
+if ~isempty(failure)
+    rethrow(failure);
+end
+if outcome == "cancelled"
+    R = obj.Results;
+    return
 end
 n = height(obj.Results);
 obj.log("=== finished in %.1f s: %d ok, %d skipped, %d error(s), %d cancelled ===", toc(t0), ...

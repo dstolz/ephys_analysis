@@ -22,23 +22,11 @@ addpath(genpath(fullfile(fileparts(here), 'vendor')));
 root = fullfile(tempdir, sprintf('App_test_%s', datestr(now, 'yyyymmdd_HHMMSSFFF'))); %#ok<TNOW1,DATST>
 mkdir(root);
 
-% Preserve the user's preferences (the app writes LastConfigFile / recents).
+% The app's preferences go to a temporary file for this suite (AppPrefs),
+% which starts empty; the user's own preferences are never read or written.
 g = EphysPreprocessingApp.PrefGroup;
-savedPrefs = [];
-if ispref(g); savedPrefs = getpref(g); end
-cleanup = onCleanup(@() restorePrefsAndRoot(g, savedPrefs, root)); %#ok<NASGU>
-if ispref(g, 'LastConfigFile'); setpref(g, 'LastConfigFile', ''); end
-if ispref(g, 'DatasetsColumnOrder'); rmpref(g, 'DatasetsColumnOrder'); end
-if ispref(g, 'TrialsParamColumns'); rmpref(g, 'TrialsParamColumns'); end
-if ispref(g, 'TrialsColumnOrder'); rmpref(g, 'TrialsColumnOrder'); end
-if ispref(g, 'TrialsLabelParams'); rmpref(g, 'TrialsLabelParams'); end
-if ispref(g, 'MonitorResources'); rmpref(g, 'MonitorResources'); end
-if ispref(g, 'ShowRunDiagram'); rmpref(g, 'ShowRunDiagram'); end
-if ispref(g, 'DiagramView'); rmpref(g, 'DiagramView'); end
-if ispref(g, 'DiagramLayout'); rmpref(g, 'DiagramLayout'); end
-if ispref(g, 'CleanupOptions'); rmpref(g, 'CleanupOptions'); end
-if ispref(g, 'VizOptions'); rmpref(g, 'VizOptions'); end
-if ispref(g, 'ArtifactViewOptions'); rmpref(g, 'ArtifactViewOptions'); end
+restorePrefs = AppPrefs.useTemporary(); %#ok<NASGU>
+cleanup = onCleanup(@() removeRoot(root)); %#ok<NASGU>
 
 nPass = 0; nFail = 0;
     function check(cond, msg)
@@ -48,6 +36,7 @@ nPass = 0; nFail = 0;
         else
             nFail = nFail + 1;
             fprintf(2, '  FAIL: %s\n', msg);
+            LegacySuiteTest.checkFailed(msg);   % one failure per check in run_all_tests' report
         end
     end
 
@@ -189,7 +178,7 @@ check(count(per, "<div class=""n k-src") == 2 && contains(per, "Downstream (read
     && numel(regexp(per, '<div class="n k-step( dim)?" data-nav=')) == 5 ...
     && contains(per, ">Artifact periods</div><div class=""d"">from Artifacts</div></div><span class=""stem""></span><ul><li class=""c-sorting"">") ...
     && contains(per, ">Artifact periods</div><div class=""d"">from Artifacts</div></div><span class=""stem""></span><ul><li class=""c-signals"">") ...
-    && ~contains(per, "from Sorting") && contains(per, "from Signals") && string(getpref(g, 'DiagramLayout')) == "steps", ...
+    && ~contains(per, "from Sorting") && contains(per, "from Signals") && string(AppPrefs.getpref(g, 'DiagramLayout')) == "steps", ...
     'Layout "Tree per step": a tree from the recording for Artifacts and Spikes; Sorting and Signals (under the artifact periods) and Export downstream; saved as a preference');
 spkErase = allOn;
 spkErase.Spikes.ArtifactMode = "erase";
@@ -232,7 +221,7 @@ ov = string(app.FlowHTML.HTMLSource);
 check(contains(ov, "Preprocessing data flow: gui test") && contains(ov, "<svg class=""flow""") ...
     && count(ov, "<g class=""node c-") == 10 && count(ov, "<g class=""edge ") == 16 ...
     && app.FlowLayoutDropDown.Enable == "off" && startsWith(app.FlowSummaryLabel.Text, "7 of 7 steps enabled") ...
-    && string(getpref(g, 'DiagramView')) == "overview", ...
+    && string(AppPrefs.getpref(g, 'DiagramView')) == "overview", ...
     'View "Data-flow overview": a box per input and step, 16 arrows between them, Layout off, all 7 steps counted; saved as a preference');
 [~, ~, M] = app.flowOverviewHTML();
 [nCross, nOverlap, nThrough, nBadEnd] = flowGeometry(M);
@@ -269,7 +258,7 @@ check(contains(ovNS, "associated by hand; no search") && contains(ovNS, "associa
 app.FlowViewDropDown.Value = "detail";
 app.onFlowViewChanged();
 check(app.FlowLayoutDropDown.Enable == "on" && contains(string(app.FlowHTML.HTMLSource), "Preprocessing diagram: gui test") ...
-    && string(getpref(g, 'DiagramView')) == "detail", 'back on "Every parameter": the detail chart, with Layout on again');
+    && string(AppPrefs.getpref(g, 'DiagramView')) == "detail", 'back on "Every parameter": the detail chart, with Layout on again');
 app.applyConfig(loaded);
 app.selectTab(app.TabProject);
 g2 = app.gatherConfig();
@@ -1223,6 +1212,9 @@ sub = findobj(cm.Children, 'flat', 'Text', 'Parameter columns');
 check(isscalar(sub) && isequal(flip(string({sub.Children.Text})), ["computerTimestamp" "isTest" "ToneLevel"]) ...
     && ~any(logical([sub.Children.Checked])) && isscalar(findobj(cm.Children, 'flat', 'Text', 'Reset column order')), ...
     'the table menu lists the session parameters (not TrialIndex) alphabetically, ignoring case, unticked');
+item = findobj(cm.Children, 'flat', '-regexp', 'Text', '^Clear sort');
+check(isscalar(item) && item.Enable == "off" && item.Separator == "off" && isequal(cm.Children(1), item), ...
+    'the menu ends with Clear sort, beside Reset column order, off while the table keeps no sort');
 for p = ["ToneLevel" "isTest"]
     item = findobj(sub, 'Text', p);
     item.MenuSelectedFcn(item, []);
@@ -1265,8 +1257,8 @@ TT = app.TrialsTable.Data;
 check(TT.Param_Pos == "1 2" && TT.Param_Note == "abc" && isnan(TT.Param_Maybe), ...
     'multi-column and cell parameters are shown as text, empty numbers as NaN');
 app.savePreferences();
-check(isequal(string(getpref(g, 'TrialsParamColumns')), ["Pos" "Note" "Maybe"]) ...
-    && isequal(string(getpref(g, 'TrialsColumnOrder')), app.TrialsColumnOrder), 'the columns and their order are preferences');
+check(isequal(string(AppPrefs.getpref(g, 'TrialsParamColumns')), ["Pos" "Note" "Maybe"]) ...
+    && isequal(string(AppPrefs.getpref(g, 'TrialsColumnOrder')), app.TrialsColumnOrder), 'the columns and their order are preferences');
 app.TrialsTable.DisplayColumnOrder = [2 1 3:width(TT)];
 app.onTrialsTableMenu(cm, struct('InteractionInformation', struct('Column', [])));
 item = findobj(cm.Children, 'flat', 'Text', 'Reset column order');
@@ -1348,7 +1340,7 @@ hLab = findall(app.TrialsAxes, "Tag", "trialLabels");
 check(isscalar(item) && logical(item.Checked) && string(hLab.String) == "60", ...
     'a label parameter the session lacks is listed, not written');
 app.savePreferences();
-check(isequal(string(getpref(g, 'TrialsLabelParams')), ["ToneLevel" "Response"]), 'the label parameters are a preference');
+check(isequal(string(AppPrefs.getpref(g, 'TrialsLabelParams')), ["ToneLevel" "Response"]), 'the label parameters are a preference');
 item = findobj(app.TrialsLabelsMenu, 'Text', 'No labels');
 item.MenuSelectedFcn(item, []);
 check(isempty(app.TrialsLabelParams) && isempty(findall(app.TrialsAxes, "Tag", "trialLabels")) && app.TrialsAxes.YLim(2) == 1.6, ...
@@ -1534,6 +1526,10 @@ app.runPipeline(Steps="spikes");
 R = app.RunResultsTable.Data;
 spikesFile = fullfile(outRoot, 'recA_260101_120000', 'recA_260101_120000_spikes.mat');
 check(istable(R) && any(R.Step == "spikes" & R.Status == "done") && isfile(spikesFile), 'the Spikes step ran and wrote its file');
+scriptFile = EphysPipeline.scriptFileFor(app.Config.Project.Root, app.Config.Name);
+check(app.SaveScriptCheckBox.Value && app.Config.Project.SaveScript && isfile(scriptFile) ...
+    && contains(string(fileread(scriptFile)), "% That run ran spikes only;"), ...
+    'the run saved the pipeline script in the project root (Save the pipeline script on each run, on by default)');
 M = load(spikesFile);
 check(~isempty(M.detected) && ~isfield(M, 'units') && M.detected.detection.options.Threshold == 1500, ...
     'the file reflects the edited threshold and holds the detections only');
@@ -1551,16 +1547,33 @@ app.syncReviewDataset();
 R = app.ReviewData;
 C = app.ReviewUnitsTable.Data;
 check(~isempty(R) && isequal(string(app.ReviewUnitsTable.ColumnName(:)).', ...
-    ["Unit" "Group" "Shank" "Ch" "X(um)" "Y(um)" "#Spk" "FR(Hz)" "Amp" "Cont%" "Notes"]) ...
-    && size(C, 2) == 11 && isequal(logical(app.ReviewUnitsTable.ColumnEditable), [false(1, 10) true]) ...
+    ["Unit" "Group" "Shank" "Ch" "X(um)" "Y(um)" "#Spk" "FR(Hz)" "Amp" "Cont%" "QC" "ISIv" "Pres" "Cutoff" "SNR" "Notes"]) ...
+    && size(C, 2) == 16 && isequal(logical(app.ReviewUnitsTable.ColumnEditable), [false(1, 15) true]) ...
     && R.unitLabel(R.clusterID == 0) == "su000_recA_260101T1200" ...
     && any(contains(string(app.ReviewSummaryLabel.Text), "<class><id>_recA_260101T1200")), ...
     'the active dataset''s sort shows unit labels, location columns and an editable Notes column');
 row = find(cellfun(@(v) isequal(v, 1), C(:, 1)), 1);
-app.onReviewNoteEdited(struct('Indices', [row 11], 'NewData', 'two cells?', 'PreviousData', ''));
+app.onReviewNoteEdited(struct('Indices', [row 16], 'NewData', 'two cells?', 'PreviousData', ''));
 [ids, notes] = EphysDataset.readUnitNotes(phyDir);
 check(isequal(ids, 1) && notes == "two cells?" && app.ReviewData.notes(app.ReviewData.clusterID == 1) == "two cells?" ...
-    && string(app.ReviewUnitsTable.Data{row, 11}) == "two cells?", 'editing a Notes cell saves cluster_notes.tsv');
+    && string(app.ReviewUnitsTable.Data{row, 16}) == "two cells?", 'editing a Notes cell saves cluster_notes.tsv');
+check(isfield(app.ReviewData.units, 'presenceRatio') && app.ReviewData.qc.has ...
+    && all(ismember(string(app.ReviewUnitsTable.Data(:, 11)), ["yes" "no"])) ...
+    && isfile(fullfile(phyDir, 'quality_metrics.json')), ...
+    'the Review tab computes the units'' quality metrics (cached in the sort folder) and judges them in the QC column');
+qcBefore = string(app.ReviewUnitsTable.Data(:, 11));
+app.ReviewCriteriaFields.firingRateMin.Value = '1e9';
+app.onReviewCriteriaChanged();
+check(all(string(app.ReviewUnitsTable.Data(:, 11)) == "no") && app.Config.Sorting.Quality.firingRateMin == 1e9, ...
+    'a stricter criterion goes into Sorting.Quality and fails every unit at once');
+app.ReviewCriteriaFields.firingRateMin.Value = '';
+app.onReviewCriteriaChanged();
+check(isequal(string(app.ReviewUnitsTable.Data(:, 11)), qcBefore) && isnan(app.Config.Sorting.Quality.firingRateMin), ...
+    'blank: the criterion is not applied again');
+app.onReviewQCReport();
+check(isfile(fullfile(phyDir, 'quality_report.html')) ...
+    && contains(fileread(fullfile(phyDir, 'quality_report.html')), "Meet the criteria"), ...
+    'QC report writes quality_report.html next to the sort');
 app.syncReviewDataset();
 check(app.ReviewData.notes(app.ReviewData.clusterID == 1) == "two cells?", 'the note is read back on reload');
 settingsFile = fullfile(phyDir, 'settings.json');
@@ -1648,6 +1661,46 @@ check(startsWith(string(ax.Subtitle.String), "Template: the sorted .bin is not t
     && contains(string(app.StatusBar.Text), "its template is shown"), ...
     'without the sorted .bin the unit''s template is drawn instead, and the status bar says why');
 
+fprintf('\n== 4a2. Review tab: the units table keeps its sort ==\n');
+app.syncReviewDataset();
+app.TableSorts.Review = struct('column', "#Spk", 'direction', "ascend");   % as a click on #Spk leaves it
+app.showReviewUnits();
+C = app.ReviewUnitsTable.Data;
+check(isequal(cell2mat(C(:, 1)), [2; 1; 0]) && isequal(cell2mat(C(:, 7)), [1; 2; 3]), ...
+    'the units are shown in the remembered sort');
+app.onReviewUnitSelected(struct('Indices', [3 1]));
+check(app.ReviewData.clusterID(app.ReviewSelectedUnit) == 0, 'a row click reaches its unit through the cluster id');
+app.onReviewNoteEdited(struct('Indices', [2 16], 'NewData', 'sorted', 'PreviousData', 'two cells?'));
+[ids, notes] = EphysDataset.readUnitNotes(phyDir);
+C = app.ReviewUnitsTable.Data;
+check(isequal(ids, 1) && notes == "sorted" && isequal(cell2mat(C(:, 1)), [2; 1; 0]) && string(C{2, 16}) == "sorted" ...
+    && isequal(app.ReviewUnitsTable.Selection, 3), ...
+    'a note typed in the sorted table goes to its unit; the sort and the selected unit''s row stay');
+app.onReviewNoteEdited(struct('Indices', [2 16], 'NewData', 'two cells?', 'PreviousData', 'sorted'));
+app.syncReviewDataset();
+check(isequal(cell2mat(app.ReviewUnitsTable.Data(:, 1)), [2; 1; 0]) ...
+    && app.ReviewData.notes(app.ReviewData.clusterID == 1) == "two cells?", 'the sort holds when the sort is loaded again');
+app.onTableSorted("Review", struct('Interaction', 'edit', 'InteractionColumn', 16));
+check(isequal(app.tableSort("Review"), struct('column', "#Spk", 'direction', "ascend")), 'an edit is not a sort');
+drawnow;
+app.onTableSorted("Review", struct('Interaction', 'sort', 'InteractionColumn', 1));   % the Unit header, showing 2, 1, 0
+p = AppPrefs.getpref(g, 'TableSorts');
+check(isequal(app.tableSort("Review"), struct('column', "Unit", 'direction', "descend")) ...
+    && string(p.Review.column) == "Unit" && string(p.Review.direction) == "descend", ...
+    'a header click is remembered with the order it shows, and saved as a preference at once');
+cm = app.ReviewUnitsTable.ContextMenu;
+app.onTableSortMenu(cm, "Review");
+item = cm.Children(1);
+check(isscalar(cm.Children) && string(item.Text) == "Clear sort (Unit, descending)" && item.Enable == "on", ...
+    'right-click offers to clear the sort, naming it');
+item.MenuSelectedFcn(item, []);
+p = AppPrefs.getpref(g, 'TableSorts');
+check(~TableSort.isSorted(app.tableSort("Review")) && ~isfield(p, 'Review') ...
+    && isequal(cell2mat(app.ReviewUnitsTable.Data(:, 1)), [0; 1; 2]), 'Clear sort: cluster order again, and the preference goes');
+app.onTableSortMenu(cm, "Review");
+check(string(cm.Children(1).Text) == "Clear sort" && cm.Children(1).Enable == "off", 'with no sort the item is off');
+app.onReviewAllUnits();
+
 fprintf('\n== 4b. Run tab: the run diagram ==\n');
 check(app.RunDiagramPanel.Visible == "off" && isequal(app.RunSplitGrid.ColumnWidth, {'1x', 0}) ...
     && contains(string(app.RunDiagramHTML.HTMLSource), "function setup(htmlComponent)"), ...
@@ -1697,7 +1750,7 @@ app.RunSignalsCheckBox.Value = false;
 app.RunSignalsCheckBox.ValueChangedFcn(app.RunSignalsCheckBox, []);
 check(app.RunDiagramHTML.Data.steps(5).label == "off", 'unticking a step takes it out of the preview');
 app.savePreferences();
-check(isequal(getpref(g, 'ShowRunDiagram'), true), 'the switch is saved as a preference');
+check(isequal(AppPrefs.getpref(g, 'ShowRunDiagram'), true), 'the switch is saved as a preference');
 app.RunDiagramCheckBox.Value = false;
 app.onRunDiagramToggled();
 check(app.RunDiagramPanel.Visible == "off" && isequal(app.RunSplitGrid.ColumnWidth, {'1x', 0}), ...
@@ -1737,7 +1790,7 @@ tx = string({app.RunMonitorTexts.Text});
 check(startsWith(string(app.RunMonitorNote.Text), "Sampled every") && endsWith(tx(1), "%") ...
     && endsWith(tx(2), " GB"), sprintf('live samples arrive within %.0f s', toc(t0)));
 app.savePreferences();
-check(isequal(getpref(g, 'MonitorResources'), true), 'the switch is saved as a preference');
+check(isequal(AppPrefs.getpref(g, 'MonitorResources'), true), 'the switch is saved as a preference');
 app.RunMonitorCheckBox.Value = false;
 app.onResourceMonitorToggled();
 t0 = tic;
@@ -1812,6 +1865,20 @@ app.onCleanupSelect("all");
 app.onCleanupSelect("none");
 check(~any(app.CleanupPlan.Include) && app.CleanupRunButton.Enable == "off", 'None visible unticks what is shown');
 app.onCleanupSelect("all");
+app.TableSorts.Cleanup = struct('column', "File", 'direction', "descend");   % as a click on File leaves it
+app.refreshCleanupTable();
+D = app.CleanupTable.Data;
+tempFile = string(fullfile(ksOut, 'temp_wh.dat'));
+L = lower(string(D(:, 7)));
+check(isequal(L, sort(L, 'descend')) && isequal(string(D(:, 7)), app.CleanupPlan.File(app.CleanupRowMap)), ...
+    'a remembered sort orders the preview, and each row still maps to its own file in the plan');
+r = find(string(D(:, 7)) == tempFile);
+app.onCleanupFileTicked(struct('Indices', [r 1], 'NewData', false));
+check(~app.CleanupPlan.Include(app.CleanupPlan.File == tempFile) && nnz(app.CleanupPlan.Include) == nnz(P.Action == "remove") - 1, ...
+    'a tick in the sorted table reaches its own file and no other');
+app.onCleanupSelect("all");
+app.clearTableSort("Cleanup");
+check(isequal(app.CleanupRowMap, (1:height(app.CleanupPlan)).'), 'Clear sort: the plan''s order again');
 app.CleanupSorterCopyCheckBox.Value = false;
 app.onCleanupSettingsChanged();
 check(isempty(app.CleanupPlan) && app.CleanupRunButton.Enable == "off" && contains(app.CleanupSummaryLabel.Text, "Preview again"), ...
@@ -1848,7 +1915,7 @@ check(height(R) == nnz(P.Action == "remove") && all(R.Status == "removed") && is
     && isfile(fullfile(f1, app.Project.Datasets(1).Name + "_cleanup.json")), ...
     'Move files moves them to <folder>\<dataset key>\..., removes the emptied kilosort4 folder, keeps a record and previews again');
 app.savePreferences();
-v = getpref(g, 'CleanupOptions');
+v = AppPrefs.getpref(g, 'CleanupOptions');
 check(isequal(string(v.steps), "sorting") && string(v.method) == "move" && string(v.destination) == string(moveDest), ...
     'the ticked steps, the method and the folder are saved as preferences');
 app.CleanupStepCheckBoxes(1).Value = false;
@@ -2036,7 +2103,7 @@ app.onNewConfig();
 check(app.Config.Name == "Untitled" && app.Config.File == "" && ~app.SpkEnableCheckBox.Value, 'New config resets to defaults');
 ok = app.openConfigFile(cfgFile);
 check(ok && app.Config.Spikes.Threshold == 1500 && any(app.RecentConfigs == string(cfgFile)), 'reopen + recent list');
-check(ispref(g, 'LastConfigFile') && strcmp(getpref(g, 'LastConfigFile'), cfgFile), 'the last config file is remembered');
+check(AppPrefs.ispref(g, 'LastConfigFile') && strcmp(AppPrefs.getpref(g, 'LastConfigFile'), cfgFile), 'the last config file is remembered');
 
 % the Artifacts tab's viewer options come back in a new window
 app.ArtViewContextField.Value = 40;
@@ -2045,6 +2112,7 @@ app.ArtViewShankColorCheckBox.Value = false;
 app.ArtViewShadeButton.Value = false;
 app.ArtViewScaleDropDown.Value = 'manual';
 app.ArtViewLanesField.Value = 150;
+app.TableSorts.Trials = struct('column', "Onset", 'direction', "descend");
 app.savePreferences();
 app2 = EphysPreprocessingApp;
 app2Cleanup = onCleanup(@() delete(app2.Fig));
@@ -2055,7 +2123,10 @@ check(app2.ArtViewContextField.Value == 40 && app2.ArtViewChannelsField.Value ==
 check(app2.ArtThresholdField.Value == app.ArtThresholdField.Value ...
     && strcmp(app2.ArtMethodDropDown.Value, app.ArtMethodDropDown.Value), ...
     'the detection settings come back with the config');
+check(isequal(app2.tableSort("Trials"), struct('column', "Onset", 'direction', "descend")), ...
+    'a table''s sort is recalled by a new window');
 clear app2Cleanup
+app.clearTableSort("Trials");
 app.ArtViewContextField.Value = 0; app.ArtViewChannelsField.Value = 8; app.ArtViewShankColorCheckBox.Value = true;
 app.ArtViewShadeButton.Value = true; app.ArtViewScaleDropDown.Value = 'artifact'; app.ArtViewLanesField.Value = 0;
 
@@ -2104,6 +2175,19 @@ T = app.DatasetsTable.Data;
 check(app.Project.NumDatasets == 2 && isequal(T.Select(T.Name == "recM003_260103_120000"), true) && nnz(T.Select) == 1 ...
     && app.Config.Project.Selection == "list" && isequal(app.Config.Project.Datasets, "recM003_260103_120000"), ...
     'Scan loads the config''s datasets and ticks its selection (not "all")');
+app.TableSorts.Datasets = struct('column', "Name", 'direction', "descend");   % as a click on Name leaves it
+app.refreshDatasetsTable();
+active = app.SelectedDatasetIdx;
+app.onDatasetCellSelection(struct('Indices', [2 2]));
+T = app.DatasetsTable.Data;
+S = app.DatasetsTable.StyleConfigurations;
+check(isequal(T.Name, ["recM003_260103_120000"; "recM002_260102_120000"]) ...
+    && app.Project.Datasets(app.SelectedDatasetIdx).Name == "recM002_260102_120000" ...
+    && height(S) == 1 && isequal(S.TargetIndex{1}, 2) ...
+    && isequal(app.Project.Datasets(app.tickedDatasetIndices()).Name, "recM003_260103_120000"), ...
+    'the Project table keeps its sort on a refresh; a row click, the highlight and the ticks follow their datasets');
+app.clearTableSort("Datasets");
+if active >= 1; app.selectDataset(active); end
 app.RootPathField.Value = char(proj);   % edited, not scanned
 app.onConfigChanged();
 id = "";
@@ -2453,16 +2537,7 @@ end
 end
 
 
-function restorePrefsAndRoot(g, savedPrefs, root)
-try
-    if ispref(g); rmpref(g); end
-    if isstruct(savedPrefs)
-        for f = string(fieldnames(savedPrefs)).'
-            setpref(g, char(f), savedPrefs.(f));
-        end
-    end
-catch
-end
+function removeRoot(root)
 if isfolder(root); rmdir(root, 's'); end
 end
 

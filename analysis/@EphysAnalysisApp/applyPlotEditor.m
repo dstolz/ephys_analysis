@@ -27,6 +27,17 @@ for c = string(fieldnames(E.classes)).'
 end
 E.ids.Value = listText(p.units.ids);
 E.maxUnits.Value = char(string(p.units.maxUnits));
+E.quality.Value = logical(p.units.quality.enabled);
+rs = p.units.response;
+E.response.Value = logical(rs.enabled);
+E.respTest.Value = char(pickFrom(rs.test, string(E.respTest.ItemsData), "evoked"));
+offerItems(E.respDirection, ["any" "excited" "suppressed"], rs.direction);
+E.respBaseFrom.Value = rs.baseline(1);
+E.respBaseTo.Value = rs.baseline(2);
+E.respFrom.Value = rs.window(1);
+E.respTo.Value = rs.window(2);
+E.respCorrection.Value = char(pickFrom(rs.correction, string(E.respCorrection.ItemsData), "bh"));
+E.respAlpha.Value = min(1, max(eps, rs.alpha));
 if ismember(p.source, EphysAnalysisConfig.SignalSources)
     E.channels.Value = listText(p.channels);
 else
@@ -57,6 +68,7 @@ if ~isempty(obj.Runner) && obj.ActiveIdx >= 1
 end
 offerItems(E.param, ["" params], p.param);
 offerItems(E.seriesParam, ["" params], p.seriesParam);
+offerItems(E.respParam, ["" params], rs.param);
 E.value.Value = char(p.value);
 offerItems(E.order, ch.Orders, p.order);
 offerItems(E.metric, ["mean" "peak"], p.metric);

@@ -247,7 +247,7 @@ classdef EphysAnalysisScript
                         L(end+1, 1) = "R = evokedPotential(Y, fs, E, Window=" + w + ", Baseline=" + b + ", Groups=G, Meta=meta, Units=meta.units(1));";
                     else
                         raster = spec.kind == "raster" || (spec.kind == "psth" && spec.withRaster);
-                        L(end+1, 1) = "[st, meta] = selectUnits(src, spec.units);";
+                        L(end+1, 1) = "[st, meta] = selectUnits(src, spec.units, Ref=spec.ref, Selection=spec.selection);";
                         L(end+1, 1) = "R = spikePSTH(st, E, Window=" + w + ", BinSec=" + lit(spec.bins.BinSec) + ...
                             ", SmoothSec=" + lit(spec.bins.SmoothSec) + ", Measure=" + lit(spec.measure) + ", ...";
                         L(end+1, 1) = "    Baseline=" + b + ", BaselineMode=" + lit(spec.baseline.Mode) + ", MaskAfterStop=" + lit(spec.maskAfterStop) + ", Raster=" + lit(raster) + ", Groups=G, Meta=meta);";
@@ -258,13 +258,13 @@ classdef EphysAnalysisScript
                     L(end+1, 1) = "R = evokedPotential(Y, fs, E, Window=" + w + ", Baseline=" + b + ", Groups=G, Meta=meta, Units=meta.units(1));";
                 case "rate"
                     L(end+1, 1) = epochs;
-                    L(end+1, 1) = "[st, meta] = selectUnits(src, spec.units);";
+                    L(end+1, 1) = "[st, meta] = selectUnits(src, spec.units, Ref=spec.ref, Selection=spec.selection);";
                     L(end+1, 1) = "R = firingRate(st, E, Measure=" + lit(spec.measure) + ", Baseline=" + b + ", Normalize=" + lit(spec.baseline.Mode) + ", Groups=G, Meta=meta);";
                 case "tuning"
                     cols = [spec.param spec.seriesParam];
                     cols = cols(cols ~= "");
                     L(end+1, 1) = "[E, G] = epochTable(src, spec.ref, Window=spec.window, Selection=spec.selection, Baseline=" + b + ", Columns=" + lit(cols) + ");";
-                    L(end+1, 1) = "[st, meta] = selectUnits(src, spec.units);";
+                    L(end+1, 1) = "[st, meta] = selectUnits(src, spec.units, Ref=spec.ref, Selection=spec.selection);";
                     L(end+1, 1) = "F = firingRate(st, E, Measure=" + lit(spec.measure) + ", Baseline=" + b + ", Normalize=" + lit(spec.baseline.Mode) + ", Groups=G, Meta=meta);";
                     series = "[]";
                     if spec.seriesParam ~= ""; series = "E.(" + lit(spec.seriesParam) + ")"; end
@@ -272,12 +272,12 @@ classdef EphysAnalysisScript
                         ", SeriesParam=" + lit(spec.seriesParam) + ", Meta=meta, Units=F.units);";
                 case "corrmap"
                     L(end+1, 1) = epochs;
-                    L(end+1, 1) = "[st, meta] = selectUnits(src, spec.units);";
+                    L(end+1, 1) = "[st, meta] = selectUnits(src, spec.units, Ref=spec.ref, Selection=spec.selection);";
                     L(end+1, 1) = "R = unitCorrelation(st, E, Metric=" + lit(spec.metric) + ", Type=" + lit(spec.correlation) + ...
                         ", BinSec=" + lit(spec.bins.BinSec) + ", SmoothSec=" + lit(spec.bins.SmoothSec) + ", ...";
                     L(end+1, 1) = "    Baseline=" + b + ", BaselineMode=" + lit(spec.baseline.Mode) + ", Groups=G, Meta=meta);";
                 case "probemap"
-                    L(end+1, 1) = "T = unitSummary(src, Source=" + lit(spec.source) + ", Units=spec.units);";
+                    L(end+1, 1) = "T = unitSummary(src, Source=" + lit(spec.source) + ", Units=spec.units, Ref=spec.ref, Selection=spec.selection);";
                     L(end+1, 1) = "R = probeMapValues(T, src.probe, Value=" + lit(spec.value) + ");";
                     L(end+1, 1) = "E = [];";
             end

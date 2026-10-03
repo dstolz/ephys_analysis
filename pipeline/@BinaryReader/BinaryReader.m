@@ -93,6 +93,10 @@ classdef BinaryReader < EphysReader
                     obj.AcqDate = datetime(string(d.acq_date), 'InputFormat', 'yyyy-MM-dd HH:mm:ss');
                 catch
                     obj.AcqDate = NaT;
+                    warning('BinaryReader:BadAcqDate', ...
+                        ['%s: acq_date "%s" is not yyyy-MM-dd HH:mm:ss; the data file''s modified time ' ...
+                         'is used as the recording start instead.'], ...
+                        fullfile(obj.Folder, BinaryReader.DescriptorName), string(d.acq_date));
                 end
             end
             if isnat(obj.AcqDate)
@@ -188,6 +192,20 @@ classdef BinaryReader < EphysReader
 
         function tf = supportsRandomAccess(obj) %#ok<MANU>
             tf = true;
+        end
+
+        function S = storageFormat(obj)
+            %storageFormat  recording.json's dtype, offset and gain_to_uV.
+            S = storageFormat@EphysReader(obj);
+            d = obj.Descriptor;
+            if ~isfield(d, 'dtype'); return; end
+            gain = 1; off = 0;
+            if isfield(d, 'gain_to_uV'); gain = double(d.gain_to_uV); end
+            if isfield(d, 'offset'); off = double(d.offset); end
+            if ~isscalar(gain) || ~isscalar(off); return; end
+            S.gainUV(:) = gain;
+            S.class = string(BinaryReader.precisionFor(string(d.dtype)));
+            S.offset = off;
         end
 
         function X = readWindowUV(obj, sampleOffset, nSamp)

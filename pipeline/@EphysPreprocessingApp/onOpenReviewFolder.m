@@ -5,5 +5,5 @@ function onOpenReviewFolder(obj)
         uialert(obj.Fig, "Select a valid results folder first.", "Review");
         return
     end
-    if ispc; winopen(f); else; system(sprintf('open "%s" &', f)); end
+    openInSystem(f);
 end

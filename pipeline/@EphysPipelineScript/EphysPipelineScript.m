@@ -19,6 +19,8 @@ classdef EphysPipelineScript
     %                                 runner's cache of artifact detections and
     %                                 its plan checks are left out.
     %   Both return the script text; pass File= to write it (write()).
+    %   standalone(cfg, Note=) adds comment lines to its header (a pipeline
+    %   run's saved script names the run there; EphysPipeline.writeScript).
     %
     %   The literal(value) helper renders strings, string lists, numbers
     %   (including Inf / NaN / []), logicals and structs so that
@@ -87,11 +89,15 @@ classdef EphysPipelineScript
             arguments
                 cfg (1,1) EphysPipelineConfig
                 opts.File (1,1) string = ""
+                opts.Note (1,:) string = string.empty(1,0)   % comment lines after the "Generated" line
             end
             lit = @EphysPipelineScript.literal;
             L = strings(0, 1);
             L(end+1, 1) = "%% Preprocessing pipeline: " + cfg.Name + " (standalone)";
             L(end+1, 1) = "% Generated " + string(datetime('now', 'Format', 'yyyy-MM-dd HH:mm')) + " by EphysPipelineScript.standalone.";
+            for n = opts.Note
+                L(end+1, 1) = "% " + n; %#ok<AGROW>
+            end
             L(end+1, 1) = "% Every setting is written out below; the script calls EphysProject / EphysDataset";
             L(end+1, 1) = "% directly and needs no config file. The config it came from, for reference:";
             for jl = splitlines(string(jsonencode(cfg.toStruct(), 'PrettyPrint', true))).'
@@ -363,10 +369,16 @@ classdef EphysPipelineScript
             hasKCSD = any(E.Formats == "kcsd");
             withUnits = E.IncludeUnits && any(E.Formats ~= "kcsd");
             withDetected = E.IncludeDetected && any(E.Formats ~= "kcsd");
+            hasNWB = any(E.Formats == "nwb");
             L(end+1, 1) = "formats = " + lit(E.Formats) + ";";
-            if hasKCSD
-                L(end+1, 1) = "exts = repmat("".mat"", size(formats));";
-                L(end+1, 1) = "exts(formats == ""kcsd"") = "".npz"";   % kCSD-python reads a NumPy archive";
+            if hasKCSD || hasNWB
+                L(end+1, 1) = "tails = ""_"" + formats + "".mat"";";
+                if hasKCSD
+                    L(end+1, 1) = "tails(formats == ""kcsd"") = ""_kcsd.npz"";   % kCSD-python reads a NumPy archive";
+                end
+                if hasNWB
+                    L(end+1, 1) = "tails(formats == ""nwb"") = "".nwb"";         % <Name>.nwb";
+                end
             end
             L(end+1, 1) = "for k = idx";
             L(end+1, 1) = "    d = P.Datasets(k);";
@@ -375,8 +387,8 @@ classdef EphysPipelineScript
             if withUnits && ~hasKCSD
                 L(end+1, 1) = "    if d.sortingMissing(); fprintf(2, '%s: the sorted-output folder %s is not there, skipped\n', d.Name, d.SortingDir); continue; end";
             end
-            if hasKCSD
-                L(end+1, 1) = "    outFiles = fullfile(" + EphysPipelineScript.outDirExpr(E.OutputDir) + ", d.Name + ""_"" + formats + exts);";
+            if hasKCSD || hasNWB
+                L(end+1, 1) = "    outFiles = fullfile(" + EphysPipelineScript.outDirExpr(E.OutputDir) + ", d.Name + tails);";
             else
                 L(end+1, 1) = "    outFiles = fullfile(" + EphysPipelineScript.outDirExpr(E.OutputDir) + ", d.Name + ""_"" + formats + "".mat"");";
             end
@@ -395,7 +407,19 @@ classdef EphysPipelineScript
             L(end+1, 1) = "        end";
             if withUnits
                 L(end+1, 1) = "        units = false;";
-                L(end+1, 1) = "        if d.hasKilosortResults(); units = d.readSortedUnits(Groups=" + lit(E.Groups) + "); end";
+                if E.UnitQuality
+                    L(end+1, 1) = "        if d.hasKilosortResults()";
+                    L(end+1, 1) = "            [units, uinfo] = d.readSortedUnits(Groups=" + lit(E.Groups) + ");";
+                    L(end+1, 1) = "            try   % the quality metrics (Export.UnitQuality), as an exporter adds them";
+                    L(end+1, 1) = "                units = d.unitQuality(units, uinfo);";
+                    L(end+1, 1) = "                units.quality = rmfield(units.quality, 'cache');";
+                    L(end+1, 1) = "            catch ME";
+                    L(end+1, 1) = "                warning('EphysPipeline:runExport:NoUnitQuality', '%s: no quality metrics (%s); the units are exported without them.', d.Name, ME.message);";
+                    L(end+1, 1) = "            end";
+                    L(end+1, 1) = "        end";
+                else
+                    L(end+1, 1) = "        if d.hasKilosortResults(); units = d.readSortedUnits(Groups=" + lit(E.Groups) + "); end";
+                end
             end
             if withDetected
                 L(end+1, 1) = "        detected = false;";
@@ -450,6 +474,15 @@ classdef EphysPipelineScript
             if hasKCSD
                 L(end+1, 1) = "            end";
             end
+            if hasNWB
+                L(end+1, 1) = "            if fmt == ""nwb""   % the probe in effect, the Sorting step's Python when Export.NWB has none, the behavior file's trials";
+                L(end+1, 1) = "                o.ProbeFile = d.ProbeFile;";
+                L(end+1, 1) = "                if o.ProbeFile == """"; o.ProbeFile = defaultProbe; end";
+                L(end+1, 1) = "                if o.PythonExe == """"; o.PythonExe = " + lit(cfg.Sorting.PythonExe) + "; o.CondaEnv = " + lit(cfg.Sorting.CondaEnv) + "; end";
+                L(end+1, 1) = "                o.Behavior = fullfile(d.outputFolder(), d.Name + ""_behavior.mat"");";
+                L(end+1, 1) = "                if ~isfile(o.Behavior); o.Behavior = """"; end";
+                L(end+1, 1) = "            end";
+            end
             L(end+1, 1) = "            args = namedargs2cell(o);";
             L(end+1, 1) = "            switch fmt";
             L(end+1, 1) = "                case ""chronux""";
@@ -460,6 +493,8 @@ classdef EphysPipelineScript
             L(end+1, 1) = "                    r = d.exportEpochs('File', outFiles(j), 'Extract', S, args{:});";
             L(end+1, 1) = "                case ""kcsd""";
             L(end+1, 1) = "                    r = d.exportKCSD('File', outFiles(j), 'Extract', S, args{:});";
+            L(end+1, 1) = "                case ""nwb""";
+            L(end+1, 1) = "                    r = d.exportNWB('File', outFiles(j), 'Extract', S, args{:});";
             L(end+1, 1) = "                otherwise";
             L(end+1, 1) = "                    error('Unknown export format ""%s"".', fmt);";
             L(end+1, 1) = "            end";

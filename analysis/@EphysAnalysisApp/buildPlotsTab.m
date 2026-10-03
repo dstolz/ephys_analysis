@@ -84,6 +84,40 @@ end
 E.ids = uieditfield(S.Body, "text", "Placeholder", "all", "ValueChangedFcn", changed, ...
     "Tooltip", "Unit ids (sorted units) or channels (detections), e.g. 3 5 8:12.");
 place(E.ids, r, 2);
+[S, r] = formRow(S, "quality", "Quality:");
+E.quality = uicheckbox(S.Body, "Text", "Good units only", "Value", false, "ValueChangedFcn", changed, ...
+    "Tooltip", "Keep only the sorted units that meet the good-unit criteria (units.quality in the config: by default ISI violations ratio < 0.5, presence ratio > 0.9, amplitude cutoff < 0.1). The metrics are computed once per sort and cached in its folder.");
+place(E.quality, r, 2);
+[S, r] = formRow(S, ["response" "respTest" "respDirection"], "Response:");
+rg = subgrid(S.Body, r, {'fit', '1x', '1x'});
+E.response = uicheckbox(rg, "Text", "Responsive only", "Value", false, "ValueChangedFcn", changed, ...
+    "Tooltip", "Keep only the units that respond to the event (responseStats; Statistics and Machine Learning " + ...
+    "Toolbox): signrank of the response vs the baseline window's rate over the epochs of the plot's event " + ...
+    "and trials, and/or kruskalwallis of the response across a trial parameter's levels; p adjusted over the units.");
+E.respTest = uidropdown(rg, "Items", ["vs baseline" "tuned" "either" "both"], "ItemsData", ["evoked" "tuning" "either" "both"], ...
+    "ValueChangedFcn", changed, "Tooltip", "vs baseline: the response window's rate differs from the baseline's " + ...
+    "(signrank). tuned: it differs across the parameter's levels (kruskalwallis). either / both of them.");
+E.respDirection = uidropdown(rg, "Items", ["any" "excited" "suppressed"], "ValueChangedFcn", changed, ...
+    "Tooltip", "vs baseline: keep the units whose rate rises (excited), falls (suppressed), or either.");
+[S, r] = formRow(S, ["respBaseFrom" "respBaseTo" "respFrom" "respTo"], "Test windows (s):");
+wg = subgrid(S.Body, r, {'1x', 'fit', '1x', 'fit', '1x', 'fit', '1x'});
+E.respBaseFrom = uieditfield(wg, "numeric", "Value", -0.2, "ValueChangedFcn", changed, "Tooltip", "The test's baseline window start (s from the event).");
+uilabel(wg, "Text", "to");
+E.respBaseTo = uieditfield(wg, "numeric", "Value", 0, "ValueChangedFcn", changed, "Tooltip", "The test's baseline window end (s).");
+uilabel(wg, "Text", "response");
+E.respFrom = uieditfield(wg, "numeric", "Value", 0, "ValueChangedFcn", changed, "Tooltip", "The response window start (s from the event).");
+uilabel(wg, "Text", "to");
+E.respTo = uieditfield(wg, "numeric", "Value", 0.2, "ValueChangedFcn", changed, "Tooltip", "The response window end (s).");
+[S, r] = formRow(S, ["respParam" "respCorrection" "respAlpha"], "Test options:");
+og = subgrid(S.Body, r, {'1x', 'fit', '1x', 'fit', '1x'});
+E.respParam = uidropdown(og, "Editable", "on", "Items", "", "ValueChangedFcn", changed, ...
+    "Tooltip", "The trial parameter of the tuning test.");
+uilabel(og, "Text", "correction:");
+E.respCorrection = uidropdown(og, "Items", ["BH (FDR)" "Holm" "Bonferroni" "none"], "ItemsData", ["bh" "holm" "bonferroni" "none"], ...
+    "ValueChangedFcn", changed, "Tooltip", "How the p values are adjusted for the number of units tested (pAdjust).");
+uilabel(og, "Text", "alpha:");
+E.respAlpha = uieditfield(og, "numeric", "Value", 0.05, "Limits", [0 1], "LowerLimitInclusive", "off", ...
+    "ValueChangedFcn", changed, "Tooltip", "A unit passes when its adjusted p is at most alpha.");
 [S, r] = formRow(S, "maxUnits", "Max units:");
 E.maxUnits = uieditfield(S.Body, "text", "Value", "Inf", "ValueChangedFcn", changed);
 place(E.maxUnits, r, 2);

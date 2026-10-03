@@ -6,10 +6,11 @@ so that each update repeats the last one instead of rebuilding it.
 | File | What it does |
 | --- | --- |
 | `gen_api.py` | Generates the reference part of every `API-*` page from the `.m` sources. It needs no MATLAB. |
+| `gen_pages.py`, `pages.json` | Generates the prose pages from `documentation/`, the one source: `pages.json` says which page is made from which file or sections. It needs no MATLAB, and `test_gen_pages.py` tests it. |
 | `check_links.py` | Checks every page's links, anchors and images before a push. |
 | `wikiScreenshots.m` | Takes the preprocessing app's screenshots headlessly over a synthetic project, and runs it. |
 | `wikiToolScreenshots.m` | Takes the other windows' screenshots (probe designer, channel mapper, manifest viewer, analysis app) over that project. |
-| `restoreAppPrefs.m` | Puts the apps' preferences back if a screenshot run had to be killed. |
+| `restoreAppPrefs.m` | Puts back preferences from a backup an older version of the screenshot scripts left behind. The scripts now use a temporary preference store (`AppPrefs`), so a killed run leaves your preferences as they were. |
 
 ## Updating the wiki
 
@@ -51,12 +52,37 @@ git clone https://github.com/dstolz/ephys_analysis.wiki.git C:\temp\wiki
    `--gen <folder>` also writes each generated section to
    `<folder>/api-<Name>.md`. `--no-splice` generates without touching the wiki.
 
-3. **Edit the prose pages by hand.** Mirror the change in `documentation/`
-   and treat the code as authoritative. Pages to check for background-run
-   changes, for example: Run-and-Flow-Tabs, Sorting-Tab, File-Formats,
-   Output-Files, Pipeline-Configs, Python-Drivers,
-   Running-Pipelines-from-Scripts, Working-with-Datasets, Architecture,
-   Testing and Troubleshooting-and-FAQ.
+3. **Generate the prose pages from `documentation/`:**
+
+   ```bat
+   python tools\wiki\gen_pages.py --src C:\temp\src --wiki C:\temp\wiki
+   ```
+
+   `documentation/` is the one source. Edit it, never a generated page,
+   because the next run replaces that page whole. Each page in `pages.json`
+   is made from a file, or from some of its `## ` sections (the app's tabs
+   from `EphysPreprocessingApp.md`). The file's title is dropped, and the
+   headings go up a level when sections are taken. Links to other docs
+   point at the page made from them (or from the section that holds the
+   anchor), and links to anything else point at the file on GitHub. A new
+   page needs a line in `_Sidebar.md`.
+
+   A page's `status` in `pages.json` says whether it is generated yet:
+
+   - `generated`: written whole, every update.
+   - `candidate`: the wiki version still says things `documentation/` does
+     not. It is generated only for comparison:
+     `gen_pages.py --wiki C:\temp\wiki --report` prints how many lines each
+     page differs by, and `--out <folder>` writes them all for a diff.
+     Merge what the wiki page has into `documentation/`, keep the headings
+     other pages link to (`check_links.py` lists any link that breaks),
+     then set it to `generated`. Until then, edit that wiki page by hand
+     as before. `--include-candidates` writes them all.
+
+   Pages not in `pages.json` stay hand-written in the wiki: Home,
+   Quick-Start, Output-Files, Troubleshooting-and-FAQ, the scripting guide,
+   Architecture, Extending-the-Pipeline, Testing, the sidebar and the
+   footer. Check them for the change too.
 
 4. **Retake the screenshots the change affects**, with MATLAB R2025a. First
    the preprocessing app, which also writes and runs the synthetic project:
@@ -103,15 +129,14 @@ git clone https://github.com/dstolz/ephys_analysis.wiki.git C:\temp\wiki
 
 ## Things that bite
 
-- **Preferences.** Both scripts and the apps' test suites back up and
-  restore the same preferences (`EphysPreprocessingApp`, and for
-  `wikiToolScreenshots` also `EphysAnalysisApp` and `ChannelMapperApp`), so
-  never run two app-driving MATLABs at once. Check first:
-  `Get-CimInstance Win32_Process -Filter "Name='MATLAB.exe'"`.
+- **Preferences.** The scripts and the apps' test suites keep the apps'
+  preferences in a temporary file of their own (`AppPrefs.useTemporary`),
+  so they never read or change yours, and two of them can run at once.
+  `Source=` must be a commit that has `AppPrefs`.
 - **`exportapp` can hang, or capture a stale frame on a busy machine.** Two
   things reduce it: the script stops the resource monitor's timer before the
   results shot, and it waits for rendering (`Wait=`). If a run hangs, kill
-  MATLAB and run `restoreAppPrefs('<out folder>\prefs_backup.mat')`.
+  MATLAB; your preferences are as they were.
 - **`-batch` strips double quotes.** Use single-quoted MATLAB strings and a
   cell array for `Shots`.
 - **GitHub wiki markdown.**

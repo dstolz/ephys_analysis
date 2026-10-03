@@ -150,6 +150,14 @@ end
 
 % --- Sorting ---------------------------------------------------------------------
 S = obj.Sorting;
+if ~ismember(S.Quality.unknown, ["pass" "fail"])
+    add("sorting", "Quality", "error", "Quality.unknown must be ""pass"" or ""fail"".");
+end
+for f = ["isiViolationsRatioMax" "presenceRatioMin" "amplitudeCutoffMax" "snrMin" "driftPtpMax" "firingRateMin"]
+    if S.Quality.(f) < 0
+        add("sorting", "Quality", "error", "Quality." + f + " must be NaN (not applied) or at least 0.");
+    end
+end
 if S.Enabled
     if S.PythonExe == ""
         add("sorting", "PythonExe", "error", "PythonExe is required to run Kilosort4.");
@@ -224,6 +232,9 @@ if K.Enabled
     if ~(K.WindowMs(1) < K.WindowMs(2))
         add("spikes", "WindowMs", "error", "WindowMs must be [before after] with before < after.");
     end
+    if ~ismember(K.ThresholdScope, ["chunk" "recording"])
+        add("spikes", "ThresholdScope", "error", "ThresholdScope must be chunk or recording.");
+    end
     if ~ismember(K.ArtifactMode, ["reject" "erase" "none"])
         add("spikes", "ArtifactMode", "error", "ArtifactMode must be reject, erase or none.");
     end
@@ -264,6 +275,41 @@ if E.Enabled
             add("export", "Signals", "error", "The kCSD export writes the LFP, but Export.Signals leaves it out.");
         elseif G.Enabled && ~G.LFP
             add("export", "Formats", "warning", "The Signals step derives no LFP; the kCSD export needs an existing LFP extract.");
+        end
+    end
+    if any(E.Formats == "nwb")
+        N = E.NWB;
+        py = N.PythonExe;
+        if py == ""; py = obj.Sorting.PythonExe; end
+        if py == ""
+            add("export", "NWB.PythonExe", "error", ...
+                "The NWB export runs Python (pynwb, nwbinspector): set Export.NWB.PythonExe or the Sorting step's PythonExe.");
+        end
+        if N.Sex ~= "" && ~ismember(N.Sex, ["F" "M" "U" "O"])
+            add("export", "NWB.Sex", "error", "NWB.Sex is F, M, U (unknown) or O (other).");
+        end
+        if N.Age ~= "" && isempty(regexp(N.Age, '^P(\d+Y)?(\d+M)?(\d+W)?(\d+D)?(T(\d+H)?(\d+M)?(\d+(\.\d+)?S)?)?(/.*)?$', 'once'))
+            add("export", "NWB.Age", "error", "NWB.Age is an ISO 8601 duration, e.g. P90D (90 days) or P12W.");
+        end
+        if N.TimeZone ~= ""
+            try
+                datetime('now', 'TimeZone', N.TimeZone);
+            catch
+                add("export", "NWB.TimeZone", "error", "Unknown time zone """ + N.TimeZone + """ (an IANA name, e.g. America/New_York).");
+            end
+        end
+        if N.SessionStartTime ~= ""
+            try
+                datetime(N.SessionStartTime, 'InputFormat', 'yyyy-MM-dd HH:mm:ss');
+            catch
+                add("export", "NWB.SessionStartTime", "error", "NWB.SessionStartTime is ""yyyy-MM-dd HH:mm:ss"".");
+            end
+        end
+        unset = ["Species" "Sex" "Age"];
+        unset = unset(arrayfun(@(f) N.(f) == "", unset));
+        if ~isempty(unset)
+            add("export", "NWB", "warning", "NWB." + strjoin(unset, ", NWB.") + ...
+                " not set: nwbinspector reports a subject without them (nothing is made up for them).");
         end
     end
     if any(E.Formats == "epochs")

@@ -1,2 +1,25 @@
+# Python
 __pycache__/
 *.pyc
+
+# MATLAB editor backups and autosaves
+*.asv
+*.m~
+*.autosave
+*.mlx.autosave
+
+# MATLAB build and cache folders
+slprj/
+codegen/
+*.mex*.pdb
+
+# Test runner output (run_all_tests: JUnit XML and coverage reports)
+test-results/
+
+# Claude Code keeps whole checkouts here; they would shadow the real code
+.claude/worktrees/
+
+# Operating-system files
+.DS_Store
+Thumbs.db
+desktop.ini

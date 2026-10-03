@@ -9,8 +9,10 @@ function refreshTrialsTable(obj)
 %   Every column sorts and can be dragged to a new place. As in the Project
 %   table, the order on screen is baked into the table variables here, so it
 %   survives rebuilds that change the column set; TrialsColumnOrder remembers
-%   it (a preference, see trialsColumnOrder). A sort is not kept: setting the
-%   data shows the rows in trial order again.
+%   it (a preference, see trialsColumnOrder). A header click's sort is kept
+%   the same way: the rows are put in its order here (tableSort "Trials"),
+%   for every dataset and the next session, and the flag colours follow
+%   their rows. Without one the rows are in trial order.
 
 tbl = obj.TrialsTable;
 P = obj.TrialsPairing;
@@ -58,14 +60,16 @@ T.Properties.VariableNames = cellstr(vars);
 % order so it is not applied twice.
 obj.TrialsColumnOrder = obj.trialsColumnOrder();   % with a drag since the last refresh
 perm = orderColumns(vars, obj.TrialsColumnOrder);
-tbl.Data = T(:, perm);
+[T, ord] = TableSort.apply(T(:, perm), obj.tableSort("Trials"));   % row i is trial ord(i)
+tbl.Data = T;
 tbl.ColumnName = labels(perm);
 tbl.ColumnWidth = widths(perm);
 tbl.DisplayColumnOrder = [];
 obj.TrialsColumnOrder = obj.trialsColumnOrder(vars(perm));
 
+flag = P.flag(ord);
 for f = ["cut" "partial" "unpaired"]
-    k = find(P.flag == f);
+    k = find(flag == f);
     if isempty(k); continue; end
     switch f
         case "cut";      s = uistyle("BackgroundColor", [0.9 0.9 0.9], "FontColor", [0.45 0.45 0.45]);

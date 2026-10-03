@@ -103,7 +103,7 @@ colours, and the kept trials with their group and number of epochs.
 
   | Section | Rows |
   | --- | --- |
-  | Units & channels (*Channels* for a signal) | unit classes (sorted units), ids, max units, shanks, channels |
+  | Units & channels (*Channels* for a signal) | unit classes (sorted units), **Good units only** (sorted units: `units.quality.enabled`, the units that meet the config's good-unit criteria, [UnitSelection](EphysAnalysisConfig.md#unitselection)); **Responsive only** with the test (vs baseline, tuned, either, both) and direction, the test windows (baseline and response, s from the event) and the test options (tuning parameter, correction, alpha), for spike sources (`units.response`; the settings are enabled while the box is ticked; [response statistics](EphysAnalysis.md#response-statistics)); ids, max units, shanks, channels |
   | Event reference, Epoch window, Trial selection | the Alignment tab's controls, for this plot |
   | Bins & baseline (*Baseline* without bins) | bin and smoothing (ms), mask after the stop event, baseline mode and window |
   | *Kind* options | PSTH: raster above, bar or line, normalization (none, unit peak, group peak), **Filled** and its opacity (blank = automatic), **Stack groups** and its spacing (a row per group, labelled by value on the left and by peak rate on the right); tuning: parameter and series; probe map: value; heatmap: row order; unit correlation: row order, epoch rate (mean or peak) and correlation (Pearson or Spearman) |
@@ -164,7 +164,9 @@ or starting a new config asks to save them.
 
 ## Preferences
 
-Group `EphysAnalysisApp` (`getpref`); everything else is in the config.
+Group `EphysAnalysisApp`, kept through [`AppPrefs`](../pipeline/AppPrefs.m): MATLAB preferences, or the file
+named by the environment variable `EPHYS_APP_PREFS_FILE` (the tests' temporary store). Everything else
+is in the config.
 
 | Preference | Meaning |
 | --- | --- |

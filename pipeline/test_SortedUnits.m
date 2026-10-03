@@ -38,6 +38,7 @@ nPass = 0; nFail = 0;
         else
             nFail = nFail + 1;
             fprintf(2, '  FAIL: %s\n', msg);
+            LegacySuiteTest.checkFailed(msg);   % one failure per check in run_all_tests' report
         end
     end
     function id = errorId(fn)
@@ -199,7 +200,7 @@ ds.ProbeFile = probe;
 ds.PythonExe = "C:\no\python.exe";
 res = ds.runKilosort(Launch=false);
 st = readJsonFile(res.settingsPath);
-check(strcmp(res.runDir, res.resultsDir) && endsWith(string(res.resultsDir), "kilosort4") && st.bin_scale == ds.Scale, ...
+check(strcmp(res.runDir, res.resultsDir) && endsWith(string(res.resultsDir), "kilosort4") && st.bin_scale == ds.binScale(), ...
     'a run writes its files into the results folder; settings.json records the .bin''s scale (bin_scale)');
 writeText(res.settingsPath, [fileread(res.settingsPath) newline]);            % mark the existing run's files
 writeText(res.scriptPath, [fileread(res.scriptPath) '# existing run' newline]);
@@ -213,7 +214,7 @@ check(strcmp(dry.runDir, fullfile(res.resultsDir, 'dryrun')) && startsWith(strin
 check(isequal(before, {fileread(res.settingsPath), fileread(res.scriptPath)}), ...
     'the existing run''s settings.json and run_ks4.py are untouched');
 check(strcmp(sd.results_dir, strrep(res.resultsDir, '\', '/')) && strcmp(sd.probe, strrep(dry.probeFile, '\', '/')) ...
-    && sd.bin_scale == ds.Scale && contains(dry.command, dry.settingsPath), ...
+    && sd.bin_scale == ds.binScale() && contains(dry.command, dry.settingsPath), ...
     'its settings.json names the results folder as the real run''s would, and the derived probe');
 check(strcmp(errorId(@() ds.launchSorting(dry)), 'EphysDataset:launchSorting:DryRun'), 'a dry run cannot be launched');
 binX = fullfile(root, 'other.bin');

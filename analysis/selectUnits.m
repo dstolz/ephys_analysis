@@ -1,4 +1,4 @@
-function [st, meta] = selectUnits(src, usel)
+function [st, meta] = selectUnits(src, usel, opts)
 %selectUnits  Spike trains of the chosen sorted units or detection channels.
 %   [ST, META] = selectUnits(SRC, USEL) loads spike times for the dataset SRC
 %   (loadAnalysisSource) through SRC.outputs (cached when it has CacheData)
@@ -27,15 +27,50 @@ function [st, meta] = selectUnits(src, usel)
 %     channels  1-based recording channels kept ([] = all)
 %     shanks    shanks kept ([] = all): the probe map's kcoords values
 %     maxUnits  at most this many, in order
+%     quality   good-unit criteria (unitQualityCriteria's fields) and
+%               enabled: with enabled, the sorted units get their quality
+%               metrics (EphysDataset.unitQuality with the dataset, else
+%               unitQualityOf on the recording's length, without SNR; the
+%               sort folder's cache when current), only those that meet the
+%               criteria are kept (unitQualityPass), and META gains
+%               firingRate, isiViolationsRatio, presenceRatio,
+%               amplitudeCutoff, snr, driftPtp, qualityPass, qualityFails
+%               and qualityUnknown
+%     response  responsiveness (responseStats) and enabled: with enabled,
+%               the units the selections above leave are tested over the
+%               events of the Ref option in the trials its Selection keeps.
+%               The epochs come from responseEpochs: one fixed window that
+%               holds both test windows, so epochs whose window leaves the
+%               recording or touches an artifact period are dropped. Only
+%               the units that pass are kept. META gains baselineRate,
+%               responseRate, pEvoked, qEvoked, direction and responsive
+%               and, with a param, nLevels, pTuning, qTuning, tuned,
+%               bestLevel and bestRate. maxUnits applies after it. Fields:
+%                 test        "evoked" (responsive), "tuning" (tuned),
+%                             "either", "both"
+%                 baseline, window   [from to], s from the event
+%                 param       the trial parameter of the tuning test
+%                 direction   evoked: "any" | "excited" | "suppressed"
+%                 correction  pAdjust's method over the units tested
+%                 alpha       a unit passes when its adjusted p is at
+%                             most alpha
+%               It needs the Statistics and Machine Learning Toolbox.
 %
-%   Errors: selectUnits:NoUnits, selectUnits:NoDetected, selectUnits:NoneLeft,
-%   selectUnits:BadSource.
+%   Options (the response test's events; unused without it)
+%     Ref        eventRef: the events tested ([] = eventRef's defaults)
+%     Selection  trialSelection: the trials tested ([] = the defaults)
+%   EphysAnalysisRunner passes the plot's own.
 %
-%   See also loadAnalysisSource, psth, firingRate, unitSummary.
+%   Errors: selectUnits:NoUnits, selectUnits:NoDetected, selectUnits:NoneLeft, selectUnits:NoQuality,
+%   selectUnits:BadSource, selectUnits:BadResponse, and responseStats' and epochTable's.
+%
+%   See also loadAnalysisSource, psth, firingRate, unitSummary, responseStats, responseEpochs.
 
 arguments
     src (1,1) struct
     usel = []
+    opts.Ref = []
+    opts.Selection = []
 end
 
 if isempty(usel); usel = struct(); end
@@ -49,7 +84,12 @@ switch usel.source
         if ~src.hasUnits
             error('selectUnits:NoUnits', '%s has no sorted units (no sorting folder).', src.name);
         end
-        U = out.load("sorting");
+        q = usel.quality;
+        if q.enabled
+            U = withQuality(src, q);
+        else
+            U = out.load("sorting");
+        end
         nU = numel(U.unitId);
         meta = table(col(U, 'label', strings(nU, 1)), double(U.unitId(:)), col(U, 'class', strings(nU, 1)), ...
             double(col(U, 'channel', NaN(nU, 1))), col(U, 'channelName', strings(nU, 1)), ...
@@ -68,6 +108,16 @@ switch usel.source
         if ~isempty(usel.classes); keep = keep & ismember(meta.class, usel.classes); end
         if ~isempty(usel.groups);  keep = keep & ismember(groups, usel.groups); end
         if ~isempty(usel.ids);     keep = keep & ismember(meta.unitId, usel.ids); end
+        if q.enabled
+            [pass, why, unknown] = unitQualityPass(U, rmfield(q, 'enabled'));
+            for m = ["firingRate" "isiViolationsRatio" "presenceRatio" "amplitudeCutoff" "snr" "driftPtp"]
+                meta.(m) = double(U.(m)(:));
+            end
+            meta.qualityPass = pass;
+            meta.qualityFails = why;
+            meta.qualityUnknown = unknown;
+            keep = keep & pass;
+        end
     case "detected"
         if ~src.hasDetected
             error('selectUnits:NoDetected', '%s has no threshold detections (no spikes file with detected spikes).', src.name);
@@ -94,6 +144,24 @@ switch usel.source
 end
 if ~isempty(usel.channels); keep = keep & ismember(meta.channel, usel.channels); end
 if ~isempty(usel.shanks);   keep = keep & ismember(meta.shank, usel.shanks); end
+if usel.response.enabled && any(keep)
+    idx0 = find(keep);
+    [pass, R] = responsive(src, st(idx0), meta(idx0, :), usel.response, opts);
+    for c = setdiff(string(R.Properties.VariableNames), ["unit" "label" "nEpochs"], 'stable')
+        v = R.(c);
+        if isstring(v)
+            all0 = strings(height(meta), 1);
+            all0(:) = missing;
+        elseif islogical(v)
+            all0 = false(height(meta), 1);
+        else
+            all0 = NaN(height(meta), 1);
+        end
+        all0(idx0) = v;
+        meta.(c) = all0;
+    end
+    keep(idx0) = pass;
+end
 idx = find(keep);
 if isfinite(usel.maxUnits) && numel(idx) > usel.maxUnits
     idx = idx(1:usel.maxUnits);
@@ -108,6 +176,58 @@ if isempty(idx)
 end
 st = st(idx);
 meta = meta(idx, :);
+end
+
+
+function U = withQuality(src, q)
+%withQuality  The sorted units with their quality metrics.
+%   With the dataset (its recording at hand), EphysDataset.unitQuality: the
+%   sort's length and, when an SNR threshold is set, the recording's noise.
+%   Without it, EphysDataset.unitQualityOf on the recording's length as
+%   SRC knows it (fs x durationSec), and no SNR. Both use the sort
+%   folder's quality_metrics.json when it is current.
+out = src.outputs;
+[U, info] = out.readUnits();
+if ~isempty(out.Dataset)
+    U = out.Dataset.unitQuality(U, info, Noise=isfinite(q.snrMin));
+    return
+end
+n = round(src.fs * src.durationSec);
+if ~(n > 0)
+    error('selectUnits:NoQuality', ...
+        '%s: the quality metrics need the recording''s length, and it is not known here.', src.name);
+end
+U = EphysDataset.unitQualityOf(U, info, NumSamples=n, NumSamplesSource="the dataset's metadata (fs x durationSec)");
+end
+
+
+function [pass, R] = responsive(src, st, meta, r, opts)
+%responsive  responseStats over responseEpochs (one fixed window holding both test windows); which units pass.
+if ~ismember(r.test, ["evoked" "tuning" "either" "both"])
+    error('selectUnits:BadResponse', 'response.test is evoked, tuning, either or both (got "%s").', r.test);
+end
+if ~ismember(r.direction, ["any" "excited" "suppressed"])
+    error('selectUnits:BadResponse', 'response.direction is any, excited or suppressed (got "%s").', r.direction);
+end
+if r.test ~= "evoked" && r.param == ""
+    error('selectUnits:BadResponse', 'response.test "%s" needs response.param, the trial parameter of the tuning test.', r.test);
+end
+if ~(numel(r.baseline) == 2 && numel(r.window) == 2 && r.baseline(2) > r.baseline(1) && r.window(2) > r.window(1))
+    error('selectUnits:BadResponse', 'response.baseline and response.window must each be [from to] with from < to.');
+end
+E = responseEpochs(src, opts.Ref, opts.Selection, Baseline=r.baseline, Window=r.window, Param=r.param);
+R = responseStats(st, E, Baseline=r.baseline, Window=r.window, Param=r.param, ...
+    Correction=r.correction, Alpha=r.alpha, Meta=meta);
+evoked = R.responsive;
+if r.direction ~= "any"
+    evoked = evoked & R.direction == r.direction;
+end
+switch r.test
+    case "evoked", pass = evoked;
+    case "tuning", pass = R.tuned;
+    case "either", pass = evoked | R.tuned;
+    case "both",   pass = evoked & R.tuned;
+end
 end
 
 

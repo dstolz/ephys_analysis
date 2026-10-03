@@ -9,7 +9,9 @@ classdef EphysPipelineConfig
     %   Sections (one struct property each; see defaults(section))
     %     Project    Root, OutputRoot, Selection "all"|"list", Datasets (keys),
     %                NamePattern (dataset-name tokens, see parseNameTokens),
-    %                TokenColumns (tokens shown as dataset-table columns)
+    %                TokenColumns (tokens shown as dataset-table columns),
+    %                SaveScript (each run saves its standalone script in
+    %                Root, see EphysPipeline.writeScript)
     %     Acquisition  reader options: OpenEphys.Recordings ("concatenate" |
     %                "separate" | "single"), OpenEphys.RecordNode,
     %                OpenEphys.Stream (see OpenEphysReader); TDT.Stream,
@@ -32,7 +34,9 @@ classdef EphysPipelineConfig
     %                (torch devices such as "cuda:0" "cuda:1" shared out
     %                among the runs; none = Kilosort4's choice), DryRun,
     %                SkipExisting, KS4 (typed per kilosortParamSpec),
-    %                KS4ExtraJSON
+    %                KS4ExtraJSON, Quality (good-unit criteria on the quality
+    %                metrics, unitQualityCriteria: the Review tab, the QC
+    %                report)
     %     Signals    Enabled + the derived-signal (toMat) settings,
     %                BlankArtifacts (erase the artifact periods before
     %                deriving, and record them in every file; the automatic
@@ -47,9 +51,11 @@ classdef EphysPipelineConfig
     %     Spikes     Enabled, threshold-detection settings, output settings
     %                (sorted units stay in the sorting folder)
     %     Export     Enabled, Formats (a subset of ExportFormats: the
-    %                analysis-toolbox files, kCSD-python's .npz and the
-    %                event-organized epochs), what to include, the Epoch*
-    %                settings of the epoch format
+    %                analysis-toolbox files, kCSD-python's .npz, the
+    %                event-organized epochs and NWB 2), what to include
+    %                (UnitQuality: the units carry their quality metrics),
+    %                the Epoch* settings of the epoch format, NWB (the NWB
+    %                file's metadata and the Python that writes it)
     %
     %   Usage
     %     cfg = EphysPipelineConfig();                 % defaults
@@ -100,7 +106,7 @@ classdef EphysPipelineConfig
         % toolbox (kcsd: the LFP and probe positions for kCSD-python, a
         % .npz), plus "epochs", the same data organized by event. Each has
         % an EphysDataset.export<Format> method.
-        ExportFormats = ["chronux" "fieldtrip" "epochs" "kcsd"]
+        ExportFormats = ["chronux" "fieldtrip" "epochs" "kcsd" "nwb"]
         % Kilosort4 parameters that depend on the probe layout: what
         % ks4ProbeDefaults derives and what a probe's parameter file holds
         % when it is created from the Sorting tab.
@@ -343,7 +349,8 @@ classdef EphysPipelineConfig
         function d = detectOptions(sp, par)
             %detectOptions  The Spikes section as spikesToMat DetectOptions.
             %   NaN-valued "auto" settings (Threshold, MaxChunkSamples,
-            %   EdgePadMs) are left out so detectSpikes uses its own defaults.
+            %   EdgePadMs) are left out so detectSpikes uses its own defaults,
+            %   and so is ThresholdScope "chunk" (its default).
             %   With a Parallel section as the second argument its options
             %   (parallelOptions: UseParallel, MaxWorkers) are added.
             sp = EphysPipelineConfig.normalizeSection("Spikes", sp);
@@ -354,6 +361,7 @@ classdef EphysPipelineConfig
                 'Waveforms', sp.Waveforms, 'WindowMs', sp.WindowMs, ...
                 'WaveformSource', sp.WaveformSource, 'EdgeHandling', sp.EdgeHandling);
             if isfinite(sp.Threshold);       d.Threshold       = sp.Threshold;       end
+            if sp.ThresholdScope ~= "chunk"; d.ThresholdScope  = sp.ThresholdScope;  end
             if isfinite(sp.MaxChunkSamples); d.MaxChunkSamples = sp.MaxChunkSamples; end
             if isfinite(sp.EdgePadMs);       d.EdgePadMs       = sp.EdgePadMs;       end
             if nargin > 1
@@ -399,9 +407,28 @@ classdef EphysPipelineConfig
                 o = struct('Events', logical(e.IncludeEvents), 'Overwrite', logical(e.Overwrite));
                 return
             end
+            if nargin > 1 && string(fmt) == "nwb"
+                % the caller adds ProbeFile and, when Export.NWB leaves them "",
+                % the Sorting step's PythonExe / CondaEnv
+                n = e.NWB;
+                o = struct();
+                if ~isempty(e.Signals); o.Signals = e.Signals; end
+                if e.IncludeUnits; o.Units = []; else; o.Units = false; end
+                o.UnitQuality = logical(e.UnitQuality);
+                o.Events = logical(e.IncludeEvents);
+                o.Groups = e.Groups;
+                o.Overwrite = logical(e.Overwrite);
+                o.Trials = logical(n.Trials);
+                o.Inspect = logical(n.Inspect);
+                o.PythonExe = n.PythonExe;
+                o.CondaEnv = n.CondaEnv;
+                o.Metadata = rmfield(n, ["Trials" "Inspect" "PythonExe" "CondaEnv"]);
+                return
+            end
             o = struct();
             if ~isempty(e.Signals); o.Signals = e.Signals; end
             if e.IncludeUnits;    o.Units = [];    else; o.Units = false;    end
+            o.UnitQuality = logical(e.UnitQuality);
             o.Detected = logical(e.IncludeDetected);
             o.Events   = logical(e.IncludeEvents);
             o.Groups     = e.Groups;

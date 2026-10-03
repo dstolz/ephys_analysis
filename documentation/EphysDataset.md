@@ -1079,6 +1079,11 @@ counts both passes (`2 x nChunks` calls, the first `nChunks` named `noise
 level: <chunk>`). `ThresholdMethod="absolute"` is one fixed threshold in
 microvolts with either scope.
 
+How well detection finds spikes, and how often it reports noise or the same
+spike twice, is measured against synthetic ground truth by
+[`benchmarkDetection`](../pipeline/benchmarkDetection.m)
+([Detection benchmark](README.md#detection-benchmark)).
+
 | Option (whole-recording mode only) | Default | Meaning |
 | --- | --- | --- |
 | `Files` | all | subset/order of `*.rhd` files (traditional format only); timestamps stay relative to the first sample read |

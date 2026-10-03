@@ -51,6 +51,11 @@ says how to cut a release.
   `Spikes.ThresholdScope` in the config (default `"chunk"`, the behaviour so
   far) and **Noise measured over** on the Spikes tab; the spikes file records
   the scope (`detected.info.thresholdScope`). Suite `test_ThresholdScope`.
+- `benchmarkDetection`: spike and artifact detection scored against synthetic
+  ground truth (per-unit recall with its SNR; per-channel precision, duplicate
+  and noise-crossing rates; artifact recall, coverage, edge errors and false
+  intervals), with a JSON report. Suite `test_DetectionBenchmark` (tag
+  `Benchmark`) holds the default settings to regression floors.
 - `Project.SaveScript` (on by default; Project tab, **Save the pipeline script
   on each run**): each pipeline run saves the config's standalone script as
   `<Root>/pipeline_<name>.m` before its first step, replacing the one the

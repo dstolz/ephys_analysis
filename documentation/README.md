@@ -461,3 +461,37 @@ suite's temporary preferences, so close it before the run ends.
 | `test_EphysAnalysisConfig` (analysis/) | the analysis config: JSON round trips, `plotFor`, validation |
 | `test_EphysAnalysisRunner` (analysis/) | plan, run, exports, HTML / PDF reports, cancel, compact vs standalone script equivalence |
 | `test_EphysAnalysisApp` (analysis/) | the analysis GUI, headless |
+| `test_PipelineScriptSave` | each run saves the config's standalone script in the project root (`Project.SaveScript`), names the run in it, replaces only a script a run saved, none when off or for a dry run |
+| `test_ThresholdScope` | recording-wide detection thresholds: the whole recording's MAD / std / rms / percentile, independent of the chunk size, applied by detection; flat and out-of-range channels; progress over both passes; the spikes file and the config |
+| `test_DetectionBenchmark` | (tag `Benchmark`) spike and artifact detection scored against synthetic truth with `benchmarkDetection`: recall, precision, duplicates and noise crossings, artifact recall, coverage and edges, against regression floors ([below](#detection-benchmark)) |
+
+### Detection benchmark
+
+[`benchmarkDetection`](../pipeline/benchmarkDetection.m) writes synthetic
+recordings whose truth is known (each unit's spike rows and its template on
+every site, each artifact period), runs `detectSpikes` over the whole
+recording and the automatic artifact detector (`analyzeArtifacts`), and
+scores them. Spikes are scored per unit on its peak channel (recall within
+0.5 ms) and per channel (each detection matched to a spike of a unit visible
+there, a duplicate within 3 ms of one, or an isolated noise crossing), with
+the true artifact periods erased first so the two detectors are scored apart;
+artifacts per true period (found, coverage, edge errors) and per detected
+interval (false ones). `R.summary` holds the headline numbers;
+`ReportFile=` writes everything, with the code version, as JSON.
+
+```matlab
+R = benchmarkDetection(Seeds=1:3);                         % default design and settings
+R = benchmarkDetection(DetectOptions=struct('ThresholdScope', "recording"));
+disp(R.units); disp(R.summary)
+```
+
+`test_DetectionBenchmark` holds the defaults to regression floors. A model of
+the same signal and detectors in Python (MATLAB could not be run where the
+floors were set) gave, over six seeds: recall >= 0.985 for units at SNR >= 6,
+0.82-0.88 at SNR 4.3; precision ~0.82; isolated noise crossings <= 0.56 Hz per
+channel; both artifacts found whole, edges within 0.5 ms, no false ones. It
+also gave about 0.5 duplicate detections per spike on the channels of the 140
+and 200 uV units: the band-passed waveform's later lobe crosses the threshold
+again more than `MinPeriodMs` (1 ms) after the trough. The test caps that
+rather than accepting it; raise the floors to the measured values once the
+suite has run in MATLAB.

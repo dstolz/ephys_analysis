@@ -77,7 +77,10 @@ arguments
     opts.Class (1,1) string = "double"
     opts.MinDurationSec (1,1) double = 0
     opts.MaxDurationSec (1,1) double = Inf
+    opts.Provenance = []   % ephysProvenance() of the run writing it ([] = made here)
 end
+prov = opts.Provenance;
+if isempty(prov); prov = ephysProvenance(); end
 
 t0 = tic;
 file = opts.File;
@@ -97,6 +100,7 @@ S = struct();
 S.epochs = epochs;
 S.export = epochs.meta;
 S.export.tool = "EphysDataset.exportEpochs";
+S.export.provenance = prov;
 
 EphysDataset.saveAtomically(file, S, opts.MatVersion);
 

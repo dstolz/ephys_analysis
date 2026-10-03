@@ -74,7 +74,10 @@ arguments
     opts.Events (1,1) logical = true
     opts.Overwrite (1,1) logical = false
     opts.MatVersion (1,1) string {mustBeMember(opts.MatVersion, ["-v7.3", "-v7"])} = "-v7.3"
+    opts.Provenance = []   % ephysProvenance() of the run writing it ([] = made here)
 end
+prov = opts.Provenance;
+if isempty(prov); prov = ephysProvenance(); end
 
 t0 = tic;
 file = opts.File;
@@ -125,6 +128,7 @@ S.export = struct( ...
         'events', "t = row/eventFs (1-based row of the recording); row round((t - 1/eventFs)*Fs) + 1 of a signal at Fs", ...
         'spikes', "seconds on the recording clock", ...
         'artifacts', "[tStart tEnd) s on the continuous clock; rows EphysDataset.intervalRows(intervals, Fs, nRows) of a signal at Fs"));
+S.export.provenance = prov;
 
 EphysDataset.saveAtomically(file, S, opts.MatVersion);
 

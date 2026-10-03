@@ -8,7 +8,9 @@ function T = run(obj, opts)
 %   to Report.Folder / Report.FileName -- one report over all datasets, or
 %   one per dataset with Report.PerDataset. The written files are in
 %   r.ReportFiles. cancel() stops before the next plot; the rest are
-%   "cancelled".
+%   "cancelled". Every run that reaches a dataset ends by writing a run
+%   record (config, code version, machine, Results) to
+%   <report folder>/analysis_runs (r.RunRecordFile).
 %
 %   Options
 %     Datasets  indices, keys or names (default all)
@@ -29,6 +31,8 @@ end
 
 cfg = obj.Config;
 obj.CancelRequested = false;
+obj.RunRecordFile = "";
+started = datetime('now');
 doExport = cfg.Export.Enabled;
 if ~isempty(opts.Export); doExport = logical(opts.Export); end
 doReport = cfg.Report.Enabled;
@@ -83,11 +87,57 @@ end
 if doReport && ~perDataset && ~cancelled && ~isempty(idx)
     obj.ReportFiles = writeReports(obj, idx(1));
 end
+if ~isempty(idx)
+    outcome = "finished";
+    if cancelled; outcome = "cancelled"; end
+    obj.RunRecordFile = writeRunRecord(obj, idx, ids, started, outcome);
+end
 try
     obj.progress(1, "Done");
 catch
 end
 T = obj.Results;
+end
+
+
+function file = writeRunRecord(obj, idx, ids, started, outcome)
+%writeRunRecord  What this run did and with what: <report folder>/analysis_runs/<runId>_<name>.json.
+%   Schema ephys-analysis-run/1: the run id, outcome, start, end, the
+%   datasets and plots, the report files, the Results rows, the code and
+%   machine (ephysProvenance) and the config. The report folder is
+%   Report.Folder resolved for the first dataset, whether or not a report
+%   was written. A record that cannot be written is a warning, never an
+%   error.
+file = "";
+try
+    cfg = obj.Config;
+    folder = figureFileName(cfg.Report.Folder, struct('OutputFolder', obj.datasetFolder(idx(1)), ...
+        'OutputRoot', obj.outputRoot(), 'Root', cfg.Source.Root, 'Name', obj.Names(idx(1))), Kind="folder");
+    prov = ephysProvenance(RunId=string(started, "yyyyMMdd'T'HHmmssSSS"));
+    name = regexprep(char(cfg.Name), '[^\w\-]', '_');
+    if isempty(name); name = 'analysis'; end
+    file = string(fullfile(folder, "analysis_runs", prov.runId + "_" + name + ".json"));
+    finished = datetime('now');
+    rec = struct();
+    rec.schema = "ephys-analysis-run/1";
+    rec.runId = prov.runId;
+    rec.name = cfg.Name;
+    rec.outcome = string(outcome);
+    rec.started = string(started, "yyyy-MM-dd'T'HH:mm:ss");
+    rec.finished = string(finished, "yyyy-MM-dd'T'HH:mm:ss");
+    rec.seconds = seconds(finished - started);
+    rec.datasets = cellstr(obj.Names(idx));
+    rec.plots = cellstr(ids);
+    rec.reportFiles = cellstr(obj.ReportFiles);
+    rec.results = num2cell(table2struct(obj.Results)).';
+    rec.provenance = rmfield(prov, 'config');
+    rec.config = cfg.toStruct();
+    writeJsonFile(file, rec, NonFinite="string");
+    obj.log("Run record: %s", file);
+catch ME
+    warning('EphysAnalysisRunner:RunRecord', 'The run record could not be written (%s): %s', file, ME.message);
+    file = "";
+end
 end
 
 

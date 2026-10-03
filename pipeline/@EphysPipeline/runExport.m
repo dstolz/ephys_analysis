@@ -72,6 +72,7 @@ for k = 1:n
             obj.progress("export", d.Name, k, n, j - 1, nFmt, fmt + ": exporting");
             o.Extract  = in.Extract;
             o.Sources  = in.Sources;
+            o.Provenance = obj.provenance();
             if fmt == "kcsd"
                 o.ProbeFile = obj.probeFor(d);   % its own, a rule's or the default probe
             else

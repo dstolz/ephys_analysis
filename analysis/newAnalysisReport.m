@@ -5,6 +5,8 @@ function report = newAnalysisReport(opts)
 %   writeHtmlReport / writePdfReport write:
 %     title     the report's title
 %     created   when it was started
+%     provenance  ephysProvenance(): the code version, MATLAB and machine,
+%               printed under the title
 %     config    the config as a plain struct (EphysAnalysisConfig.toStruct),
 %               printed at the end when Options.IncludeConfig
 %     options   the Report section (Format, EmbedFormat, Dpi, Include*)
@@ -24,6 +26,7 @@ end
 report = struct();
 report.title = opts.Title;
 report.created = string(datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss'));
+report.provenance = ephysProvenance();   % the code, MATLAB and machine that made it
 report.config = opts.Config;
 report.options = EphysAnalysisConfig.normalizeSection("Report", opts.Options);
 report.export = EphysAnalysisConfig.normalizeSection("Export", opts.Export);

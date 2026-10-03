@@ -116,7 +116,10 @@ arguments
     opts.WriteMeta (1,1) logical = true
     opts.BinFile (1,1) string = ""
     opts.ArtifactIntervals double = NaN
+    opts.Provenance = []   % ephysProvenance() of the run writing it ([] = made here)
 end
+prov = opts.Provenance;
+if isempty(prov); prov = ephysProvenance(); end
 
 if obj.NumFiles == 0
     obj.discoverFiles();
@@ -452,6 +455,7 @@ if opts.WriteMeta
     % Assigned, not passed to struct(): an empty struct value there would
     % collapse the whole meta struct to 0x0.
     meta.noise_fill = noiseFill;
+    meta.provenance = provenanceForJson(prov);
     writeJson(meta, metaFile);
     info.metaFile = char(metaFile);
 end

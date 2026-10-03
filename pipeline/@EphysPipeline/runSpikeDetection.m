@@ -57,7 +57,7 @@ for k = 1:n
         cb = @(done, total, msg) obj.progress("spikes", d.Name, k, n, lo + (1 - lo) * done / max(total, 1), 1, msg);
         r = d.spikesToMat('File', out, 'DetectOptions', dopt, 'Channels', channels, ...
             'ArtifactMode', K.ArtifactMode, 'MatVersion', K.MatVersion, ...
-            'Overwrite', K.Overwrite, 'ProgressFcn', cb, args{:});
+            'Overwrite', K.Overwrite, 'ProgressFcn', cb, 'Provenance', obj.provenance(), args{:});
         msg = sprintf("%d detected event(s), %d rejected", sum(r.nDetected), sum(r.nRejectedArtifact));
         if K.ArtifactMode == "erase"
             msg = msg + sprintf(", %d artifact period(s) erased before detection", size(iv, 1));

@@ -74,7 +74,7 @@ for k = 1:n
         cb = @(done, total, msg) obj.progress("signals", d.Name, k, n, lo + (1 - lo) * done / max(total, 1), 1, msg);
         r = d.toMat(File=obj.outputPathFor("signals:base", d), SeparateFiles=G.SeparateFiles, ...
             SignalOptions=sigOpts, MatVersion=G.MatVersion, ...
-            Overwrite=G.Overwrite, ProgressFcn=cb);
+            Overwrite=G.Overwrite, ProgressFcn=cb, Provenance=obj.provenance());
         if any(sigOpts.dataTypeOut == "AUX") && ~any(contains(r.types, "AUX"))
             obj.log("[signals] %s: no aux (accelerometer) inputs recorded; AUX not written", d.Name);
         end

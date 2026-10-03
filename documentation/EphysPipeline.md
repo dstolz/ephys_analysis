@@ -319,6 +319,18 @@ output file), no artifact detection streams the recording, and each step
 records `dry run` rows saying what it would do; the sorting step writes only
 its `settings.json` and `run_ks4.py`, into `kilosort4\dryrun`.
 
+**Provenance.** Every file a run writes records the code version (the
+release, the git commit and whether the checkout had uncommitted changes),
+MATLAB, host, user, the config and the run's id: `pipe.provenance()`, passed
+to each writer as `Provenance=` and stored in the file's `conversion` /
+`export` struct or JSON ([format](file-formats.md#provenance)). When the run
+ends (finished, cancelled or failed; not a dry run) it writes a run record,
+`<OutputRoot or Root>/pipeline_runs/<runId>_<name>.json`, with the steps,
+datasets, config, code, machine and every Results row
+([format](file-formats.md#run-records)); `pipe.RunRecordFile` names it and
+the log ends with `Run record: <file>`. A step method called on its own
+records the config but no run id, and writes no record.
+
 | Step | Method | Does |
 | --- | --- | --- |
 | `probe` | `checkProbes()` | checks each dataset's probe (`probeFor`: its own, else `Probe.DefaultProbeFile`, read at each call) against its channel count. With `AutoAssign`, a dataset without a probe first takes that of the first matching probe rule, assigned and saved to its manifest (a dry run saves nothing; a missing rule file is reported, not saved). The default is assigned to a dataset, and saved to its manifest, only with `WriteDefaultToManifest`; otherwise it is only used |

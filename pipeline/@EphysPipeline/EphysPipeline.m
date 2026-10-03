@@ -84,6 +84,16 @@ classdef EphysPipeline < handle
         Results table = EphysPipeline.emptyResults()
         LaunchedRuns struct = EphysPipeline.emptyRuns()
         SortingWaiting (1,1) double = 0
+
+        % What this pipeline's outputs record (ephysProvenance: the code,
+        % MATLAB, host and user, the config and, inside run(), the run id).
+        % Made once per run, or on the first write of a step called on its
+        % own; [] until then and after the config changes. See provenance.
+        Provenance = []
+
+        % The run record the last run() wrote ("" for a dry run, or when it
+        % could not be written): <OutputRoot or Root>/pipeline_runs/<runId>_<name>.json.
+        RunRecordFile (1,1) string = ""
     end
 
     properties (Access = private)
@@ -134,6 +144,7 @@ classdef EphysPipeline < handle
         function set.Config(obj, cfg)
             %set.Config  Re-apply the config to the project and re-select datasets.
             obj.Config = cfg;
+            obj.Provenance = []; %#ok<MCSUP> the outputs record the config in use
             if ~isempty(obj.Project) %#ok<MCSUP>
                 EphysPipeline.applyConfigToDatasets(cfg, obj.Project); %#ok<MCSUP>
                 obj.selectDatasets(); %#ok<MCSUP>
@@ -264,6 +275,76 @@ classdef EphysPipeline < handle
                 evt = struct('step', string(step), 'dataset', string(dataset), 'index', index, ...
                     'count', count, 'done', done, 'total', total, 'message', string(message));
                 obj.ProgressFcn(evt);
+            end
+        end
+
+        function p = provenance(obj)
+            %provenance  What the outputs of this pipeline record (ephysProvenance).
+            %   P = pipe.provenance() is the code version, MATLAB, host and
+            %   user, the config (EphysPipelineConfig.toStruct) and, inside
+            %   run(), the run id. Every step passes it to the writers
+            %   (Provenance=), so each output and the run record agree. It
+            %   is made once and kept until the config changes or the next
+            %   run() starts.
+            if isempty(obj.Provenance)
+                obj.Provenance = ephysProvenance(Config=obj.Config);
+            end
+            p = obj.Provenance;
+        end
+
+        function file = writeRunRecord(obj, steps, started, outcome, failure)
+            %writeRunRecord  Write the run record of a run() (see run, file-formats.md).
+            %   FILE = pipe.writeRunRecord(STEPS, STARTED, OUTCOME, FAILURE)
+            %   writes <OutputRoot or Root>/pipeline_runs/<runId>_<name>.json:
+            %   schema ephys-pipeline-run/1, the run id, the outcome
+            %   ("finished" | "cancelled" | "failed", with the error), when it
+            %   started and finished, the steps, the datasets, the code and
+            %   machine (provenance), the config and the Results rows. A
+            %   record that cannot be written is a warning
+            %   (EphysPipeline:RunRecord), never an error: the run's outputs
+            %   are already on disk.
+            file = "";
+            try
+                prov = obj.provenance();
+                root = obj.Project.OutputRoot;
+                if root == ""; root = obj.Project.Root; end
+                name = regexprep(char(obj.Config.Name), '[^\w\-]', '_');
+                if isempty(name); name = 'pipeline'; end
+                file = string(fullfile(root, "pipeline_runs", prov.runId + "_" + name + ".json"));
+                finished = datetime('now');
+                ds = obj.Project.Datasets(obj.DatasetIdx);
+                dsets = cell(1, numel(ds));
+                for k = 1:numel(ds)
+                    dsets{k} = struct('key', string(EphysPipelineConfig.datasetKey(obj.Project.Root, ds(k).Folder)), ...
+                        'name', ds(k).Name, 'folder', ds(k).Folder, 'outputFolder', string(ds(k).outputFolder()));
+                end
+                runs = cell(1, numel(obj.LaunchedRuns));
+                for k = 1:numel(obj.LaunchedRuns)
+                    r = obj.LaunchedRuns(k);
+                    runs{k} = struct('name', string(r.name), 'resultsDir', string(r.resultsDir), 'device', string(r.device));
+                end
+                rec = struct();
+                rec.schema = "ephys-pipeline-run/1";
+                rec.runId = prov.runId;
+                rec.name = obj.Config.Name;
+                rec.outcome = string(outcome);
+                rec.error = "";
+                if ~isempty(failure)
+                    rec.error = string(failure.identifier) + ": " + string(failure.message);
+                end
+                rec.started = string(started, "yyyy-MM-dd'T'HH:mm:ss");
+                rec.finished = string(finished, "yyyy-MM-dd'T'HH:mm:ss");
+                rec.seconds = seconds(finished - started);
+                rec.steps = cellstr(steps);
+                rec.datasets = dsets;
+                rec.results = num2cell(table2struct(obj.Results)).';
+                rec.backgroundRuns = runs;
+                rec.provenance = rmfield(prov, 'config');
+                rec.config = obj.Config.toStruct();
+                writeJsonFile(file, rec, NonFinite="string");
+            catch ME
+                warning('EphysPipeline:RunRecord', 'The run record could not be written (%s): %s', file, ME.message);
+                file = "";
             end
         end
 
@@ -547,7 +628,7 @@ classdef EphysPipeline < handle
                 end
                 if c.WriteFile
                     try
-                        r = d.behaviorToMat(File=out, Overwrite=true, Pairing=P);
+                        r = d.behaviorToMat(File=out, Overwrite=true, Pairing=P, Provenance=obj.provenance());
                         obj.log("[behavior] %s: wrote %s (%d trials)", d.Name, r.file, r.nTrials);
                         obj.addResult("behavior:file", d.Name, "done", sprintf("%d trials", r.nTrials), r.file, r.seconds);
                     catch ME

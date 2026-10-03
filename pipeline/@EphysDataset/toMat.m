@@ -60,7 +60,10 @@ arguments
     opts.SeparateFiles (1,1) logical = false
     opts.Overwrite (1,1) logical = false
     opts.ProgressFcn = []
+    opts.Provenance = []   % ephysProvenance() of the run writing it ([] = made here)
 end
+prov = opts.Provenance;
+if isempty(prov); prov = ephysProvenance(); end
 
 file = opts.File;
 if file == ""
@@ -113,6 +116,7 @@ conversion = struct( ...
     'recordingFormat', obj.RecordingFormat, ...
     'matFileVersion',  opts.MatVersion, ...
     'matlabVersion',   string(version));
+conversion.provenance = prov;
 if opts.SeparateFiles
     written = isfield(info, cellstr(types));   % a requested AUX may be absent
     files = files(written);

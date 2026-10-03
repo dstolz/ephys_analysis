@@ -38,6 +38,9 @@ classdef EphysAnalysisRunner < handle
     %                   skipped | error | cancelled), Message, Files, Seconds
     %     Report        the last run's report struct (newAnalysisReport)
     %     ReportFiles   the report files the last run wrote
+    %     RunRecordFile the run record the last run wrote: the config, the code
+    %                   version, MATLAB, host, user and the Results rows, in
+    %                   <report folder>/analysis_runs (see run)
     %
     %   See also EphysAnalysisConfig, EphysAnalysisScript, EphysAnalysisApp.
 
@@ -57,6 +60,7 @@ classdef EphysAnalysisRunner < handle
         Results table = EphysAnalysisRunner.emptyResults()
         Report = []
         ReportFiles (1,:) string = string.empty(1, 0)
+        RunRecordFile (1,1) string = ""   % the run record the last run wrote ("" = none)
     end
 
     methods

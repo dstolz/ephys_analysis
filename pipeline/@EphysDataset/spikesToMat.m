@@ -67,7 +67,10 @@ arguments
     opts.MatVersion (1,1) string {mustBeMember(opts.MatVersion, ["-v7.3", "-v7"])} = "-v7.3"
     opts.Overwrite (1,1) logical = false
     opts.ProgressFcn = []
+    opts.Provenance = []   % ephysProvenance() of the run writing it ([] = made here)
 end
+prov = opts.Provenance;
+if isempty(prov); prov = ephysProvenance(); end
 
 t0 = tic;
 file = opts.File;
@@ -177,6 +180,7 @@ S.conversion = struct( ...
     'fs',              obj.Fs, ...
     'matFileVersion',  opts.MatVersion, ...
     'matlabVersion',   string(version));
+S.conversion.provenance = prov;
 EphysDataset.saveAtomically(file, S, opts.MatVersion);
 
 d = dir(file);

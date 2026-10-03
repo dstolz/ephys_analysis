@@ -81,7 +81,10 @@ arguments
     opts.Sources struct = struct()
     opts.Events (1,1) logical = true
     opts.Overwrite (1,1) logical = false
+    opts.Provenance = []   % ephysProvenance() of the run writing it ([] = made here)
 end
+prov = opts.Provenance;
+if isempty(prov); prov = ephysProvenance(); end
 
 t0 = tic;
 file = opts.File;
@@ -136,6 +139,7 @@ meta = struct( ...
         'pots', "sample i (0-based) at t = i/fs s on the continuous clock", ...
         'events', "t = row/eventFs (1-based row of the recording); sample = round((t - 1/eventFs)*fs), 0-based", ...
         'artifacts', "[tStart tEnd) s on the continuous clock; samples [start stop) 0-based, every sample a period touches"));
+meta.provenance = provenanceForJson(prov);
 provenance = in.sources;
 
 A = struct();

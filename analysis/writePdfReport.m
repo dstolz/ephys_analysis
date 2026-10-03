@@ -26,7 +26,12 @@ first = true;
 ws = warning('off', 'MATLAB:print:ContentTypeImageSuggested');
 restore = onCleanup(@() warning(ws));
 
-lines = [report.title; ""; "Generated " + report.created; ""];
+lines = [report.title; ""; "Generated " + report.created];
+if isfield(report, 'provenance') && isstruct(report.provenance)
+    lines = [lines; "ephys_analysis " + report.provenance.code; ...
+        "MATLAB " + report.provenance.matlab + " on " + report.provenance.host];
+end
+lines(end+1) = "";
 for d = 1:numel(report.datasets)
     D = report.datasets(d);
     lines(end+1) = sprintf("%d. %s (%d plot(s))", d, D.name, numel(D.entries)); %#ok<AGROW>

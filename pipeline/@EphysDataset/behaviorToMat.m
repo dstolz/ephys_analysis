@@ -36,7 +36,10 @@ arguments
     opts.MatVersion (1,1) string {mustBeMember(opts.MatVersion, ["-v7.3", "-v7"])} = "-v7.3"
     opts.Overwrite (1,1) logical = false
     opts.Pairing = []
+    opts.Provenance = []   % ephysProvenance() of the run writing it ([] = made here)
 end
+prov = opts.Provenance;
+if isempty(prov); prov = ephysProvenance(); end
 
 t0 = tic;
 if obj.behaviorSource() ~= "epocs" && (obj.BehaviorFile == "" || ~isfile(obj.BehaviorFile))
@@ -67,6 +70,7 @@ S.conversion = struct( ...
     'dataset',      obj.Name, ...
     'sourceFolder', obj.Folder, ...
     'behaviorFile', obj.BehaviorFile);
+S.conversion.provenance = prov;
 EphysDataset.saveAtomically(file, S, opts.MatVersion);
 
 d = dir(file);

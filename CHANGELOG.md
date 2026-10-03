@@ -31,6 +31,20 @@ says how to cut a release.
   dataset's outputs. They are listed in `documentation/README.md`; suite
   `test_DataPathWarnings` checks six of them.
 
+- Provenance in every output: the release, git commit, branch, uncommitted
+  changes and `git describe`, MATLAB, host, user and time (`ephysProvenance`),
+  plus the run id and the full pipeline config when `EphysPipeline` writes it.
+  `.mat` outputs keep it in `conversion.provenance` / `export.provenance`; the
+  `.bin` sidecar, `settings.json` and the kCSD `meta` as JSON. Every writer
+  takes `Provenance=`.
+- Run records: `EphysPipeline.run` writes
+  `<OutputRoot or Root>/pipeline_runs/<runId>_<name>.json` (steps, datasets,
+  config, code, machine, Results) whether the run finishes, is cancelled or
+  fails; `EphysAnalysisRunner.run` writes `analysis_runs/<runId>_<name>.json`
+  in the report folder. Analysis reports show the code version.
+- `stringifyNonFinite` (moved out of `writeJsonFile`), `provenanceForJson`;
+  suite `test_Provenance`.
+
 ### Fixed
 
 - The guard that stops `toBin` writing over a recording file now resolves

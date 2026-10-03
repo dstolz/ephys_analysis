@@ -115,7 +115,10 @@ arguments
     opts.Wait (1,1) logical = true
     opts.Device (1,1) string = ""
     opts.Launch (1,1) logical = true
+    opts.Provenance = []   % ephysProvenance() of the run writing it ([] = made here)
 end
+prov = opts.Provenance;
+if isempty(prov); prov = ephysProvenance(); end
 
 % Resolve config (per-call -> dataset)
 pythonExe = firstNonEmpty(opts.PythonExe, obj.PythonExe);
@@ -188,7 +191,7 @@ if ~binGiven && ~opts.DryRun
              'or turn off artifact silencing for this dataset.'], 100 * share, size(iv, 1), ...
             covered, obj.NumSamples / obj.Fs, 100 * EphysDataset.MaxSilencedFraction);
     end
-    obj.toBin(ArtifactIntervals=iv);
+    obj.toBin(ArtifactIntervals=iv, Provenance=prov);
 end
 
 % Absolute paths (KS4 + system() want absolute, double-quoted paths)
@@ -266,6 +269,7 @@ if ismember(binRef, ["car" "cmr"])
     end
     settings.do_CAR = false;
 end
+settings.provenance = provenanceForJson(prov);   % for the record; run_ks4.py does not pass it to Kilosort4
 
 settingsPath = fullfile(runDir, 'settings.json');
 scriptPath   = fullfile(runDir, 'run_ks4.py');

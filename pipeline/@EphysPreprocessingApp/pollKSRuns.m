@@ -206,61 +206,11 @@ end
 
 
 function pos = tailLog(obj, run)
-%tailLog  Append RUN's newly-written ks4_run.log lines to the status box.
-%   Returns the byte offset consumed so the next tick resumes there. Only whole
-%   (newline-terminated) lines are emitted; a partial trailing line is left for
-%   the next tick. Carriage-return progress updates (e.g. tqdm) are collapsed to
-%   their final state so they don't flood the box.
-pos = run.logPos;
-lf  = char(run.logFile);
-if isempty(lf) || ~isfile(lf)
-    return
-end
-
-fid = fopen(lf, 'r');   % MATLAB 'r' is binary: ftell == byte offset
-if fid < 0
-    return
-end
-try
-    fseek(fid, pos, 'bof');
-    chunk = fread(fid, inf, '*char').';
-catch
-    fclose(fid);
-    return
-end
-fclose(fid);
-if isempty(chunk)
-    return
-end
-
-% Consume only up to the last newline; keep any partial line for next time.
-nl = find(chunk == newline, 1, 'last');
-if isempty(nl)
-    return
-end
-pos   = pos + nl;
-ready = chunk(1:nl);
-
-parts = split(string(ready), newline);
-parts(end) = [];   % drop the empty segment after the final newline
-ts  = char(datetime('now', 'Format', 'HH:mm:ss'));
-out = strings(0, 1);
-for k = 1:numel(parts)
-    ln = collapseCR(parts(k));
-    if strlength(strip(ln)) == 0
-        continue
-    end
-    out(end+1, 1) = sprintf("%s  %s | %s", ts, run.Name, ln); %#ok<AGROW>
-end
-obj.appendLogLines(out);
-end
-
-
-function s = collapseCR(s)
-%collapseCR  Reduce a carriage-return-overwritten line to its final state.
-%   The CR of a CRLF line ending goes first: Python on Windows writes CRLF
-%   to a redirected stdout, and the segment after that CR is empty.
-s = regexprep(string(s), '\r+$', '');
-parts = split(s, sprintf('\r'));
-s = parts(end);
+%tailLog  Append RUN's newly written ks4_run.log lines to the status box.
+%   Returns the byte offset consumed, so the next tick resumes there
+%   (readNewLines: whole lines only, carriage-return progress collapsed).
+[lines, pos] = readNewLines(run.logFile, run.logPos);
+if isempty(lines); return; end
+ts = char(datetime('now', 'Format', 'HH:mm:ss'));
+obj.appendLogLines(string(ts) + "  " + string(run.Name) + " | " + lines);
 end

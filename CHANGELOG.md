@@ -129,6 +129,12 @@ says how to cut a release.
 
 ### Changed
 
+- The preprocessing app's Diagram pages are drawn by a plain class,
+  `PipelineDiagram` (`detail`, `overview`, `zoomFrame`), which needs no app:
+  `PipelineDiagram.overview(cfg, [])` writes a config's diagram from a
+  script. The app's `flowChartHTML` / `flowOverviewHTML` call it; the code
+  moved unchanged. The run monitor's log tail is `readNewLines`. Suite
+  `test_ReadNewLines`.
 - The Kilosort4 `.bin` keeps the recording's own resolution when it can:
   `EphysDataset.Scale` and `EphysProject.Scale` default to `NaN`, meaning
   `EphysDataset.binScale`, which uses 1 / the recording's µV per stored unit

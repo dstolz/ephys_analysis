@@ -310,6 +310,30 @@ Collected from the code. Each is explained on the linked page.
 | MATLAB version | the Artifacts tab uses `xregion` (R2023a+); the code is developed on R2025a | [INSTALL.md](../pipeline/INSTALL.md) |
 | Parallel steps | the worker count is capped by free memory (4-5 on a 32 GB machine), not by the pool size; every worker reads the disk, so on a slow external disk a parallel step can be no faster than serial; the results are identical either way | [EphysPipeline → Parallel execution](EphysPipeline.md#parallel-execution) |
 
+### Warnings that mark a fallback
+
+When a file the pipeline reads cannot be read, or a value does not parse, and
+the fallback changes a result, it warns with one of these identifiers
+(`warning('off', id)` silences one). Fallbacks that change nothing (a cache
+read again, a progress callback, a best-effort clean-up) stay quiet.
+
+| Identifier | What fell back, and what was used instead |
+| --- | --- |
+| `EphysDataset:runKilosort:BadSidecar` | the `.bin` sidecar did not parse: `n_chan_bin` and `fs` from the dataset |
+| `EphysDataset:runKilosort:BinMetaUnknown` | a given `.bin` has no readable scale or common reference: no `bin_scale` in `settings.json`, Kilosort4's `do_CAR` as configured |
+| `EphysDataset:readPhyUnits:UnreadableTsv` | a phy `.tsv` could not be read and is treated as missing (an unread `cluster_group.tsv` means Kilosort's own labels are used) |
+| `EphysDataset:channelLayout:BadProbe` | the probe file cannot be read or has fields of the wrong type: the channels are off the probe |
+| `EphysDataset:writeManifest:BehaviorMeta`, `...:UnitCount` | the manifest leaves the session details or the unit count blank |
+| `EphysPipeline:probeFor:BadPattern` | the name pattern does not parse: only `*` probe rules match |
+| `BinaryReader:BadAcqDate` | `acq_date` is not `yyyy-MM-dd HH:mm:ss`: the data file's modified time is the start |
+| `IntanReader:NoStartTime`, `OpenEphysReader:NoStartTime` | the recording's start cannot be told: it is unknown (`NaT`) |
+| `OpenEphysReader:NoChannelType`, `...:NoElectrodes`, `...:UnreadableTTL` | an NWB stream lacks a readable `channel_type` (all channels are headstage channels), `electrodes` (channels numbered by position) or TTL series (no events from it) |
+| `epsychSessionMeta:BadStartTime` | an Epsych2 session's start does not convert: it cannot be matched by time |
+| `DatasetOutputs:Unreadable` | an output file, its provenance or the manifest cannot be read: the file is left out (or, for provenance, counted as the dataset's) |
+| `loadAnalysisSource:Manifest`, `reportSummaryTables:Units` | the analysis has no manifest metadata, or a report's unit tables are empty |
+| `copySessions:CancelFailed` | the cancel file could not be written: the copy engine was not told to stop |
+| `planLocalCleanup:Outputs` | a dataset's outputs could not be listed: none of its step outputs are planned for removal |
+
 ## Dependencies
 
 **MATLAB**:
@@ -408,6 +432,7 @@ suite's temporary preferences, so close it before the run ends.
 | `test_BinaryReader` | the universal binary reader: `readDigitalEvents` from `dig_in_file` alone, `readData`, `Files` listing `dig_in_file`, `streamPlan` |
 | `test_AppPrefs` | the apps' preference store: a file store's set / get / remove, nothing reaching MATLAB's own preferences, nested temporary stores, `AppPrefsFixture` |
 | `test_RepositoryMetadata` | `VERSION`, `CITATION.cff`, `CHANGELOG.md` and `ephysVersion` agree on the release number |
+| `test_DataPathWarnings` | fallbacks that change a result warn: a binary `acq_date` that does not parse, an unreadable probe, a given `.bin` without a sidecar, an unreadable output file, a name pattern that does not parse, an Epsych2 start that does not convert; each fallback is as before |
 | `test_SortedUnits` | `readPhyUnits`' label tables, template units and per-unit grouping; `channelLayout` (`chanMap` values are `.bin` rows); `runKilosort(DryRun=true)` leaving an existing run alone; `readPhyWaveforms` (the spikes' windows in the sorted `.bin`) |
 | `test_DeriveSignals` | derived signals: bad channels as columns (the config's recording channels mapped to them), interpolated from the probe geometry or, without one, across columns; automatic detection; the MUA / SPIKE filters in double; non-integer rates; `info.<type>.nSamples`; line naming and polarity from `TrialConfig`; artifact periods erased before deriving (the line fill, `info.artifacts`, no filter ringing outside the period, AUX untouched) |
 | `test_OpenEphysReader` | Open Ephys sessions (Binary, Open Ephys format, NWB): metadata, samples across recordings and gaps, TTL lines, AUX / ADC, discovery, record node / stream, the recording modes, line names, the pipeline on a synthetic Open Ephys project |

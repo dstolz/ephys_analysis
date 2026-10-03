@@ -38,7 +38,13 @@ L = struct('hasProbe', false, 'shank', NaN(1, nChan), 'x', NaN(1, nChan), ...
     'y', NaN(1, nChan), 'order', 1:nChan, 'shanks', zeros(1, 0));
 if nChan == 0 || probeFile == ""; return; end
 probe = readJsonFile(probeFile, ErrorOnFail=false);
-if ~isstruct(probe) || ~isfield(probe, 'xc') || ~isfield(probe, 'yc'); return; end
+if ~isstruct(probe) || ~isfield(probe, 'xc') || ~isfield(probe, 'yc')
+    if isfile(probeFile)
+        warning('EphysDataset:channelLayout:BadProbe', ...
+            'Cannot read a probe layout (xc, yc) from %s; the channels are treated as off the probe.', probeFile);
+    end
+    return
+end
 
 try
     xc = double(probe.xc(:));
@@ -54,8 +60,11 @@ try
         kc = double(probe.kcoords(1:nSite));
         kc = kc(:);
     end
-catch
-    return      % fields of the wrong type: treat as no probe
+catch ME
+    warning('EphysDataset:channelLayout:BadProbe', ...
+        'The probe %s has fields of the wrong type (%s); the channels are treated as off the probe.', ...
+        probeFile, ME.message);
+    return
 end
 
 [onProbe, site] = ismember(0:nChan - 1, chanMap);   % channel c <-> chanMap value c - 1

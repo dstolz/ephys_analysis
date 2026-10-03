@@ -484,7 +484,11 @@ ids = zeros(0, 1); vals = strings(0, 1); header = strings(1, 0);
 if ~isfile(file); return; end
 try
     lines = splitlines(string(fileread(file)));
-catch
+catch ME
+    % cluster_group.tsv unread means Kilosort's own labels are used instead
+    % of phy's (readClusterLabels): say so.
+    warning('EphysDataset:readPhyUnits:UnreadableTsv', ...
+        'Cannot read %s (%s); it is treated as missing.', file, ME.message);
     return
 end
 lines = lines(strtrim(lines) ~= "");

@@ -93,6 +93,10 @@ classdef BinaryReader < EphysReader
                     obj.AcqDate = datetime(string(d.acq_date), 'InputFormat', 'yyyy-MM-dd HH:mm:ss');
                 catch
                     obj.AcqDate = NaT;
+                    warning('BinaryReader:BadAcqDate', ...
+                        ['%s: acq_date "%s" is not yyyy-MM-dd HH:mm:ss; the data file''s modified time ' ...
+                         'is used as the recording start instead.'], ...
+                        fullfile(obj.Folder, BinaryReader.DescriptorName), string(d.acq_date));
                 end
             end
             if isnat(obj.AcqDate)

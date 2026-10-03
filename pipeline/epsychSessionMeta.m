@@ -75,8 +75,10 @@ try
     elseif ischar(v) || isstring(v)
         t = datetime(string(v));
     end
-catch
+catch ME
     t = NaT;
+    warning('epsychSessionMeta:BadStartTime', ...
+        'Cannot read the session''s start time (%s); it is unknown, so the session cannot be matched by time.', ME.message);
 end
 if ~isscalar(t); t = NaT; end
 end

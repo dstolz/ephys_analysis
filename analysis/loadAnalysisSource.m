@@ -85,7 +85,10 @@ m = struct();
 if out.has("manifest")
     try
         m = out.Manifest;
-    catch
+    catch ME
+        warning('loadAnalysisSource:Manifest', ...
+            'Cannot read the manifest of %s (%s); its rate and duration come from the extract, if any.', ...
+            src.name, ME.message);
     end
 end
 src.fs = NaN;

@@ -201,6 +201,10 @@ probeFile = absPath(probeFile);
 if ~binGiven
     binScale = obj.Scale;
     binRef = string(EphysDataset.normalizeArtifactConfig(obj.ArtifactConfig).Reference);   % what toBin subtracts
+elseif ~isfinite(binScale) || binRef == ""
+    warning('EphysDataset:runKilosort:BinMetaUnknown', ...
+        ['%s has no readable sidecar recording its scale and common reference: settings.json gets no ' ...
+         'bin_scale (the templates stay in .bin units) and Kilosort4''s do_CAR is left as configured.'], binFile);
 end
 
 if ~isfolder(runDir)
@@ -369,7 +373,10 @@ if isfile(sidecar)
         if isfield(meta, 'reference') && isstruct(meta.reference) && isfield(meta.reference, 'mode')
             binRef = string(meta.reference.mode);
         end
-    catch
+    catch ME
+        warning('EphysDataset:runKilosort:BadSidecar', ...
+            'Cannot read the .bin sidecar %s (%s); n_chan_bin and fs fall back to the dataset''s metadata.', ...
+            sidecar, ME.message);
     end
 end
 if isnan(nChanBin); nChanBin = obj.NumChannels; end

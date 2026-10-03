@@ -174,8 +174,11 @@ classdef IntanReader < EphysReader
                     L = obj.splitLayout();
                     t = datetime(L.ampDatenum, 'ConvertFrom', 'datenum') - seconds(L.nSamp / L.Fs);
                 end
-            catch
+            catch ME
                 t = NaT;
+                warning('IntanReader:NoStartTime', ...
+                    'The start of %s cannot be told from its name or its files (%s); it is unknown.', ...
+                    obj.Folder, ME.message);
             end
         end
     end

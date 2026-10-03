@@ -36,10 +36,31 @@ for k = 1:numel(p)
     try
         q = char(java.io.File(q).getCanonicalPath());
     catch
-        % No JVM: the absolute path as given.
+        q = normalizeDots(q);   % no JVM: resolve . and .. by hand, so the guard still holds
     end
     p(k) = string(q);
 end
+end
+
+
+function q = normalizeDots(q)
+%normalizeDots  Resolve "." and ".." segments and repeated separators (no file-system access).
+q = char(q);
+lead = regexp(q, '^([A-Za-z]:|[\\/]{2}|[\\/])', 'match', 'once');   % drive, UNC or root
+parts = regexp(q(numel(lead) + 1:end), '[\\/]+', 'split');
+out = {};
+for k = 1:numel(parts)
+    s = parts{k};
+    if isempty(s) || strcmp(s, '.'); continue; end
+    if strcmp(s, '..')
+        if ~isempty(out); out(end) = []; end   % never above the root
+        continue
+    end
+    out{end + 1} = s; %#ok<AGROW>
+end
+lead = strrep(strrep(lead, '/', filesep), '\', filesep);
+if ~isempty(regexp(lead, '^[A-Za-z]:$', 'once')); lead = [lead filesep]; end
+q = [lead strjoin(out, filesep)];
 end
 
 

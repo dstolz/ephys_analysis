@@ -85,7 +85,10 @@ U = [];
 if src.hasUnits
     try
         U = unitSummary(src, Source="units", Units=struct('classes', string.empty(1, 0)));
-    catch
+    catch ME
+        warning('reportSummaryTables:Units', ...
+            'The sorted units of %s cannot be summarised (%s); the report''s unit tables are empty.', ...
+            src.name, ME.message);
     end
 end
 if ~isempty(U)
@@ -95,7 +98,10 @@ if ~isempty(U)
 elseif src.hasDetected
     try
         U = unitSummary(src, Source="detected");
-    catch
+    catch ME
+        warning('reportSummaryTables:Units', ...
+            'The detected spikes of %s cannot be summarised (%s); the report''s rate table is empty.', ...
+            src.name, ME.message);
     end
 end
 if ~isempty(U)

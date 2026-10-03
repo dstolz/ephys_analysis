@@ -972,10 +972,12 @@ function job = cancelJob(job)
 %cancelJob  Ask the engine to stop between files; it keeps what it has copied.
 job.Cancelled = true;
 if job.CancelFile ~= "" && ~isfile(job.CancelFile)
-    try
-        fid = fopen(job.CancelFile, 'w');
-        if fid >= 0; fclose(fid); end
-    catch
+    [fid, msg] = fopen(job.CancelFile, 'w');
+    if fid >= 0
+        fclose(fid);
+    else
+        warning('copySessions:CancelFailed', ...
+            'Cannot write the cancel file %s (%s); the copy engine was not told to stop.', job.CancelFile, msg);
     end
 end
 end

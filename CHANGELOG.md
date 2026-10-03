@@ -20,6 +20,21 @@ says how to cut a release.
 - `AppPrefs` and `AppPrefsFixture`: the apps keep their preferences through
   one store, which tests and screenshot runs point at a temporary file.
 - Test suites `test_AppPrefs` and `test_RepositoryMetadata`.
+- Warnings, each with an identifier, wherever a read or parse failure used to
+  fall back silently and the fallback changes a result: the `.bin` sidecar
+  and an unread phy label table (Kilosort's labels then replace phy's), an
+  unreadable probe, the manifest's session details, an unparseable name
+  pattern in the probe rules, recording start times (binary, Intan, Open
+  Ephys NWB), NWB channel types, electrodes and TTL series, Epsych2 start
+  times, unreadable output files, the analysis report's unit tables, a copy
+  cancel that could not be signalled and a clean-up that could not list a
+  dataset's outputs. They are listed in `documentation/README.md`; suite
+  `test_DataPathWarnings` checks six of them.
+
+### Fixed
+
+- The guard that stops `toBin` writing over a recording file now resolves
+  `.` and `..` itself when MATLAB runs without Java.
 
 ### Changed
 

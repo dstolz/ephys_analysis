@@ -572,7 +572,9 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
                 if isfield(I, 'info') && isstruct(I.info)
                     types = intersect(DatasetOutputs.SignalTypes, string(fieldnames(I.info)).', 'stable');
                 end
-            catch
+            catch ME
+                warning('DatasetOutputs:Unreadable', ...
+                    'Cannot read the info of %s (%s); its signals are left out.', file, ME.message);
             end
             obj.InfoSignals(k) = types;
         end
@@ -591,7 +593,11 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
             end
             if isempty(f) || ~isfile(f); return; end
             s = readJsonFile(f, ErrorOnFail=false);
-            if isstruct(s); m = s; end
+            if isstruct(s)
+                m = s;
+            else
+                warning('DatasetOutputs:Unreadable', 'Cannot read the manifest %s; it is treated as empty.', f);
+            end
         end
 
         function tf = belongs(obj, file, prov)
@@ -603,7 +609,9 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
             try
                 P = load(file, prov);
                 tf = obj.ownsProvenance(P.(prov));
-            catch
+            catch ME
+                warning('DatasetOutputs:Unreadable', ...
+                    'Cannot read the provenance of %s (%s); it is counted as this dataset''s.', file, ME.message);
             end
         end
 
@@ -737,7 +745,10 @@ meta = [];
 try
     M = readNPZ(file, "meta");
     meta = jsondecode(M.meta);
-catch
+catch ME
+    if ME.identifier ~= "readNPZ:NoMember"   % an archive without meta is not one of ours
+        warning('DatasetOutputs:Unreadable', 'Cannot read %s (%s); it is left out.', file, ME.message);
+    end
 end
 end
 
@@ -747,8 +758,9 @@ function v = matVars(file)
 try
     w = whos('-file', file);
     v = string({w.name});
-catch
+catch ME
     v = string.empty(1,0);
+    warning('DatasetOutputs:Unreadable', 'Cannot read %s (%s); it is left out.', file, ME.message);
 end
 end
 

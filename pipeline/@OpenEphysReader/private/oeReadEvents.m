@@ -62,7 +62,12 @@ switch format
         try
             data = double(h5read(P.file, g + "/data"));
             sn = double(h5read(P.file, g + "/sync"));
-        catch
+        catch ME
+            if hasGroup(P.file, g)   % no TTL series at all is normal: no events
+                warning('OpenEphysReader:UnreadableTTL', ...
+                    '%s: cannot read the TTL series %s (%s); the recording gets no events from it.', ...
+                    P.file, g, ME.message);
+            end
             return
         end
         data = data(:); sn = sn(:);
@@ -81,4 +86,15 @@ end
 [ev.sn, order] = sort(ev.sn);
 ev.line = ev.line(order); ev.state = ev.state(order);
 if ~isempty(ev.fullWord); ev.fullWord = ev.fullWord(order); end
+end
+
+
+function tf = hasGroup(file, g)
+%hasGroup  True when the HDF5 file holds group G.
+tf = true;
+try
+    h5info(file, g);
+catch
+    tf = false;   % h5info errors when the group is absent
+end
 end

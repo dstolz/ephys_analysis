@@ -856,7 +856,10 @@ classdef EphysPipeline < handle
             try
                 [v, names, ok] = parseNameTokens(d.Name, d.NamePattern);
                 if ok && any(names == "SubjectID"); subject = v(names == "SubjectID"); end
-            catch
+            catch ME
+                warning('EphysPipeline:probeFor:BadPattern', ...
+                    'The name pattern "%s" does not parse (%s); only "*" probe rules can match %s.', ...
+                    d.NamePattern, ME.message, d.Name);
             end
             for k = 1:n
                 pat = strtrim(subjects(k));

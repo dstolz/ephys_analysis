@@ -232,9 +232,21 @@ for g = reshape(I.Groups, 1, [])
     nCh = dsInfo.Dataspace.Size(1);             % MATLAB order: [channels x samples]
     conv = double(h5read(file, path + "/channel_conversion"));
     types = zeros(nCh, 1);
-    try types = double(h5read(file, path + "/channel_type")); catch; end
+    try
+        types = double(h5read(file, path + "/channel_type"));
+    catch ME
+        warning('OpenEphysReader:NoChannelType', ...
+            '%s: cannot read %s/channel_type (%s); every channel of the stream is taken as a headstage channel.', ...
+            file, path, ME.message);
+    end
     elec = (0:nCh-1).';
-    try elec = double(h5read(file, path + "/electrodes")); catch; end
+    try
+        elec = double(h5read(file, path + "/electrodes"));
+    catch ME
+        warning('OpenEphysReader:NoElectrodes', ...
+            '%s: cannot read %s/electrodes (%s); the channels are numbered by their position in the stream.', ...
+            file, path, ME.message);
+    end
     base = min(elec);
     if ~isempty(ids)
         mine = ids(groupNames == key);

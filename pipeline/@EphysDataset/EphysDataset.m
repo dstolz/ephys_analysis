@@ -956,7 +956,10 @@ classdef EphysDataset < handle
                 if ~isnat(meta.startTime)
                     s.start_time = string(datetime(meta.startTime, 'Format', 'yyyy-MM-dd HH:mm:ss'));
                 end
-            catch
+            catch ME
+                warning('EphysDataset:writeManifest:BehaviorMeta', ...
+                    'Cannot read the session details of %s (%s); the manifest leaves them blank.', ...
+                    obj.BehaviorFile, ME.message);
             end
         end
 
@@ -990,7 +993,9 @@ classdef EphysDataset < handle
                 try
                     lines = splitlines(strtrim(string(fileread(grp))));
                     s.num_units = max(numel(lines) - 1, 0);   % minus header
-                catch
+                catch ME
+                    warning('EphysDataset:writeManifest:UnitCount', ...
+                        'Cannot read %s (%s); the manifest gives no unit count.', grp, ME.message);
                 end
             end
             spk = dir(fullfile(p, 'spike_clusters.npy'));

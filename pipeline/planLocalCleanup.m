@@ -279,7 +279,10 @@ ws = warning('off');   % a .mat it cannot read is not classified; no need to say
 restoreWarnings = onCleanup(@() warning(ws));
 try
     O = DatasetOutputs(d, SearchDirs=searchDirs);
-catch
+catch ME
+    clear restoreWarnings   % warnings back on, so this one shows
+    warning('planLocalCleanup:Outputs', ...
+        'Cannot list the outputs of %s (%s); none of its step outputs are planned for removal.', d.Name, ME.message);
     return
 end
 C = O.Candidates;

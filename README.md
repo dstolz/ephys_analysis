@@ -15,7 +15,7 @@ reference and [pipeline/INSTALL.md](pipeline/INSTALL.md) for setup.
 | [`analysis/`](analysis) | quick-look figures from the pipeline's outputs: `EphysAnalysisConfig` / `EphysAnalysisRunner` / `EphysAnalysisScript`, `EphysAnalysisApp`, PSTHs, evoked potentials, rates, tuning, heatmaps, probe maps, HTML / PDF reports ([docs](documentation/EphysAnalysis.md)) |
 | [`documentation/`](documentation) | Reference docs for the pipeline |
 | [`S_ExampleAnalysis.m`](S_ExampleAnalysis.m) | script walkthrough: project, detection, derived signals, the pipeline and its outputs |
-| [`extract_trials.m`](extract_trials.m), [`matrix2kilosort.m`](matrix2kilosort.m) | Top-level helpers used by `pipeline/` |
+| [`extract_trials.m`](extract_trials.m), [`matrix2kilosort.m`](matrix2kilosort.m) | Stand-alone helpers: `extract_trials` cuts trials out of a continuous signal around event times (not called by the pipeline; tested in `test_ChronuxDataset`), and `matrix2kilosort` writes a matrix as a Kilosort `.bin` (behind `EphysDataset.matrixToBin`) |
 | [`vendor/`](vendor) | Copies of a few `helper_fnc` utilities this pipeline depends on — see [vendor/README.md](vendor/README.md) |
 | [`toolboxes/chronux`](toolboxes/chronux) | Bundled copy of the [Chronux](http://chronux.org) toolbox, used with `ChronuxDataset` |
 
@@ -72,3 +72,17 @@ Create synthetic test project...** in the GUI) writes synthetic recordings
 to run.
 
 Tests: `cd pipeline; run_all_tests`.
+
+## Versions, license and citation
+
+The release number is in [`VERSION`](VERSION) and every output records it
+with the git commit that wrote it (`ephysVersion`). Changes are listed in
+[CHANGELOG.md](CHANGELOG.md). To cut a release: move the changelog's
+*Unreleased* entries under the new number, set that number in `VERSION` and
+[`CITATION.cff`](CITATION.cff), merge to `main`, then tag the merge commit
+`v<number>` and publish a GitHub release from the tag.
+
+The code is released under the [MIT License](LICENSE). Bundled third-party
+code keeps its own terms: see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+To cite this software, use [`CITATION.cff`](CITATION.cff) (GitHub's *Cite
+this repository* button reads it).

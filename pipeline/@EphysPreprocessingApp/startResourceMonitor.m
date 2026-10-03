@@ -10,6 +10,11 @@ function startResourceMonitor(obj)
 %   stops the previous sampler, launches a new one and keeps the timer.
 
 interval = 2;
+if ~platformSupport("resourceMonitor")
+    obj.RunMonitorNote.Text = "The resource monitor needs Windows (PowerShell performance counters); " + ...
+        "watch the system's own monitor instead.";
+    return
+end
 old = obj.ResourceMonitor.dir;
 if old ~= "" && isfolder(old)
     fid = fopen(fullfile(old, "stop"), 'w');

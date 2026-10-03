@@ -510,9 +510,7 @@ if opts.DryRun || isempty(job.ToCopy)
     job.Result = job.R;
     return
 end
-if ~ispc
-    error('copySessions:NotWindows', 'Copying uses robocopy and needs Windows.');
-end
+platformSupport("copy", Require=true, ErrorId="copySessions:NotWindows");
 
 pruneJobFolders();
 job.Dir = string(tempname(char(jobsFolder())));

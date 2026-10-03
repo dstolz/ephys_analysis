@@ -114,6 +114,16 @@ says how to cut a release.
   blank) and the Python; it is validated, and the Export tab edits it.
   `DatasetOutputs` finds the file (`nwb` kind, `NWBFile`, `NWB`). Suite
   `test_NWBExport`.
+- `platformSupport`: the table of the features that depend on the operating
+  system (`documentation/platforms.md`). The Windows-only pieces (copying,
+  scheduled copies, the Recycle Bin, the resource monitor) refuse other
+  platforms through it, with one kind of message naming what they use and
+  the alternative; each keeps its own error identifier. On macOS and Linux
+  the resource monitor now says it needs Windows instead of failing to
+  launch. `openInSystem` opens a folder or file the platform's way (winopen,
+  open, xdg-open). The seven places in the apps that open one now call it.
+  Off Windows they had used four different fallbacks, and one ran macOS's
+  `open` on Linux too. Suite `test_PlatformSupport`.
 - `stringifyNonFinite` (moved out of `writeJsonFile`), `provenanceForJson`;
   suite `test_Provenance`.
 

@@ -158,9 +158,7 @@ classdef CopySchedule
             %   Saved and SavedBy filled in. The settings file is replaced only
             %   once Windows has accepted the task, so a refused password leaves
             %   an earlier schedule as it was.
-            if ~ispc
-                error('CopySchedule:NotWindows', 'A scheduled copy needs Windows Task Scheduler.');
-            end
+            platformSupport("copySchedule", Require=true, ErrorId="CopySchedule:NotWindows");
             s = CopySchedule.normalize(s);
             if s.RunWhen == "always"
                 for f = ["EpsychRoot", "DestRoot"]
@@ -234,7 +232,7 @@ classdef CopySchedule
             catch ME
                 st.Problem = "its settings cannot be read (" + ME.message + "); Save schedule again";
             end
-            if ~ispc
+            if ~platformSupport("copySchedule")
                 st.Problem = "a scheduled copy needs Windows Task Scheduler";
                 return
             end
@@ -265,9 +263,7 @@ classdef CopySchedule
 
         function startNow(obj)
             %startNow  Start a run now, as the task (returns at once).
-            if ~ispc
-                error('CopySchedule:NotWindows', 'A scheduled copy needs Windows Task Scheduler.');
-            end
+            platformSupport("copySchedule", Require=true, ErrorId="CopySchedule:NotWindows");
             t = findTask(obj.TaskName);
             if isempty(t)
                 error('CopySchedule:NotScheduled', 'There is no scheduled copy to run: save the schedule first.');

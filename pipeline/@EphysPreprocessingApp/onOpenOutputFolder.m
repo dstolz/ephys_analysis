@@ -24,13 +24,7 @@ for i = idx
         missing(end + 1) = d.Name + ": " + f; %#ok<AGROW>
         continue
     end
-    if ispc
-        winopen(f);
-    elseif ismac
-        system(sprintf('open "%s"', f));
-    else
-        system(sprintf('xdg-open "%s" &', f));
-    end
+    openInSystem(f);
     opened(end + 1) = d.Name; %#ok<AGROW>
 end
 if isscalar(opened)

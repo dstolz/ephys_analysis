@@ -462,13 +462,7 @@ classdef ManifestViewerApp < handle
 
         function onOpenFolder(obj)
             folder = fileparts(obj.File);
-            if ispc
-                winopen(folder);
-            elseif ismac
-                system(sprintf('open "%s"', folder));
-            else
-                system(sprintf('xdg-open "%s" &', folder));
-            end
+            openInSystem(folder);
         end
 
         function onRewrite(obj)

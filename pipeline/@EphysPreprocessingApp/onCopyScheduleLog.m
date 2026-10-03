@@ -5,9 +5,5 @@ if ~isfile(f)
     uialert(obj.Fig, "The scheduled copy has not run yet, so there is no log.", "Scheduled copy");
     return
 end
-if ispc
-    winopen(f);
-else
-    open(f);
-end
+openInSystem(f);
 end

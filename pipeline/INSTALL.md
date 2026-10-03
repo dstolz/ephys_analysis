@@ -7,7 +7,8 @@ in a separate Python/conda environment) for spike sorting
 with **phy** as the curation viewer, and writes derived-signal and spike `.mat`
 files plus export files for external analysis toolboxes (Chronux and FieldTrip
 so far; more formats will be added). This guide covers everything needed to get a clean
-Windows 11 machine running the app end to end. Only MATLAB is required for
+Windows 11 machine running the app end to end (what runs on macOS and
+Linux: [platforms.md](../documentation/platforms.md)). Only MATLAB is required for
 everything except sorting and probe design.
 
 ## What you need, at a glance

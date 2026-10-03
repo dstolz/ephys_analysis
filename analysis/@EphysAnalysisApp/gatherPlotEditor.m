@@ -19,6 +19,14 @@ p.units.classes = cls;
 p.units.ids = parseList(E.ids.Value);
 p.units.maxUnits = parseScalar(E.maxUnits.Value, Inf);
 p.units.quality.enabled = logical(E.quality.Value);
+p.units.response.enabled = logical(E.response.Value);
+p.units.response.test = string(E.respTest.Value);
+p.units.response.direction = string(E.respDirection.Value);
+p.units.response.baseline = [E.respBaseFrom.Value E.respBaseTo.Value];
+p.units.response.window = [E.respFrom.Value E.respTo.Value];
+p.units.response.param = strtrim(string(E.respParam.Value));
+p.units.response.correction = string(E.respCorrection.Value);
+p.units.response.alpha = E.respAlpha.Value;
 ch = parseList(E.channels.Value);
 if ismember(p.source, EphysAnalysisConfig.SignalSources)
     p.channels = ch;

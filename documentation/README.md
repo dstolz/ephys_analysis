@@ -343,8 +343,10 @@ read again, a progress callback, a best-effort clean-up) stay quiet.
 
 - Signal Processing Toolbox (required for filtering, resampling and derived
   signals).
-- Statistics and Machine Learning Toolbox (only for `zscore` in automatic
-  derived-signal bad-channel detection).
+- Statistics and Machine Learning Toolbox (`zscore` in automatic
+  derived-signal bad-channel detection; `signrank` and `kruskalwallis` in
+  the analysis module's response statistics, `responseStats` and the
+  *Responsive only* unit selection).
 - Parallel Computing Toolbox (optional; `Parallel.Enabled` in a pipeline
   config, or `UseParallel=true` on `detectSpikes`, `artifactIntervals` and
   `analyzeArtifacts`).

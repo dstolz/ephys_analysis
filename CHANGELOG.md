@@ -78,6 +78,17 @@ says how to cut a release.
   that no run saved is never overwritten. The run record names the script
   (`script`). `EphysPipeline.writeScript`, `EphysPipeline.ScriptFile`,
   `EphysPipelineScript.standalone(Note=)`; suite `test_PipelineScriptSave`.
+- Response statistics in the analysis module: `responseStats` tests every
+  unit with the Statistics and Machine Learning Toolbox. `signrank` compares
+  the response window's rate with the baseline's over the epochs (two-sided;
+  the direction comes from the one-sided tests). With a trial parameter,
+  `kruskalwallis` tests the rates across its levels, giving `bestLevel`.
+  The p values are adjusted over the units by `pAdjust` (Benjamini-Hochberg,
+  Holm, Bonferroni; R's `p.adjust` results, checked against statsmodels:
+  `tools/golden/padjust_golden.py`). `UnitSelection.response` (off by
+  default) keeps only the units that respond: `selectUnits(..., Ref=,
+  Selection=)` with the plot's events, plus the analysis app's
+  **Responsive only** row. Suite `test_ResponseStats`.
 - `stringifyNonFinite` (moved out of `writeJsonFile`), `provenanceForJson`;
   suite `test_Provenance`.
 

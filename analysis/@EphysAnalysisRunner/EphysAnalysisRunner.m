@@ -14,7 +14,7 @@ classdef EphysAnalysisRunner < handle
     %   (see computePlot, runDataset):
     %     src = loadAnalysisSource(out)
     %     [E, G] = epochTable(src, spec.ref, Window=, Selection=, Baseline=)
-    %     [st, meta] = selectUnits(src, spec.units)      (or selectChannels)
+    %     [st, meta] = selectUnits(src, spec.units, Ref=, Selection=)   (or selectChannels)
     %     R = spikePSTH / evokedPotential / firingRate (+ tuningCurve) /
     %         unitSummary + probeMapValues
     %     per page, one at a time:

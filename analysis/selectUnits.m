@@ -1,4 +1,4 @@
-function [st, meta] = selectUnits(src, usel)
+function [st, meta] = selectUnits(src, usel, opts)
 %selectUnits  Spike trains of the chosen sorted units or detection channels.
 %   [ST, META] = selectUnits(SRC, USEL) loads spike times for the dataset SRC
 %   (loadAnalysisSource) through SRC.outputs (cached when it has CacheData)
@@ -36,15 +36,41 @@ function [st, meta] = selectUnits(src, usel)
 %               firingRate, isiViolationsRatio, presenceRatio,
 %               amplitudeCutoff, snr, driftPtp, qualityPass, qualityFails
 %               and qualityUnknown
+%     response  responsiveness (responseStats) and enabled: with enabled,
+%               the units the selections above leave are tested over the
+%               events of the Ref option in the trials its Selection keeps.
+%               The epochs come from epochTable with one fixed window that
+%               holds both test windows, so epochs whose window leaves the
+%               recording or touches an artifact period are dropped. Only
+%               the units that pass are kept. META gains baselineRate,
+%               responseRate, pEvoked, qEvoked, direction and responsive
+%               and, with a param, nLevels, pTuning, qTuning, tuned,
+%               bestLevel and bestRate. maxUnits applies after it. Fields:
+%                 test        "evoked" (responsive), "tuning" (tuned),
+%                             "either", "both"
+%                 baseline, window   [from to], s from the event
+%                 param       the trial parameter of the tuning test
+%                 direction   evoked: "any" | "excited" | "suppressed"
+%                 correction  pAdjust's method over the units tested
+%                 alpha       a unit passes when its adjusted p is at
+%                             most alpha
+%               It needs the Statistics and Machine Learning Toolbox.
+%
+%   Options (the response test's events; unused without it)
+%     Ref        eventRef: the events tested ([] = eventRef's defaults)
+%     Selection  trialSelection: the trials tested ([] = the defaults)
+%   EphysAnalysisRunner passes the plot's own.
 %
 %   Errors: selectUnits:NoUnits, selectUnits:NoDetected, selectUnits:NoneLeft, selectUnits:NoQuality,
-%   selectUnits:BadSource.
+%   selectUnits:BadSource, selectUnits:BadResponse, and responseStats' and epochTable's.
 %
-%   See also loadAnalysisSource, psth, firingRate, unitSummary.
+%   See also loadAnalysisSource, psth, firingRate, unitSummary, responseStats.
 
 arguments
     src (1,1) struct
     usel = []
+    opts.Ref = []
+    opts.Selection = []
 end
 
 if isempty(usel); usel = struct(); end
@@ -118,6 +144,24 @@ switch usel.source
 end
 if ~isempty(usel.channels); keep = keep & ismember(meta.channel, usel.channels); end
 if ~isempty(usel.shanks);   keep = keep & ismember(meta.shank, usel.shanks); end
+if usel.response.enabled && any(keep)
+    idx0 = find(keep);
+    [pass, R] = responsive(src, st(idx0), meta(idx0, :), usel.response, opts);
+    for c = setdiff(string(R.Properties.VariableNames), ["unit" "label" "nEpochs"], 'stable')
+        v = R.(c);
+        if isstring(v)
+            all0 = strings(height(meta), 1);
+            all0(:) = missing;
+        elseif islogical(v)
+            all0 = false(height(meta), 1);
+        else
+            all0 = NaN(height(meta), 1);
+        end
+        all0(idx0) = v;
+        meta.(c) = all0;
+    end
+    keep(idx0) = pass;
+end
 idx = find(keep);
 if isfinite(usel.maxUnits) && numel(idx) > usel.maxUnits
     idx = idx(1:usel.maxUnits);
@@ -154,6 +198,39 @@ if ~(n > 0)
         '%s: the quality metrics need the recording''s length, and it is not known here.', src.name);
 end
 U = EphysDataset.unitQualityOf(U, info, NumSamples=n, NumSamplesSource="the dataset's metadata (fs x durationSec)");
+end
+
+
+function [pass, R] = responsive(src, st, meta, r, opts)
+%responsive  responseStats over one fixed window holding both test windows; which units pass.
+if ~ismember(r.test, ["evoked" "tuning" "either" "both"])
+    error('selectUnits:BadResponse', 'response.test is evoked, tuning, either or both (got "%s").', r.test);
+end
+if ~ismember(r.direction, ["any" "excited" "suppressed"])
+    error('selectUnits:BadResponse', 'response.direction is any, excited or suppressed (got "%s").', r.direction);
+end
+if r.test ~= "evoked" && r.param == ""
+    error('selectUnits:BadResponse', 'response.test "%s" needs response.param, the trial parameter of the tuning test.', r.test);
+end
+if ~(numel(r.baseline) == 2 && numel(r.window) == 2 && r.baseline(2) > r.baseline(1) && r.window(2) > r.window(1))
+    error('selectUnits:BadResponse', 'response.baseline and response.window must each be [from to] with from < to.');
+end
+win = struct('mode', "fixed", 'pre', min(r.baseline(1), r.window(1)), 'post', max(r.baseline(2), r.window(2)), 'stop', []);
+cols = string.empty(1, 0);
+if r.param ~= ""; cols = r.param; end
+E = epochTable(src, opts.Ref, Window=win, Selection=opts.Selection, Columns=cols);
+R = responseStats(st, E, Baseline=r.baseline, Window=r.window, Param=r.param, ...
+    Correction=r.correction, Alpha=r.alpha, Meta=meta);
+evoked = R.responsive;
+if r.direction ~= "any"
+    evoked = evoked & R.direction == r.direction;
+end
+switch r.test
+    case "evoked", pass = evoked;
+    case "tuning", pass = R.tuned;
+    case "either", pass = evoked | R.tuned;
+    case "both",   pass = evoked & R.tuned;
+end
 end
 
 

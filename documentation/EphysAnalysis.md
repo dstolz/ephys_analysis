@@ -193,7 +193,11 @@ probe map); both filter by `channels`, `shanks` and `maxUnits`. Shanks are
 the probe map's `kcoords` values for both: a sorted unit on a mapped channel
 takes its channel's shank, since the sorter's own shank numbers
 (`channel_shanks.npy`) need not match them. Everything downstream
-treats the two alike.
+treats the two alike. `usel.quality` keeps the sorted units that meet
+good-unit criteria, and `usel.response` the units that respond to the event
+([response statistics](#response-statistics)). The response test needs the
+events: `selectUnits(src, usel, Ref=ref, Selection=sel)` (the runner passes
+the plot's own; `unitSummary` takes the same two options).
 
 `[Y, fs, meta] = selectChannels(src, "LFP", Channels=...)` loads one derived
 signal (`LFP`, `MUA`, `SPIKE` or `AUX`) through the outputs' cache: `Y` is
@@ -232,9 +236,54 @@ Pure functions: no I/O, no graphics. Every result `R` carries `kind`,
 | `evokedPotential(Y, fs, E, Window=, Channels=, Baseline=, Detrend=, Incomplete=, KeepEpochs=, Groups=, Meta=, Units=)` | `t, mean / sem [nTime x nChan x nGroups], nEpochs, data (KeepEpochs), channels, labels, fs, units, sampleOffsets, onsetRule "event", keptEpochs, droppedEdge, droppedNonFinite`. Epoch *e* is rows `round(E.t0Continuous(e)*fs) + 1 + (s0:s1)`: onset rule `"event"`, offset 0 the sample nearest the one that produced the event (at the recording rate, that very sample). Only the epochs' rows of the used channels are read from `Y` |
 | `firingRate(st, E, Measure=, Baseline=[b0 b1], Normalize=)` | `rate / count [nEpochs x nUnits]` over each epoch's `[tStart, tStop)`, moved to the spikes' clock by `t0Continuous - t0`, `duration`, `baseline` (`[b0 b1]` s around the event), `meanRate / sem / median [nUnits x nGroups]`, `baselineRate`. `Measure`: `rate` (default), `count` (spikes per window) or `probability` (1 for an epoch with a spike in its window; a group's mean is the share of such epochs). `Normalize`: `none`, `subtract` (per epoch), `ratio`, `zscore` (the unit's baseline over all epochs) |
 | `tuningCurve(rates, x, Series=, Param=, SeriesParam=)` | `x` (sorted values), `series`, `mean / sem [nX x nUnits x nSeries]`, `n [nX x nSeries]`. Epochs without a value are left out; when none has one (recording-scope events that all fall outside the trials, say) it is `tuningCurve:NoValues` |
-| `unitSummary(src, Source=, Units=)` | table `label, class, channel, shank, x, y, nSpikes, rateHz` with `rateHz = nSpikes / src.durationSec` |
+| `unitSummary(src, Source=, Units=, Ref=, Selection=)` | table `label, class, channel, shank, x, y, nSpikes, rateHz` with `rateHz = nSpikes / src.durationSec` |
 | `probeMapValues(T, probe, Value=)` | one value per probe site: `rate` (summed Hz), `nSpikes`, `nUnits` |
 | `unitCorrelation(st, E, Metric=, Type=, BinSec=, SmoothSec=, Baseline=, BaselineMode=, Groups=, Meta=)` | `r / p [nUnits x nUnits x nGroups]`, `meanR` (mean over the pairs), `nEpochs`, `response [nEpochs x nUnits]`. Each epoch's response is its `"mean"` rate over `[tStart, tStop)` (moved to the spikes' clock by `t0Continuous - t0`) or its `"peak"` binned rate (bins from `tStart`; a bin that runs past `tStop` is not used), optionally minus the epoch's baseline rate (`BaselineMode="subtract"`); every pair of units is then correlated over the epochs of each group, `Type="pearson"` or `"spearman"` (ties averaged). Fixed and `"between"` windows. Needs no toolbox; `p` is two-sided from the t distribution |
+
+## Response statistics
+
+`[T, info] = responseStats(st, E, Baseline=[b0 b1], Window=[w0 w1], Param=,
+Correction=, Alpha=, Meta=)` tests every unit over the epochs of `E`. The
+tests are the Statistics and Machine Learning Toolbox's own; the repository
+adds only the counting and the p-value adjustment.
+
+- **Counts.** Spikes per epoch in the baseline window `[t0+b0, t0+b1)` and
+  the response window `[t0+w0, t0+w1)`, counted by `firingRate` on the
+  spikes' clock (from `t0Continuous`).
+- **Evoked.** `signrank(response, baseline)`: the Wilcoxon signed-rank test
+  of the paired rates, two-sided, with `signrank`'s default method.
+  `direction` comes from the two one-sided tests (`tail` `"right"` /
+  `"left"`): `"excited"`, `"suppressed"`, or `"none"` when the two agree to
+  1e-12 (equal rank sums).
+- **Tuning** (with `Param`). `kruskalwallis(response, E.(Param), "off")`
+  across the parameter's levels. Epochs without a level are left out. A
+  unit with fewer than two levels is not tested. `bestLevel` is the level
+  with the highest mean response rate (on a tie, the first in sorted
+  order), and `bestRate` is that mean.
+- **Counts or rates.** When the two windows are equally long, the tests
+  run on the counts. Rates are the counts over one constant, so the result
+  is the same, but the paired differences have no rounding error.
+  Otherwise the tests run on the rates.
+- **Correction.** Each test's p values are adjusted over the units tested
+  with `pAdjust(p, Correction)`: `"bh"` (Benjamini-Hochberg, default),
+  `"holm"`, `"bonferroni"` or `"none"`. Its results are R's `p.adjust`
+  (NaN is not a test). The Statistics and Machine Learning Toolbox has no
+  such function, so this is the one piece written here, and it is checked
+  against statsmodels. A unit is `responsive` / `tuned` when its adjusted p
+  is at most `Alpha` (default 0.05).
+- **Epochs used.** Only epochs whose window `[tStart, tStop]` holds both
+  test windows, since that is where `epochTable` checked the recording's
+  ends and the artifact periods. The others are left out with
+  `responseStats:EpochsLeftOut`: epochs flagged incomplete or artifact, and
+  epochs too short for the windows. `selectUnits` builds its own epochs for
+  the test: one fixed window `[min(b0,w0), max(b1,w1)]`.
+
+`T` has one row per unit: `unit, label, nEpochs, baselineRate, responseRate,
+pEvoked, qEvoked, direction, responsive` and, with `Param`, `nLevels,
+pTuning, qTuning, tuned, bestLevel, bestRate`. A unit that is not tested has
+NaN p and q. `info` records the windows, `param`, `correction`, `alpha`,
+`nEpochs`, `nEpochsLeftOut`, `nTestedEvoked`, `nTestedTuning`, `counts` and
+the toolbox version. Without the toolbox it is `responseStats:NoToolbox`.
 
 ## Render
 
@@ -365,7 +414,8 @@ separate roots and requires pixel-identical figures and equal HTML reports.
 | Suite | Covers |
 | --- | --- |
 | `test_EphysAnalysisCompute` | no fixture: `spikePSTH` on seeded Poisson trains (rate, SEM, half-open bins, bins that are whole multiples from the event and `R.window`, `spikePSTH:BadWindow`, a spike in the event's own sample at 0, baselines, smoothing, stop masking), `firingRate` over between windows, `tuningCurve` (and `tuningCurve:NoValues`), `evokedPotential` (event rule: the event's own row at `t = 0`; padding, drop counts, baseline), the filter compiler, `unitCorrelation` (Pearson and Spearman against `corrcoef`, peak rates and partial bins, baseline, groups, constant units), `binCounts` and `countBelow` against brute force, every renderer into axes, uiaxes, figure and uipanel, PSTH fills, normalization and stacks (row steps, value and peak axes), `renderPlot` pages and titles |
-| `test_EphysAnalysisEpochs` | the fixture: `loadAnalysisSource` against the generator's truth (`durationSec` from `info.LFP.nSamples`), `t0Continuous` and `offsetSec` on both clocks, trial / recording scope, `"Trial"`, an interval belonging to the trial holding its edge (spanning trials, touching trials, `Platform` in recording scope), `groupBy`, response and filter selection, between windows, approved cuts, `selectUnits` / `selectChannels` (every channel gives the cached signal as it is), error identifiers, the no-behavior fallback, `src.artifacts` and the epochs that touch one (dropped by default; a period ending at a window's start does not touch it; kept and flagged with `Artifacts="keep"`) |
+| `test_EphysAnalysisEpochs` | the fixture: `loadAnalysisSource` against the generator's truth (`durationSec` from `info.LFP.nSamples`), `t0Continuous` and `offsetSec` on both clocks, trial / recording scope, `"Trial"`, an interval belonging to the trial holding its edge (spanning trials, touching trials, `Platform` in recording scope), `groupBy`, response and filter selection, between windows, approved cuts, `selectUnits` / `selectChannels` (every channel gives the cached signal as it is), `selectUnits`' response test (the same as `responseStats` over its own epochs; direction and alpha; `selectUnits:NoneLeft`, `selectUnits:BadResponse`; `responseStats:NoToolbox` without the toolbox), error identifiers, the no-behavior fallback, `src.artifacts` and the epochs that touch one (dropped by default; a period ending at a window's start does not touch it; kept and flagged with `Artifacts="keep"`) |
+| `test_ResponseStats` | no fixture: `pAdjust` against statsmodels' `multipletests` (`pipeline/testdata/padjust_golden.json` from `tools/golden/padjust_golden.py`; NaN, ties, one value), `responseStats` on hand-made epochs with known counts (rates, p against `signrank` / `kruskalwallis` called directly, direction, correction, the epochs left out, rates for windows of different lengths, the errors). The tests that call the toolbox are skipped without it |
 | `test_EphysAnalysisConfig` | see [EphysAnalysisConfig](EphysAnalysisConfig.md#tests) |
 | `test_EphysAnalysisRunner` | the fixture: `plan` skip reasons, `run` exports and paged names (no figure left open), HTML and PDF reports (percent-encoded and `file://` links; a `"both"` report holds the image of every exported page and each result), `Overwrite` off, rendering real results (a stack of real `epochTable` groups labelled by the `groupBy` parameter, a raster showing every epoch and an evoked stack whatever `Style.YLim`), a failing export closing its page (runner and standalone script), cancel, driven units, compact vs standalone script equivalence |
 | `test_EphysAnalysisApp` | see [EphysAnalysisApp](EphysAnalysisApp.md#tests) |

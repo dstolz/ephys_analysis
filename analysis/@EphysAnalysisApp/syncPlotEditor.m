@@ -12,6 +12,7 @@ function syncPlotEditor(obj)
 %   Shown for (spikes: units or detected; signals: LFP / MUA / SPIKE / AUX)
 %     layout                      the kinds with more than one
 %     unit classes, quality       sorted units
+%     response test               spikes (its settings enabled when ticked)
 %     unit ids, max units, shanks spikes
 %     event, window, selection    every kind but probemap (aligns to nothing)
 %     bin, smoothing              psth, raster, heatmap of spikes, corrmap
@@ -72,6 +73,7 @@ v.kind = true; v.note = true; v.id = true; v.title = true; v.source = true;
 v.layout = numel(ch.Layouts) > 1;
 v.classes = source == "units";
 v.quality = source == "units";
+v.response = spikes; v.respBaseFrom = spikes; v.respParam = spikes;
 v.ids = spikes; v.maxUnits = spikes; v.shanks = spikes;
 v.channels = true;
 v.binMs = binned; v.smoothMs = binned;
@@ -124,6 +126,7 @@ en([E.binMs E.smoothMs], kind ~= "corrmap" || string(E.metric.Value) == "peak");
 en([E.baseFrom E.baseTo], string(E.baselineMode.Value) ~= "none");
 en([E.maskAfterStop E.showStop], stop);
 en(E.fillAlpha, E.fill.Value);
+en([E.respTest E.respDirection E.respBaseFrom E.respBaseTo E.respFrom E.respTo E.respParam E.respCorrection E.respAlpha], E.response.Value);
 en(E.stackSpacing, stacked);
 en([E.legend E.ylim], ~stacked);
 syncAlignEnable(C);

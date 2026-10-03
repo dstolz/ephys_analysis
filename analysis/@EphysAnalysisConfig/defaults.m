@@ -73,7 +73,8 @@ switch section
             'channels', [], ...                 % 1-based recording channels kept ([] = all)
             'shanks',   [], ...                 % shanks kept ([] = all)
             'maxUnits', Inf, ...
-            'quality',  qualityDefaults());     % keep the sorted units that meet good-unit criteria (unitQualityPass)
+            'quality',  qualityDefaults(), ...  % keep the sorted units that meet good-unit criteria (unitQualityPass)
+            'response', responseDefaults());    % keep the units that respond to the event (responseStats)
 
     case "Style"
         s = struct( ...
@@ -168,4 +169,18 @@ c = unitQualityCriteria();
 for f = string(fieldnames(c)).'
     q.(f) = c.(f);
 end
+end
+
+
+function r = responseDefaults()
+%responseDefaults  UnitSelection.response: off; the tests of responseStats.
+r = struct( ...
+    'enabled',    false, ...
+    'test',       "evoked", ...   % "evoked" (response vs baseline, signrank) | "tuning" (across param's levels, kruskalwallis) | "either" | "both"
+    'baseline',   [-0.2 0], ...   % s from the event
+    'window',     [0 0.2], ...    % the response window, s from the event
+    'param',      "", ...         % the trial parameter of the tuning test
+    'direction',  "any", ...      % evoked: "any" | "excited" | "suppressed"
+    'correction', "bh", ...       % over the units tested: "bh" | "holm" | "bonferroni" | "none" (pAdjust)
+    'alpha',      0.05);          % a unit passes when its adjusted p is at most alpha
 end

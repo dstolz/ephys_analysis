@@ -273,6 +273,41 @@ check(fs == 1000 && size(Y, 2) == 2 && isequal(cm.channel, [2; 4]) && isequal(cm
 Yall = selectChannels(src, "LFP");
 check(isequal(Yall(:, [2 4]), Y) && isequal(Yall, src.outputs.load("LFP").Y.LFP), 'selectChannels with every channel gives the cached signal as it is');
 
+fprintf('\n== 7a. the response test of selectUnits ==\n');
+ref = eventRef(line="Stim");
+rsel = struct('source', "units", 'classes', string.empty(1,0), ...
+    'response', struct('enabled', true, 'baseline', [-0.1 0], 'window', [0 0.1], 'alpha', 1));
+if license('test', 'Statistics_Toolbox') && exist('signrank', 'file')
+    [stA, metaA] = selectUnits(src, struct('source', "units", 'classes', string.empty(1,0)));
+    Er = epochTable(src, ref, Window=epochWindow(pre=-0.1, post=0.1));
+    Tr = responseStats(stA, Er, Baseline=[-0.1 0], Window=[0 0.1], Meta=metaA);
+    [stR, metaR] = selectUnits(src, rsel, Ref=ref);
+    tested = isfinite(Tr.pEvoked);
+    check(isequal(stR, stA(tested)) && isequal(metaR.unitId, metaA.unitId(tested)) ...
+        && isequaln(metaR.pEvoked, Tr.pEvoked(tested)) && isequaln(metaR.qEvoked, Tr.qEvoked(tested)) ...
+        && isequal(metaR.direction, Tr.direction(tested)) && all(metaR.responsive), ...
+        'the response test is responseStats over one window holding both test windows (alpha 1 keeps every unit tested)');
+    rsel.response.direction = "excited";
+    want = tested & Tr.direction == "excited";
+    if any(want)
+        [~, metaX] = selectUnits(src, rsel, Ref=ref);
+        check(isequal(metaX.unitId, metaA.unitId(want)), 'direction "excited" keeps the units the one-sided tests call excited');
+    else
+        check(strcmp(errorId(@() selectUnits(src, rsel, Ref=ref)), 'selectUnits:NoneLeft'), ...
+            'direction "excited" with no excited unit leaves none (selectUnits:NoneLeft)');
+    end
+    rsel.response.direction = "any";
+    rsel.response.alpha = min(Tr.qEvoked) / 2;
+    check(strcmp(errorId(@() selectUnits(src, rsel, Ref=ref)), 'selectUnits:NoneLeft'), ...
+        'alpha below every adjusted p leaves no unit (selectUnits:NoneLeft)');
+    rsel.response.test = "tuning";
+    check(strcmp(errorId(@() selectUnits(src, rsel, Ref=ref)), 'selectUnits:BadResponse'), ...
+        'the tuning test without a param: selectUnits:BadResponse');
+else
+    check(strcmp(errorId(@() selectUnits(src, rsel, Ref=ref)), 'responseStats:NoToolbox'), ...
+        'without the Statistics and Machine Learning Toolbox the response test raises responseStats:NoToolbox');
+end
+
 fprintf('\n== 8. errors and the no-behavior fallback ==\n');
 check(strcmp(errorId(@() epochTable(src, eventRef(line="Nope"))), 'resolveEvents:NoLine'), 'an unknown line: resolveEvents:NoLine');
 check(strcmp(errorId(@() epochTable(src, eventRef(line="Stim", scope="recording"), Selection=trialSelection(groupBy="Nope"))), 'selectTrials:NoParam'), ...

@@ -127,6 +127,16 @@ says how to cut a release.
   open, xdg-open). The seven places in the apps that open one now call it.
   Off Windows they had used four different fallbacks, and one ran macOS's
   `open` on Linux too. Suite `test_PlatformSupport`.
+- Tables keep their sort: a header click in the preprocessing app's Project,
+  Trials, Review units, Clean up and Artifacts Selection tables is kept when
+  the app fills the table again (another dataset, a reload, an edit, a new
+  preview) and in the next session (preference `TableSorts`); right-click →
+  **Clear sort** returns to the app's own order. Rows keep their link to
+  their dataset, unit, file or trial in any order, and the Clean up table's
+  map from a row to the file it removes follows the sort. `TableSort`;
+  suite `test_TableSort`.
+- `CLAUDE.md`: standing instructions for Claude Code in this repository
+  (which MATLAB toolboxes to use, and when to ask first).
 
 ### Changed
 

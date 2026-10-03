@@ -3,7 +3,9 @@ function loadPreferences(obj)
 %   Preferences (group EphysPreprocessingApp) hold only what is not part of
 %   a pipeline config: figure geometry, the probe folder, the phy command,
 %   the Review folder, the last / recent config files, the script folder,
-%   the datasets-table column order, the Artifacts tab's viewer options
+%   the datasets-table column order, the sort of each sortable table
+%   (TableSorts: Project, Trials, Review units, Clean up and the
+%   Artifacts tab's per-channel Selection table), the Artifacts tab's viewer options
 %   (context, channels, scale, lanes, colour by shank, shading), the Trials-table parameter columns and
 %   column order, the Trials-plot label parameters, the Visualize
 %   display options, the Copy tab settings (subject, roots and their recent
@@ -48,6 +50,15 @@ end
 obj.refreshRecentMenu();
 if AppPrefs.ispref(g, 'DatasetsColumnOrder')
     obj.DatasetsColumnOrder = reshape(string(AppPrefs.getpref(g, 'DatasetsColumnOrder')), 1, []);
+end
+if AppPrefs.ispref(g, 'TableSorts')   % before the last config fills the tables
+    v = AppPrefs.getpref(g, 'TableSorts');
+    if isstruct(v) && isscalar(v)
+        for f = string(fieldnames(v)).'
+            s = TableSort.fromPref(v.(f));
+            if TableSort.isSorted(s); obj.TableSorts.(f) = s; end
+        end
+    end
 end
 if AppPrefs.ispref(g, 'TrialsParamColumns')
     obj.TrialsParamColumns = reshape(string(AppPrefs.getpref(g, 'TrialsParamColumns')), 1, []);

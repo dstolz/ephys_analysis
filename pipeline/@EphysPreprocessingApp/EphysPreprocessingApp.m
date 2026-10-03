@@ -719,6 +719,7 @@ classdef EphysPreprocessingApp < handle
         DatasetPickers matlab.ui.control.DropDown   % every tab's Dataset box (datasetPicker)
         HiddenSelectedKeys (1,:) string = string.empty(1,0)   % ticked dataset keys hidden by the token filters
         DatasetsColumnOrder (1,:) string = string.empty(1,0)  % datasets-table variables in display order (a preference)
+        TableSorts (1,1) struct = struct()   % each sortable table's remembered sort, a TableSort state by table id (a preference; tableSort)
 
         % --- config model ---
         Config EphysPipelineConfig = EphysPipelineConfig()   % working copy
@@ -1179,6 +1180,7 @@ classdef EphysPreprocessingApp < handle
         onReviewAllUnits(obj)
         onReviewCriteriaChanged(obj)
         onReviewQCReport(obj)
+        showReviewUnits(obj)
 
         % --- Synthetic tab ---
         ok = onSynthLoadSource(obj)
@@ -1214,6 +1216,10 @@ classdef EphysPreprocessingApp < handle
         % --- app-wide ---
         loadPreferences(obj)
         savePreferences(obj)
+        s = tableSort(obj, id)
+        onTableSorted(obj, id, evt)
+        onTableSortMenu(obj, menu, id)
+        clearTableSort(obj, id)
         onClose(obj)
         stopTimers(obj)
         setStatus(obj, message, hint)

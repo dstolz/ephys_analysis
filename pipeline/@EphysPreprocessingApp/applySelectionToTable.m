@@ -20,6 +20,7 @@ for i = 1:obj.Project.NumDatasets
 end
 T.Select = sel;
 obj.HiddenSelectedKeys = hidden;
-obj.DatasetsTable.Data = T;
+obj.DatasetsTable.Data = TableSort.apply(T, obj.tableSort("Datasets"));   % sorted by Select, rows move
+obj.highlightDatasetRow();
 obj.refreshDatasetMenu();
 end

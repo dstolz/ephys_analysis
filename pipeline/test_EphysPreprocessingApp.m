@@ -1212,6 +1212,9 @@ sub = findobj(cm.Children, 'flat', 'Text', 'Parameter columns');
 check(isscalar(sub) && isequal(flip(string({sub.Children.Text})), ["computerTimestamp" "isTest" "ToneLevel"]) ...
     && ~any(logical([sub.Children.Checked])) && isscalar(findobj(cm.Children, 'flat', 'Text', 'Reset column order')), ...
     'the table menu lists the session parameters (not TrialIndex) alphabetically, ignoring case, unticked');
+item = findobj(cm.Children, 'flat', '-regexp', 'Text', '^Clear sort');
+check(isscalar(item) && item.Enable == "off" && item.Separator == "off" && isequal(cm.Children(1), item), ...
+    'the menu ends with Clear sort, beside Reset column order, off while the table keeps no sort');
 for p = ["ToneLevel" "isTest"]
     item = findobj(sub, 'Text', p);
     item.MenuSelectedFcn(item, []);
@@ -1658,6 +1661,46 @@ check(startsWith(string(ax.Subtitle.String), "Template: the sorted .bin is not t
     && contains(string(app.StatusBar.Text), "its template is shown"), ...
     'without the sorted .bin the unit''s template is drawn instead, and the status bar says why');
 
+fprintf('\n== 4a2. Review tab: the units table keeps its sort ==\n');
+app.syncReviewDataset();
+app.TableSorts.Review = struct('column', "#Spk", 'direction', "ascend");   % as a click on #Spk leaves it
+app.showReviewUnits();
+C = app.ReviewUnitsTable.Data;
+check(isequal(cell2mat(C(:, 1)), [2; 1; 0]) && isequal(cell2mat(C(:, 7)), [1; 2; 3]), ...
+    'the units are shown in the remembered sort');
+app.onReviewUnitSelected(struct('Indices', [3 1]));
+check(app.ReviewData.clusterID(app.ReviewSelectedUnit) == 0, 'a row click reaches its unit through the cluster id');
+app.onReviewNoteEdited(struct('Indices', [2 16], 'NewData', 'sorted', 'PreviousData', 'two cells?'));
+[ids, notes] = EphysDataset.readUnitNotes(phyDir);
+C = app.ReviewUnitsTable.Data;
+check(isequal(ids, 1) && notes == "sorted" && isequal(cell2mat(C(:, 1)), [2; 1; 0]) && string(C{2, 16}) == "sorted" ...
+    && isequal(app.ReviewUnitsTable.Selection, 3), ...
+    'a note typed in the sorted table goes to its unit; the sort and the selected unit''s row stay');
+app.onReviewNoteEdited(struct('Indices', [2 16], 'NewData', 'two cells?', 'PreviousData', 'sorted'));
+app.syncReviewDataset();
+check(isequal(cell2mat(app.ReviewUnitsTable.Data(:, 1)), [2; 1; 0]) ...
+    && app.ReviewData.notes(app.ReviewData.clusterID == 1) == "two cells?", 'the sort holds when the sort is loaded again');
+app.onTableSorted("Review", struct('Interaction', 'edit', 'InteractionColumn', 16));
+check(isequal(app.tableSort("Review"), struct('column', "#Spk", 'direction', "ascend")), 'an edit is not a sort');
+drawnow;
+app.onTableSorted("Review", struct('Interaction', 'sort', 'InteractionColumn', 1));   % the Unit header, showing 2, 1, 0
+p = AppPrefs.getpref(g, 'TableSorts');
+check(isequal(app.tableSort("Review"), struct('column', "Unit", 'direction', "descend")) ...
+    && string(p.Review.column) == "Unit" && string(p.Review.direction) == "descend", ...
+    'a header click is remembered with the order it shows, and saved as a preference at once');
+cm = app.ReviewUnitsTable.ContextMenu;
+app.onTableSortMenu(cm, "Review");
+item = cm.Children(1);
+check(isscalar(cm.Children) && string(item.Text) == "Clear sort (Unit, descending)" && item.Enable == "on", ...
+    'right-click offers to clear the sort, naming it');
+item.MenuSelectedFcn(item, []);
+p = AppPrefs.getpref(g, 'TableSorts');
+check(~TableSort.isSorted(app.tableSort("Review")) && ~isfield(p, 'Review') ...
+    && isequal(cell2mat(app.ReviewUnitsTable.Data(:, 1)), [0; 1; 2]), 'Clear sort: cluster order again, and the preference goes');
+app.onTableSortMenu(cm, "Review");
+check(string(cm.Children(1).Text) == "Clear sort" && cm.Children(1).Enable == "off", 'with no sort the item is off');
+app.onReviewAllUnits();
+
 fprintf('\n== 4b. Run tab: the run diagram ==\n');
 check(app.RunDiagramPanel.Visible == "off" && isequal(app.RunSplitGrid.ColumnWidth, {'1x', 0}) ...
     && contains(string(app.RunDiagramHTML.HTMLSource), "function setup(htmlComponent)"), ...
@@ -1822,6 +1865,20 @@ app.onCleanupSelect("all");
 app.onCleanupSelect("none");
 check(~any(app.CleanupPlan.Include) && app.CleanupRunButton.Enable == "off", 'None visible unticks what is shown');
 app.onCleanupSelect("all");
+app.TableSorts.Cleanup = struct('column', "File", 'direction', "descend");   % as a click on File leaves it
+app.refreshCleanupTable();
+D = app.CleanupTable.Data;
+tempFile = string(fullfile(ksOut, 'temp_wh.dat'));
+L = lower(string(D(:, 7)));
+check(isequal(L, sort(L, 'descend')) && isequal(string(D(:, 7)), app.CleanupPlan.File(app.CleanupRowMap)), ...
+    'a remembered sort orders the preview, and each row still maps to its own file in the plan');
+r = find(string(D(:, 7)) == tempFile);
+app.onCleanupFileTicked(struct('Indices', [r 1], 'NewData', false));
+check(~app.CleanupPlan.Include(app.CleanupPlan.File == tempFile) && nnz(app.CleanupPlan.Include) == nnz(P.Action == "remove") - 1, ...
+    'a tick in the sorted table reaches its own file and no other');
+app.onCleanupSelect("all");
+app.clearTableSort("Cleanup");
+check(isequal(app.CleanupRowMap, (1:height(app.CleanupPlan)).'), 'Clear sort: the plan''s order again');
 app.CleanupSorterCopyCheckBox.Value = false;
 app.onCleanupSettingsChanged();
 check(isempty(app.CleanupPlan) && app.CleanupRunButton.Enable == "off" && contains(app.CleanupSummaryLabel.Text, "Preview again"), ...
@@ -2055,6 +2112,7 @@ app.ArtViewShankColorCheckBox.Value = false;
 app.ArtViewShadeButton.Value = false;
 app.ArtViewScaleDropDown.Value = 'manual';
 app.ArtViewLanesField.Value = 150;
+app.TableSorts.Trials = struct('column', "Onset", 'direction', "descend");
 app.savePreferences();
 app2 = EphysPreprocessingApp;
 app2Cleanup = onCleanup(@() delete(app2.Fig));
@@ -2065,7 +2123,10 @@ check(app2.ArtViewContextField.Value == 40 && app2.ArtViewChannelsField.Value ==
 check(app2.ArtThresholdField.Value == app.ArtThresholdField.Value ...
     && strcmp(app2.ArtMethodDropDown.Value, app.ArtMethodDropDown.Value), ...
     'the detection settings come back with the config');
+check(isequal(app2.tableSort("Trials"), struct('column', "Onset", 'direction', "descend")), ...
+    'a table''s sort is recalled by a new window');
 clear app2Cleanup
+app.clearTableSort("Trials");
 app.ArtViewContextField.Value = 0; app.ArtViewChannelsField.Value = 8; app.ArtViewShankColorCheckBox.Value = true;
 app.ArtViewShadeButton.Value = true; app.ArtViewScaleDropDown.Value = 'artifact'; app.ArtViewLanesField.Value = 0;
 
@@ -2114,6 +2175,19 @@ T = app.DatasetsTable.Data;
 check(app.Project.NumDatasets == 2 && isequal(T.Select(T.Name == "recM003_260103_120000"), true) && nnz(T.Select) == 1 ...
     && app.Config.Project.Selection == "list" && isequal(app.Config.Project.Datasets, "recM003_260103_120000"), ...
     'Scan loads the config''s datasets and ticks its selection (not "all")');
+app.TableSorts.Datasets = struct('column', "Name", 'direction', "descend");   % as a click on Name leaves it
+app.refreshDatasetsTable();
+active = app.SelectedDatasetIdx;
+app.onDatasetCellSelection(struct('Indices', [2 2]));
+T = app.DatasetsTable.Data;
+S = app.DatasetsTable.StyleConfigurations;
+check(isequal(T.Name, ["recM003_260103_120000"; "recM002_260102_120000"]) ...
+    && app.Project.Datasets(app.SelectedDatasetIdx).Name == "recM002_260102_120000" ...
+    && height(S) == 1 && isequal(S.TargetIndex{1}, 2) ...
+    && isequal(app.Project.Datasets(app.tickedDatasetIndices()).Name, "recM003_260103_120000"), ...
+    'the Project table keeps its sort on a refresh; a row click, the highlight and the ticks follow their datasets');
+app.clearTableSort("Datasets");
+if active >= 1; app.selectDataset(active); end
 app.RootPathField.Value = char(proj);   % edited, not scanned
 app.onConfigChanged();
 id = "";

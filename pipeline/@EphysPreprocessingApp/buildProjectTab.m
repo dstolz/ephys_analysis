@@ -113,7 +113,8 @@ obj.ScanStatusLabel.Layout.Column = 5;
 % --- row 3: datasets table, and the Tools panel beside it --------------------
 % Columns (headers, widths, the trailing hidden "DatasetIdx" that maps a row
 % back to obj.Project.Datasets) are laid out by refreshDatasetsTable. Headers
-% can be dragged into a new order, which refreshes keep.
+% can be dragged into a new order, which refreshes keep, and a header click's
+% sort is kept too (tableSort); right-click clears it.
 mid = uigridlayout(g, [1 2]);
 mid.Layout.Row = 3;
 mid.RowHeight   = {'1x'};
@@ -126,6 +127,9 @@ buildToolsPanel(obj, mid);
 obj.DatasetsTable.CellSelectionCallback = @(~,evt) obj.onDatasetCellSelection(evt);
 % Select is the only editable column: a tick changes the selection and the Dataset menu.
 obj.DatasetsTable.CellEditCallback = @(~,~) ticksEdited(obj);
+obj.DatasetsTable.DisplayDataChangedFcn = @(~, evt) obj.onTableSorted("Datasets", evt);
+obj.DatasetsTable.ContextMenu = uicontextmenu(obj.Fig, ...
+    "ContextMenuOpeningFcn", @(m, ~) obj.onTableSortMenu(m, "Datasets"));
 
 % --- row 4: source settings of the active dataset's recording system ---------
 buildSourcePanel(obj, g);

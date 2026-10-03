@@ -108,7 +108,7 @@ try
     obj.ReviewSpikeWaves = struct([]);
 
     fillSummary(obj, R);
-    fillUnitsTable(obj, R);
+    obj.showReviewUnits();   % in the table's remembered sort, no row selected
     obj.renderReviewPlots();
 
     obj.setStatus(sprintf("Loaded results: %d unit(s) (good %d, mua %d).", ...
@@ -160,13 +160,6 @@ for s = 1:R.nShank
         sum(m & R.group == "good"));   %#ok<AGROW>
 end
 obj.ReviewSummaryLabel.Text = lines;
-end
-
-
-function fillUnitsTable(obj, R)
-%fillUnitsTable  Fill the per-unit table (one row per cluster; reviewTableRows).
-obj.ReviewUnitsTable.Data = reviewTableRows(R);
-obj.ReviewUnitsTable.Selection = [];
 end
 
 

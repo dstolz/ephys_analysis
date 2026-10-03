@@ -462,7 +462,8 @@ sch.remove();
 | **Tools** panel (beside the table) | opens datasets in another program. The box on top chooses which: **Active dataset** (the highlighted row) or **Ticked datasets** (the ticked rows, or every dataset when none is ticked, as a run takes them); the label under it names them, and how many of several have sorted output. **Manifest viewer**: each one's `<Name>_manifest.json` in a [manifest viewer](ManifestViewerApp.md), a window each, cascaded (the same as Dataset → View manifest...). **Analysis app**: one [analysis app](EphysAnalysisApp.md) on the project with those datasets selected (a new config in project mode with `Source.Selection = "list"` and their keys: it lists every dataset but ticks only these to run, the first of them active; `"all"` when they are every dataset); needs the repository's `analysis` folder on the path. **phy**: phy's template-gui on each one's associated sorted output, a window each (on only when one of them has `params.py`; the others are skipped). **Output folder**: each one's output folder in the file browser (an alert names those not written yet). Opening more than four windows at once asks first |
 
 Table columns (drag a header to reorder; the order is kept across refreshes
-and saved in the app preferences): **Select**, Name, the ticked name tokens
+and saved in the app preferences; click a header to sort, and the sort is kept
+the same way, see [Sorted tables](#sorted-tables)): **Select**, Name, the ticked name tokens
 (`-` when the name does not match the pattern), **Key** (root-relative, what the config
 stores), Acq date, # chan, Fs (Hz), Duration (min), Format, Probe
 (`default: <file>` when the dataset has none of its own and the config's
@@ -517,7 +518,7 @@ are approved as paired). A dataset with neither has nothing to load.
 | **Auto approve when the counts match** | `Behavior.AutoApprove` (off by default): a pairing is approved as soon as it is paired (Load, a setting change, **Prefetch ticked**, the behavior step) when it cuts nothing and the trials and the trial-line intervals are equal in number (`EphysDataset.autoApproveTrialPairing`). The manifest marks the approval as automatic (`auto_approved`), the summary reads *APPROVED automatically* and the Project table *pairing approved (auto)*; an existing `<Name>_behavior.mat` is rewritten with the approved pairing. A count mismatch, and a pairing whose cuts resolved one, still need **Approve**. **Reset cuts** and cut edits never approve; approving by hand replaces the automatic mark |
 | Lines table (**Native**, **Name**, **Intervals**, **Inverted**) | one row per digital line: its native name (`DIGITAL-IN-04`, Open Ephys `TTL4`), its name, and its interval count. Editing **Name** writes a `Signals.LineNames` entry `native=name` (a name equal to the line's default, or a blank cell, removes it) and re-pairs from the lines already read, without reading the recording again; the trial line and the inverted lines follow the new name. Name the Open Ephys TTL lines here (`TTL4` → `InTrial`). Ticked **Inverted** lines are `Signals.InvertedLines`: on while low, so an event's onset is the falling edge and its offset the rising edge (the last low sample). Names and polarity apply to the pairing and to the events the Signals step writes (and so to the exports) |
 | **Resolve a count mismatch** | four spinners: trials and trial-line intervals to cut from the start and from the end before pairing. They belong to the dataset (its manifest), not to the config; cuts that would drop more than there is are refused |
-| Trials table | trial, `TrialIndex`, interval, onset / offset (s), onset / offset sample, flag (orange = partial: the interval touches the recording start or end; grey = cut; red = unpaired), the other lines overlapping the trial. Click a header to sort, drag it to move the column. Right-click for **Parameter columns** (the loaded trials' parameters in alphabetical order: Epsych2 parameters, or the other epoc stores' values at each trial onset; tick one, e.g. `TrialType` or a response code, to show it after Flag), **Remove "*name*"** (on a parameter column) and **Reset column order**. The chosen parameters and the column order are preferences, so they apply to every dataset and the next session; a parameter a session lacks is not shown there (the menu lists it as *not in these trials*) and returns to its place for sessions that have it. Values that are not one number, text or date per trial are shown as text. A sort is not kept when the table refreshes (Load, a cut, a setting or a column change) |
+| Trials table | trial, `TrialIndex`, interval, onset / offset (s), onset / offset sample, flag (orange = partial: the interval touches the recording start or end; grey = cut; red = unpaired), the other lines overlapping the trial. Click a header to sort, drag it to move the column. Right-click for **Parameter columns** (the loaded trials' parameters in alphabetical order: Epsych2 parameters, or the other epoc stores' values at each trial onset; tick one, e.g. `TrialType` or a response code, to show it after Flag), **Remove "*name*"** (on a parameter column) and **Reset column order**. The chosen parameters and the column order are preferences, so they apply to every dataset and the next session; a parameter a session lacks is not shown there (the menu lists it as *not in these trials*) and returns to its place for sessions that have it. Values that are not one number, text or date per trial are shown as text. A header click's sort is kept when the table refreshes (Load, a cut, a setting or a column change), for every dataset and the next session; the flag colours follow their rows, and right-click → **Clear sort** returns to trial order ([Sorted tables](#sorted-tables)) |
 | Plot | the digital lines over the recording: one bar per event, from its onset to its offset. A normal line's bars run from each rising edge to the next falling edge; an inverted line's (row label `(inverted)`) from each falling edge to the next rising edge. The trial line's bars are coloured by pairing state (paired, partial, cut, unpaired), and dotted lines across every row mark its onsets and offsets. Right-click the plot to show or hide those lines (shown by default) and the grid lines (hidden by default), and for **Trial labels**: the loaded trials' parameters in alphabetical order (`TrialIndex` included). A ticked parameter writes each paired trial's value above the trial line, starting at the trial's onset; with several ticked, each label reads `name=value, name=value` in the order ticked, and the plot title names them. **No labels** clears them. Like the table's parameter columns, the choice is a preference: it applies to every dataset and the next session, and a parameter a session lacks is listed as *not in these trials* and not written. Zoom and pan are horizontal only: the mouse wheel zooms time in and out about the cursor, dragging pans time |
 
 The summary line says whether the pairing is approved (by hand or
@@ -764,7 +765,9 @@ The **Selection** tab on the right comes to the front. It shows:
   (*Min channels* applied, no stitching or padding). Rows that would flag are
   shaded;
 - one row per channel giving RMS z, MAD z, peak, RMS and peak-to-peak µV,
-  sorted by the method chosen on the left (any column sorts on a click).
+  sorted by the method chosen on the left. Any column sorts on a click, and
+  that sort is kept for every selection and the next session; right-click →
+  **Clear sort** returns to the method's order ([Sorted tables](#sorted-tables)).
   The channels over its threshold are shaded.
 
 The baselines (median / MAD) are those of the whole window shown, as
@@ -1404,7 +1407,11 @@ dataset whose name does not match `Project.NamePattern`, is read with
   Summary says how many units meet the criteria, or why the metrics could
   not be computed. Clicking a row focuses the plots, whose titles show the
   unit label; **Show all units** clears the focus. The table scrolls
-  sideways.
+  sideways. Click a header to sort: the sort is kept for every sort loaded
+  and the next session, and right-click → **Clear sort** returns to cluster
+  order ([Sorted tables](#sorted-tables)). Rows are matched to units by the
+  cluster id, so a click, a note and the selected row reach the right unit
+  in any order.
 - **Good-unit criteria** (above the table): ISI ratio <, Presence >, Cutoff <,
   SNR >, Drift <, Rate > (blank = not applied), the config's
   `Sorting.Quality` (default 0.5, 0.9 and 0.1 for the first three, the
@@ -1647,7 +1654,11 @@ recording folder) and any other file. Nothing on the source is touched.
   File and **Why** (for a raw file, where its source copy is, or why it is
   kept: not found at the source, a different size, no copy record; for a
   step's file, that the step's output is selected). Remove rows come first,
-  largest first, tinted red; raw files that are kept are tinted amber. The
+  largest first, tinted red; raw files that are kept are tinted amber. A
+  click on a header sorts the rows instead, and that sort is kept for every
+  preview and the next session; right-click → **Clear sort** returns to this
+  order ([Sorted tables](#sorted-tables)). Each row is mapped to its file
+  in the plan, so a tick reaches its own file in any order. The
   line above the table totals both sides: *Would remove N file(s), X GB,
   from K of M dataset(s). N file(s), Y GB, remain.* **Show the files that
   remain** hides or shows the Keep rows. Previewing reads file listings, the
@@ -1767,6 +1778,30 @@ Scripted, `app.issueReport("bug")` returns the same report (name-value
 `Description`, `System`, `Config`, `Logs`, `MaxLogLines`) and
 `app.issueURL("bug", title, body)` the prefilled address.
 
+## Sorted tables
+
+Five tables sort on a header click: the Project table, the Trials table, the
+Review units table, the Clean up preview and the Artifacts tab's per-channel
+Selection table. A uitable sorts only what it shows, and the app fills a table
+again whenever its data changes (another dataset, a reload, an edit, a new
+preview). So the app keeps the click itself, the column and the direction the
+rows show ([`TableSort`](../pipeline/TableSort.m)), puts every new set of rows
+in that order, and saves it as the `TableSorts` preference at once: the sort
+holds for every dataset and the next session. Right-click a table for
+**Clear sort**, which names the sort it clears and returns the rows to the
+app's own order (the project's datasets, trial order, cluster id, Remove rows
+first and largest first, the chosen method's statistic). A column the rows
+do not have (a trial parameter another session lacks) leaves them in that
+order, and the sort applies again where the column is.
+
+The rows are sorted by that column alone, ties in the app's order. Numbers,
+dates and categories sort by value and text ignoring case; empty cells, NaN
+and missing values go last in either direction. Until the next refresh the
+rows are in the uitable's own sort, which may order missing values or
+mixed-case text differently. Every row keeps its link to its data in any order:
+datasets through their index, units through the cluster id, files through
+the plan row, trials and the flag colours through the trial number.
+
 ## Preferences
 
 Stored under the group `'EphysPreprocessingApp'` through [`AppPrefs`](../pipeline/AppPrefs.m), which keeps
@@ -1780,6 +1815,7 @@ of a config lives here:
 | `ProbeFolder`, `PhyCmd`, `ReviewFolder`, `ScriptFolder` | paths |
 | `LastConfigFile`, `RecentConfigs` | reopened on launch; the File → Open recent list |
 | `DatasetsColumnOrder` | the Project table's column order (table variable names) |
+| `TableSorts` | the sort of each [sorted table](#sorted-tables): one field per table (`Datasets`, `Trials`, `Review`, `Cleanup`, `ArtSelection`), each the column last clicked (a table variable name; the header for the Review and Clean up tables) and its direction (`ascend` / `descend`) |
 | `TrialsParamColumns`, `TrialsColumnOrder` | the trial parameters shown in the Trials table, and its column order (table variable names; a parameter column is `Param_<name>`) |
 | `TrialsLabelParams` | the trial parameters written as trial labels in the Trials plot |
 | `VizOptions` | the Visualize tab's display settings |
@@ -1860,14 +1896,15 @@ app.KSQueue                       % prepared runs waiting for a slot (Queue the 
 | `onPlotVisualization.m`, `applyVizSettings.m`, `onVizControlsChanged.m`, `onVizViewChanged.m`, `onVizInput.m`, `onVizButtonDown/Up.m`, `refreshVizShading.m`, `vizDetectedIntervals.m`, `syncVizDataset.m`, `loadVizEvents.m`, `onVizReadEvents.m`, `showVizHelp.m`; `pipeline/EphysTraceViewer.m`, `pipeline/EphysTraceSource.m` | Visualize tab: loading the active dataset's signals and spikes, the controls, the wheel / keys / drags, the shading (`vizDetectedIntervals`: the Artifacts preview's intervals the plot shades, or why none); the digital-input events and Read events; the "?" window of mouse and key controls; the viewer and the windowed sources behind it |
 | `buildFlowTab.m`, `refreshFlowChart.m`, `flowChartHTML.m`, `flowOverviewHTML.m`, `onFlowViewChanged.m`, `onFlowLayoutChanged.m`, `onSaveFlowChart.m`, `onOpenFlowChartInBrowser.m`, `onFlowNavigate.m`, `flowNavControls.m`, `clearFlowHighlight.m` | Diagram tab: the page in the view picked, drawn by [`PipelineDiagram`](../pipeline/@PipelineDiagram/PipelineDiagram.m), a plain class the app calls (`detail`: every parameter; `overview`: the data flow, laid out and routed there; `zoomFrame`: the zoom and pan, kept per view by the app), save / open, a box's click |
 | `buildCopyTab.m`, `onCopyFind.m`, `onCopyRun.m`, `refreshCopyTable.m`, `onCopyTableEdited.m`, `onCopyStitch.m`, `onCopyUnstitch.m`, `onBrowseCopyFolder.m`, `copyLog.m`, `onCopyCancel.m`, `startCopyMonitor.m`, `stopCopyMonitor.m`, `pollCopyJob.m`, `setCopyRunning.m`, `applyCopyResult.m`, `finishCopyRun.m`, `showCopyProgress.m`, `copySummaryText.m`, `refreshCopySchedule.m`, `onCopyScheduleSave.m`, `onCopyScheduleRemove.m`, `onCopyScheduleRunNow.m`, `onCopyScheduleLog.m`; `pipeline/findCopySessions.m`, `pipeline/stitchCopySessions.m`, `pipeline/copySessions.m`, `pipeline/copy_engine.ps1`, `pipeline/stitchEpsychSessions.m`, `pipeline/CopySchedule.m` | Copy tab, the pairing / stitching / copy functions it calls, the detached copy engine, and the scheduled copy (its Windows task and what each run does) |
-| `loadReviewResults.m`, `renderReviewPlots.m`, `syncReviewDataset.m` | Review tab |
+| `loadReviewResults.m`, `renderReviewPlots.m`, `syncReviewDataset.m`, `showReviewUnits.m` | Review tab (`showReviewUnits`: the units table in its sort, the selected unit's row kept) |
 | `buildSyntheticTab.m`, `onSynthLoadSource.m`, `onSynthPreview.m`, `renderSynthPreview.m`, `onSynthGenerate.m`, `generateSynthetic.m`, `onSynthDesign.m`, `onSynthControlsChanged.m`, `onSynthSourceChanged.m`, `syncSynthControls.m`, `gather/applySynthDesign.m`, `synthColumns.m`, `synthSourceLists.m`, `synthSourceKey.m`, `synthGeneratorArgs.m`, `synthOutputRoot.m`, `synthOutputFolder.m`; `pipeline/SyntheticDesign.m`, `pipeline/syntheticModel.m`, `pipeline/syntheticTaskSchedule.m`, `pipeline/syntheticSessionSchedule.m`, `pipeline/makeSyntheticRecording.m` | Synthetic tab (`generateSynthetic`: Generate without its questions; `synthGeneratorArgs`: the options Preview and Generate share) and the generator |
 | `buildCleanupTab.m`, `onCleanupPreview.m`, `onCleanupRun.m`, `runCleanup.m`, `onCleanupMethodChanged.m`, `onCleanupBrowseDest.m`, `onCleanupSettingsChanged.m`, `refreshCleanupScope.m`, `refreshCleanupTable.m`; `pipeline/planLocalCleanup.m`, `pipeline/runLocalCleanup.m` | Clean up tab and the functions that decide and remove |
 | `load/savePreferences.m` | preferences |
+| `tableSort.m`, `onTableSorted.m`, `onTableSortMenu.m`, `clearTableSort.m`, `private/sortMenuItem.m`, `private/sortableTable.m`, `private/saveTableSorts.m`; `pipeline/TableSort.m` | [sorted tables](#sorted-tables): a header click remembered and saved, applied whenever a table is filled, Clear sort |
 | `stopTimers.m` | stops the app's timers (Kilosort4, copy and resource monitors, the scheduled copy's refresh) on close, and when the figure is deleted any other way |
 | `helpURL.m`, `onHelp.m` | Help menu (wiki pages) |
 | `onReportIssue.m`, `issueReport.m`, `issueURL.m` | Help menu (GitHub issue / feature request) |
-| `pipeline/showAbout.m`, `pipeline/ephysVersion.m` | Help menu (About; shared with EphysAnalysisApp). The release number is set by hand in `ephysVersion.m` |
+| `pipeline/showAbout.m`, `pipeline/ephysVersion.m` | Help menu (About; shared with EphysAnalysisApp). The release number is the repository's `VERSION` file, which `ephysVersion` reads |
 
 ## Tests
 
@@ -1911,8 +1948,11 @@ its settings hold), a hand-picked sorted-output folder that is not there
 table, edits, scans and per-dataset changes during a run, an unreadable
 manifest reported after a scan, a Plan while a background run is going, the
 queue (each dataset once; a plan skips a queued one), phy started in a folder
-whose path holds `&` and spaces, and the timers stopped when the figure is
-deleted. It
+whose path holds `&` and spaces, the timers stopped when the figure is
+deleted, and the [sorted tables](#sorted-tables) (a kept sort applied to the
+Project, Review and Clean up tables, with row clicks, notes, ticks and the
+highlight still reaching their dataset, unit or file; a header click
+remembered and saved at once; Clear sort; a new window recalling a sort). It
 restores the user's preferences afterwards.
 [`test_SyntheticGenerator.m`](../pipeline/test_SyntheticGenerator.m) checks the
 generator behind the Synthetic tab, then drives the tab headlessly: the built-in

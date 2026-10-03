@@ -8,8 +8,12 @@ function refreshCleanupTable(obj, part)
 %
 %   Ticked Remove rows are tinted red, unticked ones grey; raw recording files
 %   that are kept (no verified source copy) amber, since they are the ones a
-%   user may have expected to go. CleanupRowMap maps each table row to its
-%   plan row: the table may be sorted, but Data keeps the order set here.
+%   user may have expected to go. The rows are in the plan's order (Remove
+%   first, largest first), or in that of the remembered header click
+%   (tableSort "Cleanup"), which holds for every preview and the next
+%   session. CleanupRowMap maps each row of Data to its plan row, in
+%   whichever order Data has; a header click reorders only the display, so
+%   Data keeps the order set here.
 arguments
     obj
     part (1,1) string {mustBeMember(part, ["all" "summary"])} = "all"
@@ -52,15 +56,18 @@ end
 
 syncSubjects(obj.CleanupSubjectDropDown, T.Subject);
 vis = visibleRows(obj, T);
-obj.CleanupRowMap = vis;
 obj.CleanupShownLabel.Text = shownText(numel(vis), height(T), nnz(T.Include(vis)));
 set(obj.CleanupSelectButtons, "Enable", matlab.lang.OnOffSwitchState(any(rm(vis))));
 
 S = T(vis, :);
 action = repmat("Keep", height(S), 1);
 action(S.Action == "remove") = "Remove";
-tbl.Data = [num2cell(S.Include), cellstr(action), cellstr(S.Dataset), cellstr(S.Subject), ...
+D = [num2cell(S.Include), cellstr(action), cellstr(S.Dataset), cellstr(S.Subject), ...
     cellstr(S.What), num2cell(sizeMB(S.Bytes)), cellstr(S.File), cellstr(S.Reason)];
+[D, ord] = TableSort.apply(D, obj.tableSort("Cleanup"), tbl.ColumnName);
+S = S(ord, :);
+obj.CleanupRowMap = vis(ord);   % the plan row of each row of Data, in its order
+tbl.Data = D;
 removeStyle(tbl);
 styleRows(tbl, find(S.Action == "remove" & S.Include), [0.98 0.85 0.83]);
 styleRows(tbl, find(S.Action == "remove" & ~S.Include), [0.92 0.92 0.92]);

@@ -22,6 +22,7 @@ if istable(T) && width(T) > 0 && numel(dco) == width(T)   % dragged since the la
     order = string(T.Properties.VariableNames(dco));
 end
 AppPrefs.setpref(g, 'DatasetsColumnOrder', cellstr(order));
+AppPrefs.setpref(g, 'TableSorts', TableSort.toPref(obj.TableSorts));
 AppPrefs.setpref(g, 'TrialsParamColumns', cellstr(obj.TrialsParamColumns));
 AppPrefs.setpref(g, 'TrialsColumnOrder', cellstr(obj.trialsColumnOrder()));
 AppPrefs.setpref(g, 'TrialsLabelParams', cellstr(obj.TrialsLabelParams));

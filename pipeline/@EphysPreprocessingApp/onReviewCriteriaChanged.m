@@ -14,5 +14,5 @@ if err ~= ""
     return
 end
 obj.ReviewData.qc = judgeUnits(obj.ReviewData.units, S.Quality);
-obj.ReviewUnitsTable.Data = reviewTableRows(obj.ReviewData);
+obj.showReviewUnits();
 end

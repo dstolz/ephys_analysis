@@ -16,7 +16,8 @@ switch mode
         obj.NameTokenStatusLabel.Text = regexprep(obj.NameTokenStatusLabel.Text, ' \(\d+ ticked hidden\)', '');
     case "invert"; T.Select = ~T.Select;
 end
-obj.DatasetsTable.Data = T;
+obj.DatasetsTable.Data = TableSort.apply(T, obj.tableSort("Datasets"));   % sorted by Select, rows move
+obj.highlightDatasetRow();
 obj.refreshDatasetMenu();
 obj.onConfigChanged();
 end

@@ -21,7 +21,9 @@ function measureArtifactSelection(obj)
 %   share of the selection flagged; shaded when it would flag), and one per
 %   channel (RMS z, MAD z, peak, RMS and peak-to-peak microvolts; sortable,
 %   the channels over the chosen method's threshold shaded), sorted by the
-%   chosen method. Without a selection it says how to make one. Display
+%   chosen method, or as the remembered header click sorts it (tableSort
+%   "ArtSelection"; kept for every selection and the next session). Without
+%   a selection it says how to make one. Display
 %   only: nothing is written. Called after a selection, and when the
 %   detection controls change (onArtifactControlsChanged).
 %
@@ -151,17 +153,20 @@ switch string(cur.Method)
     case "microvolts", key = M.peakUV;
     otherwise,         key = [];
 end
+over = false(height(C), 1);              % the rows over the chosen method's threshold
 if ~isempty(key)
     k = key;
     k(off) = -Inf;                       % excluded channels last
     [~, order] = sort(k, 'descend', 'MissingPlacement', 'last');
     C = C(order, :);
-    over = find(key(order) > thr(chosen) & ~ismember(order, off));
-    if ~isempty(over)
-        addStyle(ct, uistyle("BackgroundColor", [1 0.9 0.75]), "row", over(:).');
-    end
+    over = reshape(key(order) > thr(chosen) & ~ismember(order, off), [], 1);
 end
+[C, ord] = TableSort.apply(C, obj.tableSort("ArtSelection"));   % a header click's sort, when one is kept
+over = over(ord);
 ct.Data = C;
+if any(over)
+    addStyle(ct, uistyle("BackgroundColor", [1 0.9 0.75]), "row", find(over).');
+end
 end
 
 

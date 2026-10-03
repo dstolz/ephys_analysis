@@ -4,9 +4,10 @@ function onTrialsTableMenu(obj, menu, evt)
 %   columns: one checked item per trial parameter of the loaded trials
 %   (TrialIndex is always a column), then the chosen parameters this
 %   session lacks, which can be unticked, each list in alphabetical order
-%   ignoring case; Reset column order. The choices
-%   (TrialsParamColumns, TrialsColumnOrder) are preferences, so they hold
-%   for every dataset and the next session.
+%   ignoring case; Reset column order; Clear sort (back to trial order,
+%   clearTableSort). The choices (TrialsParamColumns, TrialsColumnOrder,
+%   and the sort, TableSorts) are preferences, so they hold for every
+%   dataset and the next session.
 delete(menu.Children);
 shown = obj.TrialsParamColumns;
 
@@ -42,6 +43,8 @@ end
 
 uimenu(menu, "Text", "Reset column order", "Separator", "on", ...
     "MenuSelectedFcn", @(~,~) resetOrder(obj));
+item = sortMenuItem(obj, menu, "Trials");
+item.Separator = "off";   % with Reset column order
 end
 
 

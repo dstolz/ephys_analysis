@@ -6,8 +6,11 @@ function refreshDatasetsTable(obj, opts)
 %
 %   Columns the user dragged into a new order keep it: the displayed order
 %   is baked into the table variables (see orderColumns), so it survives
-%   rebuilds that change the column set. The token filters above the table
-%   hide rows; ticks on hidden rows are kept in HiddenSelectedKeys.
+%   rebuilds that change the column set. A header click's sort is kept too:
+%   the rows are put in its order on every rebuild (tableSort "Datasets"),
+%   and rows map to datasets through DatasetIdx. The token filters above
+%   the table hide rows; ticks on hidden rows are kept in
+%   HiddenSelectedKeys.
 %
 %   refreshDatasetsTable(Datasets=IDX) only recomputes the cells of the
 %   datasets IDX (indices into Project.Datasets) in the rows the table
@@ -107,8 +110,9 @@ T = T(keep, :);
 
 % Apply the remembered column order to the variables and every per-column
 % property, then clear the table's own display order so it is not applied twice.
+% The rows take the remembered sort.
 perm = orderColumns(vars, order);
-obj.DatasetsTable.Data = T(:, perm);
+obj.DatasetsTable.Data = TableSort.apply(T(:, perm), obj.tableSort("Datasets"));
 obj.DatasetsTable.ColumnName = labels(perm);
 obj.DatasetsTable.ColumnEditable = editable(perm);
 obj.DatasetsTable.ColumnSortable = sortable(perm);
@@ -160,7 +164,7 @@ for i = idx(idx >= 1 & idx <= obj.Project.NumDatasets)
         T.(f)(r) = c.(f);
     end
 end
-obj.DatasetsTable.Data = T;
+obj.DatasetsTable.Data = TableSort.apply(T, obj.tableSort("Datasets"));   % a changed cell may move its row
 obj.highlightDatasetRow();
 obj.syncToolsPanel();
 obj.syncSourcePanel();

@@ -63,8 +63,9 @@ says how to cut a release.
   `unitQualityPass`; the Allen Institute's thresholds by default) in the
   pipeline config (`Sorting.Quality`) and the analysis config
   (`UnitSelection.quality`, applied by `selectUnits`). `unitTable` columns;
-  the exporters carry the metrics (`UnitQuality`, `Export.UnitQuality`, on by
-  default; a failure is a warning). Review tab: QC, ISIv, Pres, Cutoff and SNR
+  the exporters, the Export step and the standalone pipeline script carry the
+  metrics (`UnitQuality`, `Export.UnitQuality`, on by default; a failure is a
+  warning). Review tab: QC, ISIv, Pres, Cutoff and SNR
   columns, editable criteria, **QC report** (`writeUnitQualityReport`, one HTML
   page per sort). `sortSweep` sorts a dataset with several Kilosort4 settings
   on the same `.bin` and compares the sorts. Suite `test_UnitQuality`.
@@ -168,10 +169,6 @@ says how to cut a release.
 
 - The guard that stops `toBin` writing over a recording file now resolves
   `.` and `..` itself when MATLAB runs without Java.
-- The Export step and the standalone pipeline script now give the exported
-  units their quality metrics when `Export.UnitQuality` is on (the
-  default). Before, they read the units once for every format without the
-  metrics, and only an exporter called on its own added them.
 
 ## [0.1.0] - untagged
 

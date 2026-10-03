@@ -129,6 +129,11 @@ says how to cut a release.
 
 ### Changed
 
+- `S_ExampleAnalysis.m` is a walkthrough that runs on any machine. Before,
+  it was a launcher with a user-specific path. It writes a synthetic
+  project to `tempdir` and goes through the project, pairing review, the
+  pipeline, the outputs, unit quality, a PSTH, response statistics and a
+  population summary.
 - `documentation/` is the one source of the wiki's prose pages.
   `tools/wiki/gen_pages.py` generates them from it, and `pages.json` maps
   each page to its file or sections. Links are rewritten to wiki pages, or

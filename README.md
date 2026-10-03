@@ -14,7 +14,7 @@ reference and [pipeline/INSTALL.md](pipeline/INSTALL.md) for setup.
 | [`pipeline/pipeline_configs/`](pipeline/pipeline_configs) | starting-point pipeline configs (`H64LP_4x16.json`) |
 | [`analysis/`](analysis) | quick-look figures from the pipeline's outputs: `EphysAnalysisConfig` / `EphysAnalysisRunner` / `EphysAnalysisScript`, `EphysAnalysisApp`, PSTHs, evoked potentials, rates, tuning, heatmaps, probe maps, HTML / PDF reports ([docs](documentation/EphysAnalysis.md)) |
 | [`documentation/`](documentation) | Reference docs for the pipeline |
-| [`S_ExampleAnalysis.m`](S_ExampleAnalysis.m) | script walkthrough: project, detection, derived signals, the pipeline and its outputs |
+| [`S_ExampleAnalysis.m`](S_ExampleAnalysis.m) | a walkthrough that runs on any machine, on a synthetic project it writes to `tempdir`: the project and a recording, trial pairing, the pipeline and its outputs, sorted units with quality metrics, a PSTH, response statistics and a population summary |
 | [`extract_trials.m`](extract_trials.m), [`matrix2kilosort.m`](matrix2kilosort.m) | Stand-alone helpers: `extract_trials` cuts trials out of a continuous signal around event times (not called by the pipeline; tested in `test_ChronuxDataset`), and `matrix2kilosort` writes a matrix as a Kilosort `.bin` (behind `EphysDataset.matrixToBin`) |
 | [`vendor/`](vendor) | Copies of a few `helper_fnc` utilities this pipeline depends on — see [vendor/README.md](vendor/README.md) |
 | [`toolboxes/chronux`](toolboxes/chronux) | Bundled copy of the [Chronux](http://chronux.org) toolbox, used with `ChronuxDataset` |

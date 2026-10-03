@@ -51,6 +51,10 @@ classdef EphysDataset < handle
     %   ------------------------------------
     %     out = ds.exportKCSD();           % <Name>_kcsd.npz: ele_pos, pots, events
     %
+    %   Neurodata Without Borders
+    %   -------------------------
+    %     out = ds.exportNWB(PythonExe=..., Metadata=struct('Species', "Mus musculus"));   % <Name>.nwb
+    %
     %
     %   Processed files, loaded on demand
     %   ---------------------------------
@@ -270,6 +274,7 @@ classdef EphysDataset < handle
         E      = eventEpochs(obj, opts)
         out    = exportEpochs(obj, opts)
         out    = exportKCSD(obj, opts)
+        out    = exportNWB(obj, opts)
         [trials, info, meta] = readBehavior(obj)
         [src, store] = behaviorSource(obj)
         b      = behaviorStruct(obj, opts)

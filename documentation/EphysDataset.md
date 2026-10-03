@@ -73,7 +73,7 @@ flowchart TB
         EXT[("_extract_TYPE.mat<br/>toMat")]
         SPK[("_spikes.mat<br/>spikesToMat")]
         BEHM[("_behavior.mat<br/>behaviorToMat")]
-        EXP[("_chronux.mat · _fieldtrip.mat<br/>_epochs.mat · _kcsd.npz<br/>exportChronux · exportFieldTrip<br/>exportEpochs · exportKCSD")]
+        EXP[("_chronux.mat · _fieldtrip.mat<br/>_epochs.mat · _kcsd.npz · .nwb<br/>exportChronux · exportFieldTrip<br/>exportEpochs · exportKCSD · exportNWB")]
         EVC[("_events.mat<br/>digitalEvents")]
     end
 
@@ -1902,6 +1902,79 @@ values) are the NumPy layer; `DatasetOutputs.KCSD` reads the file back.
 out = ds.exportKCSD(ProbeFile="C:\probes\A1x16.json");
 K = readNPZ(out.file, ["ele_pos" "pots" "fs"]);   % pots is [n_ele x N] mV
 ```
+
+#### Neurodata Without Borders (NWB)
+
+**`out = exportNWB(Name=Value)`** writes `<outputFolder>/<Name>.nwb`, an
+[NWB 2](https://www.nwb.org) file, through Python. MATLAB stages the data
+in a folder next to the file: `stage.json` holds the structure and every
+text, `stage.npz` every number as held (`writeNPZ`), and each signal gets its
+own `.npy`. Then [`nwb_export.py`](python-drivers.md#nwb_exportpy) builds the
+file with [pynwb](https://pynwb.readthedocs.io) and checks it with
+[nwbinspector](https://nwbinspector.readthedocs.io), which runs pynwb's
+schema validation and the NWB best practices. The file is written as
+`~<name>.partial.nwb` and renamed when complete. The staging folder, which
+needs as much disk as the signals, is deleted afterwards. It needs a Python
+with pynwb and nwbinspector ([INSTALL.md](../pipeline/INSTALL.md)); no
+MATLAB toolbox.
+
+The file holds:
+
+| Where | What |
+| --- | --- |
+| `electrodes` | one row per amplifier channel the signals or units use, in recording order: the electrode group of its shank (`shank<k>`; `unmapped` off the probe; `electrodes` without a probe), `rel_x` / `rel_y` (µm on the probe, with a probe), `channel_name`, `recording_channel` (1-based), `interpolated` (a bad channel the Signals step replaced); `location` from `Metadata.Location`, else `"unknown"` |
+| `processing/ecephys` | `LFP` (an `LFP` container), `MUA` and `SPIKE` (each a `FilteredEphys`): `ElectricalSeries` of the extract's float32 µV as they are, `conversion` 1e-6 (volts), the signal's `rate`, `starting_time` 0; `filtering` lists the `importOptions` that made it, exactly |
+| `acquisition/AUX` | the accelerometer inputs, volts |
+| `units` | spike times (s), `id` = the cluster id, `electrodes` = the peak channel, `class`, `sort_label` (the phy / Kilosort label), `label`, `channel_name`, `peak_channel`, `shank`, `x_um` / `y_um`, `amplitude`, `contam_pct` and, with `UnitQuality`, the quality metrics under SpikeInterface's names (`firing_rate`, `isi_violations_ratio`, ...); `resolution` 1/Fs |
+| `trials` | the paired Epsych2 trials of the behavior file: `start_time` / `stop_time` from `TrialOnset` / `TrialOffset`, plus every column with one number, logical or text per trial; trials without a paired interval are left out (`out.nTrialsLeftOut`), columns of other shapes are listed in `out.trialColumnsLeftOut` |
+| `intervals/<line>` | each digital line's pulses (`TimeIntervals`) |
+| `invalid_times` | the artifact periods the Signals step erased |
+| `general` | `session_description`, `session_start_time` (the recording's start in `Metadata.TimeZone`), `session_id` = `Name`, the subject, experimenter, lab and institution from `Metadata`, `notes` = the provenance as JSON, `source_script` = the code version |
+
+NWB holds one clock. The digital inputs count rows (`t = row/Fs`), while
+signals and spikes put row `r` at `(r − 1)/Fs`. So every trial and pulse
+time is moved to the continuous clock, `(round(t·Fs) − 1)/Fs`, the time of
+the recording sample that produced it (as `epochTable`'s `t0Continuous`).
+Threshold-detected spikes are not exported: NWB has no table for them.
+Nothing is made up for metadata that is not given. nwbinspector reports a
+subject without species, sex or age as critical or as a best-practice
+violation, so give them in `Metadata`.
+
+| Option | Default | |
+| --- | --- | --- |
+| `File` | `<outputFolder>/<Name>.nwb` | |
+| `Extract`, `Signals`, `Units`, `Groups`, `UnitQuality`, `Sources`, `Events` | | as in `exportChronux` (`Detected` is accepted and ignored) |
+| `Trials`, `Behavior` | `true`, `""` | the paired trials of `<outputFolder>/<Name>_behavior.mat` when it exists, of another behavior file, or of a `behaviorStruct` |
+| `ProbeFile` | `""` = the dataset's | the probe that places the electrodes (the pipeline passes `probeFor(d)`) |
+| `Metadata` | `struct()` | the pipeline config's `Export.NWB` fields: `SessionDescription`, `ExperimentDescription`, `Experimenter`, `Lab`, `Institution`, `Keywords`, `Location`, `SubjectId` (`""` = the name pattern's SubjectID, else the behavior's), `Species`, `Sex`, `Age` (ISO 8601, `P90D`), `SubjectDescription`, `Strain`, `Genotype`, `TimeZone` (IANA; `""` = this computer's), `SessionStartTime` (`"yyyy-MM-dd HH:mm:ss"`; `""` = `AcqDate`, else the name pattern's) |
+| `PythonExe`, `CondaEnv` | `""` = the dataset's | a Python with pynwb and nwbinspector |
+| `Inspect` | `true` | run nwbinspector |
+| `KeepStaging`, `StageOnly` | `false` | keep the staging folder; write it and stop (no Python; `out.stage`) |
+| `Overwrite`, `Provenance` | | as in `exportChronux` |
+
+`out` has `file`, `bytes`, `seconds`, `signals`, `nElectrodes`, `nUnits`,
+`nTrials`, `nTrialsLeftOut`, `trialColumnsLeftOut`, `nEventLines`,
+`sessionStartTime`, `inspector` (a table of nwbinspector's findings:
+`importance`, `check`, `message`, `objectType`, `objectName`, `location`),
+`inspectorFile` (`<name>_nwbinspector.json`, every finding), `versions`
+(Python's packages), `sources` and `command`. Findings of importance
+`ERROR`, `PYNWB_VALIDATION` or `CRITICAL` warn
+(`EphysDataset:exportNWB:Inspector`). Errors: `EphysDataset:exportNWB:Exists`,
+`:NoPython`, `:ScriptMissing`, `:NoStartTime`, `:BadTimeZone`,
+`:NoBehavior`, `:Python` (the driver's message).
+
+```matlab
+out = ds.exportNWB(PythonExe="C:\miniconda3\envs\nwb\python.exe", Metadata=struct( ...
+    'Species', "Mus musculus", 'Sex', "F", 'Age', "P90D", 'Location', "AC", 'TimeZone', "America/New_York"));
+lfp = h5read(out.file, '/processing/ecephys/LFP/LFP/data').';   % [samples x channels], uV x 1e-6 = V
+```
+
+Why pynwb and not MatNWB: pynwb is NWB's reference implementation, and
+nwbinspector, the format's validator, runs only in Python. The repository
+already drives Python through `system()` for Kilosort4, so a Python
+environment is part of the setup. MatNWB would add a MATLAB dependency
+(installed, with its classes generated by `generateCore`) and still leave
+validation to Python.
 
 ### Behavior (Epsych2)
 

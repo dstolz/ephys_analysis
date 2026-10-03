@@ -100,6 +100,20 @@ says how to cut a release.
   writes the CSV tables, the figures and a JSON record with provenance.
   `responseEpochs`; `responseStats(Tests=false)` gives the rates and
   per-level rates without the toolbox. Suite `test_PopulationAnalysis`.
+- NWB 2 export: `EphysDataset.exportNWB` and the Export step's `nwb`
+  format write `<Name>.nwb`. It holds electrodes on the probe, LFP / MUA /
+  SPIKE (float32 µV with conversion 1e-6), AUX, the sorted units with
+  their quality metrics, the paired trials, each digital line's pulses,
+  the erased artifact periods as `invalid_times`, and the session,
+  subject and provenance. Trial and pulse times are moved to the
+  continuous clock. MATLAB stages the data (`stage.json`, `stage.npz`, one
+  `.npy` per signal), and `nwb_export.py` writes the file with pynwb and
+  checks it with nwbinspector. Findings of importance CRITICAL and above
+  warn, and all of them go to `<Name>_nwbinspector.json`.
+  `Export.NWB` holds the metadata (nothing is made up when it is left
+  blank) and the Python; it is validated, and the Export tab edits it.
+  `DatasetOutputs` finds the file (`nwb` kind, `NWBFile`, `NWB`). Suite
+  `test_NWBExport`.
 - `stringifyNonFinite` (moved out of `writeJsonFile`), `provenanceForJson`;
   suite `test_Provenance`.
 
@@ -126,6 +140,10 @@ says how to cut a release.
 
 - The guard that stops `toBin` writing over a recording file now resolves
   `.` and `..` itself when MATLAB runs without Java.
+- The Export step and the standalone pipeline script now give the exported
+  units their quality metrics when `Export.UnitQuality` is on (the
+  default). Before, they read the units once for every format without the
+  metrics, and only an exporter called on its own added them.
 
 ## [0.1.0] - untagged
 

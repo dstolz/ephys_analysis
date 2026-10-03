@@ -277,6 +277,41 @@ if E.Enabled
             add("export", "Formats", "warning", "The Signals step derives no LFP; the kCSD export needs an existing LFP extract.");
         end
     end
+    if any(E.Formats == "nwb")
+        N = E.NWB;
+        py = N.PythonExe;
+        if py == ""; py = obj.Sorting.PythonExe; end
+        if py == ""
+            add("export", "NWB.PythonExe", "error", ...
+                "The NWB export runs Python (pynwb, nwbinspector): set Export.NWB.PythonExe or the Sorting step's PythonExe.");
+        end
+        if N.Sex ~= "" && ~ismember(N.Sex, ["F" "M" "U" "O"])
+            add("export", "NWB.Sex", "error", "NWB.Sex is F, M, U (unknown) or O (other).");
+        end
+        if N.Age ~= "" && isempty(regexp(N.Age, '^P(\d+Y)?(\d+M)?(\d+W)?(\d+D)?(T(\d+H)?(\d+M)?(\d+(\.\d+)?S)?)?(/.*)?$', 'once'))
+            add("export", "NWB.Age", "error", "NWB.Age is an ISO 8601 duration, e.g. P90D (90 days) or P12W.");
+        end
+        if N.TimeZone ~= ""
+            try
+                datetime('now', 'TimeZone', N.TimeZone);
+            catch
+                add("export", "NWB.TimeZone", "error", "Unknown time zone """ + N.TimeZone + """ (an IANA name, e.g. America/New_York).");
+            end
+        end
+        if N.SessionStartTime ~= ""
+            try
+                datetime(N.SessionStartTime, 'InputFormat', 'yyyy-MM-dd HH:mm:ss');
+            catch
+                add("export", "NWB.SessionStartTime", "error", "NWB.SessionStartTime is ""yyyy-MM-dd HH:mm:ss"".");
+            end
+        end
+        unset = ["Species" "Sex" "Age"];
+        unset = unset(arrayfun(@(f) N.(f) == "", unset));
+        if ~isempty(unset)
+            add("export", "NWB", "warning", "NWB." + strjoin(unset, ", NWB.") + ...
+                " not set: nwbinspector reports a subject without them (nothing is made up for them).");
+        end
+    end
     if any(E.Formats == "epochs")
         w = E.EpochWindow;
         if numel(w) ~= 2 || w(2) <= w(1)

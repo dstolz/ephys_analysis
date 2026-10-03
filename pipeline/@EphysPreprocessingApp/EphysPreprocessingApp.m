@@ -616,6 +616,18 @@ classdef EphysPreprocessingApp < handle
         ExpFieldTripCheckBox matlab.ui.control.CheckBox
         ExpEpochsCheckBox    matlab.ui.control.CheckBox
         ExpKCSDCheckBox      matlab.ui.control.CheckBox
+        ExpNWBCheckBox       matlab.ui.control.CheckBox
+        ExpNWBLocationField  matlab.ui.control.EditField
+        ExpNWBSpeciesField   matlab.ui.control.EditField
+        ExpNWBSexDropDown    matlab.ui.control.DropDown
+        ExpNWBAgeField       matlab.ui.control.EditField
+        ExpNWBTimeZoneField  matlab.ui.control.EditField
+        ExpNWBExperimenterField matlab.ui.control.EditField
+        ExpNWBLabField       matlab.ui.control.EditField
+        ExpNWBInstitutionField matlab.ui.control.EditField
+        ExpNWBPythonField    matlab.ui.control.EditField
+        ExpNWBCondaField     matlab.ui.control.EditField
+        ExpNWBInspectCheckBox matlab.ui.control.CheckBox
         ExpSignalsField      matlab.ui.control.EditField
         ExpUnitsCheckBox     matlab.ui.control.CheckBox
         ExpGroupsField       matlab.ui.control.EditField

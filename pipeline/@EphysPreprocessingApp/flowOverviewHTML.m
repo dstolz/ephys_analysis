@@ -257,9 +257,13 @@ if ismember("kcsd", X.Formats)
     export.outs(end+1) = pill("out", "kCSD file", [dsName + "_kcsd.npz", "LFP on the probe"], ...
         "ExpKCSDCheckBox,ExpOutputDirField", false);
 end
+if ismember("nwb", X.Formats)
+    export.outs(end+1) = pill("out", "NWB file", [dsName + ".nwb", "pynwb, nwbinspector"], ...
+        "ExpNWBCheckBox,ExpOutputDirField", false);
+end
 if isempty(export.outs)
     export.outs = pill("off", "No format ticked", "nothing is written", ...
-        "ExpChronuxCheckBox,ExpFieldTripCheckBox,ExpEpochsCheckBox,ExpKCSDCheckBox", false);
+        "ExpChronuxCheckBox,ExpFieldTripCheckBox,ExpEpochsCheckBox,ExpKCSDCheckBox,ExpNWBCheckBox", false);
 end
 
 N = [probe, behavior, artifacts, sorting, signals, spikes, export];

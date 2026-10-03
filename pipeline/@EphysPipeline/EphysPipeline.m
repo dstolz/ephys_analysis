@@ -473,6 +473,8 @@ classdef EphysPipeline < handle
                     f = fullfile(dirOr(c.Export.OutputDir, d), d.Name + "_epochs.mat");
                 case "export:kcsd"
                     f = fullfile(dirOr(c.Export.OutputDir, d), d.Name + "_kcsd.npz");
+                case "export:nwb"
+                    f = fullfile(dirOr(c.Export.OutputDir, d), d.Name + ".nwb");
                 case "sorting"
                     f = string(d.kilosortDir());
                 case "artifacts"

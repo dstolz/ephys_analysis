@@ -966,7 +966,15 @@ the app only writes files.
   `KCSD2D`, [format](file-formats.md#kcsd-export-ephysdatasetexportkcsd-the-export-step)).
   kCSD needs a probe (the dataset's own, a rule's or the default) and leaves
   out the interpolated bad channels; units and detected spikes are not part
-  of it.
+  of it. **NWB 2** (`<Name>.nwb`, [EphysDataset → NWB](EphysDataset.md#neurodata-without-borders-nwb))
+  holds the electrodes on the probe, the signals, the sorted units with
+  their quality metrics, the paired trials, the digital lines and the erased
+  periods. It is written by Python (pynwb) and checked with nwbinspector.
+- **NWB** (`Export.NWB`): the electrode location; the subject's species,
+  sex and age; the time zone the recording was made in; experimenter, lab
+  and institution; the Python and conda env (blank = the Sorting tab's); and
+  **Check with nwbinspector**. Anything left blank is not written, and
+  nwbinspector reports a subject without species, sex or age.
 - What to include: signals (blank = every signal in the extract), sorted
   units (+ groups), detected spikes, events; **Validate with
   FieldTrip** when it is on the path.
@@ -1794,7 +1802,7 @@ preference: its settings live in its own file, which its Windows task reads.
 | `<Folder>/<Name>_manifest.json` | scan, probe assignment, exclusion change, manual artifact edit, sorting / behavior association, each sorting launch and completion |
 | `<outputFolder>/<Name>.bin` (or `<Name>_ks4.bin`) + `.json`, `<outputFolder>/kilosort4/{settings.json, run_ks4.py, ks4_launch.cmd, ks4_run.log, ks4_status.json, ks4_exit.txt}` and the phy files (plus `<probe>_excluded.json` with excluded channels, `<probe>_spaced.json` with `shank_spacing`, and `previous_<yyyyMMdd_HHmmss>/` holding an earlier sort's curation) | Sorting (a dry run writes only `settings.json` and `run_ks4.py`, into `kilosort4/dryrun/`) |
 | `<outputFolder>/<Name>_artifacts.json` | Artifacts (cache) |
-| `<Name>_extract_<TYPE>.mat` (or `<Name>_extract.mat`), `<Name>_spikes.mat`, `<Name>_chronux.mat`, `<Name>_fieldtrip.mat`, `<Name>_epochs.mat`, `<Name>_kcsd.npz` | Signals, Spikes, Export |
+| `<Name>_extract_<TYPE>.mat` (or `<Name>_extract.mat`), `<Name>_spikes.mat`, `<Name>_chronux.mat`, `<Name>_fieldtrip.mat`, `<Name>_epochs.mat`, `<Name>_kcsd.npz`, `<Name>.nwb` (+ `<Name>_nwbinspector.json`) | Signals, Spikes, Export |
 | probe `.json` in the probe folder | Import, Designer save, Notes edit |
 | `<parent>/synthetic_ephys/...` | File → Create synthetic test project (recordings, sessions, sorted output, probe, config, README) |
 | `<Folder>/<Subject>/<Subject>_<start>/`: the recording, the session copy, `kilosort4/` (ground truth), `<Name>_manifest.json`, `<Name>_synthetic.json` and, with a synthetic probe, `<Name>_probe.json`; a design `.json` | Synthetic → Generate... (Preview writes nothing); Save design... |

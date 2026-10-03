@@ -51,10 +51,11 @@ classdef EphysPipelineConfig
     %     Spikes     Enabled, threshold-detection settings, output settings
     %                (sorted units stay in the sorting folder)
     %     Export     Enabled, Formats (a subset of ExportFormats: the
-    %                analysis-toolbox files, kCSD-python's .npz and the
-    %                event-organized epochs), what to include (UnitQuality:
-    %                the units carry their quality metrics), the Epoch*
-    %                settings of the epoch format
+    %                analysis-toolbox files, kCSD-python's .npz, the
+    %                event-organized epochs and NWB 2), what to include
+    %                (UnitQuality: the units carry their quality metrics),
+    %                the Epoch* settings of the epoch format, NWB (the NWB
+    %                file's metadata and the Python that writes it)
     %
     %   Usage
     %     cfg = EphysPipelineConfig();                 % defaults
@@ -105,7 +106,7 @@ classdef EphysPipelineConfig
         % toolbox (kcsd: the LFP and probe positions for kCSD-python, a
         % .npz), plus "epochs", the same data organized by event. Each has
         % an EphysDataset.export<Format> method.
-        ExportFormats = ["chronux" "fieldtrip" "epochs" "kcsd"]
+        ExportFormats = ["chronux" "fieldtrip" "epochs" "kcsd" "nwb"]
         % Kilosort4 parameters that depend on the probe layout: what
         % ks4ProbeDefaults derives and what a probe's parameter file holds
         % when it is created from the Sorting tab.
@@ -404,6 +405,24 @@ classdef EphysPipelineConfig
             e = EphysPipelineConfig.normalizeSection("Export", e);
             if nargin > 1 && string(fmt) == "kcsd"
                 o = struct('Events', logical(e.IncludeEvents), 'Overwrite', logical(e.Overwrite));
+                return
+            end
+            if nargin > 1 && string(fmt) == "nwb"
+                % the caller adds ProbeFile and, when Export.NWB leaves them "",
+                % the Sorting step's PythonExe / CondaEnv
+                n = e.NWB;
+                o = struct();
+                if ~isempty(e.Signals); o.Signals = e.Signals; end
+                if e.IncludeUnits; o.Units = []; else; o.Units = false; end
+                o.UnitQuality = logical(e.UnitQuality);
+                o.Events = logical(e.IncludeEvents);
+                o.Groups = e.Groups;
+                o.Overwrite = logical(e.Overwrite);
+                o.Trials = logical(n.Trials);
+                o.Inspect = logical(n.Inspect);
+                o.PythonExe = n.PythonExe;
+                o.CondaEnv = n.CondaEnv;
+                o.Metadata = rmfield(n, ["Trials" "Inspect" "PythonExe" "CondaEnv"]);
                 return
             end
             o = struct();

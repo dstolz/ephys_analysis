@@ -193,6 +193,7 @@ switch section
             'EpochArtifacts',  "drop", ...      % epoch touching an artifact period of the extract: "drop" | "keep"
             'EpochSpikeTimeBase', "onset", ...  % "onset" | "window" | "absolute"
             'EpochClass',      "double", ...    % "double" | "single" | "asis"
+            'NWB',             nwbDefaults(), ...  % the "nwb" format: metadata and the Python that writes it
             'OutputDir',       "", ...
             'MatVersion',      "-v7.3", ...
             'Overwrite',       false);
@@ -217,4 +218,31 @@ switch p.kind
     otherwise
         v = p.default;
 end
+end
+
+
+function n = nwbDefaults()
+%nwbDefaults  Export.NWB: the NWB file's metadata (nothing is made up: "" is
+%   not written) and the Python, with pynwb and nwbinspector, that writes it.
+n = struct( ...
+    'SessionDescription',    "", ...                 % "" = "<Name>: extracellular recording, exported by ephys_analysis"
+    'ExperimentDescription', "", ...
+    'Experimenter',          string.empty(1,0), ...  % "Last, First" per person
+    'Lab',                   "", ...
+    'Institution',           "", ...
+    'Keywords',              string.empty(1,0), ...
+    'Location',              "", ...                 % brain region of the electrodes ("" = "unknown")
+    'SubjectId',             "", ...                 % "" = the name pattern's SubjectID, else the behavior's
+    'Species',               "", ...                 % e.g. "Mus musculus" (Latin binomial or NCBI taxonomy URL)
+    'Sex',                   "", ...                 % "F" | "M" | "U" (unknown) | "O" (other)
+    'Age',                   "", ...                 % ISO 8601 duration, e.g. "P90D"
+    'SubjectDescription',    "", ...
+    'Strain',                "", ...
+    'Genotype',              "", ...
+    'TimeZone',              "", ...                 % IANA name of the recording's time zone ("" = this computer's)
+    'SessionStartTime',      "", ...                 % "yyyy-MM-dd HH:mm:ss" ("" = the recording's start)
+    'Trials',                true, ...               % the paired trials of the behavior file
+    'Inspect',               true, ...               % check the file with nwbinspector
+    'PythonExe',             "", ...                 % "" = the Sorting step's
+    'CondaEnv',              "");                    % "" = the Sorting step's
 end

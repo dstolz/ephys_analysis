@@ -12,5 +12,5 @@ what the files themselves state.
 | [`vendor/tools/Manifest.m`](vendor/tools/Manifest.m), [`vendor/function_helpers/ternary.m`](vendor/function_helpers/ternary.m) | the author's `helper_fnc` repository, commit `61611a9` ([vendor/README.md](vendor/README.md)) | Same author as this repository. |
 
 Python packages the drivers import (Kilosort4, probeinterface, PyTorch, phy,
-pynwb) are installed separately and are not part of this repository; see
+pynwb, nwbinspector) are installed separately and are not part of this repository; see
 [pipeline/INSTALL.md](pipeline/INSTALL.md).

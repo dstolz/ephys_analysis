@@ -541,8 +541,14 @@ if ismember("kcsd", E.Formats)
         "ExpKCSDCheckBox"), ...
         node("out", "kCSD file", [dsName + "_kcsd.npz", "NumPy archive"], "ExpOutputDirField,ExpOverwriteCheckBox")});
 end
+if ismember("nwb", E.Formats)
+    kids{end+1} = chain({node("op", "NWB 2 (pynwb)", ["electrodes on the probe, signals, units with quality metrics", ...
+        "paired trials, digital lines, erased periods", ternary(E.NWB.Inspect, "checked with nwbinspector", "not inspected")], ...
+        "ExpNWBCheckBox,ExpNWBLocationField,ExpNWBSpeciesField,ExpNWBPythonField,ExpNWBInspectCheckBox"), ...
+        node("out", "NWB file", [dsName + ".nwb", "HDF5"], "ExpOutputDirField,ExpOverwriteCheckBox")});
+end
 if isempty(kids)
-    kids = {node("off", "Formats", "none ticked", "ExpChronuxCheckBox,ExpFieldTripCheckBox,ExpEpochsCheckBox,ExpKCSDCheckBox")};
+    kids = {node("off", "Formats", "none ticked", "ExpChronuxCheckBox,ExpFieldTripCheckBox,ExpEpochsCheckBox,ExpKCSDCheckBox,ExpNWBCheckBox")};
 end
 inputs = node("data", "Export inputs", in, "ExpSignalsField,ExpUnitsCheckBox,ExpGroupsField,ExpDetectedCheckBox,ExpEventsCheckBox");
 inputs.children = kids;

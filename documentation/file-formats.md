@@ -859,6 +859,34 @@ half-open period of `epochs.artifacts.intervals`; with `EpochArtifacts =
 (`info.keptTrials`, `info.droppedArtifact`), while the trials table and the
 spike epochs keep it.
 
+## NWB export (`EphysDataset.exportNWB`; the Export step)
+
+Default `<outputFolder>/<Name>.nwb`, an [NWB 2](https://www.nwb.org) HDF5
+file written by pynwb ([EphysDataset → NWB](EphysDataset.md#neurodata-without-borders-nwb)
+lists what it holds). Read it with pynwb, MatNWB or `h5read`:
+
+| Path | Contents |
+| --- | --- |
+| `/general/extracellular_ephys/electrodes` | `location`, `group` / `group_name`, `rel_x`, `rel_y` (µm; with a probe), `channel_name`, `recording_channel` (1-based), `interpolated` |
+| `/processing/ecephys/LFP/LFP` | `data` `(samples, channels)` float32 µV, attribute `conversion` 1e-6 (volts); `electrodes` (rows of the table); `starting_time` 0 with `rate` |
+| `/processing/ecephys/MUA/MUA`, `.../SPIKE/SPIKE` | the same for MUA and SPIKE (`FilteredEphys`) |
+| `/acquisition/AUX` | `data` `(samples, channels)` volts |
+| `/units` | `spike_times` + `spike_times_index`, `id`, `electrodes`, `class`, `sort_label`, `label`, `channel_name`, `peak_channel`, `shank`, `x_um`, `y_um`, `amplitude`, `contam_pct`, the quality metrics |
+| `/intervals/trials` | `start_time`, `stop_time` (continuous clock) and the trial columns |
+| `/intervals/<line>` | each digital line's pulses, `start_time` / `stop_time` (continuous clock) |
+| `/intervals/invalid_times` | the artifact periods erased, with `reason` |
+| `/general/notes` | JSON: `tool` (`EphysDataset.exportNWB`), `dataset`, `sourceFolder`, `sources`, `probeFile`, `provenance` ([Provenance](#provenance)); `DatasetOutputs` finds the file by it |
+
+Next to it, `<Name>_nwbinspector.json` holds every finding of nwbinspector
+(`file`, `created`, `versions`, `messages`: `importance`, `check`, `message`,
+`objectType`, `objectName`, `location`).
+
+```matlab
+lfp = h5read("<Name>.nwb", '/processing/ecephys/LFP/LFP/data').';   % [samples x channels] uV
+st  = h5read("<Name>.nwb", '/units/spike_times');
+ix  = h5read("<Name>.nwb", '/units/spike_times_index');            % unit k: st(ix(k-1)+1 : ix(k))
+```
+
 ## kCSD export (`EphysDataset.exportKCSD`; the Export step)
 
 Default `<outputFolder>/<Name>_kcsd.npz`: the LFP and the probe positions of

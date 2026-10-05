@@ -1964,7 +1964,33 @@ deleted, and the [sorted tables](#sorted-tables) (a kept sort applied to the
 Project, Review and Clean up tables, with row clicks, notes, ticks and the
 highlight still reaching their dataset, unit or file; a header click
 remembered and saved at once; Clear sort; a new window recalling a sort). It
-restores the user's preferences afterwards.
+keeps the app's preferences in a temporary file
+([`AppPrefs`](../pipeline/AppPrefs.m)), so the user's own are never read or
+changed.
+
+The same suite covers the rest of the app too: the tab strip and the Diagram's
+viewport and zoom; probe rules, the name tokens' columns and filters, a
+recursive scan, **Dataset → View manifest** and the Tools panel (manifest
+viewer, analysis app, phy); the Artifacts tab (a preview's detections and
+what a run removes for each use and erase setting, a stale preview, Ctrl+drag
+moving an artifact's bounds into the manifest and Restore bounds, the keys
+that step through the artifacts, the shading, Context, Channels and Lanes,
+the probe order, shanks and colours, the voltage and time keys and wheel,
+Reset view, Go to (s), marking manual periods on the plot, Clear and
+Measure); the Trials tab (Load, the cut spinners, the table's parameter
+columns and their order, Approve, the line polarity, the onset / offset
+lines, grid and trial labels, renamed lines and the label field, the
+workspace and **Write behavior .mat** items, Prefetch and Auto approve); Map
+channels; the run saving the pipeline script and the issue report's Run log;
+the Review tab (unit labels, location and Notes, the quality metrics, QC
+column, criteria and report, the shank, ISI and autocorrelogram plots, the
+waveform overlay, the template without the sorted `.bin`); background
+Kilosort4 runs N at a time (the slot wait, the monitor streaming each run's
+log), the GPUs field, the queue, Stop queue and Stop runs; the Clean up tab's
+search, Subject ID list and tick buttons; and the Visualize tab's "?" window,
+Read events, the event markers and TTL rows, the event box's next-onset arrow,
+the last run's detected periods shaded, and Mark manual periods.
+
 [`test_SyntheticGenerator.m`](../pipeline/test_SyntheticGenerator.m) checks the
 generator behind the Synthetic tab, then drives the tab headlessly: the built-in
 design with an added unit and oscillation, Preview (every plot drawn, the Unit
@@ -1972,60 +1998,85 @@ and LFP boxes), Generate writing exactly the previewed spikes and refusing an
 existing folder, a dataset source (its rate, channels, subject and own probe
 taken over), a dataset written under the project root scanned in and made
 active, the rebuilt lines filled in and editable, and the preferences.
+
 [`test_CopySessions.m`](../pipeline/test_CopySessions.m) (a `matlab.unittest`
 class; `run_all_tests` runs it too) builds fake source trees in a temporary
 folder. It checks pairing (a single session, interleaved sessions resolved
-one-to-one, unpaired files on either side, exact and near ties, clock skew,
-midnight, similar subject IDs, subject patterns and every subject, malformed
-names). It checks copying: a dry run
-writes nothing; a hash-verified copy writes its manifest; an existing
-destination is skipped, reported as an error or already present; a partial copy
-is completed by `resume` (the short file finished, the missing one copied, the
-rest left alone); a truncated copy fails; one missing source does not stop the
-batch; unpaired rows copy only on request; Cancel works. It checks the
-background form too: `Background=true` returns before the copy is done, polling
-the job carries it through to `copied`, options passed with a job are
-refused, and every `ProgressFcn` call carries the fraction, a message and the
-`info` behind it (phase, session, sessions, bytes) with a fraction that never
-steps back. It also drives the Copy tab from Find through a background copy to the
-finished table. It checks that a session whose source changed within the quiet
-time (a file, or a folder a file was taken out of) is left for later, and that
+one-to-one, unpaired files on either side, exact and near ties, clock skew
+and the lead limit, midnight, durations and trial counts from the headers, a
+recording shorter than the minimum, similar subject IDs, subject patterns and
+every subject, malformed names, Open Ephys sessions under a second root, TDT
+blocks, and the errors for a missing root, a bad date and a bad pattern) and
+stitching (`stitchCopySessions` joining rows in time order and refusing bad
+rows). It checks copying: a dry run writes nothing; a hash-verified copy
+writes its manifest; an Open Ephys session is copied whole; an existing
+destination is skipped, reported as an error or already present; a partial
+copy is completed by `resume` (the short file finished, the missing one
+copied, the rest left alone); a copy stopped part way (its full size, the
+wrong time) is completed, never taken as present; a truncated copy fails; a
+same-size corruption fails the SHA-256 checksum; robocopy ended from outside
+fails the session; a heartbeat that looks stale after the computer slept is
+not a dead engine; the free-space check counts only what is left to copy;
+one missing source does not stop the batch; unpaired rows copy only on
+request; Cancel works, also during the checksum pass. A stitched session is
+copied as one `<first>_stitched.mat` (verified, rebuilt by `resume` after its
+source changed), files that cannot be stitched fail in the preview, and a
+session folder never gets a second behavior file. Manifests are written for
+sessions found complete and kept for finished copies. It checks the
+background form too: `Background=true` returns before the copy is done,
+polling the job carries it through to `copied`, options passed with a job
+are refused, and every `ProgressFcn` call carries the fraction, a message and
+the `info` behind it (phase, session, sessions, bytes) with a fraction that
+never steps back. It also drives the Copy tab from Find through a background
+copy to the finished table, Stitch and Unstitch, and the recent-folder
+lists. It checks that a session whose source changed within the quiet time
+(a file, or a folder a file was taken out of) is left for later, and that
 one another batch is writing is left alone until that batch has gone quiet,
-also while a background batch of its own is in flight. For the scheduled copy
-it checks what a run copies (the paired sessions of the days searched; never
-ambiguous, unpaired, to-be-stitched or hand-stitched ones; nothing until the
-source is quiet), what stops a run (no destination, no source), the log,
-`last_run.json` and exit code of `CopySchedule.runTask`, the settings checks,
-the task definition and UNC paths. It creates a real task, has Windows run it
-(MATLAB, started in the background, copies the session and reports) and
-removes it, and saves and removes a schedule from the Copy tab. Copy tests need
-Windows (robocopy, Task Scheduler).
+also while a background batch of its own is in flight. For the scheduled
+copy it checks what a run copies (the paired sessions of the days searched,
+subjects whose folders appear later included; never ambiguous, unpaired or
+to-be-stitched ones; nothing until the source is quiet), what it leaves as it
+is (a hand-stitched copy; a session missing files removed since it was
+copied, while an unfinished copy is completed), a recording copied alone
+gaining its ePsych file once it pairs, what stops a run (no destination, no
+source), the log, `last_run.json` and exit code of `CopySchedule.runTask`,
+the settings checks, the task definition and UNC paths. It creates a real
+task, has Windows run it (MATLAB, started in the background, copies the
+session and reports) and removes it, and saves and removes a schedule from
+the Copy tab. Copy tests need Windows (robocopy, Task Scheduler).
+
 [`test_LocalCleanup.m`](../pipeline/test_LocalCleanup.m) (a `matlab.unittest`
 class) copies a synthetic recording into a session folder as the Copy tab
-would and checks what `planLocalCleanup` removes and keeps (a raw file whose
-source is missing or a different size stays, as does a recording without a copy
-record, and the `.bin` of a binary-format recording), that the Remove option
-limits the kinds, what each step's removal takes (the whole `kilosort4` folder;
-outputs found by their variables, with configured suffixes, in a search folder,
-and unfinished ones; a hand-picked sorted-output folder kept), and that
-`runLocalCleanup` removes only the Remove rows, leaves the source alone, skips
-files that changed since the preview, removes emptied folders, moves files into
-a folder keeping their layout without overwriting, refuses a destination inside
-a dataset, stops on cancel, sends files to the Recycle Bin and finds them there
-(then empties its own items from the bin), and writes and appends to the
-clean-up record.
+would and checks what `planLocalCleanup` removes and keeps (planning changes
+nothing; a raw file whose source is missing or a different size stays, as
+does a recording without a copy record, the data file of a binary-format
+recording, which is raw and not `.bin` output, and what another recording
+with the same name wrote into the shared output folder; an Open Ephys
+session's files below its Record Node; an empty plan when there is nothing
+to clean), that the Remove option limits the kinds, what each step's removal
+takes (the whole `kilosort4` folder and the `.bin` with its sidecar; outputs
+found by their variables, with configured suffixes, in a search folder but
+not another dataset's, a kCSD `.npz` by its meta member, and unfinished
+ones; a hand-picked sorted-output folder kept), and that `runLocalCleanup`
+removes only the Remove rows, leaves the source alone, skips files that
+changed since the preview, removes emptied folders, moves files into a folder
+keeping their layout without overwriting, refuses a destination inside a
+dataset, a relative one or none, stops on cancel, sends files to the Recycle
+Bin and finds them there (then empties its own items from the bin), and
+writes and appends to the clean-up record.
+
 [`test_SyntheticDataset.m`](../pipeline/test_SyntheticDataset.m) checks the
 synthetic project generators and, headlessly, the File-menu action: the
 project is written, opened and scanned; choosing the active dataset in a
 tab's Dataset box, the Dataset menu (a ticked dataset or one under All
-datasets) or the Project table updates all of them, the Dataset menu and every
-tab's Dataset box list only
-the ticked rows,
-clears the previous dataset's pairing and previews, flags a Visualize plot of
-the previous dataset (and, with the tab open, loads the new one at once; opening
-it loads the recording with its sorted units drawn) and loads the Review tab; the Trials tab pairs the clean
-dataset, warns about the late-start one and resolves it with the expected
-cuts.
+datasets) or the Project table updates all of them; the Dataset menu and
+every tab's Dataset box list only the ticked rows; a new active dataset
+clears the previous one's pairing and previews, flags a Visualize plot of the
+previous dataset (and, with the tab open, loads the new one at once; opening
+it loads the recording with its sorted units drawn) and loads the Review tab;
+the Spikes preview runs; the Trials tab pairs the clean dataset, warns about
+the late-start one, resolves it with the expected cuts and records them on
+Approve; and a non-empty folder is refused unless `Overwrite` is passed.
 
 [`test_EphysTraceViewer.m`](../pipeline/test_EphysTraceViewer.m) checks the
 Visualize tab's viewer without the app, on a small universal-format recording
@@ -2037,4 +2088,7 @@ samples at (row − 1)/Fs and a binned spike at its bin's first sample; a zoom i
 drawn from memory, a pan inside the margin moving only the limits; the voltage
 scale, auto scale, lanes, heatmap and shading; sorted units and detected spikes
 as ticks, as the recoloured trace and as stored waveforms on their own lanes,
-spikes only, the read limit, the wheel, keys, drags and the overview.
+spikes only, the read limit, the wheel, keys, drags and the overview; and the
+events: onset and offset lines over the traces (an onset on its own sample,
+offsets dotted), a TTL row per line above them, and `jumpToEvent` stepping
+from onset to onset.

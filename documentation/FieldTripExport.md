@@ -97,12 +97,14 @@ matrix `ft_rejectartifact` reads to reject the trials that touch one.
 [`test_FieldTripExport.m`](../pipeline/test_FieldTripExport.m): `raw`
 (`trial{1}` = `Y.LFP.'`, `time{1}(1) == 0`, `sampleinfo == [1 N]`, labels,
 `hdr.TimeStampPerSample == origFs/Fs`), `spike` (timestamps equal the sorted
-samples, `FirstTimeStamp == 0`, no `time` / `trial`), `event` (`sample` = the
+samples, `FirstTimeStamp == 0`, no `time` / `trial`, the unit metadata in
+`hdr.orig`), detected spikes (`spikeFromDetected`: one unit per channel),
+`event` (`sample` = the
 row at the recording rate; with `EventFs` the nearest sample at a derived
 rate, row 180001 at 30 kHz → 6001 at 1 kHz; durations, ordering),
 `exportFieldTrip`'s per-signal `cfg.event`, `artifact` (the periods as
 `[begsample endsample]` at the LFP rate, a period shorter than one sample
 included; at the recording rate exactly its own samples; `[]` with none) and
-each signal's `cfg.artfctdef.preprocessing.artifact`, the `export` variable names, and
+each signal's `cfg.artfctdef.preprocessing.artifact`, the `export` record's event rate and periods, and
 `Validate` as a no-op without FieldTrip (the checks run `ft_datatype_raw` /
 `ft_datatype_spike` when a FieldTrip checkout is on the path).

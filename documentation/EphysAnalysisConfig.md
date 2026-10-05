@@ -344,7 +344,9 @@ dataset's output folder), `{Root}`, `{Name}` (the dataset), `{Date}`
 ## Tests
 
 `test_EphysAnalysisConfig`: defaults, save / load round trips (Inf, NaN,
-one- and two-item lists, `"default"` sentinels, stop events), `plotFor`,
-auto and duplicate ids, a cell of partial plots, every validate rule (ids
-and patterns whose files would collide included), `LoadWarnings`,
-`BadSchema`, `BadValue`, `figureFileName` and `plotFileName`'s page suffix.
+one- and two-item lists, `"default"` sentinels, stop events, the PSTH stack
+and unit-waveform settings), `plotFor`, `removePlot`, `enabledPlots`, auto
+and duplicate ids, a cell of partial plots, every validate rule (ids and
+patterns whose files would collide, the auROC baseline and response test
+included), `LoadWarnings`, `BadSchema`, `BadValue`, `figureFileName` and
+`plotFileName`'s page suffix.

@@ -233,9 +233,13 @@ results and the report.
 
 `test_EphysAnalysisApp` builds the app headlessly on the analysis fixture
 (a small synthetic project run through the pipeline) and drives it through
-its methods: the five tabs; the scan; the active dataset's lines and
-parameters; grouping by Depth from the Alignment controls; adding a PSTH and
-an LFP evoked potential and previewing both; the preview's right-click
+its methods: the five tabs; the scan; opening on a list of datasets
+(`Datasets=`, as the pipeline app's Tools panel does); the active dataset's
+lines and parameters; grouping by Depth from the Alignment controls; adding
+a PSTH and an LFP evoked potential and previewing both; the response test
+(*Responsive only* and its settings reaching the plot); a PSTH's stack,
+normalization, fill, opacity and group colours reaching the plot and the
+stacked preview; the preview's right-click
 aesthetics editor remembering rules into the plot's config entry (the
 editor itself: `test_PlotAesthetics`); editing the bins; an edit in a
 *Use default* section giving the plot its own event or window, and ticking
@@ -249,6 +253,7 @@ section; the gather / apply
 round trip, keeping the fields without a control (the stop event's offset,
 length and time range, trial rows) and the stop's *n*; Save As, New, reopen;
 generating scripts; Validate, Plan and a run of one plot writing figures
-and the report; the preferences remembered (the last config, the collapsed
-section); closing. The user's `EphysAnalysisApp` preferences are restored
-afterwards.
+and the report (its lines in the Log tab); the preferences remembered (the
+last config, the collapsed section); closing. It keeps the app's
+preferences in a temporary file (`AppPrefs`), so the user's own are never
+read or changed.

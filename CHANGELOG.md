@@ -179,6 +179,14 @@ says how to cut a release.
 
 - The guard that stops `toBin` writing over a recording file now resolves
   `.` and `..` itself when MATLAB runs without Java.
+- Visualize: spike ticks are drawn 2 points wide, edged in the plot's
+  background colour and in front of the traces. Before, they were 1.2-point
+  lines inside the trace's own band and hard to see on a dense trace.
+  Stored waveforms in µV on their own lanes have a scale of their own
+  (`EphysTraceViewer.RasterSpacing`, picked from the units' or channels'
+  waveform peaks and given on the status line) instead of the traces'
+  Spacing, which on a broadband trace can be many times a spike's
+  amplitude and left the waveforms a few pixels tall.
 
 ## [0.1.0] - untagged
 

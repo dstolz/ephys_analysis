@@ -1315,11 +1315,22 @@ about 0.3 s.
 **Spikes.** *Ticks*: one per spike, drawn in the top half of its channel's lane
 for sorted units and in the bottom half for detected spikes (so the two stay
 apart), or across its own lane; ticks that would fall on one pixel column of one
-lane are drawn once. *Waveforms*: on a trace lane the trace itself is recoloured
+lane are drawn once. Ticks are 2 points wide, edged in the plot's background
+colour and drawn in front of the traces, so they show on a dense trace.
+*Waveforms*: on a trace lane the trace itself is recoloured
 over each spike's window, as phy's trace view does (a unit's template window,
 at most −1 to 1.5 ms; a detected spike's `windowMs`). On its own lane (or with
 no trace) the stored waveform is drawn: the detected snippet in µV, or the
 unit's template (in µV when the sort has `bin_scale`, else scaled to the lane).
+Waveforms in µV on their own lanes have a scale of their own, not Spacing:
+twice the median of the units' template peaks (a channel's peak is the median
+of its snippets' peaks), rounded up to 1, 2 or 5 × 10ⁿ µV between lanes, so
+the median peak reaches 0.2 to 0.5 of the way to the next lane. The status
+line gives it; Ctrl+wheel and **Taller** / **Shorter** scale it with the
+traces, and **Auto scale** / **Reset view** pick it again. A template or
+snippet spans about 2 ms, so its shape shows only zoomed in (about 20 pixels
+in a 0.1 s window on a 1,000-pixel plot); in a wider window it is a vertical
+stroke as tall as the spike.
 With more than 4,000 spikes in view, or on a trace below 10 kHz, waveforms fall
 back to ticks and the status line says so.
 

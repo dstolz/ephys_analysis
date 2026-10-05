@@ -48,8 +48,10 @@ function [E, G] = epochTable(src, ref, opts)
 %                  period (src.artifacts), for signal and spike plots
 %                  alike; "keep": keep them, flagged in the artifact column
 %     Baseline     [b0 b1] s from t0 ([] = none, the default): the baseline
-%                  window the compute functions read, which the artifact
-%                  test also covers when it reaches outside the window
+%                  window the compute functions read. Where it reaches
+%                  outside the window, the recording-edge and artifact
+%                  tests cover it too: an epoch whose baseline starts
+%                  before 0 s or ends after the recording is incomplete
 %     Columns      further trial columns to copy onto each epoch (e.g. the
 %                  tuning parameter)
 %
@@ -107,9 +109,16 @@ else
 end
 duration = tStop - tStart;
 hasStop = isfinite(t1) | win.mode == "fixed";
-inRec = tStart >= 0;
+% what is read: the window, and the baseline where it reaches outside it
+readStart = tStart;
+readStop = tStop;
+if numel(opts.Baseline) == 2
+    readStart = min(readStart, t0 + opts.Baseline(1));
+    readStop = max(readStop, t0 + opts.Baseline(2));
+end
+inRec = readStart >= 0;
 if isfinite(src.durationSec)
-    inRec = inRec & tStop <= src.durationSec;
+    inRec = inRec & readStop <= src.durationSec;
 end
 okLen = ~(win.mode == "between") | duration > 0;
 complete = hasStop & inRec & okLen;
@@ -124,13 +133,7 @@ t0Continuous = (round((t0 - ref.offsetSec) * src.fs) - 1) / src.fs + ref.offsetS
 artifact = false(nEv, 1);
 if isfield(src, 'artifacts') && ~isempty(src.artifacts)
     shift = t0 - t0Continuous;
-    aStart = tStart;
-    aStop = tStop;
-    if numel(opts.Baseline) == 2   % a baseline outside the window is read too
-        aStart = min(aStart, t0 + opts.Baseline(1));
-        aStop = max(aStop, t0 + opts.Baseline(2));
-    end
-    artifact = EphysDataset.overlapsIntervals(aStart - shift, aStop - shift, src.artifacts);
+    artifact = EphysDataset.overlapsIntervals(readStart - shift, readStop - shift, src.artifacts);
 end
 
 % --- groups ---------------------------------------------------------------------

@@ -14,6 +14,14 @@ go up one level. Links are rewritten for the wiki:
   #anchor on the same file
         kept when the page holds that heading, else as above
 
+What only the wiki shows (its screenshots, mainly) sits in documentation/ as
+an HTML comment, which GitHub hides there and this script unwraps:
+    <!-- wiki: ![The Run tab](images/app-run-plan.png) -->
+or, for several lines,
+    <!-- wiki
+    ![The Run tab](images/app-run-plan.png)
+    -->
+
 Pages whose status is "candidate" still hold content in the wiki that
 documentation/ lacks. They are generated for comparison (--out, --report)
 and are written into a wiki clone only with --include-candidates, once that
@@ -76,6 +84,30 @@ def anchors_by_section(text):
     for a in re.findall(r'<a (?:name|id)="([^"]+)"', text):
         out.setdefault(a, section)
     return out
+
+
+def unwrap_wiki(text):
+    """TEXT with its wiki-only comments ("<!-- wiki: x -->", or "<!-- wiki" ... "-->" lines) unwrapped."""
+    out, fence, block = [], False, False
+    for line in text.split("\n"):
+        if line.startswith("```") and not block:
+            fence = not fence
+        if not fence:
+            if block:
+                if line.strip() == "-->":
+                    block = False
+                    continue
+            elif line.strip() == "<!-- wiki":
+                block = True
+                continue
+            else:
+                m = re.match(r'^<!-- wiki:\s?(.*?)\s*-->\s*$', line)
+                if m:
+                    line = m.group(1)
+        out.append(line)
+    if block:
+        raise SystemExit('a "<!-- wiki" block has no closing "-->"')
+    return "\n".join(out)
 
 
 def load_pages(repo):
@@ -145,7 +177,7 @@ def rewrite_links(body, src, idx, texts, own):
 
 def build(p, texts, idx):
     src = p["source"]
-    text = texts[src]
+    text = unwrap_wiki(texts[src])
     lines = text.split("\n")
     if lines and lines[0].startswith("# "):
         lines = lines[1:]

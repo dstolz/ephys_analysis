@@ -25,6 +25,13 @@ Copies. See [the sort](#sorting) and [formats](file-formats.md#nwb-export).
 ## Sorting
 
 Sorts. Back to [copy](#copy). [Elsewhere](EphysDataset.md#reading).
+
+<!-- wiki: ![The Sorting tab](images/app-sorting-tab.png) -->
+
+<!-- wiki
+![Optimize](images/app-optimize.png)
+See [copy](#copy) too.
+-->
 """
 FMT = """# Files
 
@@ -68,6 +75,16 @@ class GenPages(unittest.TestCase):
         f = self.page("File-Formats")
         self.assertNotIn("# Files", f, "the title is dropped")
         self.assertIn("## NWB export", f, "a whole file keeps its levels")
+
+    def test_wiki_only(self):
+        s = self.page("Sorting-Tab")
+        self.assertIn("\n![The Sorting tab](images/app-sorting-tab.png)\n", s, "a one-line wiki comment is unwrapped")
+        self.assertIn("\n![Optimize](images/app-optimize.png)\nSee [copy](Copy-Tab#copy) too.\n", s,
+                      "a wiki block is unwrapped, and its links rewritten")
+        self.assertNotIn("<!-- wiki", s)
+        self.assertNotIn("\n-->", s)
+        with self.assertRaises(SystemExit):
+            g.unwrap_wiki("<!-- wiki\n![x](images/x.png)\n")
 
     def test_anchors(self):
         seen = set()

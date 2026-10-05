@@ -2979,7 +2979,7 @@ samples at (row − 1)/Fs and a binned spike at its bin's first sample; a zoom i
 drawn from memory, a pan inside the margin moving only the limits; the voltage
 scale, auto scale, lanes, heatmap and shading; sorted units and detected spikes
 as ticks, as the recoloured trace and as stored waveforms on their own lanes,
-spikes only, the read limit, the wheel, keys, drags and the overview; and the
+spikes only, the read limit, the wheel, keys, drags and the overview; the
 events: onset and offset lines over the traces (an onset on its own sample,
 offsets dotted), a TTL row per line above them, and `jumpToEvent` stepping
 from onset to onset; and the

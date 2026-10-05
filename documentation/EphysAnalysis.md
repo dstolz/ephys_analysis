@@ -2,34 +2,67 @@
 
 The [`analysis`](../analysis) folder turns the pipeline's outputs into
 figures: PSTHs with rasters, evoked potentials, firing rates, tuning curves,
-heatmaps, probe maps and unit-by-unit correlation matrices. Every figure can be aligned to **any digital line**
+heatmaps, probe maps, unit-by-unit correlation matrices and auROC curves.
+Every figure can be aligned to **any digital line**
 (onset or offset; the first, last, every or nth interval per trial), and
 trials can be **filtered and grouped by Epsych2 parameters** (Depth,
 TrialType, response bits). Figures are exported as PNG / EPS / SVG / PDF and
 collected into a self-contained HTML report and / or a multi-page PDF.
+Per-unit response tests and a population analysis over every unit of every
+dataset give numbers as well as figures.
 
 It is for quick looks. Spectra, coherence and other analyses belong in
 [Chronux](ChronuxDataset.md) or [FieldTrip](FieldTripExport.md).
 
-`analysis` depends on `pipeline`; `pipeline` never depends on `analysis`
-(its only link is the pipeline app's **File → Open analysis app...**).
-Three layers, each usable without the next:
+`analysis` depends on `pipeline`: it reads the outputs through
+[`DatasetOutputs`](DatasetOutputs.md). `pipeline` never depends on
+`analysis`; its only links are the pipeline app's **File → Open analysis
+app...** and the Project tab's **Tools** panel (**Analysis app**), which open
+[`EphysAnalysisApp`](EphysAnalysisApp.md). `addpath_nogit('C:\src\ephys_analysis')`
+puts both on the path.
 
-| Layer | What | Page |
+<!-- wiki: More on `DatasetOutputs` in [Loading outputs](Loading-Outputs). -->
+
+Everything the app does can be done from a script, at three levels, each
+usable without the next:
+
+| Level | What you write | Use it to |
 | --- | --- | --- |
-| functions | load a dataset's source, align, select, compute, render, export, report | this page |
-| [`EphysAnalysisConfig`](EphysAnalysisConfig.md) + `EphysAnalysisRunner` + `EphysAnalysisScript` | one JSON config describes the figures; the runner draws them; scripts reproduce them | [EphysAnalysisConfig](EphysAnalysisConfig.md), [below](#runner) |
-| [`EphysAnalysisApp`](EphysAnalysisApp.md) | GUI over the runner | [EphysAnalysisApp](EphysAnalysisApp.md) |
+| [Config + runner](#runner) | load or build an [`EphysAnalysisConfig`](EphysAnalysisConfig.md), run it with `EphysAnalysisRunner` | draw a saved set of figures over many datasets, e.g. after every pipeline run |
+| [Generated scripts](#generated-scripts) | `EphysAnalysisScript.compact` / `.standalone` | reproduce an app session exactly, or see every call a run makes |
+| [The functions](#a-worked-script) | `loadAnalysisSource`, `epochTable`, `spikePSTH`, `renderPlot`, ... | your own alignment, your own figure layout, or numbers instead of figures |
 
-> Written 2026-09-18 from the source. When the code and this page disagree,
-> the code is authoritative.
+The app, [`EphysAnalysisApp`](EphysAnalysisApp.md), is a GUI over the runner.
 
 ## A worked script
+
+The runner is a thin sequence of public functions. Call them yourself to
+align differently, draw into your own figures, or keep the numbers.
+
+```mermaid
+flowchart LR
+    OUT["DatasetOutputs<br/>(or an output folder)"] --> SRC["loadAnalysisSource<br/>events, trials, what exists"]
+    SRC --> EP["epochTable<br/>eventRef + epochWindow<br/>+ trialSelection"]
+    SRC --> SEL["selectUnits /<br/>selectChannels"]
+    EP --> CMP["spikePSTH, evokedPotential,<br/>firingRate, tuningCurve,<br/>unitCorrelation, probeMapValues"]
+    SEL --> CMP
+    CMP --> RND["renderPlot / render*<br/>into any axes, panel or figure"]
+    RND --> EXP["exportFigure<br/>png / eps / svg / pdf"]
+    RND --> REP["reportImage / reportPdfPage<br/>→ addReportFigure →<br/>writeHtmlReport / writePdfReport"]
+```
+
+`loadAnalysisSource`, `selectUnits` and `selectChannels` read the files; the
+compute functions are pure (no file reading, no graphics); the renderers
+draw into a target you give them and never create figures.
+
+<!-- wiki: Their full signatures are on [Analysis functions](API-Analysis-Functions). -->
 
 ```matlab
 addpath_nogit('C:\src\ephys_analysis')               % pipeline + analysis
 out = DatasetOutputs("D:\EPHYS\SYNTH-01\SYNTH-01_260918_101500", CacheData=true);
 src = loadAnalysisSource(out);                        % events, trials, what exists
+src.lines                                             % the digital lines: Line, Count, MeanDurationSec, ...
+src.paramNames                                        % the Epsych2 parameters to filter and group by
 
 % epochs: the first Stim onset of every paired trial, grouped by Depth
 ref = eventRef(line="Stim", edge="onset", which="first", scope="trial");
@@ -51,6 +84,31 @@ close(fig)
 [Y, fs, cm] = selectChannels(src, "LFP");
 V = evokedPotential(Y, fs, E, Window=[-0.1 0.5], Baseline=[-0.1 0], Groups=G, Meta=cm);
 figure; renderEvoked(V, gcf, Layout="stack");
+```
+
+The other kinds take the same epochs and units:
+
+```matlab
+% firing rate per epoch, baseline subtracted; a tuning curve over Depth
+F = firingRate(st, E, Baseline=[-0.2 0], Normalize="subtract", Groups=G, Meta=meta);
+figure; renderRates(F, gcf, Layout="points");
+[Et, Gt] = epochTable(src, ref, Window=win, Columns="Depth");   % Depth on every epoch
+Ft = firingRate(st, Et, Groups=Gt, Meta=meta);
+T = tuningCurve(Ft.rate, Et.Depth, Param="Depth", Meta=meta, Units=Ft.units);
+figure; renderTuning(T, gcf, Layout="overlay");
+
+% unit-by-unit correlation of the peak binned rate, Spearman
+C = unitCorrelation(st, E, Metric="peak", BinSec=0.01, SmoothSec=0.01, Type="spearman", Groups=G, Meta=meta);
+C.r(:, :, 1)                                          % [nUnits x nUnits] of the first group
+figure; renderCorrMap(C, gcf, Style=struct('HeatColormap', "turbo", 'CLim', [-0.5 0.5]));
+
+% a value per probe site
+U = unitSummary(src, Source="units");                 % label, class, channel, shank, x, y, nSpikes, rateHz
+P = probeMapValues(U, src.probe, Value="rate");
+figure; renderProbeMap(P, [], gcf);
+
+% any kind in one call, with the title the runner gives it
+renderPlot(R, struct('kind', "psth", 'layout', "overlay", 'histStyle', "line"), figure);
 ```
 
 ## The source
@@ -198,6 +256,21 @@ good-unit criteria, and `usel.response` the units that respond to the event
 ([response statistics](#response-statistics)). The response test needs the
 events: `selectUnits(src, usel, Ref=ref, Selection=sel)` (the runner passes
 the plot's own; `unitSummary` takes the same two options).
+`usel.response.test` is `"evoked"` (responsive), `"tuning"` (tuned across
+the levels of `param`), `"either"`, `"both"` or `"auroc"`: the units the
+auROC calls modulated ([auROC](#auroc)). That test runs `aurocCurves` over
+the test's epochs as one group, against `response.baseline`, with
+`response.window` as the modulation window, auROC windows over
+`[min(b0, w0) max(b1, w1)]`, its own bins (`response.auroc.binSec`) and
+`response.auroc`'s `method`, `windows`, `windowSec`, `stepSec`, `cutoff`
+(not `"none"`), `threshold`, `test` and `nResamples`; `correction` and
+`alpha` are the response test's. `direction`
+`"excited"` / `"suppressed"` (the evoked and auROC tests) keeps only the
+units responding, or called, up / down. `meta` gains the test's columns:
+`baselineRate, responseRate, pEvoked, qEvoked, direction, responsive`
+(and, with `param`, the tuning test's), or for `"auroc"` `aurocMean,
+aurocPhasic, aurocP, aurocQ, aurocDirection, aurocModulated`. `maxUnits`
+applies after the test.
 
 `[Y, fs, meta] = selectChannels(src, "LFP", Channels=...)` loads one derived
 signal (`LFP`, `MUA`, `SPIKE` or `AUX`) through the outputs' cache: `Y` is
@@ -226,19 +299,20 @@ does).
 
 ## Compute
 
-Pure functions: no I/O, no graphics. Every result `R` carries `kind`,
+Pure functions, but for `unitSummary`, which loads the units through
+`selectUnits`: no I/O, no graphics. Every result `R` carries `kind`,
 `params`, `groups`, `labels`, `n`, `units` (the measurement unit) and
 `created`; the runner adds `epochs`, `dataset` and `spec`.
 
 | Function | Result |
 | --- | --- |
-| `spikePSTH(st, E, Window=, BinSec=, SmoothSec=, Measure=, Baseline=, BaselineMode=, MaskAfterStop=, Raster=, Groups=, Meta=, Auroc=)` | `t, edges, window, rate / sem / count [nBins x nUnits x nGroups], nEpochs, raster, epochGroup, epochStop, stopMean, baselineRate, baselineSD`. Spikes are taken relative to each epoch's `t0Continuous`. Bins are whole multiples of `BinSec` from the event, `[k, k+1)·BinSec`, so the event is always an edge and no bin mixes spikes from before and after it; they are half-open (a spike exactly at a bin's end is in the next one). The window shrinks to the whole bins inside it, `R.window` (`[-0.25 0.5]` in 0.1 s bins is `[-0.2 0.5]`); one that holds no whole bin is `spikePSTH:BadWindow`. `Measure` is `"rate"` (default, spikes/s), `"count"` (spikes per bin per epoch) or `"probability"` (the share of epochs with a spike in the bin; its baseline uses whole `BinSec` bins from `b0`). Smoothing (Gaussian SD) applies to each epoch before averaging, renormalized at the edges. Baseline modes `none`, `subtract`, `zscore`, `percent` (per group, from spikes counted in the baseline window), or `auroc`: the curves become `aurocCurves`' auROC windows (`Auroc` holds its settings; `R.auroc` the calls; see [auROC](#auroc)). Named `spikePSTH` so it does not shadow Chronux's `psth` |
+| `spikePSTH(st, E, Window=, BinSec=, SmoothSec=, Measure=, Baseline=, BaselineMode=, MaskAfterStop=, Raster=, Groups=, Meta=, Auroc=)` | `t, edges, window, rate / sem / count [nBins x nUnits x nGroups], nEpochs, raster, epochGroup, epochStop, stopMean, baselineRate, baselineSD`. Defaults: `Window` `[-0.2 0.5]`, `BinSec` 0.01, `SmoothSec` 0 (a plot's default is 0.01), `Raster` true (`R.raster` keeps every spike's time relative to its event). Spikes are taken relative to each epoch's `t0Continuous`. Bins are whole multiples of `BinSec` from the event, `[k, k+1)·BinSec`, so the event is always an edge and no bin mixes spikes from before and after it; they are half-open (a spike exactly at a bin's end is in the next one). The window shrinks to the whole bins inside it, `R.window` (`[-0.25 0.5]` in 0.1 s bins is `[-0.2 0.5]`); one that holds no whole bin is `spikePSTH:BadWindow`. `Measure` is `"rate"` (default, spikes/s), `"count"` (spikes per bin per epoch) or `"probability"` (the share of epochs with a spike in the bin; its baseline uses whole `BinSec` bins from `b0`). Smoothing (Gaussian SD) applies to each epoch before averaging, renormalized at the edges. Baseline modes `none`, `subtract`, `zscore`, `percent` (per group, from spikes counted in the baseline window), or `auroc`: the curves become `aurocCurves`' auROC windows, `sem` NaN and `units` `"auROC"`, unsmoothed (`Auroc` holds its settings; `R.auroc` the calls; see [auROC](#auroc)). Named `spikePSTH` so it does not shadow Chronux's `psth` |
 | `evokedPotential(Y, fs, E, Window=, Channels=, Baseline=, Detrend=, Incomplete=, KeepEpochs=, Groups=, Meta=, Units=)` | `t, mean / sem [nTime x nChan x nGroups], nEpochs, data (KeepEpochs), channels, labels, fs, units, sampleOffsets, onsetRule "event", keptEpochs, droppedEdge, droppedNonFinite`. Epoch *e* is rows `round(E.t0Continuous(e)*fs) + 1 + (s0:s1)`: onset rule `"event"`, offset 0 the sample nearest the one that produced the event (at the recording rate, that very sample). Only the epochs' rows of the used channels are read from `Y` |
 | `firingRate(st, E, Measure=, Baseline=[b0 b1], Normalize=)` | `rate / count [nEpochs x nUnits]` over each epoch's `[tStart, tStop)`, moved to the spikes' clock by `t0Continuous - t0`, `duration`, `baseline` (`[b0 b1]` s around the event), `meanRate / sem / median [nUnits x nGroups]`, `baselineRate`. `Measure`: `rate` (default), `count` (spikes per window) or `probability` (1 for an epoch with a spike in its window; a group's mean is the share of such epochs). `Normalize`: `none`, `subtract` (per epoch), `ratio`, `zscore` (the unit's baseline over all epochs) |
 | `tuningCurve(rates, x, Series=, Param=, SeriesParam=)` | `x` (sorted values), `series`, `mean / sem [nX x nUnits x nSeries]`, `n [nX x nSeries]`. Epochs without a value are left out; when none has one (recording-scope events that all fall outside the trials, say) it is `tuningCurve:NoValues` |
 | `unitSummary(src, Source=, Units=, Ref=, Selection=)` | table `label, class, channel, shank, x, y, nSpikes, rateHz` with `rateHz = nSpikes / src.durationSec` |
 | `probeMapValues(T, probe, Value=)` | one value per probe site: `rate` (summed Hz), `nSpikes`, `nUnits` |
-| `unitCorrelation(st, E, Metric=, Type=, BinSec=, SmoothSec=, Baseline=, BaselineMode=, Groups=, Meta=)` | `r / p [nUnits x nUnits x nGroups]`, `meanR` (mean over the pairs), `nEpochs`, `response [nEpochs x nUnits]`. Each epoch's response is its `"mean"` rate over `[tStart, tStop)` (moved to the spikes' clock by `t0Continuous - t0`) or its `"peak"` binned rate (bins from `tStart`; a bin that runs past `tStop` is not used), optionally minus the epoch's baseline rate (`BaselineMode="subtract"`); every pair of units is then correlated over the epochs of each group, `Type="pearson"` or `"spearman"` (ties averaged). Fixed and `"between"` windows. Needs no toolbox; `p` is two-sided from the t distribution |
+| `unitCorrelation(st, E, Metric=, Type=, BinSec=, SmoothSec=, Baseline=, BaselineMode=, Groups=, Meta=)` | `r / p [nUnits x nUnits x nGroups]`, `meanR` (mean over the pairs), `nEpochs`, `response [nEpochs x nUnits]`. Each epoch's response is its `"mean"` rate over `[tStart, tStop)` (moved to the spikes' clock by `t0Continuous - t0`) or its `"peak"` binned rate (bins from `tStart`; a bin that runs past `tStop` is not used), optionally minus the epoch's baseline rate (`BaselineMode="subtract"`); every pair of units is then correlated over the epochs of each group, `Type="pearson"` or `"spearman"` (ties averaged). Fixed and `"between"` windows. An epoch whose response is not finite (a window shorter than one bin) is left out; a unit whose responses do not vary has NaN correlations, and so does every pair of a group with fewer than 3 epochs. Needs no toolbox; `p` is two-sided from the t distribution |
 
 ## Response statistics
 
@@ -338,17 +412,19 @@ more firing than in the baseline, below less.
   and group with an auROC (`tinv`; the paper pooled every unit's curve for
   each trial type: hits and false alarms, n = 1050). It depends on the
   units passed in and needs many; with few it can exceed 0.5 and call none
-  (`aurocCall:WideCutoff`).
+  (`aurocCall:WideCutoff`), and with fewer than two unit x group phasic
+  modulations there is none (`aurocCall:NoCutoff`).
   `"fixed"`: c = `Threshold`. `"test"`: a p per unit and group, adjusted
   over all of them (`pAdjust`), modulated at most `Alpha`, up or down by
-  the mean auROC; `Test="bootstrap"` (the epochs resampled `NResamples`
-  times; p = 2 x the share of resampled means on the far side of 0.5),
-  `"ranksum"` (the call window's values against the baseline's; values
-  from the same epochs are not independent, so p runs small) or
-  `"shuffle"` (each epoch's bins shifted circularly over the span counted,
-  `NResamples` times; p = the share whose phasic modulation reaches the
-  observed). `"none"`: no call. The draws come from their own stream
-  (`Seed`, default 0), so a result can be reproduced.
+  the mean auROC; `Test="bootstrap"` (the epochs resampled with
+  replacement `NResamples` times; p = 2 x the share of resampled means on
+  the far side of 0.5, +1 smoothed, at most 1), `"ranksum"` (the call
+  window's values against the baseline's; values from the same epochs are
+  not independent, so p runs small) or `"shuffle"` (each epoch's bins
+  shifted circularly over the span counted, `NResamples` times; p = the
+  share, +1 smoothed, whose phasic modulation reaches the observed).
+  `"none"`: no call. The draws come from their own stream (`Seed`,
+  default 0), so a result can be reproduced.
 - **Calling over a larger pool.** The call is made by
   `A = aurocCall(A, Cutoff=, Threshold=, Correction=, Alpha=)`, over every
   unit and group of `A`: any struct with `mean`, `phasic` and `p`
@@ -361,20 +437,35 @@ more firing than in the baseline, below less.
   family. Called per session instead, the paper's calls are not
   reproduced; the cutoff pooled over every row is.
 
+The defaults are `Window` `[-0.5 1]`, `Baseline` `[-0.5 0]` (cut to its
+whole bins; it may lie outside `Window`), `BinSec` 0.01, `WindowSec` 0.1,
+`StepSec` 0.01, `ModulationWindow` `[0 0.5]`, `Cutoff` `"ci"`, `Threshold`
+0.1, `Test` `"bootstrap"`, `NResamples` 1000, `Correction` `"bh"` and
+`Alpha` 0.05.
+
 `A` holds `t` (window centres), `starts`, `stops`, `edges`, `window`,
 `auroc` and `count` `[nWindows x nUnits x nGroups]`, `inModulation`, and per
 unit and group `mean`, `phasic`, `p`, `q`, `direction` (`"increase"`,
-`"decrease"`, `"none"`; `""` without a call) and `modulated`, plus
-`cutoffValue`, `nModulated` / `nIncrease` / `nDecrease` per group, `nUnits`,
-`baseline` (its whole bins), the options and the toolbox version.
+`"decrease"`, `"none"`; `""` without a call or an auROC) and `modulated`,
+plus `cutoff`, `cutoffValue` (c; NaN for `"test"` and `"none"`),
+`nModulated` / `nIncrease` / `nDecrease` per group, `nUnits`, `baseline`
+(its whole bins), `modulationWindow`, `method`, `windows`, `groups`, the
+options (`params`) and the toolbox version.
+
 `spikePSTH(..., BaselineMode="auroc", Auroc=)` draws on it for the psth and
-heatmap plots (`Auroc.modulatedOnly` keeps only the modulated units),
-`selectUnits`' response test `"auroc"` keeps the units it calls modulated,
-and `populationAnalysis` calls every unit of every dataset together. A plot
-or a response test calls the units of one dataset, so with few units the
-95% CI cutoff is wide; the population analysis pools them.
-Needs the Statistics and Machine Learning Toolbox (`tiedrank`; `tinv` for
-`"ci"`; `ranksum`).
+heatmap plots, with a plot's [`auroc`](EphysAnalysisConfig.md#auroc)
+settings (`aurocCurves`' options as `method`, `windowSec`, `cutoff`, ...;
+`marks` draws the calls, `modulatedOnly` keeps only the units modulated in
+some group, and none is `spikePSTH:NoneModulated`). `R.auroc` then holds
+the rest of `A` and the `settings` used. `renderPSTH` and `renderHeatmap`
+draw such a result ([Render](#render)), and the heatmap's
+`Order="modulation"` sorts its rows by the first group's mean auROC. `selectUnits`' response test
+`"auroc"` keeps the units it calls modulated, and `populationAnalysis`
+calls every unit of every dataset together. A plot or a response test
+calls the units of one dataset, so with few units the 95% CI cutoff is
+wide; the population analysis pools them. Needs the Statistics and Machine
+Learning Toolbox (`tiedrank`; `tinv` for `"ci"`; `ranksum`):
+`aurocCurves:NoToolbox`, `aurocCall:NoToolbox` without it.
 
 ## Population analysis
 
@@ -392,6 +483,16 @@ over `[0 0.5]` s), `Call=false`. `AurocGroupBy` (0-2 trial parameters)
 splits each unit's epochs into groups with a curve and a call each, as the
 paper's trial types (e.g. `"TrialType"` with `Selection.response` keeping
 hits and false alarms); without it a unit has one curve over every epoch.
+
+The other options and their defaults: `Units` (a unit selection; sorted
+su and mua), `Baseline` `[-0.2 0]` s (the tests', the PSTH's and the
+auROC's; the epochs leave out any whose baseline touches an artifact
+period), `Response` `[0 0.2]` s, `Param` (none), `BinSec` 0.01,
+`SmoothSec` 0, `Measure` `"rate"`, `BaselineMode` `"none"` (or
+`"subtract"`, `"zscore"`, `"percent"`), `Tests` true (false: the rates and
+tuning curves without the toolbox, every p NaN and no auROC), `Alpha`
+0.05, `Datasets` (keys, names or indices; all), `LogFcn` (a line per
+dataset), and `populationSummary`'s and `writePopulation`'s below.
 
 - **Correction family.** responseStats runs without a correction. The p
   values are then adjusted once (`Correction`, default `"bh"`) over every
@@ -453,10 +554,13 @@ the auROC called up and down, with its pooled cutoff in the subtitle),
 `writePopulation(P, S, folder)` writes the following into a folder:
 
 - `population_units.csv` (with each unit's auROC call and peak),
-  `population_auroc.csv` (`P.auroc.calls`: each unit and group's auROC,
-  peak and call), `population_groups.csv`, `population_psth.csv` and
+  `population_auroc.csv` (with `Tests`: `P.auroc.calls`, each unit and
+  group's auROC, peak and call), `population_groups.csv`,
+  `population_psth.csv` (each group's mean and SEM) and, with a `Param`,
   `population_tuning.csv`;
-- the figures (`Formats`, `Dpi`, `FigureSizeCm`);
+- the figures `population_<kind>.<format>`: psth and depth, fractions when
+  the units were tested, tuning with a `Param` (`Formats` `["png"]`, `Dpi`
+  150, `FigureSizeCm` `[18 12]`);
 - `population.json`, holding the parameters, the dataset table, the auROC
   cutoff of each family, the provenance and the files.
 
@@ -488,62 +592,79 @@ ticks at a round step.
 
 | Renderer | Draws |
 | --- | --- |
-| `renderPSTH` | `Layout="grid"`: one tile per unit (`MaxTiles` per page, `Page=`), groups overlaid with SEM bands, a raster right on top of each, the two a 2 x 1 tiled layout in the unit's tile, so the grid's spacing falls between units (same x limits, axes not linked; `SortBy=` as `renderRaster`; ticks in a raster's bottom tenth are dropped, clear of the rate panel's top label); `"overlay"`: the mean over units. `HistStyle="bar"` (default) or `"line"`, `Fill=` (bars / area under the line, or outlines) at `FillAlpha=` (NaN: 0.5 overlaid, else 1); `Normalize="unitPeak"` or `"groupPeak"`; `Stack=true`: a row per group, first at the bottom, `Spacing=` x the tallest PSTH apart, the group values (of the selection's `groupBy` parameters) on the left axis and each row's peak rate on the right. `Style.YLim` applies to the rate panels only: the rasters always show every epoch, and a stack ignores it. An auROC result (`BaselineMode="auroc"`) is drawn from 0.5 on a 0-1 axis (unless `YLim`), the call window shaded and each group's call (up / down arrow, n.s.) by the unit's title; `Normalize` does not apply |
+| `renderPSTH` | `Layout="grid"`: one tile per unit (`MaxTiles` per page, `Page=`), groups overlaid with SEM bands, a raster right on top of each, the two a 2 x 1 tiled layout in the unit's tile, so the grid's spacing falls between units (same x limits, axes not linked; `SortBy=` as `renderRaster`; ticks in a raster's bottom tenth are dropped, clear of the rate panel's top label); `"overlay"`: the mean over units. `HistStyle="bar"` (default) or `"line"`, `Fill=` (bars / area under the line, or outlines) at `FillAlpha=` (NaN: 0.5 overlaid, else 1); `Normalize="unitPeak"` or `"groupPeak"`; `Stack=true`: a row per group, first at the bottom, `Spacing=` x the tallest PSTH apart, the group values (of the selection's `groupBy` parameters) on the left axis and each row's peak rate on the right. `Style.YLim` applies to the rate panels only: the rasters always show every epoch, and a stack ignores it. An auROC result (`BaselineMode="auroc"`) is drawn from 0.5 (a dotted line) on a 0-1 axis (unless `YLim`); with a cutoff and `auroc.marks` the call window is shaded and each group's call (up / down arrow, n.s., in the group's colour) sits by the unit's title (overlay: each group's count of units called up and down); `Normalize` does not apply |
 | `renderRaster` | one raster per unit: epochs as rows sorted by group, on pale group bands, and within a group in time order or by `SortBy=` (`"stop"`: the stop latency; else a column of `R.epochs`, such as a trial parameter); all ticks are one NaN-separated line. Every row is shown: `Style.YLim` does not apply |
 | `renderEvoked` | `"stack"` (channels stacked top of the probe first; ignores `Style.YLim`, so every channel stays in view), `"butterfly"` (a tile per group, channels coloured by depth), `"grid"` (a tile per channel); `YLim` sets the amplitude axis of the last two |
-| `renderRates` | units along x (by depth), groups side by side: `"bar"` (mean ± SEM), `"box"`, `"points"` (every epoch, fixed jitter) |
+| `renderRates` | units along x in the style's sort order (by shank, then top of the probe first), groups side by side: `"bar"` (mean ± SEM), `"box"`, `"points"` (every epoch, a fixed jitter, the mean as a bar) |
 | `renderTuning` | rate against the parameter per unit (`"grid"`) or the mean over units (`"overlay"`) |
-| `renderHeatmap` | units (psth) or channels (evoked) × time, a tile per group, one colour scale; `Order="probe"` (the style's sort options), `"peak"` or, for an auROC result, `"modulation"` (the first group's mean auROC in the call window, highest first). An auROC result is coloured on `[0 1]` (`CLim` overrides), with a bar over the call window and a triangle by each modulated row |
-| `renderProbeMap(values, probe, target)` | a value per site on the probe's layout, a tile per shank; `values` is per recording channel, or a `probeMapValues` result |
-| `renderCorrMap` | a `unitCorrelation` result: a square units × units matrix per group on `[-1 1]` (`CLim` overrides) in `blueWhiteRed`, titled with the epochs used and the mean r; `Order="depth"` or `"channel"` |
+| `renderHeatmap` | units (psth) or channels (evoked) × time, a tile per group, one colour scale; `Order="probe"` (the style's sort options), `"peak"` (by the time of each row's maximum over the groups' mean) or, for an auROC result, `"modulation"` (the first group's mean auROC in the call window, highest first; the other tiles keep that order). An auROC result is coloured on `[0 1]` (`CLim` overrides); with a cutoff and `auroc.marks`, a bar over the call window and a red up or blue down triangle by each modulated row |
+| `renderProbeMap(values, probe, target)` | a value per site on the probe's layout, every shank on one axis (a shank moved sideways only where it would overlap the one before, labelled *Shank k*) and one colour scale (`CLim`, else the values' range; `HeatColormap`, default parula); sites without a value are open grey squares, and channel numbers sit beside the sites when no shank has more than 64 (`SiteLabels=`). `values` is per recording channel, or a `probeMapValues` result (then `probe` may be `[]`, and each unit's position is a black dot) |
+| `renderCorrMap` | a `unitCorrelation` result: a square units × units matrix per group on `[-1 1]` (`CLim` overrides) in `blueWhiteRed` (`HeatColormap` overrides), titled with the epochs used and the mean r; units in the style's sort order and labels (`SortShank`, `SortDepth`, `LabelShank`, `LabelDepth`). `blueWhiteRed(n)` is that diverging colour map, for any axes: `colormap(gca, blueWhiteRed(256))` |
 
 `renderPlot(R, spec, target, Page=)` dispatches on `spec.kind`, applies
-`spec.style` ([Style](EphysAnalysisConfig.md#style)) and titles the figure
-`"<Kind>: <line> <edge> (<n> epochs)"` (or `spec.title`) with the dataset and
-page as a subtitle. `plotPageCount(R, spec)` is the number of pages;
+`spec.layout`, `spec.style` ([Style](EphysAnalysisConfig.md#style)) and
+`spec.waveform`, and titles the figure `"<Kind>: <line> <edge> (<n>
+epochs)"` (or `spec.title`) with the dataset and page as a subtitle. A
+partial `spec` is filled from the plot defaults (an empty layout is the
+kind's default), and `[]` is `R.spec`, else the defaults for `R.kind`.
+`plotPageCount(R, spec)` is the number of pages (grids of units or
+channels hold `Style.MaxTiles` tiles a page);
 `plotCaption(spec, R)` the one-sentence caption the reports print, e.g.
 *PSTH, Stim onset, first per trial; window [-0.2 0.8] s; bins 10 ms, smooth
 10 ms; trials: PairingFlag ok & Hit; groups by Depth (n = 4, 5); 12 sorted
 unit(s) (su, mua).* A tuning caption counts the epochs of its curves instead
 of the trial groups (*n = 12 epochs*, or *one curve per TrialType (n = 5, 7
 epochs)*), and a PSTH caption adds *(whole bins: [a b] s)* when the bins,
-counted from the event (`R.window`), span less than the window.
+counted from the event (`R.window`), span less than the window. An auROC
+caption says how the auROC was made and, with a cutoff, what its call
+found (*units called over [0 0.5] s by the 95% CI cutoff (+/-0.043): Hit 5
+up, 2 down; ...*), and a caption counts the epochs left out for touching
+an artifact period, when there are any.
 
 ### Unit waveforms
 
 `W = unitWaveforms(src, meta, Source=, MaxSpikes=)` gives each unit of a
 `selectUnits` table its waveform on its peak channel: `W.timeMs`,
 `W.mean` and `W.spikes` (`{nUnits x 1}`; `[nt x k]` spikes), `W.from`
-(`"spikes"`, `"template"` or `"none"`), `W.units` (`"uV"`, `"bin"`,
-`"whitened"`) and `W.note`. Sorted units: at most `MaxSpikes` of the
-unit's spikes, picked at random (the same ones each time), cut from the
-sorted `.bin` by `DatasetOutputs.readWaveforms` (`EphysDataset.readPhyWaveforms`:
-as Kilosort4 saw them, referenced and high-passed, not whitened) and
-kept in the outputs' cache, so a redraw does not read them again. When
-the `.bin` is not there, the unit's template is its mean and the warning
-`unitWaveforms:Templates` says why. Detections: the waveforms the spikes
-file keeps (the Spikes step's `Waveforms` option), `MaxSpikes` of them
-and the mean of all; without them none, and the warning
-`unitWaveforms:NoWaveforms`.
+(`"spikes"`, `"template"` or `"none"`), `W.units` (`"uV"`, `"bin"` (the
+sorted `.bin`'s units), `"whitened"`; `""` for none), `W.note` and
+`W.maxSpikes` (`MaxSpikes`, default 100). Sorted units: at most
+`MaxSpikes` of the unit's spikes, picked at random (the same ones each
+time), cut from the sorted `.bin` by `DatasetOutputs.readWaveforms`
+(`EphysDataset.readPhyWaveforms`: as Kilosort4 saw them, referenced and
+high-passed, not whitened) and kept in the outputs' cache, so a redraw
+does not read them again. When the sorted spikes cannot be read (the
+`.bin` is not there), the units' templates (`templateWaveform` of the
+units table) are their means, and the warning `unitWaveforms:Templates`
+and `W.note` say why. Detections: the waveforms the spikes file keeps
+(the Spikes step's `Waveforms` option), `MaxSpikes` of them and the mean
+of all; without them none, and the warning `unitWaveforms:NoWaveforms`.
 
 `renderPSTH`, `renderRaster` and `renderTuning` take `Waveform=` (a plot's
 [`waveform`](EphysAnalysisConfig.md#unit-waveforms)) and draw
 `R.waveforms` as a box in each unit's tile (a PSTH's rate panel; not an
-overlay): the mean (dark red), the spikes (thin, pale blue) or both, at
-a compass point (`location`, `"northeast"` by default), with or without
-its axis box (`box`), a third of the tile per side times `scale`. The box
-is placed in data units on the tile's limits, which it keeps; its label
-gives the mean's peak-to-peak amplitude, and "(template)" for a
-template. `computePlot` adds `R.waveforms` to a raster, PSTH grid or
-tuning grid of spikes whose `waveform.mode` is not `"off"`.
+overlay): `mode` `"mean"` (dark red), `"subsample"` (the spikes, thin and
+pale blue) or `"both"` (`"off"`, the default, draws none), at a compass
+point (`location`, `"northeast"` by default), with or without its axis box
+(`box`), a third of the tile per side times `scale`. The box is placed in
+data units on the tile's limits, which it keeps; its label gives the
+mean's peak-to-peak amplitude. A template is drawn as the mean whatever
+the mode, labelled "(template)". The parts are the roles `waveBox`,
+`waveSpikes`, `waveMean` and `waveLabel`, kept out of legends.
+`computePlot` adds `R.waveforms` (`unitWaveforms` with the plot's
+`waveform.maxSpikes`, default 100) to a raster, PSTH grid or tuning grid
+of spikes whose `waveform.mode` is not `"off"`.
 
 ### Plot aesthetics
 
 Every object a renderer draws is named by its *role* and, where it draws
-one, its *group*: the PSTH line or fill, SEM band, raster ticks, group band
-and stop dots, the event line, a mean or channel trace, bars, boxes, points,
-a tuning curve, an image, probe sites, a unit waveform's box, spikes, mean
-and amplitude label. The group is the trial group's label,
+one, its *group*: the PSTH line or fill, SEM band, mean stop line and a
+stack's row baselines, the event line, the auROC's 0.5 line, modulation
+window and call marks, raster ticks, group band and stop dots, a mean or
+channel trace, bars, error bars, boxes, points and mean bars, a tuning
+curve, an image, probe sites (with and without a value), site and shank
+labels, unit positions, and a unit waveform's box, spikes, mean and
+amplitude label. The group is the trial group's label,
 a tuning series or an evoked channel. Axes, tile titles, axis labels,
 legends, colour bars and the plot's title and subtitle are components too.
 `PlotAesthetics.roles()` lists the roles, `PlotAesthetics.components(target)`
@@ -552,6 +673,8 @@ what one drawing holds, and `analysis/private/tagPart.m` does the naming.
 A *rule* sets one property of one role: `role`, `group` (`""` = every
 group), `property` (a colour, line style or width, marker, opacity, font,
 visibility or, for axes, a colormap), `value`. It applies in every tile.
+An unknown property is `PlotAesthetics:BadRule`; a value an object refuses
+is the warning `PlotAesthetics:BadValue`, and the plot is still drawn.
 `renderPlot` applies two sets after drawing, in this order, so the plot's
 own rules win:
 
@@ -567,7 +690,8 @@ spec = cfg.plotFor("psth_1");
 spec.aesthetics = struct('role', "rate", 'group', "Depth = 0.5", 'property', "Color", 'value', [0.8 0 0.6]);
 renderPlot(R, spec, figure);                                 % right-click any line, band or text
 PlotAesthetics.setUserRules("psth", struct('role', "sem", 'group', "", 'property', "FaceAlpha", 'value', 0.3));
-renderPlot(R, spec, fig, UserAesthetics=false);              % the plot's rules only
+renderPlot(R, spec, figure, UserAesthetics=false);           % the plot's rules only
+PlotAesthetics.setUserRules("psth", []);                     % forget the user's psth rules
 ```
 
 In a visible figure (`Editable="auto"`, the default; `true` / `false`
@@ -599,12 +723,28 @@ which opens `PlotAestheticsDialog`, a modal window:
 - **Reset** undoes everything since the window opened; **Cancel** (or
   closing the window) does too and closes it; **OK** keeps the changes.
 
+From code, `d = PlotAesthetics.edit(h)` opens the editor on component `h`
+of a plot `renderPlot` drew in a visible figure
+(`PlotAesthetics:NotEditable` otherwise), and the dialog's methods do what
+its controls do: `d.select(k)`, `d.setProperty(name, value)`,
+`d.setApplyTo("one" | "same" | "role" | "ticked")`, `d.tick(rows, tf)`,
+`d.tickLike("same" | "role" | "tile" | "none")`,
+`d.setRemember(tf, "plot" | "user")`, `d.remembered()`, `d.forget(rows)`,
+`d.reset()`, `d.cancel()`, `d.ok()`.
+
 `renderPlot` options: `UserAesthetics` (default `true`), `Editable`
 (`"auto"`), `OnRemember` (called with the plot's new rule list; the app
 keeps it in the plot's `aesthetics`). Unedited plots and runs pay for one
 preference read per page. With no rules, nothing else is done.
 
 ## Export and reports
+
+```matlab
+fig = newExportFigure(struct('FigureSizeCm', [18 12]));   % invisible, white, classic figure
+renderPlot(R, struct('kind', "psth"), fig);
+files = exportFigure(fig, "E:\out\figs\psth_stim", Format=["png" "svg" "pdf"], Dpi=150);
+close(fig)
+```
 
 - `fig = newExportFigure(exportSection)` is an invisible classic figure of
   `FigureSizeCm`, white. Before R2025a EPS / SVG export needs a classic
@@ -616,7 +756,8 @@ preference read per page. With no rules, nothing else is done.
 - `files = exportFigure(fig, fileBase, Format=, Dpi=, Append=)`: `png` via
   `exportgraphics(Resolution=)`, `pdf` / `eps` via
   `exportgraphics(ContentType="vector")` (`Append` adds PDF pages), `svg` via
-  `print -dsvg -vector`. Unknown formats are `exportFigure:BadFormat`.
+  `print -dsvg -vector`, creating the folder. Unknown formats are
+  `exportFigure:BadFormat`, before anything is written.
 - `figureFileName(pattern, tokens)` fills `{Name} {Plot} {Kind} {Group}
   {Unit} {Index} {Date}` (values sanitized to `[A-Za-z0-9_.-]`);
   `Kind="folder"` fills `{OutputFolder} {OutputRoot} {Root} {Name} {Date}`.
@@ -624,62 +765,123 @@ preference read per page. With no rules, nothing else is done.
   the pages apart: it names `{Index}`, or `{Unit}` with a unit filled in (a
   paged evoked grid's `{Unit}` is `all` on every page). See
   [file formats](file-formats.md#exported-figure-names).
-- Reports: `report = newAnalysisReport(Title=, Config=, Export=, Options=)`,
-  then per dataset `addReportDataset(report, src)` (summary tables from
-  `reportSummaryTables`) and per plot `addReportFigure(report, spec, R,
-  Files=, Images=, Pages=)`; then `writeHtmlReport(report, file)` and / or
-  `writePdfReport(report, file)`. `Images` are the HTML report's pages and
-  `Pages` the PDF report's, both made from the figures already drawn and
-  exported: `im = reportImage(fig, report, Title=, Files=)` (a PNG at the
-  report's `Dpi`, or the SVG text; with `EmbedFormat="svg"` an `.svg` among
-  `Files` is read instead of printing the figure again) and
-  `f = reportPdfPage(fig, report, Files=)` (a one-page vector PDF in the
-  report's page folder; an exported `.pdf` among `Files` is copied), so no
-  page is drawn twice. Without them (a run with export off), the report
-  draws every page once when the plot is added: the images when its
-  `Format` is `"html"` or `"both"`, the pages when `"pdf"` or `"both"`. The
-  result itself is never kept, so a long run does not hold every result in
-  memory. The page folder lies under `tempdir` and is removed when the last
-  copy of the report is cleared. The HTML is one self-contained file
-  (contents, a section per dataset, PNG as `data:` URIs or inline SVG, the
-  caption, the plot's parameters and the config folded). Its links to the
-  exported files are relative to the report's folder (a `file://` URL on
-  another drive or share), worked out from absolute paths, each path segment
-  percent-encoded (UTF-8). The PDF has a title page and a summary page per
-  dataset, drawn when it is written, and each plot's pages, joined in that
-  order with the Apache PDFBox library MATLAB ships (`PDFMergerUtility`);
-  the MATLAB Report Generator is not needed. A report started for HTML only
-  has no pages for a PDF (`writePdfReport:NoPages`).
+
+### Reports
+
+A report collects datasets and plots, then is written as one
+self-contained HTML file and / or a multi-page PDF. The runner builds one
+per run, or one per dataset ([Runner](#runner)); the same calls work by
+hand:
+
+```matlab
+cfg = EphysAnalysisConfig.load("D:\EPHYS\am_quicklook.json");
+r = EphysAnalysisRunner(cfg);
+opts = cfg.Report;
+opts.Format = "both";                        % an HTML file and a PDF
+report = newAnalysisReport(Title="Stim responses", Config=cfg.toStruct(), Export=cfg.Export, Options=opts);
+for k = 1:numel(r.Outputs)
+    src = r.source(k);
+    report = addReportDataset(report, src);  % the dataset's summary tables
+    for id = cfg.enabledPlots()
+        spec = cfg.plotFor(id);
+        reason = plotSkipReason(src, spec);
+        if reason ~= ""
+            report = addReportFigure(report, spec, [], Status="skipped", Message=reason);
+            continue
+        end
+        report = addReportFigure(report, spec, r.computePlot(src, spec));   % draws its pages now
+    end
+    src.outputs.clearCache();
+end
+writeHtmlReport(report, "E:\out\stim_report.html");
+writePdfReport(report, "E:\out\stim_report.pdf");
+```
+
+| Function | Does |
+| --- | --- |
+| `newAnalysisReport(Title=, Config=, Export=, Options=)` | an empty report. `Options` is a [`Report`](EphysAnalysisConfig.md#report) section (`Format`, `EmbedFormat`, `Dpi`, `Include*`), `Export.FigureSizeCm` sizes the pages it draws, and `Config` (a plain struct, `cfg.toStruct()`) is printed at the end. It records the code version, MATLAB and machine (`ephysProvenance`), printed under the title |
+| `addReportDataset(report, src)` | starts a dataset's section, with its summary tables when `IncludeSummary` (`reportSummaryTables`: the recording, the digital lines, the trials, the units by class and shank, the ten highest-rate units) |
+| `addReportFigure(report, spec, R, Files=, Images=, Pages=)` | one plot in the last dataset: its caption (`plotCaption`), its pages and links to its exported `Files`. `spec` needs an `id` (`cfg.plotFor(id)`). `R = []` with `Status="skipped"` or `"error"` and `Message=` lists a plot that was not drawn |
+| `reportImage(fig, report, Title=, Files=)` | one drawn page as the HTML report embeds it |
+| `reportPdfPage(fig, report, Files=)` | one drawn page as the PDF report holds it |
+| `writeHtmlReport(report, file)`, `writePdfReport(report, file)` | the files; neither draws a plot again |
+
+`Images` are the HTML report's pages and `Pages` the PDF report's, both
+made from the figures already drawn and exported:
+`im = reportImage(fig, report, Title=, Files=)` (a PNG at the report's
+`Dpi`, or the SVG text; with `EmbedFormat="svg"` an `.svg` among `Files`
+is read instead of printing the figure again) and
+`f = reportPdfPage(fig, report, Files=)` (a one-page vector PDF in the
+report's page folder; an exported `.pdf` among `Files` is copied), so no
+page is drawn twice. Without them (a run with export off, or the loop
+above), the report draws every page once when the plot is added: the
+images when its `Format` is `"html"` or `"both"`, the pages when `"pdf"`
+or `"both"`. The result itself is never kept, so a long run does not hold
+every result in memory. The page folder lies under `tempdir` and is
+removed when the last copy of the report is cleared. A report started for
+HTML only keeps no pages, so it cannot be written as a PDF
+(`reportPdfPage:NoPages`, `writePdfReport:NoPages`): set `Format` to
+`"pdf"` or `"both"` before adding plots.
+
+The HTML is one self-contained file (contents, a section per dataset, PNG
+as `data:` URIs or inline SVG, the caption, the plot's parameters and the
+config folded). Its links to the exported files are relative to the
+report's folder (a `file://` URL on another drive or share), worked out
+from absolute paths, each path segment percent-encoded (UTF-8). The PDF
+has a title page and a summary page per dataset (which lists the plots
+that failed), drawn when it is written, and each plot's pages, joined in
+that order with the Apache PDFBox library MATLAB ships
+(`PDFMergerUtility`); the MATLAB Report Generator is not needed. See
+[file formats](file-formats.md#report-files).
 
 ## Runner
 
 ```matlab
-cfg = EphysAnalysisConfig.load("D:\EPHYS\am_quicklook.json");
-r = EphysAnalysisRunner(cfg);      % finds the datasets
-disp(r.plan())                     % dataset x plot, and why any is skipped
-R = r.run();                       % Datasets=, Plots=, Export=, Report= narrow it
-r.ReportFiles
+cfg = EphysAnalysisConfig.load("D:\EPHYS\am_quicklook.json");   % saved from the app
+r = EphysAnalysisRunner(cfg);      % finds the datasets (no data is loaded yet)
+disp(r.plan())                     % dataset x plot, and why any plot is skipped
+R = r.run();                       % compute, render, export, report
+R(R.Status ~= "done", :)           % what was skipped or failed, and why
+r.ReportFiles                      % the report(s) written
 ```
 
-`EphysAnalysisRunner(cfg, ProgressFcn=, LogFcn=)` finds the datasets from
-`cfg.Source` (`datasets()`): in project mode `EphysProject(Root, OutputRoot=,
-NamePattern=, ReaderOptions=)` only lists the recording folders (no header is
-read; `Source.Recordings` says whether an Open Ephys session with several
-recordings is one dataset or one per recording) and each dataset's
-`outputs(CacheData=true)` finds its files; in
-folders mode each folder is a `DatasetOutputs`. `source(k)` loads and caches
-`loadAnalysisSource`.
+`EphysAnalysisRunner(cfg, ProgressFcn=, LogFcn=, Scan=)` finds the datasets
+from `cfg.Source` (`datasets()`; `Scan=false` leaves that to a later call):
+in project mode `EphysProject(Root, OutputRoot=, NamePattern=,
+ReaderOptions=)` only lists the recording folders (no header is read;
+`Source.Recordings` says whether an Open Ephys session with several
+recordings is one dataset or one per recording; `Selection="list"` keeps
+the `Datasets` keys) and each dataset's `outputs(CacheData=true)` finds its
+files; in folders mode each folder is a `DatasetOutputs(folder,
+CacheData=true)`. So a dataset's spikes and signals are read once, and
+cleared after its plots.
 
-- `plan()` is a table `Dataset, Plot, Kind, Source, Enabled, Reason`;
-  `Reason` comes from `plotSkipReason`: *disabled*, *no sorted units*, *no
-  detected spikes*, *no LFP extract*, *no probe map*, *no paired trials*, *no
-  line X*, *no trial parameter X*.
-- `computePlot(src, spec)` is the one compute path: `epochTable` →
-  `selectUnits` / `selectChannels` → the compute function (tuning: an
-  `epochTable` with the parameter columns, `firingRate`, `tuningCurve`;
-  corrmap: `unitCorrelation`; probemap: `unitSummary` + `probeMapValues`).
-- `renderPlotFigures(R, spec, Target=, Page=)` draws one page into a target:
-  the app's preview. Without a target it is `EphysAnalysisRunner:NoTarget`.
+| Member | Meaning |
+| --- | --- |
+| `plan(Datasets=, Plots=)` | table `Dataset, Plot, Kind, Source, Enabled, Reason`, one row per dataset and plot (default: every plot, enabled or not). It reads only each dataset's source. `Reason` comes from `plotSkipReason`: *disabled*, *no sorted units*, *no detected spikes*, *no LFP extract* (or another signal), *no probe map*, *no paired trials*, *no line X*, *no trial parameter X*, or *cannot read the dataset: ...* ([why a plot is skipped](EphysAnalysisApp.md#why-is-my-plot-skipped)). A plot that passes can still fail when it runs, e.g. when no event is left after the selection |
+| `run(Datasets=, Plots=, Export=, Report=)` | every plot on every dataset; returns (and keeps in `Results`) one row per dataset and plot: `Dataset, Plot, Kind, Status` (`done`, `skipped`, `error`, `cancelled`), `Message, Files, Seconds`. `Datasets` takes indices, keys or names (default all), `Plots` plot ids (default the enabled plots); `Export` / `Report` override `cfg.Export.Enabled` / `cfg.Report.Enabled` |
+| `runDataset(k, Plots=, Export=, Report=)` | every plot on dataset `k`, appended to `Results` (`Export` default true, `Report` false; the report is the one `run` started) |
+| `computePlot(src, spec)` | `[R, E, G]` of one plot (`cfg.plotFor(id)`) on one dataset (`source(k)`) |
+| `renderPlotFigures(R, spec, Target=, Page=, OnRemember=)` | `renderPlot` of one page into a target: the app's preview. Without a target it is `EphysAnalysisRunner:NoTarget` |
+| `source(k)` | `loadAnalysisSource(Outputs(k), Key=Keys(k))` of dataset `k` (index, key or name), loaded once and kept in `Sources` |
+| `datasets()` | finds the datasets again: `Outputs`, `Keys` (root-relative folders, or the folders) and `Names`; forgets the loaded sources |
+| `clearSources()` | forgets the loaded sources and every dataset's cached data |
+| `cancel()` | the plot being drawn finishes; the next `progress()` call throws `EphysAnalysisRunner:Cancelled`, and what is left is `cancelled` |
+| `Results`, `Report`, `ReportFiles`, `RunRecordFile` | the last run's results, report struct, report files and run record |
+| `ProgressFcn`, `LogFcn` | `ProgressFcn(fraction, message)` before each plot (it may call `cancel()` itself); `LogFcn(message)` per line (default: print; `[]` = quiet) |
+
+- `computePlot(src, spec)` is the one compute path: `epochTable` (with the
+  plot's baseline, so the artifact test covers it, and a raster's sort
+  parameter as a column) → `selectUnits` (with the plot's `ref` and
+  `selection`, for a response test) or `selectChannels` → the compute
+  function: `spikePSTH` for a psth, raster or heatmap of spikes (with the
+  plot's `auroc`), `evokedPotential` for an evoked plot or a heatmap of a
+  signal, `firingRate` for a rate plot; tuning: an `epochTable` with the
+  parameter columns, `firingRate`, `tuningCurve`; corrmap:
+  `unitCorrelation`; probemap: `unitSummary` + `probeMapValues`. A raster,
+  PSTH grid or tuning grid of spikes with `waveform.mode` on also gets
+  `R.waveforms` ([Unit waveforms](#unit-waveforms)), and every `R` gets
+  `epochs`, `dataset` and `spec`.
 - `runDataset(k)` is a thin sequence of these public calls per plot, page by
   page: the page's file names first (`plotFileName`), then it draws one
   `newExportFigure`, exports it (`exportFigure`), makes the HTML report's image
@@ -689,23 +891,111 @@ folders mode each folder is a `DatasetOutputs`. `source(k)` loads and caches
   `Export.Overwrite` off a page whose files all exist is not written again,
   nor drawn unless the report needs its image or page. It clears the
   dataset's cache afterwards. A failing plot is an `error` row; the rest run.
-- `run()` returns `Results` (`Dataset, Plot, Kind, Status, Message, Files,
-  Seconds`; status `done`, `skipped`, `error` or `cancelled`) and writes the
-  reports. `cancel()` makes the next `progress()` call throw
-  `EphysAnalysisRunner:Cancelled`; what is left is `cancelled`.
+- `run()` runs `runDataset` on each dataset in turn and writes the report
+  (`Report.Format`: `"html"`, `"pdf"` or `"both"`) as
+  `Report.Folder` / `Report.FileName`: one over every dataset, or with
+  `Report.PerDataset` one per dataset, its name added. A cancelled run
+  writes no report over all datasets; per dataset, the reports of the
+  datasets it finished are written. Every run that reaches a dataset ends
+  by writing a run record,
+  `<report folder>/analysis_runs/<runId>_<name>.json`: the outcome, the
+  datasets, plots and report files, the `Results` rows, the code version,
+  MATLAB, host and user, and the config
+  ([format](file-formats.md#run-records)). `RunRecordFile` names it; one
+  that cannot be written is the warning `EphysAnalysisRunner:RunRecord`.
+- `run` does not validate the config (the app does): call `cfg.validate()`
+  first when the config was edited by hand.
 
-## Scripts
+### Changing a config in code
 
-`EphysAnalysisScript.compact(cfg, ConfigFile=, File=)` writes a short script
-that loads the saved config and runs the runner (`plan`, then `run`).
-`EphysAnalysisScript.standalone(cfg, File=)` writes every setting out: the
-config JSON as a comment, the datasets (`EphysProject` or the folder list),
-one fully resolved spec per plot (`ref`, `window` and `selection` expanded),
-then per dataset and plot the calls `computePlot` makes, the export loop (the
-runner's page loop, a page at a time with an `onCleanup` per page) and the
-report calls. It never uses the runner. The test suite runs both into
-separate roots and requires pixel-identical figures, equal HTML reports and
-the same PDF pages.
+`EphysAnalysisConfig` is a value class: keep the result of every call. Its
+fields are on [EphysAnalysisConfig](EphysAnalysisConfig.md).
+
+```matlab
+cfg = EphysAnalysisConfig.load("D:\EPHYS\am_quicklook.json");
+cfg.Source.Selection = "list";
+cfg.Source.Datasets = "SYNTH-01/SYNTH-01_260918_101500";        % one dataset key
+cfg.Defaults.Selection = trialSelection(filter="Hit | Miss", groupBy="Depth");
+
+% the firing rate over each response window, baseline subtracted
+cfg = cfg.addPlot(struct( ...
+    'kind', "rate", 'layout', "box", ...
+    'ref', eventRef(line="RespWindow", edge="onset"), ...
+    'window', epochWindow(mode="between", pre=0, post=0, stop=eventRef(line="RespWindow", edge="offset")), ...
+    'baseline', struct('Mode', "subtract", 'Window', [-0.5 0])), Id="rate_resp");
+
+% a unit correlation of the peak rate, Spearman
+cfg = cfg.addPlot(struct('kind', "corrmap", 'metric', "peak", 'correlation', "spearman"), Id="corr_peak");
+
+k = cfg.plotIndex("psth_1");
+cfg.Plots(k).histStyle = "line";          % PSTH drawn as a line
+cfg.Plots(k).bins.SmoothSec = 0.005;      % 5 ms Gaussian (0 = none)
+
+issues = cfg.validate();
+assert(~any(issues.Severity == "error"))
+R = EphysAnalysisRunner(cfg).run(Report=false);
+```
+
+`eventRef`, `epochWindow` and `trialSelection` fill every field left out
+from the defaults and check the rest, so they are the safe way to build
+those parts. A plot keeps `"default"` for `ref`, `window` or `selection`
+when they are not set, and `cfg.plotFor(id)` resolves them from
+`Defaults`. To draw exactly what a config's plot draws:
+
+```matlab
+r = EphysAnalysisRunner(cfg);
+spec = cfg.plotFor("psth_1");               % every "default" resolved
+[R, E, G] = r.computePlot(r.source(1), spec);
+renderPlot(R, spec, figure);                % a run draws each page into newExportFigure(cfg.Export, R, spec, Page=p)
+```
+
+## Generated scripts
+
+<a name="scripts"></a>
+
+Two forms, as [`EphysPipelineScript`](EphysPipeline.md#ephyspipelinescript)
+writes for pipeline configs.
+
+<!-- wiki: The pipeline's own are on [Running pipelines from scripts](Running-Pipelines-from-Scripts). -->
+
+In the app: **File → Generate script → Compact (loads the saved
+config)...** or **Standalone (every setting written out)...**. In code:
+
+```matlab
+EphysAnalysisScript.compact(cfg, File="D:\EPHYS\run_am_compact.m");        % cfg saved: uses cfg.File
+EphysAnalysisScript.compact(cfg, ConfigFile="D:\EPHYS\am.json", File="run_am_compact.m");
+txt = EphysAnalysisScript.standalone(cfg, File="D:\EPHYS\run_am_standalone.m");
+```
+
+Both return the script text; `File=` also writes it.
+
+| Form | Contains | Needs |
+| --- | --- | --- |
+| **compact** | `cfg = EphysAnalysisConfig.load(...)`, a few commented overrides (export formats, report format, group-by), then `EphysAnalysisRunner(cfg)`, `plan`, `run` and the report files | the saved config next to it: a config never saved, with no `ConfigFile=`, is `EphysAnalysisScript:NoConfigFile` |
+| **standalone** | the config JSON as a comment; the datasets (`EphysProject` and its keys, or the folder list); one fully resolved spec per enabled plot (`spec1`, `spec2`, ... with `ref`, `window` and `selection` written out); the export and report settings; then per dataset and plot the calls `computePlot` makes, the export loop (the runner's page loop, a page at a time with an `onCleanup` per page) and the report calls | nothing but the repository. It never uses the runner, so it shows exactly what a run does. It writes no run record |
+
+A standalone script's loop body for a PSTH starts like this:
+
+```matlab
+    % --- psth_stim (psth) ---
+    spec = spec1;
+    reason = plotSkipReason(src, spec);   % what the dataset lacks for this plot
+    if reason == ""
+        try
+            [E, G] = epochTable(src, spec.ref, Window=spec.window, Selection=spec.selection, Baseline=[]);
+            [st, meta] = selectUnits(src, spec.units, Ref=spec.ref, Selection=spec.selection);
+            R = spikePSTH(st, E, Window=[-0.2 0.8], BinSec=0.01, SmoothSec=0.01, Measure="rate", ...
+                Baseline=[], BaselineMode="none", MaskAfterStop=false, Raster=true, Groups=G, Meta=meta);
+            R.epochs = E;
+            R.dataset = src.name;
+            R.spec = spec;
+            ...
+```
+
+The test suite runs a compact and a standalone script of the same config
+into separate roots and requires pixel-identical figures, equal HTML
+reports and the same PDF pages. Run a generated script in a fresh MATLAB
+session with the repository on the path.
 
 ## Tests
 
@@ -726,3 +1016,13 @@ The fixture (`analysis/private/makeAnalysisFixture.m`) writes
 scenarios, approves each pairing with its scenario's cuts and runs the
 generated config with the Behavior, Signals (LFP, MUA, AUX) and Spikes
 (detected and sorted) steps. `pipeline/run_all_tests` runs these suites too.
+
+<!-- wiki
+## Related
+
+- [Analysis app](EphysAnalysisApp.md) and [Analysis configs](EphysAnalysisConfig.md)
+- [Loading outputs](Loading-Outputs): `DatasetOutputs`, units tables and trial-aligned analysis without this module
+- [Synthetic test data](Synthetic-Test-Data): a project to try these examples on
+- [Output files](Output-Files#time-and-channel-conventions): the time and channel conventions of the files themselves
+- API: [EphysAnalysisConfig](API-EphysAnalysisConfig), [EphysAnalysisRunner](API-EphysAnalysisRunner), [EphysAnalysisScript](API-EphysAnalysisScript), [EphysAnalysisApp](API-EphysAnalysisApp), [Analysis functions](API-Analysis-Functions)
+-->

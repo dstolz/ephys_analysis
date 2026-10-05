@@ -375,7 +375,8 @@ pynwb and nwbinspector (the same environment or another). See
 [INSTALL.md](../pipeline/INSTALL.md) for known-good versions.
 
 **Optional MATLAB toolboxes**: [Chronux](http://chronux.org) (bundled in
-[`toolboxes/chronux`](../toolboxes/chronux); add it with `addpath(genpath(...))`)
+[`toolboxes/chronux`](../toolboxes/chronux), which `addpath_nogit` on the
+repository root puts on the path)
 and [FieldTrip](https://www.fieldtriptoolbox.org/), each only for analysing the
 files the pipeline exports for it. Producing the files never calls either
 toolbox; `ChronuxDataset.hasChronux` / `FieldTripExport.hasFieldTrip` report

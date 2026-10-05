@@ -184,7 +184,7 @@ its rank among the headstages' channels.
 ## Requirements
 
 - MATLAB only. Python is needed just for the editor's probeinterface import:
-  the Python set on the pipeline app's Kilosort tab, whose `kilosort` env
+  the Python set on the pipeline app's Sorting tab, whose `kilosort` env
   from [INSTALL.md](../pipeline/INSTALL.md) has probeinterface.
 - Adaptors (NeuroNexus Adpt-A32-OM32 and the like, between a Samtec package
   and an Omnetics headstage) are not supported yet. The schema keeps a place

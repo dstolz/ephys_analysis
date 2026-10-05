@@ -1,5 +1,5 @@
 function [S, errMsg] = gatherSortingSection(obj)
-%gatherSortingSection  The Kilosort tab as a config Sorting section.
+%gatherSortingSection  The Sorting tab as a config Sorting section.
 %   [S, ERRMSG] = obj.gatherSortingSection() returns EphysPipelineConfig's
 %   Sorting struct filled from the controls: paths, execution mode, runs at
 %   once and GPUs (on the Run tab), dry run, the typed KS4 parameters (text

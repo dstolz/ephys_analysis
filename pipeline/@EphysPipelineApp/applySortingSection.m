@@ -1,5 +1,5 @@
 function applySortingSection(obj, S)
-%applySortingSection  Push a config Sorting section into the Kilosort tab.
+%applySortingSection  Push a config Sorting section into the Sorting tab.
 %   Missing fields take the section defaults; typed KS4 values are rendered
 %   into the text fields with EphysPipelineConfig.ks4ParamText. Values the
 %   controls cannot show are reported (setControlValue).

@@ -1,7 +1,7 @@
 function result = runProbeTool(obj, varargin)
 %runProbeTool  Invoke probe_tool.py (probeinterface front-door) via system().
 %   RESULT = obj.runProbeTool(SUBCMD, ARG1, ARG2, ...) runs the checked-in
-%   probe_tool.py in the Python/conda env configured on the Kilosort tab,
+%   probe_tool.py in the Python/conda env configured on the Sorting tab,
 %   passing SUBCMD and the remaining tokens as command-line arguments. It
 %   captures stdout, raises on a PROBE_TOOL_ERROR marker or non-zero exit, and
 %   returns the JSON the script prints on its last output line, jsondecoded:
@@ -34,7 +34,7 @@ condaEnv  = strtrim(string(obj.CondaEnvField.Value));
 if pythonExe == ""
     error('EphysPipelineApp:runProbeTool:NoPython', ...
         ['No Python executable configured. Set the Python exe on the ' ...
-         'Kilosort tab (the same env used for sorting).']);
+         'Sorting tab (the same env used for sorting).']);
 end
 
 result = EphysPipelineApp.runProbeToolWith(pythonExe, condaEnv, varargin{:});

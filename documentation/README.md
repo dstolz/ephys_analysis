@@ -355,8 +355,10 @@ read again, a progress callback, a best-effort clean-up) stay quiet.
 - Parallel Computing Toolbox (optional; `Parallel.Enabled` in a pipeline
   config, or `UseParallel=true` on `detectSpikes`, `artifactIntervals` and
   `analyzeArtifacts`).
-- No Report Generator: the analysis module's PDF reports are built with
-  `exportgraphics(..., Append=true)` and its HTML reports by hand.
+- No Report Generator: the analysis module's PDF reports are vector pages
+  from `exportgraphics`, joined with the Apache PDFBox library that MATLAB
+  ships on its Java class path (`java/jarext/pdfbox.jar`,
+  `PDFMergerUtility`), and its HTML reports are written by hand.
 
 **Functions from elsewhere in this repository**:
 
@@ -467,7 +469,7 @@ suite's temporary preferences, so close it before the run ends.
 | `test_EphysAnalysisCompute` (analysis/) | compute functions on seeded spike trains and signals, the trial-filter compiler, every renderer |
 | `test_EphysAnalysisEpochs` (analysis/) | sources, event references, epochs, trial selection and grouping against the synthetic truth |
 | `test_EphysAnalysisConfig` (analysis/) | the analysis config: JSON round trips, `plotFor`, validation |
-| `test_EphysAnalysisRunner` (analysis/) | plan, run, exports, HTML / PDF reports, cancel, compact vs standalone script equivalence |
+| `test_EphysAnalysisRunner` (analysis/) | plan, run, exports, HTML / PDF reports (each page drawn once), cancel, compact vs standalone script equivalence |
 | `test_EphysAnalysisApp` (analysis/) | the analysis GUI, headless |
 | `test_ResponseStats` (analysis/) | `pAdjust` against statsmodels; `responseStats` on known counts against `signrank` / `kruskalwallis` called directly (toolbox tests skipped without it) |
 | `test_PopulationAnalysis` (analysis/) | `populationAnalysis` against the per-dataset calls, `populationSummary`, the files `writePopulation` writes |

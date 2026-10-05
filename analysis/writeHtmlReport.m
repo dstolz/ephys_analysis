@@ -1,4 +1,4 @@
-function file = writeHtmlReport(report, file, opts)
+function file = writeHtmlReport(report, file)
 %writeHtmlReport  Write a report as one self-contained HTML file.
 %   FILE = writeHtmlReport(REPORT, FILE) writes the report built with
 %   newAnalysisReport / addReportDataset / addReportFigure: a title, a table
@@ -9,26 +9,19 @@ function file = writeHtmlReport(report, file, opts)
 %   files -- and the config JSON at the end (IncludeConfig, folded). No
 %   file beside it is needed; opening it needs only a browser.
 %
-%   Options: EmbedFormat ("png" | "svg"; default the report's), Dpi (PNG
-%   resolution; default the report's). The images a plot was added with
-%   (addReportFigure) are used as they are; a plot added without them is
-%   drawn again from its result, as is one that kept its result (a "pdf" /
-%   "both" report) when EmbedFormat or Dpi is given here. Every link to an
-%   exported file is relative to FILE's folder (a file:// URL on another
-%   drive) and percent-encoded.
+%   The images are those each plot was added with (addReportFigure: made
+%   from its exported figures, or drawn then at the report's Dpi in its
+%   EmbedFormat); nothing is drawn here. Every link to an exported file is
+%   relative to FILE's folder (a file:// URL on another drive) and
+%   percent-encoded.
 %
 %   See also writePdfReport, newAnalysisReport, EphysAnalysisRunner.run.
 
 arguments
     report (1,1) struct
     file (1,1) string
-    opts.EmbedFormat (1,1) string = ""
-    opts.Dpi (1,1) double = NaN
 end
 
-redraw = opts.EmbedFormat ~= "" || isfinite(opts.Dpi);
-if opts.EmbedFormat ~= ""; report.options.EmbedFormat = opts.EmbedFormat; end
-if isfinite(opts.Dpi); report.options.Dpi = opts.Dpi; end
 folder = fileparts(file);
 if strlength(folder) > 0 && ~isfolder(folder); mkdir(folder); end
 
@@ -85,9 +78,6 @@ for d = 1:numel(report.datasets)
             continue
         end
         images = e.images;
-        if ~isempty(e.R) && (isempty(images) || redraw)
-            images = reportImages(e.R, e.spec, report);
-        end
         for p = 1:numel(images)
             im = images{p};
             if im.format == "svg"

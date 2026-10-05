@@ -16,8 +16,8 @@ summary = [];
 if report.options.IncludeSummary
     summary = reportSummaryTables(src);
 end
-entry = struct('plot', {}, 'kind', {}, 'title', {}, 'caption', {}, 'spec', {}, 'R', {}, ...
-    'images', {}, 'files', {}, 'status', {}, 'message', {});
+entry = struct('plot', {}, 'kind', {}, 'title', {}, 'caption', {}, 'spec', {}, ...
+    'images', {}, 'pages', {}, 'files', {}, 'status', {}, 'message', {});
 report.datasets(end+1) = struct('name', src.name, 'key', src.key, 'folder', src.folder, ...
     'summary', summary, 'entries', entry);
 end

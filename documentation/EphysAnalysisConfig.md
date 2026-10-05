@@ -301,7 +301,7 @@ other. An overlay of units draws none.
 | `FilenamePattern` | `{Name}_{Plot}` | `{Name}` (dataset) `{Plot}` `{Kind}` `{Group}` `{Unit}` `{Index}` `{Date}`; a paged plot adds `_p<page>` unless the pattern tells its pages apart: `{Index}`, or `{Unit}` with a unit filled in (a paged evoked grid's `{Unit}` is `all` on every page) |
 | `Dpi` | 150 | PNG resolution |
 | `FigureSizeCm` | `[18 12]` | figure size `[width height]`; a grid page is made taller when its rows need it: 3 cm a row of tiles (4.5 cm for PSTHs with rasters) plus 1.5 cm |
-| `Overwrite` | `true` | `false`: a page whose files all exist is not written again, nor drawn unless the HTML report needs its image |
+| `Overwrite` | `true` | `false`: a page whose files all exist is not written again, nor drawn unless the report needs its image (HTML) or page (PDF) |
 
 ## Report
 

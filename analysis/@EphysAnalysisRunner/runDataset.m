@@ -10,15 +10,16 @@ function rows = runDataset(obj, k, opts)
 %       fig = newExportFigure(Export, R, spec, Page=p); h = renderPlot(R, spec, fig, Page=p)
 %       files = [files exportFigure(fig, <folder>/<name>, Format=, Dpi=)]
 %       images{p} = reportImage(fig, report, Title=h.title, Files=)   (an HTML report)
+%       pages(p) = reportPdfPage(fig, report, Files=)                 (a PDF report)
 %       close(fig)
-%     report = addReportFigure(report, spec, R, Files=files, Images=images)  (Report)
+%     report = addReportFigure(report, spec, R, Files=files, Images=images, Pages=pages)  (Report)
 %   The folder is Export.Folder with {OutputFolder} (this dataset's output
 %   folder), {OutputRoot}, {Root}, {Name} and {Date} filled; the name is
 %   plotFileName(Export.FilenamePattern, ...) (the page's tokens, and
 %   "_p<page>" for a paged plot whose pattern does not tell its pages
 %   apart). With Export.Overwrite off, a page whose files all exist is not
-%   written again, nor drawn unless the HTML report needs its image.
-%   Without Export the report draws its own images (addReportFigure). A
+%   written again, nor drawn unless the report needs its image or page.
+%   Without Export the report draws its own (addReportFigure). A
 %   plot that fails is an "error" row (its open page is closed); the
 %   others still run. Afterwards the dataset's cached data is cleared.
 %   The report (Report) is r.Report, started by run().
@@ -46,6 +47,7 @@ X = cfg.Export;
 folder = figureFileName(X.Folder, struct('OutputFolder', obj.datasetFolder(k), 'OutputRoot', obj.outputRoot(), ...
     'Root', cfg.Source.Root, 'Name', name), Kind="folder");
 withImages = opts.Report && obj.Report.options.Format ~= "pdf";   % the HTML report embeds each page
+withPages = opts.Report && obj.Report.options.Format ~= "html";   % the PDF report holds each page
 for j = 1:numel(ids)
     spec = cfg.plotFor(ids(j));
     try
@@ -73,15 +75,17 @@ for j = 1:numel(ids)
         R = obj.computePlot(src, spec);
         files = string.empty(1, 0);
         images = cell(1, 0);
+        pages = strings(1, 0);
         if opts.Export
             n = plotPageCount(R, spec);
             if withImages; images = cell(1, n); end
+            if withPages; pages = strings(1, n); end
             for p = 1:n
                 base = fullfile(folder, plotFileName(X.FilenamePattern, name, spec, R, p, n));
                 want = base + "." + X.Formats;
                 kept = ~X.Overwrite && all(isfile(want));   % its files exist: not written again
                 if kept; files = [files want]; end %#ok<AGROW>
-                if kept && ~withImages; continue; end       % ... nor drawn, unless the report needs its image
+                if kept && ~withImages && ~withPages; continue; end   % ... nor drawn, unless the report needs the page
                 fig = newExportFigure(X, R, spec, Page=p);
                 closer = onCleanup(@() close(fig));   % closes the page on a failure too
                 h = renderPlot(R, spec, fig, Page=p);
@@ -93,11 +97,14 @@ for j = 1:numel(ids)
                 if withImages
                     images{p} = reportImage(fig, obj.Report, Title=h.title, Files=written);
                 end
+                if withPages
+                    pages(p) = reportPdfPage(fig, obj.Report, Files=written);
+                end
                 clear closer
             end
         end
         if opts.Report
-            obj.Report = addReportFigure(obj.Report, spec, R, Files=files, Images=images);
+            obj.Report = addReportFigure(obj.Report, spec, R, Files=files, Images=images, Pages=pages);
         end
         obj.Results(end+1, :) = {name, spec.id, spec.kind, "done", "", strjoin(files, "; "), toc(t0)};
         obj.log("%s: %s done (%d file(s), %.1f s)", name, spec.id, numel(files), toc(t0));

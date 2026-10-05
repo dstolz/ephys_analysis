@@ -572,25 +572,29 @@ preference read per page. With no rules, nothing else is done.
 - Reports: `report = newAnalysisReport(Title=, Config=, Export=, Options=)`,
   then per dataset `addReportDataset(report, src)` (summary tables from
   `reportSummaryTables`) and per plot `addReportFigure(report, spec, R,
-  Files=, Images=)`; then `writeHtmlReport(report, file)` and / or
-  `writePdfReport(report, file)`. `Images` are the HTML report's pages, made
-  from the figures already drawn and exported with
-  `im = reportImage(fig, report, Title=, Files=)` (a PNG at the report's
-  `Dpi`, or the SVG text; with `EmbedFormat="svg"` an `.svg` among `Files` is
-  read instead of printing the figure again), so nothing is drawn twice.
-  Without `Images` (a run with export off), an HTML-only report draws every
-  page when the plot is added. The HTML is one self-contained file
+  Files=, Images=, Pages=)`; then `writeHtmlReport(report, file)` and / or
+  `writePdfReport(report, file)`. `Images` are the HTML report's pages and
+  `Pages` the PDF report's, both made from the figures already drawn and
+  exported: `im = reportImage(fig, report, Title=, Files=)` (a PNG at the
+  report's `Dpi`, or the SVG text; with `EmbedFormat="svg"` an `.svg` among
+  `Files` is read instead of printing the figure again) and
+  `f = reportPdfPage(fig, report, Files=)` (a one-page vector PDF in the
+  report's page folder; an exported `.pdf` among `Files` is copied), so no
+  page is drawn twice. Without them (a run with export off), the report
+  draws every page once when the plot is added: the images when its
+  `Format` is `"html"` or `"both"`, the pages when `"pdf"` or `"both"`. The
+  result itself is never kept, so a long run does not hold every result in
+  memory. The page folder lies under `tempdir` and is removed when the last
+  copy of the report is cleared. The HTML is one self-contained file
   (contents, a section per dataset, PNG as `data:` URIs or inline SVG, the
   caption, the plot's parameters and the config folded). Its links to the
   exported files are relative to the report's folder (a `file://` URL on
   another drive or share), worked out from absolute paths, each path segment
-  percent-encoded (UTF-8). `writeHtmlReport` draws a plot again only when its
-  result was kept (a `"pdf"` / `"both"` report) and `EmbedFormat` or `Dpi` is
-  given. The PDF has a title
-  page, a summary page per dataset and every figure drawn again as vector
-  pages with `exportgraphics(Append=true)`; the MATLAB Report Generator is
-  not needed. An HTML-only report keeps images rather than results,
-  so a long run does not hold every result in memory.
+  percent-encoded (UTF-8). The PDF has a title page and a summary page per
+  dataset, drawn when it is written, and each plot's pages, joined in that
+  order with the Apache PDFBox library MATLAB ships (`PDFMergerUtility`);
+  the MATLAB Report Generator is not needed. A report started for HTML only
+  has no pages for a PDF (`writePdfReport:NoPages`).
 
 ## Runner
 
@@ -624,11 +628,12 @@ folders mode each folder is a `DatasetOutputs`. `source(k)` loads and caches
 - `runDataset(k)` is a thin sequence of these public calls per plot, page by
   page: the page's file names first (`plotFileName`), then it draws one
   `newExportFigure`, exports it (`exportFigure`), makes the HTML report's image
-  from it (`reportImage`) and closes it (an `onCleanup` closes it on a failure
-  too); then `addReportFigure(..., Files=, Images=)`. With
+  (`reportImage`) and the PDF report's page (`reportPdfPage`) from it and
+  closes it (an `onCleanup` closes it on a failure too); then
+  `addReportFigure(..., Files=, Images=, Pages=)`. With
   `Export.Overwrite` off a page whose files all exist is not written again,
-  nor drawn unless the HTML report needs its image. It clears the dataset's
-  cache afterwards. A failing plot is an `error` row; the rest run.
+  nor drawn unless the report needs its image or page. It clears the
+  dataset's cache afterwards. A failing plot is an `error` row; the rest run.
 - `run()` returns `Results` (`Dataset, Plot, Kind, Status, Message, Files,
   Seconds`; status `done`, `skipped`, `error` or `cancelled`) and writes the
   reports. `cancel()` makes the next `progress()` call throw
@@ -644,7 +649,8 @@ one fully resolved spec per plot (`ref`, `window` and `selection` expanded),
 then per dataset and plot the calls `computePlot` makes, the export loop (the
 runner's page loop, a page at a time with an `onCleanup` per page) and the
 report calls. It never uses the runner. The test suite runs both into
-separate roots and requires pixel-identical figures and equal HTML reports.
+separate roots and requires pixel-identical figures, equal HTML reports and
+the same PDF pages.
 
 ## Tests
 
@@ -657,7 +663,7 @@ separate roots and requires pixel-identical figures and equal HTML reports.
 | `test_PopulationAnalysis` | the fixture: `populationAnalysis`' units, rates, PSTHs and per-level rates equal the per-dataset calls (the selection's groups pooled); the summary's counts and means add up; the groupings (none, dataset × shank, depth bins); the correction over every unit or each dataset; the files written; the errors |
 | `test_PlotAesthetics` | no fixture: rules (decoded JSON, refused properties, merging, colours as text), every kind and layout naming everything it draws, the user's rules then the plot's (and `UserAesthetics=false`), a value an object refuses (a warning, the plot still drawn), the right-click menu only in a visible figure or with `Editable=true` (one per figure; legends find their plot), the editor (live edits, Apply to one / same / role / ticked, Reset, Cancel, OK remembering for the plot or the user, Forget and the redraw, unremembered edits put back), the config's `aesthetics` through JSON, and the script literal of a rule list |
 | `test_EphysAnalysisConfig` | see [EphysAnalysisConfig](EphysAnalysisConfig.md#tests) |
-| `test_EphysAnalysisRunner` | the fixture: `plan` skip reasons, `run` exports and paged names (no figure left open), HTML and PDF reports (percent-encoded and `file://` links; a `"both"` report holds the image of every exported page and each result), `Overwrite` off, rendering real results (a stack of real `epochTable` groups labelled by the `groupBy` parameter, a raster showing every epoch and an evoked stack whatever `Style.YLim`), a failing export closing its page (runner and standalone script), cancel, driven units, compact vs standalone script equivalence, unit waveforms (templates without the sorted `.bin` and the warning; the spikes cut from a planted one, at most `maxSpikes`, and kept in the cache; detections without waveforms; none with the mode off or for an overlay; the script's `unitWaveforms` line) |
+| `test_EphysAnalysisRunner` | the fixture: `plan` skip reasons, `run` exports and paged names (no figure left open), HTML and PDF reports (percent-encoded and `file://` links; a `"both"` report holds the image and the PDF page of every exported page and no result; one figure per page, so each is drawn once; the PDF's title, summary and plot pages in order), `Overwrite` off, rendering real results (a stack of real `epochTable` groups labelled by the `groupBy` parameter, a raster showing every epoch and an evoked stack whatever `Style.YLim`), a failing export closing its page (runner and standalone script), cancel, driven units, compact vs standalone script equivalence (figures, HTML and PDF pages), unit waveforms (templates without the sorted `.bin` and the warning; the spikes cut from a planted one, at most `maxSpikes`, and kept in the cache; detections without waveforms; none with the mode off or for an overlay; the script's `unitWaveforms` line) |
 | `test_EphysAnalysisApp` | see [EphysAnalysisApp](EphysAnalysisApp.md#tests) |
 
 The fixture (`analysis/private/makeAnalysisFixture.m`) writes

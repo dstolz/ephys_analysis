@@ -19,7 +19,8 @@ function test_EphysTraceViewer()
 %     - EphysTraceEnvelope: block sizes, one cache file per source, every
 %       level's min / max equal to those of the full-rate samples, a
 %       stale fingerprint (the .bin written again) never used and built
-%       again, a build on a thread, on a timer and cancelled; the viewer
+%       again, a build on a thread, on a timer and cancelled, a removed
+%       cache file noticed (Clean up); the viewer
 %       drawing the whole recording from it without a full-rate read, the
 %       overview strip's signal, and a display filter keeping the view
 %       within one read.
@@ -416,6 +417,10 @@ waitUntil(@() eg.State ~= "building", 120);
 [m2, x2] = er.read(2, 0, er.NumBlocks(2), 1:nCh);
 check(eg.State == "ready" && nDone == 1 && isequal(m1, m2) && isequal(x1, x2), ...
     'the background build ends ready (DoneFcn once) with the same blocks as build()');
+delete(er.File);                              % as Clean up's "envelope" kind would
+pause(1.05);                                  % isReady looks at the cache file at most once a second
+check(~er.isReady() && er.State == "stale", ...
+    'a cache file removed: even the recording''s envelope goes stale (built again, never read)');
 et = EphysTraceEnvelope(L, Blocks=[4 16]);
 et.start();
 check(et.State == "building" && ~et.OnThreads, 'a -v7.3 signal (h5read does not run on a thread) builds on a timer');

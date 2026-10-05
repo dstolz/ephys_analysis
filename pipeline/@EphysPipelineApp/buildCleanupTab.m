@@ -18,9 +18,9 @@ og = uigridlayout(opt, [2 1]);   % the options scroll; the buttons under them st
 og.RowHeight = {'1x', 32};
 og.Padding = [0 10 0 0];
 og.RowSpacing = 6;
-cg = uigridlayout(og, [18 2]);
+cg = uigridlayout(og, [20 2]);
 cg.Layout.Row = 1;
-cg.RowHeight   = {'fit', 22, 24, 'fit', 24, 'fit', 24, 'fit', 22, 'fit', 'fit', 22, 'fit', 22, 24, 26, 'fit', '1x'};
+cg.RowHeight   = {'fit', 22, 24, 'fit', 24, 'fit', 24, 'fit', 24, 'fit', 22, 'fit', 'fit', 22, 'fit', 22, 24, 26, 'fit', '1x'};
 cg.ColumnWidth = {'1x', '1x'};
 cg.RowSpacing  = 4;
 cg.Scrollable  = "on";
@@ -45,11 +45,16 @@ obj.CleanupBinCheckBox = uicheckbox(cg, "Text", "Sorting input .bin (<Name>.bin 
 obj.CleanupBinCheckBox.Layout.Row = 7; obj.CleanupBinCheckBox.Layout.Column = [1 2];
 note(cg, 8, "The flat binary toBin writes for Kilosort4 to sort, as large as the raw recording. " + ...
     "As above: the sorted units do not need it; phy's trace view does.");
+obj.CleanupEnvelopeCheckBox = uicheckbox(cg, "Text", "Visualize's envelopes (<Name>_envelope_*.dat)", ...
+    "Value", true, "FontWeight", "bold", "ValueChangedFcn", stale);
+obj.CleanupEnvelopeCheckBox.Layout.Row = 9; obj.CleanupEnvelopeCheckBox.Layout.Column = [1 2];
+note(cg, 10, "The min / max of each signal the Visualize tab has shown, up to about 170 MB each: " + ...
+    "display caches, built again when the tab next shows the signal. One being built is kept.");
 
 % one box per step that writes files (the probe step writes none)
-sep(cg, "Remove what a preprocessing step wrote", 9);
+sep(cg, "Remove what a preprocessing step wrote", 11);
 sg = uigridlayout(cg, [3 2]);
-sg.Layout.Row = 10; sg.Layout.Column = [1 2];
+sg.Layout.Row = 12; sg.Layout.Column = [1 2];
 sg.RowHeight = {22, 22, 22}; sg.ColumnWidth = {'1x', '1x'};
 sg.Padding = [0 0 0 0]; sg.RowSpacing = 2;
 steps = ["sorting" "Sorting (Kilosort4)" "The kilosort4 folder (the sorted units with their phy curation and unit notes, " + ...
@@ -63,23 +68,23 @@ for k = 1:size(steps, 1)
     obj.CleanupStepCheckBoxes(k) = uicheckbox(sg, "Text", steps(k, 2), "Tag", steps(k, 1), ...
         "Value", false, "Tooltip", steps(k, 3), "ValueChangedFcn", stale);
 end
-note(cg, 11, "Everything the step wrote, to run it again or drop it (hover over a box for its files). " + ...
+note(cg, 13, "Everything the step wrote, to run it again or drop it (hover over a box for its files). " + ...
     "Sorting takes the whole kilosort4 folder, phy curation included.");
 
-sep(cg, "Always kept", 12);
-note(cg, 13, "The outputs of the steps not ticked, the manifests, the copy record, the Epsych2 session file, " + ...
+sep(cg, "Always kept", 14);
+note(cg, 15, "The outputs of the steps not ticked, the manifests, the copy record, the Epsych2 session file, " + ...
     "the clean-up record and any other file. Nothing on the source is touched.");
 
 % where removed files go (acts on the preview as it is: changing it keeps the preview)
-sep(cg, "Removed files go", 14);
+sep(cg, "Removed files go", 16);
 ways = ["delete" "Delete permanently"; "recycle" "Move to the Recycle Bin"; "move" "Move to a folder"];
 if ~ispc; ways(2, :) = []; end   % the Recycle Bin is Windows only
 obj.CleanupMethodDropDown = uidropdown(cg, "Items", cellstr(ways(:, 2)), "ItemsData", cellstr(ways(:, 1)), ...
     "Value", 'delete', "Tooltip", "What happens to the Remove files of the preview.", ...
     "ValueChangedFcn", @(~,~) obj.onCleanupMethodChanged());
-obj.CleanupMethodDropDown.Layout.Row = 15; obj.CleanupMethodDropDown.Layout.Column = [1 2];
+obj.CleanupMethodDropDown.Layout.Row = 17; obj.CleanupMethodDropDown.Layout.Column = [1 2];
 dg = uigridlayout(cg, [1 2]);
-dg.Layout.Row = 16; dg.Layout.Column = [1 2];
+dg.Layout.Row = 18; dg.Layout.Column = [1 2];
 dg.ColumnWidth = {'1x', 80}; dg.Padding = [0 0 0 0];
 obj.CleanupDestField = uieditfield(dg, "text", "Placeholder", "Folder to move the files into", ...
     "Tooltip", "Each file goes to <folder>\<dataset key>\<its path in the dataset folder>. " + ...
@@ -87,7 +92,7 @@ obj.CleanupDestField = uieditfield(dg, "text", "Placeholder", "Folder to move th
 obj.CleanupDestButton = uibutton(dg, "Text", "Browse...", ...
     "ButtonPushedFcn", @(~,~) obj.onCleanupBrowseDest());
 obj.CleanupMethodNote = uilabel(cg, "Text", "", "WordWrap", "on", "FontColor", [0.4 0.4 0.4]);
-obj.CleanupMethodNote.Layout.Row = 17; obj.CleanupMethodNote.Layout.Column = [1 2];
+obj.CleanupMethodNote.Layout.Row = 19; obj.CleanupMethodNote.Layout.Column = [1 2];
 
 pb = uigridlayout(og, [1 2]);
 pb.Layout.Row = 2;

@@ -1931,6 +1931,21 @@ app.CleanupSorterCopyCheckBox.Value = false;
 app.onCleanupSettingsChanged();
 check(isempty(app.CleanupPlan) && app.CleanupRunButton.Enable == "off" && contains(app.CleanupSummaryLabel.Text, "Preview again"), ...
     'changing the kinds to remove discards the preview until Preview is pressed again');
+d1 = app.Project.Datasets(1);
+envFile = string(fullfile(d1.outputFolder(), d1.Name + "_envelope_recording.dat"));
+fid = fopen(envFile, 'w'); fwrite(fid, zeros(1, 256, 'uint8'), 'uint8'); fclose(fid);
+app.onCleanupPreview();
+P = app.CleanupPlan;
+check(app.CleanupEnvelopeCheckBox.Value && isequal(P.Category(P.File == envFile), "envelope") ...
+    && isequal(P.Action(P.File == envFile), "remove") && isequal(P.Action(P.File == tempFile), "keep") ...
+    && contains(P.What(P.File == envFile), "envelope of the recording"), ...
+    'Visualize''s envelopes are ticked by default: <Name>_envelope_<what>.dat goes as a display cache');
+app.CleanupEnvelopeCheckBox.Value = false;
+app.onCleanupSettingsChanged();
+app.onCleanupPreview();
+P = app.CleanupPlan;
+check(isequal(P.Action(P.File == envFile), "keep") && contains(P.Reason(P.File == envFile), "not selected"), ...
+    'unticked, the envelopes stay');
 check(numel(app.CleanupStepCheckBoxes) == 6 && isequal(string({app.CleanupStepCheckBoxes.Tag}), ...
     ["sorting" "signals" "spikes" "behavior" "artifacts" "export"]) && ~any([app.CleanupStepCheckBoxes.Value]) ...
     && string(app.CleanupMethodDropDown.Value) == "delete" && app.CleanupDestField.Enable == "off" ...
@@ -1964,10 +1979,13 @@ check(height(R) == nnz(P.Action == "remove") && all(R.Status == "removed") && is
     'Move files moves them to <folder>\<dataset key>\..., removes the emptied kilosort4 folder, keeps a record and previews again');
 app.savePreferences();
 v = AppPrefs.getpref(g, 'CleanupOptions');
-check(isequal(string(v.steps), "sorting") && string(v.method) == "move" && string(v.destination) == string(moveDest), ...
-    'the ticked steps, the method and the folder are saved as preferences');
+check(isequal(string(v.steps), "sorting") && string(v.method) == "move" && string(v.destination) == string(moveDest) ...
+    && isfield(v, 'envelope') && ~v.envelope && isfile(envFile), ...
+    'the ticked kinds and steps, the method and the folder are saved as preferences (the unticked envelope stayed)');
 app.CleanupStepCheckBoxes(1).Value = false;
 app.CleanupSorterCopyCheckBox.Value = true;
+app.CleanupEnvelopeCheckBox.Value = true;
+delete(envFile);
 app.CleanupMethodDropDown.Value = 'delete';
 app.CleanupDestField.Value = '';
 app.onCleanupMethodChanged();

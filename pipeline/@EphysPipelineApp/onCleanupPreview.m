@@ -13,8 +13,9 @@ if isempty(idx)
     uialert(obj.Fig, "Scan a project on the Project tab first.", "Clean up");
     return
 end
-kinds = ["raw" "sorter_copy" "bin"];
-kinds = kinds([obj.CleanupRawCheckBox.Value, obj.CleanupSorterCopyCheckBox.Value, obj.CleanupBinCheckBox.Value]);
+kinds = ["raw" "sorter_copy" "bin" "envelope"];
+kinds = kinds([obj.CleanupRawCheckBox.Value, obj.CleanupSorterCopyCheckBox.Value, obj.CleanupBinCheckBox.Value, ...
+    obj.CleanupEnvelopeCheckBox.Value]);
 steps = obj.CleanupStepCheckBoxes;
 kinds = [kinds, string({steps([steps.Value]).Tag})];
 c = obj.Config;

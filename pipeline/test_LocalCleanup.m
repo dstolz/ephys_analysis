@@ -3,8 +3,9 @@ classdef test_LocalCleanup < matlab.unittest.TestCase
     %   Writes a small synthetic recording as the "source", copies it into a
     %   local session folder with a session_manifest.json as the Copy tab
     %   would, adds a sorting folder, a .bin and pipeline outputs, then checks
-    %   what a clean up would remove and keep (by kind, and by preprocessing
-    %   step), and that it removes only that: deleted, moved into a folder,
+    %   what a clean up would remove and keep (by kind, Visualize's envelopes
+    %   among them, and by preprocessing step), and that it removes only
+    %   that: deleted, moved into a folder,
     %   or sent to the Recycle Bin (whose items it empties again afterwards).
     %
     %   Usage
@@ -82,6 +83,56 @@ classdef test_LocalCleanup < matlab.unittest.TestCase
             tc.verifyEqual(T.File(T.Action == "remove"), ...
                 string(fullfile(tc.Local, "kilosort4", "temp_wh.dat")));
             tc.verifySubstring(T.Reason(T.File == fullfile(tc.Local, tc.Name + ".bin")), "not selected");
+        end
+
+        function envelopesGoAsADisplayCache(tc)
+            % Visualize's envelopes (<Name>_envelope_<what>.dat in the output
+            % folder, here the recording folder, so not taken for raw .dat
+            % files) go by default; a build's .partial only once it is an
+            % hour old, since a newer one may be being written.
+            env = fullfile(tc.Local, tc.Name + "_envelope_" + ["recording" "LFP"] + ".dat");
+            old = fullfile(tc.Local, tc.Name + "_envelope_bin.dat.tp1a2b_3c4d.partial");
+            fresh = fullfile(tc.Local, tc.Name + "_envelope_recording_car.dat.tp5e6f_7a8b.partial");
+            for f = [env old fresh]
+                tc.writeBytes(f, 500);
+            end
+            tc.assumeTrue(setFileModifiedTime(old, datetime('now') - hours(2)), 'a file''s modification time can be set');
+            T = planLocalCleanup(tc.dataset());
+            mine = ismember(T.File, [env old fresh]);
+            tc.verifyEqual(nnz(mine), 4);
+            tc.verifyTrue(all(T.Category(mine) == "envelope") && all(T.Step(mine) == ""));
+            tc.verifyTrue(all(T.Action(ismember(T.File, [env old])) == "remove"), 'envelopes go by default');
+            tc.verifyEqual(T.What(T.File == env(1)), "Visualize's min / max envelope of the recording");
+            tc.verifyEqual(T.What(T.File == env(2)), "Visualize's min / max envelope of LFP");
+            tc.verifySubstring(T.Reason(T.File == env(1)), "builds it again");
+            tc.verifyEqual(T.What(T.File == old), "Unfinished envelope of the sorting .bin (a build MATLAB left)");
+            r = T(T.File == fresh, :);
+            tc.verifyEqual([r.Action r.What], ["keep" "Envelope of the recording (CAR) being built"], ...
+                'a partial file written in the last hour may be a build under way: kept');
+            tc.verifySubstring(r.Reason, "in the last hour");
+
+            T = planLocalCleanup(tc.dataset(), Remove="raw");
+            tc.verifyTrue(all(T.Action(T.Category == "envelope") == "keep"), 'kept unless selected');
+            tc.verifySubstring(T.Reason(T.File == env(1)), "not selected");
+
+            R = runLocalCleanup(planLocalCleanup(tc.dataset(), Remove="envelope"));
+            tc.verifyEqual(sort(R.File), sort([env old].'), 'only the envelopes go');
+            tc.verifyTrue(all(R.Status == "removed"), strjoin(R.Message, "; "));
+            tc.verifyFalse(any(isfile([env old])));
+            tc.verifyTrue(isfile(fresh), 'the partial file a build may be writing stays');
+            rec = readJsonFile(fullfile(tc.Local, tc.Name + "_cleanup.json"));
+            tc.verifyEqual(unique(string({rec.runs(1).removed.category})), "envelope");
+
+            % with an output folder of its own, the envelopes are found there
+            out = fullfile(tc.Root, "out", tc.Name);
+            mkdir(out);
+            mua = fullfile(out, tc.Name + "_envelope_MUA.dat");
+            tc.writeBytes(mua, 300);
+            d = tc.dataset();
+            d.OutputDir = out;
+            T = planLocalCleanup(d);
+            r = T(T.File == mua, :);
+            tc.verifyEqual([r.Category r.Action r.Root], ["envelope" "remove" string(out)]);
         end
 
         function binaryRecordingDataFileIsRawNotBin(tc)

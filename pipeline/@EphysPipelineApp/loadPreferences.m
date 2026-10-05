@@ -192,6 +192,7 @@ if AppPrefs.ispref(g, 'CleanupOptions')
         applyIf(v, 'raw',        @(x) set(obj.CleanupRawCheckBox, 'Value', logical(x)));
         applyIf(v, 'sorterCopy', @(x) set(obj.CleanupSorterCopyCheckBox, 'Value', logical(x)));
         applyIf(v, 'bin',        @(x) set(obj.CleanupBinCheckBox, 'Value', logical(x)));
+        applyIf(v, 'envelope',   @(x) set(obj.CleanupEnvelopeCheckBox, 'Value', logical(x)));
         applyIf(v, 'steps',      @(x) arrayfun(@(b) set(b, 'Value', ismember(b.Tag, cellstr(x))), obj.CleanupStepCheckBoxes));
         applyIf(v, 'method',     @(x) set(obj.CleanupMethodDropDown, 'Value', char(x)));
         applyIf(v, 'destination', @(x) set(obj.CleanupDestField, 'Value', char(x)));

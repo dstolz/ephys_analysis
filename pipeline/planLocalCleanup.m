@@ -5,7 +5,7 @@ function T = planLocalCleanup(datasets, opts)
 %   row per file saying whether runLocalCleanup would remove it or keep it,
 %   and why. Nothing is changed on disk: this is the preview.
 %
-%   What can be removed (Remove option; the first three by default)
+%   What can be removed (Remove option; the first four by default)
 %   To free space, keeping every output:
 %     "raw"          the raw recording files that the Copy tab copied into the
 %                    session folder (the recording files listed in its
@@ -26,6 +26,14 @@ function T = planLocalCleanup(datasets, opts)
 %                    <Name>.bin) and its .json sidecar: the flat binary
 %                    Kilosort4 sorts (never a raw recording file). As above,
 %                    only phy's trace view needs it.
+%     "envelope"     the Visualize tab's min / max envelopes of the signals it
+%                    has shown (EphysTraceEnvelope): <Name>_envelope_<what>.dat
+%                    in the output folder, the only place they are written.
+%                    Display caches: the tab builds one again when it next
+%                    shows the signal. A build writes <file>.<token>.partial
+%                    first; one an hour old (a build MATLAB left, as the next
+%                    build counts it) goes with them, a newer one may be
+%                    being written, here or in another MATLAB, and is kept.
 %   Everything one preprocessing step wrote (the step names of
 %   EphysPipelineConfig.StepNames), to run the step again or drop it:
 %     "sorting"      the dataset's kilosort4 folder (kilosortDir: the sorted
@@ -63,9 +71,9 @@ function T = planLocalCleanup(datasets, opts)
 %
 %   Options
 %     Remove      (1,:) string, a subset of ["raw" "sorter_copy" "bin"
-%                 "sorting" "signals" "spikes" "behavior" "artifacts"
-%                 "export"] (default ["raw" "sorter_copy" "bin"]). Files of
-%                 the other kinds are kept.
+%                 "envelope" "sorting" "signals" "spikes" "behavior"
+%                 "artifacts" "export"] (default ["raw" "sorter_copy" "bin"
+%                 "envelope"]). Files of the other kinds are kept.
 %     SearchDirs  (1,:) string, more folders holding step outputs (the
 %                 config's Signals / Spikes / Export OutputDir). The
 %                 datasets' outputs found there are listed too; their other
@@ -75,8 +83,8 @@ function T = planLocalCleanup(datasets, opts)
 %     Dataset    dataset Name
 %     Folder     the dataset's recording folder (where the clean-up record goes)
 %     Action     "remove" | "keep"
-%     Category   "raw" | "sorter_copy" | "bin" | "epsych" | "copy_record" |
-%                "manifest" | "sorting" | "output" | "other"
+%     Category   "raw" | "sorter_copy" | "bin" | "envelope" | "epsych" |
+%                "copy_record" | "manifest" | "sorting" | "output" | "other"
 %     Step       the preprocessing step that wrote the file ("" for none)
 %     What       what the file is, in words
 %     File       full path
@@ -94,8 +102,8 @@ function T = planLocalCleanup(datasets, opts)
 
 arguments
     datasets EphysDataset
-    opts.Remove (1,:) string {mustBeMember(opts.Remove, ["raw" "sorter_copy" "bin" ...
-        "sorting" "signals" "spikes" "behavior" "artifacts" "export"])} = ["raw" "sorter_copy" "bin"]
+    opts.Remove (1,:) string {mustBeMember(opts.Remove, ["raw" "sorter_copy" "bin" "envelope" ...
+        "sorting" "signals" "spikes" "behavior" "artifacts" "export"])} = ["raw" "sorter_copy" "bin" "envelope"]
     opts.SearchDirs (1,:) string = string.empty(1, 0)
 end
 
@@ -143,6 +151,7 @@ for k = 1:n
     if under(p, folder)
         rel = lower(replace(extractAfter(f.path, strlength(stripSep(folder)) + 1), "\", "/"));
     end
+    [envWhat, envPartial] = envelopeName(leaf, name);
 
     if isKey(copied.raw, fileKey)
         src = copied.raw(fileKey);
@@ -160,6 +169,8 @@ for k = 1:n
                 r.Reason = "A copy of the same size is at " + src + ".";
             end
         end
+    elseif envWhat ~= "" && samePath(p, outDir) && ~any(rel == rawNames)   % before the raw .dat rule: the output folder may be the recording's
+        r = envelopeRow(r, envWhat, envPartial, remove);
     elseif (inFolder && any(lower(ext) == [".rhd" ".rhs" ".dat"])) || any(rel == rawNames)
         r.Category = "raw"; r.What = "Raw recording";
         r.Reason = "Not copied by the Copy tab (no session_manifest.json lists it), so no source copy is known.";
@@ -240,6 +251,62 @@ end
 
 function t = stepTitle(step)
 t = upper(extractBefore(step, 2)) + extractAfter(step, 1);
+end
+
+
+function r = envelopeRow(r, what, partial, remove)
+%envelopeRow  Row R as one of the Visualize tab's envelope files of signal WHAT
+%   (PARTIAL: a build's .partial file). A partial file written in the last
+%   hour may be one a build is writing (EphysTraceEnvelope deletes only those
+%   an hour old), so it is kept whatever is selected.
+r.Category = "envelope";
+r.What = "Visualize's min / max envelope of " + envelopeOf(what);
+if partial
+    s = dir(r.File);
+    if isscalar(s) && now - s.datenum < 1 / 24 %#ok<TNOW1>
+        r.What = "Envelope of " + envelopeOf(what) + " being built";
+        r.Reason = "Written in the last hour, so a build may still be writing it (the Visualize tab, here or in " + ...
+            "another MATLAB); one left behind goes once it is an hour old.";
+        return
+    end
+    r.What = "Unfinished envelope of " + envelopeOf(what) + " (a build MATLAB left)";
+end
+if ~any(remove == "envelope")
+    r.Reason = "Visualize's envelopes are not selected for removal.";
+elseif partial
+    r.Action = "remove";
+    r.Reason = "Not written for an hour: what a build left, never to be finished.";
+else
+    r.Action = "remove";
+    r.Reason = "A display cache: the Visualize tab builds it again when it next shows the signal.";
+end
+end
+
+
+function [what, partial] = envelopeName(leaf, name)
+%envelopeName  The signal of an envelope file, <Name>_envelope_<what>.dat
+%   (EphysTraceEnvelope.fileFor), or of a build's <Name>_envelope_<what>.dat.<token>.partial
+%   (PARTIAL true); "" for any other file.
+what = "";
+partial = false;
+t = regexp(char(leaf), ['^' regexptranslate('escape', char(name)) '_envelope_(\w+)\.dat(\.\w+\.partial)?$'], ...
+    'tokens', 'once', 'ignorecase');
+if ~isempty(t)
+    what = string(t{1});
+    partial = ~isempty(t{2});
+end
+end
+
+
+function s = envelopeOf(what)
+%envelopeOf  The signal of an envelope's <what>, in words.
+switch lower(what)
+    case "recording";     s = "the recording";
+    case "recording_car"; s = "the recording (CAR)";
+    case "recording_cmr"; s = "the recording (CMR)";
+    case "bin";           s = "the sorting .bin";
+    otherwise;            s = what;      % LFP, MUA, SPIKE, AUX
+end
 end
 
 

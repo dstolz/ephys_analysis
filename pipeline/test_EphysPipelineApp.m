@@ -10,8 +10,8 @@ function test_EphysPipelineApp()
 %   results table filling as a run goes, the Kilosort4 monitor and queue
 %   (kept at close: the queue offered back per project root, the runs
 %   going followed again at the next launch), the phy launch, a figure
-%   deleted without Close, and that the app's
-%   preferences are restored afterwards. Dialogs that would block (uiconfirm)
+%   deleted without Close. The app's preferences live in a temporary file
+%   for the run (AppPrefs.useTemporary), never the user's. Dialogs that would block (uiconfirm)
 %   are never triggered because the config is kept clean before New / Close.
 %
 %   Usage:  test_EphysPipelineApp

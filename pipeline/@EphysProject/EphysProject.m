@@ -55,7 +55,7 @@ classdef EphysProject < handle
     methods
         % --- methods defined in separate files ---
         T       = gatherMetadata(obj, opts)
-        infos   = toBinAll(obj, opts)
+        infos   = toBinAll(obj, varargin)
         report  = refresh(obj, opts)
 
         function obj = EphysProject(root, opts)

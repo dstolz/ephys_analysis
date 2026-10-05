@@ -15,7 +15,11 @@ function test_IntanReader()
 %   RHX names and from modification times, and the Epsych2 session it
 %   matches; the streamPlan chunks (recording offsets, no short last
 %   chunk); readData's KeepChannels / Precision; synthetic recordings
-%   stamped as RHX leaves its files.
+%   stamped as RHX leaves its files; the software notch of files before
+%   version 3.0 (IntanReader.notchFilter against Intan's per-sample loop,
+%   kept here as intanNotchLoop, its speed-up, the state carried from file
+%   to file, the lead-in, and every read of a recording longer than the
+%   lead-in, toBin included, against the loop run over the whole recording).
 %
 %   Usage:  test_IntanReader
 
@@ -165,17 +169,17 @@ check(isequal(ra.readChunkUV(plan(3)), X(641:1536, :)) && isempty(ra.readChunkUV
 ps = ra.streamPlan(Files=[names(4) names(1) "nope.rhd"]);
 check(isequaln([ps.sampleOffset], [1536 0 NaN]), ...
     'a Files subset keeps each file''s recording offset (NaN for a file not in the recording)');
-% pre-v3 files with the software notch: the notch runs from each file's first sample
+% pre-v3 files with the software notch: one stream over the files (section 11)
 fb = fullfile(root, 'notch');
 Wb = uint16(randi([0 1], 1, 70 * 60));
-writeTraditional(fb, ["n_a.rhd" "n_b.rhd"], [40 30], 60, 25000, Wb, 'Version', [1 0], 'NotchMode', 1);
+Rb = writeTraditional(fb, ["n_a.rhd" "n_b.rhd"], [40 30], 60, 25000, Wb, 'Version', [1 0], 'NotchMode', 1);
 rb = IntanReader(fb);
 rb.refreshMetadata();
+Xb = intanLoopRows(0.195 * (double(Rb.amp) - 32768), 25000, 50);   % Intan's loop over the recording
 fb1 = read_Intan_RHD2000_file_modified(fullfile(fb, 'n_a.rhd'), Verbosity="silent");
-fb2 = read_Intan_RHD2000_file_modified(fullfile(fb, 'n_b.rhd'), Verbosity="silent");
-Xb = [fb1.amplifier_data, fb2.amplifier_data].';
-check(isequal(rb.readWindowUV(2350, 200), Xb(2351:2550, :)) && isequal(rb.readWindowUV(17, 5), Xb(18:22, :)) ...
-    && isequal(rb.readData().amplifier, Xb), 'notch-filtered (pre-3.0) files: windows equal the rows of the whole read');
+check(near(rb.readWindowUV(2350, 200), Xb(2351:2550, :)) && near(rb.readWindowUV(17, 5), Xb(18:22, :)) ...
+    && near(rb.readData().amplifier, Xb) && near(fb1.amplifier_data.', Xb(1:2400, :)), ...
+    'notch-filtered (pre-3.0) files: windows and readData equal Intan''s loop run over the recording as one file');
 
 %% ---- 4. readDigitalEvents: the events readData gives, without the amplifier data ------
 fprintf('\n== 4. readDigitalEvents ==\n');
@@ -417,6 +421,105 @@ else
     fprintf('  (stamping checks skipped: file times could not be set)\n');
 end
 
+%% ---- 11. the software notch filter (files before version 3.0) -----------------------------
+fprintf('\n== 11. software notch filter ==\n');
+% notchFilter against Intan's per-sample loop (intanNotchLoop, below): hum,
+% noise and an offset on 4 channels, 3 s each
+ok = true; firstTwo = true; hum = true;
+for c = [30000 60; 20000 50; 1000 60].'
+    FsN = c(1); f0 = c(2);
+    tN = (0:3 * FsN - 1).' / FsN;
+    x = 0.195 * round((200 * sin(2 * pi * f0 * tN + 2 * pi * rand(1, 4)) + 30 * randn(3 * FsN, 4) + 25) / 0.195);
+    y = IntanReader.notchFilter(x, FsN, f0);
+    ok = ok && near(y, intanLoopRows(x.', FsN, f0), 1e-9 * max(abs(x), [], 'all'));
+    firstTwo = firstTwo && isequal(y(1:2, :), x(1:2, :));
+    last = 2 * FsN + 1 : 3 * FsN;                            % the last second: whole cycles
+    hum = hum && all(2 * abs(mean(y(last, :) .* exp(-2i * pi * f0 * tN(last)))) < 2);
+end
+check(ok && firstTwo, ['notchFilter: Intan''s loop to rounding (1e-9 of the signal) at 30 / 20 / 1 kHz, ' ...
+    '60 and 50 Hz; the first two samples exactly']);
+check(hum, 'notchFilter takes the hum out (200 uV to under 2 uV once the start has rung out)');
+
+% the speed-up: the loop as read_Intan ran it (row by row of [nChan x nSamples])
+% against notchFilter on the [nSamples x nChan] rows the readers hold
+Xs = 0.195 * (double(randi([0 65535], 16, 2^18)) - 32768);
+Xc = Xs.';
+tLoop = inf; tFilt = inf;
+for rep = 1:3
+    Ys = Xs;
+    tic; for k = 1:16; Ys(k, :) = intanNotchLoop(Ys(k, :), 30000, 60, 10); end; tLoop = min(tLoop, toc);
+    tic; Yc = IntanReader.notchFilter(Xc, 30000, 60); tFilt = min(tFilt, toc);
+end
+check(near(Yc, Ys.', 1e-9 * max(abs(Xs), [], 'all')) && tLoop >= 2 * tFilt, ...
+    sprintf('notchFilter is %.1fx as fast as the loop (%.3f s against %.3f s, 16 channels x 2^18 samples)', ...
+    tLoop / tFilt, tFilt, tLoop));
+
+% two files: the state carried on joins them as one stream; the loop restarted
+% at the second file (as read_Intan reads a file on its own) makes a step
+x = 0.195 * round((150 * sin(2 * pi * 60 * (0:59999).' / 20000 + [0 1 2]) + 40 * randn(60000, 3)) / 0.195);
+whole = IntanReader.notchFilter(x, 20000, 60);
+[y1, z] = IntanReader.notchFilter(x(1:25000, :), 20000, 60);
+y2 = IntanReader.notchFilter(x(25001:end, :), 20000, 60, z);
+restart = intanLoopRows(x(25001:end, :).', 20000, 60);
+check(near([y1; y2], whole) && near([y1; y2], intanLoopRows(x.', 20000, 60)) && isequal(size(z), [2 3]) ...
+    && max(abs(restart(1:2000, :) - whole(25001:27000, :)), [], 'all') > 10, ...
+    'two files with the final state carried on equal the loop over both as one; restarted, the second file steps');
+
+% the lead-in: notchLeadIn rows on, any start gives the stream's rows
+L = IntanReader.notchLeadIn(20000);
+s = 5001;
+fromS = IntanReader.notchFilter(x(s:end, :), 20000, 60);
+check(abs(L / 20000 - 1.76) < 0.01 && near(fromS(L + 1:end, :), whole(s + L:end, :)) ...
+    && ~near(fromS(round(L / 10), :), whole(s + round(L / 10) - 1, :)), ...
+    sprintf('started %d rows (%.2f s) before them, rows equal the stream''s to rounding (a tenth of that is not enough)', ...
+    L, L / 20000));
+
+% a recording longer than the lead-in (1 kHz: 1760 rows; three files of 2400)
+FsL = 1000;
+fl = fullfile(root, 'notch_long');
+nL = 3 * 40 * 60;
+ampL = uint16(32768 + round((300 * sin(2 * pi * 60 * (0:nL - 1) / FsL + [0; 1; 2]) + 60 * randn(3, nL)) / 0.195));
+writeRecording(fl, ["l_a.rhd" "l_b.rhd" "l_c.rhd"], ampL, [2400 2400 2400], FsL, [2 2 2]);
+rl = IntanReader(fl);
+rl.refreshMetadata();
+XL = intanLoopRows(0.195 * (double(ampL) - 32768), FsL, 60);
+plan = rl.streamPlan();
+okChunks = numel(plan) == 3;
+for k = 1:numel(plan)
+    okChunks = okChunks && near(rl.readChunkUV(plan(k)), XL(plan(k).sampleOffset + (1:plan(k).nSamples), :));
+end
+wins = [0 10; 0 nL; 2395 10; 4790 30; 7000 200; 3000 1; 6000 1200; randi([0 nL - 1], 15, 1), randi([1 3000], 15, 1)];
+okWins = true;
+for k = 1:size(wins, 1)
+    a = wins(k, 1); m = wins(k, 2);
+    okWins = okWins && near(rl.readWindowUV(a, m), XL(a + 1 : min(a + m, nL), :));
+end
+check(okChunks && okWins, sprintf(['a recording longer than the lead-in: the file chunks and %d windows ' ...
+    '(across files, far from the start) equal the loop over the recording as one file'], size(wins, 1)));
+dAll = rl.readData();
+dSub = rl.readData(Files=["l_c.rhd" "l_a.rhd"], KeepChannels=[3 1]);
+check(near(dAll.amplifier, XL) && near(dSub.amplifier, XL([4801:7200, 1:2400], [3 1])), ...
+    ['readData: every file goes on from the state the one before ended in; a file read without it ' ...
+    '(Files) from the rows before it; KeepChannels']);
+ds = EphysDataset(fl);
+info = ds.toBin(ArtifactIntervals=zeros(0, 2), WriteMeta=false);
+fid = fopen(info.filename, 'r');
+B = fread(fid, [3, Inf], 'int16=>double');
+fclose(fid);
+check(isequal(size(B), [3 nL]) && max(abs(B - XL.' / 0.195), [], 'all') <= 0.5 + 1e-6, ...
+    'toBin writes the stream, each sample to the nearest 0.195 uV step');
+
+% a notch that changes between files starts again where it does
+fm = fullfile(root, 'notch_mixed');
+writeRecording(fm, ["m_a.rhd" "m_b.rhd" "m_c.rhd"], ampL, [2400 2400 2400], FsL, [2 0 2]);
+rm = IntanReader(fm);
+rm.refreshMetadata();
+rawL = 0.195 * (double(ampL) - 32768);
+XM = [intanLoopRows(rawL(:, 1:2400), FsL, 60); rawL(:, 2401:4800).'; intanLoopRows(rawL(:, 4801:end), FsL, 60)];
+check(near(rm.readWindowUV(0, nL), XM) && near(rm.readWindowUV(4000, 3000), XM(4001:7000, :)) ...
+    && near(rm.readData().amplifier, XM), ...
+    'a file without the notch between two with it: unfiltered, and the next file starts the filter again');
+
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0
     error('test_IntanReader:Failed', '%d checks failed.', nFail);
@@ -519,6 +622,81 @@ for k = 1:numel(names)
     setFileModifiedTime(fullfile(folder, names(k)), t0 + seconds((s + n(k)) / Fs + k));
     s = s + n(k);
 end
+end
+
+
+function writeRecording(folder, names, amp, n, Fs, notchModes)
+%writeRecording  Version 1.0 files NAMES holding the codes AMP, N(k) samples each, notch NOTCHMODES(k).
+%   Stamped one second apart, in order, so the reader takes them in order.
+if ~isfolder(folder); mkdir(folder); end
+s = 0;
+for k = 1:numel(names)
+    idx = s + (1:n(k));
+    writeSyntheticRHD(fullfile(folder, names(k)), amp(:, idx), zeros(1, n(k)), Fs, 60, ...
+        'Version', [1 0], 'NotchMode', notchModes(k), 'FirstTimestamp', s);
+    setFileModifiedTime(fullfile(folder, names(k)), datetime(2026, 1, 1, 10, 0, k));
+    s = s + n(k);
+end
+end
+
+
+function Y = intanLoopRows(X, Fs, f0)
+%intanLoopRows  Intan's loop down each row of X ([nChan x nSamples] microvolts), as [nSamples x nChan].
+Y = zeros(fliplr(size(X)));
+for k = 1:size(X, 1)
+    Y(:, k) = intanNotchLoop(X(k, :), Fs, f0, 10).';
+end
+end
+
+
+function out = intanNotchLoop(in, fSample, fNotch, Bandwidth)
+% The software notch exactly as Intan's read_Intan_RHD2000_file applies it
+% (and READ_INTAN_RHD2000_FILE_MODIFIED did, before IntanReader.notchFilter):
+% the reference notchFilter is held to.
+%
+% out = notch_filter(in, fSample, fNotch, Bandwidth)
+%
+% Implements a notch filter (e.g., for 50 or 60 Hz) on vector 'in'.
+% fSample = sample rate of data (in Hz or Samples/sec)
+% fNotch = filter notch frequency (in Hz)
+% Bandwidth = notch 3-dB bandwidth (in Hz).  A bandwidth of 10 Hz is
+%   recommended for 50 or 60 Hz notch filters; narrower bandwidths lead to
+%   poor time-domain properties with an extended ringing response to
+%   transient disturbances.
+
+tstep = 1/fSample;
+Fc = fNotch*tstep;
+
+L = length(in);
+
+% Calculate IIR filter parameters
+d = exp(-2*pi*(Bandwidth/2)*tstep);
+b = (1 + d*d)*cos(2*pi*Fc);
+a0 = 1;
+a1 = -b;
+a2 = d*d;
+a = (1 + d*d)/2;
+b0 = 1;
+b1 = -2*cos(2*pi*Fc);
+b2 = 1;
+
+out = zeros(size(in));
+out(1) = in(1);
+out(2) = in(2);
+% (If filtering a continuous data stream, change out(1) and out(2) to the
+%  previous final two values of out.)
+
+% Run filter
+for i=3:L
+    out(i) = (a*b2*in(i-2) + a*b1*in(i-1) + a*b0*in(i) - a2*out(i-2) - a1*out(i-1))/a0;
+end
+end
+
+
+function tf = near(A, B, tol)
+%near  Same size, and equal to TOL (default 1e-6 uV: rounding, against the 0.195 uV step).
+if nargin < 3; tol = 1e-6; end
+tf = isequal(size(A), size(B)) && max(abs(double(A) - double(B)), [], 'all') <= tol;
 end
 
 

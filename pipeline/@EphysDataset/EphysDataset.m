@@ -282,7 +282,7 @@ classdef EphysDataset < handle
         tf     = associateFolderBehavior(obj)
         E      = digitalEvents(obj, opts)
         P      = pairTrials(obj, opts)
-        file   = setTrialPairing(obj, P, status, opts)
+        [file, saved] = setTrialPairing(obj, P, status, opts)
         [P, tf] = autoApproveTrialPairing(obj, P)
         summary = analyzeArtifacts(obj, opts)
         nl     = noiseLevels(obj, opts)

@@ -45,6 +45,13 @@ function data = readData(obj, opts)
 %   found file by file and joined across file boundaries (EphysReader.highRuns
 %   / joinRuns), and times are reported in seconds on the original Fs grid.
 %
+%   Files saved before version 3.0 with the software notch on are filtered
+%   here (notchFilter, the kept channels only) as one stream over the
+%   recording, as the window reads filter them (recordingRows): each file
+%   goes on from the filter state the file before it ended in, or, when
+%   that file was not read just before it (Files), from the state the rows
+%   before it leave (notchEntry).
+%
 %   See also READ_INTAN_RHD2000_FILE_MODIFIED, MATRIX2KILOSORT, EXTRACT_TRIALS.
 
 arguments
@@ -99,13 +106,15 @@ auxFs = NaN;
 auxNames  = string.empty(1,0);
 auxNative = string.empty(1,0);
 ndid  = 0;  % dig-in line count fixed from first file (intan2matlab policy)
+prevName  = "";  % the file with data read last, and the notch state it ended in
+prevNotch = [];
 
 for i = 1:nFiles
     if ~isempty(opts.ProgressFcn)
         opts.ProgressFcn(i, nFiles, fileList(i));
     end
     ffn = fullfile(obj.Folder, fileList(i));
-    S = read_Intan_RHD2000_file_modified(ffn, Verbosity="silent");
+    S = read_Intan_RHD2000_file_modified(ffn, Verbosity="silent", Notch=false);
 
     if ~isfield(S, 'amplifier_data') || isempty(S.amplifier_data)
         warning('IntanReader:readData:NoData', ...
@@ -116,7 +125,8 @@ for i = 1:nFiles
     end
 
     % Kept channels first, then the cast, then [nSamples x nChan]: only the
-    % kept channels are ever copied.
+    % kept channels are ever copied. The software notch filters in double,
+    % so it comes before the cast.
     X = S.amplifier_data;    % [nChan x nSamples], microvolts
     S.amplifier_data = [];
     if ~isempty(opts.KeepChannels)
@@ -127,10 +137,15 @@ for i = 1:nFiles
         end
         X = X(opts.KeepChannels, :);
     end
-    if opts.Precision == "single"
-        X = single(X);
+    [hz, zi] = obj.notchEntry(fileList(i), opts.KeepChannels, prevName, prevNotch);
+    prevName = fileList(i);
+    prevNotch = [];
+    if hz > 0
+        [X, prevNotch] = IntanReader.notchFilter(X.', S.frequency_parameters.amplifier_sample_rate, hz, zi);
+        X = cast(X, opts.Precision);
+    else
+        X = cast(X, opts.Precision).';
     end
-    X = X.';
 
     AMP{i} = X;
     fileSampleCounts(i) = size(X, 1);

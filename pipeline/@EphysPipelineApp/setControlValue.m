@@ -16,14 +16,14 @@ if isnumeric(value) && isscalar(value) && isfinite(value) && isprop(ctrl, 'Limit
     catch
     end
 end
-obj.ApplyRejected(end+1) = name + " = " + shown(obj, value) + " (shown as " + shown(obj, ctrl.Value) + ")";
+obj.ApplyRejected(end+1) = name + " = " + shown(value) + " (shown as " + shown(ctrl.Value) + ")";
 end
 
 
-function t = shown(obj, v)
+function t = shown(v)
 %shown  VALUE as text for the report.
 if isnumeric(v) && isscalar(v)
-    t = string(obj.numberText(v));
+    t = EphysPipelineConfig.numberText(v);
 else
     t = strjoin(string(v), ", ");
 end

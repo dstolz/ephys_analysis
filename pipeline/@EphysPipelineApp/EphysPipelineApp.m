@@ -912,7 +912,6 @@ classdef EphysPipelineApp < handle
         cfg = gatherConfig(obj)
         rejected = applyConfig(obj, cfg, opts)
         setControlValue(obj, ctrl, value, name)
-        t = numberText(obj, v)
         onConfigChanged(obj)
         updateTitle(obj)
         syncStepEnableStates(obj)

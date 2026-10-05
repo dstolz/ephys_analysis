@@ -32,7 +32,7 @@ N = 1000; nCh = 3; Fs = 1000; origFs = 30000;
 X = single(reshape(1:N*nCh, N, nCh));
 S = struct();
 S.Y = struct('LFP', X, 'MUA', single([]), 'SPIKE', single([]));
-S.info = struct('LFP', struct('Fs', Fs, 'time', (0:N-1).'/Fs), 'labels', ["a" "b" "c"], 'origFs', origFs);
+S.info = struct('LFP', struct('Fs', Fs, 'nSamples', N), 'labels', ["a" "b" "c"], 'origFs', origFs);
 S.events = struct('din0', [0.1 0.2; 0.5 0.55], 'din1', zeros(0, 2));
 
 data = FieldTripExport.raw(S, "LFP");

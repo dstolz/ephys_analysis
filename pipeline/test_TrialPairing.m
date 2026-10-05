@@ -206,9 +206,17 @@ check(E2.source == "cache" && isequal(E2.events, E.events), 'second call uses th
 P = d.pairTrials();
 check(P.status == "unreviewed" && ~P.recorded && ~P.stale && isequal(P.interval, (1:k).') && ~P.countMismatch ...
     && isequal(P.onsetSample, onR) && isequal(P.cutTrials, [0 0]) && P.nSamples == nSamp, 'pairTrials pairs the recording in order');
-fb = d.setTrialPairing(P);
-check(fb == "" && ~isfile(fullfile(d.outputFolder(), d.Name + "_behavior.mat")), ...
-    'recording a pairing creates no behavior file');
+[fb, saved] = d.setTrialPairing(P);
+check(fb == "" && saved && ~isfile(fullfile(d.outputFolder(), d.Name + "_behavior.mat")), ...
+    'recording a pairing writes the manifest and creates no behavior file');
+copyfile(d.manifestFile(), d.manifestFile() + ".bak");
+writeText(d.manifestFile(), 'not json');
+ws = warning('off', 'EphysDataset:writeManifest:Kept');
+[~, savedBad] = d.setTrialPairing(P);
+warning(ws);
+check(~savedBad && strcmp(fileread(d.manifestFile()), 'not json'), ...
+    'setTrialPairing says when the manifest is not written (an unreadable one is kept)');
+movefile(d.manifestFile() + ".bak", d.manifestFile(), 'f');
 mf = readJsonFile(d.manifestFile());
 check(isfield(mf.behavior, 'pairing') && strcmp(mf.behavior.pairing.status, 'unreviewed') ...
     && isequal(mf.behavior.pairing.cut_trials(:).', [0 0]) && isequal(mf.behavior.pairing.cut_intervals(:).', [0 0]) ...
@@ -410,4 +418,11 @@ fprintf('\n================  %d passed, %d failed  ================\n', nPass, n
 if nFail > 0
     error('test_TrialPairing:Failures', '%d checks failed.', nFail);
 end
+end
+
+
+function writeText(file, txt)
+fid = fopen(file, 'w');
+fwrite(fid, char(txt), 'char');
+fclose(fid);
 end

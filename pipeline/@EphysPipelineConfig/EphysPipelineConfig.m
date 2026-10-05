@@ -20,14 +20,16 @@ classdef EphysPipelineConfig
     %                the artifacts and spike-detection steps on a process pool
     %     Probe      DefaultProbeFile, WriteDefaultToManifest, AutoAssign +
     %                RuleSubjects / RuleProbes (probe rules by subject pattern)
+    %     Reference  Mode ("none" | "car" | "cmr": the common reference every
+    %                step subtracts once from its read of the recording:
+    %                artifact detection, the sorting .bin, spike detection,
+    %                the signals of Signals.<TYPE>_Reference), BadLow /
+    %                BadHigh (the noise bounds that suggest channels to leave
+    %                out of it); carried onto the datasets' ArtifactConfig
     %     Behavior   Enabled, Search (off: the associated sessions only, no
     %                search), SearchDirs, Match, MaxStartOffsetMin, Overwrite,
     %                WriteFile, PairTrials, AutoApprove, TrialLine
-    %     Artifacts  Reference ("none" | "car" | "cmr": the common reference
-    %                every step subtracts once from its read of the
-    %                recording, with the ReferenceBadLow / ReferenceBadHigh
-    %                noise bounds that suggest channels to leave out of it),
-    %                Enabled + detector / filter settings, ApplyTo*,
+    %     Artifacts  Enabled + detector / filter settings, Fill, ApplyTo*,
     %                CacheIntervals
     %     Sorting    Enabled, PythonExe, CondaEnv, Execution, MaxConcurrent (background runs at
     %                once; the others wait for a free slot), Devices
@@ -42,7 +44,7 @@ classdef EphysPipelineConfig
     %                deriving, and record them in every file; the automatic
     %                ones with Artifacts.ApplyToSignals), LFP_Reference /
     %                MUA_Reference / SPIKE_Reference (which signals the
-    %                common reference of Artifacts.Reference is subtracted
+    %                common reference of the Reference section is subtracted
     %                from; not the LFP by default),
     %                ExcludeHandling, LabelField ("custom" | "native" names),
     %                LineNames ("native=name" digital-line names) and
@@ -81,6 +83,7 @@ classdef EphysPipelineConfig
         Acquisition struct = EphysPipelineConfig.defaults("Acquisition")
         Parallel    struct = EphysPipelineConfig.defaults("Parallel")
         Probe       struct = EphysPipelineConfig.defaults("Probe")
+        Reference   struct = EphysPipelineConfig.defaults("Reference")
         Behavior    struct = EphysPipelineConfig.defaults("Behavior")
         Artifacts   struct = EphysPipelineConfig.defaults("Artifacts")
         Sorting     struct = EphysPipelineConfig.defaults("Sorting")
@@ -97,8 +100,8 @@ classdef EphysPipelineConfig
     properties (Constant)
         Schema   = "ephys-pipeline-config"
         Version  = 1
-        Sections = ["Project" "Acquisition" "Parallel" "Probe" "Behavior" "Artifacts" "Sorting" "Signals" "Spikes" "Export"]
-        % Execution order of the steps (Project, Acquisition and Parallel are not steps; Probe is a preflight).
+        Sections = ["Project" "Acquisition" "Parallel" "Probe" "Reference" "Behavior" "Artifacts" "Sorting" "Signals" "Spikes" "Export"]
+        % Execution order of the steps (Project, Acquisition, Parallel and Reference are not steps; Probe is a preflight).
         StepNames = ["probe" "behavior" "artifacts" "sorting" "signals" "spikes" "export"]
         % Section that holds each step's settings.
         StepSections = ["Probe" "Behavior" "Artifacts" "Sorting" "Signals" "Spikes" "Export"]
@@ -135,6 +138,7 @@ classdef EphysPipelineConfig
         function obj = set.Acquisition(obj, s); obj.Acquisition = EphysPipelineConfig.normalizeSection("Acquisition", s); end
         function obj = set.Parallel(obj, s);  obj.Parallel  = EphysPipelineConfig.normalizeSection("Parallel", s);  end
         function obj = set.Probe(obj, s);     obj.Probe     = EphysPipelineConfig.normalizeSection("Probe", s);     end
+        function obj = set.Reference(obj, s); obj.Reference = EphysPipelineConfig.normalizeSection("Reference", s); end
         function obj = set.Behavior(obj, s);  obj.Behavior  = EphysPipelineConfig.normalizeSection("Behavior", s);  end
         function obj = set.Artifacts(obj, s); obj.Artifacts = EphysPipelineConfig.normalizeSection("Artifacts", s); end
         function obj = set.Sorting(obj, s);   obj.Sorting   = EphysPipelineConfig.normalizeSection("Sorting", s);   end
@@ -296,13 +300,22 @@ classdef EphysPipelineConfig
             tc.LineNames      = S.LineNames;
         end
 
-        function cfg = artifactConfig(a)
-            %artifactConfig  The Artifacts section as an EphysDataset.ArtifactConfig.
+        function cfg = artifactConfig(a, r)
+            %artifactConfig  The Artifacts and Reference sections as an EphysDataset.ArtifactConfig.
+            %   CFG = EphysPipelineConfig.artifactConfig(A, R): the detection
+            %   and fill settings of the Artifacts section A, and the common
+            %   reference of the Reference section R (Mode, BadLow, BadHigh
+            %   as Reference, ReferenceBadLow, ReferenceBadHigh), which every
+            %   read of the dataset's recording takes.
             a = EphysPipelineConfig.normalizeSection("Artifacts", a);
+            r = EphysPipelineConfig.normalizeSection("Reference", r);
             cfg = EphysDataset.defaultArtifactConfig();
             for f = string(fieldnames(cfg)).'
                 if isfield(a, f); cfg.(f) = a.(f); end
             end
+            cfg.Reference        = r.Mode;
+            cfg.ReferenceBadLow  = r.BadLow;
+            cfg.ReferenceBadHigh = r.BadHigh;
         end
 
         function h = artifactHandling(cfg)

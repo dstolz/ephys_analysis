@@ -122,7 +122,7 @@ by the tab's state. Its tooltip says why.
 
 | Colour | State | When |
 | --- | --- | --- |
-| grey | disabled | Artifacts, Sorting, Signals, Spikes, Export: the step is switched off |
+| grey | disabled | Artifacts, Sorting, Signals, Spikes, Export: the step is switched off. The Artifacts tab still turns amber or red for the common reference's (`Reference` section's) problems, since every step reads it |
 | green | ready | the step is enabled and its settings raise no issue. Project: datasets are scanned. Trials: every selected pairing is approved. Probe: every selected dataset has a probe, its own or the default |
 | amber | needs attention | config warnings for the tab. Project: no datasets scanned. Trials: some selected pairings are not approved. Probe: selected datasets without a probe, or whose probe file is not there |
 | red | error | config errors for the tab; a run refuses to start |
@@ -1073,10 +1073,17 @@ marked), and two tabs on the right: **Preview** (the preview's summary with
 its per-channel table) and **Selection** (a stretch measured with **Measure**,
 below).
 
+The first panel, *Common reference, for every step (config: Reference)*, is
+the config's `Reference` section, not part of `Artifacts`: every step that
+reads the recording takes the reference, whether or not detection is on, and
+a problem with it colours this tab even while detection is off. It sits here
+because detection is the first of those reads, and the viewer shows the
+referenced signal. The Signals tab picks which derived signals take it.
+
 | Control | Maps to |
 | --- | --- |
-| Reference: *None* / *CAR: common average* / *CMR: common median* | `Artifacts.Reference` (`"none"` / `"car"` / `"cmr"`), a setting for the whole pipeline (the panel is titled *Common reference, for every step*): subtract, sample by sample, the mean or median of the good channels from every channel, once, as each step reads the recording - artifact detection, the noise level of the fill, the Kilosort4 `.bin` (Kilosort4's own `do_CAR` is then turned off, so it is not referenced twice), spike detection, and the derived signals ticked on the Signals tab (MUA and SPIKE by default, not the LFP). The preview and the viewer show the referenced signal. See [Common reference](EphysDataset.md#common-reference-car--cmr) |
-| Good noise (x median): *low* to *high* | `Artifacts.ReferenceBadLow`, `ReferenceBadHigh` (0.3 and 2, Ludwig et al. 2009): a channel whose noise floor lies outside this band, relative to the median across channels, is suggested to stay out of the reference |
+| Reference: *None* / *CAR: common average* / *CMR: common median* | `Reference.Mode` (`"none"` / `"car"` / `"cmr"`), a setting for the whole pipeline: subtract, sample by sample, the mean or median of the good channels from every channel, once, as each step reads the recording - artifact detection, the noise level of the fill, the Kilosort4 `.bin` (Kilosort4's own `do_CAR` is then turned off, so it is not referenced twice), spike detection, the derived signals ticked on the Signals tab (MUA and SPIKE by default, not the LFP), and the Visualize tab's *As the pipeline*. The preview and the viewer show the referenced signal. See [Common reference](EphysDataset.md#common-reference-car--cmr) |
+| Good noise (x median): *low* to *high* | `Reference.BadLow`, `BadHigh` (0.3 and 2, Ludwig et al. 2009): a channel whose noise floor lies outside this band, relative to the median across channels, is suggested to stay out of the reference |
 | Left out, **Suggest** | the active dataset's `ReferenceExclude` (written to its manifest): channels kept out of the average, though still referenced. **Suggest** measures each channel's noise floor on a sample of the recording and fills the field (each channel's ratio goes to the log); typing a list marks it set by hand. A list that does not parse changes nothing (an alert says why). A dataset whose list was never set gets the suggestion on its first referenced run or preview. Channels excluded on the Probe tab stay out of the reference too |
 | **Enabled** | `Artifacts.Enabled`: run automatic detection (manual periods always apply) |
 | Dataset | the active dataset: the one **Detect / Preview** analyzes and whose manual periods are listed |
@@ -1541,7 +1548,8 @@ Derived LFP / MUA / SPIKE `.mat` files with `EphysDataset.toMat`
   epochs that touch one. AUX is not changed.
 - **Common reference: LFP / MUA / SPIKE**, the row below it:
   `Signals.LFP_Reference` / `MUA_Reference` / `SPIKE_Reference` (off / on /
-  on by default), which signals the common reference set on the Artifacts tab
+  on by default), which signals the common reference (the config's
+  `Reference` section, set in the Artifacts tab's common-reference panel)
   is subtracted from, once, before they are derived. It suits MUA and SPIKE,
   which it rids of the noise every channel shares; the LFP is usually kept as
   recorded, since the reference would take out the LFP the channels share.
@@ -1740,7 +1748,7 @@ recording at the top, then the common reference, drawn once, and under it
 the steps that read the recording, each drawn top-down from its own coloured
 step box to the files it writes:
 
-- **Common reference** (Artifacts tab, **Reference**): the one box for the
+- **Common reference** (`Reference.Mode`, set on the Artifacts tab): the one box for the
   whole pipeline, since every step subtracts it once from its own read of the
   recording. It lists what leaves it out: the Signals not ticked for it
   (*not Signals' LFP* by default) and the common-mode artifact detector,
@@ -2007,7 +2015,7 @@ datasets.
 | --- | --- |
 | Show | the continuous signal drawn, from the files this dataset has: *Recording* (as every step reads it), *Sorting .bin* (what Kilosort4 sorted: artifact periods filled, the common reference subtracted when one was on, from its JSON sidecar), *LFP* / *MUA* / *SPIKE* / *AUX* (the extract files), or *None (spikes only)*. The line under it says what the signal is (its band, its reference, the periods erased). The kind shown is kept from one dataset to the next |
 | Channels, Lanes | recording channels to draw (`all`, or e.g. `1:16`, `1 3 5`; for a signal whose columns were kept or reordered, its columns are matched to recording channels through its `importOptions`); lanes shown at once |
-| Reference | the recording only: *As the pipeline (Artifacts tab)* (the config's common reference over its good channels, as every step reads the recording) / *None (as recorded)* / *Common average (mean)* / *Common median* across the channels shown, taken on the recording as stored, so one reference at most is ever applied. The other signals carry their own |
+| Reference | the recording only: *As the pipeline (Artifacts tab)* (the config's common reference, `Reference.Mode`, over its good channels, as every step reads the recording) / *None (as recorded)* / *Common average (mean)* / *Common median* across the channels shown, taken on the recording as stored, so one reference at most is ever applied. The other signals carry their own |
 | High-pass / Low-pass, Filter order | a display filter on any signal (`filterContinuous`, zero phase); blank = off, both = band-pass. Each window is read with a margin so the filter settles. A new filter or reference rescales the traces |
 | Remove offset | centre each lane on its median in the window drawn |
 | Sorted units | ticks or waveforms, one colour per unit (twelve colours, in probe order); *Units*: all but noise / good + MUA / good only, by phy's labels (else Kilosort4's) |

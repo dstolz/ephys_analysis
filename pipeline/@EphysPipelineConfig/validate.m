@@ -2,7 +2,8 @@ function issues = validate(obj, opts)
 %validate  Check the config for problems, enabled steps only.
 %   ISSUES = cfg.validate() returns a table (Step, Field, Severity, Message)
 %   with Severity "error" (the run cannot start) or "warning". Project,
-%   Parallel and Probe are always checked; step sections only when Enabled.
+%   Acquisition, Parallel, Probe and Reference are always checked; step
+%   sections only when Enabled.
 %   Cross-step rules are checked too (e.g. a background sorting run cannot
 %   feed the sorted-unit consumers in the same run). An empty table means clean.
 %
@@ -86,6 +87,17 @@ if PL.Enabled && ~license('test', 'Distrib_Computing_Toolbox')
     add("parallel", "Enabled", "warning", "Parallel is on but the Parallel Computing Toolbox is not licensed; the steps run serially.");
 end
 
+% --- Reference (always) ----------------------------------------------------------
+% Every step that reads the recording takes it, whichever steps are on.
+R = obj.Reference;
+if ~ismember(R.Mode, ["none" "car" "cmr"])
+    add("reference", "Mode", "error", "Reference.Mode must be ""none"", ""car"" or ""cmr"".");
+end
+if ~(R.BadLow >= 0 && R.BadHigh > R.BadLow)
+    add("reference", "BadLow", "error", ...
+        "The reference noise bounds must satisfy 0 <= BadLow < BadHigh.");
+end
+
 % --- Behavior --------------------------------------------------------------------
 B = obj.Behavior;
 if B.Enabled
@@ -108,15 +120,8 @@ end
 
 % --- Artifacts -------------------------------------------------------------------
 A = obj.Artifacts;
-% The reference and the fill apply to the manual periods too, so they are
-% checked whether or not automatic detection is on.
-if ~ismember(A.Reference, ["none" "car" "cmr"])
-    add("artifacts", "Reference", "error", "Reference must be ""none"", ""car"" or ""cmr"".");
-end
-if ~(A.ReferenceBadLow >= 0 && A.ReferenceBadHigh > A.ReferenceBadLow)
-    add("artifacts", "ReferenceBadLow", "error", ...
-        "The reference noise bounds must satisfy 0 <= ReferenceBadLow < ReferenceBadHigh.");
-end
+% The fill applies to the manual periods too, so it is checked whether or
+% not automatic detection is on.
 if ~ismember(A.Fill, ["noise" "zero"])
     add("artifacts", "Fill", "error", "Fill must be ""noise"" or ""zero"".");
 end

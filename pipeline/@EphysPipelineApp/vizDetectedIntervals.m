@@ -41,6 +41,8 @@ end
 
 
 function s = detectionSettings(obj)
-%detectionSettings  The Artifacts tab's settings in the form the preview records.
-s = EphysDataset.normalizeArtifactConfig(EphysPipelineConfig.artifactConfig(obj.gatherArtifactsSection()));
+%detectionSettings  The Artifacts tab's settings (the reference panel's
+%   included) in the form the preview records.
+s = EphysDataset.normalizeArtifactConfig(EphysPipelineConfig.artifactConfig( ...
+    obj.gatherArtifactsSection(), obj.gatherReferenceSection()));
 end

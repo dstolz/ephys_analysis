@@ -130,7 +130,7 @@ allOn = loaded;
 allOn.Artifacts.Enabled = true; allOn.Sorting.Enabled = true; allOn.Signals.Enabled = true;
 allOn.Signals.LFP = true; allOn.Signals.MUA = true; allOn.Signals.SPIKE = true; allOn.Signals.AUX = true;
 allOn.Export.Enabled = true; allOn.Export.Formats = ["chronux" "fieldtrip" "epochs" "kcsd"];
-allOn.Artifacts.Reference = "cmr";
+allOn.Reference.Mode = "cmr";
 app.applyConfig(allOn);
 full = string(app.FlowHTML.HTMLSource);
 targets = unique(strip(split(join(string(regexp(full, '(?<=data-nav=")[^"]+', 'match')), ","), ",")));
@@ -454,6 +454,26 @@ check(app.Config.Artifacts.FilterType == "lowpass" && app.Config.Artifacts.Filte
 app.applyArtifactsSection(A0);
 app.Config.Artifacts = A0;
 app.onArtifactControlsChanged();
+% The common-reference panel is the Reference section, not part of Artifacts.
+R0 = app.Config.Reference;
+R2 = R0; R2.Mode = "cmr"; R2.BadLow = 0.25; R2.BadHigh = 2.5;
+app.applyReferenceSection(R2);
+refPanel = app.ArtRefDropDown.Parent.Parent;
+check(isequaln(app.gatherReferenceSection(), R2) && strcmp(app.ArtRefLowField.Enable, 'on') ...
+    && contains(string(refPanel.Title), "every step") && contains(string(refPanel.Title), "config: Reference") ...
+    && isequaln(app.gatherArtifactsSection(), A0), ...
+    'applyReferenceSection / gatherReferenceSection round-trip the panel, titled for every step; the Artifacts section is untouched');
+app.onArtifactControlsChanged();
+check(isequaln(app.Config.Reference, R2) && isequaln(app.Config.Artifacts, A0), ...
+    'a reference edit reaches the working config''s Reference section only');
+app.ArtRefLowField.Value = 3;
+app.onArtifactControlsChanged();
+check(~app.Config.Artifacts.Enabled && contains(tabTip(app, app.TabArtifacts), "BadLow"), ...
+    'a reference error colours the Artifacts tab with detection off (the reference is read by every step)');
+app.applyReferenceSection(R0);
+app.onArtifactControlsChanged();
+check(isequaln(app.Config.Reference, R0) && strcmp(app.ArtRefLowField.Enable, 'off') ...
+    && tabTip(app, app.TabArtifacts) == "Step disabled.", 'back to no reference: the bounds are off again');
 
 fprintf('\n== 3. scan, selection, plan ==\n');
 app.onScan();
@@ -2425,11 +2445,17 @@ app.onArtifactControlsChanged();
 app.onScan();
 app.ExcludeChannelsField.Value = '1';
 app.onApplyExclude("selected");
-check(app.Config.Artifacts.Reference == "car" && dM3.ArtifactConfig.Reference == ref0 && app.Project == P0 ...
+check(app.Config.Reference.Mode == "car" && dM3.ArtifactConfig.Reference == ref0 && app.Project == P0 ...
     && isempty(dM3.ExcludeChannels), ...
     'while a run is under way config edits wait for its end, and Scan and per-dataset edits are refused');
 app.RunActive = false;
+app.ArtRefDropDown.Value = 'cmr';
+app.ArtRefHighField.Value = 2.5;
+app.onArtifactControlsChanged();
+check(all(arrayfun(@(x) x.ArtifactConfig.Reference == "cmr" && x.ArtifactConfig.ReferenceBadHigh == 2.5, app.Project.Datasets)), ...
+    'with no run under way a reference edit is carried onto every dataset''s ArtifactConfig');
 app.ArtRefDropDown.Value = 'none';
+app.ArtRefHighField.Value = 2;
 app.onArtifactControlsChanged();
 app.selectTab(app.TabProject);
 badManifest = fullfile(fM1, "recM001_260101_120000_manifest.json");

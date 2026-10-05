@@ -3,11 +3,9 @@ function A = gatherArtifactsSection(obj)
 %   FilterType, FilterOrder and a band's upper edge have no control: they
 %   keep the working config's values. The High-pass field is a high-pass
 %   filter's cutoff, or a band-pass filter's lower edge (a low-pass
-%   filter's cutoff is kept too).
+%   filter's cutoff is kept too). The common-reference panel is the
+%   Reference section (gatherReferenceSection).
 A = obj.Config.Artifacts;
-A.Reference        = string(obj.ArtRefDropDown.Value);
-A.ReferenceBadLow  = obj.ArtRefLowField.Value;
-A.ReferenceBadHigh = obj.ArtRefHighField.Value;
 A.Enabled     = logical(obj.ArtEnableCheckBox.Value);
 A.Method      = string(obj.ArtMethodDropDown.Value);
 A.Threshold   = obj.ArtThresholdField.Value;

@@ -13,7 +13,7 @@ function test_CommonReference()
 %     5. ExcludeChannels stay out of the reference too; too few channels warn,
 %        none is an error
 %     6. toBin records the reference in its info and sidecar
-%     7. the Artifacts config section carries and validates the settings
+%     7. the Reference config section carries and validates the settings
 %     8. a few floating channels do not get every channel suggested, and a
 %        suggestion that would leave too few channels is not applied
 %     9. the common-mode detector still finds artifacts under a common
@@ -170,23 +170,28 @@ fclose(fid);
 check(max(abs(B(:) - round(expCar(:) * binInfo.scale))) <= 1, 'the .bin holds the common-average-referenced signal');
 
 fprintf('\n== 7. config ==\n');
+r = EphysPipelineConfig.defaults("Reference");
 a = EphysPipelineConfig.defaults("Artifacts");
-check(a.Reference == "none" && a.ReferenceBadLow == 0.3 && a.ReferenceBadHigh == 2, 'Artifacts defaults');
-a.Reference = "cmr"; a.ReferenceBadLow = 0.2; a.ReferenceBadHigh = 3;
-c = EphysPipelineConfig.artifactConfig(a);
-check(c.Reference == "cmr" && c.ReferenceBadLow == 0.2 && c.ReferenceBadHigh == 3, 'artifactConfig carries the reference');
+check(isequal(string(fieldnames(r)).', ["Mode" "BadLow" "BadHigh"]) && r.Mode == "none" && r.BadLow == 0.3 && r.BadHigh == 2 ...
+    && ~any(isfield(a, {'Reference', 'ReferenceBadLow', 'ReferenceBadHigh'})), ...
+    'the Reference section holds the reference (defaults none, 0.3, 2); the Artifacts section does not');
+r.Mode = "cmr"; r.BadLow = 0.2; r.BadHigh = 3;
+c = EphysPipelineConfig.artifactConfig(a, r);
+check(c.Reference == "cmr" && c.ReferenceBadLow == 0.2 && c.ReferenceBadHigh == 3 && ~c.Enabled, ...
+    'artifactConfig carries the Reference section into the dataset''s ArtifactConfig');
 cfg = EphysPipelineConfig();
 cfg.Project.Root = root;
-cfg.Artifacts.Reference = "average";
+cfg.Reference.Mode = "average";
 iss = cfg.validate();
-check(any(iss.Step == "artifacts" & iss.Field == "Reference" & iss.Severity == "error"), 'an unknown Reference is an error');
-cfg.Artifacts.Reference = "car";
-cfg.Artifacts.ReferenceBadLow = 2;
+check(any(iss.Step == "reference" & iss.Field == "Mode" & iss.Severity == "error") && ~cfg.Artifacts.Enabled, ...
+    'an unknown Reference.Mode is an error, with every step off');
+cfg.Reference.Mode = "car";
+cfg.Reference.BadLow = 2;
 iss = cfg.validate();
-check(any(iss.Step == "artifacts" & iss.Field == "ReferenceBadLow" & iss.Severity == "error"), 'Low >= High is an error');
-cfg.Artifacts.ReferenceBadLow = 0.3;
+check(any(iss.Step == "reference" & iss.Field == "BadLow" & iss.Severity == "error"), 'BadLow >= BadHigh is an error');
+cfg.Reference.BadLow = 0.3;
 iss = cfg.validate();
-check(~any(iss.Step == "artifacts" & iss.Severity == "error"), 'a valid reference passes');
+check(~any(iss.Step == "reference") && ~any(iss.Step == "artifacts" & iss.Severity == "error"), 'a valid reference passes');
 % A microvolt threshold that is really a robust-SD multiplier flags everything.
 cfg.Artifacts.Enabled = true;
 cfg.Artifacts.Method = "microvolts";

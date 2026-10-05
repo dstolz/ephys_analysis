@@ -353,7 +353,7 @@ Schema `intan-dataset-manifest/2` (`null` where a value is `NaN`):
   parses (never evaluates) numbers and ranges such as `"1 2 5-8"`,
   `"[1:4 9]"` or `N:S:M`.
 - `reference_exclude` lists the channels (1-based) kept out of the common
-  reference (`Artifacts.Reference` `"car"` / `"cmr"`). `source` is
+  reference (the pipeline config's `Reference.Mode` `"car"` / `"cmr"`). `source` is
   `"suggested"` (by the noise-floor rule, `suggestReferenceExclude`),
   `"manual"` (typed on the Artifacts tab), or `""` (never set: the first
   referenced read suggests it).
@@ -414,9 +414,10 @@ which holds `H64LP_4x16.json` as a starting point.
   "Acquisition": { "OpenEphys": { "Recordings", "RecordNode", "Stream" }, "TDT": { "Stream", "GainToMicrovolts" } },
   "Parallel":  { "Enabled", "MaxWorkers" },
   "Probe":     { "DefaultProbeFile", "WriteDefaultToManifest", "AutoAssign", "RuleSubjects", "RuleProbes" },
+  "Reference": { "Mode", "BadLow", "BadHigh" },
   "Behavior":  { "Enabled", "Search", "SearchDirs", "Match", "MaxStartOffsetMin", "Overwrite", "WriteFile",
                  "PairTrials", "AutoApprove", "TrialLine" },
-  "Artifacts": { "Reference", "ReferenceBadLow", "ReferenceBadHigh", "Enabled", "Method", "Threshold", ... , "Fill", "NoiseBandHz", "NoiseSeed", "ApplyToSorting", "ApplyToSpikes", "ApplyToSignals", "CacheIntervals" },
+  "Artifacts": { "Enabled", "Method", "Threshold", ... , "Fill", "NoiseBandHz", "NoiseSeed", "ApplyToSorting", "ApplyToSpikes", "ApplyToSignals", "CacheIntervals" },
   "Sorting":   { "Enabled", "PythonExe", "CondaEnv", "Execution", "MaxConcurrent", "Devices", "DryRun", "SkipExisting",
                  "KS4": {...}, "KS4ExtraJSON" },
   "Signals":   { "Enabled", "OutputDir", "Suffix", ... , "BlankArtifacts", ... , "LabelField", "LineNames", "InvertedLines", ... ,
@@ -452,7 +453,8 @@ half-open on the 0-based sample clock: a period `[t0, t1)` covers samples
 `round(t0*fs)` to `round(t1*fs) - 1`, the samples `toBin` erases in the `.bin`.
 The manual periods are not stored here: they are merged in when the cache is
 read. `fingerprint` is `jsonencode` of the schema, the detector settings (the
-fill fields left out), the channels of the common reference, `ExcludeChannels`
+dataset's `ArtifactConfig`, its reference fields from the config's `Reference`
+section included; the fill fields left out), the channels of the common reference, `ExcludeChannels`
 and the recording files; a cache whose fingerprint differs from the current
 settings (including one written under an earlier schema) is recomputed.
 

@@ -1126,7 +1126,9 @@ classdef EphysDataset < handle
             %   reference subtracted from every read before anything else
             %   (applyReference): "none", "car" (mean) or "cmr" (median) of
             %   the channels whose noise floor lies within [Low High] times
-            %   the mean across channels (suggestReferenceExclude).
+            %   the median across channels (suggestReferenceExclude). The
+            %   pipeline sets them from its config's Reference section
+            %   (Mode, BadLow, BadHigh; EphysPipelineConfig.artifactConfig).
             cfg = struct( ...
                 'Reference',    "none", ...  % "none" | "car" (mean) | "cmr" (median)
                 'ReferenceBadLow',  0.3, ... % x median noise: quieter channels are left out of the reference

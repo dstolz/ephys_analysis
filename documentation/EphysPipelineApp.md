@@ -2038,8 +2038,39 @@ just those rows (`readWindowUV`); a reader without random access would be read a
 `streamPlan` chunk at a time, the last chunks kept (up to 1.5 GB). A `.bin` is read with `fread`
 and its min / max are taken on the stored integers; a `-v7.3` extract is read a
 window of rows at a time with `h5read`, and a `-v7` one is loaded once. No file
-is held open between reads. One view is at most `MaxReadSamples` (2^27 samples
-× channels, about 70 s of 64 channels at 30 kHz) wide.
+is held open between reads. A view read at full rate is at most
+`MaxReadSamples` (2^27 samples × channels, about 70 s of 64 channels at
+30 kHz) wide; a wider one, up to the whole recording, is drawn from the
+signal's envelope (below).
+
+**Envelope.** For each signal it shows, the tab keeps an envelope
+([`EphysTraceEnvelope`](../pipeline/EphysTraceEnvelope.m)): the min and max of
+every channel over blocks of samples, at block sizes growing 4 times level by
+level, down to a level of at most 4096 blocks. It is cached next to the
+dataset's outputs, one file per signal (`<Name>_envelope_<what>.dat`: the
+recording as stored or with the common reference, the `.bin`, each derived
+signal; [file-formats.md](file-formats.md#signal-envelope-name_envelope_whatdat)),
+and built the first time the tab shows the signal, in the background: a span of
+the recording or `.bin` at a time on a thread of MATLAB's `backgroundPool`, a
+derived signal (which `h5read` cannot read on a thread) a span per tick of a
+timer. Each span is read through the same reader as the full-rate view, so the
+reference and the `.bin`'s filled periods match, in pieces of at most 2^23
+samples × channels. The status line says how far it is ("building the envelope
+of Recording for wider views: 35%"); the plot can be used meanwhile. Another
+signal or dataset stops the build (its partial file is deleted), and so does
+closing the app; the next time the signal is shown the build starts again. Once
+built, a view wider than one full-rate read is drawn from the coarsest level
+with a block per pixel column or less (the status line says "drawn from the
+envelope"), and the overview strip shows the signal. The envelope holds the
+samples as stored, so a view wider than one read needs the display filter off
+and the reference *As the pipeline* or *None*; with either set, the view stays
+within one read and the status line says why. The cache is used only while its
+fingerprint matches: the files read (sizes and modified times), the rows,
+channels and rate, the reference and its channels, the `.bin`'s scale, and the
+block sizes. A `.bin` or extract written again is noticed within a second and
+its envelope built again; a stale file is never shown. For 2 h of 64 channels at
+30 kHz the file is about 140 MB (level 1: blocks of 1,024 samples; 2^24 blocks ×
+channels at most), and its build reads the recording once.
 
 **Timing.** Row k of every signal is drawn at (k − 1)/Fs seconds on the
 recording's clock, as sorted spike times and the artifact periods are; a bin is
@@ -2108,15 +2139,25 @@ over the plot:
 The toolbar above the plot does the same with buttons (**< Page**, **Page >**,
 **Zoom in / out**, **Taller / Shorter**, **Auto scale**, **Reset view**). The
 strip under the plot shows the whole recording, the view as a blue box, the
-spike rate of the layers shown and the artifact periods; click or drag in it to
-centre the plot there.
+spike rate of the layers shown and the artifact periods, and, once the envelope
+is built, the signal itself: for each pixel column the median, over the lanes'
+channels, of each channel's min and max about its own median, scaled so a
+typical column spans 40% of the strip (a large excursion, such as an artifact,
+reaches its edge). Click or drag in it to centre the plot there.
 
 **Artifact overlays**: orange = the Artifacts tab's **Detect / Preview**
 intervals of the plotted dataset (the detector a run uses, over the whole
 recording), while its detection settings are still the ones the preview ran
 with; otherwise the automatic detection the last run used
 (`<Name>_artifacts.json`, read with the plot: what was erased from the
-processed files), and the status line says which. With neither, none is
+processed files), and the status line says which. For the last run's periods
+it also says whether the current settings would detect the same ones
+(`EphysPipeline.cachedDetection`: the file's fingerprint against the one the
+current settings give, nothing detected): *with the current settings*, or
+*with other settings* (Detect / Preview shows what the current ones find).
+It cannot tell while automatic detection is off (a run then erases none of
+them) or while a common reference is on whose left-out channels were never set
+(the first referenced read suggests them). With neither, none is
 shaded and the status line says why. Nothing is detected on the displayed
 data. Purple = manual periods. The artifact status line counts both and says where a run
 erases the manual periods: in the `.bin`, and in the signals too while the
@@ -2748,7 +2789,7 @@ app.KSQueue                       % prepared runs waiting for a slot (Queue the 
 | `keepKSRuns.m`, `followKeptKSRuns.m`, `offerKeptKSQueue.m`, `restoreKSQueue.m`, `private/keptSortingQueue.m`, `private/keptSortingRuns.m` | the background runs kept at Close: storing them, following the runs going again at launch, offering a kept queue back after its root's scan and putting it back in the queue (or dropping it), reading the two preferences |
 | `onSpikesPreview.m`, `syncSpikesEnableStates.m` | Spikes tab |
 | `onBrowseExportOutput.m`, `onExportEpochsToWorkspace.m` | Export tab (output folder, Epochs to workspace) |
-| `onPlotVisualization.m`, `applyVizSettings.m`, `onVizControlsChanged.m`, `onVizViewChanged.m`, `onVizInput.m`, `onVizButtonDown/Up.m`, `refreshVizShading.m`, `vizDetectedIntervals.m`, `syncVizDataset.m`, `loadVizEvents.m`, `onVizReadEvents.m`, `showVizHelp.m`; `pipeline/EphysTraceViewer.m`, `pipeline/EphysTraceSource.m` | Visualize tab: loading the active dataset's signals and spikes, the controls, the wheel / keys / drags, the shading (`vizDetectedIntervals`: the Artifacts preview's intervals the plot shades, or why none); the digital-input events and Read events; the "?" window of mouse and key controls; the viewer and the windowed sources behind it |
+| `onPlotVisualization.m`, `applyVizSettings.m`, `onVizControlsChanged.m`, `onVizViewChanged.m`, `onVizInput.m`, `onVizButtonDown/Up.m`, `refreshVizShading.m`, `vizDetectedIntervals.m`, `updateVizArtStatus.m`, `syncVizDataset.m`, `loadVizEvents.m`, `onVizReadEvents.m`, `showVizHelp.m`; `pipeline/EphysTraceViewer.m`, `pipeline/EphysTraceSource.m`, `pipeline/EphysTraceEnvelope.m` | Visualize tab: loading the active dataset's signals and spikes, the controls, the wheel / keys / drags, the shading (`vizDetectedIntervals`: the Artifacts preview's intervals the plot shades, or why none; `updateVizArtStatus`: their counts, and whether the last run's match the current settings); the digital-input events and Read events; the "?" window of mouse and key controls; the viewer, the windowed sources behind it and their envelopes (min / max cached on disk, built in the background) |
 | `buildFlowTab.m`, `refreshFlowChart.m`, `flowChartHTML.m`, `flowOverviewHTML.m`, `onFlowViewChanged.m`, `onFlowLayoutChanged.m`, `onSaveFlowChart.m`, `onOpenFlowChartInBrowser.m`, `onFlowNavigate.m`, `flowNavControls.m`, `clearFlowHighlight.m` | Diagram tab: the page in the view picked, drawn by [`PipelineDiagram`](../pipeline/@PipelineDiagram/PipelineDiagram.m), a plain class the app calls (`detail`: every parameter; `overview`: the data flow, laid out and routed there; `zoomFrame`: the zoom and pan, kept per view by the app), save / open, a box's click |
 | `buildCopyTab.m`, `onCopyFind.m`, `onCopyRun.m`, `refreshCopyTable.m`, `onCopyTableEdited.m`, `onCopyStitch.m`, `onCopyUnstitch.m`, `onBrowseCopyFolder.m`, `copyLog.m`, `onCopyCancel.m`, `startCopyMonitor.m`, `stopCopyMonitor.m`, `pollCopyJob.m`, `setCopyRunning.m`, `applyCopyResult.m`, `finishCopyRun.m`, `showCopyProgress.m`, `copySummaryText.m`, `refreshCopySchedule.m`, `onCopyScheduleSave.m`, `onCopyScheduleRemove.m`, `onCopyScheduleRunNow.m`, `onCopyScheduleLog.m`; `pipeline/findCopySessions.m`, `pipeline/stitchCopySessions.m`, `pipeline/copySessions.m`, `pipeline/copy_engine.ps1`, `pipeline/stitchEpsychSessions.m`, `pipeline/CopySchedule.m` | Copy tab, the pairing / stitching / copy functions it calls, the detached copy engine, and the scheduled copy (its Windows task and what each run does) |
 | `loadReviewResults.m`, `renderReviewPlots.m`, `syncReviewDataset.m`, `showReviewUnits.m` | Review tab (`showReviewUnits`: the units table in its sort, the selected unit's row kept) |
@@ -2941,4 +2982,10 @@ as ticks, as the recoloured trace and as stored waveforms on their own lanes,
 spikes only, the read limit, the wheel, keys, drags and the overview; and the
 events: onset and offset lines over the traces (an onset on its own sample,
 offsets dotted), a TTL row per line above them, and `jumpToEvent` stepping
-from onset to onset.
+from onset to onset; and the
+envelope: block sizes, one cache file per signal, every level's min / max equal
+to those of the full-rate samples block by block, a `.bin` written again never
+shown from its old envelope and built again, builds on a thread, on a timer and
+cancelled, a whole-recording view drawn from it without a full-rate read (with
+the recording's file moved away), the overview's signal, and a display filter
+keeping the view within one read.

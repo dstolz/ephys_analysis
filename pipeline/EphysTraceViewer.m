@@ -25,6 +25,22 @@ classdef EphysTraceViewer < handle
     %   small whatever the channel or unit count. Interactions that arrive
     %   faster than a draw are merged (RenderDelay).
     %
+    %   Wider views: the envelope
+    %   -------------------------
+    %   A view read at full rate is at most MaxReadSamples wide. For each
+    %   source it shows, the viewer keeps an EphysTraceEnvelope: the min /
+    %   max of every channel over blocks of samples, at several block sizes,
+    %   cached in a file next to the dataset's outputs and, when there is
+    %   none yet (BuildEnvelope), built in the background while the viewer
+    %   is used (EnvelopeChangedFcn hears how far it is, envelopeNote says
+    %   it in words). Once it is built, a view wider than one full-rate read
+    %   - up to the whole recording - is drawn from its coarsest level with
+    %   a block per pixel column or less, as the samples are stored (so only
+    %   with no display Filter and Reference "none"; with either, the view
+    %   stays within one full-rate read), and the overview strip draws the
+    %   signal itself: per pixel column the median, over the lanes'
+    %   channels, of each channel's min and max about its own middle.
+    %
     %   Lanes
     %   -----
     %   Lane k is centred at y = -(k-1), one unit apart; a signal value v is
@@ -76,7 +92,8 @@ classdef EphysTraceViewer < handle
     %     seekOverview(t)               centre the view on T (overview strip)
     %   and programmatically: setView, zoomTime, panTime, scaleVoltage,
     %   setSpacing, autoScale, scrollLanes, setVisibleLanes, resetView,
-    %   jumpToEvent; setEvents / setEventShow with EventOverlay / EventStrip.
+    %   jumpToEvent; setEvents / setEventShow with EventOverlay / EventStrip;
+    %   maxWidth (the widest view) and envelopeNote.
     %
     %   See also EphysTraceSource, EphysPipelineApp.
 
@@ -96,8 +113,12 @@ classdef EphysTraceViewer < handle
         % onset's index of count, its time t, and the view it set (tStart,
         % width; the view has not moved since while they match it).
         EventJump struct = struct('name', {}, 'index', {}, 'count', {}, 't', {}, 'tStart', {}, 'width', {})
-        LastRender struct = struct('bin', NaN, 'read', false, 'seconds', 0, ...
+        % The last draw: its bin (samples), whether it read the source at
+        % full rate, the envelope level it was drawn from (0: the samples
+        % themselves), its time, spikes, spike styles, notes and error.
+        LastRender struct = struct('bin', NaN, 'read', false, 'level', 0, 'seconds', 0, ...
             'nSpikes', 0, 'styles', strings(1, 0), 'notes', strings(1, 0), 'error', "")
+        Envelope = []                          % EphysTraceEnvelope of Source ([] = none)
     end
 
     properties
@@ -122,7 +143,9 @@ classdef EphysTraceViewer < handle
         PieceSamples (1,1) double = 2^23       % samples x channels per read
         MaxWaveforms (1,1) double = 4000       % more spikes in view: ticks
         RenderDelay (1,1) double = 0.03        % merge interactions this close (s); 0 = draw at once
+        BuildEnvelope (1,1) logical = true     % build a source's envelope in the background when it has none
         ViewChangedFcn = []                    % f(viewer) after the view changes
+        EnvelopeChangedFcn = []                % f(viewer) as the envelope's build goes on, and when it ends
         BusyFcn = []                           % f(message) before a long read, f("") after
         Palette (:,3) double = EphysTraceViewer.defaultPalette()
     end
@@ -150,8 +173,10 @@ classdef EphysTraceViewer < handle
         Message = gobjects(0)
         OvView = gobjects(0)
         OvRate = gobjects(0)
+        OvSignal = gobjects(0)  % the signal in the overview strip, from the envelope
+        OvBand = []             % what it draws: key, x, y
         OvShade = gobjects(0, 1)
-        Env = []            % reduced samples: key, b, r0, mn, mx, offset, set
+        Env = []            % reduced samples: key, b, r0, mn, mx, offset, set, level (0: from full rate)
         Cache = []          % processed full-rate samples: key, r0, X, set
         Drawn = []          % what the axes show: span, b
         Timer = []
@@ -159,6 +184,9 @@ classdef EphysTraceViewer < handle
         Drag = []
         AutoPending (1,1) logical = true
         Rate = []           % overview spike density ([] = work it out at the next draw)
+        InRender (1,1) logical = false     % a draw is under way
+        RenderAgain (1,1) logical = false  % a draw was asked for during it
+        NoEnvelope (1,1) string = ""       % key of the source whose envelope could not be made
     end
 
     methods
@@ -192,6 +220,8 @@ classdef EphysTraceViewer < handle
                 ov = obj.OverviewAxes;
                 setupAxes(ov);
                 set(ov, 'YLim', [0 1], 'YTick', [], 'XLim', [0 1], 'Box', 'on');
+                obj.OvSignal = line(ov, NaN, NaN, 'Color', [0.68 0.68 0.68], 'LineWidth', 0.5, 'Visible', 'off', ...
+                    'Tag', 'OverviewSignal', 'HitTest', 'off', 'PickableParts', 'none');
                 obj.OvRate = line(ov, NaN, NaN, 'Color', [0.35 0.35 0.35], 'HitTest', 'off', 'PickableParts', 'none');
                 obj.OvView = patch(ov, 'XData', [0 1 1 0], 'YData', [0 0 1 1], 'FaceColor', [0 0.45 0.74], ...
                     'FaceAlpha', 0.25, 'EdgeColor', [0 0.45 0.74], 'HitTest', 'off', 'PickableParts', 'none');
@@ -207,6 +237,9 @@ classdef EphysTraceViewer < handle
             if ~isempty(obj.Timer) && isvalid(obj.Timer)
                 stop(obj.Timer);
                 delete(obj.Timer);
+            end
+            if ~isempty(obj.Envelope) && isvalid(obj.Envelope)
+                delete(obj.Envelope);       % a build under way stops
             end
             delete(obj.AxesListener);
         end
@@ -228,7 +261,9 @@ classdef EphysTraceViewer < handle
         function setSource(obj, src, channels)
             %setSource  Show SRC (an EphysTraceSource, or [] for none) on CHANNELS.
             %   CHANNELS: source columns in lane order (default all). A new
-            %   source is scaled automatically at its first draw.
+            %   source is scaled automatically at its first draw. Its
+            %   envelope is looked for (and, with BuildEnvelope, built in the
+            %   background); the build of the previous source's stops.
             arguments
                 obj (1,1) EphysTraceViewer
                 src = []
@@ -253,6 +288,7 @@ classdef EphysTraceViewer < handle
             end
             obj.Drawn = [];
             obj.FirstLane = 1;
+            obj.syncEnvelope();
             obj.clampView();
             obj.updateRate();
         end
@@ -599,14 +635,68 @@ classdef EphysTraceViewer < handle
 
         function render(obj)
             %render  Draw the view now (reading what is not in memory).
+            %   A draw asked for while one is under way (by a callback run
+            %   in its drawnow, such as the envelope's build ending) follows
+            %   it.
+            if obj.InRender
+                obj.RenderAgain = true;
+                return
+            end
+            obj.InRender = true;
+            try
+                obj.drawView();
+            catch ME
+                obj.InRender = false;
+                rethrow(ME);
+            end
+            obj.InRender = false;
+            if obj.RenderAgain && isvalid(obj)
+                obj.RenderAgain = false;
+                obj.requestRender();
+            end
+        end
+
+        function w = maxWidth(obj)
+            %maxWidth  The widest view (s).
+            %   The whole recording once the source's envelope is built and
+            %   the samples are drawn as stored (no display Filter, Reference
+            %   "none"); else what one full-rate read allows (MaxReadSamples).
+            w = obj.TotalDuration;
+            src = obj.Source;
+            if isempty(src) || obj.envelopeInUse()
+                return
+            end
+            w = min(w, obj.MaxReadSamples / (src.NumChannels * src.Fs));
+        end
+
+        function s = envelopeNote(obj)
+            %envelopeNote  What the status line says of the source's envelope ("" when nothing).
+            %   While it is built, how far along; when the build failed, why.
+            s = "";
+            E = obj.Envelope;
+            if isempty(E) || ~isvalid(E); return; end
+            switch E.State
+                case "building"
+                    s = sprintf("building the envelope of %s for wider views: %d%%", ...
+                        E.Source.Name, floor(100 * E.Progress));
+                case "failed"
+                    s = "the envelope of " + E.Source.Name + " could not be built: " + E.Message;
+            end
+        end
+    end
+
+    methods (Access = private)
+        function drawView(obj)
+            % render's draw.
             if ~isempty(obj.Timer) && isvalid(obj.Timer) && strcmp(obj.Timer.Running, 'on')
                 stop(obj.Timer);
             end
             ax = obj.Axes;
             if ~isvalid(ax); return; end
             tic0 = tic;
-            R = struct('bin', NaN, 'read', false, 'seconds', 0, 'nSpikes', 0, ...
+            R = struct('bin', NaN, 'read', false, 'level', 0, 'seconds', 0, 'nSpikes', 0, ...
                 'styles', strings(1, 0), 'notes', strings(1, 0), 'error', "");
+            obj.syncEnvelope();
             obj.clampView();
             lanes = obj.laneTable();
             vis = obj.FirstLane : min(obj.NumLanes, obj.FirstLane + obj.VisibleLanes - 1);
@@ -627,6 +717,7 @@ classdef EphysTraceViewer < handle
             if isempty(obj.Source) && isempty(lanes.kind)
                 msg = "Nothing to show: pick a signal or a spike layer.";
             end
+            R.notes = [R.notes, obj.widthNote()];
             obj.drawTraces(T, lanes, vis);
             R = obj.drawSpikes(T, lanes, vis, span, R);
             obj.drawShading(span, lanes);
@@ -911,11 +1002,22 @@ classdef EphysTraceViewer < handle
             fs = src.Fs;
             pp = plotPixels(obj.Axes);
             px = max(200, pp(3));
+            wide = obj.TWidth * fs * src.NumChannels > obj.MaxReadSamples * (1 + 1e-9);
+            if wide && ~obj.envelopeInUse()
+                obj.clampView();                % the envelope went out of date since the view was set
+                wide = false;
+            end
             b = max(1, floor(obj.TWidth * fs / px));
-            env = obj.ensureEnvelope(b);
+            if wide
+                env = obj.fromEnvelope(b);      % wider than one full-rate read
+                R.notes(end+1) = sprintf("drawn from the envelope (min / max of every %.3g ms)", 1e3 * env.b / fs);
+            else
+                env = obj.ensureEnvelope(b);
+            end
             b = env.b;   % a reused envelope may be finer than asked
             R.bin = b;
             R.read = env.didRead;
+            R.level = env.level;
             if isempty(env.mn)
                 T = [];
                 return
@@ -972,16 +1074,54 @@ classdef EphysTraceViewer < handle
             a = floor(a / b) * b;
             [mn, mx, didRead] = obj.reduceRows(a, z, b, set, key);
             env = struct('key', key, 'b', b, 'r0', a, 'mn', mn, 'mx', mx, 'set', set, ...
-                'offset', zeros(1, numel(set), 'single'), 'didRead', didRead);
-            if obj.RemoveOffset && ~isempty(mn)
-                k0 = max(1, floor((view(1) - a) / b) + 1);
-                k1 = min(size(mn, 1), max(k0, ceil((view(2) - a) / b)));
-                mid = (mn(k0:k1, :) + mx(k0:k1, :)) / 2;
-                off = median(mid, 1, 'omitnan');
-                off(~isfinite(off)) = 0;
-                env.offset = off;
-            end
+                'offset', zeros(1, numel(set), 'single'), 'didRead', didRead, 'level', 0);
+            env.offset = obj.laneOffsets(env, view);
             obj.Env = env;
+        end
+
+        function env = fromEnvelope(obj, b)
+            % As ensureEnvelope, from the source's envelope (Envelope): the
+            % view and a window each side from its coarsest level whose
+            % blocks are no longer than B samples, M of its blocks per bin
+            % so a bin is about B samples. Nothing is read at full rate.
+            src = obj.Source;
+            fs = src.Fs;
+            P = obj.Envelope;
+            key = obj.dataKey() + "|envelope";
+            chans = unique(obj.Channels);
+            view = [floor(obj.TStart * fs), ceil((obj.TStart + obj.TWidth) * fs)];
+            E = obj.Env;
+            if ~isempty(E) && E.key == key && all(ismember(chans, E.set)) && E.b <= b && E.b * 2 > b ...
+                    && E.r0 <= view(1) && E.r0 + size(E.mn, 1) * E.b >= min(view(2), src.NumSamples)
+                env = E;
+                return
+            end
+            L = P.levelFor(b);
+            B = P.Blocks(L);
+            m = max(1, floor(b / B));
+            w = obj.TWidth * fs;
+            a = max(0, floor((view(1) - w) / (m * B)) * m * B);
+            z = min(src.NumSamples, ceil(view(2) + w));
+            [mn, mx] = P.read(L, a / B, ceil((z - a) / B), chans);
+            if m > 1
+                mn = EphysTraceSource.binMinMax(mn, m);
+                [~, mx] = EphysTraceSource.binMinMax(mx, m);
+            end
+            env = struct('key', key, 'b', m * B, 'r0', a, 'mn', mn, 'mx', mx, 'set', chans, ...
+                'offset', zeros(1, numel(chans), 'single'), 'didRead', false, 'level', L);
+            env.offset = obj.laneOffsets(env, view);
+            obj.Env = env;
+        end
+
+        function off = laneOffsets(obj, env, view)
+            % Each lane's median over the rows VIEW of ENV (RemoveOffset), else 0.
+            off = zeros(1, numel(env.set), 'single');
+            if ~obj.RemoveOffset || isempty(env.mn); return; end
+            k0 = max(1, floor((view(1) - env.r0) / env.b) + 1);
+            k1 = min(size(env.mn, 1), max(k0, ceil((view(2) - env.r0) / env.b)));
+            mid = (env.mn(k0:k1, :) + env.mx(k0:k1, :)) / 2;
+            off = median(mid, 1, 'omitnan');
+            off(~isfinite(off)) = 0;
         end
 
         function [mn, mx, didRead] = reduceRows(obj, a, z, b, set, key)
@@ -1009,7 +1149,7 @@ classdef EphysTraceViewer < handle
             end
             % Too long to keep: read in pieces of whole bins and reduce each
             % (as stored, when nothing is done to the samples).
-            plain = obj.Reference == "none" && ~(isfield(obj.Filter, 'type') && obj.Filter.type ~= "");
+            plain = plainDisplay(obj);
             P = max(b, floor(obj.PieceSamples / src.NumChannels / b) * b);
             nb = ceil((z - a) / b);
             mn = zeros(nb, numel(set), 'single');
@@ -1513,6 +1653,7 @@ classdef EphysTraceViewer < handle
             if isempty(ov) || ~isvalid(ov); return; end
             dur = obj.TotalDuration;
             ov.XLim = [0 dur];
+            obj.drawOverviewSignal();
             R = obj.rate();
             set(obj.OvRate, 'XData', R.x, 'YData', R.y);
             S = obj.Shading;
@@ -1545,6 +1686,121 @@ classdef EphysTraceViewer < handle
             w = max(obj.TWidth, obj.TotalDuration / 250);
             a = obj.TStart + obj.TWidth / 2 - w / 2;
             set(obj.OvView, 'XData', [a, a + w, a + w, a]);
+        end
+
+        function drawOverviewSignal(obj)
+            % The signal in the overview strip, once the envelope is built:
+            % its coarsest level with a block per pixel column or more, M
+            % blocks a column; per column the median, over the lanes'
+            % channels, of each channel's min and max about its own middle
+            % (its median), scaled so a typical column spans 40% of the
+            % strip, so a larger excursion (an artifact) reaches its edge.
+            h = obj.OvSignal;
+            if isempty(h) || ~isgraphics(h); return; end
+            E = obj.Envelope;
+            if isempty(obj.Channels) || isempty(E) || ~isvalid(E) || ~E.isReady()
+                set(h, 'XData', NaN, 'YData', NaN, 'Visible', 'off');
+                obj.OvBand = [];
+                return
+            end
+            pp = plotPixels(obj.OverviewAxes);
+            px = max(100, round(pp(3)));
+            chans = unique(obj.Channels);
+            key = E.File + "|" + E.Fingerprint + "|" + strjoin(string(chans), ",") + "|" + px;
+            if isempty(obj.OvBand) || obj.OvBand.key ~= key
+                L = find(E.NumBlocks >= px, 1, 'last');
+                if isempty(L); L = 1; end
+                [mn, mx] = E.read(L, 0, E.NumBlocks(L), chans);
+                m = max(1, floor(size(mn, 1) / px));
+                if m > 1
+                    mn = EphysTraceSource.binMinMax(mn, m);
+                    [~, mx] = EphysTraceSource.binMinMax(mx, m);
+                end
+                mid = median((mn + mx) / 2, 1, 'omitnan');
+                mid(~isfinite(mid)) = 0;
+                lo = double(median(mn - mid, 2, 'omitnan'));
+                hi = double(median(mx - mid, 2, 'omitnan'));
+                s = 2.5 * median(hi - lo, 'omitnan');
+                if ~(s > 0); s = max(abs([lo; hi])); end
+                if ~(s > 0); s = 1; end
+                y = min(max(0.5 + [lo, hi] / s, 0.02), 0.98);
+                t = (0:numel(lo) - 1).' * m * E.Blocks(L) / E.Source.Fs;   % each column at its first sample
+                obj.OvBand = struct('key', key, 'x', reshape([t, t].', [], 1), 'y', reshape(y.', [], 1));
+            end
+            set(h, 'XData', obj.OvBand.x, 'YData', obj.OvBand.y, 'Visible', 'on');
+        end
+
+        %% envelope
+        function syncEnvelope(obj)
+            % The envelope of the source shown: kept while the source reads
+            % the same signal (a source made again by Reload data is
+            % rebound to it), else replaced, the old one's build stopped;
+            % with BuildEnvelope, one without a cache file is built.
+            src = obj.Source;
+            if isempty(src) || ~(src.NumSamples > 0)
+                obj.dropEnvelope();
+                return
+            end
+            E = obj.Envelope;
+            keep = ~isempty(E) && isvalid(E) && E.State ~= "stale" ...
+                && ((E.Source == src && E.SourceKey == src.key()) || (E.State ~= "failed" && E.rebind(src)));
+            if ~keep
+                obj.dropEnvelope();
+                if obj.NoEnvelope == src.key(); return; end   % it could not be made: asked once
+                try
+                    E = EphysTraceEnvelope(src);
+                catch ME
+                    obj.NoEnvelope = src.key();
+                    warning('EphysTraceViewer:Envelope', 'No envelope for %s: %s', src.Name, ME.message);
+                    return
+                end
+                obj.NoEnvelope = "";
+                E.ProgressFcn = @(e) envelopeChanged(obj, e, false);
+                E.DoneFcn = @(e) envelopeChanged(obj, e, true);
+                obj.Envelope = E;
+            end
+            if obj.BuildEnvelope && E.State == "missing"
+                E.start();
+            end
+        end
+
+        function dropEnvelope(obj)
+            % Let go of the envelope (its build stops) and what was drawn from it.
+            E = obj.Envelope;
+            obj.Envelope = [];
+            if ~isempty(E) && isvalid(E)
+                delete(E);
+            end
+            obj.OvBand = [];
+            if ~isempty(obj.Env) && endsWith(obj.Env.key, "|envelope")
+                obj.Env = [];
+            end
+        end
+
+        function tf = envelopeInUse(obj)
+            % True when views wider than one full-rate read are drawn from
+            % the envelope: it is built, and the samples are drawn as stored.
+            E = obj.Envelope;
+            tf = ~isempty(E) && isvalid(E) && plainDisplay(obj) && E.isReady();
+        end
+
+        function s = widthNote(obj)
+            % Why the view is no wider, when it is as wide as one full-rate
+            % read allows and the recording is longer (the envelope's own
+            % state is in envelopeNote).
+            s = strings(1, 0);
+            src = obj.Source;
+            if isempty(src) || isempty(obj.Channels); return; end
+            cap = obj.MaxReadSamples / (src.NumChannels * src.Fs);
+            if obj.TWidth < cap * (1 - 1e-9) || obj.TotalDuration <= cap * (1 + 1e-9) || obj.envelopeInUse()
+                return
+            end
+            E = obj.Envelope;
+            if ~plainDisplay(obj)
+                s = sprintf("a view wider than %.3g s needs the display filter off and no reference of the view's own", cap);
+            elseif isempty(E) || ~isvalid(E) || any(E.State == ["missing" "stale"])
+                s = sprintf("views at most %.3g s wide: no envelope", cap);
+            end
         end
     end
 end
@@ -1581,15 +1837,37 @@ end
 
 function w = clampWidth(obj, w)
 % A view no narrower than 20 samples (1 ms without a source), no wider
-% than the recording or than MaxReadSamples lets one draw read.
-dur = obj.TotalDuration;
+% than maxWidth: the recording, or what MaxReadSamples lets one draw read
+% until the envelope is built.
 lo = 1e-3;
-hi = dur;
+hi = obj.maxWidth();
 if ~isempty(obj.Source)
     lo = 20 / obj.Source.Fs;
-    hi = min(dur, obj.MaxReadSamples / (obj.Source.NumChannels * obj.Source.Fs));
 end
 w = min(max(w, min(lo, hi)), hi);
+end
+
+
+function tf = plainDisplay(obj)
+% True when the samples are drawn as the source holds them: no display
+% filter and no reference of the view's own.
+f = obj.Filter;
+tf = obj.Reference == "none" && ~(isstruct(f) && isfield(f, 'type') && f.type ~= "");
+end
+
+
+function envelopeChanged(obj, e, done)
+% The envelope's build went on (DONE: it ended): tell EnvelopeChangedFcn;
+% once it is built, draw again (the overview's signal, wider views).
+if ~isvalid(obj) || isempty(obj.Envelope) || obj.Envelope ~= e
+    return
+end
+if done
+    obj.requestRender();
+end
+if ~isempty(obj.EnvelopeChangedFcn)
+    obj.EnvelopeChangedFcn(obj);
+end
 end
 
 

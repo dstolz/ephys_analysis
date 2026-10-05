@@ -32,7 +32,7 @@ on `pipeline`; `pipeline` does not depend on it. See [Analysis](EphysAnalysis.md
 | [ProbeDesignerApp](ProbeDesignerApp.md) | building a Kilosort4 probe `.json` from probeinterface |
 | [ChannelMapperApp](ChannelMapperApp.md) | mapping probe sites through the package and headstage (NeuroNexus packages, Intan headstages, the `pipeline/hardware` bank) to recording rows; copying the map; exporting the Kilosort4 probe `.json` (`ChannelMap`, `HardwareBank`) |
 | [ManifestViewerApp](ManifestViewerApp.md) | viewing one dataset manifest, with its paths checked on disk |
-| [Visualize](EphysPipelineApp.md#visualize) | `EphysTraceSource` (the recording, the Sorting `.bin` or a derived signal, read a window at a time) and `EphysTraceViewer` (stacked lanes with sorted units and detected spikes over them), behind the app's Visualize tab |
+| [Visualize](EphysPipelineApp.md#visualize) | `EphysTraceSource` (the recording, the Sorting `.bin` or a derived signal, read a window at a time), `EphysTraceEnvelope` (its min / max at several block sizes, cached on disk and built in the background, for views wider than one read) and `EphysTraceViewer` (stacked lanes with sorted units and detected spikes over them), behind the app's Visualize tab |
 | [intan2matlab](intan2matlab.md) | `intan2matlab` / `deriveSignals` / `toMat`: LFP, MUA, SPIKE and digital events |
 | [ChronuxDataset](ChronuxDataset.md) | connector that hands recordings, trials and spike trains to the Chronux toolbox |
 | [FieldTripExport](FieldTripExport.md) | FieldTrip raw / spike / event structures and `exportFieldTrip` |
@@ -354,7 +354,9 @@ read again, a progress callback, a best-effort clean-up) stay quiet.
   the auROC response test).
 - Parallel Computing Toolbox (optional; `Parallel.Enabled` in a pipeline
   config, or `UseParallel=true` on `detectSpikes`, `artifactIntervals` and
-  `analyzeArtifacts`).
+  `analyzeArtifacts`). The Visualize tab's envelope builds
+  (`EphysTraceEnvelope`) need no toolbox: `parfeval` on `backgroundPool`
+  is part of MATLAB.
 - No Report Generator: the analysis module's PDF reports are built with
   `exportgraphics(..., Append=true)` and its HTML reports by hand.
 
@@ -475,7 +477,7 @@ suite's temporary preferences, so close it before the run ends.
 | `test_EphysPipelineApp` | the pipeline app, headless: the config round trip, the Diagram, every tab (Project, Artifacts, Trials, Sorting, Review, Run, Clean up, Visualize), the Help menu, preferences ([details](EphysPipelineApp.md#tests)) |
 | `test_CopySessions` | `findCopySessions` pairing (Intan, Open Ephys, TDT), `stitchCopySessions`, `copySessions` (dry run, size and SHA-256 checks, resume, partial and stopped copies, free space, cancel, background jobs, progress, manifests, quiet time, other batches), the Copy tab, `CopySchedule` (what a run copies and leaves, `runTask`, settings, a real Windows task); copying needs Windows |
 | `test_LocalCleanup` | `planLocalCleanup` / `runLocalCleanup`: raw files go only with a verified source copy, the kinds and pipeline steps, outputs found by their contents, a hand-picked sort kept, delete, move (layout kept, nothing overwritten) and the Recycle Bin, cancel, the clean-up record |
-| `test_EphysTraceViewer` | the Visualize viewer without the app: every source kind reads exactly the rows asked for (the `.bin` scale and its integer min / max, HDF5 windows, `-v7` extracts, recording channels); timing of samples and bins; drawing from memory; spike layers as ticks, recoloured traces and stored waveforms; the wheel, keys and drags; event lines over the traces, a TTL row per line and `jumpToEvent` |
+| `test_EphysTraceViewer` | the Visualize viewer without the app: every source kind reads exactly the rows asked for (the `.bin` scale and its integer min / max, HDF5 windows, `-v7` extracts, recording channels); timing of samples and bins; drawing from memory; spike layers as ticks, recoloured traces and stored waveforms; the wheel, keys and drags; the envelope (every level equal to the full-rate min / max per block, a stale cache rebuilt, builds on a thread, on a timer and cancelled, a whole-recording view without a full-rate read, the overview's signal) |
 | `test_ManifestViewerApp` | the manifest viewer, headless: the Summary checks, opening from a file, a folder or a dataset, the plots, the default probe, Rewrite |
 | `test_ChannelMapper` | the channel mapper: parsing vendor rows, the shipped hardware bank and saving entries, mating (both orientations, GND / REF safety, one-way connectors), the golden chains (H32 + RHD2132 = probeinterface's `H32>RHD2132`; H64LP + RHD2164 = `H64LP_4x16lin_probemap.json`; H16 + the 16-channel RHD2132), two headstages, a dataset's channel numbers, the Kilosort4 export and its sidecar, text output, saved mappings, the site-order templates, and `ChannelMapperApp` headless (selection, orientation, export, mappings, the entry editor, preferences) |
 | `test_SyntheticDataset` | `makeSyntheticProject` / `makeSyntheticRecording`: the written lines, sessions, spikes, aux and artifacts read back; pairing per scenario; the one-file-per-signal and binary layouts; the config through the pipeline; the app's File-menu action and the active dataset across its tabs |

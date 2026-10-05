@@ -2274,6 +2274,19 @@ b = app.Viewer.LastRender.bin;
 check(app.Viewer.Channels == 1 && app.Viewer.Source.Reference == "none" && b > 1 ...
     && x(iPk) <= tSpike / Fs && x(iPk) > (tSpike - b) / Fs && x(end) > (nTot - 2 * b) / Fs, ...
     'the whole recording in min / max bins across the files: the spike in the last file at its bin''s first sample, the last bin at the end');
+waitUntil(@() isempty(app.Viewer.Envelope) || app.Viewer.Envelope.State ~= "building", 120);
+envOv = findall(app.VizOverviewAxes, 'Tag', 'OverviewSignal');
+check(~isempty(app.Viewer.Envelope) && app.Viewer.Envelope.State == "ready" ...
+    && isfile(fullfile(dM3.outputFolder(), dM3.Name + "_envelope_recording.dat")) ...
+    && isscalar(envOv) && strcmp(envOv.Visible, 'on') && ~contains(app.VizStatusLabel.Text, "building the envelope"), ...
+    'the recording''s envelope is built in the background (<Name>_envelope_recording.dat), and the overview strip then draws the signal');
+app.Viewer.MaxReadSamples = numAmp * Fs * 0.002;   % one full-rate read: 2 ms
+app.Viewer.setView(0, nTot / Fs);
+app.Viewer.render();                                % the same view as above: draw it again
+check(abs(app.Viewer.TWidth - nTot / Fs) < 1e-9 && app.Viewer.LastRender.level >= 1 && ~app.Viewer.LastRender.read ...
+    && contains(app.VizStatusLabel.Text, "drawn from the envelope"), ...
+    'a view wider than one full-rate read is drawn from the envelope, and the status line says so');
+app.Viewer.MaxReadSamples = 2^27;
 app.Viewer.setView((tSpike - 5) / Fs, 10 / Fs);
 [x, y] = vizTrace(app.VizAxes);
 [~, iPk] = max(y);
@@ -2390,9 +2403,24 @@ writeJsonFile(fArt, struct('schema', "ephys-artifacts/3", 'dataset', dM3.Name, '
 app.onPlotVisualization();                     % Reload data: finds the run's file
 p = findall(app.VizAxes, 'Type', 'patch', 'Visible', 'on');
 orange = p(arrayfun(@(h) isequal(h.FaceColor, [0.95 0.6 0.1]), p));
-check(isscalar(orange) && abs(min(orange.XData, [], 'all') - 0.01) < 1e-12 ...
-    && contains(app.VizArtStatusLabel.Text, "1 detected by the last run") && contains(app.VizArtStatusLabel.Text, "changed"), ...
-    'with no current preview, the periods the last run detected (<Name>_artifacts.json) are shaded orange, and the tab says so');
+check(isscalar(orange) && abs(min(orange.XData, [], 'all') - 0.01) < 1e-12 && ~app.Config.Artifacts.Enabled ...
+    && contains(app.VizArtStatusLabel.Text, "1 detected by the last run") ...
+    && contains(app.VizArtStatusLabel.Text, "automatic detection is off"), ...
+    'with no current preview, the periods the last run detected (<Name>_artifacts.json) are shaded orange; with detection off the tab says a run erases none');
+app.ArtEnableCheckBox.Value = true;
+app.onArtifactControlsChanged();
+app.updateVizArtStatus();
+check(contains(app.VizArtStatusLabel.Text, "1 detected by the last run, with other settings") ...
+    && contains(app.VizArtStatusLabel.Text, "Detect / Preview"), ...
+    'detection on, the file made with other settings (its fingerprint): the tab says so (EphysPipeline.cachedDetection)');
+writeJsonFile(fArt, struct('schema', "ephys-artifacts/3", 'dataset', dM3.Name, ...
+    'fingerprint', EphysPipeline.artifactFingerprint(EphysPipeline.detectionConfig(app.Config), dM3), ...
+    'intervals', [0.01 0.012], 'nIntervals', 1));
+app.onPlotVisualization();
+check(contains(app.VizArtStatusLabel.Text, "1 detected by the last run, with the current settings"), ...
+    'the file made with the current settings: the tab says the run''s periods are what they detect');
+app.ArtEnableCheckBox.Value = false;
+app.onArtifactControlsChanged();
 delete(fArt);
 app.onPlotVisualization();
 app.Viewer.setView(0.002, 0.004);
@@ -2743,6 +2771,15 @@ for i = 1:size(S, 1)
     end
 end
 nCross = size(unique(at, 'rows'), 1);
+end
+
+
+function waitUntil(cond, timeout)
+% Let callbacks (timers, background futures) run until COND() or TIMEOUT s.
+t = tic;
+while ~cond() && toc(t) < timeout
+    pause(0.05);
+end
 end
 
 

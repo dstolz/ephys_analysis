@@ -28,6 +28,8 @@ written as the strings `"NaN"` / `"Inf"`.
 ├─ <Name>_spikes.mat                    detected / sorted spikes (spikesToMat; the Spikes step)
 ├─ <Name>_behavior.mat                  Epsych2 session data, the only copy (behaviorToMat; the behavior step)
 ├─ <Name>_events.mat                    digital-input events cache (digitalEvents; trial pairing)
+├─ <Name>_envelope_<what>.dat           min / max envelope of one signal for the Visualize tab (EphysTraceEnvelope):
+│                                       <what> recording, recording_car / _cmr, bin, LFP, MUA, SPIKE or AUX
 ├─ <Name>_chronux.mat                   Chronux export (exportChronux; the Export step)
 ├─ <Name>_fieldtrip.mat                 FieldTrip export (exportFieldTrip; the Export step)
 ├─ <Name>_epochs.mat                    event-organized export (exportEpochs; the Export step)
@@ -457,6 +459,55 @@ dataset's `ArtifactConfig`, its reference fields from the config's `Reference`
 section included; the fill fields left out), the channels of the common reference, `ExcludeChannels`
 and the recording files; a cache whose fingerprint differs from the current
 settings (including one written under an earlier schema) is recomputed.
+`EphysPipeline.cachedDetection` compares the same fingerprint without
+detecting (the Visualize tab says whether the last run's periods are those the
+current settings find).
+
+---
+
+## Signal envelope (`<Name>_envelope_<what>.dat`)
+
+Path: `<outputFolder>/<Name>_envelope_<what>.dat`, one file per signal the
+Visualize tab shows: `<what>` is `recording` (as stored), `recording_car` /
+`recording_cmr` (with the dataset's common reference, as every step reads it),
+`bin` (the Sorting `.bin`), or `LFP` / `MUA` / `SPIKE` / `AUX`. A bare `.bin`
+or extract file without a dataset gets `<stem>_envelope_<what>.dat` beside it.
+Written by `EphysTraceEnvelope` (built in the background the first time the tab
+shows the signal); only the Visualize tab reads it, and deleting it costs only
+the time to build it again.
+
+It holds, per channel, the min and max of every block of samples at several
+block sizes ("levels"), so a view of any width is drawn from a few thousand
+blocks. Little-endian throughout:
+
+```text
+bytes 0-7     "EPHYSENV"
+bytes 8-15    uint64 H: the length of the header
+bytes 16..    H bytes of UTF-8 JSON:
+  { "schema": "ephys-envelope/1", "fingerprint": <string>,
+    "source": { "kind", "name", "file", "dataset", "reference", "units" },
+    "fs", "nSamples", "nChannels", "channelNames": [...],
+    "factor": 4, "blocks": [B1, B2, ...], "nBlocks": [n1, n2, ...],
+    "dtype": "single", "layout": <text>, "created": <timestamp> }
+then          level 1 (n1 blocks), level 2 (n2 blocks), ...: per block
+              nChannels float32 minima, then nChannels float32 maxima
+```
+
+Block k (0-based) of a level of B samples holds rows `k*B` to `k*B + B - 1`
+(0-based) of every channel, the last block what is left; the viewer draws it at
+its first sample, `k*B/fs` s. `blocks(1)` is a power of two picked from the
+signal's length and channel count, and each further level is 4 times coarser,
+down to the first of at most 4096 blocks (`EphysTraceEnvelope.blockSizes`).
+The values are those `EphysTraceSource.read` returns (microvolts, volts for
+AUX): the reference, and in the `.bin` the filled artifact periods, are those
+of the full-rate view. `fingerprint` is `jsonencode` of the schema, the
+signal's stamp (`EphysTraceSource.stamp`: the files read with their sizes and
+modified times, rows, channels, rate, the reference and the channels it is
+taken over, the `.bin`'s type / scale / offset) and the block sizes; a file
+whose fingerprint differs, or that is not whole, is never read, and a new one
+is built in its place. A build writes `<file>.<token>.partial` and renames it
+when the last block is in; a partial file an hour old (a build MATLAB left) is
+deleted by the next build of that file.
 
 ---
 

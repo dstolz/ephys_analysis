@@ -27,10 +27,17 @@ function D = read_Intan_RHD2000_file_modified(ffn,options)
 %   - only whole data blocks are read: a truncated last block (a recording
 %     cut short) is ignored, as IntanReader.parseIntanHeader counts them
 %   - the file is closed on every exit path, errors included
+%   - the software notch (files before version 3.0) is IntanReader.notchFilter,
+%     Intan's per-sample loop as one FILTER call over every channel: the
+%     loop's values, to rounding, several times faster. It starts at the
+%     file's first sample, as the loop did; IntanReader filters the files
+%     of a recording as one stream instead, and reads them with
+%     Notch=false to apply it itself
 
 arguments
     ffn (1,1) string {mustBeFile}
     options.Verbosity (1,1) string {mustBeMember(options.Verbosity,["silent","high"])} = "high"
+    options.Notch (1,1) logical = true   % false: amplifier data as stored, without the software notch
 end
 
 if isempty(ffn) || ffn == ""
@@ -413,25 +420,13 @@ if (data_present)
     % If the software notch filter was selected during the recording, apply the
     % same notch filter to amplifier data here.  But don't do this for v3.0+
     % files (from Intan RHX software) because RHX saves notch-filtered data.
-    if (notch_filter_frequency > 0 && data_file_main_version_number < 3)
+    % FILTER works down columns, so the channels are filtered as columns.
+    if (options.Notch && notch_filter_frequency > 0 && data_file_main_version_number < 3)
         if options.Verbosity == "high"
 
             fprintf(1, 'Applying notch filter...\n');
         end
-        print_increment = 10;
-        percent_done = print_increment;
-        for i=1:num_amplifier_channels
-            amplifier_data(i,:) = ...
-                notch_filter(amplifier_data(i,:), sample_rate, notch_filter_frequency, 10);
-            if options.Verbosity == "high"
-
-                fraction_done = 100 * (i / num_amplifier_channels);
-                if (fraction_done >= percent_done)
-                    fprintf(1, '%d%% done...\n', percent_done);
-                    percent_done = percent_done + print_increment;
-                end
-            end
-        end
+        amplifier_data = IntanReader.notchFilter(amplifier_data.', sample_rate, notch_filter_frequency).';
     end
 
 end
@@ -554,53 +549,6 @@ if (n == 1)
     s = '';
 else
     s = 's';
-end
-
-return
-
-
-function out = notch_filter(in, fSample, fNotch, Bandwidth)
-
-% out = notch_filter(in, fSample, fNotch, Bandwidth)
-%
-% Implements a notch filter (e.g., for 50 or 60 Hz) on vector 'in'.
-% fSample = sample rate of data (in Hz or Samples/sec)
-% fNotch = filter notch frequency (in Hz)
-% Bandwidth = notch 3-dB bandwidth (in Hz).  A bandwidth of 10 Hz is
-%   recommended for 50 or 60 Hz notch filters; narrower bandwidths lead to
-%   poor time-domain properties with an extended ringing response to
-%   transient disturbances.
-%
-% Example:  If neural data was sampled at 30 kSamples/sec
-% and you wish to implement a 60 Hz notch filter:
-%
-% out = notch_filter(in, 30000, 60, 10);
-
-tstep = 1/fSample;
-Fc = fNotch*tstep;
-
-L = length(in);
-
-% Calculate IIR filter parameters
-d = exp(-2*pi*(Bandwidth/2)*tstep);
-b = (1 + d*d)*cos(2*pi*Fc);
-a0 = 1;
-a1 = -b;
-a2 = d*d;
-a = (1 + d*d)/2;
-b0 = 1;
-b1 = -2*cos(2*pi*Fc);
-b2 = 1;
-
-out = zeros(size(in));
-out(1) = in(1);
-out(2) = in(2);
-% (If filtering a continuous data stream, change out(1) and out(2) to the
-%  previous final two values of out.)
-
-% Run filter
-for i=3:L
-    out(i) = (a*b2*in(i-2) + a*b1*in(i-1) + a*b0*in(i) - a2*out(i-2) - a1*out(i-1))/a0;
 end
 
 return

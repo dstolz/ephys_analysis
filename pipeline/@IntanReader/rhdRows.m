@@ -7,12 +7,12 @@ function X = rhdRows(obj, name, lo, hi)
 %   they are split by sliceDataBlocks as READ_INTAN_RHD2000_FILE_MODIFIED
 %   splits a whole file, so the rows equal those of a whole-file read.
 %
-%   The exception is a file saved before version 3.0 with the software notch
-%   filter on: READ_INTAN_RHD2000_FILE_MODIFIED filters it from the file's
-%   first sample, so such a file is read whole and the rows taken from it.
+%   The rows are as stored: the software notch of a file saved before
+%   version 3.0 is left to recordingRows, which filters the recording's
+%   files as one stream.
 %
-%   See also IntanReader.readWindowUV, IntanReader.readChunkUV,
-%   IntanReader.sliceDataBlocks.
+%   See also IntanReader.recordingRows, IntanReader.readWindowUV,
+%   IntanReader.readChunkUV, IntanReader.sliceDataBlocks.
 
 hdr = obj.rhdHeader(name);
 ffn = fullfile(obj.Folder, name);
@@ -23,11 +23,6 @@ end
 if lo < 1 || hi > hdr.numAmplifierSamples
     error('IntanReader:rhdRows:OutOfRange', ...
         'Rows %d-%d asked of %s, which holds %d.', lo, hi, name, hdr.numAmplifierSamples);
-end
-if hdr.notchFrequency > 0 && hdr.mainVersion < 3
-    S = read_Intan_RHD2000_file_modified(ffn, Verbosity="silent");
-    X = S.amplifier_data(:, lo:hi).';
-    return
 end
 
 spb = hdr.numSamplesPerDataBlock;

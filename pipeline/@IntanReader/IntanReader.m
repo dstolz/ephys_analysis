@@ -12,6 +12,11 @@ classdef IntanReader < EphysReader
     %   reads (readWindowUV): traditional files are read block by block
     %   (sliceDataBlocks), the split layouts straight from the .dat files.
     %
+    %   Traditional files saved before version 3.0 with the software notch
+    %   on hold unfiltered data; the readers apply Intan's notch
+    %   (notchFilter) as one stream over the recording's files, not file by
+    %   file (recordingRows).
+    %
     %   The recording start (AcqDate) is the time RHX puts in its names
     %   (<prefix>_yyMMdd_HHmmss.rhd; a split recording's folder
     %   <prefix>_yyMMdd_HHmmss), else a modification time less the data it
@@ -21,6 +26,7 @@ classdef IntanReader < EphysReader
 
     properties (Constant)
         Kind = "intan"
+        NotchBandwidth = 10   % Hz: the 3-dB width of Intan's software notch (notchFilter)
     end
 
     properties (Access = private, Transient)
@@ -117,9 +123,10 @@ classdef IntanReader < EphysReader
             %   Rows of the whole recording (every file, in order), all
             %   amplifier channels in header order; a window running past
             %   the end returns the rows there are. Traditional files are
-            %   read from the data blocks the window covers (rhdRows), so a
-            %   window costs its own size, not whole files; split layouts
-            %   read the .dat files (readSplitWindow).
+            %   read from the data blocks the window covers (recordingRows),
+            %   so a window costs its own size, not whole files (plus a
+            %   lead-in of under 2 s with the software notch); split
+            %   layouts read the .dat files (readSplitWindow).
             arguments
                 obj (1,1) IntanReader
                 sampleOffset (1,1) double {mustBeInteger, mustBeNonnegative}
@@ -132,22 +139,90 @@ classdef IntanReader < EphysReader
             if isnan(obj.Fs) || isempty(obj.PerFile)
                 obj.refreshMetadata();
             end
-            counts = [obj.PerFile.numAmplifierSamples];
-            ends = cumsum(counts);
-            nSamp = max(0, min(nSamp, sum(counts) - sampleOffset));
-            X = zeros(nSamp, obj.NumChannels);
-            a = sampleOffset + 1; b = sampleOffset + nSamp;       % recording rows
-            for k = find(counts > 0 & ends >= a & ends - counts < b)
-                lo = max(a, ends(k) - counts(k) + 1); hi = min(b, ends(k));
-                X(lo - a + 1 : hi - a + 1, :) = obj.rhdRows(obj.PerFile(k).name, ...
-                    lo - (ends(k) - counts(k)), hi - (ends(k) - counts(k)));
-            end
+            nSamp = max(0, min(nSamp, sum([obj.PerFile.numAmplifierSamples]) - sampleOffset));
+            X = obj.recordingRows(sampleOffset + 1, sampleOffset + nSamp);
         end
     end
 
     methods (Access = private)
         X = rhdRows(obj, name, lo, hi)
+        X = recordingRows(obj, a, b)
         [ev, names, native] = splitDigitalEvents(obj, nSamp)
+
+        function X = rawRows(obj, a, b)
+            %rawRows  Rows A..B of a traditional recording as stored, in microvolts.
+            %   Every file's rows in order (rhdRows), without the software
+            %   notch; B is no more than the recording holds.
+            counts = [obj.PerFile.numAmplifierSamples];
+            ends = cumsum(counts);
+            in = find(counts > 0 & ends >= a & ends - counts < b);   % the files holding the rows
+            if isscalar(in)                                 % one file: no copy
+                X = obj.rhdRows(obj.PerFile(in).name, a - (ends(in) - counts(in)), b - (ends(in) - counts(in)));
+                return
+            end
+            X = zeros(max(0, b - a + 1), obj.NumChannels);
+            for k = in
+                lo = max(a, ends(k) - counts(k) + 1); hi = min(b, ends(k));
+                X(lo - a + 1 : hi - a + 1, :) = obj.rhdRows(obj.PerFile(k).name, ...
+                    lo - (ends(k) - counts(k)), hi - (ends(k) - counts(k)));
+            end
+        end
+
+        function [hz, first, runFirst] = fileNotch(obj)
+            %fileNotch  Each file's software notch, first row and the first row of its run.
+            %   HZ(k) is the notch READ_INTAN_RHD2000_FILE_MODIFIED applies
+            %   to file k of PerFile (its notchFrequency when it was saved
+            %   before version 3.0, else 0), FIRST(k) its first recording
+            %   row and RUNFIRST(k) the first row of its run: the
+            %   consecutive files with data and the same notch, which the
+            %   notch filters as one stream (recordingRows).
+            counts = [obj.PerFile.numAmplifierSamples];
+            first = cumsum([1, counts(1:end-1)]);
+            hz = zeros(size(counts));
+            for k = 1:numel(counts)
+                hdr = obj.rhdHeader(obj.PerFile(k).name);
+                hz(k) = hdr.notchFrequency * (hdr.mainVersion < 3);
+            end
+            runFirst = first;
+            prev = 0;                                       % the file with data before k
+            for k = find(counts > 0)
+                if prev > 0 && hz(k) == hz(prev)
+                    runFirst(k) = runFirst(prev);
+                end
+                prev = k;
+            end
+        end
+
+        function [hz, zi] = notchEntry(obj, name, keep, prevName, prevState)
+            %notchEntry  The software notch of file NAME and its state where the file starts.
+            %   HZ is the notch the file needs (0: none). ZI is the
+            %   notchFilter state of channels KEEP ([] = all) at the file's
+            %   first row when its run is filtered as one stream: [] where
+            %   the run starts (Intan's start), PREVSTATE when PREVNAME, the
+            %   file read just before, is the run's file before it, else
+            %   the state of the notchLeadIn rows before it (to rounding).
+            %   A file the header parse did not see starts on its own.
+            hdr = obj.rhdHeader(name);
+            hz = hdr.notchFrequency * (hdr.mainVersion < 3);
+            zi = [];
+            if hz == 0; return; end
+            if isnan(obj.Fs) || isempty(obj.PerFile)
+                obj.refreshMetadata();
+            end
+            [~, first, runFirst] = obj.fileNotch();
+            k = find([obj.PerFile.name] == string(name), 1);
+            if isempty(k) || runFirst(k) == first(k); return; end
+            counts = [obj.PerFile.numAmplifierSamples];
+            j = find(counts(1:k-1) > 0, 1, 'last');          % the run's file before it
+            if obj.PerFile(j).name == string(prevName) && ~isempty(prevState)
+                zi = prevState;
+                return
+            end
+            s = max(runFirst(k), first(k) - IntanReader.notchLeadIn(obj.Fs));
+            R = obj.rawRows(s, first(k) - 1);
+            if ~isempty(keep); R = R(:, keep); end
+            [~, zi] = IntanReader.notchFilter(R, obj.Fs, hz);
+        end
 
         function hdr = rhdHeader(obj, name)
             %rhdHeader  parseIntanHeader of the traditional file NAME (cached).
@@ -199,6 +274,17 @@ classdef IntanReader < EphysReader
     methods (Static)
         hdr = parseIntanHeader(ffn)
         S   = sliceDataBlocks(raw, hdr, signals)
+        [Y, zf] = notchFilter(X, Fs, fNotch, zi)
+
+        function n = notchLeadIn(Fs)
+            %notchLeadIn  Samples after which notchFilter has forgotten how it started.
+            %   The notch's poles lie at radius d = exp(-pi*10/FS), so two
+            %   starts' outputs differ by a ringing that falls as d^n: after
+            %   N samples (1.76 s at any FS) to 1e-24 of the states'
+            %   difference, below the filter's own rounding even with the
+            %   ringing's gain of 1/sin(2*pi*50/FS) (~200 at 30 kHz).
+            n = ceil(log(1e-24) / (-pi * IntanReader.NotchBandwidth / Fs));
+        end
 
         function t = nameTime(name)
             %nameTime  The start time RHX puts at the end of a name (NaT if none).

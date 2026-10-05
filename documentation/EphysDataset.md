@@ -628,12 +628,29 @@ result means the chunk held no amplifier data.
 **`X = readWindowUV(sampleOffset, nSamp)`** reads a sample window directly from
 the data file(s) when the reader supports random access
 (`supportsRandomAccess()`: every Intan layout - traditional files block by
-block, across files, except that a file saved before version 3.0 with the
-software notch filter on is read whole - plus binary recordings and Open
-Ephys sessions). It
+block, across files - plus binary recordings and Open Ephys sessions). It
 returns `[nSamp x nChan]` double µV. A short final window returns only the rows
 present. For one-file-per-channel, the result is trimmed to the shortest
 channel read.
+
+**Intan's software notch.** Traditional `.rhd` files saved before version
+3.0 with the software 50 / 60 Hz notch on hold unfiltered data, and Intan's
+reader applies its notch when it reads them. `IntanReader.notchFilter` is
+that notch: Intan's per-sample loop (a second-order IIR, 10 Hz wide, that
+passes the first two samples unchanged) as one `filter` call over every
+channel, equal to the loop to rounding (about 1e-12 of the signal) and
+several times faster. Intan's reader starts it again at every file, which
+leaves a step and a ringing at each file boundary; the readers here filter
+the recording's files as one stream instead, so the files join as if the
+recording were one file (`read_Intan_RHD2000_file_modified` on a file of its
+own still starts at its first sample). The notch forgets its state as
+`exp(-pi*10/Fs)` per sample, so a read that starts further in starts the
+filter `IntanReader.notchLeadIn` samples (1.76 s) before its first row
+rather than at the recording's start: its rows equal the stream's to
+rounding, and a window or chunk reads only its own rows and that lead-in,
+wherever it falls. `readData` carries the filter's final state from each
+file into the next. Where the notch setting changes between files, the
+filter starts again with the file that changes it.
 
 `toBin`, `analyzeArtifacts`, `artifactIntervals`, `detectSpikes` and the GUI's
 Visualize tab all use `streamPlan` + `readChunkUV`, so they behave the same
@@ -2246,8 +2263,14 @@ truncated last block (no file left open), window reads across files,
 the run helpers (`highRuns` / `joinRuns` / `planWindows`), the
 one-file-per-channel digital file names and the warning for a missing one,
 `AcqDate` from RHX names and from modification times (and the Epsych2 session
-it matches), the `streamPlan` chunks, and `readData`'s `KeepChannels` /
-`Precision`.
+it matches), the `streamPlan` chunks, `readData`'s `KeepChannels` /
+`Precision`, and the software notch: `notchFilter` against a copy of Intan's
+per-sample loop (to rounding, the first two samples exactly, the hum
+removed, at least twice as fast), the final state carried into a second
+file against the loop restarted there, the lead-in, and the chunks, windows,
+`readData` (`Files`, `KeepChannels`) and `toBin` of a recording longer than
+the lead-in against the loop run over the whole recording, a notch that
+changes between files included.
 
 [`test_BinaryReader.m`](../pipeline/test_BinaryReader.m) covers
 `readDigitalEvents` from `dig_in_file` alone (named and unnamed lines, a line

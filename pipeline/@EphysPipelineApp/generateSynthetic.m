@@ -19,7 +19,7 @@ function T = generateSynthetic(obj, opts)
 %
 %   See also onSynthGenerate, makeSyntheticRecording.
 arguments
-    obj (1,1) EphysPreprocessingApp
+    obj (1,1) EphysPipelineApp
     opts.Replace (1,1) logical = false
     opts.Scan (1,1) logical = true
     opts.Args cell = {}

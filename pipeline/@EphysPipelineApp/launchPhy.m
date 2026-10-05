@@ -11,7 +11,7 @@ function launchPhy(obj, resultsDir, label)
 %   new window reads after parsing its command line (delayed expansion), so
 %   no character of the path (&, ^, %, spaces) can split the command.
 %
-%   See also EphysPreprocessingApp.onLaunchPhy, EphysPreprocessingApp.onReviewOpenPhy.
+%   See also EphysPipelineApp.onLaunchPhy, EphysPipelineApp.onReviewOpenPhy.
 
 resultsDir = char(resultsDir);
 paramsPy   = fullfile(resultsDir, 'params.py');

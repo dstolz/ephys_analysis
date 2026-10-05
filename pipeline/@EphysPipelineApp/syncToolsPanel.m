@@ -6,7 +6,7 @@ function syncToolsPanel(obj)
 %   params.py), the other buttons whenever there is a dataset. Called when
 %   the active dataset, the ticks, the scope or the table's rows change.
 %
-%   See also EphysPreprocessingApp.onOpenTool.
+%   See also EphysPipelineApp.onOpenTool.
 if isempty(obj.ToolsTargetLabel) || ~isvalid(obj.ToolsTargetLabel); return; end
 idx = obj.toolTargets();
 n = numel(idx);

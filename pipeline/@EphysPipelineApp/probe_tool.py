@@ -1,11 +1,11 @@
-"""probe_tool.py -- probeinterface front-door for EphysPreprocessingApp.
+"""probe_tool.py -- probeinterface front-door for EphysPipelineApp.
 
 Builds Kilosort4 probe .json files (chanMap / xc / yc / kcoords / n_chan / notes)
 from the probeinterface library or from parametric generators. probeinterface is
 used *only* here: the app stores and the sorting pipeline consumes plain KS4 JSON,
 so this script converts a probeinterface Probe into that schema on the way out.
 
-Invoked by @EphysPreprocessingApp/runProbeTool.m through the same env python /
+Invoked by @EphysPipelineApp/runProbeTool.m through the same env python /
 `conda run` mechanism as run_ks4.py. All results are emitted as
 JSON on stdout (list-library, describe) or written to <out.json> (get-library,
 get-contacts, generate); a leading "PROBE_TOOL_ERROR" line + non-zero exit

@@ -10,8 +10,8 @@ current state, and does nothing else to it.
 ## Opening it
 
 From the GUI: **Dataset → View manifest...** opens the manifest of the
-[active dataset](EphysPreprocessingApp.md#which-dataset-does-an-action-act-on)
-([`onViewManifest`](../pipeline/@EphysPreprocessingApp/onViewManifest.m)),
+[active dataset](EphysPipelineApp.md#which-dataset-does-an-action-act-on)
+([`onViewManifest`](../pipeline/@EphysPipelineApp/onViewManifest.m)),
 with the config's default probe (`Probe.DefaultProbeFile`). A dataset with no
 manifest on disk yet gets one written first. The Project tab's **Tools** panel
 (**Manifest viewer**) does the same for the active dataset or for every
@@ -93,5 +93,5 @@ with two manifests and from an `EphysDataset` of a synthetic recording, the
 timeline and probe plots, the tree, a schema `/1` manifest without a probe
 (with and without a default probe), a file that is not JSON, Rewrite, a
 Rewrite that `writeManifest` refuses, and that closing the window deletes the
-viewer. [`test_EphysPreprocessingApp.m`](../pipeline/test_EphysPreprocessingApp.m)
+viewer. [`test_EphysPipelineApp.m`](../pipeline/test_EphysPipelineApp.m)
 opens it from **Dataset → View manifest...**.

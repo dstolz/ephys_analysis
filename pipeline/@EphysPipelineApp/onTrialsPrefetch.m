@@ -47,7 +47,7 @@ for k = 1:n
     try
         E = d.digitalEvents(ProgressFcn=@(i, nFiles, file) progress(dlg, k, n, d.Name, i, nFiles, file));
     catch ME
-        if strcmp(ME.identifier, 'EphysPreprocessingApp:PrefetchCancelled')
+        if strcmp(ME.identifier, 'EphysPipelineApp:PrefetchCancelled')
             nNotDone = n - k + 1;
             break
         end
@@ -120,7 +120,7 @@ function progress(dlg, k, n, name, i, nFiles, file)
 %progress  Report the file being read; stop when Cancel was pressed.
 drawnow
 if dlg.CancelRequested
-    error('EphysPreprocessingApp:PrefetchCancelled', 'Prefetch cancelled.');
+    error('EphysPipelineApp:PrefetchCancelled', 'Prefetch cancelled.');
 end
 dlg.Value = (k - 1 + (i - 1) / max(nFiles, 1)) / n;
 dlg.Message = sprintf("%d of %d: %s" + newline + "Reading %s (file %d of %d)", k, n, name, file, i, nFiles);

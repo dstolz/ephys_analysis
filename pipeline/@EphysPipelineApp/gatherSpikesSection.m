@@ -36,7 +36,7 @@ if t == "" || lower(t) == "nan" || lower(t) == "auto"
 else
     v = str2double(t);
     if isnan(v)
-        error('EphysPreprocessingApp:SpikesNumber', '"%s" is not a number.', t);
+        error('EphysPipelineApp:SpikesNumber', '"%s" is not a number.', t);
     end
 end
 end
@@ -49,7 +49,7 @@ if t == "" || any(lower(t) == ["inf" "infinity" "none"])
 else
     v = str2double(t);
     if isnan(v)
-        error('EphysPreprocessingApp:SpikesNumber', '"%s" is not a number.', t);
+        error('EphysPipelineApp:SpikesNumber', '"%s" is not a number.', t);
     end
 end
 end

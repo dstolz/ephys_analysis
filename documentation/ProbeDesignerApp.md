@@ -17,17 +17,17 @@ consumes only that JSON.
 
 The designer is normally opened from the GUI: **Probe tab → "Design probe from
 probeinterface (library / generate)..."**
-([`EphysPreprocessingApp.onDesignProbe`](../pipeline/@EphysPreprocessingApp/onDesignProbe.m)).
+([`EphysPipelineApp.onDesignProbe`](../pipeline/@EphysPipelineApp/onDesignProbe.m)).
 Programmatically:
 
 ```matlab
-app = EphysPreprocessingApp;
+app = EphysPipelineApp;
 ProbeDesignerApp(app)          % or ProbeDesignerApp(app, nChanHint)
 ```
 
 | Argument | Meaning |
 | --- | --- |
-| `app` | the parent `EphysPreprocessingApp`. The designer uses its `runProbeTool` (Python/conda from the Sorting tab), `ProbeFolderField` / `defaultProbeFolder()` (save location) and `refreshProbeList()` (called after saving) |
+| `app` | the parent `EphysPipelineApp`. The designer uses its `runProbeTool` (Python/conda from the Sorting tab), `ProbeFolderField` / `defaultProbeFolder()` (save location) and `refreshProbeList()` (called after saving) |
 | `nChanHint` | optional. The selected dataset's channel count. It is used only to append a note to the status line when the contact count differs; it does not block anything |
 
 ## Workflow

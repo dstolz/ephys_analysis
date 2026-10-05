@@ -24,7 +24,7 @@ function body = issueReport(obj, kind, opts)
 %   No section is included unless its option is true, so the user can leave
 %   the config (which carries their file paths) out.
 arguments
-    obj (1,1) EphysPreprocessingApp
+    obj (1,1) EphysPipelineApp
     kind (1,1) string {mustBeMember(kind, ["bug", "feature"])}
     opts.Description (1,1) string = ""
     opts.System (1,1) logical = true
@@ -57,7 +57,7 @@ if opts.Logs
 end
 
 L = [L; ""; "---"; ...
-    "_Filed from the EphysPreprocessingApp Help menu on " + ...
+    "_Filed from the EphysPipelineApp Help menu on " + ...
     string(datetime('now', 'Format', 'yyyy-MM-dd HH:mm')) + "._"];
 body = join(L, newline);
 end

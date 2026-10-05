@@ -17,7 +17,7 @@ if mode == "task"
 else
     S = obj.SynthSource;
     if isempty(S)
-        error('EphysPreprocessingApp:SynthNoSource', 'Load the source first.');
+        error('EphysPipelineApp:SynthNoSource', 'Load the source first.');
     end
     if ~isnat(S.acqTime); acq = S.acqTime; end
     args = [args, {'Session', S}];

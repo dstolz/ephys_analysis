@@ -2,7 +2,7 @@ function onTrialsApprove(obj, status)
 %onTrialsApprove  Save the shown pairing in the manifest as approved / unreviewed.
 %   An existing <name>_behavior.mat is rewritten with it (setTrialPairing).
 arguments
-    obj (1,1) EphysPreprocessingApp
+    obj (1,1) EphysPipelineApp
     status (1,1) string {mustBeMember(status, ["approved" "unreviewed"])}
 end
 if obj.refuseWhileRunning("Trial pairing"); return; end

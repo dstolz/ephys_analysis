@@ -1,6 +1,6 @@
-classdef EphysPreprocessingApp < handle
-    %EPHYSPREPROCESSINGAPP  GUI for the config-driven ephys preprocessing pipeline.
-    %   EphysPreprocessingApp edits one EphysPipelineConfig and runs it with
+classdef EphysPipelineApp < handle
+    %EPHYSPIPELINEAPP  GUI for the config-driven ephys preprocessing pipeline.
+    %   EphysPipelineApp edits one EphysPipelineConfig and runs it with
     %   EphysPipeline over an EphysProject. It duplicates none of their logic:
     %   scanning, metadata, reading, artifacts, sorting, derived signals, spike
     %   detection and the exports all happen in EphysDataset / EphysPipeline;
@@ -111,7 +111,7 @@ classdef EphysPreprocessingApp < handle
     %   show it (see selectDataset). Runs, plans and step targets use the
     %   ticked rows instead.
     %
-    %   Preferences (getpref group 'EphysPreprocessingApp') hold only what is
+    %   Preferences (getpref group 'EphysPipelineApp') hold only what is
     %   not part of a config: figure geometry, probe folder, phy command,
     %   Review folder, last / recent config files, script folder, the
     %   datasets-table column order, the Trials-table parameter columns and
@@ -122,8 +122,8 @@ classdef EphysPreprocessingApp < handle
     %   memory, disk and GPU switches.
     %
     %   Usage
-    %     EphysPreprocessingApp;            % launch
-    %     app = EphysPreprocessingApp;      % launch and keep a handle
+    %     EphysPipelineApp;            % launch
+    %     app = EphysPipelineApp;      % launch and keep a handle
     %
     %   See also EPHYSPIPELINECONFIG, EPHYSPIPELINE, EPHYSPROJECT, EPHYSDATASET.
 
@@ -860,13 +860,13 @@ classdef EphysPreprocessingApp < handle
     end
 
     properties (Constant)
-        PrefGroup = 'EphysPreprocessingApp'
+        PrefGroup = 'EphysPipelineApp'
         RepoURL = "https://github.com/dstolz/ephys_analysis"        % the repository the issue items file against
         WikiURL = "https://github.com/dstolz/ephys_analysis/wiki"   % the Help menu's pages
     end
 
     methods
-        function obj = EphysPreprocessingApp()
+        function obj = EphysPipelineApp()
             % Construct, build the UI, restore preferences and the last config.
             obj.buildUI();
             obj.loadPreferences();

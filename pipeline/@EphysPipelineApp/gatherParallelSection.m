@@ -8,7 +8,7 @@ if t == "" || any(lower(t) == ["auto" "nan"])
 else
     v = str2double(t);
     if isnan(v)
-        error('EphysPreprocessingApp:ParallelNumber', 'Max workers "%s" is not a number.', t);
+        error('EphysPipelineApp:ParallelNumber', 'Max workers "%s" is not a number.', t);
     end
     P.MaxWorkers = v;
 end

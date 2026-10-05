@@ -4,7 +4,7 @@ function onGenerateScript(obj, kind)
 %   first (with a prompt). Refused while a text field does not parse
 %   (gatherConfig).
 arguments
-    obj (1,1) EphysPreprocessingApp
+    obj (1,1) EphysPipelineApp
     kind (1,1) string {mustBeMember(kind, ["compact", "standalone"])}
 end
 try

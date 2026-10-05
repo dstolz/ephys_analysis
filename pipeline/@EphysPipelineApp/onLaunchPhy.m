@@ -6,10 +6,10 @@ function onLaunchPhy(obj, idx)
 %   hands it to launchPhy, which checks for params.py and launches phy
 %   detached so the app stays responsive.
 %
-%   See also EphysPreprocessingApp.launchPhy, EphysPreprocessingApp.onRunStep,
-%   EphysPreprocessingApp.onOpenTool, EphysDataset.runKilosort.
+%   See also EphysPipelineApp.launchPhy, EphysPipelineApp.onRunStep,
+%   EphysPipelineApp.onOpenTool, EphysDataset.runKilosort.
 arguments
-    obj (1,1) EphysPreprocessingApp
+    obj (1,1) EphysPipelineApp
     idx (1,:) double = obj.SelectedDatasetIdx
 end
 if isempty(obj.Project) || isempty(idx) || any(idx < 1 | idx > obj.Project.NumDatasets)

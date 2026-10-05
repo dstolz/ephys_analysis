@@ -1,7 +1,7 @@
 function files = wikiToolScreenshots(outFolder, opts)
 %wikiToolScreenshots  Take the wiki's screenshots of the other windows headlessly.
 %   FILES = wikiToolScreenshots(OUTFOLDER, Project=P) takes the shots of
-%   the windows besides EphysPreprocessingApp's tabs, over P, a synthetic
+%   the windows besides EphysPipelineApp's tabs, over P, a synthetic
 %   project wikiScreenshots has run (its Project= folder), and saves each
 %   with exportapp (the example figures: as the analysis run wrote them)
 %   into OUTFOLDER under the name the wiki's images/ folder uses:
@@ -64,10 +64,10 @@ files = strings(1, 0);
 
 restorePrefs = AppPrefs.useTemporary(); %#ok<NASGU> the apps start from no preferences; yours are untouched
 
-% The designer and the mapper open from the preprocessing app (its Python
+% The designer and the mapper open from the pipeline app (its Python
 % runs probeinterface, its probe folder takes what they save).
 if want("probe-designer.png") || want("channel-mapper.png")
-    app = EphysPreprocessingApp;
+    app = EphysPipelineApp;
     closeApp = onCleanup(@() delete(app.Fig));
     if string(app.PythonExeField.Value) == ""
         app.PythonExeField.Value = char(app.defaultPythonExe());

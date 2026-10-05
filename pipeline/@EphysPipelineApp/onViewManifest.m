@@ -12,9 +12,9 @@ function onViewManifest(obj, idx)
 %   still opens: the viewer shows its text and what is wrong with it.
 %
 %   See also ManifestViewerApp, EphysDataset.writeManifest,
-%   EphysPreprocessingApp.onOpenTool.
+%   EphysPipelineApp.onOpenTool.
 arguments
-    obj (1,1) EphysPreprocessingApp
+    obj (1,1) EphysPipelineApp
     idx (1,:) double = obj.SelectedDatasetIdx
 end
 if isempty(obj.Project) || isempty(idx) || any(idx < 1 | idx > obj.Project.NumDatasets)

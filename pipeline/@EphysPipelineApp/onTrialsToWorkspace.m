@@ -11,7 +11,7 @@ function onTrialsToWorkspace(obj, source)
 %   the same name is replaced. An alert and the status bar give the
 %   variable's name.
 arguments
-    obj (1,1) EphysPreprocessingApp
+    obj (1,1) EphysPipelineApp
     source (1,1) string {mustBeMember(source, ["epsych" "behavior"])}
 end
 dlgTitle = "Load into the workspace";

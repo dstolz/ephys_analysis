@@ -1,5 +1,5 @@
-function test_EphysPreprocessingApp()
-%test_EphysPreprocessingApp  Headless checks of the GUI's config model.
+function test_EphysPipelineApp()
+%test_EphysPipelineApp  Headless checks of the GUI's config model.
 %   Builds the app in the current session (uifigure; no display interaction),
 %   opens a config over a synthetic project, and checks: config -> controls ->
 %   config round trip, the unsaved-changes marker, scan + selection ticks,
@@ -12,7 +12,7 @@ function test_EphysPreprocessingApp()
 %   preferences are restored afterwards. Dialogs that would block (uiconfirm)
 %   are never triggered because the config is kept clean before New / Close.
 %
-%   Usage:  test_EphysPreprocessingApp
+%   Usage:  test_EphysPipelineApp
 
 here = fileparts(mfilename('fullpath'));
 addpath(here);
@@ -24,7 +24,7 @@ mkdir(root);
 
 % The app's preferences go to a temporary file for this suite (AppPrefs),
 % which starts empty; the user's own preferences are never read or written.
-g = EphysPreprocessingApp.PrefGroup;
+g = EphysPipelineApp.PrefGroup;
 restorePrefs = AppPrefs.useTemporary(); %#ok<NASGU>
 cleanup = onCleanup(@() removeRoot(root)); %#ok<NASGU>
 
@@ -73,7 +73,7 @@ cfgFile = fullfile(root, 'gui_test.json');
 cfg = cfg.save(cfgFile);
 
 fprintf('\n== 1. build + open ==\n');
-app = EphysPreprocessingApp;
+app = EphysPipelineApp;
 appCleanup = onCleanup(@() closeApp(app));
 check(isvalid(app.Fig) && numel(app.Tabs.Children) == 15 && app.Tabs.Children(1) == app.TabCopy ...
     && app.Tabs.Children(3) == app.TabTrials && app.Tabs.Children(end - 1) == app.TabSynthetic ...
@@ -303,7 +303,7 @@ check(app.SigBlankArtifactsCheckBox.Value && app.ArtApplySignalsCheckBox.Value, 
 fprintf('\n== 1b. Help menu: wiki pages ==\n');
 items = flip(string({app.HelpMenu.Children.Text}));
 check(isequal(items(1:2), ["Help for this tab" "Documentation home"]) && numel(items) == 12 ...
-    && isequal(items(10:12), ["Report an issue on GitHub..." "Request a feature on GitHub..." "About EphysPreprocessingApp"]) ...
+    && isequal(items(10:12), ["Report an issue on GitHub..." "Request a feature on GitHub..." "About EphysPipelineApp"]) ...
     && app.helpURL("") == app.WikiURL && app.helpURL("Quick-Start") == app.WikiURL + "/Quick-Start", ...
     'the Help menu opens the tab''s page, the wiki home, the guides, the two GitHub issue items and About');
 v = ephysVersion();
@@ -331,7 +331,7 @@ feat = app.issueReport("feature", Description="a button that stitches", System=f
 check(contains(feat, "### What would you like to be able to do") && contains(feat, "a button that stitches") ...
     && ~contains(feat, "<details>") && ~contains(feat, "### What happened") ...
     && ~contains(feat, string(proj)), 'a feature request keeps only what is ticked: no system, config or logs');
-app.LastError = MException("EphysPreprocessingApp:test", "synthetic failure");
+app.LastError = MException("EphysPipelineApp:test", "synthetic failure");
 app.LastErrorTime = datetime('now');
 err = app.issueReport("bug", System=false, Config=false);
 check(contains(err, "**Last run error**") && contains(err, "synthetic failure") ...
@@ -2114,7 +2114,7 @@ app.ArtViewScaleDropDown.Value = 'manual';
 app.ArtViewLanesField.Value = 150;
 app.TableSorts.Trials = struct('column', "Onset", 'direction', "descend");
 app.savePreferences();
-app2 = EphysPreprocessingApp;
+app2 = EphysPipelineApp;
 app2Cleanup = onCleanup(@() delete(app2.Fig));
 check(app2.ArtViewContextField.Value == 40 && app2.ArtViewChannelsField.Value == 5 ...
     && ~app2.ArtViewShankColorCheckBox.Value && ~app2.ArtViewShadeButton.Value ...
@@ -2169,7 +2169,7 @@ try
 catch ME
     id = string(ME.identifier);
 end
-check(id == "EphysPreprocessingApp:NoProject", 'before its Scan, a run or plan refuses');
+check(id == "EphysPipelineApp:NoProject", 'before its Scan, a run or plan refuses');
 app.onScan();
 T = app.DatasetsTable.Data;
 check(app.Project.NumDatasets == 2 && isequal(T.Select(T.Name == "recM003_260103_120000"), true) && nnz(T.Select) == 1 ...
@@ -2196,7 +2196,7 @@ try
 catch ME
     id = string(ME.identifier);
 end
-check(id == "EphysPreprocessingApp:OtherProject" && isequal(app.Config.Project.Datasets, "recM003_260103_120000"), ...
+check(id == "EphysPipelineApp:OtherProject" && isequal(app.Config.Project.Datasets, "recM003_260103_120000"), ...
     'with the root edited, a run or plan refuses the datasets scanned under the other root, and the selection is kept');
 app.RootPathField.Value = char(root2);
 app.onConfigChanged();
@@ -2515,12 +2515,12 @@ app.KSRuns = EphysPipeline.sortRun("never", struct('statusFile', fullfile(never,
 app.startKSMonitor();
 tK = app.KSMonitorTimer;
 delete(app.Fig);   % as close all force does
-check(~isvalid(tK) && isempty(app.KSMonitorTimer) && isempty(timerfindall('Name', 'EphysPreprocessingAppMonitor')), ...
+check(~isvalid(tK) && isempty(app.KSMonitorTimer) && isempty(timerfindall('Name', 'EphysPipelineAppMonitor')), ...
     'deleting the figure stops the Kilosort4 monitor (the figure''s DeleteFcn)');
 
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0
-    error('test_EphysPreprocessingApp:Failures', '%d checks failed.', nFail);
+    error('test_EphysPipelineApp:Failures', '%d checks failed.', nFail);
 end
 end
 

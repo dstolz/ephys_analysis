@@ -16,7 +16,7 @@ function renderReviewUnitShank(obj)
 %   drawn instead, the subtitle says so and the status bar says why. With no
 %   unit selected the axes asks for one.
 %
-%   See also EphysPreprocessingApp.renderReviewPlots, EphysDataset.readPhyWaveforms.
+%   See also EphysPipelineApp.renderReviewPlots, EphysDataset.readPhyWaveforms.
 
 ax = obj.ReviewUnitShankAxes;
 cla(ax, 'reset');

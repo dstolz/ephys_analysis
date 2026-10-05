@@ -1,6 +1,6 @@
 function loadPreferences(obj)
 %loadPreferences  Restore app preferences and open the last config.
-%   Preferences (group EphysPreprocessingApp) hold only what is not part of
+%   Preferences (group EphysPipelineApp) hold only what is not part of
 %   a pipeline config: figure geometry, the probe folder, the phy command,
 %   the Review folder, the last / recent config files, the script folder,
 %   the datasets-table column order, the sort of each sortable table

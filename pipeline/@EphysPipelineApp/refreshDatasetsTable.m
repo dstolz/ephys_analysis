@@ -24,7 +24,7 @@ function refreshDatasetsTable(obj, opts)
 %   a dataset without a probe of its own shows the config's default probe
 %   as "default: <name>" (EphysPipeline.probeFor).
 arguments
-    obj (1,1) EphysPreprocessingApp
+    obj (1,1) EphysPipelineApp
     opts.Datasets (1,:) double = []
 end
 if ~isempty(opts.Datasets) && refreshRows(obj, opts.Datasets)

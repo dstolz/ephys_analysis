@@ -6,7 +6,7 @@ function onSynthDesign(obj, action)
 %   when the source has it, else to its trial line; Remove takes the
 %   selected rows (the last row when none is selected).
 arguments
-    obj (1,1) EphysPreprocessingApp
+    obj (1,1) EphysPipelineApp
     action (1,1) string
 end
 [lines, ~, trialLine] = obj.synthSourceLists();
@@ -76,7 +76,7 @@ switch action
         obj.onSynthControlsChanged();
         return
     otherwise
-        error('EphysPreprocessingApp:onSynthDesign', 'Unknown action "%s".', action);
+        error('EphysPipelineApp:onSynthDesign', 'Unknown action "%s".', action);
 end
 obj.applySynthDesign(D);
 obj.onSynthControlsChanged();

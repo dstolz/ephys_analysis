@@ -2,8 +2,8 @@ function [html, summary, model] = overview(cfg, d)
 %overview  The pipeline diagram's overview: how data flows through the steps, as a standalone HTML page.
 %   [HTML, SUMMARY, MODEL] = PipelineDiagram.overview(CFG, D) draws the
 %   pipeline config CFG (an EphysPipelineConfig) for the dataset D (an
-%   EphysDataset, or [] for none). It is the preprocessing app's Diagram
-%   tab, "Data flow" (EphysPreprocessingApp.flowOverviewHTML), and works
+%   EphysDataset, or [] for none). It is the pipeline app's Diagram
+%   tab, "Data flow" (EphysPipelineApp.flowOverviewHTML), and works
 %   without the app.
 %
 %   It draws every pipeline step
@@ -40,7 +40,7 @@ function [html, summary, model] = overview(cfg, d)
 %            the target box)
 %
 %   See also PipelineDiagram.detail, PipelineDiagram.zoomFrame,
-%   EphysPreprocessingApp.flowOverviewHTML.
+%   EphysPipelineApp.flowOverviewHTML.
 
 arguments
     cfg (1,1) EphysPipelineConfig

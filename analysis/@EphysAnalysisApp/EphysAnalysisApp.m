@@ -33,7 +33,7 @@ classdef EphysAnalysisApp < handle
     %     Log        what the runner reported
     %
     %   File menu: New / Open / Open recent / Save / Save As / Generate
-    %   script (compact | standalone) / Open preprocessing app / Close. Help
+    %   script (compact | standalone) / Open pipeline app / Close. Help
     %   menu: the wiki page of the tab shown, the documentation home and the
     %   analysis quick start.
     %
@@ -52,7 +52,7 @@ classdef EphysAnalysisApp < handle
     %     app = EphysAnalysisApp(...);          % keep a handle
     %
     %   See also EphysAnalysisConfig, EphysAnalysisRunner, EphysAnalysisScript,
-    %   EphysPreprocessingApp.
+    %   EphysPipelineApp.
 
     properties
         Fig   matlab.ui.Figure
@@ -226,7 +226,7 @@ classdef EphysAnalysisApp < handle
         addRecentConfig(obj, file)
         refreshRecentMenu(obj)
         onGenerateScript(obj, kind, file)
-        onOpenPreprocessingApp(obj)
+        onOpenPipelineApp(obj)
         openSource(obj, source, opts)
         p = defaultConfigFolder(obj)
 
@@ -257,6 +257,7 @@ classdef EphysAnalysisApp < handle
         onPlotDefaultToggled(obj)
         refreshPreview(obj, opts)
         onPreviewPage(obj, step)
+        rememberAesthetics(obj, id, rules)
         onAutoPreviewToggled(obj)
         autoPreview(obj)
 

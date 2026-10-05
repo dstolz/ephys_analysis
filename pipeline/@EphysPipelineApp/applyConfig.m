@@ -14,7 +14,7 @@ function rejected = applyConfig(obj, cfg, opts)
 %   pushes them when it ends), and a new default probe shows in the
 %   Project table and the Artifacts viewer (as onConfigChanged).
 arguments
-    obj (1,1) EphysPreprocessingApp
+    obj (1,1) EphysPipelineApp
     cfg (1,1) EphysPipelineConfig
     opts.MarkSaved (1,1) logical = false
 end

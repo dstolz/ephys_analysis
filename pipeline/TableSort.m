@@ -26,7 +26,7 @@ classdef TableSort
     %   Apply the order to everything the app keeps by row: styles (addStyle
     %   targets rows of Data) and any map from a row to the app's data.
     %
-    %   See also EphysPreprocessingApp.
+    %   See also EphysPipelineApp.
 
     methods (Static)
         function s = none()

@@ -111,7 +111,7 @@ try
     keep = g >= a & g <= b;             % drop the filter margin
     first = find(keep, 1);
     if isempty(first)
-        error('EphysPreprocessingApp:ArtifactView:Empty', 'No samples around the artifact.');
+        error('EphysPipelineApp:ArtifactView:Empty', 'No samples around the artifact.');
     end
     X = X(keep, :);
     s0 = s0 + first - 1;
@@ -179,7 +179,7 @@ if isempty(c) || c.folder ~= string(d.Folder) || anchor < c.offset ...
     starts = [0, cumsum(ns)];
     i = find(anchor >= starts(1:end-1) & anchor < starts(2:end), 1);
     if isempty(i)
-        error('EphysPreprocessingApp:ArtifactView:OutOfRange', ...
+        error('EphysPipelineApp:ArtifactView:OutOfRange', ...
             'Sample %d is past the end of %s.', anchor, d.Name);
     end
     obj.ArtView.chunk = [];            % let the previous chunk go before reading

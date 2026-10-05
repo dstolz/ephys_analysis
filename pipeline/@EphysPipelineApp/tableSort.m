@@ -9,7 +9,7 @@ function s = tableSort(obj, id)
 %   preference, the next session. Right-click the table to clear it
 %   (clearTableSort).
 arguments
-    obj (1,1) EphysPreprocessingApp
+    obj (1,1) EphysPipelineApp
     id (1,1) string
 end
 s = TableSort.none();

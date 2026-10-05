@@ -17,7 +17,7 @@ function onOptimizeKS4ForProbe(obj, ifMissing)
 %   EphysPipelineConfig.writeKS4Params, EphysPipelineConfig.ks4ProbeDefaults.
 
 arguments
-    obj (1,1) EphysPreprocessingApp
+    obj (1,1) EphysPipelineApp
     ifMissing (1,1) string {mustBeMember(ifMissing, ["ask" "generate" "derive" "cancel"])} = "ask"
 end
 

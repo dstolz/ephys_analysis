@@ -16,7 +16,7 @@ for i = 1:n
     try
         obj.Project.Datasets(i).refreshMetadata();
     catch ME
-        warning('EphysPreprocessingApp:MetaFailed', ...
+        warning('EphysPipelineApp:MetaFailed', ...
             'Metadata failed for %s: %s', obj.Project.Datasets(i).Name, ME.message);
     end
 end

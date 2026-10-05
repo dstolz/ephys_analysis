@@ -10,7 +10,7 @@ elseif obj.PackageId ~= "" && obj.HeadstageId ~= ""
     t = t + " - " + obj.PackageId + " on " + obj.HeadstageId + " (unsaved)";
 end
 if ~isempty(obj.App)
-    t = t + "  [Preprocessing app]";
+    t = t + "  [Pipeline app]";
 end
 obj.Fig.Name = char(t);
 end

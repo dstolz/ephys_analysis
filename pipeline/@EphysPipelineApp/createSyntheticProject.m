@@ -9,9 +9,9 @@ function S = createSyntheticProject(obj, root, opts)
 %   true) and Generator, a struct of further makeSyntheticProject options
 %   (Fs, NumChannels, NumTrials, FileSeconds, Scenarios, Format, ...).
 %
-%   See also makeSyntheticProject, EphysPreprocessingApp.onCreateSyntheticProject.
+%   See also makeSyntheticProject, EphysPipelineApp.onCreateSyntheticProject.
 arguments
-    obj (1,1) EphysPreprocessingApp
+    obj (1,1) EphysPipelineApp
     root (1,1) string
     opts.Preset (1,1) string {mustBeMember(opts.Preset, ["standard" "small"])} = "standard"
     opts.Overwrite (1,1) logical = false

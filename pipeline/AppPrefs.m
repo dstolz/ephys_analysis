@@ -1,6 +1,6 @@
 classdef AppPrefs
     % AppPrefs  Where the apps keep their preferences: MATLAB's, or a file.
-    %   The apps (EphysPreprocessingApp, EphysAnalysisApp, ChannelMapperApp)
+    %   The apps (EphysPipelineApp, EphysAnalysisApp, ChannelMapperApp)
     %   read and write their preferences only through these methods, which
     %   take the same arguments as MATLAB's own:
     %
@@ -23,7 +23,7 @@ classdef AppPrefs
     %   file:
     %
     %     restore = AppPrefs.useTemporary();   % a new, empty file in tempdir
-    %     app = EphysPreprocessingApp;         % starts from no preferences
+    %     app = EphysPipelineApp;         % starts from no preferences
     %     ...
     %     clear restore                        % the file is deleted; the
     %                                          % previous store is back

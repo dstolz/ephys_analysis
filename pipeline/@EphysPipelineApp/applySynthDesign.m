@@ -2,7 +2,7 @@ function applySynthDesign(obj, D)
 %applySynthDesign  Show SyntheticDesign D in the Synthetic tab's tables and background fields.
 %   An empty Event or Parameter shows as "(none)". See gatherSynthDesign.
 arguments
-    obj (1,1) EphysPreprocessingApp
+    obj (1,1) EphysPipelineApp
     D (1,1) SyntheticDesign
 end
 obj.SynthUnitsTable.Data = toCells(D.Units, obj.synthColumns("unit"));

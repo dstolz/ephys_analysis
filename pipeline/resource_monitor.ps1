@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Resource sampler for EphysPreprocessingApp: CPU, memory, disk and GPU use,
+    Resource sampler for EphysPipelineApp: CPU, memory, disk and GPU use,
     sampled outside MATLAB so watching them costs the app almost nothing.
 
 .DESCRIPTION

@@ -6,7 +6,7 @@
 
 ## Why
 
-Processing currently runs wherever the analyst sits: `EphysPreprocessingApp` or
+Processing currently runs wherever the analyst sits: `EphysPipelineApp` or
 `EphysPipeline(cfg).run()` executes in the foreground of an interactive MATLAB
 session. That ties a multi-hour Kilosort4 + signals + export run to one desk,
 one MATLAB seat and one unlocked session, and nothing survives a logoff.
@@ -54,10 +54,10 @@ Almost none of this is new machinery; it is existing conventions wired together.
 | --- | --- |
 | [`EphysPipelineConfig`](EphysPipeline.md#ephyspipelineconfig) — exact JSON round trip, `validate()`, `enabledSteps()` | the job payload *is* a saved config; validation happens before a job is accepted |
 | [`EphysPipeline`](EphysPipeline.md#ephyspipeline) — `ProgressFcn` (`step, dataset, index, count, done, total, message`), `LogFcn`, `cancel()`, `Results`, `plan()` | every hook the runner needs already exists; nothing in `@EphysPipeline` changes |
-| [`runKilosort`](EphysDataset.md#running-kilosort4) + [`pollKSRuns`](../pipeline/@EphysPreprocessingApp/pollKSRuns.m) — detached launch, [`ks4_status.json`](file-formats.md#ks4_statusjson), log tail by byte offset | the status-file and log-offset convention, copied verbatim |
-| [`copySessions`](../pipeline/copySessions.m) + [`copy_engine.ps1`](../pipeline/copy_engine.ps1) + [`pollCopyJob`](../pipeline/@EphysPreprocessingApp/pollCopyJob.m) — job JSON, NDJSON progress, status file, cancel sentinel | the queue's on-disk protocol, and the staging step itself |
+| [`runKilosort`](EphysDataset.md#running-kilosort4) + [`pollKSRuns`](../pipeline/@EphysPipelineApp/pollKSRuns.m) — detached launch, [`ks4_status.json`](file-formats.md#ks4_statusjson), log tail by byte offset | the status-file and log-offset convention, copied verbatim |
+| [`copySessions`](../pipeline/copySessions.m) + [`copy_engine.ps1`](../pipeline/copy_engine.ps1) + [`pollCopyJob`](../pipeline/@EphysPipelineApp/pollCopyJob.m) — job JSON, NDJSON progress, status file, cancel sentinel | the queue's on-disk protocol, and the staging step itself |
 | [`writeJsonFile`](../pipeline/writeJsonFile.m) (atomic temp + rename, `NonFinite="string"`), [`readJsonFile`](../pipeline/readJsonFile.m) | every status and results write |
-| [`runDiagramHTML`](../pipeline/@EphysPreprocessingApp/runDiagramHTML.m) / [`flowChartHTML`](../pipeline/@EphysPreprocessingApp/flowChartHTML.m) — zero-toolchain HTML, data-driven redraw | the dashboard's visual language; the run diagram needs no change to be driven by remote events |
+| [`runDiagramHTML`](../pipeline/@EphysPipelineApp/runDiagramHTML.m) / [`flowChartHTML`](../pipeline/@EphysPipelineApp/flowChartHTML.m) — zero-toolchain HTML, data-driven redraw | the dashboard's visual language; the run diagram needs no change to be driven by remote events |
 | [`makeSyntheticProject`](../pipeline/makeSyntheticProject.m) | end-to-end queue tests with no real data |
 | `matlab -batch` (already how [`run_all_tests`](../pipeline/run_all_tests.m) drives CI) | the runner process |
 | [`CopySchedule`](../pipeline/CopySchedule.m) — JSON settings plus a Windows Task Scheduler task that runs `matlab -batch` unattended, with `RunWhen` `"signed_in"` / `"always"` | the phase-1 worker's task registration, and the precedent for the session-0 question below |
@@ -362,7 +362,7 @@ names, but reading and writing job directories directly on a mounted share.
 
 Deliberately small; the app already has every widget needed.
 
-- `pipeline/@EphysPreprocessingApp/buildRemoteTab.m` — server URL and token, a
+- `pipeline/@EphysPipelineApp/buildRemoteTab.m` — server URL and token, a
   **Test** button, the jobs table, a progress bar, the log box, and **Cancel** /
   **Remove** / **Open dashboard** buttons.
 - `pollRemoteJobs.m` — a timer in the exact shape of `pollKSRuns.m` and
@@ -396,7 +396,7 @@ have both pages read it. A comment in each file points at the other.
 | this page | fill in as each phase lands; drop the status banner when phase 2 ships |
 | [file-formats.md](file-formats.md) | new sections — `job.json`, `status.json`, `progress.ndjson`, mirroring the existing `ks4_status.json` section |
 | [README.md](README.md) | a line in "How the pieces fit" |
-| [EphysPreprocessingApp.md](EphysPreprocessingApp.md) | the Remote tab |
+| [EphysPipelineApp.md](EphysPipelineApp.md) | the Remote tab |
 | [INSTALL.md](../pipeline/INSTALL.md) | new section — installing `ephysd` into the `kilosort` env, `ephysd.toml`, NSSM registration, the firewall rule, the session-0 / CUDA warning, the smoke test |
 | [repo README](../README.md) | a Quick start line for submitting a remote job |
 | `server/README.md` | new — operating the service, tunnels, troubleshooting |

@@ -1,7 +1,7 @@
 function refreshStepPlan(obj, step)
 %refreshStepPlan  Fill a step tab's targets table from the pipeline plan.
 arguments
-    obj (1,1) EphysPreprocessingApp
+    obj (1,1) EphysPipelineApp
     step (1,1) string
 end
 switch step

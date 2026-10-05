@@ -7,6 +7,6 @@ switch string(id)
     case "Cleanup";      tbl = obj.CleanupTable;
     case "ArtSelection"; tbl = obj.ArtSelectionTable;
     otherwise
-        error('EphysPreprocessingApp:UnknownTable', 'No sortable table "%s".', id);
+        error('EphysPipelineApp:UnknownTable', 'No sortable table "%s".', id);
 end
 end

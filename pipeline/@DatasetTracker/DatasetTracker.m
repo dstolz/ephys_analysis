@@ -41,7 +41,7 @@ classdef DatasetTracker < handle
     %   callers); refresh re-scans the tree and refreshes them all. The struct
     %   field schemas are documented on each emptyX template below.
     %
-    %   See also EPHYSDATASET, EPHYSPROJECT, EPHYSPREPROCESSINGAPP.
+    %   See also EPHYSDATASET, EPHYSPROJECT, EPHYSPIPELINEAPP.
 
     properties
         Root      (1,1) string  = ""      % the dataset directory being tracked
@@ -267,7 +267,7 @@ classdef DatasetTracker < handle
             %   Every *.json is parsed once and classified; only those that are
             %   probe maps (chanMap or xc/yc, not a .bin sidecar / KS settings /
             %   status file) are kept. Channel/shank/depth/notes are read like
-            %   EphysPreprocessingApp.refreshProbeList; Problems says why
+            %   EphysPipelineApp.refreshProbeList; Problems says why
             %   Kilosort4 could not read the probe ("" when it can).
             D = obj.findFiles('*.json');
             probes = DatasetTracker.emptyProbes();
@@ -405,7 +405,7 @@ classdef DatasetTracker < handle
         end
 
         %% Shared discovery / parsing helpers ------------------------------
-        %  Public so EphysDataset / EphysProject / EphysPreprocessingApp can
+        %  Public so EphysDataset / EphysProject / EphysPipelineApp can
         %  reuse one implementation of the scans they used to each hand-roll.
         function D = listFiles(root, pattern, recursive)
             %listFiles  Files matching PATTERN under ROOT (recursive or top-level).
@@ -514,7 +514,7 @@ classdef DatasetTracker < handle
         function m = probeMeta(s)
             %probeMeta  Channel/shank/depth/notes/problems from a parsed probe struct.
             %   Single source of truth for probe-map metadata, reused by the
-            %   app's Probe tab (see EphysPreprocessingApp.refreshProbeList).
+            %   app's Probe tab (see EphysPipelineApp.refreshProbeList).
             %   problems is probeMapProblems(s): one line per reason Kilosort4
             %   could not read the probe, empty when it can.
             m = struct('nChan', NaN, 'nShank', NaN, 'depth', NaN, 'notes', "", ...

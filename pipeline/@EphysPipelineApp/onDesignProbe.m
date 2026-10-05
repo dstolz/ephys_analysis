@@ -9,8 +9,8 @@ function onDesignProbe(obj)
 %   Passes the active dataset's channel count (when any) purely as a soft
 %   count-check hint.
 %
-%   See also ProbeDesignerApp, EphysPreprocessingApp.runProbeTool,
-%   EphysPreprocessingApp.refreshProbeList.
+%   See also ProbeDesignerApp, EphysPipelineApp.runProbeTool,
+%   EphysPipelineApp.refreshProbeList.
 
 nChanHint = NaN;
 d = obj.currentDataset();

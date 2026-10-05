@@ -6,7 +6,7 @@ wraps each one as an [`EphysDataset`](EphysDataset.md), and runs batch
 operations over them. It holds shared configuration (probe, Python/conda, output
 root, scale, dtype) and pushes it down into every dataset.
 
-The GUI ([`EphysPreprocessingApp`](EphysPreprocessingApp.md)) builds one on
+The GUI ([`EphysPipelineApp`](EphysPipelineApp.md)) builds one on
 every **Scan**; [`EphysPipeline`](EphysPipeline.md) builds one from a config's
 `Project.Root`. Both then call `refresh()`.
 

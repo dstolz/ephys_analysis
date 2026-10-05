@@ -1,7 +1,7 @@
 function A = gatherAcquisitionSection(obj)
 %gatherAcquisitionSection  Acquisition section (reader options) from the Source settings panel.
 %   The TDT stream "automatic" is ""; a blank gain (or "automatic" / "NaN")
-%   is NaN. Errors (EphysPreprocessingApp:TDTGain) on a gain that is not a
+%   is NaN. Errors (EphysPipelineApp:TDTGain) on a gain that is not a
 %   number; validate() checks that it is positive.
 A = obj.Config.Acquisition;
 A.OpenEphys.Recordings = string(obj.OERecordingsDropDown.Value);
@@ -16,7 +16,7 @@ if t == "" || any(lower(t) == ["automatic" "auto" "nan"])
 else
     v = str2double(t);
     if isnan(v)
-        error('EphysPreprocessingApp:TDTGain', 'TDT gain "%s" is not a number.', t);
+        error('EphysPipelineApp:TDTGain', 'TDT gain "%s" is not a number.', t);
     end
     A.TDT.GainToMicrovolts = v;
 end

@@ -27,23 +27,23 @@ bank).
 ## Opening it
 
 From the GUI: **Probe tab → Map channels...**, or **File → Channel mapper...**
-([`EphysPreprocessingApp.onOpenChannelMapper`](../pipeline/@EphysPreprocessingApp/onOpenChannelMapper.m)).
+([`EphysPipelineApp.onOpenChannelMapper`](../pipeline/@EphysPipelineApp/onOpenChannelMapper.m)).
 It also runs on its own:
 
 ```matlab
 ChannelMapperApp()                           % standalone
-m = ChannelMapperApp(app, Dataset=d);        % from an EphysPreprocessingApp
+m = ChannelMapperApp(app, Dataset=d);        % from an EphysPipelineApp
 ChannelMapperApp(Mapping="H32_A1x32_RHD2132") % open a saved mapping
 ```
 
 | Argument | Meaning |
 | --- | --- |
-| `app` | the parent `EphysPreprocessingApp`, or `[]`. The mapper uses its probe folder (the export starts there, and the probe list refreshes after an export), its project's datasets (recording rows) and its `runProbeTool` (probeinterface). Nothing is written into the config |
+| `app` | the parent `EphysPipelineApp`, or `[]`. The mapper uses its probe folder (the export starts there, and the probe list refreshes after an export), its project's datasets (recording rows) and its `runProbeTool` (probeinterface). Nothing is written into the config |
 | `BankFolder` | the hardware bank. Default: the last one used, else `pipeline/hardware` |
 | `Dataset` | an `EphysDataset`. Its `ChannelNumbers` become the recording rows |
 | `Mapping` | a saved mapping's name, or a mapping or `.chanmap.json` file to open |
 
-The window is not modal: several can be open, next to the preprocessing app.
+The window is not modal: several can be open, next to the pipeline app.
 With no mapping given it reopens the chain it showed when it last closed.
 
 ## Workflow
@@ -184,7 +184,7 @@ its rank among the headstages' channels.
 ## Requirements
 
 - MATLAB only. Python is needed just for the editor's probeinterface import:
-  the Python set on the preprocessing app's Kilosort tab, whose `kilosort` env
+  the Python set on the pipeline app's Kilosort tab, whose `kilosort` env
   from [INSTALL.md](../pipeline/INSTALL.md) has probeinterface.
 - Adaptors (NeuroNexus Adpt-A32-OM32 and the like, between a Samtec package
   and an Omnetics headstage) are not supported yet. The schema keeps a place

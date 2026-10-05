@@ -7,9 +7,9 @@ function onOpenTool(obj, tool)
 %     "folder"    each output folder in the file browser (onOpenOutputFolder)
 %   Opening more than four windows at once is asked about first.
 %
-%   See also EphysPreprocessingApp.toolTargets, EphysPreprocessingApp.syncToolsPanel.
+%   See also EphysPipelineApp.toolTargets, EphysPipelineApp.syncToolsPanel.
 arguments
-    obj (1,1) EphysPreprocessingApp
+    obj (1,1) EphysPipelineApp
     tool (1,1) string {mustBeMember(tool, ["manifest" "analysis" "phy" "folder"])}
 end
 idx = obj.toolTargets();

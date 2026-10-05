@@ -1,5 +1,5 @@
 function url = helpURL(obj, page)
-%helpURL  Address of a page of the GitHub wiki (EphysPreprocessingApp.WikiURL).
+%helpURL  Address of a page of the GitHub wiki (EphysPipelineApp.WikiURL).
 %   URL = helpURL(OBJ, PAGE) appends PAGE (a wiki page name such as
 %   "Quick-Start", optionally with an "#anchor") to the wiki address; "" is
 %   the wiki's Home page. PAGE = "tab" is the page for the selected tab.

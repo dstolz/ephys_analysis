@@ -4,7 +4,7 @@ function highlightDatasetRow(obj, opts)
 %   The style is set on the table, not the data, so every rebuild of the
 %   table (refreshDatasetsTable) marks the row again.
 arguments
-    obj (1,1) EphysPreprocessingApp
+    obj (1,1) EphysPipelineApp
     opts.Scroll (1,1) logical = false   % also scroll the row into view
 end
 t = obj.DatasetsTable;

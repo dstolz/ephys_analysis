@@ -9,7 +9,7 @@ function m = onOpenChannelMapper(obj)
 %
 %   M = obj.onOpenChannelMapper() also returns the mapper.
 %
-%   See also ChannelMapperApp, EphysPreprocessingApp.onDesignProbe.
+%   See also ChannelMapperApp, EphysPipelineApp.onDesignProbe.
 
 d = obj.currentDataset();
 m = ChannelMapperApp(obj, Dataset=d);

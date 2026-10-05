@@ -1,5 +1,5 @@
 function files = wikiScreenshots(outFolder, opts)
-%wikiScreenshots  Take the wiki's EphysPreprocessingApp screenshots headlessly.
+%wikiScreenshots  Take the wiki's EphysPipelineApp screenshots headlessly.
 %   FILES = wikiScreenshots(OUTFOLDER) opens the app on a generated
 %   synthetic project (createSyntheticProject, "standard" preset) at
 %   1240x800, drives it through its own methods and saves each shot with
@@ -75,7 +75,7 @@ function files = wikiScreenshots(outFolder, opts)
 %   killed (kill it if exportapp hangs: it has, now and then). SOURCE must
 %   be a commit that has AppPrefs.
 %
-%   See also wikiToolScreenshots, AppPrefs, EphysPreprocessingApp, exportapp.
+%   See also wikiToolScreenshots, AppPrefs, EphysPipelineApp, exportapp.
 
 arguments
     outFolder (1,1) string
@@ -95,7 +95,7 @@ addpath(src);   % addpath_nogit and the root-level functions
 for d = ["pipeline" "analysis" "vendor" "toolboxes"]
     if isfolder(fullfile(src, d)); addpath_nogit(fullfile(src, d)); end
 end
-fprintf('app: %s\n', which('EphysPreprocessingApp'));
+fprintf('app: %s\n', which('EphysPipelineApp'));
 if ~isfolder(outFolder); mkdir(outFolder); end
 proj = opts.Project;
 if proj == ""
@@ -109,7 +109,7 @@ files = strings(1, 0);
 
 restorePrefs = AppPrefs.useTemporary(); %#ok<NASGU> the app starts from no preferences; yours are untouched
 
-app = EphysPreprocessingApp;
+app = EphysPipelineApp;
 closeApp = onCleanup(@() closeIt(app));
 app.Fig.Position = [40 40 1240 800];
 drawnow;

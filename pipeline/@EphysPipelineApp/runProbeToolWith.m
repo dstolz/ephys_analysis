@@ -1,6 +1,6 @@
 function result = runProbeToolWith(pythonExe, condaEnv, varargin)
 %runProbeToolWith  Run probe_tool.py with a given Python (and conda env) via system().
-%   RESULT = EphysPreprocessingApp.runProbeToolWith(PYTHONEXE, CONDAENV,
+%   RESULT = EphysPipelineApp.runProbeToolWith(PYTHONEXE, CONDAENV,
 %   SUBCMD, ARG1, ...) runs the checked-in probe_tool.py with PYTHONEXE
 %   (through `conda run -n CONDAENV` when CONDAENV is not ""), passing
 %   SUBCMD and the remaining tokens as command-line arguments. It captures
@@ -11,24 +11,24 @@ function result = runProbeToolWith(pythonExe, condaEnv, varargin)
 %   runProbeTool calls this with the Kilosort tab's Python and conda env;
 %   ChannelMapperApp, opened on its own, with the Python the app last used.
 %
-%   See also EphysPreprocessingApp.runProbeTool, ChannelMapperApp.runProbeTool.
+%   See also EphysPipelineApp.runProbeTool, ChannelMapperApp.runProbeTool.
 
 if isempty(varargin)
-    error('EphysPreprocessingApp:runProbeTool:NoSubcommand', ...
+    error('EphysPipelineApp:runProbeTool:NoSubcommand', ...
         'runProbeTool requires a subcommand (e.g. "list-library").');
 end
 pythonExe = strtrim(string(pythonExe));
 condaEnv = strtrim(string(condaEnv));
 if pythonExe == ""
-    error('EphysPreprocessingApp:runProbeTool:NoPython', ...
+    error('EphysPipelineApp:runProbeTool:NoPython', ...
         ['No Python executable configured. Set the Python exe on the ' ...
          'Kilosort tab (the same env used for sorting).']);
 end
 
 script = fullfile(fileparts(mfilename('fullpath')), 'probe_tool.py');
 if ~isfile(script)
-    error('EphysPreprocessingApp:runProbeTool:ScriptMissing', ...
-        'probe_tool.py not found next to EphysPreprocessingApp: %s', script);
+    error('EphysPipelineApp:runProbeTool:ScriptMissing', ...
+        'probe_tool.py not found next to EphysPipelineApp: %s', script);
 end
 
 % Double-quote every token; keep native paths (cmd/python handle them as-is),
@@ -45,7 +45,7 @@ end
 raw = string(out);
 
 if status ~= 0 || contains(raw, "PROBE_TOOL_ERROR")
-    error('EphysPreprocessingApp:runProbeTool:Failed', ...
+    error('EphysPipelineApp:runProbeTool:Failed', ...
         'probe_tool.py %s failed (status %d):\n%s', tokens(1), status, strtrim(raw));
 end
 

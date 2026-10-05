@@ -21,21 +21,21 @@ function result = runProbeTool(obj, varargin)
 %   assembled by the static runProbeToolWith, which ChannelMapperApp also
 %   uses when it runs on its own.
 %
-%   See also EphysPreprocessingApp.runProbeToolWith, EphysPreprocessingApp.onDesignProbe,
+%   See also EphysPipelineApp.runProbeToolWith, EphysPipelineApp.onDesignProbe,
 %   ProbeDesignerApp, ChannelMapperApp, EphysDataset.runKilosort.
 
 if isempty(varargin)
-    error('EphysPreprocessingApp:runProbeTool:NoSubcommand', ...
+    error('EphysPipelineApp:runProbeTool:NoSubcommand', ...
         'runProbeTool requires a subcommand (e.g. "list-library").');
 end
 
 pythonExe = strtrim(string(obj.PythonExeField.Value));
 condaEnv  = strtrim(string(obj.CondaEnvField.Value));
 if pythonExe == ""
-    error('EphysPreprocessingApp:runProbeTool:NoPython', ...
+    error('EphysPipelineApp:runProbeTool:NoPython', ...
         ['No Python executable configured. Set the Python exe on the ' ...
          'Kilosort tab (the same env used for sorting).']);
 end
 
-result = EphysPreprocessingApp.runProbeToolWith(pythonExe, condaEnv, varargin{:});
+result = EphysPipelineApp.runProbeToolWith(pythonExe, condaEnv, varargin{:});
 end

@@ -31,7 +31,7 @@ obj.stopTimers();
 try
     obj.savePreferences();
 catch ME
-    warning('EphysPreprocessingApp:SavePrefsFailed', 'Could not save preferences: %s', ME.message);
+    warning('EphysPipelineApp:SavePrefsFailed', 'Could not save preferences: %s', ME.message);
 end
 delete(obj.Fig);
 end

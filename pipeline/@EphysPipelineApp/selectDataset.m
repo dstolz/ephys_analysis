@@ -22,7 +22,7 @@ function selectDataset(obj, idx, opts)
 %   not be scrolled to) and Reset (the datasets were rebuilt by a scan:
 %   reset those views even when IDX is unchanged).
 arguments
-    obj (1,1) EphysPreprocessingApp
+    obj (1,1) EphysPipelineApp
     idx (1,1) double
     opts.FromTable (1,1) logical = false
     opts.Reset (1,1) logical = false

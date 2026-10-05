@@ -5,7 +5,7 @@ function clearTableSort(obj, id)
 %   largest first (Clean up), the chosen method's statistic, highest first
 %   (the Artifacts tab's per-channel Selection table).
 arguments
-    obj (1,1) EphysPreprocessingApp
+    obj (1,1) EphysPipelineApp
     id (1,1) string
 end
 if isfield(obj.TableSorts, id)

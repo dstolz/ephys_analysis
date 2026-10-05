@@ -4,7 +4,7 @@ function onSynthControlsChanged(obj, what)
 %   drops the loaded schedule, which was built from them; the next Preview
 %   reads it again.
 arguments
-    obj (1,1) EphysPreprocessingApp
+    obj (1,1) EphysPipelineApp
     what (1,1) string = ""
 end
 if what == "schedule" && obj.SynthSourceDropDown.Value == "session"

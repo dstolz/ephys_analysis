@@ -11,7 +11,7 @@ function syncSourcePanel(obj)
 %   Called when the active dataset changes and when the table is rebuilt
 %   (a scan, Refresh metadata).
 %
-%   See also EphysPreprocessingApp.onAcquisitionChanged, TDTReader,
+%   See also EphysPipelineApp.onAcquisitionChanged, TDTReader,
 %   OpenEphysReader.
 if isempty(obj.SourcePanel) || ~isvalid(obj.SourcePanel); return; end
 d = obj.currentDataset();

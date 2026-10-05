@@ -12,9 +12,9 @@ function a = onOpenAnalysisApp(obj, idx)
 %   The analysis app lives in the repository's analysis folder, which the
 %   pipeline never depends on: without it on the path this only says so.
 %
-%   See also EphysAnalysisApp, EphysPreprocessingApp.onOpenTool.
+%   See also EphysAnalysisApp, EphysPipelineApp.onOpenTool.
 arguments
-    obj (1,1) EphysPreprocessingApp
+    obj (1,1) EphysPipelineApp
     idx (1,:) double = zeros(1, 0)
 end
 a = [];

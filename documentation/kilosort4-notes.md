@@ -94,7 +94,7 @@ end
   [`<probe>.ks4.json`](file-formats.md#kilosort4-probe-parameters-probeks4json).
   **Optimize for probe** then loads it like the other parameters. It is not
   one of the `KS4ProbeParams` that `ks4ProbeDefaults` derives from the layout
-  ([Optimize for probe](EphysPreprocessingApp.md#optimize-for-probe)).
+  ([Optimize for probe](EphysPipelineApp.md#optimize-for-probe)).
 
 ## `shank_spacing`
 

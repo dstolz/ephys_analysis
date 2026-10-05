@@ -5,7 +5,7 @@ function idx = toolTargets(obj)
 %   none is ticked, as a run takes them (selectedDatasetIndices). Empty
 %   before a scan.
 %
-%   See also EphysPreprocessingApp.onOpenTool, EphysPreprocessingApp.syncToolsPanel.
+%   See also EphysPipelineApp.onOpenTool, EphysPipelineApp.syncToolsPanel.
 idx = zeros(1, 0);
 if isempty(obj.Project) || obj.Project.NumDatasets == 0; return; end
 if obj.ToolsScopeDropDown.Value == "ticked"

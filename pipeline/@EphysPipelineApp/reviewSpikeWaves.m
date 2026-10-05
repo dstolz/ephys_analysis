@@ -6,7 +6,7 @@ function C = reviewSpikeWaves(obj, chans)
 %   tried again). The count is the Review tab's spike spinner, so the shank
 %   plot and the waveform insets on the timing plots draw the same spikes.
 %
-%   See also EphysPreprocessingApp.renderReviewUnitShank, EphysPreprocessingApp.renderReviewPlots.
+%   See also EphysPipelineApp.renderReviewUnitShank, EphysPipelineApp.renderReviewPlots.
 
 R = obj.ReviewData;
 u = obj.ReviewSelectedUnit;

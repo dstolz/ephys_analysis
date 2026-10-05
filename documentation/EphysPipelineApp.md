@@ -1,6 +1,6 @@
-# EphysPreprocessingApp
+# EphysPipelineApp
 
-`EphysPreprocessingApp` ([source](../pipeline/@EphysPreprocessingApp/EphysPreprocessingApp.m)) is
+`EphysPipelineApp` ([source](../pipeline/@EphysPipelineApp/EphysPipelineApp.m)) is
 a programmatic `uifigure` GUI (a `handle` class, not an App Designer `.mlapp`)
 for the preprocessing pipeline. It edits **one pipeline config**
 ([`EphysPipelineConfig`](EphysPipeline.md)) and runs it with
@@ -37,8 +37,8 @@ Installation (MATLAB, conda environments, GPU) is covered in
 ## Launching
 
 ```matlab
-EphysPreprocessingApp            % open the window
-app = EphysPreprocessingApp;     % open and keep a handle (app.Config, app.Project, ...)
+EphysPipelineApp            % open the window
+app = EphysPipelineApp;     % open and keep a handle (app.Config, app.Project, ...)
 ```
 
 The constructor builds the UI, restores preferences, opens the last config
@@ -68,7 +68,7 @@ background monitor and saves preferences.
     [repository](https://github.com/dstolz/ephys_analysis/issues) instead:
     **Report an issue on GitHub...** and **Request a feature on GitHub...**
     (see [Reporting an issue](#reporting-an-issue)). The very last,
-    **About EphysPreprocessingApp**, shows the version and git commit of the
+    **About EphysPipelineApp**, shows the version and git commit of the
     code, the repository folder and the MATLAB release; **Copy** puts them
     on the clipboard.
 - **Title**: the config name and file; `*` in front while the config has
@@ -102,14 +102,14 @@ the title marks it unsaved. A config the controls cannot show at all is
 refused, and the one shown before stays (at startup: the defaults). A config
 for another project root drops the scanned project, whose ticks do not become
 the config's selection: **Run** and **Plan** then need a **Scan** of the
-config's root (`EphysPreprocessingApp:NoProject` /
-`EphysPreprocessingApp:OtherProject`).
+config's root (`EphysPipelineApp:NoProject` /
+`EphysPipelineApp:OtherProject`).
 
 Text fields that hold channel lists and notch frequencies are kept as typed;
 they are parsed when a run starts, and a run reports the first field it
 cannot parse. The Kilosort4 parameter fields are parsed on every edit: while
 one does not parse, the working config keeps its last good values, the status
-bar says why (`EphysPreprocessingApp:SortingNumber`), and **Run**, **Save**,
+bar says why (`EphysPipelineApp:SortingNumber`), and **Run**, **Save**,
 **Save as**, **Export copy**, **Validate** and **Generate script** refuse.
 
 While a run is under way, config edits are not pushed onto the datasets it is
@@ -1815,7 +1815,7 @@ the plan row, trials and the flag colours through the trial number.
 
 ## Preferences
 
-Stored under the group `'EphysPreprocessingApp'` through [`AppPrefs`](../pipeline/AppPrefs.m), which keeps
+Stored under the group `'EphysPipelineApp'` through [`AppPrefs`](../pipeline/AppPrefs.m), which keeps
 them as MATLAB preferences unless the environment variable `EPHYS_APP_PREFS_FILE` names a file (the test
 suites and screenshot scripts use a temporary one, so they never change yours). Only what is **not** part
 of a config lives here:
@@ -1839,7 +1839,7 @@ of a config lives here:
 | `QueueSortingRuns` | the Run tab's **Queue the waiting runs; the Run goes on** switch |
 | `CleanupOptions` | the Clean up tab's kinds of file and steps to remove, **Removed files go** and its folder, and **Show the files that remain** |
 
-To reset: `AppPrefs.rmpref('EphysPreprocessingApp')` with the app closed. Older
+To reset: `AppPrefs.rmpref('EphysPipelineApp')` with the app closed. Older
 preference groups are not read. The [scheduled copy](#scheduled-copy) is not a
 preference: its settings live in its own file, which its Windows task reads.
 
@@ -1870,7 +1870,7 @@ whose source still holds them. The source tree is only read.
 ## Scripting against a running app
 
 ```matlab
-app = EphysPreprocessingApp;
+app = EphysPipelineApp;
 % ... scan in the GUI ...
 cfg = app.Config;                 % the working EphysPipelineConfig
 P   = app.Project;                % EphysProject
@@ -1885,7 +1885,7 @@ app.KSQueue                       % prepared runs waiting for a slot (Queue the 
 
 | File | Role |
 | --- | --- |
-| `EphysPreprocessingApp.m` | properties, constructor, method declarations |
+| `EphysPipelineApp.m` | properties, constructor, method declarations |
 | `buildUI.m`, `buildMenus.m`, `build*Tab.m` | UI construction |
 | `gatherConfig.m`, `applyConfig.m`, `gather*/apply*Section.m`, `gather/applyConvertConfig.m`, `gather/applySortingSection.m`, `setControlValue.m`, `numberText.m`, `onConfigChanged.m`, `syncStepEnableStates.m`, `updateTitle.m` | config model (`setControlValue`: a config value into a control, noting one it cannot show; `numberText`: a number as the shortest text that reads back the same) |
 | `onNewConfig.m`, `onOpenConfig.m`, `openConfigFile.m`, `onSaveConfig.m`, `onSaveConfigAs.m`, `onExportConfigCopy.m`, `onGenerateScript.m`, `onCreateSyntheticProject.m`, `createSyntheticProject.m`, `onOpenAnalysisApp.m`, `confirmDiscard.m`, `addRecentConfig.m`, `refreshRecentMenu.m` | File menu |
@@ -1919,7 +1919,7 @@ app.KSQueue                       % prepared runs waiting for a slot (Queue the 
 
 ## Tests
 
-[`test_EphysPreprocessingApp.m`](../pipeline/test_EphysPreprocessingApp.m) builds
+[`test_EphysPipelineApp.m`](../pipeline/test_EphysPipelineApp.m) builds
 the app headlessly over a synthetic project: config → controls → config round
 trip, the unsaved marker, the Diagram of the loaded config and its refresh on edits, that every box in a
 chart of all the steps points at controls that exist and that clicking one opens its tab and marks

@@ -6,7 +6,7 @@ function onTableSorted(obj, id, evt)
 %   it fills the table again (tableSort). An edit is not a sort and changes
 %   nothing.
 arguments
-    obj (1,1) EphysPreprocessingApp
+    obj (1,1) EphysPipelineApp
     id (1,1) string
     evt
 end

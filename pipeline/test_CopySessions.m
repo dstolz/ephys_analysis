@@ -745,7 +745,7 @@ classdef test_CopySessions < matlab.unittest.TestCase
         function appFindPreviewCopy(tc)
             % The Copy tab end to end: find, ambiguous rows refuse a tick,
             % dry run writes nothing, copy writes the ticked session.
-            g = EphysPreprocessingApp.PrefGroup;
+            g = EphysPipelineApp.PrefGroup;
             tc.applyFixture(AppPrefsFixture);   % preferences in a temporary file, never the user's
 
             tc.addPair("260916T110742", "260916_110907");
@@ -754,7 +754,7 @@ classdef test_CopySessions < matlab.unittest.TestCase
             tc.addEpsych(tc.Subj, "260916T150100");
             tc.addEpsych(tc.Subj, "260916T170000");       % ePsych only
 
-            app = EphysPreprocessingApp;
+            app = EphysPipelineApp;
             tc.addTeardown(@() delete(app.Fig));
             tc.verifyEqual(app.Tabs.SelectedTab, app.TabProject);
             app.selectTab(app.TabCopy);
@@ -812,7 +812,7 @@ classdef test_CopySessions < matlab.unittest.TestCase
 
         function appStitchAndUnstitch(tc)
             % Select an Intan row and an ePsych-only row, Stitch, then Unstitch.
-            g = EphysPreprocessingApp.PrefGroup;
+            g = EphysPipelineApp.PrefGroup;
             tc.applyFixture(AppPrefsFixture);   % preferences in a temporary file, never the user's
 
             tc.addPair("260916T110742", "260916_110907");
@@ -820,7 +820,7 @@ classdef test_CopySessions < matlab.unittest.TestCase
             tc.addSession("260916T114000", 2);
             tc.addEpsych(tc.Subj, "260916T170000");
 
-            app = EphysPreprocessingApp;
+            app = EphysPipelineApp;
             tc.addTeardown(@() delete(app.Fig));
             app.selectTab(app.TabCopy);
             app.CopySubjectField.Value = char(tc.Subj);
@@ -857,10 +857,10 @@ classdef test_CopySessions < matlab.unittest.TestCase
             % The root and destination boxes list the folders entered in
             % them, newest first, each once, at most 10; Forget removes
             % entries and leaves the box as it is; the lists are preferences.
-            g = EphysPreprocessingApp.PrefGroup;
+            g = EphysPipelineApp.PrefGroup;
             tc.applyFixture(AppPrefsFixture);   % preferences in a temporary file, never the user's
 
-            app = EphysPreprocessingApp;
+            app = EphysPipelineApp;
             tc.addTeardown(@() delete(app.Fig(isvalid(app.Fig))));
             f = app.CopyDestRootField;
             f.Items = {};
@@ -898,7 +898,7 @@ classdef test_CopySessions < matlab.unittest.TestCase
             app.CopyEpsychRootField.Value = 'S:/epsych';
             app.savePreferences();
             delete(app.Fig);
-            app = EphysPreprocessingApp;
+            app = EphysPipelineApp;
             tc.addTeardown(@() delete(app.Fig(isvalid(app.Fig))));
             tc.verifyEqual(string(app.CopyDestRootField.Items), "E:/" + string([11:-1:6, 4 3]));
             tc.verifyEqual(string(app.CopyDestRootField.Value), "E:/12");
@@ -1582,10 +1582,10 @@ classdef test_CopySessions < matlab.unittest.TestCase
             % The Copy tab's Scheduled copy panel: Save with the tab's roots
             % and the Subject ID, the status line, Remove.
             tc.assumeTrue(ispc, "Task Scheduler needs Windows");
-            g = EphysPreprocessingApp.PrefGroup;
+            g = EphysPipelineApp.PrefGroup;
             tc.applyFixture(AppPrefsFixture);   % preferences in a temporary file, never the user's
 
-            app = EphysPreprocessingApp;
+            app = EphysPipelineApp;
             tc.addTeardown(@() delete(app.Fig));
             sch = tc.testSchedule("app");
             app.CopyScheduler = sch;

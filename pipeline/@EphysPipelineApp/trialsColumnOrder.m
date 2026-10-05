@@ -8,7 +8,7 @@ function order = trialsColumnOrder(obj, shown)
 %   right after the column they followed, so the order holds across
 %   datasets.
 arguments
-    obj (1,1) EphysPreprocessingApp
+    obj (1,1) EphysPipelineApp
     shown (1,:) string = draggedOrder(obj.TrialsTable)
 end
 order = shown;

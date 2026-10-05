@@ -8,7 +8,7 @@ Three classes make a preprocessing run reproducible outside the GUI:
 | [`EphysPipeline`](../pipeline/@EphysPipeline/EphysPipeline.m) | handle | runs a config over an [`EphysProject`](EphysProject.md): plan, validate, run, cancel, progress, results |
 | [`EphysPipelineScript`](../pipeline/@EphysPipelineScript/EphysPipelineScript.m) | static | writes MATLAB scripts that reproduce a config's run, with or without the two classes above |
 
-The GUI ([`EphysPreprocessingApp`](EphysPreprocessingApp.md)) edits one config
+The GUI ([`EphysPipelineApp`](EphysPipelineApp.md)) edits one config
 and runs it through the same `EphysPipeline`, so a run from the app, from a
 saved config, or from a generated script does the same thing.
 
@@ -136,7 +136,7 @@ warnings.
 | `ks4Settings(S)` | the Kilosort4 settings struct (blank / `Inf` fields omitted, `KS4ExtraJSON` merged last) |
 | `[S, report] = ks4ForProbe(S, probeFile)` | `S` with the Kilosort4 parameters listed in the probe's parameter file ([`<probe>.ks4.json`](file-formats.md#kilosort4-probe-parameters-probeks4json)) set; the others and `KS4ExtraJSON` kept. `report`: `File`, `Description`, `Changes` (a table with one row per parameter: old, new, changed, the file's reason) and `Notes` (extra-JSON overrides). Errors `EphysPipelineConfig:NoProbeParams`, `:BadParams`, `:BadValue` |
 | `file = writeKS4Params(probeFile, values, Description=, Reasons=, Overwrite=)` | writes a struct of typed Kilosort4 parameters as the probe's parameter file. Errors `EphysPipelineConfig:ParamsExist`, `:BadParams` |
-| `[values, report] = ks4ProbeDefaults(probe, ExcludeChannels=)` | good defaults for `KS4ProbeParams` derived from a probe `.json` file or struct ([rules](EphysPreprocessingApp.md#optimize-for-probe)). `report`: `Probe`, `Summary`, `Geometry` (sites, shanks, row / lateral / nearest-contact spacing, width, span), `Reasons` (per parameter) and `Notes`. Errors `EphysPipelineConfig:BadProbe`, `:ProbeEmpty` |
+| `[values, report] = ks4ProbeDefaults(probe, ExcludeChannels=)` | good defaults for `KS4ProbeParams` derived from a probe `.json` file or struct ([rules](EphysPipelineApp.md#optimize-for-probe)). `report`: `Probe`, `Summary`, `Geometry` (sites, shanks, row / lateral / nearest-contact spacing, width, span), `Reasons` (per parameter) and `Notes`. Errors `EphysPipelineConfig:BadProbe`, `:ProbeEmpty` |
 | `ks4ParamsFile(probeFile)` | the probe's parameter file path, `<folder>/<probe>.ks4.json` |
 | `ks4ParamText`, `ks4ParamFromText`, `kilosortParamSpec` | the typed Kilosort4 parameter spec and its text form (used by the GUI); `ks4ParamText` writes each number in the shortest form that reads back as the same double, so a value round-trips exactly |
 | `validateSuffix(s)` | rejects `\ / : * ? " < > \|` |
@@ -581,7 +581,7 @@ needed to read it.
 | --- | --- |
 | `[trials, info, meta] = readEpsychSession(file)` | `trials = struct2table(Data)` (values as saved; response codes stay raw bit masks), `info = Info`, `meta` (`file`, `subject`, `startTime`, `nTrials`, `formatVersion`, `responseCodeField`, `parameterNames`, ...). `readEpsychSession:NotEpsych` when `Data` / `Info` are missing |
 | `meta = epsychSessionMeta(file)` | the cheap summary (only `Info` is read) |
-| `[Data, Info] = stitchEpsychSessions(files, OutFile=)` | several sessions of one subject joined into one, always in chronological order (by `Info.StartTime`, else the first trial's `computerTimestamp`). `Data` gains `StitchPart` (session number) and `StitchPartTrial` (row in that session); `TrialIndex` is renumbered `1..N`; a parameter some sessions lack is `[]`. `Info` is the earliest session's plus `Info.Stitch.Parts` (`File`, `Name`, `Bytes`, `StartTime`, `NTrials`, each session's own `Info`). `OutFile` also saves `Data` and `Info` (`-v7`). Refuses overlapping sessions, different subjects and already stitched files. The Copy tab uses it for [stitched sessions](EphysPreprocessingApp.md#stitching-epsych-files) |
+| `[Data, Info] = stitchEpsychSessions(files, OutFile=)` | several sessions of one subject joined into one, always in chronological order (by `Info.StartTime`, else the first trial's `computerTimestamp`). `Data` gains `StitchPart` (session number) and `StitchPartTrial` (row in that session); `TrialIndex` is renumbered `1..N`; a parameter some sessions lack is `[]`. `Info` is the earliest session's plus `Info.Stitch.Parts` (`File`, `Name`, `Bytes`, `StartTime`, `NTrials`, each session's own `Info`). `OutFile` also saves `Data` and `Info` (`-v7`). Refuses overlapping sessions, different subjects and already stitched files. The Copy tab uses it for [stitched sessions](EphysPipelineApp.md#stitching-epsych-files) |
 | `T = findEpsychSessions(dirs, Recursive=true)` | table `File`, `Stem`, `Subject`, `StartTime`, `NTrials`, `FormatVersion`, sorted by start time |
 | `match = matchEpsychSession(T, ds, Match=, MaxStartOffsetMin=)` | `"prefix"`: the recording folder name or one of its files starts with the session file stem (how Epsych2 names Intan RHX recordings; the longest stem wins, ties are ambiguous); `"time"`: nearest `StartTime` to the recording's `AcqDate` within the tolerance; `"prefix-then-time"` (default). `match` has `file`, `method`, `candidates`, `ambiguous`, `reason` |
 

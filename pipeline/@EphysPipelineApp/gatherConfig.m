@@ -15,7 +15,7 @@ cfg.Behavior  = obj.gatherBehaviorSection();
 cfg.Artifacts = obj.gatherArtifactsSection();
 [cfg.Sorting, msg] = obj.gatherSortingSection();
 if msg ~= ""
-    error('EphysPreprocessingApp:SortingNumber', '%s', msg);
+    error('EphysPipelineApp:SortingNumber', '%s', msg);
 end
 cfg.Signals   = obj.gatherConvertConfig();
 cfg.Spikes    = obj.gatherSpikesSection();

@@ -3,7 +3,7 @@ function onSelectDatasets(obj, mode)
 %   "all" and "invert" act on the rows shown under the token filters;
 %   "none" also clears the ticks on filtered-out rows.
 arguments
-    obj (1,1) EphysPreprocessingApp
+    obj (1,1) EphysPipelineApp
     mode (1,1) string {mustBeMember(mode, ["all", "none", "invert"])}
 end
 T = obj.DatasetsTable.Data;

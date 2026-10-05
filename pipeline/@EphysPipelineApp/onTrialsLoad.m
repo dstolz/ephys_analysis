@@ -7,7 +7,7 @@ function onTrialsLoad(obj, mode)
 %   block's epocs: EphysDataset.readBehavior) are re-read on every Load
 %   (TrialsSession: the table's parameter columns).
 arguments
-    obj (1,1) EphysPreprocessingApp
+    obj (1,1) EphysPipelineApp
     mode (1,1) string {mustBeMember(mode, ["recorded" "none"])} = "recorded"
 end
 d = obj.currentDataset();

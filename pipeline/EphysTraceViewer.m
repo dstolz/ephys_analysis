@@ -78,7 +78,7 @@ classdef EphysTraceViewer < handle
     %   setSpacing, autoScale, scrollLanes, setVisibleLanes, resetView,
     %   jumpToEvent; setEvents / setEventShow with EventOverlay / EventStrip.
     %
-    %   See also EphysTraceSource, EphysPreprocessingApp.
+    %   See also EphysTraceSource, EphysPipelineApp.
 
     properties (SetAccess = private)
         Axes                                   % the axes drawn into

@@ -17,7 +17,7 @@ function runPipeline(obj, opts)
 %   are once it ends), and Scan and the per-dataset edits are refused
 %   (refuseWhileRunning).
 arguments
-    obj (1,1) EphysPreprocessingApp
+    obj (1,1) EphysPipelineApp
     opts.Steps (1,:) string = string.empty(1,0)
     opts.DryRun (1,1) logical = false
 end

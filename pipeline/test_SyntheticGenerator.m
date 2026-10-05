@@ -276,9 +276,9 @@ check(isequal(string(fieldnames(E8.events)).', ["Trial" "Tone"]) && P8.nPaired =
     && numel(T8.units(1).eventTimes) == 20, 'the rebuilt lines are written (binary layout) and pair 20 of 20 on the chosen trial line');
 
 fprintf('\n== 7. the app''s Synthetic tab ==\n');
-g = 'EphysPreprocessingApp';
+g = 'EphysPipelineApp';
 prefsCleanup = AppPrefs.useTemporary(); %#ok<NASGU> preferences in a temporary file, never the user's
-app = EphysPreprocessingApp;
+app = EphysPipelineApp;
 appCleanup = onCleanup(@() closeApp(app));
 check(any(app.TabList == app.TabSynthetic) && find(app.TabList == app.TabSynthetic) == numel(app.TabList) - 1, ...
     'the Synthetic tab sits just before Clean up');

@@ -26,7 +26,7 @@ obj.ScanButton = uibutton(left, "Text", "Scan", ...
 obj.ScanButton.Layout.Row = 2; obj.ScanButton.Layout.Column = 4;
 
 lab(left, "Project root:", 3, 1);
-obj.RootField = uieditfield(left, "text", "Placeholder", "the folder the preprocessing app scans", "ValueChangedFcn", changed);
+obj.RootField = uieditfield(left, "text", "Placeholder", "the folder the pipeline app scans", "ValueChangedFcn", changed);
 obj.RootField.Layout.Row = 3; obj.RootField.Layout.Column = [2 3];
 obj.BrowseRootButton = uibutton(left, "Text", "Browse...", "ButtonPushedFcn", @(~,~) obj.onBrowseRoot("root"));
 obj.BrowseRootButton.Layout.Row = 3; obj.BrowseRootButton.Layout.Column = 4;

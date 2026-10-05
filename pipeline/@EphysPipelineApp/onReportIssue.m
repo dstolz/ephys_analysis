@@ -14,7 +14,7 @@ function onReportIssue(obj, kind)
 %
 %   If no browser opens, an alert shows the address to copy instead.
 arguments
-    obj (1,1) EphysPreprocessingApp
+    obj (1,1) EphysPipelineApp
     kind (1,1) string {mustBeMember(kind, ["bug", "feature"])}
 end
 

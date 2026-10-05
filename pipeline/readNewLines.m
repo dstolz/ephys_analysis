@@ -10,7 +10,7 @@ function [lines, pos] = readNewLines(file, pos)
 %   final state. Blank lines are left out. A file that is missing or
 %   cannot be read gives no lines and POS unchanged.
 %
-%   The preprocessing app streams each background Kilosort4 run's
+%   The pipeline app streams each background Kilosort4 run's
 %   ks4_run.log into its status box with it (pollKSRuns).
 %
 %   See also EphysDataset.sortRunState.

@@ -5,9 +5,9 @@ function onOpenOutputFolder(obj, idx)
 %   without an output root (EphysDataset.outputFolder). A folder that is
 %   not there yet (no step has written to it) is named in an alert.
 %
-%   See also EphysPreprocessingApp.onOpenTool.
+%   See also EphysPipelineApp.onOpenTool.
 arguments
-    obj (1,1) EphysPreprocessingApp
+    obj (1,1) EphysPipelineApp
     idx (1,:) double = obj.SelectedDatasetIdx
 end
 if isempty(obj.Project) || isempty(idx) || any(idx < 1 | idx > obj.Project.NumDatasets)

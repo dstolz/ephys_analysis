@@ -39,13 +39,19 @@ classdef EphysTraceViewer < handle
     %   Spike layers (unitLayer, detectedLayer) are drawn as
     %     "ticks"      a tick per spike: in the top half of its channel's
     %                  trace lane (detected spikes: the bottom half), or
-    %                  across its own lane
+    %                  across its own lane. Ticks are 2 points wide, edged in
+    %                  the axes' colour and drawn in front of the traces,
+    %                  so a dense trace does not hide them
     %     "waveforms"  on a trace lane, the trace itself is recoloured over
     %                  each spike's window (as phy's trace view does); on
     %                  its own lane (or with no trace), the stored waveform:
-    %                  the detected snippet, or the unit's template. More
-    %                  than MaxWaveforms spikes in view, or a trace below
-    %                  10 kHz, fall back to ticks (LastRender.notes says so)
+    %                  the detected snippet, or the unit's template. Stored
+    %                  waveforms in microvolts are drawn RasterSpacing
+    %                  apart, a scale of their own picked from the layers'
+    %                  waveforms (LastRender.notes gives it), not the
+    %                  traces' Spacing. More than MaxWaveforms spikes in
+    %                  view, or a trace below 10 kHz, fall back to ticks
+    %                  (LastRender.notes says so)
     %   Each unit or channel takes a colour of Palette.
     %
     %   Events (setEvents, eventLines): digital-input lines, each drawn
@@ -84,6 +90,7 @@ classdef EphysTraceViewer < handle
         TStart (1,1) double = 0                % left edge of the view (s)
         TWidth (1,1) double = 2                % width of the view (s)
         Spacing (1,1) double = 100             % source units between lanes
+        RasterSpacing (1,1) double = NaN       % microvolts between own lanes, for stored waveforms (NaN = pick at the next draw)
         FirstLane (1,1) double = 1             % top lane shown
         % The last jumpToEvent (empty until one): the line's name, the
         % onset's index of count, its time t, and the view it set (tStart,
@@ -127,7 +134,9 @@ classdef EphysTraceViewer < handle
 
     properties (Access = private)
         TraceLines = gobjects(0, 1)
-        SpikeLines = gobjects(0, 1)
+        SpikeLines = gobjects(0, 1)    % waveforms, one line per palette colour
+        TickLines = gobjects(0, 1)     % ticks, one line per palette colour
+        TickHalo = gobjects(0)         % every tick, wider, in the axes' colour behind them
         EventMarks = gobjects(0, 1)    % per event line: onsets (2i-1), offsets (2i)
         EventTraces = gobjects(0, 1)   % per event line: its TTL trace
         StripLine = gobjects(0)        % between the TTL rows and the lanes
@@ -167,6 +176,8 @@ classdef EphysTraceViewer < handle
                 'HitTest', 'off', 'PickableParts', 'none');
             obj.StripLine = line(ax, NaN, NaN, 'Color', [0.7 0.7 0.7], 'LineWidth', 0.75, ...
                 'HitTest', 'off', 'PickableParts', 'none');
+            obj.TickHalo = line(ax, NaN, NaN, 'Color', [1 1 1], 'LineWidth', 4, 'Visible', 'off', ...
+                'Tag', 'TickHalo', 'HitTest', 'off', 'PickableParts', 'none');
             obj.SelectPatch = patch(ax, 'XData', NaN, 'YData', NaN, 'FaceColor', [0.85 0.2 0.2], ...
                 'FaceAlpha', 0.15, 'EdgeColor', 'none', 'Visible', 'off', 'HitTest', 'off', 'PickableParts', 'none');
             obj.ScaleLine = line(ax, NaN, NaN, 'Color', [0 0 0], 'LineWidth', 2, ...
@@ -269,6 +280,7 @@ classdef EphysTraceViewer < handle
                 layers = EphysTraceViewer.emptyLayers();
             end
             obj.Layers = layers;
+            obj.RasterSpacing = NaN;
             obj.Drawn = [];
             obj.clampView();
             obj.updateRate();
@@ -383,7 +395,9 @@ classdef EphysTraceViewer < handle
         end
 
         function scaleVoltage(obj, f)
-            %scaleVoltage  Traces F times taller.
+            %scaleVoltage  Traces, and the waveforms on their own lanes, F times taller.
+            if ~(f > 0 && isfinite(f)); return; end
+            obj.RasterSpacing = obj.RasterSpacing / f;
             obj.setSpacing(obj.Spacing / f);
         end
 
@@ -396,8 +410,9 @@ classdef EphysTraceViewer < handle
         end
 
         function autoScale(obj)
-            %autoScale  Pick Spacing from the signal in view (and draw).
+            %autoScale  Pick Spacing from the signal in view, RasterSpacing from the waveforms (and draw).
             obj.AutoPending = true;
+            obj.RasterSpacing = NaN;
             obj.requestRender();
         end
 
@@ -426,6 +441,7 @@ classdef EphysTraceViewer < handle
             obj.FirstLane = 1;
             obj.TWidth = obj.DefaultWidth;
             obj.AutoPending = true;
+            obj.RasterSpacing = NaN;
             obj.clampView();
             obj.requestRender();
         end
@@ -647,7 +663,7 @@ classdef EphysTraceViewer < handle
             %emptyLayers  The struct every spike layer has (no layers).
             L = struct('name', {}, 'kind', {}, 'style', {}, 'placement', {}, 'labels', {}, ...
                 'channels', {}, 'colorIndex', {}, 'order', {}, 'show', {}, 't', {}, 'g', {}, 'k', {}, ...
-                'wf', {}, 'template', {}, 'wfTimeMs', {}, 'templateUV', {}, 'winMs', {});
+                'wf', {}, 'template', {}, 'wfTimeMs', {}, 'templateUV', {}, 'winMs', {}, 'wfPeak', {});
         end
 
         function E = emptyEvents()
@@ -703,7 +719,8 @@ classdef EphysTraceViewer < handle
             %   Order= gives the units' lane order (default by peak channel,
             %   then id). Each unit's lane label is its class and id
             %   ("su042"); its channel is its peak recording channel; its
-            %   waveform is its template on the peak channel.
+            %   waveform is its template on the peak channel, and its
+            %   wfPeak the template's largest absolute value.
             arguments
                 units (1,1) struct
                 opts.Order (1,:) double = []
@@ -743,6 +760,9 @@ classdef EphysTraceViewer < handle
             L.wfTimeMs = tms;
             L.templateUV = uv;
             L.winMs = win;
+            for u = 1:nU
+                if ~isempty(tmpl{u}); L.wfPeak(u) = max(abs(double(tmpl{u}(:)))); end
+            end
             L.style = opts.Style;
             L.placement = opts.Placement;
         end
@@ -750,7 +770,9 @@ classdef EphysTraceViewer < handle
         function L = detectedLayer(detected, opts)
             %detectedLayer  A spike layer of detected spikes (the spikes file's DETECTED struct).
             %   One lane per channel, coloured by channel; the waveforms are
-            %   the stored snippets (detected.wf) when there are any.
+            %   the stored snippets (detected.wf) when there are any, and a
+            %   channel's wfPeak the median of its snippets' largest
+            %   absolute values.
             arguments
                 detected (1,1) struct
                 opts.Name (1,1) string = "Detected spikes"
@@ -785,6 +807,11 @@ classdef EphysTraceViewer < handle
                 if isempty(tms) || numel(tms) ~= size(L.wf{find(~cellfun(@isempty, L.wf), 1)}, 2)
                     nW = size(L.wf{find(~cellfun(@isempty, L.wf), 1)}, 2);
                     tms = linspace(win(1), win(2), nW);
+                end
+                for c = 1:nC
+                    w = L.wf{c};
+                    if isempty(w); continue; end
+                    L.wfPeak(c) = double(median(max(abs(w), [], 2), 'omitnan'));
                 end
             end
             L.wfTimeMs = tms;
@@ -1113,8 +1140,9 @@ classdef EphysTraceViewer < handle
         end
 
         function h = poolLine(obj, pool, i)
-            % Line I of POOL ("TraceLines" | "SpikeLines" | "EventMarks" |
-            % "EventTraces"), made when it is new.
+            % Line I of POOL ("TraceLines" | "SpikeLines" | "TickLines" |
+            % "EventMarks" | "EventTraces"), made when it is new; its Tag
+            % is the pool's name.
             H = obj.(pool);
             if i <= numel(H) && isgraphics(H(i))   % a gap left by a later line is a placeholder
                 h = H(i);
@@ -1123,21 +1151,24 @@ classdef EphysTraceViewer < handle
             switch pool
                 case "TraceLines", width = 0.5;
                 case "SpikeLines", width = 1.2;
+                case "TickLines",  width = 2;
                 otherwise,         width = 1;     % the events
             end
-            h = line(obj.Axes, NaN, NaN, 'LineWidth', width, 'HitTest', 'off', 'PickableParts', 'none');
+            h = line(obj.Axes, NaN, NaN, 'LineWidth', width, 'Tag', char(pool), ...
+                'HitTest', 'off', 'PickableParts', 'none');
             H(i, 1) = h;
             obj.(pool) = H;
             obj.restack();
         end
 
         function restack(obj)
-            % Front to back: text, scale, selection, spikes, event markers,
-            % traces, TTL traces, breaks, shading, heatmap.
+            % Front to back: text, scale, selection, spike waveforms, ticks
+            % and their halo, event markers, traces, TTL traces, breaks,
+            % shading, heatmap.
             ax = obj.Axes;
             front = [obj.Message; obj.ScaleText; obj.ScaleLine; obj.SelectPatch; obj.SpikeLines(:); ...
-                obj.EventMarks(:); obj.TraceLines(:); obj.EventTraces(:); obj.StripLine; obj.BreakLine; ...
-                obj.ShadePatches(:); obj.Image];
+                obj.TickLines(:); obj.TickHalo; obj.EventMarks(:); obj.TraceLines(:); obj.EventTraces(:); ...
+                obj.StripLine; obj.BreakLine; obj.ShadePatches(:); obj.Image];
             front = front(isgraphics(front));
             kids = ax.Children;
             others = kids(~ismember(kids, front));
@@ -1146,10 +1177,13 @@ classdef EphysTraceViewer < handle
 
         %% spikes
         function R = drawSpikes(obj, T, lanes, vis, span, R)
-            % Ticks and waveforms of every layer, one line per palette colour.
+            % Ticks and waveforms of every layer: per palette colour one
+            % line of waveforms and one of ticks, the ticks over a halo.
             nPal = size(obj.Palette, 1);
-            X = cell(nPal, 1);
+            X = cell(nPal, 1);        % waveforms
             Y = cell(nPal, 1);
+            TX = cell(nPal, 1);       % ticks
+            TY = cell(nPal, 1);
             visSet = false(1, max(numel(lanes.kind), 1));
             visSet(vis) = true;
             pp = plotPixels(obj.Axes);
@@ -1209,8 +1243,8 @@ classdef EphysTraceViewer < handle
                     end
                     for c = unique(ci).'
                         s = ci == c;
-                        X{c} = [X{c}; reshape([t(s), t(s), NaN(nnz(s), 1)].', [], 1)];
-                        Y{c} = [Y{c}; reshape([y0(s), y1(s), NaN(nnz(s), 1)].', [], 1)];
+                        TX{c} = [TX{c}; reshape([t(s), t(s), NaN(nnz(s), 1)].', [], 1)];
+                        TY{c} = [TY{c}; reshape([y0(s), y1(s), NaN(nnz(s), 1)].', [], 1)];
                     end
                 elseif ~raster
                     % Recolour the trace over each spike's window.
@@ -1221,8 +1255,14 @@ classdef EphysTraceViewer < handle
                         Y{c} = [Y{c}; reshape(ys(:, s), [], 1)];
                     end
                 else
-                    % The stored waveform on the spike's own lane.
-                    [xs, ys] = obj.storedWaveforms(L, idx, t, centre);
+                    % The stored waveform on the spike's own lane, microvolts
+                    % on the own lanes' scale (RasterSpacing).
+                    rs = obj.rasterSpacing();
+                    [xs, ys] = storedWaveforms(L, idx, t, centre, rs);
+                    if microvoltWaveforms(L)
+                        R.notes(end+1) = sprintf("%s: waveforms on their own lanes, %s between lanes", ...
+                            L.name, spacingText(rs, "uV"));
+                    end
                     for c = unique(ci).'
                         s = ci == c;
                         X{c} = [X{c}; reshape(xs(:, s), [], 1)];
@@ -1230,47 +1270,53 @@ classdef EphysTraceViewer < handle
                     end
                 end
             end
-            n = 0;
-            for c = 1:nPal
-                if isempty(X{c}); continue; end
-                n = n + 1;
-                h = obj.poolLine("SpikeLines", n);
-                set(h, 'XData', X{c}, 'YData', Y{c}, 'Color', obj.Palette(c, :), 'Visible', 'on');
-            end
-            for c = n + 1:numel(obj.SpikeLines)
-                set(obj.SpikeLines(c), 'XData', [], 'YData', [], 'Visible', 'off');
+            obj.fillPool("SpikeLines", X, Y);
+            obj.fillPool("TickLines", TX, TY);
+            tx = vertcat(TX{:});
+            if isempty(tx)
+                set(obj.TickHalo, 'XData', NaN, 'YData', NaN, 'Visible', 'off');
+            else
+                set(obj.TickHalo, 'XData', tx, 'YData', vertcat(TY{:}), ...
+                    'Color', axesColor(obj.Axes), 'Visible', 'on');
             end
         end
 
-        function [xs, ys] = storedWaveforms(obj, L, idx, t, centre)
-            % [nW+1 x n] snippets (NaN row last): detected waveforms in
-            % microvolts, templates in microvolts or scaled to 0.8 lane.
-            tms = L.wfTimeMs(:);
-            nW = numel(tms);
-            n = numel(idx);
-            ys = NaN(nW + 1, n);
-            g = double(L.g(idx));
-            k = double(L.k(idx));
-            for j = 1:n
-                if ~isempty(L.wf)
-                    w = L.wf{g(j)};
-                    if isempty(w) || k(j) > size(w, 1); continue; end
-                    v = double(w(k(j), :)).' / obj.Spacing;
-                else
-                    w = L.template{g(j)};
-                    if isempty(w); continue; end
-                    v = double(w(:));
-                    if L.templateUV
-                        v = v / obj.Spacing;
-                    else
-                        v = 0.8 * v / max(abs(v));
+        function fillPool(obj, pool, X, Y)
+            % The non-empty X{c}, Y{c} as lines of POOL in palette colour c;
+            % the pool's other lines hidden.
+            n = 0;
+            for c = 1:numel(X)
+                if isempty(X{c}); continue; end
+                n = n + 1;
+                set(obj.poolLine(pool, n), 'XData', X{c}, 'YData', Y{c}, ...
+                    'Color', obj.Palette(c, :), 'Visible', 'on');
+            end
+            for k = n + 1:numel(obj.(pool))
+                obj.hidePooled(pool, k);
+            end
+        end
+
+        function s = rasterSpacing(obj)
+            % Microvolts between own lanes for the stored waveforms: picked
+            % once (until setLayers, autoScale or resetView) as twice the
+            % median of the microvolt layers' unit / channel peaks (wfPeak),
+            % rounded up, so the median peak reaches 0.2 to 0.5 of the way to
+            % the next lane; Spacing when there are none.
+            if ~(obj.RasterSpacing > 0)
+                p = zeros(1, 0);
+                for i = 1:numel(obj.Layers)
+                    if microvoltWaveforms(obj.Layers(i))
+                        p = [p, obj.Layers(i).wfPeak]; %#ok<AGROW>
                     end
                 end
-                if numel(v) == nW
-                    ys(1:nW, j) = centre(j) + v;
+                p = p(isfinite(p) & p > 0);
+                if isempty(p)
+                    s = obj.Spacing;
+                    return
                 end
+                obj.RasterSpacing = EphysTraceViewer.niceSpacing(2 * median(p));
             end
-            xs = [t(:).' + tms / 1e3; NaN(1, n)];
+            s = obj.RasterSpacing;
         end
 
         %% events
@@ -1594,6 +1640,7 @@ L.template = {};
 L.wfTimeMs = [];
 L.templateUV = false;
 L.winMs = [-0.5 1];
+L.wfPeak = NaN(1, nG);
 end
 
 
@@ -1647,6 +1694,53 @@ xs = T.x(P);
 if n == 1; xs = xs(:); ys = ys(:); end
 xs = [xs; NaN(1, n)];
 ys = [ys; NaN(1, n)];
+end
+
+
+function [xs, ys] = storedWaveforms(L, idx, t, centre, spacing)
+% [nW+1 x n] snippets (NaN row last): detected waveforms in microvolts and
+% templates in microvolts SPACING apart (the own lanes' scale), other
+% templates scaled to 0.8 lane.
+tms = L.wfTimeMs(:);
+nW = numel(tms);
+n = numel(idx);
+ys = NaN(nW + 1, n);
+g = double(L.g(idx));
+k = double(L.k(idx));
+for j = 1:n
+    if ~isempty(L.wf)
+        w = L.wf{g(j)};
+        if isempty(w) || k(j) > size(w, 1); continue; end
+        v = double(w(k(j), :)).' / spacing;
+    else
+        w = L.template{g(j)};
+        if isempty(w); continue; end
+        v = double(w(:));
+        if L.templateUV
+            v = v / spacing;
+        else
+            v = 0.8 * v / max(abs(v));
+        end
+    end
+    if numel(v) == nW
+        ys(1:nW, j) = centre(j) + v;
+    end
+end
+xs = [t(:).' + tms / 1e3; NaN(1, n)];
+end
+
+
+function tf = microvoltWaveforms(L)
+% True when layer L's stored waveforms are in microvolts: detected
+% snippets, or templates with templateUV.
+tf = ~isempty(L.wf) || isequal(L.templateUV, true);
+end
+
+
+function c = axesColor(ax)
+% The axes' background colour (white when it has none): the ticks' halo.
+c = ax.Color;
+if ~(isnumeric(c) && numel(c) == 3); c = [1 1 1]; end
 end
 
 

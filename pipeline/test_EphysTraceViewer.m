@@ -11,8 +11,9 @@ function test_EphysTraceViewer()
 %       bin's first sample, the samples kept in memory (a zoom in reads
 %       nothing), panning inside the margin moving the limits only, the
 %       voltage scale, lanes and their names, heatmap mode, shading,
-%       sorted-unit and detected-spike layers as ticks, as the trace
-%       recoloured and as stored waveforms on their own lanes, spikes only
+%       sorted-unit and detected-spike layers as ticks (in front of the
+%       traces, over a halo), as the trace recoloured and as stored
+%       waveforms on their own lanes (on a scale of their own), spikes only
 %       (no trace), the read limit, the wheel, keys and drags, and event
 %       lines over the traces (onset on its own sample) and as TTL rows.
 %
@@ -192,10 +193,20 @@ v.RemoveOffset = false;
 v.setSpacing(1000);
 v.setLayers(U);
 v.setView(0, 3);
-[sx, sy] = spikePoints(ax);
+[sx, sy] = tickPoints(ax);
 t15 = abs(sx - 1.5) < 1e-9;
 check(any(t15) && all(sy(t15) >= -2 + 0.15 - 1e-9 & sy(t15) <= -2 + 0.45 + 1e-9) && any(abs(sx - 1.2) < 1e-9), ...
     'ticks on the trace lane of the unit''s peak channel, in its top half');
+tk = findall(ax, 'Tag', 'TickLines', 'Visible', 'on');
+halo = findall(ax, 'Tag', 'TickHalo');
+[~, iTk] = ismember(tk, ax.Children);
+[~, iHalo] = ismember(halo, ax.Children);
+[~, iTr] = ismember(traceLines(ax), ax.Children);
+hx = halo.XData(:); hy = halo.YData(:);
+check(~isempty(tk) && all([tk.LineWidth] == 2) && isscalar(halo) && halo.Visible == "on" && halo.LineWidth > 2 ...
+    && isequal(sortrows([hx(~isnan(hx)), hy(~isnan(hy))]), sortrows([sx(~isnan(sx)), sy(~isnan(sy))])) ...
+    && max(iTk) < iHalo && iHalo < min(iTr), ...
+    'ticks are 2 points wide, in front of the traces, over a wider halo of every tick');
 v.setLayerStyle("Sorted units", "waveforms");
 v.setView(1.49, 0.02);
 [sx, sy] = spikePoints(ax);
@@ -210,10 +221,21 @@ v.setLayerStyle("Sorted units", "ticks", "raster");
 v.setVisibleLanes(nCh + 2);
 v.setView(0, 3);
 check(v.NumLanes == nCh + 2 && any(strcmp(ax.YTickLabel, 'su007')), 'raster placement: one lane per unit after the traces, named by unit');
+v.setLayerStyle("Sorted units", "waveforms", "raster");
+v.setView(1.49, 0.02);
+[sx, sy] = spikePoints(ax);
+% Templates of peak 50 and 10 uV: twice their median, rounded up, is 100 uV.
+check(v.Spacing == 1000 && v.RasterSpacing == 100 && v.LastRender.styles == "waveforms" ...
+    && any(abs(sx - 1.5) < 1e-9 & abs(sy - (-nCh - 50 / 100)) < 1e-9) ...
+    && any(contains(v.LastRender.notes, "100 uV between lanes")), ...
+    'waveforms on their own lanes: a uV template on the own lanes'' scale (RasterSpacing), not the traces'' Spacing');
+v.scaleVoltage(2);
+check(v.RasterSpacing == 50 && v.Spacing == 500, 'scaleVoltage scales the own lanes'' waveforms with the traces');
+v.setSpacing(1000);
 v.setSource(L);
 v.setLayerStyle("Sorted units", "ticks", "channels");
 v.setView(0, 3);
-[sx, sy] = spikePoints(ax);
+[sx, sy] = tickPoints(ax);
 t15 = abs(sx - 1.5) < 1e-9;
 check(any(t15) && all(sy(t15) >= -5 + 0.15 - 1e-9 & sy(t15) <= -5 + 0.45 + 1e-9), ...
     'on a signal whose columns are reordered, a unit lands on the lane of its recording channel');
@@ -228,9 +250,10 @@ v.setLayerStyle("Detected spikes", "waveforms", "raster");
 v.setVisibleLanes(8);
 v.setView(1.4999, 0.0002);
 [sx, sy] = spikePoints(ax);
+% Snippet peaks 80 and 60 uV: twice their median, rounded up, is 200 uV.
 check(v.NumLanes == 3 && v.LastRender.styles == "waveforms" && any(abs(sx - (1.5 - 0.05e-3)) < 1e-9) ...
-    && any(abs(sy - (-2 - 60 / v.Spacing)) < 1e-9), ...
-    'spikes only: one lane per channel, the stored waveforms drawn at their spike times');
+    && v.RasterSpacing == 200 && any(abs(sy - (-2 - 60 / 200)) < 1e-9), ...
+    'spikes only: one lane per channel, the stored waveforms drawn at their spike times on the own lanes'' scale');
 
 fprintf('\n== 4. limits and input ==\n');
 v.setSource(rec);
@@ -369,8 +392,18 @@ end
 end
 
 
+function [x, y] = tickPoints(ax)
+% Every vertex of the viewer's tick lines.
+h = findall(ax, 'Tag', 'TickLines', 'Visible', 'on');
+x = []; y = [];
+for i = 1:numel(h)
+    x = [x; h(i).XData(:)]; y = [y; h(i).YData(:)]; %#ok<AGROW>
+end
+end
+
+
 function [x, y] = spikePoints(ax)
-% Every vertex of the viewer's spike lines (width 1.2).
+% Every vertex of the viewer's spike waveform lines (width 1.2).
 h = findall(ax, 'Type', 'line', 'LineWidth', 1.2, 'Visible', 'on');
 x = []; y = [];
 for i = 1:numel(h)

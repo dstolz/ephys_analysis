@@ -4,8 +4,9 @@ Notes on Kilosort4 parameters that its documentation does not settle, worked
 out from the installed source and checked against our probes.
 
 > Written 2026-10-01 from Kilosort **4.1.7** (the `kilosort` conda
-> environment, see [INSTALL.md](../pipeline/INSTALL.md)). Re-check these notes
-> after upgrading Kilosort4: the code is authoritative.
+> environment, see
+> [Installation](../pipeline/INSTALL.md#4-miniconda-and-the-kilosort-environment)).
+> Re-check these notes after upgrading Kilosort4: the code is authoritative.
 
 ## `whitening_range`
 
@@ -88,8 +89,8 @@ end
 
 ### Setting it
 
-- **Per config:** `Sorting.KS4.whitening_range` (the Sorting tab's
-  preprocessing group).
+- **Per config:** `Sorting.KS4.whitening_range` (the
+  [Sorting tab](EphysPipelineApp.md#sorting)'s Preprocessing group).
 - **Per probe:** add `"whitening_range"` to the probe's
   [`<probe>.ks4.json`](file-formats.md#kilosort4-probe-parameters-probeks4json).
   **Optimize for probe** then loads it like the other parameters. It is not
@@ -170,8 +171,9 @@ on the shanks.
 
 ### Setting it
 
-- **Per config:** `Sorting.KS4.shank_spacing` (the Sorting tab's
-  preprocessing group, next to `whitening_range`).
+- **Per config:** `Sorting.KS4.shank_spacing` (the
+  [Sorting tab](EphysPipelineApp.md#sorting)'s Preprocessing group, next to
+  `whitening_range`).
 - **Per probe:** add `"shank_spacing"` to the probe's
   [`<probe>.ks4.json`](file-formats.md#kilosort4-probe-parameters-probeks4json).
   **Optimize for probe** loads it with the other parameters.

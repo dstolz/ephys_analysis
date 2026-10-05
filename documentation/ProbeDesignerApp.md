@@ -15,8 +15,8 @@ consumes only that JSON.
 
 ## Opening it
 
-The designer is normally opened from the GUI: **Probe tab → "Design probe from
-probeinterface (library / generate)..."**
+The designer is normally opened from the GUI: **Probe tab → "Design probe
+(probeinterface)..."**
 ([`EphysPipelineApp.onDesignProbe`](../pipeline/@EphysPipelineApp/onDesignProbe.m)).
 Programmatically:
 

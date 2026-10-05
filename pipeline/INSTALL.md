@@ -1,22 +1,26 @@
 # Installing `EphysPipelineApp` on Windows 11
 
-`EphysPipelineApp` is a MATLAB `uifigure` GUI (`pipeline/@EphysPipelineApp`)
-that scans recordings (Intan `.rhd`, or the universal binary format),
-previews/filters them, optionally hands them off to **Kilosort4** (running
-in a separate Python/conda environment) for spike sorting
-with **phy** as the curation viewer, and writes derived-signal and spike `.mat`
-files plus export files for external analysis toolboxes (Chronux and FieldTrip
-so far; more formats will be added). This guide covers everything needed to get a clean
-Windows 11 machine running the app end to end (what runs on macOS and
-Linux: [platforms.md](../documentation/platforms.md)). Only MATLAB is required for
-everything except sorting and probe design.
+[`EphysPipelineApp`](../documentation/EphysPipelineApp.md) is a MATLAB
+`uifigure` GUI (`pipeline/@EphysPipelineApp`) for the preprocessing
+pipeline. It scans recordings (Intan, Open Ephys GUI sessions, TDT blocks,
+or the universal binary format), writes derived-signal and spike `.mat`
+files, optionally hands the recordings to **Kilosort4** for spike sorting
+(in a separate Python/conda environment, with **phy** to curate the
+result), and exports files for other tools (Chronux, FieldTrip, event
+epochs, kCSD, NWB). This guide sets up a Windows 11 machine to run the app
+end to end (what runs on macOS and Linux:
+[platforms.md](../documentation/platforms.md)). Everything except spike
+sorting, probe design and the NWB export needs MATLAB alone, so the MATLAB
+steps can run before Python is installed.
 
 ## What you need, at a glance
 
 | Component | Purpose | Required? |
 | --- | --- | --- |
-| MATLAB + Signal Processing Toolbox | Runs the app, reads/filters Intan data | Yes |
-| Miniconda (Windows) | Hosts the Python environments below | Yes |
+| MATLAB R2023a or later + Signal Processing Toolbox | Runs the app and every MATLAB step | Yes |
+| Statistics and Machine Learning Toolbox | Automatic bad-channel detection in derived signals; the analysis module's response statistics and auROC | Optional |
+| Parallel Computing Toolbox | Runs artifact scans and spike detection in chunks on a process pool | Optional |
+| Miniconda (Windows) | Hosts the Python environments below | Only for sorting, probe design and the NWB export |
 | `kilosort` conda env (kilosort, probeinterface, torch) | Runs the sorting step and the probe designer | Only for sorting / probe design |
 | NVIDIA GPU + driver | Kilosort4 runs dramatically faster on GPU | Recommended, not required |
 | `phy` conda env (phy) | Manual curation of sorting results | Optional |
@@ -25,29 +29,50 @@ everything except sorting and probe design.
 | [Chronux](http://chronux.org) (bundled in `toolboxes/chronux`) | Analysing the Chronux export | Optional |
 | This repository (`ephys_analysis`) | Contains the app and MATLAB path helpers | Yes |
 
+What each MATLAB toolbox is used for, function by function, is listed under
+[Dependencies](../documentation/README.md#dependencies).
+
 ## 1. Install MATLAB
 
 1. Install MATLAB R2023a or later (the Artifacts tab uses `xregion`; the code
    also relies on `arguments`-block validation and string arrays). The code
-   is developed and tested on R2025a.
-2. In the Add-On Explorer / installer, make sure **Signal Processing Toolbox**
-   is included — `EphysDataset.filterContinuous` calls `butter`/`filtfilt`
-   directly and the Visualize tab's filtering options depend on it.
+   is developed and tested on R2025a. The analysis plot editor's colour
+   picker is `uicolorpicker` (R2024a); earlier releases get a swatch that
+   opens `uisetcolor`.
+2. In the Add-On Explorer or the installer, include the **Signal Processing
+   Toolbox**. Filtering, resampling and derived signals call `butter`,
+   `filtfilt` and `resample` directly (`EphysDataset.filterContinuous`,
+   `deriveSignals`), and the Visualize tab's filtering depends on them.
 
-## 2. Get the repository onto your MATLAB path
+## 2. Put the repository on the MATLAB path
 
-1. Install [Git for Windows](https://git-scm.com/download/win) if you don't
-   already have it, then clone this repo (or download/unzip it) to somewhere
-   like `C:\src\ephys_analysis`.
-2. In MATLAB, `cd` to the repo root and run:
+1. Install [Git for Windows](https://git-scm.com/download/win) if it is not
+   there yet, then clone the repository (or download and unzip it), for
+   example to `C:\src\ephys_analysis`:
+   ```bat
+   git clone https://github.com/dstolz/ephys_analysis.git C:\src\ephys_analysis
+   ```
+2. In MATLAB, `cd` to the repository root and run:
    ```matlab
    addpath_nogit(pwd)
    ```
-   This adds the repo (including `pipeline` and the vendored `vendor/` helpers) to
-   the path while skipping hidden folders such as `.git` and `.claude` (Claude
-   Code keeps whole checkouts in `.claude/worktrees`, which would otherwise
-   shadow the real code). Save the path (`savepath`) if you
-   want this to persist across MATLAB restarts, or re-run it each session.
+   This adds the repository and every folder below it (`pipeline/`,
+   `analysis/` for the analysis app, the `vendor/` helpers and the bundled
+   `toolboxes/chronux`) and skips hidden folders such as `.git` and
+   `.claude` (Claude Code keeps whole checkouts in `.claude/worktrees`,
+   which would otherwise shadow the real code). Run `savepath` to keep the
+   path across MATLAB restarts, or run the line at the start of each session
+   (for example in `startup.m`).
+
+   > **Shadowed functions.** The bundled Chronux has its own `findpeaks` and
+   > `jackknife`. With the whole repository on the path, they come before the
+   > Signal Processing Toolbox's `findpeaks` and the Statistics and Machine
+   > Learning Toolbox's `jackknife`. The pipeline and the analysis module
+   > call neither. Chronux's `locfit` add-on also has `predict`, `residuals`
+   > and `aic`; a call on a model object, such as `predict` on a
+   > `LinearModel`, still reaches the object's own method. If your own code
+   > needs the toolbox functions, remove Chronux from the path in that
+   > session: `rmpath(genpath('C:\src\ephys_analysis\toolboxes\chronux'))`.
 
 ## 3. (Recommended) Set up an NVIDIA GPU
 
@@ -65,21 +90,23 @@ test. If the machine has an NVIDIA GPU:
 If there's no NVIDIA GPU, skip to step 4 and install the CPU build of
 PyTorch instead — everything still works, just slower.
 
-## 4. Install Miniconda and the `kilosort` environment
+## 4. Miniconda and the `kilosort` environment
 
 1. Install [Miniconda for Windows](https://docs.conda.io/en/latest/miniconda.html)
-   (the 64-bit installer). Default install location is fine
-   (`%USERPROFILE%\miniconda3` or `%LOCALAPPDATA%\miniconda3` — a new config
-   in the app starts with the `kilosort` env's python found there, or under
-   `CONDA_EXE`, `%ProgramData%` or `C:\`; once you set a Python exe the app
-   remembers it and new configs start with that instead).
+   (the 64-bit installer). The default location (`%LOCALAPPDATA%\miniconda3`
+   or `%USERPROFILE%\miniconda3`) is fine. A new config in the app starts
+   with the Python exe last set in the app. Before one is set, it starts
+   with `envs\kilosort\python.exe` of the conda install that `CONDA_EXE`
+   names, else of a `miniconda3`, `anaconda3`, `miniforge3` or `mambaforge`
+   folder under `%LOCALAPPDATA%`, `%USERPROFILE%`, `%ProgramData%` or `C:\`.
 2. Open **Anaconda Prompt (miniconda3)** from the Start menu and create the
-   environment the app expects, named `kilosort`:
+   environment the app expects, named `kilosort` (the known-good environment
+   uses Python 3.11):
    ```bat
-   conda create -n kilosort python=3.10 -y
+   conda create -n kilosort python=3.11 -y
    conda activate kilosort
    ```
-3. Install the sorting stack:
+3. Install the sorting stack (known-good versions):
    ```bat
    pip install kilosort==4.1.7 probeinterface==0.3.2
    ```
@@ -102,9 +129,10 @@ PyTorch instead — everything still works, just slower.
    count. List them in the app's Run tab **GPUs** box (`cuda:0, cuda:1`,
    `Sorting.Devices`) so that runs going at once each get their own.
 
-You do **not** need conda on the Windows `PATH` for the app to work — it
-calls the environment's `python.exe` directly by full path
-(`%USERPROFILE%\miniconda3\envs\kilosort\python.exe` or similar).
+Conda does **not** need to be on the Windows `PATH`: the app calls the
+environment's `python.exe` by its full path
+(`%LOCALAPPDATA%\miniconda3\envs\kilosort\python.exe` or similar). Only a
+**Conda env** set on the Sorting tab needs it (step 6).
 
 ## 5. (Optional) Install `phy` for manual curation
 
@@ -144,17 +172,23 @@ Python is used.
    EphysPipelineApp
    ```
 2. Go to the **Sorting** tab:
-   - **Python exe** — a new config is seeded with
+   - **Python exe**: a new config is seeded with
      `...\miniconda3\envs\kilosort\python.exe` when it exists in a standard
-     location; otherwise browse to it with the `...` button. The path is part
+     location (step 4); otherwise browse to it with the `...` button. The path is part
      of the pipeline config (`Sorting.PythonExe`), so save the config
      (**File → Save config**).
-   - **Conda env** — leave blank (the Python exe above already points inside
-     the `kilosort` env).
-   - **Phy command** — leave blank to use the default, `conda run -n phy
-     phy` (the separate `phy` env from step 5, requires `conda` on PATH); set
-     it to `phy` instead if you installed it into the base/PATH environment,
-     or to `conda run -n <name> phy` if you named the env something else.
+   - **Conda env**: leave blank, since the Python exe above already points
+     inside the `kilosort` env. When it is set, the drivers run through
+     `conda run -n <env>`, which needs `conda` on `PATH`.
+   - **Phy command**: leave blank for the default, the `phy` executable of
+     the `phy` env from step 5 (`envs\phy\Scripts\phy.exe`). It is looked
+     for in the conda install that holds the Python exe, the one
+     `CONDA_EXE` names, `%LOCALAPPDATA%\miniconda3`,
+     `%USERPROFILE%\miniconda3` and `%USERPROFILE%\anaconda3`; when none has
+     it, the default is `conda run -n phy phy`, which needs `conda` on
+     `PATH`. Set it to `phy` if phy is on `PATH`, or to
+     `conda run -n <name> phy` for an env of another name. The Phy command
+     is an app preference, not part of the config.
 
 ## 7. Verify everything works
 
@@ -166,19 +200,29 @@ run_all_tests
 ```
 
 Then use the pipeline's built-in dry run: tick **Dry run** on the Sorting tab
-(or **Run → Dry run**) to write `settings.json` + `run_ks4.py` into
-`<output>\kilosort4` without writing the `.bin` or launching Kilosort4, and
-check the settings, probe and paths it would use.
+(or **Run → Dry run**) to write `settings.json` and `run_ks4.py` into
+`<output>\kilosort4\dryrun` without writing the `.bin` or launching
+Kilosort4, and check the settings, probe and paths it would use.
 
-## Troubleshooting
+No recordings yet? **File → Create synthetic test project...** writes a
+complete project to try every step on, without real data or Python
+([Synthetic test project](../documentation/EphysPipelineApp.md#synthetic-test-project)).
+<!-- wiki: See also [Quick start](Quick-Start). -->
 
-- **"No python executable configured"** — set the Python exe field on the
-  Sorting tab (`Sorting.PythonExe` in the config, or `ds.PythonExe` if
+## Troubleshooting installation
+
+- **"No python executable configured"**: set the Python exe field on the
+  Sorting tab (`Sorting.PythonExe` in the config, or `ds.PythonExe` when
   scripting `EphysDataset` directly).
-- **`torch.cuda.is_available()` returns `False` on a GPU machine** — the
-  wrong PyTorch build was installed (CPU wheel instead of `+cu118`); reinstall
-  using the CUDA index URL in step 4, and confirm the NVIDIA driver installed
-  in step 3 is current.
-- **phy fails to launch** — confirm `params.py` exists in the dataset's
-  Kilosort4 results folder, and that the "Phy command" field matches how you
-  installed phy (base env vs. `conda run -n phy phy`).
+- **`torch.cuda.is_available()` returns `False` on a GPU machine**: the
+  CPU wheel was installed instead of `+cu118`. Reinstall with the CUDA index
+  URL in step 4, and check that the NVIDIA driver from step 3 is current.
+- **phy fails to launch**: check that `params.py` exists in the dataset's
+  sorted-output folder, and that the **Phy command** matches how phy was
+  installed (step 6).
+- **`Undefined function 'xregion'` on the Artifacts tab**: MATLAB is older
+  than R2023a.
+- **`butter` or `filtfilt` not found**: the Signal Processing Toolbox is
+  missing.
+
+<!-- wiki: More problems and their fixes: [Troubleshooting and FAQ](Troubleshooting-and-FAQ). -->

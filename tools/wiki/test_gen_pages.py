@@ -32,6 +32,8 @@ Sorts. Back to [copy](#copy). [Elsewhere](EphysDataset.md#reading).
 ![Optimize](images/app-optimize.png)
 See [copy](#copy) too.
 -->
+
+<!-- wiki: More in [Troubleshooting](Troubleshooting-and-FAQ#sorting) and [the start](Quick-Start). -->
 """
 FMT = """# Files
 
@@ -81,6 +83,8 @@ class GenPages(unittest.TestCase):
         self.assertIn("\n![The Sorting tab](images/app-sorting-tab.png)\n", s, "a one-line wiki comment is unwrapped")
         self.assertIn("\n![Optimize](images/app-optimize.png)\nSee [copy](Copy-Tab#copy) too.\n", s,
                       "a wiki block is unwrapped, and its links rewritten")
+        self.assertIn("[Troubleshooting](Troubleshooting-and-FAQ#sorting) and [the start](Quick-Start)", s,
+                      "a link to a page only the wiki has is kept")
         self.assertNotIn("<!-- wiki", s)
         self.assertNotIn("\n-->", s)
         with self.assertRaises(SystemExit):

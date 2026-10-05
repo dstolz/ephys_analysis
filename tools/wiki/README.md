@@ -70,7 +70,10 @@ git clone https://github.com/dstolz/ephys_analysis.wiki.git C:\temp\wiki
    What only the wiki shows, its screenshots mainly, goes into
    `documentation/` as an HTML comment, which GitHub hides there and the
    script unwraps: `<!-- wiki: ![The Run tab](images/app-run-plan.png) -->`,
-   or a `<!-- wiki` line, the lines to show, and a `-->` line.
+   or a `<!-- wiki` line, the lines to show, and a `-->` line. A link to a
+   page only the wiki has goes there too, by the page's name
+   (`[Output files](Output-Files#behavior)`); the script leaves such links
+   as they are.
 
    A page's `status` in `pages.json` says whether it is generated yet:
 

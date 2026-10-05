@@ -607,7 +607,7 @@ pairing is approved automatically (`auto-approved`), and writes
 grouping, filters and tuning parameters use them unchanged. The step's
 association row still reports the Epsych2 outcome (`no session`,
 `unmatched`). There are no response codes: a response selection raises
-`selectTrials:NoRespCode`. The app's Trials tab still loads only Epsych2 sessions.
+`selectTrials:NoRespCode`. The app's Trials tab loads and pairs them too.
 
 ### Digital-line names
 

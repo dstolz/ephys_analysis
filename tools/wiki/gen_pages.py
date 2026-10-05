@@ -13,6 +13,8 @@ go up one level. Links are rewritten for the wiki:
         the file on GitHub (main)
   #anchor on the same file
         kept when the page holds that heading, else as above
+  a wiki page by name (Quick-Start, Output-Files#behavior)
+        kept: a link only the wiki has, from a wiki-only comment
 
 What only the wiki shows (its screenshots, mainly) sits in documentation/ as
 an HTML comment, which GitHub hides there and this script unwraps:
@@ -152,6 +154,8 @@ def rewrite_links(body, src, idx, texts, own):
         label, url = m.group(1), m.group(2)
         if re.match(r'^[a-z]+:', url) or url.startswith("mailto:"):
             return m.group(0)
+        if re.match(r'^[A-Z][A-Za-z0-9]*(?:-[A-Za-z0-9]+)*(?:#[\w-]*)?$', url):
+            return m.group(0)                            # a wiki page by name (Quick-Start), from a wiki-only comment
         path, _, anchor = url.partition("#")
         if path == "":
             rel = src                                   # same file

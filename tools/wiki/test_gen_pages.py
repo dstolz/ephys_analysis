@@ -1,5 +1,5 @@
 """Tests for gen_pages.py: sections, heading levels, link rewriting, and the
-anchors the pipeline app's Help opens.
+anchors the pipeline and analysis apps' Help opens.
 
     python -m unittest tools/wiki/test_gen_pages.py      (from the repository root)
 """
@@ -18,6 +18,8 @@ Copies. See [the sort](#sorting) and [formats](file-formats.md#nwb-export).
 
 ### Details
 
+<a name="old-details"></a>
+
 ```text
 ## not a heading
 [not](a-link.md)
@@ -25,7 +27,7 @@ Copies. See [the sort](#sorting) and [formats](file-formats.md#nwb-export).
 
 ## Sorting
 
-Sorts. Back to [copy](#copy). [Elsewhere](EphysDataset.md#reading).
+Sorts. Back to [copy](#copy). [Elsewhere](EphysDataset.md#reading). [Old](#old-details).
 
 <!-- wiki: ![The Sorting tab](images/app-sorting-tab.png) -->
 
@@ -73,6 +75,7 @@ class GenPages(unittest.TestCase):
         self.assertIn("[formats](File-Formats#nwb-export)", t, "a whole file made into a page")
         s = self.page("Sorting-Tab")
         self.assertIn("[copy](Copy-Tab#copy)", s)
+        self.assertIn("[Old](Copy-Tab#old-details)", s, "an <a name> target goes with the section it sits in")
         self.assertIn("[Elsewhere](" + g.BLOB + "documentation/EphysDataset.md#reading)", s,
                       "a file no page is made from: GitHub")
         f = self.page("File-Formats")
@@ -105,16 +108,22 @@ class GenPages(unittest.TestCase):
             self.assertTrue(g.build(p, texts, idx).strip(), p["page"])
 
     def test_app_help_anchors(self):
-        """Every page#anchor the pipeline app's Help opens (helpURL.m) is a heading of the page made for it."""
-        src = open(os.path.join(g.REPO, "pipeline", "@EphysPipelineApp", "helpURL.m"), encoding="utf-8").read()
+        """Every page#anchor the apps' Help opens is a heading of the page made for it: the pipeline
+        app's helpURL.m, and the analysis app's helpURL.m (its tabs) and buildMenus.m (its quick start)."""
         pages, texts = g.load_pages(g.REPO)
         idx = g.page_index(pages, texts)
         built = {p["page"]: g.build(p, texts, idx) for p in pages}
-        links = re.findall(r'page = "([A-Za-z0-9-]+)#([\w-]+)"', src)
-        self.assertTrue(links, "helpURL.m opens some anchors")
-        for page, anchor in links:
-            self.assertIn(page, built, f"{page} is made from documentation/")
-            self.assertIn(anchor, g.anchors_by_section(built[page]), f"{page}#{anchor}")
+        files = [("pipeline", "@EphysPipelineApp", "helpURL.m"),
+                 ("analysis", "@EphysAnalysisApp", "helpURL.m"),
+                 ("analysis", "@EphysAnalysisApp", "buildMenus.m")]
+        for parts in files:
+            name = "/".join(parts)
+            src = open(os.path.join(g.REPO, *parts), encoding="utf-8").read()
+            links = re.findall(r'(?:page = |onHelp\()"([A-Za-z0-9-]+)#([\w-]+)"', src)
+            self.assertTrue(links, f"{name} opens some anchors")
+            for page, anchor in links:
+                self.assertIn(page, built, f"{name}: {page} is made from documentation/")
+                self.assertIn(anchor, g.anchors_by_section(built[page]), f"{name}: {page}#{anchor}")
 
 
 if __name__ == "__main__":

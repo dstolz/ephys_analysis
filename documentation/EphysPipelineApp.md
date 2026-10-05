@@ -2348,6 +2348,8 @@ data** finds them again after a run has written new files. While the tab is
 hidden the plot keeps the dataset it shows; the status line then names both
 datasets.
 
+<!-- wiki: ![The Visualize tab: the recording around a manual and an automatic artifact period, with sorted units, detected spikes and TTL rows](images/app-visualize-traces.png) -->
+
 | Control | Meaning |
 | --- | --- |
 | Show | the continuous signal drawn, from the files this dataset has: *Recording* (as every step reads it), *Sorting .bin* (what Kilosort4 sorted: artifact periods filled, the common reference subtracted when one was on, from its JSON sidecar), *LFP* / *MUA* / *SPIKE* / *AUX* (the extract files), or *None (spikes only)*. The line under it says what the signal is (its band, its reference, the periods erased). The kind shown is kept from one dataset to the next |
@@ -2363,7 +2365,13 @@ datasets.
 | Plot, Colours | traces, or a heatmap of each bin's extreme per lane (colour range ± Spacing) |
 | Order by probe | lanes by shank, top of the shank first, with a dotted line between shanks (`channelLayout` on the dataset's probe, else the config's default probe); the units' and channels' own lanes follow the same order |
 | Traces | trace colour: a solid colour (black, blue, red, green, magenta, orange, grey), **By shank** (needs a probe), or **By depth** (position on the probe, top first) / **By channel** (lane order) in the Colours colormap |
-| Shade artifact periods | orange and red, see below |
+| Shade artifact periods | orange (detected) and purple (manual), see below |
+
+The display settings are kept between sessions (the `VizOptions`
+preference), all but the dataset, **Start**, **Spacing** and the event
+**Lines**.
+
+<!-- wiki: ![The same window as a heatmap, high-passed](images/app-visualize-heatmap.png) -->
 
 **Reading.** The viewer ([`EphysTraceViewer`](../pipeline/EphysTraceViewer.m)
 over an [`EphysTraceSource`](../pipeline/EphysTraceSource.m)) reads only the
@@ -2485,6 +2493,13 @@ is built, the signal itself: for each pixel column the median, over the lanes'
 channels, of each channel's min and max about its own median, scaled so a
 typical column spans 40% of the strip (a large excursion, such as an artifact,
 reaches its edge). Click or drag in it to centre the plot there.
+
+**Stepping through events.** At the right end of the toolbar, before the
+**?**, a box picks an event line (each listed with its number of onsets; at
+first the dataset's trial line, else the first line with an onset), and
+◀ / ▶ show its previous / next onset, a quarter of the way into the window,
+the window keeping its width. The status line then says which onset it is
+(`InTrial onset 12 of 240 at 95.3121 s`), or that there is none that way.
 
 **Artifact overlays**: orange = the Artifacts tab's **Detect / Preview**
 intervals of the plotted dataset (the detector a run uses, over the whole

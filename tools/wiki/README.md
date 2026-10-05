@@ -6,7 +6,7 @@ so that each update repeats the last one instead of rebuilding it.
 | File | What it does |
 | --- | --- |
 | `gen_api.py` | Generates the reference part of every `API-*` page from the `.m` sources. It needs no MATLAB. |
-| `gen_pages.py`, `pages.json` | Generates the prose pages from `documentation/`, the one source: `pages.json` says which page is made from which file or sections. It needs no MATLAB, and `test_gen_pages.py` tests it. |
+| `gen_pages.py`, `pages.json` | Generates the prose pages from `documentation/`, the one source: `pages.json` says which page is made from which file or sections. It needs no MATLAB, and `test_gen_pages.py` tests it, along with the page anchors the pipeline app's Help opens (`helpURL.m`). |
 | `check_links.py` | Checks every page's links, anchors and images before a push. |
 | `wikiScreenshots.m` | Takes the pipeline app's screenshots headlessly over a synthetic project, and runs it. |
 | `wikiToolScreenshots.m` | Takes the other windows' screenshots (probe designer, channel mapper, manifest viewer, analysis app) over that project. |

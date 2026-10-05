@@ -477,7 +477,32 @@ iss = cfg.validate();
 check(any(iss.Field == "Devices" & iss.Severity == "warning" & contains(iss.Message, "cuda:1 stay(s) idle")), ...
     'more devices than runs at once: a warning naming the idle ones');
 cfg.Sorting.MaxConcurrent = 2;
-check(~any(cfg.validate().Field == "Devices"), 'two devices, two runs at once: fine');
+check(~any(cfg.validate().Field == "Devices") && ~any(cfg.validate().Field == "MaxConcurrent"), 'two devices, two runs at once: fine');
+cfg.Sorting.Devices = string.empty(1, 0);
+iss = cfg.validate();
+check(any(iss.Step == "sorting" & iss.Field == "MaxConcurrent" & iss.Severity == "warning" ...
+    & contains(iss.Message, "2 Kilosort4 runs at once all go on one GPU, Kilosort4's first") & contains(iss.Message, "CUDA out of memory")), ...
+    'two runs at once and no device listed: a warning that they share Kilosort4''s first GPU');
+cfg.Sorting.Devices = "cuda:1";
+iss = cfg.validate();
+check(any(iss.Field == "MaxConcurrent" & iss.Severity == "warning" & contains(iss.Message, "all go on one GPU, cuda:1")), ...
+    'two runs at once and one device: a warning naming it');
+cfg.Sorting.Devices = "cpu";
+check(~any(cfg.validate().Field == "MaxConcurrent"), 'two runs at once on the CPU: no GPU warning');
+cfg.Sorting.Devices = string.empty(1, 0);
+cfg.Sorting.KS4ExtraJSON = '{"torch_device": "cpu"}';
+check(~any(cfg.validate().Field == "MaxConcurrent"), 'nor with the extra settings'' torch_device on the CPU');
+cfg.Sorting.KS4ExtraJSON = '{"torch_device": "cuda:0"}';
+check(any(contains(cfg.validate().Message, "all go on one GPU, cuda:0")), 'the extra settings'' torch_device is the GPU named');
+cfg.Sorting.KS4ExtraJSON = "";
+cfg.Sorting.MaxConcurrent = 1;
+check(~any(cfg.validate().Field == "MaxConcurrent"), 'one run at a time on one GPU: fine');
+cfg.Sorting.MaxConcurrent = 3;
+cfg.Sorting.Execution = "blocking";
+check(~any(cfg.validate().Field == "MaxConcurrent"), 'blocking runs (one at a time): no GPU warning');
+cfg.Sorting.Execution = "background";
+cfg.Sorting.Devices = ["cuda:0" "cuda:1"];
+cfg.Sorting.MaxConcurrent = 2;
 cfg.Sorting.KS4ExtraJSON = '{"torch_device": "cuda:0"}';
 iss = cfg.validate();
 check(any(iss.Field == "Devices" & iss.Severity == "warning" & contains(iss.Message, "overrides torch_device")), ...

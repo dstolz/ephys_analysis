@@ -15,7 +15,9 @@ function loadPreferences(obj)
 %   kinds of file the Clean up tab removes, and the last Python exe set
 %   (the Python a new config starts with, see defaultPythonExe).
 %   Everything else lives in the config; the last config file is reopened
-%   at launch (defaults otherwise).
+%   at launch (defaults otherwise). The Kilosort4 runs kept when the app
+%   last closed are preferences too, taken back by followKeptKSRuns (the
+%   runs going) and offerKeptKSQueue (a queue, once its root is scanned).
 
 g = obj.PrefGroup;
 

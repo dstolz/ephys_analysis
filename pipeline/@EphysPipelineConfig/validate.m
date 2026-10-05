@@ -188,6 +188,20 @@ if S.Enabled
             && numel(S.Devices) > S.MaxConcurrent
         add("sorting", "Devices", "warning", sprintf("%d devices but %d Kilosort4 run(s) at once: %s stay(s) idle.", ...
             numel(S.Devices), S.MaxConcurrent, strjoin(S.Devices(floor(S.MaxConcurrent)+1:end), ", ")));
+    elseif S.Execution == "background" && isfinite(S.MaxConcurrent) && S.MaxConcurrent >= 2 && numel(S.Devices) <= 1
+        % Every run goes on the one device, else the extra settings'
+        % torch_device, else Kilosort4's first GPU: a small card runs out of memory.
+        dev = "Kilosort4's first (no Devices listed)";
+        if isscalar(S.Devices)
+            dev = S.Devices;
+        elseif msg == "" && isfield(ks4, 'torch_device') && isscalar(string(ks4.torch_device))
+            dev = string(ks4.torch_device);
+        end
+        if dev ~= "cpu"
+            add("sorting", "MaxConcurrent", "warning", sprintf(['%d Kilosort4 runs at once all go on one GPU, %s: ' ...
+                'together they can run out of its memory (CUDA out of memory). List a device per run, or lower MaxConcurrent.'], ...
+                S.MaxConcurrent, dev));
+        end
     end
     if ~isempty(S.Devices) && msg == "" && isfield(ks4, 'torch_device')
         add("sorting", "Devices", "warning", "Devices overrides torch_device in the extra Kilosort4 settings.");

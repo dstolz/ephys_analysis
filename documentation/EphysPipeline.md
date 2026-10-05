@@ -120,7 +120,12 @@ be a whole number ≥ 1 (error), and each of `Sorting.Devices` must be a torch
 device, `cpu`, `mps`, `cuda` or `cuda:N` (error). More devices than
 `MaxConcurrent`, several devices with blocking runs (only the first is used)
 and `Devices` next to a `torch_device` in `KS4ExtraJSON` (`Devices` wins) are
-warnings.
+warnings. So are background runs two or more at once (`MaxConcurrent` ≥ 2)
+with no more than one device listed: every run then goes on the same GPU (the
+one device, else the `torch_device` of `KS4ExtraJSON`, else Kilosort4's first
+GPU), and on a small card they can run out of its memory (CUDA out of
+memory). The warning is on `MaxConcurrent`; a single device or `torch_device`
+of `cpu` raises none.
 
 ### Helpers
 
@@ -445,7 +450,8 @@ two-GPU machine get one GPU each. The device goes to the driver as
 `--device` and overrides a `torch_device` in `KS4ExtraJSON`. Blocking runs
 use the first device. Empty (the default) leaves the choice to Kilosort4,
 which takes the first GPU. With more devices than `MaxConcurrent`, the
-extra ones stay idle, and validation warns.
+extra ones stay idle, and validation warns. With two or more runs at once and
+no more than one device, they all share one GPU, and validation warns too.
 
 **Queued.** With `QueueFcn` set, `runSorting` starts no background run
 itself and never waits for a slot. It writes each dataset's run files, calls
@@ -713,7 +719,7 @@ the behavior file.
 
 | Suite | Checks |
 | --- | --- |
-| [`test_EphysPipelineConfig.m`](../pipeline/test_EphysPipelineConfig.m) | exact save / load round trip with `Inf`, `NaN`, `[]`, one-element lists and bands; normalization fills and drops; `BadSchema`; `ks4Settings`; `ks4ProbeDefaults` on synthetic layouts (staggered 4-shank, Neuropixels-like, dense multi-shank, sparse column, 2-D grid, exclusions, shanks without `kcoords`); probe parameter files (`writeKS4Params` / `ks4ForProbe`: round trip, a hand-written subset, refusals, every file shipped in `pipeline/probes` loads); every `signalOptions` error and each `ExcludeHandling` mode; `validate` on enabled steps only, the `Parallel` section (`MaxWorkers`), the background-sorting rule and the unit-label `NamePattern` rule |
+| [`test_EphysPipelineConfig.m`](../pipeline/test_EphysPipelineConfig.m) | exact save / load round trip with `Inf`, `NaN`, `[]`, one-element lists and bands; normalization fills and drops; `BadSchema`; `ks4Settings`; `ks4ProbeDefaults` on synthetic layouts (staggered 4-shank, Neuropixels-like, dense multi-shank, sparse column, 2-D grid, exclusions, shanks without `kcoords`); probe parameter files (`writeKS4Params` / `ks4ForProbe`: round trip, a hand-written subset, refusals, every file shipped in `pipeline/probes` loads); every `signalOptions` error and each `ExcludeHandling` mode; `validate` on enabled steps only, the `Parallel` section (`MaxWorkers`), the background-sorting rule, the `Devices` / `MaxConcurrent` rules (several runs at once on one GPU: no device, one device, a `torch_device`, the CPU) and the unit-label `NamePattern` rule |
 | [`test_EphysPipeline.m`](../pipeline/test_EphysPipeline.m) | selection by key with duplicate leaf names; `plan()` writes nothing and flags existing / duplicate outputs, missing probe, sorting output and extract file, unit identity errors and unit label collisions; sorting dry run writes a `settings.json` carrying the KS4 settings; `runSignals` / `runSpikeDetection` / `runExport` outputs equal the direct calls; `runSignals` erases the artifact periods (manual + automatic; manual only without `Artifacts.ApplyToSignals`; none without `Signals.BlankArtifacts`) and every per-type file, the Chronux file and the FieldTrip file carry them; `checkBehavior` associates by prefix and writes the manifest; the artifact cache is reused and invalidated; cancel leaves no partial `.mat`; `Parallel.Enabled` reaches the artifacts and spikes steps and is logged |
 | [`test_TrialPairing.m`](../pipeline/test_TrialPairing.m) | `pairEpsychTrials`: equal counts, a recording started late or stopped early (partial intervals at the edges, the count-mismatch warning, the cuts that resolve it), an inverted line idle at the recording start, cut validation, nested lines, derived-signal samples; `digitalEvents` cache; `pairTrials` / `setTrialPairing` manifest round trip with cuts and staleness; `autoApproveTrialPairing` (only matching counts without cuts, the `auto_approved` mark); `behaviorToMat(Pairing=)`; the behavior step records, reuses and reports pairings, `AutoApprove` and a count mismatch included |
 | [`test_EphysPipelineScript.m`](../pipeline/test_EphysPipelineScript.m) | both scripts are `checkcode`-clean, run, and produce identical outputs; the standalone text never mentions the pipeline classes; disabled steps are commented out in the compact script; `literal` round-trips; the standalone script carries the `Parallel` section into the chunked steps and the artifact periods into its signals step |

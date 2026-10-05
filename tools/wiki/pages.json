@@ -2,11 +2,11 @@
   "comment": "Wiki prose pages generated from documentation/ (gen_pages.py). status: generated = documentation/ holds everything the page says, so the page is written whole from it; candidate = the wiki page still has content documentation/ lacks: it is generated for comparison (--out, --report) and written to a wiki clone only with --include-candidates, once that content has been merged into documentation/. Pages not listed (Home, Quick-Start, Output-Files, Troubleshooting-and-FAQ, the Scripting guide, Architecture, Extending-the-Pipeline, Testing, the sidebar and footer) stay hand-written in the wiki; the API-* pages come from gen_api.py.",
   "pages": [
     {"page": "Platforms", "source": "documentation/platforms.md", "status": "generated"},
-    {"page": "File-Formats", "source": "documentation/file-formats.md", "status": "candidate"},
+    {"page": "File-Formats", "source": "documentation/file-formats.md", "status": "generated"},
     {"page": "Python-Drivers", "source": "documentation/python-drivers.md", "status": "generated"},
     {"page": "Kilosort4-Notes", "source": "documentation/kilosort4-notes.md", "status": "generated"},
     {"page": "Installation", "source": "pipeline/INSTALL.md", "status": "generated"},
-    {"page": "Analysis-App", "source": "documentation/EphysAnalysisApp.md", "status": "candidate"},
+    {"page": "Analysis-App", "source": "documentation/EphysAnalysisApp.md", "status": "generated"},
     {"page": "Analysis-Configs", "source": "documentation/EphysAnalysisConfig.md", "status": "candidate"},
     {"page": "Analysis-Scripting", "source": "documentation/EphysAnalysis.md", "status": "candidate"},
     {"page": "App-Overview", "source": "documentation/EphysPipelineApp.md", "sections": ["Launching", "Window layout", "Typical workflow", "Reporting an issue", "Sorted tables", "Preferences", "What the app writes to disk", "Scripting against a running app"], "status": "generated"},
@@ -20,7 +20,7 @@
     {"page": "Spikes-Tab", "source": "documentation/EphysPipelineApp.md", "sections": ["Spikes"], "status": "generated"},
     {"page": "Export-Tab", "source": "documentation/EphysPipelineApp.md", "sections": ["Export"], "status": "generated"},
     {"page": "Run-and-Flow-Tabs", "source": "documentation/EphysPipelineApp.md", "sections": ["Diagram", "Run"], "status": "generated"},
-    {"page": "Visualize-Tab", "source": "documentation/EphysPipelineApp.md", "sections": ["Visualize"], "status": "candidate"},
+    {"page": "Visualize-Tab", "source": "documentation/EphysPipelineApp.md", "sections": ["Visualize"], "status": "generated"},
     {"page": "Review-Tab", "source": "documentation/EphysPipelineApp.md", "sections": ["Review"], "status": "generated"},
     {"page": "Synthetic-Tab", "source": "documentation/EphysPipelineApp.md", "sections": ["Synthetic", "Synthetic test project"], "status": "generated"},
     {"page": "Clean-Up-Tab", "source": "documentation/EphysPipelineApp.md", "sections": ["Clean up"], "status": "generated"}

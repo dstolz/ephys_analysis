@@ -1,5 +1,8 @@
 function url = helpURL(obj, page)
 %helpURL  Address of a wiki page (EphysAnalysisApp.WikiURL); "tab" = the shown tab's section.
+%   The Analysis-App page is made from documentation/EphysAnalysisApp.md
+%   (tools/wiki/pages.json), so an anchor here, or in buildMenus, is one of
+%   its headings (tools/wiki/test_gen_pages.py checks them).
 arguments
     obj
     page (1,1) string

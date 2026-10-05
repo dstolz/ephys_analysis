@@ -4,18 +4,25 @@ This page lists every file the pipeline reads or writes, where it lives, and
 its schema. JSON is written through `writeJsonFile` (pretty-printed, written to
 a temporary file and renamed, so a reader never sees a half-written file).
 `NaN` / `Inf` are written as `null` except where a schema says they are
-written as the strings `"NaN"` / `"Inf"`.
+written as the strings `"NaN"` / `"Inf"`. MATLAB's `jsonencode` writes a
+one-element array as a scalar, so a list of one is written without its
+brackets (`"files": "info.rhd"`, one manual period as `"manual_artifacts": [t0, t1]`);
+the readers take both. Probe maps are the exception
+([Kilosort4 probe JSON](#kilosort4-probe-json)).
+
+<!-- wiki: What lands where, seen from the app: [Output files](Output-Files). -->
 
 ## Folder layout
 
 ```text
-<Folder>/                               raw recording folder (never modified except for the manifest)
+<Folder>/                               raw recording folder (its recording files are never modified)
 ├─ *.rhd                                Intan traditional layout, or
 ├─ info.rhd + amplifier.dat + ...       Intan one-file-per-signal, or
 ├─ info.rhd + amp-<native>.dat ...      Intan one-file-per-channel, or
 ├─ recording.json + <data>.bin          the universal binary format (any acquisition system), or
 ├─ Record Node <id>/                    an Open Ephys GUI session (see below)
 ├─ <part name>/openephys-part.json      Open Ephys "separate" mode: one part folder per recording (a dataset)
+├─ <session>.mat, or <first>_stitched.mat   the Epsych2 session the Copy tab put here
 ├─ session_manifest.json                where the Copy tab copied the session from (copySessions)
 ├─ session_copy_robocopy.log            the copy engine's robocopy log
 ├─ <Name>_manifest.json                 dataset manifest (writeManifest)
@@ -34,6 +41,8 @@ written as the strings `"NaN"` / `"Inf"`.
 ├─ <Name>_fieldtrip.mat                 FieldTrip export (exportFieldTrip; the Export step)
 ├─ <Name>_epochs.mat                    event-organized export (exportEpochs; the Export step)
 ├─ <Name>_kcsd.npz                      kCSD-python export, a NumPy archive (exportKCSD; the Export step)
+├─ <Name>.nwb, <Name>_nwbinspector.json NWB export and its nwbinspector findings (exportNWB; the Export step)
+├─ analysis/                            analysis figures (an analysis config's default Export.Folder)
 ├─ <Name>.bin + <Name>.json             EphysDataset.toBin (the Sorting step); <Name>_ks4.bin + <Name>_ks4.json
 │                                       when <Name>.bin or <Name>.json is one of the recording's own files
 └─ kilosort4/                           kilosortDir()
@@ -52,13 +61,18 @@ written as the strings `"NaN"` / `"Inf"`.
 <OutputRoot, else Root>/
 └─ pipeline_runs/<runId>_<name>.json    run record of each pipeline run (EphysPipeline.run; see Run records)
 
+<analysis OutputRoot, else Root>/analysis/   an analysis config's default Report.Folder ({OutputRoot}\analysis)
+├─ analysis_report.html, .pdf           analysis report (EphysAnalysisRunner; Report.FileName)
+└─ analysis_runs/<runId>_<name>.json    run record of each analysis run (EphysAnalysisRunner.run)
+
 <Root>/
 └─ pipeline_<name>.m                    standalone script of the config, saved by each pipeline run while
                                         Project.SaveScript is on (EphysPipeline.writeScript); the next run replaces it
 
 <anywhere>/
-├─ <config>.json                        pipeline config (EphysPipelineConfig.save; File → Save)
-└─ <script>.m                           generated script (EphysPipelineScript; File → Generate script)
+├─ <config>.json                        pipeline config (EphysPipelineConfig.save; File → Save),
+│                                       or analysis config (EphysAnalysisConfig.save)
+└─ <script>.m                           generated script (EphysPipelineScript, EphysAnalysisScript; File → Generate script)
 
 <probe folder>/                         pipeline/probes by default
 ├─ <probe>.json                         Kilosort4 probe map
@@ -75,7 +89,10 @@ pipeline/hardware/                      the channel mapper's hardware bank (Hard
 
 Output folders for the Signals, Spikes and Export steps can each be redirected
 with their section's `OutputDir`. Sorted output can live anywhere: the manifest
-records the folder that is associated with the dataset.
+records the folder that is associated with the dataset. Into a recording
+folder the pipeline writes only the manifest, the Open Ephys part folders (in
+`"separate"` mode) and, without an output root, the outputs; the Copy tab and
+the Clean up tab write their own records there.
 
 ---
 
@@ -92,7 +109,7 @@ Kilosort4 layout, and what `EphysDataset.toBin` writes.
   "schema":        "ephys-recording/1",
   "name":          "subj1_day1",                (optional; default = folder leaf)
   "data_file":     "subj1_day1.bin",            relative to the folder
-  "dtype":         "int16",                     int16 | uint16 | int32 | single | float32 | double
+  "dtype":         "int16",                     int16 | uint16 | int32 | uint32 | single | float32 | double | float64
   "n_chan":        64,
   "fs":            30000,
   "n_samples":     18000000,                    (optional; else from the file size)
@@ -110,6 +127,11 @@ Kilosort4 layout, and what `EphysDataset.toBin` writes.
 ```
 
 `BinaryReader.writeDescriptor(folder, spec)` writes a validated descriptor.
+`schema` (exactly `"ephys-recording/1"`), `data_file`, `dtype`, `n_chan` and
+`fs` are required (`BinaryReader:BadDescriptor` otherwise); `gain_to_uV` and
+`offset` default to 1 and 0. A `dig_in_file` takes precedence over `events`:
+with both, the events are decoded from the file. Without a readable
+`acq_date` the data file's modified time is the recording start.
 Only `recording.json` marks a folder as a recording, so the `.bin` + sidecar
 pairs that `toBin` writes into output folders are never mistaken for one.
 `RecordingFormat` for these datasets is `"binary"`; the manifest's `reader` is
@@ -185,13 +207,16 @@ folder, named from the recording's start (see
 ```
 
 A part folder is a dataset like any other: its manifest and (without an output
-root) its outputs are written into it. The scan creates missing part folders
+root) its outputs are written into it, and its `Files`, relative to it, start
+with `..`. The scan creates missing part folders
 and warns (`OpenEphysReader:PartFolder`) when the session is read-only. The
 other modes ignore part folders.
 
 ---
 
 ## Copy manifest (`session_manifest.json`)
+
+<a name="copied-session-folder"></a>
 
 Path: `<Destination>/<SUBJ>/<recording folder name>/session_manifest.json`.
 Written by `copySessions` (the app's Copy tab and each scheduled copy) in every
@@ -237,8 +262,26 @@ holds a clean-up record) as it is, except a recording copied on its own
 }
 ```
 
+`deltaT_s` is negative when the ePsych session started first. In each
+`files` entry, `sizeBytes` is the size listed when the copy was planned,
+`sourceSizeBytes` and `destSizeBytes` the sizes checked after the copy, and
+`sha256Source` / `sha256Destination` the checksums taken with
+`Verify="hash"` (empty with `"size"`). Next to the manifest, robocopy's log
+is `session_copy_robocopy.log`.
+
 The Clean up tab (`planLocalCleanup`) reads `recording.files`: a local file
 listed there is a raw recording file with a known source.
+
+**The stitched Epsych2 file.** For a stitched session the copy writes
+`<first file name>_stitched.mat` into the session folder
+([`stitchEpsychSessions`](../pipeline/stitchEpsychSessions.m); the source
+files are only read), saved `-v7` to a temporary file and renamed. It holds
+`Data`, one element per trial of every session in time order, plus
+`StitchPart` (the session it came from, 1 = the earliest) and
+`StitchPartTrial` (its place in that session), with `TrialIndex` renumbered
+`1..N`; and `Info`, the earliest session's, plus `Info.Stitch` (`Tool`,
+`Created`, and `Parts`: `File`, `Name`, `Bytes`, `StartTime`, `NTrials` and
+each session's own `Info`).
 
 ---
 
@@ -275,6 +318,46 @@ A raw file is only removed while its `source` holds a file of the same size,
 so the record says where to copy each one back from. A moved file is at
 `<destination>/<dataset key>/<its path in the dataset's recording or output
 folder>`, as `to` says.
+
+---
+
+## Scheduled copy
+
+Path: `%LOCALAPPDATA%\ephys_analysis\copy_schedule\`
+([`CopySchedule`](../pipeline/CopySchedule.m); the Copy tab's
+[Scheduled copy](EphysPipelineApp.md#scheduled-copy)). Besides
+`schedule.json` and `last_run.json` below, the folder holds `task.xml` (the
+Windows task as created), the empty `startup.m` MATLAB runs there,
+`copy_schedule.log` (every run's lines, appended; the previous 5 MB in
+`copy_schedule.1.log`) and `matlab.log` (MATLAB's own output of the last
+run).
+
+`schedule.json` holds the settings (`CopySchedule.defaults`): `Subjects`,
+`EpsychRoot`, `RecordingRoots` (one or more roots of recording folders),
+`DestRoot`, `MaxLeadMin`, `MaxLagMin`, `MarginSec`, `MinDurationMin`,
+`Verify`, `IfExists`, `IncludeUnpaired`, `EveryMin`, `LookBackDays`,
+`QuietMin` and `RunWhen`. Saving fills in `Start` (the first run), `Code`
+(the pipeline folder the task runs), `Matlab` (the MATLAB it starts), `Saved`
+and `SavedBy`. It is written as `schedule.json.new` and renamed once Windows
+has accepted the task. A single subject or root comes back from JSON as a
+string rather than a list; `CopySchedule.normalize` turns it back, and drops
+fields that are not settings.
+
+`last_run.json` describes the last run. It is written when the run starts and
+again when it ends:
+
+| Field | Contents |
+| --- | --- |
+| `State` | `running` while the run is under way; then `done`, or `failed` when a session failed or the run could not do its work |
+| `Started`, `Finished` | local times, `yyyy-MM-ddTHH:mm:ss` |
+| `Host`, `User`, `Pid` | where the run happened |
+| `Days` | the first and last day searched, `yyyy-MM-dd` |
+| `Errors` | what stopped a subject or the whole run (a destination or source that is not there) |
+| `Sessions` | one entry per session found: `Subject`, `Session` (its folder name), `DestDir`, `Status` (one of `CopySchedule.Statuses`), `Message` |
+
+A `last_run.json` that still says `running` after the task has stopped
+belongs to a run that was killed; `matlab.log` has MATLAB's own output of
+that run.
 
 ---
 
@@ -330,7 +413,7 @@ Schema `intan-dataset-manifest/2` (`null` where a value is `NaN`):
                 "num_units": <n or null>, "updated": <"yyyy-MM-dd HH:mm:ss" or ""> },
   "behavior": { "file": <Epsych2 .mat or "">, "exists": <bool>, "subject": <string>,
                 "start_time": <"yyyy-MM-dd HH:mm:ss" or "">, "n_trials": <n or null>,
-                "pairing": null | { "status": "unreviewed" | "approved", "auto_approved": <bool>,
+                "pairing": [] | { "status": "unreviewed" | "approved", "auto_approved": <bool>,
                   "cut_trials": [<from start>, <from end>], "cut_intervals": [<from start>, <from end>],
                   "fingerprint": <string>, "trial_line": <string>, "summary": <string>,
                   "updated": <"yyyy-MM-dd HH:mm:ss"> } }
@@ -392,7 +475,13 @@ Schema `intan-dataset-manifest/2` (`null` where a value is `NaN`):
   associations as recorded even while their file or folder is not there (the
   steps then report them missing rather than use something else).
   Detector and step settings are **not** stored here; they are
-  in the pipeline config.
+  in the pipeline config. The header metadata is always read again from the
+  recording. A scan then associates the one Epsych2 session file at the top
+  of the recording folder when no behavior file is recorded
+  (`associateFolderBehavior`; several such files: none, with a warning).
+- `behavior.pairing` is `[]` until the trials have been paired;
+  `auto_approved` is true when `Behavior.AutoApprove` approved the pairing
+  (`autoApproveTrialPairing`) rather than a review.
 - Schema `/1` manifests (probe + exclusions only) are still read; `/2` is a
   superset. A manifest that is not valid JSON or has any other schema (a newer
   version's, say) is ignored with a warning and never overwritten:
@@ -439,12 +528,16 @@ Loading a file with another `schema` / `version` fails
 (`EphysPipelineConfig:BadSchema`); unknown fields are dropped and listed in
 `LoadWarnings`.
 
+<!-- wiki: Every section and field: [Pipeline configs](Pipeline-Configs#every-section-and-field). -->
+
 ---
 
 ## Artifact cache
 
 Path: `<outputFolder>/<Name>_artifacts.json`. Written by
-`EphysPipeline.artifactIntervalsFor` when `Artifacts.CacheIntervals` is on.
+`EphysPipeline.artifactIntervalsFor` when `Artifacts.CacheIntervals` is on
+and automatic detection runs (`Artifacts.Enabled`); with manual periods only,
+nothing is written.
 
 ```text
 { "schema": "ephys-artifacts/3", "dataset": <Name>, "fingerprint": <string>,
@@ -463,6 +556,28 @@ settings (including one written under an earlier schema) is recomputed.
 `EphysPipeline.cachedDetection` compares the same fingerprint without
 detecting (the Visualize tab says whether the last run's periods are those the
 current settings find).
+
+---
+
+## Events cache (`<Name>_events.mat`)
+
+Path: `<outputFolder>/<Name>_events.mat`. Written by
+`EphysDataset.digitalEvents` (the Trials tab's **Load** and **Prefetch
+ticked**, trial pairing, the Visualize tab's **Read events**) with a plain
+`save`, since reading the digital inputs can mean reading the whole
+recording. One variable, `digitalEvents`:
+
+| Field | Contents |
+| --- | --- |
+| `events` | one field per line, keyed by the line's **native** name: `[k x 2]` `[t_on t_off]` seconds (`t = row/Fs`) of its **high** runs, as recorded (the polarity is applied later) |
+| `Fs`, `nSamples` | the recording's rate and length |
+| `digInNames`, `digInNativeNames` | the lines' names and native names |
+| `fingerprint` | the reader, the recording files with their modified times, and the sample count it was read from |
+
+The cache is used while its fingerprint matches, so a recording written again
+is read again. The lines are named (`LabelField`, `LineNames`) after loading,
+so renaming a line never reads the recording again. Delete the file, or call
+`digitalEvents(Refresh=true)`, to read it again anyway.
 
 ---
 
@@ -757,8 +872,11 @@ Path: next to `ks4_status.json`. An empty file that the background launcher
 exited, however it ended; `launchSorting` writes it when the launch itself
 fails. A run with this
 file but no status file failed before the driver could report (a missing
-Python or conda env, a crash). `EphysDataset.sortRunState` reads the two
-together. `stopSortRun` writes it too. Deleted before each launch.
+Python or conda env, a crash). `EphysDataset.sortRunState(statusFile)`
+reads the two together and returns `"running"`, `"done"`, `"error"` or
+`"cancelled"`, so such a run frees its slot instead of looking "running" for
+ever. `stopSortRun` writes it too. Its name is `EphysDataset.SortExitMarker`.
+Deleted before each launch.
 
 ## Kilosort4 / phy output
 
@@ -815,7 +933,7 @@ inputs), each holding only that signal in `Y` and `info`:
 
 | Variable | Contents |
 | --- | --- |
-| `Y` | struct with `LFP`, `MUA`, `SPIKE` (`single`, `[nSamples x nChan]`) and `AUX`; unrequested fields are `single([])`. Row k of a signal is at `(k-1)/info.<type>.Fs` |
+| `Y` | struct with `LFP`, `MUA`, `SPIKE` (`single`, `[nSamples x nChan]`, µV) and `AUX` (volts); unrequested fields are `single([])`. Row k of a signal is at `(k-1)/info.<type>.Fs` |
 | `events` | struct, one field per digital-input line, `[k x 2]` `[t_on t_off]` seconds; onset = rising edge, or falling edge for the lines in `info.invertedLines` (`Signals.InvertedLines`) |
 | `info` | per signal `Fs` and `nSamples` (the row count; there are no time vectors), `origFs`, `labels`, `invertedLines`, `badChannels` (the columns interpolated, their recording channels, the method per column and the weights), `reference` (the common reference: `mode`, `channels`, and `signals`, the ones it was subtracted from; each signal's own `info.<TYPE>.reference` says `"none"`, `"car"` or `"cmr"`), `artifacts` (the periods erased before any signal was derived: `intervals` `[k x 2]` `[tStart tEnd)` s on the continuous clock, `fill` `"line"`, `nSamples` replaced; in every file, combined or per type), `importOptions`, ...; see [intan2matlab.md](intan2matlab.md#outputs) |
 | `conversion` | `tool`, `created`, `dataset`, `sourceFolder`, `recordingFormat`, `matFileVersion`, `matlabVersion`, `provenance` ([Provenance](#provenance)) |
@@ -866,7 +984,7 @@ Chronux functions take; no Chronux function is called to produce it.
 
 | Variable | Contents |
 | --- | --- |
-| `LFP` / `MUA` / `SPIKE` | one struct per exported signal: `data` `[nSamples x nChan]` double µV, `params` (Chronux params with `Fs` = the signal rate), `t` (`(k-1)/Fs`), `labels`, `info` |
+| `LFP` / `MUA` / `SPIKE` / `AUX` | one struct per exported signal: `data` `[nSamples x nChan]` double µV (AUX: volts), `params` (Chronux params with `Fs` = the signal rate), `t` (`(k-1)/Fs`), `labels`, `info` |
 | `sp` | `1 x nUnits` struct array with field `times` (sorted units), or `[]` |
 | `spDetected` | the same for threshold-detected spikes, one element per channel, or `[]` |
 | `units` | the `readSortedUnits` struct, one row per unit: `unitId`, `label` (`su042_1255_260908T1039`), `class`, `group`, `notes`, `subject`, `recordingStart`, `datasetKey`, `channel`, `channelName`, `ksChannel`, `shank`, `peakX`, `peakY`, `x`, `y`, `nSpikes`, `samples`, `times`, `amplitude`, `contamPct`, `templateWaveform`, `templateTimeMs`, plus `templateUnits` (`"uV"`, `"bin"`, `"whitened"` or `""`), `fs`, `resultsDir`, `groupSource`, `curated`, `channelMap`, `channelMapSource`, ... ([fields](EphysDataset.md#reading-sorted-units)), same order as `sp`, or `[]`. `unitTable` turns it into a table |
@@ -884,17 +1002,20 @@ Default `<outputFolder>/<Name>_fieldtrip.mat`. Structures follow
 | Variable | Contents |
 | --- | --- |
 | `data_LFP` / `data_MUA` / `data_SPIKE` / `data_AUX` | raw structures, one trial spanning the signal; `cfg.event` holds the events at that signal's rate, each on the sample nearest its recording row; `cfg.artfctdef.preprocessing.artifact` the artifact periods erased before the signals were derived, `[begsample endsample]` rows of that signal on its `sampleinfo` (every sample a period touches; `[]` with none), the matrix `ft_rejectartifact` reads |
-| `spike` | spike structure of the sorted units (`label` = unit labels such as `su042_1255_260908T1039`, `timestamp` in recording samples; `hdr.orig` keeps the unit fields: class, identity, location, notes), or `[]` |
+| `spike` | spike structure of the sorted units (`label` = unit labels such as `su042_1255_260908T1039`, `timestamp` in 0-based recording samples, `hdr.Fs` the sorting rate; `hdr.orig` keeps the unit fields: class, identity, location, notes), or `[]` |
 | `spikeDetected` | the same, one "unit" per detected channel, or `[]` |
-| `event` | event struct array at the recording rate |
-| `export` | `tool`, `created`, `dataset`, `sources`, `signals`, `eventFs`, `artifacts` (the extract's `info.artifacts`, the periods in seconds), `validation`, `provenance` ([Provenance](#provenance)) |
+| `event` | event struct array at the recording rate: `type` (the line), `sample`, `value`, `offset`, `duration` |
+| `export` | `tool`, `created`, `dataset`, `sourceFolder`, `sources`, `signals`, `eventFs`, `artifacts` (the extract's `info.artifacts`, the periods in seconds), `nUnits`, `validation` (per structure: `ok`, `message`, when FieldTrip is on the path), `fieldtripOnPath`, `provenance` ([Provenance](#provenance)) |
 
 ## Epoch export (`EphysDataset.exportEpochs`; the Export step)
+
+<a name="epoch-export"></a>
 
 Default `<outputFolder>/<Name>_epochs.mat`: the same recorded samples and spike
 times as the other exports, cut into one epoch per event
 ([`EphysDataset.eventEpochs`](EphysDataset.md#event-organized-epoched-data)).
-Nothing is averaged, smoothed or resampled.
+Nothing is averaged, smoothed or resampled. `DatasetOutputs` finds it as the
+`epochs` kind (`out.Epochs`).
 
 | Variable | Contents |
 | --- | --- |
@@ -1104,14 +1225,16 @@ schema `ephys-analysis-run/1`: `runId`, `name`, `outcome` (`finished` |
 Written by `EphysAnalysisConfig.save` (the analysis app's **File → Save
 config**); any name, e.g. `am_quicklook.json`. Schema `ephys-analysis-config`,
 version 1; `Inf` / `NaN` are written as the strings `"Inf"` / `"NaN"`
-(`writeJsonFile(NonFinite="string")`) and read back as numbers.
+(`writeJsonFile(NonFinite="string")`) and read back as numbers. Another
+schema or version fails (`EphysAnalysisConfig:BadSchema`); unknown fields are
+dropped and listed in `LoadWarnings`.
 
 | Key | Contents |
 | --- | --- |
 | `schema`, `version`, `name`, `description` | identification |
-| `Source` | `Mode` (`project` / `folders`), `Root`, `OutputRoot`, `NamePattern`, `Selection`, `Datasets`, `Folders` |
+| `Source` | `Mode` (`project` / `folders`), `Root`, `OutputRoot`, `NamePattern`, `Recordings` (the Open Ephys recording mode), `Selection`, `Datasets`, `Folders` |
 | `Defaults` | `EventRef`, `Window` (`stop` is `[]` or an event reference), `Selection` |
-| `Plots` | array of plots: `id`, `kind`, `enabled`, `title`, `source`, `units`, `channels`, `ref` / `window` / `selection` (`"default"` or an object), `bins`, `baseline`, `layout`, `withRaster`, `rasterSort`, `histStyle`, `fill`, `fillAlpha`, `normalize`, `stack`, `stackSpacing`, `maskAfterStop`, `param`, `seriesParam`, `value`, `order`, `metric`, `correlation`, `style` |
+| `Plots` | array of plots: `id`, `kind`, `enabled`, `title`, `source`, `units`, `channels`, `ref` / `window` / `selection` (`"default"` or an object), `bins`, `measure`, `baseline`, `auroc`, `layout`, `withRaster`, `rasterSort`, `histStyle`, `fill`, `fillAlpha`, `normalize`, `stack`, `stackSpacing`, `maskAfterStop`, `param`, `seriesParam`, `value`, `order`, `metric`, `correlation`, `waveform`, `style`, `aesthetics` |
 | `Export` | `Enabled`, `Formats`, `Folder`, `FilenamePattern`, `Dpi`, `FigureSizeCm`, `Overwrite` |
 | `Report` | `Enabled`, `Format`, `Title`, `Folder`, `FileName`, `PerDataset`, `EmbedFormat`, `Dpi`, `IncludeSummary`, `IncludeParameters`, `IncludeConfig` |
 
@@ -1160,3 +1283,14 @@ names `{Index}`, or `{Unit}` with a unit filled in (a paged evoked grid's
   (`exportgraphics(ContentType="vector")`), made from the figures that were
   exported (an exported `.pdf` is reused) and joined in that order with the
   Apache PDFBox library MATLAB ships.
+
+## Which writes are atomic
+
+A file written atomically goes to a temporary name next to it and is renamed
+once complete, so a reader never sees half of it and a crash leaves the
+previous file as it was.
+
+| Written atomically (temporary file + rename) | Written directly |
+| --- | --- |
+| the six `.mat` outputs (`toMat`, `spikesToMat`, `behaviorToMat`, `exportChronux`, `exportFieldTrip`, `exportEpochs`) via `EphysDataset.saveAtomically`; the stitched Epsych2 file; the kCSD `.npz`; the `.nwb`; the Visualize envelopes | the `.bin` and its JSON sidecar, `settings.json`, `<Name>_events.mat`, generated scripts, analysis figures and reports |
+| through `writeJsonFile`: the dataset manifest, the artifact cache, `recording.json` (`writeDescriptor`), `openephys-part.json`, probe maps and the derived `_excluded` / `_spaced` probes (`writeProbeMap`), `<probe>.ks4.json`, `<probe>.chanmap.json`, hardware bank entries, pipeline and analysis configs, run records, `quality_metrics.json`, `<Name>_nwbinspector.json`, `<Name>_cleanup.json`, `session_manifest.json`, the scheduled copy's `schedule.json` and `last_run.json`, and the `ks4_status.json` of a run stopped from MATLAB | everything Python writes (`ks4_status.json`, `ks4_run.log`, the sorter output), and the logs appended a line at a time (`copy_schedule.log`) |

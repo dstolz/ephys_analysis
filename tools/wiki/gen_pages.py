@@ -70,7 +70,7 @@ def split_sections(text):
 
 
 def anchors_by_section(text):
-    """{anchor: section title (None before the first "## ")} for every heading of TEXT."""
+    """{anchor: section title (None before the first "## ")} for every heading and <a name> target of TEXT."""
     seen, out, fence, section = set(), {}, False, None
     for line in text.split("\n"):
         if line.startswith("```"):
@@ -83,8 +83,8 @@ def anchors_by_section(text):
             if len(m.group(1)) == 2:
                 section = m.group(2)
             out[anchor_of(m.group(2), seen)] = section
-    for a in re.findall(r'<a (?:name|id)="([^"]+)"', text):
-        out.setdefault(a, section)
+        for a in re.findall(r'<a (?:name|id)="([^"]+)"', line):
+            out.setdefault(a, section)                     # the section it sits in
     return out
 
 

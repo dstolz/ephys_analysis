@@ -350,15 +350,18 @@ read again, a progress callback, a best-effort clean-up) stay quiet.
   derived-signal bad-channel detection; `signrank` and `kruskalwallis` in
   the analysis module's response statistics, `responseStats` and the
   *Responsive only* unit selection; `tiedrank`, `tinv` and `ranksum` in its
-  auROC, `aurocCurves`: the auROC baseline of PSTH and heatmap plots and
-  the auROC response test).
+  auROC, `aurocCurves` and `aurocCall`: the auROC baseline of PSTH and
+  heatmap plots, the auROC response test and `populationAnalysis`' calls
+  pooled over every dataset).
 - Parallel Computing Toolbox (optional; `Parallel.Enabled` in a pipeline
   config, or `UseParallel=true` on `detectSpikes`, `artifactIntervals` and
   `analyzeArtifacts`). The Visualize tab's envelope builds
   (`EphysTraceEnvelope`) need no toolbox: `parfeval` on `backgroundPool`
   is part of MATLAB.
-- No Report Generator: the analysis module's PDF reports are built with
-  `exportgraphics(..., Append=true)` and its HTML reports by hand.
+- No Report Generator: the analysis module's PDF reports are vector pages
+  from `exportgraphics`, joined with the Apache PDFBox library that MATLAB
+  ships on its Java class path (`java/jarext/pdfbox.jar`,
+  `PDFMergerUtility`), and its HTML reports are written by hand.
 
 **Functions from elsewhere in this repository**:
 
@@ -486,11 +489,11 @@ suite's temporary preferences, so close it before the run ends.
 | `test_PlotAesthetics` (analysis/) | the right-click aesthetics editor: rules, every renderer naming what it draws, the user's rules then the plot's, the menu, the editor (Apply to, Reset, Cancel, OK, Remember, Forget), the config and the script literal |
 | `test_EphysAnalysisEpochs` (analysis/) | sources, event references, epochs (intervals and their trials, between windows, artifact periods), trial selection and grouping, units and detections, `selectUnits`' response and auROC tests, against the synthetic truth |
 | `test_EphysAnalysisConfig` (analysis/) | the analysis config: JSON round trips, `plotFor`, validation |
-| `test_EphysAnalysisRunner` (analysis/) | plan, run, exports, HTML / PDF reports, cancel, rendering real results, a failing export closing its page, unit waveforms, compact vs standalone script equivalence |
+| `test_EphysAnalysisRunner` (analysis/) | plan, run, exports, HTML / PDF reports (each page drawn once), cancel, rendering real results, a failing export closing its page, unit waveforms, compact vs standalone script equivalence |
 | `test_EphysAnalysisApp` (analysis/) | the analysis GUI, headless |
 | `test_ResponseStats` (analysis/) | `pAdjust` against statsmodels; `responseStats` on known counts against `signrank` / `kruskalwallis` called directly (toolbox tests skipped without it) |
-| `test_Auroc` (analysis/) | `aucOf`; `aurocCurves` (`"psth"` against a port of the Caras lab's code, `"epochs"`, windows, the stop mask, cutoffs, bootstrap / ranksum / shuffle tests); `spikePSTH`'s auROC result; the PSTH and heatmap marks (skipped without the toolbox) |
-| `test_PopulationAnalysis` (analysis/) | `populationAnalysis` against the per-dataset calls, `populationSummary`, the files `writePopulation` writes |
+| `test_Auroc` (analysis/) | `aucOf`; `aurocCurves` (`"psth"` against a port of the Caras lab's code, `"epochs"`, windows, the stop mask, cutoffs, `aurocCall` over stacked results, silent units, bootstrap / ranksum / shuffle tests); `spikePSTH`'s auROC result; the PSTH and heatmap marks (skipped without the toolbox) |
+| `test_PopulationAnalysis` (analysis/) | `populationAnalysis` against the per-dataset calls, the auROC calls pooled over the family, `populationSummary`, the files `writePopulation` writes |
 | `test_ReadNewLines` | `readNewLines` (the run monitor's log tail): whole lines from a byte offset, a partial line left for the next call, CRLF and carriage-return progress lines as a terminal shows them; a missing file or no name reads nothing and keeps the offset |
 | `test_PlatformSupport` | `platformSupport`'s table and its refusal on a platform where a feature is not available (skipped on Windows); `openInSystem`'s error |
 | `test_TableSort` | `TableSort`, the kept sort of the apps' tables: the order by number, text (ignoring case), date, duration, category and logical, ties in the order given, missing values last, cell columns by header, a column the rows lack; the column and direction a header click leaves, an edit ignored; the preference round trip |

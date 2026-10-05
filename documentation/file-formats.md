@@ -1156,5 +1156,7 @@ names `{Index}`, or `{Unit}` with a unit filled in (a paged evoked grid's
   (folded); plots that were skipped or failed with
   the reason; the config JSON at the end (folded).
 - **PDF**: a title page (with the code version, MATLAB and machine), a summary page per dataset (listing skipped and
-  failed plots) and every plot's pages drawn again as vector pages
-  (`exportgraphics(ContentType="vector", Append=true)`).
+  failed plots) and every plot's pages as vector pages
+  (`exportgraphics(ContentType="vector")`), made from the figures that were
+  exported (an exported `.pdf` is reused) and joined in that order with the
+  Apache PDFBox library MATLAB ships.

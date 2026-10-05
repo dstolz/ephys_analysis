@@ -1,5 +1,5 @@
 classdef test_Auroc < matlab.unittest.TestCase
-    %test_Auroc  aurocCurves, aucOf and spikePSTH's BaselineMode "auroc".
+    %test_Auroc  aurocCurves, aurocCall, aucOf and spikePSTH's BaselineMode "auroc".
     %   aucOf against counting every pair (ties half, NaN left out). The
     %   "psth" method against a port of the Caras lab's
     %   auROC_response_curve (Caraslab_EPhys_preprocessing_pipeline,
@@ -9,7 +9,10 @@ classdef test_Auroc < matlab.unittest.TestCase
     %   hand. Tiled and sliding windows; the whole-bin rules and the errors;
     %   the stop mask; each cutoff (the 95% CI formula, fixed, none) and
     %   each test (bootstrap, ranksum, shuffle) on driven, suppressed and
-    %   flat units, reproducible by seed; spikePSTH's auROC result, its
+    %   flat units, reproducible by seed; the call pooled over units
+    %   measured apart (Call=false, then one aurocCall over them stacked
+    %   gives the cutoff, the test's correction and the calls of one
+    %   aurocCurves over them all); spikePSTH's auROC result, its
     %   modulatedOnly and its caption; renderPSTH and renderHeatmap tag
     %   what they add. Needs the Statistics and Machine Learning Toolbox
     %   (skipped without it, but for the NoToolbox error).
@@ -143,7 +146,53 @@ classdef test_Auroc < matlab.unittest.TestCase
             truth = repmat(["increase"; "decrease"; "none"], 4, 2);
             tc.verifyEqual(F.direction, truth, 'driven units up, suppressed down, flat ones not');
             tc.verifyWarning(@() aurocCurves(st(1:2), E, Window=[-0.5 1], Baseline=[-0.5 0], ModulationWindow=[0 0.3]), ...
-                'aurocCurves:WideCutoff', 'two units: the interval is too wide to call any');
+                'aurocCall:WideCutoff', 'two units: the interval is too wide to call any');
+        end
+
+        function silentUnits(tc)
+            tc.assumeTrue(hasStats(), "needs the Statistics and Machine Learning Toolbox");
+            [st, E] = fixture(Units=6);
+            args = {'Window', [-0.5 1], 'Baseline', [-0.5 0], 'ModulationWindow', [0 0.3]};
+            t1 = E.t0Continuous(E.groupIndex == 1);
+            quiet = {zeros(0, 1); E.t0Continuous(1) + 2; sort(t1 + 0.1)};   % none; one outside every span; group 1's epochs only
+            A = aurocCurves([st; quiet], E, args{:});
+            tc.verifyTrue(all(isnan(A.auroc(:, 7:8, :)), 'all') && all(isnan([A.mean(7:8, :) A.phasic(7:8, :)]), 'all') ...
+                && all(isnan(A.auroc(:, 9, 2))) && all(isfinite(A.auroc(:, 9, 1))), ...
+                'a unit with no spike in the span counted over a group''s epochs has no auROC there (NaN)');
+            tc.verifyEqual(A.direction(7:8, :), strings(2, 2), 'and no call');
+            tc.verifyEqual(A.direction(9, 2), "");
+            v = A.phasic(isfinite(A.phasic));
+            tc.verifyEqual(A.cutoffValue, mean(v) + tinv(0.975, numel(v) - 1) * std(v) / sqrt(numel(v)), 'AbsTol', 1e-12, ...
+                'the cutoff pools only the unit x group rows with an auROC');
+            tc.verifyEqual(numel(v), 2 * 6 + 1);
+        end
+
+        function pooledCall(tc)
+            tc.assumeTrue(hasStats(), "needs the Statistics and Machine Learning Toolbox");
+            [st, E] = fixture(Units=12);
+            args = {'Window', [-0.5 1], 'Baseline', [-0.5 0], 'ModulationWindow', [0 0.3]};
+            A = aurocCurves(st, E, args{:});
+            A1 = tc.verifyWarningFree(@() aurocCurves(st(1:2), E, args{:}, Call=false), ...
+                'Call=false: no cutoff over two units, so no warning');
+            A2 = aurocCurves(st(3:12), E, args{:}, Call=false);
+            tc.verifyEqual(A1.direction, strings(2, 2), 'Call=false: no call');
+            tc.verifyEqual([A1.mean; A2.mean], A.mean, 'the same measures');
+            tc.verifyWarning(@() aurocCall(A1), 'aurocCall:WideCutoff', 'the two units alone: too few for the interval');
+            C = aurocCall(struct('mean', [A1.mean; A2.mean], 'phasic', [A1.phasic; A2.phasic], 'p', [A1.p; A2.p]));
+            tc.verifyEqual(C.cutoffValue, A.cutoffValue, 'AbsTol', 1e-12, ...
+                'the cutoff over the stacked units is aurocCurves'' over them all');
+            tc.verifyEqual(C.direction, A.direction, 'and so are the calls');
+            tc.verifyEqual([C.nModulated C.nIncrease C.nDecrease], [A.nModulated A.nIncrease A.nDecrease]);
+            targs = [args, {'Cutoff', "test", 'Test', "ranksum"}];
+            T = aurocCurves(st, E, targs{:});
+            T1 = aurocCurves(st(1:5), E, targs{:}, Call=false);
+            T2 = aurocCurves(st(6:12), E, targs{:}, Call=false);
+            tc.verifyTrue(all(isfinite(T1.p), 'all') && all(isnan(T1.q), 'all'), 'Call=false with a test: each unit''s p, no q');
+            Ct = aurocCall(struct('mean', [T1.mean; T2.mean], 'phasic', [T1.phasic; T2.phasic], 'p', [T1.p; T2.p]), Cutoff="test");
+            tc.verifyEqual(Ct.q, T.q, 'AbsTol', 1e-12, 'the test''s correction over the stacked units');
+            tc.verifyEqual(Ct.direction, T.direction);
+            tc.verifyError(@() aurocCall(C, Cutoff="maybe"), 'aurocCall:BadOption');
+            tc.verifyError(@() aurocCall(C, Cutoff="fixed", Threshold=0.5), 'aurocCall:BadOption');
         end
 
         function tests(tc)

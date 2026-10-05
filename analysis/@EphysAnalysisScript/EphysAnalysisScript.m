@@ -16,8 +16,9 @@ classdef EphysAnalysisScript
     %                                 probeMapValues (and unitWaveforms for
     %                                 the waveform boxes), then a page at a time
     %                                 newExportFigure, renderPlot,
-    %                                 exportFigure and reportImage, the report
-    %                                 calls. It never uses EphysAnalysisRunner,
+    %                                 exportFigure, reportImage and
+    %                                 reportPdfPage, the report calls. It
+    %                                 never uses EphysAnalysisRunner,
     %                                 so it documents exactly what a run does.
     %   Both return the script text; pass File= to write it.
     %
@@ -130,6 +131,7 @@ classdef EphysAnalysisScript
             L = [L; EphysPipelineScript.structLiteral("reportOpts", P)];
             doReport = P.Enabled;
             withImages = doReport && P.Format ~= "pdf";   % the HTML report embeds each exported page
+            withPages = doReport && P.Format ~= "html";   % the PDF report holds each exported page
             if doReport
                 L = [L; EphysAnalysisScript.chunkedLiteral("configJson", cfg.toJson(Pretty=false))];
                 L(end+1, 1) = "config = EphysAnalysisConfig.fromStruct(jsondecode(configJson)).toStruct();   % printed in the report";
@@ -168,10 +170,13 @@ classdef EphysAnalysisScript
                 L(end+1, 1) = "            R.spec = spec;"; %#ok<AGROW>
                 L(end+1, 1) = "            files = strings(1, 0);"; %#ok<AGROW>
                 if X.Enabled
-                    L = [L; "            " + EphysAnalysisScript.pageLines(withImages)]; %#ok<AGROW>
+                    L = [L; "            " + EphysAnalysisScript.pageLines(withImages, withPages)]; %#ok<AGROW>
                 end
-                if X.Enabled && withImages
-                    L(end+1, 1) = "            report = addReportFigure(report, spec, R, Files=files, Images=images);"; %#ok<AGROW>
+                if X.Enabled && doReport
+                    drawn = "Files=files";
+                    if withImages; drawn = drawn + ", Images=images"; end
+                    if withPages; drawn = drawn + ", Pages=pages"; end
+                    L(end+1, 1) = "            report = addReportFigure(report, spec, R, " + drawn + ");"; %#ok<AGROW>
                 elseif doReport
                     L(end+1, 1) = "            report = addReportFigure(report, spec, R, Files=files);"; %#ok<AGROW>
                 end
@@ -297,22 +302,30 @@ classdef EphysAnalysisScript
             L(end+1, 1) = "R.epochs = E;";
         end
 
-        function L = pageLines(withImages)
+        function L = pageLines(withImages, withPages)
             %pageLines  The export loop of one plot, a page at a time, as EphysAnalysisRunner.runDataset draws it.
-            %   WITHIMAGES: the HTML report's image of each page comes from its figure (reportImage).
+            %   WITHIMAGES / WITHPAGES: the HTML report's image / the PDF report's page of
+            %   each page comes from its figure (reportImage / reportPdfPage).
             L = strings(0, 1);
             L(end+1, 1) = "n = plotPageCount(R, spec);";
             if withImages
                 L(end+1, 1) = "images = cell(1, n);   % each page as the HTML report embeds it";
             end
+            if withPages
+                L(end+1, 1) = "pages = strings(1, n);   % each page as the PDF report holds it";
+            end
             L(end+1, 1) = "for p = 1:n";
             L(end+1, 1) = "    base = fullfile(folder, plotFileName(exportOpts.FilenamePattern, name, spec, R, p, n));";
             L(end+1, 1) = "    want = base + ""."" + exportOpts.Formats;";
-            if withImages
+            if withImages || withPages
                 L(end+1, 1) = "    kept = ~exportOpts.Overwrite && all(isfile(want));   % its files exist: drawn for the report only";
                 L(end+1, 1) = "    fig = newExportFigure(exportOpts, R, spec, Page=p);   % a grid page grows with its rows";
                 L(end+1, 1) = "    closer = onCleanup(@() close(fig));   % closes the page on a failure too";
-                L(end+1, 1) = "    h = renderPlot(R, spec, fig, Page=p);";
+                if withImages
+                    L(end+1, 1) = "    h = renderPlot(R, spec, fig, Page=p);";
+                else
+                    L(end+1, 1) = "    renderPlot(R, spec, fig, Page=p);";
+                end
                 L(end+1, 1) = "    written = strings(1, 0);";
                 L(end+1, 1) = "    if kept";
                 L(end+1, 1) = "        files = [files want]; %#ok<AGROW>";
@@ -320,7 +333,12 @@ classdef EphysAnalysisScript
                 L(end+1, 1) = "        written = exportFigure(fig, base, Format=exportOpts.Formats, Dpi=exportOpts.Dpi);";
                 L(end+1, 1) = "        files = [files written]; %#ok<AGROW>";
                 L(end+1, 1) = "    end";
-                L(end+1, 1) = "    images{p} = reportImage(fig, report, Title=h.title, Files=written);";
+                if withImages
+                    L(end+1, 1) = "    images{p} = reportImage(fig, report, Title=h.title, Files=written);";
+                end
+                if withPages
+                    L(end+1, 1) = "    pages(p) = reportPdfPage(fig, report, Files=written);";
+                end
             else
                 L(end+1, 1) = "    if ~exportOpts.Overwrite && all(isfile(want))   % its files exist: not drawn or written again";
                 L(end+1, 1) = "        files = [files want]; %#ok<AGROW>";

@@ -1421,9 +1421,10 @@ queued or still going is skipped (`skip: Kilosort4 queued` /
 `skip: Kilosort4 running` in the plan) and never queued twice.
 
 Closing the app stops the timer but not the Python processes already
-running: their `ks4_status.json` and `ks4_run.log` say how they ended. Queued
-runs that have not started are dropped (the app asks first). The Run tab's
-**Stop runs...** ends runs that are going.
+running: the next launch follows those runs again, and their
+`ks4_status.json` and `ks4_run.log` say how they ended. Queued runs that have
+not started can be kept for the next launch or dropped (the app asks first;
+see [Run](#run)). The Run tab's **Stop runs...** ends runs that are going.
 
 A background run cannot feed the Export step's units in the same run: the
 units do not exist yet when the step starts, and **Validate config** reports
@@ -1873,7 +1874,10 @@ default web browser, same as **Save as HTML...** but without the save dialog.
   one is ready to go. The run stays busy until the last dataset has started;
   **Cancel** stops the wait (runs already started carry on). The current-step
   line says how many are running, finished and still to start. Runs from an
-  earlier Run that are still going count too. Greyed out when Execution
+  earlier Run that are still going count too. With two or more at once and
+  no more than one GPU listed under it, every run goes on the same GPU, where
+  several can run out of memory on a small card; **Validate config** (and the
+  Run's own check) warns. Greyed out when Execution
   (Sorting tab) is blocking, which always goes one at a time. See
   [Background Kilosort4 runs](EphysPipeline.md#background-kilosort4-runs).
 - **GPUs** (under it, blank by default): `Sorting.Devices`, torch devices
@@ -1891,9 +1895,26 @@ default web browser, same as **Save as HTML...** but without the save dialog.
   under way, the queue waits until it ends. **Stop queue** (beside the
   Kilosort4 label under the log) drops the queued runs that have not started
   (their rows turn `cancelled`; their run files stay); the runs already going
-  carry on. Closing the app with runs queued asks first, since closing drops
-  them. Clean up refuses to delete files while runs are queued. Greyed out
+  carry on. Clean up refuses to delete files while runs are queued. Greyed out
   when Execution is blocking.
+- **Closing with background runs.** With runs queued, closing the app asks:
+  **Keep the queue for next time**, **Drop the queue** (running the Sorting
+  step again writes and starts them) or **Cancel**. A kept queue is stored
+  per project root (the `KeptSortingQueue` preference: each run's dataset key
+  and the prepared run `launchSorting` starts). Once that root is next
+  scanned, the app lists the kept runs: those that can go back in the queue,
+  and those that cannot, with why (the dataset is no longer in the project, a
+  run file such as the `.bin` is gone, or Kilosort4 is already queued or
+  going in its folder). **Queue them again** puts the first back in the queue,
+  where the monitor starts them as slots free; **Drop them** does not. When
+  none can go back, an alert says why instead. Either way the kept queue of
+  that root is then forgotten; the log names each run. Runs that are going
+  when the app closes carry on as processes, and the next launch follows them
+  again (the `KeptSortingRuns` preference): their log streams on, they take
+  slots, and one that ended meanwhile is logged as done or failed. A run that
+  has not ended but has no process left (the computer restarted under it,
+  `EphysDataset.sortRunProcesses`) is not followed; the log says so, and
+  sorting its dataset again finishes it.
 - **Stop runs...** (beside **Stop queue**, on while background runs are
   going) stops runs that are going. With one run it asks for a confirmation;
   with several it lists them (dataset, GPU, minutes running), all selected,
@@ -1912,7 +1933,11 @@ default web browser, same as **Save as HTML...** but without the save dialog.
   are kept behind it: the monitor goes on restating its background runs there.
 - **Run**, **Dry run**, **Cancel**: `EphysPipeline.run` with progress bars
   (overall and per step), the results table (`Step`, `Dataset`, `Status`,
-  `Message`, `Output`, `Seconds`) and a timestamped log. A plan with blocking
+  `Message`, `Output`, `Seconds`) and a timestamped log. The results table
+  fills as the Run goes, one row per step and dataset: a row shows at the
+  pipeline's next progress event after it is recorded (the table is only
+  touched when a row was added), and a row the Kilosort4 monitor restates
+  during the Run shows at once. A plan with blocking
   rows (`checkRun`: duplicate outputs, `error: ...`) stops the Run before it
   starts, with an alert listing them. **Scan** and **Refresh metadata** are
   off while it runs. Cancel takes effect at
@@ -2635,6 +2660,8 @@ of a config lives here:
 | `ShowRunDiagram` | the Run tab's **Show the run diagram** switch |
 | `MonitorResources` | the Run tab's **Monitor CPU, memory, disk and GPU** switch |
 | `QueueSortingRuns` | the Run tab's **Queue the waiting runs; the Run goes on** switch |
+| `KeptSortingQueue` | the Kilosort4 queues kept at Close (**Keep the queue for next time**), one element per project root: `root`, `saved` (when), `runs` (`Name`, `key`: the dataset's folder relative to the root, `prepared`: the run `launchSorting` starts). Offered back, then removed, once that root is scanned ([Run](#run)) |
+| `KeptSortingRuns` | the background Kilosort4 runs going at Close (`EphysPipeline.emptyRuns` shape), followed again, then removed, at the next launch |
 | `CleanupOptions` | the Clean up tab's kinds of file and steps to remove, **Removed files go** and its folder, and **Show the files that remain** |
 
 To reset: `AppPrefs.rmpref('EphysPipelineApp')` with the app closed. Older
@@ -2710,6 +2737,7 @@ app.KSQueue                       % prepared runs waiting for a slot (Queue the 
 | `routeFigureInput.m` | shares the figure's wheel, key and button callbacks between the Artifacts tab's plot and the Visualize viewer |
 | `onOptimizeKS4ForProbe.m`, `onResetKS4Params.m`, `onUseSortingFolder.m`, `onUseAutoSorting.m`, `refreshSortingLabel.m`, `pollKSRuns.m`, `onLaunchPhy.m`, `launchPhy.m` | Sorting tab and phy |
 | `queueKSRun.m`, `onStopKSQueue.m`, `onStopKSRuns.m`, `stopKSRuns.m`, `markKSResult.m` | background Kilosort4 runs: the queue the monitor starts from, Stop queue, Stop runs..., restating a run's result row |
+| `keepKSRuns.m`, `followKeptKSRuns.m`, `offerKeptKSQueue.m`, `restoreKSQueue.m`, `private/keptSortingQueue.m`, `private/keptSortingRuns.m` | the background runs kept at Close: storing them, following the runs going again at launch, offering a kept queue back after its root's scan and putting it back in the queue (or dropping it), reading the two preferences |
 | `onSpikesPreview.m`, `syncSpikesEnableStates.m` | Spikes tab |
 | `onBrowseExportOutput.m`, `onExportEpochsToWorkspace.m` | Export tab (output folder, Epochs to workspace) |
 | `onPlotVisualization.m`, `applyVizSettings.m`, `onVizControlsChanged.m`, `onVizViewChanged.m`, `onVizInput.m`, `onVizButtonDown/Up.m`, `refreshVizShading.m`, `vizDetectedIntervals.m`, `syncVizDataset.m`, `loadVizEvents.m`, `onVizReadEvents.m`, `showVizHelp.m`; `pipeline/EphysTraceViewer.m`, `pipeline/EphysTraceSource.m` | Visualize tab: loading the active dataset's signals and spikes, the controls, the wheel / keys / drags, the shading (`vizDetectedIntervals`: the Artifacts preview's intervals the plot shades, or why none); the digital-input events and Read events; the "?" window of mouse and key controls; the viewer and the windowed sources behind it |
@@ -2766,7 +2794,13 @@ its settings hold), a hand-picked sorted-output folder that is not there
 (`missing`, and the Review tab says so), the default probe in the Project
 table, edits, scans and per-dataset changes during a run, an unreadable
 manifest reported after a scan, a Plan while a background run is going, the
-queue (each dataset once; a plan skips a queued one), phy started in a folder
+results table filling as a Run goes (a row at the next progress event, the
+table left alone when no row was added, a row the monitor restates at once), the
+queue (each dataset once; a plan skips a queued one), the runs kept at Close
+(the queue under its project root, another root's left alone; the runs going
+followed again by the next window, one with no process left out; which kept
+runs can go back in the queue and why not; queued again with the scanned
+dataset; an alert when none can), phy started in a folder
 whose path holds `&` and spaces, the timers stopped when the figure is
 deleted, and the [sorted tables](#sorted-tables) (a kept sort applied to the
 Project, Review and Clean up tables, with row clicks, notes, ticks and the

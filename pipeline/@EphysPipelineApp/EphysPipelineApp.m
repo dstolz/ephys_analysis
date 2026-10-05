@@ -59,8 +59,10 @@ classdef EphysPipelineApp < handle
     %                go at once, the GPUs they share and whether the Run
     %                hands the waiting ones to the monitor's queue),
     %                validate, plan, run / dry run / cancel, progress,
-    %                results (background runs' rows follow them to done /
-    %                error), log, Stop runs... / Stop queue; optionally a diagram of the
+    %                results (filled as the run goes; background runs' rows
+    %                follow them to done / error), log, Stop runs... / Stop
+    %                queue (a queue can be kept for the next launch, and
+    %                the runs going are followed again then); optionally a diagram of the
     %                run's steps (the one underway highlighted, each with
     %                its % done) in the right quarter, and CPU / memory / disk /
     %                GPU use under the steps
@@ -117,9 +119,12 @@ classdef EphysPipelineApp < handle
     %   datasets-table column order, the Trials-table parameter columns and
     %   column order, the Trials-plot label parameters, the Visualize
     %   display options, the Copy tab settings, the Synthetic tab's settings
-    %   and design, the Diagram tab's view and layout, and the Run tab's
+    %   and design, the Diagram tab's view and layout, the Run tab's
     %   Show the run diagram and Monitor CPU,
-    %   memory, disk and GPU switches.
+    %   memory, disk and GPU switches, and the background Kilosort4 runs
+    %   kept when the app closed: the ones going, followed again at the
+    %   next launch, and a queue kept per project root, offered back once
+    %   that root is scanned (keepKSRuns).
     %
     %   Usage
     %     EphysPipelineApp;            % launch
@@ -753,8 +758,9 @@ classdef EphysPipelineApp < handle
         % Background Kilosort4 runs awaiting completion + the polling timer.
         KSRuns struct = EphysPipeline.emptyRuns()
         % Runs whose files are written, waiting for the monitor to start them
-        % when a slot frees (queueKSRun): the dataset and the prepared result.
-        KSQueue struct = struct('Name', {}, 'dataset', {}, 'prepared', {})
+        % when a slot frees (queueKSRun): the dataset, the prepared result and
+        % the root of the project it was queued in (keepKSRuns keeps it there).
+        KSQueue struct = struct('Name', {}, 'dataset', {}, 'prepared', {}, 'root', {})
         KSMonitorTimer = []
 
         % --- Visualize interaction state (display-only, in-memory) ---
@@ -867,12 +873,14 @@ classdef EphysPipelineApp < handle
 
     methods
         function obj = EphysPipelineApp()
-            % Construct, build the UI, restore preferences and the last config.
+            % Construct, build the UI, restore preferences and the last config,
+            % and follow again the Kilosort4 runs going when the app last closed.
             obj.buildUI();
             obj.loadPreferences();
             obj.refreshCopySchedule(Fill=true);
             obj.refreshProbeList();
             obj.updateTitle();
+            obj.followKeptKSRuns();
 
             if nargout == 0
                 clear obj
@@ -1137,6 +1145,10 @@ classdef EphysPipelineApp < handle
         onStopKSRuns(obj)
         stopKSRuns(obj, names)
         markKSResult(obj, name, output, status, message, addSeconds)
+        keepKSRuns(obj, withQueue)
+        followKeptKSRuns(obj)
+        offerKeptKSQueue(obj)
+        T = restoreKSQueue(obj, action)
         log(obj, fmt, varargin)
         appendLogLines(obj, lines)
 

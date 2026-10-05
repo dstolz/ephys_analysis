@@ -1085,6 +1085,7 @@ classdef EphysDataset < handle
     methods (Static)
         % --- static methods defined in separate files in this @-folder ---
         [stopped, message] = stopSortRun(statusFile)
+        n = sortRunProcesses(statusFiles)
 
         function fmt = detectFormat(folder, opts)
             %detectFormat  RecordingFormat of the reader that claims FOLDER.

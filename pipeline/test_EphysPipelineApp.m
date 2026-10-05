@@ -7,7 +7,9 @@ function test_EphysPipelineApp()
 %   one step through EphysPipeline, save, a config for another project
 %   root, a rescan that keeps the active dataset, the Visualize tab (a
 %   recording read across its files, keys, wheel and shading), the
-%   Kilosort4 monitor and queue, the phy launch, a figure
+%   results table filling as a run goes, the Kilosort4 monitor and queue
+%   (kept at close: the queue offered back per project root, the runs
+%   going followed again at the next launch), the phy launch, a figure
 %   deleted without Close, and that the app's
 %   preferences are restored afterwards. Dialogs that would block (uiconfirm)
 %   are never triggered because the config is kept clean before New / Close.
@@ -1756,6 +1758,32 @@ app.onRunDiagramToggled();
 check(app.RunDiagramPanel.Visible == "off" && isequal(app.RunSplitGrid.ColumnWidth, {'1x', 0}), ...
     'unticked, the progress, results and log have the whole right side again');
 
+fprintf('\n== 4b2. Run tab: the results table fills as the Run goes ==\n');
+% As runPipeline leaves them: the pipeline running, the table showing its rows.
+pipe = app.buildPipeline();
+app.Pipe = pipe;
+app.RunActive = true;
+app.RunResultsTable.Data = EphysPipeline.emptyResults();
+app.onPipelineProgress(ev("probe", "", 0, 1, 0, 1, "starting"));
+pipe.addResult("probe", "recA_260101_120000", "ok", "");
+app.onPipelineProgress(ev("behavior", "", 0, 1, 0, 1, "starting"));
+R = app.RunResultsTable.Data;
+check(height(R) == 1 && R.Step == "probe" && R.Status == "ok", ...
+    'a row the pipeline records reaches the results table at the next progress event');
+R.Message(1) = "left as it is";
+app.RunResultsTable.Data = R;
+app.onPipelineProgress(ev("behavior", "recA_260101_120000", 1, 1, 0.5, 1, "matching"));
+check(app.RunResultsTable.Data.Message(1) == "left as it is", ...
+    'an event that adds no row leaves the table alone (it is not rebuilt at every event)');
+pipe.addResult("sorting", "recA_260101_120000", "launched", "background run", "X:/out/kilosort4", 1);
+app.markKSResult("recA_260101_120000", "X:/out/kilosort4", "done", "Kilosort4 finished", 4);
+R = app.RunResultsTable.Data;
+check(height(R) == 2 && R.Status(2) == "done" && R.Seconds(2) == 5 && R.Message(1) == "" ...
+    && pipe.Results.Status(2) == "done", ...
+    'a row the monitor restates during the Run reaches the table at once, as the pipeline has it');
+app.Pipe = [];
+app.RunActive = false;
+
 fprintf('\n== 4c. Run tab: resource monitoring ==\n');
 check(app.RunMonitorPanel.Visible == "off" && isequal(app.RunLeftGrid.RowHeight, {'1x', 0}) ...
     && isempty(app.ResourceMonitorTimer) && app.ResourceMonitor.dir == "", ...
@@ -2455,6 +2483,86 @@ writelines('{"state": "done"}', holdStatus);
 t0 = tic;
 while toc(t0) < 20 && ~isempty(app.KSRuns); pause(0.25); end
 
+fprintf('\n== 6c2. closing with runs queued and going: kept for the next launch ==\n');
+% A run going on recM002 (a stand-in that would sort ~60 s), one with no
+% process left (no status, no exit marker: as after a restart), and three
+% queued runs: recM003's files are all there, recM001's .bin goes before
+% the next launch, and recA is not in this project.
+dM1 = app.Project.Datasets(names == "recM001_260101_120000");
+holdPython = fullfile(root, 'hold_python.cmd');
+writelines(["@echo off"; "ping -n 61 127.0.0.1 > nul"
+    "echo {""state"": ""done""}> ""%~dp1ks4_status.json"""], holdPython, LineEnding="\r\n");
+resA = dM2.launchSorting(keptRunFiles(dM2, holdPython, probe4), Wait=false);
+staleDir = fullfile(root, 'stale_run'); mkdir(staleDir);
+app.KSRuns = [EphysPipeline.sortRun(dM2.Name, resA), EphysPipeline.sortRun("stale", struct('statusFile', ...
+    string(fullfile(staleDir, 'ks4_status.json')), 'resultsDir', string(staleDir), 'stdoutLog', "", 'device', ""))];
+prep3 = keptRunFiles(dM3, holdPython, probe4);
+prep1 = keptRunFiles(dM1, holdPython, probe4);
+dA = EphysDataset(f1);
+dA.OutputDir = fullfile(root, 'outA');
+app.queueKSRun(dM3, prep3);
+app.queueKSRun(dM1, prep1);
+app.queueKSRun(dA, keptRunFiles(dA, holdPython, probe4));
+check(numel(app.KSQueue) == 3 && all(EphysDataset.pathKey([app.KSQueue.root]) == EphysDataset.pathKey(root2)), ...
+    'each queued run records the root of the project it was queued in');
+AppPrefs.setpref(g, 'KeptSortingQueue', struct('root', "C:/elsewhere/proj", 'saved', "2026-01-01 00:00", ...
+    'runs', struct('Name', "x", 'key', "x", 'prepared', struct())));   % kept for another root earlier
+app.keepKSRuns(true);   % what Close does with "Keep the queue for next time"
+K = AppPrefs.getpref(g, 'KeptSortingQueue');
+i2 = find(EphysDataset.pathKey([K.root]) == EphysDataset.pathKey(root2));
+check(numel(K) == 2 && isscalar(i2) && isequal([K(i2).runs.Name], [dM3.Name dM1.Name dA.Name]) ...
+    && K(i2).runs(1).key == "recM003_260103_120000" && K(i2).runs(2).key == "recM001_260101_120000" ...
+    && string(K(i2).runs(1).prepared.resultsDir) == string(prep3.resultsDir), ...
+    'closing keeps the queue under its project root: each run''s dataset key and prepared result; another root''s stays');
+Kr = AppPrefs.getpref(g, 'KeptSortingRuns');
+check(numel(Kr) == 2 && isequal(sort([Kr.Name]), sort([dM2.Name "stale"])), 'and the runs going, to follow them again');
+app.stopKSMonitor();   % the app closes: what it held is gone
+app.KSQueue(:) = [];
+app.KSRuns(:) = [];
+delete(prep1.binFile);   % recM001's .bin goes before the next launch
+app3 = EphysPipelineApp;   % the next launch
+ksLog3 = strjoin(string(app3.KSLogArea.Value), newline);
+check(isscalar(app3.KSRuns) && app3.KSRuns(1).Name == dM2.Name && ~app3.KSRuns(1).done ...
+    && ~isempty(app3.KSMonitorTimer) && strcmp(app3.KSMonitorTimer.Running, 'on') && ~AppPrefs.ispref(g, 'KeptSortingRuns') ...
+    && contains(ksLog3, "following again 1 Kilosort4 run(s) going when the app last closed: " + dM2.Name) ...
+    && contains(ksLog3, "stale: going when the app last closed, but no process of it is left"), ...
+    'the next launch follows the run still going again; one with no process left is logged and left out');
+check(isempty(app3.KSQueue) && AppPrefs.ispref(g, 'KeptSortingQueue'), 'the kept queue waits for its project''s scan');
+delete(app3.Fig);
+app.KSRuns = EphysPipeline.sortRun(dM2.Name, resA);   % still going: it holds the only slot
+app.startKSMonitor();
+T = app.restoreKSQueue("check");
+check(height(T) == 3 && T.Problem(T.Dataset == dM3.Name) == "" ...
+    && T.Problem(T.Dataset == dM1.Name) == "run files missing: recording.bin" ...
+    && T.Problem(T.Dataset == dA.Name) == "its dataset is no longer in the project" ...
+    && ~any(T.Queued) && isempty(app.KSQueue) && numel(AppPrefs.getpref(g, 'KeptSortingQueue')) == 2, ...
+    'a check says which kept runs can go back in the queue, and why the others cannot; nothing changes');
+T = app.restoreKSQueue("requeue");   % what "Queue them again" does
+K = AppPrefs.getpref(g, 'KeptSortingQueue');
+check(isequal(T.Queued.', [true false false]) && isscalar(app.KSQueue) && app.KSQueue(1).dataset == dM3 ...
+    && string(app.KSQueue(1).prepared.resultsDir) == string(prep3.resultsDir) ...
+    && strcmp(app.RunKSStopQueueButton.Enable, 'on') && isscalar(K) && K.root == "C:/elsewhere/proj", ...
+    'queued again: the run that can goes back in the queue with the scanned dataset; this root''s kept queue is forgotten, another root''s stays');
+check(isempty(app.restoreKSQueue("check")) && contains(strjoin(string(app.KSLogArea.Value), newline), ...
+    dM1.Name + ": kept when the app last closed, not queued again: run files missing"), ...
+    'nothing is kept for this root any more; the log says why a run was not queued again');
+app.onStopKSQueue();
+app.queueKSRun(dM1, prep1);   % its .bin is gone: it cannot go back in the queue
+app.keepKSRuns(true);
+app.onStopKSQueue();
+app.offerKeptKSQueue();   % an alert, not a question: no run can go back in the queue
+K = AppPrefs.getpref(g, 'KeptSortingQueue');
+check(isscalar(K) && K.root == "C:/elsewhere/proj" && isempty(app.KSQueue) ...
+    && contains(strjoin(string(app.KSLogArea.Value), newline), "dropped the 1 Kilosort4 run(s) queued for"), ...
+    'offered back with no run that can go back in the queue, the kept queue is reported and forgotten');
+AppPrefs.rmpref(g, 'KeptSortingQueue');
+AppPrefs.rmpref(g, 'KeptSortingRuns');
+app.stopKSRuns();   % the stand-in on recM002
+t0 = tic;
+while toc(t0) < 20 && ~isempty(app.KSRuns); pause(0.25); end
+while toc(t0) < 30 && ~isfile(fullfile(resA.resultsDir, EphysDataset.SortExitMarker)); pause(0.25); end
+check(isempty(app.KSRuns), 'the stand-in run is stopped');
+
 fprintf('\n== 6d. phy starts in a folder whose path holds & and spaces ==\n');
 phyHome = fullfile(root, 'Mouse & Rat', 'kilo sort4');
 mkdir(phyHome);
@@ -2522,6 +2630,25 @@ fprintf('\n================  %d passed, %d failed  ================\n', nPass, n
 if nFail > 0
     error('test_EphysPipelineApp:Failures', '%d checks failed.', nFail);
 end
+end
+
+
+function prep = keptRunFiles(d, python, probe)
+%keptRunFiles  A Kilosort4 run of dataset D prepared as runKilosort(Launch=false)
+%   returns it, with stand-in run files: the driver command runs PYTHON.
+ks = d.kilosortDir();
+if ~isfolder(ks); mkdir(ks); end
+settings = fullfile(ks, 'settings.json');
+script = fullfile(ks, 'run_ks4.py');
+bin = fullfile(ks, 'recording.bin');
+writelines("{}", settings);
+writelines("# stand-in", script);
+writelines("", bin);
+prep = struct('status', NaN, 'command', "", 'stdoutLog', fullfile(ks, 'ks4_run.log'), 'scriptPath', script, ...
+    'settingsPath', settings, 'resultsDir', ks, 'runDir', ks, 'binFile', bin, 'probeFile', string(probe), ...
+    'dryRun', false, 'wait', false, 'statusFile', fullfile(ks, 'ks4_status.json'), 'background', false, ...
+    'driverCommand', sprintf('"%s" "%s" "%s"', python, script, settings), 'device', "", 'launched', false, ...
+    'previousDir', "");
 end
 
 

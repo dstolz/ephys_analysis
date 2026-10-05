@@ -9,10 +9,11 @@ function test_SortingConcurrency()
 %   without a status, runs started elsewhere (PriorRuns), a cancel while
 %   waiting, blocking runs, GPUs shared out (Sorting.Devices, the
 %   driver's --device), runs handed to a queue (QueueFcn, launchSorting),
-%   restated result rows, stopping a run that is going (stopSortRun),
-%   runs whose paths hold & ^ ( ) and spaces (ks4_launch.cmd), and a new
-%   sort setting an earlier sort's curation aside (previous_*). Windows
-%   only (the stand-ins are batch files).
+%   restated result rows, stopping a run that is going (stopSortRun) and
+%   counting its processes (sortRunProcesses), runs whose paths hold & ^
+%   ( ) and spaces (ks4_launch.cmd), a new sort setting an earlier sort's
+%   curation aside (previous_*), and the warning for several runs at once
+%   on one GPU. Windows only (the stand-ins are batch files).
 %
 %   Usage:  test_SortingConcurrency
 
@@ -229,6 +230,10 @@ q = S.queued(1);
 res = q.d.launchSorting(q.res, Wait=false);
 t0 = tic;
 while toc(t0) < 10 && ~isfile(tl); pause(0.1); end   % the stand-in has started
+idle = string(fullfile(root, 'idle_run', 'ks4_status.json'));   % a folder nothing runs in
+n = EphysDataset.sortRunProcesses([string(res.statusFile), idle]);
+check(n(1) >= 1 && n(2) == 0, sprintf(['sortRunProcesses counts the processes of the run going (%g), ' ...
+    'and none for a folder nothing runs in'], n(1)));
 [stopped, msg] = EphysDataset.stopSortRun(res.statusFile);
 [st, why] = EphysDataset.sortRunState(res.statusFile);
 check(stopped && ~isempty(regexp(msg, '^stopped [1-9]\d* process\(es\)$', 'once')), ...
@@ -238,6 +243,7 @@ check(st == "cancelled" && why == "stopped by the user" && isfile(fullfile(res.r
 pause(3);
 L = strtrim(readlines(tl)); L(L == "") = [];
 check(isscalar(L) && startsWith(L, "start"), 'the stand-in never reached its end (the process tree was killed)');
+check(EphysDataset.sortRunProcesses(res.statusFile) == 0, 'no process of it is left');
 check(~EphysDataset.stopSortRun(res.statusFile), 'a run that is not going is left alone');
 [free, ~, nRun, nFin] = sortingSlot(res, 1);
 check(free && nRun == 0 && nFin == 1, 'a stopped run frees its slot');
@@ -270,6 +276,7 @@ S = runScenario(proj, probeFile, 1, fake, fullfile(odd, 'out 13c'), Queue=true);
 res = S.queued(1).d.launchSorting(S.queued(1).res, Wait=false);
 t0 = tic;
 while toc(t0) < 10 && ~isfile(tl); pause(0.1); end
+check(EphysDataset.sortRunProcesses(res.statusFile) >= 1, 'sortRunProcesses finds the processes of such a run');
 [stopped, msg] = EphysDataset.stopSortRun(res.statusFile);
 check(stopped && ~isempty(regexp(msg, '^stopped [1-9]\d* process\(es\)$', 'once')) ...
     && EphysDataset.sortRunState(res.statusFile) == "cancelled", sprintf('stopSortRun ends such a run (%s)', msg));
@@ -322,6 +329,30 @@ copyfile(fullfile(ks, 'cluster_KSLabel.tsv'), fullfile(ks, 'cluster_group.tsv'))
 res = d.launchSorting(res, Wait=true);
 check(res.previousDir == "" && isfile(fullfile(ks, 'cluster_group.tsv')), ...
     'Kilosort4''s own cluster_group.tsv (a copy of cluster_KSLabel.tsv) is not curation');
+
+fprintf('\n== 15. runs at once on one GPU: checkRun warns ==\n');
+cfg = EphysPipelineConfig();
+cfg.Project.Root = proj;
+cfg.Project.OutputRoot = fullfile(root, 'out15');
+cfg.Probe.DefaultProbeFile = probeFile;
+cfg.Sorting.Enabled = true;
+cfg.Sorting.PythonExe = makeFake(root, 'fake15.cmd', fullfile(root, 'timeline15.txt'), true);
+cfg.Sorting.MaxConcurrent = 2;
+pipe = EphysPipeline(cfg);
+logged = strings(0, 1);
+pipe.LogFcn = @noteLog;
+pipe.checkRun(Steps="sorting");
+check(any(contains(logged, "[validate] warning: 2 Kilosort4 runs at once all go on one GPU, Kilosort4's first")), ...
+    'two runs at once and no GPU listed: checkRun warns that they share one GPU, and lets the run go on');
+cfg.Sorting.Devices = ["cuda:0" "cuda:1"];
+pipe.Config = cfg;
+logged = strings(0, 1);
+pipe.checkRun(Steps="sorting");
+check(~any(contains(logged, "all go on one GPU")), 'a GPU per run: no warning');
+
+    function noteLog(msg)
+        logged(end+1, 1) = string(msg);
+    end
 
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0

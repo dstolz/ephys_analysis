@@ -6,7 +6,9 @@ function onScan(obj)
 %   and the plot is flagged as out of date. Refused while a run is under
 %   way. Datasets whose headers or manifest could not be read are listed in
 %   an alert (EphysProject.refresh): a manifest that cannot be read is
-%   neither used nor overwritten.
+%   neither used nor overwritten. When the app last closed with a
+%   Kilosort4 queue kept for this root, the scan then offers it back
+%   (offerKeptKSQueue).
 
 if obj.refuseWhileRunning("Scan"); return; end
 root = string(obj.RootPathField.Value);
@@ -44,6 +46,7 @@ try
             hint = "Only the root and the folders directly in it were searched: tick Recursive, or pick a different parent folder, and Scan again.";
         end
         obj.setStatus(sprintf("Scan complete: no recordings found under %s.", root), hint);
+        obj.offerKeptKSQueue();
         return
     end
 
@@ -78,6 +81,7 @@ try
         scanMsg = scanMsg + sprintf(" Probe rules assigned a probe to %d.", nRule);
     end
     obj.setStatus(scanMsg, namePatternHint(P, obj.Config.Project.NamePattern));
+    obj.offerKeptKSQueue();
     bad = report(report.Message ~= "" & report.Message ~= "cancelled", :);
     if height(bad) > 0
         obj.setStatus(sprintf("Scanned %s: found %d dataset(s), %d with a problem.", root, n, height(bad)), ...

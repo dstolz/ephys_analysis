@@ -4,11 +4,13 @@ function runPipeline(obj, opts)
 %   rows (EphysPipeline.checkRun), on text fields that do not parse, and
 %   when the scanned project is not the one under the config's root
 %   (buildPipeline). Progress, results, the log and the run diagram update
-%   live; Cancel stops at the next boundary. Each background Kilosort4 run
-%   is handed to the monitor (KSRuns) as it starts; the runs the monitor
-%   follows, going or queued, are the pipeline's PriorRuns (buildPipeline):
-%   the going ones take slots of Sorting.MaxConcurrent and the sorting step
-%   skips the datasets of both. With "Queue the waiting runs" ticked, the
+%   live: the results table gains each row as the pipeline records it
+%   (onPipelineProgress), and a row the monitor restates meanwhile shows at
+%   once (markKSResult). Cancel stops at the next boundary. Each background
+%   Kilosort4 run is handed to the monitor (KSRuns) as it starts; the runs
+%   the monitor follows, going or queued, are the pipeline's PriorRuns
+%   (buildPipeline): the going ones take slots of Sorting.MaxConcurrent and
+%   the sorting step skips the datasets of both. With "Queue the waiting runs" ticked, the
 %   sorting step writes each dataset's run files and queues the run with
 %   the monitor (queueKSRun), which starts it when a slot frees, so the Run
 %   goes on at once. Either way the monitor restates each background run's

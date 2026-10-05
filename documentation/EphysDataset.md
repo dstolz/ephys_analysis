@@ -1299,6 +1299,15 @@ together with `ks4_exit.txt`, so `sortRunState` returns `"cancelled"` and the
 slot frees. It does nothing (`stopped` false) when the run is not running.
 What Kilosort4 wrote so far stays. A blocking run cannot be stopped this way.
 
+`n = EphysDataset.sortRunProcesses(statusFiles)` counts, per run, the
+processes `stopSortRun` would end: those whose command line names the run
+folder's driver. One search covers every run (`Win32_Process` through
+PowerShell on Windows, `pgrep` elsewhere); `n(k)` is `NaN` where it failed. A
+run whose launcher never ended, as when the computer restarted under it,
+leaves no exit marker, so `sortRunState` still says `"running"`; it has 0
+processes here. The app checks this before it follows the runs it kept at
+Close again.
+
 `launchSorting` errors on a dry run's result (`EphysDataset:launchSorting:DryRun`) and on a
 device that `EphysDataset.isTorchDevice` rejects (only `cpu`, `mps`, `cuda`
 and `cuda:N`). It returns the result with `command` (as run, `--device`

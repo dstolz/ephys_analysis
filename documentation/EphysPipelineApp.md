@@ -111,7 +111,7 @@ The tabs, in workflow order:
 | [Export](#export) | write files for other tools (Chronux, FieldTrip, event epochs, kCSD-python, NWB) |
 | [Diagram](#diagram) | see a diagram of what the config does; click a box to open its settings |
 | [Run](#run) | validate, plan and run; watch progress, results and the computer's load |
-| [Visualize](#visualize) | plot the recording, mark artifact periods by hand |
+| [Visualize](#visualize) | plot the recording, the sorting `.bin` or a derived signal, with sorted units and detected spikes over it; open the Artifacts tab's plot to mark periods by hand |
 | [Review](#review) | inspect sorted units and their quality metrics, add notes, open phy |
 | [Synthetic](#synthetic) | design, preview and write a synthetic dataset |
 | [Clean up](#clean-up) | free local disk space once datasets are preprocessed, or remove what chosen steps wrote |
@@ -2096,7 +2096,7 @@ step's own tab.
 | `artifacts` | *Artifacts: automatic detection* | detects the artifact periods and caches them ([Artifacts](#in-a-run)) |
 | `sorting` | *Sorting: Kilosort4* | writes the `.bin` and runs Kilosort4 ([Sorting](#sorting)) |
 | `signals` | *Signals: LFP / MUA / SPIKE / AUX .mat* | the derived signals ([Signals](#signals)) |
-| `spikes` | *Spikes: detected / sorted .mat* | threshold spike detection ([Spikes](#spikes)) |
+| `spikes` | *Spikes: detected spikes .mat* | threshold spike detection ([Spikes](#spikes)) |
 | `export` | *Export: analysis-toolbox files* | the files for other tools ([Export](#export)) |
 
 The line under the panel's switches gives the selection:

@@ -34,7 +34,7 @@ for k = 1:n
         end
         Duration(k) = round(src.durationSec, 1);
     else
-        Units(k) = mark(out.has("spikes") || out.has("sorting"));
+        Units(k) = mark(out.has("sorting"));   % the spikes file holds detections only
         Detected(k) = mark(out.has("spikes"));
     end
 end

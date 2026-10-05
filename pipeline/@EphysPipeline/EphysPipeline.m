@@ -821,7 +821,7 @@ classdef EphysPipeline < handle
             %   (d.ArtifactAdjustments, EphysDataset.adjustArtifacts) are
             %   applied and the manual periods merged in on every call
             %   (EphysDataset.mergeIntervals), so moving a bound on the
-            %   Artifacts tab or marking a period on the Visualize tab needs
+            %   Artifacts tab or marking a period on its plot needs
             %   no new detection. Schema 3: half-open
             %   [tStart tEnd) intervals of the automatic detection. SOURCE is
             %   "computed", "cache", "reused" (detected earlier in this run) or

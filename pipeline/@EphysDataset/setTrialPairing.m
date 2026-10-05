@@ -1,4 +1,4 @@
-function file = setTrialPairing(obj, P, status, opts)
+function [file, saved] = setTrialPairing(obj, P, status, opts)
 %setTrialPairing  Record (or approve) a trial pairing in the manifest.
 %   ds.setTrialPairing(P) records the cuts of P (pairTrials: trials and
 %   trial-line intervals dropped from the start or the end) as "unreviewed";
@@ -14,6 +14,10 @@ function file = setTrialPairing(obj, P, status, opts)
 %   is created here. FILE is the behavior file rewritten, "" when there was
 %   none to rewrite; a failed rewrite warns
 %   (EphysDataset:setTrialPairing:BehaviorFile) and returns "".
+%
+%   [FILE, SAVED] = ds.setTrialPairing(...) also says whether the manifest
+%   was written (writeManifest): when it was not, the record holds only in
+%   this dataset object, and writeManifest has warned why.
 %
 %   Options
 %     Auto   false (default): true records an approval as automatic
@@ -41,7 +45,7 @@ else
         'summary', string(P.summary), ...
         'updated', string(datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss')));
 end
-obj.writeManifest();
+saved = obj.writeManifest();
 if ~isempty(P)
     file = updateBehaviorFile(obj, P, obj.TrialPairing);
 end

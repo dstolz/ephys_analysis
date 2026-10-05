@@ -87,7 +87,7 @@ elseif ~s.integer && r.Gain == 1e6
         formatName(s.fmt));
 else
     txt = sprintf("reads %s: %d ch at %.10g Hz, %s x %s µV", s.name, numel(s.chans), s.fs, ...
-        formatName(s.fmt), obj.numberText(r.Gain));
+        formatName(s.fmt), EphysPipelineConfig.numberText(r.Gain));
 end
 obj.TDTStatusLabel.Text = txt;
 obj.TDTStatusLabel.Tooltip = tip;

@@ -138,7 +138,8 @@ warnings.
 | `file = writeKS4Params(probeFile, values, Description=, Reasons=, Overwrite=)` | writes a struct of typed Kilosort4 parameters as the probe's parameter file. Errors `EphysPipelineConfig:ParamsExist`, `:BadParams` |
 | `[values, report] = ks4ProbeDefaults(probe, ExcludeChannels=)` | good defaults for `KS4ProbeParams` derived from a probe `.json` file or struct ([rules](EphysPipelineApp.md#optimize-for-probe)). `report`: `Probe`, `Summary`, `Geometry` (sites, shanks, row / lateral / nearest-contact spacing, width, span), `Reasons` (per parameter) and `Notes`. Errors `EphysPipelineConfig:BadProbe`, `:ProbeEmpty` |
 | `ks4ParamsFile(probeFile)` | the probe's parameter file path, `<folder>/<probe>.ks4.json` |
-| `ks4ParamText`, `ks4ParamFromText`, `kilosortParamSpec` | the typed Kilosort4 parameter spec and its text form (used by the GUI); `ks4ParamText` writes each number in the shortest form that reads back as the same double, so a value round-trips exactly |
+| `ks4ParamText`, `ks4ParamFromText`, `kilosortParamSpec` | the typed Kilosort4 parameter spec and its text form (used by the GUI); `ks4ParamText` writes each number with `numberText`, so a value round-trips exactly |
+| `t = numberText(v)` | a number as the shortest text that `str2double` reads back as the same double: a whole number in full (`"120000"`, not `"1.2e+05"`), any other with as many significant digits as it takes (`"0.1953125"`, where `string` gives `"0.19531"`); `"Inf"`, `"NaN"`. The GUI writes the numbers in its text fields with it |
 | `validateSuffix(s)` | rejects `\ / : * ? " < > \|` |
 | `datasetKey(root, folder)` | root-relative key with forward slashes |
 

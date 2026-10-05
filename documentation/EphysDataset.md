@@ -2046,7 +2046,7 @@ validation to Python.
   It adds `status`, `autoApproved`, `recorded`, `stale`, `fingerprint` and
   `source` (`behaviorSource`) to the result. Epoc trials pair one to one with
   their own line; a new such result is `approved` (`autoApproved`).
-- `file = setTrialPairing(P, "unreviewed"|"approved", Auto=false)` records
+- `[file, saved] = setTrialPairing(P, "unreviewed"|"approved", Auto=false)` records
   the cuts in the manifest (`Auto=true` marks an approval as automatic);
   `setTrialPairing([])` clears it. An existing
   `<outputFolder>/<Name>_behavior.mat` that does not already carry this
@@ -2054,7 +2054,8 @@ validation to Python.
   so the status read from that file by the analysis and the epochs follows
   every approval, automatic ones included. No behavior file is created.
   `file` is the file rewritten (`""` when none was); a failed rewrite warns
-  (`EphysDataset:setTrialPairing:BehaviorFile`).
+  (`EphysDataset:setTrialPairing:BehaviorFile`). `saved` says whether the
+  manifest was written (`writeManifest`, which warns why when it is not).
 - `[P, tf] = autoApproveTrialPairing(P)` approves and records `P` (marked
   automatic) when it is not approved yet, cuts nothing, and the session has
   as many trials as the trial line has intervals; anything else is left for

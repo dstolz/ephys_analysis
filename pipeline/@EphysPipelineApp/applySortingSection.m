@@ -53,6 +53,6 @@ F = obj.ReviewCriteriaFields;
 for f = string(fieldnames(F)).'
     if ~isvalid(F.(f)); continue; end
     v = S.Quality.(f);
-    if isnan(v); F.(f).Value = ''; else; F.(f).Value = char(obj.numberText(v)); end
+    if isnan(v); F.(f).Value = ''; else; F.(f).Value = char(EphysPipelineConfig.numberText(v)); end
 end
 end

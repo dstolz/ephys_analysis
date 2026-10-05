@@ -1,6 +1,6 @@
 function applySpikesSection(obj, K)
 %applySpikesSection  Spikes section -> Spikes tab.
-%   Numbers in text fields are written in full (numberText), so gathering
+%   Numbers in text fields are written in full (EphysPipelineConfig.numberText), so gathering
 %   them back changes nothing; values the controls cannot show are
 %   reported (setControlValue).
 K = EphysPipelineConfig.normalizeSection("Spikes", K);
@@ -41,6 +41,6 @@ if isempty(v) || isnan(v)
 elseif isinf(v)
     t = 'Inf';
 else
-    t = obj.numberText(v);
+    t = char(EphysPipelineConfig.numberText(v));
 end
 end

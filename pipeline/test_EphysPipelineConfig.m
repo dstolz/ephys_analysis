@@ -190,6 +190,13 @@ for kind = ["float" "floatinf" "nullable"]
 end
 exact = exact && isequal(EphysPipelineConfig.ks4ParamFromText('vector', EphysPipelineConfig.ks4ParamText('vector', vals)), vals);
 check(exact, 'ks4ParamText -> ks4ParamFromText gives every value back exactly (float, floatinf, nullable, vector)');
+nt = arrayfun(@EphysPipelineConfig.numberText, [30000 120000 0.1953125 0.25 1e-7 -2.5 Inf NaN 1e20]);
+back = true;
+for v = vals
+    back = back && str2double(EphysPipelineConfig.numberText(v)) == v;
+end
+check(isequal(nt, ["30000" "120000" "0.1953125" "0.25" "1e-07" "-2.5" "Inf" "NaN" "1e+20"]) && back, ...
+    'numberText: whole numbers in full, others in as few digits as read back exactly; Inf, NaN');
 
 fprintf('\n== 3b. ks4ProbeDefaults ==\n');
 S0 = EphysPipelineConfig.defaults("Sorting");

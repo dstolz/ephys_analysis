@@ -9,8 +9,10 @@ if obj.refuseWhileRunning("Trial pairing"); return; end
 P = obj.TrialsPairing;
 d = obj.currentDataset();
 if isempty(P) || isempty(d); return; end
-file = d.setTrialPairing(P, status);
-obj.saveManifests(d);   % says so when the manifest (which holds the pairing) could not be written
+[file, saved] = d.setTrialPairing(P, status);
+if ~saved
+    obj.saveManifests(d);   % tries once more, and says why the manifest (which holds the pairing) is not written
+end
 P.status = status;
 P.autoApproved = false;
 P.recorded = true;

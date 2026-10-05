@@ -13,6 +13,6 @@ obj.TDTStreamDropDown.Value = char(s);
 if isnan(A.TDT.GainToMicrovolts)
     obj.TDTGainField.Value = '';
 else
-    obj.TDTGainField.Value = obj.numberText(A.TDT.GainToMicrovolts);
+    obj.TDTGainField.Value = char(EphysPipelineConfig.numberText(A.TDT.GainToMicrovolts));
 end
 end

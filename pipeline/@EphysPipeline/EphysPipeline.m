@@ -827,7 +827,7 @@ classdef EphysPipeline < handle
                 report = @(done, total, msg) obj.progress("artifacts", d.Name, 1, 1, done, total, msg);
             end
             a = obj.Config.Artifacts;
-            acfg = EphysPipelineConfig.artifactConfig(a);
+            acfg = EphysPipelineConfig.artifactConfig(a, obj.Config.Reference);
             d.ArtifactConfig = acfg;
             if ~acfg.Enabled
                 iv = d.artifactIntervals(IncludeAuto=false);
@@ -907,7 +907,8 @@ classdef EphysPipeline < handle
     methods (Static)
         function applyConfigToDatasets(cfg, P)
             %applyConfigToDatasets  Push the config's shared settings onto every dataset.
-            %   Sets PythonExe, CondaEnv, ArtifactConfig, TrialConfig,
+            %   Sets PythonExe, CondaEnv, ArtifactConfig (the Artifacts and
+            %   Reference sections, EphysPipelineConfig.artifactConfig), TrialConfig,
             %   ReaderOptions (Acquisition), OutputDir (<OutputRoot>/<Name>, or
             %   "" - outputs next to the recording - without an output root),
             %   and the NamePattern and DatasetKey that label sorted units. Two
@@ -926,7 +927,7 @@ classdef EphysPipeline < handle
             P.OutputRoot = cfg.Project.OutputRoot;
             P.NamePattern = cfg.Project.NamePattern;
             P.ReaderOptions = cfg.Acquisition;
-            acfg = EphysPipelineConfig.artifactConfig(cfg.Artifacts);
+            acfg = EphysPipelineConfig.artifactConfig(cfg.Artifacts, cfg.Reference);
             tcfg = EphysPipelineConfig.trialConfig(cfg);
             handling = EphysPipelineConfig.artifactHandling(cfg);
             for k = 1:P.NumDatasets

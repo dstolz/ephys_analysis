@@ -4,6 +4,8 @@ function onArtifactControlsChanged(obj)
 %   setting marks the preview stale). A new Method takes its own default
 %   threshold while the Threshold field still holds the previous method's
 %   (9 robust SDs mean 9 uV to the microvolt methods, which default to 1500).
+%   The common-reference panel's controls (the Reference section) come here
+%   too: the panel and the viewer follow them.
 method = string(obj.ArtMethodDropDown.Value);
 old = obj.Config.Artifacts.Method;
 if method ~= old && obj.ArtThresholdField.Value == defaultThreshold(old)

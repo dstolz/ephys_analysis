@@ -444,7 +444,8 @@ else
     s = "Automatic detection is off, so a run keeps the detected artifacts (black). " + ...
         "Manual periods (purple) are always removed.";
 end
-cur = EphysDataset.normalizeArtifactConfig(EphysPipelineConfig.artifactConfig(obj.gatherArtifactsSection()));
+cur = EphysDataset.normalizeArtifactConfig(EphysPipelineConfig.artifactConfig( ...
+    obj.gatherArtifactsSection(), obj.gatherReferenceSection()));
 if ~isequaln(rmfield(cur, 'Enabled'), rmfield(V.settings, 'Enabled'))
     s = "Detection settings changed since this preview: press Detect / Preview to update. " + s;
     color = [0.8 0.35 0];

@@ -11,6 +11,7 @@ cfg.Project   = obj.gatherProjectSection();
 cfg.Acquisition = obj.gatherAcquisitionSection();
 cfg.Parallel  = obj.gatherParallelSection();
 cfg.Probe     = obj.gatherProbeSection();
+cfg.Reference = obj.gatherReferenceSection();
 cfg.Behavior  = obj.gatherBehaviorSection();
 cfg.Artifacts = obj.gatherArtifactsSection();
 [cfg.Sorting, msg] = obj.gatherSortingSection();

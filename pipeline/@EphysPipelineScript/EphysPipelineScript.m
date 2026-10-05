@@ -125,7 +125,7 @@ classdef EphysPipelineScript
             L(end+1, 1) = "if any(I.Status ~= ""ok""); disp(I(I.Status ~= ""ok"", [""Key"" ""Status"" ""Message""])); end";
             L(end+1, 1) = "";
             L(end+1, 1) = "% Shared settings pushed onto every dataset";
-            L = [L; EphysPipelineScript.structLiteral("artifactConfig", EphysPipelineConfig.artifactConfig(cfg.Artifacts))];
+            L = [L; EphysPipelineScript.structLiteral("artifactConfig", EphysPipelineConfig.artifactConfig(cfg.Artifacts, cfg.Reference))];
             L = [L; EphysPipelineScript.structLiteral("trialConfig", EphysPipelineConfig.trialConfig(cfg))];
             L = [L; EphysPipelineScript.structLiteral("parallelOpts", EphysPipelineConfig.parallelOptions(cfg.Parallel))];
             L(end+1, 1) = "parallelArgs = namedargs2cell(parallelOpts);   % UseParallel / MaxWorkers for the chunked steps";

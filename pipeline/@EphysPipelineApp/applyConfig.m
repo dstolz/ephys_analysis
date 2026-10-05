@@ -65,6 +65,7 @@ obj.applyProjectSection(cfg.Project);
 obj.applyAcquisitionSection(cfg.Acquisition);
 obj.applyParallelSection(cfg.Parallel);
 obj.applyProbeSection(cfg.Probe);
+obj.applyReferenceSection(cfg.Reference);
 obj.applyBehaviorSection(cfg.Behavior);
 obj.applyArtifactsSection(cfg.Artifacts);
 obj.applySortingSection(cfg.Sorting);

@@ -955,6 +955,11 @@ The last three say how the flagged periods are erased rather than which ones
 they are, so they apply whether or not `Enabled` is on (manual periods
 included), and a change to them does not invalidate a cached interval list.
 
+The pipeline sets the three reference fields from its config's `Reference`
+section (`Mode`, `BadLow`, `BadHigh`) and the rest from its `Artifacts`
+section (`EphysPipelineConfig.artifactConfig(A, R)`, see
+[EphysPipeline.md](EphysPipeline.md#sections)).
+
 `normalizeArtifactConfig(cfg)` fills missing fields from these defaults and
 drops unknown fields. `EphysDataset.resolveFilterOptions(cfg, opts)` merges
 per-call filter options over the config's.
@@ -2269,7 +2274,8 @@ trace, `MaxSpikes`, a moved `.bin`, Kilosort4's preprocessed copy).
 [`test_CommonReference.m`](../pipeline/test_CommonReference.m) covers the
 common reference (no reference, the suggested channels, `prepareReference`
 and the manifest, CAR and CMR, exclusions, `toBin`) and, in §7-9, the
-`Artifacts` config's reference fields and its warning for a microvolt
+pipeline config's `Reference` section (defaults, validation, carried into
+`ArtifactConfig`), the `Artifacts` warning for a microvolt
 threshold below 50 µV, floating channels against the median-based suggestion
 (a suggestion that would leave too few channels is not applied), and the
 common-mode detector under a reference, with `ExcludeChannels` taking no part

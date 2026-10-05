@@ -125,7 +125,7 @@ else
     if isfinite(d.NumChannels); info = sprintf("%d ch, ", d.NumChannels) + info; end
     rec = [d.Name, info];
 end
-switch cfg.Artifacts.Reference
+switch cfg.Reference.Mode
     case "car"; ref = "common reference: average (CAR)";
     case "cmr"; ref = "common reference: median (CMR)";
     otherwise;  ref = "no common reference";

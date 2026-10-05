@@ -5,8 +5,8 @@ function s = signalOptions(cfg, opts)
 %   signals are set; everything else stays at deriveSignals' defaults.
 %
 %   referenceSignals is always set: the ticked signals among LFP / MUA /
-%   SPIKE whose <TYPE>_Reference is on (the common reference of
-%   Artifacts.Reference, which the datasets' ArtifactConfig carries).
+%   SPIKE whose <TYPE>_Reference is on (the common reference of the
+%   Reference section, which the datasets' ArtifactConfig carries).
 %
 %   KeepChannels, BadList and the manifest exclusions are recording channels
 %   (1-based, in header order); ChannelRemap indexes the kept channels.
@@ -46,7 +46,7 @@ EphysPipelineConfig.validateSuffix(cfg.Suffix);
 
 s = struct();
 s.dataTypeOut = types(sel);
-% The common reference (Artifacts.Reference) goes to the ticked signals only.
+% The common reference (Reference.Mode) goes to the ticked signals only.
 refs = [cfg.LFP_Reference cfg.MUA_Reference cfg.SPIKE_Reference false];
 s.referenceSignals = types(sel & refs);
 s.labelField  = string(cfg.LabelField);

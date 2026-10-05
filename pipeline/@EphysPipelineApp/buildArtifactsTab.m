@@ -2,10 +2,11 @@ function buildArtifactsTab(obj)
 %buildArtifactsTab  Artifacts step: automatic detection settings + preview,
 %   an artifact viewer, and the manual periods of the active dataset (the
 %   Dataset box). Edits the config's Artifacts section (gatherArtifactsSection /
-%   applyArtifactsSection). Manual periods are per dataset (marked here,
-%   saved in the manifest) and always apply; the automatic detector applies
-%   when the step is enabled. Where the intervals are used (sorting, spike
-%   detection) is chosen here too. After a preview the viewer steps through
+%   applyArtifactsSection) and its Reference section (below). Manual
+%   periods are per dataset (marked here, saved in the manifest) and always
+%   apply; the automatic detector applies when the step is enabled. Where
+%   the intervals are used (sorting, spike detection) is chosen here too.
+%   After a preview the viewer steps through
 %   the detected artifacts one at a time, each with the signal around it,
 %   the kept and removed samples drawn apart; Go to (s) shows any stretch
 %   of the recording instead.
@@ -15,11 +16,16 @@ function buildArtifactsTab(obj)
 %   artifacts on (under the periods table) a drag over the plot adds a
 %   manual period and a click on one removes it (onArtViewInput).
 %
-%   The common reference (CAR / CMR, config Artifacts.Reference) comes
-%   first, as it is subtracted before anything is detected; its panel also
-%   holds the active dataset's channels left out of the reference, suggested
-%   by the noise-floor rule of Ludwig et al. 2009 (onSuggestReferenceExclude)
-%   or typed in (onReferenceExcludeEdited).
+%   The common reference (CAR / CMR) comes first, in a panel of its own: it
+%   is the config's Reference section (gatherReferenceSection /
+%   applyReferenceSection), not part of Artifacts, since every step that
+%   reads the recording subtracts it (artifact detection, the sorting .bin,
+%   spike detection, the signals ticked on the Signals tab, Visualize "As
+%   the pipeline"). It sits here because detection is the first of those
+%   reads and the viewer shows its effect. The panel also holds the active
+%   dataset's channels left out of the reference, suggested by the
+%   noise-floor rule of Ludwig et al. 2009 (onSuggestReferenceExclude) or
+%   typed in (onReferenceExcludeEdited).
 %
 %   Three columns: the reference and the detection settings with the manual
 %   periods below them, the viewer (the plot takes the full height), and the preview's
@@ -426,44 +432,50 @@ end
 
 
 function buildReferencePanel(obj, parent, changed)
-% The common reference: its mode and noise bounds (config), and the active
-% dataset's channels left out of it (manifest). refreshReferencePanel fills
-% the dataset part.
-p = uipanel(parent, "Title", "Common reference, for every step (config: Artifacts.Reference)");
+% The common reference: its mode and noise bounds (the config's Reference
+% section), and the active dataset's channels left out of it (manifest).
+% refreshReferencePanel fills the dataset part.
+p = uipanel(parent, "Title", "Common reference, for every step (config: Reference)");
 p.Layout.Row = 1;
-rg = uigridlayout(p, [4 2]);
-rg.RowHeight   = {'fit', 'fit', 30, 'fit'};
+rg = uigridlayout(p, [5 2]);
+rg.RowHeight   = {'fit', 'fit', 'fit', 30, 'fit'};
 rg.ColumnWidth = {'fit', '1x'};
 rg.RowSpacing  = 6;
 
-lab(rg, "Reference:", 1);
+note = uilabel(rg, "WordWrap", "on", "FontColor", [0.4 0.4 0.4], "Text", ...
+    "Subtracted once from every read of the recording: artifact detection, the sorting .bin, " + ...
+    "spike detection, the signals ticked on the Signals tab and Visualize's ""As the pipeline"".");
+note.Layout.Row = 1; note.Layout.Column = [1 2];
+
+lab(rg, "Reference:", 2);
 obj.ArtRefDropDown = uidropdown(rg, ...
     "Items", {'None (as recorded)', 'CAR: common average', 'CMR: common median'}, ...
     "ItemsData", {'none', 'car', 'cmr'}, "Value", 'none', ...
-    "Tooltip", "Subtract, sample by sample, the mean (CAR) or median (CMR) of the good channels " + ...
-    "from every channel, once, as each step reads the recording: artifact detection, the Kilosort4 " + ...
-    ".bin (Kilosort4's own do_CAR is then turned off), spike detection, and the derived signals " + ...
-    "ticked on the Signals tab (MUA and SPIKE by default, not the LFP). " + ...
-    "CMR is not dragged along by a large spike or artifact on a few channels.", ...
+    "Tooltip", "Reference.Mode: subtract, sample by sample, the mean (CAR) or median (CMR) of the good " + ...
+    "channels from every channel, once, as each step reads the recording: artifact detection, the Kilosort4 " + ...
+    ".bin (Kilosort4's own do_CAR is then turned off), spike detection, the derived signals " + ...
+    "ticked on the Signals tab (MUA and SPIKE by default, not the LFP), and the Visualize tab's " + ...
+    """As the pipeline"" view. CMR is not dragged along by a large spike or artifact on a few channels.", ...
     "ValueChangedFcn", changed);
-obj.ArtRefDropDown.Layout.Row = 1; obj.ArtRefDropDown.Layout.Column = 2;
+obj.ArtRefDropDown.Layout.Row = 2; obj.ArtRefDropDown.Layout.Column = 2;
 
-lab(rg, "Good noise (x median):", 2);
+lab(rg, "Good noise (x median):", 3);
 bg = uigridlayout(rg, [1 3]);
-bg.Layout.Row = 2; bg.Layout.Column = 2;
+bg.Layout.Row = 3; bg.Layout.Column = 2;
 bg.Padding = [0 0 0 0]; bg.ColumnSpacing = 6;
 bg.ColumnWidth = {'1x', 'fit', '1x'};
-tip = "A channel whose noise floor lies outside this band, relative to the median across channels, " + ...
-    "is suggested to stay out of the reference (Ludwig et al. 2009: 0.3 to 2; broken sites run 3-6x).";
+tip = "Reference.BadLow / BadHigh: a channel whose noise floor lies outside this band, relative to the " + ...
+    "median across channels, is suggested to stay out of the reference (Ludwig et al. 2009: 0.3 to 2; " + ...
+    "broken sites run 3-6x).";
 obj.ArtRefLowField = uieditfield(bg, "numeric", "Value", 0.3, "Limits", [0 Inf], ...
     "ValueDisplayFormat", "%.3g", "Tooltip", tip, "ValueChangedFcn", changed);
 uilabel(bg, "Text", "to");
 obj.ArtRefHighField = uieditfield(bg, "numeric", "Value", 2, "Limits", [0 Inf], ...
     "ValueDisplayFormat", "%.3g", "Tooltip", tip, "ValueChangedFcn", changed);
 
-lab(rg, "Left out:", 3);
+lab(rg, "Left out:", 4);
 xg = uigridlayout(rg, [1 2]);
-xg.Layout.Row = 3; xg.Layout.Column = 2;
+xg.Layout.Row = 4; xg.Layout.Column = 2;
 xg.Padding = [0 0 0 0]; xg.ColumnSpacing = 6;
 xg.ColumnWidth = {'1x', 'fit'};
 obj.ArtRefExcludeField = uieditfield(xg, "text", "Value", "", "Placeholder", "none", ...
@@ -476,7 +488,7 @@ obj.ArtRefSuggestButton = uibutton(xg, "Text", "Suggest", ...
     "ButtonPushedFcn", @(~,~) obj.onSuggestReferenceExclude());
 
 obj.ArtRefStatusLabel = uilabel(rg, "Text", "", "FontColor", [0.4 0.4 0.4], "WordWrap", "on");
-obj.ArtRefStatusLabel.Layout.Row = 4; obj.ArtRefStatusLabel.Layout.Column = [1 2];
+obj.ArtRefStatusLabel.Layout.Row = 5; obj.ArtRefStatusLabel.Layout.Column = [1 2];
 end
 
 

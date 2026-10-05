@@ -60,7 +60,8 @@ classdef EphysTraceSource < handle
 
     properties
         % Recording only: "pipeline" reads with the dataset's common
-        % reference (Artifacts.Reference), "none" as stored.
+        % reference (its ArtifactConfig.Reference: the pipeline config's
+        % Reference section), "none" as stored.
         Reference (1,1) string {mustBeMember(Reference, ["pipeline" "none"])} = "pipeline"
         % Recording chunks kept in memory for readers without random access (bytes).
         ChunkCacheBytes (1,1) double = 1.5e9

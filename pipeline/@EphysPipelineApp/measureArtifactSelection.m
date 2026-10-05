@@ -62,7 +62,8 @@ end
 
 % --- the settings: the left's controls as they are now --------------------------
 try
-    cur = EphysDataset.normalizeArtifactConfig(EphysPipelineConfig.artifactConfig(obj.gatherArtifactsSection()));
+    cur = EphysDataset.normalizeArtifactConfig(EphysPipelineConfig.artifactConfig( ...
+        obj.gatherArtifactsSection(), obj.gatherReferenceSection()));
 catch
     cur = EphysDataset.normalizeArtifactConfig(d.ArtifactConfig);
 end

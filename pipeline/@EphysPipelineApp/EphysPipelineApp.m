@@ -38,9 +38,11 @@ classdef EphysPipelineApp < handle
     %     Probe      probe library, preview, assignment, per-dataset channel
     %                exclusions, the config's default probe; the probe
     %                designer and the channel mapper (ChannelMapperApp)
-    %     Artifacts  automatic detection settings + preview, a viewer that steps
-    %                through the detected artifacts (what a run removes and
-    %                keeps around each), manual periods
+    %     Artifacts  the common reference every step takes (the config's
+    %                Reference section) with the active dataset's channels
+    %                left out of it, automatic detection settings + preview,
+    %                a viewer that steps through the detected artifacts
+    %                (what a run removes and keeps around each), manual periods
     %     Sorting    Kilosort4 settings (Optimize for probe,
     %                Reset to defaults), sorted-output association, Run this
     %                step, background-run log
@@ -330,8 +332,8 @@ classdef EphysPipelineApp < handle
 
         % --- Artifacts tab ---
         ArtDatasetDropDown  matlab.ui.control.DropDown
-        ArtRefDropDown      matlab.ui.control.DropDown           % common reference: none / car / cmr
-        ArtRefLowField      matlab.ui.control.NumericEditField   % good-noise band (x median) of the suggestion
+        ArtRefDropDown      matlab.ui.control.DropDown           % common reference (Reference.Mode): none / car / cmr
+        ArtRefLowField      matlab.ui.control.NumericEditField   % good-noise band (x median) of the suggestion (Reference.BadLow / BadHigh)
         ArtRefHighField     matlab.ui.control.NumericEditField
         ArtRefExcludeField  matlab.ui.control.EditField          % active dataset's channels left out of the reference
         ArtRefSuggestButton matlab.ui.control.Button
@@ -916,6 +918,8 @@ classdef EphysPipelineApp < handle
         applySelectionToTable(obj, P)
         S = gatherProbeSection(obj)
         applyProbeSection(obj, S)
+        R = gatherReferenceSection(obj)
+        applyReferenceSection(obj, R)
         B = gatherBehaviorSection(obj)
         applyBehaviorSection(obj, B)
         A = gatherArtifactsSection(obj)

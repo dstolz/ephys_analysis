@@ -94,6 +94,13 @@ check(numel(d1) == 1 && d1.ProbeFile == string(probeFile) && d1.SortingDir == st
     && isequal(d1.ManualArtifacts, [0.001 0.002]), 'manifest state restored by the project refresh');
 check(startsWith(d1.OutputDir, outRoot) && isequal(fieldnames(d1.ArtifactConfig), fieldnames(EphysDataset.defaultArtifactConfig())), ...
     'output dir under OutputRoot; artifact config pushed');
+cfgR = cfg; cfgR.Reference = struct('Mode', "cmr", 'BadLow', 0.25, 'BadHigh', 2.5);
+EphysPipeline.applyConfigToDatasets(cfgR, pipe.Project);
+acR = d1.ArtifactConfig;
+check(acR.Reference == "cmr" && acR.ReferenceBadLow == 0.25 && acR.ReferenceBadHigh == 2.5 ...
+    && acR.Threshold == cfg.Artifacts.Threshold, ...
+    'the Reference section is carried onto the datasets'' ArtifactConfig (Mode, BadLow, BadHigh)');
+EphysPipeline.applyConfigToDatasets(cfg, pipe.Project);
 i2 = pipe.Project.findByKey("mouse2/M1_260101_120030");
 check(isnan(pipe.Project.Datasets(i2).Fs) && ~isfile(pipe.Project.Datasets(i2).manifestFile()) && ~isnan(d1.Fs), ...
     'constructing the pipeline refreshes the selected datasets only');
@@ -582,8 +589,8 @@ if license('test', 'Signal_Toolbox')
     Mman = load(pipe.Results.Output(1));
     check(isequal(Mman.info.artifacts.intervals, d1.ManualArtifacts), ...
         'Artifacts.ApplyToSignals off: the manual periods only');
-    check(Mx.info.reference.mode == "none", 'Artifacts.Reference "none": the signals are not referenced');
-    cfgRef = cfg; cfgRef.Artifacts.Reference = "car";
+    check(Mx.info.reference.mode == "none", 'Reference.Mode "none": the signals are not referenced');
+    cfgRef = cfg; cfgRef.Reference.Mode = "car";
     refState = {d1.ReferenceExclude, d1.ReferenceExcludeSource};
     d1.ReferenceExclude = []; d1.ReferenceExcludeSource = "manual";
     logs = strings(0, 1);
@@ -591,7 +598,7 @@ if license('test', 'Signal_Toolbox')
     pipe.Config = cfgRef; pipe.reset(); pipe.runSignals();
     Mref0 = load(pipe.Results.Output(1));
     check(pipe.Results.Status(1) == "done" && Mref0.info.reference.mode == "none" && Mref0.info.LFP.reference == "none", ...
-        'Artifacts.Reference "car" with Signals.LFP_Reference off (the default): the LFP is taken as recorded');
+        'Reference.Mode "car" with Signals.LFP_Reference off (the default): the LFP is taken as recorded');
     cfgRef.Signals.LFP_Reference = true;
     logs = strings(0, 1);
     pipe.Config = cfgRef; pipe.reset(); pipe.runSignals();

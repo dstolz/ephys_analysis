@@ -3,7 +3,7 @@ function runSignals(obj, opts)
 %   The options come from EphysPipelineConfig.signalOptions (with the
 %   dataset's manifest exclusions applied per Signals.ExcludeHandling).
 %   Behavior data is written by the behavior step, not here. The common
-%   reference of Artifacts.Reference (CAR / CMR; the datasets'
+%   reference of the Reference section (CAR / CMR; the datasets'
 %   ArtifactConfig) is subtracted, once, from the signals whose
 %   Signals.<TYPE>_Reference is on (MUA and SPIKE by default, not the LFP;
 %   see deriveSignals' referenceSignals). With
@@ -52,8 +52,8 @@ for k = 1:n
         end
         if opts.DryRun
             what = "would write " + strjoin(sigOpts.dataTypeOut, "+");
-            if c.Artifacts.Reference ~= "none" && ~isempty(sigOpts.referenceSignals)
-                what = what + ", " + strjoin(sigOpts.referenceSignals, "+") + " " + upper(c.Artifacts.Reference) + " referenced";
+            if c.Reference.Mode ~= "none" && ~isempty(sigOpts.referenceSignals)
+                what = what + ", " + strjoin(sigOpts.referenceSignals, "+") + " " + upper(c.Reference.Mode) + " referenced";
             end
             if G.BlankArtifacts
                 what = what + ", artifact periods erased (" + ...

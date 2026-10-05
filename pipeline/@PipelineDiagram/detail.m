@@ -4,8 +4,8 @@ function [html, summary] = detail(cfg, d, opts)
 %   the pipeline config CFG (an EphysPipelineConfig) for the dataset D (an
 %   EphysDataset, or [] for none: its rate, channel count, probe and
 %   exclusions), so it mirrors what EphysPipeline would run. It is the
-%   preprocessing app's Diagram tab, "Every parameter"
-%   (EphysPreprocessingApp.flowChartHTML), and works without the app.
+%   pipeline app's Diagram tab, "Every parameter"
+%   (EphysPipelineApp.flowChartHTML), and works without the app.
 %
 %   The detail view draws one tree from the raw
 %   recording. The common reference (Artifacts.Reference) comes right under
@@ -41,7 +41,7 @@ function [html, summary] = detail(cfg, d, opts)
 %   100%. SUMMARY is a one-line description.
 %
 %   See also PipelineDiagram.overview, PipelineDiagram.zoomFrame,
-%   EphysPreprocessingApp.flowChartHTML, EphysDataset.deriveSignals,
+%   EphysPipelineApp.flowChartHTML, EphysDataset.deriveSignals,
 %   EphysDataset.detectSpikes, EphysDataset.detectArtifacts,
 %   EphysDataset.runKilosort.
 

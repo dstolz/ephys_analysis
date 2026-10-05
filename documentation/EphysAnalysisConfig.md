@@ -76,9 +76,11 @@ distinct as file names: `{Plot}` replaces every character outside
       "units": { "classes": ["su", "mua"], "groups": [], "ids": [], "channels": [], "shanks": [], "maxUnits": "Inf" },
       "channels": [], "ref": "default", "window": "default", "selection": "default",
       "bins": { "BinSec": 0.01, "SmoothSec": 0.01 }, "baseline": { "Mode": "none", "Window": [-0.2, 0] },
-      "layout": "grid", "withRaster": true, "histStyle": "bar", "fill": true, "fillAlpha": "NaN", "normalize": "none",
+      "layout": "grid", "withRaster": true, "rasterSort": "", "histStyle": "bar", "fill": true, "fillAlpha": "NaN", "normalize": "none",
       "stack": false, "stackSpacing": 1.1, "maskAfterStop": false, "param": "", "seriesParam": "",
-      "value": "rate", "order": "probe", "measure": "rate", "metric": "mean", "correlation": "pearson", "style": { "MaxTiles": 16, "...": "..." } },
+      "value": "rate", "order": "probe", "measure": "rate", "metric": "mean", "correlation": "pearson",
+      "waveform": { "mode": "both", "location": "northeast", "box": true, "scale": 1, "maxSpikes": 100 },
+      "style": { "MaxTiles": 16, "...": "..." } },
     { "id": "rate_resp", "kind": "rate", "source": "units",
       "ref": { "line": "RespWindow", "edge": "onset", "which": "first", "scope": "trial", "...": "..." },
       "window": { "mode": "between", "pre": 0, "post": 0,
@@ -87,7 +89,7 @@ distinct as file names: `{Plot}` replaces every character outside
       "baseline": { "Mode": "subtract", "Window": [-0.5, 0] }, "...": "..." } ],
   "Export": { "Enabled": true, "Formats": ["png", "svg"], "Folder": "{OutputFolder}\\analysis",
               "FilenamePattern": "{Name}_{Plot}", "Dpi": 150, "FigureSizeCm": [18, 12], "Overwrite": true },
-  "Report": { "Enabled": true, "Format": "html", "Title": "{Name} quick look",
+  "Report": { "Enabled": true, "Format": "html", "Title": "{Name}",
               "Folder": "{OutputRoot}\\analysis", "FileName": "analysis_report", "PerDataset": false,
               "EmbedFormat": "png", "Dpi": 110, "IncludeSummary": true, "IncludeParameters": true,
               "IncludeConfig": true }
@@ -102,7 +104,7 @@ stand for the rest); a file written by hand may leave fields out.
 | Field | Default | Meaning |
 | --- | --- | --- |
 | `Mode` | `"project"` | `"project"`: a pipeline project; `"folders"`: the listed output folders |
-| `Root` | `""` | project root (the folder the preprocessing app scans) |
+| `Root` | `""` | project root (the folder the pipeline app scans) |
 | `OutputRoot` | `""` | the project's output root; `""` = outputs next to each recording |
 | `NamePattern` | `EphysDataset.DefaultNamePattern` | dataset-name tokens, as in the pipeline config |
 | `Recordings` | `"concatenate"` | what an Open Ephys session with several recordings is (`"concatenate"`, `"separate"`, `"single"`), as in the pipeline config's `Acquisition.OpenEphys.Recordings`: with `"separate"` the datasets are the part folders |
@@ -123,7 +125,7 @@ every plot whose `ref`, `window` or `selection` is the string `"default"`.
 ## Building blocks
 
 `EphysAnalysisConfig.defaults("EventRef" | "EpochWindow" | "TrialSelection" |
-"UnitSelection" | "Style")`. The first three are described with their
+"UnitSelection" | "Style" | "Auroc" | "Waveform")`. The first three are described with their
 constructors on the [Analysis page](EphysAnalysis.md#event-reference-window-selection).
 
 ### UnitSelection
@@ -139,7 +141,7 @@ A plot's `units` (its `source` is the plot's `source`):
 | `shanks` | `[]` | shanks, as the probe map's `kcoords` values (single-shank maps usually use 0) |
 | `maxUnits` | `Inf` | at most this many, in order |
 | `quality` | `enabled` false, and [`unitQualityCriteria`](../pipeline/unitQualityCriteria.m)'s thresholds (`isiViolationsRatioMax` 0.5, `presenceRatioMin` 0.9, `amplitudeCutoffMax` 0.1; `snrMin`, `driftPtpMax`, `firingRateMin` off; `unknown` `"pass"`) | with `enabled`, only the sorted units that meet the criteria are kept: their quality metrics come from the dataset (`EphysDataset.unitQuality`; the recording's noise only when `snrMin` is set) or, without it, from the recording's length the source knows (no SNR), through the sort folder's `quality_metrics.json` when current. The units' metrics and `qualityPass` / `qualityFails` / `qualityUnknown` are added to the unit table ([Unit quality metrics](EphysDataset.md#unit-quality-metrics)) |
-| `response` | `enabled` false, `test` `"evoked"`, `baseline` `[-0.2 0]`, `window` `[0 0.2]`, `param` `""`, `direction` `"any"`, `correction` `"bh"`, `alpha` 0.05 | with `enabled`, only the units that respond are kept ([response statistics](EphysAnalysis.md#response-statistics)): `responseStats` over the plot's event reference and trial selection, after the other fields and before `maxUnits`. `test`: `"evoked"` (the response window's rate differs from the baseline window's, `signrank`), `"tuning"` (it differs across `param`'s levels, `kruskalwallis`), `"either"` or `"both"`. `baseline` and `window` are s from the event. `direction` (evoked) is `"any"`, `"excited"` or `"suppressed"`. `correction` is `"bh"`, `"holm"`, `"bonferroni"` or `"none"`, over the units tested. A unit passes when its adjusted p is at most `alpha`. Needs the Statistics and Machine Learning Toolbox |
+| `response` | `enabled` false, `test` `"evoked"`, `baseline` `[-0.2 0]`, `window` `[0 0.2]`, `param` `""`, `direction` `"any"`, `correction` `"bh"`, `alpha` 0.05 | with `enabled`, only the units that respond are kept ([response statistics](EphysAnalysis.md#response-statistics)): `responseStats` over the plot's event reference and trial selection, after the other fields and before `maxUnits`. `test`: `"evoked"` (the response window's rate differs from the baseline window's, `signrank`), `"tuning"` (it differs across `param`'s levels, `kruskalwallis`), `"either"`, `"both"`, or `"auroc"`: the units the auROC calls modulated over `window` (`aurocCurves` over the same epochs, all of them one group; [auROC](#auroc)), with `auroc`'s `method`, `windows`, `windowSec`, `stepSec`, `binSec` (its own bins, 0.01), `cutoff` (`"ci"`, `"fixed"` or `"test"`), `threshold`, `test` and `nResamples`; the unit table then gains `aurocMean`, `aurocPhasic`, `aurocP`, `aurocQ`, `aurocDirection` and `aurocModulated`. `baseline` and `window` are s from the event. `direction` (evoked, auroc) is `"any"`, `"excited"` or `"suppressed"`. `correction` is `"bh"`, `"holm"`, `"bonferroni"` or `"none"`, over the units tested. A unit passes when its adjusted p is at most `alpha`. Needs the Statistics and Machine Learning Toolbox |
 
 ### Style
 
@@ -176,9 +178,11 @@ A plot's `units` (its `source` is the plot's `source`):
 | `ref`, `window`, `selection` | `"default"` | or the plot's own EventRef / EpochWindow / TrialSelection |
 | `bins` | `BinSec` 0.01, `SmoothSec` 0.01 | PSTH bins (whole multiples of `BinSec` from the event) and Gaussian SD, s (0 = no smoothing); also a corrmap's `"peak"` rate |
 | `measure` | `"rate"` | psth, heatmap of spikes, rate, tuning: `"rate"` (spikes/s), `"count"` (spikes per bin, or per epoch window) or `"probability"` (the share of epochs with a spike in the bin, or window). The baseline is measured the same way |
-| `baseline` | `Mode "none"`, `Window [-0.2 0]` | see the kinds |
+| `baseline` | `Mode "none"`, `Window [-0.2 0]` | see the kinds. `Mode "auroc"` (psth, heatmap of spikes): each window's auROC against the baseline window, 0 to 1, with `auroc`'s settings ([auROC](#auroc)) |
+| `auroc` | Auroc | psth, heatmap of spikes with `baseline.Mode "auroc"`: see [auROC](#auroc) |
 | `layout` | `""` | `""` = the kind's default |
 | `withRaster` | `true` | psth: a raster above each unit |
+| `rasterSort` | `""` | psth, raster: the order of each group's epochs in the raster. `""` = trial (time) order; `"stop"` = by the stop event's latency; else a trial parameter, which the compute copies onto the epochs (`epochTable(..., Columns=)`). Groups stay in their own bands; missing values sort last and ties keep the trial order |
 | `histStyle` | `"bar"` | psth: `"bar"` (one bar per bin) or `"line"` (a trace through the bin centres) |
 | `fill` | `true` | psth: fill the bars, or the area under the line; `false` = the bars' outline, or the line alone |
 | `fillAlpha` | `NaN` | psth: fill opacity 0-1; `NaN` = 0.5 where groups are overlaid, else 1 |
@@ -188,19 +192,21 @@ A plot's `units` (its `source` is the plot's `source`):
 | `maskAfterStop` | `false` | psth: drop bins after each epoch's stop event |
 | `param`, `seriesParam` | `""` | tuning: x axis parameter; one curve per value of the series parameter |
 | `value` | `"rate"` | probemap: `"rate"`, `"nSpikes"`, `"nUnits"` |
-| `order` | `"probe"` | heatmap rows: `"probe"` (the style's `SortDepth` / `SortShank`) or `"peak"` (by the time of each row's maximum). A corrmap follows the style's sort options |
+| `order` | `"probe"` | heatmap rows: `"probe"` (the style's `SortDepth` / `SortShank`), `"peak"` (by the time of each row's maximum) or, with the auROC baseline, `"modulation"` (by the first group's mean auROC in the call window, highest first; the other tiles keep that order, as the paper's Fig 3A). A corrmap follows the style's sort options |
 | `metric` | `"mean"` | corrmap: each epoch's `"mean"` rate over its window, or its `"peak"` binned rate (`bins`) |
 | `correlation` | `"pearson"` | corrmap: `"pearson"` or `"spearman"` |
+| `waveform` | Waveform, `mode "off"` | raster, psth and tuning grids of spikes: each unit's waveform in its tile (see [Unit waveforms](#unit-waveforms)) |
 | `style` | Style | |
+| `aesthetics` | none | remembered looks of the plot's components: a list of rules `{role, group, property, value}` (`group` `""` = every group), applied after drawing, over the user's own rules for the kind. The preview's right-click editor writes them ([Plot aesthetics](EphysAnalysis.md#plot-aesthetics)); a rule with a property the editor does not know is refused |
 
 | Kind | Sources | Layouts (first = default) | Windows | Baseline modes |
 | --- | --- | --- | --- | --- |
-| `psth` | units, detected | grid, overlay | fixed | none, subtract, zscore, percent |
+| `psth` | units, detected | grid, overlay | fixed | none, subtract, zscore, percent, auroc |
 | `raster` | units, detected | grid | fixed | none |
 | `evoked` | LFP, MUA, SPIKE, AUX | stack, butterfly, grid | fixed | none, subtract |
 | `rate` | units, detected | bar, box, points | fixed, between | none, subtract, ratio, zscore |
 | `tuning` | units, detected | grid, overlay | fixed, between | none, subtract, ratio, zscore |
-| `heatmap` | all six | groups | fixed | spikes: as psth; signals: none, subtract |
+| `heatmap` | all six | groups | fixed | spikes: as psth (auroc too); signals: none, subtract |
 | `probemap` | units, detected | shanks | (no alignment) | none |
 | `corrmap` | units, detected | groups | fixed, between | none, subtract |
 
@@ -229,6 +235,62 @@ they overlap (`stackSpacing` below 1) the lower one is in front.
   bottom; like every raster it ignores `Style.YLim`.
 - A plot with one group is drawn unstacked.
 
+### auROC
+
+`baseline.Mode "auroc"` (psth, heatmap of spikes) draws, instead of a
+rate, each unit's auROC in windows along the epoch: how far the firing
+in the window stands apart from the firing in the baseline window, 0 to
+1, 0.5 = no difference, above = more firing (Cohen et al. 2012;
+Macedo-Lima, Hamlette & Caras 2024). `aurocCurves` computes it
+([auROC on the Analysis page](EphysAnalysis.md#auroc)); smoothing is not
+used and a PSTH's `normalize` does not apply. The plot's `auroc`
+(`EphysAnalysisConfig.defaults("Auroc")`):
+
+| Field | Default | Meaning |
+| --- | --- | --- |
+| `method` | `"psth"` | the values compared: `"psth"`, the trial-averaged PSTH's bins in each window against those in the baseline (the paper's, as the Caras lab's `calculate_auROC.py`); `"epochs"`, each epoch's spike count in the window against the epochs' counts in window-long pieces of the baseline |
+| `windows` | `"tiled"` | `"tiled"`: back to back, edged at whole multiples of `windowSec` from the event; `"sliding"`: one every `stepSec` |
+| `windowSec`, `stepSec` | 0.1, 0.01 | the window and the sliding step, s: each a whole number of the plot's bins |
+| `modulationWindow` | `[0 0.5]` | the call window, s from the event: the auROC windows wholly inside it give each unit's mean auROC and phasic modulation (mean \|auROC - 0.5\|) per group |
+| `cutoff` | `"ci"` | how a unit is called modulated (up or down, per group): `"ci"`, the paper's: its mean auROC beyond 0.5 +/- the upper bound of the 95% confidence interval of the mean phasic modulation over every unit and group (it depends on the units in the plot and needs many of them; a warning says when it is too wide to call any); `"fixed"`, beyond 0.5 +/- `threshold`; `"test"`, the adjusted p of `test` at most `alpha`; `"none"`, no call |
+| `threshold` | 0.1 | `"fixed"` |
+| `test` | `"bootstrap"` | `"test"`: `"bootstrap"` (the epochs resampled `nResamples` times; p from how often the mean auROC lands across 0.5), `"ranksum"` (the call window's values against the baseline's; they share epochs, so p runs small) or `"shuffle"` (each epoch's bins shifted circularly at random `nResamples` times; p from how often the phasic modulation reaches the observed one) |
+| `nResamples` | 1000 | bootstrap, shuffle |
+| `correction`, `alpha` | `"bh"`, 0.05 | `"test"`: pAdjust over every unit and group |
+| `marks` | `true` | draw the calls: the PSTH shades the call window and puts each group's call (up / down arrow, n.s.) by the unit's title; the heatmap draws a bar over the call window and a triangle by each modulated row. The caption counts them either way |
+| `modulatedOnly` | `false` | draw only the units called modulated in at least one group |
+
+The random draws come from their own stream (seed 0), so a plot gives
+the same p values every time it runs.
+
+### Unit waveforms
+
+A raster, or a PSTH or tuning curve in its `"grid"` layout, of spikes
+can draw each unit's waveform on its peak channel as a small box in the
+unit's tile (in the rate panel under a PSTH's raster). The plot's
+`waveform` (`EphysAnalysisConfig.defaults("Waveform")`):
+
+| Field | Default | Meaning |
+| --- | --- | --- |
+| `mode` | `"off"` | `"mean"`, `"subsample"` (the spikes read, thin and pale), `"both"` (the mean over the spikes), or `"off"` |
+| `location` | `"northeast"` | where in the tile: `"northeast"`, `"north"`, `"northwest"`, `"west"`, `"southwest"`, `"south"`, `"southeast"`, `"east"` (north is the top edge as seen, also on a raster's reversed axis) |
+| `box` | `true` | the axis box: an outline on a pale ground; `false` draws the waveform alone |
+| `scale` | 1 | the box's size: 1 = a third of the tile's width and height; at most 3 |
+| `maxSpikes` | 100 | the spikes drawn per unit, picked at random (the same ones each run) |
+
+The waveforms come from `unitWaveforms` ([Analysis page](EphysAnalysis.md#unit-waveforms)):
+for sorted units, `maxSpikes` of the unit's spikes cut from the sorted
+`.bin` as Kilosort4 saw them (referenced and high-passed, not whitened),
+and their mean; when the `.bin` is not there, the unit's template is
+drawn as its mean, labelled "(template)", and a warning says why. For
+detections, the waveforms the spikes file keeps (the Spikes step's
+`Waveforms` option; none without it, and a warning) and the mean of them
+all. Each box is on its own amplitude scale; its label gives the mean's
+peak-to-peak amplitude. The box keeps the tile's limits, stays out of
+the legend and its parts (`waveBox`, `waveSpikes`, `waveMean`,
+`waveLabel`) take [aesthetics](EphysAnalysis.md#plot-aesthetics) like any
+other. An overlay of units draws none.
+
 ## Export
 
 | Field | Default | Meaning |
@@ -238,7 +300,7 @@ they overlap (`stackSpacing` below 1) the lower one is in front.
 | `Folder` | `{OutputFolder}\analysis` | folder tokens (below) |
 | `FilenamePattern` | `{Name}_{Plot}` | `{Name}` (dataset) `{Plot}` `{Kind}` `{Group}` `{Unit}` `{Index}` `{Date}`; a paged plot adds `_p<page>` unless the pattern tells its pages apart: `{Index}`, or `{Unit}` with a unit filled in (a paged evoked grid's `{Unit}` is `all` on every page) |
 | `Dpi` | 150 | PNG resolution |
-| `FigureSizeCm` | `[18 12]` | figure size |
+| `FigureSizeCm` | `[18 12]` | figure size `[width height]`; a grid page is made taller when its rows need it: 3 cm a row of tiles (4.5 cm for PSTHs with rasters) plus 1.5 cm |
 | `Overwrite` | `true` | `false`: a page whose files all exist is not written again, nor drawn unless the HTML report needs its image |
 
 ## Report
@@ -247,7 +309,7 @@ they overlap (`stackSpacing` below 1) the lower one is in front.
 | --- | --- | --- |
 | `Enabled` | `true` | |
 | `Format` | `"html"` | `"html"`, `"pdf"` or `"both"` |
-| `Title` | `"{Name} quick look"` | `{Name}` = the config's name, `{Date}` = today |
+| `Title` | `"{Name}"` | `{Name}` = the config's name, `{Date}` = today |
 | `Folder` | `{OutputRoot}\analysis` | folder tokens |
 | `FileName` | `"analysis_report"` | `.html` / `.pdf` added |
 | `PerDataset` | `false` | one report per dataset, named `<FileName>_<dataset>` |
@@ -272,8 +334,8 @@ dataset's output folder), `{Root}`, `{Name}` (the dataset), `{Date}`
 | Source | a "list" selection with no datasets; an OutputRoot that does not exist | warning |
 | Defaults, Plots | the event reference, window and selection are valid (`pre <= post`, a `"between"` window has a stop, `groupBy` has at most 2 parameters, ...) | error |
 | Defaults, Plots | a filter that does not parse | warning (it is checked against each dataset's trials when it runs) |
-| Plots | at least one enabled; ids that stay distinct once `{Plot}` has sanitized them (case-blind); the kind exists; the source, layout, window mode and baseline mode fit the kind; tuning names its parameter; `BinSec > 0`, `SmoothSec >= 0`; a baseline window `[b0 b1]` with `b0 < b1`; probemap value, psth `histStyle` bar / line, `normalize` none / unitPeak / groupPeak, `fillAlpha` 0-1 or NaN, `stackSpacing > 0`; heatmap order; corrmap order, metric and correlation; `maxUnits >= 1`; `MaxTiles`, `FontSize`, `LineWidth` positive | error |
-| Plots | a `HeatColormap` that is not a colormap function; a `Colormap` that is neither a colormap function nor a colour | warning |
+| Plots | at least one enabled; ids that stay distinct once `{Plot}` has sanitized them (case-blind); the kind exists; the source, layout, window mode and baseline mode fit the kind; tuning names its parameter; `BinSec > 0`, `SmoothSec >= 0`; a baseline window `[b0 b1]` with `b0 < b1`; probemap value, psth `histStyle` bar / line, `normalize` none / unitPeak / groupPeak, `fillAlpha` 0-1 or NaN, `stackSpacing > 0`; heatmap order (`"modulation"` only with the auROC baseline); the auROC settings (method, windows, whole-bin window and step, call window, cutoff, threshold, test, `nResamples`, correction, alpha, `modulatedOnly` with a cutoff; a response test `"auroc"` needs a cutoff) and the toolbox they need; corrmap order, metric and correlation; `maxUnits >= 1`; a `waveform` mode other than off: its location, `scale` in (0, 3] and a whole `maxSpikes >= 1`; `MaxTiles`, `FontSize`, `LineWidth` positive | error |
+| Plots | a `HeatColormap` that is not a colormap function; a `Colormap` that is neither a colormap function nor a colour; a `waveform` mode on a plot that draws no unit tiles (an overlay, a plot of signals, a kind other than raster / psth / tuning) | warning |
 | Export | formats are png / eps / svg / pdf (and at least one when enabled); `Dpi`, `FigureSizeCm`; the folder and file-name patterns use known tokens | error |
 | Export | a file-name pattern without `{Plot}` while several plots are enabled (`{Kind}` is enough when the enabled plots all differ in kind); neither the folder nor the file-name pattern names the dataset (`{OutputFolder}` or `{Name}`), unless the source is a single folder: files that would overwrite each other | warning |
 | Report | Format, EmbedFormat, `Dpi`, a plain `FileName`, the folder pattern | error |

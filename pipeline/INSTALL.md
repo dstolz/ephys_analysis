@@ -1,6 +1,6 @@
-# Installing `EphysPreprocessingApp` on Windows 11
+# Installing `EphysPipelineApp` on Windows 11
 
-`EphysPreprocessingApp` is a MATLAB `uifigure` GUI (`pipeline/@EphysPreprocessingApp`)
+`EphysPipelineApp` is a MATLAB `uifigure` GUI (`pipeline/@EphysPipelineApp`)
 that scans recordings (Intan `.rhd`, or the universal binary format),
 previews/filters them, optionally hands them off to **Kilosort4** (running
 in a separate Python/conda environment) for spike sorting
@@ -141,7 +141,7 @@ Python is used.
 
 1. Launch the app in MATLAB:
    ```matlab
-   EphysPreprocessingApp
+   EphysPipelineApp
    ```
 2. Go to the **Sorting** tab:
    - **Python exe** — a new config is seeded with

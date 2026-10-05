@@ -13,7 +13,8 @@ classdef EphysAnalysisScript
     %                                 selectUnits / selectChannels, spikePSTH
     %                                 / evokedPotential / firingRate /
     %                                 tuningCurve / unitCorrelation / unitSummary +
-    %                                 probeMapValues, then a page at a time
+    %                                 probeMapValues (and unitWaveforms for
+    %                                 the waveform boxes), then a page at a time
     %                                 newExportFigure, renderPlot,
     %                                 exportFigure and reportImage, the report
     %                                 calls. It never uses EphysAnalysisRunner,
@@ -241,7 +242,12 @@ classdef EphysAnalysisScript
             L = strings(0, 1);
             switch spec.kind
                 case {"psth" "raster" "heatmap"}
-                    L(end+1, 1) = epochs;
+                    if ismember(spec.kind, ["psth" "raster"]) && ~ismember(spec.rasterSort, ["" "stop"])
+                        L(end+1, 1) = "[E, G] = epochTable(src, spec.ref, Window=spec.window, Selection=spec.selection, Baseline=" + b + ...
+                            ", Columns=" + lit(spec.rasterSort) + ");   % the raster's sort parameter";
+                    else
+                        L(end+1, 1) = epochs;
+                    end
                     if isSignal
                         L(end+1, 1) = "[Y, fs, meta] = selectChannels(src, " + lit(spec.source) + ", Channels=" + lit(spec.channels) + ");";
                         L(end+1, 1) = "R = evokedPotential(Y, fs, E, Window=" + w + ", Baseline=" + b + ", Groups=G, Meta=meta, Units=meta.units(1));";
@@ -250,7 +256,9 @@ classdef EphysAnalysisScript
                         L(end+1, 1) = "[st, meta] = selectUnits(src, spec.units, Ref=spec.ref, Selection=spec.selection);";
                         L(end+1, 1) = "R = spikePSTH(st, E, Window=" + w + ", BinSec=" + lit(spec.bins.BinSec) + ...
                             ", SmoothSec=" + lit(spec.bins.SmoothSec) + ", Measure=" + lit(spec.measure) + ", ...";
-                        L(end+1, 1) = "    Baseline=" + b + ", BaselineMode=" + lit(spec.baseline.Mode) + ", MaskAfterStop=" + lit(spec.maskAfterStop) + ", Raster=" + lit(raster) + ", Groups=G, Meta=meta);";
+                        tail = ");";
+                        if spec.baseline.Mode == "auroc"; tail = ", Auroc=spec.auroc);   % auROC settings: spec.auroc"; end
+                        L(end+1, 1) = "    Baseline=" + b + ", BaselineMode=" + lit(spec.baseline.Mode) + ", MaskAfterStop=" + lit(spec.maskAfterStop) + ", Raster=" + lit(raster) + ", Groups=G, Meta=meta" + tail;
                     end
                 case "evoked"
                     L(end+1, 1) = epochs;
@@ -281,6 +289,11 @@ classdef EphysAnalysisScript
                     L(end+1, 1) = "R = probeMapValues(T, src.probe, Value=" + lit(spec.value) + ");";
                     L(end+1, 1) = "E = [];";
             end
+            if spec.waveform.mode ~= "off" && ismember(spec.source, EphysAnalysisConfig.SpikeSources) && ...
+                    (spec.kind == "raster" || (ismember(spec.kind, ["psth" "tuning"]) && spec.layout ~= "overlay"))
+                L(end+1, 1) = "R.waveforms = unitWaveforms(src, R.meta, Source=" + lit(spec.source) + ", MaxSpikes=" + ...
+                    lit(spec.waveform.maxSpikes) + ");   % each unit's waveform in its tile (spec.waveform)";
+            end
             L(end+1, 1) = "R.epochs = E;";
         end
 
@@ -297,7 +310,7 @@ classdef EphysAnalysisScript
             L(end+1, 1) = "    want = base + ""."" + exportOpts.Formats;";
             if withImages
                 L(end+1, 1) = "    kept = ~exportOpts.Overwrite && all(isfile(want));   % its files exist: drawn for the report only";
-                L(end+1, 1) = "    fig = newExportFigure(exportOpts);";
+                L(end+1, 1) = "    fig = newExportFigure(exportOpts, R, spec, Page=p);   % a grid page grows with its rows";
                 L(end+1, 1) = "    closer = onCleanup(@() close(fig));   % closes the page on a failure too";
                 L(end+1, 1) = "    h = renderPlot(R, spec, fig, Page=p);";
                 L(end+1, 1) = "    written = strings(1, 0);";
@@ -313,7 +326,7 @@ classdef EphysAnalysisScript
                 L(end+1, 1) = "        files = [files want]; %#ok<AGROW>";
                 L(end+1, 1) = "        continue";
                 L(end+1, 1) = "    end";
-                L(end+1, 1) = "    fig = newExportFigure(exportOpts);";
+                L(end+1, 1) = "    fig = newExportFigure(exportOpts, R, spec, Page=p);   % a grid page grows with its rows";
                 L(end+1, 1) = "    closer = onCleanup(@() close(fig));   % closes the page on a failure too";
                 L(end+1, 1) = "    renderPlot(R, spec, fig, Page=p);";
                 L(end+1, 1) = "    files = [files exportFigure(fig, base, Format=exportOpts.Formats, Dpi=exportOpts.Dpi)]; %#ok<AGROW>";

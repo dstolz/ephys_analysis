@@ -557,6 +557,13 @@ classdef EphysPipelineScript
             elseif isstruct(v)
                 if isempty(fieldnames(v))
                     s = "struct()";
+                elseif isempty(v)
+                    % An empty struct array keeps its fields: repmat of one with them, 1x0.
+                    f = string(fieldnames(v)).';
+                    s = "repmat(struct(" + strjoin("'" + f + "', []", ", ") + "), 1, 0)";
+                elseif ~isscalar(v)
+                    parts = arrayfun(@(x) EphysPipelineScript.literal(x), reshape(v, 1, []));
+                    s = "[" + strjoin(parts, " ") + "]";
                 else
                     parts = strings(1, 0);
                     for f = string(fieldnames(v)).'

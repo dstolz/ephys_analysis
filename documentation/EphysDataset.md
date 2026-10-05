@@ -1503,7 +1503,7 @@ sort's unit notes and phy labels aside (`launchSorting`, above).
 `params.py` names (`dat_path`: the `.bin` `runKilosort` wrote), prepared the
 way Kilosort4 saw the data before whitening. So the windows compare directly
 with the templates: the same channels, time axis and units. The Review tab
-draws them (see [Review](EphysPreprocessingApp.md#review)).
+draws them (see [Review](EphysPipelineApp.md#review)).
 
 - `samples` are `spike_times.npy` values, e.g. `units.samples{u}`. Each window
   is `samples − nt0min + (0:nt−1)`, so `W(:, c, k)` lines up with

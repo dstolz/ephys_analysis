@@ -71,7 +71,7 @@ function S = makeSyntheticProject(root, opts)
 %   Error identifiers: makeSyntheticProject:Exists, makeSyntheticProject:NotSynthetic.
 %
 %   See also makeSyntheticRecording, makeSyntheticProbe, EphysPipeline,
-%   EphysPreprocessingApp.
+%   EphysPipelineApp.
 
 arguments
     root (1,1) string
@@ -244,7 +244,7 @@ w('============================');
 w('');
 w('Written by makeSyntheticProject on %s. Everything in this folder is synthetic:', string(datetime('now', 'Format', 'yyyy-MM-dd HH:mm')));
 w('no animal, no real recording. It exists to exercise the preprocessing pipeline and');
-w('the app (EphysPreprocessingApp) end to end without real data or Python.');
+w('the app (EphysPipelineApp) end to end without real data or Python.');
 w('');
 w('Layout');
 w('  %s   pipeline config: File > Open config in the app, or', configFile);

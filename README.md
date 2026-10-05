@@ -9,7 +9,7 @@ reference and [pipeline/INSTALL.md](pipeline/INSTALL.md) for setup.
 
 | Path | Contents |
 | --- | --- |
-| [`pipeline/`](pipeline) | `EphysDataset`, `EphysReader` / `IntanReader` / `OpenEphysReader` / `TDTReader` / `BinaryReader`, `EphysProject`, `DatasetTracker`, `EphysPipelineConfig` / `EphysPipeline` / `EphysPipelineScript`, `EphysPreprocessingApp`, `ChannelMapperApp` / `ChannelMap` / `HardwareBank`, `ChronuxDataset`, `FieldTripExport`, Epsych2 readers, probe JSON, pipeline configs, Python drivers, tests |
+| [`pipeline/`](pipeline) | `EphysDataset`, `EphysReader` / `IntanReader` / `OpenEphysReader` / `TDTReader` / `BinaryReader`, `EphysProject`, `DatasetTracker`, `EphysPipelineConfig` / `EphysPipeline` / `EphysPipelineScript`, `EphysPipelineApp`, `ChannelMapperApp` / `ChannelMap` / `HardwareBank`, `ChronuxDataset`, `FieldTripExport`, Epsych2 readers, probe JSON, pipeline configs, Python drivers, tests |
 | [`pipeline/hardware/`](pipeline/hardware) | the channel mapper's hardware bank: connectors, Intan headstages, NeuroNexus packages, probe designs and saved mappings, one JSON each (`ChannelMapperApp`, [docs](documentation/ChannelMapperApp.md)) |
 | [`pipeline/pipeline_configs/`](pipeline/pipeline_configs) | starting-point pipeline configs (`H64LP_4x16.json`) |
 | [`analysis/`](analysis) | quick-look figures from the pipeline's outputs: `EphysAnalysisConfig` / `EphysAnalysisRunner` / `EphysAnalysisScript`, `EphysAnalysisApp`, PSTHs, evoked potentials, rates, tuning, heatmaps, probe maps, HTML / PDF reports ([docs](documentation/EphysAnalysis.md)) |
@@ -23,7 +23,7 @@ reference and [pipeline/INSTALL.md](pipeline/INSTALL.md) for setup.
 
 ```matlab
 addpath_nogit('C:\src\ephys_analysis')   % once per session
-EphysPreprocessingApp                    % GUI: File > New, scan, enable steps, Run
+EphysPipelineApp                         % GUI: File > New, scan, enable steps, Run
 ```
 
 ```matlab

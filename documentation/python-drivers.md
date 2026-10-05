@@ -18,7 +18,7 @@ then writes the exit marker `ks4_exit.txt`.
 | Script | Called by | Environment needs |
 | --- | --- | --- |
 | [`run_ks4.py`](../pipeline/@EphysDataset/run_ks4.py) | `EphysDataset.runKilosort` (the pipeline's Sorting step) | kilosort, torch |
-| [`probe_tool.py`](../pipeline/@EphysPreprocessingApp/probe_tool.py) | `EphysPreprocessingApp.runProbeTool` (`runProbeToolWith`) / `ProbeDesignerApp` / `ChannelMapperApp` | probeinterface |
+| [`probe_tool.py`](../pipeline/@EphysPipelineApp/probe_tool.py) | `EphysPipelineApp.runProbeTool` (`runProbeToolWith`) / `ProbeDesignerApp` / `ChannelMapperApp` | probeinterface |
 | [`nwb_export.py`](../pipeline/@EphysDataset/nwb_export.py) | `EphysDataset.exportNWB` (the Export step's `nwb` format) | pynwb, nwbinspector |
 
 Versions known to work are listed in [INSTALL.md](../pipeline/INSTALL.md):
@@ -101,10 +101,10 @@ The conversion to KS4 JSON (`pi_probe_to_ks4`) works as follows:
   `device_channel_indices` if present and all ≥ 0, else `0..n−1`.
 - `n_chan` defaults to `max(n, max(chanMap)+1)`.
 
-`runProbeTool` takes the Python and conda env from the Kilosort tab and hands them to the static `EphysPreprocessingApp.runProbeToolWith`, which assembles the command. `ChannelMapperApp` opened on its own calls `runProbeToolWith` with the Python the app last used (its `PythonExe` preference).
+`runProbeTool` takes the Python and conda env from the Kilosort tab and hands them to the static `EphysPipelineApp.runProbeToolWith`, which assembles the command. `ChannelMapperApp` opened on its own calls `runProbeToolWith` with the Python the app last used (its `PythonExe` preference).
 
 On failure the script prints `PROBE_TOOL_ERROR: ...` and exits 1.
-`runProbeTool` raises `EphysPreprocessingApp:runProbeTool:Failed` on a non-zero exit
+`runProbeTool` raises `EphysPipelineApp:runProbeTool:Failed` on a non-zero exit
 or that marker. On success it `jsondecode`s the **last** stdout line that parses
 as JSON.
 

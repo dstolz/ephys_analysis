@@ -1,6 +1,6 @@
 function onUseDataset(obj)
 %onUseDataset  Take the recording rows from a dataset's ChannelNumbers.
-%   From the preprocessing app: pick one of the project's datasets.
+%   From the pipeline app: pick one of the project's datasets.
 %   Standalone: choose a recording folder, read as an EphysDataset.
 d = EphysDataset.empty;
 if ~isempty(obj.App) && isvalid(obj.App) && ~isempty(obj.App.Project) && obj.App.Project.NumDatasets > 0

@@ -204,7 +204,7 @@ end
 
 fprintf('\n== 7. the app: File > Create synthetic test project ==\n');
 prefCleanup = AppPrefs.useTemporary(); %#ok<NASGU> preferences in a temporary file, never the user's
-app = EphysPreprocessingApp;
+app = EphysPipelineApp;
 appCleanup = onCleanup(@() closeApp(app));
 appRoot = fullfile(root, 'app_project');
 Sa = app.createSyntheticProject(appRoot, Preset="small", ...

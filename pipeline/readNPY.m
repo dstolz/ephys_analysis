@@ -23,7 +23,7 @@ function [data, shape] = readNPY(filename, opts)
 %   format) positioned at the start of an array, e.g. a member stored in a
 %   .npz (readNPZ); the file is left open.
 %
-%   See also EphysPreprocessingApp.loadReviewResults, ChronuxDataset.spikes, readNPZ.
+%   See also EphysPipelineApp.loadReviewResults, ChronuxDataset.spikes, readNPZ.
 
 arguments
     filename

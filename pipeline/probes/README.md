@@ -1,6 +1,6 @@
 # Kilosort4 probe maps
 
-This folder stores Kilosort4 probe map `.json` files used by `EphysPreprocessingApp`
+This folder stores Kilosort4 probe map `.json` files used by `EphysPipelineApp`
 and `EphysDataset.runKilosort`. The app scans this folder (by default) to populate
 its probe list, but you can point it at any folder.
 
@@ -92,7 +92,7 @@ probeinterface (library / generate)..."**. The designer (`ProbeDesignerApp`) can
 - **Wire** — map each contact to an Intan amplifier channel (the `chanMap`),
   with Identity / Reverse / load-from-file presets.
 
-It shells out to `@EphysPreprocessingApp/probe_tool.py` in the configured sorting
+It shells out to `@EphysPipelineApp/probe_tool.py` in the configured sorting
 conda env (probeinterface is already installed there; the library needs internet
 on first fetch, then caches) and **writes a plain Kilosort4 `.json` in the schema
 above** into this folder — so everything downstream is unchanged. Editing the

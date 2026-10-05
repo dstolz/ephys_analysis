@@ -29,6 +29,7 @@ colors = groupPalette(R.groups, style);
 order = probeOrder(R.meta, nU, style);
 [tl, ax] = renderLayout(target, 1, 1);
 if isempty(ax); ax = nexttile(tl); end
+tagPart(ax, "axes");
 w = 0.8 / nG;                                   % width of one group's slot
 offs = ((1:nG) - (nG + 1) / 2) * w;
 hold(ax, 'on');
@@ -36,12 +37,13 @@ lh = gobjects(1, nG);
 for g = 1:nG
     x = (1:nU).' + offs(g);
     m = R.meanRate(order, g);
+    gl = R.groups.label(g);
     switch opts.Layout
         case "bar"
-            lh(g) = bar(ax, x, m, w * 0.9, 'FaceColor', colors(g, :), 'EdgeColor', 'none');
+            lh(g) = tagPart(bar(ax, x, m, w * 0.9, 'FaceColor', colors(g, :), 'EdgeColor', 'none'), "bar", gl);
             if style.ShowSEM
-                errorbar(ax, x, m, R.sem(order, g), 'LineStyle', 'none', 'Color', [0.2 0.2 0.2], ...
-                    'CapSize', 2, 'HandleVisibility', 'off');
+                tagPart(errorbar(ax, x, m, R.sem(order, g), 'LineStyle', 'none', 'Color', [0.2 0.2 0.2], ...
+                    'CapSize', 2, 'HandleVisibility', 'off'), "errorBar", gl);
             end
         case "box"
             rows = R.groupIndex == g;
@@ -49,10 +51,10 @@ for g = 1:nG
             xx = repmat(x.', size(y, 1), 1);
             ok = isfinite(y);
             if any(ok(:))
-                lh(g) = boxchart(ax, xx(ok), y(ok), 'BoxWidth', w * 0.8, 'BoxFaceColor', colors(g, :), ...
-                    'MarkerColor', colors(g, :), 'MarkerStyle', '.');
+                lh(g) = tagPart(boxchart(ax, xx(ok), y(ok), 'BoxWidth', w * 0.8, 'BoxFaceColor', colors(g, :), ...
+                    'MarkerColor', colors(g, :), 'MarkerStyle', '.'), "box", gl);
             else
-                lh(g) = plot(ax, NaN, NaN, 's', 'Color', colors(g, :));
+                lh(g) = tagPart(plot(ax, NaN, NaN, 's', 'Color', colors(g, :)), "box", gl);
             end
         case "points"
             rows = find(R.groupIndex == g);
@@ -60,9 +62,9 @@ for g = 1:nG
             jit = (mod((0:numel(rows) - 1).', 7) - 3) / 3 * w * 0.3;
             xx = x.' + jit;
             ok = isfinite(y);
-            bar(ax, x, m, w * 0.9, 'FaceColor', colors(g, :) + (1 - colors(g, :)) * 0.7, 'EdgeColor', 'none', ...
-                'HandleVisibility', 'off');
-            lh(g) = plot(ax, xx(ok), y(ok), '.', 'Color', colors(g, :), 'MarkerSize', 7);
+            tagPart(bar(ax, x, m, w * 0.9, 'FaceColor', colors(g, :) + (1 - colors(g, :)) * 0.7, 'EdgeColor', 'none', ...
+                'HandleVisibility', 'off'), "meanBar", gl);
+            lh(g) = tagPart(plot(ax, xx(ok), y(ok), '.', 'Color', colors(g, :), 'MarkerSize', 7), "points", gl);
     end
 end
 hold(ax, 'off');

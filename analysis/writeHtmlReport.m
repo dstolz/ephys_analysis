@@ -151,6 +151,10 @@ s = join([ ...
     "table.kv td:first-child{color:#57606a}"
     "details{margin:6px 0} summary{cursor:pointer;color:#57606a;font-size:12px}"
     "pre{background:#f6f8fa;border:1px solid #d0d7de;border-radius:6px;padding:8px;overflow:auto;font-size:11px;max-height:480px}"
+    % printed (or saved as PDF): no page break inside a table or a figure, nor right after a heading
+    "@media print{body{background:#fff;max-width:none;padding:0}"
+    "h2,h3,h4{break-after:avoid}.tables>div,.fig,table,tr{break-inside:avoid}"
+    ".fig img{max-height:25cm;width:auto;max-width:100%}}"
     ], "");
 end
 

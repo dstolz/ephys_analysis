@@ -8,7 +8,7 @@ so that each update repeats the last one instead of rebuilding it.
 | `gen_api.py` | Generates the reference part of every `API-*` page from the `.m` sources. It needs no MATLAB. |
 | `gen_pages.py`, `pages.json` | Generates the prose pages from `documentation/`, the one source: `pages.json` says which page is made from which file or sections. It needs no MATLAB, and `test_gen_pages.py` tests it. |
 | `check_links.py` | Checks every page's links, anchors and images before a push. |
-| `wikiScreenshots.m` | Takes the preprocessing app's screenshots headlessly over a synthetic project, and runs it. |
+| `wikiScreenshots.m` | Takes the pipeline app's screenshots headlessly over a synthetic project, and runs it. |
 | `wikiToolScreenshots.m` | Takes the other windows' screenshots (probe designer, channel mapper, manifest viewer, analysis app) over that project. |
 | `restoreAppPrefs.m` | Puts back preferences from a backup an older version of the screenshot scripts left behind. The scripts now use a temporary preference store (`AppPrefs`), so a killed run leaves your preferences as they were. |
 
@@ -61,7 +61,7 @@ git clone https://github.com/dstolz/ephys_analysis.wiki.git C:\temp\wiki
    `documentation/` is the one source. Edit it, never a generated page,
    because the next run replaces that page whole. Each page in `pages.json`
    is made from a file, or from some of its `## ` sections (the app's tabs
-   from `EphysPreprocessingApp.md`). The file's title is dropped, and the
+   from `EphysPipelineApp.md`). The file's title is dropped, and the
    headings go up a level when sections are taken. Links to other docs
    point at the page made from them (or from the section that holds the
    anchor), and links to anything else point at the file on GitHub. A new
@@ -85,7 +85,7 @@ git clone https://github.com/dstolz/ephys_analysis.wiki.git C:\temp\wiki
    footer. Check them for the change too.
 
 4. **Retake the screenshots the change affects**, with MATLAB R2025a. First
-   the preprocessing app, which also writes and runs the synthetic project:
+   the pipeline app, which also writes and runs the synthetic project:
 
    ```bat
    matlab -batch "addpath('C:\src\ephys_analysis\tools\wiki'); wikiScreenshots('C:\temp\shots', Source='C:\temp\src', Project='C:\temp\wiki_shots\synthetic_ephys')"

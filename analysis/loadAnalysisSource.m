@@ -43,9 +43,9 @@ function src = loadAnalysisSource(out, opts)
 %     nTrials, trials   behavior.trials (text columns as string)
 %     pairing           behavior.pairing ([] without pairing): status,
 %                       trialLine, invertedLines, Fs, signalFs, countMismatch
-%     paramNames        the Epsych2 parameters (behavior.info.WriteParams
-%                       that are trial columns, else the non-bookkeeping
-%                       columns)
+%     paramNames        every trial column but the pairing's times and
+%                       samples (TrialOnset, TrialEvents, ...), in
+%                       alphabetical order (ignoring case)
 %     respField         "RespCode" | "ResponseCode" | ""
 %     trialLine         the pairing's trial line ("" without pairing)
 %     subject, startTime   from the behavior ("" / NaT without)
@@ -193,18 +193,10 @@ if out.has("behavior")
     for f = ["RespCode" "ResponseCode"]
         if ismember(f, vars); src.respField = f; break; end
     end
-    wp = string.empty(1, 0);
-    if isfield(B, 'info') && isstruct(B.info) && isfield(B.info, 'WriteParams')
-        wp = reshape(string(B.info.WriteParams), 1, []);
-    end
-    wp = wp(ismember(wp, vars));
-    if isempty(wp)
-        book = ["TrialIndex" "TrialID" "computerTimestamp" "isTest" "RespCode" "ResponseCode" ...
-            "TrialInterval" "TrialOnset" "TrialOffset" "TrialOnsetSample" "TrialOffsetSample" ...
-            "PairingFlag" "TrialEvents" "TrialEventSamples"];
-        wp = vars(~ismember(vars, book) & ~startsWith(vars, "TrialOnsetSample_") & ~startsWith(vars, "TrialOffsetSample_"));
-    end
-    src.paramNames = wp;
+    timing = ["TrialOnset" "TrialOffset" "TrialOnsetSample" "TrialOffsetSample" "TrialEvents" "TrialEventSamples"];
+    wp = vars(~ismember(vars, timing) & ~startsWith(vars, "TrialOnsetSample_") & ~startsWith(vars, "TrialOffsetSample_"));
+    [~, ord] = sort(lower(wp));
+    src.paramNames = wp(ord);
     if isfield(B, 'subject'); src.subject = string(B.subject); end
     if isfield(B, 'startTime') && isdatetime(B.startTime); src.startTime = B.startTime; end
 end

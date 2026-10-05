@@ -83,8 +83,9 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
     %     Manifest, Artifacts   the decoded JSON
     %   Reading a property whose file is missing raises DatasetOutputs:Missing;
     %   has(kind) checks first. load(kind, vars...) loads selected variables
-    %   only, and readUnits(Name=Value) forwards unit-reading options. Set
-    %   CacheData=true to keep loaded data in memory (clearCache frees it).
+    %   only, readUnits(Name=Value) forwards unit-reading options, and
+    %   readWaveforms(unitId) cuts a sorted unit's spikes from the sorted data.
+    %   Set CacheData=true to keep loaded data in memory (clearCache frees it).
     %
     %   See also EphysDataset.outputs, EphysPipeline.outputsFor, DatasetTracker,
     %   EphysDataset.toMat, EphysDataset.spikesToMat, EphysDataset.behaviorToMat,
@@ -409,6 +410,44 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
             [units, info] = EphysDataset.readPhyUnits(d, args{:}, varargin{:});
         end
 
+        function [W, info] = readWaveforms(obj, unitId, opts)
+            %readWaveforms  A sorted unit's spikes on its peak channel, cut from the sorted data.
+            %   [W, INFO] = out.readWaveforms(UNITID, MaxSpikes=N) reads at most N
+            %   of the spikes of the sorted unit with cluster id UNITID (picked at
+            %   random, the same ones each time; default 100) on its peak channel
+            %   (units.ksChannel), with EphysDataset.readPhyWaveforms from the data
+            %   the sort read: W is [nt x nSpikes] in INFO.units, INFO as
+            %   readPhyWaveforms returns it. With CacheData they are kept, so a
+            %   redraw does not read them again. readPhyWaveforms' errors pass
+            %   through (EphysDataset:readPhyWaveforms:NoDataFile when the sorted
+            %   .bin is not there); DatasetOutputs:NoUnit when the sort has no
+            %   such unit.
+            arguments
+                obj (1,1) DatasetOutputs
+                unitId (1,1) double
+                opts.MaxSpikes (1,1) double {mustBePositive} = 100
+            end
+            d = obj.resolve("sorting");
+            key = char(strjoin(["waveforms" d string(unitId) string(opts.MaxSpikes)], "|"));
+            if obj.CacheData && isKey(obj.Cache, key)
+                c = obj.Cache(key);
+                W = c.W;
+                info = c.info;
+                return
+            end
+            U = obj.load("sorting");
+            row = find(double(U.unitId) == unitId, 1);
+            if isempty(row)
+                error('DatasetOutputs:NoUnit', 'The sorting of %s has no unit %g.', obj.Name, unitId);
+            end
+            [W, info] = EphysDataset.readPhyWaveforms(d, U.samples{row}, Channels=U.ksChannel(row), ...
+                MaxSpikes=opts.MaxSpikes);
+            W = reshape(W, size(W, 1), []);
+            if obj.CacheData
+                obj.Cache(key) = struct('W', W, 'info', info);
+            end
+        end
+
         function f = signalFile(obj, type)
             %signalFile  The extract file holding signal TYPE ("" when none).
             %   Per-type files (<...>_LFP.mat) and combined files are searched
@@ -690,7 +729,7 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
             if ~isscalar(obj); s = ''; return; end
             s = sprintf(['  Load on demand: Extract, LFP, MUA, SPIKE, AUX, Spikes, Units, ' ...
                 'Chronux, FieldTrip, Epochs, KCSD, NWB, Behavior, Manifest, Artifacts\n' ...
-                '  See inventory(), has(kind), load(kind, vars...), readUnits(...)\n']);
+                '  See inventory(), has(kind), load(kind, vars...), readUnits(...), readWaveforms(unitId)\n']);
         end
     end
 

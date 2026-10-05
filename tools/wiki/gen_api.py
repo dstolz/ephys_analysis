@@ -1068,9 +1068,9 @@ def main(do_splice=True):
         g += sec
     pages["API-Readers"] = g
     # apps
-    cls = load_class(pdir("pipeline", "@EphysPreprocessingApp"))
+    cls = load_class(pdir("pipeline", "@EphysPipelineApp"))
     g = app_section(cls, {0: "Figure and tab strip", 1: "Project and the active dataset"})
-    write_gen("EphysPreprocessingApp", g); pages["API-EphysPreprocessingApp"] = g
+    write_gen("EphysPipelineApp", g); pages["API-EphysPipelineApp"] = g
     cls = load_class(pdir("analysis", "@EphysAnalysisApp"))
     g = app_section(cls, {0: "Figure and tabs", 1: "State"})
     write_gen("EphysAnalysisApp", g); pages["API-EphysAnalysisApp"] = g

@@ -132,6 +132,7 @@ property to set.
 | `has(kind)` | true when the file (or `params.py`) exists; `kind` is a `Kinds` value or `"LFP"` / `"MUA"` / `"SPIKE"` / `"AUX"` |
 | `load(kind, vars...)` | loads only the listed variables, e.g. `out.load("fieldtrip", "data_LFP", "event")` |
 | `readUnits(Name=Value)` | `Units` with reader options (`Groups`, `IncludeNoise`, `Templates`, ...) |
+| `readWaveforms(unitId, MaxSpikes=)` | `[W, info]`: at most `MaxSpikes` (100) of a sorted unit's spikes, picked at random (the same ones each time), on its peak channel, cut from the sorted `.bin` by `EphysDataset.readPhyWaveforms` (`W` `[nt x nSpikes]`); kept with `CacheData`. Its errors pass through (`...:NoDataFile` when the `.bin` is not there); `DatasetOutputs:NoUnit` for an unknown id |
 | `signalFile(type)` | the extract file that holds a signal (`""` when none); a combined file's `info` is loaded once per path, size and modification time (until `refresh()`) |
 | `inventory()` | table per kind: `Property`, `Path`, `Source`, `Exists`, `Bytes`, `Modified`, `NumCandidates` |
 | `refresh()`, `clearCache()` | re-scan; free cached data |

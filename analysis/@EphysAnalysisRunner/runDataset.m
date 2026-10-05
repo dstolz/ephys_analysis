@@ -7,7 +7,7 @@ function rows = runDataset(obj, k, opts)
 %   supports (plotSkipReason) it is always this sequence of public calls:
 %     R = r.computePlot(src, spec)
 %     for each page p of plotPageCount(R, spec), one figure at a time:  (Export)
-%       fig = newExportFigure(Export); h = renderPlot(R, spec, fig, Page=p)
+%       fig = newExportFigure(Export, R, spec, Page=p); h = renderPlot(R, spec, fig, Page=p)
 %       files = [files exportFigure(fig, <folder>/<name>, Format=, Dpi=)]
 %       images{p} = reportImage(fig, report, Title=h.title, Files=)   (an HTML report)
 %       close(fig)
@@ -82,7 +82,7 @@ for j = 1:numel(ids)
                 kept = ~X.Overwrite && all(isfile(want));   % its files exist: not written again
                 if kept; files = [files want]; end %#ok<AGROW>
                 if kept && ~withImages; continue; end       % ... nor drawn, unless the report needs its image
-                fig = newExportFigure(X);
+                fig = newExportFigure(X, R, spec, Page=p);
                 closer = onCleanup(@() close(fig));   % closes the page on a failure too
                 h = renderPlot(R, spec, fig, Page=p);
                 written = string.empty(1, 0);

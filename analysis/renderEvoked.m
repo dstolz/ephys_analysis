@@ -44,6 +44,7 @@ switch opts.Layout
     case "stack"
         [tl, ax] = renderLayout(target, 1, 1);
         if isempty(ax); ax = nexttile(tl); end
+        tagPart(ax, "axes");
         rng1 = max(R.mean, [], 1) - min(R.mean, [], 1);   % [1 x nC x nG]
         rng1 = rng1(isfinite(rng1));
         spacing = style.StackSpacing;
@@ -59,12 +60,12 @@ switch opts.Layout
             for g = 1:nG
                 m = R.mean(:, c, g) + off;
                 if style.ShowSEM
-                    semBand(ax, t, m, R.sem(:, c, g), colors(g, :));
+                    semBand(ax, t, m, R.sem(:, c, g), colors(g, :), R.groups.label(g));
                 end
-                lh(g) = plot(ax, t, m, 'Color', colors(g, :), 'LineWidth', style.LineWidth);
+                lh(g) = tagPart(plot(ax, t, m, 'Color', colors(g, :), 'LineWidth', style.LineWidth), "trace", R.groups.label(g));
             end
         end
-        if style.ShowZeroLine; xline(ax, 0, ':', 'Color', [0.3 0.3 0.3], 'HandleVisibility', 'off'); end
+        if style.ShowZeroLine; tagPart(xline(ax, 0, ':', 'Color', [0.3 0.3 0.3], 'HandleVisibility', 'off'), "zeroLine"); end
         hold(ax, 'off');
         offs = -(0:nC-1) * spacing;
         set(ax, 'YTick', fliplr(offs), 'YTickLabel', flipud(labels(order)), 'TickLabelInterpreter', 'none');
@@ -91,11 +92,13 @@ switch opts.Layout
         for j = 1:numel(idx)
             g = idx(j);
             if ~isempty(ax0); ax = ax0; else; ax = nexttile(tl, j); end
+            tagPart(ax, "axes", "", R.groups.label(g));
             hold(ax, 'on');
             for k = 1:nC
-                plot(ax, t, R.mean(:, order(k), g), 'Color', depthColors(k, :), 'LineWidth', style.LineWidth * 0.8);
+                tagPart(plot(ax, t, R.mean(:, order(k), g), 'Color', depthColors(k, :), 'LineWidth', style.LineWidth * 0.8), ...
+                    "channelTrace", labels(order(k)));
             end
-            if style.ShowZeroLine; xline(ax, 0, ':', 'Color', [0.3 0.3 0.3]); end
+            if style.ShowZeroLine; tagPart(xline(ax, 0, ':', 'Color', [0.3 0.3 0.3]), "zeroLine"); end
             hold(ax, 'off');
             xlim(ax, t([1 end]));
             styleAxes(ax, style);
@@ -126,13 +129,15 @@ switch opts.Layout
         for j = 1:numel(idx)
             c = order(idx(j));
             if ~isempty(ax0); ax = ax0; else; ax = nexttile(tl, j); end
+            tagPart(ax, "axes", "", labels(c));
             hold(ax, 'on');
             lh = gobjects(1, nG);
             for g = 1:nG
-                if style.ShowSEM; semBand(ax, t, R.mean(:, c, g), R.sem(:, c, g), colors(g, :)); end
-                lh(g) = plot(ax, t, R.mean(:, c, g), 'Color', colors(g, :), 'LineWidth', style.LineWidth);
+                if style.ShowSEM; semBand(ax, t, R.mean(:, c, g), R.sem(:, c, g), colors(g, :), R.groups.label(g)); end
+                lh(g) = tagPart(plot(ax, t, R.mean(:, c, g), 'Color', colors(g, :), 'LineWidth', style.LineWidth), ...
+                    "trace", R.groups.label(g));
             end
-            if style.ShowZeroLine; xline(ax, 0, ':', 'Color', [0.3 0.3 0.3], 'HandleVisibility', 'off'); end
+            if style.ShowZeroLine; tagPart(xline(ax, 0, ':', 'Color', [0.3 0.3 0.3], 'HandleVisibility', 'off'), "zeroLine"); end
             hold(ax, 'off');
             xlim(ax, t([1 end]));
             styleAxes(ax, style);
@@ -146,6 +151,7 @@ switch opts.Layout
             axs(j) = ax;
         end
         cornerLabels(axs, nr, nc, style);
+        if nr * nc > 1; tileTicks(axs, style); end
         h.layout = tl; h.axes = axs;
 end
 end

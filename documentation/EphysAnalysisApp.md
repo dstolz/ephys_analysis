@@ -31,7 +31,7 @@ EphysAnalysisApp("D:\EPHYS_synthetic")     % a project processed by the pipeline
 5. **File → Generate script → Standalone** to get the same figures from a
    script.
 
-The preprocessing app opens it with **File → Open analysis app...** on its
+The pipeline app opens it with **File → Open analysis app...** on its
 project root and output root.
 
 ## Launching
@@ -41,7 +41,7 @@ project root and output root.
 | `EphysAnalysisApp` | the last config (preference `LastConfigFile`), else the defaults |
 | `EphysAnalysisApp("D:\EPHYS")` | a new config in project mode on that root, scanned |
 | `EphysAnalysisApp("D:\EPHYS", OutputRoot="E:\out")` | the same with the project's output root |
-| `EphysAnalysisApp("D:\EPHYS", Datasets=["subj1/day1" "subj1/day2"])` | the same with only those datasets selected (root-relative keys; `Source.Selection = "list"`): every dataset is listed, but only these are ticked to run, and the first of them is active; one dataset names the config. The preprocessing app's Tools panel opens it this way |
+| `EphysAnalysisApp("D:\EPHYS", Datasets=["subj1/day1" "subj1/day2"])` | the same with only those datasets selected (root-relative keys; `Source.Selection = "list"`): every dataset is listed, but only these are ticked to run, and the first of them is active; one dataset names the config. The pipeline app's Tools panel opens it this way |
 | `EphysAnalysisApp("D:\out\subj1_day1")` | a folder holding `<Name>_manifest.json` or `<Name>_extract*.mat`: a new config in folders mode with that folder |
 | `EphysAnalysisApp("am.json")` | that analysis config (its source scanned when it exists) |
 | `app = EphysAnalysisApp(...)` | the same, keeping a handle |
@@ -103,11 +103,12 @@ colours, and the kept trials with their group and number of epochs.
 
   | Section | Rows |
   | --- | --- |
-  | Units & channels (*Channels* for a signal) | unit classes (sorted units), **Good units only** (sorted units: `units.quality.enabled`, the units that meet the config's good-unit criteria, [UnitSelection](EphysAnalysisConfig.md#unitselection)); **Responsive only** with the test (vs baseline, tuned, either, both) and direction, the test windows (baseline and response, s from the event) and the test options (tuning parameter, correction, alpha), for spike sources (`units.response`; the settings are enabled while the box is ticked; [response statistics](EphysAnalysis.md#response-statistics)); ids, max units, shanks, channels |
+  | Units & channels (*Channels* for a signal) | unit classes (sorted units), **Good units only** (sorted units: `units.quality.enabled`, the units that meet the config's good-unit criteria, [UnitSelection](EphysAnalysisConfig.md#unitselection)); **Responsive only** with the test (vs baseline, tuned, either, both, or auROC: the units the auROC calls modulated over the response window, with its own *auROC from*, window, step and bin (ms) and *Modulated if* rows, and *Unit test* for a per-unit test; [auROC](EphysAnalysisConfig.md#auroc)) and direction, the test windows (baseline and response, s from the event) and the test options (tuning parameter, correction, alpha), for spike sources (`units.response`; the settings are enabled while the box is ticked; [response statistics](EphysAnalysis.md#response-statistics)); ids, max units, shanks, channels |
   | Event reference, Epoch window, Trial selection | the Alignment tab's controls, for this plot |
-  | Bins & baseline (*Baseline* without bins) | bin and smoothing (ms), mask after the stop event, baseline mode and window |
-  | *Kind* options | PSTH: raster above, bar or line, normalization (none, unit peak, group peak), **Filled** and its opacity (blank = automatic), **Stack groups** and its spacing (a row per group, labelled by value on the left and by peak rate on the right); tuning: parameter and series; probe map: value; heatmap: row order; unit correlation: row order, epoch rate (mean or peak) and correlation (Pearson or Spearman) |
+  | Bins & baseline (*Baseline* without bins) | bin and smoothing (ms), mask after the stop event, baseline mode and window. Baseline *auroc* (PSTH, spike heatmap) adds *auROC from* (PSTH bins, each epoch) and the windows (tiled, sliding), the window and step (ms), the call window (s), *Modulated if* (95% CI as the paper, a fixed threshold, a per-unit test, none) with the threshold, *Unit test* (bootstrap, ranksum, shuffle; resamples, correction, alpha) for a per-unit test, and *Calls*: **Mark them**, **Modulated units only** ([auROC](EphysAnalysisConfig.md#auroc)) |
+  | *Kind* options | PSTH and raster: **Sort raster by** (blank = trial order, stop latency or a trial parameter); PSTH: raster above, bar or line, normalization (none, unit peak, group peak), **Filled** and its opacity (blank = automatic), **Stack groups** and its spacing (a row per group, labelled by value on the left and by peak rate on the right); tuning: parameter and series; probe map: value; heatmap: row order (*modulation* too with the auROC baseline); unit correlation: row order, epoch rate (mean or peak) and correlation (Pearson or Spearman) |
   | Appearance | tiles per page, font size, line width, y limits, group colours (*lines*: the trial selection's colours; a colormap; or one colour such as *black* or `#1f77b4`, typed in), heat colours (*auto*: parula, or blueWhiteRed for unit correlations), SEM, stop marks, legend, grid |
+  | Unit waveform | rasters, and PSTH and tuning grids, of spikes: **Show** (*Off*, *Mean*, *Subsample*, *Mean + subsample*) each unit's waveform on its peak channel in its tile, and how many spikes the subsample draws (a sorted unit's mean is over them); **Location** (*North-east* by default; north is the top edge), **Axis box** (an outline on a pale ground; unticked, the waveform alone) and its size (1x = a third of the tile). Sorted units' spikes are cut from the sorted `.bin` (their templates when it is not there); detections need the Spikes step's *Waveforms* option ([Unit waveforms](EphysAnalysisConfig.md#unit-waveforms)) |
 
   Only what the selected plot uses is shown (`syncPlotEditor`): its kind,
   source and layout decide. A probe map has no event, window, selection or
@@ -122,7 +123,11 @@ colours, and the kept trials with their group and number of epochs.
   spacing until *Stack groups* (a stack has no y limits or legend), the
   baseline window until a baseline mode, a unit correlation's bins until
   its *peak* rate, the mask and stop marks until the window has a stop
-  event, *n* until *nth*.
+  event, *n* until *nth*, the waveform's spikes, location, axis box and
+  size until **Show** is not *Off*; under the auROC baseline the step until
+  *sliding*, the threshold until a fixed cutoff, the resamples for
+  ranksum, the calls without a cutoff, and smoothing and normalization
+  (the auROC compares the bins as counted, on its own 0-1 scale).
 
   **Use default**, in the header of the Event reference, Epoch window and
   Trial selection sections: ticked, the section shows the Alignment tab's
@@ -133,6 +138,16 @@ colours, and the kept trials with their group and number of epochs.
   computes (also for large signals); with **Auto** on, every edit redraws it
   while a preview takes under 2 s. Paged grids have `<` / `>`. A plot the
   dataset cannot draw says why (the runner's skip reasons).
+- Right-click any part of the preview (a line, band, bar, text, legend or
+  axes) and pick **Edit aesthetics...** to change colours, line styles and
+  widths, markers, opacity and fonts in a modal window. It lists every
+  component of the plot, shows each change at once, applies it to that
+  component, the same one in every tile, every group of its role or the
+  ticked rows, and has **Reset**, **Cancel** and **OK**. **Remember for
+  future plots** keeps the changes with this plot (its `aesthetics`, saved
+  with the config, so runs and reports match the preview) or for every plot
+  of the kind (your preferences, group `PlotAesthetics`). See
+  [Plot aesthetics](EphysAnalysis.md#plot-aesthetics).
 
 ### Export tab
 
@@ -156,7 +171,7 @@ What the scans and runs reported, time-stamped (the last 2000 lines).
 
 | Menu | Items |
 | --- | --- |
-| File | New config, Open config..., Open recent, Save config, Save config as..., Generate script ▸ Compact (loads the saved config) / Standalone (every setting written out), Open preprocessing app, Close |
+| File | New config, Open config..., Open recent, Save config, Save config as..., Generate script ▸ Compact (loads the saved config) / Standalone (every setting written out), Open pipeline app, Close |
 | Help | Help for this tab, Documentation home, Analysis quick start, Analysis configs (wiki pages `Analysis-App`, `Analysis-Configs`), About EphysAnalysisApp (the version and git commit of the code, the repository folder and the MATLAB release; **Copy** puts them on the clipboard) |
 
 The title shows `*` while the config has unsaved changes; closing, opening
@@ -178,6 +193,11 @@ is in the config.
 | `PreviewMaxMB` | signal extracts larger than this (default 500 MB) are previewed only with the Preview button |
 | `PlotSectionsCollapsed` | the plot editor's collapsed sections |
 
+The aesthetics editor keeps two more groups: `PlotAesthetics`, your
+remembered rules, one per plot kind (`psth`, `raster`, ...), and
+`PlotAestheticsDialog`, its **Remember** box and where it last remembered
+(`Remember`, `Scope`).
+
 ## Why is my plot skipped?
 
 The runner's `plotSkipReason`, shown by the preview, Plan and the results:
@@ -187,10 +207,10 @@ The runner's `plotSkipReason`, shown by the preview, Plan and the results:
 | no sorted units | no sorting folder | sort the dataset, or associate its sorted-output folder |
 | no detected spikes | the spikes file has no threshold detections | run the Spikes step with detection |
 | no LFP extract (MUA, SPIKE, AUX) | the Signals step did not write that signal | enable it in the pipeline's Signals step |
-| no paired trials | trial scope, the `Trial` line, a filter / response / group-by or a tuning plot on a dataset without paired trials | approve the pairing on the preprocessing app's Trials tab and write the behavior file; or align in recording scope without a selection |
+| no paired trials | trial scope, the `Trial` line, a filter / response / group-by or a tuning plot on a dataset without paired trials | approve the pairing on the pipeline app's Trials tab and write the behavior file; or align in recording scope without a selection |
 | no line X | the event or stop line is not among the dataset's lines | check the line names on the Data tab |
 | no trial parameter X | a group-by or tuning parameter the trials lack | pick one from the dataset's parameters |
-| no probe map | the manifest names no probe file (probemap plots) | assign a probe in the preprocessing app |
+| no probe map | the manifest names no probe file (probemap plots) | assign a probe in the pipeline app |
 
 A plot that is not skipped can still fail when it runs, e.g. *no Stim onset
 event is left after the selection* or *none of the N events makes a usable
@@ -215,11 +235,17 @@ results and the report.
 (a small synthetic project run through the pipeline) and drives it through
 its methods: the five tabs; the scan; the active dataset's lines and
 parameters; grouping by Depth from the Alignment controls; adding a PSTH and
-an LFP evoked potential and previewing both; editing the bins; an edit in a
+an LFP evoked potential and previewing both; the preview's right-click
+aesthetics editor remembering rules into the plot's config entry (the
+editor itself: `test_PlotAesthetics`); editing the bins; an edit in a
 *Use default* section giving the plot its own event or window, and ticking
 it again going back; the editor showing only the rows and sections a plot
 uses (y limits, heat colours, a probe map's missing alignment) and greying
-out the ones its options switch off; collapsing a section; the gather / apply
+out the ones its options switch off; a spike heatmap with the auROC baseline
+(its settings shown and reaching the plot, its preview marked) and the auROC
+response test; the Unit waveform rows (greyed out while *Off*, reaching
+the plot, previewed without the box, hidden for an overlay); collapsing a
+section; the gather / apply
 round trip, keeping the fields without a control (the stop event's offset,
 length and time range, trial rows) and the stop's *n*; Save As, New, reopen;
 generating scripts; Validate, Plan and a run of one plot writing figures

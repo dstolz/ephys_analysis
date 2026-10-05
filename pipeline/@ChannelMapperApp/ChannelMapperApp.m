@@ -1,7 +1,7 @@
 classdef ChannelMapperApp < handle
     %ChannelMapperApp  Map probe sites to headstage channels and recording rows.
     %   ChannelMapperApp() opens the channel mapper on its own;
-    %   ChannelMapperApp(APP) opens it from an EphysPreprocessingApp (the
+    %   ChannelMapperApp(APP) opens it from an EphysPipelineApp (the
     %   Probe tab's Map channels button), which supplies the probe folder the
     %   export goes to, the project's datasets and the Python for
     %   probeinterface, and lists the exported probe.
@@ -28,10 +28,10 @@ classdef ChannelMapperApp < handle
     %   loadMapping, copyText) do what the controls do; the buttons wrap them
     %   with the file dialogs and confirmations.
     %
-    %   See also ChannelMap, HardwareBank, EphysPreprocessingApp.onOpenChannelMapper.
+    %   See also ChannelMap, HardwareBank, EphysPipelineApp.onOpenChannelMapper.
 
     properties
-        App = []                          % parent EphysPreprocessingApp, [] when standalone
+        App = []                          % parent EphysPipelineApp, [] when standalone
         Bank HardwareBank = HardwareBank.empty
         Fig matlab.ui.Figure = matlab.ui.Figure.empty
 
@@ -105,8 +105,8 @@ classdef ChannelMapperApp < handle
                 opts.Dataset = EphysDataset.empty
                 opts.Mapping (1,1) string = ""
             end
-            if ~(isempty(app) || isa(app, 'EphysPreprocessingApp'))
-                error('ChannelMapperApp:BadParent', 'The parent must be an EphysPreprocessingApp (or []).');
+            if ~(isempty(app) || isa(app, 'EphysPipelineApp'))
+                error('ChannelMapperApp:BadParent', 'The parent must be an EphysPipelineApp (or []).');
             end
             obj.App = app;
             folder = opts.BankFolder;

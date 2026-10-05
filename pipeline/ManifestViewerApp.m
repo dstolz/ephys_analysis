@@ -38,7 +38,7 @@ classdef ManifestViewerApp < handle
 %   DefaultProbeFile= too.
 %
 %   See also EphysDataset.writeManifest, EphysDataset.applyManifest,
-%   EphysPreprocessingApp.onViewManifest.
+%   EphysPipelineApp.onViewManifest.
 
     properties (SetAccess = private)
         File string = ""                 % manifest shown ("" before one is loaded)

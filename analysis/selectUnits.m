@@ -47,10 +47,23 @@ function [st, meta] = selectUnits(src, usel, opts)
 %               and, with a param, nLevels, pTuning, qTuning, tuned,
 %               bestLevel and bestRate. maxUnits applies after it. Fields:
 %                 test        "evoked" (responsive), "tuning" (tuned),
-%                             "either", "both"
+%                             "either", "both", or "auroc": the units the
+%                             auROC calls modulated (aurocCurves, over
+%                             every epoch as one group; window is the
+%                             modulation window, and the auROC windows
+%                             span [min(baseline, window) max(...)]).
+%                             META then gains aurocMean, aurocPhasic,
+%                             aurocP, aurocQ, aurocDirection
+%                             ("increase" | "decrease" | "none") and
+%                             aurocModulated instead
+%                 auroc       test "auroc": method, windows, windowSec,
+%                             stepSec, binSec (its bins), cutoff (not
+%                             "none"), threshold, test, nResamples
+%                             (aurocCurves' options of those names)
 %                 baseline, window   [from to], s from the event
 %                 param       the trial parameter of the tuning test
-%                 direction   evoked: "any" | "excited" | "suppressed"
+%                 direction   evoked and auroc: "any" | "excited" |
+%                             "suppressed" (auroc: increase / decrease)
 %                 correction  pAdjust's method over the units tested
 %                 alpha       a unit passes when its adjusted p is at
 %                             most alpha
@@ -62,9 +75,9 @@ function [st, meta] = selectUnits(src, usel, opts)
 %   EphysAnalysisRunner passes the plot's own.
 %
 %   Errors: selectUnits:NoUnits, selectUnits:NoDetected, selectUnits:NoneLeft, selectUnits:NoQuality,
-%   selectUnits:BadSource, selectUnits:BadResponse, and responseStats' and epochTable's.
+%   selectUnits:BadSource, selectUnits:BadResponse, and responseStats', aurocCurves' and epochTable's.
 %
-%   See also loadAnalysisSource, psth, firingRate, unitSummary, responseStats, responseEpochs.
+%   See also loadAnalysisSource, psth, firingRate, unitSummary, responseStats, responseEpochs, aurocCurves.
 
 arguments
     src (1,1) struct
@@ -203,11 +216,15 @@ end
 
 function [pass, R] = responsive(src, st, meta, r, opts)
 %responsive  responseStats over responseEpochs (one fixed window holding both test windows); which units pass.
-if ~ismember(r.test, ["evoked" "tuning" "either" "both"])
-    error('selectUnits:BadResponse', 'response.test is evoked, tuning, either or both (got "%s").', r.test);
+if ~ismember(r.test, ["evoked" "tuning" "either" "both" "auroc"])
+    error('selectUnits:BadResponse', 'response.test is evoked, tuning, either, both or auroc (got "%s").', r.test);
 end
 if ~ismember(r.direction, ["any" "excited" "suppressed"])
     error('selectUnits:BadResponse', 'response.direction is any, excited or suppressed (got "%s").', r.direction);
+end
+if r.test == "auroc"
+    [pass, R] = aurocCalls(src, st, meta, r, opts);
+    return
 end
 if r.test ~= "evoked" && r.param == ""
     error('selectUnits:BadResponse', 'response.test "%s" needs response.param, the trial parameter of the tuning test.', r.test);
@@ -228,6 +245,32 @@ switch r.test
     case "either", pass = evoked | R.tuned;
     case "both",   pass = evoked & R.tuned;
 end
+end
+
+
+function [pass, R] = aurocCalls(src, st, meta, r, opts) %#ok<INUSD>
+%aurocCalls  The "auroc" test: aurocCurves over responseEpochs, every epoch in one group; the units it calls modulated.
+a = r.auroc;
+if a.cutoff == "none"
+    error('selectUnits:BadResponse', 'response.test "auroc" needs response.auroc.cutoff ci, fixed or test, not "none".');
+end
+if ~(numel(r.baseline) == 2 && numel(r.window) == 2 && r.baseline(2) > r.baseline(1) && r.window(2) > r.window(1))
+    error('selectUnits:BadResponse', 'response.baseline and response.window must each be [from to] with from < to.');
+end
+E = responseEpochs(src, opts.Ref, opts.Selection, Baseline=r.baseline, Window=r.window);
+E.groupIndex(:) = 1;
+G = table(1, "all epochs", [0.15 0.15 0.15], height(E), 'VariableNames', ["index" "label" "color" "n"]);
+span = [min(r.baseline(1), r.window(1)) max(r.baseline(2), r.window(2))];
+A = aurocCurves(st, E, Window=span, Baseline=r.baseline, BinSec=a.binSec, Method=a.method, Windows=a.windows, ...
+    WindowSec=a.windowSec, StepSec=a.stepSec, ModulationWindow=r.window, Cutoff=a.cutoff, Threshold=a.threshold, ...
+    Test=a.test, NResamples=a.nResamples, Correction=r.correction, Alpha=r.alpha, Groups=G);
+pass = A.modulated;
+switch r.direction
+    case "excited",    pass = A.direction == "increase";
+    case "suppressed", pass = A.direction == "decrease";
+end
+R = table((1:numel(st)).', A.mean, A.phasic, A.p, A.q, A.direction, A.modulated, 'VariableNames', ...
+    ["unit" "aurocMean" "aurocPhasic" "aurocP" "aurocQ" "aurocDirection" "aurocModulated"]);
 end
 
 

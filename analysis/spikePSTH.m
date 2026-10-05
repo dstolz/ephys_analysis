@@ -28,7 +28,14 @@ function R = spikePSTH(spikeTimes, E, opts)
 %                    BinSec bins from b0)
 %     BaselineMode   "none" (default) | "subtract" (rate - baseline) |
 %                    "zscore" ((rate - mean) / SD over the group's epochs) |
-%                    "percent" (100 (rate - mean) / mean)
+%                    "percent" (100 (rate - mean) / mean) | "auroc" (each
+%                    window's auROC against the baseline, 0 to 1:
+%                    aurocCurves with Auroc's settings; see below)
+%     Auroc          BaselineMode "auroc": EphysAnalysisConfig.defaults(
+%                    "Auroc") fields (method, windows, windowSec, stepSec,
+%                    modulationWindow, cutoff, threshold, test, nResamples,
+%                    correction, alpha, modulatedOnly; marks is for the
+%                    renderers); missing ones take their defaults
 %     MaskAfterStop  drop each epoch's bins from its stop event t1 on (the
 %                    mean then covers only the epochs still going)
 %     Raster         keep every spike's time for rasters (default true)
@@ -46,10 +53,26 @@ function R = spikePSTH(spikeTimes, E, opts)
 %   epoch = row of E, group), epochGroup / epochStop [nEpochs x 1] (group
 %   and t1 - t0 of every epoch), stopMean [nGroups x 1] mean t1 - t0,
 %   baselineRate / baselineSD [nUnits x nGroups], groups, labels, meta, n
-%   (= nEpochs), units, params, created.
+%   (= nEpochs), units, params, auroc ([] but with BaselineMode "auroc"),
+%   created.
+%
+%   With BaselineMode "auroc" the curves are aurocCurves': t, edges and
+%   window are the auROC windows' (centres; boundaries; the span they
+%   cover), rate is the auROC [nWindows x nUnits x nGroups] (units
+%   "auROC"), sem is NaN, count the spikes in each window, and
+%   baselineRate / baselineSD are NaN. SmoothSec is not used: the auROC
+%   compares the bins as counted. R.auroc holds the rest of aurocCurves'
+%   result (starts, stops, inModulation, mean, phasic, p, q, direction,
+%   modulated, cutoff, cutoffValue, nModulated, nIncrease, nDecrease,
+%   nUnits (the units tested), baseline, modulationWindow, method,
+%   windows, params, toolbox) and settings (Auroc, normalized). With
+%   Auroc.modulatedOnly only the units modulated in at least one group are
+%   kept (every per-unit field follows; the counts stay those of every
+%   unit tested).
 %
 %   Errors: spikePSTH:BadWindow (pre >= post, or no whole bin fits),
-%   spikePSTH:BadBaseline.
+%   spikePSTH:BadBaseline, spikePSTH:NoneModulated (modulatedOnly and no
+%   unit is), and aurocCurves'.
 %
 %   See also epochTable, selectUnits, firingRate, renderPSTH, renderRaster.
 
@@ -61,7 +84,8 @@ arguments
     opts.Measure (1,1) string {mustBeMember(opts.Measure, ["rate" "count" "probability"])} = "rate"
     opts.SmoothSec (1,1) double {mustBeNonnegative} = 0
     opts.Baseline double = []
-    opts.BaselineMode (1,1) string {mustBeMember(opts.BaselineMode, ["none" "subtract" "zscore" "percent"])} = "none"
+    opts.BaselineMode (1,1) string {mustBeMember(opts.BaselineMode, ["none" "subtract" "zscore" "percent" "auroc"])} = "none"
+    opts.Auroc = struct()
     opts.MaskAfterStop (1,1) logical = false
     opts.Raster (1,1) logical = true
     opts.Groups = []
@@ -90,12 +114,15 @@ nE = height(E);
 ta = E.t0Continuous;   % the events on the spikes' clock
 stopRel = E.t1 - E.t0;
 
-useBase = opts.BaselineMode ~= "none";
-if useBase
+isAuroc = opts.BaselineMode == "auroc";
+useBase = opts.BaselineMode ~= "none" && ~isAuroc;
+if opts.BaselineMode ~= "none"
     b = opts.Baseline;
     if numel(b) ~= 2 || ~(b(2) > b(1))
         error('spikePSTH:BadBaseline', 'BaselineMode "%s" needs Baseline = [b0 b1] with b0 < b1.', opts.BaselineMode);
     end
+end
+if useBase
     baseEdges = b(1) + (0:floor((b(2) - b(1)) / bin + 1e-9)) * bin;   % "probability": whole bins from b0
     if opts.Measure == "probability" && numel(baseEdges) < 2
         error('spikePSTH:BadBaseline', 'A probability baseline needs a whole %g s bin: [%g %g] is shorter.', bin, b(1), b(2));
@@ -121,9 +148,10 @@ for u = 1:nU
         raster(u).times = rel(keepR);
         raster(u).epoch = ep(keepR);
         raster(u).group = gIdx(ep(keepR));
-    else
+    elseif ~isAuroc
         c = binCounts(st{u}, ta, edges);
     end
+    if isAuroc; continue; end   % aurocCurves below
     switch opts.Measure
         case "rate",        r = c / opts.BinSec;
         case "count",       r = c;
@@ -178,12 +206,24 @@ for g = 1:nG
     v = stopRel(gIdx == g);
     if any(isfinite(v)); stopMean(g) = mean(v, 'omitnan'); end
 end
+window = edges([1 end]);
+labels = unitLabels(nU, opts.Labels, opts.Meta);
+meta = opts.Meta;
+aur = [];
+if isAuroc
+    [rate, sem, count, t, edges, window, aur, keep] = aurocResult(st, E, W, b, opts, G);
+    raster = raster(keep);
+    baseRate = baseRate(keep, :);
+    baseSD = baseSD(keep, :);
+    labels = labels(keep);
+    if istable(meta) && height(meta) == nU; meta = meta(keep, :); end
+end
 
 R = struct();
 R.kind = "psth";
 R.t = t;
 R.edges = edges;
-R.window = edges([1 end]);
+R.window = window;
 R.rate = rate;
 R.sem = sem;
 R.count = count;
@@ -195,8 +235,8 @@ R.stopMean = stopMean;
 R.baselineRate = baseRate;
 R.baselineSD = baseSD;
 R.groups = G;
-R.labels = unitLabels(nU, opts.Labels, opts.Meta);
-R.meta = opts.Meta;
+R.labels = labels;
+R.meta = meta;
 R.n = nEpochs;
 switch opts.Measure
     case "rate",        unit = "spikes/s";
@@ -208,12 +248,44 @@ switch opts.BaselineMode
     case "subtract", R.units = unit + " - baseline";
     case "zscore",   R.units = "z (baseline)";
     case "percent",  R.units = "% change from baseline";
+    case "auroc",    R.units = "auROC";
 end
 R.measure = opts.Measure;
 R.params = struct('Window', W, 'BinSec', opts.BinSec, 'Measure', opts.Measure, 'SmoothSec', opts.SmoothSec, ...
     'Baseline', opts.Baseline, 'BaselineMode', opts.BaselineMode, 'MaskAfterStop', opts.MaskAfterStop, ...
     'Raster', opts.Raster);
+R.auroc = aur;
 R.created = string(datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss'));
+end
+
+
+function [rate, sem, count, t, edges, window, aur, keep] = aurocResult(st, E, W, b, opts, G)
+%aurocResult  BaselineMode "auroc": aurocCurves with the Auroc settings, and the units kept.
+a = EphysAnalysisConfig.normalizeSection("Auroc", opts.Auroc);
+A = aurocCurves(st, E, Window=W, Baseline=b, BinSec=opts.BinSec, Measure=opts.Measure, Method=a.method, ...
+    Windows=a.windows, WindowSec=a.windowSec, StepSec=a.stepSec, MaskAfterStop=opts.MaskAfterStop, ...
+    ModulationWindow=a.modulationWindow, Cutoff=a.cutoff, Threshold=a.threshold, Test=a.test, ...
+    NResamples=a.nResamples, Correction=a.correction, Alpha=a.alpha, Groups=G);
+keep = true(numel(st), 1);
+if a.modulatedOnly
+    keep = any(A.modulated, 2);
+    if ~any(keep)
+        error('spikePSTH:NoneModulated', ...
+            'No unit is modulated (auROC cutoff "%s", %d unit(s) tested), so modulatedOnly leaves none to draw.', ...
+            a.cutoff, numel(st));
+    end
+end
+rate = A.auroc(:, keep, :);
+sem = NaN(size(rate));
+count = A.count(:, keep, :);
+t = A.t;
+edges = A.edges;
+window = A.window;
+aur = rmfield(A, ["t" "edges" "window" "auroc" "count" "groups"]);
+for f = ["mean" "phasic" "p" "q" "direction" "modulated"]
+    aur.(f) = aur.(f)(keep, :);
+end
+aur.settings = a;
 end
 
 

@@ -10,8 +10,10 @@ function test_EphysAnalysisRunner()
 %   separate roots, pass checkcode and write the same figures (pixel for
 %   pixel) and the same HTML report (timestamps, image bytes and the config
 %   aside); real results rendered (a stack's row labels, Style.YLim on
-%   PSTHs, rasters and evoked stacks, a tuning caption); and a failing
-%   export closing its page in the runner and the standalone script.
+%   PSTHs, rasters and evoked stacks, a tuning caption); a failing
+%   export closing its page in the runner and the standalone script; and
+%   unit waveforms (templates without the sorted .bin, spikes cut from a
+%   planted one and cached, detections' saved waveforms, the script line).
 %
 %   Usage:  test_EphysAnalysisRunner
 
@@ -51,7 +53,8 @@ cfg.Defaults.Window = struct('mode', "fixed", 'pre', -0.2, 'post', 0.8, 'stop', 
 cfg.Defaults.Selection.groupBy = "Depth";
 cfg = cfg.addPlot(struct('kind', "psth", 'bins', struct('BinSec', 0.02, 'SmoothSec', 0.02), ...
     'style', struct('MaxTiles', 2)), Id="psth_stim");
-cfg = cfg.addPlot(struct('kind', "raster", 'selection', struct('groupBy', string.empty(1, 0))), Id="raster_stim");
+cfg = cfg.addPlot(struct('kind', "raster", 'rasterSort', "Depth", 'selection', struct('groupBy', string.empty(1, 0)), ...
+    'waveform', struct('mode', "both")), Id="raster_stim");   % the sort's .bin is not there: templates
 cfg = cfg.addPlot(struct('kind', "evoked", 'source', "LFP", 'window', struct('pre', -0.1, 'post', 0.4), ...
     'baseline', struct('Mode', "subtract", 'Window', [-0.1 0])), Id="lfp_stim");
 cfg = cfg.addPlot(struct('kind', "rate", 'ref', struct('line', "RespWindow", 'scope', "trial"), ...
@@ -217,6 +220,8 @@ spec = cfg.plotFor("raster_stim"); spec.style.YLim = [0 2];
 Rr = r.computePlot(src, spec);
 h = renderPlot(Rr, spec, fig);
 check(all(arrayfun(@(a) isequal(a.YLim, [0.5 numel(Rr.epochGroup) + 0.5]), h.axes)), 'a raster plot shows every epoch whatever Style.YLim');
+check(ismember("Depth", string(Rr.epochs.Properties.VariableNames)) && string(h.axes(1).YLabel.String) == "Epoch (by Depth)", ...
+    'rasterSort "Depth": computePlot copies Depth onto the epochs and the raster sorts by it');
 spec = cfg.plotFor("lfp_stim"); spec.style.YLim = [-50 50];
 Rv = r.computePlot(src, spec);
 h = renderPlot(Rv, spec, fig);
@@ -245,6 +250,80 @@ EphysAnalysisScript.standalone(bad, File=badFile);
 outBad = runScript(badFile);
 check(contains(outBad, "FAILED") && numel(findall(groot, 'Type', 'figure')) == nFig, ...
     'standalone script: the page whose export fails is closed too');
+
+fprintf('\n== 8. unit waveforms ==\n');
+src = r.source(1);
+fig = newExportFigure(cfg.Export);
+figCloser = onCleanup(@() close(fig));
+spec = cfg.plotFor("raster_stim");
+spec.waveform.maxSpikes = 5;
+lastwarn('');
+Rw = r.computePlot(src, spec);
+[~, wid] = lastwarn();
+W = Rw.waveforms;
+U = src.outputs.load("sorting");
+row = find(double(U.unitId) == Rw.meta.unitId(1), 1);
+check(numel(W.mean) == height(Rw.meta) && all(W.from == "template") && isequal(W.mean{1}, double(U.templateWaveform{row}(:))) ...
+    && all(cellfun(@isempty, W.spikes)) && W.note ~= "" && string(wid) == "unitWaveforms:Templates", ...
+    'without the sorted .bin each unit''s template is its mean, with no spikes, and a warning says why');
+h = renderPlot(Rw, spec, fig);
+C = PlotAesthetics.components(h.layout);
+check(nnz(C.Role == "waveMean") == numel(h.axes) && ~any(C.Role == "waveSpikes") ...
+    && numel(findall(fig, 'Tag', 'waveLabel')) == numel(h.axes) ...
+    && all(arrayfun(@(t) contains(t.String, "(template)"), findall(fig, 'Tag', 'waveLabel'))), ...
+    'mode "both" draws a template as the mean alone, labelled as a template');
+cap = plotCaption(spec, Rw);
+check(contains(cap, "each unit's mean waveform and up to 5 of its spikes on its peak channel") ...
+    && contains(cap, sprintf("%d by their template", height(Rw.meta))), "the caption says what the boxes show: " + cap);
+sortDir = string(src.outputs.SortingDir);
+P = fileread(fullfile(sortDir, 'params.py'));
+nCh = str2double(regexp(P, 'n_channels_dat = (\d+)', 'tokens', 'once'));
+fsS = str2double(regexp(P, 'sample_rate = ([\d.eE+]+)', 'tokens', 'once'));
+nS = round(5 * fsS);                                      % 5 s: later spikes leave the file
+datFile = fullfile(sortDir, 'temp_wh.dat');
+fid = fopen(datFile, 'w');
+fwrite(fid, repmat(int16(10 * (1:nCh).'), 1, nS), 'int16');   % row r holds 10 r: read back (/200) as r / 20
+fclose(fid);
+Rw2 = r.computePlot(src, spec);
+W2 = Rw2.waveforms;
+isS = W2.from == "spikes";
+vals = true;
+for u = find(isS).'
+    row = find(double(U.unitId) == Rw2.meta.unitId(u), 1);
+    vals = vals && size(W2.spikes{u}, 2) <= 5 && all(abs(W2.spikes{u} - U.ksChannel(row) / 20) < 1e-9, 'all') ...
+        && max(abs(W2.mean{u} - U.ksChannel(row) / 20)) < 1e-9 && isequal(W2.timeMs{u}, W.timeMs{u});
+end
+check(any(isS) && vals && any(cellfun(@(w) size(w, 2), W2.spikes(isS)) == 5) && W2.units(find(isS, 1)) == "whitened" && W2.note == "", ...
+    'with the sorted .bin the spikes are cut on each unit''s peak channel, at most maxSpikes of them, and averaged');
+h = renderPlot(Rw2, spec, fig);
+C = PlotAesthetics.components(h.layout);
+check(nnz(C.Role == "waveSpikes") == nnz(isS(1:numel(h.axes))) && nnz(C.Role == "waveBox") == numel(h.axes), ...
+    'mode "both" draws the spikes read, in a box in every tile');
+delete(datFile);
+W3 = unitWaveforms(src, Rw2.meta, Source="units", MaxSpikes=5);
+check(isequal(W3.from, W2.from) && isequal(W3.spikes, W2.spikes), 'the spikes read are kept (CacheData): a redraw does not read the .bin again');
+spec.source = "detected";
+spec.units.source = "detected";
+Rd = r.computePlot(src, spec);
+Wd = Rd.waveforms;
+D = src.outputs.load("spikes", "detected").detected;          % the synthetic project keeps detection waveforms
+u1 = find(Wd.from == "spikes", 1);
+wf1 = double(D.wf{double(D.channels) == Rd.meta.unitId(u1)}).';
+check(~isempty(u1) && max(abs(Wd.mean{u1} - mean(wf1, 2))) < 1e-9 && size(Wd.spikes{u1}, 2) == min(5, size(wf1, 2)) ...
+    && Wd.units(u1) == "uV" && isequal(Wd.timeMs{u1}, double(D.info.waveformTimeMs(:))) && Wd.note == "", ...
+    'detections: the spikes file''s waveforms, maxSpikes of them drawn, the mean over all of them');
+spec = cfg.plotFor("psth_stim");
+R0 = r.computePlot(src, spec);
+spec.layout = "overlay";
+spec.waveform.mode = "mean";
+R1 = r.computePlot(src, spec);
+check(~isfield(R0, 'waveforms') && ~isfield(R1, 'waveforms'), 'no waveforms are read with the mode off, or for an overlay of units');
+off = cfg;
+off.Plots = off.Plots(off.plotIndex("psth_stim"));
+check(contains(txtS, "R.waveforms = unitWaveforms(src, R.meta, Source=""units"", MaxSpikes=100);") ...
+    && ~contains(EphysAnalysisScript.standalone(off), "unitWaveforms("), ...
+    'the standalone script reads the waveforms only for a plot that draws them');
+clear figCloser
 
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0

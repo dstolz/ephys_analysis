@@ -8,7 +8,9 @@ if ~isempty(obj.Runner) && obj.ActiveIdx >= 1
         if src.hasBehavior
             v = string(src.trials.Properties.VariableNames);
             ok = arrayfun(@(c) isvarname(c) && size(src.trials.(c), 2) == 1 && ~isstruct(src.trials.(c)), v);
-            cols = strjoin(v(ok), ", ");
+            v = v(ok);
+            [~, ord] = sort(lower(v));
+            cols = strjoin(v(ord), ", ");
         end
     catch
     end

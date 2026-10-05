@@ -21,6 +21,7 @@ function syncPlotEditor(obj)
 %     baseline                    every kind but raster and probemap
 %     grid spacing, corner labels every kind but rate (only grids use them)
 %     raster, PSTH as, normalize, fill, stack   psth
+%     sort raster by              psth, raster (enabled with a raster)
 %     parameter, series           tuning
 %     value                       probemap
 %     row order                   heatmap
@@ -34,9 +35,22 @@ function syncPlotEditor(obj)
 %     SEM                         psth, tuning, rate "bar", evoked but "butterfly"
 %     stop marks                  psth, raster
 %     grid                        psth, raster, evoked, rate, tuning
+%     unit waveform               spikes: raster; psth and tuning "grid"
+%                                 (its spikes, location, box and size
+%                                 enabled when it is not Off)
 %   The drop-downs list the kind's window modes ("between" for rate,
 %   tuning and corrmap), its baseline modes (fewer for signals) and row
-%   orders; a value the list lacks stays listed, for Validate to report.
+%   orders ("modulation" too for a heatmap with the auROC baseline); a
+%   value the list lacks stays listed, for Validate to report.
+%
+%   The auROC rows show with baseline "auroc" (the plot's: from, windows,
+%   call window, cutoff, calls; its unit test with cutoff "per-unit test")
+%   and with the response test "auROC" (the test's: from, windows and
+%   bins, cutoff; its unit test likewise). The step is enabled for
+%   sliding windows, the threshold for a fixed cutoff, the resamples for
+%   bootstrap and shuffle, the calls with a cutoff; smoothing and
+%   normalize are off under an auROC baseline (it compares the bins as
+%   counted, on its own scale).
 E = obj.PlotEditor;
 C = obj.PlotAlignControls;
 S = obj.PlotSections;
@@ -81,7 +95,14 @@ v.maskAfterStop = binned && kind ~= "corrmap";
 v.measure = ismember(kind, ["psth" "rate" "tuning"]) || (kind == "heatmap" && spikes);
 v.baselineMode = ~ismember(kind, ["raster" "probemap"]);
 v.baseFrom = v.baselineMode;
+auroc = v.baselineMode && string(E.baselineMode.Value) == "auroc";
+v.aMethod = auroc; v.aWinMs = auroc; v.aModFrom = auroc; v.aCutoff = auroc; v.aMarks = auroc;
+v.aTest = auroc && string(E.aCutoff.Value) == "test";
+respAuroc = spikes && string(E.respTest.Value) == "auroc";
+v.raMethod = respAuroc; v.raWinMs = respAuroc; v.raCutoff = respAuroc;
+v.raTest = respAuroc && string(E.raCutoff.Value) == "test";
 v.withRaster = psth; v.histStyle = psth; v.normalize = psth; v.fill = psth; v.stack = psth;
+v.rasterSort = ismember(kind, ["psth" "raster"]);
 v.param = kind == "tuning"; v.seriesParam = v.param;
 v.value = kind == "probemap";
 v.order = ismember(kind, ["heatmap" "corrmap"]);
@@ -91,9 +112,12 @@ v.tileSpacing = kind ~= "rate";
 v.fontSize = true;
 v.sortDepth = kind ~= "probemap"; v.labelDepth = v.sortDepth;
 v.lineWidth = ismember(kind, ["psth" "evoked" "tuning"]);
+v.siteSize = kind == "probemap";
 v.ylim = ismember(kind, ["psth" "rate" "tuning"]) || (kind == "evoked" && layout ~= "stack");
 v.colormap = grouped;
 v.heatColormap = ismember(kind, ["heatmap" "probemap" "corrmap"]);
+v.waveMode = spikes && (kind == "raster" || (ismember(kind, ["psth" "tuning"]) && layout ~= "overlay"));
+v.waveLocation = v.waveMode;
 boxes = [E.showSEM E.showStop E.legend E.grid];
 on = [psth || kind == "tuning" || (kind == "rate" && layout == "bar") || (kind == "evoked" && layout ~= "butterfly"), ...
     ismember(kind, ["psth" "raster"]), grouped, ismember(kind, ["psth" "raster" "evoked" "rate" "tuning"])];
@@ -115,7 +139,9 @@ obj.PlotSections = S;
 
 % --- what the drop-downs offer ---------------------------------------------------------
 offerItems(E.baselineMode, ch.BaselineModes);
-offerItems(E.order, ch.Orders);
+orders = ch.Orders;
+if auroc && kind == "heatmap"; orders(end+1) = "modulation"; end
+offerItems(E.order, orders);
 setWindowModes(C.Mode, ch.WindowModes);
 
 % --- what is enabled ----------------------------------------------------------------
@@ -127,8 +153,21 @@ en([E.baseFrom E.baseTo], string(E.baselineMode.Value) ~= "none");
 en([E.maskAfterStop E.showStop], stop);
 en(E.fillAlpha, E.fill.Value);
 en([E.respTest E.respDirection E.respBaseFrom E.respBaseTo E.respFrom E.respTo E.respParam E.respCorrection E.respAlpha], E.response.Value);
+if auroc; en(E.smoothMs, false); end
+en(E.normalize, ~auroc);
+en(E.aStepMs, string(E.aWindows.Value) == "sliding");
+en(E.aThreshold, string(E.aCutoff.Value) == "fixed");
+en(E.aResamples, string(E.aTest.Value) ~= "ranksum");
+en([E.aMarks E.aModOnly], string(E.aCutoff.Value) ~= "none");
+on = logical(E.response.Value);
+en([E.raMethod E.raWindows E.raWinMs E.raBinMs E.raCutoff E.raTest], on);
+en(E.raStepMs, on && string(E.raWindows.Value) == "sliding");
+en(E.raThreshold, on && string(E.raCutoff.Value) == "fixed");
+en(E.raResamples, on && string(E.raTest.Value) ~= "ranksum");
 en(E.stackSpacing, stacked);
+en(E.rasterSort, kind == "raster" || E.withRaster.Value);
 en([E.legend E.ylim], ~stacked);
+en([E.waveSpikes E.waveLocation E.waveBox E.waveScale], string(E.waveMode.Value) ~= "off");
 syncAlignEnable(C);
 obj.layoutPlotEditor();
 end

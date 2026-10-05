@@ -18,9 +18,9 @@ classdef EphysAnalysisConfig
     %     Plots     struct array, one entry per plot (defaults("Plot")): id,
     %               kind (see Kinds / plotKinds), enabled, source, units,
     %               channels, ref, window, selection, bins, baseline, layout,
-    %               withRaster, histStyle, fill, fillAlpha, normalize, stack,
+    %               withRaster, rasterSort, histStyle, fill, fillAlpha, normalize, stack,
     %               stackSpacing, maskAfterStop, param, seriesParam, value,
-    %               order, metric, correlation, style
+    %               order, metric, correlation, waveform, style
     %     Export    figure files: Formats (png / eps / svg / pdf), Folder and
     %               FilenamePattern with tokens, Dpi, FigureSizeCm
     %     Report    one HTML and / or multi-page PDF report per run (or per
@@ -69,6 +69,8 @@ classdef EphysAnalysisConfig
         Kinds    = ["psth" "raster" "evoked" "rate" "tuning" "heatmap" "probemap" "corrmap"]
         SpikeSources  = ["units" "detected"]
         SignalSources = ["LFP" "MUA" "SPIKE" "AUX"]
+        % Where in a unit's tile its waveform box sits (a plot's waveform.location).
+        WaveformLocations = ["northeast" "north" "northwest" "west" "southwest" "south" "southeast" "east"]
         % String fields that are lists even when their default has one element.
         ListFields = ["response" "pairingFlags" "groupBy" "classes" "groups" "Formats" "Datasets" "Folders"]
     end

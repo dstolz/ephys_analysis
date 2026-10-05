@@ -107,7 +107,7 @@ classdef CopySchedule
     %     task.xml            the task definition, as created
     %     startup.m           see above
     %
-    %   See also findCopySessions, copySessions, EphysPreprocessingApp.
+    %   See also findCopySessions, copySessions, EphysPipelineApp.
 
     properties (SetAccess = immutable)
         Folder (1,1) string     % the settings, the log and the last run's summary
@@ -501,7 +501,7 @@ classdef CopySchedule
             logon = ternary(s.RunWhen == "always", "Password", "InteractiveToken");
             user = windowsUser();
             description = sprintf("Copies new recording sessions of %s to %s every %d min. " + ...
-                "Made by ephys_analysis (CopySchedule); change it on the Copy tab of EphysPreprocessingApp.", ...
+                "Made by ephys_analysis (CopySchedule); change it on the Copy tab of EphysPipelineApp.", ...
                 CopySchedule.subjectText(s.Subjects), s.DestRoot, s.EveryMin);
             lines = [
                 "<?xml version=""1.0"" encoding=""UTF-16""?>"

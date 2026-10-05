@@ -57,9 +57,10 @@ classdef EphysTraceEnvelope < handle
     %   ProgressFcn(env) hears each span, DoneFcn(env) the end (State
     %   "ready" or "failed"). cancel() stops a build and deletes its partial
     %   file, and so does deleting the object. build() builds it here,
-    %   blocking. isReady() looks at the .bin or extract file again (at most
-    %   once a second): written again since, the envelope is "stale" and
-    %   the viewer makes a new one.
+    %   blocking. isReady() looks at the cache file and the .bin or extract
+    %   file again (at most once a second): the cache file removed (Clean
+    %   up's "envelope" kind) or the source written again since, the
+    %   envelope is "stale" and the viewer makes a new one.
     %
     %   See also EphysTraceViewer, EphysTraceSource.stamp, backgroundPool.
 
@@ -149,15 +150,20 @@ classdef EphysTraceEnvelope < handle
 
         function tf = isReady(obj)
             %isReady  True when the cache file holds this envelope (State "ready").
-            %   The .bin or extract file read is looked at again at most once
-            %   a second: written again since the envelope was made, it is
-            %   out of date (State "stale").
+            %   Looked at again at most once a second: the cache file removed
+            %   (by Clean up, say), or the .bin or extract file read written
+            %   again since the envelope was made, it is out of date (State
+            %   "stale").
             tf = obj.State == "ready";
-            if ~tf || obj.Source.Kind == "recording" || (~isempty(obj.Checked) && toc(obj.Checked) < 1)
+            if ~tf || (~isempty(obj.Checked) && toc(obj.Checked) < 1)
                 return
             end
             obj.Checked = tic;
-            if obj.fingerprintOf(obj.Source) ~= obj.Fingerprint || ~isfile(obj.File)
+            if ~isfile(obj.File)
+                obj.State = "stale";
+                obj.Message = "the envelope of " + obj.Source.Name + " was removed";
+                tf = false;
+            elseif obj.Source.Kind ~= "recording" && obj.fingerprintOf(obj.Source) ~= obj.Fingerprint
                 obj.State = "stale";
                 obj.Message = obj.Source.Name + " was written again since its envelope was built";
                 tf = false;

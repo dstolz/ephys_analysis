@@ -259,9 +259,10 @@ appends a run.
       "destination": <the folder files were moved into, "" unless "move">,
       "bytesRemoved": <n>,
       "removed": [ { "file": <local path>,
-                     "category": "raw" | "sorter_copy" | "bin" | "sorting" | "output",
+                     "category": "raw" | "sorter_copy" | "bin" | "envelope" | "sorting" | "output",
                      "step": <the preprocessing step that wrote it: "sorting" | "signals" |
-                              "spikes" | "behavior" | "artifacts" | "export", "" for a raw file>,
+                              "spikes" | "behavior" | "artifacts" | "export", "" for a raw file
+                              or an envelope>,
                      "bytes": <n>, "source": <source path for a raw file, else "">,
                      "to": <its new path ("move"), "Recycle Bin" ("recycle", found there
                             afterwards), else "">,
@@ -508,6 +509,14 @@ whose fingerprint differs, or that is not whole, is never read, and a new one
 is built in its place. A build writes `<file>.<token>.partial` and renames it
 when the last block is in; a partial file an hour old (a build MATLAB left) is
 deleted by the next build of that file.
+
+The files are display caches, so Clean up removes them (`planLocalCleanup`
+kind `"envelope"`, ticked by default on the app's Clean up tab, Category
+`envelope` in the clean-up record), each found by its name in the dataset's
+output folder. A partial file goes with them only once it is an hour old, as
+above: a newer one may be being written. An envelope the Visualize tab shows
+whose file is removed is noticed within a second (`isReady`) and built again
+when the tab next draws.
 
 ---
 

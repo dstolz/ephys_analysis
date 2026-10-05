@@ -264,7 +264,8 @@ that recording again by its folder.
    phy, run **Export** again (with **Overwrite**) so its files carry the
    curated labels.
 10. **Clean up** (optional): once the outputs are written, free the local
-    disk space the raw recordings and the sorting copies of them take.
+    disk space the raw recordings, the sorting copies of them and the
+    Visualize tab's envelopes take.
 
 No data at hand? **File → Create synthetic test project...** writes a
 complete test project (recordings, Epsych2 sessions, sorted output, a
@@ -2070,7 +2071,11 @@ channels and rate, the reference and its channels, the `.bin`'s scale, and the
 block sizes. A `.bin` or extract written again is noticed within a second and
 its envelope built again; a stale file is never shown. For 2 h of 64 channels at
 30 kHz the file is about 140 MB (level 1: blocks of 1,024 samples; 2^24 blocks ×
-channels at most), and its build reads the recording once.
+channels at most, so no file passes about 170 MB), and its build reads the
+recording once. The files are display caches: the [Clean up](#clean-up) tab
+removes them (**Visualize's envelopes**, ticked by default), and an envelope the
+tab is showing whose file goes is noticed within a second and built again when
+the tab next draws.
 
 **Timing.** Row k of every signal is drawn at (k − 1)/Fs seconds on the
 recording's clock, as sorted spike times and the artifact periods are; a bin is
@@ -2439,7 +2444,8 @@ step and nothing in the config drives it; it acts on the datasets selected on
 the Project tab (the ticked rows, else all), which the top of the tab names:
 `Acts on the 3 dataset(s) ticked on the Project tab (of 12).` A raw
 recording, Kilosort4's filtered copy of it and the `.bin` Kilosort4 sorts are
-each about the size of the recording, and the outputs need none of them. The
+each about the size of the recording, the Visualize tab's envelopes up to about
+170 MB per signal shown, and the outputs need none of them. The
 tab lists every local file of the datasets, says which could go and why, and
 removes the ones left ticked, after a confirmation.
 The rules live in [`planLocalCleanup`](../pipeline/planLocalCleanup.m) and
@@ -2454,8 +2460,8 @@ R = runLocalCleanup(T);                                            % deletes the
 R(R.Status ~= "removed", ["File" "Status" "Message"])              % anything left in place
 ```
 
-`Remove` takes `"raw"`, `"sorter_copy"` and `"bin"` (the default) and the
-step names below. Set a row's `Action` to `"keep"` to leave its file in
+`Remove` takes `"raw"`, `"sorter_copy"`, `"bin"` and `"envelope"` (the
+default) and the step names below. Set a row's `Action` to `"keep"` to leave its file in
 place; `Method="recycle"` or `Method="move", Destination=` choose how the
 files go.
 
@@ -2468,6 +2474,7 @@ files go.
 | Raw recording files | the recording files the Copy tab copied into the session folder (for Open Ephys, everything under its Record Nodes), as listed in its `session_manifest.json` | each file's source, as recorded there, still exists **with the same size**. A recording not copied by the Copy tab has no known source and is always kept, as are the session files of an Open Ephys dataset that is one part folder of several |
 | Kilosort4's filtered copy of the recording | `temp_wh.dat` under the dataset's `kilosort4` folder or its sorted-output folder | none; the sorted units do not need it, phy's trace view does |
 | Sorting input .bin | the dataset's `BinFile` (`<Name>.bin`, or `<Name>_ks4.bin` beside a binary-format recording's own `<Name>.bin`) + its `.json` in the output folder, written by `toBin` for Kilosort4 to sort | never the data file of a binary-format recording |
+| Visualize's envelopes | `<Name>_envelope_<what>.dat` in the output folder: the min / max of each signal the [Visualize](#visualize) tab has shown ([Signal envelope](file-formats.md#signal-envelope-name_envelope_whatdat)), and a build's leftover `<Name>_envelope_<what>.dat.<token>.partial` | none for a finished one: a display cache, built again when the tab next shows the signal. A partial file goes only once it is an hour old (a build MATLAB left); a newer one may be being written, by this app or another MATLAB, and is kept |
 
 **Remove what a preprocessing step wrote**: one tick box per step that writes
 files, none ticked by default. Everything the step wrote goes, to run it again
@@ -2822,7 +2829,7 @@ event by event, a cancel, the preview that follows the checklist, the preference
 resource monitoring (a sample's figures and colours, n/a readings, live samples from the sampler, the preference, the sampler
 exiting and removing its folder when unticked), the Clean up tab's preview (every file listed, a raw
 recording without a copy record kept, nothing deleted, the Keep rows hidden on request, a changed tick box discarding it,
-the Sorting step's box marking its whole folder), a move into the project refused, a move out of it (layout, record, preview again) and the preferences,
+a Visualize envelope going by default and staying unticked, the Sorting step's box marking its whole folder), a move into the project refused, a move out of it (layout, record, preview again) and the preferences,
 save / reopen and the recent list,
 the Help menu's wiki pages and its issue items (what a bug report and a
 feature request carry, that an unticked section is left out, the percent-encoded
@@ -2986,6 +2993,6 @@ from onset to onset; and the
 envelope: block sizes, one cache file per signal, every level's min / max equal
 to those of the full-rate samples block by block, a `.bin` written again never
 shown from its old envelope and built again, builds on a thread, on a timer and
-cancelled, a whole-recording view drawn from it without a full-rate read (with
+cancelled, a removed cache file noticed (as after Clean up), a whole-recording view drawn from it without a full-rate read (with
 the recording's file moved away), the overview's signal, and a display filter
 keeping the view within one read.

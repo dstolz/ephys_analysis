@@ -521,6 +521,7 @@ classdef EphysPipelineApp < handle
         CleanupRawCheckBox        matlab.ui.control.CheckBox
         CleanupSorterCopyCheckBox matlab.ui.control.CheckBox
         CleanupBinCheckBox        matlab.ui.control.CheckBox
+        CleanupEnvelopeCheckBox   matlab.ui.control.CheckBox   % Visualize's envelopes (display caches)
         CleanupStepCheckBoxes     matlab.ui.control.CheckBox   % one per step that writes files; Tag = the step name
         CleanupMethodDropDown     matlab.ui.control.DropDown   % where removed files go: "delete" | "recycle" | "move"
         CleanupDestField          matlab.ui.control.EditField  % the folder for "move"

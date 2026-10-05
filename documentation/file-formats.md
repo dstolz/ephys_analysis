@@ -25,7 +25,7 @@ written as the strings `"NaN"` / `"Inf"`.
 ├─ <Name>_artifacts.json                artifact-interval cache (EphysPipeline)
 ├─ <Name>_extract_<TYPE>.mat            derived signals, one file per type (toMat; the Signals step),
 │                                       or <Name>_extract.mat with Signals.SeparateFiles off
-├─ <Name>_spikes.mat                    detected / sorted spikes (spikesToMat; the Spikes step)
+├─ <Name>_spikes.mat                    detected spikes (spikesToMat; the Spikes step)
 ├─ <Name>_behavior.mat                  Epsych2 session data, the only copy (behaviorToMat; the behavior step)
 ├─ <Name>_events.mat                    digital-input events cache (digitalEvents; trial pairing)
 ├─ <Name>_envelope_<what>.dat           min / max envelope of one signal for the Visualize tab (EphysTraceEnvelope):

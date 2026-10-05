@@ -133,6 +133,7 @@ function [P, S, files] = populationAnalysis(source, opts)
 %   Errors: populationAnalysis:BadSource, populationAnalysis:BadOption,
 %   populationAnalysis:BadWindow, populationAnalysis:ResponseSelection,
 %   populationAnalysis:MixedLevels, populationAnalysis:NoUnits,
+%   populationAnalysis:Bins (the datasets' PSTH bins differ),
 %   responseStats:NoToolbox (Tests without the toolbox). Warnings:
 %   aurocCall's, for the cutoff of a family.
 %

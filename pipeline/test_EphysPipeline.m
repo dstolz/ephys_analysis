@@ -7,7 +7,8 @@ function test_EphysPipeline()
 %   missing probe, missing sorting output, missing extract), the probe and
 %   behavior preflights (the default probe, a session file that is not
 %   there), the sorting dry run, spike detection against direct calls, the
-%   exports, the artifact cache, run(DryRun=true) writing nothing and
+%   exports, the artifact cache (and cachedDetection, which asks it
+%   without detecting), run(DryRun=true) writing nothing and
 %   cancellation. Then, on projects of their own: two recordings with the
 %   same name under one output root, an unsorted dataset that cannot label
 %   units, associations whose files are offline, an unreadable manifest,
@@ -320,6 +321,33 @@ pipe.reset(); logs = strings(0, 1);
 pipe.runArtifacts();
 check(contains(pipe.Results.Message(1), "cache"), 'second run reuses the cache');
 cached = readJsonFile(cacheFile);
+% cachedDetection: does the cache hold what a config detects? Nothing detected or written.
+cacheText = fileread(cacheFile); manText = fileread(d1.manifestFile());
+acfg0 = d1.ArtifactConfig; refSource0 = d1.ReferenceExcludeSource; refExclude0 = d1.ReferenceExclude;
+[ok, match, ivC] = EphysPipeline.cachedDetection(cfg, d1);
+check(ok && match && isequal(ivC, reshape(cached.intervals, [], 2)) ...
+    && EphysPipeline.artifactFingerprint(EphysPipeline.detectionConfig(cfg), d1) == string(cached.fingerprint), ...
+    'cachedDetection: the cache holds what the current settings detect, and gives its intervals (artifactIntervalsFor''s fingerprint)');
+cfgT = cfg; cfgT.Artifacts.Threshold = 2500;
+[ok, match, ivT] = EphysPipeline.cachedDetection(cfgT, d1);
+cfgS = cfg; cfgS.Artifacts.NoiseSeed = cfg.Artifacts.NoiseSeed + 1;
+[okS, matchS] = EphysPipeline.cachedDetection(cfgS, d1);
+check(ok && ~match && isempty(ivT) && okS && matchS, ...
+    'another threshold: known, not a match; another noise seed (how periods are filled, not which): still a match');
+cfgOff = cfg; cfgOff.Artifacts.Enabled = false;
+[ok, match] = EphysPipeline.cachedDetection(cfgOff, d1);
+check(~ok && ~match, 'automatic detection off: cachedDetection cannot tell');
+cfgR = cfg; cfgR.Artifacts.Reference = "car";
+d1.ReferenceExcludeSource = "";
+[okR, matchR] = EphysPipeline.cachedDetection(cfgR, d1);
+d1.ReferenceExcludeSource = "manual";
+[okM, matchM] = EphysPipeline.cachedDetection(cfgR, d1);
+d1.ReferenceExcludeSource = refSource0;
+check(~okR && ~matchR && okM && ~matchM, ...
+    'a common reference whose left-out channels are not settled: cannot tell; once settled it can (here: other settings)');
+check(isequal(fileread(cacheFile), cacheText) && isequal(fileread(d1.manifestFile()), manText) ...
+    && isequaln(d1.ArtifactConfig, acfg0) && d1.ReferenceExcludeSource == refSource0 && isequal(d1.ReferenceExclude, refExclude0), ...
+    'cachedDetection writes nothing and changes nothing on the dataset');
 d1.ManualArtifacts = [0.001 0.002; 0.005 0.006];
 pipe.reset();
 pipe.runArtifacts();

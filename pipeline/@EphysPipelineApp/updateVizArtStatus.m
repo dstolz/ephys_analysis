@@ -1,16 +1,30 @@
 function updateVizArtStatus(obj)
     % Refresh the artifact-count label under the Visualize controls,
     % reporting both the detected (orange, the Artifacts tab's preview;
-    % whether a run removes them) and the manual (purple) periods.
+    % whether a run removes them) and the manual (purple) periods. Periods
+    % the last run detected (<Name>_artifacts.json) are said to match the
+    % current settings or not (EphysPipeline.cachedDetection: the run's
+    % fingerprint against the one the settings give, nothing detected).
     if isempty(obj.VizArtStatusLabel) || ~isvalid(obj.VizArtStatusLabel); return; end
 
     [det, why, source] = obj.vizDetectedIntervals();
     nDet = size(det, 1);
     if source == "run"
         [~, f, e] = fileparts(obj.VizData.artifacts.file);
-        detTxt = sprintf("%d detected by the last run (orange, %s%s). ", nDet, f, e);
-        if why ~= ""
-            detTxt = detTxt + "For the current settings: " + why + " ";
+        [ok, match] = EphysPipeline.cachedDetection(obj.Config, obj.currentVizDataset());
+        if ok && match
+            detTxt = sprintf("%d detected by the last run, with the current settings (orange, %s%s). ", nDet, f, e);
+        elseif ok
+            detTxt = sprintf("%d detected by the last run, with other settings (orange, %s%s): " + ...
+                "Detect / Preview on the Artifacts tab to see what the current ones find. ", nDet, f, e);
+        elseif ~obj.Config.Artifacts.Enabled
+            detTxt = sprintf("%d detected by the last run (orange, %s%s); automatic detection is off " + ...
+                "in the current settings, so a run erases none of them. ", nDet, f, e);
+        else
+            detTxt = sprintf("%d detected by the last run (orange, %s%s). ", nDet, f, e);
+            if why ~= ""
+                detTxt = detTxt + "For the current settings: " + why + " ";
+            end
         end
     elseif why ~= ""
         detTxt = why + " ";

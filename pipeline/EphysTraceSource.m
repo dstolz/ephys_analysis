@@ -40,8 +40,11 @@ classdef EphysTraceSource < handle
     %     src = EphysTraceSource.signal(file, "LFP")
     %
     %   Nothing is ever written, and no file is held open between reads.
+    %   stamp() says what read() depends on (the files with their sizes and
+    %   times, the reference), so a cache of it - the min / max envelope of
+    %   EphysTraceEnvelope - knows when it is out of date.
     %
-    %   See also EphysTraceViewer, EphysDataset.readWindowUV,
+    %   See also EphysTraceViewer, EphysTraceEnvelope, EphysDataset.readWindowUV,
     %   EphysDataset.toBin, EphysDataset.toMat, DatasetOutputs.
 
     properties (SetAccess = private)
@@ -149,11 +152,59 @@ classdef EphysTraceSource < handle
             %key  Text that changes whenever what read() returns may change.
             k = obj.Kind + "|" + obj.File + "|" + obj.SignalType + "|" + obj.Reference;
             if obj.Kind == "recording" && ~isempty(obj.Dataset)
-                d = obj.Dataset;
-                acfg = EphysDataset.normalizeArtifactConfig(d.ArtifactConfig);
-                k = k + "|" + d.Folder + "|" + string(acfg.Reference) + "|" ...
-                    + strjoin(string(d.referenceChannels()), ",");
+                [mode, ch] = obj.appliedReference();
+                k = k + "|" + obj.Dataset.Folder + "|" + mode + "|" + strjoin(string(ch), ",");
             end
+        end
+
+        function [mode, ch] = appliedReference(obj)
+            %appliedReference  The common reference read() subtracts: "car" | "cmr" over channels CH, or "none".
+            %   The recording read "pipeline" takes the dataset's own
+            %   (ArtifactConfig.Reference over referenceChannels, as every
+            %   step reads it); the other kinds carry theirs in their
+            %   samples, so read() subtracts none.
+            mode = "none";
+            ch = double.empty(1, 0);
+            if obj.Kind ~= "recording" || obj.Reference ~= "pipeline" || isempty(obj.Dataset)
+                return
+            end
+            d = obj.Dataset;
+            acfg = EphysDataset.normalizeArtifactConfig(d.ArtifactConfig);
+            if string(acfg.Reference) == "none"; return; end
+            mode = string(acfg.Reference);
+            ch = d.referenceChannels();
+        end
+
+        function S = stamp(obj)
+            %stamp  What read() returns depends on, for a cache of it (EphysTraceEnvelope).
+            %   The kind, the files read (name, bytes, modified time in whole
+            %   seconds), the rate, rows and columns, and the reference
+            %   subtracted (appliedReference) or the .bin's type, scale and
+            %   offset. A file written again changes it.
+            S = struct('kind', obj.Kind, 'signal', obj.SignalType, 'fs', obj.Fs, ...
+                'nSamples', obj.NumSamples, 'nChannels', obj.NumChannels);
+            switch obj.Kind
+                case "recording"
+                    d = obj.Dataset;
+                    S.files = fileStamps(fullfile(d.Folder, d.Files));
+                    [S.reference, S.referenceChannels] = obj.appliedReference();
+                case "bin"
+                    S.files = fileStamps(obj.File);
+                    S.bin = obj.Bin;
+                otherwise
+                    S.files = fileStamps(obj.File);
+                    S.hdf5 = obj.H5Path ~= "";
+            end
+        end
+
+        function tf = threadSafe(obj)
+            %threadSafe  True when read() can run on a thread of backgroundPool.
+            %   The recording (through a reader with random access) and the
+            %   .bin read with fopen / fread, which threads support. A
+            %   signal is not: a -v7.3 extract is read with h5read, which
+            %   they do not support, and a -v7 one is held in memory (a copy
+            %   for each thread would be as large).
+            tf = obj.Kind == "bin" || (obj.Kind == "recording" && isempty(obj.Plan));
         end
 
         function clearCache(obj)
@@ -487,6 +538,21 @@ v = default;
 if isstruct(s) && isfield(s, name) && ~isempty(s.(name))
     v = s.(name);
     if isnumeric(default) && ~isnumeric(v); v = default; end
+end
+end
+
+
+function S = fileStamps(files)
+% Name, bytes and modified time (whole seconds) of each of FILES; a file
+% that is not there has bytes -1.
+files = reshape(string(files), 1, []);
+S = struct('name', cellstr(files), 'bytes', -1, 'modified', 0);
+for k = 1:numel(files)
+    f = dir(files(k));
+    if isscalar(f)
+        S(k).bytes = f.bytes;
+        S(k).modified = round(f.datenum * 86400);
+    end
 end
 end
 

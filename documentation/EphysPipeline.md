@@ -398,7 +398,22 @@ automatic detection alone - is cached in
 [file-formats.md](file-formats.md#artifact-cache)), keyed by a fingerprint of
 what decides it: the detector settings, the channels of the common reference,
 `ExcludeChannels` and the recording files. A cache with a different
-fingerprint is recomputed. The bounds moved by hand on the Artifacts tab
+fingerprint is recomputed. The fingerprint is one function,
+`fp = EphysPipeline.artifactFingerprint(acfg, d)`, of the dataset
+`ArtifactConfig` a config detects with (`acfg = EphysPipeline.detectionConfig(cfg)`)
+and the dataset as it stands; it reads nothing, so `artifactIntervalsFor` first
+settles the reference's left-out channels (`EphysDataset.prepareReference`).
+`[ok, match, iv] = EphysPipeline.cachedDetection(cfg, d)` asks the cache without
+detecting, writing or changing anything: `match` is true when
+`<Name>_artifacts.json` holds a detection with the fingerprint `cfg` gives for
+`d` (the current settings would detect the same periods; `iv` is that
+detection), false when there is no file or it was made with other settings.
+`ok` is false when that cannot be known without reading the recording:
+automatic detection is off in `cfg`, a common reference is on while the
+dataset's `ReferenceExcludeSource` is `""` (the first referenced read suggests
+the channels it leaves out, which the fingerprint holds), or the dataset's
+sample count is not known. The Visualize tab uses it to say whether the last
+run's periods are those the current settings find. The bounds moved by hand on the Artifacts tab
 (`d.ArtifactAdjustments`, applied with `EphysDataset.adjustArtifacts`) and the
 manual periods are applied on every call, so moving a bound or marking a
 period needs no new detection; the cache keeps the detection as found. A detection is also kept for the rest of
@@ -714,7 +729,7 @@ the behavior file.
 | Suite | Checks |
 | --- | --- |
 | [`test_EphysPipelineConfig.m`](../pipeline/test_EphysPipelineConfig.m) | exact save / load round trip with `Inf`, `NaN`, `[]`, one-element lists and bands; normalization fills and drops; `BadSchema`; `ks4Settings`; `ks4ProbeDefaults` on synthetic layouts (staggered 4-shank, Neuropixels-like, dense multi-shank, sparse column, 2-D grid, exclusions, shanks without `kcoords`); probe parameter files (`writeKS4Params` / `ks4ForProbe`: round trip, a hand-written subset, refusals, every file shipped in `pipeline/probes` loads); every `signalOptions` error and each `ExcludeHandling` mode; `validate` on enabled steps only, the `Parallel` section (`MaxWorkers`), the background-sorting rule and the unit-label `NamePattern` rule |
-| [`test_EphysPipeline.m`](../pipeline/test_EphysPipeline.m) | selection by key with duplicate leaf names; `plan()` writes nothing and flags existing / duplicate outputs, missing probe, sorting output and extract file, unit identity errors and unit label collisions; sorting dry run writes a `settings.json` carrying the KS4 settings; `runSignals` / `runSpikeDetection` / `runExport` outputs equal the direct calls; `runSignals` erases the artifact periods (manual + automatic; manual only without `Artifacts.ApplyToSignals`; none without `Signals.BlankArtifacts`) and every per-type file, the Chronux file and the FieldTrip file carry them; `checkBehavior` associates by prefix and writes the manifest; the artifact cache is reused and invalidated; cancel leaves no partial `.mat`; `Parallel.Enabled` reaches the artifacts and spikes steps and is logged |
+| [`test_EphysPipeline.m`](../pipeline/test_EphysPipeline.m) | selection by key with duplicate leaf names; `plan()` writes nothing and flags existing / duplicate outputs, missing probe, sorting output and extract file, unit identity errors and unit label collisions; sorting dry run writes a `settings.json` carrying the KS4 settings; `runSignals` / `runSpikeDetection` / `runExport` outputs equal the direct calls; `runSignals` erases the artifact periods (manual + automatic; manual only without `Artifacts.ApplyToSignals`; none without `Signals.BlankArtifacts`) and every per-type file, the Chronux file and the FieldTrip file carry them; `checkBehavior` associates by prefix and writes the manifest; the artifact cache is reused and invalidated, and `cachedDetection` matches it to the settings without detecting or writing (a match, other settings, detection off, a reference not yet settled); cancel leaves no partial `.mat`; `Parallel.Enabled` reaches the artifacts and spikes steps and is logged |
 | [`test_TrialPairing.m`](../pipeline/test_TrialPairing.m) | `pairEpsychTrials`: equal counts, a recording started late or stopped early (partial intervals at the edges, the count-mismatch warning, the cuts that resolve it), an inverted line idle at the recording start, cut validation, nested lines, derived-signal samples; `digitalEvents` cache; `pairTrials` / `setTrialPairing` manifest round trip with cuts and staleness; `autoApproveTrialPairing` (only matching counts without cuts, the `auto_approved` mark); `behaviorToMat(Pairing=)`; the behavior step records, reuses and reports pairings, `AutoApprove` and a count mismatch included |
 | [`test_EphysPipelineScript.m`](../pipeline/test_EphysPipelineScript.m) | both scripts are `checkcode`-clean, run, and produce identical outputs; the standalone text never mentions the pipeline classes; disabled steps are commented out in the compact script; `literal` round-trips; the standalone script carries the `Parallel` section into the chunked steps and the artifact periods into its signals step |
 | [`test_OpenEphysReader.m`](../pipeline/test_OpenEphysReader.m) | Open Ephys sessions in every record engine; the `Acquisition` modes; `LineNames` validation and naming; a synthetic Open Ephys project through `EphysPipeline` |

@@ -1,8 +1,9 @@
-"""Tests for gen_pages.py: sections, heading levels, link rewriting.
+"""Tests for gen_pages.py: sections, heading levels, link rewriting, and the
+anchors the pipeline app's Help opens.
 
     python -m unittest tools/wiki/test_gen_pages.py      (from the repository root)
 """
-import os, sys, unittest
+import os, re, sys, unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import gen_pages as g
@@ -102,6 +103,18 @@ class GenPages(unittest.TestCase):
         idx = g.page_index(pages, texts)
         for p in pages:
             self.assertTrue(g.build(p, texts, idx).strip(), p["page"])
+
+    def test_app_help_anchors(self):
+        """Every page#anchor the pipeline app's Help opens (helpURL.m) is a heading of the page made for it."""
+        src = open(os.path.join(g.REPO, "pipeline", "@EphysPipelineApp", "helpURL.m"), encoding="utf-8").read()
+        pages, texts = g.load_pages(g.REPO)
+        idx = g.page_index(pages, texts)
+        built = {p["page"]: g.build(p, texts, idx) for p in pages}
+        links = re.findall(r'page = "([A-Za-z0-9-]+)#([\w-]+)"', src)
+        self.assertTrue(links, "helpURL.m opens some anchors")
+        for page, anchor in links:
+            self.assertIn(page, built, f"{page} is made from documentation/")
+            self.assertIn(anchor, g.anchors_by_section(built[page]), f"{page}#{anchor}")
 
 
 if __name__ == "__main__":

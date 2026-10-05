@@ -104,7 +104,7 @@ The tabs, in workflow order:
 | [Project](#project) | name the config, scan a folder for recordings, tick the datasets to process, set the output root and the source settings, associate Epsych2 sessions |
 | [Trials](#trials) | review and approve how the trials pair with the trial digital line, name the digital lines, prefetch the lines of many datasets |
 | [Probe](#probe) | pick probe maps, assign them, exclude bad channels |
-| [Artifacts](#artifacts) | set up automatic artifact detection and the common reference, preview them, list manual periods |
+| [Artifacts](#artifacts) | set the common reference, set up and preview automatic artifact detection, mark manual periods |
 | [Sorting](#sorting) | configure Kilosort4, associate sorted output, open phy |
 | [Signals](#signals) | derive LFP / MUA / SPIKE / AUX signals |
 | [Spikes](#spikes) | detect spikes by threshold |
@@ -250,8 +250,8 @@ that recording again by its folder.
    or let **Auto approve when the counts match** approve the clean ones.
 4. **Probe**: pick a probe map, **Assign to all datasets** or set it as the
    config's default probe. Enter per-recording **Exclude channels**.
-5. **Artifacts** (optional): tune and preview the detector; mark manual
-   periods on **Visualize**.
+5. **Artifacts** (optional): set the common reference; tune and preview the
+   detector; mark manual periods on its plot.
 6. Enable the steps you want on their tabs (**Sorting**, **Signals**,
    **Spikes**, **Export**) and set their options. Each tab has **Run this
    step** for a single step over the selected datasets. The **Diagram** tab
@@ -1063,10 +1063,23 @@ downstream depends on probeinterface. The designer runs
 
 ## Artifacts
 
-The automatic detector
+Artifact periods are stretches of a recording that the steps leave out:
+Sorting erases them in the `.bin` Kilosort4 sorts, Signals in the data it
+derives LFP / MUA / SPIKE from, and Spikes rejects the events inside them or
+erases them before detection ([In a run](#in-a-run)). The recording files are
+never changed. A period comes from one of two sources:
+
+| Source | Where it comes from | Applies |
+| --- | --- | --- |
+| manual periods | marked by hand on this tab's plot (**Mark artifacts**); saved in the dataset's manifest | always |
+| automatic detections | the detector set up here, run over the whole recording by the pipeline's `artifacts` step | while **Enable automatic detection** is ticked, to the steps ticked under it |
+
+<!-- wiki: ![The Artifacts tab after Detect / Preview](images/app-artifacts-tab.png) -->
+
+The tab holds the automatic detector
 ([`EphysDataset.detectArtifacts`](EphysDataset.md#artifact-detection-and-blanking))
-and the manual periods, after the common reference. The tab has three
-columns: the common reference and the detection settings with the active
+and the manual periods, after the common reference, in three columns: the
+common reference and the detection settings with the active
 dataset's manual periods below them, the artifact viewer at full height (one
 plot, where the detected artifacts are reviewed and the manual periods
 marked), and two tabs on the right: **Preview** (the preview's summary with
@@ -1082,13 +1095,13 @@ referenced signal. The Signals tab picks which derived signals take it.
 
 | Control | Maps to |
 | --- | --- |
-| Reference: *None* / *CAR: common average* / *CMR: common median* | `Reference.Mode` (`"none"` / `"car"` / `"cmr"`), a setting for the whole pipeline: subtract, sample by sample, the mean or median of the good channels from every channel, once, as each step reads the recording - artifact detection, the noise level of the fill, the Kilosort4 `.bin` (Kilosort4's own `do_CAR` is then turned off, so it is not referenced twice), spike detection, the derived signals ticked on the Signals tab (MUA and SPIKE by default, not the LFP), and the Visualize tab's *As the pipeline*. The preview and the viewer show the referenced signal. See [Common reference](EphysDataset.md#common-reference-car--cmr) |
+| Reference: *None (as recorded)* / *CAR: common average* / *CMR: common median* | `Reference.Mode` (`"none"` / `"car"` / `"cmr"`), a setting for the whole pipeline: subtract, sample by sample, the mean or median of the good channels from every channel, once, as each step reads the recording - artifact detection, the noise level of the fill, the Kilosort4 `.bin` (Kilosort4's own `do_CAR` is then turned off, so it is not referenced twice), spike detection, the derived signals ticked on the Signals tab (MUA and SPIKE by default, not the LFP), and the Visualize tab's *As the pipeline*. The preview and the viewer show the referenced signal. See [Common reference](EphysDataset.md#common-reference-car--cmr) |
 | Good noise (x median): *low* to *high* | `Reference.BadLow`, `BadHigh` (0.3 and 2, Ludwig et al. 2009): a channel whose noise floor lies outside this band, relative to the median across channels, is suggested to stay out of the reference |
 | Left out, **Suggest** | the active dataset's `ReferenceExclude` (written to its manifest): channels kept out of the average, though still referenced. **Suggest** measures each channel's noise floor on a sample of the recording and fills the field (each channel's ratio goes to the log); typing a list marks it set by hand. A list that does not parse changes nothing (an alert says why). A dataset whose list was never set gets the suggestion on its first referenced run or preview. Channels excluded on the Probe tab stay out of the reference too |
-| **Enabled** | `Artifacts.Enabled`: run automatic detection (manual periods always apply) |
+| **Enable automatic detection** | `Artifacts.Enabled`: run automatic detection (manual periods always apply) |
 | Dataset | the active dataset: the one **Detect / Preview** analyzes and whose manual periods are listed |
 | Method, Threshold, RMS window, Stitch gap, Pad, Min channels | `Artifacts.Method`, `Threshold`, `RmsWindowMs`, `MergeGapMs`, `PadMs`, `MinChannels` |
-| Filter before detecting, High-pass (Hz) | `Artifacts.Filter`, and `FilterCutoff`: a high-pass filter's cut-off, or a band-pass filter's lower edge. `FilterType`, `FilterOrder` and a band's upper edge have no control and keep the config's values; with a low-pass filter (a config written by hand or by a script) the field is off. They apply to runs as well as the preview |
+| High-pass before detecting, High-pass (Hz) | `Artifacts.Filter`, and `FilterCutoff`: a high-pass filter's cut-off, or a band-pass filter's lower edge. `FilterType`, `FilterOrder` and a band's upper edge have no control and keep the config's values; with a low-pass filter (a config written by hand or by a script) the field is off. They apply to runs as well as the preview |
 | Erase with: *Gaussian noise (recording level)* / *Zeros* | `Artifacts.Fill` (`"noise"` / `"zero"`): what replaces the artifact samples, manual periods included. Noise by default - Kilosort4 reads a block of zeros across every channel as a signal discontinuity. Each period becomes a straight line between the signal's levels on either side plus that noise; its level is measured on up to 16 chunks spread over the recording, above `Artifacts.NoiseBandHz` (300 Hz), and `Artifacts.NoiseSeed` makes a rerun repeat; neither has a control here |
 | Erase in sorting (in the .bin Kilosort4 sorts) / Apply in spike detection (reject or erase: Spikes tab) / Erase in the signals (LFP / MUA / SPIKE, before filtering) | `Artifacts.ApplyToSorting`, `ApplyToSpikes`, `ApplyToSignals`: whether the detected artifacts reach those steps (manual periods always do). The signals take any periods only while the Signals tab's *Erase the artifact periods first* is ticked, and spike detection only while the Spikes tab's *Artifact periods* does not ignore them |
 | Cache intervals | `Artifacts.CacheIntervals` (`<Name>_artifacts.json`) |
@@ -1105,6 +1118,35 @@ field still holds the previous method's default; a threshold typed for the
 previous method stays. `validate` warns about an *Absolute microvolts* or
 *Common-mode* threshold below 50 µV.
 
+**Detection methods.** Each method flags samples one channel at a time:
+
+| Method | A sample is flagged on a channel when | Threshold in |
+| --- | --- | --- |
+| *Running RMS (per-channel SD)* (default) | its running RMS (over **RMS window**; 0 = about 1 ms) is more than *Threshold* robust SDs (1.4826 × MAD of the RMS) above the channel's median RMS | robust SDs |
+| *MAD (per-channel SD)* | \|x − median\| / (1.4826 × MAD) > *Threshold* | robust SDs |
+| *Absolute microvolts* | \|x\| > *Threshold* | µV |
+| *Common-mode (mean)* | \|mean over the channels\| > *Threshold*, on every channel at once. It is measured on the signal as recorded, since a common reference subtracts that very mean | µV |
+
+A sample is an artifact when at least **Min channels** channels flag it at
+once (common mode aside). Runs of artifact samples separated by at most
+**Stitch gap** of clean signal are joined, and each run is widened by **Pad**
+on both sides. The channels excluded on the Probe tab take no part. The
+detector works chunk by chunk as it streams the recording: each chunk has its
+own median and MAD, and runs are not joined across chunk boundaries (the
+periods a run uses merge them again). See
+[Artifact detection and blanking](EphysDataset.md#artifact-detection-and-blanking).
+
+**The preview.** **Detect / Preview** fills the **Preview** tab on the right.
+Its summary gives the settings (method and threshold, RMS window, stitch gap
+and pad, min channels), what was read (duration, channels, samples, rate),
+the samples flagged and their share of the recording, the number of
+intervals, the worst channel, and whether a run applies the detection
+(*applied* while **Enable automatic detection** is ticked). The per-channel
+table lists **Ch**, **Name** (and **Shank** with a probe), **#Samples**
+flagged on that channel and **% of duration**. Those counts come before the
+**Min channels** combination, so they show which channels drive the
+detections. The preview writes nothing.
+
 **Artifact viewer.** After a preview, the middle plot shows one
 detected artifact at a time (◀ / ▶ or type its number), with **Context** ms of
 signal either side (0 = auto: twice the artifact's length, 25 ms to 5 s). It
@@ -1118,8 +1160,8 @@ artifacts are shaded **orange** and manual periods **purple**, as on the
 Visualize tab, and the one shown has dashed lines at its onset and offset.
 **Shade artifacts** (amber while on) or **S** over the plot turns the shading
 off to show the signal under it; the dashed bounds stay. What counts as removed follows the controls as they are set:
-manual periods always, and detected artifacts only when **Enabled** is ticked
-together with *Erase in sorting*, *Apply in spike detection* or *Erase in the
+manual periods always, and detected artifacts only when **Enable automatic
+detection** is ticked together with *Erase in sorting*, *Apply in spike detection* or *Erase in the
 signals*. The line above the plot says which of them apply, and it warns when a detection setting has changed
 since the preview. **Scale** fits the lanes to the whole window, or to the
 kept signal: six robust SDs of the signal outside the artifacts (at most the whole
@@ -1223,7 +1265,13 @@ artifact's bound. Mark on an artifact's window, or anywhere with **Go to
 (s)**. The periods go to the dataset's manifest at once, and the table, the
 plot and a Visualize plot of the dataset follow; **Clear** removes them all.
 Marking needs a window drawn, stops by itself when you leave the tab or the
-dataset, and with **Esc**. It is refused while a run is under way.
+dataset, and with **Esc**. It is refused while a run is under way. The
+periods table, titled `Manual periods of <Name> (N, saved in its manifest)`,
+lists them in recording seconds: **Start (s)**, **End (s)**, **Duration (s)**.
+Kept in the manifest, they survive a rescan, a new config and a script that
+runs the same recording. The Visualize tab's **Mark manual periods
+(Artifacts tab)** opens this plot on the stretch it shows, with **Mark
+artifacts** on.
 
 **Measuring a stretch.** **Measure** (beside *Shade artifacts*, or **M** over
 the plot; amber while on) turns the same drag into a selection: the stretch
@@ -1257,6 +1305,61 @@ click clears the selection, and another window (stepping, paging, a new
 dataset) drops it. **Mark artifacts** and **Measure** are one drag in two
 modes: turning one on turns the other off. Measuring writes nothing, so it
 works during a run too.
+
+### In a run
+
+While **Enable automatic detection** is ticked, the pipeline's `artifacts`
+step runs the detector over each ticked dataset's whole recording and, with
+**Cache intervals**, keeps what it found in
+`<output folder>/<Name>_artifacts.json`. Later steps and runs reuse that
+detection while what decides it is unchanged: the detection settings, the
+common reference, the excluded channels and the recording's files. Otherwise
+they detect again. The manual periods and the bounds moved by hand are
+applied each time the periods are used, so marking a period or moving a bound
+needs no new detection ([artifact cache](EphysPipeline.md#run)). The step
+runs its chunks on the process pool when the Run tab's **Parallel** box is
+ticked; the periods are the same either way.
+
+Each step that reads the recording then takes the manual periods, plus the
+automatic ones when its box above (*Erase in sorting*, *Apply in spike
+detection*, *Erase in the signals*) is ticked:
+
+- **Sorting** erases them in the `.bin`, as **Erase with** says. Periods
+  that cover more than half of the recording refuse the dataset, because
+  Kilosort4 would find no spikes. The detection runs in MATLAB before
+  Kilosort4 starts, even for a background run, unless the `artifacts` step
+  or the cache has it already.
+- **Signals** draws a straight line across each before LFP / MUA / SPIKE are
+  derived, and records them in every file, while the Signals tab's *Erase the
+  artifact periods first* is ticked ([Signals](#signals)). The analysis and
+  Export's epochs (with *Artifact periods: drop*) then leave out the epochs
+  that touch one.
+- **Spikes** rejects the events inside them, or erases them before
+  detection, as the Spikes tab's *Artifact periods* says; with *Ignore them*
+  it detects as though there were none ([Spikes](#spikes)).
+
+The [Diagram](#diagram) tab draws this path: the detector's stages, the
+automatic and manual periods, and the steps they reach (orange). A click on
+one of those boxes there opens its setting here.
+
+### Artifacts from a script
+
+```matlab
+ds = EphysDataset("D:\EPHYS\SUBJ-ID-1255\SUBJ-ID-1255_260908_103949");
+cfg = ds.ArtifactConfig;  cfg.Enabled = true;  cfg.Method = "rms";  cfg.Threshold = 9;
+ds.ArtifactConfig = cfg;
+S  = ds.analyzeArtifacts();          % the preview: per-channel counts, share of the recording; writes nothing
+ds.addArtifact(120.5, 121.2);        % a manual period, in seconds
+ds.writeManifest();                  % save it in the manifest
+iv = ds.artifactIntervals();         % [k x 2] seconds: manual + automatic, merged
+```
+
+`ds.ArtifactConfig.Reference` (`"none"`, `"car"`, `"cmr"`) sets the common
+reference. See
+[Artifact detection and blanking](EphysDataset.md#artifact-detection-and-blanking)
+and [Common reference](EphysDataset.md#common-reference-car--cmr).
+
+<!-- wiki: More in [Working with datasets](Working-with-Datasets#artifacts) and [API: EphysDataset](API-EphysDataset). -->
 
 ## Sorting
 
@@ -1528,15 +1631,29 @@ parsed ([Kilosort4 parameters](#kilosort4-parameters)).
 
 ## Signals
 
-Derived LFP / MUA / SPIKE `.mat` files with `EphysDataset.toMat`
-([intan2matlab](intan2matlab.md)), `Signals.*`.
+Derived LFP / MUA / SPIKE / AUX `.mat` files with `EphysDataset.toMat`
+([intan2matlab](intan2matlab.md)), `Signals.*`:
+
+- **LFP**: the local field potential, resampled to a low rate;
+- **MUA**: the multi-unit activity envelope;
+- **SPIKE**: the spike band;
+- **AUX**: the headstage's auxiliary (accelerometer) inputs, as recorded.
+
+Every file also holds the digital-input events. The [Export](#export) step
+reads these files.
+
+<!-- wiki: ![The Signals tab](images/app-signals-tab.png) -->
 
 - **Output**: folder (blank = the dataset's output folder), suffix
-  (`_extract`), MAT version, overwrite, **one file per
+  (`_extract`), MAT version (`-v7.3`, any size, or `-v7`, under 2 GB per
+  variable), overwrite (off: an existing file is skipped), **one file per
   signal type** (on by default: `<Name>_extract_LFP.mat`, `_MUA.mat`,
-  `_SPIKE.mat`; one plan / result row per file).
-- **Signals**: LFP (`LFP_Fs`, high-pass, low-pass, notch + width), MUA
-  (`MUA_Fs`, integration, band), SPIKE (keep original rate / `SPIKE_Fs`, band).
+  `_SPIKE.mat`, `_AUX.mat`; one plan / result row per file. Off: one
+  `<Name>_extract.mat` holding every signal).
+- **Signals to compute**: LFP (`LFP_Fs`, high-pass, low-pass, notch +
+  width), MUA (`MUA_Fs`, integration, band), SPIKE (keep original rate /
+  `SPIKE_Fs`, band), AUX (no settings). LFP is ticked by default. A signal's
+  fields are on only while it is ticked ([Processing](#processing)).
 - **Erase the artifact periods first (a line across each), and record them in
   every file**, under the signal-type row: `Signals.BlankArtifacts` (on by
   default). Before LFP / MUA / SPIKE are derived, the dataset's artifact
@@ -1561,16 +1678,85 @@ Derived LFP / MUA / SPIKE `.mat` files with `EphysDataset.toMat`
   interpolate bad channels → remap.
 - **Channels**: label field (`custom` / `native` names for channels, aux
   inputs and digital lines; lines renamed on the Trials tab keep their
-  names), keep channels, bad channels (none / manual list of recording
-  channels, like keep channels, those not kept being ignored / auto +
-  threshold; interpolated from the probe geometry: the dataset's probe, else
-  the config's default), channel remap,
-  **Manifest exclusions** (`none` / `drop` /
-  `interpolate`). Lists keep order and repeats; anything unparseable is an
-  error. **Reset to defaults**.
-- The **targets table** is `plan(Steps="signals")` for the selected datasets
-  (`ready`, `exists: skip`, `exists: overwrite`, `no recording files`, ...);
-  **Refresh** re-plans. **Run this step** runs `EphysPipeline.runSignals`.
+  names), keep amp channels (1-based recording channels to read, in the
+  order given; blank = all), bad channels (*None* / *Manual list* of
+  recording channels, like keep channels, those not kept being ignored /
+  *Auto*: channels whose |z-score of the LFP's RMS| exceeds **Auto
+  threshold**, default 3), channel remap (the final column order, 1-based
+  into the kept channels: `32-1` reverses 32 channels),
+  **Manifest exclusions** (what to do with the dataset's channels excluded
+  on the Probe tab: *ignore* (`none`), *drop* them from the kept channels,
+  or *interpolate* them as bad channels). Lists keep order and repeats;
+  anything unparseable stops the run with a message naming the field.
+  **Reset to defaults** puts every Signals setting back but the step's
+  **Enable** box.
+- Bad channels are interpolated from the probe geometry (the dataset's
+  probe, else the config's default): each is replaced by the
+  1/distance-weighted mean of the 4 nearest good sites on its shank. Without
+  a probe layout, or for a site with no good site on its shank, it is
+  interpolated across the neighbouring columns instead (with a warning).
+  *Auto* needs LFP ticked and the Statistics and Machine Learning Toolbox
+  (`zscore`), and cannot be combined with *interpolate* for the manifest
+  exclusions.
+- The targets table on the right, *This step for the selected datasets*, is
+  `plan(Steps="signals")` for the datasets ticked on the Project tab (all
+  when none is ticked), one row per file: **Dataset**, **Output file**,
+  **Status** (`ready`, `exists: skip`, `exists: overwrite`,
+  `no recording files`, `error: ...` for a setting that cannot apply to the
+  dataset, which blocks the run) and **Note**. It is planned again on every edit while the
+  tab is shown; **Refresh plan** does it by hand. **Run this step** runs
+  `EphysPipeline.runSignals` on the Run tab.
+
+### Processing
+
+| Signal | Defaults | Processing |
+| --- | --- | --- |
+| LFP | `LFP_Fs` 1000 Hz; high-pass 1 Hz, low-pass 300 Hz and notch 60 Hz (width 2 Hz), each off | resampled to `LFP_Fs`; then, at that rate, a 4th-order Butterworth high-, low- or band-pass and a 2nd-order band-stop per notch, all zero-phase (`filtfilt`) |
+| MUA | `MUA_Fs` 2000 Hz, integration 1000 Hz, band 300–5000 Hz | 4th-order Butterworth band-pass at the recording rate (zero-phase), rectified, resampled to `MUA_Fs`, then a moving mean over `round(MUA_Fs / integration)` samples |
+| SPIKE | the recording rate kept (else `SPIKE_Fs`, 20000 Hz), band 300–5000 Hz | resampled to `SPIKE_Fs` unless the rate is kept, then a 4th-order Butterworth band-pass (zero-phase) |
+| AUX | none | the auxiliary inputs as recorded, in volts at their own rate. A recording without them writes none, with a warning |
+
+- **Notch** takes a list, such as `60, 120, 180`. Each notch must fit inside
+  (0, `LFP_Fs`/2): `f − width/2 > 0` and `f + width/2 < LFP_Fs/2`. The width
+  is between the design's −3 dB points (−6 dB after the zero-phase filter).
+- Every filter edge must lie below half the rate it is applied at. **Plan**
+  reports a setting that cannot apply to a dataset (`LFP_Fs` above its sample
+  rate, say) as `error: ...`, and that blocks the run.
+- Zero-phase IIR filters leave edge transients at the start and end of the
+  recording: up to about 2 s at each end for a 1 Hz high-pass, longer for
+  lower cut-offs.
+- The whole recording is read into memory in single precision. Expect a peak
+  of about twice its size.
+- The digital-input events are taken at the recording rate. Lines ticked
+  **Inverted** on the [Trials](#line-polarity) tab have their onsets at the
+  falling edge.
+
+The full processing order and options are in [intan2matlab](intan2matlab.md).
+
+### The files
+
+Each `<Name>_extract_<TYPE>.mat` holds `Y` (the signal,
+`[nSamples x nChannels]` single, as `Y.LFP`, `Y.MUA`, ...), `events` (one
+field per digital line: `[k x 2]` onset / offset times, seconds), `info` (the channel
+labels, the recording rate, each signal's rate, filters, sample count and
+common reference, and `info.artifacts`, the periods erased) and `conversion`
+(provenance). Row k of a signal is at `(k − 1) / Fs`. See the
+[file format](file-formats.md#derived-signal-mat-ephysdatasettomat-the-signals-step).
+
+<!-- wiki: Load them with [`DatasetOutputs`](Loading-Outputs): `out.LFP`, `out.MUA`, `out.AUX`. -->
+
+### Signals from a script
+
+```matlab
+ds  = EphysDataset("D:\EPHYS\SUBJ-ID-1255\SUBJ-ID-1255_260908_103949");
+[Y, events, info] = ds.deriveSignals(dataTypeOut=["LFP" "MUA"], LFP_Fs=1000, LFP_NotchHz=60);
+out = ds.toMat(SeparateFiles=true, SignalOptions=struct('dataTypeOut', ["LFP" "AUX"]));
+```
+
+`intan2matlab(folder, ...)` runs the same processing as a function of its
+own.
+
+<!-- wiki: More in [Working with datasets](Working-with-Datasets#derived-signals). -->
 
 ## Spikes
 
@@ -1608,14 +1794,18 @@ or counted twice at a join.
   events inside them* (default), *Erase them before detection (the cleaned
   recording)*, whose samples then stay out of the thresholds and are bridged
   by a line for the band-pass, so an artifact neither rings into the samples
-  around it nor raises the threshold, or *Ignore them*), **Chunking**
+  around it nor raises the threshold, or *Ignore them*; the periods are the
+  manual ones, plus the automatic detection while it is enabled and the
+  Artifacts tab's *Apply in spike detection* is ticked, see
+  [In a run](#in-a-run)), **Chunking**
   (chunk cap, edge pad; the parallel switch is on the Run tab), **Output**
   (folder, suffix `_spikes`, MAT version, overwrite).
 - **Dataset** + **Preview**: detects on the first *n* seconds (10 by
   default, the field beside the button) of the active dataset with the tab's
   settings, and lists per channel **Ch**, **Name**, **Threshold (uV)**,
   **Events** and **Rate (Hz)**, to tune the threshold before a run. It writes
-  nothing. The preview's thresholds are always its window's own; with *the
+  nothing, and neither rejects nor erases the artifact periods, whatever
+  *Artifact periods* says. The preview's thresholds are always its window's own; with *the
   whole recording* its label says so.
 - **Run this step** runs `EphysPipeline.runSpikeDetection`.
 
@@ -1727,6 +1917,11 @@ drawings, and the choice is kept as a preference:
 - **Data-flow overview** (the default): only the steps and the data passing
   between them (see [Data-flow overview](#data-flow-overview)).
 
+**Refresh** draws it again. The summary line beside the buttons counts the
+steps enabled and, with an active dataset, names the recording drawn
+(`| recording: <name>`). **Save as HTML...** and **Open in Browser** write
+the drawing out ([below](#data-flow-overview)).
+
 Both are drawn by `PipelineDiagram`, which needs no app, so a script can
 write a config's diagram too:
 `writelines(PipelineDiagram.overview(cfg, []), "overview.html")`
@@ -1742,6 +1937,8 @@ top. Once zoomed or panned, a view keeps its place until you close the app,
 even as the diagram is redrawn (on a config edit, or on leaving and coming
 back to the tab); each view, and each layout of Every parameter, keeps its
 own.
+
+<!-- wiki: ![The Diagram tab, Every parameter view](images/app-diagram-tab.png) -->
 
 **Every parameter** is one tree: the raw
 recording at the top, then the common reference, drawn once, and under it
@@ -1826,6 +2023,8 @@ project root. Keyboard: tab to a box and press Enter or Space.
 
 ### Data-flow overview
 
+<!-- wiki: ![The Diagram tab, Data-flow overview](images/app-diagram-overview.png) -->
+
 Every pipeline step as one box in its colour, with the files it writes hung
 under it. The three inputs are above them: the raw recording, the Epsych2
 sessions (their search folders and how they are matched, or, with
@@ -1871,10 +2070,39 @@ printed page shows the whole diagram at 100%.
 **Open in Browser** writes the chart to a temp file and opens it in your
 default web browser, same as **Save as HTML...** but without the save dialog.
 
+<!-- wiki
+The synthetic project's config, every parameter, as **Save as HTML...** writes it:
+
+![Every parameter of the synthetic project's config](images/flow-full.png)
+-->
+
 ## Run
 
-- **Steps** checklist: the Enabled boxes of every step (mirrored with the
-  tabs), and the selection summary.
+The Run tab validates the config, shows what a run would do, runs it and
+reports the results, step by step.
+
+<!-- wiki: ![The Run tab after a run](images/app-run-results.png) -->
+
+### Steps and selection
+
+The **Steps (same switches as on each tab)** panel lists the steps in the
+order they run. Each box is the same switch as the **Enable** box on the
+step's own tab.
+
+| Step | Box | Does |
+| --- | --- | --- |
+| `probe` | *Probe check (always)* (a label: it always runs) | checks each dataset's probe against its channel count; with **Assign automatically**, first gives a dataset without one its probe rule's ([Probe](#probe)) |
+| `behavior` | *Behavior: match Epsych2 sessions* | matches the Epsych2 sessions, pairs the trials, writes `<Name>_behavior.mat` ([Behavior (Epsych2) sessions](#behavior-epsych2-sessions), [Trials](#trials)) |
+| `artifacts` | *Artifacts: automatic detection* | detects the artifact periods and caches them ([Artifacts](#in-a-run)) |
+| `sorting` | *Sorting: Kilosort4* | writes the `.bin` and runs Kilosort4 ([Sorting](#sorting)) |
+| `signals` | *Signals: LFP / MUA / SPIKE / AUX .mat* | the derived signals ([Signals](#signals)) |
+| `spikes` | *Spikes: detected / sorted .mat* | threshold spike detection ([Spikes](#spikes)) |
+| `export` | *Export: analysis-toolbox files* | the files for other tools ([Export](#export)) |
+
+The line under the panel's switches gives the selection:
+`Selection: 2 of 4 dataset(s) ticked.` (the rows ticked on the Project tab)
+or `Selection: all 4 dataset(s).` (none ticked).
+
 - **Kilosort4 runs at once** (under the Sorting box, default 1):
   `Sorting.MaxConcurrent`. With background execution, a run sorts this many
   datasets at a time and starts the next as one finishes. It writes each
@@ -1893,107 +2121,215 @@ default web browser, same as **Save as HTML...** but without the save dialog.
   GPU the fewest running runs use, so on a two-GPU machine with two runs at
   once each run has its own. Blocking runs use the first. Blank leaves the
   choice to Kilosort4, which takes the first GPU.
-- **Queue the waiting runs; the Run goes on** (a preference, off by default):
-  the sorting step writes each dataset's run files and hands the run to the
-  background monitor instead of waiting for a slot. Its result row says
-  `queued`. The Run goes straight on to its next step and ends without
-  waiting, which leaves the app free. The monitor starts each queued run, in
-  order, as a slot frees (with the working config's runs at once and GPUs),
-  and the row turns `launched`. While a Run that waits for its own slots is
-  under way, the queue waits until it ends. **Stop queue** (beside the
-  Kilosort4 label under the log) drops the queued runs that have not started
-  (their rows turn `cancelled`; their run files stay); the runs already going
-  carry on. Clean up refuses to delete files while runs are queued. Greyed out
+- **Queue the waiting runs; the Run goes on** (a preference, off by
+  default): see [Queued Kilosort4 runs](#queued-kilosort4-runs). Greyed out
   when Execution is blocking.
-- **Closing with background runs.** With runs queued, closing the app asks:
-  **Keep the queue for next time**, **Drop the queue** (running the Sorting
-  step again writes and starts them) or **Cancel**. A kept queue is stored
-  per project root (the `KeptSortingQueue` preference: each run's dataset key
-  and the prepared run `launchSorting` starts). Once that root is next
-  scanned, the app lists the kept runs: those that can go back in the queue,
-  and those that cannot, with why (the dataset is no longer in the project, a
-  run file such as the `.bin` is gone, or Kilosort4 is already queued or
-  going in its folder). **Queue them again** puts the first back in the queue,
-  where the monitor starts them as slots free; **Drop them** does not. When
-  none can go back, an alert says why instead. Either way the kept queue of
-  that root is then forgotten; the log names each run. Runs that are going
-  when the app closes carry on as processes, and the next launch follows them
-  again (the `KeptSortingRuns` preference): their log streams on, they take
-  slots, and one that ended meanwhile is logged as done or failed. A run that
-  has not ended but has no process left (the computer restarted under it,
-  `EphysDataset.sortRunProcesses`) is not followed; the log says so, and
-  sorting its dataset again finishes it.
-- **Stop runs...** (beside **Stop queue**, on while background runs are
-  going) stops runs that are going. With one run it asks for a confirmation;
-  with several it lists them (dataset, GPU, minutes running), all selected,
-  to pick from. Each chosen run's processes are ended
-  (`EphysDataset.stopSortRun`), the log says `[stopped]` and its row turns
-  `cancelled` ("stopped before it finished"). What Kilosort4 wrote so far
-  stays in the run folder. The freed slot goes to the next queued run, so
-  press **Stop queue** too to stop everything. Blocking runs cannot be
-  stopped: MATLAB waits for them.
 - **Parallel: chunks on the process pool** and **Max workers** (blank =
   automatic): `Parallel.Enabled` / `MaxWorkers`, used by the artifacts step,
-  the Artifacts tab's **Detect / Preview** and spike detection; see
+  the Artifacts tab's **Detect / Preview** and spike detection. The results
+  are the same with and without the pool, and the number of chunks in flight
+  is capped by free memory. Without the Parallel Computing Toolbox, or when
+  memory allows fewer than two workers, the steps run serially and warn; see
   [Parallel execution](EphysPipeline.md#parallel-execution).
-- **Validate config** fills the issues table (`cfg.validate()`); **Plan** fills
-  the results table with `pipe.plan()` (writes nothing). The last Run's results
-  are kept behind it: the monitor goes on restating its background runs there.
-- **Run**, **Dry run**, **Cancel**: `EphysPipeline.run` with progress bars
-  (overall and per step), the results table (`Step`, `Dataset`, `Status`,
-  `Message`, `Output`, `Seconds`) and a timestamped log. The results table
-  fills as the Run goes, one row per step and dataset: a row shows at the
-  pipeline's next progress event after it is recorded (the table is only
-  touched when a row was added), and a row the Kilosort4 monitor restates
-  during the Run shows at once. A plan with blocking
-  rows (`checkRun`: duplicate outputs, `error: ...`) stops the Run before it
-  starts, with an alert listing them. **Scan** and **Refresh metadata** are
-  off while it runs. Cancel takes effect at
-  the next progress boundary; outputs are written atomically, so a cancelled
-  dataset leaves no complete-looking file. A background Kilosort4 run's row
-  says `launched` (or `queued`) when the Run ends. The monitor turns it into
-  `done` or `error` when the run finishes, with the time it ran added to
-  `Seconds`.
-- **Show the run diagram** (under the Run buttons) splits the right side in
-  two, 3:1: the progress bars, issues, results and log keep the left three
-  quarters and a diagram of the run takes the right quarter. It draws every step in execution
-  order (Probe check, Behavior, Artifacts, Sorting, Signals, Spikes, Export),
-  in the Diagram tab's step colours, each with a line saying what it does
-  under the working config. The step underway is tinted, framed in its
-  colour with a pulsing ring, and shows `RUNNING`, its percentage, a moving
-  bar, the dataset (*Dataset 2 of 5: name*) and what it is doing; the diagram
-  scrolls to it as the run moves on. Every step of the run has a percentage:
-  how far it is through its datasets, (dataset − 1 + progress within the
-  dataset) / datasets. Finished steps show `done` at 100 % with their result
-  counts (done, in the background, dry run, skipped, to check, errors,
-  cancelled; a background Kilosort4 run moves from "in the background" to
-  done or errors when the monitor sees it end), red when any
-  row is an error; a cancel leaves its step at the percentage it reached and
-  the later steps `not run`; steps outside the run are dashed. The headline
-  says which step of how many is underway and for how long, or how the run
-  ended. Before the first run the diagram previews the ticked steps and
-  follows the checklist; afterwards it keeps the last run until the next one
-  starts. The switch is remembered between sessions.
-- **Monitor CPU, memory, disk and GPU** (under the run diagram switch) opens a
-  **Resource use** panel under the Steps panel with a bar and figures for each:
-  CPU (all cores, as Task Manager counts them), memory in use of the total,
-  the busiest physical disk's active time with the read + write rate over all
-  disks, and the busiest GPU's use and memory (tooltips give the detail, e.g.
-  every GPU). A bar turns orange at 90 %. The sampling is done outside MATLAB
-  by [`resource_monitor.ps1`](../pipeline/resource_monitor.ps1), a Windows
-  PowerShell script launched at idle priority that opens the performance
-  counters once, keeps one `nvidia-smi` running in loop mode for the GPU (no
-  NVIDIA driver: the GPU row says `n/a`), and every 2 s overwrites one small
-  JSON file in its own temporary folder; together they use well under 1 % of
-  one core. The app only reads that file on a 2 s timer, and not at all while
-  another tab is showing, so a busy MATLAB never stops the sampling itself.
-  Unticking, or closing the app, stops the sampler (it also stops by itself
-  when MATLAB exits) and it deletes its folder; if no sample comes for 15 s,
-  the app starts a new one. The switch is remembered between sessions.
-- Background Kilosort4 runs launched by a run are handed to the same monitor
-  as the Sorting tab as each one starts; the label under the log counts them
-  (finished of total, running, waiting to start: queued, or still in the
-  Run's sorting step).
+
+### Validate, plan, run
+
+| Button | Does |
+| --- | --- |
+| **Validate config** | checks the config (`cfg.validate()`) and fills **Issues (Validate)**, one row per problem: **Step**, **Field**, **Severity**, **Message**. Errors stop a run; warnings do not. The project, source, parallel, probe and reference settings are always checked, a step's own only while it is enabled |
+| **Plan (writes nothing)** | fills the results table with `pipe.plan()`: what each step would do for each selected dataset ([The plan](#the-plan)) |
+| **Run pipeline** | validates, plans, then runs every enabled step in order over the selected datasets (`EphysPipeline.run`) |
+| **Dry run** | the same, writing nothing: each step reports what it would do in `dry run` rows. Sorting writes only its `settings.json` and `run_ks4.py`, into `kilosort4\dryrun` |
+| **Cancel** | stops the run at the next progress point ([Progress and results](#progress-and-results)) |
+| **Show the run diagram** | a diagram of the run beside the progress bars ([The run diagram](#the-run-diagram)) |
+| **Monitor CPU, memory, disk and GPU** | the computer's load under the Steps panel ([Resource use](#resource-use)) |
+
+The **Run** menu has the same commands, and **Run pipeline** is Ctrl+R. Each
+step tab's **Run this step** runs just that step over the selected datasets,
+even when it is switched off, here on the Run tab.
+
+A config with validation errors, or a plan with blocking rows (`checkRun`:
+duplicate outputs, `error: ...`), stops the Run before it starts, with an
+alert. **Scan** and **Refresh metadata** are off while it runs.
+
+### The plan
+
+**Plan** puts one row per step and dataset in the results table (one per
+file for Signals, one per format for Export, as `export:chronux`): **Step**,
+**Dataset**, **Key**, **Output** (the file or folder the step writes),
+**Status** and **Note**. The status bar sums it up:
+`Plan: N row(s), K blocking.`
+
+| Status | Meaning |
+| --- | --- |
+| `ready` | will run; the note may say more, such as `cache present (reused when the settings match)` |
+| `ok`, `associated` | nothing to do: the probe fits; the Epsych2 session is already associated |
+| `exists: skip`, `exists: overwrite` | the output exists; the step's **Overwrite** decides |
+| `exists: skip (SkipExisting)`, `exists: will re-sort` | sorted output exists; **Skip datasets already sorted** decides |
+| `skip: Kilosort4 queued`, `skip: Kilosort4 running` | a Kilosort4 run of the dataset waits in the queue or is going |
+| `no recording files` | the folder holds no readable recording |
+| `no probe`, `probe file missing`, `probe-channel mismatch` | the probe check (a mismatch: the probe has more sites than the recording has channels) |
+| `behavior file missing`, `no session` | the associated session file is not there; none is associated and **Search** is off |
+| `no extract file` | Export needs the Signals files, which are not there, and Signals is not part of this run |
+| `duplicate output` | another dataset of the project writes the same file |
+| `error: ...` | the dataset cannot run: a setting that cannot apply to it (`error: LFP_Fs above the recording rate`), an output folder shared with another dataset, its sorted-output folder missing, a name that gives no unit identity, unit labels that would clash with another recording's |
+
+Rows whose status starts with `duplicate` or `error` block the run. The full
+list is in [Plan](EphysPipeline.md#plan).
+
+<!-- wiki: ![The Run tab after Validate and Plan, with the run diagram and the resource monitor shown](images/app-run-plan.png) -->
+
+### Progress and results
+
+During a run:
+
+- **Overall** shows how far the step underway is through its datasets
+  (`spikes 2/3`: dataset 2 of 3), and **Current** how far it is on the
+  dataset in hand. The line under them names the step, the dataset and what
+  is being done. The artifact detection a Sorting, Signals or Spikes step
+  needs reports as that step, and the export formats as one `export` step.
+- The **Log** gets one timestamped line per event.
+- The results table fills as the Run goes, one row per step and dataset:
+  **Step**, **Dataset**, **Status**, **Message**, **Output**, **Seconds**. A
+  row shows at the pipeline's next progress event after it is recorded (the
+  table is only touched when a row was added), and a row the Kilosort4
+  monitor restates during the Run shows at once. Signals gives a row per
+  file, Export one per format, and Behavior up to three: `behavior` (the
+  match), `behavior:pairing` and `behavior:file`. The last Run's results stay
+  in the table: the monitor goes on restating its background runs there.
+
+| Status | Meaning |
+| --- | --- |
+| `done` | written |
+| `skipped` | nothing to do: the output exists and **Overwrite** is off, the dataset has no recording files, or (sorting) it has no probe, a Kilosort4 run of it is queued or going, or it is already sorted with **Skip datasets already sorted** |
+| `dry run` | what a dry run would have written |
+| `launched` | a background Kilosort4 run started. The monitor turns the row into `done` or `error` when the run ends, adding the time it ran to **Seconds** |
+| `queued` | a background Kilosort4 run handed to the monitor ([below](#queued-kilosort4-runs)); it turns `launched`, then `done` or `error` |
+| `error` | failed on this dataset; the message says why. The run goes on with the next dataset |
+| `cancelled` | stopped by **Cancel**; for sorting also a run stopped with **Stop runs...** or dropped from the queue by **Stop queue** |
+
+The probe and behavior rows carry their own statuses: `ok`, `no probe`,
+`probe file missing`, `probe-channel mismatch` (probe); `associated`,
+`matched (prefix)`, `matched (time)`, `ambiguous`, `unmatched` (behavior);
+`approved`, `auto-approved`, `needs review`, `count mismatch`, `no trial line`
+(behavior:pairing; `auto-approved`: approved just now by
+[auto approval](#auto-approval)).
+
+**Cancel** takes effect at the next progress boundary. The dataset in hand
+is marked `cancelled`, and nothing is written for it: every output is
+written to a temporary file and renamed only when complete. The rest of that
+step's datasets are marked `cancelled` (`not run`), and the later steps do not
+run. Cancelling does not stop the background Kilosort4 runs already
+launched; while the sorting step waits for a free slot, it stops the wait.
+
+**Background Kilosort4 runs** launched by a Run are handed to the same
+monitor as the Sorting tab's
+([Watching background runs](#watching-background-runs)) as each one starts.
+The label under the log counts them, as in
+`Background Kilosort4: 1 of 3 finished (1 running, 1 waiting to start).`,
+where waiting to start means queued, or still in the Run's sorting step.
+
+### Queued Kilosort4 runs
+
+With **Queue the waiting runs; the Run goes on** ticked, the sorting step
+does not wait for a free slot. It writes each dataset's run files and hands
+the run to the background monitor; its result row says `queued`. The Run
+goes straight on to its next step and ends without waiting, which leaves the
+app free. The monitor starts each queued run, in order, as a slot frees
+(with the working config's runs at once and GPUs, so raising **Kilosort4
+runs at once** drains the queue faster), and the row turns `launched`.
+While a Run that waits for its own slots is under way, the queue waits until
+it ends. **Stop queue** (beside the Kilosort4 label under the log) drops the
+queued runs that have not started (their rows turn `cancelled`; their run
+files stay); the runs already going carry on. Clean up refuses to delete
+files while runs are queued.
+
+**Closing with background runs.** With runs queued, closing the app asks:
+**Keep the queue for next time**, **Drop the queue** (running the Sorting
+step again writes and starts them) or **Cancel**. A kept queue is stored
+per project root (the `KeptSortingQueue` preference: each run's dataset key
+and the prepared run `launchSorting` starts). Once that root is next
+scanned, the app lists the kept runs: those that can go back in the queue,
+and those that cannot, with why (the dataset is no longer in the project, a
+run file such as the `.bin` is gone, or Kilosort4 is already queued or
+going in its folder). **Queue them again** puts the first back in the queue,
+where the monitor starts them as slots free; **Drop them** does not. When
+none can go back, an alert says why instead. Either way the kept queue of
+that root is then forgotten; the log names each run. Runs that are going
+when the app closes carry on as processes, and the next launch follows them
+again (the `KeptSortingRuns` preference): their log streams on, they take
+slots, and one that ended meanwhile is logged as done or failed. A run that
+has not ended but has no process left (the computer restarted under it,
+`EphysDataset.sortRunProcesses`) is not followed; the log says so, and
+sorting its dataset again finishes it.
+
+### Stopping a run
+
+**Stop runs...** (beside **Stop queue**, on while background runs are
+going) stops runs that are going. With one run it asks for a confirmation;
+with several it lists them (dataset, GPU, minutes running), all selected,
+to pick from. Each chosen run's processes are ended
+(`EphysDataset.stopSortRun`: Python, conda and the launcher, found by the run
+folder in their command line), its `ks4_status.json` says `cancelled`
+(`stopped by the user`), the log says `[stopped]` and its row turns
+`cancelled` ("stopped before it finished"). What Kilosort4 wrote so far
+stays in the run folder. The freed slot goes to the next queued run, so
+press **Stop queue** too to stop everything. Blocking runs cannot be
+stopped: MATLAB waits for them.
+
+### The run diagram
+
+**Show the run diagram** (under the Run buttons) splits the right side in
+two, 3:1: the progress bars, issues, results and log keep the left three
+quarters and a diagram of the run takes the right quarter. It draws every
+step in execution order (Probe check, Behavior, Artifacts, Sorting, Signals,
+Spikes, Export), in the Diagram tab's step colours, each with a line saying
+what it does under the working config.
+
+- The step underway is tinted, framed in its colour with a pulsing ring, and
+  shows `RUNNING`, its percentage, a moving bar, the dataset (*Dataset 2 of
+  5: name*) and what it is doing; the diagram scrolls to it as the run moves
+  on.
+- Every step of the run has a percentage: how far it is through its
+  datasets, (dataset − 1 + progress within the dataset) / datasets. Finished
+  steps show `done` at 100 % with their result counts (done, in the
+  background, dry run, skipped, to check, errors, cancelled; a background
+  Kilosort4 run moves from "in the background" to done or errors when the
+  monitor sees it end), red when any row is an error.
+- A cancel leaves its step at the percentage it reached and the later steps
+  `not run`. Steps outside the run are dashed.
+- The headline says which step of how many is underway and for how long, or
+  how the run ended.
+
+Before the first run the diagram previews the ticked steps and follows the
+checklist; afterwards it keeps the last run until the next one starts. The
+switch is remembered between sessions.
+
+### Resource use
+
+**Monitor CPU, memory, disk and GPU** (under the run diagram switch) opens a
+**Resource use** panel under the Steps panel with a bar and figures for each:
+
+| Row | Shows |
+| --- | --- |
+| CPU | all cores, as Task Manager counts them |
+| Memory | memory in use, of the total |
+| Disk | the busiest physical disk's active time, with the read + write rate over all disks |
+| GPU | the busiest GPU's use and memory; `n/a` without an NVIDIA driver |
+
+Tooltips give the detail (every GPU, say). A bar turns orange at 90 %. It
+shows what limits a run: with a disk at 100 %, more workers will not help.
+The sampling is done outside MATLAB by
+[`resource_monitor.ps1`](../pipeline/resource_monitor.ps1), a Windows
+PowerShell script launched at idle priority that opens the performance
+counters once, keeps one `nvidia-smi` running in loop mode for the GPU, and
+every 2 s overwrites one small JSON file in its own temporary folder;
+together they use well under 1 % of one core. The app only reads that file
+on a 2 s timer, and not at all while another tab is showing, so a busy
+MATLAB never stops the sampling itself. Unticking, or closing the app, stops
+the sampler (it also stops by itself when MATLAB exits) and it deletes its
+folder; if no sample comes for 15 s, the app starts a new one. The switch is
+remembered between sessions.
 
 ## Visualize
 

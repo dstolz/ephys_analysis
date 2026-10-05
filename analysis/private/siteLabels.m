@@ -1,7 +1,7 @@
 function labels = siteLabels(labels, meta, style)
 %siteLabels  Unit or channel labels with their shank and / or depth appended.
 %   LABELS = siteLabels(LABELS, META, STYLE) turns "u12" into "u12 (sh2,
-%   640 µm)": the shank when STYLE.LabelShank, the probe y (µm) when
+%   640 µm)": the shank when STYLE.LabelShank, the probe y (whole µm) when
 %   STYLE.LabelDepth. LABELS and META rows correspond. Labels are returned
 %   unchanged for a part META lacks (no shank / y column, or a NaN y).
 labels = string(labels(:));
@@ -14,7 +14,7 @@ if style.LabelShank && ismember("shank", vars)
 end
 if style.LabelDepth && ismember("y", vars)
     y = double(meta.y(:));
-    p = compose("%g µm", y);
+    p = compose("%g µm", round(y));   % a sorted unit's y is a centroid: whole µm are enough
     p(~isfinite(y)) = "";
     parts = [parts p];
 end

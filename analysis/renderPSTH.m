@@ -10,7 +10,11 @@ function h = renderPSTH(R, target, opts)
 %                 "overlay": one panel with the mean over units (+/- SEM
 %                 across units); a single unit is shown as itself
 %     WithRaster  a raster above each rate panel (default true; grid, or
-%                 overlay of one unit)
+%                 overlay of one unit), flush on the same time axis: the
+%                 two are a 2 x 1 tiled layout in the unit's tile
+%     SortBy      the raster's epoch order within a group: "" (default)
+%                 time order, "stop" stop event latency, or a column of
+%                 R.epochs (see renderRaster)
 %     HistStyle   "bar" (default): one bar per bin; "line": a trace through
 %                 the bin centres. SEM is a band behind either
 %     Fill        true (default): the bars, or the area under the line,
@@ -33,6 +37,12 @@ function h = renderPSTH(R, target, opts)
 %                 PSTH (default 1.1; below 1 the rows overlap, the lower in
 %                 front)
 %     Page        page of units in grid layout (MaxTiles per page)
+%     Waveform    EphysAnalysisConfig.defaults("Waveform") fields: grid
+%                 layout, each unit's waveform from R.waveforms
+%                 (unitWaveforms) as a box in its rate panel -- its mean,
+%                 a subsample of its spikes, or both -- at a compass point
+%                 (location), with or without the box's outline (box), sized
+%                 by scale (default mode "off": none)
 %     Style       EphysAnalysisConfig.defaults("Style") fields (LineWidth,
 %                 ShowSEM, ShowStop, ShowZeroLine, Colormap, FontSize, XLim,
 %                 YLim, Grid, Legend, MaxTiles, SortShank, SortDepth,
@@ -41,6 +51,14 @@ function h = renderPSTH(R, target, opts)
 %                 depth); YLim is for the rate
 %                 panels (the rasters show every epoch), and a stack
 %                 ignores YLim and Legend (its rows are labelled)
+%
+%   An auROC result (spikePSTH BaselineMode "auroc") is drawn from 0.5, a
+%   dotted line, on a 0-1 axis unless Style.YLim says otherwise; Normalize
+%   does not apply. With a cutoff and R.auroc.settings.marks, the
+%   modulation window is shaded and each unit's call sits at the right of
+%   its title, one per group in the group's colour: an up arrow, a down
+%   arrow or n.s. (overlay: each group's count of units called up and
+%   down).
 %
 %   H: layout (tiled layout or []), axes (rate panels), rasterAxes, step
 %   (each rate panel's row step in its y units; NaN when not stacked). A
@@ -54,6 +72,7 @@ arguments
     target
     opts.Layout (1,1) string {mustBeMember(opts.Layout, ["grid" "overlay"])} = "grid"
     opts.WithRaster (1,1) logical = true
+    opts.SortBy (1,1) string = ""
     opts.HistStyle (1,1) string {mustBeMember(opts.HistStyle, ["bar" "line"])} = "bar"
     opts.Fill (1,1) logical = true
     opts.FillAlpha (1,1) double = NaN
@@ -61,14 +80,21 @@ arguments
     opts.Stack (1,1) logical = false
     opts.Spacing (1,1) double {mustBePositive, mustBeFinite} = 1.1
     opts.Page (1,1) double {mustBePositive, mustBeInteger} = 1
+    opts.Waveform = struct()
     opts.Style = struct()
 end
 
 style = EphysAnalysisConfig.normalizeSection("Style", opts.Style);
+wave = EphysAnalysisConfig.normalizeSection("Waveform", opts.Waveform);
+waves = [];
+if isfield(R, 'waveforms') && opts.Layout == "grid"; waves = R.waveforms; end
 colors = groupPalette(R.groups, style);
 nU = size(R.rate, 2);
 nG = size(R.rate, 3);
-[rate, sem, yUnits] = normalizeRates(R, opts.Normalize);
+auroc = isAuroc(R);
+norm = opts.Normalize;
+if auroc; norm = "none"; end   % an auROC is on its own 0-1 scale
+[rate, sem, yUnits] = normalizeRates(R, norm);
 look = struct('hist', opts.HistStyle, 'fill', opts.Fill, 'alpha', opts.FillAlpha, ...
     'stack', opts.Stack && nG > 1, 'spacing', opts.Spacing);
 if ~isfinite(look.alpha)
@@ -85,10 +111,11 @@ if opts.Layout == "overlay" && nU > 1
     P.s = reshape(semOf(rate, 2), [], nG);
     P.peak = max(P.m, [], 1).';
     P.peakLabel = "Peak (" + R.units + ")";
-    if opts.Normalize ~= "none"; P.peakLabel = "Peak (normalized)"; end
+    if norm ~= "none"; P.peakLabel = "Peak (normalized)"; end
     P.yUnits = yUnits;
     h.step = drawPanel(ax, P, R, colors, style, look, struct('legend', true, 'left', true, 'right', true));
     title(ax, sprintf('Mean of %d units', nU), 'FontWeight', 'normal');
+    if auroc; callMarks(ax, R, 0, colors, style); end
     xlabel(ax, 'Time (s)');
     h.layout = tl; h.axes = ax;
     return
@@ -100,8 +127,7 @@ else
     [idx, nr, nc] = pageItems(nU, opts.Page, style.MaxTiles);
 end
 withRaster = opts.WithRaster && isfield(R, 'raster') && ~isempty(R.raster);
-rowsPer = 1 + withRaster;
-[tl, ax0] = renderLayout(target, nr * rowsPer, nc, style);
+[tl, ax0] = renderLayout(target, nr, nc, style);
 if ~isempty(ax0)
     idx = idx(1:min(1, end));
     withRaster = false;
@@ -116,17 +142,24 @@ for j = 1:numel(idx)
     r = ceil(j / nc); c = j - (r - 1) * nc;
     if ~isempty(ax0)
         ax = ax0;
+    elseif withRaster
+        % The raster and its rate panel share a tile, flush on one time axis;
+        % the grid's spacing falls between the units.
+        pair = tiledlayout(tl, 2, 1, 'TileSpacing', 'none', 'Padding', 'tight');
+        pair.Layout.Tile = j;
+        ra = nexttile(pair, 1);
+        rasterInto(ra, R, u, style, colors, opts.SortBy);
+        tagPart(ra, "rasterAxes", "", names(u));
+        if look.stack; set(ra, 'YDir', 'normal'); end
+        ra.XTickLabel = [];
+        if c > 1; ra.YLabel.String = ''; end   % "Epoch" on the left column only, as the rates' label
+        title(ra, names(u), 'FontWeight', 'normal', 'Interpreter', 'none');
+        rax(end+1) = ra; %#ok<AGROW>
+        ax = nexttile(pair, 2);
     else
-        if withRaster
-            ra = nexttile(tl, ((r - 1) * rowsPer) * nc + c);
-            rasterInto(ra, R, u, style, colors);
-            if look.stack; set(ra, 'YDir', 'normal'); end
-            ra.XTickLabel = [];
-            title(ra, names(u), 'FontWeight', 'normal', 'Interpreter', 'none');
-            rax(end+1) = ra; %#ok<AGROW>
-        end
-        ax = nexttile(tl, ((r - 1) * rowsPer + withRaster) * nc + c);
+        ax = nexttile(tl, j);
     end
+    tagPart(ax, "axes", "", names(u));
     P.m = reshape(rate(:, u, :), [], nG);
     P.s = reshape(sem(:, u, :), [], nG);
     P.peak = reshape(max(R.rate(:, u, :), [], 1), [], 1);
@@ -134,15 +167,40 @@ for j = 1:numel(idx)
     P.yUnits = yUnits;
     step(j) = drawPanel(ax, P, R, colors, style, look, ...
         struct('legend', j == 1, 'left', c == 1, 'right', c == nc || j == numel(idx)));
+    waveformInset(ax, waves, u, wave, style);
     if ~withRaster
         title(ax, names(u), 'FontWeight', 'normal', 'Interpreter', 'none');
+    end
+    if auroc
+        top = ax;
+        if withRaster; top = rax(end); end
+        callMarks(top, R, u, colors, style);
     end
     if r == nr || ~isempty(ax0); xlabel(ax, 'Time (s)'); end
     axs(j) = ax;
 end
 cornerLabels(axs, nr, nc, style);
 cornerLabels(rax, nr, nc, style);
+if nr * nc > 1; tileTicks([rax axs], style); end
+clearRasterEdge(rax);
 h.layout = tl; h.axes = axs; h.rasterAxes = rax; h.step = step;
+end
+
+
+function clearRasterEdge(rax)
+%clearRasterEdge  Drop the y ticks in the bottom tenth of each raster.
+%   A raster sits right on its rate panel, so a label there would run into
+%   the rate panel's top one. The bottom is the last epoch (YDir reverse),
+%   or the first under a stack.
+for ra = reshape(rax, 1, [])
+    r = ra.YAxis(1);
+    lim = double(r.Limits);
+    tk = r.TickValues;
+    up = tk - lim(1);
+    if strcmp(ra.YDir, 'reverse'); up = lim(2) - tk; end
+    keep = up >= 0.1 * diff(lim);
+    if ~all(keep); r.TickValues = tk(keep); end
+end
 end
 
 
@@ -169,6 +227,41 @@ sem = sem ./ p;
 end
 
 
+function callMarks(ax, R, u, colors, style)
+%callMarks  Unit U's auROC call in each group, at the top right of AX (the title's line), in the group's colour.
+%   An up arrow (modulated upwards), a down arrow or n.s.; U = 0 (the
+%   overlay's mean) gives each group's count of units called up and down.
+A = R.auroc;
+if A.cutoff == "none" || (isfield(A, 'settings') && ~A.settings.marks); return; end
+nG = size(A.direction, 2);
+parts = strings(1, nG);
+for g = 1:nG
+    c = string(sprintf('\\color[rgb]{%.3f,%.3f,%.3f}', colors(g, :)));
+    if u == 0
+        parts(g) = c + sprintf('\\uparrow%d \\downarrow%d', sum(A.direction(:, g) == "increase"), sum(A.direction(:, g) == "decrease"));
+        continue
+    end
+    switch A.direction(u, g)
+        case "increase", parts(g) = c + "\uparrow";
+        case "decrease", parts(g) = c + "\downarrow";
+        case "none",     parts(g) = c + "n.s.";
+        otherwise,       parts(g) = c + "-";
+    end
+end
+tagPart(text(ax, 1, 1, strjoin(parts, "  "), 'Units', 'normalized', 'HorizontalAlignment', 'right', ...
+    'VerticalAlignment', 'bottom', 'Interpreter', 'tex', 'FontSize', style.FontSize, 'Clipping', 'off'), "modMarks");
+end
+
+
+function modulationWindow(ax, R)
+%modulationWindow  Shade the auROC modulation window: the windows that decide each unit's call.
+A = R.auroc;
+if A.cutoff == "none" || (isfield(A, 'settings') && ~A.settings.marks); return; end
+m = A.modulationWindow;
+tagPart(xregion(ax, m(1), m(2), 'FaceColor', [0.5 0.5 0.5], 'FaceAlpha', 0.12, 'HandleVisibility', 'off'), "modWindow");
+end
+
+
 function step = drawPanel(ax, P, R, colors, style, look, show)
 %drawPanel  One rate panel: the groups overlaid, or stacked in rows.
 %   P: m / s [nBins x nGroups] (what is drawn), peak [nGroups x 1] and
@@ -180,29 +273,38 @@ if look.stack
 end
 step = NaN;
 nG = size(P.m, 2);
+ref = 0;
+if isAuroc(R); ref = 0.5; end   % auROC: bars from chance, 0.5
 hold(ax, 'on');
+if ref ~= 0
+    modulationWindow(ax, R);
+end
 if style.ShowSEM
     for g = 1:nG
-        semBand(ax, R.t, P.m(:, g), P.s(:, g), colors(g, :));
+        semBand(ax, R.t, P.m(:, g), P.s(:, g), colors(g, :), R.groups.label(g));
     end
 end
 lh = gobjects(1, nG);
 for g = 1:nG
-    lh(g) = histTrace(ax, R.t, R.edges, P.m(:, g), 0, colors(g, :), look, style.LineWidth);
+    lh(g) = histTrace(ax, R.t, R.edges, P.m(:, g) - ref, ref, colors(g, :), look, style.LineWidth, R.groups.label(g));
 end
 if style.ShowZeroLine
-    xline(ax, 0, ':', 'Color', [0.3 0.3 0.3], 'HandleVisibility', 'off');
+    tagPart(xline(ax, 0, ':', 'Color', [0.3 0.3 0.3], 'HandleVisibility', 'off'), "zeroLine");
+end
+if ref ~= 0
+    tagPart(yline(ax, ref, ':', 'Color', [0.3 0.3 0.3], 'HandleVisibility', 'off'), "chanceLine");
 end
 if style.ShowStop && isfield(R, 'stopMean')
     for g = 1:nG
         if isfinite(R.stopMean(g))
-            xline(ax, R.stopMean(g), '--', 'Color', colors(g, :), 'HandleVisibility', 'off');
+            tagPart(xline(ax, R.stopMean(g), '--', 'Color', colors(g, :), 'HandleVisibility', 'off'), "stopLine", R.groups.label(g));
         end
     end
 end
 hold(ax, 'off');
 xlim(ax, R.edges([1 end]));
 styleAxes(ax, style);
+if ref ~= 0 && isempty(style.YLim); ylim(ax, [0 1]); end
 if show.left; ylabel(ax, P.yUnits); end
 if show.legend && style.Legend && nG > 1
     legend(ax, lh, R.groups.label, 'Location', 'best', 'Box', 'off', 'Interpreter', 'none', 'FontSize', max(6, style.FontSize - 1));
@@ -230,24 +332,24 @@ lo = 0;
 hi = base(end) + tallest;
 for g = nG:-1:1
     b = base(g);
-    line(ax, W, [b b], 'Color', [0.72 0.72 0.72], 'LineWidth', 0.5, 'HandleVisibility', 'off');
+    tagPart(line(ax, W, [b b], 'Color', [0.72 0.72 0.72], 'LineWidth', 0.5, 'HandleVisibility', 'off'), "stackBase", R.groups.label(g));
     m = P.m(:, g);
     s = zeros(size(m));
     if style.ShowSEM
-        semBand(ax, R.t, m + b, P.s(:, g), colors(g, :));
+        semBand(ax, R.t, m + b, P.s(:, g), colors(g, :), R.groups.label(g));
         s = P.s(:, g);
         s(~isfinite(s)) = 0;
     end
-    histTrace(ax, R.t, R.edges, m, b, colors(g, :), look, style.LineWidth);
+    histTrace(ax, R.t, R.edges, m, b, colors(g, :), look, style.LineWidth, R.groups.label(g));
     if style.ShowStop && isfield(R, 'stopMean') && isfinite(R.stopMean(g))
-        line(ax, R.stopMean([g g]), b + [0 0.9 * min(step, tallest)], 'LineStyle', '--', 'Color', colors(g, :), ...
-            'HandleVisibility', 'off');
+        tagPart(line(ax, R.stopMean([g g]), b + [0 0.9 * min(step, tallest)], 'LineStyle', '--', 'Color', colors(g, :), ...
+            'HandleVisibility', 'off'), "stopLine", R.groups.label(g));
     end
     lo = min([lo; b + m - s]);
     hi = max([hi; b + m + s]);
 end
 if style.ShowZeroLine
-    xline(ax, 0, ':', 'Color', [0.3 0.3 0.3], 'HandleVisibility', 'off');
+    tagPart(xline(ax, 0, ':', 'Color', [0.3 0.3 0.3], 'HandleVisibility', 'off'), "zeroLine");
 end
 hold(ax, 'off');
 pad = 0.03 * (hi - lo);
@@ -274,8 +376,10 @@ set(ax.YAxis, 'Color', ax.XAxis.Color);
 end
 
 
-function hMain = histTrace(ax, t, e, m, base, color, look, lw)
+function hMain = histTrace(ax, t, e, m, base, color, look, lw, group)
 %histTrace  One PSTH from BASE up: bars or a line, filled or not.
+%   The fill patches are tagged "rateFill", the line or outline "rate",
+%   both with GROUP (tagPart).
 %   Filled: one patch per run of finite bins (FaceAlpha look.alpha), bars
 %   as a staircase, a line with the area down to BASE under it. Unfilled
 %   bars are the staircase outline, dropping to BASE at each run's ends.
@@ -298,18 +402,18 @@ for k = 1:numel(starts)
         y = [0; m(r); 0] + base;
     end
     if look.fill
-        p = patch(ax, x, y, color, 'FaceAlpha', look.alpha, 'EdgeColor', 'none');
+        p = tagPart(patch(ax, x, y, color, 'FaceAlpha', look.alpha, 'EdgeColor', 'none'), "rateFill", group);
         if isempty(hMain) && look.hist == "bar"; hMain = p; else; p.HandleVisibility = 'off'; end
     end
     ox = [ox; x; NaN]; oy = [oy; y; NaN]; %#ok<AGROW>
 end
 if look.hist == "line"
-    hMain = plot(ax, t, m + base, 'Color', color, 'LineWidth', lw);
+    hMain = tagPart(plot(ax, t, m + base, 'Color', color, 'LineWidth', lw), "rate", group);
 elseif ~look.fill && ~isempty(ox)
-    hMain = line(ax, ox, oy, 'Color', color, 'LineWidth', lw);
+    hMain = tagPart(line(ax, ox, oy, 'Color', color, 'LineWidth', lw), "rate", group);
 end
 if isempty(hMain)
-    hMain = line(ax, NaN, NaN, 'Color', color, 'LineWidth', lw);
+    hMain = tagPart(line(ax, NaN, NaN, 'Color', color, 'LineWidth', lw), "rate", group);
 end
 end
 

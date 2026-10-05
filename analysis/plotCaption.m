@@ -11,8 +11,13 @@ function txt = plotCaption(spec, R)
 %   are counted ("3 epoch(s) touching an artifact period left out"). A
 %   spikePSTH result whose whole bins (counted from
 %   the event, R.window) span less than the window says so: "window
-%   [-0.2 0.8] s (whole bins: [-0.18 0.78] s)". The reports print it under
-%   each figure.
+%   [-0.2 0.8] s (whole bins: [-0.18 0.78] s)". An auROC result (spikePSTH
+%   BaselineMode "auroc") says how the auROC was made and, with a cutoff,
+%   how many units each group's call finds modulated up and down. A plot
+%   with unit waveforms (R.waveforms) says what its boxes show ("each
+%   unit's mean waveform and up to 100 of its spikes on its peak channel")
+%   and how many units fell back to their template. The reports print it
+%   under each figure.
 %
 %   See also renderPlot, writeHtmlReport, writePdfReport.
 
@@ -44,7 +49,9 @@ if isfield(U, 'ref')
     else
         parts(end+1) = sprintf("window [%g %g] s", w.pre, w.post);
         if R.kind == "psth" && isfield(R, 'window') && numel(R.window) == 2 && max(abs(R.window(:).' - [w.pre w.post])) > 1e-9
-            parts(end) = parts(end) + sprintf(" (whole bins: [%g %g] s)", R.window(1), R.window(2));   % bins count from the event
+            what = "whole bins";
+            if isfield(R, 'auroc') && isstruct(R.auroc) && ~isempty(R.auroc); what = "auROC windows"; end
+            parts(end) = parts(end) + sprintf(" (%s: [%g %g] s)", what, R.window(1), R.window(2));   % bins count from the event
         end
         if ~isempty(w.stop); parts(end+1) = "stop at " + w.stop.line + " " + w.stop.edge; end
     end
@@ -56,15 +63,18 @@ if spec.kind == "corrmap"
 end
 if isfield(R, 'params')
     P = R.params;
+    auroc = isfield(R, 'auroc') && isstruct(R.auroc) && ~isempty(R.auroc);
     if isfield(P, 'BinSec') && ~(isfield(P, 'Metric') && P.Metric == "mean")
         b = sprintf("bins %g ms", 1000 * P.BinSec);
-        if P.SmoothSec > 0; b = b + sprintf(", smooth %g ms", 1000 * P.SmoothSec); end
+        if P.SmoothSec > 0 && ~auroc; b = b + sprintf(", smooth %g ms", 1000 * P.SmoothSec); end
         parts(end+1) = b;
     end
     mode = "";
     if isfield(P, 'BaselineMode'); mode = P.BaselineMode; end
     if isfield(P, 'Normalize'); mode = P.Normalize; end
-    if mode ~= "" && mode ~= "none" && isfield(P, 'Baseline') && numel(P.Baseline) == 2
+    if auroc
+        parts = [parts aurocText(R)];
+    elseif mode ~= "" && mode ~= "none" && isfield(P, 'Baseline') && numel(P.Baseline) == 2
         parts(end+1) = sprintf("baseline %s over [%g %g] s", mode, P.Baseline(1), P.Baseline(2));
     end
 end
@@ -104,8 +114,71 @@ if spec.kind == "psth"
         parts(end+1) = "groups stacked, first at the bottom";
     end
 end
+if ismember(spec.kind, ["psth" "raster"]) && isfield(R, 'raster') && ~isempty(R.raster) && spec.rasterSort ~= ""
+    if spec.rasterSort == "stop"
+        parts(end+1) = "raster epochs sorted by stop latency within each group";
+    else
+        parts(end+1) = "raster epochs sorted by " + spec.rasterSort + " within each group";
+    end
+end
+if isfield(R, 'waveforms') && spec.waveform.mode ~= "off"
+    parts(end+1) = waveText(spec, R.waveforms);
+end
 parts(end+1) = sourceText(spec, R);
 txt = strjoin(parts, "; ") + ".";
+end
+
+
+function s = waveText(spec, W)
+%waveText  What each unit's waveform box shows, and where it fell back.
+n = W.maxSpikes;
+over = "";
+if spec.source == "units"; over = sprintf(" (of up to %d spikes)", n); end
+switch spec.waveform.mode
+    case "mean",      s = "each unit's mean waveform" + over;
+    case "subsample", s = sprintf("up to %d of each unit's spikes", n);
+    otherwise,        s = sprintf("each unit's mean waveform and up to %d of its spikes", n);
+end
+s = s + " on its peak channel";
+nT = nnz(W.from == "template");
+nN = nnz(W.from == "none");
+if nT > 0; s = s + sprintf(", %d by their template (the sorted .bin is not there)", nT); end
+if nN > 0; s = s + sprintf(", none for %d", nN); end
+end
+
+
+function parts = aurocText(R)
+%aurocText  How an auROC result was made and what its call found, e.g.
+%   "auROC against the baseline [-0.5 0] s, from the PSTH's bins in 100 ms
+%   windows, tiled"; "units called over [0 0.5] s by the 95% CI cutoff
+%   (+/-0.043): Hit 5 up, 2 down; FA 3 up, 0 down (of 12 units)".
+A = R.auroc;
+a = A.settings;
+from = "the PSTH's bins";
+if A.method == "epochs"; from = "each epoch's spike count"; end
+how = "tiled";
+if A.windows == "sliding"; how = sprintf("sliding every %g ms", 1000 * a.stepSec); end
+parts = sprintf("auROC against the baseline [%g %g] s, from %s in %g ms windows, %s", ...
+    A.baseline(1), A.baseline(2), from, 1000 * a.windowSec, how);
+switch A.cutoff
+    case "none"
+        return
+    case "ci"
+        by = sprintf("the 95%% CI cutoff (+/-%.3g)", A.cutoffValue);
+    case "fixed"
+        by = sprintf("a fixed cutoff (+/-%g)", a.threshold);
+    case "test"
+        corr = upper(a.correction);
+        if a.correction == "none"; corr = "unadjusted"; end
+        by = sprintf("%s p (%s) <= %g", a.test, corr, a.alpha);
+end
+labels = R.groups.label;
+counts = compose("%d up, %d down", A.nIncrease(:), A.nDecrease(:));
+if numel(labels) > 1; counts = string(labels(:)) + " " + counts; end
+txt = sprintf("units called over [%g %g] s by %s: %s (of %d units)", A.modulationWindow(1), A.modulationWindow(2), ...
+    by, strjoin(counts, "; "), A.nUnits);
+if a.modulatedOnly; txt = txt + ", only the modulated drawn"; end
+parts(end+1) = txt;
 end
 
 

@@ -50,6 +50,8 @@ E.measure.Value = char(p.measure);
 offerItems(E.baselineMode, ch.BaselineModes, p.baseline.Mode);
 E.baseFrom.Value = p.baseline.Window(1);
 E.baseTo.Value = p.baseline.Window(2);
+aurocTo(E, "a", p.auroc);
+aurocTo(E, "ra", rs.auroc);
 E.withRaster.Value = p.withRaster;
 offerItems(E.histStyle, ["bar" "line"], p.histStyle);
 E.normalize.Value = char(pickFrom(p.normalize, string(E.normalize.ItemsData), "none"));
@@ -68,11 +70,18 @@ if ~isempty(obj.Runner) && obj.ActiveIdx >= 1
 end
 offerItems(E.param, ["" params], p.param);
 offerItems(E.seriesParam, ["" params], p.seriesParam);
+offerItems(E.rasterSort, ["" "stop" params], p.rasterSort);
 offerItems(E.respParam, ["" params], rs.param);
 E.value.Value = char(p.value);
 offerItems(E.order, ch.Orders, p.order);
 offerItems(E.metric, ["mean" "peak"], p.metric);
 E.correlation.Value = char(p.correlation);
+wv = p.waveform;
+E.waveMode.Value = char(pickFrom(wv.mode, string(E.waveMode.ItemsData), "off"));
+E.waveSpikes.Value = min(E.waveSpikes.Limits(2), max(E.waveSpikes.Limits(1), round(wv.maxSpikes)));
+E.waveLocation.Value = char(pickFrom(wv.location, string(E.waveLocation.ItemsData), "northeast"));
+E.waveBox.Value = wv.box;
+E.waveScale.Value = min(E.waveScale.Limits(2), max(E.waveScale.Limits(1), wv.scale));
 s = p.style;
 E.maxTiles.Value = s.MaxTiles;
 E.tileSpacing.Value = char(s.TileSpacing);
@@ -88,7 +97,8 @@ E.legend.Value = s.Legend;
 E.grid.Value = s.Grid;
 E.ylim.Value = listText(s.YLim);
 E.lineWidth.Value = min(E.lineWidth.Limits(2), max(E.lineWidth.Limits(1), s.LineWidth));
-offerItems(E.colormap, string(E.colormap.Items), pick(s.Colormap, "lines"));
+E.siteSize.Value = min(E.siteSize.Limits(2), max(E.siteSize.Limits(1), s.SiteSize));
+offerItems(E.colormap,string(E.colormap.Items), pick(s.Colormap, "lines"));
 offerItems(E.heatColormap, string(E.heatColormap.Items), pick(s.HeatColormap, "auto"));
 E.defaultRef.Value = isequal(p.ref, "default");
 E.defaultWindow.Value = isequal(p.window, "default");
@@ -102,6 +112,28 @@ if ~E.defaultSelection.Value; sel = p.selection; end
 obj.fillAlignItems(obj.PlotAlignControls);
 obj.applyAlignControls(obj.PlotAlignControls, ref, win, sel);
 obj.syncPlotEditor();
+end
+
+
+function aurocTo(E, pre, a)
+%aurocTo  Show the auROC settings A in the editor's fields PRE* (buildPlotsTab's aurocRows).
+E.(pre + "Method").Value = char(pickFrom(a.method, string(E.(pre + "Method").ItemsData), "psth"));
+offerItems(E.(pre + "Windows"), ["tiled" "sliding"], a.windows);
+E.(pre + "WinMs").Value = max(1e-6, 1000 * a.windowSec);
+E.(pre + "StepMs").Value = max(1e-6, 1000 * a.stepSec);
+E.(pre + "Cutoff").Value = char(pickFrom(a.cutoff, string(E.(pre + "Cutoff").ItemsData), "ci"));
+E.(pre + "Threshold").Value = min(0.499, max(0, a.threshold));
+offerItems(E.(pre + "Test"), ["bootstrap" "ranksum" "shuffle"], a.test);
+E.(pre + "Resamples").Value = max(1, round(a.nResamples));
+if isfield(E, pre + "BinMs"); E.(pre + "BinMs").Value = max(1e-6, 1000 * a.binSec); end
+if isfield(E, pre + "ModFrom")
+    E.(pre + "ModFrom").Value = a.modulationWindow(1);
+    E.(pre + "ModTo").Value = a.modulationWindow(2);
+    E.(pre + "Correction").Value = char(pickFrom(a.correction, string(E.(pre + "Correction").ItemsData), "bh"));
+    E.(pre + "Alpha").Value = min(1, max(eps, a.alpha));
+    E.(pre + "Marks").Value = a.marks;
+    E.(pre + "ModOnly").Value = a.modulatedOnly;
+end
 end
 
 

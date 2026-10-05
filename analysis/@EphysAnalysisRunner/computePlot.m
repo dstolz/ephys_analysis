@@ -4,11 +4,13 @@ function [R, E, G] = computePlot(obj, src, spec) %#ok<INUSD>
 %   Config.plotFor(id):
 %     psth / raster / heatmap of spikes
 %         [E, G] = epochTable(src, spec.ref, Window=spec.window, Selection=spec.selection,
-%             Baseline=) (the artifact test covers a baseline outside the window)
+%             Baseline=, Columns=spec.rasterSort) (the artifact test covers a
+%             baseline outside the window; Columns only for a trial parameter)
 %         [st, meta] = selectUnits(src, spec.units, Ref=spec.ref, Selection=spec.selection)
 %             (Ref / Selection: the events of an enabled units.response test)
 %         R = spikePSTH(st, E, Window=[pre post], BinSec=, SmoothSec=, Measure=,
-%             Baseline=, BaselineMode=, MaskAfterStop=, Raster=, Groups=G, Meta=meta)
+%             Baseline=, BaselineMode=, MaskAfterStop=, Raster=, Groups=G, Meta=meta,
+%             Auroc=spec.auroc) (Auroc: baseline Mode "auroc")
 %     evoked / heatmap of a signal
 %         [E, G] = epochTable(...)
 %         [Y, fs, meta] = selectChannels(src, spec.source, Channels=spec.channels)
@@ -20,6 +22,10 @@ function [R, E, G] = computePlot(obj, src, spec) %#ok<INUSD>
 %     corrmap   unitCorrelation(st, E, Metric=spec.metric, Type=spec.correlation,
 %               BinSec=, SmoothSec=, Baseline=, BaselineMode=, Groups=G, Meta=meta)
 %     probemap  probeMapValues(unitSummary(src, Source=, Units=, Ref=, Selection=), src.probe, Value=)
+%   A raster, or a PSTH or tuning grid, of spikes with spec.waveform.mode
+%   other than "off" also gets R.waveforms = unitWaveforms(src, R.meta,
+%   Source=spec.source, MaxSpikes=spec.waveform.maxSpikes): the units it
+%   kept, in its order.
 %   R also gets epochs (E), dataset (the name) and spec. EphysAnalysisScript
 %   writes these same calls out.
 %
@@ -32,7 +38,7 @@ isSignal = ismember(spec.source, EphysAnalysisConfig.SignalSources);
 E = [];
 switch spec.kind
     case {"psth" "raster" "heatmap"}
-        [E, G] = epochTable(src, spec.ref, Window=w, Selection=spec.selection, Baseline=b);
+        [E, G] = epochTable(src, spec.ref, Window=w, Selection=spec.selection, Baseline=b, Columns=sortColumns(spec));
         if isSignal
             [Y, fs, meta] = selectChannels(src, spec.source, Channels=spec.channels);
             R = evokedPotential(Y, fs, E, Window=[w.pre w.post], Baseline=b, Groups=G, Meta=meta, Units=meta.units(1));
@@ -40,7 +46,8 @@ switch spec.kind
             [st, meta] = selectUnits(src, spec.units, Ref=spec.ref, Selection=spec.selection);
             R = spikePSTH(st, E, Window=[w.pre w.post], BinSec=spec.bins.BinSec, SmoothSec=spec.bins.SmoothSec, ...
                 Measure=spec.measure, Baseline=b, BaselineMode=spec.baseline.Mode, MaskAfterStop=spec.maskAfterStop, ...
-                Raster=spec.kind == "raster" || (spec.kind == "psth" && spec.withRaster), Groups=G, Meta=meta);
+                Raster=spec.kind == "raster" || (spec.kind == "psth" && spec.withRaster), Groups=G, Meta=meta, ...
+                Auroc=spec.auroc);
         end
     case "evoked"
         [E, G] = epochTable(src, spec.ref, Window=w, Selection=spec.selection, Baseline=b);
@@ -71,7 +78,26 @@ switch spec.kind
     otherwise
         error('EphysAnalysisRunner:BadKind', 'Unknown plot kind "%s".', spec.kind);
 end
+if drawsWaveforms(spec)
+    R.waveforms = unitWaveforms(src, R.meta, Source=spec.source, MaxSpikes=spec.waveform.maxSpikes);
+end
 R.epochs = E;
 R.dataset = src.name;
 R.spec = spec;
+end
+
+
+function c = sortColumns(spec)
+%sortColumns  The trial parameter a raster sorts its epochs by, as epochTable Columns.
+c = string.empty(1, 0);
+if ismember(spec.kind, ["psth" "raster"]) && ~ismember(spec.rasterSort, ["" "stop"])
+    c = spec.rasterSort;
+end
+end
+
+
+function tf = drawsWaveforms(spec)
+%drawsWaveforms  The plot draws each unit's waveform: a raster, or a PSTH or tuning grid, of spikes, with waveform.mode on.
+tf = spec.waveform.mode ~= "off" && ismember(spec.source, EphysAnalysisConfig.SpikeSources) && ...
+    (spec.kind == "raster" || (ismember(spec.kind, ["psth" "tuning"]) && spec.layout ~= "overlay"));
 end

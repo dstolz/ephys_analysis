@@ -4,7 +4,9 @@ function refreshPreview(obj, opts)
 %   preview panel), so the preview is what a run draws. A plot the dataset
 %   cannot draw says why; a signal extract above PreviewMaxMB is only read
 %   when Force is set (the Preview button). The time taken decides whether
-%   edits redraw it (auto-preview under AutoPreviewSeconds).
+%   edits redraw it (auto-preview under AutoPreviewSeconds). A right-click
+%   on any part of the preview opens the aesthetics editor; what it
+%   remembers for the plot comes back through rememberAesthetics.
 arguments
     obj (1,1) EphysAnalysisApp
     opts.Force (1,1) logical = false
@@ -49,7 +51,8 @@ try
     obj.PreviewResult = R;
     obj.PreviewPages = plotPageCount(R, spec);
     obj.PreviewPage = min(max(obj.PreviewPage, 1), obj.PreviewPages);
-    obj.Runner.renderPlotFigures(R, spec, Target=obj.PreviewPanel, Page=obj.PreviewPage);
+    obj.Runner.renderPlotFigures(R, spec, Target=obj.PreviewPanel, Page=obj.PreviewPage, ...
+        OnRemember=@(rules) obj.rememberAesthetics(spec.id, rules));
 catch ME
     obj.PreviewResult = [];
     clearPanel(obj, spec.id + " failed: " + string(ME.message));
@@ -58,7 +61,8 @@ catch ME
     return
 end
 obj.PreviewSeconds = toc(t0);
-L.Text = sprintf("%s on %s (%.1f s)", spec.id, src.name, obj.PreviewSeconds);
+L.Text = sprintf("%s on %s (%.1f s); right-click the plot to change its colours, lines and fonts", ...
+    spec.id, src.name, obj.PreviewSeconds);
 if obj.PreviewSeconds >= obj.AutoPreviewSeconds && obj.AutoPreviewCheckBox.Value
     L.Text = L.Text + ": slow, so edits wait for Preview";
 end

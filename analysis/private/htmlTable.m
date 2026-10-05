@@ -1,5 +1,5 @@
 function h = htmlTable(T, cls)
-%htmlTable  A table as an HTML <table> (numbers to 6 significant digits).
+%htmlTable  A table as an HTML <table> (numbers to 6 significant digits, NaN as an empty cell).
 if nargin < 2; cls = ""; end
 if ~istable(T) || width(T) == 0
     h = "";
@@ -29,7 +29,9 @@ elseif isnumeric(x)
     if isempty(x)
         s = "";
     else
-        s = strjoin(compose("%.6g", double(x(:).')), " ");
+        s = compose("%.6g", double(x(:).'));
+        s(isnan(double(x(:).'))) = "";   % no value: an empty cell, not "NaN"
+        s = strjoin(s, " ");
     end
 elseif isdatetime(x)
     s = string(x);

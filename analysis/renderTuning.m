@@ -1,6 +1,6 @@
 function h = renderTuning(R, target, opts)
 %renderTuning  Draw a tuningCurve result: rate against the parameter.
-%   H = renderTuning(R, TARGET, Layout=, Page=, Style=)
+%   H = renderTuning(R, TARGET, Layout=, Page=, Waveform=, Style=)
 %
 %   Layout
 %     "grid"     (default) one tile per unit (MaxTiles per page), one curve
@@ -9,6 +9,12 @@ function h = renderTuning(R, target, opts)
 %                their shank / depth for Style.LabelShank / Style.LabelDepth
 %     "overlay"  one panel: the mean over units, +/- SEM across units
 %   A text parameter is spaced evenly with its values as tick labels.
+%
+%   Waveform (EphysAnalysisConfig.defaults("Waveform") fields): grid
+%   layout, each unit's waveform from R.waveforms (unitWaveforms) as a box
+%   in its tile -- its mean, a subsample of its spikes, or both -- at a
+%   compass point (location), with or without the box's outline (box),
+%   sized by scale (default mode "off": none).
 %
 %   H: layout (tiled layout or []), axes.
 %
@@ -19,10 +25,14 @@ arguments
     target
     opts.Layout (1,1) string {mustBeMember(opts.Layout, ["grid" "overlay"])} = "grid"
     opts.Page (1,1) double {mustBePositive, mustBeInteger} = 1
+    opts.Waveform = struct()
     opts.Style = struct()
 end
 
 style = EphysAnalysisConfig.normalizeSection("Style", opts.Style);
+wave = EphysAnalysisConfig.normalizeSection("Waveform", opts.Waveform);
+waves = [];
+if isfield(R, 'waveforms') && opts.Layout == "grid"; waves = R.waveforms; end
 colors = groupPalette(R.groups, style);
 [nX, nU, nS] = size(R.mean);
 if R.xIsNumeric
@@ -54,13 +64,16 @@ order = probeOrder(R.meta, nU, style);
 for j = 1:numel(idx)
     u = order(idx(j));
     if ~isempty(ax0); ax = ax0; else; ax = nexttile(tl, j); end
+    tagPart(ax, "axes", "", names(u));
     drawCurves(ax, xv, reshape(R.mean(:, u, :), nX, nS), reshape(R.sem(:, u, :), nX, nS), R, colors, style, j == 1);
+    waveformInset(ax, waves, u, wave, style);
     title(ax, names(u), 'FontWeight', 'normal', 'Interpreter', 'none');
     if mod(j - 1, nc) == 0; ylabel(ax, R.units); end
     if ceil(j / nc) < nr && isempty(ax0); xlabel(ax, ''); end
     axs(j) = ax;
 end
 cornerLabels(axs, nr, nc, style);
+if nr * nc > 1; tileTicks(axs, style); end
 h = struct('layout', tl, 'axes', axs);
 end
 
@@ -71,11 +84,11 @@ hold(ax, 'on');
 lh = gobjects(1, nS);
 for k = 1:nS
     if style.ShowSEM
-        lh(k) = errorbar(ax, xv, m(:, k), s(:, k), '-o', 'Color', colors(k, :), 'LineWidth', style.LineWidth, ...
-            'MarkerSize', 4, 'MarkerFaceColor', colors(k, :), 'CapSize', 3);
+        lh(k) = tagPart(errorbar(ax, xv, m(:, k), s(:, k), '-o', 'Color', colors(k, :), 'LineWidth', style.LineWidth, ...
+            'MarkerSize', 4, 'MarkerFaceColor', colors(k, :), 'CapSize', 3), "curve", R.series(k));
     else
-        lh(k) = plot(ax, xv, m(:, k), '-o', 'Color', colors(k, :), 'LineWidth', style.LineWidth, ...
-            'MarkerSize', 4, 'MarkerFaceColor', colors(k, :));
+        lh(k) = tagPart(plot(ax, xv, m(:, k), '-o', 'Color', colors(k, :), 'LineWidth', style.LineWidth, ...
+            'MarkerSize', 4, 'MarkerFaceColor', colors(k, :)), "curve", R.series(k));
     end
 end
 hold(ax, 'off');

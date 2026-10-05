@@ -10,6 +10,28 @@ says how to cut a release.
 
 ### Added
 
+- Unit waveforms on the analysis plots: a raster, or a PSTH or tuning
+  grid, of spikes can draw each unit's mean waveform, a subsample of its
+  spikes, or both, as a box in the unit's tile (the plot's `waveform`:
+  `mode`, `location` -- north-east by default -- `box` for the axis box,
+  `scale`, `maxSpikes`). `unitWaveforms` reads them: sorted units' spikes
+  cut from the sorted `.bin` (`DatasetOutputs.readWaveforms`, cached; the
+  template when the `.bin` is gone), detections' saved waveforms. The
+  app's plot editor has a *Unit waveform* section.
+- auROC in the analysis module (Cohen et al. 2012; Macedo-Lima, Hamlette &
+  Caras 2024): `aurocCurves` measures each unit's firing in windows along
+  the epoch against its baseline, from the trial-averaged PSTH's bins (the
+  paper's, matching the Caras lab's `calculate_auROC.py`) or from each
+  epoch's counts, in tiled or sliding windows, and calls the units
+  modulated up or down by the paper's 95% CI cutoff, a fixed threshold or a
+  per-unit test (bootstrap, ranksum or circular-shift shuffle, adjusted
+  with `pAdjust`). PSTH and spike-heatmap plots take it as baseline mode
+  `"auroc"` (the plot's `auroc` settings): curves on a 0-1 scale, each
+  unit's call marked, heatmap rows in modulation order, optionally only
+  the modulated units drawn. The unit selection's response test gains
+  `"auroc"`. The app's plot editor shows their settings. Test suite
+  `test_Auroc`.
+
 - `LICENSE` (MIT), `THIRD_PARTY_NOTICES.md`, `CITATION.cff`, this changelog
   and a `VERSION` file that `ephysVersion` reads; `ephysVersion` also reports
   `git describe` (`Describe`).
@@ -137,9 +159,63 @@ says how to cut a release.
   suite `test_TableSort`.
 - `CLAUDE.md`: standing instructions for Claude Code in this repository
   (which MATLAB toolboxes to use, and when to ask first).
+- Rasters can sort each group's epochs by something other than trial
+  order: plot option `rasterSort` (psth and raster; **Sort raster by** in
+  the analysis app) takes `"stop"` (the stop event's latency) or a trial
+  parameter, which `computePlot` copies onto the epochs. `renderRaster` and
+  `renderPSTH` take `SortBy=`; the y label and the caption name the order.
+- Plot aesthetics: right-click any part of an analysis plot (the app's
+  preview, or any visible figure `renderPlot` draws into) and pick **Edit
+  aesthetics...**. A modal window (`PlotAestheticsDialog`) lists every
+  component drawn and edits colours, line styles and widths, markers,
+  opacity, fonts, axes, legends and colormaps, with each change shown at
+  once. A change goes to this component, the same one in every tile, every
+  group of its role, or the rows ticked. **Reset**, **Cancel** and **OK**.
+  **Remember for future plots** saves the changes as rules (role, group,
+  property, value) with the plot (new plot field `aesthetics`, in the
+  config) or for every plot of the kind (preferences, group
+  `PlotAesthetics`). `renderPlot` applies the user's rules, then the
+  plot's, after drawing; new options `UserAesthetics`, `Editable` and
+  `OnRemember`. The renderers name everything they draw (`tagPart`).
+  `PlotAesthetics`; suite `test_PlotAesthetics`. The script generator's
+  `literal` writes struct arrays.
 
 ### Changed
 
+- The analysis app's parameter lists (group-by, tuning x axis and series,
+  tuning-test parameter, the dataset's Parameters table, the filter help's
+  columns) offer every trial column, `RespCode` among them, in alphabetical
+  order (ignoring case). `loadAnalysisSource`'s `paramNames` leaves out only
+  the pairing's times and samples; it no longer follows `info.WriteParams`.
+- Analysis figures and the HTML report are easier to read:
+  - A PSTH grid puts each raster right on top of its rate panel. The two
+    sit in a 2 x 1 tiled layout in the unit's tile, so the gap between
+    rows falls between units, not between a raster and its own PSTH.
+  - A grid page grows taller than `Export.FigureSizeCm(2)` when its rows
+    need it: 3 cm a row, 4.5 cm for PSTHs with rasters, plus 1.5 cm. Call
+    `newExportFigure(X, R, spec, Page=p)`; the runner, both reports and
+    the generated scripts do.
+  - In grids of more than one tile, the tick labels are 2 points smaller
+    than `Style.FontSize` and each automatic y axis has at most three
+    ticks (new private `tileTicks`).
+  - A raster drops its ticks in the bottom tenth, and "Epoch" is shown on
+    the left column only.
+  - Depths in unit titles are whole µm.
+  - The probe map writes each site's number on the outer side of its
+    column, so the labels stay clear of the markers.
+  - The report's digital-line and highest-rate tables have readable
+    headers ("Mean duration (s)", "Rate (Hz)") and short unit labels. An
+    empty value prints as an empty cell, not `NaN`.
+  - A printed report (or one saved as PDF) no longer splits a table or a
+    figure across pages, or breaks right after a heading.
+  - `Report.Title` defaults to `"{Name}"`. The app names a new config
+    `"<folder> quick look"`, so the old default `"{Name} quick look"` read
+    "… quick look quick look".
+- `EphysPreprocessingApp` is renamed `EphysPipelineApp` (class folder,
+  `test_EphysPipelineApp`, `documentation/EphysPipelineApp.md`), and the
+  analysis app's **File → Open preprocessing app** is now **Open pipeline
+  app** (`onOpenPipelineApp`). Its preferences group is `EphysPipelineApp`,
+  so preferences saved under the old name are not read.
 - `S_ExampleAnalysis.m` is a walkthrough that runs on any machine. Before,
   it was a launcher with a user-specific path. It writes a synthetic
   project to `tempdir` and goes through the project, pairing review, the
@@ -177,6 +253,12 @@ says how to cut a release.
 
 ### Fixed
 
+- `renderProbeMap` held a Latin-1 `µ` in its axis labels, which MATLAB
+  reads as UTF-8. It is UTF-8 again.
+- `EphysDataset.exportEpochs` no longer passes `Provenance` on to
+  `eventEpochs`, which does not take it. Every epochs export given a
+  provenance (the pipeline's Export step, generated scripts) failed with
+  *Invalid argument name 'Provenance'*.
 - The guard that stops `toBin` writing over a recording file now resolves
   `.` and `..` itself when MATLAB runs without Java.
 - Visualize: spike ticks are drawn 2 points wide, edged in the plot's

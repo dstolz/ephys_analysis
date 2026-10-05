@@ -4,22 +4,45 @@ function h = renderPlot(R, spec, target, opts)
 %   entry, e.g. from EphysAnalysisConfig.plotFor; [] = the defaults for
 %   R.kind) to renderPSTH, renderRaster, renderEvoked, renderRates,
 %   renderTuning, renderHeatmap, renderProbeMap or renderCorrMap, with SPEC.style, the
-%   layout, and page P of a grid (plotPageCount pages). TARGET is an axes,
+%   layout, SPEC.waveform (psth, raster and tuning: each unit's waveform
+%   from R.waveforms in its tile), and page P of a grid (plotPageCount
+%   pages). TARGET is an axes,
 %   uiaxes, figure, uifigure, panel, tab, grid layout or tiled layout: the
 %   app draws its previews into a panel, the runner into an invisible
 %   classic figure (newExportFigure). It adds a title -- SPEC.title, else
 %   "<Kind>: <line> <edge> (<n> epochs)" -- with the dataset and page as a
 %   subtitle.
 %
+%   Aesthetics: every component drawn is named by its role and group
+%   (tagPart), and the remembered rules are applied after drawing: the
+%   user's for SPEC.kind (PlotAesthetics.userRules), then the plot's own
+%   (SPEC.aesthetics), so the plot's win. In a visible figure a right-click
+%   on any component opens PlotAestheticsDialog, which edits the plot live.
+%
+%   Options
+%     Page            page of a grid (default 1)
+%     UserAesthetics  apply the user's remembered rules (default true;
+%                     false: only SPEC.aesthetics)
+%     Editable        "auto" (default: when TARGET's figure is visible),
+%                     true or false: the right-click aesthetics editor
+%     OnRemember      called with the plot's new aesthetics rules when the
+%                     editor saves them with the plot (the app puts them in
+%                     its config); [] (default): the editor can remember
+%                     them only in the user's preferences
+%
 %   H: what the renderer returned plus title (the text used) and page.
 %
-%   See also plotPageCount, plotCaption, EphysAnalysisRunner.renderPlotFigures.
+%   See also plotPageCount, plotCaption, EphysAnalysisRunner.renderPlotFigures,
+%   PlotAesthetics, PlotAestheticsDialog.
 
 arguments
     R (1,1) struct
     spec
     target
     opts.Page (1,1) double {mustBePositive, mustBeInteger} = 1
+    opts.UserAesthetics (1,1) logical = true
+    opts.Editable = "auto"
+    opts.OnRemember = []
 end
 
 spec = plotSpecFor(R, spec);
@@ -28,17 +51,17 @@ nPages = plotPageCount(R, spec);
 page = min(opts.Page, nPages);
 switch spec.kind
     case "psth"
-        h = renderPSTH(R, target, Layout=spec.layout, WithRaster=spec.withRaster, HistStyle=spec.histStyle, ...
+        h = renderPSTH(R, target, Layout=spec.layout, WithRaster=spec.withRaster, SortBy=spec.rasterSort, HistStyle=spec.histStyle, ...
             Fill=spec.fill, FillAlpha=spec.fillAlpha, Normalize=spec.normalize, Stack=spec.stack, ...
-            Spacing=spec.stackSpacing, Page=page, Style=style);
+            Spacing=spec.stackSpacing, Page=page, Waveform=spec.waveform, Style=style);
     case "raster"
-        h = renderRaster(R, target, Page=page, Style=style);
+        h = renderRaster(R, target, Page=page, SortBy=spec.rasterSort, Waveform=spec.waveform, Style=style);
     case "evoked"
         h = renderEvoked(R, target, Layout=spec.layout, Page=page, Style=style);
     case "rate"
         h = renderRates(R, target, Layout=spec.layout, Style=style);
     case "tuning"
-        h = renderTuning(R, target, Layout=spec.layout, Page=page, Style=style);
+        h = renderTuning(R, target, Layout=spec.layout, Page=page, Waveform=spec.waveform, Style=style);
     case "heatmap"
         h = renderHeatmap(R, target, Order=spec.order, Style=style);
     case "probemap"
@@ -70,6 +93,37 @@ elseif ~isempty(h.axes)
 end
 h.title = txt;
 h.page = page;
+
+root = h.layout;
+if isempty(root) && ~isempty(h.axes); root = h.axes(1); end
+if isempty(root); return; end
+plotRules = PlotAesthetics.normalizeRules(spec.aesthetics);
+rules = plotRules;
+if opts.UserAesthetics
+    rules = [PlotAesthetics.userRules(spec.kind) rules];
+end
+PlotAesthetics.apply(root, rules);
+if editable(opts.Editable, target)
+    ctx = struct('kind', spec.kind, 'id', spec.id, 'title', txt, 'root', root, 'target', target, 'plotRules', plotRules, ...
+        'onRemember', {opts.OnRemember}, ...
+        'redraw', @(newRules) renderPlot(R, setfield(spec, 'aesthetics', newRules), target, Page=page, ...
+            UserAesthetics=opts.UserAesthetics, Editable=opts.Editable, OnRemember=opts.OnRemember)); %#ok<SFLD>
+    PlotAesthetics.enableEditing(target, ctx);
+end
+end
+
+
+function tf = editable(mode, target)
+%editable  Whether the right-click aesthetics editor goes on: "auto" = in a visible figure.
+if isstring(mode) || ischar(mode)
+    if string(mode) ~= "auto"
+        error('renderPlot:BadEditable', 'Editable is "auto", true or false.');
+    end
+    fig = ancestor(target, 'figure');
+    tf = ~isempty(fig) && strcmp(fig.Visible, 'on');
+else
+    tf = logical(mode);
+end
 end
 
 

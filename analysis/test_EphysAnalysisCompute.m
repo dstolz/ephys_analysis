@@ -11,8 +11,10 @@ function test_EphysAnalysisCompute()
 %   compiler, unitCorrelation (Pearson and Spearman against corrcoef, peak
 %   rates, partial bins, baseline, groups, degenerate units), that every
 %   renderer draws into a classic figure's axes, a uifigure's uiaxes and a
-%   figure (tiled layout), including renderPlot's pages and titles, and
-%   binCounts / countBelow against brute force.
+%   figure (tiled layout), including renderPlot's pages and titles,
+%   binCounts / countBelow against brute force, and the unit waveform
+%   boxes (where each location puts them, on a reversed raster too; the
+%   modes, box and scale; the limits kept; none on an overlay; templates).
 %
 %   Usage:  test_EphysAnalysisCompute
 
@@ -510,10 +512,95 @@ h = renderPSTH(Rp, fig8, Layout="grid", Style=struct('TileSpacing', "none"));
 check(string(h.layout.TileSpacing) == "none" && string(h.layout.Padding) == "tight", 'TileSpacing none: tight padding');
 delete(fig8);
 
+fprintf('\n== raster sort ==\n');
+% one spike per epoch at t0 + 0.01 k names its epoch k; within each group
+% "level" and the stop latency put the epochs in the order [2 3 1] and [6 5 4]
+% (a missing level sorts last)
+t0 = (10:10:60).';
+Es = epochs(t0, [1 1 1 2 2 2]);
+Es.t1 = t0 + [0.3 0.1 0.2 0.4 0.2 0.1].';
+Es.level = [3 1 2 NaN 5 4].';
+Rs = spikePSTH({t0 + 0.01 * (1:6).'}, Es, Window=[-0.2 0.5], BinSec=0.05);
+Rs.epochs = Es;
+fig9 = figure('Visible', 'off');
+rowsOf = @(h) rasterRows(h.axes(1));
+check(isequal(rowsOf(renderRaster(Rs, fig9)), 1:6), 'raster: by default the epochs are rows in time order');
+check(isequal(rowsOf(renderRaster(Rs, fig9, SortBy="level")), [3 1 2 6 5 4]), ...
+    'raster SortBy a column of the epochs: sorted within each group, a missing value last');
+check(isequal(rowsOf(renderRaster(Rs, fig9, SortBy="stop")), [3 1 2 6 5 4]), 'raster SortBy "stop": by the stop event''s latency');
+h = renderPSTH(Rs, fig9, SortBy="level");
+check(isequal(rasterRows(h.rasterAxes(1)), [3 1 2 6 5 4]) && string(h.rasterAxes(1).YLabel.String) == "Epoch (by level)", ...
+    'the raster above a PSTH takes SortBy, and its y label names it');
+h = renderPlot(Rs, struct('kind', "raster", 'rasterSort', "level"), fig9);
+check(isequal(rasterRows(h.axes(1)), [3 1 2 6 5 4]) && contains(plotCaption(struct('kind', "raster", 'rasterSort', "level"), Rs), ...
+    "sorted by level"), 'renderPlot sorts by the spec''s rasterSort; the caption says so');
+check(strcmp(errorId(@() renderRaster(Rs, fig9, SortBy="nope")), 'renderRaster:NoSortColumn'), ...
+    'SortBy a column the epochs lack: renderRaster:NoSortColumn');
+delete(fig9);
+
+fprintf('\n== unit waveform boxes ==\n');
+nUw = size(Rp.rate, 2);
+tms = linspace(-0.6, 1.4, 61).';
+shape = -exp(-(tms / 0.15).^2) + 0.4 * exp(-((tms - 0.5) / 0.3).^2);
+Ww = struct('timeMs', {repmat({tms}, nUw, 1)}, 'mean', {cell(nUw, 1)}, 'spikes', {cell(nUw, 1)}, ...
+    'from', repmat("spikes", nUw, 1), 'units', repmat("uV", nUw, 1), 'note', "", 'maxSpikes', 12);
+for u = 1:nUw
+    Ww.spikes{u} = 50 * u * shape + 5 * randn(61, 12);
+    Ww.mean{u} = mean(Ww.spikes{u}, 2);
+end
+Rpw = Rp; Rpw.waveforms = Ww;
+fig10 = figure('Visible', 'off');
+part = @(ax, tag) findall(ax, 'Tag', tag);   % the parts are hidden handles (kept out of legends)
+mid = @(lim) mean(lim);
+h0 = renderPSTH(Rpw, fig10, WithRaster=false);
+lims0 = [vertcat(h0.axes.XLim) vertcat(h0.axes.YLim)];
+check(isempty(findall(fig10, '-regexp', 'Tag', '^wave')), 'Waveform off (the default): no box');
+h = renderPSTH(Rpw, fig10, WithRaster=false, Waveform=struct('mode', "both"));
+ok = isequal([vertcat(h.axes.XLim) vertcat(h.axes.YLim)], lims0);
+for ax = h.axes
+    b = part(ax, "waveBox"); s = part(ax, "waveSpikes"); m = part(ax, "waveMean");
+    ok = ok && isscalar(b) && isscalar(s) && isscalar(m) && isscalar(part(ax, "waveLabel")) ...
+        && min(b.XData) > mid(ax.XLim) && min(b.YData) > mid(ax.YLim) && nnz(isnan(s.YData)) == 12 ...
+        && min(m.YData) >= min(b.YData) && max(m.YData) <= max(b.YData) && string(b.HandleVisibility) == "off";
+end
+check(ok, 'mode "both": in each tile a box at the top right (northeast) holding 12 spikes and their mean; the limits stay');
+h = renderPSTH(Rpw, fig10, WithRaster=false, Waveform=struct('mode', "mean", 'location', "southwest", 'scale', 2));
+b = part(h.axes(1), "waveBox");
+xl = h.axes(1).XLim; yl = h.axes(1).YLim;
+check(abs(min(b.XData) - (xl(1) + 0.03 * diff(xl))) < 1e-9 && abs(min(b.YData) - (yl(1) + 0.03 * diff(yl))) < 1e-9 ...
+    && abs(max(b.XData) - min(b.XData) - 2 / 3 * diff(xl)) < 1e-9 && isempty(part(h.axes(1), "waveSpikes")), ...
+    'southwest at scale 2: the box sits at the bottom left, two thirds of the tile wide; mode "mean" draws no spikes');
+h = renderPSTH(Rpw, fig10, WithRaster=false, Waveform=struct('mode', "subsample", 'box', false));
+check(isempty(findall(fig10, 'Tag', 'waveBox')) && isempty(findall(fig10, 'Tag', 'waveMean')) ...
+    && numel(findall(fig10, 'Tag', 'waveSpikes')) == numel(h.axes), 'box off: the spikes alone, no box');
+h = renderRaster(Rpw, fig10, Waveform=struct('mode', "mean", 'location', "southeast"));
+ax = h.axes(1); b = part(ax, "waveBox");
+check(string(ax.YDir) == "reverse" && min(b.YData) > mid(ax.YLim) && min(b.XData) > mid(ax.XLim), ...
+    'a raster (y reversed): southeast is still the bottom right as seen');
+renderPSTH(Rpw, fig10, Layout="overlay", Waveform=struct('mode', "both"));
+check(isempty(findall(fig10, '-regexp', 'Tag', '^wave')), 'an overlay of units draws no unit''s waveform');
+Rpw.waveforms.from(:) = "template";
+Rpw.waveforms.spikes(:) = {[]};
+h = renderPSTH(Rpw, fig10, WithRaster=false, Waveform=struct('mode', "subsample"));
+lb = part(h.axes(1), "waveLabel");
+check(isscalar(part(h.axes(1), "waveMean")) && isempty(part(h.axes(1), "waveSpikes")) && endsWith(lb.String, "(template)"), ...
+    'a template is drawn as the mean whatever the mode, and its label says so');
+delete(fig10);
+
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0
     error('test_EphysAnalysisCompute:Failures', '%d checks failed.', nFail);
 end
+end
+
+
+function rows = rasterRows(ax)
+%rasterRows  The row of each epoch k in a raster of one spike per epoch at t0 + 0.01 k.
+L = findobj(ax, 'Type', 'line', 'Color', [0 0 0]);
+x = L.XData(1:3:end);
+y = L.YData(1:3:end) + 0.4;
+rows = zeros(1, numel(x));
+rows(round(x / 0.01)) = round(y);
 end
 
 

@@ -6,7 +6,8 @@ function [p, unknown] = normalizePlot(in, path)
 %   the string "default" -- use the config's Defaults.EventRef /
 %   Defaults.Window / Defaults.Selection (see plotFor) -- or a struct,
 %   normalized as an EventRef / EpochWindow / TrialSelection. An empty value
-%   means "default".
+%   means "default". aesthetics is a list of rules (role, group, property,
+%   value), normalized by PlotAesthetics.normalizeRules.
 %
 %   See also EphysAnalysisConfig.defaults, EphysAnalysisConfig.plotFor.
 
@@ -30,7 +31,17 @@ if isstruct(in) && ~isempty(in)
         end
     end
 end
+looks = [];
+if isstruct(in) && isfield(in, 'aesthetics')
+    looks = in.aesthetics;
+    in = rmfield(in, 'aesthetics');
+end
 [p, unknown] = EphysAnalysisConfig.coerceStruct(def, in, path);
+try
+    p.aesthetics = PlotAesthetics.normalizeRules(looks, path + ".aesthetics");
+catch ME
+    error('EphysAnalysisConfig:BadValue', '%s', ME.message);
+end
 for f = names
     if ~isfield(held, f); continue; end
     v = held.(f);

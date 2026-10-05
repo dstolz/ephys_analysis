@@ -8,16 +8,5 @@ function n = plotPageCount(R, spec)
 
 spec = plotSpecFor(R, spec);
 per = max(1, round(spec.style.MaxTiles));
-items = 1;
-switch spec.kind
-    case "psth"
-        if spec.layout == "grid"; items = size(R.rate, 2); end
-    case "raster"
-        items = numel(R.raster);
-    case "tuning"
-        if spec.layout == "grid"; items = size(R.mean, 2); end
-    case "evoked"
-        if spec.layout == "grid"; items = size(R.mean, 2); end
-end
-n = max(1, ceil(items / per));
+n = max(1, ceil(gridItems(R, spec) / per));
 end

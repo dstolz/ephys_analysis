@@ -3,13 +3,15 @@ function S = reportSummaryTables(src)
 %   S = reportSummaryTables(SRC) for a dataset SRC (loadAnalysisSource):
 %     recording  Field / Value: name, key, folder, rate, duration, subject,
 %                session start, probe, signals, units, detections, pairing
-%     lines      the digital lines (SRC.lines)
+%     lines      the digital lines (SRC.lines): Line, Count, Mean duration
+%                (s), First (s), Last (s), Inverted
 %     trials     Trials / Count: all, paired "ok", each response word, each
 %                PairingFlag (empty without behavior)
 %     units      Class / Shank / Units / Spikes: sorted units by class and
 %                shank (empty without units)
 %     topRates   the ten highest-rate units (else detection channels):
-%                label, class, channel, shank, nSpikes, rateHz
+%                Unit (shortened as in the plots), Class, Channel, Shank,
+%                Spikes, Rate (Hz)
 %   A table that cannot be made (no units, no behavior) is empty.
 %
 %   See also addReportDataset, unitSummary, writeHtmlReport.
@@ -54,7 +56,14 @@ else
 end
 S = struct();
 S.recording = table(f, v, 'VariableNames', {'Field', 'Value'});
-S.lines = src.lines;
+L = src.lines;
+if all(ismember(["MeanDurationSec" "First" "Last"], string(L.Properties.VariableNames)))
+    L.MeanDurationSec = round(L.MeanDurationSec, 3);
+    L.First = round(L.First, 2);
+    L.Last = round(L.Last, 2);
+    L = renamevars(L, ["MeanDurationSec" "First" "Last"], ["Mean duration (s)" "First (s)" "Last (s)"]);
+end
+S.lines = L;
 
 % --- trials --------------------------------------------------------------------
 S.trials = table(strings(0, 1), zeros(0, 1), 'VariableNames', {'Trials', 'Count'});
@@ -107,7 +116,11 @@ end
 if ~isempty(U)
     [~, o] = sort(U.rateHz, 'descend');
     o = o(1:min(10, end));
-    S.topRates = U(o, {'label', 'class', 'channel', 'shank', 'nSpikes', 'rateHz'});
+    T = U(o, {'label', 'class', 'channel', 'shank', 'nSpikes', 'rateHz'});
+    T.label = shortUnitLabels(T.label);   % without the recording suffix every unit shares
+    T.rateHz = round(T.rateHz, 2);
+    S.topRates = renamevars(T, ["label" "class" "channel" "shank" "nSpikes" "rateHz"], ...
+        ["Unit" "Class" "Channel" "Shank" "Spikes" "Rate (Hz)"]);
 end
 end
 

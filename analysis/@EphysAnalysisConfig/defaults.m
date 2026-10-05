@@ -9,7 +9,7 @@ function s = defaults(section)
 %   Config sections   Source, Defaults, Export, Report, Plot (one entry of
 %                     Plots)
 %   Building blocks   EventRef, EpochWindow, TrialSelection, UnitSelection,
-%                     Style
+%                     Style, Auroc, Waveform
 %
 %   See also EphysAnalysisConfig, EphysAnalysisConfig.normalizeSection.
 
@@ -85,7 +85,8 @@ switch section
             'Colormap',     "lines", ...    % group colours: "lines" keeps selectTrials' colours; a colormap function; or one colour ("black", "#1f77b4")
             'HeatColormap', "", ...         % heatmap / probe map / corrmap colours ("" = parula; blueWhiteRed for corrmap)
             'FontSize',     9, ...
-            'YLim',         [], ...
+            'SiteSize',     8, ...          % probe map: site marker size (points)
+            'YLim',        [], ...
             'XLim',         [], ...
             'CLim',         [], ...
             'Grid',         true, ...
@@ -98,6 +99,32 @@ switch section
             'TileSpacing',  "compact", ...  % space between the tiles of a grid: "loose" | "compact" | "tight" | "none"
             'CornerLabelsOnly', false, ...  % grids: axis labels on the bottom-left tile only
             'StackSpacing', NaN);           % evoked "stack" offset (NaN = automatic)
+
+    case "Auroc"
+        % a psth / heatmap plot's baseline Mode "auroc" (aurocCurves; spikePSTH's Auroc)
+        s = struct( ...
+            'method',           "psth", ...      % "psth": the trial-averaged PSTH's bins (the paper) | "epochs": each epoch's count
+            'windows',          "tiled", ...     % "tiled": back to back, edged at the event | "sliding": one every stepSec
+            'windowSec',        0.1, ...         % the auROC window: a whole number of bins
+            'stepSec',          0.01, ...        % sliding: the step, a whole number of bins
+            'modulationWindow', [0 0.5], ...     % s from the event: the windows inside it decide each unit's call
+            'cutoff',           "ci", ...        % "ci" (the paper's 95% CI) | "fixed" (threshold) | "test" (a p per unit) | "none"
+            'threshold',        0.1, ...         % fixed: modulated when |mean auROC - 0.5| is above this
+            'test',             "bootstrap", ... % test: "bootstrap" (epochs) | "ranksum" | "shuffle" (circular time shift)
+            'nResamples',       1000, ...        % bootstrap / shuffle
+            'correction',       "bh", ...        % test: over the units and groups (pAdjust)
+            'alpha',            0.05, ...        % test: modulated when the adjusted p is at most alpha
+            'marks',            true, ...        % draw each unit's call (PSTH titles, heatmap rows)
+            'modulatedOnly',    false);          % keep only the units modulated in some group
+
+    case "Waveform"
+        % a psth / raster / tuning plot's unit waveform: a box in each unit's tile (unitWaveforms; renderers' Waveform)
+        s = struct( ...
+            'mode',      "off", ...         % "off" | "mean" | "subsample" | "both" (the mean over the subsample)
+            'location',  "northeast", ...   % compass point of the tile: north, south, east, west, northeast, northwest, southeast, southwest
+            'box',       true, ...          % the box's outline and pale ground (false: the waveform alone)
+            'scale',     1, ...             % size: 1 = a third of the tile's width and height (at most 3)
+            'maxSpikes', 100);              % the subsample: spikes per unit, at random (the same each time); a sorted unit's mean is over them
 
     case "Export"
         s = struct( ...
@@ -113,7 +140,7 @@ switch section
         s = struct( ...
             'Enabled',           true, ...
             'Format',            "html", ...    % "html" | "pdf" | "both"
-            'Title',             "{Name} quick look", ...
+            'Title',             "{Name}", ...      % {Name} = the config's name, {Date} = today
             'Folder',            "{OutputRoot}" + filesep + "analysis", ...
             'FileName',          "analysis_report", ...
             'PerDataset',        false, ...     % one report per dataset (Folder may use {OutputFolder})
@@ -139,8 +166,10 @@ switch section
             'bins',          struct('BinSec', 0.01, 'SmoothSec', 0.01), ...  % SmoothSec: Gaussian SD (0 = none)
             'measure',       "rate", ...        % psth / heatmap of spikes / rate / tuning: "rate" (spikes/s) | "count" (spikes per bin or window) | "probability" (P(spike) per bin, or share of epochs with a spike)
             'baseline',      struct('Mode', "none", 'Window', [-0.2 0]), ...
+            'auroc',         EphysAnalysisConfig.defaults("Auroc"), ...   % psth / heatmap of spikes, baseline Mode "auroc"
             'layout',        "", ...            % "" = the kind's default layout
             'withRaster',    true, ...          % psth
+            'rasterSort',    "", ...            % psth / raster: epochs of a group in time order ("") | by stop latency ("stop") | by a trial parameter (its name)
             'histStyle',     "bar", ...         % psth: "bar" | "line"
             'fill',          true, ...          % psth: filled bars / area under the line (false: outline / line only)
             'fillAlpha',     NaN, ...           % psth: fill opacity 0-1 (NaN: 0.5 where groups overlap, else 1)
@@ -151,10 +180,12 @@ switch section
             'param',         "", ...            % tuning: trial parameter on the x axis
             'seriesParam',   "", ...            % tuning: one curve per value of this parameter
             'value',         "rate", ...        % probemap: "rate" | "nSpikes" | "nUnits"
-            'order',         "probe", ...       % heatmap rows: "probe" (the style's SortDepth / SortShank) | "peak"
+            'order',         "probe", ...       % heatmap rows: "probe" (the style's SortDepth / SortShank) | "peak" | "modulation" (auROC: the first group's mean in the modulation window)
             'metric',        "mean", ...        % corrmap: each epoch's "mean" or "peak" (binned) rate
             'correlation',   "pearson", ...     % corrmap: "pearson" | "spearman"
-            'style',         EphysAnalysisConfig.defaults("Style"));
+            'waveform',      EphysAnalysisConfig.defaults("Waveform"), ...   % psth / raster / tuning grids: each unit's waveform in its tile
+            'style',         EphysAnalysisConfig.defaults("Style"), ...
+            'aesthetics',    PlotAesthetics.emptyRules());   % remembered looks of components: role, group, property, value (PlotAesthetics)
 
     otherwise
         error('EphysAnalysisConfig:BadSection', 'Unknown section "%s".', section);
@@ -176,11 +207,20 @@ function r = responseDefaults()
 %responseDefaults  UnitSelection.response: off; the tests of responseStats.
 r = struct( ...
     'enabled',    false, ...
-    'test',       "evoked", ...   % "evoked" (response vs baseline, signrank) | "tuning" (across param's levels, kruskalwallis) | "either" | "both"
+    'test',       "evoked", ...   % "evoked" (response vs baseline, signrank) | "tuning" (across param's levels, kruskalwallis) | "either" | "both" | "auroc" (aurocCurves)
     'baseline',   [-0.2 0], ...   % s from the event
     'window',     [0 0.2], ...    % the response window, s from the event
     'param',      "", ...         % the trial parameter of the tuning test
     'direction',  "any", ...      % evoked: "any" | "excited" | "suppressed"
     'correction', "bh", ...       % over the units tested: "bh" | "holm" | "bonferroni" | "none" (pAdjust)
-    'alpha',      0.05);          % a unit passes when its adjusted p is at most alpha
+    'alpha',      0.05, ...       % a unit passes when its adjusted p is at most alpha
+    'auroc',      aurocTestDefaults());   % test "auroc": window = the modulation window; correction and alpha above
+end
+
+
+function a = aurocTestDefaults()
+%aurocTestDefaults  UnitSelection.response.auroc: Auroc's settings of the auROC itself and its call, and its own bins.
+a = EphysAnalysisConfig.defaults("Auroc");
+a = rmfield(a, ["modulationWindow" "correction" "alpha" "marks" "modulatedOnly"]);
+a.binSec = 0.01;   % the bins counted (the plot's own bins are not used)
 end

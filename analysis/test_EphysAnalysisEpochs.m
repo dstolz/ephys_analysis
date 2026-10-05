@@ -65,8 +65,10 @@ for ln = T1.digInNames
 end
 check(ok, 'every digital line is there with the written intervals');
 check(src.hasBehavior && src.hasTrials && src.nTrials == 12 && src.trialLine == "InTrial" && src.respField == "RespCode" ...
-    && all(ismember(["Depth" "TrialType" "StimDelay"], src.paramNames)) && isstring(src.trials.PairingFlag), ...
-    'paired trials, the trial line, RespCode and the Epsych2 parameters');
+    && all(ismember(["Depth" "TrialType" "StimDelay" "RespCode"], src.paramNames)) && isstring(src.trials.PairingFlag) ...
+    && ~any(ismember(["TrialOnset" "TrialEvents"], src.paramNames)) ...
+    && isequal(src.paramNames, sortCaseless(src.paramNames)), ...
+    'paired trials, the trial line, RespCode and every trial parameter (RespCode too, no pairing times), alphabetical');
 check(src.signals.LFP && src.signals.MUA && src.signals.AUX && ~src.signals.SPIKE && src.signalFs.LFP == 1000 ...
     && src.signalFs.MUA == 2000 && numel(src.labels) == numel(T1.channelNames), 'signals, their rates and the channel labels');
 check(src.hasUnits && src.hasDetected && isstruct(src.probe) && numel(src.probe.xc) == numel(T1.channelNames), ...
@@ -308,6 +310,31 @@ else
         'without the Statistics and Machine Learning Toolbox the response test raises responseStats:NoToolbox');
 end
 
+fprintf('\n== 7b. the auROC response test of selectUnits ==\n');
+if license('test', 'Statistics_Toolbox') && exist('tiedrank', 'file')
+    [stA, metaA] = selectUnits(src, struct('source', "units", 'classes', string.empty(1,0)));
+    Ea = responseEpochs(src, ref, [], Baseline=[-0.1 0], Window=[0 0.1]);
+    Ea.groupIndex(:) = 1;
+    G1 = table(1, "all epochs", [0.15 0.15 0.15], height(Ea), 'VariableNames', ["index" "label" "color" "n"]);
+    A = aurocCurves(stA, Ea, Window=[-0.1 0.1], Baseline=[-0.1 0], ModulationWindow=[0 0.1], Cutoff="fixed", ...
+        Threshold=0, Groups=G1);
+    asel = struct('source', "units", 'classes', string.empty(1,0), 'response', struct('enabled', true, 'test', "auroc", ...
+        'baseline', [-0.1 0], 'window', [0 0.1], 'auroc', struct('cutoff', "fixed", 'threshold', 0)));
+    if any(A.modulated)
+        [stU, metaU] = selectUnits(src, asel, Ref=ref);
+        check(isequal(stU, stA(A.modulated)) && isequal(metaU.unitId, metaA.unitId(A.modulated)) ...
+            && isequaln(metaU.aurocMean, A.mean(A.modulated)) && all(metaU.aurocModulated) ...
+            && isequal(metaU.aurocDirection, A.direction(A.modulated)), ...
+            'the auROC test keeps the units aurocCurves calls modulated, every epoch as one group; META gains its columns');
+    else
+        check(strcmp(errorId(@() selectUnits(src, asel, Ref=ref)), 'selectUnits:NoneLeft'), ...
+            'the auROC test with no modulated unit leaves none (selectUnits:NoneLeft)');
+    end
+    asel.response.auroc.cutoff = "none";
+    check(strcmp(errorId(@() selectUnits(src, asel, Ref=ref)), 'selectUnits:BadResponse'), ...
+        'the auROC test without a cutoff: selectUnits:BadResponse');
+end
+
 fprintf('\n== 8. errors and the no-behavior fallback ==\n');
 check(strcmp(errorId(@() epochTable(src, eventRef(line="Nope"))), 'resolveEvents:NoLine'), 'an unknown line: resolveEvents:NoLine');
 check(strcmp(errorId(@() epochTable(src, eventRef(line="Stim", scope="recording"), Selection=trialSelection(groupBy="Nope"))), 'selectTrials:NoParam'), ...
@@ -343,6 +370,12 @@ end
 
 function G = selectTrialsGroups(src, sel)
 [~, G] = selectTrials(src, sel);
+end
+
+
+function s = sortCaseless(s)
+[~, ord] = sort(lower(s));
+s = s(ord);
 end
 
 

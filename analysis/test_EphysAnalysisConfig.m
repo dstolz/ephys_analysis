@@ -191,6 +191,28 @@ ok = cfg; ok.Plots(1).style.Colormap = "black"; ok.Plots(2).style.Colormap = "#1
 check(~hasIssue(ok, "Colormap", "warning"), 'a single colour ("black", "#1f77b4") or a colormap function are group colours');
 bad = cfg; bad.Plots(1).style.Colormap = "nope";
 check(hasIssue(bad, "Colormap", "warning"), 'an unknown group colour warns');
+au = cfg; au.Plots(1).baseline.Mode = "auroc";
+check(~hasIssue(au, "psth_1.baseline", "error") && ~hasIssue(au, "psth_1.auroc", "error") && au.Plots(1).auroc.cutoff == "ci", ...
+    'a PSTH of units takes the auROC baseline, its default settings valid');
+rs = cfg.addPlot("raster");
+rs.Plots(end).baseline.Mode = "auroc";
+check(hasIssue(rs, rs.Plots(end).id + ".baseline.Mode", "error"), 'a raster has no auROC baseline');
+bad = au; bad.Plots(1).auroc.windowSec = 0.015;
+check(hasIssue(bad, "psth_1.auroc.windowSec", "error"), 'the auROC window is a whole number of bins');
+bad = au; bad.Plots(1).auroc.cutoff = "none"; bad.Plots(1).auroc.modulatedOnly = true;
+check(hasIssue(bad, "psth_1.auroc.modulatedOnly", "error"), 'modulated units only needs a cutoff');
+hm = cfg.addPlot("heatmap");
+hm.Plots(end).order = "modulation";
+hid = hm.Plots(end).id;
+before = hasIssue(hm, hid + ".order", "error");
+hm.Plots(end).baseline.Mode = "auroc";
+check(before && ~hasIssue(hm, hid + ".order", "error") && ~hasIssue(hm, hid + ".baseline", "error"), ...
+    'a heatmap''s modulation order needs the auROC baseline');
+bad = cfg; bad.Plots(1).units.response.enabled = true; bad.Plots(1).units.response.test = "auroc";
+ok = bad;
+bad.Plots(1).units.response.auroc.cutoff = "none";
+check(~hasIssue(ok, "psth_1.units.response", "error") && hasIssue(bad, "psth_1.units.response.auroc.cutoff", "error"), ...
+    'the auROC response test validates with its defaults and needs a cutoff');
 bad = cfg.addPlot("raster", Id="psth 1");
 bad2 = cfg.addPlot("raster", Id="PSTH_1");
 check(hasIssue(bad, "psth 1.id", "error") && hasIssue(bad2, "PSTH_1.id", "error") && ~hasIssue(cfg, ".id", "error"), ...
@@ -213,6 +235,27 @@ p1 = rt2.Plots(1);
 check(rt2.isequalConfig(rt) && p1.stack && p1.stackSpacing == 0.8 && p1.normalize == "groupPeak" && ~p1.fill ...
     && p1.fillAlpha == 0.3 && p1.style.Colormap == "black" && isnan(rt2.Plots(2).fillAlpha), ...
     'stack, spacing, normalize, fill, opacity and group colours survive save / load (NaN opacity too)');
+d = EphysAnalysisConfig.defaults("Plot").waveform;
+check(d.mode == "off" && d.location == "northeast" && d.box && d.scale == 1 && d.maxSpikes == 100, ...
+    'unit waveforms: off by default; northeast, with its axis box, a third of the tile, 100 spikes');
+wv = cfg; wv.Plots(1).waveform.mode = "both";
+check(~hasIssue(wv, "psth_1.waveform", "error") && ~hasIssue(wv, "psth_1.waveform", "warning"), 'a PSTH grid of units takes the waveform boxes');
+bad = wv; bad.Plots(1).waveform.mode = "spikes";
+bad2 = wv; bad2.Plots(1).waveform.location = "top";
+bad3 = wv; bad3.Plots(1).waveform.scale = 4;
+bad4 = wv; bad4.Plots(1).waveform.maxSpikes = 2.5;
+check(hasIssue(bad, "psth_1.waveform.mode", "error") && hasIssue(bad2, "psth_1.waveform.location", "error") ...
+    && hasIssue(bad3, "psth_1.waveform.scale", "error") && hasIssue(bad4, "psth_1.waveform.maxSpikes", "error"), ...
+    'the waveform mode, location, scale (0-3) and maxSpikes (whole) are checked');
+ov = wv; ov.Plots(1).layout = "overlay";
+ev = cfg; ev.Plots(2).waveform.mode = "mean";
+check(hasIssue(ov, "psth_1.waveform.mode", "warning") && hasIssue(ev, "evoked_1.waveform.mode", "warning") ...
+    && ~hasIssue(cfg, ".waveform", "warning"), 'waveforms on an overlay, or on a plot of signals, warn that none are drawn');
+wv.Plots(1).waveform = struct('mode', "subsample", 'location', "southwest", 'box', false, 'scale', 1.5, 'maxSpikes', 40);
+wv.save(f);
+w2 = EphysAnalysisConfig.load(f);
+check(w2.isequalConfig(wv) && isequal(w2.Plots(1).waveform, wv.Plots(1).waveform) && ~w2.Plots(1).waveform.box, ...
+    'the waveform settings survive save / load');
 
 fprintf('\n== 5. load warnings and schema ==\n');
 s = cfg.toStruct();

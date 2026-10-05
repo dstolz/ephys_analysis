@@ -39,7 +39,10 @@ p.bins.SmoothSec = E.smoothMs.Value / 1000;
 p.measure = string(E.measure.Value);
 p.baseline.Mode = string(E.baselineMode.Value);
 p.baseline.Window = [E.baseFrom.Value E.baseTo.Value];
+p.auroc = aurocFrom(E, "a", p.auroc);
+p.units.response.auroc = aurocFrom(E, "ra", p.units.response.auroc);
 p.withRaster = E.withRaster.Value;
+p.rasterSort = strtrim(string(E.rasterSort.Value));
 p.histStyle = string(E.histStyle.Value);
 p.normalize = string(E.normalize.Value);
 p.fill = E.fill.Value;
@@ -54,6 +57,11 @@ p.value = string(E.value.Value);
 p.order = string(E.order.Value);
 p.metric = string(E.metric.Value);
 p.correlation = string(E.correlation.Value);
+p.waveform.mode = string(E.waveMode.Value);
+p.waveform.maxSpikes = E.waveSpikes.Value;
+p.waveform.location = string(E.waveLocation.Value);
+p.waveform.box = logical(E.waveBox.Value);
+p.waveform.scale = E.waveScale.Value;
 p.style.MaxTiles = E.maxTiles.Value;
 p.style.TileSpacing = string(E.tileSpacing.Value);
 p.style.CornerLabelsOnly = E.cornerLabels.Value;
@@ -70,6 +78,7 @@ yl = parseList(E.ylim.Value);
 if numel(yl) ~= 2; yl = []; end
 p.style.YLim = yl;
 p.style.LineWidth = E.lineWidth.Value;
+p.style.SiteSize = E.siteSize.Value;
 p.style.Colormap = strtrim(string(E.colormap.Value));
 if p.style.Colormap == ""; p.style.Colormap = "lines"; end
 p.style.HeatColormap = string(E.heatColormap.Value);
@@ -84,6 +93,27 @@ if E.defaultRef.Value; p.ref = "default"; else; p.ref = ref; end
 if E.defaultWindow.Value; p.window = "default"; else; p.window = win; end
 if E.defaultSelection.Value; p.selection = "default"; else; p.selection = sel; end
 p = EphysAnalysisConfig.normalizePlot(p);
+end
+
+
+function a = aurocFrom(E, pre, a)
+%aurocFrom  The auROC settings A as the editor's fields PRE* show them (buildPlotsTab's aurocRows).
+a.method = string(E.(pre + "Method").Value);
+a.windows = string(E.(pre + "Windows").Value);
+a.windowSec = E.(pre + "WinMs").Value / 1000;
+a.stepSec = E.(pre + "StepMs").Value / 1000;
+a.cutoff = string(E.(pre + "Cutoff").Value);
+a.threshold = E.(pre + "Threshold").Value;
+a.test = string(E.(pre + "Test").Value);
+a.nResamples = E.(pre + "Resamples").Value;
+if isfield(E, pre + "BinMs"); a.binSec = E.(pre + "BinMs").Value / 1000; end
+if isfield(E, pre + "ModFrom")
+    a.modulationWindow = [E.(pre + "ModFrom").Value E.(pre + "ModTo").Value];
+    a.correction = string(E.(pre + "Correction").Value);
+    a.alpha = E.(pre + "Alpha").Value;
+    a.marks = logical(E.(pre + "Marks").Value);
+    a.modulatedOnly = logical(E.(pre + "ModOnly").Value);
+end
 end
 
 

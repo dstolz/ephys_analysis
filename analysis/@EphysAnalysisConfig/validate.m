@@ -20,10 +20,19 @@ function issues = validate(obj, opts)
 %               pre <= post; baseline mode fits the kind and its window is
 %               [b0 b1] with b0 < b1; psth histStyle, normalize,
 %               fillAlpha (0-1 or NaN) and stackSpacing (> 0); probemap value;
-%               heatmap order; corrmap metric and correlation; an enabled
-%               units.response test (test, param, windows, direction,
-%               correction, alpha, and the Statistics and Machine Learning
-%               Toolbox it needs); style values
+%               heatmap order ("modulation" with an auROC baseline);
+%               corrmap metric and correlation; a baseline Mode "auroc"
+%               (psth and heatmap of spikes) and its auroc settings
+%               (method, windows, whole-bin window and step, modulation
+%               window, cutoff, threshold, test, nResamples, correction,
+%               alpha, modulatedOnly with a cutoff, the toolbox); an
+%               enabled units.response test (test, param, windows,
+%               direction, correction, alpha, test "auroc"'s settings, and
+%               the Statistics and Machine Learning Toolbox it needs);
+%               a waveform mode other than off: its location, scale (0-3)
+%               and maxSpikes, and a warning when the plot draws no unit
+%               tiles (a raster, a PSTH or tuning grid of spikes); style
+%               values
 %     Export    formats are png / eps / svg / pdf; Dpi, FigureSizeCm; the
 %               folder and file-name patterns use known tokens; a warning
 %               when the files of two enabled plots, or of two datasets,
@@ -142,6 +151,7 @@ for k = 1:numel(obj.Plots)
     switch p.kind
         case {"psth" "raster" "heatmap"}
             modes = ["none" "subtract" "zscore" "percent"];
+            if p.kind ~= "raster"; modes(end+1) = "auroc"; end
             if ismember(p.source, EphysAnalysisConfig.SignalSources); modes = ["none" "subtract"]; end
         case {"rate" "tuning"}
             modes = ["none" "subtract" "ratio" "zscore"];
@@ -155,6 +165,9 @@ for k = 1:numel(obj.Plots)
         add("Plots", f0 + ".baseline.Mode", "error", sprintf("A %s plot's baseline Mode is one of %s, not ""%s"".", p.kind, strjoin(modes, ", "), bm.Mode));
     elseif bm.Mode ~= "none" && ~(numel(bm.Window) == 2 && bm.Window(2) > bm.Window(1))
         add("Plots", f0 + ".baseline.Window", "error", "The baseline window must be [b0 b1] with b0 < b1.");
+    end
+    if bm.Mode == "auroc" && ismember(bm.Mode, modes)
+        checkAuroc(p.auroc, p.bins.BinSec, "Plots", f0 + ".auroc", true);
     end
     if p.kind == "psth"
         if ~ismember(p.histStyle, ["bar" "line"])
@@ -173,8 +186,10 @@ for k = 1:numel(obj.Plots)
     if p.kind == "probemap" && ~ismember(p.value, ["rate" "nSpikes" "nUnits"])
         add("Plots", f0 + ".value", "error", "A probe map shows rate, nSpikes or nUnits.");
     end
-    if p.kind == "heatmap" && ~ismember(p.order, ["probe" "peak"])
-        add("Plots", f0 + ".order", "error", "A heatmap orders its rows by probe (the style's sort options) or peak.");
+    if p.kind == "heatmap" && ~ismember(p.order, ["probe" "peak" "modulation"])
+        add("Plots", f0 + ".order", "error", "A heatmap orders its rows by probe (the style's sort options), peak or modulation.");
+    elseif p.kind == "heatmap" && p.order == "modulation" && bm.Mode ~= "auroc"
+        add("Plots", f0 + ".order", "error", "A heatmap's rows go in modulation order only with the auROC baseline (baseline Mode ""auroc"").");
     end
     if p.kind == "corrmap"
         if ~ismember(p.metric, ["mean" "peak"])
@@ -190,8 +205,10 @@ for k = 1:numel(obj.Plots)
     rs = p.units.response;
     if rs.enabled && ismember(p.source, EphysAnalysisConfig.SpikeSources)
         r0 = f0 + ".units.response";
-        if ~ismember(rs.test, ["evoked" "tuning" "either" "both"])
-            add("Plots", r0 + ".test", "error", "The response test is evoked, tuning, either or both.");
+        if ~ismember(rs.test, ["evoked" "tuning" "either" "both" "auroc"])
+            add("Plots", r0 + ".test", "error", "The response test is evoked, tuning, either, both or auroc.");
+        elseif rs.test == "auroc"
+            checkAuroc(rs.auroc, rs.auroc.binSec, "Plots", r0 + ".auroc", false);
         elseif rs.test ~= "evoked" && rs.param == ""
             add("Plots", r0 + ".param", "error", "The tuning test needs the trial parameter (param).");
         end
@@ -213,6 +230,27 @@ for k = 1:numel(obj.Plots)
             add("Plots", r0 + ".enabled", "error", "The response test needs the Statistics and Machine Learning Toolbox (signrank, kruskalwallis).");
         end
     end
+    wv = p.waveform;
+    w0 = f0 + ".waveform";
+    if ~ismember(wv.mode, ["off" "mean" "subsample" "both"])
+        add("Plots", w0 + ".mode", "error", "The waveform mode is off, mean, subsample or both.");
+    elseif wv.mode ~= "off"
+        if ~ismember(wv.location, EphysAnalysisConfig.WaveformLocations)
+            add("Plots", w0 + ".location", "error", "The waveform location is one of " + ...
+                strjoin(EphysAnalysisConfig.WaveformLocations, ", ") + ".");
+        end
+        if ~(wv.scale > 0 && wv.scale <= 3)
+            add("Plots", w0 + ".scale", "error", "The waveform scale is above 0 and at most 3 (1 = a third of the tile).");
+        end
+        if ~(wv.maxSpikes >= 1 && wv.maxSpikes == round(wv.maxSpikes))
+            add("Plots", w0 + ".maxSpikes", "error", "maxSpikes is a whole number of spikes, at least 1.");
+        end
+        if ~(ismember(p.source, EphysAnalysisConfig.SpikeSources) && (p.kind == "raster" || ...
+                (ismember(p.kind, ["psth" "tuning"]) && p.layout ~= "overlay")))
+            add("Plots", w0 + ".mode", "warning", "Unit waveforms are drawn in the tiles of a raster, or of a " + ...
+                "PSTH or tuning grid, of spikes; this plot draws none.");
+        end
+    end
     st = p.style;
     if ~(st.MaxTiles >= 1); add("Plots", f0 + ".style.MaxTiles", "error", "MaxTiles must be >= 1."); end
     if ~ismember(st.TileSpacing, ["loose" "compact" "tight" "none"])
@@ -220,6 +258,7 @@ for k = 1:numel(obj.Plots)
     end
     if ~(st.FontSize > 0);  add("Plots", f0 + ".style.FontSize", "error", "FontSize must be positive."); end
     if ~(st.LineWidth > 0); add("Plots", f0 + ".style.LineWidth", "error", "LineWidth must be positive."); end
+    if ~(st.SiteSize > 0);  add("Plots", f0 + ".style.SiteSize", "error", "SiteSize must be positive."); end
     for cm = ["Colormap" "HeatColormap"]
         if ~(cm == "Colormap" && (st.(cm) == "lines" || isColor(st.(cm)))) && ~(cm == "HeatColormap" && st.(cm) == "") ...
                 && ~ismember(exist(char(st.(cm))), [2 5]) %#ok<EXIST>
@@ -287,6 +326,52 @@ issues = table(Section, Field, Severity, Message);
             epochWindow(w);
         catch ME
             add(sec, field, "error", string(ME.message));
+        end
+    end
+
+    function checkAuroc(a, binSec, sec, field, isPlot)
+        %checkAuroc  A plot's auroc settings (ISPLOT) or a response test's.
+        if ~ismember(a.method, ["psth" "epochs"]); add(sec, field + ".method", "error", "The auROC method is psth or epochs."); end
+        if ~ismember(a.windows, ["tiled" "sliding"]); add(sec, field + ".windows", "error", "The auROC windows are tiled or sliding."); end
+        whole = @(x) binSec > 0 && x / binSec >= 1 - 1e-6 && abs(x / binSec - round(x / binSec)) < 1e-6;
+        if ~whole(a.windowSec)
+            add(sec, field + ".windowSec", "error", sprintf("The auROC window (%g s) must be a whole number of %g s bins.", a.windowSec, binSec));
+        end
+        if a.windows == "sliding" && ~whole(a.stepSec)
+            add(sec, field + ".stepSec", "error", sprintf("The sliding step (%g s) must be a whole number of %g s bins.", a.stepSec, binSec));
+        end
+        if ~ismember(a.cutoff, ["ci" "fixed" "test" "none"])
+            add(sec, field + ".cutoff", "error", "The auROC cutoff is ci, fixed, test or none.");
+        elseif ~isPlot && a.cutoff == "none"
+            add(sec, field + ".cutoff", "error", "The auROC response test needs a cutoff (ci, fixed or test) to call units modulated.");
+        end
+        if a.cutoff == "fixed" && ~(a.threshold >= 0 && a.threshold < 0.5)
+            add(sec, field + ".threshold", "error", "The threshold is |auROC - 0.5|, from 0 up to (not including) 0.5.");
+        end
+        if a.cutoff == "test"
+            if ~ismember(a.test, ["bootstrap" "ranksum" "shuffle"])
+                add(sec, field + ".test", "error", "The auROC test is bootstrap, ranksum or shuffle.");
+            elseif a.test ~= "ranksum" && ~(a.nResamples >= 1 && a.nResamples == round(a.nResamples))
+                add(sec, field + ".nResamples", "error", "nResamples must be a whole number >= 1.");
+            end
+        end
+        if isPlot
+            m = a.modulationWindow;
+            if ~(numel(m) == 2 && all(isfinite(m)) && m(2) > m(1))
+                add(sec, field + ".modulationWindow", "error", "The modulation window must be [m0 m1] with m0 < m1 (s from the event).");
+            end
+            if a.cutoff == "test"
+                if ~ismember(a.correction, ["bh" "holm" "bonferroni" "none"])
+                    add(sec, field + ".correction", "error", "The correction is bh, holm, bonferroni or none.");
+                end
+                if ~(a.alpha > 0 && a.alpha <= 1); add(sec, field + ".alpha", "error", "alpha must be in (0, 1]."); end
+            end
+            if a.modulatedOnly && a.cutoff == "none"
+                add(sec, field + ".modulatedOnly", "error", "Modulated units only needs a cutoff (ci, fixed or test) to call units modulated.");
+            end
+        end
+        if ~(license('test', 'Statistics_Toolbox') && exist('tiedrank', 'file'))
+            add(sec, field, "error", "auROC needs the Statistics and Machine Learning Toolbox (tiedrank, tinv, ranksum).");
         end
     end
 

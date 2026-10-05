@@ -58,7 +58,7 @@ for d = 1:numel(report.datasets)
                 'Plot %s of %s holds no result to draw: build the report with Format "pdf" or "both".', e.plot, D.name);
         end
         for p = 1:plotPageCount(e.R, e.spec)
-            fig = newExportFigure(report.export);
+            fig = newExportFigure(report.export, e.R, e.spec, Page=p);
             closer = onCleanup(@() close(fig));
             renderPlot(e.R, e.spec, fig, Page=p);
             exportgraphics(fig, file, 'ContentType', 'vector', 'Append', ~first);

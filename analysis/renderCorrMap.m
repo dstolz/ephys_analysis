@@ -41,7 +41,8 @@ for j = 1:numel(idx)
     g = idx(j);
     if ~isempty(ax0); ax = ax0; else; ax = nexttile(tl, j); end
     M = R.r(order, order, g);
-    imagesc(ax, 1:nU, 1:nU, M, 'AlphaData', double(isfinite(M)));
+    tagPart(ax, "axes", "", R.groups.label(g));
+    tagPart(imagesc(ax, 1:nU, 1:nU, M, 'AlphaData', double(isfinite(M))), "image", R.groups.label(g));
     set(ax, 'YDir', 'reverse', 'Color', [0.85 0.85 0.85]);
     colormap(ax, cmap);
     clim(ax, clim0);

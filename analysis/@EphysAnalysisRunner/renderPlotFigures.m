@@ -1,7 +1,9 @@
 function h = renderPlotFigures(obj, R, spec, opts)
 %renderPlotFigures  Draw one page of a computed plot into a target (the app's preview).
 %   H = r.renderPlotFigures(R, SPEC, Target=T, Page=P) draws page P into T
-%   (an axes, uiaxes, panel, ...) with renderPlot and returns its H. Runs
+%   (an axes, uiaxes, panel, ...) with renderPlot and returns its H.
+%   OnRemember= is passed on to renderPlot (the aesthetics editor saves the
+%   plot's rules through it). Runs
 %   draw each page into its own newExportFigure instead, one at a time
 %   (runDataset). The axes are not linked: one linkaxes call over a PSTH
 %   page's rasters and rates adds about half its drawing time.
@@ -14,10 +16,11 @@ arguments
     spec (1,1) struct
     opts.Target = []
     opts.Page (1,1) double {mustBePositive, mustBeInteger} = 1
+    opts.OnRemember = []
 end
 
 if isempty(opts.Target)
     error('EphysAnalysisRunner:NoTarget', 'renderPlotFigures draws into a target (Target=); runDataset draws the pages of a run.');
 end
-h = renderPlot(R, spec, opts.Target, Page=opts.Page);
+h = renderPlot(R, spec, opts.Target, Page=opts.Page, OnRemember=opts.OnRemember);
 end

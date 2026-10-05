@@ -18,7 +18,7 @@ classdef EphysAnalysisRunner < handle
     %     R = spikePSTH / evokedPotential / firingRate (+ tuningCurve) /
     %         unitSummary + probeMapValues
     %     per page, one at a time:
-    %       fig = newExportFigure(cfg.Export); h = renderPlot(R, spec, fig, Page=p)
+    %       fig = newExportFigure(cfg.Export, R, spec, Page=p); h = renderPlot(R, spec, fig, Page=p)
     %       exportFigure(fig, <folder>/<plotFileName(...)>, Format=, Dpi=)
     %       reportImage(fig, report, Title=h.title, Files=)   (HTML report)
     %     addReportFigure(report, spec, R, Files=, Images=)

@@ -93,7 +93,7 @@ if isfile(file) && ~opts.Overwrite
         '%s already exists (pass Overwrite=true to replace it).', file);
 end
 
-build = rmfield(opts, {'File', 'Overwrite', 'MatVersion'});
+build = rmfield(opts, {'File', 'Overwrite', 'MatVersion', 'Provenance'});   % the rest are eventEpochs' options
 args = namedargs2cell(build);
 epochs = obj.eventEpochs(args{:});
 

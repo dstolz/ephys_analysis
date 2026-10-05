@@ -295,7 +295,7 @@ of a test: the `epochTable` above.
 
 `A = aurocCurves(st, E, Window=, Baseline=, BinSec=, Measure=, Method=,
 Windows=, WindowSec=, StepSec=, MaskAfterStop=, ModulationWindow=, Cutoff=,
-Threshold=, Test=, NResamples=, Correction=, Alpha=, Seed=, Groups=)`
+Threshold=, Test=, NResamples=, Correction=, Alpha=, Call=, Seed=, Groups=)`
 measures, per unit and group, how far the firing in each window around the
 event stands apart from the firing in the baseline: the area under the ROC
 curve (auROC; Cohen et al. 2012, Nature 482:85), as Macedo-Lima, Hamlette &
@@ -303,7 +303,9 @@ Caras (2024, Curr Biol 34:3354) use it. 0.5 is no difference, above 0.5
 more firing than in the baseline, below less.
 
 - **The values compared.** Spikes are counted in `BinSec` bins from the
-  event (as `spikePSTH`). `Method="psth"` (default) compares the
+  event (as `spikePSTH`; a spike on a bin edge, to within 1e-9 s, is in the
+  bin that starts there, so a spike and an event on the same sample grid
+  do not leave the bin to rounding). `Method="psth"` (default) compares the
   trial-averaged PSTH's bins inside a window with those inside the
   baseline, as the Caras lab's `calculate_auROC.py` does for the paper
   (10 ms bins, 100 ms windows). `Method="epochs"` compares each epoch's
@@ -312,9 +314,17 @@ more firing than in the baseline, below less.
   `"probability"` compares spike / no spike.
 - **The auROC.** P(window value > baseline value) + P(equal) / 2 over all
   pairs: the area under the ROC curve that a criterion swept from 0 to the
-  largest value draws. It is computed exactly from ranks (`tiedrank`); the
+  largest value draws. It is computed exactly from ranks (`tiedrank`). The
   lab's 0.1 Hz criterion sweep gives the same values (`test_Auroc` checks
-  it against a port of that code).
+  it against a port of that code, whose bin edges are rounded) with two
+  exceptions. `calculate_auROC.py` builds its window edges from float
+  sums, so some windows hold 11 bins (for its `[-2 5]` s setup the windows
+  starting at 2.0, 2.3, 2.4, 2.7, 2.8, 3.1, 3.2, 3.5 and 3.6 s) and its
+  last window 9, where `aurocCurves` always uses `WindowSec / BinSec`
+  bins. And a unit with no spike at all in the span counted (`Window` and
+  `Baseline`) over a group's epochs has no auROC: NaN in both (its curve,
+  mean and phasic modulation here), so it is not called and stays out of
+  the 95% CI cutoff.
 - **Windows.** `Windows="tiled"` (default): back to back, `WindowSec` long
   (default 0.1), edged at whole multiples from the event; `"sliding"`: one
   every `StepSec`. Each is a whole number of bins
@@ -325,8 +335,10 @@ more firing than in the baseline, below less.
   `Cutoff="ci"` (default, the paper's): modulated up when the mean auROC is
   above 0.5 + c, down when below 0.5 - c, where c is the upper bound of the
   95% confidence interval of the mean phasic modulation over every unit
-  and group (`tinv`). It depends on the units passed in and needs many;
-  with few it can exceed 0.5 and call none (`aurocCurves:WideCutoff`).
+  and group with an auROC (`tinv`; the paper pooled every unit's curve for
+  each trial type: hits and false alarms, n = 1050). It depends on the
+  units passed in and needs many; with few it can exceed 0.5 and call none
+  (`aurocCall:WideCutoff`).
   `"fixed"`: c = `Threshold`. `"test"`: a p per unit and group, adjusted
   over all of them (`pAdjust`), modulated at most `Alpha`, up or down by
   the mean auROC; `Test="bootstrap"` (the epochs resampled `NResamples`
@@ -337,6 +349,17 @@ more firing than in the baseline, below less.
   `NResamples` times; p = the share whose phasic modulation reaches the
   observed). `"none"`: no call. The draws come from their own stream
   (`Seed`, default 0), so a result can be reproduced.
+- **Calling over a larger pool.** The call is made by
+  `A = aurocCall(A, Cutoff=, Threshold=, Correction=, Alpha=)`, over every
+  unit and group of `A`: any struct with `mean`, `phasic` and `p`
+  `[nUnits x nGroups]`. `aurocCurves(..., Call=false)` measures (and, with
+  `Cutoff="test"`, tests) the units without calling them, so the units of
+  several calls (several datasets) can be stacked and called in one
+  `aurocCall`: one cutoff over every unit x group row, as the paper took it
+  over its 533 units' trial-type curves, or one correction of the test's
+  p values over all of them. `populationAnalysis` does this over its
+  family. Called per session instead, the paper's calls are not
+  reproduced; the cutoff pooled over every row is.
 
 `A` holds `t` (window centres), `starts`, `stops`, `edges`, `window`,
 `auroc` and `count` `[nWindows x nUnits x nGroups]`, `inModulation`, and per
@@ -345,8 +368,11 @@ unit and group `mean`, `phasic`, `p`, `q`, `direction` (`"increase"`,
 `cutoffValue`, `nModulated` / `nIncrease` / `nDecrease` per group, `nUnits`,
 `baseline` (its whole bins), the options and the toolbox version.
 `spikePSTH(..., BaselineMode="auroc", Auroc=)` draws on it for the psth and
-heatmap plots (`Auroc.modulatedOnly` keeps only the modulated units), and
-`selectUnits`' response test `"auroc"` keeps the units it calls modulated.
+heatmap plots (`Auroc.modulatedOnly` keeps only the modulated units),
+`selectUnits`' response test `"auroc"` keeps the units it calls modulated,
+and `populationAnalysis` calls every unit of every dataset together. A plot
+or a response test calls the units of one dataset, so with few units the
+95% CI cutoff is wide; the population analysis pools them.
 Needs the Statistics and Machine Learning Toolbox (`tiedrank`; `tinv` for
 `"ci"`; `ranksum`).
 
@@ -359,15 +385,31 @@ up by group. `Ref`, `Window` (fixed) and `Selection` default to the config's
 `selectUnits(src, Units, Ref=, Selection=)`, `epochTable` and `spikePSTH`
 for each unit's PSTH (`BinSec`, `SmoothSec`, `Measure`, `BaselineMode` over
 `Baseline`), then `responseEpochs` and `responseStats` (`Baseline`,
-`Response`, `Param`, `Tests`).
+`Response`, `Param`, `Tests`), and with `Tests` each unit's auROC:
+`aurocCurves` over the PSTH's epochs and window, against `Baseline`, with
+the `Auroc` settings (a plot's `auroc` fields; default the 95% CI cutoff
+over `[0 0.5]` s), `Call=false`. `AurocGroupBy` (0-2 trial parameters)
+splits each unit's epochs into groups with a curve and a call each, as the
+paper's trial types (e.g. `"TrialType"` with `Selection.response` keeping
+hits and false alarms); without it a unit has one curve over every epoch.
 
 - **Correction family.** responseStats runs without a correction. The p
   values are then adjusted once (`Correction`, default `"bh"`) over every
   unit tested (`Family="all"`, the default) or over each dataset's units
   (`Family="dataset"`).
+- **auROC calls over the family.** Every unit x group curve of the family
+  is called in one `aurocCall`: the 95% CI cutoff (`Auroc.cutoff="ci"`) is
+  taken over all of them (those with an auROC), as the paper pooled its
+  533 units' hit and false-alarm curves, rather than over one dataset's
+  few (where it is often too wide to call any, `aurocCall:WideCutoff`).
+  `"fixed"` uses `Auroc.threshold`. A `"test"` cutoff gives each curve its
+  own p; those are adjusted with `Correction` over the family and called
+  at `Alpha`, as the response tests (`Auroc.correction` and `Auroc.alpha`
+  are not used). Each family's cutoff is in `P.auroc.families`, each
+  curve's call in `P.auroc.calls`.
 - **What is pooled.** The selection's `groupBy` is not used: a unit's PSTH
-  pools every epoch the selection keeps, and `Param` carries the
-  dependence on a trial parameter.
+  pools every epoch the selection keeps, `Param` carries the dependence on
+  a trial parameter and `AurocGroupBy` splits the auROC's epochs.
 - **No per-dataset response filter.** `Units.response` is refused
   (`populationAnalysis:ResponseSelection`). Filter `P.units` by
   `responsive` / `tuned` instead, so every unit counts in the family.
@@ -378,8 +420,9 @@ for each unit's PSTH (`BinSec`, `SmoothSec`, `Measure`, `BaselineMode` over
 
 | `P` field | Holds |
 | --- | --- |
-| `units` | one row per unit: `dataset, datasetKey, subject` (the name pattern's SubjectID, else the behavior's), `selectUnits`' columns (with the quality metrics when `Units.quality` is on), `rateHz` (`nSpikes / durationSec`), `responseStats`' columns with q over the family, `psthPeak` and `psthLatency` (the highest PSTH bin whose centre lies in the response window, and its centre; NaN when every such bin is equal) |
+| `units` | one row per unit: `dataset, datasetKey, subject` (the name pattern's SubjectID, else the behavior's), `selectUnits`' columns (with the quality metrics when `Units.quality` is on), `rateHz` (`nSpikes / durationSec`), `responseStats`' columns with q over the family, `psthPeak` and `psthLatency` (the highest PSTH bin whose centre lies in the response window, and its centre; NaN when every such bin is equal), and the auROC's: `aurocGroup`, `aurocMean`, `aurocPhasic`, `aurocPeak`, `aurocPeakTime`, `aurocP` and `aurocQ` of the unit's group whose mean auROC is farthest from 0.5 (its only group without `AurocGroupBy`), `aurocDirection` (`"increase"` or `"decrease"` when called so in some group and never the other way, `"mixed"` when both, `"none"`; `""` without `Tests` or a call) and `aurocModulated` (in any group) |
 | `psth` | `t` (bin centres), `rate [nBins x nUnits]` (the rows of `units`), `units`, `window`, `binSec`, `smoothSec`, `measure`, `baselineMode` |
+| `auroc` | (`[]` without `Tests`) `t` (window centres); `calls`, one row per unit and group (a unit's groups together): the unit's `dataset, datasetKey, subject, label, unitId`, `unit` (its row of `units`), `group`, `nEpochs`, `mean` and `phasic` (over the windows inside the modulation window; NaN for a unit silent over the group's epochs), `peak` and `peakTime` (the window there farthest from 0.5, and its centre), `p` and `q` (a `"test"` cutoff; q over the family), `direction` (`"increase"`, `"decrease"`, `"none"`) and `modulated`; `auroc [nWindows x nCalls]` (each row's curve), `inModulation`, `baseline`, `modulationWindow`, `method`, `windows`, `groupBy`, `cutoff`, `settings`, and `families`: one row per family (`"all"`, or each `datasetKey`) with `nUnits`, `nCurves` (the curves with an auROC: the n of the 95% CI), `cutoffValue` (the cutoff c pooled over them; NaN for `"test"`), `nModulated`, `nIncrease`, `nDecrease` (curves) |
 | `tuning` | `param`, `levels` (every dataset's, sorted), `rate [nLevels x nUnits]` (mean response rate per level; NaN where a unit has no epoch of it), `n` |
 | `datasets` | `datasetKey, dataset, subject, status, message, nUnits, nEpochs, nTestEpochs, nTestEpochsLeftOut` |
 | `params`, `provenance`, `created` | every option as used; `ephysProvenance` |
@@ -388,27 +431,34 @@ for each unit's PSTH (`BinSec`, `SmoothSec`, `Measure`, `BaselineMode` over
 groups the units.
 
 - **Group keys.** Any of `subject`, `dataset`, `class`, `shank`, `depth`
-  (probe y in `DepthBinUm` bins), `direction`, `responsive` and `tuned`.
-  The default is `["subject" "class"]`; `[]` gives one group.
+  (probe y in `DepthBinUm` bins), `direction`, `responsive`, `tuned` and
+  `auroc` (the unit's auROC call: increase, decrease, mixed, none or
+  uncalled). The default is `["subject" "class"]`; `[]` gives one group.
 - **`S.groups`.** One row per group: `nUnits`, `nDatasets`, mean and
   median `rateHz`, `nTested`, `nResponsive`, `fracResponsive`, `nExcited`,
-  `nSuppressed`, `nTuningTested`, `nTuned`, `fracTuned`, `medianLatency`
-  (the responsive excited units) and the medians of the quality metrics
-  the units carry.
+  `nSuppressed`, `nTuningTested`, `nTuned`, `fracTuned`, `nAurocCalled`,
+  `nAurocModulated`, `fracAurocModulated`, `nAurocIncrease`,
+  `nAurocDecrease`, `medianLatency` (the responsive excited units) and the
+  medians of the quality metrics the units carry.
+- **`S.auroc`.** The auROC cutoff and each family's pooled cutoff value
+  (`P.auroc.families`); `[]` without the auROC.
 - **Per-group curves.** `S.psth` and `S.tuning` hold each group's mean and
   SEM across its units. With `TuningNormalize="peak"`, each unit's curve
   is divided by its highest level first.
 
 `renderPopulation(P, S, kind, target)` draws `"psth"`, `"fractions"`
-(excited, suppressed and tuned shares of the units tested), `"tuning"` or
-`"depth"` (each unit's response against its probe y).
+(excited, suppressed and tuned shares of the units tested, and the shares
+the auROC called up and down, with its pooled cutoff in the subtitle),
+`"tuning"` or `"depth"` (each unit's response against its probe y).
 `writePopulation(P, S, folder)` writes the following into a folder:
 
-- `population_units.csv`, `population_groups.csv`, `population_psth.csv`
-  and `population_tuning.csv`;
+- `population_units.csv` (with each unit's auROC call and peak),
+  `population_auroc.csv` (`P.auroc.calls`: each unit and group's auROC,
+  peak and call), `population_groups.csv`, `population_psth.csv` and
+  `population_tuning.csv`;
 - the figures (`Formats`, `Dpi`, `FigureSizeCm`);
-- `population.json`, holding the parameters, the dataset table, the
-  provenance and the files.
+- `population.json`, holding the parameters, the dataset table, the auROC
+  cutoff of each family, the provenance and the files.
 
 `populationAnalysis(..., Folder=)` does all of that in one call, and
 returns the files as a third output.
@@ -418,6 +468,11 @@ cfg = EphysAnalysisConfig.load("am.json");
 [P, S] = populationAnalysis(cfg, Param="Freq", GroupBy=["subject" "depth"], ...
     Folder=fullfile(cfg.Source.Root, "population"));
 deep = P.units(P.units.responsive & P.units.y > 400, :);
+up = P.units(P.units.aurocDirection == "increase", :);   % called over every dataset's units
+P.auroc.families                                          % the pooled cutoff
+% the paper's calls: a curve per trial type, hits and false alarms pooled
+Pt = populationAnalysis(cfg, AurocGroupBy="TrialType", ...
+    Selection=struct('response', ["Hit" "FA"]), Window=struct('pre', -2, 'post', 5));
 ```
 
 ## Render
@@ -656,11 +711,11 @@ the same PDF pages.
 
 | Suite | Covers |
 | --- | --- |
-| `test_EphysAnalysisCompute` | no fixture: `spikePSTH` on seeded Poisson trains (rate, SEM, half-open bins, bins that are whole multiples from the event and `R.window`, `spikePSTH:BadWindow`, a spike in the event's own sample at 0, baselines, smoothing, stop masking), `firingRate` over between windows, `tuningCurve` (and `tuningCurve:NoValues`), `evokedPotential` (event rule: the event's own row at `t = 0`; padding, drop counts, baseline), the filter compiler, `unitCorrelation` (Pearson and Spearman against `corrcoef`, peak rates and partial bins, baseline, groups, constant units), `binCounts` and `countBelow` against brute force, every renderer into axes, uiaxes, figure and uipanel, PSTH fills, normalization and stacks (row steps, value and peak axes), `renderPlot` pages and titles, unit waveform boxes (each location, on a reversed raster too; modes, box and scale; limits kept; none on an overlay; templates) |
+| `test_EphysAnalysisCompute` | no fixture: `spikePSTH` on seeded Poisson trains (rate, SEM, half-open bins, bins that are whole multiples from the event and `R.window`, `spikePSTH:BadWindow`, a spike in the event's own sample at 0, baselines, smoothing, stop masking), `firingRate` over between windows, `tuningCurve` (and `tuningCurve:NoValues`), `evokedPotential` (event rule: the event's own row at `t = 0`; padding, drop counts, baseline), the filter compiler, `unitCorrelation` (Pearson and Spearman against `corrcoef`, peak rates and partial bins, baseline, groups, constant units), `binCounts` and `countBelow` against brute force (a spike on a bin edge in the bin that starts there, also on a 30 kHz sample grid), every renderer into axes, uiaxes, figure and uipanel, PSTH fills, normalization and stacks (row steps, value and peak axes), `renderPlot` pages and titles, unit waveform boxes (each location, on a reversed raster too; modes, box and scale; limits kept; none on an overlay; templates) |
 | `test_EphysAnalysisEpochs` | the fixture: `loadAnalysisSource` against the generator's truth (`durationSec` from `info.LFP.nSamples`), `t0Continuous` and `offsetSec` on both clocks, trial / recording scope, `"Trial"`, an interval belonging to the trial holding its edge (spanning trials, touching trials, `Platform` in recording scope), `groupBy`, response and filter selection, between windows, approved cuts, `selectUnits` / `selectChannels` (every channel gives the cached signal as it is), `selectUnits`' response test (the same as `responseStats` over its own epochs; direction and alpha; `selectUnits:NoneLeft`, `selectUnits:BadResponse`; `responseStats:NoToolbox` without the toolbox) and its auROC test (the units `aurocCurves` calls modulated; no cutoff is `selectUnits:BadResponse`), error identifiers, the no-behavior fallback, `src.artifacts` and the epochs that touch one (dropped by default; a period ending at a window's start does not touch it; kept and flagged with `Artifacts="keep"`) |
 | `test_ResponseStats` | no fixture: `pAdjust` against statsmodels' `multipletests` (`pipeline/testdata/padjust_golden.json` from `tools/golden/padjust_golden.py`; NaN, ties, one value), `responseStats` on hand-made epochs with known counts (rates, p against `signrank` / `kruskalwallis` called directly, direction, correction, the epochs left out, rates for windows of different lengths, the errors). The tests that call the toolbox are skipped without it |
-| `test_Auroc` | no fixture: `aucOf` against counting every pair; the `"psth"` method against a port of the Caras lab's `auROC_response_curve`; the `"epochs"` method against hand counts; tiled and sliding windows, the whole-bin rules and the errors; the stop mask; the 95% CI formula, the fixed cutoff and the wide-cutoff warning; bootstrap, ranksum and shuffle tests on driven, suppressed and flat units (reproducible by seed; ranksum against `ranksum` called directly); `spikePSTH`'s auROC result, `modulatedOnly` and caption; the PSTH and heatmap marks, tagged. Skipped without the toolbox |
-| `test_PopulationAnalysis` | the fixture: `populationAnalysis`' units, rates, PSTHs and per-level rates equal the per-dataset calls (the selection's groups pooled); the summary's counts and means add up; the groupings (none, dataset × shank, depth bins); the correction over every unit or each dataset; the files written; the errors |
+| `test_Auroc` | no fixture: `aucOf` against counting every pair; the `"psth"` method against a port of the Caras lab's `auROC_response_curve`; the `"epochs"` method against hand counts; tiled and sliding windows, the whole-bin rules and the errors; the stop mask; the 95% CI formula, the fixed cutoff and the wide-cutoff warning; bootstrap, ranksum and shuffle tests on driven, suppressed and flat units (reproducible by seed; ranksum against `ranksum` called directly); a unit silent over a group's epochs has no auROC (NaN) and stays out of the cutoff; units measured apart (`Call=false`) and called in one `aurocCall` get the cutoff, the test's correction and the calls of one `aurocCurves` over them all; `spikePSTH`'s auROC result, `modulatedOnly` and caption; the PSTH and heatmap marks, tagged. Skipped without the toolbox |
+| `test_PopulationAnalysis` | the fixture: `populationAnalysis`' units, rates, PSTHs and per-level rates equal the per-dataset calls (the selection's groups pooled); the summary's counts and means add up; the groupings (none, dataset × shank, depth bins); the correction over every unit or each dataset; each unit's auROC equal to `aurocCurves`' over its dataset, the 95% CI cutoff pooled over every unit (the formula over all of them; `Family="dataset"`: each dataset's own) and, with `AurocGroupBy`, over every unit x group curve, the calls, peaks and summary counts that follow, a test cutoff's p corrected over the family, and the auROC columns and cutoff in the files; the files written; the errors |
 | `test_PlotAesthetics` | no fixture: rules (decoded JSON, refused properties, merging, colours as text), every kind and layout naming everything it draws, the user's rules then the plot's (and `UserAesthetics=false`), a value an object refuses (a warning, the plot still drawn), the right-click menu only in a visible figure or with `Editable=true` (one per figure; legends find their plot), the editor (live edits, Apply to one / same / role / ticked, Reset, Cancel, OK remembering for the plot or the user, Forget and the redraw, unremembered edits put back), the config's `aesthetics` through JSON, and the script literal of a rule list |
 | `test_EphysAnalysisConfig` | see [EphysAnalysisConfig](EphysAnalysisConfig.md#tests) |
 | `test_EphysAnalysisRunner` | the fixture: `plan` skip reasons, `run` exports and paged names (no figure left open), HTML and PDF reports (percent-encoded and `file://` links; a `"both"` report holds the image and the PDF page of every exported page and no result; one figure per page, so each is drawn once; the PDF's title, summary and plot pages in order), `Overwrite` off, rendering real results (a stack of real `epochTable` groups labelled by the `groupBy` parameter, a raster showing every epoch and an evoked stack whatever `Style.YLim`), a failing export closing its page (runner and standalone script), cancel, driven units, compact vs standalone script equivalence (figures, HTML and PDF pages), unit waveforms (templates without the sorted `.bin` and the warning; the spikes cut from a planted one, at most `maxSpikes`, and kept in the cache; detections without waveforms; none with the mode off or for an overlay; the script's `unitWaveforms` line) |

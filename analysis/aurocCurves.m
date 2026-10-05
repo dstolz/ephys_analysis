@@ -10,7 +10,8 @@ function A = aurocCurves(spikeTimes, E, opts)
 %   the baseline, below 0.5 less. Pure: no I/O, no graphics.
 %
 %   Spikes are counted in BinSec bins on a grid from the event (bin k is
-%   [k, k+1) x BinSec, half-open, as in spikePSTH), relative to each
+%   [k, k+1) x BinSec, half-open, as in spikePSTH; a spike on an edge, to
+%   within 1e-9 s, is in the bin that starts there), relative to each
 %   epoch's t0Continuous. Every auROC window is a whole number of bins.
 %
 %   The values compared (Method)
@@ -27,7 +28,11 @@ function A = aurocCurves(spikeTimes, E, opts)
 %   from 0 to the largest value draws, computed exactly from ranks (aucOf).
 %   Measure "rate" and "count" give the same auROC, since only the order
 %   of the values counts. "probability" compares spike / no spike (psth:
-%   the share of epochs with a spike in each bin).
+%   the share of epochs with a spike in each bin). A unit with no spike at
+%   all in the span counted (Window and Baseline) over a group's epochs
+%   has no auROC there: its curve, mean and phasic modulation are NaN, so
+%   it is not called and stays out of the 95% CI cutoff
+%   (calculate_auROC.py gives such a unit NaN too).
 %
 %   The windows (Windows)
 %     "tiled"   (default) back to back, WindowSec long, edges at whole
@@ -38,9 +43,9 @@ function A = aurocCurves(spikeTimes, E, opts)
 %   Only windows wholly inside Window are used. The curve's time of a
 %   window is its centre.
 %
-%   Each unit's call, per group (Cutoff), from the windows wholly inside
-%   ModulationWindow: their mean auROC ("mean") and mean |auROC - 0.5|
-%   ("phasic", the paper's phasic modulation)
+%   Each unit's call, per group (Cutoff; made by aurocCall), from the
+%   windows wholly inside ModulationWindow: their mean auROC ("mean") and
+%   mean |auROC - 0.5| ("phasic", the paper's phasic modulation)
 %     "ci"      (default) as in the paper: c is the upper bound of the 95%
 %               confidence interval of the mean phasic modulation over
 %               every unit and group, mean + t(0.975, n-1) x SD / sqrt(n)
@@ -53,6 +58,10 @@ function A = aurocCurves(spikeTimes, E, opts)
 %               when it is at most Alpha, upwards when the mean auROC is
 %               above 0.5, downwards when below
 %     "none"    no call
+%   With Call=false the units are measured (and, with Cutoff "test",
+%   tested) but not called: to call them with the units of other calls,
+%   their mean, phasic and p stacked, in one aurocCall (populationAnalysis
+%   pools every dataset's units so).
 %   Test
 %     "bootstrap" (default) the epochs are resampled with replacement
 %               NResamples times and the mean auROC recomputed each time.
@@ -91,6 +100,9 @@ function A = aurocCurves(spikeTimes, E, opts)
 %     NResamples      bootstrap / shuffle: how many (default 1000)
 %     Correction      test: "bh" (default) | "holm" | "bonferroni" | "none"
 %     Alpha           test: 0.05
+%     Call            true (default): call the units here; false: leave
+%                     the call fields as Cutoff "none" gives them, for
+%                     aurocCall over a larger pool
 %     Seed            the random stream's seed (default 0)
 %     Groups          the groups table from epochTable (default: built
 %                     from E.groupIndex / E.group)
@@ -114,12 +126,13 @@ function A = aurocCurves(spikeTimes, E, opts)
 %
 %   Errors: aurocCurves:BadOption, aurocCurves:BadWindow,
 %   aurocCurves:BadBaseline, aurocCurves:BadModulation,
-%   aurocCurves:NoToolbox. Warnings (the "ci" cutoff): aurocCurves:NoCutoff
-%   (fewer than two units and groups with a phasic modulation),
-%   aurocCurves:WideCutoff (c >= 0.5, so no unit can be called: too few
-%   units for the interval).
+%   aurocCurves:NoToolbox. Warnings (the "ci" cutoff, aurocCall's):
+%   aurocCall:NoCutoff (fewer than two units and groups with a phasic
+%   modulation), aurocCall:WideCutoff (c >= 0.5, so no unit can be called:
+%   too few units for the interval).
 %
-%   See also spikePSTH, selectUnits, responseStats, pAdjust, tiedrank.
+%   See also aurocCall, spikePSTH, selectUnits, populationAnalysis,
+%   responseStats, pAdjust, tiedrank.
 
 arguments
     spikeTimes
@@ -140,6 +153,7 @@ arguments
     opts.NResamples (1,1) double = 1000
     opts.Correction (1,1) string = "bh"
     opts.Alpha (1,1) double = 0.05
+    opts.Call (1,1) logical = true
     opts.Seed (1,1) double = 0
     opts.Groups = []
 end
@@ -231,8 +245,8 @@ ta = E.t0Continuous;
 mask = false(nF, nE);
 if opts.MaskAfterStop
     stopRel = E.t1 - E.t0;
-    for e = 1:nE
-        if isfinite(stopRel(e)); mask(:, e) = edgesF(1:end-1).' >= stopRel(e); end
+    for e = 1:nE   % a stop on a bin's start (to rounding) masks that bin, as binCounts puts a spike there in it
+        if isfinite(stopRel(e)); mask(:, e) = edgesF(1:end-1).' >= stopRel(e) - 1e-9; end
     end
 end
 prob = opts.Measure == "probability";
@@ -259,6 +273,7 @@ for u = 1:nU
         if isempty(cols); continue; end
         csum = sum(C(:, cols), 2);
         cnt(:, u, g) = sum(reshape(csum(winIdx), nWb, nW), 1).';
+        if ~any(csum); continue; end   % silent here: no auROC (NaN), so out of the cutoff, as calculate_auROC.py
         if opts.Method == "psth"
             v = sum(X(:, cols), 2) ./ sum(Uok(:, cols), 2);   % the mean over the epochs not masked
             a = aucOf(reshape(v(winIdx), nWb, nW), v(baseIdx));
@@ -299,45 +314,6 @@ for u = 1:nU
     end
 end
 
-% --- the calls ---------------------------------------------------------------------------
-q = NaN(nU, nG);
-if runTest; q(:) = pAdjust(p(:), opts.Correction); end
-direction = strings(nU, nG);
-up = false(nU, nG); dn = false(nU, nG);
-c = NaN;
-switch opts.Cutoff
-    case "ci"
-        v = ph(isfinite(ph));
-        n = numel(v);
-        if n >= 2
-            c = mean(v) + tinv(0.975, n - 1) * std(v) / sqrt(n);
-            if c >= 0.5
-                warning('aurocCurves:WideCutoff', ['The 95%% CI cutoff is +/-%.3g around 0.5, beyond the auROC''s ' ...
-                    'range: with %d unit(s) and groups it is too wide to call any unit modulated. Pass more ' ...
-                    'units, or use the fixed or test cutoff.'], c, n);
-            end
-        else
-            warning('aurocCurves:NoCutoff', ['The 95%% CI cutoff needs the phasic modulation of at least two ' ...
-                'units (or groups); there is %d, so no unit is called modulated.'], n);
-        end
-    case "fixed"
-        c = opts.Threshold;
-end
-switch opts.Cutoff
-    case {"ci" "fixed"}
-        up = mn > 0.5 + c;
-        dn = mn < 0.5 - c;
-    case "test"
-        sig = q <= opts.Alpha;
-        up = sig & mn > 0.5;
-        dn = sig & mn < 0.5;
-end
-if opts.Cutoff ~= "none"
-    direction(isfinite(mn)) = "none";
-    direction(up) = "increase";
-    direction(dn) = "decrease";
-end
-
 A = struct();
 A.t = (s + nWb / 2) * bin;
 A.starts = s * bin;
@@ -350,14 +326,9 @@ A.inModulation = inMod;
 A.mean = mn;
 A.phasic = ph;
 A.p = p;
-A.q = q;
-A.direction = direction;
-A.modulated = up | dn;
-A.cutoff = opts.Cutoff;
-A.cutoffValue = c;
-A.nModulated = sum(up | dn, 1).';
-A.nIncrease = sum(up, 1).';
-A.nDecrease = sum(dn, 1).';
+cut = opts.Cutoff;
+if ~opts.Call; cut = "none"; end   % the units' call is made elsewhere, over a larger pool
+A = aurocCall(A, Cutoff=cut, Threshold=opts.Threshold, Correction=opts.Correction, Alpha=opts.Alpha);
 A.nUnits = nU;
 A.baseline = [bLo bHi] * bin;
 A.modulationWindow = m(:).';

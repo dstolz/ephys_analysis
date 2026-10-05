@@ -350,8 +350,9 @@ read again, a progress callback, a best-effort clean-up) stay quiet.
   derived-signal bad-channel detection; `signrank` and `kruskalwallis` in
   the analysis module's response statistics, `responseStats` and the
   *Responsive only* unit selection; `tiedrank`, `tinv` and `ranksum` in its
-  auROC, `aurocCurves`: the auROC baseline of PSTH and heatmap plots and
-  the auROC response test).
+  auROC, `aurocCurves` and `aurocCall`: the auROC baseline of PSTH and
+  heatmap plots, the auROC response test and `populationAnalysis`' calls
+  pooled over every dataset).
 - Parallel Computing Toolbox (optional; `Parallel.Enabled` in a pipeline
   config, or `UseParallel=true` on `detectSpikes`, `artifactIntervals` and
   `analyzeArtifacts`).
@@ -472,7 +473,7 @@ suite's temporary preferences, so close it before the run ends.
 | `test_EphysAnalysisRunner` (analysis/) | plan, run, exports, HTML / PDF reports (each page drawn once), cancel, compact vs standalone script equivalence |
 | `test_EphysAnalysisApp` (analysis/) | the analysis GUI, headless |
 | `test_ResponseStats` (analysis/) | `pAdjust` against statsmodels; `responseStats` on known counts against `signrank` / `kruskalwallis` called directly (toolbox tests skipped without it) |
-| `test_PopulationAnalysis` (analysis/) | `populationAnalysis` against the per-dataset calls, `populationSummary`, the files `writePopulation` writes |
+| `test_PopulationAnalysis` (analysis/) | `populationAnalysis` against the per-dataset calls, the auROC calls pooled over the family, `populationSummary`, the files `writePopulation` writes |
 | `test_ReadNewLines` | `readNewLines` (the run monitor's log tail): whole lines from a byte offset, a partial line left for the next call, CRLF and carriage-return progress lines as a terminal shows them |
 | `test_PlatformSupport` | `platformSupport`'s table and its refusal on a platform where a feature is not available (skipped on Windows); `openInSystem`'s error |
 | `test_TableSort` | `TableSort`, the kept sort of the apps' tables: the order by number, text (ignoring case), date, duration, category and logical, ties in the order given, missing values last, cell columns by header, a column the rows lack; the column and direction a header click leaves, an edit ignored; the preference round trip |

@@ -2,7 +2,11 @@ function files = writePopulation(P, S, folder, opts)
 %writePopulation  Write a population analysis: its tables as CSV, its figures, a JSON record.
 %   FILES = writePopulation(P, S, FOLDER) writes populationAnalysis' P and
 %   populationSummary's S into FOLDER (created when missing):
-%     population_units.csv     P.units, one row per unit
+%     population_units.csv     P.units, one row per unit (its auROC call
+%                              and peak among them)
+%     population_auroc.csv     P.auroc.calls, one row per unit and auROC
+%                              group: its auROC, peak and call (with the
+%                              auROC)
 %     population_groups.csv    S.groups, one row per group
 %     population_psth.csv      t and each group's mean and SEM PSTH
 %     population_tuning.csv    the levels and each group's mean and SEM
@@ -10,7 +14,9 @@ function files = writePopulation(P, S, folder, opts)
 %     population_<kind>.<fmt>  renderPopulation's figures: psth and depth;
 %                              fractions when the units were tested;
 %                              tuning with a Param
-%     population.json          P.params, P.datasets, S.params,
+%     population.json          P.params, P.datasets, S.params, the auROC
+%                              calls' cutoff and families (S.auroc: the
+%                              cutoff pooled over each family),
 %                              P.provenance, P.created and the files
 %                              written (non-finite numbers as strings)
 %   and returns the files written. A file of the same name is replaced.
@@ -41,6 +47,11 @@ files = strings(1, 0);
 f = fullfile(folder, "population_units.csv");
 writetable(P.units, f);
 files(end+1) = f;
+if ~isempty(P.auroc)
+    f = fullfile(folder, "population_auroc.csv");
+    writetable(P.auroc.calls, f);
+    files(end+1) = f;
+end
 f = fullfile(folder, "population_groups.csv");
 writetable(S.groups, f);
 files(end+1) = f;
@@ -69,6 +80,10 @@ end
 rec = struct();
 rec.params = P.params;
 rec.summary = S.params;
+rec.auroc = [];
+if ~isempty(S.auroc)
+    rec.auroc = struct('cutoff', S.auroc.cutoff, 'groupBy', S.auroc.groupBy, 'families', table2struct(S.auroc.families));
+end
 rec.datasets = table2struct(P.datasets);
 rec.provenance = P.provenance;
 rec.created = P.created;

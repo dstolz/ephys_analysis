@@ -2036,6 +2036,13 @@ drawings, and the choice is kept as a preference:
 - **Data-flow overview** (the default): only the steps and the data passing
   between them (see [Data-flow overview](#data-flow-overview)).
 
+**Hide unused** (also kept as a preference) leaves out what the working config does
+not use, in either view: disabled steps (the Artifacts step stays while its manual
+periods are read), stages and files switched off, arrows not read, and inputs
+nothing then reads. The overview closes the empty rows up and routes the arrows
+afresh; the summary line counts what is hidden. In a script:
+`PipelineDiagram.overview(cfg, [], HideUnused=true)`.
+
 **Refresh** draws it again. The summary line beside the buttons counts the
 steps enabled and, with an active dataset, names the recording drawn
 (`| recording: <name>`). **Save as HTML...** and **Open in Browser** write

@@ -14,7 +14,7 @@ function [html, summary] = detail(cfg, d, opts)
 %   own branch). The tree then branches into Artifacts, Signals (LFP / MUA /
 %   SPIKE / AUX / digital events) and Spikes (threshold detection), and runs
 %   each through its stages, with their filter and detection parameters, to
-%   what the step writes. Sorting (Kilosort4 on a .bin), Signals and Spikes
+%   what the step writes. Sorting (the selected sorter on a .bin), Signals and Spikes
 %   hang from the artifact periods when they erase them from the recording
 %   before they read it: the .bin always, the amplifier data the LFP / MUA /
 %   SPIKE are derived from while Signals.BlankArtifacts, the trace spikes
@@ -25,6 +25,10 @@ function [html, summary] = detail(cfg, d, opts)
 %   Each step's branch starts with a box in its colour. Stages the config
 %   leaves off are drawn dashed; disabled steps are faded. Artifact periods
 %   feeding Sorting / Signals / Spikes are marked in the Artifacts colour.
+%
+%   HideUnused=true leaves out what the config does not use: the stages it
+%   leaves off, and the boxes of a disabled step (the artifact periods stay
+%   while they are read; an enabled step hung from a hidden box moves up).
 %
 %   Its Layout is "tree" (the one tree above) or "steps" (a tree of its own
 %   for each step that reads the recording, each from the recording box,
@@ -49,9 +53,11 @@ arguments
     cfg (1,1) EphysPipelineConfig
     d = []
     opts.Layout (1,1) string {mustBeMember(opts.Layout, ["tree" "steps"])} = "tree"
+    opts.HideUnused (1,1) logical = false
 end
 layout = opts.Layout;
-dsName = ternary(isempty(d), "<Name>", d.Name);
+dsName = "<Name>";
+if ~isempty(d); dsName = d.Name; end
 
 sorting = sortingTree(cfg, d);
 signals = signalsTree(cfg, dsName, {exportTree(cfg, dsName), analysisTree(cfg)});
@@ -67,6 +73,12 @@ artifacts = artifactsTree(cfg, hung);
 steps = [{artifacts}, steps];
 % The recording and, once, the common reference every step's read takes.
 raw = chain({rawNode(d), referenceNode(cfg)});
+if opts.HideUnused
+    kept = pruneUnused(raw);
+    raw = kept{1};
+    steps = cellfun(@pruneUnused, steps, "UniformOutput", false);
+    steps = [steps{:}];
+end
 
 % Sorting and Signals read the recording too, wherever they hang.
 readers = {artifacts, sorting, signals, spikes};
@@ -79,6 +91,7 @@ end
 pageTitle = "Preprocessing diagram: " + cfg.Name;
 zoom = PipelineDiagram.zoomFrame("detail_" + layout, "actual");
 body = "<h1>" + esc(pageTitle) + "</h1>" + legendHTML() ...
+    + ternary(opts.HideUnused, "<div class=""note"">Hiding what this config does not use: stages left off and disabled steps.</div>", "") ...
     + "<div class=""hint"">Click any box to open the setting it draws. Scroll to zoom, drag to pan.</div>" ...
     + zoom.open + ternary(layout == "steps", stepsHTML(raw, steps), treeHTML(raw, steps)) + zoom.close ...
     + "<script>" + zoom.js + newline + js() + "</script>";
@@ -90,6 +103,23 @@ end
 % =========================================================================
 % trees
 % =========================================================================
+
+function kept = pruneUnused(n)
+%pruneUnused  N without the boxes the config does not use, as a cell array:
+%   a box that is off or faded is replaced by whatever of its children stays
+%   (the steps hung from it); the recording and the artifact periods stay.
+kids = {};
+for k = 1:numel(n.children)
+    kids = [kids, pruneUnused(n.children{k})]; %#ok<AGROW>
+end
+if n.kind ~= "src" && n.kind ~= "link" && (n.kind == "off" || n.dim)
+    kept = kids;
+else
+    n.children = kids;
+    kept = {n};
+end
+end
+
 
 function n = rawNode(d)
 if isempty(d)
@@ -172,7 +202,7 @@ function n = referenceNode(cfg)
 %referenceNode  The common reference (the Reference section), drawn once
 %   between the recording and the steps: each step subtracts it once,
 %   sample by sample, from its own read of the recording - artifact
-%   detection, the Kilosort4 .bin (whose own do_CAR is then off), spike
+%   detection, the sorting .bin (the sorter's own reference then kept out), spike
 %   detection and the Signals ticked for it (EphysDataset.applyReference /
 %   referenceTrace). What leaves it out is listed.
 A = cfg.Artifacts;
@@ -881,6 +911,7 @@ s = join([ ...
     ".k-out{background:var(--tint);border-color:var(--acc)}"
     ".dim{opacity:.55}"
     % Clickable only in the app: setup() adds .live to <body> (see js()).
+    ".note{font-size:11px;color:#57606a;margin:6px 0 0}"
     ".hint{display:none;font-size:11px;color:#57606a;margin:6px 0 0}"
     "body.live .hint{display:block}"
     "body.live [data-nav]{cursor:pointer}"

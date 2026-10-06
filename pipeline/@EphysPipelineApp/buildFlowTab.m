@@ -14,6 +14,8 @@ function buildFlowTab(obj)
 %   - Data-flow overview (flowOverviewHTML): every step as one box with the
 %     files it writes, and an arrow from each input or file to every step
 %     that reads it. Layout does not apply.
+%   The Hide unused box (a preference, DiagramHideUnused) leaves out what the
+%   working config does not use, in either view.
 %   Shown in an HTML component; refreshed when the tab is shown and whenever
 %   the config changes while it is (syncStepEnableStates). Clicking a box
 %   opens the setting it draws (onFlowNavigate). The page zooms (its buttons,
@@ -24,9 +26,9 @@ g = uigridlayout(obj.TabFlow, [2 1]);
 g.RowHeight = {'fit', '1x'};
 g.Padding   = [10 10 10 10];
 
-bar = uigridlayout(g, [1 8]);
+bar = uigridlayout(g, [1 9]);
 bar.Layout.Row = 1;
-bar.ColumnWidth = {'fit', 'fit', 'fit', 'fit', 170, 'fit', 150, '1x'};
+bar.ColumnWidth = {'fit', 'fit', 'fit', 'fit', 170, 'fit', 150, 'fit', '1x'};
 bar.RowHeight   = {30};
 bar.Padding     = [0 0 0 0];
 obj.FlowRefreshButton = uibutton(bar, "Text", "Refresh", ...
@@ -47,6 +49,9 @@ obj.FlowLayoutDropDown = uidropdown(bar, "Items", ["One tree", "Tree per step"],
     "ItemsData", ["tree", "steps"], "Value", "tree", ...
     "Tooltip", "One tree from the raw recording, or a tree of its own for each step (Every parameter view).", ...
     "ValueChangedFcn", @(~,~) obj.onFlowLayoutChanged());
+obj.FlowHideCheckBox = uicheckbox(bar, "Text", "Hide unused", "Value", false, ...
+    "Tooltip", "Leave out the steps, stages, files and arrows the working config does not use.", ...
+    "ValueChangedFcn", @(~,~) obj.onFlowHideChanged());
 obj.FlowSummaryLabel = uilabel(bar, "Text", "", "FontColor", [0.4 0.4 0.4]);
 
 obj.FlowHTML = uihtml(g, "HTMLEventReceivedFcn", @(~, evt) obj.onFlowNavigate(evt));

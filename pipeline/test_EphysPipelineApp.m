@@ -230,8 +230,8 @@ check(contains(ov, "Preprocessing data flow: gui test") && contains(ov, "<svg cl
     'View "Data-flow overview": a box per input and step, 20 arrows between them, Layout off, all 8 steps counted; saved as a preference');
 [~, ~, M] = app.flowOverviewHTML();
 [nCross, nOverlap, nThrough, nBadEnd] = flowGeometry(M);
-check(nThrough == 0 && nOverlap == 0 && nBadEnd == 0 && nCross <= 5, sprintf(['the overview''s arrows never run ' ...
-    'through a box or share a stretch between sources and each ends on its target''s top (%d crossing(s), at most 5)'], nCross));
+check(nThrough == 0 && nOverlap == 0 && nBadEnd == 0 && nCross <= 6, sprintf(['the overview''s arrows never run ' ...
+    'through a box or share a stretch between sources and each ends on its target''s top (%d crossing(s), at most 6)'], nCross));
 targets = unique(strip(split(join(string(regexp(ov, '(?<=data-nav=")[^"]+', 'match')), ","), ",")));
 missing = targets(arrayfun(@(t) isempty(app.flowNavControls(t)), targets));
 msg = sprintf('every one of the %d controls the overview''s boxes point at exists', numel(targets));

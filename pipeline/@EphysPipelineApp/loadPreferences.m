@@ -77,6 +77,9 @@ end
 if AppPrefs.ispref(g, 'DiagramLayout') && ismember(string(AppPrefs.getpref(g, 'DiagramLayout')), ["tree" "steps"])
     obj.FlowLayoutDropDown.Value = string(AppPrefs.getpref(g, 'DiagramLayout'));
 end
+if AppPrefs.ispref(g, 'DiagramHideUnused')
+    obj.FlowHideCheckBox.Value = isequal(AppPrefs.getpref(g, 'DiagramHideUnused'), true);
+end
 if AppPrefs.ispref(g, 'ShowRunDiagram')
     obj.RunDiagramCheckBox.Value = isequal(AppPrefs.getpref(g, 'ShowRunDiagram'), true);
     obj.onRunDiagramToggled();

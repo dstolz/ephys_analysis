@@ -10,6 +10,11 @@ says how to cut a release.
 
 ### Added
 
+- **Hide unused** on the Diagram tab (`DiagramHideUnused` preference;
+  `HideUnused=true` on `PipelineDiagram.overview` / `detail`): leaves out the
+  disabled steps, stages and files switched off, arrows not read and inputs
+  nothing reads. In the data-flow overview the Spikes step now sits in the
+  same row as Signals and Sorting.
 - SpikeInterface sorters as an alternative to Kilosort4, on the Sorting tab.
   **Sorter** (`Sorting.Sorter`) is Kilosort4 by default, run as before with
   the same settings and controls, or a sorter SpikeInterface runs

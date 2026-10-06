@@ -1,4 +1,4 @@
-function [html, summary, model] = overview(cfg, d)
+function [html, summary, model] = overview(cfg, d, opts)
 %overview  The pipeline diagram's overview: how data flows through the steps, as a standalone HTML page.
 %   [HTML, SUMMARY, MODEL] = PipelineDiagram.overview(CFG, D) draws the
 %   pipeline config CFG (an EphysPipelineConfig) for the dataset D (an
@@ -15,6 +15,12 @@ function [html, summary, model] = overview(cfg, d)
 %   leaves off is dashed (Signals without BlankArtifacts does not read the
 %   artifact periods, Export reads the sorted units only with
 %   IncludeUnits, ...); a disabled step, and every arrow into it, is faded.
+%   PipelineDiagram.overview(CFG, D, HideUnused=true) leaves out what the
+%   config does not use: the disabled steps (an Artifacts step with detection
+%   off stays while its manual periods are read), the files not written, the
+%   arrows not read, and the inputs nothing then reads. The rows close up and
+%   the arrows are routed afresh.
+%
 %   The parameters themselves are on the "Every parameter" view
 %   (PipelineDiagram.detail). Hovering a box lights its arrows and the boxes at
 %   their other ends, in the app and in a saved page.
@@ -47,19 +53,26 @@ function [html, summary, model] = overview(cfg, d)
 arguments
     cfg (1,1) EphysPipelineConfig
     d = []
+    opts.HideUnused (1,1) logical = false
 end
-dsName = ternary(isempty(d), "<Name>", d.Name);
+dsName = "<Name>";
+if ~isempty(d); dsName = d.Name; end
 
 N = [inputNodes(cfg, d), stepNodes(cfg, dsName)];
 E = edgeList(cfg);
 for k = 1:numel(E)   % an arrow into a disabled step fades with it
     E(k).dim = N([N.id] == E(k).to).dim;
 end
-[N, E, W, H] = place(N, E);
-
 steps = N([N.kind] == "step");
 nOn = nnz(~[steps.dim]);
 summary = sprintf("%d of %d steps enabled", nOn, numel(steps));
+nBefore = numel(N) + numel(E) + sum(arrayfun(@(n) numel(n.outs), N));
+if opts.HideUnused
+    [N, E] = hideUnused(N, E);
+    nHidden = nBefore - (numel(N) + numel(E) + sum(arrayfun(@(n) numel(n.outs), N)));
+    summary = summary + sprintf(" | %d unused item(s) hidden", nHidden);
+end
+[N, E, W, H] = place(N, E);
 if ~isempty(d)
     summary = summary + " | recording: " + d.Name;
 end
@@ -72,6 +85,7 @@ svg = sprintf("<svg class=""flow"" xmlns=""http://www.w3.org/2000/svg"" viewBox=
 zoom = PipelineDiagram.zoomFrame("overview", "fit");
 body = "<h1>" + esc(pageTitle) + "</h1>" + legendHTML() ...
     + "<div class=""note"">Arrows carry data in the colour of what wrote it. Hover a box to trace what it reads and writes. Scroll to zoom, drag to pan.</div>" ...
+    + ternary(opts.HideUnused, "<div class=""note"">Hiding what this config does not use: disabled steps, files not written, arrows not read.</div>", "") ...
     + "<div class=""hint"">Click any box to open the setting it draws.</div>" ...
     + zoom.open + svg + zoom.close ...
     + "<script>" + zoom.js + newline + js() + "</script>";
@@ -241,14 +255,14 @@ switch K.ArtifactMode
     case "erase";  lines(end+1) = "artifact periods erased first";
     otherwise;     lines(end+1) = "ignores the artifact periods";
 end
-spikes = step("spikes", 3, 3, "Spikes", K.Enabled, lines, "SpkEnableCheckBox");
+spikes = step("spikes", 2, 4, "Spikes", K.Enabled, lines, "SpkEnableCheckBox");
 spikes.outs = pill("out", "Spikes file", dsName + K.Suffix + ".mat", ...
     "SpkOutputDirField,SpkSuffixField,SpkOverwriteCheckBox,SpkMatVersionDropDown", true);
 
 X = cfg.Export;
 lines = "signals: " + joinOr(X.Signals, "all") + ternary(X.IncludeEvents, ", with events", "");
 lines(end+1) = "one file per format";
-export = step("export", 4, 2, "Export", X.Enabled, lines, "ExpEnableCheckBox");
+export = step("export", 3, 2, "Export", X.Enabled, lines, "ExpEnableCheckBox");
 if ismember("chronux", X.Formats)
     export.outs(end+1) = pill("out", "Chronux file", dsName + "_chronux.mat", "ExpChronuxCheckBox,ExpOutputDirField", false);
 end
@@ -287,7 +301,7 @@ else
     lines = ["runs " + use.file, use.plots];
 end
 % A row of its own, bottom left: of the free cells this crosses the fewest arrows.
-analysis = step("analysis", 5, 0, "Analysis", An.Enabled, lines, "AnaEnableCheckBox,AnaConfigField");
+analysis = step("analysis", 4, 0, "Analysis", An.Enabled, lines, "AnaEnableCheckBox,AnaConfigField");
 if An.Figures
     analysis.outs = pill("out", "Figure files", ["each plot's pages", "as its Export settings say"], "AnaFiguresCheckBox", false);
 else
@@ -354,7 +368,7 @@ E = [ ...
     edge("artifacts", "sorting", true, "blanked before the .bin is written"), ...
     edge("rec", "sorting", true, "the recording, written to the .bin", NaN), ...
     edge("probemap", "sorting", true, "the channel map", NaN), ...
-    edge("artifacts", "spikes", K.ArtifactMode ~= "none", toSpikes, 2), ...
+    edge("artifacts", "spikes", K.ArtifactMode ~= "none", toSpikes), ...
     edge("rec", "spikes", true, "the recording, for threshold detection", 3.5), ...
     edge("behavior", "export", byTrial, ternary(byTrial, "the paired trials the epochs are cut around" ...
         + ternary(B.WriteFile, "", " (from the session and its recorded pairing, with no behavior file)"), ...
@@ -366,6 +380,37 @@ E = [ ...
     edge("signals", "analysis", true, "the extract: the events, and the signals plots of LFP / MUA / SPIKE / AUX read"), ...
     edge("sorting", "analysis", use.units, ternary(use.units, "the sorted units", "off: no plot of the analysis config reads sorted units")), ...
     edge("spikes", "analysis", use.detected, ternary(use.detected, "the detected spikes", "off: no plot of the analysis config reads detected spikes"), 3)];
+end
+
+
+% =========================================================================
+% hiding what the config does not use
+% =========================================================================
+
+function [N, E] = hideUnused(N, E)
+%hideUnused  Drop the disabled steps, the files not written, the arrows not
+%   read and the inputs nothing reads any more, then close the empty rows up.
+%   A disabled step stays while a file of it is still read (the manual
+%   artifact periods); the arrows into it still go.
+keep = true(size(N));
+for k = 1:numel(N)
+    n = N(k);
+    if n.kind == "step" && n.dim
+        keep(k) = any(arrayfun(@(p) ~isempty(p.dim) && ~p.dim, n.outs));
+    end
+    if ~isempty(N(k).outs); N(k).outs = N(k).outs([N(k).outs.kind] ~= "off"); end
+end
+N = N(keep);
+live = [N.id];
+E = E([E.on] & ~[E.dim] & ismember([E.from], live) & ismember([E.to], live));
+% An input (not a step) is kept only while an arrow leaves it.
+isIn = [N.kind] ~= "step";
+N = N(~isIn | ismember([N.id], [E.from]));
+% Close up the rows nothing is left in.
+rows = unique([N.row]);
+for k = 1:numel(N)
+    N(k).row = find(rows == N(k).row) - 1;
+end
 end
 
 

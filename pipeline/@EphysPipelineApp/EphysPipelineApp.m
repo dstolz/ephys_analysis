@@ -714,6 +714,7 @@ classdef EphysPipelineApp < handle
         FlowOpenButton    matlab.ui.control.Button
         FlowViewDropDown  matlab.ui.control.DropDown   % every parameter | data-flow overview (a preference)
         FlowLayoutDropDown matlab.ui.control.DropDown
+        FlowHideCheckBox  matlab.ui.control.CheckBox   % Hide unused (a preference)
         FlowSummaryLabel  matlab.ui.control.Label
         FlowHTML          matlab.ui.control.HTML
         % Controls a click in the Diagram marked, with the look to put back
@@ -1239,7 +1240,9 @@ classdef EphysPipelineApp < handle
         % --- Flow tab ---
         refreshFlowChart(obj)
         [html, summary] = flowChartHTML(obj, opts)
-        [html, summary, model] = flowOverviewHTML(obj)
+        [html, summary, model] = flowOverviewHTML(obj, opts)
+        tf = hideUnused(obj)
+        onFlowHideChanged(obj)
         onSaveFlowChart(obj)
         onOpenFlowChartInBrowser(obj)
         onFlowViewChanged(obj)

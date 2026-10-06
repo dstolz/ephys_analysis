@@ -18,7 +18,7 @@ classdef PipelineDiagram
 
     methods (Static)
         [html, summary] = detail(cfg, d, opts)
-        [html, summary, model] = overview(cfg, d)
+        [html, summary, model] = overview(cfg, d, opts)
         z = zoomFrame(key, initial)
     end
 end

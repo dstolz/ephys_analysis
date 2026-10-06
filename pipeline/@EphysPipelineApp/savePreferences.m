@@ -29,6 +29,7 @@ AppPrefs.setpref(g, 'TrialsLabelParams', cellstr(obj.TrialsLabelParams));
 AppPrefs.setpref(g, 'ShowRunDiagram', logical(obj.RunDiagramCheckBox.Value));
 AppPrefs.setpref(g, 'DiagramView', char(obj.FlowViewDropDown.Value));
 AppPrefs.setpref(g, 'DiagramLayout', char(obj.FlowLayoutDropDown.Value));
+AppPrefs.setpref(g, 'DiagramHideUnused', logical(obj.FlowHideCheckBox.Value));
 AppPrefs.setpref(g, 'MonitorResources', logical(obj.RunMonitorCheckBox.Value));
 AppPrefs.setpref(g, 'QueueSortingRuns', logical(obj.RunKSQueueCheckBox.Value));
 AppPrefs.setpref(g, 'VizOptions', struct( ...

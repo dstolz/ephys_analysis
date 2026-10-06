@@ -71,6 +71,7 @@ obj.applySortingSection(cfg.Sorting);
 obj.applyConvertConfig(cfg.Signals);
 obj.applySpikesSection(cfg.Spikes);
 obj.applyExportSection(cfg.Export);
+obj.applyAnalysisSection(cfg.Analysis);
 end
 
 

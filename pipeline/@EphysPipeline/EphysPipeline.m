@@ -22,6 +22,8 @@ classdef EphysPipeline < handle
     %     signals    runSignals         derived LFP/MUA/SPIKE/AUX .mat (toMat)
     %     spikes     runSpikeDetection  detected and/or sorted spikes .mat (spikesToMat)
     %     export     runExport          analysis-toolbox / epoch files (Export.Formats)
+    %     analysis   runAnalysis        an EphysAnalysisApp config's figures and report
+    %                                   (Analysis.ConfigFile; needs the analysis folder)
     %   Each step method can be called directly (it then runs even if the
     %   step is disabled in the config); call checkRun() first for the checks
     %   run() makes before any step (config errors, blocking plan rows). Each
@@ -122,6 +124,8 @@ classdef EphysPipeline < handle
         runSignals(obj, opts)
         runSpikeDetection(obj, opts)
         runExport(obj, opts)
+        runAnalysis(obj, opts)
+        T = analysisTargets(obj, acfg, idx)
 
         function obj = EphysPipeline(cfg, opts)
             %EphysPipeline  Build the project for a config (or use a given one).
@@ -519,10 +523,34 @@ classdef EphysPipeline < handle
             %
             %   See also DatasetOutputs, EphysDataset.outputs.
             if isnumeric(d); d = obj.Project.Datasets(d); end
-            c = obj.Config;
-            dirs = [string(c.Signals.OutputDir), string(c.Spikes.OutputDir), string(c.Export.OutputDir)];
-            dirs = strtrim(dirs);
-            o = d.outputs('SearchDirs', dirs(strlength(dirs) > 0), varargin{:});
+            o = d.outputs('SearchDirs', EphysPipelineConfig.outputSearchDirs(obj.Config), varargin{:});
+        end
+
+        function [acfg, msg] = analysisConfig(obj, idx)
+            %analysisConfig  The Analysis step's EphysAnalysisConfig, set to run on datasets IDX.
+            %   [ACFG, MSG] = pipe.analysisConfig(IDX) loads
+            %   Analysis.ConfigFile (EphysPipelineConfig.loadAnalysisConfig)
+            %   and replaces its Source by this project and the keys of
+            %   datasets IDX (indices into Project.Datasets; default the
+            %   selected ones), in that order (analysisSource). ACFG is []
+            %   and MSG says why when it cannot be loaded.
+            if nargin < 2; idx = obj.DatasetIdx; end
+            [acfg, msg] = EphysPipelineConfig.loadAnalysisConfig(obj.Config.Analysis.ConfigFile);
+            if isempty(acfg); return; end
+            keys = obj.Project.datasetKeys();
+            acfg.Source = EphysPipelineConfig.analysisSource(obj.Config, keys(idx));
+        end
+
+        function t = analysisTokens(obj, d)
+            %analysisTokens  Dataset D's tokens for an analysis config's folder patterns.
+            %   The figureFileName (Kind "folder") tokens EphysAnalysisRunner
+            %   fills for D when it runs over this project: OutputFolder (D's
+            %   output folder), OutputRoot (Project.OutputRoot, else Root),
+            %   Root and Name.
+            P = obj.Config.Project;
+            root = P.OutputRoot;
+            if root == ""; root = P.Root; end
+            t = struct('OutputFolder', string(d.outputFolder()), 'OutputRoot', root, 'Root', P.Root, 'Name', d.Name);
         end
 
         %% --- preflight steps ----------------------------------------------------

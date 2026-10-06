@@ -15,12 +15,14 @@ setIf(obj.RunSortingCheckBox,   cfg.Sorting.Enabled);
 setIf(obj.RunSignalsCheckBox,   cfg.Signals.Enabled);
 setIf(obj.RunSpikesCheckBox,    cfg.Spikes.Enabled);
 setIf(obj.RunExportCheckBox,    cfg.Export.Enabled);
+setIf(obj.RunAnalysisCheckBox,  cfg.Analysis.Enabled);
 setIf(obj.BehEnableCheckBox,    cfg.Behavior.Enabled);
 setIf(obj.ArtEnableCheckBox,    cfg.Artifacts.Enabled);
 setIf(obj.SortEnableCheckBox,   cfg.Sorting.Enabled);
 setIf(obj.SigEnableCheckBox,    cfg.Signals.Enabled);
 setIf(obj.SpkEnableCheckBox,    cfg.Spikes.Enabled);
 setIf(obj.ExpEnableCheckBox,    cfg.Export.Enabled);
+setIf(obj.AnaEnableCheckBox,    cfg.Analysis.Enabled);
 if ~isempty(obj.RunKSAtOnceSpinner) && isvalid(obj.RunKSAtOnceSpinner)
     obj.RunKSAtOnceSpinner.Enable = matlab.lang.OnOffSwitchState(cfg.Sorting.Execution == "background");
 end

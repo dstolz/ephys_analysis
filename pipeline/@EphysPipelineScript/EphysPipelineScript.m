@@ -17,7 +17,10 @@ classdef EphysPipelineScript
     %                                 the runner's does (the behavior step's
     %                                 trial pairing and approval included); the
     %                                 runner's cache of artifact detections and
-    %                                 its plan checks are left out.
+    %                                 its plan checks are left out. The
+    %                                 Analysis step runs EphysAnalysisRunner on
+    %                                 the analysis config, written out as its
+    %                                 JSON as it was when the script was made.
     %   Both return the script text; pass File= to write it (write()).
     %   standalone(cfg, Note=) adds comment lines to its header (a pipeline
     %   run's saved script names the run there; EphysPipeline.writeScript).
@@ -66,7 +69,7 @@ classdef EphysPipelineScript
             calls = struct('probe', "pipe.checkProbes();", 'behavior', "pipe.checkBehavior();", ...
                 'artifacts', "pipe.runArtifacts();", 'sorting', "pipe.runSorting();", ...
                 'signals', "pipe.runSignals();", 'spikes', "pipe.runSpikeDetection();", ...
-                'export', "pipe.runExport();");
+                'export', "pipe.runExport();", 'analysis', "pipe.runAnalysis();");
             for step = EphysPipelineConfig.StepNames
                 line = calls.(step);
                 if cfg.stepEnabled(step)
@@ -506,6 +509,11 @@ classdef EphysPipelineScript
             L(end+1, 1) = "end";
             L = [L; EphysPipelineScript.stepFooter(cfg.stepEnabled("export"))];
 
+            % --- analysis ------------------------------------------------------------
+            L = [L; EphysPipelineScript.stepHeader("Analysis: figures and report (EphysAnalysisRunner)", cfg.stepEnabled("analysis"))];
+            L = [L; EphysPipelineScript.analysisLines(cfg)];
+            L = [L; EphysPipelineScript.stepFooter(cfg.stepEnabled("analysis"))];
+
             txt = strjoin(L, newline) + newline;
             if opts.File ~= ""
                 EphysPipelineScript.write(opts.File, txt);
@@ -611,6 +619,59 @@ classdef EphysPipelineScript
             else
                 e = EphysPipelineScript.literal(string(setting));
             end
+        end
+
+        function L = analysisLines(cfg)
+            %analysisLines  The standalone script's Analysis step.
+            %   The analysis config is written out as its JSON (what
+            %   EphysAnalysisConfig.save writes, as it was when the script was
+            %   written), so the script needs no config file; when it cannot
+            %   be read now, the script loads the file when it runs. Its Source
+            %   becomes the project and datasets above (the step's
+            %   EphysPipelineConfig.analysisSource); a dataset whose outputs
+            %   cannot be read is left out, as the step leaves it out.
+            lit = @EphysPipelineScript.literal;
+            An = cfg.Analysis;
+            L = strings(0, 1);
+            if strtrim(An.ConfigFile) == ""
+                L(end+1, 1) = "% No analysis config is chosen (Analysis.ConfigFile): nothing to run.";
+                return
+            end
+            [acfg, msg] = EphysPipelineConfig.loadAnalysisConfig(An.ConfigFile);
+            if isempty(acfg)
+                L(end+1, 1) = "% The analysis config could not be read when this script was written (" + msg + ").";
+                L(end+1, 1) = "acfg = EphysAnalysisConfig.load(" + lit(An.ConfigFile) + ");";
+            else
+                L(end+1, 1) = "% The analysis config " + An.ConfigFile + " (EphysAnalysisApp), as it was when";
+                L(end+1, 1) = "% this script was written; it runs over the datasets above, not its own Source.";
+                L(end+1, 1) = "analysisJson = [";
+                for jl = splitlines(strip(acfg.toJson(), "right")).'
+                    L(end+1, 1) = "    " + lit(jl); %#ok<AGROW>
+                end
+                L(end+1, 1) = "    ];";
+                L(end+1, 1) = "acfg = EphysAnalysisConfig(jsondecode(join(analysisJson, newline)));";
+            end
+            L(end+1, 1) = "allKeys = P.datasetKeys();";
+            L(end+1, 1) = "acfg.Source = struct('Mode', ""project"", 'Root', root, 'OutputRoot', outputRoot, 'NamePattern', " + ...
+                lit(cfg.Project.NamePattern) + ", ...";
+            L(end+1, 1) = "    'Recordings', readerOptions.OpenEphys.Recordings, 'Selection', ""list"", 'Datasets', allKeys(idx), 'Folders', string.empty(1,0));";
+            L(end+1, 1) = "runner = EphysAnalysisRunner(acfg, SearchDirs=" + lit(EphysPipelineConfig.outputSearchDirs(cfg)) + ...
+                ");   % the step output folders set apart";
+            L(end+1, 1) = "readable = true(1, numel(runner.Names));";
+            L(end+1, 1) = "for j = 1:numel(runner.Names)   % each dataset's outputs first: one that cannot be read is left out";
+            L(end+1, 1) = "    try";
+            L(end+1, 1) = "        runner.source(j);";
+            L(end+1, 1) = "    catch ME";
+            L(end+1, 1) = "        readable(j) = false;";
+            L(end+1, 1) = "        fprintf(2, '%s: analysis FAILED, its outputs could not be read: %s\n', runner.Names(j), ME.message);";
+            L(end+1, 1) = "    end";
+            L(end+1, 1) = "end";
+            L(end+1, 1) = "if any(readable)";
+            L(end+1, 1) = "    analysisResults = runner.run(Datasets=find(readable), Export=" + lit(logical(An.Figures)) + ...
+                ", Report=" + lit(logical(An.Report)) + ");";
+            L(end+1, 1) = "    disp(analysisResults);";
+            L(end+1, 1) = "    if ~isempty(runner.ReportFiles); fprintf('Report: %s\n', strjoin(runner.ReportFiles, ', ')); end";
+            L(end+1, 1) = "end";
         end
 
         function L = stepHeader(title, enabled)

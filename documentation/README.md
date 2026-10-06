@@ -22,7 +22,7 @@ on `pipeline`; `pipeline` does not depend on it. See [Analysis](EphysAnalysis.md
 
 | Page | Covers |
 | --- | --- |
-| [EphysPipeline](EphysPipeline.md) | `EphysPipelineConfig` (the config and its schema), `EphysPipeline` (plan / run / cancel; background Kilosort4 runs N at a time over the listed GPUs: `sortingSlot`, `waitForSortingSlot`), `EphysPipelineScript` (generated scripts), Epsych2 session readers |
+| [EphysPipeline](EphysPipeline.md) | `EphysPipelineConfig` (the config and its schema), `EphysPipeline` (plan / run / cancel; background Kilosort4 runs N at a time over the listed GPUs: `sortingSlot`, `waitForSortingSlot`; the Analysis step, which runs an analysis config's figures and report over the selected datasets), `EphysPipelineScript` (generated scripts), Epsych2 session readers |
 | [EphysDataset](EphysDataset.md) | one recording: readers and the universal data struct, layouts, metadata, streaming, filtering, artifacts, spike detection, `.bin` writing, Kilosort4 runs, sorted-unit loader, derived signals, spikes file, exports, behavior, manifest |
 | [EphysProject](EphysProject.md) | discovering many recordings, `refresh`, dataset keys, batch operations |
 | [DatasetTracker](DatasetTracker.md) | read-only filesystem inventory (recordings, probe maps, `.bin` files, Kilosort4 runs) |

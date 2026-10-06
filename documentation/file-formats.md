@@ -422,7 +422,8 @@ which holds `H64LP_4x16.json` as a starting point.
   "Signals":   { "Enabled", "OutputDir", "Suffix", ... , "BlankArtifacts", ... , "LabelField", "LineNames", "InvertedLines", ... ,
                  "ExcludeHandling" },
   "Spikes":    { "Enabled", ... , "ArtifactMode", "OutputDir", "Suffix", ... },
-  "Export":    { "Enabled", "Formats", "Signals", "IncludeUnits", ... , "EpochNonFinite", "EpochArtifacts", ... }
+  "Export":    { "Enabled", "Formats", "Signals", "IncludeUnits", ... , "EpochNonFinite", "EpochArtifacts", ... },
+  "Analysis":  { "Enabled", "ConfigFile", "Figures", "Report" }
 }
 ```
 
@@ -1036,6 +1037,9 @@ schema `ephys-analysis-run/1`: `runId`, `name`, `outcome` (`finished` |
 `cancelled`), `started`, `finished`, `seconds`, `datasets`, `plots`,
 `reportFiles`, `results` (the runner's Results rows), `provenance` and
 `config` (the analysis config). `EphysAnalysisRunner.RunRecordFile` names it.
+The pipeline's Analysis step writes one too (its `config.Source` is the
+pipeline's project and selected datasets), and the pipeline run's record
+lists the step's rows (`analysis:<plot id>`, `analysis:report`).
 
 ## Analysis config JSON
 

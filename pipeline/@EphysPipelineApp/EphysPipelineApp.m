@@ -47,6 +47,12 @@ classdef EphysPipelineApp < handle
     %     Signals    derived LFP / MUA / SPIKE / AUX (.mat) settings, plan, Run
     %     Spikes     threshold detection / sorted units (.mat), preview, Run
     %     Export     analysis-toolbox and epoch files (one per format), plan, Run
+    %     Analysis   the Analysis step: an EphysAnalysisApp config (its plots,
+    %                alignment, figure files and report) run over the
+    %                selected datasets; the config's summary and plots, open
+    %                it in the analysis app, whether the figure files and the
+    %                report are written, plan, Run, open the report or the
+    %                figures
     %     Diagram    diagram of the working config (View): every parameter,
     %                as one tree from the raw recording, a branch per step
     %                (filters, references, detection parameters, files
@@ -159,6 +165,7 @@ classdef EphysPipelineApp < handle
         TabSignals   matlab.ui.container.Tab
         TabSpikes    matlab.ui.container.Tab
         TabExport    matlab.ui.container.Tab
+        TabAnalysis  matlab.ui.container.Tab
         TabRun       matlab.ui.container.Tab
         TabFlow      matlab.ui.container.Tab
         TabVisualize matlab.ui.container.Tab
@@ -653,6 +660,22 @@ classdef EphysPipelineApp < handle
         RunStepExportButton  matlab.ui.control.Button
         ExpRefreshButton     matlab.ui.control.Button
 
+        % --- Analysis tab (config Analysis; the analysis config is read from its file) ---
+        AnaEnableCheckBox    matlab.ui.control.CheckBox
+        AnaConfigField       matlab.ui.control.EditField     % Analysis.ConfigFile
+        AnaBrowseButton      matlab.ui.control.Button
+        AnaOpenAppButton     matlab.ui.control.Button        % open it in EphysAnalysisApp (onOpenAnalysisConfig)
+        AnaReloadButton      matlab.ui.control.Button        % read the file again (refreshAnalysisSummary)
+        AnaSummaryLabel      matlab.ui.control.Label         % name, alignment, figures, report, checks
+        AnaPlotsTable        matlab.ui.control.Table         % its plots: id, kind, source, enabled
+        AnaFiguresCheckBox   matlab.ui.control.CheckBox      % Analysis.Figures
+        AnaReportCheckBox    matlab.ui.control.CheckBox      % Analysis.Report
+        AnaTargetsTable      matlab.ui.control.Table         % the step's plan
+        RunStepAnalysisButton matlab.ui.control.Button
+        AnaOpenReportButton  matlab.ui.control.Button        % onOpenAnalysisOutput("report")
+        AnaOpenFiguresButton matlab.ui.control.Button        % onOpenAnalysisOutput("figures")
+        AnaRefreshButton     matlab.ui.control.Button
+
         % --- Flow tab ---
         FlowRefreshButton matlab.ui.control.Button
         FlowSaveButton    matlab.ui.control.Button
@@ -679,6 +702,7 @@ classdef EphysPipelineApp < handle
         RunSignalsCheckBox   matlab.ui.control.CheckBox
         RunSpikesCheckBox    matlab.ui.control.CheckBox
         RunExportCheckBox    matlab.ui.control.CheckBox
+        RunAnalysisCheckBox  matlab.ui.control.CheckBox
         RunParallelCheckBox  matlab.ui.control.CheckBox
         RunMaxWorkersField   matlab.ui.control.EditField
         RunSelectionLabel    matlab.ui.control.Label
@@ -891,6 +915,7 @@ classdef EphysPipelineApp < handle
         buildSignalsTab(obj)
         buildSpikesTab(obj)
         buildExportTab(obj)
+        buildAnalysisTab(obj)
         buildRunTab(obj)
         buildFlowTab(obj)
         buildVisualizeTab(obj)
@@ -930,6 +955,8 @@ classdef EphysPipelineApp < handle
         applyParallelSection(obj, P)
         E = gatherExportSection(obj)
         applyExportSection(obj, E)
+        A = gatherAnalysisSection(obj)
+        applyAnalysisSection(obj, A)
         onNewConfig(obj)
         onOpenConfig(obj)
         ok = openConfigFile(obj, file)
@@ -1153,6 +1180,13 @@ classdef EphysPipelineApp < handle
         onBrowseSpikesOutput(obj)
         onBrowseExportOutput(obj)
         onExportEpochsToWorkspace(obj)
+
+        % --- Analysis tab ---
+        onAnalysisControlsChanged(obj, what)
+        onBrowseAnalysisConfig(obj)
+        a = onOpenAnalysisConfig(obj)
+        refreshAnalysisSummary(obj)
+        onOpenAnalysisOutput(obj, what)
 
         % --- Flow tab ---
         refreshFlowChart(obj)

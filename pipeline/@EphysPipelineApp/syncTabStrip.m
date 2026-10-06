@@ -67,6 +67,8 @@ for k = 1:numel(tabs)
             [state, tip] = stepState(issues, "spikes", cfg.Spikes.Enabled);
         case obj.TabExport
             [state, tip] = stepState(issues, "export", cfg.Export.Enabled);
+        case obj.TabAnalysis
+            [state, tip] = stepState(issues, "analysis", cfg.Analysis.Enabled);
         case obj.TabRun
             if obj.RunActive
                 state = "busy"; tip = "Pipeline running.";

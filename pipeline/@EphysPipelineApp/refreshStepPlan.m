@@ -5,8 +5,9 @@ arguments
     step (1,1) string
 end
 switch step
-    case "signals"; tbl = obj.ConvTargetsTable;
-    case "export";  tbl = obj.ExpTargetsTable;
+    case "signals";  tbl = obj.ConvTargetsTable;
+    case "export";   tbl = obj.ExpTargetsTable;
+    case "analysis"; tbl = obj.AnaTargetsTable;
     otherwise; return
 end
 if isempty(tbl) || ~isvalid(tbl); return; end

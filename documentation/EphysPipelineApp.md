@@ -17,6 +17,8 @@ for the preprocessing pipeline. It edits **one pipeline config**
 - derive LFP / MUA / spike-band `.mat` files;
 - detect spikes by threshold and/or collect sorted units into a `.mat`;
 - export Chronux- and FieldTrip-shaped files;
+- run an analysis config (plots, figure files, a report) from the
+  [analysis app](EphysAnalysisApp.md) over the processed datasets;
 - associate Epsych2 behavior sessions;
 - review sorted units and open them in phy;
 - write synthetic datasets whose spikes and LFP follow the events of the
@@ -74,7 +76,7 @@ background monitor and saves preferences.
 - **Title**: the config name and file; `*` in front while the config has
   unsaved changes.
 - **Tabs**, in workflow order: **Copy, Project, Trials, Probe, Artifacts, Sorting,
-  Signals, Spikes, Export, Diagram, Run, Visualize, Review, Synthetic, Clean up**. The app opens on
+  Signals, Spikes, Export, Analysis, Diagram, Run, Visualize, Review, Synthetic, Clean up**. The app opens on
   Project. Each tab button shows an icon above its title
   (`pipeline/icons/tabs/<title>.svg`, lower case without spaces) and is
   coloured by its status, and its tooltip says why: grey = step disabled,
@@ -87,7 +89,7 @@ background monitor and saves preferences.
 
 ### The config model
 
-Every control on the Project through Export tabs is bound to a section of
+Every control on the Project through Analysis tabs is bound to a section of
 `app.Config`. Editing a control re-gathers the config
 (`gatherConfig`), pushes the new settings into the scanned datasets, syncs the
 enable states (tab strip colours and the Run tab's checklist) and updates the
@@ -149,7 +151,7 @@ that recording again by its folder.
 | Action | Target |
 | --- | --- |
 | Trials: every control; Probe: Exclude channels, the channel-count check; Artifacts: Detect / Preview, manual periods table; Sorting: Use folder / Use auto / Open in phy, Optimize for probe (the default probe when the dataset has none); Spikes: Preview; Visualize; Review; Project: Associate file / Clear, the Tools panel set to **Active dataset** | the **active dataset** |
-| Run pipeline, Run this step, Plan, Signals / Export target tables; Project: the Tools panel set to **Ticked datasets** | the rows **ticked** in the Project table (`Project.Selection = "list"`), or **all** datasets when none are ticked (`"all"`) |
+| Run pipeline, Run this step, Plan, Signals / Export / Analysis target tables; Project: the Tools panel set to **Ticked datasets** | the rows **ticked** in the Project table (`Project.Selection = "list"`), or **all** datasets when none are ticked (`"all"`) |
 | Probe: Assign to selected datasets | the rows **ticked** in the Project table, or the **active dataset** when none are ticked |
 | Probe: Assign to all datasets | every dataset |
 
@@ -169,8 +171,10 @@ that recording again by its folder.
 4. **Artifacts** (optional): tune and preview the detector; mark manual
    periods on **Visualize**.
 5. Enable the steps you want on their tabs (**Sorting**, **Signals**,
-   **Spikes**, **Export**) and set their options. Each tab has **Run this
-   step** for a single step over the selected datasets.
+   **Spikes**, **Export**, **Analysis**) and set their options. Each tab has **Run this
+   step** for a single step over the selected datasets. For **Analysis**,
+   make an analysis config in the analysis app first (**Open in the
+   analysis app**) and choose it.
 6. **Run**: **Validate**, **Plan**, then **Run** (or **Dry run**).
 7. **File → Save config**. Each run has already saved its standalone script
    in the project root (**Save the pipeline script on each run**, Project
@@ -997,6 +1001,55 @@ the app only writes files.
   when the Signals output is missing); **Run this step** runs
   `EphysPipeline.runExport`.
 
+## Analysis
+
+The Analysis step (`Analysis.*`) runs an analysis config made in the
+[analysis app](EphysAnalysisApp.md) over the selected datasets. It draws the
+config's plots, writes their figure files and writes its HTML / PDF report,
+as **Run** does in the analysis app. It is the last step, because it reads
+what the others write: each dataset's extract (the events and the signals),
+its spikes file, its sorted units and its behavior file. It needs the
+repository's `analysis` folder on the path (`addpath_nogit` adds it); without
+it, validation says so.
+
+- **Config file** (`Analysis.ConfigFile`): an analysis config (`.json`). The
+  file is read when the step runs, so changes saved in the analysis app apply
+  to the next run. The step runs it over the datasets ticked on the Project
+  tab, not over the source saved in it
+  (`EphysPipelineConfig.analysisSource`). Each dataset's outputs are also
+  looked for in the Signals / Spikes / Export output folders when those are
+  set.
+- **Open in the analysis app** opens the config in
+  [EphysAnalysisApp](EphysAnalysisApp.md), to edit its plots. Save it there,
+  then press **Reload** here. With no config chosen, the button opens the
+  analysis app on this project's selected datasets, to make one.
+- The summary under the buttons shows what the config holds: its name and
+  description, the event the plots align to and their window, where its
+  figure files and report go, and what its own checks find (red for an
+  error). The table lists its plots (id, kind, source, enabled). The plots
+  themselves are edited in the analysis app.
+- **Write the figure files** (`Analysis.Figures`) and **Write the report**
+  (`Analysis.Report`): the step writes these whatever the analysis config's
+  own Export / Report **Enabled** says. Where they go, their formats and
+  file names come from its Export and Report settings, for example
+  `{OutputFolder}\analysis\{Name}_{Plot}.png` and
+  `{OutputRoot}\analysis\analysis_report.html`. With both off, the plots are
+  only drawn.
+- The targets table lists one row per dataset and enabled plot
+  (`analysis:<plot id>`, with its figure folder) and one row per report
+  (`analysis:report`; no dataset for one report over every dataset).
+  **Run this step** runs `EphysPipeline.runAnalysis`. **Open report** opens
+  the report in the browser: the active dataset's own report with
+  `Report.PerDataset`, else the one over every dataset. **Open figures
+  folder** shows the active dataset's figure folder.
+
+A plot a dataset cannot have (no sorted units, no paired trials, no LFP
+extract, ...) is a *skipped* result row, with the reason, and the other
+plots still run. A dataset whose outputs cannot be read is an *error* row;
+the others still run. **Cancel** stops before the next plot. After a cancel,
+a report over every dataset is not written. The analysis writes its own run
+record next to the report (`analysis_runs/`), as in the analysis app.
+
 ## Diagram
 
 A diagram of what the working config does, redrawn whenever the tab is
@@ -1065,11 +1118,12 @@ step box to the files it writes:
   reference)*); the AUX and digital-event branches hang from the read
   beside the channel selection, since neither is referenced or
   channel-selected. The amplifier branches end with bad-channel
-  interpolation, the channel remap and the output file. Export hangs from the
-  first signal file (from the digital events when no amplifier signal is
-  computed): its inputs, then one branch per format; the *Event epochs* box
-  says whether epochs touching an artifact period are dropped or kept,
-  flagged.
+  interpolation, the channel remap and the output file. Export and Analysis
+  hang from the first signal file (from the digital events when no amplifier
+  signal is computed). Export shows its inputs, then one branch per format;
+  the *Event epochs* box says whether epochs touching an artifact period are
+  dropped or kept, flagged. Analysis shows what it reads, the analysis
+  config's plots and alignment, and its figure files and report.
 - **Spikes**: chunking, channels, the erased artifact periods (with
   `ArtifactMode` `"erase"`: *NaN: out of the thresholds, a line across each
   for the filter*), bandpass, threshold, alignment, minimum period, amplitude
@@ -1084,7 +1138,7 @@ detection off), and artifact periods feeding another step are marked orange.
 Spikes (Spikes only while it does not erase the periods, and Signals too
 while `Signals.BlankArtifacts` is off), each from the recording box and its
 common reference, then the steps hung from another step's output (Sorting,
-Signals and Spikes from the artifact periods, Export) under
+Signals and Spikes from the artifact periods, Export and Analysis) under
 **Downstream**, each under a box for what it reads (*Artifact periods, from
 Artifacts*). The choice is kept as a preference. In either layout the tab's
 summary line (`N of 4 raw-data step(s) enabled`) counts Artifacts, Sorting,
@@ -1126,13 +1180,14 @@ it:
 | Signals | the recording; the artifact periods (`BlankArtifacts`) | the signal files, `<Name>_extract_<TYPE>.mat` |
 | Spikes | the recording and the artifact periods (threshold detection; the periods rejected or erased first, unless `ArtifactMode` is none) | `<Name>_spikes.mat` |
 | Export | the signal files; the sorted units (`IncludeUnits`); the spikes file (`IncludeDetected`); the behavior file (epochs around the paired trials) | one file per format |
+| Analysis | the signal files; the behavior file; the sorted units and the spikes file (dashed when no enabled plot of the analysis config reads them) | the figure files (`Figures`), the report (`Report`) |
 
 A read the config leaves off is drawn dashed and grey, and a file the config
 does not write is a dashed box. A disabled step and the arrows into it are
 faded. The arrows out of its files keep their colour, since a file written
 by an earlier run still feeds the steps after it. The artifact periods never
 fade, because the manual ones apply with detection off. The summary line
-counts all seven steps (`N of 7 steps enabled`).
+counts all eight steps (`N of 8 steps enabled`).
 
 The arrows run at right angles through the gaps between the boxes, never
 through one. The arrows from one source share their first stretch, like the
@@ -1857,6 +1912,7 @@ preference: its settings live in its own file, which its Windows task reads.
 | `<outputFolder>/<Name>.bin` (or `<Name>_ks4.bin`) + `.json`, `<outputFolder>/kilosort4/{settings.json, run_ks4.py, ks4_launch.cmd, ks4_run.log, ks4_status.json, ks4_exit.txt}` and the phy files (plus `<probe>_excluded.json` with excluded channels, `<probe>_spaced.json` with `shank_spacing`, and `previous_<yyyyMMdd_HHmmss>/` holding an earlier sort's curation) | Sorting (a dry run writes only `settings.json` and `run_ks4.py`, into `kilosort4/dryrun/`) |
 | `<outputFolder>/<Name>_artifacts.json` | Artifacts (cache) |
 | `<Name>_extract_<TYPE>.mat` (or `<Name>_extract.mat`), `<Name>_spikes.mat`, `<Name>_chronux.mat`, `<Name>_fieldtrip.mat`, `<Name>_epochs.mat`, `<Name>_kcsd.npz`, `<Name>.nwb` (+ `<Name>_nwbinspector.json`) | Signals, Spikes, Export |
+| the analysis config's figure files (by default `<outputFolder>/analysis/<Name>_<Plot>.png` / `.svg`), its report (by default `<output root, else project root>/analysis/analysis_report.html`) and `<report folder>/analysis_runs/<runId>_<name>.json` | Analysis (a dry run writes nothing) |
 | probe `.json` in the probe folder | Import, Designer save, Notes edit |
 | `<parent>/synthetic_ephys/...` | File → Create synthetic test project (recordings, sessions, sorted output, probe, config, README) |
 | `<Folder>/<Subject>/<Subject>_<start>/`: the recording, the session copy, `kilosort4/` (ground truth), `<Name>_manifest.json`, `<Name>_synthetic.json` and, with a synthetic probe, `<Name>_probe.json`; a design `.json` | Synthetic → Generate... (Preview writes nothing); Save design... |
@@ -1906,6 +1962,7 @@ app.KSQueue                       % prepared runs waiting for a slot (Queue the 
 | `queueKSRun.m`, `onStopKSQueue.m`, `onStopKSRuns.m`, `stopKSRuns.m`, `markKSResult.m` | background Kilosort4 runs: the queue the monitor starts from, Stop queue, Stop runs..., restating a run's result row |
 | `onSpikesPreview.m`, `syncSpikesEnableStates.m` | Spikes tab |
 | `onBrowseExportOutput.m`, `onExportEpochsToWorkspace.m` | Export tab (output folder, Epochs to workspace) |
+| `buildAnalysisTab.m`, `gatherAnalysisSection.m`, `applyAnalysisSection.m`, `onAnalysisControlsChanged.m`, `onBrowseAnalysisConfig.m`, `onOpenAnalysisConfig.m`, `refreshAnalysisSummary.m`, `onOpenAnalysisOutput.m` | Analysis tab (the analysis config, its summary, Open in the analysis app, Open report / figures folder) |
 | `onPlotVisualization.m`, `applyVizSettings.m`, `onVizControlsChanged.m`, `onVizViewChanged.m`, `onVizInput.m`, `onVizButtonDown/Up.m`, `refreshVizShading.m`, `vizDetectedIntervals.m`, `syncVizDataset.m`, `loadVizEvents.m`, `onVizReadEvents.m`, `showVizHelp.m`; `pipeline/EphysTraceViewer.m`, `pipeline/EphysTraceSource.m` | Visualize tab: loading the active dataset's signals and spikes, the controls, the wheel / keys / drags, the shading (`vizDetectedIntervals`: the Artifacts preview's intervals the plot shades, or why none); the digital-input events and Read events; the "?" window of mouse and key controls; the viewer and the windowed sources behind it |
 | `buildFlowTab.m`, `refreshFlowChart.m`, `flowChartHTML.m`, `flowOverviewHTML.m`, `onFlowViewChanged.m`, `onFlowLayoutChanged.m`, `onSaveFlowChart.m`, `onOpenFlowChartInBrowser.m`, `onFlowNavigate.m`, `flowNavControls.m`, `clearFlowHighlight.m` | Diagram tab: the page in the view picked, drawn by [`PipelineDiagram`](../pipeline/@PipelineDiagram/PipelineDiagram.m), a plain class the app calls (`detail`: every parameter; `overview`: the data flow, laid out and routed there; `zoomFrame`: the zoom and pan, kept per view by the app), save / open, a box's click |
 | `buildCopyTab.m`, `onCopyFind.m`, `onCopyRun.m`, `refreshCopyTable.m`, `onCopyTableEdited.m`, `onCopyStitch.m`, `onCopyUnstitch.m`, `onBrowseCopyFolder.m`, `copyLog.m`, `onCopyCancel.m`, `startCopyMonitor.m`, `stopCopyMonitor.m`, `pollCopyJob.m`, `setCopyRunning.m`, `applyCopyResult.m`, `finishCopyRun.m`, `showCopyProgress.m`, `copySummaryText.m`, `refreshCopySchedule.m`, `onCopyScheduleSave.m`, `onCopyScheduleRemove.m`, `onCopyScheduleRunNow.m`, `onCopyScheduleLog.m`; `pipeline/findCopySessions.m`, `pipeline/stitchCopySessions.m`, `pipeline/copySessions.m`, `pipeline/copy_engine.ps1`, `pipeline/stitchEpsychSessions.m`, `pipeline/CopySchedule.m` | Copy tab, the pairing / stitching / copy functions it calls, the detached copy engine, and the scheduled copy (its Windows task and what each run does) |
@@ -1926,7 +1983,7 @@ the app headlessly over a synthetic project: config → controls → config roun
 trip, the unsaved marker, the Diagram of the loaded config and its refresh on edits, that every box in a
 chart of all the steps points at controls that exist and that clicking one opens its tab and marks
 them, the data-flow overview (its boxes and arrows, that no arrow runs through a box or shares a line
-with another source's and at most two cross, the reads a config leaves off, the arrows into a disabled
+with another source's and at most five cross, the reads a config leaves off, the arrows into a disabled
 step, the View preference and Layout turned off), the Run checklist ↔ tab sync and its Parallel controls, scan + selection ticks
 (and the ticked datasets in the Dataset menu),
 the active dataset's highlight under the token filters, the Source settings panel (the active dataset's system: Intan's
@@ -1940,6 +1997,8 @@ resource monitoring (a sample's figures and colours, n/a readings, live samples 
 exiting and removing its folder when unticked), the Clean up tab's preview (every file listed, a raw
 recording without a copy record kept, nothing deleted, the Keep rows hidden on request, a changed tick box discarding it,
 the Sorting step's box marking its whole folder), a move into the project refused, a move out of it (layout, record, preview again) and the preferences,
+the Analysis tab (an analysis config's summary and plots, the Run checklist box, its plan with and without the
+report, the Diagram naming the config, a missing config shown in red and stopping the plan),
 save / reopen and the recent list,
 the Help menu's wiki pages and its issue items (what a bug report and a
 feature request carry, that an unticked section is left out, the percent-encoded

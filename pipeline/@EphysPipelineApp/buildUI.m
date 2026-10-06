@@ -40,6 +40,7 @@ obj.TabSorting   = uitab(obj.Tabs, "Title", "Sorting");
 obj.TabSignals   = uitab(obj.Tabs, "Title", "Signals");
 obj.TabSpikes    = uitab(obj.Tabs, "Title", "Spikes");
 obj.TabExport    = uitab(obj.Tabs, "Title", "Export");
+obj.TabAnalysis  = uitab(obj.Tabs, "Title", "Analysis");
 obj.TabFlow      = uitab(obj.Tabs, "Title", "Diagram");
 obj.TabRun       = uitab(obj.Tabs, "Title", "Run");
 obj.TabVisualize = uitab(obj.Tabs, "Title", "Visualize");
@@ -47,7 +48,7 @@ obj.TabReview    = uitab(obj.Tabs, "Title", "Review");
 obj.TabSynthetic = uitab(obj.Tabs, "Title", "Synthetic");
 obj.TabCleanup   = uitab(obj.Tabs, "Title", "Clean up");
 obj.TabList = [obj.TabCopy, obj.TabProject, obj.TabTrials, obj.TabProbe, obj.TabArtifacts, ...
-    obj.TabSorting, obj.TabSignals, obj.TabSpikes, obj.TabExport, obj.TabFlow, ...
+    obj.TabSorting, obj.TabSignals, obj.TabSpikes, obj.TabExport, obj.TabAnalysis, obj.TabFlow, ...
     obj.TabRun, obj.TabVisualize, obj.TabReview, obj.TabSynthetic, obj.TabCleanup];
 
 buildTabStrip(obj, outer);
@@ -63,6 +64,7 @@ obj.buildSortingTab();
 obj.buildSignalsTab();
 obj.buildSpikesTab();
 obj.buildExportTab();
+obj.buildAnalysisTab();
 obj.buildFlowTab();
 obj.buildRunTab();
 obj.buildReviewTab();
@@ -83,7 +85,7 @@ function styleButtons(obj)
 styleButton(findall(obj.Fig, "Type", "uibutton", "-or", "Type", "uistatebutton"));
 styleButton([obj.CopyFindButton, obj.CopyRunButton, obj.ScanButton, obj.TrialsLoadButton, ...
     obj.AssignSelectedButton, obj.ApplyProbeRulesButton, obj.ArtDetectButton, obj.RunStepSortingButton, obj.RunStepSignalsButton, obj.RunStepSpikesButton, ...
-    obj.RunStepExportButton, obj.RunButton, obj.VizPlotButton, obj.LoadReviewButton, ...
+    obj.RunStepExportButton, obj.RunStepAnalysisButton, obj.RunButton, obj.VizPlotButton, obj.LoadReviewButton, ...
     obj.SynthPreviewButton, obj.CleanupPreviewButton], "primary");
 styleButton([obj.TrialsApproveButton, obj.CopyScheduleSaveButton, obj.SynthGenerateButton], "confirm");
 styleButton([obj.CleanupRunButton, obj.RunCancelButton, obj.RunKSStopRunsButton, obj.RunKSStopQueueButton, ...
@@ -101,7 +103,7 @@ n = numel(obj.TabList);
 sg = uigridlayout(parent, [2 n + 1]);
 sg.Layout.Row = 1; sg.Layout.Column = 1;
 sg.RowHeight     = {'1x', 3};
-sg.ColumnWidth   = [repmat({77}, 1, n), {'1x'}];   % 15 tabs fit the default 1240 px width
+sg.ColumnWidth   = [repmat({72}, 1, n), {'1x'}];   % 16 tabs fit the default 1240 px width
 sg.RowSpacing    = 1;
 sg.ColumnSpacing = 3;
 sg.Padding       = [6 3 6 0];

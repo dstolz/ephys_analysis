@@ -18,6 +18,7 @@ if page == "tab"
         case obj.TabSignals,   page = "Signals-Tab";
         case obj.TabSpikes,    page = "Spikes-Tab";
         case obj.TabExport,    page = "Export-Tab";
+        case obj.TabAnalysis,  page = "Analysis-Tab";
         case obj.TabFlow,      page = "Run-and-Flow-Tabs#flow-tab";
         case obj.TabRun,       page = "Run-and-Flow-Tabs#run-tab";
         case obj.TabVisualize, page = "Visualize-Tab";

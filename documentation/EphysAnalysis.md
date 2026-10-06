@@ -11,8 +11,12 @@ collected into a self-contained HTML report and / or a multi-page PDF.
 It is for quick looks. Spectra, coherence and other analyses belong in
 [Chronux](ChronuxDataset.md) or [FieldTrip](FieldTripExport.md).
 
-`analysis` depends on `pipeline`; `pipeline` never depends on `analysis`
-(its only link is the pipeline app's **File → Open analysis app...**).
+`analysis` depends on `pipeline`. `pipeline` needs `analysis` only for its
+Analysis step, which runs an analysis config over the pipeline's selected
+datasets ([EphysPipeline → Analysis step](EphysPipeline.md#analysis-step);
+the pipeline app's **Analysis** tab), and for the app's **File → Open
+analysis app...**. Without `analysis` on the path, everything else in the
+pipeline still runs.
 Three layers, each usable without the next:
 
 | Layer | What | Page |
@@ -602,14 +606,24 @@ R = r.run();                       % Datasets=, Plots=, Export=, Report= narrow 
 r.ReportFiles
 ```
 
-`EphysAnalysisRunner(cfg, ProgressFcn=, LogFcn=)` finds the datasets from
+`EphysAnalysisRunner(cfg, ProgressFcn=, LogFcn=, SearchDirs=)` finds the datasets from
 `cfg.Source` (`datasets()`): in project mode `EphysProject(Root, OutputRoot=,
 NamePattern=, ReaderOptions=)` only lists the recording folders (no header is
 read; `Source.Recordings` says whether an Open Ephys session with several
 recordings is one dataset or one per recording) and each dataset's
 `outputs(CacheData=true)` finds its files; in
-folders mode each folder is a `DatasetOutputs`. `source(k)` loads and caches
-`loadAnalysisSource`.
+folders mode each folder is a `DatasetOutputs`. `SearchDirs` are further
+folders every dataset's outputs are looked for in (the pipeline's Analysis
+step passes its Signals / Spikes / Export `OutputDir`). `source(k)` loads and caches
+`loadAnalysisSource`. `ProgressFcn(fraction, message)` hears how far the
+whole run is: dataset j of n starts at (j−1)/n and its plots share its 1/n.
+`EphysAnalysisRunner.reportFiles(cfg, tokens)` is where a run writes the
+report for one dataset's folder tokens (`Report.Folder`, `FileName`,
+`_<Name>` with `PerDataset`, `.html` / `.pdf` as `Format` says).
+
+The pipeline runs a saved config as its **Analysis** step, over the
+pipeline's selected datasets instead of `cfg.Source`
+([EphysPipeline → Analysis step](EphysPipeline.md#analysis-step)).
 
 - `plan()` is a table `Dataset, Plot, Kind, Source, Enabled, Reason`;
   `Reason` comes from `plotSkipReason`: *disabled*, *no sorted units*, *no
@@ -659,6 +673,7 @@ separate roots and requires pixel-identical figures and equal HTML reports.
 | `test_EphysAnalysisConfig` | see [EphysAnalysisConfig](EphysAnalysisConfig.md#tests) |
 | `test_EphysAnalysisRunner` | the fixture: `plan` skip reasons, `run` exports and paged names (no figure left open), HTML and PDF reports (percent-encoded and `file://` links; a `"both"` report holds the image of every exported page and each result), `Overwrite` off, rendering real results (a stack of real `epochTable` groups labelled by the `groupBy` parameter, a raster showing every epoch and an evoked stack whatever `Style.YLim`), a failing export closing its page (runner and standalone script), cancel, driven units, compact vs standalone script equivalence, unit waveforms (templates without the sorted `.bin` and the warning; the spikes cut from a planted one, at most `maxSpikes`, and kept in the cache; detections without waveforms; none with the mode off or for an overlay; the script's `unitWaveforms` line) |
 | `test_EphysAnalysisApp` | see [EphysAnalysisApp](EphysAnalysisApp.md#tests) |
+| `test_PipelineAnalysisStep` | the fixture: the pipeline's Analysis step running a saved analysis config, see [EphysPipeline](EphysPipeline.md#tests) |
 
 The fixture (`analysis/private/makeAnalysisFixture.m`) writes
 `makeSyntheticProject(Preset="small")` with the clean and late-start

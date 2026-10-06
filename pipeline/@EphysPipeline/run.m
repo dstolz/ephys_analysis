@@ -18,7 +18,8 @@ function R = run(obj, opts)
 %              or script)
 %              and no artifact detection streams the recording; each step
 %              records "dry run" rows saying what it would do. Sorting
-%              writes its config / script only (runKilosort DryRun).
+%              writes its config / script only (runKilosort DryRun);
+%              Analysis draws nothing.
 %
 %   Provenance: every output of the run records the code version, MATLAB,
 %   host, user, the config and the run's id (pipe.provenance(), stored in
@@ -88,6 +89,7 @@ for step = steps
             case "signals";   obj.runSignals(DryRun=opts.DryRun);
             case "spikes";    obj.runSpikeDetection(DryRun=opts.DryRun);
             case "export";    obj.runExport(DryRun=opts.DryRun);
+            case "analysis";  obj.runAnalysis(DryRun=opts.DryRun);
         end
     catch ME
         if strcmp(ME.identifier, 'EphysPipeline:Cancelled')

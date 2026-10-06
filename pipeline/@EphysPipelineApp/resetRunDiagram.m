@@ -24,7 +24,7 @@ end
 if nargin < 3; dryRun = false; end
 
 names = EphysPipelineConfig.StepNames;
-titles = ["Probe check" "Behavior" "Artifacts" "Sorting" "Signals" "Spikes" "Export"];
+titles = ["Probe check" "Behavior" "Artifacts" "Sorting" "Signals" "Spikes" "Export" "Analysis"];
 S = struct('key', num2cell(names), 'title', num2cell(titles), 'what', num2cell(stepWhat(cfg, queueOn(obj))), ...
     'inRun', num2cell(ismember(names, string(steps))), 'state', "queued", 'pct', 0, ...
     'index', 0, 'count', 0, 'dataset', "", 'message', "");
@@ -50,7 +50,7 @@ end
 function w = stepWhat(cfg, queued)
 %stepWhat  What each step does under CFG, in a few words (StepNames order).
 %   QUEUED: the Run queues the background runs that wait for a slot.
-w = strings(1, 7);
+w = strings(1, 8);
 
 w(1) = "assigned probes vs channel counts";
 if cfg.Probe.DefaultProbeFile ~= ""
@@ -108,6 +108,17 @@ if isempty(fmts)
     w(7) = "no format ticked";
 else
     w(7) = join(fmts, " + ") + " files";
+end
+
+An = cfg.Analysis;
+if strtrim(An.ConfigFile) == ""
+    w(8) = "no analysis config chosen";
+else
+    [~, f, x] = fileparts(An.ConfigFile);
+    out = ["figures" "report"];
+    out = out([An.Figures An.Report]);
+    if isempty(out); out = "plots drawn only"; end
+    w(8) = f + x + ": " + join(out, " + ");
 end
 end
 

@@ -10,6 +10,23 @@ says how to cut a release.
 
 ### Added
 
+- An Analysis step at the end of the pipeline: it loads an analysis config
+  saved in the analysis app (`Analysis.ConfigFile`, read when the step
+  runs) and runs it with `EphysAnalysisRunner` over the pipeline's selected
+  datasets instead of the config's own source. It writes the figure files
+  (`Analysis.Figures`) and the HTML / PDF report (`Analysis.Report`) where
+  the analysis config's Export and Report settings say
+  (`EphysPipeline.runAnalysis`). Plan, dry run, cancel, progress, run
+  records and both generated scripts cover it; the standalone script
+  carries the analysis config as JSON. Validation checks the analysis
+  config too, and its errors stop the run. The pipeline app has a new
+  **Analysis** tab after Export: the config file, its summary and plots,
+  **Open in the analysis app**, the figure and report switches, the plan,
+  **Run this step**, **Open report** and **Open figures folder**. The step
+  is also on the Run tab's checklist, the run diagram and both Diagram
+  views. `EphysAnalysisRunner` gained `SearchDirs` (the pipeline's step
+  output folders), and its `ProgressFcn` fraction now covers the whole run
+  rather than restarting at each dataset.
 - Unit waveforms on the analysis plots: a raster, or a PSTH or tuning
   grid, of spikes can draw each unit's mean waveform, a subsample of its
   spikes, or both, as a box in the unit's tile (the plot's `waveform`:

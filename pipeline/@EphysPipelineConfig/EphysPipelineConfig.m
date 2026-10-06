@@ -56,6 +56,13 @@ classdef EphysPipelineConfig
     %                (UnitQuality: the units carry their quality metrics),
     %                the Epoch* settings of the epoch format, NWB (the NWB
     %                file's metadata and the Python that writes it)
+    %     Analysis   Enabled, ConfigFile (an EphysAnalysisApp config, read
+    %                when the step runs and run over the pipeline's
+    %                selected datasets: analysisSource), Figures (write the
+    %                figure files), Report (write the report); where and how
+    %                both are written is the analysis config's own Export and
+    %                Report sections. Needs the repository's analysis folder
+    %                on the path (loadAnalysisConfig)
     %
     %   Usage
     %     cfg = EphysPipelineConfig();                 % defaults
@@ -87,6 +94,7 @@ classdef EphysPipelineConfig
         Signals     struct = EphysPipelineConfig.defaults("Signals")
         Spikes      struct = EphysPipelineConfig.defaults("Spikes")
         Export      struct = EphysPipelineConfig.defaults("Export")
+        Analysis    struct = EphysPipelineConfig.defaults("Analysis")
     end
 
     properties (Transient)
@@ -97,11 +105,11 @@ classdef EphysPipelineConfig
     properties (Constant)
         Schema   = "ephys-pipeline-config"
         Version  = 1
-        Sections = ["Project" "Acquisition" "Parallel" "Probe" "Behavior" "Artifacts" "Sorting" "Signals" "Spikes" "Export"]
+        Sections = ["Project" "Acquisition" "Parallel" "Probe" "Behavior" "Artifacts" "Sorting" "Signals" "Spikes" "Export" "Analysis"]
         % Execution order of the steps (Project, Acquisition and Parallel are not steps; Probe is a preflight).
-        StepNames = ["probe" "behavior" "artifacts" "sorting" "signals" "spikes" "export"]
+        StepNames = ["probe" "behavior" "artifacts" "sorting" "signals" "spikes" "export" "analysis"]
         % Section that holds each step's settings.
-        StepSections = ["Probe" "Behavior" "Artifacts" "Sorting" "Signals" "Spikes" "Export"]
+        StepSections = ["Probe" "Behavior" "Artifacts" "Sorting" "Signals" "Spikes" "Export" "Analysis"]
         % Export formats the Export step can write: one per analysis
         % toolbox (kcsd: the LFP and probe positions for kCSD-python, a
         % .npz), plus "epochs", the same data organized by event. Each has
@@ -141,6 +149,7 @@ classdef EphysPipelineConfig
         function obj = set.Signals(obj, s);   obj.Signals   = EphysPipelineConfig.normalizeSection("Signals", s);   end
         function obj = set.Spikes(obj, s);    obj.Spikes    = EphysPipelineConfig.normalizeSection("Spikes", s);    end
         function obj = set.Export(obj, s);    obj.Export    = EphysPipelineConfig.normalizeSection("Export", s);    end
+        function obj = set.Analysis(obj, s);  obj.Analysis  = EphysPipelineConfig.normalizeSection("Analysis", s);  end
 
         %% --- struct / JSON --------------------------------------------------
         function s = toStruct(obj)
@@ -447,6 +456,70 @@ classdef EphysPipelineConfig
                 o.Artifacts     = e.EpochArtifacts;
                 o.SpikeTimeBase = e.EpochSpikeTimeBase;
                 o.Class         = e.EpochClass;
+            end
+        end
+
+        function dirs = outputSearchDirs(cfg)
+            %outputSearchDirs  The step output folders set apart from the datasets' own.
+            %   DIRS = EphysPipelineConfig.outputSearchDirs(CFG): the
+            %   Signals, Spikes and Export OutputDir settings that are not
+            %   blank, where those steps write instead of each dataset's
+            %   output folder. Whatever reads their files searches them too
+            %   (EphysPipeline.outputsFor, the Analysis step).
+            arguments
+                cfg (1,1) EphysPipelineConfig
+            end
+            dirs = strtrim([string(cfg.Signals.OutputDir), string(cfg.Spikes.OutputDir), string(cfg.Export.OutputDir)]);
+            dirs = unique(dirs(strlength(dirs) > 0), 'stable');
+        end
+
+        function S = analysisSource(cfg, keys)
+            %analysisSource  An analysis config's Source over this pipeline's project.
+            %   S = EphysPipelineConfig.analysisSource(CFG, KEYS) is the
+            %   Source section (EphysAnalysisConfig) the Analysis step runs
+            %   with: Mode "project" on CFG's Root, OutputRoot, NamePattern
+            %   and Open Ephys recording mode, Selection "list" of the
+            %   root-relative dataset KEYS (the pipeline's selection, in its
+            %   order). The analysis config's own Source is never used by
+            %   the step.
+            arguments
+                cfg (1,1) EphysPipelineConfig
+                keys (1,:) string
+            end
+            P = cfg.Project;
+            S = struct('Mode', "project", 'Root', P.Root, 'OutputRoot', P.OutputRoot, ...
+                'NamePattern', P.NamePattern, 'Recordings', cfg.Acquisition.OpenEphys.Recordings, ...
+                'Selection', "list", 'Datasets', keys, 'Folders', string.empty(1, 0));
+        end
+
+        function [acfg, msg] = loadAnalysisConfig(file)
+            %loadAnalysisConfig  The Analysis step's EphysAnalysisConfig, or why there is none.
+            %   [ACFG, MSG] = EphysPipelineConfig.loadAnalysisConfig(FILE)
+            %   loads FILE (EphysAnalysisConfig.load; its LoadWarnings stay
+            %   on ACFG instead of a warning). ACFG is [] and MSG says why
+            %   when FILE is blank or not there, when the analysis module
+            %   (the repository's analysis folder) is not on the path, or
+            %   when FILE is not an analysis config. The pipeline needs the
+            %   module for this step only.
+            arguments
+                file (1,1) string
+            end
+            acfg = [];
+            msg = "";
+            if strtrim(file) == ""
+                msg = "No analysis config is chosen (Analysis.ConfigFile).";
+            elseif exist('EphysAnalysisConfig', 'class') ~= 8
+                msg = "The analysis module is not on the MATLAB path: add the repository's analysis folder (addpath_nogit adds it).";
+            elseif ~isfile(file)
+                msg = "Analysis config not found: " + file;
+            else
+                ws = warning('off', 'EphysAnalysisConfig:LoadWarnings');
+                restore = onCleanup(@() warning(ws)); %#ok<NASGU>
+                try
+                    acfg = EphysAnalysisConfig.load(file);
+                catch ME
+                    msg = "Analysis config " + file + ": " + string(ME.message);
+                end
             end
         end
 

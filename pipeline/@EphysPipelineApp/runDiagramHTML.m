@@ -104,6 +104,7 @@ s = join([ ...
     ".s-signals{--acc:#1f7fbf;--tint:#e3f0fa;--glow:rgba(31,127,191,.45)}"
     ".s-spikes{--acc:#2e9e5b;--tint:#e3f5ea;--glow:rgba(46,158,91,.45)}"
     ".s-export{--acc:#6e7781;--tint:#eef0f2;--glow:rgba(110,119,129,.45)}"
+    ".s-analysis{--acc:#9a6700;--tint:#fbf1d0;--glow:rgba(154,103,0,.45)}"
     ".top{display:flex;align-items:center;gap:7px;min-height:18px}"
     ".icon{flex:none;width:10px;height:10px;border-radius:50%;border:2px solid var(--acc);background:#fff}"
     ".title{font-weight:600;font-size:13px}"

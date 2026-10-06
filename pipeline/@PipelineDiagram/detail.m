@@ -20,8 +20,8 @@ function [html, summary] = detail(cfg, d, opts)
 %   SPIKE are derived from while Signals.BlankArtifacts, the trace spikes
 %   are detected on while Spikes.ArtifactMode is "erase"; otherwise the step
 %   hangs from the reference.
-%   Export reads outputs rather than the recording, so it hangs from the
-%   file it reads: the Signals extract.
+%   Export and Analysis read outputs rather than the recording, so they
+%   hang from the file they read first: the Signals extract.
 %   Each step's branch starts with a box in its colour. Stages the config
 %   leaves off are drawn dashed; disabled steps are faded. Artifact periods
 %   feeding Sorting / Signals / Spikes are marked in the Artifacts colour.
@@ -54,7 +54,7 @@ layout = opts.Layout;
 dsName = ternary(isempty(d), "<Name>", d.Name);
 
 sorting = sortingTree(cfg, d);
-signals = signalsTree(cfg, dsName, exportTree(cfg, dsName));
+signals = signalsTree(cfg, dsName, {exportTree(cfg, dsName), analysisTree(cfg)});
 spikes = spikesTree(cfg, dsName);
 % The steps that erase the artifact periods before they read the recording
 % hang from them: Sorting always, Signals while BlankArtifacts is on, Spikes
@@ -288,8 +288,9 @@ txt = txt + ".";
 end
 
 
-function n = signalsTree(cfg, dsName, export)
-%signalsTree  EXPORT (reading the extract) hangs from the first signal file.
+function n = signalsTree(cfg, dsName, downstream)
+%signalsTree  DOWNSTREAM (the steps reading the extract, a cell array)
+%   hang from the first signal file.
 %   The channel selection comes first, and the artifact periods are erased
 %   in the amplifier data LFP / MUA / SPIKE derive from. Each of those says
 %   whether it takes the common reference drawn above the steps (taken over
@@ -299,7 +300,7 @@ G = cfg.Signals;
 A = cfg.Artifacts;
 types = ["LFP" "MUA" "SPIKE" "AUX"];
 host = types(find([G.LFP G.MUA G.SPIKE G.AUX], 1));
-kids = @(type) exportUnder(host, type, export);
+kids = @(type) downstreamUnder(host, type, downstream);
 stage = @(type, on) node("stage", type, ternary(on && A.Reference ~= "none", ...
     ["amplifier", "common " + upper(A.Reference) + " referenced"], ["amplifier", "as recorded (no common reference)"]), ...
     "Conv" + type + "CheckBox,SigRef" + type + "CheckBox");
@@ -365,7 +366,7 @@ if ~isempty(G.InvertedLines); ev(end+1) = "inverted: " + join(G.InvertedLines, "
 named = G.LabelField + " names";
 if ~isempty(G.LineNames); named = [named, numel(G.LineNames) + " renamed (Trials tab)"]; end
 events = node("out", "Events", "in every extract file", "ConvLabelFieldDropDown");
-if isempty(host); events.children = {export}; end
+if isempty(host); events.children = downstream; end
 branches{5} = chain({node("stage", "Digital inputs", named, "ConvLabelFieldDropDown"), ...
     node("op", "Edge detection", ev, "TrialsLinesTable"), events});
 
@@ -385,9 +386,9 @@ n = step("signals", "Signals", G.Enabled, "", "SigEnableCheckBox", {read});
 end
 
 
-function k = exportUnder(host, type, export)
-%exportUnder  {EXPORT} under the file of signal HOST, {} under the others.
-if isequal(host, type); k = {export}; else; k = {}; end
+function k = downstreamUnder(host, type, downstream)
+%downstreamUnder  DOWNSTREAM under the file of signal HOST, {} under the others.
+if isequal(host, type); k = downstream; else; k = {}; end
 end
 
 
@@ -542,6 +543,50 @@ end
 inputs = node("data", "Export inputs", in, "ExpSignalsField,ExpUnitsCheckBox,ExpGroupsField,ExpDetectedCheckBox,ExpEventsCheckBox");
 inputs.children = kids;
 n = step("export", "Export", E.Enabled, "", "ExpEnableCheckBox", {inputs});
+end
+
+
+function n = analysisTree(cfg)
+%analysisTree  The Analysis step: the analysis config it runs (read here for
+%   its plots, when it can be), what it reads and the files it writes.
+An = cfg.Analysis;
+fileTarget = "AnaConfigField,AnaPlotsTable";
+f = strtrim(An.ConfigFile);
+acfg = [];
+if f == ""
+    plots = node("off", "Analysis config", "none chosen", fileTarget);
+else
+    [~, b, x] = fileparts(f);
+    [acfg, msg] = EphysPipelineConfig.loadAnalysisConfig(f);
+    if isempty(acfg)
+        plots = node("off", "Analysis config", [string(b) + string(x), msg], fileTarget);
+    else
+        on = acfg.Plots([acfg.Plots.enabled]);
+        what = "no plot enabled";
+        if ~isempty(on)
+            what = sprintf("%d plot(s): %s", numel(on), join(unique([on.kind], "stable"), ", "));
+        end
+        ref = acfg.Defaults.EventRef;
+        win = acfg.Defaults.Window;
+        plots = node("op", "Plots of " + string(b) + string(x), [what, ...
+            sprintf("aligned to the %s of %s, [%g %g] s", ref.edge, ref.line, win.pre, win.post)], fileTarget);
+    end
+end
+in = ["Signals extract: events and signals", "behavior file: the paired trials"];
+if isempty(acfg) || any([acfg.Plots([acfg.Plots.enabled]).source] == "units"); in(end+1) = "sorted units"; end
+if isempty(acfg) || any([acfg.Plots([acfg.Plots.enabled]).source] == "detected"); in(end+1) = "detected spikes (Spikes file)"; end
+outs = {onOff(An.Figures, "Figure files", "each plot's pages, as the analysis config's Export says", ...
+    "off (Write the figure files)", "AnaFiguresCheckBox"), ...
+    onOff(An.Report, "Report", "HTML / PDF over the selected datasets, as its Report says", ...
+    "off (Write the report)", "AnaReportCheckBox")};
+for k = 1:numel(outs)
+    if outs{k}.kind == "op"; outs{k}.kind = "out"; end
+end
+plots.children = outs;
+inputs = node("data", "Analysis inputs", in, fileTarget);
+inputs.children = {plots};
+n = step("analysis", "Analysis", An.Enabled, "the selected datasets, not the config's own source", ...
+    "AnaEnableCheckBox", {inputs});
 end
 
 
@@ -783,6 +828,7 @@ s = join([ ...
     ".c-signals{--acc:#1f7fbf;--tint:#e3f0fa}"
     ".c-spikes{--acc:#2e9e5b;--tint:#e3f5ea}"
     ".c-export{--acc:#6e7781;--tint:#eef0f2}"
+    ".c-analysis{--acc:#9a6700;--tint:#fbf1d0}"
     ".tree ul{display:flex;justify-content:center;margin:0;padding:0}"
     ".tree li{list-style:none;position:relative;display:flex;flex-direction:column;align-items:center;padding:14px 5px 0}"
     ".tree li:only-child{padding-top:0}"

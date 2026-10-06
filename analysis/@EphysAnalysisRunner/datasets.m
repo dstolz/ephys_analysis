@@ -12,7 +12,8 @@ function outs = datasets(obj)
 %     "folders"  DatasetOutputs(folder) for each of Folders; the key is the
 %                folder, the name its last part
 %   Every DatasetOutputs has CacheData=true: a plot's spikes and signals
-%   are read once per dataset; runDataset clears them afterwards.
+%   are read once per dataset; runDataset clears them afterwards. Each also
+%   searches r.SearchDirs (a pipeline's step output folders).
 %
 %   See also EphysAnalysisRunner.source, DatasetOutputs, EphysProject.
 
@@ -44,7 +45,7 @@ switch S.Mode
         end
         for k = reshape(idx, 1, [])
             d = P.Datasets(k);
-            outs(end+1) = d.outputs('CacheData', true); %#ok<AGROW>
+            outs(end+1) = d.outputs('CacheData', true, 'SearchDirs', obj.SearchDirs); %#ok<AGROW>
             keys(end+1) = P.datasetKey(k); %#ok<AGROW>
             names(end+1) = d.Name; %#ok<AGROW>
         end
@@ -53,7 +54,7 @@ switch S.Mode
             if ~isfolder(f)
                 error('EphysAnalysisRunner:NoFolder', 'Output folder does not exist: "%s".', f);
             end
-            o = DatasetOutputs(f, CacheData=true);
+            o = DatasetOutputs(f, CacheData=true, SearchDirs=obj.SearchDirs);
             outs(end+1) = o; %#ok<AGROW>
             keys(end+1) = f; %#ok<AGROW>
             names(end+1) = o.Name; %#ok<AGROW>

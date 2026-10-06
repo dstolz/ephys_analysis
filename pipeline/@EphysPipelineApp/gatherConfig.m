@@ -20,4 +20,5 @@ end
 cfg.Signals   = obj.gatherConvertConfig();
 cfg.Spikes    = obj.gatherSpikesSection();
 cfg.Export    = obj.gatherExportSection();
+cfg.Analysis  = obj.gatherAnalysisSection();
 end

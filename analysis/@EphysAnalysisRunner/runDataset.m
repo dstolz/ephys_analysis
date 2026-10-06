@@ -21,7 +21,9 @@ function rows = runDataset(obj, k, opts)
 %   Without Export the report draws its own images (addReportFigure). A
 %   plot that fails is an "error" row (its open page is closed); the
 %   others still run. Afterwards the dataset's cached data is cleared.
-%   The report (Report) is r.Report, started by run().
+%   The report (Report) is r.Report, started by run(). Span=[a b] is the
+%   share of a longer run this dataset covers (run passes it): plot j of m
+%   reports progress a + (b - a) * (j-1)/m (default [0 1]).
 %
 %   See also EphysAnalysisRunner.run, EphysAnalysisRunner.computePlot.
 
@@ -31,6 +33,7 @@ arguments
     opts.Plots (1,:) string = string.empty(1, 0)
     opts.Export (1,1) logical = true
     opts.Report (1,1) logical = false
+    opts.Span (1,2) double = [0 1]
 end
 
 cfg = obj.Config;
@@ -49,7 +52,7 @@ withImages = opts.Report && obj.Report.options.Format ~= "pdf";   % the HTML rep
 for j = 1:numel(ids)
     spec = cfg.plotFor(ids(j));
     try
-        obj.progress((j - 1) / numel(ids), sprintf("%s: %s", name, spec.id));
+        obj.progress(opts.Span(1) + diff(opts.Span) * (j - 1) / numel(ids), sprintf("%s: %s", name, spec.id));
     catch ME
         if ME.identifier ~= "EphysAnalysisRunner:Cancelled"; rethrow(ME); end
         for jj = j:numel(ids)

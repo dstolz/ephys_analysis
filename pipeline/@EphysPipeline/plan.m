@@ -39,6 +39,16 @@ function T = plan(obj, opts)
 %                                  so their unit labels would be the same
 %     error: ...                   a setting cannot apply to this dataset
 %                                  (e.g. LFP_Fs above the recording rate)
+%     error: analysis config       the Analysis step's config cannot be
+%                                  loaded (Note: why)
+%     error: figure folder / report folder
+%                                  an analysis config's folder pattern
+%                                  cannot be filled for this dataset
+%   The Analysis step has a row per dataset and enabled plot
+%   ("analysis:<plot id>", Output its figure folder) and per report
+%   ("analysis:report"; Dataset "" for one report over every dataset): see
+%   analysisTargets. What each dataset can draw is known only when it runs
+%   (a plot it cannot have is a "skipped" result row).
 %   Rows whose Status starts with "duplicate" or "error" stop run()
 %   (checkRun). Only the selected datasets are planned; their output folders
 %   and files are compared with those of every dataset in the project, from
@@ -70,7 +80,35 @@ Units = false(0, 1);    % the row reads sorted units (labelled from the dataset 
         Idx(end+1, 1) = obj.DatasetIdx(k); Units(end+1, 1) = units;
     end
 
+    function addAnalysis()
+        % The analysis rows come for every dataset at once (one report may
+        % cover them all), from the analysis config read now.
+        if isempty(ds); return; end
+        [acfg, msg] = obj.analysisConfig(obj.DatasetIdx);
+        if isempty(acfg)
+            for kk = 1:numel(ds)
+                add("analysis", kk, c.Analysis.ConfigFile, "error: analysis config", msg);
+            end
+            return
+        end
+        AT = obj.analysisTargets(acfg, obj.DatasetIdx);
+        for ra = 1:height(AT)
+            kk = find(obj.DatasetIdx == AT.Index(ra), 1);
+            if isempty(kk)   % the report over every dataset
+                Step(end+1, 1) = AT.Step(ra); Dataset(end+1, 1) = ""; Key(end+1, 1) = ""; %#ok<AGROW>
+                Output(end+1, 1) = AT.Output(ra); Status(end+1, 1) = AT.Status(ra); Note(end+1, 1) = AT.Note(ra); %#ok<AGROW>
+                Idx(end+1, 1) = 0; Units(end+1, 1) = false; %#ok<AGROW>
+            else
+                add(AT.Step(ra), kk, AT.Output(ra), AT.Status(ra), AT.Note(ra));
+            end
+        end
+    end
+
 for step = steps
+    if step == "analysis"
+        addAnalysis();
+        continue
+    end
     for k = 1:numel(ds)
         d = ds(k);
         hasFiles = d.NumFiles > 0 && d.RecordingFormat ~= "unknown";
@@ -282,8 +320,11 @@ end
 
 % No two datasets may write one file (case-insensitive): each file a selected
 % row writes is compared with what every dataset of the project writes for
-% that step.
-fileRows = find(~ismember(T.Step, ["probe" "behavior"]) & T.Output ~= "" & startsWith(T.Status, ["ready" "exists"]));
+% that step. The Analysis step's folders and its report over every dataset
+% are shared by design (its figure names tell the datasets apart, and the
+% analysis config's validation warns when they do not).
+fileRows = find(~ismember(T.Step, ["probe" "behavior"]) & ~startsWith(T.Step, "analysis") ...
+    & T.Output ~= "" & startsWith(T.Status, ["ready" "exists"]));
 if ~isempty(fileRows)
     owners = containers.Map('KeyType', 'char', 'ValueType', 'any');
     for step = unique(T.Step(fileRows)).'

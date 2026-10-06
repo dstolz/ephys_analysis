@@ -7,9 +7,10 @@ function T = run(obj, opts)
 %   (newAnalysisReport) and writes it (Report.Format: html, pdf or both)
 %   to Report.Folder / Report.FileName -- one report over all datasets, or
 %   one per dataset with Report.PerDataset. The written files are in
-%   r.ReportFiles. cancel() stops before the next plot; the rest are
-%   "cancelled". Every run that reaches a dataset ends by writing a run
-%   record (config, code version, machine, Results) to
+%   r.ReportFiles. ProgressFcn hears how far the whole run is: dataset j of
+%   n starts at (j-1)/n and its plots share its 1/n. cancel() stops before
+%   the next plot; the rest are "cancelled". Every run that reaches a
+%   dataset ends by writing a run record (config, code version, machine, Results) to
 %   <report folder>/analysis_runs (r.RunRecordFile).
 %
 %   Options
@@ -60,8 +61,9 @@ for j = 1:numel(idx)
     k = idx(j);
     if perDataset; obj.Report = newReport(cfg); end
     try
-        obj.progress((j - 1) / max(1, numel(idx)), "Dataset " + obj.Names(k));
-        obj.runDataset(k, Plots=ids, Export=doExport, Report=doReport);   % appends to obj.Results
+        span = [j - 1, j] / numel(idx);   % this dataset's share of the run, which its plots report within
+        obj.progress(span(1), "Dataset " + obj.Names(k));
+        obj.runDataset(k, Plots=ids, Export=doExport, Report=doReport, Span=span);   % appends to obj.Results
     catch ME
         if ME.identifier ~= "EphysAnalysisRunner:Cancelled"; rethrow(ME); end
         cancelled = true;
@@ -149,19 +151,17 @@ end
 
 
 function files = writeReports(obj, k)
-%writeReports  Write obj.Report as HTML and / or PDF; {OutputFolder} = dataset K's.
+%writeReports  Write obj.Report as HTML and / or PDF (reportFiles); {OutputFolder} = dataset K's.
 cfg = obj.Config;
-P = cfg.Report;
-folder = figureFileName(P.Folder, struct('OutputFolder', obj.datasetFolder(k), 'OutputRoot', obj.outputRoot(), ...
-    'Root', cfg.Source.Root, 'Name', obj.Names(k)), Kind="folder");
-base = fullfile(folder, P.FileName);
-if P.PerDataset; base = base + "_" + regexprep(obj.Names(k), '[^\w\-\.]', '_'); end
+want = EphysAnalysisRunner.reportFiles(cfg, struct('OutputFolder', obj.datasetFolder(k), ...
+    'OutputRoot', obj.outputRoot(), 'Root', cfg.Source.Root, 'Name', obj.Names(k)));
 files = string.empty(1, 0);
-if ismember(P.Format, ["html" "both"])
-    files(end+1) = writeHtmlReport(obj.Report, base + ".html");
-end
-if ismember(P.Format, ["pdf" "both"])
-    files(end+1) = writePdfReport(obj.Report, base + ".pdf");
+for f = want
+    if endsWith(f, ".html")
+        files(end+1) = writeHtmlReport(obj.Report, f); %#ok<AGROW>
+    else
+        files(end+1) = writePdfReport(obj.Report, f); %#ok<AGROW>
+    end
 end
 obj.log("Report: %s", strjoin(files, ", "));
 end

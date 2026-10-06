@@ -30,6 +30,10 @@ switch obj.Tabs.SelectedTab
     case obj.TabExport
         msg = "Export: write analysis-toolbox files from the extract + spikes.";
         obj.refreshStepPlan("export");
+    case obj.TabAnalysis
+        msg = "Analysis: choose an analysis config (made in the analysis app); the step draws its plots and writes its report for the selected datasets.";
+        obj.refreshAnalysisSummary();   % the analysis app may have saved it since
+        obj.refreshStepPlan("analysis");
     case obj.TabRun
         msg = "Run: validate, plan, then run the enabled steps.";
     case obj.TabFlow

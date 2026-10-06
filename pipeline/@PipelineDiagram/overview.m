@@ -7,8 +7,8 @@ function [html, summary, model] = overview(cfg, d)
 %   without the app.
 %
 %   It draws every pipeline step
-%   (Probe check, Behavior, Artifacts, Sorting, Signals, Spikes, Export) as
-%   one box, with the files it writes hung under it, below the inputs (the
+%   (Probe check, Behavior, Artifacts, Sorting, Signals, Spikes, Export,
+%   Analysis) as one box, with the files it writes hung under it, below the inputs (the
 %   raw recording with its manifest, the Epsych2 sessions, the probe map).
 %   An arrow runs from each input or written file to every step that reads
 %   it, in the colour of whatever wrote it. An arrow the working config
@@ -22,7 +22,8 @@ function [html, summary, model] = overview(cfg, d)
 %   The page is one SVG laid out here rather than by the browser, drawn at
 %   its own size in a viewport that opens fitted to it and zooms and pans
 %   (zoomFrame). The boxes
-%   sit on a fixed grid of five columns, a row per stage of the flow, and
+%   sit on a fixed grid of five columns, a row per stage of the flow (the
+%   Analysis step alone in the last one), and
 %   the arrows are routed at right angles through the gaps between rows and
 %   columns: none runs through a box, and no two sources share a line
 %   (they may cross). Each gap between rows gives every source leaving it,
@@ -31,7 +32,8 @@ function [html, summary, model] = overview(cfg, d)
 %
 %   Each box names the control(s) behind it (data-nav), as on the detail
 %   view, so a click in the app opens them (onFlowNavigate). It reads only
-%   CFG and the dataset D. SUMMARY is a one-line description
+%   CFG, the dataset D and the Analysis step's analysis config (for which
+%   outputs its plots read). SUMMARY is a one-line description
 %   for the tab. MODEL holds the geometry the page draws, for tests:
 %     nodes  id, title, target, rect [x y w h] (the box and the files hung
 %            under it)
@@ -275,7 +277,52 @@ if isempty(export.outs)
         "ExpChronuxCheckBox,ExpFieldTripCheckBox,ExpEpochsCheckBox,ExpKCSDCheckBox,ExpNWBCheckBox", false);
 end
 
-N = [probe, behavior, artifacts, sorting, signals, spikes, export];
+An = cfg.Analysis;
+use = analysisUse(cfg);
+if use.file == ""
+    lines = "no analysis config chosen";
+else
+    lines = ["runs " + use.file, use.plots];
+end
+% A row of its own, bottom left: of the free cells this crosses the fewest arrows.
+analysis = step("analysis", 5, 0, "Analysis", An.Enabled, lines, "AnaEnableCheckBox,AnaConfigField");
+if An.Figures
+    analysis.outs = pill("out", "Figure files", ["each plot's pages", "as its Export settings say"], "AnaFiguresCheckBox", false);
+else
+    analysis.outs = pill("off", "Figure files", "not written", "AnaFiguresCheckBox", false);
+end
+if An.Report
+    analysis.outs(end+1) = pill("out", "Report", ["HTML / PDF over the datasets", "as its Report settings say"], "AnaReportCheckBox", false);
+else
+    analysis.outs(end+1) = pill("off", "Report", "not written", "AnaReportCheckBox", false);
+end
+
+N = [probe, behavior, artifacts, sorting, signals, spikes, export, analysis];
+end
+
+
+function u = analysisUse(cfg)
+%analysisUse  What the Analysis step's config reads, from its enabled plots:
+%   units / detected (any plot of sorted units / detected spikes; true when
+%   the config cannot be read), the file's name and a line on its plots.
+u = struct('file', "", 'plots', "", 'units', true, 'detected', true);
+f = strtrim(cfg.Analysis.ConfigFile);
+if f == ""; return; end
+[~, b, x] = fileparts(f);
+u.file = string(b) + string(x);
+acfg = EphysPipelineConfig.loadAnalysisConfig(f);
+if isempty(acfg)
+    u.plots = ternary(isfile(f), "cannot be read", "not found");
+    return
+end
+on = acfg.Plots([acfg.Plots.enabled]);
+if isempty(on)
+    u.plots = "no plot enabled";
+else
+    u.plots = sprintf("%d plot(s): %s", numel(on), join(unique([on.kind], "stable"), ", "));
+end
+u.units = any([on.source] == "units");
+u.detected = any([on.source] == "detected");
 end
 
 
@@ -287,6 +334,7 @@ function E = edgeList(cfg)
 %   otherwise it runs down the lane (grid units: column k's centre, or
 %   k + 0.5 for the gap right of column k), then across to its target.
 B = cfg.Behavior; G = cfg.Signals; K = cfg.Spikes; X = cfg.Export;
+use = analysisUse(cfg);
 byTrial = ismember("epochs", X.Formats) && X.EpochSource == "behavior";
 if K.ArtifactMode == "none"
     toSpikes = "off: Spikes.ArtifactMode is none";
@@ -311,7 +359,11 @@ E = [ ...
         "off: no epochs around the paired trials"), 0), ...
     edge("signals", "export", true, "the extract: signals and events", NaN), ...
     edge("sorting", "export", X.IncludeUnits, ternary(X.IncludeUnits, "the sorted units", "off: Export.IncludeUnits is off"), NaN), ...
-    edge("spikes", "export", X.IncludeDetected, ternary(X.IncludeDetected, "the detected spikes", "off: Export.IncludeDetected is off"))];
+    edge("spikes", "export", X.IncludeDetected, ternary(X.IncludeDetected, "the detected spikes", "off: Export.IncludeDetected is off")), ...
+    edge("behavior", "analysis", true, "the paired trials: alignment, selection, grouping, tuning"), ...
+    edge("signals", "analysis", true, "the extract: the events, and the signals plots of LFP / MUA / SPIKE / AUX read"), ...
+    edge("sorting", "analysis", use.units, ternary(use.units, "the sorted units", "off: no plot of the analysis config reads sorted units")), ...
+    edge("spikes", "analysis", use.detected, ternary(use.detected, "the detected spikes", "off: no plot of the analysis config reads detected spikes"), 3)];
 end
 
 
@@ -593,9 +645,9 @@ end
 
 
 function t = nodeName(id)
-names = dictionary(["epsych" "rec" "probemap" "probe" "behavior" "artifacts" "sorting" "signals" "spikes" "export"], ...
+names = dictionary(["epsych" "rec" "probemap" "probe" "behavior" "artifacts" "sorting" "signals" "spikes" "export" "analysis"], ...
     ["Epsych2 sessions" "Raw recording" "Probe map" "Probe check" "Behavior file" "Artifact periods" ...
-     "Sorted units" "Signal files" "Spikes file" "Export"]);
+     "Sorted units" "Signal files" "Spikes file" "Export" "Analysis"]);
 t = names(id);
 end
 
@@ -785,6 +837,7 @@ s = join([ ...
     ".c-signals{--acc:#1f7fbf;--tint:#e3f0fa}"
     ".c-spikes{--acc:#2e9e5b;--tint:#e3f5ea}"
     ".c-export{--acc:#6e7781;--tint:#eef0f2}"
+    ".c-analysis{--acc:#9a6700;--tint:#fbf1d0}"
     ".flow text{font-family:'Segoe UI',system-ui,sans-serif}"
     ".box.src{fill:#24292f;stroke:#24292f}"
     ".box.in{fill:#fff;stroke:#afb8c1;stroke-width:1.2}"

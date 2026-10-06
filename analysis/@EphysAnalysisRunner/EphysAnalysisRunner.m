@@ -28,9 +28,14 @@ classdef EphysAnalysisRunner < handle
     %   Properties
     %     Config        the EphysAnalysisConfig
     %     ProgressFcn   ProgressFcn(fraction, message), called before each
-    %                   plot; cancel() makes the next call throw
+    %                   dataset and plot; FRACTION is how far the whole run
+    %                   is (dataset j of n spans [(j-1)/n, j/n], its plots
+    %                   share it). cancel() makes the next call throw
     %                   EphysAnalysisRunner:Cancelled
     %     LogFcn        LogFcn(message) per line (default: print); [] = quiet
+    %     SearchDirs    further folders each dataset's outputs are searched in
+    %                   (DatasetOutputs SearchDirs), e.g. a pipeline's
+    %                   Signals / Spikes OutputDir; set before datasets()
     %     Outputs       DatasetOutputs per dataset (CacheData=true)
     %     Keys, Names   dataset keys (root-relative, or the folder) and names
     %     Sources       containers.Map key -> loadAnalysisSource struct
@@ -48,6 +53,7 @@ classdef EphysAnalysisRunner < handle
         Config EphysAnalysisConfig = EphysAnalysisConfig()
         ProgressFcn = []
         LogFcn = @(msg) fprintf('%s\n', msg)
+        SearchDirs (1,:) string = string.empty(1, 0)
     end
 
     properties (SetAccess = protected)
@@ -82,11 +88,13 @@ classdef EphysAnalysisRunner < handle
                 cfg (1,1) EphysAnalysisConfig = EphysAnalysisConfig()
                 opts.ProgressFcn = []
                 opts.LogFcn = @(msg) fprintf('%s\n', msg)
+                opts.SearchDirs (1,:) string = string.empty(1, 0)
                 opts.Scan (1,1) logical = true
             end
             obj.Config = cfg;
             obj.ProgressFcn = opts.ProgressFcn;
             obj.LogFcn = opts.LogFcn;
+            obj.SearchDirs = opts.SearchDirs;
             obj.Sources = containers.Map('KeyType', 'char', 'ValueType', 'any');
             if opts.Scan
                 obj.datasets();
@@ -137,6 +145,26 @@ classdef EphysAnalysisRunner < handle
         function T = emptyResults()
             T = table(strings(0, 1), strings(0, 1), strings(0, 1), strings(0, 1), strings(0, 1), strings(0, 1), zeros(0, 1), ...
                 'VariableNames', {'Dataset', 'Plot', 'Kind', 'Status', 'Message', 'Files', 'Seconds'});
+        end
+
+        function files = reportFiles(cfg, tokens)
+            %reportFiles  The report file(s) a run writes, for one dataset's folder tokens.
+            %   FILES = EphysAnalysisRunner.reportFiles(CFG, TOKENS):
+            %   Report.Folder filled with TOKENS (OutputFolder, OutputRoot,
+            %   Root, Name; figureFileName Kind "folder"), Report.FileName,
+            %   "_<Name>" with Report.PerDataset, then ".html" and / or ".pdf"
+            %   as Report.Format says. TOKENS are those of the first dataset
+            %   for a report over all of them (run).
+            arguments
+                cfg (1,1) EphysAnalysisConfig
+                tokens (1,1) struct
+            end
+            P = cfg.Report;
+            base = fullfile(figureFileName(P.Folder, tokens, Kind="folder"), P.FileName);
+            if P.PerDataset; base = base + "_" + regexprep(tokens.Name, '[^\w\-\.]', '_'); end
+            files = string.empty(1, 0);
+            if ismember(P.Format, ["html" "both"]); files(end+1) = base + ".html"; end
+            if ismember(P.Format, ["pdf" "both"]); files(end+1) = base + ".pdf"; end
         end
     end
 end

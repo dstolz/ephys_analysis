@@ -5,8 +5,12 @@ function issues = validate(obj, opts)
 %   Parallel and Probe are always checked; step sections only when Enabled.
 %   Cross-step rules are checked too (e.g. a background sorting run cannot
 %   feed the sorted-unit consumers in the same run). An empty table means clean.
+%   The Analysis step's config (Analysis.ConfigFile) is loaded and checked
+%   too, its own Source aside (the step replaces it): its issues are rows
+%   of step "analysis", Field <Section>.<Field> of the analysis config.
 %
-%   Options: CheckPaths (default true) also checks that Root / files exist.
+%   Options: CheckPaths (default true) also checks that Root / files exist,
+%   and reads the analysis config; without it nothing on disk is read.
 %
 %   See also EphysPipelineConfig, EphysPipeline.plan.
 
@@ -339,8 +343,44 @@ if E.Enabled
     end
 end
 
+% --- Analysis --------------------------------------------------------------------
+% The analysis config is read (and checked) only with CheckPaths: without it
+% nothing on disk is looked at.
+An = obj.Analysis;
+analysisUnits = false;   % an enabled plot of the analysis config reads sorted units
+if An.Enabled
+    if strtrim(An.ConfigFile) == ""
+        add("analysis", "ConfigFile", "error", "Analysis is enabled but no analysis config is chosen.");
+    elseif opts.CheckPaths
+        [acfg, msg] = EphysPipelineConfig.loadAnalysisConfig(An.ConfigFile);
+        if isempty(acfg)
+            add("analysis", "ConfigFile", "error", msg);
+        else
+            for w = acfg.LoadWarnings
+                add("analysis", "ConfigFile", "warning", "The analysis config: " + w);
+            end
+            % The step runs it over this project: its own Source is replaced.
+            acfg.Source = EphysPipelineConfig.analysisSource(obj, P.Datasets);
+            if P.Selection ~= "list"; acfg.Source.Selection = "all"; end
+            ai = acfg.validate(CheckPaths=true);
+            ai = ai(ai.Section ~= "Source", :);
+            for r = 1:height(ai)
+                add("analysis", ai.Section(r) + "." + ai.Field(r), ai.Severity(r), "The analysis config: " + ai.Message(r));
+            end
+            on = acfg.Plots([acfg.Plots.enabled]);
+            analysisUnits = any([on.source] == "units");
+        end
+    end
+    if ~An.Figures && ~An.Report
+        add("analysis", "Figures", "warning", "Neither the figure files nor the report are written: the step only draws the plots.");
+    end
+    if ~G.Enabled
+        add("analysis", "ConfigFile", "warning", "The Signals step is off; the analysis reads each dataset's existing extract files (signals and events).");
+    end
+end
+
 % --- cross-step ------------------------------------------------------------------
-needsSorted = E.Enabled && E.IncludeUnits;
+needsSorted = (E.Enabled && E.IncludeUnits) || analysisUnits;
 if needsSorted && patternParses
     id = EphysDataset.nameIdentity("", P.NamePattern);
     if id.reason == "pattern"

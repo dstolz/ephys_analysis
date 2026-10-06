@@ -198,6 +198,15 @@ switch section
             'MatVersion',      "-v7.3", ...
             'Overwrite',       false);
 
+    case "Analysis"
+        % An EphysAnalysisApp config run over the pipeline's selected
+        % datasets (EphysPipeline.runAnalysis); its own Source is not used.
+        s = struct( ...
+            'Enabled',    false, ...
+            'ConfigFile', "", ...     % the analysis config (.json), read when the step runs
+            'Figures',    true, ...   % write the figure files (the analysis config's Export section: formats, folder, names)
+            'Report',     true);      % write the report (its Report section: HTML / PDF, folder, one or one per dataset)
+
     otherwise
         error('EphysPipelineConfig:BadSection', 'Unknown section "%s".', section);
 end

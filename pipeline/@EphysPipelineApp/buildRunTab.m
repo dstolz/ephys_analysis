@@ -22,8 +22,8 @@ g.Padding     = [10 10 10 10];
 % --- steps checklist ---------------------------------------------------------
 steps = uipanel(g, "Title", "Steps (same switches as on each tab)");
 steps.Layout.Row = 1; steps.Layout.Column = 1;
-sg = uigridlayout(steps, [16 1]);
-sg.RowHeight = [repmat({'fit'}, 1, 15), {'1x'}];
+sg = uigridlayout(steps, [17 1]);
+sg.RowHeight = [repmat({'fit'}, 1, 16), {'1x'}];
 uilabel(sg, "Text", "Probe check (always)", "FontColor", [0.4 0.4 0.4]);
 obj.RunBehaviorCheckBox  = uicheckbox(sg, "Text", "Behavior: match Epsych2 sessions", "ValueChangedFcn", @(src,~) mirror(obj, "BehEnableCheckBox", src.Value));
 obj.RunArtifactsCheckBox = uicheckbox(sg, "Text", "Artifacts: automatic detection", "ValueChangedFcn", @(src,~) mirror(obj, "ArtEnableCheckBox", src.Value));
@@ -50,6 +50,7 @@ obj.RunKSQueueCheckBox.Layout.Row = 3; obj.RunKSQueueCheckBox.Layout.Column = [1
 obj.RunSignalsCheckBox   = uicheckbox(sg, "Text", "Signals: LFP / MUA / SPIKE / AUX .mat", "ValueChangedFcn", @(src,~) mirror(obj, "SigEnableCheckBox", src.Value));
 obj.RunSpikesCheckBox    = uicheckbox(sg, "Text", "Spikes: detected / sorted .mat", "ValueChangedFcn", @(src,~) mirror(obj, "SpkEnableCheckBox", src.Value));
 obj.RunExportCheckBox    = uicheckbox(sg, "Text", "Export: analysis-toolbox files", "ValueChangedFcn", @(src,~) mirror(obj, "ExpEnableCheckBox", src.Value));
+obj.RunAnalysisCheckBox  = uicheckbox(sg, "Text", "Analysis: figures and report", "ValueChangedFcn", @(src,~) mirror(obj, "AnaEnableCheckBox", src.Value));
 pg = uigridlayout(sg, [1 3]);
 pg.Padding = [0 0 0 0]; pg.ColumnWidth = {'1x', 'fit', 56}; pg.RowHeight = {'fit'}; pg.ColumnSpacing = 4;
 obj.RunParallelCheckBox = uicheckbox(pg, "Text", "Parallel: chunks on the process pool", ...

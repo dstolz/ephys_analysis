@@ -56,6 +56,7 @@ returns the defaults and is the single source of truth for field names.
 | `Signals` | `signals` | `Enabled`, `OutputDir`, `Suffix` (`"_extract"`), `SeparateFiles` (`true`: `<Name><Suffix>_<TYPE>.mat` per signal type), `MatVersion`, `Overwrite`, `LFP` / `MUA` / `SPIKE`, `LFP_Reference` / `MUA_Reference` / `SPIKE_Reference` (`false` / `true` / `true`: which signals the common reference of `Artifacts.Reference` is subtracted from; the LFP is taken as recorded by default), `BlankArtifacts` (`true`: erase the dataset's artifact periods, a straight line across each, before any signal is derived, and record them in every file as `info.artifacts`; `false`: the recording as it is, no periods recorded), `LFP_Fs`, `LFP_HighpassOn/Hz`, `LFP_LowpassOn/Hz`, `LFP_NotchOn/Hz/BW`, `MUA_Fs`, `MUA_IntegrationHz`, `MUA_bpLoHi`, `SPIKE_KeepOriginal`, `SPIKE_Fs`, `SPIKE_bpLoHi`, `LabelField` (`"custom"` or `"native"`: which name labels channels, aux inputs and digital lines), `LineNames` (`"native=name"` entries naming digital lines, e.g. `"TTL4=InTrial"`; see [line names](#digital-line-names)), `InvertedLines` (digital lines with inverted polarity: onset = falling edge; see [polarity](#digital-line-polarity)), `KeepChannels`, `BadMode`, `BadThreshold`, `BadList` (recording channels, like `KeepChannels`), `ChannelRemap`, `ExcludeHandling` (`"none"`, `"drop"`, `"interpolate"`: what to do with the manifest's excluded channels) |
 | `Spikes` | `spikes` | `Enabled`, the `detectSpikes` options (`Filter`, `Band`, `FilterOrder`, `Polarity`, `ThresholdMethod`, `Threshold` (`NaN` = the method's default), `ThresholdScope` (`"chunk"`: each chunk's noise; `"recording"`: each channel's noise over the whole recording, measured by a first pass; see [detectSpikes](EphysDataset.md#whole-recording-mode)), `Align`, `AlignWindowMs`, `MinPeriodMs`, `MaxAmplitudeUV`, `Waveforms`, `WindowMs`, `WaveformSource`, `EdgeHandling`, `MaxChunkSamples`, `EdgePadMs`), `Channels` (`"all"`, `"excludeManifest"`, `"list"`) + `ChannelList`, `ArtifactMode` (`"reject"`: drop the events inside the artifact periods; `"erase"`: erase the periods before detection, which then runs on the cleaned recording; `"none"`: ignore them), `OutputDir`, `Suffix` (`"_spikes"`), `MatVersion`, `Overwrite` |
 | `Export` | `export` | `Enabled`, `Formats` (subset of `["chronux" "fieldtrip" "epochs" "kcsd" "nwb"]`; `kcsd` needs the LFP and a probe; `nwb` a Python with pynwb and nwbinspector), `Signals` (`[]` = every signal in the extract), `IncludeUnits`, `IncludeDetected`, `IncludeEvents`, `Groups`, `Validate`, the epoch settings `EpochSource` (`"line"` / `"behavior"`), `EpochLine`, `EpochWindow` (`[tPre tPost]` s), `EpochOnsetRule` (`"event"`, the default: digital-input times, each placed on every signal's sample nearest its recording row, `round((t − 1/origFs)·Fs) + 1`; `"sample"`: times on the continuous clock, `round(t·Fs) + 1`), `EpochIncomplete`, `EpochNonFinite`, `EpochArtifacts` (`"drop"`: an epoch whose window touches an artifact period of the extract is left out of the signals; `"keep"`: flagged only), `EpochSpikeTimeBase`, `EpochClass`, `OutputDir`, `MatVersion`, `Overwrite`; `UnitQuality` (`true`): the exported units carry their quality metrics (`EphysDataset.unitQuality`; a sort whose metrics cannot be computed is exported without them, with a warning); `NWB`: the `nwb` format's metadata (`SessionDescription`, `ExperimentDescription`, `Experimenter`, `Lab`, `Institution`, `Keywords`, `Location`, `SubjectId`, `Species`, `Sex`, `Age`, `SubjectDescription`, `Strain`, `Genotype`, `TimeZone`, `SessionStartTime`; `""` is not written), `Trials`, `Inspect` and the Python that writes it (`PythonExe`, `CondaEnv`; `""` = the Sorting step's). `validate` checks the Python, `Sex`, `Age` (ISO 8601), `TimeZone` and `SessionStartTime`, and warns when species, sex or age is not set |
+| `Analysis` | `analysis` | `Enabled`, `ConfigFile` (an [analysis config](EphysAnalysisConfig.md), `.json`, read when the step runs), `Figures` (`true`: write the figure files), `Report` (`true`: write the report). The step runs the analysis config over the selected datasets, not over its own `Source`; where and how the figures and the report are written is the analysis config's `Export` / `Report` (their own `Enabled` is not used). See [Analysis step](#analysis-step) |
 
 `Name` and `Description` are free text. `File` (where the config was loaded
 from or saved to) and `LoadWarnings` are transient.
@@ -104,8 +105,9 @@ there is no migration. Unknown fields are dropped and listed in
 `Message`). `Project`, `Acquisition`, `Parallel` and `Probe` are always checked; a step section only when
 it is enabled (`Signals.LabelField` and `Signals.LineNames` also when
 `Behavior` is, since they name the trial line). Severity `"error"` stops `run()`. Cross-step rule: a background
-sorting run cannot feed the sorted-unit consumer (`Export.IncludeUnits`) in
-the same run; set `Sorting.Execution = "blocking"` or run Export later. When
+sorting run cannot feed the sorted-unit consumers (`Export.IncludeUnits`, and
+an enabled plot of sorted units in the Analysis step's config) in
+the same run; set `Sorting.Execution = "blocking"` or run Export and Analysis later. When
 that consumer is on, `Project.NamePattern` must be able to label units (a
 `SubjectID` token and `Date` / `Time` tokens with datetime formats); otherwise
 it is an error. With `Artifacts.Enabled` and `Method` `"microvolts"` or
@@ -122,6 +124,16 @@ device, `cpu`, `mps`, `cuda` or `cuda:N` (error). More devices than
 and `Devices` next to a `torch_device` in `KS4ExtraJSON` (`Devices` wins) are
 warnings.
 
+The `Analysis` checks, with the step enabled: no `ConfigFile` is an error.
+With `CheckPaths` (the default), the file is read too: a file that is not
+there, is not an analysis config, or cannot be read because the analysis
+module is not on the path is an error. The analysis config's own
+`validate()` issues, its `Source` aside (the step replaces it), become rows
+of step `analysis` with `Field` `<Section>.<Field>` of the analysis config
+(`Plots.psth_1.window`, ...), and so do its load warnings. Without
+`CheckPaths` the file is not read. Writing neither the figures nor the
+report, and the Signals step off, are warnings.
+
 ### Helpers
 
 | Static | Returns |
@@ -134,6 +146,9 @@ warnings.
 | `signalOptions(S, ExcludeChannels=, NumChannels=)` | `deriveSignals` options for a `Signals` section, with the exclude handling applied (error IDs `EphysPipelineConfig:Signals*`) |
 | `exportOptions(E, fmt)` | name-value options shared by `exportChronux` / `exportFieldTrip` / `exportEpochs`, plus `Validate` for `"fieldtrip"` and, for `"epochs"`, the `Epoch*` settings under `eventEpochs`' names (`EpochArtifacts` → `Artifacts`, ...); for `"kcsd"` only `Events` and `Overwrite` (the caller adds the dataset's `ProbeFile`); for `"nwb"` the shared ones without `Detected` / `MatVersion`, plus `Trials`, `Inspect`, `PythonExe`, `CondaEnv` and `Metadata` (the rest of `Export.NWB`) |
 | `ks4Settings(S)` | the Kilosort4 settings struct (blank / `Inf` fields omitted, `KS4ExtraJSON` merged last) |
+| `outputSearchDirs(cfg)` | the `Signals` / `Spikes` / `Export` `OutputDir` settings that are not blank, once each: where `outputsFor` and the Analysis step also look for a dataset's outputs |
+| `analysisSource(cfg, keys)` | the analysis config `Source` the Analysis step runs with: `Mode` `"project"` on this config's `Root`, `OutputRoot`, `NamePattern` and Open Ephys recording mode, `Selection` `"list"` of the dataset `keys` |
+| `[acfg, msg] = loadAnalysisConfig(file)` | the Analysis step's `EphysAnalysisConfig` (load warnings kept on `acfg.LoadWarnings`), or `[]` and why not: no file chosen, the file is not there, the analysis module is not on the path, or it is not an analysis config |
 | `[S, report] = ks4ForProbe(S, probeFile)` | `S` with the Kilosort4 parameters listed in the probe's parameter file ([`<probe>.ks4.json`](file-formats.md#kilosort4-probe-parameters-probeks4json)) set; the others and `KS4ExtraJSON` kept. `report`: `File`, `Description`, `Changes` (a table with one row per parameter: old, new, changed, the file's reason) and `Notes` (extra-JSON overrides). Errors `EphysPipelineConfig:NoProbeParams`, `:BadParams`, `:BadValue` |
 | `file = writeKS4Params(probeFile, values, Description=, Reasons=, Overwrite=)` | writes a struct of typed Kilosort4 parameters as the probe's parameter file. Errors `EphysPipelineConfig:ParamsExist`, `:BadParams` |
 | `[values, report] = ks4ProbeDefaults(probe, ExcludeChannels=)` | good defaults for `KS4ProbeParams` derived from a probe `.json` file or struct ([rules](EphysPipelineApp.md#optimize-for-probe)). `report`: `Probe`, `Summary`, `Geometry` (sites, shanks, row / lateral / nearest-contact spacing, width, span), `Reasons` (per parameter) and `Notes`. Errors `EphysPipelineConfig:BadProbe`, `:ProbeEmpty` |
@@ -302,6 +317,15 @@ headers and manifests); `Refresh=false` skips that.
 | `error: unit identity` | the step reads sorted units but the name gives no subject and start (see [Unit labels](#unit-labels)) |
 | `error: unit label collision` | another selected or sorted dataset has the same subject and start minute |
 | `error: ...` | a setting cannot apply (for example `LFP_Fs` above the recording rate) |
+| `error: analysis config` | the Analysis step's config cannot be loaded (`Note` says why) |
+| `error: figure folder`, `error: report folder` | an analysis config's folder pattern cannot be filled for this dataset |
+
+The Analysis step has one row per dataset and enabled plot (`analysis:<plot
+id>`, `Output` the figure folder, `""` without `Analysis.Figures`) and one
+per report (`analysis:report`, `Output` its file(s); `Dataset` and `Key` `""`
+for one report over every dataset): `pipe.analysisTargets(acfg, idx)`. Which
+plots a dataset can have is known only when it runs. Its folders and its
+report are shared by design, so they are not `duplicate output`.
 
 The probe row's status is the probe step's own (`EphysPipeline.probeStatus`).
 Rows whose status starts with `duplicate` or `error` stop `run()`
@@ -359,6 +383,7 @@ on. `pipe.writeScript()` saves it on its own (its header then says
 | `signals` | `runSignals()` | `toMat(File=, SeparateFiles=, SignalOptions=, MatVersion=, Overwrite=, ProgressFcn=)` with the configured exclude handling. `SignalOptions.referenceSignals` lists the computed signals whose `<TYPE>_Reference` is on; with `Artifacts.Reference` set, the log says `common CAR reference over N channel(s), subtracted from MUA, SPIKE` and a dry run `MUA+SPIKE CAR referenced`. When bad channels are to be interpolated (`BadList`, or the manifest exclusions with `ExcludeHandling = "interpolate"`), `SignalOptions.probeFile` is `probeFor(d)`: the dataset's own probe, else `Probe.DefaultProbeFile`, whose geometry places them. With `Signals.BlankArtifacts`, the dataset's artifact periods (`artifactIntervalsForStep(d, Artifacts.ApplyToSignals, ...)`, as Sorting and Spikes take them) go in as `SignalOptions.artifactIntervals` and are erased before any signal is derived; the log says `N artifact period(s) erased before deriving (<source>, <samples> samples)` and each result message ends `, N artifact period(s) erased`. A dry run says `artifact periods erased (manual + automatic)` or `(manual)` |
 | `spikes` | `runSpikeDetection()` | `spikesToMat(DetectOptions=, Channels=, ArtifactMode=, ArtifactIntervals=, ...)`: threshold detection only; the sorted units stay in the sorting folder (with `ArtifactMode` `"erase"` the result message ends `, N artifact period(s) erased before detection`) |
 | `export` | `runExport()` | per format `exportChronux(...)` / `exportFieldTrip(...)` / `exportEpochs(...)` / `exportKCSD(...)`, with units, detected spikes and events as configured. A dataset's inputs are read once for all its formats and passed to each (`Sources` names the files): the extract files of `Export.Signals` (per-type files of other signals are not read), the sorted units and the spikes file; `plan()` and `runExport` find the extract files by the same rule (`exportExtractFiles`). With `IncludeUnits`, a dataset whose hand-picked sorted-output folder is not there is skipped. The `epochs` format organizes the same data by event — one epoch per digital pulse (`EpochSource = "line"`) or per paired trial (`"behavior"`, which also carries the session's trial columns) — over `EpochWindow` ([`EphysDataset.eventEpochs`](EphysDataset.md#event-organized-epoched-data)); when epochs touch an artifact period of the extract, its result message adds `, N touch an artifact period (left out of the signals)` (`EpochArtifacts = "drop"`) or `(kept, flagged)`. The `kcsd` format writes `<Name>_kcsd.npz` for [kCSD-python](https://github.com/Neuroinflab/kCSD-python): the LFP alone, on the probe `probeFor` gives, with interpolated bad channels left out ([schema](file-formats.md#kcsd-export-ephysdatasetexportkcsd-the-export-step)); units, detected spikes and a missing sorted-output folder do not concern it, and `plan()` marks a dataset with no probe (`error: no probe`) or an offline one (`error: probe file missing`). Its result message is `LFP; N electrode(s) in D-D, M channel(s) left out; K event(s)`. The `nwb` format writes `<Name>.nwb` ([EphysDataset.exportNWB](EphysDataset.md#neurodata-without-borders-nwb)) with the probe `probeFor` gives, the trials of the behavior step's file, `Export.NWB`'s metadata and its Python (else the Sorting step's); its result message counts the electrodes, units, trials and lines and nwbinspector's findings (`..., N critical or above`). With `UnitQuality`, the units read once for every format carry their quality metrics, as when an exporter is called on its own |
+| `analysis` | `runAnalysis()` | runs the analysis config `Analysis.ConfigFile` with [`EphysAnalysisRunner`](EphysAnalysis.md) over the selected datasets; see [Analysis step](#analysis-step) |
 
 Each step method can be called directly; it then runs even when the step is
 disabled in the config. Call `checkRun()` first for the checks `run()` makes;
@@ -417,6 +442,32 @@ SPIKE, and Spikes erases them before detection (`Spikes.ArtifactMode`
 `EphysPipeline:Cancelled`. The current dataset is marked `cancelled` (its
 output is written atomically, so nothing half-done is left behind), the
 remaining rows are `not run`, and `run()` returns normally.
+
+### Analysis step
+
+`runAnalysis` loads the analysis config when the step runs
+(`analysisConfig`: `loadAnalysisConfig`, then `Source` =
+`analysisSource(cfg, keys)` of the selected datasets), so what the
+[analysis app](EphysAnalysisApp.md) saved last is what runs. An
+`EphysAnalysisRunner` scans the project root again, keeps those keys and also
+looks for each dataset's outputs in `outputSearchDirs`. Each dataset's
+outputs are read first (`loadAnalysisSource`): one that cannot be read, or a
+key the scan does not find, is an `analysis` row with status `error`, and
+the others still run. `run(Export=Analysis.Figures,
+Report=Analysis.Report)` then draws every enabled plot on every dataset:
+
+- one row per dataset and plot, step `analysis:<plot id>`: `done` (`Output`
+  the files written), `skipped` (`Message`: why the dataset cannot have it,
+  `plotSkipReason`), `error` or `cancelled`;
+- with `Report`, one `analysis:report` row per report: `Dataset` `""` for one
+  report over every dataset, else the dataset (`Report.PerDataset`). After a
+  cancel, the report over every dataset is not written (`cancelled`).
+
+The runner also writes its own run record,
+`<report folder>/analysis_runs/<runId>_<name>.json`. A dry run reads the
+analysis config and lists `analysisTargets` as `dry run` rows; it draws and
+writes nothing. The step needs the repository's `analysis` folder on the
+path; the rest of the pipeline never does.
 
 ### Background Kilosort4 runs
 
@@ -481,7 +532,7 @@ end
 
 | Field | Meaning |
 | --- | --- |
-| `step` | the step name (`probe` ... `export`, as in `StepNames`) |
+| `step` | the step name (`probe` ... `analysis`, as in `StepNames`) |
 | `dataset` | the dataset's name; `""` when the step is starting |
 | `index`, `count` | the dataset's place in the step's selection; `index` is 0 when the step is starting |
 | `done`, `total` | how far that dataset is (`done / total`, 0 to 1) |
@@ -496,7 +547,9 @@ after `cancel()` it sends none, and the step records its datasets as
 Artifact detection that Sorting, Signals or Spikes needs (no valid cache)
 reports as that step: it fills the first half of the dataset's share, and the
 sort, the derivation or the spike detection the second. Export reports as `export`, the formats
-sharing each dataset's share (the result rows stay `export:<format>`). A
+sharing each dataset's share (the result rows stay `export:<format>`). Analysis reports as `analysis`:
+reading the config and each dataset's outputs at 0, then the plots
+sharing each dataset's share (`plot <id>`). A
 direct `artifactIntervalsFor(d)` reports as `artifacts`, dataset 1 of 1; its
 optional third argument `report(done, total, message)` sends the detection's
 progress elsewhere.
@@ -551,7 +604,7 @@ txt = EphysPipelineScript.standalone(cfg, File="run_subj1_standalone.m");
 | Form | Contents |
 | --- | --- |
 | `compact` | loads the JSON config, builds an `EphysPipeline`, calls `checkRun()` (`run()`'s checks: a config error or a blocking plan row stops the script) and prints the plan, then one `pipe.<step>()` line per step. Disabled steps are written commented out. Override hints for the output root, the selection, the execution mode and the background runs at once are included as comments. Keep the config file next to it |
-| `standalone` | every parameter written out as MATLAB literals, in `%%` sections; builds `EphysProject`, selects datasets by key, `refresh()`es them, pushes `ArtifactConfig` and `TrialConfig` onto them, and calls `artifactIntervals`, `runKilosort`, `toMat`, `spikesToMat`, the exporters and the Epsych2 functions directly. Each step does what the runner's does: the behavior step pairs and approves trials as `checkBehavior` does, the default probe is used without being assigned (unless `WriteDefaultToManifest`), for sorting and to place the derived signals' bad channels, and each dataset's export inputs are read once (only the extract files of `Export.Signals`) and passed to every format with their `Sources`. The runner's cache of artifact detections and its plan checks are left out. It never references the pipeline classes, so it documents exactly what a run does and needs no config file. The config JSON is embedded in the header comment |
+| `standalone` | every parameter written out as MATLAB literals, in `%%` sections; builds `EphysProject`, selects datasets by key, `refresh()`es them, pushes `ArtifactConfig` and `TrialConfig` onto them, and calls `artifactIntervals`, `runKilosort`, `toMat`, `spikesToMat`, the exporters and the Epsych2 functions directly. Each step does what the runner's does: the behavior step pairs and approves trials as `checkBehavior` does, the default probe is used without being assigned (unless `WriteDefaultToManifest`), for sorting and to place the derived signals' bad channels, and each dataset's export inputs are read once (only the extract files of `Export.Signals`) and passed to every format with their `Sources`. The Analysis step carries the analysis config as its JSON (as it was when the script was written; when it cannot be read then, the script loads the file), points it at the datasets above and runs `EphysAnalysisRunner`, leaving out a dataset whose outputs cannot be read. The runner's cache of artifact detections and its plan checks are left out. It never references the pipeline classes, so it documents exactly what a run does and needs no config file. The config JSON is embedded in the header comment |
 
 Both scripts write to separate output folders when their config does, and
 the two produce identical `_extract.mat`, `_spikes.mat`, `_chronux.mat`,
@@ -721,5 +774,6 @@ the behavior file.
 | [`test_TDTReader.m`](../pipeline/test_TDTReader.m) | TDT Synapse blocks: samples from TEV and SEV, stream choice and gain, epocs and their rows, `Acquisition.TDT` |
 | [`test_UnitLabels.m`](../pipeline/test_UnitLabels.m) | `nameIdentity` (literal prefix, non-matching names, pattern, subject and date errors, dates and times with separators), class and id padding, identity columns, peak site and template centre, `writeUnitNotes` / `readUnitNotes`, `readSortedUnits` identity errors, `EphysProject.unitIdentities` collisions, `unitTable` (columns, filtering, duplicates, files, refreshed notes) |
 | [`test_EpsychSession.m`](../pipeline/test_EpsychSession.m) | synthetic `Data` / `Info` files; `NotEpsych`; matching by prefix, by time, and ambiguity |
+| [`test_PipelineAnalysisStep.m`](../analysis/test_PipelineAnalysisStep.m) | the Analysis step over a synthetic project: its validation (the analysis config's own issues under `Plots.<id>.<field>`, its `Source` ignored, a missing file, nothing written, background sorting feeding unit plots), plan rows per dataset and plot and the report row, a dry run writing nothing, a run writing every dataset's figures, the report and both run records with progress that only grows, cancel, a `list` selection with one report per dataset, and both scripts (the standalone one carries the analysis config and writes the report again) |
 
 Run everything with [`run_all_tests.m`](../pipeline/run_all_tests.m).

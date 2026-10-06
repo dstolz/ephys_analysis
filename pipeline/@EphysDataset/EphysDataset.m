@@ -132,6 +132,13 @@ classdef EphysDataset < handle
             ["int16","uint16","int32","single","float32"])} = "int16"
         OutputDir (1,1) string = ""              % output dir for .bin / KS4 results (default = Folder)
 
+        % Folder the sorting .bin and its JSON sidecar are written to, apart
+        % from the rest of the outputs (the .bin is as large as the recording).
+        % "" = outputFolder(). Set from the pipeline config's Sorting.BinDir
+        % (EphysPipeline.applyConfigToDatasets). The sorter's results and
+        % every other output stay in outputFolder(). See BinFile, binFolder.
+        BinDir    (1,1) string = ""
+
         % Reader options: the pipeline config's Acquisition section (e.g.
         % OpenEphys.Recordings / RecordNode / Stream). Passed to the reader
         % chosen for Folder; changing it drops the reader, so the next access
@@ -232,7 +239,7 @@ classdef EphysDataset < handle
     end
 
     properties (Dependent)
-        BinFile     % full path to the .bin (outputFolder/Name.bin, or Name_ks4.bin, see get.BinFile)
+        BinFile     % full path to the .bin (binFolder/Name.bin, or Name_ks4.bin, see get.BinFile)
         NumSamples  % total amplifier samples across files (sum of PerFile)
     end
 
@@ -328,6 +335,7 @@ classdef EphysDataset < handle
                 opts.Scale     (1,1) double = NaN
                 opts.Dtype     (1,1) string = "int16"
                 opts.OutputDir (1,1) string = ""
+                opts.BinDir    (1,1) string = ""
                 opts.Manifest  = []
                 opts.ReaderOptions struct = struct()
             end
@@ -347,6 +355,7 @@ classdef EphysDataset < handle
             obj.Scale     = opts.Scale;
             obj.Dtype     = opts.Dtype;
             obj.OutputDir = opts.OutputDir;
+            obj.BinDir    = opts.BinDir;
             obj.ReaderOptions = opts.ReaderOptions;
             if ~isempty(opts.Manifest)
                 obj.Manifest = opts.Manifest;
@@ -545,15 +554,15 @@ classdef EphysDataset < handle
 
         %% Dependent getters
         function f = get.BinFile(obj)
-            % <outputFolder>/<Name>.bin, or <Name>_ks4.bin when <Name>.bin or
+            % <binFolder>/<Name>.bin, or <Name>_ks4.bin when <Name>.bin or
             % its <Name>.json sidecar is one of the recording's own files (a
             % binary-format recording keeps its samples in <folder leaf>.bin),
             % so toBin never writes over the recording.
             stem = obj.Name;
-            if obj.isRecordingFile(fullfile(obj.outputFolder(), stem + [".bin" ".json"]))
+            if obj.isRecordingFile(fullfile(obj.binFolder(), stem + [".bin" ".json"]))
                 stem = stem + "_ks4";
             end
-            f = fullfile(obj.outputFolder(), stem + ".bin");
+            f = fullfile(obj.binFolder(), stem + ".bin");
         end
 
         function n = get.NumSamples(obj)
@@ -642,6 +651,15 @@ classdef EphysDataset < handle
                 p = obj.Folder;
             else
                 p = obj.OutputDir;
+            end
+        end
+
+        function p = binFolder(obj)
+            %binFolder  The folder BinFile is in: BinDir, defaulting to outputFolder().
+            if obj.BinDir == ""
+                p = obj.outputFolder();
+            else
+                p = obj.BinDir;
             end
         end
 

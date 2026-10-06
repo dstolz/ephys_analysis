@@ -19,7 +19,7 @@ for t = reshape(string(targets), 1, [])
     if any(samePath(absolutePath(t), recording))
         error(char("EphysDataset:" + who + ":WouldOverwriteRecording"), ...
             ['%s is one of the recording''s own files (%s); writing it would destroy the ' ...
-             'recording. Choose another BinFile or set OutputDir.'], t, obj.Folder);
+             'recording. Choose another BinFile or set OutputDir (or BinDir).'], t, obj.Folder);
     end
 end
 end

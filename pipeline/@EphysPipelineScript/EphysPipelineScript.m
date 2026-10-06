@@ -139,6 +139,9 @@ classdef EphysPipelineScript
             if cfg.Sorting.Sorter ~= "kilosort4"
                 L(end+1, 1) = "    d.Sorter = " + lit(cfg.Sorting.Sorter) + ";   % its run folder si_<sorter> is the sorted output";
             end
+            if cfg.Sorting.BinDir ~= ""
+                L(end+1, 1) = "    d.BinDir = " + lit(cfg.Sorting.BinDir) + ";   % the sorting .bin goes here, apart from the other outputs";
+            end
             L(end+1, 1) = "    d.ArtifactConfig = artifactConfig;";
             L(end+1, 1) = "    d.TrialConfig = trialConfig;        % trial line, line names and polarity, signal rates";
             L(end+1, 1) = "end";

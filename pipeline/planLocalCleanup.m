@@ -23,9 +23,10 @@ function T = planLocalCleanup(datasets, opts)
 %                    phy's trace view does.
 %     "bin"          the .bin toBin writes (the dataset's BinFile: <Name>.bin,
 %                    or <Name>_ks4.bin when the recording's own data file is
-%                    <Name>.bin) and its .json sidecar: the flat binary
-%                    Kilosort4 sorts (never a raw recording file). As above,
-%                    only phy's trace view needs it.
+%                    <Name>.bin; in the Sorting.BinDir folder when there is
+%                    one, else the output folder) and its .json sidecar: the
+%                    flat binary Kilosort4 sorts (never a raw recording file).
+%                    As above, only phy's trace view needs it.
 %     "envelope"     the Visualize tab's min / max envelopes of the signals it
 %                    has shown (EphysTraceEnvelope): <Name>_envelope_<what>.dat
 %                    in the output folder, the only place they are written.
@@ -93,8 +94,8 @@ function T = planLocalCleanup(datasets, opts)
 %     Bytes      its size now
 %     Source     for a raw file copied by the Copy tab, its source ("" otherwise)
 %     Reason     why it is removed or kept
-%     Root       the folder the file lies under: the dataset's recording or
-%                output folder, or the search folder it was found in.
+%     Root       the folder the file lies under: the dataset's recording,
+%                output or .bin folder, or the search folder it was found in.
 %                runLocalCleanup moves a file to <Destination>/<Key>/<its path
 %                below Root> and removes the folders it empties below Root.
 %     Key        the dataset's DatasetKey (its folder below the project
@@ -120,6 +121,7 @@ end
 function T = planDataset(d, remove, searchDirs)
 folder = string(d.Folder);
 outDir = string(d.outputFolder());
+binDir = string(d.binFolder());         % the .bin's folder: outDir unless the dataset has a BinDir
 ksDir  = string(d.kilosortDir());
 runDirs = sortRunDirs(d, outDir, ksDir);   % kilosort4 and si_<sorter>: what the Sorting step wrote
 sortDir = string(d.sortingResultsDir());
@@ -129,13 +131,14 @@ if key == ""; key = name; end
 
 [outputKind, found, foreign] = datasetOutputs(d, searchDirs);
 files = addFiles(listFiles(unique([folder outDir runDirs sortDir], 'stable')), found);
+files = addFiles(files, binFiles(d));   % a BinDir is not listed whole: it holds other datasets' .bin files too
 n = numel(files);
 T = emptyPlan();
 if n == 0; return; end
 
 copied = copyRecord(folder);
 rawNames = rawRecordingNames(d);
-roots = [folder outDir searchDirs];
+roots = [folder outDir binDir searchDirs];
 [~, binStem] = fileparts(d.BinFile);    % <Name>, or <Name>_ks4 beside a recording file <Name>.bin
 otherSort = sortSource(d);              % the recording folder another dataset's .bin and sort came from
 
@@ -180,7 +183,7 @@ for k = 1:n
     elseif isKey(foreign, char(fileKey))
         r.Category = "output"; r.What = "Another dataset's output";
         r.Reason = "Its provenance names another dataset or recording folder, so it is not this dataset's to remove.";
-    elseif otherSort ~= "" && (underAny(p, runDirs) || (samePath(p, outDir) ...
+    elseif otherSort ~= "" && (underAny(p, runDirs) || ((samePath(p, outDir) || samePath(p, binDir)) ...
             && any(lower(leaf) == lower(binStem + [".bin" ".json"]))))
         r.Category = "sorting"; r.What = "Another recording's sort or .bin";
         r.Reason = "Written for " + otherSort + ", which shares this output folder (the same name), so it is kept.";
@@ -195,7 +198,7 @@ for k = 1:n
         else
             r.Reason = "Kilosort4's copy of the recording is not selected for removal.";
         end
-    elseif samePath(p, outDir) && any(lower(leaf) == lower(binStem + [".bin" ".json"])) ...
+    elseif (samePath(p, binDir) || samePath(p, outDir)) && any(lower(leaf) == lower(binStem + [".bin" ".json"])) ...
             && (isfile(d.BinFile) || isBinSidecar(f.path))
         r.Category = "bin"; r.What = "Sorting input .bin (toBin)"; r.Step = "sorting";
         if any(remove == "bin")
@@ -444,6 +447,19 @@ for root = roots
     end
 end
 files = addFiles(struct('path', {}, 'bytes', {}), files);
+end
+
+
+function files = binFiles(d)
+%binFiles  The .bin toBin writes for D and its JSON sidecar, as listFiles' rows (those that exist).
+files = struct('path', {}, 'bytes', {});
+[p, stem] = fileparts(d.BinFile);
+for f = [string(d.BinFile) string(fullfile(p, stem + ".json"))]
+    s = dir(f);
+    if isscalar(s) && ~s.isdir
+        files(end+1) = struct('path', f, 'bytes', s.bytes); %#ok<AGROW>
+    end
+end
 end
 
 

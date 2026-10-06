@@ -452,6 +452,7 @@ The constructor errors (`EphysDataset:NoFolder`) if the folder does not exist.
 | `Scale` | `NaN` | `.bin` units per µV (`NaN` = `binScale`) |
 | `Dtype` | `"int16"` | one of `int16`, `uint16`, `int32`, `single`, `float32` |
 | `OutputDir` | `""` | output folder (`""` = `Folder`) |
+| `BinDir` | `""` | folder for the sorting `.bin` and its `.json` sidecar (`""` = `outputFolder()`). Only the `.bin` moves: the sorter's results and every other output stay in `outputFolder()`. Set from the pipeline config's `Sorting.BinDir` |
 | `Manifest` | empty | optional provenance `Manifest` object |
 | `ManualArtifacts` | `zeros(0,2)` | manual artifact periods, `[tStart tEnd)` seconds (half-open), recording-relative. Saved to and restored from the dataset manifest |
 | `ArtifactAdjustments` | `zeros(0,4)` | detected artifacts whose bounds were moved by hand: `[detStart detEnd tStart tEnd]` seconds, recording-relative; see [Moved bounds](#moved-bounds). Saved to and restored from the dataset manifest |
@@ -468,7 +469,7 @@ The constructor errors (`EphysDataset:NoFolder`) if the folder does not exist.
 
 | Property | Value |
 | --- | --- |
-| `BinFile` | `<outputFolder>/<Name>.bin`, or `<Name>_ks4.bin` when `<Name>.bin` or `<Name>.json` there is one of the recording's own files ([Writing a Kilosort4 `.bin`](#writing-a-kilosort4-bin)) |
+| `BinFile` | `<binFolder>/<Name>.bin`, or `<Name>_ks4.bin` when `<Name>.bin` or `<Name>.json` there is one of the recording's own files ([Writing a Kilosort4 `.bin`](#writing-a-kilosort4-bin)) |
 | `NumSamples` | `sum([PerFile.numAmplifierSamples])`, or `NaN` before metadata is parsed |
 
 ---
@@ -1243,9 +1244,12 @@ byte for byte.
 `toBin` never writes over the recording: a `BinFile`, or its JSON sidecar, that
 is one of the recording's own files is refused before anything is opened
 (`EphysDataset:toBin:WouldOverwriteRecording`). `BinFile` is therefore
-`<outputFolder>/<Name>.bin`, or `<Name>_ks4.bin` when `<Name>.bin` or
+`<binFolder>/<Name>.bin`, or `<Name>_ks4.bin` when `<Name>.bin` or
 `<Name>.json` there is one of the recording's files (a universal-format
 recording whose data file is `<Name>.bin`, with its outputs next to it).
+`binFolder()` is `BinDir`, or `outputFolder()` when `BinDir` is `""`: set
+`BinDir` to keep the `.bin`, which is as large as the recording, out of the
+output folder. A bare `BinFile` name goes in `binFolder()`.
 
 `info` fields: `filename`, `dtype`, `nChan`, `nSamples`, `fs`, `scale`,
 `offset`, `byteOrder`, `nClipped`, `nManualArtifacts`, `nManualBlanked`,
@@ -2262,7 +2266,8 @@ interpolates.
 | Method | Returns |
 | --- | --- |
 | `outputFolder()` | `OutputDir`, or `Folder` when `OutputDir` is `""` |
-| `tracker()` | a [`DatasetTracker`](DatasetTracker.md) of `outputFolder()` (an empty tracker if the folder does not exist yet) |
+| `binFolder()` | `BinDir`, or `outputFolder()` when `BinDir` is `""`: the folder `BinFile` is in |
+| `tracker()` | a [`DatasetTracker`](DatasetTracker.md) of `outputFolder()` (an empty tracker if the folder does not exist yet; a `.bin` in a `BinDir` is not in it) |
 | `EphysDataset.detectFormat(folder, ReaderOptions=)` | layout string (static; asks the reader registry) |
 | `EphysDataset.relabelEvents(E, labelField, lineNames)` | events named as [above](#digital-line-names) (static) |
 | `EphysDataset.parseLineNames(list)` | `[natives, names]` of `"native=name"` entries (static) |

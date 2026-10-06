@@ -19,6 +19,9 @@ if ~isempty(obj.SortSorterDropDown) && isvalid(obj.SortSorterDropDown)
 end
 obj.PythonExeField.Value = char(S.PythonExe);
 obj.CondaEnvField.Value  = char(S.CondaEnv);
+if ~isempty(obj.SortBinDirField) && isvalid(obj.SortBinDirField)
+    obj.SortBinDirField.Value = char(S.BinDir);
+end
 if ~isempty(obj.ExecModeDropDown) && isvalid(obj.ExecModeDropDown)
     obj.ExecModeDropDown.Value = (S.Execution == "blocking");
 end

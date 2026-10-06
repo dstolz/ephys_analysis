@@ -942,7 +942,9 @@ classdef EphysPipeline < handle
             %   Reference sections, EphysPipelineConfig.artifactConfig), TrialConfig,
             %   ReaderOptions (Acquisition), OutputDir (<OutputRoot>/<Name>, or
             %   "" - outputs next to the recording - without an output root),
-            %   and the NamePattern and DatasetKey that label sorted units. Two
+            %   BinDir (Sorting.BinDir: where the sorting .bin goes; "" = the
+            %   output folder), and the NamePattern and DatasetKey that label
+            %   sorted units. Two
             %   recordings with the same name share <OutputRoot>/<Name>: plan()
             %   stops a run on either. A changed Acquisition section changes which
             %   folders are recordings (Open Ephys modes): rescan the project
@@ -967,6 +969,7 @@ classdef EphysPipeline < handle
                 d.PythonExe      = cfg.Sorting.PythonExe;
                 d.CondaEnv       = cfg.Sorting.CondaEnv;
                 d.Sorter         = cfg.Sorting.Sorter;
+                d.BinDir         = cfg.Sorting.BinDir;
                 d.ArtifactConfig = acfg;
                 d.TrialConfig    = tcfg;
                 d.ReaderOptions  = cfg.Acquisition;

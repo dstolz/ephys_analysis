@@ -70,7 +70,7 @@ function info = toBin(obj, opts)
 %                    on up to 16 chunks spread evenly over the recording.
 %     WriteMeta      (1,1) logical  write JSON sidecar (default true)
 %     BinFile        (1,1) string   override output path (default ds.BinFile);
-%                    a bare file name goes in ds.outputFolder()
+%                    a bare file name goes in ds.binFolder()
 %
 %   toBin never writes over the recording itself: a BinFile (or its JSON
 %   sidecar) that is one of the recording's files - a universal-format
@@ -144,7 +144,7 @@ scaleSource = "set: Scale=";
 if isnan(scale); [scale, scaleSource] = obj.binScale(dtype); end
 binFile = opts.BinFile; if binFile == ""; binFile = obj.BinFile; end
 if fileparts(binFile) == ""            % a bare file name goes in the output folder
-    binFile = fullfile(obj.outputFolder(), binFile);
+    binFile = fullfile(obj.binFolder(), binFile);
 end
 [mDir, mName] = fileparts(binFile);
 metaFile = fullfile(mDir, mName + ".json");

@@ -429,6 +429,8 @@ classdef EphysPipelineApp < handle
         BrowsePythonButton matlab.ui.control.Button
         CondaEnvField     matlab.ui.control.EditField
         PhyCmdField       matlab.ui.control.EditField
+        SortBinDirField   matlab.ui.control.EditField      % Sorting.BinDir
+        BrowseBinDirButton matlab.ui.control.Button
         ExecModeDropDown  matlab.ui.control.DropDown
         DryRunCheckBox    matlab.ui.control.CheckBox
         KSOptimizeButton  matlab.ui.control.Button
@@ -1190,6 +1192,7 @@ classdef EphysPipelineApp < handle
 
         % --- Sorting tab ---
         onBrowsePython(obj)
+        onBrowseBinDir(obj)
         setDropIfMember(obj, dd, value, name)
         onOptimizeKS4ForProbe(obj, ifMissing)
         onResetKS4Params(obj)

@@ -35,7 +35,9 @@ classdef EphysPipelineConfig
     %                once; the others wait for a free slot), Devices
     %                (torch devices such as "cuda:0" "cuda:1" shared out
     %                among the runs; none = Kilosort4's choice), DryRun,
-    %                SkipExisting, KS4 (typed per kilosortParamSpec),
+    %                SkipExisting, BinDir (the folder the sorting .bin is
+    %                written to, apart from the other outputs; "" = the
+    %                dataset's output folder), KS4 (typed per kilosortParamSpec),
     %                KS4ExtraJSON, Quality (good-unit criteria on the quality
     %                metrics, unitQualityCriteria: the Review tab, the QC
     %                report)

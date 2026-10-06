@@ -10,6 +10,8 @@ function buildSortingTab(obj)
 %   above the parameters. For a SpikeInterface sorter those rows give way to
 %   its parameters as JSON (SIPanel: Sorting.SIParams.<sorter>, seeded with
 %   SpikeInterface's defaults, beside their descriptions; showSorterControls).
+%   The "Bin folder" field (Sorting.BinDir, onBrowseBinDir) puts the sorting
+%   .bin in a folder of its own instead of the dataset's output folder.
 %   The right column shows the
 %   selected dataset's sorted-output association (auto-discovered or pinned
 %   with "Use folder..."), runs the step, and streams background run logs.
@@ -17,7 +19,7 @@ function buildSortingTab(obj)
 spec = EphysPipelineConfig.kilosortParamSpec();
 groups = unique({spec.group}, 'stable');
 
-nRows = 7;
+nRows = 8;
 for gi = 1:numel(groups)
     np = sum(strcmp({spec.group}, groups{gi}));
     nRows = nRows + 1 + ceil(np / 2);
@@ -89,6 +91,19 @@ obj.PhyCmdField.Layout.Row = r; obj.PhyCmdField.Layout.Column = 2;
 obj.DryRunCheckBox = uicheckbox(cg, "Text", "Dry run (write the run files only)", ...
     "ValueChangedFcn", changed);
 obj.DryRunCheckBox.Layout.Row = r; obj.DryRunCheckBox.Layout.Column = [3 5];
+
+r = r + 1;
+l = lab(cg, "Bin folder:", r);
+l.Tooltip = "Folder the .bin of each dataset is written to (<folder>/<Name>.bin and its .json sidecar), apart " + ...
+    "from the other outputs: the .bin is as large as the recording, so this keeps it out of the output folders " + ...
+    "you copy. Blank = the dataset's output folder (<output root>/<Name>).";
+obj.SortBinDirField = uieditfield(cg, "text", "Placeholder", "blank = the project output root", ...
+    "Tooltip", l.Tooltip, "ValueChangedFcn", changed);
+obj.SortBinDirField.Layout.Row = r; obj.SortBinDirField.Layout.Column = [2 4];
+obj.BrowseBinDirButton = uibutton(cg, "Text", "...", ...
+    "Tooltip", "Choose the folder for the sorting .bin files.", ...
+    "ButtonPushedFcn", @(~,~) obj.onBrowseBinDir());
+obj.BrowseBinDirButton.Layout.Row = r; obj.BrowseBinDirButton.Layout.Column = 5;
 
 r = r + 1;
 note = uilabel(cg, "WordWrap", "on", "FontColor", [0.4 0.4 0.4], "Text", ...

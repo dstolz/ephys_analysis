@@ -116,6 +116,8 @@ cfg.Sorting.KS4.tmax = 100;
 cfg.Sorting.KS4.artifact_threshold = Inf;
 cfg.Sorting.KS4.drift_smoothing = [1 2 3];
 cfg.Sorting.KS4ExtraJSON = "{""foo"": 1}";
+check(EphysPipelineConfig().Sorting.BinDir == "", 'the sorting .bin goes in the output folder unless Sorting.BinDir is set');
+cfg.Sorting.BinDir = "E:\scratch\bins";
 cfg.Spikes.Threshold = NaN;
 cfg.Spikes.MaxAmplitudeUV = Inf;
 cfg.Spikes.WindowMs = [-1 2];
@@ -145,6 +147,8 @@ check(c3.File == string(f) && isempty(c3.LoadWarnings), 'File is set and nothing
 check(c3.Parallel.Enabled && isnan(c3.Parallel.MaxWorkers) && contains(txt, '"MaxWorkers": "NaN"'), ...
     'the Parallel section round-trips (NaN MaxWorkers as a string)');
 check(isequal(c3.Artifacts.FilterCutoff, [300 3000]), 'a band-pass FilterCutoff survives the JSON round trip');
+check(c3.Sorting.BinDir == "E:\scratch\bins" && contains(txt, '"BinDir": "E:\\scratch\\bins"'), ...
+    'Sorting.BinDir survives the JSON round trip');
 js = jsondecode(txt);
 check(isequal(c3.Reference, struct('Mode', "cmr", 'BadLow', 0.25, 'BadHigh', 2.5)) && isfield(js, 'Reference') ...
     && strcmp(js.Reference.Mode, 'cmr') && ~isfield(js.Artifacts, 'Reference'), ...

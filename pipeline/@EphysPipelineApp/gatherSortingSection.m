@@ -1,7 +1,8 @@
 function [S, errMsg] = gatherSortingSection(obj)
 %gatherSortingSection  The Sorting tab as a config Sorting section.
 %   [S, ERRMSG] = obj.gatherSortingSection() returns EphysPipelineConfig's
-%   Sorting struct filled from the controls: paths, execution mode, runs at
+%   Sorting struct filled from the controls: paths (the .bin folder, BinDir,
+%   included), execution mode, runs at
 %   once and GPUs (on the Run tab), dry run, the typed KS4 parameters (text
 %   fields are parsed with EphysPipelineConfig.ks4ParamFromText) and the
 %   extra JSON, the sorter (Sorting.Sorter) and the parameters of the
@@ -42,6 +43,9 @@ if obj.SIParamsShown ~= "" && ~isempty(obj.SIParamsArea) && isvalid(obj.SIParams
 end
 S.PythonExe = string(strtrim(obj.PythonExeField.Value));
 S.CondaEnv  = string(strtrim(obj.CondaEnvField.Value));
+if ~isempty(obj.SortBinDirField) && isvalid(obj.SortBinDirField)
+    S.BinDir = string(strtrim(obj.SortBinDirField.Value));
+end
 if ~isempty(obj.ExecModeDropDown) && isvalid(obj.ExecModeDropDown)
     if logical(obj.ExecModeDropDown.Value); S.Execution = "blocking"; else; S.Execution = "background"; end
 end

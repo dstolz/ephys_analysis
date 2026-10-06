@@ -27,6 +27,10 @@ function T = plan(obj, opts)
 %                                  another dataset of the project has the same
 %                                  name, so both would use <OutputRoot>/<Name>
 %                                  and read or overwrite each other's outputs
+%     error: .bin shared with <key>
+%                                  Sorting.BinDir is set and another dataset of
+%                                  the project has the same name, so both would
+%                                  write <BinDir>/<Name>.bin (sorting rows only)
 %     error: sorting folder missing
 %                                  a step reads sorted units but the dataset's
 %                                  hand-picked sorted-output folder (SortingDir)
@@ -295,6 +299,27 @@ for k = 1:numel(ds)
     T.Note(rows) = sprintf("%s is also the output folder of %s (the same name under Project.OutputRoot). " + ...
         "Rename one recording folder, or leave OutputRoot empty (outputs next to each recording).", ...
         ds(k).outputFolder(), strjoin(allKeys(others), ", "));
+end
+
+% One Sorting.BinDir holds every dataset's .bin, named by the dataset: two
+% recordings with the same name would write the same file. (Without a BinDir
+% the .bin is in the output folder, which the check above covers.)
+if c.Sorting.BinDir ~= "" && any(T.Step == "sorting")
+    binKey = strings(1, P.NumDatasets);
+    for i = 1:P.NumDatasets
+        binKey(i) = EphysDataset.pathKey(P.Datasets(i).BinFile);
+    end
+    for k = 1:numel(ds)
+        i = obj.DatasetIdx(k);
+        others = find(binKey == binKey(i));
+        others(others == i) = [];
+        rows = Idx == i & T.Step == "sorting" & ~startsWith(T.Status, "error");
+        if isempty(others) || ~any(rows); continue; end
+        T.Status(rows) = "error: .bin shared with " + strjoin(allKeys(others), ", ");
+        T.Note(rows) = sprintf("%s is also the .bin of %s (the same name under Sorting.BinDir). " + ...
+            "Rename one recording folder, or leave Sorting.BinDir empty (each .bin goes in its output folder).", ...
+            ds(k).BinFile, strjoin(allKeys(others), ", "));
+    end
 end
 
 % Rows that read sorted units label them from the dataset name: the name must

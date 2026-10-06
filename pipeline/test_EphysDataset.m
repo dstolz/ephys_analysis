@@ -400,6 +400,29 @@ resB = BB(onB:offB, :) - (aB + (bB - aB) .* ((1:offB-onB+1).' / (offB - onB + 2)
 check(max(abs(jB)) < 6 * 8 && abs(std(resB(:)) / 8 - 1) < 0.15 && iBr.nManualBlanked == offB - onB + 1, ...
     sprintf('no step at the period''s edges (max %.0f uV, noise 8 uV); the fill is noise around a line', max(abs(jB))));
 
+% BinDir: the .bin and its sidecar go to a folder of their own (the .bin is as
+% large as the recording); the output folder keeps everything else.
+out0 = dsB.OutputDir;
+dsB.OutputDir = fullfile(root, 'binrec_out_b');
+binDirB = fullfile(root, 'binrec_bins');
+check(dsB.BinDir == "" && dsB.binFolder() == dsB.outputFolder() ...
+    && string(fileparts(dsB.BinFile)) == string(dsB.outputFolder()), ...
+    'without a BinDir the .bin is in the output folder');
+dsB.BinDir = binDirB;
+iBd = dsB.toBin(ArtifactIntervals=[]);
+iBn = dsB.toBin(BinFile="named.bin", ArtifactIntervals=[], WriteMeta=false);
+check(string(iBd.filename) == string(fullfile(binDirB, 'binrec.bin')) && isfile(iBd.filename) ...
+    && string(iBd.metaFile) == string(fullfile(binDirB, 'binrec.json')) && isfile(iBd.metaFile) ...
+    && ~isfile(fullfile(dsB.outputFolder(), 'binrec.bin')) && ~isfile(fullfile(dsB.outputFolder(), 'binrec.json')), ...
+    'with a BinDir toBin writes the .bin and its sidecar there, not in the output folder');
+check(string(iBn.filename) == string(fullfile(binDirB, 'named.bin')) && isfile(iBn.filename), ...
+    'a bare BinFile name goes in the BinDir');
+dsB.BinDir = brDir;
+check(endsWith(string(dsB.BinFile), "binrec_ks4.bin") && strcmp(errorIdOf(@() dsB.toBin(BinFile="binrec.bin")), over), ...
+    'a BinDir that is the recording''s own folder still keeps off its data file (<Name>_ks4.bin; a bare name is refused)');
+dsB.BinDir = "";
+dsB.OutputDir = out0;
+
 % Three *.rhd files are three chunks. A period across the file 1|2 boundary
 % (rows 2401-2700) is held at the level before it to the end of file 1, and
 % continues from there in file 2; a period that begins on file 3's first row

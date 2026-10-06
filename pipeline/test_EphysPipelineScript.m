@@ -127,6 +127,9 @@ check(contains(txtBg, "maxConcurrent = 2;") && contains(txtBg, "launched = [];")
     && contains(txtBg, "launched = [launched, res];") && ~contains(txtBg, "devices ="), ...
     'standalone script writes each run''s files, waits for a slot (Sorting.MaxConcurrent at a time), then starts it');
 check(~contains(txtS, "waitForSortingSlot"), 'blocking / dry-run sorting in the standalone script has no slot wait');
+cfgBin = cfgB; cfgBin.Sorting.BinDir = "E:\scratch\bins";
+check(~contains(txtS, "d.BinDir") && contains(EphysPipelineScript.standalone(cfgBin), 'd.BinDir = "E:\scratch\bins";'), ...
+    'standalone script sets each dataset''s BinDir from Sorting.BinDir, and only when there is one');
 cfgGpu = cfgBg; cfgGpu.Sorting.Devices = ["cuda:0" "cuda:1"];
 gpuFile = fullfile(root, 'scripts', 'run_gpus.m');
 txtGpu = EphysPipelineScript.standalone(cfgGpu, File=gpuFile);

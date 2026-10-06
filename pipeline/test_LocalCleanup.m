@@ -188,6 +188,33 @@ classdef test_LocalCleanup < matlab.unittest.TestCase
             tc.verifySubstring(T.Reason(T.File == fullfile(out, tc.Name + ".bin")), other);
         end
 
+        function binInItsOwnFolderIsRemovedWithTheBin(tc)
+            % A dataset with a BinDir keeps its .bin and sidecar there, in a
+            % folder that holds other datasets' .bin files too: "bin" finds
+            % those two files only, and a clean up leaves the folder and the
+            % others alone.
+            binDir = string(fullfile(tc.Root, "bins"));
+            mkdir(binDir);
+            d = tc.dataset();
+            d.BinDir = binDir;
+            mine = fullfile(binDir, tc.Name + [".bin" ".json"]);
+            tc.writeBytes(mine(1), 4000);
+            writeJsonFile(mine(2), struct('n_chan_bin', 4, 'bin_file', mine(1), 'source_folder', tc.Local));
+            neighbour = fullfile(binDir, "SYNTH-02_260916_110907.bin");
+            tc.writeBytes(neighbour, 4000);
+            T = planLocalCleanup(d, Remove="bin");
+            rows = T(ismember(T.File, mine), :);
+            tc.verifyEqual(rows.Category.', ["bin" "bin"]);
+            tc.verifyTrue(all(rows.Action == "remove"));
+            tc.verifyEqual(rows.Root.', [binDir binDir], 'the BinDir is the root of its files');
+            tc.verifyFalse(any(T.File == neighbour), 'another dataset''s .bin in the shared folder is not listed');
+            tc.verifyEqual(tc.action(T, tc.Name + ".bin"), "remove", 'a .bin left in the output folder goes too');
+            R = runLocalCleanup(T);
+            tc.verifyTrue(all(R.Status == "removed"), strjoin(R.Message, "; "));
+            tc.verifyFalse(any(isfile(mine)), 'its .bin and sidecar are gone');
+            tc.verifyTrue(isfile(neighbour) && isfolder(binDir), 'the shared folder and the other .bin stay');
+        end
+
         function runRemovesOnlyTheRemoveRowsAndKeepsARecord(tc)
             T = planLocalCleanup(tc.dataset());
             R = runLocalCleanup(T);

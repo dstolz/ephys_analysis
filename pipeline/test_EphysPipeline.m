@@ -101,7 +101,15 @@ acR = d1.ArtifactConfig;
 check(acR.Reference == "cmr" && acR.ReferenceBadLow == 0.25 && acR.ReferenceBadHigh == 2.5 ...
     && acR.Threshold == cfg.Artifacts.Threshold, ...
     'the Reference section is carried onto the datasets'' ArtifactConfig (Mode, BadLow, BadHigh)');
+cfgBin = cfg; cfgBin.Sorting.BinDir = fullfile(root, 'binsOnly');
+check(d1.BinDir == "" && string(fileparts(d1.BinFile)) == string(d1.outputFolder()), ...
+    'no Sorting.BinDir: the .bin is in the dataset''s output folder');
+EphysPipeline.applyConfigToDatasets(cfgBin, pipe.Project);
+check(d1.BinDir == string(cfgBin.Sorting.BinDir) && string(fileparts(d1.BinFile)) == string(cfgBin.Sorting.BinDir) ...
+    && startsWith(d1.outputFolder(), outRoot) && startsWith(d1.kilosortDir(), outRoot), ...
+    'Sorting.BinDir is carried onto the datasets: the .bin goes there, the sorter''s folder stays under the output root');
 EphysPipeline.applyConfigToDatasets(cfg, pipe.Project);
+check(d1.BinDir == "", 'clearing Sorting.BinDir puts the .bin back in the output folder');
 i2 = pipe.Project.findByKey("mouse2/M1_260101_120030");
 check(isnan(pipe.Project.Datasets(i2).Fs) && ~isfile(pipe.Project.Datasets(i2).manifestFile()) && ~isnan(d1.Fs), ...
     'constructing the pipeline refreshes the selected datasets only');
@@ -759,6 +767,26 @@ warning(ws);
 pipe.QueueFcn = [];
 pipe.Config = cfg;
 
+fprintf('\n== 10b. Sorting.BinDir: the .bin is written to a folder of its own ==\n');
+delete(fullfile(binDir, binName + ".bin"), fullfile(binDir, binName + ".json"));   % 10a's, in the output folder
+cfgD = cfgB; cfgD.Artifacts.ApplyToSorting = false;
+cfgD.Sorting.BinDir = fullfile(root, 'binsOnly');
+pipe.QueueFcn = @(d, res) [];   % write the .bin and the run files, start nothing
+pipe.Config = cfgD; pipe.reset();
+ws = warning('off', 'EphysDataset:toBin:Clipping');
+pipe.runSorting();
+warning(ws);
+pipe.QueueFcn = [];
+settingsD = readJsonFile(fullfile(d1.kilosortDir(), 'settings.json'));
+check(pipe.Results.Status(1) == "queued" && isfile(fullfile(cfgD.Sorting.BinDir, binName + ".bin")) ...
+    && isfile(fullfile(cfgD.Sorting.BinDir, binName + ".json")) ...
+    && ~isfile(fullfile(binDir, binName + ".bin")) && ~isfile(fullfile(binDir, binName + ".json")), ...
+    'the Sorting step writes the .bin and its sidecar in Sorting.BinDir, none in the output folder');
+check(string(strrep(settingsD.filename, '/', filesep)) == string(fullfile(cfgD.Sorting.BinDir, binName + ".bin")) ...
+    && isfile(fullfile(d1.kilosortDir(), 'settings.json')) && startsWith(d1.kilosortDir(), outRoot), ...
+    'Kilosort4 is pointed at that .bin, and its own folder is still under the output root');
+pipe.Config = cfg;
+
 fprintf('\n== 11. two recordings with the same name under one output root ==\n');
 projS = fullfile(root, 'projS');
 g1 = fullfile(projS, 'm1', 'rec'); g2 = fullfile(projS, 'm2', 'rec'); gc = fullfile(projS, 'calibration');
@@ -784,6 +812,18 @@ cfgR.Project.OutputRoot = "";
 pR.Config = cfgR;
 TR = pR.plan();
 check(~any(startsWith(TR.Status, ["error" "duplicate"])), 'without an output root each recording keeps its outputs in its own folder');
+cfgR.Sorting.Enabled = true; cfgR.Sorting.PythonExe = "C:\envs\ks\python.exe";
+pR.Config = cfgR;
+TR = pR.plan();
+check(~any(startsWith(TR.Status(TR.Step == "sorting"), "error")), 'each recording writes its own .bin next to it');
+cfgR.Sorting.BinDir = fullfile(root, 'sharedBins');
+pR.Config = cfgR;
+TR = pR.plan();
+check(all(startsWith(TR.Status(TR.Step == "sorting"), "error: .bin shared with m2/rec")) ...
+    && contains(TR.Note(TR.Step == "sorting"), "sharedBins") && ~any(startsWith(TR.Status(TR.Step ~= "sorting"), "error")), ...
+    'one Sorting.BinDir for both: the sorting row of a same-named recording is refused, the other steps are not');
+cfgR.Sorting.Enabled = false; cfgR.Sorting.BinDir = "";
+pR.Config = cfgR;
 cfgR.Signals.OutputDir = fullfile(root, 'sharedSignals');
 pR.Config = cfgR;
 TR = pR.plan();

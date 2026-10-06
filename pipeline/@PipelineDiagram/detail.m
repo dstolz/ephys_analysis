@@ -269,7 +269,13 @@ blank = node("link", "Blank artifact periods", ...
     [ternary(A.Enabled && A.ApplyToSorting, "manual + automatic", "manual periods only"), ...
     ternary(A.Fill == "noise", "noise-filled", "zeroed") + " before the .bin is written"], ...
     "ArtApplySortingCheckBox,ArtFillDropDown");
-writeBin = node("stage", "Write .bin", ["the recording, int16, channel-interleaved", "<Name>.bin (toBin)"], "PythonExeField,CondaEnvField");
+binFile = "<Name>.bin (toBin)";
+if S.BinDir ~= ""
+    binLeaf = fileName(regexprep(S.BinDir, '[\\/]+$', ''));   % the folder's own name: a whole path overflows the box
+    if binLeaf == ""; binLeaf = S.BinDir; end
+    binFile = "<Name>.bin in " + binLeaf + " (toBin)";
+end
+writeBin = node("stage", "Write .bin", ["the recording, int16, channel-interleaved", binFile], "SortBinDirField,PythonExeField,CondaEnvField");
 attach = node("op", "Attach probe map", [probe, "chanMap indexes .bin rows"], "ProbeDatasetDropDown,ProbeDefaultField,ExcludeChannelsField");
 if S.Sorter ~= "kilosort4"
     n = spikeInterfaceTree(cfg, S, {blank, writeBin, attach});

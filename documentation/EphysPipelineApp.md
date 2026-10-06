@@ -1392,8 +1392,9 @@ For each ticked dataset, the Sorting step:
    than half of the recording refuse the dataset, because Kilosort4 would
    find no spikes in it and fail;
 2. writes the recording to `<output folder>/<Name>.bin` (with its `.json`
-   sidecar) with those periods erased and, when the Artifacts tab sets one,
-   the common reference subtracted (Kilosort4's own `do_CAR` is then off);
+   sidecar), or to `<Bin folder>/<Name>.bin` when the **Bin folder** is set,
+   with those periods erased and, when the Artifacts tab sets one, the common
+   reference subtracted (Kilosort4's own `do_CAR` is then off);
 3. writes `settings.json` and a copy of `run_ks4.py` into
    `<output folder>/kilosort4/`, with the probe map Kilosort4 sorts with: a
    copy without the excluded channels' sites (`<probe>_excluded.json`) or with
@@ -1417,6 +1418,7 @@ executable to be sorted.
 | Python exe (+ Browse), Conda env | `Sorting.PythonExe`, `CondaEnv` (optional: when set, commands run as `conda run -n <env> "<Python exe>" ...`). A new config starts with the Python exe last set in the app (the `PythonExe` preference), else the `kilosort` conda env's `python.exe` found under `CONDA_EXE` or a `miniconda3`, `anaconda3`, `miniforge3` or `mambaforge` folder in `%LOCALAPPDATA%`, `%USERPROFILE%`, `%ProgramData%` or `C:\` |
 | Phy command | preference `PhyCmd`, not part of the config. Blank = the `phy` executable of the `phy` conda env, found in the conda install that holds the Python exe, the one `CONDA_EXE` names, or `%LOCALAPPDATA%\miniconda3`, `%USERPROFILE%\miniconda3` or `%USERPROFILE%\anaconda3`; else `conda run -n phy phy`. phy is started in the sorted-output folder with `pushd` and delayed expansion, so a folder whose path holds `&` or spaces, or a UNC folder, works |
 | Execution (background / blocking), Dry run | `Sorting.Execution`, `DryRun`. How many background runs go at once is set on the [Run](#run) tab |
+| Bin folder (+ Browse) | `Sorting.BinDir`: the folder the sorting `.bin` and its `.json` sidecar are written to, as `<Bin folder>/<Name>.bin`. The `.bin` is as large as the recording, so this keeps it out of the per-dataset output folders you copy. Blank (the default) = the dataset's output folder, `<output root>/<Name>`. Only the `.bin` moves: the `kilosort4` folder and every other output stay under the output root. Kilosort4 is given the `.bin`'s full path. Two recordings with the same name would write the same `.bin`, so the plan refuses the second (`error: .bin shared with <key>`) |
 | note about artifact periods | read-only: the periods set on the Artifacts tab are erased in the `.bin` Kilosort4 sorts |
 | Kilosort4 parameters (five groups, from `EphysPipelineConfig.kilosortParamSpec`), Extra settings (JSON), Kilosort4 parameter docs link | `Sorting.KS4`, `KS4ExtraJSON` ([Kilosort4 parameters](#kilosort4-parameters)) |
 | **Optimize for probe** | loads the Kilosort4 parameters saved for the active dataset's probe (else the default probe) from `<probe>.ks4.json` next to the probe map; without that file, offers to generate it from the current parameters or from the probe layout ([details](#optimize-for-probe)) |
@@ -1639,7 +1641,9 @@ touched.
   `artifacts` step first fills the cache.
 - **Disk space.** `<Name>.bin` is as large as the recording, and Kilosort4
   leaves its own filtered copy (`temp_wh.dat`). The sorted units need neither;
-  the [Clean up](#clean-up) tab removes them.
+  the [Clean up](#clean-up) tab removes them. To keep the `.bin` out of the
+  output folders (say, to copy those without it), give the **Bin folder** a
+  place of its own, on a scratch disk for example.
 - **From a script.** `ds.runKilosort()` writes the `.bin` and runs
   Kilosort4; `Launch=false` writes a run's files and `ds.launchSorting(result)`
   starts it later, on a chosen GPU ([Running Kilosort4](EphysDataset.md#running-kilosort4)).
@@ -2986,7 +2990,7 @@ files go.
 | --- | --- | --- |
 | Raw recording files | the recording files the Copy tab copied into the session folder (for Open Ephys, everything under its Record Nodes), as listed in its `session_manifest.json` | each file's source, as recorded there, still exists **with the same size**. A recording not copied by the Copy tab has no known source and is always kept, as are the session files of an Open Ephys dataset that is one part folder of several |
 | Kilosort4's filtered copy of the recording | `temp_wh.dat` under the dataset's `kilosort4` folder or its sorted-output folder | none; the sorted units do not need it, phy's trace view does |
-| Sorting input .bin | the dataset's `BinFile` (`<Name>.bin`, or `<Name>_ks4.bin` beside a binary-format recording's own `<Name>.bin`) + its `.json` in the output folder, written by `toBin` for Kilosort4 to sort | never the data file of a binary-format recording |
+| Sorting input .bin | the dataset's `BinFile` (`<Name>.bin`, or `<Name>_ks4.bin` beside a binary-format recording's own `<Name>.bin`) + its `.json` in the output folder (or in the Sorting tab's **Bin folder**, `Sorting.BinDir`, when one is set; only these two files are listed there, not the folder), written by `toBin` for Kilosort4 to sort | never the data file of a binary-format recording |
 | Visualize's envelopes | `<Name>_envelope_<what>.dat` in the output folder: the min / max of each signal the [Visualize](#visualize) tab has shown ([Signal envelope](file-formats.md#signal-envelope-name_envelope_whatdat)), and a build's leftover `<Name>_envelope_<what>.dat.<token>.partial` | none for a finished one: a display cache, built again when the tab next shows the signal. A partial file goes only once it is an hour old (a build MATLAB left); a newer one may be being written, by this app or another MATLAB, and is kept |
 
 **Remove what a preprocessing step wrote**: one tick box per step that writes
@@ -3249,7 +3253,7 @@ preference: its settings live in its own file, which its Windows task reads.
 | Open Ephys part folders (`openephys-part.json`) inside a session folder | a scan with **one dataset per recording** |
 | `<outputFolder>/<Name>_events.mat` | Trials **Load** or **Prefetch ticked** (a cache of the digital lines) |
 | `<outputFolder>/<Name>_behavior.mat` | the behavior step, or Trials **Write behavior .mat** |
-| `<outputFolder>/<Name>.bin` (or `<Name>_ks4.bin`) + `.json`, `<outputFolder>/kilosort4/{settings.json, run_ks4.py, ks4_launch.cmd, ks4_run.log, ks4_status.json, ks4_exit.txt}` and the phy files (plus `<probe>_excluded.json` with excluded channels, `<probe>_spaced.json` with `shank_spacing`, and `previous_<yyyyMMdd_HHmmss>/` holding an earlier sort's curation) | Sorting (a dry run writes only `settings.json` and `run_ks4.py`, into `kilosort4/dryrun/`) |
+| `<outputFolder>/<Name>.bin` (or `<Name>_ks4.bin`; in `Sorting.BinDir` instead of the output folder when that is set) + `.json`, `<outputFolder>/kilosort4/{settings.json, run_ks4.py, ks4_launch.cmd, ks4_run.log, ks4_status.json, ks4_exit.txt}` and the phy files (plus `<probe>_excluded.json` with excluded channels, `<probe>_spaced.json` with `shank_spacing`, and `previous_<yyyyMMdd_HHmmss>/` holding an earlier sort's curation) | Sorting (a dry run writes only `settings.json` and `run_ks4.py`, into `kilosort4/dryrun/`) |
 | `<outputFolder>/<Name>_artifacts.json` | Artifacts (cache) |
 | `<outputFolder>/<Name>_envelope_<what>.dat` (a `.partial` file while it is built) | Visualize, in the background, the first time it shows a signal: the min / max that wide views and the overview strip draw ([format](file-formats.md#signal-envelope-name_envelope_whatdat)) |
 | `<Name>_extract_<TYPE>.mat` (or `<Name>_extract.mat`), `<Name>_spikes.mat`, `<Name>_chronux.mat`, `<Name>_fieldtrip.mat`, `<Name>_epochs.mat`, `<Name>_kcsd.npz`, `<Name>.nwb` (+ `<Name>_nwbinspector.json`) | Signals, Spikes, Export |

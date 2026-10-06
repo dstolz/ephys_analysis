@@ -405,6 +405,20 @@ app.onParallelControlsChanged();
 [html, ~] = app.flowChartHTML();
 check(contains(html, "Write .bin") && contains(html, "run_kilosort") && ~contains(html, "SpikeInterface"), ...
     'the Sorting diagram shows Kilosort4 on a .bin');
+check(string(app.SortBinDirField.Value) == "" && app.Config.Sorting.BinDir == "" && ~contains(html, "bins (toBin)"), ...
+    'the Bin folder is blank by default: the .bin stays in the output folder');
+app.SortBinDirField.Value = '  E:\scratch\bins  ';
+app.SortBinDirField.ValueChangedFcn(app.SortBinDirField, []);   % as an edit would
+[html, ~] = app.flowChartHTML();
+check(app.Config.Sorting.BinDir == "E:\scratch\bins" && contains(html, "in bins (toBin)"), ...
+    'the Bin folder field is Sorting.BinDir (trimmed) and shows in the Sorting diagram');
+S = app.Config.Sorting; S.BinDir = "F:\other";
+app.applySortingSection(S);
+check(string(app.SortBinDirField.Value) == "F:\other" && app.gatherSortingSection().BinDir == "F:\other", ...
+    'a config''s Sorting.BinDir is shown in the field and read back');
+app.SortBinDirField.Value = '';
+app.SortBinDirField.ValueChangedFcn(app.SortBinDirField, []);
+check(app.Config.Sorting.BinDir == "", 'blanking the Bin folder puts the .bin back in the output folder');
 app.ParamControls.tmax.Value = 'abc';
 [~, msg] = app.gatherSortingSection();
 check(msg ~= "", 'an unparseable KS4 field is reported');

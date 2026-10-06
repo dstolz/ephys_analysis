@@ -45,7 +45,8 @@ the readers take both. Probe maps are the exception
 ├─ <Name>.nwb, <Name>_nwbinspector.json NWB export and its nwbinspector findings (exportNWB; the Export step)
 ├─ analysis/                            analysis figures (an analysis config's default Export.Folder)
 ├─ <Name>.bin + <Name>.json             EphysDataset.toBin (the Sorting step); <Name>_ks4.bin + <Name>_ks4.json
-│                                       when <Name>.bin or <Name>.json is one of the recording's own files
+│                                       when <Name>.bin or <Name>.json is one of the recording's own files.
+│                                       In Sorting.BinDir instead of here when that is set
 └─ kilosort4/                           kilosortDir()
    ├─ settings.json, run_ks4.py         run settings (with bin_scale), copy of the driver used for this run
    ├─ ks4_launch.cmd                    the batch file a background run is started through (Windows)
@@ -525,7 +526,7 @@ which holds `H64LP_4x16.json` as a starting point.
   "Behavior":  { "Enabled", "Search", "SearchDirs", "Match", "MaxStartOffsetMin", "Overwrite", "WriteFile",
                  "PairTrials", "AutoApprove", "TrialLine" },
   "Artifacts": { "Enabled", "Method", "Threshold", ... , "Fill", "NoiseBandHz", "NoiseSeed", "ApplyToSorting", "ApplyToSpikes", "ApplyToSignals", "CacheIntervals" },
-  "Sorting":   { "Enabled", "PythonExe", "CondaEnv", "Execution", "MaxConcurrent", "Devices", "DryRun", "SkipExisting",
+  "Sorting":   { "Enabled", "PythonExe", "CondaEnv", "Execution", "MaxConcurrent", "Devices", "DryRun", "SkipExisting", "BinDir",
                  "KS4": {...}, "KS4ExtraJSON" },
   "Signals":   { "Enabled", "OutputDir", "Suffix", ... , "BlankArtifacts", ... , "LabelField", "LineNames", "InvertedLines", ... ,
                  "ExcludeHandling" },

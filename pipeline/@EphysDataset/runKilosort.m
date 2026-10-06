@@ -200,7 +200,7 @@ probeFile = absPath(probeFile);
 
 % n_chan_bin and fs: opts -> .bin JSON sidecar -> dataset metadata. The
 % .bin's units per uV: ds.Scale when toBin writes it here, else the sidecar.
-[nChanBin, fsVal, binScale, binRef] = resolveBinMeta(binFile, opts, obj);
+[nChanBin, fsVal, binScale, binRef] = resolveBinMeta(binFile, opts, obj, "runKilosort");
 if ~binGiven
     binScale = obj.binScale();   % what toBin used above
     binRef = string(EphysDataset.normalizeArtifactConfig(obj.ArtifactConfig).Reference);   % what toBin subtracts
@@ -215,7 +215,7 @@ if ~isfolder(runDir)
 end
 
 % Validate probe channel count against n_chan_bin (warn only)
-checkProbeChannels(probeFile, nChanBin);
+checkProbeChannels(probeFile, nChanBin, "runKilosort");
 
 % Per-recording channel exclusions: drop the listed channels from the probe
 % (keeping n_chan == n_chan_bin) so Kilosort4 ignores them. Write the reduced
@@ -225,7 +225,7 @@ if isempty(excludeCh); excludeCh = obj.ExcludeChannels; end
 excludeCh = EphysDataset.parseChannelList(excludeCh);
 nExcluded = 0;
 if ~isempty(excludeCh)
-    [probeFile, nExcluded] = writeExcludedProbe(probeFile, excludeCh, runDir, nChanBin);
+    [probeFile, nExcluded] = writeExcludedProbe(probeFile, excludeCh, runDir, nChanBin, "runKilosort");
     if nExcluded > 0
         fprintf('Excluding %d channel(s) from sorting: %s\n', ...
             nExcluded, char(EphysDataset.formatChannelList(excludeCh)));
@@ -330,117 +330,6 @@ for k = 1:nargin
         v = s;
         return
     end
-end
-end
-
-
-function p = absPath(p)
-p = char(p);
-[d, n, e] = fileparts(p);
-if isempty(d) || ~isAbsolute(d)
-    p = fullfile(pwd, p);
-end
-% Normalize via Java file to resolve any . / .. components
-try
-    p = char(java.io.File(p).getCanonicalPath());
-catch
-    p = char(p);
-end
-[~] = n; [~] = e;  %#ok<NASGU>
-end
-
-
-function tf = isAbsolute(d)
-d = char(d);
-tf = ~isempty(regexp(d, '^([A-Za-z]:[\\/]|[\\/]{2}|[\\/])', 'once'));
-end
-
-
-function [nChanBin, fsVal, binScale, binRef] = resolveBinMeta(binFile, opts, obj)
-%resolveBinMeta  n_chan_bin, fs, units per uV and the common reference
-%   ("none" | "car" | "cmr"; "" = not recorded) of a .bin, from its sidecar.
-nChanBin = opts.NChanBin;
-fsVal    = opts.Fs;
-binScale = NaN;
-binRef   = "";
-% Try the .bin JSON sidecar
-[d, n] = fileparts(binFile);
-sidecar = fullfile(d, [n '.json']);
-if isfile(sidecar)
-    try
-        meta = jsondecode(fileread(sidecar));
-        if isnan(nChanBin) && isfield(meta, 'n_chan_bin'); nChanBin = meta.n_chan_bin; end
-        if isnan(fsVal)    && isfield(meta, 'fs');         fsVal    = meta.fs;         end
-        if isfield(meta, 'scale') && isnumeric(meta.scale) && isscalar(meta.scale)
-            binScale = double(meta.scale);
-        end
-        if isfield(meta, 'reference') && isstruct(meta.reference) && isfield(meta.reference, 'mode')
-            binRef = string(meta.reference.mode);
-        end
-    catch ME
-        warning('EphysDataset:runKilosort:BadSidecar', ...
-            'Cannot read the .bin sidecar %s (%s); n_chan_bin and fs fall back to the dataset''s metadata.', ...
-            sidecar, ME.message);
-    end
-end
-if isnan(nChanBin); nChanBin = obj.NumChannels; end
-if isnan(fsVal);    fsVal    = obj.Fs;          end
-if isnan(nChanBin) || isnan(fsVal)
-    error('EphysDataset:runKilosort:UnknownBinMeta', ...
-        'Could not determine n_chan_bin/fs; pass NChanBin/Fs or write the .bin sidecar.');
-end
-end
-
-
-function checkProbeChannels(probeFile, nChanBin)
-%checkProbeChannels  Warn when the probe's channel count differs from n_chan_bin.
-%   The probe has passed probeMapProblems. n_chan, but never fewer than the
-%   mapped sites: an n_chan written from a 0-based map's max index is one
-%   short of numel(chanMap); prefer the map.
-probe = readJsonFile(probeFile);
-nProbe = max(double(probe.n_chan), numel(probe.chanMap));
-if nProbe ~= nChanBin
-    warning('EphysDataset:runKilosort:ProbeChannelMismatch', ...
-        'Probe channel count (%d) differs from n_chan_bin (%d).', nProbe, nChanBin);
-end
-end
-
-
-function [derivedFile, nExcluded] = writeExcludedProbe(probeFile, excludeCh, resultsDir, nChanBin)
-%writeExcludedProbe  Write a probe .json with excludeCh removed from the map.
-%   excludeCh are 1-based .bin channels; a probe site is kept unless its
-%   chanMap value + 1 is in excludeCh. n_chan is preserved so it still matches
-%   n_chan_bin. Returns the original file unchanged when nothing is dropped.
-%   The probe has passed probeMapProblems; the derived one goes through
-%   writeProbeMap, so a single site left is still a list Kilosort4 reads.
-derivedFile = string(probeFile);
-probe = readJsonFile(probeFile);
-cm = double(probe.chanMap(:));
-keep = ~ismember(cm + 1, excludeCh(:));
-nExcluded = nnz(~keep);
-if nExcluded == 0
-    return   % nothing in excludeCh is on this probe; keep the original
-end
-if ~any(keep)
-    error('EphysDataset:runKilosort:AllExcluded', ...
-        'Every site of the probe %s is excluded; nothing is left to sort.', probeFile);
-end
-
-% Filter the per-site arrays in lockstep; n_chan and the other fields stay.
-for f = ["chanMap" "xc" "yc" "kcoords"]
-    v = probe.(f);
-    probe.(f) = v(keep);
-end
-
-[~, pn] = fileparts(char(probeFile));
-derivedFile = string(fullfile(char(resultsDir), pn + "_excluded.json"));
-writeProbeMap(derivedFile, probe);
-
-nKept = numel(cm) - nExcluded;
-if nKept ~= nChanBin
-    % Informational: KS4 sorts nKept of nChanBin channels.
-    fprintf('Derived probe: %d of %d channel(s) retained for sorting.\n', ...
-        nKept, nChanBin);
 end
 end
 

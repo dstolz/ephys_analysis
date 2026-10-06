@@ -27,6 +27,10 @@ function files = wikiScreenshots(outFolder, opts)
 %     app-signals-tab.png   Signals tab
 %     app-spikes-tab.png    Spikes tab after its Preview
 %     app-export-tab.png    Export tab with the epochs format ticked
+%     app-analysis-tab.png  Analysis tab: the step on, an analysis config
+%                           like wikiToolScreenshots' (one plot of each
+%                           kind but rate) chosen, its plan (switched off
+%                           again after the shot)
 %     app-diagram-tab.png   Diagram tab, Every parameter view
 %     app-diagram-overview.png  Diagram tab, Data-flow overview view
 %     app-synthetic-tab.png Synthetic tab after Preview (built-in task)
@@ -83,7 +87,7 @@ arguments
     opts.Shots (1,:) string = ["app-copy-tab.png" "app-project-tab.png" "app-trials-clean.png" ...
         "app-trials-mismatch.png" "app-trials-resolved.png" "app-probe-tab.png" "app-artifacts-tab.png" ...
         "app-sorting-tab.png" "app-signals-tab.png" "app-spikes-tab.png" "app-export-tab.png" ...
-        "app-diagram-tab.png" "app-diagram-overview.png" "app-synthetic-tab.png" "app-run-plan.png" ...
+        "app-analysis-tab.png" "app-diagram-tab.png" "app-diagram-overview.png" "app-synthetic-tab.png" "app-run-plan.png" ...
         "app-run-results.png" "app-visualize-traces.png" "app-visualize-heatmap.png" ...
         "app-review-tab.png" "app-review-notes.png" "app-cleanup-tab.png"]
     opts.Project (1,1) string = ""
@@ -258,6 +262,33 @@ if want("app-spikes-tab.png")
 end
 app.selectTab(app.TabExport);
 shot("app-export-tab.png", 1);
+if want("app-analysis-tab.png")
+    % wikiToolScreenshots' "Synthetic quick look", saved in the work folder.
+    % The step is switched off again, so the run does not draw it.
+    a = EphysAnalysisConfig();
+    a.Name = "Synthetic quick look";
+    a.Description = "One plot of each kind, grouped by Depth";
+    a.Defaults.Selection.groupBy = "Depth";
+    a.Export.Formats = "png";
+    a = a.addPlot("psth");
+    a = a.addPlot("raster");
+    a = a.addPlot(struct('kind', "tuning", 'param', "Depth"));
+    a = a.addPlot("heatmap");
+    a = a.addPlot("probemap");
+    a = a.addPlot("corrmap");
+    a = a.addPlot(struct('kind', "evoked", 'source', "LFP"));
+    a.save(fullfile(work, "synthetic_quicklook.json"));
+    app.AnaEnableCheckBox.Value = true;
+    app.onAnalysisControlsChanged("enable");
+    app.AnaConfigField.Value = char(fullfile(work, "synthetic_quicklook.json"));
+    app.onAnalysisControlsChanged("file");
+    app.selectTab(app.TabAnalysis);
+    app.refreshStepPlan("analysis");
+    shot("app-analysis-tab.png", 1.5);
+    app.AnaEnableCheckBox.Value = false;
+    app.AnaConfigField.Value = '';
+    app.onAnalysisControlsChanged("file");
+end
 if want("app-diagram-tab.png") || want("app-diagram-overview.png")
     app.selectTab(app.TabFlow);
     app.FlowViewDropDown.Value = "detail";   % the overview is the default

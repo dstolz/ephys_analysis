@@ -111,7 +111,7 @@ git clone https://github.com/dstolz/ephys_analysis.wiki.git C:\temp\wiki
 
    - `wikiScreenshots`: every `app-*.png`. That is the Copy, Project,
      Trials (clean, mismatch, resolved), Probe, Artifacts, Sorting,
-     Signals, Spikes, Export, Diagram (both views), Synthetic, Run (plan,
+     Signals, Spikes, Export, Analysis, Diagram (both views), Synthetic, Run (plan,
      results), Visualize (traces, heatmap), Review (unit, notes) and Clean
      up tabs.
    - `wikiToolScreenshots`: `probe-designer`, `channel-mapper`,

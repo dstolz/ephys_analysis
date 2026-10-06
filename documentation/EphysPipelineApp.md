@@ -1985,6 +1985,8 @@ its spikes file, its sorted units and its behavior file. It needs the
 repository's `analysis` folder on the path (`addpath_nogit` adds it); without
 it, validation says so.
 
+<!-- wiki: ![The Analysis tab with an analysis config chosen and its plan](images/app-analysis-tab.png) -->
+
 - **Config file** (`Analysis.ConfigFile`): an analysis config (`.json`). The
   file is read when the step runs, so changes saved in the analysis app apply
   to the next run. The step runs it over the datasets ticked on the Project

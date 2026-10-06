@@ -1,5 +1,5 @@
 classdef EphysPipelineConfig
-    % EphysPipelineConfig  Everything a preprocessing run needs, in one value.
+    % EphysPipelineConfig  Everything a pipeline run needs, in one value.
     %   A config holds the parameters of every pipeline step, which steps are
     %   enabled, the project root / output root and the dataset selection. It
     %   has no GUI dependency: the app edits one, EphysPipeline runs one, and

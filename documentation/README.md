@@ -57,14 +57,14 @@ the API generator, the link check and the app screenshots).
 ```mermaid
 flowchart LR
     RAW(["Raw data"])
-    RAW --- REC[("recording folder<br/>*.rhd, info.rhd + *.dat,<br/>Open Ephys Record Node,<br/>or recording.json + .bin")]
+    RAW --- REC[("recording folder<br/>*.rhd, info.rhd + *.dat,<br/>Open Ephys Record Node,<br/>TDT block (.tsq + .tev, .sev),<br/>or recording.json + .bin")]
     RAW --- BEH[(Epsych2 session .mat)]
 
     REC -- digitalEvents --> EVT[("_events.mat<br/>digital-input events")]
     REC -- artifactIntervals --> ART[("_artifacts.json<br/>artifact intervals")]
     REC -- toBin --> BIN[(".bin<br/>Kilosort4 input")]
     REC -- toMat --> MAT[("_extract.mat<br/>LFP / MUA / SPIKE / AUX<br/>+ digital events")]
-    REC -- spikesToMat --> SPK[("_spikes.mat<br/>detected + sorted spikes")]
+    REC -- spikesToMat --> SPK[("_spikes.mat<br/>threshold-detected spikes")]
     BEH -- behaviorToMat ----> BMAT[("_behavior.mat<br/>trials + pairing")]
 
     ART -. erased .-> BIN
@@ -72,7 +72,6 @@ flowchart LR
     ART -. dropped .-> SPK
     BIN -- "Kilosort4<br/>run_ks4.py" --> KS[("kilosort4/<br/>phy files")]
     PRB[("probe .json<br/>ProbeDesignerApp")] -.-> KS
-    KS -. readSortedUnits .-> SPK
     EVT -. pairTrials .-> BMAT
 
     subgraph EXP["exports"]
@@ -80,13 +79,15 @@ flowchart LR
         FTX[(_fieldtrip.mat)]
         EPO[(_epochs.mat)]
         KCX[(_kcsd.npz)]
+        NWBX[(.nwb)]
     end
     MAT -- exportChronux --> CHX
     MAT -- exportFieldTrip --> FTX
     MAT -- exportEpochs --> EPO
     MAT -- exportKCSD --> KCX
+    MAT -- exportNWB --> NWBX
     SPK & KS -.-> EXP
-    BMAT -.-> EPO
+    BMAT -.-> EPO & NWBX
     CHX -.-> CHRONUX[/Chronux/]
     FTX -.-> FIELDTRIP[/FieldTrip/]
     KCX -.-> KCSD[/kCSD-python/]
@@ -302,7 +303,7 @@ Collected from the code. Each is explained on the linked page.
 | Sorted waveforms | `templateWaveform` is Kilosort4's template (its mean of the unit's spikes in the whitened, high-passed data), unwhitened with `whitening_mat_inv.npy` (transposed), in µV when the run's `settings.json` has `bin_scale` (`runKilosort` writes it), else in `.bin` units (`units.templateUnits` says which); it is not scaled by the amplitude and not a raw-spike average. `EphysDataset.readPhyWaveforms` cuts the spikes themselves from the sorted `.bin`, prepared as Kilosort4 saw them before whitening, on the templates' time axis and in their units | [EphysDataset → Reading sorted units](EphysDataset.md#reading-sorted-units) |
 | Review firing rates | spike count ÷ the sorted time, from Kilosort4's `tmin` to `min(tmax, recording end)`; the time of the last spike only when the recording's length is unknown | [App → Review](EphysPipelineApp.md#review) |
 | Epsych2 trials | paired **in order** with the intervals of the trial line, not by timestamps (`pairEpsychTrials` / `ds.pairTrials`, the behavior step's `PairTrials`, the Trials tab), and reviewed before approval (`setTrialPairing`, `autoApproveTrialPairing`); the pairing goes into `<Name>_behavior.mat` and the behavior-sourced epochs | [EphysPipeline → Pairing trials](EphysPipeline.md#pairing-trials-with-the-trial-line) |
-| Background sorting + dependent steps | a background sorting run cannot feed `Spikes` (sorted) or `Export` (units) in the same run; `validate` reports it | [EphysPipeline → Validation](EphysPipeline.md#validation) |
+| Background sorting + dependent steps | a background sorting run cannot feed `Export` (units, `Export.IncludeUnits`) in the same run; `validate` reports it | [EphysPipeline → Validation](EphysPipeline.md#validation) |
 | Duplicate dataset names | two recordings with the same leaf name under one `Project.OutputRoot` share `<OutputRoot>/<Name>`: `plan()` refuses either one (`error: output folder shared with <key>`), even when only one is selected; same-name files in a shared step `OutputDir` are `duplicate output`; `DatasetOutputs` and the clean-up ignore another recording's files by their recorded source folder. Rename one folder, or leave `OutputRoot` empty | [EphysPipeline → Dataset keys](EphysPipeline.md#dataset-keys) |
 | Probe mapping | `chanMap` indexes `.bin` rows, not hardware channel numbers; a recording with a channel disabled at acquisition needs a probe that accounts for the gap | [Python drivers](python-drivers.md#channel-numbering-caveat) |
 | Open Ephys TTL lines at a recording start | a line already high when a recording starts is seen from Binary always, from NWB when that recording has any TTL edge, and from the Open Ephys format only when its first edge there is falling; intervals are split at recording boundaries | [EphysDataset → Open Ephys sessions](EphysDataset.md#open-ephys-sessions) |

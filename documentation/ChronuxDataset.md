@@ -386,18 +386,23 @@ isequal(bi.nBins, ci.nSamples)      % true: bin k starts on sample k
 
 | Identifier | Raised when |
 | --- | --- |
-| `ChronuxDataset:BadSource` / `NoFs` / `NoFile` / `MatrixClass` | constructor could not make sense of the source, or it was an integer matrix |
+| `ChronuxDataset:BadSource` / `MatrixSource` / `NoFile` / `MatrixClass` | the constructor could not make sense of the source (a struct without `Y` / `info`, a numeric source that is not a matrix, a `.mat` path that is not there), or it was an integer matrix |
+| `ChronuxDataset:NoFs` | a matrix source without `Fs`, or `params` with no rate (nothing loaded and no `Fs=`) |
 | `ChronuxDataset:NoSource` / `NoData` | a method needs data but no source was given |
-| `ChronuxDataset:BadMat` / `SignalMissing` / `RawFromMat` | a `.mat` source lacks `Y` / `info`, or the requested signal |
+| `ChronuxDataset:BadMat` / `SignalMissing` / `RawFromMat` | a `.mat` source lacks `Y` / `info`, or the requested signal (or its rate); `"RAW"` asked of an extract |
 | `ChronuxDataset:DataTypeOut` / `RawOptions` | `SignalOptions` conflicts with `Signal` |
 | `ChronuxDataset:BadChannel` / `UnknownChannel` | channel selection out of range or unknown |
-| `ChronuxDataset:BadTimeRange` / `EmptyTimeRange` | time range reversed, or selecting no samples |
-| `ChronuxDataset:BadWindow` / `NoOnsets` / `NoTrials` | trial window reversed, no onsets, or nothing left after the trial policies |
+| `ChronuxDataset:BadTimeRange` / `EmptyTimeRange` | time range reversed or an empty spike-analysis / binning window, or a range selecting no samples |
+| `ChronuxDataset:BadWindow` / `NoOnsets` / `NoTrials` / `BadEventFs` | trial window reversed, no onsets, nothing left after the trial policies, or an `EventFs` that is not a positive rate |
 | `ChronuxDataset:IncompleteTrials` / `NonFiniteTrials` | with `"error"` policies (otherwise warnings) |
 | `ChronuxDataset:Tapers` / `Fpass` / `Err` / `TrialAve` | `makeParams` validation |
-| `ChronuxDataset:NoSpikeSource` / `NoKilosortOutput` / `NoSampleRate` | spikes requested with nothing to read |
-| `ChronuxDataset:UnknownUnit` / `UnitRequired` / `NoGroupMatch` | unit selection |
-| `ChronuxDataset:NoEvents` / `EventLine` | digital-input line missing or ambiguous |
+| `ChronuxDataset:TapersFor` | `tapersFor` gives fewer than one taper |
+| `ChronuxDataset:NoSpikeSource` / `NoResultsDir` | spikes requested with nothing to read, or `Source="kilosort"` without a results folder; reading the sort itself raises `EphysDataset:readPhyUnits:*` (`NoSampleRate`, `NoGroupMatch`, ...) |
+| `ChronuxDataset:UnknownUnit` / `UnitRequired` / `NoUnits` | unit selection: an id not in the source, `spikeTrials` without `Unit=` on a source of several units, or no spike train left |
+| `ChronuxDataset:DetectFs` | `Source="detect"` with `Fs` in `DetectOptions` (the loaded signal's rate is used) |
+| `ChronuxDataset:BadBinFs` / `NoBins` | `binnedSpikes`: `BinFs` not a positive rate, or a window shorter than one bin |
+| `ChronuxDataset:PointProcess` | `toPointProcess` given spike times it cannot read (no `times` field, not numeric, not finite) |
+| `ChronuxDataset:NoEvents` / `EventLine` / `BadEvents` | digital-input line missing, ambiguous or without events, or events that are not `[k x 2]` |
 | `ChronuxDataset:NoChronux` | `requireChronux` and Chronux is not on the path |
 
 ## Tests

@@ -65,7 +65,8 @@ function [ts, wf, info] = detectSpikes(obj, X, opts)
 %                   absolute value (default Inf = keep everything)
 %
 %   Waveforms
-%     Waveforms     force extraction even with one output (default false)
+%     Waveforms     [] (default): extract when a second output is requested;
+%                   true: extract even with one output; false: never extract
 %     WindowMs      [before after] in milliseconds relative to the aligned
 %                   sample (default [-0.5 1.5]; before <= after)
 %     WaveformSource

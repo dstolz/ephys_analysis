@@ -1,9 +1,10 @@
 classdef PipelineDiagram
     % PipelineDiagram  Draw a pipeline config as an HTML page: every parameter, or the data flow.
     %   Pure: it reads a config and, for the recording's details, a dataset,
-    %   and returns HTML; nothing here touches a window. The preprocessing
-    %   app's Diagram tab shows these pages (EphysPipelineApp.flowChartHTML
-    %   / flowOverviewHTML call them), and a script can write them too:
+    %   and returns HTML; nothing here touches a window. The pipeline app's
+    %   (EphysPipelineApp) Diagram tab shows these pages
+    %   (EphysPipelineApp.flowChartHTML / flowOverviewHTML call them), and a
+    %   script can write them too:
     %
     %     cfg = EphysPipelineConfig.load("pipeline.json");
     %     html = PipelineDiagram.overview(cfg, []);

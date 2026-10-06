@@ -9,13 +9,14 @@ for the preprocessing pipeline. It edits **one pipeline config**
 
 - pull a subject's sessions from the source (Intan or Open Ephys recording +
   ePsych file, paired by name) into local session folders, verified;
-- scan a folder tree for recordings (Intan, Open Ephys GUI sessions, or the
-  universal binary format);
+- scan a folder tree for recordings (Intan, Open Ephys GUI sessions, TDT
+  Synapse blocks, or the universal binary format);
 - assign probe maps and channel exclusions;
 - mark manual artifact periods and configure automatic detection;
 - run Kilosort4 (optional) and associate sorted output;
 - derive LFP / MUA / spike-band `.mat` files;
-- detect spikes by threshold and/or collect sorted units into a `.mat`;
+- detect spikes by threshold into a `.mat` (sorted units stay in the sorting
+  folder);
 - export Chronux- and FieldTrip-shaped files;
 - associate Epsych2 behavior sessions;
 - review sorted units and open them in phy;
@@ -1865,7 +1866,9 @@ matches the [name pattern](#name-pattern-and-token-columns).
   times are stamped (*0 at the onset*, the default; *0 at the window start*;
   *recording clock*), the class of the epoched samples (*double*, the
   default; *single*; *as recorded*: the values never change) and the onset
-  rule (*event*, the default: `round(t × Fs)`, the digital-input convention;
+  rule (*event*, the default, for digital-input times `t = row / origFs`:
+  `round((t − 1/origFs) × Fs) + 1`, the signal row nearest the event's
+  recording row, which at the recording rate is that row, `round(t × Fs)`;
   *sample*: `round(t × Fs) + 1`, for times on a continuous time base).
   Nothing is averaged, smoothed or resampled.
   **Epochs to workspace** builds that struct for the active dataset with
@@ -2269,10 +2272,10 @@ sorting its dataset again finishes it.
 **Stop runs...** (beside **Stop queue**, on while background runs are
 going) stops runs that are going. With one run it asks for a confirmation;
 with several it lists them (dataset, GPU, minutes running), all selected,
-to pick from. Each chosen run's processes are ended
+to pick from. Each chosen run's `ks4_status.json` is set to `cancelled`
+(`stopped by the user`) and then its processes are ended
 (`EphysDataset.stopSortRun`: Python, conda and the launcher, found by the run
-folder in their command line), its `ks4_status.json` says `cancelled`
-(`stopped by the user`), the log says `[stopped]` and its row turns
+folder in their command line); the log says `[stopped]` and its row turns
 `cancelled` ("stopped before it finished"). What Kilosort4 wrote so far
 stays in the run folder. The freed slot goes to the next queued run, so
 press **Stop queue** too to stop everything. Blocking runs cannot be
@@ -2580,9 +2583,9 @@ dataset whose name does not match `Project.NamePattern`, is read with
   metrics marked), and opens it in the browser.
 - **Notes**: the one editable column. Typing a note saves it at once to
   `cluster_notes.tsv` next to the sort (`EphysDataset.writeUnitNotes`), the
-  file phy uses for a `notes` label, so the Spikes and Export steps and
-  `unitTable` carry it. A note that cannot be saved is put back, with an
-  alert.
+  file phy uses for a `notes` label, so the Chronux export's `units`, the
+  FieldTrip export's `spike.hdr.orig` and `unitTable` carry it. A note that
+  cannot be saved is put back, with an alert.
 - **Plots**: the selected unit's inter-spike interval histogram (intervals up
   to 50 ms in 0.5 ms bins; those under the 1.5 ms refractory period in red,
   and the subtitle gives their share of all intervals) and autocorrelogram
@@ -2960,9 +2963,9 @@ one recording per scenario with
 | --- | --- |
 | recordings `SYNTH-01/SYNTH-01_<yymmdd>_<HHMMSS>/` | Intan RHX-style `*.rhd` files (30 s each) on consecutive days: LFP rhythms with a depth profile, noise, 60 Hz, a stimulus-evoked potential, spiking units with waveforms spread over neighbouring sites, two artifacts (one saturating the ADC); the lab's six digital lines `Trough`, `Platform`, `Stim`, `InTrial`, `RespWindow`, `Commutator`; three accelerometer inputs at Fs/4 |
 | Epsych2 session `SYNTH-01_<yymmdd>T<HHMMSS>.mat` | in the recording folder, starting 65 s before the recording as in the lab: `Data` (one trial per `InTrial` interval, with `TrialType`, `Depth`, `StimDelay`, `RespCode`, `RespLatency`, `TrialIndex`, `computerTimestamp`, ...) and `Info` |
-| `kilosort4/` | the ground-truth units as Kilosort4 / phy files (plus a noise cluster), where a sorting run would put them, so the Spikes (sorted), Export (units) and Review steps work |
+| `kilosort4/` | the ground-truth units as Kilosort4 / phy files (plus a noise cluster), where a sorting run would put them, so Export (units), the Review tab and the analysis of sorted units work without a sorting run |
 | `<Name>_manifest.json` | the session and the probe already associated |
-| `SYNTH-01_probe.json`, `synthetic_pipeline.json`, `README.txt` | a probe map for the channel count; a config with behavior (matching + pairing), artifacts, signals (LFP, MUA, AUX), spikes (detected + sorted) and export (Chronux + FieldTrip) enabled, outputs next to each recording, sorting off; what each dataset should show |
+| `SYNTH-01_probe.json`, `synthetic_pipeline.json`, `README.txt` | a probe map for the channel count; a config with behavior (matching + pairing), artifacts, signals (LFP, MUA, AUX), spikes (threshold detection, with waveforms) and export (Chronux + FieldTrip, with the units and the detections) enabled, outputs next to each recording, sorting off; what each dataset should show |
 
 The four recordings differ in how they cover their session, so the
 **Trials** tab has one case of each kind to review:

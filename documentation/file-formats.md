@@ -58,6 +58,15 @@ the readers take both. Probe maps are the exception
    ├─ previous_<yyyyMMdd_HHmmss>/       an earlier sort's curation, moved aside by a new sort (launchSorting)
    └─ params.py, spike_*.npy, templates.npy, cluster_*.tsv, ...
                                         Kilosort4 phy output (cluster_notes.tsv holds per-unit notes)
+└─ si_<sorter>/                         sortRunDir(sorter): a SpikeInterface sorter's run (runSpikeInterface)
+   ├─ settings.json, si_params.json,    run settings (sorter, reference, quality, n_jobs, bin_scale; nt0min
+   │  run_si.py                         added by the run), the sorter's parameters as edited, the driver
+   ├─ si_launch.cmd, si_run.log,        as kilosort4/'s ks4_launch.cmd, ks4_run.log, ks4_status.json
+   │  si_status.json, ks4_exit.txt      ({"state", "num_units", "num_good", ...}) and exit marker
+   ├─ <probe>_excluded.json, dryrun/,   as in kilosort4/
+   │  previous_<yyyyMMdd_HHmmss>/
+   └─ params.py, spike_*.npy, templates.npy, cluster_SILabel.tsv, ...
+                                        phy output in Kilosort4's layout (run_si.py)
 
 <OutputRoot, else Root>/
 └─ pipeline_runs/<runId>_<name>.json    run record of each pipeline run (EphysPipeline.run; see Run records)
@@ -407,8 +416,8 @@ Schema `intan-dataset-manifest/2` (`null` where a value is `NaN`):
                        "noise_band_hz": <Hz, 0 = broadband>, "noise_seed": <n or null> }
   },
   "bin":      { "file": <BinFile path>, "exists": <true|false> },
-  "kilosort": { "has_results": <bool>, "results_dir": <path or "">,
-                "num_units": <n or null>, "state": <string> },
+  "kilosort": { "sorter": "kilosort4" | <SpikeInterface sorter>, "has_results": <bool>,
+                "results_dir": <path or "">, "num_units": <n or null>, "state": <string> },
   "sorting":  { "results_dir": <SortingDir as recorded, else the folder holding params.py, or "">,
                 "source": "auto" | "manual", "exists": <bool>, "curated": <bool>,
                 "num_units": <n or null>, "updated": <"yyyy-MM-dd HH:mm:ss" or ""> },
@@ -427,14 +436,19 @@ Schema `intan-dataset-manifest/2` (`null` where a value is `NaN`):
   `results_dir` holds `params.py`).
 - `sorting` is the sorted-output association (`EphysDataset.sortingResultsDir`):
   `source` is `"manual"` when `SortingDir` was set explicitly (GUI **Use
-  folder...**), else `"auto"` (`kilosort4/`).
+  folder...**), else `"auto"` (the dataset's `sortRunDir()`: `kilosort4/`, or
+  `si_<sorter>/` for a SpikeInterface sorter). A reader without the pipeline
+  config (`DatasetOutputs` of a folder) takes the sort from here when the
+  dataset's `kilosort4/` holds none.
   `curated` is true when phy saved the unit labels: `cluster_group.tsv` with
   the header `cluster_id<TAB>group` (Kilosort4 writes its own copy of
-  `cluster_KSLabel.tsv` there, header `cluster_id<TAB>KSLabel`).
-- `kilosort` describes the run in `kilosortDir()`
-  (`DatasetTracker.kilosortRunAt`), kept for the tracker tables; `state` comes
-  from `kilosort4/ks4_status.json`, or is `"done"` when results exist without a
-  status file.
+  `cluster_KSLabel.tsv` there, header `cluster_id<TAB>KSLabel`, and
+  `run_si.py` one of `cluster_SILabel.tsv`, header `cluster_id<TAB>SILabel`).
+- `kilosort` describes the run in `sortRunDir()`
+  (`DatasetTracker.kilosortRunAt`), kept for the tracker tables; `sorter` is
+  the dataset's `Sorter` (the config's `Sorting.Sorter`), recorded and not read
+  back; `state` comes from the run's `ks4_status.json` (`si_status.json`), or
+  is `"done"` when results exist without a status file.
 - `exclude_channels` and `reference_exclude.channels` are compact lists
   (`formatChannelList`); they are read back with `parseChannelList`, which
   parses (never evaluates) numbers and ranges such as `"1 2 5-8"`,
@@ -839,7 +853,14 @@ writes its own sidecar. See that function's help for its fields.
 ## `settings.json`
 
 Path: `<ResultsDir>/settings.json` (a dry run's: `<ResultsDir>/dryrun/settings.json`,
-which still names `ResultsDir` as `results_dir`). Fields: `n_chan_bin`, `fs`, `data_dtype`
+which still names `ResultsDir` as `results_dir`). A SpikeInterface sorter's
+run (`runSpikeInterface`) has `sorter`, `n_chan_bin`, `fs`, `data_dtype`,
+`filename`, `probe`, `results_dir`, `sorter_params` (`"si_params.json"`, the
+parameters as edited, beside it), `reference` (`"none"` / `"car"` /
+`"cmr"`: what the `.bin` carries), `quality` (the good-unit criteria, `NaN`
+as `"NaN"`), `n_jobs`, `bin_scale` and `provenance`; `run_si.py` adds
+`nt0min` once it has written the templates
+([`run_si.py`](python-drivers.md#run_sipy)). Kilosort4's fields: `n_chan_bin`, `fs`, `data_dtype`
 (from `ds.Dtype`), `filename` (the `.bin`), `probe` (original or
 `_excluded.json` / `_spaced.json` probe), `results_dir`, `bin_scale` (the `.bin`'s units per
 µV, for `readPhyUnits`; `run_ks4.py` does not pass it to Kilosort4), with
@@ -855,6 +876,9 @@ here).
 ## `ks4_status.json`
 
 Path: in the run folder. Written by the Python driver when it finishes.
+A SpikeInterface sorter's run (`run_si.py`) writes `si_status.json` instead,
+the same in every other way, with `num_good` (the units labelled `good`) and
+`sorter` added.
 
 | Success | Failure |
 | --- | --- |
@@ -870,8 +894,8 @@ The GUI's background monitor polls this file every 3 s.
 
 ## `ks4_exit.txt`
 
-Path: next to `ks4_status.json`. An empty file that the background launcher
-(on Windows `ks4_launch.cmd` in the run folder) writes once the Python process has
+Path: next to `ks4_status.json` (`si_status.json`). An empty file that the background launcher
+(on Windows `ks4_launch.cmd`, or `si_launch.cmd`, in the run folder) writes once the Python process has
 exited, however it ended; `launchSorting` writes it when the launch itself
 fails. A run with this
 file but no status file failed before the driver could report (a missing
@@ -891,11 +915,15 @@ that holds `params.py`:
 - Optional: `amplitudes.npy`, `templates.npy`, `spike_templates.npy`,
   `channel_map.npy`, `channel_shanks.npy`, `channel_positions.npy`,
   `whitening_mat_inv.npy` (its transpose unwhitens the templates),
-  `cluster_group.tsv` (preferred) else `cluster_KSLabel.tsv`,
-  `cluster_Amplitude.tsv`, `cluster_ContamPct.tsv`. Kilosort4 writes its own
-  `cluster_group.tsv`, a copy of `cluster_KSLabel.tsv` with the header
-  `cluster_id<TAB>KSLabel`; only one with the header `cluster_id<TAB>group`
-  holds phy's curated labels (`groupSource` `"phy"`, `curated`).
+  `cluster_group.tsv` (preferred) else `cluster_KSLabel.tsv`, else
+  `cluster_SILabel.tsv`, `cluster_Amplitude.tsv`, `cluster_ContamPct.tsv`.
+  Kilosort4 writes its own `cluster_group.tsv`, a copy of
+  `cluster_KSLabel.tsv` with the header `cluster_id<TAB>KSLabel`, and
+  `run_si.py` a copy of `cluster_SILabel.tsv` (`good` / `mua` by the
+  good-unit criteria) with the header `cluster_id<TAB>SILabel`
+  (`groupSource` `"spikeinterface"`); only one with the header
+  `cluster_id<TAB>group` holds phy's curated labels (`groupSource` `"phy"`,
+  `curated`).
 - Templates: `settings.json`'s `bin_scale` puts them in µV
   (`units.templateUnits`).
 - Sample rate: `sample_rate` from `params.py`; otherwise the call errors

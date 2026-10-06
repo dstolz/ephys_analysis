@@ -1370,9 +1370,12 @@ and [Common reference](EphysDataset.md#common-reference-car--cmr).
 
 ## Sorting
 
-Kilosort4, optional (`Sorting.Enabled`). The step writes `<Name>.bin` with the
-artifact periods erased (noise by default, see the Artifacts tab) and runs
-`run_ks4.py` on it. See [Running Kilosort4](EphysDataset.md#running-kilosort4).
+Kilosort4, or a SpikeInterface sorter, optional (`Sorting.Enabled`). The
+step writes `<Name>.bin` with the artifact periods erased (noise by default,
+see the Artifacts tab) and runs `run_ks4.py` on it, or, with a
+[SpikeInterface sorter](#spikeinterface-sorters) chosen in **Sorter**,
+`run_si.py`. See [Running Kilosort4](EphysDataset.md#running-kilosort4) and
+[Running a SpikeInterface sorter](EphysDataset.md#running-a-spikeinterface-sorter).
 The tab also associates each dataset with its sorted output and opens it in
 phy. Sorting runs in a Python environment of its own
 ([installation](../pipeline/INSTALL.md)); everything else in the pipeline
@@ -1410,6 +1413,7 @@ executable to be sorted.
 | Control | Maps to |
 | --- | --- |
 | Enable the Sorting step, Skip datasets already sorted | `Sorting.Enabled`, `SkipExisting` |
+| Sorter, **Find SpikeInterface sorters** | `Sorting.Sorter`: Kilosort4 (`"kilosort4"`, the default), or a SpikeInterface sorter the button found in the Python env ([SpikeInterface sorters](#spikeinterface-sorters)) |
 | Python exe (+ Browse), Conda env | `Sorting.PythonExe`, `CondaEnv` (optional: when set, commands run as `conda run -n <env> "<Python exe>" ...`). A new config starts with the Python exe last set in the app (the `PythonExe` preference), else the `kilosort` conda env's `python.exe` found under `CONDA_EXE` or a `miniconda3`, `anaconda3`, `miniforge3` or `mambaforge` folder in `%LOCALAPPDATA%`, `%USERPROFILE%`, `%ProgramData%` or `C:\` |
 | Phy command | preference `PhyCmd`, not part of the config. Blank = the `phy` executable of the `phy` conda env, found in the conda install that holds the Python exe, the one `CONDA_EXE` names, or `%LOCALAPPDATA%\miniconda3`, `%USERPROFILE%\miniconda3` or `%USERPROFILE%\anaconda3`; else `conda run -n phy phy`. phy is started in the sorted-output folder with `pushd` and delayed expansion, so a folder whose path holds `&` or spaces, or a UNC folder, works |
 | Execution (background / blocking), Dry run | `Sorting.Execution`, `DryRun`. How many background runs go at once is set on the [Run](#run) tab |
@@ -1417,9 +1421,64 @@ executable to be sorted.
 | Kilosort4 parameters (five groups, from `EphysPipelineConfig.kilosortParamSpec`), Extra settings (JSON), Kilosort4 parameter docs link | `Sorting.KS4`, `KS4ExtraJSON` ([Kilosort4 parameters](#kilosort4-parameters)) |
 | **Optimize for probe** | loads the Kilosort4 parameters saved for the active dataset's probe (else the default probe) from `<probe>.ks4.json` next to the probe map; without that file, offers to generate it from the current parameters or from the probe layout ([details](#optimize-for-probe)) |
 | **Reset to defaults** | every `Sorting.KS4` parameter back to its `kilosortParamSpec` default and `KS4ExtraJSON` cleared; the Python and execution settings stay |
+| a SpikeInterface sorter's parameters (JSON), their descriptions, **Reset to defaults**, SpikeInterface sorter docs link | in place of the Kilosort4 parameters when a SpikeInterface sorter is chosen: `Sorting.SIParams.<sorter>` ([SpikeInterface sorters](#spikeinterface-sorters)) |
 | **Sorted output** panel: Dataset, label, **Use folder...**, **Use auto**, **Open in phy** | the active dataset's sorted-output association ([Sorted output](#sorted-output)) |
 | **Run this step** | `EphysPipeline.runSorting` over the selected datasets |
 | progress label + **Kilosort4 log** | background runs (`ks4_run.log` tail, `ks4_status.json`), see [Watching background runs](#watching-background-runs) |
+
+### SpikeInterface sorters
+
+**Sorter** picks what sorts: Kilosort4, run as it always is (the rest of
+this section's Kilosort4 controls), or a sorter that
+[SpikeInterface](https://spikeinterface.readthedocs.io) runs. **Find
+SpikeInterface sorters** asks the Python exe (and Conda env) which sorters
+its SpikeInterface has installed (`EphysDataset.spikeInterfaceSorters`): the
+ones that need nothing else, such as `spykingcircus2`, `tridesclous2`,
+`lupin` and `simple`, and any other whose package is installed there
+(`pip install mountainsort5`, ...). The list is kept in the preference
+`SISorters`, so it is there when the app next opens. SpikeInterface's own
+`kilosort4` is left out: Kilosort4 runs natively.
+
+With a SpikeInterface sorter chosen, its parameters take the Kilosort4
+parameters' place on the tab: a JSON text on the left, seeded with
+SpikeInterface's defaults for that sorter, and each parameter's default and
+description on the right. What you edit is saved per sorter in
+`Sorting.SIParams.<sorter>` (the defaults, or `{}`, are saved as `""`), and
+goes over SpikeInterface's defaults when the sorter runs (nested objects key
+by key); a name the sorter does not have is dropped, and the run's log says
+so. **Reset to defaults** puts the defaults back. Switching the sorter keeps
+each sorter's parameters, and Kilosort4's settings stay as they were.
+
+The run (`EphysDataset.runSpikeInterface`, `run_si.py`):
+
+1. the same `.bin` Kilosort4 would sort: the artifact periods erased and the
+   common reference applied once. When the `.bin` carries the common
+   reference, the sorter's own is kept out: SpikeInterface's internal sorters
+   (`spykingcircus2`, `tridesclous2`, `lupin`) subtract a median reference on
+   32 channels or more, which is skipped, and a `do_CAR` / `car` parameter is
+   set false, as Kilosort4's `do_CAR` is. The sorter's other preprocessing
+   (filtering, whitening, drift correction) is its own;
+2. the probe map attached (its `kcoords` are the channel groups), the
+   excluded channels' sites left out;
+3. templates, amplitudes, spike positions and quality metrics computed on a
+   300 Hz high-pass of the `.bin`;
+4. each unit labelled `good` or `mua` by the good-unit criteria
+   (`Sorting.Quality`, set on the [Review](#review) tab), with
+   SpikeInterface's quality metrics and `unitQualityPass`'s rules: these
+   sorters give no labels of their own. phy or the Review tab can change
+   them as for Kilosort4;
+5. phy files written to `<output folder>/si_<sorter>/`, in the layout
+   Kilosort4 leaves, so **Open in phy**, the Review tab, the QC report, the
+   exports and the analysis read them as they read a Kilosort4 sort.
+
+The sorted output the other tabs read follows the sorter: the
+`si_<sorter>` folder when a SpikeInterface sorter is chosen, `kilosort4`
+for Kilosort4 (a folder picked with **Use folder...** still wins). Runs of
+both kinds share the background slots (**Runs at once** on the Run tab); the
+GPUs listed there are Kilosort4's. A dataset with a run of either kind
+queued or going is not sorted again, since both sort its `.bin`.
+SpikeInterface needs its own install in the Python env (it is in the
+`kilosort` env of [INSTALL.md](../pipeline/INSTALL.md)).
 
 ### Kilosort4 parameters
 

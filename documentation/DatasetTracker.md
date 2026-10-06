@@ -110,14 +110,16 @@ Every `*.bin` is listed. The `<name>.json` sidecar written by
 ### Kilosort4 runs (`emptyKSRuns` schema)
 
 A run folder is any folder containing one of `spike_clusters.npy`, `params.py`,
-`run_ks4.py`, `settings.json` or `ks4_status.json` (the constant
-`DatasetTracker.KilosortMarkers`).
+`run_ks4.py`, `settings.json`, `ks4_status.json`, `run_si.py` or
+`si_status.json` (the constant `DatasetTracker.KilosortMarkers`): a Kilosort4
+run, or a SpikeInterface sorter's (`EphysDataset.runSpikeInterface`, whose
+driver, status and log are `run_si.py`, `si_status.json` and `si_run.log`).
 
 | Field | Meaning |
 | --- | --- |
 | `Name`, `Dir` | folder |
 | `HasResults` | `spike_clusters.npy` present |
-| `State`, `Message` | from `ks4_status.json`. If there is no status file but results exist, `State` is `"done"` |
+| `State`, `Message` | from `ks4_status.json` (`si_status.json`). If there is no status file but results exist, `State` is `"done"` |
 | `NumUnits` | data rows of `cluster_KSLabel.tsv` (falling back to `cluster_group.tsv`), blank lines excluded; `NaN` if neither file exists |
 | `SettingsPath`, `ScriptPath`, `LogPath`, `StatusPath` | paths or `""` |
 | `BinFile`, `ProbeFile`, `Fs`, `NChanBin` | from `settings.json` |

@@ -203,7 +203,7 @@ artifacts.outs = pill("link", "Artifact periods", periods, "ArtManualTable,ArtMa
 artifacts.outs.dim = false;   % the manual periods apply with detection off too
 
 S = cfg.Sorting;
-lines = "Kilosort4 on a .bin of the recording";
+lines = EphysDataset.sorterLabel(S.Sorter) + " on a .bin of the recording";
 if S.Execution == "background"
     lines(end+1) = sprintf("in the background, %d at a time", S.MaxConcurrent);
 else
@@ -211,7 +211,9 @@ else
 end
 if S.DryRun; lines(end+1) = "dry run: writes the run files only"; end
 sorting = step("sorting", 2, 3, "Sorting", S.Enabled, lines, "SortEnableCheckBox,ExecModeDropDown,DryRunCheckBox");
-sorting.outs = pill("out", "Sorted units", "kilosort4/ (phy-ready)", "SortDatasetDropDown,SortUseFolderButton,SortPhyButton", true);
+folder = "kilosort4/";
+if S.Sorter ~= "kilosort4"; folder = "si_" + S.Sorter + "/"; end
+sorting.outs = pill("out", "Sorted units", folder + " (phy-ready)", "SortDatasetDropDown,SortUseFolderButton,SortPhyButton", true);
 
 G = cfg.Signals;
 types = ["LFP" "MUA" "SPIKE" "AUX"];

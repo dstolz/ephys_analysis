@@ -18,7 +18,8 @@ classdef EphysPipeline < handle
     %                                   Behavior.Search), pair trials with the
     %                                   trial line (pairTrials), write the behavior file
     %     artifacts  runArtifacts       compute + cache artifact intervals
-    %     sorting    runSorting         Kilosort4 on a .bin (runKilosort)
+    %     sorting    runSorting         Kilosort4 on a .bin (runKilosort), or a
+    %                                   SpikeInterface sorter (runSpikeInterface)
     %     signals    runSignals         derived LFP/MUA/SPIKE/AUX .mat (toMat)
     %     spikes     runSpikeDetection  threshold-detected spikes .mat (spikesToMat)
     %     export     runExport          analysis-toolbox / epoch files (Export.Formats)
@@ -256,15 +257,18 @@ classdef EphysPipeline < handle
         end
 
         function run = activeRun(obj, d)
-            %activeRun  A Kilosort4 run for dataset D that is queued or still going, [] when none.
+            %activeRun  A sort run for dataset D that is queued or still going, [] when none.
             %   Looks through PriorRuns and LaunchedRuns for a run writing into
-            %   D's kilosort4 folder (resultsDir, whose .bin sits beside it)
-            %   that is not done: queued, or running by its status file
-            %   (EphysDataset.sortRunState). runSorting skips such a dataset.
+            %   one of D's sort run folders (resultsDir: kilosort4 or
+            %   si_<sorter>, in D's output folder, beside the .bin every
+            %   sorter reads) that is not done: queued, or running by its
+            %   status file (EphysDataset.sortRunState). runSorting skips such
+            %   a dataset, whichever sorter the config has now.
             run = [];
             runs = [obj.PriorRuns(:); obj.LaunchedRuns(:)];
             if isempty(runs); return; end
-            mine = runs(EphysDataset.pathKey([runs.resultsDir]) == EphysDataset.pathKey(d.kilosortDir()));
+            parents = arrayfun(@(r) string(fileparts(char(r.resultsDir))), runs);
+            mine = runs(EphysDataset.pathKey(parents) == EphysDataset.pathKey(string(d.outputFolder())));
             for r = reshape(mine, 1, [])
                 if ~r.done && (r.queued || EphysDataset.sortRunState(r.statusFile) == "running")
                     run = r;
@@ -483,7 +487,7 @@ classdef EphysPipeline < handle
                 case "export:nwb"
                     f = fullfile(dirOr(c.Export.OutputDir, d), d.Name + ".nwb");
                 case "sorting"
-                    f = string(d.kilosortDir());
+                    f = string(d.sortRunDir(c.Sorting.Sorter));
                 case "artifacts"
                     f = EphysPipeline.artifactsFile(d);
                 case "behavior"
@@ -933,7 +937,8 @@ classdef EphysPipeline < handle
     methods (Static)
         function applyConfigToDatasets(cfg, P)
             %applyConfigToDatasets  Push the config's shared settings onto every dataset.
-            %   Sets PythonExe, CondaEnv, ArtifactConfig (the Artifacts and
+            %   Sets PythonExe, CondaEnv, Sorter (Sorting.Sorter: whose run
+            %   folder is the dataset's sorted output), ArtifactConfig (the Artifacts and
             %   Reference sections, EphysPipelineConfig.artifactConfig), TrialConfig,
             %   ReaderOptions (Acquisition), OutputDir (<OutputRoot>/<Name>, or
             %   "" - outputs next to the recording - without an output root),
@@ -961,6 +966,7 @@ classdef EphysPipeline < handle
                 d.ArtifactHandling = handling;
                 d.PythonExe      = cfg.Sorting.PythonExe;
                 d.CondaEnv       = cfg.Sorting.CondaEnv;
+                d.Sorter         = cfg.Sorting.Sorter;
                 d.ArtifactConfig = acfg;
                 d.TrialConfig    = tcfg;
                 d.ReaderOptions  = cfg.Acquisition;

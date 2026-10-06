@@ -10,7 +10,9 @@ function [s, unknown] = normalizeSection(section, in)
 %   Nullable Kilosort4 parameters (default []) stay [] when empty. The
 %   fields of RowFields have a scalar default but take a row too
 %   (Artifacts.FilterCutoff: 300, or [lo hi] for a band-pass), so they are
-%   kept as a row.
+%   kept as a row. The fields of MapFields (Sorting.SIParams) are maps:
+%   every field whose name is a valid identifier is kept, its value a
+%   string (one per SpikeInterface sorter).
 %
 %   See also EphysPipelineConfig.defaults, writeJsonFile.
 
@@ -31,6 +33,13 @@ tf = any(path == RowFields);
 end
 
 
+function tf = isMapField(path)
+%isMapField  Struct fields whose keys are names, not fixed fields: name -> string.
+MapFields = "Sorting.SIParams";
+tf = any(path == MapFields);
+end
+
+
 function [out, unknown] = coerceStruct(def, in, path)
 out = def;
 unknown = string.empty(1, 0);
@@ -39,6 +48,20 @@ if isempty(in) || ~isstruct(in)
 end
 if ~isscalar(in)
     error('EphysPipelineConfig:BadValue', '%s must be a scalar struct.', path);
+end
+if isMapField(path)
+    for f = string(fieldnames(in)).'
+        if ~isvarname(f)
+            unknown(end+1) = path + "." + f; %#ok<AGROW>
+            continue
+        end
+        v = in.(f);
+        if isstruct(v) || iscell(v)
+            v = string(jsonencode(v));    % an object written in place of its text
+        end
+        out.(f) = coerceValue("", v, path + "." + f);
+    end
+    return
 end
 fn = string(fieldnames(in)).';
 for f = fn

@@ -774,6 +774,10 @@ classdef EphysPipelineApp < handle
         % single-dataset controls on every tab work on. Set by selectDataset,
         % and by onScan, which finds the same recording in the new project.
         SelectedDatasetIdx (1,1) double = 0
+        % The dataset the running pipeline is on (index into Project.Datasets,
+        % 0 = none): its Project-table row is marked and scrolled to
+        % (onPipelineProgress, highlightDatasetRow).
+        RunningDatasetIdx (1,1) double = 0
         DatasetPickers matlab.ui.control.DropDown   % every tab's Dataset box (datasetPicker)
         HiddenSelectedKeys (1,:) string = string.empty(1,0)   % ticked dataset keys hidden by the token filters
         DatasetsColumnOrder (1,:) string = string.empty(1,0)  % datasets-table variables in display order (a preference)
@@ -1094,7 +1098,7 @@ classdef EphysPipelineApp < handle
         refreshDatasetPickers(obj)
         onViewManifest(obj, idx)
         dd = datasetPicker(obj, parent)
-        highlightDatasetRow(obj, opts)
+        highlightDatasetRow(obj, opts)   % opts: Scroll, ScrollRunning
 
         % --- Tools panel (Project tab): the datasets in other programs ---
         idx = toolTargets(obj)

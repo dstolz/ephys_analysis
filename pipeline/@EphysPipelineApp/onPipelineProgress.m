@@ -5,7 +5,8 @@ function onPipelineProgress(obj, evt)
 %   running pipeline's Results (obj.Pipe) when the two have not as many
 %   rows (the pipeline added one since), so each row shows at the next
 %   event and the table is not rebuilt at every event; a row the Kilosort4
-%   monitor restates reaches it through markKSResult.
+%   monitor restates reaches it through markKSResult. The Project table
+%   scrolls to the dataset being processed and marks its row orange.
 if ~isvalid(obj.Fig); return; end
 if ~isempty(obj.Pipe) && isvalid(obj.Pipe) && height(obj.Pipe.Results) ~= height(obj.RunResultsTable.Data)
     obj.RunResultsTable.Data = obj.Pipe.Results;
@@ -25,5 +26,21 @@ else
     obj.RunStepLabel.Text = char(evt.step + ": " + evt.dataset + " - " + evt.message);
 end
 obj.updateRunDiagram(evt);
+markRunningDataset(obj, evt.dataset);
 drawnow limitrate;
+end
+
+
+function markRunningDataset(obj, name)
+%markRunningDataset  Mark and scroll to the Project-table row of the dataset the run is on.
+if name == "" || isempty(obj.Project); return; end   % a step's start event names no dataset
+idx = 0;
+for i = 1:obj.Project.NumDatasets
+    if string(obj.Project.Datasets(i).Name) == name
+        idx = i; break
+    end
+end
+if idx == 0 || idx == obj.RunningDatasetIdx; return; end
+obj.RunningDatasetIdx = idx;
+obj.highlightDatasetRow(ScrollRunning=true);
 end

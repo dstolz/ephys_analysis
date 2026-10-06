@@ -116,6 +116,8 @@ if obj.RunDiagram.phase == "running"   % runPipeline stopped before it could clo
 end
 obj.RunActive = false;
 obj.Pipe = [];
+obj.RunningDatasetIdx = 0;
+if isvalid(obj.Fig); obj.highlightDatasetRow(); end
 if ~isempty(obj.Project) && obj.Project.NumDatasets > 0
     EphysPipeline.applyConfigToDatasets(obj.Config, obj.Project);   % the edits made during the run
 end

@@ -8,10 +8,10 @@ and GUI classes all act on recordings through it.
 The dataset knows nothing about any acquisition system. Reading goes through a
 `Reader` ([`EphysReader`](#acquisition-readers)): `IntanReader` for Intan RHD
 recordings, `OpenEphysReader` for Open Ephys GUI sessions (Binary, Open Ephys
-and NWB formats), `BinaryReader` for the universal `recording.json` format, or
-a reader you register. Everything above that layer (artifacts, spike
-detection, derived signals, sorting, manifests, exports) works on the same
-in-memory schema.
+and NWB formats), `TDTReader` for TDT Synapse / OpenEx blocks, `BinaryReader`
+for the universal `recording.json` format, or a reader you register.
+Everything above that layer (artifacts, spike detection, derived signals,
+sorting, manifests, exports) works on the same in-memory schema.
 
 An `EphysDataset` can:
 
@@ -30,8 +30,11 @@ An `EphysDataset` can:
   the sorted units through one loader (`readSortedUnits`);
 - derive LFP / MUA / spike-band signals and save them to `.mat` (the
   `intan2matlab` processing);
-- detect and/or collect spikes into a `.mat` (`spikesToMat`);
-- export Chronux- and FieldTrip-shaped files (`exportChronux`, `exportFieldTrip`);
+- detect spikes by threshold into a `.mat` (`spikesToMat`; the sorted units
+  stay in the sorting folder);
+- export Chronux- and FieldTrip-shaped files, event-organized epochs, kCSD-python
+  input and NWB 2 (`exportChronux`, `exportFieldTrip`, `exportEpochs`,
+  `exportKCSD`, `exportNWB`);
 - hold an associated Epsych2 behavior session (`BehaviorFile`, `readBehavior`);
 - keep a JSON manifest of its state in the recording folder.
 
@@ -47,7 +50,7 @@ that writes it.
 ```mermaid
 flowchart TB
     subgraph REC["Recording folder (Folder)"]
-        RAW[("source files, never modified<br/>*.rhd · info.rhd + *.dat<br/>Open Ephys session<br/>recording.json + data file")]
+        RAW[("source files, never modified<br/>*.rhd · info.rhd + *.dat<br/>Open Ephys session<br/>TDT block (*.tsq + *.tev, *.sev)<br/>recording.json + data file")]
         MAN[("_manifest.json<br/>saved state")]
     end
 
@@ -58,7 +61,7 @@ flowchart TB
         PHY[("sorted output<br/>SortingDir")]
     end
 
-    RD["EphysReader<br/>IntanReader / OpenEphysReader / BinaryReader"]
+    RD["EphysReader<br/>IntanReader / OpenEphysReader / TDTReader / BinaryReader"]
 
     subgraph DS["EphysDataset (one recording)"]
         ID["Identity<br/>Folder · Name · Files · Reader"]
@@ -108,11 +111,12 @@ Optional: `readWindowUV(sampleOffset, nSamp)` with `supportsRandomAccess()`
 true (bounded random access, used to carry context across chunks),
 and `readDigitalEvents(ProgressFcn=)` (the digital lines without the amplifier
 data; the default reads the recording keeping one channel). `IntanReader`,
-`BinaryReader` and `OpenEphysReader` override it and decode only the digital
-inputs, in bounded pieces: an Intan traditional file's digital words, block by
-block; a split recording's `digitalin.dat` or per-line files, window by window;
-a binary recording's `dig_in_file`, window by window; the Open Ephys event
-files. Static: `claims(folder)`, `findRecordingFolders(root, recursive,
+`BinaryReader`, `OpenEphysReader` and `TDTReader` override it and decode only
+the digital inputs, in bounded pieces: an Intan traditional file's digital
+words, block by block; a split recording's `digitalin.dat` or per-line files,
+window by window; a binary recording's `dig_in_file`, window by window; the
+Open Ephys event files; a TDT block's epoc stores, from the `.tsq` alone.
+Static: `claims(folder)`, `findRecordingFolders(root, recursive,
 options)`, and the helpers `EphysReader.highRuns` / `joinRuns` (a line's high
 runs, block by block, joined across the block boundaries), `wordBit` (one line
 of 16-bit digital words) and `planWindows` (a stream plan's sample windows).
@@ -195,7 +199,7 @@ Split-layout auxiliary signals (`readSplitAll`, one-file-per-signal only):
 | Signal | File | Conversion |
 | --- | --- | --- |
 | board ADC | `analogin.dat` (uint16) | board mode 1: 152.59e-6 × (raw − 32768) V; mode 13: 312.5e-6 × (raw − 32768) V; otherwise 50.354e-6 × raw V |
-| aux input | `auxiliary.dat` (uint16) | 37.4e-6 × raw V, at `Fs/4` |
+| aux input | `auxiliary.dat` (uint16) | 37.4e-6 × raw V. The inputs are sampled at `Fs/4`; RHX writes the file at the full rate, each value held for 4 samples, and older writers at `Fs/4`, so `auxFs` is `Fs` when the file has as many samples as the amplifier data (within 4), else `Fs/4`. The samples are returned as stored |
 | digital in | `digitalin.dat` (uint16, packed bits) | bit `native_order` of each enabled line |
 
 For one-file-per-channel recordings, each digital input is read from
@@ -261,9 +265,9 @@ stream, `AUX<k>` and `ADC<k>`, and their bit volts are the file's float32
 `channel_conversion` (× 1e6, to 7 significant digits). The Acquisition Board
 updates its AUX inputs every 4 samples and holds the value: when every AUX
 channel holds each value for 4 samples (tested on the first 10 s) `readData`
-returns them at `Fs/4`, as the Intan layouts do. Open Ephys stores AUX as
-(raw − 32768) × 37.4 µV, so its accelerometer volts are 1.2255 V below what
-Intan RHX writes for the same signal.
+returns them at `Fs/4`, as a traditional Intan `.rhd` file holds them. Open
+Ephys stores AUX as (raw − 32768) × 37.4 µV, so its accelerometer volts are
+1.2255 V below what Intan RHX writes for the same signal.
 
 **Digital lines.** TTL lines are `TTL1..TTLn` (native = custom), up to the
 highest line with an edge (or set in a TTL word); name them with
@@ -1014,7 +1018,7 @@ optional amplitude ceiling → optional waveform extraction.
 | `AlignWindowMs` | `1` | extremum search window, starting at the crossing |
 | `MinPeriodMs` | `1` | minimum detection period (dead time after a kept event) |
 | `MaxAmplitudeUV` | `Inf` | reject events whose amplitude exceeds this in absolute value |
-| `Waveforms` | `false` | force waveform extraction even with one output |
+| `Waveforms` | `[]` | `[]`: waveforms are extracted when a second output is requested; `true` extracts them even with one output; `false` never extracts them |
 | `WindowMs` | `[-0.5 1.5]` | waveform window relative to the aligned sample, `before <= after` |
 | `WaveformSource` | `"filtered"` | or `"raw"` — which trace the snippets are cut from |
 | `EdgeHandling` | `"nan"` | a window past the start/end of `X` is NaN-padded; `"drop"` removes the event from **both** `wf` and `ts` |
@@ -1313,13 +1317,17 @@ launch that fails writes the exit marker (so the slot frees) and throws
 `EphysDataset:launchSorting:LaunchFailed`.
 
 `[stopped, message] = EphysDataset.stopSortRun(statusFile)` stops a
-background run that is going. Every process whose command line names the run
-folder's driver (the launcher's `cmd.exe`, conda, Python) is ended with its
-children (`taskkill /T` on Windows, `pkill` elsewhere). Then `ks4_status.json`
-is written as `{"state": "cancelled", "message": "stopped by the user"}`
-together with `ks4_exit.txt`, so `sortRunState` returns `"cancelled"` and the
-slot frees. It does nothing (`stopped` false) when the run is not running.
-What Kilosort4 wrote so far stays. A blocking run cannot be stopped this way.
+background run that is going. First `ks4_status.json` is written as
+`{"state": "cancelled", "message": "stopped by the user"}`, so `sortRunState`
+returns `"cancelled"` from then on and the slot frees (a monitor polling while
+the processes are ended never sees a run that exited without a status). Then
+every process whose command line names the run folder's driver (the
+launcher's `cmd.exe`, conda, Python) is ended with its children
+(`taskkill /T` on Windows, `pkill` elsewhere), and `ks4_exit.txt` is written.
+`message` says how many processes were ended. It does nothing (`stopped`
+false) when the run is not running; a run whose processes are already gone is
+marked cancelled all the same. What Kilosort4 wrote so far stays. A blocking
+run cannot be stopped this way.
 
 `n = EphysDataset.sortRunProcesses(statusFiles)` counts, per run, the
 processes `stopSortRun` would end: those whose command line names the run
@@ -1755,12 +1763,14 @@ count), `badChannels` (the columns interpolated; `info.badChannels` says how),
 erased and the samples replaced).
 
 **`EphysDataset.saveAtomically(file, S, matVersion)`** (static) is the writer
-behind `toMat`, `spikesToMat`, `behaviorToMat` and both exporters: the struct's fields are
-saved to `~<name>.partial.mat`, and the file is renamed to the target only
+behind `toMat`, `spikesToMat`, `behaviorToMat`, the `.mat` exports
+(`exportChronux`, `exportFieldTrip`, `exportEpochs`) and
+`stitchEpsychSessions`: the struct's fields are saved to `~<name>.partial.mat`, and the file is renamed to the target only
 after `save()` finishes **without any warning** and every variable is confirmed
 present with `whos -file`. Otherwise the partial file is deleted and an error is
-raised (`EphysDataset:toMat:SaveWarning` / `SaveIncomplete`), so a failed or
-cancelled run leaves no complete-looking file.
+raised (`EphysDataset:saveAtomically:SaveWarning` / `SaveIncomplete`, and
+`MkdirFailed` / `MoveFailed` when the folder cannot be made or the file not
+renamed), so a failed or cancelled run leaves no complete-looking file.
 
 ### Spikes file
 
@@ -2211,8 +2221,9 @@ interpolates.
 | `EphysDataset:runKilosort:MostlySilenced` | the artifact intervals cover more than `MaxSilencedFraction` of the recording |
 | `EphysDataset:launchSorting:DryRun` / `LaunchFailed` / `SetAsideFailed` | a dry run's result, a background launch that did not start, or an earlier sort's curation that could not be moved aside |
 | `EphysDataset:BadArtifactIntervals` | an `ArtifactIntervals` option that is not `[k x 2]` |
-| `EphysDataset:toMat:Exists` / `SaveWarning` / `SaveIncomplete` | `.mat` output refused or discarded (also used by `saveAtomically`) |
-| `EphysDataset:spikesToMat:Exists`, `EphysDataset:exportChronux:Exists`, `EphysDataset:exportFieldTrip:Exists` | target file exists and `Overwrite` is off |
+| `EphysDataset:toMat:Exists` / `MkdirFailed` | `toMat` output refused: a file exists and `Overwrite` is off, or the output folder cannot be made |
+| `EphysDataset:saveAtomically:SaveWarning` / `SaveIncomplete` / `MkdirFailed` / `MoveFailed` | a `.mat` output discarded (`save()` warned, a variable is missing) or not put in place |
+| `EphysDataset:spikesToMat:Exists`, `behaviorToMat:Exists`, `exportChronux:Exists`, `exportFieldTrip:Exists`, `exportEpochs:Exists`, `exportKCSD:Exists`, `exportNWB:Exists` | target file exists and `Overwrite` is off |
 | `EphysDataset:readPhyUnits:NoResultsDir` / `NoOutput` / `NoSampleRate` / `Mismatch` / `NoClusterLabels` / `NoGroupMatch` | sorted output missing or inconsistent |
 | `EphysDataset:readPhyUnits:BadIdentity` | an `Identity` struct without `subject`, `recordingStart`, `labelSuffix` and `datasetKey` |
 | `EphysDataset:readPhyWaveforms:NoResultsDir` / `NoParams` / `BadParams` / `NoDataFile` / `BadChannels` | no sort, no usable `params.py`, the sorted `.bin` not found, or a channel that was not sorted |

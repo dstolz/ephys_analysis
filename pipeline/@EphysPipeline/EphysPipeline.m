@@ -20,7 +20,7 @@ classdef EphysPipeline < handle
     %     artifacts  runArtifacts       compute + cache artifact intervals
     %     sorting    runSorting         Kilosort4 on a .bin (runKilosort)
     %     signals    runSignals         derived LFP/MUA/SPIKE/AUX .mat (toMat)
-    %     spikes     runSpikeDetection  detected and/or sorted spikes .mat (spikesToMat)
+    %     spikes     runSpikeDetection  threshold-detected spikes .mat (spikesToMat)
     %     export     runExport          analysis-toolbox / epoch files (Export.Formats)
     %   Each step method can be called directly (it then runs even if the
     %   step is disabled in the config); call checkRun() first for the checks

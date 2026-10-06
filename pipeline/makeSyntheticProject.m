@@ -29,9 +29,9 @@ function S = makeSyntheticProject(root, opts)
 %   for the cuts that resolve each mismatch.
 %
 %   The config enables the behavior (matching + pairing), artifacts, signals
-%   (LFP, MUA, AUX), spikes (detected + sorted) and export (Chronux +
-%   FieldTrip) steps, with outputs next to each recording; sorting is off
-%   (it needs Python). Open it in the app (File > Open config, or File >
+%   (LFP, MUA, AUX), spikes (threshold detection, with waveforms) and export
+%   (Chronux + FieldTrip) steps, with outputs next to each recording;
+%   sorting is off (it needs Python). Open it in the app (File > Open config, or File >
 %   Create synthetic test project..., which does all of this) or run it:
 %
 %     S = makeSyntheticProject("D:\scratch\synthetic_ephys");
@@ -273,7 +273,7 @@ w('artifacts (one saturates the ADC). The Epsych2 session (<subject>_<yymmdd>T<H
 w('variables Data + Info) sits in the recording folder and starts 65 s before the recording.');
 if opts.SortedOutput
     w('kilosort4/ holds the ground-truth units as Kilosort4 / phy output, so the');
-    w('Spikes (sorted), Export (units) and Review steps work without running Python.');
+    w('Export step (units) and the Review tab work without running Python.');
 end
 if ~isempty(opts.InvertedLines)
     w('Lines written active-low (on = low): %s. The config lists them in Signals.InvertedLines.', strjoin(opts.InvertedLines, ', '));

@@ -59,7 +59,8 @@ written.
 
 A recording is any folder that a registered [acquisition reader](EphysDataset.md#acquisition-readers)
 claims: one that **directly** contains a `*.rhd` file (Intan), a
-`recording.json` descriptor (the universal binary format), or an Open Ephys GUI
+`recording.json` descriptor (the universal binary format), one `*.tsq` file or
+`*.sev` files without one (a TDT Synapse / OpenEx block), or an Open Ephys GUI
 session folder. `Files` are the reader's.
 
 | Field | Meaning |
@@ -68,8 +69,8 @@ session folder. `Files` are the reader's.
 | `Folder` | full path |
 | `Files` | file names |
 | `NumFiles` | count |
-| `Format` | the reader's `RecordingFormat` (`traditional`, `one-file-per-signal`, `one-file-per-channel`, `binary`, `openephys-binary`, `openephys-legacy`, `openephys-nwb`) |
-| `Reader` | `"intan"`, `"binary"` or `"openephys"` |
+| `Format` | the reader's `RecordingFormat` (`traditional`, `one-file-per-signal`, `one-file-per-channel`, `binary`, `openephys-binary`, `openephys-legacy`, `openephys-nwb`, `tdt`) |
+| `Reader` | `"intan"`, `"binary"`, `"openephys"` or `"tdt"` |
 | `AcqDate` | the reader's recording start (see [`AcqDate`](EphysDataset.md#metadata-read-only-filled-by-refreshmetadata)) |
 | `Bytes` | total bytes of the listed files |
 | `IsRoot` | the folder is the tracker root |
@@ -77,6 +78,8 @@ session folder. `Files` are the reader's.
 For Intan split layouts only `info.rhd` is counted, so `Bytes` does not include
 the `.dat` files. A binary recording's files are `recording.json`, the data
 file and the `dig_in_file` when it names one, so `Bytes` includes that too.
+A TDT block's files are its `.tsq`, `.tev`, `.Tbk` and `.sev` files, all in
+`Bytes`; its `NumFiles` is 1 (one block).
 
 ### Probe files (`emptyProbes` schema)
 

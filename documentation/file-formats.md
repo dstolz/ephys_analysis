@@ -20,6 +20,7 @@ the readers take both. Probe maps are the exception
 ├─ info.rhd + amplifier.dat + ...       Intan one-file-per-signal, or
 ├─ info.rhd + amp-<native>.dat ...      Intan one-file-per-channel, or
 ├─ recording.json + <data>.bin          the universal binary format (any acquisition system), or
+├─ <block>.tsq + .tev + .Tbk, *.sev     a TDT Synapse / OpenEx block (the folder is the block), or
 ├─ Record Node <id>/                    an Open Ephys GUI session (see below)
 ├─ <part name>/openephys-part.json      Open Ephys "separate" mode: one part folder per recording (a dataset)
 ├─ <session>.mat, or <first>_stitched.mat   the Epsych2 session the Copy tab put here
@@ -860,7 +861,8 @@ Path: in the run folder. Written by the Python driver when it finishes.
 
 A run stopped from MATLAB (`EphysDataset.stopSortRun`, the app's **Stop
 runs...**) gets `{"state":"cancelled","message":"stopped by the user"}`,
-written by MATLAB after it ends the run's processes.
+written by MATLAB before it ends the run's processes, so a monitor that polls
+while they are ended never sees a run that exited without a status.
 
 `EphysDataset.launchSorting` deletes a stale status file before launching.
 The GUI's background monitor polls this file every 3 s.

@@ -54,9 +54,11 @@ acquisition reader claims
 `*.rhd` file (Intan traditional and split layouts, since `info.rhd` matches),
 folders holding a `recording.json` descriptor (the
 [universal binary format](file-formats.md#universal-recording-format-recordingjson)),
-and Open Ephys GUI session folders (the folder holding `Record Node <id>`, found
+Open Ephys GUI session folders (the folder holding `Record Node <id>`, found
 by its `structure.oebin`, `*.continuous` or `experiment*.nwb` files; see
-[Open Ephys sessions](EphysDataset.md#open-ephys-sessions)). With
+[Open Ephys sessions](EphysDataset.md#open-ephys-sessions)), and TDT Synapse /
+OpenEx block folders (one `*.tsq` file, or `*.sev` files without one; see
+[TDT Synapse blocks](EphysDataset.md#tdt-synapse-blocks)). With
 `ReaderOptions.OpenEphys.Recordings = "separate"` a session with several
 recordings is replaced by one part folder per recording, which the scan
 creates inside the session folder.

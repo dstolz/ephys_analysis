@@ -48,7 +48,8 @@ by that config into shared folders are found as well.
 ## Discovery
 
 `refresh()` scans the **roots**: `ds.outputFolder()` and `ds.Folder` for a
-dataset, or the folder given, plus `SearchDirs`. It lists every `*.mat` whose
+dataset, or the folder given, plus `SearchDirs`, listing each root once
+(`listTree`; hidden folders such as phy's `.phy` caches are skipped). It lists every `*.mat` whose
 name is `Name` followed by `_`, `-`, `.` or a space, skips `~*.partial.mat`
 files, and classifies each file by the **variables it holds**. The suffix does
 not matter, so configured `Suffix` values are found:

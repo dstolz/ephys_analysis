@@ -315,23 +315,18 @@ classdef IntanReader < EphysReader
             tf = IntanReader.detectFormat(folder) ~= "unknown";
         end
 
-        function folders = findRecordingFolders(root, recursive, options) %#ok<INUSD>
+        function folders = findRecordingFolders(root, recursive, options, files)
             %findRecordingFolders  Folders directly containing >=1 *.rhd file.
             %   info.rhd matches too, so the split layouts are found as well.
+            %   FILES is listTree(ROOT, RECURSIVE), when the caller has it.
             arguments
-                root (1,1) string
-                recursive (1,1) logical = true
-                options struct = struct()
+                root (1,1) string %#ok<INUSA>
+                recursive (1,1) logical = true %#ok<INUSA>
+                options struct = struct() %#ok<INUSA>
+                files struct = listTree(root, recursive)
             end
             folders = string.empty(1, 0);
-            if ~isfolder(root); return; end
-            if recursive
-                D = dir(fullfile(root, '**', '*.rhd'));
-            else
-                D = dir(fullfile(root, '*.rhd'));
-            end
-            if isempty(D); return; end
-            D = D(~[D.isdir]);
+            D = matchFiles(files, "*.rhd");
             if isempty(D); return; end
             folders = unique(string({D.folder}), 'stable');
         end

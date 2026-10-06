@@ -108,7 +108,7 @@ classdef (Abstract) EphysReader < handle
 
     methods (Abstract, Static)
         tf = claims(folder)
-        folders = findRecordingFolders(root, recursive, options)
+        folders = findRecordingFolders(root, recursive, options, files)
     end
 
     methods
@@ -215,16 +215,18 @@ classdef (Abstract) EphysReader < handle
             %findAllRecordingFolders  Union of every reader's recording folders.
             %   Options is the reader options struct (see forFolder); readers
             %   whose folder layout depends on it (Open Ephys recording modes)
-            %   use it.
+            %   use it. The tree is walked once (listTree, hidden folders
+            %   skipped) and every reader picks its files from that listing.
             arguments
                 root (1,1) string
                 recursive (1,1) logical = true
                 opts.Options struct = struct()
             end
             folders = string.empty(1, 0);
+            files = listTree(root, recursive);
             for c = EphysReader.readerClasses()
                 try
-                    f = feval(c + ".findRecordingFolders", root, recursive, opts.Options);
+                    f = feval(c + ".findRecordingFolders", root, recursive, opts.Options, files);
                 catch ME
                     warning('EphysReader:ReaderFailed', ...
                         'Reader %s failed to scan %s: %s', c, root, ME.message);

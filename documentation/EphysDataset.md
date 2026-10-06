@@ -117,7 +117,10 @@ words, block by block; a split recording's `digitalin.dat` or per-line files,
 window by window; a binary recording's `dig_in_file`, window by window; the
 Open Ephys event files; a TDT block's epoc stores, from the `.tsq` alone.
 Static: `claims(folder)`, `findRecordingFolders(root, recursive,
-options)`, and the helpers `EphysReader.highRuns` / `joinRuns` (a line's high
+options, files)` (`files` is the dir struct of every file under `root`, from
+one `listTree(root, recursive)` walk shared by all readers; a reader picks its
+own with `matchFiles(files, patterns)` and, called alone, walks the tree
+itself), and the helpers `EphysReader.highRuns` / `joinRuns` (a line's high
 runs, block by block, joined across the block boundaries), `wordBit` (one line
 of 16-bit digital words) and `planWindows` (a stream plan's sample windows).
 

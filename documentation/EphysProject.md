@@ -65,8 +65,13 @@ creates inside the session folder.
 With `Recursive` (the default) every sub-folder is searched; with
 `Recursive=false` only `Root` itself and the folders directly in it can be
 recordings, so `Root/mouse1/sess1` is not found.
+The tree is listed once (`listTree`) and every reader picks its files from
+that listing. Hidden folders (a name starting with `.`, such as phy's `.phy`
+caches) are not searched, so sorted data under `Root` does not slow the scan.
 One `EphysDataset` is created per folder with `AutoMetadata=false` (headers are
-not parsed yet), and `pushConfig` is applied to each. If nothing is found,
+not parsed yet), and `pushConfig` is applied to each. When `Root` holds no
+recording, its folders of pipeline outputs are the datasets instead (see
+[Outputs without the recordings](#outputs-without-the-recordings)). If nothing is found,
 `Datasets` is emptied and a warning is issued (`EphysProject:NoData`).
 
 **`report = refresh(Name=Value)`** runs, for every dataset (or the

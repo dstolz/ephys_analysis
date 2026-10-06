@@ -420,26 +420,28 @@ classdef OpenEphysReader < EphysReader
             tf = session ~= "";
         end
 
-        function folders = findRecordingFolders(root, recursive, options)
+        function folders = findRecordingFolders(root, recursive, options, files)
             %findRecordingFolders  Session folders (or part folders in "separate" mode).
             %   Sessions are found by their data files (structure.oebin,
             %   *.continuous, experiment*.nwb) inside a "Record Node" folder.
             %   In "separate" mode a session with several recordings is
             %   replaced by its part folders, which are created as needed.
+            %   FILES is listTree(ROOT, RECURSIVE), when the caller has it.
             arguments
                 root (1,1) string
                 recursive (1,1) logical = true
                 options struct = struct()
+                files struct = listTree(root, recursive)
             end
             folders = string.empty(1, 0);
             if ~isfolder(root); return; end
             if recursive
                 nodes = strings(0, 1);
-                D = dir(fullfile(root, '**', 'structure.oebin'));
+                D = matchFiles(files, "structure.oebin");
                 for k = 1:numel(D)
                     nodes(end+1, 1) = string(fileparts(fileparts(D(k).folder))); %#ok<AGROW>
                 end
-                D = [dir(fullfile(root, '**', '*.continuous')); dir(fullfile(root, '**', 'experiment*.nwb'))];
+                D = matchFiles(files, ["*.continuous" "experiment*.nwb"]);
                 for k = 1:numel(D)
                     nodes(end+1, 1) = string(D(k).folder); %#ok<AGROW>
                 end

@@ -627,21 +627,17 @@ classdef TDTReader < EphysReader
             tf = isscalar(tsq) || (isempty(tsq) && ~isempty(sev));
         end
 
-        function folders = findRecordingFolders(root, recursive, options) %#ok<INUSD>
+        function folders = findRecordingFolders(root, recursive, options, files)
             %findRecordingFolders  Block folders: the folders holding a .tsq or .sev file.
+            %   FILES is listTree(ROOT, RECURSIVE), when the caller has it.
             arguments
-                root (1,1) string
-                recursive (1,1) logical = true
-                options struct = struct()
+                root (1,1) string %#ok<INUSA>
+                recursive (1,1) logical = true %#ok<INUSA>
+                options struct = struct() %#ok<INUSA>
+                files struct = listTree(root, recursive)
             end
             folders = string.empty(1, 0);
-            if ~isfolder(root); return; end
-            if recursive
-                D = [dir(fullfile(root, '**', '*.tsq')); dir(fullfile(root, '**', '*.sev'))];
-            else
-                D = [dir(fullfile(root, '*.tsq')); dir(fullfile(root, '*.sev'))];
-            end
-            D = D(~[D.isdir]);
+            D = matchFiles(files, ["*.tsq" "*.sev"]);
             cand = reshape(unique(string({D.folder}), 'stable'), 1, []);
             for f = cand
                 if TDTReader.claims(f); folders(end+1) = f; end %#ok<AGROW>

@@ -410,21 +410,14 @@ classdef DatasetTracker < handle
         %  reuse one implementation of the scans they used to each hand-roll.
         function D = listFiles(root, pattern, recursive)
             %listFiles  Files matching PATTERN under ROOT (recursive or top-level).
-            %   Excludes directories (a glob can match folder names too). Shared
+            %   Excludes directories and hidden folders (see listTree). Shared
             %   by every DatasetTracker scan and exposed for external callers.
             arguments
                 root (1,1) string
                 pattern (1,1) string
                 recursive (1,1) logical = true
             end
-            if recursive
-                D = dir(fullfile(root, '**', char(pattern)));
-            else
-                D = dir(fullfile(root, char(pattern)));
-            end
-            if ~isempty(D)
-                D = D(~[D.isdir]);
-            end
+            D = listTree(root, recursive, Pattern=pattern);
         end
 
         function rec = findRecordings(root, recursive, options)

@@ -422,6 +422,14 @@ says how to cut a release.
 
 ### Fixed
 
+- Finding recordings (`EphysProject`, the app's Scan, `DatasetTracker`) and
+  a dataset's outputs (`DatasetOutputs`) walk the folder tree once instead of
+  once per file pattern, and skip hidden folders such as phy's `.phy`
+  caches (`listTree`, `matchFiles`). On a network share holding sorted data
+  the scan took minutes: `EphysProject` on a NAS folder of 7 datasets went
+  from 125 s to 1.3 s, and `DatasetOutputs` of its sorted dataset from 92 s
+  of folder walks to 4.3 s in all. A reader's `findRecordingFolders` takes that
+  listing as a fourth input, `files`.
 - The Review tab clears its folder field when the active dataset has no
   sorted output (or its pinned folder is not there), so **Load**, **Open
   folder in explorer** and **Open in phy** no longer bring back the

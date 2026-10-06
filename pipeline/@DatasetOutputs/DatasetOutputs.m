@@ -219,7 +219,8 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
             foreign = strings(0, 1);
             prefix = "^" + string(regexptranslate('escape', char(obj.Name))) + "([_\-. ].*)?";
             for root = obj.Roots
-                mats = listFiles(root, "*.mat", obj.Recursive);
+                tree = listTree(root, obj.Recursive);   % one walk for every pattern
+                mats = listFiles(tree, "*.mat");
                 for k = 1:numel(mats)
                     m = mats(k);
                     if isempty(regexpi(m.name, prefix + "\.mat$", 'once')); continue; end
@@ -236,7 +237,7 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
                     end
                     T = [T; candidateRow(kind, m, sig)]; %#ok<AGROW>
                 end
-                npz = listFiles(root, "*.npz", obj.Recursive);
+                npz = listFiles(tree, "*.npz");
                 for k = 1:numel(npz)
                     m = npz(k);
                     if isempty(regexpi(m.name, prefix + "\.npz$", 'once')); continue; end
@@ -248,7 +249,7 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
                     end
                     T = [T; candidateRow("kcsd", m, "")]; %#ok<AGROW>
                 end
-                nwbs = listFiles(root, "*.nwb", obj.Recursive);
+                nwbs = listFiles(tree, "*.nwb");
                 for k = 1:numel(nwbs)
                     m = nwbs(k);
                     if isempty(regexpi(m.name, prefix + "\.nwb$", 'once')); continue; end
@@ -261,7 +262,7 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
                     T = [T; candidateRow("nwb", m, "")]; %#ok<AGROW>
                 end
                 for kind = ["manifest" "artifacts"]
-                    js = listFiles(root, obj.Name + "_" + kind + ".json", obj.Recursive);
+                    js = listFiles(tree, obj.Name + "_" + kind + ".json");
                     for k = 1:numel(js)
                         T = [T; candidateRow(kind, js(k), "")]; %#ok<AGROW>
                     end
@@ -759,14 +760,9 @@ p = regexprep(string(p), '[\\/]+$', '');
 end
 
 
-function m = listFiles(root, pattern, recursive)
-%listFiles  Files matching PATTERN under ROOT: name, path, datenum, bytes.
-if recursive
-    d = dir(fullfile(root, '**', pattern));
-else
-    d = dir(fullfile(root, pattern));
-end
-d = d(~[d.isdir]);
+function m = listFiles(tree, pattern)
+%listFiles  Files of TREE (listTree) matching PATTERN: name, path, datenum, bytes.
+d = matchFiles(tree, pattern);
 d = d(~startsWith({d.name}, '~'));
 m = struct('name', num2cell(string({d.name})), ...
     'path', num2cell(string(fullfile({d.folder}, {d.name}))), ...

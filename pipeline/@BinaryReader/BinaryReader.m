@@ -446,22 +446,18 @@ classdef BinaryReader < EphysReader
             tf = isstruct(s) && isfield(s, 'schema') && string(s.schema) == BinaryReader.Schema;
         end
 
-        function folders = findRecordingFolders(root, recursive, options) %#ok<INUSD>
+        function folders = findRecordingFolders(root, recursive, options, files)
             %findRecordingFolders  Folders holding an ephys-recording/1 recording.json.
+            %   FILES is listTree(ROOT, RECURSIVE), when the caller has it.
             arguments
-                root (1,1) string
-                recursive (1,1) logical = true
-                options struct = struct()
+                root (1,1) string %#ok<INUSA>
+                recursive (1,1) logical = true %#ok<INUSA>
+                options struct = struct() %#ok<INUSA>
+                files struct = listTree(root, recursive)
             end
             folders = string.empty(1, 0);
-            if ~isfolder(root); return; end
-            if recursive
-                D = dir(fullfile(root, '**', char(BinaryReader.DescriptorName)));
-            else
-                D = dir(fullfile(root, char(BinaryReader.DescriptorName)));
-            end
+            D = matchFiles(files, BinaryReader.DescriptorName);
             for k = 1:numel(D)
-                if D(k).isdir; continue; end
                 if BinaryReader.claims(D(k).folder)
                     folders(end+1) = string(D(k).folder); %#ok<AGROW>
                 end

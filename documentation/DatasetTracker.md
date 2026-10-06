@@ -149,7 +149,7 @@ These are public so the other Intan classes can reuse one implementation.
 
 | Helper | Purpose |
 | --- | --- |
-| `listFiles(root, pattern, recursive)` | `dir` matches, excluding directories |
+| `listFiles(root, pattern, recursive)` | files whose name matches the `dir` wildcard, from one `listTree` walk (folders and hidden folders such as `.phy` excluded) |
 | `findRecordings(root, recursive, options)` | the `Recordings` struct array (through the reader registry, with reader options) |
 | `findRecordingFolders(root, recursive, options)` | folder paths only |
 | `readJson(path)` | `jsondecode(fileread(path))`, or `[]` on any failure |

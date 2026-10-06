@@ -146,6 +146,16 @@ classdef EphysDataset < handle
         % sorting.source "manual". See sortingResultsDir, readSortedUnits.
         SortingDir (1,1) string = ""
 
+        % The sorter whose run folder is the auto sorted output (sortRunDir,
+        % sortingResultsDir): "kilosort4" (runKilosort, outputFolder/kilosort4)
+        % or a SpikeInterface sorter name such as "spykingcircus2"
+        % (runSpikeInterface, outputFolder/si_<sorter>). Set from the
+        % pipeline config's Sorting.Sorter (EphysPipeline.applyConfigToDatasets);
+        % the manifest records it (kilosort.sorter) but does not set it: a
+        % reader without the config (DatasetOutputs) finds a SpikeInterface
+        % sort through the manifest's sorting.results_dir instead.
+        Sorter (1,1) string = "kilosort4"
+
         % Unit identity. NamePattern (parseNameTokens) splits Name into the
         % SubjectID, Date and Time that label this recording's sorted units
         % ("su042_1255_260908T1039"); DatasetKey is the folder relative to the
@@ -299,6 +309,7 @@ classdef EphysDataset < handle
         info   = toBin(obj, opts)
         info   = matrixToBin(obj, X, opts)
         result = runKilosort(obj, opts)
+        result = runSpikeInterface(obj, opts)
         result = launchSorting(obj, result, opts)
         iv     = artifactIntervals(obj, opts)
         L      = channelLayout(obj, opts)
@@ -717,18 +728,35 @@ classdef EphysDataset < handle
             p = obj.kilosortDir();
         end
 
+        function p = sortRunDir(obj, sorter)
+            %sortRunDir  Run folder of a sorter: where its run files and phy output go.
+            %   P = ds.sortRunDir() is the folder of the dataset's Sorter,
+            %   P = ds.sortRunDir(SORTER) that of SORTER: kilosortDir() for
+            %   "kilosort4", else outputFolder/si_<sorter> (runSpikeInterface).
+            arguments
+                obj (1,1) EphysDataset
+                sorter (1,1) string = obj.Sorter
+            end
+            if sorter == "" || sorter == "kilosort4"
+                p = obj.kilosortDir();
+            else
+                p = fullfile(char(obj.outputFolder()), char("si_" + sorter));
+            end
+        end
+
         function p = sortingResultsDir(obj)
             %sortingResultsDir  Folder holding the sorted units for this dataset.
             %   Returns SortingDir when it is set (an explicit association, e.g.
             %   a phy-curated copy or results sorted on another machine), else
-            %   the auto-discovered kilosortResultsDir(). Every consumer of
+            %   the auto-discovered sortRunDir() of the dataset's Sorter (its
+            %   kilosort4 folder, or si_<sorter>). Every consumer of
             %   sorted output (Review tab, phy launch, readSortedUnits,
             %   ChronuxDataset.spikes) goes through this accessor. A SortingDir
             %   that is not there is still returned (see sortingMissing).
             if obj.SortingDir ~= ""
                 p = char(obj.SortingDir);
             else
-                p = obj.kilosortResultsDir();
+                p = obj.sortRunDir();
             end
         end
 
@@ -789,7 +817,8 @@ classdef EphysDataset < handle
         function m = manifestStruct(obj)
             %manifestStruct  Snapshot of this dataset (metadata, probe, channel
             %   exclusions, .bin and Kilosort4 output state) ready for jsonencode.
-            %   The kilosort block describes the run in kilosortDir()
+            %   The kilosort block describes the run in sortRunDir() (the
+            %   dataset's Sorter: Kilosort4 or a SpikeInterface sorter)
             %   (DatasetTracker.kilosortRunAt, as the GUI tables do). The
             %   associations (probe, sorting, behavior) are written as recorded,
             %   with "exists" saying whether their file or folder is there now.
@@ -847,9 +876,9 @@ classdef EphysDataset < handle
 
             m.bin =struct('file', obj.BinFile, 'exists', isfile(obj.BinFile));
 
-            ks = struct('has_results', false, 'results_dir', "", ...
+            ks = struct('sorter', obj.Sorter, 'has_results', false, 'results_dir', "", ...
                 'num_units', NaN, 'state', "");
-            run = DatasetTracker.kilosortRunAt(obj.kilosortDir());
+            run = DatasetTracker.kilosortRunAt(obj.sortRunDir());
             if ~isempty(run)
                 ks.has_results = run.HasResults;
                 ks.results_dir = run.Dir;
@@ -1042,7 +1071,8 @@ classdef EphysDataset < handle
         function s = sortingStruct(obj)
             %sortingStruct  Manifest block describing the sorted-output association.
             %   results_dir  SortingDir when set (as recorded, even while it is
-            %                not there), else the kilosort4 folder once it holds
+            %                not there), else the Sorter's run folder
+            %                (sortRunDir: kilosort4, or si_<sorter>) once it holds
             %                params.py ("" before)
             %   source       "manual" when SortingDir is set, else "auto"
             %   exists       true when results_dir holds params.py
@@ -1086,6 +1116,7 @@ classdef EphysDataset < handle
         % --- static methods defined in separate files in this @-folder ---
         [stopped, message] = stopSortRun(statusFile)
         n = sortRunProcesses(statusFiles)
+        [sorters, info] = spikeInterfaceSorters(opts)
 
         function fmt = detectFormat(folder, opts)
             %detectFormat  RecordingFormat of the reader that claims FOLDER.
@@ -1245,6 +1276,57 @@ classdef EphysDataset < handle
             end
             m = s;
             why = "";
+        end
+
+        function tf = isSpikeInterfaceSorter(name)
+            %isSpikeInterfaceSorter  True for a name runSpikeInterface can run.
+            %   A SpikeInterface sorter name ("spykingcircus2", "tridesclous2",
+            %   "mountainsort5", ...): a valid identifier, and not
+            %   "kilosort4", which runKilosort runs natively. Whether the
+            %   sorter is installed is not checked (spikeInterfaceSorters).
+            name = string(name);
+            tf = arrayfun(@(n) n ~= "" && isvarname(n) && lower(n) ~= "kilosort4", name);
+        end
+
+        function label = sorterLabel(sorter)
+            %sorterLabel  How the logs name a sorter: "Kilosort4", or
+            %   "<sorter> (SpikeInterface)".
+            sorter = string(sorter);
+            if sorter == "" || sorter == "kilosort4"
+                label = "Kilosort4";
+            else
+                label = sorter + " (SpikeInterface)";
+            end
+        end
+
+        function sorter = sorterOfRunDir(folder)
+            %sorterOfRunDir  The sorter of a run folder by its name: "<sorter>"
+            %   for si_<sorter> (sortRunDir), else "kilosort4".
+            [~, leaf] = fileparts(char(folder));
+            sorter = "kilosort4";
+            tok = regexp(leaf, '^si_(\w+)$', 'tokens', 'once');
+            if ~isempty(tok) && EphysDataset.isSpikeInterfaceSorter(tok{1})
+                sorter = string(tok{1});
+            end
+        end
+
+        function msg = sorterParamsProblem(text)
+            %sorterParamsProblem  Why TEXT is not a SpikeInterface sorter's
+            %   parameters ("" when it is: blank, or a JSON object). NaN and
+            %   Infinity, which Python's json reads, are accepted.
+            msg = "";
+            text = strtrim(string(text));
+            if text == ""; return; end
+            t = regexprep(text, '(?<![\w"])-?(Infinity|NaN)(?![\w"])', 'null');
+            try
+                v = jsondecode(char(t));
+            catch ME
+                msg = "not valid JSON (" + string(ME.message) + ")";
+                return
+            end
+            if ~(isstruct(v) && isscalar(v)) && ~(isempty(v) && startsWith(text, "{"))
+                msg = "must be a JSON object, {""name"": value, ...}";
+            end
         end
 
         function tf = phyCurated(resultsDir)

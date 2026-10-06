@@ -372,9 +372,10 @@ classdef DatasetTracker < handle
     end
 
     properties (Constant)
-        % Files whose presence makes a folder a Kilosort4 run folder.
+        % Files whose presence makes a folder a sort run folder: Kilosort4's
+        % (runKilosort) or a SpikeInterface sorter's (runSpikeInterface).
         KilosortMarkers = ["spike_clusters.npy", "params.py", "run_ks4.py", ...
-            "settings.json", "ks4_status.json"]
+            "settings.json", "ks4_status.json", "run_si.py", "si_status.json"]
     end
 
     methods (Static)
@@ -578,13 +579,20 @@ end
 %% ===== file-local helpers ==================================================
 
 function r = runInfo(folder)
-%runInfo  The emptyKSRuns element describing the Kilosort4 run folder FOLDER.
+%runInfo  The emptyKSRuns element describing the sort run folder FOLDER:
+%   Kilosort4's files (run_ks4.py, ks4_status.json, ks4_run.log), else a
+%   SpikeInterface sorter's (run_si.py, si_status.json, si_run.log).
 d = char(folder);
 [~, leaf] = fileparts(d);
 hasResults = isfile(fullfile(d, 'spike_clusters.npy'));
+driver = 'run_ks4.py'; status = 'ks4_status.json'; logName = 'ks4_run.log';
+if ~isfile(fullfile(d, driver)) && ~isfile(fullfile(d, status)) ...
+        && (isfile(fullfile(d, 'run_si.py')) || isfile(fullfile(d, 'si_status.json')))
+    driver = 'run_si.py'; status = 'si_status.json'; logName = 'si_run.log';
+end
 
 state = ""; message = "";
-statusFile = fullfile(d, 'ks4_status.json');
+statusFile = fullfile(d, status);
 if isfile(statusFile)
     st = DatasetTracker.readJson(statusFile);
     state   = string(getfielddef(st, 'state', ""));
@@ -611,8 +619,8 @@ r(1).State        = state;
 r(1).Message      = message;
 r(1).NumUnits     = countClusters(d);
 r(1).SettingsPath = string(ternary(isfile(settingsFile), settingsFile, ""));
-r(1).ScriptPath   = string(ternary(isfile(fullfile(d,'run_ks4.py')), fullfile(d,'run_ks4.py'), ""));
-r(1).LogPath      = string(ternary(isfile(fullfile(d,'ks4_run.log')), fullfile(d,'ks4_run.log'), ""));
+r(1).ScriptPath   = string(ternary(isfile(fullfile(d,driver)), fullfile(d,driver), ""));
+r(1).LogPath      = string(ternary(isfile(fullfile(d,logName)), fullfile(d,logName), ""));
 r(1).StatusPath   = string(ternary(isfile(statusFile), statusFile, ""));
 r(1).BinFile      = binFile;
 r(1).ProbeFile    = probeFile;

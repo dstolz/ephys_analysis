@@ -1,7 +1,8 @@
 function bg = backgroundCommand(command, logFile, exitFile, launcher, title)
 %backgroundCommand  Wrap COMMAND to run detached with output redirected to LOG.
 %   Once the process has exited, for any reason, an empty EXITFILE is written
-%   next to it. The drivers write ks4_status.json only when Python gets far
+%   next to it. The drivers write their status (ks4_status.json,
+%   si_status.json) only when Python gets far
 %   enough to catch the failure. Without that status file, the exit marker
 %   is what tells EphysDataset.sortRunState that a run has ended (a missing
 %   Python or conda env, a crash).
@@ -27,7 +28,7 @@ if ispc
     pct = @(s) strrep(char(s), '%', '%%');
     lines = ["@chcp 65001 > nul"
         "@echo off"
-        "rem Kilosort4 run in the background, written by EphysDataset.launchSorting"
+        "rem " + title + " run in the background, written by EphysDataset.launchSorting"
         "set PYTHONUNBUFFERED=1"
         "cmd /d /c @" + pct(command) + " 1> """ + pct(log) + """ 2>&1"
         "type nul > """ + pct(ex) + """"];

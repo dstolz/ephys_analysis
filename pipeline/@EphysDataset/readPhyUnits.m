@@ -89,7 +89,9 @@ function [units, info] = readPhyUnits(resultsDir, opts)
 %   and per-run scalars: fs, resultsDir, groupSource ("phy" when phy wrote
 %   cluster_group.tsv, header "cluster_id<TAB>group"; "kilosort" for
 %   Kilosort's own call, which Kilosort4 also copies to cluster_group.tsv
-%   with the header "cluster_id<TAB>KSLabel"; "none"), curated (groupSource
+%   with the header "cluster_id<TAB>KSLabel"; "spikeinterface" for
+%   runSpikeInterface's good / mua call by the good-unit criteria,
+%   cluster_SILabel.tsv and its copy; "none"), curated (groupSource
 %   is "phy"), labelFile, durationSec (last spike), nChannelsSorted,
 %   channelMap ([nChanSorted x 1] 1-based recording channels),
 %   channelMapSource ("manual" | "channel_map.npy" | "identity"), readAt.
@@ -441,11 +443,14 @@ end
 
 function [ids, labels, file, source] = readClusterLabels(folder)
 %readClusterLabels  cluster ids + labels; cluster_group.tsv wins over
-%   cluster_KSLabel.tsv (Kilosort's own call), as phy shows them. SOURCE is
+%   cluster_KSLabel.tsv (Kilosort's own call) and cluster_SILabel.tsv
+%   (run_si.py's, by the good-unit criteria), as phy shows them. SOURCE is
 %   "phy" only when phy wrote cluster_group.tsv (header "cluster_id<TAB>group"):
-%   Kilosort4 copies cluster_KSLabel.tsv there on every run, header and all.
+%   Kilosort4 copies cluster_KSLabel.tsv there on every run, header and all,
+%   and run_si.py its cluster_SILabel.tsv. SOURCE is "spikeinterface" for
+%   the latter (header "SILabel"), else "kilosort".
 ids = []; labels = strings(0, 1); file = ""; source = "none";
-for name = ["cluster_group.tsv", "cluster_KSLabel.tsv"]
+for name = ["cluster_group.tsv", "cluster_KSLabel.tsv", "cluster_SILabel.tsv"]
     fp = fullfile(folder, name);
     [tid, txt, header] = readTsv(fp);
     if numel(header) < 2 || isempty(tid); continue; end
@@ -453,6 +458,9 @@ for name = ["cluster_group.tsv", "cluster_KSLabel.tsv"]
     labels = txt;                                  % blank cell "" -> "unsorted" below
     file   = string(fp);
     source = "kilosort";
+    if strcmpi(strtrim(header(2)), "SILabel")
+        source = "spikeinterface";
+    end
     if name == "cluster_group.tsv" && EphysDataset.phyCurated(folder)
         source = "phy";
     end

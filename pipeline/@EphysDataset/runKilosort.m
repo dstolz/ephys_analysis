@@ -288,6 +288,7 @@ end
 
 result = struct();
 result.status       = NaN;
+result.sorter       = "kilosort4";   % launchSorting: which driver, launcher and curation files
 result.command      = command;
 result.stdoutLog    = char(stdoutLog);
 result.scriptPath   = char(scriptPath);

@@ -309,11 +309,7 @@ needRun = want("app-run-results.png") || (any(ismember(afterRun, opts.Shots)) &&
 if want("app-run-plan.png") || needRun
     app.RunParallelCheckBox.Value = false;   % a serial run
     app.onParallelControlsChanged();
-    app.selectTab(app.TabRun);
-    app.RunDiagramCheckBox.Value = true;
-    app.onRunDiagramToggled();
-    app.RunMonitorCheckBox.Value = true;
-    app.onResourceMonitorToggled();
+    app.selectTab(app.TabRun);   % starts the resource monitor
     waitSample(30);
     app.onValidate();
     app.onPlan();
@@ -329,8 +325,7 @@ if want("app-run-plan.png") || needRun
         app.stopResourceMonitor();
         shot("app-run-results.png", 10);
     end
-    app.RunMonitorCheckBox.Value = false;
-    app.onResourceMonitorToggled();
+    app.stopResourceMonitor();
 end
 
 if want("app-visualize-traces.png") || want("app-visualize-heatmap.png")

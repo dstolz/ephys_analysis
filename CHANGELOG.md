@@ -318,6 +318,12 @@ says how to cut a release.
 
 ### Changed
 
+- Pipeline app: the Run tab always shows the run diagram and the Resource use
+  panel (CPU, memory, disk and GPU). The **Show the run diagram** and
+  **Monitor CPU, memory, disk and GPU** switches and their `ShowRunDiagram`
+  and `MonitorResources` preferences are gone. The resource sampler starts the
+  first time the Run tab is shown (also by Validate, Plan and Run) and runs
+  until the app closes.
 - Pipeline app: the text that named Kilosort4 for any sort now names the
   sorter. The Run diagram's Sorting step, the Artifacts tab's **Erase in
   sorting** and the Sorting tab's SpikeInterface note follow the selected

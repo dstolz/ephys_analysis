@@ -1954,18 +1954,14 @@ app.syncReviewDataset();
 check(isscalar(dd.Items) && key(app.ReviewData.folder) == key(phyDir), 'with the extra sorts gone, only the pinned sort is listed');
 
 fprintf('\n== 4b. Run tab: the run diagram ==\n');
-check(app.RunDiagramPanel.Visible == "off" && isequal(app.RunSplitGrid.ColumnWidth, {'1x', 0}) ...
-    && contains(string(app.RunDiagramHTML.HTMLSource), "function setup(htmlComponent)"), ...
-    'the run diagram is off by default and its page is loaded');
-app.RunDiagramCheckBox.Value = true;
-app.onRunDiagramToggled();
 D = app.RunDiagramHTML.Data;
 st = [D.steps.state];
 check(app.RunDiagramPanel.Visible == "on" && isequal(app.RunSplitGrid.ColumnWidth, {'3x', '1x'}) ...
+    && contains(string(app.RunDiagramHTML.HTMLSource), "function setup(htmlComponent)") ...
     && isequal([D.steps.key], EphysPipelineConfig.StepNames) && D.phase == "done" ...
     && st(6) == "done" && D.steps(6).pct == 100 && D.steps(6).summary ~= "" && all(st([1:5 7 8]) == "off") ...
     && D.steps(1).label == "not in this run", ...
-    'ticked, it takes a quarter of the right side and shows the last run (followed while hidden): Spikes done at 100%');
+    'the run diagram is always shown, a quarter of the right side, its page loaded, on the last run: Spikes done at 100%');
 app.resetRunDiagram(["probe" "signals" "spikes"], false);
 D = app.RunDiagramHTML.Data;
 check(D.phase == "running" && all([D.steps([1 5 6]).state] == "queued") && D.steps(3).state == "off" ...
@@ -2001,12 +1997,6 @@ check(D.phase == "idle" && D.steps(1).label == "will run" && D.steps(5).label ==
 app.RunSignalsCheckBox.Value = false;
 app.RunSignalsCheckBox.ValueChangedFcn(app.RunSignalsCheckBox, []);
 check(app.RunDiagramHTML.Data.steps(5).label == "off", 'unticking a step takes it out of the preview');
-app.savePreferences();
-check(isequal(AppPrefs.getpref(g, 'ShowRunDiagram'), true), 'the switch is saved as a preference');
-app.RunDiagramCheckBox.Value = false;
-app.onRunDiagramToggled();
-check(app.RunDiagramPanel.Visible == "off" && isequal(app.RunSplitGrid.ColumnWidth, {'1x', 0}), ...
-    'unticked, the progress, results and log have the whole right side again');
 
 fprintf('\n== 4b2. Run tab: the results table fills as the Run goes ==\n');
 % As runPipeline leaves them: the pipeline running, the table showing its rows.
@@ -2035,9 +2025,8 @@ app.Pipe = [];
 app.RunActive = false;
 
 fprintf('\n== 4c. Run tab: resource monitoring ==\n');
-check(app.RunMonitorPanel.Visible == "off" && isequal(app.RunLeftGrid.RowHeight, {'1x', 0}) ...
-    && isempty(app.ResourceMonitorTimer) && app.ResourceMonitor.dir == "", ...
-    'resource monitoring is off by default: no panel, no sampler, no timer');
+check(app.RunMonitorPanel.Visible == "on" && isequal(app.RunLeftGrid.RowHeight, {'1x', 'fit'}), ...
+    'the resource panel is always shown under the Steps panel');
 S = struct('t', '2026-09-18T10:41:21', 'cpu', 37.2, 'memUsedGB', 12.3, 'memTotalGB', 31.7, ...
     'disk', 95, 'diskName', '1 D:', 'readMBs', 80.2, 'writeMBs', 12.5, ...
     'gpus', struct('index', {0 1}, 'name', {'A' 'B'}, 'util', {28 61}, 'memUsedMB', {869 1024}, 'memTotalMB', {4094 8192}), ...
@@ -2053,13 +2042,14 @@ S.gpus = []; S.gpuNote = 'nvidia-smi not found'; S.cpu = [];
 app.showResourceSample(S);
 check(app.RunMonitorTexts(4).Text == "n/a" && contains(app.RunMonitorTexts(4).Tooltip, "not found") ...
     && app.RunMonitorTexts(1).Text == "n/a", 'a missing reading shows n/a and says why');
+app.stopResourceMonitor();   % an earlier Validate / Plan showed the Run tab, which started it
+app.selectTab(app.TabProject);
+check(isempty(app.ResourceMonitorTimer) && app.ResourceMonitor.dir == "", ...
+    'stopped, there is no sampler and no timer, and another tab showing does not start them');
 app.selectTab(app.TabRun);
-app.RunMonitorCheckBox.Value = true;
-app.onResourceMonitorToggled();
 dirMon = app.ResourceMonitor.dir;
-check(app.RunMonitorPanel.Visible == "on" && isequal(app.RunLeftGrid.RowHeight, {'1x', 'fit'}) ...
-    && isfolder(dirMon) && strcmp(app.ResourceMonitorTimer.Running, 'on'), ...
-    'ticked, the panel opens under the steps and the sampler and timer start');
+check(isfolder(dirMon) && strcmp(app.ResourceMonitorTimer.Running, 'on'), ...
+    'showing the Run tab starts the sampler and the timer');
 t0 = tic;
 while toc(t0) < 20 && ~startsWith(string(app.RunMonitorNote.Text), "Sampled every")
     pause(0.5);
@@ -2067,17 +2057,13 @@ end
 tx = string({app.RunMonitorTexts.Text});
 check(startsWith(string(app.RunMonitorNote.Text), "Sampled every") && endsWith(tx(1), "%") ...
     && endsWith(tx(2), " GB"), sprintf('live samples arrive within %.0f s', toc(t0)));
-app.savePreferences();
-check(isequal(AppPrefs.getpref(g, 'MonitorResources'), true), 'the switch is saved as a preference');
-app.RunMonitorCheckBox.Value = false;
-app.onResourceMonitorToggled();
+app.stopResourceMonitor();
 t0 = tic;
 while toc(t0) < 10 && isfolder(dirMon)
     pause(0.5);
 end
-check(app.RunMonitorPanel.Visible == "off" && isequal(app.RunLeftGrid.RowHeight, {'1x', 0}) ...
-    && isempty(app.ResourceMonitorTimer) && ~isfolder(dirMon), ...
-    'unticked, the panel closes, the timer stops and the sampler exits and removes its folder');
+check(isempty(app.ResourceMonitorTimer) && ~isfolder(dirMon), ...
+    'stopped, the timer is gone and the sampler exits and removes its folder');
 
 fprintf('\n== 4d. Clean up tab ==\n');
 ksRoot = app.Project.Datasets(1).kilosortDir();   % under the OutputRoot

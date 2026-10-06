@@ -129,12 +129,10 @@ classdef EphysPipelineApp < handle
     %   datasets-table column order, the Trials-table parameter columns and
     %   column order, the Trials-plot label parameters, the Visualize
     %   display options, the Copy tab settings, the Synthetic tab's settings
-    %   and design, the Diagram tab's view and layout, the Run tab's
-    %   Show the run diagram and Monitor CPU,
-    %   memory, disk and GPU switches, and the background Kilosort4 runs
-    %   kept when the app closed: the ones going, followed again at the
-    %   next launch, and a queue kept per project root, offered back once
-    %   that root is scanned (keepKSRuns).
+    %   and design, the Diagram tab's view and layout, and the background
+    %   Kilosort4 runs kept when the app closed: the ones going, followed
+    %   again at the next launch, and a queue kept per project root, offered
+    %   back once that root is scanned (keepKSRuns).
     %
     %   Usage
     %     EphysPipelineApp;            % launch
@@ -762,12 +760,10 @@ classdef EphysPipelineApp < handle
         RunKSLabel           matlab.ui.control.Label
         RunKSStopRunsButton  matlab.ui.control.Button         % stop running sorting runs (onStopKSRuns)
         RunKSStopQueueButton matlab.ui.control.Button         % drop the queued sorting runs (onStopKSQueue)
-        RunDiagramCheckBox   matlab.ui.control.CheckBox       % Show the run diagram (a preference)
         RunSplitGrid         matlab.ui.container.GridLayout   % right side: progress / results / log | diagram
         RunDiagramPanel      matlab.ui.container.Panel
         RunDiagramHTML       matlab.ui.control.HTML           % runDiagramHTML; Data from refreshRunDiagram
         RunLeftGrid          matlab.ui.container.GridLayout   % the tab's grid: Steps panel over Resource use
-        RunMonitorCheckBox   matlab.ui.control.CheckBox       % Monitor CPU, memory, disk and GPU (a preference)
         RunMonitorPanel      matlab.ui.container.Panel        % Resource use, under the Steps panel
         RunMonitorBars       matlab.ui.container.GridLayout   % CPU, memory, disk, GPU (see setRunBar)
         RunMonitorTexts      matlab.ui.control.Label          % ... their figures
@@ -1037,13 +1033,11 @@ classdef EphysPipelineApp < handle
         refreshStepPlan(obj, step)
         runLog(obj, fmt, varargin)
         setRunBar(obj, bar, frac)
-        onRunDiagramToggled(obj)
         resetRunDiagram(obj, steps, dryRun)
         updateRunDiagram(obj, evt)
         finishRunDiagram(obj, R, outcome, note)
         refreshRunDiagram(obj)
         html = runDiagramHTML(obj)
-        onResourceMonitorToggled(obj)
         startResourceMonitor(obj)
         stopResourceMonitor(obj)
         pollResourceMonitor(obj)

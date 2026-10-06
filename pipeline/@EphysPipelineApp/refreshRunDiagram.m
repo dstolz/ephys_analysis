@@ -1,5 +1,5 @@
 function refreshRunDiagram(obj)
-%refreshRunDiagram  Send the run diagram's model to its page while it is shown.
+%refreshRunDiagram  Send the run diagram's model to its page.
 %   Turns obj.RunDiagram (see resetRunDiagram) into what the page
 %   (runDiagramHTML) draws, and sets it as the HTML component's Data: the
 %   phase, a headline (which step of how many is underway, or how the run
@@ -10,7 +10,7 @@ function refreshRunDiagram(obj)
 %   counts as done once the monitor has seen it finish).
 
 h = obj.RunDiagramHTML;
-if isempty(h) || ~isvalid(h) || ~obj.RunDiagramCheckBox.Value; return; end
+if isempty(h) || ~isvalid(h); return; end
 M = obj.RunDiagram;
 c = arrayfun(@(s) stepData(s, M), M.steps, 'UniformOutput', false);
 h.Data = struct('phase', M.phase, 'headline', headline(M), 'sub', subLine(obj, M), 'steps', [c{:}]);

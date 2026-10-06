@@ -36,6 +36,9 @@ switch obj.Tabs.SelectedTab
         obj.refreshStepPlan("analysis");
     case obj.TabRun
         msg = "Run: validate, plan, then run the enabled steps.";
+        if obj.ResourceMonitor.dir == ""
+            obj.startResourceMonitor();   % the sampler starts when the tab is first shown, and runs until the app closes
+        end
     case obj.TabFlow
         msg = "Diagram: every parameter each step applies, or (View) how the data flows from step to step.";
         obj.refreshFlowChart();

@@ -2274,8 +2274,10 @@ or `Selection: all 4 dataset(s).` (none ticked).
 | **Run pipeline** | validates, plans, then runs every enabled step in order over the selected datasets (`EphysPipeline.run`) |
 | **Dry run** | the same, writing nothing: each step reports what it would do in `dry run` rows. Sorting writes only its `settings.json` and `run_ks4.py`, into `kilosort4\dryrun` |
 | **Cancel** | stops the run at the next progress point ([Progress and results](#progress-and-results)) |
-| **Show the run diagram** | a diagram of the run beside the progress bars ([The run diagram](#the-run-diagram)) |
-| **Monitor CPU, memory, disk and GPU** | the computer's load under the Steps panel ([Resource use](#resource-use)) |
+
+The tab also always shows a diagram of the run beside the progress bars
+([The run diagram](#the-run-diagram)) and the computer's load under the Steps
+panel ([Resource use](#resource-use)).
 
 The **Run** menu has the same commands, and **Run pipeline** is Ctrl+R. Each
 step tab's **Run this step** runs just that step over the selected datasets,
@@ -2310,7 +2312,7 @@ file for Signals, one per format for Export, as `export:chronux`): **Step**,
 Rows whose status starts with `duplicate` or `error` block the run. The full
 list is in [Plan](EphysPipeline.md#plan).
 
-<!-- wiki: ![The Run tab after Validate and Plan, with the run diagram and the resource monitor shown](images/app-run-plan.png) -->
+<!-- wiki: ![The Run tab after Validate and Plan, with the run diagram and the resource monitor](images/app-run-plan.png) -->
 
 ### Progress and results
 
@@ -2415,9 +2417,9 @@ stopped: MATLAB waits for them.
 
 ### The run diagram
 
-**Show the run diagram** (under the Run buttons) splits the right side in
-two, 3:1: the progress bars, issues, results and log keep the left three
-quarters and a diagram of the run takes the right quarter. It draws every
+The right side of the tab is split in two, 3:1: the progress bars, issues,
+results and log keep the left three quarters and a diagram of the run takes
+the right quarter. It draws every
 step in execution order (Probe check, Behavior, Artifacts, Sorting, Signals,
 Spikes, Export), in the Diagram tab's step colours, each with a line saying
 what it does under the working config.
@@ -2438,13 +2440,12 @@ what it does under the working config.
   how the run ended.
 
 Before the first run the diagram previews the ticked steps and follows the
-checklist; afterwards it keeps the last run until the next one starts. The
-switch is remembered between sessions.
+checklist; afterwards it keeps the last run until the next one starts.
 
 ### Resource use
 
-**Monitor CPU, memory, disk and GPU** (under the run diagram switch) opens a
-**Resource use** panel under the Steps panel with a bar and figures for each:
+The **Resource use** panel under the Steps panel has a bar and figures for
+each of:
 
 | Row | Shows |
 | --- | --- |
@@ -2462,10 +2463,11 @@ counters once, keeps one `nvidia-smi` running in loop mode for the GPU, and
 every 2 s overwrites one small JSON file in its own temporary folder;
 together they use well under 1 % of one core. The app only reads that file
 on a 2 s timer, and not at all while another tab is showing, so a busy
-MATLAB never stops the sampling itself. Unticking, or closing the app, stops
-the sampler (it also stops by itself when MATLAB exits) and it deletes its
-folder; if no sample comes for 15 s, the app starts a new one. The switch is
-remembered between sessions.
+MATLAB never stops the sampling itself. The sampler starts the first time the
+Run tab is shown (also by **Validate config**, **Plan** and **Run pipeline**)
+and runs until the app closes, which stops it (it also stops by itself when
+MATLAB exits) and it deletes its folder; if no sample comes for 15 s, the app
+starts a new one.
 
 ## Visualize
 
@@ -3263,8 +3265,6 @@ of a config lives here:
 | `CopyOptions` | the Copy tab's subject, roots, pairing and copy options (not the dates) |
 | `SynthOptions` | the Synthetic tab's settings and its design (as `SyntheticDesign` JSON in `design`) |
 | `DiagramView`, `DiagramLayout` | the Diagram tab's **View** (`detail` \| `overview`) and **Layout** (`tree` \| `steps`) |
-| `ShowRunDiagram` | the Run tab's **Show the run diagram** switch |
-| `MonitorResources` | the Run tab's **Monitor CPU, memory, disk and GPU** switch |
 | `QueueSortingRuns` | the Run tab's **Queue the waiting runs; the Run goes on** switch |
 | `KeptSortingQueue` | the sorting queues kept at Close (**Keep the queue for next time**), one element per project root: `root`, `saved` (when), `runs` (`Name`, `key`: the dataset's folder relative to the root, `prepared`: the run `launchSorting` starts). Offered back, then removed, once that root is scanned ([Run](#run)) |
 | `KeptSortingRuns` | the background Kilosort4 runs going at Close (`EphysPipeline.emptyRuns` shape), followed again, then removed, at the next launch |
@@ -3333,8 +3333,8 @@ app.KSQueue                       % prepared runs waiting for a slot (Queue the 
 | `gatherConfig.m`, `applyConfig.m`, `gather*/apply*Section.m`, `gather/applyConvertConfig.m`, `gather/applySortingSection.m`, `setControlValue.m`, `onConfigChanged.m`, `syncStepEnableStates.m`, `updateTitle.m` | config model (`setControlValue`: a config value into a control, noting one it cannot show; numbers in text fields are written with `EphysPipelineConfig.numberText`) |
 | `onNewConfig.m`, `onOpenConfig.m`, `openConfigFile.m`, `onSaveConfig.m`, `onSaveConfigAs.m`, `onExportConfigCopy.m`, `onGenerateScript.m`, `onCreateSyntheticProject.m`, `createSyntheticProject.m`, `onOpenAnalysisApp.m`, `confirmDiscard.m`, `addRecentConfig.m`, `refreshRecentMenu.m` | File menu |
 | `buildPipeline.m`, `runPipeline.m`, `onRunStep.m`, `onCancelRun.m`, `onValidate.m`, `onPlan.m`, `refreshStepPlan.m`, `onPipelineProgress.m`, `runLog.m`, `setRunBar.m`, `showIssues.m`, `onParallelControlsChanged.m`, `projectAtRoot.m`, `refuseWhileRunning.m` | running (`projectAtRoot`: whether the scanned project is the config's; `refuseWhileRunning`: the alert that refuses a dataset edit during a run) |
-| `onRunDiagramToggled.m`, `resetRunDiagram.m`, `updateRunDiagram.m`, `finishRunDiagram.m`, `refreshRunDiagram.m`, `runDiagramHTML.m` | the Run tab's diagram of the run: show / hide, its model (start, progress events, end), what is sent to the page, the page |
-| `onResourceMonitorToggled.m`, `startResourceMonitor.m`, `stopResourceMonitor.m`, `pollResourceMonitor.m`, `showResourceSample.m`, [`resource_monitor.ps1`](../pipeline/resource_monitor.ps1) | the Run tab's resource monitoring: show / hide, launching and stopping the sampler, the timer reading it, the display |
+| `resetRunDiagram.m`, `updateRunDiagram.m`, `finishRunDiagram.m`, `refreshRunDiagram.m`, `runDiagramHTML.m` | the Run tab's diagram of the run: its model (start, progress events, end), what is sent to the page, the page |
+| `startResourceMonitor.m`, `stopResourceMonitor.m`, `pollResourceMonitor.m`, `showResourceSample.m`, [`resource_monitor.ps1`](../pipeline/resource_monitor.ps1) | the Run tab's resource monitoring: launching and stopping the sampler, the timer reading it, the display |
 | `buildTrialsTab.m`, `onTrialsLoad.m`, `repairTrials.m`, `refreshTrialsView.m`, `refreshTrialsTable.m`, `refreshTrialsPlot.m`, `trialsColumnOrder.m`, `onTrialsTableMenu.m`, `onTrialsPlotMenu.m`, `onTrialsCutsChanged.m`, `syncTrialsCuts.m`, `onTrialsApprove.m`, `onTrialsPrefetch.m`, `onTrialsWriteBehavior.m`, `onTrialsToWorkspace.m`, `onTrialsSettingsChanged.m`, `clearTrialsView.m`, `fillTrialsLines.m`, `setTrialsLineItems.m`, `syncTrialsButtons.m` | Trials tab |
 | `onScan.m`, `refreshDatasetsTable.m`, `onDatasetCellSelection.m`, `onSelectDatasets.m`, `onRefreshMetadata.m`, `onAssociateBehavior.m`, `onClearBehavior.m`, `onBrowseBehaviorDir.m`, `saveManifests.m` | Project tab (`saveManifests`: the manifests after a per-dataset edit, with an alert for one that could not be written) |
 | `selectDataset.m`, `currentDataset.m`, `populateDatasetPickers.m`, `refreshDatasetMenu.m`, `refreshDatasetPickers.m`, `datasetPicker.m`, `highlightDatasetRow.m` | the active dataset: Dataset menu, every tab's Dataset box, the highlighted table row |
@@ -3377,10 +3377,10 @@ note, the Open Ephys and TDT options saved and pushed to the datasets, a TDT gai
 block's stream list and status, an integer stream asking for a gain), plan, the Sorting tab's Optimize for probe (each answer to the offer to generate a
 missing parameter file, including a probe map without positions, loading the
 file, the default-probe fallback, the Probe tab's listing and info) and Reset to defaults, one step through the pipeline,
-the run diagram (its quarter of the right side, the last run followed while hidden, a run's steps and percentages
-event by event, a cancel, the preview that follows the checklist, the preference),
-resource monitoring (a sample's figures and colours, n/a readings, live samples from the sampler, the preference, the sampler
-exiting and removing its folder when unticked), the Clean up tab's preview (every file listed, a raw
+the run diagram (always shown, its quarter of the right side, the last run, a run's steps and percentages
+event by event, a cancel, the preview that follows the checklist),
+resource monitoring (the panel always shown, a sample's figures and colours, n/a readings, the sampler starting when the Run tab is shown, live samples from it, the sampler
+exiting and removing its folder when stopped), the Clean up tab's preview (every file listed, a raw
 recording without a copy record kept, nothing deleted, the Keep rows hidden on request, a changed tick box discarding it,
 a Visualize envelope going by default and staying unticked, the Sorting step's box marking its whole folder), a move into the project refused, a move out of it (layout, record, preview again) and the preferences,
 the Analysis tab (an analysis config's summary and plots, the Run checklist box, its plan with and without the

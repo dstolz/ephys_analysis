@@ -56,8 +56,7 @@ if ~isempty(obj.RunSelectionLabel) && isvalid(obj.RunSelectionLabel)
         obj.RunSelectionLabel.Text = sprintf("Selection: all %d dataset(s).", obj.Project.NumDatasets);
     end
 end
-if ~isempty(obj.RunDiagramCheckBox) && isvalid(obj.RunDiagramCheckBox) && obj.RunDiagramCheckBox.Value ...
-        && obj.RunDiagram.phase == "idle"
+if ~isempty(obj.RunDiagramHTML) && isvalid(obj.RunDiagramHTML) && obj.RunDiagram.phase == "idle"
     obj.resetRunDiagram();
 end
 end

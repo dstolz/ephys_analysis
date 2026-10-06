@@ -4,9 +4,7 @@ function updateRunDiagram(obj, evt)
 %   Its step becomes the one underway and the steps of the run before it
 %   are done. The step's percentage is how far it is through its datasets,
 %   (index - 1 + done/total) / count, and never goes back. The results so
-%   far (obj.Pipe.Results) give each step its counts. The model is kept
-%   while the diagram is hidden, so ticking Show the run diagram in the
-%   middle of a run shows where it is.
+%   far (obj.Pipe.Results) give each step its counts.
 
 M = obj.RunDiagram;
 if M.phase ~= "running"; return; end

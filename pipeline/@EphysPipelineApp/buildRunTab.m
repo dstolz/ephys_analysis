@@ -5,15 +5,15 @@ function buildRunTab(obj)
 %   ones with the monitor instead of waiting), validate / plan,
 %   run / dry run / cancel, progress bars, validation issues, results,
 %   merged log and the background Kilosort4 runs being monitored (Stop
-%   runs... stops running ones, Stop queue drops the queued ones). With
-%   Show the run diagram ticked, a diagram of the run's steps (the one
-%   underway highlighted, each with its percentage) takes the right quarter
-%   of the right side (onRunDiagramToggled, runDiagramHTML). With Monitor CPU,
-%   memory, disk and GPU ticked, their use is shown under the Steps panel
-%   (onResourceMonitorToggled, resource_monitor.ps1).
+%   runs... stops running ones, Stop queue drops the queued ones). A diagram
+%   of the run's steps (the one underway highlighted, each with its
+%   percentage) always takes the right quarter of the right side
+%   (runDiagramHTML), and the computer's CPU, memory, disk and GPU use is
+%   always shown under the Steps panel (resource_monitor.ps1, started by
+%   onTabChanged when the tab is first shown).
 
 g = uigridlayout(obj.TabRun, [2 2]);
-g.RowHeight   = {'1x', 0};   % onResourceMonitorToggled: {'1x', 'fit'} while monitoring
+g.RowHeight   = {'1x', 'fit'};
 obj.RunLeftGrid = g;
 g.ColumnWidth = {300, '1x'};
 g.Padding     = [10 10 10 10];
@@ -22,8 +22,8 @@ g.Padding     = [10 10 10 10];
 % --- steps checklist ---------------------------------------------------------
 steps = uipanel(g, "Title", "Steps (same switches as on each tab)");
 steps.Layout.Row = 1; steps.Layout.Column = 1;
-sg = uigridlayout(steps, [17 1]);
-sg.RowHeight = [repmat({'fit'}, 1, 16), {'1x'}];
+sg = uigridlayout(steps, [15 1]);
+sg.RowHeight = [repmat({'fit'}, 1, 14), {'1x'}];
 uilabel(sg, "Text", "Probe check (always)", "FontColor", [0.4 0.4 0.4]);
 obj.RunBehaviorCheckBox  = uicheckbox(sg, "Text", "Behavior: match Epsych2 sessions", "ValueChangedFcn", @(src,~) mirror(obj, "BehEnableCheckBox", src.Value));
 obj.RunArtifactsCheckBox = uicheckbox(sg, "Text", "Artifacts: automatic detection", "ValueChangedFcn", @(src,~) mirror(obj, "ArtEnableCheckBox", src.Value));
@@ -74,15 +74,9 @@ obj.RunDryButton = uibutton(bg, "Text", "Dry run", "ButtonPushedFcn", @(~,~) obj
 obj.RunCancelButton = uibutton(bg, "Text", "Cancel", "Enable", "off", ...
     "ButtonPushedFcn", @(~,~) obj.onCancelRun());
 sg.RowHeight([obj.RunValidateButton.Layout.Row, obj.RunPlanButton.Layout.Row, bg.Layout.Row]) = {30};
-obj.RunDiagramCheckBox = uicheckbox(sg, "Text", "Show the run diagram", ...
-    "Tooltip", "Draw the steps beside the progress bars: the one underway highlighted, each with its % done.", ...
-    "ValueChangedFcn", @(~,~) obj.onRunDiagramToggled());
-obj.RunMonitorCheckBox = uicheckbox(sg, "Text", "Monitor CPU, memory, disk and GPU", ...
-    "Tooltip", "Show the computer's CPU, memory, disk and GPU use under this panel, sampled every 2 s by a small idle-priority process outside MATLAB.", ...
-    "ValueChangedFcn", @(~,~) obj.onResourceMonitorToggled());
 
-% --- resource use (when monitored), under the Steps panel ----------------------
-obj.RunMonitorPanel = uipanel(g, "Title", "Resource use", "Visible", "off");
+% --- resource use, under the Steps panel (sampled every 2 s by a small idle-priority process outside MATLAB)
+obj.RunMonitorPanel = uipanel(g, "Title", "Resource use");
 obj.RunMonitorPanel.Layout.Row = 2; obj.RunMonitorPanel.Layout.Column = 1;
 mg = uigridlayout(obj.RunMonitorPanel, [5 3]);
 mg.RowHeight = {18, 18, 18, 18, 'fit'};
@@ -98,12 +92,12 @@ end
 obj.RunMonitorNote = uilabel(mg, "Text", "", "WordWrap", "on", "FontColor", [0.4 0.4 0.4]);
 obj.RunMonitorNote.Layout.Row = 5; obj.RunMonitorNote.Layout.Column = [1 3];
 
-% --- right side: progress + results + log | the run diagram (when shown) -----
+% --- right side: progress + results + log | the run diagram -------------------
 obj.RunSplitGrid = uigridlayout(g, [1 2]);
 obj.RunSplitGrid.Layout.Row = [1 2]; obj.RunSplitGrid.Layout.Column = 2;
 obj.RunSplitGrid.RowHeight = {'1x'};
-obj.RunSplitGrid.ColumnWidth = {'1x', 0};   % onRunDiagramToggled: {'3x', '1x'} while shown
-obj.RunSplitGrid.ColumnSpacing = 0;
+obj.RunSplitGrid.ColumnWidth = {'3x', '1x'};
+obj.RunSplitGrid.ColumnSpacing = 10;
 obj.RunSplitGrid.Padding = [0 0 0 0];
 
 right = uigridlayout(obj.RunSplitGrid, [9 3]);
@@ -147,7 +141,7 @@ obj.RunKSStopQueueButton = uibutton(ksg, "Text", "Stop queue", "Enable", "off", 
     "Tooltip", "Drop the queued sorting runs that have not started. Runs already going carry on.", ...
     "ButtonPushedFcn", @(~,~) obj.onStopKSQueue());
 
-obj.RunDiagramPanel = uipanel(obj.RunSplitGrid, "Title", "Run diagram", "Visible", "off");
+obj.RunDiagramPanel = uipanel(obj.RunSplitGrid, "Title", "Run diagram");
 obj.RunDiagramPanel.Layout.Row = 1; obj.RunDiagramPanel.Layout.Column = 2;
 dg = uigridlayout(obj.RunDiagramPanel, [1 1], "Padding", [0 0 0 0]);
 obj.RunDiagramHTML = uihtml(dg, "HTMLSource", char(obj.runDiagramHTML()));

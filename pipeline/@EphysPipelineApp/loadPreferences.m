@@ -10,9 +10,8 @@ function loadPreferences(obj)
 %   column order, the Trials-plot label parameters, the Visualize
 %   display options, the Copy tab settings (subject, roots and their recent
 %   lists, pairing and copy options; not the dates), the Synthetic tab's settings and
-%   design, the Diagram tab's view and layout, the Run tab's Show the run diagram,
-%   Monitor CPU, memory, disk and GPU and Queue the waiting runs, and the
-%   kinds of file the Clean up tab removes, and the last Python exe set
+%   design, the Diagram tab's view and layout, the Run tab's Queue the
+%   waiting runs, and the kinds of file the Clean up tab removes, and the last Python exe set
 %   (the Python a new config starts with, see defaultPythonExe).
 %   Everything else lives in the config; the last config file is reopened
 %   at launch (defaults otherwise). The Kilosort4 runs kept when the app
@@ -79,14 +78,6 @@ if AppPrefs.ispref(g, 'DiagramLayout') && ismember(string(AppPrefs.getpref(g, 'D
 end
 if AppPrefs.ispref(g, 'DiagramHideUnused')
     obj.FlowHideCheckBox.Value = isequal(AppPrefs.getpref(g, 'DiagramHideUnused'), true);
-end
-if AppPrefs.ispref(g, 'ShowRunDiagram')
-    obj.RunDiagramCheckBox.Value = isequal(AppPrefs.getpref(g, 'ShowRunDiagram'), true);
-    obj.onRunDiagramToggled();
-end
-if AppPrefs.ispref(g, 'MonitorResources')
-    obj.RunMonitorCheckBox.Value = isequal(AppPrefs.getpref(g, 'MonitorResources'), true);
-    obj.onResourceMonitorToggled();
 end
 if AppPrefs.ispref(g, 'QueueSortingRuns')
     obj.RunKSQueueCheckBox.Value = isequal(AppPrefs.getpref(g, 'QueueSortingRuns'), true);

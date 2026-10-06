@@ -10,8 +10,12 @@ function X = readChunkUV(obj, chunk)
 %
 %   - "rhd"   chunks read the amplifier data of a whole traditional *.rhd
 %             file (microvolts = 0.195*(uint16-32768)) straight from its data
-%             blocks (rhdRows: the values READ_INTAN_RHD2000_FILE_MODIFIED
-%             gives, without decoding the file's other signals).
+%             blocks (recordingRows: the values READ_INTAN_RHD2000_FILE_MODIFIED
+%             gives, without decoding the file's other signals). A file
+%             saved before version 3.0 with the software notch on is
+%             filtered as part of the recording's stream, from where the
+%             file before it left off (to rounding), not from its own
+%             first sample.
 %   - "split" chunks read a sample window from the flat int16 .dat file(s) via
 %             EphysDataset.readSplitWindow (microvolts = 0.195*int16).
 %   Both produce microvolts on the same scale, so downstream processing is
@@ -34,7 +38,15 @@ switch chunk.kind
             X = zeros(0, 0);
             return
         end
-        X = obj.rhdRows(name, 1, hdr.numAmplifierSamples);   % [nSamp x nChan], microvolts
+        if isnan(chunk.sampleOffset)          % a file the header parse did not see: on its own
+            X = obj.rhdRows(name, 1, hdr.numAmplifierSamples);
+            if hdr.notchFrequency > 0 && hdr.mainVersion < 3
+                X = IntanReader.notchFilter(X, hdr.sampleRate, hdr.notchFrequency);
+            end
+            return
+        end
+        X = obj.recordingRows(chunk.sampleOffset + 1, ...
+            chunk.sampleOffset + hdr.numAmplifierSamples);   % [nSamp x nChan], microvolts
 
     case "split"
         X = obj.readSplitWindow(chunk.sampleOffset, chunk.nSamples);

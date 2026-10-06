@@ -13,6 +13,16 @@ go up one level. Links are rewritten for the wiki:
         the file on GitHub (main)
   #anchor on the same file
         kept when the page holds that heading, else as above
+  a wiki page by name (Quick-Start, Output-Files#behavior)
+        kept: a link only the wiki has, from a wiki-only comment
+
+What only the wiki shows (its screenshots, mainly) sits in documentation/ as
+an HTML comment, which GitHub hides there and this script unwraps:
+    <!-- wiki: ![The Run tab](images/app-run-plan.png) -->
+or, for several lines,
+    <!-- wiki
+    ![The Run tab](images/app-run-plan.png)
+    -->
 
 Pages whose status is "candidate" still hold content in the wiki that
 documentation/ lacks. They are generated for comparison (--out, --report)
@@ -60,7 +70,7 @@ def split_sections(text):
 
 
 def anchors_by_section(text):
-    """{anchor: section title (None before the first "## ")} for every heading of TEXT."""
+    """{anchor: section title (None before the first "## ")} for every heading and <a name> target of TEXT."""
     seen, out, fence, section = set(), {}, False, None
     for line in text.split("\n"):
         if line.startswith("```"):
@@ -73,9 +83,33 @@ def anchors_by_section(text):
             if len(m.group(1)) == 2:
                 section = m.group(2)
             out[anchor_of(m.group(2), seen)] = section
-    for a in re.findall(r'<a (?:name|id)="([^"]+)"', text):
-        out.setdefault(a, section)
+        for a in re.findall(r'<a (?:name|id)="([^"]+)"', line):
+            out.setdefault(a, section)                     # the section it sits in
     return out
+
+
+def unwrap_wiki(text):
+    """TEXT with its wiki-only comments ("<!-- wiki: x -->", or "<!-- wiki" ... "-->" lines) unwrapped."""
+    out, fence, block = [], False, False
+    for line in text.split("\n"):
+        if line.startswith("```") and not block:
+            fence = not fence
+        if not fence:
+            if block:
+                if line.strip() == "-->":
+                    block = False
+                    continue
+            elif line.strip() == "<!-- wiki":
+                block = True
+                continue
+            else:
+                m = re.match(r'^<!-- wiki:\s?(.*?)\s*-->\s*$', line)
+                if m:
+                    line = m.group(1)
+        out.append(line)
+    if block:
+        raise SystemExit('a "<!-- wiki" block has no closing "-->"')
+    return "\n".join(out)
 
 
 def load_pages(repo):
@@ -120,6 +154,8 @@ def rewrite_links(body, src, idx, texts, own):
         label, url = m.group(1), m.group(2)
         if re.match(r'^[a-z]+:', url) or url.startswith("mailto:"):
             return m.group(0)
+        if re.match(r'^[A-Z][A-Za-z0-9]*(?:-[A-Za-z0-9]+)*(?:#[\w-]*)?$', url):
+            return m.group(0)                            # a wiki page by name (Quick-Start), from a wiki-only comment
         path, _, anchor = url.partition("#")
         if path == "":
             rel = src                                   # same file
@@ -145,7 +181,7 @@ def rewrite_links(body, src, idx, texts, own):
 
 def build(p, texts, idx):
     src = p["source"]
-    text = texts[src]
+    text = unwrap_wiki(texts[src])
     lines = text.split("\n")
     if lines and lines[0].startswith("# "):
         lines = lines[1:]

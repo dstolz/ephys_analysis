@@ -349,6 +349,11 @@ check(strcmp(errorId(@() epochWindow(mode="between")), 'epochWindow:NoStop'), 'b
 check(strcmp(errorId(@() eventRef(edge="middle")), 'eventRef:BadValue'), 'a bad edge: eventRef:BadValue');
 check(strcmp(errorId(@() epochTable(src, eventRef(line="Stim"), Window=epochWindow(pre=-100, post=0))), 'epochTable:NoEpochs'), ...
     'windows outside the recording: epochTable:NoEpochs');
+Ew = epochTable(src, eventRef(line="Stim", scope="trial"), Window=epochWindow(pre=0, post=0.1), Artifacts="keep");
+bEarly = -(min(Ew.t0) + 0.05);   % the first event's baseline starts 0.05 s before the recording
+Ebl = epochTable(src, eventRef(line="Stim", scope="trial"), Window=epochWindow(pre=0, post=0.1), Artifacts="keep", Baseline=[bEarly 0]);
+check(height(Ebl) == height(Ew) - 1 && ~ismember(min(Ew.t0), Ebl.t0) && Ebl.Properties.UserData.nDroppedEdge == 1, ...
+    'a baseline that starts before the recording drops the epoch (counted at the edge), whatever its window');
 check(strcmp(errorId(@() epochTable(src, eventRef(line="Stim"), Selection=trialSelection(filter="Depth > 5"))), 'resolveEvents:NoEvents'), ...
     'a filter that keeps nothing: resolveEvents:NoEvents');
 nb = src;

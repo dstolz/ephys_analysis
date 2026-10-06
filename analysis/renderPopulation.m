@@ -6,7 +6,9 @@ function h = renderPopulation(P, S, kind, target, opts)
 %     "psth"       each group's mean PSTH +/- SEM across its units
 %     "fractions"  per group, the share of the units tested that are
 %                  excited and suppressed (responsive, by direction) and
-%                  tuned
+%                  tuned, and of the units the auROC called, those called
+%                  up and down (the cutoff, pooled over the family's unit x
+%                  group curves, in the subtitle)
 %     "tuning"     each group's mean tuning curve +/- SEM across its units
 %                  (S.tuning.normalize); a text parameter is spaced evenly
 %     "depth"      every unit at its probe y against its response
@@ -59,11 +61,17 @@ switch kind
         else
             Y = [G.nExcited G.nSuppressed] ./ G.nTested;
             leg = ["excited" "suppressed"];
+            fc = [0.85 0.25 0.15; 0.2 0.4 0.8];
             if any(G.nTuningTested > 0)
                 Y = [Y, G.nTuned ./ G.nTuningTested];
                 leg(end+1) = "tuned";
+                fc(end+1, :) = [0.35 0.6 0.35];
             end
-            fc = [0.85 0.25 0.15; 0.2 0.4 0.8; 0.35 0.6 0.35];
+            if any(G.nAurocCalled > 0)
+                Y = [Y, [G.nAurocIncrease G.nAurocDecrease] ./ G.nAurocCalled];
+                leg = [leg "auROC up" "auROC down"];
+                fc = [fc; 0.95 0.6 0.45; 0.55 0.7 0.95];
+            end
             nS = size(Y, 2);
             w = 0.8 / nS;
             b = gobjects(1, nS);
@@ -77,6 +85,7 @@ switch kind
             ylim(ax, [0 1]);
             ylabel(ax, 'Share of the units tested');
             title(ax, 'Responsive and tuned units', 'FontWeight', 'normal');
+            if any(G.nAurocCalled > 0); subtitle(ax, aurocNote(S.auroc), 'FontSize', style.FontSize - 1); end
             if style.Legend; legend(ax, b, leg, 'Location', 'best'); end
         end
     case "tuning"
@@ -136,6 +145,30 @@ end
 styleAxes(ax, style);
 hold(ax, 'off');
 h = struct('layout', tl, 'axes', ax);
+end
+
+
+function s = aurocNote(A)
+%aurocNote  How the auROC calls were made, e.g. "auROC: 95% CI cutoff +/-0.083 over 48 curves of 24 units".
+F = A.families;
+switch A.cutoff
+    case "ci"
+        if height(F) == 1
+            s = sprintf("auROC: 95%% CI cutoff \\pm%.3g over %d curves of %d units", F.cutoffValue, F.nCurves, F.nUnits);
+        else
+            s = sprintf("auROC: 95%% CI cutoff \\pm%.3g to \\pm%.3g over each dataset's units", ...
+                min(F.cutoffValue), max(F.cutoffValue));
+        end
+    case "fixed"
+        s = sprintf("auROC: fixed cutoff \\pm%.3g", F.cutoffValue(1));
+    otherwise
+        s = "auROC: a test per unit, corrected over " + ternary(height(F) == 1, "every unit", "each dataset");
+end
+end
+
+
+function s = ternary(c, a, b)
+if c; s = a; else; s = b; end
 end
 
 

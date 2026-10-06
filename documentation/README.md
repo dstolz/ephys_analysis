@@ -32,7 +32,7 @@ on `pipeline`; `pipeline` does not depend on it. See [Analysis](EphysAnalysis.md
 | [ProbeDesignerApp](ProbeDesignerApp.md) | building a Kilosort4 probe `.json` from probeinterface |
 | [ChannelMapperApp](ChannelMapperApp.md) | mapping probe sites through the package and headstage (NeuroNexus packages, Intan headstages, the `pipeline/hardware` bank) to recording rows; copying the map; exporting the Kilosort4 probe `.json` (`ChannelMap`, `HardwareBank`) |
 | [ManifestViewerApp](ManifestViewerApp.md) | viewing one dataset manifest, with its paths checked on disk |
-| [Visualize](EphysPipelineApp.md#visualize) | `EphysTraceSource` (the recording, the Sorting `.bin` or a derived signal, read a window at a time) and `EphysTraceViewer` (stacked lanes with sorted units and detected spikes over them), behind the app's Visualize tab |
+| [Visualize](EphysPipelineApp.md#visualize) | `EphysTraceSource` (the recording, the Sorting `.bin` or a derived signal, read a window at a time), `EphysTraceEnvelope` (its min / max at several block sizes, cached on disk and built in the background, for views wider than one read) and `EphysTraceViewer` (stacked lanes with sorted units and detected spikes over them), behind the app's Visualize tab |
 | [intan2matlab](intan2matlab.md) | `intan2matlab` / `deriveSignals` / `toMat`: LFP, MUA, SPIKE and digital events |
 | [ChronuxDataset](ChronuxDataset.md) | connector that hands recordings, trials and spike trains to the Chronux toolbox |
 | [FieldTripExport](FieldTripExport.md) | FieldTrip raw / spike / event structures and `exportFieldTrip` |
@@ -57,14 +57,14 @@ the API generator, the link check and the app screenshots).
 ```mermaid
 flowchart LR
     RAW(["Raw data"])
-    RAW --- REC[("recording folder<br/>*.rhd, info.rhd + *.dat,<br/>Open Ephys Record Node,<br/>or recording.json + .bin")]
+    RAW --- REC[("recording folder<br/>*.rhd, info.rhd + *.dat,<br/>Open Ephys Record Node,<br/>TDT block (.tsq + .tev, .sev),<br/>or recording.json + .bin")]
     RAW --- BEH[(Epsych2 session .mat)]
 
     REC -- digitalEvents --> EVT[("_events.mat<br/>digital-input events")]
     REC -- artifactIntervals --> ART[("_artifacts.json<br/>artifact intervals")]
     REC -- toBin --> BIN[(".bin<br/>Kilosort4 input")]
     REC -- toMat --> MAT[("_extract.mat<br/>LFP / MUA / SPIKE / AUX<br/>+ digital events")]
-    REC -- spikesToMat --> SPK[("_spikes.mat<br/>detected + sorted spikes")]
+    REC -- spikesToMat --> SPK[("_spikes.mat<br/>threshold-detected spikes")]
     BEH -- behaviorToMat ----> BMAT[("_behavior.mat<br/>trials + pairing")]
 
     ART -. erased .-> BIN
@@ -72,7 +72,6 @@ flowchart LR
     ART -. dropped .-> SPK
     BIN -- "Kilosort4<br/>run_ks4.py" --> KS[("kilosort4/<br/>phy files")]
     PRB[("probe .json<br/>ProbeDesignerApp")] -.-> KS
-    KS -. readSortedUnits .-> SPK
     EVT -. pairTrials .-> BMAT
 
     subgraph EXP["exports"]
@@ -80,13 +79,15 @@ flowchart LR
         FTX[(_fieldtrip.mat)]
         EPO[(_epochs.mat)]
         KCX[(_kcsd.npz)]
+        NWBX[(.nwb)]
     end
     MAT -- exportChronux --> CHX
     MAT -- exportFieldTrip --> FTX
     MAT -- exportEpochs --> EPO
     MAT -- exportKCSD --> KCX
+    MAT -- exportNWB --> NWBX
     SPK & KS -.-> EXP
-    BMAT -.-> EPO
+    BMAT -.-> EPO & NWBX
     CHX -.-> CHRONUX[/Chronux/]
     FTX -.-> FIELDTRIP[/FieldTrip/]
     KCX -.-> KCSD[/kCSD-python/]
@@ -302,7 +303,7 @@ Collected from the code. Each is explained on the linked page.
 | Sorted waveforms | `templateWaveform` is Kilosort4's template (its mean of the unit's spikes in the whitened, high-passed data), unwhitened with `whitening_mat_inv.npy` (transposed), in µV when the run's `settings.json` has `bin_scale` (`runKilosort` writes it), else in `.bin` units (`units.templateUnits` says which); it is not scaled by the amplitude and not a raw-spike average. `EphysDataset.readPhyWaveforms` cuts the spikes themselves from the sorted `.bin`, prepared as Kilosort4 saw them before whitening, on the templates' time axis and in their units | [EphysDataset → Reading sorted units](EphysDataset.md#reading-sorted-units) |
 | Review firing rates | spike count ÷ the sorted time, from Kilosort4's `tmin` to `min(tmax, recording end)`; the time of the last spike only when the recording's length is unknown | [App → Review](EphysPipelineApp.md#review) |
 | Epsych2 trials | paired **in order** with the intervals of the trial line, not by timestamps (`pairEpsychTrials` / `ds.pairTrials`, the behavior step's `PairTrials`, the Trials tab), and reviewed before approval (`setTrialPairing`, `autoApproveTrialPairing`); the pairing goes into `<Name>_behavior.mat` and the behavior-sourced epochs | [EphysPipeline → Pairing trials](EphysPipeline.md#pairing-trials-with-the-trial-line) |
-| Background sorting + dependent steps | a background sorting run cannot feed `Spikes` (sorted) or `Export` (units) in the same run; `validate` reports it | [EphysPipeline → Validation](EphysPipeline.md#validation) |
+| Background sorting + dependent steps | a background sorting run cannot feed `Export` (units, `Export.IncludeUnits`) in the same run; `validate` reports it | [EphysPipeline → Validation](EphysPipeline.md#validation) |
 | Duplicate dataset names | two recordings with the same leaf name under one `Project.OutputRoot` share `<OutputRoot>/<Name>`: `plan()` refuses either one (`error: output folder shared with <key>`), even when only one is selected; same-name files in a shared step `OutputDir` are `duplicate output`; `DatasetOutputs` and the clean-up ignore another recording's files by their recorded source folder. Rename one folder, or leave `OutputRoot` empty | [EphysPipeline → Dataset keys](EphysPipeline.md#dataset-keys) |
 | Probe mapping | `chanMap` indexes `.bin` rows, not hardware channel numbers; a recording with a channel disabled at acquisition needs a probe that accounts for the gap | [Python drivers](python-drivers.md#channel-numbering-caveat) |
 | Open Ephys TTL lines at a recording start | a line already high when a recording starts is seen from Binary always, from NWB when that recording has any TTL edge, and from the Open Ephys format only when its first edge there is falling; intervals are split at recording boundaries | [EphysDataset → Open Ephys sessions](EphysDataset.md#open-ephys-sessions) |
@@ -350,13 +351,18 @@ read again, a progress callback, a best-effort clean-up) stay quiet.
   derived-signal bad-channel detection; `signrank` and `kruskalwallis` in
   the analysis module's response statistics, `responseStats` and the
   *Responsive only* unit selection; `tiedrank`, `tinv` and `ranksum` in its
-  auROC, `aurocCurves`: the auROC baseline of PSTH and heatmap plots and
-  the auROC response test).
+  auROC, `aurocCurves` and `aurocCall`: the auROC baseline of PSTH and
+  heatmap plots, the auROC response test and `populationAnalysis`' calls
+  pooled over every dataset).
 - Parallel Computing Toolbox (optional; `Parallel.Enabled` in a pipeline
   config, or `UseParallel=true` on `detectSpikes`, `artifactIntervals` and
-  `analyzeArtifacts`).
-- No Report Generator: the analysis module's PDF reports are built with
-  `exportgraphics(..., Append=true)` and its HTML reports by hand.
+  `analyzeArtifacts`). The Visualize tab's envelope builds
+  (`EphysTraceEnvelope`) need no toolbox: `parfeval` on `backgroundPool`
+  is part of MATLAB.
+- No Report Generator: the analysis module's PDF reports are vector pages
+  from `exportgraphics`, joined with the Apache PDFBox library that MATLAB
+  ships on its Java class path (`java/jarext/pdfbox.jar`,
+  `PDFMergerUtility`), and its HTML reports are written by hand.
 
 **Functions from elsewhere in this repository**:
 
@@ -375,7 +381,8 @@ pynwb and nwbinspector (the same environment or another). See
 [INSTALL.md](../pipeline/INSTALL.md) for known-good versions.
 
 **Optional MATLAB toolboxes**: [Chronux](http://chronux.org) (bundled in
-[`toolboxes/chronux`](../toolboxes/chronux); add it with `addpath(genpath(...))`)
+[`toolboxes/chronux`](../toolboxes/chronux), which `addpath_nogit` on the
+repository root puts on the path)
 and [FieldTrip](https://www.fieldtriptoolbox.org/), each only for analysing the
 files the pipeline exports for it. Producing the files never calls either
 toolbox; `ChronuxDataset.hasChronux` / `FieldTripExport.hasFieldTrip` report
@@ -389,10 +396,15 @@ Every suite builds synthetic fixtures in a temp folder (shared builders in
 no optional toolbox are needed; tests that need one are skipped (reported as
 *Incomplete*) where it is missing. Suites come in two forms:
 
-- **TestCase classes** (`test_BinaryReader`, `test_CopySessions`,
-  `test_LocalCleanup`, `test_AppPrefs`, `test_RepositoryMetadata` and the
-  newer suites): `matlab.unittest.TestCase` classes, run with `runtests` or
-  `run_all_tests`. New suites take this form; `test_BinaryReader` is the
+- **TestCase classes** (`matlab.unittest.TestCase`, run with `runtests` or
+  `run_all_tests`): in `pipeline/`, `test_AppPrefs`, `test_BinaryReader`,
+  `test_BinScale`, `test_ClassdefDeclarations`, `test_CopySessions`,
+  `test_DataPathWarnings`, `test_DetectionBenchmark`, `test_LocalCleanup`,
+  `test_NWBExport`, `test_PipelineScriptSave`, `test_PlatformSupport`,
+  `test_Provenance`, `test_ReadNewLines`, `test_RepositoryMetadata`,
+  `test_TableSort`, `test_ThresholdScope` and `test_UnitQuality`; in
+  `analysis/`, `test_Auroc`, `test_PopulationAnalysis` and
+  `test_ResponseStats`. New suites take this form; `test_BinaryReader` is the
   pattern for converting a function-style one (shared fixtures in
   `TestClassSetup`, one test method per section, each `check(cond, msg)` as
   `tc.verifyTrue(cond, msg)` with the same condition).
@@ -438,44 +450,57 @@ suite's temporary preferences, so close it before the run ends.
 
 | Suite | Covers |
 | --- | --- |
-| `test_EphysDataset` | readers, layouts, streaming, artifacts, spikes, `.bin`, dry runs, manifest v2, sorted units, `spikesToMat`, exports, behavior |
-| `test_IntanReader` | the Intan reader: every data-block and on-disk layout, truncated last blocks, window reads across files, `readDigitalEvents` without the amplifier data, the run helpers, one-file-per-channel digital files, the recording start (`AcqDate`), `streamPlan` chunks, `KeepChannels` / `Precision` |
+| `test_EphysDataset` | readers, layouts (aux inputs included), streaming, filters, artifacts (moved bounds, the fill), spike detection, `.bin`, Kilosort4 dry runs (exclusions, `shank_spacing`), JSON and probe maps, manifest v2, sorted units, `spikesToMat` (detections only), exports, behavior, `channelLayout` ([sections](EphysDataset.md#tests)) |
+| `test_IntanReader` | the Intan reader: every data-block and on-disk layout, truncated last blocks, window reads across files, `readDigitalEvents` without the amplifier data, the run helpers, one-file-per-channel digital files, the recording start (`AcqDate`), `streamPlan` chunks, `KeepChannels` / `Precision`; the software notch of files before version 3.0 against Intan's own loop (its speed-up, one stream across files, the lead-in, every read and `toBin`) |
 | `test_BinaryReader` | the universal binary reader: `readDigitalEvents` from `dig_in_file` alone, `readData`, `Files` listing `dig_in_file`, `streamPlan` |
 | `test_AppPrefs` | the apps' preference store: a file store's set / get / remove, nothing reaching MATLAB's own preferences, nested temporary stores, `AppPrefsFixture` |
-| `test_RepositoryMetadata` | `VERSION`, `CITATION.cff`, `CHANGELOG.md` and `ephysVersion` agree on the release number |
+| `test_RepositoryMetadata` | `VERSION` holds major.minor.patch; `CITATION.cff`, `CHANGELOG.md` (and its Unreleased section) and `ephysVersion` agree on it |
+| `test_ClassdefDeclarations` | every methods-block declaration in the `@Class` folders of `pipeline/` and `analysis/` against its method file's `function` line (the number of inputs and outputs, `varargin` / `varargout` apart; a declaration without a method file); mismatches planted in a temporary class are each reported |
 | `test_Provenance` | `ephysProvenance` / `provenanceForJson`; a run's record (finished, cancelled; none for a dry run) and the run id, code and config in its outputs; a step called on its own (config, no run); a direct writer call (code only); `settings.json` |
 | `test_BinScale` | the `.bin` keeps the recording's resolution: Intan's 1/0.195, an int16 recording at another gain written to the integer, unclipped, uint16 with and without Intan's offset, floating-point samples and float `.bin`s on the default, a scale that is set, a project leaving each dataset its own |
 | `test_DataPathWarnings` | fallbacks that change a result warn: a binary `acq_date` that does not parse, an unreadable probe, a given `.bin` without a sidecar, an unreadable output file, a name pattern that does not parse, an Epsych2 start that does not convert; each fallback is as before |
 | `test_SortedUnits` | `readPhyUnits`' label tables, template units and per-unit grouping; `channelLayout` (`chanMap` values are `.bin` rows); `runKilosort(DryRun=true)` leaving an existing run alone; `readPhyWaveforms` (the spikes' windows in the sorted `.bin`) |
+| `test_UnitLabels` | unit labels: `parseNameTokens` formats, `nameIdentity`, class and id padding, identity and location columns, notes, `readSortedUnits` identity errors, `EphysProject` pattern push and collisions, `unitTable` |
 | `test_DeriveSignals` | derived signals: bad channels as columns (the config's recording channels mapped to them), interpolated from the probe geometry or, without one, across columns; automatic detection; the MUA / SPIKE filters in double; non-integer rates; `info.<type>.nSamples`; line naming and polarity from `TrialConfig`; artifact periods erased before deriving (the line fill, `info.artifacts`, no filter ringing outside the period, AUX untouched) |
+| `test_CommonReference` | the common reference: none by default, the suggested channels (floating ones; none left out when too few would remain), `prepareReference` and the manifest, CAR and CMR over the good channels, exclusions, `toBin`, the `Artifacts` settings and the microvolt-threshold warning, the common-mode detector under a reference, the derived signals that take it (`referenceSignals`) |
 | `test_OpenEphysReader` | Open Ephys sessions (Binary, Open Ephys format, NWB): metadata, samples across recordings and gaps, TTL lines, AUX / ADC, discovery, record node / stream, the recording modes, line names, the pipeline on a synthetic Open Ephys project |
-| `test_TDTReader` | TDT Synapse blocks (TSQ / TEV / Tbk / SEV): discovery, metadata, exact samples from TEV chunks and SEV files, stream choice and gain, epocs as TDT's readers return them and their rows on the stream grid (late stream start, gaps), disabled stores, line names, `Acquisition.TDT` |
-| `test_EphysProject` (in `test_EphysDataset` §7 / §15) | discovery, keys, `refresh` |
+| `test_TDTReader` | TDT Synapse blocks (TSQ / TEV / Tbk / SEV): discovery, metadata, exact samples from TEV chunks and SEV files, stream choice and gain, epocs as TDT's readers return them and their rows on the stream grid (late stream start, gaps), disabled stores, line names, `Acquisition.TDT`; trials from the epocs of a block without an Epsych2 session (paired, written, the behavior step); synthetic TDT recordings and projects through the pipeline |
+| `test_EphysProject` (in `test_EphysDataset` §7 / §15) | discovery (recursive or not), keys, `refresh`, the one Epsych2 file in a recording folder associated |
 | `test_DatasetTracker` | the filesystem inventory |
-| `test_ChronuxDataset` | the Chronux connector |
-| `test_FieldTripExport` | the FieldTrip structures, the artifact matrix |
-| `test_EventEpochs` | the event-organized export: sample alignment, spike windows, the trials table, the behavior source, the epoch settings, epochs touching an artifact period |
+| `test_DatasetOutputs` | `DatasetOutputs`: files classified by their variables, decoys rejected, newest wins, merged and per-signal extracts, units, behavior, pinning and `SearchDirs`, caching, dataset mode, two recordings with one name sharing an output folder, a hand-picked sort that is not there, a changed extract |
+| `test_ChronuxDataset` | the Chronux connector: `makeParams` / `tapersFor`, continuous and trial data from a matrix, a `toMat` file or struct (onset rules, `EventFs`, trial policies), point-process spikes, `spikeTrials`, `binnedSpikes`, the Kilosort4 / phy source, `extract_trials` |
+| `test_FieldTripExport` | the FieldTrip `raw`, `spike` (sorted and detected) and `event` structures; `exportFieldTrip`'s events on each signal's clock and its artifact matrix; `ft_datatype_*` validation when FieldTrip is on the path |
+| `test_EventEpochs` | the event-organized export (`eventEpochs`, `exportEpochs`): sample alignment (a derived signal's rows, `EpochComplete` in samples), spike windows and time bases, the trials table, the behavior source, onsets passed in, the `Incomplete` / `NonFinite` policies, the refusals, the file and `DatasetOutputs`' epochs kind, the Export section's epoch settings, epochs touching an artifact period |
 | `test_KCSDExport` | the kCSD-python export: the NumPy layer (`writeNPY` text and shapes, `writeNPZ` / `readNPZ`, zip64, NumPy's own archives), electrodes on the probe (order, 1-D / 2-D, column → channel mapping, bad and off-probe channels), events and artifacts as 0-based LFP samples, the file, `DatasetOutputs`' `kcsd` kind; with a Python that has NumPy (and kcsd), `numpy.load` and `KCSD1D` on the file |
-| `test_EpsychSession` | Epsych2 readers and matching |
-| `test_EphysPipelineConfig`, `test_EphysPipeline`, `test_EphysPipelineScript` | config, runner, scripts |
-| `test_EphysPipelineApp` | the GUI's config model, headless |
-| `test_EphysTraceViewer` | the Visualize viewer without the app: every source kind reads exactly the rows asked for (the `.bin` scale and its integer min / max, HDF5 windows, `-v7` extracts, recording channels); timing of samples and bins; drawing from memory; spike layers as ticks, recoloured traces and stored waveforms; the wheel, keys and drags |
+| `test_EpsychSession` | Epsych2 readers (`epsychSessionMeta`, `readEpsychSession`, `findEpsychSessions`), matching (`matchEpsychSession`), stitching (`stitchEpsychSessions` and its refusals), two session files in one recording folder |
+| `test_TrialPairing` | trial pairing: `pairEpsychTrials` (counts, partial edge intervals, cuts, inverted lines), the `digitalEvents` cache, the manifest record and its staleness, auto approval, the behavior file, line polarity and names from `TrialConfig`, the behavior step |
+| `test_EphysPipelineConfig` | the pipeline config: defaults, normalization, JSON round trips, the Kilosort4 settings and probe parameter files, `numberText`, the option builders, `validate`, name tokens ([details](EphysPipeline.md#tests)) |
+| `test_EphysPipeline` | the runner: selection, `plan`, the probe and behavior preflights, the artifact cache, each step against the direct calls, `run` (dry run, steps, progress, cancel), same-name recordings, offline associations, manifests ([details](EphysPipeline.md#tests)) |
+| `test_EphysPipelineScript` | the compact and standalone scripts: `literal`, what each writes, `checkcode`, both run to identical outputs (behavior and epochs included) ([details](EphysPipeline.md#tests)) |
+| `test_SortingConcurrency` | (Windows) background Kilosort4 runs with stand-in executables: `sortRunState`, `sortingSlot` / `waitForSortingSlot`, `Sorting.MaxConcurrent` slots, runs started elsewhere, a cancel while waiting, blocking runs, GPUs (`Sorting.Devices`), the queue (`QueueFcn`, `launchSorting`), `stopSortRun`, paths with `&` `^` `( )` and spaces, an earlier sort's curation set aside |
+| `test_EphysPipelineApp` | the pipeline app, headless: the config round trip, the Diagram, every tab (Project, Artifacts, Trials, Sorting, Review, Run, Clean up, Visualize), the Help menu, preferences ([details](EphysPipelineApp.md#tests)) |
+| `test_CopySessions` | `findCopySessions` pairing (Intan, Open Ephys, TDT), `stitchCopySessions`, `copySessions` (dry run, size and SHA-256 checks, resume, partial and stopped copies, free space, cancel, background jobs, progress, manifests, quiet time, other batches), the Copy tab, `CopySchedule` (what a run copies and leaves, `runTask`, settings, a real Windows task); copying needs Windows |
+| `test_LocalCleanup` | `planLocalCleanup` / `runLocalCleanup`: raw files go only with a verified source copy, the kinds (Visualize's envelopes, a partial file under an hour old kept) and pipeline steps, outputs found by their contents, a hand-picked sort kept, delete, move (layout kept, nothing overwritten) and the Recycle Bin, cancel, the clean-up record |
+| `test_EphysTraceViewer` | the Visualize viewer without the app: every source kind reads exactly the rows asked for (the `.bin` scale and its integer min / max, HDF5 windows, `-v7` extracts, recording channels); timing of samples and bins; drawing from memory; spike layers as ticks, recoloured traces and stored waveforms; the wheel, keys and drags; the envelope (every level equal to the full-rate min / max per block, a stale cache rebuilt, a removed cache file noticed, builds on a thread, on a timer and cancelled, a whole-recording view without a full-rate read, the overview's signal) |
 | `test_ManifestViewerApp` | the manifest viewer, headless: the Summary checks, opening from a file, a folder or a dataset, the plots, the default probe, Rewrite |
 | `test_ChannelMapper` | the channel mapper: parsing vendor rows, the shipped hardware bank and saving entries, mating (both orientations, GND / REF safety, one-way connectors), the golden chains (H32 + RHD2132 = probeinterface's `H32>RHD2132`; H64LP + RHD2164 = `H64LP_4x16lin_probemap.json`; H16 + the 16-channel RHD2132), two headstages, a dataset's channel numbers, the Kilosort4 export and its sidecar, text output, saved mappings, the site-order templates, and `ChannelMapperApp` headless (selection, orientation, export, mappings, the entry editor, preferences) |
-| `test_SyntheticDataset` | `makeSyntheticProject` / `makeSyntheticRecording`: the written lines, sessions, spikes, aux and artifacts read back; pairing per scenario; the other layouts (Open Ephys included); the config through the pipeline; the app's File-menu action |
+| `test_SyntheticDataset` | `makeSyntheticProject` / `makeSyntheticRecording`: the written lines, sessions, spikes, aux and artifacts read back; pairing per scenario; the one-file-per-signal and binary layouts; the config through the pipeline; the app's File-menu action and the active dataset across its tabs |
 | `test_SyntheticGenerator` | `SyntheticDesign` (validation, JSON), the built-in model, responses and LFP at their latency after the edge, `PreviewOnly` = what is written, schedules from a dataset's Epsych2 session (recorded lines, rebuilt lines, tuning, locked vs induced oscillations, `MaxDuration`), the app's Synthetic tab |
 | `test_EphysAnalysisCompute` (analysis/) | compute functions on seeded spike trains and signals, the trial-filter compiler, every renderer |
-| `test_EphysAnalysisEpochs` (analysis/) | sources, event references, epochs, trial selection and grouping against the synthetic truth |
+| `test_PlotAesthetics` (analysis/) | the right-click aesthetics editor: rules, every renderer naming what it draws, the user's rules then the plot's, the menu, the editor (Apply to, Reset, Cancel, OK, Remember, Forget), the config and the script literal |
+| `test_EphysAnalysisEpochs` (analysis/) | sources, event references, epochs (intervals and their trials, between windows, artifact periods), trial selection and grouping, units and detections, `selectUnits`' response and auROC tests, against the synthetic truth |
 | `test_EphysAnalysisConfig` (analysis/) | the analysis config: JSON round trips, `plotFor`, validation |
-| `test_EphysAnalysisRunner` (analysis/) | plan, run, exports, HTML / PDF reports, cancel, compact vs standalone script equivalence |
+| `test_EphysAnalysisRunner` (analysis/) | plan, run, exports, HTML / PDF reports (each page drawn once), cancel, rendering real results, a failing export closing its page, unit waveforms, compact vs standalone script equivalence |
 | `test_EphysAnalysisApp` (analysis/) | the analysis GUI, headless |
+| `test_PipelineAnalysisStep` (analysis/) | the pipeline's Analysis step running a saved analysis config over a synthetic project: validation, plan, dry run, figures and report, progress, cancel, a `list` selection with one report per dataset, both scripts |
 | `test_ResponseStats` (analysis/) | `pAdjust` against statsmodels; `responseStats` on known counts against `signrank` / `kruskalwallis` called directly (toolbox tests skipped without it) |
-| `test_PopulationAnalysis` (analysis/) | `populationAnalysis` against the per-dataset calls, `populationSummary`, the files `writePopulation` writes |
-| `test_ReadNewLines` | `readNewLines` (the run monitor's log tail): whole lines from a byte offset, a partial line left for the next call, CRLF and carriage-return progress lines as a terminal shows them |
+| `test_Auroc` (analysis/) | `aucOf`; `aurocCurves` (`"psth"` against a port of the Caras lab's code, `"epochs"`, windows, the stop mask, cutoffs, `aurocCall` over stacked results, silent units, bootstrap / ranksum / shuffle tests); `spikePSTH`'s auROC result; the PSTH and heatmap marks (skipped without the toolbox) |
+| `test_PopulationAnalysis` (analysis/) | `populationAnalysis` against the per-dataset calls, the auROC calls pooled over the family, `populationSummary`, the files `writePopulation` writes |
+| `test_ReadNewLines` | `readNewLines` (the run monitor's log tail): whole lines from a byte offset, a partial line left for the next call, CRLF and carriage-return progress lines as a terminal shows them; a missing file or no name reads nothing and keeps the offset |
 | `test_PlatformSupport` | `platformSupport`'s table and its refusal on a platform where a feature is not available (skipped on Windows); `openInSystem`'s error |
 | `test_TableSort` | `TableSort`, the kept sort of the apps' tables: the order by number, text (ignoring case), date, duration, category and logical, ties in the order given, missing values last, cell columns by header, a column the rows lack; the column and direction a header click leaves, an edit ignored; the preference round trip |
-| `test_PipelineScriptSave` | each run saves the config's standalone script in the project root (`Project.SaveScript`), names the run in it, replaces only a script a run saved, none when off or for a dry run |
-| `test_ThresholdScope` | recording-wide detection thresholds: the whole recording's MAD / std / rms / percentile, independent of the chunk size, applied by detection; flat and out-of-range channels; progress over both passes; the spikes file and the config |
+| `test_PipelineScriptSave` | each run saves the config's standalone script in the project root (`Project.SaveScript`), names the run in it, replaces only a script a run saved, none when off or for a dry run; `writeScript` outside a run; the file names |
+| `test_ThresholdScope` | recording-wide detection thresholds: the whole recording's MAD / std / rms / percentile, independent of the chunk size, applied by detection; flat and out-of-range channels; progress over both passes; the spikes file and the config; absolute thresholds the same either way; refused for a data block |
 | `test_DetectionBenchmark` | (tag `Benchmark`) spike and artifact detection scored against synthetic truth with `benchmarkDetection`: recall, precision, duplicates and noise crossings, artifact recall, coverage and edges, against regression floors ([below](#detection-benchmark)) |
 | `test_NWBExport` | the NWB export: every staged number against the inputs (signals as stored, electrodes on the probe, units, trial and pulse times on the continuous clock, the erased periods, the session start in its time zone) without Python; with a Python that has pynwb and nwbinspector (`NWB_PYTHON`, else `pyenv`), the file read back with `h5read`, nwbinspector's findings and `DatasetOutputs`' `nwb` kind; the errors |
 | `test_UnitQuality` | unit quality metrics: every metric equal to SpikeInterface's own on spike trains rebuilt from the integer generator of [`tools/golden/unit_quality_golden.py`](../tools/golden/unit_quality_golden.py) (golden values in `pipeline/testdata/`); SNR; the criteria; `ds.unitQuality` on a synthetic sort (fields, cache written, read, made stale by phy, SNR with uV templates); `unitTable`; the QC page; exports carrying the metrics; `sortSweep` comparing two sorts and dry-running two variants |

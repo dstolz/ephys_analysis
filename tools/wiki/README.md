@@ -6,7 +6,7 @@ so that each update repeats the last one instead of rebuilding it.
 | File | What it does |
 | --- | --- |
 | `gen_api.py` | Generates the reference part of every `API-*` page from the `.m` sources. It needs no MATLAB. |
-| `gen_pages.py`, `pages.json` | Generates the prose pages from `documentation/`, the one source: `pages.json` says which page is made from which file or sections. It needs no MATLAB, and `test_gen_pages.py` tests it. |
+| `gen_pages.py`, `pages.json` | Generates the prose pages from `documentation/`, the one source: `pages.json` says which page is made from which file or sections. It needs no MATLAB, and `test_gen_pages.py` tests it, along with the page anchors the pipeline and analysis apps' Help opens (their `helpURL.m`, and the analysis app's `buildMenus.m`). |
 | `check_links.py` | Checks every page's links, anchors and images before a push. |
 | `wikiScreenshots.m` | Takes the pipeline app's screenshots headlessly over a synthetic project, and runs it. |
 | `wikiToolScreenshots.m` | Takes the other windows' screenshots (probe designer, channel mapper, manifest viewer, analysis app) over that project. |
@@ -66,6 +66,14 @@ git clone https://github.com/dstolz/ephys_analysis.wiki.git C:\temp\wiki
    point at the page made from them (or from the section that holds the
    anchor), and links to anything else point at the file on GitHub. A new
    page needs a line in `_Sidebar.md`.
+
+   What only the wiki shows, its screenshots mainly, goes into
+   `documentation/` as an HTML comment, which GitHub hides there and the
+   script unwraps: `<!-- wiki: ![The Run tab](images/app-run-plan.png) -->`,
+   or a `<!-- wiki` line, the lines to show, and a `-->` line. A link to a
+   page only the wiki has goes there too, by the page's name
+   (`[Output files](Output-Files#behavior)`); the script leaves such links
+   as they are.
 
    A page's `status` in `pages.json` says whether it is generated yet:
 

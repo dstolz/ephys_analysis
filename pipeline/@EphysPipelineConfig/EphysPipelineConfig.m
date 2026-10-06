@@ -1,5 +1,5 @@
 classdef EphysPipelineConfig
-    % EphysPipelineConfig  Everything a preprocessing run needs, in one value.
+    % EphysPipelineConfig  Everything a pipeline run needs, in one value.
     %   A config holds the parameters of every pipeline step, which steps are
     %   enabled, the project root / output root and the dataset selection. It
     %   has no GUI dependency: the app edits one, EphysPipeline runs one, and
@@ -20,14 +20,16 @@ classdef EphysPipelineConfig
     %                the artifacts and spike-detection steps on a process pool
     %     Probe      DefaultProbeFile, WriteDefaultToManifest, AutoAssign +
     %                RuleSubjects / RuleProbes (probe rules by subject pattern)
+    %     Reference  Mode ("none" | "car" | "cmr": the common reference every
+    %                step subtracts once from its read of the recording:
+    %                artifact detection, the sorting .bin, spike detection,
+    %                the signals of Signals.<TYPE>_Reference), BadLow /
+    %                BadHigh (the noise bounds that suggest channels to leave
+    %                out of it); carried onto the datasets' ArtifactConfig
     %     Behavior   Enabled, Search (off: the associated sessions only, no
     %                search), SearchDirs, Match, MaxStartOffsetMin, Overwrite,
     %                WriteFile, PairTrials, AutoApprove, TrialLine
-    %     Artifacts  Reference ("none" | "car" | "cmr": the common reference
-    %                every step subtracts once from its read of the
-    %                recording, with the ReferenceBadLow / ReferenceBadHigh
-    %                noise bounds that suggest channels to leave out of it),
-    %                Enabled + detector / filter settings, ApplyTo*,
+    %     Artifacts  Enabled + detector / filter settings, Fill, ApplyTo*,
     %                CacheIntervals
     %     Sorting    Enabled, PythonExe, CondaEnv, Execution, MaxConcurrent (background runs at
     %                once; the others wait for a free slot), Devices
@@ -42,7 +44,7 @@ classdef EphysPipelineConfig
     %                deriving, and record them in every file; the automatic
     %                ones with Artifacts.ApplyToSignals), LFP_Reference /
     %                MUA_Reference / SPIKE_Reference (which signals the
-    %                common reference of Artifacts.Reference is subtracted
+    %                common reference of the Reference section is subtracted
     %                from; not the LFP by default),
     %                ExcludeHandling, LabelField ("custom" | "native" names),
     %                LineNames ("native=name" digital-line names) and
@@ -88,6 +90,7 @@ classdef EphysPipelineConfig
         Acquisition struct = EphysPipelineConfig.defaults("Acquisition")
         Parallel    struct = EphysPipelineConfig.defaults("Parallel")
         Probe       struct = EphysPipelineConfig.defaults("Probe")
+        Reference   struct = EphysPipelineConfig.defaults("Reference")
         Behavior    struct = EphysPipelineConfig.defaults("Behavior")
         Artifacts   struct = EphysPipelineConfig.defaults("Artifacts")
         Sorting     struct = EphysPipelineConfig.defaults("Sorting")
@@ -105,8 +108,8 @@ classdef EphysPipelineConfig
     properties (Constant)
         Schema   = "ephys-pipeline-config"
         Version  = 1
-        Sections = ["Project" "Acquisition" "Parallel" "Probe" "Behavior" "Artifacts" "Sorting" "Signals" "Spikes" "Export" "Analysis"]
-        % Execution order of the steps (Project, Acquisition and Parallel are not steps; Probe is a preflight).
+        Sections = ["Project" "Acquisition" "Parallel" "Probe" "Reference" "Behavior" "Artifacts" "Sorting" "Signals" "Spikes" "Export" "Analysis"]
+        % Execution order of the steps (Project, Acquisition, Parallel and Reference are not steps; Probe is a preflight).
         StepNames = ["probe" "behavior" "artifacts" "sorting" "signals" "spikes" "export" "analysis"]
         % Section that holds each step's settings.
         StepSections = ["Probe" "Behavior" "Artifacts" "Sorting" "Signals" "Spikes" "Export" "Analysis"]
@@ -143,6 +146,7 @@ classdef EphysPipelineConfig
         function obj = set.Acquisition(obj, s); obj.Acquisition = EphysPipelineConfig.normalizeSection("Acquisition", s); end
         function obj = set.Parallel(obj, s);  obj.Parallel  = EphysPipelineConfig.normalizeSection("Parallel", s);  end
         function obj = set.Probe(obj, s);     obj.Probe     = EphysPipelineConfig.normalizeSection("Probe", s);     end
+        function obj = set.Reference(obj, s); obj.Reference = EphysPipelineConfig.normalizeSection("Reference", s); end
         function obj = set.Behavior(obj, s);  obj.Behavior  = EphysPipelineConfig.normalizeSection("Behavior", s);  end
         function obj = set.Artifacts(obj, s); obj.Artifacts = EphysPipelineConfig.normalizeSection("Artifacts", s); end
         function obj = set.Sorting(obj, s);   obj.Sorting   = EphysPipelineConfig.normalizeSection("Sorting", s);   end
@@ -213,6 +217,7 @@ classdef EphysPipelineConfig
         s     = signalOptions(signals, opts)
         v     = parseOrderedList(txt, what)
         v     = parseFreqList(txt, what)
+        t     = numberText(v)
 
         function obj = fromStruct(s)
             %fromStruct  Build a config from a struct (e.g. decoded JSON).
@@ -305,13 +310,22 @@ classdef EphysPipelineConfig
             tc.LineNames      = S.LineNames;
         end
 
-        function cfg = artifactConfig(a)
-            %artifactConfig  The Artifacts section as an EphysDataset.ArtifactConfig.
+        function cfg = artifactConfig(a, r)
+            %artifactConfig  The Artifacts and Reference sections as an EphysDataset.ArtifactConfig.
+            %   CFG = EphysPipelineConfig.artifactConfig(A, R): the detection
+            %   and fill settings of the Artifacts section A, and the common
+            %   reference of the Reference section R (Mode, BadLow, BadHigh
+            %   as Reference, ReferenceBadLow, ReferenceBadHigh), which every
+            %   read of the dataset's recording takes.
             a = EphysPipelineConfig.normalizeSection("Artifacts", a);
+            r = EphysPipelineConfig.normalizeSection("Reference", r);
             cfg = EphysDataset.defaultArtifactConfig();
             for f = string(fieldnames(cfg)).'
                 if isfield(a, f); cfg.(f) = a.(f); end
             end
+            cfg.Reference        = r.Mode;
+            cfg.ReferenceBadLow  = r.BadLow;
+            cfg.ReferenceBadHigh = r.BadHigh;
         end
 
         function h = artifactHandling(cfg)
@@ -526,19 +540,19 @@ classdef EphysPipelineConfig
         function txt = ks4ParamText(kind, value)
             %ks4ParamText  Typed KS4 value -> text for an edit field.
             %   Numbers are written in the shortest form that reads back as
-            %   the same double (ks4ParamFromText), so a gather / save never
+            %   the same double (numberText), so a gather / save never
             %   rounds a value: 0.1953125 stays "0.1953125" (string() would
             %   give "0.19531").
             switch string(kind)
                 case "floatinf"
-                    if isempty(value) || ~isfinite(value); txt = "Infinity"; else; txt = numText(value); end
+                    if isempty(value) || ~isfinite(value); txt = "Infinity"; else; txt = EphysPipelineConfig.numberText(value); end
                 case "nullable"
-                    if isempty(value) || (isnumeric(value) && any(isnan(value))); txt = ""; else; txt = numText(value); end
+                    if isempty(value) || (isnumeric(value) && any(isnan(value))); txt = ""; else; txt = EphysPipelineConfig.numberText(value); end
                 case "vector"
-                    if isempty(value); txt = ""; else; txt = strjoin(arrayfun(@numText, value(:).'), ", "); end
+                    if isempty(value); txt = ""; else; txt = strjoin(arrayfun(@EphysPipelineConfig.numberText, value(:).'), ", "); end
                 otherwise
                     if isnumeric(value) && isscalar(value)
-                        txt = numText(value);
+                        txt = EphysPipelineConfig.numberText(value);
                     else
                         txt = string(value);
                     end
@@ -582,21 +596,4 @@ classdef EphysPipelineConfig
             end
         end
     end
-end
-
-
-function txt = numText(v)
-%numText  The shortest text of number V that str2double reads back as V.
-%   Whole numbers print in full ("120000", not "1.2e+05"); others take the
-%   fewest significant digits (5 to 17) that give V back exactly.
-if v == round(v) && abs(v) < 1e15
-    txt = string(sprintf('%d', v));
-    return
-end
-for p = 5:17
-    txt = string(sprintf('%.*g', p, v));
-    if str2double(txt) == v
-        return
-    end
-end
 end

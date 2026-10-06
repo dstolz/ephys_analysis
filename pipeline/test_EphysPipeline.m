@@ -7,7 +7,8 @@ function test_EphysPipeline()
 %   missing probe, missing sorting output, missing extract), the probe and
 %   behavior preflights (the default probe, a session file that is not
 %   there), the sorting dry run, spike detection against direct calls, the
-%   exports, the artifact cache, run(DryRun=true) writing nothing and
+%   exports, the artifact cache (and cachedDetection, which asks it
+%   without detecting), run(DryRun=true) writing nothing and
 %   cancellation. Then, on projects of their own: two recordings with the
 %   same name under one output root, an unsorted dataset that cannot label
 %   units, associations whose files are offline, an unreadable manifest,
@@ -94,6 +95,13 @@ check(numel(d1) == 1 && d1.ProbeFile == string(probeFile) && d1.SortingDir == st
     && isequal(d1.ManualArtifacts, [0.001 0.002]), 'manifest state restored by the project refresh');
 check(startsWith(d1.OutputDir, outRoot) && isequal(fieldnames(d1.ArtifactConfig), fieldnames(EphysDataset.defaultArtifactConfig())), ...
     'output dir under OutputRoot; artifact config pushed');
+cfgR = cfg; cfgR.Reference = struct('Mode', "cmr", 'BadLow', 0.25, 'BadHigh', 2.5);
+EphysPipeline.applyConfigToDatasets(cfgR, pipe.Project);
+acR = d1.ArtifactConfig;
+check(acR.Reference == "cmr" && acR.ReferenceBadLow == 0.25 && acR.ReferenceBadHigh == 2.5 ...
+    && acR.Threshold == cfg.Artifacts.Threshold, ...
+    'the Reference section is carried onto the datasets'' ArtifactConfig (Mode, BadLow, BadHigh)');
+EphysPipeline.applyConfigToDatasets(cfg, pipe.Project);
 i2 = pipe.Project.findByKey("mouse2/M1_260101_120030");
 check(isnan(pipe.Project.Datasets(i2).Fs) && ~isfile(pipe.Project.Datasets(i2).manifestFile()) && ~isnan(d1.Fs), ...
     'constructing the pipeline refreshes the selected datasets only');
@@ -320,6 +328,33 @@ pipe.reset(); logs = strings(0, 1);
 pipe.runArtifacts();
 check(contains(pipe.Results.Message(1), "cache"), 'second run reuses the cache');
 cached = readJsonFile(cacheFile);
+% cachedDetection: does the cache hold what a config detects? Nothing detected or written.
+cacheText = fileread(cacheFile); manText = fileread(d1.manifestFile());
+acfg0 = d1.ArtifactConfig; refSource0 = d1.ReferenceExcludeSource; refExclude0 = d1.ReferenceExclude;
+[ok, match, ivC] = EphysPipeline.cachedDetection(cfg, d1);
+check(ok && match && isequal(ivC, reshape(cached.intervals, [], 2)) ...
+    && EphysPipeline.artifactFingerprint(EphysPipeline.detectionConfig(cfg), d1) == string(cached.fingerprint), ...
+    'cachedDetection: the cache holds what the current settings detect, and gives its intervals (artifactIntervalsFor''s fingerprint)');
+cfgT = cfg; cfgT.Artifacts.Threshold = 2500;
+[ok, match, ivT] = EphysPipeline.cachedDetection(cfgT, d1);
+cfgS = cfg; cfgS.Artifacts.NoiseSeed = cfg.Artifacts.NoiseSeed + 1;
+[okS, matchS] = EphysPipeline.cachedDetection(cfgS, d1);
+check(ok && ~match && isempty(ivT) && okS && matchS, ...
+    'another threshold: known, not a match; another noise seed (how periods are filled, not which): still a match');
+cfgOff = cfg; cfgOff.Artifacts.Enabled = false;
+[ok, match] = EphysPipeline.cachedDetection(cfgOff, d1);
+check(~ok && ~match, 'automatic detection off: cachedDetection cannot tell');
+cfgR = cfg; cfgR.Reference.Mode = "car";
+d1.ReferenceExcludeSource = "";
+[okR, matchR] = EphysPipeline.cachedDetection(cfgR, d1);
+d1.ReferenceExcludeSource = "manual";
+[okM, matchM] = EphysPipeline.cachedDetection(cfgR, d1);
+d1.ReferenceExcludeSource = refSource0;
+check(~okR && ~matchR && okM && ~matchM, ...
+    'a common reference whose left-out channels are not settled: cannot tell; once settled it can (here: other settings)');
+check(isequal(fileread(cacheFile), cacheText) && isequal(fileread(d1.manifestFile()), manText) ...
+    && isequaln(d1.ArtifactConfig, acfg0) && d1.ReferenceExcludeSource == refSource0 && isequal(d1.ReferenceExclude, refExclude0), ...
+    'cachedDetection writes nothing and changes nothing on the dataset');
 d1.ManualArtifacts = [0.001 0.002; 0.005 0.006];
 pipe.reset();
 pipe.runArtifacts();
@@ -582,8 +617,8 @@ if license('test', 'Signal_Toolbox')
     Mman = load(pipe.Results.Output(1));
     check(isequal(Mman.info.artifacts.intervals, d1.ManualArtifacts), ...
         'Artifacts.ApplyToSignals off: the manual periods only');
-    check(Mx.info.reference.mode == "none", 'Artifacts.Reference "none": the signals are not referenced');
-    cfgRef = cfg; cfgRef.Artifacts.Reference = "car";
+    check(Mx.info.reference.mode == "none", 'Reference.Mode "none": the signals are not referenced');
+    cfgRef = cfg; cfgRef.Reference.Mode = "car";
     refState = {d1.ReferenceExclude, d1.ReferenceExcludeSource};
     d1.ReferenceExclude = []; d1.ReferenceExcludeSource = "manual";
     logs = strings(0, 1);
@@ -591,7 +626,7 @@ if license('test', 'Signal_Toolbox')
     pipe.Config = cfgRef; pipe.reset(); pipe.runSignals();
     Mref0 = load(pipe.Results.Output(1));
     check(pipe.Results.Status(1) == "done" && Mref0.info.reference.mode == "none" && Mref0.info.LFP.reference == "none", ...
-        'Artifacts.Reference "car" with Signals.LFP_Reference off (the default): the LFP is taken as recorded');
+        'Reference.Mode "car" with Signals.LFP_Reference off (the default): the LFP is taken as recorded');
     cfgRef.Signals.LFP_Reference = true;
     logs = strings(0, 1);
     pipe.Config = cfgRef; pipe.reset(); pipe.runSignals();

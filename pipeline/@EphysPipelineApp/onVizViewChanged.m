@@ -1,10 +1,12 @@
 function onVizViewChanged(obj)
 %onVizViewChanged  The viewer moved: show its view in the fields and the status line.
 %   Called by obj.Viewer after every draw and every pan inside what is
-%   drawn (EphysTraceViewer.ViewChangedFcn), so it only sets values.
+%   drawn (EphysTraceViewer.ViewChangedFcn), and as the signal's envelope
+%   is built (EnvelopeChangedFcn), so it only sets values.
 %   The status line names the dataset, signal and time shown (and the
-%   event onset the toolbar's arrows stepped to, while it is), or says
-%   the plot shows another dataset than the active one (syncVizDataset).
+%   event onset the toolbar's arrows stepped to, while it is, and how far
+%   the envelope's build is), or says the plot shows another dataset than
+%   the active one (syncVizDataset).
 %
 %   See also buildVisualizeTab, syncVizDataset.
 
@@ -43,6 +45,10 @@ if R.error ~= ""
     txt = txt + " | " + R.error;
 elseif ~isempty(R.notes)
     txt = txt + " | " + strjoin(R.notes, "; ");
+end
+note = v.envelopeNote();
+if note ~= ""
+    txt = txt + " | " + note;
 end
 obj.VizStatusLabel.Text = txt;
 obj.VizStatusLabel.FontColor = [0.4 0.4 0.4];

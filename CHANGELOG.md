@@ -27,6 +27,67 @@ says how to cut a release.
   views. `EphysAnalysisRunner` gained `SearchDirs` (the pipeline's step
   output folders), and its `ProgressFcn` fraction now covers the whole run
   rather than restarting at each dataset.
+- Visualize: views wider than one full-rate read, up to the whole
+  recording, are drawn from the signal's min / max envelope
+  (`EphysTraceEnvelope`), and the overview strip shows the signal itself.
+  The envelope is built once in the background (the recording and the
+  `.bin` on `backgroundPool` threads, derived signals on a timer; the status
+  line shows progress), cached as `<Name>_envelope_<what>.dat` next to the
+  outputs, fingerprinted on the files, the reference and the block sizes,
+  and built again when stale. `EphysTraceSource.stamp` / `appliedReference`
+  / `threadSafe`.
+- `EphysPipeline.cachedDetection(cfg, d)`: whether `<Name>_artifacts.json`
+  holds what the current settings detect, without detecting or writing
+  (`artifactFingerprint`, `detectionConfig`, `artifactsFile`). Visualize
+  says whether the last run's periods were found "with the current
+  settings" or "with other settings".
+- Clean up removes the Visualize tab's envelope caches: kind `"envelope"` of
+  `planLocalCleanup`, ticked by default in the free-space group. A build's
+  `.partial` file goes only once it is an hour old.
+- Pipeline app: closing with Kilosort4 runs queued offers **Keep the queue
+  for next time**, **Drop the queue** or **Cancel**. A kept queue is stored
+  per project root (preference `KeptSortingQueue`) and offered back once
+  that root is scanned; the runs that cannot go back are listed with why.
+  Background runs still going at close are followed again at the next
+  launch (`KeptSortingRuns`); one with no process left is logged and left
+  out. `EphysDataset.sortRunProcesses(statusFiles)` counts each run's
+  processes.
+- `EphysPipelineConfig.validate` warns (`sorting`, `MaxConcurrent`) when two
+  or more background Kilosort4 runs at once all go on one GPU, which on a
+  small card can run out of memory.
+- `aurocCall`: the auROC call (95% CI, fixed, test) over every unit and
+  group given; `aurocCurves(..., Call=false)` measures without calling, so
+  results can be stacked and called together.
+- `populationAnalysis` computes each unit's auROC (`Auroc`, per
+  `AurocGroupBy` group) and calls every unit x group curve of the family in
+  one `aurocCall`, pooling the 95% CI cutoff as Macedo-Lima et al. (2024)
+  pooled their units' trial-type curves: `P.auroc` (curves, calls per unit
+  and group, each family's cutoff), the unit's call and peak in `P.units`,
+  auROC counts and an `auroc` group key in `populationSummary`, the shares
+  and cutoff in the fractions figure, `population_auroc.csv` and the cutoff
+  in `population.json`.
+- `aurocCurves` checked against the paper's published OFC data (DRUM,
+  doi:10.13016/qzzx-zfuh): given the spikes and spout-withdrawal times the
+  lab used, it reproduces the published curves, apart from the windows the
+  lab's code bins with 11 or 9 bins and spikes exactly on a bin edge. With
+  the cutoff pooled over all 533 units, the calls match the paper's: 1050 of
+  1050 before withdrawal, 1579 of 1583 after (the 4 differed because silent
+  units entered the pool; they now stay out of it).
+- `reportPdfPage`: a drawn page as the PDF report holds it.
+- `IntanReader.notchFilter`: Intan's software notch for RHD2000 files before
+  version 3.0 as one `filter` call (Intan's per-sample loop to rounding,
+  several times faster), with `IntanReader.notchLeadIn`.
+- `EphysPipelineConfig.numberText`: a number as the shortest text that reads
+  back as the same double (replaces the pipeline app's private copy).
+- `test_ClassdefDeclarations`: every classdef method declaration in
+  `pipeline/` and `analysis/` against its method file's inputs and outputs.
+- `tools/wiki/gen_pages.py` unwraps wiki-only comments (`<!-- wiki: ... -->`
+  or a `<!-- wiki` block), so `documentation/` holds the wiki's screenshots
+  too. Every tab page of the pipeline app, the Synthetic tab's new page, the
+  analysis pages, File formats, Python drivers, Kilosort4 notes and
+  Installation are now generated from `documentation/`; a test checks that
+  every page and anchor the apps' Help opens exists.
+
 - Unit waveforms on the analysis plots: a raster, or a PSTH or tuning
   grid, of spikes can draw each unit's mean waveform, a subsample of its
   spikes, or both, as a box in the unit's tile (the plot's `waveform`:
@@ -205,6 +266,35 @@ says how to cut a release.
   unit's mean waveform on its peak channel: the mean and SD of up to
   `WaveformSpikes` (100) of its spikes cut from the sorted `.bin`, else its
   template. A good unit's label in the table links to its waveform.
+- The common reference has a config section of its own: `Reference` with
+  `Mode` (`"none"` / `"car"` / `"cmr"`), `BadLow` and `BadHigh` (0.3, 2). It
+  replaces `Artifacts.Reference`, `Artifacts.ReferenceBadLow` and
+  `Artifacts.ReferenceBadHigh`, since every step that reads the recording
+  takes it. It is always validated (issues under `reference`), saved as its
+  own JSON object and carried onto every dataset's `ArtifactConfig` as
+  before. `EphysPipelineConfig.artifactConfig(A, R)` takes both sections.
+  The Artifacts tab's panel is titled "Common reference, for every step
+  (config: Reference)" and lists the reads it applies to.
+- The Intan readers filter a recording's pre-3.0 notch files as one stream:
+  no step or ringing at file boundaries. Windows and chunks start the filter
+  1.76 s before their first row instead of reading whole files; `readData`
+  carries the filter state from file to file; `read_Intan_RHD2000_file_modified`
+  takes `Notch=false`.
+- `EphysDataset.setTrialPairing` returns `[file, saved]`; the Trials tab's
+  Approve no longer writes the manifest twice.
+- PDF reports are joined from the pages the runner (and the standalone
+  script) drew and exported, with the Apache PDFBox library MATLAB ships; no
+  page is drawn twice and no result is kept. A run with both reports took
+  about half the time on the test fixture. `addReportFigure` takes `Pages=`;
+  `writeHtmlReport` no longer takes `EmbedFormat` / `Dpi`.
+- The auROC cutoff warnings are `aurocCall:WideCutoff` /
+  `aurocCall:NoCutoff`. `populationAnalysis` builds its epochs with
+  `Baseline`, so the PSTH and the auROC share them.
+- The pipeline app's Help opens `Run-and-Flow-Tabs#diagram` and `#run`, the
+  headings of the page generated from `documentation/`.
+- Test descriptions in `documentation/` match the suites; the README table
+  lists every suite.
+
 - The analysis app's parameter lists (group-by, tuning x axis and series,
   tuning-test parameter, the dataset's Parameters table, the filter help's
   columns) offer every trial column, `RespCode` among them, in alphabetical
@@ -275,6 +365,24 @@ says how to cut a release.
   `.claude/worktrees` and operating-system files.
 
 ### Fixed
+
+- The Run tab's results table fills as the Run goes, one row per step and
+  dataset, instead of staying empty until the Run ends; a row the Kilosort4
+  monitor restates during the Run shows at once.
+- A problem with the common reference colours the Artifacts tab even while
+  automatic detection is off.
+- `EphysProject.toBinAll` with options failed with "Too many input
+  arguments" (its classdef declaration listed `opts` for a `varargin` file).
+- A unit with no spike over a group's epochs has no auROC (NaN) and stays
+  out of the 95% CI cutoff, as in `calculate_auROC.py`, instead of 0.5.
+- A spike on a bin edge (within 1e-9 s) is always counted in the bin that
+  starts there (`binCounts`); with spikes and events on one sample grid,
+  rounding picked the bin. The auROC stop mask uses the same tolerance.
+- The Run tab's Spikes box and the docs said the Spikes step writes
+  "detected / sorted" spikes; it writes detections only. The probe tool's
+  errors and two help lines still named a "Kilosort tab".
+- Test fixtures no longer give extract `info` a `time` vector that real
+  extracts do not have.
 
 - `renderProbeMap` held a Latin-1 `µ` in its axis labels, which MATLAB
   reads as UTF-8. It is UTF-8 again.

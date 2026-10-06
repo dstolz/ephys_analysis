@@ -105,7 +105,7 @@ v.withRaster = psth; v.histStyle = psth; v.normalize = psth; v.fill = psth; v.st
 v.rasterSort = ismember(kind, ["psth" "raster"]);
 v.param = kind == "tuning"; v.seriesParam = v.param;
 v.value = kind == "probemap";
-v.order = ismember(kind, ["heatmap" "corrmap"]);
+v.order = kind == "heatmap";
 v.metric = kind == "corrmap"; v.correlation = v.metric;
 v.maxTiles = kind == "raster" || (ismember(kind, ["psth" "tuning" "evoked"]) && layout == "grid");
 v.tileSpacing = kind ~= "rate";

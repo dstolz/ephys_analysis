@@ -1,5 +1,5 @@
 function test_EphysTraceViewer()
-%test_EphysTraceViewer  Verification suite for EphysTraceSource and EphysTraceViewer.
+%test_EphysTraceViewer  Verification suite for EphysTraceSource, EphysTraceEnvelope and EphysTraceViewer.
 %   Builds a small universal-format recording (8 channels at 20 kHz, 3 s,
 %   one large spike on channel 3 at 1.5 s), a Kilosort4-style .bin with
 %   its JSON sidecar, a -v7.3 LFP extract (columns in reverse channel
@@ -15,7 +15,15 @@ function test_EphysTraceViewer()
 %       traces, over a halo), as the trace recoloured and as stored
 %       waveforms on their own lanes (on a scale of their own), spikes only
 %       (no trace), the read limit, the wheel, keys and drags, and event
-%       lines over the traces (onset on its own sample) and as TTL rows.
+%       lines over the traces (onset on its own sample) and as TTL rows
+%     - EphysTraceEnvelope: block sizes, one cache file per source, every
+%       level's min / max equal to those of the full-rate samples, a
+%       stale fingerprint (the .bin written again) never used and built
+%       again, a build on a thread, on a timer and cancelled, a removed
+%       cache file noticed (Clean up); the viewer
+%       drawing the whole recording from it without a full-rate read, the
+%       overview strip's signal, and a display filter keeping the view
+%       within one read.
 %
 %   Usage:  test_EphysTraceViewer
 %
@@ -123,6 +131,7 @@ ov = uiaxes(fig, 'Position', [60 20 900 60]);
 v = EphysTraceViewer(ax, OverviewAxes=ov);
 v.RenderDelay = 0;
 v.RemoveOffset = false;
+v.BuildEnvelope = false;                       % no envelope until section 6
 v.setSource(rec);
 v.setVisibleLanes(8);
 v.setSpacing(1000);
@@ -350,10 +359,151 @@ check(t6 == on1(1) && k6 == 1 && t7 == on1(2) && k7 == 2 && t8 == on1(1) && k8 =
 v.setEvents(E);
 check(isempty(v.EventJump), 'new events forget the last jump');
 
+fprintf('\n== 6. envelope: views wider than one read ==\n');
+B = EphysTraceEnvelope.blockSizes(30000 * 7200, 64);       % 2 h of 64 channels at 30 kHz
+check(isequal(B, 1024 * 4 .^ (0:3)) && ceil(30000 * 7200 / B(end)) <= 4096, ...
+    'blockSizes: 2 h of 64 channels at 30 kHz: level 1 of 1024 samples (at most 2^24 blocks x channels), each level 4x coarser, the last of at most 4096 blocks');
+check(isequal(EphysTraceEnvelope.blockSizes(nS, nCh), 16), 'a short source: blocks of 16 samples, so level 1 has at least 2048 blocks');
+check(EphysTraceEnvelope.fileFor(bin) == fullfile(folder, name + "_envelope_bin.dat") ...
+    && EphysTraceEnvelope.fileFor(rec) == fullfile(folder, name + "_envelope_recording.dat") ...
+    && EphysTraceEnvelope.fileFor(L) == fullfile(folder, name + "_envelope_LFP.dat"), ...
+    'one cache file per source, next to the dataset''s outputs');
+eb = EphysTraceEnvelope(bin, Blocks=[16 64 256]);
+check(eb.State == "missing" && isequal(eb.NumBlocks, ceil(nS ./ [16 64 256])), 'no cache file yet: the envelope is missing');
+eb.build();
+check(eb.State == "ready" && isfile(eb.File) && isempty(dir(eb.File + ".*.partial")), ...
+    'build() writes the cache file (the partial file renamed)');
+Xall = bin.read(0, nS);
+same = true;
+for lev = 1:3
+    [m1, x1] = eb.read(lev, 0, eb.NumBlocks(lev), 1:nCh);
+    [m2, x2] = EphysTraceSource.binMinMax(Xall, eb.Blocks(lev));
+    same = same && isequal(size(m1), size(m2)) && max(abs(m1 - m2), [], 'all') < 1e-3 ...
+        && max(abs(x1 - x2), [], 'all') < 1e-3;
+end
+[m1, x1] = eb.read(2, 10, 5, [2 5]);
+[m2, x2] = EphysTraceSource.binMinMax(Xall(:, [2 5]), 64);
+check(same && max(abs(m1 - m2(11:15, :)), [], 'all') < 1e-3 && max(abs(x1 - x2(11:15, :)), [], 'all') < 1e-3, ...
+    'every level''s min / max equal those of the full-rate samples, block by block (the short last block too); a window of a level reads alone');
+er = EphysTraceEnvelope(rec, Blocks=[16 64]);
+er.build();
+[m1, x1] = er.read(2, 0, er.NumBlocks(2), 1:nCh);
+[m2, x2] = EphysTraceSource.binMinMax(rec.read(0, nS), 64);
+check(isequal(m1, m2) && isequal(x1, x2), 'the recording''s envelope is exactly the min / max of what it reads');
+check(EphysTraceEnvelope(rec, Blocks=[16 64]).State == "ready" && EphysTraceEnvelope(rec, Blocks=[16 64 256]).State == "missing", ...
+    'the cache is found again, and other block sizes do not match its fingerprint');
+raw2 = raw;
+raw2(101:200, 2) = 4000;                      % a new stretch in the .bin, written again
+fid = fopen(d.BinFile, 'w');
+fwrite(fid, int16(double(raw2) * scale).', 'int16');
+fclose(fid);
+setFileModifiedTime(d.BinFile, datetime('now') + seconds(10));
+pause(1.05);                                  % isReady looks at the .bin at most once a second
+eb2 = EphysTraceEnvelope(bin, Blocks=[16 64 256]);
+check(~eb.isReady() && eb.State == "stale" && eb2.State == "missing", ...
+    'a .bin written again: its envelope goes stale and the cache file no longer matches (never shown)');
+eb2.build();
+[~, x1] = eb2.read(1, 6, 1, 2);
+check(eb2.State == "ready" && abs(x1 - 4000) < 1e-3, 'it is built again from what the .bin holds now');
+
+% In the background: on a thread (the recording), on a timer (a signal); cancel.
+nDone = 0;
+eg = EphysTraceEnvelope(rec, Blocks=[16 64], File=fullfile(root, "bg_recording.dat"));
+eg.DoneFcn = @(e) countDone();
+eg.start();
+check(eg.State == "building" && eg.OnThreads, 'start() builds the recording''s envelope on a thread of backgroundPool');
+waitUntil(@() eg.State ~= "building", 120);
+[m1, x1] = eg.read(2, 0, eg.NumBlocks(2), 1:nCh);
+[m2, x2] = er.read(2, 0, er.NumBlocks(2), 1:nCh);
+check(eg.State == "ready" && nDone == 1 && isequal(m1, m2) && isequal(x1, x2), ...
+    'the background build ends ready (DoneFcn once) with the same blocks as build()');
+delete(er.File);                              % as Clean up's "envelope" kind would
+pause(1.05);                                  % isReady looks at the cache file at most once a second
+check(~er.isReady() && er.State == "stale", ...
+    'a cache file removed: even the recording''s envelope goes stale (built again, never read)');
+et = EphysTraceEnvelope(L, Blocks=[4 16]);
+et.start();
+check(et.State == "building" && ~et.OnThreads, 'a -v7.3 signal (h5read does not run on a thread) builds on a timer');
+waitUntil(@() et.State ~= "building", 60);
+[m1, x1] = et.read(2, 0, et.NumBlocks(2), 1:nCh);
+[m2, x2] = EphysTraceSource.binMinMax(L.read(0, L.NumSamples), 16);
+check(et.State == "ready" && isequal(m1, m2) && isequal(x1, x2), 'the timer build gives the min / max of the signal');
+ec = EphysTraceEnvelope(rec, Blocks=[16 64], File=fullfile(root, "cancel_recording.dat"), UseThreads=false);
+ec.start();
+ec.cancel();
+pause(0.2);
+check(ec.State == "missing" && ec.Message == "cancelled" && isempty(dir(fullfile(root, "cancel_recording.dat*"))), ...
+    'cancel stops a build and deletes its partial file');
+
+% The viewer: a whole-recording view from the envelope, the overview's signal.
+v.setLayers([]);
+v.setEvents([]);
+v.Shading = struct('intervals', {}, 'color', {}, 'alpha', {});
+v.RemoveOffset = false;
+v.MaxReadSamples = nCh * muaFs * 0.5;         % one full-rate read of the MUA: at most 0.5 s
+v.setSource(M);
+v.setView(0, 3);
+check(abs(v.TWidth - 0.5) < 1e-9 && v.maxWidth() == 0.5 && any(contains(v.LastRender.notes, "no envelope")) ...
+    && v.envelopeNote() == "", 'BuildEnvelope off and no cache file: the view stays within one read, and says why');
+nEnv = 0;
+v.EnvelopeChangedFcn = @(~) countEnvelope();
+v.BuildEnvelope = true;
+v.setSource(M);
+check(v.Envelope.State == "building" && startsWith(v.envelopeNote(), "building the envelope of MUA"), ...
+    'BuildEnvelope on: the envelope is built in the background, and envelopeNote says so');
+waitUntil(@() v.Envelope.State ~= "building", 60);
+hs = findall(ov, 'Tag', 'OverviewSignal');
+check(v.Envelope.State == "ready" && nEnv >= 1 && v.envelopeNote() == "" && v.maxWidth() == M.Duration ...
+    && isscalar(hs) && strcmp(hs.Visible, 'on') && numel(hs.XData) > 100 && hs.XData(1) == 0 && max(hs.XData) < 3 ...
+    && all(hs.YData >= 0.02 & hs.YData <= 0.98), ...
+    'once built, EnvelopeChangedFcn heard it, views may span the recording, and the overview strip draws the signal');
+v.BuildEnvelope = false;
+eDef = EphysTraceEnvelope(rec);
+eDef.build();
+v.MaxReadSamples = nCh * Fs * 0.5;            % of the recording: at most 0.5 s
+v.setSource(rec);
+v.setVisibleLanes(8);
+v.setSpacing(1000);
+movefile(fullfile(folder, 'data.bin'), fullfile(folder, 'data.away'));   % nothing can be read at full rate
+v.setView(0, 3);
+movefile(fullfile(folder, 'data.away'), fullfile(folder, 'data.bin'));
+[x, y] = lanePoints(traceLines(ax), 3);
+[~, iPk] = max(y);
+R = v.LastRender;
+check(abs(v.TWidth - 3) < 1e-9 && R.error == "" && R.level == 1 && ~R.read && R.bin > 1 ...
+    && any(contains(R.notes, "drawn from the envelope")), ...
+    'with its envelope built, the whole recording is drawn from it, without a full-rate read');
+check(abs(max(y) - (-2 + 2000 / 1000)) < 1e-6 && x(iPk) <= 1.5 && x(iPk) > 1.5 - R.bin / Fs, ...
+    'the spike is in its block, drawn at the block''s first sample');
+v.Filter = struct('type', "highpass", 'cutoff', 300, 'order', 4);
+v.setView(0, 3);
+check(abs(v.TWidth - 0.5) < 1e-9 && v.LastRender.level == 0 && any(contains(v.LastRender.notes, "display filter")), ...
+    'a display filter keeps the view within one full-rate read, and says so');
+v.Filter = struct('type', "", 'cutoff', [], 'order', 4);
+v.setSource([]);
+check(isempty(v.Envelope), 'no source, no envelope');
+
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 clear figCleanup cleanup
 if nFail > 0
     error('test_EphysTraceViewer:Failures', '%d checks failed.', nFail);
+end
+
+    function countDone()
+        nDone = nDone + 1;
+    end
+
+    function countEnvelope()
+        nEnv = nEnv + 1;
+    end
+end
+
+
+function waitUntil(cond, timeout)
+% Let callbacks (timers, background futures) run until COND() or TIMEOUT s.
+t = tic;
+while ~cond() && toc(t) < timeout
+    pause(0.05);
 end
 end
 

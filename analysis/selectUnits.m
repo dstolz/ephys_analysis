@@ -77,7 +77,7 @@ function [st, meta] = selectUnits(src, usel, opts)
 %   Errors: selectUnits:NoUnits, selectUnits:NoDetected, selectUnits:NoneLeft, selectUnits:NoQuality,
 %   selectUnits:BadSource, selectUnits:BadResponse, and responseStats', aurocCurves' and epochTable's.
 %
-%   See also loadAnalysisSource, psth, firingRate, unitSummary, responseStats, responseEpochs, aurocCurves.
+%   See also loadAnalysisSource, spikePSTH, firingRate, unitSummary, responseStats, responseEpochs, aurocCurves.
 
 arguments
     src (1,1) struct

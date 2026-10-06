@@ -2,11 +2,13 @@ function queueKSRun(obj, d, res)
 %queueKSRun  The pipeline's QueueFcn: hold a prepared Kilosort4 run for the monitor.
 %   obj.queueKSRun(D, RES): D is the dataset, RES what runKilosort
 %   returned with Launch=false (every file written).
-%   The run joins KSQueue and the monitor (pollKSRuns) starts it with
-%   D.launchSorting once fewer than Sorting.MaxConcurrent runs are going.
-%   Used when the Run tab's "Queue the waiting runs" is ticked, so the Run
-%   goes on without waiting for slots. Stop queue (onStopKSQueue) drops
-%   the queued runs; closing the app asks first (onClose). A run for a
+%   The run joins KSQueue, with the scanned project's root, and the monitor
+%   (pollKSRuns) starts it with D.launchSorting once fewer than
+%   Sorting.MaxConcurrent runs are going. Used when the Run tab's "Queue
+%   the waiting runs" is ticked, so the Run goes on without waiting for
+%   slots, and by restoreKSQueue. Stop queue (onStopKSQueue) drops the
+%   queued runs; closing the app asks whether to keep them for the next
+%   launch (onClose, keepKSRuns: kept under that root). A run for a
 %   dataset whose Kilosort4 folder already has one queued or going is not
 %   queued again (the log says so): the sorting step skips such datasets
 %   (EphysPipeline.activeRun), so this only guards against a second copy.
@@ -24,7 +26,9 @@ if any(EphysDataset.pathKey(busy) == EphysDataset.pathKey(res.resultsDir))
     obj.log("[sorting] %s: Kilosort4 is already queued or running for it; not queued again", d.Name);
     return
 end
-obj.KSQueue(end+1) = struct('Name', string(d.Name), 'dataset', d, 'prepared', res);
+root = "";
+if ~isempty(obj.Project); root = string(obj.Project.Root); end
+obj.KSQueue(end+1) = struct('Name', string(d.Name), 'dataset', d, 'prepared', res, 'root', root);
 if ~isempty(obj.RunKSStopQueueButton) && isvalid(obj.RunKSStopQueueButton)
     obj.RunKSStopQueueButton.Enable = "on";
 end

@@ -12,6 +12,9 @@ function report = newAnalysisReport(opts)
 %     options   the Report section (Format, EmbedFormat, Dpi, Include*)
 %     export    the Export section (FigureSizeCm sizes the figures)
 %     datasets  struct array: name, key, folder, summary, entries
+%     pageFolder  where the PDF report's pages are kept (reportPdfPage): a
+%               folder under tempdir, removed when the last copy of the
+%               report is cleared (pageCleanup); "" for an HTML report
 %
 %   See also addReportDataset, addReportFigure, writeHtmlReport,
 %   writePdfReport, EphysAnalysisRunner.
@@ -31,4 +34,21 @@ report.config = opts.Config;
 report.options = EphysAnalysisConfig.normalizeSection("Report", opts.Options);
 report.export = EphysAnalysisConfig.normalizeSection("Export", opts.Export);
 report.datasets = struct('name', {}, 'key', {}, 'folder', {}, 'summary', {}, 'entries', {});
+report.pageFolder = "";
+report.pageCleanup = [];
+if report.options.Format ~= "html"
+    folder = string(tempname);
+    report.pageFolder = folder;
+    report.pageCleanup = onCleanup(@() removeFolder(folder));   % shared by every copy of the report
+end
+end
+
+
+function removeFolder(folder)
+if isfolder(folder)
+    try
+        rmdir(folder, 's');
+    catch
+    end
+end
 end

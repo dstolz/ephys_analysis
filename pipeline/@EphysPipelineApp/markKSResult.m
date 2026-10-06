@@ -5,24 +5,33 @@ function markKSResult(obj, name, output, status, message, addSeconds)
 %   dir) takes STATUS ("launched", "done", "error", "cancelled") and
 %   MESSAGE, and ADDSECONDS (default 0) goes onto its Seconds. The row is
 %   restated in the last Run's results (RunResults, kept while a Plan fills
-%   the results table), in the table when it shows them, in the running
-%   pipeline's Results (so the table the Run shows at its end has it too)
-%   and in the run diagram's counts once the Run is over. A row no longer
-%   there (a later Run replaced the results) is left alone.
+%   the results table), in the running pipeline's Results (so the table the
+%   Run shows at its end has it too), in the table when it shows a Run's
+%   rows (while a Run is under way it takes the pipeline's Results at once,
+%   with the rows added since the last progress event) and in the run
+%   diagram's counts once the Run is over. A row no longer there (a later
+%   Run replaced the results) is left alone.
 %
-%   See also EphysPipeline.restateResult, pollKSRuns.
+%   See also EphysPipeline.restateResult, pollKSRuns, onPipelineProgress.
 
 if nargin < 6; addSeconds = 0; end
 restate = @(T) EphysPipeline.restateResult(T, "sorting", name, output, status, message, addSeconds);
 obj.RunResults = restate(obj.RunResults);
+running = obj.RunActive && ~isempty(obj.Pipe) && isvalid(obj.Pipe);
+if running
+    obj.Pipe.updateResult("sorting", name, output, status, message, addSeconds);
+end
 t = obj.RunResultsTable;
 if ~isempty(t) && isvalid(t) && istable(t.Data) ...
         && all(ismember(["Step" "Dataset" "Status" "Message" "Output" "Seconds"], t.Data.Properties.VariableNames))
-    t.Data = restate(t.Data);   % not a plan's table (Plan shows Key and Note instead)
+    % not a plan's table (Plan shows Key and Note instead)
+    if running
+        t.Data = obj.Pipe.Results;
+    else
+        t.Data = restate(t.Data);
+    end
 end
-if obj.RunActive && ~isempty(obj.Pipe) && isvalid(obj.Pipe)
-    obj.Pipe.updateResult("sorting", name, output, status, message, addSeconds);
-elseif isfield(obj.RunDiagram, 'results') && istable(obj.RunDiagram.results)
+if ~running && isfield(obj.RunDiagram, 'results') && istable(obj.RunDiagram.results)
     obj.RunDiagram.results = restate(obj.RunDiagram.results);   % a Run under way takes its results from the pipeline
     obj.refreshRunDiagram();
 end

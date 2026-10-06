@@ -2,14 +2,15 @@ function test_EphysAnalysisRunner()
 %test_EphysAnalysisRunner  Verification suite for the runner, exports, reports and scripts.
 %   Over a small synthetic project run through the pipeline: plan() and its
 %   skip reasons; run() writing PNG + SVG figures named by the pattern (and
-%   paged grids), an HTML report with embedded PNGs (made from the exported
-%   pages) and a multi-page PDF, leaving no figure open, with percent-encoded
-%   links, and not rewriting existing pages with Overwrite off; cancel();
-%   driven synthetic units firing more in the stimulus window; script
-%   equivalence -- the compact and the standalone script, run into
-%   separate roots, pass checkcode and write the same figures (pixel for
-%   pixel) and the same HTML report (timestamps, image bytes and the config
-%   aside); real results rendered (a stack's row labels, Style.YLim on
+%   paged grids), an HTML report with embedded PNGs and a multi-page PDF
+%   (title, summary and plot pages in order), both made from the exported
+%   pages so each page is drawn once, leaving no figure open, with
+%   percent-encoded links, and not rewriting existing pages with Overwrite
+%   off; cancel(); driven synthetic units firing more in the stimulus
+%   window; script equivalence -- the compact and the standalone script,
+%   run into separate roots, pass checkcode and write the same figures
+%   (pixel for pixel), the same HTML report (timestamps, image bytes and
+%   the config aside) and the same PDF pages; real results rendered (a stack's row labels, Style.YLim on
 %   PSTHs, rasters and evoked stacks, a tuning caption); a failing
 %   export closing its page in the runner and the standalone script; and
 %   unit waveforms (templates without the sorted .bin, spikes cut from a
@@ -93,7 +94,14 @@ check(isstruct(src) && src.name == names(1) && r.Sources.isKey(char(F.keys(1))),
 
 fprintf('\n== 2. run: figures, HTML and PDF reports ==\n');
 nFig = numel(findall(groot, 'Type', 'figure'));
+made = 0;   % the figures the run creates
+    function countFigure(~, ~)
+        made = made + 1;
+    end
+oldCreate = get(groot, 'DefaultFigureCreateFcn');
+set(groot, 'DefaultFigureCreateFcn', @countFigure);
 R = r.run();
+set(groot, 'DefaultFigureCreateFcn', oldCreate);
 check(numel(findall(groot, 'Type', 'figure')) == nFig, 'the run leaves no figure open');
 done = R(R.Status == "done", :);
 check(height(R) == 2 * (numel(cfg.Plots)) && height(done) == 2 * (numel(cfg.Plots) - 2) ...
@@ -109,6 +117,12 @@ end
 html = fullfile(outMain, "analysis_report.html");
 pdf = fullfile(outMain, "analysis_report.pdf");
 check(isfile(html) && isfile(pdf) && isequal(sort(r.ReportFiles), sort([string(html) string(pdf)])), 'both reports written');
+rr = r.RunRecordFile;
+rec = jsondecode(fileread(rr));
+check(isfile(rr) && startsWith(rr, string(fullfile(outMain, "analysis_runs")) + filesep) && rec.schema == "ephys-analysis-run/1" ...
+    && rec.outcome == "finished" && numel(rec.datasets) == numel(names) && numel(rec.results) == height(R) ...
+    && numel(rec.reportFiles) == 2 && isfield(rec, 'config') && isfield(rec, 'provenance'), ...
+    'the run record: analysis_runs/<runId>_<name>.json in the report folder, with the outcome, datasets, results, reports, config and provenance');
 H = string(fileread(html));
 check(contains(H, "data:image/png;base64,") && contains(H, "psth_stim") && contains(H, "rate_resp") ...
     && contains(H, "no SPIKE extract") && contains(H, "Digital lines") && contains(H, "<pre class=""config"">") ...
@@ -122,11 +136,27 @@ check(relativePath("C:\out\rep", "C:\out\Rat#3\a b.png") == "../Rat%233/a%20b.pn
     'report links: each segment percent-encoded ("#", "%", spaces), relative paths from pwd, file:// on another drive or share');
 E1 = [r.Report.datasets.entries];
 E1 = E1([E1.status] == "done");
-check(~isempty(E1) && all(arrayfun(@(e) numel(e.images) == plotPageCount(e.R, e.spec) && e.images{1}.format == "png", E1)), ...
-    'a "both" report holds the image of every exported page (the HTML draws nothing again) and each result for the PDF');
-pdfText = fileread(pdf);
-nPages = numel(regexp(pdfText, '/Type\s*/Page[^s]', 'match'));
-check(nPages >= 1 + 2 + 2 * (numel(cfg.Plots) - 2), sprintf('the PDF has a title page, a page per dataset and every figure (%d pages)', nPages));
+nDrawn = sum(arrayfun(@(e) numel(e.pages), E1));
+check(~isempty(E1) && all(arrayfun(@(e) numel(e.images) == numel(e.files) / numel(cfg.Export.Formats) ...
+    && numel(e.pages) == numel(e.images) && e.images{1}.format == "png" && all(isfile(e.pages)), E1)) && ~isfield(E1, 'R'), ...
+    'a "both" report holds the image and the PDF page of every exported page, and no result');
+check(made == nDrawn + 1 + numel(names), sprintf(['each page is drawn once: %d figures for %d exported pages, ' ...
+    'the PDF''s title page and its %d summary pages'], made, nDrawn, numel(names)));
+texts = pdfPageTexts(pdf);
+inOrder = numel(texts) == 1 + numel(names) + nDrawn && contains(texts(1), "Generated") ...
+    && contains(texts(1), sprintf("1. %s (%d plot(s))", names(1), numel(cfg.Plots)));
+at = 1;
+for D = r.Report.datasets
+    at = at + 1;
+    inOrder = inOrder && at <= numel(texts) && contains(texts(at), D.name) && contains(texts(at), "spike_band: skipped");
+    for e = D.entries([D.entries.status] == "done")
+        for f = e.pages
+            at = at + 1;
+            inOrder = inOrder && at <= numel(texts) && texts(at) == pdfPageTexts(f);
+        end
+    end
+end
+check(inOrder, sprintf('the PDF: a title page, then per dataset its summary page and its plots'' pages in order (%d pages)', numel(texts)));
 ro = cfg; ro.Export.Overwrite = false; ro.Report.Enabled = false;
 pages = dir(fullfile(outMain, names(1), names(1) + "_psth_stim_p*.*"));
 T3 = EphysAnalysisRunner(ro, LogFcn=[]).run(Datasets=1, Plots="psth_stim");
@@ -160,7 +190,7 @@ check(any(drv) && all(stimRate(drv) > 1.3 * baseRate(drv)) && numel(meta.label) 
 fprintf('\n== 5. scripts: compact vs standalone ==\n');
 outA = fullfile(root, 'outA'); outB = fullfile(root, 'outB');
 cfgA = cfg; cfgA.Export.Folder = fullfile(outA, "{Name}"); cfgA.Report.Folder = outA;
-cfgA.Export.Formats = "png"; cfgA.Report.Format = "html";
+cfgA.Export.Formats = "png"; cfgA.Report.Format = "both";
 cfgB = cfgA; cfgB.Export.Folder = fullfile(outB, "{Name}"); cfgB.Report.Folder = outB;
 cfgFile = fullfile(root, 'analysis.json');
 cfgA = cfgA.save(cfgFile);
@@ -196,6 +226,12 @@ fprintf('    (PNG files byte-identical: %s)\n', string(sameBytes));
 ha = normalizeHtml(fileread(fullfile(outA, 'analysis_report.html')));
 hb = normalizeHtml(fileread(fullfile(outB, 'analysis_report.html')));
 check(strlength(ha) > 1000 && ha == hb, 'the HTML reports are equal once timestamps, image bytes and the config are set aside');
+ta = pdfPageTexts(fullfile(outA, 'analysis_report.pdf'));
+tb = pdfPageTexts(fullfile(outB, 'analysis_report.pdf'));
+check(numel(ta) == numel(texts) && isequal(erase(ta(2:end), " "), erase(tb(2:end), " ")) ...   % spaces: where the text extraction puts them varies
+    && contains(txtS, "pages(p) = reportPdfPage(fig, report, Files=written);") ...
+    && contains(txtS, "Files=files, Images=images, Pages=pages);"), ...
+    sprintf('both scripts write the same %d PDF pages (the title page''s time aside), made from the exported figures', numel(ta)));
 
 fprintf('\n== 6. rendering real results ==\n');
 src = r.source(1);
@@ -335,6 +371,21 @@ end
 function out = runScript(file) %#ok<INUSD> used inside evalc
 %runScript  Run a script in its own workspace and capture what it prints.
 out = evalc('run(file)');
+end
+
+
+function T = pdfPageTexts(file)
+%pdfPageTexts  Each page's text, whitespace collapsed (PDFBox, as writePdfReport joins the pages).
+doc = org.apache.pdfbox.pdmodel.PDDocument.load(java.io.File(char(file)));
+closer = onCleanup(@() doc.close());
+strip = org.apache.pdfbox.text.PDFTextStripper();
+n = doc.getNumberOfPages();
+T = strings(n, 1);
+for p = 1:n
+    strip.setStartPage(p);
+    strip.setEndPage(p);
+    T(p) = strtrim(regexprep(string(strip.getText(doc)), '\s+', ' '));
+end
 end
 
 

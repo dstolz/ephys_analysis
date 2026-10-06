@@ -15,7 +15,7 @@ if AppPrefs.ispref('EphysPipelineApp', 'PythonExe')
 end
 if ~isscalar(py) || py == "" || ~isfile(py)
     error('ChannelMapperApp:NoPython', ['No Python with probeinterface is known. Set the Python exe once on the ' ...
-        'pipeline app''s Kilosort tab, or open the mapper from its Probe tab.']);
+        'pipeline app''s Sorting tab, or open the mapper from its Probe tab.']);
 end
 result = EphysPipelineApp.runProbeToolWith(py, "", varargin{:});
 end

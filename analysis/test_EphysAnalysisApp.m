@@ -13,8 +13,8 @@ function test_EphysAnalysisApp()
 %   the gather / apply round trip, keeping the fields without a control
 %   (stop-event offset, length and time range, trial rows); save
 %   and reopen; a standalone script from the app's config; a run of one
-%   plot writing its figures and report; closing. The user's preferences
-%   (group EphysAnalysisApp) are restored afterwards.
+%   plot writing its figures and report; closing. The app's preferences live in a
+%   temporary file for the run (AppPrefs.useTemporary), never the user's.
 %
 %   Usage:  test_EphysAnalysisApp
 

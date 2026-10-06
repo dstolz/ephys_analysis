@@ -3,7 +3,10 @@ function buildVisualizeTab(obj)
 %   The tab shows any signal of the active dataset - the recording, the
 %   Sorting .bin, the Signals step's LFP / MUA / SPIKE / AUX - with its
 %   sorted units and detected spikes over it, through an EphysTraceViewer
-%   (obj.Viewer) that reads only the window shown. Opening the tab (or
+%   (obj.Viewer) that reads only the window shown; a wider view, and the
+%   signal in the overview strip, come from the signal's envelope
+%   (EphysTraceEnvelope), built once in the background while the tab is
+%   used and kept next to the dataset's outputs. Opening the tab (or
 %   choosing another dataset while it is open) loads the active dataset:
 %   onPlotVisualization finds its processed files, and Reload finds them
 %   again after a run. Every control applies at once and never changes a
@@ -76,7 +79,8 @@ obj.VizRefDropDown.Items = {'As the pipeline (Artifacts tab)', 'None (as recorde
 obj.VizRefDropDown.ItemsData = {'pipeline', 'none', 'car', 'cmr'};
 obj.VizRefDropDown.Value = 'pipeline';
 obj.VizRefDropDown.Tooltip = "The recording only (the other signals carry their own), one reference at most: " + ...
-    "the pipeline's common reference (Artifacts tab, over its good channels), none, or this view's own " + ...
+    "the pipeline's common reference (the config's Reference section, set on the Artifacts tab; over its " + ...
+    "good channels), none, or this view's own " + ...
     "mean / median across the channels shown, taken from the recording as stored.";
 obj.VizRefDropDown.ValueChangedFcn = changed("processing");
 obj.VizRefDropDown.Layout.Row = row; obj.VizRefDropDown.Layout.Column = [2 4];
@@ -300,6 +304,7 @@ obj.VizOverviewAxes.FontSize = 9;
 
 obj.Viewer = EphysTraceViewer(obj.VizAxes, OverviewAxes=obj.VizOverviewAxes);
 obj.Viewer.ViewChangedFcn = @(~) obj.onVizViewChanged();
+obj.Viewer.EnvelopeChangedFcn = @(~) obj.onVizViewChanged();   % the envelope's build, in the status line
 obj.Viewer.BusyFcn = @(msg) vizBusy(obj, msg);
 obj.Viewer.render();
 

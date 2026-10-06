@@ -9,13 +9,14 @@ for the preprocessing pipeline. It edits **one pipeline config**
 
 - pull a subject's sessions from the source (Intan or Open Ephys recording +
   ePsych file, paired by name) into local session folders, verified;
-- scan a folder tree for recordings (Intan, Open Ephys GUI sessions, or the
-  universal binary format);
+- scan a folder tree for recordings (Intan, Open Ephys GUI sessions, TDT
+  Synapse blocks, or the universal binary format);
 - assign probe maps and channel exclusions;
 - mark manual artifact periods and configure automatic detection;
 - run Kilosort4 (optional) and associate sorted output;
 - derive LFP / MUA / spike-band `.mat` files;
-- detect spikes by threshold and/or collect sorted units into a `.mat`;
+- detect spikes by threshold into a `.mat` (sorted units stay in the sorting
+  folder);
 - export Chronux- and FieldTrip-shaped files;
 - run an analysis config (plots, figure files, a report) from the
   [analysis app](EphysAnalysisApp.md) over the processed datasets;
@@ -45,17 +46,32 @@ app = EphysPipelineApp;     % open and keep a handle (app.Config, app.Project, .
 
 The constructor builds the UI, restores preferences, opens the last config
 file if it still exists (else starts from defaults, "Untitled"), and lists the
-probe folder. Closing the window asks to save an unsaved config, stops the
-background monitor and saves preferences.
+probe folder. The app opens on the Project tab.
+
+**New config**, **Open config...**, **Open recent**, **Create synthetic test
+project...** and closing the window ask first when the config has unsaved
+changes (**Save** / **Discard** / **Cancel**). Closing also asks before it
+leaves a copy running (**Close anyway** / **Stay open**): the copy finishes on
+its own, but nothing is left to verify it or write its `session_manifest.json`;
+**Copy selected** again later completes and checks it. It asks the same when
+Kilosort4 runs are queued and not started, because closing drops them. Then it
+cancels a running pipeline, stops the app's timers (the Kilosort4 and copy
+monitors, the resource monitor) and saves the preferences. Python processes
+that are already sorting keep running.
 
 ## Window layout
 
+<!-- wiki: ![The Project tab of a scanned project](images/app-project-tab.png) -->
+
 - **Menu bar**
-  - **File**: New config, Open config..., Open recent, Save config (Ctrl+S),
-    Save config as..., Export copy of config..., Generate script (Compact |
-    Standalone), Create synthetic test project... (see
-    [Synthetic test project](#synthetic-test-project)), Open analysis app...
-    ([EphysAnalysisApp](EphysAnalysisApp.md) on this project), Close.
+  - **File**: New config (Ctrl+N), Open config... (Ctrl+O), Open recent (the
+    last 8 files), Save config (Ctrl+S), Save config as..., Export copy of
+    config..., Generate script (Compact (loads the saved config)... |
+    Standalone (every parameter written out)...), Create synthetic test
+    project... (see [Synthetic test project](#synthetic-test-project)), Open
+    analysis app... (see [The analysis app](#the-analysis-app)), Channel
+    mapper... ([`ChannelMapperApp`](ChannelMapperApp.md), as the Probe tab's
+    **Map channels...**), Close.
   - **Dataset**: one checkable item per scanned dataset; the checked one is
     the [active dataset](#which-dataset-does-an-action-act-on). **View
     manifest...** at the bottom opens the active dataset's manifest in the
@@ -73,19 +89,69 @@ background monitor and saves preferences.
     **About EphysPipelineApp**, shows the version and git commit of the
     code, the repository folder and the MATLAB release; **Copy** puts them
     on the clipboard.
-- **Title**: the config name and file; `*` in front while the config has
-  unsaved changes.
-- **Tabs**, in workflow order: **Copy, Project, Trials, Probe, Artifacts, Sorting,
-  Signals, Spikes, Export, Analysis, Diagram, Run, Visualize, Review, Synthetic, Clean up**. The app opens on
-  Project. Each tab button shows an icon above its title
-  (`pipeline/icons/tabs/<title>.svg`, lower case without spaces) and is
-  coloured by its status, and its tooltip says why: grey = step disabled,
-  green = ready, amber = needs attention (config warnings, selected datasets
-  without a probe, trial pairings not approved, no datasets scanned), red =
-  config errors, blue = pipeline running, white = nothing to judge. A blue
-  underline marks the open tab.
+- **Title**: `Ephys preprocessing - <config name>  [<file>]`, with `*` in
+  front while the config has unsaved changes.
+- **Tab strip**: one button per tab, coloured by the tab's state
+  ([The tab strip](#the-tab-strip)). The open tab's title is bold, with a
+  blue underline.
 - **Status bar** (bottom): the last action on the left, a suggested next step
-  on the right.
+  on the right ([The status bar](#the-status-bar)).
+
+### The tab strip
+
+The tabs, in workflow order:
+
+| Tab | Use it to |
+| --- | --- |
+| [Copy](#copy) | copy subjects' sessions (a recording and its Epsych2 file) from the source to local session folders, by hand or at an interval ([scheduled copy](#scheduled-copy)); stitch restarted ePsych sessions |
+| [Project](#project) | name the config, scan a folder for recordings, tick the datasets to process, set the output root and the source settings, associate Epsych2 sessions |
+| [Trials](#trials) | review and approve how the trials pair with the trial digital line, name the digital lines, prefetch the lines of many datasets |
+| [Probe](#probe) | pick probe maps, assign them, exclude bad channels |
+| [Artifacts](#artifacts) | set the common reference, set up and preview automatic artifact detection, mark manual periods |
+| [Sorting](#sorting) | configure Kilosort4, associate sorted output, open phy |
+| [Signals](#signals) | derive LFP / MUA / SPIKE / AUX signals |
+| [Spikes](#spikes) | detect spikes by threshold |
+| [Export](#export) | write files for other tools (Chronux, FieldTrip, event epochs, kCSD-python, NWB) |
+| [Analysis](#analysis) | run an analysis config from the analysis app over the selected datasets: its figures and report |
+| [Diagram](#diagram) | see a diagram of what the config does; click a box to open its settings |
+| [Run](#run) | validate, plan and run; watch progress, results and the computer's load |
+| [Visualize](#visualize) | plot the recording, the sorting `.bin` or a derived signal, with sorted units and detected spikes over it; open the Artifacts tab's plot to mark periods by hand |
+| [Review](#review) | inspect sorted units and their quality metrics, add notes, open phy |
+| [Synthetic](#synthetic) | design, preview and write a synthetic dataset |
+| [Clean up](#clean-up) | free local disk space once datasets are preprocessed, or remove what chosen steps wrote |
+
+Each tab button shows an icon above its title
+(`pipeline/icons/tabs/<title>.svg`, lower case without spaces) and is coloured
+by the tab's state. Its tooltip says why.
+
+| Colour | State | When |
+| --- | --- | --- |
+| grey | disabled | Artifacts, Sorting, Signals, Spikes, Export, Analysis: the step is switched off. The Artifacts tab still turns amber or red for the common reference's (`Reference` section's) problems, since every step reads it |
+| green | ready | the step is enabled and its settings raise no issue. Project: datasets are scanned. Trials: every selected pairing is approved. Probe: every selected dataset has a probe, its own or the default |
+| amber | needs attention | config warnings for the tab. Project: no datasets scanned. Trials: some selected pairings are not approved. Probe: selected datasets without a probe, or whose probe file is not there |
+| red | error | config errors for the tab; a run refuses to start |
+| blue | busy | Run while the pipeline runs; Copy while a copy runs in the background |
+| white | neutral | Copy, Diagram, Run, Visualize, Review, Synthetic and Clean up otherwise; Probe and Trials when there is nothing to judge |
+
+### The status bar
+
+The left side of the status bar shows the last action. The right side
+suggests the next one from the project's state: scan a project; assign probes
+(while some datasets have none, their own or the default); enable steps; run
+the pipeline (with the count of sorted datasets); once every dataset has
+sorted output, run the remaining steps or open Review. Tabs post their own
+hints there too.
+
+### The analysis app
+
+**File → Open analysis app...** opens [`EphysAnalysisApp`](EphysAnalysisApp.md),
+a separate window for quick-look figures of this project's outputs (PSTHs,
+rasters, evoked potentials, rates, tuning, probe maps). With a project root
+set it opens on that root, output root, name pattern and Open Ephys recording
+mode; otherwise with its own last config. The Project tab's **Tools**
+panel opens it on chosen datasets. It reads the files the pipeline wrote and
+changes nothing here. It lives in the repository's `analysis` folder: when
+that folder is not on the path, an alert says so.
 
 ### The config model
 
@@ -96,6 +162,18 @@ enable states (tab strip colours and the Run tab's checklist) and updates the
 unsaved marker. **Open** / **New** push a config into the controls
 (`applyConfig`). Each step has an **Enabled** box on its own tab; the Run
 tab's checklist shows the same boxes.
+
+What the app holds lives in one of three places:
+
+| Where | What | Saved |
+| --- | --- | --- |
+| the pipeline config (a `.json` file) | every step's settings and which steps are enabled, the project root, output root and name pattern, the source settings, the digital-line names and polarity, the dataset selection | by **File → Save config**; `*` in the title marks unsaved changes |
+| each dataset's manifest (`<Name>_manifest.json` in its recording folder) | what belongs to one recording: its probe, excluded channels, manual artifact periods, sorted-output folder, Epsych2 session and trial-pairing cuts | at once, when they change; a config never holds them |
+| the app preferences ([Preferences](#preferences)) | what belongs to neither: the window, the probe folder, the phy command, recent configs, table layouts and sorts, display options, the Copy, Synthetic and Clean up tabs' settings | on close, and when some of them change |
+
+So one config can run on another project, and what was decided about one
+recording survives a rescan, a new config and a script that runs the same
+recordings.
 
 Opening a config whose values some fields cannot show (a number outside a
 field's limits, an unknown dropdown value) lists them in an alert: those
@@ -150,8 +228,9 @@ that recording again by its folder.
 
 | Action | Target |
 | --- | --- |
-| Trials: every control; Probe: Exclude channels, the channel-count check; Artifacts: Detect / Preview, manual periods table; Sorting: Use folder / Use auto / Open in phy, Optimize for probe (the default probe when the dataset has none); Spikes: Preview; Visualize; Review; Project: Associate file / Clear, the Tools panel set to **Active dataset** | the **active dataset** |
-| Run pipeline, Run this step, Plan, Signals / Export / Analysis target tables; Project: the Tools panel set to **Ticked datasets** | the rows **ticked** in the Project table (`Project.Selection = "list"`), or **all** datasets when none are ticked (`"all"`) |
+| Trials: every control but Prefetch ticked; Probe: Exclude channels, the channel-count check; Artifacts: Detect / Preview, manual periods table; Sorting: Use folder / Use auto / Open in phy, Optimize for probe (the default probe when the dataset has none); Spikes: Preview; Export: Epochs to workspace; Analysis: Open report / Open figures folder (the active dataset's first); Visualize; Review; Project: Associate file / Clear, the Tools panel set to **Active dataset** | the **active dataset** |
+| Run pipeline, Dry run, Run this step, Plan, Signals / Export / Analysis target tables; Project: Find sessions for selected, the Tools panel set to **Ticked datasets**; Clean up: Preview and the files it lists | the rows **ticked** in the Project table (`Project.Selection = "list"`), or **all** datasets when none are ticked (`"all"`) |
+| Trials: Prefetch ticked | the rows **ticked** in the Project table; with none ticked it asks you to tick some |
 | Probe: Assign to selected datasets | the rows **ticked** in the Project table, or the **active dataset** when none are ticked |
 | Probe: Assign to all datasets | every dataset |
 
@@ -165,21 +244,34 @@ that recording again by its folder.
    [Scheduled copy](#scheduled-copy) does the copying by itself, at an
    interval, without MATLAB open.
 1. **File → New** (or open a saved config). Name it on the Project tab.
-2. **Project**: set the project root, press **Scan**; set an output root.
-3. **Probe**: pick a probe map, **Assign to all datasets** or set it as the
+2. **Project**: set the project root, press **Scan**; set an output root and
+   the name pattern (and the source settings, for Open Ephys or TDT
+   recordings). Tick the datasets to process.
+3. **Behavior** and **Trials**: a copied session's Epsych2 file is associated
+   at the scan; otherwise point the Project tab's **Behavior** panel at the
+   Epsych2 files. On the Trials tab, name the digital lines if needed (Open
+   Ephys `TTL4` → `InTrial`), then review and approve each dataset's pairing,
+   or let **Auto approve when the counts match** approve the clean ones.
+4. **Probe**: pick a probe map, **Assign to all datasets** or set it as the
    config's default probe. Enter per-recording **Exclude channels**.
-4. **Artifacts** (optional): tune and preview the detector; mark manual
-   periods on **Visualize**.
-5. Enable the steps you want on their tabs (**Sorting**, **Signals**,
+5. **Artifacts** (optional): set the common reference; tune and preview the
+   detector; mark manual periods on its plot.
+6. Enable the steps you want on their tabs (**Sorting**, **Signals**,
    **Spikes**, **Export**, **Analysis**) and set their options. Each tab has **Run this
    step** for a single step over the selected datasets. For **Analysis**,
    make an analysis config in the analysis app first (**Open in the
-   analysis app**) and choose it.
-6. **Run**: **Validate**, **Plan**, then **Run** (or **Dry run**).
-7. **File → Save config**. Each run has already saved its standalone script
+   analysis app**) and choose it. The **Diagram** tab shows what the config
+   does.
+7. **Run**: **Validate**, **Plan**, then **Run** (or **Dry run**).
+8. **File → Save config**. Each run has already saved its standalone script
    in the project root (**Save the pipeline script on each run**, Project
    tab); **Generate script** writes either form wherever you choose.
-8. **Review**: inspect sorted units, or open them in phy.
+9. **Review**: inspect sorted units, or open them in phy. After curating in
+   phy, run **Export** again (with **Overwrite**) so its files carry the
+   curated labels.
+10. **Clean up** (optional): once the outputs are written, free the local
+    disk space the raw recordings, the sorting copies of them and the
+    Visualize tab's envelopes take.
 
 No data at hand? **File → Create synthetic test project...** writes a
 complete test project (recordings, Epsych2 sessions, sorted output, a
@@ -189,8 +281,10 @@ config) and opens it; see [Synthetic test project](#synthetic-test-project).
 
 ## Copy
 
-Copies recording sessions from the source to local session folders. Each session
-is two separate artifacts, written by different software (possibly on
+Copies recording sessions from the source to local session folders: by hand,
+or at an interval with a [scheduled copy](#scheduled-copy). Recordings that
+are already local need no copy: start on the [Project](#project) tab. Each
+session is two separate artifacts, written by different software (possibly on
 different PCs and clocks):
 
 | Artifact | Source path |
@@ -211,7 +305,11 @@ the ePsych file under its original name,
 `session_manifest.json` and `session_copy_robocopy.log`. Scanning the
 destination as a project associates that ePsych file with the recording
 (`associateFolderBehavior`), so the **Behavior** column is filled without
-any behavior search folders. The tab only collects
+any behavior search folders.
+
+<!-- wiki: ![The Copy tab after Find sessions and Preview](images/app-copy-tab.png) -->
+
+The tab only collects
 settings and shows results. The pairing rules are in
 [`findCopySessions`](../pipeline/findCopySessions.m) and the copy rules in
 [`copySessions`](../pipeline/copySessions.m), which work the same from a
@@ -231,6 +329,12 @@ while ~job.Done
 end
 ```
 
+`findCopySessions` errors with `findCopySessions:RootNotFound` when a root is
+not a folder (the source drive is not mounted, say). `copySessions` is a dry
+run unless `DryRun=false`. It copies `recording_only` and `epsych_only` rows
+only with `IncludeUnpaired=true`, never copies an ambiguous row, and with
+`MinQuietTime` skips a row whose source changed less than that long ago.
+
 | Control | Meaning |
 | --- | --- |
 | Subject ID, From, To | the subjects and an inclusive range of days (To blank = one day). **Subject ID** takes one or more IDs and patterns separated by spaces or commas. An ID is matched exactly: `SUBJ-ID-125` never matches `SUBJ-ID-1255_...`. In a pattern `*` stands for any run of characters and `?` for any one character, matched against the whole names of the subject folders under the roots (case sensitive, as the file names are): `SUBJ-ID-12*` is `SUBJ-ID-120`, `SUBJ-ID-1255`, ..., `SUBJ-ID-12?` only the 10-character ones. Blank (or `*`) is every subject, i.e. every folder directly under the ePsych root and the recording roots. Each subject is paired on its own, and the table lists one subject after another |
@@ -245,7 +349,27 @@ end
 | Unstitch | puts the selected stitched rows back as Find sessions paired them |
 | Preview (dry run) | reports what a copy would do, including a free-space check, how much of a partial copy is already there and how much is left to copy; writes nothing |
 | Copy selected | copies the ticked rows **in the background**: the app stays usable, a progress panel opens above the table and the table's **Result** column tracks each row (see [Watching a copy](#watching-a-copy)). The button becomes **Cancel copy**, which stops at once: robocopy is ended, or the SHA-256 being taken stops part way, and the row becomes `cancelled`. The file being copied or checksummed is left part way; what has been copied is kept, and **Copy selected** (`resume`) completes it later |
-| After copying, open the copied sessions as the project | sets the Project root to the folder holding the copied sessions, scans it and makes the first copied session the active dataset (for an Open Ephys session split into one dataset per recording, its first part folder) |
+| After copying, open the copied sessions as the project | after a batch in which no session failed, sets the Project root to the folder holding the copied (and already present) sessions, scans it and makes the first copied session the active dataset (for an Open Ephys session split into one dataset per recording, its first part folder) |
+
+The table lists one row per recording, and one per ePsych file that has no
+recording, one subject after another, each by time. The line above it counts
+the rows:
+`2 paired, 0 stitched, 1 recording only, 1 ePsych only, 3 ambiguous; 2 ticked.`
+The log under the table records every step, including
+the names in the subject folders that did not parse: those are skipped,
+never guessed at.
+
+| Column | Meaning |
+| --- | --- |
+| Copy | tick to include the row in **Preview** and **Copy selected** |
+| Status | `paired`, `stitched`, `recording_only`, `epsych_only` or `ambiguous` (see **Pairing** below) |
+| Recording folder, Format | the recording folder, and which reader reads it (`Intan`, `Open Ephys`, `Binary`; blank when none does) |
+| Recording time, Duration | the start time in the folder name, and the length read from the headers |
+| ePsych file, ePsych time, Trials | the behavior file, the start time in its name, and its number of trials (for a stitched row every file, joined by `+`, and the total) |
+| ePsych - recording | the time between the two starts (negative: the behavior started first, which is normal) |
+| Destination | the local session folder |
+| Result, Message | what Preview or the copy did with the row: `planned` (Preview), `copying`, `copied`, `already_present`, `skipped`, `failed` or `cancelled` |
+| Note | why a row is unpaired or ambiguous; for a stitched row, each file's start |
 
 ### Watching a copy
 
@@ -334,7 +458,8 @@ engine is then run a second time to take the SHA-256 of every source and
 destination file, except for a session found complete whose manifest records a
 finished copy with matching checksums: it is `already_present` and its files
 are not read again. Each session is handled separately, so one failure does not
-stop the others. `session_manifest.json` is written for every session copied
+stop the others. The failed sessions of a batch are listed, with the reason,
+in one alert. `session_manifest.json` is written for every session copied
 or found present (not by **Preview**); one that records a finished copy is kept
 while the session is found complete, and one left by a cancelled or failed
 copy is replaced. The manifest
@@ -436,8 +561,12 @@ session: copy it again once the other batch has finished.
 never runs twice at once, runs on battery, starts a run missed while the
 computer was off or asleep as soon as it is back, and stops a run after 12 h. It
 runs the code and the MATLAB it was saved from, so save the schedule again after
-moving either. MATLAB starts in the schedule's folder and runs the empty
-`startup.m` kept there instead of yours. The same from a script:
+moving either. MATLAB starts in the schedule's folder,
+`%LOCALAPPDATA%\ephys_analysis\copy_schedule`, and runs the empty `startup.m`
+kept there instead of yours. That folder also holds the settings, the log, the
+last run's summary and MATLAB's own output of the last run (see
+[What the app writes to disk](#what-the-app-writes-to-disk)). The same from a
+script:
 
 ```matlab
 sch = CopySchedule;                        % this Windows user's schedule
@@ -450,48 +579,202 @@ out = CopySchedule.copyNew(s);             % one run's work, in this MATLAB
 sch.remove();
 ```
 
+### After copying
+
+A copied session folder is an ordinary recording folder: scan it on the
+[Project](#project) tab (**After copying, open the copied sessions as the
+project** does that). An Open Ephys session needs the Open Ephys name pattern
+there ([Open Ephys sessions](#open-ephys-sessions)). Because
+`session_manifest.json` records where each file came from and its size, the
+[Clean up](#clean-up) tab can later remove the local raw recording of a
+preprocessed session while the source still holds every file with the same
+size, and the clean-up record says where to copy it back from. Copying it
+again with **If it exists** = `resume` copies only the missing files.
+
+The tab's settings (the subjects, roots, pairing and copy options, not the
+dates) are preferences. The scheduled copy keeps its own settings file, which
+its task reads.
+
 ## Project
+
+The Project tab is where a config starts: name it, point it at a folder of
+recordings and scan it, choose where the outputs go and how dataset names
+split into tokens, tick the datasets to process, and associate each recording
+with its Epsych2 session.
+
+<!-- wiki: ![The Project tab of a scanned project](images/app-project-tab.png) -->
 
 | Control | Meaning |
 | --- | --- |
-| Config name, Description | `cfg.Name`, `cfg.Description` |
-| Project root + Browse... + Recursive + **Scan** | `Project.Root`, `Project.Recursive`. Scan builds `EphysProject(root, Recursive=, ReaderOptions=)` (every folder that a registered reader claims: Intan `*.rhd` / `info.rhd`, an Open Ephys GUI session folder (the folder holding `Record Node <id>`), or `recording.json`; with Recursive unticked only the root and the folders directly in it are searched), then `P.refresh()`: header metadata, `applyManifest` (probe, exclusions, manual periods, sorting and behavior associations), `associateFolderBehavior` (a dataset with no behavior file takes the one Epsych2 file in its own folder), `writeManifest`. A progress dialog with Cancel; datasets whose headers fail keep `NaN` metadata, and an alert lists the datasets whose headers or manifest could not be read (a manifest that cannot be read is left as it is). Off while a run is under way |
-| Refresh metadata | re-parse all headers (off while a run is under way) |
+| Config name, Description | `cfg.Name`, `cfg.Description`. The name is in the title bar and in the name of the script a run saves |
+| Project root + Browse... + Recursive + **Scan** | `Project.Root`, `Project.Recursive` (on by default: every subfolder of the root is searched; off: only the root and the folders directly in it, for a flat project or to keep deeper folders out). **Scan** finds the recordings and reads them ([What Scan does](#what-scan-does)). Off while a run is under way |
+| Refresh metadata | re-parse all headers, after files changed on disk (off while a run is under way) |
 | Save the pipeline script on each run | `Project.SaveScript` (default on): each run, not a dry run, saves the config's standalone script as `<project root>\pipeline_<config name>.m`, replacing the one the previous run saved; a file of that name that no run saved is left as it is ([details](EphysPipeline.md#run)) |
-| Output root + Browse... | `Project.OutputRoot`: each dataset writes to `<root>/<Name>`; blank = next to the recording |
-| Name pattern + Columns | `Project.NamePattern`: tokens parsed from each dataset name (see [`parseNameTokens`](EphysPipeline.md#dataset-name-tokens)); one checkbox per token, ticked tokens (`Project.TokenColumns`, default `SubjectID`) become table columns after Name. The label shows how many names match, or the pattern error. After a scan that found Open Ephys sessions whose names do not match, the status bar suggests `{SubjectID}_{Date:yyyy-MM-dd}_{Time:HH-mm-ss}*` |
+| Output root + Browse... | `Project.OutputRoot`: each dataset writes to `<root>/<Name>`, its **output folder**; blank = next to the recording, in the recording folder |
+| Name pattern + Columns | `Project.NamePattern`: how each dataset name splits into tokens ([Name pattern and token columns](#name-pattern-and-token-columns)); one checkbox per token, ticked tokens (`Project.TokenColumns`, default `SubjectID`) become table columns after Name. The label shows how many names match, or the pattern error. After a scan that found Open Ephys sessions whose names do not match, the status bar suggests `{SubjectID}_{Date:yyyy-MM-dd}_{Time:HH-mm-ss}*` |
 | Filter | one editable dropdown per name-pattern token, listing the values found (`-` = the name does not match). Rows whose token does not match are hidden; type `*` / `?` wildcards or comma-separated alternatives (case-insensitive). Filters are a view only: they are not saved, and ticks on hidden rows stay in the selection (the label shows `showing k of n (m ticked hidden)`) |
 | All / None | **All** ticks every shown row; **None** unticks every row, shown or hidden |
-| **Source settings** panel (under the table) | the reader options of the **active dataset's** recording system (the [`Acquisition` section](EphysPipeline.md#acquisition)); the panel's title names the system and only its controls show. They are the config's, so they apply to every dataset of that system in the project, and a change rescans the project. **Open Ephys**: what a session with several recordings is (**join recordings** = one dataset, **one dataset per recording** = part folders created in the session folder, **single recording only** = refused), **Record node** and **Stream** (blank = automatic). **TDT (Synapse)**: **Stream** (`Acquisition.TDT.Stream`: an editable list of the active block's stream stores, or a typed name; **automatic** = the stream with the most channels, the highest rate among those) and **Gain (µV per unit)** (`Acquisition.TDT.GainToMicrovolts`: blank = 1e6 for float streams, which TDT stores in volts; needed for a stream stored as integers; a value that is not a number is refused in the status bar), and a line saying what the active block reads (its tooltip lists the block's streams). Intan and binary recordings have no source settings; without an active dataset the panel says so. The Open Ephys options therefore show only once an Open Ephys dataset is scanned and active (a config file can set them before a scan) |
+| **Source settings** panel (under the table) | the reader options of the **active dataset's** recording system (the [`Acquisition` section](EphysPipeline.md#acquisition)); the panel's title names the system and only its controls show. They are the config's, so they apply to every dataset of that system in the project, and a change rescans the project. **Open Ephys** ([Open Ephys sessions](#open-ephys-sessions)): what a session with several recordings is (**join recordings** = one dataset, **one dataset per recording** = part folders created in the session folder, **single recording only** = refused), **Record node** and **Stream** (blank = automatic). **TDT (Synapse)**: **Stream** (`Acquisition.TDT.Stream`: an editable list of the active block's stream stores, or a typed name; **automatic** = the stream with the most channels, the highest rate among those) and **Gain (µV per unit)** (`Acquisition.TDT.GainToMicrovolts`: blank = 1e6 for float streams, which TDT stores in volts; needed for a stream stored as integers; a value that is not a number is refused in the status bar), and a line saying what the active block reads (its tooltip lists the block's streams). Intan and binary recordings have no source settings; without an active dataset the panel says so. The Open Ephys options therefore show only once an Open Ephys dataset is scanned and active (a config file can set them before a scan) |
 | **Tools** panel (beside the table) | opens datasets in another program. The box on top chooses which: **Active dataset** (the highlighted row) or **Ticked datasets** (the ticked rows, or every dataset when none is ticked, as a run takes them); the label under it names them, and how many of several have sorted output. **Manifest viewer**: each one's `<Name>_manifest.json` in a [manifest viewer](ManifestViewerApp.md), a window each, cascaded (the same as Dataset → View manifest...). **Analysis app**: one [analysis app](EphysAnalysisApp.md) on the project with those datasets selected (a new config in project mode with `Source.Selection = "list"` and their keys: it lists every dataset but ticks only these to run, the first of them active; `"all"` when they are every dataset); needs the repository's `analysis` folder on the path. **phy**: phy's template-gui on each one's associated sorted output, a window each (on only when one of them has `params.py`; the others are skipped). **Output folder**: each one's output folder in the file browser (an alert names those not written yet). Opening more than four windows at once asks first |
+
+### What Scan does
+
+1. It builds `EphysProject(root, Recursive=, ReaderOptions=)`: one dataset
+   for every folder under the root that a registered reader
+   ([readers](EphysDataset.md#acquisition-readers)) claims. That is a folder holding Intan
+   `*.rhd` files (or `info.rhd` with its `.dat` files); an Open Ephys GUI
+   session folder, the one holding `Record Node <id>` folders, in any of the
+   GUI's record engines (Binary, Open Ephys format, NWB); a TDT Synapse block
+   (a `*.tsq` file); or a folder with a `recording.json` descriptor (the
+   [universal binary format](file-formats.md#universal-recording-format-recordingjson)).
+   A dataset is named by its folder. An Open Ephys session read as **one
+   dataset per recording** gives one dataset per recording instead
+   ([Open Ephys sessions](#open-ephys-sessions)).
+2. `P.refresh()` reads each dataset's header metadata (sample rate, channels,
+   duration, files; no samples are read) and restores what its manifest,
+   `<Name>_manifest.json`, records (`applyManifest`): its probe, excluded
+   channels, manual artifact periods, sorted-output folder and Epsych2
+   session.
+3. A dataset with no Epsych2 session takes the one Epsych2 file (a `.mat`
+   holding `Data` and `Info`) at the top of its own folder, when there is
+   exactly one (`associateFolderBehavior`). That is where the [Copy](#copy)
+   tab puts a session's behavior file, so copied sessions fill the
+   **Behavior** column without any search folders. With none, or several,
+   nothing is associated.
+4. It rewrites each manifest with the fresh metadata (`writeManifest`).
+
+A progress dialog with **Cancel** follows the scan. A dataset whose headers
+cannot be read stays in the table with `NaN` metadata, and an alert lists the
+datasets whose headers or manifest could not be read (a manifest that cannot
+be read is left as it is).
+
+### Open Ephys sessions
+
+A dataset can be a session folder written by the Open Ephys GUI, named from the
+GUI's prepend text, start time and append text
+(`SUBJ-ID-1219_2026-07-07_16-35-39`, or with a suffix such as `_active`). The
+session folder is the dataset; the Record Node, experiment and recording
+folders inside it never are ([details](EphysDataset.md#open-ephys-sessions)).
+The **Source settings** panel shows the Open Ephys options while an Open
+Ephys dataset is active:
+
+- **Recordings**: a session with several recordings (recording stopped and
+  restarted, or acquisition restarted) is one dataset, its recordings joined
+  end to end with a warning at each join (**join recordings**, the default);
+  one dataset per recording (**one dataset per recording**: the scan creates
+  a part folder per recording inside the session folder, named from the
+  recording's own start time); or refused, reported per dataset (**single
+  recording only**). `Acquisition.OpenEphys.Recordings`.
+- **Record node**: the Record Node id to read (`101`); blank = the only one,
+  or the lowest id when there are several. `Acquisition.OpenEphys.RecordNode`.
+- **Stream**: the continuous stream to read, by name (`Rhythm Data`); blank =
+  the stream with the most headstage channels. `Acquisition.OpenEphys.Stream`.
+
+Changing any of them rescans the project, because it changes which folders
+are datasets. Things to know about Open Ephys datasets:
+
+- **Name pattern.** The default pattern does not match Open Ephys names. Use
+  `{SubjectID}_{Date:yyyy-MM-dd}_{Time:HH-mm-ss}*` (the `*` takes an appended
+  suffix), which the status bar suggests after such a scan.
+- **Digital lines** are `TTL1`, `TTL2`, ... Name the trial line on the
+  [Trials](#naming-digital-lines) tab (`TTL4` → `InTrial`).
+- **Part folders.** With **one dataset per recording**, the session's Epsych2
+  file is in the session folder, not in the part folder, so the behavior step
+  finds it through the **Behavior** search folders, by start time. Two parts
+  that start in the same minute would get the same unit labels: use **join
+  recordings** for those.
+- The **Format** column reads `openephys-binary`, `openephys-legacy` (the
+  Open Ephys format) or `openephys-nwb`.
+
+### Name pattern and token columns
+
+Dataset names usually hold the subject and the recording's start, e.g.
+`SUBJ-ID-1255_260908_103949`. **Name pattern** (`Project.NamePattern`) says
+how a name splits into tokens; the default is
+`{SubjectID}_{Date:yyMMdd}_{Time:HHmmss}`. A `{Token}` matches any text, a
+`{Token:yyMMdd}` that many digits, `*` any text that is not kept, and anything
+else itself; the whole name must match
+([syntax](EphysPipeline.md#dataset-name-tokens)). Fixed text belongs in the
+pattern: `SUBJ-ID-{SubjectID}_{Date:yyMMdd}_{Time:HHmmss}` gives
+`SubjectID = 1255` for that name, the default `SUBJ-ID-1255`.
+
+The tokens are used in two places:
+
+- **Unit labels.** The `SubjectID`, `Date` and `Time` tokens label every
+  sorted unit, e.g. `su042_1255_260908T1039` ([Unit labels](#unit-labels)).
+  The Export step refuses to write units for a dataset whose name does not
+  match.
+- **The table.** Each token can be a column (**Columns**) and a filter
+  (**Filter**).
+
+### The Datasets table
 
 Table columns (drag a header to reorder; the order is kept across refreshes
 and saved in the app preferences; click a header to sort, and the sort is kept
 the same way, see [Sorted tables](#sorted-tables)): **Select**, Name, the ticked name tokens
-(`-` when the name does not match the pattern), **Key** (root-relative, what the config
-stores), Acq date, # chan, Fs (Hz), Duration (min), Format, Probe
+(`-` when the name does not match the pattern), **Key** (the folder relative to
+the project root, e.g. `SYNTH-01/SYNTH-01_260914_131653`: what the config
+stores, since folder names need not be unique), Acq date, Ch, Fs (Hz),
+Dur (min), Format (`traditional`, `one-file-per-signal`,
+`one-file-per-channel`, `openephys-binary`, `openephys-legacy`,
+`openephys-nwb`, `tdt` or `binary`), Probe
 (`default: <file>` when the dataset has none of its own and the config's
 default probe applies), Exclude,
-**Sorting** (units, `curated` when phy saved the labels, `auto` / `manual`),
-**Behavior** (subject, trial count and the recorded pairing status). A probe,
+**Sorting** (units, `curated` when phy saved the labels, `auto` = found where
+Kilosort4 writes it / `manual` = a folder chosen on the Sorting tab),
+**Behavior** (subject, trial count and the recorded pairing status:
+`pairing approved`, `pairing approved (auto)`, `pairing unreviewed`). A probe,
 hand-picked sorted-output folder or Epsych2 session that is associated but not
 there now (a disk or share not connected) reads `missing: <file>`
 (`missing: manual` for the sorted-output folder). Ticks are written to
 `Project.Datasets` as keys; with no ticks `Project.Selection` is `"all"`.
 Clicking a row makes its dataset the active one; its row is highlighted.
 
-**Behavior (Epsych2)** panel: **Behavior as a pipeline step**
-(`Behavior.Enabled`), **Search** (`Behavior.Search`), search folders + **Add
-folder...**, match rule (`prefix, then time` / `prefix only` / `time only`)
-and max start offset (`Behavior.*`), **Find sessions for selected** (runs the
-behavior step on the ticked datasets), **Re-match existing**
-(`Behavior.Overwrite`), **Write behavior .mat** (`Behavior.WriteFile`),
-**Associate file...** (pick a session `.mat` for the active dataset by hand)
-and **Clear**. Associations are written to the manifest. Nothing is plotted
-here. When the behavior step runs with **Write behavior .mat** on, each
-associated session is saved once as `<Name>_behavior.mat` in the dataset's
-output folder; the Signals, Spikes and Export outputs do not carry behavior
-data.
+### Behavior (Epsych2) sessions
+
+The **Behavior (Epsych2)** panel associates each recording with its Epsych2
+session file, a `.mat` holding `Data` (one element per trial) and `Info` (the
+session snapshot). The association is saved in the dataset's manifest, and
+the [Trials](#trials) tab reviews the trial-by-trial pairing. A recording
+folder that holds exactly one Epsych2 file, as a folder the Copy tab wrote
+does, is associated with it at the scan ([What Scan does](#what-scan-does)).
+Nothing is plotted here.
+
+| Control | Meaning |
+| --- | --- |
+| Behavior as a pipeline step | `Behavior.Enabled`: the run's behavior step |
+| Search | `Behavior.Search` (on by default): look in the search folders for a session for each dataset that has none |
+| search folders + **Add folder...** | `Behavior.SearchDirs`: folders searched recursively for Epsych2 `.mat` files, separated by `;` |
+| Match | `Behavior.Match`: `prefix, then time` (default), `prefix only` or `time only` (below) |
+| offset (min) | `Behavior.MaxStartOffsetMin` (default 30): the largest start-time difference the time rule accepts |
+| **Find sessions for selected** | runs the behavior step now on the ticked datasets (all when none are ticked) |
+| Associate file... / Clear | picks a session `.mat` for the active dataset by hand, or removes its association |
+| Write behavior .mat | `Behavior.WriteFile` (default on): the step saves each associated session once as `<Name>_behavior.mat` in the dataset's output folder |
+| Re-match existing | `Behavior.Overwrite`: the step also matches the datasets that already have a session |
+
+The match rules ([`matchEpsychSession`](EphysPipeline.md#epsych2-sessions)):
+**prefix**: the recording folder name, or one of its file names, starts with
+the session file's name, which is how Epsych2 names Intan RHX recordings when
+it controls the recorder; the longest name wins, and a tie is ambiguous.
+**time**: the session whose start is nearest the recording's, within the
+offset. **prefix, then time**: prefix first, then time.
+
+What the behavior step does for each ticked dataset:
+
+1. **Matches a session.** A dataset that has one keeps it unless **Re-match
+   existing** is ticked. Result statuses: `associated`, `matched (prefix)`,
+   `matched (time)`, `ambiguous`, `unmatched`, and `behavior file missing`
+   for an association whose file is not there now (it is kept).
+2. **Pairs the trials** with the trial line, when **Pair trials in the
+   behavior step** is ticked on the Trials tab. A recorded pairing that still
+   fits is reused; otherwise a new one is recorded as unreviewed, or as
+   approved when **Auto approve when the counts match** is on and the counts
+   match without cuts.
+3. **Writes `<Name>_behavior.mat`**, when **Write behavior .mat** is ticked,
+   on every run.
+
+`<Name>_behavior.mat` is the only output that holds behavior data: the
+Signals, Spikes and Export outputs do not carry it.
 
 With **Search** off the step searches no folder and matches nothing: it pairs
 and writes only the sessions already associated (by hand, or the one session
@@ -502,53 +785,203 @@ behavior for selected**.
 
 ## Trials
 
-Review how each trial is paired with the trial digital line (see
-[pairing](EphysPipeline.md#pairing-trials-with-the-trial-line)). The trials
-come from the dataset's trial source: its Epsych2 session, or, for a TDT block
-without one, the epocs of the store named as the trial line
+Review how each trial is paired with an interval of the trial digital line,
+and approve it ([How trials are paired](#how-trials-are-paired)). The
+approved pairing gives every trial its onset and offset on the recording's
+clock, in seconds and in samples, which `<Name>_behavior.mat` holds. The
+trials come from the dataset's trial source: its Epsych2 session
+([Behavior (Epsych2) sessions](#behavior-epsych2-sessions)), or, for a TDT
+block without one, the epocs of the store named as the trial line
 (`EphysDataset.behaviorSource`; those pair one to one with their own line and
 are approved as paired). A dataset with neither has nothing to load.
+
+With many datasets, **Prefetch ticked** reads the digital lines of every
+ticked dataset in one go, and with **Auto approve when the counts match** on,
+every pairing that needs no cuts is approved on the way. Only the ones left
+need a look here.
+
+<!-- wiki: ![The Trials tab with an approved pairing: 12 trials, 12 intervals](images/app-trials-clean.png) -->
 
 | Control | What it does |
 | --- | --- |
 | Dataset + **Load** | the active dataset. Load reads its digital lines (`digitalEvents`: cached on disk after the first read, kept in memory while it stays active) and pairs the trials in order, reusing the cuts recorded in the manifest when they still match. Choosing another dataset clears the pairing shown, including cuts not yet approved |
-| **Prefetch ticked** | reads and caches the digital lines of every ticked dataset (Project tab) that has a trial source (an Epsych2 session or TDT epocs), one after the other (`digitalEvents` for each), so a later Load, the pairing and the behavior step take them from `<Name>_events.mat` instead of reading the recording. A dataset whose cache is still current is only checked. With **Auto approve** on, each dataset is also paired and a pairing whose counts match is approved. The progress dialog names the dataset and the file being read; **Cancel** stops before the next file and keeps what was cached. The status bar sums it up (read, already cached, skipped for want of a trial source, failed; with Auto approve, approved automatically / already approved / need review), and an alert lists the pairings that need review and any failures |
-| **Reset cuts** | drops the cuts (shown and recorded) and pairs every trial with every interval in order again |
+| **Prefetch ticked** | reads and caches the digital lines of every ticked dataset that has a trial source ([Prefetching many datasets](#prefetching-many-datasets)) |
+| **Reset cuts** | shows the pairing without cuts: every trial with every interval in order. It writes nothing: the recorded cuts stay in the manifest until **Approve pairing** or **Mark unreviewed** |
 | **Approve pairing** / **Mark unreviewed** | `setTrialPairing(P, "approved" / "unreviewed")`: saves the shown cuts in the manifest, and rewrites an existing `<Name>_behavior.mat` with them (the status bar says so). Without that file, run the behavior step or press **Write behavior .mat** |
 | **Write behavior .mat** | `behaviorToMat(Pairing=P)` now, without running the step |
 | **Trial source to workspace** | loads the trial source into the base workspace: the associated Epsych2 session file as saved (`Data`, `Info`) as `epsych_<Name>`, or a TDT block's epoc stores (`TDTReader.readEpocs`, one element per store) as `epocs_<Name>`; an alert and the status bar give the variable's name. A variable of that name is replaced |
 | **Behavior to workspace** | loads the `behavior` struct of `<Name>_behavior.mat` (trials with the pairing columns, `info`, `meta`, `pairing`, ...) into the base workspace as `behavior_<Name>`, the same way. The file must exist: run the behavior step or press **Write behavior .mat** first |
 | **Pair trials in the behavior step**, **Trial line** | `Behavior.PairTrials`, `Behavior.TrialLine` |
-| **Auto approve when the counts match** | `Behavior.AutoApprove` (off by default): a pairing is approved as soon as it is paired (Load, a setting change, **Prefetch ticked**, the behavior step) when it cuts nothing and the trials and the trial-line intervals are equal in number (`EphysDataset.autoApproveTrialPairing`). The manifest marks the approval as automatic (`auto_approved`), the summary reads *APPROVED automatically* and the Project table *pairing approved (auto)*; an existing `<Name>_behavior.mat` is rewritten with the approved pairing. A count mismatch, and a pairing whose cuts resolved one, still need **Approve**. **Reset cuts** and cut edits never approve; approving by hand replaces the automatic mark |
-| Lines table (**Native**, **Name**, **Intervals**, **Inverted**) | one row per digital line: its native name (`DIGITAL-IN-04`, Open Ephys `TTL4`), its name, and its interval count. Editing **Name** writes a `Signals.LineNames` entry `native=name` (a name equal to the line's default, or a blank cell, removes it) and re-pairs from the lines already read, without reading the recording again; the trial line and the inverted lines follow the new name. Name the Open Ephys TTL lines here (`TTL4` → `InTrial`). Ticked **Inverted** lines are `Signals.InvertedLines`: on while low, so an event's onset is the falling edge and its offset the rising edge (the last low sample). Names and polarity apply to the pairing and to the events the Signals step writes (and so to the exports) |
-| **Resolve a count mismatch** | four spinners: trials and trial-line intervals to cut from the start and from the end before pairing. They belong to the dataset (its manifest), not to the config; cuts that would drop more than there is are refused |
+| **Auto approve when the counts match** | `Behavior.AutoApprove` (off by default): approve a pairing as soon as it is paired, when it needs no cuts ([Auto approval](#auto-approval)) |
+| Lines table (**Native**, **Name**, **Intervals**, **Inverted**) | one row per digital line: its native name (`DIGITAL-IN-04`, Open Ephys `TTL4`), its name, and its interval count. Edit **Name** to rename a line ([Naming digital lines](#naming-digital-lines)); tick **Inverted** for a line whose TTL logic is inverted ([Line polarity](#line-polarity)) |
+| **Resolve a count mismatch** | four spinners: trials and trial-line intervals to cut from the start and from the end before pairing. They belong to the dataset (its manifest), not to the config; cuts that would drop more than there is are refused. They are enabled once a pairing is loaded |
 | Trials table | trial, `TrialIndex`, interval, onset / offset (s), onset / offset sample, flag (orange = partial: the interval touches the recording start or end; grey = cut; red = unpaired), the other lines overlapping the trial. Click a header to sort, drag it to move the column. Right-click for **Parameter columns** (the loaded trials' parameters in alphabetical order: Epsych2 parameters, or the other epoc stores' values at each trial onset; tick one, e.g. `TrialType` or a response code, to show it after Flag), **Remove "*name*"** (on a parameter column) and **Reset column order**. The chosen parameters and the column order are preferences, so they apply to every dataset and the next session; a parameter a session lacks is not shown there (the menu lists it as *not in these trials*) and returns to its place for sessions that have it. Values that are not one number, text or date per trial are shown as text. A header click's sort is kept when the table refreshes (Load, a cut, a setting or a column change), for every dataset and the next session; the flag colours follow their rows, and right-click → **Clear sort** returns to trial order ([Sorted tables](#sorted-tables)) |
 | Plot | the digital lines over the recording: one bar per event, from its onset to its offset. A normal line's bars run from each rising edge to the next falling edge; an inverted line's (row label `(inverted)`) from each falling edge to the next rising edge. The trial line's bars are coloured by pairing state (paired, partial, cut, unpaired), and dotted lines across every row mark its onsets and offsets. Right-click the plot to show or hide those lines (shown by default) and the grid lines (hidden by default), and for **Trial labels**: the loaded trials' parameters in alphabetical order (`TrialIndex` included). A ticked parameter writes each paired trial's value above the trial line, starting at the trial's onset; with several ticked, each label reads `name=value, name=value` in the order ticked, and the plot title names them. **No labels** clears them. Like the table's parameter columns, the choice is a preference: it applies to every dataset and the next session, and a parameter a session lacks is listed as *not in these trials* and not written. Zoom and pan are horizontal only: the mouse wheel zooms time in and out about the cursor, dragging pans time |
 
-The summary line says whether the pairing is approved (by hand or
-automatically), recorded but not reviewed, or new, whether a recorded pairing went stale (the session, the
-trial line, its polarity or its intervals changed: its cuts are dropped), and
-warns when the numbers of trials and intervals differ. The Epsych2 timestamps
-are not used: trial 1 is the first interval, and the only thing to check is
-the count. A recording started after the session began has fewer intervals
-(cut the first trials; a first interval that begins at the recording start is
-the trial the recording started in), one stopped early has fewer intervals at
-the end (cut the last trials), and an inverted line that was still at its
-active level before Epsych2 started adds a partial first interval (cut it).
-Changing a setting or a cut re-pairs at once. Setting a line's polarity back
-brings the approved pairing back. Cuts are not saved until you press
-**Approve** (or **Mark unreviewed**).
+The summary line under the buttons says whether the pairing is
+**APPROVED**, **APPROVED automatically (the counts match)**, **recorded, NOT
+REVIEWED** or **NOT RECORDED - review, then Approve**; whether a recorded
+pairing went stale (the session, the trial line, its polarity or its
+intervals changed: its cuts are dropped); and, with a **WARNING**, when the
+numbers of trials and intervals differ, naming any partial intervals.
+Changing a setting or a cut re-pairs at once. Cuts are not saved until you
+press **Approve pairing** (or **Mark unreviewed**).
+
+<!-- wiki: ![The Trials tab with a count mismatch: 12 trials, 10 intervals, the first partial](images/app-trials-mismatch.png) -->
+
+### How trials are paired
+
+Epsych2 holds a digital line on for the duration of every trial: `InTrial` by
+default, recorded as an Intan digital input of that name (on Open Ephys, a TTL
+line you [name](#naming-digital-lines) `InTrial`). The rule
+([details](EphysPipeline.md#pairing-trials-with-the-trial-line)):
+
+- **In order.** Trial 1 pairs with the first interval of the trial line,
+  trial 2 with the second, and so on. The Epsych2 timestamps are not used:
+  every interval is taken to be one trial.
+- **Count check.** The only thing to check is that the numbers of trials and
+  intervals are equal. When they differ, the first `min(trials, intervals)`
+  still pair in order, and the summary warns.
+- **Cuts resolve a mismatch.** Trials or intervals are dropped from the start
+  or the end before pairing (**Resolve a count mismatch**). Cuts belong to the
+  dataset: they are saved in its manifest, not in the config.
+- **Edge intervals.** An interval that begins at the first sample of the
+  recording, or ends at the last, is partial: the line was already on when
+  the recording started, or still on when it stopped. Partial intervals are
+  flagged, and the warning names them, because they are usually what has to
+  be cut.
+
+| What happened | What you see | Cut |
+| --- | --- | --- |
+| the recording started after the session began | fewer intervals; the first may be partial | the trials that ran before the recording, from the start. A partial first interval is the trial the recording started in: cut it as well, or keep it paired with its trial |
+| the recording stopped before the session ended | fewer intervals; the last may be partial | the last trials, and a partial last interval, from the end |
+| the line pulsed once before the first trial | one extra short interval | one interval from the start |
+| an inverted line was at its active level before Epsych2 started | an extra partial first interval | one interval from the start |
+
+The [synthetic test project](#synthetic-test-project) has one dataset of each
+of the first three kinds, and a clean one.
+
+<!-- wiki: ![The Trials tab after cutting three trials and one interval from the start](images/app-trials-resolved.png) -->
+
+### Auto approval
+
+With **Auto approve when the counts match** ticked (`Behavior.AutoApprove`,
+off by default), a pairing is approved as soon as it is paired (**Load**, a
+setting change, **Prefetch ticked**, the behavior step) when it is not
+approved yet, it cuts nothing, and the trials and the trial-line intervals
+are equal in number, at least one
+(`EphysDataset.autoApproveTrialPairing`). The manifest marks the approval as
+automatic (`auto_approved`), the summary reads *APPROVED automatically (the
+counts match)* and the Project table *pairing approved (auto)*; an existing
+`<Name>_behavior.mat` is rewritten with the approved pairing. A count
+mismatch, and a pairing whose cuts resolved one, still need **Approve
+pairing**: those cuts are yours to approve. **Reset cuts** and cut edits never
+approve; approving by hand replaces the automatic mark.
+
+Equal counts do not prove the pairing right: a missing trial at one end and a
+spurious pulse at the other also give equal counts. Leave the box off to look
+at every dataset.
+
+### Naming digital lines
+
+Every digital line has a native name, from the hardware (Intan
+`DIGITAL-IN-04`, Open Ephys `TTL4`), and a name it goes by. Intan RHX names
+the lines at acquisition (`InTrial`); Open Ephys does not, so its lines are
+`TTL1`, `TTL2`, ... until you name them. Editing a line's **Name** in the
+lines table writes a `Signals.LineNames` entry `native=name` (`TTL4=InTrial`),
+which is part of the config, so it applies to every dataset. A name equal to
+the line's default, or a blank cell, removes the entry. A name must be a valid
+MATLAB name, and two lines cannot share one. The pairing is redone at once
+from the lines already read, without reading the recording again, and the
+trial line and the inverted lines follow the new name
+([Digital-line names](EphysPipeline.md#digital-line-names)). Names apply to
+the pairing and to the events the Signals step writes, and so to the exports.
+
+### Line polarity
+
+Readers return every digital line as its high runs. A line ticked
+**Inverted** (`Signals.InvertedLines`) is on while low:
+
+| Polarity | On while | Onset | Offset |
+| --- | --- | --- | --- |
+| normal (default) | high | rising edge | last high sample |
+| inverted | low | falling edge | last low sample |
+
+An inverted line's intervals are the complement of its high runs, so a low
+stretch at either end of the recording counts as a (partial) interval. The
+plot labels the line `(inverted)`. Polarity applies to the pairing and to the
+events the Signals step writes, and so to the exports
+([Digital-line polarity](EphysPipeline.md#digital-line-polarity)). Setting a
+line's polarity back brings its approved pairing back.
+
+### Prefetching many datasets
+
+**Prefetch ticked** reads and caches the digital lines of every ticked
+dataset (Project tab) that has a trial source (an Epsych2 session or TDT
+epocs), one after the other (`digitalEvents` for each), so a later **Load**,
+the pairing and the behavior step take them from `<Name>_events.mat` instead
+of reading the recording. A dataset whose cache is still current is only
+checked. With nothing ticked, it asks you to tick some.
+
+- The progress dialog names the dataset and the file being read; **Cancel**
+  stops before the next file and keeps what was cached.
+- With **Auto approve when the counts match** on, each dataset is also paired,
+  and a pairing that qualifies is approved.
+- The status bar sums it up: read, already cached, skipped for want of a trial
+  source, failed; with auto approval, approved automatically, already
+  approved, need review. An alert lists the pairings that need review (with
+  the reason, e.g. `12 trial(s) vs 10 interval(s)`) and any failures.
+
+Reading the lines is the slow part of the Trials tab, so prefetching a day's
+recordings first makes the review itself quick.
+
+### What gets written
+
+| Action | Writes |
+| --- | --- |
+| **Load**, **Prefetch ticked** | `<output folder>/<Name>_events.mat`: a cache of the raw digital lines |
+| **Approve pairing** / **Mark unreviewed**, or an automatic approval | the dataset's manifest: the status, the cuts, whether the approval was automatic, a fingerprint of the session and the trial line, a summary |
+| editing a line's **Name** or **Inverted** | the config (`Signals.LineNames`, `Signals.InvertedLines`): save it to keep the change |
+| **Write behavior .mat**, or the behavior step with **Write behavior .mat** on | `<output folder>/<Name>_behavior.mat`: the trials with the pairing columns (`TrialOnset`, `TrialOffset`, sample columns at the recording rate and at each derived signal's rate, `PairingFlag`, `TrialEvents`, ...) and a `pairing` summary ([format](file-formats.md#behavior-mat-ephysdatasetbehaviortomat-the-behavior-step)) |
+
+In a run, the behavior step reuses a recorded pairing that still matches
+(result `approved` or `needs review`) and records any other as unreviewed, or
+approves it (`auto-approved`) when **Auto approve when the counts match** is
+on and it qualifies. A mismatch is a `count mismatch` result row and a
+`WARNING` log line. Exports are never blocked by an unreviewed pairing: the
+review is yours to do.
 
 ## Probe
 
-Probe maps are Kilosort4 probe `.json` files
-([format](file-formats.md#kilosort4-probe-json)). The default folder is
-[`pipeline/probes`](../pipeline/probes/README.md).
+The Probe tab manages Kilosort4 probe maps: it picks the probe of each
+recording, sets the config's default probe and probe rules, and marks the bad
+channels to leave out.
+
+<!-- wiki: ![The Probe tab with the synthetic project's probe and one excluded channel](images/app-probe-tab.png) -->
+
+### Probe maps
+
+A probe map is a Kilosort4 probe `.json`
+([format](file-formats.md#kilosort4-probe-json)): the site of every channel.
+`chanMap` holds the 0-based recording channel of each site (a row of the
+`.bin` Kilosort4 sorts), `xc` / `yc` its position in µm, `kcoords` its shank
+(Kilosort4 places templates per shank), `n_chan` the channel count and
+`notes` free text. The default folder,
+[`pipeline/probes`](../pipeline/probes/README.md), holds
+`H64LP_4x16lin_probemap.json` (64 channels, 4 shanks),
+`Buzsaki64_5x12-H64LP_30mm.json` (64 channels, 5 shanks) and
+`linear16_example.json` (16 channels, 1 shank), each with a
+`<probe>.ks4.json` of Kilosort4 parameters for its layout
+([Optimize for probe](#optimize-for-probe)).
+
+### The probe list
 
 - **Probe folder** + **Browse...** + **Refresh** list every probe `*.json` in
   the folder (not recursive; a probe's `<probe>.ks4.json` parameter file and
-  `<probe>.chanmap.json` channel-map sidecar are not listed). The **probe table** shows Probe, Ch, Shanks, Depth
-  (µm) and Notes; the Notes cell is editable and written back into the file.
+  `<probe>.chanmap.json` channel-map sidecar are not listed). The folder is a
+  preference (`ProbeFolder`). The **probe table** shows Probe, Ch, Shanks,
+  Depth (µm, the span of `yc`) and Notes; the Notes cell is editable and
+  written back into the file, where only the `notes` text changes.
 - **Probe info** shows the file, `n_chan`, `chanMap` length, shank count,
   whether the probe has a Kilosort4 parameter file
   ([Optimize for probe](#optimize-for-probe)), and a channel-count check
@@ -558,10 +991,12 @@ Probe maps are Kilosort4 probe `.json` files
   same reasons.
 - The **preview plot** shows sites by shank; excluded sites are gray `x`.
   **Show channel numbers** labels each site with its 1-based channel.
-- **Design probe from probeinterface...** opens
-  [`ProbeDesignerApp`](ProbeDesignerApp.md); **Import probe .json into
-  folder...** (copies the probe's `.ks4.json` parameter file and
-  `.chanmap.json` sidecar too, when it has them); **Edit probe .json...**.
+- **Design probe (probeinterface)...** opens the
+  [probe designer](#the-probe-designer); **Import probe .json into
+  folder...** copies a probe map into the folder, and its `.ks4.json`
+  parameter file and `.chanmap.json` sidecar too, when it has them (it asks
+  before overwriting); **Edit probe .json...** opens the selected map in the
+  MATLAB editor.
 - **Map channels...** (also **File → Channel mapper...**) opens
   [`ChannelMapperApp`](ChannelMapperApp.md). It follows each site of a probe
   design through its package (NeuroNexus H32, H64LP ...) and headstage (Intan
@@ -569,15 +1004,14 @@ Probe maps are Kilosort4 probe `.json` files
   can copy and as pictures of the mated connectors, and exports the Kilosort4
   probe `.json` into this folder. Recording rows can come from the active
   dataset's channel numbers.
-- **Dataset** + **Exclude channels** (1-based, `1,5,32-40`): the exclusions
-  of the active dataset, written to its manifest. The list is parsed
-  strictly: text that does not parse changes nothing, an alert says why and
-  the field shows the list in force again. How exclusions reach each step:
-  [EphysDataset → Channel exclusions](EphysDataset.md#channel-exclusions) for
-  sorting; `Signals.ExcludeHandling` for derived signals;
-  `Spikes.Channels = "excludeManifest"` for detection.
-- **Assign to selected datasets** (ticked rows) / **Assign to all datasets** set `ProbeFile`
-  (and, for all, the Exclude field) and write the manifests.
+
+### Assigning probes
+
+- **Assign to selected datasets** (the ticked rows, else the active dataset)
+  / **Assign to all datasets** set `ProbeFile` (and, for all, the Exclude
+  field) and write the manifests at once, so the assignments survive a rescan
+  and apply to scripts that run the same recordings. A channel-count mismatch
+  is reported but never blocks.
 - **Default probe** (`Probe.DefaultProbeFile`) + **Use selected probe**: the
   probe used for every dataset that has none of its own (the probe check,
   sorting, the derived signals' bad-channel geometry, the Artifacts viewer's
@@ -597,28 +1031,84 @@ Probe maps are Kilosort4 probe `.json` files
   probe check. A dataset's own probe is never replaced, and a rule whose probe
   file is missing assigns nothing (the probe check reports it). Rules go
   before the default probe, which still covers the datasets no rule matches.
+  **Remove rule** deletes the selected row.
+
+One probe for the whole project: make it the default probe. Different probes
+per recording: assign them per dataset, or by rules. A dataset's own probe
+always wins. The Probe button in the tab strip turns amber while a selected
+dataset has no probe, or a probe file that is not there.
+
+### Excluding channels
+
+**Dataset** + **Exclude channels** (1-based recording channels, `1,5,32-40`)
+holds the exclusions of the active dataset, written to its manifest when the
+field is committed (Enter, or a click elsewhere). The list is parsed
+strictly: text that does not parse changes nothing, an alert says why and
+the field shows the list in force again. Channels beyond the dataset's
+channel count are dropped, and the status bar says so. How exclusions reach
+each step:
+
+| Step | Excluded channels |
+| --- | --- |
+| Sorting | stay in the `.bin`; their sites are taken out of a copy of the probe map, `<probe>_excluded.json` in the run folder, and the probe map itself is never changed ([EphysDataset → Channel exclusions](EphysDataset.md#channel-exclusions)) |
+| Signals | follow **Manifest exclusions** on the [Signals](#signals) tab (`Signals.ExcludeHandling`: `none`, `drop` or `interpolate`) |
+| Spikes | are skipped when **Channels** is *all except manifest exclusions* on the [Spikes](#spikes) tab (`Spikes.Channels = "excludeManifest"`) |
+
+### The probe designer
+
+**Design probe (probeinterface)...** opens
+[`ProbeDesignerApp`](ProbeDesignerApp.md), which builds a probe map from
+[probeinterface](https://github.com/SpikeInterface/probeinterface): from a
+manufactured probe in its library, or from a generated geometry (linear,
+multi-column, tetrode). You wire each contact to an amplifier channel and
+save a plain Kilosort4 probe `.json` into the probe folder, so nothing
+downstream depends on probeinterface. The designer runs
+[`probe_tool.py`](python-drivers.md#probe_toolpy) with the Sorting tab's
+**Python exe** (the `kilosort` environment has probeinterface).
+
+<!-- wiki: ![The probe designer with a generated two-column probe](images/probe-designer.png) -->
 
 ## Artifacts
 
-The automatic detector
+Artifact periods are stretches of a recording that the steps leave out:
+Sorting erases them in the `.bin` Kilosort4 sorts, Signals in the data it
+derives LFP / MUA / SPIKE from, and Spikes rejects the events inside them or
+erases them before detection ([In a run](#in-a-run)). The recording files are
+never changed. A period comes from one of two sources:
+
+| Source | Where it comes from | Applies |
+| --- | --- | --- |
+| manual periods | marked by hand on this tab's plot (**Mark artifacts**); saved in the dataset's manifest | always |
+| automatic detections | the detector set up here, run over the whole recording by the pipeline's `artifacts` step | while **Enable automatic detection** is ticked, to the steps ticked under it |
+
+<!-- wiki: ![The Artifacts tab after Detect / Preview](images/app-artifacts-tab.png) -->
+
+The tab holds the automatic detector
 ([`EphysDataset.detectArtifacts`](EphysDataset.md#artifact-detection-and-blanking))
-and the manual periods, after the common reference. The tab has three
-columns: the common reference and the detection settings with the active
+and the manual periods, after the common reference, in three columns: the
+common reference and the detection settings with the active
 dataset's manual periods below them, the artifact viewer at full height (one
 plot, where the detected artifacts are reviewed and the manual periods
 marked), and two tabs on the right: **Preview** (the preview's summary with
 its per-channel table) and **Selection** (a stretch measured with **Measure**,
 below).
 
+The first panel, *Common reference, for every step (config: Reference)*, is
+the config's `Reference` section, not part of `Artifacts`: every step that
+reads the recording takes the reference, whether or not detection is on, and
+a problem with it colours this tab even while detection is off. It sits here
+because detection is the first of those reads, and the viewer shows the
+referenced signal. The Signals tab picks which derived signals take it.
+
 | Control | Maps to |
 | --- | --- |
-| Reference: *None* / *CAR: common average* / *CMR: common median* | `Artifacts.Reference` (`"none"` / `"car"` / `"cmr"`), a setting for the whole pipeline (the panel is titled *Common reference, for every step*): subtract, sample by sample, the mean or median of the good channels from every channel, once, as each step reads the recording - artifact detection, the noise level of the fill, the Kilosort4 `.bin` (Kilosort4's own `do_CAR` is then turned off, so it is not referenced twice), spike detection, and the derived signals ticked on the Signals tab (MUA and SPIKE by default, not the LFP). The preview and the viewer show the referenced signal. See [Common reference](EphysDataset.md#common-reference-car--cmr) |
-| Good noise (x median): *low* to *high* | `Artifacts.ReferenceBadLow`, `ReferenceBadHigh` (0.3 and 2, Ludwig et al. 2009): a channel whose noise floor lies outside this band, relative to the median across channels, is suggested to stay out of the reference |
+| Reference: *None (as recorded)* / *CAR: common average* / *CMR: common median* | `Reference.Mode` (`"none"` / `"car"` / `"cmr"`), a setting for the whole pipeline: subtract, sample by sample, the mean or median of the good channels from every channel, once, as each step reads the recording - artifact detection, the noise level of the fill, the Kilosort4 `.bin` (Kilosort4's own `do_CAR` is then turned off, so it is not referenced twice), spike detection, the derived signals ticked on the Signals tab (MUA and SPIKE by default, not the LFP), and the Visualize tab's *As the pipeline*. The preview and the viewer show the referenced signal. See [Common reference](EphysDataset.md#common-reference-car--cmr) |
+| Good noise (x median): *low* to *high* | `Reference.BadLow`, `BadHigh` (0.3 and 2, Ludwig et al. 2009): a channel whose noise floor lies outside this band, relative to the median across channels, is suggested to stay out of the reference |
 | Left out, **Suggest** | the active dataset's `ReferenceExclude` (written to its manifest): channels kept out of the average, though still referenced. **Suggest** measures each channel's noise floor on a sample of the recording and fills the field (each channel's ratio goes to the log); typing a list marks it set by hand. A list that does not parse changes nothing (an alert says why). A dataset whose list was never set gets the suggestion on its first referenced run or preview. Channels excluded on the Probe tab stay out of the reference too |
-| **Enabled** | `Artifacts.Enabled`: run automatic detection (manual periods always apply) |
+| **Enable automatic detection** | `Artifacts.Enabled`: run automatic detection (manual periods always apply) |
 | Dataset | the active dataset: the one **Detect / Preview** analyzes and whose manual periods are listed |
 | Method, Threshold, RMS window, Stitch gap, Pad, Min channels | `Artifacts.Method`, `Threshold`, `RmsWindowMs`, `MergeGapMs`, `PadMs`, `MinChannels` |
-| Filter before detecting, High-pass (Hz) | `Artifacts.Filter`, and `FilterCutoff`: a high-pass filter's cut-off, or a band-pass filter's lower edge. `FilterType`, `FilterOrder` and a band's upper edge have no control and keep the config's values; with a low-pass filter (a config written by hand or by a script) the field is off. They apply to runs as well as the preview |
+| High-pass before detecting, High-pass (Hz) | `Artifacts.Filter`, and `FilterCutoff`: a high-pass filter's cut-off, or a band-pass filter's lower edge. `FilterType`, `FilterOrder` and a band's upper edge have no control and keep the config's values; with a low-pass filter (a config written by hand or by a script) the field is off. They apply to runs as well as the preview |
 | Erase with: *Gaussian noise (recording level)* / *Zeros* | `Artifacts.Fill` (`"noise"` / `"zero"`): what replaces the artifact samples, manual periods included. Noise by default - Kilosort4 reads a block of zeros across every channel as a signal discontinuity. Each period becomes a straight line between the signal's levels on either side plus that noise; its level is measured on up to 16 chunks spread over the recording, above `Artifacts.NoiseBandHz` (300 Hz), and `Artifacts.NoiseSeed` makes a rerun repeat; neither has a control here |
 | Erase in sorting (in the .bin Kilosort4 sorts) / Apply in spike detection (reject or erase: Spikes tab) / Erase in the signals (LFP / MUA / SPIKE, before filtering) | `Artifacts.ApplyToSorting`, `ApplyToSpikes`, `ApplyToSignals`: whether the detected artifacts reach those steps (manual periods always do). The signals take any periods only while the Signals tab's *Erase the artifact periods first* is ticked, and spike detection only while the Spikes tab's *Artifact periods* does not ignore them |
 | Cache intervals | `Artifacts.CacheIntervals` (`<Name>_artifacts.json`) |
@@ -635,6 +1125,35 @@ field still holds the previous method's default; a threshold typed for the
 previous method stays. `validate` warns about an *Absolute microvolts* or
 *Common-mode* threshold below 50 µV.
 
+**Detection methods.** Each method flags samples one channel at a time:
+
+| Method | A sample is flagged on a channel when | Threshold in |
+| --- | --- | --- |
+| *Running RMS (per-channel SD)* (default) | its running RMS (over **RMS window**; 0 = about 1 ms) is more than *Threshold* robust SDs (1.4826 × MAD of the RMS) above the channel's median RMS | robust SDs |
+| *MAD (per-channel SD)* | \|x − median\| / (1.4826 × MAD) > *Threshold* | robust SDs |
+| *Absolute microvolts* | \|x\| > *Threshold* | µV |
+| *Common-mode (mean)* | \|mean over the channels\| > *Threshold*, on every channel at once. It is measured on the signal as recorded, since a common reference subtracts that very mean | µV |
+
+A sample is an artifact when at least **Min channels** channels flag it at
+once (common mode aside). Runs of artifact samples separated by at most
+**Stitch gap** of clean signal are joined, and each run is widened by **Pad**
+on both sides. The channels excluded on the Probe tab take no part. The
+detector works chunk by chunk as it streams the recording: each chunk has its
+own median and MAD, and runs are not joined across chunk boundaries (the
+periods a run uses merge them again). See
+[Artifact detection and blanking](EphysDataset.md#artifact-detection-and-blanking).
+
+**The preview.** **Detect / Preview** fills the **Preview** tab on the right.
+Its summary gives the settings (method and threshold, RMS window, stitch gap
+and pad, min channels), what was read (duration, channels, samples, rate),
+the samples flagged and their share of the recording, the number of
+intervals, the worst channel, and whether a run applies the detection
+(*applied* while **Enable automatic detection** is ticked). The per-channel
+table lists **Ch**, **Name** (and **Shank** with a probe), **#Samples**
+flagged on that channel and **% of duration**. Those counts come before the
+**Min channels** combination, so they show which channels drive the
+detections. The preview writes nothing.
+
 **Artifact viewer.** After a preview, the middle plot shows one
 detected artifact at a time (◀ / ▶ or type its number), with **Context** ms of
 signal either side (0 = auto: twice the artifact's length, 25 ms to 5 s). It
@@ -648,8 +1167,8 @@ artifacts are shaded **orange** and manual periods **purple**, as on the
 Visualize tab, and the one shown has dashed lines at its onset and offset.
 **Shade artifacts** (amber while on) or **S** over the plot turns the shading
 off to show the signal under it; the dashed bounds stay. What counts as removed follows the controls as they are set:
-manual periods always, and detected artifacts only when **Enabled** is ticked
-together with *Erase in sorting*, *Apply in spike detection* or *Erase in the
+manual periods always, and detected artifacts only when **Enable automatic
+detection** is ticked together with *Erase in sorting*, *Apply in spike detection* or *Erase in the
 signals*. The line above the plot says which of them apply, and it warns when a detection setting has changed
 since the preview. **Scale** fits the lanes to the whole window, or to the
 kept signal: six robust SDs of the signal outside the artifacts (at most the whole
@@ -753,7 +1272,13 @@ artifact's bound. Mark on an artifact's window, or anywhere with **Go to
 (s)**. The periods go to the dataset's manifest at once, and the table, the
 plot and a Visualize plot of the dataset follow; **Clear** removes them all.
 Marking needs a window drawn, stops by itself when you leave the tab or the
-dataset, and with **Esc**. It is refused while a run is under way.
+dataset, and with **Esc**. It is refused while a run is under way. The
+periods table, titled `Manual periods of <Name> (N, saved in its manifest)`,
+lists them in recording seconds: **Start (s)**, **End (s)**, **Duration (s)**.
+Kept in the manifest, they survive a rescan, a new config and a script that
+runs the same recording. The Visualize tab's **Mark manual periods
+(Artifacts tab)** opens this plot on the stretch it shows, with **Mark
+artifacts** on.
 
 **Measuring a stretch.** **Measure** (beside *Shade artifacts*, or **M** over
 the plot; amber while on) turns the same drag into a selection: the stretch
@@ -788,44 +1313,134 @@ dataset) drops it. **Mark artifacts** and **Measure** are one drag in two
 modes: turning one on turns the other off. Measuring writes nothing, so it
 works during a run too.
 
+### In a run
+
+While **Enable automatic detection** is ticked, the pipeline's `artifacts`
+step runs the detector over each ticked dataset's whole recording and, with
+**Cache intervals**, keeps what it found in
+`<output folder>/<Name>_artifacts.json`. Later steps and runs reuse that
+detection while what decides it is unchanged: the detection settings, the
+common reference, the excluded channels and the recording's files. Otherwise
+they detect again. The manual periods and the bounds moved by hand are
+applied each time the periods are used, so marking a period or moving a bound
+needs no new detection ([artifact cache](EphysPipeline.md#run)). The step
+runs its chunks on the process pool when the Run tab's **Parallel** box is
+ticked; the periods are the same either way.
+
+Each step that reads the recording then takes the manual periods, plus the
+automatic ones when its box above (*Erase in sorting*, *Apply in spike
+detection*, *Erase in the signals*) is ticked:
+
+- **Sorting** erases them in the `.bin`, as **Erase with** says. Periods
+  that cover more than half of the recording refuse the dataset, because
+  Kilosort4 would find no spikes. The detection runs in MATLAB before
+  Kilosort4 starts, even for a background run, unless the `artifacts` step
+  or the cache has it already.
+- **Signals** draws a straight line across each before LFP / MUA / SPIKE are
+  derived, and records them in every file, while the Signals tab's *Erase the
+  artifact periods first* is ticked ([Signals](#signals)). The analysis and
+  Export's epochs (with *Artifact periods: drop*) then leave out the epochs
+  that touch one.
+- **Spikes** rejects the events inside them, or erases them before
+  detection, as the Spikes tab's *Artifact periods* says; with *Ignore them*
+  it detects as though there were none ([Spikes](#spikes)).
+
+The [Diagram](#diagram) tab draws this path: the detector's stages, the
+automatic and manual periods, and the steps they reach (orange). A click on
+one of those boxes there opens its setting here.
+
+### Artifacts from a script
+
+```matlab
+ds = EphysDataset("D:\EPHYS\SUBJ-ID-1255\SUBJ-ID-1255_260908_103949");
+cfg = ds.ArtifactConfig;  cfg.Enabled = true;  cfg.Method = "rms";  cfg.Threshold = 9;
+ds.ArtifactConfig = cfg;
+S  = ds.analyzeArtifacts();          % the preview: per-channel counts, share of the recording; writes nothing
+ds.addArtifact(120.5, 121.2);        % a manual period, in seconds
+ds.writeManifest();                  % save it in the manifest
+iv = ds.artifactIntervals();         % [k x 2] seconds: manual + automatic, merged
+```
+
+`ds.ArtifactConfig.Reference` (`"none"`, `"car"`, `"cmr"`) sets the common
+reference. See
+[Artifact detection and blanking](EphysDataset.md#artifact-detection-and-blanking)
+and [Common reference](EphysDataset.md#common-reference-car--cmr).
+
+<!-- wiki: More in [Working with datasets](Working-with-Datasets#artifacts) and [API: EphysDataset](API-EphysDataset). -->
+
 ## Sorting
 
 Kilosort4, optional (`Sorting.Enabled`). The step writes `<Name>.bin` with the
 artifact periods erased (noise by default, see the Artifacts tab) and runs
 `run_ks4.py` on it. See [Running Kilosort4](EphysDataset.md#running-kilosort4).
+The tab also associates each dataset with its sorted output and opens it in
+phy. Sorting runs in a Python environment of its own
+([installation](../pipeline/INSTALL.md)); everything else in the pipeline
+works without it.
+
+<!-- wiki: ![The Sorting tab](images/app-sorting-tab.png) -->
+
+### What a sorting run does
+
+For each ticked dataset, the Sorting step:
+
+1. works out the artifact periods to erase: the manual periods always, the
+   automatic ones when they are on (Artifacts tab). Periods that cover more
+   than half of the recording refuse the dataset, because Kilosort4 would
+   find no spikes in it and fail;
+2. writes the recording to `<output folder>/<Name>.bin` (with its `.json`
+   sidecar) with those periods erased and, when the Artifacts tab sets one,
+   the common reference subtracted (Kilosort4's own `do_CAR` is then off);
+3. writes `settings.json` and a copy of `run_ks4.py` into
+   `<output folder>/kilosort4/`, with the probe map Kilosort4 sorts with: a
+   copy without the excluded channels' sites (`<probe>_excluded.json`) or with
+   the shanks moved apart (`<probe>_spaced.json`, see `shank_spacing` below)
+   when needed;
+4. starts Python, `"<Python exe>" run_ks4.py settings.json`, or through
+   `conda run -n <env>` when **Conda env** is set, in the background or
+   blocking (**Execution**).
+
+Kilosort4 writes its phy-format output into `kilosort4/`. Every run writes
+`ks4_run.log` and, when it finishes, `ks4_status.json` (`done` or `error`).
+A dataset needs a probe (its own, a rule's or the default) and a Python
+executable to be sorted.
+
+### Settings
 
 | Control | Maps to |
 | --- | --- |
 | Enable the Sorting step, Skip datasets already sorted | `Sorting.Enabled`, `SkipExisting` |
-| Python exe (+ Browse), Conda env | `Sorting.PythonExe` (seeded from a `kilosort` conda env under `%LOCALAPPDATA%` / `%USERPROFILE%` when a new config is created), `CondaEnv` |
-| Phy command | preference `PhyCmd` (blank = `conda run -n phy phy`). phy is started in the sorted-output folder with `pushd` and delayed expansion, so a folder whose path holds `&` or spaces, or a UNC folder, works |
+| Python exe (+ Browse), Conda env | `Sorting.PythonExe`, `CondaEnv` (optional: when set, commands run as `conda run -n <env> "<Python exe>" ...`). A new config starts with the Python exe last set in the app (the `PythonExe` preference), else the `kilosort` conda env's `python.exe` found under `CONDA_EXE` or a `miniconda3`, `anaconda3`, `miniforge3` or `mambaforge` folder in `%LOCALAPPDATA%`, `%USERPROFILE%`, `%ProgramData%` or `C:\` |
+| Phy command | preference `PhyCmd`, not part of the config. Blank = the `phy` executable of the `phy` conda env, found in the conda install that holds the Python exe, the one `CONDA_EXE` names, or `%LOCALAPPDATA%\miniconda3`, `%USERPROFILE%\miniconda3` or `%USERPROFILE%\anaconda3`; else `conda run -n phy phy`. phy is started in the sorted-output folder with `pushd` and delayed expansion, so a folder whose path holds `&` or spaces, or a UNC folder, works |
 | Execution (background / blocking), Dry run | `Sorting.Execution`, `DryRun`. How many background runs go at once is set on the [Run](#run) tab |
 | note about artifact periods | read-only: the periods set on the Artifacts tab are erased in the `.bin` Kilosort4 sorts |
-| Kilosort4 parameters (five groups, from `EphysPipelineConfig.kilosortParamSpec`), Extra settings (JSON), Kilosort4 parameter docs link | `Sorting.KS4`, `KS4ExtraJSON`. Control kinds: int / float / bool as typed; `nullable` blank = omitted; `floatinf` blank / `inf` = omitted; `vector` = comma- or space-separated. One entry is not a Kilosort4 setting: `shank_spacing` (µm, 0 = off) moves the shanks apart in the probe Kilosort4 sorts with, and only there ([Kilosort4 notes](kilosort4-notes.md#shank_spacing)) |
+| Kilosort4 parameters (five groups, from `EphysPipelineConfig.kilosortParamSpec`), Extra settings (JSON), Kilosort4 parameter docs link | `Sorting.KS4`, `KS4ExtraJSON` ([Kilosort4 parameters](#kilosort4-parameters)) |
 | **Optimize for probe** | loads the Kilosort4 parameters saved for the active dataset's probe (else the default probe) from `<probe>.ks4.json` next to the probe map; without that file, offers to generate it from the current parameters or from the probe layout ([details](#optimize-for-probe)) |
 | **Reset to defaults** | every `Sorting.KS4` parameter back to its `kilosortParamSpec` default and `KS4ExtraJSON` cleared; the Python and execution settings stay |
-| **Sorted output** panel: Dataset, label, **Use folder...**, **Use auto**, **Open in phy** | the active dataset's sorted-output association (`SortingDir`, manifest `sorting`). *auto* is `kilosort4/`; *manual* is a folder you chose (anywhere) |
+| **Sorted output** panel: Dataset, label, **Use folder...**, **Use auto**, **Open in phy** | the active dataset's sorted-output association ([Sorted output](#sorted-output)) |
 | **Run this step** | `EphysPipeline.runSorting` over the selected datasets |
-| progress label + log | background runs (`ks4_run.log` tail, `ks4_status.json`), see below |
+| progress label + **Kilosort4 log** | background runs (`ks4_run.log` tail, `ks4_status.json`), see [Watching background runs](#watching-background-runs) |
 
-Each background run is handed to a MATLAB `timer` (every 3 s) as soon as it
-starts: it appends new log lines, logs `[done]` / `[error]` (a run whose
-process exits without a status file is an error), rewrites the dataset's
-manifest and refreshes the Project table rows of the datasets whose run
-started or ended (only those). An error in the monitor is logged as
-`[error]`, and the monitor restarts itself. The progress label reads *Background
-Kilosort4: F of T finished (R running, W waiting to start)*, where *waiting*
-counts the datasets the run has not started yet for want of a free slot. The
-timer stops when every tracked run has finished and none is waiting. A re-sort
-moves the earlier sort's curation aside first
-(`previous_<yyyyMMdd_HHmmss>` in the results folder, see
-[launchSorting](EphysDataset.md#result--launchsortingresult-wait-device)), and
-its result row and log line say where it went. A dataset with a Kilosort4 run
-queued or still going is skipped (`skip: Kilosort4 queued` /
-`skip: Kilosort4 running` in the plan) and never queued twice. Closing
-the app stops the timer but not Python processes already running. With
-automatic artifact detection on, each dataset's scan runs **in MATLAB,
-synchronously**, before Python is launched (and is cached afterwards).
+### Kilosort4 parameters
+
+The parameters are grouped as in Kilosort4's documentation: **Data**,
+**Preprocessing**, **Drift correction**, **Spike detection** and
+**Clustering & postproc**. Their defaults are a new config's
+([All Kilosort4 parameters](#all-kilosort4-parameters)). The control kinds:
+int / float / bool fields are sent as typed; a `nullable` field left blank is
+left out, so Kilosort4 uses its own default; a `floatinf` field left blank or
+`inf` is left out too (Kilosort4's "off"); a `vector` field takes comma- or
+space-separated numbers. A field that does not parse keeps the last good
+values in the working config, and the status bar says why
+([The config model](#the-config-model)).
+
+**Extra settings (JSON)** takes any other Kilosort4 setting as a JSON
+object, e.g. `{"save_preprocessed_copy": false}`. It is merged last and
+overrides the fields. `run_ks4.py` drops, and logs, any setting Kilosort4 does
+not accept. One entry is not a Kilosort4 setting: `shank_spacing` (µm, 0 =
+off) moves the shanks apart in the probe Kilosort4 sorts with, and only there.
+For choosing `whitening_range` and `shank_spacing`, see the
+[Kilosort4 notes](kilosort4-notes.md#shank_spacing).
 
 ### Optimize for probe
 
@@ -886,17 +1501,166 @@ the values depend only on the probe.
 one `kcoords` value, which suggests a multi-shank map without per-shank
 `kcoords`.
 
+### Sorted output
+
+The **Sorted output** panel shows and changes which sorted-output folder
+belongs to the active dataset (`SortingDir`, manifest `sorting`). The Export
+step, the Review tab, phy and the analysis read the units from there.
+
+| Control | Effect |
+| --- | --- |
+| Dataset + label | the active dataset, its association (`auto` or `manual`) and folder, its cluster count, and whether it is phy-curated (`cluster_group.tsv`) or not (`cluster_KSLabel.tsv`) |
+| **Use folder...** | pick any folder holding Kilosort4 / phy output (`params.py`), or a folder whose `kilosort4` subfolder holds it. Saved as `manual`, and kept while that folder is not there (a disk not connected): the steps then report it missing, and no other sort stands in for it |
+| **Use auto** | back to automatic: `kilosort4/` in the dataset's output folder, where the step writes |
+| **Open in phy** | opens the associated output in phy with the **Phy command** |
+
+### Watching background runs
+
+Each background run is handed to a MATLAB `timer` (every 3 s) as soon as it
+starts: it appends new lines of `ks4_run.log` to the **Kilosort4 log**, logs
+`[done]` / `[error]` when `ks4_status.json` appears (a run whose
+process exits without a status file is an error: it leaves `ks4_exit.txt`,
+so a missing Python or conda env never looks like a run still going),
+rewrites the dataset's manifest, refreshes the Project table rows of the
+datasets whose run started or ended (only those) and restates the run's row
+on the Run tab. An error in the monitor is logged as
+`[error]`, and the monitor restarts itself. The progress label reads *Background
+Kilosort4: F of T finished (R running, W waiting to start)*, where *waiting*
+counts the datasets the run has not started yet for want of a free slot. How
+many runs go at once, the GPUs they share and whether waiting runs are queued
+are set on the [Run](#run) tab. The
+timer stops when every tracked run has finished and none is waiting. A re-sort
+moves the earlier sort's curation aside first
+(`previous_<yyyyMMdd_HHmmss>` in the results folder, see
+[launchSorting](EphysDataset.md#result--launchsortingresult-wait-device)), and
+its result row and log line say where it went. A dataset with a Kilosort4 run
+queued or still going is skipped (`skip: Kilosort4 queued` /
+`skip: Kilosort4 running` in the plan) and never queued twice.
+
+Closing the app stops the timer but not the Python processes already
+running: the next launch follows those runs again, and their
+`ks4_status.json` and `ks4_run.log` say how they ended. Queued runs that have
+not started can be kept for the next launch or dropped (the app asks first;
+see [Run](#run)). The Run tab's **Stop runs...** ends runs that are going.
+
+A background run cannot feed the Export step's units in the same run: the
+units do not exist yet when the step starts, and **Validate config** reports
+it as an error. Use **Blocking (wait)** for an all-in-one run, or sort first
+and export later.
+
+### Dry runs and checking the environment
+
+With **Dry run** ticked, the step writes `settings.json` and `run_ks4.py`
+into `kilosort4/dryrun/` and stops: no `.bin` is written and Python is not
+started. Check the settings, the probe and the paths there. The files of a
+run already in `kilosort4/`, the record of how its results were made, are not
+touched.
+
+### Curating in phy
+
+1. **Open in phy** (here, in the Project tab's **Tools** panel, or on the
+   Review tab).
+2. Label clusters `good`, `mua` or `noise` in phy and save. phy writes
+   `cluster_group.tsv`, whose labels win over Kilosort4's `cluster_KSLabel.tsv`
+   wherever units are read. A note per unit is a cluster label named `notes`
+   (`cluster_notes.tsv`), which the [Review](#review) tab edits too.
+3. Run **Export** again with **Overwrite** so its files carry the curated
+   labels. The Review tab and the analysis read them from the sort folder.
+
+### Things to know
+
+- **Channel mapping.** The probe's `chanMap` values are `.bin` rows
+  (positions), not hardware channel numbers. They agree when the channel
+  numbers have no gaps; when channels were disabled at acquisition, the probe
+  map must allow for the gap
+  ([Python drivers](python-drivers.md#channel-numbering-caveat)).
+- **Artifact scan before launch.** With automatic artifact detection on, each
+  dataset's scan runs **in MATLAB, synchronously**, before Python is launched,
+  even for a background run (and is cached afterwards). Running the
+  `artifacts` step first fills the cache.
+- **Disk space.** `<Name>.bin` is as large as the recording, and Kilosort4
+  leaves its own filtered copy (`temp_wh.dat`). The sorted units need neither;
+  the [Clean up](#clean-up) tab removes them.
+- **From a script.** `ds.runKilosort()` writes the `.bin` and runs
+  Kilosort4; `Launch=false` writes a run's files and `ds.launchSorting(result)`
+  starts it later, on a chosen GPU ([Running Kilosort4](EphysDataset.md#running-kilosort4)).
+
+### All Kilosort4 parameters
+
+The parameters of `EphysPipelineConfig.kilosortParamSpec`, with a new
+config's defaults and the controls' tooltips. Kind says how the field is
+parsed ([Kilosort4 parameters](#kilosort4-parameters)).
+
+| Group | Parameter | Kind | Default | Meaning |
+| --- | --- | --- | --- | --- |
+| Data | `n_chan_bin` | nullable | blank | Channels in the .bin (blank = auto from data/probe). |
+| | `fs` | nullable | blank | Sample rate, Hz (blank = auto from recording). |
+| | `tmin` | float | `0` | Start time, s, of data to analyze. |
+| | `tmax` | floatinf | `Infinity` | End time, s (Infinity = end of recording). |
+| Preprocessing | `highpass_cutoff` | float | `300` | Kilosort4 high-pass cutoff, Hz (Kilosort4 filters internally). |
+| | `whitening_range` | int | `32` | Number of nearby channels for whitening. |
+| | `shank_spacing` | float | `0` | Extra distance, µm, between neighbouring shanks, for sorting only (0 = the probe as it is). Not a Kilosort4 setting: Kilosort4 sorts with a copy of the probe whose shanks are that much further apart |
+| | `artifact_threshold` | floatinf | `Infinity` | Zero out any batch with an absolute value at or above this amplitude (Infinity = off). Units are raw ADC counts, not volts: Kilosort4 applies it after its own high-pass filter and CAR, before whitening. For Intan and Open Ephys headstage data 1 count = 0.195 µV, so 5000 is about 1 mV. |
+| | `nskip` | int | `25` | Batch stride for computing whitening/drift. |
+| | `batch_size` | int | `120000` | Samples per processing batch. |
+| | `batch_downsampling` | int | `1` | Downsampling factor across batches for drift. |
+| | `nt` | int | `61` | Spike template width, samples. Must be a positive odd integer. |
+| | `nt0min` | nullable | blank | Sample index of template peak (blank = auto). |
+| | `shift` | nullable | blank | Additive offset applied to data (blank = none). |
+| | `scale` | nullable | blank | Multiplicative scale applied to data (blank = none). |
+| Drift correction | `nblocks` | int | `0` | Drift-correction blocks (0 = no drift correction). |
+| | `binning_depth` | float | `5` | Depth bin size, µm, for drift estimation. |
+| | `sig_interp` | float | `20` | Interpolation sigma, µm, for drift correction. |
+| | `drift_smoothing` | vector | `0.5, 0.5, 0.5` | Gaussian smoothing [t, x, depth] for drift. |
+| | `dmin` | nullable | blank | Vertical channel spacing, µm (blank = auto). |
+| | `dminx` | float | `32` | Horizontal channel spacing, µm. |
+| Spike detection | `Th_universal` | float | `7` | Threshold for universal (detection) templates. |
+| | `Th_learned` | float | `8` | Threshold for learned templates. |
+| | `Th_single_ch` | float | `6` | Single-channel detection threshold. |
+| | `nearest_chans` | int | `10` | Nearest channels used per template. |
+| | `nearest_templates` | int | `58` | Nearest templates considered per spike. |
+| | `max_channel_distance` | float | `32` | Max channel distance, µm, for a template. |
+| | `max_peels` | int | `100` | Max matching-pursuit iterations per batch. |
+| | `templates_from_data` | bool | on | Learn templates from data (vs. fixed bank). |
+| | `n_templates` | int | `6` | Number of universal templates. |
+| | `n_pcs` | int | `6` | PCs per channel for template features. |
+| | `template_sizes` | int | `5` | Number of template spatial scales. |
+| | `min_template_size` | float | `15` | Smallest template spatial scale, µm. |
+| Clustering & postproc | `acg_threshold` | float | `0.2` | Refractory ACG threshold for splits. |
+| | `ccg_threshold` | float | `0.25` | CCG threshold for merges. |
+| | `cluster_neighbors` | int | `10` | Neighbors used during clustering. |
+| | `cluster_downsampling` | int | `20` | Spike downsampling for clustering. |
+| | `max_cluster_subset` | int | `25000` | Max spikes used per clustering pass. |
+| | `x_centers` | int | `4` | Number of horizontal cluster centers. |
+| | `cluster_init_seed` | int | `5` | RNG seed for cluster initialization. |
+| | `duplicate_spike_ms` | float | `0.25` | Window, ms, for removing duplicate spikes. |
+| | `position_limit` | float | `100` | Max distance, µm, for spike position estimate. |
+
 ## Signals
 
-Derived LFP / MUA / SPIKE `.mat` files with `EphysDataset.toMat`
-([intan2matlab](intan2matlab.md)), `Signals.*`.
+Derived LFP / MUA / SPIKE / AUX `.mat` files with `EphysDataset.toMat`
+([intan2matlab](intan2matlab.md)), `Signals.*`:
+
+- **LFP**: the local field potential, resampled to a low rate;
+- **MUA**: the multi-unit activity envelope;
+- **SPIKE**: the spike band;
+- **AUX**: the headstage's auxiliary (accelerometer) inputs, as recorded.
+
+Every file also holds the digital-input events. The [Export](#export) step
+reads these files.
+
+<!-- wiki: ![The Signals tab](images/app-signals-tab.png) -->
 
 - **Output**: folder (blank = the dataset's output folder), suffix
-  (`_extract`), MAT version, overwrite, **one file per
+  (`_extract`), MAT version (`-v7.3`, any size, or `-v7`, under 2 GB per
+  variable), overwrite (off: an existing file is skipped), **one file per
   signal type** (on by default: `<Name>_extract_LFP.mat`, `_MUA.mat`,
-  `_SPIKE.mat`; one plan / result row per file).
-- **Signals**: LFP (`LFP_Fs`, high-pass, low-pass, notch + width), MUA
-  (`MUA_Fs`, integration, band), SPIKE (keep original rate / `SPIKE_Fs`, band).
+  `_SPIKE.mat`, `_AUX.mat`; one plan / result row per file. Off: one
+  `<Name>_extract.mat` holding every signal).
+- **Signals to compute**: LFP (`LFP_Fs`, high-pass, low-pass, notch +
+  width), MUA (`MUA_Fs`, integration, band), SPIKE (keep original rate /
+  `SPIKE_Fs`, band), AUX (no settings). LFP is ticked by default. A signal's
+  fields are on only while it is ticked ([Processing](#processing)).
 - **Erase the artifact periods first (a line across each), and record them in
   every file**, under the signal-type row: `Signals.BlankArtifacts` (on by
   default). Before LFP / MUA / SPIKE are derived, the dataset's artifact
@@ -908,7 +1672,8 @@ Derived LFP / MUA / SPIKE `.mat` files with `EphysDataset.toMat`
   epochs that touch one. AUX is not changed.
 - **Common reference: LFP / MUA / SPIKE**, the row below it:
   `Signals.LFP_Reference` / `MUA_Reference` / `SPIKE_Reference` (off / on /
-  on by default), which signals the common reference set on the Artifacts tab
+  on by default), which signals the common reference (the config's
+  `Reference` section, set in the Artifacts tab's common-reference panel)
   is subtracted from, once, before they are derived. It suits MUA and SPIKE,
   which it rids of the noise every channel shares; the LFP is usually kept as
   recorded, since the reference would take out the LFP the channels share.
@@ -920,48 +1685,150 @@ Derived LFP / MUA / SPIKE `.mat` files with `EphysDataset.toMat`
   interpolate bad channels → remap.
 - **Channels**: label field (`custom` / `native` names for channels, aux
   inputs and digital lines; lines renamed on the Trials tab keep their
-  names), keep channels, bad channels (none / manual list of recording
-  channels, like keep channels, those not kept being ignored / auto +
-  threshold; interpolated from the probe geometry: the dataset's probe, else
-  the config's default), channel remap,
-  **Manifest exclusions** (`none` / `drop` /
-  `interpolate`). Lists keep order and repeats; anything unparseable is an
-  error. **Reset to defaults**.
-- The **targets table** is `plan(Steps="signals")` for the selected datasets
-  (`ready`, `exists: skip`, `exists: overwrite`, `no recording files`, ...);
-  **Refresh** re-plans. **Run this step** runs `EphysPipeline.runSignals`.
+  names), keep amp channels (1-based recording channels to read, in the
+  order given; blank = all), bad channels (*None* / *Manual list* of
+  recording channels, like keep channels, those not kept being ignored /
+  *Auto*: channels whose |z-score of the LFP's RMS| exceeds **Auto
+  threshold**, default 3), channel remap (the final column order, 1-based
+  into the kept channels: `32-1` reverses 32 channels),
+  **Manifest exclusions** (what to do with the dataset's channels excluded
+  on the Probe tab: *ignore* (`none`), *drop* them from the kept channels,
+  or *interpolate* them as bad channels). Lists keep order and repeats;
+  anything unparseable stops the run with a message naming the field.
+  **Reset to defaults** puts every Signals setting back but the step's
+  **Enable** box.
+- Bad channels are interpolated from the probe geometry (the dataset's
+  probe, else the config's default): each is replaced by the
+  1/distance-weighted mean of the 4 nearest good sites on its shank. Without
+  a probe layout, or for a site with no good site on its shank, it is
+  interpolated across the neighbouring columns instead (with a warning).
+  *Auto* needs LFP ticked and the Statistics and Machine Learning Toolbox
+  (`zscore`), and cannot be combined with *interpolate* for the manifest
+  exclusions.
+- The targets table on the right, *This step for the selected datasets*, is
+  `plan(Steps="signals")` for the datasets ticked on the Project tab (all
+  when none is ticked), one row per file: **Dataset**, **Output file**,
+  **Status** (`ready`, `exists: skip`, `exists: overwrite`,
+  `no recording files`, `error: ...` for a setting that cannot apply to the
+  dataset, which blocks the run) and **Note**. It is planned again on every edit while the
+  tab is shown; **Refresh plan** does it by hand. **Run this step** runs
+  `EphysPipeline.runSignals` on the Run tab.
+
+### Processing
+
+| Signal | Defaults | Processing |
+| --- | --- | --- |
+| LFP | `LFP_Fs` 1000 Hz; high-pass 1 Hz, low-pass 300 Hz and notch 60 Hz (width 2 Hz), each off | resampled to `LFP_Fs`; then, at that rate, a 4th-order Butterworth high-, low- or band-pass and a 2nd-order band-stop per notch, all zero-phase (`filtfilt`) |
+| MUA | `MUA_Fs` 2000 Hz, integration 1000 Hz, band 300–5000 Hz | 4th-order Butterworth band-pass at the recording rate (zero-phase), rectified, resampled to `MUA_Fs`, then a moving mean over `round(MUA_Fs / integration)` samples |
+| SPIKE | the recording rate kept (else `SPIKE_Fs`, 20000 Hz), band 300–5000 Hz | resampled to `SPIKE_Fs` unless the rate is kept, then a 4th-order Butterworth band-pass (zero-phase) |
+| AUX | none | the auxiliary inputs as recorded, in volts at their own rate. A recording without them writes none, with a warning |
+
+- **Notch** takes a list, such as `60, 120, 180`. Each notch must fit inside
+  (0, `LFP_Fs`/2): `f − width/2 > 0` and `f + width/2 < LFP_Fs/2`. The width
+  is between the design's −3 dB points (−6 dB after the zero-phase filter).
+- Every filter edge must lie below half the rate it is applied at. **Plan**
+  reports a setting that cannot apply to a dataset (`LFP_Fs` above its sample
+  rate, say) as `error: ...`, and that blocks the run.
+- Zero-phase IIR filters leave edge transients at the start and end of the
+  recording: up to about 2 s at each end for a 1 Hz high-pass, longer for
+  lower cut-offs.
+- The whole recording is read into memory in single precision. Expect a peak
+  of about twice its size.
+- The digital-input events are taken at the recording rate. Lines ticked
+  **Inverted** on the [Trials](#line-polarity) tab have their onsets at the
+  falling edge.
+
+The full processing order and options are in [intan2matlab](intan2matlab.md).
+
+### The files
+
+Each `<Name>_extract_<TYPE>.mat` holds `Y` (the signal,
+`[nSamples x nChannels]` single, as `Y.LFP`, `Y.MUA`, ...), `events` (one
+field per digital line: `[k x 2]` onset / offset times, seconds), `info` (the channel
+labels, the recording rate, each signal's rate, filters, sample count and
+common reference, and `info.artifacts`, the periods erased) and `conversion`
+(provenance). Row k of a signal is at `(k − 1) / Fs`. See the
+[file format](file-formats.md#derived-signal-mat-ephysdatasettomat-the-signals-step).
+
+<!-- wiki: Load them with [`DatasetOutputs`](Loading-Outputs): `out.LFP`, `out.MUA`, `out.AUX`. -->
+
+### Signals from a script
+
+```matlab
+ds  = EphysDataset("D:\EPHYS\SUBJ-ID-1255\SUBJ-ID-1255_260908_103949");
+[Y, events, info] = ds.deriveSignals(dataTypeOut=["LFP" "MUA"], LFP_Fs=1000, LFP_NotchHz=60);
+out = ds.toMat(SeparateFiles=true, SignalOptions=struct('dataTypeOut', ["LFP" "AUX"]));
+```
+
+`intan2matlab(folder, ...)` runs the same processing as a function of its
+own.
+
+<!-- wiki: More in [Working with datasets](Working-with-Datasets#derived-signals). -->
 
 ## Spikes
 
 Threshold-detected spike events per dataset with `EphysDataset.spikesToMat`,
-`Spikes.*`. This step does not read the sorted units: they stay in the
+`Spikes.*`, written to `<Name>_spikes.mat`
+([format](file-formats.md#spikes-mat-ephysdatasetspikestomat-the-spikes-step)).
+This step does not read the sorted units: they stay in the
 sorting folder, where Export and the analysis read them.
 
-- **Filter** (band, order), **Threshold** (method, value, polarity, max
-  amplitude; **Noise measured over**, `Spikes.ThresholdScope`: *each chunk*
+Detection streams the whole recording one chunk at a time. For each channel
+it filters the chunk, takes a threshold from the filtered noise, finds the
+threshold crossings, aligns each to its extremum, keeps a minimum period
+between events, drops events above the maximum amplitude and, when asked,
+cuts the waveforms ([Spike detection](EphysDataset.md#spike-detection)). It
+is a detector, not a sorter: a spike seen on several channels is detected
+once on each. Chunk joins are not detection boundaries, so no event is lost
+or counted twice at a join.
+
+<!-- wiki: ![The Spikes tab with a detection preview](images/app-spikes-tab.png) -->
+
+- **Filter** (band-pass on, 500–5000 Hz, order 4), **Threshold** (method
+  `mad` (a robust SD, median(|x − median(x)|)/0.6745, times the value),
+  `std`, `rms`, `percentile` (of |x|) or `absolute` (µV); value blank = the
+  method's default, 4, or 99.9 for `percentile`, none for `absolute`;
+  polarity `negative` / `positive` / `both`; max amplitude `Inf`;
+  **Noise measured over**, `Spikes.ThresholdScope`: *each chunk*
   (default) or *the whole recording*, one threshold per channel from a first
   pass over the recording, see
   [detectSpikes](EphysDataset.md#whole-recording-mode); off for *absolute*),
-  **Events** (align, window, min period), **Waveforms** (on/off,
-  window, source, edge handling), **Channels & artifacts** (all / manifest
+  **Events** (align `trough` / `peak` / `extremum` / `none` within 1 ms; min
+  period 1 ms, keeping the earlier of two closer events), **Waveforms** (off;
+  window −0.5 to 1.5 ms, source `filtered` / `raw`, edge handling `nan`
+  (pad) / `drop`), **Channels & artifacts** (all / manifest
   exclusions / list; **Artifact periods**, `Spikes.ArtifactMode`: *Reject the
   events inside them* (default), *Erase them before detection (the cleaned
   recording)*, whose samples then stay out of the thresholds and are bridged
   by a line for the band-pass, so an artifact neither rings into the samples
-  around it nor raises the threshold, or *Ignore them*), **Chunking**
+  around it nor raises the threshold, or *Ignore them*; the periods are the
+  manual ones, plus the automatic detection while it is enabled and the
+  Artifacts tab's *Apply in spike detection* is ticked, see
+  [In a run](#in-a-run)), **Chunking**
   (chunk cap, edge pad; the parallel switch is on the Run tab), **Output**
   (folder, suffix `_spikes`, MAT version, overwrite).
-- **Dataset** + **Preview**: detects on the first *n* seconds of the active
-  dataset with the tab's settings and lists per-channel thresholds, counts and
-  rates. The preview's thresholds are always its window's own; with *the
+- **Dataset** + **Preview**: detects on the first *n* seconds (10 by
+  default, the field beside the button) of the active dataset with the tab's
+  settings, and lists per channel **Ch**, **Name**, **Threshold (uV)**,
+  **Events** and **Rate (Hz)**, to tune the threshold before a run. It writes
+  nothing, and neither rejects nor erases the artifact periods, whatever
+  *Artifact periods* says. The preview's thresholds are always its window's own; with *the
   whole recording* its label says so.
 - **Run this step** runs `EphysPipeline.runSpikeDetection`.
 
 ## Export
 
 Files for external toolboxes, and the same data organized by event,
-`Export.*`. Nothing about spectra, tapers or Chronux functions appears here:
-the app only writes files.
+`Export.*`: one file per format ticked (`Export.Formats`). Nothing about
+spectra, tapers or Chronux functions appears here: the app only writes files,
+and no toolbox is needed to write them. The exports are independent: none is
+built from another. They read the Signals step's extract files
+(`<Name>_extract_<TYPE>.mat`, or one `<Name>_extract.mat`), so run **Signals**
+first; detected spikes come from the Spikes step's file, and units from the
+dataset's [sorted output](#sorted-output), which need a dataset name that
+matches the [name pattern](#name-pattern-and-token-columns).
+
+<!-- wiki: ![The Export tab with its formats and its plan](images/app-export-tab.png) -->
 
 - **Chronux** (`<Name>_chronux.mat`, [format](file-formats.md#chronux-export-ephysdatasetexportchronux-the-export-step)),
   **FieldTrip** (`<Name>_fieldtrip.mat`,
@@ -982,24 +1849,71 @@ the app only writes files.
   and institution; the Python and conda env (blank = the Sorting tab's); and
   **Check with nwbinspector**. Anything left blank is not written, and
   nwbinspector reports a subject without species, sex or age.
-- What to include: signals (blank = every signal in the extract), sorted
-  units (+ groups), detected spikes, events; **Validate with
-  FieldTrip** when it is on the path.
-- **Event epochs**: where the onsets come from (a digital-input line, or the
-  paired behavior trials, which bring their session columns with them), the
-  line, the window around each onset, what to do with a window that runs past
-  the recording or holds `NaN` / `Inf` samples, what to do with an epoch that
+- What to include: signals (`Export.Signals`, e.g. `LFP, MUA`; blank = every
+  signal in the extract: LFP, MUA, SPIKE, AUX), sorted units (+ groups, `good,
+  mua` by default), detected spikes (from the Spikes step's file), digital-input
+  events; **Validate with FieldTrip** (FieldTrip's own `ft_datatype_*` checks)
+  when it is on the path. These choices apply to every format, the epoch file
+  included.
+- **Event epochs**: where the onsets come from (`Export.EpochSource`: the
+  pulses of a digital-input line, or the trials paired on the
+  [Trials](#trials) tab, which bring their session columns with them; a
+  pairing that is not approved gives a warning), the line (blank = the trial
+  line, else the only line), the window around each onset (default −0.2 to
+  0.5 s), what to do with a window that runs past the recording (*pad with
+  NaN*, the default, which flags the row `EpochComplete = false`; *drop the
+  epoch*; *error*) or holds `NaN` / `Inf` samples (*keep the epoch*, the
+  default; *drop*; *error*), what to do with an epoch that
   touches an artifact period the Signals step erased (**Artifact periods:**
   *touching one: drop the epoch*, the default, leaves it out of the signals as
   the analysis does; *touching one: keep it (flagged)*; the trials table flags
   it either way, `Export.EpochArtifacts`), how the per-epoch spike
-  times are stamped, the class of the epoched samples and the onset rule.
-  **Epochs to workspace** builds that struct for the dataset selected on the
-  Project tab with these settings and puts it in the base workspace as
-  `epochs_<name>` — nothing is written to disk.
-- Output folder, overwrite, MAT version; the targets table (`no extract file`
-  when the Signals output is missing); **Run this step** runs
+  times are stamped (*0 at the onset*, the default; *0 at the window start*;
+  *recording clock*), the class of the epoched samples (*double*, the
+  default; *single*; *as recorded*: the values never change) and the onset
+  rule (*event*, the default, for digital-input times `t = row / origFs`:
+  `round((t − 1/origFs) × Fs) + 1`, the signal row nearest the event's
+  recording row, which at the recording rate is that row, `round(t × Fs)`;
+  *sample*: `round(t × Fs) + 1`, for times on a continuous time base).
+  Nothing is averaged, smoothed or resampled.
+  **Epochs to workspace** builds that struct for the active dataset with
+  these settings and puts it in the base workspace as `epochs_<name>`
+  (replacing a variable of that name); an alert says what was built. Nothing
+  is written to disk. It needs the dataset's Signals output.
+- Output folder, overwrite, MAT version; **Run this step** runs
   `EphysPipeline.runExport`.
+- The targets table lists one row per format and dataset (steps
+  `export:chronux`, `export:fieldtrip`, `export:epochs`, `export:kcsd`,
+  `export:nwb`) with the output file and a status: `ready`; `exists: skip` /
+  `exists: overwrite` (**Overwrite** decides); `no extract file` (no Signals
+  output yet: fine when the Signals step runs first in the same run);
+  `error: unit identity` (units are asked for but the dataset name cannot
+  label them). It is refreshed when the tab opens; **Refresh plan** redoes
+  it.
+
+### What is in the files
+
+Every variable and field is in [Files on disk](file-formats.md):
+
+- `<Name>_chronux.mat`: one struct per signal (`data`
+  `[nSamples x nChannels]`, Chronux `params` with the signal's `Fs`, `t`,
+  `labels`, `info`), the sorted units as `sp` (a struct array with `times`, the input
+  of `mtspectrumpt`), the detections as `spDetected`, the events, and
+  `export` (provenance and time conventions)
+  ([format](file-formats.md#chronux-export-ephysdatasetexportchronux-the-export-step)).
+- `<Name>_fieldtrip.mat`: `data_<SIG>` raw structures (`ft_datatype_raw`),
+  `spike` / `spikeDetected` (`ft_datatype_spike`), `event`, and `export` with
+  the validation result ([format](file-formats.md#fieldtrip-export-ephysdatasetexportfieldtrip-the-export-step)).
+- `<Name>_epochs.mat`: `epochs` with the event, a trials table (one row per
+  epoch), the signals as `[nTime x nEpochs x nChan]`, the units' and
+  detections' spike times per epoch, and `export`
+  ([format](file-formats.md#epoch-export-ephysdatasetexportepochs-the-export-step)).
+- `<Name>_kcsd.npz` and `<Name>.nwb`: see their formats above.
+
+For quick-look figures (PSTHs, evoked potentials, tuning) of the same data,
+use the [analysis app](EphysAnalysisApp.md).
+
+<!-- wiki: Worked examples of the toolbox formats (trial-aligned spectra, spike-field coherence, FieldTrip trials) are on [Analysis toolbox exports](Analysis-Toolbox-Exports). -->
 
 ## Analysis
 
@@ -1061,6 +1975,11 @@ drawings, and the choice is kept as a preference:
 - **Data-flow overview** (the default): only the steps and the data passing
   between them (see [Data-flow overview](#data-flow-overview)).
 
+**Refresh** draws it again. The summary line beside the buttons counts the
+steps enabled and, with an active dataset, names the recording drawn
+(`| recording: <name>`). **Save as HTML...** and **Open in Browser** write
+the drawing out ([below](#data-flow-overview)).
+
 Both are drawn by `PipelineDiagram`, which needs no app, so a script can
 write a config's diagram too:
 `writelines(PipelineDiagram.overview(cfg, []), "overview.html")`
@@ -1077,12 +1996,14 @@ even as the diagram is redrawn (on a config edit, or on leaving and coming
 back to the tab); each view, and each layout of Every parameter, keeps its
 own.
 
+<!-- wiki: ![The Diagram tab, Every parameter view](images/app-diagram-tab.png) -->
+
 **Every parameter** is one tree: the raw
 recording at the top, then the common reference, drawn once, and under it
 the steps that read the recording, each drawn top-down from its own coloured
 step box to the files it writes:
 
-- **Common reference** (Artifacts tab, **Reference**): the one box for the
+- **Common reference** (`Reference.Mode`, set on the Artifacts tab): the one box for the
   whole pipeline, since every step subtracts it once from its own read of the
   recording. It lists what leaves it out: the Signals not ticked for it
   (*not Signals' LFP* by default) and the common-mode artifact detector,
@@ -1161,6 +2082,8 @@ project root. Keyboard: tab to a box and press Enter or Space.
 
 ### Data-flow overview
 
+<!-- wiki: ![The Diagram tab, Data-flow overview](images/app-diagram-overview.png) -->
+
 Every pipeline step as one box in its colour, with the files it writes hung
 under it. The three inputs are above them: the raw recording, the Epsych2
 sessions (their search folders and how they are matched, or, with
@@ -1207,10 +2130,39 @@ printed page shows the whole diagram at 100%.
 **Open in Browser** writes the chart to a temp file and opens it in your
 default web browser, same as **Save as HTML...** but without the save dialog.
 
+<!-- wiki
+The synthetic project's config, every parameter, as **Save as HTML...** writes it:
+
+![Every parameter of the synthetic project's config](images/flow-full.png)
+-->
+
 ## Run
 
-- **Steps** checklist: the Enabled boxes of every step (mirrored with the
-  tabs), and the selection summary.
+The Run tab validates the config, shows what a run would do, runs it and
+reports the results, step by step.
+
+<!-- wiki: ![The Run tab after a run](images/app-run-results.png) -->
+
+### Steps and selection
+
+The **Steps (same switches as on each tab)** panel lists the steps in the
+order they run. Each box is the same switch as the **Enable** box on the
+step's own tab.
+
+| Step | Box | Does |
+| --- | --- | --- |
+| `probe` | *Probe check (always)* (a label: it always runs) | checks each dataset's probe against its channel count; with **Assign automatically**, first gives a dataset without one its probe rule's ([Probe](#probe)) |
+| `behavior` | *Behavior: match Epsych2 sessions* | matches the Epsych2 sessions, pairs the trials, writes `<Name>_behavior.mat` ([Behavior (Epsych2) sessions](#behavior-epsych2-sessions), [Trials](#trials)) |
+| `artifacts` | *Artifacts: automatic detection* | detects the artifact periods and caches them ([Artifacts](#in-a-run)) |
+| `sorting` | *Sorting: Kilosort4* | writes the `.bin` and runs Kilosort4 ([Sorting](#sorting)) |
+| `signals` | *Signals: LFP / MUA / SPIKE / AUX .mat* | the derived signals ([Signals](#signals)) |
+| `spikes` | *Spikes: detected spikes .mat* | threshold spike detection ([Spikes](#spikes)) |
+| `export` | *Export: analysis-toolbox files* | the files for other tools ([Export](#export)) |
+
+The line under the panel's switches gives the selection:
+`Selection: 2 of 4 dataset(s) ticked.` (the rows ticked on the Project tab)
+or `Selection: all 4 dataset(s).` (none ticked).
+
 - **Kilosort4 runs at once** (under the Sorting box, default 1):
   `Sorting.MaxConcurrent`. With background execution, a run sorts this many
   datasets at a time and starts the next as one finishes. It writes each
@@ -1218,7 +2170,10 @@ default web browser, same as **Save as HTML...** but without the save dialog.
   one is ready to go. The run stays busy until the last dataset has started;
   **Cancel** stops the wait (runs already started carry on). The current-step
   line says how many are running, finished and still to start. Runs from an
-  earlier Run that are still going count too. Greyed out when Execution
+  earlier Run that are still going count too. With two or more at once and
+  no more than one GPU listed under it, every run goes on the same GPU, where
+  several can run out of memory on a small card; **Validate config** (and the
+  Run's own check) warns. Greyed out when Execution
   (Sorting tab) is blocking, which always goes one at a time. See
   [Background Kilosort4 runs](EphysPipeline.md#background-kilosort4-runs).
 - **GPUs** (under it, blank by default): `Sorting.Devices`, torch devices
@@ -1226,86 +2181,215 @@ default web browser, same as **Save as HTML...** but without the save dialog.
   GPU the fewest running runs use, so on a two-GPU machine with two runs at
   once each run has its own. Blocking runs use the first. Blank leaves the
   choice to Kilosort4, which takes the first GPU.
-- **Queue the waiting runs; the Run goes on** (a preference, off by default):
-  the sorting step writes each dataset's run files and hands the run to the
-  background monitor instead of waiting for a slot. Its result row says
-  `queued`. The Run goes straight on to its next step and ends without
-  waiting, which leaves the app free. The monitor starts each queued run, in
-  order, as a slot frees (with the working config's runs at once and GPUs),
-  and the row turns `launched`. While a Run that waits for its own slots is
-  under way, the queue waits until it ends. **Stop queue** (beside the
-  Kilosort4 label under the log) drops the queued runs that have not started
-  (their rows turn `cancelled`; their run files stay); the runs already going
-  carry on. Closing the app with runs queued asks first, since closing drops
-  them. Clean up refuses to delete files while runs are queued. Greyed out
+- **Queue the waiting runs; the Run goes on** (a preference, off by
+  default): see [Queued Kilosort4 runs](#queued-kilosort4-runs). Greyed out
   when Execution is blocking.
-- **Stop runs...** (beside **Stop queue**, on while background runs are
-  going) stops runs that are going. With one run it asks for a confirmation;
-  with several it lists them (dataset, GPU, minutes running), all selected,
-  to pick from. Each chosen run's processes are ended
-  (`EphysDataset.stopSortRun`), the log says `[stopped]` and its row turns
-  `cancelled` ("stopped before it finished"). What Kilosort4 wrote so far
-  stays in the run folder. The freed slot goes to the next queued run, so
-  press **Stop queue** too to stop everything. Blocking runs cannot be
-  stopped: MATLAB waits for them.
 - **Parallel: chunks on the process pool** and **Max workers** (blank =
   automatic): `Parallel.Enabled` / `MaxWorkers`, used by the artifacts step,
-  the Artifacts tab's **Detect / Preview** and spike detection; see
+  the Artifacts tab's **Detect / Preview** and spike detection. The results
+  are the same with and without the pool, and the number of chunks in flight
+  is capped by free memory. Without the Parallel Computing Toolbox, or when
+  memory allows fewer than two workers, the steps run serially and warn; see
   [Parallel execution](EphysPipeline.md#parallel-execution).
-- **Validate config** fills the issues table (`cfg.validate()`); **Plan** fills
-  the results table with `pipe.plan()` (writes nothing). The last Run's results
-  are kept behind it: the monitor goes on restating its background runs there.
-- **Run**, **Dry run**, **Cancel**: `EphysPipeline.run` with progress bars
-  (overall and per step), the results table (`Step`, `Dataset`, `Status`,
-  `Message`, `Output`, `Seconds`) and a timestamped log. A plan with blocking
-  rows (`checkRun`: duplicate outputs, `error: ...`) stops the Run before it
-  starts, with an alert listing them. **Scan** and **Refresh metadata** are
-  off while it runs. Cancel takes effect at
-  the next progress boundary; outputs are written atomically, so a cancelled
-  dataset leaves no complete-looking file. A background Kilosort4 run's row
-  says `launched` (or `queued`) when the Run ends. The monitor turns it into
-  `done` or `error` when the run finishes, with the time it ran added to
-  `Seconds`.
-- **Show the run diagram** (under the Run buttons) splits the right side in
-  two, 3:1: the progress bars, issues, results and log keep the left three
-  quarters and a diagram of the run takes the right quarter. It draws every step in execution
-  order (Probe check, Behavior, Artifacts, Sorting, Signals, Spikes, Export),
-  in the Diagram tab's step colours, each with a line saying what it does
-  under the working config. The step underway is tinted, framed in its
-  colour with a pulsing ring, and shows `RUNNING`, its percentage, a moving
-  bar, the dataset (*Dataset 2 of 5: name*) and what it is doing; the diagram
-  scrolls to it as the run moves on. Every step of the run has a percentage:
-  how far it is through its datasets, (dataset − 1 + progress within the
-  dataset) / datasets. Finished steps show `done` at 100 % with their result
-  counts (done, in the background, dry run, skipped, to check, errors,
-  cancelled; a background Kilosort4 run moves from "in the background" to
-  done or errors when the monitor sees it end), red when any
-  row is an error; a cancel leaves its step at the percentage it reached and
-  the later steps `not run`; steps outside the run are dashed. The headline
-  says which step of how many is underway and for how long, or how the run
-  ended. Before the first run the diagram previews the ticked steps and
-  follows the checklist; afterwards it keeps the last run until the next one
-  starts. The switch is remembered between sessions.
-- **Monitor CPU, memory, disk and GPU** (under the run diagram switch) opens a
-  **Resource use** panel under the Steps panel with a bar and figures for each:
-  CPU (all cores, as Task Manager counts them), memory in use of the total,
-  the busiest physical disk's active time with the read + write rate over all
-  disks, and the busiest GPU's use and memory (tooltips give the detail, e.g.
-  every GPU). A bar turns orange at 90 %. The sampling is done outside MATLAB
-  by [`resource_monitor.ps1`](../pipeline/resource_monitor.ps1), a Windows
-  PowerShell script launched at idle priority that opens the performance
-  counters once, keeps one `nvidia-smi` running in loop mode for the GPU (no
-  NVIDIA driver: the GPU row says `n/a`), and every 2 s overwrites one small
-  JSON file in its own temporary folder; together they use well under 1 % of
-  one core. The app only reads that file on a 2 s timer, and not at all while
-  another tab is showing, so a busy MATLAB never stops the sampling itself.
-  Unticking, or closing the app, stops the sampler (it also stops by itself
-  when MATLAB exits) and it deletes its folder; if no sample comes for 15 s,
-  the app starts a new one. The switch is remembered between sessions.
-- Background Kilosort4 runs launched by a run are handed to the same monitor
-  as the Sorting tab as each one starts; the label under the log counts them
-  (finished of total, running, waiting to start: queued, or still in the
-  Run's sorting step).
+
+### Validate, plan, run
+
+| Button | Does |
+| --- | --- |
+| **Validate config** | checks the config (`cfg.validate()`) and fills **Issues (Validate)**, one row per problem: **Step**, **Field**, **Severity**, **Message**. Errors stop a run; warnings do not. The project, source, parallel, probe and reference settings are always checked, a step's own only while it is enabled |
+| **Plan (writes nothing)** | fills the results table with `pipe.plan()`: what each step would do for each selected dataset ([The plan](#the-plan)) |
+| **Run pipeline** | validates, plans, then runs every enabled step in order over the selected datasets (`EphysPipeline.run`) |
+| **Dry run** | the same, writing nothing: each step reports what it would do in `dry run` rows. Sorting writes only its `settings.json` and `run_ks4.py`, into `kilosort4\dryrun` |
+| **Cancel** | stops the run at the next progress point ([Progress and results](#progress-and-results)) |
+| **Show the run diagram** | a diagram of the run beside the progress bars ([The run diagram](#the-run-diagram)) |
+| **Monitor CPU, memory, disk and GPU** | the computer's load under the Steps panel ([Resource use](#resource-use)) |
+
+The **Run** menu has the same commands, and **Run pipeline** is Ctrl+R. Each
+step tab's **Run this step** runs just that step over the selected datasets,
+even when it is switched off, here on the Run tab.
+
+A config with validation errors, or a plan with blocking rows (`checkRun`:
+duplicate outputs, `error: ...`), stops the Run before it starts, with an
+alert. **Scan** and **Refresh metadata** are off while it runs.
+
+### The plan
+
+**Plan** puts one row per step and dataset in the results table (one per
+file for Signals, one per format for Export, as `export:chronux`): **Step**,
+**Dataset**, **Key**, **Output** (the file or folder the step writes),
+**Status** and **Note**. The status bar sums it up:
+`Plan: N row(s), K blocking.`
+
+| Status | Meaning |
+| --- | --- |
+| `ready` | will run; the note may say more, such as `cache present (reused when the settings match)` |
+| `ok`, `associated` | nothing to do: the probe fits; the Epsych2 session is already associated |
+| `exists: skip`, `exists: overwrite` | the output exists; the step's **Overwrite** decides |
+| `exists: skip (SkipExisting)`, `exists: will re-sort` | sorted output exists; **Skip datasets already sorted** decides |
+| `skip: Kilosort4 queued`, `skip: Kilosort4 running` | a Kilosort4 run of the dataset waits in the queue or is going |
+| `no recording files` | the folder holds no readable recording |
+| `no probe`, `probe file missing`, `probe-channel mismatch` | the probe check (a mismatch: the probe has more sites than the recording has channels) |
+| `behavior file missing`, `no session` | the associated session file is not there; none is associated and **Search** is off |
+| `no extract file` | Export needs the Signals files, which are not there, and Signals is not part of this run |
+| `duplicate output` | another dataset of the project writes the same file |
+| `error: ...` | the dataset cannot run: a setting that cannot apply to it (`error: LFP_Fs above the recording rate`), an output folder shared with another dataset, its sorted-output folder missing, a name that gives no unit identity, unit labels that would clash with another recording's |
+
+Rows whose status starts with `duplicate` or `error` block the run. The full
+list is in [Plan](EphysPipeline.md#plan).
+
+<!-- wiki: ![The Run tab after Validate and Plan, with the run diagram and the resource monitor shown](images/app-run-plan.png) -->
+
+### Progress and results
+
+During a run:
+
+- **Overall** shows how far the step underway is through its datasets
+  (`spikes 2/3`: dataset 2 of 3), and **Current** how far it is on the
+  dataset in hand. The line under them names the step, the dataset and what
+  is being done. The artifact detection a Sorting, Signals or Spikes step
+  needs reports as that step, and the export formats as one `export` step.
+- The **Log** gets one timestamped line per event.
+- The results table fills as the Run goes, one row per step and dataset:
+  **Step**, **Dataset**, **Status**, **Message**, **Output**, **Seconds**. A
+  row shows at the pipeline's next progress event after it is recorded (the
+  table is only touched when a row was added), and a row the Kilosort4
+  monitor restates during the Run shows at once. Signals gives a row per
+  file, Export one per format, and Behavior up to three: `behavior` (the
+  match), `behavior:pairing` and `behavior:file`. The last Run's results stay
+  in the table: the monitor goes on restating its background runs there.
+
+| Status | Meaning |
+| --- | --- |
+| `done` | written |
+| `skipped` | nothing to do: the output exists and **Overwrite** is off, the dataset has no recording files, or (sorting) it has no probe, a Kilosort4 run of it is queued or going, or it is already sorted with **Skip datasets already sorted** |
+| `dry run` | what a dry run would have written |
+| `launched` | a background Kilosort4 run started. The monitor turns the row into `done` or `error` when the run ends, adding the time it ran to **Seconds** |
+| `queued` | a background Kilosort4 run handed to the monitor ([below](#queued-kilosort4-runs)); it turns `launched`, then `done` or `error` |
+| `error` | failed on this dataset; the message says why. The run goes on with the next dataset |
+| `cancelled` | stopped by **Cancel**; for sorting also a run stopped with **Stop runs...** or dropped from the queue by **Stop queue** |
+
+The probe and behavior rows carry their own statuses: `ok`, `no probe`,
+`probe file missing`, `probe-channel mismatch` (probe); `associated`,
+`matched (prefix)`, `matched (time)`, `ambiguous`, `unmatched` (behavior);
+`approved`, `auto-approved`, `needs review`, `count mismatch`, `no trial line`
+(behavior:pairing; `auto-approved`: approved just now by
+[auto approval](#auto-approval)).
+
+**Cancel** takes effect at the next progress boundary. The dataset in hand
+is marked `cancelled`, and nothing is written for it: every output is
+written to a temporary file and renamed only when complete. The rest of that
+step's datasets are marked `cancelled` (`not run`), and the later steps do not
+run. Cancelling does not stop the background Kilosort4 runs already
+launched; while the sorting step waits for a free slot, it stops the wait.
+
+**Background Kilosort4 runs** launched by a Run are handed to the same
+monitor as the Sorting tab's
+([Watching background runs](#watching-background-runs)) as each one starts.
+The label under the log counts them, as in
+`Background Kilosort4: 1 of 3 finished (1 running, 1 waiting to start).`,
+where waiting to start means queued, or still in the Run's sorting step.
+
+### Queued Kilosort4 runs
+
+With **Queue the waiting runs; the Run goes on** ticked, the sorting step
+does not wait for a free slot. It writes each dataset's run files and hands
+the run to the background monitor; its result row says `queued`. The Run
+goes straight on to its next step and ends without waiting, which leaves the
+app free. The monitor starts each queued run, in order, as a slot frees
+(with the working config's runs at once and GPUs, so raising **Kilosort4
+runs at once** drains the queue faster), and the row turns `launched`.
+While a Run that waits for its own slots is under way, the queue waits until
+it ends. **Stop queue** (beside the Kilosort4 label under the log) drops the
+queued runs that have not started (their rows turn `cancelled`; their run
+files stay); the runs already going carry on. Clean up refuses to delete
+files while runs are queued.
+
+**Closing with background runs.** With runs queued, closing the app asks:
+**Keep the queue for next time**, **Drop the queue** (running the Sorting
+step again writes and starts them) or **Cancel**. A kept queue is stored
+per project root (the `KeptSortingQueue` preference: each run's dataset key
+and the prepared run `launchSorting` starts). Once that root is next
+scanned, the app lists the kept runs: those that can go back in the queue,
+and those that cannot, with why (the dataset is no longer in the project, a
+run file such as the `.bin` is gone, or Kilosort4 is already queued or
+going in its folder). **Queue them again** puts the first back in the queue,
+where the monitor starts them as slots free; **Drop them** does not. When
+none can go back, an alert says why instead. Either way the kept queue of
+that root is then forgotten; the log names each run. Runs that are going
+when the app closes carry on as processes, and the next launch follows them
+again (the `KeptSortingRuns` preference): their log streams on, they take
+slots, and one that ended meanwhile is logged as done or failed. A run that
+has not ended but has no process left (the computer restarted under it,
+`EphysDataset.sortRunProcesses`) is not followed; the log says so, and
+sorting its dataset again finishes it.
+
+### Stopping a run
+
+**Stop runs...** (beside **Stop queue**, on while background runs are
+going) stops runs that are going. With one run it asks for a confirmation;
+with several it lists them (dataset, GPU, minutes running), all selected,
+to pick from. Each chosen run's `ks4_status.json` is set to `cancelled`
+(`stopped by the user`) and then its processes are ended
+(`EphysDataset.stopSortRun`: Python, conda and the launcher, found by the run
+folder in their command line); the log says `[stopped]` and its row turns
+`cancelled` ("stopped before it finished"). What Kilosort4 wrote so far
+stays in the run folder. The freed slot goes to the next queued run, so
+press **Stop queue** too to stop everything. Blocking runs cannot be
+stopped: MATLAB waits for them.
+
+### The run diagram
+
+**Show the run diagram** (under the Run buttons) splits the right side in
+two, 3:1: the progress bars, issues, results and log keep the left three
+quarters and a diagram of the run takes the right quarter. It draws every
+step in execution order (Probe check, Behavior, Artifacts, Sorting, Signals,
+Spikes, Export), in the Diagram tab's step colours, each with a line saying
+what it does under the working config.
+
+- The step underway is tinted, framed in its colour with a pulsing ring, and
+  shows `RUNNING`, its percentage, a moving bar, the dataset (*Dataset 2 of
+  5: name*) and what it is doing; the diagram scrolls to it as the run moves
+  on.
+- Every step of the run has a percentage: how far it is through its
+  datasets, (dataset − 1 + progress within the dataset) / datasets. Finished
+  steps show `done` at 100 % with their result counts (done, in the
+  background, dry run, skipped, to check, errors, cancelled; a background
+  Kilosort4 run moves from "in the background" to done or errors when the
+  monitor sees it end), red when any row is an error.
+- A cancel leaves its step at the percentage it reached and the later steps
+  `not run`. Steps outside the run are dashed.
+- The headline says which step of how many is underway and for how long, or
+  how the run ended.
+
+Before the first run the diagram previews the ticked steps and follows the
+checklist; afterwards it keeps the last run until the next one starts. The
+switch is remembered between sessions.
+
+### Resource use
+
+**Monitor CPU, memory, disk and GPU** (under the run diagram switch) opens a
+**Resource use** panel under the Steps panel with a bar and figures for each:
+
+| Row | Shows |
+| --- | --- |
+| CPU | all cores, as Task Manager counts them |
+| Memory | memory in use, of the total |
+| Disk | the busiest physical disk's active time, with the read + write rate over all disks |
+| GPU | the busiest GPU's use and memory; `n/a` without an NVIDIA driver |
+
+Tooltips give the detail (every GPU, say). A bar turns orange at 90 %. It
+shows what limits a run: with a disk at 100 %, more workers will not help.
+The sampling is done outside MATLAB by
+[`resource_monitor.ps1`](../pipeline/resource_monitor.ps1), a Windows
+PowerShell script launched at idle priority that opens the performance
+counters once, keeps one `nvidia-smi` running in loop mode for the GPU, and
+every 2 s overwrites one small JSON file in its own temporary folder;
+together they use well under 1 % of one core. The app only reads that file
+on a 2 s timer, and not at all while another tab is showing, so a busy
+MATLAB never stops the sampling itself. Unticking, or closing the app, stops
+the sampler (it also stops by itself when MATLAB exits) and it deletes its
+folder; if no sample comes for 15 s, the app starts a new one. The switch is
+remembered between sessions.
 
 ## Visualize
 
@@ -1323,11 +2407,13 @@ data** finds them again after a run has written new files. While the tab is
 hidden the plot keeps the dataset it shows; the status line then names both
 datasets.
 
+<!-- wiki: ![The Visualize tab: the recording around a manual and an automatic artifact period, with sorted units, detected spikes and TTL rows](images/app-visualize-traces.png) -->
+
 | Control | Meaning |
 | --- | --- |
 | Show | the continuous signal drawn, from the files this dataset has: *Recording* (as every step reads it), *Sorting .bin* (what Kilosort4 sorted: artifact periods filled, the common reference subtracted when one was on, from its JSON sidecar), *LFP* / *MUA* / *SPIKE* / *AUX* (the extract files), or *None (spikes only)*. The line under it says what the signal is (its band, its reference, the periods erased). The kind shown is kept from one dataset to the next |
 | Channels, Lanes | recording channels to draw (`all`, or e.g. `1:16`, `1 3 5`; for a signal whose columns were kept or reordered, its columns are matched to recording channels through its `importOptions`); lanes shown at once |
-| Reference | the recording only: *As the pipeline (Artifacts tab)* (the config's common reference over its good channels, as every step reads the recording) / *None (as recorded)* / *Common average (mean)* / *Common median* across the channels shown, taken on the recording as stored, so one reference at most is ever applied. The other signals carry their own |
+| Reference | the recording only: *As the pipeline (Artifacts tab)* (the config's common reference, `Reference.Mode`, over its good channels, as every step reads the recording) / *None (as recorded)* / *Common average (mean)* / *Common median* across the channels shown, taken on the recording as stored, so one reference at most is ever applied. The other signals carry their own |
 | High-pass / Low-pass, Filter order | a display filter on any signal (`filterContinuous`, zero phase); blank = off, both = band-pass. Each window is read with a margin so the filter settles. A new filter or reference rescales the traces |
 | Remove offset | centre each lane on its median in the window drawn |
 | Sorted units | ticks or waveforms, one colour per unit (twelve colours, in probe order); *Units*: all but noise / good + MUA / good only, by phy's labels (else Kilosort4's) |
@@ -1338,7 +2424,13 @@ datasets.
 | Plot, Colours | traces, or a heatmap of each bin's extreme per lane (colour range ± Spacing) |
 | Order by probe | lanes by shank, top of the shank first, with a dotted line between shanks (`channelLayout` on the dataset's probe, else the config's default probe); the units' and channels' own lanes follow the same order |
 | Traces | trace colour: a solid colour (black, blue, red, green, magenta, orange, grey), **By shank** (needs a probe), or **By depth** (position on the probe, top first) / **By channel** (lane order) in the Colours colormap |
-| Shade artifact periods | orange and red, see below |
+| Shade artifact periods | orange (detected) and purple (manual), see below |
+
+The display settings are kept between sessions (the `VizOptions`
+preference), all but the dataset, **Start**, **Spacing** and the event
+**Lines**.
+
+<!-- wiki: ![The same window as a heatmap, high-passed](images/app-visualize-heatmap.png) -->
 
 **Reading.** The viewer ([`EphysTraceViewer`](../pipeline/EphysTraceViewer.m)
 over an [`EphysTraceSource`](../pipeline/EphysTraceSource.m)) reads only the
@@ -1350,8 +2442,43 @@ just those rows (`readWindowUV`); a reader without random access would be read a
 `streamPlan` chunk at a time, the last chunks kept (up to 1.5 GB). A `.bin` is read with `fread`
 and its min / max are taken on the stored integers; a `-v7.3` extract is read a
 window of rows at a time with `h5read`, and a `-v7` one is loaded once. No file
-is held open between reads. One view is at most `MaxReadSamples` (2^27 samples
-× channels, about 70 s of 64 channels at 30 kHz) wide.
+is held open between reads. A view read at full rate is at most
+`MaxReadSamples` (2^27 samples × channels, about 70 s of 64 channels at
+30 kHz) wide; a wider one, up to the whole recording, is drawn from the
+signal's envelope (below).
+
+**Envelope.** For each signal it shows, the tab keeps an envelope
+([`EphysTraceEnvelope`](../pipeline/EphysTraceEnvelope.m)): the min and max of
+every channel over blocks of samples, at block sizes growing 4 times level by
+level, down to a level of at most 4096 blocks. It is cached next to the
+dataset's outputs, one file per signal (`<Name>_envelope_<what>.dat`: the
+recording as stored or with the common reference, the `.bin`, each derived
+signal; [file-formats.md](file-formats.md#signal-envelope-name_envelope_whatdat)),
+and built the first time the tab shows the signal, in the background: a span of
+the recording or `.bin` at a time on a thread of MATLAB's `backgroundPool`, a
+derived signal (which `h5read` cannot read on a thread) a span per tick of a
+timer. Each span is read through the same reader as the full-rate view, so the
+reference and the `.bin`'s filled periods match, in pieces of at most 2^23
+samples × channels. The status line says how far it is ("building the envelope
+of Recording for wider views: 35%"); the plot can be used meanwhile. Another
+signal or dataset stops the build (its partial file is deleted), and so does
+closing the app; the next time the signal is shown the build starts again. Once
+built, a view wider than one full-rate read is drawn from the coarsest level
+with a block per pixel column or less (the status line says "drawn from the
+envelope"), and the overview strip shows the signal. The envelope holds the
+samples as stored, so a view wider than one read needs the display filter off
+and the reference *As the pipeline* or *None*; with either set, the view stays
+within one read and the status line says why. The cache is used only while its
+fingerprint matches: the files read (sizes and modified times), the rows,
+channels and rate, the reference and its channels, the `.bin`'s scale, and the
+block sizes. A `.bin` or extract written again is noticed within a second and
+its envelope built again; a stale file is never shown. For 2 h of 64 channels at
+30 kHz the file is about 140 MB (level 1: blocks of 1,024 samples; 2^24 blocks ×
+channels at most, so no file passes about 170 MB), and its build reads the
+recording once. The files are display caches: the [Clean up](#clean-up) tab
+removes them (**Visualize's envelopes**, ticked by default), and an envelope the
+tab is showing whose file goes is noticed within a second and built again when
+the tab next draws.
 
 **Timing.** Row k of every signal is drawn at (k − 1)/Fs seconds on the
 recording's clock, as sorted spike times and the artifact periods are; a bin is
@@ -1420,15 +2547,32 @@ over the plot:
 The toolbar above the plot does the same with buttons (**< Page**, **Page >**,
 **Zoom in / out**, **Taller / Shorter**, **Auto scale**, **Reset view**). The
 strip under the plot shows the whole recording, the view as a blue box, the
-spike rate of the layers shown and the artifact periods; click or drag in it to
-centre the plot there.
+spike rate of the layers shown and the artifact periods, and, once the envelope
+is built, the signal itself: for each pixel column the median, over the lanes'
+channels, of each channel's min and max about its own median, scaled so a
+typical column spans 40% of the strip (a large excursion, such as an artifact,
+reaches its edge). Click or drag in it to centre the plot there.
+
+**Stepping through events.** At the right end of the toolbar, before the
+**?**, a box picks an event line (each listed with its number of onsets; at
+first the dataset's trial line, else the first line with an onset), and
+◀ / ▶ show its previous / next onset, a quarter of the way into the window,
+the window keeping its width. The status line then says which onset it is
+(`InTrial onset 12 of 240 at 95.3121 s`), or that there is none that way.
 
 **Artifact overlays**: orange = the Artifacts tab's **Detect / Preview**
 intervals of the plotted dataset (the detector a run uses, over the whole
 recording), while its detection settings are still the ones the preview ran
 with; otherwise the automatic detection the last run used
 (`<Name>_artifacts.json`, read with the plot: what was erased from the
-processed files), and the status line says which. With neither, none is
+processed files), and the status line says which. For the last run's periods
+it also says whether the current settings would detect the same ones
+(`EphysPipeline.cachedDetection`: the file's fingerprint against the one the
+current settings give, nothing detected): *with the current settings*, or
+*with other settings* (Detect / Preview shows what the current ones find).
+It cannot tell while automatic detection is off (a run then erases none of
+them) or while a common reference is on whose left-out channels were never set
+(the first referenced read suggests them). With neither, none is
 shaded and the status line says why. Nothing is detected on the displayed
 data. Purple = manual periods. The artifact status line counts both and says where a run
 erases the manual periods: in the `.bin`, and in the signals too while the
@@ -1441,12 +2585,18 @@ the dataset's manifest, so they survive a rescan and a restart.
 
 ## Review
 
-Summarizes a sorted-output folder (the folder holding `params.py`). A folder
+Summarizes a sorted-output folder (the folder holding `params.py`): its units
+per shank and label, their spike counts, rates, quality metrics, positions and
+waveforms. It reads the output as saved and changes nothing but the unit
+notes. Every cluster is shown, `noise` included. A folder
 that belongs to the active dataset (under its folder or output folder, or its
 pinned sorting folder) is read with `EphysDataset.readSortedUnits`, so units
-carry their full labels (`su042_1255_260908T1039`); any other folder, or a
+carry their full labels (`su042_1255_260908T1039`, see
+[Unit labels](#unit-labels)); any other folder, or a
 dataset whose name does not match `Project.NamePattern`, is read with
 `readPhyUnits` and its labels are only `<class><id>`.
+
+<!-- wiki: ![The Review tab with a unit selected](images/app-review-tab.png) -->
 
 - **Dataset**: the active dataset. Its associated sorted output (else the
   latest Kilosort4 run the `DatasetTracker` finds) loads when the tab opens
@@ -1491,9 +2641,9 @@ dataset whose name does not match `Project.NamePattern`, is read with
   the table by it.
 - **Notes**: the one editable column. Typing a note saves it at once to
   `cluster_notes.tsv` next to the sort (`EphysDataset.writeUnitNotes`), the
-  file phy uses for a `notes` label, so the Spikes and Export steps and
-  `unitTable` carry it. A note that cannot be saved is put back, with an
-  alert.
+  file phy uses for a `notes` label, so the Chronux export's `units`, the
+  FieldTrip export's `spike.hdr.orig` and `unitTable` carry it. A note that
+  cannot be saved is put back, with an alert.
 - **Plots**: the selected unit's inter-spike interval histogram (intervals up
   to 50 ms in 0.5 ms bins; those under the 1.5 ms refractory period in red,
   and the subtitle gives their share of all intervals) and autocorrelogram
@@ -1538,6 +2688,8 @@ dataset whose name does not match `Project.NamePattern`, is read with
     connected), the unit's template is drawn in its place. The subtitle says
     so, and the status bar names the file.
 
+<!-- wiki: ![The units table scrolled to Notes](images/app-review-notes.png) -->
+
 Firing rates are spike counts over the **sorted time**: from Kilosort4's
 `tmin` to `min(tmax, the recording's end)` (the run's `settings.json`; 0 and
 the end by default). The recording's length is the active dataset's when the
@@ -1547,6 +2699,36 @@ The units struct also carries `ksChannel` (the peak
 channel among the sorted channels), `channel` (the 1-based recording channel),
 the peak site (`peakX`, `peakY`) and the class and identity fields.
 
+### Unit labels
+
+Every sorted unit read through a dataset carries a label that names its
+recording as well as its cluster, so a unit taken out of its file still leads
+back to the recording ([details](EphysPipeline.md#unit-labels)):
+
+```text
+su042_1255_260908T1039
+|  |   |    `------- recording start, to the minute (yyMMdd T HHmm)
+|  |   `------------ subject
+|  `---------------- cluster id, at least 3 digits
+`------------------- class: su (phy "good") | mua | noise | uns (unsorted) | other
+```
+
+The subject and the start come from the dataset name through the
+[name pattern](#name-pattern-and-token-columns): with the default pattern,
+`SUBJ-ID-1255_260908_103949` gives the subject `SUBJ-ID-1255`; with
+`SUBJ-ID-{SubjectID}_{Date:yyMMdd}_{Time:HHmmss}` it gives `1255`, and the
+label above.
+
+- A dataset whose name does not match the pattern cannot label its units:
+  the Export step refuses to write them (plan status `error: unit identity`).
+- Two recordings of one subject that start in the same minute would share
+  labels: the plan marks them `error: unit label collision`.
+- A folder browsed to here that does not belong to the active dataset, or a
+  dataset whose name does not match the pattern, gets short labels (`su042`)
+  on this tab.
+
+<!-- wiki: To gather units across recordings into one table, see [Loading outputs](Loading-Outputs#all-units-in-one-table). -->
+
 ## Synthetic
 
 Designs, previews and writes one synthetic dataset with
@@ -1554,6 +2736,10 @@ Designs, previews and writes one synthetic dataset with
 recording, a copy of its Epsych2 session, ground-truth sorted output and a
 manifest. The neural signals are a [`SyntheticDesign`](../pipeline/SyntheticDesign.m);
 the events they follow come from a schedule. It is not a pipeline step.
+**File → Create synthetic test project...** writes a whole project instead
+([Synthetic test project](#synthetic-test-project)).
+
+<!-- wiki: ![The Synthetic tab after Preview, with the built-in task](images/app-synthetic-tab.png) -->
 
 **Timing from** picks the schedule:
 
@@ -1561,7 +2747,7 @@ the events they follow come from a schedule. It is not a pipeline step.
 | --- | --- | --- |
 | Built-in task | the AM-detection task drawn from the seed (six lines as on the lab's rig; **Task trials**, **Scenario** as in [Synthetic test project](#synthetic-test-project)) | a synthetic one |
 | Active dataset: recorded lines + Epsych2 session | the active dataset's own digital lines (read once with `digitalEvents`, cached next to its outputs), with its line polarity applied, at the same rows over the same length; its trials from its pairing, with the reviewed cuts | a copy of the dataset's session |
-| Active dataset: Epsych2 session only | rebuilt from the session: each trial ends at its `computerTimestamp` and lasts **Trial (ms)**; the trial line is on for it, and each row of the lines table (**Line**, **Onset (ms)**, **Duration (ms)**) adds a line that goes on Onset ms after the trial starts. All three are expressions over the trial's numeric parameters (`StimDelay + RespWinDelay`); blank = automatic: Stim, RespWindow and a Trough poke per response when the session has those parameters | a copy of the dataset's session |
+| Active dataset: Epsych2 session only | rebuilt from the session: each trial ends at its `computerTimestamp` and lasts **Trial (ms)**; the trial line is on for it, and each row of the lines table (**Line**, **Onset (ms)**, **Duration (ms)**) adds a line that goes on Onset ms after the trial starts (**Add line**, **Remove line**). All three are expressions over the trial's numeric parameters (`StimDelay + RespWinDelay`); blank = automatic: Stim, RespWindow and a Trough poke per response when the session has those parameters | a copy of the dataset's session |
 
 The session copy keeps `Data` as saved; `Info` gets the tab's **Subject**, its
 new file name and `Info.Synthetic` (the source file, subject and dataset). The
@@ -1605,7 +2791,8 @@ so only its power is event-locked) or an **evoked** potential (an alpha
 function peaking **Rise (ms)** after the latency, signed amplitude). **Profile**
 spreads it over the probe's depth (site `yc`): uniform, superficial, middle,
 deep, or reversal (the sign flips at mid depth). **Parameter** / **Tuning**
-scale the amplitude as for units.
+scale the amplitude as for units. **Add oscillation**, **Add evoked** and
+**Remove** (the selected rows) edit the list.
 
 **Background**: the ongoing 1.7 / 7.3 / 12.5 Hz rhythms (× **Rhythms**),
 the slow 1/f-like noise, the white noise and line noise (50 or 60 Hz).
@@ -1666,10 +2853,31 @@ The settings and the design are preferences.
 Frees local disk space once datasets are preprocessed, or removes what chosen
 preprocessing steps wrote so they can be run again. It is not a pipeline
 step and nothing in the config drives it; it acts on the datasets selected on
-the Project tab (the ticked rows, else all), which the top of the tab names.
+the Project tab (the ticked rows, else all), which the top of the tab names:
+`Acts on the 3 dataset(s) ticked on the Project tab (of 12).` A raw
+recording, Kilosort4's filtered copy of it and the `.bin` Kilosort4 sorts are
+each about the size of the recording, the Visualize tab's envelopes up to about
+170 MB per signal shown, and the outputs need none of them. The
+tab lists every local file of the datasets, says which could go and why, and
+removes the ones left ticked, after a confirmation.
 The rules live in [`planLocalCleanup`](../pipeline/planLocalCleanup.m) and
 [`runLocalCleanup`](../pipeline/runLocalCleanup.m), which can be called
-without the app.
+without the app:
+
+```matlab
+P = EphysProject("D:\EPHYS\SUBJ-ID-1255");  P.refresh();
+T = planLocalCleanup(P.Datasets, Remove=["sorter_copy" "bin"]);   % the preview: nothing is changed
+T(T.Action == "remove", ["Dataset" "What" "Bytes" "File"])
+R = runLocalCleanup(T);                                            % deletes the "remove" rows
+R(R.Status ~= "removed", ["File" "Status" "Message"])              % anything left in place
+```
+
+`Remove` takes `"raw"`, `"sorter_copy"`, `"bin"` and `"envelope"` (the
+default) and the step names below. Set a row's `Action` to `"keep"` to leave its file in
+place; `Method="recycle"` or `Method="move", Destination=` choose how the
+files go.
+
+<!-- wiki: ![The Clean up tab after Preview](images/app-cleanup-tab.png) -->
 
 **Free space (the outputs stay)**, each with its own tick box, all ticked by default:
 
@@ -1678,6 +2886,7 @@ without the app.
 | Raw recording files | the recording files the Copy tab copied into the session folder (for Open Ephys, everything under its Record Nodes), as listed in its `session_manifest.json` | each file's source, as recorded there, still exists **with the same size**. A recording not copied by the Copy tab has no known source and is always kept, as are the session files of an Open Ephys dataset that is one part folder of several |
 | Kilosort4's filtered copy of the recording | `temp_wh.dat` under the dataset's `kilosort4` folder or its sorted-output folder | none; the sorted units do not need it, phy's trace view does |
 | Sorting input .bin | the dataset's `BinFile` (`<Name>.bin`, or `<Name>_ks4.bin` beside a binary-format recording's own `<Name>.bin`) + its `.json` in the output folder, written by `toBin` for Kilosort4 to sort | never the data file of a binary-format recording |
+| Visualize's envelopes | `<Name>_envelope_<what>.dat` in the output folder: the min / max of each signal the [Visualize](#visualize) tab has shown ([Signal envelope](file-formats.md#signal-envelope-name_envelope_whatdat)), and a build's leftover `<Name>_envelope_<what>.dat.<token>.partial` | none for a finished one: a display cache, built again when the tab next shows the signal. A partial file goes only once it is an hour old (a build MATLAB left); a newer one may be being written, by this app or another MATLAB, and is kept |
 
 **Remove what a preprocessing step wrote**: one tick box per step that writes
 files, none ticked by default. Everything the step wrote goes, to run it again
@@ -1718,23 +2927,41 @@ recording folder) and any other file. Nothing on the source is touched.
 | Move to a folder | each file goes to `<folder>\<dataset key>\<its path in the dataset's recording or output folder>`, so a dataset keeps its layout (the `kilosort4` folder included). A file already there is skipped, never overwritten. Between drives a file is copied, the copy's size checked, and only then the local file deleted. The folder may not be inside the project or output root, where a scan would find the files again |
 
 - **Preview** lists every file in the datasets' recording, output and sorting
-  folders, one row each: **Action** (Remove / Keep), Dataset, What, Size,
+  folders, one row each: **Include** (ticked: the file goes; every Remove row
+  starts ticked, and Keep rows cannot be ticked), **Action** (Remove / Keep),
+  Dataset, Subject (its `SubjectID` from the
+  [name pattern](#name-pattern-and-token-columns)), What, Size (MB),
   File and **Why** (for a raw file, where its source copy is, or why it is
   kept: not found at the source, a different size, no copy record; for a
   step's file, that the step's output is selected). Remove rows come first,
-  largest first, tinted red; raw files that are kept are tinted amber. A
+  largest first; ticked ones are tinted red and unticked ones grey, and raw
+  files that are kept are tinted amber. A
   click on a header sorts the rows instead, and that sort is kept for every
   preview and the next session; right-click → **Clear sort** returns to this
   order ([Sorted tables](#sorted-tables)). Each row is mapped to its file
   in the plan, so a tick reaches its own file in any order. The
   line above the table totals both sides: *Would remove N file(s), X GB,
-  from K of M dataset(s). N file(s), Y GB, remain.* **Show the files that
-  remain** hides or shows the Keep rows. Previewing reads file listings, the
+  from K of M dataset(s). N file(s), Y GB, remain.*, and adds how many
+  removable files are unticked and how many datasets keep their raw
+  recording (see **Why**). Previewing reads file listings, the
   outputs' variable names and the sources' sizes only.
+- The filters change only what the table shows; a hidden row keeps its tick.
+  **Search (regexp)** shows the files whose full path matches a regular
+  expression, ignoring case (`\.rhd$`, `kilosort4`, `260914`; the field
+  turns red when nothing matches), **Subject ID** one subject's files, and
+  **Show the files that remain** hides or shows the Keep rows. **All
+  visible** ticks every Remove row shown, **None visible** unticks every row
+  shown, **Only visible** ticks every Remove row shown and unticks every
+  hidden one (what you see is what goes), and **Invert visible** flips the
+  ticks of the Remove rows shown. The line beside them counts the rows:
+  `Showing 40 of 271 file(s); 38 ticked.` To remove one day's raw
+  recordings, say: search for the date, press **Only visible**, then the
+  button below.
 - **Delete files...** / **Recycle files...** / **Move files...** (the button
-  follows the choice) acts on the preview as shown, after a confirmation that
-  says how the files go, lists what goes by kind or step with its size and
-  what remains, and warns when phy curation or unit notes go with a sorting
+  follows the choice) acts on the ticked Remove rows of the preview, after a
+  confirmation that says how the files go, lists what goes by kind or step
+  with its size and what remains, says how many of them are ticked but
+  hidden by the filters, and warns when phy curation or unit notes go with a sorting
   (curation only when phy wrote the labels: a `cluster_group.tsv` with the
   header `cluster_id<TAB>group`, not Kilosort4's copy of its own) and, when
   raw files are among them, that those datasets cannot be run,
@@ -1756,7 +2983,11 @@ recording folder) and any other file. Nothing on the source is touched.
   rewritten (they record the sorting and `.bin` on disk), the Datasets table
   and the Review tab follow, and the preview is made again.
 - After raw files are removed, **Scan** the project again: those datasets are
-  no longer recordings and drop out of it. Their outputs are unaffected.
+  no longer recordings and drop out of it. Their outputs are unaffected, so
+  the Review tab, the analysis app and anything else that reads the output
+  files keep working. To bring a recording back, copy it again on the
+  [Copy](#copy) tab: with **If it exists** = `resume` only the missing files
+  are copied.
 
 The tick boxes, **Removed files go** with its folder, and Show the files that
 remain are preferences.
@@ -1790,9 +3021,9 @@ one recording per scenario with
 | --- | --- |
 | recordings `SYNTH-01/SYNTH-01_<yymmdd>_<HHMMSS>/` | Intan RHX-style `*.rhd` files (30 s each) on consecutive days: LFP rhythms with a depth profile, noise, 60 Hz, a stimulus-evoked potential, spiking units with waveforms spread over neighbouring sites, two artifacts (one saturating the ADC); the lab's six digital lines `Trough`, `Platform`, `Stim`, `InTrial`, `RespWindow`, `Commutator`; three accelerometer inputs at Fs/4 |
 | Epsych2 session `SYNTH-01_<yymmdd>T<HHMMSS>.mat` | in the recording folder, starting 65 s before the recording as in the lab: `Data` (one trial per `InTrial` interval, with `TrialType`, `Depth`, `StimDelay`, `RespCode`, `RespLatency`, `TrialIndex`, `computerTimestamp`, ...) and `Info` |
-| `kilosort4/` | the ground-truth units as Kilosort4 / phy files (plus a noise cluster), where a sorting run would put them, so the Spikes (sorted), Export (units) and Review steps work |
+| `kilosort4/` | the ground-truth units as Kilosort4 / phy files (plus a noise cluster), where a sorting run would put them, so Export (units), the Review tab and the analysis of sorted units work without a sorting run |
 | `<Name>_manifest.json` | the session and the probe already associated |
-| `SYNTH-01_probe.json`, `synthetic_pipeline.json`, `README.txt` | a probe map for the channel count; a config with behavior (matching + pairing), artifacts, signals (LFP, MUA, AUX), spikes (detected + sorted) and export (Chronux + FieldTrip) enabled, outputs next to each recording, sorting off; what each dataset should show |
+| `SYNTH-01_probe.json`, `synthetic_pipeline.json`, `README.txt` | a probe map for the channel count; a config with behavior (matching + pairing), artifacts, signals (LFP, MUA, AUX), spikes (threshold detection, with waveforms) and export (Chronux + FieldTrip, with the units and the detections) enabled, outputs next to each recording, sorting off; what each dataset should show |
 
 The four recordings differ in how they cover their session, so the
 **Trials** tab has one case of each kind to review:
@@ -1814,6 +3045,8 @@ session, each boundary in an inter-trial interval), `Fs`, `NumChannels`, `NumTri
 `FileSeconds`, `Seed`, `InvertedLines` (lines written active-low), `SortedOutput`,
 `Artifacts` and `Overwrite`; its result holds the truth of every dataset
 (events, trials, units, artifacts, the expected cuts).
+
+<!-- wiki: Using synthetic data from scripts and in tests: [Synthetic test data](Synthetic-Test-Data). -->
 
 ## Reporting an issue
 
@@ -1881,6 +3114,7 @@ of a config lives here:
 | --- | --- |
 | `FigurePosition` | window position/size (clamped to the screen on restore) |
 | `ProbeFolder`, `PhyCmd`, `ReviewFolder`, `ScriptFolder` | paths |
+| `PythonExe` | the Python exe last set on the Sorting tab, which a new config starts with |
 | `LastConfigFile`, `RecentConfigs` | reopened on launch; the File → Open recent list |
 | `DatasetsColumnOrder` | the Project table's column order (table variable names) |
 | `TableSorts` | the sort of each [sorted table](#sorted-tables): one field per table (`Datasets`, `Trials`, `Review`, `Cleanup`, `ArtSelection`), each the column last clicked (a table variable name; the header for the Review and Clean up tables) and its direction (`ascend` / `descend`) |
@@ -1894,6 +3128,8 @@ of a config lives here:
 | `ShowRunDiagram` | the Run tab's **Show the run diagram** switch |
 | `MonitorResources` | the Run tab's **Monitor CPU, memory, disk and GPU** switch |
 | `QueueSortingRuns` | the Run tab's **Queue the waiting runs; the Run goes on** switch |
+| `KeptSortingQueue` | the Kilosort4 queues kept at Close (**Keep the queue for next time**), one element per project root: `root`, `saved` (when), `runs` (`Name`, `key`: the dataset's folder relative to the root, `prepared`: the run `launchSorting` starts). Offered back, then removed, once that root is scanned ([Run](#run)) |
+| `KeptSortingRuns` | the background Kilosort4 runs going at Close (`EphysPipeline.emptyRuns` shape), followed again, then removed, at the next launch |
 | `CleanupOptions` | the Clean up tab's kinds of file and steps to remove, **Removed files go** and its folder, and **Show the files that remain** |
 
 To reset: `AppPrefs.rmpref('EphysPipelineApp')` with the app closed. Older
@@ -1908,12 +3144,19 @@ preference: its settings live in its own file, which its Windows task reads.
 | generated `.m` script | File → Generate script |
 | `<project root>/pipeline_<config name>.m` | each run with **Save the pipeline script on each run** ticked (not a dry run) |
 | `<output root, else project root>/pipeline_runs/<runId>_<config name>.json` | each run (not a dry run): its run record |
-| `<Folder>/<Name>_manifest.json` | scan, probe assignment, exclusion change, manual artifact edit, sorting / behavior association, each sorting launch and completion |
+| `<Folder>/<Name>_manifest.json` | scan, probe assignment, exclusion change, manual artifact edit, sorting / behavior association, **Approve pairing** / **Mark unreviewed** (and an automatic approval), each sorting launch and completion |
+| Open Ephys part folders (`openephys-part.json`) inside a session folder | a scan with **one dataset per recording** |
+| `<outputFolder>/<Name>_events.mat` | Trials **Load** or **Prefetch ticked** (a cache of the digital lines) |
+| `<outputFolder>/<Name>_behavior.mat` | the behavior step, or Trials **Write behavior .mat** |
 | `<outputFolder>/<Name>.bin` (or `<Name>_ks4.bin`) + `.json`, `<outputFolder>/kilosort4/{settings.json, run_ks4.py, ks4_launch.cmd, ks4_run.log, ks4_status.json, ks4_exit.txt}` and the phy files (plus `<probe>_excluded.json` with excluded channels, `<probe>_spaced.json` with `shank_spacing`, and `previous_<yyyyMMdd_HHmmss>/` holding an earlier sort's curation) | Sorting (a dry run writes only `settings.json` and `run_ks4.py`, into `kilosort4/dryrun/`) |
 | `<outputFolder>/<Name>_artifacts.json` | Artifacts (cache) |
+| `<outputFolder>/<Name>_envelope_<what>.dat` (a `.partial` file while it is built) | Visualize, in the background, the first time it shows a signal: the min / max that wide views and the overview strip draw ([format](file-formats.md#signal-envelope-name_envelope_whatdat)) |
 | `<Name>_extract_<TYPE>.mat` (or `<Name>_extract.mat`), `<Name>_spikes.mat`, `<Name>_chronux.mat`, `<Name>_fieldtrip.mat`, `<Name>_epochs.mat`, `<Name>_kcsd.npz`, `<Name>.nwb` (+ `<Name>_nwbinspector.json`) | Signals, Spikes, Export |
 | the analysis config's figure files (by default `<outputFolder>/analysis/<Name>_<Plot>.png` / `.svg`), its report (by default `<output root, else project root>/analysis/analysis_report.html`) and `<report folder>/analysis_runs/<runId>_<name>.json` | Analysis (a dry run writes nothing) |
+| `cluster_notes.tsv`, `quality_metrics.json`, `quality_report.html` in the sorted-output folder | a Review **Notes** edit; loading a sort on the Review tab (the metrics' cache); Review **QC report** |
 | probe `.json` in the probe folder | Import, Designer save, Notes edit |
+| `<probe>.ks4.json` next to a probe map | **Optimize for probe**, when it generates the file |
+| a diagram `.html` | Diagram **Save as HTML...**; **Open in Browser** writes one to a temporary file |
 | `<parent>/synthetic_ephys/...` | File → Create synthetic test project (recordings, sessions, sorted output, probe, config, README) |
 | `<Folder>/<Subject>/<Subject>_<start>/`: the recording, the session copy, `kilosort4/` (ground truth), `<Name>_manifest.json`, `<Name>_synthetic.json` and, with a synthetic probe, `<Name>_probe.json`; a design `.json` | Synthetic → Generate... (Preview writes nothing); Save design... |
 | `<Destination>/<SUBJ>/<recording folder>/`: the copied files (for a stitched session, `<earliest ePsych file>_stitched.mat` instead of the ePsych files), `session_manifest.json`, `session_copy_robocopy.log` | Copy → Copy selected, in the background (Preview writes nothing); each scheduled run |
@@ -1922,8 +3165,10 @@ preference: its settings live in its own file, which its Windows task reads.
 | the same folder: `copy_schedule.log` (appended; the previous 5 MB in `copy_schedule.1.log`), `last_run.json`, `matlab.log` | each scheduled run |
 | `<Folder>/<Name>_cleanup.json`; **deletes**, recycles or moves (to `<folder>\<dataset key>\...`) the files the Clean up preview marks Remove | Clean up → Delete / Recycle / Move files..., after its confirmation |
 
-Raw recording files are only read, except that Clean up removes local copies
-whose source still holds them. The source tree is only read.
+A dataset's output folder (`<outputFolder>`) is `<Output root>/<Name>` when an
+output root is set, else the recording folder (`<Folder>`). Raw recording
+files are only read, except that Clean up removes local copies whose source
+still holds them. The source tree is only read.
 
 ## Scripting against a running app
 
@@ -1934,6 +3179,8 @@ cfg = app.Config;                 % the working EphysPipelineConfig
 P   = app.Project;                % EphysProject
 ds  = P.Datasets(1);              % EphysDataset (probe, exclusions, manual artifacts, SortingDir, BehaviorFile)
 app.openConfigFile("D:\EPHYS\pipeline.json");
+app.onScan();                     % same as the Scan button
+app.selectDataset(2);             % make dataset 2 the active dataset
 app.runPipeline(Steps="spikes");  % same as Run this step
 app.KSRuns                        % background runs being monitored
 app.KSQueue                       % prepared runs waiting for a slot (Queue the waiting runs)
@@ -1945,7 +3192,7 @@ app.KSQueue                       % prepared runs waiting for a slot (Queue the 
 | --- | --- |
 | `EphysPipelineApp.m` | properties, constructor, method declarations |
 | `buildUI.m`, `buildMenus.m`, `build*Tab.m` | UI construction |
-| `gatherConfig.m`, `applyConfig.m`, `gather*/apply*Section.m`, `gather/applyConvertConfig.m`, `gather/applySortingSection.m`, `setControlValue.m`, `numberText.m`, `onConfigChanged.m`, `syncStepEnableStates.m`, `updateTitle.m` | config model (`setControlValue`: a config value into a control, noting one it cannot show; `numberText`: a number as the shortest text that reads back the same) |
+| `gatherConfig.m`, `applyConfig.m`, `gather*/apply*Section.m`, `gather/applyConvertConfig.m`, `gather/applySortingSection.m`, `setControlValue.m`, `onConfigChanged.m`, `syncStepEnableStates.m`, `updateTitle.m` | config model (`setControlValue`: a config value into a control, noting one it cannot show; numbers in text fields are written with `EphysPipelineConfig.numberText`) |
 | `onNewConfig.m`, `onOpenConfig.m`, `openConfigFile.m`, `onSaveConfig.m`, `onSaveConfigAs.m`, `onExportConfigCopy.m`, `onGenerateScript.m`, `onCreateSyntheticProject.m`, `createSyntheticProject.m`, `onOpenAnalysisApp.m`, `confirmDiscard.m`, `addRecentConfig.m`, `refreshRecentMenu.m` | File menu |
 | `buildPipeline.m`, `runPipeline.m`, `onRunStep.m`, `onCancelRun.m`, `onValidate.m`, `onPlan.m`, `refreshStepPlan.m`, `onPipelineProgress.m`, `runLog.m`, `setRunBar.m`, `showIssues.m`, `onParallelControlsChanged.m`, `projectAtRoot.m`, `refuseWhileRunning.m` | running (`projectAtRoot`: whether the scanned project is the config's; `refuseWhileRunning`: the alert that refuses a dataset edit during a run) |
 | `onRunDiagramToggled.m`, `resetRunDiagram.m`, `updateRunDiagram.m`, `finishRunDiagram.m`, `refreshRunDiagram.m`, `runDiagramHTML.m` | the Run tab's diagram of the run: show / hide, its model (start, progress events, end), what is sent to the page, the page |
@@ -1960,10 +3207,11 @@ app.KSQueue                       % prepared runs waiting for a slot (Queue the 
 | `routeFigureInput.m` | shares the figure's wheel, key and button callbacks between the Artifacts tab's plot and the Visualize viewer |
 | `onOptimizeKS4ForProbe.m`, `onResetKS4Params.m`, `onUseSortingFolder.m`, `onUseAutoSorting.m`, `refreshSortingLabel.m`, `pollKSRuns.m`, `onLaunchPhy.m`, `launchPhy.m` | Sorting tab and phy |
 | `queueKSRun.m`, `onStopKSQueue.m`, `onStopKSRuns.m`, `stopKSRuns.m`, `markKSResult.m` | background Kilosort4 runs: the queue the monitor starts from, Stop queue, Stop runs..., restating a run's result row |
+| `keepKSRuns.m`, `followKeptKSRuns.m`, `offerKeptKSQueue.m`, `restoreKSQueue.m`, `private/keptSortingQueue.m`, `private/keptSortingRuns.m` | the background runs kept at Close: storing them, following the runs going again at launch, offering a kept queue back after its root's scan and putting it back in the queue (or dropping it), reading the two preferences |
 | `onSpikesPreview.m`, `syncSpikesEnableStates.m` | Spikes tab |
 | `onBrowseExportOutput.m`, `onExportEpochsToWorkspace.m` | Export tab (output folder, Epochs to workspace) |
 | `buildAnalysisTab.m`, `gatherAnalysisSection.m`, `applyAnalysisSection.m`, `onAnalysisControlsChanged.m`, `onBrowseAnalysisConfig.m`, `onOpenAnalysisConfig.m`, `refreshAnalysisSummary.m`, `onOpenAnalysisOutput.m` | Analysis tab (the analysis config, its summary, Open in the analysis app, Open report / figures folder) |
-| `onPlotVisualization.m`, `applyVizSettings.m`, `onVizControlsChanged.m`, `onVizViewChanged.m`, `onVizInput.m`, `onVizButtonDown/Up.m`, `refreshVizShading.m`, `vizDetectedIntervals.m`, `syncVizDataset.m`, `loadVizEvents.m`, `onVizReadEvents.m`, `showVizHelp.m`; `pipeline/EphysTraceViewer.m`, `pipeline/EphysTraceSource.m` | Visualize tab: loading the active dataset's signals and spikes, the controls, the wheel / keys / drags, the shading (`vizDetectedIntervals`: the Artifacts preview's intervals the plot shades, or why none); the digital-input events and Read events; the "?" window of mouse and key controls; the viewer and the windowed sources behind it |
+| `onPlotVisualization.m`, `applyVizSettings.m`, `onVizControlsChanged.m`, `onVizViewChanged.m`, `onVizInput.m`, `onVizButtonDown/Up.m`, `refreshVizShading.m`, `vizDetectedIntervals.m`, `updateVizArtStatus.m`, `syncVizDataset.m`, `loadVizEvents.m`, `onVizReadEvents.m`, `showVizHelp.m`; `pipeline/EphysTraceViewer.m`, `pipeline/EphysTraceSource.m`, `pipeline/EphysTraceEnvelope.m` | Visualize tab: loading the active dataset's signals and spikes, the controls, the wheel / keys / drags, the shading (`vizDetectedIntervals`: the Artifacts preview's intervals the plot shades, or why none; `updateVizArtStatus`: their counts, and whether the last run's match the current settings); the digital-input events and Read events; the "?" window of mouse and key controls; the viewer, the windowed sources behind it and their envelopes (min / max cached on disk, built in the background) |
 | `buildFlowTab.m`, `refreshFlowChart.m`, `flowChartHTML.m`, `flowOverviewHTML.m`, `onFlowViewChanged.m`, `onFlowLayoutChanged.m`, `onSaveFlowChart.m`, `onOpenFlowChartInBrowser.m`, `onFlowNavigate.m`, `flowNavControls.m`, `clearFlowHighlight.m` | Diagram tab: the page in the view picked, drawn by [`PipelineDiagram`](../pipeline/@PipelineDiagram/PipelineDiagram.m), a plain class the app calls (`detail`: every parameter; `overview`: the data flow, laid out and routed there; `zoomFrame`: the zoom and pan, kept per view by the app), save / open, a box's click |
 | `buildCopyTab.m`, `onCopyFind.m`, `onCopyRun.m`, `refreshCopyTable.m`, `onCopyTableEdited.m`, `onCopyStitch.m`, `onCopyUnstitch.m`, `onBrowseCopyFolder.m`, `copyLog.m`, `onCopyCancel.m`, `startCopyMonitor.m`, `stopCopyMonitor.m`, `pollCopyJob.m`, `setCopyRunning.m`, `applyCopyResult.m`, `finishCopyRun.m`, `showCopyProgress.m`, `copySummaryText.m`, `refreshCopySchedule.m`, `onCopyScheduleSave.m`, `onCopyScheduleRemove.m`, `onCopyScheduleRunNow.m`, `onCopyScheduleLog.m`; `pipeline/findCopySessions.m`, `pipeline/stitchCopySessions.m`, `pipeline/copySessions.m`, `pipeline/copy_engine.ps1`, `pipeline/stitchEpsychSessions.m`, `pipeline/CopySchedule.m` | Copy tab, the pairing / stitching / copy functions it calls, the detached copy engine, and the scheduled copy (its Windows task and what each run does) |
 | `loadReviewResults.m`, `renderReviewPlots.m`, `syncReviewDataset.m`, `showReviewUnits.m` | Review tab (`showReviewUnits`: the units table in its sort, the selected unit's row kept) |
@@ -1996,7 +3244,7 @@ event by event, a cancel, the preview that follows the checklist, the preference
 resource monitoring (a sample's figures and colours, n/a readings, live samples from the sampler, the preference, the sampler
 exiting and removing its folder when unticked), the Clean up tab's preview (every file listed, a raw
 recording without a copy record kept, nothing deleted, the Keep rows hidden on request, a changed tick box discarding it,
-the Sorting step's box marking its whole folder), a move into the project refused, a move out of it (layout, record, preview again) and the preferences,
+a Visualize envelope going by default and staying unticked, the Sorting step's box marking its whole folder), a move into the project refused, a move out of it (layout, record, preview again) and the preferences,
 the Analysis tab (an analysis config's summary and plots, the Run checklist box, its plan with and without the
 report, the Diagram naming the config, a missing config shown in red and stopping the plan),
 save / reopen and the recent list,
@@ -2019,13 +3267,45 @@ its settings hold), a hand-picked sorted-output folder that is not there
 (`missing`, and the Review tab says so), the default probe in the Project
 table, edits, scans and per-dataset changes during a run, an unreadable
 manifest reported after a scan, a Plan while a background run is going, the
-queue (each dataset once; a plan skips a queued one), phy started in a folder
+results table filling as a Run goes (a row at the next progress event, the
+table left alone when no row was added, a row the monitor restates at once), the
+queue (each dataset once; a plan skips a queued one), the runs kept at Close
+(the queue under its project root, another root's left alone; the runs going
+followed again by the next window, one with no process left out; which kept
+runs can go back in the queue and why not; queued again with the scanned
+dataset; an alert when none can), phy started in a folder
 whose path holds `&` and spaces, the timers stopped when the figure is
 deleted, and the [sorted tables](#sorted-tables) (a kept sort applied to the
 Project, Review and Clean up tables, with row clicks, notes, ticks and the
 highlight still reaching their dataset, unit or file; a header click
 remembered and saved at once; Clear sort; a new window recalling a sort). It
-restores the user's preferences afterwards.
+keeps the app's preferences in a temporary file
+([`AppPrefs`](../pipeline/AppPrefs.m)), so the user's own are never read or
+changed.
+
+The same suite covers the rest of the app too: the tab strip and the Diagram's
+viewport and zoom; probe rules, the name tokens' columns and filters, a
+recursive scan, **Dataset → View manifest** and the Tools panel (manifest
+viewer, analysis app, phy); the Artifacts tab (a preview's detections and
+what a run removes for each use and erase setting, a stale preview, Ctrl+drag
+moving an artifact's bounds into the manifest and Restore bounds, the keys
+that step through the artifacts, the shading, Context, Channels and Lanes,
+the probe order, shanks and colours, the voltage and time keys and wheel,
+Reset view, Go to (s), marking manual periods on the plot, Clear and
+Measure); the Trials tab (Load, the cut spinners, the table's parameter
+columns and their order, Approve, the line polarity, the onset / offset
+lines, grid and trial labels, renamed lines and the label field, the
+workspace and **Write behavior .mat** items, Prefetch and Auto approve); Map
+channels; the run saving the pipeline script and the issue report's Run log;
+the Review tab (unit labels, location and Notes, the quality metrics, QC
+column, criteria and report, the shank, ISI and autocorrelogram plots, the
+waveform overlay, the template without the sorted `.bin`); background
+Kilosort4 runs N at a time (the slot wait, the monitor streaming each run's
+log), the GPUs field, the queue, Stop queue and Stop runs; the Clean up tab's
+search, Subject ID list and tick buttons; and the Visualize tab's "?" window,
+Read events, the event markers and TTL rows, the event box's next-onset arrow,
+the last run's detected periods shaded, and Mark manual periods.
+
 [`test_SyntheticGenerator.m`](../pipeline/test_SyntheticGenerator.m) checks the
 generator behind the Synthetic tab, then drives the tab headlessly: the built-in
 design with an added unit and oscillation, Preview (every plot drawn, the Unit
@@ -2033,60 +3313,85 @@ and LFP boxes), Generate writing exactly the previewed spikes and refusing an
 existing folder, a dataset source (its rate, channels, subject and own probe
 taken over), a dataset written under the project root scanned in and made
 active, the rebuilt lines filled in and editable, and the preferences.
+
 [`test_CopySessions.m`](../pipeline/test_CopySessions.m) (a `matlab.unittest`
 class; `run_all_tests` runs it too) builds fake source trees in a temporary
 folder. It checks pairing (a single session, interleaved sessions resolved
-one-to-one, unpaired files on either side, exact and near ties, clock skew,
-midnight, similar subject IDs, subject patterns and every subject, malformed
-names). It checks copying: a dry run
-writes nothing; a hash-verified copy writes its manifest; an existing
-destination is skipped, reported as an error or already present; a partial copy
-is completed by `resume` (the short file finished, the missing one copied, the
-rest left alone); a truncated copy fails; one missing source does not stop the
-batch; unpaired rows copy only on request; Cancel works. It checks the
-background form too: `Background=true` returns before the copy is done, polling
-the job carries it through to `copied`, options passed with a job are
-refused, and every `ProgressFcn` call carries the fraction, a message and the
-`info` behind it (phase, session, sessions, bytes) with a fraction that never
-steps back. It also drives the Copy tab from Find through a background copy to the
-finished table. It checks that a session whose source changed within the quiet
-time (a file, or a folder a file was taken out of) is left for later, and that
+one-to-one, unpaired files on either side, exact and near ties, clock skew
+and the lead limit, midnight, durations and trial counts from the headers, a
+recording shorter than the minimum, similar subject IDs, subject patterns and
+every subject, malformed names, Open Ephys sessions under a second root, TDT
+blocks, and the errors for a missing root, a bad date and a bad pattern) and
+stitching (`stitchCopySessions` joining rows in time order and refusing bad
+rows). It checks copying: a dry run writes nothing; a hash-verified copy
+writes its manifest; an Open Ephys session is copied whole; an existing
+destination is skipped, reported as an error or already present; a partial
+copy is completed by `resume` (the short file finished, the missing one
+copied, the rest left alone); a copy stopped part way (its full size, the
+wrong time) is completed, never taken as present; a truncated copy fails; a
+same-size corruption fails the SHA-256 checksum; robocopy ended from outside
+fails the session; a heartbeat that looks stale after the computer slept is
+not a dead engine; the free-space check counts only what is left to copy;
+one missing source does not stop the batch; unpaired rows copy only on
+request; Cancel works, also during the checksum pass. A stitched session is
+copied as one `<first>_stitched.mat` (verified, rebuilt by `resume` after its
+source changed), files that cannot be stitched fail in the preview, and a
+session folder never gets a second behavior file. Manifests are written for
+sessions found complete and kept for finished copies. It checks the
+background form too: `Background=true` returns before the copy is done,
+polling the job carries it through to `copied`, options passed with a job
+are refused, and every `ProgressFcn` call carries the fraction, a message and
+the `info` behind it (phase, session, sessions, bytes) with a fraction that
+never steps back. It also drives the Copy tab from Find through a background
+copy to the finished table, Stitch and Unstitch, and the recent-folder
+lists. It checks that a session whose source changed within the quiet time
+(a file, or a folder a file was taken out of) is left for later, and that
 one another batch is writing is left alone until that batch has gone quiet,
-also while a background batch of its own is in flight. For the scheduled copy
-it checks what a run copies (the paired sessions of the days searched; never
-ambiguous, unpaired, to-be-stitched or hand-stitched ones; nothing until the
-source is quiet), what stops a run (no destination, no source), the log,
-`last_run.json` and exit code of `CopySchedule.runTask`, the settings checks,
-the task definition and UNC paths. It creates a real task, has Windows run it
-(MATLAB, started in the background, copies the session and reports) and
-removes it, and saves and removes a schedule from the Copy tab. Copy tests need
-Windows (robocopy, Task Scheduler).
+also while a background batch of its own is in flight. For the scheduled
+copy it checks what a run copies (the paired sessions of the days searched,
+subjects whose folders appear later included; never ambiguous, unpaired or
+to-be-stitched ones; nothing until the source is quiet), what it leaves as it
+is (a hand-stitched copy; a session missing files removed since it was
+copied, while an unfinished copy is completed), a recording copied alone
+gaining its ePsych file once it pairs, what stops a run (no destination, no
+source), the log, `last_run.json` and exit code of `CopySchedule.runTask`,
+the settings checks, the task definition and UNC paths. It creates a real
+task, has Windows run it (MATLAB, started in the background, copies the
+session and reports) and removes it, and saves and removes a schedule from
+the Copy tab. Copy tests need Windows (robocopy, Task Scheduler).
+
 [`test_LocalCleanup.m`](../pipeline/test_LocalCleanup.m) (a `matlab.unittest`
 class) copies a synthetic recording into a session folder as the Copy tab
-would and checks what `planLocalCleanup` removes and keeps (a raw file whose
-source is missing or a different size stays, as does a recording without a copy
-record, and the `.bin` of a binary-format recording), that the Remove option
-limits the kinds, what each step's removal takes (the whole `kilosort4` folder;
-outputs found by their variables, with configured suffixes, in a search folder,
-and unfinished ones; a hand-picked sorted-output folder kept), and that
-`runLocalCleanup` removes only the Remove rows, leaves the source alone, skips
-files that changed since the preview, removes emptied folders, moves files into
-a folder keeping their layout without overwriting, refuses a destination inside
-a dataset, stops on cancel, sends files to the Recycle Bin and finds them there
-(then empties its own items from the bin), and writes and appends to the
-clean-up record.
+would and checks what `planLocalCleanup` removes and keeps (planning changes
+nothing; a raw file whose source is missing or a different size stays, as
+does a recording without a copy record, the data file of a binary-format
+recording, which is raw and not `.bin` output, and what another recording
+with the same name wrote into the shared output folder; an Open Ephys
+session's files below its Record Node; an empty plan when there is nothing
+to clean), that the Remove option limits the kinds, what each step's removal
+takes (the whole `kilosort4` folder and the `.bin` with its sidecar; outputs
+found by their variables, with configured suffixes, in a search folder but
+not another dataset's, a kCSD `.npz` by its meta member, and unfinished
+ones; a hand-picked sorted-output folder kept), and that `runLocalCleanup`
+removes only the Remove rows, leaves the source alone, skips files that
+changed since the preview, removes emptied folders, moves files into a folder
+keeping their layout without overwriting, refuses a destination inside a
+dataset, a relative one or none, stops on cancel, sends files to the Recycle
+Bin and finds them there (then empties its own items from the bin), and
+writes and appends to the clean-up record.
+
 [`test_SyntheticDataset.m`](../pipeline/test_SyntheticDataset.m) checks the
 synthetic project generators and, headlessly, the File-menu action: the
 project is written, opened and scanned; choosing the active dataset in a
 tab's Dataset box, the Dataset menu (a ticked dataset or one under All
-datasets) or the Project table updates all of them, the Dataset menu and every
-tab's Dataset box list only
-the ticked rows,
-clears the previous dataset's pairing and previews, flags a Visualize plot of
-the previous dataset (and, with the tab open, loads the new one at once; opening
-it loads the recording with its sorted units drawn) and loads the Review tab; the Trials tab pairs the clean
-dataset, warns about the late-start one and resolves it with the expected
-cuts.
+datasets) or the Project table updates all of them; the Dataset menu and
+every tab's Dataset box list only the ticked rows; a new active dataset
+clears the previous one's pairing and previews, flags a Visualize plot of the
+previous dataset (and, with the tab open, loads the new one at once; opening
+it loads the recording with its sorted units drawn) and loads the Review tab;
+the Spikes preview runs; the Trials tab pairs the clean dataset, warns about
+the late-start one, resolves it with the expected cuts and records them on
+Approve; and a non-empty folder is refused unless `Overwrite` is passed.
 
 [`test_EphysTraceViewer.m`](../pipeline/test_EphysTraceViewer.m) checks the
 Visualize tab's viewer without the app, on a small universal-format recording
@@ -2098,4 +3403,13 @@ samples at (row − 1)/Fs and a binned spike at its bin's first sample; a zoom i
 drawn from memory, a pan inside the margin moving only the limits; the voltage
 scale, auto scale, lanes, heatmap and shading; sorted units and detected spikes
 as ticks, as the recoloured trace and as stored waveforms on their own lanes,
-spikes only, the read limit, the wheel, keys, drags and the overview.
+spikes only, the read limit, the wheel, keys, drags and the overview; the
+events: onset and offset lines over the traces (an onset on its own sample,
+offsets dotted), a TTL row per line above them, and `jumpToEvent` stepping
+from onset to onset; and the
+envelope: block sizes, one cache file per signal, every level's min / max equal
+to those of the full-rate samples block by block, a `.bin` written again never
+shown from its old envelope and built again, builds on a thread, on a timer and
+cancelled, a removed cache file noticed (as after Clean up), a whole-recording view drawn from it without a full-rate read (with
+the recording's file moved away), the overview's signal, and a display filter
+keeping the view within one read.

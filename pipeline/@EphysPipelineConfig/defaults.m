@@ -5,8 +5,8 @@ function s = defaults(section)
 %   coerces every assigned value to match them.
 %
 %   Continuous-signal defaults mirror EphysDataset.deriveSignals; detection
-%   defaults mirror EphysDataset.detectSpikes; the artifact defaults come from
-%   EphysDataset.defaultArtifactConfig.
+%   defaults mirror EphysDataset.detectSpikes; the artifact and reference
+%   defaults come from EphysDataset.defaultArtifactConfig.
 
 arguments
     section (1,1) string
@@ -48,6 +48,15 @@ switch section
             'RuleSubjects', string.empty(1,0), ...    % subject patterns (* and ?; "*" = every dataset), first match wins
             'RuleProbes',   string.empty(1,0));       % the probe file of each rule
 
+    case "Reference"
+        % The common reference every step subtracts once from its read of the
+        % recording (carried onto the datasets' ArtifactConfig).
+        a = EphysDataset.defaultArtifactConfig();
+        s = struct( ...
+            'Mode',    a.Reference, ...         % "none" | "car" | "cmr"
+            'BadLow',  a.ReferenceBadLow, ...   % suggested out of the reference below this x median noise
+            'BadHigh', a.ReferenceBadHigh);     % ... and above this
+
     case "Behavior"
         s = struct( ...
             'Enabled',           false, ...
@@ -64,9 +73,6 @@ switch section
     case "Artifacts"
         a = EphysDataset.defaultArtifactConfig();
         s = struct( ...
-            'Reference',        a.Reference, ...        % "none" | "car" | "cmr": common reference, before detection
-            'ReferenceBadLow',  a.ReferenceBadLow, ...  % suggested out of the reference below this x median noise
-            'ReferenceBadHigh', a.ReferenceBadHigh, ... % ... and above this
             'Enabled',        false, ...       % automatic detection (manual periods always apply)
             'Method',         a.Method, ...
             'Threshold',      a.Threshold, ...
@@ -118,7 +124,7 @@ switch section
             'SPIKE',              false, ...
             'AUX',                false, ...   % aux (accelerometer) inputs, when recorded
             'BlankArtifacts',     true, ...    % erase the artifact periods before deriving; recorded in every file
-            'LFP_Reference',      false, ...   % subtract the common reference (Artifacts.Reference) from the LFP
+            'LFP_Reference',      false, ...   % subtract the common reference (the Reference section) from the LFP
             'MUA_Reference',      true, ...    % ... from the MUA
             'SPIKE_Reference',    true, ...    % ... from the SPIKE band
             'LFP_Fs',             1000, ...

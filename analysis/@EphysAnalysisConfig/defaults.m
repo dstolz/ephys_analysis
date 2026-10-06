@@ -176,7 +176,7 @@ switch section
             'normalize',     "none", ...        % psth: "none" | "unitPeak" (a unit's PSTHs / its largest peak) | "groupPeak" (each PSTH / its own peak)
             'stack',         false, ...         % psth: one row per group, stacked upwards, instead of overlaid
             'stackSpacing',  1.1, ...           % psth stack: row step, x the tallest PSTH of the panel (< 1 overlaps)
-            'maskAfterStop', false, ...         % psth: drop bins after each epoch's stop event
+            'maskAfterStop', false, ...         % psth, raster, heatmap of spikes: drop what follows each epoch's stop event
             'param',         "", ...            % tuning: trial parameter on the x axis
             'seriesParam',   "", ...            % tuning: one curve per value of this parameter
             'value',         "rate", ...        % probemap: "rate" | "nSpikes" | "nUnits"

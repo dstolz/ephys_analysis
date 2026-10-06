@@ -20,7 +20,8 @@ classdef EphysAnalysisConfig
     %               channels, ref, window, selection, bins, baseline, layout,
     %               withRaster, rasterSort, histStyle, fill, fillAlpha, normalize, stack,
     %               stackSpacing, maskAfterStop, param, seriesParam, value,
-    %               order, metric, correlation, waveform, style
+    %               order, metric, correlation, measure, auroc, waveform,
+    %               aesthetics, style
     %     Export    figure files: Formats (png / eps / svg / pdf), Folder and
     %               FilenamePattern with tokens, Dpi, FigureSizeCm
     %     Report    one HTML and / or multi-page PDF report per run (or per

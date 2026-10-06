@@ -21,8 +21,11 @@ then writes the exit marker `ks4_exit.txt`.
 | [`probe_tool.py`](../pipeline/@EphysPipelineApp/probe_tool.py) | `EphysPipelineApp.runProbeTool` (`runProbeToolWith`) / `ProbeDesignerApp` / `ChannelMapperApp` | probeinterface |
 | [`nwb_export.py`](../pipeline/@EphysDataset/nwb_export.py) | `EphysDataset.exportNWB` (the Export step's `nwb` format) | pynwb, nwbinspector |
 
-Versions known to work are listed in [INSTALL.md](../pipeline/INSTALL.md):
-kilosort 4.1.7, probeinterface 0.3.2, torch 2.7.1.
+Versions known to work are listed in
+[Installation](../pipeline/INSTALL.md#4-miniconda-and-the-kilosort-environment):
+Python 3.11, kilosort 4.1.7, probeinterface 0.3.2, torch 2.7.1 (CUDA 11.8).
+How sorting runs are launched and logged, and how GPUs are shared out, is
+under [Environment notes](#environment-notes).
 
 ---
 
@@ -30,33 +33,42 @@ kilosort 4.1.7, probeinterface 0.3.2, torch 2.7.1.
 
 Usage: `run_ks4.py <settings.json> [--device <torch device>]`.
 
-1. Loads the probe with `kilosort.io.load_probe(cfg['probe'])`.
-2. Sorts the other `settings.json` keys (except the driver's own keys
-   `probe`, `data_dtype`, `torch_device`, `bin_scale` (the `.bin`'s units
-   per µV that `readPhyUnits` reads and Kilosort4 is not given),
-   `shank_spacing` and `true_probe`) with
-   `split_settings`:
+`runKilosort` writes the `.bin` first, with the artifact periods erased
+(unless `BinFile` names an existing one), then `settings.json` and a copy of
+this script into the run folder
+([Running Kilosort4](EphysDataset.md#running-kilosort4)). The script:
+
+1. Sorts the `settings.json` keys with `split_settings`, except the
+   driver's own keys: `probe`, `data_dtype`, `torch_device`, `bin_scale`
+   (the `.bin`'s units per µV that `readPhyUnits` reads and Kilosort4 is
+   not given), `shank_spacing`, `true_probe` and `provenance` (the code and
+   config that wrote the run, kept for the record):
    - `run_kilosort` arguments (`do_CAR`, `invert_sign`, `save_extra_vars`,
      `save_preprocessed_copy`, `bad_channels`, `clear_cache`,
      `torch_thread_lim`) are passed as arguments;
    - keys in Kilosort4's `RECOGNIZED_SETTINGS` become `settings`;
    - anything else is **dropped** and logged. Kilosort4 would otherwise refuse
      the whole run with "Unrecognized settings".
-3. `--device`, else a `torch_device` in the settings (`"auto"` = none),
+2. `--device`, else a `torch_device` in the settings (`"auto"` = none),
    becomes `run_kilosort`'s `device=torch.device(...)`, logged as
    `Kilosort4 on torch device <device>`. Without either, Kilosort4 takes the
    first GPU (or the CPU).
-4. Calls `kilosort.run_kilosort(settings, probe, filename, data_dtype,
-   results_dir, **run_args)`.
-5. With a `true_probe` (the probe was sorted with its shanks moved apart,
+3. Loads the probe with `kilosort.io.load_probe(cfg['probe'])` and calls
+   `kilosort.run_kilosort(settings, probe, filename, data_dtype,
+   results_dir, **run_args)`, which writes the phy output into
+   `results_dir`.
+4. With a `true_probe` (the probe was sorted with its shanks moved apart,
    [shank spacing](EphysDataset.md#shank-spacing)), `restore_positions` writes
    the true positions back: `channel_positions.npy` from `true_probe` by
    `chanMap`, and `spike_positions.npy` moved back by the shift of each
    spike's nearest site in the spaced layout.
 
 It writes `ks4_status.json` (`{"state": "done", "num_units", "dropped_params"}`
-or `{"state": "error", "message", "traceback"}`) in `results_dir` and prints
-`KILOSORT4_DONE units=<n>` / `KILOSORT4_ERROR`.
+or `{"state": "error", "message", "traceback"}`,
+[format](file-formats.md#ks4_statusjson)) in `results_dir` and prints
+`KILOSORT4_DONE units=<n>` / `KILOSORT4_ERROR`. An error in any of the steps
+above, a bad probe file included, gives the error form, and the script then
+exits with that error.
 
 ### Channel-numbering caveat
 
@@ -101,12 +113,15 @@ The conversion to KS4 JSON (`pi_probe_to_ks4`) works as follows:
   `device_channel_indices` if present and all ≥ 0, else `0..n−1`.
 - `n_chan` defaults to `max(n, max(chanMap)+1)`.
 
-`runProbeTool` takes the Python and conda env from the Kilosort tab and hands them to the static `EphysPipelineApp.runProbeToolWith`, which assembles the command. `ChannelMapperApp` opened on its own calls `runProbeToolWith` with the Python the app last used (its `PythonExe` preference).
+`runProbeTool` takes the Python and conda env from the Sorting tab and hands them to the static `EphysPipelineApp.runProbeToolWith`, which assembles the command. `ChannelMapperApp` opened on its own calls `runProbeToolWith` with the Python the app last used (its `PythonExe` preference).
 
 On failure the script prints `PROBE_TOOL_ERROR: ...` and exits 1.
 `runProbeTool` raises `EphysPipelineApp:runProbeTool:Failed` on a non-zero exit
-or that marker. On success it `jsondecode`s the **last** stdout line that parses
-as JSON.
+or that marker. It raises `:NoSubcommand` when called without a subcommand,
+`:NoPython` when no Python exe is set, and `:ScriptMissing` when
+`probe_tool.py` is not next to the class. On success it `jsondecode`s the
+**last** output line that parses as JSON, and returns the raw text when no
+line does.
 
 ---
 
@@ -147,3 +162,31 @@ Known to work: Python 3.11, pynwb 4.2.0, hdmf 6.2.0, nwbinspector 0.7.2,
 h5py 3.16.0, numpy 2.4.6. The script ran on synthetic staging folders,
 including the shapes MATLAB's `jsonencode` gives one-element lists; reading
 the file back returned every staged value unchanged.
+
+---
+
+## Environment notes
+
+- Conda need not be on `PATH`: the Python exe is called by its full path.
+  Setting **Conda env** wraps the call in `conda run -n <env>`, which needs
+  `conda` on `PATH`.
+- A blocking sorting run (`Sorting.Execution` `blocking`) captures the
+  output and writes it to `ks4_run.log` once the process exits. A
+  background run redirects the output there as it comes, with
+  `PYTHONUNBUFFERED=1` so that Python does not hold it back. The status a
+  background launch returns is the launcher's, not Kilosort4's exit code:
+  read `ks4_status.json`.
+- `launchSorting` deletes the results folder's `ks4_status.json` and
+  `ks4_exit.txt` before each launch, so both describe the latest run only.
+  A background run writes the empty `ks4_exit.txt` once its process exits.
+  An exit marker without a status file means the run failed before the
+  driver could report, for example a missing Python or conda env
+  ([`ks4_exit.txt`](file-formats.md#ks4_exittxt)).
+- A GPU is optional, but Kilosort4 is much faster on one.
+  `python -c "import torch; print(torch.cuda.is_available())"` checks for
+  one, and `python -c "import torch; print(torch.cuda.device_count())"`
+  counts them. On a machine with several, list them in `Sorting.Devices`
+  (the [Run](EphysPipelineApp.md#run) tab's **GPUs**, for example
+  `cuda:0, cuda:1`) so that runs going at once each get their own. A
+  background run is given the device the fewest running runs use, a
+  blocking run the first, and the driver gets it as `--device cuda:N`.

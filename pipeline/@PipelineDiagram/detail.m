@@ -8,7 +8,7 @@ function [html, summary] = detail(cfg, d, opts)
 %   (EphysPipelineApp.flowChartHTML), and works without the app.
 %
 %   The detail view draws one tree from the raw
-%   recording. The common reference (Artifacts.Reference) comes right under
+%   recording. The common reference (the Reference section) comes right under
 %   it, drawn once: every step subtracts it once from its own read of the
 %   recording (the Signals it leaves out, such as the LFP, say so on their
 %   own branch). The tree then branches into Artifacts, Signals (LFP / MUA /
@@ -169,7 +169,7 @@ end
 
 
 function n = referenceNode(cfg)
-%referenceNode  The common reference (Artifacts.Reference), drawn once
+%referenceNode  The common reference (the Reference section), drawn once
 %   between the recording and the steps: each step subtracts it once,
 %   sample by sample, from its own read of the recording - artifact
 %   detection, the Kilosort4 .bin (whose own do_CAR is then off), spike
@@ -178,7 +178,7 @@ function n = referenceNode(cfg)
 A = cfg.Artifacts;
 G = cfg.Signals;
 target = "ArtRefDropDown,ArtRefLowField,ArtRefHighField";
-switch A.Reference
+switch cfg.Reference.Mode
     case "car"; n = node("op", "Common average reference", "mean of the good channels, subtracted once from each", target);
     case "cmr"; n = node("op", "Common median reference", "median of the good channels, subtracted once from each", target);
     otherwise;  n = node("off", "Common reference", "none (as recorded)", target);
@@ -242,7 +242,7 @@ blank = node("link", "Blank artifact periods", ...
 
 hp = node("op", "KS4 high-pass", sprintf("%g Hz", K.highpass_cutoff), "ks4.highpass_cutoff");
 ks4 = EphysPipelineConfig.ks4Settings(S);
-if A.Reference ~= "none"
+if cfg.Reference.Mode ~= "none"
     ksCar = node("off", "KS4 CAR", ["off (do_CAR = false): the .bin", "already carries the common reference"], "ArtRefDropDown");
 elseif isfield(ks4, 'do_CAR') && isequal(ks4.do_CAR, false)
     ksCar = node("off", "KS4 CAR", "off (do_CAR = false in the extra settings)", "ExtraSettingsArea");
@@ -298,11 +298,12 @@ function n = signalsTree(cfg, dsName, downstream)
 %   from the read as they are.
 G = cfg.Signals;
 A = cfg.Artifacts;
+ref = cfg.Reference.Mode;
 types = ["LFP" "MUA" "SPIKE" "AUX"];
 host = types(find([G.LFP G.MUA G.SPIKE G.AUX], 1));
 kids = @(type) downstreamUnder(host, type, downstream);
-stage = @(type, on) node("stage", type, ternary(on && A.Reference ~= "none", ...
-    ["amplifier", "common " + upper(A.Reference) + " referenced"], ["amplifier", "as recorded (no common reference)"]), ...
+stage = @(type, on) node("stage", type, ternary(on && ref ~= "none", ...
+    ["amplifier", "common " + upper(ref) + " referenced"], ["amplifier", "as recorded (no common reference)"]), ...
     "Conv" + type + "CheckBox,SigRef" + type + "CheckBox");
 
 sel = strings(1, 0);

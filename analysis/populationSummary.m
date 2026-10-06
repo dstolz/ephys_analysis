@@ -10,6 +10,8 @@ function S = populationSummary(P, opts)
 %                  "y unknown" without a site)
 %     direction    excited / suppressed / none / untested
 %     responsive, tuned   yes / no / untested
+%     auroc        the auROC's call: increase / decrease / mixed / none /
+%                  uncalled
 %   (GroupBy [] = one group, "all"). Groups go in the order of their
 %   values (numbers ascending, text alphabetically).
 %
@@ -20,11 +22,18 @@ function S = populationSummary(P, opts)
 %                (units with an evoked p), nResponsive, fracResponsive (of
 %                nTested), nExcited and nSuppressed (responsive units by
 %                direction), nTuningTested, nTuned, fracTuned (of
-%                nTuningTested), medianLatency (psthLatency, s, of the
-%                responsive excited units) and, when the units carry them,
-%                the medians of isiViolationsRatio, presenceRatio,
-%                amplitudeCutoff and snr. A fraction with no unit tested is
-%                NaN
+%                nTuningTested), nAurocCalled (units the auROC called),
+%                nAurocModulated (in any of their groups),
+%                fracAurocModulated (of nAurocCalled), nAurocIncrease and
+%                nAurocDecrease (P.units.aurocDirection), medianLatency
+%                (psthLatency, s, of the responsive excited units) and,
+%                when the units carry them, the medians of
+%                isiViolationsRatio, presenceRatio, amplitudeCutoff and
+%                snr. A fraction with no unit tested is NaN
+%     auroc      how the auROC calls were made ([] without them): cutoff
+%                (P.auroc.cutoff), groupBy and families (P.auroc.families:
+%                the cutoff c pooled over each family's unit x group
+%                curves)
 %     unitGroup  [nUnits x 1] the group of each row of P.units
 %     psth       t, mean / sem [nBins x nGroups] (over the group's units,
 %                NaN ignored; sem NaN below 2 units), units
@@ -43,7 +52,7 @@ arguments
     opts.TuningNormalize (1,1) string = "peak"
 end
 
-keysAllowed = ["subject" "dataset" "class" "shank" "depth" "direction" "responsive" "tuned"];
+keysAllowed = ["subject" "dataset" "class" "shank" "depth" "direction" "responsive" "tuned" "auroc"];
 by = opts.GroupBy;
 bad = setdiff(by, keysAllowed);
 if ~isempty(bad)
@@ -92,7 +101,8 @@ end
 
 % --- counts, fractions and rates ------------------------------------------------------------------
 cols = ["nUnits" "nDatasets" "meanRateHz" "medianRateHz" "nTested" "nResponsive" "fracResponsive" ...
-    "nExcited" "nSuppressed" "nTuningTested" "nTuned" "fracTuned" "medianLatency"];
+    "nExcited" "nSuppressed" "nTuningTested" "nTuned" "fracTuned" "nAurocCalled" "nAurocModulated" ...
+    "fracAurocModulated" "nAurocIncrease" "nAurocDecrease" "medianLatency"];
 qual = ["isiViolationsRatio" "presenceRatio" "amplitudeCutoff" "snr"];
 qual = qual(arrayfun(has, qual));
 M = NaN(nG, numel(cols) + numel(qual));
@@ -110,6 +120,9 @@ for g = 1:nG
     else
         row = [row, 0, 0, NaN]; %#ok<AGROW>
     end
+    called = r & U.aurocDirection ~= "";
+    row = [row, nnz(called), nnz(called & U.aurocModulated), nnz(called & U.aurocModulated) / nnz(called), ...
+        nnz(called & U.aurocDirection == "increase"), nnz(called & U.aurocDirection == "decrease")]; %#ok<AGROW>
     row(end+1) = median(U.psthLatency(exc), 'omitnan'); %#ok<AGROW>
     for c = qual
         row(end+1) = median(U.(c)(r), 'omitnan'); %#ok<AGROW>
@@ -141,6 +154,10 @@ end
 
 S = struct();
 S.groups = G;
+S.auroc = [];
+if ~isempty(P.auroc)
+    S.auroc = struct('cutoff', P.auroc.cutoff, 'groupBy', P.auroc.groupBy, 'families', P.auroc.families);
+end
 S.unitGroup = gi;
 S.psth = struct('t', P.psth.t, 'mean', pm, 'sem', ps, 'units', P.psth.units);
 S.tuning = struct('param', P.tuning.param, 'levels', P.tuning.levels, 'mean', tm, 'sem', ts, ...
@@ -178,6 +195,10 @@ switch key
         v = string(U.direction);
         v(v == "" | ismissing(v)) = "untested";
         lab = v;
+    case "auroc"
+        v = string(U.aurocDirection);
+        v(v == "" | ismissing(v)) = "uncalled";
+        lab = "auROC " + v;
     case {"responsive" "tuned"}
         p = U.pEvoked;
         if key == "tuned"; p = U.pTuning; end

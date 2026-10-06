@@ -282,7 +282,7 @@ classdef EphysDataset < handle
         tf     = associateFolderBehavior(obj)
         E      = digitalEvents(obj, opts)
         P      = pairTrials(obj, opts)
-        file   = setTrialPairing(obj, P, status, opts)
+        [file, saved] = setTrialPairing(obj, P, status, opts)
         [P, tf] = autoApproveTrialPairing(obj, P)
         summary = analyzeArtifacts(obj, opts)
         nl     = noiseLevels(obj, opts)
@@ -1085,6 +1085,7 @@ classdef EphysDataset < handle
     methods (Static)
         % --- static methods defined in separate files in this @-folder ---
         [stopped, message] = stopSortRun(statusFile)
+        n = sortRunProcesses(statusFiles)
 
         function fmt = detectFormat(folder, opts)
             %detectFormat  RecordingFormat of the reader that claims FOLDER.
@@ -1125,7 +1126,9 @@ classdef EphysDataset < handle
             %   reference subtracted from every read before anything else
             %   (applyReference): "none", "car" (mean) or "cmr" (median) of
             %   the channels whose noise floor lies within [Low High] times
-            %   the mean across channels (suggestReferenceExclude).
+            %   the median across channels (suggestReferenceExclude). The
+            %   pipeline sets them from its config's Reference section
+            %   (Mode, BadLow, BadHigh; EphysPipelineConfig.artifactConfig).
             cfg = struct( ...
                 'Reference',    "none", ...  % "none" | "car" (mean) | "cmr" (median)
                 'ReferenceBadLow',  0.3, ... % x median noise: quieter channels are left out of the reference

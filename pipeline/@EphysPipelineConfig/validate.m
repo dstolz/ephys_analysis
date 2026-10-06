@@ -2,7 +2,8 @@ function issues = validate(obj, opts)
 %validate  Check the config for problems, enabled steps only.
 %   ISSUES = cfg.validate() returns a table (Step, Field, Severity, Message)
 %   with Severity "error" (the run cannot start) or "warning". Project,
-%   Parallel and Probe are always checked; step sections only when Enabled.
+%   Acquisition, Parallel, Probe and Reference are always checked; step
+%   sections only when Enabled.
 %   Cross-step rules are checked too (e.g. a background sorting run cannot
 %   feed the sorted-unit consumers in the same run). An empty table means clean.
 %   The Analysis step's config (Analysis.ConfigFile) is loaded and checked
@@ -90,6 +91,17 @@ if PL.Enabled && ~license('test', 'Distrib_Computing_Toolbox')
     add("parallel", "Enabled", "warning", "Parallel is on but the Parallel Computing Toolbox is not licensed; the steps run serially.");
 end
 
+% --- Reference (always) ----------------------------------------------------------
+% Every step that reads the recording takes it, whichever steps are on.
+R = obj.Reference;
+if ~ismember(R.Mode, ["none" "car" "cmr"])
+    add("reference", "Mode", "error", "Reference.Mode must be ""none"", ""car"" or ""cmr"".");
+end
+if ~(R.BadLow >= 0 && R.BadHigh > R.BadLow)
+    add("reference", "BadLow", "error", ...
+        "The reference noise bounds must satisfy 0 <= BadLow < BadHigh.");
+end
+
 % --- Behavior --------------------------------------------------------------------
 B = obj.Behavior;
 if B.Enabled
@@ -112,15 +124,8 @@ end
 
 % --- Artifacts -------------------------------------------------------------------
 A = obj.Artifacts;
-% The reference and the fill apply to the manual periods too, so they are
-% checked whether or not automatic detection is on.
-if ~ismember(A.Reference, ["none" "car" "cmr"])
-    add("artifacts", "Reference", "error", "Reference must be ""none"", ""car"" or ""cmr"".");
-end
-if ~(A.ReferenceBadLow >= 0 && A.ReferenceBadHigh > A.ReferenceBadLow)
-    add("artifacts", "ReferenceBadLow", "error", ...
-        "The reference noise bounds must satisfy 0 <= ReferenceBadLow < ReferenceBadHigh.");
-end
+% The fill applies to the manual periods too, so it is checked whether or
+% not automatic detection is on.
 if ~ismember(A.Fill, ["noise" "zero"])
     add("artifacts", "Fill", "error", "Fill must be ""noise"" or ""zero"".");
 end
@@ -192,6 +197,20 @@ if S.Enabled
             && numel(S.Devices) > S.MaxConcurrent
         add("sorting", "Devices", "warning", sprintf("%d devices but %d Kilosort4 run(s) at once: %s stay(s) idle.", ...
             numel(S.Devices), S.MaxConcurrent, strjoin(S.Devices(floor(S.MaxConcurrent)+1:end), ", ")));
+    elseif S.Execution == "background" && isfinite(S.MaxConcurrent) && S.MaxConcurrent >= 2 && numel(S.Devices) <= 1
+        % Every run goes on the one device, else the extra settings'
+        % torch_device, else Kilosort4's first GPU: a small card runs out of memory.
+        dev = "Kilosort4's first (no Devices listed)";
+        if isscalar(S.Devices)
+            dev = S.Devices;
+        elseif msg == "" && isfield(ks4, 'torch_device') && isscalar(string(ks4.torch_device))
+            dev = string(ks4.torch_device);
+        end
+        if dev ~= "cpu"
+            add("sorting", "MaxConcurrent", "warning", sprintf(['%d Kilosort4 runs at once all go on one GPU, %s: ' ...
+                'together they can run out of its memory (CUDA out of memory). List a device per run, or lower MaxConcurrent.'], ...
+                S.MaxConcurrent, dev));
+        end
     end
     if ~isempty(S.Devices) && msg == "" && isfield(ks4, 'torch_device')
         add("sorting", "Devices", "warning", "Devices overrides torch_device in the extra Kilosort4 settings.");

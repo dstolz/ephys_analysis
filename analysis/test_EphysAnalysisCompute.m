@@ -12,7 +12,8 @@ function test_EphysAnalysisCompute()
 %   rates, partial bins, baseline, groups, degenerate units), that every
 %   renderer draws into a classic figure's axes, a uifigure's uiaxes and a
 %   figure (tiled layout), including renderPlot's pages and titles,
-%   binCounts / countBelow against brute force, and the unit waveform
+%   binCounts / countBelow against brute force (a spike on a bin edge in
+%   the bin that starts there, on a 30 kHz sample grid too), and the unit waveform
 %   boxes (where each location puts them, on a reversed raster too; the
 %   modes, box and scale; the limits kept; none on an overlay; templates).
 %
@@ -459,7 +460,13 @@ for trial = 1:200
     okC = okC && isequal(c1, c2) && isequal(r1, r2) && isequal(e1, e2);
 end
 check(okB, 'countBelow (binary search) = the count of spikes strictly below, with ties, NaN and Inf');
-check(okC, 'binCounts (one vectorized pass) = histcounts per event: counts, raster times and events, spikes on bin edges included');
+check(okC, 'binCounts (one vectorized pass) = counting per event and bin: counts, raster times and events, a spike on an edge in the bin that starts there');
+fs = 30000;
+r0 = 1 + 7919 * (1:40).';                 % event samples, 0.26 s apart
+j = mod((1:40).', 9) - 4;                 % each event's spike: j x 10 ms (300 samples) from it
+cE = binCounts((r0 + 300 * j - 1) / fs, (r0 - 1) / fs, (-5:10) * 0.01);
+check(sum(cE, 'all') == 40 && all(arrayfun(@(e) cE(j(e) + 6, e) == 1, (1:40).')), ...
+    'spikes and events on a 30 kHz sample grid: a spike a whole number of 10 ms bins from its event is in the bin starting there');
 
 fprintf('\n== 8. Probe order, labels, measures, corner labels, spacing ==\n');
 ord = @(d, s) probeOrder(meta, 3, EphysAnalysisConfig.normalizeSection("Style", struct('SortDepth', d, 'SortShank', s))).';
@@ -652,13 +659,18 @@ end
 
 
 function [c, rel, ep] = binCountsRef(s, t0, edges)
-%binCountsRef  binCounts the slow way: each event's spikes by comparison, histcounts per event.
+%binCountsRef  binCounts the slow way: each event's spikes by comparison, bin by bin.
+%   A spike within 1e-9 s of an edge belongs to the bin that starts there.
+tol = 1e-9;
 s = sort(s(:));
 c = zeros(numel(edges) - 1, numel(t0));
 rel = zeros(0, 1); ep = zeros(0, 1);
 for e = 1:numel(t0)
-    r = s(s >= t0(e) + edges(1) & s < t0(e) + edges(end)) - t0(e);
-    c(:, e) = histcounts(r, edges).';
+    r = s - t0(e);
+    r = r(r >= edges(1) - tol & r < edges(end) - tol);
+    for k = 1:numel(edges) - 1
+        c(k, e) = nnz(r >= edges(k) - tol & r < edges(k + 1) - tol);
+    end
     rel = [rel; r]; %#ok<AGROW>
     ep = [ep; repmat(e, numel(r), 1)]; %#ok<AGROW>
 end

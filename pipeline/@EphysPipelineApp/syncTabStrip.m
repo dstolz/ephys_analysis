@@ -59,6 +59,12 @@ for k = 1:numel(tabs)
             end
         case obj.TabArtifacts
             [state, tip] = stepState(issues, "artifacts", cfg.Artifacts.Enabled);
+            % The common reference (its panel is here) is read by every
+            % step, so its issues show whether or not detection is on.
+            [refState, refTip] = issueState(issues, "reference");
+            if refState == "error" || (refState == "warn" && state ~= "error")
+                state = refState; tip = refTip;
+            end
         case obj.TabSorting
             [state, tip] = stepState(issues, "sorting", cfg.Sorting.Enabled);
         case obj.TabSignals

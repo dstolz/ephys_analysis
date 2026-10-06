@@ -85,6 +85,17 @@ check(cfg.Parallel.MaxWorkers == 4 && islogical(cfg.Parallel.Enabled) && ~cfg.Pa
     'a partial Parallel section is coerced and completed');
 c5 = EphysPipelineConfig.fromStruct(struct('Spikes', struct('UseParallel', true)));
 check(any(contains(c5.LoadWarnings, "Spikes.UseParallel")), 'Spikes.UseParallel from an older file is dropped with a warning');
+secs = EphysPipelineConfig.Sections;
+check(find(secs == "Reference") == find(secs == "Probe") + 1 && ~cfg.isStep("reference") ...
+    && cfg.Reference.Mode == "none" && cfg.Reference.BadLow == 0.3 && cfg.Reference.BadHigh == 2 ...
+    && ~any(isfield(cfg.Artifacts, {'Reference', 'ReferenceBadLow', 'ReferenceBadHigh'})), ...
+    'the Reference section (a setting, after Probe) holds the common reference; Artifacts does not');
+cfg.Reference = struct('Mode', 'cmr', 'BadHigh', "3");
+check(cfg.Reference.Mode == "cmr" && cfg.Reference.BadHigh == 3 && cfg.Reference.BadLow == 0.3, ...
+    'a partial Reference section is coerced and completed');
+c6 = EphysPipelineConfig.fromStruct(struct('Artifacts', struct('Reference', "car")));
+check(any(contains(c6.LoadWarnings, "Artifacts.Reference")) && c6.Reference.Mode == "none", ...
+    'Artifacts.Reference is not a field: dropped with a warning, the Reference section untouched');
 cfg.Artifacts = struct('FilterType', "bandpass", 'FilterCutoff', [300; 3000]);
 cA = cfg; cA.Artifacts.Enabled = true; cA.Artifacts.Filter = true;
 check(isequal(cfg.Artifacts.FilterCutoff, [300 3000]) && ~any(cA.validate(CheckPaths=false).Field == "FilterCutoff"), ...
@@ -114,6 +125,7 @@ cfg.Export.Signals = string.empty(1,0);
 cfg.Behavior.SearchDirs = ["D:\beh" "E:\beh"];
 cfg.Parallel.Enabled = true; cfg.Parallel.MaxWorkers = NaN;
 cfg.Artifacts.FilterType = "bandpass"; cfg.Artifacts.FilterCutoff = [300 3000];
+cfg.Reference.Mode = "cmr"; cfg.Reference.BadLow = 0.25; cfg.Reference.BadHigh = 2.5;
 f = fullfile(root, 'cfg.json');
 cfg = cfg.save(f);
 check(isfile(f) && cfg.File == string(f), 'save writes the file and records File');
@@ -133,6 +145,10 @@ check(c3.File == string(f) && isempty(c3.LoadWarnings), 'File is set and nothing
 check(c3.Parallel.Enabled && isnan(c3.Parallel.MaxWorkers) && contains(txt, '"MaxWorkers": "NaN"'), ...
     'the Parallel section round-trips (NaN MaxWorkers as a string)');
 check(isequal(c3.Artifacts.FilterCutoff, [300 3000]), 'a band-pass FilterCutoff survives the JSON round trip');
+js = jsondecode(txt);
+check(isequal(c3.Reference, struct('Mode', "cmr", 'BadLow', 0.25, 'BadHigh', 2.5)) && isfield(js, 'Reference') ...
+    && strcmp(js.Reference.Mode, 'cmr') && ~isfield(js.Artifacts, 'Reference'), ...
+    'the Reference section round-trips as a JSON object of its own');
 bad = fullfile(root, 'bad.json');
 writeJsonFile(bad, struct('schema', "something-else", 'version', 1));
 check(strcmp(errorId(@() EphysPipelineConfig.load(bad)), 'EphysPipelineConfig:BadSchema'), 'wrong schema is refused');
@@ -199,6 +215,13 @@ for kind = ["float" "floatinf" "nullable"]
 end
 exact = exact && isequal(EphysPipelineConfig.ks4ParamFromText('vector', EphysPipelineConfig.ks4ParamText('vector', vals)), vals);
 check(exact, 'ks4ParamText -> ks4ParamFromText gives every value back exactly (float, floatinf, nullable, vector)');
+nt = arrayfun(@EphysPipelineConfig.numberText, [30000 120000 0.1953125 0.25 1e-7 -2.5 Inf NaN 1e20]);
+back = true;
+for v = vals
+    back = back && str2double(EphysPipelineConfig.numberText(v)) == v;
+end
+check(isequal(nt, ["30000" "120000" "0.1953125" "0.25" "1e-07" "-2.5" "Inf" "NaN" "1e+20"]) && back, ...
+    'numberText: whole numbers in full, others in as few digits as read back exactly; Inf, NaN');
 
 fprintf('\n== 3b. ks4ProbeDefaults ==\n');
 S0 = EphysPipelineConfig.defaults("Sorting");
@@ -395,9 +418,14 @@ check(isequal(EphysPipelineConfig.spikeChannels(K, dsFake), [6 5 4]), 'list chan
 K.Channels = "all";
 check(isempty(EphysPipelineConfig.spikeChannels(K, dsFake)), 'all -> []');
 A = EphysPipelineConfig.defaults("Artifacts"); A.Enabled = true; A.Filter = true; A.Threshold = 7;
-ac = EphysPipelineConfig.artifactConfig(A);
+Rf = EphysPipelineConfig.defaults("Reference"); Rf.Mode = "car"; Rf.BadHigh = 4;
+ac = EphysPipelineConfig.artifactConfig(A, Rf);
 check(isequal(sort(fieldnames(ac)), sort(fieldnames(EphysDataset.defaultArtifactConfig()))) ...
-    && ac.Enabled && ac.Filter && ac.Threshold == 7 && ac.FilterCutoff == 300, 'artifactConfig maps onto EphysDataset.ArtifactConfig');
+    && ac.Enabled && ac.Filter && ac.Threshold == 7 && ac.FilterCutoff == 300 ...
+    && ac.Reference == "car" && ac.ReferenceBadLow == 0.3 && ac.ReferenceBadHigh == 4, ...
+    'artifactConfig maps the Artifacts and Reference sections onto EphysDataset.ArtifactConfig');
+check(strcmp(errorId(@() EphysPipelineConfig.artifactConfig(A)), 'MATLAB:minrhs'), ...
+    'artifactConfig needs the Reference section too');
 E = EphysPipelineConfig.defaults("Export"); E.IncludeUnits = false; E.Signals = "LFP";
 eo = EphysPipelineConfig.exportOptions(E, "fieldtrip");
 check(islogical(eo.Units) && ~eo.Units && isequal(eo.Signals, "LFP") && ~isfield(eo, 'Behavior') && eo.Validate, ...
@@ -423,6 +451,11 @@ cfg.Spikes.Band = [5000 500];                         % invalid but the step is 
 iss = cfg.validate();
 check(~any(iss.Severity == "error") && any(iss.Field == "OutputRoot" & iss.Severity == "warning"), ...
     'disabled steps are not checked; missing output root warns');
+cfg.Reference.BadHigh = 0.2;
+iss = cfg.validate();
+check(any(iss.Step == "reference" & iss.Field == "BadLow" & iss.Severity == "error"), ...
+    'the Reference section is checked with every step off (BadHigh below BadLow)');
+cfg.Reference.BadHigh = 2;
 cfg.Parallel.MaxWorkers = 0;
 iss = cfg.validate();
 check(any(iss.Step == "parallel" & iss.Field == "MaxWorkers" & iss.Severity == "error"), 'MaxWorkers = 0 is an error');
@@ -486,7 +519,32 @@ iss = cfg.validate();
 check(any(iss.Field == "Devices" & iss.Severity == "warning" & contains(iss.Message, "cuda:1 stay(s) idle")), ...
     'more devices than runs at once: a warning naming the idle ones');
 cfg.Sorting.MaxConcurrent = 2;
-check(~any(cfg.validate().Field == "Devices"), 'two devices, two runs at once: fine');
+check(~any(cfg.validate().Field == "Devices") && ~any(cfg.validate().Field == "MaxConcurrent"), 'two devices, two runs at once: fine');
+cfg.Sorting.Devices = string.empty(1, 0);
+iss = cfg.validate();
+check(any(iss.Step == "sorting" & iss.Field == "MaxConcurrent" & iss.Severity == "warning" ...
+    & contains(iss.Message, "2 Kilosort4 runs at once all go on one GPU, Kilosort4's first") & contains(iss.Message, "CUDA out of memory")), ...
+    'two runs at once and no device listed: a warning that they share Kilosort4''s first GPU');
+cfg.Sorting.Devices = "cuda:1";
+iss = cfg.validate();
+check(any(iss.Field == "MaxConcurrent" & iss.Severity == "warning" & contains(iss.Message, "all go on one GPU, cuda:1")), ...
+    'two runs at once and one device: a warning naming it');
+cfg.Sorting.Devices = "cpu";
+check(~any(cfg.validate().Field == "MaxConcurrent"), 'two runs at once on the CPU: no GPU warning');
+cfg.Sorting.Devices = string.empty(1, 0);
+cfg.Sorting.KS4ExtraJSON = '{"torch_device": "cpu"}';
+check(~any(cfg.validate().Field == "MaxConcurrent"), 'nor with the extra settings'' torch_device on the CPU');
+cfg.Sorting.KS4ExtraJSON = '{"torch_device": "cuda:0"}';
+check(any(contains(cfg.validate().Message, "all go on one GPU, cuda:0")), 'the extra settings'' torch_device is the GPU named');
+cfg.Sorting.KS4ExtraJSON = "";
+cfg.Sorting.MaxConcurrent = 1;
+check(~any(cfg.validate().Field == "MaxConcurrent"), 'one run at a time on one GPU: fine');
+cfg.Sorting.MaxConcurrent = 3;
+cfg.Sorting.Execution = "blocking";
+check(~any(cfg.validate().Field == "MaxConcurrent"), 'blocking runs (one at a time): no GPU warning');
+cfg.Sorting.Execution = "background";
+cfg.Sorting.Devices = ["cuda:0" "cuda:1"];
+cfg.Sorting.MaxConcurrent = 2;
 cfg.Sorting.KS4ExtraJSON = '{"torch_device": "cuda:0"}';
 iss = cfg.validate();
 check(any(iss.Field == "Devices" & iss.Severity == "warning" & contains(iss.Message, "overrides torch_device")), ...

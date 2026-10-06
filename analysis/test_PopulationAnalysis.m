@@ -6,9 +6,14 @@ classdef test_PopulationAnalysis < matlab.unittest.TestCase
     %   selection's groups; P.tuning is responseStats' per-level rates on
     %   the union of levels; the summary's counts add up and its means are
     %   the means of its units; the correction runs over every unit or over
-    %   each dataset (Family); the files are written; the errors. Only the
-    %   correction test calls the toolbox's tests (skipped without the
-    %   Statistics and Machine Learning Toolbox).
+    %   each dataset (Family); each unit's auROC is aurocCurves' over its
+    %   dataset, and the 95% CI cutoff is pooled over the family (every
+    %   unit: the formula over all of them; each dataset: its own cutoff;
+    %   with AurocGroupBy every unit x group curve, a row each),
+    %   the calls, peaks and summary counts follow, and a test cutoff's p
+    %   are corrected over the family; the files are written; the errors.
+    %   Only the correction and auROC tests call the toolbox (skipped
+    %   without the Statistics and Machine Learning Toolbox).
     %
     %   Usage:  runtests("test_PopulationAnalysis")
 
@@ -64,6 +69,8 @@ classdef test_PopulationAnalysis < matlab.unittest.TestCase
             tc.verifyEqual(height(P.units), nAll);
             tc.verifyEqual(P.psth.t, R.t(:));
             tc.verifyTrue(all(isnan(P.units.pEvoked)) && ~any(P.units.responsive), 'Tests=false: no p');
+            tc.verifyTrue(isempty(P.auroc) && all(P.units.aurocDirection == "") && all(isnan(P.units.aurocMean)) ...
+                && isempty(S.auroc) && all(S.groups.nAurocCalled == 0), 'Tests=false: no auROC');
             % the summary adds up
             G = S.groups;
             tc.verifyEqual(sum(G.nUnits), height(P.units));
@@ -114,6 +121,107 @@ classdef test_PopulationAnalysis < matlab.unittest.TestCase
                 tc.verifyEqual(S.groups.nExcited(g) + S.groups.nSuppressed(g), S.groups.nResponsive(g) ...
                     - nnz(rows & P.units.responsive & P.units.direction == "none"));
             end
+        end
+
+        function aurocOverTheFamily(tc)
+            tc.assumeTrue(license('test', 'Statistics_Toolbox') && exist('signrank', 'file') > 0 ...
+                && exist('tiedrank', 'file') > 0, "needs the Statistics and Machine Learning Toolbox");
+            tmp = tc.applyFixture(matlab.unittest.fixtures.TemporaryFolderFixture);
+            out = fullfile(tmp.Folder, "pop");
+            [P, S] = populationAnalysis(tc.Config, Folder=out, LogFcn=[]);
+            r = EphysAnalysisRunner(tc.Config, LogFcn=[]);
+            ref = eventRef(line="Stim");
+            mw = EphysAnalysisConfig.defaults("Auroc").modulationWindow;
+            cuts = NaN(1, numel(r.Outputs));
+            for k = 1:numel(r.Outputs)
+                src = r.source(k);
+                [st, meta] = selectUnits(src, struct());
+                E = epochTable(src, ref, Window=epochWindow(pre=-0.2, post=0.5), Selection=trialSelection(), Baseline=[-0.2 0]);
+                args = {'Window', [-0.2 0.5], 'Baseline', [-0.2 0], 'BinSec', 0.01, 'ModulationWindow', mw};
+                A = aurocCurves(st, E, args{:}, Call=false);
+                rows = P.units.datasetKey == r.Keys(k);
+                tc.verifyEqual(nnz(rows), height(meta));
+                tc.verifyEqual(P.units.aurocMean(rows), A.mean, 'AbsTol', 1e-12, sprintf('%s: each unit''s mean auROC', r.Names(k)));
+                tc.verifyEqual(P.units.aurocPhasic(rows), A.phasic, 'AbsTol', 1e-12);
+                tc.verifyEqual(P.auroc.auroc(:, rows), A.auroc(:, :, 1), 'AbsTol', 1e-12, 'each unit''s curve');
+                ws = warning('off', 'aurocCall:WideCutoff');
+                Ak = aurocCurves(st, E, args{:});   % the cutoff over this dataset alone
+                warning(ws);
+                cuts(k) = Ak.cutoffValue;
+            end
+            tc.verifyEqual(P.auroc.t, A.t);
+            tc.verifyEqual(height(P.auroc.calls), height(P.units), 'without AurocGroupBy a row per unit');
+            tc.verifyEqual(P.auroc.calls.mean, P.units.aurocMean);
+            v = P.units.aurocPhasic(isfinite(P.units.aurocPhasic));
+            c = mean(v) + tinv(0.975, numel(v) - 1) * std(v) / sqrt(numel(v));
+            F = P.auroc.families;
+            tc.verifyEqual(F.family, "all");
+            tc.verifyEqual([F.nUnits F.nCurves], [height(P.units) numel(v)]);
+            tc.verifyEqual(F.cutoffValue, c, 'AbsTol', 1e-12, 'Family "all": the 95% CI cutoff over every dataset''s units');
+            C = aurocCall(struct('mean', P.units.aurocMean, 'phasic', P.units.aurocPhasic, 'p', P.units.aurocP));
+            tc.verifyEqual(F.cutoffValue, C.cutoffValue, 'AbsTol', 1e-12, 'one aurocCall over the units stacked');
+            tc.verifyEqual(P.units.aurocDirection == "increase", P.units.aurocMean > 0.5 + c, 'called up above 0.5 + c');
+            tc.verifyEqual(P.units.aurocDirection == "decrease", P.units.aurocMean < 0.5 - c, 'called down below 0.5 - c');
+            tc.verifyEqual(P.units.aurocModulated, ismember(P.units.aurocDirection, ["increase" "decrease"]));
+            tc.verifyEqual(F.nModulated, nnz(P.units.aurocModulated));
+            in = P.auroc.inModulation;
+            a = P.auroc.auroc(in, :);
+            tt = P.auroc.t(in);
+            for u = find(isfinite(P.units.aurocPeak)).'
+                [~, i] = max(abs(a(:, u) - 0.5));
+                tc.verifyEqual([P.units.aurocPeak(u) P.units.aurocPeakTime(u)], [a(i, u) tt(i)], ...
+                    'the peak: the window in the call window farthest from 0.5');
+            end
+            tc.verifyEqual(sum(S.groups.nAurocCalled), nnz(P.units.aurocDirection ~= ""), 'the summary counts every unit called');
+            tc.verifyEqual(sum(S.groups.nAurocModulated), nnz(P.units.aurocModulated));
+            tc.verifyEqual(S.auroc.families, F, 'the summary carries the pooled cutoff');
+            J = readJsonFile(fullfile(out, "population.json"));
+            tc.verifyEqual(J.auroc.families.cutoffValue, c, 'AbsTol', 1e-9, 'population.json records the pooled cutoff');
+            T = readtable(fullfile(out, "population_units.csv"), 'TextType', 'string');
+            tc.verifyEqual(T.aurocMean, P.units.aurocMean, 'AbsTol', 1e-9, 'population_units.csv holds the auROC columns');
+            T = readtable(fullfile(out, "population_auroc.csv"), 'TextType', 'string');
+            tc.verifyEqual(height(T), height(P.auroc.calls), 'population_auroc.csv: a row per unit and group');
+            tc.verifyTrue(isfile(fullfile(out, "population_fractions.png")));
+            % AurocGroupBy: a curve per unit and group, every one pooled for the cutoff
+            Pg = populationAnalysis(tc.Config, AurocGroupBy="Depth", LogFcn=[]);
+            K = Pg.auroc.calls;
+            selD = trialSelection();
+            selD.groupBy = "Depth";
+            nRows = 0;
+            for k = 1:numel(r.Outputs)
+                src = r.source(k);
+                st = selectUnits(src, struct());
+                [Eg, Gg] = epochTable(src, ref, Window=epochWindow(pre=-0.2, post=0.5), Selection=selD, Baseline=[-0.2 0]);
+                A = aurocCurves(st, Eg, args{:}, Groups=Gg, Call=false);
+                rows = K.datasetKey == r.Keys(k);
+                tc.verifyEqual(K.mean(rows), reshape(A.mean.', [], 1), 'AbsTol', 1e-12, ...
+                    sprintf('%s: a row per unit and group, a unit''s groups together', r.Names(k)));
+                tc.verifyEqual(K.group(rows), repmat(string(Gg.label), numel(st), 1));
+                nRows = nRows + numel(A.mean);
+            end
+            tc.verifyEqual(height(K), nRows);
+            v = K.phasic(isfinite(K.phasic));
+            cg = Pg.auroc.families.cutoffValue;
+            tc.verifyEqual(Pg.auroc.families.nCurves, numel(v));
+            tc.verifyEqual(cg, mean(v) + tinv(0.975, numel(v) - 1) * std(v) / sqrt(numel(v)), 'AbsTol', 1e-12, ...
+                'the cutoff pools every unit x group curve of every dataset');
+            tc.verifyEqual(K.direction == "increase", K.mean > 0.5 + cg);
+            tc.verifyEqual(K.direction == "decrease", K.mean < 0.5 - cg);
+            tc.verifyEqual(Pg.units.aurocModulated, arrayfun(@(u) any(K.modulated(K.unit == u)), (1:height(Pg.units)).'), ...
+                'a unit is modulated when any of its groups is');
+            % Family "dataset": each dataset's own cutoff, as aurocCurves gives it over that dataset
+            ws = warning('off', 'aurocCall:WideCutoff');
+            Pd = populationAnalysis(tc.Config, Family="dataset", LogFcn=[]);
+            warning(ws);
+            tc.verifyEqual(Pd.auroc.families.family, r.Keys(:));
+            tc.verifyEqual(Pd.auroc.families.cutoffValue, cuts(:), 'AbsTol', 1e-12, 'Family "dataset": a cutoff per dataset');
+            % a test per unit: no pooling, the correction over the family
+            Pt = populationAnalysis(tc.Config, Auroc=struct('cutoff', "test", 'test', "ranksum"), Correction="holm", LogFcn=[]);
+            tc.verifyTrue(all(isfinite(Pt.units.aurocP)) && isnan(Pt.auroc.families.cutoffValue));
+            tc.verifyEqual(Pt.units.aurocQ, pAdjust(Pt.units.aurocP, "holm"), 'the test: Holm over every unit');
+            sig = Pt.units.aurocQ <= 0.05;
+            tc.verifyEqual(Pt.units.aurocDirection == "increase", sig & Pt.units.aurocMean > 0.5);
+            tc.verifyEqual(Pt.units.aurocDirection == "decrease", sig & Pt.units.aurocMean < 0.5);
         end
 
         function writesFiles(tc)

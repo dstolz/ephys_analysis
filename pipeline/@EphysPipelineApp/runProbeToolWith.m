@@ -8,7 +8,7 @@ function result = runProbeToolWith(pythonExe, condaEnv, varargin)
 %   returns the JSON the script prints on its last output line, jsondecoded
 %   (see runProbeTool for the subcommands).
 %
-%   runProbeTool calls this with the Kilosort tab's Python and conda env;
+%   runProbeTool calls this with the Sorting tab's Python and conda env;
 %   ChannelMapperApp, opened on its own, with the Python the app last used.
 %
 %   See also EphysPipelineApp.runProbeTool, ChannelMapperApp.runProbeTool.
@@ -22,7 +22,7 @@ condaEnv = strtrim(string(condaEnv));
 if pythonExe == ""
     error('EphysPipelineApp:runProbeTool:NoPython', ...
         ['No Python executable configured. Set the Python exe on the ' ...
-         'Kilosort tab (the same env used for sorting).']);
+         'Sorting tab (the same env used for sorting).']);
 end
 
 script = fullfile(fileparts(mfilename('fullpath')), 'probe_tool.py');

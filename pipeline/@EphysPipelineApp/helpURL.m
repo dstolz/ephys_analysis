@@ -3,6 +3,9 @@ function url = helpURL(obj, page)
 %   URL = helpURL(OBJ, PAGE) appends PAGE (a wiki page name such as
 %   "Quick-Start", optionally with an "#anchor") to the wiki address; "" is
 %   the wiki's Home page. PAGE = "tab" is the page for the selected tab.
+%   The tab pages are made from documentation/EphysPipelineApp.md
+%   (tools/wiki/pages.json), so an anchor here is one of its headings
+%   (tools/wiki/test_gen_pages.py checks them).
 arguments
     obj
     page (1,1) string
@@ -19,8 +22,8 @@ if page == "tab"
         case obj.TabSpikes,    page = "Spikes-Tab";
         case obj.TabExport,    page = "Export-Tab";
         case obj.TabAnalysis,  page = "Analysis-Tab";
-        case obj.TabFlow,      page = "Run-and-Flow-Tabs#flow-tab";
-        case obj.TabRun,       page = "Run-and-Flow-Tabs#run-tab";
+        case obj.TabFlow,      page = "Run-and-Flow-Tabs#diagram";
+        case obj.TabRun,       page = "Run-and-Flow-Tabs#run";
         case obj.TabVisualize, page = "Visualize-Tab";
         case obj.TabReview,    page = "Review-Tab";
         case obj.TabSynthetic, page = "Synthetic-Tab";

@@ -20,7 +20,7 @@ classdef EphysPipeline < handle
     %     artifacts  runArtifacts       compute + cache artifact intervals
     %     sorting    runSorting         Kilosort4 on a .bin (runKilosort)
     %     signals    runSignals         derived LFP/MUA/SPIKE/AUX .mat (toMat)
-    %     spikes     runSpikeDetection  detected and/or sorted spikes .mat (spikesToMat)
+    %     spikes     runSpikeDetection  threshold-detected spikes .mat (spikesToMat)
     %     export     runExport          analysis-toolbox / epoch files (Export.Formats)
     %     analysis   runAnalysis        an EphysAnalysisApp config's figures and report
     %                                   (Analysis.ConfigFile; needs the analysis folder)
@@ -107,6 +107,9 @@ classdef EphysPipeline < handle
         % How the header line of a script writeScript saved starts ("% "
         % before it): only such a file is replaced by the next run.
         ScriptMarker = "Saved by EphysPipeline"
+        % The schema of the artifact cache <Name>_artifacts.json
+        % (artifactIntervalsFor), part of its fingerprint.
+        ArtifactsSchema = "ephys-artifacts/3"
     end
 
     properties (Access = private)
@@ -482,7 +485,7 @@ classdef EphysPipeline < handle
                 case "sorting"
                     f = string(d.kilosortDir());
                 case "artifacts"
-                    f = fullfile(d.outputFolder(), d.Name + "_artifacts.json");
+                    f = EphysPipeline.artifactsFile(d);
                 case "behavior"
                     f = fullfile(d.outputFolder(), d.Name + "_behavior.mat");
                 otherwise
@@ -836,14 +839,17 @@ classdef EphysPipeline < handle
             %   The automatic detection alone is cached
             %   (<outputFolder>/<Name>_artifacts.json, when
             %   Artifacts.CacheIntervals) and kept for the rest of the run
-            %   (until reset), keyed by a fingerprint of what decides it: the
-            %   schema, the detector settings, the channels of the common
-            %   reference, ExcludeChannels and the recording files; a change
-            %   to any of them detects again. The bounds moved by hand
+            %   (until reset), keyed by a fingerprint of what decides it
+            %   (artifactFingerprint): the schema, the detector settings,
+            %   the channels of the common reference (settled first,
+            %   EphysDataset.prepareReference), ExcludeChannels and the
+            %   recording files; a change to any of them detects again.
+            %   cachedDetection asks whether the cache matches without
+            %   detecting. The bounds moved by hand
             %   (d.ArtifactAdjustments, EphysDataset.adjustArtifacts) are
             %   applied and the manual periods merged in on every call
             %   (EphysDataset.mergeIntervals), so moving a bound on the
-            %   Artifacts tab or marking a period on the Visualize tab needs
+            %   Artifacts tab or marking a period on its plot needs
             %   no new detection. Schema 3: half-open
             %   [tStart tEnd) intervals of the automatic detection. SOURCE is
             %   "computed", "cache", "reused" (detected earlier in this run) or
@@ -855,31 +861,23 @@ classdef EphysPipeline < handle
                 report = @(done, total, msg) obj.progress("artifacts", d.Name, 1, 1, done, total, msg);
             end
             a = obj.Config.Artifacts;
-            acfg = EphysPipelineConfig.artifactConfig(a);
+            acfg = EphysPipeline.detectionConfig(obj.Config);
             d.ArtifactConfig = acfg;
             if ~acfg.Enabled
                 iv = d.artifactIntervals(IncludeAuto=false);
                 source = "manual periods only (auto-detection off)";
                 return
             end
-            schema = "ephys-artifacts/3";
-            % Keyed by what decides the detection: the fill fields say how the
-            % periods are erased, not which they are, so a change there must
-            % not throw away a detection.
-            det = rmfield(acfg, intersect(fieldnames(acfg), {'Fill', 'NoiseBandHz', 'NoiseSeed'}));
-            % Detection runs on the common-referenced signal, so the channels
-            % the reference is taken over decide the intervals too, and it
-            % leaves out the excluded channels.
-            refCh = [];
-            if acfg.Reference ~= "none"
-                if d.prepareReference()
-                    obj.log("[artifacts] %s: common reference leaves out suggested channel(s) [%s]", ...
-                        d.Name, EphysDataset.formatChannelList(d.ReferenceExclude));
-                end
-                refCh = d.referenceChannels();
+            % Detection runs on the common-referenced signal: the channels
+            % the reference leaves out are settled first (nothing to do
+            % without a reference), so the fingerprint holds those it is
+            % taken over.
+            if d.prepareReference()
+                obj.log("[artifacts] %s: common reference leaves out suggested channel(s) [%s]", ...
+                    d.Name, EphysDataset.formatChannelList(d.ReferenceExclude));
             end
-            fp = string(jsonencode(struct('schema', schema, 'config', det, 'reference', refCh, ...
-                'exclude', d.ExcludeChannels, 'files', cellstr(d.Files(:).'), 'nSamples', d.NumSamples)));
+            schema = EphysPipeline.ArtifactsSchema;
+            fp = EphysPipeline.artifactFingerprint(acfg, d);
             key = char(EphysDataset.pathKey(d.Folder) + "|" + fp);
             cacheFile = obj.outputPathFor("artifacts", d);
             source = "";
@@ -935,7 +933,8 @@ classdef EphysPipeline < handle
     methods (Static)
         function applyConfigToDatasets(cfg, P)
             %applyConfigToDatasets  Push the config's shared settings onto every dataset.
-            %   Sets PythonExe, CondaEnv, ArtifactConfig, TrialConfig,
+            %   Sets PythonExe, CondaEnv, ArtifactConfig (the Artifacts and
+            %   Reference sections, EphysPipelineConfig.artifactConfig), TrialConfig,
             %   ReaderOptions (Acquisition), OutputDir (<OutputRoot>/<Name>, or
             %   "" - outputs next to the recording - without an output root),
             %   and the NamePattern and DatasetKey that label sorted units. Two
@@ -954,7 +953,7 @@ classdef EphysPipeline < handle
             P.OutputRoot = cfg.Project.OutputRoot;
             P.NamePattern = cfg.Project.NamePattern;
             P.ReaderOptions = cfg.Acquisition;
-            acfg = EphysPipelineConfig.artifactConfig(cfg.Artifacts);
+            acfg = EphysPipelineConfig.artifactConfig(cfg.Artifacts, cfg.Reference);
             tcfg = EphysPipelineConfig.trialConfig(cfg);
             handling = EphysPipelineConfig.artifactHandling(cfg);
             for k = 1:P.NumDatasets
@@ -973,6 +972,93 @@ classdef EphysPipeline < handle
                     d.OutputDir = "";
                 end
             end
+        end
+
+        function acfg = detectionConfig(cfg)
+            %detectionConfig  The dataset ArtifactConfig CFG detects artifacts with.
+            %   ACFG = EphysPipeline.detectionConfig(CFG): the detector
+            %   settings and the common reference as an
+            %   EphysDataset.ArtifactConfig (EphysPipelineConfig.artifactConfig),
+            %   what artifactIntervalsFor gives each dataset and
+            %   cachedDetection compares with.
+            acfg = EphysPipelineConfig.artifactConfig(cfg.Artifacts, cfg.Reference);
+        end
+
+        function [fp, referenced] = artifactFingerprint(acfg, d)
+            %artifactFingerprint  What decides dataset D's automatic artifact detection, as JSON text.
+            %   [FP, REFERENCED] = EphysPipeline.artifactFingerprint(ACFG, D),
+            %   ACFG a dataset ArtifactConfig (detectionConfig): the cache
+            %   schema, the detector settings (not the fill fields: they say
+            %   how the periods are erased, not which they are), the channels
+            %   the common reference is taken over (detection runs on the
+            %   referenced signal), ExcludeChannels, the recording files and
+            %   the sample count. <Name>_artifacts.json is used while its
+            %   fingerprint is FP (artifactIntervalsFor, cachedDetection).
+            %   REFERENCED is true when ACFG has a common reference. Nothing
+            %   is read or written: the reference channels are D's as they
+            %   stand (EphysDataset.referenceChannels), so a run settles them
+            %   first (EphysDataset.prepareReference).
+            acfg = EphysDataset.normalizeArtifactConfig(acfg);
+            det = rmfield(acfg, intersect(fieldnames(acfg), {'Fill', 'NoiseBandHz', 'NoiseSeed'}));
+            referenced = string(acfg.Reference) ~= "none";
+            refCh = [];
+            if referenced
+                refCh = d.referenceChannels();
+            end
+            fp = string(jsonencode(struct('schema', EphysPipeline.ArtifactsSchema, 'config', det, ...
+                'reference', refCh, 'exclude', d.ExcludeChannels, 'files', cellstr(d.Files(:).'), ...
+                'nSamples', d.NumSamples)));
+        end
+
+        function [ok, match, iv] = cachedDetection(cfg, d)
+            %cachedDetection  Whether dataset D's artifact cache holds what CFG detects, without detecting.
+            %   [OK, MATCH, IV] = EphysPipeline.cachedDetection(CFG, D) reads
+            %   <outputFolder>/<Name>_artifacts.json (the cache of
+            %   artifactIntervalsFor) and compares its fingerprint with the
+            %   one CFG's detection settings give for D as it stands
+            %   (artifactFingerprint):
+            %     OK     false when that cannot be known without reading the
+            %            recording: automatic detection is off in CFG, a common
+            %            reference is on while D's ReferenceExcludeSource is ""
+            %            (the first referenced read suggests the channels it
+            %            leaves out, which the fingerprint holds), or D's
+            %            sample count is not known
+            %     MATCH  true when the file holds a detection with that
+            %            fingerprint, so CFG detects the same periods; false
+            %            when there is no file or it was made with other
+            %            settings (or another recording, channels or reference)
+            %     IV     [k x 2] that detection (half-open [tStart tEnd) s,
+            %            before the bounds moved by hand and the manual
+            %            periods; EphysDataset.adjustArtifacts), empty unless
+            %            MATCH
+            %   Nothing is written or detected, and D is not changed.
+            arguments
+                cfg (1,1) EphysPipelineConfig
+                d (1,1) EphysDataset
+            end
+            ok = false;
+            match = false;
+            iv = zeros(0, 2);
+            acfg = EphysPipeline.detectionConfig(cfg);
+            if ~acfg.Enabled || ~isfinite(d.NumSamples) || ~isfinite(d.NumChannels)
+                return
+            end
+            [fp, referenced] = EphysPipeline.artifactFingerprint(acfg, d);
+            if referenced && d.ReferenceExcludeSource == ""
+                return
+            end
+            ok = true;
+            c = readJsonFile(EphysPipeline.artifactsFile(d), ErrorOnFail=false);
+            if ~(isstruct(c) && all(isfield(c, {'fingerprint', 'intervals'}))) || string(c.fingerprint) ~= fp
+                return
+            end
+            match = true;
+            iv = double(reshape(c.intervals, [], 2));
+        end
+
+        function f = artifactsFile(d)
+            %artifactsFile  The artifact cache of dataset D: <outputFolder>/<Name>_artifacts.json.
+            f = string(fullfile(d.outputFolder(), d.Name + "_artifacts.json"));
         end
 
         function file = scriptFileFor(root, name)

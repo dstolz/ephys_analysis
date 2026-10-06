@@ -5,7 +5,10 @@ function onCleanupRun(obj)
 %   stays, warns when phy curation or unit notes go with a sorting, and
 %   says how many ticked files the table's filters hide. Nothing is
 %   removed while the pipeline, a copy or a Kilosort4 run is under way,
-%   since any of them may be using the files. A move needs a folder
+%   since any of them may be using the files. A Visualize envelope being
+%   built does not hold it up: the preview keeps its partial file, and an
+%   envelope the tab shows whose file goes is built again when the tab
+%   next draws (EphysTraceEnvelope.isReady). A move needs a folder
 %   outside the project and output roots, where a scan would find the
 %   files again.
 T = obj.CleanupPlan;
@@ -89,15 +92,17 @@ end
 
 
 function lines = groupLines(obj, rm)
-%groupLines  One line per kind of file going: raw, sorter copy and .bin when ticked as such, else by step.
-kindTicked = ["raw" "sorter_copy" "bin"];
-kindTicked = kindTicked([obj.CleanupRawCheckBox.Value, obj.CleanupSorterCopyCheckBox.Value, obj.CleanupBinCheckBox.Value]);
+%groupLines  One line per kind of file going: raw, sorter copy, .bin and envelopes when ticked as such, else by step.
+kindTicked = ["raw" "sorter_copy" "bin" "envelope"];
+kindTicked = kindTicked([obj.CleanupRawCheckBox.Value, obj.CleanupSorterCopyCheckBox.Value, obj.CleanupBinCheckBox.Value, ...
+    obj.CleanupEnvelopeCheckBox.Value]);
 group = "step:" + rm.Step;
 own = ismember(rm.Category, kindTicked);
 group(own) = rm.Category(own);
 words = ["raw" "Raw recording files (a copy of the same size is at the source)"
     "sorter_copy" "Kilosort4's filtered copy of the recording"
     "bin" "Sorting input .bin files"
+    "envelope" "Visualize's envelopes (display caches, built again when a signal is next shown)"
     "step:sorting" "Sorting output: the kilosort4 folders (sorted units, phy curation, unit notes, logs) and .bin files"
     "step:signals" "Signals output (derived-signal .mat files)"
     "step:spikes" "Spikes output"

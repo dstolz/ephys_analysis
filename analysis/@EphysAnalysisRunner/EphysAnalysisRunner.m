@@ -21,7 +21,8 @@ classdef EphysAnalysisRunner < handle
     %       fig = newExportFigure(cfg.Export, R, spec, Page=p); h = renderPlot(R, spec, fig, Page=p)
     %       exportFigure(fig, <folder>/<plotFileName(...)>, Format=, Dpi=)
     %       reportImage(fig, report, Title=h.title, Files=)   (HTML report)
-    %     addReportFigure(report, spec, R, Files=, Images=)
+    %       reportPdfPage(fig, report, Files=)                (PDF report)
+    %     addReportFigure(report, spec, R, Files=, Images=, Pages=)
     %   and then writeHtmlReport / writePdfReport. The app previews a page
     %   with renderPlotFigures.
     %

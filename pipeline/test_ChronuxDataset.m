@@ -169,7 +169,7 @@ Ylfp = single((1:2000).' * [1 2]);
 Y = struct('LFP', Ylfp, 'MUA', single([]), 'SPIKE', single([]));   %#ok<NASGU>
 events = struct('din0', [0.5 0.52; 1.0 1.001; 1.5 1.52]);         %#ok<NASGU>
 info = struct('labels', {{'A-000'; 'A-001'}}, 'origFs', 30000, ...
-    'LFP', struct('Fs', 1000, 'time', (0:1999).'/1000));          %#ok<NASGU>
+    'LFP', struct('Fs', 1000, 'nSamples', 2000));                 %#ok<NASGU>
 save(matFile, 'Y', 'events', 'info');
 clear Y events info
 

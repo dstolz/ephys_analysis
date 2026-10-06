@@ -116,7 +116,11 @@ copy of this script into `<output folder>/si_<sorter>`
    and attaches the probe (`kcoords` become the channel groups);
 4. runs `spikeinterface.sorters.run_sorter` in `si_work` and loads the
    sorting into memory, without its empty units (no unit at all is an
-   error);
+   error). `run_sorter` hands the sorter the recording as a JSON file that
+   keeps the contact positions and channel groups but not the probe, so
+   SpikeInterface's own sorters rebuild a probe from the positions (all they
+   use) and warn "There is no Probe attached"; the script silences that
+   warning;
 5. on a 300 Hz high-pass of the `.bin`, builds a sparse SortingAnalyzer in
    memory: random spikes (500 per unit), waveforms (1 ms before, 2 ms after),
    templates, noise levels, spike amplitudes, spike locations (centre of

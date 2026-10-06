@@ -31,6 +31,7 @@ import json
 import os
 import shutil
 import traceback
+import warnings
 
 # The files this driver leaves in the run folder: an earlier sort's are
 # deleted first, so a failed run never leaves the old sort looking new.
@@ -293,6 +294,11 @@ def main():
         print('Sorting %d of %d .bin channel(s), %.1f s' % (recording.get_num_channels(),
               int(cfg['n_chan_bin']), recording.get_total_duration()), flush=True)
 
+        # run_sorter hands the sorter the recording as a JSON file, which keeps
+        # the contact positions and channel groups but not the probe itself.
+        # SpikeInterface's own sorters (lupin, spykingcircus2, ...) then build
+        # a probe from those positions, all they use of it, and warn each time.
+        warnings.filterwarnings('ignore', message='There is no Probe attached to this recording')
         sorting = ss.run_sorter(sorter, recording, folder=work, remove_existing_folder=True,
                                 verbose=True, raise_error=True, **params)
         sorting = NumpySorting.from_sorting(sorting).remove_empty_units()

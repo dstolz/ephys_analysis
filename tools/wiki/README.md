@@ -124,6 +124,15 @@ git clone https://github.com/dstolz/ephys_analysis.wiki.git C:\temp\wiki
    Run shots always run it. `wikiToolScreenshots` needs a project that has
    been run.
 
+   For `flow-full.png`, open the project's `synthetic_pipeline.json` in the
+   app, write `app.flowChartHTML(View='detail', Layout='steps')` to a file
+   (the tree layout is wider than the page and gets clipped), capture it
+   with headless Edge, and crop the blank bottom:
+
+   ```bat
+   msedge --headless=new --hide-scrollbars --user-data-dir=C:\temp\edgeprof --window-size=1373,5000 --screenshot=C:\temp\flow.png file:///C:/temp/flow.html
+   ```
+
 5. **Check the links**, update `_Footer.md` to the commit, then commit and push:
 
    ```bat

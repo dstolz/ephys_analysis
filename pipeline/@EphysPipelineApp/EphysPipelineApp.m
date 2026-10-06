@@ -65,7 +65,12 @@ classdef EphysPipelineApp < handle
     %                Save as HTML
     %     Run        step checklist (with how many background Kilosort4 runs
     %                go at once, the GPUs they share and whether the Run
-    %                hands the waiting ones to the monitor's queue),
+    %                hands the waiting ones to the monitor's queue), Copy
+    %                outputs to (the Transfer section: copy or move each
+    %                dataset's outputs to <folder>/<subject>/<session> in
+    %                the background, after each step or after the run, a
+    %                new version folder or overwrite or skip when it is
+    %                there; their progress and Stop copying under the log),
     %                validate, plan, run / dry run / cancel, progress,
     %                results (filled as the run goes; background runs' rows
     %                follow them to done / error), log, Stop runs... / Stop
@@ -743,6 +748,14 @@ classdef EphysPipelineApp < handle
         RunAnalysisCheckBox  matlab.ui.control.CheckBox
         RunParallelCheckBox  matlab.ui.control.CheckBox
         RunMaxWorkersField   matlab.ui.control.EditField
+        % Copy outputs (the config's Transfer section; gatherTransferSection)
+        RunTransferCheckBox  matlab.ui.control.CheckBox       % Transfer.Enabled
+        RunTransferDestField matlab.ui.control.EditField      % Transfer.Destination
+        RunTransferBrowseButton matlab.ui.control.Button
+        RunTransferMethodDropDown matlab.ui.control.DropDown  % Transfer.Method: "copy" | "move"
+        RunTransferWhenDropDown   matlab.ui.control.DropDown  % Transfer.When: "step" | "run"
+        RunTransferIfExistsDropDown matlab.ui.control.DropDown % Transfer.IfExists: "version" | "overwrite" | "skip"
+        RunTransferHashCheckBox   matlab.ui.control.CheckBox  % Transfer.Verify "hash"
         RunSelectionLabel    matlab.ui.control.Label
         RunValidateButton    matlab.ui.control.Button
         RunPlanButton        matlab.ui.control.Button
@@ -760,6 +773,9 @@ classdef EphysPipelineApp < handle
         RunKSLabel           matlab.ui.control.Label
         RunKSStopRunsButton  matlab.ui.control.Button         % stop running sorting runs (onStopKSRuns)
         RunKSStopQueueButton matlab.ui.control.Button         % drop the queued sorting runs (onStopKSQueue)
+        RunTransferLabel     matlab.ui.control.Label          % where the output copies are (showTransferProgress)
+        RunTransferBar       matlab.ui.container.GridLayout   % see setRunBar
+        RunTransferStopButton matlab.ui.control.Button        % stop the output copies (onStopTransfers)
         RunSplitGrid         matlab.ui.container.GridLayout   % right side: progress / results / log | diagram
         RunDiagramPanel      matlab.ui.container.Panel
         RunDiagramHTML       matlab.ui.control.HTML           % runDiagramHTML; Data from refreshRunDiagram
@@ -821,6 +837,14 @@ classdef EphysPipelineApp < handle
         % the root of the project it was queued in (keepKSRuns keeps it there).
         KSQueue struct = struct('Name', {}, 'dataset', {}, 'prepared', {}, 'root', {})
         KSMonitorTimer = []
+
+        % Output transfers (OutputTransfer) the Run tab follows: each Run's
+        % copies of its outputs, until they are done (followTransfer), the
+        % timer that polls them, and the rate history of their progress row.
+        Transfers OutputTransfer = OutputTransfer.empty(1, 0)
+        TransferMonitorTimer = []
+        TransferRateHistory (:,2) double = zeros(0, 2)   % [seconds bytes] samples (showTransferProgress)
+        TransferStarted = []                              % tic of the first sample
 
         % --- Visualize interaction state (display-only, in-memory) ---
         Viewer = []                % EphysTraceViewer on VizAxes
@@ -999,6 +1023,10 @@ classdef EphysPipelineApp < handle
         applySpikesSection(obj, K)
         P = gatherParallelSection(obj)
         applyParallelSection(obj, P)
+        X = gatherTransferSection(obj)
+        applyTransferSection(obj, X)
+        onTransferControlsChanged(obj)
+        onBrowseTransferDest(obj)
         E = gatherExportSection(obj)
         applyExportSection(obj, E)
         A = gatherAnalysisSection(obj)
@@ -1219,6 +1247,12 @@ classdef EphysPipelineApp < handle
         followKeptKSRuns(obj)
         offerKeptKSQueue(obj)
         T = restoreKSQueue(obj, action)
+        followTransfer(obj, X)
+        pollTransfers(obj)
+        showTransferProgress(obj)
+        markTransferResult(obj, X, b)
+        onStopTransfers(obj)
+        stopTransferMonitor(obj)
         log(obj, fmt, varargin)
         appendLogLines(obj, lines)
 

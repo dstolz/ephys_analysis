@@ -78,6 +78,12 @@ classdef EphysPipelineScript
                     L(end+1, 1) = "% " + line + "   % " + step + " (disabled in the config)"; %#ok<AGROW>
                 end
             end
+            if cfg.Transfer.Enabled
+                L(end+1, 1) = "pipe.transferOutputs();   % copy the outputs to " + cfg.Transfer.Destination + ...
+                    "\<subject>\<session> (Transfer) and wait";
+            else
+                L(end+1, 1) = "% pipe.transferOutputs();   % copy the outputs elsewhere (Transfer: off in the config)";
+            end
             L(end+1, 1) = "";
             L(end+1, 1) = "disp(pipe.Results);";
             L(end+1, 1) = "% pipe.run();   % or: validate + plan + every enabled step in one call";
@@ -545,6 +551,11 @@ classdef EphysPipelineScript
             L = [L; EphysPipelineScript.analysisLines(cfg)];
             L = [L; EphysPipelineScript.stepFooter(cfg.stepEnabled("analysis"))];
 
+            % --- copy the outputs elsewhere (Transfer, not a step) ---------------------
+            if cfg.Transfer.Enabled
+                L = [L; EphysPipelineScript.transferLines(cfg, sigFilesExpr)];
+            end
+
             txt = strjoin(L, newline) + newline;
             if opts.File ~= ""
                 EphysPipelineScript.write(opts.File, txt);
@@ -703,6 +714,78 @@ classdef EphysPipelineScript
             L(end+1, 1) = "    disp(analysisResults);";
             L(end+1, 1) = "    if ~isempty(runner.ReportFiles); fprintf('Report: %s\n', strjoin(runner.ReportFiles, ', ')); end";
             L(end+1, 1) = "end";
+        end
+
+        function L = transferLines(cfg, sigFilesExpr)
+            %transferLines  The standalone script's copy of the outputs (Transfer section).
+            %   Once every step above is done (whatever Transfer.When says:
+            %   the script runs its steps one after the other), the files
+            %   the enabled steps write for each dataset, the sort folder
+            %   (a background run once it has ended) and the manifest go
+            %   to <Destination>/<dataset key> through an OutputTransfer,
+            %   as EphysPipeline.transferOutputs sends them; a moved sort
+            %   folder stays the dataset's sorted output.
+            lit = @EphysPipelineScript.literal;
+            X = cfg.Transfer;
+            S = cfg.Sorting;
+            E = cfg.Export;
+            L = strings(0, 1);
+            L(end+1, 1) = "%% Copy the outputs to <destination>\<subject>\<session> (Transfer), once the steps above are done";
+            L(end+1, 1) = "transfer = OutputTransfer(" + lit(X.Destination) + ", Method=" + lit(X.Method) + ...
+                ", IfExists=" + lit(X.IfExists) + ", Verify=" + lit(X.Verify) + ");";
+            L(end+1, 1) = "for k = idx";
+            L(end+1, 1) = "    d = P.Datasets(k);";
+            L(end+1, 1) = "    key = d.DatasetKey;   % the recording folder below the root: subject/session";
+            L(end+1, 1) = "    if key == """" || key == ""."" || contains(key, "":""); key = d.Name; end";
+            L(end+1, 1) = "    out = strings(1, 0);   % what the steps above write for d";
+            if cfg.stepEnabled("behavior") && cfg.Behavior.WriteFile
+                L(end+1, 1) = "    out = [out, string(fullfile(d.outputFolder(), d.Name + ""_behavior.mat""))];";
+            end
+            if cfg.stepEnabled("sorting") && ~S.DryRun && S.Execution == "blocking"
+                L(end+1, 1) = "    if isfile(fullfile(d.sortRunDir(), ""params.py"")); out = [out, string(d.sortRunDir())]; end";
+            end
+            if cfg.stepEnabled("signals")
+                L(end+1, 1) = "    out = [out, " + sigFilesExpr + "];";
+            end
+            if cfg.stepEnabled("spikes")
+                L(end+1, 1) = "    out = [out, string(fullfile(" + EphysPipelineScript.outDirExpr(cfg.Spikes.OutputDir) + ...
+                    ", d.Name + " + lit(cfg.Spikes.Suffix) + " + "".mat""))];";
+            end
+            if cfg.stepEnabled("export") && ~isempty(E.Formats)
+                tails = "_" + E.Formats + ".mat";
+                tails(E.Formats == "kcsd") = "_kcsd.npz";
+                tails(E.Formats == "nwb") = ".nwb";
+                L(end+1, 1) = "    out = [out, string(fullfile(" + EphysPipelineScript.outDirExpr(E.OutputDir) + ...
+                    ", d.Name + " + lit(tails) + "))];";
+            end
+            if cfg.stepEnabled("analysis") && strtrim(cfg.Analysis.ConfigFile) ~= ""
+                L(end+1, 1) = "    if exist('analysisResults', 'var')   % the figures and per-dataset reports written";
+                L(end+1, 1) = "        mine = analysisResults(analysisResults.Dataset == d.Name & analysisResults.Status == ""done"", :);";
+                L(end+1, 1) = "        if ~isempty(mine); out = [out, strtrim(split(strjoin(mine.Files, ""; ""), ""; "")).']; end";
+                L(end+1, 1) = "    end";
+            end
+            L(end+1, 1) = "    out = unique(out(strlength(out) > 0 & (isfile(out) | isfolder(out))), 'stable');";
+            L(end+1, 1) = "    if ~isempty(out)";
+            L(end+1, 1) = "        transfer.add(key, out, Base=d.outputFolder(), Dataset=d.Name, Label=""outputs"", ...";
+            L(end+1, 1) = "            OnMoved=@(f, n) EphysPipeline.repointMovedSort(d, f, n));   % a moved sort folder stays its sorted output";
+            L(end+1, 1) = "    end";
+            if cfg.stepEnabled("sorting") && ~S.DryRun && S.Execution == "background"
+                L(end+1, 1) = "    mine = [];   % its background sort, copied once the run has ended";
+                L(end+1, 1) = "    if ~isempty(launched); mine = launched(EphysDataset.pathKey(string({launched.resultsDir})) == EphysDataset.pathKey(d.sortRunDir())); end";
+                L(end+1, 1) = "    for run = mine";
+                L(end+1, 1) = "        transfer.add(key, string(run.resultsDir), Base=d.outputFolder(), Dataset=d.Name, Label=""sorting"", ...";
+                L(end+1, 1) = "            WaitFor=string(run.statusFile), Since=NaT, OnMoved=@(f, n) EphysPipeline.repointMovedSort(d, f, n));";
+                L(end+1, 1) = "        out = string(run.resultsDir);";
+                L(end+1, 1) = "    end";
+            end
+            L(end+1, 1) = "    if ~isempty(out) && isfile(d.manifestFile())   % copied, never removed by a move";
+            L(end+1, 1) = "        transfer.add(key, d.manifestFile(), Base=d.outputFolder(), Dataset=d.Name, Label=""manifest"", Keep=d.manifestFile());";
+            L(end+1, 1) = "    end";
+            L(end+1, 1) = "end";
+            L(end+1, 1) = "transfer.close();";
+            L(end+1, 1) = "transfer.wait();   % the copies run outside MATLAB; this waits for them (and for a background sort)";
+            L(end+1, 1) = "disp(transfer.table());";
+            L(end+1, 1) = "";
         end
 
         function L = stepHeader(title, enabled)

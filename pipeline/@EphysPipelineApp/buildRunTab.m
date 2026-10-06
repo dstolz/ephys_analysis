@@ -10,7 +10,11 @@ function buildRunTab(obj)
 %   percentage) always takes the right quarter of the right side
 %   (runDiagramHTML), and the computer's CPU, memory, disk and GPU use is
 %   always shown under the Steps panel (resource_monitor.ps1, started by
-%   onTabChanged when the tab is first shown).
+%   onTabChanged when the tab is first shown). Copy outputs to (under the
+%   steps) is the config's Transfer section: each dataset's outputs copied
+%   or moved to <folder>/<subject>/<session> in the background; the
+%   copies' progress and Stop copying are the last row on the right
+%   (showTransferProgress, onStopTransfers).
 
 g = uigridlayout(obj.TabRun, [2 2]);
 g.RowHeight   = {'1x', 'fit'};
@@ -22,8 +26,8 @@ g.Padding     = [10 10 10 10];
 % --- steps checklist ---------------------------------------------------------
 steps = uipanel(g, "Title", "Steps (same switches as on each tab)");
 steps.Layout.Row = 1; steps.Layout.Column = 1;
-sg = uigridlayout(steps, [15 1]);
-sg.RowHeight = [repmat({'fit'}, 1, 14), {'1x'}];
+sg = uigridlayout(steps, [16 1]);
+sg.RowHeight = [repmat({'fit'}, 1, 15), {'1x'}];
 uilabel(sg, "Text", "Probe check (always)", "FontColor", [0.4 0.4 0.4]);
 obj.RunBehaviorCheckBox  = uicheckbox(sg, "Text", "Behavior: match Epsych2 sessions", "ValueChangedFcn", @(src,~) mirror(obj, "BehEnableCheckBox", src.Value));
 obj.RunArtifactsCheckBox = uicheckbox(sg, "Text", "Artifacts: automatic detection", "ValueChangedFcn", @(src,~) mirror(obj, "ArtEnableCheckBox", src.Value));
@@ -63,6 +67,7 @@ l.Tooltip = "Cap on chunks in flight at once; blank = automatic (from free memor
 obj.RunMaxWorkersField = uieditfield(pg, "text", "Placeholder", "auto", "Enable", "off", ...
     "Tooltip", "Cap on chunks in flight at once; blank = automatic (from free memory).", ...
     "ValueChangedFcn", @(~,~) obj.onParallelControlsChanged());
+buildTransferControls(obj, sg);
 obj.RunSelectionLabel = uilabel(sg, "Text", "Selection: (scan first)", "WordWrap", "on", "FontColor", [0.3 0.3 0.3]);
 obj.RunValidateButton = uibutton(sg, "Text", "Validate config", "ButtonPushedFcn", @(~,~) obj.onValidate());
 obj.RunPlanButton     = uibutton(sg, "Text", "Plan (writes nothing)", "ButtonPushedFcn", @(~,~) obj.onPlan());
@@ -100,9 +105,9 @@ obj.RunSplitGrid.ColumnWidth = {'3x', '1x'};
 obj.RunSplitGrid.ColumnSpacing = 10;
 obj.RunSplitGrid.Padding = [0 0 0 0];
 
-right = uigridlayout(obj.RunSplitGrid, [9 3]);
+right = uigridlayout(obj.RunSplitGrid, [10 3]);
 right.Layout.Row = 1; right.Layout.Column = 1;
-right.RowHeight   = {20, 20, 'fit', 'fit', 110, '1x', 'fit', '1x', 'fit'};
+right.RowHeight   = {20, 20, 'fit', 'fit', 110, '1x', 'fit', '1x', 'fit', 'fit'};
 right.ColumnWidth = {'fit', '1x', 120};
 right.Padding = [0 0 0 0];
 
@@ -141,11 +146,75 @@ obj.RunKSStopQueueButton = uibutton(ksg, "Text", "Stop queue", "Enable", "off", 
     "Tooltip", "Drop the queued sorting runs that have not started. Runs already going carry on.", ...
     "ButtonPushedFcn", @(~,~) obj.onStopKSQueue());
 
+tg = uigridlayout(right, [1 3], "Padding", [0 0 0 0], "ColumnSpacing", 6);
+tg.Layout.Row = 10; tg.Layout.Column = [1 3];
+tg.ColumnWidth = {'1x', 160, 'fit'}; tg.RowHeight = {30};
+obj.RunTransferLabel = uilabel(tg, "Text", "Output copies: none.", "FontColor", [0.4 0.4 0.4]);
+p = uipanel(tg, "BorderType", "line", "BackgroundColor", [0.92 0.92 0.94]);
+p.Layout.Row = 1; p.Layout.Column = 2;
+obj.RunTransferBar = uigridlayout(p, [1 2], "Padding", [0 0 0 0], "ColumnSpacing", 0, ...
+    "RowSpacing", 0, "BackgroundColor", [0.92 0.92 0.94]);
+obj.RunTransferBar.RowHeight = {'1x'};
+obj.RunTransferBar.ColumnWidth = {0, '1x'};
+uipanel(obj.RunTransferBar, "BorderType", "none", "BackgroundColor", [0.25 0.55 0.85]);
+obj.RunTransferStopButton = uibutton(tg, "Text", "Stop copying...", "Enable", "off", ...
+    "Tooltip", "Stop copying the outputs: the files being copied stop where they are, what is copied stays there, the rest are not copied, and a move removes nothing more here.", ...
+    "ButtonPushedFcn", @(~,~) obj.onStopTransfers());
+
 obj.RunDiagramPanel = uipanel(obj.RunSplitGrid, "Title", "Run diagram");
 obj.RunDiagramPanel.Layout.Row = 1; obj.RunDiagramPanel.Layout.Column = 2;
 dg = uigridlayout(obj.RunDiagramPanel, [1 1], "Padding", [0 0 0 0]);
 obj.RunDiagramHTML = uihtml(dg, "HTMLSource", char(obj.runDiagramHTML()));
 obj.resetRunDiagram();
+end
+
+
+function buildTransferControls(obj, parent)
+%buildTransferControls  Copy outputs to: the config's Transfer section, under the steps.
+%   Each dataset's outputs go to <folder>/<key> (its recording folder below
+%   the project root, e.g. subject/session), copied or moved, as each step
+%   writes them or once the run is over; IfExists when that folder is
+%   already there. The controls follow the box (onTransferControlsChanged).
+d = EphysPipelineConfig.defaults("Transfer");
+tip = "Copy (or move) each dataset's outputs to <this folder>\<subject>\<session>: its recording folder below the project root, " + ...
+    "so the copies have the raw data's folders. The copying runs outside MATLAB (robocopy) while the run goes on; " + ...
+    "its progress is under the log. Not a dry run.";
+changed = @(~,~) obj.onTransferControlsChanged();
+xg = uigridlayout(parent, [4 4]);
+xg.Padding = [0 4 0 0]; xg.RowSpacing = 4; xg.ColumnSpacing = 4;
+xg.ColumnWidth = {'fit', '1x', 'fit', 'fit'}; xg.RowHeight = {'fit', 'fit', 'fit', 'fit'};
+obj.RunTransferCheckBox = uicheckbox(xg, "Text", "Copy outputs to:", "Value", d.Enabled, "Tooltip", tip, ...
+    "ValueChangedFcn", changed);
+obj.RunTransferCheckBox.Layout.Row = 1; obj.RunTransferCheckBox.Layout.Column = 1;
+obj.RunTransferDestField = uieditfield(xg, "text", "Placeholder", "e.g. S:\backup\EXTRACT", "Tooltip", tip, ...
+    "ValueChangedFcn", changed);
+obj.RunTransferDestField.Layout.Row = 1; obj.RunTransferDestField.Layout.Column = [2 3];
+obj.RunTransferBrowseButton = uibutton(xg, "Text", "...", "Tooltip", "Choose the folder.", ...
+    "ButtonPushedFcn", @(~,~) obj.onBrowseTransferDest());
+obj.RunTransferBrowseButton.Layout.Row = 1; obj.RunTransferBrowseButton.Layout.Column = 4;
+obj.RunTransferMethodDropDown = uidropdown(xg, "Items", {'copy', 'move'}, "ItemsData", {'copy', 'move'}, ...
+    "Value", char(d.Method), "ValueChangedFcn", changed, "Tooltip", ...
+    ["copy: the outputs stay here too" ...
+     "move: once copied and checked, they are removed here when the run is over (the manifest stays; a moved sort folder becomes the dataset's sorting folder)"]);
+obj.RunTransferMethodDropDown.Layout.Row = 2; obj.RunTransferMethodDropDown.Layout.Column = 1;
+obj.RunTransferWhenDropDown = uidropdown(xg, "Items", {'after each step', 'after the run'}, ...
+    "ItemsData", {'step', 'run'}, "Value", char(d.When), "ValueChangedFcn", changed, "Tooltip", ...
+    ["after each step: each output as soon as its step has written it, while the next steps run (a background sort once it has finished)" ...
+     "after the run: every output once the run is over"]);
+obj.RunTransferWhenDropDown.Layout.Row = 2; obj.RunTransferWhenDropDown.Layout.Column = [2 4];
+l = uilabel(xg, "Text", "If it is there:", "HorizontalAlignment", "right", "Tooltip", ...
+    "When the dataset's folder at the destination already holds something.");
+l.Layout.Row = 3; l.Layout.Column = 1;
+obj.RunTransferIfExistsDropDown = uidropdown(xg, "Items", {'new version', 'overwrite', 'skip'}, ...
+    "ItemsData", {'version', 'overwrite', 'skip'}, "Value", char(d.IfExists), "ValueChangedFcn", changed, "Tooltip", ...
+    ["new version: the run's copies go to a new folder <session>_v2 (_v3, ...); the earlier copy stays as it is" ...
+     "overwrite: files already there are replaced" ...
+     "skip: files already there are left as they are; only the missing ones are copied"]);
+obj.RunTransferIfExistsDropDown.Layout.Row = 3; obj.RunTransferIfExistsDropDown.Layout.Column = [2 4];
+obj.RunTransferHashCheckBox = uicheckbox(xg, "Text", "Check each copy by SHA-256", "Value", d.Verify == "hash", ...
+    "Tooltip", "Check every copy against its source by SHA-256 checksum (reads both once more); off: by size and time.", ...
+    "ValueChangedFcn", changed);
+obj.RunTransferHashCheckBox.Layout.Row = 4; obj.RunTransferHashCheckBox.Layout.Column = [1 4];
 end
 
 

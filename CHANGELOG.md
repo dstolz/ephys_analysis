@@ -10,6 +10,23 @@ says how to cut a release.
 
 ### Added
 
+- Copying the pipeline's outputs elsewhere: the config's `Transfer`
+  section, the Run tab's **Copy outputs to**. A Run copies, or moves, each
+  dataset's outputs to `<folder>/<subject>/<session>` (its recording folder
+  below the project root), each one as soon as its step has written it
+  (`When = "step"`) or all of them once the Run is over (`"run"`). When the
+  dataset's folder is already there, `IfExists` puts the Run's copies in a
+  new version folder `<session>_v2` (the default), overwrites the files
+  there, or skips them. The copying runs outside MATLAB in the Copy tab's
+  engine (robocopy), with size or SHA-256 checks, so the Run never waits for
+  it: the Run tab's last row shows its progress (rate, time left, the batch
+  in flight) with **Stop copying...**, and each dataset has a `transfer`
+  result row and a plan row. A move removes the outputs here only once the
+  Run is over, keeps the manifest, and records a moved sort folder as the
+  dataset's sorting folder. A background sort is copied once it has
+  finished. `OutputTransfer` is the transfer on its own;
+  `EphysPipeline.transferOutputs` copies a script's step results, and both
+  generated scripts copy too.
 - `EphysProject(root)` reads a root of pipeline outputs without the
   recordings, such as a backup of an `OutputRoot`. When no recording is
   found, each folder laid out as `<OutputRoot>/<Name>` becomes a dataset,

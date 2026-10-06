@@ -1699,6 +1699,48 @@ rep = app.issueReport("bug", System=false, Config=false);
 check(contains(rep, "**Run log**") && contains(rep, runTail(end)) && contains(rep, "the report reads this line") ...
     && isempty(app.LastError), 'the issue report carries the Run log as the tab shows it; the run recorded no error');
 
+fprintf('\n== 4b. Run tab: Copy outputs (the Transfer section) ==\n');
+cfgBeforeCopy = app.Config;
+copies = fullfile(root, 'copies');
+check(~app.RunTransferCheckBox.Value && strcmp(app.RunTransferDestField.Enable, 'off') ...
+    && strcmp(app.RunTransferStopButton.Enable, 'off'), 'Copy outputs is off by default, its settings greyed out');
+app.RunTransferCheckBox.Value = true;
+app.RunTransferDestField.Value = copies;
+app.RunTransferWhenDropDown.Value = 'run';
+app.RunTransferIfExistsDropDown.Value = 'overwrite';
+app.RunTransferHashCheckBox.Value = true;
+app.onTransferControlsChanged();
+X = app.Config.Transfer;
+check(X.Enabled && X.Destination == string(copies) && X.Method == "copy" && X.When == "run" && X.IfExists == "overwrite" ...
+    && X.Verify == "hash" && strcmp(app.RunTransferDestField.Enable, 'on'), 'the Copy outputs controls are the Transfer section');
+cfgShown = app.Config;
+cfgShown.Transfer.Method = "move";
+app.applyConfig(cfgShown);
+check(strcmp(app.RunTransferMethodDropDown.Value, 'move'), 'a config''s Transfer section shows in the controls');
+app.RunTransferMethodDropDown.Value = 'copy';
+app.onTransferControlsChanged();
+if ispc
+    app.runPipeline(Steps="spikes");
+    t0 = tic;
+    while ~isempty(app.Transfers) && toc(t0) < 120   % the copies go on after the Run, followed by the timer
+        app.pollTransfers();
+        pause(0.25);
+    end
+    dsA = app.Project.Datasets(string({app.Project.Datasets.Name}) == "recA_260101_120000");
+    copied = fullfile(copies, dsA.DatasetKey, 'recA_260101_120000_spikes.mat');
+    R = app.RunResultsTable.Data;
+    check(isempty(app.Transfers) && isfile(copied) && isfile(spikesFile), ...
+        'a Run copies the outputs to <folder>\<subject>\<session> in the background (the copy leaves them here)');
+    check(any(R.Step == "transfer" & R.Status == "done" ...
+        & EphysDataset.pathKey(R.Output) == EphysDataset.pathKey(fullfile(copies, dsA.DatasetKey))), ...
+        'the dataset''s transfer row is restated to done once the copies are done');
+    check(startsWith(string(app.RunTransferLabel.Text), "Output copies done: 1 dataset(s) copied") ...
+        && strcmp(app.RunTransferStopButton.Enable, 'off') && isempty(app.TransferMonitorTimer), ...
+        'the last row says what was copied and the monitor stops');
+end
+app.applyConfig(cfgBeforeCopy);
+check(~app.Config.Transfer.Enabled, 'Copy outputs off again');
+
 fprintf('\n== 4a. Review tab: unit labels, location, notes ==\n');
 app.selectDataset(1);
 app.syncReviewDataset();

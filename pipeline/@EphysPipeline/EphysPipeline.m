@@ -69,6 +69,19 @@ classdef EphysPipeline < handle
     %     returns without waiting for a slot. updateResult restates a row
     %     once such a run starts or ends.
     %
+    %   Copying the outputs elsewhere (the Transfer section)
+    %     With Transfer.Enabled, run() copies or moves each dataset's
+    %     outputs to <Transfer.Destination>/<dataset key> in the background
+    %     (OutputTransfer): each output as soon as its step has written it
+    %     (When "step"), or all of them once the run is over ("run"). Each
+    %     dataset has a "transfer" result row. Transfer is that run's
+    %     OutputTransfer; TransferFcn(X) is called with it as it is made,
+    %     so a caller can follow it. With TransferWait (the default) run()
+    %     waits for it at the end; without, it returns and the copy goes
+    %     on as long as something polls it (X.poll, X.wait).
+    %     transferOutputs() copies the outputs of the Results rows on its
+    %     own, for a script that calls the step methods one by one.
+    %
     %   See also EphysPipelineConfig, EphysPipelineScript, EphysProject, EphysDataset.
 
     properties
@@ -80,6 +93,8 @@ classdef EphysPipeline < handle
         LaunchFcn   = []
         QueueFcn    = []
         PriorRuns   struct = EphysPipeline.emptyRuns()
+        TransferFcn = []                       % TransferFcn(X): the run's OutputTransfer, as it is made
+        TransferWait (1,1) logical = true      % run() waits at the end for its output transfer
     end
 
     properties (SetAccess = protected)
@@ -102,6 +117,11 @@ classdef EphysPipeline < handle
         % off, for a dry run, or when it was not saved): <Root>/pipeline_<name>.m.
         % See writeScript.
         ScriptFile (1,1) string = ""
+
+        % The OutputTransfer copying the outputs of the last run() elsewhere
+        % (Transfer section; [] when it is off, for a dry run, and until the
+        % run has an output to copy). See transferOutputs.
+        Transfer = []
     end
 
     properties (Constant)
@@ -118,6 +138,10 @@ classdef EphysPipeline < handle
         % by dataset folder and fingerprint, so the steps that need them
         % detect once even with Artifacts.CacheIntervals off. reset() empties it.
         Detections = []
+        % Inside run() with Transfer.When "step": each result row's outputs
+        % are queued for the transfer as the row is recorded (addResult).
+        TransferStep (1,1) logical = false
+        TransferTick = []   % when progress() last polled the transfer
     end
 
     methods
@@ -130,6 +154,7 @@ classdef EphysPipeline < handle
         runExport(obj, opts)
         runAnalysis(obj, opts)
         T = analysisTargets(obj, acfg, idx)
+        X = transferOutputs(obj, opts)
 
         function obj = EphysPipeline(cfg, opts)
             %EphysPipeline  Build the project for a config (or use a given one).
@@ -290,9 +315,12 @@ classdef EphysPipeline < handle
 
         function progress(obj, step, dataset, index, count, done, total, message)
             %progress  Notify ProgressFcn; throws EphysPipeline:Cancelled after cancel().
+            %   It also advances the run's output transfer, twice a second at
+            %   most, so the copies go on while the steps work.
             if obj.CancelRequested
                 error('EphysPipeline:Cancelled', 'Cancelled by user.');
             end
+            obj.pollTransfer();
             if ~isempty(obj.ProgressFcn)
                 evt = struct('step', string(step), 'dataset', string(dataset), 'index', index, ...
                     'count', count, 'done', done, 'total', total, 'message', string(message));
@@ -428,6 +456,26 @@ classdef EphysPipeline < handle
             if nargin < 6; output = ""; end
             obj.Results(end+1, :) = {string(step), string(dataset), string(status), ...
                 string(message), string(output), seconds};
+            if obj.TransferStep && ~startsWith(string(step), "transfer")
+                try
+                    obj.transferOutputs(Rows=height(obj.Results), Close=false, Wait=false);   % its outputs, at once
+                catch ME
+                    obj.log("[transfer] %s: not queued: %s", string(dataset), ME.message);
+                end
+            end
+        end
+
+        function pollTransfer(obj)
+            %pollTransfer  Advance the run's output transfer (twice a second at most).
+            X = obj.Transfer;
+            if isempty(X) || X.Done; return; end
+            if ~isempty(obj.TransferTick) && toc(obj.TransferTick) < 0.5; return; end
+            obj.TransferTick = tic;
+            try
+                X.poll();
+            catch ME
+                obj.log("[transfer] %s", ME.message);
+            end
         end
 
         function updateResult(obj, step, dataset, output, status, message, addSeconds)
@@ -1247,6 +1295,33 @@ classdef EphysPipeline < handle
             T.Status(i) = string(status);
             T.Message(i) = string(message);
             T.Seconds(i) = T.Seconds(i) + addSeconds;
+        end
+
+        function key = transferKey(d)
+            %transferKey  The folder below Transfer.Destination that dataset D's outputs go to.
+            %   Its DatasetKey (the recording folder below the project root,
+            %   e.g. "SUBJ-ID-1255/SUBJ-ID-1255_260916_110907"), so the copies
+            %   have the raw data's folders; its Name when the recording is
+            %   the root itself or not below it.
+            key = d.DatasetKey;
+            if key == "" || key == "." || contains(key, ":") || startsWith(key, ["/" "\"])
+                key = d.Name;
+            end
+        end
+
+        function note = repointMovedSort(d, folder, newFolder)
+            %repointMovedSort  A moved sort folder stays dataset D's sorted output.
+            %   NOTE = EphysPipeline.repointMovedSort(D, FOLDER, NEWFOLDER):
+            %   when FOLDER, moved to NEWFOLDER by the output transfer, was
+            %   D's sorted output (sortingResultsDir), NEWFOLDER becomes its
+            %   sorting folder (SortingDir, saved in the manifest), so the
+            %   Review tab, Export and the analysis read the units there.
+            %   NOTE says so ("" when FOLDER was not D's sorted output).
+            note = "";
+            if EphysDataset.pathKey(d.sortingResultsDir()) ~= EphysDataset.pathKey(folder); return; end
+            d.SortingDir = string(newFolder);
+            d.writeManifest();
+            note = "the dataset's sorting folder is now " + string(newFolder);
         end
     end
 end

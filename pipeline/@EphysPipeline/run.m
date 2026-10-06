@@ -33,6 +33,16 @@ function R = run(obj, opts)
 %   <Root>/pipeline_<name>.m (ScriptFile; see writeScript), replacing the
 %   one the previous run saved; the run record names it.
 %
+%   Transfer: with Transfer.Enabled (not a dry run), each dataset's outputs
+%   are copied or moved to <Transfer.Destination>/<dataset key> in the
+%   background (Transfer, an OutputTransfer; see transferOutputs): with
+%   When "step" each output as soon as its step has recorded it, with
+%   "run" all of them once the steps are over (also after a cancel or an
+%   error: what was written is copied). The transfer is then closed (a
+%   move removes what it copied) and, with TransferWait (the default),
+%   waited for before the run record is written; otherwise run() returns
+%   while it goes on, and whoever follows it polls it (TransferFcn).
+%
 %   See also EphysPipeline.checkRun, EphysPipeline.plan, EphysPipelineConfig.validate.
 
 arguments
@@ -57,6 +67,8 @@ obj.checkRun(Steps=steps);
 obj.reset();
 obj.RunRecordFile = "";
 obj.ScriptFile = "";
+obj.Transfer = [];
+transfer = c.Transfer.Enabled && ~opts.DryRun;   % a dry run copies nothing
 started = datetime('now');
 obj.Provenance = ephysProvenance(Config=c, RunId=string(started, "yyyyMMdd'T'HHmmssSSS"));
 obj.log("=== Pipeline '%s': %d dataset(s); steps: %s%s ===", c.Name, numel(obj.DatasetIdx), ...
@@ -75,6 +87,7 @@ end
 t0 = tic;
 outcome = "finished";
 failure = [];
+obj.TransferStep = transfer && c.Transfer.When == "step";   % addResult queues each row's outputs
 for step = steps
     obj.log("--- step: %s ---", step);
     try
@@ -100,6 +113,16 @@ for step = steps
             failure = ME;
         end
         break
+    end
+end
+obj.TransferStep = false;
+if transfer
+    rows = zeros(1, 0);   % "step": every row is queued already
+    if c.Transfer.When == "run"; rows = 1:height(obj.Results); end
+    try
+        obj.transferOutputs(Rows=rows, Close=true, Wait=obj.TransferWait);
+    catch ME
+        obj.log("[transfer] ERROR %s", ME.message);
     end
 end
 if ~opts.DryRun   % a dry run writes nothing, a record included

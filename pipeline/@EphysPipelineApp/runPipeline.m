@@ -17,7 +17,12 @@ function runPipeline(obj, opts)
 %   result row when it ends (markKSResult). While the Run is under way,
 %   config edits are not pushed onto the datasets it is processing (they
 %   are once it ends), and Scan and the per-dataset edits are refused
-%   (refuseWhileRunning).
+%   (refuseWhileRunning). With Copy outputs on (the Transfer section), the
+%   pipeline's output transfer is followed from its start
+%   (followTransfer): the Run does not wait for it, and the copies go on in
+%   the background after the Run, their progress in the tab's last row. A
+%   Run is refused while an earlier Run's move is still going, since the
+%   move removes the outputs it took once they are copied.
 arguments
     obj (1,1) EphysPipelineApp
     opts.Steps (1,:) string = string.empty(1,0)
@@ -25,6 +30,13 @@ arguments
 end
 if obj.RunActive
     uialert(obj.Fig, "A run is already in progress.", "Run");
+    return
+end
+moving = obj.Transfers(arrayfun(@(X) X.Method == "move" && ~X.Done, obj.Transfers));
+if ~isempty(moving)
+    uialert(obj.Fig, "The outputs of the last Run are still being moved to " + moving(1).Destination + ...
+        ", and the move removes them here once they are copied. Wait for it to finish (the last row of the Run tab), " + ...
+        "or stop it with Stop copying..., before running again.", "Run");
     return
 end
 try
@@ -54,6 +66,8 @@ end
 
 pipe.ProgressFcn = @(evt) obj.onPipelineProgress(evt);
 pipe.LaunchFcn = @(run) addKSRun(obj, run);
+pipe.TransferFcn = @(X) obj.followTransfer(X);
+pipe.TransferWait = false;   % the copies go on in the background; the Run tab follows them
 if obj.RunKSQueueCheckBox.Value && cfg.Sorting.Execution == "background"
     pipe.QueueFcn = @(d, res) obj.queueKSRun(d, res);
 end

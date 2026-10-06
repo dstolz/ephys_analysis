@@ -1054,6 +1054,7 @@ def main(do_splice=True):
         "ChannelMap": pdir("pipeline", "ChannelMap.m"),
         "HardwareBank": pdir("pipeline", "HardwareBank.m"),
         "CopySchedule": pdir("pipeline", "CopySchedule.m"),
+        "OutputTransfer": pdir("pipeline", "OutputTransfer.m"),
         "EphysTraceViewer": pdir("pipeline", "EphysTraceViewer.m"),
         "EphysTraceSource": pdir("pipeline", "EphysTraceSource.m"),
         "EphysTraceEnvelope": pdir("pipeline", "EphysTraceEnvelope.m"),

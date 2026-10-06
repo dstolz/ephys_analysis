@@ -9,6 +9,8 @@ function issues = validate(obj, opts)
 %   The Analysis step's config (Analysis.ConfigFile) is loaded and checked
 %   too, its own Source aside (the step replaces it): its issues are rows
 %   of step "analysis", Field <Section>.<Field> of the analysis config.
+%   The Transfer section is checked when it is on (rows of step
+%   "transfer").
 %
 %   Options: CheckPaths (default true) also checks that Root / files exist,
 %   and reads the analysis config; without it nothing on disk is read.
@@ -415,6 +417,45 @@ if An.Enabled
     end
     if ~G.Enabled
         add("analysis", "ConfigFile", "warning", "The Signals step is off; the analysis reads each dataset's existing extract files (signals and events).");
+    end
+end
+
+% --- Transfer (not a step) ------------------------------------------------------
+X = obj.Transfer;
+if X.Enabled
+    dest = strtrim(X.Destination);
+    if ~platformSupport("copy")
+        add("transfer", "Enabled", "error", "Copying the outputs needs Windows (robocopy and PowerShell).");
+    end
+    if dest == ""
+        add("transfer", "Destination", "error", "Copying the outputs is on but no destination folder is set.");
+    elseif ~OutputTransfer.isFullPath(dest)
+        add("transfer", "Destination", "error", "The destination must be a full path (a drive letter, or \\server\share): " + dest);
+    else
+        d = EphysDataset.pathKey(dest);
+        r = EphysDataset.pathKey(P.Root);
+        o = EphysDataset.pathKey(P.OutputRoot);
+        if P.Root ~= "" && d == r
+            add("transfer", "Destination", "error", ...
+                "The destination is the project root: the outputs would be copied into the recording folders.");
+        elseif P.OutputRoot ~= "" && (d == o || startsWith(d, o + "/"))
+            add("transfer", "Destination", "error", ...
+                "The destination is in the output root, among the outputs it would receive copies of: " + dest);
+        elseif opts.CheckPaths && ~isfolder(dest)
+            add("transfer", "Destination", "warning", "The destination folder is not there now; the first copy creates it: " + dest);
+        end
+    end
+    if ~ismember(X.Method, ["copy" "move"])
+        add("transfer", "Method", "error", "Transfer.Method must be ""copy"" or ""move"".");
+    end
+    if ~ismember(X.When, ["step" "run"])
+        add("transfer", "When", "error", "Transfer.When must be ""step"" or ""run"".");
+    end
+    if ~ismember(X.IfExists, ["version" "overwrite" "skip"])
+        add("transfer", "IfExists", "error", "Transfer.IfExists must be ""version"", ""overwrite"" or ""skip"".");
+    end
+    if ~ismember(X.Verify, ["size" "hash"])
+        add("transfer", "Verify", "error", "Transfer.Verify must be ""size"" or ""hash"".");
     end
 end
 

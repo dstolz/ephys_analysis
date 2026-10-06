@@ -2264,6 +2264,10 @@ or `Selection: all 4 dataset(s).` (none ticked).
   is capped by free memory. Without the Parallel Computing Toolbox, or when
   memory allows fewer than two workers, the steps run serially and warn; see
   [Parallel execution](EphysPipeline.md#parallel-execution).
+- **Copy outputs to** (off by default) and its folder: the config's
+  `Transfer` section. A Run copies, or moves, each dataset's outputs to
+  `<folder>\<subject>\<session>` in the background; see
+  [Copying the outputs elsewhere](#copying-the-outputs-elsewhere).
 
 ### Validate, plan, run
 
@@ -2307,7 +2311,8 @@ file for Signals, one per format for Export, as `export:chronux`): **Step**,
 | `behavior file missing`, `no session` | the associated session file is not there; none is associated and **Search** is off |
 | `no extract file` | Export needs the Signals files, which are not there, and Signals is not part of this run |
 | `duplicate output` | another dataset of the project writes the same file |
-| `error: ...` | the dataset cannot run: a setting that cannot apply to it (`error: LFP_Fs above the recording rate`), an output folder shared with another dataset, its sorted-output folder missing, a name that gives no unit identity, unit labels that would clash with another recording's |
+| `exists: new version` (transfer) | with **Copy outputs to** on, the dataset's folder at the destination already holds a copy: this Run's go to the version folder **Output** names (`<session>_v2`, ...). `exists: overwrite` and `exists: skip` say what happens to the files already there; `ready`: the folder is not there yet |
+| `error: ...` | the dataset cannot run: a setting that cannot apply to it (`error: LFP_Fs above the recording rate`), an output folder shared with another dataset, its sorted-output folder missing, a name that gives no unit identity, unit labels that would clash with another recording's, a copy destination that is the dataset's own folder |
 
 Rows whose status starts with `duplicate` or `error` block the run. The full
 list is in [Plan](EphysPipeline.md#plan).
@@ -2414,6 +2419,59 @@ folder in their command line); the log says `[stopped]` and its row turns
 stays in the run folder. The freed slot goes to the next queued run, so
 press **Stop queue** too to stop everything. Blocking runs cannot be
 stopped: MATLAB waits for them.
+
+### Copying the outputs elsewhere
+
+**Copy outputs to** (under the steps) copies each dataset's outputs to
+another folder while the pipeline runs, such as a share where the analysis
+happens. The copies are laid out as the raw data is:
+`<folder>\<subject>\<session>`, the dataset's recording folder below the
+project root (its key), with each file's path below the dataset's output
+folder kept (`kilosort4\params.py`). It is the config's `Transfer` section,
+saved with it; see
+[Copying the outputs elsewhere](EphysPipeline.md#copying-the-outputs-elsewhere).
+
+| Control | Setting | Choices |
+| --- | --- | --- |
+| **Copy outputs to:** box and folder (**...** browses) | `Enabled`, `Destination` | a full path; it is created when needed |
+| first list | `Method` | **copy** (the outputs stay here too), **move** (once copied and checked, the outputs are removed here when the Run is over) |
+| second list | `When` | **after each step**: each output as soon as its step has written it, while the next steps run; **after the run**: all of them once the Run is over |
+| **If it is there:** | `IfExists` | **new version**: when the dataset's folder at the destination already holds anything, this Run's copies go to a new `<session>_v2` (`_v3`, ...), so the earlier copy stays whole; **overwrite**: the files already there are replaced; **skip**: they are left as they are and only the missing ones are copied |
+| **Check each copy by SHA-256** | `Verify` | check each copy by its checksum (both files are read once more); off: by size and modified time |
+
+What is copied: the files and folders each step recorded for a dataset (its
+result rows' **Output**): the behavior file, the artifact cache, the sort
+folder (without its hidden `.phy` cache; never the `.bin`), the derived
+signals, the spikes file, the exports and the analysis figures, also when a
+step kept an output that was already there (**Overwrite** off). The
+dataset's manifest goes with them and is never removed. A background sort
+is copied once it has finished (one that fails is not). The analysis report
+over every dataset and the run record stay where they are.
+
+The copying runs outside MATLAB, in the copy engine the Copy tab uses
+(robocopy), so the Run never waits for it: it ends when its steps are done,
+and the copies go on while the app is used. Each dataset has a `transfer`
+row in the results, whose **Output** is its folder at the destination and
+whose status follows the copies: `waiting` (for a background sort),
+`queued`, `copying`, `copied` (a move, removed here once the Run is over),
+`done`, `error`, `cancelled`. The last row of the tab shows them all: a bar,
+how much is copied, the rate and the time left, and the batch in flight, as
+in `Copying outputs: 45%, 1.2 GB of 2.6 GB, 3 of 8 batch(es), 40.1 MB/s,
+about 1 min left   SUBJ-1/SUBJ-1_260916_110907: signals (2 of 3 file(s))`.
+The Run tab's button turns blue while they go.
+
+**Stop copying...** (beside it) stops them after a confirmation: the files
+being copied stop where they are, what is copied stays at the destination,
+the rest is not copied and a move removes nothing more. While a move is
+still going, a new Run is refused: the move would remove what the new Run
+reads. Closing the app while copies go asks first: the files being copied
+finish on their own, but nothing checks them or copies the rest. Running
+again with **Copy outputs to** on copies what is missing.
+
+With **move**, the outputs are removed here only once the Run is over and
+only if they have not changed since they were copied. A sort folder moved
+this way becomes the dataset's sorting folder (saved in its manifest), so
+the Review tab, Export and the analysis read its units at the destination.
 
 ### The run diagram
 

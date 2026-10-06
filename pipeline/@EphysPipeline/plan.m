@@ -53,6 +53,12 @@ function T = plan(obj, opts)
 %   ("analysis:report"; Dataset "" for one report over every dataset): see
 %   analysisTargets. What each dataset can draw is known only when it runs
 %   (a plot it cannot have is a "skipped" result row).
+%   With Transfer.Enabled, each dataset also has a "transfer" row, Output
+%   the folder its outputs would be copied to (<Destination>/<dataset
+%   key>, or its new version folder): "ready" (not there yet), "exists:
+%   new version", "exists: overwrite", "exists: skip" (Transfer.IfExists),
+%   or "error: destination is the output folder" (the copies would land on
+%   the dataset's own files).
 %   Rows whose Status starts with "duplicate" or "error" stop run()
 %   (checkRun). Only the selected datasets are planned; their output folders
 %   and files are compared with those of every dataset in the project, from
@@ -368,6 +374,60 @@ if ~isempty(fileRows)
         T.Note(r) = "also written by " + strjoin(allKeys(others), ", ");
     end
 end
+
+% Where each dataset's outputs would be copied (the Transfer section): one
+% "transfer" row per selected dataset, after the checks above.
+if c.Transfer.Enabled && strtrim(c.Transfer.Destination) ~= ""
+    T = [T; transferRows(obj, ds, keys)];
+end
+end
+
+
+function T = transferRows(obj, ds, keys)
+%transferRows  The plan's "transfer" rows: the folder each dataset's outputs would go to.
+%   ready                       the folder is not there (or is empty)
+%   exists: new version         it holds something: a new <key>_v<n> (IfExists "version")
+%   exists: overwrite / skip    it holds something (IfExists "overwrite" / "skip")
+%   error: destination is the output folder
+%                               the copies would land on the outputs themselves
+X = obj.Config.Transfer;
+how = X.Method + ternary(X.When == "step", ", each output once its step has written it", ", once the run is over");
+if X.Method == "move"; how = how + " (removed here once the run is over)"; end
+n = numel(ds);
+Step = repmat("transfer", n, 1); Dataset = strings(n, 1); Key = strings(n, 1);
+Output = strings(n, 1); Status = strings(n, 1); Note = repmat(how, n, 1);
+for k = 1:n
+    d = ds(k);
+    Dataset(k) = d.Name;
+    Key(k) = keys(k);
+    try
+        base = OutputTransfer.versionFolder(X.Destination, EphysPipeline.transferKey(d), "overwrite");
+        Output(k) = OutputTransfer.versionFolder(X.Destination, EphysPipeline.transferKey(d), X.IfExists);
+    catch ME
+        Status(k) = "error: destination";
+        Note(k) = string(ME.message);
+        continue
+    end
+    there = isfolder(base) && numel(dir(base)) > 2;
+    if any(EphysDataset.pathKey([base Output(k)]) == EphysDataset.pathKey(d.outputFolder())) ...
+            || any(EphysDataset.pathKey([base Output(k)]) == EphysDataset.pathKey(d.Folder))
+        Status(k) = "error: destination is the output folder";
+        Note(k) = base + " is where the dataset's files are: choose another Transfer.Destination";
+    elseif Output(k) == ""
+        Output(k) = base;
+        Status(k) = "error: no free version folder";
+        Note(k) = base + "_v2 ... _v999 are all taken";
+    elseif ~there
+        Status(k) = "ready";
+    elseif X.IfExists == "version"
+        Status(k) = "exists: new version";
+        Note(k) = base + " holds an earlier copy; " + how;
+    else
+        Status(k) = "exists: " + X.IfExists;
+        Note(k) = base + " holds an earlier copy (the files already there: " + X.IfExists + "); " + how;
+    end
+end
+T = table(Step, Dataset, Key, Output, Status, Note);
 end
 
 

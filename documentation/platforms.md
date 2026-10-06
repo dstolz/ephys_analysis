@@ -14,7 +14,7 @@ the machine it runs on:
 | Feature | What it uses | Windows | macOS | Linux | Elsewhere |
 | --- | --- | --- | --- | --- | --- |
 | Reading recordings, signals, spikes, sorting, exports, analysis and the apps (`core`) | MATLAB, and Python for sorting, probe design and NWB | yes | untested | untested | |
-| Copying sessions: `copySessions`, the Copy tab (`copy`) | robocopy and a detached PowerShell copy engine | yes | no | no | copy the session folders with the system's own tools (rsync, cp); the pipeline reads them where they are |
+| Copying sessions: `copySessions`, the Copy tab; copying a run's outputs: `OutputTransfer`, the `Transfer` section (`copy`) | robocopy and a detached PowerShell copy engine | yes | no | no | copy the session folders, and the outputs afterwards, with the system's own tools (rsync, cp); the pipeline reads them where they are |
 | A scheduled copy: `CopySchedule` (`copySchedule`) | Windows Task Scheduler | yes | no | no | schedule copies of your own with cron or launchd |
 | Clean-up to the Recycle Bin: `runLocalCleanup(Method="recycle")` (`recycle`) | the Recycle Bin and the registry | yes | no | no | `Method="delete"` or `"move"` |
 | The Run tab's resource monitor (`resourceMonitor`) | PowerShell performance counters and nvidia-smi | yes | no | no | the system's own monitor (top, htop, nvidia-smi) |

@@ -58,6 +58,7 @@ returns the defaults and is the single source of truth for field names.
 | `Spikes` | `spikes` | `Enabled`, the `detectSpikes` options (`Filter`, `Band`, `FilterOrder`, `Polarity`, `ThresholdMethod`, `Threshold` (`NaN` = the method's default), `ThresholdScope` (`"chunk"`: each chunk's noise; `"recording"`: each channel's noise over the whole recording, measured by a first pass; see [detectSpikes](EphysDataset.md#whole-recording-mode)), `Align`, `AlignWindowMs`, `MinPeriodMs`, `MaxAmplitudeUV`, `Waveforms`, `WindowMs`, `WaveformSource`, `EdgeHandling`, `MaxChunkSamples`, `EdgePadMs`), `Channels` (`"all"`, `"excludeManifest"`, `"list"`) + `ChannelList`, `ArtifactMode` (`"reject"`: drop the events inside the artifact periods; `"erase"`: erase the periods before detection, which then runs on the cleaned recording; `"none"`: ignore them), `OutputDir`, `Suffix` (`"_spikes"`), `MatVersion`, `Overwrite` |
 | `Export` | `export` | `Enabled`, `Formats` (subset of `["chronux" "fieldtrip" "epochs" "kcsd" "nwb"]`; `kcsd` needs the LFP and a probe; `nwb` a Python with pynwb and nwbinspector), `Signals` (`[]` = every signal in the extract), `IncludeUnits`, `IncludeDetected`, `IncludeEvents`, `Groups`, `Validate`, the epoch settings `EpochSource` (`"line"` / `"behavior"`), `EpochLine`, `EpochWindow` (`[tPre tPost]` s), `EpochOnsetRule` (`"event"`, the default: digital-input times, each placed on every signal's sample nearest its recording row, `round((t − 1/origFs)·Fs) + 1`; `"sample"`: times on the continuous clock, `round(t·Fs) + 1`), `EpochIncomplete`, `EpochNonFinite`, `EpochArtifacts` (`"drop"`: an epoch whose window touches an artifact period of the extract is left out of the signals; `"keep"`: flagged only), `EpochSpikeTimeBase`, `EpochClass`, `OutputDir`, `MatVersion`, `Overwrite`; `UnitQuality` (`true`): the exported units carry their quality metrics (`EphysDataset.unitQuality`; a sort whose metrics cannot be computed is exported without them, with a warning); `NWB`: the `nwb` format's metadata (`SessionDescription`, `ExperimentDescription`, `Experimenter`, `Lab`, `Institution`, `Keywords`, `Location`, `SubjectId`, `Species`, `Sex`, `Age`, `SubjectDescription`, `Strain`, `Genotype`, `TimeZone`, `SessionStartTime`; `""` is not written), `Trials`, `Inspect` and the Python that writes it (`PythonExe`, `CondaEnv`; `""` = the Sorting step's). `validate` checks the Python, `Sex`, `Age` (ISO 8601), `TimeZone` and `SessionStartTime`, and warns when species, sex or age is not set |
 | `Analysis` | `analysis` | `Enabled`, `ConfigFile` (an [analysis config](EphysAnalysisConfig.md), `.json`, read when the step runs), `Figures` (`true`: write the figure files), `Report` (`true`: write the report). The step runs the analysis config over the selected datasets, not over its own `Source`; where and how the figures and the report are written is the analysis config's `Export` / `Report` (their own `Enabled` is not used). See [Analysis step](#analysis-step) |
+| `Transfer` | – | `Enabled`, `Destination` (a full path), `Method` (`"copy"`; `"move"`: removed here once copied and the run is over), `When` (`"step"`: each output once its step has written it; `"run"`: once the run is over), `IfExists` (`"version"`: a new `<key>_v2`, `_v3`, ... when the dataset's folder is there; `"overwrite"`; `"skip"`: the files already there are kept), `Verify` (`"size"` and time, or `"hash"`: SHA-256): copy or move each dataset's outputs to `<Destination>/<dataset key>`, the raw data's subject/session folders, in the background. See [Copying the outputs elsewhere](#copying-the-outputs-elsewhere) |
 
 `Name` and `Description` are free text. `File` (where the config was loaded
 from or saved to) and `LoadWarnings` are transient.
@@ -146,6 +147,14 @@ of step `analysis` with `Field` `<Section>.<Field>` of the analysis config
 (`Plots.psth_1.window`, ...), and so do its load warnings. Without
 `CheckPaths` the file is not read. Writing neither the figures nor the
 report, and the Signals step off, are warnings.
+
+The `Transfer` checks, with `Transfer.Enabled` (step `"transfer"`): no
+`Destination`, one that is not a full path (a drive letter, or
+`\\server\share`), the project root itself, or the output root or a folder
+in it (the copies would land among the outputs they copy) are errors, and so
+are a `Method`, `When`, `IfExists` or `Verify` outside their choices and a
+platform without robocopy (Windows only). With `CheckPaths`, a destination
+that is not there yet is a warning (the first copy creates it).
 
 ### Helpers
 
@@ -309,6 +318,9 @@ headers and manifests); `Refresh=false` skips that.
 | `QueueFcn` | `QueueFcn(d, res)`: when set, background runs are not started by the step but handed over prepared ([below](#background-kilosort4-runs)); default none |
 | `SortingWaiting` | how many datasets the sorting step has still to start (or, with `QueueFcn`, to hand over) |
 | `RunRecordFile`, `ScriptFile` | the run record and the pipeline script the last `run()` wrote (`""` when none) |
+| `Transfer` | the [`OutputTransfer`](#copying-the-outputs-elsewhere) copying the last `run()`'s outputs elsewhere (`[]` when `Transfer.Enabled` is off, for a dry run, and until the run has an output to copy) |
+| `TransferFcn` | `TransferFcn(X)` is called with the run's `OutputTransfer` as it is made, so a caller can follow it (default none) |
+| `TransferWait` | `true` (default): `run()` waits for its transfer before it returns; `false`: it returns while the copies go on, and whoever follows the transfer polls it (the app) |
 
 ### Plan
 
@@ -335,6 +347,12 @@ headers and manifests); `Refresh=false` skips that.
 | `error: ...` | a setting cannot apply (for example `LFP_Fs` above the recording rate) |
 | `error: analysis config` | the Analysis step's config cannot be loaded (`Note` says why) |
 | `error: figure folder`, `error: report folder` | an analysis config's folder pattern cannot be filled for this dataset |
+| `exists: new version`, `exists: overwrite`, `exists: skip` (step `transfer`) | the dataset's folder at `Transfer.Destination` already holds something; `Transfer.IfExists` decides, and with `"version"` `Output` is the new version folder |
+| `error: destination is the output folder` (step `transfer`) | `<Destination>/<dataset key>` is the dataset's output or recording folder: the copies would land on its own files |
+
+With `Transfer.Enabled`, each selected dataset has a `transfer` row, `Output`
+the folder its outputs would go to (`ready` when it is not there yet). The
+row only looks: nothing is created.
 
 The Analysis step has one row per dataset and enabled plot (`analysis:<plot
 id>`, `Output` the figure folder, `""` without `Analysis.Figures`) and one
@@ -389,6 +407,15 @@ and the log says `Pipeline script: <file>`. A dry run saves none; a script
 that cannot be written is a warning (`EphysPipeline:Script`) and the run goes
 on. `pipe.writeScript()` saves it on its own (its header then says
 `% Saved by EphysPipeline.writeScript, outside a run`).
+
+**Copying the outputs.** With `Transfer.Enabled` (not a dry run), each
+dataset's outputs are copied or moved to `<Transfer.Destination>/<dataset
+key>` in the background while the run goes on, each one as soon as its step
+has recorded it (`When = "step"`), or all of them once the steps are over
+(`"run"`; also after a cancel or an error: what was written is copied). The
+transfer is then closed, and with `TransferWait` (the default) `run()` waits
+for it before it writes the run record; see
+[Copying the outputs elsewhere](#copying-the-outputs-elsewhere).
 
 | Step | Method | Does |
 | --- | --- | --- |
@@ -500,6 +527,121 @@ The runner also writes its own run record,
 analysis config and lists `analysisTargets` as `dry run` rows; it draws and
 writes nothing. The step needs the repository's `analysis` folder on the
 path; the rest of the pipeline never does.
+
+### Copying the outputs elsewhere
+
+The `Transfer` section copies, or moves, each dataset's outputs to another
+folder while the pipeline runs, for instance from a fast local disk to the
+share where the analysis happens. It is not a step: it follows the steps.
+
+```matlab
+cfg.Transfer.Enabled = true;
+cfg.Transfer.Destination = "S:\ANALYSIS\EXTRACT";
+cfg.Transfer.When = "step";          % each output as soon as its step has written it
+cfg.Transfer.IfExists = "version";   % an earlier copy stays: this run's go to <session>_v2
+R = EphysPipeline(cfg).run();        % waits for the copies at the end (TransferWait)
+```
+
+**Where the files go.** A dataset's files go to `<Destination>/<key>`, its
+recording folder below the project root (`EphysPipeline.transferKey`: the
+`DatasetKey`, such as `SUBJ-ID-1255/SUBJ-ID-1255_260916_110907`; the name
+for a recording at the root itself), so the copies have the raw data's
+subject/session folders whatever `Project.OutputRoot` is. A file keeps its
+path below the dataset's output folder (`kilosort4/params.py`,
+`analysis/...`); one written elsewhere (a step's `OutputDir`) keeps its name.
+A folder is copied with its subfolders, without hidden ones (phy's `.phy`
+cache).
+
+**What is copied** (`transferOutputs`): the `Output` of each Results row of
+a dataset whose status is `done`, or `skipped` because the output is there
+already (`Overwrite` off, `Sorting.SkipExisting`), for the steps
+`behavior:file`, `artifacts` (the cache), `sorting` (the sort folder, never
+the `.bin`), `signals`, `spikes`, `export:<format>` and the analysis's
+per-dataset `analysis:<plot>` / `analysis:report`. A `launched` or `queued`
+background sort is copied once its status file says it has finished; one
+that fails or is stopped is not (`skipped`). The dataset's manifest
+(`<Name>_manifest.json`, in its recording folder) goes last and is never
+removed. The probe check, the session association, the analysis report
+over every dataset and the run record name nothing to copy.
+
+**When.** With `When = "step"`, each row's outputs are queued as the row is
+recorded (`addResult`), so a dataset's signals are copied while the next
+dataset is processed; `progress()` polls the transfer twice a second at
+most. With `"run"`, they are all queued once the steps are over. Either way
+the transfer is closed when the run ends: no more batches. A batch copied
+before then is looked at once more, and files it copied that changed since
+(say `quality_metrics.json`, which Export can write into the sort folder),
+or that appeared in a folder it copied, are copied again in a batch of their
+own.
+
+**If the folder is there** (`IfExists`):
+
+| `IfExists` | When `<Destination>/<key>` holds anything |
+| --- | --- |
+| `"version"` (default) | the run's copies of that dataset go to a new version folder, `<key>_v2` (`_v3`, ...: the first free one), decided at its first batch, so the earlier copy stays as it is and this one stays whole |
+| `"overwrite"` | the files already there are replaced (robocopy leaves one with the source's size and time) |
+| `"skip"` | the files already there are left as they are; only the missing ones are copied |
+
+Files in the folder that the run does not copy are never touched.
+
+**Move.** `Method = "move"` copies and checks first, then, once the run is
+over (the transfer closed: nothing reads or rewrites the outputs any more),
+removes each copied file here that has not changed since it was copied. The
+manifest stays. A sort folder that has gone this way becomes the dataset's
+sorting folder (`EphysPipeline.repointMovedSort`: `SortingDir`, saved in its
+manifest), so the units are read at the destination from then on.
+
+**Checks.** Each copy must have its source's size and modified time (to
+2 s); with `Verify = "hash"` the SHA-256 of each source and copy must match
+too (both are read once more). A batch with a file that fails is `failed`
+and keeps what was copied; before a job starts, the free space at the
+destination is checked.
+
+**In the background.** The copying runs outside MATLAB in
+[`copy_engine.ps1`](../pipeline/copy_engine.ps1) (robocopy, `/Z`, 8
+threads; as `copySessions` copies sessions), one job at a time; MATLAB only
+reads its progress and checks what it copied. The job folders are those of
+`copySessions` (`%LOCALAPPDATA%\ephys_analysis\copy_jobs`), so a session copy
+sees a folder a transfer is writing. Windows only (`platformSupport("copy")`).
+
+**Results.** Each dataset has one `transfer` row, `Output` its folder at the
+destination, restated as its batches go (`OutputTransfer.statusOf`):
+`queued`, `waiting` (for a background sort), `copying`, `copied` (a move,
+removed once the run is over), `done`, `error`, `cancelled` or `skipped`.
+With `TransferWait`, `run()` waits for the transfer (logging where it is
+every 30 s) before it writes the run record; without it (the app), `run()`
+returns and the copies go on as long as something polls the transfer:
+`pipe.Transfer.poll()`, or `pipe.Transfer.wait()`.
+
+**OutputTransfer** ([`OutputTransfer.m`](../pipeline/OutputTransfer.m)) is
+the transfer itself, usable on its own:
+
+```matlab
+X = OutputTransfer("S:\backup", Method="copy", IfExists="version", Verify="size");
+X.add("SUBJ1/SUBJ1_260101_120000", ["D:\out\rec\rec_spikes.mat" "D:\out\rec\kilosort4"], ...
+    Base="D:\out\rec", Dataset="rec", Label="outputs");
+X.close();       % no more batches (a move removes what it copied from now on)
+X.wait();        % poll until done; X.poll() advances without waiting
+disp(X.table())  % Key, Dataset, Label, State, Message, DestDir, Files, Bytes
+```
+
+| Method | Does |
+| --- | --- |
+| `add(key, paths, Base=, Dataset=, Label=, Keep=, WaitFor=, Since=, OnMoved=)` | queue a batch (`Keep`: copied, never removed; `WaitFor`: a sort's status file, `Since`: when that sort started; `OnMoved(folder, newFolder)`: once a move has taken a folder's files) |
+| `poll()` | read the engine's progress, check a finished job, queue the batches whose sort has ended, start the next job; once closed, look at earlier batches again and remove what a move copied. Never waits |
+| `close()`, `cancel()`, `wait(LogEvery=30)` | no more batches; stop (the job in flight stops between files, what it copied stays, a move removes nothing more); poll until done |
+| `progress()` | `Phase`, `Fraction`, `BytesDone`, `BytesTotal`, `Batches` (`[finished total]`), `Waiting`, `Failed`, `Current`, `Message` |
+| `statusOf(key)` | `[status, message, folder]` of one dataset, for a result row |
+| `datasetFolder(key)`, `OutputTransfer.versionFolder(dest, key, ifExists)` | where the transfer puts, or a new one would put, a dataset's files |
+
+`ProgressFcn(info)` hears `progress()` as the copy moves, `BatchFcn(batch)`
+each batch that changes state, `LogFcn(msg)` a line per batch queued and
+ended.
+
+**Scripts.** The compact script calls `pipe.transferOutputs()` after its
+steps (the step methods record the rows it copies); the standalone script
+ends with an `OutputTransfer` section that copies what its steps wrote, once
+they are all done.
 
 ### Background Kilosort4 runs
 
@@ -809,6 +951,7 @@ the behavior file.
 | [`test_EphysPipeline.m`](../pipeline/test_EphysPipeline.m) | selection by root-relative key (`"all"`, unknown keys dropped) and outputs under `OutputRoot` or next to the recording; `plan()` writes nothing and flags existing / duplicate outputs, missing probe, sorting output and extract file, unit identity errors and unit label collisions, a name that does not match `NamePattern`, a rate above the recording's; the default probe (used, not assigned, unless `WriteDefaultToManifest`) and probe rules (`AutoAssign`, `"*"`, a dataset's own probe kept); `checkBehavior` (by prefix, the manifest, `Behavior.WriteFile`, `Overwrite`, a session file that is not there, `DryRun`, `Behavior.Search` off); the artifact cache (reused; new manual periods and moved bounds need no new detection; invalidated by settings and excluded channels; coverage logged; `cachedDetection` matches it to the settings without detecting or writing: a match, other settings, detection off, a reference not yet settled); sorting dry run (a `settings.json` carrying the KS4 settings, no `.bin`); `runSpikeDetection` (detections only) and `runExport` (Chronux, FieldTrip, epochs, kCSD; `Export.Signals`) outputs equal the direct calls; `run()` (dry run, `Steps=`, progress events, a cancel between steps, no partial `.mat`); `runSignals` equals `toMat`, erases the artifact periods (manual + automatic; manual only without `Artifacts.ApplyToSignals`; none without `Signals.BlankArtifacts`) and every per-type file, the Chronux file and the FieldTrip file carry them; the reference per signal, `ExcludeHandling`; the Sorting step's `.bin` with the periods erased; Kilosort4 runs queued or going skipped; two recordings with one name under one output root refused; associations offline, curated = phy's `cluster_group.tsv`, unreadable manifests left alone, manifest channel lists parsed, never evaluated; `Parallel.Enabled` reaches the artifacts and spikes steps and is logged |
 | [`test_TrialPairing.m`](../pipeline/test_TrialPairing.m) | `pairEpsychTrials`: equal counts, a recording started late or stopped early (partial intervals at the edges, the count-mismatch warning, the cuts that resolve it), cut validation, inverted lines (one idle at the recording start, `NumSamples` needed, `digitalLinePolarity`), nested lines, derived-signal samples; `digitalEvents` cache; `pairTrials` / `setTrialPairing` manifest round trip with cuts, `Cuts="none"` and staleness, and whether the manifest was written; `autoApproveTrialPairing` (only matching counts without cuts, the `auto_approved` mark, cleared by a hand approval); `behaviorToMat(Pairing=)` and the behavior file brought up to date when the pairing's status changes; line polarity, label field and line names from `TrialConfig` in `toMat` events and `ChronuxDataset`; the behavior step records, reuses and reports pairings, `AutoApprove`, a count mismatch and a missing trial line included; `validate` requires a trial line |
 | [`test_EphysPipelineScript.m`](../pipeline/test_EphysPipelineScript.m) | `literal` round-trips; the compact script makes `run()`'s checks first (a plan error stops it before any step) and comments out disabled steps (`runAnalysis` among them); the standalone text never mentions the pipeline classes and carries probe rules only with `AutoAssign`, background Kilosort4 runs waiting for a slot (`MaxConcurrent`) and shared over `Sorting.Devices`, the name pattern, `Project.Recursive` and `Acquisition`, the trial config and the default probe, the `Reference` section, the `Parallel` section in the chunked steps, the artifact periods in its signals step, interpolated channels on the probe in effect, each dataset's export inputs read once (units with their quality metrics, only `Export.Signals`' extract files) and the NWB export; both scripts are `checkcode`-clean, run, and produce identical spikes, Chronux, FieldTrip and kCSD files and `settings.json`; with the behavior step both pair, auto-approve and write identical behavior files and epochs (also with `Behavior.Search` off) |
+| [`test_OutputTransfer.m`](../pipeline/test_OutputTransfer.m) | (Windows) `OutputTransfer`: the key's folders (paths below the output folder kept, hidden folders left out), `IfExists` (a version folder decided once per dataset, overwrite, skip), a move that removes only once closed and keeps `Keep` files, `OnMoved`, SHA-256 checks, a batch waiting for a sort (an earlier run's status ignored, a failed sort skipped), cancel, files changed after their batch was copied, progress, refusals; the `Transfer` section (defaults, round trip, validation), its plan rows, `run()` copying after each step and after the run, a second run's version folder, a move, a dry run copying nothing, `transferOutputs` after step methods, a moved sort folder becoming the sorting folder, the compact and standalone scripts |
 | [`test_SortingConcurrency.m`](../pipeline/test_SortingConcurrency.m) | (Windows; stand-in "python" `.cmd` files, no Kilosort4 or GPU) `sortRunState`; `sortingSlot` / `waitForSortingSlot`; background runs `Sorting.MaxConcurrent` at a time (one and two slots, a run that exits without a status, `PriorRuns`, a cancel while waiting, blocking runs one at a time); `Sorting.Devices` (a free GPU per run, `--device`, the result rows); `QueueFcn` and `launchSorting`; `restateResult`; `stopSortRun` and `sortRunProcesses`; the shared-GPU warning in the run's log; paths with `&` `^` `( )` and spaces and non-ASCII run folders (`ks4_launch.cmd`); a new sort setting the earlier sort's curation aside (`previous_*`) |
 | [`test_OpenEphysReader.m`](../pipeline/test_OpenEphysReader.m) | Open Ephys sessions in every record engine; the `Acquisition` modes; `LineNames` validation and naming; a synthetic Open Ephys project through `EphysPipeline` |
 | [`test_TDTReader.m`](../pipeline/test_TDTReader.m) | TDT Synapse blocks: samples from TEV and SEV, stream choice and gain, epocs and their rows, `Acquisition.TDT`; trials from the epocs of a block without an Epsych2 session, through the behavior step; synthetic TDT recordings and projects |

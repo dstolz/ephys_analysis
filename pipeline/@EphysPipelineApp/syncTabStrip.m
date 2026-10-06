@@ -78,8 +78,13 @@ for k = 1:numel(tabs)
         case obj.TabRun
             if obj.RunActive
                 state = "busy"; tip = "Pipeline running.";
+            elseif ~isempty(obj.Transfers)
+                state = "busy"; tip = "Copying the last Run's outputs in the background; the Run tab's last row shows how far it has got.";
             else
-                state = "neutral"; tip = "Validate, plan and run the enabled steps.";
+                [state, tip] = issueState(issues, "transfer");   % Copy outputs, on this tab
+                if state == "ok"
+                    state = "neutral"; tip = "Validate, plan and run the enabled steps.";
+                end
             end
         case obj.TabFlow
             state = "neutral"; tip = "Diagram of the working config.";

@@ -216,6 +216,18 @@ switch section
             'Figures',    true, ...   % write the figure files (the analysis config's Export section: formats, folder, names)
             'Report',     true);      % write the report (its Report section: HTML / PDF, folder, one or one per dataset)
 
+    case "Transfer"
+        % Copy or move each dataset's outputs to <Destination>/<dataset key>
+        % (the raw data's subject/session folders), in the background
+        % (OutputTransfer; EphysPipeline.run, transferOutputs). Not a step.
+        s = struct( ...
+            'Enabled',     false, ...
+            'Destination', "", ...         % the folder the dataset folders go in (a full path)
+            'Method',      "copy", ...     % "copy" | "move": copy, then remove the copied files here once the run is over
+            'When',        "step", ...     % "step": each output once its step has written it | "run": every output once the run is over
+            'IfExists',    "version", ...  % the dataset's folder is there: "version" (a new <key>_v2, _v3, ...) | "overwrite" | "skip" (files already there)
+            'Verify',      "size");        % "size" (and time) | "hash" (SHA-256 of each file and its copy)
+
     otherwise
         error('EphysPipelineConfig:BadSection', 'Unknown section "%s".', section);
 end

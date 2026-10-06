@@ -1,7 +1,7 @@
 function launchPhy(obj, resultsDir, label)
 %launchPhy  Run `phy template-gui params.py` detached in RESULTSDIR.
 %   RESULTSDIR must be the folder that holds params.py (the dataset's
-%   <kilosort4> run folder). LABEL names the source in the log (e.g. the dataset name). The launch command comes from the "Phy
+%   kilosort4 or si_<sorter> run folder). LABEL names the source in the log (e.g. the dataset name). The launch command comes from the "Phy
 %   command" field; phy lives in its own conda env (see INSTALL.md), so the
 %   default (when the field is blank) is that env's phy executable, falling
 %   back to `conda run -n phy phy` when it cannot be found. phy reads
@@ -16,7 +16,7 @@ function launchPhy(obj, resultsDir, label)
 resultsDir = char(resultsDir);
 paramsPy   = fullfile(resultsDir, 'params.py');
 if ~isfile(paramsPy)
-    uialert(obj.Fig, sprintf(['No Kilosort4 results for "%s".' newline ...
+    uialert(obj.Fig, sprintf(['No sorted output for "%s".' newline ...
         'Expected params.py in:' newline '%s'], label, resultsDir), "phy");
     return
 end

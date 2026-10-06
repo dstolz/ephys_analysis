@@ -351,7 +351,9 @@ if nU > 0
     end
     desc = "Sorted units";
     if isfield(U, 'resultsDir'); desc = desc + " of " + string(U.resultsDir); end
-    desc = desc + " (Kilosort4 / phy; labels from " + fieldText(U, 'groupSource') + "). Spike times in seconds on the " + ...
+    sorter = "Kilosort4";
+    if isfield(U, 'resultsDir'); sorter = EphysDataset.sorterLabel(EphysDataset.sorterOfRunDir(U.resultsDir)); end
+    desc = desc + " (" + sorter + " / phy; labels from " + fieldText(U, 'groupSource') + "). Spike times in seconds on the " + ...
         "continuous clock (sample s, 1-based, at (s-1)/Fs). Quality metrics, when present, follow SpikeInterface's " + ...
         "definitions (ephys_analysis unitQualityMetrics).";
     units = struct('count', nU, 'description', desc, 'columns', {cols});

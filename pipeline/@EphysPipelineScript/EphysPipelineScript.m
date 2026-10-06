@@ -136,6 +136,9 @@ classdef EphysPipelineScript
             L(end+1, 1) = "    d = P.Datasets(k);";
             L(end+1, 1) = "    d.PythonExe = " + lit(cfg.Sorting.PythonExe) + ";";
             L(end+1, 1) = "    d.CondaEnv = " + lit(cfg.Sorting.CondaEnv) + ";";
+            if cfg.Sorting.Sorter ~= "kilosort4"
+                L(end+1, 1) = "    d.Sorter = " + lit(cfg.Sorting.Sorter) + ";   % its run folder si_<sorter> is the sorted output";
+            end
             L(end+1, 1) = "    d.ArtifactConfig = artifactConfig;";
             L(end+1, 1) = "    d.TrialConfig = trialConfig;        % trial line, line names and polarity, signal rates";
             L(end+1, 1) = "end";
@@ -232,11 +235,36 @@ classdef EphysPipelineScript
 
             % --- sorting -------------------------------------------------------------
             S = cfg.Sorting;
-            L = [L; EphysPipelineScript.stepHeader("Sorting: Kilosort4 (via a .bin)", cfg.stepEnabled("sorting"))];
-            [ks4, ~] = EphysPipelineConfig.ks4Settings(S);
-            L = [L; EphysPipelineScript.structLiteral("ks4", ks4)];
+            si = S.Sorter ~= "kilosort4";
             background = S.Execution == "background" && ~S.DryRun;
-            devices = ~isempty(S.Devices) && ~S.DryRun;
+            if si
+                % A SpikeInterface sorter (runSpikeInterface) on the same .bin.
+                L = [L; EphysPipelineScript.stepHeader("Sorting: " + S.Sorter + " (SpikeInterface, via a .bin)", cfg.stepEnabled("sorting"))];
+                L(end+1, 1) = "sorter = " + lit(S.Sorter) + ";";
+                p = strtrim(EphysPipelineConfig.siParams(S));
+                if p == ""
+                    L(end+1, 1) = "siParams = """";   % SpikeInterface's defaults";
+                else
+                    L(end+1, 1) = "siParams = strjoin([ ...   % JSON, over SpikeInterface's defaults";
+                    for ln = splitlines(p).'
+                        L(end+1, 1) = "    " + lit(ln); %#ok<AGROW>
+                    end
+                    L(end+1, 1) = "    ], newline);";
+                end
+                L = [L; EphysPipelineScript.structLiteral("quality", S.Quality)];   % good / mua labels
+                if background
+                    L(end+1, 1) = "nJobs = max(1, floor(feature('numcores') / " + lit(S.MaxConcurrent) + "));   % the runs at once share the cores";
+                else
+                    L(end+1, 1) = "nJobs = feature('numcores');";
+                end
+                sortCall = "d.runSpikeInterface(Sorter=sorter, Params=siParams, Quality=quality, NJobs=nJobs, ProbeFile=probe, ArtifactIntervals=iv";
+            else
+                L = [L; EphysPipelineScript.stepHeader("Sorting: Kilosort4 (via a .bin)", cfg.stepEnabled("sorting"))];
+                [ks4, ~] = EphysPipelineConfig.ks4Settings(S);
+                L = [L; EphysPipelineScript.structLiteral("ks4", ks4)];
+                sortCall = "d.runKilosort(ProbeFile=probe, ExtraSettings=ks4, ArtifactIntervals=iv";
+            end
+            devices = ~isempty(S.Devices) && ~S.DryRun && ~si;
             if background
                 L(end+1, 1) = "maxConcurrent = " + lit(S.MaxConcurrent) + ";   % background runs at once; the next waits for a free slot";
                 if devices
@@ -262,7 +290,7 @@ classdef EphysPipelineScript
                 L(end+1, 1) = "        iv = d.artifactIntervals(IncludeAuto=false);";
             end
             if background
-                L(end+1, 1) = "        res = d.runKilosort(ProbeFile=probe, ExtraSettings=ks4, ArtifactIntervals=iv, Launch=false);   % write the run files";
+                L(end+1, 1) = "        res = " + sortCall + ", Launch=false);   % write the run files";
                 if devices
                     L(end+1, 1) = "        device = waitForSortingSlot(launched, maxConcurrent, Devices=devices);";
                     L(end+1, 1) = "        res = d.launchSorting(res, Wait=false, Device=device);";
@@ -274,7 +302,7 @@ classdef EphysPipelineScript
             else
                 devArg = "";
                 if devices; devArg = ", Device=" + lit(S.Devices(1)); end
-                L(end+1, 1) = "        res = d.runKilosort(ProbeFile=probe, ExtraSettings=ks4, ArtifactIntervals=iv, DryRun=" + ...
+                L(end+1, 1) = "        res = " + sortCall + ", DryRun=" + ...
                     lit(logical(S.DryRun)) + ", Wait=" + lit(S.Execution == "blocking") + devArg + ");";
             end
             L(end+1, 1) = "        d.writeManifest();";

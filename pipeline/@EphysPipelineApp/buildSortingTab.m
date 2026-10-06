@@ -1,17 +1,23 @@
 function buildSortingTab(obj)
-%buildSortingTab  Sorting step: Kilosort4 on a .bin of the recording.
+%buildSortingTab  Sorting step: Kilosort4, or a SpikeInterface sorter, on a .bin of the recording.
 %   Edits the config's Sorting section (gatherSortingSection /
-%   applySortingSection): Python paths, execution mode and every Kilosort4
-%   parameter from EphysPipelineConfig.kilosortParamSpec, with "Optimize
-%   for probe" (onOptimizeKS4ForProbe) and "Reset to defaults"
-%   (onResetKS4Params) above the parameters. The right column shows the
+%   applySortingSection): the sorter (Sorting.Sorter: Kilosort4, or a
+%   SpikeInterface sorter found in the Python env with "Find SpikeInterface
+%   sorters", onFindSorters), Python paths, execution mode and, for
+%   Kilosort4, every Kilosort4 parameter from
+%   EphysPipelineConfig.kilosortParamSpec, with "Optimize for probe"
+%   (onOptimizeKS4ForProbe) and "Reset to defaults" (onResetKS4Params)
+%   above the parameters. For a SpikeInterface sorter those rows give way to
+%   its parameters as JSON (SIPanel: Sorting.SIParams.<sorter>, seeded with
+%   SpikeInterface's defaults, beside their descriptions; showSorterControls).
+%   The right column shows the
 %   selected dataset's sorted-output association (auto-discovered or pinned
 %   with "Use folder..."), runs the step, and streams background run logs.
 
 spec = EphysPipelineConfig.kilosortParamSpec();
 groups = unique({spec.group}, 'stable');
 
-nRows = 6;
+nRows = 7;
 for gi = 1:numel(groups)
     np = sum(strcmp({spec.group}, groups{gi}));
     nRows = nRows + 1 + ceil(np / 2);
@@ -38,6 +44,18 @@ obj.SortEnableCheckBox.Layout.Row = r; obj.SortEnableCheckBox.Layout.Column = [1
 obj.SortSkipExistingCheckBox = uicheckbox(cg, "Text", "Skip datasets already sorted", ...
     "Value", false, "ValueChangedFcn", changed);
 obj.SortSkipExistingCheckBox.Layout.Row = r; obj.SortSkipExistingCheckBox.Layout.Column = [4 5];
+
+r = r + 1;
+l = lab(cg, "Sorter:", r);
+l.Tooltip = "Kilosort4 (run natively), or a SpikeInterface sorter installed in the Python env below.";
+obj.SortSorterDropDown = uidropdown(cg, "Items", {'Kilosort4'}, "ItemsData", {'kilosort4'}, ...
+    "Value", 'kilosort4', "ValueChangedFcn", @(~,~) obj.onSorterChanged());
+obj.SortSorterDropDown.Layout.Row = r; obj.SortSorterDropDown.Layout.Column = [2 3];
+obj.SIFindSortersButton = uibutton(cg, "Text", "Find SpikeInterface sorters", ...
+    "Tooltip", ["List the SpikeInterface sorters installed in the Python env (Python exe / Conda env " ...
+     "below), with their default parameters. The list is remembered."], ...
+    "ButtonPushedFcn", @(~,~) obj.onFindSorters());
+obj.SIFindSortersButton.Layout.Row = r; obj.SIFindSortersButton.Layout.Column = [4 5];
 
 r = r + 1;
 lab(cg, "Python exe:", r);
@@ -76,9 +94,11 @@ r = r + 1;
 note = uilabel(cg, "WordWrap", "on", "FontColor", [0.4 0.4 0.4], "Text", ...
     "Artifact silencing (manual periods always; automatic detection when enabled) is configured on the Artifacts tab, the way they are erased included; those periods are erased in the .bin Kilosort4 sorts.");
 note.Layout.Row = r; note.Layout.Column = [1 5];
+obj.SortNoteLabel = note;
 
 % --- Kilosort4 parameters (from kilosortParamSpec), two per row ---
 r = r + 1;
+rKS4 = r;   % first of the rows a SpikeInterface sorter's parameters take over
 l = lab(cg, "Kilosort4 parameters", r);
 l.FontWeight = "bold";
 obj.KSOptimizeButton = uibutton(cg, "Text", "Optimize for probe", ...
@@ -130,6 +150,12 @@ obj.KSDocsLink = uihyperlink(cg, "Text", "Kilosort4 parameter docs", ...
     "URL", "https://kilosort.readthedocs.io/en/latest/parameters.html");
 obj.KSDocsLink.Layout.Row = r; obj.KSDocsLink.Layout.Column = [2 3];
 
+% Every control on those rows, hidden while a SpikeInterface sorter is chosen.
+kids = cg.Children;
+rows = arrayfun(@(c) c.Layout.Row(1), kids);
+obj.KS4ParamWidgets = kids(rows >= rKS4 & rows <= r);
+buildSIPanel(obj, cg, [rKS4 r]);
+
 % =================== right column: results association + run + log ===================
 right = uigridlayout(g, [2 1]);
 right.Layout.Column = 2;
@@ -166,8 +192,45 @@ obj.KSProgressLabel = uilabel(rg, "Text", "Idle.", "FontColor", [0.4 0.4 0.4]);
 obj.KSProgressLabel.Layout.Row = 4; obj.KSProgressLabel.Layout.Column = [2 4];
 
 logPanel = uipanel(right, "Title", "Kilosort4 log (background runs stream here)");
+obj.KSLogPanel = logPanel;
 lg = uigridlayout(logPanel, [1 1]);
 obj.KSLogArea = uitextarea(lg, "Editable", "off");
+
+obj.refreshSorterItems();   % the sorters remembered from the last Find
+end
+
+
+function buildSIPanel(obj, cg, rows)
+%buildSIPanel  A SpikeInterface sorter's parameters, over the Kilosort4 parameter ROWS of CG.
+%   The JSON (Sorting.SIParams.<sorter>) on the left, what each parameter
+%   is on the right (spikeinterface.sorters.get_sorter_params_description).
+changed = @(~,~) obj.onConfigChanged();
+obj.SIPanel = uipanel(cg, "BorderType", "none", "Visible", "off");
+obj.SIPanel.Layout.Row = rows; obj.SIPanel.Layout.Column = [1 5];
+sg = uigridlayout(obj.SIPanel, [4 2]);
+sg.RowHeight = {30, 'fit', '1x', 22};
+sg.ColumnWidth = {'3x', '2x'};
+sg.Padding = [0 0 0 0];
+head = uigridlayout(sg, [1 2]);
+head.Layout.Row = 1; head.Layout.Column = [1 2];
+head.ColumnWidth = {'1x', 150};
+head.Padding = [0 0 0 0];
+obj.SIParamsTitle = uilabel(head, "Text", "SpikeInterface sorter parameters", "FontWeight", "bold");
+obj.SIResetButton = uibutton(head, "Text", "Reset to defaults", ...
+    "Tooltip", "Put the sorter's parameters back to SpikeInterface's defaults.", ...
+    "ButtonPushedFcn", @(~,~) obj.onResetSIParams());
+obj.SIInfoLabel = uilabel(sg, "WordWrap", "on", "FontColor", [0.4 0.4 0.4], "Text", "");
+obj.SIInfoLabel.Layout.Row = 2; obj.SIInfoLabel.Layout.Column = [1 2];
+mono = get(groot, "FixedWidthFontName");
+obj.SIParamsArea = uitextarea(sg, "FontName", mono, "Value", {'{'; '}'}, "ValueChangedFcn", changed, ...
+    "Tooltip", ["The sorter's parameters as JSON, merged over SpikeInterface's defaults when it runs " ...
+     "(nested objects key by key). Names the sorter does not have are dropped (the run's log says which)."]);
+obj.SIParamsArea.Layout.Row = 3; obj.SIParamsArea.Layout.Column = 1;
+obj.SIParamsHelpArea = uitextarea(sg, "Editable", "off", "Value", {''}, "FontColor", [0.25 0.25 0.25]);
+obj.SIParamsHelpArea.Layout.Row = 3; obj.SIParamsHelpArea.Layout.Column = 2;
+obj.SIDocsLink = uihyperlink(sg, "Text", "SpikeInterface sorter docs", ...
+    "URL", "https://spikeinterface.readthedocs.io/en/stable/modules/sorters.html");
+obj.SIDocsLink.Layout.Row = 4; obj.SIDocsLink.Layout.Column = 1;
 end
 
 

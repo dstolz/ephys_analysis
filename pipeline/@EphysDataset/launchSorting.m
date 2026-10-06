@@ -1,8 +1,11 @@
 function result = launchSorting(obj, result, opts)
-%launchSorting  Start a Kilosort4 run that runKilosort prepared.
+%launchSorting  Start a sort run that runKilosort or runSpikeInterface prepared.
 %   RESULT = ds.launchSorting(RESULT) starts the run described by RESULT,
-%   the struct ds.runKilosort(Launch=false) returned once every file of the
-%   run (the .bin included) was written. Keeping the two apart lets a caller
+%   the struct ds.runKilosort(Launch=false) (or runSpikeInterface) returned
+%   once every file of the run (the .bin included) was written. RESULT.sorter
+%   says which ("kilosort4", else a SpikeInterface sorter): it names the run
+%   in the log and the launcher, and says which label files are the
+%   sorter's own (below). Keeping the two apart lets a caller
 %   write a run's files, then start it later: EphysPipeline.runSorting
 %   waits for a free slot in between, and the app's monitor starts queued
 %   runs as slots free. runKilosort calls this itself unless
@@ -24,18 +27,21 @@ function result = launchSorting(obj, result, opts)
 %   they reflect this run only. A background run leaves an empty
 %   EphysDataset.SortExitMarker beside its status once its process exits
 %   (EphysDataset.sortRunState). On Windows it is started through a batch
-%   file written to the run folder, ks4_launch.cmd, so that paths with & or
+%   file written to the run folder, ks4_launch.cmd (si_launch.cmd for a
+%   SpikeInterface sorter), so that paths with & or
 %   ^ in them survive; a launcher that does not start writes the exit marker
 %   and throws EphysDataset:launchSorting:LaunchFailed.
 %
-%   Kilosort4 overwrites its own output in the results folder but not the
-%   curation of an earlier sort there, and its cluster ids start again at
-%   0, so that sort's notes and phy labels would land on unrelated units.
-%   They are moved first into <results folder>\previous_<yyyyMMdd_HHmmss>
-%   (never deleted): cluster_notes.tsv, phy's cluster_group.tsv (header
-%   "cluster_id<TAB>group"; Kilosort4's own copy of cluster_KSLabel.tsv
-%   stays), cluster_info.tsv, any other cluster_*.tsv but Kilosort4's
-%   cluster_KSLabel / ContamPct / Amplitude, and phy's .phy cache. Phy's
+%   Kilosort4 (as run_si.py) overwrites its own output in the results
+%   folder but not the curation of an earlier sort there, and its cluster
+%   ids start again at 0, so that sort's notes and phy labels would land on
+%   unrelated units. They are moved first into <results
+%   folder>\previous_<yyyyMMdd_HHmmss> (never deleted): cluster_notes.tsv,
+%   phy's cluster_group.tsv (header "cluster_id<TAB>group"; the sorter's own
+%   copy of its labels stays), cluster_info.tsv, any other cluster_*.tsv but
+%   the sorter's own, and phy's .phy cache. The sorter's own are Kilosort4's
+%   cluster_KSLabel / ContamPct / Amplitude, or for a SpikeInterface sorter
+%   run_si.py's cluster_SILabel / si_unit_ids / channel_group. Phy's
 %   merges and splits live in spike_clusters.npy, which the new sort
 %   replaces. When a file cannot be moved (phy has the folder open), the
 %   ones already moved go back and EphysDataset:launchSorting:SetAsideFailed
@@ -45,7 +51,8 @@ function result = launchSorting(obj, result, opts)
 %   wait, background, device, launched (true) and previousDir (the
 %   previous_* folder, "" when there was nothing to move) set.
 %
-%   See also EphysDataset.runKilosort, EphysDataset.sortRunState, waitForSortingSlot.
+%   See also EphysDataset.runKilosort, EphysDataset.runSpikeInterface,
+%   EphysDataset.sortRunState, waitForSortingSlot.
 
 arguments
     obj (1,1) EphysDataset
@@ -68,12 +75,16 @@ command    = char(result.driverCommand);
 if opts.Device ~= ""
     command = sprintf('%s --device %s', command, opts.Device);
 end
-what = "Kilosort4";
-title = 'Kilosort4';
+sorter = "kilosort4";
+if isfield(result, 'sorter') && result.sorter ~= ""; sorter = string(result.sorter); end
+what = EphysDataset.sorterLabel(sorter);
+title = char(what);
+launcherName = 'ks4_launch.cmd';
+if sorter ~= "kilosort4"; launcherName = 'si_launch.cmd'; end
 
 % The earlier sort's curation goes aside, then any stale status / exit
 % marker, so they reflect this run only.
-previousDir = setAsideCuration(result.resultsDir);
+previousDir = setAsideCuration(result.resultsDir, sorter);
 if isfile(statusFile)
     delete(statusFile);
 end
@@ -94,7 +105,7 @@ if opts.Wait
             '%s exited with status %d. See log: %s', what, status, result.stdoutLog);
     end
 else
-    launcher = fullfile(result.runDir, 'ks4_launch.cmd');
+    launcher = fullfile(result.runDir, launcherName);
     bgCommand = backgroundCommand(command, result.stdoutLog, exitFile, launcher, title);
     fprintf('Launching %s (background):\n  %s\n', what, bgCommand);
     status = system(bgCommand);   % returns immediately
@@ -121,17 +132,22 @@ end
 end
 
 
-function previous = setAsideCuration(resultsDir)
+function previous = setAsideCuration(resultsDir, sorter)
 %setAsideCuration  Move an earlier sort's curation out of RESULTSDIR.
 %   Returns the previous_<yyyyMMdd_HHmmss> folder the files went to, ""
-%   when there was nothing to move. See launchSorting's help for the files.
-ksOwn = ["cluster_KSLabel.tsv" "cluster_ContamPct.tsv" "cluster_Amplitude.tsv"];
+%   when there was nothing to move. See launchSorting's help for the files;
+%   SORTER says which label files are the sorter's own.
+if sorter == "kilosort4"
+    ksOwn = ["cluster_KSLabel.tsv" "cluster_ContamPct.tsv" "cluster_Amplitude.tsv"];
+else
+    ksOwn = ["cluster_SILabel.tsv" "cluster_si_unit_ids.tsv" "cluster_channel_group.tsv"];
+end
 D = dir(fullfile(resultsDir, 'cluster_*.tsv'));
 names = string({D(~[D.isdir]).name});
 names = names(~ismember(lower(names), lower(ksOwn)));
 group = strcmpi(names, "cluster_group.tsv");
 if any(group) && ~EphysDataset.phyCurated(resultsDir)
-    names(group) = [];                            % Kilosort4's copy of cluster_KSLabel.tsv
+    names(group) = [];                            % the sorter's copy of cluster_KSLabel / SILabel.tsv
 end
 if isfolder(fullfile(resultsDir, '.phy'))
     names(end+1) = ".phy";

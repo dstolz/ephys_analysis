@@ -219,6 +219,22 @@ classdef EphysPipelineConfig
         v     = parseFreqList(txt, what)
         t     = numberText(v)
 
+        function txt = siParams(sorting, sorter)
+            %siParams  A SpikeInterface sorter's parameters as JSON text.
+            %   TXT = EphysPipelineConfig.siParams(S) is S.SIParams.<S.Sorter>,
+            %   SORTER names another sorter; "" (its defaults) when the
+            %   section has none for it. S is a Sorting section.
+            arguments
+                sorting (1,1) struct
+                sorter (1,1) string = sorting.Sorter
+            end
+            txt = "";
+            if isfield(sorting, 'SIParams') && isstruct(sorting.SIParams) && isvarname(sorter) ...
+                    && isfield(sorting.SIParams, sorter)
+                txt = string(sorting.SIParams.(sorter));
+            end
+        end
+
         function obj = fromStruct(s)
             %fromStruct  Build a config from a struct (e.g. decoded JSON).
             %   Missing sections take their defaults; unknown fields are dropped

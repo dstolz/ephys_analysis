@@ -8,12 +8,15 @@ if isempty(d)
 end
 s = d.sortingStruct();
 if s.results_dir == ""
-    txt = sprintf("%s: no sorted output yet (auto: %s).", d.Name, d.kilosortDir());
+    txt = sprintf("%s: no sorted output yet (auto: %s).", d.Name, d.sortRunDir());
 elseif ~s.exists
     txt = sprintf("%s: manual association -> %s\nThat folder is not there now: no other sort stands in for it.", ...
         d.Name, s.results_dir);
 else
     cur = "uncurated (cluster_KSLabel.tsv)";
+    if isfile(fullfile(s.results_dir, 'cluster_SILabel.tsv'))
+        cur = "uncurated (cluster_SILabel.tsv: good / mua by the good-unit criteria)";
+    end
     if s.curated; cur = "phy-curated (cluster_group.tsv)"; end
     nU = "?";
     if isfinite(s.num_units); nU = string(s.num_units); end

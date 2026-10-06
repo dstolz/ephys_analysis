@@ -1,6 +1,10 @@
 function loadReviewResults(obj)
-%loadReviewResults  Parse a Kilosort4 results folder and populate the Review tab.
-%   Reads the phy/Kilosort4 .npy + .tsv outputs once, derives per-unit summary
+%loadReviewResults  Parse a sorted-output folder and populate the Review tab.
+%   Any sort in phy's files: Kilosort4's, or a SpikeInterface sorter's
+%   (runSpikeInterface writes them in Kilosort4's layout). The summary
+%   names the sorter (the run's settings.json, else the folder's name) and
+%   where the unit groups come from, and the Sort dropdown shows the folder
+%   (showReviewSorts). Reads the .npy + .tsv outputs once, derives per-unit summary
 %   statistics (spike counts, firing rates, peak channel, shank, position,
 %   amplitude, contamination, notes, mean waveform), caches them in
 %   obj.ReviewData, fills the summary label and units table, and draws the
@@ -16,19 +20,20 @@ function loadReviewResults(obj)
 %
 %   Firing rates are spike counts over the part of the recording the sort
 %   covers (sortedSpan): Kilosort4 sorts from tmin to tmax (its
-%   settings.json) and counts spike times from the recording's start.
+%   settings.json) and counts spike times from the recording's start; the
+%   SpikeInterface sorters sort the whole .bin.
 %
 %   .npy files are read with the repository's small reader (READNPY, in
 %   pipeline/); no external toolbox is required. Numeric arrays are assumed
-%   little-endian, which is what Kilosort4 writes on x86.
+%   little-endian, which is what Kilosort4 and SpikeInterface write on x86.
 
 folder = strtrim(obj.ReviewFolderField.Value);
 if isempty(folder)
-    uialert(obj.Fig, "Select a Kilosort4 results folder first.", "Review");
+    uialert(obj.Fig, "Select a sorted-output folder first.", "Review");
     return
 end
-% Tolerate pointing at the dataset folder or the kilosort4 run folder instead of
-% the exact results dir (see EphysDataset.resolvePhyDir).
+% Tolerate pointing at the dataset folder above a kilosort4 run folder instead
+% of the exact results dir (see EphysDataset.resolvePhyDir).
 resolved = EphysDataset.resolvePhyDir(folder);
 if ~strcmp(resolved, folder)
     folder = resolved;
@@ -40,13 +45,13 @@ if ~isfolder(folder)
 end
 need = fullfile(folder, 'spike_clusters.npy');
 if ~isfile(need)
-    uialert(obj.Fig, sprintf(['No Kilosort4 output here (missing spike_clusters.npy):' ...
+    uialert(obj.Fig, sprintf(['No sorted output here (missing spike_clusters.npy):' ...
         newline '%s'], folder), "Review");
     return
 end
 
 dlg = uiprogressdlg(obj.Fig, "Title", "Review", ...
-    "Message", "Reading Kilosort4 output...", "Indeterminate", "on");
+    "Message", "Reading the sorted output...", "Indeterminate", "on");
 drawnow;
 cleanup = onCleanup(@() closeIfValid(dlg));
 
@@ -64,6 +69,7 @@ try
 
     R = struct();
     R.folder   = folder;
+    R.sorter   = sorterOfSort(folder);   % "kilosort4", or a SpikeInterface sorter
     R.fs       = fs;
     R.span     = span;         % [start end] s of the recording the sort covers (NaN: unknown)
     R.spanText = spanText;
@@ -108,11 +114,12 @@ try
     obj.ReviewSpikeWaves = struct([]);
 
     fillSummary(obj, R);
+    obj.showReviewSorts(folder);
     obj.showReviewUnits();   % in the table's remembered sort, no row selected
     obj.renderReviewPlots();
 
-    obj.setStatus(sprintf("Loaded results: %d unit(s) (good %d, mua %d).", ...
-        numel(R.clusterID), R.nGood, R.nMua), ...
+    obj.setStatus(sprintf("Loaded the %s sort: %d unit(s) (good %d, mua %d).", ...
+        EphysDataset.sorterLabel(R.sorter), numel(R.clusterID), R.nGood, R.nMua), ...
         "Click a unit row to focus its waveform and stats.");
 catch ME
     closeIfValid(dlg);
@@ -134,6 +141,13 @@ else
     lines(end+1) = "Folder  : " + string(R.folder);
     lines(end+1) = "Labels  : <class><id> only (" + R.labelNote + ")";
 end
+switch R.groupSource
+    case "phy";            groups = "groups curated in phy";
+    case "kilosort";       groups = "groups Kilosort4's (KSLabel)";
+    case "spikeinterface"; groups = "groups by the good-unit criteria (SILabel)";
+    otherwise;             groups = "no groups";
+end
+lines(end+1) = "Sorter  : " + EphysDataset.sorterLabel(R.sorter) + "; " + groups;
 lines(end+1) = sprintf("Fs      : %g kHz", R.fs / 1000);
 if isfinite(R.durSec)
     lines(end+1) = sprintf("Sorted  : %s (%.1f to %.1f s%s)", durStr(R.durSec), R.span(1), R.span(2), R.spanText);

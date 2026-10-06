@@ -445,11 +445,35 @@ classdef EphysPipelineApp < handle
         RunStepSortingButton matlab.ui.control.Button
         KSProgressLabel   matlab.ui.control.Label
         KSLogArea         matlab.ui.control.TextArea
+        KSLogPanel        matlab.ui.container.Panel
+        SortNoteLabel     matlab.ui.control.Label
+        % Sorting.Sorter: Kilosort4, or a SpikeInterface sorter found in the env.
+        SortSorterDropDown matlab.ui.control.DropDown
+        SIFindSortersButton matlab.ui.control.Button
+        % The Kilosort4 parameter rows, hidden for a SpikeInterface sorter,
+        % whose parameters (SIPanel) then take their place.
+        KS4ParamWidgets   = gobjects(0)
+        SIPanel           matlab.ui.container.Panel
+        SIParamsTitle     matlab.ui.control.Label
+        SIResetButton     matlab.ui.control.Button
+        SIInfoLabel       matlab.ui.control.Label
+        SIParamsArea      matlab.ui.control.TextArea
+        SIParamsHelpArea  matlab.ui.control.TextArea
+        SIDocsLink        matlab.ui.control.Hyperlink
+        % SpikeInterface sorters found in the Python env
+        % (EphysDataset.spikeInterfaceSorters; cached in the preference
+        % SISorters), and the version of SpikeInterface they came with.
+        SISorters struct = struct('name', {}, 'version', {}, 'params', {}, 'descriptions', {})
+        SIVersion (1,1) string = ""
+        % The sorter whose parameters SIParamsArea shows ("" for Kilosort4).
+        SIParamsShown (1,1) string = ""
 
         % --- Review tab ---
         ReviewFolderField   matlab.ui.control.EditField
         BrowseReviewButton  matlab.ui.control.Button
         ReviewDatasetDropDown matlab.ui.control.DropDown
+        ReviewSortDropDown  matlab.ui.control.DropDown        % the active dataset's sorts (ReviewSorts), and a browsed folder
+        ReviewUseSortButton matlab.ui.control.Button          % make the sort shown the dataset's own (onReviewUseSort)
         LoadReviewButton    matlab.ui.control.Button
         OpenReviewFolderButton matlab.ui.control.Button
         ReviewPhyButton     matlab.ui.control.Button
@@ -866,10 +890,11 @@ classdef EphysPipelineApp < handle
         CopyScheduler CopySchedule = CopySchedule()     % this user's scheduled copy (a test points it elsewhere)
         CopyScheduleTimer = []                          % refreshes its state while a scheduled run is under way
 
-        % --- Review (Kilosort4 output) state ---
+        % --- Review (sorted output) state ---
         ReviewData = struct([])
         ReviewSelectedUnit (1,1) double = 0
         ReviewDatasetIdx (1,1) double = 0    % dataset the tab last showed (-1 = reload; syncReviewDataset)
+        ReviewSorts struct = struct('dir', {}, 'label', {})   % that dataset's sorted-output folders (syncReviewDataset)
         ReviewSpikeWaves = struct([])        % the last unit's spikes read for the shank plot (renderReviewUnitShank)
 
         % Epsych2 session summaries for the Project table's Behavior column,
@@ -1166,6 +1191,12 @@ classdef EphysPipelineApp < handle
         onUseSortingFolder(obj)
         onUseAutoSorting(obj)
         refreshSortingLabel(obj)
+        onSorterChanged(obj)
+        showSorterControls(obj, S)
+        refreshSorterItems(obj, want)
+        onFindSorters(obj)
+        onResetSIParams(obj)
+        txt = siDefaultParams(obj, sorter)
         onLaunchPhy(obj, idx)
         launchPhy(obj, resultsDir, label)
         startKSMonitor(obj)
@@ -1225,6 +1256,9 @@ classdef EphysPipelineApp < handle
         onOpenReviewFolder(obj)
         onReviewOpenPhy(obj)
         syncReviewDataset(obj)
+        showReviewSorts(obj, folder)
+        onReviewSortChanged(obj)
+        onReviewUseSort(obj)
         onReviewUnitSelected(obj, evt)
         onReviewNoteEdited(obj, evt)
         onReviewAllUnits(obj)

@@ -168,8 +168,13 @@ for f = ["isiViolationsRatioMax" "presenceRatioMin" "amplitudeCutoffMax" "snrMin
     end
 end
 if S.Enabled
+    what = EphysDataset.sorterLabel(S.Sorter);   % "Kilosort4", "<sorter> (SpikeInterface)"
+    if S.Sorter ~= "kilosort4" && ~EphysDataset.isSpikeInterfaceSorter(S.Sorter)
+        add("sorting", "Sorter", "error", "Sorter must be ""kilosort4"" or the name of a SpikeInterface sorter " + ...
+            "(spykingcircus2, tridesclous2, ...), not """ + S.Sorter + """.");
+    end
     if S.PythonExe == ""
-        add("sorting", "PythonExe", "error", "PythonExe is required to run Kilosort4.");
+        add("sorting", "PythonExe", "error", "PythonExe is required to run " + what + ".");
     elseif opts.CheckPaths && ~isfile(S.PythonExe)
         add("sorting", "PythonExe", "warning", "Python executable not found: " + S.PythonExe);
     end
@@ -177,43 +182,58 @@ if S.Enabled
         add("sorting", "Execution", "error", "Execution must be ""background"" or ""blocking"".");
     end
     if ~(isfinite(S.MaxConcurrent) && S.MaxConcurrent >= 1 && S.MaxConcurrent == round(S.MaxConcurrent))
-        add("sorting", "MaxConcurrent", "error", "MaxConcurrent (Kilosort4 runs at once) must be a whole number >= 1.");
+        add("sorting", "MaxConcurrent", "error", "MaxConcurrent (" + what + " runs at once) must be a whole number >= 1.");
     end
-    if ~(S.KS4.nt > 0 && S.KS4.nt == round(S.KS4.nt) && mod(S.KS4.nt, 2) == 1)
-        add("sorting", "KS4.nt", "error", "nt (spike template width) must be a positive odd integer.");
-    end
-    if ~(isfinite(S.KS4.shank_spacing) && S.KS4.shank_spacing >= 0)
-        add("sorting", "KS4.shank_spacing", "error", "shank_spacing (extra distance between shanks for sorting) must be 0 um or more.");
-    end
-    [ks4, msg] = EphysPipelineConfig.ks4Settings(S);
-    if msg ~= ""; add("sorting", "KS4ExtraJSON", "error", msg); end
-    badDev = S.Devices(~EphysDataset.isTorchDevice(S.Devices));
-    if ~isempty(badDev)
-        add("sorting", "Devices", "error", "Not a torch device: " + strjoin(badDev, ", ") + ...
-            " (use cuda:0, cuda:1, ... or cpu).");
-    elseif S.Execution == "blocking" && numel(S.Devices) > 1
-        add("sorting", "Devices", "warning", "Blocking runs go one at a time on the first device, " + S.Devices(1) + ".");
-    elseif S.Execution == "background" && isfinite(S.MaxConcurrent) && S.MaxConcurrent >= 1 ...
-            && numel(S.Devices) > S.MaxConcurrent
-        add("sorting", "Devices", "warning", sprintf("%d devices but %d Kilosort4 run(s) at once: %s stay(s) idle.", ...
-            numel(S.Devices), S.MaxConcurrent, strjoin(S.Devices(floor(S.MaxConcurrent)+1:end), ", ")));
-    elseif S.Execution == "background" && isfinite(S.MaxConcurrent) && S.MaxConcurrent >= 2 && numel(S.Devices) <= 1
-        % Every run goes on the one device, else the extra settings'
-        % torch_device, else Kilosort4's first GPU: a small card runs out of memory.
-        dev = "Kilosort4's first (no Devices listed)";
-        if isscalar(S.Devices)
-            dev = S.Devices;
-        elseif msg == "" && isfield(ks4, 'torch_device') && isscalar(string(ks4.torch_device))
-            dev = string(ks4.torch_device);
+    if S.Sorter ~= "kilosort4"
+        % A SpikeInterface sorter: the Kilosort4 settings do not apply.
+        problem = EphysDataset.sorterParamsProblem(EphysPipelineConfig.siParams(S));
+        if problem ~= ""
+            add("sorting", "SIParams", "error", "SIParams." + S.Sorter + ": " + problem);
         end
-        if dev ~= "cpu"
-            add("sorting", "MaxConcurrent", "warning", sprintf(['%d Kilosort4 runs at once all go on one GPU, %s: ' ...
-                'together they can run out of its memory (CUDA out of memory). List a device per run, or lower MaxConcurrent.'], ...
-                S.MaxConcurrent, dev));
+        badDev = S.Devices(~EphysDataset.isTorchDevice(S.Devices));
+        if ~isempty(badDev)
+            add("sorting", "Devices", "error", "Not a torch device: " + strjoin(badDev, ", ") + ...
+                " (use cuda:0, cuda:1, ... or cpu).");
+        elseif ~isempty(S.Devices)
+            add("sorting", "Devices", "warning", "Devices are for Kilosort4: " + what + " does not use them.");
         end
-    end
-    if ~isempty(S.Devices) && msg == "" && isfield(ks4, 'torch_device')
-        add("sorting", "Devices", "warning", "Devices overrides torch_device in the extra Kilosort4 settings.");
+    else
+        if ~(S.KS4.nt > 0 && S.KS4.nt == round(S.KS4.nt) && mod(S.KS4.nt, 2) == 1)
+            add("sorting", "KS4.nt", "error", "nt (spike template width) must be a positive odd integer.");
+        end
+        if ~(isfinite(S.KS4.shank_spacing) && S.KS4.shank_spacing >= 0)
+            add("sorting", "KS4.shank_spacing", "error", "shank_spacing (extra distance between shanks for sorting) must be 0 um or more.");
+        end
+        [ks4, msg] = EphysPipelineConfig.ks4Settings(S);
+        if msg ~= ""; add("sorting", "KS4ExtraJSON", "error", msg); end
+        badDev = S.Devices(~EphysDataset.isTorchDevice(S.Devices));
+        if ~isempty(badDev)
+            add("sorting", "Devices", "error", "Not a torch device: " + strjoin(badDev, ", ") + ...
+                " (use cuda:0, cuda:1, ... or cpu).");
+        elseif S.Execution == "blocking" && numel(S.Devices) > 1
+            add("sorting", "Devices", "warning", "Blocking runs go one at a time on the first device, " + S.Devices(1) + ".");
+        elseif S.Execution == "background" && isfinite(S.MaxConcurrent) && S.MaxConcurrent >= 1 ...
+                && numel(S.Devices) > S.MaxConcurrent
+            add("sorting", "Devices", "warning", sprintf("%d devices but %d Kilosort4 run(s) at once: %s stay(s) idle.", ...
+                numel(S.Devices), S.MaxConcurrent, strjoin(S.Devices(floor(S.MaxConcurrent)+1:end), ", ")));
+        elseif S.Execution == "background" && isfinite(S.MaxConcurrent) && S.MaxConcurrent >= 2 && numel(S.Devices) <= 1
+            % Every run goes on the one device, else the extra settings'
+            % torch_device, else Kilosort4's first GPU: a small card runs out of memory.
+            dev = "Kilosort4's first (no Devices listed)";
+            if isscalar(S.Devices)
+                dev = S.Devices;
+            elseif msg == "" && isfield(ks4, 'torch_device') && isscalar(string(ks4.torch_device))
+                dev = string(ks4.torch_device);
+            end
+            if dev ~= "cpu"
+                add("sorting", "MaxConcurrent", "warning", sprintf(['%d Kilosort4 runs at once all go on one GPU, %s: ' ...
+                    'together they can run out of its memory (CUDA out of memory). List a device per run, or lower MaxConcurrent.'], ...
+                    S.MaxConcurrent, dev));
+            end
+        end
+        if ~isempty(S.Devices) && msg == "" && isfield(ks4, 'torch_device')
+            add("sorting", "Devices", "warning", "Devices overrides torch_device in the extra Kilosort4 settings.");
+        end
     end
 end
 

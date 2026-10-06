@@ -1,8 +1,10 @@
 function pollKSRuns(obj)
-%pollKSRuns  Timer callback: stream each background Kilosort4 run's log,
+%pollKSRuns  Timer callback: stream each background sort run's log,
 %   check for completion and start the queued runs.
-%   Each background run redirects Kilosort4 stdout/stderr to a ks4_run.log and
-%   writes a ks4_status.json (state "done" or "error") in its results dir when
+%   Each background run (Kilosort4, or a SpikeInterface sorter) redirects
+%   the sorter's stdout/stderr to its log (ks4_run.log, si_run.log) and
+%   writes its status (ks4_status.json, si_status.json: state "done" or
+%   "error") in its results dir when
 %   it finishes (EphysDataset.sortRunState; a process that exits without one
 %   counts as failed). Every tick this tails each run's log into the status
 %   box so progress is visible live, then polls the runs. A finished run is
@@ -85,7 +87,7 @@ end
 
 nTot  = numel(obj.KSRuns);
 nDone = nnz([obj.KSRuns.done]);
-txt = sprintf("Background Kilosort4: %d of %d finished (%d running", nDone, nTot + waiting, pending);
+txt = sprintf("Background %s: %d of %d finished (%d running", runsLabel(obj.KSRuns), nDone, nTot + waiting, pending);
 if waiting > 0
     txt = txt + sprintf(", %d waiting to start", waiting);
 end
@@ -109,7 +111,7 @@ end
 
 if pending == 0 && waiting == 0
     obj.log("=== all %d background run(s) complete ===", nTot);
-    obj.setStatus(sprintf("Kilosort4 finished: %d background run(s) complete.", nTot), ...
+    obj.setStatus(sprintf("%s finished: %d background run(s) complete.", runsLabel(obj.KSRuns), nTot), ...
         "Open the Review tab to inspect sorted units.");
     obj.stopKSMonitor();
     obj.KSRuns(:) = [];   % clear the completed batch
@@ -130,15 +132,16 @@ if ix > 0
 end
 took = 0;
 if ~isnat(run.started); took = round(seconds(datetime('now') - run.started), 1); end
+what = EphysDataset.sorterLabel(EphysDataset.sorterOfRunDir(run.resultsDir));
 if state == "done"
-    obj.log("[done] %s - Kilosort4 complete (%s)", run.Name, run.resultsDir);
-    obj.markKSResult(run.Name, run.resultsDir, "done", "Kilosort4 finished" + onDevice(run.device), took);
+    obj.log("[done] %s - %s complete (%s)", run.Name, what, run.resultsDir);
+    obj.markKSResult(run.Name, run.resultsDir, "done", what + " finished" + onDevice(run.device), took);
 elseif state == "cancelled"
-    obj.log("[stopped] %s - Kilosort4 stopped by the user", run.Name);
+    obj.log("[stopped] %s - %s stopped by the user", run.Name, what);
     obj.markKSResult(run.Name, run.resultsDir, "cancelled", "stopped before it finished", took);
 else
-    obj.log("[error] %s - Kilosort4 failed: %s", run.Name, msg);
-    obj.markKSResult(run.Name, run.resultsDir, "error", "Kilosort4 failed: " + msg, took);
+    obj.log("[error] %s - %s failed: %s", run.Name, what, msg);
+    obj.markKSResult(run.Name, run.resultsDir, "error", what + " failed: " + msg, took);
 end
 end
 
@@ -156,7 +159,8 @@ while ~isempty(obj.KSQueue)
     try
         res = q.dataset.launchSorting(q.prepared, Wait=false, Device=device);   % LaunchFailed / SetAsideFailed throw
     catch ME
-        obj.log("[error] %s - Kilosort4 did not start: %s", q.Name, ME.message);
+        obj.log("[error] %s - %s did not start: %s", q.Name, ...
+            EphysDataset.sorterLabel(EphysDataset.sorterOfRunDir(q.prepared.resultsDir)), ME.message);
         obj.markKSResult(q.Name, q.prepared.resultsDir, "error", "did not start: " + string(ME.message));
         continue
     end
@@ -183,6 +187,20 @@ end
 end
 
 
+function t = runsLabel(runs)
+%runsLabel  What sorts RUNS: "Kilosort4", "<sorter> (SpikeInterface)" when
+%   they all are by that sorter, else "sorts".
+t = "Kilosort4";
+if isempty(runs); return; end
+who = unique(arrayfun(@(r) EphysDataset.sorterLabel(EphysDataset.sorterOfRunDir(r.resultsDir)), runs));
+if isscalar(who)
+    t = who;
+else
+    t = "sorts";
+end
+end
+
+
 function t = onDevice(device)
 %onDevice  " on cuda:1", or "" without a device.
 t = "";
@@ -192,12 +210,12 @@ end
 
 function ix = runDataset(obj, run)
 %runDataset  Index of the scanned dataset RUN sorts (0 when none): the one
-%   whose Kilosort4 folder is the run's results folder, else the first of
-%   its name.
+%   whose output folder holds the run's results folder (kilosort4 or
+%   si_<sorter>), else the first of its name.
 ix = 0;
 if isempty(obj.Project) || obj.Project.NumDatasets == 0; return; end
-dirs = arrayfun(@(d) string(d.kilosortDir()), obj.Project.Datasets);
-ix = find(EphysDataset.pathKey(dirs) == EphysDataset.pathKey(run.resultsDir), 1);
+dirs = arrayfun(@(d) string(d.outputFolder()), obj.Project.Datasets);
+ix = find(EphysDataset.pathKey(dirs) == EphysDataset.pathKey(string(fileparts(char(run.resultsDir)))), 1);
 if isempty(ix)
     ix = find([obj.Project.Datasets.Name] == string(run.Name), 1);
 end

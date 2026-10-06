@@ -1596,6 +1596,67 @@ check(isequaln(S.KS4, EphysPipelineConfig.defaults("Sorting").KS4) && S.KS4Extra
 check(S.PythonExe == before.PythonExe && S.Enabled == before.Enabled ...
     && app.Config.Probe.DefaultProbeFile == "", 'and leaves the other Sorting settings alone');
 
+% SpikeInterface sorters (a stand-in list: no Python needed)
+cfgBeforeSI = app.Config;
+ks4Before = app.Config.Sorting.KS4;
+shown = @(hs) arrayfun(@(h) logical(h.Visible), hs);
+check(strcmp(app.SortSorterDropDown.Value, 'kilosort4') && app.SIParamsShown == "" && all(shown(app.KS4ParamWidgets)) ...
+    && ~isempty(app.KS4ParamWidgets) && ~logical(app.SIPanel.Visible), ...
+    'Kilosort4 is the sorter by default: its parameters show, the SpikeInterface panel does not');
+desc = table(["detect_threshold"; "seed"], ["5.0"; "null"], ["Threshold for detection"; "Random seed"], ...
+    'VariableNames', ["Parameter" "Default" "Description"]);
+defText = string(sprintf('{\n  "detect_threshold": 5.0,\n  "seed": null\n}'));
+app.SISorters = struct('name', {"tridesclous2", "kilosort4"}, 'version', {"2.0", "4.1.7"}, ...
+    'params', {defText, "{}"}, 'descriptions', {desc, desc});
+app.SIVersion = "0.104.5";
+app.refreshSorterItems();
+check(isequal(app.SortSorterDropDown.ItemsData, {'kilosort4', 'tridesclous2'}), ...
+    'the sorters found are listed after Kilosort4 (SpikeInterface''s own kilosort4 left out)');
+app.SortSorterDropDown.Value = 'tridesclous2';
+app.onSorterChanged();
+S = app.Config.Sorting;
+areaText = @() strtrim(strjoin(string(app.SIParamsArea.Value), newline));
+check(S.Sorter == "tridesclous2" && EphysPipelineConfig.siParams(S) == "" && logical(app.SIPanel.Visible) ...
+    && ~any(shown(app.KS4ParamWidgets)) && areaText() == defText ...
+    && contains(app.SortEnableCheckBox.Text, "tridesclous2 (SpikeInterface)") ...
+    && any(contains(string(app.SIParamsHelpArea.Value), "Threshold for detection")), ...
+    'a SpikeInterface sorter shows its default parameters and their descriptions in place of Kilosort4''s');
+check(app.Project.Datasets(1).Sorter == "tridesclous2" ...
+    && endsWith(string(app.Project.Datasets(1).sortRunDir()), "si_tridesclous2"), ...
+    'the datasets'' sorted output follows the sorter (si_tridesclous2)');
+check(isequaln(S.KS4, ks4Before) && S.KS4ExtraJSON == cfgBeforeSI.Sorting.KS4ExtraJSON, ...
+    'Kilosort4''s settings stay as they were');
+app.SIParamsArea.Value = {'{"detect_threshold": 6}'};
+app.onConfigChanged();
+check(app.Config.Sorting.SIParams.tridesclous2 == "{""detect_threshold"": 6}", 'edited parameters are kept for that sorter');
+app.SIParamsArea.Value = {'{ broken'};
+[~, msg] = app.gatherSortingSection();
+check(contains(msg, "tridesclous2 parameters") && app.Config.Sorting.SIParams.tridesclous2 == "{""detect_threshold"": 6}", ...
+    'parameters that do not parse are reported; the working config keeps the last ones that did');
+app.SIParamsArea.Value = {'{"detect_threshold": 6}'};
+[html, ~] = app.flowChartHTML();
+check(contains(html, "run_sorter") && contains(html, "si_tridesclous2/"), 'the Sorting diagram shows the SpikeInterface sorter');
+app.SortSorterDropDown.Value = 'kilosort4';
+app.onSorterChanged();
+S = app.Config.Sorting;
+check(S.Sorter == "kilosort4" && S.SIParams.tridesclous2 == "{""detect_threshold"": 6}" && ~logical(app.SIPanel.Visible) ...
+    && all(shown(app.KS4ParamWidgets)) && isequaln(S.KS4, ks4Before) ...
+    && app.SortEnableCheckBox.Text == "Enable the Sorting step (Kilosort4)", ...
+    'back to Kilosort4: its parameters as they were; the SpikeInterface parameters are kept');
+app.SortSorterDropDown.Value = 'tridesclous2';
+app.onSorterChanged();
+app.onResetSIParams();
+check(app.Config.Sorting.SIParams.tridesclous2 == "" && areaText() == defText, ...
+    'Reset to defaults puts SpikeInterface''s defaults back (saved as "")');
+cfgM = app.Config;
+cfgM.Sorting.Sorter = "mountainsort5";
+cfgM.Sorting.SIParams.mountainsort5 = "{""scheme"": ""2""}";
+app.applyConfig(cfgM);
+check(strcmp(app.SortSorterDropDown.Value, 'mountainsort5') && contains(string(app.SortSorterDropDown.Items{end}), "not found") ...
+    && contains(areaText(), "scheme"), 'a config naming a sorter not found here still shows it, with its parameters');
+app.applyConfig(cfgBeforeSI);
+check(strcmp(app.SortSorterDropDown.Value, 'kilosort4') && all(shown(app.KS4ParamWidgets)), 'and a Kilosort4 config shows Kilosort4 again');
+
 fprintf('\n== 4. run one step through the pipeline ==\n');
 app.runPipeline(Steps="spikes");
 R = app.RunResultsTable.Data;
@@ -1775,6 +1836,95 @@ check(~TableSort.isSorted(app.tableSort("Review")) && ~isfield(p, 'Review') ...
 app.onTableSortMenu(cm, "Review");
 check(string(cm.Children(1).Text) == "Clear sort" && cm.Children(1).Enable == "off", 'with no sort the item is off');
 app.onReviewAllUnits();
+
+fprintf('\n== 4a3. Review tab: any of the dataset''s sorts ==\n');
+dR = app.currentDataset();
+outA = string(dR.outputFolder());
+ksA = fullfile(outA, 'kilosort4');
+siA = fullfile(outA, 'si_tridesclous2');         % a SpikeInterface sort: good / mua by the criteria
+makePhyFixture(ksA, Fs, ChannelMap=[0 1 2 3], PhyCurated=false);
+makePhyFixture(siA, Fs, ChannelMap=[0 1 2 3], PhyCurated=false);
+delete(fullfile(siA, 'cluster_KSLabel.tsv'));
+fid = fopen(fullfile(siA, 'cluster_SILabel.tsv'), 'w'); fprintf(fid, 'cluster_id\tSILabel\n0\tgood\n1\tmua\n2\tmua\n'); fclose(fid);
+copyfile(fullfile(siA, 'cluster_SILabel.tsv'), fullfile(siA, 'cluster_group.tsv'));
+app.syncReviewDataset();
+dd = app.ReviewSortDropDown;
+L = string(dd.Items);
+key = @(p) EphysDataset.pathKey(string(p));
+check(numel(L) == 3 && L(1) == "pinned " + phyDir + ": Kilosort4, 3 units - in use" ...
+    && L(2) == "kilosort4: Kilosort4, 3 units" && L(3) == "si_tridesclous2: tridesclous2 (SpikeInterface), 3 units" ...
+    && dd.Enable == "on" && key(dd.Value) == key(phyDir) && key(app.ReviewData.folder) == key(phyDir) ...
+    && app.ReviewData.sorter == "kilosort4" ...
+    && any(string(app.ReviewSummaryLabel.Text) == "Sorter  : Kilosort4; groups curated in phy") ...
+    && app.ReviewUseSortButton.Enable == "off", ...
+    'Sort lists the dataset''s own sort first (pinned, in use, loaded), then every other sort under its output folder with its sorter and units; Use this sort is off for the sort in use');
+dd.Value = dd.ItemsData{3};
+app.onReviewSortChanged();
+R = app.ReviewData;
+check(key(R.folder) == key(siA) && key(app.ReviewFolderField.Value) == key(siA) && R.sorter == "tridesclous2" ...
+    && R.groupSource == "spikeinterface" && R.nGood == 1 && R.nMua == 2 ...
+    && R.unitLabel(R.clusterID == 0) == "su000_recA_260101T1200" && isfield(R.units, 'presenceRatio') && R.qc.has ...
+    && any(string(app.ReviewSummaryLabel.Text) == "Sorter  : tridesclous2 (SpikeInterface); groups by the good-unit criteria (SILabel)") ...
+    && contains(string(app.StatusBar.Text), "tridesclous2 (SpikeInterface) sort") && key(dd.Value) == key(siA) && numel(dd.Items) == 3 ...
+    && app.ReviewUseSortButton.Enable == "on", ...
+    'choosing the SpikeInterface sort loads it: full unit labels, its good / mua groups, quality metrics; the summary names the sorter; Use this sort is on');
+check(key(dR.sortingResultsDir()) == key(phyDir), 'choosing a sort to review changes nothing the other steps read');
+otherDir = fullfile(root, 'phy_other');
+copyfile(phyDir, otherDir);
+app.ReviewFolderField.Value = otherDir;
+app.loadReviewResults();
+L = string(dd.Items);
+check(numel(L) == 4 && L(4) == "other: " + otherDir && key(dd.Value) == key(otherDir) && key(app.ReviewData.folder) == key(otherDir) ...
+    && app.ReviewUseSortButton.Enable == "on", ...
+    'a folder loaded with Load or Browse... is added to the list as "other" and shown chosen');
+dd.Value = dd.ItemsData{1};
+app.onReviewSortChanged();
+check(numel(dd.Items) == 3 && key(app.ReviewData.folder) == key(phyDir), 'choosing the dataset''s own sort again drops the other folder');
+dd.Value = dd.ItemsData{2};
+app.onReviewSortChanged();
+app.syncReviewDataset();
+check(key(app.ReviewData.folder) == key(phyDir) && key(dd.Value) == key(phyDir), 'a dataset change shows its own sort again');
+dd.Value = dd.ItemsData{3};
+app.onReviewSortChanged();
+app.onReviewUseSort();
+m = readJsonFile(dR.manifestFile());
+L = string(dd.Items);
+T = app.DatasetsTable.Data;
+check(key(dR.SortingDir) == key(siA) && string(m.sorting.source) == "manual" && key(m.sorting.results_dir) == key(siA) ...
+    && startsWith(T.Sorting(T.DatasetIdx == app.SelectedDatasetIdx), "manual") ...
+    && numel(L) == 2 && L(1) == "pinned si_tridesclous2: tridesclous2 (SpikeInterface), 3 units - in use" ...
+    && L(2) == "kilosort4: Kilosort4, 3 units" && key(dd.Value) == key(siA) && key(app.ReviewData.folder) == key(siA) ...
+    && app.ReviewUseSortButton.Enable == "off" && contains(string(app.SortResultsLabel.Text), "si_tridesclous2"), ...
+    'Use this sort pins the SpikeInterface sort to the dataset (its manifest, the Project table, the Sorting tab); Sort marks it in use');
+dd.Value = dd.ItemsData{2};   % kilosort4: the run folder of the config's sorter
+app.onReviewSortChanged();
+app.onReviewUseSort();
+L = string(dd.Items);
+m = readJsonFile(dR.manifestFile());
+check(dR.SortingDir == "" && string(m.sorting.source) == "auto" && key(dR.sortingResultsDir()) == key(ksA) ...
+    && numel(L) == 2 && L(1) == "kilosort4: Kilosort4, 3 units - in use" && app.ReviewUseSortButton.Enable == "off", ...
+    'Use this sort on the config sorter''s own run folder clears the pin (auto) instead of pinning it');
+dR.SortingDir = phyDir;
+app.saveManifests(dR);
+app.syncReviewDataset();
+dR.SortingDir = fullfile(root, 'not_there');
+app.syncReviewDataset();
+L = string(dd.Items);
+check(isempty(app.ReviewData) && contains(string(app.ReviewSummaryLabel.Text), "not there now") ...
+    && numel(L) == 3 && endsWith(L(1), ": not there now - in use") && key(dd.Value) == key(dR.SortingDir), ...
+    'a pinned folder that is not there clears the tab; Sort says so and still lists the other sorts');
+dd.Value = dd.ItemsData{3};
+app.onReviewSortChanged();
+check(key(app.ReviewData.folder) == key(siA), '...and loads one of them when it is picked');
+dR.SortingDir = "";
+app.syncReviewDataset();
+L = string(dd.Items);
+check(numel(L) == 2 && L(1) == "kilosort4: Kilosort4, 3 units - in use" && key(app.ReviewData.folder) == key(ksA), ...
+    'unpinned, the Sorter''s run folder (kilosort4) is the dataset''s own sort');
+dR.SortingDir = phyDir;
+rmdir(ksA, 's'); rmdir(siA, 's'); rmdir(otherDir, 's');
+app.syncReviewDataset();
+check(isscalar(dd.Items) && key(app.ReviewData.folder) == key(phyDir), 'with the extra sorts gone, only the pinned sort is listed');
 
 fprintf('\n== 4b. Run tab: the run diagram ==\n');
 check(app.RunDiagramPanel.Visible == "off" && isequal(app.RunSplitGrid.ColumnWidth, {'1x', 0}) ...

@@ -36,11 +36,13 @@ function T = planLocalCleanup(datasets, opts)
 %                    being written, here or in another MATLAB, and is kept.
 %   Everything one preprocessing step wrote (the step names of
 %   EphysPipelineConfig.StepNames), to run the step again or drop it:
-%     "sorting"      the dataset's kilosort4 folder (kilosortDir: the sorted
-%                    units with their phy curation and unit notes, the run
-%                    files and logs, Kilosort4's copy of the recording) and the
+%     "sorting"      the dataset's sort run folders: kilosort4 (kilosortDir)
+%                    and si_<sorter> of each SpikeInterface sorter it was
+%                    sorted with (sortRunDir), holding the sorted units with
+%                    their phy curation and unit notes, the run files and
+%                    logs, Kilosort4's copy of the recording; and the
 %                    .bin + .json of toBin. A sorted-output folder associated
-%                    by hand (SortingDir, outside kilosort4) was not written by
+%                    by hand (SortingDir, outside those) was not written by
 %                    the step and is kept.
 %     "signals"      the derived-signal .mat files (toMat)
 %     "spikes"       the spikes .mat (spikesToMat)
@@ -119,13 +121,14 @@ function T = planDataset(d, remove, searchDirs)
 folder = string(d.Folder);
 outDir = string(d.outputFolder());
 ksDir  = string(d.kilosortDir());
+runDirs = sortRunDirs(d, outDir, ksDir);   % kilosort4 and si_<sorter>: what the Sorting step wrote
 sortDir = string(d.sortingResultsDir());
 name = string(d.Name);
 key = string(d.DatasetKey);
 if key == ""; key = name; end
 
 [outputKind, found, foreign] = datasetOutputs(d, searchDirs);
-files = addFiles(listFiles(unique([folder outDir ksDir sortDir], 'stable')), found);
+files = addFiles(listFiles(unique([folder outDir runDirs sortDir], 'stable')), found);
 n = numel(files);
 T = emptyPlan();
 if n == 0; return; end
@@ -177,7 +180,7 @@ for k = 1:n
     elseif isKey(foreign, char(fileKey))
         r.Category = "output"; r.What = "Another dataset's output";
         r.Reason = "Its provenance names another dataset or recording folder, so it is not this dataset's to remove.";
-    elseif otherSort ~= "" && (under(p, ksDir) || (samePath(p, outDir) ...
+    elseif otherSort ~= "" && (underAny(p, runDirs) || (samePath(p, outDir) ...
             && any(lower(leaf) == lower(binStem + [".bin" ".json"]))))
         r.Category = "sorting"; r.What = "Another recording's sort or .bin";
         r.Reason = "Written for " + otherSort + ", which shares this output folder (the same name), so it is kept.";
@@ -210,7 +213,7 @@ for k = 1:n
     elseif lower(leaf) == lower(name + "_manifest.json") || lower(leaf) == lower(name + "_cleanup.json")
         r.Category = "manifest"; r.What = "Dataset manifest";
         if endsWith(lower(leaf), "_cleanup.json"); r.What = "Clean-up record"; end
-    elseif under(p, ksDir)
+    elseif underAny(p, runDirs)
         r.Category = "sorting"; r.What = "Sorted output / sorting run file"; r.Step = "sorting";
         if any(remove == r.Step); r = removeWithStep(r); end
     elseif under(p, sortDir)
@@ -458,6 +461,25 @@ end
 
 function tf = samePath(a, b)
 tf = b ~= "" && strcmpi(stripSep(a), stripSep(b));
+end
+
+
+function dirs = sortRunDirs(d, outDir, ksDir)
+%sortRunDirs  The dataset's sort run folders: KSDIR, and each si_<sorter>
+%   folder in OUTDIR (runSpikeInterface, EphysDataset.sortRunDir).
+dirs = ksDir;
+D = dir(fullfile(outDir, 'si_*'));
+for k = 1:numel(D)
+    if D(k).isdir && EphysDataset.sorterOfRunDir(D(k).name) ~= "kilosort4"
+        dirs(end+1) = string(d.sortRunDir(EphysDataset.sorterOfRunDir(D(k).name))); %#ok<AGROW>
+    end
+end
+end
+
+
+function tf = underAny(p, roots)
+%underAny  True when folder P is one of ROOTS or inside one.
+tf = any(arrayfun(@(r) under(p, r), roots));
 end
 
 

@@ -10,6 +10,38 @@ says how to cut a release.
 
 ### Added
 
+- SpikeInterface sorters as an alternative to Kilosort4, on the Sorting tab.
+  **Sorter** (`Sorting.Sorter`) is Kilosort4 by default, run as before with
+  the same settings and controls, or a sorter SpikeInterface runs
+  (`spykingcircus2`, `tridesclous2`, `lupin`, `simple`, and any other
+  installed in the Python env). **Find SpikeInterface sorters** lists the
+  installed ones (`EphysDataset.spikeInterfaceSorters`, `si_sorters.py`).
+  A chosen sorter's parameters replace the Kilosort4 parameters on the tab:
+  JSON seeded with SpikeInterface's defaults, beside each parameter's
+  description, kept per sorter in `Sorting.SIParams`.
+  `EphysDataset.runSpikeInterface` (`run_si.py`) sorts the same `.bin`
+  (artifact periods erased, the common reference applied once: the sorter's
+  own is kept out when the `.bin` carries one). It writes phy files in
+  Kilosort4's layout to `<output folder>/si_<sorter>/`, each unit labelled
+  good or mua by the good-unit criteria (`cluster_SILabel.tsv`), so phy,
+  the Review tab, the QC report, the exports and the analysis read it
+  unchanged. Background runs, the queue, **Stop runs**, Clean up, the
+  generated scripts and the diagrams cover it. A dataset's sorted output
+  (`sortingResultsDir`) follows the config's sorter (`EphysDataset.Sorter`,
+  `sortRunDir`).
+
+- The Review tab reads any of a dataset's sorts. **Sort** lists them: the
+  dataset's own first (its pinned folder, else its sorter's run folder),
+  marked **in use**, then every other folder under its output folder that
+  holds a sort (`kilosort4`, `si_<sorter>`, a sort sweep's variants), each
+  with its sorter and number of units. Choosing one loads it and changes
+  nothing the other steps read; a folder from **Browse...** / **Load** is
+  added as **other**. **Use this sort** makes the sort shown the dataset's
+  sorted output, as the Sorting tab's **Use folder...** does (the run
+  folder of the config's sorter goes back to auto). The summary names the
+  sorter and where the unit groups come from (phy, Kilosort4's `KSLabel`,
+  or `SILabel`).
+
 - An Analysis step at the end of the pipeline: it loads an analysis config
   saved in the analysis app (`Analysis.ConfigFile`, read when the step
   runs) and runs it with `EphysAnalysisRunner` over the pipeline's selected

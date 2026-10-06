@@ -1,7 +1,9 @@
 function applySortingSection(obj, S)
 %applySortingSection  Push a config Sorting section into the Sorting tab.
 %   Missing fields take the section defaults; typed KS4 values are rendered
-%   into the text fields with EphysPipelineConfig.ks4ParamText. Values the
+%   into the text fields with EphysPipelineConfig.ks4ParamText. The Sorter
+%   drop-down shows S.Sorter and, for a SpikeInterface sorter, the text
+%   area its parameters (showSorterControls). Values the
 %   controls cannot show are reported (setControlValue).
 %
 %   See also gatherSortingSection.
@@ -10,6 +12,11 @@ S = EphysPipelineConfig.normalizeSection("Sorting", S);
 if isempty(obj.PythonExeField) || ~isvalid(obj.PythonExeField); return; end
 obj.SortEnableCheckBox.Value       = logical(S.Enabled);
 obj.SortSkipExistingCheckBox.Value = logical(S.SkipExisting);
+if ~isempty(obj.SortSorterDropDown) && isvalid(obj.SortSorterDropDown)
+    obj.refreshSorterItems(S.Sorter);   % S.Sorter is listed even when not found
+    obj.SortSorterDropDown.Value = char(S.Sorter);
+    obj.showSorterControls(S);          % its parameters, or Kilosort4's rows
+end
 obj.PythonExeField.Value = char(S.PythonExe);
 obj.CondaEnvField.Value  = char(S.CondaEnv);
 if ~isempty(obj.ExecModeDropDown) && isvalid(obj.ExecModeDropDown)

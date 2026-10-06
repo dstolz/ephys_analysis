@@ -376,8 +376,10 @@ read again, a progress callback, a best-effort clean-up) stay quiet.
 
 **Python**: a conda environment with kilosort, probeinterface and torch, plus
 an optional separate `phy` environment. Needed only for
-the sorting step and the probe designer. The NWB export needs a Python with
-pynwb and nwbinspector (the same environment or another). See
+the sorting step and the probe designer. Sorting with a SpikeInterface sorter
+(`Sorting.Sorter`) needs `spikeinterface[full]` in that environment. The NWB
+export needs a Python with pynwb and nwbinspector (the same environment or
+another). See
 [INSTALL.md](../pipeline/INSTALL.md) for known-good versions.
 
 **Optional MATLAB toolboxes**: [Chronux](http://chronux.org) (bundled in
@@ -477,6 +479,7 @@ suite's temporary preferences, so close it before the run ends.
 | `test_EphysPipelineConfig` | the pipeline config: defaults, normalization, JSON round trips, the Kilosort4 settings and probe parameter files, `numberText`, the option builders, `validate`, name tokens ([details](EphysPipeline.md#tests)) |
 | `test_EphysPipeline` | the runner: selection, `plan`, the probe and behavior preflights, the artifact cache, each step against the direct calls, `run` (dry run, steps, progress, cancel), same-name recordings, offline associations, manifests ([details](EphysPipeline.md#tests)) |
 | `test_EphysPipelineScript` | the compact and standalone scripts: `literal`, what each writes, `checkcode`, both run to identical outputs (behavior and epochs included) ([details](EphysPipeline.md#tests)) |
+| `test_SpikeInterfaceSorting` | the SpikeInterface sorters beside Kilosort4: `Sorting.Sorter` / `SIParams` (normalize, save / load, validation), `sortRunDir` and the sorted output following the sorter, `runSpikeInterface(DryRun=true)` and its refusals, a background launch through `si_launch.cmd` (stand-in python, Windows), the Sorting step and a Kilosort4 run holding a SpikeInterface sort back, `readPhyUnits` on `run_si.py`'s layout, `run_si.py`'s labels against `unitQualityPass`; with spikeinterface in the env, a real tridesclous2 sort of a synthetic recording (about 2 min) |
 | `test_SortingConcurrency` | (Windows) background Kilosort4 runs with stand-in executables: `sortRunState`, `sortingSlot` / `waitForSortingSlot`, `Sorting.MaxConcurrent` slots, runs started elsewhere, a cancel while waiting, blocking runs, GPUs (`Sorting.Devices`), the queue (`QueueFcn`, `launchSorting`), `stopSortRun`, paths with `&` `^` `( )` and spaces, an earlier sort's curation set aside |
 | `test_EphysPipelineApp` | the pipeline app, headless: the config round trip, the Diagram, every tab (Project, Artifacts, Trials, Sorting, Review, Run, Clean up, Visualize), the Help menu, preferences ([details](EphysPipelineApp.md#tests)) |
 | `test_CopySessions` | `findCopySessions` pairing (Intan, Open Ephys, TDT), `stitchCopySessions`, `copySessions` (dry run, size and SHA-256 checks, resume, partial and stopped copies, free space, cancel, background jobs, progress, manifests, quiet time, other batches), the Copy tab, `CopySchedule` (what a run copies and leaves, `runTask`, settings, a real Windows task); copying needs Windows |

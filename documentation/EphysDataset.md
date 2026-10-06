@@ -1466,9 +1466,18 @@ distance-based steps on one shank ([why and how much](kilosort4-notes.md#shank_s
 - `kilosortDir()` returns `<outputFolder>/kilosort4`, where `runKilosort`
   writes its bookkeeping and Kilosort4 its phy files.
 - `kilosortResultsDir()` returns `kilosortDir()`.
+- `Sorter` (property, default `"kilosort4"`) is the sorter whose run folder
+  is the dataset's sorted output: `"kilosort4"`, or a SpikeInterface sorter
+  name ([Running a SpikeInterface sorter](#running-a-spikeinterface-sorter)).
+  `EphysPipeline.applyConfigToDatasets` sets it from the config's
+  `Sorting.Sorter`. The manifest records it (`kilosort.sorter`) but does not
+  set it.
+- `sortRunDir()` is the run folder of `Sorter`, `sortRunDir(sorter)` that
+  of another: `kilosortDir()` for Kilosort4, else
+  `<outputFolder>/si_<sorter>`.
 - `sortingResultsDir()` is the folder **associated** with the dataset:
   `SortingDir` when set (a folder you chose, anywhere; the GUI's **Use
-  folder...**), else `kilosortResultsDir()`. The manifest records it as
+  folder...**), else `sortRunDir()`. The manifest records it as
   `sorting` with `source` `"manual"` / `"auto"`, and a manual folder is
   restored on the next scan as recorded, even while it is not there (a disk
   that is not connected): `sortingMissing()` is then true, and the steps that
@@ -1711,6 +1720,79 @@ units with their metrics (`UnitQuality=true`, the default; the pipeline's
 `Export.UnitQuality`); a sort whose metrics cannot be computed is exported
 without them, with a warning (`EphysDataset:<exporter>:NoUnitQuality`).
 `unitTable` has a column per metric (NaN for units without them).
+
+### Running a SpikeInterface sorter
+
+`runSpikeInterface` is `runKilosort` for the sorters
+[SpikeInterface](https://spikeinterface.readthedocs.io) runs
+(`spikeinterface.run_sorter`): `spykingcircus2`, `tridesclous2`, `lupin`,
+`simple`, and any other installed in the Python env (`mountainsort5`, ...).
+It writes the same `.bin` (the artifact intervals blanked, the common
+reference applied once), and the same refusals apply (a probe that cannot be
+read, more than half of the recording blanked). Then it writes
+`settings.json`, the sorter's parameters as given (`si_params.json`) and a
+copy of [`run_si.py`](python-drivers.md#run_sipy) into
+`<outputFolder>/si_<sorter>` and starts it with `launchSorting`, as
+`runKilosort` does: blocking or in the background (through `si_launch.cmd`),
+or not at all with `Launch=false`. The run writes `si_run.log` and, when it
+ends, `si_status.json` (`done` with `num_units` and `num_good`, or `error`),
+so `sortRunState`, `stopSortRun` and the app follow it as they follow a
+Kilosort4 run.
+
+When the `.bin` carries the common reference (`car` / `cmr`), the sorter's
+own is kept out: a `do_CAR` / `car` parameter is set false, and the median
+reference SpikeInterface's internal sorters take on 32 channels or more is
+skipped. With no common reference the sorter's own is the one.
+
+`run_si.py` writes the sort as phy files straight into the run folder, in
+the layout Kilosort4 leaves, so phy, `readPhyUnits`, the Review tab, the QC
+report, the exports and the analysis read it unchanged:
+
+- `channel_map.npy` holds `.bin` rows and `params.py` names the `.bin` (no
+  copy of the recording);
+- `templates.npy` is dense and not whitened (`whitening_mat_inv.npy` is the
+  identity), from a 300 Hz high-pass of the `.bin`; with `bin_scale` in
+  `settings.json` the templates come out in uV, and the template sample on
+  the spike time is `nt0min` there;
+- `amplitudes.npy` holds magnitudes and `spike_positions.npy` each spike's
+  centre of mass, so the [quality metrics](#unit-quality-metrics) (drift
+  included) work as for Kilosort4;
+- `cluster_SILabel.tsv` labels each unit `good` or `mua` by the good-unit
+  criteria (`Quality`), with SpikeInterface's quality metrics and
+  `unitQualityPass`'s rules (these sorters label nothing themselves), and
+  `cluster_group.tsv` is its copy with the header `cluster_id<TAB>SILabel`,
+  as Kilosort4 copies `cluster_KSLabel.tsv`. `readPhyUnits` says
+  `groupSource` `"spikeinterface"` for them, `"phy"` once phy saved its own.
+
+#### `result = runSpikeInterface(Name=Value)`
+
+| Option | Default |
+| --- | --- |
+| `Sorter` | `Sorter` of the dataset; `"kilosort4"` is refused (`EphysDataset:runSpikeInterface:BadSorter`): `runKilosort` runs it |
+| `Params` | `""`: the sorter's parameters as JSON text, an object (`""` = its defaults). `run_si.py` merges them over SpikeInterface's defaults (nested objects key by key) and drops, with a note in the log, top-level names the sorter does not have. Text that is not a JSON object: `EphysDataset:runSpikeInterface:BadParams` |
+| `Quality` | `unitQualityCriteria()`: the good-unit criteria the labels follow |
+| `NJobs` | the computer's cores: SpikeInterface's workers (threads) |
+| `ResultsDir` | `sortRunDir(Sorter)` |
+| `PythonExe`, `CondaEnv`, `ProbeFile`, `ExcludeChannels`, `BinFile`, `ArtifactIntervals`, `NChanBin`, `Fs`, `DryRun`, `Wait`, `Device`, `Launch`, `Provenance` | as for `runKilosort`; `Device` is passed on and not used |
+
+`result` has `runKilosort`'s fields (`sorter` is the SpikeInterface sorter).
+A dry run writes into `<run folder>/dryrun`.
+
+#### `[sorters, info] = EphysDataset.spikeInterfaceSorters(PythonExe=, CondaEnv=)`
+
+Runs [`si_sorters.py`](python-drivers.md#si_sorterspy) with that Python and
+returns the installed SpikeInterface sorters (`name`, `version`, `params`:
+the defaults as indented JSON text, `descriptions`: a table Parameter /
+Default / Description). `info` has `spikeinterface` (its version), `python`
+and `when`. The Sorting tab's **Find SpikeInterface sorters** calls it.
+Throws `EphysDataset:spikeInterfaceSorters:Failed` with Python's output when
+the script does not run.
+
+Small static helpers: `isSpikeInterfaceSorter(name)` (an identifier other
+than `kilosort4`), `sorterLabel(sorter)` (`"Kilosort4"` or `"<sorter>
+(SpikeInterface)"`), `sorterOfRunDir(folder)` (the sorter of a
+`si_<sorter>` folder, else `"kilosort4"`) and `sorterParamsProblem(text)`
+(why the text is not a sorter's parameters, `""` when it is).
 
 ### Derived signals (the `intan2matlab` processing)
 

@@ -1,36 +1,37 @@
 function syncReviewDataset(obj)
 %syncReviewDataset  Show the active dataset's sorted output on the Review tab.
-%   Loads the dataset's associated output (an explicit SortingDir, else the
-%   auto-discovered run), falling back to the DatasetTracker's latest
-%   Kilosort4 run so results in non-default folders are still found. A
-%   dataset without sorted output clears the tab, and so does one whose
-%   hand-picked folder is not there now (sortingMissing): no other sort
-%   stands in for it. Runs when the active dataset changes while the Review
-%   tab is open, else when the tab is next opened (ReviewDatasetIdx).
-%   Browse... / Load still take any results folder.
+%   Lists the dataset's sorts in the Sort dropdown (reviewSorts: its own,
+%   then every other folder under its output folder holding one) and loads
+%   its own: the associated output (an explicit SortingDir, else its
+%   Sorter's run folder, kilosort4 or si_<sorter>), else its most recently
+%   changed sort so results in other folders are still found. A dataset
+%   without sorted output clears the tab, and so does one whose hand-picked
+%   folder is not there now (sortingMissing): no other sort stands in for
+%   it, though Sort still lists the others to pick by hand. Runs when the
+%   active dataset changes while the Review tab is open, else when the tab
+%   is next opened (ReviewDatasetIdx). Sort loads another of the dataset's
+%   sorts (onReviewSortChanged), Use this sort makes the one shown the
+%   dataset's own (onReviewUseSort); Browse... / Load still take any
+%   results folder.
 idx = obj.SelectedDatasetIdx;
 obj.ReviewDatasetIdx = idx;
 if idx < 1; return; end
 obj.applyConfigToProject();
 d = obj.Project.Datasets(idx);
+[obj.ReviewSorts, use] = reviewSorts(d);
 if d.sortingMissing()
+    obj.showReviewSorts(d.SortingDir);
     clearReview(obj, d.Name + "'s sorted-output folder is not there now: " + d.SortingDir + ...
         ". Connect its disk or share, or choose another on the Sorting tab (Use folder... / Use auto).");
     return
 end
-folder = "";
-if d.hasKilosortResults()
-    folder = string(d.sortingResultsDir());
-else
-    run = d.tracker().latestKilosortRun();
-    if ~isempty(run) && run.HasResults
-        folder = string(run.Dir);
-    end
-end
-if folder == ""
-    clearReview(obj, d.Name + " has no Kilosort4 output yet. Run the Sorting step, or pin a results folder on the Sorting tab.");
+if use == 0
+    obj.showReviewSorts("");
+    clearReview(obj, d.Name + " has no sorted output yet. Run the Sorting step, or pin a results folder on the Sorting tab.");
     return
 end
+folder = obj.ReviewSorts(use).dir;
+obj.showReviewSorts(folder);
 obj.ReviewFolderField.Value = char(folder);
 obj.savePreferences();
 try
@@ -47,6 +48,7 @@ obj.ReviewData = struct([]);
 obj.ReviewSelectedUnit = 0;
 obj.ReviewSpikeWaves = struct([]);
 obj.ReviewUnitsTable.Data = {};
+obj.ReviewUseSortButton.Enable = "off";   % no sort shown
 for ax = [obj.ReviewShankAxes, obj.ReviewISIAxes, obj.ReviewACGAxes, obj.ReviewAmpAxes, obj.ReviewRateAxes, obj.ReviewUnitShankAxes]
     cla(ax, 'reset');
 end

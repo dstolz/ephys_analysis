@@ -22,6 +22,7 @@ steps can run before Python is installed.
 | Parallel Computing Toolbox | Runs artifact scans and spike detection in chunks on a process pool | Optional |
 | Miniconda (Windows) | Hosts the Python environments below | Only for sorting, probe design and the NWB export |
 | `kilosort` conda env (kilosort, probeinterface, torch) | Runs the sorting step and the probe designer | Only for sorting / probe design |
+| spikeinterface (in the `kilosort` env) | The SpikeInterface sorters of the Sorting tab (spykingcircus2, tridesclous2, ...) | Only to sort with them |
 | NVIDIA GPU + driver | Kilosort4 runs dramatically faster on GPU | Recommended, not required |
 | `phy` conda env (phy) | Manual curation of sorting results | Optional |
 | A Python with pynwb and nwbinspector | The NWB export (`Export.Formats` `nwb`, `EphysDataset.exportNWB`) | Only for the NWB export |
@@ -147,6 +148,25 @@ pip install phy --pre --upgrade
 
 Skip this if you don't plan to manually curate sorting results — Kilosort4
 still runs and writes phy-format output either way.
+
+### (Optional) SpikeInterface sorters
+
+The Sorting tab's **Sorter** can run a sorter through
+[SpikeInterface](https://spikeinterface.readthedocs.io) instead of
+Kilosort4. Add SpikeInterface to the `kilosort` env, with the extras its own
+sorters and the phy export need (pandas, scikit-learn, numba, networkx):
+
+```bat
+conda activate kilosort
+pip install "spikeinterface[full]==0.104.5"
+python -c "import spikeinterface.sorters as ss; print(ss.installed_sorters())"
+```
+
+Known to work: spikeinterface 0.104.5, probeinterface 0.3.2, pandas 3.0.3,
+scikit-learn 1.9.0, numba 0.65.1 (Python 3.11). That lists `spykingcircus2`,
+`tridesclous2`, `lupin` and `simple`, which need nothing else; another sorter
+needs its own package in the same env (`pip install mountainsort5`, ...). On
+the Sorting tab, **Find SpikeInterface sorters** then lists them.
 
 ### (Optional) A Python for the NWB export
 

@@ -171,7 +171,8 @@ for step = steps
                     add(step, k, out, "no recording files", "");
                 elseif ~isempty(run)
                     state = ternary(run.queued, "queued", "running");
-                    add(step, k, out, "skip: Kilosort4 " + state, "a Kilosort4 run for this dataset is " + state);
+                    who = EphysDataset.sorterLabel(EphysDataset.sorterOfRunDir(run.resultsDir));
+                    add(step, k, out, "skip: " + who + " " + state, "a " + who + " run for this dataset is " + state);
                 elseif probe == ""
                     add(step, k, out, "no probe", "");
                 elseif ~isfile(probe)

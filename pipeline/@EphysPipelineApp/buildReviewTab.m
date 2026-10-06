@@ -1,10 +1,13 @@
 function buildReviewTab(obj)
-%buildReviewTab  Summary stats + plots for a Kilosort4 results folder.
-%   The active dataset's sorted output loads when the tab opens or the
-%   dataset changes (syncReviewDataset); Browse... / Load take any other
-%   kilosort4/ output folder. The left column shows aggregate stats and a
-%   per-unit table. On the right, the selected unit's inter-spike interval
-%   histogram and autocorrelogram sit above spike amplitudes over time, and
+%buildReviewTab  Summary stats + plots for a sorted-output folder.
+%   Any sort in phy's files reads: Kilosort4's, a SpikeInterface sorter's
+%   (runSpikeInterface writes them in Kilosort4's layout), a phy-curated
+%   copy. The active dataset's sorted output loads when the tab opens or the
+%   dataset changes (syncReviewDataset); Sort lists the dataset's other
+%   sorts, and Browse... / Load take any other sorted-output folder. The
+%   left column shows aggregate stats and a per-unit table. On the right,
+%   the selected unit's inter-spike interval histogram and autocorrelogram
+%   sit above spike amplitudes over time, and
 %   beside them, largest, the selected unit's spikes on the shank it was
 %   detected on, with units per shank and per-unit firing rates below it.
 %   A row above the three timing plots overlays the unit's mean waveform
@@ -26,23 +29,41 @@ left.RowHeight = {'fit', 'fit', 30, 30, 'fit', 220, 'fit', '1x', 30};
 left.Padding   = [0 0 0 0];
 left.RowSpacing = 6;
 
-uilabel(left, "Text", "Kilosort4 results folder:", "FontWeight", "bold");
+uilabel(left, "Text", "Sorted output", "FontWeight", "bold");
 
-fr = uigridlayout(left, [1 2]);
-fr.ColumnWidth = {'1x', 'fit'};
+% The dataset, then which of its sorts (syncReviewDataset: each folder under
+% its output folder that holds one, and its pinned folder) with Use this
+% sort to make the one shown the dataset's own, then the folder itself,
+% which Browse... / Load take from anywhere.
+dr = uigridlayout(left, [2 3]);
+dr.ColumnWidth = {'fit', '1x', 'fit'};
+dr.RowHeight = {30, 30};
+dr.Padding = [0 0 0 0];
+dr.RowSpacing = 6;
+l = uilabel(dr, "Text", "Dataset:");
+l.Layout.Row = 1; l.Layout.Column = 1;
+obj.ReviewDatasetDropDown = obj.datasetPicker(dr);
+obj.ReviewDatasetDropDown.Layout.Row = 1; obj.ReviewDatasetDropDown.Layout.Column = [2 3];
+l = uilabel(dr, "Text", "Sort:");
+l.Layout.Row = 2; l.Layout.Column = 1;
+obj.ReviewSortDropDown = uidropdown(dr, "Items", {'(no sorts)'}, "Enable", "off", ...
+    "Tooltip", "The active dataset's sorts: each folder under its output folder that holds one (kilosort4, si_<sorter> for a SpikeInterface sorter, a sweep's variants) and the folder pinned on the Sorting tab. ""in use"" marks the one Export and the analysis read. Choosing one loads it, for review only.", ...
+    "ValueChangedFcn", @(~,~) obj.onReviewSortChanged());
+obj.ReviewSortDropDown.Layout.Row = 2; obj.ReviewSortDropDown.Layout.Column = 2;
+obj.ReviewUseSortButton = uibutton(dr, "Text", "Use this sort", "Enable", "off", ...
+    "Tooltip", "Make the sort shown the active dataset's sorted output, which Export, the analysis and phy from the Sorting tab read (as the Sorting tab's Use folder... does; the run folder of the config's sorter is Use auto). Off while it already is.", ...
+    "ButtonPushedFcn", @(~,~) obj.onReviewUseSort());
+obj.ReviewUseSortButton.Layout.Row = 2; obj.ReviewUseSortButton.Layout.Column = 3;
+
+fr = uigridlayout(left, [1 3]);
+fr.ColumnWidth = {'1x', 'fit', 'fit'};
 fr.Padding = [0 0 0 0];
 obj.ReviewFolderField = uieditfield(fr, "text", ...
-    "Placeholder", "...\<dataset>\kilosort4");
+    "Placeholder", "...\<dataset>\kilosort4, si_<sorter>, ...");
 obj.BrowseReviewButton = uibutton(fr, "Text", "Browse...", ...
     "ButtonPushedFcn", @(~,~) obj.onBrowseReviewFolder());
-
-dr = uigridlayout(left, [1 3]);
-dr.ColumnWidth = {'fit', '1x', 'fit'};
-dr.Padding = [0 0 0 0];
-uilabel(dr, "Text", "Dataset:");
-obj.ReviewDatasetDropDown = obj.datasetPicker(dr);
-obj.LoadReviewButton = uibutton(dr, "Text", "Load", ...
-    "Tooltip", "Load the results folder above.", ...
+obj.LoadReviewButton = uibutton(fr, "Text", "Load", ...
+    "Tooltip", "Load the sorted-output folder beside it (any folder holding params.py and spike_clusters.npy).", ...
     "ButtonPushedFcn", @(~,~) obj.loadReviewResults());
 
 br = uigridlayout(left, [1 2]);
@@ -52,7 +73,7 @@ obj.OpenReviewFolderButton = uibutton(br, "Text", "Open folder in explorer", ...
     "ButtonPushedFcn", @(~,~) obj.onOpenReviewFolder());
 obj.ReviewPhyButton = uibutton(br, "Text", "Open in phy", ...
     "ButtonPushedFcn", @(~,~) obj.onReviewOpenPhy(), ...
-    "Tooltip", "Run 'phy template-gui params.py' in the results folder above");
+    "Tooltip", "Run 'phy template-gui params.py' in the sorted-output folder above");
 
 uilabel(left, "Text", "Summary", "FontWeight", "bold");
 
@@ -60,7 +81,7 @@ summaryPanel = uipanel(left);
 sg = uigridlayout(summaryPanel, [1 1]);
 sg.Padding = [8 6 8 6];
 obj.ReviewSummaryLabel = uilabel(sg, ...
-    "Text", "Pick a Kilosort4 results folder and press Load.", ...
+    "Text", "Pick a dataset's sort, or a sorted-output folder, and press Load.", ...
     "VerticalAlignment", "top", "WordWrap", "on", ...
     "FontName", "monospaced", "FontColor", [0.2 0.2 0.2]);
 

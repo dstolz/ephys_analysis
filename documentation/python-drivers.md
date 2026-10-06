@@ -8,16 +8,19 @@ executable through `system()`, with the paths double-quoted:
 conda run -n <CondaEnv> "<PythonExe>" "<script>" <args...>     % when CondaEnv is set
 ```
 
-The scripts below are checked into the repository. The sorting driver is
-**copied** into each run folder before it is executed, so every run keeps the
-exact script it used. A background sorting run on Windows goes through a
-batch file written to the run folder, `ks4_launch.cmd`, which runs that
-command (every path in quotes of its own, so paths with `&` or `^` work) and
-then writes the exit marker `ks4_exit.txt`.
+The scripts below are checked into the repository. The sorting drivers are
+**copied** into each run folder before they are executed, so every run keeps
+the exact script it used. A background sorting run on Windows goes through a
+batch file written to the run folder, `ks4_launch.cmd` (`si_launch.cmd` for
+a SpikeInterface sorter), which runs that command (every path in quotes of
+its own, so paths with `&` or `^` work) and then writes the exit marker
+`ks4_exit.txt`.
 
 | Script | Called by | Environment needs |
 | --- | --- | --- |
 | [`run_ks4.py`](../pipeline/@EphysDataset/run_ks4.py) | `EphysDataset.runKilosort` (the pipeline's Sorting step) | kilosort, torch |
+| [`run_si.py`](../pipeline/@EphysDataset/run_si.py) | `EphysDataset.runSpikeInterface` (the Sorting step with a SpikeInterface sorter) | spikeinterface[full], the sorter |
+| [`si_sorters.py`](../pipeline/@EphysDataset/si_sorters.py) | `EphysDataset.spikeInterfaceSorters` (the Sorting tab's **Find SpikeInterface sorters**) | spikeinterface |
 | [`probe_tool.py`](../pipeline/@EphysPipelineApp/probe_tool.py) | `EphysPipelineApp.runProbeTool` (`runProbeToolWith`) / `ProbeDesignerApp` / `ChannelMapperApp` | probeinterface |
 | [`nwb_export.py`](../pipeline/@EphysDataset/nwb_export.py) | `EphysDataset.exportNWB` (the Export step's `nwb` format) | pynwb, nwbinspector |
 
@@ -82,6 +85,73 @@ were disabled at acquisition (gaps in the numbering), the probe must already
 account for the gap. A recording spanning more than one Intan port (`A-000`
 and `B-000`) does not give distinct numbers, so its channels are numbered by
 position (`EphysReader:ChannelNumbersNotUnique` warns).
+
+---
+
+## `run_si.py`
+
+Usage: `run_si.py <settings.json> [--device <torch device>]`.
+
+`runSpikeInterface` writes the `.bin` first, as `runKilosort` does, then
+`settings.json`, the sorter's parameters (`si_params.json`, as edited) and a
+copy of this script into `<output folder>/si_<sorter>`
+([Running a SpikeInterface sorter](EphysDataset.md#running-a-spikeinterface-sorter)).
+`settings.json` holds `sorter`, `filename`, `n_chan_bin`, `fs`, `data_dtype`,
+`probe`, `results_dir`, `sorter_params` (the parameter file, beside it),
+`reference` (`none` / `car` / `cmr`: what the `.bin` carries), `quality`
+(the good-unit criteria), `n_jobs`, `bin_scale` and `provenance`. The script:
+
+1. merges `si_params.json` over `spikeinterface.sorters.get_default_sorter_params`
+   (nested objects key by key) and drops, with a note in the log, top-level
+   names the sorter does not have (`run_sorter` would refuse the run);
+2. when `reference` is `car` / `cmr`, keeps the sorter from referencing the
+   data again: a `do_CAR` / `car` parameter is set false, and the
+   `common_reference` that SpikeInterface's internal sorters call on 32
+   channels or more is made to return the recording unchanged in the
+   sorter's module (logged as `... so it is referenced once`);
+3. sets SpikeInterface's jobs to `n_jobs` threads (process pools import
+   SpikeInterface again in every worker on Windows, which took most of a
+   run's time), deletes an earlier sort's phy files from the folder, reads
+   the `.bin` (`read_binary`, no gain: the templates stay in `.bin` units)
+   and attaches the probe (`kcoords` become the channel groups);
+4. runs `spikeinterface.sorters.run_sorter` in `si_work` and loads the
+   sorting into memory, without its empty units (no unit at all is an
+   error);
+5. on a 300 Hz high-pass of the `.bin`, builds a sparse SortingAnalyzer in
+   memory: random spikes (500 per unit), waveforms (1 ms before, 2 ms after),
+   templates, noise levels, spike amplitudes, spike locations (centre of
+   mass) and the quality metrics `firing_rate`, `presence_ratio`, `snr`,
+   `isi_violation`, `amplitude_cutoff` and `drift`;
+6. labels each unit `good` or `mua` with `unit_labels`, which applies the
+   criteria as `unitQualityPass` does (a `NaN` threshold is not applied; a
+   `NaN` metric passes unless `unknown` is `fail`);
+7. fits the PCs one channel after another (a process pool otherwise) and
+   writes the phy files with `spikeinterface.exporters.export_to_phy`
+   (`copy_binary=False`), then makes them read as Kilosort4's do:
+   `templates.npy` dense (no `template_ind.npy`), `whitening_mat(_inv).npy`
+   the identity, `channel_map.npy` the `.bin` rows of the sorted channels,
+   `channel_shanks.npy` their `kcoords`, `amplitudes.npy` magnitudes,
+   `spike_positions.npy` the spike locations, `params.py` naming the `.bin`
+   with all its channels, and `cluster_SILabel.tsv` with its copy as
+   `cluster_group.tsv` (header `SILabel`, so it does not read as phy's);
+8. adds `nt0min` (the template sample on the spike time) to
+   `settings.json` and deletes `si_work`.
+
+It writes `si_status.json` (`{"state": "done", "num_units", "num_good",
+"sorter", "dropped_params"}` or `{"state": "error", "message",
+"traceback"}`) in the run folder and prints `SPIKEINTERFACE_DONE units=<n>
+good=<n>` / `SPIKEINTERFACE_ERROR`. `--device` is logged and not used.
+Known to work: spikeinterface 0.104.5 with tridesclous2 (a 32-channel
+synthetic recording, 18 units for 16 in the recording); the internal sorters
+need the `[full]` extras (pandas, scikit-learn, numba, networkx).
+
+## `si_sorters.py`
+
+Usage: `si_sorters.py <output.json>`. Lists the sorters
+`spikeinterface.sorters.installed_sorters()` gives, each with its version, its
+default parameters as indented JSON text (so nulls and nested objects reach
+the Sorting tab as they are) and the description of each parameter
+(`get_sorter_params_description`), in `<output.json>`.
 
 ---
 
@@ -171,11 +241,11 @@ the file back returned every staged value unchanged.
   Setting **Conda env** wraps the call in `conda run -n <env>`, which needs
   `conda` on `PATH`.
 - A blocking sorting run (`Sorting.Execution` `blocking`) captures the
-  output and writes it to `ks4_run.log` once the process exits. A
-  background run redirects the output there as it comes, with
+  output and writes it to `ks4_run.log` (`si_run.log`) once the process
+  exits. A background run redirects the output there as it comes, with
   `PYTHONUNBUFFERED=1` so that Python does not hold it back. The status a
-  background launch returns is the launcher's, not Kilosort4's exit code:
-  read `ks4_status.json`.
+  background launch returns is the launcher's, not the sorter's exit code:
+  read `ks4_status.json` (`si_status.json`).
 - `launchSorting` deletes the results folder's `ks4_status.json` and
   `ks4_exit.txt` before each launch, so both describe the latest run only.
   A background run writes the empty `ks4_exit.txt` once its process exits.

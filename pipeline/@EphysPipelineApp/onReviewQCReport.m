@@ -8,7 +8,7 @@ function onReviewQCReport(obj)
 %   for their mean waveforms, under a progress dialog.
 R = obj.ReviewData;
 if isempty(R) || ~isfield(R, 'units')
-    uialert(obj.Fig, "Load a Kilosort4 results folder first.", "QC report");
+    uialert(obj.Fig, "Load a sort first.", "QC report");
     return
 end
 if ~isfield(R.units, 'presenceRatio')

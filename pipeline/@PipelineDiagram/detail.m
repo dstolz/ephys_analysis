@@ -214,7 +214,7 @@ function n = sortingTree(cfg, d)
 % The recording, with the common reference and the artifact periods
 % erased, goes to a .bin and into Kilosort4, which crops (tmin/tmax) and,
 % only when the .bin carries no common reference, references (do_CAR)
-% itself.
+% itself. A SpikeInterface sorter takes the same .bin (spikeInterfaceTree).
 S = cfg.Sorting; K = S.KS4;
 A = cfg.Artifacts;
 
@@ -239,6 +239,12 @@ blank = node("link", "Blank artifact periods", ...
     [ternary(A.Enabled && A.ApplyToSorting, "manual + automatic", "manual periods only"), ...
     ternary(A.Fill == "noise", "noise-filled", "zeroed") + " before the .bin is written"], ...
     "ArtApplySortingCheckBox,ArtFillDropDown");
+writeBin = node("stage", "Write .bin", ["the recording, int16, channel-interleaved", "<Name>.bin (toBin)"], "PythonExeField,CondaEnvField");
+attach = node("op", "Attach probe map", [probe, "chanMap indexes .bin rows"], "ProbeDatasetDropDown,ProbeDefaultField,ExcludeChannelsField");
+if S.Sorter ~= "kilosort4"
+    n = spikeInterfaceTree(cfg, S, {blank, writeBin, attach});
+    return
+end
 
 hp = node("op", "KS4 high-pass", sprintf("%g Hz", K.highpass_cutoff), "ks4.highpass_cutoff");
 ks4 = EphysPipelineConfig.ks4Settings(S);
@@ -268,16 +274,39 @@ out = node("out", "Sorted units", ["kilosort4/", "phy-ready"], outTarget);
 
 n = step("sorting", "Sorting", S.Enabled, sortingNote(S), ...
     "SortEnableCheckBox,SortSkipExistingCheckBox,ExecModeDropDown,DryRunCheckBox", ...
-    {blank, ...
-    node("stage", "Write .bin", ["the recording, int16, channel-interleaved", "<Name>.bin (toBin)"], "PythonExeField,CondaEnvField"), ...
-    node("op", "Attach probe map", [probe, "chanMap indexes .bin rows"], "ProbeDatasetDropDown,ProbeDefaultField,ExcludeChannelsField"), ...
+    {blank, writeBin, attach, ...
     node("stage", "Kilosort4", "run_kilosort", ksStage), ...
     crop, hp, ksCar, art, white, drift, det, clu, out});
 end
 
 
+function n = spikeInterfaceTree(cfg, S, first)
+% A SpikeInterface sorter on the .bin Kilosort4 would sort (FIRST: the
+% artifact periods erased, the .bin, the probe): its own preprocessing,
+% less a second common reference, then run_si.py's templates and labels.
+sorter = S.Sorter;
+target = "SortSorterDropDown,SIParamsArea";
+if cfg.Reference.Mode ~= "none"
+    ref = node("off", "Its common reference", ["kept out: the .bin", "already carries the common reference"], "ArtRefDropDown");
+else
+    ref = node("op", "Its common reference", ["its own (spykingcircus2, tridesclous2, ...", "on 32 channels or more): the one here"], target);
+end
+p = strtrim(EphysPipelineConfig.siParams(S));
+params = node(ternary(p == "", "off", "op"), "Parameters", ...
+    ternary(p == "", "SpikeInterface's defaults", "Sorting.SIParams." + sorter + " over the defaults"), target);
+own = node("op", "Its own preprocessing", ["filtering, whitening, drift correction", "as " + sorter + " does them"], target);
+post = node("op", "Templates, amplitudes, positions", ["300 Hz high-pass of the .bin", "(SortingAnalyzer, quality metrics)"], "");
+labels = node("op", "Labels", ["good / mua by the", "good-unit criteria (Review tab)"], "LoadReviewButton");
+out = node("out", "Sorted units", ["si_" + sorter + "/", "phy-ready"], "SortDatasetDropDown,SortUseFolderButton,SortPhyButton");
+n = step("sorting", "Sorting", S.Enabled, sortingNote(S), ...
+    "SortEnableCheckBox,SortSkipExistingCheckBox,ExecModeDropDown,DryRunCheckBox", ...
+    [first, {node("stage", sorter, ["SpikeInterface", "run_sorter (run_si.py)"], target), ...
+    ref, params, own, post, labels, out}]);
+end
+
+
 function txt = sortingNote(S)
-txt = "Kilosort4 on a .bin, runs " + S.Execution;
+txt = EphysDataset.sorterLabel(S.Sorter) + " on a .bin, runs " + S.Execution;
 if S.Execution == "background"
     txt = txt + " (" + S.MaxConcurrent + " at a time)";
 end

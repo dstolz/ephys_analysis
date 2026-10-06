@@ -1370,9 +1370,12 @@ and [Common reference](EphysDataset.md#common-reference-car--cmr).
 
 ## Sorting
 
-Kilosort4, optional (`Sorting.Enabled`). The step writes `<Name>.bin` with the
-artifact periods erased (noise by default, see the Artifacts tab) and runs
-`run_ks4.py` on it. See [Running Kilosort4](EphysDataset.md#running-kilosort4).
+Kilosort4, or a SpikeInterface sorter, optional (`Sorting.Enabled`). The
+step writes `<Name>.bin` with the artifact periods erased (noise by default,
+see the Artifacts tab) and runs `run_ks4.py` on it, or, with a
+[SpikeInterface sorter](#spikeinterface-sorters) chosen in **Sorter**,
+`run_si.py`. See [Running Kilosort4](EphysDataset.md#running-kilosort4) and
+[Running a SpikeInterface sorter](EphysDataset.md#running-a-spikeinterface-sorter).
 The tab also associates each dataset with its sorted output and opens it in
 phy. Sorting runs in a Python environment of its own
 ([installation](../pipeline/INSTALL.md)); everything else in the pipeline
@@ -1410,6 +1413,7 @@ executable to be sorted.
 | Control | Maps to |
 | --- | --- |
 | Enable the Sorting step, Skip datasets already sorted | `Sorting.Enabled`, `SkipExisting` |
+| Sorter, **Find SpikeInterface sorters** | `Sorting.Sorter`: Kilosort4 (`"kilosort4"`, the default), or a SpikeInterface sorter the button found in the Python env ([SpikeInterface sorters](#spikeinterface-sorters)) |
 | Python exe (+ Browse), Conda env | `Sorting.PythonExe`, `CondaEnv` (optional: when set, commands run as `conda run -n <env> "<Python exe>" ...`). A new config starts with the Python exe last set in the app (the `PythonExe` preference), else the `kilosort` conda env's `python.exe` found under `CONDA_EXE` or a `miniconda3`, `anaconda3`, `miniforge3` or `mambaforge` folder in `%LOCALAPPDATA%`, `%USERPROFILE%`, `%ProgramData%` or `C:\` |
 | Phy command | preference `PhyCmd`, not part of the config. Blank = the `phy` executable of the `phy` conda env, found in the conda install that holds the Python exe, the one `CONDA_EXE` names, or `%LOCALAPPDATA%\miniconda3`, `%USERPROFILE%\miniconda3` or `%USERPROFILE%\anaconda3`; else `conda run -n phy phy`. phy is started in the sorted-output folder with `pushd` and delayed expansion, so a folder whose path holds `&` or spaces, or a UNC folder, works |
 | Execution (background / blocking), Dry run | `Sorting.Execution`, `DryRun`. How many background runs go at once is set on the [Run](#run) tab |
@@ -1417,9 +1421,64 @@ executable to be sorted.
 | Kilosort4 parameters (five groups, from `EphysPipelineConfig.kilosortParamSpec`), Extra settings (JSON), Kilosort4 parameter docs link | `Sorting.KS4`, `KS4ExtraJSON` ([Kilosort4 parameters](#kilosort4-parameters)) |
 | **Optimize for probe** | loads the Kilosort4 parameters saved for the active dataset's probe (else the default probe) from `<probe>.ks4.json` next to the probe map; without that file, offers to generate it from the current parameters or from the probe layout ([details](#optimize-for-probe)) |
 | **Reset to defaults** | every `Sorting.KS4` parameter back to its `kilosortParamSpec` default and `KS4ExtraJSON` cleared; the Python and execution settings stay |
+| a SpikeInterface sorter's parameters (JSON), their descriptions, **Reset to defaults**, SpikeInterface sorter docs link | in place of the Kilosort4 parameters when a SpikeInterface sorter is chosen: `Sorting.SIParams.<sorter>` ([SpikeInterface sorters](#spikeinterface-sorters)) |
 | **Sorted output** panel: Dataset, label, **Use folder...**, **Use auto**, **Open in phy** | the active dataset's sorted-output association ([Sorted output](#sorted-output)) |
 | **Run this step** | `EphysPipeline.runSorting` over the selected datasets |
 | progress label + **Kilosort4 log** | background runs (`ks4_run.log` tail, `ks4_status.json`), see [Watching background runs](#watching-background-runs) |
+
+### SpikeInterface sorters
+
+**Sorter** picks what sorts: Kilosort4, run as it always is (the rest of
+this section's Kilosort4 controls), or a sorter that
+[SpikeInterface](https://spikeinterface.readthedocs.io) runs. **Find
+SpikeInterface sorters** asks the Python exe (and Conda env) which sorters
+its SpikeInterface has installed (`EphysDataset.spikeInterfaceSorters`): the
+ones that need nothing else, such as `spykingcircus2`, `tridesclous2`,
+`lupin` and `simple`, and any other whose package is installed there
+(`pip install mountainsort5`, ...). The list is kept in the preference
+`SISorters`, so it is there when the app next opens. SpikeInterface's own
+`kilosort4` is left out: Kilosort4 runs natively.
+
+With a SpikeInterface sorter chosen, its parameters take the Kilosort4
+parameters' place on the tab: a JSON text on the left, seeded with
+SpikeInterface's defaults for that sorter, and each parameter's default and
+description on the right. What you edit is saved per sorter in
+`Sorting.SIParams.<sorter>` (the defaults, or `{}`, are saved as `""`), and
+goes over SpikeInterface's defaults when the sorter runs (nested objects key
+by key); a name the sorter does not have is dropped, and the run's log says
+so. **Reset to defaults** puts the defaults back. Switching the sorter keeps
+each sorter's parameters, and Kilosort4's settings stay as they were.
+
+The run (`EphysDataset.runSpikeInterface`, `run_si.py`):
+
+1. the same `.bin` Kilosort4 would sort: the artifact periods erased and the
+   common reference applied once. When the `.bin` carries the common
+   reference, the sorter's own is kept out: SpikeInterface's internal sorters
+   (`spykingcircus2`, `tridesclous2`, `lupin`) subtract a median reference on
+   32 channels or more, which is skipped, and a `do_CAR` / `car` parameter is
+   set false, as Kilosort4's `do_CAR` is. The sorter's other preprocessing
+   (filtering, whitening, drift correction) is its own;
+2. the probe map attached (its `kcoords` are the channel groups), the
+   excluded channels' sites left out;
+3. templates, amplitudes, spike positions and quality metrics computed on a
+   300 Hz high-pass of the `.bin`;
+4. each unit labelled `good` or `mua` by the good-unit criteria
+   (`Sorting.Quality`, set on the [Review](#review) tab), with
+   SpikeInterface's quality metrics and `unitQualityPass`'s rules: these
+   sorters give no labels of their own. phy or the Review tab can change
+   them as for Kilosort4;
+5. phy files written to `<output folder>/si_<sorter>/`, in the layout
+   Kilosort4 leaves, so **Open in phy**, the Review tab, the QC report, the
+   exports and the analysis read them as they read a Kilosort4 sort.
+
+The sorted output the other tabs read follows the sorter: the
+`si_<sorter>` folder when a SpikeInterface sorter is chosen, `kilosort4`
+for Kilosort4 (a folder picked with **Use folder...** still wins). Runs of
+both kinds share the background slots (**Runs at once** on the Run tab); the
+GPUs listed there are Kilosort4's. A dataset with a run of either kind
+queued or going is not sorted again, since both sort its `.bin`.
+SpikeInterface needs its own install in the Python env (it is in the
+`kilosort` env of [INSTALL.md](../pipeline/INSTALL.md)).
 
 ### Kilosort4 parameters
 
@@ -1510,7 +1569,7 @@ step, the Review tab, phy and the analysis read the units from there.
 | Control | Effect |
 | --- | --- |
 | Dataset + label | the active dataset, its association (`auto` or `manual`) and folder, its cluster count, and whether it is phy-curated (`cluster_group.tsv`) or not (`cluster_KSLabel.tsv`) |
-| **Use folder...** | pick any folder holding Kilosort4 / phy output (`params.py`), or a folder whose `kilosort4` subfolder holds it. Saved as `manual`, and kept while that folder is not there (a disk not connected): the steps then report it missing, and no other sort stands in for it |
+| **Use folder...** | pick any folder holding Kilosort4 / phy output (`params.py`), or a folder whose `kilosort4` subfolder holds it. Saved as `manual`, and kept while that folder is not there (a disk not connected): the steps then report it missing, and no other sort stands in for it. The [Review](#review) tab's **Use this sort** does the same for the sort it shows |
 | **Use auto** | back to automatic: `kilosort4/` in the dataset's output folder, where the step writes |
 | **Open in phy** | opens the associated output in phy with the **Phy command** |
 
@@ -2587,8 +2646,11 @@ the dataset's manifest, so they survive a rescan and a restart.
 
 Summarizes a sorted-output folder (the folder holding `params.py`): its units
 per shank and label, their spike counts, rates, quality metrics, positions and
-waveforms. It reads the output as saved and changes nothing but the unit
-notes. Every cluster is shown, `noise` included. A folder
+waveforms. Any sorter's output reads, as long as it is in phy's files:
+Kilosort4's, a SpikeInterface sorter's (written in Kilosort4's layout, see
+[Sorting](#sorting)) or a phy-curated copy of either. It reads the output as
+saved and changes nothing but the unit notes. Every cluster is shown,
+`noise` included. A folder
 that belongs to the active dataset (under its folder or output folder, or its
 pinned sorting folder) is read with `EphysDataset.readSortedUnits`, so units
 carry their full labels (`su042_1255_260908T1039`, see
@@ -2598,20 +2660,45 @@ dataset whose name does not match `Project.NamePattern`, is read with
 
 <!-- wiki: ![The Review tab with a unit selected](images/app-review-tab.png) -->
 
-- **Dataset**: the active dataset. Its associated sorted output (else the
-  latest Kilosort4 run the `DatasetTracker` finds) loads when the tab opens
-  and whenever the active dataset changes while it is open. A dataset without
-  sorted output clears the tab, and so does one whose hand-picked
-  sorted-output folder is not there now: the tab says so, and no other sort
-  stands in for it. **Browse...** / **Load** accept any results
-  folder, a dataset folder or a `kilosort4` folder (the folder itself, else
-  its `kilosort4` subfolder). **Open folder in explorer**, **Open in phy**.
+- **Dataset**: the active dataset. Its own sorted output loads when the tab
+  opens and whenever the active dataset changes while it is open: the
+  folder pinned with **Use folder...** on the Sorting tab, else the run
+  folder of the config's **Sorter** (`kilosort4`, or `si_<sorter>`), else
+  its most recently changed sort. A dataset without sorted output clears
+  the tab, and so does one whose hand-picked sorted-output folder is not
+  there now: the tab says so, and no other sort stands in for it.
+- **Sort**: every sort the active dataset has, to review any of them. Its
+  own comes first, marked **in use** (the one Export and the analysis
+  read), then each other folder under its output folder that holds a sort
+  (`spike_clusters.npy`): `kilosort4`, `si_<sorter>` for each
+  SpikeInterface sorter run, a [sort sweep](EphysDataset.md#unit-quality-metrics)'s variants, a
+  copy. Each item names the folder (relative to the output folder;
+  **pinned** and the full path for a pinned folder elsewhere), its sorter
+  (the run's `settings.json`, else the folder's name) and its number of
+  units. Choosing one loads it for review only: it changes nothing the
+  other steps read. With a pinned folder that is not there, the list still
+  offers the others.
+- **Use this sort** (beside Sort): makes the sort shown the active
+  dataset's sorted output, as **Use folder...** on the Sorting tab does,
+  so Export, the analysis, Visualize's units and phy from the Sorting tab
+  read it, and the list marks it **in use**. The folder is pinned to the
+  dataset (saved in its manifest), except the run folder of the config's
+  **Sorter**, which is the auto association: for it the pin is cleared, as
+  **Use auto** does. A folder from **Browse...** / **Load** that is not one
+  of the dataset's sorts is used only after you confirm. The button is off
+  while no sort is shown or the one shown is already in use.
+- **Browse...** / **Load** accept any sorted-output folder, a dataset
+  folder or a `kilosort4` folder (the folder itself, else its `kilosort4`
+  subfolder); one that is not among the dataset's sorts is added to
+  **Sort** as **other**. **Open folder in explorer**, **Open in phy**.
 - **Summary**: the dataset key and label form (or the folder and why labels
-  are short), Fs, the sorted time (**Sorted:** its length and span), channels,
-  shanks, unit counts by label, total spikes, mean rate over the sorted time,
-  units per shank.
+  are short), the sorter and where the groups come from (curated in phy,
+  Kilosort4's `KSLabel`, or a SpikeInterface sort's `SILabel`: good / mua by
+  the good-unit criteria), Fs, the sorted time (**Sorted:** its length and
+  span), channels, shanks, unit counts by label, total spikes, mean rate
+  over the sorted time, units per shank.
 - **Units table**: Unit, Group (phy's `cluster_group.tsv` when present, else
-  `cluster_KSLabel.tsv`), Shank, Ch (the peak channel's native name, else its
+  `cluster_KSLabel.tsv`, or a SpikeInterface sort's `cluster_SILabel.tsv`), Shank, Ch (the peak channel's native name, else its
   recording channel number), X / Y (µm, the template centre on the probe),
   #Spk, FR (Hz), Amp, Cont%, **QC** (meets the criteria: yes / no), the
   metrics it judges (ISIv: ISI violations ratio, Pres: presence ratio,
@@ -3214,7 +3301,7 @@ app.KSQueue                       % prepared runs waiting for a slot (Queue the 
 | `onPlotVisualization.m`, `applyVizSettings.m`, `onVizControlsChanged.m`, `onVizViewChanged.m`, `onVizInput.m`, `onVizButtonDown/Up.m`, `refreshVizShading.m`, `vizDetectedIntervals.m`, `updateVizArtStatus.m`, `syncVizDataset.m`, `loadVizEvents.m`, `onVizReadEvents.m`, `showVizHelp.m`; `pipeline/EphysTraceViewer.m`, `pipeline/EphysTraceSource.m`, `pipeline/EphysTraceEnvelope.m` | Visualize tab: loading the active dataset's signals and spikes, the controls, the wheel / keys / drags, the shading (`vizDetectedIntervals`: the Artifacts preview's intervals the plot shades, or why none; `updateVizArtStatus`: their counts, and whether the last run's match the current settings); the digital-input events and Read events; the "?" window of mouse and key controls; the viewer, the windowed sources behind it and their envelopes (min / max cached on disk, built in the background) |
 | `buildFlowTab.m`, `refreshFlowChart.m`, `flowChartHTML.m`, `flowOverviewHTML.m`, `onFlowViewChanged.m`, `onFlowLayoutChanged.m`, `onSaveFlowChart.m`, `onOpenFlowChartInBrowser.m`, `onFlowNavigate.m`, `flowNavControls.m`, `clearFlowHighlight.m` | Diagram tab: the page in the view picked, drawn by [`PipelineDiagram`](../pipeline/@PipelineDiagram/PipelineDiagram.m), a plain class the app calls (`detail`: every parameter; `overview`: the data flow, laid out and routed there; `zoomFrame`: the zoom and pan, kept per view by the app), save / open, a box's click |
 | `buildCopyTab.m`, `onCopyFind.m`, `onCopyRun.m`, `refreshCopyTable.m`, `onCopyTableEdited.m`, `onCopyStitch.m`, `onCopyUnstitch.m`, `onBrowseCopyFolder.m`, `copyLog.m`, `onCopyCancel.m`, `startCopyMonitor.m`, `stopCopyMonitor.m`, `pollCopyJob.m`, `setCopyRunning.m`, `applyCopyResult.m`, `finishCopyRun.m`, `showCopyProgress.m`, `copySummaryText.m`, `refreshCopySchedule.m`, `onCopyScheduleSave.m`, `onCopyScheduleRemove.m`, `onCopyScheduleRunNow.m`, `onCopyScheduleLog.m`; `pipeline/findCopySessions.m`, `pipeline/stitchCopySessions.m`, `pipeline/copySessions.m`, `pipeline/copy_engine.ps1`, `pipeline/stitchEpsychSessions.m`, `pipeline/CopySchedule.m` | Copy tab, the pairing / stitching / copy functions it calls, the detached copy engine, and the scheduled copy (its Windows task and what each run does) |
-| `loadReviewResults.m`, `renderReviewPlots.m`, `syncReviewDataset.m`, `showReviewUnits.m` | Review tab (`showReviewUnits`: the units table in its sort, the selected unit's row kept) |
+| `loadReviewResults.m`, `renderReviewPlots.m`, `syncReviewDataset.m`, `showReviewSorts.m`, `onReviewSortChanged.m`, `onReviewUseSort.m`, `private/reviewSorts.m`, `private/sorterOfSort.m`, `showReviewUnits.m` | Review tab (`reviewSorts`: the active dataset's sorts and the one to show; `showReviewSorts`: the Sort list and whether Use this sort is on; `onReviewUseSort`: the sort shown made the dataset's own; `showReviewUnits`: the units table in its sort, the selected unit's row kept) |
 | `buildSyntheticTab.m`, `onSynthLoadSource.m`, `onSynthPreview.m`, `renderSynthPreview.m`, `onSynthGenerate.m`, `generateSynthetic.m`, `onSynthDesign.m`, `onSynthControlsChanged.m`, `onSynthSourceChanged.m`, `syncSynthControls.m`, `gather/applySynthDesign.m`, `synthColumns.m`, `synthSourceLists.m`, `synthSourceKey.m`, `synthGeneratorArgs.m`, `synthOutputRoot.m`, `synthOutputFolder.m`; `pipeline/SyntheticDesign.m`, `pipeline/syntheticModel.m`, `pipeline/syntheticTaskSchedule.m`, `pipeline/syntheticSessionSchedule.m`, `pipeline/makeSyntheticRecording.m` | Synthetic tab (`generateSynthetic`: Generate without its questions; `synthGeneratorArgs`: the options Preview and Generate share) and the generator |
 | `buildCleanupTab.m`, `onCleanupPreview.m`, `onCleanupRun.m`, `runCleanup.m`, `onCleanupMethodChanged.m`, `onCleanupBrowseDest.m`, `onCleanupSettingsChanged.m`, `refreshCleanupScope.m`, `refreshCleanupTable.m`; `pipeline/planLocalCleanup.m`, `pipeline/runLocalCleanup.m` | Clean up tab and the functions that decide and remove |
 | `load/savePreferences.m` | preferences |
@@ -3299,7 +3386,10 @@ workspace and **Write behavior .mat** items, Prefetch and Auto approve); Map
 channels; the run saving the pipeline script and the issue report's Run log;
 the Review tab (unit labels, location and Notes, the quality metrics, QC
 column, criteria and report, the shank, ISI and autocorrelogram plots, the
-waveform overlay, the template without the sorted `.bin`); background
+waveform overlay, the template without the sorted `.bin`; the Sort list:
+the dataset's own sort and every other, a SpikeInterface sort, a browsed
+folder, a pinned folder that is not there; Use this sort pinning a sort,
+or going back to auto for the config sorter's run folder); background
 Kilosort4 runs N at a time (the slot wait, the monitor streaming each run's
 log), the GPUs field, the queue, Stop queue and Stop runs; the Clean up tab's
 search, Subject ID list and tick buttons; and the Visualize tab's "?" window,

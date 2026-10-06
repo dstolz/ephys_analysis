@@ -13,7 +13,7 @@ g.Padding     = [10 10 10 10];
 opt = uipanel(g, "Title", "Signal options (config: Signals; EphysDataset.deriveSignals / toMat)");
 opt.Layout.Column = 1;
 
-nRows = 29;
+nRows = 28;
 cg = uigridlayout(opt, [nRows 5]);
 cg.Scrollable  = "on";
 cg.RowHeight   = repmat({26}, 1, nRows);
@@ -24,7 +24,11 @@ changed = @(~,~) obj.onConvertControlsChanged();
 r = 1;
 obj.SigEnableCheckBox = uicheckbox(cg, "Text", "Enable the Signals step", "FontWeight", "bold", ...
     "Value", false, "ValueChangedFcn", changed);
-obj.SigEnableCheckBox.Layout.Row = r; obj.SigEnableCheckBox.Layout.Column = [1 5];
+obj.SigEnableCheckBox.Layout.Row = r; obj.SigEnableCheckBox.Layout.Column = [1 2];
+obj.ConvOverwriteCheckBox = uicheckbox(cg, "Text", "Overwrite existing", "FontWeight", "bold", ...
+    "Value", false, "Tooltip", "Replace output files that already exist (off = skip those datasets).", ...
+    "ValueChangedFcn", changed);
+obj.ConvOverwriteCheckBox.Layout.Row = r; obj.ConvOverwriteCheckBox.Layout.Column = [3 5];
 
 % --- Output ---
 r = r + 1;
@@ -53,11 +57,6 @@ obj.ConvMatVersionDropDown = uidropdown(cg, ...
     "ItemsData", {'-v7.3', '-v7'}, "Value", '-v7.3', ...
     "ValueChangedFcn", changed);
 obj.ConvMatVersionDropDown.Layout.Row = r; obj.ConvMatVersionDropDown.Layout.Column = [4 5];
-
-r = r + 1;
-obj.ConvOverwriteCheckBox = uicheckbox(cg, "Text", "Overwrite existing output files", ...
-    "Value", false, "ValueChangedFcn", changed);
-obj.ConvOverwriteCheckBox.Layout.Row = r; obj.ConvOverwriteCheckBox.Layout.Column = [1 2];
 
 r = r + 1;
 obj.ConvSeparateFilesCheckBox = uicheckbox(cg, "Text", "Save one file per signal type (<name><suffix>_LFP.mat, _MUA.mat, _SPIKE.mat, _AUX.mat)", ...

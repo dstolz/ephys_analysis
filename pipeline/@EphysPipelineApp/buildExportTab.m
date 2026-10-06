@@ -24,7 +24,10 @@ cg.ColumnWidth = {130, '1x', '1x', 30};
 r = 1;
 obj.ExpEnableCheckBox = uicheckbox(cg, "Text", "Enable the Export step", "FontWeight", "bold", ...
     "Value", false, "ValueChangedFcn", changed);
-obj.ExpEnableCheckBox.Layout.Row = r; obj.ExpEnableCheckBox.Layout.Column = [1 4];
+obj.ExpEnableCheckBox.Layout.Row = r; obj.ExpEnableCheckBox.Layout.Column = [1 2];
+obj.ExpOverwriteCheckBox = uicheckbox(cg, "Text", "Overwrite existing", "FontWeight", "bold", "Value", false, ...
+    "Tooltip", "Replace output files that already exist (off = skip those datasets).", "ValueChangedFcn", changed);
+obj.ExpOverwriteCheckBox.Layout.Row = r; obj.ExpOverwriteCheckBox.Layout.Column = [3 4];
 
 r = r + 1; sep(cg, "Formats", r);
 r = r + 1;
@@ -216,11 +219,9 @@ obj.ExpOutputDirField.Layout.Row = r; obj.ExpOutputDirField.Layout.Column = [2 3
 obj.ExpBrowseOutputButton = uibutton(cg, "Text", "...", "ButtonPushedFcn", @(~,~) obj.onBrowseExportOutput());
 obj.ExpBrowseOutputButton.Layout.Row = r; obj.ExpBrowseOutputButton.Layout.Column = 4;
 r = r + 1;
-obj.ExpOverwriteCheckBox = uicheckbox(cg, "Text", "Overwrite existing", "Value", false, "ValueChangedFcn", changed);
-obj.ExpOverwriteCheckBox.Layout.Row = r; obj.ExpOverwriteCheckBox.Layout.Column = 1;
-lm = lab(cg, "MAT version:", r); lm.Layout.Column = 2;
+lab(cg, "MAT version:", r);
 obj.ExpMatVersionDropDown = uidropdown(cg, "Items", {'-v7.3', '-v7'}, "Value", '-v7.3', "ValueChangedFcn", changed);
-obj.ExpMatVersionDropDown.Layout.Row = r; obj.ExpMatVersionDropDown.Layout.Column = 3;
+obj.ExpMatVersionDropDown.Layout.Row = r; obj.ExpMatVersionDropDown.Layout.Column = 2;
 r = r + 1;
 note = uilabel(cg, "WordWrap", "on", "FontColor", [0.4 0.4 0.4], "Text", ...
     "Exports read the Signals step's extract file(s) (<Name>_extract.mat, or <Name>_extract_<TYPE>.mat per signal type), so run Signals first. Each format's file loads directly into its toolbox outside this app; no analysis happens here. The epoch file holds the same recorded samples and spike times, cut into one epoch per event.");

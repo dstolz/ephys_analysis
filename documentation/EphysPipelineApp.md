@@ -2666,7 +2666,8 @@ dataset whose name does not match `Project.NamePattern`, is read with
   folder of the config's **Sorter** (`kilosort4`, or `si_<sorter>`), else
   its most recently changed sort. A dataset without sorted output clears
   the tab, and so does one whose hand-picked sorted-output folder is not
-  there now: the tab says so, and no other sort stands in for it.
+  there now: the tab says so, and no other sort stands in for it (the
+  folder field is emptied, or names the missing folder).
 - **Sort**: every sort the active dataset has, to review any of them. Its
   own comes first, marked **in use** (the one Export and the analysis
   read), then each other folder under its output folder that holds a sort

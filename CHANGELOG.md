@@ -398,6 +398,10 @@ says how to cut a release.
 
 ### Fixed
 
+- The Review tab clears its folder field when the active dataset has no
+  sorted output (or its pinned folder is not there), so **Load**, **Open
+  folder in explorer** and **Open in phy** no longer bring back the
+  previous dataset's sort.
 - The Run tab's results table fills as the Run goes, one row per step and
   dataset, instead of staying empty until the Run ends; a row the Kilosort4
   monitor restates during the Run shows at once.

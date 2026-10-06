@@ -1911,8 +1911,9 @@ dR.SortingDir = fullfile(root, 'not_there');
 app.syncReviewDataset();
 L = string(dd.Items);
 check(isempty(app.ReviewData) && contains(string(app.ReviewSummaryLabel.Text), "not there now") ...
-    && numel(L) == 3 && endsWith(L(1), ": not there now - in use") && key(dd.Value) == key(dR.SortingDir), ...
-    'a pinned folder that is not there clears the tab; Sort says so and still lists the other sorts');
+    && numel(L) == 3 && endsWith(L(1), ": not there now - in use") && key(dd.Value) == key(dR.SortingDir) ...
+    && key(app.ReviewFolderField.Value) == key(dR.SortingDir), ...
+    'a pinned folder that is not there clears the tab; Sort says so and still lists the other sorts; the folder field names it');
 dd.Value = dd.ItemsData{3};
 app.onReviewSortChanged();
 check(key(app.ReviewData.folder) == key(siA), '...and loads one of them when it is picked');
@@ -1921,8 +1922,12 @@ app.syncReviewDataset();
 L = string(dd.Items);
 check(numel(L) == 2 && L(1) == "kilosort4: Kilosort4, 3 units - in use" && key(app.ReviewData.folder) == key(ksA), ...
     'unpinned, the Sorter''s run folder (kilosort4) is the dataset''s own sort');
-dR.SortingDir = phyDir;
 rmdir(ksA, 's'); rmdir(siA, 's'); rmdir(otherDir, 's');
+app.syncReviewDataset();
+check(isempty(app.ReviewData) && contains(string(app.ReviewSummaryLabel.Text), "no sorted output yet") ...
+    && string(dd.Items) == "(no sorts)" && strcmp(app.ReviewFolderField.Value, ''), ...
+    'a dataset without sorted output clears the tab and the folder field, so Load cannot bring back the previous sort');
+dR.SortingDir = phyDir;
 app.syncReviewDataset();
 check(isscalar(dd.Items) && key(app.ReviewData.folder) == key(phyDir), 'with the extra sorts gone, only the pinned sort is listed');
 

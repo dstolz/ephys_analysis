@@ -23,6 +23,10 @@ r = 1;
 obj.SpkEnableCheckBox = uicheckbox(cg, "Text", "Enable the Spikes step", "FontWeight", "bold", ...
     "Value", false, "ValueChangedFcn", changed);
 obj.SpkEnableCheckBox.Layout.Row = r; obj.SpkEnableCheckBox.Layout.Column = [1 2];
+obj.SpkOverwriteCheckBox = uicheckbox(cg, "Text", "Overwrite existing", "FontWeight", "bold", "Value", false, ...
+    "Tooltip", "Replace the spikes file where it already exists (off = skip those datasets).", ...
+    "ValueChangedFcn", changed);
+obj.SpkOverwriteCheckBox.Layout.Row = r; obj.SpkOverwriteCheckBox.Layout.Column = [3 5];
 
 % --- Filter ---
 r = r + 1; sep(cg, "Detection: filter", r);
@@ -162,8 +166,7 @@ r = r + 1;
 lab(cg, "File suffix:", r);
 obj.SpkSuffixField = uieditfield(cg, "text", "Value", "_spikes", "ValueChangedFcn", changed);
 obj.SpkSuffixField.Layout.Row = r; obj.SpkSuffixField.Layout.Column = 2;
-obj.SpkOverwriteCheckBox = uicheckbox(cg, "Text", "Overwrite existing", "Value", false, "ValueChangedFcn", changed);
-obj.SpkOverwriteCheckBox.Layout.Row = r; obj.SpkOverwriteCheckBox.Layout.Column = 3;
+l = lab(cg, "MAT version:", r); l.Layout.Column = 3;
 obj.SpkMatVersionDropDown = uidropdown(cg, "Items", {'-v7.3', '-v7'}, "Value", '-v7.3', "ValueChangedFcn", changed);
 obj.SpkMatVersionDropDown.Layout.Row = r; obj.SpkMatVersionDropDown.Layout.Column = [4 5];
 

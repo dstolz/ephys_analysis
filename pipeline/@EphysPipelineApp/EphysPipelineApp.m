@@ -728,7 +728,8 @@ classdef EphysPipelineApp < handle
         RunBehaviorCheckBox  matlab.ui.control.CheckBox
         RunArtifactsCheckBox matlab.ui.control.CheckBox
         RunSortingCheckBox   matlab.ui.control.CheckBox
-        RunKSAtOnceSpinner   matlab.ui.control.Spinner        % Sorting.MaxConcurrent
+        RunKSAtOnceLabel     matlab.ui.control.Label
+        RunKSAtOnceSpinner   matlab.ui.control.Spinner       % Sorting.MaxConcurrent
         RunKSDevicesField    matlab.ui.control.EditField      % Sorting.Devices ("cuda:0, cuda:1")
         RunKSQueueCheckBox   matlab.ui.control.CheckBox       % hand waiting runs to the monitor (a preference)
         RunSignalsCheckBox   matlab.ui.control.CheckBox

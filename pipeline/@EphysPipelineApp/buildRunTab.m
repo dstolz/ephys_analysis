@@ -34,6 +34,7 @@ tip = "How many Kilosort4 runs go at once in the background; each further datase
     "Blocking runs (Sorting tab, Execution) always go one at a time. With no GPU listed below, or one, " + ...
     "every run goes on the same GPU, where several at once can run out of memory (Validate warns).";
 l = uilabel(kg, "Text", "Kilosort4 runs at once:", "Tooltip", tip); l.Layout.Row = 1; l.Layout.Column = 1;
+obj.RunKSAtOnceLabel = l;   % showSorterControls names the selected sorter
 obj.RunKSAtOnceSpinner = uispinner(kg, "Limits", [1 Inf], "Step", 1, "RoundFractionalValues", "on", ...
     "Value", 1, "Tooltip", tip, "ValueChangedFcn", @(~,~) obj.onConfigChanged());
 obj.RunKSAtOnceSpinner.Layout.Row = 1; obj.RunKSAtOnceSpinner.Layout.Column = 2;

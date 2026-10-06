@@ -20,6 +20,12 @@ what = EphysDataset.sorterLabel(sorter);
 set(obj.KS4ParamWidgets(isvalid(obj.KS4ParamWidgets)), "Visible", ~si);
 obj.SIPanel.Visible = si;
 obj.SortEnableCheckBox.Text = "Enable the Sorting step (" + what + ")";
+if ~isempty(obj.RunSortingCheckBox) && isvalid(obj.RunSortingCheckBox)   % Run tab's Steps panel
+    obj.RunSortingCheckBox.Text = "Sorting: " + what;
+end
+if ~isempty(obj.RunKSAtOnceLabel) && isvalid(obj.RunKSAtOnceLabel)
+    obj.RunKSAtOnceLabel.Text = what + " runs at once:";
+end
 obj.SortNoteLabel.Text = "Artifact silencing (manual periods always; automatic detection when enabled) " + ...
     "is configured on the Artifacts tab, the way they are erased included; those periods are erased in " + ...
     "the .bin " + what + " sorts.";

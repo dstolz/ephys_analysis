@@ -23,10 +23,12 @@ function [Y, ev, info] = deriveSignals(obj, opts)
 %               zero-phase Butterworth band-limiting LFP_bpLoHi and notch
 %               filters LFP_NotchHz, designed and applied at LFP_Fs. With the
 %               defaults no filter beyond RESAMPLE's anti-aliasing is applied.
-%       Y.MUA   zero-phase 4th-order Butterworth bandpass MUA_bpLoHi (designed
-%               and applied at the original rate), rectified (ABS), resampled
-%               to MUA_Fs, then moving-mean integrated on that grid with a
-%               window of round(MUA_Fs/MUA_IntegrationHz) samples.
+%       Y.MUA   zero-phase 4th-order Butterworth bandpass MUA_bpLoHi,
+%               rectified (ABS), integrated by a zero-phase 4th-order
+%               Butterworth low-pass at MUA_IntegrationHz (both designed and
+%               applied at the original rate), then resampled to MUA_Fs
+%               (Lakatos et al. 2005, J Neurophysiol 94:1904: 300-5000 Hz,
+%               rectified, "integrated down to 1 kHz (sampled at 2 kHz)").
 %       Y.SPIKE optionally resampled to SPIKE_Fs (Inf = original rate), then a
 %               zero-phase 4th-order Butterworth bandpass SPIKE_bpLoHi
 %               designed at SPIKE_Fs.
@@ -120,7 +122,8 @@ function [Y, ev, info] = deriveSignals(obj, opts)
 %                        the -3 dB points of the designed filter (FILTFILT
 %                        applies it twice, so they are -6 dB in the output).
 %     MUA_Fs             Hz  2000
-%     MUA_IntegrationHz  Hz  1000
+%     MUA_IntegrationHz  Hz  1000  cutoff of the low-pass that integrates the
+%                        rectified MUA (<= MUA_Fs/2, < original rate/2)
 %     MUA_bpLoHi         [low high] Hz  [300 5000]  (high < original rate/2)
 %     SPIKE_Fs           Hz  Inf (= original rate)
 %     SPIKE_bpLoHi       [low high] Hz  [300 5000]  (high < SPIKE_Fs/2)
@@ -461,11 +464,11 @@ for p = 1:numel(passes)
         end
     end
     if any(types == "MUA")
-        % Bandpass at origFs -> rectify -> resample to MUA_Fs -> moving-mean
-        % integration on the MUA_Fs grid.
+        % Bandpass -> rectify -> low-pass (integrate), all at origFs ->
+        % resample to MUA_Fs.
         nDone = reportProgress(progressFcn, nDone, nSteps, ...
-            sprintf('MUA: bandpass [%g %g] Hz, rectify, resample to %g Hz, integrate', ...
-            opts.MUA_bpLoHi, opts.MUA_Fs));
+            sprintf('MUA: bandpass [%g %g] Hz, rectify, integrate below %g Hz, resample to %g Hz', ...
+            opts.MUA_bpLoHi, opts.MUA_IntegrationHz, opts.MUA_Fs));
         MUA = muaColumns(obj, AMPSIG, opts, origFs, rates.MUA, k);
     end
     if any(types == "SPIKE")
@@ -798,9 +801,9 @@ end
 
 
 function M = muaColumns(obj, X, opts, origFs, rate, k)
-%muaColumns  MUA envelope of X (bandpass MUA_bpLoHi at origFs, ABS, resample
-%   to MUA_Fs, moving mean), in double, K columns at a time, into single.
-win = max(1, round(opts.MUA_Fs / opts.MUA_IntegrationHz));
+%muaColumns  MUA envelope of X (bandpass MUA_bpLoHi, ABS, low-pass
+%   MUA_IntegrationHz, all at origFs, then resample to MUA_Fs), in double, K
+%   columns at a time, into single.
 nCol = size(X, 2);
 M = single([]);
 h = [];
@@ -808,11 +811,13 @@ for c0 = 1:k:nCol
     cc = c0:min(nCol, c0 + k - 1);
     m = abs(obj.filterContinuous(double(X(:, cc)), 'Type', "bandpass", ...
         'Cutoff', opts.MUA_bpLoHi, 'Order', 4, 'Fs', origFs));
+    m = obj.filterContinuous(m, 'Type', "lowpass", ...   % integrate
+        'Cutoff', opts.MUA_IntegrationHz, 'Order', 4, 'Fs', origFs);
     [m, h] = resampleBlock(m, rate, h);
     if c0 == 1
         M = zeros(size(m, 1), nCol, 'single');
     end
-    M(:, cc) = single(movmean(m, win));   % integrate along time
+    M(:, cc) = single(m);
 end
 end
 
@@ -876,6 +881,12 @@ if has.MUA
             opts.MUA_bpLoHi(2), origFs/2);
     end
     rates.MUA = outputRate(opts.MUA_Fs, origFs);
+    if opts.MUA_IntegrationHz > rates.MUA.Fs/2 || opts.MUA_IntegrationHz >= origFs/2
+        error('EphysDataset:deriveSignals:MUA_IntegrationNyquist', ...
+            ['MUA_IntegrationHz (%g Hz) must be at most MUA_Fs/2 (%g Hz) ' ...
+             'and below origFs/2 (%g Hz).'], ...
+            opts.MUA_IntegrationHz, rates.MUA.Fs/2, origFs/2);
+    end
 end
 if has.SPIKE
     rates.SPIKE = outputRate(opts.SPIKE_Fs, origFs);

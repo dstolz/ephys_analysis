@@ -292,6 +292,15 @@ says how to cut a release.
 
 ### Changed
 
+- The MUA follows Lakatos et al. (2005, J Neurophysiol 94:1904): band-pass
+  `MUA_bpLoHi`, rectify, then a zero-phase 4th-order Butterworth low-pass at
+  `MUA_IntegrationHz` (the "integration", 1000 Hz), all at the recording
+  rate, then resampled to `MUA_Fs` (2000 Hz). The moving mean after
+  resampling is gone: it smoothed the envelope to about 500 Hz and put it
+  half a sample (0.25 ms at 2 kHz) late. `MUA_IntegrationHz` is now the
+  low-pass cutoff and must be at most `MUA_Fs / 2`
+  (`EphysPipelineConfig:SignalsMUAIntegration`,
+  `EphysDataset:deriveSignals:MUA_IntegrationNyquist`).
 - The QC report (`writeUnitQualityReport`, the Review tab's **QC report**)
   lists the units labelled good first, sorts its table by a click on a
   column header (again: reversed; a third time: back), and draws each good

@@ -235,7 +235,9 @@ check(all(isfinite(Yl.SPIKE), 'all') && all(isfinite(Yl.MUA), 'all') && any(Yl.S
 X = dsT.readData(Precision="single").amplifier;
 [Yd, ~, Id] = dsT.deriveSignals(dataTypeOut=["LFP" "MUA" "SPIKE"]);
 band = @(x, fs) dsT.filterContinuous(x, 'Type', "bandpass", 'Cutoff', [300 5000], 'Order', 4, 'Fs', fs);
-check(isequal(Yd.SPIKE, band(X, Fs)) && isequal(Yd.MUA, single(movmean(resample(abs(band(double(X), Fs)), 1, 15), 2))) ...
+mua = @(x) single(resample(dsT.filterContinuous(abs(band(double(x), Fs)), 'Type', "lowpass", ...
+    'Cutoff', 1000, 'Order', 4, 'Fs', Fs), 1, 15));   % Lakatos et al. 2005: rectify, integrate below 1 kHz, 2 kHz
+check(isequal(Yd.SPIKE, band(X, Fs)) && isequal(Yd.MUA, mua(X)) ...
     && isequal(Yd.LFP, resample(X, 1, 30)), ...
     'SPIKE / MUA / LFP channel by channel equal the whole-matrix references (filterContinuous in double)');
 fS = sosOf(4, [300 5000] / (Fs/2));
@@ -251,8 +253,19 @@ wideDir = writeRecording(root, "wide", 50 * randn(Fs, 64), Fs);   % 64 channels:
 dsW = EphysDataset(wideDir);
 XW = dsW.readData(Precision="single").amplifier;
 YW = dsW.deriveSignals(dataTypeOut=["LFP" "MUA" "SPIKE"]);
-check(isequal(YW.SPIKE, band(XW, Fs)) && isequal(YW.MUA, single(movmean(resample(abs(band(double(XW), Fs)), 1, 15), 2))) ...
+check(isequal(YW.SPIKE, band(XW, Fs)) && isequal(YW.MUA, mua(XW)) ...
     && isequal(YW.LFP, resample(XW, 1, 30)), '64 channels, 8-column blocks: the same as the whole-matrix references');
+tb = (0:Fs-1).' / Fs;
+gate = exp(-(tb - 0.5).^2 / (2 * 0.02^2));   % 20 ms Gaussian centred at 0.5 s
+dsB = EphysDataset(writeRecording(root, "burst", [100 * gate .* sin(2*pi*2000*tb), zeros(Fs, 1)], Fs));
+[YB, ~, IB] = dsB.deriveSignals(dataTypeOut="MUA");
+mB = double(YB.MUA(:, 1));
+tM = (0:numel(mB)-1).' / IB.MUA.Fs;
+lag = sum(tM .* mB) / sum(mB) - 0.5;
+check(abs(lag) < 2e-5 && abs(max(mB) / (100 * 2/pi) - 1) < 0.02, ...
+    sprintf('MUA of a gated 2 kHz tone: centred on the burst (%.3g ms off), peak 2/pi of its amplitude', 1e3 * lag));
+check(strcmp(errorId(@() dsB.deriveSignals(dataTypeOut="MUA", MUA_IntegrationHz=1500)), ...
+    'EphysDataset:deriveSignals:MUA_IntegrationNyquist'), 'MUA_IntegrationHz above MUA_Fs/2 is an error');
 
 fprintf('\n== 5. non-integer sample rates; nSamples ==\n');
 fsT = 24414.0625;

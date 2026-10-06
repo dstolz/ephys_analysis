@@ -1778,7 +1778,7 @@ reads these files.
 | Signal | Defaults | Processing |
 | --- | --- | --- |
 | LFP | `LFP_Fs` 1000 Hz; high-pass 1 Hz, low-pass 300 Hz and notch 60 Hz (width 2 Hz), each off | resampled to `LFP_Fs`; then, at that rate, a 4th-order Butterworth high-, low- or band-pass and a 2nd-order band-stop per notch, all zero-phase (`filtfilt`) |
-| MUA | `MUA_Fs` 2000 Hz, integration 1000 Hz, band 300–5000 Hz | 4th-order Butterworth band-pass at the recording rate (zero-phase), rectified, resampled to `MUA_Fs`, then a moving mean over `round(MUA_Fs / integration)` samples |
+| MUA | `MUA_Fs` 2000 Hz, integration 1000 Hz, band 300–5000 Hz | after Lakatos et al. (2005): 4th-order Butterworth band-pass, rectified, then a 4th-order Butterworth low-pass at the integration frequency (at most `MUA_Fs / 2`), both zero-phase at the recording rate, then resampled to `MUA_Fs` |
 | SPIKE | the recording rate kept (else `SPIKE_Fs`, 20000 Hz), band 300–5000 Hz | resampled to `SPIKE_Fs` unless the rate is kept, then a 4th-order Butterworth band-pass (zero-phase) |
 | AUX | none | the auxiliary inputs as recorded, in volts at their own rate. A recording without them writes none, with a warning |
 

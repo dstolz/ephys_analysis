@@ -363,6 +363,7 @@ G3 = G; G3.BadMode = "auto"; G3.BadThreshold = 0;    errs.BadThreshold    = erro
 G3 = G; G3.LFP_LowpassOn = true; G3.LFP_LowpassHz = 600; errs.LFPNyquist  = errorId(@() EphysPipelineConfig.signalOptions(G3));
 G3 = G; G3.LFP_NotchOn = true; G3.LFP_NotchHz = "499"; errs.LFPNotch      = errorId(@() EphysPipelineConfig.signalOptions(G3));
 G3 = G; G3.MUA = true; G3.MUA_bpLoHi = [5000 300];   errs.Band            = errorId(@() EphysPipelineConfig.signalOptions(G3));
+G3 = G; G3.MUA = true; G3.MUA_IntegrationHz = 1500;  errs.MUAIntegration  = errorId(@() EphysPipelineConfig.signalOptions(G3));
 G3 = G; G3.KeepChannels = "1, x";                    errs.IndexList       = errorId(@() EphysPipelineConfig.signalOptions(G3));
 G3 = G; G3.LFP_NotchOn = true; G3.LFP_NotchHz = "60, -5"; errs.FreqList   = errorId(@() EphysPipelineConfig.signalOptions(G3));
 G3 = G; G3.Suffix = "bad:name";                      errs.BadSuffix       = errorId(@() EphysPipelineConfig.signalOptions(G3));

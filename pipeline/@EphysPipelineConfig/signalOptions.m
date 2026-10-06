@@ -159,6 +159,11 @@ if cfg.LFP
 end
 if cfg.MUA
     checkBand(cfg.MUA_bpLoHi, "MUA bandpass");
+    if cfg.MUA_IntegrationHz > cfg.MUA_Fs/2
+        error('EphysPipelineConfig:SignalsMUAIntegration', ...
+            'MUA integration (%g Hz) must be at most MUA_Fs / 2 (%g Hz).', ...
+            cfg.MUA_IntegrationHz, cfg.MUA_Fs/2);
+    end
     s.MUA_Fs            = cfg.MUA_Fs;
     s.MUA_IntegrationHz = cfg.MUA_IntegrationHz;
     s.MUA_bpLoHi        = cfg.MUA_bpLoHi;

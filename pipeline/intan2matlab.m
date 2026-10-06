@@ -30,10 +30,11 @@ function [Y, events, info] = intan2matlab(RHDroot, options)
 %               Multiunit envelope derived from the amplifier data using a
 %               zero-phase 4th-order Butterworth bandpass defined by
 %               options.MUA_bpLoHi (Hz, designed and applied at origFs),
-%               followed by rectification (ABS), resampling of the rectified
-%               signal to the MUA sampling grid options.MUA_Fs, and
-%               moving-mean integration on that grid with window length
-%               round(options.MUA_Fs/options.MUA_IntegrationHz) samples.
+%               followed by rectification (ABS), integration by a
+%               zero-phase 4th-order Butterworth low-pass at
+%               options.MUA_IntegrationHz (also at origFs), and resampling
+%               to the MUA sampling grid options.MUA_Fs (Lakatos et al.
+%               2005, J Neurophysiol 94:1904).
 %
 %           Y.SPIKE nSamplesSPIKE×nChan single
 %               Spike-band signal obtained by optional resampling to
@@ -140,8 +141,8 @@ function [Y, events, info] = intan2matlab(RHDroot, options)
 %       Target MUA sampling rate for Y.MUA.
 %
 %   options.MUA_IntegrationHz  scalar Hz      1000
-%       Integration rate used to form the MUA envelope. The moving-mean
-%       window length is round(options.MUA_Fs/options.MUA_IntegrationHz).
+%       Cutoff of the zero-phase low-pass that integrates the rectified
+%       MUA. Must be at most options.MUA_Fs/2 and below origFs/2.
 %
 %   options.MUA_bpLoHi         1×2 double Hz  [300 5000]
 %       Bandpass edges [low high] for MUA extraction at origFs. Must satisfy

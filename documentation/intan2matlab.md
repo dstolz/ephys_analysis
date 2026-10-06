@@ -62,8 +62,10 @@ out = ds.toMat(SignalOptions=struct('dataTypeOut', ["LFP" "SPIKE"]));
    - a 2nd-order Butterworth band-stop for each notch frequency;
    - each as second-order sections, applied with `filtfilt`.
 4. **MUA**, if requested: 4th-order Butterworth bandpass `MUA_bpLoHi` at the
-   original rate (`filtfilt`) → `abs` → `resample` to `MUA_Fs` → `movmean` with
-   a window of `round(MUA_Fs / MUA_IntegrationHz)` samples.
+   original rate (`filtfilt`) → `abs` → 4th-order Butterworth low-pass at
+   `MUA_IntegrationHz`, also at the original rate (`filtfilt`) → `resample` to
+   `MUA_Fs`. This is the MUA of Lakatos et al. (2005, J Neurophysiol 94:1904):
+   300–5000 Hz, rectified, "integrated down to 1 kHz (sampled at 2 kHz)".
 5. **SPIKE**, if requested: `resample` to `SPIKE_Fs` (skipped when `Inf` or
    equal to the original rate) → 4th-order Butterworth bandpass `SPIKE_bpLoHi`
    designed at `SPIKE_Fs` (`filtfilt`). At the original rate the spike band
@@ -119,7 +121,7 @@ the rate actually produced is the one reported in `info.<type>.Fs` and
 | `LFP_NotchHz` | `[]` | notch centers, e.g. `[60 120 180]`. Each needs `f − BW/2 > 0` and `f + BW/2 < LFP_Fs/2` |
 | `LFP_NotchBW` | 2 Hz | notch width. `f ± BW/2` are the −3 dB points of the design (−6 dB after `filtfilt`) |
 | `MUA_Fs` | 2000 Hz | |
-| `MUA_IntegrationHz` | 1000 Hz | |
+| `MUA_IntegrationHz` | 1000 Hz | low-pass cutoff of the rectified MUA; ≤ `MUA_Fs/2` and < original Fs/2 |
 | `MUA_bpLoHi` | `[300 5000]` | high edge < original Fs/2 |
 | `SPIKE_Fs` | `Inf` (original rate) | |
 | `SPIKE_bpLoHi` | `[300 5000]` | high edge < `SPIKE_Fs/2` |

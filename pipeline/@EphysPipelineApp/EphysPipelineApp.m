@@ -445,6 +445,28 @@ classdef EphysPipelineApp < handle
         RunStepSortingButton matlab.ui.control.Button
         KSProgressLabel   matlab.ui.control.Label
         KSLogArea         matlab.ui.control.TextArea
+        KSLogPanel        matlab.ui.container.Panel
+        SortNoteLabel     matlab.ui.control.Label
+        % Sorting.Sorter: Kilosort4, or a SpikeInterface sorter found in the env.
+        SortSorterDropDown matlab.ui.control.DropDown
+        SIFindSortersButton matlab.ui.control.Button
+        % The Kilosort4 parameter rows, hidden for a SpikeInterface sorter,
+        % whose parameters (SIPanel) then take their place.
+        KS4ParamWidgets   = gobjects(0)
+        SIPanel           matlab.ui.container.Panel
+        SIParamsTitle     matlab.ui.control.Label
+        SIResetButton     matlab.ui.control.Button
+        SIInfoLabel       matlab.ui.control.Label
+        SIParamsArea      matlab.ui.control.TextArea
+        SIParamsHelpArea  matlab.ui.control.TextArea
+        SIDocsLink        matlab.ui.control.Hyperlink
+        % SpikeInterface sorters found in the Python env
+        % (EphysDataset.spikeInterfaceSorters; cached in the preference
+        % SISorters), and the version of SpikeInterface they came with.
+        SISorters struct = struct('name', {}, 'version', {}, 'params', {}, 'descriptions', {})
+        SIVersion (1,1) string = ""
+        % The sorter whose parameters SIParamsArea shows ("" for Kilosort4).
+        SIParamsShown (1,1) string = ""
 
         % --- Review tab ---
         ReviewFolderField   matlab.ui.control.EditField
@@ -1166,6 +1188,12 @@ classdef EphysPipelineApp < handle
         onUseSortingFolder(obj)
         onUseAutoSorting(obj)
         refreshSortingLabel(obj)
+        onSorterChanged(obj)
+        showSorterControls(obj, S)
+        refreshSorterItems(obj, want)
+        onFindSorters(obj)
+        onResetSIParams(obj)
+        txt = siDefaultParams(obj, sorter)
         onLaunchPhy(obj, idx)
         launchPhy(obj, resultsDir, label)
         startKSMonitor(obj)

@@ -20,7 +20,7 @@ switch obj.Tabs.SelectedTab
         obj.refreshManualArtifactsTable();
         obj.refreshReferencePanel();
     case obj.TabSorting
-        msg = "Sorting: Kilosort4 settings; Run this step or the whole pipeline.";
+        msg = "Sorting: " + EphysDataset.sorterLabel(obj.Config.Sorting.Sorter) + " settings; Run this step or the whole pipeline.";
         obj.refreshSortingLabel();
     case obj.TabSignals
         msg = "Signals: derive LFP / MUA / SPIKE / AUX for the selected datasets.";

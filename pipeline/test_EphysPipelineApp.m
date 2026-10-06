@@ -1596,6 +1596,67 @@ check(isequaln(S.KS4, EphysPipelineConfig.defaults("Sorting").KS4) && S.KS4Extra
 check(S.PythonExe == before.PythonExe && S.Enabled == before.Enabled ...
     && app.Config.Probe.DefaultProbeFile == "", 'and leaves the other Sorting settings alone');
 
+% SpikeInterface sorters (a stand-in list: no Python needed)
+cfgBeforeSI = app.Config;
+ks4Before = app.Config.Sorting.KS4;
+shown = @(hs) arrayfun(@(h) logical(h.Visible), hs);
+check(strcmp(app.SortSorterDropDown.Value, 'kilosort4') && app.SIParamsShown == "" && all(shown(app.KS4ParamWidgets)) ...
+    && ~isempty(app.KS4ParamWidgets) && ~logical(app.SIPanel.Visible), ...
+    'Kilosort4 is the sorter by default: its parameters show, the SpikeInterface panel does not');
+desc = table(["detect_threshold"; "seed"], ["5.0"; "null"], ["Threshold for detection"; "Random seed"], ...
+    'VariableNames', ["Parameter" "Default" "Description"]);
+defText = string(sprintf('{\n  "detect_threshold": 5.0,\n  "seed": null\n}'));
+app.SISorters = struct('name', {"tridesclous2", "kilosort4"}, 'version', {"2.0", "4.1.7"}, ...
+    'params', {defText, "{}"}, 'descriptions', {desc, desc});
+app.SIVersion = "0.104.5";
+app.refreshSorterItems();
+check(isequal(app.SortSorterDropDown.ItemsData, {'kilosort4', 'tridesclous2'}), ...
+    'the sorters found are listed after Kilosort4 (SpikeInterface''s own kilosort4 left out)');
+app.SortSorterDropDown.Value = 'tridesclous2';
+app.onSorterChanged();
+S = app.Config.Sorting;
+areaText = @() strtrim(strjoin(string(app.SIParamsArea.Value), newline));
+check(S.Sorter == "tridesclous2" && EphysPipelineConfig.siParams(S) == "" && logical(app.SIPanel.Visible) ...
+    && ~any(shown(app.KS4ParamWidgets)) && areaText() == defText ...
+    && contains(app.SortEnableCheckBox.Text, "tridesclous2 (SpikeInterface)") ...
+    && any(contains(string(app.SIParamsHelpArea.Value), "Threshold for detection")), ...
+    'a SpikeInterface sorter shows its default parameters and their descriptions in place of Kilosort4''s');
+check(app.Project.Datasets(1).Sorter == "tridesclous2" ...
+    && endsWith(string(app.Project.Datasets(1).sortRunDir()), "si_tridesclous2"), ...
+    'the datasets'' sorted output follows the sorter (si_tridesclous2)');
+check(isequaln(S.KS4, ks4Before) && S.KS4ExtraJSON == cfgBeforeSI.Sorting.KS4ExtraJSON, ...
+    'Kilosort4''s settings stay as they were');
+app.SIParamsArea.Value = {'{"detect_threshold": 6}'};
+app.onConfigChanged();
+check(app.Config.Sorting.SIParams.tridesclous2 == "{""detect_threshold"": 6}", 'edited parameters are kept for that sorter');
+app.SIParamsArea.Value = {'{ broken'};
+[~, msg] = app.gatherSortingSection();
+check(contains(msg, "tridesclous2 parameters") && app.Config.Sorting.SIParams.tridesclous2 == "{""detect_threshold"": 6}", ...
+    'parameters that do not parse are reported; the working config keeps the last ones that did');
+app.SIParamsArea.Value = {'{"detect_threshold": 6}'};
+[html, ~] = app.flowChartHTML();
+check(contains(html, "run_sorter") && contains(html, "si_tridesclous2/"), 'the Sorting diagram shows the SpikeInterface sorter');
+app.SortSorterDropDown.Value = 'kilosort4';
+app.onSorterChanged();
+S = app.Config.Sorting;
+check(S.Sorter == "kilosort4" && S.SIParams.tridesclous2 == "{""detect_threshold"": 6}" && ~logical(app.SIPanel.Visible) ...
+    && all(shown(app.KS4ParamWidgets)) && isequaln(S.KS4, ks4Before) ...
+    && app.SortEnableCheckBox.Text == "Enable the Sorting step (Kilosort4)", ...
+    'back to Kilosort4: its parameters as they were; the SpikeInterface parameters are kept');
+app.SortSorterDropDown.Value = 'tridesclous2';
+app.onSorterChanged();
+app.onResetSIParams();
+check(app.Config.Sorting.SIParams.tridesclous2 == "" && areaText() == defText, ...
+    'Reset to defaults puts SpikeInterface''s defaults back (saved as "")');
+cfgM = app.Config;
+cfgM.Sorting.Sorter = "mountainsort5";
+cfgM.Sorting.SIParams.mountainsort5 = "{""scheme"": ""2""}";
+app.applyConfig(cfgM);
+check(strcmp(app.SortSorterDropDown.Value, 'mountainsort5') && contains(string(app.SortSorterDropDown.Items{end}), "not found") ...
+    && contains(areaText(), "scheme"), 'a config naming a sorter not found here still shows it, with its parameters');
+app.applyConfig(cfgBeforeSI);
+check(strcmp(app.SortSorterDropDown.Value, 'kilosort4') && all(shown(app.KS4ParamWidgets)), 'and a Kilosort4 config shows Kilosort4 again');
+
 fprintf('\n== 4. run one step through the pipeline ==\n');
 app.runPipeline(Steps="spikes");
 R = app.RunResultsTable.Data;

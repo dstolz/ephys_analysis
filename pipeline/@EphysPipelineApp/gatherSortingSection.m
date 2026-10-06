@@ -4,7 +4,10 @@ function [S, errMsg] = gatherSortingSection(obj)
 %   Sorting struct filled from the controls: paths, execution mode, runs at
 %   once and GPUs (on the Run tab), dry run, the typed KS4 parameters (text
 %   fields are parsed with EphysPipelineConfig.ks4ParamFromText) and the
-%   extra JSON, and the good-unit criteria (Sorting.Quality) of the Review tab.
+%   extra JSON, the sorter (Sorting.Sorter) and the parameters of the
+%   SpikeInterface sorter shown (Sorting.SIParams.<sorter>; "" when they are
+%   its defaults), and the good-unit criteria (Sorting.Quality) of the
+%   Review tab.
 %   ERRMSG names the first control whose text does not parse ("" when all
 %   parse); that parameter keeps the working config's value in S, and
 %   gatherConfig refuses the config (so do Run and Save).
@@ -18,6 +21,25 @@ if isempty(obj.PythonExeField) || ~isvalid(obj.PythonExeField)
 end
 S.Enabled      = logical(obj.SortEnableCheckBox.Value);
 S.SkipExisting = logical(obj.SortSkipExistingCheckBox.Value);
+if ~isempty(obj.SortSorterDropDown) && isvalid(obj.SortSorterDropDown)
+    S.Sorter = string(obj.SortSorterDropDown.Value);
+end
+if obj.SIParamsShown ~= "" && ~isempty(obj.SIParamsArea) && isvalid(obj.SIParamsArea)
+    % The parameters shown belong to SIParamsShown (the sorter shown until
+    % the drop-down changed, see onSorterChanged). SpikeInterface's
+    % defaults, or no parameters at all, are stored as "" (the defaults).
+    raw = strtrim(strjoin(string(obj.SIParamsArea.Value(:)), newline));
+    def = obj.siDefaultParams(obj.SIParamsShown);
+    if regexprep(raw, '\s', '') == "{}" || (def ~= "" && regexprep(raw, '\s', '') == regexprep(def, '\s', ''))
+        raw = "";
+    end
+    problem = EphysDataset.sorterParamsProblem(raw);
+    if problem ~= ""
+        errMsg = obj.SIParamsShown + " parameters: " + problem;   % the working config's stay
+    else
+        S.SIParams.(obj.SIParamsShown) = raw;
+    end
+end
 S.PythonExe = string(strtrim(obj.PythonExeField.Value));
 S.CondaEnv  = string(strtrim(obj.CondaEnvField.Value));
 if ~isempty(obj.ExecModeDropDown) && isvalid(obj.ExecModeDropDown)

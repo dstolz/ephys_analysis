@@ -111,7 +111,13 @@ copy of this script into `<output folder>/si_<sorter>`
    sorter's module (logged as `... so it is referenced once`);
 3. sets SpikeInterface's jobs to `n_jobs` threads (process pools import
    SpikeInterface again in every worker on Windows, which took most of a
-   run's time), deletes an earlier sort's phy files from the folder, reads
+   run's time), and runs the cluster split and merge pools of
+   SpikeInterface's own sorters on threads too (`run_pools_on_threads`):
+   they start a process pool whatever the jobs say and hand each worker
+   the sorter's in-memory copy of the recording, a shared memory block
+   every worker maps again, which ran out of system resources (`WinError
+   1450`) with 24 workers on 64 channels. It then deletes an earlier sort's
+   phy files from the folder, reads
    the `.bin` (`read_binary`, no gain: the templates stay in `.bin` units)
    and attaches the probe (`kcoords` become the channel groups);
 4. runs `spikeinterface.sorters.run_sorter` in `si_work` and loads the

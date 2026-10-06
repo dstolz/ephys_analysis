@@ -8,10 +8,11 @@ folder, then starts this driver. It
 
   1. reads the .bin Kilosort4 would sort (artifact periods erased, the
      common reference applied once) with the probe .json attached,
-  2. runs spikeinterface.run_sorter on it in <run folder>/si_work, keeping
-     the sorter's own common reference out when the .bin already carries
-     one (the sorters' do_CAR / car setting, or the common_reference call
-     of SpikeInterface's internal sorters),
+  2. runs spikeinterface.run_sorter on it in <run folder>/si_work, on
+     threads (its cluster split and merge pools too), keeping the sorter's
+     own common reference out when the .bin already carries one (the
+     sorters' do_CAR / car setting, or the common_reference call of
+     SpikeInterface's internal sorters),
   3. computes templates, amplitudes, spike positions and the quality metrics
      on a 300 Hz high-pass of the .bin (a SortingAnalyzer in memory),
   4. labels each unit "good" or "mua" by the good-unit criteria in
@@ -138,6 +139,49 @@ def keep_reference_out(sorter, params, mode):
     else:
         print('The .bin carries the common %s reference; %s has no common reference of its own '
               'that this driver knows of.' % (mode.upper(), sorter), flush=True)
+
+
+def run_pools_on_threads():
+    """Run the cluster split and merge pools of SpikeInterface's sorters on threads.
+
+    split_clusters and find_merge_pairs_from_features (spykingcircus2,
+    tridesclous2, lupin) start a process pool whenever n_jobs > 1, whatever
+    pool_engine says, and hand every worker the recording. That recording is
+    the sorter's cached preprocessing, a shared memory block of the whole
+    recording (GBs), which each new Windows process maps again, besides
+    importing SpikeInterface again: with 24 workers on 552 s of 64 channels
+    the mapping failed with "[WinError 1450] Insufficient system resources".
+    The workers only keep the recording, never read it. On threads they
+    share this process's objects, so nothing is copied, mapped or imported
+    again; the isosplit kernels are numba nogil code. The pool's initializer
+    fills module globals the threads share, so it runs once, here, and
+    BLAS is held to max_threads_per_worker by one limit around the whole
+    pool, set from this thread, instead of each job setting and restoring it
+    while the others run.
+    """
+    from concurrent.futures import ThreadPoolExecutor
+    from contextlib import nullcontext
+    from threadpoolctl import threadpool_limits
+    from spikeinterface.sortingcomponents.clustering import itersplit_tools, merging_tools
+
+    class ThreadPool(ThreadPoolExecutor):
+        def __init__(self, max_workers=None, initializer=None, initargs=(), mp_context=None):
+            limit = 1
+            if initializer is not None:
+                initializer(*initargs)
+                limit = initializer.__globals__.get('_ctx', {}).get('max_threads_per_worker', 1)
+            self._blas = threadpool_limits(limits=limit)
+            super().__init__(max_workers=max_workers)
+
+        def shutdown(self, *args, **kwargs):
+            super().shutdown(*args, **kwargs)
+            if self._blas is not None:
+                self._blas.restore_original_limits()
+                self._blas = None
+
+    for module in (itersplit_tools, merging_tools):
+        module.get_poolexecutor = lambda n_jobs: ThreadPool
+        module.threadpool_limits = lambda *args, **kwargs: nullcontext()
 
 
 def unit_labels(metrics, criteria):
@@ -277,10 +321,12 @@ def main():
             keep_reference_out(sorter, params, cfg['reference'])
 
         # Threads, not processes: on Windows every process pool imports
-        # SpikeInterface again in each worker, which took most of the time.
+        # SpikeInterface again in each worker, which took most of the time,
+        # and maps the sorter's in-memory copy of the recording again.
         job_kwargs = dict(n_jobs=int(cfg.get('n_jobs', 1)), chunk_duration='1s', progress_bar=True,
                           pool_engine='thread')
         si.set_global_job_kwargs(**job_kwargs)
+        run_pools_on_threads()
 
         for name in PHY_FILES:
             p = os.path.join(results_dir, name)

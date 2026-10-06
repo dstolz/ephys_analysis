@@ -1638,8 +1638,16 @@ report), the analysis config in `UnitSelection.quality` (`selectUnits`).
 **QC page.** [`writeUnitQualityReport(units)`](../pipeline/writeUnitQualityReport.m)
 writes `<resultsDir>/quality_report.html`: the units per class and how many
 meet the criteria, the criteria, a histogram of each metric with its
-threshold, and a row per unit with the failed metrics marked. One HTML file,
-no scripts, no external files.
+threshold, a row per unit with the failed metrics marked, and each good
+unit's mean waveform. The table lists the units labelled good first (those
+meeting the criteria first among them), then the rest; a click on a column
+header sorts it by that column (again: reversed; a third time: back to that
+order), and a good unit's label links to its waveform. The waveform is the
+mean, with its SD as a band, of up to `WaveformSpikes` (default 100) of the
+unit's spikes on its peak channel, cut from the sorted `.bin` as
+`readPhyWaveforms` cuts them; when that file is gone the unit's template is
+drawn, and the page says why (`WaveformSpikes=0` draws the templates without
+reading). One HTML file with one small inline script, no external files.
 
 **Comparing sorter settings.** [`sortSweep(ds, variants)`](../pipeline/sortSweep.m)
 sorts the dataset once per variant (`struct('name', ..., 'settings', ...)`,

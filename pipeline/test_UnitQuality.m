@@ -145,6 +145,30 @@ classdef test_UnitQuality < matlab.unittest.TestCase
             html = string(fileread(file));
             tc.verifyTrue(contains(html, "Meet the criteria") && contains(html, "<svg") ...
                 && contains(html, units.label(1)), "summary, histograms and a row per unit");
+            good = string(units.group(:)) == "good";
+            rows = regexp(html, '<tr data-i="\d+"[^>]*><td class="t">(?:<a [^>]*>)?([^<]*)', 'tokens');
+            rows = cellfun(@(c) string(c{1}), rows(:));
+            tc.verifyEqual(sort(rows), sort(string(units.label(:))), "one row per unit");
+            tc.verifyTrue(all(ismember(rows(1:nnz(good)), units.label(good))), "the good units first");
+            tc.verifyTrue(contains(html, "<table class=""sortable""><thead>") && contains(html, "<script>") ...
+                && contains(html, "data-v="""), "the units table sorts by a header click");
+            tc.verifyEqual(count(html, "<figure class=""wf"""), nnz(good), "a waveform per good unit");
+            tc.verifyTrue(contains(html, "templates are drawn") && count(html, "&middot; template") == nnz(good), ...
+                "no sorted .bin: the templates, and the page says why");
+            P = fileread(fullfile(units.resultsDir, 'params.py'));       % plant the sorted data (temp_wh.dat)
+            nCh = str2double(regexp(P, 'n_channels_dat = (\d+)', 'tokens', 'once'));
+            fsS = str2double(regexp(P, 'sample_rate = ([\d.eE+]+)', 'tokens', 'once'));
+            nS = double(max(cellfun(@max, units.samples))) + round(0.01 * fsS);   % past every spike's window
+            dat = fullfile(units.resultsDir, 'temp_wh.dat');
+            fid = fopen(dat, 'w');
+            fwrite(fid, repmat(int16(10 * (1:nCh).'), 1, nS), 'int16');
+            fclose(fid);
+            html = string(fileread(writeUnitQualityReport(units, "", WaveformSpikes=3)));
+            tc.verifyTrue(~contains(html, "templates are drawn") && count(html, " 3 spikes &middot;") == nnz(good), ...
+                "with the sorted data: the mean of WaveformSpikes of each good unit's spikes");
+            html = string(fileread(writeUnitQualityReport(units, "", WaveformSpikes=0)));
+            tc.verifyEqual(count(html, "&middot; template"), nnz(good), "WaveformSpikes 0: the templates");
+            delete(dat);
             tc.verifyError(@() writeUnitQualityReport(ds.readSortedUnits(), fullfile(root, "x.html")), ...
                 'writeUnitQualityReport:NoMetrics');
             ds.toMat(Overwrite=true);                        % the extract the exporters read (LFP)

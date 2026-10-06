@@ -1431,7 +1431,9 @@ dataset whose name does not match `Project.NamePattern`, is read with
 - **QC report**: writes the loaded sort's unit-quality page,
   `quality_report.html` in the results folder ([`writeUnitQualityReport`](EphysDataset.md#unit-quality-metrics):
   the criteria, a histogram per metric, a row per unit with its failed
-  metrics marked), and opens it in the browser.
+  metrics marked, the good units first, each good unit's mean waveform),
+  and opens it in the browser. Click a column header on the page to sort
+  the table by it.
 - **Notes**: the one editable column. Typing a note saves it at once to
   `cluster_notes.tsv` next to the sort (`EphysDataset.writeUnitNotes`), the
   file phy uses for a `notes` label, so the Spikes and Export steps and

@@ -1,7 +1,7 @@
 function file = writeUnitQualityReport(units, file, opts)
-%writeUnitQualityReport  One HTML page of a sort's unit quality: summary, histograms, table.
+%writeUnitQualityReport  One HTML page of a sort's unit quality: summary, histograms, table, waveforms.
 %   FILE = writeUnitQualityReport(UNITS, FILE) writes a self-contained HTML
-%   page (no scripts, no external files) for units that carry quality
+%   page (one file, no external files) for units that carry quality
 %   metrics (EphysDataset.unitQuality, readSortedUnits(Quality=true)):
 %     - the sort: results folder, recording length and where it came from,
 %       units per class, units meeting the criteria
@@ -9,21 +9,36 @@ function file = writeUnitQualityReport(units, file, opts)
 %     - one histogram per metric (inline SVG) with its threshold
 %     - one row per unit: label, class, group, channel, spikes, the
 %       metrics, pass / fail, the criteria it fails and those unknown;
-%       failed metrics are marked, unknown ones greyed
+%       failed metrics are marked, unknown ones greyed. The units labelled
+%       good come first (those meeting the criteria first among them),
+%       then the rest the same way, each in unit order. A header click
+%       sorts the table by that column (again: reversed, a third time: back
+%       to this order), by the page's one inline script; a good unit's
+%       label links to its waveform
+%     - each good unit's mean waveform on its peak channel (inline SVG):
+%       the mean and SD of up to WaveformSpikes of its spikes, cut from the
+%       data the sort read and prepared as Kilosort4 saw it
+%       (EphysDataset.readPhyWaveforms); its template (templateWaveform)
+%       when they cannot be read (the .bin is gone), and the page says why
 %     - the code version that wrote the page (ephysProvenance)
 %   FILE "" writes <resultsDir>/quality_report.html.
 %
 %   Options
-%     Criteria   unitQualityPass criteria (default unitQualityCriteria())
-%     Title      page title (default "Unit quality: <resultsDir's folder>")
+%     Criteria        unitQualityPass criteria (default unitQualityCriteria())
+%     Title           page title (default "Unit quality: <resultsDir's folder>")
+%     WaveformSpikes  spikes per good unit to average, picked at random (the
+%                     same ones each time) (default 100; 0 = the templates,
+%                     no spikes read)
 %
-%   See also EphysDataset.unitQuality, unitQualityPass, unitQualityMetrics.
+%   See also EphysDataset.unitQuality, unitQualityPass, unitQualityMetrics,
+%   EphysDataset.readPhyWaveforms.
 
 arguments
     units (1,1) struct
     file (1,1) string = ""
     opts.Criteria (1,1) struct = unitQualityCriteria()
     opts.Title (1,1) string = ""
+    opts.WaveformSpikes (1,1) double {mustBeNonnegative, mustBeInteger} = 100
 end
 metrics = ["firingRate" "isiViolationsRatio" "presenceRatio" "amplitudeCutoff" "snr" "driftPtp"];
 if ~all(isfield(units, metrics))
@@ -50,6 +65,11 @@ c = unitQualityCriteria();
 for f = string(fieldnames(opts.Criteria)).'; c.(f) = opts.Criteria.(f); end
 cls = strings(n, 1);
 if isfield(units, 'class'); cls = string(units.class(:)); end
+grp = strings(n, 1);
+if isfield(units, 'group'); grp = string(units.group(:)); end
+good = grp == "good";
+pass = pass(:);
+order = [find(good & pass); find(good & ~pass); find(~good & pass); find(~good & ~pass)];
 q = struct('settings', struct(), 'numSamples', NaN, 'numSamplesSource', "", 'snrNoise', "");
 if isfield(units, 'quality') && isstruct(units.quality); q = units.quality; end
 
@@ -64,6 +84,9 @@ L(end+1) = "th,td{border-bottom:1px solid #e3e6ec;padding:3px 8px;text-align:rig
 L(end+1) = "th{background:#f3f5f8;position:sticky;top:0}td.t,th.t{text-align:left}";
 L(end+1) = "td.fail{background:#fde2e1;color:#8a1c17}td.unk{color:#9aa1ad}tr.no td.t:first-child{color:#8a1c17}";
 L(end+1) = ".wrap{overflow-x:auto}.hists{display:flex;flex-wrap:wrap;gap:12px}figure{margin:0}";
+L(end+1) = "table.sortable th{cursor:pointer;user-select:none}td a{color:inherit}";
+L(end+1) = "table.sortable th[data-dir=asc]::after{content:' \25B2'}table.sortable th[data-dir=desc]::after{content:' \25BC'}";
+L(end+1) = "figure.wf{width:240px}";
 L(end+1) = "figcaption{font-size:12px;color:#5b6475}</style></head><body>";
 L(end+1) = "<h1>" + esc(title) + "</h1>";
 L(end+1) = "<p class=""meta"">" + esc(dir0) + "</p>";
@@ -108,33 +131,76 @@ end
 L(end+1) = "</div>";
 
 % --- units -------------------------------------------------------------------------
-L(end+1) = "<h2>Units</h2><div class=""wrap""><table><tr><th class=""t"">Label</th><th class=""t"">Class</th>" + ...
+% Good units first; numeric cells carry their value (data-v, "" for NaN) for the sort script.
+L(end+1) = "<h2>Units</h2><p class=""meta"">The units labelled good first (those meeting the criteria " + ...
+    "first among them), then the rest. Click a column header to sort by it, again to reverse, a third " + ...
+    "time for this order. A good unit's label links to its mean waveform.</p>";
+L(end+1) = "<div class=""wrap""><table class=""sortable""><thead><tr><th class=""t"">Label</th><th class=""t"">Class</th>" + ...
     "<th class=""t"">Group</th><th>Channel</th><th>Spikes</th><th>Rate (Hz)</th><th>ISI ratio</th><th>ISI count</th>" + ...
     "<th>Presence</th><th>Amp. cutoff</th><th>SNR</th><th>Drift ptp (um)</th><th class=""t"">Meets</th>" + ...
-    "<th class=""t"">Fails</th><th class=""t"">Unknown</th></tr>";
+    "<th class=""t"">Fails</th><th class=""t"">Unknown</th></tr></thead><tbody>";
 val = @(f, i) fieldOr(units, f, i);
-for i = 1:n
+for r = 1:n
+    i = order(r);
     cells = strings(1, 0);
-    cells(end+1) = "<td class=""t"">" + esc(string(val('label', i))) + "</td>"; %#ok<AGROW>
+    lbl = esc(string(val('label', i)));
+    if good(i); lbl = "<a href=""#" + waveId(units, i) + """>" + lbl + "</a>"; end
+    cells(end+1) = "<td class=""t"">" + lbl + "</td>"; %#ok<AGROW>
     cells(end+1) = "<td class=""t"">" + esc(cls(i)) + "</td>"; %#ok<AGROW>
-    cells(end+1) = "<td class=""t"">" + esc(string(val('group', i))) + "</td>"; %#ok<AGROW>
-    cells(end+1) = "<td>" + num(val('channel', i)) + "</td>"; %#ok<AGROW>
-    cells(end+1) = "<td>" + num(val('nSpikes', i)) + "</td>"; %#ok<AGROW>
+    cells(end+1) = "<td class=""t"">" + esc(grp(i)) + "</td>"; %#ok<AGROW>
+    cells(end+1) = numCell(val('channel', i), ""); %#ok<AGROW>
+    cells(end+1) = numCell(val('nSpikes', i), ""); %#ok<AGROW>
     for m = ["firingRate" "isiViolationsRatio" "isiViolationsCount" "presenceRatio" "amplitudeCutoff" "snr" "driftPtp"]
         v = double(val(char(m), i));
         cl = "";
-        if isnan(v); cl = " class=""unk"""; elseif contains(why(i), m + " "); cl = " class=""fail"""; end
-        cells(end+1) = "<td" + cl + ">" + num(v) + "</td>"; %#ok<AGROW>
+        if isnan(v); cl = "unk"; elseif contains(why(i), m + " "); cl = "fail"; end
+        cells(end+1) = numCell(v, cl); %#ok<AGROW>
     end
     cells(end+1) = "<td class=""t"">" + ternary(pass(i), "yes", "no") + "</td>"; %#ok<AGROW>
     cells(end+1) = "<td class=""t"">" + esc(why(i)) + "</td>"; %#ok<AGROW>
     cells(end+1) = "<td class=""t"">" + esc(unknown(i)) + "</td>"; %#ok<AGROW>
-    L(end+1) = "<tr" + ternary(pass(i), "", " class=""no""") + ">" + strjoin(cells, "") + "</tr>"; %#ok<AGROW>
+    L(end+1) = "<tr data-i=""" + r + """" + ternary(pass(i), "", " class=""no""") + ">" + strjoin(cells, "") + "</tr>"; %#ok<AGROW>
 end
-L(end+1) = "</table></div>";
+L(end+1) = "</tbody></table></div>";
+
+% --- good units' mean waveforms ------------------------------------------------------
+L(end+1) = "<h2>Mean waveforms of the good units</h2>";
+rows = order(good(order));
+if isempty(rows)
+    L(end+1) = "<p class=""meta"">No unit is labelled good.</p>";
+else
+    [WF, note] = meanWaveforms(units, rows, opts.WaveformSpikes);
+    if opts.WaveformSpikes == 0
+        about = "Each good unit's Kilosort4 template on its peak channel (WaveformSpikes 0: no spikes read).";
+    elseif note == ""
+        about = sprintf("On each good unit's peak channel, the mean (line) and SD (band) of up to %d of its " + ...
+            "spikes, cut from the data the sort read and prepared as Kilosort4 saw it.", opts.WaveformSpikes);
+    else
+        about = "The sorted spikes cannot be read, so the units' Kilosort4 templates are drawn: " + note;
+    end
+    L(end+1) = "<p class=""meta"">" + esc(about) + "</p><div class=""hists"">";
+    for k = 1:numel(rows)
+        i = rows(k);
+        cap = "<b>" + esc(string(val('label', i))) + "</b> &middot; " + esc(channelText(units, i));
+        w = WF(k);
+        switch w.from
+            case "spikes";   cap = cap + sprintf(" &middot; %d spikes", w.n);
+            case "template"; cap = cap + " &middot; template";
+        end
+        if ~isempty(w.mean)
+            cap = cap + " &middot; " + num(max(w.mean) - min(w.mean)) + " " + unitText(w.units) + " p-p";
+        end
+        cap = cap + "<br>" + ternary(pass(i), "meets the criteria", "fails: " + esc(why(i)));
+        L(end+1) = waveformSvg(w, waveId(units, i), cap); %#ok<AGROW>
+    end
+    L(end+1) = "</div>";
+end
+
 v = ephysVersion();
 L(end+1) = "<p class=""meta"">Written " + esc(string(datetime('now', 'Format', 'yyyy-MM-dd HH:mm'))) + ...
-    " by writeUnitQualityReport, " + esc(v.Text) + ".</p></body></html>";
+    " by writeUnitQualityReport, " + esc(v.Text) + ".</p>";
+L(end+1) = strjoin(sortScript(), newline);
+L(end+1) = "</body></html>";
 
 d = fileparts(file);
 if strlength(d) > 0 && ~isfolder(d); mkdir(d); end
@@ -177,6 +243,173 @@ else
     s = s + "</svg>";
 end
 s = s + "<figcaption>" + esc(name) + sprintf(" (%d of %d units with a value)", numel(v), numel(x)) + "</figcaption></figure>";
+end
+
+
+function [WF, note] = meanWaveforms(units, rows, nMax)
+%meanWaveforms  Each unit of ROWS on its peak channel: mean and SD of its spikes, else its template.
+%   Up to NMAX of the unit's spikes are cut from the data the sort read
+%   (EphysDataset.readPhyWaveforms). Once that data cannot be read (the .bin
+%   is gone) every unit from then on gets its template, and NOTE says why;
+%   a unit whose peak channel was not sorted gets its template alone.
+WF = repmat(struct('timeMs', [], 'mean', [], 'sd', [], 'n', 0, 'units', "", 'from', "none"), numel(rows), 1);
+note = "";
+dir0 = "";
+if isfield(units, 'resultsDir'); dir0 = string(units.resultsDir); end
+canRead = nMax > 0 && dir0 ~= "" && isfield(units, 'samples') && isfield(units, 'ksChannel');
+if nMax > 0 && ~canRead
+    note = "the units name no results folder, spikes or peak channels.";
+end
+for k = 1:numel(rows)
+    i = rows(k);
+    if canRead
+        try
+            [w, info] = EphysDataset.readPhyWaveforms(dir0, units.samples{i}, ...
+                Channels=double(units.ksChannel(i)), MaxSpikes=nMax);
+            if size(w, 3) > 0
+                w = reshape(w, size(w, 1), []);          % samples x spikes
+                WF(k).timeMs = double(info.timeMs(:));
+                WF(k).mean = mean(w, 2);
+                WF(k).sd = std(w, 0, 2);
+                WF(k).n = size(w, 2);
+                WF(k).units = string(info.units);
+                WF(k).from = "spikes";
+                continue
+            end
+        catch ME
+            if ~startsWith(ME.identifier, "EphysDataset:readPhyWaveforms:")
+                rethrow(ME);
+            end
+            if ME.identifier ~= "EphysDataset:readPhyWaveforms:BadChannels"
+                canRead = false;
+                note = string(ME.message);
+            end
+        end
+    end
+    if isfield(units, 'templateWaveform') && numel(units.templateWaveform) >= i && ~isempty(units.templateWaveform{i})
+        WF(k).timeMs = double(units.templateTimeMs(:));
+        WF(k).mean = double(units.templateWaveform{i}(:));
+        WF(k).units = string(units.templateUnits);
+        WF(k).from = "template";
+    end
+end
+end
+
+
+function s = waveformSvg(w, id, caption)
+%waveformSvg  An inline SVG of one unit's waveform W (meanWaveforms): its mean, its SD as a band.
+Wd = 240; H = 150; l = 44; r = 8; t = 8; b = 22;
+s = "<figure class=""wf"" id=""" + id + """><svg width=""" + Wd + """ height=""" + H + """ viewBox=""0 0 " + ...
+    Wd + " " + H + """ role=""img"" aria-label=""mean waveform"">";
+if isempty(w.mean)
+    s = s + "<text x=""10"" y=""70"" font-size=""12"" fill=""#9aa1ad"">no waveform</text></svg>";
+else
+    x = w.timeMs(:);
+    m = w.mean(:);
+    sd = zeros(size(m));
+    if ~isempty(w.sd); sd = w.sd(:); end
+    lo = min([m - sd; 0]); hi = max([m + sd; 0]);
+    if hi == lo; lo = lo - 1; hi = hi + 1; end
+    x0 = x(1); x1 = x(end);
+    if x1 == x0; x1 = x0 + 1; end
+    sx = @(v) l + (v - x0) / (x1 - x0) * (Wd - l - r);
+    sy = @(v) t + (hi - v) / (hi - lo) * (H - t - b);
+    s = s + sprintf("<line x1=""%d"" y1=""%d"" x2=""%d"" y2=""%d"" stroke=""#9aa1ad""/>", l, t, l, H - b);
+    s = s + sprintf("<line x1=""%d"" y1=""%.1f"" x2=""%d"" y2=""%.1f"" stroke=""#c8ccd4"" stroke-dasharray=""3 3""/>", ...
+        l, sy(0), Wd - r, sy(0));
+    if x0 <= 0 && 0 <= x1
+        s = s + sprintf("<line x1=""%.1f"" y1=""%d"" x2=""%.1f"" y2=""%d"" stroke=""#e3e6ec""/>", sx(0), t, sx(0), H - b);
+    end
+    if any(sd > 0)
+        s = s + "<polygon points=""" + pts(sx([x; flipud(x)]), sy([m + sd; flipud(m - sd)])) + ...
+            """ fill=""#5b8def"" fill-opacity=""0.3"" stroke=""none""/>";
+    end
+    s = s + "<polyline points=""" + pts(sx(x), sy(m)) + """ fill=""none"" stroke=""#1d4ed8"" stroke-width=""1.5""/>";
+    s = s + sprintf("<text x=""%d"" y=""%d"" font-size=""10"" fill=""#5b6475"" text-anchor=""end"">%s</text>", l - 4, t + 8, sprintf("%.3g", hi));
+    s = s + sprintf("<text x=""%d"" y=""%d"" font-size=""10"" fill=""#5b6475"" text-anchor=""end"">%s</text>", l - 4, H - b, sprintf("%.3g", lo));
+    s = s + sprintf("<text x=""%d"" y=""%d"" font-size=""10"" fill=""#5b6475"">%s</text>", l, H - 6, sprintf("%.3g", x0));
+    s = s + sprintf("<text x=""%d"" y=""%d"" font-size=""10"" fill=""#5b6475"" text-anchor=""end"">%s ms</text>", ...
+        Wd - r, H - 6, sprintf("%.3g", x1));
+    s = s + "</svg>";
+end
+s = s + "<figcaption>" + caption + "</figcaption></figure>";
+end
+
+
+function p = pts(x, y)
+%pts  SVG points "x,y x,y ..." of the columns X and Y.
+p = strtrim(string(sprintf("%.1f,%.1f ", [x(:) y(:)].')));
+end
+
+
+function id = waveId(units, i)
+%waveId  The HTML id of unit I's waveform figure.
+id = "wf-" + string(units.unitId(i));
+end
+
+
+function t = channelText(units, i)
+%channelText  Unit I's peak channel: its native name, else "ch <recording channel>".
+t = "";
+if isfield(units, 'channelName') && numel(units.channelName) >= i; t = string(units.channelName(i)); end
+if ismissing(t) || t == ""; t = "ch " + num(fieldOr(units, 'channel', i)); end
+end
+
+
+function s = unitText(units)
+%unitText  The amplitude unit for a caption (EphysDataset.readPhyWaveforms units).
+switch units
+    case "uV";       s = "&micro;V";
+    case "bin";      s = ".bin units";
+    case "whitened"; s = "whitened units";
+    otherwise;       s = "a.u.";
+end
+end
+
+
+function c = numCell(v, cl)
+%numCell  A numeric table cell, its value in data-v ("" for NaN) for the sort script; CL its class.
+v = double(v);
+dv = "";
+if ~isempty(v) && isfinite(v); dv = string(sprintf("%.10g", v)); end
+if cl ~= ""; cl = " class=""" + cl + """"; end
+c = "<td" + cl + " data-v=""" + dv + """>" + num(v) + "</td>";
+end
+
+
+function L = sortScript()
+%sortScript  The page's script: a header click sorts its table up, down, then back to the page's order.
+%   Numeric columns (no class "t") sort by each cell's data-v, text ones by
+%   the cell's text; empty values go last either way.
+L = [
+"<script>"
+"document.querySelectorAll('table.sortable').forEach(function (t) {"
+"  var body = t.tBodies[0], heads = t.tHead.rows[0].cells;"
+"  Array.prototype.forEach.call(heads, function (th, c) {"
+"    var num = !th.classList.contains('t');"
+"    th.title = 'Sort by this column (again: reversed, a third time: the order of the report)';"
+"    th.addEventListener('click', function () {"
+"      var dir = {'': 'asc', asc: 'desc', desc: ''}[th.getAttribute('data-dir') || ''];"
+"      Array.prototype.forEach.call(heads, function (h) { h.removeAttribute('data-dir'); });"
+"      if (dir) { th.setAttribute('data-dir', dir); }"
+"      var key = function (row) {"
+"        var d = row.cells[c], v = d.hasAttribute('data-v') ? d.getAttribute('data-v') : d.textContent.trim();"
+"        return v === '' ? null : (num ? parseFloat(v) : v);"
+"      };"
+"      var rows = Array.prototype.slice.call(body.rows);"
+"      rows.sort(function (a, b) {"
+"        var i = a.getAttribute('data-i') - b.getAttribute('data-i');"
+"        if (!dir) { return i; }"
+"        var x = key(a), y = key(b);"
+"        if (x === null || y === null) { return ((x === null) - (y === null)) || i; }"
+"        var d = num ? x - y : x.localeCompare(y, undefined, {numeric: true});"
+"        return (dir === 'asc' ? d : -d) || i;"
+"      });"
+"      rows.forEach(function (row) { body.appendChild(row); });"
+"    });"
+"  });"
+"});"
+"</script>"];
 end
 
 

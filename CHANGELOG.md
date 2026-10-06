@@ -182,6 +182,12 @@ says how to cut a release.
 
 ### Changed
 
+- The QC report (`writeUnitQualityReport`, the Review tab's **QC report**)
+  lists the units labelled good first, sorts its table by a click on a
+  column header (again: reversed; a third time: back), and draws each good
+  unit's mean waveform on its peak channel: the mean and SD of up to
+  `WaveformSpikes` (100) of its spikes cut from the sorted `.bin`, else its
+  template. A good unit's label in the table links to its waveform.
 - The analysis app's parameter lists (group-by, tuning x axis and series,
   tuning-test parameter, the dataset's Parameters table, the filter help's
   columns) offer every trial column, `RespCode` among them, in alphabetical

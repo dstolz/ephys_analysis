@@ -94,9 +94,11 @@ classdef EphysPipelineApp < handle
     %                every local file of the selected datasets as Remove or
     %                Keep (planLocalCleanup), then, after a confirmation,
     %                delete the Remove ones, send them to the Recycle Bin or
-    %                move them to a folder (runLocalCleanup). Raw files go
-    %                only when the source they were copied from still holds
-    %                them. Not a pipeline step
+    %                move them to a folder (runLocalCleanup; the preview
+    %                marks the files already in that folder, which are
+    %                skipped, overwritten or moved to a new version folder,
+    %                as chosen). Raw files go only when the source they were
+    %                copied from still holds them. Not a pipeline step
     %
     %   File menu: New / Open / Open recent / Save / Save As / Export copy /
     %   Generate script (compact | standalone) / Create synthetic test
@@ -559,6 +561,8 @@ classdef EphysPipelineApp < handle
         CleanupMethodDropDown     matlab.ui.control.DropDown   % where removed files go: "delete" | "recycle" | "move"
         CleanupDestField          matlab.ui.control.EditField  % the folder for "move"
         CleanupDestButton         matlab.ui.control.Button
+        CleanupIfExistsLabel      matlab.ui.control.Label
+        CleanupIfExistsDropDown   matlab.ui.control.DropDown   % a file already at its place in the folder: "skip" | "overwrite" | "version"
         CleanupMethodNote         matlab.ui.control.Label
         CleanupPreviewButton      matlab.ui.control.Button
         CleanupRunButton          matlab.ui.control.Button
@@ -919,6 +923,7 @@ classdef EphysPipelineApp < handle
         CleanupPlan = []                                        % planLocalCleanup table + Subject, Include ([] = no preview)
         CleanupPlanKeys (1,:) string = string.empty(1, 0)       % dataset keys it was made for
         CleanupRowMap (:,1) double = zeros(0, 1)                % CleanupPlan row of each CleanupTable.Data row
+        CleanupMove = []                                        % cleanupMoveTargets for CleanupPlan's rows ([] = no move, folder or preview)
 
         % --- the last run error (Help > Report an issue sends it; issueReport) ---
         LastError MException = MException.empty(0, 1)   % what a run stopped on ([] when none)
@@ -1307,6 +1312,7 @@ classdef EphysPipelineApp < handle
         onCleanupSelect(obj, how)
         refreshCleanupScope(obj)
         refreshCleanupTable(obj, part)
+        changed = refreshCleanupMove(obj, look)
 
         % --- app-wide ---
         loadPreferences(obj)

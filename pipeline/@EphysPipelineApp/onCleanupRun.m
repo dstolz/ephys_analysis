@@ -10,7 +10,9 @@ function onCleanupRun(obj)
 %   envelope the tab shows whose file goes is built again when the tab
 %   next draws (EphysTraceEnvelope.isReady). A move needs a folder
 %   outside the project and output roots, where a scan would find the
-%   files again.
+%   files again; the folder is checked again before the confirmation,
+%   which says how many files are already there and what If a file is
+%   already there does with them.
 T = obj.CleanupPlan;
 if isempty(T); return; end
 % an unticked Remove row stays: runLocalCleanup removes only Action "remove"
@@ -41,6 +43,8 @@ if method == "move"
         uialert(obj.Fig, why, "Clean up");
         return
     end
+    obj.refreshCleanupMove(true);   % the folder as it is now
+    obj.refreshCleanupTable();
 end
 
 rm = T(T.Action == "remove", :);
@@ -61,7 +65,10 @@ switch method
     case "move"
         dlgTitle = "Move local files";
         head = sprintf("Move %d file(s), %s, from %d dataset(s) to %s?", height(rm), bytesText(sum(rm.Bytes)), nDs, dest);
-        how = "Each keeps its path below " + fullfile(dest, "<dataset key>") + "; a file already there is never overwritten.";
+        how = "Each keeps its path below " + fullfile(dest, "<dataset key>") + ".";
+        if ~isempty(obj.CleanupMove)
+            how = how + cleanupMoveSentence(obj.CleanupPlan, obj.CleanupMove, dest);
+        end
         button = sprintf('Move %d file(s)', height(rm));
 end
 msg = [head; groupLines(obj, rm); ""

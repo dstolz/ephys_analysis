@@ -8,7 +8,11 @@ function refreshCleanupTable(obj, part)
 %
 %   Ticked Remove rows are tinted red, unticked ones grey; raw recording files
 %   that are kept (no verified source copy) amber, since they are the ones a
-%   user may have expected to go. The rows are in the plan's order (Remove
+%   user may have expected to go. While a move's folder is checked
+%   (CleanupMove, refreshCleanupMove) a ninth column, In the folder, says
+%   what is already at each file's place there and what the move would do
+%   (If a file is already there), and the ticked files it does not simply
+%   move are tinted lavender. The rows are in the plan's order (Remove
 %   first, largest first), or in that of the remembered header click
 %   (tableSort "Cleanup"), which holds for every preview and the next
 %   session. CleanupRowMap maps each row of Data to its plan row, in
@@ -23,6 +27,7 @@ if isempty(tbl) || ~isvalid(tbl); return; end
 T = obj.CleanupPlan;
 if isempty(T)
     removeStyle(tbl);
+    showFolderColumn(tbl, false);
     tbl.Data = cell(0, 8);
     obj.CleanupRowMap = zeros(0, 1);
     obj.CleanupRunButton.Enable = "off";
@@ -46,6 +51,15 @@ rawKept = unique(T.Dataset(~rm & T.Category == "raw"));
 if ~isempty(rawKept) && obj.CleanupRawCheckBox.Value
     txt = txt + sprintf(" The raw recording of %d dataset(s) is kept (see Why).", numel(rawKept));
 end
+M = obj.CleanupMove;
+dest = strtrim(string(obj.CleanupDestField.Value));
+if string(obj.CleanupMethodDropDown.Value) == "move" && any(go)
+    if isempty(M)
+        txt = txt + " Choose the folder to move them into (a full path): it is then checked for the files already there.";
+    else
+        txt = txt + cleanupMoveSentence(T, M, dest);
+    end
+end
 obj.CleanupSummaryLabel.Text = txt;
 obj.CleanupRunButton.Enable = matlab.lang.OnOffSwitchState(any(go));
 if part == "summary"
@@ -64,6 +78,10 @@ action = repmat("Keep", height(S), 1);
 action(S.Action == "remove") = "Remove";
 D = [num2cell(S.Include), cellstr(action), cellstr(S.Dataset), cellstr(S.Subject), ...
     cellstr(S.What), num2cell(sizeMB(S.Bytes)), cellstr(S.File), cellstr(S.Reason)];
+showFolderColumn(tbl, ~isempty(M));
+if ~isempty(M)
+    D = [D, cellstr(folderText(S, M(vis, :), dest))];
+end
 [D, ord] = TableSort.apply(D, obj.tableSort("Cleanup"), tbl.ColumnName);
 S = S(ord, :);
 obj.CleanupRowMap = vis(ord);   % the plan row of each row of Data, in its order
@@ -72,6 +90,64 @@ removeStyle(tbl);
 styleRows(tbl, find(S.Action == "remove" & S.Include), [0.98 0.85 0.83]);
 styleRows(tbl, find(S.Action == "remove" & ~S.Include), [0.92 0.92 0.92]);
 styleRows(tbl, find(S.Action == "keep" & S.Category == "raw"), [1.00 0.93 0.75]);
+if ~isempty(M)
+    Ms = M(obj.CleanupRowMap, :);
+    styleRows(tbl, find(S.Action == "remove" & S.Include & (Ms.Taken ~= "" | Ms.To ~= Ms.Target)), [0.88 0.84 0.98]);
+end
+end
+
+
+function showFolderColumn(tbl, show)
+%showFolderColumn  Add or drop the ninth column, In the folder (a move's check), keeping the other eight as built.
+if show == (numel(tbl.ColumnName) == 9); return; end
+if show
+    tbl.ColumnName = [tbl.ColumnName(:).', {'In the folder'}];
+    tbl.ColumnWidth = [tbl.ColumnWidth, {'2x'}];
+    tbl.ColumnEditable = [tbl.ColumnEditable, false];
+    tbl.ColumnFormat = [tbl.ColumnFormat, {'char'}];
+else
+    tbl.ColumnName = tbl.ColumnName(1:8);
+    tbl.ColumnWidth = tbl.ColumnWidth(1:8);
+    tbl.ColumnEditable = tbl.ColumnEditable(1:8);
+    tbl.ColumnFormat = tbl.ColumnFormat(1:8);
+end
+end
+
+
+function txt = folderText(S, M, dest)
+%folderText  The In the folder column: what the move's folder holds at each file's place and what the move would do.
+%   A ticked Remove file is described as it would go: skipped, overwriting
+%   the file there, or to the dataset's new version folder; an unticked one
+%   (it stays anyway) only by what is there. Keep rows are blank.
+txt = strings(height(S), 1);
+dest = strip(strrep(dest, "/", filesep), 'right', filesep);
+for k = 1:height(S)
+    if M.Target(k) == ""; continue; end   % not a Remove file
+    switch M.Taken(k)
+        case "file"
+            there = sprintf("Already there (%s, %s)", bytesText(M.TakenBytes(k)), string(M.TakenDate(k), "yyyy-MM-dd HH:mm"));
+        case "folder"
+            there = "A folder of that name is there";
+        otherwise
+            there = "";
+    end
+    if ~(S.Action(k) == "remove" && S.Include(k))
+        txt(k) = there;
+    elseif M.To(k) == "" && there == ""
+        txt(k) = "Skipped, it stays here: " + M.Note(k);
+    elseif M.To(k) == ""
+        txt(k) = there + ": skipped, it stays here";
+    elseif ~strcmpi(M.To(k), M.Target(k))
+        v = extractAfter(M.Version(k), strlength(dest) + 1);
+        if there == ""
+            txt(k) = "Goes to the new version folder " + v;
+        else
+            txt(k) = there + "; this one goes to the new version folder " + v;
+        end
+    elseif there ~= ""
+        txt(k) = there + ": overwritten";
+    end
+end
 end
 
 

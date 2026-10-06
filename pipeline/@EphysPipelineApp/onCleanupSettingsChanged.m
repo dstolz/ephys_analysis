@@ -10,6 +10,7 @@ end
 if isempty(obj.CleanupPlan); return; end
 obj.CleanupPlan = [];
 obj.CleanupPlanKeys = string.empty(1, 0);
+obj.CleanupMove = [];
 obj.refreshCleanupTable();
 obj.CleanupSummaryLabel.Text = why + ": press Preview again.";
 end

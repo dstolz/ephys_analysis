@@ -304,13 +304,15 @@ appends a run.
 
 ```text
 {
-  "schema":  "ephys-local-cleanup/2",
+  "schema":  "ephys-local-cleanup/3",
   "dataset": <dataset Name>,
   "folder":  <recording folder>,
   "runs": [
     { "time": <"yyyy-MM-dd HH:mm:ss">, "host": <computer>, "user": <user>,
       "method": "delete" | "recycle" | "move",
       "destination": <the folder files were moved into, "" unless "move">,
+      "ifExists": "skip" | "overwrite" | "version" (what a move did with a file already
+                  at a file's place; "" unless "move"),
       "bytesRemoved": <n>,
       "removed": [ { "file": <local path>,
                      "category": "raw" | "sorter_copy" | "bin" | "envelope" | "sorting" | "output",
@@ -320,6 +322,7 @@ appends a run.
                      "bytes": <n>, "source": <source path for a raw file, else "">,
                      "to": <its new path ("move"), "Recycle Bin" ("recycle", found there
                             afterwards), else "">,
+                     "replaced": <true when the moved file replaced one already there>,
                      "note": <e.g. not found in the Recycle Bin afterwards, else ""> }, ... ] }, ...
   ]
 }
@@ -328,7 +331,8 @@ appends a run.
 A raw file is only removed while its `source` holds a file of the same size,
 so the record says where to copy each one back from. A moved file is at
 `<destination>/<dataset key>/<its path in the dataset's recording or output
-folder>`, as `to` says.
+folder>`, as `to` says, or below `<destination>/<dataset key>_v<n>` when
+`ifExists` was `"version"` and a file of the dataset was already there.
 
 ---
 

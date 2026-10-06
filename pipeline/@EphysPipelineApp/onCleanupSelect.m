@@ -20,5 +20,6 @@ switch how
     case "invert"; T.Include(shown & rm) = ~T.Include(shown & rm);
 end
 obj.CleanupPlan = T;
+obj.refreshCleanupMove(false);   % the ticks decide which datasets need a version folder
 obj.refreshCleanupTable();
 end

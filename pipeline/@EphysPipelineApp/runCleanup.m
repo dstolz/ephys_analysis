@@ -2,14 +2,17 @@ function R = runCleanup(obj, T)
 %runCleanup  Remove T's Remove rows the way the Clean up tab says (runLocalCleanup), then show what is left.
 %   R = runCleanup(obj, T) deletes the files, sends them to the Recycle Bin
 %   or moves them to the folder given (CleanupMethodDropDown,
-%   CleanupDestField), under a progress dialog whose Cancel leaves the
-%   files not yet handled in place. Each file handled is logged. The
+%   CleanupDestField; a file already there is skipped, overwritten or put
+%   in a version folder, CleanupIfExistsDropDown), under a progress dialog
+%   whose Cancel leaves the files not yet handled in place. Each file
+%   handled is logged. The
 %   manifests of the datasets that lost files are rewritten, since they
 %   record the sorting and .bin on disk; the Datasets table and the Review
 %   tab follow, and the preview is made again. onCleanupRun confirms first;
 %   this asks nothing, so tests call it directly.
 method = string(obj.CleanupMethodDropDown.Value);
 dest = strtrim(string(obj.CleanupDestField.Value));
+ifExists = string(obj.CleanupIfExistsDropDown.Value);
 rm = T(T.Action == "remove", :);
 verbs = struct('delete', ["Deleting" "Deleted"], 'recycle', ["Recycling" "Recycled"], 'move', ["Moving" "Moved"]);
 verb = verbs.(method);
@@ -18,13 +21,16 @@ obj.CleanupRunButton.Enable = "off";
 obj.CleanupPreviewButton.Enable = "off";
 restore = onCleanup(@() set(obj.CleanupPreviewButton, "Enable", "on"));
 to = "";
-if method == "move"; to = " to " + dest; end
+if method == "move"
+    dd = obj.CleanupIfExistsDropDown;
+    to = " to " + dest + " (if a file is already there: " + lower(string(dd.Items{strcmp(dd.ItemsData, dd.Value)})) + ")";
+end
 cleanupLog(obj, sprintf("%s %d file(s) from %d dataset(s)%s...", verb(1), height(rm), numel(unique(rm.Dataset)), to));
 dlg = uiprogressdlg(obj.Fig, "Title", "Clean up", "Message", verb(1) + "...", "Value", 0, "Cancelable", "on");
 closeDlg = onCleanup(@() delete(dlg));
 R = rm([], :);
 try
-    R = runLocalCleanup(T, Method=method, Destination=dest, LogFcn=@(m) cleanupLog(obj, m), ...
+    R = runLocalCleanup(T, Method=method, Destination=dest, IfExists=ifExists, LogFcn=@(m) cleanupLog(obj, m), ...
         ProgressFcn=@(e) progress(dlg, e, verb(1)), CancelFcn=@() dlg.CancelRequested);
 catch ME
     cleanupLog(obj, "Nothing was removed: " + ME.message);
@@ -34,6 +40,9 @@ catch ME
 end
 done = R.Status == "removed";
 summary = sprintf("%s %d file(s), %s.", verb(2), nnz(done), bytesText(sum(R.Bytes(done))));
+if any(R.Replaced)
+    summary = summary + sprintf(" %d of them replaced the file already there.", nnz(R.Replaced));
+end
 if any(~done)
     summary = summary + sprintf(" %d file(s) left in place (see the log).", nnz(~done));
 end

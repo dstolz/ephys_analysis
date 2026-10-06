@@ -1001,7 +1001,7 @@ PIPE_GROUPS = [
                                      "matchEpsychSession", "pairEpsychTrials", "digitalLinePolarity",
                                      "stitchEpsychSessions"]),
     ("Copying sessions from the source", ["findCopySessions", "stitchCopySessions", "copySessions"]),
-    ("Freeing local disk space (Clean up tab)", ["planLocalCleanup", "runLocalCleanup"]),
+    ("Freeing local disk space (Clean up tab)", ["planLocalCleanup", "cleanupMoveTargets", "runLocalCleanup"]),
     ("Background Kilosort4 runs", ["sortingSlot", "waitForSortingSlot"]),
     ("Unit quality and sort comparison", ["unitQualityMetrics", "unitQualityCriteria", "unitQualityPass",
                                           "writeUnitQualityReport", "sortSweep"]),

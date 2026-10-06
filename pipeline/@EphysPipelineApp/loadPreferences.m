@@ -199,6 +199,7 @@ if AppPrefs.ispref(g, 'CleanupOptions')
         applyIf(v, 'steps',      @(x) arrayfun(@(b) set(b, 'Value', ismember(b.Tag, cellstr(x))), obj.CleanupStepCheckBoxes));
         applyIf(v, 'method',     @(x) set(obj.CleanupMethodDropDown, 'Value', char(x)));
         applyIf(v, 'destination', @(x) set(obj.CleanupDestField, 'Value', char(x)));
+        applyIf(v, 'ifExists',   @(x) set(obj.CleanupIfExistsDropDown, 'Value', char(x)));
         applyIf(v, 'showKept',   @(x) set(obj.CleanupShowKeptCheckBox, 'Value', logical(x)));
         obj.onCleanupMethodChanged();
     end

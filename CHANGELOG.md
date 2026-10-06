@@ -90,6 +90,18 @@ says how to cut a release.
 - Clean up removes the Visualize tab's envelope caches: kind `"envelope"` of
   `planLocalCleanup`, ticked by default in the free-space group. A build's
   `.partial` file goes only once it is an hour old.
+- Clean up's **Move to a folder** checks the folder at Preview: an **In the
+  folder** column and the summary line say which files are already there
+  (size and date), and **If a file is already there** chooses what the move
+  does with them: skip (the default, as before), overwrite (the file there
+  is renamed aside and deleted only once the new one is in place), or keep
+  both by moving that dataset's files to a new version folder
+  `<dataset key>_v2` (`_v3`, ...), so a sort run folder stays whole. The
+  check is redone when the folder, the method or the choice changes and
+  before the confirmation. `cleanupMoveTargets` is the preview;
+  `runLocalCleanup` takes `IfExists=` and reports `Replaced`. The clean-up
+  record is now schema `ephys-local-cleanup/3`, with each run's `ifExists`
+  and each file's `replaced`.
 - Pipeline app: closing with Kilosort4 runs queued offers **Keep the queue
   for next time**, **Drop the queue** or **Cancel**. A kept queue is stored
   per project root (preference `KeptSortingQueue`) and offered back once

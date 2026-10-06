@@ -3,8 +3,11 @@ function buildCleanupTab(obj)
 %   Lists every local file of the selected datasets as Remove or Keep
 %   (planLocalCleanup) and, after a confirmation that says what goes and
 %   what stays, deletes the Remove rows, sends them to the Recycle Bin or
-%   moves them to a folder (runLocalCleanup). Not a pipeline step and not
-%   part of the config: the kinds ticked and where files go are preferences.
+%   moves them to a folder (runLocalCleanup). For a move the preview also
+%   checks the folder (cleanupMoveTargets) and says, in an extra In the
+%   folder column, which files are already there and what If a file is
+%   already there does with them. Not a pipeline step and not part of the
+%   config: the kinds ticked and where files go are preferences.
 
 g = uigridlayout(obj.TabCleanup, [1 2]);
 g.ColumnWidth = {400, '1x'};
@@ -18,9 +21,9 @@ og = uigridlayout(opt, [2 1]);   % the options scroll; the buttons under them st
 og.RowHeight = {'1x', 32};
 og.Padding = [0 10 0 0];
 og.RowSpacing = 6;
-cg = uigridlayout(og, [20 2]);
+cg = uigridlayout(og, [21 2]);
 cg.Layout.Row = 1;
-cg.RowHeight   = {'fit', 22, 24, 'fit', 24, 'fit', 24, 'fit', 24, 'fit', 22, 'fit', 'fit', 22, 'fit', 22, 24, 26, 'fit', '1x'};
+cg.RowHeight   = {'fit', 22, 24, 'fit', 24, 'fit', 24, 'fit', 24, 'fit', 22, 'fit', 'fit', 22, 'fit', 22, 24, 26, 24, 'fit', '1x'};
 cg.ColumnWidth = {'1x', '1x'};
 cg.RowSpacing  = 4;
 cg.Scrollable  = "on";
@@ -76,7 +79,8 @@ sep(cg, "Always kept", 14);
 note(cg, 15, "The outputs of the steps not ticked, the manifests, the copy record, the Epsych2 session file, " + ...
     "the clean-up record and any other file. Nothing on the source is touched.");
 
-% where removed files go (acts on the preview as it is: changing it keeps the preview)
+% where removed files go (acts on the preview as it is: changing it keeps the
+% preview; for a move, the folder is checked again for the files already there)
 sep(cg, "Removed files go", 16);
 ways = ["delete" "Delete permanently"; "recycle" "Move to the Recycle Bin"; "move" "Move to a folder"];
 if ~ispc; ways(2, :) = []; end   % the Recycle Bin is Windows only
@@ -89,11 +93,27 @@ dg.Layout.Row = 18; dg.Layout.Column = [1 2];
 dg.ColumnWidth = {'1x', 80}; dg.Padding = [0 0 0 0];
 obj.CleanupDestField = uieditfield(dg, "text", "Placeholder", "Folder to move the files into", ...
     "Tooltip", "Each file goes to <folder>\<dataset key>\<its path in the dataset folder>. " + ...
-    "Not inside the project or output root, where a scan would find the files again.");
+    "Not inside the project or output root, where a scan would find the files again.", ...
+    "ValueChangedFcn", @(~,~) obj.onCleanupMethodChanged());
 obj.CleanupDestButton = uibutton(dg, "Text", "Browse...", ...
     "ButtonPushedFcn", @(~,~) obj.onCleanupBrowseDest());
+xg = uigridlayout(cg, [1 2]);
+xg.Layout.Row = 19; xg.Layout.Column = [1 2];
+xg.ColumnWidth = {'fit', '1x'}; xg.Padding = [0 0 0 0];
+obj.CleanupIfExistsLabel = uilabel(xg, "Text", "If a file is already there:");
+ifs = ["skip" "Skip it (it stays here)"
+    "overwrite" "Overwrite the one there"
+    "version" "Keep both: new version folder"];
+obj.CleanupIfExistsDropDown = uidropdown(xg, "Items", cellstr(ifs(:, 2)), "ItemsData", cellstr(ifs(:, 1)), ...
+    "Value", 'skip', "Tooltip", sprintf(['A file of the preview whose place in the folder already holds a file ' ...
+    '(the In the folder column says which):\n' ...
+    'Skip: it is not moved, and the one there is left as it is.\n' ...
+    'Overwrite: it replaces the one there (a folder is never replaced).\n' ...
+    'Keep both: all that dataset''s files go to <folder>\\<dataset key>_v2 (_v3, ...) instead, ' ...
+    'so a set of files such as a sort run folder stays whole.']), ...
+    "ValueChangedFcn", @(~,~) obj.onCleanupMethodChanged());
 obj.CleanupMethodNote = uilabel(cg, "Text", "", "WordWrap", "on", "FontColor", [0.4 0.4 0.4]);
-obj.CleanupMethodNote.Layout.Row = 19; obj.CleanupMethodNote.Layout.Column = [1 2];
+obj.CleanupMethodNote.Layout.Row = 20; obj.CleanupMethodNote.Layout.Column = [1 2];
 
 pb = uigridlayout(og, [1 2]);
 pb.Layout.Row = 2;
@@ -108,7 +128,8 @@ obj.onCleanupMethodChanged();
 % =================== right: the files ===================
 % Include ticks which Remove files go (Keep files cannot be ticked); the
 % search, Subject and "Show the files that remain" only filter what is
-% shown, and the select buttons act on the rows shown.
+% shown, and the select buttons act on the rows shown. A ninth column, In
+% the folder, is shown while a move's folder is checked (refreshCleanupTable).
 right = uipanel(g, "Title", "Files of the selected datasets");
 right.Layout.Column = 2;
 rg = uigridlayout(right, [5 1]);

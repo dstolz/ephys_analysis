@@ -2980,7 +2980,15 @@ R(R.Status ~= "removed", ["File" "Status" "Message"])              % anything le
 `Remove` takes `"raw"`, `"sorter_copy"`, `"bin"` and `"envelope"` (the
 default) and the step names below. Set a row's `Action` to `"keep"` to leave its file in
 place; `Method="recycle"` or `Method="move", Destination=` choose how the
-files go.
+files go. For a move, [`cleanupMoveTargets`](../pipeline/cleanupMoveTargets.m)
+previews where each file would land and what is already there, and
+`IfExists=` (`"skip"`, `"overwrite"` or `"version"`) says what to do then:
+
+```matlab
+M = cleanupMoveTargets(T, "E:\removed", IfExists="version");   % nothing is changed
+[T.File(M.Taken ~= "") M.Taken(M.Taken ~= "")]                    % the files already there
+R = runLocalCleanup(T, Method="move", Destination="E:\removed", IfExists="version");
+```
 
 <!-- wiki: ![The Clean up tab after Preview](images/app-cleanup-tab.png) -->
 
@@ -3029,7 +3037,23 @@ recording folder) and any other file. Nothing on the source is touched.
 | --- | --- |
 | Delete permanently (default) | deleted for good: the space is free at once |
 | Move to the Recycle Bin | each file goes to the Recycle Bin of its drive, from where it can be restored; the space is freed only when the bin is emptied. Windows keeps a file there only on a local fixed drive whose bin is not set to remove files at once, and only when the file fits the bin's **Maximum size** (the bin's Properties; by default about 5% of the drive); otherwise it would delete the file for good without asking, so such a file is **skipped** instead. Afterwards each file is looked up in the bin, and one not found there is reported. Windows only |
-| Move to a folder | each file goes to `<folder>\<dataset key>\<its path in the dataset's recording or output folder>`, so a dataset keeps its layout (the `kilosort4` folder included). A file already there is skipped, never overwritten. Between drives a file is copied, the copy's size checked, and only then the local file deleted. The folder may not be inside the project or output root, where a scan would find the files again |
+| Move to a folder | each file goes to `<folder>\<dataset key>\<its path in the dataset's recording or output folder>`, so a dataset keeps its layout (the `kilosort4` folder included). **If a file is already there** decides what happens when that place already holds a file (below). Between drives a file is copied, the copy's size checked, and only then the local file deleted. The folder may not be inside the project or output root, where a scan would find the files again |
+
+For a move, the preview checks the folder: the files already there are
+listed in an extra **In the folder** column (with the size and date of the
+file there) and counted in the line above the table. **If a file is already
+there** says what the move does with them:
+
+| Choice | What happens |
+| --- | --- |
+| Skip it (it stays here) (default) | the file is not moved: it stays where it is, and the one in the folder is left as it is |
+| Overwrite the one there | the file replaces the one in the folder. The one there is first renamed aside and deleted only once the new one is in place; if the move fails it is put back. A folder of the file's name is never replaced: that file is skipped |
+| Keep both: new version folder | every file of that dataset goes to a new folder `<folder>\<dataset key>_v2` (or `_v3`, ..., the first that does not exist) instead, keeping its path, so a set of files such as a `kilosort4` folder stays whole and nothing in the folder is touched. Only the datasets with a file already there get a version folder; it depends on the files ticked, so unticking the files that are there sends the rest to `<dataset key>` again |
+
+Of two files that would land on the same place only the first goes. The
+folder is checked when you press **Preview**, change the method, the folder
+or this choice, and again just before the confirmation; the move itself
+checks it once more as it starts (`cleanupMoveTargets`).
 
 - **Preview** lists every file in the datasets' recording, output and sorting
   folders, one row each: **Include** (ticked: the file goes; every Remove row
@@ -3040,15 +3064,23 @@ recording folder) and any other file. Nothing on the source is touched.
   kept: not found at the source, a different size, no copy record; for a
   step's file, that the step's output is selected). Remove rows come first,
   largest first; ticked ones are tinted red and unticked ones grey, and raw
-  files that are kept are tinted amber. A
+  files that are kept are tinted amber. For a move, the **In the folder**
+  column says what the folder holds at each file's place (*Already there
+  (1.2 GB, 2026-10-01 14:03)*, or a folder of that name) and what the move
+  would do: *skipped, it stays here*, *overwritten*, or *this one goes to the
+  new version folder `<dataset key>_v2`*; the other files of a dataset that
+  gets a version folder say *Goes to the new version folder ...*. The ticked
+  files that would not simply land in their place are tinted lavender. A
   click on a header sorts the rows instead, and that sort is kept for every
   preview and the next session; right-click → **Clear sort** returns to this
   order ([Sorted tables](#sorted-tables)). Each row is mapped to its file
   in the plan, so a tick reaches its own file in any order. The
   line above the table totals both sides: *Would remove N file(s), X GB,
   from K of M dataset(s). N file(s), Y GB, remain.*, and adds how many
-  removable files are unticked and how many datasets keep their raw
-  recording (see **Why**). Previewing reads file listings, the
+  removable files are unticked, how many datasets keep their raw
+  recording (see **Why**) and, for a move, how many of the files are
+  already in the folder and what happens to them (or *None of them is in
+  the folder yet*). Previewing reads file listings, the
   outputs' variable names and the sources' sizes only.
 - The filters change only what the table shows; a hidden row keeps its tick.
   **Search (regexp)** shows the files whose full path matches a regular
@@ -3064,7 +3096,8 @@ recording folder) and any other file. Nothing on the source is touched.
   button below.
 - **Delete files...** / **Recycle files...** / **Move files...** (the button
   follows the choice) acts on the ticked Remove rows of the preview, after a
-  confirmation that says how the files go, lists what goes by kind or step
+  confirmation that says how the files go (for a move, after checking the
+  folder again: how many are already there and what happens to them), lists what goes by kind or step
   with its size and what remains, says how many of them are ticked but
   hidden by the filters, and warns when phy curation or unit notes go with a sorting
   (curation only when phy wrote the labels: a `cluster_group.tsv` with the
@@ -3094,8 +3127,8 @@ recording folder) and any other file. Nothing on the source is touched.
   [Copy](#copy) tab: with **If it exists** = `resume` only the missing files
   are copied.
 
-The tick boxes, **Removed files go** with its folder, and Show the files that
-remain are preferences.
+The tick boxes, **Removed files go** with its folder and **If a file is
+already there**, and Show the files that remain are preferences.
 
 ---
 
@@ -3321,7 +3354,7 @@ app.KSQueue                       % prepared runs waiting for a slot (Queue the 
 | `buildCopyTab.m`, `onCopyFind.m`, `onCopyRun.m`, `refreshCopyTable.m`, `onCopyTableEdited.m`, `onCopyStitch.m`, `onCopyUnstitch.m`, `onBrowseCopyFolder.m`, `copyLog.m`, `onCopyCancel.m`, `startCopyMonitor.m`, `stopCopyMonitor.m`, `pollCopyJob.m`, `setCopyRunning.m`, `applyCopyResult.m`, `finishCopyRun.m`, `showCopyProgress.m`, `copySummaryText.m`, `refreshCopySchedule.m`, `onCopyScheduleSave.m`, `onCopyScheduleRemove.m`, `onCopyScheduleRunNow.m`, `onCopyScheduleLog.m`; `pipeline/findCopySessions.m`, `pipeline/stitchCopySessions.m`, `pipeline/copySessions.m`, `pipeline/copy_engine.ps1`, `pipeline/stitchEpsychSessions.m`, `pipeline/CopySchedule.m` | Copy tab, the pairing / stitching / copy functions it calls, the detached copy engine, and the scheduled copy (its Windows task and what each run does) |
 | `loadReviewResults.m`, `renderReviewPlots.m`, `syncReviewDataset.m`, `showReviewSorts.m`, `onReviewSortChanged.m`, `onReviewUseSort.m`, `private/reviewSorts.m`, `private/sorterOfSort.m`, `showReviewUnits.m` | Review tab (`reviewSorts`: the active dataset's sorts and the one to show; `showReviewSorts`: the Sort list and whether Use this sort is on; `onReviewUseSort`: the sort shown made the dataset's own; `showReviewUnits`: the units table in its sort, the selected unit's row kept) |
 | `buildSyntheticTab.m`, `onSynthLoadSource.m`, `onSynthPreview.m`, `renderSynthPreview.m`, `onSynthGenerate.m`, `generateSynthetic.m`, `onSynthDesign.m`, `onSynthControlsChanged.m`, `onSynthSourceChanged.m`, `syncSynthControls.m`, `gather/applySynthDesign.m`, `synthColumns.m`, `synthSourceLists.m`, `synthSourceKey.m`, `synthGeneratorArgs.m`, `synthOutputRoot.m`, `synthOutputFolder.m`; `pipeline/SyntheticDesign.m`, `pipeline/syntheticModel.m`, `pipeline/syntheticTaskSchedule.m`, `pipeline/syntheticSessionSchedule.m`, `pipeline/makeSyntheticRecording.m` | Synthetic tab (`generateSynthetic`: Generate without its questions; `synthGeneratorArgs`: the options Preview and Generate share) and the generator |
-| `buildCleanupTab.m`, `onCleanupPreview.m`, `onCleanupRun.m`, `runCleanup.m`, `onCleanupMethodChanged.m`, `onCleanupBrowseDest.m`, `onCleanupSettingsChanged.m`, `refreshCleanupScope.m`, `refreshCleanupTable.m`; `pipeline/planLocalCleanup.m`, `pipeline/runLocalCleanup.m` | Clean up tab and the functions that decide and remove |
+| `buildCleanupTab.m`, `onCleanupPreview.m`, `onCleanupRun.m`, `runCleanup.m`, `onCleanupMethodChanged.m`, `onCleanupBrowseDest.m`, `onCleanupSettingsChanged.m`, `refreshCleanupScope.m`, `refreshCleanupTable.m`, `refreshCleanupMove.m`, `private/cleanupMoveSentence.m`; `pipeline/planLocalCleanup.m`, `pipeline/cleanupMoveTargets.m`, `pipeline/runLocalCleanup.m` | Clean up tab and the functions that decide and remove |
 | `load/savePreferences.m` | preferences |
 | `tableSort.m`, `onTableSorted.m`, `onTableSortMenu.m`, `clearTableSort.m`, `private/sortMenuItem.m`, `private/sortableTable.m`, `private/saveTableSorts.m`; `pipeline/TableSort.m` | [sorted tables](#sorted-tables): a header click remembered and saved, applied whenever a table is filled, Clear sort |
 | `stopTimers.m` | stops the app's timers (Kilosort4, copy and resource monitors, the scheduled copy's refresh) on close, and when the figure is deleted any other way |

@@ -6,4 +6,5 @@ p = uigetdir(char(start), "Move removed files into");
 figure(obj.Fig);   % uigetdir can leave the app behind other windows
 if isequal(p, 0); return; end
 obj.CleanupDestField.Value = p;
+obj.onCleanupMethodChanged();   % check the new folder for the preview's files
 end

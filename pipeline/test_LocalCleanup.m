@@ -5,8 +5,10 @@ classdef test_LocalCleanup < matlab.unittest.TestCase
     %   would, adds a sorting folder, a .bin and pipeline outputs, then checks
     %   what a clean up would remove and keep (by kind, Visualize's envelopes
     %   among them, and by preprocessing step), and that it removes only
-    %   that: deleted, moved into a folder,
-    %   or sent to the Recycle Bin (whose items it empties again afterwards).
+    %   that: deleted, moved into a folder (cleanupMoveTargets: a file
+    %   already there skipped, overwritten, or the dataset's files put in a
+    %   new version folder), or sent to the Recycle Bin (whose items it
+    %   empties again afterwards).
     %
     %   Usage
     %     runtests("test_LocalCleanup")
@@ -226,7 +228,7 @@ classdef test_LocalCleanup < matlab.unittest.TestCase
             tc.verifyTrue(all(isfile(fullfile(tc.Source, tc.rawFiles()))), 'the source is untouched');
 
             rec = readJsonFile(fullfile(tc.Local, tc.Name + "_cleanup.json"));
-            tc.verifyEqual(string(rec.schema), "ephys-local-cleanup/2");
+            tc.verifyEqual(string(rec.schema), "ephys-local-cleanup/3");
             run = rec.runs(1);
             if iscell(rec.runs); run = rec.runs{1}; end
             tc.verifyEqual([string(run.method) string(run.destination)], ["delete" ""]);
@@ -392,7 +394,7 @@ classdef test_LocalCleanup < matlab.unittest.TestCase
             tc.verifyEqual(tc.action(T, "kilosort4/ks4_status.json"), "remove", 'the step''s own folder still goes');
         end
 
-        function moveKeepsTheLayoutAndNeverOverwrites(tc)
+        function moveKeepsTheLayoutAndSkipsWhatIsThere(tc)
             dest = fullfile(tc.Root, "removed");
             T = planLocalCleanup(tc.dataset(), Remove="sorting");
             tc.verifyError(@() runLocalCleanup(T, Method="move", Destination=fullfile(tc.Local, "old")), ...
@@ -404,21 +406,125 @@ classdef test_LocalCleanup < matlab.unittest.TestCase
             mkdir(fileparts(taken));
             tc.writeBytes(taken, 5);
 
-            R = runLocalCleanup(T, Method="move", Destination=dest);
+            R = runLocalCleanup(T, Method="move", Destination=dest);   % IfExists "skip", the default
             json = R.File == fullfile(tc.Local, tc.Name + ".json");
             tc.verifyEqual(R.Status(json), "skipped");
-            tc.verifySubstring(R.Message(json), "never overwritten");
+            tc.verifySubstring(R.Message(json), "already at " + taken);
             tc.verifyTrue(isfile(R.File(json)) && dir(taken).bytes == 5, 'neither file is touched');
             moved = R(~json, :);
             tc.verifyTrue(all(moved.Status == "removed"), strjoin(moved.Message, "; "));
+            tc.verifyFalse(any(R.Replaced), 'nothing is replaced');
             want = string(fullfile(dest, tc.Name, extractAfter(moved.File, strlength(tc.Local) + 1)));
             tc.verifyEqual(moved.To, want, 'each file keeps its path below the dataset folder');
             tc.verifyTrue(all(isfile(want)) && ~any(isfile(moved.File)));
             tc.verifyEqual(dir(fullfile(dest, tc.Name, "kilosort4", "temp_wh.dat")).bytes, 4000);
             tc.verifyFalse(isfolder(fullfile(tc.Local, "kilosort4")));
             rec = readJsonFile(fullfile(tc.Local, tc.Name + "_cleanup.json"));
-            tc.verifyEqual([string(rec.runs(1).method) string(rec.runs(1).destination)], ["move" string(dest)]);
+            tc.verifyEqual([string(rec.runs(1).method) string(rec.runs(1).destination) string(rec.runs(1).ifExists)], ...
+                ["move" string(dest) "skip"]);
             tc.verifyEqual(sort(string({rec.runs(1).removed.to})).', sort(want));
+            tc.verifyFalse(any([rec.runs(1).removed.replaced]));
+        end
+
+        function moveTargetsSayWhatIsAlreadyThere(tc)
+            dest = string(fullfile(tc.Root, "removed"));
+            T = planLocalCleanup(tc.dataset(), Remove="sorting");
+            rm = T.Action == "remove";
+            M = cleanupMoveTargets(T, dest);
+            want = strings(height(T), 1);
+            want(rm) = fullfile(dest, tc.Name, extractAfter(T.File(rm), strlength(tc.Local) + 1));
+            tc.verifyEqual(M.Target, want, 'each Remove file''s place keeps its path below the dataset folder; Keep rows get none');
+            tc.verifyEqual(M.To, want, 'nothing is there: every Remove file goes to its place');
+            tc.verifyTrue(all(M.Taken == "") && all(M.Version == "") && ~isfolder(dest), ...
+                'a folder that does not exist holds nothing, and looking does not make it');
+
+            json = fullfile(dest, tc.Name, tc.Name + ".json");          % a file at one place
+            params = fullfile(dest, tc.Name, "kilosort4", "params.py");  % a folder at another
+            mkdir(params);
+            tc.writeBytes(json, 5);
+            before = tc.snapshot();
+            M = cleanupMoveTargets(T, dest);
+            tc.verifyEqual(tc.snapshot(), before, 'looking changes nothing');
+            j = M.Target == json;
+            p = M.Target == params;
+            others = rm & ~j & ~p;
+            tc.verifyEqual([M.Taken(j) M.Taken(p)], ["file" "folder"]);
+            tc.verifyTrue(M.TakenBytes(j) == 5 && ~isnat(M.TakenDate(j)) && isnan(M.TakenBytes(p)) && isnat(M.TakenDate(p)));
+            tc.verifyEqual([M.To(j) M.To(p)], ["" ""], 'skip, the default: neither goes');
+            tc.verifySubstring(M.Note(j), "already at " + json);
+            tc.verifySubstring(M.Note(p), "never replaces a folder");
+            tc.verifyEqual(M.To(others), M.Target(others), 'the rest go to their places');
+            tc.verifyEqual(unique(M.Version(rm)), string(fullfile(dest, tc.Name + "_v2")), 'the dataset''s first free version folder');
+
+            M = cleanupMoveTargets(T, dest, IfExists="overwrite");
+            tc.verifyEqual([M.To(j) M.To(p)], [json ""], 'overwrite: over a file, never over a folder');
+
+            mkdir(fullfile(dest, tc.Name + "_v2"));   % taken, so the next one
+            M = cleanupMoveTargets(T, dest, IfExists="version");
+            v3 = string(fullfile(dest, tc.Name + "_v3"));
+            tc.verifyEqual(M.To(rm), fullfile(v3, extractAfter(T.File(rm), strlength(tc.Local) + 1)), ...
+                'version: every file of the dataset goes to the first free version folder, the set kept whole');
+            tc.verifyTrue(all(M.Note == ""));
+
+            % Checked: decided again without looking; with the taken ones kept, no version folder is needed
+            T2 = T;
+            T2.Action(j | p) = "keep";
+            M2 = cleanupMoveTargets(T2, dest, IfExists="version", Checked=M);
+            tc.verifyEqual(M2.To(others), M.Target(others), 'nothing of the dataset is taken now: each goes to its place');
+            tc.verifyEqual([M2.To(j) M2.Taken(j) M2.Version(j)], ["" "file" v3], 'a row now kept is not moved; the look is kept');
+            tc.verifyError(@() cleanupMoveTargets(T, dest, Checked=cleanupMoveTargets(T2, dest)), 'cleanupMoveTargets:Checked', ...
+                'a Remove row Checked did not look at');
+            tc.verifyError(@() cleanupMoveTargets(T, dest, Checked=M(1:end-1, :)), 'cleanupMoveTargets:Checked');
+
+            % one file per place
+            T3 = [T; T(find(others, 1), :)];
+            M3 = cleanupMoveTargets(T3, dest);
+            tc.verifyEqual(M3.To(end), "");
+            tc.verifySubstring(M3.Note(end), "another file of this clean up goes to");
+        end
+
+        function moveOverwritesWhenAsked(tc)
+            dest = fullfile(tc.Root, "removed");
+            T = planLocalCleanup(tc.dataset(), Remove="sorting");
+            json = fullfile(dest, tc.Name, tc.Name + ".json");
+            params = fullfile(dest, tc.Name, "kilosort4", "params.py");
+            mkdir(params);
+            tc.writeBytes(json, 5);
+
+            R = runLocalCleanup(T, Method="move", Destination=dest, IfExists="overwrite");
+            j = R.File == fullfile(tc.Local, tc.Name + ".json");
+            p = R.File == fullfile(tc.Local, "kilosort4", "params.py");
+            tc.verifyEqual([R.Status(j) R.Status(p)], ["removed" "skipped"]);
+            tc.verifyTrue(all(R.Status(~p) == "removed"), strjoin(R.Message, "; "));
+            tc.verifyEqual(R.Replaced, j, 'only the file that was there is replaced');
+            tc.verifyEqual([dir(json).bytes, double(isfile(R.File(j)))], [30 0], 'the local file took the place of the one there');
+            tc.verifySubstring(R.Message(p), "never replaces a folder");
+            tc.verifyTrue(isfile(R.File(p)) && isfolder(params), 'a folder is never replaced: the file stays');
+            tc.verifyEmpty(dir(fullfile(dest, "**", "*.replaced")), 'the replaced file is deleted, not left aside');
+            rec = readJsonFile(fullfile(tc.Local, tc.Name + "_cleanup.json"));
+            tc.verifyEqual(string(rec.runs(1).ifExists), "overwrite");
+            removed = rec.runs(1).removed;
+            tc.verifyEqual(string({removed([removed.replaced]).file}), R.File(j), 'the record says which file replaced one');
+        end
+
+        function moveCanWriteANewVersion(tc)
+            dest = fullfile(tc.Root, "removed");
+            T = planLocalCleanup(tc.dataset(), Remove="sorting");
+            taken = fullfile(dest, tc.Name, "kilosort4", "spike_times.npy");
+            mkdir(fileparts(taken));
+            tc.writeBytes(taken, 7);
+
+            R = runLocalCleanup(T, Method="move", Destination=dest, IfExists="version");
+            tc.verifyTrue(all(R.Status == "removed") && ~any(R.Replaced), strjoin(R.Message, "; "));
+            want = string(fullfile(dest, tc.Name + "_v2", extractAfter(R.File, strlength(tc.Local) + 1)));
+            tc.verifyEqual(R.To, want, 'every file of the dataset goes to the version folder, keeping its path');
+            tc.verifyTrue(all(isfile(want)) && ~any(isfile(R.File)));
+            tc.verifyEqual(dir(taken).bytes, 7, 'the file there is untouched');
+            D = dir(fullfile(dest, tc.Name, "**", "*"));
+            tc.verifyEqual(string({D(~[D.isdir]).name}), "spike_times.npy", ...
+                'nothing went into the dataset''s own folder: it holds only the file that was there');
+            rec = readJsonFile(fullfile(tc.Local, tc.Name + "_cleanup.json"));
+            tc.verifyEqual(string(rec.runs(1).ifExists), "version");
         end
 
         function cancelLeavesTheRestInPlace(tc)

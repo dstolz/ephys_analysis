@@ -5,8 +5,12 @@ function onCleanupPreview(obj)
 %   Spikes / Export output folders are searched for the datasets' outputs
 %   too. The plan's ticked (Include) Remove rows are what the Delete /
 %   Recycle / Move files... button acts on; every Remove row starts ticked.
+%   For a move, the folder is checked for the files already there
+%   (refreshCleanupMove), and the table's In the folder column says what
+%   If a file is already there would do with each.
 obj.CleanupPlan = [];
 obj.CleanupPlanKeys = string.empty(1, 0);
+obj.CleanupMove = [];
 idx = obj.selectedDatasetIndices();
 if isempty(idx)
     obj.refreshCleanupTable();
@@ -40,6 +44,7 @@ T.Include = T.Action == "remove";
 keys = obj.Project.datasetKeys();
 obj.CleanupPlan = T;
 obj.CleanupPlanKeys = keys(idx);
+obj.refreshCleanupMove(true);
 obj.refreshCleanupTable();
 obj.setStatus("Clean up: " + obj.CleanupSummaryLabel.Text, "");
 end

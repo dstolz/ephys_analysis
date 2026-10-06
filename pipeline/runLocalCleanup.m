@@ -19,12 +19,15 @@ function R = runLocalCleanup(T, opts)
 %                bin, and one not found there is reported.
 %     "move"     move to Destination (created if missing), each file to
 %                <Destination>/<Key>/<its path below Root> (see
-%                planLocalCleanup), so every dataset keeps its layout. A file
-%                already at that place is skipped, never overwritten. Between
-%                drives a file is copied, the copy's size checked, and only
-%                then the local file deleted. Destination may not be inside a
-%                dataset's folders, where the next preview would list the
-%                files again.
+%                planLocalCleanup), so every dataset keeps its layout. What
+%                happens to a file whose place is taken is IfExists'
+%                choice, decided by cleanupMoveTargets (the move's preview)
+%                when the move starts. Between drives a file is copied, the
+%                copy's size checked, and only then the local file deleted.
+%                A file it replaces is first renamed aside, and deleted only
+%                once the new one is in place (put back if the move fails).
+%                Destination may not be inside a dataset's folders, where
+%                the next preview would list the files again.
 %
 %   Each file is checked again just before it is removed, because the plan
 %   may be old: it must still have the size the plan saw, and a raw file's
@@ -42,6 +45,12 @@ function R = runLocalCleanup(T, opts)
 %   Options
 %     Method       "delete" | "recycle" | "move" (default "delete")
 %     Destination  the folder for Method "move" (a full path)
+%     IfExists     for Method "move", a file already at a file's place:
+%                  "skip" (the default: the file stays, the one there is
+%                  left as it is), "overwrite" (the file replaces it; a
+%                  folder is never replaced) or "version" (every file of
+%                  that dataset goes to a new folder <Key>_v2, _v3, ...
+%                  instead). See cleanupMoveTargets.
 %     LogFcn       @(message) called once per file handled (default: none)
 %     ProgressFcn  @(evt) called before each file, evt = struct(index,
 %                  count, bytesDone, bytesTotal, file) (default: none)
@@ -54,13 +63,16 @@ function R = runLocalCleanup(T, opts)
 %              ("" when it went as asked)
 %     To       where the file went: its new path (move), "Recycle Bin"
 %              (recycle, found there afterwards) or "" (deleted)
+%     Replaced true when the moved file replaced one already there
+%              (IfExists "overwrite")
 %
-%   See also planLocalCleanup.
+%   See also planLocalCleanup, cleanupMoveTargets.
 
 arguments
     T table
     opts.Method (1,1) string {mustBeMember(opts.Method, ["delete" "recycle" "move"])} = "delete"
     opts.Destination (1,1) string = ""
+    opts.IfExists (1,1) string {mustBeMember(opts.IfExists, ["skip" "overwrite" "version"])} = "skip"
     opts.LogFcn = []
     opts.ProgressFcn = []
     opts.CancelFcn = []
@@ -71,7 +83,11 @@ n = height(R);
 R.Status = strings(n, 1);
 R.Message = strings(n, 1);
 R.To = strings(n, 1);
+R.Replaced = false(n, 1);
 dest = checkDestination(opts, T);
+if opts.Method == "move"
+    M = cleanupMoveTargets(R, dest, IfExists=opts.IfExists);   % where each file goes, now
+end
 if opts.Method == "recycle"
     platformSupport("recycle", Require=true, ErrorId="runLocalCleanup:Recycle");
     prev = recycle('on');
@@ -96,7 +112,7 @@ for k = 1:n
         switch opts.Method
             case "delete";  [R.Status(k), R.Message(k)] = deleteOne(R.File(k));
             case "recycle"; [R.Status(k), R.Message(k)] = recycleOne(R(k, :), bins);
-            case "move";    [R.Status(k), R.Message(k), R.To(k)] = moveOne(R(k, :), dest);
+            case "move";    [R.Status(k), R.Message(k), R.To(k), R.Replaced(k)] = moveOne(R(k, :), M(k, :));
         end
     end
     done = done + R.Bytes(k);
@@ -112,7 +128,7 @@ pruneEmptyFolders(R);
 for folder = unique(R.Folder(R.Status == "removed")).'
     rows = R(R.Folder == folder, :);
     try
-        writeRecord(folder, rows, opts.Method, dest);
+        writeRecord(folder, rows, opts.Method, dest, opts.IfExists);
     catch ME
         say(opts.LogFcn, "Clean-up record not written in " + folder + ": " + ME.message);
     end
@@ -302,12 +318,19 @@ end
 end
 
 
-function [status, msg, to] = moveOne(r, dest)
-%moveOne  Move one file to <dest>/<Key>/<its path below Root>, never over an existing one.
-status = "removed"; msg = ""; to = "";
-target = string(fullfile(dest, r.Key, relativePath(r.File, r.Root)));
-if isfile(target) || isfolder(target)
-    status = "skipped"; msg = "a file is already at " + target + " (never overwritten)";
+function [status, msg, to, replaced] = moveOne(r, place)
+%moveOne  Move one file to where cleanupMoveTargets put it (PLACE.To), over the file there only when PLACE says so.
+%   A file to be replaced is renamed aside first and deleted only once the
+%   new one is in place; when the move fails it is put back.
+status = "removed"; msg = ""; to = ""; replaced = false;
+target = place.To;
+if target == ""
+    status = "skipped"; msg = place.Note;
+    return
+end
+over = place.Taken == "file" && strcmpi(target, place.Target);   % IfExists "overwrite"
+if isfolder(target) || (isfile(target) && ~over)
+    status = "skipped"; msg = "a file or folder has appeared at " + target + " since the move started";
     return
 end
 parent = fileparts(target);
@@ -318,10 +341,21 @@ if ~isfolder(parent)
         return
     end
 end
+aside = "";
+if over && isfile(target)
+    [~, token] = fileparts(tempname);
+    aside = target + "." + token + ".replaced";
+    [ok, m] = movefile(target, aside);
+    if ~ok
+        status = "failed"; msg = "the file there could not be moved aside to be replaced: " + m;
+        return
+    end
+end
 if strcmpi(volumeRoot(r.File), volumeRoot(target))
     [ok, m] = movefile(r.File, target);
     if ~ok
-        status = "failed"; msg = "could not be moved: " + m;
+        msg = putBack(aside, target);
+        status = "failed"; msg = "could not be moved: " + m + msg;
         return
     end
 else
@@ -331,15 +365,34 @@ else
         if isfile(target); delete(target); end
         status = "failed"; msg = "could not be copied to " + target;
         if ~ok; msg = msg + ": " + m; end
+        msg = msg + putBack(aside, target);
         return
     end
     if ~java.io.File(char(r.File)).delete()
         delete(target);
-        status = "failed"; msg = "copied, but the local file could not be deleted (open in another program?), so the copy was removed";
+        status = "failed"; msg = "copied, but the local file could not be deleted (open in another program?), so the copy was removed" + ...
+            putBack(aside, target);
         return
     end
 end
 to = target;
+if aside ~= ""
+    replaced = true;
+    if ~java.io.File(char(aside)).delete()
+        msg = "the file it replaced could not be deleted and is left as " + aside;
+    end
+end
+end
+
+
+function msg = putBack(aside, target)
+%putBack  Rename the file moved aside back to TARGET after a failed replacement; "" or what went wrong.
+msg = "";
+if aside == ""; return; end
+[ok, m] = movefile(aside, target);
+if ~ok
+    msg = "; the file it was to replace is left as " + aside + " (" + m + ")";
+end
 end
 
 
@@ -373,18 +426,6 @@ end
 end
 
 
-function rel = relativePath(file, root)
-%relativePath  FILE's path below ROOT (its name alone when it is not below ROOT).
-root = stripSep(root);
-if root ~= "" && startsWith(lower(file), lower(root) + filesep)
-    rel = extractAfter(file, strlength(root) + 1);
-else
-    [~, b, e] = fileparts(file);
-    rel = b + e;
-end
-end
-
-
 function root = volumeRoot(file)
 %volumeRoot  "D:\" or "\\server\share\": the drive FILE is on.
 f = strrep(string(file), "/", "\");
@@ -397,7 +438,7 @@ end
 end
 
 
-function writeRecord(folder, rows, method, dest)
+function writeRecord(folder, rows, method, dest, ifExists)
 %writeRecord  Append this run to <Folder>/<Name>_cleanup.json.
 file = fullfile(folder, rows.Dataset(1) + "_cleanup.json");
 rec = readJsonFile(file, ErrorOnFail=false);
@@ -409,13 +450,14 @@ end
 done = rows(rows.Status == "removed", :);
 removed = struct('file', cellstr(done.File), 'category', cellstr(done.Category), 'step', cellstr(done.Step), ...
     'bytes', num2cell(int64(done.Bytes)), 'source', cellstr(done.Source), 'to', cellstr(done.To), ...
-    'note', cellstr(done.Message));
+    'replaced', num2cell(done.Replaced), 'note', cellstr(done.Message));
+if method ~= "move"; ifExists = ""; end
 run = struct('time', string(datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss')), ...
     'host', string(getenv('COMPUTERNAME')), 'user', string(getenv('USERNAME')), ...
-    'method', method, 'destination', dest, ...
+    'method', method, 'destination', dest, 'ifExists', ifExists, ...
     'bytesRemoved', int64(sum(done.Bytes)), 'removed', {num2cell(removed(:)).'});
 runs{end+1} = run;
-writeJsonFile(file, struct('schema', "ephys-local-cleanup/2", 'dataset', rows.Dataset(1), ...
+writeJsonFile(file, struct('schema', "ephys-local-cleanup/3", 'dataset', rows.Dataset(1), ...
     'folder', folder, 'runs', {runs}));
 end
 
@@ -429,6 +471,7 @@ if verb == "removed"
 end
 msg = verb + ": " + r.File;
 if method == "move" && r.To ~= ""; msg = msg + " -> " + r.To; end
+if r.Replaced; msg = msg + " (replacing the file there)"; end
 if r.Message ~= ""; msg = msg + " (" + r.Message + ")"; end
 logFcn(msg);
 end

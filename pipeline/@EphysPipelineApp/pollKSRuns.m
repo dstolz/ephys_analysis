@@ -72,7 +72,7 @@ if ~isempty(obj.KSQueue) && ~ownSlots
     try
         startQueued(obj, obj.Config.Sorting);
     catch ME
-        obj.log("[error] starting the queued Kilosort4 runs failed: %s", ME.message);
+        obj.log("[error] starting the queued sorting runs failed: %s", ME.message);
     end
     started = n0 + 1:numel(obj.KSRuns);
     pending = pending + numel(started);
@@ -87,7 +87,7 @@ end
 
 nTot  = numel(obj.KSRuns);
 nDone = nnz([obj.KSRuns.done]);
-txt = sprintf("Background %s: %d of %d finished (%d running", runsLabel(obj.KSRuns), nDone, nTot + waiting, pending);
+txt = sprintf("Background %s: %d of %d finished (%d running", runsLabel(obj), nDone, nTot + waiting, pending);
 if waiting > 0
     txt = txt + sprintf(", %d waiting to start", waiting);
 end
@@ -111,7 +111,7 @@ end
 
 if pending == 0 && waiting == 0
     obj.log("=== all %d background run(s) complete ===", nTot);
-    obj.setStatus(sprintf("%s finished: %d background run(s) complete.", runsLabel(obj.KSRuns), nTot), ...
+    obj.setStatus(sprintf("Background %s finished: %d run(s) complete.", runsLabel(obj), nTot), ...
         "Open the Review tab to inspect sorted units.");
     obj.stopKSMonitor();
     obj.KSRuns(:) = [];   % clear the completed batch
@@ -187,17 +187,11 @@ end
 end
 
 
-function t = runsLabel(runs)
-%runsLabel  What sorts RUNS: "Kilosort4", "<sorter> (SpikeInterface)" when
-%   they all are by that sorter, else "sorts".
-t = "Kilosort4";
-if isempty(runs); return; end
-who = unique(arrayfun(@(r) EphysDataset.sorterLabel(EphysDataset.sorterOfRunDir(r.resultsDir)), runs));
-if isscalar(who)
-    t = who;
-else
-    t = "sorts";
-end
+function t = runsLabel(obj)
+%runsLabel  What sorts the followed runs (sortersLabel): "Kilosort4",
+%   "<sorter> (SpikeInterface)" when they all are by that sorter, else
+%   "sorting"; the config's sorter while none is followed.
+t = sortersLabel(arrayfun(@(r) string(r.resultsDir), obj.KSRuns), obj.Config.Sorting.Sorter);
 end
 
 

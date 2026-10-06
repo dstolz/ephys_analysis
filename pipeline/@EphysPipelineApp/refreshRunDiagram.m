@@ -6,7 +6,7 @@ function refreshRunDiagram(obj)
 %   ended), a line naming the config, the datasets and the times, and per
 %   step its state and label, percentage, the dataset and message of its last
 %   event and its result counts (done, in the background, dry run,
-%   skipped, to check, errors, cancelled; a background Kilosort4 run
+%   skipped, to check, errors, cancelled; a background sorting run
 %   counts as done once the monitor has seen it finish).
 
 h = obj.RunDiagramHTML;
@@ -63,7 +63,7 @@ st = R.Status(extractBefore(R.Step + ":", ":") == key);
 if isempty(st); return; end
 dry  = st == "dry run";
 ok   = ismember(st, ["done" "ok" "associated" "approved" "auto-approved"]) | startsWith(st, "matched");
-bg   = ismember(st, ["launched" "queued"]);   % Kilosort4 runs the monitor restates when they end
+bg   = ismember(st, ["launched" "queued"]);   % background sorting runs the monitor restates when they end
 skip = startsWith(st, "skipped");
 err  = startsWith(st, "error");
 can  = ismember(st, ["cancelled" "not run"]);

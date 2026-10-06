@@ -23,11 +23,12 @@ keepQueue = false;
 if ~isempty(obj.KSQueue)
     keep = "Keep the queue for next time";
     answer = uiconfirm(obj.Fig, ...
-        sprintf("%d Kilosort4 run(s) are queued and have not started. Their run files are written.", numel(obj.KSQueue)) + ...
+        sprintf("%d %s run(s) are queued and have not started. Their run files are written.", numel(obj.KSQueue), ...
+        sortersLabel(arrayfun(@(q) string(q.prepared.resultsDir), obj.KSQueue))) + ...
         newline + newline + keep + ": once this project is scanned again, the app offers to queue them again." + ...
         newline + "Drop the queue: running the Sorting step again writes and starts them." + newline + newline + ...
         "The runs already going finish on their own either way; the app follows them again when it next opens.", ...
-        "Kilosort4 runs queued", "Options", [keep, "Drop the queue", "Cancel"], "DefaultOption", 1, "CancelOption", 3);
+        "Sorting runs queued", "Options", [keep, "Drop the queue", "Cancel"], "DefaultOption", 1, "CancelOption", 3);
     if answer == "Cancel"; return; end
     keepQueue = answer == keep;
 end
@@ -38,7 +39,7 @@ obj.stopTimers();
 try
     obj.keepKSRuns(keepQueue);
 catch ME
-    warning('EphysPipelineApp:KeepRunsFailed', 'Could not keep the Kilosort4 runs for the next launch: %s', ME.message);
+    warning('EphysPipelineApp:KeepRunsFailed', 'Could not keep the sorting runs for the next launch: %s', ME.message);
 end
 try
     obj.savePreferences();

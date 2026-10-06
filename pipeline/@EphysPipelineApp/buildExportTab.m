@@ -68,7 +68,7 @@ obj.ExpSignalsField = uieditfield(cg, "text", "Placeholder", "blank = every sign
 obj.ExpSignalsField.Layout.Row = r; obj.ExpSignalsField.Layout.Column = [2 4];
 r = r + 1;
 obj.ExpUnitsCheckBox = uicheckbox(cg, "Text", "Sorted units", "Value", true, ...
-    "Tooltip", "The Kilosort / phy units associated with each dataset.", "ValueChangedFcn", changed);
+    "Tooltip", "The sorted (phy) units associated with each dataset.", "ValueChangedFcn", changed);
 obj.ExpUnitsCheckBox.Layout.Row = r; obj.ExpUnitsCheckBox.Layout.Column = 1;
 lg = lab(cg, "Groups:", r); lg.Layout.Column = 2;
 obj.ExpGroupsField = uieditfield(cg, "text", "Value", "good, mua", ...

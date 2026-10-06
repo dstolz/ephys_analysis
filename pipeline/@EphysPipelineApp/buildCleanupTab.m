@@ -43,7 +43,7 @@ note(cg, 6, "temp_wh.dat in the sorting folder, about the size of the raw record
 obj.CleanupBinCheckBox = uicheckbox(cg, "Text", "Sorting input .bin (<Name>.bin + .json)", ...
     "Value", true, "FontWeight", "bold", "ValueChangedFcn", stale);
 obj.CleanupBinCheckBox.Layout.Row = 7; obj.CleanupBinCheckBox.Layout.Column = [1 2];
-note(cg, 8, "The flat binary toBin writes for Kilosort4 to sort, as large as the raw recording. " + ...
+note(cg, 8, "The flat binary toBin writes for the sorter to sort, as large as the raw recording. " + ...
     "As above: the sorted units do not need it; phy's trace view does.");
 obj.CleanupEnvelopeCheckBox = uicheckbox(cg, "Text", "Visualize's envelopes (<Name>_envelope_*.dat)", ...
     "Value", true, "FontWeight", "bold", "ValueChangedFcn", stale);
@@ -57,8 +57,9 @@ sg = uigridlayout(cg, [3 2]);
 sg.Layout.Row = 12; sg.Layout.Column = [1 2];
 sg.RowHeight = {22, 22, 22}; sg.ColumnWidth = {'1x', '1x'};
 sg.Padding = [0 0 0 0]; sg.RowSpacing = 2;
-steps = ["sorting" "Sorting (Kilosort4)" "The kilosort4 folder (the sorted units with their phy curation and unit notes, " + ...
-        "run files, logs, Kilosort4's copy of the recording) and <Name>.bin + .json. A sorted-output folder chosen by hand is kept."
+steps = ["sorting" "Sorting" "The sort run folders, kilosort4 and si_<sorter> for each SpikeInterface sorter (the sorted units " + ...
+        "with their phy curation and unit notes, run files, logs, the sorter's copy of the recording) and <Name>.bin + .json. " + ...
+        "A sorted-output folder chosen by hand is kept."
     "signals" "Signals" "The derived-signal .mat files (<Name>_extract*.mat, or the configured suffix and folder)."
     "spikes" "Spikes" "The spikes .mat (<Name>_spikes.mat, or the configured suffix and folder)."
     "behavior" "Behavior" "<Name>_behavior.mat and the digital events cache <Name>_events.mat. The trial pairing in the manifest stays."
@@ -69,7 +70,7 @@ for k = 1:size(steps, 1)
         "Value", false, "Tooltip", steps(k, 3), "ValueChangedFcn", stale);
 end
 note(cg, 13, "Everything the step wrote, to run it again or drop it (hover over a box for its files). " + ...
-    "Sorting takes the whole kilosort4 folder, phy curation included.");
+    "Sorting takes the whole sort run folders (kilosort4, si_<sorter>), phy curation included.");
 
 sep(cg, "Always kept", 14);
 note(cg, 15, "The outputs of the steps not ticked, the manifests, the copy record, the Epsych2 session file, " + ...

@@ -1,5 +1,5 @@
 function startKSMonitor(obj)
-    % Start (or leave running) the timer that polls background KS4 runs.
+    % Start (or leave running) the timer that polls background sorting runs.
     % A timer whose callback errored stops for good, so its ErrorFcn logs
     % the error, deletes it and starts a new one while runs are still
     % followed (pollKSRuns guards each run and the queue, so this is only
@@ -22,7 +22,7 @@ function monitorFailed(obj, evt)
 %monitorFailed  The monitor's ErrorFcn: log, replace the timer, go on.
 obj.stopKSMonitor();
 if isempty(obj.Fig) || ~isvalid(obj.Fig); return; end
-obj.log("[error] the Kilosort4 monitor stopped: %s", evt.Data.message);
+obj.log("[error] the sorting monitor stopped: %s", evt.Data.message);
 if ~isempty(obj.KSRuns) || ~isempty(obj.KSQueue)
     obj.startKSMonitor();
 end

@@ -20,7 +20,7 @@ try
     saved = "";
     if ~isempty(i); saved = " (" + string(store(i).saved) + ")"; end
     ok = T.Problem == "";
-    msg = sprintf("When the app last closed%s, it kept %d queued Kilosort4 run(s) for this project.", saved, height(T));
+    msg = sprintf("When the app last closed%s, it kept %d queued sorting run(s) for this project.", saved, height(T));
     if any(ok)
         msg = msg + newline + newline + "Can go back in the queue (their run files are written; they start as slots free):" + ...
             newline + strjoin(("  " + T.Dataset(ok)).', newline);
@@ -31,21 +31,21 @@ try
     end
     if any(ok)
         answer = uiconfirm(obj.Fig, msg + newline + newline + "Queue them again? Either way the kept queue is then forgotten.", ...
-            "Kilosort4 queue kept", "Options", ["Queue them again", "Drop them"], ...
+            "Sorting queue kept", "Options", ["Queue them again", "Drop them"], ...
             "DefaultOption", 1, "CancelOption", 2);
         action = "drop";
         if answer == "Queue them again"; action = "requeue"; end
     else
         uialert(obj.Fig, msg + newline + newline + "The kept queue is forgotten; sort these datasets again.", ...
-            "Kilosort4 queue kept", "Icon", "warning");
+            "Sorting queue kept", "Icon", "warning");
         action = "drop";
     end
     T = obj.restoreKSQueue(action);
     if action == "requeue"
-        obj.setStatus(sprintf("Queued %d kept Kilosort4 run(s) again; %d could not be.", nnz(T.Queued), nnz(~T.Queued)), ...
+        obj.setStatus(sprintf("Queued %d kept sorting run(s) again; %d could not be.", nnz(T.Queued), nnz(~T.Queued)), ...
             "The monitor starts them as slots free (Run tab).");
     end
 catch ME
-    obj.log("[error] the Kilosort4 queue kept for this project could not be offered back: %s", ME.message);
+    obj.log("[error] the sorting queue kept for this project could not be offered back: %s", ME.message);
 end
 end

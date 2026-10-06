@@ -297,6 +297,16 @@ says how to cut a release.
 
 ### Changed
 
+- Pipeline app: the text that named Kilosort4 for any sort now names the
+  sorter. The Run diagram's Sorting step, the Artifacts tab's **Erase in
+  sorting** and the Sorting tab's SpikeInterface note follow the selected
+  sorter. The background-run label, the queue, **Stop runs...** and the
+  close and restart prompts name the sorter of the runs they act on
+  ("sorting" when the runs come from more than one sorter). The tooltips,
+  Clean up's **Sorting** box (which covers the `si_<sorter>` folders too)
+  and the Sorting log are worded for any sorter. Text that only applies
+  to Kilosort4 still names it: its parameters, the probe `.json` format,
+  `temp_wh.dat` and the GPUs.
 - The MUA follows Lakatos et al. (2005, J Neurophysiol 94:1904): band-pass
   `MUA_bpLoHi`, rectify, then a zero-phase 4th-order Butterworth low-pass at
   `MUA_IntegrationHz` (the "integration", 1000 Hz), all at the recording

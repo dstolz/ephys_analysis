@@ -171,7 +171,7 @@ end
 function L = logLines(obj, maxLines)
 %logLines  The tail of each log area, then the last run error and its stack.
 L = strings(0, 1);
-areas = {"Run log", obj.RunLogArea; "Kilosort log", obj.KSLogArea; "Copy log", obj.CopyLogArea};
+areas = {"Run log", obj.RunLogArea; "Sorting log", obj.KSLogArea; "Copy log", obj.CopyLogArea};
 for k = 1:size(areas, 1)
     txt = areaLines(areas{k, 2});
     if isempty(txt); continue; end

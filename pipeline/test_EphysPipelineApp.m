@@ -1636,8 +1636,16 @@ check(contains(msg, "tridesclous2 parameters") && app.Config.Sorting.SIParams.tr
 app.SIParamsArea.Value = {'{"detect_threshold": 6}'};
 [html, ~] = app.flowChartHTML();
 check(contains(html, "run_sorter") && contains(html, "si_tridesclous2/"), 'the Sorting diagram shows the SpikeInterface sorter');
+app.resetRunDiagram();
+check(startsWith(app.RunDiagram.steps(4).what, "tridesclous2 (SpikeInterface), ") ...
+    && app.ArtApplySortingCheckBox.Text == "Erase in sorting (in the .bin tridesclous2 sorts)", ...
+    'the Run diagram and the Artifacts tab name the SpikeInterface sorter');
 app.SortSorterDropDown.Value = 'kilosort4';
 app.onSorterChanged();
+app.resetRunDiagram();
+check(startsWith(app.RunDiagram.steps(4).what, "Kilosort4, ") ...
+    && app.ArtApplySortingCheckBox.Text == "Erase in sorting (in the .bin Kilosort4 sorts)", ...
+    'and Kilosort4 again once it is picked');
 S = app.Config.Sorting;
 check(S.Sorter == "kilosort4" && S.SIParams.tridesclous2 == "{""detect_threshold"": 6}" && ~logical(app.SIPanel.Visible) ...
     && all(shown(app.KS4ParamWidgets)) && isequaln(S.KS4, ks4Before) ...
@@ -2160,7 +2168,7 @@ check(numel(app.CleanupStepCheckBoxes) == 6 && isequal(string({app.CleanupStepCh
     && app.CleanupRunButton.Text == "Delete files...", ...
     'one box per step that writes files, none ticked; files are deleted by default and the folder field is off');
 writelines('{"state": "done"}', fullfile(ksRoot, 'ks4_status.json'));
-app.CleanupStepCheckBoxes(1).Value = true;   % Sorting (Kilosort4)
+app.CleanupStepCheckBoxes(1).Value = true;   % Sorting
 app.onCleanupSettingsChanged();
 app.onCleanupPreview();
 P = app.CleanupPlan;
@@ -2833,7 +2841,7 @@ app.onStopKSQueue();
 app.offerKeptKSQueue();   % an alert, not a question: no run can go back in the queue
 K = AppPrefs.getpref(g, 'KeptSortingQueue');
 check(isscalar(K) && K.root == "C:/elsewhere/proj" && isempty(app.KSQueue) ...
-    && contains(strjoin(string(app.KSLogArea.Value), newline), "dropped the 1 Kilosort4 run(s) queued for"), ...
+    && contains(strjoin(string(app.KSLogArea.Value), newline), "dropped the 1 sorting run(s) queued for"), ...
     'offered back with no run that can go back in the queue, the kept queue is reported and forgotten');
 AppPrefs.rmpref(g, 'KeptSortingQueue');
 AppPrefs.rmpref(g, 'KeptSortingRuns');

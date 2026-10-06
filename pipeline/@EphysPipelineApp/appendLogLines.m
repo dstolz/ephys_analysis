@@ -1,5 +1,5 @@
 function appendLogLines(obj, lines)
-    % Append a block of pre-formatted lines to the Kilosort log area in
+    % Append a block of pre-formatted lines to the sorting log area in
     % a single update (cheaper than calling log() per line when tailing
     % a run's ks4_run.log). Empty input is a no-op.
     lines = cellstr(string(lines(:)));

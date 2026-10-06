@@ -16,7 +16,8 @@ end
 obj.log("[sorting] queue stopped: %d queued dataset(s) not started", n);
 if isempty(obj.KSRuns)
     obj.stopKSMonitor();
-    obj.KSProgressLabel.Text = sprintf("Background Kilosort4: queue stopped, %d dataset(s) not started.", n);
+    obj.KSProgressLabel.Text = sprintf("Background %s: queue stopped, %d dataset(s) not started.", ...
+        sortersLabel(arrayfun(@(q) string(q.prepared.resultsDir), Q)), n);
     if ~isempty(obj.RunKSLabel) && isvalid(obj.RunKSLabel)
         obj.RunKSLabel.Text = obj.KSProgressLabel.Text;
     end

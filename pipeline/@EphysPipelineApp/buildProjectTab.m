@@ -63,7 +63,7 @@ obj.SaveScriptCheckBox = uicheckbox(top, "Text", "Save the pipeline script on ea
 obj.SaveScriptCheckBox.Layout.Row = 2; obj.SaveScriptCheckBox.Layout.Column = 7;
 
 lbl = uilabel(top, "Text", "Output root:", "Tooltip", ...
-    "Per-dataset outputs (kilosort4/, *_extract[_LFP|_MUA|_SPIKE|_AUX].mat, *_spikes.mat, exports) go under <root>/<Name>. Blank = next to each recording.");
+    "Per-dataset outputs (kilosort4/ or si_<sorter>/, *_extract[_LFP|_MUA|_SPIKE|_AUX].mat, *_spikes.mat, exports) go under <root>/<Name>. Blank = next to each recording.");
 lbl.Layout.Row = 3; lbl.Layout.Column = 1;
 obj.OutputRootField = uieditfield(top, "text", ...
     "Placeholder", "blank = next to each recording", "ValueChangedFcn", changed);

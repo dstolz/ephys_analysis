@@ -44,12 +44,13 @@ try
     if isempty(follow); return; end
     [follow.done] = deal(false);
     obj.KSRuns = [obj.KSRuns, follow];
-    obj.log("[sorting] following again %d Kilosort4 run(s) going when the app last closed: %s", ...
-        numel(follow), strjoin([follow.Name], ", "));
-    obj.setStatus(sprintf("Following %d Kilosort4 run(s) still going when the app last closed.", numel(follow)), ...
+    what = sortersLabel(arrayfun(@(r) string(r.resultsDir), follow));
+    obj.log("[sorting] following again %d %s run(s) going when the app last closed: %s", ...
+        numel(follow), what, strjoin([follow.Name], ", "));
+    obj.setStatus(sprintf("Following %d %s run(s) still going when the app last closed.", numel(follow), what), ...
         "Watch them on the Run tab (the label under the log); Stop runs... stops them.");
     obj.startKSMonitor();
 catch ME
-    obj.log("[error] the Kilosort4 runs going when the app last closed could not be followed again: %s", ME.message);
+    obj.log("[error] the sorting runs going when the app last closed could not be followed again: %s", ME.message);
 end
 end

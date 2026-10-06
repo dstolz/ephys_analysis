@@ -25,9 +25,9 @@ if obj.RunActive
 elseif ~isempty(obj.CopyJob)
     busy = "A copy is running.";
 elseif ~isempty(obj.KSRuns) && ~all([obj.KSRuns.done])
-    busy = "A Kilosort4 run is under way.";
+    busy = "A sorting run is under way.";
 elseif ~isempty(obj.KSQueue)
-    busy = "Kilosort4 runs are queued (Run tab, Stop queue drops them).";
+    busy = "Sorting runs are queued (Run tab, Stop queue drops them).";
 end
 if busy ~= ""
     uialert(obj.Fig, busy + " Clean up once it has finished.", "Clean up");
@@ -103,7 +103,7 @@ words = ["raw" "Raw recording files (a copy of the same size is at the source)"
     "sorter_copy" "Kilosort4's filtered copy of the recording"
     "bin" "Sorting input .bin files"
     "envelope" "Visualize's envelopes (display caches, built again when a signal is next shown)"
-    "step:sorting" "Sorting output: the kilosort4 folders (sorted units, phy curation, unit notes, logs) and .bin files"
+    "step:sorting" "Sorting output: the sort run folders, kilosort4 and si_<sorter> (sorted units, phy curation, unit notes, logs), and .bin files"
     "step:signals" "Signals output (derived-signal .mat files)"
     "step:spikes" "Spikes output"
     "step:behavior" "Behavior output and digital events caches"

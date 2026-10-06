@@ -1,5 +1,5 @@
 function T = restoreKSQueue(obj, action)
-%restoreKSQueue  Queue again, or drop, the Kilosort4 runs kept for the scanned project's root.
+%restoreKSQueue  Queue again, or drop, the sorting runs kept for the scanned project's root.
 %   T = obj.restoreKSQueue(ACTION) works on the queued runs keepKSRuns kept
 %   (the preference KeptSortingQueue) for the root of the scanned project:
 %     "check"    T only; nothing changes
@@ -12,7 +12,7 @@ function T = restoreKSQueue(obj, action)
 %   T has one row per kept run: Dataset (its name), Key (its folder
 %   relative to the root), Problem (why it cannot go back in the queue:
 %   its dataset is no longer in the project, a run file (settings.json,
-%   run_ks4.py, the .bin, the probe) is not there, or Kilosort4 is already
+%   its driver script, the .bin, the probe) is not there, or its sorter is already
 %   queued or going in its folder; "" when it can) and Queued (it went
 %   back in the queue). T is empty when nothing is kept for this root, or
 %   no project is scanned. The kept runs of other roots stay.
@@ -54,7 +54,7 @@ else
     AppPrefs.setpref(g, 'KeptSortingQueue', store);
 end
 if action == "drop"
-    obj.log("[sorting] dropped the %d Kilosort4 run(s) queued for %s when the app last closed", height(T), P.Root);
+    obj.log("[sorting] dropped the %d sorting run(s) queued for %s when the app last closed", height(T), P.Root);
 end
 end
 
@@ -80,7 +80,7 @@ if ~isempty(missing)
     why = "run files missing: " + strjoin(regexprep(missing, '^.*[\\/]', ''), ", ");
     return
 end
-busy = strings(1, 0);   % the Kilosort4 folders of the runs queued or going
+busy = strings(1, 0);   % the sort run folders of the runs queued or going
 for q = obj.KSQueue
     busy(end+1) = q.prepared.resultsDir; %#ok<AGROW>
 end
@@ -88,6 +88,6 @@ for k = find(~[obj.KSRuns.done])
     busy(end+1) = obj.KSRuns(k).resultsDir; %#ok<AGROW>
 end
 if any(EphysDataset.pathKey(busy) == EphysDataset.pathKey(p.resultsDir))
-    why = "Kilosort4 is already queued or running for it";
+    why = sortersLabel(p.resultsDir) + " is already queued or running for it";
 end
 end

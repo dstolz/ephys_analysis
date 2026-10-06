@@ -1,5 +1,5 @@
 function onStopKSRuns(obj)
-%onStopKSRuns  Ask which running Kilosort4 runs to stop, then stop them.
+%onStopKSRuns  Ask which running sorting runs to stop, then stop them.
 %   The Run tab's Stop runs... button. With one run going, a confirmation;
 %   with several, a list of them (dataset, GPU, minutes running), all
 %   selected at first. The chosen runs go to stopKSRuns. What a stopped
@@ -13,9 +13,9 @@ if isempty(running)
 end
 labels = arrayfun(@runLabel, running);
 if isscalar(running)
-    answer = uiconfirm(obj.Fig, "Stop Kilosort4 on " + labels + "?" + newline + newline + ...
+    answer = uiconfirm(obj.Fig, "Stop " + sortersLabel(running.resultsDir) + " on " + labels + "?" + newline + newline + ...
         "What it has written so far stays in its folder, and its row turns ""cancelled"".", ...
-        "Stop a Kilosort4 run", "Options", ["Stop", "Keep running"], ...
+        "Stop a sorting run", "Options", ["Stop", "Keep running"], ...
         "DefaultOption", 2, "CancelOption", 2, "Icon", "warning");
     if answer == "Stop"
         obj.stopKSRuns(running.Name);
@@ -47,7 +47,7 @@ pick = [];
 p = parent.Position;
 w = 440;
 h = 130 + 22 * min(numel(labels), 8);
-d = uifigure("Name", "Stop Kilosort4 runs", "WindowStyle", "modal", ...
+d = uifigure("Name", "Stop sorting runs", "WindowStyle", "modal", ...
     "Position", [p(1) + (p(3) - w) / 2, p(2) + (p(4) - h) / 2, w, h]);
 g = uigridlayout(d, [3 3], "RowHeight", {'fit', '1x', 'fit'}, "ColumnWidth", {'1x', 'fit', 'fit'});
 l = uilabel(g, "Text", "Stop the selected runs? What they have written so far stays in their folders.", ...

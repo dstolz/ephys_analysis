@@ -1110,7 +1110,7 @@ referenced signal. The Signals tab picks which derived signals take it.
 | Method, Threshold, RMS window, Stitch gap, Pad, Min channels | `Artifacts.Method`, `Threshold`, `RmsWindowMs`, `MergeGapMs`, `PadMs`, `MinChannels` |
 | High-pass before detecting, High-pass (Hz) | `Artifacts.Filter`, and `FilterCutoff`: a high-pass filter's cut-off, or a band-pass filter's lower edge. `FilterType`, `FilterOrder` and a band's upper edge have no control and keep the config's values; with a low-pass filter (a config written by hand or by a script) the field is off. They apply to runs as well as the preview |
 | Erase with: *Gaussian noise (recording level)* / *Zeros* | `Artifacts.Fill` (`"noise"` / `"zero"`): what replaces the artifact samples, manual periods included. Noise by default - Kilosort4 reads a block of zeros across every channel as a signal discontinuity. Each period becomes a straight line between the signal's levels on either side plus that noise; its level is measured on up to 16 chunks spread over the recording, above `Artifacts.NoiseBandHz` (300 Hz), and `Artifacts.NoiseSeed` makes a rerun repeat; neither has a control here |
-| Erase in sorting (in the .bin Kilosort4 sorts) / Apply in spike detection (reject or erase: Spikes tab) / Erase in the signals (LFP / MUA / SPIKE, before filtering) | `Artifacts.ApplyToSorting`, `ApplyToSpikes`, `ApplyToSignals`: whether the detected artifacts reach those steps (manual periods always do). The signals take any periods only while the Signals tab's *Erase the artifact periods first* is ticked, and spike detection only while the Spikes tab's *Artifact periods* does not ignore them |
+| Erase in sorting (in the .bin the selected sorter sorts) / Apply in spike detection (reject or erase: Spikes tab) / Erase in the signals (LFP / MUA / SPIKE, before filtering) | `Artifacts.ApplyToSorting`, `ApplyToSpikes`, `ApplyToSignals`: whether the detected artifacts reach those steps (manual periods always do). The signals take any periods only while the Signals tab's *Erase the artifact periods first* is ticked, and spike detection only while the Spikes tab's *Artifact periods* does not ignore them |
 | Cache intervals | `Artifacts.CacheIntervals` (`<Name>_artifacts.json`) |
 | Order channels by probe layout | display only, not saved: the viewer's lanes and the per-channel table in probe order (below). Needs a probe (the dataset's, else the config's default probe), and is ticked by default when there is one |
 | **Detect / Preview** | `analyzeArtifacts` over the active dataset (streamed, read-only; on the process pool when the Run tab's **Parallel** box is ticked): summary + per-channel table, and the detected artifacts in the viewer |
@@ -1424,7 +1424,7 @@ executable to be sorted.
 | a SpikeInterface sorter's parameters (JSON), their descriptions, **Reset to defaults**, SpikeInterface sorter docs link | in place of the Kilosort4 parameters when a SpikeInterface sorter is chosen: `Sorting.SIParams.<sorter>` ([SpikeInterface sorters](#spikeinterface-sorters)) |
 | **Sorted output** panel: Dataset, label, **Use folder...**, **Use auto**, **Open in phy** | the active dataset's sorted-output association ([Sorted output](#sorted-output)) |
 | **Run this step** | `EphysPipeline.runSorting` over the selected datasets |
-| progress label + **Kilosort4 log** | background runs (`ks4_run.log` tail, `ks4_status.json`), see [Watching background runs](#watching-background-runs) |
+| progress label + **<sorter> log** (named for the selected sorter) | background runs (`ks4_run.log` or `si_run.log` tail, `ks4_status.json` or `si_status.json`), see [Watching background runs](#watching-background-runs) |
 
 ### SpikeInterface sorters
 
@@ -1569,14 +1569,14 @@ step, the Review tab, phy and the analysis read the units from there.
 | Control | Effect |
 | --- | --- |
 | Dataset + label | the active dataset, its association (`auto` or `manual`) and folder, its cluster count, and whether it is phy-curated (`cluster_group.tsv`) or not (`cluster_KSLabel.tsv`) |
-| **Use folder...** | pick any folder holding Kilosort4 / phy output (`params.py`), or a folder whose `kilosort4` subfolder holds it. Saved as `manual`, and kept while that folder is not there (a disk not connected): the steps then report it missing, and no other sort stands in for it. The [Review](#review) tab's **Use this sort** does the same for the sort it shows |
+| **Use folder...** | pick any folder holding sorted (phy) output (`params.py`), or a folder whose `kilosort4` subfolder holds it. Saved as `manual`, and kept while that folder is not there (a disk not connected): the steps then report it missing, and no other sort stands in for it. The [Review](#review) tab's **Use this sort** does the same for the sort it shows |
 | **Use auto** | back to automatic: `kilosort4/` in the dataset's output folder, where the step writes |
 | **Open in phy** | opens the associated output in phy with the **Phy command** |
 
 ### Watching background runs
 
 Each background run is handed to a MATLAB `timer` (every 3 s) as soon as it
-starts: it appends new lines of `ks4_run.log` to the **Kilosort4 log**, logs
+starts: it appends new lines of `ks4_run.log` (`si_run.log`) to the **<sorter> log**, logs
 `[done]` / `[error]` when `ks4_status.json` appears (a run whose
 process exits without a status file is an error: it leaves `ks4_exit.txt`,
 so a missing Python or conda env never looks like a run still going),
@@ -2231,7 +2231,7 @@ The line under the panel's switches gives the selection:
 `Selection: 2 of 4 dataset(s) ticked.` (the rows ticked on the Project tab)
 or `Selection: all 4 dataset(s).` (none ticked).
 
-- **Kilosort4 runs at once** (under the Sorting box, default 1):
+- **<sorter> runs at once** (under the Sorting box, named for the sorter the Sorting tab picks; default 1):
   `Sorting.MaxConcurrent`. With background execution, a run sorts this many
   datasets at a time and starts the next as one finishes. It writes each
   dataset's run files first (the `.bin` included), so the next
@@ -2248,9 +2248,10 @@ or `Selection: all 4 dataset(s).` (none ticked).
   separated by commas, such as `cuda:0, cuda:1`. Each background run gets the
   GPU the fewest running runs use, so on a two-GPU machine with two runs at
   once each run has its own. Blocking runs use the first. Blank leaves the
-  choice to Kilosort4, which takes the first GPU.
+  choice to Kilosort4, which takes the first GPU. SpikeInterface sorters do
+  not take a device.
 - **Queue the waiting runs; the Run goes on** (a preference, off by
-  default): see [Queued Kilosort4 runs](#queued-kilosort4-runs). Greyed out
+  default): see [Queued sorting runs](#queued-sorting-runs). Greyed out
   when Execution is blocking.
 - **Parallel: chunks on the process pool** and **Max workers** (blank =
   automatic): `Parallel.Enabled` / `MaxWorkers`, used by the artifacts step,
@@ -2332,7 +2333,7 @@ During a run:
 | `skipped` | nothing to do: the output exists and **Overwrite** is off, the dataset has no recording files, or (sorting) it has no probe, a Kilosort4 run of it is queued or going, or it is already sorted with **Skip datasets already sorted** |
 | `dry run` | what a dry run would have written |
 | `launched` | a background Kilosort4 run started. The monitor turns the row into `done` or `error` when the run ends, adding the time it ran to **Seconds** |
-| `queued` | a background Kilosort4 run handed to the monitor ([below](#queued-kilosort4-runs)); it turns `launched`, then `done` or `error` |
+| `queued` | a background sorting run handed to the monitor ([below](#queued-sorting-runs)); it turns `launched`, then `done` or `error` |
 | `error` | failed on this dataset; the message says why. The run goes on with the next dataset |
 | `cancelled` | stopped by **Cancel**; for sorting also a run stopped with **Stop runs...** or dropped from the queue by **Stop queue** |
 
@@ -2347,27 +2348,29 @@ The probe and behavior rows carry their own statuses: `ok`, `no probe`,
 is marked `cancelled`, and nothing is written for it: every output is
 written to a temporary file and renamed only when complete. The rest of that
 step's datasets are marked `cancelled` (`not run`), and the later steps do not
-run. Cancelling does not stop the background Kilosort4 runs already
+run. Cancelling does not stop the background sorting runs already
 launched; while the sorting step waits for a free slot, it stops the wait.
 
-**Background Kilosort4 runs** launched by a Run are handed to the same
+**Background sorting runs** launched by a Run are handed to the same
 monitor as the Sorting tab's
 ([Watching background runs](#watching-background-runs)) as each one starts.
 The label under the log counts them, as in
 `Background Kilosort4: 1 of 3 finished (1 running, 1 waiting to start).`,
 where waiting to start means queued, or still in the Run's sorting step.
+The label names the runs' sorter (`Background sorting: ...` when they are
+by different sorters; the Sorting tab's sorter while none is followed).
 
-### Queued Kilosort4 runs
+### Queued sorting runs
 
 With **Queue the waiting runs; the Run goes on** ticked, the sorting step
 does not wait for a free slot. It writes each dataset's run files and hands
 the run to the background monitor; its result row says `queued`. The Run
 goes straight on to its next step and ends without waiting, which leaves the
 app free. The monitor starts each queued run, in order, as a slot frees
-(with the working config's runs at once and GPUs, so raising **Kilosort4
+(with the working config's runs at once and GPUs, so raising **<sorter>
 runs at once** drains the queue faster), and the row turns `launched`.
 While a Run that waits for its own slots is under way, the queue waits until
-it ends. **Stop queue** (beside the Kilosort4 label under the log) drops the
+it ends. **Stop queue** (beside the background-runs label under the log) drops the
 queued runs that have not started (their rows turn `cancelled`; their run
 files stay); the runs already going carry on. Clean up refuses to delete
 files while runs are queued.
@@ -2379,7 +2382,7 @@ per project root (the `KeptSortingQueue` preference: each run's dataset key
 and the prepared run `launchSorting` starts). Once that root is next
 scanned, the app lists the kept runs: those that can go back in the queue,
 and those that cannot, with why (the dataset is no longer in the project, a
-run file such as the `.bin` is gone, or Kilosort4 is already queued or
+run file such as the `.bin` is gone, or its sorter is already queued or
 going in its folder). **Queue them again** puts the first back in the queue,
 where the monitor starts them as slots free; **Drop them** does not. When
 none can go back, an alert says why instead. Either way the kept queue of
@@ -2396,11 +2399,12 @@ sorting its dataset again finishes it.
 **Stop runs...** (beside **Stop queue**, on while background runs are
 going) stops runs that are going. With one run it asks for a confirmation;
 with several it lists them (dataset, GPU, minutes running), all selected,
-to pick from. Each chosen run's `ks4_status.json` is set to `cancelled`
+to pick from. Each chosen run's `ks4_status.json` (`si_status.json` for a
+SpikeInterface sorter) is set to `cancelled`
 (`stopped by the user`) and then its processes are ended
 (`EphysDataset.stopSortRun`: Python, conda and the launcher, found by the run
 folder in their command line); the log says `[stopped]` and its row turns
-`cancelled` ("stopped before it finished"). What Kilosort4 wrote so far
+`cancelled` ("stopped before it finished"). What the sorter wrote so far
 stays in the run folder. The freed slot goes to the next queued run, so
 press **Stop queue** too to stop everything. Blocking runs cannot be
 stopped: MATLAB waits for them.
@@ -2991,7 +2995,7 @@ or drop it:
 
 | Step | Files |
 | --- | --- |
-| Sorting (Kilosort4) | the whole `kilosort4` folder (the sorted units with their phy curation and unit notes, run files, logs, Kilosort4's copy of the recording) and `<Name>.bin` + `.json`. A sorted-output folder chosen by hand (Sorting tab, **Use folder...**) was not written by the step and is kept |
+| Sorting | the whole sort run folders, `kilosort4` and `si_<sorter>` for each SpikeInterface sorter (the sorted units with their phy curation and unit notes, run files, logs, the sorter's copy of the recording) and `<Name>.bin` + `.json`. A sorted-output folder chosen by hand (Sorting tab, **Use folder...**) was not written by the step and is kept |
 | Signals | the derived-signal `.mat` files (`<Name>_extract*.mat`) |
 | Spikes | the spikes `.mat` (`<Name>_spikes.mat`) |
 | Behavior | `<Name>_behavior.mat` and the digital events cache `<Name>_events.mat` |
@@ -3225,7 +3229,7 @@ of a config lives here:
 | `ShowRunDiagram` | the Run tab's **Show the run diagram** switch |
 | `MonitorResources` | the Run tab's **Monitor CPU, memory, disk and GPU** switch |
 | `QueueSortingRuns` | the Run tab's **Queue the waiting runs; the Run goes on** switch |
-| `KeptSortingQueue` | the Kilosort4 queues kept at Close (**Keep the queue for next time**), one element per project root: `root`, `saved` (when), `runs` (`Name`, `key`: the dataset's folder relative to the root, `prepared`: the run `launchSorting` starts). Offered back, then removed, once that root is scanned ([Run](#run)) |
+| `KeptSortingQueue` | the sorting queues kept at Close (**Keep the queue for next time**), one element per project root: `root`, `saved` (when), `runs` (`Name`, `key`: the dataset's folder relative to the root, `prepared`: the run `launchSorting` starts). Offered back, then removed, once that root is scanned ([Run](#run)) |
 | `KeptSortingRuns` | the background Kilosort4 runs going at Close (`EphysPipeline.emptyRuns` shape), followed again, then removed, at the next launch |
 | `CleanupOptions` | the Clean up tab's kinds of file and steps to remove, **Removed files go** and its folder, and **Show the files that remain** |
 
@@ -3303,7 +3307,7 @@ app.KSQueue                       % prepared runs waiting for a slot (Queue the 
 | `onDetectArtifacts.m`, `showArtifactView.m`, `drawArtifactView.m`, `onArtViewInput.m`, `syncArtProbeControls.m`, `refreshArtChannelTable.m`, `refreshManualArtifactsTable.m`, `onClearManualArtifacts.m`, `private/artifactColors.m` | Artifacts tab: the detector's preview and the viewer, where detected artifacts are reviewed and manual periods marked (`onArtViewInput`); the orange / purple of the two kinds, shared with Visualize (`artifactColors`) |
 | `routeFigureInput.m` | shares the figure's wheel, key and button callbacks between the Artifacts tab's plot and the Visualize viewer |
 | `onOptimizeKS4ForProbe.m`, `onResetKS4Params.m`, `onUseSortingFolder.m`, `onUseAutoSorting.m`, `refreshSortingLabel.m`, `pollKSRuns.m`, `onLaunchPhy.m`, `launchPhy.m` | Sorting tab and phy |
-| `queueKSRun.m`, `onStopKSQueue.m`, `onStopKSRuns.m`, `stopKSRuns.m`, `markKSResult.m` | background Kilosort4 runs: the queue the monitor starts from, Stop queue, Stop runs..., restating a run's result row |
+| `queueKSRun.m`, `onStopKSQueue.m`, `onStopKSRuns.m`, `stopKSRuns.m`, `markKSResult.m` | background sorting runs: the queue the monitor starts from, Stop queue, Stop runs..., restating a run's result row |
 | `keepKSRuns.m`, `followKeptKSRuns.m`, `offerKeptKSQueue.m`, `restoreKSQueue.m`, `private/keptSortingQueue.m`, `private/keptSortingRuns.m` | the background runs kept at Close: storing them, following the runs going again at launch, offering a kept queue back after its root's scan and putting it back in the queue (or dropping it), reading the two preferences |
 | `onSpikesPreview.m`, `syncSpikesEnableStates.m` | Spikes tab |
 | `onBrowseExportOutput.m`, `onExportEpochsToWorkspace.m` | Export tab (output folder, Epochs to workspace) |

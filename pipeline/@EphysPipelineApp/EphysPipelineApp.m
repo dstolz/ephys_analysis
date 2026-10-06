@@ -754,8 +754,8 @@ classdef EphysPipelineApp < handle
         RunResultsTable      matlab.ui.control.Table
         RunLogArea           matlab.ui.control.TextArea
         RunKSLabel           matlab.ui.control.Label
-        RunKSStopRunsButton  matlab.ui.control.Button         % stop running Kilosort4 runs (onStopKSRuns)
-        RunKSStopQueueButton matlab.ui.control.Button         % drop the queued Kilosort4 runs (onStopKSQueue)
+        RunKSStopRunsButton  matlab.ui.control.Button         % stop running sorting runs (onStopKSRuns)
+        RunKSStopQueueButton matlab.ui.control.Button         % drop the queued sorting runs (onStopKSQueue)
         RunDiagramCheckBox   matlab.ui.control.CheckBox       % Show the run diagram (a preference)
         RunSplitGrid         matlab.ui.container.GridLayout   % right side: progress / results / log | diagram
         RunDiagramPanel      matlab.ui.container.Panel

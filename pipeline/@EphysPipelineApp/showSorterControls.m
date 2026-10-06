@@ -3,8 +3,10 @@ function showSorterControls(obj, S)
 %   Kilosort4: its parameter rows, as they always were. A SpikeInterface
 %   sorter: those rows hide and SIPanel shows that sorter's parameters
 %   (Sorting.SIParams.<sorter> of the working config, else SpikeInterface's
-%   defaults) beside their descriptions. The step's check box, the note on
-%   artifacts, the log panel and "Use auto" name the sorter. SIParamsShown
+%   defaults) beside their descriptions. The step's check box (here and on
+%   the Run tab), the Run tab's runs-at-once label, the Artifacts tab's
+%   "Erase in sorting", the note on artifacts, the log panel and "Use auto"
+%   name the sorter. SIParamsShown
 %   then names the sorter whose parameters the text area holds, which
 %   gatherSortingSection stores them under.
 %
@@ -25,6 +27,11 @@ if ~isempty(obj.RunSortingCheckBox) && isvalid(obj.RunSortingCheckBox)   % Run t
 end
 if ~isempty(obj.RunKSAtOnceLabel) && isvalid(obj.RunKSAtOnceLabel)
     obj.RunKSAtOnceLabel.Text = what + " runs at once:";
+end
+if ~isempty(obj.ArtApplySortingCheckBox) && isvalid(obj.ArtApplySortingCheckBox)   % Artifacts tab
+    short = what;
+    if si; short = sorter; end   % no "(SpikeInterface)" inside the parentheses
+    obj.ArtApplySortingCheckBox.Text = "Erase in sorting (in the .bin " + short + " sorts)";
 end
 obj.SortNoteLabel.Text = "Artifact silencing (manual periods always; automatic detection when enabled) " + ...
     "is configured on the Artifacts tab, the way they are erased included; those periods are erased in " + ...
@@ -69,7 +76,7 @@ else
     if isempty(lines); lines = "(no descriptions)"; end
     obj.SIParamsHelpArea.Value = cellstr(lines);
 end
-obj.SIInfoLabel.Text = "Runs spikeinterface.run_sorter(""" + sorter + """) on the .bin Kilosort4 would sort " + ...
+obj.SIInfoLabel.Text = "Runs spikeinterface.run_sorter(""" + sorter + """) on the <Name>.bin the Sorting step writes " + ...
     "(the artifact periods erased; the common reference applied once: when the .bin carries it, the " + ...
     "sorter's own is kept out). Writes phy files to <Name>/si_" + sorter + "/, each unit labelled good or " + ...
     "mua by the good-unit criteria (Review tab). The parameters go over SpikeInterface's defaults; " + ...

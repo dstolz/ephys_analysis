@@ -1,5 +1,5 @@
 function onUseSortingFolder(obj)
-%onUseSortingFolder  Pin a Kilosort4 / phy results folder to the active dataset.
+%onUseSortingFolder  Pin a sorted (phy) results folder to the active dataset.
 if obj.refuseWhileRunning("Use folder"); return; end
 d = obj.currentDataset();
 if isempty(d)

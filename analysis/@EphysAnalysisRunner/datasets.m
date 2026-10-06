@@ -7,8 +7,11 @@ function outs = datasets(obj)
 %                read; Recordings says whether an Open Ephys session with
 %                several recordings is one dataset or one per recording, as in
 %                the pipeline config); each dataset's outputs are found under
-%                its output folder and recording folder. Selection "list"
-%                keeps the Datasets keys (root-relative folders)
+%                its output folder and recording folder. A root without
+%                recordings gives its folders of pipeline outputs
+%                (EphysProject.findOutputFolders), so Root can be a copy of
+%                the output root. Selection "list" keeps the Datasets keys
+%                (root-relative folders)
 %     "folders"  DatasetOutputs(folder) for each of Folders; the key is the
 %                folder, the name its last part
 %   Every DatasetOutputs has CacheData=true: a plot's spikes and signals
@@ -28,7 +31,7 @@ switch S.Mode
         if S.Root == "" || ~isfolder(S.Root)
             error('EphysAnalysisRunner:NoRoot', 'Project root does not exist: "%s".', S.Root);
         end
-        ws = warning('off', 'EphysProject:NoData');
+        ws = [warning('off', 'EphysProject:NoData'), warning('off', 'EphysProject:OutputsOnly')];
         P = EphysProject(S.Root, OutputRoot=S.OutputRoot, NamePattern=S.NamePattern, ...
             ReaderOptions=struct('OpenEphys', struct('Recordings', S.Recordings)));
         warning(ws);

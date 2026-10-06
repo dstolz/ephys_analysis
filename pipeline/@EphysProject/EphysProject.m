@@ -19,6 +19,16 @@ classdef EphysProject < handle
     %     P.toBinAll();                  % stream every dataset's .bin
     %   Sorting goes through EphysPipeline (runSorting).
     %
+    %   Outputs without the recordings
+    %   ------------------------------
+    %   A root that holds no recording but the pipeline's outputs (a copy of
+    %   an OutputRoot, e.g. a backup) gives one dataset per output folder,
+    %   with a warning (EphysProject:OutputsOnly; see findOutputFolders):
+    %     P = EphysProject("S:\backup\EXTRACT");
+    %     P.refresh();                   % metadata from the outputs; nothing written
+    %     u = P.Datasets(1).outputs().Units;
+    %   Their hasRecording() is false: nothing that reads a recording runs.
+    %
     %   See also EPHYSDATASET.
 
     properties
@@ -109,7 +119,11 @@ classdef EphysProject < handle
             %   With Recursive false only Root and the folders directly in it
             %   are recordings; deeper folders are not searched. ReaderOptions
             %   decide what a recording folder is where a format allows
-            %   several (Open Ephys recording modes).
+            %   several (Open Ephys recording modes). When Root holds no
+            %   recording, its folders of pipeline outputs are the datasets
+            %   instead (findOutputFolders), with a warning
+            %   (EphysProject:OutputsOnly): their outputs can be read, but
+            %   nothing that reads a recording runs on them.
             opt = obj.ReaderOptions;
             if obj.Recursive
                 folders = EphysReader.findAllRecordingFolders(obj.Root, true, Options=opt);
@@ -122,6 +136,15 @@ classdef EphysProject < handle
                         string(fullfile(sub(k).folder, sub(k).name)), false, Options=opt)]; %#ok<AGROW>
                 end
                 folders = unique(folders, 'stable');
+            end
+            if isempty(folders)
+                folders = EphysProject.findOutputFolders(obj.Root, obj.Recursive);
+                if ~isempty(folders)
+                    warning('EphysProject:OutputsOnly', ...
+                        ['No recordings found under %s; its %d folder(s) of pipeline outputs are the datasets. ' ...
+                         'Their outputs can be read (outputs()), but nothing that reads a recording runs on them.'], ...
+                        obj.Root, numel(folders));
+                end
             end
             if isempty(folders)
                 obj.Datasets = EphysDataset.empty(1,0);
@@ -146,7 +169,8 @@ classdef EphysProject < handle
             %   Also sets its NamePattern and DatasetKey (folder relative to Root),
             %   which label its sorted units, and its OutputDir:
             %   <OutputRoot>/<Name>, or "" (outputs next to the recording)
-            %   without an OutputRoot.
+            %   without an OutputRoot. A dataset without its recording
+            %   (hasRecording false) keeps "": its outputs are in its folder.
             arguments
                 obj (1,1) EphysProject
                 d (1,1) EphysDataset
@@ -162,7 +186,7 @@ classdef EphysProject < handle
             if ~isempty(obj.Manifest)
                 d.Manifest = obj.Manifest;
             end
-            if obj.OutputRoot ~= ""
+            if obj.OutputRoot ~= "" && d.hasRecording()
                 d.OutputDir = fullfile(obj.OutputRoot, d.Name);
             else
                 d.OutputDir = "";
@@ -314,5 +338,68 @@ classdef EphysProject < handle
             s = replace(s, "\", "/");
             s = regexprep(s, "/+$", "");
         end
+
+        function folders = findOutputFolders(root, recursive)
+            %findOutputFolders  Folders under ROOT that hold a dataset's pipeline outputs.
+            %   FOLDERS = EphysProject.findOutputFolders(ROOT, RECURSIVE) are
+            %   the folders (1 x N string, in listing order) laid out as the
+            %   pipeline writes <OutputRoot>/<Name>: holding a .mat, .npz or
+            %   .nwb named after the folder (its name, then "_", "-", "." or
+            %   a space, as DatasetOutputs finds them), its
+            %   <name>_manifest.json or <name>_artifacts.json, or a sort run
+            %   folder (kilosort4 or si_<sorter>) with a params.py. RECURSIVE
+            %   false looks only at ROOT and the folders directly in it. Only
+            %   names are compared, no file is opened. discover uses this
+            %   when ROOT holds no recording.
+            arguments
+                root (1,1) string
+                recursive (1,1) logical = true
+            end
+            if recursive
+                files = listTree(root);
+            else
+                files = runFiles(root);
+                top = dir(root);
+                top = top([top.isdir] & ~startsWith({top.name}, '.'));
+                for k = 1:numel(top)
+                    files = [files; runFiles(fullfile(top(k).folder, top(k).name))]; %#ok<AGROW>
+                end
+            end
+            folders = string.empty(1, 0);
+            if isempty(files); return; end
+            name = string({files.name});
+            [where, ~, g] = unique(string({files.folder}), 'stable');
+            leaf = regexprep(where, '^.*[\\/]', '');
+            for k = 1:numel(where)
+                if leaf(k) == ""; continue; end   % a drive root
+                here = cellstr(name(g == k));
+                rx = "^" + regexptranslate('escape', leaf(k)) + ...
+                    "(([_\-. ].*)?\.(mat|npz|nwb)|_(manifest|artifacts)\.json)$";
+                if any(~cellfun('isempty', regexpi(here, rx, 'once')))
+                    folders(end+1) = where(k); %#ok<AGROW>
+                end
+                if (strcmpi(leaf(k), "kilosort4") || startsWith(leaf(k), "si_", 'IgnoreCase', true)) ...
+                        && any(strcmpi(here, 'params.py'))
+                    folders(end+1) = regexprep(where(k), '[\\/][^\\/]*$', ''); %#ok<AGROW>
+                end
+            end
+            folders = unique(folders, 'stable');
+            % A sort run folder given as ROOT names its parent: not under ROOT.
+            key = EphysDataset.pathKey(folders);
+            r = EphysDataset.pathKey(root);
+            folders = folders(key == r | startsWith(key, r + "/"));
+        end
     end
+end
+
+
+function files = runFiles(folder)
+%runFiles  The files directly in FOLDER and in its sort run folders (kilosort4, si_<sorter>).
+L = dir(folder);
+L = L(~ismember({L.name}, {'.', '..'}));
+files = L(~[L.isdir]);
+run = L([L.isdir] & (strcmpi({L.name}, 'kilosort4') | startsWith({L.name}, 'si_', 'IgnoreCase', true)));
+for k = 1:numel(run)
+    files = [files; listTree(fullfile(run(k).folder, run(k).name), false)]; %#ok<AGROW>
+end
 end

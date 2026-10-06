@@ -9,6 +9,8 @@ function test_DatasetOutputs()
 %   Then: two recordings with one name whose outputs share a folder (the
 %   recorded source folder decides, also after the project moved), a
 %   hand-picked sort that is not there, and a combined extract that changes.
+%   Last, an EphysProject over a copy of an output root, without the
+%   recordings: its output folders are the datasets.
 %
 %   Usage:  test_DatasetOutputs
 %
@@ -243,6 +245,61 @@ C2 = load(comb);
 C2.Y.MUA = single([]); C2.info = rmfield(C2.info, 'MUA');
 save(comb, '-struct', 'C2');
 check(isempty(oc.signalFile("MUA")) && oc.signalFile("LFP") == comb, 'a changed combined extract is read again');
+
+%% ---- 6. an output root without its recordings (EphysProject) --------------
+fprintf('\n== 6. an output root without its recordings ==\n');
+% A copy of <OutputRoot>: n1 has an extract, a behavior file and a
+% Kilosort4 sort; n2 only a SpikeInterface sort. A run record, an
+% unrelated .mat and a hidden folder are no datasets.
+n1 = "m1_260901_100658"; n2 = "m2_260902_102607";
+bk = fullfile(root, 'backup');
+b1Dir = fullfile(bk, n1);
+b2Dir = fullfile(bk, n2);
+mkdir(b1Dir); mkdir(fullfile(bk, 'pipeline_runs')); mkdir(fullfile(bk, 'notes')); mkdir(fullfile(bk, '.trash', 'm3_day1'));
+S = struct('Y', struct('LFP', single(ones(10, 3))), ...
+    'info', struct('origFs', 30000, 'labels', {{'a'; 'b'; 'c'}}, 'LFP', struct('Fs', 1000, 'nSamples', 5000)), ...
+    'conversion', struct('dataset', n1, 'sourceFolder', "D:\proj\m1\" + n1));
+save(fullfile(b1Dir, n1 + "_extract_LFP.mat"), '-struct', 'S');
+B = struct('behavior', struct('nTrials', 3), 'conversion', struct('dataset', n1));
+save(fullfile(b1Dir, n1 + "_behavior.mat"), '-struct', 'B');
+makePhyFixture(fullfile(b1Dir, 'kilosort4'), 30000);
+makePhyFixture(fullfile(b2Dir, 'si_spykingcircus2'), 30000);
+writeJsonFile(fullfile(bk, 'pipeline_runs', '20261006T100000000_proj.json'), struct('schema', "ephys-pipeline-run/1"));
+save(fullfile(bk, 'notes', 'readme.mat'), 'junk');
+save(fullfile(bk, '.trash', 'm3_day1', 'm3_day1_spikes.mat'), '-struct', 'Sp');
+lastwarn('');
+ws = warning('off', 'EphysProject:OutputsOnly');
+Pb = EphysProject(bk, OutputRoot=fullfile(root, 'elsewhere'));
+warning(ws);
+[~, wid] = lastwarn();
+check(strcmp(wid, 'EphysProject:OutputsOnly') && isequal(sort(Pb.datasetKeys()), [n1 n2]), ...
+    'a root of outputs alone gives one dataset per output folder, with a warning');
+b1 = Pb.dataset(n1); b2 = Pb.dataset(n2);
+check(~b1.hasRecording() && ~b2.hasRecording() && b1.OutputDir == "" && b1.outputFolder() == string(b1Dir), ...
+    'they have no recording, and their outputs stay in their folders whatever the OutputRoot');
+lastwarn('');
+R = Pb.refresh();
+[~, wid] = lastwarn();
+check(all(R.Metadata) && all(R.Manifest) && all(R.Message == "") && isempty(wid), 'refresh reads them without a warning');
+check(b1.Fs == 30000 && b1.NumChannels == 3 && isequal(b1.ChannelNames, ["a" "b" "c"]) && b1.Duration == 5 ...
+    && isnan(b2.Fs), 'metadata from the info of the extract (none from a sort alone)');
+check(~isfile(fullfile(b1Dir, n1 + "_manifest.json")) && ~isfile(fullfile(b2Dir, n2 + "_manifest.json")), ...
+    'refresh writes no manifest into a folder of outputs');
+ob = b1.outputs();
+check(ob.has("LFP") && isempty(ob.Foreign) && ob.Behavior.nTrials == 3 && isequal(ob.Units.unitId, [0; 1]), ...
+    'their outputs are read (a source folder on another drive is still this dataset''s)');
+b2.Sorter = "spykingcircus2";
+check(b2.outputs().has("sorting"), 'a SpikeInterface sort is read once Sorter names it');
+ws = warning('off', 'EphysProject:OutputsOnly');
+Pbf = EphysProject(bk, Recursive=false);
+warning(ws);
+check(isequal(sort(Pbf.datasetKeys()), [n1 n2]), 'Recursive=false finds the output folders directly in the root');
+ws = warning('off', 'EphysProject:NoData');
+check(EphysProject(fullfile(b1Dir, 'kilosort4')).NumDatasets == 0, ...
+    'a sort folder as the root is no dataset (its dataset folder is above the root)');
+warning(ws);
+check(~any(contains(EphysProject(root).datasetKeys(), "backup")), ...
+    'under a root that holds recordings, folders of outputs are no datasets');
 
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0

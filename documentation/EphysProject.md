@@ -86,6 +86,10 @@ recording, its folders of pipeline outputs are the datasets instead (see
    in its own folder, which is where the app's Copy tab puts it;
 3. `writeManifest()`: rewrite the manifest with the fresh metadata.
 
+A dataset without its recording (`hasRecording()` false: a folder of
+pipeline outputs) takes its metadata from those outputs and is neither
+searched for an Epsych2 file nor given a manifest: refreshing writes nothing
+into a folder of outputs, which is often a backup.
 A manifest that is there but cannot be read (not JSON, or an unknown schema)
 is neither applied nor rewritten: it is left as it is, and the report says so.
 This is what the GUI's Scan does and what `EphysPipeline` and generated scripts
@@ -99,7 +103,8 @@ recorded in the returned table (`Dataset`, `Key`, `Metadata`, `Manifest`,
 **`pushConfig(d)`** copies `ProbeFile`, `PythonExe`, `CondaEnv`, `Scale`,
 `Dtype`, `NamePattern`, `Manifest`, the dataset's key (`DatasetKey`, saved
 with its sorted units) and `OutputDir` (`OutputRoot/<Name>`, or `""`,
-outputs next to the recording, without an `OutputRoot`)
+outputs next to the recording, without an `OutputRoot` or for a dataset
+without its recording, whose outputs are in its own folder)
 into one dataset. This **overwrites** that dataset's `ProbeFile`. The GUI and
 the pipeline deliberately avoid calling it after scanning so per-dataset probe
 assignments survive (`EphysPipeline.applyConfigToDatasets` sets everything
@@ -140,6 +145,49 @@ failure) and `error` (`""` on success).
 For everything else (sorting, derived signals, spikes,
 exports) use [`EphysPipeline`](EphysPipeline.md), which loops over the
 project's selected datasets with a config, or loop over `P.Datasets` yourself.
+
+## Outputs without the recordings
+
+A root that holds no recording but the pipeline's outputs, such as a copy or
+backup of an `OutputRoot`, is a project of its own with no configuration:
+
+```matlab
+P = EphysProject("S:\backup\EXTRACT");   % warns EphysProject:OutputsOnly
+P.refresh();                             % metadata from the outputs; writes nothing
+T = P.gatherMetadata();
+out = P.Datasets(1).outputs();           % DatasetOutputs
+u = out.Units;  E = out.Epochs;  b = out.Behavior;
+```
+
+When `discover()` finds no recording, it looks for folders laid out as the
+pipeline writes `<OutputRoot>/<Name>`
+(`EphysProject.findOutputFolders(root, recursive)`). Such a folder holds a
+`.mat`, `.npz` or `.nwb` named after it (its name, then `_`, `-`, `.` or a
+space), its `<name>_manifest.json` or `<name>_artifacts.json`, or a sort run
+folder (`kilosort4` or `si_<sorter>`) with a `params.py`. Only names are
+compared; no file is opened. Each folder becomes a dataset, with a warning
+(`EphysProject:OutputsOnly`). A root that holds any recording is scanned as
+usual, and its folders of outputs are not datasets.
+
+These datasets have no reader (`hasRecording()` is false):
+
+- `refreshMetadata()` takes `Fs`, `NumChannels`, `ChannelNames` and `Duration`
+  from the `info` saved with the derived signals (only that variable is
+  read). Without an extract file they stay `NaN`.
+- Their `OutputDir` stays `""` whatever the `OutputRoot`, because their outputs
+  are in their own folder.
+- `refresh()` writes no manifest and looks for no Epsych2 file there.
+- [`DatasetOutputs`](DatasetOutputs.md) still matches each file to its
+  dataset. The source folder that the file's provenance names (on the original
+  drive) ends with the dataset's key.
+- Nothing that reads a recording can run on them. The pipeline's signals,
+  spike and sorting steps skip them ("no recording files").
+
+A sort in an `si_<sorter>` folder is the dataset's sorted output once its
+`Sorter` names that sorter (`d.Sorter = "lupin"`); `kilosort4` is the default.
+
+The analysis module's `"project"` source works the same way, so an analysis
+config can use a copy of the output root as its `Root` too.
 
 ## Example
 

@@ -238,6 +238,13 @@ classdef EphysDataset < handle
         Reader = []
     end
 
+    properties (Access = private)
+        % True once discoverFiles has asked the readers about Folder with the
+        % current ReaderOptions, so an empty Reader means no reader claims
+        % it (see hasRecording).
+        ReaderSearched (1,1) logical = false
+    end
+
     properties (Dependent)
         BinFile     % full path to the .bin (binFolder/Name.bin, or Name_ks4.bin, see get.BinFile)
         NumSamples  % total amplifier samples across files (sum of PerFile)
@@ -377,6 +384,7 @@ classdef EphysDataset < handle
             if ~isequaln(obj.ReaderOptions, v)
                 obj.ReaderOptions = v;
                 obj.Reader = []; %#ok<MCSUP> rebuilt with the new options on next use
+                obj.ReaderSearched = false; %#ok<MCSUP>
             end
         end
 
@@ -387,6 +395,7 @@ classdef EphysDataset < handle
             %   the folder, built with ReaderOptions, becomes obj.Reader and
             %   supplies RecordingFormat / Files / NumFiles.
             obj.Reader = EphysReader.forFolder(obj.Folder, Options=obj.ReaderOptions);
+            obj.ReaderSearched = true;
             if isempty(obj.Reader)
                 obj.RecordingFormat = "unknown";
                 obj.Files = string.empty(1,0);
@@ -403,8 +412,14 @@ classdef EphysDataset < handle
             %refreshMetadata  Fill header metadata for the recording (no data read).
             %   Re-scans the folder, then asks the reader for Fs, channel names,
             %   duration and the per-file summary (PerFile). Header-only: no
-            %   amplifier data is read.
+            %   amplifier data is read. A folder that holds the dataset's
+            %   pipeline outputs but not its recording (see hasRecording)
+            %   takes Fs, NumChannels, ChannelNames and Duration from them
+            %   (metadataFromOutputs) instead.
             obj.discoverFiles();
+            if isempty(obj.Reader) && obj.metadataFromOutputs()
+                return
+            end
             if isempty(obj.Reader) || obj.NumFiles == 0
                 warning('EphysDataset:refreshMetadata:NoFiles', ...
                     'No recording files found in %s', obj.Folder);
@@ -493,6 +508,21 @@ classdef EphysDataset < handle
         function tf = supportsRandomAccess(obj)
             %supportsRandomAccess  True when readWindowUV works for this recording.
             tf = ~isempty(obj.Reader) && obj.Reader.supportsRandomAccess();
+        end
+
+        function tf = hasRecording(obj)
+            %hasRecording  True when a registered reader claims Folder: the recording is there.
+            %   False for a folder that holds only the dataset's pipeline
+            %   outputs (a copy of an output root, or a recording deleted
+            %   after processing; EphysProject finds these when a root holds
+            %   no recording). Its outputs are still read (outputs()) and its
+            %   metadata comes from them (refreshMetadata), but nothing that
+            %   reads the recording can run. The readers are asked once per
+            %   ReaderOptions.
+            if ~obj.ReaderSearched
+                obj.discoverFiles();
+            end
+            tf = ~isempty(obj.Reader);
         end
 
         function data = readData(obj, opts)
@@ -1126,6 +1156,57 @@ classdef EphysDataset < handle
             if ~isempty(spk)
                 s.updated = string(datetime(spk.datenum, 'ConvertFrom', 'datenum', ...
                     'Format', 'yyyy-MM-dd HH:mm:ss'));
+            end
+        end
+    end
+
+    methods (Access = private)
+        function tf = metadataFromOutputs(obj)
+            %metadataFromOutputs  Header metadata from the pipeline outputs in Folder.
+            %   For a folder no reader claims. TF is true when Folder holds an
+            %   output of this dataset: a .mat, .npz or .nwb named after it
+            %   (Name, then "_", "-", "." or a space, as DatasetOutputs finds
+            %   them) or a sort (a kilosort4 or si_<sorter> folder with
+            %   params.py, or the sorted output in SortingDir). Fs,
+            %   NumChannels, ChannelNames and Duration then come from the
+            %   info that toMat saves with the derived signals (origFs, the
+            %   amplifier channel labels, a signal's nSamples / Fs); without
+            %   one they are left as they are. Only the info variable is read.
+            tf = false;
+            if obj.Folder == "" || ~isfolder(obj.Folder); return; end
+            L = dir(obj.Folder);
+            names = string({L(~[L.isdir]).name});
+            own = ~cellfun('isempty', regexpi(cellstr(names), ...
+                "^" + regexptranslate('escape', obj.Name) + "([_\-. ].*)?\.(mat|npz|nwb)$", 'once'));
+            runs = L([L.isdir] & (strcmpi({L.name}, 'kilosort4') | startsWith({L.name}, 'si_', 'IgnoreCase', true)));
+            sorted = any(arrayfun(@(r) isfile(fullfile(r.folder, r.name, 'params.py')), runs));
+            tf = any(own) || sorted || obj.hasPhyOutput();
+            mats = names(own & endsWith(names, ".mat", 'IgnoreCase', true));
+            % A per-signal extract (<Name><Suffix>_<TYPE>.mat) first: it holds info.
+            perSignal = ~cellfun('isempty', regexpi(cellstr(mats), '_(LFP|MUA|SPIKE|AUX)\.mat$', 'once'));
+            mats = [mats(perSignal), mats(~perSignal)];
+            ws = warning('off', 'MATLAB:load:variableNotFound');
+            restore = onCleanup(@() warning(ws));
+            for f = mats
+                try
+                    S = load(fullfile(obj.Folder, f), 'info');
+                catch
+                    continue   % unreadable: the next file may hold it
+                end
+                if ~isfield(S, 'info') || ~isstruct(S.info) || ~isfield(S.info, 'origFs'); continue; end
+                I = S.info;
+                obj.Fs = double(I.origFs);
+                if isfield(I, 'labels')
+                    obj.ChannelNames = reshape(string(I.labels), 1, []);
+                    obj.NumChannels = numel(obj.ChannelNames);
+                end
+                for sig = DatasetOutputs.SignalTypes
+                    if isfield(I, sig) && isstruct(I.(sig)) && all(isfield(I.(sig), {'nSamples', 'Fs'}))
+                        obj.Duration = double(I.(sig).nSamples) / double(I.(sig).Fs);
+                        break
+                    end
+                end
+                return
             end
         end
     end

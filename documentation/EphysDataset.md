@@ -529,9 +529,24 @@ constructor calls it, and so does `refreshMetadata`.
   `.dat` size (`splitLayout`). `PerFile` gets a single entry named `"info.rhd"`.
 
 With no files it warns (`EphysDataset:refreshMetadata:NoFiles`) and returns.
+The exception is a folder that no reader claims but that holds this dataset's
+pipeline outputs: a `.mat`, `.npz` or `.nwb` named after it, or a sort
+(`kilosort4` or `si_<sorter>` with `params.py`). Its `Fs`, `NumChannels`,
+`ChannelNames` and `Duration` come from the `info` saved with the derived
+signals (`origFs`, the amplifier labels, a signal's `nSamples` / `Fs`; only
+that variable is loaded). Without such a file they stay `NaN`, and nothing
+warns.
 
 For `BinaryReader`, everything comes from `recording.json` and the data file
 size.
+
+**`tf = hasRecording()`** is true when a registered reader claims `Folder`.
+It is false for a folder that holds only the dataset's pipeline outputs: a
+copy of an output root, or a recording deleted after processing (see
+[Outputs without the recordings](EphysProject.md#outputs-without-the-recordings)).
+Such a dataset's outputs are still read (`outputs()`), and its metadata comes
+from them. Nothing that reads the recording can run. The readers are asked
+once for each `ReaderOptions` value.
 
 **`L = splitLayout()`** (`IntanReader`, split layouts only) returns and caches a struct
 describing the split recording. Fields: `format`, `folder`, `headerFile`, `Fs`,
@@ -2133,6 +2148,8 @@ validation to Python.
   calls it after `applyManifest`, so a scan associates copied sessions without
   any `Behavior.SearchDirs`. The behavior, signals, spikes and export outputs
   do not hold `Data` and `Info`, so they are never taken for a session.
+  `refresh` does not call it for a folder without the recording
+  (`hasRecording()` false).
 - `[trials, info, meta] = readBehavior()` is
   [`readEpsychSession(BehaviorFile)`](EphysPipeline.md#epsych2-sessions), or,
   without a session, a TDT block's epoc trials when `TrialConfig.TrialLine` is
@@ -2353,7 +2370,7 @@ deletes them afterwards. It covers:
 | 12b | `runKilosort(DryRun=true)` with `shank_spacing` (a derived `<probe>_spaced.json` in the run folder with each shank moved along x, the probe map untouched, `settings.json` naming both probes; with excluded channels; one shank or 0 left alone; a negative value refused) and `restore_positions` (the true channel and spike positions) |
 | 13 | `detectSpikes` (injected troughs: alignment, thresholds, polarity, minimum period, waveforms, edges, `NaN` samples, guards) |
 | 14 | `detectSpikes` over a whole recording (streamed in 6 chunks: identical to the single-block result, boundary-straddling waveforms, the longer context of a low band edge, `ChannelOrder`, `ProgressFcn`, guards, `UseParallel` / `MaxWorkers`, worker errors, cancel, parallel `artifactIntervals` / `analyzeArtifacts` over split chunks) |
-| 15 | `writeJsonFile` / `readJsonFile`, `probeMapProblems` / `writeProbeMap` (every reason Kilosort4 could not read a probe; a one-site map written as lists; a bad map refused), manifest v2 round trip (manual periods, moved detections, sorting, behavior) and its artifacts block (the interval file, counts, handling), v1 and unknown-schema manifests, `sortingResultsDir` precedence and `sortingStruct`, `EphysProject` keys and `refresh`, including `associateFolderBehavior` (one file associated, two left alone, an existing association kept) |
+| 15 | `writeJsonFile` / `readJsonFile`, `probeMapProblems` / `writeProbeMap` (every reason Kilosort4 could not read a probe; a one-site map written as lists; a bad map refused), manifest v2 round trip (manual periods, moved detections, sorting, behavior) and its artifacts block (the interval file, counts, handling), v1 and unknown-schema manifests, `sortingResultsDir` precedence and `sortingStruct`, `EphysProject` keys and `refresh`, including `associateFolderBehavior` (one file associated, two left alone, an existing association kept). A project over outputs without the recordings is in `test_DatasetOutputs` section 6 |
 | 16 | the `ArtifactConfig` pre-detection filter (preview and `artifactIntervals` agree; single-chunk `UseParallel` is silent) |
 | 17 | `readPhyUnits` / `readSortedUnits` (times = samples/fs, phy labels beat Kilosort labels, groups, channel mapping, `FsFallback`, a template as stored and not scaled by the amplitude) |
 | 18 | `detectSpikes(ArtifactIntervals=)` (the periods erased in every chunk; refused for a data block); `spikesToMat` (the detections only: a sorted dataset's units stay in the sorting folder, labelled with their recording by `readSortedUnits`; artifact rejection - also over 200 overlapping, touching, reversed and empty periods -; `ArtifactMode` `"none"` / `"erase"`; explicit `ArtifactIntervals`; waveforms; no partial file left); `toMat` saves no behavior variable |

@@ -10,6 +10,15 @@ says how to cut a release.
 
 ### Added
 
+- `EphysProject(root)` reads a root of pipeline outputs without the
+  recordings, such as a backup of an `OutputRoot`. When no recording is
+  found, each folder laid out as `<OutputRoot>/<Name>` becomes a dataset,
+  with a warning (`EphysProject:OutputsOnly`;
+  `EphysProject.findOutputFolders`). `refresh()` takes their rate, channels
+  and duration from the extract's `info` and writes nothing there.
+  `outputs()` reads their files, and their `OutputDir` stays their own
+  folder. `EphysDataset.hasRecording()` tells these datasets apart. An
+  analysis config's `"project"` source can point at such a copy.
 - **Hide unused** on the Diagram tab (`DiagramHideUnused` preference;
   `HideUnused=true` on `PipelineDiagram.overview` / `detail`): leaves out the
   disabled steps, stages and files switched off, arrows not read and inputs

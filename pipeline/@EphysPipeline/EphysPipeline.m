@@ -941,7 +941,8 @@ classdef EphysPipeline < handle
             %   folder is the dataset's sorted output), ArtifactConfig (the Artifacts and
             %   Reference sections, EphysPipelineConfig.artifactConfig), TrialConfig,
             %   ReaderOptions (Acquisition), OutputDir (<OutputRoot>/<Name>, or
-            %   "" - outputs next to the recording - without an output root),
+            %   "" - outputs next to the recording - without an output root or
+            %   for a dataset without its recording, whose outputs are its folder),
             %   BinDir (Sorting.BinDir: where the sorting .bin goes; "" = the
             %   output folder), and the NamePattern and DatasetKey that label
             %   sorted units. Two
@@ -975,7 +976,7 @@ classdef EphysPipeline < handle
                 d.ReaderOptions  = cfg.Acquisition;
                 d.NamePattern    = cfg.Project.NamePattern;
                 d.DatasetKey     = EphysProject.relativeKey(P.Root, d.Folder);
-                if cfg.Project.OutputRoot ~= ""
+                if cfg.Project.OutputRoot ~= "" && d.hasRecording()
                     d.OutputDir = fullfile(cfg.Project.OutputRoot, d.Name);
                 else
                     d.OutputDir = "";

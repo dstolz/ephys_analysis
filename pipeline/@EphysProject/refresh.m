@@ -10,6 +10,9 @@ function report = refresh(obj, opts)
 %                             Epsych2 session file in its own folder (where
 %                             the Copy tab puts it)
 %     3. writeManifest()    - rewrite the manifest with the fresh metadata
+%   A dataset without its recording (EphysDataset.hasRecording false: a
+%   folder of pipeline outputs) takes its metadata from those outputs, and
+%   nothing is written to its folder, which is often a backup.
 %   A manifest that is there but cannot be read (not JSON, or an unknown
 %   schema) is neither applied nor rewritten: applyManifest warns, and the
 %   report says so. This is what the GUI's Scan does and what scripts /
@@ -76,7 +79,9 @@ for i = 1:n
         unread = "";   % why a manifest that is there was not read
         if opts.ApplyManifest
             [~, unread] = d.applyManifest();
-            if d.BehaviorFile == ""   % a recorded session is kept, also while its file is not there
+            % A recorded session is kept, also while its file is not there.
+            % A folder of outputs alone holds no session: its .mat files are not opened.
+            if d.BehaviorFile == "" && d.hasRecording()
                 d.associateFolderBehavior();
             end
         end
@@ -84,7 +89,7 @@ for i = 1:n
             if msg(i) ~= ""; msg(i) = msg(i) + "; "; end
             msg(i) = msg(i) + "manifest not read (" + unread + "), left as it is";
         else
-            if opts.WriteManifest
+            if opts.WriteManifest && d.hasRecording()
                 d.writeManifest();
             end
             okMan(i) = true;

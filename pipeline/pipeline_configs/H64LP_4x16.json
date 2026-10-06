@@ -5,11 +5,24 @@
   "description": "Starting point for H64LP 4x16 linear probes: the Kilosort4 settings of the previous ks4_configs file. Set Project.Root / OutputRoot and Sorting.PythonExe, then enable the steps you need.",
   "Project": {
     "Root": "",
+    "Recursive": true,
     "OutputRoot": "",
     "Selection": "all",
     "Datasets": [],
     "NamePattern": "SUBJ-ID-{SubjectID}_{Date:yyMMdd}_{Time:HHmmss}",
-    "TokenColumns": "SubjectID"
+    "TokenColumns": "SubjectID",
+    "SaveScript": true
+  },
+  "Acquisition": {
+    "OpenEphys": {
+      "Recordings": "concatenate",
+      "RecordNode": "",
+      "Stream": ""
+    },
+    "TDT": {
+      "Stream": "",
+      "GainToMicrovolts": "NaN"
+    }
   },
   "Parallel": {
     "Enabled": false,
@@ -17,15 +30,27 @@
   },
   "Probe": {
     "DefaultProbeFile": "C:\\src\\ephys_analysis\\pipeline\\probes\\H64LP_4x16lin_probemap.json",
-    "WriteDefaultToManifest": false
+    "WriteDefaultToManifest": false,
+    "AutoAssign": false,
+    "RuleSubjects": [],
+    "RuleProbes": []
+  },
+  "Reference": {
+    "Mode": "none",
+    "BadLow": 0.3,
+    "BadHigh": 2
   },
   "Behavior": {
     "Enabled": false,
+    "Search": true,
     "SearchDirs": [],
     "Match": "prefix-then-time",
     "MaxStartOffsetMin": 30,
     "Overwrite": false,
-    "WriteFile": true
+    "WriteFile": true,
+    "PairTrials": true,
+    "AutoApprove": false,
+    "TrialLine": "InTrial"
   },
   "Artifacts": {
     "Enabled": true,
@@ -39,8 +64,12 @@
     "FilterType": "highpass",
     "FilterCutoff": 300,
     "FilterOrder": 4,
+    "Fill": "noise",
+    "NoiseBandHz": 300,
+    "NoiseSeed": 0,
     "ApplyToSorting": true,
     "ApplyToSpikes": true,
+    "ApplyToSignals": true,
     "CacheIntervals": true
   },
   "Sorting": {
@@ -48,6 +77,8 @@
     "PythonExe": "",
     "CondaEnv": "",
     "Execution": "background",
+    "MaxConcurrent": 1,
+    "Devices": [],
     "DryRun": false,
     "SkipExisting": false,
     "KS4": {
@@ -57,6 +88,7 @@
       "tmax": "Inf",
       "highpass_cutoff": 300,
       "whitening_range": 32,
+      "shank_spacing": 0,
       "artifact_threshold": "Inf",
       "nskip": 25,
       "batch_size": 120000,
@@ -97,17 +129,32 @@
       "duplicate_spike_ms": 0.25,
       "position_limit": 100
     },
-    "KS4ExtraJSON": ""
+    "KS4ExtraJSON": "",
+    "Quality": {
+      "isiViolationsRatioMax": 0.5,
+      "presenceRatioMin": 0.9,
+      "amplitudeCutoffMax": 0.1,
+      "snrMin": "NaN",
+      "driftPtpMax": "NaN",
+      "firingRateMin": "NaN",
+      "unknown": "pass"
+    }
   },
   "Signals": {
     "Enabled": false,
     "OutputDir": "",
     "Suffix": "_extract",
+    "SeparateFiles": true,
     "MatVersion": "-v7.3",
     "Overwrite": false,
     "LFP": true,
     "MUA": false,
     "SPIKE": false,
+    "AUX": false,
+    "BlankArtifacts": true,
+    "LFP_Reference": false,
+    "MUA_Reference": true,
+    "SPIKE_Reference": true,
     "LFP_Fs": 1000,
     "LFP_HighpassOn": false,
     "LFP_HighpassHz": 1,
@@ -129,6 +176,8 @@
       5000
     ],
     "LabelField": "custom_channel_name",
+    "LineNames": [],
+    "InvertedLines": [],
     "KeepChannels": "",
     "BadMode": "none",
     "BadThreshold": 3,
@@ -138,7 +187,6 @@
   },
   "Spikes": {
     "Enabled": false,
-    "Source": "detect",
     "Filter": true,
     "Band": [
       500,
@@ -148,6 +196,7 @@
     "Polarity": "negative",
     "ThresholdMethod": "mad",
     "Threshold": "NaN",
+    "ThresholdScope": "chunk",
     "Align": "trough",
     "AlignWindowMs": 1,
     "MinPeriodMs": 1,
@@ -164,12 +213,6 @@
     "ArtifactMode": "reject",
     "MaxChunkSamples": "NaN",
     "EdgePadMs": "NaN",
-    "Groups": [
-      "good",
-      "mua"
-    ],
-    "IncludeNoise": false,
-    "Templates": true,
     "OutputDir": "",
     "Suffix": "_spikes",
     "MatVersion": "-v7.3",
@@ -180,6 +223,7 @@
     "Formats": [],
     "Signals": [],
     "IncludeUnits": true,
+    "UnitQuality": true,
     "IncludeDetected": false,
     "IncludeEvents": true,
     "Groups": [
@@ -187,6 +231,40 @@
       "mua"
     ],
     "Validate": true,
+    "EpochSource": "line",
+    "EpochLine": "",
+    "EpochWindow": [
+      -0.2,
+      0.5
+    ],
+    "EpochOnsetRule": "event",
+    "EpochIncomplete": "nan",
+    "EpochNonFinite": "keep",
+    "EpochArtifacts": "drop",
+    "EpochSpikeTimeBase": "onset",
+    "EpochClass": "double",
+    "NWB": {
+      "SessionDescription": "",
+      "ExperimentDescription": "",
+      "Experimenter": [],
+      "Lab": "",
+      "Institution": "",
+      "Keywords": [],
+      "Location": "",
+      "SubjectId": "",
+      "Species": "",
+      "Sex": "",
+      "Age": "",
+      "SubjectDescription": "",
+      "Strain": "",
+      "Genotype": "",
+      "TimeZone": "",
+      "SessionStartTime": "",
+      "Trials": true,
+      "Inspect": true,
+      "PythonExe": "",
+      "CondaEnv": ""
+    },
     "OutputDir": "",
     "MatVersion": "-v7.3",
     "Overwrite": false

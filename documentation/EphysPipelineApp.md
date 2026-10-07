@@ -735,7 +735,8 @@ Dur (min), Format (`traditional`, `one-file-per-signal`,
 `openephys-nwb`, `tdt` or `binary`), Probe
 (`default: <file>` when the dataset has none of its own and the config's
 default probe applies), Exclude,
-**Sorting** (units, `curated` when phy saved the labels, `auto` = found where
+**Sorting** (units, `modified in phy` when phy saved a label, merge or split
+there, see [What phy changed](#what-phy-changed); `auto` = found where
 Kilosort4 writes it / `manual` = a folder chosen on the Sorting tab),
 **Behavior** (subject, trial count and the recorded pairing status:
 `pairing approved`, `pairing approved (auto)`, `pairing unreviewed`). A probe,
@@ -1588,6 +1589,7 @@ step, the Review tab, phy and the analysis read the units from there.
 | Control | Effect |
 | --- | --- |
 | Dataset + label | the active dataset, its association (`auto` or `manual`) and folder, its cluster count, and whether it is phy-curated (`cluster_group.tsv`) or not (`cluster_KSLabel.tsv`) |
+| phy lamp + line, **Refresh** | what phy did in that folder ([What phy changed](#what-phy-changed)). **Refresh** reads the folder again, for instance after you save in phy |
 | **Use folder...** | pick any folder holding sorted (phy) output (`params.py`), or a folder whose `kilosort4` subfolder holds it. Saved as `manual`, and kept while that folder is not there (a disk not connected): the steps then report it missing, and no other sort stands in for it. The [Review](#review) tab's **Use this sort** does the same for the sort it shows |
 | **Use auto** | back to automatic: `kilosort4/` in the dataset's output folder, where the step writes |
 | **Open in phy** | opens the associated output in phy with the **Phy command** |
@@ -1644,6 +1646,26 @@ touched.
    (`cluster_notes.tsv`), which the [Review](#review) tab edits too.
 3. Run **Export** again with **Overwrite** so its files carry the curated
    labels. The Review tab and the analysis read them from the sort folder.
+
+### What phy changed
+
+The phy line of the **Sorted output** panel reads the dataset's sort folder
+([EphysDataset.phyStatus](EphysDataset.md#other-helpers)). Its lamp shows
+one of these states:
+
+| Lamp | Line | Read from |
+| --- | --- | --- |
+| grey | *Not opened in phy.* | no `phy.log` or `.phy/` cache in the folder |
+| amber | *Opened in phy, nothing saved* | `phy.log` or `.phy/`, but no file that phy saved |
+| amber | *Saved in phy … with no change* | phy saved, but no cluster is labelled and none was merged or split |
+| green | *Modified in phy (saved …)*: the labels set in phy (`12 good, 30 mua, 5 noise`), clusters from merges / splits, clusters now | `cluster_info.tsv`, which phy writes on every save and no sorter writes, or phy's `cluster_group.tsv` (header `group`) |
+
+The save time is when `cluster_info.tsv` was last modified, so a copy that
+keeps file times (robocopy, the Copy tab) still shows it. phy numbers each
+cluster it makes by merging or splitting from the largest id on. The count of
+those clusters is therefore the ids in `cluster_info.tsv` beyond the sorter's
+(the rows of `templates.npy`). The Project table's **Sorting** column says
+`modified in phy` for the same green state.
 
 ### Things to know
 
@@ -3449,7 +3471,7 @@ trip, the unsaved marker, the Diagram of the loaded config and its refresh on ed
 chart of all the steps points at controls that exist and that clicking one opens its tab and marks
 them, the data-flow overview (its boxes and arrows, that no arrow runs through a box or shares a line
 with another source's and at most five cross, the reads a config leaves off, the arrows into a disabled
-step, the View preference and Layout turned off), the Run checklist ↔ tab sync and its Parallel controls, scan + selection ticks
+step, the View preference and Layout turned off), the Run checklist ↔ tab sync and its Parallel controls, scan + selection ticks (the Sorting tab's phy lamp and the table's `modified in phy` for a phy-curated sort)
 (and the ticked datasets in the Dataset menu),
 the active dataset's highlight under the token filters, the Source settings panel (the active dataset's system: Intan's
 note, the Open Ephys and TDT options saved and pushed to the datasets, a TDT gain that is not a number refused, a TDT

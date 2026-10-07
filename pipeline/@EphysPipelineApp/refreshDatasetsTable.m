@@ -197,7 +197,9 @@ if s.results_dir ~= "" && ~s.exists
 elseif s.results_dir ~= ""
     txt = s.source;
     if isfinite(s.num_units); txt = txt + sprintf(": %d units", s.num_units); end
-    if s.curated; txt = txt + ", curated"; end
+    if s.exists && EphysDataset.phyStatus(s.results_dir).modified
+        txt = txt + ", modified in phy";
+    end
     c.Sorting = txt;
 end
 if d.BehaviorFile ~= "" && ~isfile(d.BehaviorFile)

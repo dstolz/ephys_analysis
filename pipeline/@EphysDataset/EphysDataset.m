@@ -1451,6 +1451,70 @@ classdef EphysDataset < handle
             tf = numel(cols) >= 2 && strcmpi(cols(2), "group");
         end
 
+        function s = phyStatus(resultsDir)
+            %phyStatus  What phy has done in the sorted-output folder RESULTSDIR.
+            %   S.state     "none"   no sign of phy
+            %               "opened" phy opened the folder (its phy.log or .phy
+            %                        cache is there) but saved nothing
+            %               "saved"  phy saved there: cluster_info.tsv, which phy
+            %                        writes on every save and no sorter writes,
+            %                        or phy's cluster_group.tsv (phyCurated)
+            %   S.modified  true when the save changed the sort: a cluster
+            %               labelled in phy, or one phy made by a merge or split
+            %   S.saved     when phy last saved (cluster_info.tsv's modification
+            %               time, else cluster_group.tsv's; NaT when not saved)
+            %   S.labels    the labels set in phy ([1 x n] string, "good" /
+            %   S.counts    "mua" / "noise" first) and how many clusters have
+            %               each. phy reads its group column from its own
+            %               cluster_group.tsv only (the sorter's copy there is
+            %               headed KSLabel / SILabel), so every one was set in phy.
+            %   S.created   clusters phy made by merging or splitting: ids in
+            %               cluster_info.tsv past the sorter's (templates.npy's
+            %               rows), as phy numbers new clusters from the largest
+            %               id on; NaN when either file is missing
+            %   S.clusters  clusters at the last save (rows of cluster_info.tsv;
+            %               NaN when there is none)
+            %   Reads only the .tsv files and templates.npy's header.
+            dir0 = char(resultsDir);
+            s = struct('state', "none", 'modified', false, 'saved', NaT, ...
+                'labels', strings(1, 0), 'counts', zeros(1, 0), 'created', NaN, 'clusters', NaN);
+            if isfile(fullfile(dir0, 'phy.log')) || isfolder(fullfile(dir0, '.phy'))
+                s.state = "opened";
+            end
+            info = fullfile(dir0, 'cluster_info.tsv');
+            curated = EphysDataset.phyCurated(dir0);
+            if ~isfile(info) && ~curated; return; end
+            s.state = "saved";
+            f = dir(info);
+            if isempty(f); f = dir(fullfile(dir0, 'cluster_group.tsv')); end
+            s.saved = datetime(f(1).datenum, 'ConvertFrom', 'datenum');
+            if curated
+                [~, grp] = tsvColumns(fullfile(dir0, 'cluster_group.tsv'));
+                grp = grp(grp ~= "");
+                [names, ~, k] = unique(grp);
+                names = names(:).';
+                counts = accumarray(k(:), 1, [numel(names) 1]).';
+                [~, order] = sort(arrayfun(@(n) find([n == ["good" "mua" "noise"], true], 1), names));
+                s.labels = names(order);
+                s.counts = counts(order);
+            end
+            if isfile(info)
+                ids = tsvColumns(info);
+                s.clusters = numel(ids);
+                tpl = fullfile(dir0, 'templates.npy');
+                if isfile(tpl)
+                    try
+                        [~, shape] = readNPY(tpl, Range=[1 0]);
+                        s.created = sum(ids >= shape(1));
+                    catch ME
+                        warning('EphysDataset:phyStatus:Templates', ...
+                            'Cannot read %s (%s); merges and splits in phy are not counted.', tpl, ME.message);
+                    end
+                end
+            end
+            s.modified = sum(s.counts) > 0 || s.created > 0;
+        end
+
         function k = pathKey(p)
             %pathKey  Paths as comparable keys: "/" separators, no trailing
             %   separator, lower case on Windows (whose paths ignore case).
@@ -1787,6 +1851,25 @@ classdef EphysDataset < handle
         end
     end
 
+end
+
+
+function [ids, vals] = tsvColumns(file)
+%tsvColumns  Columns 1 (as numbers) and 2 (trimmed text, unquoted) of a phy
+%   .tsv below its header row; empty when the file is missing or unreadable.
+ids = zeros(0, 1); vals = strings(0, 1);
+try
+    lines = splitlines(string(fileread(file)));
+catch
+    return
+end
+lines = lines(strtrim(lines) ~= "");
+if numel(lines) < 2; return; end
+tab = sprintf('\t');
+rows = lines(2:end) + tab;
+rest = extractAfter(rows, tab) + tab;
+ids  = str2double(strip(strtrim(extractBefore(rows, tab)), '"'));
+vals = strip(strtrim(extractBefore(rest, tab)), '"');
 end
 
 

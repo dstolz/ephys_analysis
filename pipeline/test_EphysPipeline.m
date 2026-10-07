@@ -910,6 +910,34 @@ sCur = eo.sortingStruct();
 check(~sAuto.curated && sAuto.num_units == 3 && sCur.curated && EphysDataset.phyCurated(curated) ...
     && ~EphysDataset.phyCurated(fullfile(h1, 'kilosort4')), ...
     'curated means phy''s cluster_group.tsv (header "group"), not the copy Kilosort4 writes');
+% phyStatus: what phy did in a sort folder (the Sorting tab's phy lamp).
+ks = fullfile(h1, 'kilosort4');
+pNone = EphysDataset.phyStatus(ks);
+pCur = EphysDataset.phyStatus(curated);
+check(pNone.state == "none" && ~pNone.modified && isnat(pNone.saved) ...
+    && pCur.state == "saved" && pCur.modified && ~isnat(pCur.saved) && isequal(pCur.labels, ["good" "mua" "noise"]) ...
+    && isequal(pCur.counts, [1 1 1]) && isnan(pCur.created) && isnan(pCur.clusters), ...
+    'phyStatus: a fresh Kilosort4 sort shows no phy; phy''s cluster_group.tsv is a save with its labels counted');
+phyDir2 = fullfile(root, 'phystate');
+copyfile(ks, phyDir2);
+fclose(fopen(fullfile(phyDir2, 'phy.log'), 'w'));
+pOpen = EphysDataset.phyStatus(phyDir2);
+fid = fopen(fullfile(phyDir2, 'cluster_info.tsv'), 'w');
+fprintf(fid, 'cluster_id\tAmplitude\tKSLabel\n0\t1\tmua\n1\t2\tgood\n2\t3\tgood\n');
+fclose(fid);
+pSame = EphysDataset.phyStatus(phyDir2);
+fid = fopen(fullfile(phyDir2, 'cluster_info.tsv'), 'w');
+fprintf(fid, 'cluster_id\tAmplitude\tKSLabel\n2\t3\tgood\n3\t1\t\n4\t2\t\n');   % 0 and 1 merged, then split in two
+fclose(fid);
+fid = fopen(fullfile(phyDir2, 'cluster_group.tsv'), 'w');
+fprintf(fid, 'cluster_id\tgroup\n2\tnoise\n3\tgood\n4\tgood\n');
+fclose(fid);
+pMod = EphysDataset.phyStatus(phyDir2);
+check(pOpen.state == "opened" && ~pOpen.modified ...
+    && pSame.state == "saved" && ~pSame.modified && pSame.created == 0 && pSame.clusters == 3 ...
+    && pMod.modified && pMod.created == 2 && pMod.clusters == 3 ...
+    && isequal(pMod.labels, ["good" "noise"]) && isequal(pMod.counts, [2 1]), ...
+    'phyStatus: phy.log alone is opened; cluster_info.tsv alone a save with no change; ids past templates.npy''s rows are merges / splits');
 % A manifest this code cannot read is neither applied nor replaced.
 mf = eo.manifestFile();
 for bad = ["{""schema"": ""intan-dataset-manifest/9"", ""probe"": {""file"": ""x""}}", "{not json"]

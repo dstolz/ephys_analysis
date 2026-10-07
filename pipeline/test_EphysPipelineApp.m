@@ -552,6 +552,9 @@ check(app.SelectedDatasetIdx == 1 && app.DatasetMenuItems(1).Checked && numel(ap
 app.onDatasetCellSelection(struct('Indices', [1 1]));
 check(contains(app.SortResultsLabel.Text, "manual") && size(app.ArtManualTable.Data, 1) == 1, ...
     'selecting a row shows its sorting association and manual periods');
+check(isequal(app.SortPhyLamp.Color, [0.2 0.7 0.3]) && startsWith(app.SortPhyLabel.Text, "Modified in phy (saved ") ...
+    && contains(app.SortPhyLabel.Text, "labelled 1 good, 1 mua, 1 noise") && contains(T.Sorting(1), "modified in phy"), ...
+    'a sort whose labels phy saved: green phy lamp, the labels counted, and "modified in phy" in the Project table');
 app.onViewManifest();
 mv = findall(groot, 'Type', 'figure', 'Name', "Manifest - recA_260101_120000_manifest.json");
 mvT = findall(mv, 'Type', 'uitable');

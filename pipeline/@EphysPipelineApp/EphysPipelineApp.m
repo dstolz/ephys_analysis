@@ -458,6 +458,10 @@ classdef EphysPipelineApp < handle
         KSDocsLink        matlab.ui.control.Hyperlink
         SortDatasetDropDown matlab.ui.control.DropDown
         SortResultsLabel  matlab.ui.control.Label
+        % What phy did in the active dataset's sorted output (EphysDataset.phyStatus).
+        SortPhyLamp       matlab.ui.control.Lamp
+        SortPhyLabel      matlab.ui.control.Label
+        SortPhyRefreshButton matlab.ui.control.Button
         SortUseFolderButton matlab.ui.control.Button
         SortUseAutoButton matlab.ui.control.Button
         SortPhyButton     matlab.ui.control.Button

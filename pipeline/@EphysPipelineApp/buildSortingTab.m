@@ -14,7 +14,9 @@ function buildSortingTab(obj)
 %   .bin in a folder of its own instead of the dataset's output folder.
 %   The right column shows the
 %   selected dataset's sorted-output association (auto-discovered or pinned
-%   with "Use folder..."), runs the step, and streams background run logs.
+%   with "Use folder..."), what phy did there (a lamp and a line, from
+%   EphysDataset.phyStatus: not opened, opened, modified), runs the step,
+%   and streams background run logs.
 
 spec = EphysPipelineConfig.kilosortParamSpec();
 groups = unique({spec.group}, 'stable');
@@ -178,8 +180,8 @@ right.RowHeight = {'fit', '1x'};
 right.Padding = [0 0 0 0];
 
 resPanel = uipanel(right, "Title", "Sorted output");
-rg = uigridlayout(resPanel, [4 4]);
-rg.RowHeight   = {'fit', 'fit', 30, 30};
+rg = uigridlayout(resPanel, [5 4]);
+rg.RowHeight   = {'fit', 'fit', 'fit', 30, 30};
 rg.ColumnWidth = {'fit', 'fit', 'fit', '1x'};
 l = uilabel(rg, "Text", "Dataset:");
 l.Layout.Row = 1; l.Layout.Column = 1;
@@ -188,23 +190,38 @@ obj.SortDatasetDropDown.Layout.Row = 1; obj.SortDatasetDropDown.Layout.Column = 
 obj.SortResultsLabel = uilabel(rg, "Text", "Scan a project first.", ...
     "WordWrap", "on", "FontColor", [0.3 0.3 0.3]);
 obj.SortResultsLabel.Layout.Row = 2; obj.SortResultsLabel.Layout.Column = [1 4];
+% What phy did in the sorted output (EphysDataset.phyStatus; refreshSortingLabel).
+pg = uigridlayout(rg, [1 3]);
+pg.Layout.Row = 3; pg.Layout.Column = [1 4];
+pg.ColumnWidth = {20, '1x', 'fit'};
+pg.RowHeight = {'fit'};
+pg.Padding = [0 0 0 0];
+obj.SortPhyLamp = uilamp(pg, "Color", [0.75 0.75 0.75], "Tooltip", ...
+    "Grey: not opened in phy. Amber: opened in phy, or saved without a change. Green: modified in phy.");
+obj.SortPhyLamp.Layout.Row = 1; obj.SortPhyLamp.Layout.Column = 1;
+obj.SortPhyLabel = uilabel(pg, "Text", "", "WordWrap", "on");
+obj.SortPhyLabel.Layout.Row = 1; obj.SortPhyLabel.Layout.Column = 2;
+obj.SortPhyRefreshButton = uibutton(pg, "Text", "Refresh", ...
+    "Tooltip", "Read the sorted-output folder again (after saving in phy).", ...
+    "ButtonPushedFcn", @(~,~) obj.refreshSortingLabel());
+obj.SortPhyRefreshButton.Layout.Row = 1; obj.SortPhyRefreshButton.Layout.Column = 3;
 obj.SortUseFolderButton = uibutton(rg, "Text", "Use folder...", ...
     "Tooltip", "Pin a sorted (phy) results folder (e.g. sorted elsewhere or a curated copy); saved in the manifest.", ...
     "ButtonPushedFcn", @(~,~) obj.onUseSortingFolder());
-obj.SortUseFolderButton.Layout.Row = 3; obj.SortUseFolderButton.Layout.Column = 1;
+obj.SortUseFolderButton.Layout.Row = 4; obj.SortUseFolderButton.Layout.Column = 1;
 obj.SortUseAutoButton = uibutton(rg, "Text", "Use auto", ...
     "Tooltip", "Back to the run under <output root>/<Name>/kilosort4.", ...
     "ButtonPushedFcn", @(~,~) obj.onUseAutoSorting());
-obj.SortUseAutoButton.Layout.Row = 3; obj.SortUseAutoButton.Layout.Column = 2;
+obj.SortUseAutoButton.Layout.Row = 4; obj.SortUseAutoButton.Layout.Column = 2;
 obj.SortPhyButton = uibutton(rg, "Text", "Open in phy", ...
     "ButtonPushedFcn", @(~,~) obj.onLaunchPhy());
-obj.SortPhyButton.Layout.Row = 3; obj.SortPhyButton.Layout.Column = 3;
+obj.SortPhyButton.Layout.Row = 4; obj.SortPhyButton.Layout.Column = 3;
 obj.RunStepSortingButton = uibutton(rg, "Text", "Run this step", ...
     "Tooltip", "Run the Sorting step for the selected datasets (progress on the Run tab).", ...
     "ButtonPushedFcn", @(~,~) obj.onRunStep("sorting"));
-obj.RunStepSortingButton.Layout.Row = 4; obj.RunStepSortingButton.Layout.Column = 1;
+obj.RunStepSortingButton.Layout.Row = 5; obj.RunStepSortingButton.Layout.Column = 1;
 obj.KSProgressLabel = uilabel(rg, "Text", "Idle.", "FontColor", [0.4 0.4 0.4]);
-obj.KSProgressLabel.Layout.Row = 4; obj.KSProgressLabel.Layout.Column = [2 4];
+obj.KSProgressLabel.Layout.Row = 5; obj.KSProgressLabel.Layout.Column = [2 4];
 
 logPanel = uipanel(right, "Title", "Kilosort4 log (background runs stream here)");
 obj.KSLogPanel = logPanel;

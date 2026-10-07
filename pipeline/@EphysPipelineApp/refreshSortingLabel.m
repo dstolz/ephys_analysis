@@ -6,6 +6,7 @@ d = obj.currentDataset();
 if isempty(d)
     obj.SortResultsLabel.Text = "Scan a project first.";
     refreshPhyStatus(obj, "");
+    stylePhyButton(obj.SortPhyButton, "");
     return
 end
 s = d.sortingStruct();
@@ -28,6 +29,7 @@ obj.SortResultsLabel.Text = txt;
 dir0 = "";
 if s.exists; dir0 = s.results_dir; end
 refreshPhyStatus(obj, dir0);
+stylePhyButton(obj.SortPhyButton, dir0);   % green "Open in phy (curated)" once curated
 end
 
 

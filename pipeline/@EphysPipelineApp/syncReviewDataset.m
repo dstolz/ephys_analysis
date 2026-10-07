@@ -53,6 +53,7 @@ obj.ReviewSelectedUnit = 0;
 obj.ReviewSpikeWaves = struct([]);
 obj.ReviewUnitsTable.Data = {};
 obj.ReviewUseSortButton.Enable = "off";   % no sort shown
+stylePhyButton(obj.ReviewPhyButton, "");
 for ax = [obj.ReviewShankAxes, obj.ReviewISIAxes, obj.ReviewACGAxes, obj.ReviewAmpAxes, obj.ReviewRateAxes, obj.ReviewUnitShankAxes]
     cla(ax, 'reset');
 end

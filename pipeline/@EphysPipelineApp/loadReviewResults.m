@@ -110,6 +110,7 @@ try
     R.qc = judgeUnits(R.units, S.Quality);
 
     obj.ReviewData = R;
+    stylePhyButton(obj.ReviewPhyButton, folder);   % green "Open in phy (curated)" once curated
     obj.ReviewSelectedUnit = 0;
     obj.ReviewSpikeWaves = struct([]);
 

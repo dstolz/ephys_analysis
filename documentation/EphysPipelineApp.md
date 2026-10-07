@@ -1592,7 +1592,7 @@ step, the Review tab, phy and the analysis read the units from there.
 | phy lamp + line, **Refresh** | what phy did in that folder ([What phy changed](#what-phy-changed)). **Refresh** reads the folder again, for instance after you save in phy |
 | **Use folder...** | pick any folder holding sorted (phy) output (`params.py`), or a folder whose `kilosort4` subfolder holds it. Saved as `manual`, and kept while that folder is not there (a disk not connected): the steps then report it missing, and no other sort stands in for it. The [Review](#review) tab's **Use this sort** does the same for the sort it shows |
 | **Use auto** | back to automatic: `kilosort4/` in the dataset's output folder, where the step writes |
-| **Open in phy** | opens the associated output in phy with the **Phy command** |
+| **Open in phy** | opens the associated output in phy with the **Phy command**. Once the sort is curated in phy (the green state of [What phy changed](#what-phy-changed)) the button is green and reads **Open in phy (curated)**, with the save time in its tooltip |
 
 ### Watching background runs
 
@@ -2811,7 +2811,7 @@ dataset whose name does not match `Project.NamePattern`, is read with
 - **Browse...** / **Load** accept any sorted-output folder, a dataset
   folder or a `kilosort4` folder (the folder itself, else its `kilosort4`
   subfolder); one that is not among the dataset's sorts is added to
-  **Sort** as **other**. **Open folder in explorer**, **Open in phy**.
+  **Sort** as **other**. **Open folder in explorer**, **Open in phy** (green, **Open in phy (curated)**, for a sort curated in phy).
 - **Summary**: the dataset key and label form (or the folder and why labels
   are short), the sorter and where the groups come from (curated in phy,
   Kilosort4's `KSLabel`, or a SpikeInterface sort's `SILabel`: good / mua by
@@ -3471,7 +3471,7 @@ trip, the unsaved marker, the Diagram of the loaded config and its refresh on ed
 chart of all the steps points at controls that exist and that clicking one opens its tab and marks
 them, the data-flow overview (its boxes and arrows, that no arrow runs through a box or shares a line
 with another source's and at most five cross, the reads a config leaves off, the arrows into a disabled
-step, the View preference and Layout turned off), the Run checklist ↔ tab sync and its Parallel controls, scan + selection ticks (the Sorting tab's phy lamp and the table's `modified in phy` for a phy-curated sort)
+step, the View preference and Layout turned off), the Run checklist ↔ tab sync and its Parallel controls, scan + selection ticks (the Sorting tab's phy lamp, its green **Open in phy (curated)** and the table's `modified in phy` for a phy-curated sort)
 (and the ticked datasets in the Dataset menu),
 the active dataset's highlight under the token filters, the Source settings panel (the active dataset's system: Intan's
 note, the Open Ephys and TDT options saved and pushed to the datasets, a TDT gain that is not a number refused, a TDT

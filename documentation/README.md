@@ -44,6 +44,7 @@ on `pipeline`; `pipeline` does not depend on it. See [Analysis](EphysAnalysis.md
 | [Python drivers](python-drivers.md) | `run_ks4.py`, `probe_tool.py` |
 | [Kilosort4 notes](kilosort4-notes.md) | Kilosort4 parameters its documentation does not settle, worked out from its source: `whitening_range`, and `shank_spacing` (moving the shanks apart for the sort only) |
 | [Files on disk](file-formats.md) | folder layout and every JSON / `.bin` / `.mat` schema |
+| [UnitRefine integration](unitrefine-integration.md) | **design evaluation, not implemented** — labelling sorted units noise / single / multi-unit with UnitRefine's classifiers (SpikeInterface) after a sort: where it fits, the label tables, the validation against phy curation it needs first |
 | [Remote jobs](remote-jobs.md) | **design proposal, not implemented** — running the pipeline as queued jobs on a remote Windows machine, monitored from MATLAB or a browser |
 
 Existing docs next to the code: [INSTALL.md](../pipeline/INSTALL.md) (Windows

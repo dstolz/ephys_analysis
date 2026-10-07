@@ -300,6 +300,30 @@ check(EphysProject(fullfile(b1Dir, 'kilosort4')).NumDatasets == 0, ...
 warning(ws);
 check(~any(contains(EphysProject(root).datasetKeys(), "backup")), ...
     'under a root that holds recordings, folders of outputs are no datasets');
+% A copy laid out as the output transfer writes it, <subject>/<session>,
+% with a second copy in a version folder <session>_v2 beside the first.
+cp = fullfile(root, 'copies');
+v1 = fullfile(cp, 'm1', n1);
+v2 = fullfile(cp, 'm1', n1 + "_v2");
+mkdir(v1); mkdir(v2);
+copyfile(fullfile(b1Dir, n1 + "_extract_LFP.mat"), v1);
+copyfile(fullfile(b1Dir, n1 + "_extract_LFP.mat"), v2);
+copyfile(fullfile(b1Dir, 'kilosort4'), fullfile(v2, 'kilosort4'));
+ws = warning('off', 'EphysProject:OutputsOnly');
+Pv = EphysProject(cp);
+warning(ws);
+check(isequal(sort(Pv.datasetKeys()), ["m1/" + n1, "m1/" + n1 + "_v2"]) && all(string({Pv.Datasets.Name}) == n1), ...
+    'a version folder <session>_v2 is the dataset <session> again, its key the folder''s');
+dv = Pv.Datasets(Pv.findByKey("m1/" + n1 + "_v2"));
+ov = dv.outputs();
+check(ov.has("LFP") && isequal(ov.Units.unitId, [0; 1]) && startsWith(ov.ExtractFiles(1), string(v2)), ...
+    'its outputs are found by the dataset''s name');
+check(DatasetOutputs(v2).Name == n1 && DatasetOutputs(v2).has("LFP") && EphysProject.outputFolderName(v1) == n1, ...
+    'DatasetOutputs(folder) names a version folder''s dataset the same way');
+mkdir(fullfile(cp, 'm1', 'other_v3'));
+save(fullfile(cp, 'm1', 'other_v3', "other_v3_spikes.mat"), '-struct', 'Sp');
+check(EphysProject.outputFolderName(fullfile(cp, 'm1', 'other_v3')) == "other_v3", ...
+    'a folder whose outputs carry its own _v<n> name keeps it');
 
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0

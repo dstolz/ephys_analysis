@@ -169,6 +169,16 @@ compared; no file is opened. Each folder becomes a dataset, with a warning
 (`EphysProject:OutputsOnly`). A root that holds any recording is scanned as
 usual, and its folders of outputs are not datasets.
 
+A version folder `<name>_v<n>`, where the pipeline's output transfer puts a
+dataset's copies beside an earlier copy
+([Copying the outputs elsewhere](EphysPipeline.md#copying-the-outputs-elsewhere)),
+counts too when its files are named after `<name>`: the dataset is `<name>`
+(`EphysProject.outputFolderName(folder)`, which `DatasetOutputs(folder)` uses
+as well), so its files are found and its units labelled from that name. Its
+key keeps the folder's name (`m1/rec_v2`), so the two copies are two
+datasets, and the source folder that its files' provenance names is matched
+without the `_v<n>`. A folder whose own files carry the `_v<n>` keeps it.
+
 These datasets have no reader (`hasRecording()` is false):
 
 - `refreshMetadata()` takes `Fs`, `NumChannels`, `ChannelNames` and `Duration`

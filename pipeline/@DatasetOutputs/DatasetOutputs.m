@@ -168,7 +168,9 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
             %   out = DatasetOutputs(ds)        an EphysDataset
             %   out = DatasetOutputs(folder)    a folder holding the outputs
             %   out = DatasetOutputs()          empty; set Name/Folder, then refresh
-            %   Options: Name (default ds.Name or the folder leaf), SearchDirs,
+            %   Options: Name (default ds.Name, or the folder's name: the
+            %   dataset <name> of a version folder <name>_v<n> holding its
+            %   outputs, see EphysProject.outputFolderName), SearchDirs,
             %   Recursive, CacheData, AutoRefresh (default true).
             arguments
                 source = []
@@ -197,8 +199,7 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
                 end
                 obj.Folder = folder;
                 if obj.Name == ""
-                    [~, leaf] = fileparts(char(stripSep(folder)));
-                    obj.Name = string(leaf);
+                    obj.Name = EphysProject.outputFolderName(folder);   % the leaf; <name> of a version folder <name>_v<n>
                 end
             else
                 error('DatasetOutputs:Source', 'Source must be an EphysDataset or a folder.');

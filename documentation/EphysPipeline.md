@@ -582,7 +582,12 @@ own.
 | `"overwrite"` | the files already there are replaced (robocopy leaves one with the source's size and time) |
 | `"skip"` | the files already there are left as they are; only the missing ones are copied |
 
-Files in the folder that the run does not copy are never touched.
+Files in the folder that the run does not copy are never touched. A
+version folder still reads as the dataset: `EphysProject` over a copy (no
+recordings) names the dataset of `<session>_v2` `<session>`
+(`EphysProject.outputFolderName`), so its files are found and its units
+labelled as the first copy's, and `DatasetOutputs(folder)` does the same; its
+key keeps the folder's name, so both copies are datasets of their own.
 
 **Move.** `Method = "move"` copies and checks first, then, once the run is
 over (the transfer closed: nothing reads or rewrites the outputs any more),

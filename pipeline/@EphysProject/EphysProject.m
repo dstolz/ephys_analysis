@@ -28,6 +28,9 @@ classdef EphysProject < handle
     %     P.refresh();                   % metadata from the outputs; nothing written
     %     u = P.Datasets(1).outputs().Units;
     %   Their hasRecording() is false: nothing that reads a recording runs.
+    %   A version folder <name>_v<n> that the pipeline's output transfer
+    %   made beside an earlier copy is the dataset <name> again (its key
+    %   keeps the folder's name): see outputFolderName.
     %
     %   See also EPHYSDATASET.
 
@@ -137,8 +140,9 @@ classdef EphysProject < handle
                 end
                 folders = unique(folders, 'stable');
             end
+            names = strings(1, numel(folders));   % "": a recording's name is its folder's
             if isempty(folders)
-                folders = EphysProject.findOutputFolders(obj.Root, obj.Recursive);
+                [folders, names] = EphysProject.findOutputFolders(obj.Root, obj.Recursive);
                 if ~isempty(folders)
                     warning('EphysProject:OutputsOnly', ...
                         ['No recordings found under %s; its %d folder(s) of pipeline outputs are the datasets. ' ...
@@ -155,7 +159,7 @@ classdef EphysProject < handle
 
             ds = EphysDataset.empty(1, 0);
             for i = 1:numel(folders)
-                d = EphysDataset(folders(i), AutoMetadata=false, ReaderOptions=obj.ReaderOptions);
+                d = EphysDataset(folders(i), AutoMetadata=false, ReaderOptions=obj.ReaderOptions, Name=names(i));
                 obj.pushConfig(d);
                 ds(end+1) = d; %#ok<AGROW>
             end
@@ -339,7 +343,7 @@ classdef EphysProject < handle
             s = regexprep(s, "/+$", "");
         end
 
-        function folders = findOutputFolders(root, recursive)
+        function [folders, names] = findOutputFolders(root, recursive)
             %findOutputFolders  Folders under ROOT that hold a dataset's pipeline outputs.
             %   FOLDERS = EphysProject.findOutputFolders(ROOT, RECURSIVE) are
             %   the folders (1 x N string, in listing order) laid out as the
@@ -347,10 +351,14 @@ classdef EphysProject < handle
             %   .nwb named after the folder (its name, then "_", "-", "." or
             %   a space, as DatasetOutputs finds them), its
             %   <name>_manifest.json or <name>_artifacts.json, or a sort run
-            %   folder (kilosort4 or si_<sorter>) with a params.py. RECURSIVE
+            %   folder (kilosort4 or si_<sorter>) with a params.py. A version
+            %   folder <name>_v<n> (OutputTransfer's IfExists "version")
+            %   whose outputs are named after <name> counts too. RECURSIVE
             %   false looks only at ROOT and the folders directly in it. Only
             %   names are compared, no file is opened. discover uses this
             %   when ROOT holds no recording.
+            %   [FOLDERS, NAMES] = ... also returns each folder's dataset name
+            %   (outputFolderName): its own, or <name> for a version folder.
             arguments
                 root (1,1) string
                 recursive (1,1) logical = true
@@ -366,16 +374,15 @@ classdef EphysProject < handle
                 end
             end
             folders = string.empty(1, 0);
+            names = string.empty(1, 0);
             if isempty(files); return; end
             name = string({files.name});
             [where, ~, g] = unique(string({files.folder}), 'stable');
             leaf = regexprep(where, '^.*[\\/]', '');
             for k = 1:numel(where)
                 if leaf(k) == ""; continue; end   % a drive root
-                here = cellstr(name(g == k));
-                rx = "^" + regexptranslate('escape', leaf(k)) + ...
-                    "(([_\-. ].*)?\.(mat|npz|nwb)|_(manifest|artifacts)\.json)$";
-                if any(~cellfun('isempty', regexpi(here, rx, 'once')))
+                here = name(g == k);
+                if namesOutputs(EphysProject.outputFolderName(where(k), here), here)
                     folders(end+1) = where(k); %#ok<AGROW>
                 end
                 if (strcmpi(leaf(k), "kilosort4") || startsWith(leaf(k), "si_", 'IgnoreCase', true)) ...
@@ -388,8 +395,53 @@ classdef EphysProject < handle
             key = EphysDataset.pathKey(folders);
             r = EphysDataset.pathKey(root);
             folders = folders(key == r | startsWith(key, r + "/"));
+            names = strings(1, numel(folders));
+            whereKey = EphysDataset.pathKey(where);
+            for k = 1:numel(folders)
+                names(k) = EphysProject.outputFolderName(folders(k), ...
+                    name(ismember(g, find(whereKey == EphysDataset.pathKey(folders(k))))));
+            end
+        end
+
+        function name = outputFolderName(folder, files)
+            %outputFolderName  The dataset name of a folder of pipeline outputs.
+            %   NAME = EphysProject.outputFolderName(FOLDER) is FOLDER's own
+            %   name, except for a version folder <name>_v<n> (as
+            %   OutputTransfer's IfExists "version" makes them, the
+            %   dataset's outputs copied again beside an earlier copy):
+            %   when no output in it is named after the folder and one is
+            %   named after <name>, the dataset is <name>, so its files are
+            %   found (DatasetOutputs) and its units labelled from <name>.
+            %   NAME = EphysProject.outputFolderName(FOLDER, FILES) takes the
+            %   names of the files directly in FOLDER instead of listing it.
+            arguments
+                folder (1,1) string
+                files = []
+            end
+            [~, leaf] = fileparts(char(regexprep(folder, '[\\/]+$', '')));   % as EphysDataset names a folder
+            name = string(leaf);
+            base = regexp(char(name), '^(.+)_v\d+$', 'tokens', 'once');
+            if isempty(base); return; end
+            if isempty(files)
+                L = dir(folder);
+                files = string({L(~[L.isdir]).name});
+            end
+            files = string(files);
+            if ~namesOutputs(name, files) && namesOutputs(string(base{1}), files)
+                name = string(base{1});
+            end
         end
     end
+end
+
+
+function tf = namesOutputs(name, files)
+%namesOutputs  Whether any of FILES is a pipeline output of dataset NAME.
+%   A .mat, .npz or .nwb named after it (NAME, then "_", "-", "." or a
+%   space, as DatasetOutputs finds them), or its _manifest.json or
+%   _artifacts.json.
+rx = "^" + regexptranslate('escape', name) + "(([_\-. ].*)?\.(mat|npz|nwb)|_(manifest|artifacts)\.json)$";
+tf = any(~cellfun('isempty', regexpi(cellstr(files), rx, 'once')));
 end
 
 

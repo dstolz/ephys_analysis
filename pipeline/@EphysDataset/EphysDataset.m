@@ -712,7 +712,10 @@ classdef EphysDataset < handle
             %   a key (no project, or the root itself) the folder's name is
             %   compared. False for another recording's folder: for the dataset
             %   mouse2/rec, the outputs of mouse1/rec, whose files have the same
-            %   names. See DatasetOutputs.
+            %   names. A version folder of copied outputs, <Name>_v<n>
+            %   (EphysProject.outputFolderName), stands for the folder <Name>:
+            %   the outputs in mouse1/rec_v2 came from mouse1/rec. See
+            %   DatasetOutputs.
             f = EphysDataset.pathKey(folder);
             if f == EphysDataset.pathKey(obj.Folder)
                 tf = true;
@@ -721,6 +724,9 @@ classdef EphysDataset < handle
             key = EphysDataset.pathKey(obj.DatasetKey);
             if key == "" || key == "." || startsWith(key, "/") || ~isempty(regexp(key, '^[a-zA-Z]:', 'once'))
                 key = string(regexp(char(EphysDataset.pathKey(obj.Folder)), '[^/]+$', 'match', 'once'));
+            end
+            if obj.Name ~= "" && ~isempty(regexpi(char(key), "(^|/)" + regexptranslate('escape', obj.Name) + "_v\d+$", 'once'))
+                key = regexprep(key, "_v\d+$", "");   % the copy's version folder: its source is the dataset's own folder
             end
             tf = strlength(key) > 0 && (f == key || endsWith(f, "/" + key));
         end

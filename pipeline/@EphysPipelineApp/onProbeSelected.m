@@ -21,7 +21,10 @@ if ~isempty(d); exclude = EphysDataset.parseChannelList(d.ExcludeChannels); end
 showNumbers = ~isempty(obj.ShowChanNumbersCheckBox) ...
     && isvalid(obj.ShowChanNumbersCheckBox) ...
     && logical(obj.ShowChanNumbersCheckBox.Value);
-plotProbeArrangement(obj.ProbePreviewAxes, pf, exclude, showNumbers);
+showKCoords = ~isempty(obj.ShowKCoordsCheckBox) ...
+    && isvalid(obj.ShowKCoordsCheckBox) ...
+    && logical(obj.ShowKCoordsCheckBox.Value);
+plotProbeArrangement(obj.ProbePreviewAxes, pf, exclude, showNumbers, showKCoords);
 [~, pn, pe] = fileparts(pf);
 ks4File = EphysPipelineConfig.ks4ParamsFile(pf);
 [~, kn, ke] = fileparts(ks4File);
@@ -95,12 +98,15 @@ info = strjoin(parts, "  |  ");
 end
 
 
-function plotProbeArrangement(ax, pf, exclude, showNumbers)
+function plotProbeArrangement(ax, pf, exclude, showNumbers, showKCoords)
 %plotProbeArrangement  Scatter the probe sites (xc/yc), colored by shank.
 %   EXCLUDE (1-based .bin channels) marks dropped sites with a gray X.
 %   SHOWNUMBERS (default false) labels each site with its 1-based .bin channel.
+%   SHOWKCOORDS (default false) labels each site with its kcoords group, as
+%   k1, or 12 (k1) beside the channel.
 if nargin < 3; exclude = double.empty(1,0); end
 if nargin < 4; showNumbers = false; end
+if nargin < 5; showKCoords = false; end
 cla(ax);
 try
     probe = jsondecode(fileread(pf));
@@ -151,11 +157,18 @@ if any(isExcl)
     addSiteDataTips(h, binCh(isExcl), kcoords(isExcl));
 end
 
-% Optional per-site channel-number labels (1-based .bin channel). Sites sit in
-% staggered columns 10-20 um apart, so labels go outward -- the left column of
-% a shank labels to the left, the right column to the right -- which keeps
-% neighbours in one column from overprinting each other.
-if showNumbers
+% Optional per-site labels: the 1-based .bin channel and/or the kcoords group.
+% Sites sit in staggered columns 10-20 um apart, so labels go outward -- the
+% left column of a shank labels to the left, the right column to the right --
+% which keeps neighbours in one column from overprinting each other.
+if showNumbers || showKCoords
+    if showNumbers && showKCoords
+        siteLabel = string(binCh) + " (k" + string(kcoords) + ")";
+    elseif showNumbers
+        siteLabel = string(binCh);
+    else
+        siteLabel = "k" + string(kcoords);
+    end
     dx = 0.025 * max(max(xc) - min(xc), 1);
     left = false(n, 1);
     for s = 1:numel(shanks)
@@ -176,7 +189,7 @@ if showNumbers
         else
             ha = "left"; sgn = 1;
         end
-        t = text(ax, xc(m) + sgn*dx, yc(m), string(binCh(m)), ...
+        t = text(ax, xc(m) + sgn*dx, yc(m), siteLabel(m), ...
             "FontSize", 10, "FontWeight", "bold", "Clipping", "on", ...
             "HorizontalAlignment", ha, "VerticalAlignment", "middle");
         set(t, {"Color"}, num2cell(txtColor(m, :), 2));

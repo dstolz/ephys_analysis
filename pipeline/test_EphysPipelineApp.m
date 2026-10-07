@@ -1603,6 +1603,29 @@ check(~isempty(row) && ~any(endsWith(app.ProbePaths, ".ks4.json")), 'the probe l
 app.selectProbeRow(row);
 check(contains(app.ProbeInfoLabel.Text, "Kilosort4 parameters: square4.ks4.json"), ...
     'the Probe tab names the selected probe''s parameter file');
+groupsFile = fullfile(root, 'kgroups.json');
+writeJsonFile(groupsFile, struct('chanMap', (0:3).', 'xc', [0; 25; 0; 25], 'yc', [0; 0; 25; 25], 'kcoords', [0; 0; 1; 1]));
+app.refreshProbeList();
+app.selectProbeRow(find(app.ProbePaths == string(groupsFile), 1));
+siteLabels = @() sort(string(get(findobj(app.ProbePreviewAxes, 'Type', 'text'), {'String'})));
+check(~app.ShowKCoordsCheckBox.Value && isequal(siteLabels(), ["1"; "2"; "3"; "4"]), ...
+    'the Probe plot labels sites with their channel numbers by default, kcoords off');
+app.ShowChanNumbersCheckBox.Value = false;
+app.ShowKCoordsCheckBox.Value = true;
+app.onProbeSelected();
+check(isequal(siteLabels(), ["k0"; "k0"; "k1"; "k1"]), 'Show kcoords labels each site with its kcoords group');
+app.ShowChanNumbersCheckBox.Value = true;
+app.onProbeSelected();
+check(isequal(siteLabels(), ["1 (k0)"; "2 (k0)"; "3 (k1)"; "4 (k1)"]), ...
+    'with both ticked each site reads channel (kgroup)');
+app.ShowChanNumbersCheckBox.Value = false;
+app.ShowKCoordsCheckBox.Value = false;
+app.onProbeSelected();
+check(isempty(findobj(app.ProbePreviewAxes, 'Type', 'text')), 'with both unticked the Probe plot has no site labels');
+app.ShowChanNumbersCheckBox.Value = true;
+delete(groupsFile);
+app.refreshProbeList();
+app.selectProbeRow(find(app.ProbePaths == string(probeFile), 1));
 sidecar = ChannelMap.sidecarFile(probeFile);
 writeJsonFile(sidecar, struct('schema', 'ephys-channel-map/1', 'probeFile', 'square4.json'));
 app.refreshProbeList();

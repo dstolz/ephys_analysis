@@ -1006,6 +1006,8 @@ A probe map is a Kilosort4 probe `.json`
   same reasons.
 - The **preview plot** shows sites by shank; excluded sites are gray `x`.
   **Show channel numbers** labels each site with its 1-based channel.
+  **Show kcoords** labels each site with its `kcoords` group (`k1`), or
+  `12 (k1)` with the channel number when both are ticked.
 - **Design probe (probeinterface)...** opens the
   [probe designer](#the-probe-designer); **Import probe .json into
   folder...** copies a probe map into the folder, and its `.ks4.json`

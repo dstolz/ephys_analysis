@@ -140,8 +140,14 @@ obj.ProbePreviewAxes.Layout.Row = 3;
 title(obj.ProbePreviewAxes, "Channel arrangement");
 xlabel(obj.ProbePreviewAxes, "x (\mum)");
 ylabel(obj.ProbePreviewAxes, "y (\mum)");
-obj.ShowChanNumbersCheckBox = uicheckbox(ig, "Text", "Show channel numbers", "Value", true, ...
+lg = uigridlayout(ig, [1 3]);
+lg.Layout.Row = 4;
+lg.ColumnWidth = {'fit', 'fit', '1x'};
+lg.Padding = [0 0 0 0];
+obj.ShowChanNumbersCheckBox = uicheckbox(lg, "Text", "Show channel numbers", "Value", true, ...
     "Tooltip", "Label each probe site with its 1-based recording channel number.", ...
     "ValueChangedFcn", @(~,~) obj.onProbeSelected());
-obj.ShowChanNumbersCheckBox.Layout.Row = 4;
+obj.ShowKCoordsCheckBox = uicheckbox(lg, "Text", "Show kcoords", "Value", false, ...
+    "Tooltip", "Label each probe site with its kcoords group (k0, k1, ...), the probe file's kcoords entry. Shown with the channel number as 12 (k1) when both are ticked.", ...
+    "ValueChangedFcn", @(~,~) obj.onProbeSelected());
 end

@@ -429,6 +429,7 @@ classdef EphysPipelineApp < handle
         ProbeDatasetDropDown matlab.ui.control.DropDown
         ExcludeChannelsField matlab.ui.control.EditField
         ShowChanNumbersCheckBox matlab.ui.control.CheckBox
+        ShowKCoordsCheckBox matlab.ui.control.CheckBox      % Probe info plot: label each site with its kcoords group
         ProbeDefaultField   matlab.ui.control.EditField
         ProbeUseSelectedButton matlab.ui.control.Button
         ProbeWriteDefaultCheckBox matlab.ui.control.CheckBox

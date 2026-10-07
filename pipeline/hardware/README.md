@@ -118,13 +118,16 @@ probe maps in `pipeline/probes` use. Shanks are numbered from 1.
  "headstages": [{"id": "intan/RHD2132-32ch", "channelOffset": 0}],
  "mates": [{"from": "package:main", "to": "headstage[1]:main", "orientation": "reference"}],
  "rows": {"mode": "in-order", "channelNumbers": [], "dataset": ""},
+ "kcoords": [],
  "result": {"site": [...], "hardwareChannel": [...], "recordingRow0": [...]},
  "problems": [], "trust": "verified", "notes": "", "source": "ChannelMapperApp"}
 ```
 
 `rows.mode` is `in-order`, `dataset` or `custom`. `channelNumbers` holds the
-0-based hardware channels in recording order for the last two. `result` is
-what the chain gave when it was saved.
+0-based hardware channels in recording order for the last two. `kcoords` is
+empty when each site's Kilosort4 group is its shank; otherwise it holds one
+group (a whole number from 0) per site of the probe design, in the design's
+site order. `result` is what the chain gave when it was saved.
 
 ## What is here
 

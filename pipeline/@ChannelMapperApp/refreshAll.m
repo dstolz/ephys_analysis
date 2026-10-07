@@ -26,6 +26,9 @@ if obj.ProbeId ~= "" && b.has(obj.ProbeId)
             src = "of unknown origin";
     end
     info(end + 1) = sprintf("%g sites on %g shank(s), geometry %s.", pr.Channels, pr.Shanks, src);
+    if ~isempty(R) && R.KCoordsEdited
+        info(end + 1) = sprintf("kcoords set by hand: %d group(s).", numel(unique(R.Table.KCoord)));
+    end
 else
     info(end + 1) = "No probe design: the table shows the wiring only (the export needs a design).";
 end
@@ -46,6 +49,9 @@ if ~isempty(R)
     info(end + 1) = "Trust: " + t + ".";
 end
 obj.InfoLabel.Text = char(strjoin(info, " "));
+hasSites = ~isempty(R) && ~all(isnan(R.Table.X));
+onOff = {'off', 'on'};
+set([obj.KCoordButtons obj.KCoordSitesField obj.KCoordGroupField], 'Enable', onOff{hasSites + 1});
 if ~isempty(R) && R.Trust == "verified"
     obj.InfoLabel.FontColor = [0 0.45 0];
 elseif ~isempty(R) && R.Trust == "unverified"

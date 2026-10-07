@@ -5,7 +5,8 @@ function onChainChanged(obj, what)
 %   brings the headstage it was verified with, else the first with its
 %   channel count, else two of a headstage with half of it. The mates are
 %   then the default ones (reference; ChannelMap.defaultMates) and each
-%   headstage instance gets a channel offset past the one before.
+%   headstage instance gets a channel offset past the one before. kcoords
+%   set by hand are dropped when the probe design changes.
 b = obj.Bank;
 if what == "probe" && obj.ProbeId ~= "" && b.has(obj.ProbeId)
     pr = b.get(obj.ProbeId);
@@ -64,6 +65,10 @@ if any(what == ["probe" "package"]) && obj.PackageId ~= "" && b.has(obj.PackageI
     end
 end
 
+if obj.ProbeId ~= obj.KCoordsFor
+    obj.KCoords = zeros(0, 1);
+    obj.KCoordsFor = "";
+end
 obj.defaultMatesNow();
 obj.fillCascade();
 obj.refreshMatesTable();

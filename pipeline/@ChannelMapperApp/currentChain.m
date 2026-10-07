@@ -27,4 +27,8 @@ if obj.RowsMode ~= "in-order"
 end
 chain.rowsMode = obj.RowsMode;
 chain.dataset = obj.DatasetName;
+chain.kcoords = [];
+if obj.KCoordsFor ~= "" && obj.KCoordsFor == obj.ProbeId
+    chain.kcoords = obj.KCoords;
+end
 end

@@ -17,5 +17,9 @@ last.from = cellstr(strsOf(obj.Mates, 'From'));
 last.to = cellstr(strsOf(obj.Mates, 'To'));
 last.orientation = cellstr(strsOf(obj.Mates, 'Orientation'));
 last.mapping = char(obj.MappingName);
+last.kcoords = [];
+if obj.KCoordsFor ~= "" && obj.KCoordsFor == obj.ProbeId
+    last.kcoords = obj.KCoords;
+end
 AppPrefs.setpref(g, 'LastChain', last);
 end

@@ -1,7 +1,8 @@
 function loadMapping(obj, what)
 %loadMapping  Open a saved mapping: a bank mapping id, a mapping .json or a <probe>.chanmap.json.
 %   The window takes the mapping's probe, package, headstage (and how
-%   many), channel offsets, mates and recording rows, and resolves it.
+%   many), channel offsets, mates, recording rows and kcoords, and
+%   resolves it.
 %   Errors ChannelMapperApp:NoMapping when WHAT is neither,
 %   HardwareBank:NotFound when the bank lacks a device it names.
 what = string(what);
@@ -43,6 +44,11 @@ obj.Mates = mates;
 obj.RowsMode = chain.rowsMode;
 obj.ChannelNumbers = double(chain.channelNumbers(:)');
 obj.DatasetName = chain.dataset;
+obj.KCoords = double(chain.kcoords(:));
+obj.KCoordsFor = "";
+if ~isempty(obj.KCoords)
+    obj.KCoordsFor = obj.ProbeId;
+end
 obj.MappingName = e.Name;
 obj.fillCascade();
 obj.refreshMatesTable();

@@ -237,6 +237,7 @@ classdef HardwareBank < handle
             if m.RowsMode ~= "in-order"
                 chain.channelNumbers = m.ChannelNumbers(:)';
             end
+            chain.kcoords = m.KCoords(:);
         end
     end
 
@@ -313,6 +314,7 @@ classdef HardwareBank < handle
                 'Headstages', struct('Id', {}, 'ChannelOffset', {}), ...
                 'Mates', struct('From', {}, 'To', {}, 'Orientation', {}), ...
                 'RowsMode', "in-order", 'ChannelNumbers', zeros(0, 1), 'Dataset', "", ...
+                'KCoords', zeros(0, 1), ...
                 'Result', struct('Site', zeros(0, 1), 'HardwareChannel', zeros(0, 1), 'RecordingRow0', zeros(0, 1)), ...
                 'SavedProblems', strings(0, 1), 'Trust', "");
         end
@@ -525,6 +527,9 @@ classdef HardwareBank < handle
                     if ~all(ismember(strs(m.Mates, "Orientation"), ChannelMap.Orientations))
                         p(end + 1) = "A mate's orientation is not reference or rotated.";
                     end
+                    if ChannelMap.kcoordsProblem(m.KCoords) ~= ""
+                        p(end + 1) = "Its " + ChannelMap.kcoordsProblem(m.KCoords);
+                    end
             end
             p = p(:);
         end
@@ -605,6 +610,7 @@ classdef HardwareBank < handle
                         rows.channelNumbers = num2cell(m.ChannelNumbers(:));
                     end
                     s.rows = rows;
+                    s.kcoords = num2cell(m.KCoords(:));
                     r = struct();
                     r.site = num2cell(m.Result.Site(:));
                     r.hardwareChannel = num2cell(m.Result.HardwareChannel(:));
@@ -757,6 +763,7 @@ end
 if m.RowsMode == ""
     m.RowsMode = "in-order";
 end
+m.KCoords = HardwareBank.numList(field(raw, 'kcoords'));
 r = field(raw, 'result');
 if isstruct(r)
     m.Result.Site = HardwareBank.numList(field(r, 'site'));

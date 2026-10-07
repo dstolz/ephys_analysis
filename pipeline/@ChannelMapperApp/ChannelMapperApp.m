@@ -13,9 +13,11 @@ classdef ChannelMapperApp < handle
     %   each site's path to its hardware channel and recording row as a table
     %   you can copy (TSV for Excel, CSV, MATLAB) and as pictures of the probe
     %   and the mated connector faces (click a site, a pin or a table row),
-    %   saves the chain as a mapping, adds hardware to the bank, and writes
-    %   the Kilosort4 probe .json (chanMap = the 0-based recording row of
-    %   each site) with a <probe>.chanmap.json sidecar recording the chain.
+    %   shows and edits each site's Kilosort4 kcoords group (its shank unless
+    %   set by hand), saves the chain as a mapping, adds hardware to the bank,
+    %   and writes the Kilosort4 probe .json (chanMap = the 0-based recording
+    %   row of each site, kcoords = its group) with a <probe>.chanmap.json
+    %   sidecar recording the chain.
     %
     %   Options
     %     BankFolder  the hardware bank ("" = the last one used, else
@@ -24,8 +26,8 @@ classdef ChannelMapperApp < handle
     %     Mapping     a saved mapping's id or a mapping / sidecar file to open
     %
     %   The dialog-free methods (selectProbe, selectPackage, selectHeadstage,
-    %   setOrientation, setOffset, setRows, select, exportKS4, saveMapping,
-    %   loadMapping, copyText) do what the controls do; the buttons wrap them
+    %   setOrientation, setOffset, setRows, setKCoords, resetKCoords, select,
+    %   exportKS4, saveMapping, loadMapping, copyText) do what the controls do; the buttons wrap them
     %   with the file dialogs and confirmations.
     %
     %   See also ChannelMap, HardwareBank, EphysPipelineApp.onOpenChannelMapper.
@@ -46,6 +48,8 @@ classdef ChannelMapperApp < handle
         ChannelNumbers (1,:) double = double.empty(1, 0)
         DatasetName (1,1) string = ""
         MappingName (1,1) string = ""     % the saved mapping last opened or saved
+        KCoords (:,1) double = zeros(0, 1)   % kcoords per site of the design, [] = the shanks
+        KCoordsFor (1,1) string = ""      % the probe design KCoords was set for
 
         % --- what the window shows ---
         Result struct = struct([])        % ChannelMap.resolve of the chain
@@ -74,6 +78,9 @@ classdef ChannelMapperApp < handle
         CustomRowsField matlab.ui.control.EditField
         LabelModeDrop matlab.ui.control.DropDown
         SortDrop matlab.ui.control.DropDown
+        KCoordSitesField matlab.ui.control.EditField
+        KCoordGroupField matlab.ui.control.NumericEditField
+        KCoordButtons matlab.ui.control.Button
         ResultTable matlab.ui.control.Table
         ExportButton matlab.ui.control.Button
         SaveMappingButton matlab.ui.control.Button
@@ -228,6 +235,10 @@ classdef ChannelMapperApp < handle
         onLoadMapping(obj)
         onNewMapping(obj)
         setRows(obj, mode, channelNumbers, datasetName)
+        setKCoords(obj, sites, group)
+        resetKCoords(obj)
+        onSetKCoords(obj, how)
+        onResultEdited(obj, evt)
         onRowsModeChanged(obj)
         onUseDataset(obj)
         onBrowseBank(obj)

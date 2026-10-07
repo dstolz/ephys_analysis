@@ -38,6 +38,7 @@ classdef ChannelMap
 %     rows   = ChannelMap.recordingRows(hw, channelNumbers, allHw)
 %     txt    = ChannelMap.toText(T, ...)            TSV / CSV / Markdown / MATLAB
 %     s      = ChannelMap.pathText(R, site)
+%     [k, edited, problem] = ChannelMap.siteKCoords(kcoords, shank, hasProbe)
 %     [probeFile, sidecar] = ChannelMap.exportKS4(R, probeFile, ...)
 %     m      = ChannelMap.mappingStruct(R, ...)     the saved-mapping JSON struct
 %     S      = ChannelMap.sitesFromTemplate(name, ...)
@@ -57,6 +58,9 @@ classdef ChannelMap
 %                          recording order
 %     chain.rowsMode       "in-order" | "dataset" | "custom" (for the summary)
 %     chain.dataset        dataset name, when rowsMode is "dataset"
+%     chain.kcoords        [] (each site's kcoords is its shank) or one
+%                          Kilosort4 kcoords group per probe site, in the
+%                          design's site order
 %
 %   See also HardwareBank, ChannelMapperApp, writeProbeMap.
 
@@ -358,13 +362,16 @@ classdef ChannelMap
         function R = resolve(chain)
             %resolve  Follow every site of the chain to its recording row.
             %   R = ChannelMap.resolve(CHAIN) returns a struct:
-            %     Table     one row per site: Site Shank X Y PackageConnector
-            %               PackagePin HeadstageConnector HeadstagePin
-            %               HeadstageChannel HardwareChannel RecordingRow0
-            %               RecordingRow1 Flag. A site that does not reach a
+            %     Table     one row per site: Site Shank KCoord X Y
+            %               PackageConnector PackagePin HeadstageConnector
+            %               HeadstagePin HeadstageChannel HardwareChannel
+            %               RecordingRow0 RecordingRow1 Flag. KCoord is the
+            %               site's Kilosort4 kcoords group (chain.kcoords, else
+            %               its shank). A site that does not reach a
             %               recorded channel has NaN rows and a Flag ("GND",
             %               "REF", "NC", "guide", "unmated", "not on package",
             %               "not recorded").
+            %     KCoordsEdited  true when KCoord comes from chain.kcoords
             %     Path      per site: Site, PkgFace, PkgCell [r c], Mate,
             %               HsIndex, HsFace, HsCell [r c]
             %     Mates     per mate: From, To, Orientation, PkgFace, HsIndex,
@@ -398,6 +405,8 @@ classdef ChannelMap
                 Shank = NaN(size(site));
             end
             n = numel(site);
+            [KCoord, kEdited, kProblem] = ChannelMap.siteKCoords(chain.kcoords, Shank, ~isempty(chain.probe));
+            problems = [problems; kProblem];
 
             % --- headstage channels ---
             nH = numel(chain.headstages);
@@ -572,11 +581,12 @@ classdef ChannelMap
             end
 
             R = struct();
-            R.Table = table(site, Shank, X, Y, PackageConnector, PackagePin, HeadstageConnector, ...
+            R.Table = table(site, Shank, KCoord, X, Y, PackageConnector, PackagePin, HeadstageConnector, ...
                 HeadstagePin, HeadstageChannel, HardwareChannel, RecordingRow0, RecordingRow1, Flag, ...
-                'VariableNames', {'Site', 'Shank', 'X', 'Y', 'PackageConnector', 'PackagePin', ...
+                'VariableNames', {'Site', 'Shank', 'KCoord', 'X', 'Y', 'PackageConnector', 'PackagePin', ...
                 'HeadstageConnector', 'HeadstagePin', 'HeadstageChannel', 'HardwareChannel', ...
                 'RecordingRow0', 'RecordingRow1', 'Flag'});
+            R.KCoordsEdited = kEdited;
             R.Path = hop;
             R.Mates = mates;
             R.Problems = unique(problems, 'stable');
@@ -596,7 +606,7 @@ classdef ChannelMap
             defaults = struct('probe', [], 'package', [], 'adaptors', {{}}, ...
                 'headstages', struct('Entry', {}, 'ChannelOffset', {}), ...
                 'mates', struct('From', {}, 'To', {}, 'Orientation', {}), ...
-                'channelNumbers', [], 'rowsMode', "in-order", 'dataset', "");
+                'channelNumbers', [], 'rowsMode', "in-order", 'dataset', "", 'kcoords', []);
             for f = string(fieldnames(defaults))'
                 if ~isfield(chain, f)
                     chain.(f) = defaults.(f);
@@ -605,6 +615,43 @@ classdef ChannelMap
             chain.channelNumbers = double(chain.channelNumbers(:))';
             chain.rowsMode = string(chain.rowsMode);
             chain.dataset = string(chain.dataset);
+            chain.kcoords = double(chain.kcoords(:));
+        end
+
+        function [k, edited, problem] = siteKCoords(kcoords, shank, hasProbe)
+            %siteKCoords  Each site's Kilosort4 kcoords group: the chain's own, else its shank.
+            %   [K, EDITED, PROBLEM] = ChannelMap.siteKCoords(KCOORDS, SHANK,
+            %   HASPROBE). KCOORDS is the chain's per-site list ([] = the
+            %   shanks). EDITED is true when K comes from KCOORDS. A list that
+            %   does not fit (another site count, or not whole numbers from
+            %   0) is not used, and PROBLEM says so (a string column, empty
+            %   when it fits). Without a probe design K is NaN.
+            k = shank(:);
+            edited = false;
+            problem = strings(0, 1);
+            kcoords = double(kcoords(:));
+            if isempty(kcoords) || ~hasProbe
+                return
+            end
+            bad = ChannelMap.kcoordsProblem(kcoords);
+            if numel(kcoords) ~= numel(k)
+                problem = sprintf("The kcoords list has %d values for %d sites; the shanks are used instead.", ...
+                    numel(kcoords), numel(k));
+            elseif bad ~= ""
+                problem = bad + " The shanks are used instead.";
+            else
+                k = kcoords;
+                edited = true;
+            end
+        end
+
+        function p = kcoordsProblem(v)
+            %kcoordsProblem  "" when every value is a whole number from 0, else what is wrong.
+            p = "";
+            v = double(v(:));
+            if any(~isfinite(v)) || any(v < 0 | v ~= round(v))
+                p = "kcoords must be whole numbers from 0.";
+            end
         end
 
         function rows = recordingRows(hw, channelNumbers, allHw)
@@ -710,7 +757,8 @@ classdef ChannelMap
             %toText  The result table as text for the clipboard or a file.
             %   TXT = ChannelMap.toText(T, Format=, SortBy=, Columns=)
             %     Format  "tsv" (default; pastes into Excel) | "csv" |
-            %             "markdown" | "matlab" (site and chanMap vectors)
+            %             "markdown" | "matlab" (site, chanMap and kcoords
+            %             vectors)
             %     SortBy  "site" (default) | "channel" (recording row) |
             %             "depth" (shank, then from the tip up)
             %   NaN is written as an empty cell ("NaN" in "matlab").
@@ -724,6 +772,7 @@ classdef ChannelMap
             if opts.Format == "matlab"
                 txt = sprintf("site    = [%s];\nchanMap = [%s];   %% 0-based recording rows of the sites above (NaN = not recorded)\n", ...
                     strjoin(compose("%g", T.Site'), " "), strjoin(compose("%g", T.RecordingRow0'), " "));
+                txt = txt + sprintf("kcoords = [%s];   %% Kilosort4 group of each site\n", strjoin(compose("%g", T.KCoord'), " "));
                 return
             end
             cols = opts.Columns(ismember(opts.Columns, string(T.Properties.VariableNames)));
@@ -831,9 +880,10 @@ classdef ChannelMap
             %exportKS4  Write the resolved chain as a Kilosort4 probe .json.
             %   [PROBEFILE, SIDECAR] = ChannelMap.exportKS4(R, PROBEFILE, ...)
             %   writes chanMap = RecordingRow0, xc = X, yc = Y, kcoords =
-            %   Shank, n_chan = max(sites, max(chanMap)+1, R.NChan, NChan) and
-            %   notes (the chain summary and its trust) through writeProbeMap,
-            %   plus the sidecar <probe>.chanmap.json that records the chain.
+            %   KCoord (the shank unless the chain sets kcoords), n_chan =
+            %   max(sites, max(chanMap)+1, R.NChan, NChan) and notes (the
+            %   chain summary and its trust) through writeProbeMap, plus the
+            %   sidecar <probe>.chanmap.json that records the chain.
             %   Options
             %     DropUnmapped  true (default): sites without a recording row
             %                   are left out and named in the notes; false:
@@ -872,13 +922,16 @@ classdef ChannelMap
                 error('ChannelMap:DuplicateRows', 'Two or more sites land on the same recording row; fix the chain first.');
             end
             notes = R.Summary + "; " + R.Trust + "; written by ChannelMapperApp";
+            if R.KCoordsEdited
+                notes = notes + "; kcoords set by hand";
+            end
             if any(bad)
                 notes = notes + "; left out: sites " + strjoin(compose("%g (%s)", T.Site(bad), T.Flag(bad)), ", ");
             end
             if opts.Notes ~= ""
                 notes = opts.Notes + " | " + notes;
             end
-            shank = T.Shank(keep);
+            shank = T.KCoord(keep);
             shank(isnan(shank)) = 1;
             ks4 = struct();
             ks4.notes = char(notes);
@@ -967,6 +1020,10 @@ classdef ChannelMap
             end
             rows.dataset = char(c.dataset);
             m.rows = rows;
+            m.kcoords = [];
+            if R.KCoordsEdited
+                m.kcoords = num2cell(R.Table.KCoord(:));
+            end
             m.result = ChannelMap.resultStruct(R.Table);
             m.result = rmfield(m.result, 'flag');
             m.problems = cellstr(R.Problems);

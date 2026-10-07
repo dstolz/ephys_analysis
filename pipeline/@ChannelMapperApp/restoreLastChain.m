@@ -23,6 +23,12 @@ if AppPrefs.ispref(g, 'LastChain')
             end
             obj.Mates = mates;
             obj.MappingName = string(L.mapping);
+            obj.KCoords = zeros(0, 1);
+            obj.KCoordsFor = "";
+            if ~isempty(L.kcoords) && obj.ProbeId ~= ""
+                obj.KCoords = double(L.kcoords(:));
+                obj.KCoordsFor = obj.ProbeId;
+            end
             if numel(obj.Offsets) ~= obj.HeadstageCount
                 obj.defaultMatesNow();
             end

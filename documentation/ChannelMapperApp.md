@@ -81,9 +81,10 @@ With no mapping given it reopens the chain it showed when it last closed.
 5. **Read the result**.
    - The **table** gives each site's row: 0-based for `chanMap`, 1-based as
      the Probe tab and *Exclude channels* use it. It also gives the hardware
-     channel, the headstage input, both pins, the shank and x, y. Grey rows
-     do not reach a recorded channel.
-   - The **pictures** show the probe's sites and each package connector over
+     channel, the headstage input, both pins, the shank, the `kcoords` group
+     and x, y. Grey rows do not reach a recorded channel.
+   - The **pictures** show the probe's sites, coloured by `kcoords` group
+     (step 6), and each package connector over
      the headstage connector it mates with. Both are drawn looking into the
      face, and the headstage face is mirrored so that pins that touch share a
      column. Flipping the orientation visibly flips it.
@@ -96,13 +97,29 @@ With no mapping given it reopens the chain it showed when it last closed.
      channel, a rotated one-way connector. It is green when there are none.
    - **Label sites by** and **Sort** change the picture and the table order.
      The copied text follows the table order.
-6. **Copy table** (tab-separated, pastes into Excel), **Copy CSV**, **Copy
-   MATLAB** (`site` and `chanMap` vectors) or **Copy path**. *File → Export CSV...*
-   writes a file.
-7. **Save mapping...** stores the chain in the bank's `mappings/` folder.
-   **Load mapping...** reopens a saved mapping, or the chain recorded in an
-   exported probe's `.chanmap.json`.
-8. **Export Kilosort4 probe .json...** writes the probe map. It starts in the
+6. **Kilosort4 site groups (kcoords)**. Kilosort4 places its templates per
+   `kcoords` group, and its `shank_idx` option sorts one group at a time. By
+   default each site's group is its shank. To change them:
+   - type the sites in **Sites** (`1-16, 33:48`), or shift-click them on the
+     probe picture, choose the **Group** (a whole number from 0) and press
+     **Set**. With **Sites** empty, Set changes the selected site;
+   - or double-click a site's `kcoords` cell in the table;
+   - **All one group** puts every site in the Group; **By shank** goes back to
+     the shanks.
+
+   The picture recolours at once, and in the table a group that is not the
+   site's shank is bold blue. Groups set by hand are saved with the mapping
+   and in the export, and are dropped when you choose another probe design.
+   The pipeline reads `kcoords` as the shank too (the Probe tab picture,
+   `channelLayout`, the analysis probe maps, the NWB and kCSD exports), so a
+   regrouping shows there as well. They need a probe design.
+7. **Copy table** (tab-separated, pastes into Excel), **Copy CSV**, **Copy
+   MATLAB** (`site`, `chanMap` and `kcoords` vectors) or **Copy path**.
+   *File → Export CSV...* writes a file.
+8. **Save mapping...** stores the chain, with any `kcoords` set by hand, in
+   the bank's `mappings/` folder. **Load mapping...** reopens a saved mapping,
+   or the chain recorded in an exported probe's `.chanmap.json`.
+9. **Export Kilosort4 probe .json...** writes the probe map. It starts in the
    parent's probe folder (`pipeline/probes` standalone). With problems it asks
    first, and sites that reach no recorded channel are left out and named in
    the notes. The new probe appears in the Probe tab.
@@ -169,9 +186,11 @@ its rank among the headstages' channels.
 - `<probe>.json`: the Kilosort4 probe map, through `writeProbeMap`:
   - `chanMap`: each site's 0-based recording row
   - `xc`, `yc`: the design's site positions
-  - `kcoords`: the shank, numbered from 1 as NeuroNexus does
+  - `kcoords`: each site's group (step 6): the shank, numbered from 1 as
+    NeuroNexus does, unless set by hand
   - `n_chan`: the larger of the sites and the recorded channels
-  - `notes`: the chain, its trust, and the sites left out
+  - `notes`: the chain, its trust, whether `kcoords` were set by hand, and
+    the sites left out
 - `<probe>.chanmap.json`: the chain, its per-site result and its trust
   ([format](file-formats.md#channel-map-sidecar-probechanmapjson)). The Probe
   tab does not list it as a probe, and *Import probe .json into folder...*
@@ -179,7 +198,7 @@ its rank among the headstages' channels.
 - `pipeline/hardware/mappings/<name>.json` (**Save mapping**) and bank entries
   (**Save to bank**) ([format](file-formats.md#hardware-bank-pipelinehardware)).
 - Preferences (group `ChannelMapperApp`): the window position, the bank folder
-  and the last chain.
+  and the last chain, with its `kcoords`.
 
 ## Requirements
 

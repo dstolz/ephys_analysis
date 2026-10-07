@@ -5,8 +5,10 @@ function build(obj)
 %   many), the mates table (which headstage connector each package
 %   connector plugs into, the orientation, the channel offset), 3 Recording
 %   rows (headstage channels in order, a dataset's channels, or a list),
-%   the label and sort choices, the result table and the copy buttons.
-%   Right: the probe's sites and the mated connector faces, the selected
+%   the label and sort choices, the Kilosort4 kcoords groups, the result
+%   table (its kcoords column is editable) and the copy buttons.
+%   Right: the probe's sites coloured by kcoords group and the mated
+%   connector faces, the selected
 %   site's path and the chain's problems. Only grid layouts, so the window
 %   resizes on its own.
 
@@ -47,8 +49,8 @@ main = uigridlayout(outer, [1 2]);
 main.ColumnWidth = {500, '1x'};
 main.Padding = [0 0 0 0];
 
-left = uigridlayout(main, [7 1]);
-left.RowHeight = {'fit', 'fit', 118, 'fit', 'fit', '1x', 30};
+left = uigridlayout(main, [8 1]);
+left.RowHeight = {'fit', 'fit', 118, 'fit', 'fit', 'fit', '1x', 30};
 left.Padding = [0 0 0 0];
 left.RowSpacing = 6;
 
@@ -137,8 +139,8 @@ lr.ColumnWidth = {'fit', '1x', 'fit', 100};
 lr.Padding = [0 0 0 0];
 uilabel(lr, 'Text', 'Label sites by:');
 obj.LabelModeDrop = uidropdown(lr, ...
-    'Items', {'Site number', 'Recording row (1-based)', 'Hardware channel', 'No labels'}, ...
-    'ItemsData', {'site', 'row1', 'hardware', 'none'}, 'Value', 'site', ...
+    'Items', {'Site number', 'Recording row (1-based)', 'Hardware channel', 'kcoords group', 'No labels'}, ...
+    'ItemsData', {'site', 'row1', 'hardware', 'kcoords', 'none'}, 'Value', 'site', ...
     'Tooltip', 'What the probe picture writes next to each site. Recording row (1-based) is what the Probe tab and Exclude channels use.', ...
     'ValueChangedFcn', @(~, ~) obj.drawProbe());
 uilabel(lr, 'Text', 'Sort:');
@@ -147,11 +149,33 @@ obj.SortDrop = uidropdown(lr, 'Items', {'Site', 'Recording row', 'Depth'}, ...
     'Tooltip', 'Order of the table and of the copied text. Depth: shank by shank, from the tip up.', ...
     'ValueChangedFcn', @(~, ~) obj.refreshAll());
 
+% Kilosort4 kcoords groups
+pk = uipanel(left, 'Title', 'Kilosort4 site groups (kcoords)', 'FontWeight', 'bold');
+gk = uigridlayout(pk, [1 7]);
+gk.ColumnWidth = {'fit', '1x', 'fit', 50, 'fit', 'fit', 'fit'};
+gk.RowHeight = {30};
+gk.Padding = [6 6 6 6];
+gk.ColumnSpacing = 6;
+uilabel(gk, 'Text', 'Sites:', 'Tooltip', ...
+    'Kilosort4 places its templates per kcoords group and can sort one group alone (shank_idx). By default each site''s group is its shank.');
+obj.KCoordSitesField = uieditfield(gk, 'text', 'Placeholder', 'e.g. 1-16 (or shift-click)', ...
+    'Tooltip', 'Site numbers and ranges (1-16, 33:48). Shift-click a site on the probe to add it. Empty: the selected site.');
+uilabel(gk, 'Text', 'Group:');
+obj.KCoordGroupField = uieditfield(gk, 'numeric', 'Limits', [0 Inf], 'RoundFractionalValues', 'on', ...
+    'ValueDisplayFormat', '%d', 'Value', 1, 'Tooltip', 'The kcoords group: a whole number from 0.');
+obj.KCoordButtons(1) = uibutton(gk, 'Text', 'Set', 'Tooltip', 'Put the listed sites (else the selected site) in this group.', ...
+    'ButtonPushedFcn', @(~, ~) obj.onSetKCoords("set"));
+obj.KCoordButtons(2) = uibutton(gk, 'Text', 'All one group', 'Tooltip', 'Put every site in this group: Kilosort4 then treats the probe as one shank.', ...
+    'ButtonPushedFcn', @(~, ~) obj.onSetKCoords("one"));
+obj.KCoordButtons(3) = uibutton(gk, 'Text', 'By shank', 'Tooltip', 'Each site''s group is its shank again (the default).', ...
+    'ButtonPushedFcn', @(~, ~) obj.onSetKCoords("shanks"));
+
 % Result table
 obj.ResultTable = uitable(left, 'RowName', {}, 'SelectionType', 'row', 'Multiselect', 'off', ...
     'ColumnSortable', false, ...
-    'Tooltip', 'Each site''s path: package pin, headstage pin and input, hardware channel, recording row (0-based for chanMap, 1-based as the Probe tab shows). Grey rows do not reach a recorded channel.', ...
-    'CellSelectionCallback', @(~, evt) obj.onResultRowSelected(evt));
+    'Tooltip', 'Each site''s path: package pin, headstage pin and input, hardware channel, recording row (0-based for chanMap, 1-based as the Probe tab shows). Grey rows do not reach a recorded channel. Double-click a kcoords cell to change the site''s group.', ...
+    'CellSelectionCallback', @(~, evt) obj.onResultRowSelected(evt), ...
+    'CellEditCallback', @(~, evt) obj.onResultEdited(evt));
 
 % Copy buttons
 ar = uigridlayout(left, [1 4]);
@@ -160,7 +184,7 @@ ar.Padding = [0 0 0 0];
 uibutton(ar, 'Text', 'Copy table', 'Tooltip', 'Copy the table, tab-separated (pastes into Excel).', ...
     'ButtonPushedFcn', @(~, ~) obj.onCopy("tsv"));
 uibutton(ar, 'Text', 'Copy CSV', 'ButtonPushedFcn', @(~, ~) obj.onCopy("csv"));
-uibutton(ar, 'Text', 'Copy MATLAB', 'Tooltip', 'Copy site and chanMap (0-based rows) as MATLAB vectors.', ...
+uibutton(ar, 'Text', 'Copy MATLAB', 'Tooltip', 'Copy site, chanMap (0-based rows) and kcoords as MATLAB vectors.', ...
     'ButtonPushedFcn', @(~, ~) obj.onCopy("matlab"));
 uibutton(ar, 'Text', 'Copy path', 'Tooltip', 'Copy the selected site''s path.', ...
     'ButtonPushedFcn', @(~, ~) obj.onCopyPath());
@@ -170,7 +194,7 @@ right = uigridlayout(main, [4 2]);
 right.RowHeight = {'fit', '1x', 'fit', 'fit'};
 right.ColumnWidth = {'1x', '1.4x'};
 right.Padding = [0 0 0 0];
-obj.TitleLabel = uilabel(right, 'Text', 'Probe sites (click one)', 'FontWeight', 'bold');
+obj.TitleLabel = uilabel(right, 'Text', 'Probe sites by kcoords group (click one)', 'FontWeight', 'bold');
 obj.MateTitleLabel = uilabel(right, 'Text', 'Package and headstage connectors, looking into each face (click a pin)', 'FontWeight', 'bold');
 obj.ProbeAxes = uiaxes(right);
 obj.ProbeAxes.Layout.Row = 2; obj.ProbeAxes.Layout.Column = 1;

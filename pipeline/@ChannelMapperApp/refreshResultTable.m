@@ -1,19 +1,23 @@
 function refreshResultTable(obj)
 %refreshResultTable  obj.Result.Table, in the Sort order, into the result table.
-%   Columns: Site, Row 0 (chanMap), Row 1 (as the Probe tab shows it), the
-%   hardware channel, the headstage input, the headstage and package pins
-%   (with the connector in brackets when the device has several), shank,
-%   x, y and a flag. Rows that do not reach a recorded channel are grey.
+%   Columns: Site, Row 0 (chanMap), Row 1 (as the Probe tab shows it),
+%   shank, kcoords (editable when there is a probe design; bold blue where
+%   it is not the shank), the hardware channel, the headstage input, the
+%   headstage and package pins (with the connector in brackets when the
+%   device has several), x, y and a flag. Rows that do not reach a recorded
+%   channel are grey.
 %   obj.ResultOrder maps a table row back to its Result.Table row (the
 %   table is sorted by the Sort dropdown, not by clicking a header, so rows
 %   stay put).
-names = {'Site', 'Row 0', 'Row 1', 'HW ch', 'HS ch', 'HS pin', 'Pkg pin', 'Shank', 'X', 'Y', 'Flag'};
+names = {'Site', 'Row 0', 'Row 1', 'Shank', 'kcoords', 'HW ch', 'HS ch', 'HS pin', 'Pkg pin', 'X', 'Y', 'Flag'};
+kCol = 5;
 tbl = obj.ResultTable;
 removeStyle(tbl);
 R = obj.Result;
 if isempty(R)
-    tbl.Data = table(zeros(0, 1), zeros(0, 1), zeros(0, 1), zeros(0, 1), strings(0, 1), strings(0, 1), ...
-        strings(0, 1), zeros(0, 1), zeros(0, 1), zeros(0, 1), strings(0, 1), 'VariableNames', names);
+    tbl.Data = table(zeros(0, 1), zeros(0, 1), zeros(0, 1), zeros(0, 1), zeros(0, 1), zeros(0, 1), ...
+        strings(0, 1), strings(0, 1), strings(0, 1), zeros(0, 1), zeros(0, 1), strings(0, 1), 'VariableNames', names);
+    tbl.ColumnEditable = false;
     obj.ResultOrder = zeros(0, 1);
     return
 end
@@ -44,9 +48,16 @@ for j = 1:numel(P)
         hsPin(j) = hsPin(j) + " (" + strjoin(tag, " ") + ")";
     end
 end
-tbl.Data = table(T.Site, T.RecordingRow0, T.RecordingRow1, T.HardwareChannel, T.HeadstageChannel, hsPin, ...
-    pkgPin, T.Shank, round(T.X, 2), round(T.Y, 2), T.Flag, 'VariableNames', names);
-tbl.ColumnWidth = {40, 52, 52, 54, 54, 100, 100, 52, 56, 56, 'auto'};
+tbl.Data = table(T.Site, T.RecordingRow0, T.RecordingRow1, T.Shank, T.KCoord, T.HardwareChannel, ...
+    T.HeadstageChannel, hsPin, pkgPin, round(T.X, 2), round(T.Y, 2), T.Flag, 'VariableNames', names);
+tbl.ColumnWidth = {40, 52, 52, 56, 60, 54, 54, 100, 100, 56, 56, 'auto'};
+editable = false(1, numel(names));
+editable(kCol) = ~all(isnan(T.X));
+tbl.ColumnEditable = editable;
+moved = find(T.KCoord ~= T.Shank);
+if ~isempty(moved)
+    addStyle(tbl, uistyle('FontWeight', 'bold', 'FontColor', [0.1 0.3 0.75]), 'cell', [moved, repmat(kCol, numel(moved), 1)]);
+end
 grey = find(T.Flag ~= "");
 if ~isempty(grey)
     addStyle(tbl, uistyle('BackgroundColor', [0.9 0.9 0.9], 'FontColor', [0.35 0.35 0.35]), 'row', grey);

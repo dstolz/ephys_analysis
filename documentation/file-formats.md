@@ -819,7 +819,9 @@ is reserved), `manufacturer`, `name`, `channels`, `notes` and `source`.
   `channelOffset`), `mates` (`from` `package:<face>`, `to`
   `headstage[<i>]:<face>`, `orientation` `reference` or `rotated`), `rows`
   (`mode` `in-order`, `dataset` or `custom`, `channelNumbers`, `dataset`),
-  `result`, `problems`, `trust`.
+  `kcoords` (empty: each site's Kilosort4 group is its shank; else one whole
+  number from 0 per site of the design, in its site order), `result`,
+  `problems`, `trust`.
 
 Every list is a JSON list, even with one element. The cell tokens, the
 mating rule and full examples are in

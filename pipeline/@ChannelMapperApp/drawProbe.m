@@ -1,7 +1,8 @@
 function drawProbe(obj)
-%drawProbe  The probe's sites by shank, labelled as Label sites by says.
-%   Sites that do not reach a recorded channel are grey x. Clicking a
-%   site (or near one) selects it. The selection ring (obj.SelMarker) is
+%drawProbe  The probe's sites coloured by kcoords group, labelled as Label sites by says.
+%   A site's kcoords group is its shank unless set by hand. Sites that do
+%   not reach a recorded channel are grey x. Clicking a site (or near one)
+%   selects it; shift-clicking adds it to the kcoords Sites list. The selection ring (obj.SelMarker) is
 %   made here once and moved by applySelection.
 ax = obj.ProbeAxes;
 legend(ax, 'off');
@@ -24,15 +25,15 @@ T = R.Table;
 x = T.X; y = T.Y;
 obj.ProbeSites = struct('X', x, 'Y', y, 'Site', T.Site);
 ok = T.Flag == "";
-shanks = unique(T.Shank(~isnan(T.Shank)));
-cmap = lines(max(numel(shanks), 1));
+groups = unique(T.KCoord(~isnan(T.KCoord)));
+cmap = lines(max(numel(groups), 1));
 click = @(~, evt) obj.onProbeClick(evt);
 hs = gobjects(0);
-for s = 1:numel(shanks)
-    m = T.Shank == shanks(s) & ok;
+for s = 1:numel(groups)
+    m = T.KCoord == groups(s) & ok;
     if ~any(m); continue; end
     hs(end + 1) = scatter(ax, x(m), y(m), 46, cmap(s, :), 'filled', 'MarkerEdgeColor', [0.15 0.15 0.15], ...
-        'DisplayName', sprintf('shank %g', shanks(s)), 'ButtonDownFcn', click); %#ok<AGROW>
+        'DisplayName', sprintf('kcoords %g', groups(s)), 'ButtonDownFcn', click); %#ok<AGROW>
 end
 if any(~ok)
     hs(end + 1) = scatter(ax, x(~ok), y(~ok), 60, [0.5 0.5 0.5], 'x', 'LineWidth', 1.8, ...
@@ -49,6 +50,8 @@ switch string(obj.LabelModeDrop.Value)
         lab = string(T.RecordingRow1);
     case "hardware"
         lab = string(T.HardwareChannel);
+    case "kcoords"
+        lab = string(T.KCoord);
     otherwise
         lab = strings(0, 1);
 end

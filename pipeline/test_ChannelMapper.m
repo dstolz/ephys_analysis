@@ -258,6 +258,27 @@ check(numel(wg.chanMap) == 31 && contains(wg.notes, "left out: sites 18 (GND)"),
 check(errId(@() ChannelMap.exportKS4(R1n, fullfile(root, 'nogeo.json'))) == "ChannelMap:NoGeometry", ...
     "exporting without a probe design is ChannelMap:NoGeometry");
 
+%% ---- 8b. kcoords -----------------------------------------------------------------------
+fprintf('\n== 8b. kcoords ==\n');
+check(isequal(R2.Table.KCoord, R2.Table.Shank) && ~R2.KCoordsEdited && all(isnan(R1n.Table.KCoord)), ...
+    "kcoords are the shanks by default (NaN without a probe design)");
+kGroups = 1 + (R2.Table.Shank > 2);
+ck = c2;
+ck.kcoords = kGroups;
+Rk = ChannelMap.resolve(ck);
+check(isequal(Rk.Table.KCoord, kGroups) && Rk.KCoordsEdited && isempty(Rk.Problems) && ...
+    isequal(Rk.Table.RecordingRow0, R2.Table.RecordingRow0), "chain.kcoords sets each site's group; the rows stay");
+pk = ChannelMap.exportKS4(Rk, fullfile(root, 'kc.json'));
+wk = readJsonFile(pk);
+check(isequal(wk.kcoords(:), kGroups) && isequal(wk.chanMap(:), w.chanMap(:)) && contains(wk.notes, "kcoords set by hand") && ...
+    isempty(probeMapProblems(pk)), "the export writes them and says so in the notes");
+ck.kcoords = [1; 2];
+Rbad = ChannelMap.resolve(ck);
+check(isequal(Rbad.Table.KCoord, R2.Table.Shank) && ~Rbad.KCoordsEdited && any(contains(Rbad.Problems, "2 values for 64 sites")), ...
+    "a list of the wrong length is not used, and is reported");
+ck.kcoords = repmat(1.5, 64, 1);
+check(any(contains(ChannelMap.resolve(ck).Problems, "whole numbers")), "nor is one that is not whole numbers");
+
 %% ---- 9. toText -------------------------------------------------------------------------
 fprintf('\n== 9. toText ==\n');
 tsv = ChannelMap.toText(Rg.Table);
@@ -270,9 +291,10 @@ check(numel(splitlines(strip(ChannelMap.toText(Rg.Table, Format="markdown"), 'ri
     "Markdown and CSV line counts");
 Lc = splitlines(ChannelMap.toText(R1.Table, SortBy="channel"));
 check(startsWith(Lc(2), "26" + char(9)), "SortBy channel starts with the site on row 0 (site 26)");
-chanMap = []; site = []; %#ok<NASGU>
+chanMap = []; site = []; kcoords = []; %#ok<NASGU>
 eval(ChannelMap.toText(Rg.Table, Format="matlab"));
-check(isequaln(chanMap, Rg.Table.RecordingRow0') && isequal(site, 1:32), "the MATLAB text evaluates to the 0-based chanMap");
+check(isequaln(chanMap, Rg.Table.RecordingRow0') && isequal(site, 1:32) && isequal(kcoords, Rg.Table.KCoord'), ...
+    "the MATLAB text evaluates to the 0-based chanMap and the kcoords");
 
 %% ---- 10. saved mappings ---------------------------------------------------------------
 fprintf('\n== 10. Saved mappings ==\n');
@@ -292,6 +314,11 @@ check(isequal(e10.Mapping.Result.RecordingRow0, R10.Table.RecordingRow0) && e10.
     isequal(e10.Mapping.ChannelNumbers', 0:63) && e10.Notes == "round trip", "its result, rows mode, channel list and notes are kept");
 check(errId(@() bank2.saveEntry(ChannelMap.mappingStruct(R10, Name="two heads"))) == "HardwareBank:Exists", ...
     "saving it again needs Overwrite");
+bank2.saveEntry(ChannelMap.mappingStruct(Rk, Name="kc map"));
+ek = bank2.get("kc_map");
+Rkb = ChannelMap.resolve(bank2.chainFromMapping(ek));
+check(isequal(ek.Mapping.KCoords, kGroups) && isequal(Rkb.Table.KCoord, kGroups) && Rkb.KCoordsEdited && ...
+    isempty(e10.Mapping.KCoords) && ~R10b.KCoordsEdited, "a saved mapping keeps kcoords set by hand, and none when they are the shanks");
 
 %% ---- 11. ChannelMapperApp, headless -------------------------------------------------
 fprintf('\n== 11. ChannelMapperApp ==\n');
@@ -345,6 +372,50 @@ check(m.PackageId == "neuronexus/H32" && m.ProbeId == "neuronexus/A1x32-6mm-50-1
     isequal(m.Result.Table.HardwareChannel', G1), "loadMapping brings the chain back");
 m.loadMapping(scG);
 check(m.PackageId == "neuronexus/H32" && isequal(m.Result.Table.RecordingRow0', G1), "loadMapping reads an export's sidecar");
+
+% kcoords
+T = m.Result.Table;
+check(isequal(T.KCoord, T.Shank) && ~m.Result.KCoordsEdited && m.KCoordButtons(1).Enable == "on", ...
+    "kcoords start as the shanks, and can be edited with a probe design");
+m.setKCoords(17:32, 2);
+T = m.Result.Table;
+check(all(T.KCoord(T.Site <= 16) == 1) && all(T.KCoord(T.Site > 16) == 2) && m.Result.KCoordsEdited && ...
+    contains(string(m.InfoLabel.Text), "kcoords set by hand"), "setKCoords puts sites 17-32 in group 2");
+kc = find(string(m.ResultTable.Data.Properties.VariableNames) == "kcoords");
+r5 = find(m.ResultOrder == find(T.Site == 5));
+check(isequal(m.ResultTable.ColumnEditable, (1:width(m.ResultTable.Data)) == kc), "only the table's kcoords column is editable");
+m.onResultEdited(struct('Indices', [r5 kc], 'NewData', 3, 'PreviousData', 1));
+check(m.Result.Table.KCoord(T.Site == 5) == 3 && m.ResultTable.Data.kcoords(r5) == 3, "editing a kcoords cell sets that site's group");
+m.onResultEdited(struct('Indices', [r5 kc], 'NewData', -1, 'PreviousData', 3));
+check(m.Result.Table.KCoord(T.Site == 5) == 3 && contains(string(m.StatusLabel.Text), "whole numbers"), ...
+    "a negative group is refused");
+m.KCoordSitesField.Value = '5';
+m.KCoordGroupField.Value = 1;
+m.onSetKCoords("set");
+check(m.Result.Table.KCoord(T.Site == 5) == 1, "Set puts the listed sites in the group");
+check(errId(@() m.setKCoords(99, 1)) == "ChannelMapperApp:BadSite", "a site the design does not have is refused");
+pfK = m.exportKS4(fullfile(root, 'gui_kc.json'));
+wK = readJsonFile(pfK);
+check(isequal(wK.kcoords(:), m.Result.Table.KCoord) && isempty(probeMapProblems(pfK)), "the export writes the edited kcoords");
+m.saveMapping("gui kc");
+m.onSetKCoords("shanks");
+check(~m.Result.KCoordsEdited && isempty(m.KCoords), "By shank goes back to the shanks");
+m.loadMapping("gui_kc");
+check(m.Result.KCoordsEdited && isequal(m.Result.Table.KCoord, wK.kcoords(:)), "a saved mapping brings its kcoords back");
+m.resetKCoords();
+m.loadMapping(ChannelMap.sidecarFile(pfK));
+check(isequal(m.Result.Table.KCoord, wK.kcoords(:)), "so does the export's sidecar");
+m.KCoordGroupField.Value = 0;
+m.onSetKCoords("one");
+check(all(m.Result.Table.KCoord == 0), "All one group");
+m.setKCoords("all", 1);
+check(isempty(m.KCoords) && ~m.Result.KCoordsEdited, "groups equal to the shanks are the default again");
+m.loadMapping("gui_kc");
+m.selectProbe("generic/linear32");
+check(~m.Result.KCoordsEdited && isempty(m.KCoords), "another probe design drops them");
+m.selectProbe("");
+check(m.KCoordButtons(1).Enable == "off" && ~any(m.ResultTable.ColumnEditable), "without a design they cannot be edited");
+m.loadMapping("gui_test");
 m.setRows("custom", [0:15 17:31 16]);
 check(m.Result.Table.RecordingRow0(m.Result.Table.HardwareChannel == 16) == 31 && ...
     m.Result.Table.RecordingRow0(m.Result.Table.HardwareChannel == 17) == 16, "setRows custom: rows follow the list");
@@ -390,12 +461,12 @@ check(height(m.Editor.Sites.Data) == 64 && isequal(unique(m.Editor.Sites.Data.Sh
 m.editorGenerate();
 m.onEditorSave();
 check(m.Bank.has("acme/dot4") && m.ProbeId == "acme/dot4", "a generated probe design saves and is selected");
-m.loadMapping("gui_test");
+m.loadMapping("gui_kc");
 close(m.Fig);
 check(~isvalid(m) && AppPrefs.ispref(g, 'LastChain') && AppPrefs.ispref(g, 'BankFolder'), "closing the window deletes it and saves the preferences");
 m2 = ChannelMapperApp();
-check(m2.Bank.Folder == string(gb) && m2.PackageId == "neuronexus/H32" && m2.ProbeId == "neuronexus/A1x32-6mm-50-177", ...
-    "reopened, it comes back on the same bank and chain");
+check(m2.Bank.Folder == string(gb) && m2.PackageId == "neuronexus/H32" && m2.ProbeId == "neuronexus/A1x32-6mm-50-177" && ...
+    isequal(m2.Result.Table.KCoord, wK.kcoords(:)), "reopened, it comes back on the same bank and chain, kcoords too");
 delete(m2);
 
 %% ---- geometry templates --------------------------------------------------------------

@@ -466,6 +466,10 @@ says how to cut a release.
 
 ### Fixed
 
+- A run that launched background sorting runs wrote no run record (warning
+  `EphysPipeline:RunRecord`, `Unrecognized field name "name"`): the record
+  read each run's name from the wrong field. It now lists them under
+  `backgroundRuns` as intended.
 - Finding recordings (`EphysProject`, the app's Scan, `DatasetTracker`) and
   a dataset's outputs (`DatasetOutputs`) walk the folder tree once instead of
   once per file pattern, and skip hidden folders such as phy's `.phy`

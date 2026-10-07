@@ -371,7 +371,7 @@ classdef EphysPipeline < handle
                 runs = cell(1, numel(obj.LaunchedRuns));
                 for k = 1:numel(obj.LaunchedRuns)
                     r = obj.LaunchedRuns(k);
-                    runs{k} = struct('name', string(r.name), 'resultsDir', string(r.resultsDir), 'device', string(r.device));
+                    runs{k} = struct('name', string(r.Name), 'resultsDir', string(r.resultsDir), 'device', string(r.device));
                 end
                 rec = struct();
                 rec.schema = "ephys-pipeline-run/1";

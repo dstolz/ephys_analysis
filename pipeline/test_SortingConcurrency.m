@@ -12,8 +12,9 @@ function test_SortingConcurrency()
 %   restated result rows, stopping a run that is going (stopSortRun) and
 %   counting its processes (sortRunProcesses), runs whose paths hold & ^
 %   ( ) and spaces (ks4_launch.cmd), a new sort setting an earlier sort's
-%   curation aside (previous_*), and the warning for several runs at once
-%   on one GPU. Windows only (the stand-ins are batch files).
+%   curation aside (previous_*), the warning for several runs at once
+%   on one GPU, and the run record of a run() that launched background
+%   runs. Windows only (the stand-ins are batch files).
 %
 %   Usage:  test_SortingConcurrency
 
@@ -353,6 +354,32 @@ check(~any(contains(logged, "all go on one GPU")), 'a GPU per run: no warning');
     function noteLog(msg)
         logged(end+1, 1) = string(msg);
     end
+
+fprintf('\n== 16. run(): the run record lists the background runs ==\n');
+cfg = EphysPipelineConfig();
+cfg.Name = "background record";
+cfg.Project.Root = proj;
+cfg.Project.OutputRoot = fullfile(root, 'out16');
+cfg.Project.SaveScript = false;
+cfg.Probe.DefaultProbeFile = probeFile;
+cfg.Sorting.Enabled = true;
+cfg.Sorting.PythonExe = makeFake(root, 'fake16.cmd', fullfile(root, 'timeline16.txt'), true, 1);
+cfg.Sorting.MaxConcurrent = 3;
+pipe = EphysPipeline(cfg);
+pipe.LogFcn = [];
+lastwarn('');
+pipe.run();
+[~, warnId] = lastwarn();
+rec = readJsonFile(pipe.RunRecordFile, ErrorOnFail=false);
+bg = [];
+if isstruct(rec) && isfield(rec, 'backgroundRuns'); bg = rec.backgroundRuns; end
+if iscell(bg); bg = [bg{:}]; end
+check(pipe.RunRecordFile ~= "" && ~strcmp(warnId, 'EphysPipeline:RunRecord') && numel(bg) == 3 ...
+    && isequal(sort(string({bg.name})), sort([pipe.LaunchedRuns.Name])) ...
+    && isequal(sort(string({bg.resultsDir})), sort([pipe.LaunchedRuns.resultsDir])), ...
+    'a run that launched background sorts writes its run record, naming each run and its folder');
+waitForSortingSlot(pipe.LaunchedRuns, 1, Period=0.25);
+waitForExits(pipe.LaunchedRuns);
 
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0

@@ -2176,13 +2176,16 @@ it:
 | Spikes | the recording and the artifact periods (threshold detection; the periods rejected or erased first, unless `ArtifactMode` is none) | `<Name>_spikes.mat` |
 | Export | the signal files; the sorted units (`IncludeUnits`); the spikes file (`IncludeDetected`); the behavior file (epochs around the paired trials) | one file per format |
 | Analysis | the signal files; the behavior file; the sorted units and the spikes file (dashed when no enabled plot of the analysis config reads them) | the figure files (`Figures`), the report (`Report`) |
+| Copy outputs (not a step: the Run tab's **Copy outputs to**) | every file a step writes: the behavior file, the artifact cache, the sort folder, the signal and spikes files, the exports, the figure files (each dashed while the config does not write it) | the copies, in `<folder>\<subject>\<session>` (a new `<session>_v2` when it is there, or as **If it is there** says) |
 
 A read the config leaves off is drawn dashed and grey, and a file the config
 does not write is a dashed box. A disabled step and the arrows into it are
 faded. The arrows out of its files keep their colour, since a file written
 by an earlier run still feeds the steps after it. The artifact periods never
-fade, because the manual ones apply with detection off. The summary line
-counts all eight steps (`N of 8 steps enabled`).
+fade, because the manual ones apply with detection off. Copy outputs sits
+alone in the last row, each arrow into it down a lane of its own; it is
+faded, with its arrows, while copying is off. The summary line counts the
+eight steps (`N of 8 steps enabled`), not Copy outputs.
 
 The arrows run at right angles through the gaps between the boxes, never
 through one. The arrows from one source share their first stretch, like the

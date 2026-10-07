@@ -11,7 +11,10 @@ function [html, summary, model] = overview(cfg, d, opts)
 %   Analysis) as one box, with the files it writes hung under it, below the inputs (the
 %   raw recording with its manifest, the Epsych2 sessions, the probe map).
 %   An arrow runs from each input or written file to every step that reads
-%   it, in the colour of whatever wrote it. An arrow the working config
+%   it, in the colour of whatever wrote it. Copy outputs (the Transfer
+%   section: each dataset's outputs copied or moved elsewhere, in the
+%   background) is the last box, reading every file a step writes; it is
+%   faded while the section is off. An arrow the working config
 %   leaves off is dashed (Signals without BlankArtifacts does not read the
 %   artifact periods, Export reads the sorted units only with
 %   IncludeUnits, ...); a disabled step, and every arrow into it, is faded.
@@ -29,7 +32,7 @@ function [html, summary, model] = overview(cfg, d, opts)
 %   its own size in a viewport that opens fitted to it and zooms and pans
 %   (zoomFrame). The boxes
 %   sit on a fixed grid of five columns, a row per stage of the flow (the
-%   Analysis step alone in the last one), and
+%   Analysis step alone in the next to last one, Copy outputs in the last), and
 %   the arrows are routed at right angles through the gaps between rows and
 %   columns: none runs through a box, and no two sources share a line
 %   (they may cross). Each gap between rows gives every source leaving it,
@@ -63,7 +66,7 @@ E = edgeList(cfg);
 for k = 1:numel(E)   % an arrow into a disabled step fades with it
     E(k).dim = N([N.id] == E(k).to).dim;
 end
-steps = N([N.kind] == "step");
+steps = N([N.kind] == "step" & [N.id] ~= "transfer");   % Copy outputs is no pipeline step
 nOn = nnz(~[steps.dim]);
 summary = sprintf("%d of %d steps enabled", nOn, numel(steps));
 nBefore = numel(N) + numel(E) + sum(arrayfun(@(n) numel(n.outs), N));
@@ -313,7 +316,26 @@ else
     analysis.outs(end+1) = pill("off", "Report", "not written", "AnaReportCheckBox", false);
 end
 
-N = [probe, behavior, artifacts, sorting, signals, spikes, export, analysis];
+% Copying the outputs elsewhere (the Transfer section): not a step but
+% the last thing to read every file, a row of its own under them.
+T = cfg.Transfer;
+lines = ternary(T.Method == "move", "moves", "copies") + " each output " ...
+    + ternary(T.When == "step", "once its step has written it", "once the run is over");
+lines(end+1) = "in the background (robocopy), " + ternary(T.Verify == "hash", "SHA-256 checked", "size checked");
+if T.Method == "move"; lines(end+1) = "removed here once the run is over"; end
+transfer = step("transfer", 5, 2, "Copy outputs", T.Enabled, lines, ...
+    "RunTransferCheckBox,RunTransferMethodDropDown,RunTransferWhenDropDown,RunTransferHashCheckBox");
+dest = strtrim(T.Destination);
+if dest == ""; dest = "<folder>"; end
+switch T.IfExists
+    case "overwrite"; there = "files already there replaced";
+    case "skip";      there = "files already there kept";
+    otherwise;        there = "a new <session>_v2 when it is there";
+end
+transfer.outs = pill("out", "Copies", [dest + "\<subject>\<session>", there], ...
+    "RunTransferDestField,RunTransferIfExistsDropDown", false);
+
+N = [probe, behavior, artifacts, sorting, signals, spikes, export, analysis, transfer];
 end
 
 
@@ -380,6 +402,25 @@ E = [ ...
     edge("signals", "analysis", true, "the extract: the events, and the signals plots of LFP / MUA / SPIKE / AUX read"), ...
     edge("sorting", "analysis", use.units, ternary(use.units, "the sorted units", "off: no plot of the analysis config reads sorted units")), ...
     edge("spikes", "analysis", use.detected, ternary(use.detected, "the detected spikes", "off: no plot of the analysis config reads detected spikes"), 3)];
+
+% Copy outputs reads every file written, each down a lane of its own; the
+% list's order (its ports, left to right) follows where they arrive from.
+T = cfg.Transfer; A = cfg.Artifacts; An = cfg.Analysis; S = cfg.Sorting;
+to = ternary(T.Method == "move", ", moved to ", ", copied to ") + "<folder>\<subject>\<session>";
+cached = A.Enabled && A.CacheIntervals;
+E = [E, ...
+    edge("analysis", "transfer", An.Figures, ternary(An.Figures, "each dataset's figure files" + to, ...
+        "off: Analysis.Figures is off")), ...
+    edge("behavior", "transfer", B.WriteFile, ternary(B.WriteFile, "the behavior file" + to, ...
+        "off: Behavior.WriteFile is off"), 0.5), ...
+    edge("signals", "transfer", true, "the signal files" + to, 1), ...
+    edge("export", "transfer", ~isempty(X.Formats), ternary(~isempty(X.Formats), "the export files" + to, ...
+        "off: no export format ticked")), ...
+    edge("artifacts", "transfer", cached, ternary(cached, "the artifact cache" + to, ...
+        "off: no detection cached (Artifacts.Enabled, CacheIntervals)"), 2.5), ...
+    edge("sorting", "transfer", ~S.DryRun, ternary(~S.DryRun, "the sort folder (never the .bin), once the sort has finished" + to, ...
+        "off: Sorting.DryRun sorts nothing"), 3.5), ...
+    edge("spikes", "transfer", true, "the spikes file" + to, 4)];
 end
 
 
@@ -498,15 +539,16 @@ for r = 0:nRows - 1
 end
 
 % The tracks of each gap between rows: one per source leaving the row above
-% ("x:<id>") and one per target in the row below reached through a lane
-% ("a:<id>").
+% ("x:<id>") and one per arrow reaching the row below through a lane
+% ("a:<to>:<from>": a target such as Copy outputs takes several).
 from = arrayfun(@(e) N(at(e.from)).row, E);
 to = arrayfun(@(e) N(at(e.to)).row, E);
 viaLane = to > from + 1 & ~isnan([E.lane]);
 nets = cell(1, nRows - 1);
 for g = 0:nRows - 2
+    lanes = viaLane & to == g + 1;
     nets{g + 1} = [reshape("x:" + unique([E(from == g).from], "stable"), 1, []), ...
-        reshape("a:" + unique([E(viaLane & to == g + 1).to], "stable"), 1, [])];
+        reshape("a:" + [E(lanes).to] + ":" + [E(lanes).from], 1, [])];
 end
 gapH = cellfun(@(c) max(L.gapMin, L.track * (numel(c) + 1)), nets);
 rowY = L.top + [0, cumsum(rowH(1:end-1) + gapH)];
@@ -524,13 +566,20 @@ end
 gapTop = rowY(1:end-1) + rowH(1:end-1);
 
 % Order each gap's tracks to cross (and never overlap) as little as they
-% can: every order of one gap at a time, the current one kept on a tie.
+% can: every order of one gap at a time, the current one kept on a tie. A
+% gap of more than five tracks (the arrows converging on Copy outputs) is
+% ordered by the length of each track's run instead, the shortest on top:
+% arrows converging on one box then nest without crossing.
 route = @(order) routeAll(N, E, at, from, viaLane, order, gapTop, L);
 order = nets;
+for g = find(cellfun(@numel, nets) > 5)
+    order{g} = byRun(nets{g}, N, E, at, viaLane, L);
+end
 best = score(route(order));
 for pass = 1:2
     for g = 1:numel(order)
         cur = order{g};
+        if numel(cur) > 5; continue; end
         P = perms(1:numel(cur));
         for p = 1:size(P, 1)
             trial = order;
@@ -546,6 +595,29 @@ end
 E = route(order);
 W = 2 * L.margin + 5 * L.colW + 4 * L.gapX;
 H = rowY(end) + rowH(end) + L.bottom;
+end
+
+
+function nets = byRun(nets, N, E, at, viaLane, L)
+%byRun  A gap's tracks, shortest run across first: a source's from its
+%   centre to the farthest port it reaches, a lane's from the lane to its port.
+run = zeros(size(nets));
+for k = 1:numel(nets)
+    p = split(extractAfter(nets(k), 2), ":");
+    if startsWith(nets(k), "x:")
+        s = N(at(p(1)));
+        mine = find([E.from] == p(1));
+        ends = [E(mine).portX];   % across to its port, or to the lane it goes down
+        lane = viaLane(mine);
+        ends(lane) = arrayfun(@(e) laneX(L, e.lane), E(mine(lane)));
+        if ~isempty(ends); run(k) = max(abs(ends - (s.x + s.w / 2))); end
+    else
+        e = E([E.to] == p(1) & [E.from] == p(2));
+        run(k) = abs(e(1).portX - laneX(L, e(1).lane));
+    end
+end
+[~, i] = sort(run);
+nets = nets(i);
 end
 
 
@@ -599,7 +671,7 @@ for k = 1:numel(E)
     px = E(k).portX;
     if viaLane(k)
         lx = laneX(L, E(k).lane);
-        ya = trackY("a:" + t.id, t.row - 1);
+        ya = trackY("a:" + t.id + ":" + s.id, t.row - 1);
         pts = [sx, s.y + s.h; sx, yx; lx, yx; lx, ya; px, ya; px, t.y];
     else
         pts = [sx, s.y + s.h; sx, yx; px, yx; px, t.y];
@@ -692,9 +764,9 @@ end
 
 
 function t = nodeName(id)
-names = dictionary(["epsych" "rec" "probemap" "probe" "behavior" "artifacts" "sorting" "signals" "spikes" "export" "analysis"], ...
+names = dictionary(["epsych" "rec" "probemap" "probe" "behavior" "artifacts" "sorting" "signals" "spikes" "export" "analysis" "transfer"], ...
     ["Epsych2 sessions" "Raw recording" "Probe map" "Probe check" "Behavior file" "Artifact periods" ...
-     "Sorted units" "Signal files" "Spikes file" "Export" "Analysis"]);
+     "Sorted units" "Signal files" "Spikes file" "Export" "Analysis" "Copy outputs"]);
 t = names(id);
 end
 
@@ -885,6 +957,7 @@ s = join([ ...
     ".c-spikes{--acc:#2e9e5b;--tint:#e3f5ea}"
     ".c-export{--acc:#6e7781;--tint:#eef0f2}"
     ".c-analysis{--acc:#9a6700;--tint:#fbf1d0}"
+    ".c-transfer{--acc:#3d47c4;--tint:#e8eafc}"
     ".flow text{font-family:'Segoe UI',system-ui,sans-serif}"
     ".box.src{fill:#24292f;stroke:#24292f}"
     ".box.in{fill:#fff;stroke:#afb8c1;stroke-width:1.2}"

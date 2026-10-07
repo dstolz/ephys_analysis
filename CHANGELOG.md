@@ -26,7 +26,11 @@ says how to cut a release.
   dataset's sorting folder. A background sort is copied once it has
   finished. `OutputTransfer` is the transfer on its own;
   `EphysPipeline.transferOutputs` copies a script's step results, and both
-  generated scripts copy too.
+  generated scripts copy too. The Diagram tab's data-flow overview draws it
+  as Copy outputs, under every file it reads. A version folder reads as its
+  dataset again: `EphysProject` over a copy, and `DatasetOutputs(folder)`,
+  name the dataset of `<session>_v2` `<session>`
+  (`EphysProject.outputFolderName`).
 - `EphysProject(root)` reads a root of pipeline outputs without the
   recordings, such as a backup of an `OutputRoot`. When no recording is
   found, each folder laid out as `<OutputRoot>/<Name>` becomes a dataset,

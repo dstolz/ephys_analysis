@@ -89,6 +89,21 @@ that are already sorting keep running.
     **About EphysPipelineApp**, shows the version and git commit of the
     code, the repository folder and the MATLAB release; **Copy** puts them
     on the clipboard.
+- **Toolbar**, under the menu bar: the menus' most used commands as icons,
+  each calling the same method as its menu item. Its tooltip names the
+  item's shortcut, if it has one (Ctrl, or Cmd on a Mac). In groups:
+
+  | Tool | Menu item |
+  | --- | --- |
+  | New config, Open config, Save config | File (Ctrl+N, Ctrl+O, Ctrl+S) |
+  | Validate config, Plan (writes nothing), Run pipeline, Dry run, Cancel run | Run (Run pipeline: Ctrl+R) |
+  | View the active dataset's manifest | Dataset → View manifest... |
+  | Open analysis app, Channel mapper | File |
+  | Help for this tab | Help |
+
+  Run pipeline and Dry run are off while a Run goes, and Cancel run is on
+  only then, as on the Run tab. The icons are
+  `pipeline/icons/toolbar/<Tag>.svg`.
 - **Title**: `Ephys preprocessing - <config name>  [<file>]`, with `*` in
   front while the config has unsaved changes.
 - **Tab strip**: one button per tab, coloured by the tab's state
@@ -2286,9 +2301,10 @@ The tab also always shows a diagram of the run beside the progress bars
 ([The run diagram](#the-run-diagram)) and the computer's load under the Steps
 panel ([Resource use](#resource-use)).
 
-The **Run** menu has the same commands, and **Run pipeline** is Ctrl+R. Each
-step tab's **Run this step** runs just that step over the selected datasets,
-even when it is switched off, here on the Run tab.
+The **Run** menu and the toolbar have the same commands, and **Run
+pipeline** is Ctrl+R. Each step tab's **Run this step** runs just that step
+over the selected datasets, even when it is switched off, here on the Run
+tab.
 
 A config with validation errors, or a plan with blocking rows (`checkRun`:
 duplicate outputs, `error: ...`), stops the Run before it starts, with an
@@ -3390,7 +3406,7 @@ app.KSQueue                       % prepared runs waiting for a slot (Queue the 
 | File | Role |
 | --- | --- |
 | `EphysPipelineApp.m` | properties, constructor, method declarations |
-| `buildUI.m`, `buildMenus.m`, `build*Tab.m` | UI construction |
+| `buildUI.m`, `buildMenus.m`, `buildToolbar.m`, `build*Tab.m` | UI construction (`buildToolbar`: the toolbar, its icons in `pipeline/icons/toolbar`) |
 | `gatherConfig.m`, `applyConfig.m`, `gather*/apply*Section.m`, `gather/applyConvertConfig.m`, `gather/applySortingSection.m`, `setControlValue.m`, `onConfigChanged.m`, `syncStepEnableStates.m`, `updateTitle.m` | config model (`setControlValue`: a config value into a control, noting one it cannot show; numbers in text fields are written with `EphysPipelineConfig.numberText`) |
 | `onNewConfig.m`, `onOpenConfig.m`, `openConfigFile.m`, `onSaveConfig.m`, `onSaveConfigAs.m`, `onExportConfigCopy.m`, `onGenerateScript.m`, `onCreateSyntheticProject.m`, `createSyntheticProject.m`, `onOpenAnalysisApp.m`, `confirmDiscard.m`, `addRecentConfig.m`, `refreshRecentMenu.m` | File menu |
 | `buildPipeline.m`, `runPipeline.m`, `onRunStep.m`, `onCancelRun.m`, `onValidate.m`, `onPlan.m`, `refreshStepPlan.m`, `onPipelineProgress.m`, `runLog.m`, `setRunBar.m`, `showIssues.m`, `onParallelControlsChanged.m`, `projectAtRoot.m`, `refuseWhileRunning.m` | running (`projectAtRoot`: whether the scanned project is the config's; `refuseWhileRunning`: the alert that refuses a dataset edit during a run) |

@@ -121,6 +121,11 @@ classdef EphysPipelineApp < handle
     %   report before anything leaves the app and opens GitHub's new-issue
     %   form with it filled in (onReportIssue, issueReport, issueURL).
     %
+    %   Toolbar (buildToolbar): the menus' most used commands as icons, each
+    %   with a tooltip naming its keyboard shortcut: New / Open / Save config,
+    %   Validate / Plan / Run pipeline / Dry run / Cancel, View manifest, Open
+    %   analysis app / Channel mapper, Help for this tab.
+    %
     %   The active dataset is what every single-dataset control works on
     %   (Trials, exclusions, previews, the sorted-output association, phy,
     %   Visualize, Review). The Dataset menu, the Dataset box on each of those
@@ -163,6 +168,12 @@ classdef EphysPipelineApp < handle
         DatasetManifestItem matlab.ui.container.Menu  % bottom of the menu: View manifest (onViewManifest)
         RunMenu            matlab.ui.container.Menu
         HelpMenu           matlab.ui.container.Menu   % wiki pages (helpURL, onHelp) + the issue items (onReportIssue)
+
+        % --- Toolbar (buildToolbar): the menus' most used commands ---
+        Toolbar            matlab.ui.container.Toolbar
+        ToolbarRunTool     matlab.ui.container.toolbar.PushTool   % Run pipeline: off while a Run goes
+        ToolbarDryRunTool  matlab.ui.container.toolbar.PushTool   % Dry run: off while a Run goes
+        ToolbarCancelTool  matlab.ui.container.toolbar.PushTool   % Cancel: on only while a Run goes
 
         % --- Global status bar ---
         StatusBar  matlab.ui.control.Label
@@ -975,6 +986,7 @@ classdef EphysPipelineApp < handle
         % --- UI construction ---
         buildUI(obj)
         buildMenus(obj)
+        buildToolbar(obj)
         buildCopyTab(obj)
         buildProjectTab(obj)
         buildTrialsTab(obj)

@@ -10,6 +10,13 @@ says how to cut a release.
 
 ### Added
 
+- A toolbar in the preprocessing app, under the menu bar: New, Open and
+  Save config; Validate config, Plan, Run pipeline, Dry run and Cancel run;
+  View manifest; Open analysis app and Channel mapper; Help for this tab.
+  Each tool calls the same method as its menu item, and its tooltip names
+  the item's shortcut (Ctrl+N, Ctrl+O, Ctrl+S, Ctrl+R; Cmd on a Mac). Run
+  pipeline, Dry run and Cancel run turn on and off with the Run tab's
+  buttons (`buildToolbar`; icons in `pipeline/icons/toolbar`).
 - Copying the pipeline's outputs elsewhere: the config's `Transfer`
   section, the Run tab's **Copy outputs to**. A Run copies, or moves, each
   dataset's outputs to `<folder>/<subject>/<session>` (its recording folder

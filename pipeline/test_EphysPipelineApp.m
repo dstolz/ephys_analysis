@@ -374,6 +374,24 @@ check(contains(app.issueURL("feature", "t", "b"), "labels=enhancement"), ...
 check(cut && strlength(long) <= 7000 && contains(long, "was%20too%20long%20for%20the%20address"), ...
     'a report too long for the address is cut and says so in the body');
 
+fprintf('\n== 1c2. Toolbar: the menus'' most used commands ==\n');
+tools = flip(app.Toolbar.Children);
+tags = string({tools.Tag});
+check(isequal(tags, ["new" "open" "save" "validate" "plan" "run" "dryrun" "cancel" "manifest" "analysisapp" "channelmapper" "help"]) ...
+    && isequal(find(logical([tools.Separator])), [4 9 10 12]) ...
+    && all(isfile(fullfile(here, 'icons', 'toolbar', tags + ".svg"))), ...
+    'the toolbar holds the config, run, dataset, app and help commands in groups, each with its icon');
+if ismac; modifier = "Cmd+"; else; modifier = "Ctrl+"; end
+tips = string({tools.Tooltip});
+menuItems = findall(app.Fig, 'Type', 'uimenu');
+keyed = menuItems(strlength(string({menuItems.Accelerator})) > 0);
+named = erase(string({keyed.Text}), "...") + " (" + modifier + string({keyed.Accelerator}) + ")";
+check(numel(keyed) == 4 && all(ismember(named, tips)) && nnz(contains(tips, "(" + modifier)) == numel(keyed) ...
+    && all(strlength(tips) > 0), ...
+    'every menu shortcut is on the toolbar, named in its tool''s tooltip, and no tooltip names another');
+check(app.ToolbarRunTool.Enable == "on" && app.ToolbarDryRunTool.Enable == "on" && app.ToolbarCancelTool.Enable == "off", ...
+    'Run pipeline and Dry run are on, Cancel off, while no Run goes');
+
 fprintf('\n== 1d. a config with values the controls cannot show ==\n');
 bad = cfg;
 bad.Name = "cannot show";
@@ -542,6 +560,10 @@ check(isscalar(mv) && isscalar(mvT) && any(mvT.Data.Field == "Periods" & mvT.Dat
     'Dataset > View manifest opens the active dataset''s manifest in a viewer');
 close(mv);
 check(~any(isvalid(mv)), 'closing the viewer window closes it');
+clickTool(app, "manifest");
+mv = findall(groot, 'Type', 'figure', 'Name', "Manifest - recA_260101_120000_manifest.json");
+check(isscalar(mv), 'the toolbar''s View manifest opens the same viewer');
+close(mv);
 check(app.ToolsTargetLabel.Text == "recA_260101_120000" && app.ToolsManifestButton.Enable == "on" ...
     && app.ToolsAnalysisButton.Enable == "on" && app.ToolsFolderButton.Enable == "on" ...
     && app.ToolsPhyButton.Enable == matlab.lang.OnOffSwitchState(app.currentDataset().hasPhyOutput()), ...
@@ -633,6 +655,10 @@ P = app.RunResultsTable.Data;
 check(istable(P) && any(P.Step == "spikes" & P.Status == "ready"), 'plan lists the spikes step as ready');
 app.onValidate();
 check(iscell(app.RunIssuesTable.Data) || istable(app.RunIssuesTable.Data), 'validate fills the issues table');
+app.RunResultsTable.Data = EphysPipeline.emptyResults();
+clickTool(app, "plan");
+P = app.RunResultsTable.Data;
+check(istable(P) && any(P.Step == "spikes" & P.Status == "ready"), 'the toolbar''s Plan fills the results table as Run > Plan does');
 
 fprintf('\n== 3a0. Artifacts tab: the artifact viewer ==\n');
 art0 = app.Config.Artifacts;
@@ -1708,7 +1734,9 @@ check(app.SaveScriptCheckBox.Value && app.Config.Project.SaveScript && isfile(sc
 M = load(spikesFile);
 check(~isempty(M.detected) && ~isfield(M, 'units') && M.detected.detection.options.Threshold == 1500, ...
     'the file reflects the edited threshold and holds the detections only');
-check(~app.RunActive && strcmp(app.RunButton.Enable, 'on'), 'run state is reset afterwards');
+check(~app.RunActive && strcmp(app.RunButton.Enable, 'on') && app.ToolbarRunTool.Enable == "on" ...
+    && app.ToolbarDryRunTool.Enable == "on" && app.ToolbarCancelTool.Enable == "off", ...
+    'run state is reset afterwards, on the Run tab and the toolbar');
 app.runLog("the report reads this line");
 runTail = string(app.RunLogArea.Value);
 runTail = runTail(strlength(strip(runTail)) > 0);
@@ -3051,6 +3079,13 @@ end
 
 function removeRoot(root)
 if isfolder(root); rmdir(root, 's'); end
+end
+
+
+function clickTool(app, tag)
+%clickTool  Run the toolbar tool TAG's callback as a click would.
+t = findobj(app.Toolbar.Children, 'flat', 'Tag', tag);
+t.ClickedCallback(t, []);
 end
 
 

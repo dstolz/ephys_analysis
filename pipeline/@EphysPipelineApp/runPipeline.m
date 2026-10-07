@@ -75,6 +75,7 @@ obj.Pipe = pipe;
 obj.RunActive = true;
 obj.syncTabStrip();
 obj.RunButton.Enable = "off"; obj.RunDryButton.Enable = "off"; obj.RunCancelButton.Enable = "on";
+obj.ToolbarRunTool.Enable = "off"; obj.ToolbarDryRunTool.Enable = "off"; obj.ToolbarCancelTool.Enable = "on";
 obj.ScanButton.Enable = "off"; obj.RefreshMetaButton.Enable = "off";
 cleanup = onCleanup(@() finishRun(obj));
 obj.setRunBar(obj.RunOverallBar, 0); obj.setRunBar(obj.RunStepBar, 0);
@@ -137,6 +138,7 @@ if ~isempty(obj.Project) && obj.Project.NumDatasets > 0
 end
 if isvalid(obj.Fig)
     obj.RunButton.Enable = "on"; obj.RunDryButton.Enable = "on"; obj.RunCancelButton.Enable = "off";
+    obj.ToolbarRunTool.Enable = "on"; obj.ToolbarDryRunTool.Enable = "on"; obj.ToolbarCancelTool.Enable = "off";
     obj.ScanButton.Enable = "on"; obj.RefreshMetaButton.Enable = "on";
     obj.syncTabStrip();
 end

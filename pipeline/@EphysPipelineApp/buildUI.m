@@ -1,5 +1,5 @@
 function buildUI(obj)
-%buildUI  Create the figure, menus, tabs (workflow order) and the status bar.
+%buildUI  Create the figure, menus, toolbar, tabs (workflow order) and the status bar.
 %   The tab group's own headers cannot be coloured, so they are clipped out
 %   of view (TabHost) and a strip of buttons takes their place: one per
 %   tab, coloured by the tab's status (see syncTabStrip) with an underline
@@ -12,6 +12,7 @@ obj.Fig.CloseRequestFcn = @(~,~) obj.onClose();
 obj.Fig.DeleteFcn = @(~,~) obj.stopTimers();   % also when deleted without onClose
 
 obj.buildMenus();
+obj.buildToolbar();
 
 outer = uigridlayout(obj.Fig, [3 1]);
 outer.RowHeight   = {52, '1x', 24};

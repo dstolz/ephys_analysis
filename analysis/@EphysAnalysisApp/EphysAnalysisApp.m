@@ -40,6 +40,11 @@ classdef EphysAnalysisApp < handle
     %   folder. Help menu: the wiki page of the tab shown, the documentation
     %   home and the analysis quick start.
     %
+    %   Toolbar (buildToolbar): the most used commands as icons, each with
+    %   its menu shortcut in the tooltip: New / Open / Save config; Scan,
+    %   Preview; Validate, Plan, Run, Cancel; Open report, Open figure
+    %   folder; Open pipeline app; Help for this tab.
+    %
     %   Preferences (getpref group 'EphysAnalysisApp'): FigurePosition,
     %   LastConfigFile, RecentConfigs, ScriptFolder, AutoPreview,
     %   PreviewMaxMB (signal previews of larger extracts wait for the Preview
@@ -70,6 +75,15 @@ classdef EphysAnalysisApp < handle
         DesignMenu matlab.ui.container.Menu
         HelpMenu   matlab.ui.container.Menu
         StatusBar  matlab.ui.control.Label
+
+        % --- Toolbar (buildToolbar): the most used commands ---
+        Toolbar             matlab.ui.container.Toolbar
+        ToolbarValidateTool matlab.ui.container.toolbar.PushTool   % off while a run goes
+        ToolbarPlanTool     matlab.ui.container.toolbar.PushTool   % off while a run goes
+        ToolbarRunTool      matlab.ui.container.toolbar.PushTool   % off while a run goes
+        ToolbarCancelTool   matlab.ui.container.toolbar.PushTool   % on only while a run goes
+        ToolbarReportTool   matlab.ui.container.toolbar.PushTool   % on once a run wrote a report
+        ToolbarFolderTool   matlab.ui.container.toolbar.PushTool   % on once a run wrote figures
 
         % --- Data tab ---
         ConfigNameField    matlab.ui.control.EditField
@@ -193,6 +207,7 @@ classdef EphysAnalysisApp < handle
         % --- UI construction ---
         buildUI(obj)
         buildMenus(obj)
+        buildToolbar(obj)
         buildDataTab(obj)
         buildAlignTab(obj)
         buildPlotsTab(obj)

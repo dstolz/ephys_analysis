@@ -10,6 +10,15 @@ says how to cut a release.
 
 ### Added
 
+- A toolbar in the analysis app, under the menu bar: New, Open and Save
+  config; Scan for datasets and Preview the selected plot; Validate config,
+  Plan, Run and Cancel run; open the last run's report and figure folder;
+  Open pipeline app; Help for this tab. Each tool calls the same method as
+  its menu item or tab button, and its tooltip names the menu item's
+  shortcut (Ctrl+N, Ctrl+O, Ctrl+S; Cmd on a Mac). Preview shows the Plots
+  tab, and Validate, Plan and Run the Export tab, before they act. The run
+  and results tools turn on and off with the Export tab's buttons
+  (`buildToolbar`; icons in `analysis/icons/toolbar`).
 - Plot designs (`PlotDesign`): whole looks for every analysis plot -- the
   ground behind it, the group colours, the heat maps' colours, and
   aesthetics rules for its axes, ticks, fonts, titles, axis labels,

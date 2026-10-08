@@ -33,7 +33,9 @@ dlg = uiprogressdlg(obj.Fig, "Title", "Running the analysis", "Message", "Starti
 r.ProgressFcn = @(f, m) progress(r, dlg, f, m);
 obj.Running = true;
 set([obj.RunButton obj.PlanButton obj.ValidateButton], 'Enable', 'off');
+set([obj.ToolbarRunTool obj.ToolbarPlanTool obj.ToolbarValidateTool], 'Enable', 'off');
 obj.CancelButton.Enable = 'on';
+obj.ToolbarCancelTool.Enable = 'on';
 cleanup = onCleanup(@() finish(obj, dlg));
 t0 = tic;
 try
@@ -52,6 +54,8 @@ if cfg.Export.Enabled
 end
 obj.OpenReportButton.Enable = matlab.lang.OnOffSwitchState(~isempty(obj.LastReportFiles));
 obj.OpenFolderButton.Enable = matlab.lang.OnOffSwitchState(obj.LastExportFolder ~= "" && isfolder(obj.LastExportFolder));
+obj.ToolbarReportTool.Enable = obj.OpenReportButton.Enable;
+obj.ToolbarFolderTool.Enable = obj.OpenFolderButton.Enable;
 counts = arrayfun(@(s) nnz(R.Status == s), ["done" "skipped" "error" "cancelled"]);
 obj.RunLabel.Text = sprintf("Results: %d done, %d skipped, %d failed, %d cancelled (%.0f s)", counts, toc(t0));
 obj.setStatus(obj.RunLabel.Text);
@@ -74,5 +78,7 @@ if ~isvalid(obj); return; end
 obj.Running = false;
 if ~isempty(obj.Runner); obj.Runner.ProgressFcn = []; end
 set([obj.RunButton obj.PlanButton obj.ValidateButton], 'Enable', 'on');
+set([obj.ToolbarRunTool obj.ToolbarPlanTool obj.ToolbarValidateTool], 'Enable', 'on');
 obj.CancelButton.Enable = 'off';
+obj.ToolbarCancelTool.Enable = 'off';
 end

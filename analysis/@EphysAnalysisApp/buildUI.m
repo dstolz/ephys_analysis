@@ -1,9 +1,10 @@
 function buildUI(obj)
-%buildUI  The figure, menus, the five tabs and the status bar; every button
-%   styled (styleButtons), the main actions in colour.
+%buildUI  The figure, menus, toolbar, the five tabs and the status bar; every
+%   button styled (styleButtons), the main actions in colour.
 obj.Fig = uifigure("Name", "Ephys analysis", "Position", [140 80 1280 820]);
 obj.Fig.CloseRequestFcn = @(~,~) obj.onClose();
 obj.buildMenus();
+obj.buildToolbar();
 
 outer = uigridlayout(obj.Fig, [2 1]);
 outer.RowHeight = {'1x', 24};

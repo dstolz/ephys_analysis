@@ -1,8 +1,10 @@
 function test_EphysAnalysisApp()
 %test_EphysAnalysisApp  Headless checks of the analysis GUI over a synthetic project.
 %   Builds the app on a small synthetic project run through the pipeline
-%   and drives it through its own methods: the tabs; Scan filling the
-%   datasets table; the active dataset's lines and parameters; grouping by
+%   and drives it through its own methods: the tabs; the toolbar (its
+%   tools, icons and shortcut tooltips; Preview and Plan from another tab;
+%   its run and results tools following the Export tab's buttons); Scan
+%   filling the datasets table; the active dataset's lines and parameters; grouping by
 %   Depth from the Alignment controls (the epoch count reports the groups);
 %   adding a PSTH and previewing it into the preview panel; the plot designs
 %   (the Design list and menu, choosing one redrawing the preview, saving
@@ -81,6 +83,25 @@ check(app1.Config.Source.Selection == "list" && isequal(app1.Config.Source.Datas
     'the first one active, and names the config after the one']);
 closeApp(app1);
 
+fprintf('\n== 1b. Toolbar: the most used commands ==\n');
+tools = flip(app.Toolbar.Children);
+tags = string({tools.Tag});
+check(isequal(tags, ["new" "open" "save" "scan" "preview" "validate" "plan" "run" "cancel" "report" "figurefolder" "pipelineapp" "help"]) ...
+    && isequal(find(logical([tools.Separator])), [4 6 10 12 13]) ...
+    && all(isfile(fullfile(here, 'icons', 'toolbar', tags + ".svg"))), ...
+    'the toolbar holds the config, look, run, results, app and help commands in groups, each with its icon');
+if ismac; modifier = "Cmd+"; else; modifier = "Ctrl+"; end
+tips = string({tools.Tooltip});
+menuItems = findall(app.Fig, 'Type', 'uimenu');
+keyed = menuItems(strlength(string({menuItems.Accelerator})) > 0);
+named = erase(string({keyed.Text}), "...") + " (" + modifier + string({keyed.Accelerator}) + ")";
+check(numel(keyed) == 3 && all(ismember(named, tips)) && nnz(contains(tips, "(" + modifier)) == numel(keyed) ...
+    && all(strlength(tips) > 0), ...
+    'every menu shortcut is on the toolbar, named in its tool''s tooltip, and no tooltip names another');
+check(app.ToolbarValidateTool.Enable == "on" && app.ToolbarPlanTool.Enable == "on" && app.ToolbarRunTool.Enable == "on" ...
+    && app.ToolbarCancelTool.Enable == "off" && app.ToolbarReportTool.Enable == "off" && app.ToolbarFolderTool.Enable == "off", ...
+    'before a run: Validate, Plan and Run are on; Cancel, the report and the figure folder off');
+
 fprintf('\n== 2. Alignment: group by Depth ==\n');
 app.selectTab(app.TabAlign);
 app.AlignControls.Line.Value = 'Stim';
@@ -100,10 +121,12 @@ app.onAddPlot("psth");
 check(isscalar(app.Config.Plots) && app.SelectedPlot == 1 && app.Config.Plots(1).id == "psth_1" ...
     && string(app.PlotEditor.kind.Text) == "PSTH" && string(app.PlotsListBox.Items{1}) == "psth_1  (psth)", ...
     'Add psth makes psth_1 and opens it in the editor');
-app.refreshPreview(Force=true);
+app.selectTab(app.TabData);
+clickTool(app, "preview");   % as the Preview button, from another tab
 axs = findall(app.PreviewPanel, 'Type', 'axes');
-check(~isempty(axs) && ~isempty(app.PreviewResult) && app.PreviewResult.kind == "psth" && isfinite(app.PreviewSeconds), ...
-    sprintf('the preview draws %d axes into the preview panel', numel(axs)));
+check(app.Tabs.SelectedTab == app.TabPlots && ~isempty(axs) && ~isempty(app.PreviewResult) ...
+    && app.PreviewResult.kind == "psth" && isfinite(app.PreviewSeconds), ...
+    sprintf('the toolbar''s Preview shows the Plots tab and draws %d axes into the preview panel', numel(axs)));
 ctx = getappdata(app.PreviewPanel, PlotAesthetics.ContextKey);
 look = struct('role', "rateFill", 'group', "", 'property', "FaceAlpha", 'value', 0.4);
 ctx.onRemember(look);
@@ -370,11 +393,19 @@ I = app.onValidate();
 check(~any(I.Severity == "error"), 'the config validates');
 P = app.onPlan();
 check(height(P) == 4 && all(P.Enabled), 'Plan: both plots on both datasets');
+app.selectTab(app.TabData);
+app.IssuesTable.Data = table();
+clickTool(app, "plan");
+check(app.Tabs.SelectedTab == app.TabExport && height(app.IssuesTable.Data) == 4 && all(app.IssuesTable.Data.Enabled), ...
+    'the toolbar''s Plan shows the Export tab and fills its table as the Plan button does');
 R = app.onRunExport(Plots="psth_1");
 files = dir(fullfile(outRoot, '**', '*psth_1*.png'));
 check(height(R) == 2 && all(R.Status == "done") && numel(files) >= 2 && isfile(fullfile(outRoot, 'analysis_report.html')) ...
     && app.OpenReportButton.Enable == "on" && contains(app.RunLabel.Text, "2 done"), ...
     'Run (psth_1): figures for both datasets and the report');
+check(app.ToolbarReportTool.Enable == "on" && app.ToolbarFolderTool.Enable == app.OpenFolderButton.Enable ...
+    && app.ToolbarRunTool.Enable == "on" && app.ToolbarPlanTool.Enable == "on" && app.ToolbarCancelTool.Enable == "off", ...
+    'after the run the toolbar''s report and figure-folder tools follow the Export tab''s buttons; Run is on again, Cancel off');
 check(any(contains(string(app.LogArea.Value), "psth_1 done")), 'the Log tab has the runner''s lines');
 
 fprintf('\n== 6. close ==\n');
@@ -388,6 +419,13 @@ fprintf('\n================  %d passed, %d failed  ================\n', nPass, n
 if nFail > 0
     error('test_EphysAnalysisApp:Failures', '%d checks failed.', nFail);
 end
+end
+
+
+function clickTool(app, tag)
+%clickTool  Run the toolbar tool TAG's callback as a click would.
+t = findobj(app.Toolbar.Children, 'flat', 'Tag', tag);
+t.ClickedCallback(t, []);
 end
 
 

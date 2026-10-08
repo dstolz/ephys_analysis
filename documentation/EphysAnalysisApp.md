@@ -558,6 +558,27 @@ matrix per group.
 The title shows `*` while the config has unsaved changes; closing, opening
 or starting a new config asks to save them.
 
+## Toolbar
+
+Under the menu bar, the most used commands as icons, each calling the same
+method as its menu item or tab button. A tool's tooltip names the menu
+item's shortcut, if it has one (Ctrl, or Cmd on a Mac). In groups:
+
+| Tool | Same as |
+| --- | --- |
+| New config, Open config, Save config | File (Ctrl+N, Ctrl+O, Ctrl+S) |
+| Scan for datasets | the Data tab's **Scan** |
+| Preview the selected plot on the active dataset | the Plots tab's **Preview**; shows the Plots tab first |
+| Validate config, Plan, Run, Cancel run | the Export tab's buttons; Validate, Plan and Run show the Export tab first, where they list what they find |
+| Open the last run's report, Open the last run's figure folder | the Export tab's **Open report** and **Open figure folder** |
+| Open pipeline app | File → **Open pipeline app** |
+| Help for this tab | Help → **Help for this tab** |
+
+Validate, Plan and Run are off while a run goes, and Cancel run is on only
+then, as on the Export tab; the report and figure-folder tools come on when
+a run has written a report or figures. The icons are
+`analysis/icons/toolbar/<Tag>.svg`.
+
 ## Outputs
 
 A run writes, for each ticked dataset and enabled plot:
@@ -633,7 +654,7 @@ results, on the Log tab and in the report.
 
 | Part | Files |
 | --- | --- |
-| building | `buildUI`, `buildMenus`, `buildDataTab`, `buildAlignTab`, `buildPlotsTab`, `buildExportTab`, `buildLogTab`, `buildAlignControls`; the editor's collapsible sections in `private/` (`formSection`, `formRow`, `formShow`, `formLayout`) |
+| building | `buildUI`, `buildMenus`, `buildToolbar` (its icons in `analysis/icons/toolbar`), `buildDataTab`, `buildAlignTab`, `buildPlotsTab`, `buildExportTab`, `buildLogTab`, `buildAlignControls`; the editor's collapsible sections in `private/` (`formSection`, `formRow`, `formShow`, `formLayout`) |
 | config model | `gatherConfig` / `applyConfig`, `gather*` / `apply*Section`, `gatherAlignControls` / `applyAlignControls`, `gatherPlotEditor` / `applyPlotEditor`, `onConfigChanged`, `updateTitle`, `confirmDiscard` |
 | plot editor | `syncPlotEditor` (what shows, what is enabled, what the drop-downs offer: `private/plotEditorChoices`), `layoutPlotEditor`, `onPlotSectionToggled`, `onPlotAlignEdited`, `onPlotDefaultToggled`, `applyPlotEditorDefaults` |
 | data | `openSource`, `onScan`, `refreshDatasetsTable`, `selectDataset`, `refreshDatasetInfo` |
@@ -647,7 +668,10 @@ results, on the Log tab and in the report.
 
 `test_EphysAnalysisApp` builds the app headlessly on the analysis fixture
 (a small synthetic project run through the pipeline) and drives it through
-its methods: the five tabs; the scan; opening on a list of datasets
+its methods: the five tabs; the toolbar (its tools in groups with their
+icons, every menu shortcut named in a tooltip, Preview and Plan clicked
+from another tab, the run and results tools following the Export tab's
+buttons); the scan; opening on a list of datasets
 (`Datasets=`, as the pipeline app's Tools panel does); the active dataset's
 lines and parameters; grouping by Depth from the Alignment controls; adding
 a PSTH and an LFP evoked potential and previewing both; the response test

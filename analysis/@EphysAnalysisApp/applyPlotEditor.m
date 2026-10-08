@@ -71,6 +71,18 @@ end
 offerItems(E.param, ["" params], p.param);
 offerItems(E.seriesParam, ["" params], p.seriesParam);
 offerItems(E.rasterSort, ["" "stop" params], p.rasterSort);
+offerItems(E.rasterSortOrder, ["ascending" "descending"], p.rasterSortOrder);
+E.rasterByGroup.Value = p.rasterByGroup;
+mk = p.rasterEvents;
+E.markLines.Value = char(strjoin(mk.lines, " "));
+offerItems(E.markEdge, ["onset" "offset" "both"], mk.edge);
+offerItems(E.markScope, ["window" "trial"], mk.scope);
+E.markMarker.Value = char(pickFrom(mk.marker, string(E.markMarker.ItemsData), "diamond"));
+E.markSize.Value = min(E.markSize.Limits(2), max(E.markSize.Limits(1), mk.size));
+offerItems(E.markColor, string(E.markColor.Items), pick(mk.color, "auto"));
+offerItems(E.yParam, ["" "stop" params], p.yParam);
+E.xScale.Value = char(pickFrom(p.xScale, string(E.xScale.ItemsData), "category"));
+E.jitter.Value = p.jitter;
 offerItems(E.respParam, ["" params], rs.param);
 E.value.Value = char(p.value);
 offerItems(E.order, ch.Orders, p.order);

@@ -22,6 +22,14 @@ function [R, E, G] = computePlot(obj, src, spec) %#ok<INUSD>
 %     corrmap   unitCorrelation(st, E, Metric=spec.metric, Type=spec.correlation,
 %               BinSec=, SmoothSec=, Baseline=, BaselineMode=, Groups=G, Meta=meta)
 %     probemap  probeMapValues(unitSummary(src, Source=, Units=, Ref=, Selection=), src.probe, Value=)
+%     behavior  epochTable(..., Columns=[param seriesParam yParam], Incomplete="keep",
+%               Artifacts="keep") (every event's epoch: the window and the
+%               signals' artifact periods do not concern behavior), then
+%               behaviorValues(y, E.(param), Series=E.(seriesParam), ...) with
+%               y = E.(yParam), or 1000 * (E.t1 - E.t0) (ms) for yParam "stop"
+%   A raster of spikes (raster, or psth with withRaster) with event lines
+%   to mark (spec.rasterEvents.lines) also gets R.rasterEvents =
+%   epochEvents(src, E, Lines=, Edge=, Scope=).
 %   A raster, or a PSTH or tuning grid, of spikes with spec.waveform.mode
 %   other than "off" also gets R.waveforms = unitWaveforms(src, R.meta,
 %   Source=spec.source, MaxSpikes=spec.waveform.maxSpikes): the units it
@@ -48,6 +56,10 @@ switch spec.kind
                 Measure=spec.measure, Baseline=b, BaselineMode=spec.baseline.Mode, MaskAfterStop=spec.maskAfterStop, ...
                 Raster=spec.kind == "raster" || (spec.kind == "psth" && spec.withRaster), Groups=G, Meta=meta, ...
                 Auroc=spec.auroc);
+            if isfield(R, 'raster') && ~isempty(R.raster) && ~isempty(spec.rasterEvents.lines)
+                m = spec.rasterEvents;
+                R.rasterEvents = epochEvents(src, E, Lines=m.lines, Edge=m.edge, Scope=m.scope);
+            end
         end
     case "evoked"
         [E, G] = epochTable(src, spec.ref, Window=w, Selection=spec.selection, Baseline=b);
@@ -75,6 +87,25 @@ switch spec.kind
         T = unitSummary(src, Source=spec.source, Units=spec.units, Ref=spec.ref, Selection=spec.selection);
         R = probeMapValues(T, src.probe, Value=spec.value);
         G = R.groups;
+    case "behavior"
+        cols = [spec.param spec.seriesParam];
+        if spec.yParam ~= "stop"; cols(end+1) = spec.yParam; end
+        [E, G] = epochTable(src, spec.ref, Window=w, Selection=spec.selection, Columns=cols(cols ~= ""), ...
+            Incomplete="keep", Artifacts="keep");
+        series = [];
+        if spec.seriesParam ~= ""; series = E.(spec.seriesParam); end
+        if spec.yParam == "stop"
+            y = 1000 * (E.t1 - E.t0);
+            yName = "stop latency";
+            if ~isempty(w.stop); yName = w.stop.line + " " + w.stop.edge + " latency"; end
+            yUnits = "ms";
+        else
+            y = E.(spec.yParam);
+            yName = spec.yParam;
+            yUnits = "";
+        end
+        R = behaviorValues(y, E.(spec.param), Series=series, Param=spec.param, SeriesParam=spec.seriesParam, ...
+            YName=yName, YUnits=yUnits);
     otherwise
         error('EphysAnalysisRunner:BadKind', 'Unknown plot kind "%s".', spec.kind);
 end

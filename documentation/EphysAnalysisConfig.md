@@ -45,7 +45,7 @@ keep the result (`cfg = cfg.addPlot(...)`, `cfg = cfg.save(...)`).
 | `toStruct()`, `toJson()`, `save(file)` | plain struct; the JSON `save` writes (`Inf` / `-Inf` / `NaN` as `"Inf"` / `"-Inf"` / `"NaN"`) |
 | `EphysAnalysisConfig.load(file)`, `fromStruct(s)` | errors `EphysAnalysisConfig:BadSchema` on another schema or version |
 | `validate(CheckPaths=true)` | issues table `Section, Field, Severity, Message` ([rules](#validation)) |
-| `addPlot(kindOrStruct, Id=)`, `removePlot(id)`, `plotIndex(id)`, `plotIds()`, `enabledPlots()` | the plot list. `[cfg, id] = cfg.addPlot(...)` also returns the plot's id; `removePlot` of an unknown id is `EphysAnalysisConfig:NoPlot`; `plotIndex` is 0 for one |
+| `addPlot(kindOrStruct, Id=)`, `removePlot(id)`, `plotIndex(id)`, `plotIds()`, `enabledPlots()` | the plot list. `[cfg, id] = cfg.addPlot(...)` also returns the plot's id; a plot added without a `source` reads its kind's first (`units`; `LFP` for evoked, `trials` for behavior); `removePlot` of an unknown id is `EphysAnalysisConfig:NoPlot`; `plotIndex` is 0 for one |
 | `plotFor(id)` | a plot (by id or index) with every `"default"` resolved from `Defaults`, `units.source` set to the plot's `source` and an empty layout replaced by the kind's default: what the runner draws |
 | `isequalConfig(other)` | same values (NaN equal) |
 | `defaults(section)`, `normalizeSection(section, s)`, `normalizePlot(p)`, `plotKinds()` | static: the single source of truth for fields, types and shapes |
@@ -77,7 +77,8 @@ distinct as file names: `{Plot}` replaces every character outside
               "Selection": "all", "Datasets": [], "Folders": [] },
   "Defaults": {
     "EventRef":  { "line": "Stim", "edge": "onset", "which": "first", "n": 1, "scope": "auto",
-                   "minDurationSec": 0, "maxDurationSec": "Inf", "timeRange": ["-Inf", "Inf"], "offsetSec": 0 },
+                   "minDurationSec": 0, "maxDurationSec": "Inf", "timeRange": ["-Inf", "Inf"], "offsetSec": 0,
+                   "offsetParam": "", "offsetParamUnit": "ms" },
     "Window":    { "mode": "fixed", "pre": -0.2, "post": 0.8, "stop": [] },
     "Selection": { "filter": "", "response": [], "pairingFlags": "ok", "trials": [],
                    "groupBy": "Depth", "groupOrder": "ascending", "maxGroups": 12 } },
@@ -88,8 +89,11 @@ distinct as file names: `{Plot}` replaces every character outside
       "channels": [], "ref": "default", "window": "default", "selection": "default",
       "bins": { "BinSec": 0.01, "SmoothSec": 0.01 }, "measure": "rate",
       "baseline": { "Mode": "none", "Window": [-0.2, 0] }, "auroc": { "method": "psth", "...": "..." },
-      "layout": "grid", "withRaster": true, "rasterSort": "", "histStyle": "bar", "fill": true, "fillAlpha": "NaN", "normalize": "none",
+      "layout": "grid", "withRaster": true, "rasterSort": "", "rasterSortOrder": "ascending", "rasterByGroup": true,
+      "rasterEvents": { "lines": [], "edge": "onset", "scope": "window", "marker": "diamond", "size": 4, "color": "" },
+      "histStyle": "bar", "fill": true, "fillAlpha": "NaN", "normalize": "none",
       "stack": false, "stackSpacing": 1.1, "maskAfterStop": false, "param": "", "seriesParam": "",
+      "yParam": "", "jitter": true, "xScale": "category",
       "value": "rate", "order": "probe", "metric": "mean", "correlation": "pearson",
       "waveform": { "mode": "both", "location": "northeast", "box": true, "scale": 1, "maxSpikes": 100 },
       "style": { "MaxTiles": 16, "...": "..." }, "aesthetics": [] },
@@ -173,8 +177,10 @@ what they mean in a config follows.
 
 Which event of which digital line each epoch is aligned to: `line`, `edge`
 (onset or offset), `which` interval (first, last, all, nth, with `n`),
-`scope` (trial, recording or auto), a duration range, a time range and
-`offsetSec` (fields and rules: [`eventRef`](EphysAnalysis.md#eventref-what-each-epoch-is-aligned-to)).
+`scope` (trial, recording or auto), a duration range, a time range,
+`offsetSec`, and `offsetParam` with `offsetParamUnit`: a trial parameter
+whose value on each event's trial is added to the event (fields and rules:
+[`eventRef`](EphysAnalysis.md#eventref-what-each-epoch-is-aligned-to)).
 Event times are seconds on the recording's clock, with each line's
 polarity ([`Signals.InvertedLines`](EphysPipeline.md#digital-line-polarity))
 already applied. `"Trial"` is the paired trial line: each trial's own
@@ -188,6 +194,16 @@ already applied. `"Trial"` is the paired trial line: each trial's own
 | the end of the response window | `line "RespWindow"`, `edge "offset"` |
 | 50 ms before each platform entry | `line "Platform"`, `which "all"`, `scope "recording"`, `offsetSec -0.05` |
 | only long platform visits | `line "Platform"`, `which "all"`, `scope "recording"`, `minDurationSec 1` |
+| the response (Epsych2's `RespLatency`, ms after the response window opens) | `line "RespWindow"`, `edge "onset"`, `offsetParam "RespLatency"`, `offsetParamUnit "ms"` |
+
+An event shifted by `offsetParam` keeps its trial (the one holding the
+unshifted edge); an event whose trial has no finite value (a miss has no
+`RespLatency`), or that lies outside the trials, is left out and counted
+(`epochTable`'s `nDroppedNoValue`, the caption, the app's Alignment tab).
+It needs paired trials. A [stop event](#epochwindow) with `offsetParam`
+is moved by the epoch's trial's value: a stimulus-aligned raster with the
+stop at `RespWindow onset + RespLatency` marks each response on its row,
+and `rasterSort "stop"` sorts the rows by it.
 
 A line whose intervals lie between trials (`Platform` in the synthetic
 project) has no event in trial scope: use recording scope for it.
@@ -201,7 +217,8 @@ variable-length period such as `RespWindow` onset to `RespWindow` offset
 [`epochWindow`](EphysAnalysis.md#epochwindow-the-span-of-each-epoch). A
 `stop` in a fixed window still sets `t1`, so PSTHs and rasters mark it and
 `maskAfterStop` can drop what follows it. Only rate, tuning and corrmap
-plots take a `"between"` window ([kinds](#plots)).
+plots take a `"between"` window ([kinds](#plots)). A `stop` is an
+[EventRef](#eventref), `offsetParam` included.
 
 Epochs without a stop event, epochs whose window leaves the recording and
 epochs whose window or baseline window touches an artifact period are
@@ -273,7 +290,7 @@ use.
 | `kind` | `"psth"` | one of the kinds below |
 | `enabled` | `true` | a disabled plot is kept but not run |
 | `title` | `""` | `""` = automatic: `<Label>: <line> <edge> (<n> epochs)` (a probe map: its value and the number of units or channels) |
-| `source` | `"units"` | spike kinds: `"units"` (sorted units) or `"detected"` (threshold detections); signal kinds: `"LFP"`, `"MUA"`, `"SPIKE"`, `"AUX"` |
+| `source` | `"units"` | spike kinds: `"units"` (sorted units) or `"detected"` (threshold detections); signal kinds: `"LFP"`, `"MUA"`, `"SPIKE"`, `"AUX"`; behavior: `"trials"` |
 | `units` | [UnitSelection](#unitselection) | spike sources: which units |
 | `channels` | `[]` | signal sources: the extract's columns drawn (`[]` = all) |
 | `ref`, `window`, `selection` | `"default"` | or the plot's own [EventRef](#eventref) / [EpochWindow](#epochwindow) / [TrialSelection](#trialselection). A probe map, which is not aligned, uses them only for a `units.response` test |
@@ -283,7 +300,10 @@ use.
 | `auroc` | [Auroc](#auroc) | psth, heatmap of spikes with `baseline.Mode "auroc"`: how the auROC is made and units are called |
 | `layout` | `""` | `""` = the kind's default |
 | `withRaster` | `true` | psth: a raster above each unit |
-| `rasterSort` | `""` | psth, raster: the order of each group's epochs in the raster. `""` = trial (time) order; `"stop"` = by the stop event's latency; else a trial parameter, which the compute copies onto the epochs (`epochTable(..., Columns=)`). Groups stay in their own bands; missing values sort last and ties keep the trial order |
+| `rasterSort` | `""` | psth, raster: the order of each group's epochs in the raster. `""` = trial (time) order; `"stop"` = by the stop event's latency; else a trial parameter, which the compute copies onto the epochs (`epochTable(..., Columns=)`). Groups stay in their own bands (see `rasterByGroup`); missing values sort last and ties keep the trial order |
+| `rasterSortOrder` | `"ascending"` | psth, raster: the direction of `rasterSort`: `"ascending"` or `"descending"` (with `rasterSort ""`, the last trial first). Missing values stay last either way; ties keep the trial order |
+| `rasterByGroup` | `true` | psth, raster: the rows go by group first, each group on a band of its colour; `false`: every epoch sorted by `rasterSort` as one block, each row on its group's colour (the y label adds "groups mixed") |
+| `rasterEvents` | none | psth, raster: marks on each raster row at digital-line events inside its epoch ([Raster event marks](#raster-event-marks)) |
 | `histStyle` | `"bar"` | psth: `"bar"` (one bar per bin) or `"line"` (a trace through the bin centres) |
 | `fill` | `true` | psth: fill the bars, or the area under the line; `false` = the bars' outline, or the line alone |
 | `fillAlpha` | `NaN` | psth: fill opacity 0-1; `NaN` = 0.5 where groups are overlaid, else 1 |
@@ -291,7 +311,10 @@ use.
 | `stack` | `false` | psth: one row per group instead of overlaid (see [Stacked PSTHs](#stacked-psths)) |
 | `stackSpacing` | 1.1 | psth stack: the row step, times the panel's tallest PSTH (1 = it just reaches the next row; below 1 the rows overlap) |
 | `maskAfterStop` | `false` | psth, raster, heatmap of spikes: drop each epoch's bins, and its raster ticks, from its stop event on (the mean then covers the epochs still going) |
-| `param`, `seriesParam` | `""` | tuning: the trial parameter on the x axis (required); one curve per value of the series parameter (`""` = one curve) |
+| `param`, `seriesParam` | `""` | tuning, behavior: the trial parameter on the x axis (required); one curve (series) per value of the series parameter (`""` = one) |
+| `yParam` | `""` | behavior: what each epoch shows (required): a numeric trial parameter, e.g. `"RespLatency"` (as recorded; Epsych2 stores ms), or `"stop"`: the epoch's stop-event latency from its event, ms (needs a stop event) |
+| `jitter` | `true` | behavior `"points"`: spread the points sideways, a fixed, repeatable pattern up to 0.3 of the series' slot either way; `false`: each point on its x value |
+| `xScale` | `"category"` | behavior: `"category"` (the x values evenly spaced, labelled with their values) or `"linear"` (at their values, numeric x only; text values are spaced evenly) |
 | `value` | `"rate"` | probemap, per site, over the whole recording: `"rate"` (the units' summed rate, Hz), `"nSpikes"` (their summed spike count) or `"nUnits"` |
 | `order` | `"probe"` | heatmap rows: `"probe"` (the style's `SortDepth` / `SortShank`), `"peak"` (by the time of each row's maximum) or, with the auROC baseline, `"modulation"` (by the first group's mean auROC in the call window, highest first; the other tiles keep that order, as the paper's Fig 3A). A corrmap follows the style's sort options |
 | `metric` | `"mean"` | corrmap: each epoch's `"mean"` rate over its window, or its `"peak"` binned rate (`bins`) |
@@ -313,6 +336,7 @@ The kinds, from `EphysAnalysisConfig.plotKinds()`; the app's
 | `heatmap` | Heatmap | all six | groups | fixed | spikes: as psth (auroc too); signals: none, subtract | units or channels by time, one tile per group |
 | `probemap` | Probe map | units, detected | shanks | (no alignment) | none | a per-channel value on the probe sites |
 | `corrmap` | Unit correlation | units, detected | groups | fixed, between | none, subtract | pairwise correlation of the units' per-epoch mean or peak rates, one matrix per group |
+| `behavior` | Behavior | trials | points, line, box, swarm, violin | fixed | none | a per-trial value (`yParam`) against a trial parameter, one series per value of another ([Behavior plots](#behavior-plots)) |
 
 What the baseline modes do (`baseline.Window` `[b0 b1]`, s from the event):
 
@@ -387,6 +411,69 @@ the auROC from 0.5 on a 0-1 axis, a heatmap colours it on `[0 1]`
 
 The random draws come from their own stream (seed 0), so a plot gives
 the same p values every time it runs.
+
+### Raster event marks
+
+A raster (the raster kind, or a PSTH's raster) can mark, on each row, the
+onsets and / or offsets of digital lines inside the row's epoch: every
+one of them, so a trial with several beam crossings or licks gets a mark
+for each. The plot's `rasterEvents`:
+
+| Field | Default | Meaning |
+| --- | --- | --- |
+| `lines` | none | the lines whose events are marked (`"Trial"` = the trial line); none = no marks |
+| `edge` | `"onset"` | `"onset"`, `"offset"` or `"both"` (each edge is its own mark) |
+| `scope` | `"window"` | `"window"`: every event inside the epoch's window; `"trial"`: only those inside the epoch's own trial |
+| `marker` | `"diamond"` | a line marker the aesthetics editor knows (`o`, `square`, `diamond`, `^`, `v`, `>`, `<`, `+`, `*`, `.`, `x`, `_`, `\|`, `pentagram`, `hexagram`) |
+| `size` | 4 | marker size, points |
+| `color` | `""` | `""`: a colour per line and edge (blue, green, purple, yellow, cyan, teal; never the ticks' black or the stop dots' red); or one colour for every mark (a name or `#rrggbb`) |
+
+`epochEvents` finds them ([Analysis page](EphysAnalysis.md#compute)) on
+the clock of each epoch's event, so a mark sits where the spikes of that
+sample sit. Each line and edge is one component for the
+[aesthetics editor](EphysAnalysis.md#plot-aesthetics), role `rasterEvent`,
+group `"<line> <edge>"` (e.g. `"Trough onset"`): right-click a mark to give
+one line's marks their own marker, size or colour. The raster kind's
+legend lists them; the caption names them.
+
+### Behavior plots
+
+A `behavior` plot draws one value per epoch against a trial parameter:
+behavioral time points such as the response latency over the stimulus's
+depth. It reads no spikes or signals (`source "trials"`), only the paired
+trials and the digital lines, so it needs paired trials. It is aligned
+like the other kinds: the plot's event reference, epoch window and trial
+selection give its epochs (one per trial with `which "first"`), but the
+window need not lie inside the recording and artifact periods are
+ignored (they concern the signals). The trial selection's groups are not
+used: the series are `seriesParam`'s values.
+
+- `yParam` a trial parameter: each epoch's trial's value, as recorded
+  (the axis is labelled with the parameter's name).
+- `yParam "stop"`: each epoch's stop-event latency, `t1 - t0`, in ms
+  (labelled e.g. "Trough onset latency (ms)"): with the event at
+  `RespWindow onset` and the stop at `Trough onset` (trial scope), the
+  time from the window's opening to the response measured on the digital
+  lines.
+
+Epochs whose value is not finite (a miss's `RespLatency`; an epoch without
+a stop event), or whose x or series value is missing, are left out; the
+caption counts them. `behaviorValues` computes each x value's mean, SEM,
+median and count per series and keeps every value; `renderBehavior`
+draws them:
+
+| Layout | Draws |
+| --- | --- |
+| `points` | every epoch's value as a dot (jittered with `jitter`), with each x value's mean +/- SEM |
+| `line` | the mean +/- SEM at each x value, joined, one line per series |
+| `box` | a box plot per x value and series (`boxchart`: median, quartiles, whiskers to 1.5 IQR, outliers as dots) |
+| `swarm` | every value as a dot, spread so none overlap (`swarmchart`), with the mean +/- SEM |
+| `violin` | the values' density per x value and series (`violinplot`, MATLAB R2024b or later), with the mean +/- SEM |
+
+The series sit side by side within each x value (but for `line`), in
+`Style.Colormap`'s colours; `Style.ShowSEM` turns the error bars off.
+The parts are named `points`, `swarm`, `box`, `violin` and `behaviorMean`
+for the aesthetics editor.
 
 ### Unit waveforms
 
@@ -488,10 +575,10 @@ with 20 units and 16 tiles per page is written as
 | --- | --- | --- |
 | Source | Mode is project / folders. Project mode: Root set and existing (CheckPaths), Selection all / list, NamePattern parses, Recordings is one of the three modes. Folders mode: at least one folder, and each exists (CheckPaths) | error |
 | Source | a "list" selection with no datasets; an OutputRoot that does not exist | warning |
-| Defaults, Plots | the event reference, window and selection are valid: known values, `n` a whole number >= 1, `0 <= minDurationSec <= maxDurationSec`, `timeRange` ordered, a finite `offsetSec`, finite `pre` and `post`, `pre <= post` in a fixed window, a stop event in a `"between"` window, known response words and pairing flags, at most 2 distinct `groupBy` parameters, `maxGroups` and `trials` whole numbers >= 1 | error |
+| Defaults, Plots | the event reference, window and selection are valid: known values, `n` a whole number >= 1, `0 <= minDurationSec <= maxDurationSec`, `timeRange` ordered, a finite `offsetSec`, `offsetParamUnit` ms or s, finite `pre` and `post`, `pre <= post` in a fixed window, a stop event in a `"between"` window, known response words and pairing flags, at most 2 distinct `groupBy` parameters, `maxGroups` and `trials` whole numbers >= 1 | error |
 | Defaults, Plots | a filter that does not parse | warning (it is checked against each dataset's trials when it runs) |
-| Plots | at least one enabled; ids that stay distinct once `{Plot}` has sanitized them (case-blind); the kind exists; the source, layout, window mode and baseline mode fit the kind; `measure` rate / count / probability; tuning names its parameter; `BinSec > 0`, `SmoothSec >= 0` where bins are used; a baseline window `[b0 b1]` with `b0 < b1`; probemap value, psth `histStyle` bar / line, `normalize` none / unitPeak / groupPeak, `fillAlpha` 0-1 or NaN, `stackSpacing > 0`; heatmap order (`"modulation"` only with the auROC baseline); the auROC settings (method, windows, whole-bin window and step, call window, cutoff, threshold, test, `nResamples`, correction, alpha, `modulatedOnly` with a cutoff) and the toolbox they need; corrmap metric and correlation; `maxUnits >= 1`; an enabled response test of spikes: its test, `param` for tuning / either / both, `baseline` and `window` ordered, direction, correction, alpha in (0, 1], the auROC settings of a test `"auroc"` (with a cutoff) and the Statistics and Machine Learning Toolbox; a `waveform` mode off / mean / subsample / both and, when not off, its location, `scale` in (0, 3] and a whole `maxSpikes >= 1`; `MaxTiles >= 1`, `TileSpacing` loose / compact / tight / none, `FontSize`, `LineWidth`, `SiteSize` positive | error |
-| Plots | a `HeatColormap` that is not a colormap function; a `Colormap` that is neither a colormap function nor a colour (the default is used); a `waveform` mode on a plot that draws no unit tiles (an overlay, a plot of signals, a kind other than raster / psth / tuning) | warning |
+| Plots | at least one enabled; ids that stay distinct once `{Plot}` has sanitized them (case-blind); the kind exists; the source, layout, window mode and baseline mode fit the kind; `measure` rate / count / probability; tuning names its parameter; behavior names `param` and `yParam` (`"stop"` with a stop event), its `xScale` is category / linear and the violin layout has `violinplot`; a psth / raster `rasterSortOrder` ascending / descending and `rasterEvents` edge, scope, marker and a positive size; `BinSec > 0`, `SmoothSec >= 0` where bins are used; a baseline window `[b0 b1]` with `b0 < b1`; probemap value, psth `histStyle` bar / line, `normalize` none / unitPeak / groupPeak, `fillAlpha` 0-1 or NaN, `stackSpacing > 0`; heatmap order (`"modulation"` only with the auROC baseline); the auROC settings (method, windows, whole-bin window and step, call window, cutoff, threshold, test, `nResamples`, correction, alpha, `modulatedOnly` with a cutoff) and the toolbox they need; corrmap metric and correlation; `maxUnits >= 1`; an enabled response test of spikes: its test, `param` for tuning / either / both, `baseline` and `window` ordered, direction, correction, alpha in (0, 1], the auROC settings of a test `"auroc"` (with a cutoff) and the Statistics and Machine Learning Toolbox; a `waveform` mode off / mean / subsample / both and, when not off, its location, `scale` in (0, 3] and a whole `maxSpikes >= 1`; `MaxTiles >= 1`, `TileSpacing` loose / compact / tight / none, `FontSize`, `LineWidth`, `SiteSize` positive | error |
+| Plots | a `HeatColormap` that is not a colormap function; a `Colormap` that is neither a colormap function nor a colour (the default is used); a `rasterEvents.color` that is not a colour (each mark gets its own); a `waveform` mode on a plot that draws no unit tiles (an overlay, a plot of signals, a kind other than raster / psth / tuning) | warning |
 | Export | formats are png / eps / svg / pdf (and at least one when enabled); `Dpi` positive; `FigureSizeCm` two positive numbers; the folder and file-name patterns use known tokens, and the file-name pattern is not empty | error |
 | Export | a file-name pattern without `{Plot}` while several plots are enabled (`{Kind}` is enough when the enabled plots all differ in kind); neither the folder nor the file-name pattern names the dataset (`{OutputFolder}` or `{Name}`), unless the source is a single folder: files that would overwrite each other | warning |
 | Report | Format html / pdf / both, EmbedFormat png / svg, `Dpi` positive, a plain `FileName`, the folder pattern | error |
@@ -505,11 +592,13 @@ that dataset and says why ([Why is my plot skipped?](EphysAnalysisApp.md#why-is-
 
 `test_EphysAnalysisConfig`: defaults, save / load round trips (Inf, NaN,
 one- and two-item lists, `"default"` sentinels, stop events, the PSTH stack
-and unit-waveform settings), `plotFor`, `removePlot`, `enabledPlots`, auto
-and duplicate ids, a cell of partial plots, every validate rule (ids and
-patterns whose files would collide, the auROC baseline and response test
-included), `LoadWarnings`, `BadSchema`, `BadValue`, `figureFileName` and
-`plotFileName`'s page suffix.
+and unit-waveform settings, the raster's sort and event marks, behavior
+fields, events shifted by a parameter), `plotFor`, `removePlot`,
+`enabledPlots`, auto and duplicate ids, `addPlot`'s source by kind, a cell
+of partial plots, every validate rule (ids and patterns whose files would
+collide, the auROC baseline and response test, behavior plots and raster
+marks included), `LoadWarnings`, `BadSchema`, `BadValue`,
+`figureFileName` and `plotFileName`'s page suffix.
 
 <!-- wiki
 ## Related

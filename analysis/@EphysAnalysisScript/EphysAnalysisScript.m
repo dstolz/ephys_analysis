@@ -13,8 +13,10 @@ classdef EphysAnalysisScript
     %                                 selectUnits / selectChannels, spikePSTH
     %                                 / evokedPotential / firingRate /
     %                                 tuningCurve / unitCorrelation / unitSummary +
-    %                                 probeMapValues (and unitWaveforms for
-    %                                 the waveform boxes), then a page at a time
+    %                                 probeMapValues / behaviorValues (and
+    %                                 unitWaveforms for the waveform boxes,
+    %                                 epochEvents for a raster's event
+    %                                 marks), then a page at a time
     %                                 newExportFigure, renderPlot,
     %                                 exportFigure, reportImage and
     %                                 reportPdfPage, the report calls. It
@@ -264,6 +266,11 @@ classdef EphysAnalysisScript
                         tail = ");";
                         if spec.baseline.Mode == "auroc"; tail = ", Auroc=spec.auroc);   % auROC settings: spec.auroc"; end
                         L(end+1, 1) = "    Baseline=" + b + ", BaselineMode=" + lit(spec.baseline.Mode) + ", MaskAfterStop=" + lit(spec.maskAfterStop) + ", Raster=" + lit(raster) + ", Groups=G, Meta=meta" + tail;
+                        if raster && ~isempty(spec.rasterEvents.lines)
+                            m = spec.rasterEvents;
+                            L(end+1, 1) = "R.rasterEvents = epochEvents(src, E, Lines=" + lit(m.lines) + ", Edge=" + lit(m.edge) + ...
+                                ", Scope=" + lit(m.scope) + ");   % the raster's event marks";
+                        end
                     end
                 case "evoked"
                     L(end+1, 1) = epochs;
@@ -293,6 +300,25 @@ classdef EphysAnalysisScript
                     L(end+1, 1) = "T = unitSummary(src, Source=" + lit(spec.source) + ", Units=spec.units, Ref=spec.ref, Selection=spec.selection);";
                     L(end+1, 1) = "R = probeMapValues(T, src.probe, Value=" + lit(spec.value) + ");";
                     L(end+1, 1) = "E = [];";
+                case "behavior"
+                    cols = [spec.param spec.seriesParam];
+                    if spec.yParam ~= "stop"; cols(end+1) = spec.yParam; end
+                    cols = cols(cols ~= "");
+                    L(end+1, 1) = "[E, G] = epochTable(src, spec.ref, Window=spec.window, Selection=spec.selection, Columns=" + lit(cols) + ", ...";
+                    L(end+1, 1) = "    Incomplete=""keep"", Artifacts=""keep"");   % every event's epoch";
+                    series = "[]";
+                    if spec.seriesParam ~= ""; series = "E.(" + lit(spec.seriesParam) + ")"; end
+                    if spec.yParam == "stop"
+                        yName = "stop latency";
+                        if ~isempty(spec.window.stop); yName = spec.window.stop.line + " " + spec.window.stop.edge + " latency"; end
+                        L(end+1, 1) = "y = 1000 * (E.t1 - E.t0);   % each epoch's stop latency, ms";
+                        yArgs = ", YName=" + lit(yName) + ", YUnits=""ms""";
+                    else
+                        L(end+1, 1) = "y = E.(" + lit(spec.yParam) + ");";
+                        yArgs = ", YName=" + lit(spec.yParam) + ", YUnits=""""";
+                    end
+                    L(end+1, 1) = "R = behaviorValues(y, E.(" + lit(spec.param) + "), Series=" + series + ", Param=" + lit(spec.param) + ...
+                        ", SeriesParam=" + lit(spec.seriesParam) + yArgs + ");";
             end
             if spec.waveform.mode ~= "off" && ismember(spec.source, EphysAnalysisConfig.SpikeSources) && ...
                     (spec.kind == "raster" || (ismember(spec.kind, ["psth" "tuning"]) && spec.layout ~= "overlay"))

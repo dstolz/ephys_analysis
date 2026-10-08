@@ -15,7 +15,12 @@ function test_EphysAnalysisCompute()
 %   binCounts / countBelow against brute force (a spike on a bin edge in
 %   the bin that starts there, on a 30 kHz sample grid too), and the unit waveform
 %   boxes (where each location puts them, on a reversed raster too; the
-%   modes, box and scale; the limits kept; none on an overlay; templates).
+%   modes, box and scale; the limits kept; none on an overlay; templates),
+%   the raster's sort direction, its rows sorted across groups and its
+%   event marks (epochEvents' result: where they sit, their look, the
+%   aesthetics rules reaching them), and behaviorValues / renderBehavior
+%   (means, series, missing values, every layout, the jitter, a linear x
+%   axis).
 %
 %   Usage:  test_EphysAnalysisCompute
 
@@ -209,6 +214,10 @@ Rq = probeMapValues(Tu, probe, Value="rate");
 check(isequal(Rq.value([1 3 5]), [1; 3; 2]) && all(isnan(Rq.value([2 4 6 7 8]))), 'probeMapValues puts each unit''s rate on its site');
 Rq0 = probeMapValues(Tu, probe, Value="nUnits");
 check(sum(Rq0.value) == 3 && Rq0.value(2) == 0, 'nUnits counts the units per site');
+yb = 200 + 50 * randn(nE, 1);
+yb(1:7:end) = NaN;   % no response on these
+Rb = behaviorValues(yb, 0.25 * mod((1:nE).', 4), Series=mod((1:nE).', 2), Param="Depth", SeriesParam="TrialType", ...
+    YName="RespLatency", YUnits="ms");
 cases = {
     "psth grid + raster",  @(tg) renderPSTH(Rp, tg, Layout="grid", WithRaster=true)
     "psth overlay",        @(tg) renderPSTH(Rp, tg, Layout="overlay")
@@ -229,7 +238,14 @@ cases = {
     "probe map",           @(tg) renderProbeMap(Rq, [], tg)
     "probe map (values)",  @(tg) renderProbeMap([5 NaN 3 1 0 2 7 4], probe, tg)
     "unit correlation",    @(tg) renderCorrMap(Rc, tg, Style=struct('SortDepth', false))
+    "behavior points",     @(tg) renderBehavior(Rb, tg)
+    "behavior line",       @(tg) renderBehavior(Rb, tg, Layout="line", XScale="linear")
+    "behavior box",        @(tg) renderBehavior(Rb, tg, Layout="box")
+    "behavior swarm",      @(tg) renderBehavior(Rb, tg, Layout="swarm")
     };
+if exist('violinplot', 'file')   % MATLAB R2024b or later
+    cases(end+1, :) = {"behavior violin", @(tg) renderBehavior(Rb, tg, Layout="violin")};
+end
 fig = figure('Visible', 'off');
 ufig = uifigure('Visible', 'off');
 closer = onCleanup(@() delete([fig ufig]));
@@ -543,7 +559,83 @@ check(isequal(rasterRows(h.axes(1)), [3 1 2 6 5 4]) && contains(plotCaption(stru
     "sorted by level"), 'renderPlot sorts by the spec''s rasterSort; the caption says so');
 check(strcmp(errorId(@() renderRaster(Rs, fig9, SortBy="nope")), 'renderRaster:NoSortColumn'), ...
     'SortBy a column the epochs lack: renderRaster:NoSortColumn');
+check(isequal(rowsOf(renderRaster(Rs, fig9, SortBy="level", SortOrder="descending")), [1 3 2 6 4 5]), ...
+    'SortOrder "descending": the largest first within each group, a missing value still last');
+check(isequal(rowsOf(renderRaster(Rs, fig9, SortOrder="descending")), [3 2 1 6 5 4]), ...
+    'no sort key, descending: each group in reverse time order');
+h = renderRaster(Rs, fig9, SortBy="stop", ByGroup=false);
+bands = findall(h.axes(1), 'Tag', 'rasterBand');
+bands = bands(arrayfun(@(b) numel(b.XData) > 1, bands));   % not the legend's stand-ins
+nFaces = arrayfun(@(b) size(b.XData, 2), bands);
+check(isequal(rasterRows(h.axes(1)), [5 1 3 6 4 2]) && numel(bands) == 2 && isequal(sort(nFaces(:)).', [3 3]) ...
+    && contains(string(h.axes(1).YLabel.String), "groups mixed"), ...
+    'ByGroup false: every epoch sorted by stop latency as one block (ties in time order), each row on its group''s band');
+check(contains(plotCaption(struct('kind', "raster", 'rasterSort', "stop", 'rasterSortOrder', "descending", 'rasterByGroup', false), Rs), ...
+    "sorted by stop latency, descending across groups"), 'the caption says how the raster is sorted');
+Rm = Rs;
+Rm.rasterEvents = struct('line', "Beam", 'edge', "onset", 'label', "Beam onset", 'epoch', [1; 1; 4], 't', [0.1; 0.3; -0.1]);
+h = renderRaster(Rm, fig9, SortBy="level", EventMarks=struct('marker', "^", 'size', 7, 'color', "#ff00ff"));
+mk = findall(h.axes(1), 'Tag', 'rasterEvent', 'HandleVisibility', 'off');
+lg = h.axes(1).Legend;
+check(isscalar(mk) && isequal(mk.XData(:).', [0.1 0.3 -0.1]) && isequal(mk.YData(:).', [3 3 6]) && string(mk.Marker) == "^" ...
+    && mk.MarkerSize == 7 && isequal(mk.Color, [1 0 1]) && getappdata(mk, 'PlotGroup') == "Beam onset" ...
+    && ~isempty(lg) && any(string(lg.String) == "Beam onset"), ...
+    'event marks: one per event on its epoch''s row (two in epoch 1), in the look asked for, named and in the legend');
+h = renderPlot(Rm, struct('kind', "raster", 'aesthetics', struct('role', "rasterEvent", 'group', "Beam onset", ...
+    'property', "MarkerSize", 'value', 11)), fig9);
+mk = findall(h.axes(1), 'Tag', 'rasterEvent', 'HandleVisibility', 'off');
+check(isscalar(mk) && mk.MarkerSize == 11 && string(mk.Marker) == "diamond" && contains(plotCaption(struct('kind', "raster"), Rm), ...
+    "raster marks: Beam onset"), 'a plot''s aesthetics rule restyles the marks; the default marker is a diamond; the caption lists them');
 delete(fig9);
+
+fprintf('\n== behavior values ==\n');
+yv = [300 NaN 250 410 520 NaN 180 200].';    % ms; NaN: no response
+xv = [0.25 0.25 0.5 0.5 1 1 0.25 1].';
+sv = ["A" "A" "B" "B" "A" "B" "B" "A"].';
+B = behaviorValues(yv, xv, Param="Depth", YName="RespLatency", YUnits="ms");
+check(isequal(B.x, [0.25; 0.5; 1]) && isequal(B.n, [2; 2; 2]) && max(abs(B.mean - [240; 330; 360])) < 1e-12 ...
+    && abs(B.sem(1) - std([300 180]) / sqrt(2)) < 1e-12 && isequal(B.median, B.mean) ...
+    && B.nMissing == 2 && isequal(B.values.epoch, [1 3 4 5 7 8].') && isequal(B.values.y, yv([1 3 4 5 7 8])) ...
+    && B.groups.label == "all" && B.units == "ms", ...
+    'behaviorValues: each x value''s mean, SEM, median and count; every value kept; the NaN values left out and counted');
+Bs = behaviorValues(yv, xv, Series=sv, Param="Depth", SeriesParam="Group", YName="RespLatency");
+check(isequal(Bs.n, [1 1; 0 2; 2 0]) && isequaln(Bs.mean, [300 180; NaN 330; 360 NaN]) ...
+    && isequal(Bs.series, ["Group = A"; "Group = B"]) && isequal(Bs.groups.n, [3; 3]), ...
+    'a series parameter: one series per value, NaN where a series has no value at an x value');
+check(strcmp(errorId(@() behaviorValues(NaN(3, 1), [1; 2; 3])), 'behaviorValues:NoValues') ...
+    && strcmp(errorId(@() behaviorValues(["a"; "b"], [1; 2])), 'behaviorValues:NotNumeric') ...
+    && strcmp(errorId(@() behaviorValues([1; 2], [1; 2; 3])), 'behaviorValues:Size'), ...
+    'no value left, text values, sizes that differ: behaviorValues:NoValues / NotNumeric / Size');
+figB = figure('Visible', 'off');
+h = renderBehavior(Bs, figB, Jitter=false);
+pts = findall(h.axes, 'Tag', 'points');
+ptsA = pts(arrayfun(@(p) getappdata(p, 'PlotGroup') == "Group = A", pts));
+check(numel(pts) == 2 && isequal(sort(ptsA.XData(:)).', [0.8 2.8 2.8]) && isequal(sort(ptsA.YData(:)).', [200 300 520]) ...
+    && isequal(string(h.axes.XTickLabel(:)).', ["0.25" "0.5" "1"]) && string(h.axes.XLabel.String) == "Depth" ...
+    && string(h.axes.YLabel.String) == "RespLatency" && isequal(string(h.axes.Legend.String), ["Group = A" "Group = B"]), ...
+    'points, no jitter: each value on its x value, the series side by side; the x values labelled, a legend of the series');
+h = renderBehavior(Bs, figB);
+pts = findall(h.axes, 'Tag', 'points');
+ptsA = pts(arrayfun(@(p) getappdata(p, 'PlotGroup') == "Group = A", pts));
+check(~isequal(sort(ptsA.XData(:)).', [0.8 2.8 2.8]) && all(abs(sort(ptsA.XData(:)).' - [0.8 2.8 2.8]) <= 0.12 + 1e-12) ...
+    && numel(findall(h.axes, 'Tag', 'behaviorMean')) == 2, 'points: jittered by default, at most 0.3 of the series'' slot (0.4) either way; each series'' mean marked');
+h = renderBehavior(B, figB, Layout="line", XScale="linear");
+mn = findall(h.axes, 'Tag', 'behaviorMean');
+check(isscalar(mn) && isequal(mn.XData(:).', [0.25 0.5 1]) && isequal(mn.YData(:).', [240 330 360]) ...
+    && string(h.axes.YLabel.String) == "RespLatency (ms)", 'line, linear x: the means joined at their x values');
+h = renderBehavior(Bs, figB, Layout="box");
+bx = findall(h.axes, 'Tag', 'box');
+check(numel(bx) == 2 && all(arrayfun(@(b) isa(b, 'matlab.graphics.chart.primitive.BoxChart'), bx)), 'box: a boxchart per series');
+h = renderBehavior(Bs, figB, Layout="swarm");
+sw = findall(h.axes, 'Tag', 'swarm');
+check(numel(sw) == 2 && all(arrayfun(@(b) isa(b, 'matlab.graphics.chart.primitive.Scatter'), sw)) ...
+    && sum(arrayfun(@(b) numel(b.YData), sw)) == 6, 'swarm: a swarmchart per series, every value');
+h = renderPlot(Bs, struct('kind', "behavior", 'param', "Depth", 'yParam', "RespLatency"), figB);
+check(h.title == "Behavior: RespLatency by Depth (6 epochs)" ...
+    && contains(plotCaption(struct('kind', "behavior", 'param', "Depth", 'yParam', "RespLatency"), Bs), ...
+    "one series per Group (n = 3, 3 epochs); 2 epoch(s) without a value of RespLatency or Depth left out"), ...
+    'renderPlot draws a behavior result (points by default) with its title; the caption counts what was left out');
+delete(figB);
 
 fprintf('\n== unit waveform boxes ==\n');
 nUw = size(Rp.rate, 2);

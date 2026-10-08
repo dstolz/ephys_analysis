@@ -149,6 +149,7 @@ field; in short:
 | **Offset (s)** | added to every event time |
 | **Length (s)** | keep the intervals whose length lies in this range (`0` to `Inf`) |
 | **Time range (s)** | keep the events in this range, from the trial onset (trial scope) or the recording start |
+| **Shift by**, **unit** | a trial parameter whose value on each event's trial is added to the event, in ms (default, as Epsych2 stores times) or s: *RespWindow onset* shifted by *RespLatency* is the response. The trials without a value (misses) are left out, and the count says how many (`offsetParam`, `offsetParamUnit`) |
 
 **Epoch window** (`Defaults.Window`)
 
@@ -157,6 +158,7 @@ field; in short:
 | **Mode** | `fixed: [t0+pre, t0+post]`, or `between: [t0+pre, stop+post]` for a period of varying length that ends at a stop event |
 | **Pre (s)**, **Post (s)** | the window's edges from the event (in between mode, `post` from the stop event) |
 | **Stop event**, line, edge, **Stop which**, **n**, **Stop scope** | the event that ends each epoch, the first (or chosen) one after the epoch's event. Required in between mode; in fixed mode it is still marked on PSTHs and rasters and can mask a PSTH |
+| **Stop shift by**, **unit** | a trial parameter added to the stop event, from the epoch's trial: with the event at Stim onset and the stop at *RespWindow onset* shifted by *RespLatency*, each raster row marks its response and can be sorted by it |
 
 **Trial selection** (`Defaults.Selection`)
 
@@ -173,7 +175,8 @@ explicit trial rows, have no controls: they keep the config's values through
 every edit.
 
 On the right, for the active dataset (**Active dataset** picks another):
-*"N epochs from M of T trials (scope); groups ..."*, with the epochs
+*"N epochs from M of T trials (scope); groups ..."*, with the events
+dropped for lacking the **Shift by** parameter's value, and the epochs
 dropped for having no stop event, leaving the recording or touching an
 artifact period (*"; N touch an artifact period"*), or why there are none;
 a bar of epochs per group in the group colours the plots use; and the kept
@@ -212,7 +215,7 @@ their headers (**▼** / **►**; which are collapsed is remembered):
 | Units & channels (*Channels* for a signal) | unit classes (sorted units: `su`, `mua`, `uns`, `noise`; none ticked = every class; `units.classes`), **Good units only** (sorted units: `units.quality.enabled`, the units that meet the config's good-unit criteria, [UnitSelection](EphysAnalysisConfig.md#unitselection)); **Responsive only** with the test (vs baseline, tuned, either, both, or auROC: the units the auROC calls modulated over the response window, with its own *auROC from*, window, step and bin (ms) and *Modulated if* rows, and *Unit test* for a per-unit test; [auROC](EphysAnalysisConfig.md#auroc)) and direction, the test windows (baseline and response, s from the event) and the test options (tuning parameter, correction, alpha), for spike sources (`units.response`; the settings are enabled while the box is ticked; [response statistics](EphysAnalysis.md#response-statistics)); unit ids (sorted units) or channels (detected), e.g. `3 5 8:12` (`units.ids`), max units (`units.maxUnits`), shanks (`units.shanks`), channels (spike sources: the recording channels kept, `units.channels`; signals: the extract's columns drawn, `channels`) |
 | Event reference, Epoch window, Trial selection | the Alignment tab's controls, for this plot (`ref`, `window`, `selection`) |
 | Bins & baseline (*Baseline* without bins) | bin and smoothing (ms; smoothing is a Gaussian SD, 10 ms by default, 0 = none; `bins.BinSec`, `bins.SmoothSec`), mask after the stop event (`maskAfterStop`), **Measure** (*rate*, *count* or *probability*; `measure`), baseline mode and window (`baseline.Mode`, `baseline.Window`). Baseline *auroc* (PSTH, spike heatmap; `auroc`) adds *auROC from* (PSTH bins, each epoch) and the windows (tiled, sliding), the window and step (ms), the call window (s), *Modulated if* (95% CI as the paper, taken over the plot's units of one dataset, so it needs many of them; `populationAnalysis` pools every dataset's ([population analysis](EphysAnalysis.md#population-analysis)); a fixed threshold, a per-unit test, none) with the threshold, *Unit test* (bootstrap, ranksum, shuffle; resamples, correction, alpha) for a per-unit test, and *Calls*: **Mark them**, **Modulated units only** ([auROC](EphysAnalysisConfig.md#auroc)) |
-| *Kind* options | PSTH and raster: **Sort raster by** (blank = trial order, stop latency or a trial parameter; `rasterSort`); PSTH: **Raster above each PSTH** (`withRaster`), **PSTH as** bar or line (`histStyle`), normalization (none, unit peak, group peak; `normalize`), **Filled** and its opacity (blank = automatic; `fill`, `fillAlpha`), **Stack groups** and its spacing (a row per group, labelled by value on the left and by peak rate on the right; `stack`, `stackSpacing`); tuning: parameter and series (`param`, `seriesParam`); probe map: value (`value`); heatmap: row order (*probe*, *peak*, and *modulation* with the auROC baseline; `order`); unit correlation: epoch rate (mean or peak; `metric`) and correlation (Pearson or Spearman; `correlation`) |
+| *Kind* options | PSTH and raster: **Sort raster by** (blank = trial order, stop latency or a trial parameter; `rasterSort`) and its direction (ascending or descending; `rasterSortOrder`), **Raster rows by group first** (unticked: every epoch sorted as one block, each row on its group's colour; `rasterByGroup`), **Mark events** (the lines whose events are marked on each row, e.g. `Trough`, several separated by spaces or commas; onset, offset or both; every event in the window or only in the epoch's trial; `rasterEvents`) and **Mark look** (marker, size, and *auto* (a colour per line and edge) or one colour; right-click a mark to style one line's marks on its own); behavior: **Y value** (a trial parameter such as RespLatency, or *stop*: the stop event's latency, ms; `yParam`), parameter and series (`param`, `seriesParam`), **X axis** (evenly spaced or at their values; `xScale`) and **Jitter points** (points layout; `jitter`); PSTH: **Raster above each PSTH** (`withRaster`), **PSTH as** bar or line (`histStyle`), normalization (none, unit peak, group peak; `normalize`), **Filled** and its opacity (blank = automatic; `fill`, `fillAlpha`), **Stack groups** and its spacing (a row per group, labelled by value on the left and by peak rate on the right; `stack`, `stackSpacing`); tuning: parameter and series (`param`, `seriesParam`); probe map: value (`value`); heatmap: row order (*probe*, *peak*, and *modulation* with the auROC baseline; `order`); unit correlation: epoch rate (mean or peak; `metric`) and correlation (Pearson or Spearman; `correlation`) |
 | Appearance (`style`) | tiles per page (`MaxTiles`), grid spacing (*loose*, *compact*, *tight*, *none*; `TileSpacing`) and **Labels on corner tile only** (`CornerLabelsOnly`), font size, line width, site size (probe map), y limits (blank = automatic, or two numbers such as `0 40`), group colours (*lines*: the trial selection's colours; a colormap; or one colour such as *black* or `#1f77b4`, typed in; `Colormap`), heat colours (*auto*: parula, or blueWhiteRed for unit correlations; `HeatColormap`), **Sort by** depth and / or shank (`SortDepth`, `SortShank`: units and channels top of the probe first, by shank first), **Label with** depth and / or shank (`LabelDepth`, `LabelShank`), and **Show** SEM, stop marks, legend, grid |
 | Unit waveform | rasters, and PSTH and tuning grids, of spikes: **Show** (*Off*, *Mean*, *Subsample*, *Mean + subsample*) each unit's waveform on its peak channel in its tile, and how many spikes the subsample draws (a sorted unit's mean is over them); **Location** (*North-east* by default; north is the top edge), **Axis box** (an outline on a pale ground; unticked, the waveform alone) and its size (1x = a third of the tile). Sorted units' spikes are cut from the sorted `.bin` (their templates when it is not there); detections need the Spikes step's *Waveforms* option (`waveform`; [Unit waveforms](EphysAnalysisConfig.md#unit-waveforms)) |
 
@@ -227,14 +230,20 @@ and label options for every kind but probe maps; line width for PSTHs,
 evoked potentials and tuning curves; group colours, legend and SEM only
 where groups are drawn as lines or bars; heat colours only for heatmaps,
 probe maps and unit correlations; the unit waveform for rasters and PSTH
-and tuning grids of spikes. The window modes offered are the kind's
+and tuning grids of spikes. A behavior plot reads only the trials: it
+shows its y value, parameter, series and x axis, the event, window and
+selection, the font, line width, y limits, series colours, SEM, legend
+and grid, and no unit, channel, bin, baseline or tile rows. The window modes offered are the kind's
 (*between* only for rates, tuning curves and unit correlations), and so are
 the baseline modes ([Plot kinds](#plot-kinds)). Rows that another option
 switches off stay in place, greyed out: the opacity until *Filled*, the
 spacing until *Stack groups* (a stack has no y limits or legend), the
 baseline window until a baseline mode, a unit correlation's bins until its
 *peak* rate, the mask and stop marks until the window has a stop event,
-*n* until *nth*, the raster sort until *Raster above each PSTH*, the
+*n* until *nth*, the raster sort, grouping and marks until *Raster above
+each PSTH*, the marks' look until a line is named to mark, the jitter
+until the *points* layout, the units of a shift until a parameter is
+chosen, the
 waveform's spikes, location, axis box and size until **Show** is not
 *Off*; under the auROC baseline the step until *sliding*, the threshold
 until a fixed cutoff, the resamples for ranksum, the calls without a
@@ -324,7 +333,7 @@ error, and the report files written.
 
 ## Plot kinds
 
-The eight kinds of `EphysAnalysisConfig.plotKinds()`; the first layout
+The nine kinds of `EphysAnalysisConfig.plotKinds()`; the first layout
 listed is the default.
 
 | Kind (label) | Sources | Layouts | Windows | Baseline modes |
@@ -337,6 +346,7 @@ listed is the default.
 | `heatmap` (Heatmap) | all six | groups | fixed | spikes: as the PSTH; signals: none, subtract |
 | `probemap` (Probe map) | units, detected | shanks | no alignment | none |
 | `corrmap` (Unit correlation) | units, detected | groups | fixed, between | none, subtract |
+| `behavior` (Behavior) | trials | points, line, box, swarm, violin | fixed | none |
 
 How each is computed: [Compute](EphysAnalysis.md#compute).
 
@@ -374,8 +384,24 @@ each unit.
 ### Raster
 
 One raster per unit: epochs as rows, sorted by group, then by **Sort raster
-by**, then by time, each group on a pale band of its colour. Paged like the
-PSTH grid.
+by** (ascending or descending), then by time, each group on a pale band of
+its colour; with **Raster rows by group first** unticked every epoch is
+sorted as one block, each row on its group's colour. Paged like the PSTH
+grid.
+
+- To align the rows to the response: in the plot's *Event reference*,
+  **Line** *RespWindow*, **Shift by** *RespLatency* (ms). The trials
+  without a response are left out.
+- To keep the rows aligned to the stimulus and sort them by response
+  latency: tick **Stop event** in the *Epoch window* with *RespWindow*
+  onset and **Stop shift by** *RespLatency*, then **Sort raster by**
+  *stop*. **Stop marks** puts a dot at each row's response.
+- **Mark events** marks every onset and / or offset of the named lines
+  inside each row's epoch (*Trough* for nose pokes, a beam line for beam
+  crossings: several in a trial give several marks), in **Mark look**'s
+  marker, size and colour. Each line and edge is listed in the legend and
+  is one component for the aesthetics editor, so a right-click restyles
+  one line's marks.
 
 <!-- wiki: ![Rasters of several units, epochs sorted by Depth](images/analysis-example-raster.png) -->
 
@@ -414,6 +440,33 @@ The rate against a trial parameter (**Parameter**), one curve per value of
 **Series**. `grid` is one tile per unit, `overlay` the mean over units. A
 text parameter is spaced evenly with its values as tick labels. It needs
 paired trials and the parameters named.
+
+### Behavior
+
+One value per epoch against a trial parameter: the response latency by
+the stimulus depth, say. **Y value** is a numeric trial parameter
+(*RespLatency*, as recorded: Epsych2 stores ms) or *stop*, each epoch's
+stop-event latency in ms (with the event at *RespWindow* onset and the
+stop at *Trough* onset, both in trial scope: the time to the response on
+the digital lines). **Parameter** is the x axis, **Series** splits the
+values into series side by side in their colours (blank: one); the trial
+selection's groups are not used. Epochs without a value (misses) are
+left out and counted in the caption.
+
+- `points`: every value as a dot (**Jitter points** spreads them
+  sideways), with each x value's mean ± SEM.
+- `line`: the mean ± SEM per x value, joined.
+- `box`: a box plot per x value (`boxchart`).
+- `swarm`: every value, spread so none overlap (`swarmchart`), with the
+  mean ± SEM.
+- `violin`: the values' density (`violinplot`, MATLAB R2024b or later),
+  with the mean ± SEM.
+
+**X axis** spaces the values evenly (labelled with their values) or
+places them at their values. It reads no spikes or signals, only the
+paired trials and the digital lines, so it needs paired trials; the
+window need not lie inside the recording and artifact periods do not
+matter.
 
 ### Heatmap
 
@@ -536,9 +589,9 @@ The runner's `plotSkipReason`, shown by the preview, Plan and the results:
 | no sorted units | the sorting folder holds no sorted units | sort the dataset, or associate its sorted-output folder ([Sorting](EphysPipelineApp.md#sorting)) |
 | no detected spikes | the spikes file has no threshold detections | run the Spikes step ([Spikes](EphysPipelineApp.md#spikes)) |
 | no LFP extract (MUA, SPIKE, AUX) | the Signals step did not write that signal | enable it in the pipeline's Signals step and run it ([Signals](EphysPipelineApp.md#signals)) |
-| no paired trials | trial scope, the `Trial` line, a filter / response / trial list / group-by, or a tuning plot, on a dataset without paired trials | approve the pairing on the pipeline app's [Trials tab](EphysPipelineApp.md#trials) and write the behavior file; or align in recording scope without a selection |
-| no line X | the event or stop line is not among the dataset's lines (in trial scope: among the lines seen in its trials) | check the line names on the Data tab |
-| no trial parameter X | a group-by, tuning or series parameter the trials lack | pick one from the dataset's parameters |
+| no paired trials | trial scope, the `Trial` line, a filter / response / trial list / group-by, an event or stop shifted by a trial parameter, or a tuning or behavior plot, on a dataset without paired trials | approve the pairing on the pipeline app's [Trials tab](EphysPipelineApp.md#trials) and write the behavior file; or align in recording scope without a selection |
+| no line X | the event or stop line, or a line the raster marks, is not among the dataset's lines (in trial scope: among the lines seen in its trials) | check the line names on the Data tab |
+| no trial parameter X | a group-by, shift-by, tuning, series, behavior y value or raster sort parameter the trials lack | pick one from the dataset's parameters |
 | no probe map | the manifest names no probe file (probe maps only) | assign a probe on the pipeline app's [Probe tab](EphysPipelineApp.md#probe) |
 
 A plot that is not skipped can still fail when it runs, e.g. *no Stim onset
@@ -578,7 +631,12 @@ uses (y limits, heat colours, a probe map's missing alignment) and greying
 out the ones its options switch off; a spike heatmap with the auROC baseline
 (its settings shown and reaching the plot, its preview marked) and the auROC
 response test; the Unit waveform rows (greyed out while *Off*, reaching
-the plot, previewed without the box, hidden for an overlay); collapsing a
+the plot, previewed without the box, hidden for an overlay); a raster's
+sort, direction, grouping and event marks reaching the plot and the
+preview; **Shift by** giving a plot its own event shifted by RespLatency
+(the misses left out); a behavior plot (its rows shown, the others
+hidden; the y value, parameter, jitter and layout reaching the plot; its
+box-plot preview); collapsing a
 section; the gather / apply
 round trip, keeping the fields without a control (the stop event's offset,
 length and time range, trial rows) and the stop's *n*; Save As, New, reopen;

@@ -18,10 +18,11 @@ classdef EphysAnalysisConfig
     %     Plots     struct array, one entry per plot (defaults("Plot")): id,
     %               kind (see Kinds / plotKinds), enabled, source, units,
     %               channels, ref, window, selection, bins, baseline, layout,
-    %               withRaster, rasterSort, histStyle, fill, fillAlpha, normalize, stack,
-    %               stackSpacing, maskAfterStop, param, seriesParam, value,
-    %               order, metric, correlation, measure, auroc, waveform,
-    %               aesthetics, style
+    %               withRaster, rasterSort, rasterSortOrder, rasterByGroup,
+    %               rasterEvents, histStyle, fill, fillAlpha, normalize, stack,
+    %               stackSpacing, maskAfterStop, param, seriesParam, yParam,
+    %               jitter, xScale, value, order, metric, correlation,
+    %               measure, auroc, waveform, aesthetics, style
     %     Export    figure files: Formats (png / eps / svg / pdf), Folder and
     %               FilenamePattern with tokens, Dpi, FigureSizeCm
     %     Report    one HTML and / or multi-page PDF report per run (or per
@@ -67,7 +68,7 @@ classdef EphysAnalysisConfig
         Schema   = "ephys-analysis-config"
         Version  = 1
         Sections = ["Source" "Defaults" "Export" "Report"]
-        Kinds    = ["psth" "raster" "evoked" "rate" "tuning" "heatmap" "probemap" "corrmap"]
+        Kinds    = ["psth" "raster" "evoked" "rate" "tuning" "heatmap" "probemap" "corrmap" "behavior"]
         SpikeSources  = ["units" "detected"]
         SignalSources = ["LFP" "MUA" "SPIKE" "AUX"]
         % Where in a unit's tile its waveform box sits (a plot's waveform.location).
@@ -134,7 +135,9 @@ classdef EphysAnalysisConfig
         function [obj, id] = addPlot(obj, p, opts)
             %addPlot  Append a plot: a kind ("psth") or a (partial) plot struct.
             %   [CFG, ID] = cfg.addPlot("rate", Id="rate_platform") returns the
-            %   new config and the plot's id (assigned when not given).
+            %   new config and the plot's id (assigned when not given). A plot
+            %   given without a source reads its kind's first (units; LFP for
+            %   an evoked potential, trials for a behavior plot).
             arguments
                 obj (1,1) EphysAnalysisConfig
                 p = "psth"
@@ -142,6 +145,11 @@ classdef EphysAnalysisConfig
             end
             if isstring(p) || ischar(p)
                 p = struct('kind', string(p));
+            end
+            if isstruct(p) && isscalar(p) && isfield(p, 'kind') && ~isfield(p, 'source')
+                K = EphysAnalysisConfig.plotKinds();
+                row = K.Kind == string(p.kind);
+                if any(row); p.source = K.Sources{row}(1); end
             end
             if opts.Id ~= ""; p.id = opts.Id; end
             p = EphysAnalysisConfig.normalizePlot(p);

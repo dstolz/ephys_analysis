@@ -114,6 +114,12 @@ end
 Wv.mean{3} = 60 * shape;
 Rpw = Rp; Rpw.waveforms = Wv;
 Rtw = Rt; Rtw.waveforms = Wv;
+Rpm = Rp;   % a raster with event marks (epochEvents' shape): two per epoch of a line's onsets
+Rpm.rasterEvents = struct('line', "Beam", 'edge', "onset", 'label', "Beam onset", ...
+    'epoch', repelem((1:nE).', 2), 't', repmat([0.1; 0.3], nE, 1));
+yb = 300 + 80 * randn(nE, 1);
+yb(1:5:end) = NaN;
+Rb = behaviorValues(yb, mod((1:nE).', 3), Series=mod((1:nE).', 2), Param="Depth", SeriesParam="TrialType", YName="RespLatency");
 
 fprintf('\n== 2. every renderer names what it draws ==\n');
 cases = {
@@ -134,8 +140,18 @@ cases = {
     "evoked grid",        "evoked",  struct('kind', "evoked", 'layout', "grid", 'source', "LFP")
     "psth + waveforms",   "psthW",   struct('kind', "psth", 'waveform', struct('mode', "both"))
     "raster + waveforms", "psthW",   struct('kind', "raster", 'waveform', struct('mode', "subsample", 'box', false))
-    "tuning + waveforms", "tuningW", struct('kind', "tuning", 'waveform', struct('mode', "mean", 'location', "southwest"))};
-results = struct('psth', Rp, 'rate', Rr, 'tuning', Rt, 'corrmap', Rc, 'probemap', Rq, 'evoked', Rv, 'psthW', Rpw, 'tuningW', Rtw);
+    "tuning + waveforms", "tuningW", struct('kind', "tuning", 'waveform', struct('mode', "mean", 'location', "southwest"))
+    "raster + marks",     "psthM",   struct('kind', "raster", 'rasterByGroup', false)
+    "psth + marks",       "psthM",   struct('kind', "psth")
+    "behavior points",    "behavior", struct('kind', "behavior")
+    "behavior line",      "behavior", struct('kind', "behavior", 'layout', "line")
+    "behavior box",       "behavior", struct('kind', "behavior", 'layout', "box")
+    "behavior swarm",     "behavior", struct('kind', "behavior", 'layout', "swarm")};
+if exist('violinplot', 'file')   % MATLAB R2024b or later
+    cases(end+1, :) = {"behavior violin", "behavior", struct('kind', "behavior", 'layout', "violin")};
+end
+results = struct('psth', Rp, 'rate', Rr, 'tuning', Rt, 'corrmap', Rc, 'probemap', Rq, 'evoked', Rv, 'psthW', Rpw, 'tuningW', Rtw, ...
+    'psthM', Rpm, 'behavior', Rb);
 fig = figure('Visible', 'off');
 allTagged = true; untagged = strings(0, 1);
 for i = 1:size(cases, 1)

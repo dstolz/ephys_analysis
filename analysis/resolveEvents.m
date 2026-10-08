@@ -1,15 +1,19 @@
-function [t, trial, k] = resolveEvents(src, ref, mask)
+function [t, trial, k, shift, nNoValue] = resolveEvents(src, ref, mask)
 %resolveEvents  The event times an event reference picks out.
-%   [T, TRIAL, K] = resolveEvents(SRC, REF, MASK) returns, for the dataset
-%   SRC (loadAnalysisSource) and the eventRef REF,
+%   [T, TRIAL, K, SHIFT, NNOVALUE] = resolveEvents(SRC, REF, MASK) returns,
+%   for the dataset SRC (loadAnalysisSource) and the eventRef REF,
 %     T      [n x 1] event times, s (the digital-event convention t = row/Fs
 %            of the recording, src.fs; polarity applied, plus
-%            REF.offsetSec), ascending
+%            REF.offsetSec and SHIFT), ascending
 %     TRIAL  [n x 1] row of src.trials each event belongs to (NaN outside
 %            any trial)
 %     K      [n x 1] which interval of its trial (trial scope) or of the
 %            recording (recording scope) the event came from, 1-based,
 %            counted after the duration / time-range filters
+%     SHIFT  [n x 1] what REF.offsetParam added to each event, s (its
+%            trial's value of the parameter; 0 without offsetParam)
+%     NNOVALUE  how many events REF.offsetParam dropped: outside the
+%            trials, or on a trial without a finite value
 %
 %   An interval belongs to the trial whose [TrialOnset, TrialOffset] holds
 %   its REF.edge (the edge before REF.offsetSec), in both scopes: an
@@ -29,9 +33,16 @@ function [t, trial, k] = resolveEvents(src, ref, mask)
 %   MASK is given (a restrictive trial selection), events outside the kept
 %   trials are dropped. line "Trial" is the pairing's trial line.
 %
-%   Errors: resolveEvents:NoTrials (trial scope without paired trials),
-%   resolveEvents:NoLine (no such line), resolveEvents:NoEvents (nothing
-%   left).
+%   With REF.offsetParam (e.g. "RespLatency", REF.offsetParamUnit "ms")
+%   each event is then moved by its trial's value of that parameter: the
+%   trial is still the one holding the unshifted edge, and the events
+%   without a value are dropped (NNOVALUE). The events are sorted after the
+%   shift.
+%
+%   Errors: resolveEvents:NoTrials (trial scope, or offsetParam, without
+%   paired trials), resolveEvents:NoLine (no such line),
+%   resolveEvents:NoParam / resolveEvents:BadParam (offsetParam is not a
+%   numeric trial column), resolveEvents:NoEvents (nothing left).
 %
 %   See also eventRef, epochTable, selectTrials.
 
@@ -104,12 +115,19 @@ else
     end
 end
 
+shift = trialParamShift(src, ref, trial);
+has = isfinite(shift);
+nNoValue = nnz(~has);
+t = t(has) + shift(has); trial = trial(has); k = k(has); shift = shift(has);
 [t, o] = sort(t);
 trial = trial(o);
 k = k(o);
+shift = shift(o);
 if isempty(t)
     hint = "";
-    if scope == "trial" && ~isTrialLine
+    if nNoValue > 0
+        hint = sprintf(' %d event(s) were dropped because their trial has no value of %s.', nNoValue, ref.offsetParam);
+    elseif scope == "trial" && ~isTrialLine
         hint = sprintf(' In trial scope an interval counts for the trial that holds its %s; use scope "recording" for a line whose intervals lie between trials.', ref.edge);
     end
     error('resolveEvents:NoEvents', '%s: no %s %s event is left after the selection (scope %s, which %s).%s', ...

@@ -11,9 +11,10 @@ function [E, G] = epochTable(src, ref, opts)
 %     t0Continuous the same event on the continuous clock of the signals
 %                  and spike times (row k at (k-1)/Fs): t0 - 1/src.fs, the
 %                  time of the recording sample r that produced it,
-%                  computed as (r-1)/Fs (+ REF.offsetSec) so that it equals
-%                  the time of a spike in that sample exactly. The compute
-%                  functions align signals and spikes to it
+%                  computed as (r-1)/Fs (+ REF.offsetSec and the
+%                  REF.offsetParam shift) so that it equals the time of a
+%                  spike in that sample exactly. The compute functions
+%                  align signals and spikes to it
 %     t1           the stop event (WIN.stop), s; NaN without one
 %     tStart, tStop   the window, on the clock of t0: [t0+pre, t0+post]
 %                  ("fixed") or [t0+pre, t1+post] ("between")
@@ -30,12 +31,15 @@ function [E, G] = epochTable(src, ref, opts)
 %   in each group and nTrials added (the kept trials of the group).
 %
 %   The events are those of resolveEvents: an interval belongs to the trial
-%   that holds its edge. The stop event of an epoch is the first
+%   that holds its edge, and REF.offsetParam moves each event by its
+%   trial's value of that parameter (events without one are dropped:
+%   nDroppedNoValue). The stop event of an epoch is the first
 %   (REF.which of WIN.stop) stop event at or after t0: in the same trial
 %   when the epoch has one (stop scope "trial" or "auto"), among the
 %   intervals overlapping that trial (its TrialEvents), so the offset of an
 %   interval that runs on past the trial still ends the epoch; else over
-%   the recording.
+%   the recording. A stop event with its own offsetParam is moved by the
+%   epoch's trial's value (none, t1 NaN, when that trial has no value).
 %   With a restrictive selection (filter, response, trials or groupBy) in
 %   recording scope, events outside the kept trials are dropped.
 %
@@ -56,8 +60,9 @@ function [E, G] = epochTable(src, ref, opts)
 %                  tuning parameter)
 %
 %   E.Properties.UserData holds ref, window, selection, scope, nEvents,
-%   nDroppedNoStop, nDroppedEdge, nDroppedArtifact, nTrials,
-%   nTrialsSelected and dataset.
+%   nDroppedNoValue (events REF.offsetParam dropped: no value on their
+%   trial; not in nEvents), nDroppedNoStop, nDroppedEdge, nDroppedArtifact,
+%   nTrials, nTrialsSelected and dataset.
 %   Errors: epochTable:NoEpochs (every event dropped), epochTable:NoColumn,
 %   epochTable:NoRate (src.fs unknown), and those of resolveEvents /
 %   selectTrials.
@@ -93,7 +98,7 @@ if scope == "trial" || restrictive
 else
     maskArg = [];
 end
-[t0, trial] = resolveEvents(src, ref, maskArg);
+[t0, trial, ~, shift, nNoValue] = resolveEvents(src, ref, maskArg);
 nEv = numel(t0);
 
 % --- stop events ---------------------------------------------------------------
@@ -125,15 +130,17 @@ complete = hasStop & inRec & okLen;
 nNoStop = nnz(~hasStop | ~okLen);
 nEdge = nnz(hasStop & okLen & ~inRec);
 
-% the event at recording row r (t0 = r/Fs + offsetSec) happened at (r-1)/Fs
-% on the continuous clock: from the row, bit for bit a spike time (sample-1)/Fs
-t0Continuous = (round((t0 - ref.offsetSec) * src.fs) - 1) / src.fs + ref.offsetSec;
+% the event at recording row r (t0 = r/Fs + offsetSec + shift) happened at
+% (r-1)/Fs on the continuous clock: from the row, bit for bit a spike time
+% (sample-1)/Fs
+off = ref.offsetSec + shift;
+t0Continuous = (round((t0 - off) * src.fs) - 1) / src.fs + off;
 
 % --- artifact periods: on the continuous clock, as the window shifted there -------
 artifact = false(nEv, 1);
 if isfield(src, 'artifacts') && ~isempty(src.artifacts)
-    shift = t0 - t0Continuous;
-    artifact = EphysDataset.overlapsIntervals(readStart - shift, readStop - shift, src.artifacts);
+    clockShift = t0 - t0Continuous;
+    artifact = EphysDataset.overlapsIntervals(readStart - clockShift, readStop - clockShift, src.artifacts);
 end
 
 % --- groups ---------------------------------------------------------------------
@@ -160,6 +167,7 @@ if ~any(keep)
     if nNoStop > 0; why(end+1) = sprintf("%d without a stop event", nNoStop); end
     if nEdge > 0;   why(end+1) = sprintf("%d with a window outside the recording", nEdge); end
     if nArtifact > 0 && opts.Artifacts == "drop"; why(end+1) = sprintf("%d touching an artifact period", nArtifact); end
+    if nNoValue > 0; why(end+1) = sprintf("and %d more dropped before: their trial has no %s", nNoValue, ref.offsetParam); end
     error('epochTable:NoEpochs', '%s: none of the %d %s event(s) makes a usable epoch (%s).', ...
         src.name, nEv, ref.line, strjoin(why, "; "));
 end
@@ -194,7 +202,7 @@ end
 G.nTrials = G.n;
 G.n = accumarray(groupIndex, 1, [height(G) 1]);
 E.Properties.UserData = struct('ref', ref, 'window', win, 'selection', sel, 'scope', scope, ...
-    'nEvents', nEv, 'nDroppedNoStop', nNoStop * (opts.Incomplete == "drop"), ...
+    'nEvents', nEv, 'nDroppedNoValue', nNoValue, 'nDroppedNoStop', nNoStop * (opts.Incomplete == "drop"), ...
     'nDroppedEdge', nEdge * (opts.Incomplete == "drop"), ...
     'nDroppedArtifact', nArtifact * (opts.Artifacts == "drop"), 'nTrials', src.nTrials, ...
     'nTrialsSelected', nnz(mask), 'dataset', src.name);
@@ -203,11 +211,14 @@ end
 
 function t1 = stopTimes(src, stop, t0, trial)
 %stopTimes  The stop event following each epoch event (NaN when none).
+%   A stop with an offsetParam is moved by the epoch's trial's value of it.
 n = numel(t0);
 t1 = NaN(n, 1);
 isTrialLine = stop.line == "Trial" || (src.trialLine ~= "" && stop.line == src.trialLine);
 recIv = [];
+shift = trialParamShift(src, stop, trial);
 for j = 1:n
+    if ~isfinite(shift(j)); continue; end
     useTrial = stop.scope == "trial" || (stop.scope == "auto" && src.hasTrials && isfinite(trial(j)));
     if useTrial
         if ~src.hasTrials || ~isfinite(trial(j)); continue; end
@@ -234,7 +245,7 @@ for j = 1:n
         iv = recIv;
         origin = 0;
     end
-    e = pickEvents(iv, stop, origin, t0(j) - stop.offsetSec);
-    if ~isempty(e); t1(j) = e(1); end
+    e = pickEvents(iv, stop, origin, t0(j) - stop.offsetSec - shift(j));
+    if ~isempty(e); t1(j) = e(1) + shift(j); end
 end
 end

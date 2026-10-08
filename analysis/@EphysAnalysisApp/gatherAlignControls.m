@@ -19,6 +19,8 @@ ref.minDurationSec = text2num(C.MinDur.Value, 0);
 ref.maxDurationSec = text2num(C.MaxDur.Value, Inf);
 ref.timeRange = [text2num(C.TimeFrom.Value, -Inf) text2num(C.TimeTo.Value, Inf)];
 ref.offsetSec = C.Offset.Value;
+ref.offsetParam = paramOf(C.ShiftParam);
+ref.offsetParamUnit = string(C.ShiftUnit.Value);
 stop = [];
 if C.StopOn.Value
     stop = win.stop;
@@ -28,6 +30,8 @@ if C.StopOn.Value
     stop.which = string(C.StopWhich.Value);
     stop.n = C.StopN.Value;
     stop.scope = string(C.StopScope.Value);
+    stop.offsetParam = paramOf(C.StopShiftParam);
+    stop.offsetParamUnit = string(C.StopShiftUnit.Value);
 end
 win.mode = string(C.Mode.Value);
 win.pre = C.Pre.Value;
@@ -49,6 +53,13 @@ sel.pairingFlags = flags;
 sel.groupBy = g;
 sel.groupOrder = string(C.Order.Value);
 sel.maxGroups = C.MaxGroups.Value;
+end
+
+
+function p = paramOf(dd)
+%paramOf  The parameter a "(none)"-or-parameter drop-down shows ("" for none).
+p = strtrim(string(dd.Value));
+if p == "(none)"; p = ""; end
 end
 
 

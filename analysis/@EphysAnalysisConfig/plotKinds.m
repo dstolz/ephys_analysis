@@ -3,10 +3,11 @@ function T = plotKinds()
 %   T = EphysAnalysisConfig.plotKinds() has one row per kind (in the order
 %   of EphysAnalysisConfig.Kinds):
 %     Kind           "psth" | "raster" | "evoked" | "rate" | "tuning" |
-%                    "heatmap" | "probemap" | "corrmap"
+%                    "heatmap" | "probemap" | "corrmap" | "behavior"
 %     Label          name shown in the app
 %     Sources        sources it reads: "units" / "detected" (spike times)
-%                    and / or "LFP" / "MUA" / "SPIKE" / "AUX" (signals)
+%                    and / or "LFP" / "MUA" / "SPIKE" / "AUX" (signals), or
+%                    "trials" (the paired trials and digital lines alone)
 %     Layouts        layouts it draws; the first is the default
 %     DefaultLayout  Layouts(1)
 %     WindowModes    "fixed", or "fixed" and "between"
@@ -26,6 +27,7 @@ rows = {
     "heatmap",  "Heatmap",          [spk sig], "groups",                      "fixed",             true,  "Units or channels by time, one tile per group"
     "probemap", "Probe map",        spk,       "shanks",                      "fixed",             false, "A per-channel value (rate, spikes, units) drawn on the probe sites"
     "corrmap",  "Unit correlation", spk,       "groups",                      ["fixed" "between"], true,  "Pairwise correlation of the units' per-epoch mean or peak rates, one matrix per group"
+    "behavior", "Behavior",         "trials",  ["points" "line" "box" "swarm" "violin"], "fixed",  true,  "A per-trial value (a trial parameter such as RespLatency, or the stop event's latency) against a trial parameter"
     };
 n = size(rows, 1);
 Kind = strings(n, 1); Label = strings(n, 1); Description = strings(n, 1);

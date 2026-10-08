@@ -1,8 +1,9 @@
 function fillAlignItems(obj, C)
 %fillAlignItems  List the active dataset's lines and trial parameters in a control set.
 %   The line boxes offer "Trial" and every digital line (the extract's and
-%   the trials'); the group-by boxes every Epsych2 parameter. The boxes are
-%   editable, so a value the active dataset lacks stays as typed.
+%   the trials'); the group-by and shift-by boxes every Epsych2 parameter.
+%   The boxes are editable, so a value the active dataset lacks stays as
+%   typed.
 lines = "Trial";
 params = string.empty(1, 0);
 src = activeSource(obj);
@@ -18,6 +19,8 @@ setItems(C.Line, lines);
 setItems(C.StopLine, lines);
 setItems(C.Group1, ["(none)" params]);
 setItems(C.Group2, ["(none)" params]);
+setItems(C.ShiftParam, ["(none)" params]);
+setItems(C.StopShiftParam, ["(none)" params]);
 end
 
 

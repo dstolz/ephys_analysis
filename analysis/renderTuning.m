@@ -29,7 +29,7 @@ arguments
     opts.Style = struct()
 end
 
-style = EphysAnalysisConfig.normalizeSection("Style", opts.Style);
+style = renderStyle(opts.Style);
 wave = EphysAnalysisConfig.normalizeSection("Waveform", opts.Waveform);
 waves = [];
 if isfield(R, 'waveforms') && opts.Layout == "grid"; waves = R.waveforms; end

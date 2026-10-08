@@ -4,7 +4,9 @@ function test_EphysAnalysisApp()
 %   and drives it through its own methods: the tabs; Scan filling the
 %   datasets table; the active dataset's lines and parameters; grouping by
 %   Depth from the Alignment controls (the epoch count reports the groups);
-%   adding a PSTH and previewing it into the preview panel; editing the plot
+%   adding a PSTH and previewing it into the preview panel; the plot designs
+%   (the Design list and menu, choosing one redrawing the preview, saving
+%   the preview's look as a design and deleting it); editing the plot
 %   (bins; an edit in a "Use default" section giving the plot its own event
 %   reference or window, ticking it again going back); the editor showing
 %   only the rows and sections a plot uses (y limits, heat colours, the
@@ -110,6 +112,27 @@ check(isstruct(ctx) && ctx.id == "psth_1" && isscalar(app.Config.Plots(1).aesthe
     && startsWith(app.Fig.Name, "*"), ...
     'the preview is editable (right-click), and rules remembered for the plot go into the config');
 app.rememberAesthetics("psth_1", []);
+designs = PlotDesign.list();
+check(numel(app.DesignDropDown.Items) == height(designs) && string(app.DesignDropDown.Value) == "Default" ...
+    && any(string({app.DesignMenu.Children.Text}) == "Tufte"), 'the Design list and menu offer every design, Default chosen');
+cfg0 = app.Config.toStruct();
+app.onDesignChosen("Night");
+night = PlotDesign.load("Night");
+menuChecked = string({app.DesignMenu.Children(strcmp({app.DesignMenu.Children.Checked}, 'on')).Text});
+check(isequal(app.PreviewPanel.BackgroundColor, night.background) && string(app.DesignDropDown.Value) == "Night" ...
+    && isequal(menuChecked, "Night") && isequaln(app.Config.toStruct(), cfg0), ...
+    sprintf('choosing a design redraws the preview in it at once and ticks it, without touching the config (ground %s, list %s, menu %s)', ...
+    mat2str(app.PreviewPanel.BackgroundColor, 3), string(app.DesignDropDown.Value), strjoin(menuChecked, "|")));
+app.onSaveDesign("Lab look", "for lab meeting");
+mine = PlotDesign.list();
+k = find(mine.Name == "Lab look");
+check(isscalar(k) && mine.Source(k) == "mine" && PlotDesign.currentName() == "Lab look" ...
+    && string(app.DesignDropDown.Value) == "Lab look" && isequal(app.PreviewPanel.BackgroundColor, night.background), ...
+    'Save look as design keeps the preview''s look as a design of yours and chooses it');
+app.onDeleteDesign("Lab look", Confirm=false);
+check(~any(PlotDesign.list().Name == "Lab look") && string(app.DesignDropDown.Value) == "Default" ...
+    && isequal(app.PreviewPanel.BackgroundColor, [1 1 1]), 'deleting the chosen design goes back to Default');
+if isfolder(PlotDesign.folder()); rmdir(PlotDesign.folder(), 's'); end
 E = app.PlotEditor;
 A = app.PlotAlignControls;
 check(E.defaultRef.Value && E.defaultWindow.Value && A.Line.Enable == "on" && A.Pre.Enable == "on" ...

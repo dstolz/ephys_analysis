@@ -16,15 +16,22 @@ function h = renderPlot(R, spec, target, opts)
 %   subtitle.
 %
 %   Aesthetics: every component drawn is named by its role and group
-%   (tagPart), and the remembered rules are applied after drawing: the
-%   user's for SPEC.kind (PlotAesthetics.userRules), then the plot's own
-%   (SPEC.aesthetics), so the plot's win. In a visible figure a right-click
-%   on any component opens PlotAestheticsDialog, which edits the plot live.
+%   (tagPart). The plot is drawn in a design (PlotDesign: its ground, group
+%   colours and colormaps), and after drawing the rules are applied: the
+%   design's, the user's for SPEC.kind (PlotAesthetics.userRules), then
+%   the plot's own (SPEC.aesthetics), so the later win. In a visible figure
+%   a right-click on any component opens PlotAestheticsDialog, which edits
+%   the plot live, or picks another design (every plot on screen that
+%   follows the chosen design is redrawn in it) or saves the plot's look as
+%   one.
 %
 %   Options
 %     Page            page of a grid (default 1)
-%     UserAesthetics  apply the user's remembered rules (default true;
-%                     false: only SPEC.aesthetics)
+%     Design          "" (default): the design the user chose
+%                     (PlotDesign.current; none when UserAesthetics is
+%                     false); a design's name; or a design (PlotDesign.load)
+%     UserAesthetics  apply the user's design and remembered rules
+%                     (default true; false: only SPEC.aesthetics)
 %     Editable        "auto" (default: when TARGET's figure is visible),
 %                     true or false: the right-click aesthetics editor
 %     OnRemember      called with the plot's new aesthetics rules when the
@@ -42,13 +49,16 @@ arguments
     spec
     target
     opts.Page (1,1) double {mustBePositive, mustBeInteger} = 1
+    opts.Design = ""
     opts.UserAesthetics (1,1) logical = true
     opts.Editable = "auto"
     opts.OnRemember = []
 end
 
 spec = plotSpecFor(R, spec);
+[design, follows] = designFor(opts.Design, opts.UserAesthetics);
 style = spec.style;
+style.Design = design;
 nPages = plotPageCount(R, spec);
 page = min(opts.Page, nPages);
 switch spec.kind
@@ -108,13 +118,46 @@ rules = plotRules;
 if opts.UserAesthetics
     rules = [PlotAesthetics.userRules(spec.kind) rules];
 end
+rules = [PlotDesign.rulesFor(design, spec.kind) rules];
+PlotDesign.paint(root, design);
 PlotAesthetics.apply(root, rules);
 if editable(opts.Editable, target)
     ctx = struct('kind', spec.kind, 'id', spec.id, 'title', txt, 'root', root, 'target', target, 'plotRules', plotRules, ...
-        'onRemember', {opts.OnRemember}, ...
+        'onRemember', {opts.OnRemember}, 'design', design, 'followsDesign', follows, ...
+        'ordinal', isfield(R, 'groups') && istable(R.groups) && ismember('color', R.groups.Properties.VariableNames) ...
+            && isOrdinalGroups(R.groups), 'mapField', mapFieldOf(R, spec), ...
         'redraw', @(newRules) renderPlot(R, setfield(spec, 'aesthetics', newRules), target, Page=page, ...
-            UserAesthetics=opts.UserAesthetics, Editable=opts.Editable, OnRemember=opts.OnRemember)); %#ok<SFLD>
+            Design=opts.Design, UserAesthetics=opts.UserAesthetics, Editable=opts.Editable, OnRemember=opts.OnRemember)); %#ok<SFLD>
     PlotAesthetics.enableEditing(target, ctx);
+end
+end
+
+
+function [D, follows] = designFor(design, userAesthetics)
+%designFor  The design to draw in, and whether it is the user's choice (a new choice redraws it).
+follows = false;
+if isstruct(design)
+    D = design;
+elseif string(design) ~= ""
+    D = PlotDesign.load(string(design));
+elseif userAesthetics
+    D = PlotDesign.current();
+    follows = true;
+else
+    D = PlotDesign.none();
+end
+end
+
+
+function f = mapFieldOf(R, spec)
+%mapFieldOf  Which of a design's colormaps the plot's images are drawn in ("" = none).
+switch spec.kind
+    case "corrmap",  f = "diverging";
+    case "probemap", f = "heat";
+    case "heatmap"
+        f = "heat";
+        if R.kind == "psth" && isAuroc(R); f = "diverging"; end
+    otherwise,       f = "";
 end
 end
 

@@ -1,10 +1,11 @@
 function buildMenus(obj)
-%buildMenus  File and Help menus.
+%buildMenus  File, Design and Help menus.
 %   File: the analysis-config lifecycle (New, Open, Open recent, Save, Save
 %   As), Generate script (compact | standalone), Open pipeline app and
-%   Close. Help: the wiki page of the tab shown, the documentation home and
-%   the analysis quick start (helpURL), and About (showAbout): the version
-%   of the code.
+%   Close. Design: the plot designs and what to do with them (filled by
+%   refreshDesigns). Help: the wiki page of the tab shown, the
+%   documentation home and the analysis quick start (helpURL), and About
+%   (showAbout): the version of the code.
 
 obj.FileMenu = uimenu(obj.Fig, "Text", "File");
 uimenu(obj.FileMenu, "Text", "New config", "Accelerator", "N", "MenuSelectedFcn", @(~,~) obj.onNewConfig());
@@ -20,6 +21,8 @@ uimenu(gen, "Text", "Standalone (every setting written out)...", "MenuSelectedFc
 uimenu(obj.FileMenu, "Text", "Open pipeline app", "Separator", "on", ...
     "MenuSelectedFcn", @(~,~) obj.onOpenPipelineApp());
 uimenu(obj.FileMenu, "Text", "Close", "Separator", "on", "MenuSelectedFcn", @(~,~) obj.onClose());
+
+obj.DesignMenu = uimenu(obj.Fig, "Text", "Design");
 
 obj.HelpMenu = uimenu(obj.Fig, "Text", "Help");
 uimenu(obj.HelpMenu, "Text", "Help for this tab", "Tooltip", "The wiki page for the tab that is shown.", ...

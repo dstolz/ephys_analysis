@@ -19,7 +19,7 @@ arguments
     opts.Style = struct()
 end
 
-style = EphysAnalysisConfig.normalizeSection("Style", opts.Style);
+style = renderStyle(opts.Style);
 if R.kind ~= "corrmap"
     error('renderCorrMap:BadResult', 'A correlation map draws a corrmap result, not "%s".', R.kind);
 end
@@ -28,9 +28,11 @@ nG = size(R.r, 3);
 order = probeOrder(R.meta, nU, style);
 clim0 = style.CLim;
 if ~(numel(clim0) == 2 && clim0(2) > clim0(1)); clim0 = [-1 1]; end
-cmapName = style.HeatColormap;
-if cmapName == ""; cmapName = "blueWhiteRed"; end
-cmap = feval(char(cmapName), 256);
+if style.HeatColormap == ""
+    cmap = designColormap(style, "diverging", "blueWhiteRed");
+else
+    cmap = feval(char(style.HeatColormap), 256);
+end
 [idx, nr, nc] = pageItems(nG, 1, max(nG, 1));
 [tl, ax0] = renderLayout(target, nr, nc, style);
 if ~isempty(ax0); idx = idx(1:min(1, end)); end

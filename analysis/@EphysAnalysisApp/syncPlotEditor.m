@@ -180,7 +180,7 @@ en([E.markMarker E.markSize E.markColor], raster && strtrim(string(E.markLines.V
 en(E.jitter, layout == "points");
 en([E.legend E.ylim], ~stacked);
 en([E.legendLoc E.legendOrient E.legendBox], ~stacked && E.legend.Value);
-en([E.waveSpikes E.waveLocation E.waveBox E.waveScale], string(E.waveMode.Value) ~= "off");
+en([E.waveSpikes E.waveLocation E.waveBox E.waveScale E.wavePP E.waveCount], string(E.waveMode.Value) ~= "off");
 syncAlignEnable(C);
 obj.layoutPlotEditor();
 end

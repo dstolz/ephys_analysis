@@ -371,6 +371,12 @@ E.waveBox = uicheckbox(wl, "Text", "Axis box", "Value", true, "ValueChangedFcn",
 uilabel(wl, "Text", "size:");
 E.waveScale = uispinner(wl, "Limits", [0.25 3], "Step", 0.25, "Value", 1, "ValueDisplayFormat", "%.2gx", ...
     "ValueChangedFcn", changed, "Tooltip", "The box's size, a factor of its default: a third of the tile's width and height.");
+[S, r] = formRow(S, "waveLocation", "Label:");
+wt = subgrid(S.Body, r, {'fit', 'fit', '1x'});
+E.wavePP = uicheckbox(wt, "Text", "p-p", "Value", true, "ValueChangedFcn", changed, ...
+    "Tooltip", "Say the mean waveform's peak-to-peak amplitude at the top of the box.");
+E.waveCount = uicheckbox(wt, "Text", "# spikes", "Value", false, "ValueChangedFcn", changed, ...
+    "Tooltip", "Say how many spikes the box draws (not for a template).");
 sec(end+1) = S;
 
 for i = 2:numel(sec)
@@ -382,8 +388,8 @@ obj.PlotSections = sec;
 obj.layoutPlotEditor();
 
 % --- the preview ---------------------------------------------------------------------------
-pg = uigridlayout(g, [3 6]);
-pg.RowHeight = {30, '1x', 22};
+pg = uigridlayout(g, [4 6]);
+pg.RowHeight = {30, 30, '1x', 22};
 pg.ColumnWidth = {'fit', '1x', 'fit', 'fit', 'fit', 'fit'};
 pg.Padding = [0 0 0 0];
 l = uilabel(pg, "Text", "Active dataset:");
@@ -400,12 +406,25 @@ obj.PrevPageButton = uibutton(pg, "Text", "<", "Enable", "off", "ButtonPushedFcn
 obj.PrevPageButton.Layout.Row = 1; obj.PrevPageButton.Layout.Column = 5;
 obj.NextPageButton = uibutton(pg, "Text", ">", "Enable", "off", "ButtonPushedFcn", @(~,~) obj.onPreviewPage(1));
 obj.NextPageButton.Layout.Row = 1; obj.NextPageButton.Layout.Column = 6;
+l = uilabel(pg, "Text", "Design:");
+l.Layout.Row = 2; l.Layout.Column = 1;
+dg = uigridlayout(pg, [1 3]);
+dg.Layout.Row = 2; dg.Layout.Column = [2 6];
+dg.ColumnWidth = {200, 'fit', '1x'};
+dg.Padding = [0 0 0 0];
+obj.DesignDropDown = uidropdown(dg, "Items", PlotDesign.DefaultName, "ItemsData", PlotDesign.DefaultName, ...
+    "ValueChangedFcn", @(dd, ~) obj.onDesignChosen(dd.Value), ...
+    "Tooltip", "The look of every plot: its ground, colours, fonts, axes, ticks, lines and marks. " + ...
+    "Choosing one redraws every plot on screen; runs draw their figures in it too.");
+obj.SaveDesignButton = uibutton(dg, "Text", "Save look as design...", "ButtonPushedFcn", @(~,~) obj.onSaveDesign(), ...
+    "Tooltip", "Keep the preview's look -- every property of every component, its ground and its group " + ...
+    "colours -- as a design of your own, to choose for any plot.");
 obj.PreviewPanel = uipanel(pg, "BackgroundColor", "w", "BorderType", "line");
-obj.PreviewPanel.Layout.Row = 2; obj.PreviewPanel.Layout.Column = [1 6];
+obj.PreviewPanel.Layout.Row = 3; obj.PreviewPanel.Layout.Column = [1 6];
 obj.PreviewLabel = uilabel(pg, "Text", "Add a plot, scan and pick a dataset to preview.", "FontColor", [0.35 0.35 0.35]);
-obj.PreviewLabel.Layout.Row = 3; obj.PreviewLabel.Layout.Column = [1 4];
+obj.PreviewLabel.Layout.Row = 4; obj.PreviewLabel.Layout.Column = [1 4];
 obj.PageLabel = uilabel(pg, "Text", "", "HorizontalAlignment", "right");
-obj.PageLabel.Layout.Row = 3; obj.PageLabel.Layout.Column = [5 6];
+obj.PageLabel.Layout.Row = 4; obj.PageLabel.Layout.Column = [5 6];
 end
 
 

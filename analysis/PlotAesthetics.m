@@ -28,8 +28,10 @@ classdef PlotAesthetics
     %   Editing
     %     PlotAesthetics.enableEditing(TARGET, CONTEXT)   right-click menu (renderPlot)
     %     d = PlotAesthetics.edit(H)                      the editor on component H
+    %   The right-click menu also has Design: choose a whole look for every
+    %   plot, or save this plot's look as one (PlotDesign).
     %
-    %   See also PlotAestheticsDialog, renderPlot, tagPart, AppPrefs.
+    %   See also PlotAestheticsDialog, PlotDesign, renderPlot, tagPart, AppPrefs.
 
     properties (Constant)
         PrefGroup = "PlotAesthetics"            % AppPrefs group: one rule set per plot kind
@@ -326,8 +328,9 @@ classdef PlotAesthetics
             %   P: a struct array (Name, Label, Type, Limits, Step, Choices,
             %   ChoiceLabels, Hint). Type is "color" (an RGB triplet, or a
             %   word such as none / flat where the object takes one),
-            %   "number", "choice", "onoff", "font" or "colormap" (axes holding
-            %   an image or coloured markers: a colormap name).
+            %   "number", "vector" (two numbers: TickLength), "choice",
+            %   "onoff", "font" or "colormap" (axes holding an image or
+            %   coloured markers: a colormap name).
             C = PlotAesthetics.catalogue();
             L = PlotAesthetics.classLists();
             type = PlotAesthetics.typeName(h);
@@ -425,10 +428,13 @@ classdef PlotAesthetics
             %   kind, id, title, root (the layout or axes drawn), target
             %   (TARGET), plotRules,
             %   onRemember (called with the plot's new rules; [] = they cannot
-            %   be saved with the plot) and redraw (draws the plot again with
-            %   given plot rules). Every component gets its own context menu
+            %   be saved with the plot), redraw (draws the plot again with
+            %   given plot rules), design (the PlotDesign drawn in) and
+            %   followsDesign (redrawn when another design is chosen:
+            %   PlotDesign.track). Every component gets its own context menu
             %   (UserData = the component), since a uifigure does not say which
-            %   object was right-clicked.
+            %   object was right-clicked; its Design submenu is filled when
+            %   the menu opens.
             fig = ancestor(target, 'figure');
             if isempty(fig); return; end
             setappdata(target, PlotAesthetics.ContextKey, context);
@@ -447,10 +453,13 @@ classdef PlotAesthetics
             end
             % One menu per object: a uifigure's opening event does not say which object was right-clicked.
             for o = objs
-                cm = uicontextmenu(fig, 'Tag', PlotAesthetics.MenuTag, 'UserData', o);
+                cm = uicontextmenu(fig, 'Tag', PlotAesthetics.MenuTag, 'UserData', o, ...
+                    'ContextMenuOpeningFcn', @PlotAesthetics.onMenuOpening);
                 uimenu(cm, 'Text', 'Edit aesthetics...', 'MenuSelectedFcn', @PlotAesthetics.onMenuEdit);
+                uimenu(cm, 'Text', 'Design', 'Tag', PlotDesign.MenuTag);
                 o.ContextMenu = cm;
             end
+            PlotDesign.track(target);
         end
 
         function d = edit(h)
@@ -488,6 +497,17 @@ classdef PlotAesthetics
     end
 
     methods (Static, Hidden)
+        function onMenuOpening(cm, ~)
+            %onMenuOpening  Fill the Design submenu: every design (the chosen one ticked), then save.
+            dm = findobj(cm.Children, 'flat', 'Tag', PlotDesign.MenuTag);
+            h = cm.UserData;
+            if isempty(dm) || isempty(h) || ~isvalid(h); return; end
+            try
+                PlotDesign.fillMenu(dm, h);
+            catch
+            end
+        end
+
         function onMenuEdit(menu, ~)
             %onMenuEdit  "Edit aesthetics...": the editor on the right-clicked object.
             h = menu.Parent.UserData;
@@ -542,11 +562,11 @@ classdef PlotAesthetics
                 v = string(v);
             elseif isnumeric(v) || islogical(v)
                 v = reshape(double(v), 1, []);
-                if size(v, 2) ~= 3 && ~isscalar(v)
-                    error('PlotAesthetics:BadRule', '%s: a value is a number, a colour [r g b] or text.', where);
+                if ~ismember(size(v, 2), [1 2 3])
+                    error('PlotAesthetics:BadRule', '%s: a value is a number, two numbers, a colour [r g b] or text.', where);
                 end
             else
-                error('PlotAesthetics:BadRule', '%s: a value is a number, a colour [r g b] or text.', where);
+                error('PlotAesthetics:BadRule', '%s: a value is a number, two numbers, a colour [r g b] or text.', where);
             end
         end
 
@@ -600,6 +620,7 @@ classdef PlotAesthetics
             C.FontAngle = prop("Font angle", "choice", Choices=["normal" "italic"]);
             C.FontName = prop("Font", "font");
             C.TickDir = prop("Tick direction", "choice", Choices=["in" "out" "both" "none"]);
+            C.TickLength = prop("Tick length", "vector", Hint="Two numbers, fractions of the axis length: 2-D and 3-D (e.g. 0.01 0.025)");
             C.TickDirection = prop("Tick direction", "choice", Choices=["in" "out" "both"]);
             C.Box = prop("Box", "onoff");
             C.XGrid = prop("X grid", "onoff");
@@ -633,10 +654,10 @@ classdef PlotAesthetics
             L.ViolinPlot = ["Visible" "FaceColor" "FaceAlpha" "EdgeColor" "LineStyle" "LineWidth"];
             L.Image = "Visible";
             L.Text = ["Visible" "Color" "FontSize" "FontWeight" "FontAngle" "FontName" "BackgroundColor" "EdgeColor"];
-            L.Axes = ["Visible" "Color" "XColor" "YColor" "LineWidth" "FontSize" "FontName" "TickDir" "Box" ...
+            L.Axes = ["Visible" "Color" "XColor" "YColor" "LineWidth" "FontSize" "FontName" "TickDir" "TickLength" "Box" ...
                 "XGrid" "YGrid" "GridColor" "GridAlpha" "GridLineStyle" "XMinorTick" "YMinorTick" "Colormap"];
-            L.Legend = ["Visible" "FontSize" "Location" "Orientation" "NumColumns" "Box" "Color" "EdgeColor" "TextColor"];
-            L.ColorBar = ["Visible" "FontSize" "Color" "LineWidth" "TickDirection" "Box"];
+            L.Legend = ["Visible" "FontSize" "FontName" "Location" "Orientation" "NumColumns" "Box" "Color" "EdgeColor" "TextColor"];
+            L.ColorBar = ["Visible" "FontSize" "FontName" "Color" "LineWidth" "TickDirection" "Box"];
         end
 
         function O = classLabels()

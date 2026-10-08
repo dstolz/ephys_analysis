@@ -26,16 +26,19 @@ classdef EphysAnalysisApp < handle
     %                options the plot uses -- its event / window / selection
     %                the Alignment tab's while "Use default" is ticked, its own
     %                once edited -- and a preview on the active dataset
-    %                (auto-preview while a preview takes under 2 s)
+    %                (auto-preview while a preview takes under 2 s), drawn
+    %                in the design picked above it (PlotDesign)
     %     Export     figure formats, folder and file-name pattern, the report
     %                (HTML / PDF), Validate, Plan, Run over the ticked
     %                datasets (cancelable), results, open the report / folder
     %     Log        what the runner reported
     %
     %   File menu: New / Open / Open recent / Save / Save As / Generate
-    %   script (compact | standalone) / Open pipeline app / Close. Help
-    %   menu: the wiki page of the tab shown, the documentation home and the
-    %   analysis quick start.
+    %   script (compact | standalone) / Open pipeline app / Close. Design
+    %   menu: the plot designs (choosing one redraws every plot), save the
+    %   preview's look as a design, import or delete a design, your designs
+    %   folder. Help menu: the wiki page of the tab shown, the documentation
+    %   home and the analysis quick start.
     %
     %   Preferences (getpref group 'EphysAnalysisApp'): FigurePosition,
     %   LastConfigFile, RecentConfigs, ScriptFolder, AutoPreview,
@@ -64,6 +67,7 @@ classdef EphysAnalysisApp < handle
         TabLog     matlab.ui.container.Tab
         FileMenu   matlab.ui.container.Menu
         RecentMenu matlab.ui.container.Menu
+        DesignMenu matlab.ui.container.Menu
         HelpMenu   matlab.ui.container.Menu
         StatusBar  matlab.ui.control.Label
 
@@ -109,6 +113,8 @@ classdef EphysAnalysisApp < handle
         PlotEditor struct = struct()             % plot-editor controls by field
         PlotAlignControls struct = struct()      % the plot's event / window / selection (buildAlignControls)
         PlotsDatasetDropDown matlab.ui.control.DropDown
+        DesignDropDown     matlab.ui.control.DropDown   % the plot design (PlotDesign), for every plot
+        SaveDesignButton   matlab.ui.control.Button
         PreviewPanel       matlab.ui.container.Panel
         PreviewButton      matlab.ui.control.Button
         AutoPreviewCheckBox matlab.ui.control.CheckBox
@@ -260,6 +266,14 @@ classdef EphysAnalysisApp < handle
         rememberAesthetics(obj, id, rules)
         onAutoPreviewToggled(obj)
         autoPreview(obj)
+
+        % --- plot designs (Design menu, the preview's Design row) ---
+        onDesignChosen(obj, name)
+        onSaveDesign(obj, name, description)
+        onImportDesign(obj, file)
+        onDeleteDesign(obj, name, opts)
+        onDesignsFolder(obj, action, folder)
+        refreshDesigns(obj)
 
         % --- Export tab ---
         issues = onValidate(obj)

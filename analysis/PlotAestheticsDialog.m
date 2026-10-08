@@ -507,6 +507,9 @@ classdef PlotAestheticsDialog < handle
                     c = uispinner(g, 'Limits', p.Limits, 'Step', p.Step, 'Value', x, 'ValueDisplayFormat', '%.4g', ...
                         'ValueChangedFcn', @(s, ~) obj.fromControl(nm, s.Value), 'Tooltip', p.Hint);
                     if ~(isnumeric(v) && isscalar(v)); c.Tooltip = "Now: " + PlotAesthetics.valueText(v); end
+                case "vector"
+                    c = uieditfield(g, 'text', 'Value', char(strjoin(compose("%.4g", double(v)), " ")), 'Tooltip', p.Hint, ...
+                        'ValueChangedFcn', @(s, e) obj.fromVectorText(nm, s, e));
                 case "choice"
                     items = p.Choices; labels = p.ChoiceLabels;
                     cur = string(v);
@@ -574,6 +577,17 @@ classdef PlotAestheticsDialog < handle
                 setSwatch(obj.Controls.(name).Picker, v);
                 field.Value = char(PlotAesthetics.valueText(v));
             end
+        end
+
+        function fromVectorText(obj, name, field, evt)
+            v = str2double(split(strtrim(regexprep(string(field.Value), '[\[\],;]', ' '))));
+            v = reshape(v(~isnan(v)), 1, []);
+            if numel(v) ~= 2
+                field.Value = evt.PreviousValue;
+                obj.say(sprintf('"%s" is not two numbers.', evt.Value));
+                return
+            end
+            obj.fromControl(name, v);
         end
 
         function fromColormap(obj, dd)

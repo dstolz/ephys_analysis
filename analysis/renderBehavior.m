@@ -40,7 +40,7 @@ arguments
     opts.Style = struct()
 end
 
-style = EphysAnalysisConfig.normalizeSection("Style", opts.Style);
+style = renderStyle(opts.Style);
 if opts.Layout == "violin" && ~exist('violinplot', 'file')
     error('renderBehavior:NoViolin', 'The violin layout needs violinplot (MATLAB R2024b or later).');
 end

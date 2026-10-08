@@ -29,7 +29,7 @@ arguments
     opts.Style = struct()
 end
 
-style = EphysAnalysisConfig.normalizeSection("Style", opts.Style);
+style = renderStyle(opts.Style);
 if isstruct(values) && isfield(values, 'kind') && values.kind == "probemap"
     P = values;
 else
@@ -59,9 +59,11 @@ if ~(numel(clim0) == 2 && clim0(2) > clim0(1))
     if isempty(v); clim0 = [0 1]; else; clim0 = [min(v) max(v)]; end
     if clim0(2) <= clim0(1); clim0 = clim0 + [-0.5 0.5]; end
 end
-cmapName = style.HeatColormap;
-if cmapName == ""; cmapName = "parula"; end
-cmap = feval(char(cmapName), 256);
+if style.HeatColormap == ""
+    cmap = designColormap(style, "heat", "parula");
+else
+    cmap = feval(char(style.HeatColormap), 256);
+end
 
 % One axis for every shank: shift a shank sideways only where it would overlap the one before.
 xoff = zeros(nSh, 1);

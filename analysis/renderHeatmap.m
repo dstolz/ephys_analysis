@@ -33,7 +33,7 @@ arguments
     opts.Style = struct()
 end
 
-style = EphysAnalysisConfig.normalizeSection("Style", opts.Style);
+style = renderStyle(opts.Style);
 switch R.kind
     case "psth",   V = R.rate; what = "Units";
     case "evoked", V = R.mean; what = "Channels";
@@ -65,9 +65,13 @@ end
 [idx, nr, nc] = pageItems(nG, 1, max(nG, 1));
 [tl, ax0] = renderLayout(target, nr, nc, style);
 if ~isempty(ax0); idx = idx(1:min(1, end)); end
-cmapName = style.HeatColormap;
-if cmapName == ""; cmapName = "parula"; end
-cmap = feval(char(cmapName), 256);
+if style.HeatColormap == ""
+    maps = "heat";
+    if auroc; maps = ["diverging" "heat"]; end   % auROC: centred on 0.5
+    cmap = designColormap(style, maps, "parula");
+else
+    cmap = feval(char(style.HeatColormap), 256);
+end
 axs = gobjects(1, numel(idx));
 for j = 1:numel(idx)
     g = idx(j);

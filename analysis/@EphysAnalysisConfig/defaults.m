@@ -128,6 +128,8 @@ switch section
             'mode',      "off", ...         % "off" | "mean" | "subsample" | "both" (the mean over the subsample)
             'location',  "northeast", ...   % compass point of the tile: north, south, east, west, northeast, northwest, southeast, southwest
             'box',       true, ...          % the box's outline and pale ground (false: the waveform alone)
+            'showPP',    true, ...          % the mean's peak-to-peak amplitude in the box's label
+            'showCount', false, ...         % the number of spikes drawn, in the box's label
             'scale',     1, ...             % size: 1 = a third of the tile's width and height (at most 3)
             'maxSpikes', 100);              % the subsample: spikes per unit, at random (the same each time); a sorted unit's mean is over them
 

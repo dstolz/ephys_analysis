@@ -92,7 +92,7 @@ arguments
     opts.Style = struct()
 end
 
-style = EphysAnalysisConfig.normalizeSection("Style", opts.Style);
+style = renderStyle(opts.Style);
 wave = EphysAnalysisConfig.normalizeSection("Waveform", opts.Waveform);
 waves = [];
 if isfield(R, 'waveforms') && opts.Layout == "grid"; waves = R.waveforms; end
@@ -291,7 +291,7 @@ if ref ~= 0
 end
 if style.ShowSEM
     for g = 1:nG
-        semBand(ax, R.t, P.m(:, g), P.s(:, g), colors(g, :), R.groups.label(g));
+        semBand(ax, R.t, P.m(:, g), P.s(:, g), colors(g, :), R.groups.label(g), style);
     end
 end
 lh = gobjects(1, nG);
@@ -346,7 +346,7 @@ for g = nG:-1:1
     m = P.m(:, g);
     s = zeros(size(m));
     if style.ShowSEM
-        semBand(ax, R.t, m + b, P.s(:, g), colors(g, :), R.groups.label(g));
+        semBand(ax, R.t, m + b, P.s(:, g), colors(g, :), R.groups.label(g), style);
         s = P.s(:, g);
         s(~isfinite(s)) = 0;
     end

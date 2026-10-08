@@ -714,12 +714,15 @@ what one drawing holds, and `analysis/private/tagPart.m` does the naming.
 
 A *rule* sets one property of one role: `role`, `group` (`""` = every
 group), `property` (a colour, line style or width, marker, opacity, font,
-visibility or, for axes, a colormap), `value`. It applies in every tile.
+visibility, tick direction and length or, for axes, a colormap), `value`
+(a number, two numbers, a colour or a word). It applies in every tile.
 An unknown property is `PlotAesthetics:BadRule`; a value an object refuses
 is the warning `PlotAesthetics:BadValue`, and the plot is still drawn.
-`renderPlot` applies two sets after drawing, in this order, so the plot's
-own rules win:
+`renderPlot` draws the plot in a [design](#plot-designs) and applies three
+sets of rules after drawing, in this order, so the later win:
 
+0. the design's rules (its rules for every plot, then those for the plot's
+   kind);
 1. the user's rules for the plot's kind, `PlotAesthetics.userRules(kind)`,
    which are preferences (AppPrefs group `PlotAesthetics`) and follow the
    user, not the config;
@@ -737,8 +740,10 @@ PlotAesthetics.setUserRules("psth", []);                     % forget the user's
 ```
 
 In a visible figure (`Editable="auto"`, the default; `true` / `false`
-force it) a right-click on any component offers **Edit aesthetics...**,
-which opens `PlotAestheticsDialog`, a modal window:
+force it) a right-click on any component offers **Edit aesthetics...**
+and **Design** (every [design](#plot-designs), the chosen one ticked, and
+**Save this look as a design...**). **Edit aesthetics...** opens
+`PlotAestheticsDialog`, a modal window:
 
 - **Components**: every component drawn, by tile, component and group, with
   its object type. Click a row to edit it. Tick rows to change several at
@@ -774,10 +779,127 @@ its controls do: `d.select(k)`, `d.setProperty(name, value)`,
 `d.setRemember(tf, "plot" | "user")`, `d.remembered()`, `d.forget(rows)`,
 `d.reset()`, `d.cancel()`, `d.ok()`.
 
-`renderPlot` options: `UserAesthetics` (default `true`), `Editable`
+`renderPlot` options: `Design` (`""`, the default: the design the user
+chose; a design's name; or a design struct), `UserAesthetics` (default
+`true`; `false` leaves out the user's design and rules), `Editable`
 (`"auto"`), `OnRemember` (called with the plot's new rule list; the app
 keeps it in the plot's `aesthetics`). Unedited plots and runs pay for one
-preference read per page. With no rules, nothing else is done.
+preference read per page, and a design file is read again only when it
+changed. With no rules, nothing else is done.
+
+### Plot designs
+
+A *design* is one look for every plot: the ground the plot sits on, the
+colours of the groups, the colormaps of images, and rules for every
+component (axes and their colours, ticks, fonts, box and grid; titles and
+axis labels; legends; colour bars; lines, marks, fills and bands). The
+user chooses one design, and `renderPlot` draws every plot in it: the
+app's preview, plots drawn into any figure, and the runs' exported
+figures and reports. Choosing another redraws at once every plot on
+screen that follows the choice (the ones `renderPlot` drew editable; a
+plot drawn with `Design=` set keeps its design).
+
+| Design | Look |
+|---|---|
+| Default | the plots as the renderers draw them (no file) |
+| Tufte | Edward Tufte's data-ink, after [caylent/tufte-data-viz](https://github.com/caylent/tufte-data-viz): an off-white page (`#fffff8`), serif type (Palatino), no box or grid, quiet grey axes with short outward ticks, grey data (`#555555` for one group), muted colour (`#4e79a7`, `#f28e2b`, `#e15759`, `#76b7b2`, ...) only where it tells groups apart, light-to-dark blues for ordered groups and heat maps |
+| Journal | print-ready and colour-blind safe: the Okabe-Ito colours, viridis heat maps, a red-blue diverging map, Arial, black hairline axes with outward ticks, no box or grid |
+| Night | a dark slate ground for screens: soft Nord colours, light type, a faint grid when the plot shows one, inferno heat maps |
+| Talk | for slides: big bold type, thick lines and marks, saturated colours (ColorBrewer Set1), turbo heat maps |
+| Gray panel | the ggplot2 look: a grey panel ruled by a white grid, ggplot's hues and its dark-to-light blue scale |
+
+A design sets what it names and leaves the rest to the plot. Its rules
+win over the plot's Appearance settings for the properties they set
+(Tufte and Journal turn the grid and box off, Talk sets the font sizes),
+and the user's rules and the plot's own rules win over the design. Its
+group colours apply while the plot's group colours are `"lines"` (the
+default), its colormaps while the plot's heat colours are `"auto"`, so a
+plot that picks its own keeps them. The legend's place, orientation and
+box stay the plot's (Style `LegendLocation`, `LegendOrientation`,
+`LegendBox`); a design colours the legend.
+
+A design is a JSON file named by its file name. The built-in ones are in
+`analysis/designs`; the user's are in their designs folder
+(`PlotDesign.folder()`: `EphysPlotDesigns` beside MATLAB's preferences
+folder, the same for every MATLAB release, or a folder chosen with
+`PlotDesign.setFolder`, such as one the lab shares). A user's file named
+like a built-in design is left out. Every field is optional:
+
+| Field | What |
+|---|---|
+| `name`, `description` | the name (the file name wins) and what the look is for |
+| `background` | the ground behind the plot: the figure, panel or tab the plot's layout sits in (`""` = as drawn; its colour before the first design comes back) |
+| `palette` | the groups' colours, in order (they repeat past the end) |
+| `single` | the colour of a plot with one group |
+| `sequential` | the colours of ordered groups -- a numeric parameter with more than two values, which `selectTrials` colours in order -- and an evoked butterfly's depths |
+| `heat` | heat maps and probe maps |
+| `diverging` | correlation maps and auROC heat maps (centred) |
+| `rules` | rules (role, group, property, value) for every plot |
+| `kinds` | rules for one kind of plot, after the common ones: `{"heatmap": [...]}` |
+
+A colour is a name, `#rrggbb` or `[r g b]`. A colormap is the name of a
+colormap function (`"turbo"`) or a list of at least two colours, spread
+evenly from the lowest value to the highest. A `FontName` may list
+fallbacks, `"Palatino Linotype, Palatino, Georgia"`: the first one
+installed is used, so a design looks right on Windows and macOS. Bands and
+fills paled from a group colour (SEM bands, raster group bands, the rate
+plot's mean bars, a waveform's box) are paled towards the ground, so they
+sit quietly on a dark ground too. A file that cannot be read is
+`PlotDesign:Bad` (naming the field), an unknown property
+`PlotAesthetics:BadRule`; a chosen design that cannot be read draws as
+Default, with the warning `PlotDesign:Unusable`.
+
+```json
+{
+  "name": "Lab meeting",
+  "description": "Big type, our colours",
+  "background": "#ffffff",
+  "palette": ["#1b9e77", "#d95f02", "#7570b3"],
+  "heat": "turbo",
+  "rules": [
+    {"role": "axes", "property": "FontSize", "value": 14},
+    {"role": "axes", "property": "TickDir", "value": "out"},
+    {"role": "axes", "property": "TickLength", "value": [0.02, 0.03]},
+    {"role": "rate", "property": "LineWidth", "value": 2.5},
+    {"role": "xlabel", "property": "FontName", "value": "Segoe UI, Arial"}
+  ],
+  "kinds": {"heatmap": [{"role": "zeroLine", "property": "Color", "value": "#ffffff"}]}
+}
+```
+
+`PlotDesign.capture(h)` makes a design of a drawn plot's look: every
+property the aesthetics editor offers, for every component. A value all
+the components of a role share becomes a rule for that role (every
+group), so the plot's own edits are kept. The colours its groups are
+drawn in become the palette (ordered groups: the sequential colours; one
+group: the single colour), its ground the background and an image's
+colormap the heat or diverging colours. A colour that differs from group
+to group belongs to the palette, not a rule; the legend's place, widths in
+x units and a waveform's spike colour are left out. What the plot does
+not show comes from the design it was drawn in (`Base=`), so a design
+saved from a PSTH still styles tuning curves. Captured from a heat map,
+probe map or correlation map, whose axes are drawn their own way, the
+rules are kept for that kind only (`kinds`).
+
+```matlab
+PlotDesign.list()                         % Name, Description, Source ("built-in" | "mine"), File
+PlotDesign.use("Tufte")                   % choose it: every plot on screen is redrawn
+renderPlot(R, spec, figure)               % drawn in Tufte (a run's figures too)
+renderPlot(R, spec, figure, Design="Night")   % this plot in Night, whatever is chosen
+D = PlotDesign.capture(h.layout, Name="Mine", Description="Thick lines");
+PlotDesign.save(D, "Mine");               % <designs folder>/Mine.json (Overwrite=true to replace)
+PlotDesign.use("Mine");
+PlotDesign.import("C:\shared\Lab meeting.json");   % a colleague's design, copied into your folder
+PlotDesign.remove("Mine");                % yours only; Default is chosen if it was
+PlotDesign.use("Default");
+```
+
+The chosen design is a preference (AppPrefs group `PlotDesign`, `Design`;
+the designs folder is `Folder`), so it follows the user, not the config:
+a run draws its figures in the design of whoever runs it. To pin one, pass
+`Design=` to `renderPlot`. `PlotDesign.listen(owner, fcn)` calls `fcn`
+whenever the choice or the list changes (the app keeps its Design menu up
+to date with it).
 
 ## Export and reports
 
@@ -1058,6 +1180,7 @@ session with the repository on the path.
 | `test_Auroc` | no fixture: `aucOf` against counting every pair; the `"psth"` method against a port of the Caras lab's `auROC_response_curve`; the `"epochs"` method against hand counts; tiled and sliding windows, the whole-bin rules and the errors; the stop mask; the 95% CI formula, the fixed cutoff and the wide-cutoff warning; bootstrap, ranksum and shuffle tests on driven, suppressed and flat units (reproducible by seed; ranksum against `ranksum` called directly); a unit silent over a group's epochs has no auROC (NaN) and stays out of the cutoff; units measured apart (`Call=false`) and called in one `aurocCall` get the cutoff, the test's correction and the calls of one `aurocCurves` over them all; `spikePSTH`'s auROC result, `modulatedOnly` and caption; the PSTH and heatmap marks, tagged. Skipped without the toolbox |
 | `test_PopulationAnalysis` | the fixture: `populationAnalysis`' units, rates, PSTHs and per-level rates equal the per-dataset calls (the selection's groups pooled); the summary's counts and means add up; the groupings (none, dataset × shank, depth bins); the correction over every unit or each dataset; each unit's auROC equal to `aurocCurves`' over its dataset, the 95% CI cutoff pooled over every unit (the formula over all of them; `Family="dataset"`: each dataset's own) and, with `AurocGroupBy`, over every unit x group curve, the calls, peaks and summary counts that follow, a test cutoff's p corrected over the family, and the auROC columns and cutoff in the files; the files written; the errors |
 | `test_PlotAesthetics` | no fixture: rules (decoded JSON, refused properties, merging, colours as text), every kind and layout naming everything it draws, the user's rules then the plot's (and `UserAesthetics=false`), a value an object refuses (a warning, the plot still drawn), the right-click menu only in a visible figure or with `Editable=true` (one per figure; legends find their plot), the editor (live edits, Apply to one / same / role / ticked, Reset, Cancel, OK remembering for the plot or the user, Forget and the redraw, unremembered edits put back), the config's `aesthetics` through JSON, and the script literal of a rule list |
+| `test_PlotDesign` | no fixture: the built-in designs (they load, name known roles, and every kind and layout draws in each without a refused value), what a design does (ground, palette, single and sequential colours, heat and diverging colormaps, rules for every plot and for one kind; a plot's own colours win), the layering (design, the user's rules, the plot's), choosing a design (the preference, every plot on screen redrawn, a plot with its own design kept, listeners, the right-click Design submenu), capturing a plot's look and saving, listing, importing and deleting designs, refused files and names, the editor's tick length |
 | `test_EphysAnalysisConfig` | see [EphysAnalysisConfig](EphysAnalysisConfig.md#tests) |
 | `test_EphysAnalysisRunner` | the fixture: `plan` skip reasons, `run` exports and paged names (no figure left open), HTML and PDF reports (percent-encoded and `file://` links; a `"both"` report holds the image and the PDF page of every exported page and no result; one figure per page, so each is drawn once; the PDF's title, summary and plot pages in order), `Overwrite` off, rendering real results (a stack of real `epochTable` groups labelled by the `groupBy` parameter, a raster showing every epoch and an evoked stack whatever `Style.YLim`, `rasterSort` copied onto the epochs, a tuning caption counting its curve's epochs, behavior plots of RespLatency by Depth and of the Trough onset's latency after RespWindow onset (RespLatency again), a raster sorted descending across groups by a stop event shifted by RespLatency with the Trough onsets and offsets marked at the responses), a failing export closing its page (runner and standalone script), cancel, driven units, compact vs standalone script equivalence (figures, HTML and PDF pages), unit waveforms (templates without the sorted `.bin` and the warning; the spikes cut from a planted one, at most `maxSpikes`, and kept in the cache; detections drawn from the spikes file's waveforms (`maxSpikes` of them, the mean over all); none with the mode off or for an overlay; the script's `unitWaveforms` line) |
 | `test_EphysAnalysisApp` | see [EphysAnalysisApp](EphysAnalysisApp.md#tests) |

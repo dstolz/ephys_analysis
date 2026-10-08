@@ -31,7 +31,7 @@ arguments
     opts.Style = struct()
 end
 
-style = EphysAnalysisConfig.normalizeSection("Style", opts.Style);
+style = renderStyle(opts.Style);
 colors = groupPalette(R.groups, style);
 [~, nC, nG] = size(R.mean);
 order = probeOrder(R.meta, nC, style);
@@ -60,7 +60,7 @@ switch opts.Layout
             for g = 1:nG
                 m = R.mean(:, c, g) + off;
                 if style.ShowSEM
-                    semBand(ax, t, m, R.sem(:, c, g), colors(g, :), R.groups.label(g));
+                    semBand(ax, t, m, R.sem(:, c, g), colors(g, :), R.groups.label(g), style);
                 end
                 lh(g) = tagPart(plot(ax, t, m, 'Color', colors(g, :), 'LineWidth', style.LineWidth), "trace", R.groups.label(g));
             end
@@ -85,7 +85,7 @@ switch opts.Layout
         [idx, nr, nc] = pageItems(nG, 1, max(nG, 1));
         [tl, ax0] = renderLayout(target, nr, nc, style);
         if ~isempty(ax0); idx = idx(1:min(1, end)); end
-        depthColors = parula(max(nC, 2));
+        depthColors = designColormap(style, "sequential", "parula", max(nC, 2));
         depthColors = depthColors(round(linspace(1, size(depthColors, 1) * 0.85, nC)), :);
         axs = gobjects(1, numel(idx));
         for j = 1:numel(idx)
@@ -132,7 +132,7 @@ switch opts.Layout
             hold(ax, 'on');
             lh = gobjects(1, nG);
             for g = 1:nG
-                if style.ShowSEM; semBand(ax, t, R.mean(:, c, g), R.sem(:, c, g), colors(g, :), R.groups.label(g)); end
+                if style.ShowSEM; semBand(ax, t, R.mean(:, c, g), R.sem(:, c, g), colors(g, :), R.groups.label(g), style); end
                 lh(g) = tagPart(plot(ax, t, R.mean(:, c, g), 'Color', colors(g, :), 'LineWidth', style.LineWidth), ...
                     "trace", R.groups.label(g));
             end

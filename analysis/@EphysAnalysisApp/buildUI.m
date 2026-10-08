@@ -31,6 +31,8 @@ obj.buildExportTab();
 obj.buildLogTab();
 styleButtons(obj);
 obj.Tabs.SelectedTab = obj.TabData;
+obj.refreshDesigns();
+PlotDesign.listen(obj.Fig, @() obj.refreshDesigns());   % a design chosen anywhere (a plot's right-click menu too)
 end
 
 

@@ -10,6 +10,24 @@ says how to cut a release.
 
 ### Added
 
+- Plot designs (`PlotDesign`): whole looks for every analysis plot -- the
+  ground behind it, the group colours, the heat maps' colours, and
+  aesthetics rules for its axes, ticks, fonts, titles, axis labels,
+  legends, colour bars, lines and marks. Built in: **Tufte** (Edward
+  Tufte's data-ink: an off-white page, serif type, no box or grid, grey
+  data and muted colour), **Journal** (print-ready, colour-blind safe),
+  **Night** (dark), **Talk** (big type, thick lines) and **Gray panel**
+  (the ggplot2 look). Picking one -- the analysis app's **Design** list
+  and menu, any plot's right-click **Design** submenu, or
+  `PlotDesign.use` -- redraws every plot on screen at once, and runs draw
+  their figures in it. **Save look as design...** keeps a plot's look
+  (every property of every component, its ground and group colours) as a
+  JSON design of your own; designs can be imported, deleted and kept in a
+  shared folder. A design is a preference, drawn under your rules and the
+  plot's own, so those still win. `renderPlot` takes `Design=`.
+- The aesthetics editor sets an axes' tick length, and a legend's or
+  colour bar's font.
+
 - A behavior plot kind (`behavior`): a per-trial value against a trial
   parameter, e.g. RespLatency by Depth, one series per value of another
   parameter (`param`, `seriesParam`). The value (`yParam`) is a numeric

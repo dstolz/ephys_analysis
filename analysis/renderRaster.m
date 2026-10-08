@@ -47,7 +47,7 @@ arguments
     opts.Style = struct()
 end
 
-style = EphysAnalysisConfig.normalizeSection("Style", opts.Style);
+style = renderStyle(opts.Style);
 wave = EphysAnalysisConfig.normalizeSection("Waveform", opts.Waveform);
 waves = [];
 if isfield(R, 'waveforms'); waves = R.waveforms; end
@@ -93,7 +93,7 @@ if ~isempty(axs) && style.Legend && (height(R.groups) > 1 || ~isempty(marks))
     labels = strings(1, 0);
     if height(R.groups) > 1
         for g = 1:height(R.groups)
-            lh(end+1) = tagPart(patch(ax, NaN, NaN, colors(g, :) + (1 - colors(g, :)) * 0.82, 'EdgeColor', colors(g, :)), ...
+            lh(end+1) = tagPart(patch(ax, NaN, NaN, paleColor(colors(g, :), 0.82, style), 'EdgeColor', colors(g, :)), ...
                 "rasterBand", R.groups.label(g)); %#ok<AGROW>
             labels(end+1) = R.groups.label(g); %#ok<AGROW>
         end

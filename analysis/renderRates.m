@@ -23,7 +23,7 @@ arguments
     opts.Style = struct()
 end
 
-style = EphysAnalysisConfig.normalizeSection("Style", opts.Style);
+style = renderStyle(opts.Style);
 colors = groupPalette(R.groups, style);
 [nU, nG] = size(R.meanRate);
 order = probeOrder(R.meta, nU, style);
@@ -62,7 +62,7 @@ for g = 1:nG
             jit = (mod((0:numel(rows) - 1).', 7) - 3) / 3 * w * 0.3;
             xx = x.' + jit;
             ok = isfinite(y);
-            tagPart(bar(ax, x, m, w * 0.9, 'FaceColor', colors(g, :) + (1 - colors(g, :)) * 0.7, 'EdgeColor', 'none', ...
+            tagPart(bar(ax, x, m, w * 0.9, 'FaceColor', paleColor(colors(g, :), 0.7, style), 'EdgeColor', 'none', ...
                 'HandleVisibility', 'off'), "meanBar", gl);
             lh(g) = tagPart(plot(ax, xx(ok), y(ok), '.', 'Color', colors(g, :), 'MarkerSize', 7), "points", gl);
     end

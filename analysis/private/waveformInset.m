@@ -7,7 +7,8 @@ function waveformInset(ax, W, u, opt, style)
 %   box is a third of AX's width and height times OPT.scale, at
 %   OPT.location (northeast: the top right corner), placed in data units on
 %   the limits AX has now, which it keeps (any axis direction or scale);
-%   with OPT.box it has an outline and a pale ground. A template (no spikes
+%   with OPT.showPP / OPT.showCount the label says the p-p amplitude / the
+%   number of spikes drawn; with OPT.box it has an outline and a pale ground. A template (no spikes
 %   read) is drawn as the mean whatever the mode, and says so. Nothing is
 %   drawn for mode "off" or a unit without a waveform. The parts are tagged
 %   waveBox, waveSpikes, waveMean and waveLabel, and kept out of legends.
@@ -52,7 +53,7 @@ yOf = @(v) Y(y0 + f * (0.05 + 0.70 * (v - lo) / (hi - lo)));
 held = ishold(ax);
 hold(ax, 'on');
 if opt.box
-    tagPart(patch(ax, X(x0 + [0 f f 0]), Y(y0 + [0 0 f f]), [1 1 1], 'FaceAlpha', 0.85, ...
+    tagPart(patch(ax, X(x0 + [0 f f 0]), Y(y0 + [0 0 f f]), paleColor([1 1 1], 1, style), 'FaceAlpha', 0.85, ...
         'EdgeColor', [0.6 0.6 0.6], 'HandleVisibility', 'off'), "waveBox");
 end
 if showSpikes
@@ -64,11 +65,20 @@ if showMean
     tagPart(line(ax, xw, yOf(m), 'Color', [0.80 0.10 0.10], 'LineWidth', max(1, style.LineWidth), ...
         'HandleVisibility', 'off'), "waveMean");
 end
-txt = sprintf("%.3g %s p-p", max(m) - min(m), unitText(W.units(u)));
-if template; txt = txt + " (template)"; end
-tagPart(text(ax, X(x0 + 0.05 * f), Y(y0 + 0.97 * f), txt, 'FontSize', max(6, style.FontSize - 2), ...
-    'Color', [0.3 0.3 0.3], 'VerticalAlignment', 'top', 'Interpreter', 'none', 'Clipping', 'on', ...
-    'HandleVisibility', 'off'), "waveLabel");
+parts = strings(1, 0);
+if opt.showPP
+    parts(end+1) = sprintf("%.3g %s p-p", max(m) - min(m), unitText(W.units(u)));
+end
+if opt.showCount && ~template && ~isempty(S)
+    parts(end+1) = sprintf("%d spikes", size(S, 2));
+end
+if template; parts(end+1) = "(template)"; end
+txt = strjoin(parts, ", ");
+if txt ~= ""
+    tagPart(text(ax, X(x0 + 0.05 * f), Y(y0 + 0.97 * f), txt, 'FontSize', max(6, style.FontSize - 2), ...
+        'Color', [0.3 0.3 0.3], 'VerticalAlignment', 'top', 'Interpreter', 'none', 'Clipping', 'on', ...
+        'HandleVisibility', 'off'), "waveLabel");
+end
 if ~held; hold(ax, 'off'); end
 end
 

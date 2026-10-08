@@ -268,6 +268,8 @@ runner, so it is what a run exports.
 | **Preview** | computes now, also for a signal extract above `PreviewMaxMB` |
 | **Auto** | redraw after every edit while a preview takes under 2 s; a slower one says so (*"slow, so edits wait for Preview"*) |
 | **<**, **>** | the pages of a paged grid |
+| **Design** | the look of every plot (Default, Tufte, Journal, Night, Talk, Gray panel, and yours): picking one redraws the preview, and every other plot on screen, at once; runs draw their figures in it |
+| **Save look as design...** | keeps the preview's look -- every property of every component, its ground and its group colours -- as a design of yours, and picks it |
 
 The line under the preview names the plot, the dataset and the time taken,
 or says why the plot cannot be drawn (the runner's
@@ -284,6 +286,26 @@ its role or the ticked rows, and has **Reset**, **Cancel** and **OK**.
 or for every plot of the kind (your preferences, group `PlotAesthetics`);
 its **Remembered** tab lists both sets and forgets rules. See
 [Plot aesthetics](EphysAnalysis.md#plot-aesthetics).
+
+**Plot designs.** A design is a whole look: the ground behind the plot,
+the group colours, the heat maps' colours, and fonts, axes, ticks, box,
+grid, lines and marks. **Tufte** follows Edward Tufte's data-ink (an
+off-white page, serif type, no box or grid, quiet axes, grey data with
+muted colour); **Journal** is print-ready and colour-blind safe;
+**Night** is dark; **Talk** has big type and thick lines for slides;
+**Gray panel** looks like ggplot2. Pick one in the **Design** list above
+the preview or the **Design** menu, or right-click any plot and use its
+**Design** submenu. To make your own, style the preview as you like (the
+appearance settings, **Edit aesthetics...**) and press **Save look as
+design...**: the design keeps everything the preview shows, and what it
+does not show (a tuning curve's marks, say, when the preview is a PSTH)
+comes from the design it was drawn in. Your designs are JSON files in
+your designs folder (**Design → Open my designs folder**); copy one to a
+colleague, who adds it with **Import a design file...**, or keep them all
+in a shared folder (**Keep my designs in...**). Your rules and the plot's
+own rules still win over a design, and a plot's own group or heat colours
+win over the design's. The design you pick is your preference, not part
+of the config. See [Plot designs](EphysAnalysis.md#plot-designs).
 
 ### Export tab
 
@@ -524,6 +546,11 @@ matrix per group.
 | | **Generate script → Standalone (every setting written out)...** | a script that needs no config file and never uses the runner ([Scripts](EphysAnalysis.md#scripts)) |
 | | **Open pipeline app** | launches `EphysPipelineApp` |
 | | **Close** | asks about unsaved changes, cancels a run under way, closes |
+| Design | the designs | Default, the built-in designs, then yours (*(mine)*); the one chosen is ticked. Picking one redraws every plot on screen in it ([Plot designs](EphysAnalysis.md#plot-designs)) |
+| | **Save the preview's look as a design...** | asks for a name and a description, saves the preview's look in your designs folder and picks it (asks before replacing one of yours) |
+| | **Import a design file...** | copies a design `.json` into your designs folder and picks it |
+| | **Delete one of my designs** | deletes the file of the one picked (asks first); Default is chosen if it was |
+| | **Open my designs folder**, **Keep my designs in...** | opens the folder; or keeps your designs in another, such as one the lab shares |
 | Help | **Help for this tab** | the wiki page of this app, at the section of the tab shown (`helpURL`) |
 | | **Documentation home**, **Analysis quick start**, **Analysis configs** | the wiki's Home, [Quick start](#quick-start) on this page, the page made from [EphysAnalysisConfig.md](EphysAnalysisConfig.md) |
 | | **About EphysAnalysisApp** | the version and git commit of the code, the repository folder and the MATLAB release; **Copy** puts them on the clipboard |
@@ -579,7 +606,8 @@ is in the config.
 The aesthetics editor keeps two more groups: `PlotAesthetics`, your
 remembered rules, one per plot kind (`psth`, `raster`, ...), and
 `PlotAestheticsDialog`, its **Remember** box and where it last remembered
-(`Remember`, `Scope`).
+(`Remember`, `Scope`). The plot designs keep `PlotDesign`: the design
+chosen (`Design`) and your designs folder when you chose one (`Folder`).
 
 ## Why is my plot skipped?
 
@@ -610,6 +638,7 @@ results, on the Log tab and in the report.
 | plot editor | `syncPlotEditor` (what shows, what is enabled, what the drop-downs offer: `private/plotEditorChoices`), `layoutPlotEditor`, `onPlotSectionToggled`, `onPlotAlignEdited`, `onPlotDefaultToggled`, `applyPlotEditorDefaults` |
 | data | `openSource`, `onScan`, `refreshDatasetsTable`, `selectDataset`, `refreshDatasetInfo` |
 | previews | `refreshAlignPreview`, `refreshPreview`, `autoPreview`, `onPreviewPage` |
+| plot designs | `refreshDesigns` (the Design menu and list; `PlotDesign.listen` keeps them current), `onDesignChosen`, `onSaveDesign`, `onImportDesign`, `onDeleteDesign`, `onDesignsFolder`; the designs themselves: `PlotDesign`, `analysis/designs` |
 | running | `onValidate`, `onPlan`, `onRunExport`, `onCancelRun` |
 | files | `onNewConfig`, `onOpenConfig`, `openConfigFile`, `onSaveConfig`, `onSaveConfigAs`, `onGenerateScript`, `loadPreferences`, `savePreferences` |
 | help | `onHelp`, `helpURL` (the wiki page and anchor of each tab; `tools/wiki/test_gen_pages.py` checks that the page made from this file has them) |
@@ -626,7 +655,10 @@ a PSTH and an LFP evoked potential and previewing both; the response test
 normalization, fill, opacity and group colours reaching the plot and the
 stacked preview; the preview's right-click
 aesthetics editor remembering rules into the plot's config entry (the
-editor itself: `test_PlotAesthetics`); editing the bins; an edit in a
+editor itself: `test_PlotAesthetics`); the Design list and menu, picking
+a design redrawing the preview without touching the config, saving the
+preview's look as a design and deleting it (the designs themselves:
+`test_PlotDesign`); editing the bins; an edit in a
 *Use default* section giving the plot its own event or window, and ticking
 it again going back; the editor showing only the rows and sections a plot
 uses (y limits, heat colours, a probe map's missing alignment) and greying

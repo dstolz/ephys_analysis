@@ -2,7 +2,8 @@
 
 The [`analysis`](../analysis) folder turns the pipeline's outputs into
 figures: PSTHs with rasters, evoked potentials, firing rates, tuning curves,
-heatmaps, probe maps, unit-by-unit correlation matrices and auROC curves.
+heatmaps, probe maps, unit-by-unit correlation matrices, auROC curves and
+behavioral values per trial (response latency by depth, say).
 Every figure can be aligned to **any digital line**
 (onset or offset; the first, last, every or nth interval per trial), and
 trials can be **filtered and grouped by Epsych2 parameters** (Depth,
@@ -159,6 +160,8 @@ coerces the rest and checks it: `eventRef(Name=Value)` or `eventRef(s, Name=Valu
 | `minDurationSec`, `maxDurationSec` | 0, `Inf` | keep intervals whose length is in range |
 | `timeRange` | `[-Inf Inf]` | keep events in range: from the trial onset (trial scope) or the recording start |
 | `offsetSec` | 0 | added to every event time |
+| `offsetParam` | `""` | a numeric trial parameter, e.g. `"RespLatency"`: each event is moved by its trial's value of it, so epochs can be aligned to a per-trial time such as the response (`line "RespWindow"`, `offsetParam "RespLatency"`). Needs paired trials; an event outside the trials, or whose trial has no finite value (a miss), is dropped |
+| `offsetParamUnit` | `"ms"` | `offsetParam`'s unit: `"ms"` (as Epsych2 stores times) or `"s"` |
 
 `resolveEvents(src, ref, mask)` returns the event times `t`, the trial row of
 each (`NaN` outside trials) and its rank. An interval belongs to the trial
@@ -169,7 +172,13 @@ In trial scope `"Trial"` (or the trial line itself) is the trial's own
 (`Platform` on the synthetic fixture) has no event: use recording scope for
 it. In recording scope each event is assigned the trial that holds its edge;
 with a restrictive selection (below) events outside the kept trials are
-dropped. Errors: `resolveEvents:NoTrials`, `resolveEvents:NoLine`,
+dropped. With `offsetParam` each event is then moved by its trial's value
+(`[t, trial, k, shift, nNoValue] = resolveEvents(...)`: `shift` the
+seconds added, `nNoValue` the events dropped for lacking a value), and the
+events are sorted after the shift; the trial is still the one holding the
+unshifted edge. Errors: `resolveEvents:NoTrials` (also `offsetParam`
+without paired trials), `resolveEvents:NoLine`, `resolveEvents:NoParam` /
+`resolveEvents:BadParam` (`offsetParam` is not a numeric trial column),
 `resolveEvents:NoEvents`.
 
 ### `epochWindow`: the span of each epoch
@@ -184,7 +193,10 @@ The stop event of an epoch is the first (`stop.which`) stop event at or
 after `t0`, in the same trial when the epoch has one: it is looked up among
 the intervals overlapping that trial, so it may fall after the trial ends. Use
 `"between"` for a variable-length period, e.g. `RespWindow` onset →
-`RespWindow` offset.
+`RespWindow` offset. A stop with its own `offsetParam` is moved by the
+epoch's trial's value of it (no stop when that trial has none): with
+`stop=eventRef(line="RespWindow", offsetParam="RespLatency")` each
+stimulus-aligned epoch's `t1` is its response.
 
 ### `trialSelection`: which trials, in which groups
 
@@ -239,9 +251,13 @@ which keeps them flagged (so with the default the column is always false).
 `Baseline=[b0 b1]` (s from `t0`) widens that test to a baseline window that
 reaches outside `[tStart, tStop]`; the runner passes each plot's baseline.
 `G.n` is the number of epochs per group,
-`G.nTrials` the kept trials. `E.Properties.UserData` records `ref`, `window`,
-`selection`, `scope`, `nEvents`, `nDroppedNoStop`, `nDroppedEdge`,
-`nDroppedArtifact`, `nTrials`, `nTrialsSelected` and `dataset`. Nothing usable is `epochTable:NoEpochs`; an
+`G.nTrials` the kept trials. With `ref.offsetParam`, `t0` and
+`t0Continuous` both carry the shift (`t0Continuous` is still the event's
+sample on the continuous clock, `t0 - 1/fs`). `E.Properties.UserData`
+records `ref`, `window`, `selection`, `scope`, `nEvents`,
+`nDroppedNoValue` (events `offsetParam` dropped; not in `nEvents`),
+`nDroppedNoStop`, `nDroppedEdge`, `nDroppedArtifact`, `nTrials`,
+`nTrialsSelected` and `dataset`. Nothing usable is `epochTable:NoEpochs`; an
 unknown `src.fs` is `epochTable:NoRate`.
 
 ### Units and channels
@@ -300,6 +316,11 @@ does).
 - Spikes are taken relative to `t0Continuous` (a spike in the event's own
   sample is at 0), and the windows of `firingRate` and `unitCorrelation` are
   moved to the spikes' clock by `t0Continuous - t0`.
+- An event shifted by a trial parameter (`offsetParam`) carries the shift
+  on both clocks, `t0 = row/Fs + offsetSec + shift` and `t0Continuous =
+  (row-1)/Fs + offsetSec + shift`, so it need not fall on a sample. A
+  raster's event marks (`epochEvents`) are digital-event times taken from
+  `t0`, so they sit where the spikes of their sample sit.
 
 ## Compute
 
@@ -316,6 +337,8 @@ Pure functions, but for `unitSummary`, which loads the units through
 | `tuningCurve(rates, x, Series=, Param=, SeriesParam=)` | `x` (sorted values), `series`, `mean / sem [nX x nUnits x nSeries]`, `n [nX x nSeries]`. Epochs without a value are left out; when none has one (recording-scope events that all fall outside the trials, say) it is `tuningCurve:NoValues` |
 | `unitSummary(src, Source=, Units=, Ref=, Selection=)` | table `label, class, channel, shank, x, y, nSpikes, rateHz` with `rateHz = nSpikes / src.durationSec` |
 | `probeMapValues(T, probe, Value=)` | one value per probe site: `rate` (summed Hz), `nSpikes`, `nUnits` |
+| `epochEvents(src, E, Lines=, Edge=, Scope=)` | a raster's event marks: a struct per line and edge (`Edge` `"onset"`, `"offset"` or `"both"`), with `line`, `edge`, `label` (`"Trough onset"`), and for every event of that line inside each epoch's window (`Scope="window"`, the default) or inside the epoch's own trial too (`Scope="trial"`) its epoch (`epoch`, a row of `E`) and its time from the epoch's event (`t`, s, on the clock of `E.t0`). Every event is kept, so a trial with several beam crossings has several. `computePlot` adds it to a raster's result as `R.rasterEvents` |
+| `behaviorValues(y, x, Series=, Param=, SeriesParam=, YName=, YUnits=)` | a per-epoch value `y` (a trial parameter, or a stop latency) gathered by the values of `x` and of an optional series: `x`, `xIsNumeric`, `series`, `groups` (one row per series), `mean / sem / median / n [nX x nSeries]`, `values` (table `epoch, xIndex, seriesIndex, y`: every value kept), `nEpochs`, `nMissing` (epochs whose `y`, `x` or series is missing, left out), `yName`, `units`. `behaviorValues:NoValues` when none is left, `behaviorValues:NotNumeric` for a text `y` |
 | `unitCorrelation(st, E, Metric=, Type=, BinSec=, SmoothSec=, Baseline=, BaselineMode=, Groups=, Meta=)` | `r / p [nUnits x nUnits x nGroups]`, `meanR` (mean over the pairs), `nEpochs`, `response [nEpochs x nUnits]`. Each epoch's response is its `"mean"` rate over `[tStart, tStop)` (moved to the spikes' clock by `t0Continuous - t0`) or its `"peak"` binned rate (bins from `tStart`; a bin that runs past `tStop` is not used), optionally minus the epoch's baseline rate (`BaselineMode="subtract"`); every pair of units is then correlated over the epochs of each group, `Type="pearson"` or `"spearman"` (ties averaged). Fixed and `"between"` windows. An epoch whose response is not finite (a window shorter than one bin) is left out; a unit whose responses do not vary has NaN correlations, and so does every pair of a group with fewer than 3 epochs. Needs no toolbox; `p` is two-sided from the t distribution |
 
 ## Response statistics
@@ -597,18 +620,21 @@ ticks at a round step.
 | Renderer | Draws |
 | --- | --- |
 | `renderPSTH` | `Layout="grid"`: one tile per unit (`MaxTiles` per page, `Page=`), groups overlaid with SEM bands, a raster right on top of each, the two a 2 x 1 tiled layout in the unit's tile, so the grid's spacing falls between units (same x limits, axes not linked; `SortBy=` as `renderRaster`; ticks in a raster's bottom tenth are dropped, clear of the rate panel's top label); `"overlay"`: the mean over units. `HistStyle="bar"` (default) or `"line"`, `Fill=` (bars / area under the line, or outlines) at `FillAlpha=` (NaN: 0.5 overlaid, else 1); `Normalize="unitPeak"` or `"groupPeak"`; `Stack=true`: a row per group, first at the bottom, `Spacing=` x the tallest PSTH apart, the group values (of the selection's `groupBy` parameters) on the left axis and each row's peak rate on the right. `Style.YLim` applies to the rate panels only: the rasters always show every epoch, and a stack ignores it. An auROC result (`BaselineMode="auroc"`) is drawn from 0.5 (a dotted line) on a 0-1 axis (unless `YLim`); with a cutoff and `auroc.marks` the call window is shaded and each group's call (up / down arrow, n.s., in the group's colour) sits by the unit's title (overlay: each group's count of units called up and down); `Normalize` does not apply |
-| `renderRaster` | one raster per unit: epochs as rows sorted by group, on pale group bands, and within a group in time order or by `SortBy=` (`"stop"`: the stop latency; else a column of `R.epochs`, such as a trial parameter); all ticks are one NaN-separated line. Every row is shown: `Style.YLim` does not apply |
+| `renderRaster` | one raster per unit: epochs as rows sorted by group, on pale group bands, and within a group in time order or by `SortBy=` (`"stop"`: the stop latency; else a column of `R.epochs`, such as a trial parameter), `SortOrder="ascending"` or `"descending"` (missing values last either way); `ByGroup=false` sorts every epoch as one block, each row on its group's colour; all ticks are one NaN-separated line. `R.rasterEvents` (`epochEvents`) are marked on their rows in `EventMarks=`' marker, size and colour (a plot's `rasterEvents`), one component per line and edge, and listed in the legend. Every row is shown: `Style.YLim` does not apply. `renderPSTH` takes `SortOrder=`, `ByGroup=` and `EventMarks=` for its rasters too |
 | `renderEvoked` | `"stack"` (channels stacked top of the probe first; ignores `Style.YLim`, so every channel stays in view), `"butterfly"` (a tile per group, channels coloured by depth), `"grid"` (a tile per channel); `YLim` sets the amplitude axis of the last two |
 | `renderRates` | units along x in the style's sort order (by shank, then top of the probe first), groups side by side: `"bar"` (mean ± SEM), `"box"`, `"points"` (every epoch, a fixed jitter, the mean as a bar) |
 | `renderTuning` | rate against the parameter per unit (`"grid"`) or the mean over units (`"overlay"`) |
 | `renderHeatmap` | units (psth) or channels (evoked) × time, a tile per group, one colour scale; `Order="probe"` (the style's sort options), `"peak"` (by the time of each row's maximum over the groups' mean) or, for an auROC result, `"modulation"` (the first group's mean auROC in the call window, highest first; the other tiles keep that order). An auROC result is coloured on `[0 1]` (`CLim` overrides); with a cutoff and `auroc.marks`, a bar over the call window and a red up or blue down triangle by each modulated row |
 | `renderProbeMap(values, probe, target)` | a value per site on the probe's layout, every shank on one axis (a shank moved sideways only where it would overlap the one before, labelled *Shank k*) and one colour scale (`CLim`, else the values' range; `HeatColormap`, default parula); sites without a value are open grey squares, and channel numbers sit beside the sites when no shank has more than 64 (`SiteLabels=`). `values` is per recording channel, or a `probeMapValues` result (then `probe` may be `[]`, and each unit's position is a black dot) |
+| `renderBehavior` | a `behaviorValues` result: one panel, the x values evenly spaced (`XScale="category"`) or at their values (`"linear"`), the series side by side in their colours: `Layout="points"` (every value, `Jitter=` true by default, with the mean ± SEM), `"line"` (mean ± SEM, joined), `"box"` (`boxchart`), `"swarm"` (`swarmchart`, with the mean ± SEM) or `"violin"` (`violinplot`, R2024b or later, with the mean ± SEM) |
 | `renderCorrMap` | a `unitCorrelation` result: a square units × units matrix per group on `[-1 1]` (`CLim` overrides) in `blueWhiteRed` (`HeatColormap` overrides), titled with the epochs used and the mean r; units in the style's sort order and labels (`SortShank`, `SortDepth`, `LabelShank`, `LabelDepth`). `blueWhiteRed(n)` is that diverging colour map, for any axes: `colormap(gca, blueWhiteRed(256))` |
 
 `renderPlot(R, spec, target, Page=)` dispatches on `spec.kind`, applies
-`spec.layout`, `spec.style` ([Style](EphysAnalysisConfig.md#style)) and
-`spec.waveform`, and titles the figure `"<Kind>: <line> <edge> (<n>
-epochs)"` (or `spec.title`) with the dataset and page as a subtitle. A
+`spec.layout`, `spec.style` ([Style](EphysAnalysisConfig.md#style)),
+`spec.waveform` and the raster's sort and marks, and titles the figure
+`"<Kind>: <line> <edge> (<n> epochs)"` (a behavior plot: `"Behavior:
+<y> by <param> (<n> epochs)"`), or `spec.title`, with the dataset and
+page as a subtitle. A
 partial `spec` is filled from the plot defaults (an empty layout is the
 kind's default), and `[]` is `R.spec`, else the defaults for `R.kind`.
 `plotPageCount(R, spec)` is the number of pages (grids of units or
@@ -623,7 +649,14 @@ counted from the event (`R.window`), span less than the window. An auROC
 caption says how the auROC was made and, with a cutoff, what its call
 found (*units called over [0 0.5] s by the 95% CI cutoff (+/-0.043): Hit 5
 up, 2 down; ...*), and a caption counts the epochs left out for touching
-an artifact period, when there are any.
+an artifact period, when there are any. An event shifted by a parameter
+reads *RespWindow onset + RespLatency (ms)*, with the events left out for
+lacking a value counted; a raster's caption says how its rows are sorted
+(*raster epochs sorted by stop latency, descending across groups*) and
+what it marks (*raster marks: Trough onset, Trough offset*); a behavior
+caption what it plots by what, per series, and the epochs without a
+value (*RespLatency by Depth; n = 9 epochs; 3 epoch(s) without a value of
+RespLatency or Depth left out*).
 
 ### Unit waveforms
 
@@ -664,12 +697,14 @@ of spikes whose `waveform.mode` is not `"off"`.
 Every object a renderer draws is named by its *role* and, where it draws
 one, its *group*: the PSTH line or fill, SEM band, mean stop line and a
 stack's row baselines, the event line, the auROC's 0.5 line, modulation
-window and call marks, raster ticks, group band and stop dots, a mean or
-channel trace, bars, error bars, boxes, points and mean bars, a tuning
-curve, an image, probe sites (with and without a value), site and shank
-labels, unit positions, and a unit waveform's box, spikes, mean and
-amplitude label. The group is the trial group's label,
-a tuning series or an evoked channel. Axes, tile titles, axis labels,
+window and call marks, raster ticks, group band, stop dots and event
+marks (`rasterEvent`, one group per line and edge), a mean or channel
+trace, bars, error bars, boxes, points and mean bars, a tuning curve, a
+behavior plot's points, swarm, violins and mean ± SEM (`behaviorMean`), an
+image, probe sites (with and without a value), site and shank labels,
+unit positions, and a unit waveform's box, spikes, mean and amplitude
+label. The group is the trial group's label, a tuning or behavior
+series, an evoked channel or a raster mark's line and edge. Axes, tile titles, axis labels,
 legends, colour bars and the plot's title and subtitle are components too.
 `PlotAesthetics.roles()` lists the roles, `PlotAesthetics.components(target)`
 what one drawing holds, and `analysis/private/tagPart.m` does the naming.
@@ -1014,14 +1049,14 @@ session with the repository on the path.
 
 | Suite | Covers |
 | --- | --- |
-| `test_EphysAnalysisCompute` | no fixture: `spikePSTH` on seeded Poisson trains (rate, SEM, half-open bins, bins that are whole multiples from the event and `R.window`, `spikePSTH:BadWindow`, a spike in the event's own sample at 0, baselines, smoothing, stop masking), `firingRate` over between windows, `tuningCurve` (and `tuningCurve:NoValues`), `evokedPotential` (event rule: the event's own row at `t = 0`; padding, drop counts, baseline), the filter compiler, `unitCorrelation` (Pearson and Spearman against `corrcoef`, peak rates and partial bins, baseline, groups, constant units), `binCounts` and `countBelow` against brute force (a spike on a bin edge in the bin that starts there, also on a 30 kHz sample grid), every renderer into axes, uiaxes, figure and uipanel, PSTH fills, normalization and stacks (row steps, value and peak axes), `renderPlot` pages, titles and captions, corrmaps and `shortUnitLabels`, probe order and site labels (`probeOrder`, `siteLabels`), the rate / count / probability measures, corner labels and `TileSpacing`, the raster's `SortBy` (`renderRaster:NoSortColumn`), unit waveform boxes (each location, on a reversed raster too; modes, box and scale; limits kept; none on an overlay; templates) |
-| `test_EphysAnalysisEpochs` | the fixture: `loadAnalysisSource` against the generator's truth (`durationSec` from `info.LFP.nSamples`), `t0Continuous` and `offsetSec` on both clocks, trial / recording scope, `"Trial"`, an interval belonging to the trial holding its edge (spanning trials, touching trials, `Platform` in recording scope), `groupBy`, response and filter selection, between windows, approved cuts, `selectUnits` / `selectChannels` (units as `DatasetOutputs.readUnits` gives them, the sorting folder read once, shanks by the probe map's `kcoords`; every channel gives the cached signal as it is), `selectUnits`' response test (the same as `responseStats` over its own epochs; direction and alpha; `selectUnits:NoneLeft`, `selectUnits:BadResponse`; `responseStats:NoToolbox` without the toolbox) and its auROC test (the units `aurocCurves` calls modulated; no cutoff is `selectUnits:BadResponse`), error identifiers, the no-behavior fallback, `src.artifacts` and the epochs that touch one (dropped by default, also when only the baseline touches it; a period ending at a window's start does not touch it; kept and flagged with `Artifacts="keep"`) |
+| `test_EphysAnalysisCompute` | no fixture: `spikePSTH` on seeded Poisson trains (rate, SEM, half-open bins, bins that are whole multiples from the event and `R.window`, `spikePSTH:BadWindow`, a spike in the event's own sample at 0, baselines, smoothing, stop masking), `firingRate` over between windows, `tuningCurve` (and `tuningCurve:NoValues`), `evokedPotential` (event rule: the event's own row at `t = 0`; padding, drop counts, baseline), the filter compiler, `unitCorrelation` (Pearson and Spearman against `corrcoef`, peak rates and partial bins, baseline, groups, constant units), `binCounts` and `countBelow` against brute force (a spike on a bin edge in the bin that starts there, also on a 30 kHz sample grid), every renderer into axes, uiaxes, figure and uipanel, PSTH fills, normalization and stacks (row steps, value and peak axes), `renderPlot` pages, titles and captions, corrmaps and `shortUnitLabels`, probe order and site labels (`probeOrder`, `siteLabels`), the rate / count / probability measures, corner labels and `TileSpacing`, the raster's `SortBy` (`renderRaster:NoSortColumn`), `SortOrder`, `ByGroup` (rows across groups, a band face per run of a group's rows) and event marks (on their rows, in the look asked for, named and in the legend, restyled by a plot's aesthetics rule; the caption), unit waveform boxes (each location, on a reversed raster too; modes, box and scale; limits kept; none on an overlay; templates), `behaviorValues` (means, SEM, medians, series, missing values counted, its errors) and `renderBehavior` (points with and without jitter, line on a linear x axis, box, swarm, violin with R2024b; the title and caption) |
+| `test_EphysAnalysisEpochs` | the fixture: `loadAnalysisSource` against the generator's truth (`durationSec` from `info.LFP.nSamples`), `t0Continuous` and `offsetSec` on both clocks, trial / recording scope, `"Trial"`, an interval belonging to the trial holding its edge (spanning trials, touching trials, `Platform` in recording scope), events shifted by a trial parameter (RespWindow onset + RespLatency at the generator's response troughs, both clocks, `"s"`, a shifted stop event, the misses counted, the errors), `epochEvents` (every onset and offset in each window, several per trial, trial scope), `groupBy`, response and filter selection, between windows, approved cuts, `selectUnits` / `selectChannels` (units as `DatasetOutputs.readUnits` gives them, the sorting folder read once, shanks by the probe map's `kcoords`; every channel gives the cached signal as it is), `selectUnits`' response test (the same as `responseStats` over its own epochs; direction and alpha; `selectUnits:NoneLeft`, `selectUnits:BadResponse`; `responseStats:NoToolbox` without the toolbox) and its auROC test (the units `aurocCurves` calls modulated; no cutoff is `selectUnits:BadResponse`), error identifiers, the no-behavior fallback, `src.artifacts` and the epochs that touch one (dropped by default, also when only the baseline touches it; a period ending at a window's start does not touch it; kept and flagged with `Artifacts="keep"`) |
 | `test_ResponseStats` | no fixture: `pAdjust` against statsmodels' `multipletests` (`pipeline/testdata/padjust_golden.json` from `tools/golden/padjust_golden.py`; NaN, ties, one value), `responseStats` on hand-made epochs with known counts (rates, p against `signrank` / `kruskalwallis` called directly, direction, correction, the epochs left out, rates for windows of different lengths, the errors). The tests that call the toolbox are skipped without it |
 | `test_Auroc` | no fixture: `aucOf` against counting every pair; the `"psth"` method against a port of the Caras lab's `auROC_response_curve`; the `"epochs"` method against hand counts; tiled and sliding windows, the whole-bin rules and the errors; the stop mask; the 95% CI formula, the fixed cutoff and the wide-cutoff warning; bootstrap, ranksum and shuffle tests on driven, suppressed and flat units (reproducible by seed; ranksum against `ranksum` called directly); a unit silent over a group's epochs has no auROC (NaN) and stays out of the cutoff; units measured apart (`Call=false`) and called in one `aurocCall` get the cutoff, the test's correction and the calls of one `aurocCurves` over them all; `spikePSTH`'s auROC result, `modulatedOnly` and caption; the PSTH and heatmap marks, tagged. Skipped without the toolbox |
 | `test_PopulationAnalysis` | the fixture: `populationAnalysis`' units, rates, PSTHs and per-level rates equal the per-dataset calls (the selection's groups pooled); the summary's counts and means add up; the groupings (none, dataset × shank, depth bins); the correction over every unit or each dataset; each unit's auROC equal to `aurocCurves`' over its dataset, the 95% CI cutoff pooled over every unit (the formula over all of them; `Family="dataset"`: each dataset's own) and, with `AurocGroupBy`, over every unit x group curve, the calls, peaks and summary counts that follow, a test cutoff's p corrected over the family, and the auROC columns and cutoff in the files; the files written; the errors |
 | `test_PlotAesthetics` | no fixture: rules (decoded JSON, refused properties, merging, colours as text), every kind and layout naming everything it draws, the user's rules then the plot's (and `UserAesthetics=false`), a value an object refuses (a warning, the plot still drawn), the right-click menu only in a visible figure or with `Editable=true` (one per figure; legends find their plot), the editor (live edits, Apply to one / same / role / ticked, Reset, Cancel, OK remembering for the plot or the user, Forget and the redraw, unremembered edits put back), the config's `aesthetics` through JSON, and the script literal of a rule list |
 | `test_EphysAnalysisConfig` | see [EphysAnalysisConfig](EphysAnalysisConfig.md#tests) |
-| `test_EphysAnalysisRunner` | the fixture: `plan` skip reasons, `run` exports and paged names (no figure left open), HTML and PDF reports (percent-encoded and `file://` links; a `"both"` report holds the image and the PDF page of every exported page and no result; one figure per page, so each is drawn once; the PDF's title, summary and plot pages in order), `Overwrite` off, rendering real results (a stack of real `epochTable` groups labelled by the `groupBy` parameter, a raster showing every epoch and an evoked stack whatever `Style.YLim`, `rasterSort` copied onto the epochs, a tuning caption counting its curve's epochs), a failing export closing its page (runner and standalone script), cancel, driven units, compact vs standalone script equivalence (figures, HTML and PDF pages), unit waveforms (templates without the sorted `.bin` and the warning; the spikes cut from a planted one, at most `maxSpikes`, and kept in the cache; detections drawn from the spikes file's waveforms (`maxSpikes` of them, the mean over all); none with the mode off or for an overlay; the script's `unitWaveforms` line) |
+| `test_EphysAnalysisRunner` | the fixture: `plan` skip reasons, `run` exports and paged names (no figure left open), HTML and PDF reports (percent-encoded and `file://` links; a `"both"` report holds the image and the PDF page of every exported page and no result; one figure per page, so each is drawn once; the PDF's title, summary and plot pages in order), `Overwrite` off, rendering real results (a stack of real `epochTable` groups labelled by the `groupBy` parameter, a raster showing every epoch and an evoked stack whatever `Style.YLim`, `rasterSort` copied onto the epochs, a tuning caption counting its curve's epochs, behavior plots of RespLatency by Depth and of the Trough onset's latency after RespWindow onset (RespLatency again), a raster sorted descending across groups by a stop event shifted by RespLatency with the Trough onsets and offsets marked at the responses), a failing export closing its page (runner and standalone script), cancel, driven units, compact vs standalone script equivalence (figures, HTML and PDF pages), unit waveforms (templates without the sorted `.bin` and the warning; the spikes cut from a planted one, at most `maxSpikes`, and kept in the cache; detections drawn from the spikes file's waveforms (`maxSpikes` of them, the mean over all); none with the mode off or for an overlay; the script's `unitWaveforms` line) |
 | `test_EphysAnalysisApp` | see [EphysAnalysisApp](EphysAnalysisApp.md#tests) |
 | `test_PipelineAnalysisStep` | the fixture: the pipeline's Analysis step running a saved analysis config, see [EphysPipeline](EphysPipeline.md#tests) |
 

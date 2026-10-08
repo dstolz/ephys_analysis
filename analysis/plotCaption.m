@@ -16,8 +16,12 @@ function txt = plotCaption(spec, R)
 %   how many units each group's call finds modulated up and down. A plot
 %   with unit waveforms (R.waveforms) says what its boxes show ("each
 %   unit's mean waveform and up to 100 of its spikes on its peak channel")
-%   and how many units fell back to their template. The reports print it
-%   under each figure.
+%   and how many units fell back to their template. An event shifted by a
+%   trial parameter says so ("RespWindow onset + RespLatency (ms)") and
+%   counts the events left out for lacking a value; a raster says how its
+%   rows are sorted and which events it marks; a behavior plot what it
+%   plots against what, per series, and how many epochs had no value. The
+%   reports print it under each figure.
 %
 %   See also renderPlot, writeHtmlReport, writePdfReport.
 
@@ -40,12 +44,14 @@ if isfield(U, 'ref')
     if which == "nth"; which = ordinal(r.n); end
     if which == "all"; which = "every"; end
     p1 = spec.kind;
-    p1 = K.Label(K.Kind == p1) + ", " + r.line + " " + r.edge + ", " + which + where;
+    p1 = K.Label(K.Kind == p1) + ", " + r.line + " " + r.edge + shiftText(r) + ", " + which + where;
     if r.offsetSec ~= 0; p1 = p1 + sprintf(" %+g s", r.offsetSec); end
     parts = p1;
     w = U.window;
-    if w.mode == "between"
-        parts(end+1) = sprintf("window %s%s to %s %s%s", r.line, offs(w.pre), w.stop.line, w.stop.edge, offs(w.post));
+    if spec.kind == "behavior"
+        if ~isempty(w.stop); parts(end+1) = "stop at " + w.stop.line + " " + w.stop.edge + shiftText(w.stop); end
+    elseif w.mode == "between"
+        parts(end+1) = sprintf("window %s%s to %s %s%s%s", r.line, offs(w.pre), w.stop.line, w.stop.edge, shiftText(w.stop), offs(w.post));
     else
         parts(end+1) = sprintf("window [%g %g] s", w.pre, w.post);
         if R.kind == "psth" && isfield(R, 'window') && numel(R.window) == 2 && max(abs(R.window(:).' - [w.pre w.post])) > 1e-9
@@ -53,7 +59,7 @@ if isfield(U, 'ref')
             if isfield(R, 'auroc') && isstruct(R.auroc) && ~isempty(R.auroc); what = "auROC windows"; end
             parts(end) = parts(end) + sprintf(" (%s: [%g %g] s)", what, R.window(1), R.window(2));   % bins count from the event
         end
-        if ~isempty(w.stop); parts(end+1) = "stop at " + w.stop.line + " " + w.stop.edge; end
+        if ~isempty(w.stop); parts(end+1) = "stop at " + w.stop.line + " " + w.stop.edge + shiftText(w.stop); end
     end
 end
 if spec.kind == "corrmap"
@@ -86,7 +92,7 @@ if isfield(U, 'selection')
     if s.filter ~= "";           tr(end+1) = "(" + s.filter + ")"; end
     if ~isempty(s.trials);       tr(end+1) = "rows " + mat2str(s.trials); end
     if ~isempty(tr) && U.nTrials > 0; parts(end+1) = "trials: " + strjoin(tr, " & "); end
-    if spec.kind ~= "tuning"   % a tuning plot's curves are its series (below), not the trial groups
+    if ~ismember(spec.kind, ["tuning" "behavior"])   % their curves are their series (below), not the trial groups
         if ~isempty(s.groupBy)
             parts(end+1) = sprintf("groups by %s (n = %s)", strjoin(s.groupBy, " x "), strjoin(string(R.n(:).'), ", "));
         elseif isfield(R, 'epochs')
@@ -102,6 +108,31 @@ if spec.kind == "tuning"
         parts(end+1) = sprintf("n = %d epochs", sum(n));
     end
 end
+if spec.kind == "behavior"
+    what = R.yName;
+    if R.units ~= ""; what = what + " (" + R.units + ")"; end
+    parts(end+1) = what + " by " + R.param;
+    n = sum(R.n, 1);   % epochs per series
+    if R.seriesParam ~= ""
+        parts(end+1) = sprintf("one series per %s (n = %s epochs)", R.seriesParam, strjoin(string(n), ", "));
+    else
+        parts(end+1) = sprintf("n = %d epochs", sum(n));
+    end
+    if R.nMissing > 0
+        parts(end+1) = sprintf("%d epoch(s) without a value of %s or %s left out", R.nMissing, R.yName, R.param);
+    end
+    switch spec.layout
+        case "box",    parts(end+1) = "box plots (median, quartiles, whiskers to 1.5 IQR, outliers as dots)";
+        case "violin", parts(end+1) = "violins of the values' density, with the mean +/- SEM";
+        case "swarm",  parts(end+1) = "every epoch's value, with the mean +/- SEM";
+        case "points", parts(end+1) = "every epoch's value, with the mean +/- SEM";
+        case "line",   parts(end+1) = "mean +/- SEM";
+    end
+    if ~spec.style.ShowSEM && spec.layout ~= "box"; parts(end) = replace(parts(end), " +/- SEM", ""); end
+end
+if isfield(U, 'nDroppedNoValue') && U.nDroppedNoValue > 0
+    parts(end+1) = sprintf("%d event(s) without a value of %s left out", U.nDroppedNoValue, U.ref.offsetParam);
+end
 if isfield(U, 'nDroppedArtifact') && U.nDroppedArtifact > 0
     parts(end+1) = sprintf("%d epoch(s) touching an artifact period left out", U.nDroppedArtifact);
 end
@@ -114,11 +145,23 @@ if spec.kind == "psth"
         parts(end+1) = "groups stacked, first at the bottom";
     end
 end
-if ismember(spec.kind, ["psth" "raster"]) && isfield(R, 'raster') && ~isempty(R.raster) && spec.rasterSort ~= ""
-    if spec.rasterSort == "stop"
-        parts(end+1) = "raster epochs sorted by stop latency within each group";
-    else
-        parts(end+1) = "raster epochs sorted by " + spec.rasterSort + " within each group";
+if ismember(spec.kind, ["psth" "raster"]) && isfield(R, 'raster') && ~isempty(R.raster)
+    by = spec.rasterSort;
+    if by == "stop"; by = "stop latency"; end
+    if by == "" && spec.rasterSortOrder == "descending"; by = "time"; end
+    within = " within each group";
+    if ~spec.rasterByGroup && height(R.groups) > 1; within = " across groups"; end
+    if by ~= ""
+        dir = "";
+        if spec.rasterSortOrder == "descending"; dir = ", descending"; end
+        parts(end+1) = "raster epochs sorted by " + by + dir + within;
+    elseif within == " across groups"
+        parts(end+1) = "raster epochs in time order across groups";
+    end
+    if isfield(R, 'rasterEvents') && ~isempty(R.rasterEvents)
+        where = "in each epoch's window";
+        if spec.rasterEvents.scope == "trial"; where = "in each epoch's own trial"; end
+        parts(end+1) = "raster marks: " + strjoin([R.rasterEvents.label], ", ") + " (every one " + where + ")";
     end
 end
 if isfield(R, 'waveforms') && spec.waveform.mode ~= "off"
@@ -183,6 +226,10 @@ end
 
 
 function s = sourceText(spec, R)
+if spec.kind == "behavior" || spec.source == "trials"
+    s = "from the paired trials";
+    return
+end
 nItems = numel(R.labels);
 if isfield(R, 'n') && spec.kind == "probemap"; nItems = R.n; end
 switch spec.source
@@ -193,6 +240,15 @@ switch spec.source
         s = sprintf("threshold detections on %d channel(s)", nItems);
     otherwise
         s = sprintf("%s, %d channel(s)", spec.source, nItems);
+end
+end
+
+
+function s = shiftText(r)
+%shiftText  " + RespLatency (ms)" for an event shifted by a trial parameter, else "".
+s = "";
+if isfield(r, 'offsetParam') && r.offsetParam ~= ""
+    s = " + " + r.offsetParam + " (" + r.offsetParamUnit + ")";
 end
 end
 

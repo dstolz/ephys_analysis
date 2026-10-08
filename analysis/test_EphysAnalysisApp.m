@@ -9,7 +9,9 @@ function test_EphysAnalysisApp()
 %   reference or window, ticking it again going back); the editor showing
 %   only the rows and sections a plot uses (y limits, heat colours, the
 %   alignment sections), greying out the ones its options switch off, and
-%   collapsing a section;
+%   collapsing a section; a raster's sort, direction, grouping and event
+%   marks, an event shifted by a trial parameter, and a behavior plot
+%   reaching the config and the preview;
 %   the gather / apply round trip, keeping the fields without a control
 %   (stop-event offset, length and time range, trial rows); save
 %   and reopen; a standalone script from the app's config; a run of one
@@ -244,6 +246,52 @@ E.waveMode.Value = 'off';
 app.onConfigChanged("plot");
 check(hiddenOverlay && app.Config.Plots(1).waveform.mode == "off" && ~app.Config.Plots(1).waveform.box, ...
     'an overlay hides the waveform rows; Off keeps the other waveform settings');
+
+fprintf('\n== 3b. the raster''s sort and marks, events shifted by a parameter, behavior plots ==\n');
+app.onAddPlot("raster");
+kR = app.SelectedPlot;
+check(shown(E.rasterSort) && shown(E.rasterSortOrder) && shown(E.rasterByGroup) && shown(E.markLines) && shown(E.markMarker) ...
+    && E.markMarker.Enable == "off" && ~shown(E.yParam) && ~shown(E.xScale), ...
+    'a raster shows its sort, direction, grouping and event marks (their look waits for a line to mark)');
+E.rasterSort.Value = 'Depth'; E.rasterSortOrder.Value = 'descending'; E.rasterByGroup.Value = false;
+E.markLines.Value = 'Trough, RespWindow'; E.markEdge.Value = 'both'; E.markMarker.Value = '^'; E.markSize.Value = 6;
+E.markColor.Value = 'red';
+app.onConfigChanged("plot");
+p = app.Config.Plots(kR);
+check(p.rasterSort == "Depth" && p.rasterSortOrder == "descending" && ~p.rasterByGroup ...
+    && isequal(p.rasterEvents.lines, ["Trough" "RespWindow"]) && p.rasterEvents.edge == "both" && p.rasterEvents.marker == "^" ...
+    && p.rasterEvents.size == 6 && p.rasterEvents.color == "red" && E.markMarker.Enable == "on", ...
+    'the raster''s sort, its direction and grouping, and the lines to mark and their look reach the plot');
+app.refreshPreview(Force=true);
+check(~isempty(app.PreviewResult) && numel(app.PreviewResult.rasterEvents) == 4 && ~isempty(findall(app.PreviewPanel, 'Tag', 'rasterEvent')), ...
+    'the preview marks the Trough and RespWindow onsets and offsets');
+A.Line.Value = 'RespWindow';
+A.ShiftParam.Value = 'RespLatency';
+app.onPlotAlignEdited("ref");
+p = app.Config.Plots(kR);
+check(isstruct(p.ref) && p.ref.line == "RespWindow" && p.ref.offsetParam == "RespLatency" && p.ref.offsetParamUnit == "ms" ...
+    && A.ShiftUnit.Enable == "on" && any(string(A.ShiftParam.Items) == "RespLatency"), ...
+    'Shift by (listing the trial parameters) gives the plot its own event: RespWindow onset + RespLatency (ms)');
+app.refreshPreview(Force=true);
+check(~isempty(app.PreviewResult) && app.PreviewResult.epochs.Properties.UserData.nDroppedNoValue == nnz(~isfinite(trials.RespLatency)), ...
+    'the preview aligns to the responses; the trials without one are left out');
+app.onRemovePlot();
+app.onAddPlot("behavior");
+check(string(E.source.Value) == "trials" && string(E.kind.Text) == "Behavior" && shown(E.yParam) && shown(E.param) ...
+    && shown(E.seriesParam) && shown(E.xScale) && shown(E.jitter) && ~shown(E.classes.su) && ~shown(E.channels) ...
+    && ~shown(E.binMs) && ~shown(E.baselineMode) && ~shown(E.rasterSort) && ~shown(E.waveMode) && ~shown(E.maxTiles) ...
+    && shown(E.colormap) && shown(E.ylim) && shown(A.Line), ...
+    'a behavior plot reads the trials and shows its y value, parameter, series, x axis and alignment; no unit, bin or baseline rows');
+E.yParam.Value = 'RespLatency'; E.param.Value = 'Depth'; E.jitter.Value = false; E.layout.Value = 'box';
+app.onConfigChanged("plot");
+p = app.Config.Plots(end);
+check(p.yParam == "RespLatency" && p.param == "Depth" && ~p.jitter && p.layout == "box" && E.jitter.Enable == "off", ...
+    'the y value, parameter, jitter and layout reach the plot; the jitter waits for the points layout');
+app.refreshPreview(Force=true);
+check(~isempty(app.PreviewResult) && app.PreviewResult.kind == "behavior" && ~isempty(findall(app.PreviewPanel, 'Tag', 'box')), ...
+    'the behavior plot previews its box plots');
+app.onRemovePlot();
+app.onPlotSelected(1);
 
 fprintf('\n== 4. gather / apply, save / reopen, script ==\n');
 c1 = app.gatherConfig();

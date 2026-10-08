@@ -45,7 +45,9 @@ switch section
             'minDurationSec', 0, ...           % keep intervals at least this long
             'maxDurationSec', Inf, ...         % ... and at most this long
             'timeRange',      [-Inf Inf], ...  % s from trial onset (trial scope) or recording start
-            'offsetSec',      0);              % added to every event time
+            'offsetSec',      0, ...           % added to every event time
+            'offsetParam',    "", ...          % "" | a trial parameter: its value on the event's trial is added too (e.g. RespLatency)
+            'offsetParamUnit', "ms");          % offsetParam's unit: "ms" | "s"
 
     case "EpochWindow"
         s = struct( ...
@@ -170,6 +172,9 @@ switch section
             'layout',        "", ...            % "" = the kind's default layout
             'withRaster',    true, ...          % psth
             'rasterSort',    "", ...            % psth / raster: epochs of a group in time order ("") | by stop latency ("stop") | by a trial parameter (its name)
+            'rasterSortOrder', "ascending", ... % psth / raster: the sort key's direction, "ascending" | "descending" (missing values last)
+            'rasterByGroup', true, ...          % psth / raster: rows by group first, on bands (false: every epoch sorted as one block)
+            'rasterEvents',  rasterEventsDefaults(), ...   % psth / raster: marks on each row at a digital line's onsets / offsets (epochEvents)
             'histStyle',     "bar", ...         % psth: "bar" | "line"
             'fill',          true, ...          % psth: filled bars / area under the line (false: outline / line only)
             'fillAlpha',     NaN, ...           % psth: fill opacity 0-1 (NaN: 0.5 where groups overlap, else 1)
@@ -177,8 +182,11 @@ switch section
             'stack',         false, ...         % psth: one row per group, stacked upwards, instead of overlaid
             'stackSpacing',  1.1, ...           % psth stack: row step, x the tallest PSTH of the panel (< 1 overlaps)
             'maskAfterStop', false, ...         % psth, raster, heatmap of spikes: drop what follows each epoch's stop event
-            'param',         "", ...            % tuning: trial parameter on the x axis
-            'seriesParam',   "", ...            % tuning: one curve per value of this parameter
+            'param',         "", ...            % tuning / behavior: trial parameter on the x axis
+            'seriesParam',   "", ...            % tuning / behavior: one curve (series) per value of this parameter
+            'yParam',        "", ...            % behavior: the y axis: a numeric trial parameter, or "stop" (each epoch's stop latency, ms)
+            'jitter',        true, ...          % behavior "points": spread the points sideways (a fixed, repeatable jitter)
+            'xScale',        "category", ...    % behavior: "category" (the x values evenly spaced) | "linear" (at their values; numeric x)
             'value',         "rate", ...        % probemap: "rate" | "nSpikes" | "nUnits"
             'order',         "probe", ...       % heatmap rows: "probe" (the style's SortDepth / SortShank) | "peak" | "modulation" (auROC: the first group's mean in the modulation window)
             'metric',        "mean", ...        % corrmap: each epoch's "mean" or "peak" (binned) rate
@@ -190,6 +198,18 @@ switch section
     otherwise
         error('EphysAnalysisConfig:BadSection', 'Unknown section "%s".', section);
 end
+end
+
+
+function e = rasterEventsDefaults()
+%rasterEventsDefaults  Plot.rasterEvents: none; how the marks look.
+e = struct( ...
+    'lines',  string.empty(1,0), ... % digital lines ("Trial" = the trial line) whose events are marked on each row
+    'edge',   "onset", ...           % "onset" | "offset" | "both"
+    'scope',  "window", ...          % "window": every event in the epoch's window | "trial": only those in the epoch's own trial
+    'marker', "diamond", ...         % a line marker (PlotAesthetics' list: o, square, diamond, ^, v, |, ...)
+    'size',   4, ...                 % marker size, points
+    'color',  "");                   % "" = a colour per line and edge; or one colour (a name or #rrggbb)
 end
 
 

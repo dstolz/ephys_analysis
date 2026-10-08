@@ -15,6 +15,10 @@ function h = renderPSTH(R, target, opts)
 %     SortBy      the raster's epoch order within a group: "" (default)
 %                 time order, "stop" stop event latency, or a column of
 %                 R.epochs (see renderRaster)
+%     SortOrder   "ascending" (default) | "descending": SortBy's direction
+%     ByGroup     true (default): the raster's rows by group first; false:
+%                 every epoch sorted as one block (see renderRaster)
+%     EventMarks  how the raster marks R.rasterEvents (see renderRaster)
 %     HistStyle   "bar" (default): one bar per bin; "line": a trace through
 %                 the bin centres. SEM is a band behind either
 %     Fill        true (default): the bars, or the area under the line,
@@ -73,6 +77,9 @@ arguments
     opts.Layout (1,1) string {mustBeMember(opts.Layout, ["grid" "overlay"])} = "grid"
     opts.WithRaster (1,1) logical = true
     opts.SortBy (1,1) string = ""
+    opts.SortOrder (1,1) string {mustBeMember(opts.SortOrder, ["ascending" "descending"])} = "ascending"
+    opts.ByGroup (1,1) logical = true
+    opts.EventMarks = struct()
     opts.HistStyle (1,1) string {mustBeMember(opts.HistStyle, ["bar" "line"])} = "bar"
     opts.Fill (1,1) logical = true
     opts.FillAlpha (1,1) double = NaN
@@ -148,7 +155,8 @@ for j = 1:numel(idx)
         pair = tiledlayout(tl, 2, 1, 'TileSpacing', 'none', 'Padding', 'tight');
         pair.Layout.Tile = j;
         ra = nexttile(pair, 1);
-        rasterInto(ra, R, u, style, colors, opts.SortBy);
+        rasterInto(ra, R, u, style, colors, opts.SortBy, ...
+            struct('order', opts.SortOrder, 'byGroup', opts.ByGroup, 'marks', opts.EventMarks));
         tagPart(ra, "rasterAxes", "", names(u));
         if look.stack; set(ra, 'YDir', 'normal'); end
         ra.XTickLabel = [];

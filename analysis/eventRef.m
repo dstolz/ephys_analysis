@@ -27,6 +27,14 @@ function ref = eventRef(s, opts)
 %                     range, relative to the trial onset in trial scope and to
 %                     the recording start in recording scope
 %     offsetSec       added to every resulting event time
+%     offsetParam     "" (default) or a numeric trial parameter, e.g.
+%                     "RespLatency": each event is moved by its trial's
+%                     value of it (in offsetParamUnit), so epochs can be
+%                     aligned to a per-trial time such as the response
+%                     (RespWindow onset + RespLatency). Needs paired trials;
+%                     an event outside the trials, or whose trial has no
+%                     finite value (a miss's RespLatency), is dropped
+%     offsetParamUnit "ms" (default, as Epsych2 stores times) or "s"
 %
 %   Event times are the digital-event convention t = row/Fs, polarity
 %   applied (see pairEpsychTrials); epochTable adds each event's time on
@@ -46,6 +54,8 @@ arguments
     opts.maxDurationSec (1,1) double
     opts.timeRange (1,2) double
     opts.offsetSec (1,1) double
+    opts.offsetParam (1,1) string
+    opts.offsetParamUnit (1,1) string
 end
 
 if isempty(s)
@@ -81,6 +91,8 @@ end
 if ~isfinite(ref.offsetSec)
     error('eventRef:BadValue', 'offsetSec must be finite.');
 end
+ref.offsetParam = strtrim(ref.offsetParam);
+mustBeOneOf(ref.offsetParamUnit, ["ms" "s"], "offsetParamUnit");
 end
 
 

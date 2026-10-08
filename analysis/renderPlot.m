@@ -3,9 +3,11 @@ function h = renderPlot(R, spec, target, opts)
 %   H = renderPlot(R, SPEC, TARGET, Page=P) dispatches on SPEC.kind (a plot
 %   entry, e.g. from EphysAnalysisConfig.plotFor; [] = the defaults for
 %   R.kind) to renderPSTH, renderRaster, renderEvoked, renderRates,
-%   renderTuning, renderHeatmap, renderProbeMap or renderCorrMap, with SPEC.style, the
-%   layout, SPEC.waveform (psth, raster and tuning: each unit's waveform
-%   from R.waveforms in its tile), and page P of a grid (plotPageCount
+%   renderTuning, renderHeatmap, renderProbeMap, renderCorrMap or
+%   renderBehavior, with SPEC.style, the layout, SPEC.waveform (psth,
+%   raster and tuning: each unit's waveform from R.waveforms in its tile),
+%   the raster's sort and event marks (rasterSort, rasterSortOrder,
+%   rasterByGroup, rasterEvents), and page P of a grid (plotPageCount
 %   pages). TARGET is an axes,
 %   uiaxes, figure, uifigure, panel, tab, grid layout or tiled layout: the
 %   app draws its previews into a panel, the runner into an invisible
@@ -51,11 +53,13 @@ nPages = plotPageCount(R, spec);
 page = min(opts.Page, nPages);
 switch spec.kind
     case "psth"
-        h = renderPSTH(R, target, Layout=spec.layout, WithRaster=spec.withRaster, SortBy=spec.rasterSort, HistStyle=spec.histStyle, ...
+        h = renderPSTH(R, target, Layout=spec.layout, WithRaster=spec.withRaster, SortBy=spec.rasterSort, ...
+            SortOrder=spec.rasterSortOrder, ByGroup=spec.rasterByGroup, EventMarks=spec.rasterEvents, HistStyle=spec.histStyle, ...
             Fill=spec.fill, FillAlpha=spec.fillAlpha, Normalize=spec.normalize, Stack=spec.stack, ...
             Spacing=spec.stackSpacing, Page=page, Waveform=spec.waveform, Style=style);
     case "raster"
-        h = renderRaster(R, target, Page=page, SortBy=spec.rasterSort, Waveform=spec.waveform, Style=style);
+        h = renderRaster(R, target, Page=page, SortBy=spec.rasterSort, SortOrder=spec.rasterSortOrder, ...
+            ByGroup=spec.rasterByGroup, EventMarks=spec.rasterEvents, Waveform=spec.waveform, Style=style);
     case "evoked"
         h = renderEvoked(R, target, Layout=spec.layout, Page=page, Style=style);
     case "rate"
@@ -68,6 +72,8 @@ switch spec.kind
         h = renderProbeMap(R, [], target, Style=style);
     case "corrmap"
         h = renderCorrMap(R, target, Style=style);
+    case "behavior"
+        h = renderBehavior(R, target, Layout=spec.layout, Jitter=spec.jitter, XScale=spec.xScale, Style=style);
     otherwise
         error('renderPlot:BadKind', 'Unknown plot kind "%s".', spec.kind);
 end
@@ -135,6 +141,10 @@ if spec.kind == "probemap"
     what = "units";
     if spec.source == "detected"; what = "channels"; end
     t = sprintf("%s: %s (%d %s)", label, R.valueName, R.n, what);
+    return
+end
+if spec.kind == "behavior"
+    t = sprintf("%s: %s by %s (%d epochs)", label, R.yName, R.param, height(R.values));
     return
 end
 ev = "";

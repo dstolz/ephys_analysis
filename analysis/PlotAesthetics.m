@@ -282,6 +282,7 @@ classdef PlotAesthetics
                 "rasterTicks"  "Raster ticks"
                 "rasterBand"   "Raster group band"
                 "rasterStop"   "Raster stop dots"
+                "rasterEvent"  "Raster event marks"
                 "trace"        "Mean trace"
                 "channelTrace" "Channel trace"
                 "bar"          "Bar"
@@ -290,6 +291,9 @@ classdef PlotAesthetics
                 "points"       "Epoch points"
                 "meanBar"      "Mean bar"
                 "curve"        "Tuning curve"
+                "behaviorMean" "Mean +/- SEM"
+                "swarm"        "Swarm points"
+                "violin"       "Violin"
                 "image"        "Image"
                 "sites"        "Sites"
                 "emptySites"   "Sites without a value"
@@ -620,6 +624,7 @@ classdef PlotAesthetics
                 "WhiskerLineColor" "WhiskerLineStyle" "LineWidth" "BoxWidth" "MarkerStyle" "MarkerSize" "MarkerColor"];
             L.Scatter = ["Visible" "Marker" "SizeData" "MarkerFaceColor" "MarkerEdgeColor" "MarkerFaceAlpha" ...
                 "MarkerEdgeAlpha" "LineWidth"];
+            L.ViolinPlot = ["Visible" "FaceColor" "FaceAlpha" "EdgeColor" "LineStyle" "LineWidth"];
             L.Image = "Visible";
             L.Text = ["Visible" "Color" "FontSize" "FontWeight" "FontAngle" "FontName" "BackgroundColor" "EdgeColor"];
             L.Axes = ["Visible" "Color" "XColor" "YColor" "LineWidth" "FontSize" "FontName" "TickDir" "Box" ...

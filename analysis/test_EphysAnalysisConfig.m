@@ -3,8 +3,10 @@ function test_EphysAnalysisConfig()
 %   Defaults, JSON save / load round trips (Inf, NaN, empty lists, one-item
 %   lists, "default" sentinels, a heterogeneous Plots array), plotFor's
 %   merge of the Defaults, plot ids (auto ids, DuplicatePlotId), every
-%   validate rule (ids and patterns whose files would collide too),
-%   LoadWarnings, BadSchema, figureFileName and plotFileName's page suffix.
+%   validate rule (ids and patterns whose files would collide too), the
+%   behavior kind, the raster's sort and event marks and events shifted by
+%   a trial parameter (fields, round trips, rules), LoadWarnings,
+%   BadSchema, figureFileName and plotFileName's page suffix.
 %
 %   Usage:  test_EphysAnalysisConfig
 
@@ -256,6 +258,62 @@ wv.save(f);
 w2 = EphysAnalysisConfig.load(f);
 check(w2.isequalConfig(wv) && isequal(w2.Plots(1).waveform, wv.Plots(1).waveform) && ~w2.Plots(1).waveform.box, ...
     'the waveform settings survive save / load');
+
+fprintf('\n== 4b. behavior plots, raster options, events shifted by a parameter ==\n');
+[cb, idb] = cfg.addPlot("behavior");
+pb = cb.Plots(end);
+check(idb == "behavior_1" && pb.source == "trials" && pb.yParam == "" && pb.jitter && pb.xScale == "category" ...
+    && cb.plotFor(idb).layout == "points", 'addPlot("behavior") reads the trials (its kind''s source); points by default');
+[ce, ide] = cfg.addPlot("evoked");
+check(ce.Plots(ce.plotIndex(ide)).source == "LFP", 'a plot added without a source reads its kind''s first (LFP for evoked)');
+check(hasIssue(cb, idb + ".param", "error") && hasIssue(cb, idb + ".yParam", "error"), 'a behavior plot needs param and yParam');
+cb.Plots(end).param = "Depth";
+cb.Plots(end).yParam = "RespLatency";
+cb.Plots(end).seriesParam = "TrialType";
+Ib = cb.validate(CheckPaths=false);
+check(~any(startsWith(Ib.Field, idb)), 'a behavior plot of RespLatency by Depth, per TrialType, validates');
+bad = cb; bad.Plots(end).yParam = "stop"; bad.Defaults.Window.stop = [];
+check(hasIssue(bad, idb + ".yParam", "error"), 'yParam "stop" without a stop event');
+bad = cb; bad.Plots(end).yParam = "stop";
+check(~hasIssue(bad, idb + ".yParam", "error"), 'yParam "stop" with the default window''s stop event');
+bad = cb; bad.Plots(end).xScale = "log";
+check(hasIssue(bad, idb + ".xScale", "error"), 'an unknown xScale');
+bad = cb; bad.Plots(end).layout = "violin";
+check(hasIssue(bad, idb + ".layout", "error") == ~exist('violinplot', 'file'), 'the violin layout needs violinplot (R2024b)');
+bad = cb; bad.Plots(end).source = "units";
+check(hasIssue(bad, idb + ".source", "error"), 'a behavior plot reads the trials, not units');
+bad = cb; bad.Plots(end).window = struct('mode', "between", 'stop', struct('line', "Stim", 'edge', "offset"));
+check(hasIssue(bad, idb + ".window", "error"), 'a behavior plot takes a fixed window');
+f = fullfile(root, 'behavior.json');
+cr = cb;
+cr.Plots(1).rasterSort = "Depth";
+cr.Plots(1).rasterSortOrder = "descending";
+cr.Plots(1).rasterByGroup = false;
+cr.Plots(1).rasterEvents = struct('lines', "Trough", 'edge', "both", 'scope', "trial", 'marker', "^", 'size', 6, 'color', "#ff00ff");
+cr.Plots(1).ref = struct('line', "RespWindow", 'offsetParam', "RespLatency");
+cr.Defaults.Window.stop = struct('line', "RespWindow", 'edge', "onset", 'offsetParam', "RespLatency", 'offsetParamUnit', "s");
+cr.save(f);
+c5 = EphysAnalysisConfig.load(f);
+p1 = c5.Plots(1);
+check(cr.isequalConfig(c5) && p1.rasterSortOrder == "descending" && ~p1.rasterByGroup && isequal(p1.rasterEvents.lines, "Trough") ...
+    && p1.ref.offsetParam == "RespLatency" && p1.ref.offsetParamUnit == "ms" && c5.Defaults.Window.stop.offsetParamUnit == "s" ...
+    && c5.Plots(end).yParam == "RespLatency", ...
+    'the raster sort, its event marks, behavior fields and parameter shifts round-trip (a one-line list stays a list)');
+check(~any(cr.validate(CheckPaths=false).Severity == "error"), 'that config validates');
+bad = cr; bad.Plots(1).rasterSortOrder = "up";
+check(hasIssue(bad, "psth_1.rasterSortOrder", "error"), 'an unknown raster sort order');
+bad = cr; bad.Plots(1).rasterEvents.edge = "middle";
+check(hasIssue(bad, "psth_1.rasterEvents.edge", "error"), 'an unknown mark edge');
+bad = cr; bad.Plots(1).rasterEvents.scope = "session";
+check(hasIssue(bad, "psth_1.rasterEvents.scope", "error"), 'an unknown mark scope');
+bad = cr; bad.Plots(1).rasterEvents.marker = "star";
+check(hasIssue(bad, "psth_1.rasterEvents.marker", "error"), 'a marker the editor does not know');
+bad = cr; bad.Plots(1).rasterEvents.size = 0;
+check(hasIssue(bad, "psth_1.rasterEvents.size", "error"), 'a mark size of 0');
+bad = cr; bad.Plots(1).rasterEvents.color = "notacolour";
+check(hasIssue(bad, "psth_1.rasterEvents.color", "warning"), 'a mark colour that is not one warns');
+bad = cr; bad.Plots(1).ref.offsetParamUnit = "min";
+check(hasIssue(bad, "psth_1.ref", "error"), 'a shift unit other than ms / s');
 
 fprintf('\n== 5. load warnings and schema ==\n');
 s = cfg.toStruct();

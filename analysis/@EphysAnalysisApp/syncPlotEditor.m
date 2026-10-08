@@ -14,27 +14,31 @@ function syncPlotEditor(obj)
 %     unit classes, quality       sorted units
 %     response test               spikes (its settings enabled when ticked)
 %     unit ids, max units, shanks spikes
+%     channels                    every kind but behavior (no units or channels)
 %     event, window, selection    every kind but probemap (aligns to nothing)
 %     bin, smoothing              psth, raster, heatmap of spikes, corrmap
 %     mask after the stop event   psth, raster, heatmap of spikes
 %     measure                     psth, rate, tuning, heatmap of spikes
-%     baseline                    every kind but raster and probemap
-%     grid spacing, corner labels every kind but rate (only grids use them)
+%     baseline                    every kind but raster, probemap and behavior
+%     grid spacing, corner labels every kind but rate and behavior (only grids use them)
 %     raster, PSTH as, normalize, fill, stack   psth
-%     sort raster by              psth, raster (enabled with a raster)
-%     parameter, series           tuning
+%     sort raster by (and its direction), rows by group, mark events,
+%       mark look                 psth, raster (enabled with a raster; the
+%                                 look with lines to mark)
+%     parameter, series           tuning, behavior
+%     y value, x axis             behavior (jitter enabled for points)
 %     value                       probemap
 %     row order                   heatmap
-%     sort by, label with         every kind but probemap (its sites are placed)
+%     sort by, label with         every kind but probemap and behavior (no units)
 %     epoch rate, correlation     corrmap
 %     tiles per page              the paged grids: raster; psth, tuning and evoked "grid"
-%     line width                  psth, evoked, tuning
-%     y limits                    psth, rate, tuning, evoked but "stack"
-%     group colours, legend       psth, raster, rate, tuning, evoked but "butterfly"
+%     line width                  psth, evoked, tuning, behavior
+%     y limits                    psth, rate, tuning, behavior, evoked but "stack"
+%     group colours, legend       psth, raster, rate, tuning, behavior, evoked but "butterfly"
 %     heat colours                heatmap, probemap, corrmap
-%     SEM                         psth, tuning, rate "bar", evoked but "butterfly"
+%     SEM                         psth, tuning, behavior, rate "bar", evoked but "butterfly"
 %     stop marks                  psth, raster
-%     grid                        psth, raster, evoked, rate, tuning
+%     grid                        psth, raster, evoked, rate, tuning, behavior
 %     unit waveform               spikes: raster; psth and tuning "grid"
 %                                 (its spikes, location, box and size
 %                                 enabled when it is not Off)
@@ -79,7 +83,8 @@ K = EphysAnalysisConfig.plotKinds();
 row = K(K.Kind == kind, :);
 psth = kind == "psth";
 binned = ismember(kind, ["psth" "raster" "corrmap"]) || (kind == "heatmap" && spikes);
-grouped = ismember(kind, ["psth" "raster" "rate" "tuning"]) || (kind == "evoked" && layout ~= "butterfly");
+behavior = kind == "behavior";
+grouped = ismember(kind, ["psth" "raster" "rate" "tuning" "behavior"]) || (kind == "evoked" && layout ~= "butterfly");
 
 % --- what shows ---------------------------------------------------------------------
 v = struct();
@@ -89,11 +94,11 @@ v.classes = source == "units";
 v.quality = source == "units";
 v.response = spikes; v.respBaseFrom = spikes; v.respParam = spikes;
 v.ids = spikes; v.maxUnits = spikes; v.shanks = spikes;
-v.channels = true;
+v.channels = ~behavior;
 v.binMs = binned; v.smoothMs = binned;
 v.maskAfterStop = binned && kind ~= "corrmap";
 v.measure = ismember(kind, ["psth" "rate" "tuning"]) || (kind == "heatmap" && spikes);
-v.baselineMode = ~ismember(kind, ["raster" "probemap"]);
+v.baselineMode = ~ismember(kind, ["raster" "probemap" "behavior"]);
 v.baseFrom = v.baselineMode;
 auroc = v.baselineMode && string(E.baselineMode.Value) == "auroc";
 v.aMethod = auroc; v.aWinMs = auroc; v.aModFrom = auroc; v.aCutoff = auroc; v.aMarks = auroc;
@@ -102,25 +107,27 @@ respAuroc = spikes && string(E.respTest.Value) == "auroc";
 v.raMethod = respAuroc; v.raWinMs = respAuroc; v.raCutoff = respAuroc;
 v.raTest = respAuroc && string(E.raCutoff.Value) == "test";
 v.withRaster = psth; v.histStyle = psth; v.normalize = psth; v.fill = psth; v.stack = psth;
-v.rasterSort = ismember(kind, ["psth" "raster"]);
-v.param = kind == "tuning"; v.seriesParam = v.param;
+v.rasterSort = ismember(kind, ["psth" "raster"]) && spikes;
+v.rasterByGroup = v.rasterSort; v.markLines = v.rasterSort; v.markMarker = v.rasterSort;
+v.param = ismember(kind, ["tuning" "behavior"]); v.seriesParam = v.param;
+v.yParam = behavior; v.xScale = behavior;
 v.value = kind == "probemap";
 v.order = kind == "heatmap";
 v.metric = kind == "corrmap"; v.correlation = v.metric;
 v.maxTiles = kind == "raster" || (ismember(kind, ["psth" "tuning" "evoked"]) && layout == "grid");
-v.tileSpacing = kind ~= "rate";
+v.tileSpacing = ~ismember(kind, ["rate" "behavior"]);
 v.fontSize = true;
-v.sortDepth = kind ~= "probemap"; v.labelDepth = v.sortDepth;
-v.lineWidth = ismember(kind, ["psth" "evoked" "tuning"]);
+v.sortDepth = ~ismember(kind, ["probemap" "behavior"]); v.labelDepth = v.sortDepth;
+v.lineWidth = ismember(kind, ["psth" "evoked" "tuning" "behavior"]);
 v.siteSize = kind == "probemap";
-v.ylim = ismember(kind, ["psth" "rate" "tuning"]) || (kind == "evoked" && layout ~= "stack");
+v.ylim = ismember(kind, ["psth" "rate" "tuning" "behavior"]) || (kind == "evoked" && layout ~= "stack");
 v.colormap = grouped;
 v.heatColormap = ismember(kind, ["heatmap" "probemap" "corrmap"]);
 v.waveMode = spikes && (kind == "raster" || (ismember(kind, ["psth" "tuning"]) && layout ~= "overlay"));
 v.waveLocation = v.waveMode;
 boxes = [E.showSEM E.showStop E.legend E.grid];
-on = [psth || kind == "tuning" || (kind == "rate" && layout == "bar") || (kind == "evoked" && layout ~= "butterfly"), ...
-    ismember(kind, ["psth" "raster"]), grouped, ismember(kind, ["psth" "raster" "evoked" "rate" "tuning"])];
+on = [psth || ismember(kind, ["tuning" "behavior"]) || (kind == "rate" && layout == "bar") || (kind == "evoked" && layout ~= "butterfly"), ...
+    ismember(kind, ["psth" "raster"]), grouped, ismember(kind, ["psth" "raster" "evoked" "rate" "tuning" "behavior"])];
 v.showSEM = any(on);
 for f = string(fieldnames(v)).'
     S = formShow(S, f, v.(f));
@@ -165,7 +172,10 @@ en(E.raStepMs, on && string(E.raWindows.Value) == "sliding");
 en(E.raThreshold, on && string(E.raCutoff.Value) == "fixed");
 en(E.raResamples, on && string(E.raTest.Value) ~= "ranksum");
 en(E.stackSpacing, stacked);
-en(E.rasterSort, kind == "raster" || E.withRaster.Value);
+raster = kind == "raster" || E.withRaster.Value;
+en([E.rasterSort E.rasterSortOrder E.rasterByGroup E.markLines E.markEdge E.markScope], raster);
+en([E.markMarker E.markSize E.markColor], raster && strtrim(string(E.markLines.Value)) ~= "");
+en(E.jitter, layout == "points");
 en([E.legend E.ylim], ~stacked);
 en([E.waveSpikes E.waveLocation E.waveBox E.waveScale], string(E.waveMode.Value) ~= "off");
 syncAlignEnable(C);

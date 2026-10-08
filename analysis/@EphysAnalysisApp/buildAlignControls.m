@@ -10,7 +10,9 @@ function C = buildAlignControls(obj, parents, changed)
 %   Defaults, the Plots tab another in three sections of its editor for a
 %   plot's own values (applyAlignControls / gatherAlignControls move values
 %   in and out; fillAlignItems lists the active dataset's lines and
-%   parameters; syncAlignEnable enables what is in use).
+%   parameters; syncAlignEnable enables what is in use). "Shift by" (and
+%   the stop's) adds a trial parameter's value to each event (eventRef's
+%   offsetParam, offsetParamUnit).
 C = struct();
 cbRef = @(~,~) changed("ref");
 cbWin = @(~,~) changed("window");
@@ -18,8 +20,8 @@ cbSel = @(~,~) changed("selection");
 [~, words] = respCodeBits();
 
 % --- event reference ------------------------------------------------------------
-rg = uigridlayout(parents(1), [5 4]);
-rg.RowHeight = repmat({22}, 1, 5);
+rg = uigridlayout(parents(1), [6 4]);
+rg.RowHeight = repmat({22}, 1, 6);
 rg.ColumnWidth = {95, '1x', 70, '1x'};
 rg.RowSpacing = 4;
 C.RefGrid = rg;
@@ -58,10 +60,19 @@ C.TimeFrom.Layout.Row = 5; C.TimeFrom.Layout.Column = 2;
 lab(rg, "to", 5, 3);
 C.TimeTo = uieditfield(rg, "text", "Value", "Inf", "ValueChangedFcn", cbRef);
 C.TimeTo.Layout.Row = 5; C.TimeTo.Layout.Column = 4;
+lab(rg, "Shift by:", 6, 1);
+C.ShiftParam = uidropdown(rg, "Editable", "on", "Items", "(none)", "Value", "(none)", "ValueChangedFcn", cbRef, ...
+    "Tooltip", "A trial parameter whose value on each event's trial is added to the event time, e.g. RespLatency " + ...
+    "to align to the response (Line RespWindow, onset). Events whose trial has no value (misses) are left out.");
+C.ShiftParam.Layout.Row = 6; C.ShiftParam.Layout.Column = 2;
+lab(rg, "unit:", 6, 3);
+C.ShiftUnit = uidropdown(rg, "Items", ["ms" "s"], "Value", "ms", "ValueChangedFcn", cbRef, ...
+    "Tooltip", "The parameter's unit (Epsych2 stores times in ms).");
+C.ShiftUnit.Layout.Row = 6; C.ShiftUnit.Layout.Column = 4;
 
 % --- window ------------------------------------------------------------------------
-wg = uigridlayout(parents(2), [5 4]);
-wg.RowHeight = repmat({22}, 1, 5);
+wg = uigridlayout(parents(2), [6 4]);
+wg.RowHeight = repmat({22}, 1, 6);
 wg.ColumnWidth = {95, '1x', 70, '1x'};
 wg.RowSpacing = 4;
 C.WindowGrid = wg;
@@ -93,6 +104,15 @@ C.StopN.Layout.Row = 4; C.StopN.Layout.Column = 4;
 lab(wg, "Stop scope:", 5, 1);
 C.StopScope = uidropdown(wg, "Items", ["auto" "trial" "recording"], "ValueChangedFcn", cbWin);
 C.StopScope.Layout.Row = 5; C.StopScope.Layout.Column = 2;
+lab(wg, "Stop shift by:", 6, 1);
+C.StopShiftParam = uidropdown(wg, "Editable", "on", "Items", "(none)", "Value", "(none)", "ValueChangedFcn", cbWin, ...
+    "Tooltip", "A trial parameter whose value on the epoch's trial is added to the stop event, e.g. RespLatency " + ...
+    "after RespWindow onset: the response time, marked on each raster row and sortable as the stop latency.");
+C.StopShiftParam.Layout.Row = 6; C.StopShiftParam.Layout.Column = 2;
+lab(wg, "unit:", 6, 3);
+C.StopShiftUnit = uidropdown(wg, "Items", ["ms" "s"], "Value", "ms", "ValueChangedFcn", cbWin, ...
+    "Tooltip", "The parameter's unit (Epsych2 stores times in ms).");
+C.StopShiftUnit.Layout.Row = 6; C.StopShiftUnit.Layout.Column = 4;
 
 % --- selection -----------------------------------------------------------------------
 sg = uigridlayout(parents(3), [7 4]);

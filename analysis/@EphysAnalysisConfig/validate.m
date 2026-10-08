@@ -21,7 +21,11 @@ function issues = validate(obj, opts)
 %               [b0 b1] with b0 < b1; psth histStyle, normalize,
 %               fillAlpha (0-1 or NaN) and stackSpacing (> 0); probemap value;
 %               heatmap order ("modulation" with an auROC baseline);
-%               corrmap metric and correlation; a baseline Mode "auroc"
+%               corrmap metric and correlation; a psth / raster's raster
+%               sort direction and event marks (edge, scope, marker, size;
+%               a colour that is not one is a warning); a behavior plot's
+%               param and yParam ("stop" needs a stop event), xScale, and
+%               violinplot for the violin layout; a baseline Mode "auroc"
 %               (psth and heatmap of spikes) and its auroc settings
 %               (method, windows, whole-bin window and step, modulation
 %               window, cutoff, threshold, test, nResamples, correction,
@@ -142,6 +146,48 @@ for k = 1:numel(obj.Plots)
     end
     if p.kind == "tuning" && strtrim(p.param) == ""
         add("Plots", f0 + ".param", "error", "A tuning plot needs param: the trial parameter on its x axis.");
+    end
+    if p.kind == "behavior"
+        if strtrim(p.param) == ""
+            add("Plots", f0 + ".param", "error", "A behavior plot needs param: the trial parameter on its x axis.");
+        end
+        if strtrim(p.yParam) == ""
+            add("Plots", f0 + ".yParam", "error", "A behavior plot needs yParam: a trial parameter (e.g. RespLatency), or ""stop"" for the stop event's latency.");
+        elseif p.yParam == "stop"
+            w = p.window;
+            if isequal(w, "default"); w = D.Window; end
+            if isempty(w.stop)
+                add("Plots", f0 + ".yParam", "error", "yParam ""stop"" plots each epoch's stop-event latency: give the epoch window a stop event.");
+            end
+        end
+        if ~ismember(p.xScale, ["category" "linear"])
+            add("Plots", f0 + ".xScale", "error", "A behavior plot's xScale is category or linear.");
+        end
+        if p.layout == "violin" && ~exist('violinplot', 'file')
+            add("Plots", f0 + ".layout", "error", "The violin layout needs violinplot (MATLAB R2024b or later).");
+        end
+    end
+    if ismember(p.kind, ["psth" "raster"])
+        if ~ismember(p.rasterSortOrder, ["ascending" "descending"])
+            add("Plots", f0 + ".rasterSortOrder", "error", "The raster sort order is ascending or descending.");
+        end
+        mk = p.rasterEvents;
+        if ~ismember(mk.edge, ["onset" "offset" "both"])
+            add("Plots", f0 + ".rasterEvents.edge", "error", "The raster marks' edge is onset, offset or both.");
+        end
+        if ~ismember(mk.scope, ["window" "trial"])
+            add("Plots", f0 + ".rasterEvents.scope", "error", "The raster marks' scope is window or trial.");
+        end
+        markers = PlotAesthetics.catalogue().Marker.Choices;
+        if ~ismember(mk.marker, markers)
+            add("Plots", f0 + ".rasterEvents.marker", "error", "The raster marks' marker is one of " + strjoin(markers, ", ") + ".");
+        end
+        if ~(mk.size > 0 && isfinite(mk.size))
+            add("Plots", f0 + ".rasterEvents.size", "error", "The raster marks' size must be positive (points).");
+        end
+        if mk.color ~= "" && ~isColor(mk.color)
+            add("Plots", f0 + ".rasterEvents.color", "warning", "No colour """ + mk.color + """; each mark gets its own colour.");
+        end
     end
     if ismember(p.kind, ["psth" "raster"]) || (p.kind == "heatmap" && ismember(p.source, EphysAnalysisConfig.SpikeSources)) ...
             || (p.kind == "corrmap" && p.metric == "peak")

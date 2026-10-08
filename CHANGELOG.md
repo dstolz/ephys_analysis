@@ -10,6 +10,34 @@ says how to cut a release.
 
 ### Added
 
+- A behavior plot kind (`behavior`): a per-trial value against a trial
+  parameter, e.g. RespLatency by Depth, one series per value of another
+  parameter (`param`, `seriesParam`). The value (`yParam`) is a numeric
+  trial parameter or `"stop"`, each epoch's stop-event latency in ms (the
+  first Trough onset after RespWindow onset, say). Layouts: points (each
+  epoch's value, jitter optional, with the mean +/- SEM), line (mean +/-
+  SEM), box (`boxchart`), swarm (`swarmchart`) and violin (`violinplot`,
+  MATLAB R2024b or later); the x values evenly spaced or at their values
+  (`xScale`). Epochs without a value (misses) are left out and counted in
+  the caption. `behaviorValues` computes it, `renderBehavior` draws it.
+- Events shifted by a trial parameter: an event reference's `offsetParam`
+  (and `offsetParamUnit`, ms or s) adds each trial's value of the
+  parameter to its event, so plots can be aligned to the response
+  (RespWindow onset + RespLatency); events whose trial has no value are
+  left out and counted (`nDroppedNoValue`). A stop event takes it too, so
+  a stimulus-aligned raster can mark each response and sort by its
+  latency. The app's Alignment controls have **Shift by** and **Stop
+  shift by**.
+- Raster rows: the sort's direction (`rasterSortOrder`, ascending or
+  descending; missing values stay last), rows by group first or every
+  epoch sorted as one block (`rasterByGroup`), and marks on each row at
+  the onsets and / or offsets of digital lines inside its epoch, every one
+  of them (several beam crossings in a trial get several marks;
+  `rasterEvents`: lines, edge, window or trial scope, marker, size,
+  colour; `epochEvents`). The marks are named per line and edge for the
+  aesthetics editor and listed in the raster's legend. The plot editor
+  has controls for all of them.
+
 - A toolbar in the preprocessing app, under the menu bar: New, Open and
   Save config; Validate config, Plan, Run pipeline, Dry run and Cancel run;
   View manifest; Open analysis app and Channel mapper; Help for this tab.
@@ -346,6 +374,11 @@ says how to cut a release.
 
 ### Changed
 
+- `EphysAnalysisConfig.addPlot` gives a plot added without a source its
+  kind's first source (LFP for an evoked potential; trials for a behavior
+  plot), as the app's Add does.
+- A psth or raster plot sorted by a trial parameter the dataset lacks is
+  skipped ("no trial parameter X") instead of failing when it runs.
 - Pipeline app: the Run tab always shows the run diagram and the Resource use
   panel (CPU, memory, disk and GPU). The **Show the run diagram** and
   **Monitor CPU, memory, disk and GPU** switches and their `ShowRunDiagram`

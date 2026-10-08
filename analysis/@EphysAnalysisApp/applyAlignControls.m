@@ -16,6 +16,8 @@ C.MinDur.Value = num2text(ref.minDurationSec);
 C.MaxDur.Value = num2text(ref.maxDurationSec);
 C.TimeFrom.Value = num2text(ref.timeRange(1));
 C.TimeTo.Value = num2text(ref.timeRange(2));
+setDrop(C.ShiftParam, noneIfEmpty(ref.offsetParam));
+setDrop(C.ShiftUnit, ref.offsetParamUnit);
 
 w = EphysAnalysisConfig.normalizeSection("EpochWindow", win);
 setWindowModes(C.Mode, string(C.Mode.ItemsData), w.mode);
@@ -29,6 +31,8 @@ if ~isempty(w.stop)
     C.StopWhich.Value = char(s.which);
     C.StopN.Value = s.n;
     C.StopScope.Value = char(s.scope);
+    setDrop(C.StopShiftParam, noneIfEmpty(s.offsetParam));
+    setDrop(C.StopShiftUnit, s.offsetParamUnit);
 end
 s = EphysAnalysisConfig.normalizeSection("TrialSelection", sel);
 C.Filter.Value = char(s.filter);
@@ -53,6 +57,11 @@ if isinf(x)
 else
     t = char(string(x));
 end
+end
+
+
+function v = noneIfEmpty(v)
+if v == ""; v = "(none)"; end
 end
 
 

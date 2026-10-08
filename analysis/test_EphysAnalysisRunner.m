@@ -14,7 +14,12 @@ function test_EphysAnalysisRunner()
 %   PSTHs, rasters and evoked stacks, a tuning caption); a failing
 %   export closing its page in the runner and the standalone script; and
 %   unit waveforms (templates without the sorted .bin, spikes cut from a
-%   planted one and cached, detections' saved waveforms, the script line).
+%   planted one and cached, detections' saved waveforms, the script line);
+%   behavior plots (RespLatency by Depth; the latency of the Trough onset
+%   after RespWindow onset, which is RespLatency) and a raster sorted by a
+%   stop event shifted by RespLatency (the response), descending across
+%   groups, with the Trough onsets and offsets marked, all of them in the
+%   scripts too.
 %
 %   Usage:  test_EphysAnalysisRunner
 
@@ -69,6 +74,14 @@ cfg = cfg.addPlot(struct('kind', "corrmap", 'metric', "peak", 'correlation', "sp
     'window', struct('mode', "between", 'pre', 0, 'post', 0, 'stop', struct('line', "RespWindow", 'edge', "offset", 'scope', "trial"))), Id="corr_resp");
 cfg = cfg.addPlot(struct('kind', "evoked", 'source', "SPIKE"), Id="spike_band");
 cfg = cfg.addPlot(struct('kind', "psth", 'ref', struct('line', "Nope")), Id="no_line");
+cfg = cfg.addPlot(struct('kind', "raster", 'ref', struct('line', "Stim", 'scope', "trial"), ...
+    'window', struct('pre', -0.2, 'post', 2, 'stop', struct('line', "RespWindow", 'offsetParam', "RespLatency")), ...
+    'rasterSort', "stop", 'rasterSortOrder', "descending", 'rasterByGroup', false, ...
+    'rasterEvents', struct('lines', "Trough", 'edge', "both"), 'units', struct('maxUnits', 2)), Id="raster_resp");
+cfg = cfg.addPlot(struct('kind', "behavior", 'param', "Depth", 'yParam', "RespLatency"), Id="behavior_lat");
+cfg = cfg.addPlot(struct('kind', "behavior", 'layout', "box", 'param', "Depth", 'yParam', "stop", ...
+    'ref', struct('line', "RespWindow", 'scope', "trial"), ...
+    'window', struct('pre', 0, 'post', 0, 'stop', struct('line', "Trough", 'scope', "trial"))), Id="behavior_stop");
 outMain = fullfile(root, 'outMain');
 cfg.Export.Formats = ["png" "svg"];
 cfg.Export.Folder = fullfile(outMain, "{Name}");
@@ -269,6 +282,45 @@ Rt = r.computePlot(src, spec);
 cap = plotCaption(spec, Rt);
 check(~contains(cap, "groups by") && contains(cap, sprintf("n = %d epochs", sum(Rt.n, 'all'))), ...
     "a tuning caption counts its curve's epochs, not the trial groups it ignores: " + cap);
+lat = src.trials.RespLatency;            % ms; NaN where the animal did not respond
+dep = src.trials.Depth;
+okT = src.trials.PairingFlag == "ok";
+spec = cfg.plotFor("behavior_lat");
+Rb = r.computePlot(src, spec);
+want = arrayfun(@(d) mean(lat(okT & dep == d & isfinite(lat))), Rb.x);
+check(isequal(sort(Rb.values.y), sort(lat(okT & isfinite(lat)))) && Rb.nMissing == nnz(okT & ~isfinite(lat)) ...
+    && max(abs(Rb.mean - want)) < 1e-9 && isequal(Rb.x, unique(dep(okT & isfinite(lat)))), ...
+    'behavior: every paired trial''s RespLatency by its Depth, the means per Depth, the misses left out and counted');
+h = renderPlot(Rb, spec, fig);
+cap = plotCaption(spec, Rb);
+check(startsWith(h.title, "Behavior: RespLatency by Depth") && contains(cap, "RespLatency by Depth") ...
+    && contains(cap, "from the paired trials") && ~contains(cap, "groups by"), "a behavior plot's title and caption: " + cap);
+spec = cfg.plotFor("behavior_stop");
+Rb2 = r.computePlot(src, spec);
+tr = Rb2.epochs.trial(Rb2.values.epoch);
+check(Rb2.units == "ms" && Rb2.yName == "Trough onset latency" && isequal(sort(tr), find(okT & isfinite(lat))) ...
+    && max(abs(Rb2.values.y - lat(tr))) < 1500 / src.fs, ...
+    'behavior "stop": the Trough onset''s latency after RespWindow onset, ms, is each trial''s RespLatency (within a sample)');
+spec = cfg.plotFor("raster_resp");
+Rr2 = r.computePlot(src, spec);
+M = Rr2.rasterEvents;
+hit = true;
+for e = find(isfinite(Rr2.epochStop)).'
+    hit = hit && any(abs(M(1).t(M(1).epoch == e) - Rr2.epochStop(e)) < 1.5 / src.fs);
+end
+check(numel(M) == 2 && isequal([M.label], ["Trough onset" "Trough offset"]) && any(isfinite(Rr2.epochStop)) && hit ...
+    && isequal(isfinite(Rr2.epochStop), isfinite(lat(Rr2.epochs.trial))), ...
+    'a stop at RespWindow onset + RespLatency is each response; a Trough onset is marked there on every row with one');
+h = renderPlot(Rr2, spec, fig);
+ax = h.axes(1);
+dots = findall(ax, 'Tag', 'rasterStop');
+[~, top] = min(dots.YData);
+check(contains(string(ax.YLabel.String), "descending") && contains(string(ax.YLabel.String), "groups mixed") ...
+    && dots.XData(top) == max(dots.XData) && numel(findall(ax, 'Tag', 'rasterEvent')) >= 2, ...
+    'sorted by the response latency, descending, across groups: the latest response on the top row; both edges marked');
+cap = plotCaption(spec, Rr2);
+check(contains(cap, "stop at RespWindow onset + RespLatency (ms)") && contains(cap, "raster marks: Trough onset, Trough offset") ...
+    && contains(cap, "sorted by stop latency, descending across groups"), "the raster's caption: " + cap);
 clear figCloser
 
 fprintf('\n== 7. a failing export closes its page ==\n');

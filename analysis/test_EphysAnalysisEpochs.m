@@ -213,6 +213,54 @@ check(all(abs(E.t1 - E.t0 - 0.5) < 2e-3) && all(E.complete), 'a fixed window wit
 E = epochTable(src, eventRef(line="Trial"), Window=epochWindow(mode="between", pre=-0.1, post=0.1, stop=eventRef(line="Trial", edge="offset")));
 check(max(abs(E.tStop - (src.trials.TrialOffset + 0.1))) < 1e-12, 'between Trial onset and offset');
 
+fprintf('\n== 5a. events shifted by a trial parameter (offsetParam) ==\n');
+lat = src.trials.RespLatency;            % ms; NaN on the trials without a response
+resp = isfinite(lat);
+rw = src.events.RespWindow;
+E = epochTable(src, eventRef(line="RespWindow", scope="trial", offsetParam="RespLatency"), Window=epochWindow(pre=-0.5, post=0.5));
+U = E.Properties.UserData;
+check(any(resp) && isequal(E.trial, find(resp)) && max(abs(E.t0 - (rw(resp, 1) + lat(resp) / 1000))) < 1e-12 ...
+    && U.nDroppedNoValue == nnz(~resp) && U.nEvents == nnz(resp), ...
+    'RespWindow onset + RespLatency (ms): one epoch per response, at it; the trials without one left out and counted');
+check(max(abs(E.t0Continuous - (E.t0 - 1 / src.fs))) < 1e-9, 'a shifted event is on the continuous clock 1/Fs before it, as any event');
+trough = arrayfun(@(i) src.trials.TrialEvents(i).Trough(1, 1), find(resp));
+check(max(abs(E.t0 - trough)) < 1.5 / src.fs, 'the shifted events are the response troughs the generator wrote (within a sample)');
+Es = epochTable(src, eventRef(line="RespWindow", scope="trial", offsetParam="RespLatency", offsetParamUnit="s"), ...
+    Window=epochWindow(pre=0, post=0), Incomplete="keep");
+check(height(Es) == nnz(resp) && max(abs(Es.t0 - (rw(Es.trial, 1) + lat(Es.trial)))) < 1e-9 && issorted(Es.t0), ...
+    'offsetParamUnit "s": the value is taken as seconds; the events are in time order after the shift');
+Ew = epochTable(src, eventRef(line="Stim", scope="trial"), ...
+    Window=epochWindow(pre=-0.2, post=2, stop=eventRef(line="RespWindow", offsetParam="RespLatency")));
+hasR = resp(Ew.trial);
+check(height(Ew) == 12 && isequal(isfinite(Ew.t1), hasR) ...
+    && max(abs(Ew.t1(hasR) - Ew.t0(hasR) - (0.6 + lat(Ew.trial(hasR)) / 1000))) < 1.5 / src.fs, ...
+    'a stop event shifted by RespLatency is each response, after the Stim onset; a trial without one has no stop');
+
+fprintf('\n== 5b. epochEvents: every event of a line in each epoch (raster marks) ==\n');
+iv = [on(2) + [0.1; 0.3; 0.5], on(2) + [0.15; 0.35; 0.55]     % three crossings in trial 2
+      on(5) + [0.2; 0.4; 0.6], on(5) + [0.25; 0.45; 0.65]     % three in trial 5
+      off(5) + 0.05, off(5) + 0.1];                            % one just after trial 5
+sb = withLine(src, "Beam", iv);
+Eb = epochTable(sb, eventRef(line="Trial"), Window=epochWindow(pre=0, post=4));
+M = epochEvents(sb, Eb, Lines="Beam", Edge="both");
+ok = numel(M) == 2 && M(1).label == "Beam onset" && M(2).label == "Beam offset" && M(2).edge == "offset";
+for e = 1:height(Eb)
+    for j = 1:2
+        x = iv(:, j);
+        want = sort(x(x >= Eb.tStart(e) & x <= Eb.tStop(e))) - Eb.t0(e);
+        ok = ok && isequal(M(j).t(M(j).epoch == e), want);
+    end
+end
+k2 = find(Eb.trial == 2); k5 = find(Eb.trial == 5);
+late = off(5) + 0.05 - Eb.t0(k5);
+check(ok && nnz(M(1).epoch == k2) == 3 && any(abs(M(1).t(M(1).epoch == k5) - late) < 1e-9), ...
+    'every onset and offset in each epoch''s window, from its event: three crossings in trial 2, and one after trial 5 in its window');
+Mt = epochEvents(sb, Eb, Lines="Beam", Scope="trial");
+check(numel(Mt) == 1 && nnz(Mt.epoch == k5) == 3 && ~any(abs(Mt.t(Mt.epoch == k5) - late) < 1e-9), ...
+    'scope "trial": only the events inside the epoch''s own trial');
+check(isempty(epochEvents(sb, Eb)) && strcmp(errorId(@() epochEvents(sb, Eb, Lines="Nope")), 'epochEvents:NoLine'), ...
+    'no lines: no marks; an unknown line: epochEvents:NoLine');
+
 fprintf('\n== 6. late-start: cut trials are not used ==\n');
 src2 = loadAnalysisSource(F.outputs(2));
 T2 = F.truth(2);
@@ -347,6 +395,12 @@ check(strcmp(errorId(@() trialSelection(filter="Depth > 0; x")), 'trialSelection
 check(strcmp(errorId(@() trialSelection(response="Win")), 'trialSelection:BadValue'), 'an unknown response word: trialSelection:BadValue');
 check(strcmp(errorId(@() epochWindow(mode="between")), 'epochWindow:NoStop'), 'between without a stop: epochWindow:NoStop');
 check(strcmp(errorId(@() eventRef(edge="middle")), 'eventRef:BadValue'), 'a bad edge: eventRef:BadValue');
+check(strcmp(errorId(@() eventRef(offsetParam="RespLatency", offsetParamUnit="min")), 'eventRef:BadValue') ...
+    && strcmp(errorId(@() epochTable(src, eventRef(line="Stim", offsetParam="Nope"))), 'resolveEvents:NoParam') ...
+    && strcmp(errorId(@() epochTable(src, eventRef(line="Stim", offsetParam="PairingFlag"))), 'resolveEvents:BadParam') ...
+    && strcmp(errorId(@() epochTable(src, eventRef(line="Stim", offsetParam="RespLatency"), ...
+        Selection=trialSelection(filter="isnan(RespLatency)"))), 'resolveEvents:NoEvents'), ...
+    'offsetParam: a unit other than ms / s, an unknown or text parameter, only trials without a value: their errors');
 check(strcmp(errorId(@() epochTable(src, eventRef(line="Stim"), Window=epochWindow(pre=-100, post=0))), 'epochTable:NoEpochs'), ...
     'windows outside the recording: epochTable:NoEpochs');
 Ew = epochTable(src, eventRef(line="Stim", scope="trial"), Window=epochWindow(pre=0, post=0.1), Artifacts="keep");
@@ -363,8 +417,9 @@ check(height(E) == size(T1.events.Stim, 1) && all(isnan(E.trial)) && G.label == 
     'without behavior "auto" falls back to recording scope');
 check(strcmp(errorId(@() epochTable(nb, eventRef(line="Stim"), Selection=trialSelection(groupBy="Depth"))), 'selectTrials:NoTrials') ...
     && strcmp(errorId(@() epochTable(nb, eventRef(line="Stim", scope="trial"))), 'resolveEvents:NoTrials') ...
-    && strcmp(errorId(@() epochTable(nb, eventRef(line="Trial"))), 'resolveEvents:NoLine'), ...
-    'without behavior, grouping / trial scope / "Trial" raise NoTrials / NoTrials / NoLine');
+    && strcmp(errorId(@() epochTable(nb, eventRef(line="Trial"))), 'resolveEvents:NoLine') ...
+    && strcmp(errorId(@() epochTable(nb, eventRef(line="Stim", which="all", offsetParam="RespLatency"))), 'resolveEvents:NoTrials'), ...
+    'without behavior, grouping / trial scope / "Trial" / a parameter shift raise NoTrials / NoTrials / NoLine / NoTrials');
 
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0

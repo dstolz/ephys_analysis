@@ -99,7 +99,6 @@ E.waveScale.Value = min(E.waveScale.Limits(2), max(E.waveScale.Limits(1), wv.sca
 s = p.style;
 E.maxTiles.Value = s.MaxTiles;
 E.tileSpacing.Value = char(s.TileSpacing);
-E.cornerLabels.Value = s.CornerLabelsOnly;
 E.fontSize.Value = s.FontSize;
 E.sortDepth.Value = s.SortDepth;
 E.sortShank.Value = s.SortShank;

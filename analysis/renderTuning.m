@@ -16,6 +16,10 @@ function h = renderTuning(R, target, opts)
 %   compass point (location), with or without the box's outline (box),
 %   sized by scale (default mode "off": none).
 %
+%   The grid's x and y labels are its tiled layout's, once for every tile,
+%   and its legend goes east of the grid unless Style.LegendLocation says
+%   otherwise.
+%
 %   H: layout (tiled layout or []), axes.
 %
 %   See also tuningCurve, renderRates, renderPlot.
@@ -45,8 +49,9 @@ if opts.Layout == "overlay" && nU > 1
     if isempty(ax); ax = nexttile(tl); end
     m = reshape(mean(R.mean, 2, 'omitnan'), nX, nS);
     s = reshape(semOf(R.mean, 2), nX, nS);
-    drawCurves(ax, xv, m, s, R, colors, style, true, tl);
+    drawCurves(ax, xv, m, s, R, colors, style, true, tl, 'best');
     title(ax, sprintf('Mean of %d units', nU), 'FontWeight', 'normal');
+    xlabel(ax, R.param, 'Interpreter', 'none');
     ylabel(ax, R.units);
     h = struct('layout', tl, 'axes', ax);
     return
@@ -65,20 +70,19 @@ for j = 1:numel(idx)
     u = order(idx(j));
     if ~isempty(ax0); ax = ax0; else; ax = nexttile(tl, j); end
     tagPart(ax, "axes", "", names(u));
-    drawCurves(ax, xv, reshape(R.mean(:, u, :), nX, nS), reshape(R.sem(:, u, :), nX, nS), R, colors, style, j == 1, tl);
+    drawCurves(ax, xv, reshape(R.mean(:, u, :), nX, nS), reshape(R.sem(:, u, :), nX, nS), R, colors, style, j == 1, tl, "east");
     waveformInset(ax, waves, u, wave, style);
     title(ax, names(u), 'FontWeight', 'normal', 'Interpreter', 'none');
-    if mod(j - 1, nc) == 0; ylabel(ax, R.units); end
-    if ceil(j / nc) < nr && isempty(ax0); xlabel(ax, ''); end
     axs(j) = ax;
 end
-cornerLabels(axs, nr, nc, style);
+gridLabels(tl, axs, R.param, R.units, style);
 if nr * nc > 1; tileTicks(axs, style); end
 h = struct('layout', tl, 'axes', axs);
 end
 
 
-function drawCurves(ax, xv, m, s, R, colors, style, withLegend, tl)
+function drawCurves(ax, xv, m, s, R, colors, style, withLegend, tl, auto)
+%drawCurves  One panel's curves; its legend (WITHLEGEND) at AUTO unless the style places it.
 nS = size(m, 2);
 hold(ax, 'on');
 lh = gobjects(1, nS);
@@ -100,8 +104,7 @@ if numel(xv) > 1
     xlim(ax, [min(xv) - pad, max(xv) + pad]);
 end
 styleAxes(ax, style);
-xlabel(ax, R.param, 'Interpreter', 'none');
 if withLegend && style.Legend && nS > 1
-    placeLegend(ax, lh, R.series, style, tl, 'best');
+    placeLegend(ax, lh, R.series, style, tl, auto);
 end
 end

@@ -1,7 +1,10 @@
-function rasterInto(ax, R, u, style, colors, sortBy, look)
+function rows = rasterInto(ax, R, u, style, colors, sortBy, look)
 %rasterInto  Draw unit U's raster from a spikePSTH result into AX.
-%   Epochs are rows, first on top. LOOK (a struct; every field optional)
-%   says how they are ordered and what is marked on them:
+%   ROWS = rasterInto(...) is the y label that says what the rows are and
+%   how they are sorted ("Epoch (by level), descending"); the caller puts
+%   it on the grid (gridLabels). Epochs are rows, first on top. LOOK (a
+%   struct; every field optional) says how they are ordered and what is
+%   marked on them:
 %     order    "ascending" (default) | "descending": the direction of the
 %              SORTBY key. SORTBY "" (default) is the epochs' time (trial)
 %              order, so "descending" turns it over; "stop" sorts them by
@@ -79,7 +82,7 @@ xlim(ax, W);
 ylim(ax, [0.5 max(1, nE) + 0.5]);
 if look.order == "descending"; name = name + ", descending"; end
 if ~look.byGroup && height(R.groups) > 1; name = name + ", groups mixed"; end
-ylabel(ax, name, 'Interpreter', 'none');
+rows = name;
 style.YLim = [];
 styleAxes(ax, style);
 end

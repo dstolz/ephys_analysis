@@ -93,7 +93,7 @@ switch section
             'CLim',         [], ...
             'Grid',         true, ...
             'Legend',       true, ...
-            'LegendLocation',    "auto", ...  % "auto" (each plot's own) | "inside" (in the first tile) | "north" | "south" | "east" | "west" (outside the grid of plots)
+            'LegendLocation',    "auto", ...  % "auto" (a grid's east of it, a single plot's its own) | "inside" (in the first tile) | "north" | "south" | "east" | "west" (outside the grid of plots)
             'LegendOrientation', "auto", ...  % "auto" (horizontal north / south of the grid, else vertical) | "vertical" | "horizontal"
             'LegendBox',         false, ...   % the legend's outline and background
             'SortDepth',   true, ...       % units / channels: top of the probe first (probe y)
@@ -102,7 +102,6 @@ switch section
             'LabelShank',   false, ...      % append the shank to unit / channel labels
             'MaxTiles',     16, ...         % tiles per page in grid layouts
             'TileSpacing',  "compact", ...  % space between the tiles of a grid: "loose" | "compact" | "tight" | "none"
-            'CornerLabelsOnly', false, ...  % grids: axis labels on the bottom-left tile only
             'StackSpacing', NaN);           % evoked "stack" offset (NaN = automatic)
 
     case "Auroc"
@@ -129,7 +128,7 @@ switch section
             'location',  "northeast", ...   % compass point of the tile: north, south, east, west, northeast, northwest, southeast, southwest
             'box',       true, ...          % the box's outline and pale ground (false: the waveform alone)
             'showPP',    true, ...          % the mean's peak-to-peak amplitude in the box's label
-            'showCount', false, ...         % the number of spikes drawn, in the box's label
+            'showCount', false, ...         % the unit's total spike count, in the box's label
             'scale',     1, ...             % size: 1 = a third of the tile's width and height (at most 3)
             'maxSpikes', 100);              % the subsample: spikes per unit, at random (the same each time); a sorted unit's mean is over them
 

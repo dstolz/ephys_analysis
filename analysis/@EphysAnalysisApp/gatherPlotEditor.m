@@ -81,7 +81,6 @@ p.waveform.showCount = logical(E.waveCount.Value);
 p.waveform.scale = E.waveScale.Value;
 p.style.MaxTiles = E.maxTiles.Value;
 p.style.TileSpacing = string(E.tileSpacing.Value);
-p.style.CornerLabelsOnly = E.cornerLabels.Value;
 p.style.FontSize = E.fontSize.Value;
 p.style.SortDepth = E.sortDepth.Value;
 p.style.SortShank = E.sortShank.Value;

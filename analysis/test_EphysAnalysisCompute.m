@@ -320,12 +320,12 @@ ax = h.axes(1);
 pk = reshape(max(Rd.rate(:, 1, :), [], 1), [], 1);
 stp = 1.1 * max(pk);
 yyaxis(ax, 'right'); rt = ax.YTick; rl = string(ax.YTickLabel); ylR = ax.YLim;
-yyaxis(ax, 'left');  lt = ax.YTick; ll = string(ax.YTickLabel); llab = string(ax.YLabel.String); ylL = ax.YLim;
+yyaxis(ax, 'left');  lt = ax.YTick; ll = string(ax.YTickLabel); llab = string(h.layout.YLabel.String); ylL = ax.YLim;
 [srt, o] = sort((0:2).' * stp + pk);
 check(numel(h.axes) == 3 && all(abs(h.step - 1.1 * reshape(max(Rd.rate, [], [1 3]), 1, [])) < 1e-9) && abs(h.step(1) - stp) < 1e-9, ...
     'each unit''s row step is Spacing (1.1) x its tallest PSTH');
-check(numel(ax.YAxis) == 2 && max(abs(lt - (0:2) * stp)) < 1e-9 && isequal(ll(:), ["0"; "0.5"; "1"]) && llab == "Depth", ...
-    'left axis: a tick at each row''s baseline, first group at the bottom, labelled with its Depth value');
+check(numel(ax.YAxis) == 2 && max(abs(lt - (0:2) * stp)) < 1e-9 && isequal(ll(:), ["0"; "0.5"; "1"]) && llab == "Depth  ·  Epoch", ...
+    'left axis: a tick at each row''s baseline, first group at the bottom, labelled with its Depth value; the grid''s y label names Depth (then the rasters'' rows)');
 check(max(abs(rt(:) - srt)) < 1e-9 && isequal(rl(:), compose("%.3g", pk(o))) && isequal(ylL, ylR), ...
     'right axis: a tick where each row peaks, labelled with its peak rate, on the same limits as the left');
 check(isempty(ax.Legend) && contains(string(h.axes(2).YAxis(2).Label.String), "Peak (spikes/s)") ...
@@ -347,7 +347,7 @@ check(abs(h.step(1) - 1.1) < 1e-9 && max(abs(sort(rt(:)) - ((0:2).' * 1.1 + 1)))
 h = renderPSTH(Rd, f6, Normalize="unitPeak", Stack=false, Style=struct('SortDepth', false, 'ShowSEM', false));
 ax = h.axes(1);
 yd = get(findobj(ax, 'Type', 'patch'), 'YData');
-check(abs(max(cellfun(@max, yd)) - 1) < 1e-9 && string(ax.YLabel.String) == "Normalized (unit peak = 1)", ...
+check(abs(max(cellfun(@max, yd)) - 1) < 1e-9 && startsWith(string(h.layout.YLabel.String), "Normalized (unit peak = 1)"), ...
     'unitPeak unstacked: the tallest group reaches 1, and the y label says so');
 h = renderPSTH(Rd, f6, Layout="overlay", Normalize="unitPeak", Stack=true, Style=struct('SortDepth', false, 'ShowSEM', false));
 ax = h.axes(1);
@@ -521,14 +521,32 @@ Fr = firingRate({trainP}, Em);
 check(isequal(Fp.rate(:, 1).', [1 1 0 1]) && isequal(Fc.rate(:, 1).', [2 1 0 1]) && Fp.meanRate == 0.75 ...
     && Fp.units == "P(spike)/window" && Fc.units == "spikes/window" && Fr.units == "spikes/s" && Fr.measure == "rate", ...
     'firingRate: probability = share of epochs with a spike, count = spikes per window');
-% corner labels and spacing
-[~, nr8, nc8] = pageItems(3, 1, 6);
-corner = (nr8 - 1) * nc8 + 1;
-h = renderPSTH(Rp, fig8, Layout="grid", WithRaster=false, Style=struct('CornerLabelsOnly', true, 'MaxTiles', 6));
-has = arrayfun(@(a) string(a.XLabel.String) ~= "" || string(a.YLabel.String) ~= "", h.axes);
-check(nnz(has) == 1 && has(corner), 'corner labels: only the bottom-left tile keeps its axis labels');
+% a grid's labels: once, on its tiled layout; and spacing
+unlabelled = @(axs) all(arrayfun(@(a) string(a.XLabel.String) == "" && string(a.YAxis(1).Label.String) == "", axs));
 h = renderPSTH(Rp, fig8, Layout="grid", WithRaster=false, Style=struct('MaxTiles', 6));
-check(nnz(arrayfun(@(a) string(a.XLabel.String) ~= "" || string(a.YLabel.String) ~= "", h.axes)) > 1, 'without CornerLabelsOnly every outer tile is labelled');
+check(string(h.layout.XLabel.String) == "Time (s)" && string(h.layout.YLabel.String) == Rp.units && unlabelled(h.axes) ...
+    && all(arrayfun(@(a) string(a.Title.String) ~= "", h.axes)), 'a PSTH grid: one x and one y label, the layout''s; the tiles keep only their titles');
+h = renderPSTH(Rp, fig8, Layout="grid");
+check(string(h.layout.YLabel.String) == Rp.units + "  ·  Epoch" && unlabelled([h.axes h.rasterAxes]), ...
+    'with rasters: the layout''s y label names the rates, then the rasters'' rows; no tile is labelled');
+amp = "Amplitude (" + replace(string(Rv.units), "uV", "µV") + ")";
+gridKinds = {
+    "raster",           @(tg) renderRaster(Rp, tg),                    "Time (s)", "Epoch"
+    "heatmap",          @(tg) renderHeatmap(Rp, tg),                   "Time (s)", "Units"
+    "unit correlation", @(tg) renderCorrMap(Rc, tg),                   "Units",    "Units"
+    "tuning grid",      @(tg) renderTuning(Rt, tg),                    Rt.param,   Rt.units
+    "evoked butterfly", @(tg) renderEvoked(Rv, tg, Layout="butterfly"), "Time (s)", amp
+    "evoked grid",      @(tg) renderEvoked(Rv, tg, Layout="grid"),      "Time (s)", amp};
+for k = 1:size(gridKinds, 1)
+    hk = gridKinds{k, 2}(fig8);
+    check(string(hk.layout.XLabel.String) == gridKinds{k, 3} && string(hk.layout.YLabel.String) == gridKinds{k, 4} && unlabelled(hk.axes), ...
+        gridKinds{k, 1} + ": the x and y labels are the layout's, no tile's");
+end
+ax9 = axes(figure('Visible', 'off'));
+h = renderPSTH(Rp, ax9, Layout="grid");
+check(isempty(h.layout) && string(ax9.XLabel.String) == "Time (s)" && string(ax9.YLabel.String) == Rp.units, ...
+    'drawn into one axes: the axes takes the labels');
+delete(ancestor(ax9, 'figure'));
 h = renderPSTH(Rp, fig8, Layout="grid", Style=struct('TileSpacing', "loose"));
 check(string(h.layout.TileSpacing) == "loose" && string(h.layout.Padding) == "loose", 'TileSpacing loose reaches the tiled layout');
 h = renderPSTH(Rp, fig8, Layout="grid", Style=struct('TileSpacing', "none"));
@@ -558,9 +576,20 @@ check(isscalar(lg) && isempty(findall(fig8, 'Type', 'axes', 'Tag', 'legendHost')
 renderPSTH(Rp, fig8, Layout="grid", Style=struct('LegendLocation', "inside"));
 lg = findall(fig8, 'Type', 'legend');
 check(isscalar(lg) && string(lg.Location) == "best" && isempty(findall(fig8, 'Type', 'axes', 'Tag', 'legendHost')), 'inside: in the first tile');
-renderPSTH(Rp, fig8, Layout="grid");
+h = renderPSTH(Rp, fig8, Layout="grid");
 lg = findall(fig8, 'Type', 'legend');
-check(isscalar(lg) && string(lg.Location) == "best" && string(lg.Orientation) == "vertical", 'auto: the plot''s own place');
+check(isscalar(lg) && lg.Parent == h.layout && string(lg.Layout.Tile) == "east" && string(lg.Orientation) == "vertical", ...
+    'auto in a grid: east of the whole grid, as its labels');
+Rts = tuningCurve(Rr.rate, mod((1:nE).', 4), Series=mod((1:nE).', 2), Param="Depth", SeriesParam="Kind", Meta=meta);
+for f = {@(tg) renderRaster(Rp, tg), @(tg) renderTuning(Rts, tg), @(tg) renderEvoked(Rv, tg, Layout="grid")}
+    h = f{1}(fig8);
+    lg = findall(fig8, 'Type', 'legend');
+    check(isscalar(lg) && lg.Parent == h.layout && string(lg.Layout.Tile) == "east", ...
+        "auto, " + func2str(f{1}) + ": the grid's legend east of it");
+end
+renderPSTH(Rp, fig8, Layout="overlay");
+lg = findall(fig8, 'Type', 'legend');
+check(isscalar(lg) && string(lg.Location) == "best", 'auto in a single plot: its own place (an overlay''s best)');
 fig9 = figure('Visible', 'off');
 ax9 = axes(fig9);
 renderPSTH(Rp, ax9, Style=struct('LegendLocation', "east"));
@@ -585,8 +614,8 @@ check(isequal(rowsOf(renderRaster(Rs, fig9, SortBy="level")), [3 1 2 6 5 4]), ..
     'raster SortBy a column of the epochs: sorted within each group, a missing value last');
 check(isequal(rowsOf(renderRaster(Rs, fig9, SortBy="stop")), [3 1 2 6 5 4]), 'raster SortBy "stop": by the stop event''s latency');
 h = renderPSTH(Rs, fig9, SortBy="level");
-check(isequal(rasterRows(h.rasterAxes(1)), [3 1 2 6 5 4]) && string(h.rasterAxes(1).YLabel.String) == "Epoch (by level)", ...
-    'the raster above a PSTH takes SortBy, and its y label names it');
+check(isequal(rasterRows(h.rasterAxes(1)), [3 1 2 6 5 4]) && endsWith(string(h.layout.YLabel.String), "Epoch (by level)"), ...
+    'the raster above a PSTH takes SortBy, and the grid''s y label names it');
 h = renderPlot(Rs, struct('kind', "raster", 'rasterSort', "level"), fig9);
 check(isequal(rasterRows(h.axes(1)), [3 1 2 6 5 4]) && contains(plotCaption(struct('kind', "raster", 'rasterSort', "level"), Rs), ...
     "sorted by level"), 'renderPlot sorts by the spec''s rasterSort; the caption says so');
@@ -601,7 +630,7 @@ bands = findall(h.axes(1), 'Tag', 'rasterBand');
 bands = bands(arrayfun(@(b) numel(b.XData) > 1, bands));   % not the legend's stand-ins
 nFaces = arrayfun(@(b) size(b.XData, 2), bands);
 check(isequal(rasterRows(h.axes(1)), [5 1 3 6 4 2]) && numel(bands) == 2 && isequal(sort(nFaces(:)).', [3 3]) ...
-    && contains(string(h.axes(1).YLabel.String), "groups mixed"), ...
+    && contains(string(h.layout.YLabel.String), "groups mixed"), ...
     'ByGroup false: every epoch sorted by stop latency as one block (ties in time order), each row on its group''s band');
 check(contains(plotCaption(struct('kind', "raster", 'rasterSort', "stop", 'rasterSortOrder', "descending", 'rasterByGroup', false), Rs), ...
     "sorted by stop latency, descending across groups"), 'the caption says how the raster is sorted');

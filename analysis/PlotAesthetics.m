@@ -4,7 +4,8 @@ classdef PlotAesthetics
     %   is its role ("rate", "sem", "rasterTicks", ...: roles lists them)
     %   and the group, series or channel it draws is its "PlotGroup"
     %   appdata. Titles, axis labels, legends and colour bars are found
-    %   through their axes. A rule -- role, group, property, value -- sets
+    %   through their axes, or their tiled layout (a grid's x and y labels
+    %   and the plot's title). A rule -- role, group, property, value -- sets
     %   that property on every component of the role, in every tile; group
     %   "" means every group. renderPlot applies the user's rules for the
     %   plot's kind (preferences) and then the plot's own (its aesthetics
@@ -179,11 +180,14 @@ classdef PlotAesthetics
             %   tile's, the tiles that share a name (a unit's raster and rate
             %   panels) together. Untagged objects are listed on their own with
             %   role "". Titles, axis labels, legends and colour bars count
-            %   when they show something.
+            %   when they show something; a grid's x and y labels (its tiled
+            %   layout's) are the plot's own, tile 0.
             C = struct('h', {}, 'role', {}, 'group', {}, 'tile', {}, 'name', {});
             for tl = PlotAesthetics.layoutsIn(target)
                 C = addText(C, tl.Title, "plotTitle", 0, "Plot");
                 C = addText(C, tl.Subtitle, "plotSubtitle", 0, "Plot");
+                C = addText(C, tl.XLabel, "xlabel", 0, "Plot");   % a grid's labels, once for every tile
+                C = addText(C, tl.YLabel, "ylabel", 0, "Plot");
             end
             for host = reshape(flipud(findall(target, 'Type', 'axes', 'Tag', 'legendHost')), 1, [])
                 if ~isempty(host.Legend) && isvalid(host.Legend)   % a legend outside the grid belongs to the plot

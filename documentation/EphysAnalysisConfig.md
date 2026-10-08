@@ -270,12 +270,11 @@ A plot's `units` (its `source` is the plot's `source`). Sorted units
 | `SiteSize` | 8 | probe map: the sites' marker size, points |
 | `YLim`, `XLim`, `CLim` | `[]` | fixed limits (`[]` = automatic). `YLim` is used by the unstacked PSTH rate panels, the evoked butterfly and grid layouts, and the rate and tuning plots only: rasters show every epoch, and a stacked PSTH and an evoked stack ignore it. The automatic `CLim` is the range of every tile, `[0 1]` for an auROC heatmap and `[-1 1]` for a corrmap |
 | `Grid`, `Legend` | `true` | |
-| `LegendLocation` | `"auto"` | where the legend goes: `"auto"` (each plot's own place), `"inside"` (in the first tile), or `"north"`, `"south"`, `"east"`, `"west"`: outside the whole grid of plots, on that side (beside the axes when the plot is a single axes). A stacked PSTH has no legend |
+| `LegendLocation` | `"auto"` | where the legend goes: `"auto"` (a grid's east of the grid, a single plot's in its own place), `"inside"` (in the first tile), or `"north"`, `"south"`, `"east"`, `"west"`: outside the whole grid of plots, on that side (beside the axes when the plot is a single axes). A stacked PSTH has no legend |
 | `LegendOrientation` | `"auto"` | `"vertical"` or `"horizontal"` entries; `"auto"` lays a legend north or south of the grid out horizontally, any other vertically |
 | `LegendBox` | `false` | the legend's outline and background |
 | `MaxTiles` | 16 | tiles per page in grid layouts (psth and tuning grids, rasters, evoked grids): a plot with more units or channels has several pages |
 | `TileSpacing` | `"compact"` | space between the tiles of a grid, and round it: `"loose"`, `"compact"`, `"tight"`, `"none"` |
-| `CornerLabelsOnly` | `false` | grids: axis labels on the bottom-left tile only (titles, ticks and colour bars stay) |
 | `SortDepth` | `true` | units / channels with the top of the probe first (probe `y`); applies to every kind but probemap (psth, raster, tuning tiles, rate bars, evoked, heatmap and corrmap rows) |
 | `SortShank` | `false` | units / channels grouped by shank first (ascending); with `SortDepth`, top first within each shank. Neither ticked: as listed |
 | `LabelDepth`, `LabelShank` | `false` | append the probe depth (`y`, µm) and / or the shank to the unit / channel labels, e.g. `su3 (sh1, 640 µm)` |

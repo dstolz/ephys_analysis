@@ -65,6 +65,11 @@ function h = renderPSTH(R, target, opts)
 %   arrow or n.s. (overlay: each group's count of units called up and
 %   down).
 %
+%   A grid's x and y labels are its tiled layout's, once for every tile
+%   (with rasters, the y label names the rates, then the rasters' rows);
+%   its legend goes east of the grid unless Style.LegendLocation says
+%   otherwise. A stack's right axis is labelled on the right column.
+%
 %   H: layout (tiled layout or []), axes (rate panels), rasterAxes, step
 %   (each rate panel's row step in its y units; NaN when not stacked). A
 %   raster and its rate panel get the same x limits; the axes are not
@@ -121,7 +126,7 @@ if opts.Layout == "overlay" && nU > 1
     P.peakLabel = "Peak (" + R.units + ")";
     if norm ~= "none"; P.peakLabel = "Peak (normalized)"; end
     P.yUnits = yUnits;
-    h.step = drawPanel(ax, P, R, colors, style, look, struct('legend', true, 'left', true, 'right', true, 'layout', tl));
+    h.step = drawPanel(ax, P, R, colors, style, look, struct('legend', true, 'left', true, 'right', true, 'layout', tl, 'auto', 'best'));
     title(ax, sprintf('Mean of %d units', nU), 'FontWeight', 'normal');
     if auroc; callMarks(ax, R, 0, colors, style); end
     xlabel(ax, 'Time (s)');
@@ -145,6 +150,7 @@ rax = gobjects(1, 0);
 step = NaN(1, numel(idx));
 names = siteLabels(shortUnitLabels(R.labels), R.meta, style);
 order = probeOrder(R.meta, nU, style);
+rows = "";
 for j = 1:numel(idx)
     u = order(idx(j));
     r = ceil(j / nc); c = j - (r - 1) * nc;
@@ -156,12 +162,11 @@ for j = 1:numel(idx)
         pair = tiledlayout(tl, 2, 1, 'TileSpacing', 'none', 'Padding', 'tight');
         pair.Layout.Tile = j;
         ra = nexttile(pair, 1);
-        rasterInto(ra, R, u, style, colors, opts.SortBy, ...
+        rows = rasterInto(ra, R, u, style, colors, opts.SortBy, ...
             struct('order', opts.SortOrder, 'byGroup', opts.ByGroup, 'marks', opts.EventMarks));
         tagPart(ra, "rasterAxes", "", names(u));
         if look.stack; set(ra, 'YDir', 'normal'); end
         ra.XTickLabel = [];
-        if c > 1; ra.YLabel.String = ''; end   % "Epoch" on the left column only, as the rates' label
         title(ra, names(u), 'FontWeight', 'normal', 'Interpreter', 'none');
         rax(end+1) = ra; %#ok<AGROW>
         ax = nexttile(pair, 2);
@@ -175,7 +180,7 @@ for j = 1:numel(idx)
     P.peakLabel = "Peak (" + R.units + ")";
     P.yUnits = yUnits;
     step(j) = drawPanel(ax, P, R, colors, style, look, ...
-        struct('legend', j == 1, 'left', c == 1, 'right', c == nc || j == numel(idx), 'layout', tl));
+        struct('legend', j == 1, 'left', false, 'right', c == nc || j == numel(idx), 'layout', tl, 'auto', "east"));
     waveformInset(ax, waves, u, wave, style);
     if ~withRaster
         title(ax, names(u), 'FontWeight', 'normal', 'Interpreter', 'none');
@@ -185,11 +190,14 @@ for j = 1:numel(idx)
         if withRaster; top = rax(end); end
         callMarks(top, R, u, colors, style);
     end
-    if r == nr || ~isempty(ax0); xlabel(ax, 'Time (s)'); end
     axs(j) = ax;
 end
-cornerLabels(axs, nr, nc, style);
-cornerLabels(rax, nr, nc, style);
+% One y label for the grid: the rates' (a stack's: its rows' parameters),
+% then, reading up, the rasters' above them.
+yName = yUnits;
+if look.stack; [~, yName] = rowLabels(R); end
+if rows ~= ""; yName = yName + "  ·  " + rows; end
+gridLabels(tl, [axs rax], "Time (s)", yName, style);
 if nr * nc > 1; tileTicks([rax axs], style); end
 clearRasterEdge(rax);
 h.layout = tl; h.axes = axs; h.rasterAxes = rax; h.step = step;
@@ -276,7 +284,8 @@ function step = drawPanel(ax, P, R, colors, style, look, show)
 %   P: m / s [nBins x nGroups] (what is drawn), peak [nGroups x 1] and
 %   peakLabel (the right axis of a stack), yUnits (the y label when
 %   overlaid). SHOW: legend (overlaid), left / right (the axis labels),
-%   layout (the grid's tiled layout, [] for one axes: the legend's place).
+%   layout (the grid's tiled layout, [] for one axes) and auto (the
+%   legend's own place: placeLegend's AUTO).
 if look.stack
     step = drawStack(ax, P, R, colors, style, look, show);
     return
@@ -317,7 +326,7 @@ styleAxes(ax, style);
 if ref ~= 0 && isempty(style.YLim); ylim(ax, [0 1]); end
 if show.left; ylabel(ax, P.yUnits); end
 if show.legend && style.Legend && nG > 1
-    placeLegend(ax, lh, R.groups.label, style, show.layout, 'best');
+    placeLegend(ax, lh, R.groups.label, style, show.layout, show.auto);
 end
 end
 

@@ -401,6 +401,15 @@ says how to cut a release.
 
 ### Changed
 
+- Analysis grids (PSTH, raster, tuning, evoked butterfly and grid, heatmap,
+  unit correlation) are labelled once, on their tiled layout: one x label
+  under the whole grid and one y label beside it (a PSTH with rasters names
+  the rates, then the rasters' rows), with the plot's title above. The
+  tiles keep only their own titles. A grid's legend goes east of the grid
+  when Style `LegendLocation` is `"auto"`, rather than in its first tile.
+  The aesthetics editor and designs reach the grid's labels as the plot's
+  own `xlabel` and `ylabel`. **Labels on corner tile only** (Style
+  `CornerLabelsOnly`) is gone.
 - `EphysAnalysisConfig.addPlot` gives a plot added without a source its
   kind's first source (LFP for an evoked potential; trials for a behavior
   plot), as the app's Add does.

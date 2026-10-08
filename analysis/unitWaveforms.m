@@ -27,6 +27,8 @@ function W = unitWaveforms(src, meta, opts)
 %     from       [nU x 1] "spikes" | "template" | "none"
 %     units      [nU x 1] what the values are: "uV", "bin" (the sorted
 %                .bin's units), "whitened" (see readPhyWaveforms), "" (none)
+%     total      [nU x 1] the unit's spikes in the whole recording (0 for none),
+%                however few of them are drawn
 %     note       "" or why some units have no spikes
 %     maxSpikes  MaxSpikes
 %
@@ -42,7 +44,8 @@ end
 
 nU = height(meta);
 W = struct('timeMs', {cell(nU, 1)}, 'mean', {cell(nU, 1)}, 'spikes', {cell(nU, 1)}, ...
-    'from', repmat("none", nU, 1), 'units', strings(nU, 1), 'note', "", 'maxSpikes', opts.MaxSpikes);
+    'from', repmat("none", nU, 1), 'units', strings(nU, 1), 'total', zeros(nU, 1), 'note', "", ...
+    'maxSpikes', opts.MaxSpikes);
 if nU == 0; return; end
 out = src.outputs;
 switch opts.Source
@@ -60,6 +63,8 @@ switch opts.Source
                         W.timeMs{u} = double(info.timeMs(:));
                         W.from(u) = "spikes";
                         W.units(u) = string(info.units);
+                        row = find(double(U.unitId) == id, 1);
+                        W.total(u) = numel(U.samples{row});
                         continue
                     end
                 catch ME
@@ -107,6 +112,7 @@ switch opts.Source
             W.timeMs{u} = tms;
             W.from(u) = "spikes";
             W.units(u) = "uV";
+            W.total(u) = n;
         end
 end
 end

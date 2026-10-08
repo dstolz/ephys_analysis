@@ -7,7 +7,9 @@ function h = renderCorrMap(R, target, opts)
 %
 %   Units are ordered by Style.SortShank / Style.SortDepth (by shank, then
 %   top of the probe first; neither = as listed) and labelled with their
-%   shank / depth when Style.LabelShank / Style.LabelDepth say so.
+%   shank / depth when Style.LabelShank / Style.LabelDepth say so: on the
+%   outer tiles only, as every tile shares one order. The x and y labels
+%   and the colour bar are the tiled layout's, once for every tile.
 %
 %   H: layout (tiled layout or []), axes, colorbar.
 %
@@ -54,7 +56,7 @@ for j = 1:numel(idx)
     axis(ax, 'image');
     xlim(ax, [0.5 nU + 0.5]);
     ylim(ax, [0.5 nU + 0.5]);
-    % Unit names on the outer tiles only: every tile shares one order.
+    % Unit names as tick labels on the outer tiles only: every tile shares one order.
     bottom = j + nc > numel(idx) || ~isempty(ax0);   % no tile below
     left = mod(j - 1, nc) == 0;
     if nU <= 40
@@ -67,17 +69,15 @@ for j = 1:numel(idx)
     t = string(sprintf('%s (n = %d', R.groups.label(g), R.nEpochs(g)));
     if isfinite(R.meanR(g)); t = t + sprintf(', mean r = %.2f', R.meanR(g)); end
     title(ax, t + ")", 'FontWeight', 'normal', 'Interpreter', 'none');
-    if bottom; xlabel(ax, 'Units'); end
-    if left; ylabel(ax, 'Units'); end
     axs(j) = ax;
 end
+gridLabels(tl, axs, "Units", "Units", style);
 cb = gobjects(0);
 if ~isempty(axs)
     cb = colorbar(axs(end));
     cb.Label.String = corrName(R.type) + " (" + R.metric + " rate)";
     if ~isempty(tl); cb.Layout.Tile = 'east'; end
 end
-cornerLabels(axs, nr, nc, style);
 h = struct('layout', tl, 'axes', axs, 'colorbar', cb);
 end
 

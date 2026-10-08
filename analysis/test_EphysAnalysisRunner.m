@@ -256,7 +256,7 @@ spec.stack = true; spec.style.MaxTiles = 16;
 h = renderPlot(Rs, spec, fig);
 ax = h.axes(1);
 yyaxis(ax, 'left');
-check(ismember("nTrials", string(Gs.Properties.VariableNames)) && string(ax.YLabel.String) == "Depth" ...
+check(ismember("nTrials", string(Gs.Properties.VariableNames)) && ~isempty(regexp(char(h.layout.YLabel.String), '^Depth($|  ·  )', 'once')) ...
     && isequal(string(ax.YTickLabel(:)), compose("%.6g", Gs.Depth)), ...
     'a stack of real epochTable groups (which carry nTrials) labels its rows by the groupBy parameter alone');
 spec = cfg.plotFor("psth_stim"); spec.style.YLim = [0 2];
@@ -269,7 +269,7 @@ spec = cfg.plotFor("raster_stim"); spec.style.YLim = [0 2];
 Rr = r.computePlot(src, spec);
 h = renderPlot(Rr, spec, fig);
 check(all(arrayfun(@(a) isequal(a.YLim, [0.5 numel(Rr.epochGroup) + 0.5]), h.axes)), 'a raster plot shows every epoch whatever Style.YLim');
-check(ismember("Depth", string(Rr.epochs.Properties.VariableNames)) && string(h.axes(1).YLabel.String) == "Epoch (by Depth)", ...
+check(ismember("Depth", string(Rr.epochs.Properties.VariableNames)) && string(h.layout.YLabel.String) == "Epoch (by Depth)", ...
     'rasterSort "Depth": computePlot copies Depth onto the epochs and the raster sorts by it');
 spec = cfg.plotFor("lfp_stim"); spec.style.YLim = [-50 50];
 Rv = r.computePlot(src, spec);
@@ -315,7 +315,7 @@ h = renderPlot(Rr2, spec, fig);
 ax = h.axes(1);
 dots = findall(ax, 'Tag', 'rasterStop');
 [~, top] = min(dots.YData);
-check(contains(string(ax.YLabel.String), "descending") && contains(string(ax.YLabel.String), "groups mixed") ...
+check(contains(string(h.layout.YLabel.String), "descending") && contains(string(h.layout.YLabel.String), "groups mixed") ...
     && dots.XData(top) == max(dots.XData) && numel(findall(ax, 'Tag', 'rasterEvent')) >= 2, ...
     'sorted by the response latency, descending, across groups: the latest response on the top row; both edges marked');
 cap = plotCaption(spec, Rr2);
@@ -389,6 +389,8 @@ check(nnz(C.Role == "waveSpikes") == nnz(isS(1:numel(h.axes))) && nnz(C.Role == 
     'mode "both" draws the spikes read, in a box in every tile');
 delete(datFile);
 W3 = unitWaveforms(src, Rw2.meta, Source="units", MaxSpikes=5);
+check(all(W3.total(W3.from == "spikes") >= cellfun(@(s) size(s, 2), W3.spikes(W3.from == "spikes"))) ...
+    && all(W3.total(W3.from == "spikes") > 0), 'W.total is the unit''s spike count in the recording, not the number drawn');
 check(isequal(W3.from, W2.from) && isequal(W3.spikes, W2.spikes), 'the spikes read are kept (CacheData): a redraw does not read the .bin again');
 spec.source = "detected";
 spec.units.source = "detected";

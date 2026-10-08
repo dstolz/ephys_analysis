@@ -3,8 +3,10 @@ function lgd = placeLegend(ax, handles, labels, style, tl, auto)
 %   LGD = placeLegend(AX, HANDLES, LABELS, STYLE, TL, AUTO) lists HANDLES as
 %   LABELS in a legend of the axes AX that sit in the tiled layout TL ([]
 %   when the plot is one axes). STYLE.LegendLocation:
-%     "auto"                   AUTO, the location the plot picks itself
-%                              (a legend Location: 'best', 'bestoutside')
+%     "auto"                   AUTO, the location the plot picks itself:
+%                              a legend Location ('best', 'bestoutside'),
+%                              or a side ("east": a grid's legend goes
+%                              outside the grid, as the grid's labels)
 %     "inside"                 'best', in the axes
 %     "north" "south" "east" "west"
 %                              outside the whole grid of plots, on that side
@@ -19,7 +21,9 @@ function lgd = placeLegend(ax, handles, labels, style, tl, auto)
 %   See also renderPlot, PlotAesthetics.
 
 loc = string(style.LegendLocation);
-side = ismember(loc, ["north" "south" "east" "west"]);
+sides = ["north" "south" "east" "west"];
+if loc == "auto" && ismember(string(auto), sides); loc = string(auto); end
+side = ismember(loc, sides);
 hosted = side && ~isempty(tl) && isgraphics(tl);
 host = ax;
 if hosted && ax.Parent ~= tl

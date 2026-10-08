@@ -22,6 +22,9 @@ function h = renderHeatmap(R, target, opts)
 %   modulation window, and a red up or blue down triangle right of the
 %   image marks each unit the group's call finds modulated.
 %
+%   The x and y labels and the colour bar are the tiled layout's, once for
+%   every tile.
+%
 %   H: layout (tiled layout or []), axes, colorbar.
 %
 %   See also spikePSTH, evokedPotential, renderPlot.
@@ -92,17 +95,15 @@ for j = 1:numel(idx)
             'FontSize', max(6, style.FontSize - (nR > 20)));
     end
     title(ax, sprintf('%s (n = %d)', R.groups.label(g), R.n(g)), 'FontWeight', 'normal', 'Interpreter', 'none');
-    if ceil(j / nc) == nr || ~isempty(ax0); xlabel(ax, 'Time (s)'); end
-    if mod(j - 1, nc) == 0; ylabel(ax, what); end
     axs(j) = ax;
 end
+gridLabels(tl, axs, "Time (s)", what, style);
 cb = gobjects(0);
 if ~isempty(axs)
     cb = colorbar(axs(end));
     cb.Label.String = R.units;
     if ~isempty(tl); cb.Layout.Tile = 'east'; end
 end
-cornerLabels(axs, nr, nc, style);
 h = struct('layout', tl, 'axes', axs, 'colorbar', cb);
 end
 

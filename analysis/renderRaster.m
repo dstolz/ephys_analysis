@@ -31,6 +31,10 @@ function h = renderRaster(R, target, opts)
 %           compass point (location), with or without the box's outline
 %           (box), sized by scale (default mode "off": none)
 %
+%   The grid's x and y labels are its tiled layout's (the y label says how
+%   the rows are sorted), and its legend goes east of the grid unless
+%   Style.LegendLocation says otherwise.
+%
 %   H: layout (tiled layout or []), axes.
 %
 %   See also spikePSTH, renderPSTH, renderPlot.
@@ -65,18 +69,17 @@ if isfield(R, 'meta'); meta = R.meta; end
 names = siteLabels(shortUnitLabels(R.labels), meta, style);
 order = probeOrder(meta, nU, style);
 look = struct('order', opts.SortOrder, 'byGroup', opts.ByGroup, 'marks', opts.EventMarks);
+rows = "Epoch";
 for j = 1:numel(idx)
     u = order(idx(j));
     if ~isempty(ax0); ax = ax0; else; ax = nexttile(tl, j); end
-    rasterInto(ax, R, u, style, colors, opts.SortBy, look);
+    rows = rasterInto(ax, R, u, style, colors, opts.SortBy, look);
     tagPart(ax, "rasterAxes", "", names(u));
     waveformInset(ax, waves, u, wave, style);
     title(ax, names(u), 'FontWeight', 'normal', 'Interpreter', 'none');
-    r = ceil(j / nc);
-    if r == nr || ~isempty(ax0); xlabel(ax, 'Time (s)'); end
-    if j - (r - 1) * nc > 1; ax.YLabel.String = ''; end   % "Epoch" on the left column only
     axs(j) = ax;
 end
+gridLabels(tl, axs, "Time (s)", rows, style);
 marks = struct('label', {}, 'look', {});
 if isfield(R, 'rasterEvents') && ~isempty(R.rasterEvents)
     mk = EphysAnalysisConfig.coerceStruct(EphysAnalysisConfig.defaults("Plot").rasterEvents, opts.EventMarks, "EventMarks");
@@ -103,9 +106,8 @@ if ~isempty(axs) && style.Legend && (height(R.groups) > 1 || ~isempty(marks))
         labels(end+1) = marks(m).label; %#ok<AGROW>
     end
     hold(ax, 'off');
-    placeLegend(ax, lh, labels, style, tl, 'bestoutside');
+    placeLegend(ax, lh, labels, style, tl, "east");
 end
-cornerLabels(axs, nr, nc, style);
 if nr * nc > 1; tileTicks(axs, style); end
 h = struct('layout', tl, 'axes', axs);
 end

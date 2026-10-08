@@ -18,6 +18,10 @@ function h = renderEvoked(R, target, opts)
 %             layouts; a stack ignores it (its offsets set the y axis, so
 %             every channel stays in view)
 %
+%   The butterfly and grid layouts' x and y labels are their tiled layout's,
+%   once for every tile; the grid's legend goes east of it unless
+%   Style.LegendLocation says otherwise.
+%
 %   An axes TARGET gets the stack (or the first tile of the other layouts).
 %   H: layout (tiled layout or []), axes, spacing (stack).
 %
@@ -102,10 +106,9 @@ switch opts.Layout
             xlim(ax, t([1 end]));
             styleAxes(ax, style);
             title(ax, sprintf('%s (n = %d)', R.groups.label(g), R.nEpochs(g)), 'FontWeight', 'normal', 'Interpreter', 'none');
-            if ceil(j / nc) == nr; xlabel(ax, 'Time (s)'); end
-            if mod(j - 1, nc) == 0; ylabel(ax, yl); end
             axs(j) = ax;
         end
+        gridLabels(tl, axs, "Time (s)", yl, style);
         if ~isempty(axs)
             colormap(axs(end), depthColors);
             cb = colorbar(axs(end));
@@ -117,7 +120,6 @@ switch opts.Layout
             end
             cb.Direction = 'reverse';
         end
-        cornerLabels(axs, nr, nc, style);
         h.layout = tl; h.axes = axs;
 
     case "grid"
@@ -141,14 +143,12 @@ switch opts.Layout
             xlim(ax, t([1 end]));
             styleAxes(ax, style);
             title(ax, labels(c), 'FontWeight', 'normal', 'Interpreter', 'none');
-            if ceil(j / nc) == nr || ~isempty(ax0); xlabel(ax, 'Time (s)'); end
-            if mod(j - 1, nc) == 0; ylabel(ax, yl); end
             if j == 1 && style.Legend && nG > 1
-                placeLegend(ax, lh, R.groups.label, style, tl, 'best');
+                placeLegend(ax, lh, R.groups.label, style, tl, "east");
             end
             axs(j) = ax;
         end
-        cornerLabels(axs, nr, nc, style);
+        gridLabels(tl, axs, "Time (s)", yl, style);
         if nr * nc > 1; tileTicks(axs, style); end
         h.layout = tl; h.axes = axs;
 end

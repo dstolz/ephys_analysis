@@ -20,7 +20,7 @@ function syncPlotEditor(obj)
 %     mask after the stop event   psth, raster, heatmap of spikes
 %     measure                     psth, rate, tuning, heatmap of spikes
 %     baseline                    every kind but raster, probemap and behavior
-%     grid spacing, corner labels every kind but rate and behavior (only grids use them)
+%     grid spacing                every kind but rate and behavior (only grids use it)
 %     raster, PSTH as, normalize, fill, stack   psth
 %     sort raster by (and its direction), rows by group, mark events,
 %       mark look                 psth, raster (enabled with a raster; the

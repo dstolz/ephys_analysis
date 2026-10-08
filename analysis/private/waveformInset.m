@@ -8,7 +8,7 @@ function waveformInset(ax, W, u, opt, style)
 %   OPT.location (northeast: the top right corner), placed in data units on
 %   the limits AX has now, which it keeps (any axis direction or scale);
 %   with OPT.showPP / OPT.showCount the label says the p-p amplitude / the
-%   number of spikes drawn; with OPT.box it has an outline and a pale ground. A template (no spikes
+%   unit's total number of spikes (W.total, not just those drawn); with OPT.box it has an outline and a pale ground. A template (no spikes
 %   read) is drawn as the mean whatever the mode, and says so. Nothing is
 %   drawn for mode "off" or a unit without a waveform. The parts are tagged
 %   waveBox, waveSpikes, waveMean and waveLabel, and kept out of legends.
@@ -70,7 +70,7 @@ if opt.showPP
     parts(end+1) = sprintf("%.3g %s p-p", max(m) - min(m), unitText(W.units(u)));
 end
 if opt.showCount && ~template && ~isempty(S)
-    parts(end+1) = sprintf("%d spikes", size(S, 2));
+    parts(end+1) = sprintf("%d spikes", max(W.total(u), size(S, 2)));
 end
 if template; parts(end+1) = "(template)"; end
 txt = strjoin(parts, ", ");

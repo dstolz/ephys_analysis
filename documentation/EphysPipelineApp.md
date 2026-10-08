@@ -107,8 +107,8 @@ that are already sorting keep running.
 - **Title**: `Ephys preprocessing - <config name>  [<file>]`, with `*` in
   front while the config has unsaved changes.
 - **Tab strip**: one button per tab, coloured by the tab's state
-  ([The tab strip](#the-tab-strip)). The open tab's title is bold, with a
-  blue underline.
+  ([The tab strip](#the-tab-strip)), with a short bar between groups of tabs.
+  The open tab's title is bold, with a blue underline.
 - **Status bar** (bottom): the last action on the left, a suggested next step
   on the right ([The status bar](#the-status-bar)).
 
@@ -130,14 +130,16 @@ The tabs, in workflow order:
 | [Analysis](#analysis) | run an analysis config from the analysis app over the selected datasets: its figures and report |
 | [Diagram](#diagram) | see a diagram of what the config does; click a box to open its settings |
 | [Run](#run) | validate, plan and run; watch progress, results and the computer's load |
-| [Visualize](#visualize) | plot the recording, the sorting `.bin` or a derived signal, with sorted units and detected spikes over it; open the Artifacts tab's plot to mark periods by hand |
 | [Review](#review) | inspect sorted units and their quality metrics, add notes, open phy |
+| [Visualize](#visualize) | plot the recording, the sorting `.bin` or a derived signal, with sorted units and detected spikes over it; open the Artifacts tab's plot to mark periods by hand |
 | [Synthetic](#synthetic) | design, preview and write a synthetic dataset |
 | [Clean up](#clean-up) | free local disk space once datasets are preprocessed, or remove what chosen steps wrote |
 
 Each tab button shows an icon above its title
 (`pipeline/icons/tabs/<title>.svg`, lower case without spaces) and is coloured
-by the tab's state. Its tooltip says why.
+by the tab's state. Its tooltip says why. A short vertical bar separates the
+groups: Copy | Project to Analysis | Diagram, Run | Review, Visualize |
+Synthetic | Clean up.
 
 | Colour | State | When |
 | --- | --- | --- |
@@ -146,7 +148,7 @@ by the tab's state. Its tooltip says why.
 | amber | needs attention | config warnings for the tab. Project: no datasets scanned. Trials: some selected pairings are not approved. Probe: selected datasets without a probe, or whose probe file is not there |
 | red | error | config errors for the tab; a run refuses to start |
 | blue | busy | Run while the pipeline runs; Copy while a copy runs in the background |
-| white | neutral | Copy, Diagram, Run, Visualize, Review, Synthetic and Clean up otherwise; Probe and Trials when there is nothing to judge |
+| white | neutral | Copy, Diagram, Run, Review, Visualize, Synthetic and Clean up otherwise; Probe and Trials when there is nothing to judge |
 
 ### The status bar
 

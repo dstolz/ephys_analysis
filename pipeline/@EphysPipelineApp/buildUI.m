@@ -44,13 +44,13 @@ obj.TabExport    = uitab(obj.Tabs, "Title", "Export");
 obj.TabAnalysis  = uitab(obj.Tabs, "Title", "Analysis");
 obj.TabFlow      = uitab(obj.Tabs, "Title", "Diagram");
 obj.TabRun       = uitab(obj.Tabs, "Title", "Run");
-obj.TabVisualize = uitab(obj.Tabs, "Title", "Visualize");
 obj.TabReview    = uitab(obj.Tabs, "Title", "Review");
+obj.TabVisualize = uitab(obj.Tabs, "Title", "Visualize");
 obj.TabSynthetic = uitab(obj.Tabs, "Title", "Synthetic");
 obj.TabCleanup   = uitab(obj.Tabs, "Title", "Clean up");
 obj.TabList = [obj.TabCopy, obj.TabProject, obj.TabTrials, obj.TabProbe, obj.TabArtifacts, ...
     obj.TabSorting, obj.TabSignals, obj.TabSpikes, obj.TabExport, obj.TabAnalysis, obj.TabFlow, ...
-    obj.TabRun, obj.TabVisualize, obj.TabReview, obj.TabSynthetic, obj.TabCleanup];
+    obj.TabRun, obj.TabReview, obj.TabVisualize, obj.TabSynthetic, obj.TabCleanup];
 
 buildTabStrip(obj, outer);
 fitTabGroup(obj);
@@ -98,13 +98,22 @@ end
 function buildTabStrip(obj, parent)
 %buildTabStrip  One button per tab plus a thin underline row for the selection.
 %   Each button shows its icon above the title: pipeline/icons/tabs/<title>.svg,
-%   the title lower case without spaces ("Clean up" -> cleanup.svg).
+%   the title lower case without spaces ("Clean up" -> cleanup.svg). A short
+%   vertical bar (Tag "TabStripBar") follows the last tab of each group:
+%   Copy | the pipeline steps up to Analysis | Diagram, Run | Review, Visualize |
+%   Synthetic | Clean up.
 iconDir = fullfile(fileparts(fileparts(mfilename("fullpath"))), "icons", "tabs");
 n = numel(obj.TabList);
-sg = uigridlayout(parent, [2 n + 1]);
+barAfter = [obj.TabCopy, obj.TabAnalysis, obj.TabRun, obj.TabVisualize, obj.TabSynthetic];
+hasBar = arrayfun(@(t) any(t == barAfter), obj.TabList);
+col = (1:n) + [0, cumsum(hasBar(1:n-1))];   % a tab's grid column, shifted by the bars before it
+barCol = col(hasBar) + 1;
+widths = repmat({72}, 1, n + numel(barCol));   % 16 tabs and 5 bars fit the default 1240 px width
+widths(barCol) = {2};
+sg = uigridlayout(parent, [2 numel(widths) + 1]);
 sg.Layout.Row = 1; sg.Layout.Column = 1;
 sg.RowHeight     = {'1x', 3};
-sg.ColumnWidth   = [repmat({72}, 1, n), {'1x'}];   % 16 tabs fit the default 1240 px width
+sg.ColumnWidth   = [widths, {'1x'}];
 sg.RowSpacing    = 1;
 sg.ColumnSpacing = 3;
 sg.Padding       = [6 3 6 0];
@@ -112,10 +121,17 @@ for k = n:-1:1
     tab = obj.TabList(k);
     b = uibutton(sg, "Text", tab.Title, "ButtonPushedFcn", @(~,~) obj.selectTab(tab), ...
         "Icon", fullfile(iconDir, lower(erase(tab.Title, " ")) + ".svg"), "IconAlignment", "top");
-    b.Layout.Row = 1; b.Layout.Column = k;
+    b.Layout.Row = 1; b.Layout.Column = col(k);
     m = uipanel(sg, "BorderType", "none", "BackgroundColor", [0.15 0.45 0.80], "Visible", "off");
-    m.Layout.Row = 2; m.Layout.Column = k;
+    m.Layout.Row = 2; m.Layout.Column = col(k);
     buttons(k) = b; marks(k) = m;
+end
+for c = barCol
+    slot = uigridlayout(sg, [3 1], "Padding", [0 0 0 0], "RowSpacing", 0, ...
+        "RowHeight", {'1x', 28, '1x'}, "ColumnWidth", {'1x'});   % centres a bar shorter than the buttons
+    slot.Layout.Row = 1; slot.Layout.Column = c;
+    bar = uipanel(slot,"BorderType", "none", "BackgroundColor", [0.68 0.68 0.72], "Tag", "TabStripBar");
+    bar.Layout.Row = 2; bar.Layout.Column = 1;
 end
 obj.TabButtons = buttons;
 obj.TabMarks   = marks;

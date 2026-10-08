@@ -79,11 +79,11 @@ classdef EphysPipelineApp < handle
     %                run's steps (the one underway highlighted, each with
     %                its % done) in the right quarter, and CPU / memory / disk /
     %                GPU use under the steps
+    %     Review     inspect sorted units
     %     Visualize  any signal of the active dataset (recording, Sorting .bin,
     %                LFP / MUA / SPIKE / AUX) with its sorted units and
     %                detected spikes, read a window at a time; mark manual
     %                artifact periods
-    %     Review     inspect sorted units
     %     Synthetic  design and write a synthetic dataset (makeSyntheticRecording):
     %                events from the built-in task or from the active
     %                dataset's Epsych2 session (its recorded lines, or lines

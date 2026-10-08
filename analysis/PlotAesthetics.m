@@ -183,6 +183,11 @@ classdef PlotAesthetics
                 C = addText(C, tl.Title, "plotTitle", 0, "Plot");
                 C = addText(C, tl.Subtitle, "plotSubtitle", 0, "Plot");
             end
+            for host = reshape(flipud(findall(target, 'Type', 'axes', 'Tag', 'legendHost')), 1, [])
+                if ~isempty(host.Legend) && isvalid(host.Legend)   % a legend outside the grid belongs to the plot
+                    C(end+1) = struct('h', host.Legend, 'role', "legend", 'group', "", 'tile', 0, 'name', "Plot"); %#ok<AGROW>
+                end
+            end
             axs = PlotAesthetics.axesIn(target);
             for t = 1:numel(axs)
                 ax = axs(t);
@@ -421,17 +426,11 @@ classdef PlotAesthetics
             %   (TARGET), plotRules,
             %   onRemember (called with the plot's new rules; [] = they cannot
             %   be saved with the plot) and redraw (draws the plot again with
-            %   given plot rules). One context menu per figure serves every
-            %   plot in it.
+            %   given plot rules). Every component gets its own context menu
+            %   (UserData = the component), since a uifigure does not say which
+            %   object was right-clicked.
             fig = ancestor(target, 'figure');
             if isempty(fig); return; end
-            cm = findall(fig, 'Type', 'uicontextmenu', 'Tag', PlotAesthetics.MenuTag);
-            if isempty(cm)
-                cm = uicontextmenu(fig, 'Tag', PlotAesthetics.MenuTag, ...
-                    'ContextMenuOpeningFcn', @PlotAesthetics.onMenuOpening);
-                uimenu(cm, 'Text', 'Edit aesthetics...', 'MenuSelectedFcn', @PlotAesthetics.onMenuEdit);
-            end
-            cm = cm(1);
             setappdata(target, PlotAesthetics.ContextKey, context);
             T = PlotAesthetics.components(context.root);
             for i = find(ismember(T.Role, ["legend" "colorbar"])).'
@@ -439,8 +438,19 @@ classdef PlotAesthetics
             end
             objs = [PlotAesthetics.layoutsIn(context.root), T.Handles{:}];
             objs = objs(isvalid(objs));
-            has = arrayfun(@(o) isprop(o, 'ContextMenu'), objs);
-            set(objs(has), 'ContextMenu', cm);
+            objs = objs(arrayfun(@(o) isprop(o, 'ContextMenu'), objs));
+            old = findall(fig, 'Type', 'uicontextmenu', 'Tag', PlotAesthetics.MenuTag);
+            for k = 1:numel(old)
+                if ~isgraphics(old(k).UserData) || any(old(k).UserData == objs)
+                    delete(old(k));   % its object was redrawn away, or is given a fresh menu below
+                end
+            end
+            % One menu per object: a uifigure's opening event does not say which object was right-clicked.
+            for o = objs
+                cm = uicontextmenu(fig, 'Tag', PlotAesthetics.MenuTag, 'UserData', o);
+                uimenu(cm, 'Text', 'Edit aesthetics...', 'MenuSelectedFcn', @PlotAesthetics.onMenuEdit);
+                o.ContextMenu = cm;
+            end
         end
 
         function d = edit(h)
@@ -478,11 +488,6 @@ classdef PlotAesthetics
     end
 
     methods (Static, Hidden)
-        function onMenuOpening(cm, evt)
-            %onMenuOpening  Remember which object was right-clicked.
-            cm.UserData = evt.ContextObject;
-        end
-
         function onMenuEdit(menu, ~)
             %onMenuEdit  "Edit aesthetics...": the editor on the right-clicked object.
             h = menu.Parent.UserData;
@@ -508,6 +513,7 @@ classdef PlotAesthetics
                 return
             end
             axs = flipud(findall(target, 'Type', 'axes'));
+            axs = axs(~strcmp({axs.Tag}, 'legendHost'));   % placeLegend's hidden hosts of legends outside the grid
             n = numel(axs);
             tile = inf(n, 2);   % the tile, then the tile within a nested layout (a PSTH's raster and rate panel)
             for k = 1:n

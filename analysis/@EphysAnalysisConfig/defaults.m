@@ -93,7 +93,10 @@ switch section
             'CLim',         [], ...
             'Grid',         true, ...
             'Legend',       true, ...
-            'SortDepth',    true, ...       % units / channels: top of the probe first (probe y)
+            'LegendLocation',    "auto", ...  % "auto" (each plot's own) | "inside" (in the first tile) | "north" | "south" | "east" | "west" (outside the grid of plots)
+            'LegendOrientation', "auto", ...  % "auto" (horizontal north / south of the grid, else vertical) | "vertical" | "horizontal"
+            'LegendBox',         false, ...   % the legend's outline and background
+            'SortDepth',   true, ...       % units / channels: top of the probe first (probe y)
             'SortShank',    false, ...      % ... grouped by shank first (depth then orders within a shank)
             'LabelDepth',   false, ...      % append the probe depth (y, µm) to unit / channel labels
             'LabelShank',   false, ...      % append the shank to unit / channel labels

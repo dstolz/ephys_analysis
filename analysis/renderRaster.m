@@ -103,8 +103,7 @@ if ~isempty(axs) && style.Legend && (height(R.groups) > 1 || ~isempty(marks))
         labels(end+1) = marks(m).label; %#ok<AGROW>
     end
     hold(ax, 'off');
-    legend(ax, lh, labels, 'Location', 'bestoutside', 'Box', 'off', 'Interpreter', 'none', ...
-        'FontSize', max(6, style.FontSize - 1));
+    placeLegend(ax, lh, labels, style, tl, 'bestoutside');
 end
 cornerLabels(axs, nr, nc, style);
 if nr * nc > 1; tileTicks(axs, style); end

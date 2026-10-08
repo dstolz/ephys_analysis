@@ -706,6 +706,9 @@ unit positions, and a unit waveform's box, spikes, mean and amplitude
 label. The group is the trial group's label, a tuning or behavior
 series, an evoked channel or a raster mark's line and edge. Axes, tile titles, axis labels,
 legends, colour bars and the plot's title and subtitle are components too.
+A legend north, south, east or west of the grid (Style `LegendLocation`) is
+the plot's own component (tile 0); where the grid's axes are nested, a
+hidden axes tagged `legendHost` carries it, and is no tile.
 `PlotAesthetics.roles()` lists the roles, `PlotAesthetics.components(target)`
 what one drawing holds, and `analysis/private/tagPart.m` does the naming.
 

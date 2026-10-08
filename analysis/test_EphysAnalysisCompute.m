@@ -533,6 +533,39 @@ h = renderPSTH(Rp, fig8, Layout="grid", Style=struct('TileSpacing', "loose"));
 check(string(h.layout.TileSpacing) == "loose" && string(h.layout.Padding) == "loose", 'TileSpacing loose reaches the tiled layout');
 h = renderPSTH(Rp, fig8, Layout="grid", Style=struct('TileSpacing', "none"));
 check(string(h.layout.TileSpacing) == "none" && string(h.layout.Padding) == "tight", 'TileSpacing none: tight padding');
+% legend place: outside the grid, orientation, box
+h = renderPSTH(Rp, fig8, Layout="grid", Style=struct('LegendLocation', "east"));
+lg = findall(fig8, 'Type', 'legend');
+host = findall(fig8, 'Type', 'axes', 'Tag', 'legendHost');
+T = PlotAesthetics.components(h.layout);
+check(isscalar(lg) && isscalar(host) && lg.Parent == h.layout && string(lg.Layout.Tile) == "east" ...
+    && string(lg.Orientation) == "vertical" && string(lg.Box) == "off" && numel(lg.String) == height(Rp.groups) && isempty(h.axes(1).Legend), ...
+    'a PSTH grid with rasters: the legend east of the whole grid (a hidden host axes), vertical, no box');
+check(nnz(T.Role == "legend") == 1 && T.Tile(T.Role == "legend") == 0 && nnz(ismember(T.Role, ["axes" "rasterAxes"])) == numel(h.axes) + numel(h.rasterAxes), ...
+    'the aesthetics editor lists that legend as the plot''s, and the host axes is no tile');
+renderPSTH(Rp, fig8, Layout="grid", Style=struct('LegendLocation', "north", 'LegendBox', true));
+lg = findall(fig8, 'Type', 'legend');
+check(string(lg.Layout.Tile) == "north" && string(lg.Orientation) == "horizontal" && string(lg.Box) == "on", ...
+    'north of the grid: horizontal by default; LegendBox draws its box');
+renderPSTH(Rp, fig8, Layout="grid", Style=struct('LegendLocation', "west", 'LegendOrientation', "horizontal"));
+lg = findall(fig8, 'Type', 'legend');
+check(string(lg.Layout.Tile) == "west" && string(lg.Orientation) == "horizontal", 'LegendOrientation horizontal on the west side');
+h = renderPSTH(Rp, fig8, Layout="grid", WithRaster=false, Style=struct('LegendLocation', "south", 'LegendOrientation', "vertical"));
+lg = findall(fig8, 'Type', 'legend');
+check(isscalar(lg) && isempty(findall(fig8, 'Type', 'axes', 'Tag', 'legendHost')) && lg.Parent == h.layout ...
+    && string(lg.Layout.Tile) == "south" && string(lg.Orientation) == "vertical" && ~isempty(h.axes(1).Legend), ...
+    'tiles straight in the layout: the legend belongs to the first tile, south of the grid, vertical when asked');
+renderPSTH(Rp, fig8, Layout="grid", Style=struct('LegendLocation', "inside"));
+lg = findall(fig8, 'Type', 'legend');
+check(isscalar(lg) && string(lg.Location) == "best" && isempty(findall(fig8, 'Type', 'axes', 'Tag', 'legendHost')), 'inside: in the first tile');
+renderPSTH(Rp, fig8, Layout="grid");
+lg = findall(fig8, 'Type', 'legend');
+check(isscalar(lg) && string(lg.Location) == "best" && string(lg.Orientation) == "vertical", 'auto: the plot''s own place');
+fig9 = figure('Visible', 'off');
+ax9 = axes(fig9);
+renderPSTH(Rp, ax9, Style=struct('LegendLocation', "east"));
+check(string(ax9.Legend.Location) == "eastoutside", 'one axes: the legend goes outside it, on that side');
+delete(fig9);
 delete(fig8);
 
 fprintf('\n== raster sort ==\n');

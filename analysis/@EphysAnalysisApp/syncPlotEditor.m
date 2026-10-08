@@ -35,6 +35,7 @@ function syncPlotEditor(obj)
 %     line width                  psth, evoked, tuning, behavior
 %     y limits                    psth, rate, tuning, behavior, evoked but "stack"
 %     group colours, legend       psth, raster, rate, tuning, behavior, evoked but "butterfly"
+%       (its place, orientation and box: enabled with the legend on)
 %     heat colours                heatmap, probemap, corrmap
 %     SEM                         psth, tuning, behavior, rate "bar", evoked but "butterfly"
 %     stop marks                  psth, raster
@@ -122,6 +123,7 @@ v.lineWidth = ismember(kind, ["psth" "evoked" "tuning" "behavior"]);
 v.siteSize = kind == "probemap";
 v.ylim = ismember(kind, ["psth" "rate" "tuning" "behavior"]) || (kind == "evoked" && layout ~= "stack");
 v.colormap = grouped;
+v.legendLoc = grouped;
 v.heatColormap = ismember(kind, ["heatmap" "probemap" "corrmap"]);
 v.waveMode = spikes && (kind == "raster" || (ismember(kind, ["psth" "tuning"]) && layout ~= "overlay"));
 v.waveLocation = v.waveMode;
@@ -177,6 +179,7 @@ en([E.rasterSort E.rasterSortOrder E.rasterByGroup E.markLines E.markEdge E.mark
 en([E.markMarker E.markSize E.markColor], raster && strtrim(string(E.markLines.Value)) ~= "");
 en(E.jitter, layout == "points");
 en([E.legend E.ylim], ~stacked);
+en([E.legendLoc E.legendOrient E.legendBox], ~stacked && E.legend.Value);
 en([E.waveSpikes E.waveLocation E.waveBox E.waveScale], string(E.waveMode.Value) ~= "off");
 syncAlignEnable(C);
 obj.layoutPlotEditor();

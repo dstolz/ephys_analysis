@@ -302,6 +302,12 @@ for k = 1:numel(obj.Plots)
     if ~ismember(st.TileSpacing, ["loose" "compact" "tight" "none"])
         add("Plots", f0 + ".style.TileSpacing", "error", "TileSpacing is loose, compact, tight or none.");
     end
+    if ~ismember(st.LegendLocation, ["auto" "inside" "north" "south" "east" "west"])
+        add("Plots", f0 + ".style.LegendLocation", "error", "LegendLocation is auto, inside, north, south, east or west.");
+    end
+    if ~ismember(st.LegendOrientation, ["auto" "vertical" "horizontal"])
+        add("Plots", f0 + ".style.LegendOrientation", "error", "LegendOrientation is auto, vertical or horizontal.");
+    end
     if ~(st.FontSize > 0);  add("Plots", f0 + ".style.FontSize", "error", "FontSize must be positive."); end
     if ~(st.LineWidth > 0); add("Plots", f0 + ".style.LineWidth", "error", "LineWidth must be positive."); end
     if ~(st.SiteSize > 0);  add("Plots", f0 + ".style.SiteSize", "error", "SiteSize must be positive."); end

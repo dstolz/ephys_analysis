@@ -77,8 +77,7 @@ switch opts.Layout
         xlabel(ax, 'Time (s)');
         ylabel(ax, sprintf('Channel (%s per row)', compactNumber(spacing) + " " + unitText(R.units)));
         if style.Legend && nG > 1
-            legend(ax, lh, R.groups.label, 'Location', 'bestoutside', 'Box', 'off', 'Interpreter', 'none', ...
-                'FontSize', max(6, style.FontSize - 1));
+            placeLegend(ax, lh, R.groups.label, style, tl, 'bestoutside');
         end
         h.layout = tl; h.axes = ax; h.spacing = spacing;
 
@@ -145,8 +144,7 @@ switch opts.Layout
             if ceil(j / nc) == nr || ~isempty(ax0); xlabel(ax, 'Time (s)'); end
             if mod(j - 1, nc) == 0; ylabel(ax, yl); end
             if j == 1 && style.Legend && nG > 1
-                legend(ax, lh, R.groups.label, 'Location', 'best', 'Box', 'off', 'Interpreter', 'none', ...
-                    'FontSize', max(6, style.FontSize - 1));
+                placeLegend(ax, lh, R.groups.label, style, tl, 'best');
             end
             axs(j) = ax;
         end

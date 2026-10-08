@@ -212,13 +212,14 @@ check(~isappdata(fig, PlotAesthetics.ContextKey) && isempty(findall(fig, 'Type',
     'an invisible figure (a run''s export) gets no menu');
 h = renderPlot(Rp, struct('kind', "psth", 'id', "p1"), fig, Editable=true, OnRemember=@(r) setappdata(0, 'aestheticsGot', r));
 ctx = getappdata(fig, PlotAesthetics.ContextKey);
-cm = findall(fig, 'Type', 'uicontextmenu', 'Tag', PlotAesthetics.MenuTag);
+cms = findall(fig, 'Type', 'uicontextmenu', 'Tag', PlotAesthetics.MenuTag);
 C = PlotAesthetics.components(h.layout);
-withMenu = cellfun(@(x) all(arrayfun(@(o) ~isprop(o, 'ContextMenu') || isequal(o.ContextMenu, cm), x)), C.Handles);
-check(isscalar(cm) && isstruct(ctx) && ctx.kind == "psth" && ctx.id == "p1" && isequal(ctx.root, h.layout) && all(withMenu), ...
-    'Editable=true: one menu on every component; the context (kind, id, root) is kept on the target');
+withMenu = cellfun(@(x) all(arrayfun(@(o) ~isprop(o, 'ContextMenu') || (isa(o.ContextMenu, 'matlab.ui.container.ContextMenu') ...
+    && isequal(o.ContextMenu.UserData, o)), x)), C.Handles);
+check(~isempty(cms) && isstruct(ctx) && ctx.kind == "psth" && ctx.id == "p1" && isequal(ctx.root, h.layout) && all(withMenu), ...
+    'Editable=true: every component has a menu that knows it; the context (kind, id, root) is kept on the target');
 renderPlot(Rp, struct('kind', "psth", 'id', "p1"), fig, Editable=true);
-check(isscalar(findall(fig, 'Type', 'uicontextmenu', 'Tag', PlotAesthetics.MenuTag)), 'redrawing reuses the one menu');
+check(numel(findall(fig, 'Type', 'uicontextmenu', 'Tag', PlotAesthetics.MenuTag)) == numel(cms), 'redrawing leaves no stale menus');
 C = PlotAesthetics.components(getappdata(fig, PlotAesthetics.ContextKey).root);
 lg = C.Handles{find(C.Role == "legend", 1)};
 [c2, holder] = PlotAesthetics.contextOf(lg);

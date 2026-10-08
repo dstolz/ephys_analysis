@@ -77,8 +77,7 @@ xlim(ax, [0.4 nU + 0.6]);
 styleAxes(ax, style);
 ylabel(ax, R.units);
 if style.Legend && nG > 1
-    legend(ax, lh, R.groups.label, 'Location', 'bestoutside', 'Box', 'off', 'Interpreter', 'none', ...
-        'FontSize', max(6, style.FontSize - 1));
+    placeLegend(ax, lh, R.groups.label, style, tl, 'bestoutside');
 end
 h = struct('layout', tl, 'axes', ax);
 end

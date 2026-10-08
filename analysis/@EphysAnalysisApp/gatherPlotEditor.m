@@ -88,6 +88,9 @@ p.style.LabelShank = E.labelShank.Value;
 p.style.ShowSEM = E.showSEM.Value;
 p.style.ShowStop = E.showStop.Value;
 p.style.Legend = E.legend.Value;
+p.style.LegendLocation = string(E.legendLoc.Value);
+p.style.LegendOrientation = string(E.legendOrient.Value);
+p.style.LegendBox = logical(E.legendBox.Value);
 p.style.Grid = E.grid.Value;
 yl = parseList(E.ylim.Value);
 if numel(yl) ~= 2; yl = []; end

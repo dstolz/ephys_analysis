@@ -227,7 +227,9 @@ and spike heatmaps; y limits only where a rate or amplitude axis takes them
 (PSTHs, rates, tuning curves, the evoked butterfly and grid); tiles only for
 paged grids; grid spacing and corner labels for every kind but rates; sort
 and label options for every kind but probe maps; line width for PSTHs,
-evoked potentials and tuning curves; group colours, legend and SEM only
+evoked potentials and tuning curves; group colours, legend (with its place
+-- inside, or north, south, east or west of the whole grid of plots -- its
+orientation and its box, on while the legend is) and SEM only
 where groups are drawn as lines or bars; heat colours only for heatmaps,
 probe maps and unit correlations; the unit waveform for rasters and PSTH
 and tuning grids of spikes. A behavior plot reads only the trials: it

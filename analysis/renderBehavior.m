@@ -122,8 +122,7 @@ yl = R.yName;
 if R.units ~= ""; yl = yl + " (" + R.units + ")"; end
 ylabel(ax, yl, 'Interpreter', 'none');
 if style.Legend && nS > 1
-    legend(ax, lh, R.series, 'Location', 'bestoutside', 'Box', 'off', 'Interpreter', 'none', ...
-        'FontSize', max(6, style.FontSize - 1));
+    placeLegend(ax, lh, R.series, style, tl, 'bestoutside');
 end
 h = struct('layout', tl, 'axes', ax);
 end

@@ -18,7 +18,7 @@ function h = renderPopulation(P, S, kind, target, opts)
 %   with their unit counts. H: layout ([] when TARGET is an axes), axes.
 %
 %   Options: Style (an EphysAnalysisConfig Style: FontSize, Grid,
-%   LineWidth, ShowSEM, Legend).
+%   LineWidth, ShowSEM, Legend, LegendLocation, LegendOrientation, LegendBox).
 %
 %   See also populationAnalysis, populationSummary, writePopulation.
 
@@ -54,7 +54,7 @@ switch kind
         xlabel(ax, 'Time from the event (s)');
         ylabel(ax, S.psth.units);
         title(ax, 'Population PSTH (mean \pm SEM across units)', 'FontWeight', 'normal');
-        if style.Legend && nG > 1; legend(ax, hl, names, 'Interpreter', 'none', 'Location', 'best'); end
+        if style.Legend && nG > 1; placeLegend(ax, hl, names, style, tl, 'best'); end
     case "fractions"
         if ~any(G.nTested > 0)
             note(ax, 'No unit was tested (populationAnalysis Tests=false).');
@@ -86,7 +86,7 @@ switch kind
             ylabel(ax, 'Share of the units tested');
             title(ax, 'Responsive and tuned units', 'FontWeight', 'normal');
             if any(G.nAurocCalled > 0); subtitle(ax, aurocNote(S.auroc), 'FontSize', style.FontSize - 1); end
-            if style.Legend; legend(ax, b, leg, 'Location', 'best'); end
+            if style.Legend; placeLegend(ax, b, leg, style, tl, 'best'); end
         end
     case "tuning"
         lev = S.tuning.levels;
@@ -119,7 +119,7 @@ switch kind
                 ylabel(ax, 'spikes/s');
             end
             title(ax, 'Tuning (mean \pm SEM across units)', 'FontWeight', 'normal');
-            if style.Legend && nG > 1; legend(ax, hl, names, 'Interpreter', 'none', 'Location', 'best'); end
+            if style.Legend && nG > 1; placeLegend(ax, hl, names, style, tl, 'best'); end
         end
     case "depth"
         U = P.units;
@@ -140,7 +140,7 @@ switch kind
         xlabel(ax, 'Response - baseline rate (spikes/s)');
         ylabel(ax, 'Probe y (\mum)');
         title(ax, 'Units along the probe', 'FontWeight', 'normal');
-        if style.Legend && ~isempty(hs); legend(ax, hs, leg, 'Location', 'best'); end
+        if style.Legend && ~isempty(hs); placeLegend(ax, hs, leg, style, tl, 'best'); end
 end
 styleAxes(ax, style);
 hold(ax, 'off');

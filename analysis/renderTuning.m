@@ -45,7 +45,7 @@ if opts.Layout == "overlay" && nU > 1
     if isempty(ax); ax = nexttile(tl); end
     m = reshape(mean(R.mean, 2, 'omitnan'), nX, nS);
     s = reshape(semOf(R.mean, 2), nX, nS);
-    drawCurves(ax, xv, m, s, R, colors, style, true);
+    drawCurves(ax, xv, m, s, R, colors, style, true, tl);
     title(ax, sprintf('Mean of %d units', nU), 'FontWeight', 'normal');
     ylabel(ax, R.units);
     h = struct('layout', tl, 'axes', ax);
@@ -65,7 +65,7 @@ for j = 1:numel(idx)
     u = order(idx(j));
     if ~isempty(ax0); ax = ax0; else; ax = nexttile(tl, j); end
     tagPart(ax, "axes", "", names(u));
-    drawCurves(ax, xv, reshape(R.mean(:, u, :), nX, nS), reshape(R.sem(:, u, :), nX, nS), R, colors, style, j == 1);
+    drawCurves(ax, xv, reshape(R.mean(:, u, :), nX, nS), reshape(R.sem(:, u, :), nX, nS), R, colors, style, j == 1, tl);
     waveformInset(ax, waves, u, wave, style);
     title(ax, names(u), 'FontWeight', 'normal', 'Interpreter', 'none');
     if mod(j - 1, nc) == 0; ylabel(ax, R.units); end
@@ -78,7 +78,7 @@ h = struct('layout', tl, 'axes', axs);
 end
 
 
-function drawCurves(ax, xv, m, s, R, colors, style, withLegend)
+function drawCurves(ax, xv, m, s, R, colors, style, withLegend, tl)
 nS = size(m, 2);
 hold(ax, 'on');
 lh = gobjects(1, nS);
@@ -102,6 +102,6 @@ end
 styleAxes(ax, style);
 xlabel(ax, R.param, 'Interpreter', 'none');
 if withLegend && style.Legend && nS > 1
-    legend(ax, lh, R.series, 'Location', 'best', 'Box', 'off', 'Interpreter', 'none', 'FontSize', max(6, style.FontSize - 1));
+    placeLegend(ax, lh, R.series, style, tl, 'best');
 end
 end

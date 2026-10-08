@@ -49,7 +49,8 @@ function h = renderPSTH(R, target, opts)
 %                 by scale (default mode "off": none)
 %     Style       EphysAnalysisConfig.defaults("Style") fields (LineWidth,
 %                 ShowSEM, ShowStop, ShowZeroLine, Colormap, FontSize, XLim,
-%                 YLim, Grid, Legend, MaxTiles, SortShank, SortDepth,
+%                 YLim, Grid, Legend, LegendLocation, LegendOrientation,
+%                 LegendBox, MaxTiles, SortShank, SortDepth,
 %                 LabelShank, LabelDepth: the grid's units go by shank, then
 %                 top of the probe first, and are titled with their shank /
 %                 depth); YLim is for the rate
@@ -120,7 +121,7 @@ if opts.Layout == "overlay" && nU > 1
     P.peakLabel = "Peak (" + R.units + ")";
     if norm ~= "none"; P.peakLabel = "Peak (normalized)"; end
     P.yUnits = yUnits;
-    h.step = drawPanel(ax, P, R, colors, style, look, struct('legend', true, 'left', true, 'right', true));
+    h.step = drawPanel(ax, P, R, colors, style, look, struct('legend', true, 'left', true, 'right', true, 'layout', tl));
     title(ax, sprintf('Mean of %d units', nU), 'FontWeight', 'normal');
     if auroc; callMarks(ax, R, 0, colors, style); end
     xlabel(ax, 'Time (s)');
@@ -174,7 +175,7 @@ for j = 1:numel(idx)
     P.peakLabel = "Peak (" + R.units + ")";
     P.yUnits = yUnits;
     step(j) = drawPanel(ax, P, R, colors, style, look, ...
-        struct('legend', j == 1, 'left', c == 1, 'right', c == nc || j == numel(idx)));
+        struct('legend', j == 1, 'left', c == 1, 'right', c == nc || j == numel(idx), 'layout', tl));
     waveformInset(ax, waves, u, wave, style);
     if ~withRaster
         title(ax, names(u), 'FontWeight', 'normal', 'Interpreter', 'none');
@@ -274,7 +275,8 @@ function step = drawPanel(ax, P, R, colors, style, look, show)
 %drawPanel  One rate panel: the groups overlaid, or stacked in rows.
 %   P: m / s [nBins x nGroups] (what is drawn), peak [nGroups x 1] and
 %   peakLabel (the right axis of a stack), yUnits (the y label when
-%   overlaid). SHOW: legend (overlaid), left / right (the axis labels).
+%   overlaid). SHOW: legend (overlaid), left / right (the axis labels),
+%   layout (the grid's tiled layout, [] for one axes: the legend's place).
 if look.stack
     step = drawStack(ax, P, R, colors, style, look, show);
     return
@@ -315,7 +317,7 @@ styleAxes(ax, style);
 if ref ~= 0 && isempty(style.YLim); ylim(ax, [0 1]); end
 if show.left; ylabel(ax, P.yUnits); end
 if show.legend && style.Legend && nG > 1
-    legend(ax, lh, R.groups.label, 'Location', 'best', 'Box', 'off', 'Interpreter', 'none', 'FontSize', max(6, style.FontSize - 1));
+    placeLegend(ax, lh, R.groups.label, style, show.layout, 'best');
 end
 end
 

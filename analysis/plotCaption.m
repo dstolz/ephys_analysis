@@ -76,6 +76,9 @@ if spec.kind == "corrmap"
     type = "Pearson";
     if R.type == "spearman"; type = "Spearman"; end
     parts(end+1) = sprintf("%s correlation of each epoch's %s rate between every pair of units", type, R.metric);
+    if isfield(R, 'fisherZ') && R.fisherZ
+        parts(end) = parts(end) + ", Fisher z-transformed (z = atanh r; mean r averaged in z)";
+    end
 end
 if isfield(R, 'params')
     P = R.params;

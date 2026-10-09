@@ -123,7 +123,7 @@ switch spec.kind
     case "corrmap"
         [E, G] = epochTable(src, spec.ref, Window=w, Selection=spec.selection, Baseline=b);
         [st, meta] = selectUnits(src, spec.units, Ref=spec.ref, Selection=spec.selection);
-        R = unitCorrelation(st, E, Metric=spec.metric, Type=spec.correlation, BinSec=spec.bins.BinSec, ...
+        R = unitCorrelation(st, E, Metric=spec.metric, Type=spec.correlation, FisherZ=logical(spec.fisherZ), BinSec=spec.bins.BinSec, ...
             SmoothSec=spec.bins.SmoothSec, Baseline=b, BaselineMode=spec.baseline.Mode, Groups=G, Meta=meta);
     case "probemap"
         T = unitSummary(src, Source=spec.source, Units=spec.units, Ref=spec.ref, Selection=spec.selection);

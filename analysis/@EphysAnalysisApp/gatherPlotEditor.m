@@ -88,6 +88,7 @@ p.value = string(E.value.Value);
 p.order = string(E.order.Value);
 p.metric = string(E.metric.Value);
 p.correlation = string(E.correlation.Value);
+p.fisherZ = logical(E.fisherZ.Value);
 p.waveform.mode = string(E.waveMode.Value);
 p.waveform.maxSpikes = E.waveSpikes.Value;
 p.waveform.location = string(E.waveLocation.Value);
@@ -135,6 +136,9 @@ p.style.Grid = E.grid.Value;
 yl = parseList(E.ylim.Value);
 if numel(yl) ~= 2; yl = []; end
 p.style.YLim = yl;
+cl = parseList(E.clim.Value);
+if numel(cl) ~= 2 || cl(2) <= cl(1); cl = []; end   % two ascending values, else automatic
+p.style.CLim = cl;
 p.style.LineWidth = E.lineWidth.Value;
 p.style.SiteSize = E.siteSize.Value;
 p.style.Colormap = strtrim(string(E.colormap.Value));

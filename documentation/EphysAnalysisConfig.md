@@ -94,7 +94,7 @@ distinct as file names: `{Plot}` replaces every character outside
       "histStyle": "bar", "fill": true, "fillAlpha": "NaN", "normalize": "none",
       "stack": false, "stackSpacing": 1.1, "maskAfterStop": false, "param": "", "seriesParam": "",
       "yParam": "", "jitter": true, "xScale": "category",
-      "value": "rate", "order": "probe", "metric": "mean", "correlation": "pearson",
+      "value": "rate", "order": "probe", "metric": "mean", "correlation": "pearson", "fisherZ": false,
       "waveform": { "mode": "both", "location": "northeast", "box": true, "scale": 1, "maxSpikes": 100 },
       "style": { "MaxTiles": 16, "...": "..." }, "aesthetics": [] },
     { "id": "rate_resp", "kind": "rate", "source": "units",
@@ -381,6 +381,7 @@ use.
 | `order` | `"probe"` | heatmap rows: `"probe"` (the style's `SortDepth` / `SortShank`), `"peak"` (by the time of each row's maximum) or, with the auROC baseline, `"modulation"` (by the first group's mean auROC in the call window, highest first; the other tiles keep that order, as the paper's Fig 3A). A corrmap follows the style's sort options |
 | `metric` | `"mean"` | corrmap: each epoch's `"mean"` rate over its window, or its `"peak"` binned rate (`bins`) |
 | `correlation` | `"pearson"` | corrmap: `"pearson"` or `"spearman"` |
+| `fisherZ` | `false` | corrmap: draw Fisher's z (`atanh r`) instead of r, and average the pairwise r in z |
 | `waveform` | [Waveform](#unit-waveforms), `mode "off"` | raster, psth and tuning grids of spikes: each unit's waveform in its tile; a `waveforms` plot: its settings (mode `"both"` for a plot added by `addPlot` or the app) |
 | `note` | [Note](#plot-notes), no text | descriptive text on the plot: its words, where it goes and how it looks (every kind) |
 | `overlays` | none | [lines and semitransparent patches](#plot-overlays) drawn on the plot's axes in data units, over or under its data: a list, any number, each with its own place and look (every kind) |

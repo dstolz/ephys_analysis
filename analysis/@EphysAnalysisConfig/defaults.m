@@ -255,6 +255,7 @@ switch section
             'order',         "probe", ...       % heatmap rows: "probe" (the style's SortDepth / SortShank) | "peak" | "modulation" (auROC: the first group's mean in the modulation window)
             'metric',        "mean", ...        % corrmap: each epoch's "mean" or "peak" (binned) rate
             'correlation',   "pearson", ...     % corrmap: "pearson" | "spearman"
+            'fisherZ',       false, ...         % corrmap: Fisher's z (atanh r) drawn, and the mean r taken in z
             'waveform',      EphysAnalysisConfig.defaults("Waveform"), ...   % psth / raster / tuning grids: each unit's waveform in its tile; waveforms: the plot's own settings
             'note',          EphysAnalysisConfig.defaults("Note"), ...       % descriptive text on the plot (renderPlot's drawNote)
             'overlays',      repmat(EphysAnalysisConfig.defaults("Overlay"), 1, 0), ...   % lines and patches drawn on the plot's axes (renderPlot's drawOverlays)

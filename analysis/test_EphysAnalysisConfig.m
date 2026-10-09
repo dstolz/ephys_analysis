@@ -145,6 +145,8 @@ bad = ok; bad.Plots(end).metric = "max";
 check(hasIssue(bad, "corr_ok.metric", "error"), 'corrmap metric is mean or peak');
 bad = ok; bad.Plots(end).correlation = "kendall";
 check(hasIssue(bad, "corr_ok.correlation", "error"), 'corrmap correlation is pearson or spearman');
+ok.Plots(end).fisherZ = true;
+check(~any(ok.validate().Severity == "error") && ok.Plots(end).fisherZ, 'a corrmap with fisherZ validates');
 bad = ok; bad.Plots(end).measure = "fano";
 check(hasIssue(bad, "corr_ok.measure", "error"), 'the measure is rate, count or probability');
 bad = ok; bad.Plots(end).style.TileSpacing = "wide";

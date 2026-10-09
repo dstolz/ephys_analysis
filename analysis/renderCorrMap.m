@@ -3,7 +3,9 @@ function h = renderCorrMap(R, target, opts)
 %   H = renderCorrMap(R, TARGET, Style=) draws a unitCorrelation
 %   result as a square image per group on one color scale (Style.CLim,
 %   else [-1 1]) with Style.HeatColormap ("" = blueWhiteRed). Each tile's
-%   title gives its group, the epochs used and the mean pairwise r.
+%   title gives its group, the epochs used and the mean pairwise r. A
+%   result made with FisherZ draws Fisher's z (R.z) instead, its color
+%   scale +-the largest |z| (at least 1) unless Style.CLim is set.
 %
 %   Units are ordered by Style.SortShank / Style.SortDepth (by shank, then
 %   top of the probe first; neither = as listed) and labeled with their
@@ -29,7 +31,13 @@ nU = size(R.r, 1);
 nG = size(R.r, 3);
 order = probeOrder(R.meta, nU, style);
 clim0 = style.CLim;
-if ~(numel(clim0) == 2 && clim0(2) > clim0(1)); clim0 = [-1 1]; end
+useZ = isfield(R, 'fisherZ') && R.fisherZ;
+if ~(numel(clim0) == 2 && clim0(2) > clim0(1))
+    clim0 = [-1 1];
+    if useZ   % Fisher z is unbounded: symmetric about 0, to the largest |z| (at least 1)
+        clim0 = [-1 1] * max([1; abs(R.z(isfinite(R.z)))]);
+    end
+end
 if style.HeatColormap == ""
     cmap = designColormap(style, "diverging", "blueWhiteRed");
 else
@@ -44,7 +52,7 @@ axs = gobjects(1, numel(idx));
 for j = 1:numel(idx)
     g = idx(j);
     if ~isempty(ax0); ax = ax0; else; ax = nexttile(tl, j); end
-    M = R.r(order, order, g);
+    if useZ; M = R.z(order, order, g); else; M = R.r(order, order, g); end
     tagPart(ax, "axes", "", R.groups.label(g));
     tagPart(imagesc(ax, 1:nU, 1:nU, M, 'AlphaData', double(isfinite(M))), "image", R.groups.label(g));
     set(ax, 'YDir', 'reverse', 'Color', [0.85 0.85 0.85]);
@@ -76,6 +84,7 @@ cb = gobjects(0);
 if ~isempty(axs)
     cb = colorbar(axs(end));
     cb.Label.String = corrName(R.type) + " (" + R.metric + " rate)";
+    if useZ; cb.Label.String = "Fisher z of " + cb.Label.String; end
     if ~isempty(tl); cb.Layout.Tile = 'east'; end
 end
 h = struct('layout', tl, 'axes', axs, 'colorbar', cb);

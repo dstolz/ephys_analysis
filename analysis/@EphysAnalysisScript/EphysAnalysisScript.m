@@ -302,7 +302,7 @@ classdef EphysAnalysisScript
                     L(end+1, 1) = epochs;
                     L(end+1, 1) = "[st, meta] = selectUnits(src, spec.units, Ref=spec.ref, Selection=spec.selection);";
                     L(end+1, 1) = "R = unitCorrelation(st, E, Metric=" + lit(spec.metric) + ", Type=" + lit(spec.correlation) + ...
-                        ", BinSec=" + lit(spec.bins.BinSec) + ", SmoothSec=" + lit(spec.bins.SmoothSec) + ", ...";
+                        ", FisherZ=" + lit(logical(spec.fisherZ)) + ", BinSec=" + lit(spec.bins.BinSec) + ", SmoothSec=" + lit(spec.bins.SmoothSec) + ", ...";
                     L(end+1, 1) = "    Baseline=" + b + ", BaselineMode=" + lit(spec.baseline.Mode) + ", Groups=G, Meta=meta);";
                 case "probemap"
                     L(end+1, 1) = "T = unitSummary(src, Source=" + lit(spec.source) + ", Units=spec.units, Ref=spec.ref, Selection=spec.selection);";

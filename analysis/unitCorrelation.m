@@ -15,6 +15,10 @@ function R = unitCorrelation(spikeTimes, E, opts)
 %                    runs past tStop is not used)
 %     Type           "pearson" (default) | "spearman" (Pearson of the ranks,
 %                    ties averaged)
+%     FisherZ        false (default) | true: also give Fisher's z = atanh(r)
+%                    (R.z) and take the mean over the pairs in z, back-
+%                    transformed (meanR = tanh(mean z)): r is bounded and
+%                    skewed near +-1, z is not. Diagonals of z are NaN.
 %     BinSec         bin width for "peak", s (default 0.01)
 %     SmoothSec      Gaussian SD for "peak", s (0 = none, the default)
 %     Baseline       [b0 b1] s around the event: the baseline window of
@@ -28,7 +32,8 @@ function R = unitCorrelation(spikeTimes, E, opts)
 %   is left out of its group. A unit whose responses do not vary has NaN
 %   correlations; so does every pair of a group with fewer than 3 epochs.
 %
-%   R fields: kind "corrmap", r / p [nUnits x nUnits x nGroups] (p: two-sided,
+%   R fields: kind "corrmap", r / p [nUnits x nUnits x nGroups] (z, with
+%   FisherZ; fisherZ: the option; p: two-sided,
 %   from t = r sqrt((n-2) / (1-r^2)) with n-2 degrees of freedom; for
 %   Spearman an approximation), meanR [nGroups x 1] (mean over the pairs),
 %   nEpochs [nGroups x 1] (epochs used), response [nEpochs x nUnits] (after
@@ -42,6 +47,7 @@ arguments
     E table
     opts.Metric (1,1) string {mustBeMember(opts.Metric, ["mean" "peak"])} = "mean"
     opts.Type (1,1) string {mustBeMember(opts.Type, ["pearson" "spearman"])} = "pearson"
+    opts.FisherZ (1,1) logical = false
     opts.BinSec (1,1) double {mustBePositive} = 0.01
     opts.SmoothSec (1,1) double {mustBeNonnegative} = 0
     opts.Baseline double = []
@@ -106,13 +112,26 @@ for g = 1:nG
     [rho(:, :, g), p(:, :, g)] = pearson(X);
     v = rho(:, :, g);
     v = v(off & isfinite(v));
-    if ~isempty(v); meanR(g) = mean(v); end
+    if ~isempty(v)
+        if opts.FisherZ
+            meanR(g) = tanh(mean(atanh(max(min(v, 1 - eps), -1 + eps))));   % r = +-1 off the diagonal would be Inf
+        else
+            meanR(g) = mean(v);
+        end
+    end
 end
 
 R = struct();
 R.kind = "corrmap";
 R.r = rho;
 R.p = p;
+R.fisherZ = opts.FisherZ;
+if opts.FisherZ
+    z = atanh(max(min(rho, 1 - eps), -1 + eps));
+    z(repmat(eye(nU) ~= 0, 1, 1, nG)) = NaN;
+    z(~isfinite(rho)) = NaN;
+    R.z = z;
+end
 R.meanR = meanR;
 R.nEpochs = nUsed;
 R.response = resp;
@@ -126,7 +145,7 @@ R.metric = opts.Metric;
 R.type = opts.Type;
 R.units = "spikes/s";
 if useBase; R.units = "spikes/s - baseline"; end
-R.params = struct('Metric', opts.Metric, 'Type', opts.Type, 'BinSec', opts.BinSec, 'SmoothSec', opts.SmoothSec, ...
+R.params = struct('Metric', opts.Metric, 'Type', opts.Type, 'FisherZ', opts.FisherZ, 'BinSec', opts.BinSec, 'SmoothSec', opts.SmoothSec, ...
     'Baseline', b, 'BaselineMode', opts.BaselineMode);
 R.created = string(datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss'));
 end

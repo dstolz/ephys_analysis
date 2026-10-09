@@ -108,6 +108,7 @@ E.value.Value = char(p.value);
 offerItems(E.order, ch.Orders, p.order);
 offerItems(E.metric, ["mean" "peak"], p.metric);
 E.correlation.Value = char(p.correlation);
+E.fisherZ.Value = logical(p.fisherZ);
 wv = p.waveform;
 offerWaveModes(E.waveMode, p.kind);
 fallback = "off";
@@ -160,6 +161,7 @@ E.legendOrient.Value = char(pickFrom(s.LegendOrientation, string(E.legendOrient.
 E.legendBox.Value = s.LegendBox;
 E.grid.Value = s.Grid;
 E.ylim.Value = listText(s.YLim);
+E.clim.Value = listText(s.CLim);
 E.lineWidth.Value = min(E.lineWidth.Limits(2), max(E.lineWidth.Limits(1), s.LineWidth));
 E.siteSize.Value = min(E.siteSize.Limits(2), max(E.siteSize.Limits(1), s.SiteSize));
 offerItems(E.colormap,string(E.colormap.Items), pick(s.Colormap, "lines"));

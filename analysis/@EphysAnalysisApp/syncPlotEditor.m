@@ -266,7 +266,7 @@ v.param = ismember(kind, ["tuning" "behavior"]); v.seriesParam = v.param;
 v.yParam = behavior; v.xScale = behavior;
 v.value = kind == "probemap";
 v.order = kind == "heatmap";
-v.metric = kind == "corrmap"; v.correlation = v.metric;
+v.metric = kind == "corrmap"; v.correlation = v.metric; v.fisherZ = v.metric;
 v.maxTiles = kind == "raster" || (ismember(kind, ["psth" "tuning" "evoked" "waveforms"]) && layout == "grid");
 v.tileSpacing = ~ismember(kind, ["rate" "behavior"]) && ~(kind == "waveforms" && layout == "probe");
 v.fontSize = true;
@@ -277,7 +277,7 @@ v.ylim = ismember(kind, ["psth" "rate" "tuning" "behavior"]) || (kind == "evoked
     || (kind == "waveforms" && layout == "grid");
 v.colormap = grouped;
 v.legendLoc = grouped;
-v.heatColormap = ismember(kind, ["heatmap" "probemap" "corrmap"]);
+v.heatColormap = ismember(kind, ["heatmap" "probemap" "corrmap"]); v.clim = v.heatColormap;
 inset = spikes && (kind == "raster" || (ismember(kind, ["psth" "tuning"]) && layout ~= "overlay"));
 wavePlot = spikes && kind == "waveforms";
 v.waveMode = inset || wavePlot;

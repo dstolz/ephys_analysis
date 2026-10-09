@@ -375,6 +375,12 @@ h = renderPlot(Rc, spec, fig);
 check(numel(h.axes) == 3 && startsWith(h.title, "Unit correlation (Pearson, mean rate): Stim onset") ...
     && isequal(h.axes(1).CLim, [-1 1]) && isequal(h.axes(1).Colormap, blueWhiteRed(256)), ...
     'renderPlot draws a corrmap: a tile per group on [-1 1] in blueWhiteRed');
+specZ = EphysAnalysisConfig.normalizePlot(struct('kind', "corrmap", 'fisherZ', true));
+RcZ = unitCorrelation({s2, st, drv}, E3, Groups=G3, Meta=meta, FisherZ=true);
+h = renderPlot(RcZ, specZ, fig);
+check(isequal(h.axes(1).CLim, [-1 1] * max([1; abs(RcZ.z(isfinite(RcZ.z)))])) && contains(h.colorbar.Label.String, "Fisher z"), ...
+    'a Fisher-z corrmap draws z on a scale symmetric about 0');
+check(contains(plotCaption(specZ, RcZ), "Fisher z"), 'plotCaption names the Fisher z transform');
 cap = plotCaption(spec, Rc);
 check(contains(cap, "Pearson correlation of each epoch's mean rate") && ~contains(cap, "bins"), "plotCaption: " + cap);
 check(isequal(shortUnitLabels(["su001_S-01_260918T1405"; "mua012_S-01_260918T1405"]), ["su001"; "mua012"]) ...
@@ -419,6 +425,11 @@ check(max(abs(C.r(:) - r0(:))) < 1e-12 && abs(C.r(1, 2) - 1) < 1e-12 && abs(C.r(
 off = ~eye(5);
 check(max(abs(C.p(off) - p0(off))) < 1e-9 && all(isnan(diag(C.p))), 'p values match corrcoef''s');
 check(abs(C.meanR - mean(r0(off))) < 1e-12, 'meanR is the mean over the pairs');
+Z = unitCorrelation({uA, uB, uC, uD, uF}, Ec, FisherZ=true);
+rc = max(min(C.r, 1 - eps), -1 + eps);
+check(Z.fisherZ && isequal(Z.r, C.r) && all(isnan(diag(Z.z))) && max(abs(Z.z(off) - atanh(rc(off)))) < 1e-12 ...
+    && abs(Z.meanR - tanh(mean(atanh(rc(off))))) < 1e-12 && all(isfinite(Z.z(off))) && ~isfield(C, 'z') && ~C.fisherZ, ...
+    'FisherZ: z = atanh r (r = +-1 kept finite), the mean taken in z and transformed back; r unchanged');
 S = unitCorrelation({uA, uB, uC, uD, uF}, Ec, Type="spearman");
 check(abs(S.r(1, 5) - 1) < 1e-12 && abs(S.r(1, 4) + 1) < 1e-12 && max(abs(S.r - corrcoef(ranks(S.response))), [], 'all') < 1e-12, ...
     'Spearman: a monotone transform correlates 1, and it is Pearson of the (tie-averaged) ranks');

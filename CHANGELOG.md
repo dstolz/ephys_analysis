@@ -64,6 +64,20 @@ says how to cut a release.
   computer, so the copy puts it beside the manifest and the analysis (and a
   dataset's `ProbeFile`) uses that file when the recorded path is not there.
 
+- Copy the files for the analysis app after a Run, from the pipeline app: a
+  **Copy files for the analysis app** box on the Run tab (under Copy outputs
+  to), saved in the config as the new `AnalysisCopy` section (`Enabled`, off by
+  default). Once a Run that was not a dry run has finished, the datasets it
+  processed are copied in the background with the settings last used in the
+  copy window (`AnalysisCopyDialog.settings`: what to copy, the destination,
+  what to do when the folder has files, the checksum), and the copy's progress
+  shares the Run tab's last row. A dataset with an error among its results is
+  left out, and one whose background sort is still going is copied when that
+  sort ends (not at all if it fails). A Run is refused up front when the window
+  never had a destination chosen, and the config does not validate together
+  with a Copy outputs that moves the outputs. `EphysPipeline.run` does not read
+  the section; the app does.
+
 - Several plots edited at once in the analysis app. Ctrl- or Shift-click in the
   plot tree selects several plots. The editor then shows only the options every
   one of them has, with the values of the first picked, and an edit goes to all

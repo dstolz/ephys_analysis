@@ -71,6 +71,11 @@ classdef EphysPipelineApp < handle
     %                the background, after each step or after the run, a
     %                new version folder or overwrite or skip when it is
     %                there; their progress and Stop copying under the log),
+    %                Copy files for the analysis app after the run (the
+    %                AnalysisCopy section: once a Run has made the files,
+    %                copy the ones the analysis app reads, with the settings
+    %                last used in the copy window; a dataset whose
+    %                background sort is still going is copied when it ends),
     %                validate, plan, run / dry run / cancel, progress,
     %                results (filled as the run goes; background runs' rows
     %                follow them to done / error), log, Stop runs... / Stop
@@ -773,6 +778,7 @@ classdef EphysPipelineApp < handle
         RunTransferWhenDropDown   matlab.ui.control.DropDown  % Transfer.When: "step" | "run"
         RunTransferIfExistsDropDown matlab.ui.control.DropDown % Transfer.IfExists: "version" | "overwrite" | "skip"
         RunTransferHashCheckBox   matlab.ui.control.CheckBox  % Transfer.Verify "hash"
+        RunAnalysisCopyCheckBox   matlab.ui.control.CheckBox  % AnalysisCopy.Enabled
         RunSelectionLabel    matlab.ui.control.Label
         RunValidateButton    matlab.ui.control.Button
         RunPlanButton        matlab.ui.control.Button
@@ -862,6 +868,11 @@ classdef EphysPipelineApp < handle
         TransferMonitorTimer = []
         TransferRateHistory (:,2) double = zeros(0, 2)   % [seconds bytes] samples (showTransferProgress)
         TransferStarted = []                              % tic of the first sample
+
+        % Datasets whose files for the analysis app wait for a background sort to end
+        % (AnalysisCopy; copyAnalysisFilesAfterRun): the dataset and the results folder
+        % of the sort it waits for. analysisCopySortEnded copies them when it ends.
+        AnalysisCopyWaiting struct = struct('dataset', {}, 'resultsDir', {})
 
         % --- Visualize interaction state (display-only, in-memory) ---
         Viewer = []                % EphysTraceViewer on VizAxes
@@ -1045,6 +1056,11 @@ classdef EphysPipelineApp < handle
         applyTransferSection(obj, X)
         onTransferControlsChanged(obj)
         onBrowseTransferDest(obj)
+        X = gatherAnalysisCopySection(obj)
+        applyAnalysisCopySection(obj, X)
+        X = copyAnalysisFiles(obj, datasets)
+        copyAnalysisFilesAfterRun(obj, pipe)
+        analysisCopySortEnded(obj, run, state)
         E = gatherExportSection(obj)
         applyExportSection(obj, E)
         A = gatherAnalysisSection(obj)

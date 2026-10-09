@@ -23,4 +23,5 @@ cfg.Spikes    = obj.gatherSpikesSection();
 cfg.Export    = obj.gatherExportSection();
 cfg.Analysis  = obj.gatherAnalysisSection();
 cfg.Transfer  = obj.gatherTransferSection();
+cfg.AnalysisCopy = obj.gatherAnalysisCopySection();
 end

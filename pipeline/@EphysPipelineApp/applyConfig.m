@@ -74,6 +74,7 @@ obj.applySpikesSection(cfg.Spikes);
 obj.applyExportSection(cfg.Export);
 obj.applyAnalysisSection(cfg.Analysis);
 obj.applyTransferSection(cfg.Transfer);
+obj.applyAnalysisCopySection(cfg.AnalysisCopy);
 end
 
 

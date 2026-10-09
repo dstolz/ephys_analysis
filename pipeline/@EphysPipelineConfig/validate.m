@@ -10,7 +10,9 @@ function issues = validate(obj, opts)
 %   too, its own Source aside (the step replaces it): its issues are rows
 %   of step "analysis", Field <Section>.<Field> of the analysis config.
 %   The Transfer section is checked when it is on (rows of step
-%   "transfer").
+%   "transfer"), and AnalysisCopy when it is on (rows of step
+%   "analysiscopy": Windows only, and not together with a Transfer that
+%   moves the outputs).
 %
 %   Options: CheckPaths (default true) also checks that Root / files exist,
 %   and reads the analysis config; without it nothing on disk is read.
@@ -456,6 +458,18 @@ if X.Enabled
     end
     if ~ismember(X.Verify, ["size" "hash"])
         add("transfer", "Verify", "error", "Transfer.Verify must be ""size"" or ""hash"".");
+    end
+end
+
+% --- AnalysisCopy (not a step) ----------------------------------------------------
+if obj.AnalysisCopy.Enabled
+    if ~platformSupport("copy")
+        add("analysiscopy", "Enabled", "error", "Copying the files for the analysis app needs Windows (robocopy and PowerShell).");
+    end
+    if X.Enabled && X.Method == "move"
+        add("analysiscopy", "Enabled", "error", ...
+            "Transfer.Method ""move"" removes the outputs here once they are copied, while the files for the analysis app are read from them: " + ...
+            "use ""copy"" or turn one of the two off.");
     end
 end
 

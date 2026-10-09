@@ -22,7 +22,12 @@ function runPipeline(obj, opts)
 %   (followTransfer): the Run does not wait for it, and the copies go on in
 %   the background after the Run, their progress in the tab's last row. A
 %   Run is refused while an earlier Run's move is still going, since the
-%   move removes the outputs it took once they are copied.
+%   move removes the outputs it took once they are copied. With Copy files
+%   for the analysis app on (the AnalysisCopy section), a Run that ran to
+%   its end and was not a dry run copies the files EphysAnalysisApp reads,
+%   with the settings last used in the copy window, once its steps are over
+%   (copyAnalysisFilesAfterRun); the Run is refused up front when that
+%   window never had a destination chosen.
 arguments
     obj (1,1) EphysPipelineApp
     opts.Steps (1,:) string = string.empty(1,0)
@@ -61,6 +66,13 @@ try
     pipe.checkRun(Steps=opts.Steps);   % the plan's blocking rows (duplicate outputs, "error: ...")
 catch ME
     uialert(obj.Fig, string(ME.message), "Run");
+    return
+end
+
+copyForAnalysis = cfg.AnalysisCopy.Enabled && ~opts.DryRun;   % a dry run makes no files
+if copyForAnalysis && ~OutputTransfer.isFullPath(AnalysisCopyDialog.settings().Destination)
+    uialert(obj.Fig, "Copy files for the analysis app is on, but no destination folder was chosen. " + ...
+        "Choose it in File > Copy files for the analysis app... and close that window to keep it, then run again.", "Run");
     return
 end
 
@@ -115,6 +127,13 @@ nErr = nnz(startsWith(R.Status, "error"));
 nCan = nnz(R.Status == "cancelled");
 obj.RunStepLabel.Text = sprintf("Finished: %d result(s), %d error(s), %d cancelled.", n, nErr, nCan);
 obj.setStatus(sprintf("Pipeline finished: %d result(s), %d error(s), %d cancelled.", n, nErr, nCan));
+if copyForAnalysis && outcome == "done"
+    try
+        obj.copyAnalysisFilesAfterRun(pipe);
+    catch ME
+        obj.runLog("[analysis copy] not made: %s", ME.message);
+    end
+end
 end
 
 

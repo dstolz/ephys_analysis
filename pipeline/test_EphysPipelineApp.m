@@ -1824,6 +1824,51 @@ end
 app.applyConfig(cfgBeforeCopy);
 check(~app.Config.Transfer.Enabled, 'Copy outputs off again');
 
+fprintf('\n== 4b2. Run tab: Copy files for the analysis app (the AnalysisCopy section) ==\n');
+cfgBeforeAC = app.Config;
+check(~app.RunAnalysisCopyCheckBox.Value && ~app.Config.AnalysisCopy.Enabled, ...
+    'Copy files for the analysis app is off by default');
+app.RunAnalysisCopyCheckBox.Value = true;
+app.onConfigChanged();
+check(app.Config.AnalysisCopy.Enabled && ~app.Config.isequalConfig(cfgBeforeAC), ...
+    'the box is the AnalysisCopy section, and ticking it is an unsaved change');
+app.applyConfig(cfgBeforeAC);
+check(~app.RunAnalysisCopyCheckBox.Value, 'a config''s AnalysisCopy section shows in the box');
+dsW = app.Project.Datasets(1);
+sortW = string(fullfile(dsW.outputFolder(), 'kilosort4'));
+app.AnalysisCopyWaiting = struct('dataset', {dsW, dsW}, 'resultsDir', {sortW, string(fullfile(root, 'other_sort'))});
+app.analysisCopySortEnded(EphysPipeline.sortRun("x", struct('statusFile', "", 'resultsDir', ...
+    fullfile(root, 'unrelated'), 'stdoutLog', "", 'device', "")), "done");
+check(numel(app.AnalysisCopyWaiting) == 2, 'a sort that no dataset waits for changes nothing');
+app.analysisCopySortEnded(EphysPipeline.sortRun(dsW.Name, struct('statusFile', "", 'resultsDir', ...
+    sortW, 'stdoutLog', "", 'device', "")), "error");
+acLog = strjoin(string(app.RunLogArea.Value), newline);
+check(numel(app.AnalysisCopyWaiting) == 1 && app.AnalysisCopyWaiting.resultsDir == string(fullfile(root, 'other_sort')) ...
+    && contains(acLog, "[analysis copy] " + dsW.Name + ": not copied, its sort ended with error."), ...
+    'a dataset waiting for a sort that failed is taken off the wait and not copied; the Run log says so');
+app.AnalysisCopyWaiting(:) = [];
+if ispc
+    acDest = fullfile(root, 'for_analysis');
+    AppPrefs.setpref(char(AnalysisCopyDialog.PrefGroup), 'Settings', struct('Signals', ["LFP" "MUA" "AUX"], ...
+        'Spikes', true, 'Sorting', "essential", 'SortedData', false, 'Probe', true, 'IfExists', "overwrite", ...
+        'Hash', false, 'Destination', string(acDest)));
+    cfgOnAC = cfgBeforeAC;
+    cfgOnAC.AnalysisCopy.Enabled = true;
+    app.applyConfig(cfgOnAC);
+    app.runPipeline(Steps="spikes");
+    t0 = tic;
+    while ~isempty(app.Transfers) && toc(t0) < 120   % the copy goes on after the Run, followed by the timer
+        app.pollTransfers();
+        pause(0.25);
+    end
+    dsA = app.Project.Datasets(string({app.Project.Datasets.Name}) == "recA_260101_120000");
+    check(isempty(app.Transfers) && isfile(fullfile(acDest, dsA.DatasetKey, 'recA_260101_120000_spikes.mat')) ...
+        && isfile(spikesFile), ...
+        'a Run with the box ticked copies the dataset''s files for the analysis app to <folder>\<subject>\<session> (the copy window''s settings)');
+    app.applyConfig(cfgBeforeAC);
+end
+check(~app.Config.AnalysisCopy.Enabled, 'Copy files for the analysis app off again');
+
 fprintf('\n== 4a. Review tab: unit labels, location, notes ==\n');
 app.selectDataset(1);
 app.syncReviewDataset();

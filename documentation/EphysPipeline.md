@@ -59,6 +59,7 @@ returns the defaults and is the single source of truth for field names.
 | `Export` | `export` | `Enabled`, `Formats` (subset of `["chronux" "fieldtrip" "epochs" "kcsd" "nwb"]`; `kcsd` needs the LFP and a probe; `nwb` a Python with pynwb and nwbinspector), `Signals` (`[]` = every signal in the extract), `IncludeUnits`, `IncludeDetected`, `IncludeEvents`, `Groups`, `Validate`, the epoch settings `EpochSource` (`"line"` / `"behavior"`), `EpochLine`, `EpochWindow` (`[tPre tPost]` s), `EpochOnsetRule` (`"event"`, the default: digital-input times, each placed on every signal's sample nearest its recording row, `round((t − 1/origFs)·Fs) + 1`; `"sample"`: times on the continuous clock, `round(t·Fs) + 1`), `EpochIncomplete`, `EpochNonFinite`, `EpochArtifacts` (`"drop"`: an epoch whose window touches an artifact period of the extract is left out of the signals; `"keep"`: flagged only), `EpochSpikeTimeBase`, `EpochClass`, `OutputDir`, `MatVersion`, `Overwrite`; `UnitQuality` (`true`): the exported units carry their quality metrics (`EphysDataset.unitQuality`; a sort whose metrics cannot be computed is exported without them, with a warning); `NWB`: the `nwb` format's metadata (`SessionDescription`, `ExperimentDescription`, `Experimenter`, `Lab`, `Institution`, `Keywords`, `Location`, `SubjectId`, `Species`, `Sex`, `Age`, `SubjectDescription`, `Strain`, `Genotype`, `TimeZone`, `SessionStartTime`; `""` is not written), `Trials`, `Inspect` and the Python that writes it (`PythonExe`, `CondaEnv`; `""` = the Sorting step's). `validate` checks the Python, `Sex`, `Age` (ISO 8601), `TimeZone` and `SessionStartTime`, and warns when species, sex or age is not set |
 | `Analysis` | `analysis` | `Enabled`, `ConfigFile` (an [analysis config](EphysAnalysisConfig.md), `.json`, read when the step runs), `Figures` (`true`: write the figure files), `Report` (`true`: write the report). The step runs the analysis config over the selected datasets, not over its own `Source`; where and how the figures and the report are written is the analysis config's `Export` / `Report` (their own `Enabled` is not used). See [Analysis step](#analysis-step) |
 | `Transfer` | – | `Enabled`, `Destination` (a full path), `Method` (`"copy"`; `"move"`: removed here once copied and the run is over), `When` (`"step"`: each output once its step has written it; `"run"`: once the run is over), `IfExists` (`"version"`: a new `<key>_v2`, `_v3`, ... when the dataset's folder is there; `"overwrite"`; `"skip"`: the files already there are kept), `Verify` (`"size"` and time, or `"hash"`: SHA-256): copy or move each dataset's outputs to `<Destination>/<dataset key>`, the raw data's subject/session folders, in the background. See [Copying the outputs elsewhere](#copying-the-outputs-elsewhere) |
+| `AnalysisCopy` | – | `Enabled` only: once a Run of the [pipeline app](EphysPipelineApp.md#copying-files-for-the-analysis-app) has made the files, copy the ones the analysis app reads. What to copy, where to and what to do when the folder has files are the settings last used in the app's copy window, not part of the config. The app acts on it; `EphysPipeline.run` does not |
 
 `Name` and `Description` are free text. `File` (where the config was loaded
 from or saved to) and `LoadWarnings` are transient.
@@ -155,6 +156,11 @@ in it (the copies would land among the outputs they copy) are errors, and so
 are a `Method`, `When`, `IfExists` or `Verify` outside their choices and a
 platform without robocopy (Windows only). With `CheckPaths`, a destination
 that is not there yet is a warning (the first copy creates it).
+
+With `AnalysisCopy.Enabled` (step `"analysiscopy"`), a platform without
+robocopy (Windows only) is an error, and so is a `Transfer` that moves the
+outputs (`Transfer.Method = "move"`): the move removes them here once they are
+copied, while the files for the analysis app are read from them.
 
 ### Helpers
 

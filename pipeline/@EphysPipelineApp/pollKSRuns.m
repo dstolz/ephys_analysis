@@ -143,6 +143,7 @@ else
     obj.log("[error] %s - %s failed: %s", run.Name, what, msg);
     obj.markKSResult(run.Name, run.resultsDir, "error", what + " failed: " + msg, took);
 end
+obj.analysisCopySortEnded(run, string(state));   % the files for the analysis app of the datasets that waited for it
 end
 
 

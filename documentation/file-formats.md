@@ -537,7 +537,8 @@ which holds `H64LP_4x16.json` as a starting point.
   "Spikes":    { "Enabled", ... , "ArtifactMode", "OutputDir", "Suffix", ... },
   "Export":    { "Enabled", "Formats", "Signals", "IncludeUnits", ... , "EpochNonFinite", "EpochArtifacts", ... },
   "Analysis":  { "Enabled", "ConfigFile", "Figures", "Report" },
-  "Transfer":  { "Enabled", "Destination", "Method", "When", "IfExists", "Verify" }
+  "Transfer":  { "Enabled", "Destination", "Method", "When", "IfExists", "Verify" },
+  "AnalysisCopy": { "Enabled" }
 }
 ```
 

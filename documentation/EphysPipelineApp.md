@@ -199,6 +199,29 @@ stay open while the copy runs; **Stop** ends it and keeps what is copied.
 **Check the copies by checksum** adds a SHA-256 pass. The choices and the
 destination are remembered (preference group `AnalysisCopyDialog`).
 
+**After a Run.** The Run tab's **Copy files for the analysis app** box (the
+config's `AnalysisCopy` section, saved with the config) does the same copy
+without the window once a Run has made the files. It uses the choices and
+the destination last used in the window, so choose them there once and close
+the window (or press **Copy**) to keep them; a Run with the box ticked and no
+destination ever chosen is refused up front. The box is read by the app, not
+by `EphysPipeline.run`. A Run that ran to its end and was not a dry run
+copies the datasets it processed, in the background, with their progress in
+the last row of the Run tab and the details in the Run log (lines starting
+`[analysis copy]`):
+
+- a dataset with an error among its results is left out (its files may be
+  incomplete);
+- a dataset whose background sort is still going (`launched` or `queued`) is
+  copied when that sort ends, and not at all when it fails or is stopped.
+  This wait is lost when the app is closed, which asks first;
+- what the window would list as missing (no behavior file, no sorted units,
+  ...) is logged per dataset.
+
+The config does not validate with **Copy outputs to** set to **move**: the
+move removes the outputs here once they are copied, while the files for the
+analysis app are read from them.
+
 On the other computer, `EphysAnalysisApp("<folder>")` finds the datasets
 (a root of outputs without recordings is read as its datasets). The manifest
 names the probe file by its path on the pipeline computer; the analysis uses
@@ -2349,6 +2372,10 @@ or `Selection: all 4 dataset(s).` (none ticked).
   `Transfer` section. A Run copies, or moves, each dataset's outputs to
   `<folder>\<subject>\<session>` in the background; see
   [Copying the outputs elsewhere](#copying-the-outputs-elsewhere).
+- **Copy files for the analysis app** (off by default): the config's
+  `AnalysisCopy` section. Once a Run has made the files, the ones the
+  analysis app reads are copied; see
+  [Copying files for the analysis app](#copying-files-for-the-analysis-app).
 
 ### Validate, plan, run
 

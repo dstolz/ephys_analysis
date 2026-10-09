@@ -50,7 +50,11 @@ function src = loadAnalysisSource(out, opts)
 %     trialLine         the pairing's trial line ("" without pairing)
 %     subject, startTime   from the behavior ("" / NaT without)
 %     probe, probeFile  the probe map (decoded JSON: chanMap 0-based, xc, yc,
-%                       kcoords) from the manifest's probe.file (DatasetOutputs.probeFile), or []
+%                       kcoords) from the manifest's probe.file (DatasetOutputs.probeFile);
+%                       without one, the map the sort used (its
+%                       channel_map.npy, channel_positions.npy and
+%                       channel_shanks.npy, the same fields); else []
+%     probeSource       "manifest" | "sorting" | "": where probe came from
 %     hasUnits          the sorting folder holds sorted units
 %     hasDetected       the spikes file holds threshold detections
 %     spikesFile        the spikes file ("" when none)
@@ -210,6 +214,54 @@ if out.has("spikes")
     names = string({w.name});
     src.hasDetected = any(names == "detected") && prod(w(names == "detected").size) > 0;
 end
+
+% --- probe map without a probe file: the sort's ----------------------------------------
+% A dataset sorted with the pipeline's default probe has no probe file in its
+% manifest unless Probe.WriteDefaultToManifest. The sorted units carry their
+% sites from the sort folder; detections and signals need this map for theirs.
+src.probeSource = "";
+if ~isempty(src.probe)
+    src.probeSource = "manifest";
+elseif src.hasUnits
+    src.probe = sortingProbe(string(EphysDataset.resolvePhyDir(out.SortingDir)), src.name);
+    if ~isempty(src.probe); src.probeSource = "sorting"; end
+end
+end
+
+
+function p = sortingProbe(d, name)
+%sortingProbe  The probe map a sort used, from sort folder D ([] when it has none).
+%   Kilosort4 and runSpikeInterface write channel_map.npy as 0-based .bin
+%   rows, which are recording rows (readPhyUnits maps the units' channels the
+%   same way), channel_positions.npy as the sites' probe x, y (µm) and
+%   channel_shanks.npy as the probe's kcoords (padded with 0 or cut to the
+%   channels, 0 when it is not there, as readPhyUnits takes it).
+p = [];
+fMap = fullfile(d, "channel_map.npy");
+fPos = fullfile(d, "channel_positions.npy");
+if ~(isfile(fMap) && isfile(fPos)); return; end
+try
+    cm = double(readNPY(fMap));
+    xy = double(readNPY(fPos));
+    k = zeros(0, 1);
+    fSh = fullfile(d, "channel_shanks.npy");
+    if isfile(fSh); k = double(readNPY(fSh)); end
+catch ME
+    warning('loadAnalysisSource:SortingProbe', ...
+        'Cannot read the probe map of the sort of %s (%s); its channels have no sites.', name, ME.message);
+    return
+end
+cm = cm(:);
+n = numel(cm);
+if n == 0 || size(xy, 1) ~= n || size(xy, 2) < 2
+    warning('loadAnalysisSource:SortingProbe', ...
+        ['The sort of %s has %d channels in channel_map.npy and %d in channel_positions.npy; ' ...
+         'its channels have no sites.'], name, n, size(xy, 1));
+    return
+end
+k = k(:);
+k(end+1:n, 1) = 0;
+p = struct('chanMap', cm, 'xc', xy(:, 1), 'yc', xy(:, 2), 'kcoords', k(1:n));
 end
 
 

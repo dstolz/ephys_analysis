@@ -75,8 +75,24 @@ check(src.hasBehavior && src.hasTrials && src.nTrials == 12 && src.trialLine == 
     'paired trials, the trial line, RespCode and every trial parameter (RespCode too, no pairing times), alphabetical');
 check(src.signals.LFP && src.signals.MUA && src.signals.AUX && ~src.signals.SPIKE && src.signalFs.LFP == 1000 ...
     && src.signalFs.MUA == 2000 && numel(src.labels) == numel(T1.channelNames), 'signals, their rates and the channel labels');
-check(src.hasUnits && src.hasDetected && isstruct(src.probe) && numel(src.probe.xc) == numel(T1.channelNames), ...
-    'units from the sorting folder, detections from the spikes file and the probe map');
+check(src.hasUnits && src.hasDetected && isstruct(src.probe) && numel(src.probe.xc) == numel(T1.channelNames) ...
+    && src.probeSource == "manifest", 'units from the sorting folder, detections from the spikes file and the probe map');
+pf = src.probeFile;                               % a dataset sorted with the default probe: no probe file
+movefile(pf, pf + ".off");
+try
+    sNo = loadAnalysisSource(F.outputs(1), Key=F.keys(1));
+catch ME
+    movefile(pf + ".off", pf);
+    rethrow(ME);
+end
+movefile(pf + ".off", pf);
+[~, mdP] = selectUnits(src, struct('source', "detected"));
+[~, mdS] = selectUnits(sNo, struct('source', "detected"));
+[~, muP] = selectUnits(src, struct('source', "units"));
+[~, muS] = selectUnits(sNo, struct('source', "units"));
+check(sNo.probeFile == "" && sNo.probeSource == "sorting" && isstruct(sNo.probe) && all(isfinite(mdS.y)) ...
+    && isequal(mdS(:, ["shank" "x" "y"]), mdP(:, ["shank" "x" "y"])) && isequaln(muS, muP), ...
+    'without a probe file the probe map is the sort''s: detections get the same sites, sorted units are unchanged');
 bare = fullfile(root, 'X-1');                     % an extract alone: no manifest, no behavior
 mkdir(bare);
 Y = struct('LFP', zeros(250, 2, 'single'));

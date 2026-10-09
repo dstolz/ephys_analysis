@@ -644,6 +644,18 @@ says how to cut a release.
 
 ### Fixed
 
+- Analysis plots of threshold detections (source *detected*) and of signals
+  labelled every channel "sh0" with no depth, and could not sort them by depth
+  or shank, when the dataset's manifest names no probe file: the case for a
+  dataset sorted with the pipeline's default probe, which the manifest records
+  only with `Probe.WriteDefaultToManifest`. Sorted units were labelled right,
+  since their sites come from the sort folder. `loadAnalysisSource` now takes
+  the probe map the sort used (`channel_map.npy`, `channel_positions.npy`,
+  `channel_shanks.npy`) when there is no probe file, and says which in
+  `src.probeSource` (`"manifest"`, `"sorting"` or `""`). Probe maps and
+  waveforms on the probe draw from it too, and the report's recording table
+  names it.
+
 - `DatasetOutputs.readUnits` on a folder whose manifest named an existing probe
   file failed with `Invalid argument name 'ProbeFile'`: it passed an option
   `readPhyUnits` does not take. The analysis app opened on a single output

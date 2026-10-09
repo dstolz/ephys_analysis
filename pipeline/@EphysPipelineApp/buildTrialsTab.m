@@ -99,6 +99,7 @@ obj.TrialsLinesTable = uitable(sg, "ColumnName", {'Native', 'Name', 'Intervals',
         "Inverted: the line is on while low (onset = falling edge, offset = rising edge)."], ...
     "CellEditCallback", @(~, evt) obj.onTrialsLinesEdited(evt));
 obj.TrialsLinesTable.Layout.Row = 4; obj.TrialsLinesTable.Layout.Column = [1 2];
+makeSortable(obj, obj.TrialsLinesTable);
 obj.TrialsLinesTable.Data = table(strings(0, 1), strings(0, 1), zeros(0, 1), false(0, 1), ...
     'VariableNames', {'Native', 'Name', 'Intervals', 'Inverted'});
 

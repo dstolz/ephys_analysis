@@ -327,7 +327,7 @@ A plot's `units` (its `source` is the plot's `source`). Sorted units
 | `HeatColormap` | `""` | heatmaps, probe maps and unit correlations; `""` = parula, or `blueWhiteRed` for corrmap |
 | `FontSize` | 9 | |
 | `SiteSize` | 8 | probe map: the sites' marker size, points |
-| `YLim`, `XLim`, `CLim` | `[]` | fixed limits (`[]` = automatic). `YLim` is used by the unstacked PSTH rate panels, the evoked butterfly and grid layouts, and the rate and tuning plots only: rasters show every epoch, and a stacked PSTH and an evoked stack ignore it. The automatic `CLim` is the range of every tile, `[0 1]` for an auROC heatmap and `[-1 1]` for a corrmap |
+| `YLim`, `XLim`, `CLim` | `[]` | fixed limits (`[]` = automatic); two ascending values, low then high. The plot editor sets `YLim` (**Y limits**) and `CLim` (**Color limits**, for heatmap, probe map and corrmap plots). `YLim` is used by the unstacked PSTH rate panels, the evoked butterfly and grid layouts, and the rate and tuning plots only: rasters show every epoch, and a stacked PSTH and an evoked stack ignore it. The automatic `CLim` is the range of every tile, `[0 1]` for an auROC heatmap and `[-1 1]` for a corrmap |
 | `Grid`, `Legend` | `true` | |
 | `LegendLocation` | `"auto"` | where the legend goes: `"auto"` (a grid's east of the grid, a single plot's in its own place), `"inside"` (in the first tile), or `"north"`, `"south"`, `"east"`, `"west"`: outside the whole grid of plots, on that side (beside the axes when the plot is a single axes). A stacked PSTH has no legend |
 | `LegendOrientation` | `"auto"` | `"vertical"` or `"horizontal"` entries; `"auto"` lays a legend north or south of the grid out horizontally, any other vertically |

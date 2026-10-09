@@ -17,9 +17,9 @@ if ~isempty(t) && isvalid(t) && istable(t.Data) ...
         && all(ismember(["Step" "Dataset" "Status" "Message" "Output" "Seconds"], t.Data.Properties.VariableNames))
     % not a plan's table (Plan shows Key and Note instead)
     if running
-        t.Data = obj.Pipe.Results;
+        obj.showRunResults(obj.Pipe.Results);
     else
-        t.Data = restate(t.Data);
+        obj.showRunResults(restate(t.Data));
     end
 end
 if ~running && isfield(obj.RunDiagram, 'results') && istable(obj.RunDiagram.results)

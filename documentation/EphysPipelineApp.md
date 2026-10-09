@@ -440,6 +440,7 @@ never guessed at.
 | --- | --- |
 | Copy | tick to include the row in **Preview** and **Copy selected** |
 | Status | `paired`, `stitched`, `recording_only`, `epsych_only` or `ambiguous` (see **Pairing** below) |
+| Subject, Date | the session's subject ID, and the day it was recorded (the recording's start, else the ePsych file's); a header click sorts the sessions ([Sorted tables](#sorted-tables)) |
 | Recording folder, Format | the recording folder, and which reader reads it (`Intan`, `Open Ephys`, `Binary`; blank when none does) |
 | Recording time, Duration | the start time in the folder name, and the length read from the headers |
 | ePsych file, ePsych time, Trials | the behavior file, the start time in its name, and its number of trials (for a stitched row every file, joined by `+`, and the total) |
@@ -2405,7 +2406,8 @@ alert. **Scan** and **Refresh metadata** are off while it runs.
 
 **Plan** puts one row per step and dataset in the results table (one per
 file for Signals, one per format for Export, as `export:chronux`): **Step**,
-**Dataset**, **Key**, **Output** (the file or folder the step writes),
+**Dataset**, **Subject** and **Date** (the dataset's subject ID and the day it
+was recorded, added by the app), **Key**, **Output** (the file or folder the step writes),
 **Status** and **Note**. The status bar sums it up:
 `Plan: N row(s), K blocking.`
 
@@ -2440,7 +2442,8 @@ During a run:
   needs reports as that step, and the export formats as one `export` step.
 - The **Log** gets one timestamped line per event.
 - The results table fills as the Run goes, one row per step and dataset:
-  **Step**, **Dataset**, **Status**, **Message**, **Output**, **Seconds**. A
+  **Step**, **Dataset**, **Subject**, **Date**, **Status**, **Message**, **Output**,
+  **Seconds**. A
   row shows at the pipeline's next progress event after it is recorded (the
   table is only touched when a row was added), and a row the Kilosort4
   monitor restates during the Run shows at once. Signals gives a row per
@@ -3229,7 +3232,8 @@ checks it once more as it starts (`cleanupMoveTargets`).
   folders, one row each: **Include** (ticked: the file goes; every Remove row
   starts ticked, and Keep rows cannot be ticked), **Action** (Remove / Keep),
   Dataset, Subject (its `SubjectID` from the
-  [name pattern](#name-pattern-and-token-columns)), What, Size (MB),
+  [name pattern](#name-pattern-and-token-columns)), Date (the day it was
+  recorded: the recording's start, else the date in the name), What, Size (MB),
   File and **Why** (for a raw file, where its source copy is, or why it is
   kept: not found at the source, a different size, no copy record; for a
   step's file, that the step's output is selected). Remove rows come first,
@@ -3394,14 +3398,18 @@ each app writes only its own report.
 
 ## Sorted tables
 
-Five tables sort on a header click: the Project table, the Trials table, the
-Review units table, the Clean up preview and the Artifacts tab's per-channel
-Selection table. A uitable sorts only what it shows, and the app fills a table
-again whenever its data changes (another dataset, a reload, an edit, a new
-preview). So the app keeps the click itself, the column and the direction the
-rows show ([`TableSort`](../pipeline/TableSort.m)), puts every new set of rows
-in that order, and saves it as the `TableSorts` preference at once: the sort
-holds for every dataset and the next session. Right-click a table for
+Every table that lists things sorts on a header click: the Project, Trials,
+Review units, Clean up, Copy, Run results and Artifacts Selection tables, the
+plan tables of the Signals, Export and Analysis tabs, and the issue, preview,
+probe, line, artifact and channel tables. (The tables that are settings to
+edit, where the row order is the setting, do not: the probe rules, the
+synthetic design, the probe designer and the channel mapper.) A uitable sorts
+only what it shows, and the app fills a table again whenever its data changes
+(another dataset, a reload, an edit, a new preview). So for the Project, Trials,
+Review units, Clean up, Copy, Run results, Selection and plan tables the app keeps the click itself, the column and the direction the rows
+show ([`TableSort`](../pipeline/TableSort.m)), puts every new set of rows in
+that order, and saves it as the `TableSorts` preference at once: the sort
+holds for every dataset and the next session. Right-click one of them for
 **Clear sort**, which names the sort it clears and returns the rows to the
 app's own order (the project's datasets, trial order, cluster id, Remove rows
 first and largest first, the chosen method's statistic, the pipeline's own
@@ -3439,7 +3447,7 @@ of a config lives here:
 | `PythonExe` | the Python exe last set on the Sorting tab, which a new config starts with |
 | `LastConfigFile`, `RecentConfigs` | reopened on launch; the File → Open recent list |
 | `DatasetsColumnOrder` | the Project table's column order (table variable names) |
-| `TableSorts` | the sort of each [sorted table](#sorted-tables): one field per table (`Datasets`, `Trials`, `Review`, `Cleanup`, `ArtSelection`), each the column last clicked (a table variable name; the header for the Review and Clean up tables) and its direction (`ascend` / `descend`) |
+| `TableSorts` | the sort of each [sorted table](#sorted-tables): one field per table (`Datasets`, `Trials`, `Review`, `Cleanup`, `ArtSelection`, `Copy`, `RunResults`, `SignalsPlan`, `ExportPlan`, `AnalysisPlan`), each the column last clicked (a table variable name; the header for the Review and Clean up tables) and its direction (`ascend` / `descend`) |
 | `TrialsParamColumns`, `TrialsColumnOrder` | the trial parameters shown in the Trials table, and its column order (table variable names; a parameter column is `Param_<name>`) |
 | `TrialsLabelParams` | the trial parameters written as trial labels in the Trials plot |
 | `VizOptions` | the Visualize tab's display settings |
@@ -3538,7 +3546,7 @@ app.KSQueue                       % prepared runs waiting for a slot (Queue the 
 | `buildSyntheticTab.m`, `onSynthLoadSource.m`, `onSynthPreview.m`, `renderSynthPreview.m`, `onSynthGenerate.m`, `generateSynthetic.m`, `onSynthDesign.m`, `onSynthControlsChanged.m`, `onSynthSourceChanged.m`, `syncSynthControls.m`, `gather/applySynthDesign.m`, `synthColumns.m`, `synthSourceLists.m`, `synthSourceKey.m`, `synthGeneratorArgs.m`, `synthOutputRoot.m`, `synthOutputFolder.m`; `pipeline/SyntheticDesign.m`, `pipeline/syntheticModel.m`, `pipeline/syntheticTaskSchedule.m`, `pipeline/syntheticSessionSchedule.m`, `pipeline/makeSyntheticRecording.m` | Synthetic tab (`generateSynthetic`: Generate without its questions; `synthGeneratorArgs`: the options Preview and Generate share) and the generator |
 | `buildCleanupTab.m`, `onCleanupPreview.m`, `onCleanupRun.m`, `runCleanup.m`, `onCleanupMethodChanged.m`, `onCleanupBrowseDest.m`, `onCleanupSettingsChanged.m`, `refreshCleanupScope.m`, `refreshCleanupTable.m`, `refreshCleanupMove.m`, `private/cleanupMoveSentence.m`; `pipeline/planLocalCleanup.m`, `pipeline/cleanupMoveTargets.m`, `pipeline/runLocalCleanup.m` | Clean up tab and the functions that decide and remove |
 | `load/savePreferences.m` | preferences |
-| `tableSort.m`, `onTableSorted.m`, `onTableSortMenu.m`, `clearTableSort.m`, `private/sortMenuItem.m`, `private/sortableTable.m`, `private/saveTableSorts.m`; `pipeline/TableSort.m` | [sorted tables](#sorted-tables): a header click remembered and saved, applied whenever a table is filled, Clear sort |
+| `tableSort.m`, `onTableSorted.m`, `onTableSortMenu.m`, `onCopySorted.m`, `clearTableSort.m`, `showRunResults.m`, `private/sortMenuItem.m`, `private/sortableTable.m`, `private/saveTableSorts.m`, `private/makeSortable.m`, `private/identityTable.m`, `private/datasetIdentity.m`; `pipeline/TableSort.m`, `pipeline/subjectAndDate.m` | [sorted tables](#sorted-tables): a header click remembered and saved, applied whenever a table is filled, Clear sort |
 | `stopTimers.m` | stops the app's timers (Kilosort4, copy and resource monitors, the scheduled copy's refresh) on close, and when the figure is deleted any other way |
 | `helpURL.m`, `onHelp.m` | Help menu (wiki pages) |
 | `onReportIssue.m`, `issueReport.m`, `issueURL.m`; `pipeline/IssueReport.m` | Help menu (GitHub issue / feature request; the dialog, address and system lines are shared with EphysAnalysisApp) |

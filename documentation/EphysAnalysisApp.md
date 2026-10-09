@@ -111,6 +111,7 @@ copies them.
 | --- | --- |
 | **Run** | tick the datasets a run uses. In project mode the ticks are saved in the config: all ticked is `Selection = "all"`, otherwise `"list"` with the ticked keys. In folders mode every folder listed is ticked after a scan and the ticks are not saved |
 | **Name**, **Key** | the dataset's name and key (the root-relative folder, or the output folder in folders mode) |
+| **Subject**, **Date** | the dataset's `SubjectID` from the name pattern, and the day it was recorded (a project's recording start, else the date in the name) |
 | **LFP**, **MUA**, **SPIKE**, **AUX** | ✓ when that signal's extract exists |
 | **Units**, **Detected** | the sorting folder holds sorted units; the spikes file holds threshold detections |
 | **Behavior** | `<Name>_behavior.mat` exists |
@@ -248,9 +249,9 @@ a header leaves the plots selected as they were. **Ctrl**- or
 
 | Control | Effect |
 | --- | --- |
-| **Group by** | *Plot type* (default), *Source* (units, detected, LFP, ...), *Layout* (the layout drawn), *Enabled / off*, or *None* (a flat list); remembered |
 | **All**, **None**, **Invert** | tick every plot, untick every plot, or flip each plot's box; the plots stay in the config |
 | plots drop-down, **Check**, **Uncheck**, **Only** | the drop-down names a set of plots: the plots selected in the tree, or all those of a plot type, a source or a layout (with how many there are). **Check** ticks them, **Uncheck** unticks them, **Only** ticks them and unticks all the others; the other plots keep their state under Check and Uncheck |
+| **Group by** | *Plot type* (default), *Source* (units, detected, LFP, ...), *Layout* (the layout drawn), *Enabled / off*, or *None* (a flat list); remembered |
 | kind drop-down (its own row), **Add** | adds a plot of that kind ([Plot kinds](#plot-kinds)) with the next free id (`psth_1`, `psth_2`, ...) and selects it |
 | **Remove**, **Duplicate** | removes the selected plots; copies each with a new id, right after it, and selects the copies |
 | **Up**, **Down** | swaps it with its neighbor in its group (the whole list when ungrouped), which changes the run order of those two; off while several plots are selected |
@@ -502,8 +503,8 @@ drawn, so you can see why. Examples: a fixed window with *pre* after
 | **Cancel** | stops before the next plot; the plots left are *canceled* |
 | **Open report**, **Open figure folder** | after a run: the report files written, and the first dataset's figure folder |
 
-The results table has one row per dataset and plot: `Dataset`, `Plot`,
-`Kind`, `Status` (`done`, `skipped`, `error`, `cancelled`), `Message`,
+The results table has one row per dataset and plot: `Dataset`, `Subject`,
+`Date`, `Plot`, `Kind`, `Status` (`done`, `skipped`, `error`, `canceled`), `Message`,
 `Files`, `Seconds`. The label above it counts each status.
 
 ### Log tab
@@ -692,6 +693,11 @@ matrix per group.
   **Smooth**; a bin that runs past the window's end is not used).
 - **Correlation** `Pearson`, or `Spearman` (Pearson of the ranks, ties
   averaged). No toolbox is needed.
+- **Fisher z transform** (`fisherZ`): the matrices show z = atanh(r)
+  instead of r, and the mean pairwise r in each title is averaged in z and
+  transformed back (tanh of the mean z), which is the sound way to average
+  correlations. The color scale is symmetric about 0, to the largest |z|
+  (at least 1), unless `style.CLim` is set. `r` and `p` are unchanged.
 - Baseline `subtract` takes each epoch's own baseline rate off its
   response. Fixed and between windows both work.
 - The color scale is `[-1 1]` in `blueWhiteRed` (negative blue, zero
@@ -705,11 +711,6 @@ matrix per group.
 
 The units' waveforms as a plot of their own. It uses no events or trials,
 only the units the Units & channels rows pick, and the **Unit waveform**
-- **Fisher z transform** (`fisherZ`): the matrices show z = atanh(r)
-  instead of r, and the mean pairwise r in each title is averaged in z and
-  transformed back (tanh of the mean z), which is the sound way to average
-  correlations. The color scale is symmetric about 0, to the largest |z|
-  (at least 1), unless `style.CLim` is set. `r` and `p` are unchanged.
 rows of the editor (**Show** is never *Off* here), with three more:
 
 - **Amplitude** *Each unit's own scale* (each waveform fills its tile or

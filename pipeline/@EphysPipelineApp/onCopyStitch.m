@@ -30,12 +30,14 @@ obj.CopyMessage = obj.CopyMessage(kept);
 obj.CopyTicked(row) = true;
 obj.CopyStatus(row) = "";
 obj.CopyMessage(row) = "";
-obj.refreshCopyTable();
+made = row;   % the stitched session's row of S
+obj.refreshCopyTable();   % in the remembered sort, which may move the row
+row = find(obj.CopySessions.Status == "stitched" & obj.CopySessions.RecordingDir == S.RecordingDir(made), 1);
 obj.CopyTable.Selection = row;
 
-[~, name, ext] = fileparts(S.RecordingDir(row));
+[~, name, ext] = fileparts(S.RecordingDir(made));
 name = name + ext;
-obj.copyLog(sprintf("Stitched %s: %s", S.RecordingDir(row), S.Note(row)));
-obj.setStatus(sprintf("Copy: stitched %d ePsych files with %s.", numel(S.StitchFiles{row}), name), ...
+obj.copyLog(sprintf("Stitched %s: %s", S.RecordingDir(made), S.Note(made)));
+obj.setStatus(sprintf("Copy: stitched %d ePsych files with %s.", numel(S.StitchFiles{made}), name), ...
     "The stitched row is ticked; Preview or Copy selected.");
 end

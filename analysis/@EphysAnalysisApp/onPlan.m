@@ -14,6 +14,6 @@ end
 obj.setStatus("Planning ...");
 drawnow limitrate;
 T = obj.Runner.plan(Datasets=idx);
-obj.IssuesTable.Data = T;
+obj.IssuesTable.Data = withSubjectDate(obj, T);
 obj.setStatus(sprintf("Plan: %d of %d plot run(s) will draw.", nnz(T.Enabled), height(T)));
 end

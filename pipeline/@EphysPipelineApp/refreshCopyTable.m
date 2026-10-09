@@ -52,7 +52,7 @@ end
 resultCol = find(D.Properties.VariableNames == "Result");
 tbl.Data = D;
 tbl.ColumnEditable = [true, false(1, width(D) - 1)];
-tbl.ColumnWidth = {45, 95, 185, 75, 120, 70, 205, 120, 50, 110, 'auto', 105, 'auto', 'auto'};
+tbl.ColumnWidth = {45, 95, 90, 84, 185, 75, 120, 70, 205, 120, 50, 110, 'auto', 105, 'auto', 'auto'};
 
 for k = 1:n
     switch T.Status(k)
@@ -150,6 +150,13 @@ for k = 1:numel(p)
     [~, n, x] = fileparts(p(k));
     s(k) = n + x;
 end
+end
+
+
+function s = dayText(t)
+s = strings(size(t));
+ok = ~isnat(t);
+s(ok) = string(t(ok), 'yyyy-MM-dd');
 end
 
 

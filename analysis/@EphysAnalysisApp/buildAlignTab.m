@@ -41,6 +41,6 @@ obj.AlignSummaryLabel.Layout.Row = 2; obj.AlignSummaryLabel.Layout.Column = [1 2
 obj.AlignAxes = uiaxes(right);
 obj.AlignAxes.Layout.Row = 3; obj.AlignAxes.Layout.Column = [1 2];
 title(obj.AlignAxes, "Epochs per group");
-obj.AlignTrialsTable = uitable(right, "RowName", {}, "ColumnWidth", 'auto');
+obj.AlignTrialsTable = uitable(right, "RowName", {}, "ColumnWidth", 'auto', "ColumnSortable", true);
 obj.AlignTrialsTable.Layout.Row = 4; obj.AlignTrialsTable.Layout.Column = [1 2];
 end

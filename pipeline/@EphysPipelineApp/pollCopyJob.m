@@ -35,5 +35,6 @@ end
 obj.CopyJob = [];
 obj.stopCopyMonitor();
 obj.setCopyRunning(false);
+obj.refreshCopyTable();   % the sessions take the remembered sort again
 obj.finishCopyRun(R);
 end

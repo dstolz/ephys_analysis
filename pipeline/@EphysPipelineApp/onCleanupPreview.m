@@ -35,10 +35,14 @@ catch ME
 end
 % Subject (for the Subject ID filter), Date (the day recorded) and Include (every Remove file ticked)
 T.Subject = repmat("(none)", height(T), 1);
+T.Date = repmat("", height(T), 1);
 ds = obj.Project.Datasets(idx);
 for d = ds(:).'
-    s = EphysDataset.nameIdentity(d.Name, d.NamePattern).subject;
-    if s ~= ""; T.Subject(T.Dataset == string(d.Name)) = s; end
+    id = EphysDataset.nameIdentity(d.Name, d.NamePattern);
+    if id.subject ~= ""; T.Subject(T.Dataset == string(d.Name)) = id.subject; end
+    day = NaT;
+    if ~isnat(d.AcqDate); day = d.AcqDate; elseif id.ok; day = id.recordingStart; end
+    if ~isnat(day); T.Date(T.Dataset == string(d.Name)) = string(day, 'yyyy-MM-dd'); end
 end
 T.Include = T.Action == "remove";
 keys = obj.Project.datasetKeys();

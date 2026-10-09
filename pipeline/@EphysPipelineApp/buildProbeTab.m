@@ -34,6 +34,7 @@ obj.ProbeTable.ColumnEditable = [false false false false true];
 obj.ProbeTable.ColumnWidth = {'fit', 45, 60, 85, '1x'};
 obj.ProbeTable.CellSelectionCallback = @(~,evt) obj.onProbeRowSelected(evt);
 obj.ProbeTable.CellEditCallback = @(~,evt) obj.onProbeNotesEdited(evt);
+makeSortable(obj, obj.ProbeTable);
 
 % Row 3: design / map / import / edit
 br = uigridlayout(left, [1 5]);

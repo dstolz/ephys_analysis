@@ -45,7 +45,7 @@ catch ME
     uialert(obj.Fig, "The run failed:" + newline + string(ME.message), "Run");
     return
 end
-obj.ResultsTable.Data = R;
+obj.ResultsTable.Data = withSubjectDate(obj, R);
 obj.LastReportFiles = r.ReportFiles;
 obj.LastExportFolder = "";
 if cfg.Export.Enabled

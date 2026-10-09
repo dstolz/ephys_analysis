@@ -141,8 +141,16 @@ classdef AnalysisCopyDialog < handle
                 if height(T) == 0; copyCol(k) = false; end
             end
             size_ = arrayfun(@OutputTransfer.bytesText, bytes);
-            obj.Ctl.Table.Data = table(copyCol, obj.Keys.', nFiles, size_, strings(n, 1), notes, ...
-                'VariableNames', {'Copy', 'Dataset', 'Files', 'Size', 'Status', 'Notes'});
+            Subject = strings(n, 1);
+            Date = strings(n, 1);
+            for k = 1:n
+                d = obj.Datasets(k);
+                [Subject(k), Date(k)] = subjectAndDate(string(d.Name), string(d.NamePattern), d.AcqDate);
+            end
+            % Rows stay in the datasets' order (a header click sorts only the display), so a row is
+            % its dataset whatever the table shows; Indices of an edit are rows of this Data.
+            obj.Ctl.Table.Data = table(copyCol, obj.Keys.', Subject, Date, nFiles, size_, strings(n, 1), notes, ...
+                'VariableNames', {'Copy', 'Dataset', 'Subject', 'Date', 'Files', 'Size', 'Status', 'Notes'});
             obj.summarize();
         end
 
@@ -331,9 +339,9 @@ classdef AnalysisCopyDialog < handle
             obj.Ctl.Hash.Layout.Row = 5; obj.Ctl.Hash.Layout.Column = [1 5];
 
             % --- the datasets
-            obj.Ctl.Table = uitable(g, "ColumnName", {'Copy', 'Dataset', 'Files', 'Size', 'Status', 'Notes'}, ...
-                "ColumnEditable", [true false false false false false], ...
-                "ColumnWidth", {50, 190, 50, 70, 100, 'auto'}, "RowName", {}, ...
+            obj.Ctl.Table = uitable(g, "ColumnName", {'Copy', 'Dataset', 'Subject', 'Date', 'Files', 'Size', 'Status', 'Notes'}, ...
+                "ColumnEditable", [true false false false false false false false], "ColumnSortable", true, ...
+                "ColumnWidth", {50, 190, 80, 84, 50, 70, 100, 'auto'}, "RowName", {}, ...
                 "CellEditCallback", @(~, ~) obj.summarize());
 
             % --- summary and progress
@@ -414,9 +422,11 @@ classdef AnalysisCopyDialog < handle
             for k = find(T.Status(:).' ~= "")
                 [st, msg] = X.statusOf(obj.Keys(k));
                 if st ~= ""; T.Status(k) = st; end
-                if st == "error" || st == "cancelled"; T.Notes(k) = msg; end
+                if st == "error" || st == "canceled"; T.Notes(k) = msg; end
             end
-            obj.Ctl.Table.Data = T;
+            if ~isequal(T, obj.Ctl.Table.Data)   % a fresh fill would undo the sort the user clicked
+                obj.Ctl.Table.Data = T;
+            end
             if X.Done
                 obj.stopTimer();
                 obj.setRunning(false);

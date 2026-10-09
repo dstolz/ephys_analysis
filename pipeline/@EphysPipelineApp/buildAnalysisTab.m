@@ -57,6 +57,7 @@ obj.AnaPlotsTable = uitable(cg, "ColumnName", {'Plot', 'Kind', 'Source', 'On'}, 
     "ColumnWidth", {'1x', 80, 80, 40}, "RowName", {}, ...
     "Tooltip", "The analysis config's plots; the step draws the enabled ones (edit them in the analysis app).");
 obj.AnaPlotsTable.Layout.Row = r; obj.AnaPlotsTable.Layout.Column = [1 4];
+makeSortable(obj, obj.AnaPlotsTable);
 
 r = r + 1; sep(cg, "In this pipeline", r);
 r = r + 1;
@@ -86,9 +87,10 @@ runPanel.Layout.Column = 2;
 rg = uigridlayout(runPanel, [2 5]);
 rg.RowHeight   = {'1x', 30};
 rg.ColumnWidth = {'fit', 'fit', 'fit', '1x', 'fit'};
-obj.AnaTargetsTable = uitable(rg, "ColumnName", {'Step', 'Dataset', 'Output', 'Status', 'Note'}, ...
-    "ColumnWidth", {120, 'fit', '2x', 110, '1x'}, "RowName", {});
+obj.AnaTargetsTable = uitable(rg, "ColumnName", {'Step', 'Dataset', 'Subject', 'Date', 'Output', 'Status', 'Note'}, ...
+    "ColumnWidth", {'fit', 'fit', 90, 84, '2x', 130, '1x'}, "RowName", {});
 obj.AnaTargetsTable.Layout.Row = 1; obj.AnaTargetsTable.Layout.Column = [1 5];
+makeSortable(obj, obj.AnaTargetsTable, "AnalysisPlan");
 obj.RunStepAnalysisButton = uibutton(rg, "Text", "Run this step", ...
     "ButtonPushedFcn", @(~,~) obj.onRunStep("analysis"));
 obj.RunStepAnalysisButton.Layout.Row = 2; obj.RunStepAnalysisButton.Layout.Column = 1;

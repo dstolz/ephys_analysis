@@ -9,7 +9,7 @@ function onPipelineProgress(obj, evt)
 %   scrolls to the dataset being processed and marks its row orange.
 if ~isvalid(obj.Fig); return; end
 if ~isempty(obj.Pipe) && isvalid(obj.Pipe) && height(obj.Pipe.Results) ~= height(obj.RunResultsTable.Data)
-    obj.RunResultsTable.Data = obj.Pipe.Results;
+    obj.showRunResults(obj.Pipe.Results);
 end
 frac = 0;
 if evt.total > 0; frac = min(max(evt.done / evt.total, 0), 1); end

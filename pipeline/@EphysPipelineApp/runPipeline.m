@@ -94,9 +94,7 @@ obj.setRunBar(obj.RunOverallBar, 0); obj.setRunBar(obj.RunStepBar, 0);
 obj.RunOverallText.Text = ""; obj.RunStepText.Text = "";
 obj.RunStepLabel.Text = "Starting...";
 obj.RunResults = EphysPipeline.emptyResults();
-obj.RunResultsTable.ColumnName = {'Step', 'Dataset', 'Status', 'Message', 'Output', 'Seconds'};
-obj.RunResultsTable.ColumnWidth = {80, 'fit', 110, '1x', '2x', 64};
-obj.RunResultsTable.Data = obj.RunResults;
+obj.showRunResults(obj.RunResults);
 obj.setStatus("Running the pipeline...", "");
 steps = opts.Steps;
 if isempty(steps); steps = cfg.enabledSteps(); end
@@ -116,7 +114,7 @@ end
 R = pipe.Results;   % with the rows the monitor restated since
 obj.finishRunDiagram(R, outcome, note);
 obj.RunResults = R;
-obj.RunResultsTable.Data = R;
+obj.showRunResults(R);
 obj.refreshDatasetsTable();
 obj.ReviewDatasetIdx = -1;   % new sorted output: the Review tab reloads
 obj.refreshSortingLabel();

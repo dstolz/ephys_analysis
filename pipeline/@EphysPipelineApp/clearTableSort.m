@@ -18,6 +18,11 @@ switch id
     case "Review";       obj.showReviewUnits();
     case "Cleanup";      obj.refreshCleanupTable();
     case "ArtSelection"; obj.measureArtifactSelection();
+    case "Copy";         clearCopySort(obj);
+    case "RunResults";   clearRunResultsSort(obj);
+    case "SignalsPlan";  obj.refreshStepPlan("signals");
+    case "ExportPlan";   obj.refreshStepPlan("export");
+    case "AnalysisPlan"; obj.refreshStepPlan("analysis");
 end
 end
 

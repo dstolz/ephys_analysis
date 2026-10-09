@@ -20,6 +20,14 @@ mark = @(tf) ternary(tf, "✓", "");
 Run = reshape(obj.Ticked, [], 1);
 Name = reshape(r.Names, [], 1);
 Key = reshape(r.Keys, [], 1);
+acq = NaT(n, 1);
+if ~isempty(r.Project)
+    pk = r.Project.findByKey(r.Keys);
+    for k = reshape(find(pk > 0), 1, [])
+        acq(k) = r.Project.Datasets(pk(k)).AcqDate;
+    end
+end
+[Subject, Date] = subjectAndDate(Name, string(r.Config.Source.NamePattern), acq);
 [LFP, MUA, SPIKE, AUX, Units, Detected, Behavior, Trials, Pairing] = deal(strings(n, 1));
 Duration = NaN(n, 1);
 for k = 1:n
@@ -45,12 +53,15 @@ for k = 1:n
         Detected(k) = mark(out.has("spikes"));
     end
 end
-T = table(Run, Name, Key, LFP, MUA, SPIKE, AUX, Units, Detected, Behavior, Trials, Pairing, Duration);
+Idx = (1:n).';
+T = table(Run, Name, Subject, Date, Key, LFP, MUA, SPIKE, AUX, Units, Detected, Behavior, Trials, Pairing, Duration, Idx);
+T = TableSort.apply(T, obj.DatasetsSort);
 obj.DatasetsTable.Data = T;
 obj.DatasetsTable.ColumnEditable = [true false(1, width(T) - 1)];
-if obj.ActiveIdx >= 1 && obj.ActiveIdx <= n
-    removeStyle(obj.DatasetsTable);
-    addStyle(obj.DatasetsTable, uistyle("BackgroundColor", [0.86 0.93 1]), "row", obj.ActiveIdx);
+removeStyle(obj.DatasetsTable);
+row = find(T.Idx == obj.ActiveIdx, 1);
+if ~isempty(row)
+    addStyle(obj.DatasetsTable, uistyle("BackgroundColor", [0.86 0.93 1]), "row", row);
 end
 end
 

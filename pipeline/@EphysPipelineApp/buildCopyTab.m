@@ -144,10 +144,12 @@ uilabel(st, "FontColor", [0.4 0.4 0.4], "Text", ...
     "To stitch ePsych files: select the recording folder's row and the rows of its ePsych files (Ctrl-click), then Stitch.");
 
 % --- sessions table ------------------------------------------------------------------
-obj.CopyTable = uitable(g, "RowName", {}, "ColumnSortable", false, ...
+obj.CopyTable = uitable(g, "RowName", {}, ...
     "SelectionType", "row", "Multiselect", "on", ...
     "CellEditCallback", @(~, evt) obj.onCopyTableEdited(evt));
 obj.CopyTable.Layout.Row = 6;
+makeSortable(obj, obj.CopyTable, "Copy");
+obj.CopyTable.DisplayDataChangedFcn = @(~, evt) obj.onCopySorted(evt);
 
 % --- log -------------------------------------------------------------------------------
 obj.CopyLogArea = uitextarea(g, "Editable", "off", "FontName", "Consolas", "Value", {''});

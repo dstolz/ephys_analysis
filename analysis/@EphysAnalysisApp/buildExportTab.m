@@ -99,11 +99,11 @@ obj.RunButton = uibutton(right, "Text", "Run", ...
 place(obj.RunButton, 1, 3);
 obj.CancelButton = uibutton(right, "Text", "Cancel", "Enable", "off", "ButtonPushedFcn", @(~,~) obj.onCancelRun());
 place(obj.CancelButton, 1, 4);
-obj.IssuesTable = uitable(right, "RowName", {}, "ColumnWidth", 'auto');
+obj.IssuesTable = uitable(right, "RowName", {}, "ColumnWidth", 'auto', "ColumnSortable", true);
 place(obj.IssuesTable, 2, [1 6]);
 obj.RunLabel = uilabel(right, "Text", "Results", "FontWeight", "bold");
 place(obj.RunLabel, 3, [1 6]);
-obj.ResultsTable = uitable(right, "RowName", {}, "ColumnWidth", 'auto');
+obj.ResultsTable = uitable(right, "RowName", {}, "ColumnWidth", 'auto', "ColumnSortable", true);
 place(obj.ResultsTable, 4, [1 6]);
 og = uigridlayout(right, [1 3], "Padding", [0 0 0 0], "ColumnWidth", {'fit', 'fit', '1x'});
 place(og, 5, [1 6]);

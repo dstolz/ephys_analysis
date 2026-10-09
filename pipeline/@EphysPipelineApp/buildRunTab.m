@@ -136,10 +136,12 @@ l = uilabel(right, "Text", "Issues (Validate)", "FontWeight", "bold"); l.Layout.
 obj.RunIssuesTable = uitable(right, "ColumnName", {'Step', 'Field', 'Severity', 'Message'}, ...
     "ColumnWidth", {80, 140, 70, '1x'}, "RowName", {});
 obj.RunIssuesTable.Layout.Row = 5; obj.RunIssuesTable.Layout.Column = [1 3];
+makeSortable(obj, obj.RunIssuesTable);
 
-obj.RunResultsTable = uitable(right, "ColumnName", {'Step', 'Dataset', 'Key', 'Output', 'Status', 'Note'}, ...
-    "ColumnWidth", {80, 'fit', 'fit', '2x', 130, '1x'}, "RowName", {});
+obj.RunResultsTable = uitable(right, "ColumnName", {'Step', 'Dataset', 'Subject', 'Date', 'Key', 'Output', 'Status', 'Note'}, ...
+    "ColumnWidth", {'fit', 'fit', 90, 84, 'fit', '2x', 130, '1x'}, "RowName", {});
 obj.RunResultsTable.Layout.Row = 6; obj.RunResultsTable.Layout.Column = [1 3];
+makeSortable(obj, obj.RunResultsTable, "RunResults");
 
 l = uilabel(right, "Text", "Log", "FontWeight", "bold"); l.Layout.Row = 7; l.Layout.Column = [1 3];
 obj.RunLogArea = uitextarea(right, "Editable", "off");

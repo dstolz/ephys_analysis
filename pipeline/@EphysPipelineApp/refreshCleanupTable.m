@@ -9,7 +9,7 @@ function refreshCleanupTable(obj, part)
 %   Ticked Remove rows are tinted red, unticked ones gray; raw recording files
 %   that are kept (no verified source copy) amber, since they are the ones a
 %   user may have expected to go. While a move's folder is checked
-%   (CleanupMove, refreshCleanupMove) a ninth column, In the folder, says
+%   (CleanupMove, refreshCleanupMove) a tenth column, In the folder, says
 %   what is already at each file's place there and what the move would do
 %   (If a file is already there), and the ticked files it does not simply
 %   move are tinted lavender. The rows are in the plan's order (Remove
@@ -28,7 +28,7 @@ T = obj.CleanupPlan;
 if isempty(T)
     removeStyle(tbl);
     showFolderColumn(tbl, false);
-    tbl.Data = cell(0, 8);
+    tbl.Data = cell(0, 9);
     obj.CleanupRowMap = zeros(0, 1);
     obj.CleanupRunButton.Enable = "off";
     obj.CleanupSummaryLabel.Text = "Press Preview to see what would be removed and what would remain.";
@@ -76,7 +76,7 @@ set(obj.CleanupSelectButtons, "Enable", matlab.lang.OnOffSwitchState(any(rm(vis)
 S = T(vis, :);
 action = repmat("Keep", height(S), 1);
 action(S.Action == "remove") = "Remove";
-D = [num2cell(S.Include), cellstr(action), cellstr(S.Dataset), cellstr(S.Subject), ...
+D = [num2cell(S.Include), cellstr(action), cellstr(S.Dataset), cellstr(S.Subject), cellstr(S.Date), ...
     cellstr(S.What), num2cell(sizeMB(S.Bytes)), cellstr(S.File), cellstr(S.Reason)];
 showFolderColumn(tbl, ~isempty(M));
 if ~isempty(M)
@@ -98,18 +98,18 @@ end
 
 
 function showFolderColumn(tbl, show)
-%showFolderColumn  Add or drop the ninth column, In the folder (a move's check), keeping the other eight as built.
-if show == (numel(tbl.ColumnName) == 9); return; end
+%showFolderColumn  Add or drop the tenth column, In the folder (a move's check), keeping the other nine as built.
+if show == (numel(tbl.ColumnName) == 10); return; end
 if show
     tbl.ColumnName = [tbl.ColumnName(:).', {'In the folder'}];
     tbl.ColumnWidth = [tbl.ColumnWidth, {'2x'}];
     tbl.ColumnEditable = [tbl.ColumnEditable, false];
     tbl.ColumnFormat = [tbl.ColumnFormat, {'char'}];
 else
-    tbl.ColumnName = tbl.ColumnName(1:8);
-    tbl.ColumnWidth = tbl.ColumnWidth(1:8);
-    tbl.ColumnEditable = tbl.ColumnEditable(1:8);
-    tbl.ColumnFormat = tbl.ColumnFormat(1:8);
+    tbl.ColumnName = tbl.ColumnName(1:9);
+    tbl.ColumnWidth = tbl.ColumnWidth(1:9);
+    tbl.ColumnEditable = tbl.ColumnEditable(1:9);
+    tbl.ColumnFormat = tbl.ColumnFormat(1:9);
 end
 end
 

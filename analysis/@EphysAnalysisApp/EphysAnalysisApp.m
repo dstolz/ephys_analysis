@@ -201,6 +201,7 @@ classdef EphysAnalysisApp < handle
         ScannedSource struct = struct()     % Config.Source when the runner last scanned
         ActiveIdx (1,1) double = 0          % the active dataset (index into Runner.Outputs)
         Ticked (1,:) logical = logical.empty(1, 0)   % datasets ticked to run
+        DatasetsSort (1,1) struct = TableSort.none()   % the datasets table's header click (a TableSort state), kept as it is filled again
         SelectedPlot (1,1) double = 0       % the plot in the editor (index into Config.Plots), the one previewed
         AlsoSelected (1,:) double = zeros(1, 0)   % the other plots selected with it (tree multi-select), in the order picked; edits go to them too
         ShownPlot struct = struct()         % the plot in the editor as its controls showed it before the edit (spreadPlotEdit)
@@ -303,6 +304,8 @@ classdef EphysAnalysisApp < handle
         refreshDatasetsTable(obj)
         onDatasetsTableEdited(obj, evt)
         onDatasetCellSelection(obj, evt)
+        onDatasetsSorted(obj, evt)
+        clearDatasetsSort(obj)
         selectDataset(obj, idx)
         refreshDatasetInfo(obj)
         idx = tickedDatasetIndices(obj)
@@ -326,14 +329,14 @@ classdef EphysAnalysisApp < handle
         showPlotSelection(obj)
         onPlotGroupChanged(obj)
         onPlotGroupToggled(obj, node, collapsed)
-        onPlotSectionToggled(obj, name)
-        gotoPlotSection(obj, name)
-        onKeyPress(obj, evt)
         onPlotCheck(obj, how)
         onPlotTreeDoubleClicked(obj, evt)
         setPlotsEnabled(obj, ks, how)
         ks = plotsOfFilter(obj)
         refreshPlotFilter(obj)
+        onPlotSectionToggled(obj, name)
+        gotoPlotSection(obj, name)
+        onKeyPress(obj, evt)
         onOverlayPicked(obj)
         onAddOverlay(obj, shape)
         onDuplicateOverlay(obj)

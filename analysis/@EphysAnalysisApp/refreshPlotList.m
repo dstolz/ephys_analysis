@@ -38,7 +38,6 @@ else
         end
     end
 end
-leaves = leafNodes(tree);
 for node = reshape(tree.Children, 1, [])   % the check boxes: a plot's own state, a group's all / some / none
     if isnumeric(node.NodeData)
         setCheck(node, on(node.NodeData));
@@ -50,6 +49,7 @@ for node = reshape(tree.Children, 1, [])   % the check boxes: a plot's own state
     end
 end
 obj.refreshPlotFilter();
+leaves = leafNodes(tree);
 if isempty(leaves)
     tree.SelectedNodes = [];
     return
@@ -69,7 +69,6 @@ end
 end
 
 
-function ks = plotsIn(nodes)
 function setCheck(node, enabled)
 %setCheck  NODE's check box: ticked when all of ENABLED are true, empty when none, "mixed" between.
 if all(enabled)
@@ -86,6 +85,7 @@ end
 end
 
 
+function ks = plotsIn(nodes)
 %plotsIn  The plot indices of NODES; NaN for a group's header (so a header picked counts as a change).
 ks = zeros(1, 0);
 for n = reshape(nodes, 1, [])

@@ -15,8 +15,8 @@ function buildPlotsTab(obj)
 %   lines and semitransparent patches drawn on the plot's axes, over or
 %   under its data: a list with Add line / Add patch / Duplicate / Remove,
 %   and the rows of the one picked), each collapsing under
-%   its header (onPlotSectionToggled). Each header has its own colour, a
-%   step along the turbo map in the sections' order, and its key: Ctrl+1 to
+%   its header (onPlotSectionToggled). Each header bar has its own color, a
+%   desaturated step along the turbo map in the sections' order, with black text, and its key: Ctrl+1 to
 %   Ctrl+9 and Ctrl+0 go to the section (gotoPlotSection; onKeyPress).
 %   syncPlotEditor shows the rows the selected plot uses; layoutPlotEditor
 %   packs them.
@@ -74,7 +74,7 @@ eg.Scrollable = "on";
 obj.PlotEditorGrid = eg;
 E = struct();
 
-% the sections with a header, in order: each takes a title colour (a step along the turbo map) and a key (1-9, then 0)
+% the sections with a header, in order: each takes a header color (a step along the turbo map, desaturated by formSection) and a key (1-9, then 0)
 order = ["units" "ref" "window" "selection" "bins" "kind" "style" "waveform" "note" "overlays"];
 hue = turbo(256);
 hue = hue(round(linspace(24, 232, numel(order))), :);

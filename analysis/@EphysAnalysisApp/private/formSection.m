@@ -13,11 +13,11 @@ function S = formSection(parent, row, name, title, body, opts)
 %   formLayout packs the rows S.Shown to the top and sizes the section; S.Visible
 %   false hides it, S.Expanded false collapses it to its header.
 %
-%   S = formSection(..., Color=RGB) sets the colour of the title. It is
-%   darkened, keeping its hue, until it reads on the header bar (a contrast
-%   ratio of 4.5 against it); S.Color is the colour used. The default is
-%   black. S.Key, which the caller may set, is the key that goes to the
-%   section; formLayout names it in the header.
+%   S = formSection(..., Color=RGB) sets the color of the header bar: RGB
+%   desaturated, keeping its hue, and lightened until black text reads on it
+%   (a contrast ratio of 4.5); S.Color is the color used. The title is
+%   black. The default is a pale gray-blue. S.Key, which the caller may set,
+%   is the key that goes to the section; formLayout names it in the header.
 %
 %   See also formRow, formLayout.
 arguments
@@ -26,12 +26,12 @@ arguments
     name (1,1) string
     title (1,1) string
     body (1,1) string {mustBeMember(body, ["form" "panel"])} = "form"
-    opts.Color (1,3) double {mustBeInRange(opts.Color, 0, 1)} = [0 0 0]
+    opts.Color (1,3) double {mustBeInRange(opts.Color, 0, 1)} = [0.88 0.91 0.95]
 end
-bar = [0.88 0.91 0.95];
+bar = pale(opts.Color);
 S = struct('Name', name, 'Title', title, 'Grid', [], 'HeaderGrid', [], 'Toggle', [], 'Body', [], ...
     'Keys', {{}}, 'Heights', zeros(1, 0), 'Shown', true(1, 0), 'Items', {{}}, 'BodyHeight', 0, ...
-    'Visible', true, 'Expanded', true, 'Color', readable(opts.Color, bar), 'Key', "");
+    'Visible', true, 'Expanded', true, 'Color', bar, 'Key', "");
 S.Grid = uigridlayout(parent, [2 1]);
 S.Grid.Layout.Row = row;
 S.Grid.Padding = [0 0 0 0];
@@ -44,7 +44,7 @@ if title ~= ""
     S.HeaderGrid.ColumnSpacing = 6;
     S.HeaderGrid.BackgroundColor = bar;
     S.Toggle = uibutton(S.HeaderGrid, "Text", "▼  " + title, "HorizontalAlignment", "left", ...
-        "FontWeight", "bold", "FontSize", 13, "FontColor", S.Color, "BackgroundColor", bar, "Tag", "formSectionToggle", ...
+        "FontWeight", "bold", "FontSize", 13, "FontColor", [0 0 0], "BackgroundColor", bar, "Tag", "formSectionToggle", ...
         "Tooltip", "Show or hide this section.");
     S.Toggle.Layout.Column = 1;
 end
@@ -61,10 +61,14 @@ S.Body.Layout.Row = 2;
 end
 
 
-function c = readable(c, ground)
-%readable  C darkened, keeping its hue, until its contrast with GROUND is at least 4.5 (WCAG AA).
-while wcagRatio(c, ground) < 4.5
-    c = 0.95 * c;
+function c = pale(c)
+%pale  C desaturated, keeping its hue, and lightened until black text on it has a contrast of at least 4.5 (WCAG AA).
+hsv = rgb2hsv(c);
+hsv(2) = 0.35 * hsv(2);
+hsv(3) = 0.93;
+c = hsv2rgb(hsv);
+while wcagRatio(c, [0 0 0]) < 4.5
+    c = 0.95 * c + 0.05;
 end
 end
 

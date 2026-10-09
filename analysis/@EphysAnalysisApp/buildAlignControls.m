@@ -15,7 +15,9 @@ function C = buildAlignControls(obj, parents, changed)
 %   offsetParam, offsetParamUnit). "Sequence" (and "Stop sequence") shows
 %   the steps that must follow the event (eventRef's sequence and
 %   alignStep, kept in C.SeqText / C.StopSeqText's UserData,
-%   setSequenceHolder); Edit... opens editSequence on them.
+%   setSequenceHolder); Edit... opens editSequence on them. "Epoch
+%   Diagram" (C.Diagram), under the window, is left to the caller to wire
+%   to onShowEpochs.
 C = struct();
 cbRef = @(~,~) changed("ref");
 cbWin = @(~,~) changed("window");
@@ -78,8 +80,8 @@ lab(rg, "Sequence:", 7, 1);
 C.SeqEdit.ButtonPushedFcn = @(~,~) obj.editSequence(C.SeqText, "event", C.Line, C.Edge, @() changed("ref"));
 
 % --- window ------------------------------------------------------------------------
-wg = uigridlayout(parents(2), [7 4]);
-wg.RowHeight = repmat({22}, 1, 7);
+wg = uigridlayout(parents(2), [8 4]);
+wg.RowHeight = [repmat({22}, 1, 7) {30}];
 wg.ColumnWidth = {95, '1x', 70, '1x'};
 wg.RowSpacing = 4;
 C.WindowGrid = wg;
@@ -124,6 +126,8 @@ lab(wg, "Stop sequence:", 7, 1);
 [C.StopSeqText, C.StopSeqEdit] = sequenceRow(wg, 7, "The events that must follow the stop line's event, " + ...
     "e.g. RespWindow offset then Trough onset: stop at the first Trough onset after the response window.");
 C.StopSeqEdit.ButtonPushedFcn = @(~,~) obj.editSequence(C.StopSeqText, "event", C.StopLine, C.StopEdge, @() changed("window"));
+C.Diagram = uibutton(wg, "Text", "Epoch Diagram");   % the caller sets its ButtonPushedFcn and tooltip (onShowEpochs)
+C.Diagram.Layout.Row = 8; C.Diagram.Layout.Column = [1 4];
 
 % --- selection -----------------------------------------------------------------------
 sg = uigridlayout(parents(3), [7 4]);

@@ -15,8 +15,8 @@ function syncPlotEditor(obj)
 %     response test               spikes (its settings enabled when ticked)
 %     unit ids, max units, shanks spikes
 %     channels                    every kind but behavior (no units or channels)
-%     event, window, selection,   every kind but probemap and waveforms (align to nothing)
-%       Show how the epochs are cut
+%     event, window, selection    every kind but probemap and waveforms (align to nothing;
+%       (window: Epoch Diagram)     the whole section hides, below)
 %     bin, smoothing              psth, raster, heatmap of spikes, corrmap
 %     mask after the stop event   psth, raster, heatmap of spikes
 %     measure                     psth, rate, tuning, heatmap of spikes
@@ -96,7 +96,6 @@ grouped = ismember(kind, ["psth" "raster" "rate" "tuning" "behavior"]) || (kind 
 v = struct();
 v.kind = true; v.note = true; v.id = true; v.title = true; v.source = true;
 v.layout = numel(ch.Layouts) > 1;
-v.epochs = row.Aligned;
 v.classes = source == "units";
 v.quality = source == "units";
 v.response = spikes; v.respBaseFrom = spikes; v.respParam = spikes;

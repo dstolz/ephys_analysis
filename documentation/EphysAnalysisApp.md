@@ -204,9 +204,9 @@ dropped for lacking the **Shift by** parameter's value or because their
 dropped for having no stop event, leaving the recording or touching an
 artifact period (*"; N touch an artifact period"*), or why there are none;
 a bar of epochs per group in the group colours the plots use; and the kept
-trials with their group and number of epochs. **Show how the epochs are
-cut...**, beside the active dataset, opens the
-[epoch diagram](#epoch-diagram) for these defaults.
+trials with their group and number of epochs. **Epoch Diagram**, under
+the Epoch window, opens the [epoch diagram](#epoch-diagram) for these
+defaults.
 
 A filter, response, group-by or trial scope needs paired trials: approve
 the pairing on the pipeline app's [Trials tab](EphysPipelineApp.md#trials)
@@ -238,15 +238,13 @@ a header leaves the plot in the editor selected.
 **Enabled** (a disabled plot is kept but not run; `enabled`), **Id**
 (unique; it names the exported files, `{Plot}`; `id`), **Title** (blank =
 automatic, `<Kind>: <line> <edge> (<n> epochs)`; `title`), **Source**
-(`source`), **Layout** (`layout`) and **Show how the epochs are cut...**,
-which opens the [epoch diagram](#epoch-diagram) for the plot (every kind
-that aligns to an event). Then sections that collapse under
+(`source`) and **Layout** (`layout`). Then sections that collapse under
 their headers (**▼** / **►**; which are collapsed is remembered):
 
 | Section | Rows |
 | --- | --- |
 | Units & channels (*Channels* for a signal) | unit classes (sorted units: `su`, `mua`, `uns`, `noise`; none ticked = every class; `units.classes`), **Good units only** (sorted units: `units.quality.enabled`, the units that meet the config's good-unit criteria, [UnitSelection](EphysAnalysisConfig.md#unitselection)); **Responsive only** with the test (vs baseline, tuned, either, both, or auROC: the units the auROC calls modulated over the response window, with its own *auROC from*, window, step and bin (ms) and *Modulated if* rows, and *Unit test* for a per-unit test; [auROC](EphysAnalysisConfig.md#auroc)) and direction, the test windows (baseline and response, s from the event) and the test options (tuning parameter, correction, alpha), for spike sources (`units.response`; the settings are enabled while the box is ticked; [response statistics](EphysAnalysis.md#response-statistics)); unit ids (sorted units) or channels (detected), e.g. `3 5 8:12` (`units.ids`), max units (`units.maxUnits`), shanks (`units.shanks`), channels (spike sources: the recording channels kept, `units.channels`; signals: the extract's columns drawn, `channels`) |
-| Event reference, Epoch window, Trial selection | the Alignment tab's controls, for this plot (`ref`, `window`, `selection`) |
+| Event reference, Epoch window, Trial selection | the Alignment tab's controls, for this plot (`ref`, `window`, `selection`); **Epoch Diagram** sits under the Epoch window |
 | Bins & baseline (*Baseline* without bins) | bin and smoothing (ms; smoothing is a Gaussian SD, 10 ms by default, 0 = none; `bins.BinSec`, `bins.SmoothSec`), mask after the stop event (`maskAfterStop`), **Measure** (*rate*, *count* or *probability*; `measure`), baseline mode and window (`baseline.Mode`, `baseline.Window`). Baseline *auroc* (PSTH, spike heatmap; `auroc`) adds *auROC from* (PSTH bins, each epoch) and the windows (tiled, sliding), the window and step (ms), the call window (s), *Modulated if* (95% CI as the paper, taken over the plot's units of one dataset, so it needs many of them; `populationAnalysis` pools every dataset's ([population analysis](EphysAnalysis.md#population-analysis)); a fixed threshold, a per-unit test, none) with the threshold, *Unit test* (bootstrap, ranksum, shuffle; resamples, correction, alpha) for a per-unit test, and *Calls*: **Mark them**, **Modulated units only** ([auROC](EphysAnalysisConfig.md#auroc)) |
 | *Kind* options | PSTH and raster: **Sort raster by** (blank = trial order, stop latency or a trial parameter; `rasterSort`) and its direction (ascending or descending; `rasterSortOrder`), **Raster rows by group first** (unticked: every epoch sorted as one block, each row on its group's colour; `rasterByGroup`), **Mark events** (the lines whose events are marked on each row, e.g. `Trough`, several separated by spaces or commas; onset, offset or both; every event in the window or only in the epoch's trial; `rasterEvents`) and **Mark look** (marker, size, and *auto* (a colour per line and edge) or one colour; right-click a mark to style one line's marks on its own); behavior: **Y value** (a trial parameter such as RespLatency, or *stop*: the stop event's latency, ms; `yParam`), parameter and series (`param`, `seriesParam`), **X axis** (evenly spaced or at their values; `xScale`) and **Jitter points** (points layout; `jitter`); PSTH: **Raster above each PSTH** (`withRaster`), **PSTH as** bar or line (`histStyle`), normalization (none, unit peak, group peak; `normalize`), **Filled** and its opacity (blank = automatic; `fill`, `fillAlpha`), **Stack groups** and its spacing (a row per group, labelled by value on the left and by peak rate on the right; `stack`, `stackSpacing`); tuning: parameter and series (`param`, `seriesParam`); probe map: value (`value`); heatmap: row order (*probe*, *peak*, and *modulation* with the auROC baseline; `order`); unit correlation: epoch rate (mean or peak; `metric`) and correlation (Pearson or Spearman; `correlation`) |
 | Appearance (`style`) | tiles per page (`MaxTiles`), grid spacing (*loose*, *compact*, *tight*, *none*; `TileSpacing`), font size, line width, site size (probe map), y limits (blank = automatic, or two numbers such as `0 40`), group colours (*lines*: the trial selection's colours; a colormap; or one colour such as *black* or `#1f77b4`, typed in; `Colormap`), heat colours (*auto*: parula, or blueWhiteRed for unit correlations; `HeatColormap`), **Sort by** depth and / or shank (`SortDepth`, `SortShank`: units and channels top of the probe first, by shank first), **Label with** depth and / or shank (`LabelDepth`, `LabelShank`), and **Show** SEM, stop marks, legend, grid |
@@ -342,7 +340,7 @@ of the config. See [Plot designs](EphysAnalysis.md#plot-designs).
 
 ### Epoch diagram
 
-**Show how the epochs are cut...** (in the plot editor, and on the
+**Epoch Diagram** (under the Epoch window, in the plot editor and on the
 Alignment tab) opens a window that draws how the event reference, epoch
 window and trial selection cut the active dataset into epochs. It gets
 the epochs from `epochTable`, as the plot does, so they are exactly the

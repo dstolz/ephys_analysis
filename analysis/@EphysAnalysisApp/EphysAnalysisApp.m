@@ -18,8 +18,8 @@ classdef EphysAnalysisApp < handle
     %                between the event and a stop event) and the trial
     %                selection (filter, response words, pairing flags, up to
     %                two groupBy parameters), with a live count of epochs and
-    %                groups on the active dataset; "Show how the epochs are
-    %                cut..." opens the epoch diagram for them
+    %                groups on the active dataset; "Epoch Diagram", under
+    %                the Epoch window, opens the epoch diagram for them
     %     Plots      the plots, in a tree grouped by plot type (or by source,
     %                layout, enabled / off, or not at all: Group by): add
     %                (psth, raster, evoked, rate, tuning, heatmap, probemap,

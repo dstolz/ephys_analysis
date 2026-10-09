@@ -2,9 +2,9 @@ function buildPlotsTab(obj)
 %buildPlotsTab  Plot tree, plot editor (collapsible sections) and the preview.
 %   The tree groups the plots by plot type, source, layout or status (Group
 %   by; refreshPlotList), with the kind to add on its own row. The editor is a column of sections (formSection): the plot's kind, id,
-%   title, source and layout and "Show how the epochs are cut..." (the
-%   epoch diagram, onShowEpochs), always open; then Units & channels, Event
-%   reference, Epoch window, Trial selection (the Alignment tab's values
+%   title, source and layout, always open; then Units & channels, Event
+%   reference, Epoch window (with "Epoch Diagram" under it, the epoch
+%   diagram, onShowEpochs), Trial selection (the Alignment tab's values
 %   while "Use default" is ticked; editing one gives the plot its own),
 %   Bins & baseline, the kind's own options, Appearance and Unit waveform
 %   (each unit's mean and / or spikes in its tile), each collapsing under
@@ -82,12 +82,6 @@ place(E.source, r, 2);
 [S, r] = formRow(S, "layout", "Layout:");
 E.layout = uidropdown(S.Body, "Items", "grid", "ValueChangedFcn", changed);
 place(E.layout, r, 2);
-[S, r] = formRow(S, "epochs", "", 30);
-E.epochs = uibutton(S.Body, "Text", "Show how the epochs are cut...", "ButtonPushedFcn", @(~,~) obj.onShowEpochs("plot"), ...
-    "Tooltip", "A window, kept above the app, that draws how this plot's event reference, epoch window and trial " + ...
-    "selection cut the active dataset into epochs: the digital lines as TTL traces, each event (time 0), each " + ...
-    "epoch's window, and the epochs dropped and why. It follows every edit.");
-place(E.epochs, r, [1 2]);
 sec = S;
 
 % units and channels
@@ -160,6 +154,11 @@ E.defaultRef = defaultBox(obj, Sr, "event reference");
 E.defaultWindow = defaultBox(obj, Sw, "epoch window");
 E.defaultSelection = defaultBox(obj, Ss, "trial selection");
 C = obj.buildAlignControls([Sr.Body Sw.Body Ss.Body], @(part) obj.onPlotAlignEdited(part));
+E.epochs = C.Diagram;
+E.epochs.ButtonPushedFcn = @(~,~) obj.onShowEpochs("plot");
+E.epochs.Tooltip = "A window, kept above the app, that draws how this plot's event reference, epoch window and trial " + ...
+    "selection cut the active dataset into epochs: the digital lines as TTL traces, each event (time 0), each " + ...
+    "epoch's window, and the epochs dropped and why. It follows every edit.";
 set([C.RefGrid C.WindowGrid C.SelectionGrid], 'Padding', [4 2 4 2]);
 Sr.BodyHeight = gridHeight(C.RefGrid);
 Sw.BodyHeight = gridHeight(C.WindowGrid);

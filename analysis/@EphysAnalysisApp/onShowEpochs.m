@@ -1,7 +1,7 @@
 function onShowEpochs(obj, what)
 %onShowEpochs  Open the epoch diagram: how the plot's (or the Defaults') epochs are cut.
 %   onShowEpochs(OBJ, "plot") opens the EpochDiagram window for the plot in
-%   the editor (the editor's "Show how the epochs are cut..." button). It
+%   the editor (the editor's "Epoch Diagram" button, under its Epoch window). It
 %   shows the plot's event reference, epoch window and trial selection (its
 %   own, or the Alignment tab's where it uses the defaults), its baseline and
 %   what it drops. onShowEpochs(OBJ, "defaults") opens the window for the

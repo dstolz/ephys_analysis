@@ -33,7 +33,7 @@ classdef BinaryReader < EphysReader
     %   recording to this layout and writing the descriptor (see
     %   BinaryReader.writeDescriptor); the whole pipeline (artifacts, spike
     %   detection, derived signals, Kilosort4 sorting, exports) then runs
-    %   unchanged. Only recording.json is used to recognise a folder, so the
+    %   unchanged. Only recording.json is used to recognize a folder, so the
     %   .bin + <name>.json sidecar pairs that toBin writes into output folders
     %   are never mistaken for recordings.
     %

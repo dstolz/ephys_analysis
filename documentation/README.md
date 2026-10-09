@@ -387,7 +387,7 @@ another). See
 **Optional MATLAB toolboxes**: [Chronux](http://chronux.org) (bundled in
 [`toolboxes/chronux`](../toolboxes/chronux), which `addpath_nogit` on the
 repository root puts on the path)
-and [FieldTrip](https://www.fieldtriptoolbox.org/), each only for analysing the
+and [FieldTrip](https://www.fieldtriptoolbox.org/), each only for analyzing the
 files the pipeline exports for it. Producing the files never calls either
 toolbox; `ChronuxDataset.hasChronux` / `FieldTripExport.hasFieldTrip` report
 whether they are on the path, and the FieldTrip export validates its

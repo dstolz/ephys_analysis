@@ -26,8 +26,8 @@ steps can run before Python is installed.
 | NVIDIA GPU + driver | Kilosort4 runs dramatically faster on GPU | Recommended, not required |
 | `phy` conda env (phy) | Manual curation of sorting results | Optional |
 | A Python with pynwb and nwbinspector | The NWB export (`Export.Formats` `nwb`, `EphysDataset.exportNWB`) | Only for the NWB export |
-| [FieldTrip](https://www.fieldtriptoolbox.org/) on the MATLAB path | Validates the FieldTrip export; analysing it | Optional |
-| [Chronux](http://chronux.org) (bundled in `toolboxes/chronux`) | Analysing the Chronux export | Optional |
+| [FieldTrip](https://www.fieldtriptoolbox.org/) on the MATLAB path | Validates the FieldTrip export; analyzing it | Optional |
+| [Chronux](http://chronux.org) (bundled in `toolboxes/chronux`) | Analyzing the Chronux export | Optional |
 | This repository (`ephys_analysis`) | Contains the app and MATLAB path helpers | Yes |
 
 What each MATLAB toolbox is used for, function by function, is listed under

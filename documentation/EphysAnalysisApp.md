@@ -260,6 +260,21 @@ their headers (**▼** / **►**; which are collapsed is remembered):
 | Unit waveform | rasters, and PSTH and tuning grids, of spikes: **Show** (*Off*, *Mean*, *Subsample*, *Mean + subsample*) each unit's waveform on its peak channel in its tile, and how many spikes the subsample draws (a sorted unit's mean is over them); **Location** (*North-east* by default; north is the top edge), **Axis box** (an outline on a pale ground; unticked, the waveform alone) and its size (1x = a third of the tile). Sorted units' spikes are cut from the sorted `.bin` (their templates when it is not there); detections need the Spikes step's *Waveforms* option (`waveform`; [Unit waveforms](EphysAnalysisConfig.md#unit-waveforms)) |
 | Text note | any plot: **Text** (a block of descriptive text; each new line is a line; blank draws nothing), **Place** (*Below*, *Above*, *Right of* or *Left of* the plot, which gives up a band for it; *Over the plot* at a corner, an edge or the center; or *At x, y*, the anchor's place across and up the plot, 0-1), **Align** (left, center, right; top, middle, bottom: how the lines line up and where the text sits in its band), **Rotation**, **Font** (*auto* = the design's, or any installed font) and size (blank = the plot's font size), **Bold**, **Italic**, **Outline**, **Colours** (text and ground; *auto* and *none* leave them to the design) and **Interpreter** (*As typed* or *TeX*). Its settings wait for some text (`note`; [Plot notes](EphysAnalysisConfig.md#plot-notes)); right-click the note in the preview to restyle it like any other part of the plot |
 
+Each of the nine headed sections has a title colour of its own and a key. The
+colours are nine steps along MATLAB's `turbo` map, in the order of the table
+above (blue for Units & channels, red for Text note), each darkened, keeping
+its hue, only as far as it needs to read on the header bar (a contrast ratio
+of 4.5). **Ctrl+1** to **Ctrl+9** (**Cmd** on a Mac; the number pad too) go
+to the section of that number: Units & channels is 1, Event
+reference 2, Epoch window 3, Trial selection 4, Bins & baseline 5, the kind's
+options 6, Appearance 7, Unit waveform 8 and Text note 9. The key opens the
+section if it is collapsed (it stays open, and is remembered like any
+other collapse), scrolls the editor to it and puts the keyboard focus on its
+header, so **Tab** walks into its rows. The header names its key. Keys work
+with the Plots tab showing. A section keeps its number and colour whatever
+the plot shows; for one the selected plot does not show, the status bar says
+so and nothing moves.
+
 Only what the selected plot uses is shown (`syncPlotEditor`): its kind,
 source and layout decide. A probe map has no event, window, selection or
 baseline, and a raster no baseline; bins are for PSTHs, rasters, spike
@@ -837,7 +852,7 @@ results, on the Log tab and in the report.
 | --- | --- |
 | building | `buildUI`, `buildMenus`, `buildToolbar` (its icons in `analysis/icons/toolbar`), `buildDataTab`, `buildAlignTab`, `buildPlotsTab`, `buildExportTab`, `buildLogTab`, `buildAlignControls`; the editor's collapsible sections in `private/` (`formSection`, `formRow`, `formShow`, `formLayout`) |
 | config model | `gatherConfig` / `applyConfig`, `gather*` / `apply*Section`, `gatherAlignControls` / `applyAlignControls`, `gatherPlotEditor` / `applyPlotEditor`, `onConfigChanged`, `updateTitle`, `confirmDiscard` |
-| plot editor | `syncPlotEditor` (what shows, what is enabled, what the drop-downs offer: `private/plotEditorChoices`), `layoutPlotEditor`, `onPlotSectionToggled`, `onPlotAlignEdited`, `onPlotDefaultToggled`, `applyPlotEditorDefaults` |
+| plot editor | `syncPlotEditor` (what shows, what is enabled, what the drop-downs offer: `private/plotEditorChoices`), `layoutPlotEditor`, `onPlotSectionToggled`, `gotoPlotSection` and `onKeyPress` (Ctrl+1 ... Ctrl+9), `onPlotAlignEdited`, `onPlotDefaultToggled`, `applyPlotEditorDefaults` |
 | several plots | `onPlotTreeSelected`, `onPlotSelected` and `selectedPlots` (the selection, the editor's plot first), `showPlotSelection` (the banner and the bar over the preview), `private/spreadPlotEdit` (an edit reaching the other plots selected, only what it changed), `rememberAesthetics` (a remembered look likewise) |
 | data | `openSource`, `onScan`, `refreshDatasetsTable`, `selectDataset`, `refreshDatasetInfo` |
 | previews | `refreshAlignPreview`, `refreshPreview`, `autoPreview`, `onPreviewPage`, `setPreviewState` (the badge and the busy card; its icons in `analysis/icons/status`), `onCancelPreview` |
@@ -891,7 +906,9 @@ first picked in the editor and the preview, the banner, title and bar
 saying so, only the rows they share, an edit, an event edit, *Use default*,
 a sort event and a remembered look reaching each plot as changed and no further,
 Duplicate and Remove taking them all); collapsing a
-section; the gather / apply
+section; the section headers' colours (distinct, readable on the bar) and
+keys, Ctrl+1 to Ctrl+9 opening a collapsed section and saying so for one the
+plot does not show; the gather / apply
 round trip, keeping the fields without a control (the stop event's offset,
 length and time range, trial rows) and the stop's *n*; Save As, New, reopen;
 generating scripts; Validate, Plan and a run of one plot writing figures

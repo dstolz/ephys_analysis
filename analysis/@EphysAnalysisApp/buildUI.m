@@ -1,6 +1,7 @@
 function buildUI(obj)
 %buildUI  The figure, menus, toolbar, the five tabs and the status bar; every
-%   button styled (styleButtons), the main actions in colour.
+%   button styled (styleButtons), the main actions in colour; the figure's
+%   key presses (onKeyPress) once the tabs are there.
 obj.Fig = uifigure("Name", "Ephys analysis", "Position", [140 80 1280 820]);
 obj.Fig.CloseRequestFcn = @(~,~) obj.onClose();
 obj.buildMenus();
@@ -32,6 +33,7 @@ obj.buildExportTab();
 obj.buildLogTab();
 styleButtons(obj);
 obj.Tabs.SelectedTab = obj.TabData;
+obj.Fig.WindowKeyPressFcn = @(~, evt) obj.onKeyPress(evt);   % Ctrl+1 ... Ctrl+9: the plot editor's sections
 obj.refreshDesigns();
 PlotDesign.listen(obj.Fig, @() obj.refreshDesigns());   % a design chosen anywhere (a plot's right-click menu too)
 end

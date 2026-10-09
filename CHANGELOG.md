@@ -23,6 +23,16 @@ says how to cut a release.
   The analysis app's plot editor has **Sort event** and **Sort sequence**
   rows under **Sort raster by**.
 
+- Colours and keys for the analysis app's plot editor sections. Each of the nine
+  section headers (Units & channels, Event reference, Epoch window, Trial
+  selection, Bins & baseline, Options, Appearance, Unit waveform, Text note) has
+  a title colour of its own, a step along the `turbo` map in the order of the
+  sections and darkened only as far as it needs to read on the header bar.
+  **Ctrl+1** to **Ctrl+9** (**Cmd** on a Mac) on the Plots tab go to the section
+  of that number: they open it if it is collapsed, scroll the editor to it and
+  focus its header, which names its key. For a section the selected plot does not
+  show, the status bar says so.
+
 - Copy just the files the analysis app needs to another folder, from the
   pipeline app: **File → Copy files for the analysis app...** and a toolbar
   tool open a window (`AnalysisCopyDialog`) that lists, for the ticked

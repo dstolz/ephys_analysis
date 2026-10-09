@@ -12,8 +12,10 @@ function buildPlotsTab(obj)
 %   Bins & baseline, the kind's own options, Appearance and Unit waveform
 %   (each unit's mean and / or spikes in its tile) and Text note (a block of
 %   descriptive text beside or over the plot), each collapsing under
-%   its header (onPlotSectionToggled). syncPlotEditor shows the rows
-%   the selected plot uses; layoutPlotEditor packs them.
+%   its header (onPlotSectionToggled). Each header has its own colour, a
+%   step along the turbo map in the sections' order, and its key: Ctrl+1 to
+%   Ctrl+9 go to the section (gotoPlotSection; onKeyPress). syncPlotEditor
+%   shows the rows the selected plot uses; layoutPlotEditor packs them.
 g = uigridlayout(obj.TabPlots, [1 3]);
 g.ColumnWidth = {285, 470, '1x'};
 g.Padding = [8 8 8 8];
@@ -68,6 +70,12 @@ eg.Scrollable = "on";
 obj.PlotEditorGrid = eg;
 E = struct();
 
+% the sections with a header, in order: each takes a title colour (a step along the turbo map) and a key (1-9)
+order = ["units" "ref" "window" "selection" "bins" "kind" "style" "waveform" "note"];
+hue = turbo(256);
+hue = hue(round(linspace(24, 232, numel(order))), :);
+tint = @(name) hue(order == name, :);
+
 % the plot: always open
 S = formSection(eg, 1, "general", "");
 [S, r] = formRow(S, ["kind" "enabled"], "Kind:");
@@ -94,7 +102,7 @@ place(E.layout, r, 2);
 sec = S;
 
 % units and channels
-S = formSection(eg, 2, "units", "Units & channels");
+S = formSection(eg, 2, "units", "Units & channels", Color=tint("units"));
 [S, r] = formRow(S, "classes", "Unit classes:");
 cg = subgrid(S.Body, r, repmat({'fit'}, 1, 4));
 cg.ColumnSpacing = 12;
@@ -156,9 +164,9 @@ place(E.channels, r, 2);
 sec(end+1) = S;
 
 % event reference, window and selection: the Alignment tab's controls
-Sr = formSection(eg, 3, "ref", "Event reference", "panel");
-Sw = formSection(eg, 4, "window", "Epoch window", "panel");
-Ss = formSection(eg, 5, "selection", "Trial selection", "panel");
+Sr = formSection(eg, 3, "ref", "Event reference", "panel", Color=tint("ref"));
+Sw = formSection(eg, 4, "window", "Epoch window", "panel", Color=tint("window"));
+Ss = formSection(eg, 5, "selection", "Trial selection", "panel", Color=tint("selection"));
 E.defaultRef = defaultBox(obj, Sr, "event reference");
 E.defaultWindow = defaultBox(obj, Sw, "epoch window");
 E.defaultSelection = defaultBox(obj, Ss, "trial selection");
@@ -176,7 +184,7 @@ obj.PlotAlignControls = C;
 sec = [sec Sr Sw Ss];
 
 % bins and baseline
-S = formSection(eg, 6, "bins", "Bins & baseline");
+S = formSection(eg, 6, "bins", "Bins & baseline", Color=tint("bins"));
 [S, r] = formRow(S, "binMs", "Bin (ms):");
 E.binMs = uieditfield(S.Body, "numeric", "Value", 10, "Limits", [0.001 Inf], "ValueChangedFcn", changed);
 place(E.binMs, r, 2);
@@ -207,7 +215,7 @@ E.baseTo = uieditfield(bg, "numeric", "Value", 0, "ValueChangedFcn", changed, "T
 sec(end+1) = S;
 
 % the kind's own options
-S = formSection(eg, 7, "kind", "Options");
+S = formSection(eg, 7, "kind", "Options", Color=tint("kind"));
 [S, r] = formRow(S, "withRaster", "");
 E.withRaster = uicheckbox(S.Body, "Text", "Raster above each PSTH", "Value", true, "ValueChangedFcn", changed);
 place(E.withRaster, r, [1 2]);
@@ -330,7 +338,7 @@ place(E.correlation, r, 2);
 sec(end+1) = S;
 
 % appearance
-S = formSection(eg, 8, "style", "Appearance");
+S = formSection(eg, 8, "style", "Appearance", Color=tint("style"));
 [S, r] = formRow(S, "maxTiles", "Tiles per page:");
 E.maxTiles = uispinner(S.Body, "Limits", [1 64], "Value", 16, "RoundFractionalValues", "on", "ValueChangedFcn", changed);
 place(E.maxTiles, r, 2);
@@ -399,7 +407,7 @@ E.legendBox = uicheckbox(lgg, "Text", "Box", "ValueChangedFcn", changed, ...
 sec(end+1) = S;
 
 % each unit's waveform in its tile
-S = formSection(eg, 9, "waveform", "Unit waveform");
+S = formSection(eg, 9, "waveform", "Unit waveform", Color=tint("waveform"));
 [S, r] = formRow(S, ["waveMode" "waveSpikes"], "Show:");
 wg = subgrid(S.Body, r, {'1x', 'fit', 70});
 E.waveMode = uidropdown(wg, "Items", ["Off" "Mean" "Subsample" "Mean + subsample"], ...
@@ -448,7 +456,7 @@ E.waveNames = uicheckbox(wp, "Text", "Unit names", "Value", false, "ValueChanged
 sec(end+1) = S;
 
 % descriptive text on the plot
-S = formSection(eg, 10, "note", "Text note");
+S = formSection(eg, 10, "note", "Text note", Color=tint("note"));
 [S, r] = formRow(S, "annText", "Text:", 78);
 E.annText = uitextarea(S.Body, "Value", "", "ValueChangedFcn", changed, ...
     "Tooltip", "Words to put on the plot -- a caption, a condition, a remark. Each new line is a line of text; blank " + ...
@@ -513,6 +521,7 @@ sec(end+1) = S;
 for i = 2:numel(sec)
     name = sec(i).Name;
     sec(i).Toggle.ButtonPushedFcn = @(~,~) obj.onPlotSectionToggled(name);
+    sec(i).Key = string(find(order == name));   % Ctrl+1 ... Ctrl+9 (onKeyPress)
 end
 obj.PlotEditor = E;
 obj.PlotSections = sec;

@@ -89,7 +89,7 @@ distinct as file names: `{Plot}` replaces every character outside
       "channels": [], "ref": "default", "window": "default", "selection": "default",
       "bins": { "BinSec": 0.01, "SmoothSec": 0.01 }, "measure": "rate",
       "baseline": { "Mode": "none", "Window": [-0.2, 0] }, "auroc": { "method": "psth", "...": "..." },
-      "layout": "grid", "withRaster": true, "rasterSort": "", "rasterSortOrder": "ascending", "rasterByGroup": true,
+      "layout": "grid", "withRaster": true, "rasterSort": "", "rasterSortEvent": [], "rasterSortOrder": "ascending", "rasterByGroup": true,
       "rasterEvents": { "lines": [], "edge": "onset", "scope": "window", "marker": "diamond", "size": 4, "color": "" },
       "histStyle": "bar", "fill": true, "fillAlpha": "NaN", "normalize": "none",
       "stack": false, "stackSpacing": 1.1, "maskAfterStop": false, "param": "", "seriesParam": "",
@@ -203,7 +203,9 @@ unshifted edge); an event whose trial has no finite value (a miss has no
 It needs paired trials. A [stop event](#epochwindow) with `offsetParam`
 is moved by the epoch's trial's value: a stimulus-aligned raster with the
 stop at `RespWindow onset + RespLatency` marks each response on its row,
-and `rasterSort "stop"` sorts the rows by it.
+and `rasterSort "stop"` sorts the rows by it (`rasterSort "event"` sorts
+them by another event's latency without making it the stop:
+[Raster sort by an event](#raster-sort-by-an-event)).
 
 A line whose intervals lie between trials (`Platform` in the synthetic
 project) has no event in trial scope: use recording scope for it.
@@ -359,7 +361,8 @@ use.
 | `auroc` | [Auroc](#auroc) | psth, heatmap of spikes with `baseline.Mode "auroc"`: how the auROC is made and units are called |
 | `layout` | `""` | `""` = the kind's default |
 | `withRaster` | `true` | psth: a raster above each unit |
-| `rasterSort` | `""` | psth, raster: the order of each group's epochs in the raster. `""` = trial (time) order; `"stop"` = by the stop event's latency; else a trial parameter, which the compute copies onto the epochs (`epochTable(..., Columns=)`). Groups stay in their own bands (see `rasterByGroup`); missing values sort last and ties keep the trial order |
+| `rasterSort` | `""` | psth, raster: the order of each group's epochs in the raster. `""` = trial (time) order; `"stop"` = by the stop event's latency; `"event"` = by the latency of `rasterSortEvent` ([Raster sort by an event](#raster-sort-by-an-event)); else a trial parameter, which the compute copies onto the epochs (`epochTable(..., Columns=)`). Groups stay in their own bands (see `rasterByGroup`); missing values sort last and ties keep the trial order |
+| `rasterSortEvent` | `[]` | psth, raster with `rasterSort "event"` (required then): the [event reference](#eventref) whose latency from each epoch's event orders the rows, e.g. `{ "line": "Platform", "edge": "offset" }` (a line name alone is short for its onset). Ignored by the other sorts |
 | `rasterSortOrder` | `"ascending"` | psth, raster: the direction of `rasterSort`: `"ascending"` or `"descending"` (with `rasterSort ""`, the last trial first). Missing values stay last either way; ties keep the trial order |
 | `rasterByGroup` | `true` | psth, raster: the rows go by group first, each group on a band of its colour; `false`: every epoch sorted by `rasterSort` as one block, each row on its group's colour (the y label adds "groups mixed") |
 | `rasterEvents` | none | psth, raster: marks on each raster row at digital-line events inside its epoch ([Raster event marks](#raster-event-marks)) |
@@ -472,6 +475,31 @@ the auROC from 0.5 on a 0-1 axis, a heatmap colours it on `[0 1]`
 
 The random draws come from their own stream (seed 0), so a plot gives
 the same p values every time it runs.
+
+### Raster sort by an event
+
+`rasterSort "event"` orders a raster's rows (within each group, or across
+groups with `rasterByGroup false`) by each epoch's latency to the event
+`rasterSortEvent`, an [event reference](#eventref) of its own: the epoch
+window and its stop event are not changed. With the epochs aligned to
+`Stim onset`,
+
+```json
+"rasterSort": "event", "rasterSortEvent": { "line": "Platform", "edge": "offset" }
+```
+
+puts the trials in the order the animal left the platform after the
+stimulus. The event is found as a [stop event](#epochwindow) is: the
+first (`which`) event at or after the epoch's event, among the intervals
+overlapping the epoch's own trial when it has one (scope `"trial"` or
+`"auto"`; an interval that runs on past the trial still counts), else
+over the recording; `offsetSec`, `offsetParam` and a
+[sequence](#event-sequences) apply too. An epoch with no such event sorts
+last in either direction, and the caption counts those epochs.
+`eventLatency` computes the latencies ([Analysis page](EphysAnalysis.md#compute));
+the result holds them as `R.rasterSortEvent` (`label`, `t`), and the
+raster's y label reads e.g. "Epoch (by Platform offset latency)". To see
+the event on each row too, mark it ([Raster event marks](#raster-event-marks)).
 
 ### Raster event marks
 
@@ -708,7 +736,7 @@ with 20 units and 16 tiles per page is written as
 | Source | a "list" selection with no datasets; an OutputRoot that does not exist | warning |
 | Defaults, Plots | the event reference, window and selection are valid: known values, `n` a whole number >= 1, `0 <= minDurationSec <= maxDurationSec`, `timeRange` ordered, a finite `offsetSec`, `offsetParamUnit` ms or s, each sequence step's relation, line, edge, `n`, positive `maxGapSec` and lengths, an `alignStep` of 0, `Inf` or a followedBy step (the stop's and each raster-mark sequence's too), finite `pre` and `post`, `pre <= post` in a fixed window, a stop event in a `"between"` window, known response words and pairing flags, at most 2 distinct `groupBy` parameters, `maxGroups` and `trials` whole numbers >= 1 | error |
 | Defaults, Plots | a filter that does not parse | warning (it is checked against each dataset's trials when it runs) |
-| Plots | at least one enabled; ids that stay distinct once `{Plot}` has sanitized them (case-blind); the kind exists; the source, layout, window mode and baseline mode fit the kind; `measure` rate / count / probability; tuning names its parameter; behavior names `param` and `yParam` (`"stop"` with a stop event), its `xScale` is category / linear and the violin layout has `violinplot`; a psth / raster `rasterSortOrder` ascending / descending and `rasterEvents` edge, scope, marker and a positive size; `BinSec > 0`, `SmoothSec >= 0` where bins are used; a baseline window `[b0 b1]` with `b0 < b1`; probemap value, psth `histStyle` bar / line, `normalize` none / unitPeak / groupPeak, `fillAlpha` 0-1 or NaN, `stackSpacing > 0`; heatmap order (`"modulation"` only with the auROC baseline); the auROC settings (method, windows, whole-bin window and step, call window, cutoff, threshold, test, `nResamples`, correction, alpha, `modulatedOnly` with a cutoff) and the toolbox they need; corrmap metric and correlation; `maxUnits >= 1`; an enabled response test of spikes: its test, `param` for tuning / either / both, `baseline` and `window` ordered, direction, correction, alpha in (0, 1], the auROC settings of a test `"auroc"` (with a cutoff) and the Statistics and Machine Learning Toolbox; a `waveform` mode off / mean / subsample / both and, when not off, its location, `scale` in (0, 3] and a whole `maxSpikes >= 1`; for a note with text, its `placement`, `align`, `valign`, `interpreter`, a numeric `rotation`, a positive or `NaN` `fontSize`, and `x` and `y` for `"custom"`; `MaxTiles >= 1`, `TileSpacing` loose / compact / tight / none, `FontSize`, `LineWidth`, `SiteSize` positive | error |
+| Plots | at least one enabled; ids that stay distinct once `{Plot}` has sanitized them (case-blind); the kind exists; the source, layout, window mode and baseline mode fit the kind; `measure` rate / count / probability; tuning names its parameter; behavior names `param` and `yParam` (`"stop"` with a stop event), its `xScale` is category / linear and the violin layout has `violinplot`; a psth / raster `rasterSortOrder` ascending / descending, a `rasterSortEvent` (a valid event reference) with `rasterSort "event"`, and `rasterEvents` edge, scope, marker and a positive size; `BinSec > 0`, `SmoothSec >= 0` where bins are used; a baseline window `[b0 b1]` with `b0 < b1`; probemap value, psth `histStyle` bar / line, `normalize` none / unitPeak / groupPeak, `fillAlpha` 0-1 or NaN, `stackSpacing > 0`; heatmap order (`"modulation"` only with the auROC baseline); the auROC settings (method, windows, whole-bin window and step, call window, cutoff, threshold, test, `nResamples`, correction, alpha, `modulatedOnly` with a cutoff) and the toolbox they need; corrmap metric and correlation; `maxUnits >= 1`; an enabled response test of spikes: its test, `param` for tuning / either / both, `baseline` and `window` ordered, direction, correction, alpha in (0, 1], the auROC settings of a test `"auroc"` (with a cutoff) and the Statistics and Machine Learning Toolbox; a `waveform` mode off / mean / subsample / both and, when not off, its location, `scale` in (0, 3] and a whole `maxSpikes >= 1`; for a note with text, its `placement`, `align`, `valign`, `interpreter`, a numeric `rotation`, a positive or `NaN` `fontSize`, and `x` and `y` for `"custom"`; `MaxTiles >= 1`, `TileSpacing` loose / compact / tight / none, `FontSize`, `LineWidth`, `SiteSize` positive | error |
 | Plots | a `HeatColormap` that is not a colormap function; a `Colormap` that is neither a colormap function nor a colour (the default is used); a `rasterEvents.color` that is not a colour (each mark gets its own); a `waveform` mode on a plot that draws no unit tiles (an overlay, a plot of signals, a kind other than raster / psth / tuning / waveforms); a note's `color` or `background` that is not a colour (left to the design) | warning |
 | Export | formats are png / eps / svg / pdf (and at least one when enabled); `Dpi` positive; `FigureSizeCm` two positive numbers; the folder and file-name patterns use known tokens, and the file-name pattern is not empty | error |
 | Export | a file-name pattern without `{Plot}` while several plots are enabled (`{Kind}` is enough when the enabled plots all differ in kind); neither the folder nor the file-name pattern names the dataset (`{OutputFolder}` or `{Name}`), unless the source is a single folder: files that would overwrite each other | warning |
@@ -723,12 +751,13 @@ that dataset and says why ([Why is my plot skipped?](EphysAnalysisApp.md#why-is-
 
 `test_EphysAnalysisConfig`: defaults, save / load round trips (Inf, NaN,
 one- and two-item lists, `"default"` sentinels, stop events, the PSTH stack
-and unit-waveform settings, the raster's sort and event marks, behavior
-fields, events shifted by a parameter), `plotFor`, `removePlot`,
+and unit-waveform settings, the raster's sort (its sort event too, and a
+line name as one) and event marks, behavior fields, events shifted by a
+parameter), `plotFor`, `removePlot`,
 `enabledPlots`, auto and duplicate ids, `addPlot`'s source by kind, a cell
 of partial plots, every validate rule (ids and patterns whose files would
-collide, the auROC baseline and response test, behavior plots and raster
-marks included), `LoadWarnings`, `BadSchema`, `BadValue`,
+collide, the auROC baseline and response test, behavior plots, the
+raster's sort event and raster marks included), `LoadWarnings`, `BadSchema`, `BadValue`,
 `figureFileName` and `plotFileName`'s page suffix.
 
 <!-- wiki

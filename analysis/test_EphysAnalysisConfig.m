@@ -4,7 +4,8 @@ function test_EphysAnalysisConfig()
 %   lists, "default" sentinels, a heterogeneous Plots array), plotFor's
 %   merge of the Defaults, plot ids (auto ids, DuplicatePlotId), every
 %   validate rule (ids and patterns whose files would collide too), the
-%   behavior kind, the raster's sort and event marks, events shifted by
+%   behavior kind, the raster's sort (by an event's latency too: its
+%   rasterSortEvent) and event marks, events shifted by
 %   a trial parameter and event sequences (fields, round trips, rules), LoadWarnings,
 %   BadSchema, figureFileName and plotFileName's page suffix.
 %
@@ -343,6 +344,25 @@ bad = cr; bad.Plots(1).rasterEvents.color = "notacolour";
 check(hasIssue(bad, "psth_1.rasterEvents.color", "warning"), 'a mark colour that is not one warns');
 bad = cr; bad.Plots(1).ref.offsetParamUnit = "min";
 check(hasIssue(bad, "psth_1.ref", "error"), 'a shift unit other than ms / s');
+ce = cr;
+ce.Plots(1).rasterSort = "event";
+ce.Plots(1).rasterSortEvent = struct('line', "Platform", 'edge', "offset");
+ce.save(f);
+c8 = EphysAnalysisConfig.load(f);
+pe = c8.Plots(1).rasterSortEvent;
+check(ce.isequalConfig(c8) && c8.Plots(1).rasterSort == "event" && isstruct(pe) && pe.line == "Platform" && pe.edge == "offset" ...
+    && pe.which == "first" && pe.scope == "auto" && isempty(pe.sequence) && isempty(c8.Plots(end).rasterSortEvent), ...
+    'a raster sorted by an event round-trips: rasterSortEvent is a whole event reference; the other plots have none');
+check(~any(ce.validate(CheckPaths=false).Severity == "error"), 'that config validates');
+ce.Plots(1).rasterSortEvent = "Platform";
+check(isequal(ce.Plots(1).rasterSortEvent, EphysAnalysisConfig.normalizeSection("EventRef", struct('line', "Platform"))), ...
+    'a line name alone is short for its onset');
+bad = ce; bad.Plots(1).rasterSortEvent = [];
+check(hasIssue(bad, "psth_1.rasterSortEvent", "error"), 'rasterSort "event" without a rasterSortEvent');
+bad = ce; bad.Plots(1).rasterSortEvent.edge = "middle";
+check(hasIssue(bad, "psth_1.rasterSortEvent", "error"), 'a rasterSortEvent that is not a valid event reference');
+bad.Plots(1).rasterSort = "Depth";
+check(~hasIssue(bad, "psth_1.rasterSortEvent", "error"), 'the other sorts ignore rasterSortEvent');
 cs = cr;
 cs.Plots(1).ref = struct('line', "Trial", 'edge', "offset", 'sequence', struct('line', "Trough"));
 cs.Defaults.EventRef.sequence = {struct('line', "Trough", 'maxGapSec', 2), ...

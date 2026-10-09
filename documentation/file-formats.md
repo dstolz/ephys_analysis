@@ -1276,7 +1276,7 @@ dropped and listed in `LoadWarnings`.
 | `schema`, `version`, `name`, `description` | identification |
 | `Source` | `Mode` (`project` / `folders`), `Root`, `OutputRoot`, `NamePattern`, `Recordings` (the Open Ephys recording mode), `Selection`, `Datasets`, `Folders` |
 | `Defaults` | `EventRef`, `Window` (`stop` is `[]` or an event reference), `Selection` |
-| `Plots` | array of plots: `id`, `kind`, `enabled`, `title`, `source`, `units`, `channels`, `ref` / `window` / `selection` (`"default"` or an object), `bins`, `measure`, `baseline`, `auroc`, `layout`, `withRaster`, `rasterSort`, `histStyle`, `fill`, `fillAlpha`, `normalize`, `stack`, `stackSpacing`, `maskAfterStop`, `param`, `seriesParam`, `value`, `order`, `metric`, `correlation`, `waveform`, `style`, `aesthetics` |
+| `Plots` | array of plots: `id`, `kind`, `enabled`, `title`, `source`, `units`, `channels`, `ref` / `window` / `selection` (`"default"` or an object), `bins`, `measure`, `baseline`, `auroc`, `layout`, `withRaster`, `rasterSort`, `rasterSortEvent`, `histStyle`, `fill`, `fillAlpha`, `normalize`, `stack`, `stackSpacing`, `maskAfterStop`, `param`, `seriesParam`, `value`, `order`, `metric`, `correlation`, `waveform`, `style`, `aesthetics` |
 | `Export` | `Enabled`, `Formats`, `Folder`, `FilenamePattern`, `Dpi`, `FigureSizeCm`, `Overwrite` |
 | `Report` | `Enabled`, `Format`, `Title`, `Folder`, `FileName`, `PerDataset`, `EmbedFormat`, `Dpi`, `IncludeSummary`, `IncludeParameters`, `IncludeConfig` |
 

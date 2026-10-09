@@ -6,9 +6,10 @@ function reason = plotSkipReason(src, spec)
 %   map" (a probe map, or a waveforms plot in the probe layout), "no paired trials" (trial scope, "Trial", a selection that filters
 %   or groups trials, an event or stop shifted by a trial parameter, a
 %   tuning or behavior plot), "no line X" (the aligned or stop line, a line
-%   of their sequences, or a raster's event marks and mark sequences), "no
-%   trial parameter X" (grouping, shifting,
-%   tuning, behavior and raster sort parameters). A plot that passes may
+%   of their sequences, a raster's event marks and mark sequences, or the
+%   event a drawn raster is sorted by and its sequence), "no trial
+%   parameter X" (grouping, shifting (the sort event's too), tuning,
+%   behavior and raster sort parameters). A plot that passes may
 %   still fail when it runs (e.g. no event survives the selection).
 %
 %   See also EphysAnalysisRunner.plan, EphysAnalysisRunner.runDataset.
@@ -59,6 +60,10 @@ if ~isempty(st)
     reason = missingStepLine(src, st);
     if reason ~= ""; return; end
 end
+sortRef = [];   % the event a drawn raster is sorted by
+if ismember(spec.kind, ["psth" "raster"]) && (spec.kind == "raster" || spec.withRaster) && spec.rasterSort == "event"
+    sortRef = spec.rasterSortEvent;
+end
 if ismember(spec.kind, ["psth" "raster"]) && ismember(spec.source, ["units" "detected"])
     for ln = spec.rasterEvents.lines
         if ~(isfield(src.events, ln) || (ln == "Trial" && src.trialLine ~= ""))
@@ -76,6 +81,13 @@ if ismember(spec.kind, ["psth" "raster"]) && ismember(spec.source, ["units" "det
         reason = missingStepLine(src, mk);
         if reason ~= ""; return; end
     end
+    if ~isempty(sortRef)
+        if ~hasLine(src, sortRef)
+            reason = "no line " + sortRef.line; return
+        end
+        reason = missingStepLine(src, sortRef);
+        if reason ~= ""; return; end
+    end
 end
 vars = string(src.trials.Properties.VariableNames);
 need = [sel.groupBy spec.ref.offsetParam];
@@ -87,7 +99,8 @@ switch spec.kind
         need = [need spec.param spec.seriesParam];
         if spec.yParam ~= "stop"; need(end+1) = spec.yParam; end
     case {"psth" "raster"}
-        if ~ismember(spec.rasterSort, ["" "stop"]); need(end+1) = spec.rasterSort; end
+        if ~ismember(spec.rasterSort, ["" "stop" "event"]); need(end+1) = spec.rasterSort; end
+        if ~isempty(sortRef) && ismember(spec.source, ["units" "detected"]); need(end+1) = sortRef.offsetParam; end
 end
 for p = need(need ~= "")
     if ~ismember(p, vars); reason = "no trial parameter " + p; return; end

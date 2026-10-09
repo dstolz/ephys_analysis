@@ -10,10 +10,13 @@ function h = renderRaster(R, target, opts)
 %   rasters.
 %
 %   SortBy  "" (default): the epochs of a group in time (trial) order;
-%           "stop": by their stop event's latency (R.epochStop); else the
-%           name of a column of R.epochs, e.g. a trial parameter (compute
-%           the epochs with epochTable(..., Columns=SortBy)). Missing
-%           values sort last; ties stay in time order
+%           "stop": by their stop event's latency (R.epochStop); "event":
+%           by their latency to another event, R.rasterSortEvent (a
+%           struct: label, e.g. "Platform offset", and t, each epoch's
+%           latency in s from eventLatency); else the name of a column of
+%           R.epochs, e.g. a trial parameter (compute the epochs with
+%           epochTable(..., Columns=SortBy)). Missing values (no such
+%           event: NaN) sort last; ties stay in time order
 %   SortOrder  "ascending" (default) or "descending": the direction of
 %           SortBy ("" descending is the reverse time order); missing
 %           values stay last

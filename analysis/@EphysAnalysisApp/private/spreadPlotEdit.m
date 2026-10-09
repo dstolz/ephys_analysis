@@ -11,6 +11,10 @@ function P = spreadPlotEdit(P, k, others, before, D)
 %   of a value gives each its own: the one it used (its own, else D's)
 %   with that value changed, as unticking the box does with no edit.
 %
+%   An edit of the raster's sort, or of its sort event, gives a plot that
+%   sorts by an event but has none the whole event the editor shows (a
+%   field-by-field edit would find no event to change).
+%
 %   The editor's channels row is a spike plot's units.channels and a
 %   signal plot's channels: an edit of it reaches each plot's own. The id,
 %   kind, title and aesthetics are never spread (rememberAesthetics
@@ -20,11 +24,15 @@ skip = ["id" "kind" "title" "aesthetics" "ref" "window" "selection"];
 paths = changedPaths(before, after, string.empty(1, 0));
 paths = paths(cellfun(@(p) ~ismember(p(1), skip), paths));
 chan = cellfun(@(p) isequal(p, "channels") || isequal(p, ["units" "channels"]), paths);
+sortEdit = any(cellfun(@(p) ismember(p(1), ["rasterSort" "rasterSortEvent"]), paths));
 align = struct('ref', "EventRef", 'window', "Window", 'selection', "Selection");
 for j = others(:).'
     q = P(j);
     for p = paths(~chan)
         q = setPath(q, p{1}, getPath(after, p{1}));
+    end
+    if sortEdit && q.rasterSort == "event" && ~isstruct(q.rasterSortEvent)
+        q.rasterSortEvent = after.rasterSortEvent;   % a plot without a sort event takes the whole one shown
     end
     for p = paths(chan)   % last: an edit of the source decides which field the plot's channels are
         to = ["units" "channels"];

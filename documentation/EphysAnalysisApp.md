@@ -304,7 +304,25 @@ runner, so it is what a run exports.
 
 The line under the preview names the plot, the dataset and the time taken,
 or says why the plot cannot be drawn (the runner's
-[skip reasons](#why-is-my-plot-skipped)) or failed.
+[skip reasons](#why-is-my-plot-skipped)) or failed. A coloured badge at
+its left says where the preview is, with an icon:
+
+| Badge | Means |
+| --- | --- |
+| **Computing** (amber, spinning) | the plot is being computed on the active dataset |
+| **Drawing** (blue, spinning) | the result is being drawn |
+| **Drawn** (green) | the preview is the plot as it is now |
+| **Out of date** (amber) | the plot or the defaults changed and the preview was not redrawn (Auto is off, the last preview took 2 s or more, or the edit was on another tab): press **Preview** |
+| **Press Preview** (blue) | the signal extract is larger than `PreviewMaxMB`, so it waits for **Preview** |
+| **Cannot draw** (grey) | the active dataset cannot draw this plot; the line says why |
+| **Failed** (red) | computing or drawing it failed; the line and the Log tab say why |
+| **No preview** (grey) | no plot is selected, or no dataset is active |
+
+While it computes and draws, a card in the middle of the preview says
+what (*"Computing psth_1 on <dataset> ..."*) over the last plot, and the
+pointer is a watch; the new plot replaces both. The spinners keep turning
+while MATLAB is busy. An out-of-date preview is redrawn when you come back
+to the Plots tab, if Auto is on and the preview is quick.
 
 **Plot aesthetics.** Right-click any part of the preview (a line, band,
 bar, text, legend or axes) and pick **Edit aesthetics...** to change
@@ -768,7 +786,7 @@ results, on the Log tab and in the report.
 | config model | `gatherConfig` / `applyConfig`, `gather*` / `apply*Section`, `gatherAlignControls` / `applyAlignControls`, `gatherPlotEditor` / `applyPlotEditor`, `onConfigChanged`, `updateTitle`, `confirmDiscard` |
 | plot editor | `syncPlotEditor` (what shows, what is enabled, what the drop-downs offer: `private/plotEditorChoices`), `layoutPlotEditor`, `onPlotSectionToggled`, `onPlotAlignEdited`, `onPlotDefaultToggled`, `applyPlotEditorDefaults` |
 | data | `openSource`, `onScan`, `refreshDatasetsTable`, `selectDataset`, `refreshDatasetInfo` |
-| previews | `refreshAlignPreview`, `refreshPreview`, `autoPreview`, `onPreviewPage` |
+| previews | `refreshAlignPreview`, `refreshPreview`, `autoPreview`, `onPreviewPage`, `setPreviewState` (the badge and the busy card; its icons in `analysis/icons/status`) |
 | epoch diagram | `onShowEpochs`, `refreshEpochDiagram`; the window itself is `analysis/EpochDiagram.m` |
 | plot designs | `refreshDesigns` (the Design menu and list; `PlotDesign.listen` keeps them current), `onDesignChosen`, `onSaveDesign`, `onImportDesign`, `onDeleteDesign`, `onDesignsFolder`; the designs themselves: `PlotDesign`, `analysis/designs` |
 | running | `onValidate`, `onPlan`, `onRunExport`, `onCancelRun` |
@@ -789,7 +807,8 @@ lines and parameters; grouping by Depth from the Alignment controls; adding
 a PSTH and an LFP evoked potential and previewing both; the response test
 (*Responsive only* and its settings reaching the plot); a PSTH's stack,
 normalization, fill, opacity and group colours reaching the plot and the
-stacked preview; the preview's right-click
+stacked preview; the preview's badge (Drawn after a preview, Out of date
+after an edit Auto does not redraw, the busy card gone); the preview's right-click
 aesthetics editor remembering rules into the plot's config entry (the
 editor itself: `test_PlotAesthetics`); the Design list and menu, picking
 a design redrawing the preview without touching the config, saving the

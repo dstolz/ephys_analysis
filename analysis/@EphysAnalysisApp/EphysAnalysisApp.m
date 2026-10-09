@@ -31,8 +31,10 @@ classdef EphysAnalysisApp < handle
     %                the Alignment tab's while "Use default" is ticked, its own
     %                once edited -- and a preview on the active dataset
     %                (auto-preview while a preview takes under 2 s), drawn
-    %                in the design picked above it (PlotDesign). "Show how
-    %                the epochs are cut..." opens the epoch diagram
+    %                in the design picked above it (PlotDesign), a badge under
+    %                it saying where it is (Computing, Drawn, Out of date,
+    %                Failed ...: setPreviewState). "Epoch Diagram",
+    %                under the epoch window, opens the epoch diagram
     %                (EpochDiagram): a window that stays above the app and
     %                draws, on the active dataset, the digital lines as TTL
     %                traces, each event, window and epoch and what is
@@ -151,6 +153,7 @@ classdef EphysAnalysisApp < handle
         NextPageButton     matlab.ui.control.Button
         PageLabel          matlab.ui.control.Label
         PreviewLabel       matlab.ui.control.Label
+        PreviewBadge struct = struct()           % the preview's state badge: Grid, Icon, Text (setPreviewState)
 
         % --- Export tab ---
         ExportControls struct = struct()
@@ -187,6 +190,7 @@ classdef EphysAnalysisApp < handle
         PreviewPage (1,1) double = 1
         PreviewPages (1,1) double = 1
         PreviewSeconds (1,1) double = Inf   % time the last preview took (auto-preview under 2 s)
+        PreviewState (1,1) string = "idle"  % what the preview badge says (setPreviewState)
         EpochDiagramWindow = []             % the EpochDiagram window, while open (onShowEpochs)
         EpochDiagramFor (1,1) string = "plot"   % what it draws: "plot" (the editor's) | "defaults"
         Running (1,1) logical = false
@@ -304,6 +308,7 @@ classdef EphysAnalysisApp < handle
         onPlotAlignEdited(obj, part)
         onPlotDefaultToggled(obj)
         refreshPreview(obj, opts)
+        setPreviewState(obj, state, opts)
         onPreviewPage(obj, step)
         rememberAesthetics(obj, id, rules)
         onAutoPreviewToggled(obj)

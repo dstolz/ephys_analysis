@@ -10,6 +10,14 @@ says how to cut a release.
 
 ### Added
 
+- A status badge under the analysis app's plot preview: a coloured icon and
+  a word for where the preview is (Computing, Drawing, Drawn, Out of date,
+  Press Preview, Cannot draw, Failed). While it computes and draws, a card
+  with a spinner sits over the last plot and the pointer is a watch; the
+  spinners are animated SVG (`analysis/icons/status`), so they turn while
+  MATLAB is busy. An edit that auto-preview does not redraw marks the
+  preview Out of date.
+
 - Event sequences for the analysis module: an event reference can now be a
   chain of events, e.g. *Trial offset then Trough onset* (the first Trough
   onset after each trial's end). `eventRef` gains `sequence`, a list of steps

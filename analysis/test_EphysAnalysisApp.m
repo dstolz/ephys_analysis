@@ -180,6 +180,16 @@ axs = findall(app.PreviewPanel, 'Type', 'axes');
 check(app.Tabs.SelectedTab == app.TabPlots && ~isempty(axs) && ~isempty(app.PreviewResult) ...
     && app.PreviewResult.kind == "psth" && isfinite(app.PreviewSeconds), ...
     sprintf('the toolbar''s Preview shows the Plots tab and draws %d axes into the preview panel', numel(axs)));
+check(app.PreviewState == "drawn" && string(app.PreviewBadge.Text.Text) == "Drawn" ...
+    && endsWith(string(app.PreviewBadge.Icon.ImageSource), "drawn.svg") ...
+    && isempty(findall(app.PreviewPanel, 'Tag', 'previewBusyCard')) && string(app.Fig.Pointer) == "arrow", ...
+    'the badge says Drawn once the preview is drawn; the busy card and the watch pointer are gone');
+app.AutoPreviewCheckBox.Value = false;
+app.autoPreview();   % as after an edit, with Auto off
+stale = app.PreviewState == "stale" && string(app.PreviewBadge.Text.Text) == "Out of date";
+app.AutoPreviewCheckBox.Value = true;
+app.refreshPreview(Force=true);
+check(stale && app.PreviewState == "drawn", 'an edit Auto does not redraw marks the preview Out of date; Preview draws it again');
 ctx = getappdata(app.PreviewPanel, PlotAesthetics.ContextKey);
 look = struct('role', "rateFill", 'group', "", 'property', "FaceAlpha", 'value', 0.4);
 ctx.onRemember(look);

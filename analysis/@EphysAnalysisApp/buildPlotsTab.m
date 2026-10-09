@@ -431,7 +431,7 @@ obj.layoutPlotEditor();
 
 % --- the preview ---------------------------------------------------------------------------
 pg = uigridlayout(g, [4 6]);
-pg.RowHeight = {30, 30, '1x', 22};
+pg.RowHeight = {30, 30, '1x', 26};
 pg.ColumnWidth = {'fit', '1x', 'fit', 'fit', 'fit', 'fit'};
 pg.Padding = [0 0 0 0];
 l = uilabel(pg, "Text", "Active dataset:");
@@ -463,10 +463,15 @@ obj.SaveDesignButton = uibutton(dg, "Text", "Save look as design...", "ButtonPus
     "colours -- as a design of your own, to choose for any plot.");
 obj.PreviewPanel = uipanel(pg, "BackgroundColor", "w", "BorderType", "line");
 obj.PreviewPanel.Layout.Row = 3; obj.PreviewPanel.Layout.Column = [1 6];
-obj.PreviewLabel = uilabel(pg, "Text", "Add a plot, scan and pick a dataset to preview.", "FontColor", [0.35 0.35 0.35]);
-obj.PreviewLabel.Layout.Row = 4; obj.PreviewLabel.Layout.Column = [1 4];
-obj.PageLabel = uilabel(pg, "Text", "", "HorizontalAlignment", "right");
-obj.PageLabel.Layout.Row = 4; obj.PageLabel.Layout.Column = [5 6];
+sg = uigridlayout(pg, [1 3], "ColumnWidth", {'fit', '1x', 'fit'}, "Padding", [0 0 0 0], "ColumnSpacing", 8);
+sg.Layout.Row = 4; sg.Layout.Column = [1 6];
+B.Grid = uigridlayout(sg, [1 2], "ColumnWidth", {18, 'fit'}, "Padding", [6 2 10 2], "ColumnSpacing", 5);
+B.Icon = uiimage(B.Grid, "ScaleMethod", "fit");
+B.Text = uilabel(B.Grid, "FontWeight", "bold");
+obj.PreviewBadge = B;
+obj.PreviewLabel = uilabel(sg, "Text", "Add a plot, scan and pick a dataset to preview.", "FontColor", [0.35 0.35 0.35]);
+obj.PageLabel = uilabel(sg, "Text", "", "HorizontalAlignment", "right");
+obj.setPreviewState("idle");
 end
 
 

@@ -6,7 +6,9 @@ function refreshPreview(obj, opts)
 %   when Force is set (the Preview button). The time taken decides whether
 %   edits redraw it (auto-preview under AutoPreviewSeconds). A right-click
 %   on any part of the preview opens the aesthetics editor; what it
-%   remembers for the plot comes back through rememberAesthetics.
+%   remembers for the plot comes back through rememberAesthetics. The
+%   badge under it (setPreviewState) says Computing, then Drawing, with a
+%   card over the old plot, and how it ended.
 arguments
     obj (1,1) EphysAnalysisApp
     opts.Force (1,1) logical = false
@@ -14,10 +16,12 @@ end
 L = obj.PreviewLabel;
 if obj.SelectedPlot < 1 || obj.SelectedPlot > numel(obj.Config.Plots)
     L.Text = "No plot selected.";
+    obj.setPreviewState("idle");
     return
 end
 if isempty(obj.Runner) || obj.ActiveIdx < 1
     L.Text = "Scan and pick a dataset to preview.";
+    obj.setPreviewState("idle");
     return
 end
 spec = obj.Config.plotFor(obj.SelectedPlot);
@@ -26,11 +30,13 @@ try
     src = obj.Runner.source(obj.ActiveIdx);
 catch ME
     L.Text = "Cannot read the dataset: " + string(ME.message);
+    obj.setPreviewState("failed");
     return
 end
 reason = plotSkipReason(src, spec);
 if reason ~= ""
     clearPanel(obj, spec.id + " cannot be drawn for " + src.name + ": " + reason + ".");
+    obj.setPreviewState("skipped");
     return
 end
 if ~opts.Force && ismember(spec.source, EphysAnalysisConfig.SignalSources)
@@ -40,17 +46,20 @@ if ~opts.Force && ismember(spec.source, EphysAnalysisConfig.SignalSources)
     if mb > obj.PreviewMaxMB
         clearPanel(obj, sprintf("The %s extract is %.0f MB (over %g MB): press Preview to read it.", spec.source, mb, obj.PreviewMaxMB));
         obj.PreviewSeconds = Inf;
+        obj.setPreviewState("waiting");
         return
     end
 end
 L.Text = "Computing " + spec.id + " ...";
-drawnow limitrate;
+obj.setPreviewState("computing", Message="Computing " + spec.id + " on " + src.name + " ...");
 t0 = tic;
 try
     R = obj.Runner.computePlot(src, spec);
     obj.PreviewResult = R;
     obj.PreviewPages = plotPageCount(R, spec);
     obj.PreviewPage = min(max(obj.PreviewPage, 1), obj.PreviewPages);
+    L.Text = "Drawing " + spec.id + " ...";
+    obj.setPreviewState("drawing", Message="Drawing " + spec.id + " ...");
     obj.Runner.renderPlotFigures(R, spec, Target=obj.PreviewPanel, Page=obj.PreviewPage, ...
         OnRemember=@(rules) obj.rememberAesthetics(spec.id, rules));
 catch ME
@@ -58,9 +67,11 @@ catch ME
     clearPanel(obj, spec.id + " failed: " + string(ME.message));
     obj.PreviewSeconds = Inf;
     obj.log(spec.id + " preview failed: " + string(ME.message));
+    obj.setPreviewState("failed");
     return
 end
 obj.PreviewSeconds = toc(t0);
+obj.setPreviewState("drawn");
 L.Text = sprintf("%s on %s (%.1f s); right-click the plot to change its colours, lines and fonts", ...
     spec.id, src.name, obj.PreviewSeconds);
 if obj.PreviewSeconds >= obj.AutoPreviewSeconds && obj.AutoPreviewCheckBox.Value

@@ -8,7 +8,7 @@ switch obj.Tabs.SelectedTab
         obj.refreshAlignPreview();
     case obj.TabPlots
         msg = "Plots: add plots, edit them, preview them on the active dataset.";
-        if isempty(obj.PreviewResult); obj.autoPreview(); end
+        if isempty(obj.PreviewResult) || obj.PreviewState == "stale"; obj.autoPreview(); end
     case obj.TabExport
         msg = "Export: figure files and the report; Validate, Plan, Run over the ticked datasets.";
     otherwise

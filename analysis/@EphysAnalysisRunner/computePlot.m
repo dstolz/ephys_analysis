@@ -29,7 +29,11 @@ function [R, E, G] = computePlot(obj, src, spec, opts) %#ok<INUSD>
 %               y = E.(yParam), or 1000 * (E.t1 - E.t0) (ms) for yParam "stop"
 %   A raster of spikes (raster, or psth with withRaster) with event lines
 %   or sequences to mark (spec.rasterEvents.lines, .sequences) also gets
-%   R.rasterEvents = epochEvents(src, E, Lines=, Edge=, Scope=, Sequences=).
+%   R.rasterEvents = epochEvents(src, E, Lines=, Edge=, Scope=, Sequences=);
+%   one sorted by an event (spec.rasterSort "event") gets R.rasterSortEvent,
+%   its sort key: a struct of t and label from [t, label] =
+%   eventLatency(src, E, spec.rasterSortEvent), each epoch's latency to the
+%   event (s) and the event's name.
 %     waveforms [~, meta] = selectUnits(src, spec.units, Ref=, Selection=); R holds
 %               meta, labels, one group, and the probe map; the waveforms below
 %   A waveforms plot, a raster, or a PSTH or tuning grid, of spikes with
@@ -87,6 +91,9 @@ switch spec.kind
             obj.checkpoint();
             if isfield(R, 'raster') && ~isempty(R.raster) && (~isempty(m.lines) || ~isempty(m.sequences))
                 R.rasterEvents = epochEvents(src, E, Lines=m.lines, Edge=m.edge, Scope=m.scope, Sequences=m.sequences);
+            end
+            if isfield(R, 'raster') && ~isempty(R.raster) && spec.rasterSort == "event"
+                R.rasterSortEvent = sortEvent(src, E, spec.rasterSortEvent);
             end
         end
     case "evoked"
@@ -180,9 +187,20 @@ end
 function c = sortColumns(spec)
 %sortColumns  The trial parameter a raster sorts its epochs by, as epochTable Columns.
 c = string.empty(1, 0);
-if ismember(spec.kind, ["psth" "raster"]) && ~ismember(spec.rasterSort, ["" "stop"])
+if ismember(spec.kind, ["psth" "raster"]) && ~ismember(spec.rasterSort, ["" "stop" "event"])
     c = spec.rasterSort;
 end
+end
+
+
+function S = sortEvent(src, E, ref)
+%sortEvent  The raster's sort event: its label and each epoch's latency to it (eventLatency).
+if isempty(ref)
+    error('EphysAnalysisRunner:NoSortEvent', ['The raster sorts by an event''s latency (rasterSort "event"), ' ...
+        'but rasterSortEvent names no event.']);
+end
+[t, label] = eventLatency(src, E, ref);
+S = struct('label', label, 't', t);
 end
 
 

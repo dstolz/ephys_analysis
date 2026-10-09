@@ -18,8 +18,9 @@ function test_EphysAnalysisApp()
 %   with the plot's own epochs, redrawn on an edit of pre, epochs dropped
 %   outside the recording, a refused window reported, paging, opened from
 %   the Alignment tab for the defaults, closing with the app); a raster's
-%   sort, direction, grouping and event
-%   marks, an event shifted by a trial parameter, an event sequence and a
+%   sort (by a trial parameter, or by a sort event's latency: its rows
+%   enabled, its line and edge reaching the plot and the preview),
+%   direction, grouping and event marks, an event shifted by a trial parameter, an event sequence and a
 %   mark sequence from the Event sequence window (a bad step refused), and
 %   a behavior plot reaching the config and the preview; several plots
 %   selected at once (Ctrl-click: the first picked in the editor and the
@@ -558,6 +559,28 @@ check(p.rasterSort == "Depth" && p.rasterSortOrder == "descending" && ~p.rasterB
 app.refreshPreview(Force=true);
 check(~isempty(app.PreviewResult) && numel(app.PreviewResult.rasterEvents) == 4 && ~isempty(findall(app.PreviewPanel, 'Tag', 'rasterEvent')), ...
     'the preview marks the Trough and RespWindow onsets and offsets');
+check(shown(E.sortLine) && shown(E.sortSeqText) && E.sortLine.Enable == "off" && E.sortSeqEdit.Enable == "off", ...
+    'a raster shows its sort event rows, off while it sorts by a trial parameter');
+E.rasterSort.Value = 'event';
+app.onConfigChanged("plot");
+check(E.sortLine.Enable == "on" && E.sortEdge.Enable == "on" && E.sortSeqEdit.Enable == "on" ...
+    && isempty(app.Config.Plots(kR).rasterSortEvent) && any(string(E.sortLine.Items) == "RespWindow"), ...
+    'sorting by "event" turns the sort event rows on, listing the lines; no line picked yet, the plot has no event');
+E.sortLine.Value = 'RespWindow'; E.sortEdge.Value = 'offset';
+app.onConfigChanged("plot");
+p = app.Config.Plots(kR);
+check(p.rasterSort == "event" && isstruct(p.rasterSortEvent) && p.rasterSortEvent.line == "RespWindow" ...
+    && p.rasterSortEvent.edge == "offset" && isempty(p.rasterSortEvent.sequence), 'the sort event''s line and edge reach the plot');
+app.refreshPreview(Force=true);
+R = app.PreviewResult;
+check(~isempty(R) && isfield(R, 'rasterSortEvent') && R.rasterSortEvent.label == "RespWindow offset" ...
+    && numel(R.rasterSortEvent.t) == height(R.epochs) && any(isfinite(R.rasterSortEvent.t)), ...
+    'the preview sorts the raster by each epoch''s latency to the RespWindow offset');
+E.rasterSort.Value = 'Depth';
+app.onConfigChanged("plot");
+p = app.Config.Plots(kR);
+check(E.sortLine.Enable == "off" && p.rasterSort == "Depth" && p.rasterSortEvent.line == "RespWindow", ...
+    'another sort turns the rows off; the plot keeps its sort event for later');
 A.Line.Value = 'RespWindow';
 A.ShiftParam.Value = 'RespLatency';
 app.onPlotAlignEdited("ref");
@@ -680,6 +703,12 @@ E.fontSize.Value = 12;
 app.onConfigChanged("plot");
 check(all(arrayfun(@(k) app.Config.Plots(k).style.FontSize == 12, [k2 k3 kR])) && app.Config.Plots(1).style.FontSize ~= 12, ...
     'a font size set there reaches all three, not the plots left unselected');
+E.rasterSort.Value = 'event'; E.sortLine.Value = 'RespWindow'; E.sortEdge.Value = 'offset';
+app.onConfigChanged("plot");
+sortsBy = @(k) app.Config.Plots(k).rasterSort == "event" && isstruct(app.Config.Plots(k).rasterSortEvent) ...
+    && app.Config.Plots(k).rasterSortEvent.line == "RespWindow" && app.Config.Plots(k).rasterSortEvent.edge == "offset";
+check(all(arrayfun(sortsBy, [k2 k3 kR])) && isempty(app.Config.Plots(1).rasterSortEvent), ...
+    'sorting the rasters by an event there gives all three that sort event, though none had one');
 n0 = numel(app.Config.Plots);
 app.onDuplicatePlot();
 ks = app.selectedPlots();

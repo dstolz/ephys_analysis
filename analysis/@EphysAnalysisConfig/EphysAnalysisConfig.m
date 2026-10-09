@@ -18,11 +18,12 @@ classdef EphysAnalysisConfig
     %     Plots     struct array, one entry per plot (defaults("Plot")): id,
     %               kind (see Kinds / plotKinds), enabled, source, units,
     %               channels, ref, window, selection, bins, baseline, layout,
-    %               withRaster, rasterSort, rasterSortOrder, rasterByGroup,
-    %               rasterEvents, histStyle, fill, fillAlpha, normalize, stack,
-    %               stackSpacing, maskAfterStop, param, seriesParam, yParam,
-    %               jitter, xScale, value, order, metric, correlation,
-    %               measure, auroc, waveform, note, aesthetics, style
+    %               withRaster, rasterSort, rasterSortEvent, rasterSortOrder,
+    %               rasterByGroup, rasterEvents, histStyle, fill, fillAlpha,
+    %               normalize, stack, stackSpacing, maskAfterStop, param,
+    %               seriesParam, yParam, jitter, xScale, value, order,
+    %               metric, correlation, measure, auroc, waveform, note,
+    %               aesthetics, style
     %     Export    figure files: Formats (png / eps / svg / pdf), Folder and
     %               FilenamePattern with tokens, Dpi, FigureSizeCm
     %     Report    one HTML and / or multi-page PDF report per run (or per

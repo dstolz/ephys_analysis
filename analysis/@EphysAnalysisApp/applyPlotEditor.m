@@ -70,13 +70,26 @@ E.stack.Value = p.stack;
 if p.stackSpacing > 0 && isfinite(p.stackSpacing); E.stackSpacing.Value = p.stackSpacing; end
 E.maskAfterStop.Value = p.maskAfterStop;
 params = string.empty(1, 0);
+lines = "Trial";
 if ~isempty(obj.Runner) && obj.ActiveIdx >= 1
-    try src = obj.Runner.source(obj.ActiveIdx); params = src.paramNames; catch; end
+    try
+        src = obj.Runner.source(obj.ActiveIdx);
+        params = src.paramNames;
+        lines = [lines string(fieldnames(src.events)).'];
+        if src.hasTrials && height(src.trials) > 0; lines = [lines string(fieldnames(src.trials.TrialEvents)).']; end
+    catch
+    end
 end
 offerItems(E.param, ["" params], p.param);
 offerItems(E.seriesParam, ["" params], p.seriesParam);
-offerItems(E.rasterSort, ["" "stop" params], p.rasterSort);
+offerItems(E.rasterSort, ["" "stop" "event" params], p.rasterSort);
 offerItems(E.rasterSortOrder, ["ascending" "descending"], p.rasterSortOrder);
+se = p.rasterSortEvent;   % none: a blank line to pick
+if isempty(se); se = EphysAnalysisConfig.defaults("EventRef"); se.line = ""; end
+offerItems(E.sortLine, ["" unique(lines, 'stable')], se.line);
+offerItems(E.sortEdge, ["onset" "offset"], se.edge);
+closeSequenceDialog(obj, E.sortSeqText);
+setSequenceHolder(E.sortSeqText, struct('sequence', se.sequence, 'alignStep', se.alignStep));
 E.rasterByGroup.Value = p.rasterByGroup;
 mk = p.rasterEvents;
 E.markLines.Value = char(strjoin(mk.lines, " "));

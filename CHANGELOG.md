@@ -10,6 +10,19 @@ says how to cut a release.
 
 ### Added
 
+- Raster rows sorted by the latency of another event, e.g. the time from
+  each epoch's event to the animal leaving the platform (Platform offset):
+  plot option `rasterSort "event"` with `rasterSortEvent`, an event
+  reference (line, edge, and optionally a sequence, `which`, scope and
+  shifts). The event is found as a stop event is (the first one at or
+  after the epoch's event, in its trial when it has one), but the epoch
+  window and its stop are left as they are. Epochs without such an event
+  sort last and the caption counts them; the y label and caption name the
+  event. `eventLatency(src, E, ref)` computes the latencies (`computePlot`
+  keeps them as `R.rasterSortEvent`; standalone scripts write the call).
+  The analysis app's plot editor has **Sort event** and **Sort sequence**
+  rows under **Sort raster by**.
+
 - Colours and keys for the analysis app's plot editor sections. Each of the nine
   section headers (Units & channels, Event reference, Epoch window, Trial
   selection, Bins & baseline, Options, Appearance, Unit waveform, Text note) has
@@ -640,6 +653,18 @@ says how to cut a release.
   `.claude/worktrees` and operating-system files.
 
 ### Fixed
+
+- Analysis plots of threshold detections (source *detected*) and of signals
+  labelled every channel "sh0" with no depth, and could not sort them by depth
+  or shank, when the dataset's manifest names no probe file: the case for a
+  dataset sorted with the pipeline's default probe, which the manifest records
+  only with `Probe.WriteDefaultToManifest`. Sorted units were labelled right,
+  since their sites come from the sort folder. `loadAnalysisSource` now takes
+  the probe map the sort used (`channel_map.npy`, `channel_positions.npy`,
+  `channel_shanks.npy`) when there is no probe file, and says which in
+  `src.probeSource` (`"manifest"`, `"sorting"` or `""`). Probe maps and
+  waveforms on the probe draw from it too, and the report's recording table
+  names it.
 
 - `DatasetOutputs.readUnits` on a folder whose manifest named an existing probe
   file failed with `Invalid argument name 'ProbeFile'`: it passed an option

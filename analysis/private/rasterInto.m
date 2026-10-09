@@ -8,10 +8,11 @@ function rows = rasterInto(ax, R, u, style, colors, sortBy, look)
 %     order    "ascending" (default) | "descending": the direction of the
 %              SORTBY key. SORTBY "" (default) is the epochs' time (trial)
 %              order, so "descending" turns it over; "stop" sorts them by
-%              their stop event's latency (R.epochStop); any other value
-%              names a column of R.epochs (a trial parameter epochTable
-%              copied on). Missing values sort last either way; ties keep
-%              the time order
+%              their stop event's latency (R.epochStop); "event" by their
+%              latency to the event of R.rasterSortEvent (label, t:
+%              eventLatency); any other value names a column of R.epochs
+%              (a trial parameter epochTable copied on). Missing values
+%              sort last either way; ties keep the time order
 %    byGroup   true (default): the rows go by group first, each group's on
 %              a pale band of its colour; false: every epoch sorted as one
 %              block, each row on its group's colour
@@ -105,8 +106,8 @@ end
 
 function [key, name] = rasterSortKey(R, sortBy, nE)
 %rasterSortKey  Each epoch's sort value and the raster's y label.
-%   "" gives the epoch index (time order), "stop" R.epochStop, any other
-%   name that column of R.epochs.
+%   "" gives the epoch index (time order), "stop" R.epochStop, "event"
+%   R.rasterSortEvent.t, any other name that column of R.epochs.
 sortBy = strtrim(string(sortBy));
 name = "Epoch";
 if sortBy == ""
@@ -116,6 +117,19 @@ end
 if sortBy == "stop"
     key = R.epochStop(:);
     name = "Epoch (by stop latency)";
+    return
+end
+if sortBy == "event"
+    if ~(isfield(R, 'rasterSortEvent') && isstruct(R.rasterSortEvent) && isscalar(R.rasterSortEvent) ...
+            && all(isfield(R.rasterSortEvent, {'label', 't'})))
+        error('renderRaster:NoSortEvent', ['The raster sorts by an event''s latency, but the result holds no ' ...
+            'R.rasterSortEvent (label, t: eventLatency).']);
+    end
+    key = R.rasterSortEvent.t(:);
+    if numel(key) ~= nE
+        error('renderRaster:NoSortEvent', 'R.rasterSortEvent.t holds %d latencies for %d epochs.', numel(key), nE);
+    end
+    name = "Epoch (by " + string(R.rasterSortEvent.label) + " latency)";
     return
 end
 if ~(isfield(R, 'epochs') && istable(R.epochs) && ismember(sortBy, string(R.epochs.Properties.VariableNames)))

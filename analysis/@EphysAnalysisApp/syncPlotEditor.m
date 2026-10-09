@@ -23,8 +23,10 @@ function syncPlotEditor(obj)
 %     baseline                    every kind but raster, probemap and behavior
 %     grid spacing                every kind but rate and behavior (only grids use it)
 %     raster, PSTH as, normalize, fill, stack   psth
-%     sort raster by (and its direction), rows by group, mark events,
+%     sort raster by (and its direction), sort event and its sequence,
+%       rows by group, mark events,
 %       mark look                 psth, raster (enabled with a raster; the
+%                                 sort event when sorting by "event"; the
 %                                 look with lines to mark)
 %     parameter, series           tuning, behavior
 %     y value, x axis             behavior (jitter enabled for points)
@@ -180,6 +182,7 @@ en(E.raResamples, on && string(E.raTest.Value) ~= "ranksum");
 en(E.stackSpacing, stacked);
 raster = kind == "raster" || E.withRaster.Value;
 en([E.rasterSort E.rasterSortOrder E.rasterByGroup E.markLines E.markEdge E.markScope E.markSeqText E.markSeqEdit], raster);
+en([E.sortLine E.sortEdge E.sortSeqText E.sortSeqEdit], raster && strtrim(string(E.rasterSort.Value)) == "event");
 en([E.markMarker E.markSize E.markColor], raster && (strtrim(string(E.markLines.Value)) ~= "" || ~isempty(E.markSeqText.UserData)));
 en(E.jitter, layout == "points");
 en([E.legend E.ylim], ~stacked);
@@ -227,6 +230,7 @@ v.raTest = respAuroc && raCutoff == "test";
 v.withRaster = psth; v.histStyle = psth; v.normalize = psth; v.fill = psth; v.stack = psth;
 v.rasterSort = ismember(kind, ["psth" "raster"]) && spikes;
 v.rasterByGroup = v.rasterSort; v.markLines = v.rasterSort; v.markSeqText = v.rasterSort; v.markMarker = v.rasterSort;
+v.sortLine = v.rasterSort; v.sortSeqText = v.rasterSort;
 v.param = ismember(kind, ["tuning" "behavior"]); v.seriesParam = v.param;
 v.yParam = behavior; v.xScale = behavior;
 v.value = kind == "probemap";

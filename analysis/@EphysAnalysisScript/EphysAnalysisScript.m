@@ -16,7 +16,8 @@ classdef EphysAnalysisScript
     %                                 probeMapValues / behaviorValues (and
     %                                 unitWaveforms for the waveform boxes,
     %                                 epochEvents for a raster's event
-    %                                 marks), then a page at a time
+    %                                 marks, eventLatency for a raster
+    %                                 sorted by an event), then a page at a time
     %                                 newExportFigure, renderPlot,
     %                                 exportFigure, reportImage and
     %                                 reportPdfPage, the report calls. It
@@ -249,7 +250,7 @@ classdef EphysAnalysisScript
             L = strings(0, 1);
             switch spec.kind
                 case {"psth" "raster" "heatmap"}
-                    if ismember(spec.kind, ["psth" "raster"]) && ~ismember(spec.rasterSort, ["" "stop"])
+                    if ismember(spec.kind, ["psth" "raster"]) && ~ismember(spec.rasterSort, ["" "stop" "event"])
                         L(end+1, 1) = "[E, G] = epochTable(src, spec.ref, Window=spec.window, Selection=spec.selection, Baseline=" + b + ...
                             ", Columns=" + lit(spec.rasterSort) + ");   % the raster's sort parameter";
                     else
@@ -273,6 +274,10 @@ classdef EphysAnalysisScript
                         elseif raster && ~isempty(m.lines)
                             L(end+1, 1) = "R.rasterEvents = epochEvents(src, E, Lines=" + lit(m.lines) + ", Edge=" + lit(m.edge) + ...
                                 ", Scope=" + lit(m.scope) + ");   % the raster's event marks";
+                        end
+                        if raster && spec.rasterSort == "event"
+                            L(end+1, 1) = "[sortLat, sortLabel] = eventLatency(src, E, spec.rasterSortEvent);   % the raster's sort key: each epoch's latency to the event";
+                            L(end+1, 1) = "R.rasterSortEvent = struct('label', sortLabel, 't', sortLat);";
                         end
                     end
                 case "evoked"

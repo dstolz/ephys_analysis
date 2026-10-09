@@ -22,7 +22,8 @@ function txt = plotCaption(spec, R)
 %   counts the events left out for lacking a value; an event of a sequence
 %   is named step by step ("Trial offset then Trough onset", eventRefLabel)
 %   and the events its sequence did not follow are counted; a raster says how its
-%   rows are sorted and which events it marks; a behavior plot what it
+%   rows are sorted (by an event's latency: how many epochs had no such
+%   event and went last) and which events it marks; a behavior plot what it
 %   plots against what, per series, and how many epochs had no value. The
 %   reports print it under each figure.
 %
@@ -160,6 +161,11 @@ end
 if ismember(spec.kind, ["psth" "raster"]) && isfield(R, 'raster') && ~isempty(R.raster)
     by = spec.rasterSort;
     if by == "stop"; by = "stop latency"; end
+    nNoEvent = 0;
+    if by == "event"
+        [ev, nNoEvent] = sortEventText(spec, R);
+        by = ev + " latency";
+    end
     if by == "" && spec.rasterSortOrder == "descending"; by = "time"; end
     within = " within each group";
     if ~spec.rasterByGroup && height(R.groups) > 1; within = " across groups"; end
@@ -167,6 +173,9 @@ if ismember(spec.kind, ["psth" "raster"]) && isfield(R, 'raster') && ~isempty(R.
         dir = "";
         if spec.rasterSortOrder == "descending"; dir = ", descending"; end
         parts(end+1) = "raster epochs sorted by " + by + dir + within;
+        if nNoEvent > 0
+            parts(end+1) = sprintf("%d epoch(s) with no %s after their event sorted last", nNoEvent, ev);
+        end
     elseif within == " across groups"
         parts(end+1) = "raster epochs in time order across groups";
     end
@@ -181,6 +190,20 @@ if isfield(R, 'waveforms') && spec.waveform.mode ~= "off"
 end
 parts(end+1) = sourceText(spec, R);
 txt = strjoin(parts, "; ") + ".";
+end
+
+
+function [s, nNone] = sortEventText(spec, R)
+%sortEventText  The event a raster is sorted by ("Platform offset"), and how many epochs have none.
+nNone = 0;
+if isfield(R, 'rasterSortEvent') && isstruct(R.rasterSortEvent) && isfield(R.rasterSortEvent, 'label')
+    s = string(R.rasterSortEvent.label);
+    nNone = nnz(~isfinite(R.rasterSortEvent.t));
+elseif ~isempty(spec.rasterSortEvent)
+    s = eventRefLabel(spec.rasterSortEvent);
+else
+    s = "event";
+end
 end
 
 

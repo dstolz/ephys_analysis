@@ -35,7 +35,9 @@ function issues = validate(obj, opts)
 %               the Statistics and Machine Learning Toolbox it needs);
 %               a waveform mode other than off: its location, scale (0-3)
 %               and maxSpikes, and a warning when the plot draws no unit
-%               tiles (a raster, a PSTH or tuning grid of spikes); style
+%               tiles (a raster, a PSTH or tuning grid of spikes, a
+%               waveforms plot); its amplitude scale; a waveforms plot's
+%               mode is never off; style
 %               values
 %     Export    formats are png / eps / svg / pdf; Dpi, FigureSizeCm; the
 %               folder and file-name patterns use known tokens; a warning
@@ -278,8 +280,13 @@ for k = 1:numel(obj.Plots)
     end
     wv = p.waveform;
     w0 = f0 + ".waveform";
+    if ~ismember(wv.ampScale, ["unit" "common"])
+        add("Plots", w0 + ".ampScale", "error", "The waveform amplitude scale is unit or common.");
+    end
     if ~ismember(wv.mode, ["off" "mean" "subsample" "both"])
         add("Plots", w0 + ".mode", "error", "The waveform mode is off, mean, subsample or both.");
+    elseif p.kind == "waveforms" && wv.mode == "off"
+        add("Plots", w0 + ".mode", "error", "A waveforms plot shows the mean, a subsample or both: its waveform mode cannot be off.");
     elseif wv.mode ~= "off"
         if ~ismember(wv.location, EphysAnalysisConfig.WaveformLocations)
             add("Plots", w0 + ".location", "error", "The waveform location is one of " + ...
@@ -291,7 +298,7 @@ for k = 1:numel(obj.Plots)
         if ~(wv.maxSpikes >= 1 && wv.maxSpikes == round(wv.maxSpikes))
             add("Plots", w0 + ".maxSpikes", "error", "maxSpikes is a whole number of spikes, at least 1.");
         end
-        if ~(ismember(p.source, EphysAnalysisConfig.SpikeSources) && (p.kind == "raster" || ...
+        if ~(ismember(p.source, EphysAnalysisConfig.SpikeSources) && (ismember(p.kind, ["raster" "waveforms"]) || ...
                 (ismember(p.kind, ["psth" "tuning"]) && p.layout ~= "overlay")))
             add("Plots", w0 + ".mode", "warning", "Unit waveforms are drawn in the tiles of a raster, or of a " + ...
                 "PSTH or tuning grid, of spikes; this plot draws none.");

@@ -321,7 +321,7 @@ use.
 | `order` | `"probe"` | heatmap rows: `"probe"` (the style's `SortDepth` / `SortShank`), `"peak"` (by the time of each row's maximum) or, with the auROC baseline, `"modulation"` (by the first group's mean auROC in the call window, highest first; the other tiles keep that order, as the paper's Fig 3A). A corrmap follows the style's sort options |
 | `metric` | `"mean"` | corrmap: each epoch's `"mean"` rate over its window, or its `"peak"` binned rate (`bins`) |
 | `correlation` | `"pearson"` | corrmap: `"pearson"` or `"spearman"` |
-| `waveform` | [Waveform](#unit-waveforms), `mode "off"` | raster, psth and tuning grids of spikes: each unit's waveform in its tile |
+| `waveform` | [Waveform](#unit-waveforms), `mode "off"` | raster, psth and tuning grids of spikes: each unit's waveform in its tile; a `waveforms` plot: its settings (mode `"both"` for a plot added by `addPlot` or the app) |
 | `style` | [Style](#style) | |
 | `aesthetics` | none | remembered looks of the plot's components: a list of rules `{role, group, property, value}` (`group` `""` = every group; `value` a number, an `[r g b]` colour or text), applied after drawing, over the user's own rules for the kind. The preview's right-click editor writes them ([Plot aesthetics](EphysAnalysis.md#plot-aesthetics)); a rule with a property the editor does not know is refused (`EphysAnalysisConfig:BadValue`) |
 
@@ -339,6 +339,7 @@ The kinds, from `EphysAnalysisConfig.plotKinds()`; the app's
 | `probemap` | Probe map | units, detected | shanks | (no alignment) | none | a per-channel value on the probe sites |
 | `corrmap` | Unit correlation | units, detected | groups | fixed, between | none, subtract | pairwise correlation of the units' per-epoch mean or peak rates, one matrix per group |
 | `behavior` | Behavior | trials | points, line, box, swarm, violin | fixed | none | a per-trial value (`yParam`) against a trial parameter, one series per value of another ([Behavior plots](#behavior-plots)) |
+| `waveforms` | Unit waveforms | units, detected | grid, probe | (no alignment) | none | each unit's mean waveform and a sample of its spikes, a tile per unit or at the unit's place on the probe ([Waveforms plots](#waveforms-plots)) |
 
 What the baseline modes do (`baseline.Window` `[b0 b1]`, s from the event):
 
@@ -505,6 +506,40 @@ the legend and its parts (`waveBox`, `waveSpikes`, `waveMean`,
 `waveLabel`) take [aesthetics](EphysAnalysis.md#plot-aesthetics) like any
 other. An overlay of units draws none.
 
+### Waveforms plots
+
+A `waveforms` plot is the unit waveforms as a plot of their own: no
+events, no trials, nothing but the units (the Units & channels rows pick
+which) and their waveforms. It uses the `waveform` settings above, with
+`mode` never `"off"` (Validate refuses it), and three more:
+
+| Field | Default | Meaning |
+| --- | --- | --- |
+| `ampScale` | `"unit"` | `"unit"`: each waveform fills its tile or glyph; `"common"`: one amplitude scale for every unit whose values are of the same kind (all µV, say), so sizes compare. Units of another kind (a template beside spikes) keep their own |
+| `showSites` | `true` | probe layout: the probe's sites in grey behind the waveforms |
+| `showNames` | `false` | probe layout: each unit's name beside its waveform (with the p-p amplitude and spike count when `showPP` / `showCount`) |
+
+Layouts:
+
+- `"grid"` (default): a tile per unit (`style.MaxTiles` per page, ordered
+  and titled like the other grids by `SortDepth`, `SortShank`,
+  `LabelDepth`, `LabelShank`): time from the spike (ms) against amplitude,
+  the spike's time dotted, a label (`showPP`, `showCount`) in the corner.
+  `ampScale "common"` gives every tile the same amplitude axis.
+- `"probe"`: one panel in the probe's x and y (µm): each unit's waveform
+  is a glyph centred on its position (`meta.x`, `y`), shanks side by side
+  as in the probe map. `scale` sizes the glyphs (1 = about a twelfth of
+  the probe's length, at least 30 µm); with `ampScale "common"` the
+  largest unit fills a glyph's height, the others are in proportion, and a
+  scale bar names the amplitude it spans. A unit without a position is
+  left out, and the panel says so. The plot is skipped for a dataset
+  without a probe map ("no probe map").
+
+The parts (`waveSpikes`, `waveMean`, `waveZero`, `waveLabel`, `waveSites`,
+`waveName`, `waveScale`) take [aesthetics](EphysAnalysis.md#plot-aesthetics).
+A raster of one unit's own spikes beside its waveform is a raster with a
+`waveform` box; this plot is for looking at the waveforms themselves.
+
 ## Export
 
 | Field | Default | Meaning |
@@ -580,7 +615,7 @@ with 20 units and 16 tiles per page is written as
 | Defaults, Plots | the event reference, window and selection are valid: known values, `n` a whole number >= 1, `0 <= minDurationSec <= maxDurationSec`, `timeRange` ordered, a finite `offsetSec`, `offsetParamUnit` ms or s, finite `pre` and `post`, `pre <= post` in a fixed window, a stop event in a `"between"` window, known response words and pairing flags, at most 2 distinct `groupBy` parameters, `maxGroups` and `trials` whole numbers >= 1 | error |
 | Defaults, Plots | a filter that does not parse | warning (it is checked against each dataset's trials when it runs) |
 | Plots | at least one enabled; ids that stay distinct once `{Plot}` has sanitized them (case-blind); the kind exists; the source, layout, window mode and baseline mode fit the kind; `measure` rate / count / probability; tuning names its parameter; behavior names `param` and `yParam` (`"stop"` with a stop event), its `xScale` is category / linear and the violin layout has `violinplot`; a psth / raster `rasterSortOrder` ascending / descending and `rasterEvents` edge, scope, marker and a positive size; `BinSec > 0`, `SmoothSec >= 0` where bins are used; a baseline window `[b0 b1]` with `b0 < b1`; probemap value, psth `histStyle` bar / line, `normalize` none / unitPeak / groupPeak, `fillAlpha` 0-1 or NaN, `stackSpacing > 0`; heatmap order (`"modulation"` only with the auROC baseline); the auROC settings (method, windows, whole-bin window and step, call window, cutoff, threshold, test, `nResamples`, correction, alpha, `modulatedOnly` with a cutoff) and the toolbox they need; corrmap metric and correlation; `maxUnits >= 1`; an enabled response test of spikes: its test, `param` for tuning / either / both, `baseline` and `window` ordered, direction, correction, alpha in (0, 1], the auROC settings of a test `"auroc"` (with a cutoff) and the Statistics and Machine Learning Toolbox; a `waveform` mode off / mean / subsample / both and, when not off, its location, `scale` in (0, 3] and a whole `maxSpikes >= 1`; `MaxTiles >= 1`, `TileSpacing` loose / compact / tight / none, `FontSize`, `LineWidth`, `SiteSize` positive | error |
-| Plots | a `HeatColormap` that is not a colormap function; a `Colormap` that is neither a colormap function nor a colour (the default is used); a `rasterEvents.color` that is not a colour (each mark gets its own); a `waveform` mode on a plot that draws no unit tiles (an overlay, a plot of signals, a kind other than raster / psth / tuning) | warning |
+| Plots | a `HeatColormap` that is not a colormap function; a `Colormap` that is neither a colormap function nor a colour (the default is used); a `rasterEvents.color` that is not a colour (each mark gets its own); a `waveform` mode on a plot that draws no unit tiles (an overlay, a plot of signals, a kind other than raster / psth / tuning / waveforms) | warning |
 | Export | formats are png / eps / svg / pdf (and at least one when enabled); `Dpi` positive; `FigureSizeCm` two positive numbers; the folder and file-name patterns use known tokens, and the file-name pattern is not empty | error |
 | Export | a file-name pattern without `{Plot}` while several plots are enabled (`{Kind}` is enough when the enabled plots all differ in kind); neither the folder nor the file-name pattern names the dataset (`{OutputFolder}` or `{Name}`), unless the source is a single folder: files that would overwrite each other | warning |
 | Report | Format html / pdf / both, EmbedFormat png / svg, `Dpi` positive, a plain `FileName`, the folder pattern | error |

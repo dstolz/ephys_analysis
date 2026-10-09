@@ -748,6 +748,74 @@ check(isscalar(part(h.axes(1), "waveMean")) && isempty(part(h.axes(1), "waveSpik
     'a template is drawn as the mean whatever the mode, and its label says so');
 delete(fig10);
 
+fprintf('\n== waveforms plot ==\n');
+probeW = struct('chanMap', (0:5).', 'xc', [0 0 0 200 200 200].', 'yc', [0 50 100 0 50 100].', 'kcoords', [0 0 0 1 1 1].');
+Rw = struct('kind', "waveforms", 'meta', meta, 'labels', meta.label, 'n', 3, 'probe', probeW, 'waveforms', Ww, ...
+    'groups', table(1, "all", [0.15 0.15 0.15], 3, 'VariableNames', {'index', 'label', 'color', 'n'}));
+fig11 = figure('Visible', 'off');
+part = @(ax, tag) findall(ax, 'Tag', tag);
+wspec = @(varargin) struct('kind', "waveforms", varargin{:});
+h = renderPlot(Rw, wspec('waveform', struct('mode', "both")), fig11);
+ok = numel(h.axes) == 3;
+for ax = h.axes
+    ok = ok && isscalar(part(ax, "waveMean")) && isscalar(part(ax, "waveSpikes")) && nnz(isnan(part(ax, "waveSpikes").YData)) == 12 ...
+        && isscalar(part(ax, "waveZero")) && isequal(ax.XLim, [min(tms) max(tms)]);
+end
+check(ok && h.title == "Unit waveforms (3 units)" && isscalar(part(h.axes(1), "waveLabel")), ...
+    'grid: a tile per unit, its 12 spikes and mean on the spike-time axis (ms), the spike''s time marked, a label');
+check(isequal(arrayfun(@(a) string(a.Title.String), h.axes), ["u2" "u3" "u1"]), 'the tiles go top of the probe first, titled by unit');
+yl = vertcat(h.axes.YLim);
+check(size(unique(yl, 'rows'), 1) == 3, 'amplitude "unit": every tile has the limits of its own waveform');
+h = renderPlot(Rw, wspec('waveform', struct('mode', "mean", 'ampScale', "common")), fig11);
+yl = vertcat(h.axes.YLim);
+check(size(unique(yl, 'rows'), 1) == 1 && all(arrayfun(@(a) isempty(part(a, "waveSpikes")), h.axes)), ...
+    'amplitude "common", mode "mean": one amplitude axis for every tile, no spikes');
+h = renderPlot(Rw, wspec('style', struct('MaxTiles', 2)), fig11);
+check(plotPageCount(Rw, wspec('style', struct('MaxTiles', 2))) == 2 && plotPageCount(Rw, wspec('layout', "probe")) == 1, ...
+    'MaxTiles pages the grid; the probe layout is one page');
+cap = plotCaption(wspec('waveform', struct('mode', "both")), Rw);
+check(contains(cap, "each unit's mean waveform and up to 12 of its spikes on its peak channel, one tile per unit, each on its own amplitude scale") ...
+    && contains(cap, "3 sorted unit(s)"), 'the caption says what the tiles show and how they are scaled');
+
+h = renderPlot(Rw, wspec('layout', "probe", 'waveform', struct('mode', "both")), fig11);
+ax = h.axes;
+mu = part(ax, "waveMean"); sp = part(ax, "waveSpikes"); sites = part(ax, "waveSites");
+gh = 30;   % the probe is 100 um tall: a twelfth is below the 30 um floor
+mx = reshape(mu.XData, [], 3); my = reshape(mu.YData, [], 3);   % a unit per column, a NaN row each
+ok = isscalar(mu) && isscalar(sp) && isscalar(sites) && nnz(isnan(mu.XData)) == 3 && nnz(isnan(sp.YData)) == 36 && numel(sites.XData) == 6;
+ok = ok && all(abs((min(mx) + max(mx)) / 2 - [0 8 200]) < 1e-9);          % centred on x (the shanks are far enough apart)
+ok = ok && all(all(abs(my(1:end-1, :) - meta.y.') <= gh / 2 + 1e-9));
+check(ok && string(ax.XLabel.String) == "x (µm)" && isempty(part(ax, "waveName")) && isempty(part(ax, "waveScale")), ...
+    'probe: one panel; every unit''s spikes and mean as a glyph at its position (within 30 um of its y), the probe''s sites behind');
+h = renderPlot(Rw, wspec('layout', "probe", 'waveform', struct('mode', "mean", 'scale', 2)), fig11);
+my = reshape(part(h.axes, "waveMean").YData, [], 3);
+check(all(abs((max(my) - min(my)) - 2 * gh) < 1e-9), 'scale 2 doubles the glyphs; "unit" scale fills each glyph''s height');
+h = renderPlot(Rw, wspec('layout', "probe", 'waveform', struct('mode', "mean", 'ampScale', "common")), fig11);
+my = reshape(part(h.axes, "waveMean").YData, [], 3);
+hgt = max(my) - min(my);
+check(abs(hgt(3) - gh) < 1e-9 && abs(hgt(1) / hgt(3) - 1 / 3) < 0.1 && numel(part(h.axes, "waveScale")) == 2, ...
+    '"common": the largest unit fills the height, the others in proportion (a third), and a scale bar says how much');
+h = renderPlot(Rw, wspec('layout', "probe", 'waveform', struct('mode', "both", 'showSites', false, 'showNames', true, 'showPP', false)), fig11);
+check(isempty(part(h.axes, "waveSites")) && numel(part(h.axes, "waveName")) == 3, 'sites off, unit names on');
+Rw2 = Rw; Rw2.meta.x(2) = NaN;
+h = renderPlot(Rw2, wspec('layout', "probe"), fig11);
+lb = part(h.axes, "waveLabel");
+check(nnz(isnan(part(h.axes, "waveMean").XData)) == 2 && isscalar(lb) && contains(string(lb.String), "1 unit(s) without a probe position"), ...
+    'a unit without a position is left out, and the panel says so');
+Rw3 = Rw; Rw3.waveforms.from(:) = "template"; Rw3.waveforms.spikes(:) = {[]};
+h = renderPlot(Rw3, wspec('waveform', struct('mode', "subsample")), fig11);
+check(all(arrayfun(@(a) isscalar(part(a, "waveMean")) && isempty(part(a, "waveSpikes")) && endsWith(part(a, "waveLabel").String, "(template)"), h.axes)), ...
+    'templates are drawn as the mean whatever the mode, and say so');
+delete(fig11);
+cfgw = EphysAnalysisConfig().addPlot("waveforms");
+iss = cfgw.validate(CheckPaths=false);
+cfgw.Plots(1).waveform.mode = "off";
+iss2 = cfgw.validate(CheckPaths=false);
+bad = iss2(iss2.Section == "Plots" & iss2.Severity == "error", :);
+check(cfgw.Plots(1).source == "units" && cfgw.Plots(1).layout == "" && ~any(iss.Section == "Plots") ...
+    && height(bad) == 1 && endsWith(bad.Field, ".waveform.mode"), ...
+    'a new waveforms plot is valid and shows both; mode "off" is an error for it');
+
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0
     error('test_EphysAnalysisCompute:Failures', '%d checks failed.', nFail);

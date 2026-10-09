@@ -30,8 +30,10 @@ function [R, E, G] = computePlot(obj, src, spec) %#ok<INUSD>
 %   A raster of spikes (raster, or psth with withRaster) with event lines
 %   to mark (spec.rasterEvents.lines) also gets R.rasterEvents =
 %   epochEvents(src, E, Lines=, Edge=, Scope=).
-%   A raster, or a PSTH or tuning grid, of spikes with spec.waveform.mode
-%   other than "off" also gets R.waveforms = unitWaveforms(src, R.meta,
+%     waveforms [~, meta] = selectUnits(src, spec.units, Ref=, Selection=); R holds
+%               meta, labels, one group, and the probe map; the waveforms below
+%   A waveforms plot, a raster, or a PSTH or tuning grid, of spikes with
+%   spec.waveform.mode other than "off" also gets R.waveforms = unitWaveforms(src, R.meta,
 %   Source=spec.source, MaxSpikes=spec.waveform.maxSpikes): the units it
 %   kept, in its order.
 %   R also gets epochs (E), dataset (the name) and spec. EphysAnalysisScript
@@ -87,6 +89,10 @@ switch spec.kind
         T = unitSummary(src, Source=spec.source, Units=spec.units, Ref=spec.ref, Selection=spec.selection);
         R = probeMapValues(T, src.probe, Value=spec.value);
         G = R.groups;
+    case "waveforms"
+        [~, meta] = selectUnits(src, spec.units, Ref=spec.ref, Selection=spec.selection);
+        G = table(1, "all", [0.15 0.15 0.15], height(meta), 'VariableNames', {'index', 'label', 'color', 'n'});
+        R = struct('kind', "waveforms", 'meta', meta, 'labels', meta.label, 'n', height(meta), 'groups', G, 'probe', src.probe);
     case "behavior"
         cols = [spec.param spec.seriesParam];
         if spec.yParam ~= "stop"; cols(end+1) = spec.yParam; end
@@ -128,7 +134,7 @@ end
 
 
 function tf = drawsWaveforms(spec)
-%drawsWaveforms  The plot draws each unit's waveform: a raster, or a PSTH or tuning grid, of spikes, with waveform.mode on.
-tf = spec.waveform.mode ~= "off" && ismember(spec.source, EphysAnalysisConfig.SpikeSources) && ...
-    (spec.kind == "raster" || (ismember(spec.kind, ["psth" "tuning"]) && spec.layout ~= "overlay"));
+%drawsWaveforms  The plot draws each unit's waveform: a raster, or a PSTH or tuning grid, of spikes, with waveform.mode on; a waveforms plot.
+tf = ismember(spec.source, EphysAnalysisConfig.SpikeSources) && (spec.kind == "waveforms" || ...
+    (spec.waveform.mode ~= "off" && (spec.kind == "raster" || (ismember(spec.kind, ["psth" "tuning"]) && spec.layout ~= "overlay"))));
 end

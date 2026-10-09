@@ -3,7 +3,7 @@ function reason = plotSkipReason(src, spec)
 %   REASON = plotSkipReason(SRC, SPEC) checks what the plot SPEC (plotFor)
 %   needs against what loadAnalysisSource found in SRC: "disabled", "no
 %   sorted units", "no detected spikes", "no <SIGNAL> extract", "no probe
-%   map", "no paired trials" (trial scope, "Trial", a selection that filters
+%   map" (a probe map, or a waveforms plot in the probe layout), "no paired trials" (trial scope, "Trial", a selection that filters
 %   or groups trials, an event or stop shifted by a trial parameter, a
 %   tuning or behavior plot), "no line X" (the aligned or stop line, or a
 %   raster's event marks), "no trial parameter X" (grouping, shifting,
@@ -31,10 +31,11 @@ switch spec.source
             reason = "no " + spec.source + " extract"; return
         end
 end
-if spec.kind == "probemap"
+if spec.kind == "probemap" || (spec.kind == "waveforms" && spec.layout == "probe")
     if isempty(src.probe); reason = "no probe map"; end
     return
 end
+if spec.kind == "waveforms"; return; end
 sel = spec.selection;
 st = spec.window.stop;
 restrictive = sel.filter ~= "" || ~isempty(sel.response) || ~isempty(sel.trials) || ~isempty(sel.groupBy);

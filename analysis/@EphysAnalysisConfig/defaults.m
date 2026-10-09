@@ -122,7 +122,8 @@ switch section
             'modulatedOnly',    false);          % keep only the units modulated in some group
 
     case "Waveform"
-        % a psth / raster / tuning plot's unit waveform: a box in each unit's tile (unitWaveforms; renderers' Waveform)
+        % a psth / raster / tuning plot's unit waveform: a box in each unit's tile (unitWaveforms; renderers' Waveform);
+        % a waveforms plot's settings: mode, maxSpikes, showPP, showCount, scale (the probe glyphs' size), ampScale, showSites, showNames
         s = struct( ...
             'mode',      "off", ...         % "off" | "mean" | "subsample" | "both" (the mean over the subsample)
             'location',  "northeast", ...   % compass point of the tile: north, south, east, west, northeast, northwest, southeast, southwest
@@ -130,7 +131,10 @@ switch section
             'showPP',    true, ...          % the mean's peak-to-peak amplitude in the box's label
             'showCount', false, ...         % the unit's total spike count, in the box's label
             'scale',     1, ...             % size: 1 = a third of the tile's width and height (at most 3)
-            'maxSpikes', 100);              % the subsample: spikes per unit, at random (the same each time); a sorted unit's mean is over them
+            'maxSpikes', 100, ...           % the subsample: spikes per unit, at random (the same each time); a sorted unit's mean is over them
+            'ampScale',  "unit", ...        % waveforms plot: "unit" (each waveform fills its own tile / glyph) | "common" (one amplitude scale for all units of the same kind of value)
+            'showSites', true, ...          % waveforms plot, probe layout: the probe's sites behind the waveforms
+            'showNames', false);            % waveforms plot, probe layout: each unit's name beside its waveform
 
     case "Export"
         s = struct( ...
@@ -195,7 +199,7 @@ switch section
             'order',         "probe", ...       % heatmap rows: "probe" (the style's SortDepth / SortShank) | "peak" | "modulation" (auROC: the first group's mean in the modulation window)
             'metric',        "mean", ...        % corrmap: each epoch's "mean" or "peak" (binned) rate
             'correlation',   "pearson", ...     % corrmap: "pearson" | "spearman"
-            'waveform',      EphysAnalysisConfig.defaults("Waveform"), ...   % psth / raster / tuning grids: each unit's waveform in its tile
+            'waveform',      EphysAnalysisConfig.defaults("Waveform"), ...   % psth / raster / tuning grids: each unit's waveform in its tile; waveforms: the plot's own settings
             'style',         EphysAnalysisConfig.defaults("Style"), ...
             'aesthetics',    PlotAesthetics.emptyRules());   % remembered looks of components: role, group, property, value (PlotAesthetics)
 

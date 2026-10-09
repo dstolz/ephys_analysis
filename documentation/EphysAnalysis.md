@@ -1061,7 +1061,8 @@ pipeline's selected datasets instead of `cfg.Source`
   plot's `auroc`), `evokedPotential` for an evoked plot or a heatmap of a
   signal, `firingRate` for a rate plot; tuning: an `epochTable` with the
   parameter columns, `firingRate`, `tuningCurve`; corrmap:
-  `unitCorrelation`; probemap: `unitSummary` + `probeMapValues`. A raster,
+  `unitCorrelation`; probemap: `unitSummary` + `probeMapValues`; waveforms:
+  `selectUnits` alone (no events). A waveforms plot, or a raster,
   PSTH grid or tuning grid of spikes with `waveform.mode` on also gets
   `R.waveforms` ([Unit waveforms](#unit-waveforms)), and every `R` gets
   `epochs`, `dataset` and `spec`.

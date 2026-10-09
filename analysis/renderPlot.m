@@ -3,9 +3,10 @@ function h = renderPlot(R, spec, target, opts)
 %   H = renderPlot(R, SPEC, TARGET, Page=P) dispatches on SPEC.kind (a plot
 %   entry, e.g. from EphysAnalysisConfig.plotFor; [] = the defaults for
 %   R.kind) to renderPSTH, renderRaster, renderEvoked, renderRates,
-%   renderTuning, renderHeatmap, renderProbeMap, renderCorrMap or
-%   renderBehavior, with SPEC.style, the layout, SPEC.waveform (psth,
-%   raster and tuning: each unit's waveform from R.waveforms in its tile),
+%   renderTuning, renderHeatmap, renderProbeMap, renderCorrMap,
+%   renderBehavior or renderWaveforms, with SPEC.style, the layout,
+%   SPEC.waveform (psth, raster and tuning: each unit's waveform from
+%   R.waveforms in its tile; waveforms: the plot's own settings),
 %   the raster's sort and event marks (rasterSort, rasterSortOrder,
 %   rasterByGroup, rasterEvents), and page P of a grid (plotPageCount
 %   pages). TARGET is an axes,
@@ -84,6 +85,8 @@ switch spec.kind
         h = renderCorrMap(R, target, Style=style);
     case "behavior"
         h = renderBehavior(R, target, Layout=spec.layout, Jitter=spec.jitter, XScale=spec.xScale, Style=style);
+    case "waveforms"
+        h = renderWaveforms(R, target, Layout=spec.layout, Page=page, Waveform=spec.waveform, Style=style);
     otherwise
         error('renderPlot:BadKind', 'Unknown plot kind "%s".', spec.kind);
 end
@@ -188,6 +191,12 @@ if spec.kind == "probemap"
 end
 if spec.kind == "behavior"
     t = sprintf("%s: %s by %s (%d epochs)", label, R.yName, R.param, height(R.values));
+    return
+end
+if spec.kind == "waveforms"
+    what = "units";
+    if spec.source == "detected"; what = "channels"; end
+    t = sprintf("%s (%d %s)", label, R.n, what);
     return
 end
 ev = "";

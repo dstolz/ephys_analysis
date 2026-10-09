@@ -300,6 +300,12 @@ classdef EphysAnalysisScript
                     L(end+1, 1) = "T = unitSummary(src, Source=" + lit(spec.source) + ", Units=spec.units, Ref=spec.ref, Selection=spec.selection);";
                     L(end+1, 1) = "R = probeMapValues(T, src.probe, Value=" + lit(spec.value) + ");";
                     L(end+1, 1) = "E = [];";
+                case "waveforms"
+                    L(end+1, 1) = "[~, meta] = selectUnits(src, spec.units, Ref=spec.ref, Selection=spec.selection);";
+                    L(end+1, 1) = "R = struct('kind', ""waveforms"", 'meta', meta, 'labels', meta.label, 'n', height(meta), ...";
+                    L(end+1, 1) = "    'groups', table(1, ""all"", [0.15 0.15 0.15], height(meta), 'VariableNames', {'index', 'label', 'color', 'n'}), ...";
+                    L(end+1, 1) = "    'probe', src.probe);";
+                    L(end+1, 1) = "E = [];";
                 case "behavior"
                     cols = [spec.param spec.seriesParam];
                     if spec.yParam ~= "stop"; cols(end+1) = spec.yParam; end
@@ -320,8 +326,8 @@ classdef EphysAnalysisScript
                     L(end+1, 1) = "R = behaviorValues(y, E.(" + lit(spec.param) + "), Series=" + series + ", Param=" + lit(spec.param) + ...
                         ", SeriesParam=" + lit(spec.seriesParam) + yArgs + ");";
             end
-            if spec.waveform.mode ~= "off" && ismember(spec.source, EphysAnalysisConfig.SpikeSources) && ...
-                    (spec.kind == "raster" || (ismember(spec.kind, ["psth" "tuning"]) && spec.layout ~= "overlay"))
+            if ismember(spec.source, EphysAnalysisConfig.SpikeSources) && (spec.kind == "waveforms" || ...
+                    (spec.waveform.mode ~= "off" && (spec.kind == "raster" || (ismember(spec.kind, ["psth" "tuning"]) && spec.layout ~= "overlay"))))
                 L(end+1, 1) = "R.waveforms = unitWaveforms(src, R.meta, Source=" + lit(spec.source) + ", MaxSpikes=" + ...
                     lit(spec.waveform.maxSpikes) + ");   % each unit's waveform in its tile (spec.waveform)";
             end

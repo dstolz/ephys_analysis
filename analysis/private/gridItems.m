@@ -1,7 +1,7 @@
 function n = gridItems(R, spec)
 %gridItems  How many tiles a plot's grid has over all its pages (0: not a grid).
 %   N = gridItems(R, SPEC) for SPEC from plotSpecFor: the units of a psth
-%   "grid", a raster and a tuning "grid", the channels of an evoked "grid".
+%   "grid", a raster and a tuning "grid", the channels of an evoked "grid", the units of a waveforms "grid".
 %   Every other plot is one panel or a few fixed ones (N = 0).
 n = 0;
 switch spec.kind
@@ -13,5 +13,7 @@ switch spec.kind
         if spec.layout == "grid"; n = size(R.mean, 2); end
     case "evoked"
         if spec.layout == "grid"; n = size(R.mean, 2); end
+    case "waveforms"
+        if spec.layout == "grid"; n = height(R.meta); end
 end
 end

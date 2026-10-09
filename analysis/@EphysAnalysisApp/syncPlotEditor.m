@@ -15,7 +15,7 @@ function syncPlotEditor(obj)
 %     response test               spikes (its settings enabled when ticked)
 %     unit ids, max units, shanks spikes
 %     channels                    every kind but behavior (no units or channels)
-%     event, window, selection    every kind but probemap (aligns to nothing)
+%     event, window, selection    every kind but probemap and waveforms (align to nothing)
 %     bin, smoothing              psth, raster, heatmap of spikes, corrmap
 %     mask after the stop event   psth, raster, heatmap of spikes
 %     measure                     psth, rate, tuning, heatmap of spikes
@@ -40,9 +40,13 @@ function syncPlotEditor(obj)
 %     SEM                         psth, tuning, behavior, rate "bar", evoked but "butterfly"
 %     stop marks                  psth, raster
 %     grid                        psth, raster, evoked, rate, tuning, behavior
-%     unit waveform               spikes: raster; psth and tuning "grid"
-%                                 (its spikes, location, box and size
-%                                 enabled when it is not Off)
+%     unit waveform               spikes: raster; psth and tuning "grid";
+%                                 waveforms (its spikes, location, box,
+%                                 size and labels enabled when it is not
+%                                 Off; the location and box for the
+%                                 first three only; the amplitude scale
+%                                 for waveforms, its size, sites and unit
+%                                 names for the "probe" layout)
 %   The drop-downs list the kind's window modes ("between" for rate,
 %   tuning and corrmap), its baseline modes (fewer for signals) and row
 %   orders ("modulation" too for a heatmap with the auROC baseline); a
@@ -99,7 +103,7 @@ v.channels = ~behavior;
 v.binMs = binned; v.smoothMs = binned;
 v.maskAfterStop = binned && kind ~= "corrmap";
 v.measure = ismember(kind, ["psth" "rate" "tuning"]) || (kind == "heatmap" && spikes);
-v.baselineMode = ~ismember(kind, ["raster" "probemap" "behavior"]);
+v.baselineMode = ~ismember(kind, ["raster" "probemap" "behavior" "waveforms"]);
 v.baseFrom = v.baselineMode;
 auroc = v.baselineMode && string(E.baselineMode.Value) == "auroc";
 v.aMethod = auroc; v.aWinMs = auroc; v.aModFrom = auroc; v.aCutoff = auroc; v.aMarks = auroc;
@@ -115,21 +119,29 @@ v.yParam = behavior; v.xScale = behavior;
 v.value = kind == "probemap";
 v.order = kind == "heatmap";
 v.metric = kind == "corrmap"; v.correlation = v.metric;
-v.maxTiles = kind == "raster" || (ismember(kind, ["psth" "tuning" "evoked"]) && layout == "grid");
-v.tileSpacing = ~ismember(kind, ["rate" "behavior"]);
+v.maxTiles = kind == "raster" || (ismember(kind, ["psth" "tuning" "evoked" "waveforms"]) && layout == "grid");
+v.tileSpacing = ~ismember(kind, ["rate" "behavior"]) && ~(kind == "waveforms" && layout == "probe");
 v.fontSize = true;
-v.sortDepth = ~ismember(kind, ["probemap" "behavior"]); v.labelDepth = v.sortDepth;
-v.lineWidth = ismember(kind, ["psth" "evoked" "tuning" "behavior"]);
+v.sortDepth = ~ismember(kind, ["probemap" "behavior"]) && ~(kind == "waveforms" && layout == "probe"); v.labelDepth = v.sortDepth;
+v.lineWidth = ismember(kind, ["psth" "evoked" "tuning" "behavior" "waveforms"]);
 v.siteSize = kind == "probemap";
-v.ylim = ismember(kind, ["psth" "rate" "tuning" "behavior"]) || (kind == "evoked" && layout ~= "stack");
+v.ylim = ismember(kind, ["psth" "rate" "tuning" "behavior"]) || (kind == "evoked" && layout ~= "stack") ...
+    || (kind == "waveforms" && layout == "grid");
 v.colormap = grouped;
 v.legendLoc = grouped;
 v.heatColormap = ismember(kind, ["heatmap" "probemap" "corrmap"]);
-v.waveMode = spikes && (kind == "raster" || (ismember(kind, ["psth" "tuning"]) && layout ~= "overlay"));
-v.waveLocation = v.waveMode;
+inset = spikes && (kind == "raster" || (ismember(kind, ["psth" "tuning"]) && layout ~= "overlay"));
+wavePlot = spikes && kind == "waveforms";
+v.waveMode = inset || wavePlot;
+v.waveLocation = inset;
+v.waveLabel = v.waveMode;
+v.waveScale = inset || (wavePlot && layout == "probe");
+v.waveAmp = wavePlot;
+v.waveSites = wavePlot && layout == "probe"; v.waveNames = v.waveSites;
 boxes = [E.showSEM E.showStop E.legend E.grid];
 on = [psth || ismember(kind, ["tuning" "behavior"]) || (kind == "rate" && layout == "bar") || (kind == "evoked" && layout ~= "butterfly"), ...
-    ismember(kind, ["psth" "raster"]), grouped, ismember(kind, ["psth" "raster" "evoked" "rate" "tuning" "behavior"])];
+    ismember(kind, ["psth" "raster"]), grouped, ismember(kind, ["psth" "raster" "evoked" "rate" "tuning" "behavior"]) ...
+    || (kind == "waveforms" && layout == "grid")];
 v.showSEM = any(on);
 for f = string(fieldnames(v)).'
     S = formShow(S, f, v.(f));

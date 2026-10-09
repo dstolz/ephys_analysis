@@ -68,7 +68,7 @@ classdef EphysAnalysisConfig
         Schema   = "ephys-analysis-config"
         Version  = 1
         Sections = ["Source" "Defaults" "Export" "Report"]
-        Kinds    = ["psth" "raster" "evoked" "rate" "tuning" "heatmap" "probemap" "corrmap" "behavior"]
+        Kinds    = ["psth" "raster" "evoked" "rate" "tuning" "heatmap" "probemap" "corrmap" "behavior" "waveforms"]
         SpikeSources  = ["units" "detected"]
         SignalSources = ["LFP" "MUA" "SPIKE" "AUX"]
         % Where in a unit's tile its waveform box sits (a plot's waveform.location).
@@ -137,7 +137,9 @@ classdef EphysAnalysisConfig
             %   [CFG, ID] = cfg.addPlot("rate", Id="rate_platform") returns the
             %   new config and the plot's id (assigned when not given). A plot
             %   given without a source reads its kind's first (units; LFP for
-            %   an evoked potential, trials for a behavior plot).
+            %   an evoked potential, trials for a behavior plot). A waveforms
+            %   plot given without a waveform shows each unit's mean and
+            %   subsample (waveform.mode "both"); the default, "off", draws nothing.
             arguments
                 obj (1,1) EphysAnalysisConfig
                 p = "psth"
@@ -150,6 +152,9 @@ classdef EphysAnalysisConfig
                 K = EphysAnalysisConfig.plotKinds();
                 row = K.Kind == string(p.kind);
                 if any(row); p.source = K.Sources{row}(1); end
+            end
+            if isstruct(p) && isscalar(p) && isfield(p, 'kind') && string(p.kind) == "waveforms" && ~isfield(p, 'waveform')
+                p.waveform = struct('mode', "both");
             end
             if opts.Id ~= ""; p.id = opts.Id; end
             p = EphysAnalysisConfig.normalizePlot(p);

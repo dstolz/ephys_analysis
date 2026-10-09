@@ -413,6 +413,23 @@ off.Plots = off.Plots(off.plotIndex("psth_stim"));
 check(contains(txtS, "R.waveforms = unitWaveforms(src, R.meta, Source=""units"", MaxSpikes=100);") ...
     && ~contains(EphysAnalysisScript.standalone(off), "unitWaveforms("), ...
     'the standalone script reads the waveforms only for a plot that draws them');
+cfgWf = EphysAnalysisConfig().addPlot("waveforms", Id="wf");
+cfgWf.Source = cfg.Source;
+specWf = cfgWf.plotFor("wf");
+Rwf = r.computePlot(src, specWf);
+nWf = height(Rwf.meta);
+check(plotSkipReason(src, specWf) == "" && Rwf.kind == "waveforms" && numel(Rwf.waveforms.mean) == nWf && nWf > 0 ...
+    && any(Rwf.waveforms.from ~= "none") && isempty(Rwf.epochs) && Rwf.n == nWf, ...
+    'a waveforms plot computes without events: the units and each one''s waveform');
+hWf = renderPlot(Rwf, specWf, fig);
+check(numel(hWf.axes) == min(nWf, 16) && ~isempty(findall(fig, 'Tag', 'waveMean')), 'it draws a tile per unit');
+specWf.layout = "probe";
+hWf = renderPlot(Rwf, specWf, fig);
+check(isscalar(hWf.axes) && ~isempty(findall(fig, 'Tag', 'waveMean')) && ~isempty(findall(fig, 'Tag', 'waveSites')), ...
+    'on the probe it draws one panel: each unit''s waveform where it sits, the sites behind');
+txtWf = EphysAnalysisScript.standalone(cfgWf);
+check(contains(txtWf, "R = struct('kind', ""waveforms""") && contains(txtWf, "unitWaveforms(src, R.meta"), ...
+    'the standalone script computes it the same way');
 clear figCloser
 
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);

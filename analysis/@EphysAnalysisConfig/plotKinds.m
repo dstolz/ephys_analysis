@@ -3,7 +3,8 @@ function T = plotKinds()
 %   T = EphysAnalysisConfig.plotKinds() has one row per kind (in the order
 %   of EphysAnalysisConfig.Kinds):
 %     Kind           "psth" | "raster" | "evoked" | "rate" | "tuning" |
-%                    "heatmap" | "probemap" | "corrmap" | "behavior"
+%                    "heatmap" | "probemap" | "corrmap" | "behavior" |
+%                    "waveforms"
 %     Label          name shown in the app
 %     Sources        sources it reads: "units" / "detected" (spike times)
 %                    and / or "LFP" / "MUA" / "SPIKE" / "AUX" (signals), or
@@ -11,7 +12,7 @@ function T = plotKinds()
 %     Layouts        layouts it draws; the first is the default
 %     DefaultLayout  Layouts(1)
 %     WindowModes    "fixed", or "fixed" and "between"
-%     Aligned        false for probemap (no events, no trials)
+%     Aligned        false for probemap and waveforms (no events, no trials)
 %     Description    one line
 %
 %   See also EphysAnalysisConfig, renderPlot.
@@ -28,6 +29,7 @@ rows = {
     "probemap", "Probe map",        spk,       "shanks",                      "fixed",             false, "A per-channel value (rate, spikes, units) drawn on the probe sites"
     "corrmap",  "Unit correlation", spk,       "groups",                      ["fixed" "between"], true,  "Pairwise correlation of the units' per-epoch mean or peak rates, one matrix per group"
     "behavior", "Behavior",         "trials",  ["points" "line" "box" "swarm" "violin"], "fixed",  true,  "A per-trial value (a trial parameter such as RespLatency, or the stop event's latency) against a trial parameter"
+    "waveforms", "Unit waveforms",  spk,       ["grid" "probe"],              "fixed",             false, "Each unit's mean waveform and a sample of its spikes, in a tile per unit or at the unit's place on the probe"
     };
 n = size(rows, 1);
 Kind = strings(n, 1); Label = strings(n, 1); Description = strings(n, 1);

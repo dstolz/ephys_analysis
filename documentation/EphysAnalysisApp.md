@@ -357,7 +357,7 @@ error, and the report files written.
 
 ## Plot kinds
 
-The nine kinds of `EphysAnalysisConfig.plotKinds()`; the first layout
+The ten kinds of `EphysAnalysisConfig.plotKinds()`; the first layout
 listed is the default.
 
 | Kind (label) | Sources | Layouts | Windows | Baseline modes |
@@ -371,6 +371,7 @@ listed is the default.
 | `probemap` (Probe map) | units, detected | shanks | no alignment | none |
 | `corrmap` (Unit correlation) | units, detected | groups | fixed, between | none, subtract |
 | `behavior` (Behavior) | trials | points, line, box, swarm, violin | fixed | none |
+| `waveforms` (Unit waveforms) | units, detected | grid, probe | no alignment | none |
 
 How each is computed: [Compute](EphysAnalysis.md#compute).
 
@@ -534,6 +535,22 @@ matrix per group.
   mean pairwise r.
 - A unit whose responses do not vary has NaN correlations, and so does
   every pair in a group with fewer than 3 epochs.
+
+### Unit waveforms
+
+The units' waveforms as a plot of their own. It uses no events or trials,
+only the units the Units & channels rows pick, and the **Unit waveform**
+rows of the editor (**Show** is never *Off* here), with three more:
+
+- **Amplitude** *Each unit's own scale* (each waveform fills its tile or
+  glyph) or *One scale for all units* (`ampScale`: sizes compare, and the
+  probe layout draws a scale bar).
+- **On the probe** **Sites** (the probe's sites in grey behind the
+  waveforms) and **Unit names** (`showSites`, `showNames`; probe layout only).
+- Layouts: *grid*, a tile per unit, or *probe*, each unit's waveform as a
+  glyph at its place on the probe map (a plot of a dataset without a probe
+  map is skipped). Details: [Waveforms
+  plots](EphysAnalysisConfig.md#waveforms-plots).
 
 ## Menus
 

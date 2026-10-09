@@ -114,6 +114,8 @@ end
 Wv.mean{3} = 60 * shape;
 Rpw = Rp; Rpw.waveforms = Wv;
 Rtw = Rt; Rtw.waveforms = Wv;
+Rwf = struct('kind', "waveforms", 'meta', meta, 'labels', meta.label, 'n', height(meta), 'probe', probe, 'waveforms', Wv, ...
+    'groups', table(1, "all", [0.15 0.15 0.15], height(meta), 'VariableNames', {'index', 'label', 'color', 'n'}));   % the waveforms plot's result
 Rpm = Rp;   % a raster with event marks (epochEvents' shape): two per epoch of a line's onsets
 Rpm.rasterEvents = struct('line', "Beam", 'edge', "onset", 'label', "Beam onset", ...
     'epoch', repelem((1:nE).', 2), 't', repmat([0.1; 0.3], nE, 1));
@@ -141,6 +143,10 @@ cases = {
     "psth + waveforms",   "psthW",   struct('kind', "psth", 'waveform', struct('mode', "both"))
     "raster + waveforms", "psthW",   struct('kind', "raster", 'waveform', struct('mode', "subsample", 'box', false))
     "tuning + waveforms", "tuningW", struct('kind', "tuning", 'waveform', struct('mode', "mean", 'location', "southwest"))
+    "waveforms grid",     "waveforms", struct('kind', "waveforms", 'waveform', struct('mode', "both", 'showCount', true))
+    "waveforms common",   "waveforms", struct('kind', "waveforms", 'waveform', struct('mode', "mean", 'ampScale', "common"))
+    "waveforms probe",    "waveforms", struct('kind', "waveforms", 'layout', "probe", 'waveform', struct('mode', "both", 'showNames', true))
+    "waveforms probe common", "waveforms", struct('kind', "waveforms", 'layout', "probe", 'waveform', struct('mode', "both", 'ampScale', "common"))
     "raster + marks",     "psthM",   struct('kind', "raster", 'rasterByGroup', false)
     "psth + marks",       "psthM",   struct('kind', "psth")
     "behavior points",    "behavior", struct('kind', "behavior")
@@ -151,7 +157,7 @@ if exist('violinplot', 'file')   % MATLAB R2024b or later
     cases(end+1, :) = {"behavior violin", "behavior", struct('kind', "behavior", 'layout', "violin")};
 end
 results = struct('psth', Rp, 'rate', Rr, 'tuning', Rt, 'corrmap', Rc, 'probemap', Rq, 'evoked', Rv, 'psthW', Rpw, 'tuningW', Rtw, ...
-    'psthM', Rpm, 'behavior', Rb);
+    'psthM', Rpm, 'behavior', Rb, 'waveforms', Rwf);
 fig = figure('Visible', 'off');
 allTagged = true; untagged = strings(0, 1);
 for i = 1:size(cases, 1)

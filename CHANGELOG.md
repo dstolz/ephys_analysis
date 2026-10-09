@@ -17,6 +17,14 @@ says how to cut a release.
   repository's new-issue form prefilled. Nothing is filed until the form is
   submitted. The dialog, the prefilled address and the system lines moved to
   `pipeline/IssueReport.m`, which both apps now use.
+- A **Unit waveforms** plot type for the analysis module (`waveforms`,
+  `renderWaveforms`): each unit's mean waveform and a subsample of its spikes
+  as a plot of its own, a tile per unit or each unit's waveform at its place
+  on the probe map. The user picks the mean, the subsample or both, how many
+  spikes, each unit's own amplitude scale or one for all (with a scale bar on
+  the probe), the glyphs' size, the probe's sites and the units' names, and
+  the p-p / spike-count labels. It needs no events, so it runs on any sorted
+  or detected dataset (the probe layout needs its probe map).
 - A toolbar in the analysis app, under the menu bar: New, Open and Save
   config; Scan for datasets and Preview the selected plot; Validate config,
   Plan, Run and Cancel run; open the last run's report and figure folder;

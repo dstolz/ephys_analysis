@@ -288,6 +288,22 @@ check(~shown(E.defaultRef) && ~shown(A.Line) && ~shown(A.Pre) && ~shown(A.Filter
     && shown(E.value) && shown(E.heatColormap) && ~shown(E.colormap) && ~shown(E.maxTiles), ...
     'a probe map hides the event, window, selection and baseline; it shows its value and heat colours');
 app.onRemovePlot();
+app.onAddPlot("waveforms");
+wfGrid = shown(E.waveMode) && ~any(string(E.waveMode.ItemsData) == "off") && string(E.waveMode.Value) == "both" ...
+    && ~shown(E.waveLocation) && shown(E.waveAmp) && shown(E.wavePP) && ~shown(E.waveSites) && ~shown(E.waveScale) ...
+    && shown(E.maxTiles) && ~shown(E.defaultRef) && ~shown(E.baselineMode);
+E.layout.Value = 'probe'; E.waveNames.Value = true; E.waveAmp.Value = 'common';
+app.onConfigChanged("plot");
+p = app.Config.Plots(end);
+check(wfGrid && shown(E.waveSites) && shown(E.waveNames) && shown(E.waveScale) && ~shown(E.maxTiles) && p.kind == "waveforms" ...
+    && p.layout == "probe" && p.waveform.mode == "both" && p.waveform.showNames && p.waveform.ampScale == "common", ...
+    'a waveforms plot shows its mode (never Off), amplitude scale and labels; the probe layout adds size, sites and unit names');
+app.refreshPreview(Force=true);
+check(~isempty(app.PreviewResult) && app.PreviewResult.kind == "waveforms" && ~isempty(findall(app.PreviewPanel, 'Tag', 'waveMean')) ...
+    && ~isempty(findall(app.PreviewPanel, 'Tag', 'waveName')), 'the waveforms plot previews on the probe, with the unit names');
+app.onRemovePlot();
+app.onPlotSelected(1);
+check(any(string(E.waveMode.ItemsData) == "off"), 'another kind''s plot offers Off again');
 app.onAddPlot("heatmap");
 hideA = ~shown(E.aMethod) && ~shown(E.aCutoff) && any(string(E.baselineMode.Items) == "auroc") && ~shown(E.raMethod);
 E.baselineMode.Value = 'auroc';

@@ -314,7 +314,11 @@ classdef PlotAesthetics
                 "waveBox"      "Waveform box"
                 "waveSpikes"   "Waveform spikes"
                 "waveMean"     "Waveform mean"
-                "waveLabel"    "Waveform amplitude"];
+                "waveLabel"    "Waveform amplitude"
+                "waveZero"     "Waveform spike time (t = 0)"
+                "waveSites"    "Waveform probe sites"
+                "waveName"     "Waveform unit name"
+                "waveScale"    "Waveform scale bar"];
             T = table(x(:, 1), x(:, 2), 'VariableNames', ["Role" "Label"]);
         end
 

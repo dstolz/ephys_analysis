@@ -16,7 +16,8 @@ function txt = plotCaption(spec, R)
 %   how many units each group's call finds modulated up and down. A plot
 %   with unit waveforms (R.waveforms) says what its boxes show ("each
 %   unit's mean waveform and up to 100 of its spikes on its peak channel")
-%   and how many units fell back to their template. An event shifted by a
+%   and how many units fell back to their template; a waveforms plot adds
+%   how its units are laid out and scaled. An event shifted by a
 %   trial parameter says so ("RespWindow onset + RespLatency (ms)") and
 %   counts the events left out for lacking a value; a raster says how its
 %   rows are sorted and which events it marks; a behavior plot what it
@@ -30,6 +31,12 @@ K = EphysAnalysisConfig.plotKinds();
 parts = K.Label(K.Kind == spec.kind);
 if spec.kind == "probemap"
     parts(end+1) = sprintf("%s of each site", R.valueName);
+    parts(end+1) = sourceText(spec, R);
+    txt = strjoin(parts, "; ") + ".";
+    return
+end
+if spec.kind == "waveforms"
+    parts(end+1) = waveText(spec, R.waveforms) + waveLayoutText(spec);
     parts(end+1) = sourceText(spec, R);
     txt = strjoin(parts, "; ") + ".";
     return
@@ -187,6 +194,21 @@ nT = nnz(W.from == "template");
 nN = nnz(W.from == "none");
 if nT > 0; s = s + sprintf(", %d by their template (the sorted .bin is not there)", nT); end
 if nN > 0; s = s + sprintf(", none for %d", nN); end
+end
+
+
+function s = waveLayoutText(spec)
+%waveLayoutText  How a waveforms plot lays its units out and scales them.
+if spec.layout == "probe"
+    s = ", each at its unit's place on the probe";
+else
+    s = ", one tile per unit";
+end
+if spec.waveform.ampScale == "common"
+    s = s + ", on one amplitude scale";
+else
+    s = s + ", each on its own amplitude scale";
+end
 end
 
 

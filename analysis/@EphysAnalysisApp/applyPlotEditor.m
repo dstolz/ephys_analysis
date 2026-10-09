@@ -89,13 +89,19 @@ offerItems(E.order, ch.Orders, p.order);
 offerItems(E.metric, ["mean" "peak"], p.metric);
 E.correlation.Value = char(p.correlation);
 wv = p.waveform;
-E.waveMode.Value = char(pickFrom(wv.mode, string(E.waveMode.ItemsData), "off"));
+offerWaveModes(E.waveMode, p.kind);
+fallback = "off";
+if p.kind == "waveforms"; fallback = "both"; end
+E.waveMode.Value = char(pickFrom(wv.mode, string(E.waveMode.ItemsData), fallback));
 E.waveSpikes.Value = min(E.waveSpikes.Limits(2), max(E.waveSpikes.Limits(1), round(wv.maxSpikes)));
 E.waveLocation.Value = char(pickFrom(wv.location, string(E.waveLocation.ItemsData), "northeast"));
 E.waveBox.Value = wv.box;
 E.wavePP.Value = wv.showPP;
 E.waveCount.Value = wv.showCount;
 E.waveScale.Value = min(E.waveScale.Limits(2), max(E.waveScale.Limits(1), wv.scale));
+E.waveAmp.Value = char(pickFrom(wv.ampScale, string(E.waveAmp.ItemsData), "unit"));
+E.waveSites.Value = wv.showSites;
+E.waveNames.Value = wv.showNames;
 s = p.style;
 E.maxTiles.Value = s.MaxTiles;
 E.tileSpacing.Value = char(s.TileSpacing);
@@ -150,6 +156,18 @@ if isfield(E, pre + "ModFrom")
     E.(pre + "Marks").Value = a.marks;
     E.(pre + "ModOnly").Value = a.modulatedOnly;
 end
+end
+
+
+function offerWaveModes(dd, kind)
+%offerWaveModes  The waveform modes the plot's kind offers: a waveforms plot cannot show none.
+modes = ["off" "mean" "subsample" "both"];
+labels = ["Off" "Mean" "Subsample" "Mean + subsample"];
+if kind == "waveforms"; modes = modes(2:end); labels = labels(2:end); end
+if isequal(string(dd.ItemsData), modes); return; end
+dd.ItemsData = [];
+dd.Items = labels;
+dd.ItemsData = modes;
 end
 
 

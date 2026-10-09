@@ -1,4 +1,4 @@
-function S = formSection(parent, row, name, title, body)
+function S = formSection(parent, row, name, title, body, opts)
 %formSection  A section of labelled rows that collapses under its header.
 %   S = formSection(PARENT, ROW, NAME, TITLE) makes a section in row ROW of
 %   the grid PARENT: a header bar -- the toggle button S.Toggle ("▼ TITLE";

@@ -1007,7 +1007,14 @@ classdef EphysDataset < handle
             end
             if isfield(m, 'probe') && isstruct(m.probe) && isfield(m.probe, 'file')
                 pf = string(m.probe.file);
-                if isscalar(pf) && pf ~= ""; obj.ProbeFile = pf; end
+                if isscalar(pf) && pf ~= ""
+                    if ~isfile(pf)   % outputs copied to another machine: the probe file copied beside them
+                        [~, nm, ext] = fileparts(pf);
+                        beside = fullfile(obj.outputFolder(), nm + ext);
+                        if isfile(beside); pf = string(beside); end
+                    end
+                    obj.ProbeFile = pf;
+                end
             end
             if isfield(m, 'exclude_channels')
                 obj.ExcludeChannels = EphysDataset.parseChannelList(string(m.exclude_channels));

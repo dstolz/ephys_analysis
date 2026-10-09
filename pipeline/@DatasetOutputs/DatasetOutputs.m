@@ -403,13 +403,7 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
                 [units, info] = obj.Dataset.readSortedUnits('ResultsDir', d, varargin{:});
                 return
             end
-            args = {};
-            m = obj.manifestStruct();
-            if isfield(m, 'probe') && isstruct(m.probe) && isfield(m.probe, 'file') ...
-                    && isfile(string(m.probe.file))
-                args = {'ProbeFile', string(m.probe.file)};
-            end
-            [units, info] = EphysDataset.readPhyUnits(d, args{:}, varargin{:});
+            [units, info] = EphysDataset.readPhyUnits(d, varargin{:});
         end
 
         function [W, info] = readWaveforms(obj, unitId, opts)
@@ -448,6 +442,154 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
             if obj.CacheData
                 obj.Cache(key) = struct('W', W, 'info', info);
             end
+        end
+
+        function f = probeFile(obj)
+            %probeFile  The probe .json this dataset was sorted with ("" when none is there).
+            %   The manifest's probe.file, the path on the machine that wrote
+            %   it; when no file is there (the outputs were copied to another
+            %   machine) a file of the same name in the dataset's folder
+            %   (analysisFiles copies it there).
+            f = "";
+            m = obj.manifestStruct();
+            if ~(isfield(m, 'probe') && isstruct(m.probe) && isfield(m.probe, 'file')); return; end
+            pf = string(m.probe.file);
+            if ~isscalar(pf) || pf == ""; return; end
+            if isfile(pf); f = pf; return; end
+            [~, nm, ext] = fileparts(pf);
+            for root = obj.Roots
+                c = fullfile(root, nm + ext);
+                if isfile(c); f = string(c); return; end
+            end
+        end
+
+        function [T, notes] = analysisFiles(obj, opts)
+            %analysisFiles  The files EphysAnalysisApp needs to analyse this dataset.
+            %   [T, NOTES] = out.analysisFiles(Signals=, Spikes=, Sorting=,
+            %   SortedData=, Probe=) lists what the analysis reads, so a
+            %   copy of just these files (into <folder>/<dataset key>) runs
+            %   it on another machine. T has one row per file or folder:
+            %   Kind ("manifest", "behavior", "extract", "spikes", "sorting",
+            %   "sorted data", "probe"), Path, Base (the folder the file's
+            %   place in the copy is counted from: its path below it is kept;
+            %   "" keeps the name only) and Bytes. NOTES says in words what
+            %   is missing (no behavior file, no sorted units, ...).
+            %
+            %     Signals     ["LFP" "MUA" "AUX"]  the extract files holding these
+            %                 signals; the smallest extract file is always
+            %                 there (the digital events live in it)
+            %     Spikes      true      the detected spikes, <Name>_spikes.mat
+            %     Sorting     "essential" (default): the sorting folder's files
+            %                 the readers use (spike times, clusters,
+            %                 templates, channel files, params.py,
+            %                 settings.json, the cluster_*.tsv tables),
+            %                 without the large feature files; "all": the whole
+            %                 folder; "none"
+            %     SortedData  false     the sorted binary params.py names (large;
+            %                 the unit waveforms are cut from it, else the
+            %                 templates are drawn)
+            %     Probe       true      the probe .json (probeFile)
+            %
+            %   The manifest and <Name>_behavior.mat are always there.
+            arguments
+                obj (1,1) DatasetOutputs
+                opts.Signals (1,:) string = ["LFP" "MUA" "AUX"]
+                opts.Spikes (1,1) logical = true
+                opts.Sorting (1,1) string {mustBeMember(opts.Sorting, ["essential" "all" "none"])} = "essential"
+                opts.SortedData (1,1) logical = false
+                opts.Probe (1,1) logical = true
+            end
+            sigs = upper(opts.Signals);
+            if ~all(ismember(sigs, DatasetOutputs.SignalTypes))
+                error('DatasetOutputs:BadSignal', 'Signals must be among %s.', strjoin(DatasetOutputs.SignalTypes, ", "));
+            end
+            roots = obj.Roots;
+            rows = cell(0, 3);   % kind, path, base
+            notes = strings(0, 1);
+
+            if obj.has("manifest")
+                rows(end+1, :) = {"manifest", string(obj.ManifestFile), rootOf(obj.ManifestFile, roots)};
+            else
+                notes(end+1, 1) = "no manifest";
+            end
+
+            if obj.has("behavior")
+                f = string(obj.BehaviorFile);
+                if endsWith(lower(f), "_behavior.mat")
+                    rows(end+1, :) = {"behavior", f, rootOf(f, roots)};
+                else
+                    notes(end+1, 1) = "the behavior is read from " + f + ", which is not <Name>_behavior.mat: " + ...
+                        "run the Behavior step so the analysis finds it";
+                end
+            else
+                notes(end+1, 1) = "no behavior file (no trials)";
+            end
+
+            files = strings(1, 0);
+            for s = sigs
+                f = obj.signalFile(s);
+                if isempty(f)
+                    notes(end+1, 1) = "no " + s + " file"; %#ok<AGROW>
+                else
+                    files(end+1) = f; %#ok<AGROW>
+                end
+            end
+            if isempty(files)
+                ex = obj.ExtractFiles;
+                ex = ex(isfile(ex));
+                if isempty(ex)
+                    notes(end+1, 1) = "no extract file (no events)";
+                else
+                    b = arrayfun(@(e) fileBytes(e), ex);
+                    [~, k] = min(b);
+                    files = ex(k);
+                end
+            end
+            for f = unique(files, 'stable')
+                rows(end+1, :) = {"extract", f, rootOf(f, roots)}; %#ok<AGROW>
+            end
+
+            if opts.Spikes && obj.has("spikes")
+                f = string(obj.SpikesFile);
+                rows(end+1, :) = {"spikes", f, rootOf(f, roots)};
+            end
+
+            if opts.Sorting ~= "none" || opts.SortedData
+                if obj.has("sorting")
+                    d = string(EphysDataset.resolvePhyDir(obj.SortingDir));
+                    r = rootOf(d, roots);
+                    if r == ""; r = string(fileparts(d)); end   % kept as <folder name>/..., so the copy finds it
+                    switch opts.Sorting
+                        case "all"
+                            rows(end+1, :) = {"sorting", d, r};
+                        case "essential"
+                            for f = DatasetOutputs.essentialSortFiles(d)
+                                rows(end+1, :) = {"sorting", f, r}; %#ok<AGROW>
+                            end
+                    end
+                    if opts.SortedData
+                        f = DatasetOutputs.sortedDataFile(d);
+                        if f == ""
+                            notes(end+1, 1) = "the sorted data file is not there"; %#ok<AGROW>
+                        elseif ~(opts.Sorting == "all" && startsWith(lower(f), lower(d) + filesep))
+                            rows(end+1, :) = {"sorted data", f, rootOf(f, roots)};
+                        end
+                    end
+                else
+                    notes(end+1, 1) = "no sorted units";
+                end
+            end
+
+            if opts.Probe
+                f = obj.probeFile();
+                if f ~= ""
+                    rows(end+1, :) = {"probe", f, ""};
+                else
+                    notes(end+1, 1) = "no probe file";
+                end
+            end
+            T = table(string(rows(:, 1)), string(rows(:, 2)), string(rows(:, 3)), ...
+                cellfun(@pathBytes, rows(:, 2)), 'VariableNames', {'Kind', 'Path', 'Base', 'Bytes'});
         end
 
         function f = signalFile(obj, type)
@@ -745,6 +887,40 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
     end
 
     methods (Static, Access = private)
+        function f = essentialSortFiles(d)
+            %essentialSortFiles  The files of sorting folder D the unit readers use (not the large feature files).
+            %   readPhyUnits and readPhyWaveforms read these (and the
+            %   cluster_*.tsv tables); templates and whitening_mat_inv.npy
+            %   give the unit waveforms, settings.json the scale.
+            names = ["spike_times.npy" "spike_clusters.npy" "spike_templates.npy" "spike_positions.npy" ...
+                "amplitudes.npy" "templates.npy" "whitening_mat_inv.npy" "channel_map.npy" ...
+                "channel_positions.npy" "channel_shanks.npy" "params.py" "settings.json"];
+            L = dir(d);
+            L = L(~[L.isdir]);
+            n = string({L.name});
+            keep = ismember(lower(n), lower(names)) | (startsWith(n, "cluster_") & endsWith(lower(n), ".tsv"));
+            f = reshape(string(fullfile(d, n(keep))), 1, []);
+        end
+
+        function f = sortedDataFile(d)
+            %sortedDataFile  The binary sorting folder D's params.py names, or "" when it is not there.
+            %   The place EphysDataset.readPhyWaveforms looks: dat_path, its
+            %   name in D, and in the two folders above.
+            f = "";
+            pf = fullfile(d, 'params.py');
+            if ~isfile(pf); return; end
+            tok = regexp(fileread(pf), 'dat_path\s*=\s*\[?\s*[''"]([^''"]+)[''"]', 'tokens', 'once');
+            if isempty(tok) || tok{1} == "no_path.bin"; return; end
+            p = string(tok{1});
+            if isempty(regexp(p, '^([A-Za-z]:|[\\/])', 'once')); p = string(fullfile(d, p)); end
+            [~, nm, ext] = fileparts(p);
+            up1 = fileparts(d);
+            tried = [p, string(fullfile(d, nm + ext)), string(fullfile(up1, nm + ext)), ...
+                string(fullfile(fileparts(up1), nm + ext))];
+            hit = find(arrayfun(@isfile, tried), 1);
+            if ~isempty(hit); f = tried(hit); end
+        end
+
         function kind = checkKind(kind)
             kind = lower(string(kind));
             if ~ismember(kind, DatasetOutputs.Kinds)
@@ -758,6 +934,35 @@ end
 
 function p = stripSep(p)
 p = regexprep(string(p), '[\\/]+$', '');
+end
+
+
+function r = rootOf(p, roots)
+%rootOf  The first of ROOTS that P is below ("" for none): the folder its place in a copy is counted from.
+r = "";
+p = lower(string(p));
+for k = reshape(string(roots), 1, [])
+    if startsWith(p, lower(k) + filesep); r = k; return; end
+end
+end
+
+
+function b = fileBytes(f)
+d = dir(f);
+b = Inf;
+if ~isempty(d); b = d(1).bytes; end
+end
+
+
+function b = pathBytes(p)
+%pathBytes  Bytes in the file P, or in the files below the folder P.
+if isfolder(p)
+    L = dir(fullfile(p, '**'));
+    b = sum([L(~[L.isdir]).bytes]);
+else
+    b = fileBytes(p);
+    if isinf(b); b = 0; end
+end
 end
 
 

@@ -124,7 +124,8 @@ classdef EphysPipelineApp < handle
     %   Toolbar (buildToolbar): the menus' most used commands as icons, each
     %   with a tooltip naming its keyboard shortcut: New / Open / Save config,
     %   Validate / Plan / Run pipeline / Dry run / Cancel, View manifest, Open
-    %   analysis app / Channel mapper, Help for this tab.
+    %   analysis app / Copy files for the analysis app / Channel mapper, Help for
+    %   this tab.
     %
     %   The active dataset is what every single-dataset control works on
     %   (Trials, exclusions, previews, the sorted-output association, phy,
@@ -1057,6 +1058,7 @@ classdef EphysPipelineApp < handle
         onGenerateScript(obj, kind)
         onCreateSyntheticProject(obj)
         a = onOpenAnalysisApp(obj, idx)
+        dlg = onCopyForAnalysis(obj)
         S = createSyntheticProject(obj, root, opts)
         ok = confirmDiscard(obj)
         addRecentConfig(obj, file)

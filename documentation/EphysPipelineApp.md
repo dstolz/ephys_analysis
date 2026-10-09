@@ -98,7 +98,7 @@ that are already sorting keep running.
   | New config, Open config, Save config | File (Ctrl+N, Ctrl+O, Ctrl+S) |
   | Validate config, Plan (writes nothing), Run pipeline, Dry run, Cancel run | Run (Run pipeline: Ctrl+R) |
   | View the active dataset's manifest | Dataset → View manifest... |
-  | Open analysis app, Channel mapper | File |
+  | Open analysis app, Copy files for the analysis app, Channel mapper | File |
   | Help for this tab | Help |
 
   Run pipeline and Dry run are off while a Run goes, and Cancel run is on
@@ -169,6 +169,43 @@ mode; otherwise with its own last config. The Project tab's **Tools**
 panel opens it on chosen datasets. It reads the files the pipeline wrote and
 changes nothing here. It lives in the repository's `analysis` folder: when
 that folder is not on the path, an alert says so.
+
+### Copying files for the analysis app
+
+**File → Copy files for the analysis app...** (the folder-arrow tool on the
+toolbar) copies just the files [`EphysAnalysisApp`](EphysAnalysisApp.md)
+reads, for the ticked datasets (every dataset when none is ticked), to
+another folder, so the analysis runs on another computer without the
+recordings or the rest of the pipeline's outputs. The window
+([`AnalysisCopyDialog`](../pipeline/AnalysisCopyDialog.m)) has the
+destination, the choices below, and a table with a row per dataset (untick a
+row to leave it out) showing its file count and size, the progress of the
+copy and what is missing (no behavior file, no sorted units, ...).
+
+| Choice | Copies |
+| --- | --- |
+| always | `<Name>_manifest.json`, `<Name>_behavior.mat`, and the smallest extract file (the digital events are in it) |
+| Signal files | the extract files holding LFP, MUA, SPIKE and / or AUX (a file with several is copied once). Default: LFP, MUA and AUX |
+| Detected spikes | `<Name>_spikes.mat`, for plots with Source "detected" |
+| Sorted units | *Essential files* (default): spike times, clusters and templates, the channel files, `params.py`, `settings.json` and the `cluster_*.tsv` tables, without the large feature files; *Whole folder*; or *None* |
+| Sorted binary | the `.bin` / `temp_wh.dat` the sort read (large). Without it the unit waveforms are drawn from the templates |
+| Probe file | the probe `.json` the manifest names, put beside the manifest |
+| If the folder has files | *Replace changed files* (default), *Keep existing files* (copy only the missing ones) or *Make a new `_v2` folder* |
+
+Each dataset goes to `<folder>\<subject>\<session>` (its key, as the
+[Transfer section](#copying-the-outputs-elsewhere) lays out), copied in the
+background by `OutputTransfer` (robocopy, Windows only), so the window can
+stay open while the copy runs; **Stop** ends it and keeps what is copied.
+**Check the copies by checksum** adds a SHA-256 pass. The choices and the
+destination are remembered (preference group `AnalysisCopyDialog`).
+
+On the other computer, `EphysAnalysisApp("<folder>")` finds the datasets
+(a root of outputs without recordings is read as its datasets). The manifest
+names the probe file by its path on the pipeline computer; the analysis uses
+the file of the same name beside the manifest when that path is not there
+(`DatasetOutputs.probeFile`), so probe maps and depth order work from the
+copy. The list of files for a dataset is
+[`DatasetOutputs.analysisFiles`](DatasetOutputs.md#files-for-the-analysis-app).
 
 ### The config model
 
@@ -3439,7 +3476,7 @@ app.KSQueue                       % prepared runs waiting for a slot (Queue the 
 | `EphysPipelineApp.m` | properties, constructor, method declarations |
 | `buildUI.m`, `buildMenus.m`, `buildToolbar.m`, `build*Tab.m` | UI construction (`buildToolbar`: the toolbar, its icons in `pipeline/icons/toolbar`) |
 | `gatherConfig.m`, `applyConfig.m`, `gather*/apply*Section.m`, `gather/applyConvertConfig.m`, `gather/applySortingSection.m`, `setControlValue.m`, `onConfigChanged.m`, `syncStepEnableStates.m`, `updateTitle.m` | config model (`setControlValue`: a config value into a control, noting one it cannot show; numbers in text fields are written with `EphysPipelineConfig.numberText`) |
-| `onNewConfig.m`, `onOpenConfig.m`, `openConfigFile.m`, `onSaveConfig.m`, `onSaveConfigAs.m`, `onExportConfigCopy.m`, `onGenerateScript.m`, `onCreateSyntheticProject.m`, `createSyntheticProject.m`, `onOpenAnalysisApp.m`, `confirmDiscard.m`, `addRecentConfig.m`, `refreshRecentMenu.m` | File menu |
+| `onNewConfig.m`, `onOpenConfig.m`, `openConfigFile.m`, `onSaveConfig.m`, `onSaveConfigAs.m`, `onExportConfigCopy.m`, `onGenerateScript.m`, `onCreateSyntheticProject.m`, `createSyntheticProject.m`, `onOpenAnalysisApp.m`, `onCopyForAnalysis.m`; `pipeline/AnalysisCopyDialog.m`, `confirmDiscard.m`, `addRecentConfig.m`, `refreshRecentMenu.m` | File menu |
 | `buildPipeline.m`, `runPipeline.m`, `onRunStep.m`, `onCancelRun.m`, `onValidate.m`, `onPlan.m`, `refreshStepPlan.m`, `onPipelineProgress.m`, `runLog.m`, `setRunBar.m`, `showIssues.m`, `onParallelControlsChanged.m`, `projectAtRoot.m`, `refuseWhileRunning.m` | running (`projectAtRoot`: whether the scanned project is the config's; `refuseWhileRunning`: the alert that refuses a dataset edit during a run) |
 | `resetRunDiagram.m`, `updateRunDiagram.m`, `finishRunDiagram.m`, `refreshRunDiagram.m`, `runDiagramHTML.m` | the Run tab's diagram of the run: its model (start, progress events, end), what is sent to the page, the page |
 | `startResourceMonitor.m`, `stopResourceMonitor.m`, `pollResourceMonitor.m`, `showResourceSample.m`, [`resource_monitor.ps1`](../pipeline/resource_monitor.ps1) | the Run tab's resource monitoring: launching and stopping the sampler, the timer reading it, the display |

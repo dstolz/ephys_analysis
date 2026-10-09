@@ -50,7 +50,7 @@ function src = loadAnalysisSource(out, opts)
 %     trialLine         the pairing's trial line ("" without pairing)
 %     subject, startTime   from the behavior ("" / NaT without)
 %     probe, probeFile  the probe map (decoded JSON: chanMap 0-based, xc, yc,
-%                       kcoords) from the manifest's probe.file, or []
+%                       kcoords) from the manifest's probe.file (DatasetOutputs.probeFile), or []
 %     hasUnits          the sorting folder holds sorted units
 %     hasDetected       the spikes file holds threshold detections
 %     spikesFile        the spikes file ("" when none)
@@ -97,14 +97,10 @@ if isfield(m, 'metadata') && isstruct(m.metadata)
     src.fs = numOr(m.metadata, 'fs', NaN);
     src.durationSec = numOr(m.metadata, 'duration_s', NaN);
 end
-src.probeFile = "";
+src.probeFile = out.probeFile();
 src.probe = [];
-if isfield(m, 'probe') && isstruct(m.probe) && isfield(m.probe, 'file')
-    pf = string(m.probe.file);
-    if pf ~= "" && isfile(pf)
-        src.probeFile = pf;
-        src.probe = readJsonFile(pf, ErrorOnFail=false);
-    end
+if src.probeFile ~= ""
+    src.probe = readJsonFile(src.probeFile, ErrorOnFail=false);
 end
 
 % --- extract: events, labels, signal rates (the smallest file's info) -----------

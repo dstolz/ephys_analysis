@@ -6,7 +6,8 @@ function buildToolbar(obj)
 %     File      New config, Open config, Save config
 %     Run       Validate config, Plan, Run pipeline, Dry run, Cancel
 %     Dataset   View manifest (the active dataset's)
-%     Tools     Open analysis app, Channel mapper (both in the File menu)
+%     Tools     Open analysis app, Copy files for the analysis app, Channel mapper
+%               (all in the File menu)
 %     Help      Help for this tab
 %   Run pipeline, Dry run and Cancel follow the Run tab's buttons: the first
 %   two are off while a Run goes, Cancel is on only then (runPipeline,
@@ -33,6 +34,7 @@ obj.ToolbarCancelTool.Enable = "off";
 % --- Dataset and the other apps ---
 addTool(tb, iconDir, "manifest", "View the active dataset's manifest", "", @(~,~) obj.onViewManifest(), Separator=true);
 addTool(tb, iconDir, "analysisapp", "Open analysis app", "", @(~,~) obj.onOpenAnalysisApp(), Separator=true);
+addTool(tb, iconDir, "copyanalysis", "Copy files for the analysis app", "", @(~,~) obj.onCopyForAnalysis());
 addTool(tb, iconDir, "channelmapper", "Channel mapper", "", @(~,~) obj.onOpenChannelMapper());
 
 % --- Help ---

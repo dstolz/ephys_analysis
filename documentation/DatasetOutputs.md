@@ -119,7 +119,7 @@ out.pathSource("fieldtrip")    % "manual" | "discovered" | "dataset" | "manifest
 | `Spikes`, `Chronux`, `FieldTrip`, `Epochs` | the file's variables as a struct (`Epochs`: `epochs` + `export`, see [file-formats](file-formats.md#epoch-export-ephysdatasetexportepochs-the-export-step)) |
 | `KCSD` | the `.npz` arrays (`readNPZ`), `meta` decoded from its JSON ([file-formats](file-formats.md#kcsd-export-ephysdatasetexportkcsd-the-export-step)); `load("kcsd", "ele_pos", ...)` reads only those members |
 | `NWB` | `file` and `notes` (the decoded JSON the exporter records); the data itself is read with pynwb, MatNWB or `h5read` ([file-formats](file-formats.md#nwb-export-ephysdatasetexportnwb-the-export-step)) |
-| `Units` | `ds.readSortedUnits(ResultsDir=SortingDir)` (full unit labels), or without a dataset `EphysDataset.readPhyUnits(SortingDir)` with the manifest's probe file (labels `<class><id>` only, no `subject` / `recordingStart` / `datasetKey`) |
+| `Units` | `ds.readSortedUnits(ResultsDir=SortingDir)` (full unit labels), or without a dataset `EphysDataset.readPhyUnits(SortingDir)` (labels `<class><id>` only, no `subject` / `recordingStart` / `datasetKey`) |
 | `Behavior` | `trials`, `info`, `meta`, `file`, `subject`, `startTime`, `nTrials` |
 | `Manifest`, `Artifacts` | the decoded JSON |
 
@@ -135,10 +135,33 @@ property to set.
 | `readUnits(Name=Value)` | `Units` with reader options (`Groups`, `IncludeNoise`, `Templates`, ...) |
 | `readWaveforms(unitId, MaxSpikes=)` | `[W, info]`: at most `MaxSpikes` (100) of a sorted unit's spikes, picked at random (the same ones each time), on its peak channel, cut from the sorted `.bin` by `EphysDataset.readPhyWaveforms` (`W` `[nt x nSpikes]`); kept with `CacheData`. Its errors pass through (`...:NoDataFile` when the `.bin` is not there); `DatasetOutputs:NoUnit` for an unknown id |
 | `signalFile(type)` | the extract file that holds a signal (`""` when none); a combined file's `info` is loaded once per path, size and modification time (until `refresh()`) |
+| `analysisFiles(Signals=, Spikes=, Sorting=, SortedData=, Probe=)` | `[T, notes]`: the files [`EphysAnalysisApp`](EphysAnalysisApp.md) reads (see [below](#files-for-the-analysis-app)) |
+| `probeFile()` | the probe `.json` of the manifest's `probe.file`; when no file is at that path (outputs copied to another machine), a file of the same name in the dataset's folder; `""` for none |
 | `inventory()` | table per kind: `Property`, `Path`, `Source`, `Exists`, `Bytes`, `Modified`, `NumCandidates` |
 | `refresh()`, `clearCache()` | re-scan; free cached data |
 
 Displaying the object shows the paths only. It never loads data.
+
+## Files for the analysis app
+
+`[T, notes] = out.analysisFiles(...)` lists what the analysis app needs to
+analyse the dataset, for copying it to another machine (the pipeline app's
+[Copy files for the analysis app](EphysPipelineApp.md#copying-files-for-the-analysis-app)
+does). `T` has a row per file or folder: `Kind` (`manifest`, `behavior`,
+`extract`, `spikes`, `sorting`, `sorted data`, `probe`), `Path`, `Base` (the
+folder its place in a copy is counted from: the path below it is kept; `""`
+keeps the name only, as the probe file does) and `Bytes`. `notes` says what
+is missing.
+
+| Option | Default | Lists |
+| --- | --- | --- |
+| `Signals` | `["LFP" "MUA" "AUX"]` | the extract files holding them; the smallest extract file is always there |
+| `Spikes` | `true` | `<Name>_spikes.mat` |
+| `Sorting` | `"essential"` | the sorting folder's files the unit readers use, `"all"` (the folder) or `"none"` |
+| `SortedData` | `false` | the binary `params.py` names (where `readPhyWaveforms` looks for it) |
+| `Probe` | `true` | `probeFile()` |
+
+The manifest and `<Name>_behavior.mat` are always listed.
 
 ## Example: a batch analysis script
 
@@ -163,4 +186,4 @@ the written file and from the session, pinning and `SearchDirs`, caching,
 dataset mode on a small universal-format recording, and two recordings with
 one name sharing an output folder (the recorded source folder decides, also
 after the project moved), a hand-picked sort that is not there, and a combined
-extract that changes.
+extract that changes; then `analysisFiles` (what it lists for each option, the notes, the sorted binary) and `probeFile` (the manifest's path, then the copy beside the outputs), and `readUnits` on a folder whose manifest names a probe file.

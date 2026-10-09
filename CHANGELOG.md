@@ -10,6 +10,19 @@ says how to cut a release.
 
 ### Added
 
+- Copy just the files the analysis app needs to another folder, from the
+  pipeline app: **File → Copy files for the analysis app...** and a toolbar
+  tool open a window (`AnalysisCopyDialog`) that lists, for the ticked
+  datasets, the manifest, behavior file, the chosen signals' extract files,
+  detected spikes, the sorting folder's essential files (or the whole folder),
+  optionally the sorted binary, and the probe file, and copies them in the
+  background to `<folder>/<subject>/<session>` with a progress bar, a stop
+  button and the choice of replacing, keeping or versioning what is there.
+  `DatasetOutputs.analysisFiles` makes the list and `DatasetOutputs.probeFile`
+  finds the probe file: the manifest names it by its path on the pipeline
+  computer, so the copy puts it beside the manifest and the analysis (and a
+  dataset's `ProbeFile`) uses that file when the recorded path is not there.
+
 - A status badge under the analysis app's plot preview: a coloured icon and
   a word for where the preview is (Computing, Drawing, Drawn, Out of date,
   Press Preview, Cannot draw, Failed). While it computes and draws, a card
@@ -589,6 +602,11 @@ says how to cut a release.
   `.claude/worktrees` and operating-system files.
 
 ### Fixed
+
+- `DatasetOutputs.readUnits` on a folder whose manifest named an existing probe
+  file failed with `Invalid argument name 'ProbeFile'`: it passed an option
+  `readPhyUnits` does not take. The analysis app opened on a single output
+  folder could not read its units then.
 
 - A run that launched background sorting runs wrote no run record (warning
   `EphysPipeline:RunRecord`, `Unrecognized field name "name"`): the record

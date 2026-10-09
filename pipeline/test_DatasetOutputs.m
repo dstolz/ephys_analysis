@@ -325,6 +325,59 @@ save(fullfile(cp, 'm1', 'other_v3', "other_v3_spikes.mat"), '-struct', 'Sp');
 check(EphysProject.outputFolderName(fullfile(cp, 'm1', 'other_v3')) == "other_v3", ...
     'a folder whose outputs carry its own _v<n> name keeps it');
 
+%% ---- 7. the files the analysis app needs, and the probe file beside them ------
+fprintf('\n== 7. analysisFiles and probeFile ==\n');
+pdir = fullfile(root, 'probes_here');
+mkdir(pdir);
+probeJson = fullfile(pdir, 'p16.json');
+writeJsonFile(probeJson, struct('chanMap', 0:3, 'xc', zeros(1, 4), 'yc', 0:3, 'kcoords', zeros(1, 4), 'n_chan', 4));
+outA = fullfile(root, 'out_analysis', name);     % rec1's files, as a folder of outputs of another machine
+copyfile(out, outA);
+writeJsonFile(fullfile(outA, 'rec1_manifest.json'), struct('schema', "intan-dataset-manifest/2", ...
+    'name', name, 'sorting', struct('results_dir', "", 'source', "auto"), 'probe', struct('file', string(probeJson))));
+oa = DatasetOutputs(outA);
+check(oa.probeFile() == string(probeJson), 'probeFile: the manifest''s probe.file when it is there');
+[U, ~] = oa.readUnits();
+check(isequal(U.unitId, [0; 1]), 'readUnits in folder mode, with a probe file in the manifest');
+[T, notes] = oa.analysisFiles();
+check(isequal(sort(unique(T.Kind)).', ["behavior" "extract" "manifest" "probe" "sorting" "spikes"]) ...
+    && ~any(contains(T.Path, ["rec1_artifacts" "chronux" "rec10" "partial" "notes"])), ...
+    'analysisFiles: manifest, behavior, extract, spikes, sorting and probe - no exports, no artifacts file');
+check(isequal(T.Path(T.Kind == "extract"), string(fullfile(outA, 'rec1_custom.mat'))) ...
+    && contains(strjoin(notes, "|"), "no AUX file"), ...
+    'LFP and MUA are the one combined file (once); AUX has none (noted)');
+sortRows = T(T.Kind == "sorting", :);
+check(all(sortRows.Base == string(outA)) && any(endsWith(sortRows.Path, "params.py")) ...
+    && any(endsWith(sortRows.Path, "spike_times.npy")) && any(endsWith(sortRows.Path, "cluster_KSLabel.tsv")), ...
+    'essential sorting files, counted from the output folder');
+check(T.Base(T.Kind == "probe") == "" && T.Bytes(T.Kind == "manifest") > 0, ...
+    'the probe file keeps its name only; sizes are the files''');
+T2 = oa.analysisFiles(Signals="SPIKE", Spikes=false, Sorting="all", Probe=false);
+check(isequal(T2.Path(T2.Kind == "extract"), string(fullfile(outA, 'rec1_extract_SPIKE.mat'))) ...
+    && ~any(T2.Kind == "spikes") && ~any(T2.Kind == "probe") ...
+    && isequal(T2.Path(T2.Kind == "sorting"), string(fullfile(outA, 'kilosort4'))), ...
+    'Signals picks the file; Sorting "all" is the folder; Spikes / Probe off');
+T3 = oa.analysisFiles(Signals=string.empty(1, 0), Sorting="none");
+ex = oa.ExtractFiles;
+[~, smallest] = min(arrayfun(@(e) dir(e).bytes, ex));
+check(isequal(T3.Path(T3.Kind == "extract"), ex(smallest)) && ~any(T3.Kind == "sorting"), ...
+    'no signal chosen: the smallest extract file is still there (the events)');
+[T4, notes4] = oa.analysisFiles(SortedData=true);
+check(~any(T4.Kind == "sorted data") && contains(strjoin(notes4, "|"), "sorted data file is not there"), ...
+    'SortedData without the binary is noted');
+fclose(fopen(fullfile(outA, 'x.bin'), 'w'));
+T4 = oa.analysisFiles(SortedData=true);
+check(T4.Path(T4.Kind == "sorted data") == string(fullfile(outA, 'x.bin')), ...
+    'SortedData: the binary params.py names, found beside the sorting folder');
+% On another machine the probe file is not at the manifest's path; the copy beside the outputs is used.
+delete(probeJson);
+[~, notes5] = oa.analysisFiles();
+check(oa.probeFile() == "" && contains(strjoin(notes5, "|"), "no probe file"), ...
+    'probeFile: "" when the file is gone, and analysisFiles says so');
+writeJsonFile(fullfile(outA, 'p16.json'), struct('chanMap', 0:3));
+check(oa.probeFile() == string(fullfile(outA, 'p16.json')), ...
+    'probeFile: a file of the same name in the dataset''s folder stands in');
+
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0
     error('test_DatasetOutputs:Failures', '%d checks failed.', nFail);

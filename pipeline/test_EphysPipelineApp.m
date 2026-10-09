@@ -380,8 +380,8 @@ check(cut && strlength(long) <= 7000 && contains(long, "was%20too%20long%20for%2
 fprintf('\n== 1c2. Toolbar: the menus'' most used commands ==\n');
 tools = flip(app.Toolbar.Children);
 tags = string({tools.Tag});
-check(isequal(tags, ["new" "open" "save" "validate" "plan" "run" "dryrun" "cancel" "manifest" "analysisapp" "channelmapper" "help"]) ...
-    && isequal(find(logical([tools.Separator])), [4 9 10 12]) ...
+check(isequal(tags, ["new" "open" "save" "validate" "plan" "run" "dryrun" "cancel" "manifest" "analysisapp" "copyanalysis" "channelmapper" "help"]) ...
+    && isequal(find(logical([tools.Separator])), [4 9 10 13]) ...
     && all(isfile(fullfile(here, 'icons', 'toolbar', tags + ".svg"))), ...
     'the toolbar holds the config, run, dataset, app and help commands in groups, each with its icon');
 if ismac; modifier = "Cmd+"; else; modifier = "Ctrl+"; end
@@ -597,6 +597,13 @@ if exist('EphysAnalysisApp', 'class')
 else
     fprintf('  (analysis folder not on the path: Tools > Analysis app not checked)\n');
 end
+
+cpItem = findall(app.Fig, 'Type', 'uimenu', 'Text', "Copy files for the analysis app...");
+dlgCopy = app.onCopyForAnalysis();
+check(isscalar(cpItem) && isa(dlgCopy, 'AnalysisCopyDialog') && isvalid(dlgCopy.Fig) && isscalar(dlgCopy.Datasets) ...
+    && contains(app.StatusBar.Text, "Opened the analysis file copy for"), ...
+    'File > Copy files for the analysis app opens the copy window on the ticked dataset');
+delete(dlgCopy);
 
 fprintf('\n== 2b. Analysis tab ==\n');
 if exist('EphysAnalysisConfig', 'class')

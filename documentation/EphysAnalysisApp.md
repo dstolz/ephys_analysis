@@ -74,6 +74,13 @@ mode set there; without a project root, on the analysis app's last config.
 The analysis app's **File → Open pipeline app** goes the other way. The two
 apps share no state: each keeps its own config.
 
+**On another computer.** The pipeline app's **File → Copy files for the
+analysis app...** copies just the files this app reads (manifest, behavior,
+signals, detected spikes, sorted units, probe file) for the ticked datasets
+into `<folder>\<subject>\<session>`
+([details](EphysPipelineApp.md#copying-files-for-the-analysis-app)). Open
+that folder here as a project root: `EphysAnalysisApp("<folder>")`.
+
 ## Tabs
 
 ### Data tab

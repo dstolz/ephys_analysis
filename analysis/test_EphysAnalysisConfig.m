@@ -4,8 +4,8 @@ function test_EphysAnalysisConfig()
 %   lists, "default" sentinels, a heterogeneous Plots array), plotFor's
 %   merge of the Defaults, plot ids (auto ids, DuplicatePlotId), every
 %   validate rule (ids and patterns whose files would collide too), the
-%   behavior kind, the raster's sort and event marks and events shifted by
-%   a trial parameter (fields, round trips, rules), LoadWarnings,
+%   behavior kind, the raster's sort and event marks, events shifted by
+%   a trial parameter and event sequences (fields, round trips, rules), LoadWarnings,
 %   BadSchema, figureFileName and plotFileName's page suffix.
 %
 %   Usage:  test_EphysAnalysisConfig
@@ -318,6 +318,37 @@ bad = cr; bad.Plots(1).rasterEvents.color = "notacolour";
 check(hasIssue(bad, "psth_1.rasterEvents.color", "warning"), 'a mark colour that is not one warns');
 bad = cr; bad.Plots(1).ref.offsetParamUnit = "min";
 check(hasIssue(bad, "psth_1.ref", "error"), 'a shift unit other than ms / s');
+cs = cr;
+cs.Plots(1).ref = struct('line', "Trial", 'edge', "offset", 'sequence', struct('line', "Trough"));
+cs.Defaults.EventRef.sequence = {struct('line', "Trough", 'maxGapSec', 2), ...
+    struct('relation', "notFollowedBy", 'line', "Platform", 'edge', "offset")};
+cs.Defaults.EventRef.alignStep = 1;
+cs.Defaults.Window.stop = struct('line', "RespWindow", 'edge', "offset", 'sequence', struct('line', "Trough", 'n', 2));
+cs.Plots(1).rasterEvents.sequences = struct('line', "Trial", 'edge', "offset", 'sequence', struct('line', "Trough"));
+cs.save(f);
+c6 = EphysAnalysisConfig.load(f);
+d = c6.Defaults.EventRef;
+pr = c6.Plots(1).ref;
+check(cs.isequalConfig(c6) && numel(d.sequence) == 2 && d.sequence(1).maxGapSec == 2 && d.sequence(1).relation == "followedBy" ...
+    && d.sequence(2).relation == "notFollowedBy" && isinf(d.sequence(2).maxGapSec) && d.alignStep == 1 ...
+    && pr.sequence.line == "Trough" && pr.sequence.edge == "onset" && pr.sequence.n == 1 && isinf(pr.alignStep) ...
+    && c6.Defaults.Window.stop.sequence.n == 2 && numel(c6.Plots(1).rasterEvents.sequences) == 1 ...
+    && c6.Plots(1).rasterEvents.sequences.sequence.line == "Trough" && isempty(cr.Defaults.EventRef.sequence), ...
+    'event sequences round-trip: the default event''s two steps (a cell in), alignStep, a plot''s, the stop''s and a mark''s; missing step fields take their defaults');
+check(~any(cs.validate(CheckPaths=false).Severity == "error"), 'that config validates');
+bad = cs; bad.Defaults.EventRef.sequence(1).relation = "before";
+check(hasIssue(bad, "EventRef", "error"), 'a step relation other than followedBy / notFollowedBy');
+bad = cs; bad.Defaults.EventRef.alignStep = 2;
+check(hasIssue(bad, "EventRef", "error"), 'alignStep on a notFollowedBy step');
+bad = cs; bad.Plots(1).rasterEvents.sequences(1).sequence(1).line = "";
+check(hasIssue(bad, "psth_1.rasterEvents.sequences(1)", "error"), 'a mark sequence step without a line');
+s = cs.toStruct();
+s.Defaults.EventRef.sequence(1).bogus = 1;
+writeJsonFile(f, s, NonFinite="string");
+ws = warning('off', 'EphysAnalysisConfig:LoadWarnings');
+c7 = EphysAnalysisConfig.load(f);
+warning(ws);
+check(any(contains(c7.LoadWarnings, "sequence(1).bogus")), 'an unknown step field is dropped and listed');
 
 fprintf('\n== 5. load warnings and schema ==\n');
 s = cfg.toStruct();

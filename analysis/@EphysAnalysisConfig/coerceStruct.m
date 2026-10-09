@@ -24,6 +24,9 @@ for f = string(fieldnames(in)).'
     if f == "stop"
         [out.(f), u] = coerceStop(v, path + "." + f);
         unknown = [unknown, u]; %#ok<AGROW>
+    elseif f == "sequence" || f == "sequences"
+        [out.(f), u] = coerceList(f, v, path + "." + f);
+        unknown = [unknown, u]; %#ok<AGROW>
     elseif isstruct(d)
         [out.(f), u] = EphysAnalysisConfig.coerceStruct(d, v, path + "." + f);
         unknown = [unknown, u]; %#ok<AGROW>
@@ -46,6 +49,33 @@ elseif isstring(v) || ischar(v)
     v = EphysAnalysisConfig.coerceStruct(EphysAnalysisConfig.defaults("EventRef"), struct('line', string(v)), path);
 else
     error('EphysAnalysisConfig:BadValue', '%s must be [] or an EventRef struct.', path);
+end
+end
+
+
+function [out, unknown] = coerceList(field, v, path)
+%coerceList  A list of structs: an EventRef's sequence (SequenceStep each) or
+%   the raster marks' sequences (EventRef each). V is a struct array, a cell
+%   (jsondecode of elements whose fields differ), one struct or [] (none).
+unknown = string.empty(1, 0);
+if field == "sequence"
+    def = EphysAnalysisConfig.defaults("SequenceStep");
+else
+    def = EphysAnalysisConfig.defaults("EventRef");
+end
+out = repmat(def, 1, 0);
+if isempty(v); return; end
+if isstruct(v)
+    v = num2cell(v);
+elseif ~iscell(v)
+    error('EphysAnalysisConfig:BadValue', '%s must be a list of structs.', path);
+end
+for k = 1:numel(v)
+    if ~isstruct(v{k})
+        error('EphysAnalysisConfig:BadValue', '%s(%d) must be a struct.', path, k);
+    end
+    [out(1, k), u] = EphysAnalysisConfig.coerceStruct(def, v{k}, path + "(" + k + ")"); %#ok<AGROW>
+    unknown = [unknown, u]; %#ok<AGROW>
 end
 end
 

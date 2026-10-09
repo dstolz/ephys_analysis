@@ -21,6 +21,8 @@ ref.timeRange = [text2num(C.TimeFrom.Value, -Inf) text2num(C.TimeTo.Value, Inf)]
 ref.offsetSec = C.Offset.Value;
 ref.offsetParam = paramOf(C.ShiftParam);
 ref.offsetParamUnit = string(C.ShiftUnit.Value);
+ref.sequence = C.SeqText.UserData.sequence;
+ref.alignStep = C.SeqText.UserData.alignStep;
 stop = [];
 if C.StopOn.Value
     stop = win.stop;
@@ -32,6 +34,8 @@ if C.StopOn.Value
     stop.scope = string(C.StopScope.Value);
     stop.offsetParam = paramOf(C.StopShiftParam);
     stop.offsetParamUnit = string(C.StopShiftUnit.Value);
+    stop.sequence = C.StopSeqText.UserData.sequence;
+    stop.alignStep = C.StopSeqText.UserData.alignStep;
 end
 win.mode = string(C.Mode.Value);
 win.pre = C.Pre.Value;

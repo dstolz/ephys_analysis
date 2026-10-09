@@ -1,5 +1,7 @@
 function buildAlignTab(obj)
 %buildAlignTab  The config's Defaults (event, window, selection) and a live epoch count.
+%   "Show how the epochs are cut...", beside the active dataset, opens the
+%   epoch diagram for the Defaults (onShowEpochs).
 g = uigridlayout(obj.TabAlign, [1 2]);
 g.ColumnWidth = {470, '1x'};
 g.Padding = [8 8 8 8];
@@ -19,21 +21,27 @@ panels = [uipanel(host, "Title", "Event reference (align to)") uipanel(host, "Ti
     uipanel(host, "Title", "Trial selection")];
 obj.AlignControls = obj.buildAlignControls(panels, @(~) obj.onConfigChanged("defaults"));
 
-right = uigridlayout(g, [4 2]);
-right.RowHeight = {22, 'fit', '1x', '1x'};
-right.ColumnWidth = {'fit', '1x'};
+right = uigridlayout(g, [4 3]);
+right.RowHeight = {30, 'fit', '1x', '1x'};
+right.ColumnWidth = {'fit', '1x', 'fit'};
 right.Padding = [0 0 0 0];
 l = uilabel(right, "Text", "Active dataset:");
 l.Layout.Row = 1; l.Layout.Column = 1;
 obj.AlignDatasetDropDown = uidropdown(right, "Items", "(scan first)", "ItemsData", 0, ...
     "ValueChangedFcn", @(dd, ~) obj.selectDataset(dd.Value));
 obj.AlignDatasetDropDown.Layout.Row = 1; obj.AlignDatasetDropDown.Layout.Column = 2;
+obj.AlignEpochsButton = uibutton(right, "Text", "Show how the epochs are cut...", ...
+    "ButtonPushedFcn", @(~,~) obj.onShowEpochs("defaults"), ...
+    "Tooltip", "A window, kept above the app, that draws how these defaults cut the active dataset into epochs: " + ...
+    "the digital lines as TTL traces, each event (time 0), each epoch's window, and the epochs dropped and why. " + ...
+    "It follows every edit.");
+obj.AlignEpochsButton.Layout.Row = 1; obj.AlignEpochsButton.Layout.Column = 3;
 obj.AlignSummaryLabel = uilabel(right, "Text", "Scan and pick a dataset to see its epochs.", "WordWrap", "on", ...
     "FontWeight", "bold");
-obj.AlignSummaryLabel.Layout.Row = 2; obj.AlignSummaryLabel.Layout.Column = [1 2];
+obj.AlignSummaryLabel.Layout.Row = 2; obj.AlignSummaryLabel.Layout.Column = [1 3];
 obj.AlignAxes = uiaxes(right);
-obj.AlignAxes.Layout.Row = 3; obj.AlignAxes.Layout.Column = [1 2];
+obj.AlignAxes.Layout.Row = 3; obj.AlignAxes.Layout.Column = [1 3];
 title(obj.AlignAxes, "Epochs per group");
 obj.AlignTrialsTable = uitable(right, "RowName", {}, "ColumnWidth", 'auto');
-obj.AlignTrialsTable.Layout.Row = 4; obj.AlignTrialsTable.Layout.Column = [1 2];
+obj.AlignTrialsTable.Layout.Row = 4; obj.AlignTrialsTable.Layout.Column = [1 3];
 end

@@ -5,8 +5,9 @@ function reason = plotSkipReason(src, spec)
 %   sorted units", "no detected spikes", "no <SIGNAL> extract", "no probe
 %   map" (a probe map, or a waveforms plot in the probe layout), "no paired trials" (trial scope, "Trial", a selection that filters
 %   or groups trials, an event or stop shifted by a trial parameter, a
-%   tuning or behavior plot), "no line X" (the aligned or stop line, or a
-%   raster's event marks), "no trial parameter X" (grouping, shifting,
+%   tuning or behavior plot), "no line X" (the aligned or stop line, a line
+%   of their sequences, or a raster's event marks and mark sequences), "no
+%   trial parameter X" (grouping, shifting,
 %   tuning, behavior and raster sort parameters). A plot that passes may
 %   still fail when it runs (e.g. no event survives the selection).
 %
@@ -49,14 +50,31 @@ end
 if ~hasLine(src, spec.ref)
     reason = "no line " + spec.ref.line; return
 end
-if ~isempty(st) && ~hasLine(src, st)
-    reason = "no line " + st.line; return
+reason = missingStepLine(src, spec.ref);
+if reason ~= ""; return; end
+if ~isempty(st)
+    if ~hasLine(src, st)
+        reason = "no line " + st.line; return
+    end
+    reason = missingStepLine(src, st);
+    if reason ~= ""; return; end
 end
 if ismember(spec.kind, ["psth" "raster"]) && ismember(spec.source, ["units" "detected"])
     for ln = spec.rasterEvents.lines
         if ~(isfield(src.events, ln) || (ln == "Trial" && src.trialLine ~= ""))
             reason = "no line " + ln; return
         end
+    end
+    for q = 1:numel(spec.rasterEvents.sequences)
+        mk = spec.rasterEvents.sequences(q);
+        if (mk.scope == "trial" || mk.line == "Trial") && ~src.hasTrials
+            reason = "no paired trials"; return
+        end
+        if ~hasLine(src, mk)
+            reason = "no line " + mk.line; return
+        end
+        reason = missingStepLine(src, mk);
+        if reason ~= ""; return; end
     end
 end
 vars = string(src.trials.Properties.VariableNames);
@@ -73,6 +91,24 @@ switch spec.kind
 end
 for p = need(need ~= "")
     if ~ismember(p, vars); reason = "no trial parameter " + p; return; end
+end
+end
+
+
+function reason = missingStepLine(src, ref)
+%missingStepLine  "no line X" for the first step of REF's sequence whose line the recording lacks.
+reason = "";
+for k = 1:numel(ref.sequence)
+    ln = ref.sequence(k).line;
+    if ln == "Trial" || (src.trialLine ~= "" && ln == src.trialLine)
+        ok = src.hasTrials || isfield(src.events, src.trialLine);
+    else
+        ok = isfield(src.events, ln) || (src.hasTrials && height(src.trials) > 0 && isfield(src.trials.TrialEvents, char(ln)));
+    end
+    if ~ok
+        reason = "no line " + ln;
+        return
+    end
 end
 end
 

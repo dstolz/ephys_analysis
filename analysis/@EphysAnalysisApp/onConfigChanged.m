@@ -2,8 +2,8 @@ function onConfigChanged(obj, what)
 %onConfigChanged  A control changed: re-gather the config and refresh what depends on it.
 %   WHAT says which part changed: "name", "source", "ticks", "defaults"
 %   (the Alignment tab), "plot" (the plot editor) or "export". The runner
-%   gets the new config; the Alignment count, the plot list and the preview
-%   (auto-preview) follow.
+%   gets the new config; the Alignment count, the plot list, the epoch
+%   diagram (when open) and the preview (auto-preview) follow.
 arguments
     obj (1,1) EphysAnalysisApp
     what (1,1) string = ""
@@ -30,10 +30,12 @@ switch what
         syncAlignEnable(obj.AlignControls);
         obj.refreshAlignPreview();
         obj.applyPlotEditorDefaults();
+        obj.refreshEpochDiagram();
         obj.autoPreview();
     case "plot"
         obj.refreshPlotList();
         obj.syncPlotEditor();
+        obj.refreshEpochDiagram();
         obj.autoPreview();
 end
 obj.updateTitle();

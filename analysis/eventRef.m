@@ -6,6 +6,13 @@ function ref = eventRef(s, opts)
 %   the Name=Value options. eventRef("Platform") is short for
 %   eventRef(line="Platform").
 %
+%   An event can be a sequence of events:
+%     eventRef(line="Trial", edge="offset", sequence=struct('line', "Trough"))
+%   aligns to the first Trough onset after each trial's end (before the next
+%   trial), and
+%     eventRef(line="Stim", sequence=struct('line', "Trough", 'maxGapSec', 1), alignStep=0)
+%   to the stimuli that a Trough onset follows within 1 s.
+%
 %   Fields
 %     line            digital line, e.g. "Stim". "Trial" is the paired trial
 %                     line (behavior.pairing.trialLine): in trial scope its
@@ -35,6 +42,29 @@ function ref = eventRef(s, opts)
 %                     an event outside the trials, or whose trial has no
 %                     finite value (a miss's RespLatency), is dropped
 %     offsetParamUnit "ms" (default, as Epsych2 stores times) or "s"
+%     sequence        steps that must follow each event of line / edge
+%                     (default none): a struct array of
+%                     EphysAnalysisConfig.defaults("SequenceStep"), each
+%                       relation   "followedBy" (default): the step's event
+%                                  must come; "notFollowedBy": it must not
+%                       line, edge the step's line ("Trial" = the trial
+%                                  line) and edge
+%                       n          followedBy: the nth such event (default 1)
+%                       maxGapSec  within this long after the event before
+%                                  (default Inf)
+%                       minDurationSec, maxDurationSec   count only
+%                                  intervals of this length
+%                     Each step searches from the event before it (the line's
+%                     own, or the last followedBy step's), never past the
+%                     next trial's onset when the dataset has paired trials.
+%                     An event whose sequence does not complete is left out
+%                     before which picks, so which "first" is the first
+%                     event that the sequence follows (see resolveEvents)
+%     alignStep       which event of the sequence is the epoch's: 0 = the
+%                     line's own (the steps are then conditions), k =
+%                     sequence(k) (a followedBy step), Inf (default) = the
+%                     last followedBy step. The trial is always the one
+%                     holding the line's own event
 %
 %   Event times are the digital-event convention t = row/Fs, polarity
 %   applied (see pairEpsychTrials); epochTable adds each event's time on
@@ -56,6 +86,8 @@ arguments
     opts.offsetSec (1,1) double
     opts.offsetParam (1,1) string
     opts.offsetParamUnit (1,1) string
+    opts.sequence
+    opts.alignStep (1,1) double
 end
 
 if isempty(s)
@@ -93,6 +125,34 @@ if ~isfinite(ref.offsetSec)
 end
 ref.offsetParam = strtrim(ref.offsetParam);
 mustBeOneOf(ref.offsetParamUnit, ["ms" "s"], "offsetParamUnit");
+for k = 1:numel(ref.sequence)
+    st = ref.sequence(k);
+    what = sprintf("sequence(%d)", k);
+    st.line = strtrim(st.line);
+    if st.line == ""
+        error('eventRef:BadValue', '%s.line must name a digital line (or "Trial").', what);
+    end
+    mustBeOneOf(st.relation, ["followedBy" "notFollowedBy"], what + ".relation");
+    mustBeOneOf(st.edge, ["onset" "offset"], what + ".edge");
+    if ~(st.n >= 1 && st.n == round(st.n) && isfinite(st.n))
+        error('eventRef:BadValue', '%s.n must be a whole number >= 1.', what);
+    end
+    if ~(st.maxGapSec > 0)
+        error('eventRef:BadValue', '%s.maxGapSec must be positive (Inf = up to the next trial).', what);
+    end
+    if ~(st.minDurationSec >= 0 && st.maxDurationSec >= st.minDurationSec)
+        error('eventRef:BadValue', '%s: need 0 <= minDurationSec <= maxDurationSec.', what);
+    end
+    ref.sequence(k) = st;
+end
+a = ref.alignStep;
+if ~(a == 0 || a == Inf || (a >= 1 && a == round(a) && a <= numel(ref.sequence)))
+    error('eventRef:BadValue', 'alignStep must be 0 (the %s event), Inf (the last step) or a step of the sequence, 1..%d.', ...
+        ref.line, numel(ref.sequence));
+end
+if a >= 1 && isfinite(a) && ref.sequence(a).relation ~= "followedBy"
+    error('eventRef:BadValue', 'alignStep %d is a "notFollowedBy" step, which has no event to align to.', a);
+end
 end
 
 

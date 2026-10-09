@@ -12,7 +12,10 @@ function C = buildAlignControls(obj, parents, changed)
 %   in and out; fillAlignItems lists the active dataset's lines and
 %   parameters; syncAlignEnable enables what is in use). "Shift by" (and
 %   the stop's) adds a trial parameter's value to each event (eventRef's
-%   offsetParam, offsetParamUnit).
+%   offsetParam, offsetParamUnit). "Sequence" (and "Stop sequence") shows
+%   the steps that must follow the event (eventRef's sequence and
+%   alignStep, kept in C.SeqText / C.StopSeqText's UserData,
+%   setSequenceHolder); Edit... opens editSequence on them.
 C = struct();
 cbRef = @(~,~) changed("ref");
 cbWin = @(~,~) changed("window");
@@ -20,8 +23,8 @@ cbSel = @(~,~) changed("selection");
 [~, words] = respCodeBits();
 
 % --- event reference ------------------------------------------------------------
-rg = uigridlayout(parents(1), [6 4]);
-rg.RowHeight = repmat({22}, 1, 6);
+rg = uigridlayout(parents(1), [7 4]);
+rg.RowHeight = repmat({22}, 1, 7);
 rg.ColumnWidth = {95, '1x', 70, '1x'};
 rg.RowSpacing = 4;
 C.RefGrid = rg;
@@ -69,10 +72,14 @@ lab(rg, "unit:", 6, 3);
 C.ShiftUnit = uidropdown(rg, "Items", ["ms" "s"], "Value", "ms", "ValueChangedFcn", cbRef, ...
     "Tooltip", "The parameter's unit (Epsych2 stores times in ms).");
 C.ShiftUnit.Layout.Row = 6; C.ShiftUnit.Layout.Column = 4;
+lab(rg, "Sequence:", 7, 1);
+[C.SeqText, C.SeqEdit] = sequenceRow(rg, 7, "The events that must (or must not) follow each event above, " + ...
+    "e.g. Trial offset then Trough onset: the first Trough onset after each trial's end.");
+C.SeqEdit.ButtonPushedFcn = @(~,~) obj.editSequence(C.SeqText, "event", C.Line, C.Edge, @() changed("ref"));
 
 % --- window ------------------------------------------------------------------------
-wg = uigridlayout(parents(2), [6 4]);
-wg.RowHeight = repmat({22}, 1, 6);
+wg = uigridlayout(parents(2), [7 4]);
+wg.RowHeight = repmat({22}, 1, 7);
 wg.ColumnWidth = {95, '1x', 70, '1x'};
 wg.RowSpacing = 4;
 C.WindowGrid = wg;
@@ -113,6 +120,10 @@ lab(wg, "unit:", 6, 3);
 C.StopShiftUnit = uidropdown(wg, "Items", ["ms" "s"], "Value", "ms", "ValueChangedFcn", cbWin, ...
     "Tooltip", "The parameter's unit (Epsych2 stores times in ms).");
 C.StopShiftUnit.Layout.Row = 6; C.StopShiftUnit.Layout.Column = 4;
+lab(wg, "Stop sequence:", 7, 1);
+[C.StopSeqText, C.StopSeqEdit] = sequenceRow(wg, 7, "The events that must follow the stop line's event, " + ...
+    "e.g. RespWindow offset then Trough onset: stop at the first Trough onset after the response window.");
+C.StopSeqEdit.ButtonPushedFcn = @(~,~) obj.editSequence(C.StopSeqText, "event", C.StopLine, C.StopEdge, @() changed("window"));
 
 % --- selection -----------------------------------------------------------------------
 sg = uigridlayout(parents(3), [7 4]);
@@ -179,6 +190,18 @@ lab(sg, "Max groups:", 7, 3);
 C.MaxGroups = uispinner(sg, "Limits", [1 100], "Value", 12, "RoundFractionalValues", "on", "ValueChangedFcn", cbSel);
 C.MaxGroups.Layout.Row = 7; C.MaxGroups.Layout.Column = 4;
 syncAlignEnable(C);
+end
+
+
+function [txt, btn] = sequenceRow(grid, row, tip)
+%sequenceRow  A sequence's summary (setSequenceHolder) and its Edit button, in ROW of GRID.
+sg = uigridlayout(grid, [1 2]);
+sg.Layout.Row = row; sg.Layout.Column = [2 4];
+sg.ColumnWidth = {'1x', 70};
+sg.Padding = [0 0 0 0];
+txt = uilabel(sg, "Text", "none");
+setSequenceHolder(txt, struct('sequence', repmat(EphysAnalysisConfig.defaults("SequenceStep"), 1, 0), 'alignStep', Inf));
+btn = uibutton(sg, "Text", "Edit...", "Tooltip", tip);
 end
 
 

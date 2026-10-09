@@ -10,6 +10,22 @@ says how to cut a release.
 
 ### Added
 
+- Event sequences for the analysis module: an event reference can now be a
+  chain of events, e.g. *Trial offset then Trough onset* (the first Trough
+  onset after each trial's end). `eventRef` gains `sequence`, a list of steps
+  that must (`followedBy`) or must not (`notFollowedBy`) follow the event:
+  each step has a line, an edge, the nth event, a maximum gap and an interval
+  length. `alignStep` picks the event each epoch is aligned to: the last step
+  (default), any step, or the line's own event, which turns the steps into
+  conditions. No step looks past the next trial's onset. The epoch keeps the
+  trial of the line's own event, so a CR selection keeps the CR trials that a
+  Trough onset follows. Stop events and raster marks
+  (`rasterEvents.sequences`, `epochEvents(..., Sequences=)`) take sequences
+  too. The analysis app edits them in an *Event sequence* window (the
+  Alignment tab's and the plot editor's **Sequence** and **Stop sequence**
+  rows, the raster's **Mark sequences**). The events a sequence leaves out are
+  counted in captions and on the Alignment tab (`nDroppedNoSequence`), and
+  `eventRefLabel` names a sequence in titles, captions and legends.
 - **Report an issue on GitHub...** and **Request a feature on GitHub...** in
   the analysis app's Help menu, as in the pipeline app: a dialog that
   composes the report from the session (system info, the analysis config and

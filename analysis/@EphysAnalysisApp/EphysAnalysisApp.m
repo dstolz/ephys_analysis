@@ -13,11 +13,13 @@ classdef EphysAnalysisApp < handle
     %                lines, behavior and units
     %     Alignment  the config's Defaults: the event reference (any digital
     %                line or "Trial", onset / offset, first / last / all / nth,
-    %                trial or recording scope), the epoch window (fixed, or
+    %                trial or recording scope, and a sequence of events that
+    %                must or must not follow it: editSequence), the epoch window (fixed, or
     %                between the event and a stop event) and the trial
     %                selection (filter, response words, pairing flags, up to
     %                two groupBy parameters), with a live count of epochs and
-    %                groups on the active dataset
+    %                groups on the active dataset; "Show how the epochs are
+    %                cut..." opens the epoch diagram for them
     %     Plots      the plots, in a tree grouped by plot type (or by source,
     %                layout, enabled / off, or not at all: Group by): add
     %                (psth, raster, evoked, rate, tuning, heatmap, probemap,
@@ -29,7 +31,12 @@ classdef EphysAnalysisApp < handle
     %                the Alignment tab's while "Use default" is ticked, its own
     %                once edited -- and a preview on the active dataset
     %                (auto-preview while a preview takes under 2 s), drawn
-    %                in the design picked above it (PlotDesign)
+    %                in the design picked above it (PlotDesign). "Show how
+    %                the epochs are cut..." opens the epoch diagram
+    %                (EpochDiagram): a window that stays above the app and
+    %                draws, on the active dataset, the digital lines as TTL
+    %                traces, each event, window and epoch and what is
+    %                dropped, redrawn on every edit (onShowEpochs)
     %     Export     figure formats, folder and file-name pattern, the report
     %                (HTML / PDF), Validate, Plan, Run over the ticked
     %                datasets (cancelable), results, open the report / folder
@@ -116,8 +123,10 @@ classdef EphysAnalysisApp < handle
         AlignDatasetDropDown matlab.ui.control.DropDown
         AlignControls struct = struct()          % buildAlignControls handles
         AlignSummaryLabel  matlab.ui.control.Label
+        AlignEpochsButton  matlab.ui.control.Button     % the epoch diagram of the Defaults (onShowEpochs)
         AlignAxes          matlab.ui.control.UIAxes
         AlignTrialsTable   matlab.ui.control.Table
+        SequenceDialog     matlab.ui.Figure = matlab.ui.Figure.empty   % the Event sequence window (editSequence), when open
 
         % --- Plots tab ---
         PlotsTree          matlab.ui.container.Tree         % the plots under groups (plotGroups); a plot's node holds its index in NodeData
@@ -178,6 +187,8 @@ classdef EphysAnalysisApp < handle
         PreviewPage (1,1) double = 1
         PreviewPages (1,1) double = 1
         PreviewSeconds (1,1) double = Inf   % time the last preview took (auto-preview under 2 s)
+        EpochDiagramWindow = []             % the EpochDiagram window, while open (onShowEpochs)
+        EpochDiagramFor (1,1) string = "plot"   % what it draws: "plot" (the editor's) | "defaults"
         Running (1,1) logical = false
         LastReportFiles (1,:) string = string.empty(1,0)
         LastExportFolder (1,1) string = ""
@@ -225,6 +236,7 @@ classdef EphysAnalysisApp < handle
         applyAlignControls(obj, C, ref, win, sel)
         [ref, win, sel] = gatherAlignControls(obj, C, ref, win, sel)
         fillAlignItems(obj, C)
+        editSequence(obj, holder, mode, lineCtl, edgeCtl, done)
 
         % --- config model ---
         cfg = gatherConfig(obj)
@@ -274,6 +286,10 @@ classdef EphysAnalysisApp < handle
         % --- Alignment tab ---
         refreshAlignPreview(obj)
         onFilterHelp(obj)
+
+        % --- the epoch diagram (Alignment tab, plot editor) ---
+        onShowEpochs(obj, what)
+        refreshEpochDiagram(obj)
 
         % --- Plots tab ---
         onAddPlot(obj, kind)

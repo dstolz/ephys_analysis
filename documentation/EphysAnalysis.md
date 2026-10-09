@@ -162,6 +162,25 @@ coerces the rest and checks it: `eventRef(Name=Value)` or `eventRef(s, Name=Valu
 | `offsetSec` | 0 | added to every event time |
 | `offsetParam` | `""` | a numeric trial parameter, e.g. `"RespLatency"`: each event is moved by its trial's value of it, so epochs can be aligned to a per-trial time such as the response (`line "RespWindow"`, `offsetParam "RespLatency"`). Needs paired trials; an event outside the trials, or whose trial has no finite value (a miss), is dropped |
 | `offsetParamUnit` | `"ms"` | `offsetParam`'s unit: `"ms"` (as Epsych2 stores times) or `"s"` |
+| `sequence` | none | steps that must (or must not) follow each event: a struct array of `relation` (`"followedBy"` / `"notFollowedBy"`), `line`, `edge`, `n`, `maxGapSec`, `minDurationSec`, `maxDurationSec` ([event sequences](EphysAnalysisConfig.md#event-sequences)) |
+| `alignStep` | `Inf` | the sequence's event each epoch is aligned to: `0` the line's own, `k` step `k`, `Inf` the last followedBy step |
+
+An event can be a sequence of events. The first Trough onset after the end
+of each CR trial:
+
+```matlab
+ref = eventRef(line="Trial", edge="offset", sequence=struct('line', "Trough"));
+E = epochTable(src, ref, Selection=trialSelection(response="CR"));
+```
+
+Each step looks for its event after the event before it (never past the
+next trial's onset), within its `maxGapSec`; an event whose sequence does not
+complete is left out before `which` picks, and counted
+(`nDroppedNoSequence`). The trial stays the one holding the line's own
+event, so the CR selection applies to the trial that ended. Steps whose
+fields differ go in a cell: `sequence={struct('line', "Trough"),
+struct('line', "Trough", 'edge', "offset")}`. `eventRefLabel(ref)` names
+it: `"Trial offset then Trough onset"`.
 
 `resolveEvents(src, ref, mask)` returns the event times `t`, the trial row of
 each (`NaN` outside trials) and its rank. An interval belongs to the trial
@@ -176,7 +195,9 @@ dropped. With `offsetParam` each event is then moved by its trial's value
 (`[t, trial, k, shift, nNoValue] = resolveEvents(...)`: `shift` the
 seconds added, `nNoValue` the events dropped for lacking a value), and the
 events are sorted after the shift; the trial is still the one holding the
-unshifted edge. Errors: `resolveEvents:NoTrials` (also `offsetParam`
+unshifted edge. With a `sequence`, `t` is each event's `alignStep` event,
+`trial` and `k` those of the line's own event, and a sixth output
+`nNoSequence` counts the events it cost. Errors: `resolveEvents:NoTrials` (also `offsetParam`
 without paired trials), `resolveEvents:NoLine`, `resolveEvents:NoParam` /
 `resolveEvents:BadParam` (`offsetParam` is not a numeric trial column),
 `resolveEvents:NoEvents`.
@@ -196,7 +217,10 @@ the intervals overlapping that trial, so it may fall after the trial ends. Use
 `RespWindow` offset. A stop with its own `offsetParam` is moved by the
 epoch's trial's value of it (no stop when that trial has none): with
 `stop=eventRef(line="RespWindow", offsetParam="RespLatency")` each
-stimulus-aligned epoch's `t1` is its response.
+stimulus-aligned epoch's `t1` is its response. A stop with a `sequence` is
+the first of its line's events at or after `t0` whose sequence follows,
+e.g. `stop=eventRef(line="RespWindow", edge="offset", sequence=struct('line', "Trough"))`
+stops at the first Trough onset after the response window.
 
 ### `trialSelection`: which trials, in which groups
 
@@ -256,9 +280,17 @@ reaches outside `[tStart, tStop]`; the runner passes each plot's baseline.
 sample on the continuous clock, `t0 - 1/fs`). `E.Properties.UserData`
 records `ref`, `window`, `selection`, `scope`, `nEvents`,
 `nDroppedNoValue` (events `offsetParam` dropped; not in `nEvents`),
+`nDroppedNoSequence` (events the `sequence` cost; not in `nEvents`),
 `nDroppedNoStop`, `nDroppedEdge`, `nDroppedArtifact`, `nTrials`,
 `nTrialsSelected` and `dataset`. Nothing usable is `epochTable:NoEpochs`; an
 unknown `src.fs` is `epochTable:NoRate`.
+
+To see how a reference, window and selection cut a dataset,
+`d = EpochDiagram(); d.update(src, ref, win, sel, Baseline=b)` draws it:
+the digital lines as TTL traces with each event, window and epoch, the
+epochs dropped and why, and the epochs aligned to their event. `d.Epochs` is
+the `epochTable` with every event kept, plus `kept`, `number` and `reason`.
+It is the app's [epoch diagram](EphysAnalysisApp.md#epoch-diagram).
 
 ### Units and channels
 
@@ -337,7 +369,7 @@ Pure functions, but for `unitSummary`, which loads the units through
 | `tuningCurve(rates, x, Series=, Param=, SeriesParam=)` | `x` (sorted values), `series`, `mean / sem [nX x nUnits x nSeries]`, `n [nX x nSeries]`. Epochs without a value are left out; when none has one (recording-scope events that all fall outside the trials, say) it is `tuningCurve:NoValues` |
 | `unitSummary(src, Source=, Units=, Ref=, Selection=)` | table `label, class, channel, shank, x, y, nSpikes, rateHz` with `rateHz = nSpikes / src.durationSec` |
 | `probeMapValues(T, probe, Value=)` | one value per probe site: `rate` (summed Hz), `nSpikes`, `nUnits` |
-| `epochEvents(src, E, Lines=, Edge=, Scope=)` | a raster's event marks: a struct per line and edge (`Edge` `"onset"`, `"offset"` or `"both"`), with `line`, `edge`, `label` (`"Trough onset"`), and for every event of that line inside each epoch's window (`Scope="window"`, the default) or inside the epoch's own trial too (`Scope="trial"`) its epoch (`epoch`, a row of `E`) and its time from the epoch's event (`t`, s, on the clock of `E.t0`). Every event is kept, so a trial with several beam crossings has several. `computePlot` adds it to a raster's result as `R.rasterEvents` |
+| `epochEvents(src, E, Lines=, Edge=, Scope=, Sequences=)` | a raster's event marks: a struct per line and edge (`Edge` `"onset"`, `"offset"` or `"both"`), with `line`, `edge`, `label` (`"Trough onset"`), and for every event of that line inside each epoch's window (`Scope="window"`, the default) or inside the epoch's own trial too (`Scope="trial"`) its epoch (`epoch`, a row of `E`) and its time from the epoch's event (`t`, s, on the clock of `E.t0`). Every event is kept, so a trial with several beam crossings has several. `Sequences=` (event references with [sequences](EphysAnalysisConfig.md#event-sequences)) adds a struct per sequence after the lines, labelled by `eventRefLabel` (`"Trial offset then Trough onset"`): its events (`resolveEvents` over every trial, at each one's `alignStep`) in each epoch's window, and with `Scope="trial"` only those whose sequence started in the epoch's trial; one that never completes is an empty mark. `computePlot` adds it to a raster's result as `R.rasterEvents` |
 | `behaviorValues(y, x, Series=, Param=, SeriesParam=, YName=, YUnits=)` | a per-epoch value `y` (a trial parameter, or a stop latency) gathered by the values of `x` and of an optional series: `x`, `xIsNumeric`, `series`, `groups` (one row per series), `mean / sem / median / n [nX x nSeries]`, `values` (table `epoch, xIndex, seriesIndex, y`: every value kept), `nEpochs`, `nMissing` (epochs whose `y`, `x` or series is missing, left out), `yName`, `units`. `behaviorValues:NoValues` when none is left, `behaviorValues:NotNumeric` for a text `y` |
 | `unitCorrelation(st, E, Metric=, Type=, BinSec=, SmoothSec=, Baseline=, BaselineMode=, Groups=, Meta=)` | `r / p [nUnits x nUnits x nGroups]`, `meanR` (mean over the pairs), `nEpochs`, `response [nEpochs x nUnits]`. Each epoch's response is its `"mean"` rate over `[tStart, tStop)` (moved to the spikes' clock by `t0Continuous - t0`) or its `"peak"` binned rate (bins from `tStart`; a bin that runs past `tStop` is not used), optionally minus the epoch's baseline rate (`BaselineMode="subtract"`); every pair of units is then correlated over the epochs of each group, `Type="pearson"` or `"spearman"` (ties averaged). Fixed and `"between"` windows. An epoch whose response is not finite (a window shorter than one bin) is left out; a unit whose responses do not vary has NaN correlations, and so does every pair of a group with fewer than 3 epochs. Needs no toolbox; `p` is two-sided from the t distribution |
 
@@ -1186,7 +1218,7 @@ session with the repository on the path.
 | Suite | Covers |
 | --- | --- |
 | `test_EphysAnalysisCompute` | no fixture: `spikePSTH` on seeded Poisson trains (rate, SEM, half-open bins, bins that are whole multiples from the event and `R.window`, `spikePSTH:BadWindow`, a spike in the event's own sample at 0, baselines, smoothing, stop masking), `firingRate` over between windows, `tuningCurve` (and `tuningCurve:NoValues`), `evokedPotential` (event rule: the event's own row at `t = 0`; padding, drop counts, baseline), the filter compiler, `unitCorrelation` (Pearson and Spearman against `corrcoef`, peak rates and partial bins, baseline, groups, constant units), `binCounts` and `countBelow` against brute force (a spike on a bin edge in the bin that starts there, also on a 30 kHz sample grid), every renderer into axes, uiaxes, figure and uipanel, PSTH fills, normalization and stacks (row steps, value and peak axes), `renderPlot` pages, titles and captions, corrmaps and `shortUnitLabels`, probe order and site labels (`probeOrder`, `siteLabels`), the rate / count / probability measures, a grid's labels and legend on its tiled layout (once, the tiles unlabelled; the PSTH-with-raster y label; the aesthetics editor's `xlabel` / `ylabel` at tile 0) and `TileSpacing`, the raster's `SortBy` (`renderRaster:NoSortColumn`), `SortOrder`, `ByGroup` (rows across groups, a band face per run of a group's rows) and event marks (on their rows, in the look asked for, named and in the legend, restyled by a plot's aesthetics rule; the caption), unit waveform boxes (each location, on a reversed raster too; modes, box and scale; limits kept; none on an overlay; templates), `behaviorValues` (means, SEM, medians, series, missing values counted, its errors) and `renderBehavior` (points with and without jitter, line on a linear x axis, box, swarm, violin with R2024b; the title and caption) |
-| `test_EphysAnalysisEpochs` | the fixture: `loadAnalysisSource` against the generator's truth (`durationSec` from `info.LFP.nSamples`), `t0Continuous` and `offsetSec` on both clocks, trial / recording scope, `"Trial"`, an interval belonging to the trial holding its edge (spanning trials, touching trials, `Platform` in recording scope), events shifted by a trial parameter (RespWindow onset + RespLatency at the generator's response troughs, both clocks, `"s"`, a shifted stop event, the misses counted, the errors), `epochEvents` (every onset and offset in each window, several per trial, trial scope), `groupBy`, response and filter selection, between windows, approved cuts, `selectUnits` / `selectChannels` (units as `DatasetOutputs.readUnits` gives them, the sorting folder read once, shanks by the probe map's `kcoords`; every channel gives the cached signal as it is), `selectUnits`' response test (the same as `responseStats` over its own epochs; direction and alpha; `selectUnits:NoneLeft`, `selectUnits:BadResponse`; `responseStats:NoToolbox` without the toolbox) and its auROC test (the units `aurocCurves` calls modulated; no cutoff is `selectUnits:BadResponse`), error identifiers, the no-behavior fallback, `src.artifacts` and the epochs that touch one (dropped by default, also when only the baseline touches it; a period ending at a window's start does not touch it; kept and flagged with `Artifacts="keep"`) |
+| `test_EphysAnalysisEpochs` | the fixture: `loadAnalysisSource` against the generator's truth (`durationSec` from `info.LFP.nSamples`), `t0Continuous` and `offsetSec` on both clocks, trial / recording scope, `"Trial"`, an interval belonging to the trial holding its edge (spanning trials, touching trials, `Platform` in recording scope), events shifted by a trial parameter (RespWindow onset + RespLatency at the generator's response troughs, both clocks, `"s"`, a shifted stop event, the misses counted, the errors), `epochEvents` (every onset and offset in each window, several per trial, trial scope), event sequences (Trial offset then the first poke after it, never past the next trial; `maxGapSec`, `n`, step lengths, `notFollowedBy`, `alignStep`, a step on its own line and edge, `which` after the sequence, the counts, a stop event and raster marks of sequences, `eventRefLabel`, the errors), `groupBy`, response and filter selection, between windows, approved cuts, `selectUnits` / `selectChannels` (units as `DatasetOutputs.readUnits` gives them, the sorting folder read once, shanks by the probe map's `kcoords`; every channel gives the cached signal as it is), `selectUnits`' response test (the same as `responseStats` over its own epochs; direction and alpha; `selectUnits:NoneLeft`, `selectUnits:BadResponse`; `responseStats:NoToolbox` without the toolbox) and its auROC test (the units `aurocCurves` calls modulated; no cutoff is `selectUnits:BadResponse`), error identifiers, the no-behavior fallback, `src.artifacts` and the epochs that touch one (dropped by default, also when only the baseline touches it; a period ending at a window's start does not touch it; kept and flagged with `Artifacts="keep"`) |
 | `test_ResponseStats` | no fixture: `pAdjust` against statsmodels' `multipletests` (`pipeline/testdata/padjust_golden.json` from `tools/golden/padjust_golden.py`; NaN, ties, one value), `responseStats` on hand-made epochs with known counts (rates, p against `signrank` / `kruskalwallis` called directly, direction, correction, the epochs left out, rates for windows of different lengths, the errors). The tests that call the toolbox are skipped without it |
 | `test_Auroc` | no fixture: `aucOf` against counting every pair; the `"psth"` method against a port of the Caras lab's `auROC_response_curve`; the `"epochs"` method against hand counts; tiled and sliding windows, the whole-bin rules and the errors; the stop mask; the 95% CI formula, the fixed cutoff and the wide-cutoff warning; bootstrap, ranksum and shuffle tests on driven, suppressed and flat units (reproducible by seed; ranksum against `ranksum` called directly); a unit silent over a group's epochs has no auROC (NaN) and stays out of the cutoff; units measured apart (`Call=false`) and called in one `aurocCall` get the cutoff, the test's correction and the calls of one `aurocCurves` over them all; `spikePSTH`'s auROC result, `modulatedOnly` and caption; the PSTH and heatmap marks, tagged. Skipped without the toolbox |
 | `test_PopulationAnalysis` | the fixture: `populationAnalysis`' units, rates, PSTHs and per-level rates equal the per-dataset calls (the selection's groups pooled); the summary's counts and means add up; the groupings (none, dataset × shank, depth bins); the correction over every unit or each dataset; each unit's auROC equal to `aurocCurves`' over its dataset, the 95% CI cutoff pooled over every unit (the formula over all of them; `Family="dataset"`: each dataset's own) and, with `AurocGroupBy`, over every unit x group curve, the calls, peaks and summary counts that follow, a test cutoff's p corrected over the family, and the auROC columns and cutoff in the files; the files written; the errors |

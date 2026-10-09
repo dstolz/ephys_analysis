@@ -12,5 +12,8 @@ end
 if ~isempty(obj.Runner)
     obj.Runner.clearSources();
 end
+if ~isempty(obj.SequenceDialog) && isvalid(obj.SequenceDialog)
+    delete(obj.SequenceDialog);
+end
 delete(obj.Fig);
 end

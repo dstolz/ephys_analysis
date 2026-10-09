@@ -8,7 +8,8 @@ function s = defaults(section)
 %
 %   Config sections   Source, Defaults, Export, Report, Plot (one entry of
 %                     Plots)
-%   Building blocks   EventRef, EpochWindow, TrialSelection, UnitSelection,
+%   Building blocks   EventRef, SequenceStep (one step of an EventRef's
+%                     sequence), EpochWindow, TrialSelection, UnitSelection,
 %                     Style, Auroc, Waveform
 %
 %   See also EphysAnalysisConfig, EphysAnalysisConfig.normalizeSection.
@@ -47,7 +48,20 @@ switch section
             'timeRange',      [-Inf Inf], ...  % s from trial onset (trial scope) or recording start
             'offsetSec',      0, ...           % added to every event time
             'offsetParam',    "", ...          % "" | a trial parameter: its value on the event's trial is added too (e.g. RespLatency)
-            'offsetParamUnit', "ms");          % offsetParam's unit: "ms" | "s"
+            'offsetParamUnit', "ms", ...       % offsetParam's unit: "ms" | "s"
+            'sequence',       repmat(EphysAnalysisConfig.defaults("SequenceStep"), 1, 0), ...  % steps that must (or must not) follow each event (followSequence)
+            'alignStep',      Inf);            % the step aligned to: 0 = the line's own event, k = sequence(k), Inf = the last "followedBy" step
+
+    case "SequenceStep"
+        % one step of an EventRef's sequence: an event that must (or must not) follow the one before
+        s = struct( ...
+            'relation',       "followedBy", ... % "followedBy" | "notFollowedBy"
+            'line',           "", ...          % digital line; "Trial" = the paired trial line
+            'edge',           "onset", ...     % "onset" | "offset"
+            'n',              1, ...           % followedBy: the nth such event after the one before
+            'maxGapSec',      Inf, ...         % at most this long after the event before (never past the next trial's onset)
+            'minDurationSec', 0, ...           % count intervals at least this long
+            'maxDurationSec', Inf);            % ... and at most this long
 
     case "EpochWindow"
         s = struct( ...
@@ -213,7 +227,8 @@ function e = rasterEventsDefaults()
 %rasterEventsDefaults  Plot.rasterEvents: none; how the marks look.
 e = struct( ...
     'lines',  string.empty(1,0), ... % digital lines ("Trial" = the trial line) whose events are marked on each row
-    'edge',   "onset", ...           % "onset" | "offset" | "both"
+    'sequences', repmat(EphysAnalysisConfig.defaults("EventRef"), 1, 0), ...   % event references (with sequences) whose events are marked too
+    'edge',   "onset", ...           % "onset" | "offset" | "both" (of lines)
     'scope',  "window", ...          % "window": every event in the epoch's window | "trial": only those in the epoch's own trial
     'marker', "diamond", ...         % a line marker (PlotAesthetics' list: o, square, diamond, ^, v, |, ...)
     'size',   4, ...                 % marker size, points

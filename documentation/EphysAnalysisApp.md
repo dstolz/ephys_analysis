@@ -150,6 +150,28 @@ field; in short:
 | **Length (s)** | keep the intervals whose length lies in this range (`0` to `Inf`) |
 | **Time range (s)** | keep the events in this range, from the trial onset (trial scope) or the recording start |
 | **Shift by**, **unit** | a trial parameter whose value on each event's trial is added to the event, in ms (default, as Epsych2 stores times) or s: *RespWindow onset* shifted by *RespLatency* is the response. The trials without a value (misses) are left out, and the count says how many (`offsetParam`, `offsetParamUnit`) |
+| **Sequence**, **Edit...** | the events that must (or must not) follow each event above, shown as e.g. *then Trough onset*; *none* by default (`sequence`, `alignStep`: [event sequences](EphysAnalysisConfig.md#event-sequences)). **Edit...** opens the *Event sequence* window (below) |
+
+**Event sequence window.** It starts at the panel's **Line** and **Edge**
+and lists the steps after it in a table: **Then** (*followed by* or *not
+followed by*), **Line**, **Edge**, **n** (the nth such event), **Within
+(s)** (how long after the event before; *Inf* = any time before the next
+trial), **Min / Max length (s)** (count only intervals of this length).
+**Add step**, **Remove step**, **Up** and **Down** edit the list (select a
+row first). **Align to** picks the epoch's event: the start, a *followed
+by* step, or *the last step* (default). **Apply** checks the sequence and
+keeps it; **Cancel** drops it. Each step looks for its event after the event
+before it: the start, or the last *followed by* step's event. With paired
+trials, no step looks past the next trial's onset. An event whose sequence
+does not complete is left out, and the count on the right says how many
+(*"; N the sequence did not follow"*).
+
+To plot a PSTH around the first Trough onset after each CR trial: **Line**
+*Trial*, **Edge** *offset*; **Sequence** *then Trough onset* (Edit...,
+**Add step**, Line *Trough*, Edge *onset*); **Response** *CR* in the trial
+selection. The trial selection goes by the trial that ended, so the epochs
+are the CR trials that a Trough onset follows, each aligned to that
+Trough onset.
 
 **Epoch window** (`Defaults.Window`)
 
@@ -159,6 +181,7 @@ field; in short:
 | **Pre (s)**, **Post (s)** | the window's edges from the event (in between mode, `post` from the stop event) |
 | **Stop event**, line, edge, **Stop which**, **n**, **Stop scope** | the event that ends each epoch, the first (or chosen) one after the epoch's event. Required in between mode; in fixed mode it is still marked on PSTHs and rasters and can mask a PSTH |
 | **Stop shift by**, **unit** | a trial parameter added to the stop event, from the epoch's trial: with the event at Stim onset and the stop at *RespWindow onset* shifted by *RespLatency*, each raster row marks its response and can be sorted by it |
+| **Stop sequence**, **Edit...** | the events that must follow the stop line's event, in the same *Event sequence* window: the stop at *RespWindow offset* then *Trough onset* is the first Trough onset after the response window |
 
 **Trial selection** (`Defaults.Selection`)
 
@@ -176,11 +199,14 @@ every edit.
 
 On the right, for the active dataset (**Active dataset** picks another):
 *"N epochs from M of T trials (scope); groups ..."*, with the events
-dropped for lacking the **Shift by** parameter's value, and the epochs
+dropped for lacking the **Shift by** parameter's value or because their
+**Sequence** did not follow, and the epochs
 dropped for having no stop event, leaving the recording or touching an
 artifact period (*"; N touch an artifact period"*), or why there are none;
 a bar of epochs per group in the group colours the plots use; and the kept
-trials with their group and number of epochs.
+trials with their group and number of epochs. **Show how the epochs are
+cut...**, beside the active dataset, opens the
+[epoch diagram](#epoch-diagram) for these defaults.
 
 A filter, response, group-by or trial scope needs paired trials: approve
 the pairing on the pipeline app's [Trials tab](EphysPipelineApp.md#trials)
@@ -212,7 +238,9 @@ a header leaves the plot in the editor selected.
 **Enabled** (a disabled plot is kept but not run; `enabled`), **Id**
 (unique; it names the exported files, `{Plot}`; `id`), **Title** (blank =
 automatic, `<Kind>: <line> <edge> (<n> epochs)`; `title`), **Source**
-(`source`) and **Layout** (`layout`). Then sections that collapse under
+(`source`), **Layout** (`layout`) and **Show how the epochs are cut...**,
+which opens the [epoch diagram](#epoch-diagram) for the plot (every kind
+that aligns to an event). Then sections that collapse under
 their headers (**▼** / **►**; which are collapsed is remembered):
 
 | Section | Rows |
@@ -311,6 +339,34 @@ in a shared folder (**Keep my designs in...**). Your rules and the plot's
 own rules still win over a design, and a plot's own group or heat colours
 win over the design's. The design you pick is your preference, not part
 of the config. See [Plot designs](EphysAnalysis.md#plot-designs).
+
+### Epoch diagram
+
+**Show how the epochs are cut...** (in the plot editor, and on the
+Alignment tab) opens a window that draws how the event reference, epoch
+window and trial selection cut the active dataset into epochs. It gets
+the epochs from `epochTable`, as the plot does, so they are exactly the
+plot's epochs. The window is not modal: it stays above the app while you
+edit, and redraws on every edit, on a change of plot or of the active
+dataset, and when a config is opened. From the plot editor it follows the
+selected plot: its own values or the defaults, its baseline, and what it
+drops (a behavior plot keeps every epoch). From the Alignment tab it shows
+the defaults. It closes with the app.
+
+Top to bottom:
+
+| Part | What it shows |
+| --- | --- |
+| heading | the plot and the dataset, and whether the event, window and selection are the plot's own or the defaults |
+| the rule | in words, e.g. *Time 0 is the first Stim onset in each trial. Each epoch runs from 0.2 s before it to 0.8 s after it. Trials kept: pairing ok; grouped by Depth.* |
+| the count | how many epochs there are, from how many trials. It also gives how many trials the selection leaves out, and how many events are dropped and why: no stop event, outside the recording, or touching an artifact period; and how many were left out before, for lacking the **Shift by** value or because their sequence did not follow. When there are no epochs, the count is red and says why |
+| **The recording** | a stretch of the recording, one row per digital line involved, each drawn as its TTL trace: **Trials** (each trial in its group's colour, or blue without groups; the ones the selection leaves out grey), the event's line (**▲ event**) and the stop event's line (**▼ stop**). With an event **Sequence**, every line of it gets a row (*· sequence*), ▲ sits on the step time 0 is aligned to, and ○ marks where the sequence starts, joined to the ▲ by a dotted line. ▲ marks the edge each event is picked at. A line in the event's group colour runs through every row at time 0. An event moved by **Offset** or **Shift by** has an arrow from its edge to time 0. The stop event is ▼ with a dotted line. Each epoch's window is shaded across the rows and drawn as a bar on the **Epochs** row, numbered `#1`, `#2`, ... as the plot numbers them. An epoch the plot drops is grey and dashed, with ✕ and the reason. Under each bar is the baseline; on the event's line, the **Time range** searched (yellow); behind everything, the artifact periods (red) and the stretches outside the recording (grey). A legend under the axes names each mark |
+| **Aligned to the event** | the same epochs, one row each, on the time from their event: the window, the event's line as the epoch sees it, the stop event (▼) and the baseline, with dashed lines at *pre* and *post*. This is what the plot stacks and averages |
+| **◀ Previous**, **Next ▶**, **Show** | step through the events, and set how many to draw at a time (5 by default). The axes' toolbars zoom and pan |
+
+A value that gives no epochs is reported in red, and the lines are still
+drawn, so you can see why. Examples: a fixed window with *pre* after
+*post*, a line the dataset lacks, or a scope it cannot use.
 
 ### Export tab
 
@@ -432,6 +488,13 @@ grid.
   marker, size and colour. Each line and edge is listed in the legend and
   is one component for the aesthetics editor, so a right-click restyles
   one line's marks.
+- **Mark sequences**, **Edit...** marks events defined by a sequence: the
+  *Event sequence* window lists them (**Add sequence**, **Remove
+  sequence**), each with its own start (line, edge, **which**, **scope**)
+  and steps. *Trial offset then Trough onset* marks the first Trough onset
+  after each trial's end on its row. Each sequence is one legend entry and
+  one aesthetics component. With **Mark events** scope *trial*, a
+  sequence's mark shows only on the row of the trial it started in.
 
 <!-- wiki: ![Rasters of several units, epochs sorted by Depth](images/analysis-example-raster.png) -->
 
@@ -708,6 +771,7 @@ results, on the Log tab and in the report.
 | plot editor | `syncPlotEditor` (what shows, what is enabled, what the drop-downs offer: `private/plotEditorChoices`), `layoutPlotEditor`, `onPlotSectionToggled`, `onPlotAlignEdited`, `onPlotDefaultToggled`, `applyPlotEditorDefaults` |
 | data | `openSource`, `onScan`, `refreshDatasetsTable`, `selectDataset`, `refreshDatasetInfo` |
 | previews | `refreshAlignPreview`, `refreshPreview`, `autoPreview`, `onPreviewPage` |
+| epoch diagram | `onShowEpochs`, `refreshEpochDiagram`; the window itself is `analysis/EpochDiagram.m` |
 | plot designs | `refreshDesigns` (the Design menu and list; `PlotDesign.listen` keeps them current), `onDesignChosen`, `onSaveDesign`, `onImportDesign`, `onDeleteDesign`, `onDesignsFolder`; the designs themselves: `PlotDesign`, `analysis/designs` |
 | running | `onValidate`, `onPlan`, `onRunExport`, `onCancelRun` |
 | files | `onNewConfig`, `onOpenConfig`, `openConfigFile`, `onSaveConfig`, `onSaveConfigAs`, `onGenerateScript`, `loadPreferences`, `savePreferences` |
@@ -739,7 +803,12 @@ uses (y limits, heat colours, a probe map's missing alignment) and greying
 out the ones its options switch off; a spike heatmap with the auROC baseline
 (its settings shown and reaching the plot, its preview marked) and the auROC
 response test; the Unit waveform rows (greyed out while *Off*, reaching
-the plot, previewed without the box, hidden for an overlay); a raster's
+the plot, previewed without the box, hidden for an overlay); the epoch
+diagram (opened from the plot editor with exactly the plot's epochs,
+redrawn at once when *pre* is edited, every epoch dropped and saying why
+when the window reaches before the recording, a window `epochTable`
+refuses reported, paging, the same window showing the defaults from the
+Alignment tab, closing with the app); a raster's
 sort, direction, grouping and event marks reaching the plot and the
 preview; **Shift by** giving a plot its own event shifted by RespLatency
 (the misses left out); a behavior plot (its rows shown, the others

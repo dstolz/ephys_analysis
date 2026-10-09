@@ -266,8 +266,11 @@ classdef EphysAnalysisScript
                         tail = ");";
                         if spec.baseline.Mode == "auroc"; tail = ", Auroc=spec.auroc);   % auROC settings: spec.auroc"; end
                         L(end+1, 1) = "    Baseline=" + b + ", BaselineMode=" + lit(spec.baseline.Mode) + ", MaskAfterStop=" + lit(spec.maskAfterStop) + ", Raster=" + lit(raster) + ", Groups=G, Meta=meta" + tail;
-                        if raster && ~isempty(spec.rasterEvents.lines)
-                            m = spec.rasterEvents;
+                        m = spec.rasterEvents;
+                        if raster && ~isempty(m.sequences)
+                            L(end+1, 1) = "R.rasterEvents = epochEvents(src, E, Lines=" + lit(m.lines) + ", Edge=" + lit(m.edge) + ...
+                                ", Scope=" + lit(m.scope) + ", Sequences=spec.rasterEvents.sequences);   % the raster's event marks";
+                        elseif raster && ~isempty(m.lines)
                             L(end+1, 1) = "R.rasterEvents = epochEvents(src, E, Lines=" + lit(m.lines) + ", Edge=" + lit(m.edge) + ...
                                 ", Scope=" + lit(m.scope) + ");   % the raster's event marks";
                         end
@@ -316,7 +319,7 @@ classdef EphysAnalysisScript
                     if spec.seriesParam ~= ""; series = "E.(" + lit(spec.seriesParam) + ")"; end
                     if spec.yParam == "stop"
                         yName = "stop latency";
-                        if ~isempty(spec.window.stop); yName = spec.window.stop.line + " " + spec.window.stop.edge + " latency"; end
+                        if ~isempty(spec.window.stop); yName = eventRefLabel(spec.window.stop) + " latency"; end
                         L(end+1, 1) = "y = 1000 * (E.t1 - E.t0);   % each epoch's stop latency, ms";
                         yArgs = ", YName=" + lit(yName) + ", YUnits=""ms""";
                     else

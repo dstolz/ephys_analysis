@@ -205,13 +205,13 @@ if isfield(R, 'epochs') && istable(R.epochs)
     U = R.epochs.Properties.UserData;
     nEp = height(R.epochs);
     if isstruct(U) && isfield(U, 'ref')
-        ev = U.ref.line + " " + U.ref.edge;
+        ev = eventRefLabel(U.ref);
         if isfield(U, 'window') && U.window.mode == "between" && ~isempty(U.window.stop)
-            ev = ev + " to " + U.window.stop.line + " " + U.window.stop.edge;
+            ev = ev + " to " + eventRefLabel(U.window.stop);
         end
     end
 elseif isstruct(spec.ref)
-    ev = spec.ref.line + " " + spec.ref.edge;
+    ev = eventRefLabel(spec.ref);
 end
 if ~isfinite(nEp) && isfield(R, 'n'); nEp = sum(R.n(:)); end
 if spec.kind == "tuning"

@@ -1,7 +1,7 @@
-function [t, trial, k, shift, nNoValue] = resolveEvents(src, ref, mask)
+function [t, trial, k, shift, nNoValue, nNoSequence] = resolveEvents(src, ref, mask)
 %resolveEvents  The event times an event reference picks out.
-%   [T, TRIAL, K, SHIFT, NNOVALUE] = resolveEvents(SRC, REF, MASK) returns,
-%   for the dataset SRC (loadAnalysisSource) and the eventRef REF,
+%   [T, TRIAL, K, SHIFT, NNOVALUE, NNOSEQUENCE] = resolveEvents(SRC, REF, MASK)
+%   returns, for the dataset SRC (loadAnalysisSource) and the eventRef REF,
 %     T      [n x 1] event times, s (the digital-event convention t = row/Fs
 %            of the recording, src.fs; polarity applied, plus
 %            REF.offsetSec and SHIFT), ascending
@@ -14,6 +14,7 @@ function [t, trial, k, shift, nNoValue] = resolveEvents(src, ref, mask)
 %            trial's value of the parameter; 0 without offsetParam)
 %     NNOVALUE  how many events REF.offsetParam dropped: outside the
 %            trials, or on a trial without a finite value
+%     NNOSEQUENCE  how many events REF.sequence cost (below)
 %
 %   An interval belongs to the trial whose [TrialOnset, TrialOffset] holds
 %   its REF.edge (the edge before REF.offsetSec), in both scopes: an
@@ -32,6 +33,22 @@ function [t, trial, k, shift, nNoValue] = resolveEvents(src, ref, mask)
 %   whole recording. Each event is assigned the trial it belongs to; when
 %   MASK is given (a restrictive trial selection), events outside the kept
 %   trials are dropped. line "Trial" is the pairing's trial line.
+%
+%   With REF.sequence, the line's events are found as above and each is
+%   kept only when its sequence completes: every followedBy step's event
+%   comes after the event before it (within the step's maxGapSec) and no
+%   notFollowedBy step's does, never looking past the next trial's onset
+%   (paired trials). Steps read the whole recording's intervals, so a step
+%   after the trial's end (a Trough onset after TrialOffset) is found. The
+%   duration / time-range filters and REF.which apply to the line's own
+%   events, REF.which after the sequence: which "first" is the first event
+%   the sequence follows. The time returned is the event REF.alignStep
+%   names (the last followedBy step's by default); TRIAL and K stay those
+%   of the line's own event. NNOSEQUENCE counts the picks the sequence
+%   cost: per trial (trial scope) or over the recording, those REF.which
+%   would have made without it less those it made; with which "all", every
+%   event the sequence does not follow (in recording scope, of the kept
+%   trials when MASK is given).
 %
 %   With REF.offsetParam (e.g. "RespLatency", REF.offsetParamUnit "ms")
 %   each event is then moved by its trial's value of that parameter: the
@@ -74,6 +91,7 @@ if scope == "trial"
             src.name, ref.line, strjoin(trialLines(src), ", "));
     end
     tc = cell(numel(rows), 1); rc = cell(numel(rows), 1); kc = cell(numel(rows), 1);
+    nNoSequence = 0;
     for j = 1:numel(rows)
         r = rows(j);
         if isTrialLine
@@ -83,8 +101,9 @@ if scope == "trial"
             if isempty(iv); iv = zeros(0, 2); end
             iv = iv(containingTrial(iv(:, col), T.TrialOnset, T.TrialOffset) == r, :);
         end
-        [e, kk] = pickEvents(iv, ref, T.TrialOnset(r));
+        [e, kk, ~, nn] = pickEvents(iv, ref, T.TrialOnset(r), -Inf, src);
         tc{j} = e; rc{j} = repmat(r, numel(e), 1); kc{j} = kk;
+        nNoSequence = nNoSequence + nn;
     end
     t = vertcat(tc{:}, zeros(0, 1));
     trial = vertcat(rc{:}, zeros(0, 1));
@@ -103,7 +122,7 @@ else
     end
     iv = double(src.events.(line));
     if isempty(iv); iv = zeros(0, 2); end
-    [t, k, row] = pickEvents(iv, ref, 0);
+    [t, k, row, nNoSequence, failRows] = pickEvents(iv, ref, 0, -Inf, src);
     trial = NaN(size(t));
     if src.hasTrials
         trial = containingTrial(iv(row, col), src.trials.TrialOnset, src.trials.TrialOffset);
@@ -112,6 +131,10 @@ else
         keep = isfinite(trial);
         keep(keep) = mask(trial(keep));
         t = t(keep); trial = trial(keep); k = k(keep);
+        if ref.which == "all" && src.hasTrials   % count only the events of the kept trials
+            ft = containingTrial(iv(failRows, col), src.trials.TrialOnset, src.trials.TrialOffset);
+            nNoSequence = nnz(isfinite(ft) & mask(max(ft, 1)));
+        end
     end
 end
 
@@ -127,6 +150,8 @@ if isempty(t)
     hint = "";
     if nNoValue > 0
         hint = sprintf(' %d event(s) were dropped because their trial has no value of %s.', nNoValue, ref.offsetParam);
+    elseif nNoSequence > 0
+        hint = sprintf(' %d event(s) were dropped because their sequence (%s) did not follow.', nNoSequence, eventRefLabel(ref));
     elseif scope == "trial" && ~isTrialLine
         hint = sprintf(' In trial scope an interval counts for the trial that holds its %s; use scope "recording" for a line whose intervals lie between trials.', ref.edge);
     end

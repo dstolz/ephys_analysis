@@ -77,6 +77,8 @@ mk = p.rasterEvents;
 E.markLines.Value = char(strjoin(mk.lines, " "));
 offerItems(E.markEdge, ["onset" "offset" "both"], mk.edge);
 offerItems(E.markScope, ["window" "trial"], mk.scope);
+closeSequenceDialog(obj, E.markSeqText);
+setSequenceHolder(E.markSeqText, mk.sequences);
 E.markMarker.Value = char(pickFrom(mk.marker, string(E.markMarker.ItemsData), "diamond"));
 E.markSize.Value = min(E.markSize.Limits(2), max(E.markSize.Limits(1), mk.size));
 offerItems(E.markColor, string(E.markColor.Items), pick(mk.color, "auto"));

@@ -51,6 +51,7 @@ if isempty(lines); lines = string.empty(1, 0); end
 p.rasterEvents.lines = lines;
 p.rasterEvents.edge = string(E.markEdge.Value);
 p.rasterEvents.scope = string(E.markScope.Value);
+p.rasterEvents.sequences = E.markSeqText.UserData;
 p.rasterEvents.marker = string(E.markMarker.Value);
 p.rasterEvents.size = E.markSize.Value;
 p.rasterEvents.color = strtrim(string(E.markColor.Value));

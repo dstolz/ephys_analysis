@@ -28,6 +28,7 @@ if src.hasTrials
     txt = txt + sprintf(" from %d of %d trials", nT, src.nTrials);
 end
 txt = txt + " (" + U.scope + " scope)";
+if U.nDroppedNoSequence > 0; txt = txt + sprintf("; %d the sequence did not follow", U.nDroppedNoSequence); end
 if U.nDroppedNoStop > 0; txt = txt + sprintf("; %d without a stop event", U.nDroppedNoStop); end
 if U.nDroppedEdge > 0; txt = txt + sprintf("; %d leave the recording", U.nDroppedEdge); end
 if U.nDroppedArtifact > 0; txt = txt + sprintf("; %d touch an artifact period", U.nDroppedArtifact); end

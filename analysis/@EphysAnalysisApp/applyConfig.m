@@ -33,6 +33,7 @@ if ~isempty(obj.Runner)
         obj.ScanLabel.Text = "The source changed: Scan to list its datasets.";
     end
 end
+obj.refreshEpochDiagram();
 obj.updateTitle();
 end
 

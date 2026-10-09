@@ -2,7 +2,8 @@ function buildPlotsTab(obj)
 %buildPlotsTab  Plot tree, plot editor (collapsible sections) and the preview.
 %   The tree groups the plots by plot type, source, layout or status (Group
 %   by; refreshPlotList), with the kind to add on its own row. The editor is a column of sections (formSection): the plot's kind, id,
-%   title, source and layout, always open; then Units & channels, Event
+%   title, source and layout and "Show how the epochs are cut..." (the
+%   epoch diagram, onShowEpochs), always open; then Units & channels, Event
 %   reference, Epoch window, Trial selection (the Alignment tab's values
 %   while "Use default" is ticked; editing one gives the plot its own),
 %   Bins & baseline, the kind's own options, Appearance and Unit waveform
@@ -81,6 +82,12 @@ place(E.source, r, 2);
 [S, r] = formRow(S, "layout", "Layout:");
 E.layout = uidropdown(S.Body, "Items", "grid", "ValueChangedFcn", changed);
 place(E.layout, r, 2);
+[S, r] = formRow(S, "epochs", "", 30);
+E.epochs = uibutton(S.Body, "Text", "Show how the epochs are cut...", "ButtonPushedFcn", @(~,~) obj.onShowEpochs("plot"), ...
+    "Tooltip", "A window, kept above the app, that draws how this plot's event reference, epoch window and trial " + ...
+    "selection cut the active dataset into epochs: the digital lines as TTL traces, each event (time 0), each " + ...
+    "epoch's window, and the epochs dropped and why. It follows every edit.");
+place(E.epochs, r, [1 2]);
 sec = S;
 
 % units and channels
@@ -217,7 +224,16 @@ E.markLines = uieditfield(mg, "text", "Placeholder", "lines, e.g. Trough", "Valu
 E.markEdge = uidropdown(mg, "Items", ["onset" "offset" "both"], "Value", "onset", "ValueChangedFcn", changed, ...
     "Tooltip", "Mark each event's onset, offset, or both (each its own mark).");
 E.markScope = uidropdown(mg, "Items", ["window" "trial"], "Value", "window", "ValueChangedFcn", changed, ...
-    "Tooltip", "window: every event inside the epoch's window; trial: only those inside the epoch's own trial.");
+    "Tooltip", "window: every event inside the epoch's window; trial: only those inside the epoch's own trial " + ...
+    "(a sequence's: those whose sequence started in the epoch's trial).");
+[S, r] = formRow(S, ["markSeqText" "markSeqEdit"], "Mark sequences:");
+msg = subgrid(S.Body, r, {'1x', 70});
+E.markSeqText = uilabel(msg, "Text", "none");
+setSequenceHolder(E.markSeqText, repmat(EphysAnalysisConfig.defaults("EventRef"), 1, 0));
+E.markSeqEdit = uibutton(msg, "Text", "Edit...", "Tooltip", "Mark events defined by a sequence on each raster row, " + ...
+    "e.g. Trial offset then Trough onset: the first Trough onset after each trial's end.");
+E.markSeqEdit.ButtonPushedFcn = @(~,~) obj.editSequence(E.markSeqText, "marks", obj.PlotAlignControls.Line, [], ...
+    @() obj.onConfigChanged("plot"));
 [S, r] = formRow(S, ["markMarker" "markSize" "markColor"], "Mark look:");
 mlg = subgrid(S.Body, r, {'1x', 'fit', 60, '1x'});
 markers = PlotAesthetics.catalogue().Marker;

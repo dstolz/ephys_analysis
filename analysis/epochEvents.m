@@ -12,13 +12,21 @@ function M = epochEvents(src, E, opts)
 %     Scope   "window" (default): every event in the epoch's window;
 %             "trial": only those inside the epoch's own trial,
 %             [TrialOnset, TrialOffset] (an epoch outside the trials gets
-%             none)
+%             none); a sequence's events: those whose own trial (the one
+%             holding the sequence's first event) is the epoch's
+%     Sequences  event references with sequences (eventRef, a struct
+%             array or a cell of them): each one's events (resolveEvents
+%             over every trial, at its alignStep) are marked like a line's,
+%             e.g. the first Trough onset after each trial's end. Edge does
+%             not apply to them
 %
-%   M is a 1 x (lines x edges) struct array, line by line, onset before
-%   offset, with fields
-%     line    the line
-%     edge    "onset" | "offset"
-%     label   "<line> <edge>", e.g. "Trough onset" (the aesthetics group)
+%   M is a 1 x (lines x edges + sequences) struct array, line by line,
+%   onset before offset, then the sequences, with fields
+%     line    the line (a sequence: its aligned step's line)
+%     edge    "onset" | "offset" (a sequence: its aligned step's edge)
+%     label   "<line> <edge>", e.g. "Trough onset" (the aesthetics group);
+%             a sequence's eventRefLabel, e.g. "Trial offset then Trough
+%             onset"
 %     epoch   [k x 1] the epoch (row of E) of each event
 %     t       [k x 1] its time from the epoch's event t0, s
 %   Times are the digital-event times of src.events (t = row/Fs, polarity
@@ -35,12 +43,15 @@ arguments
     opts.Lines (1,:) string = string.empty(1, 0)
     opts.Edge (1,1) string {mustBeMember(opts.Edge, ["onset" "offset" "both"])} = "onset"
     opts.Scope (1,1) string {mustBeMember(opts.Scope, ["window" "trial"])} = "window"
+    opts.Sequences = []
 end
 
 edges = opts.Edge;
 if edges == "both"; edges = ["onset" "offset"]; end
 M = struct('line', {}, 'edge', {}, 'label', {}, 'epoch', {}, 't', {});
-if isempty(opts.Lines); return; end
+seqs = opts.Sequences;
+if isstruct(seqs); seqs = num2cell(seqs); end
+if isempty(opts.Lines) && isempty(seqs); return; end
 lo = E.tStart(:);
 hi = E.tStop(:);
 if opts.Scope == "trial"
@@ -82,5 +93,43 @@ for ln = opts.Lines
         M(end+1) = struct('line', ln, 'edge', ed, 'label', ln + " " + ed, ...
             'epoch', vertcat(ec{:}, zeros(0, 1)), 't', vertcat(tc{:}, zeros(0, 1))); %#ok<AGROW>
     end
+end
+
+% --- sequences: their events, each kept with the trial of its first event ---------
+lo = E.tStart(:);
+hi = E.tStop(:);
+for q = 1:numel(seqs)
+    ref = eventRef(seqs{q});
+    try
+        [x, xt] = resolveEvents(src, ref, []);
+    catch ME
+        if ME.identifier ~= "resolveEvents:NoEvents"; rethrow(ME); end
+        x = zeros(0, 1); xt = zeros(0, 1);
+    end
+    [line, edge] = alignedEvent(ref);
+    ec = cell(nE, 1); tc = cell(nE, 1);
+    for e = 1:nE
+        in = x >= lo(e) & x <= hi(e);
+        if opts.Scope == "trial"
+            in = in & xt == E.trial(e);   % NaN == NaN is false: an epoch outside the trials gets none
+        end
+        tc{e} = x(in) - E.t0(e);
+        ec{e} = repmat(e, nnz(in), 1);
+    end
+    M(end+1) = struct('line', line, 'edge', edge, 'label', eventRefLabel(ref), ...
+        'epoch', vertcat(ec{:}, zeros(0, 1)), 't', vertcat(tc{:}, zeros(0, 1))); %#ok<AGROW>
+end
+end
+
+
+function [line, edge] = alignedEvent(ref)
+%alignedEvent  The line and edge of the event an event reference aligns to.
+line = ref.line; edge = ref.edge;
+a = ref.alignStep;
+if isinf(a)
+    a = find([ref.sequence.relation] == "followedBy", 1, 'last');
+end
+if ~isempty(a) && a >= 1
+    line = ref.sequence(a).line; edge = ref.sequence(a).edge;
 end
 end

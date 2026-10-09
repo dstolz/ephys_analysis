@@ -28,8 +28,8 @@ function [R, E, G] = computePlot(obj, src, spec) %#ok<INUSD>
 %               behaviorValues(y, E.(param), Series=E.(seriesParam), ...) with
 %               y = E.(yParam), or 1000 * (E.t1 - E.t0) (ms) for yParam "stop"
 %   A raster of spikes (raster, or psth with withRaster) with event lines
-%   to mark (spec.rasterEvents.lines) also gets R.rasterEvents =
-%   epochEvents(src, E, Lines=, Edge=, Scope=).
+%   or sequences to mark (spec.rasterEvents.lines, .sequences) also gets
+%   R.rasterEvents = epochEvents(src, E, Lines=, Edge=, Scope=, Sequences=).
 %     waveforms [~, meta] = selectUnits(src, spec.units, Ref=, Selection=); R holds
 %               meta, labels, one group, and the probe map; the waveforms below
 %   A waveforms plot, a raster, or a PSTH or tuning grid, of spikes with
@@ -58,9 +58,9 @@ switch spec.kind
                 Measure=spec.measure, Baseline=b, BaselineMode=spec.baseline.Mode, MaskAfterStop=spec.maskAfterStop, ...
                 Raster=spec.kind == "raster" || (spec.kind == "psth" && spec.withRaster), Groups=G, Meta=meta, ...
                 Auroc=spec.auroc);
-            if isfield(R, 'raster') && ~isempty(R.raster) && ~isempty(spec.rasterEvents.lines)
-                m = spec.rasterEvents;
-                R.rasterEvents = epochEvents(src, E, Lines=m.lines, Edge=m.edge, Scope=m.scope);
+            m = spec.rasterEvents;
+            if isfield(R, 'raster') && ~isempty(R.raster) && (~isempty(m.lines) || ~isempty(m.sequences))
+                R.rasterEvents = epochEvents(src, E, Lines=m.lines, Edge=m.edge, Scope=m.scope, Sequences=m.sequences);
             end
         end
     case "evoked"
@@ -103,7 +103,7 @@ switch spec.kind
         if spec.yParam == "stop"
             y = 1000 * (E.t1 - E.t0);
             yName = "stop latency";
-            if ~isempty(w.stop); yName = w.stop.line + " " + w.stop.edge + " latency"; end
+            if ~isempty(w.stop); yName = eventRefLabel(w.stop) + " latency"; end
             yUnits = "ms";
         else
             y = E.(spec.yParam);

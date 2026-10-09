@@ -33,13 +33,17 @@ function [E, G] = epochTable(src, ref, opts)
 %   The events are those of resolveEvents: an interval belongs to the trial
 %   that holds its edge, and REF.offsetParam moves each event by its
 %   trial's value of that parameter (events without one are dropped:
-%   nDroppedNoValue). The stop event of an epoch is the first
+%   nDroppedNoValue), and REF.sequence keeps the events its steps follow,
+%   at the step REF.alignStep names (the others: nDroppedNoSequence). The
+%   stop event of an epoch is the first
 %   (REF.which of WIN.stop) stop event at or after t0: in the same trial
 %   when the epoch has one (stop scope "trial" or "auto"), among the
 %   intervals overlapping that trial (its TrialEvents), so the offset of an
 %   interval that runs on past the trial still ends the epoch; else over
 %   the recording. A stop event with its own offsetParam is moved by the
-%   epoch's trial's value (none, t1 NaN, when that trial has no value).
+%   epoch's trial's value (none, t1 NaN, when that trial has no value). A
+%   stop event with a sequence is the first of its line's events at or
+%   after t0 whose sequence follows, at its alignStep.
 %   With a restrictive selection (filter, response, trials or groupBy) in
 %   recording scope, events outside the kept trials are dropped.
 %
@@ -61,7 +65,8 @@ function [E, G] = epochTable(src, ref, opts)
 %
 %   E.Properties.UserData holds ref, window, selection, scope, nEvents,
 %   nDroppedNoValue (events REF.offsetParam dropped: no value on their
-%   trial; not in nEvents), nDroppedNoStop, nDroppedEdge, nDroppedArtifact,
+%   trial; not in nEvents), nDroppedNoSequence (events REF.sequence cost,
+%   resolveEvents; not in nEvents), nDroppedNoStop, nDroppedEdge, nDroppedArtifact,
 %   nTrials, nTrialsSelected and dataset.
 %   Errors: epochTable:NoEpochs (every event dropped), epochTable:NoColumn,
 %   epochTable:NoRate (src.fs unknown), and those of resolveEvents /
@@ -98,7 +103,7 @@ if scope == "trial" || restrictive
 else
     maskArg = [];
 end
-[t0, trial, ~, shift, nNoValue] = resolveEvents(src, ref, maskArg);
+[t0, trial, ~, shift, nNoValue, nNoSeq] = resolveEvents(src, ref, maskArg);
 nEv = numel(t0);
 
 % --- stop events ---------------------------------------------------------------
@@ -168,8 +173,9 @@ if ~any(keep)
     if nEdge > 0;   why(end+1) = sprintf("%d with a window outside the recording", nEdge); end
     if nArtifact > 0 && opts.Artifacts == "drop"; why(end+1) = sprintf("%d touching an artifact period", nArtifact); end
     if nNoValue > 0; why(end+1) = sprintf("and %d more dropped before: their trial has no %s", nNoValue, ref.offsetParam); end
+    if nNoSeq > 0; why(end+1) = sprintf("and %d more dropped before: their sequence did not follow", nNoSeq); end
     error('epochTable:NoEpochs', '%s: none of the %d %s event(s) makes a usable epoch (%s).', ...
-        src.name, nEv, ref.line, strjoin(why, "; "));
+        src.name, nEv, eventRefLabel(ref), strjoin(why, "; "));
 end
 t0 = t0(keep); t0Continuous = t0Continuous(keep); t1 = t1(keep); trial = trial(keep);
 tStart = tStart(keep); tStop = tStop(keep); duration = duration(keep);
@@ -202,7 +208,8 @@ end
 G.nTrials = G.n;
 G.n = accumarray(groupIndex, 1, [height(G) 1]);
 E.Properties.UserData = struct('ref', ref, 'window', win, 'selection', sel, 'scope', scope, ...
-    'nEvents', nEv, 'nDroppedNoValue', nNoValue, 'nDroppedNoStop', nNoStop * (opts.Incomplete == "drop"), ...
+    'nEvents', nEv, 'nDroppedNoValue', nNoValue, 'nDroppedNoSequence', nNoSeq, ...
+    'nDroppedNoStop', nNoStop * (opts.Incomplete == "drop"), ...
     'nDroppedEdge', nEdge * (opts.Incomplete == "drop"), ...
     'nDroppedArtifact', nArtifact * (opts.Artifacts == "drop"), 'nTrials', src.nTrials, ...
     'nTrialsSelected', nnz(mask), 'dataset', src.name);
@@ -245,7 +252,7 @@ for j = 1:n
         iv = recIv;
         origin = 0;
     end
-    e = pickEvents(iv, stop, origin, t0(j) - stop.offsetSec - shift(j));
+    e = pickEvents(iv, stop, origin, t0(j) - stop.offsetSec - shift(j), src);
     if ~isempty(e); t1(j) = e(1) + shift(j); end
 end
 end

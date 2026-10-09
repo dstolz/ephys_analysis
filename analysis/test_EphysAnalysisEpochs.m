@@ -9,7 +9,10 @@ function test_EphysAnalysisEpochs()
 %   recording scope, grouping by Depth, response selection and filters,
 %   intervals belonging to the trial that holds their edge (lines that span
 %   trials, touching trials, both scopes alike), RespWindow onset -> offset
-%   ("between") epochs, selectUnits for sorted units (from the spikes file
+%   ("between") epochs, event sequences (Trial offset then the first poke
+%   after it: gaps, n, lengths, notFollowedBy, alignStep, which after the
+%   sequence, stop events and raster marks of sequences, the counts and
+%   errors), selectUnits for sorted units (from the spikes file
 %   and, cached, from the sorting folder) and detections, a spike in the
 %   event's own sample at 0, the error identifiers and the fallback to
 %   recording scope without behavior.
@@ -260,6 +263,80 @@ check(numel(Mt) == 1 && nnz(Mt.epoch == k5) == 3 && ~any(abs(Mt.t(Mt.epoch == k5
     'scope "trial": only the events inside the epoch''s own trial');
 check(isempty(epochEvents(sb, Eb)) && strcmp(errorId(@() epochEvents(sb, Eb, Lines="Nope")), 'epochEvents:NoLine'), ...
     'no lines: no marks; an unknown line: epochEvents:NoLine');
+
+fprintf('\n== 5c. event sequences ==\n');
+P = [off(2) + 0.3, 0.2         % two pokes after trial 2's end
+     off(2) + 0.6, 0.2
+     off(4) + 0.4, 0.05        % a short one after trial 4's
+     on(6) + 0.5,  0.1         % one inside trial 6 (before its end)
+     on(9) + 0.1,  0.1         % one inside trial 9 (after trial 8's end, but past trial 9's onset)
+     off(10) + 0.2, 0.2];      % one after trial 10's
+sp = withLine(src, "Poke", [P(:, 1) P(:, 1) + P(:, 2)]);
+after = struct('line', "Poke");                 % followedBy, onset, n 1, no gap limit
+ref = eventRef(line="Trial", edge="offset", sequence=after);
+E = epochTable(sp, ref);
+U = E.Properties.UserData;
+check(isequal(E.trial, [2; 4; 10]) && isequal(E.t0, P([1 3 6], 1)) && U.nEvents == 3 && U.nDroppedNoSequence == 9 ...
+    && max(abs(E.t0Continuous - (E.t0 - 1 / sp.fs))) < 1e-9, ...
+    ['Trial offset then Poke onset: the first poke after each trial''s end, never past the next trial''s onset ' ...
+     '(trial 8''s next poke is in trial 9); the trial is the one that ended; the 9 others counted']);
+E = epochTable(sp, ref, Selection=trialSelection(trials=[2 4 6]));
+check(isequal(E.trial, [2; 4]) && E.Properties.UserData.nDroppedNoSequence == 1, ...
+    'a trial selection picks the trials whose end starts the sequence (trial 6 has no poke after it: counted)');
+E = epochTable(sp, eventRef(ref, sequence=struct('line', "Poke", 'maxGapSec', 0.35)));
+check(isequal(E.trial, [2; 10]), 'maxGapSec 0.35: the poke 0.4 s after trial 4''s end is too late');
+E = epochTable(sp, eventRef(ref, sequence=struct('line', "Poke", 'n', 2)));
+check(isequal(E.trial, 2) && E.t0 == P(2, 1), 'n 2: the second poke after the trial''s end');
+E = epochTable(sp, eventRef(ref, sequence=struct('line', "Poke", 'minDurationSec', 0.1)));
+check(isequal(E.trial, [2; 10]), 'a step''s minDurationSec skips the 0.05 s poke');
+E = epochTable(sp, eventRef(ref, alignStep=0));
+check(isequal(E.trial, [2; 4; 10]) && isequal(E.t0, off([2 4 10])), ...
+    'alignStep 0: aligned to the trial''s end, kept only where a poke follows');
+E = epochTable(sp, eventRef(ref, sequence=struct('relation', "notFollowedBy", 'line', "Poke")), Window=epochWindow(pre=-0.1, post=0.1));
+check(isequal(E.trial, [1 3 5 6 7 8 9 11 12].') && isequal(E.t0, off(E.trial)), ...
+    'notFollowedBy: the trials with no poke between their end and the next trial (trial 6''s poke came before its end)');
+two = {after, struct('line', "Poke", 'edge', "offset")};   % a cell: the steps' fields differ
+E = epochTable(sp, eventRef(ref, sequence=two));
+check(isequal(E.trial, [2; 4; 10]) && max(abs(E.t0 - sum(P([1 3 6], :), 2))) < 1e-12, ...
+    'Trial offset then Poke onset then Poke offset: aligned to the poke''s end');
+E = epochTable(sp, eventRef(ref, sequence=two, alignStep=1));
+check(isequal(E.t0, P([1 3 6], 1)), 'alignStep 1: the first step''s event');
+[t, tr, ~, ~, ~, nS] = resolveEvents(sp, eventRef(line="Poke", which="all", scope="recording", ...
+    sequence=struct('line', "Poke", 'maxGapSec', 0.5)));
+check(isequal(t, P(2, 1)) && all(isnan(tr)) && nS == 5, ...
+    'a step on the same line and edge starts after the event: only the first poke has another within 0.5 s (aligned to that one)');
+E = epochTable(sp, eventRef(line="Trial", edge="offset", scope="recording", which="first", sequence=after));
+check(height(E) == 1 && E.trial == 2 && E.t0 == P(1, 1) && E.Properties.UserData.nDroppedNoSequence == 0, ...
+    'which "first" picks after the sequence: the first trial end that a poke follows (trial 1''s does not; no pick is lost)');
+E = epochTable(sp, eventRef(line="Stim", scope="trial"), ...
+    Window=epochWindow(pre=-0.2, post=8, stop=eventRef(line="Trial", edge="offset", sequence=after)), Incomplete="keep");
+has = ismember(E.trial, [2 4 10]);
+check(height(E) == 12 && isequal(isfinite(E.t1), has) && isequal(E.t1(has), P([1 3 6], 1)), ...
+    'a stop event with a sequence: the first poke after the trial''s end (none where no poke follows)');
+Eb = epochTable(sp, eventRef(line="Trial"), Window=epochWindow(pre=0, post=10), Incomplete="keep");
+M = epochEvents(sp, Eb, Sequences=ref, Scope="trial");
+ok = numel(M) == 1 && M.label == "Trial offset then Poke onset" && M.line == "Poke" && M.edge == "onset" ...
+    && isequal(sort(Eb.trial(M.epoch)), [2; 4; 10]);
+k2 = find(Eb.trial == 2); k4 = find(Eb.trial == 4); k10 = find(Eb.trial == 10);
+ok = ok && abs(M.t(M.epoch == k2) - (P(1, 1) - on(2))) < 1e-12 && abs(M.t(M.epoch == k4) - (P(3, 1) - on(4))) < 1e-12 ...
+    && abs(M.t(M.epoch == k10) - (P(6, 1) - on(10))) < 1e-12;
+check(ok, 'epochEvents Sequences: one mark per sequence event, labelled by eventRefLabel, on its own trial''s row (scope "trial")');
+Mw = epochEvents(sp, Eb, Lines="Stim", Sequences=[ref eventRef(line="Stim", sequence=struct('line', "Poke", 'minDurationSec', 5), alignStep=0)]);
+check(numel(Mw) == 3 && Mw(1).label == "Stim onset" && Mw(3).label == "Stim onset then Poke onset (aligned to Stim onset)" ...
+    && isempty(Mw(3).t) && nnz(Mw(2).epoch == k2) >= 1, ...
+    'lines first, then sequences; a sequence that never completes is an empty mark, not an error');
+check(eventRefLabel(eventRef(ref, sequence=[two {struct('relation', "notFollowedBy", 'line', "Stim", 'maxGapSec', 2)}])) ...
+    == "Trial offset then Poke onset then Poke offset with no Stim onset within 2 s" ...
+    && eventRefLabel(eventRef(ref, sequence=struct('line', "Poke", 'n', 2))) == "Trial offset then 2nd Poke onset", ...
+    'eventRefLabel names each step');
+check(strcmp(errorId(@() eventRef(ref, sequence=struct('relation', "before", 'line', "Poke"))), 'eventRef:BadValue') ...
+    && strcmp(errorId(@() eventRef(ref, sequence=struct('line', ""))), 'eventRef:BadValue') ...
+    && strcmp(errorId(@() eventRef(ref, sequence=struct('line', "Poke", 'maxGapSec', 0))), 'eventRef:BadValue') ...
+    && strcmp(errorId(@() eventRef(ref, alignStep=2)), 'eventRef:BadValue') ...
+    && strcmp(errorId(@() eventRef(ref, sequence=struct('relation', "notFollowedBy", 'line', "Poke"), alignStep=1)), 'eventRef:BadValue') ...
+    && strcmp(errorId(@() epochTable(sp, eventRef(ref, sequence=struct('line', "Nope")))), 'resolveEvents:NoLine') ...
+    && strcmp(errorId(@() epochTable(sp, eventRef(ref, sequence=struct('line', "Poke", 'n', 9)))), 'resolveEvents:NoEvents'), ...
+    'a bad relation, no line, a gap of 0, an alignStep past the steps or on a notFollowedBy step: eventRef:BadValue; an unknown step line: NoLine; none left: NoEvents');
 
 fprintf('\n== 6. late-start: cut trials are not used ==\n');
 src2 = loadAnalysisSource(F.outputs(2));

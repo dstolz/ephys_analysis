@@ -13,9 +13,14 @@ function test_EphysAnalysisApp()
 %   reference or window, ticking it again going back); the editor showing
 %   only the rows and sections a plot uses (y limits, heat colours, the
 %   alignment sections), greying out the ones its options switch off, and
-%   collapsing a section; a raster's sort, direction, grouping and event
-%   marks, an event shifted by a trial parameter, and a behavior plot
-%   reaching the config and the preview;
+%   collapsing a section; the epoch diagram (opened from the plot editor
+%   with the plot's own epochs, redrawn on an edit of pre, epochs dropped
+%   outside the recording, a refused window reported, paging, opened from
+%   the Alignment tab for the defaults, closing with the app); a raster's
+%   sort, direction, grouping and event
+%   marks, an event shifted by a trial parameter, an event sequence and a
+%   mark sequence from the Event sequence window (a bad step refused), and
+%   a behavior plot reaching the config and the preview;
 %   the gather / apply round trip, keeping the fields without a control
 %   (stop-event offset, length and time range, trial rows); save
 %   and reopen; a standalone script from the app's config; a run of one
@@ -393,6 +398,61 @@ app.onConfigChanged("plot");
 check(hiddenOverlay && app.Config.Plots(1).waveform.mode == "off" && ~app.Config.Plots(1).waveform.box, ...
     'an overlay hides the waveform rows; Off keeps the other waveform settings');
 
+fprintf('\n== 3a. the epoch diagram ==\n');
+A = app.PlotAlignControls;
+check(shown(E.epochs) && isvalid(app.AlignEpochsButton) && ancestor(app.AlignEpochsButton, 'uitab') == app.TabAlign, ...
+    'the plot editor and the Alignment tab each offer "Show how the epochs are cut..."');
+app.onShowEpochs("plot");
+d = app.EpochDiagramWindow;
+src = app.Runner.source(app.ActiveIdx);
+spec = app.Config.plotFor(1);
+b = [];
+if spec.baseline.Mode ~= "none"; b = spec.baseline.Window; end
+E0 = epochTable(src, spec.ref, Window=spec.window, Selection=spec.selection, Baseline=b);
+check(isa(d, 'EpochDiagram') && d.isOpen() && string(d.Fig.WindowStyle) == "alwaysontop" && d.Message == "" ...
+    && nnz(d.Epochs.kept) == height(E0) && isequal(d.Epochs.t0(d.Epochs.kept), E0.t0) ...
+    && isequal(d.Epochs.number(d.Epochs.kept), (1:height(E0)).') && ~isempty(d.Shown) ...
+    && startsWith(d.Heading, "psth_1 on ") && contains(d.Heading, "its own event"), ...
+    sprintf('the diagram opens above the app with exactly the plot''s %d epochs, numbered as the plot numbers them', height(E0)));
+check(startsWith(d.Lanes(1), "Trials") && contains(d.Lanes(1), "▲ event") && d.Lanes(end) == "Epochs" ...
+    && startsWith(d.Rule(1), "Time 0 is each trial's onset") && contains(d.Summary, "epochs from") ...
+    && ~isempty(findall(d.Fig, 'Type', 'patch')) && ~isempty(findall(d.Fig, 'Type', 'legend')), ...
+    'aligned to the trial line, the trials row carries the ▲ marks and the rule says what time 0 is');
+A.Pre.Value = -0.5;
+app.onPlotAlignEdited("window");
+check(all(abs(d.Epochs.tStart - d.Epochs.t0 + 0.5) < 1e-9) && contains(d.Rule(2), "0.5 s before it"), ...
+    'editing pre redraws the diagram at once: every window starts 0.5 s before its event');
+A.Pre.Value = -100;
+app.onPlotAlignEdited("window");
+check(height(d.Epochs) == height(E0) && ~any(d.Epochs.kept) && all(d.Epochs.reason == "outside the recording") ...
+    && startsWith(d.Summary, "0 epochs") && contains(d.Summary, "outside the recording"), ...
+    'a window reaching before the recording: every event shown, every epoch dropped and saying why');
+A.Pre.Value = 1;
+app.onPlotAlignEdited("window");
+check(startsWith(d.Summary, "No epochs") && contains(d.Message, "pre <= post") && height(d.Epochs) == 0 ...
+    && ~isempty(findall(d.Fig, 'Type', 'line')), 'a window epochTable refuses is reported, and the lines are still drawn');
+E.defaultWindow.Value = true;
+app.onPlotDefaultToggled();
+W = app.Config.Defaults.Window;
+check(d.Message == "" && all(abs(d.Epochs.tStart - d.Epochs.t0 - W.pre) < 1e-9) && nnz(d.Epochs.kept) == height(E0), ...
+    'ticking Use default again: the diagram follows the default window');
+d.setCount(3);
+s1 = d.Shown;
+d.page(1);
+s2 = d.Shown;
+d.page(-1);
+check(numel(s1) >= 3 && min(s1) == 1 && min(s2) == max(s1) + 1 && min(d.Shown) == 1, ...
+    'Next and Previous step through the events, Show at a time');
+app.onShowEpochs("defaults");
+Dd = app.Config.Defaults;
+Ed = epochTable(src, Dd.EventRef, Window=Dd.Window, Selection=Dd.Selection);
+check(app.EpochDiagramWindow == d && startsWith(d.Heading, "Defaults") && nnz(d.Epochs.kept) == height(Ed) ...
+    && height(d.Groups) == nG && endsWith(d.Rule(end), "grouped by Depth.") && contains(d.Lanes(2), "Stim  ▲ event"), ...
+    'from the Alignment tab the same window shows the defaults: Stim onset, grouped by Depth');
+d.close();
+app.onConfigChanged("plot");
+check(~d.isOpen(), 'closing the diagram leaves it closed through later edits');
+
 fprintf('\n== 3b. the raster''s sort and marks, events shifted by a parameter, behavior plots ==\n');
 app.onAddPlot("raster");
 kR = app.SelectedPlot;
@@ -421,6 +481,40 @@ check(isstruct(p.ref) && p.ref.line == "RespWindow" && p.ref.offsetParam == "Res
 app.refreshPreview(Force=true);
 check(~isempty(app.PreviewResult) && app.PreviewResult.epochs.Properties.UserData.nDroppedNoValue == nnz(~isfinite(trials.RespLatency)), ...
     'the preview aligns to the responses; the trials without one are left out');
+A.Line.Value = 'Trial'; A.Edge.Value = 'offset'; A.ShiftParam.Value = '(none)';
+app.onPlotAlignEdited("ref");
+A.SeqEdit.ButtonPushedFcn(A.SeqEdit, []);
+D = app.SequenceDialog.UserData;
+check(isvalid(app.SequenceDialog) && string(D.Line.Value) == "Trial" && string(D.Edge.Value) == "offset" && D.Line.Enable == "off" ...
+    && height(D.Table.Data) == 0 && D.List.Parent.Visible == "off", ...
+    'Edit... opens the Event sequence window at the panel''s line and edge, with no step yet');
+D.AddStep.ButtonPushedFcn(D.AddStep, []);
+T = D.Table.Data; T.n(1) = 0; D.Table.Data = T;
+D.Apply.ButtonPushedFcn(D.Apply, []);
+check(isvalid(app.SequenceDialog) && isempty(app.Config.Plots(kR).ref.sequence), 'Apply refuses a bad step (n 0) and keeps the window open');
+T.n(1) = 1; D.Table.Data = T;
+D.Apply.ButtonPushedFcn(D.Apply, []);
+p = app.Config.Plots(kR);
+check(~(~isempty(app.SequenceDialog) && isvalid(app.SequenceDialog)) && numel(p.ref.sequence) == 1 && p.ref.sequence.line == "Trough" ...
+    && p.ref.sequence.relation == "followedBy" && isinf(p.ref.alignStep) && string(A.SeqText.Text) == "then Trough onset", ...
+    'Apply gives the plot its sequence: Trial offset then Trough onset');
+app.refreshPreview(Force=true);
+src0 = app.Runner.source(app.ActiveIdx);
+Ep = app.PreviewResult.epochs;
+check(~isempty(app.PreviewResult) && all(Ep.t0 > src0.trials.TrialOffset(Ep.trial)) ...
+    && height(Ep) + Ep.Properties.UserData.nDroppedNoSequence <= src0.nTrials, ...
+    'the preview aligns each epoch to the first Trough onset after its trial''s end');
+E.markSeqEdit.ButtonPushedFcn(E.markSeqEdit, []);
+D = app.SequenceDialog.UserData;
+D.AddSeq.ButtonPushedFcn(D.AddSeq, []);
+check(D.List.Parent.Visible == "on" && numel(D.List.Items) == 1 && string(D.List.Items{1}) == "Trial offset then Trough onset", ...
+    'Mark sequences: Add sequence starts at Trial offset then Trough onset');
+D.Apply.ButtonPushedFcn(D.Apply, []);
+p = app.Config.Plots(kR);
+app.refreshPreview(Force=true);
+check(numel(p.rasterEvents.sequences) == 1 && p.rasterEvents.sequences.which == "all" ...
+    && numel(app.PreviewResult.rasterEvents) == 5 && app.PreviewResult.rasterEvents(5).label == "Trial offset then Trough onset", ...
+    'the mark sequence reaches the plot and the preview marks it after the four line marks');
 app.onRemovePlot();
 app.onAddPlot("behavior");
 check(string(E.source.Value) == "trials" && string(E.kind.Text) == "Behavior" && shown(E.yParam) && shown(E.param) ...
@@ -504,8 +598,10 @@ fprintf('\n== 6. close ==\n');
 app.savePreferences();
 check(strcmp(AppPrefs.getpref(g, 'LastConfigFile'), cfgFile) && isequal(string(AppPrefs.getpref(g, 'PlotSectionsCollapsed')), "bins"), ...
     'the last config and the collapsed plot-editor section are remembered');
+app.onShowEpochs("plot");
+dz = app.EpochDiagramWindow;
 app.onClose();
-check(~isvalid(app.Fig), 'Close (clean config) closes the window');
+check(~isvalid(app.Fig) && ~dz.isOpen(), 'Close (clean config) closes the window, and the epoch diagram with it');
 
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0

@@ -22,8 +22,9 @@ function issues = validate(obj, opts)
 %               fillAlpha (0-1 or NaN) and stackSpacing (> 0); probemap value;
 %               heatmap order ("modulation" with an auROC baseline);
 %               corrmap metric and correlation; a psth / raster's raster
-%               sort direction and event marks (edge, scope, marker, size;
-%               a colour that is not one is a warning); a behavior plot's
+%               sort direction and event marks (edge, scope, marker, size,
+%               each mark sequence as an event reference; a colour that is
+%               not one is a warning); a behavior plot's
 %               param and yParam ("stop" needs a stop event), xScale, and
 %               violinplot for the violin layout; a baseline Mode "auroc"
 %               (psth and heatmap of spikes) and its auroc settings
@@ -189,6 +190,9 @@ for k = 1:numel(obj.Plots)
         end
         if mk.color ~= "" && ~isColor(mk.color)
             add("Plots", f0 + ".rasterEvents.color", "warning", "No colour """ + mk.color + """; each mark gets its own colour.");
+        end
+        for q = 1:numel(mk.sequences)
+            checkRef(mk.sequences(q), "Plots", f0 + ".rasterEvents.sequences(" + q + ")");
         end
     end
     if ismember(p.kind, ["psth" "raster"]) || (p.kind == "heatmap" && ismember(p.source, EphysAnalysisConfig.SpikeSources)) ...

@@ -19,7 +19,9 @@ function txt = plotCaption(spec, R)
 %   and how many units fell back to their template; a waveforms plot adds
 %   how its units are laid out and scaled. An event shifted by a
 %   trial parameter says so ("RespWindow onset + RespLatency (ms)") and
-%   counts the events left out for lacking a value; a raster says how its
+%   counts the events left out for lacking a value; an event of a sequence
+%   is named step by step ("Trial offset then Trough onset", eventRefLabel)
+%   and the events its sequence did not follow are counted; a raster says how its
 %   rows are sorted and which events it marks; a behavior plot what it
 %   plots against what, per series, and how many epochs had no value. The
 %   reports print it under each figure.
@@ -51,14 +53,14 @@ if isfield(U, 'ref')
     if which == "nth"; which = ordinal(r.n); end
     if which == "all"; which = "every"; end
     p1 = spec.kind;
-    p1 = K.Label(K.Kind == p1) + ", " + r.line + " " + r.edge + shiftText(r) + ", " + which + where;
+    p1 = K.Label(K.Kind == p1) + ", " + eventRefLabel(r) + shiftText(r) + ", " + which + where;
     if r.offsetSec ~= 0; p1 = p1 + sprintf(" %+g s", r.offsetSec); end
     parts = p1;
     w = U.window;
     if spec.kind == "behavior"
-        if ~isempty(w.stop); parts(end+1) = "stop at " + w.stop.line + " " + w.stop.edge + shiftText(w.stop); end
+        if ~isempty(w.stop); parts(end+1) = "stop at " + eventRefLabel(w.stop) + shiftText(w.stop); end
     elseif w.mode == "between"
-        parts(end+1) = sprintf("window %s%s to %s %s%s%s", r.line, offs(w.pre), w.stop.line, w.stop.edge, shiftText(w.stop), offs(w.post));
+        parts(end+1) = sprintf("window %s%s to %s%s%s", alignedLine(r), offs(w.pre), eventRefLabel(w.stop), shiftText(w.stop), offs(w.post));
     else
         parts(end+1) = sprintf("window [%g %g] s", w.pre, w.post);
         if R.kind == "psth" && isfield(R, 'window') && numel(R.window) == 2 && max(abs(R.window(:).' - [w.pre w.post])) > 1e-9
@@ -66,7 +68,7 @@ if isfield(U, 'ref')
             if isfield(R, 'auroc') && isstruct(R.auroc) && ~isempty(R.auroc); what = "auROC windows"; end
             parts(end) = parts(end) + sprintf(" (%s: [%g %g] s)", what, R.window(1), R.window(2));   % bins count from the event
         end
-        if ~isempty(w.stop); parts(end+1) = "stop at " + w.stop.line + " " + w.stop.edge + shiftText(w.stop); end
+        if ~isempty(w.stop); parts(end+1) = "stop at " + eventRefLabel(w.stop) + shiftText(w.stop); end
     end
 end
 if spec.kind == "corrmap"
@@ -139,6 +141,9 @@ if spec.kind == "behavior"
 end
 if isfield(U, 'nDroppedNoValue') && U.nDroppedNoValue > 0
     parts(end+1) = sprintf("%d event(s) without a value of %s left out", U.nDroppedNoValue, U.ref.offsetParam);
+end
+if isfield(U, 'nDroppedNoSequence') && U.nDroppedNoSequence > 0
+    parts(end+1) = sprintf("%d event(s) the sequence did not follow left out", U.nDroppedNoSequence);
 end
 if isfield(U, 'nDroppedArtifact') && U.nDroppedArtifact > 0
     parts(end+1) = sprintf("%d epoch(s) touching an artifact period left out", U.nDroppedArtifact);
@@ -263,6 +268,16 @@ switch spec.source
     otherwise
         s = sprintf("%s, %d channel(s)", spec.source, nItems);
 end
+end
+
+
+function s = alignedLine(r)
+%alignedLine  The line of the event an epoch is aligned to (a sequence's aligned step's).
+s = r.line;
+if ~isfield(r, 'sequence') || isempty(r.sequence); return; end
+a = r.alignStep;
+if isinf(a); a = find([r.sequence.relation] == "followedBy", 1, 'last'); end
+if ~isempty(a) && a >= 1; s = r.sequence(a).line; end
 end
 
 

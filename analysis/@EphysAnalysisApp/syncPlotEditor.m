@@ -15,7 +15,8 @@ function syncPlotEditor(obj)
 %     response test               spikes (its settings enabled when ticked)
 %     unit ids, max units, shanks spikes
 %     channels                    every kind but behavior (no units or channels)
-%     event, window, selection    every kind but probemap and waveforms (align to nothing)
+%     event, window, selection,   every kind but probemap and waveforms (align to nothing)
+%       Show how the epochs are cut
 %     bin, smoothing              psth, raster, heatmap of spikes, corrmap
 %     mask after the stop event   psth, raster, heatmap of spikes
 %     measure                     psth, rate, tuning, heatmap of spikes
@@ -95,6 +96,7 @@ grouped = ismember(kind, ["psth" "raster" "rate" "tuning" "behavior"]) || (kind 
 v = struct();
 v.kind = true; v.note = true; v.id = true; v.title = true; v.source = true;
 v.layout = numel(ch.Layouts) > 1;
+v.epochs = row.Aligned;
 v.classes = source == "units";
 v.quality = source == "units";
 v.response = spikes; v.respBaseFrom = spikes; v.respParam = spikes;
@@ -113,7 +115,7 @@ v.raMethod = respAuroc; v.raWinMs = respAuroc; v.raCutoff = respAuroc;
 v.raTest = respAuroc && string(E.raCutoff.Value) == "test";
 v.withRaster = psth; v.histStyle = psth; v.normalize = psth; v.fill = psth; v.stack = psth;
 v.rasterSort = ismember(kind, ["psth" "raster"]) && spikes;
-v.rasterByGroup = v.rasterSort; v.markLines = v.rasterSort; v.markMarker = v.rasterSort;
+v.rasterByGroup = v.rasterSort; v.markLines = v.rasterSort; v.markSeqText = v.rasterSort; v.markMarker = v.rasterSort;
 v.param = ismember(kind, ["tuning" "behavior"]); v.seriesParam = v.param;
 v.yParam = behavior; v.xScale = behavior;
 v.value = kind == "probemap";
@@ -187,8 +189,8 @@ en(E.raThreshold, on && string(E.raCutoff.Value) == "fixed");
 en(E.raResamples, on && string(E.raTest.Value) ~= "ranksum");
 en(E.stackSpacing, stacked);
 raster = kind == "raster" || E.withRaster.Value;
-en([E.rasterSort E.rasterSortOrder E.rasterByGroup E.markLines E.markEdge E.markScope], raster);
-en([E.markMarker E.markSize E.markColor], raster && strtrim(string(E.markLines.Value)) ~= "");
+en([E.rasterSort E.rasterSortOrder E.rasterByGroup E.markLines E.markEdge E.markScope E.markSeqText E.markSeqEdit], raster);
+en([E.markMarker E.markSize E.markColor], raster && (strtrim(string(E.markLines.Value)) ~= "" || ~isempty(E.markSeqText.UserData)));
 en(E.jitter, layout == "points");
 en([E.legend E.ylim], ~stacked);
 en([E.legendLoc E.legendOrient E.legendBox], ~stacked && E.legend.Value);

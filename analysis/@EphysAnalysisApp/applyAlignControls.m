@@ -1,10 +1,12 @@
-function applyAlignControls(~, C, ref, win, sel)
+function applyAlignControls(obj, C, ref, win, sel)
 %applyAlignControls  Show an event reference, window and selection in a control set.
 %   The fields without a control (the stop event's offset, interval length
 %   and time range; the selection's explicit trial rows) are not shown:
 %   gatherAlignControls keeps them from the values it is given. A window
 %   mode the mode box does not offer is added to it (syncPlotEditor offers
-%   a plot's kind its own modes).
+%   a plot's kind its own modes). The sequences go to their summary labels
+%   (setSequenceHolder); an Event sequence window open on them closes.
+closeSequenceDialog(obj, [C.SeqText C.StopSeqText]);
 ref = EphysAnalysisConfig.normalizeSection("EventRef", ref);   % shown as is, checked elsewhere
 C.Line.Value = char(ref.line);
 C.Edge.Value = char(ref.edge);
@@ -18,12 +20,16 @@ C.TimeFrom.Value = num2text(ref.timeRange(1));
 C.TimeTo.Value = num2text(ref.timeRange(2));
 setDrop(C.ShiftParam, noneIfEmpty(ref.offsetParam));
 setDrop(C.ShiftUnit, ref.offsetParamUnit);
+setSequenceHolder(C.SeqText, struct('sequence', ref.sequence, 'alignStep', ref.alignStep));
 
 w = EphysAnalysisConfig.normalizeSection("EpochWindow", win);
 setWindowModes(C.Mode, string(C.Mode.ItemsData), w.mode);
 C.Pre.Value = w.pre;
 C.Post.Value = w.post;
 C.StopOn.Value = ~isempty(w.stop);
+stopSeq = struct('sequence', repmat(EphysAnalysisConfig.defaults("SequenceStep"), 1, 0), 'alignStep', Inf);
+if ~isempty(w.stop); stopSeq = struct('sequence', w.stop.sequence, 'alignStep', w.stop.alignStep); end
+setSequenceHolder(C.StopSeqText, stopSeq);
 if ~isempty(w.stop)
     s = w.stop;
     C.StopLine.Value = char(s.line);

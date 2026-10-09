@@ -208,6 +208,63 @@ and `rasterSort "stop"` sorts the rows by it.
 A line whose intervals lie between trials (`Platform` in the synthetic
 project) has no event in trial scope: use recording scope for it.
 
+#### Event sequences
+
+An event can be a sequence of events: the line's event, then steps that
+must (or must not) follow it. `sequence` is a list of steps
+(`EphysAnalysisConfig.defaults("SequenceStep")`), and `alignStep` says
+which event of the sequence each epoch is aligned to.
+
+| Step field | Default | Meaning |
+| --- | --- | --- |
+| `relation` | `"followedBy"` | `"followedBy"`: the step's event must come; `"notFollowedBy"`: it must not |
+| `line`, `edge` | `""`, `"onset"` | the step's line (`"Trial"` = the trial line) and edge |
+| `n` | 1 | followedBy: the nth such event after the event before |
+| `maxGapSec` | `Inf` | within this long after the event before |
+| `minDurationSec`, `maxDurationSec` | 0, `Inf` | count only intervals of this length |
+
+- Each step looks for its event after the event before it: the line's
+  own event, or the last followedBy step's. A step on the same line and
+  edge as the event before starts after it, so "Poke onset then Poke onset
+  within 0.5 s" finds the next poke, not the same one.
+- Steps read the whole recording's intervals, so a step after the trial's
+  end is found. With paired trials no step looks past the onset of the
+  next trial (an event on that onset still counts).
+- An event whose sequence does not complete is left out before `which`
+  picks: `which "first"` is the first event that the sequence follows.
+  What the sequence cost is counted (`epochTable`'s
+  `nDroppedNoSequence`, the caption, the app's Alignment tab): per trial
+  (trial scope) or over the recording, the picks `which` would have made
+  without the sequence less those it made; with `which "all"`, every event
+  the sequence does not follow.
+- `alignStep`: `Inf` (default) aligns each epoch to the last followedBy
+  step's event, `k` to step `k`'s (a followedBy step), `0` to the line's
+  own event (the steps are then conditions only). The epoch's trial is
+  always the one holding the line's own event, so the trial selection,
+  groups and `offsetParam` go by it.
+- A stop event can have a sequence too: it is then the first of its
+  line's events at or after the epoch's event whose sequence follows, at
+  its `alignStep`. So can a raster mark ([Raster event marks](#raster-event-marks)).
+
+| To align to | Set |
+| --- | --- |
+| the first Trough onset after each CR trial ends | `line "Trial"`, `edge "offset"`, `sequence [{line "Trough"}]`; selection `response ["CR"]` |
+| the second Trough onset after the trial ends, within 3 s | `sequence [{line "Trough", n 2, maxGapSec 3}]` |
+| the end of the first long Trough visit after the response window | `line "RespWindow"`, `edge "offset"`, `sequence [{line "Trough", edge "offset", minDurationSec 0.5}]` |
+| stimuli that a Trough onset follows within 1 s, at the stimulus | `line "Stim"`, `sequence [{line "Trough", maxGapSec 1}]`, `alignStep 0` |
+| trial ends with no Trough onset before the next trial | `line "Trial"`, `edge "offset"`, `sequence [{relation "notFollowedBy", line "Trough"}]` |
+
+```json
+"ref": { "line": "Trial", "edge": "offset", "which": "first", "scope": "trial",
+         "sequence": [ { "relation": "followedBy", "line": "Trough", "edge": "onset", "n": 1,
+                         "maxGapSec": "Inf", "minDurationSec": 0, "maxDurationSec": "Inf" } ],
+         "alignStep": "Inf" },
+"selection": { "response": ["CR"] }
+```
+
+`eventRefLabel` names a sequence step by step ("Trial offset then Trough
+onset"); titles, captions and raster-mark legends use it.
+
 ### EpochWindow
 
 The span of each epoch: `"fixed"`, `[t0 + pre, t0 + post]`, or
@@ -425,17 +482,19 @@ for each. The plot's `rasterEvents`:
 | Field | Default | Meaning |
 | --- | --- | --- |
 | `lines` | none | the lines whose events are marked (`"Trial"` = the trial line); none = no marks |
-| `edge` | `"onset"` | `"onset"`, `"offset"` or `"both"` (each edge is its own mark) |
-| `scope` | `"window"` | `"window"`: every event inside the epoch's window; `"trial"`: only those inside the epoch's own trial |
+| `sequences` | none | [event references](#eventref), usually with a [sequence](#event-sequences), whose events are marked too, one mark per event at its `alignStep` (e.g. `{line "Trial", edge "offset", which "all", sequence [{line "Trough"}]}`: the first Trough onset after each trial's end). Each is resolved over every paired trial (or the recording), not only the selected ones |
+| `edge` | `"onset"` | `"onset"`, `"offset"` or `"both"` (each edge is its own mark) of `lines` |
+| `scope` | `"window"` | `"window"`: every event inside the epoch's window; `"trial"`: only those inside the epoch's own trial (a sequence's: those whose own trial, the one holding its first event, is the epoch's) |
 | `marker` | `"diamond"` | a line marker the aesthetics editor knows (`o`, `square`, `diamond`, `^`, `v`, `>`, `<`, `+`, `*`, `.`, `x`, `_`, `\|`, `pentagram`, `hexagram`) |
 | `size` | 4 | marker size, points |
 | `color` | `""` | `""`: a colour per line and edge (blue, green, purple, yellow, cyan, teal; never the ticks' black or the stop dots' red); or one colour for every mark (a name or `#rrggbb`) |
 
 `epochEvents` finds them ([Analysis page](EphysAnalysis.md#compute)) on
 the clock of each epoch's event, so a mark sits where the spikes of that
-sample sit. Each line and edge is one component for the
+sample sit. Each line and edge, and each sequence, is one component for the
 [aesthetics editor](EphysAnalysis.md#plot-aesthetics), role `rasterEvent`,
-group `"<line> <edge>"` (e.g. `"Trough onset"`): right-click a mark to give
+group `"<line> <edge>"` (e.g. `"Trough onset"`; a sequence's
+`eventRefLabel`, e.g. `"Trial offset then Trough onset"`): right-click a mark to give
 one line's marks their own marker, size or colour. The raster kind's
 legend lists them; the caption names them.
 
@@ -612,7 +671,7 @@ with 20 units and 16 tiles per page is written as
 | --- | --- | --- |
 | Source | Mode is project / folders. Project mode: Root set and existing (CheckPaths), Selection all / list, NamePattern parses, Recordings is one of the three modes. Folders mode: at least one folder, and each exists (CheckPaths) | error |
 | Source | a "list" selection with no datasets; an OutputRoot that does not exist | warning |
-| Defaults, Plots | the event reference, window and selection are valid: known values, `n` a whole number >= 1, `0 <= minDurationSec <= maxDurationSec`, `timeRange` ordered, a finite `offsetSec`, `offsetParamUnit` ms or s, finite `pre` and `post`, `pre <= post` in a fixed window, a stop event in a `"between"` window, known response words and pairing flags, at most 2 distinct `groupBy` parameters, `maxGroups` and `trials` whole numbers >= 1 | error |
+| Defaults, Plots | the event reference, window and selection are valid: known values, `n` a whole number >= 1, `0 <= minDurationSec <= maxDurationSec`, `timeRange` ordered, a finite `offsetSec`, `offsetParamUnit` ms or s, each sequence step's relation, line, edge, `n`, positive `maxGapSec` and lengths, an `alignStep` of 0, `Inf` or a followedBy step (the stop's and each raster-mark sequence's too), finite `pre` and `post`, `pre <= post` in a fixed window, a stop event in a `"between"` window, known response words and pairing flags, at most 2 distinct `groupBy` parameters, `maxGroups` and `trials` whole numbers >= 1 | error |
 | Defaults, Plots | a filter that does not parse | warning (it is checked against each dataset's trials when it runs) |
 | Plots | at least one enabled; ids that stay distinct once `{Plot}` has sanitized them (case-blind); the kind exists; the source, layout, window mode and baseline mode fit the kind; `measure` rate / count / probability; tuning names its parameter; behavior names `param` and `yParam` (`"stop"` with a stop event), its `xScale` is category / linear and the violin layout has `violinplot`; a psth / raster `rasterSortOrder` ascending / descending and `rasterEvents` edge, scope, marker and a positive size; `BinSec > 0`, `SmoothSec >= 0` where bins are used; a baseline window `[b0 b1]` with `b0 < b1`; probemap value, psth `histStyle` bar / line, `normalize` none / unitPeak / groupPeak, `fillAlpha` 0-1 or NaN, `stackSpacing > 0`; heatmap order (`"modulation"` only with the auROC baseline); the auROC settings (method, windows, whole-bin window and step, call window, cutoff, threshold, test, `nResamples`, correction, alpha, `modulatedOnly` with a cutoff) and the toolbox they need; corrmap metric and correlation; `maxUnits >= 1`; an enabled response test of spikes: its test, `param` for tuning / either / both, `baseline` and `window` ordered, direction, correction, alpha in (0, 1], the auROC settings of a test `"auroc"` (with a cutoff) and the Statistics and Machine Learning Toolbox; a `waveform` mode off / mean / subsample / both and, when not off, its location, `scale` in (0, 3] and a whole `maxSpikes >= 1`; `MaxTiles >= 1`, `TileSpacing` loose / compact / tight / none, `FontSize`, `LineWidth`, `SiteSize` positive | error |
 | Plots | a `HeatColormap` that is not a colormap function; a `Colormap` that is neither a colormap function nor a colour (the default is used); a `rasterEvents.color` that is not a colour (each mark gets its own); a `waveform` mode on a plot that draws no unit tiles (an overlay, a plot of signals, a kind other than raster / psth / tuning / waveforms) | warning |

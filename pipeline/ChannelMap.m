@@ -1121,7 +1121,7 @@ classdef ChannelMap
                     Y = [((nL - 1):-1:0)' * pitch; ((numel(Rt) - 1):-1:0)' * pitch + pitch / 2];
                     S = table(site, X, Y, ones(size(site)), 'VariableNames', {'Site', 'X', 'Y', 'Shank'});
                 case "poly3"
-                    % centre column top -> bottom from the tip up; side columns start one row below its top
+                    % center column top -> bottom from the tip up; side columns start one row below its top
                     Cc = t.Order{1}; L = t.Order{2}; Rt = t.Order{3}; nC = numel(Cc);
                     site = [L(:); Cc(:); Rt(:)];
                     X = [zeros(numel(L), 1); cs + zeros(nC, 1); 2 * cs + zeros(numel(Rt), 1)];

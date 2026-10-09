@@ -19,9 +19,9 @@ function result = runSpikeInterface(obj, opts)
 %   channel_map.npy holds .bin rows, params.py names the .bin, templates.npy
 %   is dense and not whitened (whitening_mat_inv.npy is the identity) with
 %   the .bin's scale in settings.json (bin_scale), so templates come out in
-%   uV, and spike_positions.npy holds each spike's centre of mass. The
+%   uV, and spike_positions.npy holds each spike's center of mass. The
 %   templates, amplitudes and quality metrics come from a 300 Hz high-pass
-%   of the .bin. Each unit is labelled "good" or "mua" by the good-unit
+%   of the .bin. Each unit is labeled "good" or "mua" by the good-unit
 %   criteria (Quality, unitQualityPass's rules, with SpikeInterface's quality
 %   metrics) in cluster_SILabel.tsv, copied to cluster_group.tsv with that
 %   header (phy's own copy says "group"), as Kilosort4 does with its

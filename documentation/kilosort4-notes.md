@@ -27,14 +27,14 @@ In `kilosort/preprocessing.py` (`get_whitening_matrix`, `whitening_local`):
    included). It whitens that sub-matrix (ZCA) and keeps only channel *j*'s
    row.
 3. **`kcoords` is not used.** "Nearest" means nearest in µm, so a
-   neighbourhood can reach onto other shanks. A value at or above the channel
+   neighborhood can reach onto other shanks. A value at or above the channel
    count means every channel is used.
 
 ### Choosing a value
 
 | Value | Effect |
 | --- | --- |
-| Too small | Noise shared across many channels is not removed, and the whitening can start to flatten a spike's spread across its neighbouring channels. |
+| Too small | Noise shared across many channels is not removed, and the whitening can start to flatten a spike's spread across its neighboring channels. |
 | Too large | Each channel is whitened using distant channels that share little of its noise. On a multi-shank probe, the shanks get mixed together. |
 
 Rule of thumb:
@@ -43,7 +43,7 @@ Rule of thumb:
   correlations cover. On a dense single-shank probe (Neuropixels-like), the
   default of 32 is reasonable.
 - On a multi-shank probe, use no more than the number of sites on one shank.
-  Then check which channels each neighbourhood actually takes (see below):
+  Then check which channels each neighborhood actually takes (see below):
   sites parked far up a shank can make the nearest sites lie on the next shank.
 - Check by eye: compare the whitened traces in the Kilosort4 GUI, and the
   sorting results, at two or three values (for example 8, 16 and 32).
@@ -53,21 +53,21 @@ Rule of thumb:
 [`H64LP_4x16lin_probemap.json`](../pipeline/probes/H64LP_4x16lin_probemap.json)
 (NeuroNexus A4x16-Poly2): 4 shanks 150 µm apart, each with 14 sites on 10 µm
 rows and 2 parked sites 100–500 µm further up. The number of shanks each
-channel's whitening neighbourhood spans:
+channel's whitening neighborhood spans:
 
-| `whitening_range` | shanks per neighbourhood (min – max) |
+| `whitening_range` | shanks per neighborhood (min – max) |
 | --- | --- |
 | 8 – 12 | 1 – 4 |
 | 16 – 32 | 2 – 4 |
 
-- From 16 up, every neighbourhood already reaches the next shank, because that
+- From 16 up, every neighborhood already reaches the next shank, because that
   shank's sites are closer than the parked sites. This includes the 32 in
   [`H64LP_4x16.json`](../pipeline/pipeline_configs/H64LP_4x16.json).
-- Even at 8, the parked sites' neighbourhoods cross shanks, because those
-  sites have no close neighbours.
+- Even at 8, the parked sites' neighborhoods cross shanks, because those
+  sites have no close neighbors.
 
 For this probe, **8 – 12** is the more defensible range. Kilosort4 decides
-neighbours by distance alone, so the only way to whiten each shank strictly on
+neighbors by distance alone, so the only way to whiten each shank strictly on
 its own channels is to move the shanks further apart. Use
 [`shank_spacing`](#shank_spacing) for that: it moves them apart for the sort
 only and leaves the probe map as it is.
@@ -83,7 +83,7 @@ for n = [8 12 16 24 32]
         [~, order] = sort((x(j) - x).^2 + (y(j) - y).^2);
         nShanks(j) = numel(unique(k(order(1:min(n, end)))));
     end
-    fprintf('%2d: shanks per neighbourhood %d-%d\n', n, min(nShanks), max(nShanks));
+    fprintf('%2d: shanks per neighborhood %d-%d\n', n, min(nShanks), max(nShanks));
 end
 ```
 
@@ -100,7 +100,7 @@ end
 ## `shank_spacing`
 
 `shank_spacing` is the pipeline's own setting, not a Kilosort4 one. It puts
-extra distance between neighbouring shanks, in µm, for the sort only. The
+extra distance between neighboring shanks, in µm, for the sort only. The
 default 0 sorts the probe as it is.
 
 ### What it does
@@ -110,7 +110,7 @@ default 0 sorts the probe as it is.
 
 - The shanks are the `kcoords` groups, taken in order of their mean `xc`. The
   *k*-th shank (counting from 0) moves *k* × `shank_spacing` µm along x. Each
-  pair of neighbouring shanks gains `shank_spacing` µm, and each shank keeps
+  pair of neighboring shanks gains `shank_spacing` µm, and each shank keeps
   its own layout.
 - The probe map is not changed. A one-shank probe is sorted as it is.
 - When Kilosort4 finishes, `run_ks4.py` writes the true positions back into
@@ -126,17 +126,17 @@ one shank:
 | --- | --- |
 | Whitening | the `whitening_range` nearest channels (above) |
 | Drift correction | interpolation kernel over all sites (`sig_interp`) |
-| Template matching | the nearest channels to each template centre (`nearest_chans`), within `max_channel_distance` |
+| Template matching | the nearest channels to each template center (`nearest_chans`), within `max_channel_distance` |
 | Clustering | spikes grouped around `x_centers` (k-means on the sites' x) |
 | Spike positions | weighted mean over a template's nearest channels |
 
-Template centres are placed per `kcoords` shank already, so the spacing does
+Template centers are placed per `kcoords` shank already, so the spacing does
 not change how many there are.
 
 ### Choosing a value
 
 The aim: for every site, the nearest site on another shank lies farther away
-than the farthest site on its own shank. Then a neighbourhood of up to one
+than the farthest site on its own shank. Then a neighborhood of up to one
 shank's worth of sites stays on its shank, whatever `whitening_range` is. A
 value that does this is about the farthest distance within one shank (parked
 sites included) minus the current distance between the nearest sites of two
@@ -149,7 +149,7 @@ Shanks 500 um further apart for sorting: nearest sites on different shanks 133.1
 For the [H64LP 4×16](#example-h64lp-416), the farthest sites on one shank
 are 630 µm apart (the parked sites) and the nearest sites of two shanks are
 133 µm apart, so it needs about 500 µm. The number of shanks each channel's
-whitening neighbourhood spans (computed as in the check above, on the spaced
+whitening neighborhood spans (computed as in the check above, on the spaced
 `xc`):
 
 | `shank_spacing` | `whitening_range` 8 | 16 | 32 |

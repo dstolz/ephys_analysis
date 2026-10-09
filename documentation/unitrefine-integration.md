@@ -12,7 +12,7 @@ such. When this page and the code disagree, the code is authoritative.
 
 UnitRefine is a supervised classifier of sorted clusters (noise / neural,
 then single-unit / multi-unit) that ships inside SpikeInterface. It fits
-the pipeline as a labelling stage after any sort, run by a Python driver
+the pipeline as a labeling stage after any sort, run by a Python driver
 the way `run_si.py` already is, writing one more phy label table that the
 existing readers pick up with a one-line change. Nothing downstream (phy,
 the Review tab, the QC report, the exports, the analysis) needs to know
@@ -77,7 +77,7 @@ noise_neural_classifier=None, sua_mua_classifier=None)`:
   Hugging Face repo id (anything that is not an existing path). The
   published pair is `SpikeInterface/UnitRefine_noise_neural_classifier`
   and `SpikeInterface/UnitRefine_sua_mua_classifier`; the SpikeInterface
-  organisation also publishes a `_lightweight` noise/neural model, and the
+  organization also publishes a `_lightweight` noise/neural model, and the
   first author publishes per-species models under `AnoushkaJain3/`. (The
   0.104.5 curation docs page's example passes `noise_neural_model` /
   `sua_mua_model`, names the 0.104.5 function does not have; the code's
@@ -143,7 +143,7 @@ Facts the design builds on, with where they live:
   `cluster_id<TAB>KSLabel`).
   `run_si.py` builds a `SortingAnalyzer` in memory on a 300 Hz high-pass
   of the `.bin` (500 random spikes per unit, waveforms 1 ms before and
-  2 ms after, templates, noise levels, spike amplitudes, centre-of-mass
+  2 ms after, templates, noise levels, spike amplitudes, center-of-mass
   spike locations, six quality metrics with `skip_pc_metrics=True`),
   labels `good` / `mua` by the good-unit criteria (`unitQualityPass`'s
   rules) into `cluster_SILabel.tsv` and copies it to `cluster_group.tsv`
@@ -188,14 +188,14 @@ Facts the design builds on, with where they live:
 
 | Option | How | For | Against |
 | --- | --- | --- | --- |
-| A. Tail of the sort drivers | `run_ks4.py` / `run_si.py` call the labelling at the end of the same process when `settings.json` asks | Works unchanged with background and queued runs, the slot, Stop runs, the status file and the scripts; the `.bin` is certainly there; `run_si.py` already has the analyzer | Holds the GPU slot for CPU work (minutes); `run_ks4.py` gains a SpikeInterface dependency when the option is on |
+| A. Tail of the sort drivers | `run_ks4.py` / `run_si.py` call the labeling at the end of the same process when `settings.json` asks | Works unchanged with background and queued runs, the slot, Stop runs, the status file and the scripts; the `.bin` is certainly there; `run_si.py` already has the analyzer | Holds the GPU slot for CPU work (minutes); `run_ks4.py` gains a SpikeInterface dependency when the option is on |
 | B. A pipeline step after Sorting | new step `labels` between `sorting` and `signals` | Clean config and plan rows | A background sort is not finished when the next step runs, so the step would need its own trigger from the monitor and from scripts; a second Python launch per dataset |
-| C. On demand | a Review tab button and `EphysDataset.labelUnits` | Re-labelling a sort with another model, labelling old sorts, the validation in section 5 | Not part of a Run on its own |
+| C. On demand | a Review tab button and `EphysDataset.labelUnits` | Re-labeling a sort with another model, labeling old sorts, the validation in section 5 | Not part of a Run on its own |
 | D. UnitRefine's own GUI | run the `uv` project outside the pipeline, import its CSV | Needed anyway for training and active learning | No pipeline integration |
 
 Recommendation: **A + C** sharing one driver. The drivers call
 `label_units.py` as a subprocess with the same Python (so `run_ks4.py`
-stays free of SpikeInterface imports when labelling is off), and the
+stays free of SpikeInterface imports when labeling is off), and the
 Review tab / `labelUnits` call the same script directly. D is the route
 to a lab model (section 5), not a pipeline component. Running Python
 through `pyenv` is out: the repository never does
@@ -216,7 +216,7 @@ uses), `min_probability`, `write_group`, and `provenance`. The script:
 1. Reads the sorting with `read_kilosort(folder, keep_good_only=False)`
    (the same phy layout for both sorters; unit ids are the phy cluster
    ids; `remove_empty_units` defaults to true, so clusters with no spikes
-   are not labelled and keep the sorter's label).
+   are not labeled and keep the sorter's label).
 2. Reads the `.bin` with `read_binary`, attaches the probe as
    `run_si.py`'s `read_probe` does (`kcoords` become shanks), high-passes
    at 300 Hz. These functions should move from `run_si.py` into a small
@@ -279,10 +279,10 @@ uses), `min_probability`, `write_group`, and `provenance`. The script:
   `SuaMuaModel`, `MinProbability` (NaN = off), `WriteGroup`. `validate`
   checks the method, that a model is named, and that a folder model
   exists when `CheckPaths`. `"criteria"` would give a Kilosort4 sort the
-  good / mua labelling `run_si.py` already gives SpikeInterface sorts,
+  good / mua labeling `run_si.py` already gives SpikeInterface sorts,
   from the same driver; a side benefit, not the goal.
 - `runKilosort` / `runSpikeInterface`: when the method is not `"sorter"`,
-  put the labelling settings into `settings.json`; the drivers call
+  put the labeling settings into `settings.json`; the drivers call
   `label_units.py` after the sort and fold its status into theirs
   (`ks4_status.json` gains `labels: {...}`), so `sortRunState`, the
   monitor and `waitForSortingSlot` need nothing new. The Sorting tab's
@@ -292,7 +292,7 @@ uses), `min_probability`, `write_group`, and `provenance`. The script:
   (URLabel)"; a `P` column beside `Group`; a **Label units...** button
   that runs `labelUnits` on the loaded sort and reloads. The QC report
   lists the models and `model_info.json` contents from the status file.
-- Generated scripts (`EphysPipelineScript`): the labelling options are
+- Generated scripts (`EphysPipelineScript`): the labeling options are
   part of the sort call's settings, so the sorting section passes them
   through; nothing else changes.
 - Manifest: `m.sorting` gains `labels` (`source`, models, counts) from
@@ -306,8 +306,8 @@ phy's `cluster_group.tsv` (header `group`) always wins. Otherwise
 `cluster_group.tsv` holds the newest automatic label with its own header
 (`KSLabel`, `SILabel` or `URLabel`), which says where it came from. The
 raw sorter and UnitRefine tables stay beside it. Nothing is ever
-overwritten by the labelling except the sorter-style copy, and phy
-curation started after labelling starts from the UnitRefine labels, which
+overwritten by the labeling except the sorter-style copy, and phy
+curation started after labeling starts from the UnitRefine labels, which
 is the intended workflow (curate what the model doubts).
 
 ## 5. Validation before any label is used
@@ -332,7 +332,7 @@ set in phy), and each curated sort has the `.bin` unless cleaned up.
    `spikeinterface.curation` takes analyzers built exactly as the driver
    builds them, with the phy labels (`good` → `sua`). The UnitRefine
    README asks for at least 6 labels per class, about 10% of a
-   recording's clusters labelled, and more than 50 clusters in all, and
+   recording's clusters labeled, and more than 50 clusters in all, and
    its GUI offers active learning on the low-confidence clusters. The
    model folder (`.skops` + `model_info.json`) then goes into the config
    as the classifier path; keep it under version control or on the lab
@@ -355,7 +355,7 @@ and its metric parameters; nothing is deleted on re-sorting (moved to
   rate, high-pass and contact pitch, and the multi-channel metrics on the
   layout along the shank. Only section 5 settles it.
 - **scikit-learn / skops versions.** The models are scikit-learn
-  pipelines serialised with skops. `unitrefine_label_units` silences
+  pipelines serialized with skops. `unitrefine_label_units` silences
   scikit-learn's `InconsistentVersionWarning`, and SpikeInterface's main
   branch carries a patch for a `SimpleImputer` attribute rename across
   scikit-learn 1.5 that 0.104.5 does not have. The 0.104.5 `full` extra
@@ -365,7 +365,7 @@ and its metric parameters; nothing is deleted on re-sorting (moved to
 - **Network and reproducibility.** A repo id downloads on first use and
   follows the repo's latest revision; a local folder does neither. Prefer
   a local copy, with its `model_info.json` in every status file.
-- **The `.bin`.** Labelling after Clean up, or of a sort whose `.bin`
+- **The `.bin`.** Labeling after Clean up, or of a sort whose `.bin`
   was never kept, is impossible; the method must say so rather than fall
   back to Kilosort4's templates (whitened, rebuilt from PCs; not what the
   models saw).

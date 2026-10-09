@@ -2,8 +2,8 @@ function rows = runDataset(obj, k, opts)
 %runDataset  Run the plots on one dataset: compute, render, export, report.
 %   ROWS = r.runDataset(K, Plots=IDS, Export=TF, Report=TF) runs each plot on
 %   dataset K, appends a Results row per plot as it goes and returns them.
-%   After cancel() the plots left are "cancelled" rows and
-%   EphysAnalysisRunner:Cancelled is rethrown. For every plot that the dataset
+%   After cancel() the plots left are "canceled" rows and
+%   EphysAnalysisRunner:Canceled is rethrown. For every plot that the dataset
 %   supports (plotSkipReason) it is always this sequence of public calls:
 %     R = r.computePlot(src, spec)
 %     for each page p of plotPageCount(R, spec), one figure at a time:  (Export)
@@ -56,10 +56,10 @@ for j = 1:numel(ids)
     try
         obj.progress(opts.Span(1) + diff(opts.Span) * (j - 1) / numel(ids), sprintf("%s: %s", name, spec.id));
     catch ME
-        if ME.identifier ~= "EphysAnalysisRunner:Cancelled"; rethrow(ME); end
+        if ME.identifier ~= "EphysAnalysisRunner:Canceled"; rethrow(ME); end
         for jj = j:numel(ids)
             s = cfg.plotFor(ids(jj));
-            obj.Results(end+1, :) = {name, s.id, s.kind, "cancelled", "cancelled", "", 0};
+            obj.Results(end+1, :) = {name, s.id, s.kind, "canceled", "canceled", "", 0};
         end
         src.outputs.clearCache();
         rethrow(ME);

@@ -2,7 +2,7 @@ function test_PlotAesthetics()
 %test_PlotAesthetics  Verification suite for remembered plot aesthetics and their editor.
 %   No recording is needed: seeded Poisson spike trains make PSTH, rate,
 %   tuning, heatmap, correlation and probe-map results. Checks the rules
-%   (normalizeRules, mergeRules, colours as text), that every renderer
+%   (normalizeRules, mergeRules, colors as text), that every renderer
 %   tags everything it draws (no component without a role), that renderPlot
 %   applies the user's rules and then the plot's (and UserAesthetics=false
 %   skips the user's), the right-click menu (only in a visible figure, or
@@ -84,7 +84,7 @@ r1 = struct('role', "rate", 'group', "", 'property', "LineWidth", 'value', 2);
 J = jsondecode(jsonencode([r1 struct('role', "sem", 'group', "Depth = 1", 'property', "FaceColor", 'value', [1 0 0])]));
 R = PlotAesthetics.normalizeRules(J);
 check(numel(R) == 2 && isequal(R(2).value, [1 0 0]) && R(2).group == "Depth = 1" && isstring(R(1).role), ...
-    'normalizeRules: decoded JSON (a colour column) becomes rows of string fields and a row colour');
+    'normalizeRules: decoded JSON (a color column) becomes rows of string fields and a row color');
 check(isempty(PlotAesthetics.normalizeRules([])) && isempty(PlotAesthetics.normalizeRules(struct('role', {}, 'property', {}, 'value', {}))), ...
     'no rules: [] and an empty struct');
 check(strcmp(errorId(@() PlotAesthetics.normalizeRules(struct('role', "rate", 'property', "Wobble", 'value', 1))), 'PlotAesthetics:BadRule') ...
@@ -101,7 +101,7 @@ check(numel(M) == 2 && M(2).group == "" && isequal(M(2).value, [0 1 0]), 'mergeR
 [~, ok4] = PlotAesthetics.parseColor("plaid");
 check(ok1 && max(abs(c1 - [1 128/255 0])) < 1e-9 && ok2 && isequal(c2, [1 0 0]) && ok3 && c3 == "none" && ~ok4, ...
     'parseColor: hex, r g b in 0-255, a word kept as text, nonsense refused');
-check(PlotAesthetics.valueText([1 0 0]) == "#FF0000" && PlotAesthetics.valueText(2.5) == "2.5", 'valueText: colours as hex');
+check(PlotAesthetics.valueText([1 0 0]) == "#FF0000" && PlotAesthetics.valueText(2.5) == "2.5", 'valueText: colors as hex');
 
 tms = linspace(-0.6, 1.4, 61).';                    % unit waveforms (unitWaveforms' shape): spikes, spikes, a template, none
 shape = -exp(-(tms / 0.15).^2) + 0.4 * exp(-((tms - 0.5) / 0.3).^2);
@@ -203,7 +203,7 @@ check(isscalar(tx) && isequal(h.note, tx) && sum(C.Role == "note") == 1 && C.Til
     'a note is one text of role "note", drawn in a hidden axes beside the layout; the editor lists it as part of the plot');
 check(numel(tx.String) == 2 && tx.FontWeight == "bold" && tx.FontAngle == "italic" && tx.FontSize == 14 && tx.FontName == "Courier New" ...
     && max(abs(tx.Color - [0.8 0 0])) < 1e-9 && isequal(tx.BackgroundColor, [1 1 0]) && isequal(tx.EdgeColor, tx.Color), ...
-    'the note''s lines, bold, italic, size, font, colour, ground and outline are drawn');
+    'the note''s lines, bold, italic, size, font, color, ground and outline are drawn');
 op = h.layout.OuterPosition;
 check(op(2) > 0 && op(2) < 0.25 && abs(op(2) + op(4) - 1) < 1e-9 && op(1) == 0 && op(3) == 1, ...
     'below the plot, the layout gives up a band at the bottom for the note');
@@ -232,12 +232,12 @@ check(isequal(h.note.Position(1:2), [0.25 0.75]) && h.note.HorizontalAlignment =
     'a custom note''s anchor is at x, y of the plot, with its alignment');
 n3 = struct('text', "plain");
 h = renderPlot(Rp, struct('kind', "psth", 'note', n3), fig, Design="Night");
-check(max(abs(h.note.Color - [216 222 233] / 255)) < 1e-9, 'a note without a colour takes its design''s text colour');
+check(max(abs(h.note.Color - [216 222 233] / 255)) < 1e-9, 'a note without a color takes its design''s text color');
 h = renderPlot(Rp, struct('kind', "psth", 'note', struct('text', "plain", 'color', "red")), fig, Design="Night");
-check(isequal(h.note.Color, [1 0 0]), 'a note''s own colour wins over its design''s');
+check(isequal(h.note.Color, [1 0 0]), 'a note''s own color wins over its design''s');
 h = renderPlot(Rp, struct('kind', "psth", 'note', struct('text', "plain", 'color', "red"), ...
     'aesthetics', struct('role', "note", 'group', "", 'property', "Color", 'value', [0 0 1])), fig);
-check(isequal(h.note.Color, [0 0 1]), 'the plot''s own aesthetics rule for the note wins over the note''s colour');
+check(isequal(h.note.Color, [0 0 1]), 'the plot''s own aesthetics rule for the note wins over the note''s color');
 h = renderPlot(Rp, struct('kind', "psth", 'note', struct('text', "x", 'placement', "below")), fig);
 h = renderPlot(Rp, struct('kind', "psth"), h.layout);
 check(isequal(h.layout.OuterPosition, [0 0 1 1]) && isempty(h.note) && isempty(findall(fig, 'Tag', 'noteHost')) ...
@@ -283,7 +283,7 @@ check(isscalar(ln) && ln.Value == 5 && (~isprop(ln, 'InterceptAxis') || string(l
     'a horizontal line is at a y value; a patch lies between its two edges, in either order, in x or in y');
 check(max(abs(rgx(1).FaceColor - validatecolor("#808080"))) < 1e-6 && rgx(1).FaceAlpha == 0.25 && string(rgx(1).EdgeColor) == "none" ...
     && all(arrayfun(@(x) string(x.PickableParts) == "none", rgx)) && string(ln.PickableParts) ~= "none", ...
-    'a default patch is a grey fill at 25 % opacity without an outline, and does not take clicks (a line does)');
+    'a default patch is a gray fill at 25 % opacity without an outline, and does not take clicks (a line does)');
 o2 = ovL; o2.color = "#336699"; o2.alpha = 0.4; o2.lineStyle = ":"; o2.lineWidth = 3;
 p2 = orx; p2.faceColor = "green"; p2.faceAlpha = 0.6; p2.edgeColor = "black"; p2.lineStyle = "-."; p2.lineWidth = 2;
 h = renderPlot(Rp, struct('kind', "psth", 'overlays', [o2 p2]), fig);
@@ -291,7 +291,7 @@ ln = findall(h.axes(1), 'Tag', 'overlayLine'); rg = findall(h.axes(1), 'Tag', 'o
 check(max(abs(ln.Color - [0.2 0.4 0.6])) < 1e-9 && ln.Alpha == 0.4 && string(ln.LineStyle) == ":" && ln.LineWidth == 3 ...
     && max(abs(rg.FaceColor - validatecolor("green"))) < 1e-9 && rg.FaceAlpha == 0.6 && isequal(rg.EdgeColor, [0 0 0]) ...
     && string(rg.LineStyle) == "-." && rg.LineWidth == 2, ...
-    'each overlay has its own colour, opacity, line style and width; a patch its fill, fill opacity and outline');
+    'each overlay has its own color, opacity, line style and width; a patch its fill, fill opacity and outline');
 under = ovL; under.name = "Back"; under.layer = "under"; under.panel = "data";
 over = ovL; over.name = "Front"; over.value = 0.2; over.panel = "data";
 h = renderPlot(Rp, struct('kind', "psth", 'overlays', [under over]), fig);
@@ -318,13 +318,13 @@ PlotAesthetics.setUserRules("psth", struct('role', "overlayLine", 'group', "", '
 h = renderPlot(Rp, struct('kind', "psth", 'overlays', orr), fig);
 c1 = h.overlays(1).Color;
 PlotAesthetics.setUserRules("psth", []);
-check(isequal(c0, red) && isequal(c1, red), 'an overlay''s own colour wins over its design''s and the user''s rules');
+check(isequal(c0, red) && isequal(c1, red), 'an overlay''s own color wins over its design''s and the user''s rules');
 h = renderPlot(Rp, struct('kind', "psth", 'overlays', orr, 'aesthetics', ...
     struct('role', "overlayLine", 'group', "Stim", 'property', "Color", 'value', [0 0 1])), fig);
 h2 = renderPlot(Rp, struct('kind', "psth", 'overlays', orr, 'aesthetics', ...
     struct('role', "overlayLine", 'group', "Other", 'property', "Color", 'value', [0 0 1])), fig);
 check(isequal(h.overlays(1).Color, [0 0 1]) && isequal(h2.overlays(1).Color, red), ...
-    'the plot''s own aesthetics rule for an overlay''s name wins over the overlay''s colour; another name''s does not reach it');
+    'the plot''s own aesthetics rule for an overlay''s name wins over the overlay''s color; another name''s does not reach it');
 off = ovL; off.enabled = false;
 nan = ovL; nan.value = NaN;
 same = ovL; same.shape = "region"; same.from = 0.2; same.to = 0.2;
@@ -351,7 +351,7 @@ P = PlotAesthetics.editableProperties(h.overlays(1));
 Q = PlotAesthetics.editableProperties(findall(h.axes(1), 'Tag', 'overlayRegion'));
 check(isequal([P.Name], ["Visible" "Color" "Alpha" "LineStyle" "LineWidth"]) ...
     && isequal([Q.Name], ["Visible" "FaceColor" "FaceAlpha" "EdgeColor" "LineStyle" "LineWidth"]), ...
-    'the editor offers a line''s colour, opacity, style and width, and a patch''s fill, opacity, outline, style and width');
+    'the editor offers a line''s color, opacity, style and width, and a patch''s fill, opacity, outline, style and width');
 Dc = PlotDesign.capture(fig);
 check(~any(ismember([Dc.rules.role], ["overlayLine" "overlayRegion"])), 'a design saved from a plot leaves its overlays out');
 h = renderPlot(Rp, struct('kind', "psth"), fig);
@@ -442,7 +442,7 @@ d.setApplyTo("one");
 lws = arrayfun(@(r) C.Handles{r}.LineWidth, rows);
 check(lws(1) == 4 && all(lws(2:end) == lw0) && other.LineWidth == lw0, 'back to "this one": the others are put back');
 d.setProperty("Color", "#00FF00");
-check(isequal(line1.Color, [0 1 0]), 'a colour typed as #rrggbb');
+check(isequal(line1.Color, [0 1 0]), 'a color typed as #rrggbb');
 t1 = find(C.Role == "tileTitle", 2);
 d.select(t1(1));
 d.setProperty("FontSize", 15);
@@ -553,7 +553,7 @@ end
 
 
 function c = faces(p)
-%faces  The fill colour shared by patches P ([] when they differ).
+%faces  The fill color shared by patches P ([] when they differ).
 c = p(1).FaceColor;
 for k = 2:numel(p)
     if ~isequal(p(k).FaceColor, c); c = []; return; end

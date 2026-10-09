@@ -11,7 +11,7 @@ function tf = onArtViewInput(obj, kind, evt)
 %     wheel, Shift+wheel ......... zoom time about the pointer
 %     Ctrl+wheel ................. scale the voltage (Ctrl+Shift+wheel too)
 %     left / right arrow ......... pan time by a quarter of the view
-%     Shift+left / right arrow ... zoom time out / in about the view's centre
+%     Shift+left / right arrow ... zoom time out / in about the view's center
 %     up / down arrow, + / - ..... scale the voltage up / down
 %     page down / n, page up / p . next / previous artifact (Shift: 10 on);
 %                                  on a stretch of the recording (Go to),
@@ -214,7 +214,7 @@ end
 
 
 function zoomTime(obj, f, anchor)
-% The view F times wider, ANCHOR (s; [] = the view's centre) staying put.
+% The view F times wider, ANCHOR (s; [] = the view's center) staying put.
 % No narrower than 20 samples.
 ax = obj.ArtViewAxes;
 xl = ax.XLim;
@@ -506,7 +506,7 @@ end
 %% --- marking a manual period (Mark artifacts) ----------------------------------
 function tf = setMarking(obj, on, kind)
 % Mark artifacts or Measure (KIND "mark" / "measure"; default the one on)
-% on or off: the buttons' text and colour, the pointer, and the axes' own
+% on or off: the buttons' text and color, the pointer, and the axes' own
 % pan and data tips given way to the drag (kept to put back; while a bound
 % edit holds them, in its place). Turning one on while the other is on
 % switches the drag over. Marking stays off with no window drawn or a run

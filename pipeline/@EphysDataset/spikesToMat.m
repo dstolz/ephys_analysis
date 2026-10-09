@@ -7,7 +7,7 @@ function out = spikesToMat(obj, opts)
 %   Sorted units are not part of it: they stay in the sorting folder, read
 %   with EphysDataset.readSortedUnits.
 %   The recording files are only read. The file is written atomically (see
-%   EphysDataset.saveAtomically), so a failed or cancelled run never leaves a
+%   EphysDataset.saveAtomically), so a failed or canceled run never leaves a
 %   complete-looking file behind.
 %
 %   Variables in the file

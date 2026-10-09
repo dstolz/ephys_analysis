@@ -7,7 +7,7 @@ function build(obj)
 %   rows (headstage channels in order, a dataset's channels, or a list),
 %   the label and sort choices, the Kilosort4 kcoords groups, the result
 %   table (its kcoords column is editable) and the copy buttons.
-%   Right: the probe's sites coloured by kcoords group and the mated
+%   Right: the probe's sites colored by kcoords group and the mated
 %   connector faces, the selected
 %   site's path and the chain's problems. Only grid layouts, so the window
 %   resizes on its own.
@@ -173,7 +173,7 @@ obj.KCoordButtons(3) = uibutton(gk, 'Text', 'By shank', 'Tooltip', 'Each site''s
 % Result table
 obj.ResultTable = uitable(left, 'RowName', {}, 'SelectionType', 'row', 'Multiselect', 'off', ...
     'ColumnSortable', false, ...
-    'Tooltip', 'Each site''s path: package pin, headstage pin and input, hardware channel, recording row (0-based for chanMap, 1-based as the Probe tab shows). Grey rows do not reach a recorded channel. Double-click a kcoords cell to change the site''s group.', ...
+    'Tooltip', 'Each site''s path: package pin, headstage pin and input, hardware channel, recording row (0-based for chanMap, 1-based as the Probe tab shows). Gray rows do not reach a recorded channel. Double-click a kcoords cell to change the site''s group.', ...
     'CellSelectionCallback', @(~, evt) obj.onResultRowSelected(evt), ...
     'CellEditCallback', @(~, evt) obj.onResultEdited(evt));
 

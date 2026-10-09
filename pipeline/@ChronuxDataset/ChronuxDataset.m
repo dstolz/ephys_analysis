@@ -342,7 +342,7 @@ classdef ChronuxDataset < handle
                     hit = find(obj.ChannelLabels == want(k));
                     if isempty(hit)
                         error('ChronuxDataset:UnknownChannel', ...
-                            'No channel labelled "%s" in this signal.', want(k));
+                            'No channel labeled "%s" in this signal.', want(k));
                     end
                     idx(k) = hit(1);
                 end

@@ -8,7 +8,7 @@ function applyVizSettings(obj, what)
 %                   probe order when "Order by probe" is ticked (the
 %                   dataset's probe, else the config's default probe:
 %                   by shank, top of the shank first, a dotted line between
-%                   shanks), coloured by shank when asked; the units' and
+%                   shanks), colored by shank when asked; the units' and
 %                   channels' own lanes follow the same order
 %     "processing"  Reference, High-pass / Low-pass / Filter order, Remove offset
 %     "spikes"      the Sorted units / Detected spikes layers: shown or
@@ -18,7 +18,7 @@ function applyVizSettings(obj, what)
 %                   the traces, above them as TTL rows, both or not; the
 %                   lines picked in the Lines list
 %     "lanes", "mode", "shading"   lanes shown, traces / heatmap and its
-%                   colours, the artifact periods shaded
+%                   colors, the artifact periods shaded
 %     "all"         everything
 %   The caller draws (onVizControlsChanged, onPlotVisualization).
 %
@@ -283,14 +283,14 @@ end
 
 
 function C = traceColors(kind, cmap, ok, shank, layout, rc)
-% The lanes' colours for the Traces choice: [] = the viewer's one colour
-% (black), a named colour for every lane, one per shank, or the colormap
-% spread by depth on the probe (yc, top = first colour) or by lane.
+% The lanes' colors for the Traces choice: [] = the viewer's one color
+% (black), a named color for every lane, one per shank, or the colormap
+% spread by depth on the probe (yc, top = first color) or by lane.
 % Shank and depth need a probe; without one the traces stay black.
 n = numel(shank);
 solid = struct('black', [0.15 0.15 0.15], 'blue', [0.00 0.45 0.74], 'red', [0.85 0.20 0.20], ...
     'green', [0.13 0.55 0.13], 'magenta', [0.80 0.20 0.70], 'orange', [0.93 0.55 0.10], ...
-    'grey', [0.55 0.55 0.55]);
+    'gray', [0.55 0.55 0.55]);
 C = [];
 switch kind
     case "shank"
@@ -313,7 +313,7 @@ end
 
 
 function C = mapColors(cmap, f, n)
-% The colormap at fractions F in [0 1] (NaN = grey, off the probe).
+% The colormap at fractions F in [0 1] (NaN = gray, off the probe).
 try
     M = feval(char(cmap), 256);
 catch
@@ -326,7 +326,7 @@ end
 
 
 function C = shankColors(shank, shanks)
-% One colour per shank (as the Artifacts viewer), grey off the probe.
+% One color per shank (as the Artifacts viewer), gray off the probe.
 pal = [0.00 0.45 0.74; 0.13 0.55 0.13; 0.49 0.18 0.56; 0.00 0.60 0.60; ...
        0.35 0.35 0.35; 0.30 0.70 0.95; 0.47 0.67 0.19; 0.25 0.25 0.60];
 C = repmat([0.55 0.55 0.55], numel(shank), 1);

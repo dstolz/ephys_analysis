@@ -21,7 +21,7 @@ function buildTrialsTab(obj)
 %   its columns sort and move, and its context menu adds or removes trial
 %   parameter columns (remembered for every dataset as preferences).
 %   Bottom: the digital lines over the recording, one bar per event from its
-%   onset to its offset with the polarity applied, the trial line coloured by
+%   onset to its offset with the polarity applied, the trial line colored by
 %   pairing state (refreshTrialsPlot; its context menu shows or hides the
 %   trial onset / offset lines, grid lines and trial parameter labels); the mouse wheel zooms time about the cursor and dragging
 %   pans time (the line rows stay fixed). Approving saves the cuts in the dataset manifest

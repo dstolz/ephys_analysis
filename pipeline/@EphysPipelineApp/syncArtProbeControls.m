@@ -6,7 +6,7 @@ function syncArtProbeControls(obj)
 %   into ArtView.layout, ticks "Order channels by probe layout" when there
 %   is a probe (unticked and disabled without one: that is its default, so
 %   a change of dataset or probe resets it) and offers the probe's shanks in
-%   the viewer's Shank box, back at All shanks. "Colour by shank" keeps its
+%   the viewer's Shank box, back at All shanks. "Color by shank" keeps its
 %   value. The per-channel table and the plot are then redrawn. Called when
 %   the active dataset changes (selectDataset), after a probe is assigned
 %   (onAssignProbe) and when the default probe changes (onConfigChanged,

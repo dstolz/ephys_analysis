@@ -143,13 +143,13 @@ function [R, job] = copySessions(T, varargin)
 %     LogFcn           @(message) (default: print it)
 %     CancelFcn        @() logical, polled while copying; true stops the batch
 %                      (a session being copied keeps what it has and is marked
-%                      "cancelled", the rest "cancelled")
+%                      "canceled", the rest "canceled")
 %     BeforeVerifyFcn  @(destFile), called for each copied file after its
 %                      session is copied and before it is verified (for tests)
 %
 %   R is T with DestDir recomputed from DestRoot and these columns added:
 %     CopyStatus    "planned" (dry run) | "copying" (in flight) | "copied" |
-%                   "already_present" | "skipped" | "failed" | "cancelled"
+%                   "already_present" | "skipped" | "failed" | "canceled"
 %     Message       what happened, or why not
 %     NumFiles      files the session folder receives (a stitched row's
 %                   ePsych files count as its one stitched file)
@@ -169,7 +169,7 @@ function [R, job] = copySessions(T, varargin)
 %   copied, or found already present (not by a dry run). A manifest recording
 %   a finished copy (copy.status "copied" or "already_present") is left as it
 %   is while the batch finds the session complete and takes no checksums; one
-%   left by a cancelled or failed copy is replaced.
+%   left by a canceled or failed copy is replaced.
 %
 %   Examples
 %     T = findCopySessions("SUBJ-ID-1255", "260916");
@@ -204,10 +204,10 @@ if job.Done
     return
 end
 
-if job.CancelFcn()   % already cancelled: do not launch an engine at all
-    job.R.CopyStatus(job.ToCopy) = "cancelled";
-    job.R.Message(job.ToCopy) = "cancelled before the copy started";
-    job.Cancelled = true;
+if job.CancelFcn()   % already canceled: do not launch an engine at all
+    job.R.CopyStatus(job.ToCopy) = "canceled";
+    job.R.Message(job.ToCopy) = "canceled before the copy started";
+    job.Canceled = true;
     job = finishBatch(job);
     R = job.Result;
     return
@@ -273,7 +273,7 @@ job.Done = false;
 job.Dir = "";
 job.CancelFile = "";
 job.Pos = 0;
-job.Cancelled = false;
+job.Canceled = false;
 job.Started = datetime('now', 'TimeZone', 'local');
 job.LogFcn = opts.LogFcn;
 if isempty(job.LogFcn); job.LogFcn = @(msg) fprintf('%s\n', msg); end
@@ -599,7 +599,7 @@ function job = advance(job)
 %   phase is over verify it, stitch, start the next phase or finish.
 if job.Done; return; end
 
-if ~job.Cancelled && job.CancelFcn()
+if ~job.Canceled && job.CancelFcn()
     job = cancelJob(job);
 end
 
@@ -622,7 +622,7 @@ if S.state == "error"
     job = failBatch(job, "the copy engine failed: " + S.message);
     return
 end
-if S.state == "cancelled"; job.Cancelled = true; end
+if S.state == "canceled"; job.Canceled = true; end
 
 if phase == "copy"
     job = finishCopyPhase(job);
@@ -691,9 +691,9 @@ for k = 1:numel(lines)
                     job.SessionNow = e.index;
                     job.ProgressFcn(min(job.BytesBase / job.Work, 1), sprintf("%s: SHA-256 checksum of %d file(s)", ...
                         rowName(job.R, e.index), e.files), progressInfo(job, phaseName));
-                case "cancelled"
+                case "canceled"
                     job.SessionsDone = job.SessionsDone + 1;
-                    job.Errors(end+1) = struct('index', e.index, 'message', "cancelled");
+                    job.Errors(end+1) = struct('index', e.index, 'message', "canceled");
                 case "done"
                     job.SessionsDone = job.SessionsDone + 1;
                     if isfield(e, 'error') && strlength(string(e.error)) > 0
@@ -794,9 +794,9 @@ for r = job.ToCopy.'
     if job.R.CopyStatus(r) ~= "copying"; continue; end
     dest = job.R.DestDir(r);
     why = engineError(job, r);
-    if why == "cancelled"
-        job.R.CopyStatus(r) = "cancelled";
-        job.R.Message(r) = "cancelled during the copy; the partial copy is kept in " + dest;
+    if why == "canceled"
+        job.R.CopyStatus(r) = "canceled";
+        job.R.Message(r) = "canceled during the copy; the partial copy is kept in " + dest;
         continue
     end
     try
@@ -858,9 +858,9 @@ for r = job.ToCopy.'
     if job.R.CopyStatus(r) ~= "copying"; continue; end
     dest = job.R.DestDir(r);
     why = engineError(job, r);
-    if why == "cancelled"
-        job.R.CopyStatus(r) = "cancelled";
-        job.R.Message(r) = "cancelled while checksumming; the copy is kept in " + dest;
+    if why == "canceled"
+        job.R.CopyStatus(r) = "canceled";
+        job.R.Message(r) = "canceled while checksumming; the copy is kept in " + dest;
         continue
     end
     job.Hashed(r) = true;
@@ -946,8 +946,8 @@ job.SessionNow = 0;
 job.SessionsDone = numel(job.ToCopy);
 job.PhaseBytes = job.Total;
 job.ProgressFcn(1, "Done.", progressInfo(job, "done"));
-counts = arrayfun(@(s) nnz(job.R.CopyStatus == s), ["copied", "already_present", "skipped", "failed", "cancelled"]);
-job.LogFcn(sprintf("Copy finished: %d copied, %d already present, %d skipped, %d failed, %d cancelled.", counts));
+counts = arrayfun(@(s) nnz(job.R.CopyStatus == s), ["copied", "already_present", "skipped", "failed", "canceled"]);
+job.LogFcn(sprintf("Copy finished: %d copied, %d already present, %d skipped, %d failed, %d canceled.", counts));
 
 if job.Dir ~= "" && isfolder(job.Dir)
     try rmdir(job.Dir, 's'); catch; end
@@ -968,7 +968,7 @@ end
 
 function job = cancelJob(job)
 %cancelJob  Ask the engine to stop between files; it keeps what it has copied.
-job.Cancelled = true;
+job.Canceled = true;
 if job.CancelFile ~= "" && ~isfile(job.CancelFile)
     [fid, msg] = fopen(job.CancelFile, 'w');
     if fid >= 0
@@ -1318,7 +1318,7 @@ function job = writeManifests(job, rows)
 %   A manifest that records a finished copy is kept while the batch found
 %   the session complete, changed nothing in it and compared no checksums:
 %   it describes the copy better than a new one would. Any other is
-%   replaced, so one left by a cancelled or failed copy does not outlive the
+%   replaced, so one left by a canceled or failed copy does not outlive the
 %   session being found complete.
 tool = [];   % filled in once a manifest is to be written: asking git takes a moment
 host = "";

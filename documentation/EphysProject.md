@@ -125,7 +125,7 @@ config's selection, the refresh report, the GUI table) uses the
 | `EphysProject.relativeKey(root, folder)`, `EphysProject.normalizeKey(s)` | statics: build / normalize a key |
 | `d = dataset(idxOrName)` | one dataset by index or by `Name` (the **first** match; `EphysProject:NoSuchDataset` if the name is not found) |
 | `dt = tracker(idxOrName)` | `dataset(idxOrName).tracker()`, the [`DatasetTracker`](DatasetTracker.md) inventory of that dataset's output folder |
-| `T = unitIdentities(Among=, NamePattern=)` | one row per dataset (`Key`, `Name`, `Subject`, `RecordingStart`, `LabelSuffix`, `Status`, `Message`): how its sorted units are labelled. `Status` is `ok`, why the name cannot label units (`pattern`, `nomatch`, `subject`, `datetime`), or `collision` when another dataset in `Among` (default: all) has the same subject and start minute. `NamePattern` overrides each dataset's own |
+| `T = unitIdentities(Among=, NamePattern=)` | one row per dataset (`Key`, `Name`, `Subject`, `RecordingStart`, `LabelSuffix`, `Status`, `Message`): how its sorted units are labeled. `Status` is `ok`, why the name cannot label units (`pattern`, `nomatch`, `subject`, `datetime`), or `collision` when another dataset in `Among` (default: all) has the same subject and start minute. `NamePattern` overrides each dataset's own |
 
 ### Batch operations
 
@@ -174,7 +174,7 @@ dataset's copies beside an earlier copy
 ([Copying the outputs elsewhere](EphysPipeline.md#copying-the-outputs-elsewhere)),
 counts too when its files are named after `<name>`: the dataset is `<name>`
 (`EphysProject.outputFolderName(folder)`, which `DatasetOutputs(folder)` uses
-as well), so its files are found and its units labelled from that name. Its
+as well), so its files are found and its units labeled from that name. Its
 key keeps the folder's name (`m1/rec_v2`), so the two copies are two
 datasets, and the source folder that its files' provenance names is matched
 without the `_v<n>`. A folder whose own files carry the `_v<n>` keeps it.

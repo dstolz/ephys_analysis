@@ -4,7 +4,7 @@ function h = renderRaster(R, target, opts)
 %   draws one raster per unit of the page (MaxTiles per page; units by
 %   Style.SortShank / Style.SortDepth, titled with their shank / depth for
 %   Style.LabelShank / Style.LabelDepth): epochs as rows, sorted by group,
-%   then by SortBy, then by time, each group on a pale band of its colour;
+%   then by SortBy, then by time, each group on a pale band of its color;
 %   all ticks of a tile are one line object. An axes TARGET gets the first
 %   unit of the page. Every row is shown: Style.YLim does not apply to
 %   rasters.
@@ -22,7 +22,7 @@ function h = renderRaster(R, target, opts)
 %           values stay last
 %   ByGroup true (default): rows by group first, each group on its band;
 %           false: every epoch sorted by SortBy as one block, each row on
-%           its group's colour
+%           its group's color
 %   EventMarks  EphysAnalysisConfig.defaults("Plot").rasterEvents fields
 %           (marker, size, color): how the events in R.rasterEvents
 %           (epochEvents) are marked on their rows, one mark per event,

@@ -102,7 +102,7 @@ classdef test_Auroc < matlab.unittest.TestCase
             [st, E] = fixture();
             S = aurocCurves(st, E, Window=[-0.5 1], Baseline=[-0.5 0], Windows="sliding", StepSec=0.02, Cutoff="none");
             tc.verifyEqual(S.starts, (-0.5:0.02:0.9).', 'AbsTol', 1e-9, 'sliding: a window every step, wholly inside');
-            tc.verifyEqual(S.t, S.starts + 0.05, 'AbsTol', 1e-12, 'its time is its centre');
+            tc.verifyEqual(S.t, S.starts + 0.05, 'AbsTol', 1e-12, 'its time is its center');
             tc.verifyEqual(S.edges([1 2 end]), [-0.46 -0.44 0.96], 'AbsTol', 1e-9, 'bar edges half a step either side');
             T = aurocCurves(st, E, Window=[-0.55 1], Baseline=[-0.55 0], Cutoff="none");
             tc.verifyEqual(T.starts(1), -0.5, 'AbsTol', 1e-9, 'tiled windows are edged at whole multiples from the event');
@@ -273,7 +273,7 @@ classdef test_Auroc < matlab.unittest.TestCase
                 && any(contains(string(get(marks, 'String')), "\downarrow")) && any(contains(string(get(marks, 'String')), "n.s.")));
             clf(f);
             h = renderHeatmap(R, f, Order="modulation");
-            tc.verifyEqual(clim(h.axes(1)), [0 1], 'auROC colours on [0 1]');
+            tc.verifyEqual(clim(h.axes(1)), [0 1], 'auROC colors on [0 1]');
             tc.verifyEqual(numel(findall(f, 'Tag', 'modMarks')), 8, 'a triangle by each modulated row of both tiles');
             img = findobj(h.axes(1), 'Type', 'image');
             rowMean = mean(img.CData(:, R.auroc.inModulation), 2);

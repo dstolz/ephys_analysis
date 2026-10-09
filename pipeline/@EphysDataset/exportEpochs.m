@@ -7,7 +7,7 @@ function out = exportEpochs(obj, opts)
 %   digital-input line, the trials of the paired Epsych2 session, or times
 %   passed in.
 %
-%   Nothing is analysed or averaged: the epochs hold the recorded samples and
+%   Nothing is analyzed or averaged: the epochs hold the recorded samples and
 %   spike times, selected and re-packaged.
 %
 %   Variables in the file

@@ -141,7 +141,7 @@ check(isequal(Y1.LFP(:, others), Y0.LFP(:, others)) && isequal(Y1.SPIKE(:, other
     'every other column is untouched');
 relL = max(abs(Y1.LFP(:, 4) - Yc.LFP(:, 4))) / max(abs(Yc.LFP(:, 4)));
 relS = max(abs(Y1.SPIKE(:, 4) - Yc.SPIKE(:, 4))) / max(abs(Yc.SPIKE(:, 4)));
-check(relL < 1e-4 && relS < 1e-4, sprintf(['the broken site is rebuilt from its shank neighbours ' ...
+check(relL < 1e-4 && relS < 1e-4, sprintf(['the broken site is rebuilt from its shank neighbors ' ...
     '(max error %.1g of the LFP peak, %.1g of the SPIKE peak)'], relL, relS));
 B1 = I1.badChannels;
 d1 = hypot(8, 25); d2 = 50;
@@ -175,7 +175,7 @@ args = namedargs2cell(EphysPipelineConfig.signalOptions(G, ExcludeChannels=12));
 check(size(Yp.LFP, 2) == 8 && isequal(Ip.badChannels.channels, 12) && isequal(Yp.LFP, Y1.LFP), ...
     'config KeepChannels 9-16 + interpolated exclusion 12 rebuilds column 4 only');
 
-fprintf('\n== 3. fallback to neighbouring columns; automatic detection ==\n');
+fprintf('\n== 3. fallback to neighboring columns; automatic detection ==\n');
 dsN = EphysDataset(dirtyDir);   % no probe
 Yn0 = dsN.deriveSignals(dataTypeOut="LFP");
 lastwarn('');
@@ -256,14 +256,14 @@ YW = dsW.deriveSignals(dataTypeOut=["LFP" "MUA" "SPIKE"]);
 check(isequal(YW.SPIKE, band(XW, Fs)) && isequal(YW.MUA, mua(XW)) ...
     && isequal(YW.LFP, resample(XW, 1, 30)), '64 channels, 8-column blocks: the same as the whole-matrix references');
 tb = (0:Fs-1).' / Fs;
-gate = exp(-(tb - 0.5).^2 / (2 * 0.02^2));   % 20 ms Gaussian centred at 0.5 s
+gate = exp(-(tb - 0.5).^2 / (2 * 0.02^2));   % 20 ms Gaussian centerd at 0.5 s
 dsB = EphysDataset(writeRecording(root, "burst", [100 * gate .* sin(2*pi*2000*tb), zeros(Fs, 1)], Fs));
 [YB, ~, IB] = dsB.deriveSignals(dataTypeOut="MUA");
 mB = double(YB.MUA(:, 1));
 tM = (0:numel(mB)-1).' / IB.MUA.Fs;
 lag = sum(tM .* mB) / sum(mB) - 0.5;
 check(abs(lag) < 2e-5 && abs(max(mB) / (100 * 2/pi) - 1) < 0.02, ...
-    sprintf('MUA of a gated 2 kHz tone: centred on the burst (%.3g ms off), peak 2/pi of its amplitude', 1e3 * lag));
+    sprintf('MUA of a gated 2 kHz tone: centerd on the burst (%.3g ms off), peak 2/pi of its amplitude', 1e3 * lag));
 check(strcmp(errorId(@() dsB.deriveSignals(dataTypeOut="MUA", MUA_IntegrationHz=1500)), ...
     'EphysDataset:deriveSignals:MUA_IntegrationNyquist'), 'MUA_IntegrationHz above MUA_Fs/2 is an error');
 

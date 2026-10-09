@@ -16,7 +16,7 @@ C = TableSort.apply(reviewTableRows(R), obj.tableSort("Review"), tbl.ColumnName)
 tbl.Data = C;
 removeStyle(tbl);
 % Rows tinted by group, in the hues of the units-per-shank plot (good green,
-% mua grey, anything else orange); styles address rows of Data, so they are
+% mua gray, anything else orange); styles address rows of Data, so they are
 % laid on after the sort.
 grp = string(C(:, 2));
 tints = {"good", [0.80 0.92 0.80]; "mua", [0.88 0.88 0.90]};

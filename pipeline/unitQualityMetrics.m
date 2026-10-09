@@ -229,7 +229,7 @@ end
 function y = gaussianNearest(x, sigma)
 %gaussianNearest  scipy.ndimage.gaussian_filter1d(x, sigma, mode="nearest"), truncate 4.
 %   The weights exp(-x^2 / (2 sigma^2)) over |x| <= floor(4 sigma + 0.5),
-%   normalized; each output is the centre weight's term plus the pairs
+%   normalized; each output is the center weight's term plus the pairs
 %   (x(i-j) + x(i+j)) w(j), the outermost pair first, as scipy sums a
 %   symmetric filter.
 r = fix(4 * sigma + 0.5);

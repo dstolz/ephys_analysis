@@ -1,8 +1,8 @@
 function c = blueWhiteRed(n)
 %blueWhiteRed  Diverging colormap: blue through white to red.
 %   C = blueWhiteRed(N) is an N x 3 colormap (default: the current figure's
-%   colormap length, else 256) for values centred on zero, such as
-%   correlations on [-1 1]: the default colours of renderCorrMap.
+%   colormap length, else 256) for values centerd on zero, such as
+%   correlations on [-1 1]: the default colors of renderCorrMap.
 %
 %   See also renderCorrMap, colormap.
 

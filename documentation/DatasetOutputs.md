@@ -145,7 +145,7 @@ Displaying the object shows the paths only. It never loads data.
 ## Files for the analysis app
 
 `[T, notes] = out.analysisFiles(...)` lists what the analysis app needs to
-analyse the dataset, for copying it to another machine (the pipeline app's
+analyze the dataset, for copying it to another machine (the pipeline app's
 [Copy files for the analysis app](EphysPipelineApp.md#copying-files-for-the-analysis-app)
 does). `T` has a row per file or folder: `Kind` (`manifest`, `behavior`,
 `extract`, `spikes`, `sorting`, `sorted data`, `probe`), `Path`, `Base` (the

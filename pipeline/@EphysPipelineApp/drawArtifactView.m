@@ -11,7 +11,7 @@ function drawArtifactView(obj)
 %   bounds are dashed lines either way, the ones a Ctrl+drag moves
 %   (onArtViewInput). Detected artifacts are drawn with the bounds moved by
 %   hand (EphysDataset.adjustArtifacts); a moved one also shows where the
-%   detector put them (dotted grey). What is removed follows the controls as they are now:
+%   detector put them (dotted gray). What is removed follows the controls as they are now:
 %   manual periods always, the detected artifacts when automatic detection
 %   is enabled and silences them in sorting or rejects spikes inside them.
 %   The line above the axes says which, and flags a preview whose detection
@@ -26,7 +26,7 @@ function drawArtifactView(obj)
 %   syncArtProbeControls) the channels can come from one shank only (Shank),
 %   the lanes follow the probe layout ("Order channels by probe layout":
 %   by shank, top of the shank first, dotted lines between shanks) and the
-%   kept signal is coloured by shank ("Colour by shank"). Otherwise the
+%   kept signal is colored by shank ("Color by shank"). Otherwise the
 %   lanes are in recording order.
 %
 %   A redraw of the same window keeps the time zoom (the axes' XLim); a new
@@ -116,7 +116,7 @@ removed = maskManual | (autoRemoved(obj) & maskDetected);
 % --- channels: the ones the artifact stands out most on (on the chosen shank) --
 kept = ~removed;
 if ~any(kept); kept = true(m, 1); end
-Xc = w.X - median(w.X(kept, :), 1);          % centred on the kept signal
+Xc = w.X - median(w.X(kept, :), 1);          % centerd on the kept signal
 sd = 1.4826 * median(abs(Xc(kept, :)), 1);   % its robust SD per channel
 good = sd > 0 & isfinite(sd);
 sd(~good) = max([sd(good), 1]);
@@ -242,7 +242,7 @@ end
 hRem  = drawLanes(ax, t, yRem, repmat(red, nShow, 1), repmat("Removed (replaced)", 1, nShow));
 hKept = drawLanes(ax, t, yKept, laneColor, keptName);
 
-% Legend: the kept signal (one entry per shank when coloured), removed, the shadings.
+% Legend: the kept signal (one entry per shank when colored), removed, the shadings.
 [~, first] = unique(keptName, 'stable');
 hLeg = gobjects(0, 1);
 for j = first(:).'
@@ -292,7 +292,7 @@ end
 
 
 function h = drawLanes(ax, t, Y, colors, names)
-% One line per lane (a column of Y, in the colour of its row of COLORS,
+% One line per lane (a column of Y, in the color of its row of COLORS,
 % named by its entry of NAMES), leaving out lanes with nothing to draw:
 % their entries of H stay placeholders. A single line holding every lane
 % breaks the uifigure renderer (R2025a: "Could not find node in peer tree")
@@ -322,7 +322,7 @@ end
 
 
 function pal = shankPalette()
-% Shank colours: blues, greens, purple and grey, clear of the red of the
+% Shank colors: blues, greens, purple and gray, clear of the red of the
 % removed samples and the orange of the detected artifacts (lines() is not).
 pal = [0.00 0.45 0.74
        0.13 0.55 0.13

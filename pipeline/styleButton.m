@@ -1,8 +1,8 @@
 function styleButton(b, role)
-%styleButton  Size and colour app buttons by what they do.
+%styleButton  Size and color app buttons by what they do.
 %   styleButton(B) gives the buttons B (push or state buttons) the ordinary
-%   look: text a size up from MATLAB's default on a light blue-grey face
-%   that stands out from the grey panel behind it.
+%   look: text a size up from MATLAB's default on a light blue-gray face
+%   that stands out from the gray panel behind it.
 %
 %   styleButton(B, ROLE) gives them the look of ROLE:
 %     "secondary"  the ordinary look (the default)
@@ -14,14 +14,14 @@ function styleButton(b, role)
 %                  Stop runs...): red with bold white text
 %     "active"     a toggle that is on (Mark artifacts): amber, bold
 %   Primary, confirm and danger text is larger again. A disabled button
-%   fades on its own, so the colours need no change for that.
+%   fades on its own, so the colors need no change for that.
 %
 %   A button in a grid row sized 'fit' grows with its text; in a row of a
 %   fixed height it keeps that height, so give rows that hold buttons at
 %   least 26 px (30 px for a tab's main action).
 %
 %   EphysPipelineApp and EphysAnalysisApp give every button the
-%   ordinary look and list their coloured ones in buildUI (styleButtons).
+%   ordinary look and list their colored ones in buildUI (styleButtons).
 arguments
     b
     role (1,1) string {mustBeMember(role, ["secondary" "primary" "confirm" "danger" "active"])} = "secondary"

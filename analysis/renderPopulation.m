@@ -12,9 +12,9 @@ function h = renderPopulation(P, S, kind, target, opts)
 %     "tuning"     each group's mean tuning curve +/- SEM across its units
 %                  (S.tuning.normalize); a text parameter is spaced evenly
 %     "depth"      every unit at its probe y against its response
-%                  (responseRate - baselineRate, spikes/s), coloured by
+%                  (responseRate - baselineRate, spikes/s), colored by
 %                  direction
-%   Groups take the lines colours in the order of S.groups and are named
+%   Groups take the lines colors in the order of S.groups and are named
 %   with their unit counts. H: layout ([] when TARGET is an axes), axes.
 %
 %   Options: Style (an EphysAnalysisConfig Style: FontSize, Grid,

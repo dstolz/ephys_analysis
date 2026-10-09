@@ -5,7 +5,7 @@ function refreshResultTable(obj)
 %   it is not the shank), the hardware channel, the headstage input, the
 %   headstage and package pins (with the connector in brackets when the
 %   device has several), x, y and a flag. Rows that do not reach a recorded
-%   channel are grey.
+%   channel are gray.
 %   obj.ResultOrder maps a table row back to its Result.Table row (the
 %   table is sorted by the Sort dropdown, not by clicking a header, so rows
 %   stay put).
@@ -58,8 +58,8 @@ moved = find(T.KCoord ~= T.Shank);
 if ~isempty(moved)
     addStyle(tbl, uistyle('FontWeight', 'bold', 'FontColor', [0.1 0.3 0.75]), 'cell', [moved, repmat(kCol, numel(moved), 1)]);
 end
-grey = find(T.Flag ~= "");
-if ~isempty(grey)
-    addStyle(tbl, uistyle('BackgroundColor', [0.9 0.9 0.9], 'FontColor', [0.35 0.35 0.35]), 'row', grey);
+gray = find(T.Flag ~= "");
+if ~isempty(gray)
+    addStyle(tbl, uistyle('BackgroundColor', [0.9 0.9 0.9], 'FontColor', [0.35 0.35 0.35]), 'row', gray);
 end
 end

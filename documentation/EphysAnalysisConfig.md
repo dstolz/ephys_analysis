@@ -290,7 +290,7 @@ Which trials take part and how they are grouped, from the paired trials of
 `response` words (`Hit`, `Miss`, `CR`, `FA`, ...), `pairingFlags` (`ok`,
 `partial`, `cut`, `unpaired`; `[]` keeps every flag), explicit `trials`,
 and `groupBy` (0-2 trial parameters) with `groupOrder` and `maxGroups`
-(fields, filter syntax and group colours:
+(fields, filter syntax and group colors:
 [`trialSelection`](EphysAnalysis.md#trialselection-which-trials-in-which-groups)).
 A filter is checked for syntax when the config is validated (a warning)
 and against each dataset's trial columns when it runs. Without paired
@@ -323,7 +323,7 @@ A plot's `units` (its `source` is the plot's `source`). Sorted units
 | `ShowSEM` | `true` | SEM bands / error bars |
 | `ShowStop` | `true` | stop-event marks (mean per group; a dot per raster row) |
 | `ShowZeroLine` | `true` | a dotted line at the event |
-| `Colormap` | `"lines"` | group colours: `"lines"` keeps selectTrials' colours; any colormap name resamples them; a colour name or hex code (`"black"`, `"#1f77b4"`) gives every group that colour |
+| `Colormap` | `"lines"` | group colors: `"lines"` keeps selectTrials' colors; any colormap name resamples them; a color name or hex code (`"black"`, `"#1f77b4"`) gives every group that color |
 | `HeatColormap` | `""` | heatmaps, probe maps and unit correlations; `""` = parula, or `blueWhiteRed` for corrmap |
 | `FontSize` | 9 | |
 | `SiteSize` | 8 | probe map: the sites' marker size, points |
@@ -364,9 +364,9 @@ use.
 | `rasterSort` | `""` | psth, raster: the order of each group's epochs in the raster. `""` = trial (time) order; `"stop"` = by the stop event's latency; `"event"` = by the latency of `rasterSortEvent` ([Raster sort by an event](#raster-sort-by-an-event)); else a trial parameter, which the compute copies onto the epochs (`epochTable(..., Columns=)`). Groups stay in their own bands (see `rasterByGroup`); missing values sort last and ties keep the trial order |
 | `rasterSortEvent` | `[]` | psth, raster with `rasterSort "event"` (required then): the [event reference](#eventref) whose latency from each epoch's event orders the rows, e.g. `{ "line": "Platform", "edge": "offset" }` (a line name alone is short for its onset). Ignored by the other sorts |
 | `rasterSortOrder` | `"ascending"` | psth, raster: the direction of `rasterSort`: `"ascending"` or `"descending"` (with `rasterSort ""`, the last trial first). Missing values stay last either way; ties keep the trial order |
-| `rasterByGroup` | `true` | psth, raster: the rows go by group first, each group on a band of its colour; `false`: every epoch sorted by `rasterSort` as one block, each row on its group's colour (the y label adds "groups mixed") |
+| `rasterByGroup` | `true` | psth, raster: the rows go by group first, each group on a band of its color; `false`: every epoch sorted by `rasterSort` as one block, each row on its group's color (the y label adds "groups mixed") |
 | `rasterEvents` | none | psth, raster: marks on each raster row at digital-line events inside its epoch ([Raster event marks](#raster-event-marks)) |
-| `histStyle` | `"bar"` | psth: `"bar"` (one bar per bin) or `"line"` (a trace through the bin centres) |
+| `histStyle` | `"bar"` | psth: `"bar"` (one bar per bin) or `"line"` (a trace through the bin centers) |
 | `fill` | `true` | psth: fill the bars, or the area under the line; `false` = the bars' outline, or the line alone |
 | `fillAlpha` | `NaN` | psth: fill opacity 0-1; `NaN` = 0.5 where groups are overlaid, else 1 |
 | `normalize` | `"none"` | psth: `"unitPeak"` divides each unit's PSTHs by their largest absolute value over every group (the groups keep their sizes); `"groupPeak"` divides each PSTH by its own. The overlay layout normalizes each unit before the mean |
@@ -376,7 +376,7 @@ use.
 | `param`, `seriesParam` | `""` | tuning, behavior: the trial parameter on the x axis (required); one curve (series) per value of the series parameter (`""` = one) |
 | `yParam` | `""` | behavior: what each epoch shows (required): a numeric trial parameter, e.g. `"RespLatency"` (as recorded; Epsych2 stores ms), or `"stop"`: the epoch's stop-event latency from its event, ms (needs a stop event) |
 | `jitter` | `true` | behavior `"points"`: spread the points sideways, a fixed, repeatable pattern up to 0.3 of the series' slot either way; `false`: each point on its x value |
-| `xScale` | `"category"` | behavior: `"category"` (the x values evenly spaced, labelled with their values) or `"linear"` (at their values, numeric x only; text values are spaced evenly) |
+| `xScale` | `"category"` | behavior: `"category"` (the x values evenly spaced, labeled with their values) or `"linear"` (at their values, numeric x only; text values are spaced evenly) |
 | `value` | `"rate"` | probemap, per site, over the whole recording: `"rate"` (the units' summed rate, Hz), `"nSpikes"` (their summed spike count) or `"nUnits"` |
 | `order` | `"probe"` | heatmap rows: `"probe"` (the style's `SortDepth` / `SortShank`), `"peak"` (by the time of each row's maximum) or, with the auROC baseline, `"modulation"` (by the first group's mean auROC in the call window, highest first; the other tiles keep that order, as the paper's Fig 3A). A corrmap follows the style's sort options |
 | `metric` | `"mean"` | corrmap: each epoch's `"mean"` rate over its window, or its `"peak"` binned rate (`bins`) |
@@ -385,7 +385,7 @@ use.
 | `note` | [Note](#plot-notes), no text | descriptive text on the plot: its words, where it goes and how it looks (every kind) |
 | `overlays` | none | [lines and semitransparent patches](#plot-overlays) drawn on the plot's axes in data units, over or under its data: a list, any number, each with its own place and look (every kind) |
 | `style` | [Style](#style) | |
-| `aesthetics` | none | remembered looks of the plot's components: a list of rules `{role, group, property, value}` (`group` `""` = every group; `value` a number, an `[r g b]` colour or text), applied after drawing, over the user's own rules for the kind. The preview's right-click editor writes them ([Plot aesthetics](EphysAnalysis.md#plot-aesthetics)); a rule with a property the editor does not know is refused (`EphysAnalysisConfig:BadValue`) |
+| `aesthetics` | none | remembered looks of the plot's components: a list of rules `{role, group, property, value}` (`group` `""` = every group; `value` a number, an `[r g b]` color or text), applied after drawing, over the user's own rules for the kind. The preview's right-click editor writes them ([Plot aesthetics](EphysAnalysis.md#plot-aesthetics)); a rule with a property the editor does not know is refused (`EphysAnalysisConfig:BadValue`) |
 
 The kinds, from `EphysAnalysisConfig.plotKinds()`; the app's
 [Plot kinds](EphysAnalysisApp.md#plot-kinds) shows each.
@@ -427,17 +427,17 @@ row step is `stackSpacing` times its tallest PSTH, so every unit's tile
 fills its height whatever its rate. Rows are drawn top down, so where
 they overlap (`stackSpacing` below 1) the lower one is in front.
 
-- **Left axis:** a tick at each row's baseline, labelled with the group's
+- **Left axis:** a tick at each row's baseline, labeled with the group's
   value (`0.5`, or `0.5, 1` for two `groupBy` parameters); the parameter
   names the axis.
-- **Right axis:** a tick at the height where each row peaks, labelled
+- **Right axis:** a tick at the height where each row peaks, labeled
   with that peak in spikes/s (or the baseline mode's unit). It gives the
   scale of every row, also when `normalize` scaled the rows: a
   `groupPeak` stack still shows each PSTH's peak rate. The overlay layout
   labels the peaks of its mean, in the units of the mean (normalized when
   `normalize` is set).
-- A thin grey line marks each baseline; each group's mean stop event is a
-  dashed mark in its own row. There is no legend (the rows are labelled),
+- A thin gray line marks each baseline; each group's mean stop event is a
+  dashed mark in its own row. There is no legend (the rows are labeled),
   and `Style.YLim` is not used.
 - The raster above each tile is flipped to match, its first group at the
   bottom; like every raster it ignores `Style.YLim`.
@@ -456,7 +456,7 @@ compares spike / no spike, and `maskAfterStop` leaves out the bins from
 each epoch's stop event on. Smoothing is not used and a PSTH's `normalize`
 does not apply. A unit with no spike in the window and the baseline over a
 group's epochs has no auROC there (NaN), so it is not called. A PSTH draws
-the auROC from 0.5 on a 0-1 axis, a heatmap colours it on `[0 1]`
+the auROC from 0.5 on a 0-1 axis, a heatmap colors it on `[0 1]`
 (`Style.YLim` / `Style.CLim` override them). The plot's `auroc`
 (`EphysAnalysisConfig.defaults("Auroc")`):
 
@@ -471,7 +471,7 @@ the auROC from 0.5 on a 0-1 axis, a heatmap colours it on `[0 1]`
 | `test` | `"bootstrap"` | `"test"`: `"bootstrap"` (the epochs resampled `nResamples` times; p from how often the mean auROC lands across 0.5), `"ranksum"` (the call window's values against the baseline's; they share epochs, so p runs small) or `"shuffle"` (each epoch's bins shifted circularly at random `nResamples` times; p from how often the phasic modulation reaches the observed one) |
 | `nResamples` | 1000 | bootstrap, shuffle |
 | `correction`, `alpha` | `"bh"`, 0.05 | `"test"`: `pAdjust` (`"bh"`, `"holm"`, `"bonferroni"`, `"none"`) over every unit and group; modulated when the adjusted p is at most `alpha`. `populationAnalysis` uses its own `Correction` and `Alpha` instead |
-| `marks` | `true` | draw the calls (with a cutoff): the PSTH shades the call window and puts each group's call (up / down arrow, n.s.) by the unit's title, in the group's colour (overlay: each group's count of units called up and down); the heatmap draws a bar over the call window and a red up or blue down triangle by each modulated row. The caption counts them either way |
+| `marks` | `true` | draw the calls (with a cutoff): the PSTH shades the call window and puts each group's call (up / down arrow, n.s.) by the unit's title, in the group's color (overlay: each group's count of units called up and down); the heatmap draws a bar over the call window and a red up or blue down triangle by each modulated row. The caption counts them either way |
 | `modulatedOnly` | `false` | draw only the units called modulated in at least one group (needs a cutoff); when none is, the plot fails (`spikePSTH:NoneModulated`) |
 
 The random draws come from their own stream (seed 0), so a plot gives
@@ -517,7 +517,7 @@ for each. The plot's `rasterEvents`:
 | `scope` | `"window"` | `"window"`: every event inside the epoch's window; `"trial"`: only those inside the epoch's own trial (a sequence's: those whose own trial, the one holding its first event, is the epoch's) |
 | `marker` | `"diamond"` | a line marker the aesthetics editor knows (`o`, `square`, `diamond`, `^`, `v`, `>`, `<`, `+`, `*`, `.`, `x`, `_`, `\|`, `pentagram`, `hexagram`) |
 | `size` | 4 | marker size, points |
-| `color` | `""` | `""`: a colour per line and edge (blue, green, purple, yellow, cyan, teal; never the ticks' black or the stop dots' red); or one colour for every mark (a name or `#rrggbb`) |
+| `color` | `""` | `""`: a color per line and edge (blue, green, purple, yellow, cyan, teal; never the ticks' black or the stop dots' red); or one color for every mark (a name or `#rrggbb`) |
 
 `epochEvents` finds them ([Analysis page](EphysAnalysis.md#compute)) on
 the clock of each epoch's event, so a mark sits where the spikes of that
@@ -525,7 +525,7 @@ sample sit. Each line and edge, and each sequence, is one component for the
 [aesthetics editor](EphysAnalysis.md#plot-aesthetics), role `rasterEvent`,
 group `"<line> <edge>"` (e.g. `"Trough onset"`; a sequence's
 `eventRefLabel`, e.g. `"Trial offset then Trough onset"`): right-click a mark to give
-one line's marks their own marker, size or colour. The raster kind's
+one line's marks their own marker, size or color. The raster kind's
 legend lists them; the caption names them.
 
 ### Behavior plots
@@ -541,9 +541,9 @@ ignored (they concern the signals). The trial selection's groups are not
 used: the series are `seriesParam`'s values.
 
 - `yParam` a trial parameter: each epoch's trial's value, as recorded
-  (the axis is labelled with the parameter's name).
+  (the axis is labeled with the parameter's name).
 - `yParam "stop"`: each epoch's stop-event latency, `t1 - t0`, in ms
-  (labelled e.g. "Trough onset latency (ms)"): with the event at
+  (labeled e.g. "Trough onset latency (ms)"): with the event at
   `RespWindow onset` and the stop at `Trough onset` (trial scope), the
   time from the window's opening to the response measured on the digital
   lines.
@@ -563,7 +563,7 @@ draws them:
 | `violin` | the values' density per x value and series (`violinplot`, MATLAB R2024b or later), with the mean +/- SEM |
 
 The series sit side by side within each x value (but for `line`), in
-`Style.Colormap`'s colours; `Style.ShowSEM` turns the error bars off.
+`Style.Colormap`'s colors; `Style.ShowSEM` turns the error bars off.
 The parts are named `points`, `swarm`, `box`, `violin` and `behaviorMean`
 for the aesthetics editor.
 
@@ -586,7 +586,7 @@ The waveforms come from `unitWaveforms` ([Analysis page](EphysAnalysis.md#unit-w
 for sorted units, `maxSpikes` of the unit's spikes cut from the sorted
 `.bin` as Kilosort4 saw them (referenced and high-passed, not whitened),
 and their mean; when the `.bin` is not there, the unit's template is
-drawn as its mean, labelled "(template)", and a warning says why. For
+drawn as its mean, labeled "(template)", and a warning says why. For
 detections, the waveforms the spikes file keeps (the Spikes step's
 `Waveforms` option; none without it, and a warning) and the mean of them
 all. Each box is on its own amplitude scale; its label gives the mean's
@@ -605,7 +605,7 @@ which) and their waveforms. It uses the `waveform` settings above, with
 | Field | Default | Meaning |
 | --- | --- | --- |
 | `ampScale` | `"unit"` | `"unit"`: each waveform fills its tile or glyph; `"common"`: one amplitude scale for every unit whose values are of the same kind (all µV, say), so sizes compare. Units of another kind (a template beside spikes) keep their own |
-| `showSites` | `true` | probe layout: the probe's sites in grey behind the waveforms |
+| `showSites` | `true` | probe layout: the probe's sites in gray behind the waveforms |
 | `showNames` | `false` | probe layout: each unit's name beside its waveform (with the p-p amplitude and spike count when `showPP` / `showCount`) |
 
 Layouts:
@@ -616,7 +616,7 @@ Layouts:
   the spike's time dotted, a label (`showPP`, `showCount`) in the corner.
   `ampScale "common"` gives every tile the same amplitude axis.
 - `"probe"`: one panel in the probe's x and y (µm): each unit's waveform
-  is a glyph centred on its position (`meta.x`, `y`), shanks side by side
+  is a glyph centerd on its position (`meta.x`, `y`), shanks side by side
   as in the probe map. `scale` sizes the glyphs (1 = about a twelfth of
   the probe's length, at least 30 µm); with `ampScale "common"` the
   largest unit fills a glyph's height, the others are in proportion, and a
@@ -647,9 +647,9 @@ words; the other fields are not checked until then.
 | `fontName` | `""` | `""` = the design's font; or an installed font's name |
 | `fontSize` | `NaN` | points; `NaN` = the plot's `style.FontSize` (or the design's size for notes) |
 | `bold`, `italic` | `false` | |
-| `color` | `""` | `""` = the design's text colour; or a name or `#rrggbb` |
+| `color` | `""` | `""` = the design's text color; or a name or `#rrggbb` |
 | `background` | `""` | `""` = none; or a name or `#rrggbb` behind the text |
-| `box` | `false` | an outline round the text, in its colour |
+| `box` | `false` | an outline round the text, in its color |
 | `interpreter` | `"none"` | `"none"`: every character as typed; `"tex"`: `\mu`, `\pm`, `x^2`, `x_i`, `\bf{...}` |
 
 `renderPlot` draws the note after the title, as a text of role `note` in a
@@ -657,7 +657,7 @@ hidden axes beside the plot's tiled layout (`drawNote`, `placeNote`; a plot
 that is a single axes carries the text in the axes), so a note is a
 component of the plot the [aesthetics](EphysAnalysis.md#plot-aesthetics)
 editor lists and every [design](EphysAnalysis.md#plot-designs) styles
-(its font and text colour). The note's own `fontName`, `fontSize`, `color`
+(its font and text color). The note's own `fontName`, `fontSize`, `color`
 and `background` win over the design's and the user's rules; the plot's
 own `aesthetics` rules win over them. Text over the plot sits on top of
 what is drawn there, the title included at the top. The text is sized as
@@ -682,10 +682,10 @@ in list order.
 | `from`, `to` | `0`, `0.1` | region: its two edges, in either order; they must differ |
 | `panel` | `"all"` | the axes it goes on, in every tile: `"all"`, `"data"` (a PSTH's rate panel, an evoked trace, a heat map, a tuning curve, ...) or `"raster"` (a PSTH's raster above its rate panel; a raster plot's own axes are raster panels) |
 | `layer` | `"over"` | `"over"` the plot's data (drawn after its lines, points, bars and bands), or `"under"` it (behind them, so they hide it where they are opaque) |
-| `color`, `alpha` | `"#d62728"`, `1` | line: its colour (a name or `#rrggbb`) and opacity (0-1) |
+| `color`, `alpha` | `"#d62728"`, `1` | line: its color (a name or `#rrggbb`) and opacity (0-1) |
 | `lineStyle`, `lineWidth` | `"--"`, `1.5` | line, and a patch's outline: `"-"`, `"--"`, `":"` or `"-."`; width in points |
-| `faceColor`, `faceAlpha` | `"#808080"`, `0.25` | region: its fill colour and opacity (0-1) |
-| `edgeColor` | `"none"` | region: its outline colour, `"none"` for no outline (drawn in `lineStyle` and `lineWidth`) |
+| `faceColor`, `faceAlpha` | `"#808080"`, `0.25` | region: its fill color and opacity (0-1) |
+| `edgeColor` | `"none"` | region: its outline color, `"none"` for no outline (drawn in `lineStyle` and `lineWidth`) |
 
 The values are the axis' own units: seconds from the event on a time axis, a
 PSTH's rate on its y axis, an epoch number on a raster's rows, the x value of
@@ -702,7 +702,7 @@ its own, in every tile it is drawn in. The overlay's own looks win over the
 design's and the user's rules; the plot's own `aesthetics` rules win over
 them. A patch does not take clicks, so a right-click on the plot reaches the
 data under it (the editor still lists the patch). A [design](EphysAnalysis.md#plot-designs)
-saved from a plot leaves its overlays out. A colour that is not one, an
+saved from a plot leaves its overlays out. A color that is not one, an
 opacity outside 0-1, or a style or width that is not valid is drawn with the
 default's (Validate reports it); an overlay without a finite position, or a
 patch with equal edges, is not drawn.
@@ -782,7 +782,7 @@ with 20 units and 16 tiles per page is written as
 | Defaults, Plots | the event reference, window and selection are valid: known values, `n` a whole number >= 1, `0 <= minDurationSec <= maxDurationSec`, `timeRange` ordered, a finite `offsetSec`, `offsetParamUnit` ms or s, each sequence step's relation, line, edge, `n`, positive `maxGapSec` and lengths, an `alignStep` of 0, `Inf` or a followedBy step (the stop's and each raster-mark sequence's too), finite `pre` and `post`, `pre <= post` in a fixed window, a stop event in a `"between"` window, known response words and pairing flags, at most 2 distinct `groupBy` parameters, `maxGroups` and `trials` whole numbers >= 1 | error |
 | Defaults, Plots | a filter that does not parse | warning (it is checked against each dataset's trials when it runs) |
 | Plots | at least one enabled; ids that stay distinct once `{Plot}` has sanitized them (case-blind); the kind exists; the source, layout, window mode and baseline mode fit the kind; `measure` rate / count / probability; tuning names its parameter; behavior names `param` and `yParam` (`"stop"` with a stop event), its `xScale` is category / linear and the violin layout has `violinplot`; a psth / raster `rasterSortOrder` ascending / descending, a `rasterSortEvent` (a valid event reference) with `rasterSort "event"`, and `rasterEvents` edge, scope, marker and a positive size; `BinSec > 0`, `SmoothSec >= 0` where bins are used; a baseline window `[b0 b1]` with `b0 < b1`; probemap value, psth `histStyle` bar / line, `normalize` none / unitPeak / groupPeak, `fillAlpha` 0-1 or NaN, `stackSpacing > 0`; heatmap order (`"modulation"` only with the auROC baseline); the auROC settings (method, windows, whole-bin window and step, call window, cutoff, threshold, test, `nResamples`, correction, alpha, `modulatedOnly` with a cutoff) and the toolbox they need; corrmap metric and correlation; `maxUnits >= 1`; an enabled response test of spikes: its test, `param` for tuning / either / both, `baseline` and `window` ordered, direction, correction, alpha in (0, 1], the auROC settings of a test `"auroc"` (with a cutoff) and the Statistics and Machine Learning Toolbox; a `waveform` mode off / mean / subsample / both and, when not off, its location, `scale` in (0, 3] and a whole `maxSpikes >= 1`; for a note with text, its `placement`, `align`, `valign`, `interpreter`, a numeric `rotation`, a positive or `NaN` `fontSize`, and `x` and `y` for `"custom"`; for each overlay, its `shape` line / region, `axis` x / y, a finite `value` (line) or two finite, different `from` and `to` (region), `panel` all / data / raster, `layer` over / under, a `lineStyle` among `-` `--` `:` `-.`, a positive `lineWidth` and `alpha` and `faceAlpha` within 0-1; `MaxTiles >= 1`, `TileSpacing` loose / compact / tight / none, `FontSize`, `LineWidth`, `SiteSize` positive | error |
-| Plots | a `HeatColormap` that is not a colormap function; a `Colormap` that is neither a colormap function nor a colour (the default is used); a `rasterEvents.color` that is not a colour (each mark gets its own); a `waveform` mode on a plot that draws no unit tiles (an overlay, a plot of signals, a kind other than raster / psth / tuning / waveforms); a note's `color` or `background` that is not a colour (left to the design); an overlay's `color`, `faceColor` or `edgeColor` that is not a colour (its default is drawn); an overlay's raster or data `panel` on a plot that draws no such panel (nothing is drawn); two overlays of a plot with one `name` | warning |
+| Plots | a `HeatColormap` that is not a colormap function; a `Colormap` that is neither a colormap function nor a color (the default is used); a `rasterEvents.color` that is not a color (each mark gets its own); a `waveform` mode on a plot that draws no unit tiles (an overlay, a plot of signals, a kind other than raster / psth / tuning / waveforms); a note's `color` or `background` that is not a color (left to the design); an overlay's `color`, `faceColor` or `edgeColor` that is not a color (its default is drawn); an overlay's raster or data `panel` on a plot that draws no such panel (nothing is drawn); two overlays of a plot with one `name` | warning |
 | Export | formats are png / eps / svg / pdf (and at least one when enabled); `Dpi` positive; `FigureSizeCm` two positive numbers; the folder and file-name patterns use known tokens, and the file-name pattern is not empty | error |
 | Export | a file-name pattern without `{Plot}` while several plots are enabled (`{Kind}` is enough when the enabled plots all differ in kind); neither the folder nor the file-name pattern names the dataset (`{OutputFolder}` or `{Name}`), unless the source is a single folder: files that would overwrite each other | warning |
 | Report | Format html / pdf / both, EmbedFormat png / svg, `Dpi` positive, a plain `FileName`, the folder pattern | error |

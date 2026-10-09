@@ -22,9 +22,9 @@ function h = renderPlot(R, spec, target, opts)
 %
 %   Aesthetics: every component drawn is named by its role and group
 %   (tagPart). The plot is drawn in a design (PlotDesign: its ground, group
-%   colours and colormaps), and after drawing the rules are applied: the
+%   colors and colormaps), and after drawing the rules are applied: the
 %   design's, the user's for SPEC.kind (PlotAesthetics.userRules), the
-%   note's own font and colours (SPEC.note), each overlay's own look
+%   note's own font and colors (SPEC.note), each overlay's own look
 %   (SPEC.overlays), then the plot's own (SPEC.aesthetics), so the later win. In a visible figure
 %   a right-click on any component opens PlotAestheticsDialog, which edits
 %   the plot live, or picks another design (every plot on screen that

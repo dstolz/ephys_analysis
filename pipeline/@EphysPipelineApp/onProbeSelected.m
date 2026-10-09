@@ -160,7 +160,7 @@ end
 % Optional per-site labels: the 1-based .bin channel and/or the kcoords group.
 % Sites sit in staggered columns 10-20 um apart, so labels go outward -- the
 % left column of a shank labels to the left, the right column to the right --
-% which keeps neighbours in one column from overprinting each other.
+% which keeps neighbors in one column from overprinting each other.
 if showNumbers || showKCoords
     if showNumbers && showKCoords
         siteLabel = string(binCh) + " (k" + string(kcoords) + ")";

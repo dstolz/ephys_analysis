@@ -1,16 +1,16 @@
 function renderSynthPreview(obj)
 %renderSynthPreview  Draw the Synthetic tab's preview from SynthModel (onSynthPreview).
 %   Timeline: every digital line (a bar per interval) and every unit's
-%   spikes (a tick each, in its event line's colour when linked) from
+%   spikes (a tick each, in its event line's color when linked) from
 %   From (s) for Span s, artifacts shaded. Raster / PSTH: the Unit box's
 %   unit around its event's edges (a unit with no event: around the trial
 %   line's onsets), events sorted by its Parameter when it has one; the
 %   PSTH is split by that parameter's values (at most 4 groups) and the
 %   model's rate for each group is dashed. LFP: the LFP box's component on
 %   its peak channel around up to 20 of its events spread over the
-%   recording: single events in grey, their mean in black, the model's mean
+%   recording: single events in gray, their mean in black, the model's mean
 %   dashed and, for an oscillation, its envelope dotted (an unlocked one
-%   averages away; the envelope shows its power). Probe: each site coloured
+%   averages away; the envelope shows its power). Probe: each site colored
 %   by the component's gain, its peak ringed.
 axs = [obj.SynthTimelineAxes, obj.SynthRasterAxes, obj.SynthPSTHAxes, obj.SynthLFPAxes, obj.SynthProfileAxes];
 for ax = axs
@@ -59,7 +59,7 @@ end
 
 
 function C = lineColors(names)
-%lineColors  One colour per digital line (struct: line -> RGB).
+%lineColors  One color per digital line (struct: line -> RGB).
 base = [0.00 0.45 0.74; 0.85 0.33 0.10; 0.93 0.69 0.13; 0.49 0.18 0.56; 0.47 0.67 0.19; ...
     0.30 0.75 0.93; 0.64 0.08 0.18; 0.25 0.25 0.25];
 C = struct();
@@ -261,7 +261,7 @@ Fs = M.Fs;
 pk = q.peakChannel;
 te = q.eventTimes;
 g = q.gain;
-% the probe, coloured by gain
+% the probe, colored by gain
 scatter(axP, M.xc, M.yc, 40, g(:), 'filled', 'MarkerEdgeColor', [0.5 0.5 0.5]);
 plot(axP, M.xc(pk), M.yc(pk), 'o', 'MarkerSize', 11, 'Color', 'k', 'LineWidth', 1.5);
 colormap(axP, blueWhiteRed(64));

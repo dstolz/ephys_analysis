@@ -40,8 +40,8 @@ classdef EphysPipeline < handle
     %     (INDEX - 1 + DONE/TOTAL) / COUNT done. run() also sends one event
     %     with dataset "" and INDEX 0 as each step starts.
     %     cancel() (e.g. from a GUI button) makes the next
-    %     progress notification throw EphysPipeline:Cancelled; the current
-    %     dataset is marked "cancelled" (its output, written atomically, is
+    %     progress notification throw EphysPipeline:Canceled; the current
+    %     dataset is marked "canceled" (its output, written atomically, is
     %     never left half-done) and the run stops. LogFcn(msg) receives one
     %     line per event (default: fprintf).
     %
@@ -314,11 +314,11 @@ classdef EphysPipeline < handle
         end
 
         function progress(obj, step, dataset, index, count, done, total, message)
-            %progress  Notify ProgressFcn; throws EphysPipeline:Cancelled after cancel().
+            %progress  Notify ProgressFcn; throws EphysPipeline:Canceled after cancel().
             %   It also advances the run's output transfer, twice a second at
             %   most, so the copies go on while the steps work.
             if obj.CancelRequested
-                error('EphysPipeline:Cancelled', 'Cancelled by user.');
+                error('EphysPipeline:Canceled', 'Canceled by user.');
             end
             obj.pollTransfer();
             if ~isempty(obj.ProgressFcn)
@@ -347,7 +347,7 @@ classdef EphysPipeline < handle
             %   FILE = pipe.writeRunRecord(STEPS, STARTED, OUTCOME, FAILURE)
             %   writes <OutputRoot or Root>/pipeline_runs/<runId>_<name>.json:
             %   schema ephys-pipeline-run/1, the run id, the outcome
-            %   ("finished" | "cancelled" | "failed", with the error), when it
+            %   ("finished" | "canceled" | "failed", with the error), when it
             %   started and finished, the steps, the datasets, the code and
             %   machine (provenance), the config and the Results rows. A
             %   record that cannot be written is a warning
@@ -824,7 +824,7 @@ classdef EphysPipeline < handle
                 obj.log("[behavior] %s: pairing %s - %s", d.Name, st, msg);
                 obj.addResult("behavior:pairing", d.Name, st, msg, d.manifestFile(), toc(t0));
             catch ME
-                if strcmp(ME.identifier, 'EphysPipeline:Cancelled'); rethrow(ME); end
+                if strcmp(ME.identifier, 'EphysPipeline:Canceled'); rethrow(ME); end
                 st = "error";
                 if strcmp(ME.identifier, 'pairEpsychTrials:NoTrialLine'); st = "no trial line"; end
                 obj.log("[behavior] %s: pairing %s: %s", d.Name, upper(st), ME.message);
@@ -849,7 +849,7 @@ classdef EphysPipeline < handle
             for k = 1:n
                 d = ds(k);
                 if obj.CancelRequested
-                    obj.addResult("artifacts", d.Name, "cancelled", "not run");
+                    obj.addResult("artifacts", d.Name, "canceled", "not run");
                     continue
                 end
                 t0 = tic;
@@ -873,8 +873,8 @@ classdef EphysPipeline < handle
                     obj.addResult("artifacts", d.Name, "done", sprintf("%d interval(s), %s", size(iv, 1), src), ...
                         obj.outputPathFor("artifacts", d), toc(t0));
                 catch ME
-                    if strcmp(ME.identifier, 'EphysPipeline:Cancelled')
-                        obj.addResult("artifacts", d.Name, "cancelled", "cancelled during detection", "", toc(t0));
+                    if strcmp(ME.identifier, 'EphysPipeline:Canceled')
+                        obj.addResult("artifacts", d.Name, "canceled", "canceled during detection", "", toc(t0));
                         continue
                     end
                     obj.log("[artifacts] %s: ERROR %s", d.Name, ME.message);
@@ -882,7 +882,7 @@ classdef EphysPipeline < handle
                 end
             end
             if obj.CancelRequested
-                error('EphysPipeline:Cancelled', 'Cancelled by user.');
+                error('EphysPipeline:Canceled', 'Canceled by user.');
             end
         end
 

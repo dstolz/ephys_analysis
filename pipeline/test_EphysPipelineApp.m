@@ -281,7 +281,7 @@ check(contains(ovNS, "associated by hand; no search") && contains(ovNS, "associa
     && ~contains(ovNS, "matched by name") && reads(M, "epsych", "behavior") ...
     && app.BehSearchDirsField.Enable == "off" && app.BehOverwriteCheckBox.Enable == "off" ...
     && app.BehFindButton.Text == "Write behavior for selected" && ~app.gatherConfig().Behavior.Search, ...
-    'Behavior.Search off: the overview draws the associated sessions with no search, the search controls grey out and the step button writes');
+    'Behavior.Search off: the overview draws the associated sessions with no search, the search controls gray out and the step button writes');
 app.FlowViewDropDown.Value = "detail";
 app.onFlowViewChanged();
 check(app.FlowLayoutDropDown.Enable == "on" && contains(string(app.FlowHTML.HTMLSource), "Preprocessing diagram: gui test") ...
@@ -526,7 +526,7 @@ check(isequaln(app.Config.Reference, R2) && isequaln(app.Config.Artifacts, A0), 
 app.ArtRefLowField.Value = 3;
 app.onArtifactControlsChanged();
 check(~app.Config.Artifacts.Enabled && contains(tabTip(app, app.TabArtifacts), "BadLow"), ...
-    'a reference error colours the Artifacts tab with detection off (the reference is read by every step)');
+    'a reference error colors the Artifacts tab with detection off (the reference is read by every step)');
 app.applyReferenceSection(R0);
 app.onArtifactControlsChanged();
 check(isequaln(app.Config.Reference, R0) && strcmp(app.ArtRefLowField.Enable, 'off') ...
@@ -556,7 +556,7 @@ app.onDatasetCellSelection(struct('Indices', [1 1]));
 check(contains(app.SortResultsLabel.Text, "manual") && size(app.ArtManualTable.Data, 1) == 1, ...
     'selecting a row shows its sorting association and manual periods');
 check(isequal(app.SortPhyLamp.Color, [0.2 0.7 0.3]) && startsWith(app.SortPhyLabel.Text, "Modified in phy (saved ") ...
-    && contains(app.SortPhyLabel.Text, "labelled 1 good, 1 mua, 1 noise") && contains(T.Sorting(1), "modified in phy"), ...
+    && contains(app.SortPhyLabel.Text, "labeled 1 good, 1 mua, 1 noise") && contains(T.Sorting(1), "modified in phy"), ...
     'a sort whose labels phy saved: green phy lamp, the labels counted, and "modified in phy" in the Project table');
 check(app.SortPhyButton.Text == "Open in phy (curated)" && isequal(app.SortPhyButton.BackgroundColor, [0.16 0.52 0.28]), ...
     'and the Sorting tab''s Open in phy turns green, "Open in phy (curated)"');
@@ -881,7 +881,7 @@ fprintf('\n== 3a0b. Artifacts tab: probe layout, shanks, voltage and time scale 
 check(~app.ArtProbeOrderCheckBox.Value && strcmp(app.ArtProbeOrderCheckBox.Enable, 'off') ...
     && isequal(app.ArtViewShankDropDown.ItemsData, {'all'}) && app.ArtViewShankColorCheckBox.Value ...
     && numel(app.ArtChannelTable.ColumnName) == 4, ...
-    'without a probe: no probe order or shanks to pick, colour by shank on by default, no Shank column');
+    'without a probe: no probe order or shanks to pick, color by shank on by default, no Shank column');
 % Two shanks, the recording's channels crossing between them: 1 and 3 on
 % shank 2, 2 and 4 on shank 1; 3 and 4 above 1 and 2.
 probe2 = fullfile(root, 'twoShank.json');
@@ -909,7 +909,7 @@ check(isequal(lanes(), w.names([1 3 2 4])) && isscalar(findall(ax, 'Type', 'cons
 k1 = findobj(ax, 'Type', 'line', 'DisplayName', 'Shank 1');
 k2 = findobj(ax, 'Type', 'line', 'DisplayName', 'Shank 2');
 check(~isempty(k1) && ~isempty(k2) && ~isequal(k1(1).Color, k2(1).Color) ...
-    && isempty(findobj(ax, 'Type', 'line', 'DisplayName', 'Kept')), 'colour by shank: each shank in its own colour');
+    && isempty(findobj(ax, 'Type', 'line', 'DisplayName', 'Kept')), 'color by shank: each shank in its own color');
 app.ArtProbeOrderCheckBox.Value = false;
 app.ArtProbeOrderCheckBox.ValueChangedFcn(app.ArtProbeOrderCheckBox, []);
 check(isequal(lanes(), w.names(4:-1:1)) && isempty(findall(ax, 'Type', 'constantline', 'InterceptAxis', 'y')) ...
@@ -920,7 +920,7 @@ check(numel(ax.YTick) == 2 && all(ismember(lanes(), w.names([1 3]))) && contains
     'Shank draws that shank''s channels only');
 app.ArtViewShankColorCheckBox.Value = false;
 app.drawArtifactView();
-check(~isempty(findobj(ax, 'Type', 'line', 'DisplayName', 'Kept')), 'colour by shank off: the kept signal is black again');
+check(~isempty(findobj(ax, 'Type', 'line', 'DisplayName', 'Kept')), 'color by shank off: the kept signal is black again');
 app.ArtViewShankDropDown.Value = 'all';
 app.ArtViewShankColorCheckBox.Value = true;
 app.drawArtifactView();
@@ -1602,7 +1602,7 @@ paramsFile = EphysPipelineConfig.ks4ParamsFile(probeFile);
 dS.ProbeFile = probeFile;
 app.onOptimizeKS4ForProbe("cancel");
 check(~isfile(paramsFile) && app.Config.Sorting.KS4.nblocks == 3, ...
-    'a probe without a parameter file: cancelling the offer writes and changes nothing');
+    'a probe without a parameter file: canceling the offer writes and changes nothing');
 K0 = app.Config.Sorting.KS4;
 app.onOptimizeKS4ForProbe("generate");
 P = readJsonFile(paramsFile);
@@ -1786,7 +1786,7 @@ fprintf('\n== 4b. Run tab: Copy outputs (the Transfer section) ==\n');
 cfgBeforeCopy = app.Config;
 copies = fullfile(root, 'copies');
 check(~app.RunTransferCheckBox.Value && strcmp(app.RunTransferDestField.Enable, 'off') ...
-    && strcmp(app.RunTransferStopButton.Enable, 'off'), 'Copy outputs is off by default, its settings greyed out');
+    && strcmp(app.RunTransferStopButton.Enable, 'off'), 'Copy outputs is off by default, its settings grayed out');
 app.RunTransferCheckBox.Value = true;
 app.RunTransferDestField.Value = copies;
 app.RunTransferWhenDropDown.Value = 'run';
@@ -1937,7 +1937,7 @@ check(contains(string(ax.Title.String), "su000_recA_260101T1200 on shank 0") ...
     && string(ax.Subtitle.String) == "3 of 3 spikes, mean " + char(177) + " SD" ...
     && isequal(size(app.ReviewSpikeWaves.W), [8 4 3]) && nOf('line') == 4 + 4 + 1 && nOf('patch') == 4 ...
     && any(string(get(findobj(ax, 'Type', 'text'), 'String')) == "A-001"), ...
-    'selecting a unit draws its spikes, their mean and SD band on every site of its shank, labelled by channel, and a scale bar');
+    'selecting a unit draws its spikes, their mean and SD band on every site of its shank, labeled by channel, and a scale bar');
 isiBar = findobj(app.ReviewISIAxes, 'Type', 'bar');     % su000: spikes at 10, 20 and 1000 ms
 acgBar = findobj(app.ReviewACGAxes, 'Type', 'bar');
 check(isscalar(isiBar) && sum(isiBar.YData) == 1 && abs(isiBar.XData(isiBar.YData > 0) - 10) < 0.5 ...
@@ -2154,12 +2154,12 @@ check(D.steps(1).state == "done" && D.steps(1).pct == 100 && s.state == "running
 app.updateRunDiagram(ev("signals", "recA", 1, 4, 0, 1, "late"));
 check(app.RunDiagramHTML.Data.steps(5).pct == 37.5, 'a step''s percentage never goes back');
 Rd = EphysPipeline.emptyResults();
-Rd(1:2, :) = {"signals", "recA", "done", "", "", 1; "signals", "recB", "cancelled", "", "", 1};
-app.finishRunDiagram(Rd, "cancelled", "");
+Rd(1:2, :) = {"signals", "recA", "done", "", "", 1; "signals", "recB", "canceled", "", "", 1};
+app.finishRunDiagram(Rd, "canceled", "");
 D = app.RunDiagramHTML.Data;
-check(D.phase == "cancelled" && D.steps(5).state == "cancelled" && D.steps(5).pct == 37.5 ...
-    && D.steps(6).state == "notrun" && D.steps(5).summary == "1 done, 1 cancelled" ...
-    && startsWith(D.headline, "Cancelled during Signals"), ...
+check(D.phase == "canceled" && D.steps(5).state == "canceled" && D.steps(5).pct == 37.5 ...
+    && D.steps(6).state == "notrun" && D.steps(5).summary == "1 done, 1 canceled" ...
+    && startsWith(D.headline, "Canceled during Signals"), ...
     'a cancel leaves its step at the percentage reached, with its counts, and the later steps not run');
 app.resetRunDiagram();
 app.RunSignalsCheckBox.Value = true;
@@ -2427,7 +2427,7 @@ check(app.RunKSAtOnceSpinner.Value == 1 && strcmp(app.RunKSAtOnceSpinner.Enable,
 app.ExecModeDropDown.Value = true;   % Blocking (wait)
 app.ExecModeDropDown.ValueChangedFcn(app.ExecModeDropDown, []);
 check(app.Config.Sorting.Execution == "blocking" && strcmp(app.RunKSAtOnceSpinner.Enable, 'off'), ...
-    'blocking execution greys out the runs-at-once spinner');
+    'blocking execution grays out the runs-at-once spinner');
 app.ExecModeDropDown.Value = false;
 app.ExecModeDropDown.ValueChangedFcn(app.ExecModeDropDown, []);
 app.RunKSAtOnceSpinner.Value = 2;
@@ -2507,7 +2507,7 @@ app.RunKSDevicesField.ValueChangedFcn(app.RunKSDevicesField, []);
 check(isempty(app.Config.Sorting.Devices), 'a blank GPUs field lists no devices');
 app.ExecModeDropDown.Value = true;
 app.ExecModeDropDown.ValueChangedFcn(app.ExecModeDropDown, []);
-check(strcmp(app.RunKSQueueCheckBox.Enable, 'off'), 'blocking execution greys out the queue box');
+check(strcmp(app.RunKSQueueCheckBox.Enable, 'off'), 'blocking execution grays out the queue box');
 app.ExecModeDropDown.Value = false;
 app.ExecModeDropDown.ValueChangedFcn(app.ExecModeDropDown, []);
 app.RunKSQueueCheckBox.Value = true;
@@ -2554,9 +2554,9 @@ app.runPipeline(Steps="sorting");
 check(numel(app.KSQueue) == 1, 'queued again behind a running earlier run');
 app.RunKSStopQueueButton.ButtonPushedFcn(app.RunKSStopQueueButton, []);
 R = app.RunResultsTable.Data;
-check(isempty(app.KSQueue) && any(R.Status == "cancelled" & R.Message == "queue stopped before it started") ...
+check(isempty(app.KSQueue) && any(R.Status == "canceled" & R.Message == "queue stopped before it started") ...
     && strcmp(app.RunKSStopQueueButton.Enable, 'off') && numel(app.KSRuns) == 1, ...
-    'Stop queue drops the queued run, marks its row cancelled and leaves the running one');
+    'Stop queue drops the queued run, marks its row canceled and leaves the running one');
 writelines('{"state": "done"}', priorStatus3);
 t0 = tic;
 while toc(t0) < 20 && ~isempty(app.KSRuns); pause(0.25); end
@@ -2578,10 +2578,10 @@ t0 = tic;
 while toc(t0) < 10 && ~isempty(app.KSRuns); pause(0.25); end
 R = app.RunResultsTable.Data;
 ksLog = strjoin(string(app.KSLogArea.Value), newline);
-check(isempty(app.KSRuns) && any(R.Step == "sorting" & R.Status == "cancelled" & R.Message == "stopped before it finished") ...
+check(isempty(app.KSRuns) && any(R.Step == "sorting" & R.Status == "canceled" & R.Message == "stopped before it finished") ...
     && contains(ksLog, "[stopped] recA_260101_120000 - Kilosort4 stopped by the user") ...
     && strcmp(app.RunKSStopRunsButton.Enable, 'off'), ...
-    'stopKSRuns ended the run: logged, its row cancelled, the button off again');
+    'stopKSRuns ended the run: logged, its row canceled, the button off again');
 app.PythonExeField.Value = '';
 app.onConfigChanged();
 app.Project.Datasets(1).ProbeFile = "";
@@ -2763,7 +2763,7 @@ app.Fig.WindowButtonDownFcn(app.Fig, []);
 ov.ButtonDownFcn(ov, struct('IntersectionPoint', [tSeek 0.5 0]));
 app.Fig.WindowButtonUpFcn(app.Fig, []);
 check(abs(app.Viewer.TStart + app.Viewer.TWidth / 2 - tSeek) < 1e-9 && app.VizGesture == "" ...
-    && isempty(app.Fig.WindowButtonMotionFcn), 'a click on the overview strip centres the plot on that time, and the release ends the gesture');
+    && isempty(app.Fig.WindowButtonMotionFcn), 'a click on the overview strip centers the plot on that time, and the release ends the gesture');
 app.VizHelpButton.ButtonPushedFcn(app.VizHelpButton, []);
 hHelp = app.VizHelpFig;
 app.VizHelpButton.ButtonPushedFcn(app.VizHelpButton, []);

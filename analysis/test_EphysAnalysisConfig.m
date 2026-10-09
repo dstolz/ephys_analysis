@@ -140,7 +140,7 @@ bet = struct('mode', "between", 'pre', 0, 'post', 0, 'stop', struct('line', "Sti
 ok = cfg.addPlot(struct('kind', "corrmap", 'window', bet, 'metric', "peak", 'correlation', "spearman", ...
     'baseline', struct('Mode', "subtract", 'Window', [-0.2 0])), Id="corr_ok");
 check(~any(ok.validate().Severity == "error") && ok.Plots(end).style.HeatColormap == "", ...
-    'a corrmap over a "between" window (peak, Spearman, baseline subtract) validates; its colours are the default');
+    'a corrmap over a "between" window (peak, Spearman, baseline subtract) validates; its colors are the default');
 bad = ok; bad.Plots(end).metric = "max";
 check(hasIssue(bad, "corr_ok.metric", "error"), 'corrmap metric is mean or peak');
 bad = ok; bad.Plots(end).correlation = "kendall";
@@ -195,9 +195,9 @@ check(hasIssue(bad, "psth_1.fillAlpha", "error"), 'psth fillAlpha is 0-1');
 bad = cfg; bad.Plots(1).stackSpacing = 0;
 check(hasIssue(bad, "psth_1.stackSpacing", "error"), 'psth stackSpacing > 0');
 ok = cfg; ok.Plots(1).style.Colormap = "black"; ok.Plots(2).style.Colormap = "#1f77b4"; ok.Plots(3).style.Colormap = "turbo";
-check(~hasIssue(ok, "Colormap", "warning"), 'a single colour ("black", "#1f77b4") or a colormap function are group colours');
+check(~hasIssue(ok, "Colormap", "warning"), 'a single color ("black", "#1f77b4") or a colormap function are group colors');
 bad = cfg; bad.Plots(1).style.Colormap = "nope";
-check(hasIssue(bad, "Colormap", "warning"), 'an unknown group colour warns');
+check(hasIssue(bad, "Colormap", "warning"), 'an unknown group color warns');
 au = cfg; au.Plots(1).baseline.Mode = "auroc";
 check(~hasIssue(au, "psth_1.baseline", "error") && ~hasIssue(au, "psth_1.auroc", "error") && au.Plots(1).auroc.cutoff == "ci", ...
     'a PSTH of units takes the auROC baseline, its default settings valid');
@@ -241,7 +241,7 @@ rt2 = EphysAnalysisConfig.load(f);
 p1 = rt2.Plots(1);
 check(rt2.isequalConfig(rt) && p1.stack && p1.stackSpacing == 0.8 && p1.normalize == "groupPeak" && ~p1.fill ...
     && p1.fillAlpha == 0.3 && p1.style.Colormap == "black" && isnan(rt2.Plots(2).fillAlpha), ...
-    'stack, spacing, normalize, fill, opacity and group colours survive save / load (NaN opacity too)');
+    'stack, spacing, normalize, fill, opacity and group colors survive save / load (NaN opacity too)');
 d = EphysAnalysisConfig.defaults("Plot").waveform;
 check(d.mode == "off" && d.location == "northeast" && d.box && d.scale == 1 && d.maxSpikes == 100, ...
     'unit waveforms: off by default; northeast, with its axis box, a third of the tile, 100 spikes');
@@ -266,21 +266,21 @@ check(w2.isequalConfig(wv) && isequal(w2.Plots(1).waveform, wv.Plots(1).waveform
 d = EphysAnalysisConfig.defaults("Plot").note;
 check(d.text == "" && d.placement == "below" && d.align == "left" && d.valign == "middle" && isnan(d.fontSize) ...
     && ~d.bold && ~d.italic && ~d.box && d.color == "" && d.interpreter == "none", ...
-    'a plot''s note: no text by default; below the plot, left-aligned, the design''s font and colour');
+    'a plot''s note: no text by default; below the plot, left-aligned, the design''s font and color');
 nt = cfg;
 nt.Plots(1).note.placement = "nowhere";   % no text: nothing to check
 check(~hasIssue(nt, "psth_1.note", "error"), 'a note without text is not checked');
 nt = cfg; nt.Plots(1).note.text = "Condition A" + newline + "n = 12";
 check(~hasIssue(nt, "psth_1.note", "error") && ~hasIssue(nt, "psth_1.note", "warning"), 'a note with text and the defaults is valid');
-for kv = {"placement", "top", "psth_1.note.placement"; "align", "middle", "psth_1.note.align"; "valign", "centre", "psth_1.note.valign"; ...
+for kv = {"placement", "top", "psth_1.note.placement"; "align", "middle", "psth_1.note.align"; "valign", "center", "psth_1.note.valign"; ...
         "interpreter", "latex", "psth_1.note.interpreter"; "fontSize", -2, "psth_1.note.fontSize"; "rotation", Inf, "psth_1.note.rotation"}.'
     bn = nt; bn.Plots(1).note.(kv{1}) = kv{2};
     check(hasIssue(bn, kv{3}, "error"), "a note's " + kv{1} + " is checked");
 end
 bn = nt; bn.Plots(1).note.placement = "custom"; bn.Plots(1).note.x = NaN;
-bn2 = nt; bn2.Plots(1).note.color = "notacolour"; bn2.Plots(1).note.background = "alsonot";
+bn2 = nt; bn2.Plots(1).note.color = "notacolor"; bn2.Plots(1).note.background = "alsonot";
 check(hasIssue(bn, "psth_1.note.x", "error") && hasIssue(bn2, "psth_1.note.color", "warning") ...
-    && hasIssue(bn2, "psth_1.note.background", "warning"), 'a custom note needs x and y; a colour that is not one is a warning');
+    && hasIssue(bn2, "psth_1.note.background", "warning"), 'a custom note needs x and y; a color that is not one is a warning');
 nt.Plots(1).note = struct('text', "Condition A" + newline + "n = 12 (\mu)", 'placement', "custom", 'x', 0.1, 'y', 0.9, 'align', "right", ...
     'valign', "top", 'rotation', 90, 'fontName', "Arial", 'fontSize', 12, 'bold', true, 'italic', true, 'color', "#336699", ...
     'background', "white", 'box', true, 'interpreter', "tex");
@@ -307,10 +307,10 @@ bo2 = bo; bo2.Plots(1).overlays(1).to = Inf;
 bo3 = bo; bo3.Plots(1).overlays(1).to = 0.1;   % either order: the patch lies between them
 check(hasIssue(bo, "psth_1.overlays(1).to", "error") && hasIssue(bo2, "psth_1.overlays(1).from", "error") ...
     && ~hasIssue(bo3, "psth_1.overlays", "error"), 'a patch needs two finite edges that differ, in either order');
-bo = oc; bo.Plots(1).overlays(1).color = "notacolour"; bo.Plots(1).overlays(1).faceColor = "alsonot"; bo.Plots(1).overlays(1).edgeColor = "nor";
+bo = oc; bo.Plots(1).overlays(1).color = "notacolor"; bo.Plots(1).overlays(1).faceColor = "alsonot"; bo.Plots(1).overlays(1).edgeColor = "nor";
 check(hasIssue(bo, "psth_1.overlays(1).color", "warning") && hasIssue(bo, "psth_1.overlays(1).faceColor", "warning") ...
     && hasIssue(bo, "psth_1.overlays(1).edgeColor", "warning") && ~hasIssue(oc, "edgeColor", "warning"), ...
-    'a colour that is not one is a warning ("none" is a valid outline)');
+    'a color that is not one is a warning ("none" is a valid outline)');
 bo = oc; bo.Plots(1).overlays(1).panel = "raster"; bo.Plots(1).withRaster = false;
 bo2 = oc; bo2.Plots(1).overlays(1).panel = "raster"; bo2.Plots(1).withRaster = true;
 bo3 = oc; bo3.Plots(2).overlays = EphysAnalysisConfig.defaults("Overlay"); bo3.Plots(2).overlays(1).panel = "raster";
@@ -395,8 +395,8 @@ bad = cr; bad.Plots(1).rasterEvents.marker = "star";
 check(hasIssue(bad, "psth_1.rasterEvents.marker", "error"), 'a marker the editor does not know');
 bad = cr; bad.Plots(1).rasterEvents.size = 0;
 check(hasIssue(bad, "psth_1.rasterEvents.size", "error"), 'a mark size of 0');
-bad = cr; bad.Plots(1).rasterEvents.color = "notacolour";
-check(hasIssue(bad, "psth_1.rasterEvents.color", "warning"), 'a mark colour that is not one warns');
+bad = cr; bad.Plots(1).rasterEvents.color = "notacolor";
+check(hasIssue(bad, "psth_1.rasterEvents.color", "warning"), 'a mark color that is not one warns');
 bad = cr; bad.Plots(1).ref.offsetParamUnit = "min";
 check(hasIssue(bad, "psth_1.ref", "error"), 'a shift unit other than ms / s');
 ce = cr;

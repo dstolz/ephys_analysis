@@ -82,7 +82,7 @@ try
     end
     obj.setStatus(scanMsg, namePatternHint(P, obj.Config.Project.NamePattern));
     obj.offerKeptKSQueue();
-    bad = report(report.Message ~= "" & report.Message ~= "cancelled", :);
+    bad = report(report.Message ~= "" & report.Message ~= "canceled", :);
     if height(bad) > 0
         obj.setStatus(sprintf("Scanned %s: found %d dataset(s), %d with a problem.", root, n, height(bad)), ...
             "A manifest that cannot be read is left as it is: fix or delete it, then Scan again.");

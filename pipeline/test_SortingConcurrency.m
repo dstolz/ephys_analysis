@@ -160,9 +160,9 @@ fprintf('\n== 7. cancel while waiting for a slot ==\n');
 tl = fullfile(root, 'timeline7.txt');
 fake = makeFake(root, 'fake7.cmd', tl, true);
 S = runScenario(proj, probeFile, 1, fake, fullfile(root, 'out7'), CancelOnWait=true);
-check(S.errorId == "EphysPipeline:Cancelled", 'runSorting ends with EphysPipeline:Cancelled');
-check(numel(S.launched) == 1 && isequal(S.results.Status.', ["launched" "cancelled" "cancelled"]), ...
-    'the running dataset carries on; the other two are cancelled');
+check(S.errorId == "EphysPipeline:Canceled", 'runSorting ends with EphysPipeline:Canceled');
+check(numel(S.launched) == 1 && isequal(S.results.Status.', ["launched" "canceled" "canceled"]), ...
+    'the running dataset carries on; the other two are canceled');
 
 fprintf('\n== 8. blocking runs go one at a time, without the slot wait ==\n');
 tl = fullfile(root, 'timeline8.txt');
@@ -239,8 +239,8 @@ check(n(1) >= 1 && n(2) == 0, sprintf(['sortRunProcesses counts the processes of
 [st, why] = EphysDataset.sortRunState(res.statusFile);
 check(stopped && ~isempty(regexp(msg, '^stopped [1-9]\d* process\(es\)$', 'once')), ...
     sprintf('stopSortRun ended the run''s processes (%s)', msg));
-check(st == "cancelled" && why == "stopped by the user" && isfile(fullfile(res.resultsDir, EphysDataset.SortExitMarker)), ...
-    'its status says cancelled, and the exit marker is there');
+check(st == "canceled" && why == "stopped by the user" && isfile(fullfile(res.resultsDir, EphysDataset.SortExitMarker)), ...
+    'its status says canceled, and the exit marker is there');
 pause(3);
 L = strtrim(readlines(tl)); L(L == "") = [];
 check(isscalar(L) && startsWith(L, "start"), 'the stand-in never reached its end (the process tree was killed)');
@@ -280,7 +280,7 @@ while toc(t0) < 10 && ~isfile(tl); pause(0.1); end
 check(EphysDataset.sortRunProcesses(res.statusFile) >= 1, 'sortRunProcesses finds the processes of such a run');
 [stopped, msg] = EphysDataset.stopSortRun(res.statusFile);
 check(stopped && ~isempty(regexp(msg, '^stopped [1-9]\d* process\(es\)$', 'once')) ...
-    && EphysDataset.sortRunState(res.statusFile) == "cancelled", sprintf('stopSortRun ends such a run (%s)', msg));
+    && EphysDataset.sortRunState(res.statusFile) == "canceled", sprintf('stopSortRun ends such a run (%s)', msg));
 pause(3);
 L = strtrim(readlines(tl)); L(L == "") = [];
 check(isscalar(L) && startsWith(L, "start") && waitForExits(res), 'its stand-in never reached its end; the launcher closed');

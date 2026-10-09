@@ -13,7 +13,7 @@ function runAnalysis(obj, opts)
 %
 %   Results: one row per dataset and enabled plot, step "analysis:<plot
 %   id>": done (Output: the files written), skipped (Message: why the
-%   dataset cannot have that plot, plotSkipReason), error or cancelled; and
+%   dataset cannot have that plot, plotSkipReason), error or canceled; and
 %   one "analysis:report" row per report: Dataset "" for one report over
 %   every dataset, else the dataset's name (Report.PerDataset). A config
 %   that cannot be loaded, and a dataset whose outputs cannot be read or
@@ -42,8 +42,8 @@ ds = obj.Project.Datasets(idx);
 n = numel(ds);
 if n == 0; return; end
 if obj.CancelRequested
-    for d = ds; obj.addResult("analysis", d.Name, "cancelled", "not run"); end
-    error('EphysPipeline:Cancelled', 'Cancelled by user.');
+    for d = ds; obj.addResult("analysis", d.Name, "canceled", "not run"); end
+    error('EphysPipeline:Canceled', 'Canceled by user.');
 end
 t0 = tic;
 
@@ -102,7 +102,7 @@ for k = 1:n
         runner.source(at);
         runIdx(end+1) = at; %#ok<AGROW>
     catch readErr
-        if strcmp(readErr.identifier, 'EphysPipeline:Cancelled'); rethrow(readErr); end
+        if strcmp(readErr.identifier, 'EphysPipeline:Canceled'); rethrow(readErr); end
         obj.log("[analysis] %s: ERROR reading its outputs: %s", ds(k).Name, readErr.message);
         obj.addResult("analysis", ds(k).Name, "error", "its outputs could not be read: " + string(readErr.message), ...
             string(ds(k).outputFolder()), 0);
@@ -128,7 +128,7 @@ if ~isempty(failure)
     obj.log("[analysis] ERROR %s", failure.message);
 end
 if obj.CancelRequested
-    error('EphysPipeline:Cancelled', 'Cancelled by user.');
+    error('EphysPipeline:Canceled', 'Canceled by user.');
 end
 
 
@@ -136,7 +136,7 @@ end
         %onProgress  The runner's progress (a fraction of its whole run) as
         %   the pipeline's: dataset jj of the mm it analyses, how far through it.
         if obj.CancelRequested
-            runner.cancel();   % the runner stops before its next plot, records the rest "cancelled"
+            runner.cancel();   % the runner stops before its next plot, records the rest "canceled"
             return
         end
         mm = numel(runIdx);
@@ -151,7 +151,7 @@ end
         try
             obj.progress("analysis", dsName, jj, mm, min(max(frac * mm - (jj - 1), 0), 1), 1, message);
         catch progressErr
-            if ~strcmp(progressErr.identifier, 'EphysPipeline:Cancelled'); rethrow(progressErr); end
+            if ~strcmp(progressErr.identifier, 'EphysPipeline:Canceled'); rethrow(progressErr); end
             runner.cancel();
         end
     end
@@ -164,10 +164,10 @@ end
             obj.addResult("analysis:report", "", "error", string(failure.message), strjoin(runner.ReportFiles, "; "), 0);
             return
         end
-        stopped = any(R.Status == "cancelled");
+        stopped = any(R.Status == "canceled");
         if ~rep.PerDataset
             if stopped
-                obj.addResult("analysis:report", "", "cancelled", "not written: the run was cancelled", "", 0);
+                obj.addResult("analysis:report", "", "canceled", "not written: the run was canceled", "", 0);
             else
                 obj.addResult("analysis:report", "", "done", sprintf("%s report over %d dataset(s)", ...
                     formatText(rep.Format), numel(runIdx)), strjoin(runner.ReportFiles, "; "), 0);
@@ -182,7 +182,7 @@ end
                 obj.addResult("analysis:report", runner.Names(jr), "done", formatText(rep.Format) + " report of this dataset", ...
                     strjoin(written, "; "), 0);
             elseif stopped
-                obj.addResult("analysis:report", runner.Names(jr), "cancelled", "not written: the run was cancelled", "", 0);
+                obj.addResult("analysis:report", runner.Names(jr), "canceled", "not written: the run was canceled", "", 0);
             end
         end
     end

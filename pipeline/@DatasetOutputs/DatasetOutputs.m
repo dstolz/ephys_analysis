@@ -464,7 +464,7 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
         end
 
         function [T, notes] = analysisFiles(obj, opts)
-            %analysisFiles  The files EphysAnalysisApp needs to analyse this dataset.
+            %analysisFiles  The files EphysAnalysisApp needs to analyze this dataset.
             %   [T, NOTES] = out.analysisFiles(Signals=, Spikes=, Sorting=,
             %   SortedData=, Probe=) lists what the analysis reads, so a
             %   copy of just these files (into <folder>/<dataset key>) runs

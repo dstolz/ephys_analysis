@@ -4,14 +4,14 @@ function refreshTrialsTable(obj)
 %   sample), flag and the other lines overlapping the trial. After Flag come
 %   the trial parameters in TrialsParamColumns that the session has (table
 %   variables "Param_<name>", so a parameter cannot collide with a fixed
-%   column), in the order they were added. Rows are coloured by flag.
+%   column), in the order they were added. Rows are colored by flag.
 %
 %   Every column sorts and can be dragged to a new place. As in the Project
 %   table, the order on screen is baked into the table variables here, so it
 %   survives rebuilds that change the column set; TrialsColumnOrder remembers
 %   it (a preference, see trialsColumnOrder). A header click's sort is kept
 %   the same way: the rows are put in its order here (tableSort "Trials"),
-%   for every dataset and the next session, and the flag colours follow
+%   for every dataset and the next session, and the flag colors follow
 %   their rows. Without one the rows are in trial order.
 
 tbl = obj.TrialsTable;

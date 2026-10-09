@@ -82,7 +82,7 @@ keys = allKeys(obj.DatasetIdx);
 Step = strings(0, 1); Dataset = strings(0, 1); Key = strings(0, 1);
 Output = strings(0, 1); Status = strings(0, 1); Note = strings(0, 1);
 Idx = zeros(0, 1);      % the row's dataset: its index in Project.Datasets
-Units = false(0, 1);    % the row reads sorted units (labelled from the dataset name)
+Units = false(0, 1);    % the row reads sorted units (labeled from the dataset name)
     function add(step, k, out, st, note, units)
         if nargin < 6; units = false; end
         Step(end+1, 1) = step; Dataset(end+1, 1) = ds(k).Name; Key(end+1, 1) = keys(k);

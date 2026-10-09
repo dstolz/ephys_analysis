@@ -161,7 +161,7 @@ classdef EphysPipelineApp < handle
         Tabs  matlab.ui.container.TabGroup
         TabHost       matlab.ui.container.Panel      % clips the tab group's own headers
         TabList       matlab.ui.container.Tab        % tabs in strip order
-        TabButtons    matlab.ui.control.Button       % coloured status strip (one per tab)
+        TabButtons    matlab.ui.control.Button       % colored status strip (one per tab)
         TabMarks      matlab.ui.container.Panel      % selected-tab underline (one per tab)
 
         % --- Menu bar ---
@@ -332,7 +332,7 @@ classdef EphysPipelineApp < handle
         VizHighpassField   matlab.ui.control.EditField
         VizLowpassField    matlab.ui.control.EditField
         VizOrderField      matlab.ui.control.NumericEditField
-        VizOffsetCheckBox  matlab.ui.control.CheckBox     % centre each lane on its median
+        VizOffsetCheckBox  matlab.ui.control.CheckBox     % center each lane on its median
         VizPlotButton      matlab.ui.control.Button       % Reload data
         VizUnitsCheckBox   matlab.ui.control.CheckBox
         VizUnitStyleDropDown matlab.ui.control.DropDown   % ticks / waveforms

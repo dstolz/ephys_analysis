@@ -2,7 +2,7 @@ classdef test_Provenance < matlab.unittest.TestCase
     %test_Provenance  Outputs record the code and config that wrote them; runs leave a record.
     %   ephysProvenance and provenanceForJson; a pipeline run writes its run
     %   record (pipeline_runs/<runId>_<name>.json) whether it finishes or is
-    %   cancelled, and none on a dry run; the spikes file's
+    %   canceled, and none on a dry run; the spikes file's
     %   conversion.provenance names the same run, the code and the config
     %   (which rebuilds the config); a step called on its own records the
     %   config but no run; a writer called directly records the code only;
@@ -92,13 +92,13 @@ classdef test_Provenance < matlab.unittest.TestCase
                 "but records the config");
         end
 
-        function cancelledRunAndDryRun(tc)
+        function canceledRunAndDryRun(tc)
             pipe = EphysPipeline(tc.Cfg);
             pipe.LogFcn = [];
             pipe.ProgressFcn = @(evt) pipe.cancel();
             pipe.run();
-            tc.assertTrue(isfile(pipe.RunRecordFile), "a cancelled run leaves a record");
-            tc.verifyEqual(string(readJsonFile(pipe.RunRecordFile).outcome), "cancelled");
+            tc.assertTrue(isfile(pipe.RunRecordFile), "a canceled run leaves a record");
+            tc.verifyEqual(string(readJsonFile(pipe.RunRecordFile).outcome), "canceled");
             pipe.ProgressFcn = [];
             before = dir(fullfile(tc.Root, "out", "pipeline_runs", "*.json"));
             pipe.run(DryRun=true);

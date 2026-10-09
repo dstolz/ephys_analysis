@@ -26,7 +26,7 @@ classdef CopySchedule
     %   [today - LookBackDays + 1, today] are found and paired as Find sessions
     %   pairs them, and the paired ones are copied (IncludeUnpaired adds the
     %   recording-only and ePsych-only ones) with IfExists and Verify as set:
-    %   one whose copy did not finish (cancelled, failed, or cut off) is
+    %   one whose copy did not finish (canceled, failed, or cut off) is
     %   completed. A run leaves alone, and reports:
     %     already_present   a session copied before: its session_manifest.json
     %                       records a finished copy, or Clean up removed files
@@ -118,7 +118,7 @@ classdef CopySchedule
         TaskFolder = "\ephys_analysis"
         % What a run can do with a session: copySessions' CopyStatus values,
         % then the reasons a run leaves one alone.
-        Statuses = ["copied", "already_present", "skipped", "failed", "cancelled", ...
+        Statuses = ["copied", "already_present", "skipped", "failed", "canceled", ...
             "ambiguous", "unpaired", "needs_stitching", "stitched_by_hand"]
     end
 

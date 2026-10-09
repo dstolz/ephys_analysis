@@ -83,7 +83,7 @@ out = ds.toMat(SignalOptions=struct('dataTypeOut', ["LFP" "SPIKE"]));
    `ProbeFile`). Without a probe layout, or for a site off the probe or with no
    good site on its shank, the warning
    `EphysDataset:deriveSignals:BadChannelGeometry` is issued and the column is
-   interpolated across the neighbouring columns with
+   interpolated across the neighboring columns with
    `fillmissing(..., 'makima', 2)`.
    - Bad lists are checked before anything is read
      (`EphysDataset:deriveSignals:BadChannels`): positive integers within the

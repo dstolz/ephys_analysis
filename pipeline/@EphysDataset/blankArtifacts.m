@@ -119,7 +119,7 @@ end
 
 
 function [sigma, center] = fillLevels(X, mask, sigma, center, nChan)
-%fillLevels  Resolve the noise SD and centre to [1 x nChan] rows.
+%fillLevels  Resolve the noise SD and center to [1 x nChan] rows.
 %   An empty one is estimated from the rows of X the mask leaves clean (from
 %   every row when the mask covers the block), robustly so a second artifact
 %   the detector missed does not inflate the fill.

@@ -338,9 +338,9 @@ end
 function [derivedFile, spaced] = writeSpacedProbe(probeFile, spacing, runDir)
 %writeSpacedProbe  Write a probe .json with its shanks SPACING um further apart.
 %   Shanks are the kcoords groups, ordered by their mean x: the k-th (from
-%   0) moves k*SPACING um along x, so each pair of neighbouring shanks gains
+%   0) moves k*SPACING um along x, so each pair of neighboring shanks gains
 %   SPACING um and every shank keeps its own layout. Kilosort4 picks a
-%   channel's neighbours by distance alone (whitening_range, drift
+%   channel's neighbors by distance alone (whitening_range, drift
 %   interpolation, template matching), so wider gaps keep them on one
 %   shank. Returns the original file (SPACED false) when the probe has one
 %   shank.

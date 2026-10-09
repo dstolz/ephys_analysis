@@ -11,9 +11,9 @@ function test_EphysAnalysisApp()
 %   the preview's look as a design and deleting it); editing the plot
 %   (bins; an edit in a "Use default" section giving the plot its own event
 %   reference or window, ticking it again going back); the editor showing
-%   only the rows and sections a plot uses (y limits, heat colours, the
-%   alignment sections), greying out the ones its options switch off, and
-%   collapsing a section; the section headers' colours and keys (Ctrl+1 to
+%   only the rows and sections a plot uses (y limits, heat colors, the
+%   alignment sections), graying out the ones its options switch off, and
+%   collapsing a section; the section headers' colors and keys (Ctrl+1 to
 %   Ctrl+9 and Ctrl+0 going to a section); the epoch diagram (opened from the plot editor
 %   with the plot's own epochs, redrawn on an edit of pre, epochs dropped
 %   outside the recording, a refused window reported, paging, opened from
@@ -200,13 +200,13 @@ tm = timer('ExecutionMode', 'fixedRate', 'Period', 0.005, 'TimerFcn', @(~, ~) ap
 start(tm);
 app.refreshPreview(Force=true);
 stop(tm); delete(tm);
-check(app.PreviewState == "cancelled" && string(app.PreviewBadge.Text.Text) == "Cancelled" && isempty(app.PreviewResult) ...
+check(app.PreviewState == "canceled" && string(app.PreviewBadge.Text.Text) == "Canceled" && isempty(app.PreviewResult) ...
     && isempty(findall(app.PreviewPanel, 'Tag', 'previewBusyCard')) && string(app.Fig.Pointer) == "arrow" ...
     && isempty(app.Runner.PollFcn) && ~isfinite(app.PreviewSeconds), ...
-    'Cancel on the busy card stops the preview while it computes: the badge says Cancelled, the card and the polling are gone');
+    'Cancel on the busy card stops the preview while it computes: the badge says Canceled, the card and the polling are gone');
 app.onCancelPreview();   % nothing computes: no effect
 app.autoPreview();
-check(app.PreviewState == "cancelled", 'a cancelled preview is not redrawn by an edit; it waits for Preview');
+check(app.PreviewState == "canceled", 'a canceled preview is not redrawn by an edit; it waits for Preview');
 app.refreshPreview(Force=true);
 check(app.PreviewState == "drawn" && ~isempty(app.PreviewResult) && ~isempty(findall(app.PreviewPanel, 'Type', 'axes')), ...
     'Preview after a cancel computes and draws the plot');
@@ -277,7 +277,7 @@ check(rs.enabled && rs.test == "either" && rs.param == "Depth" && isequal(rs.win
 check(shown(E.stack) && shown(E.normalize) && shown(E.fill) && shown(E.fillAlpha) && shown(E.colormap) ...
     && E.fillAlpha.Enable == "on" && E.stackSpacing.Enable == "off" && ~shown(E.heatColormap) && ~shown(E.param) ...
     && ~shown(E.value) && ~shown(E.metric) && string(A.Mode.ItemsData) == "fixed", ...
-    ['a PSTH shows stack, normalize, fill, opacity and group colours (spacing waits for Stack), not heat colours ' ...
+    ['a PSTH shows stack, normalize, fill, opacity and group colors (spacing waits for Stack), not heat colors ' ...
     'or other kinds'' rows; its window is fixed']);
 E.legendLoc.Value = 'east'; E.legendOrient.Value = 'horizontal'; E.legendBox.Value = true;
 app.onConfigChanged("plot");
@@ -349,7 +349,7 @@ app.onAddPlot("probemap");
 sec = app.PlotSections;
 check(~shown(E.defaultRef) && ~shown(A.Line) && ~shown(A.Pre) && ~shown(A.Filter) && ~shown(E.baselineMode) ...
     && shown(E.value) && shown(E.heatColormap) && ~shown(E.colormap) && ~shown(E.maxTiles), ...
-    'a probe map hides the event, window, selection and baseline; it shows its value and heat colours');
+    'a probe map hides the event, window, selection and baseline; it shows its value and heat colors');
 app.onRemovePlot();
 app.onAddPlot("waveforms");
 wfGrid = shown(E.waveMode) && ~any(string(E.waveMode.ItemsData) == "off") && string(E.waveMode.Value) == "both" ...
@@ -438,7 +438,7 @@ nt = app.Config.Plots(1).note;
 check(nt.text == "Condition A" + newline + "n = 12" && nt.placement == "custom" && nt.x == 0.2 && nt.y == 0.8 && nt.bold && ~nt.italic ...
     && nt.fontSize == 14 && nt.color == "red" && nt.fontName == "" && nt.background == "" && nt.align == "center" && nt.rotation == 15 ...
     && E.annPlace.Enable == "on" && E.annBold.Enable == "on" && E.annX.Enable == "on", ...
-    'the note''s text, place, alignment, rotation, font and colour reach the plot; "auto" and "none" are blank');
+    'the note''s text, place, alignment, rotation, font and color reach the plot; "auto" and "none" are blank');
 app.refreshPreview(Force=true);
 tx = findall(app.PreviewPanel, 'Type', 'text', 'Tag', 'note');
 check(isscalar(tx) && numel(tx.String) == 2 && tx.FontWeight == "bold" && tx.FontSize == 14 && isequal(tx.Color, [1 0 0]) ...
@@ -501,7 +501,7 @@ check(isscalar(ovs) && ovs.shape == "line" && ovs.axis == "x" && ovs.name == "Li
     && shown(E.ovName) && shown(E.ovKind) && shown(E.ovValue) && ~shown(E.ovFrom) && shown(E.ovColor) && ~shown(E.ovFill) ...
     && ~shown(E.ovEdge) && shown(E.ovStyle) && shown(E.ovPanel) && E.ovRemove.Enable == "on" && E.ovDuplicate.Enable == "on" ...
     && string(ovSec().Title) == "Overlays (1)" && numel(E.ovList.Items) == 1, ...
-    'Add line puts a dashed line at 0 in the list, picked; its rows are a line''s (position, colour), not a patch''s');
+    'Add line puts a dashed line at 0 in the list, picked; its rows are a line''s (position, color), not a patch''s');
 E.ovName.Value = 'Stim on'; E.ovValue.Value = '0.25'; E.ovColor.Value = 'blue'; E.ovAlpha.Value = 0.5;
 E.ovStyle.Value = ':'; E.ovWidth.Value = 3; E.ovLayer.Value = 'under'; E.ovPanel.Value = 'data';
 app.onConfigChanged("plot");
@@ -509,7 +509,7 @@ ovs = app.Config.Plots(k0).overlays;
 check(ovs.name == "Stim on" && ovs.value == 0.25 && ovs.color == "blue" && ovs.alpha == 0.5 && ovs.lineStyle == ":" && ovs.lineWidth == 3 ...
     && ovs.layer == "under" && ovs.panel == "data" && contains(string(E.ovList.Items{1}), "Stim on") ...
     && contains(string(E.ovList.Items{1}), "x = 0.25"), ...
-    'the line''s name, position, colour, opacity, style, width, layer and panel reach the config; the list follows its name and position');
+    'the line''s name, position, color, opacity, style, width, layer and panel reach the config; the list follows its name and position');
 app.onAddOverlay("region");
 E.ovKind.Value = 'region|y'; E.ovFrom.Value = '5'; E.ovTo.Value = '2'; E.ovFill.Value = 'green'; E.ovFillAlpha.Value = 0.4;
 E.ovEdge.Value = 'black';
@@ -520,13 +520,13 @@ check(numel(ovs) == 2 && ovs(1).name == "Stim on" && ovs(1).value == 0.25 && ovs
     && ovs(2).faceColor == "green" && ovs(2).faceAlpha == 0.4 && ovs(2).edgeColor == "black" ...
     && shown(E.ovFrom) && ~shown(E.ovValue) && shown(E.ovFill) && shown(E.ovEdge) && ~shown(E.ovColor) ...
     && E.ovStyle.Enable == "on" && string(ovSec().Title) == "Overlays (2)" && numel(E.ovList.Items) == 2, ...
-    'Add patch adds a second overlay and keeps the first; a patch shows its edges, fill and outline, not a line''s position and colour');
+    'Add patch adds a second overlay and keeps the first; a patch shows its edges, fill and outline, not a line''s position and color');
 E.ovEdge.Value = 'none';
 app.syncPlotEditor();
 outlineOff = E.ovStyle.Enable == "off" && E.ovWidth.Enable == "off";
 E.ovEdge.Value = 'black';
 app.syncPlotEditor();
-check(outlineOff && E.ovStyle.Enable == "on" && E.ovWidth.Enable == "on", 'a patch''s outline style and width wait for an outline colour');
+check(outlineOff && E.ovStyle.Enable == "on" && E.ovWidth.Enable == "on", 'a patch''s outline style and width wait for an outline color');
 E.ovList.Value = 1;
 app.onOverlayPicked();
 check(string(E.ovName.Value) == "Stim on" && string(E.ovValue.Value) == "0.25" && string(E.ovColor.Value) == "blue" ...
@@ -928,7 +928,7 @@ end
 
 
 function r = wcagRatio(a, b)
-%wcagRatio  The WCAG contrast ratio of two RGB colours.
+%wcagRatio  The WCAG contrast ratio of two RGB colors.
 la = relLuminance(a);
 lb = relLuminance(b);
 r = (max(la, lb) + 0.05) / (min(la, lb) + 0.05);
@@ -936,7 +936,7 @@ end
 
 
 function l = relLuminance(c)
-%relLuminance  The relative luminance of the sRGB colour C.
+%relLuminance  The relative luminance of the sRGB color C.
 lin = (c <= 0.04045) .* (c / 12.92) + (c > 0.04045) .* (((c + 0.055) / 1.055) .^ 2.4);
 l = lin(:).' * [0.2126; 0.7152; 0.0722];
 end

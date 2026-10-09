@@ -82,8 +82,8 @@ With no mapping given it reopens the chain it showed when it last closed.
    - The **table** gives each site's row: 0-based for `chanMap`, 1-based as
      the Probe tab and *Exclude channels* use it. It also gives the hardware
      channel, the headstage input, both pins, the shank, the `kcoords` group
-     and x, y. Grey rows do not reach a recorded channel.
-   - The **pictures** show the probe's sites, coloured by `kcoords` group
+     and x, y. Gray rows do not reach a recorded channel.
+   - The **pictures** show the probe's sites, colored by `kcoords` group
      (step 6), and each package connector over
      the headstage connector it mates with. Both are drawn looking into the
      face, and the headstage face is mirrored so that pins that touch share a
@@ -107,7 +107,7 @@ With no mapping given it reopens the chain it showed when it last closed.
    - **All one group** puts every site in the Group; **By shank** goes back to
      the shanks.
 
-   The picture recolours at once, and in the table a group that is not the
+   The picture recolors at once, and in the table a group that is not the
    site's shank is bold blue. Groups set by hand are saved with the mapping
    and in the export, and are dropped when you choose another probe design.
    The pipeline reads `kcoords` as the shank too (the Probe tab picture,

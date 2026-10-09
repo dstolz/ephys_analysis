@@ -197,7 +197,7 @@ pg.ColumnWidth = {20, '1x', 'fit'};
 pg.RowHeight = {'fit'};
 pg.Padding = [0 0 0 0];
 obj.SortPhyLamp = uilamp(pg, "Color", [0.75 0.75 0.75], "Tooltip", ...
-    "Grey: not opened in phy. Amber: opened in phy, or saved without a change. Green: modified in phy.");
+    "Gray: not opened in phy. Amber: opened in phy, or saved without a change. Green: modified in phy.");
 obj.SortPhyLamp.Layout.Row = 1; obj.SortPhyLamp.Layout.Column = 1;
 obj.SortPhyLabel = uilabel(pg, "Text", "", "WordWrap", "on");
 obj.SortPhyLabel.Layout.Row = 1; obj.SortPhyLabel.Layout.Column = 2;

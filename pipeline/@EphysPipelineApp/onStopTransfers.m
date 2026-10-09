@@ -1,6 +1,6 @@
 function onStopTransfers(obj)
 %onStopTransfers  Stop copying the outputs (Stop copying..., after a confirmation).
-%   Every transfer still going is cancelled (OutputTransfer.cancel): the
+%   Every transfer still going is canceled (OutputTransfer.cancel): the
 %   files being copied stop where they are and what was copied stays at
 %   the destination; the rest are not copied, and a move removes nothing
 %   more here. A Run under way goes on without copying.

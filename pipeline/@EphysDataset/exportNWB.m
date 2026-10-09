@@ -24,7 +24,7 @@ function out = exportNWB(obj, opts)
 %                         clock), id (the cluster id), electrodes (the peak
 %                         channel's row), class, sort_label (the phy /
 %                         Kilosort label), label, channel_name,
-%                         peak_channel, shank, x_um / y_um (template centre),
+%                         peak_channel, shank, x_um / y_um (template center),
 %                         amplitude, contam_pct and, with UnitQuality, the
 %                         quality metrics under SpikeInterface's names
 %                         (firing_rate, isi_violations_ratio,
@@ -652,8 +652,8 @@ switch nm
     case "channel_name",     d = "Native name of the peak channel";
     case "peak_channel",     d = "1-based recording channel with the largest template amplitude";
     case "shank",            d = "Probe shank of the peak channel (kcoords)";
-    case "x_um",             d = "Template centre, amplitude-weighted site position x (um)";
-    case "y_um",             d = "Template centre, amplitude-weighted site position y (um)";
+    case "x_um",             d = "Template center, amplitude-weighted site position x (um)";
+    case "y_um",             d = "Template center, amplitude-weighted site position y (um)";
     case "amplitude",        d = "Kilosort amplitude (cluster_Amplitude.tsv)";
     case "contam_pct",       d = "Kilosort contamination estimate, percent (cluster_ContamPct.tsv)";
     case "firing_rate",      d = "Spikes per second over the sorted span (SpikeInterface firing_rate)";

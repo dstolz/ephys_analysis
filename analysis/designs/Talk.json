@@ -2,7 +2,7 @@
   "schema": "ephys-plot-design",
   "version": 1,
   "name": "Talk",
-  "description": "For slides seen from the back of the room: big bold type, thick lines and marks, strong saturated colours, turbo heat maps.",
+  "description": "For slides seen from the back of the room: big bold type, thick lines and marks, strong saturated colors, turbo heat maps.",
   "background": "#ffffff",
   "palette": ["#e41a1c", "#377eb8", "#4daf4a", "#984ea3", "#ff7f00", "#a65628", "#f781bf", "#999999"],
   "single": "#377eb8",

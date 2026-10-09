@@ -97,7 +97,7 @@ classdef test_PopulationAnalysis < matlab.unittest.TestCase
                 rows = S.unitGroup == g;
                 tc.verifyEqual(numel(unique(lo(rows))), 1, 'a depth group holds one 50 um bin');
             end
-            tc.verifyError(@() populationSummary(P, GroupBy="colour"), 'populationSummary:BadGroupBy');
+            tc.verifyError(@() populationSummary(P, GroupBy="color"), 'populationSummary:BadGroupBy');
             tc.verifyError(@() populationSummary(P, GroupBy="tuned"), 'populationSummary:BadGroupBy');
         end
 

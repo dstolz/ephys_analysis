@@ -1,7 +1,7 @@
 function [k, ok] = pickFromList(fig, titleText, items, prompt)
 %pickFromList  Choose one of ITEMS in a small modal window over FIG.
 %   [K, OK] = ChannelMapperApp.pickFromList(FIG, TITLE, ITEMS, PROMPT)
-%   returns the index of the chosen item; OK is false when cancelled.
+%   returns the index of the chosen item; OK is false when canceled.
 arguments
     fig
     titleText (1,1) string

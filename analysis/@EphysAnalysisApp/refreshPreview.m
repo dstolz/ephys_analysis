@@ -86,11 +86,11 @@ try
 catch ME
     if ~isvalid(obj) || ~isvalid(obj.Fig); return; end   % the app was closed while it computed
     obj.PreviewResult = [];
-    if ME.identifier == "EphysAnalysisRunner:Cancelled"
-        clearPanel(obj, spec.id + " was cancelled: press Preview to compute it.");
+    if ME.identifier == "EphysAnalysisRunner:Canceled"
+        clearPanel(obj, spec.id + " was canceled: press Preview to compute it.");
         obj.PreviewSeconds = Inf;
-        obj.log(spec.id + " preview cancelled.");
-        obj.setPreviewState("cancelled");
+        obj.log(spec.id + " preview canceled.");
+        obj.setPreviewState("canceled");
         return
     end
     clearPanel(obj, spec.id + " failed: " + string(ME.message));
@@ -102,7 +102,7 @@ end
 obj.PreviewSeconds = toc(t0);
 obj.setPreviewState("drawn");
 if obj.PreviewRedo; obj.setPreviewState("stale"); end
-L.Text = sprintf("%s on %s (%.1f s); right-click the plot to change its colours, lines and fonts", ...
+L.Text = sprintf("%s on %s (%.1f s); right-click the plot to change its colors, lines and fonts", ...
     spec.id, src.name, obj.PreviewSeconds);
 if obj.PreviewSeconds >= obj.AutoPreviewSeconds && obj.AutoPreviewCheckBox.Value
     L.Text = L.Text + ": slow, so edits wait for Preview";

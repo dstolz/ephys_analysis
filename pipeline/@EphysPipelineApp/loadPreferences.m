@@ -6,7 +6,7 @@ function loadPreferences(obj)
 %   the datasets-table column order, the sort of each sortable table
 %   (TableSorts: Project, Trials, Review units, Clean up and the
 %   Artifacts tab's per-channel Selection table), the Artifacts tab's viewer options
-%   (context, channels, scale, lanes, colour by shank, shading), the Trials-table parameter columns and
+%   (context, channels, scale, lanes, color by shank, shading), the Trials-table parameter columns and
 %   column order, the Trials-plot label parameters, the Visualize
 %   display options, the Copy tab settings (subject, roots and their recent
 %   lists, pairing and copy options; not the dates), the Synthetic tab's settings and

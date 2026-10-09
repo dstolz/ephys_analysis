@@ -32,7 +32,7 @@ pipe = EphysPipeline(cfg);
 disp(pipe.plan());  pipe.run();
 ```
 
-Every sorted unit is labelled with its class, cluster id, subject and recording
+Every sorted unit is labeled with its class, cluster id, subject and recording
 start (`su042_1255_260908T1039`), and carries its channel, shank, position and
 notes. Gather them across recordings (here from the Chronux export files) into
 one table:

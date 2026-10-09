@@ -3,7 +3,7 @@ function buildPlotsTab(obj)
 %   The tree groups the plots by plot type, source, layout or status (Group
 %   by; refreshPlotList), with the kind to add on its own row; Ctrl- or
 %   Shift-click selects several plots, edited together (showPlotSelection
-%   puts an amber banner in the editor and a bar of the same colours over
+%   puts an amber banner in the editor and a bar of the same colors over
 %   the preview). The editor is a column of sections (formSection): the plot's kind, id,
 %   title, source and layout, always open; then Units & channels, Event
 %   reference, Epoch window (with "Epoch Diagram" under it, the epoch
@@ -249,8 +249,8 @@ E.sortSeqEdit.ButtonPushedFcn = @(~,~) obj.editSequence(E.sortSeqText, "event", 
     @() obj.onConfigChanged("plot"));
 [S, r] = formRow(S, "rasterByGroup", "");
 E.rasterByGroup = uicheckbox(S.Body, "Text", "Raster rows by group first (one band per group)", "Value", true, ...
-    "ValueChangedFcn", changed, "Tooltip", "Ticked: each group's epochs together on a band of its colour, sorted " + ...
-    "within it. Unticked: every epoch sorted as one block, each row on its group's colour.");
+    "ValueChangedFcn", changed, "Tooltip", "Ticked: each group's epochs together on a band of its color, sorted " + ...
+    "within it. Unticked: every epoch sorted as one block, each row on its group's color.");
 place(E.rasterByGroup, r, [1 2]);
 [S, r] = formRow(S, ["markLines" "markEdge" "markScope"], "Mark events:");
 mg = subgrid(S.Body, r, {'1x', 80, 80});
@@ -273,18 +273,18 @@ E.markSeqEdit.ButtonPushedFcn = @(~,~) obj.editSequence(E.markSeqText, "marks", 
     @() obj.onConfigChanged("plot"));
 [S, r] = formRow(S, ["markMarker" "markSize" "markColor"], "Mark look:");
 mlg = subgrid(S.Body, r, {'1x', 'fit', 60, '1x'});
-markers = PlotAesthetics.catalogue().Marker;
+markers = PlotAesthetics.catalog().Marker;
 E.markMarker = uidropdown(mlg, "Items", markers.ChoiceLabels(2:end), "ItemsData", markers.Choices(2:end), ...
     "Value", "diamond", "ValueChangedFcn", changed, "Tooltip", "The marker drawn at each event.");
 uilabel(mlg, "Text", "size:");
 E.markSize = uispinner(mlg, "Limits", [0.5 40], "Step", 1, "Value", 4, "ValueChangedFcn", changed, ...
     "Tooltip", "Marker size, points.");
 E.markColor = uidropdown(mlg, "Editable", "on", "Items", ["auto" "black" "red" "blue" "green" "magenta" "cyan"], ...
-    "Value", "auto", "ValueChangedFcn", changed, "Tooltip", "auto: a colour per line and edge; or one colour for " + ...
+    "Value", "auto", "ValueChangedFcn", changed, "Tooltip", "auto: a color per line and edge; or one color for " + ...
     "every mark (a name or #RRGGBB). The aesthetics editor (right-click) styles each line's marks on its own.");
 [S, r] = formRow(S, "histStyle", "PSTH as:");
 E.histStyle = uidropdown(S.Body, "Items", ["bar" "line"], "Value", "bar", "ValueChangedFcn", changed, ...
-    "Tooltip", "One bar per bin, or a line through the bin centres.");
+    "Tooltip", "One bar per bin, or a line through the bin centers.");
 place(E.histStyle, r, 2);
 [S, r] = formRow(S, "normalize", "Normalize:");
 E.normalize = uidropdown(S.Body, "Items", ["none" "unit peak" "group peak"], "ItemsData", ["none" "unitPeak" "groupPeak"], ...
@@ -320,12 +320,12 @@ place(E.seriesParam, r, 2);
 [S, r] = formRow(S, ["xScale" "jitter"], "X axis:");
 xg = subgrid(S.Body, r, {'1x', 'fit'});
 E.xScale = uidropdown(xg, "Items", ["evenly spaced" "at their values"], "ItemsData", ["category" "linear"], ...
-    "Value", "category", "ValueChangedFcn", changed, "Tooltip", "The x values evenly spaced and labelled, or at " + ...
+    "Value", "category", "ValueChangedFcn", changed, "Tooltip", "The x values evenly spaced and labeled, or at " + ...
     "their values on a linear axis (numeric parameters).");
 E.jitter = uicheckbox(xg, "Text", "Jitter points", "Value", true, "ValueChangedFcn", changed, ...
     "Tooltip", "Points layout: spread the dots sideways (a fixed pattern) so they do not hide each other.");
 [S, r] = formRow(S, "value", "Value:");
-E.value = uidropdown(S.Body, "Items", ["rate" "nSpikes" "nUnits"], "ValueChangedFcn", changed, "Tooltip", "What colours each site.");
+E.value = uidropdown(S.Body, "Items", ["rate" "nSpikes" "nUnits"], "ValueChangedFcn", changed, "Tooltip", "What colors each site.");
 place(E.value, r, 2);
 [S, r] = formRow(S, "order", "Row order:");
 E.order = uidropdown(S.Body, "Items", ["probe" "peak"], "ValueChangedFcn", changed, ...
@@ -365,13 +365,13 @@ place(E.siteSize, r, 2);
 E.ylim = uieditfield(S.Body, "text", "Placeholder", "auto, or e.g. 0 40", "ValueChangedFcn", changed, ...
     "Tooltip", "The rate or amplitude axis (a PSTH's, not its raster's).");
 place(E.ylim, r, 2);
-[S, r] = formRow(S, "colormap", "Group colours:");
+[S, r] = formRow(S, "colormap", "Group colors:");
 E.colormap = uidropdown(S.Body, "Editable", "on", "Items", ["lines" "parula" "turbo" "jet" "hot" "cool" "gray" "black"], ...
     "Value", "lines", "ValueChangedFcn", changed, ...
-    "Tooltip", "lines: the trial selection's colours (parula for a numeric parameter with more than two values); " + ...
-    "a colormap function; or one colour for every group (a name or #RRGGBB).");
+    "Tooltip", "lines: the trial selection's colors (parula for a numeric parameter with more than two values); " + ...
+    "a colormap function; or one color for every group (a name or #RRGGBB).");
 place(E.colormap, r, 2);
-[S, r] = formRow(S, "heatColormap", "Heat colours:");
+[S, r] = formRow(S, "heatColormap", "Heat colors:");
 E.heatColormap = uidropdown(S.Body, "Items", ["auto" "parula" "turbo" "hot" "gray" "jet" "cool" "blueWhiteRed"], ...
     "ValueChangedFcn", changed, "Tooltip", "auto: parula; blueWhiteRed for unit correlation.");
 place(E.heatColormap, r, 2);
@@ -454,7 +454,7 @@ place(E.waveAmp, r, 2);
 wp = subgrid(S.Body, r, {'fit', 'fit', '1x'});
 wp.ColumnSpacing = 12;
 E.waveSites = uicheckbox(wp, "Text", "Sites", "Value", true, "ValueChangedFcn", changed, ...
-    "Tooltip", "Draw the probe's sites in grey behind the waveforms.");
+    "Tooltip", "Draw the probe's sites in gray behind the waveforms.");
 E.waveNames = uicheckbox(wp, "Text", "Unit names", "Value", false, "ValueChangedFcn", changed, ...
     "Tooltip", "Write each unit's name (and the label ticked above) beside its waveform.");
 sec(end+1) = S;
@@ -506,12 +506,12 @@ stg.ColumnSpacing = 12;
 E.annBold = uicheckbox(stg, "Text", "Bold", "ValueChangedFcn", changed);
 E.annItalic = uicheckbox(stg, "Text", "Italic", "ValueChangedFcn", changed);
 E.annBox = uicheckbox(stg, "Text", "Outline", "ValueChangedFcn", changed, ...
-    "Tooltip", "Draw a box round the text, in its colour.");
-[S, r] = formRow(S, ["annColor" "annBackground"], "Colours:");
+    "Tooltip", "Draw a box round the text, in its color.");
+[S, r] = formRow(S, ["annColor" "annBackground"], "Colors:");
 cg = subgrid(S.Body, r, {'fit', '1x', 'fit', '1x'});
 uilabel(cg, "Text", "text");
 E.annColor = uidropdown(cg, "Editable", "on", "Items", ["auto" "black" "white" "red" "blue" "green" "magenta" "cyan"], ...
-    "Value", "auto", "ValueChangedFcn", changed, "Tooltip", "auto: the design's text colour; or a name or #RRGGBB.");
+    "Value", "auto", "ValueChangedFcn", changed, "Tooltip", "auto: the design's text color; or a name or #RRGGBB.");
 uilabel(cg, "Text", "ground");
 E.annBackground = uidropdown(cg, "Editable", "on", "Items", ["none" "white" "black" "yellow" "cyan" "#F0F0F0"], ...
     "Value", "none", "ValueChangedFcn", changed, "Tooltip", "none: the plot shows through; or a name or #RRGGBB behind the text.");
@@ -573,23 +573,23 @@ E.ovPanel = uidropdown(opg, "Items", ["All panels" "Data panels" "Raster panels"
 E.ovLayer = uidropdown(opg, "Items", ["Over the data" "Under the data"], "ItemsData", EphysAnalysisConfig.OverlayLayers, ...
     "Value", "over", "ValueChangedFcn", changed, "Tooltip", "Over: drawn after the plot's lines, points, bars and bands. " + ...
     "Under: behind them, so they hide it where they are opaque.");
-[S, r] = formRow(S, ["ovColor" "ovAlpha"], "Colour:");
+[S, r] = formRow(S, ["ovColor" "ovAlpha"], "Color:");
 ocg = subgrid(S.Body, r, {'1x', 'fit', 60});
 E.ovColor = uidropdown(ocg, "Editable", "on", "Items", ["#d62728" "red" "black" "white" "blue" "green" "magenta" "cyan" "orange"], ...
-    "Value", "#d62728", "ValueChangedFcn", changed, "Tooltip", "The line's colour: a name or #RRGGBB.");
+    "Value", "#d62728", "ValueChangedFcn", changed, "Tooltip", "The line's color: a name or #RRGGBB.");
 uilabel(ocg, "Text", "opacity");
 E.ovAlpha = uieditfield(ocg, "numeric", "Limits", [0 1], "Value", 1, "ValueChangedFcn", changed, ...
     "Tooltip", "0 (invisible) to 1 (solid).");
 [S, r] = formRow(S, ["ovFill" "ovFillAlpha"], "Fill:");
 ofc = subgrid(S.Body, r, {'1x', 'fit', 60});
 E.ovFill = uidropdown(ofc, "Editable", "on", "Items", ["#808080" "gray" "black" "white" "red" "blue" "green" "yellow" "cyan"], ...
-    "Value", "#808080", "ValueChangedFcn", changed, "Tooltip", "The patch's colour: a name or #RRGGBB.");
+    "Value", "#808080", "ValueChangedFcn", changed, "Tooltip", "The patch's color: a name or #RRGGBB.");
 uilabel(ofc, "Text", "opacity");
 E.ovFillAlpha = uieditfield(ofc, "numeric", "Limits", [0 1], "Value", 0.25, "ValueChangedFcn", changed, ...
     "Tooltip", "0 (invisible) to 1 (solid); a semitransparent patch lets the data show through.");
 [S, r] = formRow(S, "ovEdge", "Outline:");
 E.ovEdge = uidropdown(S.Body, "Editable", "on", "Items", ["none" "black" "white" "red" "blue" "gray"], "Value", "none", ...
-    "ValueChangedFcn", changed, "Tooltip", "none: the patch has no outline; or a colour (a name or #RRGGBB), drawn in the style " + ...
+    "ValueChangedFcn", changed, "Tooltip", "none: the patch has no outline; or a color (a name or #RRGGBB), drawn in the style " + ...
     "and width below.");
 place(E.ovEdge, r, 2);
 [S, r] = formRow(S, ["ovStyle" "ovWidth"], "Line:");
@@ -640,11 +640,11 @@ dg.ColumnWidth = {200, 'fit', '1x'};
 dg.Padding = [0 0 0 0];
 obj.DesignDropDown = uidropdown(dg, "Items", PlotDesign.DefaultName, "ItemsData", PlotDesign.DefaultName, ...
     "ValueChangedFcn", @(dd, ~) obj.onDesignChosen(dd.Value), ...
-    "Tooltip", "The look of every plot: its ground, colours, fonts, axes, ticks, lines and marks. " + ...
+    "Tooltip", "The look of every plot: its ground, colors, fonts, axes, ticks, lines and marks. " + ...
     "Choosing one redraws every plot on screen; runs draw their figures in it too.");
 obj.SaveDesignButton = uibutton(dg, "Text", "Save look as design...", "ButtonPushedFcn", @(~,~) obj.onSaveDesign(), ...
     "Tooltip", "Keep the preview's look -- every property of every component, its ground and its group " + ...
-    "colours -- as a design of your own, to choose for any plot.");
+    "colors -- as a design of your own, to choose for any plot.");
 vg = uigridlayout(pg, [2 1], "RowHeight", {0, '1x'}, "Padding", [0 0 0 0], "RowSpacing", 0);
 vg.Layout.Row = 3; vg.Layout.Column = [1 6];
 obj.PreviewGrid = vg;
@@ -711,7 +711,7 @@ E.(p + "Method") = uidropdown(g, "Items", ["PSTH bins" "each epoch"], "ItemsData
     "those in the baseline (the paper's). each epoch: each epoch's spike count in the window against the " + ...
     "epochs' counts in window-long pieces of the baseline.");
 E.(p + "Windows") = uidropdown(g, "Items", ["tiled" "sliding"], "ValueChangedFcn", changed, ...
-    "Tooltip", "tiled: windows back to back, edged at the event (the paper's). sliding: a window starts every step; neighbours share bins.");
+    "Tooltip", "tiled: windows back to back, edged at the event (the paper's). sliding: a window starts every step; neighbors share bins.");
 widths = {'fit', '1x', 'fit', '1x'};
 if ~isPlot; widths = [widths {'fit', '1x'}]; end
 [S, r] = formRow(S, p + "WinMs", "auROC (ms):");

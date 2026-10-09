@@ -224,7 +224,7 @@ classdef EphysTraceEnvelope < handle
             %cancel  Stop a build: its partial file is deleted, State "missing" again.
             if obj.State ~= "building"; return; end
             obj.State = "missing";
-            obj.Message = "cancelled";
+            obj.Message = "canceled";
             obj.stopWork();
         end
 
@@ -613,7 +613,7 @@ classdef EphysTraceEnvelope < handle
 
         function deletePartial(obj)
             % Delete the partial file (a file still held by a step being
-            % cancelled stays; the next build of this file deletes it).
+            % canceled stays; the next build of this file deletes it).
             if obj.Partial ~= "" && isfile(obj.Partial)
                 try
                     delete(obj.Partial);

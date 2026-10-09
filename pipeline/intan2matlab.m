@@ -101,7 +101,7 @@ function [Y, events, info] = intan2matlab(RHDroot, options)
 %       is the inverse-distance weighted mean of the 4 nearest good sites
 %       on its shank; without a probe (or for a channel with no good site
 %       on its shank) a warning is issued and it is interpolated across the
-%       neighbouring columns with FILLMISSING(...,'makima',2).
+%       neighboring columns with FILLMISSING(...,'makima',2).
 %       If a scalar negative value is provided, channels are auto-flagged as
 %       outliers by abs(zscore(rms(LFP))) > abs(value) (heuristic), computed
 %       on Y.LFP after any LFP filtering; this requires "LFP" in

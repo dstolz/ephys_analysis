@@ -25,7 +25,7 @@ function issues = validate(obj, opts)
 %               sort direction, its sort event (rasterSort "event": one
 %               given, as an event reference) and event marks (edge,
 %               scope, marker, size, each mark sequence as an event
-%               reference; a colour that is not one is a warning); a
+%               reference; a color that is not one is a warning); a
 %               behavior plot's
 %               param and yParam ("stop" needs a stop event), xScale, and
 %               violinplot for the violin layout; a baseline Mode "auroc"
@@ -41,11 +41,11 @@ function issues = validate(obj, opts)
 %               tiles (a raster, a PSTH or tuning grid of spikes, a
 %               waveforms plot); its amplitude scale; a waveforms plot's
 %               mode is never off; a note's placement, alignment, rotation,
-%               font size and interpreter (a colour that is not one is a
+%               font size and interpreter (a color that is not one is a
 %               warning); each overlay's shape, axis, finite position (line)
 %               or edges (region, which must differ), panel, layer, line
-%               style and width, opacities (0-1), and colours (one that is
-%               not a colour is a warning), a warning for a panel the plot
+%               style and width, opacities (0-1), and colors (one that is
+%               not a color is a warning), a warning for a panel the plot
 %               does not draw and for two overlays with one name; style
 %               values
 %     Export    formats are png / eps / svg / pdf; Dpi, FigureSizeCm; the
@@ -197,7 +197,7 @@ for k = 1:numel(obj.Plots)
         if ~ismember(mk.scope, ["window" "trial"])
             add("Plots", f0 + ".rasterEvents.scope", "error", "The raster marks' scope is window or trial.");
         end
-        markers = PlotAesthetics.catalogue().Marker.Choices;
+        markers = PlotAesthetics.catalog().Marker.Choices;
         if ~ismember(mk.marker, markers)
             add("Plots", f0 + ".rasterEvents.marker", "error", "The raster marks' marker is one of " + strjoin(markers, ", ") + ".");
         end
@@ -205,7 +205,7 @@ for k = 1:numel(obj.Plots)
             add("Plots", f0 + ".rasterEvents.size", "error", "The raster marks' size must be positive (points).");
         end
         if mk.color ~= "" && ~isColor(mk.color)
-            add("Plots", f0 + ".rasterEvents.color", "warning", "No colour """ + mk.color + """; each mark gets its own colour.");
+            add("Plots", f0 + ".rasterEvents.color", "warning", "No color """ + mk.color + """; each mark gets its own color.");
         end
         for q = 1:numel(mk.sequences)
             checkRef(mk.sequences(q), "Plots", f0 + ".rasterEvents.sequences(" + q + ")");
@@ -349,7 +349,7 @@ for k = 1:numel(obj.Plots)
         end
         for cf = ["color" "background"]
             if nt.(cf) ~= "" && ~isColor(nt.(cf))
-                add("Plots", n0 + "." + cf, "warning", "No colour """ + nt.(cf) + """; the note's " + cf + " is left to the design.");
+                add("Plots", n0 + "." + cf, "warning", "No color """ + nt.(cf) + """; the note's " + cf + " is left to the design.");
             end
         end
     end
@@ -393,7 +393,7 @@ for k = 1:numel(obj.Plots)
         end
         for cf = ["color" "faceColor" "edgeColor"]
             if ~(cf == "edgeColor" && lower(strtrim(ov.(cf))) == "none") && ~isColor(ov.(cf))
-                add("Plots", o0 + "." + cf, "warning", "No colour """ + ov.(cf) + """; the overlay keeps its default " + cf + ".");
+                add("Plots", o0 + "." + cf, "warning", "No color """ + ov.(cf) + """; the overlay keeps its default " + cf + ".");
             end
         end
         if strtrim(ov.name) ~= "" && ismember(strtrim(ov.name), names)
@@ -420,7 +420,7 @@ for k = 1:numel(obj.Plots)
         if ~(cm == "Colormap" && (st.(cm) == "lines" || isColor(st.(cm)))) && ~(cm == "HeatColormap" && st.(cm) == "") ...
                 && ~ismember(exist(char(st.(cm))), [2 5]) %#ok<EXIST>
             what = "colormap function";
-            if cm == "Colormap"; what = "colormap function or colour"; end
+            if cm == "Colormap"; what = "colormap function or color"; end
             add("Plots", f0 + ".style." + cm, "warning", "No " + what + " """ + st.(cm) + """; the default is used.");
         end
     end
@@ -563,7 +563,7 @@ end
 
 
 function tf = isColor(name)
-%isColor  True for a colour name or hex code (groupPalette gives every group that colour).
+%isColor  True for a color name or hex code (groupPalette gives every group that color).
 try
     validatecolor(name);
     tf = true;

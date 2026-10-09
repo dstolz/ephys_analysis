@@ -6,7 +6,7 @@ class of pure packaging functions that build the data structures the
 (`ft_datatype_raw`, `ft_datatype_spike`, `ft_read_event`) from what this
 pipeline already produces. `EphysDataset.exportFieldTrip` writes them to one
 `.mat` per dataset. Nothing here reads a recording or calls FieldTrip;
-FieldTrip is only needed to analyse the result (and, optionally, to validate
+FieldTrip is only needed to analyze the result (and, optionally, to validate
 it).
 
 FieldTrip and [Chronux](ChronuxDataset.md) are separate toolboxes with

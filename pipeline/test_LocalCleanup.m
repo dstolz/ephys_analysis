@@ -202,19 +202,19 @@ classdef test_LocalCleanup < matlab.unittest.TestCase
             mine = fullfile(binDir, tc.Name + [".bin" ".json"]);
             tc.writeBytes(mine(1), 4000);
             writeJsonFile(mine(2), struct('n_chan_bin', 4, 'bin_file', mine(1), 'source_folder', tc.Local));
-            neighbour = fullfile(binDir, "SYNTH-02_260916_110907.bin");
-            tc.writeBytes(neighbour, 4000);
+            neighbor = fullfile(binDir, "SYNTH-02_260916_110907.bin");
+            tc.writeBytes(neighbor, 4000);
             T = planLocalCleanup(d, Remove="bin");
             rows = T(ismember(T.File, mine), :);
             tc.verifyEqual(rows.Category.', ["bin" "bin"]);
             tc.verifyTrue(all(rows.Action == "remove"));
             tc.verifyEqual(rows.Root.', [binDir binDir], 'the BinDir is the root of its files');
-            tc.verifyFalse(any(T.File == neighbour), 'another dataset''s .bin in the shared folder is not listed');
+            tc.verifyFalse(any(T.File == neighbor), 'another dataset''s .bin in the shared folder is not listed');
             tc.verifyEqual(tc.action(T, tc.Name + ".bin"), "remove", 'a .bin left in the output folder goes too');
             R = runLocalCleanup(T);
             tc.verifyTrue(all(R.Status == "removed"), strjoin(R.Message, "; "));
             tc.verifyFalse(any(isfile(mine)), 'its .bin and sidecar are gone');
-            tc.verifyTrue(isfile(neighbour) && isfolder(binDir), 'the shared folder and the other .bin stay');
+            tc.verifyTrue(isfile(neighbor) && isfolder(binDir), 'the shared folder and the other .bin stay');
         end
 
         function runRemovesOnlyTheRemoveRowsAndKeepsARecord(tc)
@@ -533,7 +533,7 @@ classdef test_LocalCleanup < matlab.unittest.TestCase
             R = runLocalCleanup(T, CancelFcn=@stopAfterOne, ProgressFcn=@note);
             tc.verifyEqual(seen, 1, 'progress is reported before each file handled');
             tc.verifyEqual(R.Status(1), "removed");
-            tc.verifyTrue(all(R.Status(2:end) == "skipped") && all(R.Message(2:end) == "cancelled"));
+            tc.verifyTrue(all(R.Status(2:end) == "skipped") && all(R.Message(2:end) == "canceled"));
             tc.verifyTrue(all(isfile(R.File(2:end))));
 
             function note(evt)

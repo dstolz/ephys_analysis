@@ -15,7 +15,7 @@ function [units, info] = readPhyUnits(resultsDir, opts)
 %   -------
 %     Groups        keep only clusters with these labels, e.g. ["good" "mua"]
 %                   ([] = all). Errors when no label table exists.
-%     IncludeNoise  keep clusters labelled "noise" (default false)
+%     IncludeNoise  keep clusters labeled "noise" (default false)
 %     Templates     read templates.npy for peak channel + waveform (default true)
 %     FullTemplates also return every unit's [nS x nChan] template (default false)
 %     ChannelMap    [1 x nChanSorted] 1-based RECORDING channel for each sorted
@@ -52,7 +52,7 @@ function [units, info] = readPhyUnits(resultsDir, opts)
 %     shank             from channel_shanks.npy (0 when absent)
 %     peakX, peakY      site position of the peak channel, probe units (um),
 %                       from channel_positions.npy (NaN when absent)
-%     x, y              template centre: site positions weighted by the
+%     x, y              template center: site positions weighted by the
 %                       template's peak-to-peak amplitude, over the channels on
 %                       the peak channel's shank with at least 25% of the peak
 %                       amplitude (NaN without templates or positions)
@@ -121,8 +121,8 @@ arguments
     opts.Identity struct = struct([])
 end
 
-% Template-centre channels: at least this fraction of the peak amplitude.
-centreFraction = 0.25;
+% Template-center channels: at least this fraction of the peak amplitude.
+centerFraction = 0.25;
 
 dir0 = EphysDataset.resolvePhyDir(resultsDir);
 if ~isfolder(dir0)
@@ -249,7 +249,7 @@ shank = zeros(nU, 1);
 ok = isfinite(ksChannel) & ksChannel >= 1 & ksChannel <= numel(chanShanks);
 shank(ok) = chanShanks(ksChannel(ok));
 
-% --- location on the probe: peak site and template centre ------------------
+% --- location on the probe: peak site and template center ------------------
 peakX = nan(nU, 1); peakY = nan(nU, 1); cx = nan(nU, 1); cy = nan(nU, 1);
 if size(chanPos, 2) >= 2 && isfinite(nChSorted) && size(chanPos, 1) >= nChSorted
     ok = isfinite(ksChannel) & ksChannel >= 1 & ksChannel <= nChSorted;
@@ -258,7 +258,7 @@ if size(chanPos, 2) >= 2 && isfinite(nChSorted) && size(chanPos, 1) >= nChSorted
     for u = find(ok).'
         w = p2pAll(u, :).';
         pk = ksChannel(u);
-        use = chanShanks == chanShanks(pk) & w >= centreFraction * w(pk);
+        use = chanShanks == chanShanks(pk) & w >= centerFraction * w(pk);
         if any(use) && sum(w(use)) > 0
             cx(u) = sum(w(use) .* chanPos(use, 1)) / sum(w(use));
             cy(u) = sum(w(use) .* chanPos(use, 2)) / sum(w(use));
@@ -300,7 +300,7 @@ if ~isempty(opts.Groups)
     keep = keep & ismember(group, lower(strtrim(opts.Groups)));
     if ~any(keep)
         error('EphysDataset:readPhyUnits:NoGroupMatch', ...
-            'No cluster in %s is labelled %s (labels present: %s).', labelFile, ...
+            'No cluster in %s is labeled %s (labels present: %s).', labelFile, ...
             strjoin(opts.Groups, ', '), strjoin(unique(group).', ', '));
     end
 end
@@ -396,7 +396,7 @@ c(group == "unsorted") = "uns";
 odd = unique(group(c == "other"));
 if ~isempty(odd)
     warning('EphysDataset:readPhyUnits:OtherGroup', ...
-        'Cluster label(s) %s in %s have no unit class; those units are labelled "other".', ...
+        'Cluster label(s) %s in %s have no unit class; those units are labeled "other".', ...
         strjoin(odd.', ", "), folder);
 end
 end

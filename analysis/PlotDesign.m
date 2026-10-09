@@ -1,9 +1,9 @@
 classdef PlotDesign
     %PlotDesign  Whole looks for the analysis plots: built in, or saved by you.
     %   A design is one look for every plot renderPlot draws: the ground the
-    %   plot sits on, the group colours, the colormaps of images, and
+    %   plot sits on, the group colors, the colormaps of images, and
     %   aesthetics rules (PlotAesthetics) for its components -- axes, ticks,
-    %   axis labels, titles, legends, colour bars, lines, marks and fills.
+    %   axis labels, titles, legends, color bars, lines, marks and fills.
     %   renderPlot draws with the design you chose (a preference), then your
     %   rules for the plot's kind, then the plot's own rules, so the later
     %   win. Choosing a design redraws every plot open on screen at once.
@@ -27,15 +27,15 @@ classdef PlotDesign
     %   Drawing (renderPlot)
     %     R = PlotDesign.rulesFor(D, KIND) the rules D gives plots of KIND
     %     PlotDesign.paint(ROOT, D)        the ground behind the plot drawn as ROOT
-    %     M = PlotDesign.colormap(SPEC, N) N colours of a colormap name or anchor colours
+    %     M = PlotDesign.colormap(SPEC, N) N colors of a colormap name or anchor colors
     %     PlotDesign.listen(OWNER, FCN)    FCN() after the chosen design changes
     %
     %   File fields (all optional):
     %     name, description
     %     background  the ground behind the plot ("" = as drawn)
-    %     palette     the colours of the groups, in order
-    %     single      the colour of a plot with one group
-    %     sequential  the colours of ordered groups (a numeric parameter with
+    %     palette     the colors of the groups, in order
+    %     single      the color of a plot with one group
+    %     sequential  the colors of ordered groups (a numeric parameter with
     %                 more than two values) and an evoked butterfly's depths
     %     heat        images: heat map, probe map
     %     diverging   signed images: correlation map, auROC heat map
@@ -43,12 +43,12 @@ classdef PlotDesign
     %                 every plot
     %     kinds       rules for one kind of plot, drawn after the common ones:
     %                 {"heatmap": [...], "corrmap": [...]}
-    %   A colour is a name, #rrggbb or [r g b]; a colormap is the name of a
-    %   colormap function or a list of colours, spread evenly from the
+    %   A color is a name, #rrggbb or [r g b]; a colormap is the name of a
+    %   colormap function or a list of colors, spread evenly from the
     %   lowest value to the highest. A FontName may list fallbacks
     %   ("Palatino Linotype, Georgia"): the first one installed is used. A
-    %   plot's own Appearance settings choose the colours only when its group
-    %   colours are "lines" and its heat colours "auto".
+    %   plot's own Appearance settings choose the colors only when its group
+    %   colors are "lines" and its heat colors "auto".
     %
     %   See also PlotAesthetics, renderPlot, PlotAestheticsDialog.
 
@@ -185,11 +185,11 @@ classdef PlotDesign
             %   component of it, or the target renderPlot drew into) and reads
             %   every property the aesthetics editor offers, for every
             %   component: a value all the components of a role share becomes
-            %   a rule for that role (every group). The colours the groups are
+            %   a rule for that role (every group). The colors the groups are
             %   drawn in become the palette (or, for ordered groups, the
-            %   sequential colours; one group: single), the ground becomes the
+            %   sequential colors; one group: single), the ground becomes the
             %   background and an image's colormap its heat or diverging
-            %   colours. A colour that differs from group to group belongs to
+            %   colors. A color that differs from group to group belongs to
             %   the palette, not a rule. What the plot does not show comes from
             %   Base (default: the design it was drawn with). From a heat map,
             %   probe map or correlation map, whose axes are drawn their own
@@ -241,7 +241,7 @@ classdef PlotDesign
             [ground, prop] = groundOf(ctx.root);
             if ~isempty(ground); D.background = reshape(double(validatecolor(get(ground, prop))), 1, 3); end
 
-            cols = groupColours(T);
+            cols = groupColors(T);
             n = size(cols, 1);
             ordinal = isfield(ctx, 'ordinal') && ctx.ordinal;
             if ordinal && n > 2
@@ -378,9 +378,9 @@ classdef PlotDesign
         end
 
         function paint(root, D)
-            %paint  Colour the ground behind the plot drawn as ROOT with D's background.
+            %paint  Color the ground behind the plot drawn as ROOT with D's background.
             %   The ground is the figure, panel, tab or grid the plot's layout
-            %   sits in (a plot drawn into an axes has none). Its colour before
+            %   sits in (a plot drawn into an axes has none). Its color before
             %   the first design is remembered and comes back with a design
             %   that has no background.
             [obj, prop] = groundOf(root);
@@ -395,7 +395,7 @@ classdef PlotDesign
         end
 
         function M = colormap(spec, n)
-            %colormap  N colours (N x 3) of a colormap function's name or of anchor colours (K x 3, spread evenly).
+            %colormap  N colors (N x 3) of a colormap function's name or of anchor colors (K x 3, spread evenly).
             if nargin < 2; n = 256; end
             if isstring(spec) || ischar(spec)
                 M = feval(char(spec), n);
@@ -435,7 +435,7 @@ classdef PlotDesign
         end
 
         function s = toStruct(D)
-            %toStruct  Design D as its file holds it (colours as #rrggbb).
+            %toStruct  Design D as its file holds it (colors as #rrggbb).
             s = struct('schema', PlotDesign.Schema, 'version', PlotDesign.Version, 'name', D.name, ...
                 'description', D.description, 'background', hexOf(D.background), 'palette', {hexList(D.palette)}, ...
                 'single', hexOf(D.single), 'sequential', {mapOut(D.sequential)}, 'heat', {mapOut(D.heat)}, ...
@@ -459,9 +459,9 @@ classdef PlotDesign
             D.description = "";
             if isfield(s, 'name'); D.name = textOf(s.name, where + ".name"); end
             if isfield(s, 'description'); D.description = textOf(s.description, where + ".description"); end
-            if isfield(s, 'background'); D.background = colourOf(s.background, where + ".background"); end
-            if isfield(s, 'palette'); D.palette = colourList(s.palette, where + ".palette", 0); end
-            if isfield(s, 'single'); D.single = colourOf(s.single, where + ".single"); end
+            if isfield(s, 'background'); D.background = colorOf(s.background, where + ".background"); end
+            if isfield(s, 'palette'); D.palette = colorList(s.palette, where + ".palette", 0); end
+            if isfield(s, 'single'); D.single = colorOf(s.single, where + ".single"); end
             for f = ["sequential" "heat" "diverging"]
                 if isfield(s, f); D.(f) = mapOf(s.(f), where + "." + f); end
             end
@@ -570,7 +570,7 @@ classdef PlotDesign
 
         function [name, description, ok] = askName(fig, name, description)
             %askName  Ask for a new design's name and description in a small modal window over FIG.
-            %   OK is false when it was cancelled. A name of yours that exists
+            %   OK is false when it was canceled. A name of yours that exists
             %   is replaced only when the user agrees.
             if nargin < 2; name = ""; end
             if nargin < 3; description = ""; end
@@ -639,12 +639,12 @@ end
 function R = captureRules(T)
 %captureRules  A rule (every group) for each property all the components of a role share.
 %   Skipped: the legend's place (the plot's Legend settings decide it), a
-%   colormap (the design's heat colours), widths in x units, a colour that
+%   colormap (the design's heat colors), widths in x units, a color that
 %   is the group's own (it differs from group to group, or there is only
-%   one group to tell), and the colour of a waveform's spikes (an [r g b]
+%   one group to tell), and the color of a waveform's spikes (an [r g b]
 %   rule would drop their transparency).
 skip = ["Colormap" "Location" "Orientation" "NumColumns" "BoxWidth" "BarWidth"];
-C = PlotAesthetics.catalogue();
+C = PlotAesthetics.catalog();
 R = PlotAesthetics.emptyRules();
 for role = unique(T.Role, 'stable').'
     rows = find(T.Role == role);
@@ -672,7 +672,7 @@ for role = unique(T.Role, 'stable').'
         if ~all(cellfun(@(v) isequaln(v, vals{1}), vals)); continue; end
         v = vals{1};
         if C.(nm).Type == "color" && isnumeric(v) && grouped && numel(unique(grp(has))) < 2
-            continue   % a group's own colour: the palette's
+            continue   % a group's own color: the palette's
         end
         try
             v = PlotAesthetics.normalizeRules(struct('role', role, 'property', nm, 'value', v)).value;
@@ -685,8 +685,8 @@ end
 end
 
 
-function cols = groupColours(T)
-%groupColours  The colour each group is drawn in, groups in the order they are drawn.
+function cols = groupColors(T)
+%groupColors  The color each group is drawn in, groups in the order they are drawn.
 roles = ["rate" "rateFill" "trace" "curve" "bar" "points" "box" "swarm" "violin" "behaviorMean"];
 T = T(ismember(T.Role, roles) & T.Group ~= "", :);
 cols = zeros(0, 3);
@@ -711,7 +711,7 @@ end
 
 %% --- drawing -----------------------------------------------------------------
 function [obj, prop] = groundOf(root)
-%groundOf  The figure, panel, tab or grid behind the plot's outer layout, and its colour property.
+%groundOf  The figure, panel, tab or grid behind the plot's outer layout, and its color property.
 obj = [];
 prop = '';
 if isempty(root) || ~isgraphics(root) || ~isa(root, 'matlab.graphics.layout.TiledChartLayout'); return; end
@@ -739,15 +739,15 @@ end
 
 %% --- file fields -------------------------------------------------------------
 function R = designRules(v, where)
-%designRules  Rules from a file: colours as text become [r g b]; a FontName list picks an installed font.
+%designRules  Rules from a file: colors as text become [r g b]; a FontName list picks an installed font.
 R = PlotAesthetics.normalizeRules(v, where);
-C = PlotAesthetics.catalogue();
+C = PlotAesthetics.catalog();
 for k = 1:numel(R)
     v = R(k).value;
     if C.(R(k).property).Type == "color" && isstring(v)
         [c, ok] = PlotAesthetics.parseColor(v);
         if ~ok
-            error('PlotDesign:Bad', '%s(%d): "%s" is not a colour.', where, k, v);
+            error('PlotDesign:Bad', '%s(%d): "%s" is not a color.', where, k, v);
         end
         R(k).value = c;
     elseif R(k).property == "FontName" && isstring(v)
@@ -791,8 +791,8 @@ end
 end
 
 
-function c = colourOf(v, where)
-%colourOf  A colour field: [] when empty ("" or []), else [r g b].
+function c = colorOf(v, where)
+%colorOf  A color field: [] when empty ("" or []), else [r g b].
 c = [];
 if isempty(v) || ((ischar(v) || isstring(v)) && strtrim(string(v)) == ""); return; end
 if isnumeric(v) && numel(v) == 3
@@ -804,12 +804,12 @@ if ischar(v) || (isstring(v) && isscalar(v))
     [c, ok] = PlotAesthetics.parseColor(v);
     if ok && isnumeric(c); return; end
 end
-error('PlotDesign:Bad', '%s must be a colour: a name, #rrggbb or [r g b].', where);
+error('PlotDesign:Bad', '%s must be a color: a name, #rrggbb or [r g b].', where);
 end
 
 
-function C = colourList(v, where, atLeast)
-%colourList  A list of colours (text, or rows of [r g b]) as N x 3.
+function C = colorList(v, where, atLeast)
+%colorList  A list of colors (text, or rows of [r g b]) as N x 3.
 C = zeros(0, 3);
 if isempty(v); return; end
 if isnumeric(v) && size(v, 2) == 3
@@ -818,21 +818,21 @@ if isnumeric(v) && size(v, 2) == 3
 else
     if ischar(v) || isstring(v); v = cellstr(v); end
     if ~iscell(v)
-        error('PlotDesign:Bad', '%s must be a list of colours.', where);
+        error('PlotDesign:Bad', '%s must be a list of colors.', where);
     end
     C = zeros(numel(v), 3);
     for k = 1:numel(v)
-        C(k, :) = colourOf(v{k}, sprintf('%s(%d)', where, k));
+        C(k, :) = colorOf(v{k}, sprintf('%s(%d)', where, k));
     end
 end
 if size(C, 1) < atLeast
-    error('PlotDesign:Bad', '%s needs at least %d colours.', where, atLeast);
+    error('PlotDesign:Bad', '%s needs at least %d colors.', where, atLeast);
 end
 end
 
 
 function m = mapOf(v, where)
-%mapOf  A colormap field: [] when empty, a colormap function's name, or anchor colours (K x 3).
+%mapOf  A colormap field: [] when empty, a colormap function's name, or anchor colors (K x 3).
 m = [];
 if isempty(v); return; end
 if (ischar(v) && isrow(v)) || (isstring(v) && isscalar(v))
@@ -846,7 +846,7 @@ if (ischar(v) && isrow(v)) || (isstring(v) && isscalar(v))
         return
     end
 end
-m = colourList(v, where, 2);
+m = colorList(v, where, 2);
 end
 
 
@@ -874,8 +874,8 @@ end
 
 
 function R = rulesOut(R)
-%rulesOut  Rules as a file holds them: colours as #rrggbb.
-C = PlotAesthetics.catalogue();
+%rulesOut  Rules as a file holds them: colors as #rrggbb.
+C = PlotAesthetics.catalog();
 for k = 1:numel(R)
     if C.(R(k).property).Type == "color" && isnumeric(R(k).value) && numel(R(k).value) == 3
         R(k).value = PlotAesthetics.valueText(R(k).value);

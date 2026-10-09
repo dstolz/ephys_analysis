@@ -1,5 +1,5 @@
 function syncStepEnableStates(obj)
-%syncStepEnableStates  The tab strip colours (syncTabStrip), the Run-tab
+%syncStepEnableStates  The tab strip colors (syncTabStrip), the Run-tab
 %   checklist, the selection summary, (while shown) the Flow chart and,
 %   until a run starts, the run diagram's preview follow the working config.
 cfg = obj.Config;

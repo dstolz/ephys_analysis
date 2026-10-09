@@ -99,7 +99,7 @@ classdef ChannelMapperApp < handle
         SidecarSuffix = ".chanmap.json"
         WikiURL = "https://github.com/dstolz/ephys_analysis/wiki/API-ChannelMapperApp"
         DocFile = "documentation/ChannelMapperApp.md"
-        % Cell colours: signal, GND, REF, PR, NC, GUIDE, selected
+        % Cell colors: signal, GND, REF, PR, NC, GUIDE, selected
         Colors = struct('signal', [0.85 0.91 1], 'GND', [0.55 0.55 0.55], 'REF', [0.70 0.90 0.70], ...
             'PR', [0.85 0.75 0.95], 'NC', [1 1 1], 'GUIDE', [0.93 0.93 0.93], 'selected', [1 0.8 0.3])
     end

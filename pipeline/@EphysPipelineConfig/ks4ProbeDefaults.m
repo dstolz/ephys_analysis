@@ -245,8 +245,8 @@ for s = 1:nS
     d(1:m+1:end) = Inf;
     nearest(in) = min(d, [], 2);
 
-    % Same-row neighbours count only nearby (within 3x the nearest contact),
-    % so rows that line up across unlabelled shanks are not mistaken for pairs.
+    % Same-row neighbors count only nearby (within 3x the nearest contact),
+    % so rows that line up across unlabeled shanks are not mistaken for pairs.
     r = dx;
     r(~(dy < tol & dx >= tol & d <= 3 * nearest(in))) = Inf;
     r = min(r, [], 2);

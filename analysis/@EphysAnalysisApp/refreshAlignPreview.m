@@ -2,7 +2,7 @@ function refreshAlignPreview(obj)
 %refreshAlignPreview  Epochs the Defaults give on the active dataset: count, groups, trials.
 %   Runs epochTable with the config's Defaults (event, window, selection):
 %   "N epochs from M of T trials (scope); groups ...", a bar per group in
-%   its colour, and the kept trials (with their group) in the table. An
+%   its color, and the kept trials (with their group) in the table. An
 %   alignment that gives no epoch shows why.
 ax = obj.AlignAxes;
 L = obj.AlignSummaryLabel;

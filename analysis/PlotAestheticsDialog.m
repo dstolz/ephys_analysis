@@ -1,5 +1,5 @@
 classdef PlotAestheticsDialog < handle
-    %PlotAestheticsDialog  Edit the colours, lines, markers and fonts of a drawn plot.
+    %PlotAestheticsDialog  Edit the colors, lines, markers and fonts of a drawn plot.
     %   D = PlotAestheticsDialog(CONTEXT, H) opens a modal window on the plot
     %   CONTEXT describes, with component H selected. renderPlot keeps a
     %   context on the plot's target (PlotAesthetics.enableEditing), so in
@@ -7,7 +7,7 @@ classdef PlotAestheticsDialog < handle
     %   aesthetics..." (PlotAesthetics.edit(H) does the same).
     %
     %   The list on the left is every component drawn: the plot's title, each
-    %   tile's axes, titles, labels, legend and colour bar, and what the
+    %   tile's axes, titles, labels, legend and color bar, and what the
     %   renderer drew there, by role and group (PlotAesthetics.components).
     %   Click a row to edit it; each change shows on the plot at once.
     %     Apply to   this one; the same component (role and group) in every
@@ -115,7 +115,7 @@ classdef PlotAestheticsDialog < handle
         function setProperty(obj, name, value)
             %setProperty  Change property NAME of what Apply to covers (shown at once).
             %   VALUE as the property takes it ("on" / "off", a number, an RGB
-            %   triplet or a word); a colour may also be text (parseColor).
+            %   triplet or a word); a color may also be text (parseColor).
             %   missing takes the property back to how the plot was drawn.
             obj.change(string(name), value);
             obj.showSelected();
@@ -276,7 +276,7 @@ classdef PlotAestheticsDialog < handle
                 if P(k).Type == "color" && (isstring(value) || ischar(value))
                     [value, good] = PlotAesthetics.parseColor(value);
                     if ~good
-                        error('PlotAesthetics:BadValue', '"%s" is not a colour.', string(value));
+                        error('PlotAesthetics:BadValue', '"%s" is not a color.', string(value));
                     end
                 elseif P(k).Type == "onoff" && (islogical(value) || isnumeric(value))
                     value = string(matlab.lang.OnOffSwitchState(value));
@@ -569,7 +569,7 @@ classdef PlotAestheticsDialog < handle
             [v, good] = PlotAesthetics.parseColor(field.Value);
             if ~good
                 field.Value = evt.PreviousValue;
-                obj.say(sprintf('"%s" is not a colour: a name (red), #rrggbb, r g b, or none / flat / auto.', evt.Value));
+                obj.say(sprintf('"%s" is not a color: a name (red), #rrggbb, r g b, or none / flat / auto.', evt.Value));
                 return
             end
             obj.fromControl(name, v);
@@ -762,7 +762,7 @@ end
 
 
 function setSwatch(p, rgb)
-%setSwatch  Show RGB on a colour picker (or, before R2024a, a swatch button).
+%setSwatch  Show RGB on a color picker (or, before R2024a, a swatch button).
 if isprop(p, 'Value'); p.Value = rgb; else; p.BackgroundColor = rgb; end
 end
 
@@ -789,7 +789,7 @@ function T = rulesTable(R, where)
 n = numel(R);
 KeptFor = repmat(string(where), n, 1);
 Component = strings(n, 1); Group = strings(n, 1); Property = strings(n, 1); Value = strings(n, 1);
-C = PlotAesthetics.catalogue();
+C = PlotAesthetics.catalog();
 for i = 1:n
     Component(i) = PlotAesthetics.roleLabel(R(i).role);
     Group(i) = R(i).group;

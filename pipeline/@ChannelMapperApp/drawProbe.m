@@ -1,7 +1,7 @@
 function drawProbe(obj)
-%drawProbe  The probe's sites coloured by kcoords group, labelled as Label sites by says.
+%drawProbe  The probe's sites colored by kcoords group, labeled as Label sites by says.
 %   A site's kcoords group is its shank unless set by hand. Sites that do
-%   not reach a recorded channel are grey x. Clicking a site (or near one)
+%   not reach a recorded channel are gray x. Clicking a site (or near one)
 %   selects it; shift-clicking adds it to the kcoords Sites list. The selection ring (obj.SelMarker) is
 %   made here once and moved by applySelection.
 ax = obj.ProbeAxes;

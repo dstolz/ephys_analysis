@@ -1,6 +1,6 @@
 function onClose(obj)
 %onClose  Ask about unsaved changes, stop background work, persist prefs, close.
-%   A background copy is not cancelled: the copy engine runs outside MATLAB, so
+%   A background copy is not canceled: the copy engine runs outside MATLAB, so
 %   it finishes on its own. Closing only stops watching it, and the app says so
 %   rather than leaving the copy looking abandoned. The same goes for the
 %   output copies of a Run (Copy outputs), which it asks about too. A scheduled copy is a

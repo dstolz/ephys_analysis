@@ -255,7 +255,7 @@ leads back to its recording wherever it ends up:
 `startsWith(labels, "su")`. The `units` struct carries the same facts as
 columns (`class`, `subject`, `recordingStart` to the second, `datasetKey` =
 root-relative folder), with the unit's location (`channel`, `channelName`,
-`ksChannel`, `shank`, peak site `peakX` / `peakY`, template centre `x` / `y`)
+`ksChannel`, `shank`, peak site `peakX` / `peakY`, template center `x` / `y`)
 and `notes` (see [Reading sorted units](EphysDataset.md#reading-sorted-units)).
 A unit is identified by `datasetKey` + `unitId`.
 
@@ -389,7 +389,7 @@ release, the git commit and whether the checkout had uncommitted changes),
 MATLAB, host, user, the config and the run's id: `pipe.provenance()`, passed
 to each writer as `Provenance=` and stored in the file's `conversion` /
 `export` struct or JSON ([format](file-formats.md#provenance)). When the run
-ends (finished, cancelled or failed; not a dry run) it writes a run record,
+ends (finished, canceled or failed; not a dry run) it writes a run record,
 `<OutputRoot or Root>/pipeline_runs/<runId>_<name>.json`, with the steps,
 datasets, config, code, machine and every Results row
 ([format](file-formats.md#run-records)); `pipe.RunRecordFile` names it and
@@ -437,7 +437,7 @@ for it before it writes the run record; see
 Each step method can be called directly; it then runs even when the step is
 disabled in the config. Call `checkRun()` first for the checks `run()` makes;
 each step method takes `Datasets=` (indices) and `DryRun=true`. Result statuses are `done`, `skipped`, `dry run`,
-`launched`, `queued`, `error`, `cancelled` and `not run`. Errors on one dataset are
+`launched`, `queued`, `error`, `canceled` and `not run`. Errors on one dataset are
 recorded and the run continues with the next. Work that ends after its step
 has returned (a background Kilosort4 run) can restate its row with
 `pipe.updateResult(step, dataset, output, status, message, addSeconds)`; the
@@ -504,7 +504,7 @@ SPIKE, and Spikes erases them before detection (`Spikes.ArtifactMode`
 `"erase"`) or rejects the events inside them (`"reject"`).
 
 **Cancel.** `pipe.cancel()` makes the next progress notification throw
-`EphysPipeline:Cancelled`. The current dataset is marked `cancelled` (its
+`EphysPipeline:Canceled`. The current dataset is marked `canceled` (its
 output is written atomically, so nothing half-done is left behind), the
 remaining rows are `not run`, and `run()` returns normally.
 
@@ -523,10 +523,10 @@ Report=Analysis.Report)` then draws every enabled plot on every dataset:
 
 - one row per dataset and plot, step `analysis:<plot id>`: `done` (`Output`
   the files written), `skipped` (`Message`: why the dataset cannot have it,
-  `plotSkipReason`), `error` or `cancelled`;
+  `plotSkipReason`), `error` or `canceled`;
 - with `Report`, one `analysis:report` row per report: `Dataset` `""` for one
   report over every dataset, else the dataset (`Report.PerDataset`). After a
-  cancel, the report over every dataset is not written (`cancelled`).
+  cancel, the report over every dataset is not written (`canceled`).
 
 The runner also writes its own run record,
 `<report folder>/analysis_runs/<runId>_<name>.json`. A dry run reads the
@@ -592,7 +592,7 @@ Files in the folder that the run does not copy are never touched. A
 version folder still reads as the dataset: `EphysProject` over a copy (no
 recordings) names the dataset of `<session>_v2` `<session>`
 (`EphysProject.outputFolderName`), so its files are found and its units
-labelled as the first copy's, and `DatasetOutputs(folder)` does the same; its
+labeled as the first copy's, and `DatasetOutputs(folder)` does the same; its
 key keeps the folder's name, so both copies are datasets of their own.
 
 **Move.** `Method = "move"` copies and checks first, then, once the run is
@@ -618,7 +618,7 @@ sees a folder a transfer is writing. Windows only (`platformSupport("copy")`).
 **Results.** Each dataset has one `transfer` row, `Output` its folder at the
 destination, restated as its batches go (`OutputTransfer.statusOf`):
 `queued`, `waiting` (for a background sort), `copying`, `copied` (a move,
-removed once the run is over), `done`, `error`, `cancelled` or `skipped`.
+removed once the run is over), `done`, `error`, `canceled` or `skipped`.
 With `TransferWait`, `run()` waits for the transfer (logging where it is
 every 30 s) before it writes the run record; without it (the app), `run()`
 returns and the copies go on as long as something polls the transfer:
@@ -674,7 +674,7 @@ is still following, and a dataset with a run there that is queued or going is
 skipped. While it waits, the step reports `waiting for a free Kilosort4
 slot (N at a time): R running, F finished, W still to start`, and `cancel()`
 stops the wait. The dataset it was waiting to start and the rest are marked
-`cancelled`, and runs already started carry on. The step returns once the
+`canceled`, and runs already started carry on. The step returns once the
 last dataset has started, so a later step in the same run overlaps only the
 last runs. Blocking runs always go one at a time.
 
@@ -698,7 +698,7 @@ dataset's files are written, so the steps after it start at once. The app
 uses this for its **Queue the waiting runs** option.
 
 `EphysDataset.stopSortRun(statusFile)` stops a background run that is going:
-its status becomes `"cancelled"` and its slot frees.
+its status becomes `"canceled"` and its slot frees.
 
 `[free, device] = sortingSlot(runs, maxRunning, devices)` checks for a slot
 without waiting (`runs` is a struct array with `statusFile` and `device`,
@@ -733,7 +733,7 @@ that fraction only grows while the step runs. `run()` sends one event with
 `dataset = ""`, `index = 0` and `message = "starting"` as each step starts,
 so every step is seen to begin, including those that report nothing else;
 after `cancel()` it sends none, and the step records its datasets as
-`cancelled` instead. Every step also reports each dataset as it begins it.
+`canceled` instead. Every step also reports each dataset as it begins it.
 Artifact detection that Sorting, Signals or Spikes needs (no valid cache)
 reports as that step: it fills the first half of the dataset's share, and the
 sort, the derivation or the spike detection the second. Export reports as `export`, the formats
@@ -766,7 +766,7 @@ pool size, with `reserve = max(2 GB, 10 %)` kept for the client. On a 32 GB
 machine with 60-second, 64-channel files that is four or five workers whatever
 the pool size. Progress is reported on the client as chunks finish, so the bars
 behave as in a serial run, and **Cancel** takes effect after the chunk in
-flight: the outstanding chunks are cancelled and nothing is written. When the
+flight: the outstanding chunks are canceled and nothing is written. When the
 pool cannot be used — no Parallel Computing Toolbox, a chunk whose sample count
 is unknown, a thread pool open instead of a process pool, memory for fewer than
 two workers, or `MaxWorkers` 1 — the step runs serially and warns
@@ -879,7 +879,7 @@ lists the lines whose TTL logic is inverted:
 | inverted | low | falling edge: first low sample | last low sample before the rising edge |
 
 `digitalLinePolarity(events, invertedLines, nSamples, Fs)` does the
-relabelling. An inverted line's intervals are the complement of its high runs
+relabeling. An inverted line's intervals are the complement of its high runs
 within the recording, so a low stretch at either end of the recording counts,
 just as a high stretch there does for a normal line. It applies everywhere
 events are produced: `deriveSignals` / `toMat` (option `invertedLines`, by
@@ -966,7 +966,7 @@ the behavior file.
 | [`test_SortingConcurrency.m`](../pipeline/test_SortingConcurrency.m) | (Windows; stand-in "python" `.cmd` files, no Kilosort4 or GPU) `sortRunState`; `sortingSlot` / `waitForSortingSlot`; background runs `Sorting.MaxConcurrent` at a time (one and two slots, a run that exits without a status, `PriorRuns`, a cancel while waiting, blocking runs one at a time); `Sorting.Devices` (a free GPU per run, `--device`, the result rows); `QueueFcn` and `launchSorting`; `restateResult`; `stopSortRun` and `sortRunProcesses`; the shared-GPU warning in the run's log; paths with `&` `^` `( )` and spaces and non-ASCII run folders (`ks4_launch.cmd`); a new sort setting the earlier sort's curation aside (`previous_*`) |
 | [`test_OpenEphysReader.m`](../pipeline/test_OpenEphysReader.m) | Open Ephys sessions in every record engine; the `Acquisition` modes; `LineNames` validation and naming; a synthetic Open Ephys project through `EphysPipeline` |
 | [`test_TDTReader.m`](../pipeline/test_TDTReader.m) | TDT Synapse blocks: samples from TEV and SEV, stream choice and gain, epocs and their rows, `Acquisition.TDT`; trials from the epocs of a block without an Epsych2 session, through the behavior step; synthetic TDT recordings and projects |
-| [`test_UnitLabels.m`](../pipeline/test_UnitLabels.m) | `parseNameTokens` formats; `nameIdentity` (literal prefix, non-matching names, pattern, subject and date errors, dates and times with separators), class and id padding, identity columns, peak site and template centre, `writeUnitNotes` / `readUnitNotes`, `readSortedUnits` identity errors, `EphysProject` pattern push and `unitIdentities` collisions, `unitTable` (columns, filtering, quality-metric columns, duplicates, files, refreshed notes) |
+| [`test_UnitLabels.m`](../pipeline/test_UnitLabels.m) | `parseNameTokens` formats; `nameIdentity` (literal prefix, non-matching names, pattern, subject and date errors, dates and times with separators), class and id padding, identity columns, peak site and template center, `writeUnitNotes` / `readUnitNotes`, `readSortedUnits` identity errors, `EphysProject` pattern push and `unitIdentities` collisions, `unitTable` (columns, filtering, quality-metric columns, duplicates, files, refreshed notes) |
 | [`test_EpsychSession.m`](../pipeline/test_EpsychSession.m) | synthetic `Data` / `Info` files: `epsychSessionMeta` / `readEpsychSession` (`NotEpsych`, `NotFound`), `findEpsychSessions` (recursive or not, missing folders), `matchEpsychSession` (by prefix, by time within the tolerance, ambiguity, the longest stem); `stitchEpsychSessions` (trials in time order, `TrialIndex` renumbered, missing parameters, the parts under `Info.Stitch`, `OutFile`, and its refusals); two Epsych2 files in one session folder associate neither |
 | [`test_PipelineAnalysisStep.m`](../analysis/test_PipelineAnalysisStep.m) | the Analysis step over a synthetic project: its validation (the analysis config's own issues under `Plots.<id>.<field>`, its `Source` ignored, a missing file, nothing written, background sorting feeding unit plots), plan rows per dataset and plot and the report row, a dry run writing nothing, a run writing every dataset's figures, the report and both run records with progress that only grows, cancel, a `list` selection with one report per dataset, and both scripts (the standalone one carries the analysis config and writes the report again) |
 

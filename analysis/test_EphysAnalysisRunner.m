@@ -186,8 +186,8 @@ r2 = EphysAnalysisRunner(cfg, LogFcn=[]);
     end
 r2.ProgressFcn = @onProgress;
 R2 = r2.run(Export=false, Report=false);
-check(any(R2.Status == "cancelled") && height(R2) == 2 * numel(cfg.enabledPlots()) && isempty(r2.ReportFiles), ...
-    sprintf('cancel stops the run; the rest are "cancelled" (%d of %d)', nnz(R2.Status == "cancelled"), height(R2)));
+check(any(R2.Status == "canceled") && height(R2) == 2 * numel(cfg.enabledPlots()) && isempty(r2.ReportFiles), ...
+    sprintf('cancel stops the run; the rest are "canceled" (%d of %d)', nnz(R2.Status == "canceled"), height(R2)));
 
 fprintf('\n== 3. cancel inside a plot (the preview''s PollFcn) ==\n');
 polls = 0;
@@ -212,7 +212,7 @@ try
 catch ME
     cid = string(ME.identifier);
 end
-check(cid == "EphysAnalysisRunner:Cancelled" && polls == 2, 'cancel() at the second checkpoint stops computePlot there (Cancelled)');
+check(cid == "EphysAnalysisRunner:Canceled" && polls == 2, 'cancel() at the second checkpoint stops computePlot there (Canceled)');
 r.PollFcn = [];
 polls = 0;
 R1 = r.computePlot(srcC, specC);
@@ -429,7 +429,7 @@ C = PlotAesthetics.components(h.layout);
 check(nnz(C.Role == "waveMean") == numel(h.axes) && ~any(C.Role == "waveSpikes") ...
     && numel(findall(fig, 'Tag', 'waveLabel')) == numel(h.axes) ...
     && all(arrayfun(@(t) contains(t.String, "(template)"), findall(fig, 'Tag', 'waveLabel'))), ...
-    'mode "both" draws a template as the mean alone, labelled as a template');
+    'mode "both" draws a template as the mean alone, labeled as a template');
 cap = plotCaption(spec, Rw);
 check(contains(cap, "each unit's mean waveform and up to 5 of its spikes on its peak channel") ...
     && contains(cap, sprintf("%d by their template", height(Rw.meta))), "the caption says what the boxes show: " + cap);

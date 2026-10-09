@@ -196,7 +196,7 @@ classdef test_UnitQuality < matlab.unittest.TestCase
             tc.verifyEqual(R.summary.units(1), R.summary.units(2), "the same clusters in both");
             tc.verifyEqual(R.summary.su(2), 0, "B calls none of them su");
             tc.verifyEqual(R.summary.su(1), nnz(string({T.units.label}) == "good"), ...
-                "A's su are the units the generator labelled good");
+                "A's su are the units the generator labeled good");
             tc.verifyEqual(sort(unique(R.units.variant)), sort(R.summary.name));
             tc.verifyTrue(isfile(fullfile(a, "quality_report.html")) && isfile(fullfile(b, "quality_report.html")) ...
                 && isfile(fullfile(root, "sweep.html")), "a QC page per sort and the comparison page");

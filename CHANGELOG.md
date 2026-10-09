@@ -15,7 +15,7 @@ says how to cut a release.
   each overlay is a vertical or horizontal line (`xline` / `yline`) or a patch
   between two x or two y values (`xregion` / `yregion`), with its own panels
   (all, the data panels, or the rasters above a PSTH's rate panels), layer (over
-  or under the plot's data), name, colour, opacity, line style and width, and
+  or under the plot's data), name, color, opacity, line style and width, and
   a patch's fill, fill opacity and outline. The analysis app's Plot editor gets
   a collapsible **Overlays** section: a list with Add line, Add patch,
   Duplicate and Remove, and the rows of the one picked. A line crosses every
@@ -26,7 +26,7 @@ says how to cut a release.
   design saved from a plot leaves overlays out. `EphysAnalysisConfig.validate`
   checks them. See [Plot overlays](documentation/EphysAnalysisConfig.md#plot-overlays).
   The Overlays section is the editor's tenth: it takes the next step of the section
-  title colours and **Ctrl+0** (**Cmd+0** on a Mac) goes to it.
+  title colors and **Ctrl+0** (**Cmd+0** on a Mac) goes to it.
 
 - Raster rows sorted by the latency of another event, e.g. the time from
   each epoch's event to the animal leaving the platform (Platform offset):
@@ -41,10 +41,10 @@ says how to cut a release.
   The analysis app's plot editor has **Sort event** and **Sort sequence**
   rows under **Sort raster by**.
 
-- Colours and keys for the analysis app's plot editor sections. Each of the nine
+- Colors and keys for the analysis app's plot editor sections. Each of the nine
   section headers (Units & channels, Event reference, Epoch window, Trial
   selection, Bins & baseline, Options, Appearance, Unit waveform, Text note) has
-  a title colour of its own, a step along the `turbo` map in the order of the
+  a title color of its own, a step along the `turbo` map in the order of the
   sections and darkened only as far as it needs to read on the header bar.
   **Ctrl+1** to **Ctrl+9** (**Cmd** on a Mac) on the Plots tab go to the section
   of that number: they open it if it is collapsed, scroll the editor to it and
@@ -93,20 +93,20 @@ says how to cut a release.
   others) with the words, the place (below, above, right of or left of the plot,
   which gives up a band for it; over the plot at a corner, an edge or the center;
   or at x, y), alignment, rotation, font, size, bold, italic, outline, text and
-  ground colours and a TeX or as-typed interpreter. In the config it is the plot's
+  ground colors and a TeX or as-typed interpreter. In the config it is the plot's
   `note` (`defaults("Note")`), checked by Validate once it has text. The note is
   a component of role `note`, so the right-click aesthetics editor and every
-  design (which give it a font and text colour) reach it.
+  design (which give it a font and text color) reach it.
 
 - Cancel for the analysis app's plot preview. While a plot computes, the busy
   card has a red **Cancel** button; the compute checks for it between its steps and
   per unit, group or epoch (`EphysAnalysisRunner.PollFcn` / `checkpoint` /
   `clearCancel`; `spikePSTH`, `aurocCurves`, `evokedPotential` and `unitWaveforms`
-  take an optional `Check=`), and the badge then says **Cancelled**. Edits made
+  take an optional `Check=`), and the badge then says **Canceled**. Edits made
   meanwhile no longer start a second preview inside the first; they leave it
   Out of date. Closing the app stops a computing preview.
 
-- A status badge under the analysis app's plot preview: a coloured icon and
+- A status badge under the analysis app's plot preview: a colored icon and
   a word for where the preview is (Computing, Drawing, Drawn, Out of date,
   Press Preview, Cannot draw, Failed). While it computes and draws, a card
   with a spinner sits over the last plot and the pointer is a watch; the
@@ -149,7 +149,7 @@ says how to cut a release.
   plot type, with a **Group by** drop-down for source, layout, enabled / off
   or a flat list (remembered, as are the collapsed groups). The list column is
   half again as wide, the plot-kind drop-down has a row of its own, and
-  **Up** / **Down** swap a plot with its neighbour in its group.
+  **Up** / **Down** swap a plot with its neighbor in its group.
 - A toolbar in the analysis app, under the menu bar: New, Open and Save
   config; Scan for datasets and Preview the selected plot; Validate config,
   Plan, Run and Cancel run; open the last run's report and figure folder;
@@ -160,22 +160,22 @@ says how to cut a release.
   and results tools turn on and off with the Export tab's buttons
   (`buildToolbar`; icons in `analysis/icons/toolbar`).
 - Plot designs (`PlotDesign`): whole looks for every analysis plot -- the
-  ground behind it, the group colours, the heat maps' colours, and
+  ground behind it, the group colors, the heat maps' colors, and
   aesthetics rules for its axes, ticks, fonts, titles, axis labels,
-  legends, colour bars, lines and marks. Built in: **Tufte** (Edward
-  Tufte's data-ink: an off-white page, serif type, no box or grid, grey
-  data and muted colour), **Journal** (print-ready, colour-blind safe),
+  legends, color bars, lines and marks. Built in: **Tufte** (Edward
+  Tufte's data-ink: an off-white page, serif type, no box or grid, gray
+  data and muted color), **Journal** (print-ready, color-blind safe),
   **Night** (dark), **Talk** (big type, thick lines) and **Gray panel**
   (the ggplot2 look). Picking one -- the analysis app's **Design** list
   and menu, any plot's right-click **Design** submenu, or
   `PlotDesign.use` -- redraws every plot on screen at once, and runs draw
   their figures in it. **Save look as design...** keeps a plot's look
-  (every property of every component, its ground and group colours) as a
+  (every property of every component, its ground and group colors) as a
   JSON design of your own; designs can be imported, deleted and kept in a
   shared folder. A design is a preference, drawn under your rules and the
   plot's own, so those still win. `renderPlot` takes `Design=`.
 - The aesthetics editor sets an axes' tick length, and a legend's or
-  colour bar's font.
+  color bar's font.
 
 - A behavior plot kind (`behavior`): a per-trial value against a trial
   parameter, e.g. RespLatency by Depth, one series per value of another
@@ -201,7 +201,7 @@ says how to cut a release.
   the onsets and / or offsets of digital lines inside its epoch, every one
   of them (several beam crossings in a trial get several marks;
   `rasterEvents`: lines, edge, window or trial scope, marker, size,
-  colour; `epochEvents`). The marks are named per line and edge for the
+  color; `epochEvents`). The marks are named per line and edge for the
   aesthetics editor and listed in the raster's legend. The plot editor
   has controls for all of them.
 
@@ -259,7 +259,7 @@ says how to cut a release.
   `EphysDataset.runSpikeInterface` (`run_si.py`) sorts the same `.bin`
   (artifact periods erased, the common reference applied once: the sorter's
   own is kept out when the `.bin` carries one). It writes phy files in
-  Kilosort4's layout to `<output folder>/si_<sorter>/`, each unit labelled
+  Kilosort4's layout to `<output folder>/si_<sorter>/`, each unit labeled
   good or mua by the good-unit criteria (`cluster_SILabel.tsv`), so phy,
   the Review tab, the QC report, the exports and the analysis read it
   unchanged. Background runs, the queue, **Stop runs**, Clean up, the
@@ -419,7 +419,7 @@ says how to cut a release.
   takes `Provenance=`.
 - Run records: `EphysPipeline.run` writes
   `<OutputRoot or Root>/pipeline_runs/<runId>_<name>.json` (steps, datasets,
-  config, code, machine, Results) whether the run finishes, is cancelled or
+  config, code, machine, Results) whether the run finishes, is canceled or
   fails; `EphysAnalysisRunner.run` writes `analysis_runs/<runId>_<name>.json`
   in the report folder. Analysis reports show the code version.
 - `stringifyNonFinite` (moved out of `writeJsonFile`), `provenanceForJson`;
@@ -431,7 +431,7 @@ says how to cut a release.
   `std` / `rms` are exact; `mad` / `percentile` come from a 0.05 µV histogram
   over ±2000 µV (`info.noiseEstimate` records how; a statistic beyond the
   range or below one bin leaves the channel degenerate, with a warning).
-  `Spikes.ThresholdScope` in the config (default `"chunk"`, the behaviour so
+  `Spikes.ThresholdScope` in the config (default `"chunk"`, the behavior so
   far) and **Noise measured over** on the Spikes tab; the spikes file records
   the scope (`detected.info.thresholdScope`). Suite `test_ThresholdScope`.
 - Unit quality metrics with SpikeInterface's definitions (`unitQualityMetrics`:
@@ -526,7 +526,7 @@ says how to cut a release.
 - Plot aesthetics: right-click any part of an analysis plot (the app's
   preview, or any visible figure `renderPlot` draws into) and pick **Edit
   aesthetics...**. A modal window (`PlotAestheticsDialog`) lists every
-  component drawn and edits colours, line styles and widths, markers,
+  component drawn and edits colors, line styles and widths, markers,
   opacity, fonts, axes, legends and colormaps, with each change shown at
   once. A change goes to this component, the same one in every tile, every
   group of its role, or the rows ticked. **Reset**, **Cancel** and **OK**.
@@ -542,7 +542,7 @@ says how to cut a release.
 ### Changed
 
 - Analysis grids (PSTH, raster, tuning, evoked butterfly and grid, heatmap,
-  unit correlation) are labelled once, on their tiled layout: one x label
+  unit correlation) are labeled once, on their tiled layout: one x label
   under the whole grid and one y label beside it (a PSTH with rasters names
   the rates, then the rasters' rows), with the plot's title above. The
   tiles keep only their own titles. A grid's legend goes east of the grid
@@ -581,7 +581,7 @@ says how to cut a release.
   (`EphysPipelineConfig:SignalsMUAIntegration`,
   `EphysDataset:deriveSignals:MUA_IntegrationNyquist`).
 - The QC report (`writeUnitQualityReport`, the Review tab's **QC report**)
-  lists the units labelled good first, sorts its table by a click on a
+  lists the units labeled good first, sorts its table by a click on a
   column header (again: reversed; a third time: back), and draws each good
   unit's mean waveform on its peak channel: the mean and SD of up to
   `WaveformSpikes` (100) of its spikes cut from the sorted `.bin`, else its
@@ -687,10 +687,10 @@ says how to cut a release.
 ### Fixed
 
 - Analysis plots of threshold detections (source *detected*) and of signals
-  labelled every channel "sh0" with no depth, and could not sort them by depth
+  labeled every channel "sh0" with no depth, and could not sort them by depth
   or shank, when the dataset's manifest names no probe file: the case for a
   dataset sorted with the pipeline's default probe, which the manifest records
-  only with `Probe.WriteDefaultToManifest`. Sorted units were labelled right,
+  only with `Probe.WriteDefaultToManifest`. Sorted units were labeled right,
   since their sites come from the sort folder. `loadAnalysisSource` now takes
   the probe map the sort used (`channel_map.npy`, `channel_positions.npy`,
   `channel_shanks.npy`) when there is no probe file, and says which in
@@ -722,7 +722,7 @@ says how to cut a release.
 - The Run tab's results table fills as the Run goes, one row per step and
   dataset, instead of staying empty until the Run ends; a row the Kilosort4
   monitor restates during the Run shows at once.
-- A problem with the common reference colours the Artifacts tab even while
+- A problem with the common reference colors the Artifacts tab even while
   automatic detection is off.
 - `EphysProject.toBinAll` with options failed with "Too many input
   arguments" (its classdef declaration listed `opts` for a `varargin` file).
@@ -746,7 +746,7 @@ says how to cut a release.
 - The guard that stops `toBin` writing over a recording file now resolves
   `.` and `..` itself when MATLAB runs without Java.
 - Visualize: spike ticks are drawn 2 points wide, edged in the plot's
-  background colour and in front of the traces. Before, they were 1.2-point
+  background color and in front of the traces. Before, they were 1.2-point
   lines inside the trace's own band and hard to see on a dense trace.
   Stored waveforms in µV on their own lanes have a scale of their own
   (`EphysTraceViewer.RasterSpacing`, picked from the units' or channels'

@@ -6,7 +6,7 @@ function refreshCleanupTable(obj, part)
 %   updates only the totals and the Delete / Recycle / Move files... button, leaving the table
 %   (and the user's sort of it) as it is.
 %
-%   Ticked Remove rows are tinted red, unticked ones grey; raw recording files
+%   Ticked Remove rows are tinted red, unticked ones gray; raw recording files
 %   that are kept (no verified source copy) amber, since they are the ones a
 %   user may have expected to go. While a move's folder is checked
 %   (CleanupMove, refreshCleanupMove) a ninth column, In the folder, says

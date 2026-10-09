@@ -45,7 +45,7 @@ arguments
     opts.Wait (1,1) logical = true
 end
 
-if isempty(obj.Transfer) || (obj.Transfer.Closed && ~obj.Transfer.Cancelled)   % a stopped one stays stopped
+if isempty(obj.Transfer) || (obj.Transfer.Closed && ~obj.Transfer.Canceled)   % a stopped one stays stopped
     obj.Transfer = newTransfer(obj);
     if ~isempty(obj.TransferFcn)
         obj.TransferFcn(obj.Transfer);

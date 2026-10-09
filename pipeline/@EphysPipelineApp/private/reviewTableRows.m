@@ -1,7 +1,7 @@
 function C = reviewTableRows(R)
 %reviewTableRows  The Review units table, one row per cluster of R (loadReviewResults).
 %   Unit, Group, Shank, Ch (name, else recording channel), X, Y (template
-%   centre), #Spk, FR, Amp, Cont%, QC (meets the criteria: "yes" / "no",
+%   center), #Spk, FR, Amp, Cont%, QC (meets the criteria: "yes" / "no",
 %   blank without metrics), ISIv (isiViolationsRatio), Pres (presenceRatio),
 %   Cutoff (amplitudeCutoff), SNR, Notes (editable).
 U = numel(R.clusterID);

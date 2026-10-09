@@ -478,7 +478,7 @@ needsSorted = (E.Enabled && E.IncludeUnits) || analysisUnits;
 if needsSorted && patternParses
     id = EphysDataset.nameIdentity("", P.NamePattern);
     if id.reason == "pattern"
-        add("project", "NamePattern", "error", id.message + " Sorted units are labelled from the dataset name.");
+        add("project", "NamePattern", "error", id.message + " Sorted units are labeled from the dataset name.");
     end
 end
 if S.Enabled && S.Execution == "background" && ~S.DryRun && needsSorted

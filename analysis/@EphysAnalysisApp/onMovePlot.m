@@ -1,6 +1,6 @@
 function onMovePlot(obj, step)
 %onMovePlot  Move the selected plot up (-1) or down (+1) its group (the run and report order).
-%   It swaps places with its neighbour in the tree's group (the whole list
+%   It swaps places with its neighbor in the tree's group (the whole list
 %   when ungrouped), which shows as one step; the plots between them keep theirs.
 k = obj.SelectedPlot;
 cfg = obj.gatherConfig();

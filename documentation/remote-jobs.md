@@ -91,13 +91,13 @@ D:\EPHYS\queue\jobs\20260918T143207_a7f3\
 
 ```json
 { "schema":"ephys-job/1", "id":"20260918T143207_a7f3", "name":"su1255 signals+spikes",
-  "state":"queued|staging|running|done|failed|cancelled",
+  "state":"queued|staging|running|done|failed|canceled",
   "submitted":"...","started":"...","finished":"...","heartbeat":"...","pid":12345,
   "steps":["copy","probe","behavior","artifacts","sorting","signals","spikes","export"],
   "step":"signals", "dataset":"1255/1255_260908_103912",
   "index":3, "count":12, "done":0.42, "total":1, "message":"deriving LFP",
   "fraction":0.31,
-  "counts":{"ok":8,"skipped":1,"error":0,"cancelled":0}, "error":"" }
+  "counts":{"ok":8,"skipped":1,"error":0,"canceled":0}, "error":"" }
 ```
 
 `fraction` is computed **once, by the runner**, from the documented rule
@@ -147,7 +147,7 @@ place that knows the on-disk protocol:
 
 `CancelTarget` holds the object to cancel — the `EphysPipeline`, or the
 `copySessions` job during staging. When `progress` sees the sentinel it calls
-`CancelTarget.cancel()`; `EphysPipeline` then throws `EphysPipeline:Cancelled`
+`CancelTarget.cancel()`; `EphysPipeline` then throws `EphysPipeline:Canceled`
 at the next notification, and its atomic writes guarantee nothing half-done is
 left behind. This is exactly the contract the GUI's Cancel button already
 relies on.
@@ -258,7 +258,7 @@ Endpoints, all under `/api`, bearer token required except `/api/health`:
 | GET | `/api/jobs/{id}/progress?since=N` | NDJSON lines after line N |
 | GET | `/api/jobs/{id}/log?pos=N` | `{pos, text}` — byte-offset tail |
 | GET | `/api/jobs/{id}/results` | `results.json` |
-| POST | `/api/jobs/{id}/cancel` | touch the sentinel, or mark cancelled if still queued |
+| POST | `/api/jobs/{id}/cancel` | touch the sentinel, or mark canceled if still queued |
 | DELETE | `/api/jobs/{id}` | delete a finished job's directory |
 | GET | `/api/events` | SSE stream of status changes |
 
@@ -379,7 +379,7 @@ Deliberately small; the app already has every widget needed.
 
 `server/static/index.html` — one page, no build step, no framework, matching the
 repo's existing zero-toolchain HTML. Queue table; an expandable job row showing
-the step chain in the same boxes and colours as the Run tab's diagram; a live
+the step chain in the same boxes and colors as the Run tab's diagram; a live
 log pane fed by SSE; a Cancel button; and a Submit panel that takes a saved
 config JSON (drag-drop or paste) plus a dataset selection.
 
@@ -408,7 +408,7 @@ MATLAB, following the repo's `test_*.m` convention and added to
 
 - `pipeline/test_EphysJobReporter.m` — NDJSON and `status.json` shapes;
   `fraction` monotonicity across a synthetic event sequence; atomic writes; the
-  cancel sentinel triggers `EphysPipeline:Cancelled`; heartbeat updates.
+  cancel sentinel triggers `EphysPipeline:Canceled`; heartbeat updates.
 - `pipeline/test_RemoteJobs.m` — end to end on a synthetic project:
   `makeSyntheticProject` → write a job directory → `ephysRunJob` in process →
   outputs **identical to a direct `EphysPipeline.run()`** of the same config
@@ -424,7 +424,7 @@ Python, `server/tests/`:
 - `test_queue.py` — slot accounting including the sorting slot, FIFO and
   priority, crash detection via a stale heartbeat, restart rebuilding the index
   from disk.
-- `test_api.py` — every endpoint, auth failures, cancelling a queued versus a
+- `test_api.py` — every endpoint, auth failures, canceling a queued versus a
   running job.
 
 Manual checklist, on the real machine, in order:
@@ -434,7 +434,7 @@ Manual checklist, on the real machine, in order:
 2. Submit a synthetic-project job from MATLAB; `c.wait(id)` prints the same
    lines a local run does.
 3. The same job is visible and live-updating in the browser; Cancel mid-
-   `signals` leaves no partial `.mat` and marks the dataset `cancelled`.
+   `signals` leaves no partial `.mat` and marks the dataset `canceled`.
 4. A real staging job: NAS → local, then sorting, with a GPU sort completing
    **under the service account**.
 5. Kill the `matlab.exe` of a running job; within 90 s it shows `failed` with
@@ -467,8 +467,8 @@ Tailscale / Cloudflare option for access without VPN.
 - **Session 0 and the GPU.** The most likely thing to bite. Verified in the
   manual checklist above, with the auto-login fallback documented.
 - **MATLAB licensing.** Each concurrent `matlab -batch` takes a seat. With a
-  single-seat licence, `max_workers` is effectively 1 and the sorting slot is
-  moot. Confirm the licence type before choosing a default.
+  single-seat license, `max_workers` is effectively 1 and the sorting slot is
+  moot. Confirm the license type before choosing a default.
 - **Client-supplied paths.** Addressed by the root allowlist and the `PythonExe`
   override. Without both, the API is remote code execution.
 - **Disk.** Staging copies whole sessions to local disk. `copySessions` already

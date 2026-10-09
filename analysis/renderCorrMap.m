@@ -1,15 +1,15 @@
 function h = renderCorrMap(R, target, opts)
 %renderCorrMap  Unit-by-unit correlation matrices, one tile per group.
 %   H = renderCorrMap(R, TARGET, Style=) draws a unitCorrelation
-%   result as a square image per group on one colour scale (Style.CLim,
+%   result as a square image per group on one color scale (Style.CLim,
 %   else [-1 1]) with Style.HeatColormap ("" = blueWhiteRed). Each tile's
 %   title gives its group, the epochs used and the mean pairwise r.
 %
 %   Units are ordered by Style.SortShank / Style.SortDepth (by shank, then
-%   top of the probe first; neither = as listed) and labelled with their
+%   top of the probe first; neither = as listed) and labeled with their
 %   shank / depth when Style.LabelShank / Style.LabelDepth say so: on the
 %   outer tiles only, as every tile shares one order. The x and y labels
-%   and the colour bar are the tiled layout's, once for every tile.
+%   and the color bar are the tiled layout's, once for every tile.
 %
 %   H: layout (tiled layout or []), axes, colorbar.
 %

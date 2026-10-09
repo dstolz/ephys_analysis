@@ -6,7 +6,7 @@ function refreshRunDiagram(obj)
 %   ended), a line naming the config, the datasets and the times, and per
 %   step its state and label, percentage, the dataset and message of its last
 %   event and its result counts (done, in the background, dry run,
-%   skipped, to check, errors, cancelled; a background sorting run
+%   skipped, to check, errors, canceled; a background sorting run
 %   counts as done once the monitor has seen it finish).
 
 h = obj.RunDiagramHTML;
@@ -22,11 +22,11 @@ function p = stepData(s, M)
 [summary, nErr] = resultCounts(M.results, s.key);
 if s.state == "running" && summary ~= ""
     summary = "So far: " + summary;
-elseif ~ismember(s.state, ["done" "cancelled" "failed"])
+elseif ~ismember(s.state, ["done" "canceled" "failed"])
     summary = "";
 end
 where = "";
-if s.index > 0 && ismember(s.state, ["running" "cancelled" "failed"])
+if s.index > 0 && ismember(s.state, ["running" "canceled" "failed"])
     lead = "Dataset";
     if s.state ~= "running"; lead = "Stopped at dataset"; end
     where = sprintf("%s %d of %d: %s", lead, s.index, s.count, s.dataset);
@@ -49,7 +49,7 @@ switch state
     case "off";    t = "not in this run";
     case "queued"; t = "waiting";
     case "notrun"; t = "not run";
-    otherwise;     t = state;   % running, done, cancelled, failed
+    otherwise;     t = state;   % running, done, canceled, failed
 end
 end
 
@@ -66,11 +66,11 @@ ok   = ismember(st, ["done" "ok" "associated" "approved" "auto-approved"]) | sta
 bg   = ismember(st, ["launched" "queued"]);   % background sorting runs the monitor restates when they end
 skip = startsWith(st, "skipped");
 err  = startsWith(st, "error");
-can  = ismember(st, ["cancelled" "not run"]);
+can  = ismember(st, ["canceled" "not run"]);
 look = ~(dry | ok | bg | skip | err | can);   % no probe, unmatched, needs review, ...
 nErr = nnz(err);
 n = [nnz(ok) nnz(bg) nnz(dry) nnz(skip) nnz(look) nErr nnz(can)];
-words = ["done" "in the background" "dry run" "skipped" "to check" "errors" "cancelled"];
+words = ["done" "in the background" "dry run" "skipped" "to check" "errors" "canceled"];
 if nErr == 1; words(6) = "error"; end
 parts = compose("%d %s", n(:), words(:));
 t = join(parts(n > 0), ", ");
@@ -95,9 +95,9 @@ switch M.phase
         t = "Finished " + plural(n, "step") + " in " + elapsed(M);
         nErr = nnz(startsWith(M.results.Status, "error"));
         if nErr > 0; t = t + ", " + plural(nErr, "error"); end
-    case "cancelled"
-        j = find([run.state] == "cancelled", 1);
-        t = "Cancelled";
+    case "canceled"
+        j = find([run.state] == "canceled", 1);
+        t = "Canceled";
         if ~isempty(j); t = t + " during " + run(j).title; end
         t = t + " after " + elapsed(M);
     otherwise

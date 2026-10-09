@@ -20,7 +20,7 @@ function out = toMat(obj, opts)
 %
 %   The file is written to "~<name>.partial.mat" next to the target and
 %   renamed only after save() finishes without warnings and every variable is
-%   confirmed present, so a failed or cancelled run never leaves a
+%   confirmed present, so a failed or canceled run never leaves a
 %   complete-looking file behind. (save() reports a variable it could not
 %   store, e.g. over 2 GB with -v7, as a warning and omits it; that is treated
 %   as a failure here.)

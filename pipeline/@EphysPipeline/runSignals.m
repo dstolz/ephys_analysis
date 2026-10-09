@@ -32,7 +32,7 @@ n = numel(ds);
 for k = 1:n
     d = ds(k);
     if obj.CancelRequested
-        obj.addResult("signals", d.Name, "cancelled", "not run");
+        obj.addResult("signals", d.Name, "canceled", "not run");
         continue
     end
     t0 = tic;
@@ -96,9 +96,9 @@ for k = 1:n
                 r.file(j), toc(t0));
         end
     catch ME
-        if strcmp(ME.identifier, 'EphysPipeline:Cancelled')
-            obj.log("[signals] %s: cancelled (nothing written)", d.Name);
-            addRows("cancelled", "cancelled; nothing written");
+        if strcmp(ME.identifier, 'EphysPipeline:Canceled')
+            obj.log("[signals] %s: canceled (nothing written)", d.Name);
+            addRows("canceled", "canceled; nothing written");
             continue
         end
         obj.log("[signals] %s: ERROR %s", d.Name, ME.message);
@@ -106,7 +106,7 @@ for k = 1:n
     end
 end
 if obj.CancelRequested
-    error('EphysPipeline:Cancelled', 'Cancelled by user.');
+    error('EphysPipeline:Canceled', 'Canceled by user.');
 end
 
     function addRows(status, message)

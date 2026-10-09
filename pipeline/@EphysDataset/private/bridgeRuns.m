@@ -5,7 +5,7 @@ function X = bridgeRuns(X, on, off, N, center, ctx, w)
 %   mean of the (up to W) rows before the run to the mean of those after it,
 %   plus the run's rows of the noise N ([sum(OFF-ON+1) x nChan], in row
 %   order; [] = no noise, a bare line). The rows averaged never reach into a
-%   neighbouring run. A run at the top of X starts from the last W rows of
+%   neighboring run. A run at the top of X starts from the last W rows of
 %   CTX; with one side missing the run is held at the other side's level,
 %   with both missing at CENTER ([1 x nChan]).
 %

@@ -2,7 +2,7 @@ function h = renderRates(R, target, opts)
 %renderRates  Draw a firingRate result: rate per unit and group.
 %   H = renderRates(R, TARGET, Layout=, Style=) draws one panel, units along
 %   x (by Style.SortShank / Style.SortDepth: by shank, then top of the probe
-%   first; neither = as listed), groups side by side in their colours.
+%   first; neither = as listed), groups side by side in their colors.
 %   Style.LabelShank / Style.LabelDepth append the shank / depth to the unit
 %   labels.
 %

@@ -9,7 +9,7 @@ function z = zoomFrame(key, initial)
 %   about the pointer, a drag pans (the click that ends a drag opens no
 %   box), and the buttons zoom out, back to 100%, in, and fit the whole
 %   drawing in view (below the buttons). INITIAL is where a page starts:
-%   "fit" (the whole drawing) or "actual" (100%, from the top, centred
+%   "fit" (the whole drawing) or "actual" (100%, from the top, centerd
 %   across, as the detail view's tree is). Until it is zoomed or panned,
 %   the page keeps that view as the viewport resizes.
 %
@@ -69,7 +69,7 @@ z.js = join([ ...
     "    }"
     "  }"
     % The view AUTO names, once the viewport has a size: all of the drawing
-    % below the buttons, or 100% from the top, centred across either way.
+    % below the buttons, or 100% from the top, centerd across either way.
     "  function follow(report) {"
     "    var vw = view.clientWidth, vh = view.clientHeight, cw = stage.scrollWidth, ch = stage.scrollHeight;"
     "    if (!vw || !vh || !cw || !ch) { return; }"

@@ -6,7 +6,7 @@ function refuseRecordingFiles(obj, targets, who)
 %   own files, fullfile(DS.Folder, DS.Files). A universal-format recording's
 %   data file can be <Name>.bin in the very folder the .bin goes to by
 %   default, and opening it for writing truncates it. Paths are compared
-%   absolute and normalised (relative ones against the current folder, as
+%   absolute and normalized (relative ones against the current folder, as
 %   FOPEN resolves them), ignoring case on Windows.
 %
 %   See also EphysDataset.toBin, EphysDataset.matrixToBin.
@@ -26,7 +26,7 @@ end
 
 
 function p = absolutePath(p)
-%absolutePath  Absolute, normalised form of each path (. and .. resolved).
+%absolutePath  Absolute, normalized form of each path (. and .. resolved).
 p = string(p);
 for k = 1:numel(p)
     q = char(p(k));

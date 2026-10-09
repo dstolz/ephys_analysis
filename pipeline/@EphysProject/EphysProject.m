@@ -233,7 +233,7 @@ classdef EphysProject < handle
         end
 
         function T = unitIdentities(obj, opts)
-            %unitIdentities  How each dataset's sorted units are labelled.
+            %unitIdentities  How each dataset's sorted units are labeled.
             %   T = P.unitIdentities() has one row per dataset: Key, Name, Subject,
             %   RecordingStart, LabelSuffix ("<subject>_<yyMMdd>T<HHmm>", the tail of
             %   its unit labels), Status and Message. Status is "ok"; why the name
@@ -411,7 +411,7 @@ classdef EphysProject < handle
             %   dataset's outputs copied again beside an earlier copy):
             %   when no output in it is named after the folder and one is
             %   named after <name>, the dataset is <name>, so its files are
-            %   found (DatasetOutputs) and its units labelled from <name>.
+            %   found (DatasetOutputs) and its units labeled from <name>.
             %   NAME = EphysProject.outputFolderName(FOLDER, FILES) takes the
             %   names of the files directly in FOLDER instead of listing it.
             arguments

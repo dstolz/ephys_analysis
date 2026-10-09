@@ -1,5 +1,5 @@
 function syncTabStrip(obj)
-%syncTabStrip  Colour each tab button by its status and underline the selected tab.
+%syncTabStrip  Color each tab button by its status and underline the selected tab.
 %   States: off (step disabled), ok (ready), warn (needs attention: config
 %   warnings, selected datasets without a probe, trial pairings not yet
 %   approved), error (config errors), busy (pipeline running) and neutral

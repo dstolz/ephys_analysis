@@ -45,7 +45,7 @@ function [R, E, G] = computePlot(obj, src, spec, opts) %#ok<INUSD>
 %   While PollFcn is set (the app's preview) the compute can be stopped: a
 %   checkpoint runs between its steps, and the per-unit and per-epoch loops
 %   of spikePSTH, aurocCurves, evokedPotential and unitWaveforms get it as
-%   Check=; after cancel() the next one throws EphysAnalysisRunner:Cancelled
+%   Check=; after cancel() the next one throws EphysAnalysisRunner:Canceled
 %   (checkpoint). A read of one file or one epochTable call is not
 %   interrupted; the checkpoint after it is.
 %   Page=P (the app's preview; default 0 = every page) computes only the

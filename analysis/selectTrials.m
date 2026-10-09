@@ -11,10 +11,10 @@ function [mask, G, gi] = selectTrials(src, sel)
 %     GI     [nTrials x 1] group of each trial (0 = not kept)
 %   A trial is kept when its PairingFlag is one of pairingFlags, it is any of
 %   the response words, the filter is true for it and (when trials is set)
-%   it is one of the listed rows. Groups follow groupOrder; colours come
+%   it is one of the listed rows. Groups follow groupOrder; colors come
 %   from groupColors (a numeric parameter with more than two values runs
 %   through parula, anything else uses lines; one ungrouped set is dark
-%   grey).
+%   gray).
 %
 %   Without paired trials (src.hasTrials false) there is one group "all"
 %   and MASK is empty; a filter, response, trials or groupBy then raises

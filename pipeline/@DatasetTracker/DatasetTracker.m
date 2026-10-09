@@ -5,7 +5,7 @@ classdef DatasetTracker < handle
     %   a uniform, read-only form so other classes and GUIs do not each have to
     %   re-implement the same `dir`/`jsondecode` scans. It tracks:
     %
-    %     Recordings   folders a registered EphysReader recognises (one
+    %     Recordings   folders a registered EphysReader recognizes (one
     %                  EphysDataset's worth of raw data each)
     %     ProbeFiles   Kilosort4 probe .json maps (chanMap/xc/yc), including any
     %                  derived *_excluded.json written next to a sort

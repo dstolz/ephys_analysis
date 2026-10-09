@@ -1,15 +1,15 @@
 function h = renderProbeMap(values, probe, target, opts)
 %renderProbeMap  Draw one value per channel on the probe's sites.
-%   H = renderProbeMap(VALUES, PROBE, TARGET, Name=Value) colours every site
+%   H = renderProbeMap(VALUES, PROBE, TARGET, Name=Value) colors every site
 %   of the probe map PROBE (chanMap 0-based, xc, yc, kcoords) by VALUES, all
-%   shanks on one axis and one colour scale. VALUES is either a numeric vector
+%   shanks on one axis and one color scale. VALUES is either a numeric vector
 %   indexed by 1-based recording channel, or a probeMapValues result (then
 %   PROBE may be []; its units' own positions are drawn as black dots).
-%   Sites without a value are open grey squares.
+%   Sites without a value are open gray squares.
 %
 %   Options
 %     Title       text over the tiles
-%     ValueName   colour-bar label (default the result's units, else "value")
+%     ValueName   color-bar label (default the result's units, else "value")
 %     SiteLabels  write the channel number next to each site (default: when
 %                 no shank has more than 64 sites)
 %     Style       EphysAnalysisConfig.defaults("Style") fields (HeatColormap, SiteSize,

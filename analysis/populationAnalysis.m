@@ -34,9 +34,9 @@ function [P, S, files] = populationAnalysis(source, opts)
 %   and AurocGroupBy splits the auROC's epochs. Units.response is not used either, since every unit is
 %   tested here with one correction over the family. Filter P.units by
 %   responsive / tuned instead; passing an enabled Units.response is
-%   populationAnalysis:ResponseSelection. A dataset that cannot be analysed
+%   populationAnalysis:ResponseSelection. A dataset that cannot be analyzed
 %   is left out and listed in P.datasets, with the warning
-%   populationAnalysis:DatasetSkipped when it has nothing to analyse (no
+%   populationAnalysis:DatasetSkipped when it has nothing to analyze (no
 %   units, events or epochs), else populationAnalysis:DatasetFailed.
 %
 %   P fields
@@ -49,8 +49,8 @@ function [P, S, files] = populationAnalysis(source, opts)
 %               responseRate, pEvoked, qEvoked, direction, responsive and,
 %               with Param, nLevels, pTuning, qTuning, tuned, bestLevel,
 %               bestRate; q over the family), psthPeak (the highest PSTH
-%               bin whose centre lies in the response window, in the PSTH's
-%               unit), psthLatency (that bin's centre, s; NaN when every
+%               bin whose center lies in the response window, in the PSTH's
+%               unit), psthLatency (that bin's center, s; NaN when every
 %               such bin is equal), and the auROC's (P.auroc.calls per
 %               group): aurocGroup, aurocMean, aurocPhasic, aurocPeak,
 %               aurocPeakTime, aurocP and aurocQ of the unit's group whose
@@ -59,17 +59,17 @@ function [P, S, files] = populationAnalysis(source, opts)
 %               called so in some group and never the other way, "mixed"
 %               when both, "none"; "" without Tests or a call) and
 %               aurocModulated (in any group)
-%     psth      t [nBins x 1] (bin centres, s), rate [nBins x nUnits] (each
+%     psth      t [nBins x 1] (bin centers, s), rate [nBins x nUnits] (each
 %               unit's PSTH, the rows of P.units), units (its measurement
 %               unit), window, binSec, smoothSec, measure, baselineMode
-%     auroc     ([] without Tests) t [nWindows x 1] (window centres, s),
+%     auroc     ([] without Tests) t [nWindows x 1] (window centers, s),
 %               calls (table, one row per unit and group, a unit's groups
 %               together: dataset, datasetKey, subject, label, unitId,
 %               unit (its row of P.units), group, nEpochs, mean and phasic
 %               (the mean auROC and mean |auROC - 0.5| over the windows
 %               inside Auroc.modulationWindow; NaN for a unit silent over
 %               the group's epochs), peak (the auROC there farthest from
-%               0.5) and peakTime (its window's centre, s; both NaN when
+%               0.5) and peakTime (its window's center, s; both NaN when
 %               every such window is equal), p and q (cutoff "test"; q
 %               over the family), direction ("increase" | "decrease" |
 %               "none"; "" without a call), modulated), auroc [nWindows x
@@ -338,7 +338,7 @@ end
 reportDatasets(D);
 done = find(D.status == "done").';
 if isempty(done)
-    error('populationAnalysis:NoUnits', 'No dataset gave units to analyse:%s', ...
+    error('populationAnalysis:NoUnits', 'No dataset gave units to analyze:%s', ...
         sprintf('\n  %s: %s', [D.dataset D.message].'));
 end
 
@@ -427,7 +427,7 @@ end
 
 
 function [pk, lat] = peakIn(rate, t, w)
-%peakIn  Per unit: the highest bin whose centre lies in [w0, w1), and that centre.
+%peakIn  Per unit: the highest bin whose center lies in [w0, w1), and that center.
 n = size(rate, 2);
 pk = NaN(n, 1);
 lat = NaN(n, 1);
@@ -471,7 +471,7 @@ end
 
 
 function [pk, at] = aurocPeak(A)
-%aurocPeak  Per unit and group: the auROC of the window inside the modulation window farthest from 0.5, and that window's centre.
+%aurocPeak  Per unit and group: the auROC of the window inside the modulation window farthest from 0.5, and that window's center.
 %   NaN where the windows there are all equally far from 0.5.
 a = A.auroc(A.inModulation, :, :);
 tt = A.t(A.inModulation);
@@ -578,7 +578,7 @@ for kind = ["skipped" "error"]
     if ~any(rows); continue; end
     list = strjoin(compose("%s (%s)", D.dataset(rows), D.message(rows)), "; ");
     if kind == "skipped"
-        warning('populationAnalysis:DatasetSkipped', '%d dataset(s) with nothing to analyse are left out: %s', nnz(rows), list);
+        warning('populationAnalysis:DatasetSkipped', '%d dataset(s) with nothing to analyze are left out: %s', nnz(rows), list);
     else
         warning('populationAnalysis:DatasetFailed', '%d dataset(s) failed and are left out: %s', nnz(rows), list);
     end

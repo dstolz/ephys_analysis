@@ -1,9 +1,9 @@
 function C = groupColors(values, ordinal)
 %groupColors  One RGB row per group.
-%   C = groupColors(VALUES, ORDINAL) gives numel(VALUES) colours: sampled from
+%   C = groupColors(VALUES, ORDINAL) gives numel(VALUES) colors: sampled from
 %   parula (dark to light, in the order given) when ORDINAL is true and there
 %   are more than two groups -- a numeric parameter such as Depth -- and the
-%   lines colours otherwise.
+%   lines colors otherwise.
 
 n = numel(values);
 if n == 0

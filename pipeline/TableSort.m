@@ -68,7 +68,7 @@ classdef TableSort
             %   DATA is the table's Data, SHOWN its DisplayData, COL the
             %   column clicked (a column of DATA), NAMES its ColumnName and
             %   VARIABLE the variable clicked when DATA is a table ("" = from COL).
-            %   The direction is the one most neighbouring values in SHOWN
+            %   The direction is the one most neighboring values in SHOWN
             %   follow. When they tell none (one row, equal values) it is
             %   "ascend" for a new column and the other direction for the
             %   column of PREV, as a second click on a header gives. PREV
@@ -118,7 +118,7 @@ classdef TableSort
         end
 
         function d = direction(v)
-            %direction  "ascend" or "descend": the way most neighbouring values of V go.
+            %direction  "ascend" or "descend": the way most neighboring values of V go.
             %   Missing values are left out; "" when no two values differ.
             g = sortRanks(v);
             g = g(~isnan(g));

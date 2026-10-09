@@ -37,7 +37,7 @@ What each MATLAB toolbox is used for, function by function, is listed under
 
 1. Install MATLAB R2023a or later (the Artifacts tab uses `xregion`; the code
    also relies on `arguments`-block validation and string arrays). The code
-   is developed and tested on R2025a. The analysis plot editor's colour
+   is developed and tested on R2025a. The analysis plot editor's color
    picker is `uicolorpicker` (R2024a); earlier releases get a swatch that
    opens `uisetcolor`.
 2. In the Add-On Explorer or the installer, include the **Signal Processing

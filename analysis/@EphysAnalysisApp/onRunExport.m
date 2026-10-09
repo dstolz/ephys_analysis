@@ -56,8 +56,8 @@ obj.OpenReportButton.Enable = matlab.lang.OnOffSwitchState(~isempty(obj.LastRepo
 obj.OpenFolderButton.Enable = matlab.lang.OnOffSwitchState(obj.LastExportFolder ~= "" && isfolder(obj.LastExportFolder));
 obj.ToolbarReportTool.Enable = obj.OpenReportButton.Enable;
 obj.ToolbarFolderTool.Enable = obj.OpenFolderButton.Enable;
-counts = arrayfun(@(s) nnz(R.Status == s), ["done" "skipped" "error" "cancelled"]);
-obj.RunLabel.Text = sprintf("Results: %d done, %d skipped, %d failed, %d cancelled (%.0f s)", counts, toc(t0));
+counts = arrayfun(@(s) nnz(R.Status == s), ["done" "skipped" "error" "canceled"]);
+obj.RunLabel.Text = sprintf("Results: %d done, %d skipped, %d failed, %d canceled (%.0f s)", counts, toc(t0));
 obj.setStatus(obj.RunLabel.Text);
 clear cleanup
 end

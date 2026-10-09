@@ -8,7 +8,7 @@ function R = benchmarkDetection(opts)
 %   and scores both against that truth.
 %
 %   The recordings: units of the given trough amplitudes (raw, on the peak
-%   site; the template spreads over the neighbouring sites as the generator
+%   site; the template spreads over the neighboring sites as the generator
 %   draws it), firing without events at RateHz, over the generator's
 %   default background (white noise, 1/f noise, LFP rhythms, line noise)
 %   and its two artifacts (a 150 ms burst and a 400 ms saturating step).

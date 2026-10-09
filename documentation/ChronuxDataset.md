@@ -11,7 +11,7 @@ rescaling, interpolation or padding happens inside it. Trials that cannot be
 filled from the recording, or that contain non-finite samples, are dropped and
 listed in the returned `info` rather than being quietly patched.
 
-Chronux itself is not required to prepare data — only to analyse it. A copy is
+Chronux itself is not required to prepare data — only to analyze it. A copy is
 bundled in [`toolboxes/chronux`](../toolboxes/chronux); add it to the path:
 
 ```matlab
@@ -233,7 +233,7 @@ column vectors of seconds) — the form `mtspectrumpt` and friends read.
 | Option | Default | Notes |
 | --- | --- | --- |
 | `Units` | `[]` (all) | cluster ids (Kilosort) or channel indices, in the order given |
-| `Groups` | `[]` | keep only clusters labelled e.g. `["good" "mua"]` (phy's `cluster_group.tsv` when present, else `cluster_KSLabel.tsv`) |
+| `Groups` | `[]` | keep only clusters labeled e.g. `["good" "mua"]` (phy's `cluster_group.tsv` when present, else `cluster_KSLabel.tsv`) |
 | `DetectOptions` | `struct()` | `detectSpikes` options (`Source="detect"`) |
 | `TimeRange` | `[-Inf Inf]` | analysis window; spikes outside it are dropped and `t` spans it |
 | `TimeBase` | `"recording"` | `"window"` subtracts `t0` so the times and `t` start at 0 — what the hybrid routines need (see below) |

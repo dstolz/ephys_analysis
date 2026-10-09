@@ -2,7 +2,7 @@ function refreshTrialsPlot(obj)
 %refreshTrialsPlot  The Trials tab's plot of the digital lines from TrialsPairing.
 %   One bar per event, from its onset to its offset with the polarity applied
 %   (an inverted line's bars run from each falling edge to the next rising
-%   edge). The trial line's bars are coloured by pairing state, and dotted
+%   edge). The trial line's bars are colored by pairing state, and dotted
 %   lines across every row mark its onsets and offsets. Each paired trial can
 %   carry a text label above the trial line, starting at its onset, with its
 %   values of the trial parameters in TrialsLabelParams that the session
@@ -32,8 +32,8 @@ state(isCut) = "cut";
 colors = struct('ok', [0 0.45 0.74], 'partial', [0.85 0.5 0], 'cut', [0.55 0.55 0.55], 'unpaired', [0.8 0.1 0.1]);
 labels = struct('ok', "paired", 'partial', "partial (recording edge)", 'cut', "cut", 'unpaired', "unpaired");
 [trialText, labelParams] = trialLabels(obj, P);
-labelled = find(~isnan(P.onset) & trialText ~= "");
-yTop = nL + 0.6 + 0.5 * ~isempty(labelled);   % head room for the labels
+labeled = find(~isnan(P.onset) & trialText ~= "");
+yTop = nL + 0.6 + 0.5 * ~isempty(labeled);   % head room for the labels
 hold(ax, "on");
 if nI > 0
     t = reshape(iv.', [], 1);
@@ -51,8 +51,8 @@ end
 for j = 2:nL
     segments(ax, E.(names(j)), nL - j + 1, [0.4 0.4 0.4], 5, "", names(j));
 end
-if ~isempty(labelled)
-    text(ax, P.onset(labelled), repmat(nL + 0.25, numel(labelled), 1), cellstr(trialText(labelled)), ...
+if ~isempty(labeled)
+    text(ax, P.onset(labeled), repmat(nL + 0.25, numel(labeled), 1), cellstr(trialText(labeled)), ...
         "FontSize", 8, "Color", [0.25 0.25 0.25], "HorizontalAlignment", "left", ...
         "VerticalAlignment", "bottom", "Interpreter", "none", "Clipping", "on", ...
         "PickableParts", "none", "Tag", "trialLabels");
@@ -70,7 +70,7 @@ if nI > 0
     legend(ax, "Location", "eastoutside");
 end
 ttl = string(sprintf("Digital lines over the recording (%s: %d interval(s), %d trial(s)", P.trialLine, nI, P.nTrials));
-if ~isempty(labelled)
+if ~isempty(labeled)
     ttl = ttl + "; labels: " + strjoin(labelParams, ", ");
 end
 title(ax, ttl + ")");

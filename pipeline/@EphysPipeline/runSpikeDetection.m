@@ -25,7 +25,7 @@ if n > 0; obj.logParallel("spikes"); end
 for k = 1:n
     d = ds(k);
     if obj.CancelRequested
-        obj.addResult("spikes", d.Name, "cancelled", "not run");
+        obj.addResult("spikes", d.Name, "canceled", "not run");
         continue
     end
     t0 = tic;
@@ -65,9 +65,9 @@ for k = 1:n
         obj.log("[spikes] %s: wrote %s (%s)", d.Name, r.file, msg);
         obj.addResult("spikes", d.Name, "done", msg, r.file, toc(t0));
     catch ME
-        if strcmp(ME.identifier, 'EphysPipeline:Cancelled')
-            obj.log("[spikes] %s: cancelled (nothing written)", d.Name);
-            obj.addResult("spikes", d.Name, "cancelled", "cancelled; nothing written", out, toc(t0));
+        if strcmp(ME.identifier, 'EphysPipeline:Canceled')
+            obj.log("[spikes] %s: canceled (nothing written)", d.Name);
+            obj.addResult("spikes", d.Name, "canceled", "canceled; nothing written", out, toc(t0));
             continue
         end
         obj.log("[spikes] %s: ERROR %s", d.Name, ME.message);
@@ -75,6 +75,6 @@ for k = 1:n
     end
 end
 if obj.CancelRequested
-    error('EphysPipeline:Cancelled', 'Cancelled by user.');
+    error('EphysPipeline:Canceled', 'Canceled by user.');
 end
 end

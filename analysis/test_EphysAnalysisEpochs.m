@@ -163,7 +163,7 @@ check(height(G) == numel(u) && isequal(G.Depth, u) && isequal(G.n, cnt) && isequ
     sprintf('groupBy Depth: %d groups with the session''s counts, ascending', numel(u)));
 Gd = selectTrialsGroups(src, trialSelection(groupBy="Depth", groupOrder="descending"));
 check(isequal(Gd.Depth, flipud(u)), 'descending order reverses the groups');
-check(size(G.color, 2) == 3 && (numel(u) <= 2 || ~isequal(G.color(1, :), G.color(end, :))), 'each group has a colour');
+check(size(G.color, 2) == 3 && (numel(u) <= 2 || ~isequal(G.color(1, :), G.color(end, :))), 'each group has a color');
 [mask, ~, gi] = selectTrials(src, trialSelection(response="Hit"));
 check(isequal(mask, bitand(trials.RespCode, 1) > 0) && isequal(gi, double(mask)), 'response "Hit" keeps the trials with bit 1');
 m1 = selectTrials(src, trialSelection(filter="Hit | Miss"));
@@ -358,7 +358,7 @@ ok = numel(M) == 1 && M.label == "Trial offset then Poke onset" && M.line == "Po
 k2 = find(Eb.trial == 2); k4 = find(Eb.trial == 4); k10 = find(Eb.trial == 10);
 ok = ok && abs(M.t(M.epoch == k2) - (P(1, 1) - on(2))) < 1e-12 && abs(M.t(M.epoch == k4) - (P(3, 1) - on(4))) < 1e-12 ...
     && abs(M.t(M.epoch == k10) - (P(6, 1) - on(10))) < 1e-12;
-check(ok, 'epochEvents Sequences: one mark per sequence event, labelled by eventRefLabel, on its own trial''s row (scope "trial")');
+check(ok, 'epochEvents Sequences: one mark per sequence event, labeled by eventRefLabel, on its own trial''s row (scope "trial")');
 Mw = epochEvents(sp, Eb, Lines="Stim", Sequences=[ref eventRef(line="Stim", sequence=struct('line', "Poke", 'minDurationSec', 5), alignStep=0)]);
 check(numel(Mw) == 3 && Mw(1).label == "Stim onset" && Mw(3).label == "Stim onset then Poke onset (aligned to Stim onset)" ...
     && isempty(Mw(3).t) && nnz(Mw(2).epoch == k2) >= 1, ...

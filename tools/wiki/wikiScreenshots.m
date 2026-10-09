@@ -349,7 +349,7 @@ if want("app-visualize-traces.png") || want("app-visualize-heatmap.png")
     app.onVizControlsChanged("mode");
     app.VizHighpassField.Value = '300';
     app.onVizControlsChanged("processing");
-    app.VizSpacingField.Value = 100;     % the heatmap's colour range: +-100 uV
+    app.VizSpacingField.Value = 100;     % the heatmap's color range: +-100 uV
     app.onVizControlsChanged("spacing");
     shot("app-visualize-heatmap.png", 2);
 end

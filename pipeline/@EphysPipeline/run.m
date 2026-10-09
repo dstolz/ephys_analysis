@@ -24,7 +24,7 @@ function R = run(obj, opts)
 %   Provenance: every output of the run records the code version, MATLAB,
 %   host, user, the config and the run's id (pipe.provenance(), stored in
 %   each file's conversion / export struct, or its JSON). When the run ends,
-%   finished, cancelled or failed, a run record goes to
+%   finished, canceled or failed, a run record goes to
 %   <OutputRoot or Root>/pipeline_runs/<runId>_<name>.json (RunRecordFile):
 %   the steps, datasets, config, code, machine and the Results rows.
 %
@@ -91,7 +91,7 @@ obj.TransferStep = transfer && c.Transfer.When == "step";   % addResult queues e
 for step = steps
     obj.log("--- step: %s ---", step);
     try
-        if ~obj.CancelRequested   % once cancelled, the step records its datasets as "cancelled" itself
+        if ~obj.CancelRequested   % once canceled, the step records its datasets as "canceled" itself
             obj.progress(step, "", 0, numel(obj.DatasetIdx), 0, 1, "starting");
         end
         switch step
@@ -105,9 +105,9 @@ for step = steps
             case "analysis";  obj.runAnalysis(DryRun=opts.DryRun);
         end
     catch ME
-        if strcmp(ME.identifier, 'EphysPipeline:Cancelled')
-            obj.log("=== cancelled during %s after %.1f s ===", step, toc(t0));
-            outcome = "cancelled";
+        if strcmp(ME.identifier, 'EphysPipeline:Canceled')
+            obj.log("=== canceled during %s after %.1f s ===", step, toc(t0));
+            outcome = "canceled";
         else
             outcome = "failed";
             failure = ME;
@@ -133,15 +133,15 @@ obj.Provenance = [];   % a step called on its own afterwards is not part of this
 if ~isempty(failure)
     rethrow(failure);
 end
-if outcome == "cancelled"
+if outcome == "canceled"
     R = obj.Results;
     return
 end
 n = height(obj.Results);
-obj.log("=== finished in %.1f s: %d ok, %d skipped, %d error(s), %d cancelled ===", toc(t0), ...
+obj.log("=== finished in %.1f s: %d ok, %d skipped, %d error(s), %d canceled ===", toc(t0), ...
     nnz(ismember(obj.Results.Status, ["done" "ok" "launched" "queued" "matched (prefix)" "matched (time)" "associated" "dry run"])), ...
     nnz(startsWith(obj.Results.Status, "skipped")), nnz(startsWith(obj.Results.Status, "error")), ...
-    nnz(obj.Results.Status == "cancelled"));
+    nnz(obj.Results.Status == "canceled"));
 if n == 0; obj.log("(no results)"); end
 R = obj.Results;
 end

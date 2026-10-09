@@ -4,8 +4,8 @@ function stopKSRuns(obj, names)
 %   named in NAMES; obj.stopKSRuns() stops them all. Each goes through
 %   EphysDataset.stopSortRun: its processes end and its status file
 %   (ks4_status.json, si_status.json)
-%   says "cancelled". The monitor (pollKSRuns, called here at once) then
-%   logs it as [stopped] and turns its result row into "cancelled".
+%   says "canceled". The monitor (pollKSRuns, called here at once) then
+%   logs it as [stopped] and turns its result row into "canceled".
 %   Queued runs are not touched (Stop queue drops those), so a slot freed
 %   here goes to the next queued run.
 %

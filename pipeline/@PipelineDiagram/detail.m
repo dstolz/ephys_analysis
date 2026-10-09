@@ -22,9 +22,9 @@ function [html, summary] = detail(cfg, d, opts)
 %   hangs from the reference.
 %   Export and Analysis read outputs rather than the recording, so they
 %   hang from the file they read first: the Signals extract.
-%   Each step's branch starts with a box in its colour. Stages the config
+%   Each step's branch starts with a box in its color. Stages the config
 %   leaves off are drawn dashed; disabled steps are faded. Artifact periods
-%   feeding Sorting / Signals / Spikes are marked in the Artifacts colour.
+%   feeding Sorting / Signals / Spikes are marked in the Artifacts color.
 %
 %   HideUnused=true leaves out what the config does not use: the stages it
 %   leaves off, and the boxes of a disabled step (the artifact periods stay
@@ -673,7 +673,7 @@ end
 
 
 function n = step(key, title, enabled, note, target, stages)
-%step  One step's branch: its box (in the step's colour, with its enabled
+%step  One step's branch: its box (in the step's color, with its enabled
 %   badge and NOTE; TARGET is what the box opens) over the chain of STAGES.
 %   A disabled step's boxes are faded, down to the next step that hangs
 %   from it, which fades by its own state.
@@ -789,7 +789,7 @@ end
 
 function h = nodeHTML(n)
 %nodeHTML  One box and, below it, the boxes hung from it. A step box sets
-%   its step's colour for its whole branch (class c-<key> on its <li>).
+%   its step's color for its whole branch (class c-<key> on its <li>).
 detail = "";
 if ~isempty(n.detail)
     detail = "<div class=""d"">" + join(esc(n.detail), "<br>") + "</div>";

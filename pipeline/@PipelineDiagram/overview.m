@@ -11,7 +11,7 @@ function [html, summary, model] = overview(cfg, d, opts)
 %   Analysis) as one box, with the files it writes hung under it, below the inputs (the
 %   raw recording with its manifest, the Epsych2 sessions, the probe map).
 %   An arrow runs from each input or written file to every step that reads
-%   it, in the colour of whatever wrote it. Copy outputs (the Transfer
+%   it, in the color of whatever wrote it. Copy outputs (the Transfer
 %   section: each dataset's outputs copied or moved elsewhere, in the
 %   background) is the last box, reading every file a step writes; it is
 %   faded while the section is off. An arrow the working config
@@ -87,7 +87,7 @@ svg = sprintf("<svg class=""flow"" xmlns=""http://www.w3.org/2000/svg"" viewBox=
     + "</svg>";
 zoom = PipelineDiagram.zoomFrame("overview", "fit");
 body = "<h1>" + esc(pageTitle) + "</h1>" + legendHTML() ...
-    + "<div class=""note"">Arrows carry data in the colour of what wrote it. Hover a box to trace what it reads and writes. Scroll to zoom, drag to pan.</div>" ...
+    + "<div class=""note"">Arrows carry data in the color of what wrote it. Hover a box to trace what it reads and writes. Scroll to zoom, drag to pan.</div>" ...
     + ternary(opts.HideUnused, "<div class=""note"">Hiding what this config does not use: disabled steps, files not written, arrows not read.</div>", "") ...
     + "<div class=""hint"">Click any box to open the setting it draws.</div>" ...
     + zoom.open + svg + zoom.close ...
@@ -369,7 +369,7 @@ function E = edgeList(cfg)
 %   makes it or not (ON). The arrows into one step are listed left to right
 %   in the order they reach its top. LANE routes an arrow that skips a row:
 %   NaN drops it straight onto its target through the empty cells above it;
-%   otherwise it runs down the lane (grid units: column k's centre, or
+%   otherwise it runs down the lane (grid units: column k's center, or
 %   k + 0.5 for the gap right of column k), then across to its target.
 B = cfg.Behavior; G = cfg.Signals; K = cfg.Spikes; X = cfg.Export;
 use = analysisUse(cfg);
@@ -461,7 +461,7 @@ end
 
 function n = node(id, key, kind, row, col, title, lines, target)
 %node  One box: kind src (the recording) | in (another input) | step.
-%   KEY picks its colour (c-<key>), TARGET what a click opens (see
+%   KEY picks its color (c-<key>), TARGET what a click opens (see
 %   flowChartHTML's node helper). ROW / COL place it on the grid.
 n = struct('id', string(id), 'key', string(key), 'kind', string(kind), 'row', row, 'col', col, ...
     'title', string(title), 'lines', {string(lines)}, 'target', string(target), 'badge', "", ...
@@ -515,7 +515,7 @@ end
 
 
 function x = laneX(L, u)
-%laneX  A lane's x: column u's centre, or the middle of the gap right of it.
+%laneX  A lane's x: column u's center, or the middle of the gap right of it.
 if u == round(u)
     x = colX(L, u) + L.colW / 2;
 else
@@ -600,7 +600,7 @@ end
 
 function nets = byRun(nets, N, E, at, viaLane, L)
 %byRun  A gap's tracks, shortest run across first: a source's from its
-%   centre to the farthest port it reaches, a lane's from the lane to its port.
+%   center to the farthest port it reaches, a lane's from the lane to its port.
 run = zeros(size(nets));
 for k = 1:numel(nets)
     p = split(extractAfter(nets(k), 2), ":");
@@ -758,7 +758,7 @@ end
 
 
 function k = keyOf(id)
-%keyOf  The colour of an arrow: the step (or input) it leaves from.
+%keyOf  The color of an arrow: the step (or input) it leaves from.
 k = id;
 end
 
@@ -944,7 +944,7 @@ s = join([ ...
     ".zoomview{margin-top:10px;background:#fff;border:1px solid #d0d7de;border-radius:8px}"
     ".zoomstage{width:max-content;padding:0}"
     ".flow{display:block}"
-    % Colours: the step (or input) each box and arrow belongs to, as on the
+    % Colors: the step (or input) each box and arrow belongs to, as on the
     % detail view and the Run tab's diagram.
     ".c-rec{--acc:#57606a;--tint:#24292f}"
     ".c-epsych{--acc:#8c959f;--tint:#fff}"

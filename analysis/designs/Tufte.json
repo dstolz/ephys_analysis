@@ -2,7 +2,7 @@
   "schema": "ephys-plot-design",
   "version": 1,
   "name": "Tufte",
-  "description": "Tufte's data-ink: an off-white page, serif type, no box or grid, quiet axes with short outward ticks, grey data and muted colour only where it tells groups apart.",
+  "description": "Tufte's data-ink: an off-white page, serif type, no box or grid, quiet axes with short outward ticks, gray data and muted color only where it tells groups apart.",
   "background": "#fffff8",
   "palette": ["#4e79a7", "#f28e2b", "#e15759", "#76b7b2", "#59a14f", "#b07aa1", "#9c755f", "#bab0ac"],
   "single": "#555555",

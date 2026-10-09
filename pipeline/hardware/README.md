@@ -90,7 +90,7 @@ cells (exactly `1..channels`) and `"view": "looking into the pins, side
 printed NEURONEXUS up"`. A two-connector package has faces `top` and
 `bottom`. `verifiedHeadstages` lists the headstages this package has been
 checked with (against a recording or probeinterface). A reference chain to
-one of them is labelled *verified*; every other reference chain is
+one of them is labeled *verified*; every other reference chain is
 *rule-derived*.
 
 **probe** (a probe design's geometry)

@@ -17,7 +17,7 @@ function R = mapChunks(fcn, names, opts)
 %   each chunk k finishes, with a monotone done-count, so a caller's progress
 %   bar behaves in both modes and a ProgressFcn that throws (the way
 %   EphysPipeline cancels) stops the loop: the outstanding futures are
-%   cancelled before the error propagates. A worker error propagates with the
+%   canceled before the error propagates. A worker error propagates with the
 %   identifier and message the serial path would raise. An interrupt (Ctrl-C)
 %   cancels the outstanding futures too, through an onCleanup that holds the
 %   futures in a handle object rather than reading this workspace, which is
@@ -67,7 +67,7 @@ while done < n
     try
         [k, r] = fetchNext(F);
     catch ME
-        ME = workerError(F, ME);   % before cancelling: a cancelled future reports its own error
+        ME = workerError(F, ME);   % before canceling: a canceled future reports its own error
         cancelHeld(held);
         throw(ME);
     end

@@ -39,9 +39,9 @@ function A = aurocCurves(spikeTimes, E, opts)
 %               multiples of WindowSec from the event (the event is an
 %               edge)
 %     "sliding" WindowSec long, one starting every StepSec (whole multiples
-%               of StepSec from the event); neighbours share bins
+%               of StepSec from the event); neighbors share bins
 %   Only windows wholly inside Window are used. The curve's time of a
-%   window is its centre.
+%   window is its center.
 %
 %   Each unit's call, per group (Cutoff; made by aurocCall), from the
 %   windows wholly inside ModulationWindow: their mean auROC ("mean") and
@@ -110,9 +110,9 @@ function A = aurocCurves(spikeTimes, E, opts)
 %     Groups          the groups table from epochTable (default: built
 %                     from E.groupIndex / E.group)
 %
-%   A fields: t [nWindows x 1] (window centres, s), starts, stops (the
+%   A fields: t [nWindows x 1] (window centers, s), starts, stops (the
 %   windows, s), edges (row: the boundaries a bar plot draws, half a step
-%   either side of each centre; for tiled windows their edges), window
+%   either side of each center; for tiled windows their edges), window
 %   (the span the windows cover), auroc [nWindows x nUnits x nGroups],
 %   count (spikes in each window summed over the group's epochs, same
 %   size), inModulation [nWindows x 1], mean, phasic, p, q [nUnits x

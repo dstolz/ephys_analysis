@@ -14,8 +14,8 @@ function rows = rasterInto(ax, R, u, style, colors, sortBy, look)
 %              (a trial parameter epochTable copied on). Missing values
 %              sort last either way; ties keep the time order
 %    byGroup   true (default): the rows go by group first, each group's on
-%              a pale band of its colour; false: every epoch sorted as one
-%              block, each row on its group's colour
+%              a pale band of its color; false: every epoch sorted as one
+%              block, each row on its group's color
 %    marks     EphysAnalysisConfig.defaults("Plot").rasterEvents: the look
 %              (marker, size, color) of the events in R.rasterEvents
 %              (epochEvents), one line object per line and edge, tagged

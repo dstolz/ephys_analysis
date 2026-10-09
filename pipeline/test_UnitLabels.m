@@ -149,7 +149,7 @@ check(isequal(U.ksChannel, [2; 4; 1]) && isequal(U.shank, [0; 1; 0]) && isequal(
     'peak channel, shank, channel name and number');
 check(isequal([U.peakX U.peakY], [0 20; 200 0; 0 0]), 'peakX / peakY are the peak channel''s site');
 check(abs(U.x(1)) < 1e-9 && abs(U.y(1) - 30) < 1e-9 && isequal([U.x(2:3) U.y(2:3)], [200 0; 0 0]), ...
-    'template centre: weighted over same-shank channels with at least 25% of the peak');
+    'template center: weighted over same-shank channels with at least 25% of the peak');
 U = EphysDataset.readPhyUnits(d4, IncludeNoise=true);
 check(all(U.channelName == "") && all(isnan(U.channelNumber)), 'no channel names / numbers without ChannelNames / ChannelNumbers');
 U = EphysDataset.readPhyUnits(d4, IncludeNoise=true, Templates=false);

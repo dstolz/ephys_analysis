@@ -20,8 +20,8 @@ classdef EphysTraceViewer < handle
     %   recording's length. Panning inside the margin moves the axes limits
     %   only; a zoom or a pan past the margin draws again from the samples
     %   kept in memory (CacheSamples) and reads the disk only for rows it
-    %   does not hold. Lanes of one colour are drawn as one line, and each
-    %   spike colour as one line, so the number of graphics objects stays
+    %   does not hold. Lanes of one color are drawn as one line, and each
+    %   spike color as one line, so the number of graphics objects stays
     %   small whatever the channel or unit count. Interactions that arrive
     %   faster than a draw are merged (RenderDelay).
     %
@@ -43,9 +43,9 @@ classdef EphysTraceViewer < handle
     %
     %   Lanes
     %   -----
-    %   Lane k is centred at y = -(k-1), one unit apart; a signal value v is
-    %   drawn at centre + (v - offset) / Spacing, so Spacing is the voltage
-    %   between neighbouring lanes (source units, microvolts). The trace
+    %   Lane k is centerd at y = -(k-1), one unit apart; a signal value v is
+    %   drawn at center + (v - offset) / Spacing, so Spacing is the voltage
+    %   between neighboring lanes (source units, microvolts). The trace
     %   lanes (Channels, in order) come first; a spike layer placed on its
     %   own lanes ("raster") adds one lane per unit or channel after them.
     %   Row k of the source is drawn at (k-1)/Fs s and a spike at its time,
@@ -56,9 +56,9 @@ classdef EphysTraceViewer < handle
     %     "ticks"      a tick per spike: in the top half of its channel's
     %                  trace lane (detected spikes: the bottom half), or
     %                  across its own lane. Ticks are 2 points wide, edged in
-    %                  the axes' colour and drawn in front of the traces,
+    %                  the axes' color and drawn in front of the traces,
     %                  so a dense trace does not hide them
-    %     "waveforms"  on a trace lane, the trace itself is recoloured over
+    %     "waveforms"  on a trace lane, the trace itself is recolored over
     %                  each spike's window (as phy's trace view does); on
     %                  its own lane (or with no trace), the stored waveform:
     %                  the detected snippet, or the unit's template. Stored
@@ -68,7 +68,7 @@ classdef EphysTraceViewer < handle
     %                  traces' Spacing. More than MaxWaveforms spikes in
     %                  view, or a trace below 10 kHz, fall back to ticks
     %                  (LastRender.notes says so)
-    %   Each unit or channel takes a colour of Palette.
+    %   Each unit or channel takes a color of Palette.
     %
     %   Events (setEvents, eventLines): digital-input lines, each drawn
     %     over the traces   (EventOverlay) a solid line at every onset and
@@ -89,7 +89,7 @@ classdef EphysTraceViewer < handle
     %                                   PageUp/Down: a window; Home/End;
     %                                   a: auto scale; r: reset
     %     beginDrag / dragTo / endDrag  drag to pan time (and lanes)
-    %     seekOverview(t)               centre the view on T (overview strip)
+    %     seekOverview(t)               center the view on T (overview strip)
     %   and programmatically: setView, zoomTime, panTime, scaleVoltage,
     %   setSpacing, autoScale, scrollLanes, setVisibleLanes, resetView,
     %   jumpToEvent; setEvents / setEventShow with EventOverlay / EventStrip;
@@ -130,7 +130,7 @@ classdef EphysTraceViewer < handle
         Colormap (1,1) string = "turbo"
         Filter struct = struct('type', "", 'cutoff', [], 'order', 4)   % display filter ("" = none)
         Reference (1,1) string {mustBeMember(Reference, ["none" "car" "cmr"])} = "none"   % across the channels shown
-        RemoveOffset (1,1) logical = true      % centre each lane on its median in view
+        RemoveOffset (1,1) logical = true      % center each lane on its median in view
         Shading struct = struct('intervals', {}, 'color', {}, 'alpha', {})   % shaded periods (s)
         EventOverlay (1,1) logical = false     % event onsets / offsets drawn across the lanes
         EventStrip (1,1) logical = false       % event lines drawn as TTL traces above the lanes
@@ -157,9 +157,9 @@ classdef EphysTraceViewer < handle
 
     properties (Access = private)
         TraceLines = gobjects(0, 1)
-        SpikeLines = gobjects(0, 1)    % waveforms, one line per palette colour
-        TickLines = gobjects(0, 1)     % ticks, one line per palette colour
-        TickHalo = gobjects(0)         % every tick, wider, in the axes' colour behind them
+        SpikeLines = gobjects(0, 1)    % waveforms, one line per palette color
+        TickLines = gobjects(0, 1)     % ticks, one line per palette color
+        TickHalo = gobjects(0)         % every tick, wider, in the axes' color behind them
         EventMarks = gobjects(0, 1)    % per event line: onsets (2i-1), offsets (2i)
         EventTraces = gobjects(0, 1)   % per event line: its TTL trace
         StripLine = gobjects(0)        % between the TTL rows and the lanes
@@ -294,7 +294,7 @@ classdef EphysTraceViewer < handle
         end
 
         function setChannels(obj, channels, colors, breaks)
-            %setChannels  Lanes: source columns CHANNELS, their COLORS ([] = one colour), BREAKS.
+            %setChannels  Lanes: source columns CHANNELS, their COLORS ([] = one color), BREAKS.
             arguments
                 obj (1,1) EphysTraceViewer
                 channels (1,:) double
@@ -416,7 +416,7 @@ classdef EphysTraceViewer < handle
         end
 
         function zoomTime(obj, f, anchor)
-            %zoomTime  The view F times wider, ANCHOR (s; default the centre) staying put.
+            %zoomTime  The view F times wider, ANCHOR (s; default the center) staying put.
             if nargin < 3 || isempty(anchor) || ~isfinite(anchor)
                 anchor = obj.TStart + obj.TWidth / 2;
             end
@@ -438,7 +438,7 @@ classdef EphysTraceViewer < handle
         end
 
         function setSpacing(obj, s)
-            %setSpacing  S source units (microvolts) between neighbouring lanes.
+            %setSpacing  S source units (microvolts) between neighboring lanes.
             if ~(s > 0 && isfinite(s)); return; end
             obj.Spacing = s;
             obj.AutoPending = false;
@@ -483,7 +483,7 @@ classdef EphysTraceViewer < handle
         end
 
         function seekOverview(obj, t)
-            %seekOverview  Centre the view on T seconds.
+            %seekOverview  Center the view on T seconds.
             obj.setView(t - obj.TWidth / 2, obj.TWidth);
         end
 
@@ -772,7 +772,7 @@ classdef EphysTraceViewer < handle
             %   On the traces' clock, (row-1)/Fs, a line turns on at
             %   t_on - 1/EVENTFS and off at t_off (the first row after its
             %   last on row). EVENTFS NaN (unknown) leaves the times as they
-            %   are. Each line takes a colour of Palette.
+            %   are. Each line takes a color of Palette.
             arguments
                 events
                 eventFs (1,1) double = NaN
@@ -794,7 +794,7 @@ classdef EphysTraceViewer < handle
         end
 
         function P = eventPalette()
-            %eventPalette  Colours of the event lines, apart from the spikes' palette.
+            %eventPalette  Colors of the event lines, apart from the spikes' palette.
             P = [0.80 0.00 0.55
                  0.00 0.50 0.25
                  0.95 0.45 0.00
@@ -860,7 +860,7 @@ classdef EphysTraceViewer < handle
 
         function L = detectedLayer(detected, opts)
             %detectedLayer  A spike layer of detected spikes (the spikes file's DETECTED struct).
-            %   One lane per channel, coloured by channel; the waveforms are
+            %   One lane per channel, colored by channel; the waveforms are
             %   the stored snippets (detected.wf) when there are any, and a
             %   channel's wfPeak the median of its snippets' largest
             %   absolute values.
@@ -912,7 +912,7 @@ classdef EphysTraceViewer < handle
         end
 
         function P = defaultPalette()
-            %defaultPalette  Twelve spike colours, distinct from the grey traces.
+            %defaultPalette  Twelve spike colors, distinct from the gray traces.
             P = [0.00 0.45 0.74
                  0.85 0.33 0.10
                  0.47 0.67 0.19
@@ -1240,7 +1240,7 @@ classdef EphysTraceViewer < handle
         end
 
         function drawTraces(obj, T, lanes, vis) %#ok<INUSD>
-            % The visible trace lanes: one line per lane colour, or the heatmap.
+            % The visible trace lanes: one line per lane color, or the heatmap.
             ax = obj.Axes;
             nUsed = 0;
             if ~isempty(T) && ~isempty(T.lanes) && obj.Mode == "traces"
@@ -1248,8 +1248,8 @@ classdef EphysTraceViewer < handle
                 if ~isempty(obj.LaneColors); colors = obj.LaneColors; end
                 laneColor = colors(T.lanes, :);
                 [uc, ~, ci] = unique(laneColor, 'rows', 'stable');
-                centre = -(T.lanes - 1);
-                Y = centre + T.y / obj.Spacing;
+                center = -(T.lanes - 1);
+                Y = center + T.y / obj.Spacing;
                 nP = numel(T.x);
                 for c = 1:size(uc, 1)
                     j = find(ci == c);
@@ -1317,7 +1317,7 @@ classdef EphysTraceViewer < handle
 
         %% spikes
         function R = drawSpikes(obj, T, lanes, vis, span, R)
-            % Ticks and waveforms of every layer: per palette colour one
+            % Ticks and waveforms of every layer: per palette color one
             % line of waveforms and one of ticks, the ticks over a halo.
             nPal = size(obj.Palette, 1);
             X = cell(nPal, 1);        % waveforms
@@ -1368,18 +1368,18 @@ classdef EphysTraceViewer < handle
                 R.styles(end+1) = style;
                 ci = L.colorIndex(g);
                 ci = ci(:);
-                centre = -(lane - 1);
+                center = -(lane - 1);
                 if style == "ticks"
-                    % One tick per lane, pixel column and colour.
+                    % One tick per lane, pixel column and color.
                     col = floor((t - obj.TStart) / obj.TWidth * px);
                     [~, first] = unique([lane, col, ci], 'rows', 'stable');
-                    t = t(first); centre = centre(first); ci = ci(first);
+                    t = t(first); center = center(first); ci = ci(first);
                     if raster
-                        y0 = centre - 0.4; y1 = centre + 0.4;
+                        y0 = center - 0.4; y1 = center + 0.4;
                     elseif L.kind == "detected"
-                        y0 = centre - 0.45; y1 = centre - 0.15;   % below: apart from units' ticks
+                        y0 = center - 0.45; y1 = center - 0.15;   % below: apart from units' ticks
                     else
-                        y0 = centre + 0.15; y1 = centre + 0.45;
+                        y0 = center + 0.15; y1 = center + 0.45;
                     end
                     for c = unique(ci).'
                         s = ci == c;
@@ -1387,7 +1387,7 @@ classdef EphysTraceViewer < handle
                         TY{c} = [TY{c}; reshape([y0(s), y1(s), NaN(nnz(s), 1)].', [], 1)];
                     end
                 elseif ~raster
-                    % Recolour the trace over each spike's window.
+                    % Recolor the trace over each spike's window.
                     [xs, ys] = traceSegments(T, t, lane, L.winMs, obj.Spacing);
                     for c = unique(ci).'
                         s = ci == c;
@@ -1398,7 +1398,7 @@ classdef EphysTraceViewer < handle
                     % The stored waveform on the spike's own lane, microvolts
                     % on the own lanes' scale (RasterSpacing).
                     rs = obj.rasterSpacing();
-                    [xs, ys] = storedWaveforms(L, idx, t, centre, rs);
+                    [xs, ys] = storedWaveforms(L, idx, t, center, rs);
                     if microvoltWaveforms(L)
                         R.notes(end+1) = sprintf("%s: waveforms on their own lanes, %s between lanes", ...
                             L.name, spacingText(rs, "uV"));
@@ -1422,7 +1422,7 @@ classdef EphysTraceViewer < handle
         end
 
         function fillPool(obj, pool, X, Y)
-            % The non-empty X{c}, Y{c} as lines of POOL in palette colour c;
+            % The non-empty X{c}, Y{c} as lines of POOL in palette color c;
             % the pool's other lines hidden.
             n = 0;
             for c = 1:numel(X)
@@ -1462,7 +1462,7 @@ classdef EphysTraceViewer < handle
         %% events
         function S = stripRows(obj, vis)
             % The lanes' bottom and top edges (bottom, base) and the TTL rows
-            % above them: the event lines drawn there (idx), their centres
+            % above them: the event lines drawn there (idx), their centers
             % (y, top row first) and the row height (h, axes units, so a row
             % is EventRowPixels tall; the rows at most 40% of the plot).
             if isempty(vis)
@@ -1599,7 +1599,7 @@ classdef EphysTraceViewer < handle
         end
 
         function placeScale(obj)
-            % A bar one lane tall at the view's right edge, labelled with Spacing.
+            % A bar one lane tall at the view's right edge, labeled with Spacing.
             ax = obj.Axes;
             xl = ax.XLim;
             yl = ax.YLim;
@@ -1614,7 +1614,7 @@ classdef EphysTraceViewer < handle
             top = yl(2) - 0.15;
             if obj.Mode == "heatmap"
                 set(obj.ScaleLine, 'XData', NaN, 'YData', NaN);
-                set(obj.ScaleText, 'Position', [x, top - 0.3, 0], 'String', "colour ±" + txt);
+                set(obj.ScaleText, 'Position', [x, top - 0.3, 0], 'String', "color ±" + txt);
                 return
             end
             h = min(1, 0.8 * diff(yl));
@@ -1965,9 +1965,9 @@ else
     P = reshape(permute(cat(3, 2 * B - 1, 2 * B), [3 1 2]), 2 * L, n);
 end
 [~, col] = ismember(lane(:).', T.lanes);
-centre = -(lane(:).' - 1);
+center = -(lane(:).' - 1);
 nP = numel(T.x);
-ys = centre + T.y(P + (col - 1) * nP) / spacing;
+ys = center + T.y(P + (col - 1) * nP) / spacing;
 xs = T.x(P);
 if n == 1; xs = xs(:); ys = ys(:); end
 xs = [xs; NaN(1, n)];
@@ -1975,7 +1975,7 @@ ys = [ys; NaN(1, n)];
 end
 
 
-function [xs, ys] = storedWaveforms(L, idx, t, centre, spacing)
+function [xs, ys] = storedWaveforms(L, idx, t, center, spacing)
 % [nW+1 x n] snippets (NaN row last): detected waveforms in microvolts and
 % templates in microvolts SPACING apart (the own lanes' scale), other
 % templates scaled to 0.8 lane.
@@ -2001,7 +2001,7 @@ for j = 1:n
         end
     end
     if numel(v) == nW
-        ys(1:nW, j) = centre(j) + v;
+        ys(1:nW, j) = center(j) + v;
     end
 end
 xs = [t(:).' + tms / 1e3; NaN(1, n)];
@@ -2016,7 +2016,7 @@ end
 
 
 function c = axesColor(ax)
-% The axes' background colour (white when it has none): the ticks' halo.
+% The axes' background color (white when it has none): the ticks' halo.
 c = ax.Color;
 if ~(isnumeric(c) && numel(c) == 3); c = [1 1 1]; end
 end

@@ -91,7 +91,7 @@ end
 answer = uiconfirm(obj.Fig, strjoin(msg, newline), dlgTitle, ...
     "Options", {button, 'Cancel'}, "DefaultOption", 2, "CancelOption", 2, "Icon", "warning");
 if answer == "Cancel"
-    obj.setStatus("Clean up cancelled; nothing was removed.", "");
+    obj.setStatus("Clean up canceled; nothing was removed.", "");
     return
 end
 obj.runCleanup(T);

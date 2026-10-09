@@ -1,5 +1,5 @@
 function S = formSection(parent, row, name, title, body, opts)
-%formSection  A section of labelled rows that collapses under its header.
+%formSection  A section of labeled rows that collapses under its header.
 %   S = formSection(PARENT, ROW, NAME, TITLE) makes a section in row ROW of
 %   the grid PARENT: a header bar -- the toggle button S.Toggle ("▼ TITLE";
 %   the caller sets its ButtonPushedFcn), with room for one more control in
@@ -70,7 +70,7 @@ end
 
 
 function r = wcagRatio(a, b)
-%wcagRatio  The contrast ratio of two RGB colours: 1 (alike) to 21 (black on white).
+%wcagRatio  The contrast ratio of two RGB colors: 1 (alike) to 21 (black on white).
 la = relLuminance(a);
 lb = relLuminance(b);
 r = (max(la, lb) + 0.05) / (min(la, lb) + 0.05);
@@ -78,7 +78,7 @@ end
 
 
 function l = relLuminance(c)
-%relLuminance  The relative luminance of the sRGB colour C.
+%relLuminance  The relative luminance of the sRGB color C.
 lin = (c <= 0.04045) .* (c / 12.92) + (c > 0.04045) .* (((c + 0.055) / 1.055) .^ 2.4);
 l = lin(:).' * [0.2126; 0.7152; 0.0722];
 end

@@ -166,7 +166,7 @@ fsRec = 30000;
 rEv = [30001; 60008; 90014; 120023];          % recording rows: 0, 7, 13 and 22 thirtieths past a 1 kHz sample
 tEv = rEv / fsRec;
 Ev = epochs(tEv, ones(4, 1), fsRec);
-sd = 0.002;                                   % a 2 ms Gaussian bump centred on each event's sample, (row-1)/Fs
+sd = 0.002;                                   % a 2 ms Gaussian bump centerd on each event's sample, (row-1)/Fs
 bump = @(fsSig) single(sum(exp(-((0:round(4.2 * fsSig) - 1).' / fsSig - (rEv.' - 1) / fsRec) .^ 2 / (2 * sd ^ 2)), 2));
 okPeak = true; pk = strings(0, 1);
 for fsSig = [1000 2000 5000 fsRec]            % derived rows k at (k-1)/fsSig, as resample makes them
@@ -327,9 +327,9 @@ yyaxis(ax, 'left');  lt = ax.YTick; ll = string(ax.YTickLabel); llab = string(h.
 check(numel(h.axes) == 3 && all(abs(h.step - 1.1 * reshape(max(Rd.rate, [], [1 3]), 1, [])) < 1e-9) && abs(h.step(1) - stp) < 1e-9, ...
     'each unit''s row step is Spacing (1.1) x its tallest PSTH');
 check(numel(ax.YAxis) == 2 && max(abs(lt - (0:2) * stp)) < 1e-9 && isequal(ll(:), ["0"; "0.5"; "1"]) && llab == "Depth  ·  Epoch", ...
-    'left axis: a tick at each row''s baseline, first group at the bottom, labelled with its Depth value; the grid''s y label names Depth (then the rasters'' rows)');
+    'left axis: a tick at each row''s baseline, first group at the bottom, labeled with its Depth value; the grid''s y label names Depth (then the rasters'' rows)');
 check(max(abs(rt(:) - srt)) < 1e-9 && isequal(rl(:), compose("%.3g", pk(o))) && isequal(ylL, ylR), ...
-    'right axis: a tick where each row peaks, labelled with its peak rate, on the same limits as the left');
+    'right axis: a tick where each row peaks, labeled with its peak rate, on the same limits as the left');
 check(isempty(ax.Legend) && contains(string(h.axes(2).YAxis(2).Label.String), "Peak (spikes/s)") ...
     && string(h.axes(1).YAxis(2).Label.String) == "", 'no legend; "Peak (spikes/s)" names the right axis of the last column');
 check(all(strcmp(get(findall(ax, 'Type', 'line'), 'Marker'), 'none')), 'no markers from the yyaxis line-style cycle');
@@ -497,7 +497,7 @@ check(isequal(siteLabels(["u1"; "u2"; "u3"], meta, st0), ["u1"; "u2"; "u3"]) ...
     && isequal(siteLabels(["u1"; "u2"], [], stL), ["u1"; "u2"]), 'siteLabels appends the shank and the depth, only when asked');
 fig8 = figure('Visible', 'off');
 h = renderRates(Rr, fig8, Style=struct('SortDepth', false, 'SortShank', true, 'LabelShank', true));
-check(isequal(string(h.axes.XTickLabel(:)), ["u1 (sh0)"; "u2 (sh0)"; "u3 (sh1)"]), 'rates: units by shank, labelled with it');
+check(isequal(string(h.axes.XTickLabel(:)), ["u1 (sh0)"; "u2 (sh0)"; "u3 (sh1)"]), 'rates: units by shank, labeled with it');
 h = renderRates(Rr, fig8);
 check(isequal(string(h.axes.XTickLabel(:)), ["u2"; "u3"; "u1"]), 'rates: top of the probe first by default');
 h = renderPSTH(Rp, fig8, Layout="grid", WithRaster=false, Style=struct('SortDepth', true, 'LabelDepth', true));
@@ -524,13 +524,13 @@ check(isequal(Fp.rate(:, 1).', [1 1 0 1]) && isequal(Fc.rate(:, 1).', [2 1 0 1])
     && Fp.units == "P(spike)/window" && Fc.units == "spikes/window" && Fr.units == "spikes/s" && Fr.measure == "rate", ...
     'firingRate: probability = share of epochs with a spike, count = spikes per window');
 % a grid's labels: once, on its tiled layout; and spacing
-unlabelled = @(axs) all(arrayfun(@(a) string(a.XLabel.String) == "" && string(a.YAxis(1).Label.String) == "", axs));
+unlabeled = @(axs) all(arrayfun(@(a) string(a.XLabel.String) == "" && string(a.YAxis(1).Label.String) == "", axs));
 h = renderPSTH(Rp, fig8, Layout="grid", WithRaster=false, Style=struct('MaxTiles', 6));
-check(string(h.layout.XLabel.String) == "Time (s)" && string(h.layout.YLabel.String) == Rp.units && unlabelled(h.axes) ...
+check(string(h.layout.XLabel.String) == "Time (s)" && string(h.layout.YLabel.String) == Rp.units && unlabeled(h.axes) ...
     && all(arrayfun(@(a) string(a.Title.String) ~= "", h.axes)), 'a PSTH grid: one x and one y label, the layout''s; the tiles keep only their titles');
 h = renderPSTH(Rp, fig8, Layout="grid");
-check(string(h.layout.YLabel.String) == Rp.units + "  ·  Epoch" && unlabelled([h.axes h.rasterAxes]), ...
-    'with rasters: the layout''s y label names the rates, then the rasters'' rows; no tile is labelled');
+check(string(h.layout.YLabel.String) == Rp.units + "  ·  Epoch" && unlabeled([h.axes h.rasterAxes]), ...
+    'with rasters: the layout''s y label names the rates, then the rasters'' rows; no tile is labeled');
 amp = "Amplitude (" + replace(string(Rv.units), "uV", "µV") + ")";
 gridKinds = {
     "raster",           @(tg) renderRaster(Rp, tg),                    "Time (s)", "Epoch"
@@ -541,7 +541,7 @@ gridKinds = {
     "evoked grid",      @(tg) renderEvoked(Rv, tg, Layout="grid"),      "Time (s)", amp};
 for k = 1:size(gridKinds, 1)
     hk = gridKinds{k, 2}(fig8);
-    check(string(hk.layout.XLabel.String) == gridKinds{k, 3} && string(hk.layout.YLabel.String) == gridKinds{k, 4} && unlabelled(hk.axes), ...
+    check(string(hk.layout.XLabel.String) == gridKinds{k, 3} && string(hk.layout.YLabel.String) == gridKinds{k, 4} && unlabeled(hk.axes), ...
         gridKinds{k, 1} + ": the x and y labels are the layout's, no tile's");
 end
 ax9 = axes(figure('Visible', 'off'));
@@ -692,7 +692,7 @@ ptsA = pts(arrayfun(@(p) getappdata(p, 'PlotGroup') == "Group = A", pts));
 check(numel(pts) == 2 && isequal(sort(ptsA.XData(:)).', [0.8 2.8 2.8]) && isequal(sort(ptsA.YData(:)).', [200 300 520]) ...
     && isequal(string(h.axes.XTickLabel(:)).', ["0.25" "0.5" "1"]) && string(h.axes.XLabel.String) == "Depth" ...
     && string(h.axes.YLabel.String) == "RespLatency" && isequal(string(h.axes.Legend.String), ["Group = A" "Group = B"]), ...
-    'points, no jitter: each value on its x value, the series side by side; the x values labelled, a legend of the series');
+    'points, no jitter: each value on its x value, the series side by side; the x values labeled, a legend of the series');
 h = renderBehavior(Bs, figB);
 pts = findall(h.axes, 'Tag', 'points');
 ptsA = pts(arrayfun(@(p) getappdata(p, 'PlotGroup') == "Group = A", pts));
@@ -800,7 +800,7 @@ mu = part(ax, "waveMean"); sp = part(ax, "waveSpikes"); sites = part(ax, "waveSi
 gh = 30;   % the probe is 100 um tall: a twelfth is below the 30 um floor
 mx = reshape(mu.XData, [], 3); my = reshape(mu.YData, [], 3);   % a unit per column, a NaN row each
 ok = isscalar(mu) && isscalar(sp) && isscalar(sites) && nnz(isnan(mu.XData)) == 3 && nnz(isnan(sp.YData)) == 36 && numel(sites.XData) == 6;
-ok = ok && all(abs((min(mx) + max(mx)) / 2 - [0 8 200]) < 1e-9);          % centred on x (the shanks are far enough apart)
+ok = ok && all(abs((min(mx) + max(mx)) / 2 - [0 8 200]) < 1e-9);          % centerd on x (the shanks are far enough apart)
 ok = ok && all(all(abs(my(1:end-1, :) - meta.y.') <= gh / 2 + 1e-9));
 check(ok && string(ax.XLabel.String) == "x (µm)" && isempty(part(ax, "waveName")) && isempty(part(ax, "waveScale")), ...
     'probe: one panel; every unit''s spikes and mean as a glyph at its position (within 30 um of its y), the probe''s sites behind');

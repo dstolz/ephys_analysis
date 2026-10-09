@@ -37,9 +37,9 @@ function syncPlotEditor(obj)
 %     tiles per page              the paged grids: raster; psth, tuning and evoked "grid"
 %     line width                  psth, evoked, tuning, behavior
 %     y limits                    psth, rate, tuning, behavior, evoked but "stack"
-%     group colours, legend       psth, raster, rate, tuning, behavior, evoked but "butterfly"
+%     group colors, legend       psth, raster, rate, tuning, behavior, evoked but "butterfly"
 %       (its place, orientation and box: enabled with the legend on)
-%     heat colours                heatmap, probemap, corrmap
+%     heat colors                heatmap, probemap, corrmap
 %     SEM                         psth, tuning, behavior, rate "bar", evoked but "butterfly"
 %     stop marks                  psth, raster
 %     grid                        psth, raster, evoked, rate, tuning, behavior
@@ -51,11 +51,11 @@ function syncPlotEditor(obj)
 %                                 for waveforms, its size, sites and unit
 %                                 names for the "probe" layout)
 %     text note                   every kind (its place, alignment, rotation,
-%                                 font, colours and interpreter enabled when
+%                                 font, colors and interpreter enabled when
 %                                 it has text; x and y at "At x, y")
 %     overlays                    every kind: the list and its buttons; the
 %                                 rows of the overlay picked -- a line: its
-%                                 position, colour and opacity; a patch: its
+%                                 position, color and opacity; a patch: its
 %                                 edges, fill and opacity and outline -- with
 %                                 Duplicate and Remove enabled, and the line
 %                                 style and width for a line or an outlined

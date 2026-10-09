@@ -54,7 +54,7 @@ nProg = 0;
     function cancelAfterTwo(~, ~, ~)
         nProg = nProg + 1;
         if nProg >= 2
-            error('test:Cancel', 'cancelled by the test');
+            error('test:Cancel', 'canceled by the test');
         end
     end
 
@@ -248,7 +248,7 @@ Wh = ds.blankArtifacts(W6, m6b, Fill="noise", NoiseSigma=0);
 check(max(abs(Wc(1:500, :) - (a6b + (b6b - a6b) .* ((1:500).' / 501))), [], 'all') < 1e-9 ...
     && max(abs(Wh(1:500, :) - b6b), [], 'all') < 1e-9, ...
     'a run at the top of a block bridges from Context''s last 1 ms, else holds the level after it');
-% Whole-recording levels: one robust SD and centre per channel, every chunk of
+% Whole-recording levels: one robust SD and center per channel, every chunk of
 % the recording counted (the fill toBin draws from).
 nl = ds.noiseLevels();
 check(numel(nl.sigma) == numAmp && numel(nl.center) == numAmp && all(nl.sigma > 0) && ...
@@ -1027,7 +1027,7 @@ if ~isempty(pl)
         pause(0.1);
     end
     check(isempty(pl.FevalQueue.QueuedFutures) && isempty(pl.FevalQueue.RunningFutures), ...
-        'cancelling leaves no future queued or running on the pool');
+        'canceling leaves no future queued or running on the pool');
 end
 % artifactIntervals / analyzeArtifacts over the same six split chunks give the
 % same intervals and summary from the pool.
@@ -1260,7 +1260,7 @@ j1 = Pr.findByKey("mouse1/sess1");
 check(isequal(Pr.Datasets(j1).ManualArtifacts, [0.001 0.002]) && ~isnan(Pr.Datasets(j1).Fs), ...
     'refresh parses headers and restores manifest state');
 rep2 = Pr.refresh(CancelFcn=@() true);
-check(all(rep2.Message == "cancelled"), 'refresh honours CancelFcn');
+check(all(rep2.Message == "canceled"), 'refresh honours CancelFcn');
 
 % refresh associates the one Epsych2 file in a recording folder (the Copy tab puts it there).
 k1 = Pr.findByKey("mouse1/sess1");
@@ -1567,7 +1567,7 @@ check(isa(dsig.Reader, 'IntanReader') && dsig.supportsRandomAccess() && ds.suppo
 check(isequal(sort(EphysReader.readerClasses()), sort(["IntanReader" "BinaryReader" "OpenEphysReader" "TDTReader"])), 'built-in reader registry');
 check(isempty(EphysReader.forFolder(fullfile(root, 'proj', 'empty_decoy'))), 'no reader claims an empty folder');
 check(strcmp(DatasetTracker.classifyJson(struct('schema', "ephys-recording/1")), 'recording-descriptor'), ...
-    'classifyJson recognises a recording descriptor');
+    'classifyJson recognizes a recording descriptor');
 
 % A universal recording built from the traditional dataset: toBin + descriptor.
 binDir = fullfile(root, 'universal_rec');

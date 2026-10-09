@@ -7,7 +7,7 @@ classdef test_TableSort < matlab.unittest.TestCase
     %   as numbers (an empty cell missing), a mixed one as text; a cell or
     %   numeric array by its header. fromDisplay / fromEvent: the column
     %   clicked (InteractionVariable, else InteractionColumn) and the
-    %   direction most neighbouring values follow, missing values left out;
+    %   direction most neighboring values follow, missing values left out;
     %   a click that shows no order gives ascend, or the other direction on
     %   the same column; an edit changes nothing. toPref / fromPref round
     %   trip, and anything else reads as no sort.
@@ -96,7 +96,7 @@ classdef test_TableSort < matlab.unittest.TestCase
             C = {1, 'x'; 2, 'y'; 3, 'z'};
             s = TableSort.fromDisplay(C, C([3 2 1], :), 1, {'A', 'B'});
             tc.verifyEqual(s, sortBy("A", "descend"), 'a cell array: the header clicked');
-            tc.verifyEqual(TableSort.direction([1; 2; 3; 2]), "ascend", 'most neighbouring values decide');
+            tc.verifyEqual(TableSort.direction([1; 2; 3; 2]), "ascend", 'most neighboring values decide');
             tc.verifyEqual(TableSort.direction([NaN; 3; NaN; 1]), "descend", 'missing values are left out');
             tc.verifyEqual(TableSort.direction({'' ; 'b'; 'B'; 'a'}), "descend");
             tc.verifyEqual(TableSort.direction([2; 2]), "");

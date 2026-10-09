@@ -464,7 +464,7 @@ The constructor errors (`EphysDataset:NoFolder`) if the folder does not exist.
 | `BehaviorFile` | `""` | the associated Epsych2 session `.mat`; see [Behavior](#behavior-epsych2) |
 | `TrialConfig` | `defaultTrialConfig()` | trial pairing and line naming: `TrialLine` (`"InTrial"`), `InvertedLines` (see [polarity](EphysPipeline.md#digital-line-polarity)), `SignalFs` (struct of derived-signal rates), `LabelField` (`"custom"` / `"native"`) and `LineNames` (`"native=name"` entries); see [Digital-line names](#digital-line-names) |
 | `ReaderOptions` | `struct()` | the config's `Acquisition` section, passed to the reader. Setting a different value drops the reader, so the next access rebuilds it (call `refreshMetadata` for fresh metadata) |
-| `NamePattern` | `EphysDataset.DefaultNamePattern` = `"{SubjectID}_{Date:yyMMdd}_{Time:HHmmss}"` | [`parseNameTokens`](../pipeline/parseNameTokens.m) pattern that splits `Name` into the tokens labelling sorted units. Pushed from `EphysProject.NamePattern` / the config's `Project.NamePattern` |
+| `NamePattern` | `EphysDataset.DefaultNamePattern` = `"{SubjectID}_{Date:yyMMdd}_{Time:HHmmss}"` | [`parseNameTokens`](../pipeline/parseNameTokens.m) pattern that splits `Name` into the tokens labeling sorted units. Pushed from `EphysProject.NamePattern` / the config's `Project.NamePattern` |
 | `DatasetKey` | `""` | folder relative to the project root, saved with every unit (`""` = the absolute folder). Pushed by `EphysProject` and the pipeline |
 | `TrialPairing` | `struct([])` | the recorded pairing (manifest `behavior.pairing`): `status` (`"unreviewed"` / `"approved"`), `auto_approved` (approved by `autoApproveTrialPairing`, not by a review), `cut_trials` and `cut_intervals` (`[start end]` counts dropped before the in-order pairing), `fingerprint`, `trial_line`, `summary`, `updated` |
 
@@ -1151,7 +1151,7 @@ enough to characterize the noise (a second or more) and expect chunk-to-chunk
 variation if you stream. Non-finite samples (for example NaN from
 `blankArtifacts(Fill="nan")`) are excluded from the estimates and never cross
 threshold; the band-pass runs on a straight line across them (held flat at the
-ends), so they do not ring into their neighbours, and they are `NaN` again in
+ends), so they do not ring into their neighbors, and they are `NaN` again in
 the filtered trace. A channel whose threshold works out non-positive or non-finite (flat
 or empty signal) gets `Inf` instead, so nothing is detected there rather than
 everything; it is flagged in `info.degenerate` and warned about
@@ -1340,15 +1340,15 @@ launch that fails writes the exit marker (so the slot frees) and throws
 
 `[stopped, message] = EphysDataset.stopSortRun(statusFile)` stops a
 background run that is going. First `ks4_status.json` is written as
-`{"state": "cancelled", "message": "stopped by the user"}`, so `sortRunState`
-returns `"cancelled"` from then on and the slot frees (a monitor polling while
+`{"state": "canceled", "message": "stopped by the user"}`, so `sortRunState`
+returns `"canceled"` from then on and the slot frees (a monitor polling while
 the processes are ended never sees a run that exited without a status). Then
 every process whose command line names the run folder's driver (the
 launcher's `cmd.exe`, conda, Python) is ended with its children
 (`taskkill /T` on Windows, `pkill` elsewhere), and `ks4_exit.txt` is written.
 `message` says how many processes were ended. It does nothing (`stopped`
 false) when the run is not running; a run whose processes are already gone is
-marked cancelled all the same. What Kilosort4 wrote so far stays. A blocking
+marked canceled all the same. What Kilosort4 wrote so far stays. A blocking
 run cannot be stopped this way.
 
 `n = EphysDataset.sortRunProcesses(statusFiles)` counts, per run, the
@@ -1376,7 +1376,7 @@ leaves an empty `ks4_exit.txt` (`EphysDataset.SortExitMarker`) next to it
 once the process has exited, for any reason. `[state, message] =
 EphysDataset.sortRunState(statusFile)` reads both. It returns `"running"`
 until the status file is complete. It returns `"done"` / `"error"` (or
-`"cancelled"`, for a run ended by `stopSortRun`) from the status, and
+`"canceled"`, for a run ended by `stopSortRun`) from the status, and
 `"error"` when the process exited without writing a status (a missing Python
 or conda env, a crash).
 
@@ -1461,7 +1461,7 @@ automatic bad-channel detection.
 
 `ExtraSettings.shank_spacing` (µm, from `Sorting.KS4.shank_spacing`; 0 = off)
 moves the probe's shanks apart for the sort only. Kilosort4 picks a channel's
-neighbours by distance alone, so this keeps whitening and its other
+neighbors by distance alone, so this keeps whitening and its other
 distance-based steps on one shank ([why and how much](kilosort4-notes.md#shank_spacing)).
 
 - `runKilosort` writes `<probe>_spaced.json` into the run folder. The shanks
@@ -1521,7 +1521,7 @@ so they agree on labels, times, channels and notes.
 | Option | Default | Meaning |
 | --- | --- | --- |
 | `Groups` | `[]` (all) | keep only clusters with these labels, e.g. `["good" "mua"]` (errors when no label table exists) |
-| `IncludeNoise` | `false` | keep clusters labelled `noise` |
+| `IncludeNoise` | `false` | keep clusters labeled `noise` |
 | `Templates` | `true` | read `templates.npy` for the peak channel and waveform |
 | `FullTemplates` | `false` | also return every unit's `[nS x nChan]` template |
 | `ChannelMap` | `channel_map.npy + 1`, else the identity | `[1 x nChanSorted]` 1-based recording channel of each sorted channel |
@@ -1544,7 +1544,7 @@ so they agree on labels, times, channels and notes.
 | `ksChannel` | peak channel among the sorted channels |
 | `shank` | from `channel_shanks.npy` (0 when absent) |
 | `peakX`, `peakY` | site position of the peak channel (probe units, µm) from `channel_positions.npy` |
-| `x`, `y` | template centre: site positions weighted by the template's peak-to-peak amplitude, over the channels on the peak channel's shank with at least 25% of the peak amplitude (`NaN` without templates or positions) |
+| `x`, `y` | template center: site positions weighted by the template's peak-to-peak amplitude, over the channels on the peak channel's shank with at least 25% of the peak amplitude (`NaN` without templates or positions) |
 | `nSpikes`, `samples`, `times` | spike count, 0-based int64 samples, `samples / fs` (recording-relative) |
 | `amplitude`, `contamPct` | `cluster_Amplitude.tsv` (else median `amplitudes.npy`; Kilosort4's units, from the whitened data), `cluster_ContamPct.tsv` |
 | `templateWaveform`, `templateFull`, `templateTimeMs` | peak-channel template: `templates.npy`, Kilosort4's mean of the unit's spikes in the high-passed, whitened data it sorted, unwhitened with `whitening_mat_inv.npy` transposed and not scaled by the amplitude; every channel's template (`FullTemplates`); time axis, ms from the spike (0 is the template sample Kilosort4 puts on the spike time, `nt0min`) |
@@ -1709,7 +1709,7 @@ report), the analysis config in `UnitSelection.quality` (`selectUnits`).
 writes `<resultsDir>/quality_report.html`: the units per class and how many
 meet the criteria, the criteria, a histogram of each metric with its
 threshold, a row per unit with the failed metrics marked, and each good
-unit's mean waveform. The table lists the units labelled good first (those
+unit's mean waveform. The table lists the units labeled good first (those
 meeting the criteria first among them), then the rest; a click on a column
 header sorts it by that column (again: reversed; a third time: back to that
 order), and a good unit's label links to its waveform. The waveform is the
@@ -1777,7 +1777,7 @@ report, the exports and the analysis read it unchanged:
   `settings.json` the templates come out in uV, and the template sample on
   the spike time is `nt0min` there;
 - `amplitudes.npy` holds magnitudes and `spike_positions.npy` each spike's
-  centre of mass, so the [quality metrics](#unit-quality-metrics) (drift
+  center of mass, so the [quality metrics](#unit-quality-metrics) (drift
   included) work as for Kilosort4;
 - `cluster_SILabel.tsv` labels each unit `good` or `mua` by the good-unit
   criteria (`Quality`), with SpikeInterface's quality metrics and
@@ -1845,7 +1845,7 @@ default none) the samples those periods cover (`artifactSamples`) are replaced
 in the amplifier data, per channel, by a straight line from the mean of the
 1 ms before the period to the mean of the 1 ms after it, before any signal is
 derived: LFP, MUA and SPIKE all derive from the filled data, so no filter or
-resampler spreads an artifact into its neighbours. AUX and the digital events
+resampler spreads an artifact into its neighbors. AUX and the digital events
 are not touched. `info.artifacts` reports it: `intervals` (merged; `zeros(0,2)`
 for none), `fill` (`"line"`) and `nSamples` (recording samples replaced).
 `intan2matlab` is a thin wrapper around it. The full option list, processing
@@ -1882,7 +1882,7 @@ after `save()` finishes **without any warning** and every variable is confirmed
 present with `whos -file`. Otherwise the partial file is deleted and an error is
 raised (`EphysDataset:saveAtomically:SaveWarning` / `SaveIncomplete`, and
 `MkdirFailed` / `MoveFailed` when the folder cannot be made or the file not
-renamed), so a failed or cancelled run leaves no complete-looking file.
+renamed), so a failed or canceled run leaves no complete-looking file.
 
 ### Spikes file
 
@@ -1896,7 +1896,7 @@ Sorted units are not copied into it; read them from the sorting folder with
 | --- | --- | --- |
 | `DetectOptions` | `struct()` | `detectSpikes` options (`Filter`, `Band`, `ThresholdMethod`, `Threshold`, `Waveforms`, `WindowMs`, `MaxChunkSamples`, `UseParallel`, `MaxWorkers`, ...) |
 | `Channels` | `[]` (all) | 1-based recording channels to detect on, in order |
-| `ArtifactMode` | `"reject"` | what detection does with the artifact periods (`ArtifactIntervals`, else `artifactIntervals()`): `"reject"` detects on the recording as read and drops the events inside a period; `"erase"` erases the periods before detection (`detectSpikes`' `ArtifactIntervals`), so detection runs on the cleaned recording: the erased samples stay out of the thresholds, the band-pass runs a line across them, and no event lies inside a period or comes from an artifact ringing into its neighbours; `"none"` ignores them |
+| `ArtifactMode` | `"reject"` | what detection does with the artifact periods (`ArtifactIntervals`, else `artifactIntervals()`): `"reject"` detects on the recording as read and drops the events inside a period; `"erase"` erases the periods before detection (`detectSpikes`' `ArtifactIntervals`), so detection runs on the cleaned recording: the erased samples stay out of the thresholds, the band-pass runs a line across them, and no event lies inside a period or comes from an artifact ringing into its neighbors; `"none"` ignores them |
 | `ArtifactIntervals` | computed | `[k x 2]` seconds |
 | `File`, `MatVersion`, `Overwrite`, `ProgressFcn` | as `toMat` | |
 
@@ -2299,7 +2299,7 @@ interpolates.
 | `ds.isOwnSource(folder)` | whether the source folder an output recorded (its provenance's `sourceFolder`, a sidecar's `source_folder`) is this recording's: `Folder`, or a path ending with `DatasetKey`, so outputs still count after the project moved; false for another recording with the same name |
 | `ds.sortingMissing()` | true when a hand-picked `SortingDir` holds no `params.py` now |
 | `EphysDataset.phyCurated(resultsDir)` | true when phy saved the unit labels there: `cluster_group.tsv` with the header `cluster_id<TAB>group` (static) |
-| `EphysDataset.phyStatus(resultsDir)` | what phy did there (static). `state` is `"none"`, `"opened"` (`phy.log` or `.phy/` only) or `"saved"` (`cluster_info.tsv`, or `phyCurated`). `modified` is true when a cluster was labelled, merged or split. `saved` is the time of the last save. `labels` / `counts` are the labels set in phy, `created` the clusters made by merges / splits (ids in `cluster_info.tsv` beyond `templates.npy`'s rows), and `clusters` the clusters at the save. Reads only the `.tsv` files and the `.npy` header. The Sorting tab's phy lamp and the Project table show it |
+| `EphysDataset.phyStatus(resultsDir)` | what phy did there (static). `state` is `"none"`, `"opened"` (`phy.log` or `.phy/` only) or `"saved"` (`cluster_info.tsv`, or `phyCurated`). `modified` is true when a cluster was labeled, merged or split. `saved` is the time of the last save. `labels` / `counts` are the labels set in phy, `created` the clusters made by merges / splits (ids in `cluster_info.tsv` beyond `templates.npy`'s rows), and `clusters` the clusters at the save. Reads only the `.tsv` files and the `.npy` header. The Sorting tab's phy lamp and the Project table show it |
 | `EphysDataset.pathKey(p)` | paths as comparable keys: `/` separators, no trailing separator, lower case on Windows (static) |
 | `EphysDataset.mergeIntervals(iv)` | the sorted union of half-open `[k x 2]` second intervals, the rule of `artifactIntervals` (static) |
 | `EphysDataset.artifactSamples(iv, Fs, nSamp)`, `intervalRows(iv, Fs, nRows)`, `overlapsIntervals(tStart, tStop, iv)` | the rows a period replaces at the recording rate, the rows it touches on a signal at any rate, and which windows touch one ([Manual periods](#manual-periods)) (static) |
@@ -2374,7 +2374,7 @@ deletes them afterwards. It covers:
 | 15 | `writeJsonFile` / `readJsonFile`, `probeMapProblems` / `writeProbeMap` (every reason Kilosort4 could not read a probe; a one-site map written as lists; a bad map refused), manifest v2 round trip (manual periods, moved detections, sorting, behavior) and its artifacts block (the interval file, counts, handling), v1 and unknown-schema manifests, `sortingResultsDir` precedence and `sortingStruct`, `EphysProject` keys and `refresh`, including `associateFolderBehavior` (one file associated, two left alone, an existing association kept). A project over outputs without the recordings is in `test_DatasetOutputs` section 6 |
 | 16 | the `ArtifactConfig` pre-detection filter (preview and `artifactIntervals` agree; single-chunk `UseParallel` is silent) |
 | 17 | `readPhyUnits` / `readSortedUnits` (times = samples/fs, phy labels beat Kilosort labels, groups, channel mapping, `FsFallback`, a template as stored and not scaled by the amplitude) |
-| 18 | `detectSpikes(ArtifactIntervals=)` (the periods erased in every chunk; refused for a data block); `spikesToMat` (the detections only: a sorted dataset's units stay in the sorting folder, labelled with their recording by `readSortedUnits`; artifact rejection - also over 200 overlapping, touching, reversed and empty periods -; `ArtifactMode` `"none"` / `"erase"`; explicit `ArtifactIntervals`; waveforms; no partial file left); `toMat` saves no behavior variable |
+| 18 | `detectSpikes(ArtifactIntervals=)` (the periods erased in every chunk; refused for a data block); `spikesToMat` (the detections only: a sorted dataset's units stay in the sorting folder, labeled with their recording by `readSortedUnits`; artifact rejection - also over 200 overlapping, touching, reversed and empty periods -; `ArtifactMode` `"none"` / `"erase"`; explicit `ArtifactIntervals`; waveforms; no partial file left); `toMat` saves no behavior variable |
 | 19 | the reader registry, `BinaryReader` (same microvolts through `readData`, `streamPlan` / `readChunkUV` and `readWindowUV`), random access for every Intan layout, a short last window joined to the one before, discovery of both kinds, `runKilosort` dry-run settings on the universal format |
 | 20 | `exportChronux` / `exportFieldTrip`, `readBehavior` / `behaviorStruct` / `behaviorToMat` |
 | 21 | `channelLayout` (`chanMap` values are `.bin` rows; without `kcoords` every site on shank 1; `ProbeFile=` places a dataset without a probe, and wins over its own) |
@@ -2451,7 +2451,7 @@ artifact periods erased after the reference, CMR).
 
 [`test_UnitLabels.m`](../pipeline/test_UnitLabels.m) covers unit labels:
 `parseNameTokens` formats, `nameIdentity`, class and id padding, identity
-columns, peak site and template centre, notes, `readSortedUnits` identity
+columns, peak site and template center, notes, `readSortedUnits` identity
 errors, `EphysProject` pattern push and collisions, and `unitTable`.
 
 It needs no real recording data and no Kilosort4 install. Run every suite with

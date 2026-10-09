@@ -21,7 +21,7 @@ function h = renderPSTH(R, target, opts)
 %                 every epoch sorted as one block (see renderRaster)
 %     EventMarks  how the raster marks R.rasterEvents (see renderRaster)
 %     HistStyle   "bar" (default): one bar per bin; "line": a trace through
-%                 the bin centres. SEM is a band behind either
+%                 the bin centers. SEM is a band behind either
 %     Fill        true (default): the bars, or the area under the line,
 %                 filled; false: the bars' outline, or the line alone
 %     FillAlpha   fill opacity 0-1; NaN (default) = 0.5 where groups are
@@ -32,7 +32,7 @@ function h = renderPSTH(R, target, opts)
 %                 own. The overlay layout normalizes each unit before the
 %                 mean
 %     Stack       false (default): groups overlaid; true: one row per
-%                 group, the first at the bottom, a row's baseline labelled
+%                 group, the first at the bottom, a row's baseline labeled
 %                 with its group's value on the left axis and its peak with
 %                 the peak's value on the right axis (in R.units; the
 %                 overlay layout's normalized mean in its own units). The
@@ -56,20 +56,20 @@ function h = renderPSTH(R, target, opts)
 %                 top of the probe first, and are titled with their shank /
 %                 depth); YLim is for the rate
 %                 panels (the rasters show every epoch), and a stack
-%                 ignores YLim and Legend (its rows are labelled)
+%                 ignores YLim and Legend (its rows are labeled)
 %
 %   An auROC result (spikePSTH BaselineMode "auroc") is drawn from 0.5, a
 %   dotted line, on a 0-1 axis unless Style.YLim says otherwise; Normalize
 %   does not apply. With a cutoff and R.auroc.settings.marks, the
 %   modulation window is shaded and each unit's call sits at the right of
-%   its title, one per group in the group's colour: an up arrow, a down
+%   its title, one per group in the group's color: an up arrow, a down
 %   arrow or n.s. (overlay: each group's count of units called up and
 %   down).
 %
 %   A grid's x and y labels are its tiled layout's, once for every tile
 %   (with rasters, the y label names the rates, then the rasters' rows);
 %   its legend goes east of the grid unless Style.LegendLocation says
-%   otherwise. A stack's right axis is labelled on the right column.
+%   otherwise. A stack's right axis is labeled on the right column.
 %
 %   H: layout (tiled layout or []), axes (rate panels), rasterAxes, step
 %   (each rate panel's row step in its y units; NaN when not stacked). A
@@ -246,7 +246,7 @@ end
 
 
 function callMarks(ax, R, u, colors, style)
-%callMarks  Unit U's auROC call in each group, at the top right of AX (the title's line), in the group's colour.
+%callMarks  Unit U's auROC call in each group, at the top right of AX (the title's line), in the group's color.
 %   An up arrow (modulated upwards), a down arrow or n.s.; U = 0 (the
 %   overlay's mean) gives each group's count of units called up and down.
 A = R.auroc;
@@ -334,9 +334,9 @@ end
 
 function step = drawStack(ax, P, R, colors, style, look, show)
 %drawStack  One row per group, the first at the bottom, step = Spacing x the tallest PSTH.
-%   Left axis: a tick at each row's baseline, labelled with the group's
+%   Left axis: a tick at each row's baseline, labeled with the group's
 %   value (the groupBy parameters name the axis). Right axis: a tick where
-%   each row peaks, labelled with P.peak (named by P.peakLabel). Rows are drawn top
+%   each row peaks, labeled with P.peak (named by P.peakLabel). Rows are drawn top
 %   down, so where they overlap the lower one is in front.
 nG = size(P.m, 2);
 tallest = max(P.m, [], 'all');

@@ -2,7 +2,7 @@
   "schema": "ephys-plot-design",
   "version": 1,
   "name": "Gray panel",
-  "description": "The ggplot2 look: each plot on a grey panel ruled by a white grid, no axis box, ggplot's evenly spaced hues and its dark-to-light blue scale.",
+  "description": "The ggplot2 look: each plot on a gray panel ruled by a white grid, no axis box, ggplot's evenly spaced hues and its dark-to-light blue scale.",
   "background": "#ffffff",
   "palette": ["#F8766D", "#00BFC4", "#7CAE00", "#C77CFF", "#CD9600", "#00A9FF", "#00BE67", "#FF61CC"],
   "single": "#595959",

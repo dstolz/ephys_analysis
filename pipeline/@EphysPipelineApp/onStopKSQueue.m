@@ -1,6 +1,6 @@
 function onStopKSQueue(obj)
 %onStopKSQueue  Drop the queued Kilosort4 runs that have not started.
-%   Their result rows become "cancelled"; their run files (and .bin) stay on
+%   Their result rows become "canceled"; their run files (and .bin) stay on
 %   disk. Runs already going carry on, and the monitor keeps following
 %   them.
 %
@@ -11,7 +11,7 @@ if n == 0; return; end
 Q = obj.KSQueue;
 obj.KSQueue(:) = [];
 for q = Q
-    obj.markKSResult(q.Name, q.prepared.resultsDir, "cancelled", "queue stopped before it started");
+    obj.markKSResult(q.Name, q.prepared.resultsDir, "canceled", "queue stopped before it started");
 end
 obj.log("[sorting] queue stopped: %d queued dataset(s) not started", n);
 if isempty(obj.KSRuns)

@@ -90,7 +90,7 @@ end
 
 
 function c = colorOf(name)
-%colorOf  The colour a name or #rrggbb gives; [] for "" or what is not a colour (validate warns).
+%colorOf  The color a name or #rrggbb gives; [] for "" or what is not a color (validate warns).
 c = [];
 name = strtrim(string(name));
 if name == ""; return; end

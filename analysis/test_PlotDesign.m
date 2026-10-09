@@ -4,10 +4,10 @@ function test_PlotDesign()
 %   tuning, heatmap, correlation, probe-map, evoked and behavior results.
 %   Checks the built-in designs (they load, name known roles, and every
 %   kind and layout draws in each without a refused value), what a design
-%   does to a plot (ground, group colours by palette, single and sequential
-%   colours, heat and diverging colormaps, rules for every plot and for one
+%   does to a plot (ground, group colors by palette, single and sequential
+%   colors, heat and diverging colormaps, rules for every plot and for one
 %   kind), the layering (design, then the user's rules, then the plot's; a
-%   plot's own colours win), choosing a design (the preference, redrawing
+%   plot's own colors win), choosing a design (the preference, redrawing
 %   every plot on screen, listeners), the right-click Design submenu,
 %   capturing a plot's look and saving, listing, importing and deleting
 %   designs, and refused files and names. The preferences and your
@@ -53,7 +53,7 @@ E = table((1:nE).', NaN(nE, 1), t0, t0, t0 + 0.3, t0 - 0.2, t0 + 0.5, repmat(0.7
 E.Properties.UserData = struct('ref', eventRef(line="Stim"), 'window', epochWindow(pre=-0.2, post=0.5), ...
     'selection', trialSelection(), 'scope', "trial", 'nTrials', nE);
 G = table((1:3).', ["Depth = 0"; "Depth = 0.5"; "Depth = 1"], lines(3), [0; 0; 0], 'VariableNames', {'index', 'label', 'color', 'n'});
-Go = G;   % ordered groups: selectTrials' colours for a numeric parameter with more than two values
+Go = G;   % ordered groups: selectTrials' colors for a numeric parameter with more than two values
 Go.color = groupColors(zeros(3, 1), true);
 meta = table(["u1"; "u2"; "u3"; "u4"], [1; 2; 3; 4], ["su"; "mua"; "su"; "su"], [1; 5; 3; 7], ["A-000"; "A-004"; "A-002"; "A-006"], ...
     [0; 0; 1; 1], [0; 8; 200; 208], [0; 100; 50; 150], [1; 1; 1; 1], ...
@@ -178,24 +178,24 @@ check(isequal(fig.Color, tufte.background) && strcmp(ax.Box, 'off') && strcmp(ax
     && isequal(ax.TickLength, [0.008 0.02]) && strcmp(ax.FontName, fonts(1)), ...
     'Tufte: the off-white ground, no box or grid, short outward ticks, the serif font');
 rc = arrayfun(@(k) C.Handles{find(C.Role == "rateFill" & C.Group == G.label(k), 1)}(1).FaceColor, 1:3, 'UniformOutput', false);
-check(isequal(vertcat(rc{:}), tufte.palette(1:3, :)), 'the groups take the palette''s colours, in order');
+check(isequal(vertcat(rc{:}), tufte.palette(1:3, :)), 'the groups take the palette''s colors, in order');
 sb = C.Handles{find(C.Role == "sem" & C.Group == G.label(1), 1)}(1);
 check(max(abs(sb.FaceColor - (tufte.palette(1, :) + (tufte.background - tufte.palette(1, :)) * 0.75))) < 1e-9, ...
-    'an SEM band is the group colour paled towards the design''s ground, not white');
+    'an SEM band is the group color paled towards the design''s ground, not white');
 h = renderPlot(Rp, struct('kind', "psth", 'style', struct('Colormap', "turbo")), fig, Design="Tufte");
 C = PlotAesthetics.components(h.layout);
 c1 = C.Handles{find(C.Role == "rateFill" & C.Group == G.label(1), 1)}(1).FaceColor;
 Mt = turbo(256);
-check(isequal(c1, Mt(1, :)), 'a plot''s own group colours (turbo) win over the palette');
+check(isequal(c1, Mt(1, :)), 'a plot''s own group colors (turbo) win over the palette');
 h = renderPlot(Rro, struct('kind', "rate", 'layout', "bar"), fig, Design="Tufte");
 C = PlotAesthetics.components(h.layout);
 M = PlotDesign.colormap(tufte.sequential, 256);
 bc = arrayfun(@(k) C.Handles{find(C.Role == "bar" & C.Group == Go.label(k), 1)}(1).FaceColor, 1:3, 'UniformOutput', false);
 check(max(abs(vertcat(bc{:}) - M(round(linspace(1, 256, 3)), :)), [], 'all') < 1e-9, ...
-    'ordered groups (a numeric parameter) take the sequential colours, light to dark');
+    'ordered groups (a numeric parameter) take the sequential colors, light to dark');
 h = renderPlot(Rp1, struct('kind', "psth"), fig, Design="Tufte");
 C = PlotAesthetics.components(h.layout);
-check(isequal(C.Handles{find(C.Role == "rateFill", 1)}(1).FaceColor, tufte.single), 'one group takes the single colour (Tufte''s grey)');
+check(isequal(C.Handles{find(C.Role == "rateFill", 1)}(1).FaceColor, tufte.single), 'one group takes the single color (Tufte''s gray)');
 h = renderPlot(Rp, struct('kind', "heatmap"), fig, Design="Tufte");
 C = PlotAesthetics.components(h.layout);
 axh = C.Handles{find(C.Role == "axes", 1)};
@@ -203,14 +203,14 @@ zl = C.Handles{find(C.Role == "zeroLine", 1)}(1);
 hz = tufte.kinds.heatmap([tufte.kinds.heatmap.role] == "zeroLine" & [tufte.kinds.heatmap.property] == "Color").value;
 cz = tufte.rules([tufte.rules.role] == "zeroLine" & [tufte.rules.property] == "Color").value;
 check(max(abs(axh.Colormap - PlotDesign.colormap(tufte.heat, 256)), [], 'all') < 1e-9 && isequal(zl.Color, hz) && ~isequal(hz, cz), ...
-    'a heat map: the design''s heat colours, and its rules for heat maps (the zero line''s colour) after the common ones');
+    'a heat map: the design''s heat colors, and its rules for heat maps (the zero line''s color) after the common ones');
 h = renderPlot(Rp, struct('kind', "heatmap", 'style', struct('HeatColormap', "hot")), fig, Design="Tufte");
 axh = h.axes(1);
-check(max(abs(axh.Colormap - hot(256)), [], 'all') < 1e-9, 'a plot''s own heat colours (hot) win over the design''s');
+check(max(abs(axh.Colormap - hot(256)), [], 'all') < 1e-9, 'a plot''s own heat colors (hot) win over the design''s');
 h = renderPlot(Rc, struct('kind', "corrmap"), fig, Design="Journal");
 journal = PlotDesign.load("Journal");
 check(max(abs(h.axes(1).Colormap - PlotDesign.colormap(journal.diverging, 256)), [], 'all') < 1e-9, ...
-    'a correlation map takes the diverging colours');
+    'a correlation map takes the diverging colors');
 renderPlot(Rp, struct('kind', "psth"), fig, Design="Default");
 check(isequal(fig.Color, [1 1 1]), 'Default puts back the ground the figure had before a design');
 
@@ -275,9 +275,9 @@ check(isequal(val(D, "rate", "LineWidth"), 3) && isequal(val(D, "xlabel", "FontS
     && isequal(val(D, "axes", "TickLength"), [0.008 0.02]), ...
     'capture: every property all of a role''s components share becomes a rule (the plot''s own edits too)');
 check(~has(D, "rate", "Color") && ~has(D, "sem", "FaceColor") && ~has(D, "legend", "Location") && ~has(D, "axes", "Colormap"), ...
-    'capture: no rule for group colours, the legend''s place or a colormap');
+    'capture: no rule for group colors, the legend''s place or a colormap');
 check(isequal(D.background, tufte.background) && isequal(D.palette, tufte.palette) && D.name == "Mine", ...
-    'capture: the ground and the groups'' colours (the palette, the rest kept from the design drawn in)');
+    'capture: the ground and the groups'' colors (the palette, the rest kept from the design drawn in)');
 PlotDesign.save(D, "Mine");
 L = PlotDesign.list();
 k = find(L.Name == "Mine");
@@ -286,9 +286,9 @@ check(isscalar(k) && L.Source(k) == "mine" && L.Description(k) == "Thick lines" 
 D2 = PlotDesign.load("Mine");
 check(numel(D2.rules) == numel(D.rules) && isequal(val(D2, "rate", "LineWidth"), 3) && isequal(D2.palette, round(D.palette * 255) / 255) ...
     && isequal(val(D2, "axes", "XColor"), round(val(D, "axes", "XColor") * 255) / 255), ...
-    'the file reads back as the same design (colours as #rrggbb)');
+    'the file reads back as the same design (colors as #rrggbb)');
 txt = fileread(fullfile(folder, "Mine.json"));
-check(contains(txt, '"#FFFFF8"') && contains(txt, '"ephys-plot-design"'), 'the file holds colours as #rrggbb and its schema');
+check(contains(txt, '"#FFFFF8"') && contains(txt, '"ephys-plot-design"'), 'the file holds colors as #rrggbb and its schema');
 h = renderPlot(Rt, struct('kind', "tuning"), fig, Design="Mine");
 check(strcmp(firstAxes(h, "axes").Box, 'off') && isequal(fig.Color, tufte.background), 'a saved design draws other kinds of plot too');
 h = renderPlot(Rp, struct('kind', "psth", 'histStyle', "line"), fig, Design="Mine");
@@ -298,10 +298,10 @@ check(any(C.Role == "rate") && all(arrayfun(@(i) all(arrayfun(@(o) o.LineWidth =
 renderPlot(Rp, struct('kind', "heatmap"), live, Editable=true, Design="Mine");
 Dh = PlotDesign.capture(live, Name="Mine heat");
 check(isfield(Dh.kinds, "heatmap") && numel(Dh.rules) == numel(D2.rules) && any([Dh.kinds.heatmap.role] == "axes") ...
-    && size(Dh.heat, 2) == 3, 'capture from a heat map: its rules kept for heat maps only, its colormap as the heat colours');
+    && size(Dh.heat, 2) == 3, 'capture from a heat map: its rules kept for heat maps only, its colormap as the heat colors');
 renderPlot(Rro, struct('kind', "rate"), live, Editable=true, Design="Default");
 Do = PlotDesign.capture(live);
-check(size(Do.sequential, 1) == 3 && isempty(Do.palette), 'capture of ordered groups: their colours become the sequential colours');
+check(size(Do.sequential, 1) == 3 && isempty(Do.palette), 'capture of ordered groups: their colors become the sequential colors');
 check(strcmp(errorId(@() PlotDesign.save(D, "Tufte")), 'PlotDesign:BadName') && strcmp(errorId(@() PlotDesign.save(D, "a/b")), 'PlotDesign:BadName') ...
     && strcmp(errorId(@() PlotDesign.save(D, "default")), 'PlotDesign:BadName') && strcmp(errorId(@() PlotDesign.save(D, "Mine")), 'PlotDesign:Exists'), ...
     'save: a built-in name, a name with / and one of yours (without Overwrite) are refused');
@@ -326,7 +326,7 @@ check(strcmp(bad(struct('rules', struct('role', "axes", 'property', "Wobble", 'v
     && strcmp(bad(struct('heat', {{"#ff0000"}})), 'PlotDesign:Bad') ...
     && strcmp(bad(struct('kinds', struct('pie', struct('role', "axes", 'property', "Box", 'value', "off")))), 'PlotDesign:Bad') ...
     && strcmp(bad([struct('a', 1) struct('a', 2)]), 'PlotDesign:Bad'), ...
-    'normalize refuses an unknown property, a bad colour, a bad palette, an unknown or one-colour colormap, an unknown kind and a list');
+    'normalize refuses an unknown property, a bad color, a bad palette, an unknown or one-color colormap, an unknown kind and a list');
 check(strcmp(errorId(@() PlotAesthetics.normalizeRules(struct('role', "axes", 'property', "TickLength", 'value', [1 2 3 4]))), ...
     'PlotAesthetics:BadRule'), 'a value of four numbers is refused');
 fid = fopen(fullfile(folder, "Broken.json"), 'w'); fprintf(fid, '{ not json'); fclose(fid);

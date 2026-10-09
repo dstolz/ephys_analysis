@@ -1,7 +1,7 @@
 function finishCopyRun(obj, R)
 %finishCopyRun  Report a finished copy batch and, if asked, open what it copied.
 %   R is the copySessions result for the ticked rows. Failures are shown once,
-%   in one dialog; a cancelled batch says how to complete it. With "open the
+%   in one dialog; a canceled batch says how to complete it. With "open the
 %   copied sessions as the project" ticked and nothing failed, the Project root
 %   becomes the folder holding the copied / already present sessions and is
 %   scanned.
@@ -13,9 +13,9 @@ if any(R.CopyStatus == "failed")
     bad = R(R.CopyStatus == "failed", :);
     msg = strjoin(compose("%s: %s", bad.DestDir, bad.Message), newline + newline);
     uialert(obj.Fig, msg, sprintf("%d session(s) failed", height(bad)));
-elseif any(R.CopyStatus == "cancelled")
+elseif any(R.CopyStatus == "canceled")
     obj.setStatus(obj.copySummaryText("Copy sessions", R), ...
-        "Copy selected with If it exists = resume completes what was cancelled.");
+        "Copy selected with If it exists = resume completes what was canceled.");
 end
 
 ready = R.DestDir(R.CopyStatus == "copied" | R.CopyStatus == "already_present");

@@ -24,7 +24,7 @@ function T = unitTable(units, opts)
 %     ksChannel       peak channel among the sorted channels
 %     shank
 %     peakX, peakY    site position of the peak channel (probe units, um)
-%     x, y            template centre (amplitude-weighted site position)
+%     x, y            template center (amplitude-weighted site position)
 %     notes           cluster_notes.tsv text (see EphysDataset.writeUnitNotes)
 %     nSpikes, amplitude, contamPct
 %     firingRate, isiViolationsRatio, isiViolationsCount, presenceRatio,

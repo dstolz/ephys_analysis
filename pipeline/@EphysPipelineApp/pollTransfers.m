@@ -23,7 +23,7 @@ if isempty(obj.Transfers) || ~all(arrayfun(@(X) X.Done, obj.Transfers))
 end
 
 % Every transfer is done: how each dataset's copy ended, then stop watching.
-counts = struct('done', 0, 'error', 0, 'cancelled', 0, 'skipped', 0);
+counts = struct('done', 0, 'error', 0, 'canceled', 0, 'skipped', 0);
 verb = "copied";
 folders = strings(1, 0);
 for X = obj.Transfers
@@ -37,7 +37,7 @@ for X = obj.Transfers
 end
 msg = sprintf("Output copies done: %d dataset(s) %s to %s", counts.done, verb, strjoin(unique(folders, 'stable'), ", "));
 if counts.error > 0; msg = msg + sprintf(", %d with an ERROR (see their transfer rows and the log)", counts.error); end
-if counts.cancelled > 0; msg = msg + sprintf(", %d cancelled", counts.cancelled); end
+if counts.canceled > 0; msg = msg + sprintf(", %d canceled", counts.canceled); end
 if counts.skipped > 0; msg = msg + sprintf(", %d skipped", counts.skipped); end
 obj.RunTransferLabel.Text = char(msg + ".");
 obj.RunTransferLabel.Tooltip = char(msg + ".");

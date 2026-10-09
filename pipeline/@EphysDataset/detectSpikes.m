@@ -175,7 +175,7 @@ function [ts, wf, info] = detectSpikes(obj, X, opts)
 %                      read, context included, so they stay out of the noise
 %                      estimates, never cross threshold, and the band-pass
 %                      runs a line across them (see Conventions): an
-%                      artifact cannot ring into its neighbours or raise the
+%                      artifact cannot ring into its neighbors or raise the
 %                      threshold. Reported in INFO.artifacts.
 %
 %   Memory: one chunk plus the padding is held at a time (per worker with
@@ -197,7 +197,7 @@ function [ts, wf, info] = detectSpikes(obj, X, opts)
 %   blankArtifacts(Fill="nan")) are excluded from the estimates and never cross
 %   threshold; the band-pass sees them as a straight line between the finite
 %   samples around them (held flat at the ends), so they do not ring into
-%   their neighbours, and they are NaN again in the filtered trace.
+%   their neighbors, and they are NaN again in the filtered trace.
 %
 %   INFO fields
 %   -----------

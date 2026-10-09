@@ -34,20 +34,20 @@ end
 
 
 function refreshPhyStatus(obj, dir0)
-%refreshPhyStatus  The phy row: a lamp (grey none, amber opened or saved
+%refreshPhyStatus  The phy row: a lamp (gray none, amber opened or saved
 %   unchanged, green modified) and what phy changed in sorted-output DIR0
 %   ("" = no sort to look at).
 if isempty(obj.SortPhyLamp) || ~isvalid(obj.SortPhyLamp); return; end
-grey = [0.75 0.75 0.75]; amber = [0.95 0.65 0.1]; green = [0.2 0.7 0.3];
+gray = [0.75 0.75 0.75]; amber = [0.95 0.65 0.1]; green = [0.2 0.7 0.3];
 if dir0 == ""
-    obj.SortPhyLamp.Color = grey;
+    obj.SortPhyLamp.Color = gray;
     obj.SortPhyLabel.Text = "phy: no sorted output to look at.";
     return
 end
 p = EphysDataset.phyStatus(dir0);
 switch p.state
     case "none"
-        obj.SortPhyLamp.Color = grey;
+        obj.SortPhyLamp.Color = gray;
         obj.SortPhyLabel.Text = "Not opened in phy.";
         return
     case "opened"
@@ -58,13 +58,13 @@ end
 when = string(datetime(p.saved, 'Format', 'yyyy-MM-dd HH:mm'));
 if ~p.modified
     obj.SortPhyLamp.Color = amber;
-    obj.SortPhyLabel.Text = "Saved in phy " + when + " with no change: no cluster labelled, merged or split.";
+    obj.SortPhyLabel.Text = "Saved in phy " + when + " with no change: no cluster labeled, merged or split.";
     return
 end
 obj.SortPhyLamp.Color = green;
 parts = strings(1, 0);
 if ~isempty(p.counts)
-    parts(end+1) = "labelled " + strjoin(string(p.counts) + " " + p.labels, ", ");
+    parts(end+1) = "labeled " + strjoin(string(p.counts) + " " + p.labels, ", ");
 end
 if p.created > 0
     parts(end+1) = sprintf("%d cluster(s) from merges / splits", p.created);

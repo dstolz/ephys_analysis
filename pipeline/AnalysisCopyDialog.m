@@ -421,7 +421,7 @@ classdef AnalysisCopyDialog < handle
                 obj.stopTimer();
                 obj.setRunning(false);
                 failed = nnz(T.Status == "error");
-                if X.Cancelled
+                if X.Canceled
                     obj.Ctl.Status.Text = "Stopped. " + obj.Ctl.Status.Text;
                 elseif failed > 0
                     obj.Ctl.Status.Text = sprintf("%d dataset(s) failed - see the Notes column.", failed);

@@ -1,10 +1,10 @@
 function buildUI(obj)
 %buildUI  Create the figure, menus, toolbar, tabs (workflow order) and the status bar.
-%   The tab group's own headers cannot be coloured, so they are clipped out
+%   The tab group's own headers cannot be colored, so they are clipped out
 %   of view (TabHost) and a strip of buttons takes their place: one per
-%   tab, coloured by the tab's status (see syncTabStrip) with an underline
+%   tab, colored by the tab's status (see syncTabStrip) with an underline
 %   on the selected one. obj.Tabs.SelectedTab stays the source of truth.
-%   Every button is then styled (styleButtons), the main actions in colour.
+%   Every button is then styled (styleButtons), the main actions in color.
 
 pos = [120 90 1240 800];   % default; overridden by the saved preference
 obj.Fig = uifigure("Name", "Ephys preprocessing", "Position", pos);
@@ -71,7 +71,7 @@ obj.buildRunTab();
 obj.buildReviewTab();
 obj.buildSyntheticTab();
 obj.buildCleanupTab();
-styleButtons(obj);   % before syncTabStrip, which colours the tab strip by status
+styleButtons(obj);   % before syncTabStrip, which colors the tab strip by status
 
 obj.Tabs.SelectedTab = obj.TabProject;   % the app still opens on Project
 obj.syncTabStrip();
@@ -80,7 +80,7 @@ end
 
 
 function styleButtons(obj)
-%styleButtons  Every button a size up; the main actions in colour (styleButton).
+%styleButtons  Every button a size up; the main actions in color (styleButton).
 %   A button that changes role while the app runs restyles itself
 %   (setCopyRunning, onArtViewInput's Mark artifacts and Shade artifacts).
 styleButton(findall(obj.Fig, "Type", "uibutton", "-or", "Type", "uistatebutton"));
@@ -128,7 +128,7 @@ for k = n:-1:1
 end
 for c = barCol
     slot = uigridlayout(sg, [3 1], "Padding", [0 0 0 0], "RowSpacing", 0, ...
-        "RowHeight", {'1x', 28, '1x'}, "ColumnWidth", {'1x'});   % centres a bar shorter than the buttons
+        "RowHeight", {'1x', 28, '1x'}, "ColumnWidth", {'1x'});   % centers a bar shorter than the buttons
     slot.Layout.Row = 1; slot.Layout.Column = c;
     bar = uipanel(slot,"BorderType", "none", "BackgroundColor", [0.68 0.68 0.72], "Tag", "TabStripBar");
     bar.Layout.Row = 2; bar.Layout.Column = 1;

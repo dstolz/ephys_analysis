@@ -36,7 +36,7 @@ classdef SyntheticDesign
     %     JitterMs     SD of the latency from event to event
     %     Parameter    Epsych2 trial parameter that scales the response; ""
     %                  = none. The response is scaled by the trial's value
-    %                  normalised to 0..1 over the session (Tuning
+    %                  normalized to 0..1 over the session (Tuning
     %                  "increasing") or by 1 minus that ("decreasing");
     %                  events outside any trial respond fully
     %     Tuning       "increasing" | "decreasing"

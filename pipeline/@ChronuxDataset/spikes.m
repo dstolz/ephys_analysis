@@ -43,7 +43,7 @@ function [data, params, t, info] = spikes(obj, opts)
 %                 ["good" "mua"]; read from cluster_group.tsv (curated) or
 %                 cluster_KSLabel.tsv (Kilosort's own). "kilosort" only
 %     DetectOptions  struct of EphysDataset.detectSpikes options ("detect")
-%     TimeRange   [t0 t1] seconds to analyse (default: the whole recording).
+%     TimeRange   [t0 t1] seconds to analyze (default: the whole recording).
 %                 Spikes outside it are dropped and T spans it
 %     TimeBase    "recording" (default) keeps recording-relative times, with T
 %                 spanning [t0 t1]; "window" subtracts t0, so times and T start

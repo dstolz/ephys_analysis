@@ -9,7 +9,7 @@ function T = makeSyntheticRecording(folder, opts)
 %                        LFP rhythms with a depth profile, 1/f-like and white
 %                        noise, line noise, event-locked LFP (by default a
 %                        stimulus-evoked potential), spiking units with
-%                        realistic waveforms spread over the neighbouring
+%                        realistic waveforms spread over the neighboring
 %                        sites whose rates follow the events, and
 %                        (Artifacts) two large artifacts, one of them
 %                        saturating the ADC

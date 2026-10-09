@@ -129,7 +129,7 @@ copy of this script into `<output folder>/si_<sorter>`
    warning;
 5. on a 300 Hz high-pass of the `.bin`, builds a sparse SortingAnalyzer in
    memory: random spikes (500 per unit), waveforms (1 ms before, 2 ms after),
-   templates, noise levels, spike amplitudes, spike locations (centre of
+   templates, noise levels, spike amplitudes, spike locations (center of
    mass) and the quality metrics `firing_rate`, `presence_ratio`, `snr`,
    `isi_violation`, `amplitude_cutoff` and `drift`;
 6. labels each unit `good` or `mua` with `unit_labels`, which applies the

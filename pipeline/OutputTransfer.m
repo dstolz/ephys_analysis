@@ -63,13 +63,13 @@ classdef OutputTransfer < handle
     %
     %   Batch states: "waiting" (for its sort), "queued", "copying",
     %   "verifying" (SHA-256), "copied" (a move whose files go once the
-    %   transfer is closed), "done", "failed", "cancelled", "skipped".
+    %   transfer is closed), "done", "failed", "canceled", "skipped".
     %
     %   Properties
     %     Destination, Method, IfExists, Verify   as constructed
     %     Batches      one struct per batch (fields: see newBatch)
     %     Closed       close() was called: no more batches
-    %     Cancelled    cancel() was called
+    %     Canceled    cancel() was called
     %     Done         closed, and every batch has finished
     %     LogFcn       @(msg), one line per batch queued and ended
     %     ProgressFcn  @(info) as the copy moves (info: see progress)
@@ -95,7 +95,7 @@ classdef OutputTransfer < handle
         Verify      (1,1) string = "size"      % "size" (and time) | "hash" (SHA-256)
         Batches     struct = OutputTransfer.emptyBatches()   % one per batch (fields: see newBatch)
         Closed      (1,1) logical = false      % close() was called: no more batches
-        Cancelled   (1,1) logical = false      % cancel() was called
+        Canceled   (1,1) logical = false      % cancel() was called
         Message     (1,1) string = ""          % what the copy engine said last
     end
 
@@ -110,7 +110,7 @@ classdef OutputTransfer < handle
     end
 
     properties (Constant, Access = private)
-        Final = ["done" "failed" "cancelled" "skipped"]
+        Final = ["done" "failed" "canceled" "skipped"]
     end
 
     properties (Access = private)
@@ -175,7 +175,7 @@ classdef OutputTransfer < handle
                 opts.Since (1,1) datetime = datetime('now')
                 opts.OnMoved = []
             end
-            if obj.Closed && ~obj.Cancelled
+            if obj.Closed && ~obj.Canceled
                 error('OutputTransfer:Closed', 'The transfer is closed: no batch can be added to it.');
             end
             key = OutputTransfer.cleanKey(key);
@@ -193,9 +193,9 @@ classdef OutputTransfer < handle
             b.Since = opts.Since;
             b.OnMoved = opts.OnMoved;
             b.Added = datetime('now');
-            if obj.Cancelled
-                b.State = "cancelled";
-                b.Message = "not copied: the transfer was cancelled";
+            if obj.Canceled
+                b.State = "canceled";
+                b.Message = "not copied: the transfer was canceled";
             else
                 b.DestDir = obj.datasetFolder(key);
                 if b.WaitFor ~= ""
@@ -208,7 +208,7 @@ classdef OutputTransfer < handle
             end
             obj.Batches(end+1) = b;
             id = b.Id;
-            if b.State ~= "cancelled"
+            if b.State ~= "canceled"
                 obj.say(b, sprintf("%d path(s), %s, to %s", numel(b.Paths), OutputTransfer.bytesText(b.Bytes), b.DestDir), b.State);
             end
             obj.changed(id);
@@ -226,13 +226,13 @@ classdef OutputTransfer < handle
                 obj.advanceJob();
             end
             obj.checkWaiting();
-            if obj.Closed && ~obj.Cancelled
+            if obj.Closed && ~obj.Canceled
                 obj.sweep();
             end
-            if isempty(obj.Job) && ~obj.Cancelled
+            if isempty(obj.Job) && ~obj.Canceled
                 obj.startJob();
             end
-            if obj.Closed && ~obj.Cancelled
+            if obj.Closed && ~obj.Canceled
                 obj.removeMoved();
             end
             obj.report();
@@ -250,18 +250,18 @@ classdef OutputTransfer < handle
         function cancel(obj)
             %cancel  Stop copying; what is copied stays, and a move removes nothing more.
             %   The job in flight stops between files (what it copied
-            %   stays), the batches not started are "cancelled", and a move
-            %   removes nothing more. A cancelled transfer is closed.
-            if obj.Cancelled; return; end
-            obj.Cancelled = true;
+            %   stays), the batches not started are "canceled", and a move
+            %   removes nothing more. A canceled transfer is closed.
+            if obj.Canceled; return; end
+            obj.Canceled = true;
             obj.Closed = true;
             for i = 1:numel(obj.Batches)
                 switch obj.Batches(i).State
                     case {"waiting", "queued"}
-                        obj.setState(i, "cancelled", "not copied: the transfer was cancelled");
+                        obj.setState(i, "canceled", "not copied: the transfer was canceled");
                     case "copied"
                         obj.setState(i, "done", erase(obj.Batches(i).Message, OutputTransfer.LaterNote) + ...
-                            "; nothing removed here: the transfer was cancelled");
+                            "; nothing removed here: the transfer was canceled");
                 end
             end
             if ~isempty(obj.Job)
@@ -301,7 +301,7 @@ classdef OutputTransfer < handle
         function info = progress(obj)
             %progress  Where the transfer is: a struct for a progress display.
             %   Fraction (0 to 1, of the bytes of every batch not waiting,
-            %   cancelled or skipped; a SHA-256 pass counts as two more
+            %   canceled or skipped; a SHA-256 pass counts as two more
             %   reads), BytesDone / BytesTotal (copied so far / to copy),
             %   Batches ([finished total]), Waiting (batches waiting for a
             %   sort), Failed, Phase ("copying", "verifying", "waiting",
@@ -310,7 +310,7 @@ classdef OutputTransfer < handle
             B = obj.Batches;
             st = obj.states();
             w = 1 + 2 * (obj.Verify == "hash");
-            counted = ~ismember(st, ["waiting" "cancelled" "skipped"]);
+            counted = ~ismember(st, ["waiting" "canceled" "skipped"]);
             bytes = [B.Bytes];
             total = sum(bytes(counted));
             finished = ismember(st, [OutputTransfer.Final "copied"]);
@@ -351,7 +351,7 @@ classdef OutputTransfer < handle
             %statusOf  One dataset's transfer, for a result row: STATUS, MESSAGE, FOLDER.
             %   STATUS is "waiting" (for a sort), "queued", "copying",
             %   "copied" (a move whose files go once the run is over),
-            %   "done", "error" (a batch failed), "cancelled" or "skipped";
+            %   "done", "error" (a batch failed), "canceled" or "skipped";
             %   "" when KEY has no batch. FOLDER is the dataset's folder in
             %   the destination.
             status = "";
@@ -379,9 +379,9 @@ classdef OutputTransfer < handle
                 status = "copied";
             elseif any(st == "failed")
                 status = "error";
-            elseif all(st == "cancelled")
-                status = "cancelled";
-            elseif all(ismember(st, ["skipped" "cancelled"]))
+            elseif all(st == "canceled")
+                status = "canceled";
+            elseif all(ismember(st, ["skipped" "canceled"]))
                 status = "skipped";
             else
                 status = "done";
@@ -390,7 +390,7 @@ classdef OutputTransfer < handle
                 case "error"
                     bad = B(find(st == "failed", 1));
                     message = bad.Label + ": " + bad.Message;
-                case {"cancelled", "skipped"}
+                case {"canceled", "skipped"}
                     message = B(end).Message;
                 case "done"
                     verb = "copied";
@@ -570,7 +570,7 @@ classdef OutputTransfer < handle
                         obj.Batches(i).Bytes = OutputTransfer.sizeOf(b.Paths);
                         obj.setState(i, "queued", "");
                     otherwise
-                        why = "the sort " + ternary(state == "cancelled", "was stopped", "failed");
+                        why = "the sort " + ternary(state == "canceled", "was stopped", "failed");
                         if msg ~= ""; why = why + " (" + msg + ")"; end
                         obj.setState(i, "skipped", "not copied: " + why);
                 end
@@ -734,7 +734,7 @@ classdef OutputTransfer < handle
         % ------------------------------------------------------------- the job in flight
         function advanceJob(obj)
             %advanceJob  Read the engine's events; once its phase is over, check it.
-            if obj.Cancelled && ~obj.Job.CancelSent
+            if obj.Canceled && ~obj.Job.CancelSent
                 obj.sendCancel();
             end
             phase = obj.Job.Phase;
@@ -753,7 +753,7 @@ classdef OutputTransfer < handle
                 obj.failJob("the copy engine failed: " + S.message);
                 return
             end
-            stopped = S.state == "cancelled" || obj.Cancelled;
+            stopped = S.state == "canceled" || obj.Canceled;
             if phase == "copy"
                 obj.finishCopyPhase(stopped);
                 verify = obj.states() == "verifying";
@@ -811,8 +811,8 @@ classdef OutputTransfer < handle
                 switch string(e.event)
                     case "session"
                         obj.Job.Now = e.index;
-                        if string(e.state) == "cancelled"
-                            obj.Job.Errors(e.index) = "cancelled";
+                        if string(e.state) == "canceled"
+                            obj.Job.Errors(e.index) = "canceled";
                         elseif string(e.state) == "done" && isfield(e, 'error') && strlength(string(e.error)) > 0
                             obj.Job.Errors(e.index) = string(e.error);
                         end
@@ -880,9 +880,9 @@ classdef OutputTransfer < handle
             for i = obj.Job.Batches
                 if obj.Batches(i).State ~= "copying"; continue; end
                 errs = obj.Job.Errors([obj.Job.Sessions.batch] == i);
-                if stopped || any(errs == "cancelled")
+                if stopped || any(errs == "canceled")
                     obj.failFiles(i);
-                    obj.setState(i, "cancelled", "cancelled during the copy; what was copied is kept in " + obj.Batches(i).DestDir);
+                    obj.setState(i, "canceled", "canceled during the copy; what was copied is kept in " + obj.Batches(i).DestDir);
                 elseif any(errs ~= "")
                     obj.failFiles(i);
                     obj.Job.Failed = true;
@@ -929,7 +929,7 @@ classdef OutputTransfer < handle
             for i = obj.Job.Batches
                 if obj.Batches(i).State ~= "verifying"; continue; end
                 if stopped
-                    obj.setState(i, "cancelled", "cancelled while checksumming; the copy is kept in " + obj.Batches(i).DestDir);
+                    obj.setState(i, "canceled", "canceled while checksumming; the copy is kept in " + obj.Batches(i).DestDir);
                     continue
                 end
                 F = obj.Batches(i).Files;
@@ -1007,7 +1007,7 @@ classdef OutputTransfer < handle
             end
             again = find(F.State == "changed");
             if ~isempty(again)
-                if b.Generation < OutputTransfer.MaxGeneration && ~obj.Cancelled
+                if b.Generation < OutputTransfer.MaxGeneration && ~obj.Canceled
                     obj.followUp(i, OutputTransfer.pick(F, again), "changed while they were copied");
                     msg = msg + sprintf("; %d changed while they were copied and are copied again", numel(again));
                 else

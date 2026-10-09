@@ -2,7 +2,7 @@ function markKSResult(obj, name, output, status, message, addSeconds)
 %markKSResult  Restate the Run tab's result row of a background Kilosort4 run.
 %   obj.markKSResult(NAME, OUTPUT, STATUS, MESSAGE, ADDSECONDS): the
 %   "sorting" row of dataset NAME whose Output is OUTPUT (the run's results
-%   dir) takes STATUS ("launched", "done", "error", "cancelled") and
+%   dir) takes STATUS ("launched", "done", "error", "canceled") and
 %   MESSAGE, and ADDSECONDS (default 0) goes onto its Seconds. The row is
 %   restated in the last Run's results (RunResults, kept while a Plan fills
 %   the results table), in the running pipeline's Results (so the table the

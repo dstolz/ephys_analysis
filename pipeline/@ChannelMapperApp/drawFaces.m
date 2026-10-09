@@ -6,7 +6,7 @@ function drawFaces(obj)
 %   so pins that touch share a column, and flipping the orientation
 %   visibly flips the lower face. The first package face's rows are at
 %   y = 1..R, x = 1..C. obj.FaceDraw keeps, per drawn face, its key
-%   ("package:<face>" or "headstage[i]:<face>"), patch, base colours and
+%   ("package:<face>" or "headstage[i]:<face>"), patch, base colors and
 %   frame, for clicks and highlighting.
 ax = obj.MateAxes;
 cla(ax);

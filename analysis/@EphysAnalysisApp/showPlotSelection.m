@@ -6,7 +6,7 @@ function showPlotSelection(obj)
 %   kinds, and the note becomes an amber banner naming them, saying that
 %   an edit goes to every one and that the options shown are those they
 %   all have, with the first one's values; the bar over the preview, in
-%   the same colours, says it draws the first one only.
+%   the same colors, says it draws the first one only.
 ks = obj.selectedPlots();
 n = numel(ks);
 E = obj.PlotEditor;

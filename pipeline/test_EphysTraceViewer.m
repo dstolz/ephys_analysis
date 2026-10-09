@@ -12,14 +12,14 @@ function test_EphysTraceViewer()
 %       nothing), panning inside the margin moving the limits only, the
 %       voltage scale, lanes and their names, heatmap mode, shading,
 %       sorted-unit and detected-spike layers as ticks (in front of the
-%       traces, over a halo), as the trace recoloured and as stored
+%       traces, over a halo), as the trace recolored and as stored
 %       waveforms on their own lanes (on a scale of their own), spikes only
 %       (no trace), the read limit, the wheel, keys and drags, and event
 %       lines over the traces (onset on its own sample) and as TTL rows
 %     - EphysTraceEnvelope: block sizes, one cache file per source, every
 %       level's min / max equal to those of the full-rate samples, a
 %       stale fingerprint (the .bin written again) never used and built
-%       again, a build on a thread, on a timer and cancelled, a removed
+%       again, a build on a thread, on a timer and canceled, a removed
 %       cache file noticed (Clean up); the viewer
 %       drawing the whole recording from it without a full-rate read, the
 %       overview strip's signal, and a display filter keeping the view
@@ -140,7 +140,7 @@ tr = traceLines(ax);
 [x, y] = lanePoints(tr, 3);
 k = find(abs(x - 1.5) < 0.1 / Fs);
 check(v.LastRender.bin == 1 && ~isempty(k) && abs(y(k) - (-2 + 2000 / 1000)) < 1e-6, ...
-    'zoomed in, each sample is drawn at (row-1)/Fs: the spike at 1.5 s on lane 3 (centred at -2)');
+    'zoomed in, each sample is drawn at (row-1)/Fs: the spike at 1.5 s on lane 3 (centerd at -2)');
 v.setView(0, 3);
 b = v.LastRender.bin;
 [x, y] = lanePoints(traceLines(ax), 3);
@@ -220,7 +220,7 @@ v.setLayerStyle("Sorted units", "waveforms");
 v.setView(1.49, 0.02);
 [sx, sy] = spikePoints(ax);
 check(v.LastRender.styles == "waveforms" && any(abs(sy - (-2 + 2)) < 1e-6) && all(sx(~isnan(sx)) >= 1.5 + U.winMs(1) / 1e3 - 1 / Fs), ...
-    'waveforms: the trace is recoloured over the spike''s window (the spike''s own sample included)');
+    'waveforms: the trace is recolored over the spike''s window (the spike''s own sample included)');
 v.MaxWaveforms = 1;
 v.setView(0, 3);
 check(v.LastRender.styles == "ticks" && any(contains(v.LastRender.notes, "ticks shown")), ...
@@ -288,7 +288,7 @@ v.dragTo([400 300]);
 moved = v.endDrag();
 check(moved && abs(v.TStart - 100 * 0.8 / w0) < 1e-9,'a drag to the left pans later in time by the pixels moved');
 v.seekOverview(2);
-check(abs(v.TStart + v.TWidth / 2 - 2) < 1e-9, 'the overview centres the view on a time');
+check(abs(v.TStart + v.TWidth / 2 - 2) < 1e-9, 'the overview centers the view on a time');
 
 fprintf('\n== 5. events ==\n');
 % TTL1 turns on at the spike's row: 0-based sample sp is row sp+1, at
@@ -432,7 +432,7 @@ ec = EphysTraceEnvelope(rec, Blocks=[16 64], File=fullfile(root, "cancel_recordi
 ec.start();
 ec.cancel();
 pause(0.2);
-check(ec.State == "missing" && ec.Message == "cancelled" && isempty(dir(fullfile(root, "cancel_recording.dat*"))), ...
+check(ec.State == "missing" && ec.Message == "canceled" && isempty(dir(fullfile(root, "cancel_recording.dat*"))), ...
     'cancel stops a build and deletes its partial file');
 
 % The viewer: a whole-recording view from the envelope, the overview's signal.
@@ -515,7 +515,7 @@ end
 
 
 function [x, y] = lanePoints(h, lane)
-% The points of the LANE-th lane shown: the lanes of one colour are one
+% The points of the LANE-th lane shown: the lanes of one color are one
 % line, in lane order, NaN between them.
 x = []; y = [];
 for i = 1:numel(h)

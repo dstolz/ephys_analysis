@@ -5,7 +5,7 @@ function [units, info] = readSortedUnits(obj, opts)
 %   kilosortResultsDir) through EphysDataset.readPhyUnits, with the dataset's
 %   own defaults: the recording rate as the sample-rate fallback, its channel
 %   numbers and native names, and its unitIdentity, so every unit is
-%   labelled with the subject and recording start ("su042_1255_260908T1039")
+%   labeled with the subject and recording start ("su042_1255_260908T1039")
 %   and carries datasetKey.
 %   The identity is checked first: a Name that does not match NamePattern
 %   throws EphysDataset:unitIdentity:* before any sorter output is read.

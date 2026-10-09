@@ -912,9 +912,9 @@ classdef test_CopySessions < matlab.unittest.TestCase
             tc.addPair("260916T110742", "260916_110907");
             T = tc.find(tc.Subj, "260916");
             R = copySessions(T, DestRoot=tc.Dest, DryRun=false, CancelFcn=@() true, LogFcn=@(~) []);
-            tc.verifyEqual(R.CopyStatus, "cancelled");
+            tc.verifyEqual(R.CopyStatus, "canceled");
             tc.verifySubstring(char(R.Message), 'before the copy started');
-            tc.verifyFalse(isfolder(R.DestDir), "nothing is created for a cancelled batch");
+            tc.verifyFalse(isfolder(R.DestDir), "nothing is created for a canceled batch");
         end
 
         % ---------------------------------------------------------------- partial copies, manifests
@@ -1030,7 +1030,7 @@ classdef test_CopySessions < matlab.unittest.TestCase
             % already copied, is resumed; one complete but not yet
             % checksummed needs no space at all. Only copying it afresh is
             % refused. (Sparse files: they take no space. Every copy here is
-            % cancelled once checked, before anything is copied.)
+            % canceled once checked, before anything is copied.)
             tc.assumeTrue(ispc, "sparse files and robocopy need Windows");
             [~, i] = tc.addPair("260916T110742", "260916_110907");
             free = double(java.io.File(tc.Root).getUsableSpace());
@@ -1055,7 +1055,7 @@ classdef test_CopySessions < matlab.unittest.TestCase
             tc.verifySubstring(char(R.Message), '1 of 5 file(s) already there');
             tc.verifyFalse(contains(R.Message, "not enough free space"), R.Message);
             R = copySessions(T, DestRoot=tc.Dest, DryRun=false, CancelFcn=@() true, LogFcn=@(~) []);
-            tc.verifyEqual(R.CopyStatus, "cancelled", "checked, not refused");
+            tc.verifyEqual(R.CopyStatus, "canceled", "checked, not refused");
 
             ms = java.io.File(amp).lastModified() + 3600e3;   % not finished: copied again, whole
             tc.assertTrue(java.io.File(fullfile(dest, "amplifier.dat")).setLastModified(ms));
@@ -1072,12 +1072,12 @@ classdef test_CopySessions < matlab.unittest.TestCase
                 tc.sameTime(fullfile(dest, f), from);
             end
             R = copySessions(T, DestRoot=tc.Dest, DryRun=false, Verify="hash", CancelFcn=@() true, LogFcn=@(~) []);
-            tc.verifyEqual(R.CopyStatus, "cancelled", "a checksum pass needs no space");
+            tc.verifyEqual(R.CopyStatus, "canceled", "a checksum pass needs no space");
         end
 
-        function cancelWhileChecksummingIsCancelled(tc)
+        function cancelWhileChecksummingIsCanceled(tc)
             % A cancel during the SHA-256 pass stops it part way through a
-            % big file, and the session is reported cancelled, not failed.
+            % big file, and the session is reported canceled, not failed.
             % The copy was complete before, so its manifest is kept.
             tc.assumeTrue(ispc, "sparse files and robocopy need Windows");
             [~, i] = tc.addPair("260916T110742", "260916_110907");
@@ -1101,8 +1101,8 @@ classdef test_CopySessions < matlab.unittest.TestCase
                 ProgressFcn=@(~, ~, info) noteVerifying(seen, info), CancelFcn=@() isKey(seen, 'verifying'), ...
                 LogFcn=@(~) []);
             tc.verifyLessThan(toc(t0), 12, "the checksum of a big file stops part way");
-            tc.verifyEqual(R.CopyStatus, "cancelled", R.Message);
-            tc.verifySubstring(char(R.Message), 'cancelled while checksumming');
+            tc.verifyEqual(R.CopyStatus, "canceled", R.Message);
+            tc.verifySubstring(char(R.Message), 'canceled while checksumming');
             tc.verifyEqual(fileread(fullfile(R.DestDir, "session_manifest.json")), manifest, ...
                 "the manifest of the finished copy is kept");
         end
@@ -1180,12 +1180,12 @@ classdef test_CopySessions < matlab.unittest.TestCase
             m = jsondecode(fileread(f));
             tc.verifyEqual(string(m.copy.status), "already_present");
 
-            m.copy.status = "cancelled";
+            m.copy.status = "canceled";
             writeJsonFile(f, m);
             R = copySessions(T, DestRoot=tc.Dest, DryRun=false, LogFcn=@(~) []);
             tc.verifyEqual(R.CopyStatus, "already_present", R.Message);
             m = jsondecode(fileread(f));
-            tc.verifyEqual(string(m.copy.status), "already_present", "the manifest of a cancelled copy is replaced");
+            tc.verifyEqual(string(m.copy.status), "already_present", "the manifest of a canceled copy is replaced");
 
             R = copySessions(T, DestRoot=tc.Dest, DryRun=false, Verify="hash", LogFcn=@(~) []);
             tc.verifyEqual(R.CopyStatus, "already_present", R.Message);
@@ -1387,7 +1387,7 @@ classdef test_CopySessions < matlab.unittest.TestCase
 
             f = fullfile(dest, "session_manifest.json");
             m = jsondecode(fileread(f));
-            m.copy.status = "cancelled";                     % a copy that did not finish ...
+            m.copy.status = "canceled";                     % a copy that did not finish ...
             writeJsonFile(f, m);
             record = fullfile(dest, out.Sessions.Session + "_cleanup.json");
             writeJsonFile(record, struct('schema', "ephys-local-cleanup/2"));   % ... cleaned up since

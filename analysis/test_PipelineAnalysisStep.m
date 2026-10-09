@@ -150,8 +150,8 @@ pipe.ProgressFcn = @onCancelEvent;
 delete(rep);
 R = pipe.run(Steps="analysis");
 A = R(startsWith(R.Step, "analysis:"), :);
-check(any(A.Status == "cancelled") && any(A.Status == "done") && A.Status(A.Step == "analysis:report") == "cancelled" ...
-    && ~isfile(rep), 'cancel stops before the next plot; the rest and the report are "cancelled"');
+check(any(A.Status == "canceled") && any(A.Status == "done") && A.Status(A.Step == "analysis:report") == "canceled" ...
+    && ~isfile(rep), 'cancel stops before the next plot; the rest and the report are "canceled"');
 
 fprintf('\n== 6. a list selection, one report per dataset ==\n');
 per = acfg; per.Report.PerDataset = true;

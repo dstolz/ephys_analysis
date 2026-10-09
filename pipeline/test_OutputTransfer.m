@@ -201,12 +201,12 @@ classdef test_OutputTransfer < matlab.unittest.TestCase
                 WaitFor=fullfile(tc.Src, "kilosort4", "ks4_status.json"));
             X.cancel();
             X.wait(LogEvery=Inf, Timeout=120);
-            tc.verifyTrue(X.Done && X.Cancelled);
-            tc.verifyEqual(X.table().State, ["done"; "cancelled"]);
-            tc.verifyTrue(isfile(fullfile(tc.Src, "rec1_spikes.mat")), 'a cancelled move removes nothing');
+            tc.verifyTrue(X.Done && X.Canceled);
+            tc.verifyEqual(X.table().State, ["done"; "canceled"]);
+            tc.verifyTrue(isfile(fullfile(tc.Src, "rec1_spikes.mat")), 'a canceled move removes nothing');
             tc.verifySubstring(X.Batches(1).Message, "nothing removed here");
             X.add("S1/rec1", fullfile(tc.Src, "rec1_extract_LFP.mat"), Base=tc.Src);
-            tc.verifyEqual(X.Batches(3).State, "cancelled", 'a batch added after a cancel is not copied');
+            tc.verifyEqual(X.Batches(3).State, "canceled", 'a batch added after a cancel is not copied');
         end
 
         % ---------------------------------------------------------------- changed after the copy

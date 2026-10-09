@@ -5,9 +5,9 @@ function h = renderEvoked(R, target, opts)
 %   Options
 %     Layout  "stack" (default): one panel, channels stacked in probe order
 %             (Style.SortShank / Style.SortDepth: by shank, then top of the
-%             probe first; neither = as listed), groups in their colours;
+%             probe first; neither = as listed), groups in their colors;
 %             "butterfly": one tile per group, every channel overlaid,
-%             coloured by that order; "grid": one tile per channel in that
+%             colored by that order; "grid": one tile per channel in that
 %             order (MaxTiles per page), groups overlaid with SEM bands.
 %             Style.LabelShank / Style.LabelDepth append the shank / depth
 %             to the channel labels

@@ -52,7 +52,7 @@ function T = planLocalCleanup(datasets, opts)
 %     "artifacts"    the artifact-interval cache <Name>_artifacts.json
 %     "export"       the Chronux, FieldTrip and epochs .mat files and the
 %                    kCSD .npz
-%   A .mat output is recognised by the variables it holds (a .npz by its
+%   A .mat output is recognized by the variables it holds (a .npz by its
 %   meta member; DatasetOutputs),
 %   so outputs with configured suffixes are found too, else by its default
 %   name (<Name>_extract*, <Name>_spikes*, ...). Unfinished outputs that a

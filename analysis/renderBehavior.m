@@ -1,7 +1,7 @@
 function h = renderBehavior(R, target, opts)
 %renderBehavior  Draw a behaviorValues result: a per-trial value against a trial parameter.
 %   H = renderBehavior(R, TARGET, Layout=, Jitter=, XScale=, Style=) draws
-%   one panel: R.param along x, R.yName up y, one colour per series (side
+%   one panel: R.param along x, R.yName up y, one color per series (side
 %   by side within each x value; the line layout draws them on top of each
 %   other, as a tuning curve does).
 %
@@ -16,12 +16,12 @@ function h = renderBehavior(R, target, opts)
 %               R2024b or later), with the mean +/- SEM over it
 %   Jitter   points: spread the dots sideways (default true), with a fixed,
 %            repeatable pattern; false: every dot on its x value
-%   XScale   "category" (default): the x values evenly spaced, labelled with
+%   XScale   "category" (default): the x values evenly spaced, labeled with
 %            their values; "linear": at their values (numeric x only; text
 %            values are spaced evenly), each box, violin or swarm a fixed
 %            share of the closest spacing
 %   Style    EphysAnalysisConfig.defaults("Style") fields: Colormap (the
-%            series' colours), LineWidth, ShowSEM, FontSize, XLim, YLim,
+%            series' colors), LineWidth, ShowSEM, FontSize, XLim, YLim,
 %            Grid, Legend
 %
 %   The parts are named for the aesthetics editor: "points", "swarm",

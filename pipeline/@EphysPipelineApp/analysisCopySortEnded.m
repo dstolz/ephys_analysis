@@ -1,7 +1,7 @@
 function analysisCopySortEnded(obj, run, state)
 %analysisCopySortEnded  A background sort ended: copy the files for the analysis app of the datasets that waited for it.
 %   obj.analysisCopySortEnded(RUN, STATE) (pollKSRuns, for each run that
-%   ended; STATE is "done", "error" or "cancelled"). The datasets in
+%   ended; STATE is "done", "error" or "canceled"). The datasets in
 %   AnalysisCopyWaiting for the run's results folder are taken off the list:
 %   after a finished sort they are copied (copyAnalysisFiles), after a failed
 %   or stopped one they are not, and the Run log says so. Nothing happens for

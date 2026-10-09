@@ -100,8 +100,8 @@ done = 0;
 for k = 1:n
     if ~isempty(opts.CancelFcn) && opts.CancelFcn()
         R.Status(k:n) = "skipped";
-        R.Message(k:n) = "cancelled";
-        say(opts.LogFcn, sprintf("Cancelled: %d file(s) not handled.", n - k + 1));
+        R.Message(k:n) = "canceled";
+        say(opts.LogFcn, sprintf("Canceled: %d file(s) not handled.", n - k + 1));
         break
     end
     if ~isempty(opts.ProgressFcn)

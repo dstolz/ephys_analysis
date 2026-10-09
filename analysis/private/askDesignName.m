@@ -1,7 +1,7 @@
 function [name, description, ok] = askDesignName(fig, name, description)
 %askDesignName  Ask for a new plot design's name and description in a small modal window over FIG.
 %   [NAME, DESCRIPTION, OK] = askDesignName(FIG, NAME, DESCRIPTION); OK is
-%   false when it was cancelled or closed. The name must suit a file and
+%   false when it was canceled or closed. The name must suit a file and
 %   not be a built-in design's (PlotDesign.checkName); one of yours that
 %   exists is replaced only when the user agrees. PlotDesign.askName.
 
@@ -15,7 +15,7 @@ end
 d = uifigure('Name', 'Save the look as a design', 'Position', pos, 'Resize', 'off', 'WindowStyle', 'modal');
 g = uigridlayout(d, [4 2], 'RowHeight', {'fit', 26, 26, 32}, 'ColumnWidth', {90, '1x'});
 l = uilabel(g, 'WordWrap', 'on', 'Text', ['Every property of every component of this plot, its ground ' ...
-    'and its group colours become a design you can choose for any plot.']);
+    'and its group colors become a design you can choose for any plot.']);
 l.Layout.Column = [1 2];
 uilabel(g, 'Text', 'Name:');
 ed = uieditfield(g, 'text', 'Value', char(name), 'Placeholder', 'e.g. Lab meeting');

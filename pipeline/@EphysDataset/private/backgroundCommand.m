@@ -12,7 +12,7 @@ function bg = backgroundCommand(command, logFile, exitFile, launcher, title)
 %   pollKSRuns has nothing to show.
 %
 %   On Windows the steps go into the batch file LAUNCHER (the run folder's
-%   ks4_launch.cmd), and BG starts it minimised in a window titled TITLE. A
+%   ks4_launch.cmd), and BG starts it minimized in a window titled TITLE. A
 %   one-line "start ... cmd /s /c "..."" cannot carry them: its nested quotes
 %   leave the paths unquoted to the shell that runs it, so a path with & or
 %   ^ in it splits the command. In the batch file every path sits in quotes

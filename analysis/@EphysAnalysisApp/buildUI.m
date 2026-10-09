@@ -1,6 +1,6 @@
 function buildUI(obj)
 %buildUI  The figure, menus, toolbar, the five tabs and the status bar; every
-%   button styled (styleButtons), the main actions in colour; the figure's
+%   button styled (styleButtons), the main actions in color; the figure's
 %   key presses (onKeyPress) once the tabs are there.
 obj.Fig = uifigure("Name", "Ephys analysis", "Position", [140 80 1280 820]);
 obj.Fig.CloseRequestFcn = @(~,~) obj.onClose();
@@ -40,7 +40,7 @@ end
 
 
 function styleButtons(obj)
-%styleButtons  Every button a size up; the main actions in colour (styleButton).
+%styleButtons  Every button a size up; the main actions in color (styleButton).
 %   The plot editor's section headers (formSection) keep their header look.
 b = findall(obj.Fig, "Type", "uibutton", "-or", "Type", "uistatebutton");
 styleButton(b(~strcmp(get(b, "Tag"), "formSectionToggle")));

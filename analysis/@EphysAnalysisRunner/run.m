@@ -3,13 +3,13 @@ function T = run(obj, opts)
 %   T = r.run(Datasets=, Plots=, Export=, Report=) runs runDataset on each
 %   dataset in turn and returns (and keeps in r.Results) one row per dataset
 %   and plot: Dataset, Plot, Kind, Status (done | skipped | error |
-%   cancelled), Message, Files, Seconds. With Report it builds the report
+%   canceled), Message, Files, Seconds. With Report it builds the report
 %   (newAnalysisReport) and writes it (Report.Format: html, pdf or both)
 %   to Report.Folder / Report.FileName -- one report over all datasets, or
 %   one per dataset with Report.PerDataset. The written files are in
 %   r.ReportFiles. ProgressFcn hears how far the whole run is: dataset j of
 %   n starts at (j-1)/n and its plots share its 1/n. cancel() stops before
-%   the next plot; the rest are "cancelled". Every run that reaches a
+%   the next plot; the rest are "canceled". Every run that reaches a
 %   dataset ends by writing a run record (config, code version, machine, Results) to
 %   <report folder>/analysis_runs (r.RunRecordFile).
 %
@@ -56,7 +56,7 @@ if doReport && ~perDataset
     obj.Report = newReport(cfg);
 end
 obj.log("Analysis ""%s"": %d dataset(s) x %d plot(s)", cfg.Name, numel(idx), numel(ids));
-cancelled = false;
+canceled = false;
 for j = 1:numel(idx)
     k = idx(j);
     if perDataset; obj.Report = newReport(cfg); end
@@ -65,33 +65,33 @@ for j = 1:numel(idx)
         obj.progress(span(1), "Dataset " + obj.Names(k));
         obj.runDataset(k, Plots=ids, Export=doExport, Report=doReport, Span=span);   % appends to obj.Results
     catch ME
-        if ME.identifier ~= "EphysAnalysisRunner:Cancelled"; rethrow(ME); end
-        cancelled = true;
-        if ~any(obj.Results.Dataset == obj.Names(k))   % cancelled before the dataset started
+        if ME.identifier ~= "EphysAnalysisRunner:Canceled"; rethrow(ME); end
+        canceled = true;
+        if ~any(obj.Results.Dataset == obj.Names(k))   % canceled before the dataset started
             for id = ids
-                obj.Results(end+1, :) = {obj.Names(k), id, kindOf(cfg, id), "cancelled", "cancelled", "", 0};
+                obj.Results(end+1, :) = {obj.Names(k), id, kindOf(cfg, id), "canceled", "canceled", "", 0};
             end
         end
     end
-    if cancelled
+    if canceled
         for kk = idx(j+1:end)
             for id = ids
-                obj.Results(end+1, :) = {obj.Names(kk), id, kindOf(cfg, id), "cancelled", "cancelled", "", 0};
+                obj.Results(end+1, :) = {obj.Names(kk), id, kindOf(cfg, id), "canceled", "canceled", "", 0};
             end
         end
-        obj.log("Cancelled.");
+        obj.log("Canceled.");
         break
     end
     if perDataset
         obj.ReportFiles = [obj.ReportFiles writeReports(obj, k)];
     end
 end
-if doReport && ~perDataset && ~cancelled && ~isempty(idx)
+if doReport && ~perDataset && ~canceled && ~isempty(idx)
     obj.ReportFiles = writeReports(obj, idx(1));
 end
 if ~isempty(idx)
     outcome = "finished";
-    if cancelled; outcome = "cancelled"; end
+    if canceled; outcome = "canceled"; end
     obj.RunRecordFile = writeRunRecord(obj, idx, ids, started, outcome);
 end
 try

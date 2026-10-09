@@ -43,7 +43,7 @@ for k = 1:n
         fmt = E.Formats(j);
         step = "export:" + fmt;
         if obj.CancelRequested
-            obj.addResult(step, d.Name, "cancelled", "not run");
+            obj.addResult(step, d.Name, "canceled", "not run");
             continue
         end
         t0 = tic;
@@ -130,8 +130,8 @@ for k = 1:n
             obj.log("[%s] %s: wrote %s (%s)", step, d.Name, r.file, msg);
             obj.addResult(step, d.Name, "done", msg, r.file, toc(t0));
         catch ME
-            if strcmp(ME.identifier, 'EphysPipeline:Cancelled')
-                obj.addResult(step, d.Name, "cancelled", "cancelled; nothing written", out, toc(t0));
+            if strcmp(ME.identifier, 'EphysPipeline:Canceled')
+                obj.addResult(step, d.Name, "canceled", "canceled; nothing written", out, toc(t0));
                 continue
             end
             obj.log("[%s] %s: ERROR %s", step, d.Name, ME.message);
@@ -140,7 +140,7 @@ for k = 1:n
     end
 end
 if obj.CancelRequested
-    error('EphysPipeline:Cancelled', 'Cancelled by user.');
+    error('EphysPipeline:Canceled', 'Canceled by user.');
 end
 end
 

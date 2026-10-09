@@ -2,7 +2,7 @@ function onSaveDesign(obj, name, description)
 %onSaveDesign  Keep the preview's look as a design of yours, and draw in it.
 %   PlotDesign.capture reads every property of every component of the
 %   preview (with the rules it is drawn with), its ground and its group
-%   colours; the design is saved in your designs folder and chosen. Asks
+%   colors; the design is saved in your designs folder and chosen. Asks
 %   for the NAME and DESCRIPTION unless given (given: one of yours of that
 %   name is replaced).
 arguments

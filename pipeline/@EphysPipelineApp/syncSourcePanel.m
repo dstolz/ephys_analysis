@@ -47,7 +47,7 @@ switch kind
         elseif isempty(d)
             obj.SourceNoteLabel.Text = "No active dataset: click a row to see its recording system's settings.";
         else
-            obj.SourceNoteLabel.Text = d.Name + ": no reader recognises this folder.";
+            obj.SourceNoteLabel.Text = d.Name + ": no reader recognizes this folder.";
         end
     otherwise
         name = systemName(kind);

@@ -421,7 +421,7 @@ end
 
 
 function g = profileGain(profile, d)
-%profileGain  Gain per site from its normalised depth D (0 = deepest, 1 = top).
+%profileGain  Gain per site from its normalized depth D (0 = deepest, 1 = top).
 switch profile
     case "superficial", g = exp(-((d - 1) / 0.3).^2);
     case "middle",      g = exp(-((d - 0.5) / 0.3).^2);

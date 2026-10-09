@@ -68,7 +68,7 @@ classdef EphysAnalysisApp < handle
     %
     %   Keys (onKeyPress), on the Plots tab: Ctrl+1 to Ctrl+9 and Ctrl+0 (Cmd on a Mac)
     %   go to the plot editor's sections (gotoPlotSection); each header
-    %   names its key and has a colour of its own.
+    %   names its key and has a color of its own.
     %
     %   Preferences (getpref group 'EphysAnalysisApp'): FigurePosition,
     %   LastConfigFile, RecentConfigs, ScriptFolder, AutoPreview,

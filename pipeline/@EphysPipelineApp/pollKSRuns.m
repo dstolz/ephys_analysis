@@ -10,7 +10,7 @@ function pollKSRuns(obj)
 %   box so progress is visible live, then polls the runs. A finished run is
 %   logged, its dataset's manifest rewritten and its row in the Run tab's
 %   results restated as "done", "error" or, for a run stopped with Stop
-%   runs (stopKSRuns), "cancelled" (markKSResult), with the time it ran
+%   runs (stopKSRuns), "canceled" (markKSResult), with the time it ran
 %   added to its Seconds.
 %   Then, while fewer than Sorting.MaxConcurrent runs are going, the queued
 %   runs (KSQueue, see queueKSRun) start in order, each on the GPU of
@@ -136,9 +136,9 @@ what = EphysDataset.sorterLabel(EphysDataset.sorterOfRunDir(run.resultsDir));
 if state == "done"
     obj.log("[done] %s - %s complete (%s)", run.Name, what, run.resultsDir);
     obj.markKSResult(run.Name, run.resultsDir, "done", what + " finished" + onDevice(run.device), took);
-elseif state == "cancelled"
+elseif state == "canceled"
     obj.log("[stopped] %s - %s stopped by the user", run.Name, what);
-    obj.markKSResult(run.Name, run.resultsDir, "cancelled", "stopped before it finished", took);
+    obj.markKSResult(run.Name, run.resultsDir, "canceled", "stopped before it finished", took);
 else
     obj.log("[error] %s - %s failed: %s", run.Name, what, msg);
     obj.markKSResult(run.Name, run.resultsDir, "error", what + " failed: " + msg, took);

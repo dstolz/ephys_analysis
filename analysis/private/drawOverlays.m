@@ -35,7 +35,7 @@ function O = drawOverlays(h, overlays)
 %
 %   O.handles are the objects drawn; O.rules the overlays' own looks as
 %   aesthetics rules (renderPlot applies them after the design's and the
-%   user's, so they win over a design). A colour that is not one, an
+%   user's, so they win over a design). A color that is not one, an
 %   opacity outside 0-1, a line style or width that is not valid are
 %   replaced by the default's in the drawing (validate reports them); an
 %   overlay with a non-finite position, or a region whose edges are equal,
@@ -196,7 +196,7 @@ end
 
 
 function c = colorOf(name, fallback)
-%colorOf  The colour a name or #rrggbb gives as an RGB row; the FALLBACK's when it is neither ("none" is no colour).
+%colorOf  The color a name or #rrggbb gives as an RGB row; the FALLBACK's when it is neither ("none" is no color).
 try
     c = validatecolor(strtrim(string(name)));
 catch

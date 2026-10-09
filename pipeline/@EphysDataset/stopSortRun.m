@@ -3,8 +3,8 @@ function [stopped, message] = stopSortRun(statusFile)
 %   [STOPPED, MESSAGE] = EphysDataset.stopSortRun(STATUSFILE) ends the run
 %   whose ks4_status.json is STATUSFILE (a launchSorting result's
 %   statusFile, or a LaunchedRuns element's). First ks4_status.json is
-%   written as {"state": "cancelled", "message": "stopped by the user"}, so
-%   sortRunState reports "cancelled" from then on and the run's slot frees.
+%   written as {"state": "canceled", "message": "stopped by the user"}, so
+%   sortRunState reports "canceled" from then on and the run's slot frees.
 %   Then every process whose command line names the run folder's driver
 %   (<run folder>\run_ks4.py: the cmd.exe that ks4_launch.cmd runs the
 %   command in, conda, Python) is ended with its child processes (taskkill
@@ -16,7 +16,7 @@ function [stopped, message] = stopSortRun(statusFile)
 %   STOPPED is false, and nothing is touched, when the run is not running
 %   (sortRunState: it has finished, failed or was stopped). MESSAGE says
 %   how many processes were ended ("" when STOPPED is false). A run whose
-%   processes are already gone (say, after a reboot) is marked cancelled
+%   processes are already gone (say, after a reboot) is marked canceled
 %   all the same.
 %
 %   Only background runs can be stopped this way: MATLAB itself waits for
@@ -40,7 +40,7 @@ pattern = [runDir filesep 'run_'];
 % the exit marker, and a monitor polling while the search below runs (the
 % app's timer fires during system()) would otherwise find a run that exited
 % without a status and report it as failed.
-writeJsonFile(char(statusFile), struct('state', "cancelled", 'message', "stopped by the user"));
+writeJsonFile(char(statusFile), struct('state', "canceled", 'message', "stopped by the user"));
 
 % The pattern goes through the environment, so no command line but the
 % run's own processes holds it (not the shell that runs the search).

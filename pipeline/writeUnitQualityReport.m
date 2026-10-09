@@ -9,7 +9,7 @@ function file = writeUnitQualityReport(units, file, opts)
 %     - one histogram per metric (inline SVG) with its threshold
 %     - one row per unit: label, class, group, channel, spikes, the
 %       metrics, pass / fail, the criteria it fails and those unknown;
-%       failed metrics are marked, unknown ones greyed. The units labelled
+%       failed metrics are marked, unknown ones grayed. The units labeled
 %       good come first (those meeting the criteria first among them),
 %       then the rest the same way, each in unit order. A header click
 %       sorts the table by that column (again: reversed, a third time: back
@@ -132,7 +132,7 @@ L(end+1) = "</div>";
 
 % --- units -------------------------------------------------------------------------
 % Good units first; numeric cells carry their value (data-v, "" for NaN) for the sort script.
-L(end+1) = "<h2>Units</h2><p class=""meta"">The units labelled good first (those meeting the criteria " + ...
+L(end+1) = "<h2>Units</h2><p class=""meta"">The units labeled good first (those meeting the criteria " + ...
     "first among them), then the rest. Click a column header to sort by it, again to reverse, a third " + ...
     "time for this order. A good unit's label links to its mean waveform.</p>";
 L(end+1) = "<div class=""wrap""><table class=""sortable""><thead><tr><th class=""t"">Label</th><th class=""t"">Class</th>" + ...
@@ -167,7 +167,7 @@ L(end+1) = "</tbody></table></div>";
 L(end+1) = "<h2>Mean waveforms of the good units</h2>";
 rows = order(good(order));
 if isempty(rows)
-    L(end+1) = "<p class=""meta"">No unit is labelled good.</p>";
+    L(end+1) = "<p class=""meta"">No unit is labeled good.</p>";
 else
     [WF, note] = meanWaveforms(units, rows, opts.WaveformSpikes);
     if opts.WaveformSpikes == 0

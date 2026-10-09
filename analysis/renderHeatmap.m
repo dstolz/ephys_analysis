@@ -2,7 +2,7 @@ function h = renderHeatmap(R, target, opts)
 %renderHeatmap  Units or channels by time, one tile per group.
 %   H = renderHeatmap(R, TARGET, Order=, Style=) draws a spikePSTH result
 %   (rows = units, rate) or an evokedPotential result (rows = channels, mean)
-%   as an image per group, on one colour scale (Style.CLim, else the range
+%   as an image per group, on one color scale (Style.CLim, else the range
 %   of every tile) with Style.HeatColormap ("" = parula).
 %
 %   Order
@@ -16,13 +16,13 @@ function h = renderHeatmap(R, target, opts)
 %   Style.LabelShank / Style.LabelDepth append the shank / depth to the row
 %   labels.
 %
-%   An auROC result (spikePSTH BaselineMode "auroc") is coloured on [0 1]
+%   An auROC result (spikePSTH BaselineMode "auroc") is colored on [0 1]
 %   unless Style.CLim says otherwise. With a cutoff and
 %   R.auroc.settings.marks, a bar along each tile's top spans the
 %   modulation window, and a red up or blue down triangle right of the
 %   image marks each unit the group's call finds modulated.
 %
-%   The x and y labels and the colour bar are the tiled layout's, once for
+%   The x and y labels and the color bar are the tiled layout's, once for
 %   every tile.
 %
 %   H: layout (tiled layout or []), axes, colorbar.
@@ -70,7 +70,7 @@ end
 if ~isempty(ax0); idx = idx(1:min(1, end)); end
 if style.HeatColormap == ""
     maps = "heat";
-    if auroc; maps = ["diverging" "heat"]; end   % auROC: centred on 0.5
+    if auroc; maps = ["diverging" "heat"]; end   % auROC: centerd on 0.5
     cmap = designColormap(style, maps, "parula");
 else
     cmap = feval(char(style.HeatColormap), 256);
@@ -124,11 +124,11 @@ d = A.direction(order, g);
 fs = max(4, min(style.FontSize, round(240 / max(nR, 1))));
 calls = ["increase" "decrease"];
 glyphs = [char(9650) char(9660)];
-colours = [0.85 0.15 0.1; 0.1 0.35 0.85];
+colors = [0.85 0.15 0.1; 0.1 0.35 0.85];
 for k = 1:2
     rows = find(d == calls(k));
     if isempty(rows); continue; end
-    tagPart(text(ax, repmat(e(2) + margin / 2, numel(rows), 1), rows, glyphs(k), 'Color', colours(k, :), ...
+    tagPart(text(ax, repmat(e(2) + margin / 2, numel(rows), 1), rows, glyphs(k), 'Color', colors(k, :), ...
         'FontSize', fs, 'HorizontalAlignment', 'center', 'VerticalAlignment', 'middle', 'Clipping', 'off', ...
         'Interpreter', 'none'), "modMarks", calls(k));
 end

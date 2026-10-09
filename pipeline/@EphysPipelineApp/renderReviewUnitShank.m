@@ -3,7 +3,7 @@ function renderReviewUnitShank(obj)
 %   Every sorted channel on the unit's shank (the peak channel's, as the
 %   Shank column gives it) is drawn at its site on the probe
 %   (channel_positions.npy; without it, in a column in channel order),
-%   labelled with its name or recording channel:
+%   labeled with its name or recording channel:
 %     - the unit's spikes as thin lines (Spikes; at most the number beside
 %       it, picked at random, the same ones each time),
 %     - their mean with an error band (Mean +/-; SD, SEM or none).

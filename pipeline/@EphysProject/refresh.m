@@ -57,7 +57,7 @@ for i = 1:n
     names(i) = d.Name;
     keys(i)  = obj.datasetKey(idx(i));
     if ~isempty(opts.CancelFcn) && opts.CancelFcn()
-        msg(i:end) = "cancelled";
+        msg(i:end) = "canceled";
         break
     end
     if ~isempty(opts.ProgressFcn)

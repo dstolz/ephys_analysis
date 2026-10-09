@@ -1,9 +1,9 @@
 classdef PlotAesthetics
-    %PlotAesthetics  Colours, lines, markers and fonts of a drawn plot's components.
+    %PlotAesthetics  Colors, lines, markers and fonts of a drawn plot's components.
     %   The analysis renderers name what they draw (tagPart): an object's Tag
     %   is its role ("rate", "sem", "rasterTicks", ...: roles lists them)
     %   and the group, series or channel it draws is its "PlotGroup"
-    %   appdata. Titles, axis labels, legends and colour bars are found
+    %   appdata. Titles, axis labels, legends and color bars are found
     %   through their axes, or their tiled layout (a grid's x and y labels
     %   and the plot's title). A rule -- role, group, property, value -- sets
     %   that property on every component of the role, in every tile; group
@@ -51,7 +51,7 @@ classdef PlotAesthetics
             %normalizeRules  Rules from a struct array, a cell of structs (jsondecode) or [].
             %   Each rule needs a role and a property the editor knows
             %   (editableProperties); group defaults to "" (every group). A
-            %   value is a number, a colour [r g b] (a column from JSON becomes
+            %   value is a number, a color [r g b] (a column from JSON becomes
             %   a row), or text ("none", "--", "bold", "on"). Raises
             %   PlotAesthetics:BadRule naming PATH (default "aesthetics").
             arguments
@@ -65,7 +65,7 @@ classdef PlotAesthetics
             elseif ~iscell(v)
                 error('PlotAesthetics:BadRule', '%s must be a list of rules (role, group, property, value).', path);
             end
-            known = string(fieldnames(PlotAesthetics.catalogue())).';
+            known = string(fieldnames(PlotAesthetics.catalog())).';
             for k = 1:numel(v)
                 r = v{k};
                 where = sprintf('%s(%d)', path, k);
@@ -179,7 +179,7 @@ classdef PlotAesthetics
             %   after a redraw). The plot's own rows come first, then each
             %   tile's, the tiles that share a name (a unit's raster and rate
             %   panels) together. Untagged objects are listed on their own with
-            %   role "". Titles, axis labels, legends and colour bars count
+            %   role "". Titles, axis labels, legends and color bars count
             %   when they show something; a grid's x and y labels (its tiled
             %   layout's) are the plot's own, tile 0.
             C = struct('h', {}, 'role', {}, 'group', {}, 'tile', {}, 'name', {});
@@ -289,7 +289,7 @@ classdef PlotAesthetics
                 "ylabelRight"  "Right y label"
                 "legend"       "Legend"
                 "note"         "Note"
-                "colorbar"     "Colour bar"
+                "colorbar"     "Color bar"
                 "rate"         "PSTH"
                 "rateFill"     "PSTH fill"
                 "sem"          "SEM band"
@@ -349,8 +349,8 @@ classdef PlotAesthetics
             %   word such as none / flat where the object takes one),
             %   "number", "vector" (two numbers: TickLength), "choice",
             %   "onoff", "font" or "colormap" (axes holding an image or
-            %   coloured markers: a colormap name).
-            C = PlotAesthetics.catalogue();
+            %   colored markers: a colormap name).
+            C = PlotAesthetics.catalog();
             L = PlotAesthetics.classLists();
             type = PlotAesthetics.typeName(h);
             if isfield(L, type)
@@ -403,7 +403,7 @@ classdef PlotAesthetics
         end
 
         function [v, ok] = parseColor(txt)
-            %parseColor  A colour from text: a name, #rrggbb, "r g b" (0-1 or 0-255), or a word.
+            %parseColor  A color from text: a name, #rrggbb, "r g b" (0-1 or 0-255), or a word.
             %   The words none, flat, auto and interp are kept as text (the
             %   object decides whether it takes them). OK is false when TXT
             %   is none of these.
@@ -428,7 +428,7 @@ classdef PlotAesthetics
         end
 
         function s = valueText(v)
-            %valueText  A rule value for people: #rrggbb for a colour, else the value.
+            %valueText  A rule value for people: #rrggbb for a color, else the value.
             if isnumeric(v) && numel(v) == 3 && all(v >= 0 & v <= 1)
                 s = string(sprintf('#%02X%02X%02X', round(255 * v)));
             elseif isnumeric(v) && isscalar(v)
@@ -582,15 +582,15 @@ classdef PlotAesthetics
             elseif isnumeric(v) || islogical(v)
                 v = reshape(double(v), 1, []);
                 if ~ismember(size(v, 2), [1 2 3])
-                    error('PlotAesthetics:BadRule', '%s: a value is a number, two numbers, a colour [r g b] or text.', where);
+                    error('PlotAesthetics:BadRule', '%s: a value is a number, two numbers, a color [r g b] or text.', where);
                 end
             else
-                error('PlotAesthetics:BadRule', '%s: a value is a number, two numbers, a colour [r g b] or text.', where);
+                error('PlotAesthetics:BadRule', '%s: a value is a number, two numbers, a color [r g b] or text.', where);
             end
         end
 
-        function C = catalogue()
-            %catalogue  Every property the editor knows: label, control type and limits.
+        function C = catalog()
+            %catalog  Every property the editor knows: label, control type and limits.
             lineStyles = ["-" "--" ":" "-." "none"];
             lineLabels = ["solid" "dashed" "dotted" "dash-dot" "none"];
             markers = ["none" "o" "square" "diamond" "^" "v" ">" "<" "+" "*" "." "x" "_" "|" "pentagram" "hexagram"];
@@ -601,21 +601,21 @@ classdef PlotAesthetics
             colorHint = "A name (red), #rrggbb or r g b";
             C = struct();
             C.Visible = prop("Visible", "onoff");
-            C.Color = prop("Colour", "color", Hint=colorHint + "; none hides it");
-            C.FaceColor = prop("Fill colour", "color", Hint=colorHint + "; none, or flat (per-point colours)");
-            C.EdgeColor = prop("Edge colour", "color", Hint=colorHint + "; none, or flat");
-            C.MarkerEdgeColor = prop("Marker edge colour", "color", Hint=colorHint + "; auto (the line's), none, or flat");
-            C.MarkerFaceColor = prop("Marker fill colour", "color", Hint=colorHint + "; auto, none, or flat");
+            C.Color = prop("Color", "color", Hint=colorHint + "; none hides it");
+            C.FaceColor = prop("Fill color", "color", Hint=colorHint + "; none, or flat (per-point colors)");
+            C.EdgeColor = prop("Edge color", "color", Hint=colorHint + "; none, or flat");
+            C.MarkerEdgeColor = prop("Marker edge color", "color", Hint=colorHint + "; auto (the line's), none, or flat");
+            C.MarkerFaceColor = prop("Marker fill color", "color", Hint=colorHint + "; auto, none, or flat");
             C.BackgroundColor = prop("Background", "color", Hint=colorHint + "; none");
-            C.XColor = prop("X axis colour", "color", Hint=colorHint);
-            C.YColor = prop("Y axis colour", "color", Hint=colorHint);
-            C.GridColor = prop("Grid colour", "color", Hint=colorHint);
-            C.TextColor = prop("Text colour", "color", Hint=colorHint);
-            C.BoxFaceColor = prop("Box fill colour", "color", Hint=colorHint);
-            C.BoxEdgeColor = prop("Box edge colour", "color", Hint=colorHint);
-            C.BoxMedianLineColor = prop("Median colour", "color", Hint=colorHint);
-            C.WhiskerLineColor = prop("Whisker colour", "color", Hint=colorHint);
-            C.MarkerColor = prop("Outlier colour", "color", Hint=colorHint);
+            C.XColor = prop("X axis color", "color", Hint=colorHint);
+            C.YColor = prop("Y axis color", "color", Hint=colorHint);
+            C.GridColor = prop("Grid color", "color", Hint=colorHint);
+            C.TextColor = prop("Text color", "color", Hint=colorHint);
+            C.BoxFaceColor = prop("Box fill color", "color", Hint=colorHint);
+            C.BoxEdgeColor = prop("Box edge color", "color", Hint=colorHint);
+            C.BoxMedianLineColor = prop("Median color", "color", Hint=colorHint);
+            C.WhiskerLineColor = prop("Whisker color", "color", Hint=colorHint);
+            C.MarkerColor = prop("Outlier color", "color", Hint=colorHint);
             C.LineStyle = prop("Line style", "choice", Choices=lineStyles, ChoiceLabels=lineLabels);
             C.WhiskerLineStyle = prop("Whisker style", "choice", Choices=lineStyles, ChoiceLabels=lineLabels);
             C.GridLineStyle = prop("Grid style", "choice", Choices=lineStyles, ChoiceLabels=lineLabels);
@@ -684,9 +684,9 @@ classdef PlotAesthetics
             %classLabels  Labels that differ by object type.
             O = struct();
             O.Axes = struct('Color', "Background", 'LineWidth', "Axis line width", 'FontSize', "Tick font size");
-            O.Legend = struct('Color', "Background", 'EdgeColor', "Box colour");
-            O.ColorBar = struct('Color', "Tick colour", 'LineWidth', "Outline width");
-            O.Text = struct('EdgeColor', "Box colour");
+            O.Legend = struct('Color', "Background", 'EdgeColor', "Box color");
+            O.ColorBar = struct('Color', "Tick color", 'LineWidth', "Outline width");
+            O.Text = struct('EdgeColor', "Box color");
             O.Patch = struct('LineStyle', "Edge style", 'LineWidth', "Edge width");
             O.Bar = struct('LineStyle', "Edge style", 'LineWidth', "Edge width");
             O.Scatter = struct('LineWidth', "Marker edge width");
@@ -705,7 +705,7 @@ end
 
 
 function p = prop(label, type, o)
-%prop  One catalogue entry (PlotAesthetics.catalogue).
+%prop  One catalog entry (PlotAesthetics.catalog).
 arguments
     label (1,1) string
     type (1,1) string

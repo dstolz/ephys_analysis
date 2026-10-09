@@ -210,7 +210,7 @@ dropped for lacking the **Shift by** parameter's value or because their
 **Sequence** did not follow, and the epochs
 dropped for having no stop event, leaving the recording or touching an
 artifact period (*"; N touch an artifact period"*), or why there are none;
-a bar of epochs per group in the group colours the plots use; and the kept
+a bar of epochs per group in the group colors the plots use; and the kept
 trials with their group and number of epochs. **Epoch Diagram**, under
 the Epoch window, opens the [epoch diagram](#epoch-diagram) for these
 defaults.
@@ -241,7 +241,7 @@ a header leaves the plots selected as they were. **Ctrl**- or
 | **Group by** | *Plot type* (default), *Source* (units, detected, LFP, ...), *Layout* (the layout drawn), *Enabled / off*, or *None* (a flat list); remembered |
 | kind drop-down (its own row), **Add** | adds a plot of that kind ([Plot kinds](#plot-kinds)) with the next free id (`psth_1`, `psth_2`, ...) and selects it |
 | **Remove**, **Duplicate** | removes the selected plots; copies each with a new id, right after it, and selects the copies |
-| **Up**, **Down** | swaps it with its neighbour in its group (the whole list when ungrouped), which changes the run order of those two; off while several plots are selected |
+| **Up**, **Down** | swaps it with its neighbor in its group (the whole list when ungrouped), which changes the run order of those two; off while several plots are selected |
 
 **The editor.** On top: the plot's kind (with a line on what it draws),
 **Enabled** (a disabled plot is kept but not run; `enabled`), **Id**
@@ -258,11 +258,11 @@ their headers (**▼** / **►**; which are collapsed is remembered):
 | *Kind* options | PSTH and raster: **Sort raster by** (blank = trial order, stop latency, *event* (the latency of the sort event) or a trial parameter; `rasterSort`) and its direction (ascending or descending; `rasterSortOrder`), **Sort event** and **Sort sequence** (with *event*: the line and edge, e.g. Platform offset, and the steps that must follow it; the rows go by each epoch's latency to the first such event at or after its event, in its trial, as a stop event is found, those without one last; `rasterSortEvent`), **Raster rows by group first** (unticked: every epoch sorted as one block, each row on its group's colour; `rasterByGroup`), **Mark events** (the lines whose events are marked on each row, e.g. `Trough`, several separated by spaces or commas; onset, offset or both; every event in the window or only in the epoch's trial; `rasterEvents`) and **Mark look** (marker, size, and *auto* (a colour per line and edge) or one colour; right-click a mark to style one line's marks on its own); behavior: **Y value** (a trial parameter such as RespLatency, or *stop*: the stop event's latency, ms; `yParam`), parameter and series (`param`, `seriesParam`), **X axis** (evenly spaced or at their values; `xScale`) and **Jitter points** (points layout; `jitter`); PSTH: **Raster above each PSTH** (`withRaster`), **PSTH as** bar or line (`histStyle`), normalization (none, unit peak, group peak; `normalize`), **Filled** and its opacity (blank = automatic; `fill`, `fillAlpha`), **Stack groups** and its spacing (a row per group, labelled by value on the left and by peak rate on the right; `stack`, `stackSpacing`); tuning: parameter and series (`param`, `seriesParam`); probe map: value (`value`); heatmap: row order (*probe*, *peak*, and *modulation* with the auROC baseline; `order`); unit correlation: epoch rate (mean or peak; `metric`) and correlation (Pearson or Spearman; `correlation`) |
 | Appearance (`style`) | tiles per page (`MaxTiles`), grid spacing (*loose*, *compact*, *tight*, *none*; `TileSpacing`), font size, line width, site size (probe map), y limits (blank = automatic, or two numbers such as `0 40`), group colours (*lines*: the trial selection's colours; a colormap; or one colour such as *black* or `#1f77b4`, typed in; `Colormap`), heat colours (*auto*: parula, or blueWhiteRed for unit correlations; `HeatColormap`), **Sort by** depth and / or shank (`SortDepth`, `SortShank`: units and channels top of the probe first, by shank first), **Label with** depth and / or shank (`LabelDepth`, `LabelShank`), and **Show** SEM, stop marks, legend, grid |
 | Unit waveform | rasters, and PSTH and tuning grids, of spikes: **Show** (*Off*, *Mean*, *Subsample*, *Mean + subsample*) each unit's waveform on its peak channel in its tile, and how many spikes the subsample draws (a sorted unit's mean is over them); **Location** (*North-east* by default; north is the top edge), **Axis box** (an outline on a pale ground; unticked, the waveform alone) and its size (1x = a third of the tile). Sorted units' spikes are cut from the sorted `.bin` (their templates when it is not there); detections need the Spikes step's *Waveforms* option (`waveform`; [Unit waveforms](EphysAnalysisConfig.md#unit-waveforms)) |
-| Text note | any plot: **Text** (a block of descriptive text; each new line is a line; blank draws nothing), **Place** (*Below*, *Above*, *Right of* or *Left of* the plot, which gives up a band for it; *Over the plot* at a corner, an edge or the center; or *At x, y*, the anchor's place across and up the plot, 0-1), **Align** (left, center, right; top, middle, bottom: how the lines line up and where the text sits in its band), **Rotation**, **Font** (*auto* = the design's, or any installed font) and size (blank = the plot's font size), **Bold**, **Italic**, **Outline**, **Colours** (text and ground; *auto* and *none* leave them to the design) and **Interpreter** (*As typed* or *TeX*). Its settings wait for some text (`note`; [Plot notes](EphysAnalysisConfig.md#plot-notes)); right-click the note in the preview to restyle it like any other part of the plot |
-| Overlays (*Overlays (n)* once there are some) | any plot: a list of the plot's overlays -- lines and semitransparent patches drawn on its axes -- with **Add line**, **Add patch**, **Duplicate** (the picked one, look and all, named *name copy*) and **Remove**; add as many as you like. The rows below the list edit the one picked: **Name** and **Enabled**; **Draw** (a vertical line at an x value, a horizontal line at a y value, a patch between two x values, or between two y values); **At** (a line's value) or **From / to** (a patch's edges, either order); **Show on** (*All panels*, *Data panels* or *Raster panels*) and the layer (*Over the data* or *Under the data*); a line's **Colour** and opacity, or a patch's **Fill** colour and opacity and **Outline** colour (*none* for no outline); and the **Line** style and width (a line's, or an outlined patch's). The Add buttons give each overlay a name of its own (*Line 1*, *Patch 1*, ...). With several plots selected the section shows while they all hold the same overlays (none, to add one to every plot) and an edit gives each the first's list (`overlays`; [Plot overlays](EphysAnalysisConfig.md#plot-overlays)); right-click an overlay in the preview to restyle it like any other part of the plot |
+| Text note | any plot: **Text** (a block of descriptive text; each new line is a line; blank draws nothing), **Place** (*Below*, *Above*, *Right of* or *Left of* the plot, which gives up a band for it; *Over the plot* at a corner, an edge or the center; or *At x, y*, the anchor's place across and up the plot, 0-1), **Align** (left, center, right; top, middle, bottom: how the lines line up and where the text sits in its band), **Rotation**, **Font** (*auto* = the design's, or any installed font) and size (blank = the plot's font size), **Bold**, **Italic**, **Outline**, **Colors** (text and ground; *auto* and *none* leave them to the design) and **Interpreter** (*As typed* or *TeX*). Its settings wait for some text (`note`; [Plot notes](EphysAnalysisConfig.md#plot-notes)); right-click the note in the preview to restyle it like any other part of the plot |
+| Overlays (*Overlays (n)* once there are some) | any plot: a list of the plot's overlays -- lines and semitransparent patches drawn on its axes -- with **Add line**, **Add patch**, **Duplicate** (the picked one, look and all, named *name copy*) and **Remove**; add as many as you like. The rows below the list edit the one picked: **Name** and **Enabled**; **Draw** (a vertical line at an x value, a horizontal line at a y value, a patch between two x values, or between two y values); **At** (a line's value) or **From / to** (a patch's edges, either order); **Show on** (*All panels*, *Data panels* or *Raster panels*) and the layer (*Over the data* or *Under the data*); a line's **Color** and opacity, or a patch's **Fill** color and opacity and **Outline** color (*none* for no outline); and the **Line** style and width (a line's, or an outlined patch's). The Add buttons give each overlay a name of its own (*Line 1*, *Patch 1*, ...). With several plots selected the section shows while they all hold the same overlays (none, to add one to every plot) and an edit gives each the first's list (`overlays`; [Plot overlays](EphysAnalysisConfig.md#plot-overlays)); right-click an overlay in the preview to restyle it like any other part of the plot |
 
-Each of the ten headed sections has a title colour of its own and a key. The
-colours are ten steps along MATLAB's `turbo` map, in the order of the table
+Each of the ten headed sections has a title color of its own and a key. The
+colors are ten steps along MATLAB's `turbo` map, in the order of the table
 above (blue for Units & channels, red for Overlays), each darkened, keeping
 its hue, only as far as it needs to read on the header bar (a contrast ratio
 of 4.5). **Ctrl+1** to **Ctrl+9** and **Ctrl+0** (**Cmd** on a Mac; the number pad too) go
@@ -272,7 +272,7 @@ options 6, Appearance 7, Unit waveform 8, Text note 9 and Overlays 0. The key op
 section if it is collapsed (it stays open, and is remembered like any
 other collapse), scrolls the editor to it and puts the keyboard focus on its
 header, so **Tab** walks into its rows. The header names its key. Keys work
-with the Plots tab showing. A section keeps its number and colour whatever
+with the Plots tab showing. A section keeps its number and color whatever
 the plot shows; for one the selected plot does not show, the status bar says
 so and nothing moves.
 
@@ -284,18 +284,18 @@ and spike heatmaps; y limits only where a rate or amplitude axis takes them
 (PSTHs, rates, tuning curves, the evoked butterfly and grid); tiles only for
 paged grids; grid spacing for every kind but rates; sort
 and label options for every kind but probe maps; line width for PSTHs,
-evoked potentials and tuning curves; group colours, legend (with its place
+evoked potentials and tuning curves; group colors, legend (with its place
 -- inside, or north, south, east or west of the whole grid of plots -- its
 orientation and its box, on while the legend is) and SEM only
-where groups are drawn as lines or bars; heat colours only for heatmaps,
+where groups are drawn as lines or bars; heat colors only for heatmaps,
 probe maps and unit correlations; the unit waveform for rasters and PSTH
 and tuning grids of spikes; the text note and the overlays for every kind. A behavior plot reads only the trials: it
 shows its y value, parameter, series and x axis, the event, window and
-selection, the font, line width, y limits, series colours, SEM, legend
+selection, the font, line width, y limits, series colors, SEM, legend
 and grid, and no unit, channel, bin, baseline or tile rows. The window modes offered are the kind's
 (*between* only for rates, tuning curves and unit correlations), and so are
 the baseline modes ([Plot kinds](#plot-kinds)). Rows that another option
-switches off stay in place, greyed out: the opacity until *Filled*, the
+switches off stay in place, grayed out: the opacity until *Filled*, the
 spacing until *Stack groups* (a stack has no y limits or legend), the
 baseline window until a baseline mode, a unit correlation's bins until its
 *peak* rate, the mask and stop marks until the window has a stop event,
@@ -304,7 +304,7 @@ each PSTH*, the marks' look until a line is named to mark, the jitter
 until the *points* layout, the units of a shift until a parameter is
 chosen, the
 waveform's spikes, location, axis box and size until **Show** is not
-*Off*, the note's place, alignment, font and colours until it has text
+*Off*, the note's place, alignment, font and colors until it has text
 (its x and y until *At x, y*); under the auROC baseline the step until *sliding*, the threshold
 until a fixed cutoff, the resamples for ranksum, the calls without a
 cutoff, and smoothing and normalization (the auROC compares the bins as
@@ -357,11 +357,11 @@ runner, so it is what a run exports.
 | **Auto** | redraw after every edit while a preview takes under 2 s; a slower one says so (*"slow, so edits wait for Preview"*) |
 | **<**, **>** | the pages of a paged grid: computes the page it goes to, or only draws it after a Ctrl+click on **Preview** |
 | **Design** | the look of every plot (Default, Tufte, Journal, Night, Talk, Gray panel, and yours): picking one redraws the preview, and every other plot on screen, at once; runs draw their figures in it |
-| **Save look as design...** | keeps the preview's look -- every property of every component, its ground and its group colours -- as a design of yours, and picks it |
+| **Save look as design...** | keeps the preview's look -- every property of every component, its ground and its group colors -- as a design of yours, and picks it |
 
 The line under the preview names the plot, the dataset and the time taken,
 or says why the plot cannot be drawn (the runner's
-[skip reasons](#why-is-my-plot-skipped)) or failed. A coloured badge at
+[skip reasons](#why-is-my-plot-skipped)) or failed. A colored badge at
 its left says where the preview is, with an icon:
 
 | Badge | Means |
@@ -371,10 +371,10 @@ its left says where the preview is, with an icon:
 | **Drawn** (green) | the preview is the plot as it is now |
 | **Out of date** (amber) | the plot or the defaults changed and the preview was not redrawn (Auto is off, the last preview took 2 s or more, or the edit was on another tab): press **Preview** |
 | **Press Preview** (blue) | the signal extract is larger than `PreviewMaxMB`, so it waits for **Preview** |
-| **Cannot draw** (grey) | the active dataset cannot draw this plot; the line says why |
+| **Cannot draw** (gray) | the active dataset cannot draw this plot; the line says why |
 | **Failed** (red) | computing or drawing it failed; the line and the Log tab say why |
-| **Cancelled** (grey) | you pressed **Cancel** on the card while it computed; auto-preview leaves it until you press **Preview** |
-| **No preview** (grey) | no plot is selected, or no dataset is active |
+| **Canceled** (gray) | you pressed **Cancel** on the card while it computed; auto-preview leaves it until you press **Preview** |
+| **No preview** (gray) | no plot is selected, or no dataset is active |
 
 While it computes and draws, a card in the middle of the preview says
 what (*"Computing psth_1 on <dataset> ..."*) over the last plot, and the
@@ -387,15 +387,15 @@ button. The compute checks for it between its steps and for every unit
 (spikes, auROC, waveforms) or sixteenth epoch (signals), so it stops within
 about one unit's work; a step that is one call (reading a signal extract,
 building the epoch table) finishes first, and drawing cannot be stopped.
-The panel then says the plot was cancelled, and the badge says
-**Cancelled**. Closing the app while a preview computes stops it the same
+The panel then says the plot was canceled, and the badge says
+**Canceled**. Closing the app while a preview computes stops it the same
 way. Edits you make while it computes do not start a second preview; they
-leave the one that finishes **Out of date**. A run (**Run**) is cancelled
+leave the one that finishes **Out of date**. A run (**Run**) is canceled
 with the Export tab's **Cancel**, as before: after the plot being drawn.
 
 **Plot aesthetics.** Right-click any part of the preview (a line, band,
 bar, text, legend or axes) and pick **Edit aesthetics...** to change
-colours, line styles and widths, markers, opacity and fonts in a modal
+colors, line styles and widths, markers, opacity and fonts in a modal
 window. It lists every component of the plot, shows each change at once,
 applies it to that component, the same one in every tile, every group of
 its role or the ticked rows, and has **Reset**, **Cancel** and **OK**.
@@ -406,10 +406,10 @@ its **Remembered** tab lists both sets and forgets rules. See
 [Plot aesthetics](EphysAnalysis.md#plot-aesthetics).
 
 **Plot designs.** A design is a whole look: the ground behind the plot,
-the group colours, the heat maps' colours, and fonts, axes, ticks, box,
+the group colors, the heat maps' colors, and fonts, axes, ticks, box,
 grid, lines and marks. **Tufte** follows Edward Tufte's data-ink (an
-off-white page, serif type, no box or grid, quiet axes, grey data with
-muted colour); **Journal** is print-ready and colour-blind safe;
+off-white page, serif type, no box or grid, quiet axes, gray data with
+muted color); **Journal** is print-ready and color-blind safe;
 **Night** is dark; **Talk** has big type and thick lines for slides;
 **Gray panel** looks like ggplot2. Pick one in the **Design** list above
 the preview or the **Design** menu, or right-click any plot and use its
@@ -421,7 +421,7 @@ comes from the design it was drawn in. Your designs are JSON files in
 your designs folder (**Design → Open my designs folder**); copy one to a
 colleague, who adds it with **Import a design file...**, or keep them all
 in a shared folder (**Keep my designs in...**). Your rules and the plot's
-own rules still win over a design, and a plot's own group or heat colours
+own rules still win over a design, and a plot's own group or heat colors
 win over the design's. The design you pick is your preference, not part
 of the config. See [Plot designs](EphysAnalysis.md#plot-designs).
 
@@ -445,7 +445,7 @@ Top to bottom:
 | heading | the plot and the dataset, and whether the event, window and selection are the plot's own or the defaults |
 | the rule | in words, e.g. *Time 0 is the first Stim onset in each trial. Each epoch runs from 0.2 s before it to 0.8 s after it. Trials kept: pairing ok; grouped by Depth.* |
 | the count | how many epochs there are, from how many trials. It also gives how many trials the selection leaves out, and how many events are dropped and why: no stop event, outside the recording, or touching an artifact period; and how many were left out before, for lacking the **Shift by** value or because their sequence did not follow. When there are no epochs, the count is red and says why |
-| **The recording** | a stretch of the recording, one row per digital line involved, each drawn as its TTL trace: **Trials** (each trial in its group's colour, or blue without groups; the ones the selection leaves out grey), the event's line (**▲ event**) and the stop event's line (**▼ stop**). With an event **Sequence**, every line of it gets a row (*· sequence*), ▲ sits on the step time 0 is aligned to, and ○ marks where the sequence starts, joined to the ▲ by a dotted line. ▲ marks the edge each event is picked at. A line in the event's group colour runs through every row at time 0. An event moved by **Offset** or **Shift by** has an arrow from its edge to time 0. The stop event is ▼ with a dotted line. Each epoch's window is shaded across the rows and drawn as a bar on the **Epochs** row, numbered `#1`, `#2`, ... as the plot numbers them. An epoch the plot drops is grey and dashed, with ✕ and the reason. Under each bar is the baseline; on the event's line, the **Time range** searched (yellow); behind everything, the artifact periods (red) and the stretches outside the recording (grey). A legend under the axes names each mark |
+| **The recording** | a stretch of the recording, one row per digital line involved, each drawn as its TTL trace: **Trials** (each trial in its group's color, or blue without groups; the ones the selection leaves out gray), the event's line (**▲ event**) and the stop event's line (**▼ stop**). With an event **Sequence**, every line of it gets a row (*· sequence*), ▲ sits on the step time 0 is aligned to, and ○ marks where the sequence starts, joined to the ▲ by a dotted line. ▲ marks the edge each event is picked at. A line in the event's group color runs through every row at time 0. An event moved by **Offset** or **Shift by** has an arrow from its edge to time 0. The stop event is ▼ with a dotted line. Each epoch's window is shaded across the rows and drawn as a bar on the **Epochs** row, numbered `#1`, `#2`, ... as the plot numbers them. An epoch the plot drops is gray and dashed, with ✕ and the reason. Under each bar is the baseline; on the event's line, the **Time range** searched (yellow); behind everything, the artifact periods (red) and the stretches outside the recording (gray). A legend under the axes names each mark |
 | **Aligned to the event** | the same epochs, one row each, on the time from their event: the window, the event's line as the epoch sees it, the stop event (▼) and the baseline, with dashed lines at *pre* and *post*. This is what the plot stacks and averages |
 | **◀ Previous**, **Next ▶**, **Show** | step through the events, and set how many to draw at a time (5 by default). The axes' toolbars zoom and pan |
 
@@ -487,7 +487,7 @@ drawn, so you can see why. Examples: a fixed window with *pre* after
 | **Validate** | lists the config's issues (Section, Field, Severity, Message) in the table; errors stop a run |
 | **Plan** | one row per ticked dataset and plot (Dataset, Plot, Kind, Source, Enabled, Reason): whether it will run, and why not ([skip reasons](#why-is-my-plot-skipped)). Cheap: no signals or spikes are loaded |
 | **Run** | validates, then runs every enabled plot on every ticked dataset with a cancelable progress dialog: compute, export, report. A failing plot is an error row and the rest still run |
-| **Cancel** | stops before the next plot; the plots left are *cancelled* |
+| **Cancel** | stops before the next plot; the plots left are *canceled* |
 | **Open report**, **Open figure folder** | after a run: the report files written, and the first dataset's figure folder |
 
 The results table has one row per dataset and plot: `Dataset`, `Plot`,
@@ -534,7 +534,7 @@ each unit.
 - **Smooth** is the SD of a Gaussian applied to each epoch before
   averaging, renormalized at the window's edges (10 ms by default; 0 = off).
 - **PSTH as** `bar` draws one bar per bin, `line` a trace through the bin
-  centres; **Filled** fills the bars or the area under the line (half
+  centers; **Filled** fills the bars or the area under the line (half
   transparent where groups overlap unless the opacity is set). The SEM band
   is drawn behind either.
 - Layouts: `grid` is one tile per unit (**Tiles per page** per page);
@@ -556,8 +556,8 @@ each unit.
 
 One raster per unit: epochs as rows, sorted by group, then by **Sort raster
 by** (ascending or descending), then by time, each group on a pale band of
-its colour; with **Raster rows by group first** unticked every epoch is
-sorted as one block, each row on its group's colour. Paged like the PSTH
+its color; with **Raster rows by group first** unticked every epoch is
+sorted as one block, each row on its group's color. Paged like the PSTH
 grid.
 
 - To align the rows to the response: in the plot's *Event reference*,
@@ -570,7 +570,7 @@ grid.
 - **Mark events** marks every onset and / or offset of the named lines
   inside each row's epoch (*Trough* for nose pokes, a beam line for beam
   crossings: several in a trial give several marks), in **Mark look**'s
-  marker, size and colour. Each line and edge is listed in the legend and
+  marker, size and color. Each line and edge is listed in the legend and
   is one component for the aesthetics editor, so a right-click restyles
   one line's marks.
 - **Mark sequences**, **Edit...** marks events defined by a sequence: the
@@ -591,8 +591,8 @@ window off it, per channel; the baseline is taken from the epoch's own
 samples, so its window must overlap the plotted window.
 
 - `stack`: one panel, the channels stacked in probe order, the groups in
-  their colours.
-- `butterfly`: one tile per group, every channel overlaid, coloured by
+  their colors.
+- `butterfly`: one tile per group, every channel overlaid, colored by
   that order.
 - `grid`: one tile per channel (paged), the groups overlaid with SEM bands.
 
@@ -627,7 +627,7 @@ the stimulus depth, say. **Y value** is a numeric trial parameter
 stop-event latency in ms (with the event at *RespWindow* onset and the
 stop at *Trough* onset, both in trial scope: the time to the response on
 the digital lines). **Parameter** is the x axis, **Series** splits the
-values into series side by side in their colours (blank: one); the trial
+values into series side by side in their colors (blank: one); the trial
 selection's groups are not used. Epochs without a value (misses) are
 left out and counted in the caption.
 
@@ -640,7 +640,7 @@ left out and counted in the caption.
 - `violin`: the values' density (`violinplot`, MATLAB R2024b or later),
   with the mean ± SEM.
 
-**X axis** spaces the values evenly (labelled with their values) or
+**X axis** spaces the values evenly (labeled with their values) or
 places them at their values. It reads no spikes or signals, only the
 paired trials and the digital lines, so it needs paired trials; the
 window need not lie inside the recording and artifact periods do not
@@ -649,20 +649,20 @@ matter.
 ### Heatmap
 
 Units (spike sources, from a PSTH) or channels (signal sources, from an
-evoked potential) by time, one tile per group, on one colour scale. **Row
+evoked potential) by time, one tile per group, on one color scale. **Row
 order**: `probe` (as **Sort by** says), `peak` (the time of each row's
 maximum), or, with the auROC baseline, `modulation` (the units by their
 mean auROC in the call window in the first group, highest first; the other
-tiles keep that order). An auROC heatmap is coloured on [0 1] and, with
+tiles keep that order). An auROC heatmap is colored on [0 1] and, with
 **Mark them**, marks each unit the call finds modulated (a red up or blue
 down triangle).
 
 ### Probe map
 
 One value per probe site, on the probe's layout, all shanks on one axis
-and one colour scale: the summed firing rate (`rate`: spikes over the whole
+and one color scale: the summed firing rate (`rate`: spikes over the whole
 recording divided by its length), `nSpikes` or `nUnits`. Sites without a
-value are open grey squares, and the units' positions are black dots. It
+value are open gray squares, and the units' positions are black dots. It
 uses no events or trials, and needs the probe map the dataset's manifest
 names.
 
@@ -698,7 +698,7 @@ rows of the editor (**Show** is never *Off* here), with three more:
 - **Amplitude** *Each unit's own scale* (each waveform fills its tile or
   glyph) or *One scale for all units* (`ampScale`: sizes compare, and the
   probe layout draws a scale bar).
-- **On the probe** **Sites** (the probe's sites in grey behind the
+- **On the probe** **Sites** (the probe's sites in gray behind the
   waveforms) and **Unit names** (`showSites`, `showNames`; probe layout only).
 - Layouts: *grid*, a tile per unit, or *probe*, each unit's waveform as a
   glyph at its place on the probe map (a plot of a dataset without a probe
@@ -876,7 +876,7 @@ buttons); the scan; opening on a list of datasets
 lines and parameters; grouping by Depth from the Alignment controls; adding
 a PSTH and an LFP evoked potential and previewing both; the response test
 (*Responsive only* and its settings reaching the plot); a PSTH's stack,
-normalization, fill, opacity and group colours reaching the plot and the
+normalization, fill, opacity and group colors reaching the plot and the
 stacked preview; the preview's badge (Drawn after a preview, Out of date
 after an edit Auto does not redraw, the busy card gone); the preview's right-click
 aesthetics editor remembering rules into the plot's config entry (the
@@ -886,10 +886,10 @@ preview's look as a design and deleting it (the designs themselves:
 `test_PlotDesign`); editing the bins; an edit in a
 *Use default* section giving the plot its own event or window, and ticking
 it again going back; the editor showing only the rows and sections a plot
-uses (y limits, heat colours, a probe map's missing alignment) and greying
+uses (y limits, heat colors, a probe map's missing alignment) and graying
 out the ones its options switch off; a spike heatmap with the auROC baseline
 (its settings shown and reaching the plot, its preview marked) and the auROC
-response test; the Unit waveform rows (greyed out while *Off*, reaching
+response test; the Unit waveform rows (grayed out while *Off*, reaching
 the plot, previewed without the box, hidden for an overlay); the epoch
 diagram (opened from the plot editor with exactly the plot's epochs,
 redrawn at once when *pre* is edited, every epoch dropped and saying why
@@ -897,7 +897,7 @@ when the window reaches before the recording, a window `epochTable`
 refuses reported, paging, the same window showing the defaults from the
 Alignment tab, closing with the app); a raster's
 sort, direction, grouping and event marks reaching the plot and the
-preview, and its sort by an event (**Sort event** greyed out until
+preview, and its sort by an event (**Sort event** grayed out until
 *event* is picked, its line and edge reaching the plot and the preview,
 kept when another sort is picked); **Shift by** giving a plot its own event shifted by RespLatency
 (the misses left out); a behavior plot (its rows shown, the others

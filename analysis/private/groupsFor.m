@@ -1,7 +1,7 @@
 function G = groupsFor(E, G)
 %groupsFor  The groups table for epochs E: the one given, or one built from E.
 %   G must have index, label and color and a row for every E.groupIndex;
-%   without one, labels come from E.group and colours from groupColors.
+%   without one, labels come from E.group and colors from groupColors.
 
 nG = max([0; E.groupIndex(:)]);
 if istable(G) && all(ismember(["index" "label" "color"], string(G.Properties.VariableNames))) && height(G) >= nG

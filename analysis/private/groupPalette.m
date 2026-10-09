@@ -1,11 +1,11 @@
 function C = groupPalette(G, style)
-%groupPalette  Group colours: G.color, sampled from Style.Colormap, or one colour.
-%   Style.Colormap "lines" keeps the colours selectTrials chose -- or, with
+%groupPalette  Group colors: G.color, sampled from Style.Colormap, or one color.
+%   Style.Colormap "lines" keeps the colors selectTrials chose -- or, with
 %   a plot design (Style.Design, renderStyle), the design's: its sequential
-%   colours for ordered groups (isOrdinalGroups), its single colour for one
+%   colors for ordered groups (isOrdinalGroups), its single color for one
 %   group, else its palette in order; the name of any colormap function
-%   (parula, turbo, hot, ...) resamples them from it; a colour name or hex
-%   code ("black", "#1f77b4") gives every group that colour.
+%   (parula, turbo, hot, ...) resamples them from it; a color name or hex
+%   code ("black", "#1f77b4") gives every group that color.
 C = G.color;
 name = char(style.Colormap);
 if height(G) == 0
@@ -36,7 +36,7 @@ end
 
 
 function C = designColors(G, D)
-%designColors  The design's colours for groups G (G.color where it gives none).
+%designColors  The design's colors for groups G (G.color where it gives none).
 n = height(G);
 C = G.color;
 if isOrdinalGroups(G)

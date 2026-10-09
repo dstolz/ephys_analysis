@@ -576,7 +576,7 @@ pipe.ProgressFcn = @(evt) cancelOnProbe(evt, pipe);
         if evt.step == "probe" && evt.index > 0; p.cancel(); end
     end
 R = pipe.run(Steps=["probe" "artifacts"]);
-check(all(R.Status(R.Step == "probe") ~= "cancelled") && isequal(R.Status(R.Step == "artifacts"), "cancelled"), ...
+check(all(R.Status(R.Step == "probe") ~= "canceled") && isequal(R.Status(R.Step == "artifacts"), "canceled"), ...
     'a cancel between steps is recorded by the next step, which does not announce itself');
 pipe.ProgressFcn = [];
 pipe.Config = cfg;
@@ -588,9 +588,9 @@ pipe.ProgressFcn = @(evt) cancelOnDetect(evt, pipe);
         end
     end
 R = pipe.run(Steps="spikes");
-check(any(R.Status == "cancelled") && ~isfile(pipe.outputPathFor("spikes", d1)) ...
+check(any(R.Status == "canceled") && ~isfile(pipe.outputPathFor("spikes", d1)) ...
     && isempty(dir(fullfile(outRoot, 'M1_260101_120000', '~*.partial.mat'))), 'cancel stops the run and leaves no partial file');
-check(any(contains(logs, "cancelled")), 'the log records the cancellation');
+check(any(contains(logs, "canceled")), 'the log records the cancellation');
 pipe.ProgressFcn = [];
 
 fprintf('\n== 9. signals step (needs the Signal Processing Toolbox) ==\n');
@@ -710,8 +710,8 @@ ws = warning('off', 'EphysDataset:toBin:Clipping');   % full-range random sample
 id = errorId(@() pipe.runSorting());
 warning(ws);
 R = pipe.Results;
-check(strcmp(id, 'EphysPipeline:Cancelled') && height(R) == 1 && R.Status(1) == "queued" && isscalar(handed), ...
-    'a cancel after the run was handed to the queue keeps its "queued" row (no "cancelled before launch")');
+check(strcmp(id, 'EphysPipeline:Canceled') && height(R) == 1 && R.Status(1) == "queued" && isscalar(handed), ...
+    'a cancel after the run was handed to the queue keeps its "queued" row (no "canceled before launch")');
 res = handed(1).res;
 binTime = dir(d1.BinFile).datenum;
 pipe.QueueFcn = [];

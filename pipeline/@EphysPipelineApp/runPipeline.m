@@ -105,7 +105,7 @@ obj.resetRunDiagram(steps, opts.DryRun);
 outcome = "done"; note = "";
 try
     pipe.run(Steps=opts.Steps, DryRun=opts.DryRun);
-    if pipe.CancelRequested; outcome = "cancelled"; end
+    if pipe.CancelRequested; outcome = "canceled"; end
 catch ME
     outcome = "error"; note = string(ME.message);
     obj.LastError = ME;                      % Help > Report an issue sends it with its stack
@@ -124,9 +124,9 @@ obj.refreshManualArtifactsTable();
 obj.refreshReferencePanel();
 n = height(R);
 nErr = nnz(startsWith(R.Status, "error"));
-nCan = nnz(R.Status == "cancelled");
-obj.RunStepLabel.Text = sprintf("Finished: %d result(s), %d error(s), %d cancelled.", n, nErr, nCan);
-obj.setStatus(sprintf("Pipeline finished: %d result(s), %d error(s), %d cancelled.", n, nErr, nCan));
+nCan = nnz(R.Status == "canceled");
+obj.RunStepLabel.Text = sprintf("Finished: %d result(s), %d error(s), %d canceled.", n, nErr, nCan);
+obj.setStatus(sprintf("Pipeline finished: %d result(s), %d error(s), %d canceled.", n, nErr, nCan));
 if copyForAnalysis && outcome == "done"
     try
         obj.copyAnalysisFilesAfterRun(pipe);

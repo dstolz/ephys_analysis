@@ -75,7 +75,7 @@ classdef EphysDataset < handle
         % EphysDataset.detectFormat): Intan "traditional" | "one-file-per-signal"
         % | "one-file-per-channel", "binary" (recording.json), Open Ephys
         % "openephys-binary" | "openephys-legacy" | "openephys-nwb", or
-        % "unknown" when no reader recognises the folder. Recorded in the
+        % "unknown" when no reader recognizes the folder. Recorded in the
         % manifest.
         RecordingFormat (1,1) string = "unknown"
     end
@@ -234,7 +234,7 @@ classdef EphysDataset < handle
     properties (SetAccess = protected)
         % The acquisition reader for Folder (an EphysReader subclass such as
         % IntanReader or BinaryReader), chosen by EphysReader.forFolder in
-        % discoverFiles. [] when no registered reader recognises the folder.
+        % discoverFiles. [] when no registered reader recognizes the folder.
         Reader = []
     end
 
@@ -609,7 +609,7 @@ classdef EphysDataset < handle
             end
             if isempty(obj.Reader)
                 error('EphysDataset:NoReader', ...
-                    '%s: no registered reader recognises %s.', what, obj.Folder);
+                    '%s: no registered reader recognizes %s.', what, obj.Folder);
             end
         end
 
@@ -823,7 +823,7 @@ classdef EphysDataset < handle
         end
 
         function id = unitIdentity(obj)
-            %unitIdentity  Subject, recording start and key labelling this dataset's units.
+            %unitIdentity  Subject, recording start and key labeling this dataset's units.
             %   ID = ds.unitIdentity() is EphysDataset.nameIdentity(Name, NamePattern)
             %   (subject, recordingStart, labelSuffix) plus datasetKey (DatasetKey, else
             %   the absolute folder with forward slashes). Throws
@@ -1235,7 +1235,7 @@ classdef EphysDataset < handle
             %   "traditional" | "one-file-per-signal" | "one-file-per-channel"
             %   (IntanReader), "binary" (BinaryReader), "openephys-binary" |
             %   "openephys-legacy" | "openephys-nwb" (OpenEphysReader), "tdt"
-            %   (TDTReader), or "unknown" when no registered reader recognises
+            %   (TDTReader), or "unknown" when no registered reader recognizes
             %   the folder.
             %   ReaderOptions= passes the reader options.
             arguments
@@ -1467,7 +1467,7 @@ classdef EphysDataset < handle
             %                        writes on every save and no sorter writes,
             %                        or phy's cluster_group.tsv (phyCurated)
             %   S.modified  true when the save changed the sort: a cluster
-            %               labelled in phy, or one phy made by a merge or split
+            %               labeled in phy, or one phy made by a merge or split
             %   S.saved     when phy last saved (cluster_info.tsv's modification
             %               time, else cluster_group.tsv's; NaT when not saved)
             %   S.labels    the labels set in phy ([1 x n] string, "good" /
@@ -1655,7 +1655,7 @@ classdef EphysDataset < handle
             %   EphysDataset.saveAtomically(file, S, "-v7.3") writes
             %   "~<name>.partial.mat" next to FILE and renames it into place only
             %   after save() finished without warnings and every field of S is
-            %   confirmed present, so a failed or cancelled run never leaves a
+            %   confirmed present, so a failed or canceled run never leaves a
             %   complete-looking file behind. (save() reports a variable it could
             %   not store, e.g. over 2 GB with -v7, as a warning and omits it;
             %   that is treated as a failure here.) Shared by toMat, spikesToMat
@@ -1764,7 +1764,7 @@ classdef EphysDataset < handle
             %   [STATE, MESSAGE] = EphysDataset.sortRunState(STATUSFILE) reads
             %   the ks4_status.json that runKilosort
             %   drivers write when they finish: STATE is its "done" or
-            %   "error" ("cancelled" for a run ended by stopSortRun), and
+            %   "error" ("canceled" for a run ended by stopSortRun), and
             %   "running" while there is none yet (or it is caught
             %   mid-write). A run whose process has exited (the
             %   SortExitMarker beside the status file) without writing a

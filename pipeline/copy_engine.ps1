@@ -48,11 +48,11 @@
       {"event":"end","state":"done","message":""}
 
     When every session is finished the job's status file is written with the
-    final state ("done", "cancelled" or "error"); MATLAB polls for that file to
+    final state ("done", "canceled" or "error"); MATLAB polls for that file to
     learn the phase is over. Creating the job's cancel file stops the engine:
     a running robocopy is killed, or a running SHA-256 stopped part way, the
     partial copy is left in place, and the session and the remaining sessions
-    are reported "cancelled".
+    are reported "canceled".
 
     This script is an engine only. Which rows may be copied, what counts as a
     verified copy, the ePsych stitching and the session manifest all stay in
@@ -87,7 +87,7 @@ function Write-Event([hashtable] $e) {
     $out.WriteLine((ConvertTo-Json $e -Compress -Depth 4))
 }
 
-function Test-Cancelled {
+function Test-Canceled {
     return ($spec.cancelFile -ne '') -and [System.IO.File]::Exists($spec.cancelFile)
 }
 
@@ -211,7 +211,7 @@ function Test-Finished($src, $dst) {
         ([math]::Abs(($dst.LastWriteTimeUtc - $src.LastWriteTimeUtc).TotalSeconds) -le 2)
 }
 
-$script:hashCancelled = $false           # a SHA-256 was stopped part way by a cancel
+$script:hashCanceled = $false           # a SHA-256 was stopped part way by a cancel
 
 function Get-Sha256([string] $p) {
     $sha = $null
@@ -221,7 +221,7 @@ function Get-Sha256([string] $p) {
         $fs = [System.IO.File]::Open($p, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite)
         # Read it in chunks rather than handing the stream to ComputeHash: the
         # digest is the same one, and between chunks the engine can beat, say
-        # how far it has read and stop when cancelled, rather than after
+        # how far it has read and stop when canceled, rather than after
         # minutes of reading a big file.
         $buf = New-Object byte[] 4194304
         while (($n = $fs.Read($buf, 0, $buf.Length)) -gt 0) {
@@ -229,8 +229,8 @@ function Get-Sha256([string] $p) {
             $script:hashRead += $n
             Write-Heartbeat
             Write-HashProgress
-            if (Test-Cancelled) {
-                $script:hashCancelled = $true
+            if (Test-Canceled) {
+                $script:hashCanceled = $true
                 return ''
             }
         }
@@ -249,7 +249,7 @@ $script:stopped = $false                 # Invoke-Robocopy ended robocopy for a 
 
 function Invoke-Robocopy([string] $src, [string] $dst, [string[]] $files, [bool] $recurse, [string] $log) {
     # One robocopy per source group. Returns its exit code; $script:stopped
-    # says that it ended robocopy itself because the batch was cancelled (the
+    # says that it ended robocopy itself because the batch was canceled (the
     # code, -1, is also what a robocopy ended by another program can exit with).
     $a = @((Format-Arg $src), (Format-Arg $dst))
     foreach ($f in $files) { $a += (Format-Arg $f) }
@@ -265,7 +265,7 @@ function Invoke-Robocopy([string] $src, [string] $dst, [string[]] $files, [bool]
     while (-not $p.WaitForExit(250)) {
         Write-Heartbeat
         Write-LiveProgress
-        if (Test-Cancelled) {
+        if (Test-Canceled) {
             $script:stopped = $true
             try { $p.Kill() } catch { }
             try { $p.WaitForExit(5000) | Out-Null } catch { }
@@ -284,9 +284,9 @@ try {
 
     foreach ($s in $sessions) {
         Write-Heartbeat
-        if (Test-Cancelled) {
-            Write-Event @{ event = 'session'; index = $s.index; state = 'cancelled' }
-            $state = 'cancelled'
+        if (Test-Canceled) {
+            Write-Event @{ event = 'session'; index = $s.index; state = 'canceled' }
+            $state = 'canceled'
             continue
         }
         $expect = @($s.expect)
@@ -315,8 +315,8 @@ try {
                     $secs = [math]::Round(([DateTime]::Now - $t0).TotalSeconds, 2)
                     Write-Event @{ event = 'robocopy'; index = $s.index; group = $g; exit = $code; seconds = $secs }
                     if ($script:stopped) {
-                        $err = 'cancelled'
-                        $state = 'cancelled'
+                        $err = 'canceled'
+                        $state = 'canceled'
                         break
                     }
                     if ($code -lt 0 -or $code -ge 8) {
@@ -351,12 +351,12 @@ try {
             Write-Event @{ event = 'session'; index = $s.index; state = 'hashing'; files = $expect.Count }
         }
 
-        if ($err -ne 'cancelled') {
+        if ($err -ne 'canceled') {
             foreach ($e in $expect) {
-                if (Test-Cancelled) {
-                    # A checksum pass cut short is cancelled, not failed; a copy
+                if (Test-Canceled) {
+                    # A checksum pass cut short is canceled, not failed; a copy
                     # that robocopy finished only skips its remaining events.
-                    if ($Phase -eq 'hash') { $err = 'cancelled'; $state = 'cancelled' }
+                    if ($Phase -eq 'hash') { $err = 'canceled'; $state = 'canceled' }
                     break
                 }
                 $rec = @{ event = 'file'; index = $s.index; rel = $e.rel }
@@ -371,10 +371,10 @@ try {
                     $script:hashIndex = $s.index
                     $script:hashRel = $e.rel
                     $rec.sha256Source = (Get-Sha256 $e.src)
-                    if (-not $script:hashCancelled) {
+                    if (-not $script:hashCanceled) {
                         $rec.sha256Destination = (Get-Sha256 ([System.IO.Path]::Combine($s.dest, $e.rel)))
                     }
-                    if ($script:hashCancelled) { $err = 'cancelled'; $state = 'cancelled'; break }
+                    if ($script:hashCanceled) { $err = 'canceled'; $state = 'canceled'; break }
                     if ($script:lastHashError -ne '') { $rec.hashError = $script:lastHashError }
                 }
                 $bytesDone += [double]$e.bytes
@@ -384,14 +384,14 @@ try {
             }
         }
 
-        if ($err -eq 'cancelled') {
-            Write-Event @{ event = 'session'; index = $s.index; state = 'cancelled' }
+        if ($err -eq 'canceled') {
+            Write-Event @{ event = 'session'; index = $s.index; state = 'canceled' }
         } else {
             Write-Event @{ event = 'session'; index = $s.index; state = 'done'; error = $err }
         }
     }
 
-    if (Test-Cancelled) { $state = 'cancelled' }
+    if (Test-Canceled) { $state = 'canceled' }
 } catch {
     $state = 'error'
     $message = $_.Exception.Message

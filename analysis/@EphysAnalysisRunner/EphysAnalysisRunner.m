@@ -32,12 +32,12 @@ classdef EphysAnalysisRunner < handle
     %                   dataset and plot; FRACTION is how far the whole run
     %                   is (dataset j of n spans [(j-1)/n, j/n], its plots
     %                   share it). cancel() makes the next call throw
-    %                   EphysAnalysisRunner:Cancelled
+    %                   EphysAnalysisRunner:Canceled
     %     PollFcn       PollFcn() called at computePlot's checkpoints (between
     %                   its stages and per unit, epoch or channel inside the
     %                   long ones); the app's preview sets it to let a Cancel
     %                   button act while a plot computes. cancel() then makes
-    %                   the next checkpoint throw EphysAnalysisRunner:Cancelled.
+    %                   the next checkpoint throw EphysAnalysisRunner:Canceled.
     %                   While it is empty (a run, a script) there are no
     %                   checkpoints
     %     LogFcn        LogFcn(message) per line (default: print); [] = quiet
@@ -48,7 +48,7 @@ classdef EphysAnalysisRunner < handle
     %     Keys, Names   dataset keys (root-relative, or the folder) and names
     %     Sources       containers.Map key -> loadAnalysisSource struct
     %     Results       last run: Dataset, Plot, Kind, Status (done |
-    %                   skipped | error | cancelled), Message, Files, Seconds
+    %                   skipped | error | canceled), Message, Files, Seconds
     %     Report        the last run's report struct (newAnalysisReport)
     %     ReportFiles   the report files the last run wrote
     %     RunRecordFile the run record the last run wrote: the config, the code

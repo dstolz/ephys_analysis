@@ -97,7 +97,7 @@ end
 
 function highlight(obj, c)
 %highlight  Mark C as the control the Diagram box pointed at, remembering its look.
-%   Tables are left alone: recolouring one recolours every cell in it.
+%   Tables are left alone: recoloring one recolors every cell in it.
 if isa(c, 'matlab.ui.control.Table'); return; end
 props = intersect(["FontColor", "FontWeight"], string(properties(c)));
 if isempty(props); return; end

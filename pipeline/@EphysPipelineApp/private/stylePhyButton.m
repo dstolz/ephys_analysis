@@ -1,6 +1,6 @@
 function stylePhyButton(b, folder)
 %stylePhyButton  An "Open in phy" button B as phy left sorted-output FOLDER.
-%   Curated in phy (EphysDataset.phyStatus: a save that labelled, merged or
+%   Curated in phy (EphysDataset.phyStatus: a save that labeled, merged or
 %   split a cluster): green ("confirm"), "Open in phy (curated)", and the
 %   save time in the tooltip. Otherwise, or for FOLDER "" (no sort), the
 %   ordinary look and text. Used by the Sorting tab (refreshSortingLabel)

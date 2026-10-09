@@ -6,7 +6,7 @@ function out = exportChronux(obj, opts)
 %   straight to Chronux (mtspectrumc, mtspectrumpt, ...) outside this app.
 %   Behavior data has its own file (behaviorToMat). Packaging goes through
 %   ChronuxDataset (the Chronux connector); no Chronux function is called
-%   and nothing is analysed.
+%   and nothing is analyzed.
 %
 %   Variables in the file
 %   ---------------------

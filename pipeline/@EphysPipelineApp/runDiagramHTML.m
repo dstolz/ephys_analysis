@@ -1,7 +1,7 @@
 function html = runDiagramHTML(~)
 %runDiagramHTML  The page behind the Run tab's diagram of the run.
 %   One box per pipeline step, in execution order and in the Diagram tab's
-%   step colours, joined by arrows. The page itself is static: the app sends
+%   step colors, joined by arrows. The page itself is static: the app sends
 %   the run's state as the HTML component's Data (refreshRunDiagram), and the
 %   page's setup() redraws the boxes from it on every DataChanged event. The
 %   boxes are built once and then updated in place, so the step underway
@@ -87,7 +87,7 @@ s = join([ ...
     "#head{background:#fff;border:1px solid #d0d7de;border-left:5px solid #8c959f;border-radius:8px;padding:6px 10px;margin:0 0 10px}"
     ".phase-running #head{border-left-color:#1f7fbf}"
     ".phase-done #head{border-left-color:#2e9e5b}"
-    ".phase-cancelled #head{border-left-color:#d9822b}"
+    ".phase-canceled #head{border-left-color:#d9822b}"
     ".phase-error #head{border-left-color:#cf222e}"
     "#headline{font-size:14px;font-weight:600}"
     "#sub{font-size:11px;color:#57606a;margin-top:1px;overflow-wrap:anywhere}"
@@ -95,7 +95,7 @@ s = join([ ...
     % Arrow from one step to the next.
     ".link{align-self:center;position:relative;flex:none;width:2px;height:14px;background:#afb8c1}"
     ".link::after{content:'';position:absolute;left:-4px;bottom:-3px;border:5px solid transparent;border-top-color:#afb8c1;border-bottom-width:0}"
-    % A step: accent colour per step, as on the Diagram tab (flowChartHTML).
+    % A step: accent color per step, as on the Diagram tab (flowChartHTML).
     ".step{--acc:#8c959f;--tint:#f0f1f3;--glow:rgba(140,149,159,.45);background:#fff;border:1px solid #d0d7de;border-left:5px solid var(--acc);border-radius:8px;padding:6px 10px 7px;transition:background-color .3s,border-color .3s}"
     ".s-probe{--acc:#1b7c83;--tint:#e1f3f4;--glow:rgba(27,124,131,.45)}"
     ".s-behavior{--acc:#bf3989;--tint:#fbe9f3;--glow:rgba(191,57,137,.45)}"
@@ -136,7 +136,7 @@ s = join([ ...
     ".is-done .pill{background:#dafbe1;color:#116329}"
     ".is-done.has-errors .pill,.is-failed .pill{background:#ffebe9;color:#a40e26}"
     ".is-failed{border-color:#cf222e}"
-    ".is-cancelled .pill,.is-notrun .pill{background:#fff1e5;color:#953800}"
+    ".is-canceled .pill,.is-notrun .pill{background:#fff1e5;color:#953800}"
     ".is-notrun{opacity:.7}"
     ".has-errors .sum{color:#a40e26;font-weight:600}"
     "@keyframes pulse{0%{box-shadow:0 0 0 0 var(--glow)}70%{box-shadow:0 0 0 9px rgba(0,0,0,0)}100%{box-shadow:0 0 0 0 rgba(0,0,0,0)}}"

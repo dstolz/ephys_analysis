@@ -6,7 +6,7 @@ function runSorting(obj, opts)
 %   SpikeInterface sorter ("spykingcircus2", ...),
 %   EphysDataset.runSpikeInterface writes the same .bin and runs that
 %   sorter on it with its parameters (EphysPipelineConfig.siParams), the
-%   units labelled by the good-unit criteria (Sorting.Quality), into
+%   units labeled by the good-unit criteria (Sorting.Quality), into
 %   <output folder>\si_<sorter>. Either way with the dataset's probe
 %   (probeFor: its own, else Probe.DefaultProbeFile) and the artifact
 %   intervals (manual periods always; the cached automatic detection when
@@ -89,7 +89,7 @@ obj.SortingWaiting = nnz(why == "");
 for k = 1:n
     d = ds(k);
     if obj.CancelRequested
-        obj.addResult("sorting", d.Name, "cancelled", "not run");
+        obj.addResult("sorting", d.Name, "canceled", "not run");
         continue
     end
     t0 = tic;
@@ -160,8 +160,8 @@ for k = 1:n
         end
     catch ME
         obj.SortingWaiting = nnz(why(k+1:end) == "");   % whether or not it launched
-        if strcmp(ME.identifier, 'EphysPipeline:Cancelled')
-            obj.addResult("sorting", d.Name, "cancelled", "cancelled before launch", "", toc(t0));
+        if strcmp(ME.identifier, 'EphysPipeline:Canceled')
+            obj.addResult("sorting", d.Name, "canceled", "canceled before launch", "", toc(t0));
             continue
         end
         obj.log("[sorting] %s: ERROR %s", d.Name, ME.message);
@@ -170,7 +170,7 @@ for k = 1:n
 end
 obj.SortingWaiting = 0;
 if obj.CancelRequested
-    error('EphysPipeline:Cancelled', 'Cancelled by user.');
+    error('EphysPipeline:Canceled', 'Canceled by user.');
 end
 end
 

@@ -1,5 +1,5 @@
 function refreshCopyTable(obj)
-%refreshCopyTable  Show CopySessions with the Copy ticks, the last copy results and row colours.
+%refreshCopyTable  Show CopySessions with the Copy ticks, the last copy results and row colors.
 %   Unpaired rows are orange, ambiguous rows red (and cannot be ticked),
 %   stitched rows blue (their ePsych files joined by " + "); a failed copy
 %   result is red, a copied / already present one green. The row a background
@@ -45,7 +45,7 @@ for k = 1:n
     switch obj.CopyStatus(k)
         case {"copied", "already_present"}
             addStyle(tbl, uistyle("FontColor", [0.1 0.5 0.1], "FontWeight", "bold"), "cell", [k resultCol]);
-        case {"failed", "cancelled"}
+        case {"failed", "canceled"}
             addStyle(tbl, uistyle("FontColor", [0.75 0.1 0.1], "FontWeight", "bold"), "cell", [k resultCol]);
         case "copying"
             if startsWith(D.Result(k), "waiting")

@@ -99,8 +99,8 @@ switch section
             'ShowSEM',      true, ...
             'ShowStop',     true, ...
             'ShowZeroLine', true, ...
-            'Colormap',     "lines", ...    % group colours: "lines" keeps selectTrials' colours; a colormap function; or one colour ("black", "#1f77b4")
-            'HeatColormap', "", ...         % heatmap / probe map / corrmap colours ("" = parula; blueWhiteRed for corrmap)
+            'Colormap',     "lines", ...    % group colors: "lines" keeps selectTrials' colors; a colormap function; or one color ("black", "#1f77b4")
+            'HeatColormap', "", ...         % heatmap / probe map / corrmap colors ("" = parula; blueWhiteRed for corrmap)
             'FontSize',     9, ...
             'SiteSize',     8, ...          % probe map: site marker size (points)
             'YLim',        [], ...
@@ -165,7 +165,7 @@ switch section
             'fontSize',   NaN, ...          % points (NaN = the plot's font size)
             'bold',       false, ...
             'italic',     false, ...
-            'color',      "", ...           % "" = the design's text colour; or a name / #rrggbb
+            'color',      "", ...           % "" = the design's text color; or a name / #rrggbb
             'background', "", ...           % "" = none; or a name / #rrggbb behind the text
             'box',        false, ...        % an outline round the text
             'interpreter', "none");         % "none" (as typed) | "tex" (\mu, x^2, x_i, \bf)
@@ -183,13 +183,13 @@ switch section
             'to',        0.1, ...           % region: the other edge
             'panel',     "all", ...         % which axes: "all" | "data" (a PSTH's rate panel, a trace, a heat map, ...) | "raster" (a raster's rows)
             'layer',     "over", ...        % "over" | "under" the plot's data in those axes
-            'color',     "#d62728", ...     % line: colour (a name or #rrggbb)
+            'color',     "#d62728", ...     % line: color (a name or #rrggbb)
             'alpha',     1, ...             % line: opacity 0-1
             'lineStyle', "--", ...          % line, and a region's outline: "-" | "--" | ":" | "-."
             'lineWidth', 1.5, ...           % line, and a region's outline: points
-            'faceColor', "#808080", ...     % region: fill colour (a name or #rrggbb)
+            'faceColor', "#808080", ...     % region: fill color (a name or #rrggbb)
             'faceAlpha', 0.25, ...          % region: fill opacity 0-1
-            'edgeColor', "none");           % region: outline colour ("none" = no outline)
+            'edgeColor', "none");           % region: outline color ("none" = no outline)
 
     case "Export"
         s = struct( ...
@@ -276,7 +276,7 @@ e = struct( ...
     'scope',  "window", ...          % "window": every event in the epoch's window | "trial": only those in the epoch's own trial
     'marker', "diamond", ...         % a line marker (PlotAesthetics' list: o, square, diamond, ^, v, |, ...)
     'size',   4, ...                 % marker size, points
-    'color',  "");                   % "" = a colour per line and edge; or one colour (a name or #rrggbb)
+    'color',  "");                   % "" = a color per line and edge; or one color (a name or #rrggbb)
 end
 
 

@@ -23,8 +23,8 @@ function h = renderWaveforms(R, target, opts)
 %              the other grids; time (ms from the spike) against amplitude,
 %              with the spike's time marked; a label in the tile's corner
 %     "probe"  one panel, the probe's x and y (um): each unit's waveform as
-%              a glyph centred on its position (R.meta.x, y), shanks side by
-%              side as in the probe map, the sites in grey behind. In the
+%              a glyph centerd on its position (R.meta.x, y), shanks side by
+%              side as in the probe map, the sites in gray behind. In the
 %              common scale a bar says how much amplitude a bar's length is.
 %              Units without a position are left out, and the panel says so
 %

@@ -1,15 +1,15 @@
 function h = drawFace(ax, face, opts)
-%drawFace  One connector face as a grid of labelled cells.
+%drawFace  One connector face as a grid of labeled cells.
 %   H = ChannelMapperApp.drawFace(AX, FACE, Origin=[x0 y0], Mirror=,
 %   Caption=, ButtonDownFcn=, FontSize=) draws FACE (a ChannelMap face)
 %   with cell (r, c) at x = x0 + c, y = y0 + r (row 1 on top when
 %   AX.YDir is 'reverse'). Mirror draws a female face in its male mate's
 %   frame, so mated pins share a column: "reference" puts (r, c) at
 %   column N+1-c, "rotated" at row R+1-r; "none" draws it as it is.
-%   One patch holds every cell (its FaceVertexCData row k colours cell k,
+%   One patch holds every cell (its FaceVertexCData row k colors cell k,
 %   k = sub2ind([R C], r, c)); one text call writes the labels (numbers,
 %   G, R, R1.., PR, nc); guide posts are hollow circles. H has fields
-%   Patch, Labels, Base (the cell colours), Rows, Cols, Origin, Mirror.
+%   Patch, Labels, Base (the cell colors), Rows, Cols, Origin, Mirror.
 arguments
     ax
     face (1,1) struct

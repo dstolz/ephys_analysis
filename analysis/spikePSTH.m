@@ -39,7 +39,7 @@ function R = spikePSTH(spikeTimes, E, opts)
 %     MaskAfterStop  drop each epoch's bins from its stop event t1 on (the
 %                    mean then covers only the epochs still going)
 %     Raster         keep every spike's time for rasters (default true)
-%     Groups         the groups table from epochTable (labels, colours);
+%     Groups         the groups table from epochTable (labels, colors);
 %                    default: built from E.groupIndex / E.group
 %     Meta           unit table (selectUnits); its label names the units
 %     Labels         unit labels (default Meta.label, else "u1", ...)
@@ -47,7 +47,7 @@ function R = spikePSTH(spikeTimes, E, opts)
 %                    (default []); it may throw to stop (the app's Cancel
 %                    button). Passed on to aurocCurves
 %
-%   R fields: kind "psth", t (bin centres, column), edges, window (the span
+%   R fields: kind "psth", t (bin centers, column), edges, window (the span
 %   the bins cover, edges([1 end]); params.Window is the one asked for),
 %   rate / sem / count [nBins x nUnits x nGroups] (rate and sem in the
 %   Measure's unit, or the baseline's; count = spikes summed over the
@@ -60,7 +60,7 @@ function R = spikePSTH(spikeTimes, E, opts)
 %   created.
 %
 %   With BaselineMode "auroc" the curves are aurocCurves': t, edges and
-%   window are the auROC windows' (centres; boundaries; the span they
+%   window are the auROC windows' (centers; boundaries; the span they
 %   cover), rate is the auROC [nWindows x nUnits x nGroups] (units
 %   "auROC"), sem is NaN, count the spikes in each window, and
 %   baselineRate / baselineSD are NaN. SmoothSec is not used: the auROC

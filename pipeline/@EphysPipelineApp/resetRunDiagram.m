@@ -9,10 +9,10 @@ function resetRunDiagram(obj, steps, dryRun)
 %   closes. The finished run stays drawn until the next one starts.
 %
 %   The model is obj.RunDiagram: the phase (idle | running | done |
-%   cancelled | error), the config name, the number of datasets, when the
+%   canceled | error), the config name, the number of datasets, when the
 %   run started and ended, the error message, the results so far and one
 %   entry per step: key, title, what it does under this config, whether it
-%   is in the run, its state (off | queued | running | done | cancelled |
+%   is in the run, its state (off | queued | running | done | canceled |
 %   notrun | failed), its percentage and the dataset (index of count) and
 %   message of its last event. refreshRunDiagram draws it.
 

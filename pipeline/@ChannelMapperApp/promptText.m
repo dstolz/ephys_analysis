@@ -1,7 +1,7 @@
 function [value, ok] = promptText(fig, titleText, prompt, default)
 %promptText  Ask for one line of text in a small modal window over FIG.
 %   [VALUE, OK] = ChannelMapperApp.promptText(FIG, TITLE, PROMPT, DEFAULT);
-%   OK is false when it was cancelled or closed.
+%   OK is false when it was canceled or closed.
 arguments
     fig
     titleText (1,1) string

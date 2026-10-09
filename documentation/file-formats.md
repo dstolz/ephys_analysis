@@ -234,7 +234,7 @@ Written by `copySessions` (the app's Copy tab and each scheduled copy) in every
 session folder it copies or finds already present (not by a dry run). A
 manifest that records a finished copy (`copy.status` `"copied"` or
 `"already_present"`) is kept while the batch finds the session complete and
-takes no checksums; one left by a cancelled or failed copy is replaced. With
+takes no checksums; one left by a canceled or failed copy is replaced. With
 `Verify="hash"`, a session found complete whose manifest records a finished
 copy verified with checksums (`copy.verify` `"hash"`), matching
 `sha256Source` / `sha256Destination` for every file and the sizes the files
@@ -265,7 +265,7 @@ holds a clean-up record) as it is, except a recording copied on its own
                        "parts": [ { "source", "name", "sizeBytes", "sourceSizeBytes",
                                     "nTrials", "sha256Source" }, ... ] }
   },
-  "copy": { "status": "copied" | "already_present" | "failed" | "cancelled", "message",
+  "copy": { "status": "copied" | "already_present" | "failed" | "canceled", "message",
             "verify": "size" | "hash", "ifExists", "numFiles",
             "totalBytes", "filesAlreadyPresent", "startedAt", "finishedAt",
             "host", "user", "robocopyLog" },
@@ -886,7 +886,7 @@ here).
 
 Path: in the run folder. Written by the Python driver when it finishes.
 A SpikeInterface sorter's run (`run_si.py`) writes `si_status.json` instead,
-the same in every other way, with `num_good` (the units labelled `good`) and
+the same in every other way, with `num_good` (the units labeled `good`) and
 `sorter` added.
 
 | Success | Failure |
@@ -894,7 +894,7 @@ the same in every other way, with `num_good` (the units labelled `good`) and
 | `{"state":"done","num_units":N,"dropped_params":[...]}` | `{"state":"error","message":"...","traceback":"..."}` |
 
 A run stopped from MATLAB (`EphysDataset.stopSortRun`, the app's **Stop
-runs...**) gets `{"state":"cancelled","message":"stopped by the user"}`,
+runs...**) gets `{"state":"canceled","message":"stopped by the user"}`,
 written by MATLAB before it ends the run's processes, so a monitor that polls
 while they are ended never sees a run that exited without a status.
 
@@ -910,7 +910,7 @@ fails. A run with this
 file but no status file failed before the driver could report (a missing
 Python or conda env, a crash). `EphysDataset.sortRunState(statusFile)`
 reads the two together and returns `"running"`, `"done"`, `"error"` or
-`"cancelled"`, so such a run frees its slot instead of looking "running" for
+`"canceled"`, so such a run frees its slot instead of looking "running" for
 ever. `stopSortRun` writes it too. Its name is `EphysDataset.SortExitMarker`.
 Deleted before each launch.
 
@@ -938,7 +938,7 @@ that holds `params.py`:
 - Sample rate: `sample_rate` from `params.py`; otherwise the call errors
   unless `FsFallback=` is given (never a silent 30 kHz).
 - Unit position: `channel_positions.npy` gives each unit's peak site and
-  template centre, `channel_shanks.npy` its shank.
+  template center, `channel_shanks.npy` its shank.
 - Spike waveforms: `EphysDataset.readPhyWaveforms` (the Review tab's shank
   plot) reads the binary file `params.py` names (`dat_path`, `n_channels_dat`,
   `dtype`, `offset`, `hp_filtered`), with `nt`, `nt0min`, `do_CAR`,
@@ -1227,7 +1227,7 @@ In the exports, the units struct carries the metrics as column fields and
 
 **Pipeline runs.** Path: `<Project.OutputRoot>/pipeline_runs/<runId>_<name>.json`,
 or under `Project.Root` without an output root. Written by
-`EphysPipeline.run` when the run ends, whether it finished, was cancelled or
+`EphysPipeline.run` when the run ends, whether it finished, was canceled or
 failed (not for a dry run). Schema `ephys-pipeline-run/1`:
 
 ```text
@@ -1235,7 +1235,7 @@ failed (not for a dry run). Schema `ephys-pipeline-run/1`:
   "schema":   "ephys-pipeline-run/1",
   "runId":    <yyyyMMddTHHmmssSSS>,        the run's start; every output of the run names it
   "name":     <config name>,
-  "outcome":  "finished" | "cancelled" | "failed",
+  "outcome":  "finished" | "canceled" | "failed",
   "error":    <identifier: message of the error that stopped a failed run, else "">,
   "started", "finished": <yyyy-MM-ddTHH:mm:ss>,  "seconds": <n>,
   "steps":    [<steps run, in order>],
@@ -1256,7 +1256,7 @@ outputs are already on disk.
 the report folder being `Report.Folder` resolved for the first dataset
 (whether or not a report was written). Written by `EphysAnalysisRunner.run`;
 schema `ephys-analysis-run/1`: `runId`, `name`, `outcome` (`finished` |
-`cancelled`), `started`, `finished`, `seconds`, `datasets`, `plots`,
+`canceled`), `started`, `finished`, `seconds`, `datasets`, `plots`,
 `reportFiles`, `results` (the runner's Results rows), `provenance` and
 `config` (the analysis config). `EphysAnalysisRunner.RunRecordFile` names it.
 The pipeline's Analysis step writes one too (its `config.Source` is the

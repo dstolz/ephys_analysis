@@ -97,7 +97,7 @@ function [Y, ev, info] = deriveSignals(obj, opts)
 %                        good site on its shank, a
 %                        EphysDataset:deriveSignals:BadChannelGeometry warning
 %                        is issued and the channel is interpolated across the
-%                        neighbouring columns instead, FILLMISSING(...,
+%                        neighboring columns instead, FILLMISSING(...,
 %                        'makima',2). A negative scalar flags channels with
 %                        abs(zscore(rms(LFP))) > abs(value), computed on
 %                        Y.LFP after any LFP filtering; requires "LFP".
@@ -492,7 +492,7 @@ if ~isempty(opts.badChannels)
     if layout.hasProbe
         how = 'probe geometry';
     else
-        how = 'neighbouring columns: no probe layout';
+        how = 'neighboring columns: no probe layout';
     end
     nDone = reportProgress(progressFcn, nDone, nSteps, ...
         sprintf('Interpolating bad channels (%s)', how));
@@ -513,7 +513,7 @@ if ~isempty(opts.badChannels)
                 why = 'there is no probe layout (ProbeFile, or the probeFile option)';
             end
             warning('EphysDataset:deriveSignals:BadChannelGeometry', ...
-                ['%s: bad column(s) %s are interpolated across the neighbouring ' ...
+                ['%s: bad column(s) %s are interpolated across the neighboring ' ...
                  'columns (fillmissing makima), not from the probe geometry: %s.'], ...
                 obj.Name, mat2str(opts.badChannels(method == "columns")), why);
         end

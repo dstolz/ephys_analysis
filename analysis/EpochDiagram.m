@@ -11,19 +11,19 @@ classdef EpochDiagram < handle
     %       ends, which trials count
     %     the count: how many epochs, and how many events were dropped, why
     %     The recording: a stretch of it with each digital line involved as
-    %       its TTL trace -- the trials (each in its group's colour, the ones
-    %       the selection leaves out grey), the event's line and the stop
+    %       its TTL trace -- the trials (each in its group's color, the ones
+    %       the selection leaves out gray), the event's line and the stop
     %       event's line (with an event sequence, every line of it: time 0
     %       is on the step the sequence is aligned to, e.g. Trough for
     %       "Trial offset then Trough onset"). Each event picked is marked ▲
-    %       on its line and a line in its group's colour runs through every
+    %       on its line and a line in its group's color runs through every
     %       row at it: time 0. With a sequence, ○ marks where it starts
     %       (its line's own event), with a dotted line to the ▲. An event
     %       moved by an offset or a trial parameter (Offset, Shift by) has
     %       an arrow from its edge to time 0. The stop event
     %       is marked ▼, with a dotted line. Each epoch's window is shaded
     %       across the rows and drawn as a bar on the Epochs row, numbered
-    %       as the plot numbers its epochs; an epoch the plot drops is grey,
+    %       as the plot numbers its epochs; an epoch the plot drops is gray,
     %       crossed and says why. The baseline (a bar under each epoch),
     %       the time range searched for the event, the artifact periods and
     %       the stretches outside the recording show too
@@ -66,8 +66,8 @@ classdef EpochDiagram < handle
     %              the stop event were picked at, before their offsets and
     %              shifts), anchorEdge (where the event's sequence starts,
     %              when it is aligned to a later step; else NaN)
-    %     Groups   epochTable's groups, in the colours drawn (theirs; blue
-    %              for one ungrouped set, which the plots draw dark grey)
+    %     Groups   epochTable's groups, in the colors drawn (theirs; blue
+    %              for one ungrouped set, which the plots draw dark gray)
     %     Heading  update's Title
     %     Rule     the rule in words, a sentence a row (describe)
     %     Summary, Message   the count line; what went wrong ("" if nothing)
@@ -105,7 +105,7 @@ classdef EpochDiagram < handle
         Scope (1,1) string = "recording"        % the event's scope, "auto" resolved
         Baseline double = []
         TrialKept = false(0, 1)                 % the trials the selection keeps
-        TrialColor = zeros(0, 3)                % each trial's colour (its group's)
+        TrialColor = zeros(0, 3)                % each trial's color (its group's)
         OwnerListener = []
     end
 
@@ -118,7 +118,7 @@ classdef EpochDiagram < handle
         LineEdge = [0.30 0.32 0.38]
         ArtifactColor = [0.96 0.55 0.50]
         RangeColor = [1 0.92 0.55]
-        OneGroupColor = [0 0.447 0.741]         % the one ungrouped set (the plots draw it dark grey)
+        OneGroupColor = [0 0.447 0.741]         % the one ungrouped set (the plots draw it dark gray)
         NoData = "Scan and pick a dataset to see how its epochs are cut."
     end
 
@@ -627,7 +627,7 @@ classdef EpochDiagram < handle
         end
 
         function c = drawnColors(obj, G, gi)
-            %drawnColors  The colours of groups GI of G: theirs, or blue for one ungrouped set.
+            %drawnColors  The colors of groups GI of G: theirs, or blue for one ungrouped set.
             if height(G) == 1
                 c = repmat(obj.OneGroupColor, numel(gi), 1);
             else
@@ -636,7 +636,7 @@ classdef EpochDiagram < handle
         end
 
         function c = colorOf(obj, r)
-            %colorOf  Epoch R's colour: its group's, grey when the plot drops it.
+            %colorOf  Epoch R's color: its group's, gray when the plot drops it.
             if obj.Epochs.kept(r)
                 c = obj.Groups.color(obj.Epochs.groupIndex(r), :);
             else

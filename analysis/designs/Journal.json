@@ -2,7 +2,7 @@
   "schema": "ephys-plot-design",
   "version": 1,
   "name": "Journal",
-  "description": "Print-ready and colour-blind safe: Okabe-Ito group colours, viridis heat maps, Arial, black hairline axes with outward ticks, no box or grid.",
+  "description": "Print-ready and color-blind safe: Okabe-Ito group colors, viridis heat maps, Arial, black hairline axes with outward ticks, no box or grid.",
   "background": "#ffffff",
   "palette": ["#0072B2", "#D55E00", "#009E73", "#CC79A7", "#E69F00", "#56B4E9", "#F0E442", "#000000"],
   "single": "#000000",

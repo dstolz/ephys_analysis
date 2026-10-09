@@ -99,7 +99,9 @@
     {"role": "waveBox", "property": "EdgeColor", "value": "#d9d9d0"},
     {"role": "waveMean", "property": "Color", "value": "#333333"},
     {"role": "waveLabel", "property": "FontName", "value": "Palatino Linotype, Palatino, Book Antiqua, Georgia"},
-    {"role": "waveLabel", "property": "Color", "value": "#666666"}
+    {"role": "waveLabel", "property": "Color", "value": "#666666"},
+    {"role": "note", "property": "FontName", "value": "Palatino Linotype, Palatino, Book Antiqua, Georgia"},
+    {"role": "note", "property": "Color", "value": "#333333"}
   ],
   "kinds": {
     "heatmap": [

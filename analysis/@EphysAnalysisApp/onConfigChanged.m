@@ -19,6 +19,10 @@ obj.Config = cfg;
 if ~isempty(obj.Runner)
     obj.Runner.Config = cfg;
 end
+k = obj.SelectedPlot;
+if k >= 1 && k <= numel(cfg.Plots)
+    obj.ShownPlot = cfg.Plots(k);   % what the editor shows now: the next edit's "before"
+end
 switch what
     case "source"
         obj.syncSourceEnable();

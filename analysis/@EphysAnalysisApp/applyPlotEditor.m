@@ -1,11 +1,16 @@
 function applyPlotEditor(obj)
 %applyPlotEditor  Show the selected plot in the editor (items follow its kind).
-%   syncPlotEditor then shows the rows the plot uses.
+%   syncPlotEditor then shows the rows the plot uses. With several plots
+%   selected the editor shows the first's values (showPlotSelection says
+%   so), and what it shows now is kept (ShownPlot) for gatherConfig to tell
+%   what an edit changed.
 E = obj.PlotEditor;
 k = obj.SelectedPlot;
 if k < 1 || k > numel(obj.Config.Plots)
     E.kind.Text = "";
     E.note.Text = "Add a plot (the kind box under the list).";
+    obj.ShownPlot = struct();
+    obj.showPlotSelection();
     obj.syncPlotEditor();
     return
 end
@@ -104,6 +109,26 @@ E.waveScale.Value = min(E.waveScale.Limits(2), max(E.waveScale.Limits(1), wv.sca
 E.waveAmp.Value = char(pickFrom(wv.ampScale, string(E.waveAmp.ItemsData), "unit"));
 E.waveSites.Value = wv.showSites;
 E.waveNames.Value = wv.showNames;
+nt = p.note;
+E.annText.Value = cellstr(splitlines(nt.text));
+E.annPlace.Value = char(pickFrom(nt.placement, string(E.annPlace.ItemsData), "below"));
+E.annX.Value = min(E.annX.Limits(2), max(E.annX.Limits(1), nt.x));
+E.annY.Value = min(E.annY.Limits(2), max(E.annY.Limits(1), nt.y));
+E.annAlign.Value = char(pickFrom(nt.align, string(E.annAlign.ItemsData), "left"));
+E.annVAlign.Value = char(pickFrom(nt.valign, string(E.annVAlign.ItemsData), "middle"));
+E.annRotation.Value = min(E.annRotation.Limits(2), max(E.annRotation.Limits(1), nt.rotation));
+offerItems(E.annFont, string(E.annFont.Items), pick(nt.fontName, "auto"));
+if isfinite(nt.fontSize)
+    E.annSize.Value = min(E.annSize.Limits(2), max(E.annSize.Limits(1), nt.fontSize));
+else
+    E.annSize.Value = [];
+end
+E.annBold.Value = nt.bold;
+E.annItalic.Value = nt.italic;
+E.annBox.Value = nt.box;
+offerItems(E.annColor, string(E.annColor.Items), pick(nt.color, "auto"));
+offerItems(E.annBackground, string(E.annBackground.Items), pick(nt.background, "none"));
+E.annInterp.Value = char(pickFrom(nt.interpreter, string(E.annInterp.ItemsData), "none"));
 s = p.style;
 E.maxTiles.Value = s.MaxTiles;
 E.tileSpacing.Value = char(s.TileSpacing);
@@ -135,7 +160,9 @@ if ~E.defaultWindow.Value; win = p.window; end
 if ~E.defaultSelection.Value; sel = p.selection; end
 obj.fillAlignItems(obj.PlotAlignControls);
 obj.applyAlignControls(obj.PlotAlignControls, ref, win, sel);
+obj.showPlotSelection();
 obj.syncPlotEditor();
+obj.ShownPlot = obj.gatherPlotEditor();
 end
 
 

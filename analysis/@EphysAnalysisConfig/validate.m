@@ -38,7 +38,9 @@ function issues = validate(obj, opts)
 %               and maxSpikes, and a warning when the plot draws no unit
 %               tiles (a raster, a PSTH or tuning grid of spikes, a
 %               waveforms plot); its amplitude scale; a waveforms plot's
-%               mode is never off; style
+%               mode is never off; a note's placement, alignment, rotation,
+%               font size and interpreter (a colour that is not one is a
+%               warning); style
 %               values
 %     Export    formats are png / eps / svg / pdf; Dpi, FigureSizeCm; the
 %               folder and file-name patterns use known tokens; a warning
@@ -306,6 +308,35 @@ for k = 1:numel(obj.Plots)
                 (ismember(p.kind, ["psth" "tuning"]) && p.layout ~= "overlay")))
             add("Plots", w0 + ".mode", "warning", "Unit waveforms are drawn in the tiles of a raster, or of a " + ...
                 "PSTH or tuning grid, of spikes; this plot draws none.");
+        end
+    end
+    nt = p.note;
+    n0 = f0 + ".note";
+    if strtrim(nt.text) ~= ""
+        if ~ismember(nt.placement, EphysAnalysisConfig.NotePlacements)
+            add("Plots", n0 + ".placement", "error", "The note placement is one of " + strjoin(EphysAnalysisConfig.NotePlacements, ", ") + ".");
+        elseif nt.placement == "custom" && ~(isfinite(nt.x) && isfinite(nt.y))
+            add("Plots", n0 + ".x", "error", "A custom note needs a finite x and y (0-1 across and up the plot).");
+        end
+        if ~ismember(nt.align, ["left" "center" "right"])
+            add("Plots", n0 + ".align", "error", "The note alignment is left, center or right.");
+        end
+        if ~ismember(nt.valign, ["top" "middle" "bottom"])
+            add("Plots", n0 + ".valign", "error", "The note vertical alignment is top, middle or bottom.");
+        end
+        if ~ismember(nt.interpreter, ["none" "tex"])
+            add("Plots", n0 + ".interpreter", "error", "The note interpreter is none or tex.");
+        end
+        if ~isfinite(nt.rotation)
+            add("Plots", n0 + ".rotation", "error", "The note rotation is a number of degrees.");
+        end
+        if ~(isnan(nt.fontSize) || (isfinite(nt.fontSize) && nt.fontSize > 0))
+            add("Plots", n0 + ".fontSize", "error", "The note font size is positive (NaN: the plot's).");
+        end
+        for cf = ["color" "background"]
+            if nt.(cf) ~= "" && ~isColor(nt.(cf))
+                add("Plots", n0 + "." + cf, "warning", "No colour """ + nt.(cf) + """; the note's " + cf + " is left to the design.");
+            end
         end
     end
     st = p.style;

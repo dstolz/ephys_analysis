@@ -43,6 +43,9 @@ function R = spikePSTH(spikeTimes, E, opts)
 %                    default: built from E.groupIndex / E.group
 %     Meta           unit table (selectUnits); its label names the units
 %     Labels         unit labels (default Meta.label, else "u1", ...)
+%     Check          a function handle called with no input before each unit
+%                    (default []); it may throw to stop (the app's Cancel
+%                    button). Passed on to aurocCurves
 %
 %   R fields: kind "psth", t (bin centres, column), edges, window (the span
 %   the bins cover, edges([1 end]); params.Window is the one asked for),
@@ -91,6 +94,7 @@ arguments
     opts.Groups = []
     opts.Meta = []
     opts.Labels (1,:) string = string.empty(1,0)
+    opts.Check = []
 end
 
 st = asCell(spikeTimes);
@@ -139,6 +143,7 @@ if opts.MaskAfterStop
     end
 end
 for u = 1:nU
+    if ~isempty(opts.Check); opts.Check(); end
     if opts.Raster
         [c, rel, ep] = binCounts(st{u}, ta, edges);
         keepR = true(size(rel));
@@ -265,7 +270,7 @@ a = EphysAnalysisConfig.normalizeSection("Auroc", opts.Auroc);
 A = aurocCurves(st, E, Window=W, Baseline=b, BinSec=opts.BinSec, Measure=opts.Measure, Method=a.method, ...
     Windows=a.windows, WindowSec=a.windowSec, StepSec=a.stepSec, MaskAfterStop=opts.MaskAfterStop, ...
     ModulationWindow=a.modulationWindow, Cutoff=a.cutoff, Threshold=a.threshold, Test=a.test, ...
-    NResamples=a.nResamples, Correction=a.correction, Alpha=a.alpha, Groups=G);
+    NResamples=a.nResamples, Correction=a.correction, Alpha=a.alpha, Groups=G, Check=opts.Check);
 keep = true(numel(st), 1);
 if a.modulatedOnly
     keep = any(A.modulated, 2);

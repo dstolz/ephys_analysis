@@ -177,6 +177,57 @@ C = PlotAesthetics.components(h.layout);
 lg = findobj(fig, 'Type', 'legend');
 check(all(ismember(["waveBox" "waveSpikes" "waveMean" "waveLabel"], C.Role)) && ~isempty(lg) && numel(lg(1).String) == 3, ...
     'the waveform boxes'' parts are components the editor lists, and stay out of the legend');
+note = struct('text', "Condition A" + newline + "n = 12", 'placement', "below", 'bold', true, 'italic', true, 'fontSize', 14, ...
+    'color', "#CC0000", 'fontName', "Courier New", 'background', "yellow", 'box', true);
+h = renderPlot(Rp, struct('kind', "psth", 'note', note), fig);
+C = PlotAesthetics.components(h.layout);
+tx = findall(fig, 'Type', 'text', 'Tag', 'note');
+check(isscalar(tx) && isequal(h.note, tx) && sum(C.Role == "note") == 1 && C.Tile(C.Role == "note") == 0 ...
+    && isscalar(findall(fig, 'Tag', 'noteHost')) && all(ismember(C.Role, PlotAesthetics.roles().Role)) && ~any(C.Role == ""), ...
+    'a note is one text of role "note", drawn in a hidden axes beside the layout; the editor lists it as part of the plot');
+check(numel(tx.String) == 2 && tx.FontWeight == "bold" && tx.FontAngle == "italic" && tx.FontSize == 14 && tx.FontName == "Courier New" ...
+    && max(abs(tx.Color - [0.8 0 0])) < 1e-9 && isequal(tx.BackgroundColor, [1 1 0]) && isequal(tx.EdgeColor, tx.Color), ...
+    'the note''s lines, bold, italic, size, font, colour, ground and outline are drawn');
+op = h.layout.OuterPosition;
+check(op(2) > 0 && op(2) < 0.25 && abs(op(2) + op(4) - 1) < 1e-9 && op(1) == 0 && op(3) == 1, ...
+    'below the plot, the layout gives up a band at the bottom for the note');
+nt = findall(fig, 'Type', 'text', 'Tag', 'note');
+pos = nt.Position;
+check(pos(1) < 0.1 && pos(2) > 0 && pos(2) < op(2) && nt.HorizontalAlignment == "left", ...
+    'a left-aligned note below the plot sits at the left, in the band');
+for pl = ["above" "left" "right"]
+    n2 = note; n2.placement = pl;
+    h = renderPlot(Rp, struct('kind', "psth", 'note', n2), fig);
+    o2 = h.layout.OuterPosition;
+    switch pl
+        case "above", okp = o2(2) == 0 && o2(4) < 1;
+        case "left",  okp = o2(1) > 0 && o2(3) < 1 && o2(2) == 0;
+        case "right", okp = o2(1) == 0 && o2(3) < 1;
+    end
+    if ~okp; break; end
+end
+check(okp, 'above, left and right of the plot, the layout gives up that side');
+n2 = note; n2.placement = "northeast"; n2.align = "right"; n2.valign = "top";
+h = renderPlot(Rp, struct('kind', "psth", 'note', n2), fig);
+check(isequal(h.layout.OuterPosition, [0 0 1 1]), 'over the plot, the layout keeps all its room');
+n2 = note; n2.placement = "custom"; n2.x = 0.25; n2.y = 0.75; n2.align = "center"; n2.valign = "top";
+h = renderPlot(Rp, struct('kind', "psth", 'note', n2), fig);
+check(isequal(h.note.Position(1:2), [0.25 0.75]) && h.note.HorizontalAlignment == "center" && h.note.VerticalAlignment == "top", ...
+    'a custom note''s anchor is at x, y of the plot, with its alignment');
+n3 = struct('text', "plain");
+h = renderPlot(Rp, struct('kind', "psth", 'note', n3), fig, Design="Night");
+check(max(abs(h.note.Color - [216 222 233] / 255)) < 1e-9, 'a note without a colour takes its design''s text colour');
+h = renderPlot(Rp, struct('kind', "psth", 'note', struct('text', "plain", 'color', "red")), fig, Design="Night");
+check(isequal(h.note.Color, [1 0 0]), 'a note''s own colour wins over its design''s');
+h = renderPlot(Rp, struct('kind', "psth", 'note', struct('text', "plain", 'color', "red"), ...
+    'aesthetics', struct('role', "note", 'group', "", 'property', "Color", 'value', [0 0 1])), fig);
+check(isequal(h.note.Color, [0 0 1]), 'the plot''s own aesthetics rule for the note wins over the note''s colour');
+h = renderPlot(Rp, struct('kind', "psth", 'note', struct('text', "x", 'placement', "below")), fig);
+h = renderPlot(Rp, struct('kind', "psth"), h.layout);
+check(isequal(h.layout.OuterPosition, [0 0 1 1]) && isempty(h.note) && isempty(findall(fig, 'Tag', 'noteHost')) ...
+    && isempty(findall(fig, 'Tag', 'note')), 'drawing the layout again without a note takes the old note and its band away');
+h = renderPlot(Rp, struct('kind', "psth", 'note', struct('text', "   ")), fig);
+check(isempty(h.note) && isempty(findall(fig, 'Tag', 'noteHost')), 'a note of blanks draws nothing');
 h = renderPlot(Rp, struct('kind', "psth"), fig);
 C = PlotAesthetics.components(h.layout);
 check(numel(unique(C.Key)) == height(C) && any(C.Role == "plotTitle") && sum(C.Role == "rasterAxes") == 4 ...

@@ -20,7 +20,11 @@ function test_EphysAnalysisApp()
 %   sort, direction, grouping and event
 %   marks, an event shifted by a trial parameter, an event sequence and a
 %   mark sequence from the Event sequence window (a bad step refused), and
-%   a behavior plot reaching the config and the preview;
+%   a behavior plot reaching the config and the preview; several plots
+%   selected at once (Ctrl-click: the first picked in the editor and the
+%   preview, the banner and the bar saying so, only the rows they share,
+%   an edit, an event edit, Use default and a remembered look reaching
+%   each but only as changed; Duplicate and Remove taking them all);
 %   the gather / apply round trip, keeping the fields without a control
 %   (stop-event offset, length and time range, trial rows); save
 %   and reopen; a standalone script from the app's config; a run of one
@@ -190,6 +194,20 @@ stale = app.PreviewState == "stale" && string(app.PreviewBadge.Text.Text) == "Ou
 app.AutoPreviewCheckBox.Value = true;
 app.refreshPreview(Force=true);
 check(stale && app.PreviewState == "drawn", 'an edit Auto does not redraw marks the preview Out of date; Preview draws it again');
+tm = timer('ExecutionMode', 'fixedRate', 'Period', 0.005, 'TimerFcn', @(~, ~) app.onCancelPreview());   % a click on the busy card's Cancel
+start(tm);
+app.refreshPreview(Force=true);
+stop(tm); delete(tm);
+check(app.PreviewState == "cancelled" && string(app.PreviewBadge.Text.Text) == "Cancelled" && isempty(app.PreviewResult) ...
+    && isempty(findall(app.PreviewPanel, 'Tag', 'previewBusyCard')) && string(app.Fig.Pointer) == "arrow" ...
+    && isempty(app.Runner.PollFcn) && ~isfinite(app.PreviewSeconds), ...
+    'Cancel on the busy card stops the preview while it computes: the badge says Cancelled, the card and the polling are gone');
+app.onCancelPreview();   % nothing computes: no effect
+app.autoPreview();
+check(app.PreviewState == "cancelled", 'a cancelled preview is not redrawn by an edit; it waits for Preview');
+app.refreshPreview(Force=true);
+check(app.PreviewState == "drawn" && ~isempty(app.PreviewResult) && ~isempty(findall(app.PreviewPanel, 'Type', 'axes')), ...
+    'Preview after a cancel computes and draws the plot');
 ctx = getappdata(app.PreviewPanel, PlotAesthetics.ContextKey);
 look = struct('role', "rateFill", 'group', "", 'property', "FaceAlpha", 'value', 0.4);
 ctx.onRemember(look);
@@ -408,6 +426,35 @@ app.onConfigChanged("plot");
 check(hiddenOverlay && app.Config.Plots(1).waveform.mode == "off" && ~app.Config.Plots(1).waveform.box, ...
     'an overlay hides the waveform rows; Off keeps the other waveform settings');
 
+check(shown(E.annText) && shown(sec([sec.Name] == "note").Toggle) && E.annPlace.Enable == "off" && E.annBold.Enable == "off" ...
+    && string(E.annPlace.Value) == "below" && isempty(E.annSize.Value) && string(E.annFont.Value) == "auto", ...
+    'the Text note section shows for a plot without a note, its settings waiting for some text');
+E.annText.Value = {'Condition A'; 'n = 12'}; E.annPlace.Value = 'custom'; E.annX.Value = 0.2; E.annY.Value = 0.8;
+E.annBold.Value = true; E.annSize.Value = 14; E.annColor.Value = 'red'; E.annAlign.Value = 'center'; E.annRotation.Value = 15;
+app.onConfigChanged("plot");
+nt = app.Config.Plots(1).note;
+check(nt.text == "Condition A" + newline + "n = 12" && nt.placement == "custom" && nt.x == 0.2 && nt.y == 0.8 && nt.bold && ~nt.italic ...
+    && nt.fontSize == 14 && nt.color == "red" && nt.fontName == "" && nt.background == "" && nt.align == "center" && nt.rotation == 15 ...
+    && E.annPlace.Enable == "on" && E.annBold.Enable == "on" && E.annX.Enable == "on", ...
+    'the note''s text, place, alignment, rotation, font and colour reach the plot; "auto" and "none" are blank');
+app.refreshPreview(Force=true);
+tx = findall(app.PreviewPanel, 'Type', 'text', 'Tag', 'note');
+check(isscalar(tx) && numel(tx.String) == 2 && tx.FontWeight == "bold" && tx.FontSize == 14 && isequal(tx.Color, [1 0 0]) ...
+    && tx.Rotation == 15 && isequal(tx.Position(1:2), [0.2 0.8]), 'the preview draws the note');
+app.onPlotSelected(1);
+check(isequal(string(E.annText.Value(:)).', ["Condition A" "n = 12"]) && string(E.annPlace.Value) == "custom" && E.annSize.Value == 14 ...
+    && string(E.annColor.Value) == "red" && E.annX.Enable == "on", 'selecting the plot again shows its note');
+E.annPlace.Value = 'below'; app.onConfigChanged("plot");
+check(E.annX.Enable == "off" && E.annY.Enable == "off", 'x and y wait for the place "At x, y"');
+app.onPlotSectionToggled("note");
+collapsed = ~shown(E.annText) && shown(sec([sec.Name] == "note").Toggle);
+app.onPlotSectionToggled("note");
+check(collapsed && shown(E.annText), 'the Text note section collapses to its header and expands again');
+E.annText.Value = {''}; E.annSize.Value = []; app.onConfigChanged("plot");
+app.refreshPreview(Force=true);
+check(app.Config.Plots(1).note.text == "" && isnan(app.Config.Plots(1).note.fontSize) && E.annPlace.Enable == "off" ...
+    && isempty(findall(app.PreviewPanel, 'Tag', 'note')), 'clearing the text takes the note off the plot');
+
 fprintf('\n== 3a. the epoch diagram ==\n');
 A = app.PlotAlignControls;
 check(shown(E.epochs) && E.epochs.Text == "Epoch Diagram" && E.epochs.Parent == app.PlotAlignControls.WindowGrid ...
@@ -545,6 +592,81 @@ check(~isempty(app.PreviewResult) && app.PreviewResult.kind == "behavior" && ~is
 app.onRemovePlot();
 app.onPlotSelected(1);
 
+fprintf('\n== 3c. several plots at once ==\n');
+app.onPlotSectionToggled("bins");   % expanded for this section's checks (collapsed again at its end)
+D0 = app.Config.Defaults;
+app.onAddPlot("psth");
+k2 = app.SelectedPlot;
+E.binMs.Value = 5;
+app.onConfigChanged("plot");
+A.Line.Value = 'Trial';
+app.onPlotAlignEdited("ref");
+app.onAddPlot("psth");
+k3 = app.SelectedPlot;
+app.onAddPlot("raster");
+kR = app.SelectedPlot;
+tree = app.PlotsTree;
+app.onPlotTreeSelected(plotNode(tree, k3));
+app.onPlotTreeSelected([plotNode(tree, k2) plotNode(tree, k3)]);   % Ctrl-click psth_2, above psth_3 in the tree
+check(string(tree.Multiselect) == "on" && app.SelectedPlot == k3 && isequal(app.AlsoSelected, k2) ...
+    && isequal(sort(reshape(arrayfun(@(n) n.NodeData, tree.SelectedNodes), 1, [])), sort([k2 k3])), ...
+    'Ctrl-click selects a second plot in the tree; the first picked (psth_3) stays the one in the editor');
+B = app.SelectionBar;
+check(startsWith(E.note.Text, "2 plots selected: psth_3, psth_2.") && isequal(E.note.BackgroundColor, [1 0.93 0.75]) ...
+    && shown(B.Text) && contains(B.Text.Text, "Previewing psth_3 only") && app.PreviewGrid.RowHeight{1} == 26 ...
+    && contains(app.PlotEditorPanel.Title, "2 selected") && string(E.kind.Text) == "PSTH  (2 plots)", ...
+    'the editor''s banner, its title and a bar over the preview say that two plots are edited together and psth_3 is previewed');
+check(~shown(E.id) && ~shown(E.title) && shown(E.binMs) && shown(E.stack) && shown(A.Line) ...
+    && app.UpPlotButton.Enable == "off" && app.DownPlotButton.Enable == "off" && E.binMs.Value == 10, ...
+    'two PSTHs show the PSTH rows but no id or title, with psth_3''s values; Up / Down are off');
+E.smoothMs.Value = 25;
+app.onConfigChanged("plot");
+p2 = app.Config.Plots(k2); p3 = app.Config.Plots(k3);
+check(p2.bins.SmoothSec == 0.025 && p3.bins.SmoothSec == 0.025 && p2.bins.BinSec == 0.005 && p3.bins.BinSec == 0.01, ...
+    'an edit goes to both plots, and only what it changed: each keeps its own bin');
+A.Edge.Value = 'offset';
+app.onPlotAlignEdited("ref");
+p2 = app.Config.Plots(k2); p3 = app.Config.Plots(k3);
+check(isstruct(p3.ref) && p3.ref.line == D0.EventRef.line && p3.ref.edge == "offset" ...
+    && isstruct(p2.ref) && p2.ref.line == "Trial" && p2.ref.edge == "offset" && isequaln(app.Config.Defaults, D0), ...
+    'editing the event''s edge gives both their own event: each the one it used (default Stim, own Trial) at offset');
+E.defaultRef.Value = true;
+app.onPlotDefaultToggled();
+check(isequal(app.Config.Plots(k2).ref, "default") && isequal(app.Config.Plots(k3).ref, "default"), ...
+    'ticking Use default puts both back on the default event');
+app.refreshPreview(Force=true);
+ctx = getappdata(app.PreviewPanel, PlotAesthetics.ContextKey);
+check(app.PreviewState == "drawn" && ctx.id == "psth_3", 'the preview draws psth_3 alone');
+ctx.onRemember(look);
+hasLook = @(k) isscalar(app.Config.Plots(k).aesthetics) && app.Config.Plots(k).aesthetics.value == 0.4;
+both = hasLook(k2) && hasLook(k3);
+ctx.onRemember([]);
+check(both && isempty(app.Config.Plots(k2).aesthetics) && isempty(app.Config.Plots(k3).aesthetics), ...
+    'a look remembered from the preview goes to both plots; forgetting it there drops it from both');
+app.onPlotTreeSelected([plotNode(tree, k2) plotNode(tree, k3) plotNode(tree, kR)]);
+check(app.SelectedPlot == k3 && startsWith(string(E.kind.Text), "3 plots: PSTH, Raster") && shown(E.binMs) ...
+    && shown(E.rasterSort) && shown(E.fontSize) && ~shown(E.stack) && ~shown(E.withRaster) && ~shown(E.baselineMode) ...
+    && ~shown(E.showSEM) && shown(E.legend) && string(app.PlotSections([app.PlotSections.Name] == "kind").Title) == "Options", ...
+    'adding a raster leaves only the rows a PSTH and a raster share (bins, raster sort, legend), not the PSTH''s own or the baseline');
+E.fontSize.Value = 12;
+app.onConfigChanged("plot");
+check(all(arrayfun(@(k) app.Config.Plots(k).style.FontSize == 12, [k2 k3 kR])) && app.Config.Plots(1).style.FontSize ~= 12, ...
+    'a font size set there reaches all three, not the plots left unselected');
+n0 = numel(app.Config.Plots);
+app.onDuplicatePlot();
+ks = app.selectedPlots();
+check(numel(app.Config.Plots) == n0 + 3 && numel(ks) == 3 && app.SelectedPlot == k3 + 2 ...
+    && isequal(sort(ks), [k2+1, k3+2, kR+3]) && app.Config.Plots(k3 + 2).style.FontSize == 12, ...
+    'Duplicate copies each selected plot right after itself and selects the copies');
+app.onRemovePlot();
+app.onPlotSelected([k2 k3 kR]);
+app.onRemovePlot();
+check(numel(app.Config.Plots) == n0 - 3 && isequal([app.Config.Plots.id], ["psth_1" "evoked_1"]) ...
+    && isscalar(app.selectedPlots()) && ~shown(B.Text) && app.PlotEditorPanel.Title == "Plot" && shown(E.id), ...
+    'Remove takes every selected plot; one plot left selected, the banner and bar are gone');
+app.onPlotSectionToggled("bins");
+app.onPlotSelected(1);
+
 fprintf('\n== 4. gather / apply, save / reopen, script ==\n');
 c1 = app.gatherConfig();
 app.applyConfig(c1);
@@ -626,6 +748,13 @@ function clickTool(app, tag)
 %clickTool  Run the toolbar tool TAG's callback as a click would.
 t = findobj(app.Toolbar.Children, 'flat', 'Tag', tag);
 t.ClickedCallback(t, []);
+end
+
+
+function n = plotNode(tree, k)
+%plotNode  The plot tree's node of plot K.
+n = findall(tree, 'Type', 'uitreenode');
+n = n(arrayfun(@(x) isequal(x.NodeData, k), n));
 end
 
 

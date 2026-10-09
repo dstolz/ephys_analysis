@@ -23,6 +23,34 @@ says how to cut a release.
   computer, so the copy puts it beside the manifest and the analysis (and a
   dataset's `ProbeFile`) uses that file when the recorded path is not there.
 
+- Several plots edited at once in the analysis app. Ctrl- or Shift-click in the
+  plot tree selects several plots. The editor then shows only the options every
+  one of them has, with the values of the first picked, and an edit goes to all
+  of them. Only the value changed is copied: each plot keeps its own values
+  elsewhere, and an edit of an event, window or selection value gives each plot
+  its own with that value changed. A look remembered from the preview's
+  right-click editor reaches them all too. The preview draws the first plot
+  only. An amber banner in the editor and an amber bar over the preview say how
+  many plots are being edited. Remove and Duplicate act on every selected plot.
+
+- A text note for every analysis plot: descriptive text beside or over the plot.
+  The analysis app's Plot editor gets a **Text note** section (collapsible, like the
+  others) with the words, the place (below, above, right of or left of the plot,
+  which gives up a band for it; over the plot at a corner, an edge or the center;
+  or at x, y), alignment, rotation, font, size, bold, italic, outline, text and
+  ground colours and a TeX or as-typed interpreter. In the config it is the plot's
+  `note` (`defaults("Note")`), checked by Validate once it has text. The note is
+  a component of role `note`, so the right-click aesthetics editor and every
+  design (which give it a font and text colour) reach it.
+
+- Cancel for the analysis app's plot preview. While a plot computes, the busy
+  card has a red **Cancel** button; the compute checks for it between its steps and
+  per unit, group or epoch (`EphysAnalysisRunner.PollFcn` / `checkpoint` /
+  `clearCancel`; `spikePSTH`, `aurocCurves`, `evokedPotential` and `unitWaveforms`
+  take an optional `Check=`), and the badge then says **Cancelled**. Edits made
+  meanwhile no longer start a second preview inside the first; they leave it
+  Out of date. Closing the app stops a computing preview.
+
 - A status badge under the analysis app's plot preview: a coloured icon and
   a word for where the preview is (Computing, Drawing, Drawn, Out of date,
   Press Preview, Cannot draw, Failed). While it computes and draws, a card

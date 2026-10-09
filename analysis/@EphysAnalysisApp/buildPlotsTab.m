@@ -1,13 +1,17 @@
 function buildPlotsTab(obj)
 %buildPlotsTab  Plot tree, plot editor (collapsible sections) and the preview.
 %   The tree groups the plots by plot type, source, layout or status (Group
-%   by; refreshPlotList), with the kind to add on its own row. The editor is a column of sections (formSection): the plot's kind, id,
+%   by; refreshPlotList), with the kind to add on its own row; Ctrl- or
+%   Shift-click selects several plots, edited together (showPlotSelection
+%   puts an amber banner in the editor and a bar of the same colours over
+%   the preview). The editor is a column of sections (formSection): the plot's kind, id,
 %   title, source and layout, always open; then Units & channels, Event
 %   reference, Epoch window (with "Epoch Diagram" under it, the epoch
 %   diagram, onShowEpochs), Trial selection (the Alignment tab's values
 %   while "Use default" is ticked; editing one gives the plot its own),
 %   Bins & baseline, the kind's own options, Appearance and Unit waveform
-%   (each unit's mean and / or spikes in its tile), each collapsing under
+%   (each unit's mean and / or spikes in its tile) and Text note (a block of
+%   descriptive text beside or over the plot), each collapsing under
 %   its header (onPlotSectionToggled). syncPlotEditor shows the rows
 %   the selected plot uses; layoutPlotEditor packs them.
 g = uigridlayout(obj.TabPlots, [1 3]);
@@ -31,18 +35,22 @@ obj.PlotGroupDropDown = uidropdown(lg, "Items", ["Plot type" "Source" "Layout" "
     "LFP, ...), the layout they draw, enabled or off, or a flat list. Within a group the plots keep the run order; " + ...
     "Up / Down move a plot within its group.");
 obj.PlotGroupDropDown.Layout.Row = 2; obj.PlotGroupDropDown.Layout.Column = 2;
-obj.PlotsTree = uitree(lg, "SelectionChangedFcn", @(~, evt) obj.onPlotTreeSelected(evt.SelectedNodes), ...
+obj.PlotsTree = uitree(lg, "Multiselect", "on", "SelectionChangedFcn", @(~, evt) obj.onPlotTreeSelected(evt.SelectedNodes), ...
     "NodeExpandedFcn", @(~, evt) obj.onPlotGroupToggled(evt.Node, false), ...
-    "NodeCollapsedFcn", @(~, evt) obj.onPlotGroupToggled(evt.Node, true));
+    "NodeCollapsedFcn", @(~, evt) obj.onPlotGroupToggled(evt.Node, true), ...
+    "Tooltip", "Click a plot to edit it. Ctrl- or Shift-click to select several: the editor then changes them " + ...
+    "all at once (the options they all have), and the preview draws the first one picked.");
 obj.PlotsTree.Layout.Row = 3; obj.PlotsTree.Layout.Column = [1 2];
 K = EphysAnalysisConfig.plotKinds();
 obj.AddKindDropDown = uidropdown(lg, "Items", K.Label, "ItemsData", K.Kind);
 obj.AddKindDropDown.Layout.Row = 4; obj.AddKindDropDown.Layout.Column = [1 2];
 obj.AddPlotButton = uibutton(lg, "Text", "Add", "ButtonPushedFcn", @(~,~) obj.onAddPlot(obj.AddKindDropDown.Value));
 obj.AddPlotButton.Layout.Row = 5; obj.AddPlotButton.Layout.Column = [1 2];
-obj.RemovePlotButton = uibutton(lg, "Text", "Remove", "ButtonPushedFcn", @(~,~) obj.onRemovePlot());
+obj.RemovePlotButton = uibutton(lg, "Text", "Remove", "ButtonPushedFcn", @(~,~) obj.onRemovePlot(), ...
+    "Tooltip", "Remove the selected plots from the config.");
 obj.RemovePlotButton.Layout.Row = 6; obj.RemovePlotButton.Layout.Column = 1;
-obj.DuplicatePlotButton = uibutton(lg, "Text", "Duplicate", "ButtonPushedFcn", @(~,~) obj.onDuplicatePlot());
+obj.DuplicatePlotButton = uibutton(lg, "Text", "Duplicate", "ButtonPushedFcn", @(~,~) obj.onDuplicatePlot(), ...
+    "Tooltip", "Copy each selected plot under a new id, right after it; the copies are selected.");
 obj.DuplicatePlotButton.Layout.Row = 6; obj.DuplicatePlotButton.Layout.Column = 2;
 obj.UpPlotButton = uibutton(lg, "Text", "Up", "ButtonPushedFcn", @(~,~) obj.onMovePlot(-1));
 obj.UpPlotButton.Layout.Row = 7; obj.UpPlotButton.Layout.Column = 1;
@@ -51,8 +59,9 @@ obj.DownPlotButton.Layout.Row = 7; obj.DownPlotButton.Layout.Column = 2;
 
 % --- the editor ----------------------------------------------------------------------
 ep = uipanel(g, "Title", "Plot");
-eg = uigridlayout(ep, [10 1]);
-eg.RowHeight = [repmat({0}, 1, 9) {'1x'}];
+obj.PlotEditorPanel = ep;
+eg = uigridlayout(ep, [11 1]);
+eg.RowHeight = [repmat({0}, 1, 10) {'1x'}];
 eg.RowSpacing = 6;
 eg.Padding = [4 4 4 4];
 eg.Scrollable = "on";
@@ -421,6 +430,69 @@ E.waveNames = uicheckbox(wp, "Text", "Unit names", "Value", false, "ValueChanged
     "Tooltip", "Write each unit's name (and the label ticked above) beside its waveform.");
 sec(end+1) = S;
 
+% descriptive text on the plot
+S = formSection(eg, 10, "note", "Text note");
+[S, r] = formRow(S, "annText", "Text:", 78);
+E.annText = uitextarea(S.Body, "Value", "", "ValueChangedFcn", changed, ...
+    "Tooltip", "Words to put on the plot -- a caption, a condition, a remark. Each new line is a line of text; blank " + ...
+    "draws nothing. Where it goes, and how it looks, are set below.");
+place(E.annText, r, 2);
+[S, r] = formRow(S, "annPlace", "Place:");
+E.annPlace = uidropdown(S.Body, "Items", ["Below the plot" "Above the plot" "Right of the plot" "Left of the plot" ...
+    "Over the plot: top left" "Over the plot: top" "Over the plot: top right" "Over the plot: left" "Over the plot: center" ...
+    "Over the plot: right" "Over the plot: bottom left" "Over the plot: bottom" "Over the plot: bottom right" "At x, y"], ...
+    "ItemsData", EphysAnalysisConfig.NotePlacements, "Value", "below", "ValueChangedFcn", changed, ...
+    "Tooltip", "Outside the plot, the plot gives up a band for the text. Over the plot, the text sits at that place " + ...
+    "in the plot's whole area, on top of what is drawn there (the title too, at the top). At x, y puts its anchor at the point below.");
+place(E.annPlace, r, 2);
+[S, r] = formRow(S, ["annX" "annY"], "At x, y:");
+xyg = subgrid(S.Body, r, {'fit', '1x', 'fit', '1x'});
+uilabel(xyg, "Text", "x");
+E.annX = uieditfield(xyg, "numeric", "Value", 0.5, "Limits", [-2 3], "ValueChangedFcn", changed, ...
+    "Tooltip", "Across the plot: 0 is its left edge, 1 its right. The text's anchor (its left, center or right edge, by Align) goes here.");
+uilabel(xyg, "Text", "y");
+E.annY = uieditfield(xyg, "numeric", "Value", 0.5, "Limits", [-2 3], "ValueChangedFcn", changed, ...
+    "Tooltip", "Up the plot: 0 is its bottom edge, 1 its top. The text's anchor (its top, middle or bottom, by Align) goes here.");
+[S, r] = formRow(S, ["annAlign" "annVAlign"], "Align:");
+ag = subgrid(S.Body, r, {'1x', '1x'});
+E.annAlign = uidropdown(ag, "Items", ["Left" "Center" "Right"], "ItemsData", ["left" "center" "right"], "Value", "left", ...
+    "ValueChangedFcn", changed, "Tooltip", "How the lines line up, left to right. Below and above the plot it is also where " + ...
+    "the text sits across the plot; at x, y it is the anchor.");
+E.annVAlign = uidropdown(ag, "Items", ["Top" "Middle" "Bottom"], "ItemsData", ["top" "middle" "bottom"], "Value", "middle", ...
+    "ValueChangedFcn", changed, "Tooltip", "Where the text sits up the plot beside it (right and left), or its anchor at x, y.");
+[S, r] = formRow(S, "annRotation", "Rotation:");
+E.annRotation = uispinner(S.Body, "Limits", [-180 180], "Step", 15, "Value", 0, "ValueDisplayFormat", "%g°", ...
+    "ValueChangedFcn", changed, "Tooltip", "Degrees, counter-clockwise: 90 reads upwards (for the band beside the plot).");
+place(E.annRotation, r, 2);
+[S, r] = formRow(S, ["annFont" "annSize"], "Font:");
+fg = subgrid(S.Body, r, {'1x', 70});
+E.annFont = uidropdown(fg, "Editable", "on", "Items", ["auto" "Arial" "Helvetica" "Times New Roman" "Courier New" "Calibri" ...
+    "Segoe UI" "Verdana" "Georgia" "Palatino Linotype"], "Value", "auto", "ValueChangedFcn", changed, ...
+    "Tooltip", "auto: the design's font. Or any installed font's name.");
+E.annSize = uieditfield(fg, "numeric", "AllowEmpty", "on", "Value", [], "Placeholder", "auto", "Limits", [1 200], ...
+    "ValueChangedFcn", changed, "Tooltip", "Points; blank is the plot's font size (Appearance).");
+[S, r] = formRow(S, ["annBold" "annItalic" "annBox"], "Style:");
+stg = subgrid(S.Body, r, {'fit', 'fit', 'fit', '1x'});
+stg.ColumnSpacing = 12;
+E.annBold = uicheckbox(stg, "Text", "Bold", "ValueChangedFcn", changed);
+E.annItalic = uicheckbox(stg, "Text", "Italic", "ValueChangedFcn", changed);
+E.annBox = uicheckbox(stg, "Text", "Outline", "ValueChangedFcn", changed, ...
+    "Tooltip", "Draw a box round the text, in its colour.");
+[S, r] = formRow(S, ["annColor" "annBackground"], "Colours:");
+cg = subgrid(S.Body, r, {'fit', '1x', 'fit', '1x'});
+uilabel(cg, "Text", "text");
+E.annColor = uidropdown(cg, "Editable", "on", "Items", ["auto" "black" "white" "red" "blue" "green" "magenta" "cyan"], ...
+    "Value", "auto", "ValueChangedFcn", changed, "Tooltip", "auto: the design's text colour; or a name or #RRGGBB.");
+uilabel(cg, "Text", "ground");
+E.annBackground = uidropdown(cg, "Editable", "on", "Items", ["none" "white" "black" "yellow" "cyan" "#F0F0F0"], ...
+    "Value", "none", "ValueChangedFcn", changed, "Tooltip", "none: the plot shows through; or a name or #RRGGBB behind the text.");
+[S, r] = formRow(S, "annInterp", "Interpreter:");
+E.annInterp = uidropdown(S.Body, "Items", ["As typed" "TeX"], "ItemsData", ["none" "tex"], "Value", "none", ...
+    "ValueChangedFcn", changed, "Tooltip", "As typed: every character is printed as it is. TeX: \mu, \pm, x^2, x_i, \bf{...} " + ...
+    "set symbols, powers, subscripts and bold or italic runs.");
+place(E.annInterp, r, 2);
+sec(end+1) = S;
+
 for i = 2:numel(sec)
     name = sec(i).Name;
     sec(i).Toggle.ButtonPushedFcn = @(~,~) obj.onPlotSectionToggled(name);
@@ -461,8 +533,14 @@ obj.DesignDropDown = uidropdown(dg, "Items", PlotDesign.DefaultName, "ItemsData"
 obj.SaveDesignButton = uibutton(dg, "Text", "Save look as design...", "ButtonPushedFcn", @(~,~) obj.onSaveDesign(), ...
     "Tooltip", "Keep the preview's look -- every property of every component, its ground and its group " + ...
     "colours -- as a design of your own, to choose for any plot.");
-obj.PreviewPanel = uipanel(pg, "BackgroundColor", "w", "BorderType", "line");
-obj.PreviewPanel.Layout.Row = 3; obj.PreviewPanel.Layout.Column = [1 6];
+vg = uigridlayout(pg, [2 1], "RowHeight", {0, '1x'}, "Padding", [0 0 0 0], "RowSpacing", 0);
+vg.Layout.Row = 3; vg.Layout.Column = [1 6];
+obj.PreviewGrid = vg;
+A.Grid = uigridlayout(vg, [1 1], "Padding", [8 2 8 2], "Visible", "off");   % shown while several plots are selected
+A.Text = uilabel(A.Grid, "Text", "", "FontWeight", "bold");
+obj.SelectionBar = A;
+obj.PreviewPanel = uipanel(vg, "BackgroundColor", "w", "BorderType", "line");
+obj.PreviewPanel.Layout.Row = 2;
 sg = uigridlayout(pg, [1 3], "ColumnWidth", {'fit', '1x', 'fit'}, "Padding", [0 0 0 0], "ColumnSpacing", 8);
 sg.Layout.Row = 4; sg.Layout.Column = [1 6];
 B.Grid = uigridlayout(sg, [1 2], "ColumnWidth", {18, 'fit'}, "Padding", [6 2 10 2], "ColumnSpacing", 5);

@@ -26,6 +26,9 @@ function R = evokedPotential(Y, fs, E, opts)
 %     Groups      groups table (epochTable); default from E
 %     Meta        channel table (selectChannels)
 %     Units       unit of Y (default "uV")
+%     Check       a function handle called with no input before every 16th
+%                 epoch (default []); it may throw to stop (the app's Cancel
+%                 button)
 %
 %   R fields: kind "evoked", t, mean / sem [nTime x nChan x nGroups],
 %   nEpochs [nGroups x 1] (kept), data, channels, labels, fs, units,
@@ -53,6 +56,7 @@ arguments
     opts.Groups = []
     opts.Meta = []
     opts.Units (1,1) string = "uV"
+    opts.Check = []
 end
 
 ch = opts.Channels;
@@ -90,6 +94,7 @@ kept = false(nE, 1);
 dropEdge = 0; dropNonFinite = 0;
 if opts.KeepEpochs; data = zeros(nT, nC, nE, 'single'); else; data = []; end
 for e = 1:nE
+    if ~isempty(opts.Check) && mod(e, 16) == 1; opts.Check(); end
     [X, inside] = epochSamples(Y, base(e), s0, s1, ch);
     if opts.Incomplete == "drop"
         if ~inside; dropEdge = dropEdge + 1; continue; end

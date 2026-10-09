@@ -10,7 +10,7 @@ function s = defaults(section)
 %                     Plots)
 %   Building blocks   EventRef, SequenceStep (one step of an EventRef's
 %                     sequence), EpochWindow, TrialSelection, UnitSelection,
-%                     Style, Auroc, Waveform
+%                     Style, Auroc, Waveform, Note
 %
 %   See also EphysAnalysisConfig, EphysAnalysisConfig.normalizeSection.
 
@@ -150,6 +150,25 @@ switch section
             'showSites', true, ...          % waveforms plot, probe layout: the probe's sites behind the waveforms
             'showNames', false);            % waveforms plot, probe layout: each unit's name beside its waveform
 
+    case "Note"
+        % a plot's descriptive text (drawNote): one block of text, placed in or beside the plot
+        s = struct( ...
+            'text',       "", ...           % the words; new lines break the lines ("" = no note)
+            'placement',  "below", ...      % outside the plot: below | above | right | left; over it: northwest | north | northeast | west | center | east | southwest | south | southeast; or custom (x, y)
+            'x',          0.5, ...          % custom: the anchor point, 0-1 across the plot (0 = left edge)
+            'y',          0.5, ...          % custom: 0-1 up the plot (0 = bottom edge)
+            'align',      "left", ...       % the text's horizontal alignment: left | center | right (below / above: where it sits across the plot)
+            'valign',     "middle", ...     % vertical alignment: top | middle | bottom (right / left: where it sits up the plot)
+            'rotation',   0, ...            % degrees, counter-clockwise
+            'fontName',   "", ...           % "" = the design's / the plot's font
+            'fontSize',   NaN, ...          % points (NaN = the plot's font size)
+            'bold',       false, ...
+            'italic',     false, ...
+            'color',      "", ...           % "" = the design's text colour; or a name / #rrggbb
+            'background', "", ...           % "" = none; or a name / #rrggbb behind the text
+            'box',        false, ...        % an outline round the text
+            'interpreter', "none");         % "none" (as typed) | "tex" (\mu, x^2, x_i, \bf)
+
     case "Export"
         s = struct( ...
             'Enabled',         true, ...
@@ -214,8 +233,9 @@ switch section
             'metric',        "mean", ...        % corrmap: each epoch's "mean" or "peak" (binned) rate
             'correlation',   "pearson", ...     % corrmap: "pearson" | "spearman"
             'waveform',      EphysAnalysisConfig.defaults("Waveform"), ...   % psth / raster / tuning grids: each unit's waveform in its tile; waveforms: the plot's own settings
+            'note',          EphysAnalysisConfig.defaults("Note"), ...       % descriptive text on the plot (renderPlot's drawNote)
             'style',         EphysAnalysisConfig.defaults("Style"), ...
-            'aesthetics',    PlotAesthetics.emptyRules());   % remembered looks of components: role, group, property, value (PlotAesthetics)
+            'aesthetics',   PlotAesthetics.emptyRules());   % remembered looks of components: role, group, property, value (PlotAesthetics)
 
     otherwise
         error('EphysAnalysisConfig:BadSection', 'Unknown section "%s".', section);

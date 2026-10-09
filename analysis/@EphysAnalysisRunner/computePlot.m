@@ -38,6 +38,12 @@ function [R, E, G] = computePlot(obj, src, spec) %#ok<INUSD>
 %   kept, in its order.
 %   R also gets epochs (E), dataset (the name) and spec. EphysAnalysisScript
 %   writes these same calls out.
+%   While PollFcn is set (the app's preview) the compute can be stopped: a
+%   checkpoint runs between its steps, and the per-unit and per-epoch loops
+%   of spikePSTH, aurocCurves, evokedPotential and unitWaveforms get it as
+%   Check=; after cancel() the next one throws EphysAnalysisRunner:Cancelled
+%   (checkpoint). A read of one file or one epochTable call is not
+%   interrupted; the checkpoint after it is.
 %
 %   See also EphysAnalysisRunner.renderPlotFigures, EphysAnalysisRunner.runDataset.
 
@@ -46,19 +52,24 @@ b = [];
 if spec.baseline.Mode ~= "none"; b = spec.baseline.Window; end
 isSignal = ismember(spec.source, EphysAnalysisConfig.SignalSources);
 E = [];
+chk = [];   % the checkpoint the long steps call, while the app's preview polls (PollFcn)
+if ~isempty(obj.PollFcn); chk = @() obj.checkpoint(); end
+obj.checkpoint();
 switch spec.kind
     case {"psth" "raster" "heatmap"}
         [E, G] = epochTable(src, spec.ref, Window=w, Selection=spec.selection, Baseline=b, Columns=sortColumns(spec));
+        obj.checkpoint();
         if isSignal
             [Y, fs, meta] = selectChannels(src, spec.source, Channels=spec.channels);
-            R = evokedPotential(Y, fs, E, Window=[w.pre w.post], Baseline=b, Groups=G, Meta=meta, Units=meta.units(1));
+            R = evokedPotential(Y, fs, E, Window=[w.pre w.post], Baseline=b, Groups=G, Meta=meta, Units=meta.units(1), Check=chk);
         else
             [st, meta] = selectUnits(src, spec.units, Ref=spec.ref, Selection=spec.selection);
             R = spikePSTH(st, E, Window=[w.pre w.post], BinSec=spec.bins.BinSec, SmoothSec=spec.bins.SmoothSec, ...
                 Measure=spec.measure, Baseline=b, BaselineMode=spec.baseline.Mode, MaskAfterStop=spec.maskAfterStop, ...
                 Raster=spec.kind == "raster" || (spec.kind == "psth" && spec.withRaster), Groups=G, Meta=meta, ...
-                Auroc=spec.auroc);
+                Auroc=spec.auroc, Check=chk);
             m = spec.rasterEvents;
+            obj.checkpoint();
             if isfield(R, 'raster') && ~isempty(R.raster) && (~isempty(m.lines) || ~isempty(m.sequences))
                 R.rasterEvents = epochEvents(src, E, Lines=m.lines, Edge=m.edge, Scope=m.scope, Sequences=m.sequences);
             end
@@ -66,7 +77,7 @@ switch spec.kind
     case "evoked"
         [E, G] = epochTable(src, spec.ref, Window=w, Selection=spec.selection, Baseline=b);
         [Y, fs, meta] = selectChannels(src, spec.source, Channels=spec.channels);
-        R = evokedPotential(Y, fs, E, Window=[w.pre w.post], Baseline=b, Groups=G, Meta=meta, Units=meta.units(1));
+        R = evokedPotential(Y, fs, E, Window=[w.pre w.post], Baseline=b, Groups=G, Meta=meta, Units=meta.units(1), Check=chk);
     case "rate"
         [E, G] = epochTable(src, spec.ref, Window=w, Selection=spec.selection, Baseline=b);
         [st, meta] = selectUnits(src, spec.units, Ref=spec.ref, Selection=spec.selection);
@@ -115,8 +126,9 @@ switch spec.kind
     otherwise
         error('EphysAnalysisRunner:BadKind', 'Unknown plot kind "%s".', spec.kind);
 end
+obj.checkpoint();
 if drawsWaveforms(spec)
-    R.waveforms = unitWaveforms(src, R.meta, Source=spec.source, MaxSpikes=spec.waveform.maxSpikes);
+    R.waveforms = unitWaveforms(src, R.meta, Source=spec.source, MaxSpikes=spec.waveform.maxSpikes, Check=chk);
 end
 R.epochs = E;
 R.dataset = src.name;

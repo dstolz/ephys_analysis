@@ -4,7 +4,9 @@ function refreshPlotList(obj)
 %   "<id>  (<kind>)"; disabled plots add "(off)". When the groups and their
 %   plots are as the tree shows them, only the texts and the selection are
 %   updated (this runs on every edit); otherwise the tree is rebuilt, the
-%   groups the user collapsed (PlotGroupsCollapsed) staying collapsed.
+%   groups the user collapsed (PlotGroupsCollapsed) staying collapsed. The
+%   plots selected (selectedPlots) are the tree's selection, their groups
+%   expanded, scrolled to the one in the editor.
 P = obj.Config.Plots;
 tree = obj.PlotsTree;
 by = string(obj.PlotGroupDropDown.Value);
@@ -38,14 +40,26 @@ if isempty(leaves)
     tree.SelectedNodes = [];
     return
 end
-want = leaves([leaves.NodeData] == obj.SelectedPlot);
-if ~isempty(want) && ~isequal(tree.SelectedNodes, want)
+ks = obj.selectedPlots();
+want = leaves(ismember([leaves.NodeData], ks));
+if ~isempty(want) && ~isequal(sort(plotsIn(tree.SelectedNodes)), sort(ks))
     tree.SelectedNodes = want;
-    if isa(want.Parent, 'matlab.ui.container.TreeNode')
-        obj.PlotGroupsCollapsed(obj.PlotGroupsCollapsed == want.Parent.NodeData) = [];
-        expand(want.Parent);
+    for w = reshape(want, 1, [])
+        if isa(w.Parent, 'matlab.ui.container.TreeNode')
+            obj.PlotGroupsCollapsed(obj.PlotGroupsCollapsed == w.Parent.NodeData) = [];
+            expand(w.Parent);
+        end
     end
-    scroll(tree, want);
+    scroll(tree, want([want.NodeData] == ks(1)));
+end
+end
+
+
+function ks = plotsIn(nodes)
+%plotsIn  The plot indices of NODES; NaN for a group's header (so a header picked counts as a change).
+ks = zeros(1, 0);
+for n = reshape(nodes, 1, [])
+    if isnumeric(n.NodeData); ks(end+1) = n.NodeData; else; ks(end+1) = NaN; end %#ok<AGROW>
 end
 end
 

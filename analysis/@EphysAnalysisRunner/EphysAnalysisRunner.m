@@ -33,6 +33,13 @@ classdef EphysAnalysisRunner < handle
     %                   is (dataset j of n spans [(j-1)/n, j/n], its plots
     %                   share it). cancel() makes the next call throw
     %                   EphysAnalysisRunner:Cancelled
+    %     PollFcn       PollFcn() called at computePlot's checkpoints (between
+    %                   its stages and per unit, epoch or channel inside the
+    %                   long ones); the app's preview sets it to let a Cancel
+    %                   button act while a plot computes. cancel() then makes
+    %                   the next checkpoint throw EphysAnalysisRunner:Cancelled.
+    %                   While it is empty (a run, a script) there are no
+    %                   checkpoints
     %     LogFcn        LogFcn(message) per line (default: print); [] = quiet
     %     SearchDirs    further folders each dataset's outputs are searched in
     %                   (DatasetOutputs SearchDirs), e.g. a pipeline's
@@ -53,6 +60,7 @@ classdef EphysAnalysisRunner < handle
     properties
         Config EphysAnalysisConfig = EphysAnalysisConfig()
         ProgressFcn = []
+        PollFcn = []
         LogFcn = @(msg) fprintf('%s\n', msg)
         SearchDirs (1,:) string = string.empty(1, 0)
     end
@@ -80,7 +88,9 @@ classdef EphysAnalysisRunner < handle
         rows = runDataset(obj, k, opts)
         T = run(obj, opts)
         cancel(obj)
+        clearCancel(obj)
         progress(obj, fraction, message)
+        checkpoint(obj)
         log(obj, fmt, varargin)
 
         function obj = EphysAnalysisRunner(cfg, opts)

@@ -379,6 +379,7 @@ use.
 | `metric` | `"mean"` | corrmap: each epoch's `"mean"` rate over its window, or its `"peak"` binned rate (`bins`) |
 | `correlation` | `"pearson"` | corrmap: `"pearson"` or `"spearman"` |
 | `waveform` | [Waveform](#unit-waveforms), `mode "off"` | raster, psth and tuning grids of spikes: each unit's waveform in its tile; a `waveforms` plot: its settings (mode `"both"` for a plot added by `addPlot` or the app) |
+| `note` | [Note](#plot-notes), no text | descriptive text on the plot: its words, where it goes and how it looks (every kind) |
 | `style` | [Style](#style) | |
 | `aesthetics` | none | remembered looks of the plot's components: a list of rules `{role, group, property, value}` (`group` `""` = every group; `value` a number, an `[r g b]` colour or text), applied after drawing, over the user's own rules for the kind. The preview's right-click editor writes them ([Plot aesthetics](EphysAnalysis.md#plot-aesthetics)); a rule with a property the editor does not know is refused (`EphysAnalysisConfig:BadValue`) |
 
@@ -599,6 +600,40 @@ The parts (`waveSpikes`, `waveMean`, `waveZero`, `waveLabel`, `waveSites`,
 A raster of one unit's own spikes beside its waveform is a raster with a
 `waveform` box; this plot is for looking at the waveforms themselves.
 
+### Plot notes
+
+Any plot can carry a block of descriptive text -- a caption, a condition,
+a remark -- beside or over it. The plot's `note`
+(`EphysAnalysisConfig.defaults("Note")`) draws nothing until `text` has
+words; the other fields are not checked until then.
+
+| Field | Default | Meaning |
+| --- | --- | --- |
+| `text` | `""` | the words; a new line starts a new line of text |
+| `placement` | `"below"` | outside the plot: `"below"`, `"above"`, `"right"`, `"left"` (the plot gives up a band for the text); over it, in the plot's whole area: `"northwest"`, `"north"`, `"northeast"`, `"west"`, `"center"`, `"east"`, `"southwest"`, `"south"`, `"southeast"`; or `"custom"`, at `x`, `y` |
+| `x`, `y` | `0.5`, `0.5` | custom: the text's anchor, 0-1 across (from the left edge) and up (from the bottom edge) the plot's area; may lie outside it |
+| `align` | `"left"` | `"left"`, `"center"` or `"right"`: how the lines line up; below and above the plot, also where the text sits across it; custom, the anchor's side of the text |
+| `valign` | `"middle"` | `"top"`, `"middle"` or `"bottom"`: where the text sits up the plot beside it (right and left); custom, the anchor's place on the text |
+| `rotation` | `0` | degrees, counter-clockwise (`90` reads upwards) |
+| `fontName` | `""` | `""` = the design's font; or an installed font's name |
+| `fontSize` | `NaN` | points; `NaN` = the plot's `style.FontSize` (or the design's size for notes) |
+| `bold`, `italic` | `false` | |
+| `color` | `""` | `""` = the design's text colour; or a name or `#rrggbb` |
+| `background` | `""` | `""` = none; or a name or `#rrggbb` behind the text |
+| `box` | `false` | an outline round the text, in its colour |
+| `interpreter` | `"none"` | `"none"`: every character as typed; `"tex"`: `\mu`, `\pm`, `x^2`, `x_i`, `\bf{...}` |
+
+`renderPlot` draws the note after the title, as a text of role `note` in a
+hidden axes beside the plot's tiled layout (`drawNote`, `placeNote`; a plot
+that is a single axes carries the text in the axes), so a note is a
+component of the plot the [aesthetics](EphysAnalysis.md#plot-aesthetics)
+editor lists and every [design](EphysAnalysis.md#plot-designs) styles
+(its font and text colour). The note's own `fontName`, `fontSize`, `color`
+and `background` win over the design's and the user's rules; the plot's
+own `aesthetics` rules win over them. Text over the plot sits on top of
+what is drawn there, the title included at the top. The text is sized as
+drawn, after the design's rules, so a larger font makes a wider band.
+
 ## Export
 
 | Field | Default | Meaning |
@@ -673,8 +708,8 @@ with 20 units and 16 tiles per page is written as
 | Source | a "list" selection with no datasets; an OutputRoot that does not exist | warning |
 | Defaults, Plots | the event reference, window and selection are valid: known values, `n` a whole number >= 1, `0 <= minDurationSec <= maxDurationSec`, `timeRange` ordered, a finite `offsetSec`, `offsetParamUnit` ms or s, each sequence step's relation, line, edge, `n`, positive `maxGapSec` and lengths, an `alignStep` of 0, `Inf` or a followedBy step (the stop's and each raster-mark sequence's too), finite `pre` and `post`, `pre <= post` in a fixed window, a stop event in a `"between"` window, known response words and pairing flags, at most 2 distinct `groupBy` parameters, `maxGroups` and `trials` whole numbers >= 1 | error |
 | Defaults, Plots | a filter that does not parse | warning (it is checked against each dataset's trials when it runs) |
-| Plots | at least one enabled; ids that stay distinct once `{Plot}` has sanitized them (case-blind); the kind exists; the source, layout, window mode and baseline mode fit the kind; `measure` rate / count / probability; tuning names its parameter; behavior names `param` and `yParam` (`"stop"` with a stop event), its `xScale` is category / linear and the violin layout has `violinplot`; a psth / raster `rasterSortOrder` ascending / descending and `rasterEvents` edge, scope, marker and a positive size; `BinSec > 0`, `SmoothSec >= 0` where bins are used; a baseline window `[b0 b1]` with `b0 < b1`; probemap value, psth `histStyle` bar / line, `normalize` none / unitPeak / groupPeak, `fillAlpha` 0-1 or NaN, `stackSpacing > 0`; heatmap order (`"modulation"` only with the auROC baseline); the auROC settings (method, windows, whole-bin window and step, call window, cutoff, threshold, test, `nResamples`, correction, alpha, `modulatedOnly` with a cutoff) and the toolbox they need; corrmap metric and correlation; `maxUnits >= 1`; an enabled response test of spikes: its test, `param` for tuning / either / both, `baseline` and `window` ordered, direction, correction, alpha in (0, 1], the auROC settings of a test `"auroc"` (with a cutoff) and the Statistics and Machine Learning Toolbox; a `waveform` mode off / mean / subsample / both and, when not off, its location, `scale` in (0, 3] and a whole `maxSpikes >= 1`; `MaxTiles >= 1`, `TileSpacing` loose / compact / tight / none, `FontSize`, `LineWidth`, `SiteSize` positive | error |
-| Plots | a `HeatColormap` that is not a colormap function; a `Colormap` that is neither a colormap function nor a colour (the default is used); a `rasterEvents.color` that is not a colour (each mark gets its own); a `waveform` mode on a plot that draws no unit tiles (an overlay, a plot of signals, a kind other than raster / psth / tuning / waveforms) | warning |
+| Plots | at least one enabled; ids that stay distinct once `{Plot}` has sanitized them (case-blind); the kind exists; the source, layout, window mode and baseline mode fit the kind; `measure` rate / count / probability; tuning names its parameter; behavior names `param` and `yParam` (`"stop"` with a stop event), its `xScale` is category / linear and the violin layout has `violinplot`; a psth / raster `rasterSortOrder` ascending / descending and `rasterEvents` edge, scope, marker and a positive size; `BinSec > 0`, `SmoothSec >= 0` where bins are used; a baseline window `[b0 b1]` with `b0 < b1`; probemap value, psth `histStyle` bar / line, `normalize` none / unitPeak / groupPeak, `fillAlpha` 0-1 or NaN, `stackSpacing > 0`; heatmap order (`"modulation"` only with the auROC baseline); the auROC settings (method, windows, whole-bin window and step, call window, cutoff, threshold, test, `nResamples`, correction, alpha, `modulatedOnly` with a cutoff) and the toolbox they need; corrmap metric and correlation; `maxUnits >= 1`; an enabled response test of spikes: its test, `param` for tuning / either / both, `baseline` and `window` ordered, direction, correction, alpha in (0, 1], the auROC settings of a test `"auroc"` (with a cutoff) and the Statistics and Machine Learning Toolbox; a `waveform` mode off / mean / subsample / both and, when not off, its location, `scale` in (0, 3] and a whole `maxSpikes >= 1`; for a note with text, its `placement`, `align`, `valign`, `interpreter`, a numeric `rotation`, a positive or `NaN` `fontSize`, and `x` and `y` for `"custom"`; `MaxTiles >= 1`, `TileSpacing` loose / compact / tight / none, `FontSize`, `LineWidth`, `SiteSize` positive | error |
+| Plots | a `HeatColormap` that is not a colormap function; a `Colormap` that is neither a colormap function nor a colour (the default is used); a `rasterEvents.color` that is not a colour (each mark gets its own); a `waveform` mode on a plot that draws no unit tiles (an overlay, a plot of signals, a kind other than raster / psth / tuning / waveforms); a note's `color` or `background` that is not a colour (left to the design) | warning |
 | Export | formats are png / eps / svg / pdf (and at least one when enabled); `Dpi` positive; `FigureSizeCm` two positive numbers; the folder and file-name patterns use known tokens, and the file-name pattern is not empty | error |
 | Export | a file-name pattern without `{Plot}` while several plots are enabled (`{Kind}` is enough when the enabled plots all differ in kind); neither the folder nor the file-name pattern names the dataset (`{OutputFolder}` or `{Name}`), unless the source is a single folder: files that would overwrite each other | warning |
 | Report | Format html / pdf / both, EmbedFormat png / svg, `Dpi` positive, a plain `FileName`, the folder pattern | error |

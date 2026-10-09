@@ -48,6 +48,9 @@ function syncPlotEditor(obj)
 %                                 first three only; the amplitude scale
 %                                 for waveforms, its size, sites and unit
 %                                 names for the "probe" layout)
+%     text note                   every kind (its place, alignment, rotation,
+%                                 font, colours and interpreter enabled when
+%                                 it has text; x and y at "At x, y")
 %   The drop-downs list the kind's window modes ("between" for rate,
 %   tuning and corrmap), its baseline modes (fewer for signals) and row
 %   orders ("modulation" too for a heatmap with the auROC baseline); a
@@ -61,15 +64,25 @@ function syncPlotEditor(obj)
 %   bootstrap and shuffle, the calls with a cutoff; smoothing and
 %   normalize are off under an auROC baseline (it compares the bins as
 %   counted, on its own scale).
+%
+%   With several plots selected (selectedPlots) a row shows only when
+%   every one of them uses it, the others' own kind, source, layout and
+%   options deciding theirs; never the id or title (each its own); the
+%   source and layout only when they all offer the same ones; the waveform
+%   rows not when unit-waveforms plots are mixed with other kinds (the mode
+%   is a plot's to one, an inset's to the other). The drop-downs offer
+%   what all of them take, and Up / Down are off. What is enabled follows
+%   the values shown, the first plot's.
 E = obj.PlotEditor;
 C = obj.PlotAlignControls;
 S = obj.PlotSections;
 k = obj.SelectedPlot;
+ks = obj.selectedPlots();
 has = k >= 1 && k <= numel(obj.Config.Plots);
 onoff = @(tf) matlab.lang.OnOffSwitchState(tf);
 set([obj.RemovePlotButton obj.DuplicatePlotButton], 'Enable', onoff(has));
-obj.UpPlotButton.Enable = onoff(has && k > 1);
-obj.DownPlotButton.Enable = onoff(has && k < numel(obj.Config.Plots));
+obj.UpPlotButton.Enable = onoff(has && k > 1 && isscalar(ks));
+obj.DownPlotButton.Enable = onoff(has && k < numel(obj.Config.Plots) && isscalar(ks));
 if ~has
     for i = 1:numel(S)
         S(i).Shown(:) = false;
@@ -83,86 +96,64 @@ end
 kind = obj.Config.Plots(k).kind;
 source = string(E.source.Value);
 layout = string(E.layout.Value);
-spikes = ismember(source, EphysAnalysisConfig.SpikeSources);
 ch = plotEditorChoices(kind, source);
 K = EphysAnalysisConfig.plotKinds();
 row = K(K.Kind == kind, :);
 psth = kind == "psth";
-binned = ismember(kind, ["psth" "raster" "corrmap"]) || (kind == "heatmap" && spikes);
-behavior = kind == "behavior";
-grouped = ismember(kind, ["psth" "raster" "rate" "tuning" "behavior"]) || (kind == "evoked" && layout ~= "butterfly");
 
 % --- what shows ---------------------------------------------------------------------
-v = struct();
-v.kind = true; v.note = true; v.id = true; v.title = true; v.source = true;
-v.layout = numel(ch.Layouts) > 1;
-v.classes = source == "units";
-v.quality = source == "units";
-v.response = spikes; v.respBaseFrom = spikes; v.respParam = spikes;
-v.ids = spikes; v.maxUnits = spikes; v.shanks = spikes;
-v.channels = ~behavior;
-v.binMs = binned; v.smoothMs = binned;
-v.maskAfterStop = binned && kind ~= "corrmap";
-v.measure = ismember(kind, ["psth" "rate" "tuning"]) || (kind == "heatmap" && spikes);
-v.baselineMode = ~ismember(kind, ["raster" "probemap" "behavior" "waveforms"]);
-v.baseFrom = v.baselineMode;
-auroc = v.baselineMode && string(E.baselineMode.Value) == "auroc";
-v.aMethod = auroc; v.aWinMs = auroc; v.aModFrom = auroc; v.aCutoff = auroc; v.aMarks = auroc;
-v.aTest = auroc && string(E.aCutoff.Value) == "test";
-respAuroc = spikes && string(E.respTest.Value) == "auroc";
-v.raMethod = respAuroc; v.raWinMs = respAuroc; v.raCutoff = respAuroc;
-v.raTest = respAuroc && string(E.raCutoff.Value) == "test";
-v.withRaster = psth; v.histStyle = psth; v.normalize = psth; v.fill = psth; v.stack = psth;
-v.rasterSort = ismember(kind, ["psth" "raster"]) && spikes;
-v.rasterByGroup = v.rasterSort; v.markLines = v.rasterSort; v.markSeqText = v.rasterSort; v.markMarker = v.rasterSort;
-v.param = ismember(kind, ["tuning" "behavior"]); v.seriesParam = v.param;
-v.yParam = behavior; v.xScale = behavior;
-v.value = kind == "probemap";
-v.order = kind == "heatmap";
-v.metric = kind == "corrmap"; v.correlation = v.metric;
-v.maxTiles = kind == "raster" || (ismember(kind, ["psth" "tuning" "evoked" "waveforms"]) && layout == "grid");
-v.tileSpacing = ~ismember(kind, ["rate" "behavior"]) && ~(kind == "waveforms" && layout == "probe");
-v.fontSize = true;
-v.sortDepth = ~ismember(kind, ["probemap" "behavior"]) && ~(kind == "waveforms" && layout == "probe"); v.labelDepth = v.sortDepth;
-v.lineWidth = ismember(kind, ["psth" "evoked" "tuning" "behavior" "waveforms"]);
-v.siteSize = kind == "probemap";
-v.ylim = ismember(kind, ["psth" "rate" "tuning" "behavior"]) || (kind == "evoked" && layout ~= "stack") ...
-    || (kind == "waveforms" && layout == "grid");
-v.colormap = grouped;
-v.legendLoc = grouped;
-v.heatColormap = ismember(kind, ["heatmap" "probemap" "corrmap"]);
-inset = spikes && (kind == "raster" || (ismember(kind, ["psth" "tuning"]) && layout ~= "overlay"));
-wavePlot = spikes && kind == "waveforms";
-v.waveMode = inset || wavePlot;
-v.waveLocation = inset;
-v.waveLabel = v.waveMode;
-v.waveScale = inset || (wavePlot && layout == "probe");
-v.waveAmp = wavePlot;
-v.waveSites = wavePlot && layout == "probe"; v.waveNames = v.waveSites;
-boxes = [E.showSEM E.showStop E.legend E.grid];
-on = [psth || ismember(kind, ["tuning" "behavior"]) || (kind == "rate" && layout == "bar") || (kind == "evoked" && layout ~= "butterfly"), ...
-    ismember(kind, ["psth" "raster"]), grouped, ismember(kind, ["psth" "raster" "evoked" "rate" "tuning" "behavior"]) ...
-    || (kind == "waveforms" && layout == "grid")];
+[v, on] = rowsUsed(kind, source, layout, string(E.baselineMode.Value), string(E.aCutoff.Value), ...
+    string(E.respTest.Value), string(E.raCutoff.Value));
+auroc = v.aMethod;
+aligned = row.Aligned;
+kinds = kind;
+for q = obj.Config.Plots(ks(2:end))
+    lq = q.layout;
+    if lq == ""; lq = K.DefaultLayout(K.Kind == q.kind); end
+    [vq, onq] = rowsUsed(q.kind, q.source, lq, q.baseline.Mode, q.auroc.cutoff, q.units.response.test, ...
+        q.units.response.auroc.cutoff);
+    for f = string(fieldnames(v)).'
+        v.(f) = v.(f) && vq.(f);
+    end
+    on = on & onq;
+    cq = plotEditorChoices(q.kind, q.source);
+    v.source = v.source && isequal(cq.Sources, ch.Sources);
+    v.layout = v.layout && isequal(cq.Layouts, ch.Layouts);
+    for f = ["BaselineModes" "Orders" "WindowModes"]
+        ch.(f) = intersect(ch.(f), cq.(f), 'stable');
+    end
+    aligned = aligned && any(K.Aligned(K.Kind == q.kind));
+    kinds(end+1) = q.kind; %#ok<AGROW>
+end
+if ~isscalar(ks)
+    v.id = false; v.title = false;
+    if any(kinds == "waveforms") && ~all(kinds == "waveforms")
+        for f = ["waveMode" "waveLocation" "waveLabel" "waveScale" "waveAmp" "waveSites" "waveNames"]
+            v.(f) = false;
+        end
+    end
+end
 v.showSEM = any(on);
 for f = string(fieldnames(v)).'
     S = formShow(S, f, v.(f));
 end
-packBoxes(boxes, on);
+packBoxes([E.showSEM E.showStop E.legend E.grid], on);
 names = [S.Name];
 for i = 1:numel(S)
-    S(i).Visible = ~ismember(names(i), ["ref" "window" "selection"]) || row.Aligned;
+    S(i).Visible = ~ismember(names(i), ["ref" "window" "selection"]) || aligned;
 end
 S(names == "units").Title = "Units & channels";
-if ~spikes; S(names == "units").Title = "Channels"; end
+if ~v.ids; S(names == "units").Title = "Channels"; end   % ids: the spike sources'
 S(names == "bins").Title = "Bins & baseline";
-if ~binned; S(names == "bins").Title = "Baseline"; end
-S(names == "kind").Title = row.Label + " options";
+if ~v.binMs; S(names == "bins").Title = "Baseline"; end
+S(names == "kind").Title = "Options";
+if all(kinds == kind); S(names == "kind").Title = row.Label + " options"; end
 obj.PlotSections = S;
 
 % --- what the drop-downs offer ---------------------------------------------------------
 offerItems(E.baselineMode, ch.BaselineModes);
 orders = ch.Orders;
-if auroc && kind == "heatmap"; orders(end+1) = "modulation"; end
+if v.aMethod && all(kinds == "heatmap"); orders(end+1) = "modulation"; end
 offerItems(E.order, orders);
 setWindowModes(C.Mode, ch.WindowModes);
 
@@ -194,8 +185,78 @@ en(E.jitter, layout == "points");
 en([E.legend E.ylim], ~stacked);
 en([E.legendLoc E.legendOrient E.legendBox], ~stacked && E.legend.Value);
 en([E.waveSpikes E.waveLocation E.waveBox E.waveScale E.wavePP E.waveCount], string(E.waveMode.Value) ~= "off");
+noted = strtrim(strjoin(string(E.annText.Value(:)).', newline)) ~= "";
+en([E.annPlace E.annAlign E.annVAlign E.annRotation E.annFont E.annSize E.annBold E.annItalic E.annBox ...
+    E.annColor E.annBackground E.annInterp], noted);
+en([E.annX E.annY], noted && string(E.annPlace.Value) == "custom");
 syncAlignEnable(C);
 obj.layoutPlotEditor();
+end
+
+
+function [v, on] = rowsUsed(kind, source, layout, baselineMode, aCutoff, respTest, raCutoff)
+%rowsUsed  The editor's rows a plot uses: V.(key) for each row's first key, ON for the Show boxes.
+%   From its kind, source and layout, and the options that add rows: its
+%   baseline mode and auROC cutoff, its response test and that test's auROC
+%   cutoff. ON: SEM, stop marks, legend, grid.
+spikes = ismember(source, EphysAnalysisConfig.SpikeSources);
+ch = plotEditorChoices(kind, source);
+psth = kind == "psth";
+binned = ismember(kind, ["psth" "raster" "corrmap"]) || (kind == "heatmap" && spikes);
+behavior = kind == "behavior";
+grouped = ismember(kind, ["psth" "raster" "rate" "tuning" "behavior"]) || (kind == "evoked" && layout ~= "butterfly");
+v = struct();
+v.kind = true; v.note = true; v.id = true; v.title = true; v.source = true;
+v.layout = numel(ch.Layouts) > 1;
+v.classes = source == "units";
+v.quality = source == "units";
+v.response = spikes; v.respBaseFrom = spikes; v.respParam = spikes;
+v.ids = spikes; v.maxUnits = spikes; v.shanks = spikes;
+v.channels = ~behavior;
+v.binMs = binned; v.smoothMs = binned;
+v.maskAfterStop = binned && kind ~= "corrmap";
+v.measure = ismember(kind, ["psth" "rate" "tuning"]) || (kind == "heatmap" && spikes);
+v.baselineMode = ~ismember(kind, ["raster" "probemap" "behavior" "waveforms"]);
+v.baseFrom = v.baselineMode;
+auroc = v.baselineMode && baselineMode == "auroc";
+v.aMethod = auroc; v.aWinMs = auroc; v.aModFrom = auroc; v.aCutoff = auroc; v.aMarks = auroc;
+v.aTest = auroc && aCutoff == "test";
+respAuroc = spikes && respTest == "auroc";
+v.raMethod = respAuroc; v.raWinMs = respAuroc; v.raCutoff = respAuroc;
+v.raTest = respAuroc && raCutoff == "test";
+v.withRaster = psth; v.histStyle = psth; v.normalize = psth; v.fill = psth; v.stack = psth;
+v.rasterSort = ismember(kind, ["psth" "raster"]) && spikes;
+v.rasterByGroup = v.rasterSort; v.markLines = v.rasterSort; v.markSeqText = v.rasterSort; v.markMarker = v.rasterSort;
+v.param = ismember(kind, ["tuning" "behavior"]); v.seriesParam = v.param;
+v.yParam = behavior; v.xScale = behavior;
+v.value = kind == "probemap";
+v.order = kind == "heatmap";
+v.metric = kind == "corrmap"; v.correlation = v.metric;
+v.maxTiles = kind == "raster" || (ismember(kind, ["psth" "tuning" "evoked" "waveforms"]) && layout == "grid");
+v.tileSpacing = ~ismember(kind, ["rate" "behavior"]) && ~(kind == "waveforms" && layout == "probe");
+v.fontSize = true;
+v.sortDepth = ~ismember(kind, ["probemap" "behavior"]) && ~(kind == "waveforms" && layout == "probe"); v.labelDepth = v.sortDepth;
+v.lineWidth = ismember(kind, ["psth" "evoked" "tuning" "behavior" "waveforms"]);
+v.siteSize = kind == "probemap";
+v.ylim = ismember(kind, ["psth" "rate" "tuning" "behavior"]) || (kind == "evoked" && layout ~= "stack") ...
+    || (kind == "waveforms" && layout == "grid");
+v.colormap = grouped;
+v.legendLoc = grouped;
+v.heatColormap = ismember(kind, ["heatmap" "probemap" "corrmap"]);
+inset = spikes && (kind == "raster" || (ismember(kind, ["psth" "tuning"]) && layout ~= "overlay"));
+wavePlot = spikes && kind == "waveforms";
+v.waveMode = inset || wavePlot;
+v.waveLocation = inset;
+v.waveLabel = v.waveMode;
+v.waveScale = inset || (wavePlot && layout == "probe");
+v.waveAmp = wavePlot;
+v.waveSites = wavePlot && layout == "probe"; v.waveNames = v.waveSites;
+for f = ["annText" "annPlace" "annX" "annAlign" "annRotation" "annFont" "annBold" "annColor" "annInterp"]
+    v.(f) = true;   % the text note is every kind's
+end
+on =[psth || ismember(kind, ["tuning" "behavior"]) || (kind == "rate" && layout == "bar") || (kind == "evoked" && layout ~= "butterfly"), ...
+    ismember(kind, ["psth" "raster"]), grouped, ismember(kind, ["psth" "raster" "evoked" "rate" "tuning" "behavior"]) ...
+    || (kind == "waveforms" && layout == "grid")];
 end
 
 

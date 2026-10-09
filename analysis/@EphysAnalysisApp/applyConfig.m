@@ -21,6 +21,7 @@ if n == 0
 else
     obj.SelectedPlot = min(max(obj.SelectedPlot, 1), n);
 end
+obj.AlsoSelected = zeros(1, 0);   % one plot selected: the caller selects others again (onPlotSelected)
 obj.refreshPlotList();
 obj.applyPlotEditor();
 if opts.MarkSaved

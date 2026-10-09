@@ -262,6 +262,31 @@ wv.save(f);
 w2 = EphysAnalysisConfig.load(f);
 check(w2.isequalConfig(wv) && isequal(w2.Plots(1).waveform, wv.Plots(1).waveform) && ~w2.Plots(1).waveform.box, ...
     'the waveform settings survive save / load');
+d = EphysAnalysisConfig.defaults("Plot").note;
+check(d.text == "" && d.placement == "below" && d.align == "left" && d.valign == "middle" && isnan(d.fontSize) ...
+    && ~d.bold && ~d.italic && ~d.box && d.color == "" && d.interpreter == "none", ...
+    'a plot''s note: no text by default; below the plot, left-aligned, the design''s font and colour');
+nt = cfg;
+nt.Plots(1).note.placement = "nowhere";   % no text: nothing to check
+check(~hasIssue(nt, "psth_1.note", "error"), 'a note without text is not checked');
+nt = cfg; nt.Plots(1).note.text = "Condition A" + newline + "n = 12";
+check(~hasIssue(nt, "psth_1.note", "error") && ~hasIssue(nt, "psth_1.note", "warning"), 'a note with text and the defaults is valid');
+for kv = {"placement", "top", "psth_1.note.placement"; "align", "middle", "psth_1.note.align"; "valign", "centre", "psth_1.note.valign"; ...
+        "interpreter", "latex", "psth_1.note.interpreter"; "fontSize", -2, "psth_1.note.fontSize"; "rotation", Inf, "psth_1.note.rotation"}.'
+    bn = nt; bn.Plots(1).note.(kv{1}) = kv{2};
+    check(hasIssue(bn, kv{3}, "error"), "a note's " + kv{1} + " is checked");
+end
+bn = nt; bn.Plots(1).note.placement = "custom"; bn.Plots(1).note.x = NaN;
+bn2 = nt; bn2.Plots(1).note.color = "notacolour"; bn2.Plots(1).note.background = "alsonot";
+check(hasIssue(bn, "psth_1.note.x", "error") && hasIssue(bn2, "psth_1.note.color", "warning") ...
+    && hasIssue(bn2, "psth_1.note.background", "warning"), 'a custom note needs x and y; a colour that is not one is a warning');
+nt.Plots(1).note = struct('text', "Condition A" + newline + "n = 12 (\mu)", 'placement', "custom", 'x', 0.1, 'y', 0.9, 'align', "right", ...
+    'valign', "top", 'rotation', 90, 'fontName', "Arial", 'fontSize', 12, 'bold', true, 'italic', true, 'color', "#336699", ...
+    'background', "white", 'box', true, 'interpreter', "tex");
+nt.save(f);
+n2 = EphysAnalysisConfig.load(f);
+check(n2.isequalConfig(nt) && isequal(n2.Plots(1).note, nt.Plots(1).note) && contains(n2.Plots(1).note.text, newline), ...
+    'a note''s settings, lines too, survive save / load');
 
 fprintf('\n== 4b. behavior plots, raster options, events shifted by a parameter ==\n');
 [cb, idb] = cfg.addPlot("behavior");

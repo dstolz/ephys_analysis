@@ -24,6 +24,13 @@ classdef EphysAnalysisApp < handle
     %                layout, enabled / off, or not at all: Group by): add
     %                (psth, raster, evoked, rate, tuning, heatmap, probemap,
     %                corrmap), remove, duplicate, reorder, enable;
+    %                Ctrl- or Shift-click selects several plots: the editor
+    %                then shows only the options they all have, with the
+    %                first one's values, an edit goes to every one of them
+    %                (only what it changed: spreadPlotEdit), the preview
+    %                draws the first, and a bar over it and a banner in the
+    %                editor say so (showPlotSelection); Remove and Duplicate
+    %                act on them all;
     %                an editor in collapsible sections (units & channels,
     %                event reference, epoch window, trial selection, bins &
     %                baseline, the kind's options, appearance) showing only the
@@ -139,6 +146,7 @@ classdef EphysAnalysisApp < handle
         DuplicatePlotButton matlab.ui.control.Button
         UpPlotButton       matlab.ui.control.Button
         DownPlotButton     matlab.ui.control.Button
+        PlotEditorPanel    matlab.ui.container.Panel        % the editor's panel (its title counts the plots selected)
         PlotEditorGrid     matlab.ui.container.GridLayout   % the editor's column of sections
         PlotSections struct = struct([])         % the editor's sections (formSection), top to bottom
         PlotEditor struct = struct()             % plot-editor controls by field
@@ -154,6 +162,8 @@ classdef EphysAnalysisApp < handle
         PageLabel          matlab.ui.control.Label
         PreviewLabel       matlab.ui.control.Label
         PreviewBadge struct = struct()           % the preview's state badge: Grid, Icon, Text (setPreviewState)
+        PreviewGrid        matlab.ui.container.GridLayout   % the SelectionBar (row 1, 0 px while one plot is selected) over the PreviewPanel
+        SelectionBar struct = struct()           % the bar over the preview while several plots are selected: Grid, Text (showPlotSelection)
 
         % --- Export tab ---
         ExportControls struct = struct()
@@ -184,13 +194,16 @@ classdef EphysAnalysisApp < handle
         ScannedSource struct = struct()     % Config.Source when the runner last scanned
         ActiveIdx (1,1) double = 0          % the active dataset (index into Runner.Outputs)
         Ticked (1,:) logical = logical.empty(1, 0)   % datasets ticked to run
-        SelectedPlot (1,1) double = 0       % the plot in the editor (index into Config.Plots)
+        SelectedPlot (1,1) double = 0       % the plot in the editor (index into Config.Plots), the one previewed
+        AlsoSelected (1,:) double = zeros(1, 0)   % the other plots selected with it (tree multi-select), in the order picked; edits go to them too
+        ShownPlot struct = struct()         % the plot in the editor as its controls showed it before the edit (spreadPlotEdit)
         PlotGroupsCollapsed (1,:) string = string.empty(1,0)   % keys of the tree's groups the user collapsed
         PreviewResult = []                  % last preview's result
         PreviewPage (1,1) double = 1
         PreviewPages (1,1) double = 1
         PreviewSeconds (1,1) double = Inf   % time the last preview took (auto-preview under 2 s)
         PreviewState (1,1) string = "idle"  % what the preview badge says (setPreviewState)
+        PreviewRedo (1,1) logical = false   % an edit or a Preview press came in while one computed: it ends Out of date
         EpochDiagramWindow = []             % the EpochDiagram window, while open (onShowEpochs)
         EpochDiagramFor (1,1) string = "plot"   % what it draws: "plot" (the editor's) | "defaults"
         Running (1,1) logical = false
@@ -302,6 +315,8 @@ classdef EphysAnalysisApp < handle
         onMovePlot(obj, step)
         onPlotSelected(obj, k)
         onPlotTreeSelected(obj, nodes)
+        ks = selectedPlots(obj)
+        showPlotSelection(obj)
         onPlotGroupChanged(obj)
         onPlotGroupToggled(obj, node, collapsed)
         onPlotSectionToggled(obj, name)
@@ -309,6 +324,7 @@ classdef EphysAnalysisApp < handle
         onPlotDefaultToggled(obj)
         refreshPreview(obj, opts)
         setPreviewState(obj, state, opts)
+        onCancelPreview(obj)
         onPreviewPage(obj, step)
         rememberAesthetics(obj, id, rules)
         onAutoPreviewToggled(obj)

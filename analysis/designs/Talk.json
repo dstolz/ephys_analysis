@@ -92,7 +92,10 @@
     {"role": "shankLabels", "property": "FontWeight", "value": "bold"},
     {"role": "unitDots", "property": "MarkerSize", "value": 16},
     {"role": "waveMean", "property": "LineWidth", "value": 2.5},
-    {"role": "waveLabel", "property": "FontSize", "value": 11}
+    {"role": "waveLabel", "property": "FontSize", "value": 11},
+    {"role": "note", "property": "FontName", "value": "Segoe UI, Helvetica Neue, Arial"},
+    {"role": "note", "property": "FontSize", "value": 12},
+    {"role": "note", "property": "Color", "value": "#222222"}
   ],
   "kinds": {
     "heatmap": [

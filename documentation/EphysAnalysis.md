@@ -671,7 +671,9 @@ at a round step.
 
 `renderPlot(R, spec, target, Page=)` dispatches on `spec.kind`, applies
 `spec.layout`, `spec.style` ([Style](EphysAnalysisConfig.md#style)),
-`spec.waveform` and the raster's sort and marks, and titles the figure
+`spec.waveform`, the raster's sort and marks and `spec.note` (descriptive text
+beside or over the plot; [Plot notes](EphysAnalysisConfig.md#plot-notes)),
+and titles the figure
 `"<Kind>: <line> <edge> (<n> epochs)"` (a behavior plot: `"Behavior:
 <y> by <param> (<n> epochs)"`), or `spec.title`, with the dataset and
 page as a subtitle. A
@@ -760,7 +762,7 @@ visibility, tick direction and length or, for axes, a colormap), `value`
 (a number, two numbers, a colour or a word). It applies in every tile.
 An unknown property is `PlotAesthetics:BadRule`; a value an object refuses
 is the warning `PlotAesthetics:BadValue`, and the plot is still drawn.
-`renderPlot` draws the plot in a [design](#plot-designs) and applies three
+`renderPlot` draws the plot in a [design](#plot-designs) and applies four
 sets of rules after drawing, in this order, so the later win:
 
 0. the design's rules (its rules for every plot, then those for the plot's
@@ -768,7 +770,9 @@ sets of rules after drawing, in this order, so the later win:
 1. the user's rules for the plot's kind, `PlotAesthetics.userRules(kind)`,
    which are preferences (AppPrefs group `PlotAesthetics`) and follow the
    user, not the config;
-2. the plot's rules, `spec.aesthetics`
+2. the plot's note's own font, size, colour and ground (`spec.note`), for
+   the component `note`;
+3. the plot's rules, `spec.aesthetics`
    ([Plots](EphysAnalysisConfig.md#plots)), saved in the config, so runs,
    reports and generated scripts draw the plot the same way.
 
@@ -1084,6 +1088,7 @@ pipeline's selected datasets instead of `cfg.Source`
 | `cancel()` | the plot being drawn finishes; the next `progress()` call throws `EphysAnalysisRunner:Cancelled`, and what is left is `cancelled` |
 | `Results`, `Report`, `ReportFiles`, `RunRecordFile` | the last run's results, report struct, report files and run record |
 | `ProgressFcn`, `LogFcn` | `ProgressFcn(fraction, message)` before each dataset and plot, `fraction` how far the whole run is (dataset j of n starts at (j−1)/n and its plots share its 1/n); it may call `cancel()` itself. `LogFcn(message)` per line (default: print; `[]` = quiet) |
+| `PollFcn` | `PollFcn()` at `computePlot`'s checkpoints (between its steps; per unit, group or sixteenth epoch inside `spikePSTH`, `aurocCurves`, `evokedPotential` and `unitWaveforms`, which take it as `Check=`). The app's preview sets it so its Cancel button can act while a plot computes: after `cancel()` the next checkpoint throws `EphysAnalysisRunner:Cancelled`. Empty (a run, a script) means no checkpoints. `clearCancel()` forgets an earlier `cancel()` |
 
 - `computePlot(src, spec)` is the one compute path: `epochTable` (with the
   plot's baseline, so the artifact test covers it, and a raster's sort

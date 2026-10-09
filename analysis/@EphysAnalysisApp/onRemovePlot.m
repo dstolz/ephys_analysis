@@ -1,13 +1,20 @@
 function onRemovePlot(obj)
-%onRemovePlot  Remove the selected plot.
-k = obj.SelectedPlot;
-if k < 1; return; end
+%onRemovePlot  Remove the selected plots (every one picked in the tree).
+%   The plot that takes the first one's place is selected next.
+ks = obj.selectedPlots();
+if isempty(ks); return; end
 cfg = obj.gatherConfig();
-id = cfg.Plots(k).id;
-cfg = cfg.removePlot(id);
-obj.SelectedPlot = min(k, numel(cfg.Plots));
+ids = [cfg.Plots(ks).id];
+for id = ids
+    cfg = cfg.removePlot(id);
+end
+obj.SelectedPlot = min(min(ks), numel(cfg.Plots));
 obj.applyConfig(cfg);
-obj.setStatus("Removed plot " + id + ".");
+if isscalar(ids)
+    obj.setStatus("Removed plot " + ids + ".");
+else
+    obj.setStatus(sprintf("Removed %d plots: %s.", numel(ids), strjoin(ids, ", ")));
+end
 obj.PreviewSeconds = 0;
 obj.autoPreview();
 end

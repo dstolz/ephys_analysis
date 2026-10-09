@@ -1,6 +1,6 @@
 function W = unitWaveforms(src, meta, opts)
 %unitWaveforms  Each unit's spike waveform on its peak channel, for a plot's waveform boxes.
-%   W = unitWaveforms(SRC, META, Source=, MaxSpikes=) takes the dataset SRC
+%   W = unitWaveforms(SRC, META, Source=, MaxSpikes=, Check=) takes the dataset SRC
 %   (loadAnalysisSource) and the units META (selectUnits' table, one row
 %   per unit, in the plot's order) and gives each unit's waveform:
 %     Source "units" (sorted units, by META.unitId): at most MaxSpikes of
@@ -17,7 +17,9 @@ function W = unitWaveforms(src, meta, opts)
 %       and the mean of them all. A spikes file without waveforms gives
 %       none: the warning unitWaveforms:NoWaveforms and W.note say so.
 %   With SRC.outputs' CacheData (loadAnalysisSource's) the spikes are read
-%   once per unit and count, so a redraw does not read them again.
+%   once per unit and count, so a redraw does not read them again. Check is
+%   a function handle called with no input before each unit (default []); it
+%   may throw to stop (the app's Cancel button).
 %
 %   W fields (one row per unit of META)
 %     timeMs     {nU x 1} [nt x 1] ms from the spike (0 = its sample)
@@ -40,6 +42,7 @@ arguments
     meta table
     opts.Source (1,1) string {mustBeMember(opts.Source, ["units" "detected"])} = "units"
     opts.MaxSpikes (1,1) double {mustBePositive, mustBeInteger} = 100
+    opts.Check = []
 end
 
 nU = height(meta);
@@ -53,6 +56,7 @@ switch opts.Source
         U = out.load("sorting");
         unread = "";                       % why the sorted data cannot be read: templates from then on
         for u = 1:nU
+            if ~isempty(opts.Check); opts.Check(); end
             id = double(meta.unitId(u));
             if unread == ""
                 try

@@ -22,7 +22,7 @@ classdef EphysAnalysisConfig
     %               rasterEvents, histStyle, fill, fillAlpha, normalize, stack,
     %               stackSpacing, maskAfterStop, param, seriesParam, yParam,
     %               jitter, xScale, value, order, metric, correlation,
-    %               measure, auroc, waveform, aesthetics, style
+    %               measure, auroc, waveform, note, aesthetics, style
     %     Export    figure files: Formats (png / eps / svg / pdf), Folder and
     %               FilenamePattern with tokens, Dpi, FigureSizeCm
     %     Report    one HTML and / or multi-page PDF report per run (or per
@@ -73,6 +73,9 @@ classdef EphysAnalysisConfig
         SignalSources = ["LFP" "MUA" "SPIKE" "AUX"]
         % Where in a unit's tile its waveform box sits (a plot's waveform.location).
         WaveformLocations = ["northeast" "north" "northwest" "west" "southwest" "south" "southeast" "east"]
+        % Where a plot's note sits (a plot's note.placement): outside the plot, over it, or at a point.
+        NotePlacements = ["below" "above" "right" "left" "northwest" "north" "northeast" "west" "center" "east" ...
+            "southwest" "south" "southeast" "custom"]
         % String fields that are lists even when their default has one element.
         ListFields = ["response" "pairingFlags" "groupBy" "classes" "groups" "Formats" "Datasets" "Folders"]
     end

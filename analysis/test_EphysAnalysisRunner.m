@@ -189,6 +189,36 @@ R2 = r2.run(Export=false, Report=false);
 check(any(R2.Status == "cancelled") && height(R2) == 2 * numel(cfg.enabledPlots()) && isempty(r2.ReportFiles), ...
     sprintf('cancel stops the run; the rest are "cancelled" (%d of %d)', nnz(R2.Status == "cancelled"), height(R2)));
 
+fprintf('\n== 3. cancel inside a plot (the preview''s PollFcn) ==\n');
+polls = 0;
+cancelAt = 0;
+    function onPoll()
+        polls = polls + 1;
+        if polls == cancelAt; r.cancel(); end
+    end
+srcC = r.source(1);
+idsC = cfg.enabledPlots();
+specC = cfg.plotFor(idsC(1));
+r.PollFcn = @onPoll;
+r.clearCancel();
+R0 = r.computePlot(srcC, specC);
+nPolls = polls;
+check(nPolls >= 3 && isfield(R0, 'epochs'), sprintf('with PollFcn set, computePlot reaches %d checkpoints and still returns the result', nPolls));
+polls = 0; cancelAt = 2;
+r.clearCancel();
+cid = "";
+try
+    r.computePlot(srcC, specC);
+catch ME
+    cid = string(ME.identifier);
+end
+check(cid == "EphysAnalysisRunner:Cancelled" && polls == 2, 'cancel() at the second checkpoint stops computePlot there (Cancelled)');
+r.PollFcn = [];
+polls = 0;
+R1 = r.computePlot(srcC, specC);
+check(polls == 0 && isequaln(R1.epochs, R0.epochs), 'with PollFcn empty (a run) there are no checkpoints: a cancel() already asked for does not stop computePlot');
+r.clearCancel();
+
 fprintf('\n== 4. driven units fire more in the stimulus window ==\n');
 src = r.source(1);
 E = epochTable(src, eventRef(line="Stim"), Window=epochWindow(pre=0, post=0.5), Selection=trialSelection());

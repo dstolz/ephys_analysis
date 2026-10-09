@@ -84,7 +84,9 @@
     {"role": "waveBox", "property": "EdgeColor", "value": "#4c566a"},
     {"role": "waveMean", "property": "Color", "value": "#ebcb8b"},
     {"role": "waveLabel", "property": "FontName", "value": "Segoe UI, Helvetica Neue, Arial"},
-    {"role": "waveLabel", "property": "Color", "value": "#aab2c0"}
+    {"role": "waveLabel", "property": "Color", "value": "#aab2c0"},
+    {"role": "note", "property": "FontName", "value": "Segoe UI, Helvetica Neue, Arial"},
+    {"role": "note", "property": "Color", "value": "#d8dee9"}
   ],
   "kinds": {
     "heatmap": [

@@ -104,6 +104,9 @@ function A = aurocCurves(spikeTimes, E, opts)
 %                     the call fields as Cutoff "none" gives them, for
 %                     aurocCall over a larger pool
 %     Seed            the random stream's seed (default 0)
+%     Check           a function handle called with no input before each unit
+%                     and group (default []); it may throw to stop (the app's
+%                     Cancel button)
 %     Groups          the groups table from epochTable (default: built
 %                     from E.groupIndex / E.group)
 %
@@ -155,6 +158,7 @@ arguments
     opts.Alpha (1,1) double = 0.05
     opts.Call (1,1) logical = true
     opts.Seed (1,1) double = 0
+    opts.Check = []
     opts.Groups = []
 end
 
@@ -258,6 +262,7 @@ mn = NaN(nU, nG); ph = NaN(nU, nG); p = NaN(nU, nG);
 rs = RandStream('mt19937ar', 'Seed', opts.Seed);
 modW = find(inMod).';
 for u = 1:nU
+    if ~isempty(opts.Check); opts.Check(); end
     C = binCounts(st{u}, ta, edgesF);   % [nF x nE]
     C(mask) = 0;
     if opts.Method == "psth"
@@ -269,6 +274,7 @@ for u = 1:nU
         Bv = rangeSums(C, mask, tileFirst, nWb, prob);        % [nT x nE]
     end
     for g = 1:nG
+        if ~isempty(opts.Check); opts.Check(); end
         cols = find(gIdx == g);
         if isempty(cols); continue; end
         csum = sum(C(:, cols), 2);

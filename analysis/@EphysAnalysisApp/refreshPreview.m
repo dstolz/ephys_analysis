@@ -8,10 +8,18 @@ function refreshPreview(obj, opts)
 %   on any part of the preview opens the aesthetics editor; what it
 %   remembers for the plot comes back through rememberAesthetics. The
 %   badge under it (setPreviewState) says Computing, then Drawing, with a
-%   card over the old plot, and how it ended.
+%   card over the old plot, and how it ended. The card's Cancel button
+%   (onCancelPreview) stops the compute: it polls (Runner.PollFcn, drawnow
+%   limitrate) so the button's callback runs in the middle of it, and the
+%   edits made meanwhile come in too; they do not start a second preview,
+%   but leave this one Out of date.
 arguments
     obj (1,1) EphysAnalysisApp
     opts.Force (1,1) logical = false
+end
+if ismember(obj.PreviewState, ["computing" "drawing"])
+    obj.PreviewRedo = true;
+    return
 end
 L = obj.PreviewLabel;
 if obj.SelectedPlot < 1 || obj.SelectedPlot > numel(obj.Config.Plots)
@@ -51,10 +59,16 @@ if ~opts.Force && ismember(spec.source, EphysAnalysisConfig.SignalSources)
     end
 end
 L.Text = "Computing " + spec.id + " ...";
+rn = obj.Runner;
+rn.clearCancel();   % before the badge paints: a click on Cancel can come in while it does
+obj.PreviewRedo = false;
 obj.setPreviewState("computing", Message="Computing " + spec.id + " on " + src.name + " ...");
 t0 = tic;
+rn.PollFcn = @() drawnow("limitrate");
+polling = onCleanup(@() stopPolling(rn));
 try
-    R = obj.Runner.computePlot(src, spec);
+    R = rn.computePlot(src, spec);
+    rn.PollFcn = [];
     obj.PreviewResult = R;
     obj.PreviewPages = plotPageCount(R, spec);
     obj.PreviewPage = min(max(obj.PreviewPage, 1), obj.PreviewPages);
@@ -63,7 +77,15 @@ try
     obj.Runner.renderPlotFigures(R, spec, Target=obj.PreviewPanel, Page=obj.PreviewPage, ...
         OnRemember=@(rules) obj.rememberAesthetics(spec.id, rules));
 catch ME
+    if ~isvalid(obj) || ~isvalid(obj.Fig); return; end   % the app was closed while it computed
     obj.PreviewResult = [];
+    if ME.identifier == "EphysAnalysisRunner:Cancelled"
+        clearPanel(obj, spec.id + " was cancelled: press Preview to compute it.");
+        obj.PreviewSeconds = Inf;
+        obj.log(spec.id + " preview cancelled.");
+        obj.setPreviewState("cancelled");
+        return
+    end
     clearPanel(obj, spec.id + " failed: " + string(ME.message));
     obj.PreviewSeconds = Inf;
     obj.log(spec.id + " preview failed: " + string(ME.message));
@@ -72,12 +94,18 @@ catch ME
 end
 obj.PreviewSeconds = toc(t0);
 obj.setPreviewState("drawn");
+if obj.PreviewRedo; obj.setPreviewState("stale"); end
 L.Text = sprintf("%s on %s (%.1f s); right-click the plot to change its colours, lines and fonts", ...
     spec.id, src.name, obj.PreviewSeconds);
 if obj.PreviewSeconds >= obj.AutoPreviewSeconds && obj.AutoPreviewCheckBox.Value
     L.Text = L.Text + ": slow, so edits wait for Preview";
 end
 syncPages(obj);
+end
+
+
+function stopPolling(rn)
+if isvalid(rn); rn.PollFcn = []; end
 end
 
 

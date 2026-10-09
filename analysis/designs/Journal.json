@@ -92,7 +92,9 @@
     {"role": "waveBox", "property": "EdgeColor", "value": "#bfbfbf"},
     {"role": "waveMean", "property": "Color", "value": "#000000"},
     {"role": "waveLabel", "property": "FontName", "value": "Arial, Helvetica"},
-    {"role": "waveLabel", "property": "Color", "value": "#4d4d4d"}
+    {"role": "waveLabel", "property": "Color", "value": "#4d4d4d"},
+    {"role": "note", "property": "FontName", "value": "Arial, Helvetica"},
+    {"role": "note", "property": "Color", "value": "#000000"}
   ],
   "kinds": {
     "heatmap": [

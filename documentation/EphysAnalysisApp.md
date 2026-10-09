@@ -232,14 +232,16 @@ unless **Group by** says otherwise. A plot reads `<id> (<source>)` under
 plot-type groups and `<id> (<kind>)` under the others; disabled plots are
 marked *(off)*. Within a group the plots keep the run and report order. A
 group collapses under its header (which are collapsed is remembered); picking
-a header leaves the plot in the editor selected.
+a header leaves the plots selected as they were. **Ctrl**- or
+**Shift**-click selects several plots, to edit them together
+([Several plots at once](#several-plots-at-once)).
 
 | Control | Effect |
 | --- | --- |
 | **Group by** | *Plot type* (default), *Source* (units, detected, LFP, ...), *Layout* (the layout drawn), *Enabled / off*, or *None* (a flat list); remembered |
 | kind drop-down (its own row), **Add** | adds a plot of that kind ([Plot kinds](#plot-kinds)) with the next free id (`psth_1`, `psth_2`, ...) and selects it |
-| **Remove**, **Duplicate** | removes the selected plot; copies it with a new id |
-| **Up**, **Down** | swaps it with its neighbour in its group (the whole list when ungrouped), which changes the run order of those two |
+| **Remove**, **Duplicate** | removes the selected plots; copies each with a new id, right after it, and selects the copies |
+| **Up**, **Down** | swaps it with its neighbour in its group (the whole list when ungrouped), which changes the run order of those two; off while several plots are selected |
 
 **The editor.** On top: the plot's kind (with a line on what it draws),
 **Enabled** (a disabled plot is kept but not run; `enabled`), **Id**
@@ -256,6 +258,7 @@ their headers (**▼** / **►**; which are collapsed is remembered):
 | *Kind* options | PSTH and raster: **Sort raster by** (blank = trial order, stop latency or a trial parameter; `rasterSort`) and its direction (ascending or descending; `rasterSortOrder`), **Raster rows by group first** (unticked: every epoch sorted as one block, each row on its group's colour; `rasterByGroup`), **Mark events** (the lines whose events are marked on each row, e.g. `Trough`, several separated by spaces or commas; onset, offset or both; every event in the window or only in the epoch's trial; `rasterEvents`) and **Mark look** (marker, size, and *auto* (a colour per line and edge) or one colour; right-click a mark to style one line's marks on its own); behavior: **Y value** (a trial parameter such as RespLatency, or *stop*: the stop event's latency, ms; `yParam`), parameter and series (`param`, `seriesParam`), **X axis** (evenly spaced or at their values; `xScale`) and **Jitter points** (points layout; `jitter`); PSTH: **Raster above each PSTH** (`withRaster`), **PSTH as** bar or line (`histStyle`), normalization (none, unit peak, group peak; `normalize`), **Filled** and its opacity (blank = automatic; `fill`, `fillAlpha`), **Stack groups** and its spacing (a row per group, labelled by value on the left and by peak rate on the right; `stack`, `stackSpacing`); tuning: parameter and series (`param`, `seriesParam`); probe map: value (`value`); heatmap: row order (*probe*, *peak*, and *modulation* with the auROC baseline; `order`); unit correlation: epoch rate (mean or peak; `metric`) and correlation (Pearson or Spearman; `correlation`) |
 | Appearance (`style`) | tiles per page (`MaxTiles`), grid spacing (*loose*, *compact*, *tight*, *none*; `TileSpacing`), font size, line width, site size (probe map), y limits (blank = automatic, or two numbers such as `0 40`), group colours (*lines*: the trial selection's colours; a colormap; or one colour such as *black* or `#1f77b4`, typed in; `Colormap`), heat colours (*auto*: parula, or blueWhiteRed for unit correlations; `HeatColormap`), **Sort by** depth and / or shank (`SortDepth`, `SortShank`: units and channels top of the probe first, by shank first), **Label with** depth and / or shank (`LabelDepth`, `LabelShank`), and **Show** SEM, stop marks, legend, grid |
 | Unit waveform | rasters, and PSTH and tuning grids, of spikes: **Show** (*Off*, *Mean*, *Subsample*, *Mean + subsample*) each unit's waveform on its peak channel in its tile, and how many spikes the subsample draws (a sorted unit's mean is over them); **Location** (*North-east* by default; north is the top edge), **Axis box** (an outline on a pale ground; unticked, the waveform alone) and its size (1x = a third of the tile). Sorted units' spikes are cut from the sorted `.bin` (their templates when it is not there); detections need the Spikes step's *Waveforms* option (`waveform`; [Unit waveforms](EphysAnalysisConfig.md#unit-waveforms)) |
+| Text note | any plot: **Text** (a block of descriptive text; each new line is a line; blank draws nothing), **Place** (*Below*, *Above*, *Right of* or *Left of* the plot, which gives up a band for it; *Over the plot* at a corner, an edge or the center; or *At x, y*, the anchor's place across and up the plot, 0-1), **Align** (left, center, right; top, middle, bottom: how the lines line up and where the text sits in its band), **Rotation**, **Font** (*auto* = the design's, or any installed font) and size (blank = the plot's font size), **Bold**, **Italic**, **Outline**, **Colours** (text and ground; *auto* and *none* leave them to the design) and **Interpreter** (*As typed* or *TeX*). Its settings wait for some text (`note`; [Plot notes](EphysAnalysisConfig.md#plot-notes)); right-click the note in the preview to restyle it like any other part of the plot |
 
 Only what the selected plot uses is shown (`syncPlotEditor`): its kind,
 source and layout decide. A probe map has no event, window, selection or
@@ -270,7 +273,7 @@ evoked potentials and tuning curves; group colours, legend (with its place
 orientation and its box, on while the legend is) and SEM only
 where groups are drawn as lines or bars; heat colours only for heatmaps,
 probe maps and unit correlations; the unit waveform for rasters and PSTH
-and tuning grids of spikes. A behavior plot reads only the trials: it
+and tuning grids of spikes; the text note for every kind. A behavior plot reads only the trials: it
 shows its y value, parameter, series and x axis, the event, window and
 selection, the font, line width, y limits, series colours, SEM, legend
 and grid, and no unit, channel, bin, baseline or tile rows. The window modes offered are the kind's
@@ -285,7 +288,8 @@ each PSTH*, the marks' look until a line is named to mark, the jitter
 until the *points* layout, the units of a shift until a parameter is
 chosen, the
 waveform's spikes, location, axis box and size until **Show** is not
-*Off*; under the auROC baseline the step until *sliding*, the threshold
+*Off*, the note's place, alignment, font and colours until it has text
+(its x and y until *At x, y*); under the auROC baseline the step until *sliding*, the threshold
 until a fixed cutoff, the resamples for ranksum, the calls without a
 cutoff, and smoothing and normalization (the auROC compares the bins as
 counted, on its own 0-1 scale).
@@ -296,6 +300,36 @@ values and the plot uses them. The controls stay editable: an edit gives
 the plot its own values (the defaults with the edit) and unticks the box;
 ticking it again goes back to the defaults. A probe map aligns to nothing,
 so it has none of the three.
+
+#### Several plots at once
+
+Select several plots in the tree (**Ctrl**-click adds or drops one,
+**Shift**-click a run of them) and the editor changes them all at once:
+
+- **What shows**: only the rows every selected plot uses, so two PSTHs
+  show the PSTH rows and a PSTH with a raster only the rows they share
+  (bins, the raster sort and marks, the legend, ...). The **Id** and
+  **Title** are each plot's own and are hidden. **Source** and **Layout**
+  show only when the plots all offer the same ones. The waveform rows hide
+  when unit-waveforms plots are mixed with other kinds. A drop-down offers
+  only what all of them take.
+- **The values shown** are the first plot picked, the one previewed.
+- **An edit** goes to every selected plot, but only the value it changed:
+  set the smoothing on two PSTHs with different bins and both get the
+  smoothing while each keeps its bins. An edit in an Event reference,
+  Epoch window or Trial selection section gives each plot its own: the
+  values it used (its own, or the defaults) with that one value changed.
+  Ticking **Use default** puts them all back on the defaults. A look
+  remembered from the preview's right-click editor for "this plot" goes
+  to all of them too, and so does forgetting one.
+- **Telling you**: the editor's panel title counts the plots. The line
+  under the kind becomes an amber banner naming them and saying that a
+  change goes to all of them. An amber bar over the preview says it draws
+  the first plot only.
+
+To set a value that the plots differ on to the first plot's value, change
+it and change it back: an edit is what spreads, not the value shown.
+Click one plot on its own to edit it alone again.
 
 **The preview** draws the selected plot on the active dataset through the
 runner, so it is what a run exports.
@@ -323,6 +357,7 @@ its left says where the preview is, with an icon:
 | **Press Preview** (blue) | the signal extract is larger than `PreviewMaxMB`, so it waits for **Preview** |
 | **Cannot draw** (grey) | the active dataset cannot draw this plot; the line says why |
 | **Failed** (red) | computing or drawing it failed; the line and the Log tab say why |
+| **Cancelled** (grey) | you pressed **Cancel** on the card while it computed; auto-preview leaves it until you press **Preview** |
 | **No preview** (grey) | no plot is selected, or no dataset is active |
 
 While it computes and draws, a card in the middle of the preview says
@@ -330,6 +365,17 @@ what (*"Computing psth_1 on <dataset> ..."*) over the last plot, and the
 pointer is a watch; the new plot replaces both. The spinners keep turning
 while MATLAB is busy. An out-of-date preview is redrawn when you come back
 to the Plots tab, if Auto is on and the preview is quick.
+
+**Cancel a preview.** While a plot computes the card has a red **Cancel**
+button. The compute checks for it between its steps and for every unit
+(spikes, auROC, waveforms) or sixteenth epoch (signals), so it stops within
+about one unit's work; a step that is one call (reading a signal extract,
+building the epoch table) finishes first, and drawing cannot be stopped.
+The panel then says the plot was cancelled, and the badge says
+**Cancelled**. Closing the app while a preview computes stops it the same
+way. Edits you make while it computes do not start a second preview; they
+leave the one that finishes **Out of date**. A run (**Run**) is cancelled
+with the Export tab's **Cancel**, as before: after the plot being drawn.
 
 **Plot aesthetics.** Right-click any part of the preview (a line, band,
 bar, text, legend or axes) and pick **Edit aesthetics...** to change
@@ -792,8 +838,9 @@ results, on the Log tab and in the report.
 | building | `buildUI`, `buildMenus`, `buildToolbar` (its icons in `analysis/icons/toolbar`), `buildDataTab`, `buildAlignTab`, `buildPlotsTab`, `buildExportTab`, `buildLogTab`, `buildAlignControls`; the editor's collapsible sections in `private/` (`formSection`, `formRow`, `formShow`, `formLayout`) |
 | config model | `gatherConfig` / `applyConfig`, `gather*` / `apply*Section`, `gatherAlignControls` / `applyAlignControls`, `gatherPlotEditor` / `applyPlotEditor`, `onConfigChanged`, `updateTitle`, `confirmDiscard` |
 | plot editor | `syncPlotEditor` (what shows, what is enabled, what the drop-downs offer: `private/plotEditorChoices`), `layoutPlotEditor`, `onPlotSectionToggled`, `onPlotAlignEdited`, `onPlotDefaultToggled`, `applyPlotEditorDefaults` |
+| several plots | `onPlotTreeSelected`, `onPlotSelected` and `selectedPlots` (the selection, the editor's plot first), `showPlotSelection` (the banner and the bar over the preview), `private/spreadPlotEdit` (an edit reaching the other plots selected, only what it changed), `rememberAesthetics` (a remembered look likewise) |
 | data | `openSource`, `onScan`, `refreshDatasetsTable`, `selectDataset`, `refreshDatasetInfo` |
-| previews | `refreshAlignPreview`, `refreshPreview`, `autoPreview`, `onPreviewPage`, `setPreviewState` (the badge and the busy card; its icons in `analysis/icons/status`) |
+| previews | `refreshAlignPreview`, `refreshPreview`, `autoPreview`, `onPreviewPage`, `setPreviewState` (the badge and the busy card; its icons in `analysis/icons/status`), `onCancelPreview` |
 | epoch diagram | `onShowEpochs`, `refreshEpochDiagram`; the window itself is `analysis/EpochDiagram.m` |
 | plot designs | `refreshDesigns` (the Design menu and list; `PlotDesign.listen` keeps them current), `onDesignChosen`, `onSaveDesign`, `onImportDesign`, `onDeleteDesign`, `onDesignsFolder`; the designs themselves: `PlotDesign`, `analysis/designs` |
 | running | `onValidate`, `onPlan`, `onRunExport`, `onCancelRun` |
@@ -837,7 +884,11 @@ sort, direction, grouping and event marks reaching the plot and the
 preview; **Shift by** giving a plot its own event shifted by RespLatency
 (the misses left out); a behavior plot (its rows shown, the others
 hidden; the y value, parameter, jitter and layout reaching the plot; its
-box-plot preview); collapsing a
+box-plot preview); several plots selected at once (Ctrl-click keeping the
+first picked in the editor and the preview, the banner, title and bar
+saying so, only the rows they share, an edit, an event edit, *Use default*
+and a remembered look reaching each plot as changed and no further,
+Duplicate and Remove taking them all); collapsing a
 section; the gather / apply
 round trip, keeping the fields without a control (the stop event's offset,
 length and time range, trial rows) and the stop's *n*; Save As, New, reopen;

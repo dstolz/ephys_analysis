@@ -194,6 +194,14 @@ classdef PlotAesthetics
                     C(end+1) = struct('h', host.Legend, 'role', "legend", 'group', "", 'tile', 0, 'name', "Plot"); %#ok<AGROW>
                 end
             end
+            for tl = PlotAesthetics.layoutsIn(target)
+                for host = reshape(findall(tl.Parent, '-depth', 1, 'Type', 'axes', 'Tag', 'noteHost'), 1, [])
+                    if ~isequal(getappdata(host, 'NoteOwner'), tl); continue; end   % the plot's own text note, drawNote
+                    for tx = reshape(flipud(findall(host, 'Type', 'text')), 1, [])
+                        C(end+1) = struct('h', tx, 'role', "note", 'group', "", 'tile', 0, 'name', "Plot"); %#ok<AGROW>
+                    end
+                end
+            end
             axs = PlotAesthetics.axesIn(target);
             for t = 1:numel(axs)
                 ax = axs(t);
@@ -280,6 +288,7 @@ classdef PlotAesthetics
                 "ylabel"       "Y label"
                 "ylabelRight"  "Right y label"
                 "legend"       "Legend"
+                "note"         "Note"
                 "colorbar"     "Colour bar"
                 "rate"         "PSTH"
                 "rateFill"     "PSTH fill"
@@ -541,7 +550,7 @@ classdef PlotAesthetics
                 return
             end
             axs = flipud(findall(target, 'Type', 'axes'));
-            axs = axs(~strcmp({axs.Tag}, 'legendHost'));   % placeLegend's hidden hosts of legends outside the grid
+            axs = axs(~ismember({axs.Tag}, {'legendHost' 'noteHost'}));   % hidden hosts of a legend outside the grid (placeLegend) and of the note (drawNote)
             n = numel(axs);
             tile = inf(n, 2);   % the tile, then the tile within a nested layout (a PSTH's raster and rate panel)
             for k = 1:n

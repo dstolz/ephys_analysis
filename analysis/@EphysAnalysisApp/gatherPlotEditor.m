@@ -83,6 +83,25 @@ p.waveform.scale = E.waveScale.Value;
 p.waveform.ampScale = string(E.waveAmp.Value);
 p.waveform.showSites = logical(E.waveSites.Value);
 p.waveform.showNames = logical(E.waveNames.Value);
+p.note.text = strjoin(string(E.annText.Value(:)).', newline);
+p.note.placement = string(E.annPlace.Value);
+p.note.x = E.annX.Value;
+p.note.y = E.annY.Value;
+p.note.align = string(E.annAlign.Value);
+p.note.valign = string(E.annVAlign.Value);
+p.note.rotation = E.annRotation.Value;
+p.note.fontName = strtrim(string(E.annFont.Value));
+if lower(p.note.fontName) == "auto"; p.note.fontName = ""; end
+p.note.fontSize = E.annSize.Value;
+if isempty(p.note.fontSize); p.note.fontSize = NaN; end
+p.note.bold = logical(E.annBold.Value);
+p.note.italic = logical(E.annItalic.Value);
+p.note.box = logical(E.annBox.Value);
+p.note.color = strtrim(string(E.annColor.Value));
+if lower(p.note.color) == "auto"; p.note.color = ""; end
+p.note.background = strtrim(string(E.annBackground.Value));
+if lower(p.note.background) == "none"; p.note.background = ""; end
+p.note.interpreter = string(E.annInterp.Value);
 p.style.MaxTiles = E.maxTiles.Value;
 p.style.TileSpacing = string(E.tileSpacing.Value);
 p.style.FontSize = E.fontSize.Value;

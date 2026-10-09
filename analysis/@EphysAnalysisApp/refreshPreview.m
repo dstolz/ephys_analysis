@@ -13,9 +13,14 @@ function refreshPreview(obj, opts)
 %   limitrate) so the button's callback runs in the middle of it, and the
 %   edits made meanwhile come in too; they do not start a second preview,
 %   but leave this one Out of date.
+%   A grid of units or channels is computed for the page shown only
+%   (computePlot Page=); < and > then compute the page they go to.
+%   AllPages (Ctrl+click on Preview) computes every page, which < and >
+%   then only draw.
 arguments
     obj (1,1) EphysAnalysisApp
     opts.Force (1,1) logical = false
+    opts.AllPages (1,1) logical = false
 end
 if ismember(obj.PreviewState, ["computing" "drawing"])
     obj.PreviewRedo = true;
@@ -67,7 +72,9 @@ t0 = tic;
 rn.PollFcn = @() drawnow("limitrate");
 polling = onCleanup(@() stopPolling(rn));
 try
-    R = rn.computePlot(src, spec);
+    page = max(obj.PreviewPage, 1);
+    if opts.AllPages; page = 0; end
+    R = rn.computePlot(src, spec, Page=page);
     rn.PollFcn = [];
     obj.PreviewResult = R;
     obj.PreviewPages = plotPageCount(R, spec);

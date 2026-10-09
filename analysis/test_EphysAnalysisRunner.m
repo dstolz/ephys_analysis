@@ -299,6 +299,15 @@ spec = cfg.plotFor("raster_stim"); spec.style.YLim = [0 2];
 Rr = r.computePlot(src, spec);
 h = renderPlot(Rr, spec, fig);
 check(all(arrayfun(@(a) isequal(a.YLim, [0.5 numel(Rr.epochGroup) + 0.5]), h.axes)), 'a raster plot shows every epoch whatever Style.YLim');
+spec.style.MaxTiles = 1;
+nU = numel(Rr.raster);
+hAll = renderPlot(Rr, spec, fig, Page=2);
+tAll = string(hAll.axes(1).Title.String);
+R2 = r.computePlot(src, spec, Page=2);
+h = renderPlot(R2, spec, fig);
+check(nU >= 2 && numel(R2.raster) == 1 && isequal(R2.page, [2 nU]) && plotPageCount(R2, spec) == nU ...
+    && h.page == 2 && isequal(string(h.axes(1).Title.String), tAll), ...
+    'computePlot Page=2 computes only that page''s unit, and renderPlot draws it as page 2 of them all');
 check(ismember("Depth", string(Rr.epochs.Properties.VariableNames)) && string(h.layout.YLabel.String) == "Epoch (by Depth)", ...
     'rasterSort "Depth": computePlot copies Depth onto the epochs and the raster sorts by it');
 spec = cfg.plotFor("lfp_stim"); spec.style.YLim = [-50 50];

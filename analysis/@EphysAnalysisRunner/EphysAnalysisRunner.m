@@ -83,7 +83,7 @@ classdef EphysAnalysisRunner < handle
         outs = datasets(obj)
         src = source(obj, k)
         T = plan(obj, opts)
-        [R, E, G] = computePlot(obj, src, spec)
+        [R, E, G] = computePlot(obj, src, spec, opts)
         h = renderPlotFigures(obj, R, spec, opts)
         rows = runDataset(obj, k, opts)
         T = run(obj, opts)

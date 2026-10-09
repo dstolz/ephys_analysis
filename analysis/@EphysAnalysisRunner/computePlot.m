@@ -1,4 +1,4 @@
-function [R, E, G] = computePlot(obj, src, spec) %#ok<INUSD>
+function [R, E, G] = computePlot(obj, src, spec, opts) %#ok<INUSD>
 %computePlot  Compute one plot's result for one dataset: the one compute path.
 %   [R, E, G] = r.computePlot(SRC, SPEC) with SRC from source() and SPEC from
 %   Config.plotFor(id):
@@ -44,10 +44,22 @@ function [R, E, G] = computePlot(obj, src, spec) %#ok<INUSD>
 %   Check=; after cancel() the next one throws EphysAnalysisRunner:Cancelled
 %   (checkpoint). A read of one file or one epochTable call is not
 %   interrupted; the checkpoint after it is.
+%   Page=P (the app's preview; default 0 = every page) computes only the
+%   units or channels on page P of a grid (plotPageCount): the selection is
+%   put in probe order (probeOrder with spec.style) and cut to that page's
+%   Style.MaxTiles, and R.page = [P nPages] tells renderPlot and
+%   plotPageCount which page it holds. A plot that is not a grid ignores it.
 %
 %   See also EphysAnalysisRunner.renderPlotFigures, EphysAnalysisRunner.runDataset.
 
+arguments
+    obj (1,1) EphysAnalysisRunner
+    src (1,1) struct
+    spec (1,1) struct
+    opts.Page (1,1) double {mustBeNonnegative, mustBeInteger} = 0
+end
 w = spec.window;
+pg = [];   % [page nPages] when only one page is computed
 b = [];
 if spec.baseline.Mode ~= "none"; b = spec.baseline.Window; end
 isSignal = ismember(spec.source, EphysAnalysisConfig.SignalSources);
@@ -64,6 +76,9 @@ switch spec.kind
             R = evokedPotential(Y, fs, E, Window=[w.pre w.post], Baseline=b, Groups=G, Meta=meta, Units=meta.units(1), Check=chk);
         else
             [st, meta] = selectUnits(src, spec.units, Ref=spec.ref, Selection=spec.selection);
+            if spec.kind == "raster" || (spec.kind == "psth" && spec.layout == "grid")
+                [k, pg] = pageRows(meta, spec, opts.Page); st = st(k); meta = meta(k, :);
+            end
             R = spikePSTH(st, E, Window=[w.pre w.post], BinSec=spec.bins.BinSec, SmoothSec=spec.bins.SmoothSec, ...
                 Measure=spec.measure, Baseline=b, BaselineMode=spec.baseline.Mode, MaskAfterStop=spec.maskAfterStop, ...
                 Raster=spec.kind == "raster" || (spec.kind == "psth" && spec.withRaster), Groups=G, Meta=meta, ...
@@ -77,6 +92,10 @@ switch spec.kind
     case "evoked"
         [E, G] = epochTable(src, spec.ref, Window=w, Selection=spec.selection, Baseline=b);
         [Y, fs, meta] = selectChannels(src, spec.source, Channels=spec.channels);
+        if spec.layout == "grid"
+            [k, pg] = pageRows(meta, spec, opts.Page);
+            if ~isempty(pg); Y = Y(:, k); meta = meta(k, :); end
+        end
         R = evokedPotential(Y, fs, E, Window=[w.pre w.post], Baseline=b, Groups=G, Meta=meta, Units=meta.units(1), Check=chk);
     case "rate"
         [E, G] = epochTable(src, spec.ref, Window=w, Selection=spec.selection, Baseline=b);
@@ -86,6 +105,9 @@ switch spec.kind
         cols = [spec.param spec.seriesParam];
         [E, G] = epochTable(src, spec.ref, Window=w, Selection=spec.selection, Baseline=b, Columns=cols(cols ~= ""));
         [st, meta] = selectUnits(src, spec.units, Ref=spec.ref, Selection=spec.selection);
+        if spec.layout == "grid"
+            [k, pg] = pageRows(meta, spec, opts.Page); st = st(k); meta = meta(k, :);
+        end
         F = firingRate(st, E, Measure=spec.measure, Baseline=b, Normalize=spec.baseline.Mode, Groups=G, Meta=meta);
         series = [];
         if spec.seriesParam ~= ""; series = E.(spec.seriesParam); end
@@ -102,6 +124,9 @@ switch spec.kind
         G = R.groups;
     case "waveforms"
         [~, meta] = selectUnits(src, spec.units, Ref=spec.ref, Selection=spec.selection);
+        if spec.layout == "grid"
+            [k, pg] = pageRows(meta, spec, opts.Page); meta = meta(k, :);
+        end
         G = table(1, "all", [0.15 0.15 0.15], height(meta), 'VariableNames', {'index', 'label', 'color', 'n'});
         R = struct('kind', "waveforms", 'meta', meta, 'labels', meta.label, 'n', height(meta), 'groups', G, 'probe', src.probe);
     case "behavior"
@@ -133,6 +158,22 @@ end
 R.epochs = E;
 R.dataset = src.name;
 R.spec = spec;
+if ~isempty(pg); R.page = pg; end
+end
+
+
+function [k, pg] = pageRows(meta, spec, page)
+%pageRows  The rows of META on page PAGE of the grid, in probe order ([k, []]: every row, as listed).
+n = height(meta);
+k = (1:n).';
+pg = [];
+if page < 1; return; end
+per = max(1, round(spec.style.MaxTiles));
+nPages = max(1, ceil(n / per));
+page = min(page, nPages);
+order = probeOrder(meta, n, spec.style);
+k = order(pageItems(n, page, per));
+pg = [page nPages];
 end
 
 

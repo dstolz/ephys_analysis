@@ -64,21 +64,23 @@ style = spec.style;
 style.Design = design;
 nPages = plotPageCount(R, spec);
 page = min(opts.Page, nPages);
+drawPage = page;   % the page of R the renderer draws
+if isfield(R, 'page'); page = R.page(1); drawPage = 1; end   % R holds just that page (computePlot Page=)
 switch spec.kind
     case "psth"
         h = renderPSTH(R, target, Layout=spec.layout, WithRaster=spec.withRaster, SortBy=spec.rasterSort, ...
             SortOrder=spec.rasterSortOrder, ByGroup=spec.rasterByGroup, EventMarks=spec.rasterEvents, HistStyle=spec.histStyle, ...
             Fill=spec.fill, FillAlpha=spec.fillAlpha, Normalize=spec.normalize, Stack=spec.stack, ...
-            Spacing=spec.stackSpacing, Page=page, Waveform=spec.waveform, Style=style);
+            Spacing=spec.stackSpacing, Page=drawPage, Waveform=spec.waveform, Style=style);
     case "raster"
-        h = renderRaster(R, target, Page=page, SortBy=spec.rasterSort, SortOrder=spec.rasterSortOrder, ...
+        h = renderRaster(R, target, Page=drawPage, SortBy=spec.rasterSort, SortOrder=spec.rasterSortOrder, ...
             ByGroup=spec.rasterByGroup, EventMarks=spec.rasterEvents, Waveform=spec.waveform, Style=style);
     case "evoked"
-        h = renderEvoked(R, target, Layout=spec.layout, Page=page, Style=style);
+        h = renderEvoked(R, target, Layout=spec.layout, Page=drawPage, Style=style);
     case "rate"
         h = renderRates(R, target, Layout=spec.layout, Style=style);
     case "tuning"
-        h = renderTuning(R, target, Layout=spec.layout, Page=page, Waveform=spec.waveform, Style=style);
+        h = renderTuning(R, target, Layout=spec.layout, Page=drawPage, Waveform=spec.waveform, Style=style);
     case "heatmap"
         h = renderHeatmap(R, target, Order=spec.order, Style=style);
     case "probemap"
@@ -88,7 +90,7 @@ switch spec.kind
     case "behavior"
         h = renderBehavior(R, target, Layout=spec.layout, Jitter=spec.jitter, XScale=spec.xScale, Style=style);
     case "waveforms"
-        h = renderWaveforms(R, target, Layout=spec.layout, Page=page, Waveform=spec.waveform, Style=style);
+        h = renderWaveforms(R, target, Layout=spec.layout, Page=drawPage, Waveform=spec.waveform, Style=style);
     otherwise
         error('renderPlot:BadKind', 'Unknown plot kind "%s".', spec.kind);
 end

@@ -36,7 +36,7 @@ EphysAnalysisApp("D:\EPHYS_synthetic")     % a project root processed by the pip
 2. **Alignment**: align to `Stim` onset (first per trial) and set **Group
    by** to `Depth`. The summary on the right counts the epochs in each
    group.
-3. **Plots**: pick a kind in the drop-down under the plot list and press
+3. **Plots**: pick a kind in the drop-down under the plot tree and press
    **Add**: a PSTH, an evoked potential (set its **Source** to `LFP`), a
    rate plot (e.g. `RespWindow` onset → offset: set the line in its *Event
    reference* section and the stop event in its *Epoch window* section,
@@ -191,17 +191,22 @@ scope with no selection.
 
 <!-- wiki: ![Plots tab: the plot list, the editor for a PSTH and its preview](images/analysis-plots-tab.png) -->
 
-Three columns: the plot list, the editor of the selected plot, and the
+Three columns: the plot tree, the editor of the selected plot, and the
 preview.
 
-**The plot list.** Each entry reads `<id> (<kind>)`; disabled plots are
-marked *(off)*. The list order is the run and report order.
+**The plot tree.** The plots sit in a tree under groups, by plot type
+unless **Group by** says otherwise. A plot reads `<id> (<source>)` under
+plot-type groups and `<id> (<kind>)` under the others; disabled plots are
+marked *(off)*. Within a group the plots keep the run and report order. A
+group collapses under its header (which are collapsed is remembered); picking
+a header leaves the plot in the editor selected.
 
 | Control | Effect |
 | --- | --- |
-| kind drop-down, **Add** | adds a plot of that kind ([Plot kinds](#plot-kinds)) with the next free id (`psth_1`, `psth_2`, ...) and selects it |
+| **Group by** | *Plot type* (default), *Source* (units, detected, LFP, ...), *Layout* (the layout drawn), *Enabled / off*, or *None* (a flat list); remembered |
+| kind drop-down (its own row), **Add** | adds a plot of that kind ([Plot kinds](#plot-kinds)) with the next free id (`psth_1`, `psth_2`, ...) and selects it |
 | **Remove**, **Duplicate** | removes the selected plot; copies it with a new id |
-| **Up**, **Down** | moves it in the list |
+| **Up**, **Down** | swaps it with its neighbour in its group (the whole list when ungrouped), which changes the run order of those two |
 
 **The editor.** On top: the plot's kind (with a line on what it draws),
 **Enabled** (a disabled plot is kept but not run; `enabled`), **Id**
@@ -665,6 +670,8 @@ is in the config.
 | `AutoPreview` | the Plots tab's Auto box |
 | `PreviewMaxMB` | signal extracts larger than this (default 500 MB) are previewed only with the Preview button. Set it with `AppPrefs.setpref('EphysAnalysisApp', 'PreviewMaxMB', 1000)` before opening the app |
 | `PlotSectionsCollapsed` | the plot editor's collapsed sections |
+| `PlotGroupBy` | how the plot tree groups (`kind`, `source`, `layout`, `status`, `none`) |
+| `PlotGroupsCollapsed` | the plot tree's collapsed groups |
 
 The aesthetics editor keeps two more groups: `PlotAesthetics`, your
 remembered rules, one per plot kind (`psth`, `raster`, ...), and

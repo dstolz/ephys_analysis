@@ -25,6 +25,11 @@ says how to cut a release.
   the probe), the glyphs' size, the probe's sites and the units' names, and
   the p-p / spike-count labels. It needs no events, so it runs on any sorted
   or detected dataset (the probe layout needs its probe map).
+- The analysis app's Plots tab lists the plots in a tree (`uitree`) grouped by
+  plot type, with a **Group by** drop-down for source, layout, enabled / off
+  or a flat list (remembered, as are the collapsed groups). The list column is
+  half again as wide, the plot-kind drop-down has a row of its own, and
+  **Up** / **Down** swap a plot with its neighbour in its group.
 - A toolbar in the analysis app, under the menu bar: New, Open and Save
   config; Scan for datasets and Preview the selected plot; Validate config,
   Plan, Run and Cancel run; open the last run's report and figure folder;

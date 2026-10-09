@@ -2,7 +2,8 @@ function loadPreferences(obj, openLast)
 %loadPreferences  Restore the app's preferences; OPENLAST: reopen the last config.
 %   Group EphysAnalysisApp: FigurePosition, LastConfigFile, RecentConfigs,
 %   ScriptFolder, AutoPreview, PreviewMaxMB, PlotSectionsCollapsed (the
-%   plot editor's collapsed sections). Everything else is the config.
+%   plot editor's collapsed sections), PlotGroupBy and PlotGroupsCollapsed
+%   (the plot tree's grouping and collapsed groups). Everything else is the config.
 if nargin < 2; openLast = true; end
 g = obj.PrefGroup;
 if AppPrefs.ispref(g, 'FigurePosition')
@@ -23,6 +24,15 @@ if AppPrefs.ispref(g, 'AutoPreview'); obj.AutoPreviewCheckBox.Value = isequal(Ap
 if AppPrefs.ispref(g, 'PreviewMaxMB')
     v = AppPrefs.getpref(g, 'PreviewMaxMB');
     if isnumeric(v) && isscalar(v) && v > 0; obj.PreviewMaxMB = v; end
+end
+if AppPrefs.ispref(g, 'PlotGroupBy')
+    by = string(AppPrefs.getpref(g, 'PlotGroupBy'));
+    if isscalar(by) && ismember(by, string(obj.PlotGroupDropDown.ItemsData))
+        obj.PlotGroupDropDown.Value = by;
+    end
+end
+if AppPrefs.ispref(g, 'PlotGroupsCollapsed')
+    obj.PlotGroupsCollapsed = reshape(string(AppPrefs.getpref(g, 'PlotGroupsCollapsed')), 1, []);
 end
 if AppPrefs.ispref(g, 'PlotSectionsCollapsed')
     shut = string(AppPrefs.getpref(g, 'PlotSectionsCollapsed'));

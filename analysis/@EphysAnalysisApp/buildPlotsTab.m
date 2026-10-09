@@ -1,6 +1,7 @@
 function buildPlotsTab(obj)
-%buildPlotsTab  Plot list, plot editor (collapsible sections) and the preview.
-%   The editor is a column of sections (formSection): the plot's kind, id,
+%buildPlotsTab  Plot tree, plot editor (collapsible sections) and the preview.
+%   The tree groups the plots by plot type, source, layout or status (Group
+%   by; refreshPlotList), with the kind to add on its own row. The editor is a column of sections (formSection): the plot's kind, id,
 %   title, source and layout, always open; then Units & channels, Event
 %   reference, Epoch window, Trial selection (the Alignment tab's values
 %   while "Use default" is ticked; editing one gives the plot its own),
@@ -9,32 +10,43 @@ function buildPlotsTab(obj)
 %   its header (onPlotSectionToggled). syncPlotEditor shows the rows
 %   the selected plot uses; layoutPlotEditor packs them.
 g = uigridlayout(obj.TabPlots, [1 3]);
-g.ColumnWidth = {190, 470, '1x'};
+g.ColumnWidth = {285, 470, '1x'};
 g.Padding = [8 8 8 8];
 changed = @(~,~) obj.onConfigChanged("plot");
 
-% --- the list --------------------------------------------------------------------
-lg = uigridlayout(g, [6 2]);
-lg.RowHeight = {22, '1x', 30, 30, 30, 24};
+% --- the plots: a tree under groups ------------------------------------------------------
+lg = uigridlayout(g, [7 2]);
+lg.RowHeight = {22, 28, '1x', 30, 30, 30, 30};
 lg.ColumnWidth = {'1x', '1x'};
 lg.Padding = [0 0 0 0];
 l = uilabel(lg, "Text", "Plots", "FontWeight", "bold");
 l.Layout.Row = 1; l.Layout.Column = [1 2];
-obj.PlotsListBox = uilistbox(lg, "Items", {}, "ValueChangedFcn", @(lb, ~) obj.onPlotSelected(lb.Value));
-obj.PlotsListBox.Layout.Row = 2; obj.PlotsListBox.Layout.Column = [1 2];
+l = uilabel(lg, "Text", "Group by:");
+l.Layout.Row = 2; l.Layout.Column = 1;
+obj.PlotGroupDropDown = uidropdown(lg, "Items", ["Plot type" "Source" "Layout" "Enabled / off" "None"], ...
+    "ItemsData", ["kind" "source" "layout" "status" "none"], "Value", "kind", ...
+    "ValueChangedFcn", @(~,~) obj.onPlotGroupChanged(), ...
+    "Tooltip", "How the tree sorts the plots: by plot type (PSTH, raster, ...), the source they read (units, detected, " + ...
+    "LFP, ...), the layout they draw, enabled or off, or a flat list. Within a group the plots keep the run order; " + ...
+    "Up / Down move a plot within its group.");
+obj.PlotGroupDropDown.Layout.Row = 2; obj.PlotGroupDropDown.Layout.Column = 2;
+obj.PlotsTree = uitree(lg, "SelectionChangedFcn", @(~, evt) obj.onPlotTreeSelected(evt.SelectedNodes), ...
+    "NodeExpandedFcn", @(~, evt) obj.onPlotGroupToggled(evt.Node, false), ...
+    "NodeCollapsedFcn", @(~, evt) obj.onPlotGroupToggled(evt.Node, true));
+obj.PlotsTree.Layout.Row = 3; obj.PlotsTree.Layout.Column = [1 2];
 K = EphysAnalysisConfig.plotKinds();
 obj.AddKindDropDown = uidropdown(lg, "Items", K.Label, "ItemsData", K.Kind);
-obj.AddKindDropDown.Layout.Row = 3; obj.AddKindDropDown.Layout.Column = 1;
+obj.AddKindDropDown.Layout.Row = 4; obj.AddKindDropDown.Layout.Column = [1 2];
 obj.AddPlotButton = uibutton(lg, "Text", "Add", "ButtonPushedFcn", @(~,~) obj.onAddPlot(obj.AddKindDropDown.Value));
-obj.AddPlotButton.Layout.Row = 3; obj.AddPlotButton.Layout.Column = 2;
+obj.AddPlotButton.Layout.Row = 5; obj.AddPlotButton.Layout.Column = [1 2];
 obj.RemovePlotButton = uibutton(lg, "Text", "Remove", "ButtonPushedFcn", @(~,~) obj.onRemovePlot());
-obj.RemovePlotButton.Layout.Row = 4; obj.RemovePlotButton.Layout.Column = 1;
+obj.RemovePlotButton.Layout.Row = 6; obj.RemovePlotButton.Layout.Column = 1;
 obj.DuplicatePlotButton = uibutton(lg, "Text", "Duplicate", "ButtonPushedFcn", @(~,~) obj.onDuplicatePlot());
-obj.DuplicatePlotButton.Layout.Row = 4; obj.DuplicatePlotButton.Layout.Column = 2;
+obj.DuplicatePlotButton.Layout.Row = 6; obj.DuplicatePlotButton.Layout.Column = 2;
 obj.UpPlotButton = uibutton(lg, "Text", "Up", "ButtonPushedFcn", @(~,~) obj.onMovePlot(-1));
-obj.UpPlotButton.Layout.Row = 5; obj.UpPlotButton.Layout.Column = 1;
+obj.UpPlotButton.Layout.Row = 7; obj.UpPlotButton.Layout.Column = 1;
 obj.DownPlotButton = uibutton(lg, "Text", "Down", "ButtonPushedFcn", @(~,~) obj.onMovePlot(1));
-obj.DownPlotButton.Layout.Row = 5; obj.DownPlotButton.Layout.Column = 2;
+obj.DownPlotButton.Layout.Row = 7; obj.DownPlotButton.Layout.Column = 2;
 
 % --- the editor ----------------------------------------------------------------------
 ep = uipanel(g, "Title", "Plot");

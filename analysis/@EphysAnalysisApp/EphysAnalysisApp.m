@@ -18,8 +18,10 @@ classdef EphysAnalysisApp < handle
     %                selection (filter, response words, pairing flags, up to
     %                two groupBy parameters), with a live count of epochs and
     %                groups on the active dataset
-    %     Plots      the plots: add (psth, raster, evoked, rate, tuning,
-    %                heatmap, probemap, corrmap), remove, duplicate, reorder, enable;
+    %     Plots      the plots, in a tree grouped by plot type (or by source,
+    %                layout, enabled / off, or not at all: Group by): add
+    %                (psth, raster, evoked, rate, tuning, heatmap, probemap,
+    %                corrmap), remove, duplicate, reorder, enable;
     %                an editor in collapsible sections (units & channels,
     %                event reference, epoch window, trial selection, bins &
     %                baseline, the kind's options, appearance) showing only the
@@ -49,7 +51,9 @@ classdef EphysAnalysisApp < handle
     %   Preferences (getpref group 'EphysAnalysisApp'): FigurePosition,
     %   LastConfigFile, RecentConfigs, ScriptFolder, AutoPreview,
     %   PreviewMaxMB (signal previews of larger extracts wait for the Preview
-    %   button), PlotSectionsCollapsed (the plot editor's collapsed sections).
+    %   button), PlotSectionsCollapsed (the plot editor's collapsed sections),
+    %   PlotGroupBy (how the plot tree groups), PlotGroupsCollapsed (its
+    %   collapsed groups).
     %
     %   Usage
     %     EphysAnalysisApp                      % the last config, or defaults
@@ -116,7 +120,8 @@ classdef EphysAnalysisApp < handle
         AlignTrialsTable   matlab.ui.control.Table
 
         % --- Plots tab ---
-        PlotsListBox       matlab.ui.control.ListBox
+        PlotsTree          matlab.ui.container.Tree         % the plots under groups (plotGroups); a plot's node holds its index in NodeData
+        PlotGroupDropDown  matlab.ui.control.DropDown       % how the tree groups: plot type, source, layout, status, none
         AddKindDropDown    matlab.ui.control.DropDown
         AddPlotButton      matlab.ui.control.Button
         RemovePlotButton   matlab.ui.control.Button
@@ -168,6 +173,7 @@ classdef EphysAnalysisApp < handle
         ActiveIdx (1,1) double = 0          % the active dataset (index into Runner.Outputs)
         Ticked (1,:) logical = logical.empty(1, 0)   % datasets ticked to run
         SelectedPlot (1,1) double = 0       % the plot in the editor (index into Config.Plots)
+        PlotGroupsCollapsed (1,:) string = string.empty(1,0)   % keys of the tree's groups the user collapsed
         PreviewResult = []                  % last preview's result
         PreviewPage (1,1) double = 1
         PreviewPages (1,1) double = 1
@@ -275,6 +281,9 @@ classdef EphysAnalysisApp < handle
         onDuplicatePlot(obj)
         onMovePlot(obj, step)
         onPlotSelected(obj, k)
+        onPlotTreeSelected(obj, nodes)
+        onPlotGroupChanged(obj)
+        onPlotGroupToggled(obj, node, collapsed)
         onPlotSectionToggled(obj, name)
         onPlotAlignEdited(obj, part)
         onPlotDefaultToggled(obj)

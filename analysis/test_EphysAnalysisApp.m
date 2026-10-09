@@ -167,8 +167,8 @@ fprintf('\n== 3. Plots: add, edit, preview ==\n');
 app.selectTab(app.TabPlots);
 app.onAddPlot("psth");
 check(isscalar(app.Config.Plots) && app.SelectedPlot == 1 && app.Config.Plots(1).id == "psth_1" ...
-    && string(app.PlotEditor.kind.Text) == "PSTH" && string(app.PlotsListBox.Items{1}) == "psth_1  (psth)", ...
-    'Add psth makes psth_1 and opens it in the editor');
+    && string(app.PlotEditor.kind.Text) == "PSTH" && string(app.PlotsTree.Children(1).Children(1).Text) == "psth_1  (units)", ...
+    'Add psth makes psth_1 and opens it in the editor, under its plot type in the tree');
 app.selectTab(app.TabData);
 clickTool(app, "preview");   % as the Preview button, from another tab
 axs = findall(app.PreviewPanel, 'Type', 'axes');
@@ -268,6 +268,34 @@ check(app.SelectedPlot == 2 && string(E.source.Value) == "LFP" && ~any(string(E.
     && ~shown(E.binMs) && ~shown(E.withRaster) && ~shown(E.stack) && ~shown(E.fill) && ~shown(E.classes.su) && ~shown(E.ids) ...
     && shown(E.channels) && shown(E.baselineMode) && shown(E.lineWidth), ...
     'an evoked plot reads LFP and shows its channels and baseline, not the unit, bin or PSTH rows');
+tree = app.PlotsTree;
+check(isequal(string({tree.Children.Text}), ["PSTH  (1)" "Evoked potential  (1)"]) && string(app.PlotGroupDropDown.Value) == "kind" ...
+    && tree.SelectedNodes.NodeData == 2 && string(tree.SelectedNodes.Text) == "evoked_1  (LFP)", ...
+    'the plot tree groups the plots by plot type by default, the selected plot highlighted');
+app.PlotGroupDropDown.Value = 'source';
+app.onPlotGroupChanged();
+check(isequal(string({tree.Children.Text}), ["units  (1)" "LFP  (1)"]) && tree.SelectedNodes.NodeData == 2 ...
+    && string(tree.SelectedNodes.Text) == "evoked_1  (evoked)", 'grouped by source, the groups follow and the selection stays');
+app.onPlotTreeSelected(tree.Children(1).Children(1));
+app.onPlotTreeSelected(tree.Children(2));
+check(app.SelectedPlot == 1 && tree.SelectedNodes.NodeData == 1, ...
+    'picking a plot opens it; picking a group header leaves the plot in the editor');
+app.PlotGroupDropDown.Value = 'none';
+app.onPlotGroupChanged();
+app.onMovePlot(1);
+check(all(arrayfun(@(n) isnumeric(n.NodeData), tree.Children)) && numel(tree.Children) == 2 ...
+    && isequal([app.Config.Plots.id], ["evoked_1" "psth_1"]) && app.SelectedPlot == 2 && tree.SelectedNodes.NodeData == 2, ...
+    'ungrouped, the tree is a flat list and Down moves the plot');
+app.onMovePlot(-1);
+app.PlotGroupDropDown.Value = 'kind';
+app.onPlotGroupChanged();
+app.onMovePlot(1);
+app.onPlotGroupToggled(tree.Children(1), true);
+check(isequal([app.Config.Plots.id], ["psth_1" "evoked_1"]) && app.SelectedPlot == 1 && isequal(app.PlotGroupsCollapsed, "kind:PSTH"), ...
+    'grouped, Down stays within the plot''s group (alone in it: no move); a collapsed group is remembered');
+app.onPlotGroupToggled(tree.Children(1), false);
+app.onPlotSelected(2);
+check(isempty(app.PlotGroupsCollapsed) && app.SelectedPlot == 2, 'expanding it forgets that');
 app.PlotEditor.source.Value = 'LFP';
 app.onConfigChanged("plot");
 app.refreshPreview(Force=true);

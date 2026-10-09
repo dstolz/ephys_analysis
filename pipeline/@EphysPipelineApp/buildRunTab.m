@@ -14,7 +14,11 @@ function buildRunTab(obj)
 %   steps) is the config's Transfer section: each dataset's outputs copied
 %   or moved to <folder>/<subject>/<session> in the background; the
 %   copies' progress and Stop copying are the last row on the right
-%   (showTransferProgress, onStopTransfers).
+%   (showTransferProgress, onStopTransfers). Copy files for the analysis
+%   app (the box under it) is the config's AnalysisCopy section: once the
+%   Run has made the files, the ones EphysAnalysisApp reads are copied with
+%   the settings last used in File > Copy files for the analysis app...
+%   (copyAnalysisFilesAfterRun); the progress shares the last row.
 
 g = uigridlayout(obj.TabRun, [2 2]);
 g.RowHeight   = {'1x', 'fit'};
@@ -26,8 +30,8 @@ g.Padding     = [10 10 10 10];
 % --- steps checklist ---------------------------------------------------------
 steps = uipanel(g, "Title", "Steps (same switches as on each tab)");
 steps.Layout.Row = 1; steps.Layout.Column = 1;
-sg = uigridlayout(steps, [16 1]);
-sg.RowHeight = [repmat({'fit'}, 1, 15), {'1x'}];
+sg = uigridlayout(steps, [17 1]);
+sg.RowHeight = [repmat({'fit'}, 1, 16), {'1x'}];
 uilabel(sg, "Text", "Probe check (always)", "FontColor", [0.4 0.4 0.4]);
 obj.RunBehaviorCheckBox  = uicheckbox(sg, "Text", "Behavior: match Epsych2 sessions", "ValueChangedFcn", @(src,~) mirror(obj, "BehEnableCheckBox", src.Value));
 obj.RunArtifactsCheckBox = uicheckbox(sg, "Text", "Artifacts: automatic detection", "ValueChangedFcn", @(src,~) mirror(obj, "ArtEnableCheckBox", src.Value));
@@ -68,6 +72,12 @@ obj.RunMaxWorkersField = uieditfield(pg, "text", "Placeholder", "auto", "Enable"
     "Tooltip", "Cap on chunks in flight at once; blank = automatic (from free memory).", ...
     "ValueChangedFcn", @(~,~) obj.onParallelControlsChanged());
 buildTransferControls(obj, sg);
+obj.RunAnalysisCopyCheckBox = uicheckbox(sg, "Text", "Copy files for the analysis app", ...
+    "Tooltip", "Once the run has made the files, copy the ones the analysis app reads to the folder chosen in " + ...
+    "File > Copy files for the analysis app..., with the settings last used there (what to copy, if the folder has files, " + ...
+    "checksum). A dataset whose background sort is still going is copied when the sort ends. Not a dry run. " + ...
+    "Needs a destination chosen in that window once, and Copy outputs on copy, not move.", ...
+    "ValueChangedFcn", @(~,~) obj.onConfigChanged());
 obj.RunSelectionLabel = uilabel(sg, "Text", "Selection: (scan first)", "WordWrap", "on", "FontColor", [0.3 0.3 0.3]);
 obj.RunValidateButton = uibutton(sg, "Text", "Validate config", "ButtonPushedFcn", @(~,~) obj.onValidate());
 obj.RunPlanButton     = uibutton(sg, "Text", "Plan (writes nothing)", "ButtonPushedFcn", @(~,~) obj.onPlan());

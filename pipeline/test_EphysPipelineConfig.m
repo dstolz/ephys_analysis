@@ -96,6 +96,29 @@ check(cfg.Reference.Mode == "cmr" && cfg.Reference.BadHigh == 3 && cfg.Reference
 c6 = EphysPipelineConfig.fromStruct(struct('Artifacts', struct('Reference', "car")));
 check(any(contains(c6.LoadWarnings, "Artifacts.Reference")) && c6.Reference.Mode == "none", ...
     'Artifacts.Reference is not a field: dropped with a warning, the Reference section untouched');
+cAC = EphysPipelineConfig();
+check(EphysPipelineConfig.Sections(end) == "AnalysisCopy" && isequal(cAC.AnalysisCopy, struct('Enabled', false)) ...
+    && ~cAC.isStep("analysiscopy"), 'the AnalysisCopy section exists, off by default, and is not a step');
+cAC.AnalysisCopy.Enabled = true;
+fAC = fullfile(root, 'analysis_copy.json');
+cAC.save(fAC);
+check(EphysPipelineConfig.load(fAC).isequalConfig(cAC) && EphysPipelineConfig.load(fAC).AnalysisCopy.Enabled, ...
+    'AnalysisCopy.Enabled round-trips through JSON');
+sOld = rmfield(cAC.toStruct(), 'AnalysisCopy');
+cOld = EphysPipelineConfig.fromStruct(sOld);
+check(~cOld.AnalysisCopy.Enabled && isempty(cOld.LoadWarnings), 'a config saved before the section existed loads with it off');
+cAC.Project.Root = root;
+cAC.Transfer.Enabled = true;
+cAC.Transfer.Method = "move";
+iAC = cAC.validate(CheckPaths=false);
+check(any(iAC.Step == "analysiscopy" & iAC.Severity == "error" & contains(iAC.Message, "move")), ...
+    'AnalysisCopy on with a Transfer that moves the outputs is an error');
+cAC.Transfer.Method = "copy";
+iAC = cAC.validate(CheckPaths=false);
+check(~any(iAC.Step == "analysiscopy" & contains(iAC.Message, "move")), 'with Transfer copying, there is no such error');
+cAC.AnalysisCopy.Enabled = false;
+cAC.Transfer.Method = "move";
+check(~any(cAC.validate(CheckPaths=false).Step == "analysiscopy"), 'AnalysisCopy off: not checked');
 cfg.Artifacts = struct('FilterType', "bandpass", 'FilterCutoff', [300; 3000]);
 cA = cfg; cA.Artifacts.Enabled = true; cA.Artifacts.Filter = true;
 check(isequal(cfg.Artifacts.FilterCutoff, [300 3000]) && ~any(cA.validate(CheckPaths=false).Field == "FilterCutoff"), ...

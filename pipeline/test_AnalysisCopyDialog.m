@@ -144,6 +144,30 @@ classdef test_AnalysisCopyDialog < matlab.unittest.TestCase
             tc.verifyFalse(isfolder(fullfile(tc.Dest, "s1", tc.Names(2))));
         end
 
+        function settingsAreTheDefaultsThenWhatTheWindowSaved(tc)
+            s = AnalysisCopyDialog.settings();
+            tc.verifyEqual(s.Signals, ["LFP" "MUA" "AUX"]);
+            tc.verifyTrue(s.Spikes && s.Probe && ~s.SortedData);
+            tc.verifyEqual([s.Sorting s.IfExists s.Verify s.Destination], ["essential" "overwrite" "size" ""], ...
+                'nothing saved: the window''s defaults and no destination');
+            dlg = tc.dialog();
+            tc.verifyEqual(dlg.options().Signals, s.Signals, 'the window opens with the same defaults');
+            tc.setControl(dlg, "LFP", false);
+            tc.setControl(dlg, "SPIKE", true);
+            tc.setControl(dlg, "Spikes", false);
+            tc.setControl(dlg, "SortedData", true);
+            tc.setControl(dlg, "Sorting", 'all');
+            tc.setControl(dlg, "IfExists", 'skip');
+            tc.setControl(dlg, "Hash", true);
+            tc.setControl(dlg, "Dest", tc.Dest);
+            close(dlg.Fig);   % the window saves its settings when it closes
+            s = AnalysisCopyDialog.settings();
+            tc.verifyEqual(s.Signals, ["MUA" "SPIKE" "AUX"]);
+            tc.verifyFalse(s.Spikes);
+            tc.verifyTrue(s.SortedData && s.Probe);
+            tc.verifyEqual([s.Sorting s.IfExists s.Verify s.Destination], ["all" "skip" "hash" string(tc.Dest)]);
+        end
+
         function refusesARelativeDestination(tc)
             dlg = tc.dialog();
             tc.setControl(dlg, "Dest", "relative\folder");

@@ -228,6 +228,13 @@ switch section
             'IfExists',    "version", ...  % the dataset's folder is there: "version" (a new <key>_v2, _v3, ...) | "overwrite" | "skip" (files already there)
             'Verify',      "size");        % "size" (and time) | "hash" (SHA-256 of each file and its copy)
 
+    case "AnalysisCopy"
+        % Copy the files EphysAnalysisApp reads (AnalysisCopyDialog) once a Run
+        % has made them. What is copied and where is not here: it is the
+        % settings last used in the copy window (AnalysisCopyDialog.settings).
+        % Not a step; EphysPipelineApp acts on it.
+        s = struct('Enabled', false);
+
     otherwise
         error('EphysPipelineConfig:BadSection', 'Unknown section "%s".', section);
 end

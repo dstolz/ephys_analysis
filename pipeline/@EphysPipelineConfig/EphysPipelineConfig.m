@@ -76,6 +76,13 @@ classdef EphysPipelineConfig
     %                subject/session folders, in the background
     %                (OutputTransfer, EphysPipeline.transferOutputs). Not a
     %                step
+    %     AnalysisCopy  Enabled: once a Run has made the files, copy the ones
+    %                EphysAnalysisApp reads (AnalysisCopyDialog,
+    %                DatasetOutputs.analysisFiles). What is copied, where to
+    %                and what to do when the folder has files are the
+    %                settings last used in that window, not part of the
+    %                config. EphysPipelineApp acts on it (EphysPipeline.run
+    %                does not). Not a step
     %
     %   Usage
     %     cfg = EphysPipelineConfig();                 % defaults
@@ -110,6 +117,7 @@ classdef EphysPipelineConfig
         Export      struct = EphysPipelineConfig.defaults("Export")
         Analysis    struct = EphysPipelineConfig.defaults("Analysis")
         Transfer    struct = EphysPipelineConfig.defaults("Transfer")
+        AnalysisCopy struct = EphysPipelineConfig.defaults("AnalysisCopy")
     end
 
     properties (Transient)
@@ -120,8 +128,8 @@ classdef EphysPipelineConfig
     properties (Constant)
         Schema   = "ephys-pipeline-config"
         Version  = 1
-        Sections = ["Project" "Acquisition" "Parallel" "Probe" "Reference" "Behavior" "Artifacts" "Sorting" "Signals" "Spikes" "Export" "Analysis" "Transfer"]
-        % Execution order of the steps (Project, Acquisition, Parallel, Reference and Transfer are not steps; Probe is a preflight).
+        Sections = ["Project" "Acquisition" "Parallel" "Probe" "Reference" "Behavior" "Artifacts" "Sorting" "Signals" "Spikes" "Export" "Analysis" "Transfer" "AnalysisCopy"]
+        % Execution order of the steps (Project, Acquisition, Parallel, Reference, Transfer and AnalysisCopy are not steps; Probe is a preflight).
         StepNames = ["probe" "behavior" "artifacts" "sorting" "signals" "spikes" "export" "analysis"]
         % Section that holds each step's settings.
         StepSections = ["Probe" "Behavior" "Artifacts" "Sorting" "Signals" "Spikes" "Export" "Analysis"]
@@ -167,6 +175,7 @@ classdef EphysPipelineConfig
         function obj = set.Export(obj, s);    obj.Export    = EphysPipelineConfig.normalizeSection("Export", s);    end
         function obj = set.Analysis(obj, s);  obj.Analysis  = EphysPipelineConfig.normalizeSection("Analysis", s);  end
         function obj = set.Transfer(obj, s);  obj.Transfer  = EphysPipelineConfig.normalizeSection("Transfer", s);  end
+        function obj = set.AnalysisCopy(obj, s); obj.AnalysisCopy = EphysPipelineConfig.normalizeSection("AnalysisCopy", s); end
 
         %% --- struct / JSON --------------------------------------------------
         function s = toStruct(obj)

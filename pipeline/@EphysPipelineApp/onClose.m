@@ -4,7 +4,9 @@ function onClose(obj)
 %   it finishes on its own. Closing only stops watching it, and the app says so
 %   rather than leaving the copy looking abandoned. The same goes for the
 %   output copies of a Run (Copy outputs), which it asks about too. A scheduled copy is a
-%   Windows task and does not depend on the app at all. With Kilosort4 runs
+%   Windows task and does not depend on the app at all. The files for the
+%   analysis app that wait for a sorting run to end (AnalysisCopyWaiting)
+%   are not copied once the app is closed, which it asks about. With Kilosort4 runs
 %   queued, it asks whether to keep the queue for next time (offered back
 %   once the project is scanned again), drop it, or stay open. Background
 %   runs going carry on as processes and are kept, to be followed again at
@@ -28,6 +30,15 @@ if ~isempty(live)
         "the outputs not copied yet are not copied, and a move removes nothing here." + newline + newline + ...
         "Running the pipeline again with Copy outputs on copies them (the files already there: as If it is there says)." + ...
         newline + newline + "Close anyway?", "Outputs still being copied", ...
+        "Options", ["Close anyway", "Stay open"], "DefaultOption", 2, "CancelOption", 2);
+    if answer ~= "Close anyway"; return; end
+end
+if ~isempty(obj.AnalysisCopyWaiting)
+    names = unique(arrayfun(@(w) string(w.dataset.Name), obj.AnalysisCopyWaiting), 'stable');
+    answer = uiconfirm(obj.Fig, ...
+        "The files for the analysis app of " + strjoin(names, ", ") + " are copied once their sorting runs end, " + ...
+        "and closing the app drops that wait. Copy them later with File > Copy files for the analysis app..." + ...
+        newline + newline + "Close anyway?", "Analysis copy waiting", ...
         "Options", ["Close anyway", "Stay open"], "DefaultOption", 2, "CancelOption", 2);
     if answer ~= "Close anyway"; return; end
 end

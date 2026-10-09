@@ -33,6 +33,12 @@ classdef AnalysisCopyDialog < handle
         PrefGroup = "AnalysisCopyDialog"
     end
 
+    properties (Constant, Access = private)
+        % The settings the window opens with, until the user has chosen others.
+        Defaults = struct('Signals', ["LFP" "MUA" "AUX"], 'Spikes', true, 'Sorting', "essential", ...
+            'SortedData', false, 'Probe', true, 'IfExists', "overwrite", 'Hash', false)
+    end
+
     properties (SetAccess = private)
         Fig                      % the uifigure
         Datasets = []            % the EphysDataset objects offered
@@ -159,14 +165,7 @@ classdef AnalysisCopyDialog < handle
                 X = OutputTransfer(dest, IfExists=o.IfExists, Verify=o.Verify, ...
                     LogFcn=@(msg) obj.say(msg));
                 for k = sel
-                    F = obj.Files{k};
-                    if isempty(F); continue; end
-                    d = obj.Datasets(k);
-                    [bases, ~, g] = unique(F.Base, 'stable');
-                    for j = 1:numel(bases)
-                        X.add(obj.Keys(k), F.Path(g == j).', Base=bases(j), Dataset=string(d.Name), ...
-                            Label="files for the analysis app");
-                    end
+                    AnalysisCopyDialog.addFiles(X, obj.Keys(k), obj.Datasets(k), obj.Files{k});
                 end
                 X.close();
             catch ME
@@ -215,6 +214,55 @@ classdef AnalysisCopyDialog < handle
         end
     end
 
+    methods (Static)
+        function s = settings()
+            %settings  The settings last used in the window, for a copy made without it.
+            %   S = AnalysisCopyDialog.settings() has the fields of options()
+            %   (Signals, Spikes, Sorting, SortedData, Probe, IfExists,
+            %   Verify) and Destination ("" when none was ever chosen), from
+            %   the AppPrefs group the window saves to when it copies or
+            %   closes. A setting that was not saved has the window's default.
+            D = AnalysisCopyDialog.Defaults;
+            s = struct('Signals', D.Signals, 'Spikes', D.Spikes, 'Sorting', D.Sorting, ...
+                'SortedData', D.SortedData, 'Probe', D.Probe, 'IfExists', D.IfExists, ...
+                'Verify', ternary(D.Hash, "hash", "size"), 'Destination', "");
+            g = char(AnalysisCopyDialog.PrefGroup);
+            try
+                if ~AppPrefs.ispref(g, 'Settings'); return; end
+                p = AppPrefs.getpref(g, 'Settings');
+                sig = ["LFP" "MUA" "SPIKE" "AUX"];
+                if isfield(p, 'Signals'); s.Signals = sig(ismember(sig, string(p.Signals))); end
+                if isfield(p, 'Spikes'); s.Spikes = logical(p.Spikes); end
+                if isfield(p, 'SortedData'); s.SortedData = logical(p.SortedData); end
+                if isfield(p, 'Probe'); s.Probe = logical(p.Probe); end
+                if isfield(p, 'Hash'); s.Verify = ternary(logical(p.Hash), "hash", "size"); end
+                if isfield(p, 'Sorting') && ismember(string(p.Sorting), ["essential" "all" "none"])
+                    s.Sorting = string(p.Sorting);
+                end
+                if isfield(p, 'IfExists') && ismember(string(p.IfExists), ["overwrite" "skip" "version"])
+                    s.IfExists = string(p.IfExists);
+                end
+                if isfield(p, 'Destination'); s.Destination = strtrim(string(p.Destination)); end
+            catch
+                % preferences are a convenience: what could not be read stays as set above
+            end
+        end
+
+        function addFiles(X, key, dataset, F)
+            %addFiles  Queue a dataset's analysis files on the OutputTransfer X.
+            %   AnalysisCopyDialog.addFiles(X, KEY, DATASET, F) adds the
+            %   files of F (the table DatasetOutputs.analysisFiles returns
+            %   for DATASET) to X under KEY, one batch per Base, so a file
+            %   keeps its path below its base folder.
+            if isempty(F); return; end
+            [bases, ~, g] = unique(F.Base, 'stable');
+            for j = 1:numel(bases)
+                X.add(key, F.Path(g == j).', Base=bases(j), Dataset=string(dataset.Name), ...
+                    Label="files for the analysis app");
+            end
+        end
+    end
+
     methods (Access = private)
         function build(obj, parent, visible)
             %build  The window.
@@ -252,33 +300,34 @@ classdef AnalysisCopyDialog < handle
                 "The extract files holding these signals (a file with several is copied once). The smallest extract file is always copied: the digital events are in it.");
             lbl.Layout.Row = 1; lbl.Layout.Column = 1;
             sig = ["LFP" "MUA" "SPIKE" "AUX"];
-            on = [true true false true];
+            D = AnalysisCopyDialog.Defaults;
             obj.Ctl.Signals = gobjects(1, 4);
             for k = 1:4
-                c = uicheckbox(og, "Text", sig(k), "Value", on(k), "ValueChangedFcn", @(~, ~) obj.refresh());
+                c = uicheckbox(og, "Text", sig(k), "Value", ismember(sig(k), D.Signals), ...
+                    "ValueChangedFcn", @(~, ~) obj.refresh());
                 c.Layout.Row = 1; c.Layout.Column = k + 1;
                 obj.Ctl.Signals(k) = c;
             end
-            obj.Ctl.Spikes = obj.optionBox(og, [2 2], [1 3], "Detected spikes", true, ...
+            obj.Ctl.Spikes = obj.optionBox(og, [2 2], [1 3], "Detected spikes", D.Spikes, ...
                 "<Name>_spikes.mat: the plots with Source 'detected' (heatmaps, probe maps).");
-            obj.Ctl.Probe = obj.optionBox(og, [2 2], [4 6], "Probe file (.json)", true, ...
+            obj.Ctl.Probe = obj.optionBox(og, [2 2], [4 6], "Probe file (.json)", D.Probe, ...
                 "The probe map, copied beside the manifest. Probe maps, depth order and shanks need it.");
             lbl = uilabel(og, "Text", "Sorted units");
             lbl.Layout.Row = 3; lbl.Layout.Column = 1;
             obj.Ctl.Sorting = uidropdown(og, "Items", ["Essential files" "Whole folder" "None"], ...
-                "ItemsData", ["essential" "all" "none"], "Value", "essential", ...
+                "ItemsData", ["essential" "all" "none"], "Value", D.Sorting, ...
                 "Tooltip", "Essential: spike times and clusters, templates, channel files, params.py, settings.json and the cluster tables - not the large feature files. Whole folder: everything in it (without the hidden .phy cache).", ...
                 "ValueChangedFcn", @(~, ~) obj.refresh());
             obj.Ctl.Sorting.Layout.Row = 3; obj.Ctl.Sorting.Layout.Column = [2 3];
-            obj.Ctl.SortedData = obj.optionBox(og, [3 3], [4 6], "Sorted binary (large)", false, ...
+            obj.Ctl.SortedData = obj.optionBox(og, [3 3], [4 6], "Sorted binary (large)", D.SortedData, ...
                 "The .bin / temp_wh.dat the sort read (params.py dat_path): the unit waveforms are cut from the spikes in it. Without it they are drawn from the templates.");
             lbl = uilabel(og, "Text", "If the folder has files");
             lbl.Layout.Row = 4; lbl.Layout.Column = [1 2];
             obj.Ctl.IfExists = uidropdown(og, "Items", ["Replace changed files" "Keep existing files" "Make a new _v2 folder"], ...
-                "ItemsData", ["overwrite" "skip" "version"], "Value", "overwrite", ...
+                "ItemsData", ["overwrite" "skip" "version"], "Value", D.IfExists, ...
                 "Tooltip", "What to do when <folder>\<subject>\<session> already holds files: replace those that changed, copy only the missing ones, or copy into <session>_v2 (the analysis reads it as the same dataset).");
             obj.Ctl.IfExists.Layout.Row = 4; obj.Ctl.IfExists.Layout.Column = [3 5];
-            obj.Ctl.Hash = uicheckbox(og, "Text", "Check the copies by checksum (slower)", "Value", false);
+            obj.Ctl.Hash = uicheckbox(og, "Text", "Check the copies by checksum (slower)", "Value", D.Hash);
             obj.Ctl.Hash.Layout.Row = 5; obj.Ctl.Hash.Layout.Column = [1 5];
 
             % --- the datasets

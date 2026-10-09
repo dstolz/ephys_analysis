@@ -11,7 +11,8 @@ function [s, unknown] = normalizeSection(section, in)
 %   and adds what the analysis config needs on top:
 %   - list fields (a string default of one element, such as pairingFlags
 %     "ok") stay lists: ListFields names them
-%   - an EpochWindow's stop is [] or an EventRef (normalized in turn)
+%   - an EpochWindow's stop, and a plot's rasterSortEvent, is [] or an
+%     EventRef (normalized in turn; a line name is short for one)
 %   - an EventRef's sequence is a list of SequenceStep structs, a plot's
 %     rasterEvents.sequences a list of EventRefs (a struct array, a cell or
 %     one struct in; a 1 x n struct array out)

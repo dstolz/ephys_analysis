@@ -360,6 +360,37 @@ check(contains(string(h.layout.YLabel.String), "descending") && contains(string(
 cap = plotCaption(spec, Rr2);
 check(contains(cap, "stop at RespWindow onset + RespLatency (ms)") && contains(cap, "raster marks: Trough onset, Trough offset") ...
     && contains(cap, "sorted by stop latency, descending across groups"), "the raster's caption: " + cap);
+yStop = get(findall(h.axes(1), 'Tag', 'rasterTicks'), 'YData');   % the rows sorted by the stop
+spec.rasterSort = "event";   % the same event as the window's stop, as a sort event of its own
+spec.rasterSortEvent = eventRef(line="RespWindow", offsetParam="RespLatency");
+Rr3 = r.computePlot(src, spec);
+h = renderPlot(Rr3, spec, fig);
+cap = plotCaption(spec, Rr3);
+nNo = nnz(~isfinite(Rr3.rasterSortEvent.t));
+check(Rr3.rasterSortEvent.label == "RespWindow onset + RespLatency (ms)" && isequaln(Rr3.rasterSortEvent.t, Rr3.epochStop) ...
+    && isequaln(get(findall(h.axes(1), 'Tag', 'rasterTicks'), 'YData'), yStop) ...
+    && contains(string(h.layout.YLabel.String), "Epoch (by RespWindow onset + RespLatency (ms) latency)") ...
+    && contains(cap, "sorted by RespWindow onset + RespLatency (ms) latency, descending across groups") ...
+    && (nNo == 0 || contains(cap, sprintf("%d epoch(s) with no RespWindow onset + RespLatency (ms) after their event sorted last", nNo))), ...
+    "rasterSort ""event"" at the stop's own event: its latencies and rows are the stop's; the y label and caption name it: " + cap);
+specE = spec; specE.rasterSortEvent = eventRef(line="Nope");
+specP = cfg.plotFor("psth_stim"); specP.withRaster = false; specP.rasterSort = "event"; specP.rasterSortEvent = specE.rasterSortEvent;
+check(plotSkipReason(src, specE) == "no line Nope" && plotSkipReason(src, specP) == "", ...
+    'a sort event on a line the recording lacks skips a raster ("no line Nope"), not a PSTH that draws none');
+ev = cfg;
+ev.Plots = ev.Plots(ev.plotIndex("raster_resp"));
+ev.Plots(1).rasterSort = "event";
+ev.Plots(1).rasterSortEvent = struct('line', "RespWindow", 'offsetParam', "RespLatency");
+ev.Source.Selection = "list"; ev.Source.Datasets = F.keys(1);
+ev.Export.Folder = fullfile(root, "outEvent", "{Name}"); ev.Export.Formats = "png";
+ev.Report.Enabled = false;
+evFile = fullfile(root, 'scripts', 'run_event_sort.m');
+txtE = EphysAnalysisScript.standalone(ev, File=evFile);
+outE = runScript(evFile);
+check(contains(txtE, "[sortLat, sortLabel] = eventLatency(src, E, spec.rasterSortEvent);") && ~contains(outE, "FAILED") ...
+    && ~isempty(dir(fullfile(root, 'outEvent', '**', '*.png'))), ...
+    'the standalone script computes the sort event''s latencies and draws the raster sorted by them');
+if contains(outE, "FAILED"); disp(outE); end
 clear figCloser
 
 fprintf('\n== 7. a failing export closes its page ==\n');

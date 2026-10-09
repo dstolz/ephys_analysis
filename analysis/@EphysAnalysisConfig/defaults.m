@@ -212,7 +212,8 @@ switch section
             'auroc',         EphysAnalysisConfig.defaults("Auroc"), ...   % psth / heatmap of spikes, baseline Mode "auroc"
             'layout',        "", ...            % "" = the kind's default layout
             'withRaster',    true, ...          % psth
-            'rasterSort',    "", ...            % psth / raster: epochs of a group in time order ("") | by stop latency ("stop") | by a trial parameter (its name)
+            'rasterSort',    "", ...            % psth / raster: epochs of a group in time order ("") | by stop latency ("stop") | by rasterSortEvent's latency ("event") | by a trial parameter (its name)
+            'rasterSortEvent', [], ...          % psth / raster, rasterSort "event": [] or an EventRef, e.g. Platform offset, whose latency from each epoch's event sorts the rows (eventLatency)
             'rasterSortOrder', "ascending", ... % psth / raster: the sort key's direction, "ascending" | "descending" (missing values last)
             'rasterByGroup', true, ...          % psth / raster: rows by group first, on bands (false: every epoch sorted as one block)
             'rasterEvents',  rasterEventsDefaults(), ...   % psth / raster: marks on each row at a digital line's onsets / offsets (epochEvents)

@@ -824,7 +824,7 @@ The runner's `plotSkipReason`, shown by the preview, Plan and the results:
 | no paired trials | trial scope, the `Trial` line, a filter / response / trial list / group-by, an event or stop shifted by a trial parameter, or a tuning or behavior plot, on a dataset without paired trials | approve the pairing on the pipeline app's [Trials tab](EphysPipelineApp.md#trials) and write the behavior file; or align in recording scope without a selection |
 | no line X | the event or stop line, or a line the raster marks, is not among the dataset's lines (in trial scope: among the lines seen in its trials) | check the line names on the Data tab |
 | no trial parameter X | a group-by, shift-by, tuning, series, behavior y value or raster sort parameter the trials lack | pick one from the dataset's parameters |
-| no probe map | the manifest names no probe file (probe maps only) | assign a probe on the pipeline app's [Probe tab](EphysPipelineApp.md#probe) |
+| no probe map | the manifest names no probe file and the dataset has no sort whose channel map could stand in (probe maps only) | assign a probe on the pipeline app's [Probe tab](EphysPipelineApp.md#probe) |
 
 A plot that is not skipped can still fail when it runs, e.g. *no Stim onset
 event is left after the selection* or *none of the N events makes a usable

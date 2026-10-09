@@ -455,6 +455,97 @@ app.refreshPreview(Force=true);
 check(app.Config.Plots(1).note.text == "" && isnan(app.Config.Plots(1).note.fontSize) && E.annPlace.Enable == "off" ...
     && isempty(findall(app.PreviewPanel, 'Tag', 'note')), 'clearing the text takes the note off the plot');
 
+% --- overlays: lines and patches on the plot's axes
+k0 = app.SelectedPlot;
+ovSec = @() app.PlotSections([app.PlotSections.Name] == "overlays");
+check(shown(E.ovList) && shown(ovSec().Toggle) && ~shown(E.ovName) && ~shown(E.ovValue) && ~shown(E.ovFrom) ...
+    && E.ovAddLine.Enable == "on" && E.ovAddRegion.Enable == "on" && E.ovDuplicate.Enable == "off" && E.ovRemove.Enable == "off" ...
+    && string(ovSec().Title) == "Overlays" && isempty(app.Config.Plots(k0).overlays) && isempty(E.ovList.Items), ...
+    'the Overlays section shows for a plot without overlays: the list and its Add buttons, the rows waiting for one');
+app.onAddOverlay("line");
+ovs = app.Config.Plots(k0).overlays;
+check(isscalar(ovs) && ovs.shape == "line" && ovs.axis == "x" && ovs.name == "Line 1" && ovs.layer == "over" && ovs.panel == "all" ...
+    && shown(E.ovName) && shown(E.ovKind) && shown(E.ovValue) && ~shown(E.ovFrom) && shown(E.ovColor) && ~shown(E.ovFill) ...
+    && ~shown(E.ovEdge) && shown(E.ovStyle) && shown(E.ovPanel) && E.ovRemove.Enable == "on" && E.ovDuplicate.Enable == "on" ...
+    && string(ovSec().Title) == "Overlays (1)" && numel(E.ovList.Items) == 1, ...
+    'Add line puts a dashed line at 0 in the list, picked; its rows are a line''s (position, colour), not a patch''s');
+E.ovName.Value = 'Stim on'; E.ovValue.Value = '0.25'; E.ovColor.Value = 'blue'; E.ovAlpha.Value = 0.5;
+E.ovStyle.Value = ':'; E.ovWidth.Value = 3; E.ovLayer.Value = 'under'; E.ovPanel.Value = 'data';
+app.onConfigChanged("plot");
+ovs = app.Config.Plots(k0).overlays;
+check(ovs.name == "Stim on" && ovs.value == 0.25 && ovs.color == "blue" && ovs.alpha == 0.5 && ovs.lineStyle == ":" && ovs.lineWidth == 3 ...
+    && ovs.layer == "under" && ovs.panel == "data" && contains(string(E.ovList.Items{1}), "Stim on") ...
+    && contains(string(E.ovList.Items{1}), "x = 0.25"), ...
+    'the line''s name, position, colour, opacity, style, width, layer and panel reach the config; the list follows its name and position');
+app.onAddOverlay("region");
+E.ovKind.Value = 'region|y'; E.ovFrom.Value = '5'; E.ovTo.Value = '2'; E.ovFill.Value = 'green'; E.ovFillAlpha.Value = 0.4;
+E.ovEdge.Value = 'black';
+app.onConfigChanged("plot");
+ovs = app.Config.Plots(k0).overlays;
+check(numel(ovs) == 2 && ovs(1).name == "Stim on" && ovs(1).value == 0.25 && ovs(1).color == "blue" ...
+    && ovs(2).name == "Patch 1" && ovs(2).shape == "region" && ovs(2).axis == "y" && ovs(2).from == 5 && ovs(2).to == 2 ...
+    && ovs(2).faceColor == "green" && ovs(2).faceAlpha == 0.4 && ovs(2).edgeColor == "black" ...
+    && shown(E.ovFrom) && ~shown(E.ovValue) && shown(E.ovFill) && shown(E.ovEdge) && ~shown(E.ovColor) ...
+    && E.ovStyle.Enable == "on" && string(ovSec().Title) == "Overlays (2)" && numel(E.ovList.Items) == 2, ...
+    'Add patch adds a second overlay and keeps the first; a patch shows its edges, fill and outline, not a line''s position and colour');
+E.ovEdge.Value = 'none';
+app.syncPlotEditor();
+outlineOff = E.ovStyle.Enable == "off" && E.ovWidth.Enable == "off";
+E.ovEdge.Value = 'black';
+app.syncPlotEditor();
+check(outlineOff && E.ovStyle.Enable == "on" && E.ovWidth.Enable == "on", 'a patch''s outline style and width wait for an outline colour');
+E.ovList.Value = 1;
+app.onOverlayPicked();
+check(string(E.ovName.Value) == "Stim on" && string(E.ovValue.Value) == "0.25" && string(E.ovColor.Value) == "blue" ...
+    && E.ovWidth.Value == 3 && string(E.ovLayer.Value) == "under" && shown(E.ovValue) && ~shown(E.ovFrom), ...
+    'picking the first overlay shows its rows');
+E.ovList.Value = 2;
+app.onOverlayPicked();
+check(string(E.ovKind.Value) == "region|y" && string(E.ovFrom.Value) == "5" && string(E.ovTo.Value) == "2" ...
+    && string(E.ovFill.Value) == "green" && E.ovFillAlpha.Value == 0.4 && shown(E.ovFrom) && ~shown(E.ovValue), ...
+    'and the second''s: nothing was lost on the way');
+app.refreshPreview(Force=true);
+nRate = numel(findall(app.PreviewPanel, 'Type', 'axes', 'Tag', 'axes'));
+nRas = numel(findall(app.PreviewPanel, 'Type', 'axes', 'Tag', 'rasterAxes'));
+ln = findall(app.PreviewPanel, 'Tag', 'overlayLine');
+rg = findall(app.PreviewPanel, 'Tag', 'overlayRegion');
+check(app.PreviewState == "drawn" && nRate > 0 && numel(ln) == nRate && numel(rg) == nRate + nRas && all([ln.Value] == 0.25) ...
+    && all(arrayfun(@(x) isequal(sort(x.Value), [2 5]), rg)) && all(arrayfun(@(x) isequal(x.Color, [0 0 1]) && x.LineWidth == 3, ln)), ...
+    'the preview draws the line in the data panels and the patch in every panel, as set');
+E.ovList.Value = 1;
+app.onOverlayPicked();
+app.onDuplicateOverlay();
+ovs = app.Config.Plots(k0).overlays;
+check(numel(ovs) == 3 && ovs(2).name == "Stim on copy" && isequal(rmfield(ovs(2), 'name'), rmfield(ovs(1), 'name')) ...
+    && ovs(3).name == "Patch 1" && E.ovList.Value == 2 && string(E.ovName.Value) == "Stim on copy", ...
+    'Duplicate copies the overlay right after itself, look and all, under a name of its own, and picks the copy');
+app.onRemoveOverlay();
+ovs = app.Config.Plots(k0).overlays;
+check(numel(ovs) == 2 && ovs(1).name == "Stim on" && ovs(2).name == "Patch 1" && E.ovList.Value == 2 && string(E.ovName.Value) == "Patch 1", ...
+    'Remove takes the overlay picked and picks the one that took its place');
+if numel(app.Config.Plots) > 1
+    other = find((1:numel(app.Config.Plots)) ~= k0, 1);
+    app.onPlotSelected(other);
+    noneThere = isempty(E.ovList.Items) && ~shown(E.ovName) && string(ovSec().Title) == "Overlays";
+    app.onPlotSelected(k0);
+    check(noneThere && numel(E.ovList.Items) == 2 && E.ovList.Value == 1 && string(E.ovName.Value) == "Stim on" ...
+        && string(ovSec().Title) == "Overlays (2)", 'each plot has its own overlays: another plot''s list is empty, and this one''s is back');
+end
+app.onPlotSectionToggled("overlays");
+collapsed = ~shown(E.ovList) && shown(ovSec().Toggle);
+app.onPlotSectionToggled("overlays");
+check(collapsed && shown(E.ovList), 'the Overlays section collapses to its header and expands again');
+c1 = app.gatherConfig();
+app.applyConfig(c1);
+check(isequal(app.Config.Plots(k0).overlays, c1.Plots(k0).overlays) && numel(E.ovList.Items) == 2, ...
+    'the overlays survive a gather / apply round trip');
+app.onRemoveOverlay();
+app.onRemoveOverlay();
+app.refreshPreview(Force=true);
+check(isempty(app.Config.Plots(k0).overlays) && isempty(E.ovList.Items) && ~shown(E.ovName) && E.ovRemove.Enable == "off" ...
+    && isempty(findall(app.PreviewPanel, 'Tag', 'overlayLine')) && isempty(findall(app.PreviewPanel, 'Tag', 'overlayRegion')), ...
+    'removing the last overlay empties the list and takes them off the preview');
+
 fprintf('\n== 3a. the epoch diagram ==\n');
 A = app.PlotAlignControls;
 check(shown(E.epochs) && E.epochs.Text == "Epoch Diagram" && E.epochs.Parent == app.PlotAlignControls.WindowGrid ...
@@ -648,6 +739,23 @@ check(app.SelectedPlot == k3 && startsWith(string(E.kind.Text), "3 plots: PSTH, 
     && shown(E.rasterSort) && shown(E.fontSize) && ~shown(E.stack) && ~shown(E.withRaster) && ~shown(E.baselineMode) ...
     && ~shown(E.showSEM) && shown(E.legend) && string(app.PlotSections([app.PlotSections.Name] == "kind").Title) == "Options", ...
     'adding a raster leaves only the rows a PSTH and a raster share (bins, raster sort, legend), not the PSTH''s own or the baseline');
+ovAll = @(v) all(arrayfun(@(k) isscalar(app.Config.Plots(k).overlays) && app.Config.Plots(k).overlays.value == v, [k2 k3 kR]));
+check(shown(E.ovList) && shown(app.PlotSections([app.PlotSections.Name] == "overlays").Toggle), ...
+    'plots without overlays show the Overlays section: one can be added to all of them');
+app.onAddOverlay("line");
+E.ovValue.Value = '0.2';
+app.onConfigChanged("plot");
+check(ovAll(0.2) && app.Config.Plots(k3).overlays.name == "Line 1" && isempty(app.Config.Plots(1).overlays), ...
+    'an overlay added with three plots selected is added to each of them, and an edit of it reaches each; the others are left alone');
+cx = app.Config; cx.Plots(k2).overlays(1).value = 0.9; app.Config = cx;
+app.syncPlotEditor();
+hidden = ~shown(E.ovList) && ~shown(E.ovName);
+cx.Plots(k2).overlays(1).value = 0.2; app.Config = cx;
+app.syncPlotEditor();
+check(hidden && shown(E.ovList) && shown(E.ovName), ...
+    'plots that hold different overlays hide the section (an edit would give each the first''s list); the same ones show it again');
+app.onRemoveOverlay();
+check(all(arrayfun(@(k) isempty(app.Config.Plots(k).overlays), [k2 k3 kR])), 'Remove takes the overlay off all three');
 E.fontSize.Value = 12;
 app.onConfigChanged("plot");
 check(all(arrayfun(@(k) app.Config.Plots(k).style.FontSize == 12, [k2 k3 kR])) && app.Config.Plots(1).style.FontSize ~= 12, ...

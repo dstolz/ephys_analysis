@@ -51,6 +51,13 @@ function syncPlotEditor(obj)
 %     text note                   every kind (its place, alignment, rotation,
 %                                 font, colours and interpreter enabled when
 %                                 it has text; x and y at "At x, y")
+%     overlays                    every kind: the list and its buttons; the
+%                                 rows of the overlay picked -- a line: its
+%                                 position, colour and opacity; a patch: its
+%                                 edges, fill and opacity and outline -- with
+%                                 Duplicate and Remove enabled, and the line
+%                                 style and width for a line or an outlined
+%                                 patch. The section's title counts them.
 %   The drop-downs list the kind's window modes ("between" for rate,
 %   tuning and corrmap), its baseline modes (fewer for signals) and row
 %   orders ("modulation" too for a heatmap with the auROC baseline); a
@@ -70,7 +77,9 @@ function syncPlotEditor(obj)
 %   options deciding theirs; never the id or title (each its own); the
 %   source and layout only when they all offer the same ones; the waveform
 %   rows not when unit-waveforms plots are mixed with other kinds (the mode
-%   is a plot's to one, an inset's to the other). The drop-downs offer
+%   is a plot's to one, an inset's to the other); the overlays only while all
+%   the plots hold the same ones (none, to add one to every plot), since an
+%   edit gives each the first's list. The drop-downs offer
 %   what all of them take, and Up / Down are off. What is enabled follows
 %   the values shown, the first plot's.
 E = obj.PlotEditor;
@@ -93,6 +102,8 @@ if ~has
     return
 end
 
+items = overlayGather(E);
+overlayList(E, items, E.ovList.UserData.shown);   % the labels follow the name and position edited
 kind = obj.Config.Plots(k).kind;
 source = string(E.source.Value);
 layout = string(E.layout.Value);
@@ -133,6 +144,21 @@ if ~isscalar(ks)
         end
     end
 end
+at = E.ovList.UserData.shown;
+picked = at >= 1 && at <= numel(items);
+isLine = startsWith(string(E.ovKind.Value), "line");
+v.ovList = true;
+v.ovName = picked; v.ovKind = picked; v.ovPanel = picked; v.ovStyle = picked;
+v.ovValue = picked && isLine; v.ovColor = picked && isLine;
+v.ovFrom = picked && ~isLine; v.ovFill = picked && ~isLine; v.ovEdge = picked && ~isLine;
+if ~isscalar(ks)
+    held = {obj.Config.Plots(ks).overlays};
+    if ~all(cellfun(@(o) isequaln(o, held{1}), held(2:end)))   % an edit would give each the first's list
+        for f = ["ovList" "ovName" "ovKind" "ovPanel" "ovStyle" "ovValue" "ovColor" "ovFrom" "ovFill" "ovEdge"]
+            v.(f) = false;
+        end
+    end
+end
 v.showSEM = any(on);
 for f = string(fieldnames(v)).'
     S = formShow(S, f, v.(f));
@@ -148,6 +174,8 @@ S(names == "bins").Title = "Bins & baseline";
 if ~v.binMs; S(names == "bins").Title = "Baseline"; end
 S(names == "kind").Title = "Options";
 if all(kinds == kind); S(names == "kind").Title = row.Label + " options"; end
+S(names == "overlays").Title = "Overlays";
+if ~isempty(items); S(names == "overlays").Title = "Overlays (" + numel(items) + ")"; end
 obj.PlotSections = S;
 
 % --- what the drop-downs offer ---------------------------------------------------------
@@ -189,6 +217,9 @@ noted = strtrim(strjoin(string(E.annText.Value(:)).', newline)) ~= "";
 en([E.annPlace E.annAlign E.annVAlign E.annRotation E.annFont E.annSize E.annBold E.annItalic E.annBox ...
     E.annColor E.annBackground E.annInterp], noted);
 en([E.annX E.annY], noted && string(E.annPlace.Value) == "custom");
+set([E.ovDuplicate E.ovRemove], 'Enable', onoff(picked));
+outlined = isLine || ~ismember(lower(strtrim(string(E.ovEdge.Value))), ["" "none"]);
+en([E.ovStyle E.ovWidth], outlined);
 syncAlignEnable(C);
 obj.layoutPlotEditor();
 end
@@ -254,6 +285,7 @@ v.waveSites = wavePlot && layout == "probe"; v.waveNames = v.waveSites;
 for f = ["annText" "annPlace" "annX" "annAlign" "annRotation" "annFont" "annBold" "annColor" "annInterp"]
     v.(f) = true;   % the text note is every kind's
 end
+v.ovList = true;   % so are the overlays (their rows follow the overlay picked: syncPlotEditor)
 on =[psth || ismember(kind, ["tuning" "behavior"]) || (kind == "rate" && layout == "bar") || (kind == "evoked" && layout ~= "butterfly"), ...
     ismember(kind, ["psth" "raster"]), grouped, ismember(kind, ["psth" "raster" "evoked" "rate" "tuning" "behavior"]) ...
     || (kind == "waveforms" && layout == "grid")];

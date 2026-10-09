@@ -295,6 +295,8 @@ classdef PlotAesthetics
                 "sem"          "SEM band"
                 "stopLine"     "Stop event (mean)"
                 "stackBase"    "Row baseline"
+                "overlayLine"  "Overlay line"
+                "overlayRegion" "Overlay region"
                 "zeroLine"     "Event line (t = 0)"
                 "chanceLine"   "auROC 0.5 line"
                 "modWindow"    "auROC modulation window"
@@ -662,6 +664,7 @@ classdef PlotAesthetics
             L.Patch = ["Visible" "FaceColor" "FaceAlpha" "EdgeColor" "EdgeAlpha" "LineStyle" "LineWidth"];
             L.Area = L.Patch;
             L.ConstantLine = ["Visible" "Color" "Alpha" "LineStyle" "LineWidth"];
+            L.ConstantRegion = ["Visible" "FaceColor" "FaceAlpha" "EdgeColor" "LineStyle" "LineWidth"];
             L.Bar = ["Visible" "FaceColor" "FaceAlpha" "EdgeColor" "EdgeAlpha" "LineStyle" "LineWidth" "BarWidth"];
             L.ErrorBar = ["Visible" "Color" "LineStyle" "LineWidth" "CapSize" marker];
             L.BoxChart = ["Visible" "BoxFaceColor" "BoxFaceAlpha" "BoxEdgeColor" "BoxMedianLineColor" ...

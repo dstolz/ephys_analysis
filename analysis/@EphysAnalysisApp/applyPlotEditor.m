@@ -129,6 +129,8 @@ E.annBox.Value = nt.box;
 offerItems(E.annColor, string(E.annColor.Items), pick(nt.color, "auto"));
 offerItems(E.annBackground, string(E.annBackground.Items), pick(nt.background, "none"));
 E.annInterp.Value = char(pickFrom(nt.interpreter, string(E.annInterp.ItemsData), "none"));
+overlayList(E, p.overlays, 1);
+if ~isempty(p.overlays); overlayShow(E, p.overlays(1)); end
 s = p.style;
 E.maxTiles.Value = s.MaxTiles;
 E.tileSpacing.Value = char(s.TileSpacing);

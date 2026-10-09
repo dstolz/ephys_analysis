@@ -4,7 +4,8 @@ function p = gatherPlotEditor(obj)
 %   "Use default" box ticked the plot's ref / window / selection is
 %   "default"; unticked (or edited: onPlotAlignEdited), the plot takes the
 %   values in that section's controls (set on the plot's own values, else
-%   the Defaults they showed: gatherAlignControls).
+%   the Defaults they showed: gatherAlignControls). The overlays are the
+%   list's, the one picked read from its rows (overlayGather).
 E = obj.PlotEditor;
 p = obj.Config.Plots(obj.SelectedPlot);
 p.enabled = E.enabled.Value;
@@ -102,6 +103,7 @@ if lower(p.note.color) == "auto"; p.note.color = ""; end
 p.note.background = strtrim(string(E.annBackground.Value));
 if lower(p.note.background) == "none"; p.note.background = ""; end
 p.note.interpreter = string(E.annInterp.Value);
+p.overlays = overlayGather(E);
 p.style.MaxTiles = E.maxTiles.Value;
 p.style.TileSpacing = string(E.tileSpacing.Value);
 p.style.FontSize = E.fontSize.Value;

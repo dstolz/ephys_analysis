@@ -40,7 +40,11 @@ function issues = validate(obj, opts)
 %               waveforms plot); its amplitude scale; a waveforms plot's
 %               mode is never off; a note's placement, alignment, rotation,
 %               font size and interpreter (a colour that is not one is a
-%               warning); style
+%               warning); each overlay's shape, axis, finite position (line)
+%               or edges (region, which must differ), panel, layer, line
+%               style and width, opacities (0-1), and colours (one that is
+%               not a colour is a warning), a warning for a panel the plot
+%               does not draw and for two overlays with one name; style
 %               values
 %     Export    formats are png / eps / svg / pdf; Dpi, FigureSizeCm; the
 %               folder and file-name patterns use known tokens; a warning
@@ -338,6 +342,55 @@ for k = 1:numel(obj.Plots)
                 add("Plots", n0 + "." + cf, "warning", "No colour """ + nt.(cf) + """; the note's " + cf + " is left to the design.");
             end
         end
+    end
+    names = strings(1, 0);
+    for q = 1:numel(p.overlays)
+        ov = p.overlays(q);
+        o0 = f0 + ".overlays(" + q + ")";
+        if ~ismember(ov.shape, ["line" "region"])
+            add("Plots", o0 + ".shape", "error", "An overlay is a line or a region.");
+        elseif ov.shape == "line" && ~isfinite(ov.value)
+            add("Plots", o0 + ".value", "error", "An overlay line needs a finite position (data units).");
+        elseif ov.shape == "region"
+            if ~(isfinite(ov.from) && isfinite(ov.to))
+                add("Plots", o0 + ".from", "error", "An overlay region needs finite edges, from and to (data units).");
+            elseif ov.from == ov.to
+                add("Plots", o0 + ".to", "error", "An overlay region's edges must differ (from and to are both " + ov.from + ").");
+            end
+        end
+        if ~ismember(ov.axis, ["x" "y"])
+            add("Plots", o0 + ".axis", "error", "An overlay's axis is x (vertical line, patch between x values) or y.");
+        end
+        if ~ismember(ov.panel, EphysAnalysisConfig.OverlayPanels)
+            add("Plots", o0 + ".panel", "error", "An overlay's panel is one of " + strjoin(EphysAnalysisConfig.OverlayPanels, ", ") + ".");
+        elseif (ov.panel == "raster" && ~(p.kind == "raster" || (p.kind == "psth" && p.withRaster))) ...
+                || (ov.panel == "data" && p.kind == "raster")
+            add("Plots", o0 + ".panel", "warning", "A " + p.kind + " plot draws no " + ov.panel + " panel here; this overlay is not drawn.");
+        end
+        if ~ismember(ov.layer, EphysAnalysisConfig.OverlayLayers)
+            add("Plots", o0 + ".layer", "error", "An overlay's layer is over or under the data.");
+        end
+        if ~ismember(ov.lineStyle, EphysAnalysisConfig.OverlayLineStyles)
+            add("Plots", o0 + ".lineStyle", "error", "An overlay's line style is one of " + strjoin(EphysAnalysisConfig.OverlayLineStyles, "  ") + ".");
+        end
+        if ~(isfinite(ov.lineWidth) && ov.lineWidth > 0)
+            add("Plots", o0 + ".lineWidth", "error", "An overlay's line width must be positive (points).");
+        end
+        for af = ["alpha" "faceAlpha"]
+            if ~(ov.(af) >= 0 && ov.(af) <= 1)
+                add("Plots", o0 + "." + af, "error", "An overlay's " + af + " is an opacity from 0 to 1.");
+            end
+        end
+        for cf = ["color" "faceColor" "edgeColor"]
+            if ~(cf == "edgeColor" && lower(strtrim(ov.(cf))) == "none") && ~isColor(ov.(cf))
+                add("Plots", o0 + "." + cf, "warning", "No colour """ + ov.(cf) + """; the overlay keeps its default " + cf + ".");
+            end
+        end
+        if strtrim(ov.name) ~= "" && ismember(strtrim(ov.name), names)
+            add("Plots", o0 + ".name", "warning", "Another overlay of this plot is also named """ + strtrim(ov.name) + ...
+                """; a change in the aesthetics editor reaches both.");
+        end
+        names(end+1) = strtrim(ov.name); %#ok<AGROW>
     end
     st = p.style;
     if ~(st.MaxTiles >= 1); add("Plots", f0 + ".style.MaxTiles", "error", "MaxTiles must be >= 1."); end

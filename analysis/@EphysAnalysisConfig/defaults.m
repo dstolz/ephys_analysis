@@ -10,7 +10,8 @@ function s = defaults(section)
 %                     Plots)
 %   Building blocks   EventRef, SequenceStep (one step of an EventRef's
 %                     sequence), EpochWindow, TrialSelection, UnitSelection,
-%                     Style, Auroc, Waveform, Note
+%                     Style, Auroc, Waveform, Note, Overlay (one entry of a
+%                     plot's overlays)
 %
 %   See also EphysAnalysisConfig, EphysAnalysisConfig.normalizeSection.
 
@@ -169,6 +170,27 @@ switch section
             'box',        false, ...        % an outline round the text
             'interpreter', "none");         % "none" (as typed) | "tex" (\mu, x^2, x_i, \bf)
 
+    case "Overlay"
+        % one graphic drawn on a plot's axes in data units (drawOverlays): a line across the axis, or a semitransparent
+        % patch between two values; a plot holds any number of them (Plot.overlays), each with its own look
+        s = struct( ...
+            'name',      "", ...            % what the list and the aesthetics editor call it ("" = "Overlay <n>")
+            'enabled',   true, ...          % unticked, it stays in the config but is not drawn
+            'shape',     "line", ...        % "line" | "region" (a patch between from and to)
+            'axis',      "x", ...           % "x": a vertical line, or a patch between two x values | "y": a horizontal line / a patch between two y values
+            'value',     0, ...             % line: where it crosses the axis (data units)
+            'from',      0, ...             % region: one edge (data units)
+            'to',        0.1, ...           % region: the other edge
+            'panel',     "all", ...         % which axes: "all" | "data" (a PSTH's rate panel, a trace, a heat map, ...) | "raster" (a raster's rows)
+            'layer',     "over", ...        % "over" | "under" the plot's data in those axes
+            'color',     "#d62728", ...     % line: colour (a name or #rrggbb)
+            'alpha',     1, ...             % line: opacity 0-1
+            'lineStyle', "--", ...          % line, and a region's outline: "-" | "--" | ":" | "-."
+            'lineWidth', 1.5, ...           % line, and a region's outline: points
+            'faceColor', "#808080", ...     % region: fill colour (a name or #rrggbb)
+            'faceAlpha', 0.25, ...          % region: fill opacity 0-1
+            'edgeColor', "none");           % region: outline colour ("none" = no outline)
+
     case "Export"
         s = struct( ...
             'Enabled',         true, ...
@@ -234,7 +256,8 @@ switch section
             'correlation',   "pearson", ...     % corrmap: "pearson" | "spearman"
             'waveform',      EphysAnalysisConfig.defaults("Waveform"), ...   % psth / raster / tuning grids: each unit's waveform in its tile; waveforms: the plot's own settings
             'note',          EphysAnalysisConfig.defaults("Note"), ...       % descriptive text on the plot (renderPlot's drawNote)
-            'style',         EphysAnalysisConfig.defaults("Style"), ...
+            'overlays',      repmat(EphysAnalysisConfig.defaults("Overlay"), 1, 0), ...   % lines and patches drawn on the plot's axes (renderPlot's drawOverlays)
+            'style',        EphysAnalysisConfig.defaults("Style"), ...
             'aesthetics',   PlotAesthetics.emptyRules());   % remembered looks of components: role, group, property, value (PlotAesthetics)
 
     otherwise

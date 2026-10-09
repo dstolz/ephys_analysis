@@ -13,7 +13,8 @@ function test_EphysAnalysisApp()
 %   reference or window, ticking it again going back); the editor showing
 %   only the rows and sections a plot uses (y limits, heat colours, the
 %   alignment sections), greying out the ones its options switch off, and
-%   collapsing a section; the epoch diagram (opened from the plot editor
+%   collapsing a section; the section headers' colours and keys (Ctrl+1 to
+%   Ctrl+9 going to a section); the epoch diagram (opened from the plot editor
 %   with the plot's own epochs, redrawn on an edit of pre, epochs dropped
 %   outside the recording, a refused window reported, paging, opened from
 %   the Alignment tab for the defaults, closing with the app); a raster's
@@ -450,6 +451,33 @@ app.onPlotSectionToggled("note");
 collapsed = ~shown(E.annText) && shown(sec([sec.Name] == "note").Toggle);
 app.onPlotSectionToggled("note");
 check(collapsed && shown(E.annText), 'the Text note section collapses to its header and expands again');
+heads = app.PlotSections([app.PlotSections.Name] ~= "general");
+barColor = [0.88 0.91 0.95];
+titleColors = cell2mat(arrayfun(@(s) s.Toggle.FontColor, heads, 'UniformOutput', false).');
+ratios = arrayfun(@(i) wcagRatio(titleColors(i, :), barColor), 1:numel(heads));
+check(numel(heads) == 9 && size(unique(round(titleColors, 3), 'rows'), 1) == 9 && all(ratios >= 4.5) ...
+    && isequal([heads.Key], string(1:9)) && all(arrayfun(@(s) endsWith(s.Toggle.Text, modifier + s.Key + ")"), heads)), ...
+    'each of the nine section headers has a title colour of its own, readable on the bar, and names its key (Ctrl+1 to Ctrl+9)');
+pressed = @(k, mods) struct('Key', k, 'Modifier', {mods}, 'Character', '');
+app.onKeyPress(pressed('5', {'control', 'shift'}));
+app.onKeyPress(pressed('5', {'alt'}));
+app.onKeyPress(pressed('5', {}));
+app.onKeyPress(pressed('6', {'control'}));
+untouched = ~shown(E.binMs);
+app.onKeyPress(pressed('5', {'control'}));
+opened = shown(E.binMs);
+app.onPlotSectionToggled("bins");
+app.onKeyPress(pressed('numpad5', {'command'}));
+openedPad = shown(E.binMs);
+app.onPlotSectionToggled("bins");
+check(untouched && opened && openedPad, ...
+    'Ctrl+5 (or Cmd, or the number pad) opens the collapsed Bins & baseline section; other chords and keys leave it');
+kLfp = find([app.Config.Plots.source] == "LFP", 1);
+if ~isempty(kLfp); app.onPlotSelected(kLfp); end
+app.onKeyPress(pressed('8', {'control'}));
+check(~isempty(kLfp) && ~shown(E.waveMode) && contains(app.StatusBar.Text, "Unit waveform section is not shown"), ...
+    'the key of a section the plot does not show says so in the status bar and moves nothing');
+app.onPlotSelected(1);
 E.annText.Value = {''}; E.annSize.Value = []; app.onConfigChanged("plot");
 app.refreshPreview(Force=true);
 check(app.Config.Plots(1).note.text == "" && isnan(app.Config.Plots(1).note.fontSize) && E.annPlace.Enable == "off" ...
@@ -755,6 +783,21 @@ function n = plotNode(tree, k)
 %plotNode  The plot tree's node of plot K.
 n = findall(tree, 'Type', 'uitreenode');
 n = n(arrayfun(@(x) isequal(x.NodeData, k), n));
+end
+
+
+function r = wcagRatio(a, b)
+%wcagRatio  The WCAG contrast ratio of two RGB colours.
+la = relLuminance(a);
+lb = relLuminance(b);
+r = (max(la, lb) + 0.05) / (min(la, lb) + 0.05);
+end
+
+
+function l = relLuminance(c)
+%relLuminance  The relative luminance of the sRGB colour C.
+lin = (c <= 0.04045) .* (c / 12.92) + (c > 0.04045) .* (((c + 0.055) / 1.055) .^ 2.4);
+l = lin(:).' * [0.2126; 0.7152; 0.0722];
 end
 
 

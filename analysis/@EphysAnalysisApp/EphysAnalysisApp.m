@@ -64,6 +64,10 @@ classdef EphysAnalysisApp < handle
     %   Preview; Validate, Plan, Run, Cancel; Open report, Open figure
     %   folder; Open pipeline app; Help for this tab.
     %
+    %   Keys (onKeyPress), on the Plots tab: Ctrl+1 to Ctrl+9 (Cmd on a Mac)
+    %   go to the plot editor's sections (gotoPlotSection); each header
+    %   names its key and has a colour of its own.
+    %
     %   Preferences (getpref group 'EphysAnalysisApp'): FigurePosition,
     %   LastConfigFile, RecentConfigs, ScriptFolder, AutoPreview,
     %   PreviewMaxMB (signal previews of larger extracts wait for the Preview
@@ -320,6 +324,8 @@ classdef EphysAnalysisApp < handle
         onPlotGroupChanged(obj)
         onPlotGroupToggled(obj, node, collapsed)
         onPlotSectionToggled(obj, name)
+        gotoPlotSection(obj, name)
+        onKeyPress(obj, evt)
         onPlotAlignEdited(obj, part)
         onPlotDefaultToggled(obj)
         refreshPreview(obj, opts)

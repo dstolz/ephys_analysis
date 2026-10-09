@@ -3322,6 +3322,11 @@ Scripted, `app.issueReport("bug")` returns the same report (name-value
 `Description`, `System`, `Config`, `Logs`, `MaxLogLines`) and
 `app.issueURL("bug", title, body)` the prefilled address.
 
+The dialog, the address and the system lines are
+[`IssueReport`](../pipeline/IssueReport.m), which the analysis app's Help menu
+uses too ([Reporting an issue](EphysAnalysisApp.md#reporting-an-issue) there);
+each app writes only its own report.
+
 ## Sorted tables
 
 Five tables sort on a header click: the Project table, the Trials table, the
@@ -3462,7 +3467,7 @@ app.KSQueue                       % prepared runs waiting for a slot (Queue the 
 | `tableSort.m`, `onTableSorted.m`, `onTableSortMenu.m`, `clearTableSort.m`, `private/sortMenuItem.m`, `private/sortableTable.m`, `private/saveTableSorts.m`; `pipeline/TableSort.m` | [sorted tables](#sorted-tables): a header click remembered and saved, applied whenever a table is filled, Clear sort |
 | `stopTimers.m` | stops the app's timers (Kilosort4, copy and resource monitors, the scheduled copy's refresh) on close, and when the figure is deleted any other way |
 | `helpURL.m`, `onHelp.m` | Help menu (wiki pages) |
-| `onReportIssue.m`, `issueReport.m`, `issueURL.m` | Help menu (GitHub issue / feature request) |
+| `onReportIssue.m`, `issueReport.m`, `issueURL.m`; `pipeline/IssueReport.m` | Help menu (GitHub issue / feature request; the dialog, address and system lines are shared with EphysAnalysisApp) |
 | `pipeline/showAbout.m`, `pipeline/ephysVersion.m` | Help menu (About; shared with EphysAnalysisApp). The release number is the repository's `VERSION` file, which `ephysVersion` reads |
 
 ## Tests

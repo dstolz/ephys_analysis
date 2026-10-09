@@ -33,76 +33,22 @@ arguments
     opts.MaxLogLines (1,1) double = 60
 end
 
-if kind == "bug"
-    headings = ["What happened"; "Steps to reproduce"; "What I expected"];
-else
-    headings = ["What would you like to be able to do"; "Why it would help"; "How it might work"];
-end
-
-L = ["### " + headings(1); ""; opts.Description; ""];
-for k = 2:numel(headings)
-    L = [L; "### " + headings(k); ""; ""];   %#ok<AGROW>
-end
+L = IssueReport.lead(kind, opts.Description);
 
 if opts.System
-    L = [L; detailsBlock("System", systemLines(obj))];
+    L = [L; IssueReport.details("System", IssueReport.systemLines(pythonLines(obj)))];
 end
 if opts.Config
     cfg = workingConfig(obj);
-    L = [L; detailsBlock("Pipeline options", configLines(obj, cfg))];
-    L = [L; detailsBlock("Config JSON", configJSON(cfg))];
+    L = [L; IssueReport.details("Pipeline options", configLines(obj, cfg))];
+    L = [L; IssueReport.details("Config JSON", configJSON(cfg))];
 end
 if opts.Logs
-    L = [L; detailsBlock("Logs", logLines(obj, opts.MaxLogLines), false)];
+    L = [L; IssueReport.details("Logs", logLines(obj, opts.MaxLogLines), false)];
 end
 
-L = [L; ""; "---"; ...
-    "_Filed from the EphysPipelineApp Help menu on " + ...
-    string(datetime('now', 'Format', 'yyyy-MM-dd HH:mm')) + "._"];
+L = [L; IssueReport.trailer("EphysPipelineApp")];
 body = join(L, newline);
-end
-
-
-function L = detailsBlock(summary, lines, fenced)
-%detailsBlock  One collapsed <details> section, its lines in a code fence.
-if nargin < 3; fenced = true; end
-lines = string(lines(:));
-if isempty(lines); lines = "(nothing to report)"; end
-L = [""; "<details>"; "<summary>" + summary + "</summary>"; ""];
-if fenced
-    L = [L; "```text"; lines; "```"];
-else
-    L = [L; lines];
-end
-L = [L; ""; "</details>"];
-end
-
-
-function L = systemLines(obj)
-%systemLines  MATLAB, machine, GPU, Python and this checkout of the code.
-L = [kv("MATLAB", version); kv("Platform", computer)];
-osTxt = osDescription();
-if osTxt ~= ""; L = [L; kv("OS", osTxt)]; end
-v = ephysVersion();
-L = [L; kv("Version", v.Text); kv("Repository", v.Folder)];
-try
-    L = [L; kv("Compute threads", string(maxNumCompThreads))];
-catch
-end
-if ispc
-    try
-        [~, sys] = memory;
-        L = [L; kv("Memory", sprintf('%.1f GB total, %.1f GB free', ...
-            sys.PhysicalMemory.Total / 2^30, sys.PhysicalMemory.Available / 2^30))];
-    catch
-    end
-end
-gpuTxt = gpuDescription();
-if gpuTxt ~= ""; L = [L; kv("GPU", gpuTxt)]; end
-pyTxt = pythonDescription(obj);
-if pyTxt ~= ""; L = [L; kv("Python", pyTxt)]; end
-tbTxt = toolboxList();
-if tbTxt ~= ""; L = [L; kv("Toolboxes", tbTxt)]; end
 end
 
 
@@ -124,25 +70,25 @@ dirty = "no";
 if cfg.File == "" || ~isequaln(cfg.toStruct(), obj.SavedConfigStruct); dirty = "yes"; end
 steps = cfg.enabledSteps();
 if isempty(steps); steps = "(none)"; end
-L = [kv("Config name", cfg.Name); ...
-    kv("Config file", file); ...
-    kv("Unsaved edits", dirty); ...
-    kv("Enabled steps", join(string(steps), ", ")); ...
-    kv("Project root", cfg.Project.Root); ...
-    kv("Output root", cfg.Project.OutputRoot)];
+L = [IssueReport.kv("Config name", cfg.Name); ...
+    IssueReport.kv("Config file", file); ...
+    IssueReport.kv("Unsaved edits", dirty); ...
+    IssueReport.kv("Enabled steps", join(string(steps), ", ")); ...
+    IssueReport.kv("Project root", cfg.Project.Root); ...
+    IssueReport.kv("Output root", cfg.Project.OutputRoot)];
 if isempty(obj.Project)
-    L = [L; kv("Datasets", "no project scanned")];
+    L = [L; IssueReport.kv("Datasets", "no project scanned")];
 else
-    L = [L; kv("Datasets", sprintf('%d scanned, %d ticked', ...
+    L = [L; IssueReport.kv("Datasets", sprintf('%d scanned, %d ticked', ...
         obj.Project.NumDatasets, numel(obj.tickedDatasetIndices())))];
 end
 d = obj.currentDataset();
-if ~isempty(d); L = [L; kv("Active dataset", d.Name)]; end
+if ~isempty(d); L = [L; IssueReport.kv("Active dataset", d.Name)]; end
 try
-    L = [L; kv("Selected tab", string(obj.Tabs.SelectedTab.Title))];
+    L = [L; IssueReport.kv("Selected tab", string(obj.Tabs.SelectedTab.Title))];
 catch
 end
-L = [L; kv("Run in progress", string(obj.RunActive))];
+L = [L; IssueReport.kv("Run in progress", string(obj.RunActive))];
 end
 
 
@@ -212,43 +158,8 @@ lines = v(1:last);
 end
 
 
-function s = kv(label, value)
-%kv  One aligned "label : value" line.
-value = strip(join(string(value), " "));
-s = string(sprintf('%-16s : %s', label, value));
-end
-
-
-function s = osDescription()
-s = "";
-try
-    if usejava('jvm')
-        s = strip(string(java.lang.System.getProperty('os.name')) + " " + ...
-            string(java.lang.System.getProperty('os.version')));
-    end
-catch
-end
-if s == "" && ispc; s = string(getenv('OS')); end
-end
-
-
-function s = gpuDescription()
-s = "";
-try
-    if isempty(ver('parallel')); return; end
-    n = gpuDeviceCount("available");
-    s = string(n) + " available";
-    if n > 0
-        T = gpuDeviceTable;
-        s = s + " (" + join(string(T.Name(:)).', ", ") + ")";
-    end
-catch
-end
-end
-
-
-function s = pythonDescription(obj)
-%pythonDescription  MATLAB's interpreter and the one the Sorting tab runs Kilosort4 with.
+function L = pythonLines(obj)
+%pythonLines  MATLAB's interpreter and the one the Sorting tab runs Kilosort4 with.
 parts = strings(0, 1);
 try
     pe = pyenv;
@@ -259,8 +170,8 @@ catch
 end
 parts = [parts; fieldText(obj, "PythonExeField", "Sorting tab exe")];
 parts = [parts; fieldText(obj, "CondaEnvField", "conda env")];
-if isempty(parts); s = ""; return; end
-s = join(parts.', "; ");
+L = strings(0, 1);
+if ~isempty(parts); L = IssueReport.kv("Python", join(parts.', "; ")); end
 end
 
 
@@ -273,16 +184,6 @@ try
     v = strip(string(f.Value));
     if v == ""; return; end
     s = label + ": " + v;
-catch
-end
-end
-
-
-function s = toolboxList()
-s = "";
-try
-    v = ver;
-    s = join(string({v.Name}) + " " + string({v.Version}), ", ");
 catch
 end
 end

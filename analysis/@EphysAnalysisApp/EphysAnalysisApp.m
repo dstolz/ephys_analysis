@@ -38,7 +38,8 @@ classdef EphysAnalysisApp < handle
     %   menu: the plot designs (choosing one redraws every plot), save the
     %   preview's look as a design, import or delete a design, your designs
     %   folder. Help menu: the wiki page of the tab shown, the documentation
-    %   home and the analysis quick start.
+    %   home and the analysis quick start; Report an issue and Request a
+    %   feature on GitHub (onReportIssue); About.
     %
     %   Toolbar (buildToolbar): the most used commands as icons, each with
     %   its menu shortcut in the tooltip: New / Open / Save config; Scan,
@@ -179,6 +180,7 @@ classdef EphysAnalysisApp < handle
     properties (Constant)
         PrefGroup = 'EphysAnalysisApp'
         WikiURL = "https://github.com/dstolz/ephys_analysis/wiki"
+        RepoURL = "https://github.com/dstolz/ephys_analysis"        % the repository the issue items file against
         AutoPreviewSeconds = 2
     end
 
@@ -308,5 +310,8 @@ classdef EphysAnalysisApp < handle
         onTabChanged(obj)
         url = helpURL(obj, page)
         onHelp(obj, page)
+        onReportIssue(obj, kind)
+        body = issueReport(obj, kind, opts)
+        [url, truncated] = issueURL(obj, kind, title, body)
     end
 end

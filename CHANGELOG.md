@@ -10,6 +10,13 @@ says how to cut a release.
 
 ### Added
 
+- **Report an issue on GitHub...** and **Request a feature on GitHub...** in
+  the analysis app's Help menu, as in the pipeline app: a dialog that
+  composes the report from the session (system info, the analysis config and
+  the Log tab, each optional), previews it as it will be sent and opens the
+  repository's new-issue form prefilled. Nothing is filed until the form is
+  submitted. The dialog, the prefilled address and the system lines moved to
+  `pipeline/IssueReport.m`, which both apps now use.
 - A toolbar in the analysis app, under the menu bar: New, Open and Save
   config; Scan for datasets and Preview the selected plot; Validate config,
   Plan, Run and Cancel run; open the last run's report and figure folder;

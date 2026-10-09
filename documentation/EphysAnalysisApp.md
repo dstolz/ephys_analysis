@@ -553,10 +553,35 @@ matrix per group.
 | | **Open my designs folder**, **Keep my designs in...** | opens the folder; or keeps your designs in another, such as one the lab shares |
 | Help | **Help for this tab** | the wiki page of this app, at the section of the tab shown (`helpURL`) |
 | | **Documentation home**, **Analysis quick start**, **Analysis configs** | the wiki's Home, [Quick start](#quick-start) on this page, the page made from [EphysAnalysisConfig.md](EphysAnalysisConfig.md) |
+| | **Report an issue on GitHub...**, **Request a feature on GitHub...** | compose a GitHub issue from this session and open it prefilled ([Reporting an issue](#reporting-an-issue)) |
 | | **About EphysAnalysisApp** | the version and git commit of the code, the repository folder and the MATLAB release; **Copy** puts them on the clipboard |
 
 The title shows `*` while the config has unsaved changes; closing, opening
 or starting a new config asks to save them.
+
+## Reporting an issue
+
+**Help → Report an issue on GitHub...** and **Help → Request a feature on
+GitHub...** compose a GitHub issue from the session you are in. Both open the
+same dialog as in the pipeline app ([Reporting an
+issue](EphysPipelineApp.md#reporting-an-issue) there says how the buttons and
+the address work): a title, a box for what happened (or what you would like
+the app to do), tick boxes for what to send with it, and a preview of the
+whole report exactly as it will be sent.
+
+| Ticked | What it sends |
+| --- | --- |
+| System info | MATLAB release and platform, OS, compute threads, memory, GPUs, the installed toolboxes, the version of the code with its git commit, branch and whether it has uncommitted changes, and the repository folder |
+| Analysis config | the working config as the controls hold it now (name, file, unsaved edits, source and its roots, how many plots and of which kinds, dataset counts, active dataset, selected tab, whether a run is going) and the whole config as JSON, written the way **Save config** writes it — **this carries your file paths** |
+| Log tab | the last 60 lines of the Log tab, saying how many lines it had; a failed run's message is there |
+
+A bug report starts with all three ticked and a feature request with only the
+system info; untick anything you would rather not send. Nothing is filed until
+you submit the form on GitHub.
+
+Scripted, `app.issueReport("bug")` returns the same report (name-value
+`Description`, `System`, `Config`, `Logs`, `MaxLogLines`) and
+`app.issueURL("bug", title, body)` the prefilled address.
 
 ## Toolbar
 
@@ -663,6 +688,7 @@ results, on the Log tab and in the report.
 | running | `onValidate`, `onPlan`, `onRunExport`, `onCancelRun` |
 | files | `onNewConfig`, `onOpenConfig`, `openConfigFile`, `onSaveConfig`, `onSaveConfigAs`, `onGenerateScript`, `loadPreferences`, `savePreferences` |
 | help | `onHelp`, `helpURL` (the wiki page and anchor of each tab; `tools/wiki/test_gen_pages.py` checks that the page made from this file has them) |
+| issues | `onReportIssue`, `issueReport`, `issueURL`; the dialog, the address and the system lines are `pipeline/IssueReport.m`, shared with EphysPipelineApp |
 
 ## Tests
 

@@ -146,6 +146,7 @@ classdef EphysAnalysisApp < handle
         % --- Plots tab ---
         PlotsTree          matlab.ui.container.Tree         % the plots under groups (plotGroups); a plot's node holds its index in NodeData
         PlotGroupDropDown  matlab.ui.control.DropDown       % how the tree groups: plot type, source, layout, status, none
+        PlotFilterDropDown matlab.ui.control.DropDown       % which plots the Check / Uncheck / Only buttons act on (refreshPlotFilter)
         AddKindDropDown    matlab.ui.control.DropDown
         AddPlotButton      matlab.ui.control.Button
         RemovePlotButton   matlab.ui.control.Button
@@ -328,6 +329,11 @@ classdef EphysAnalysisApp < handle
         onPlotSectionToggled(obj, name)
         gotoPlotSection(obj, name)
         onKeyPress(obj, evt)
+        onPlotCheck(obj, how)
+        onPlotTreeDoubleClicked(obj, evt)
+        setPlotsEnabled(obj, ks, how)
+        ks = plotsOfFilter(obj)
+        refreshPlotFilter(obj)
         onOverlayPicked(obj)
         onAddOverlay(obj, shape)
         onDuplicateOverlay(obj)

@@ -74,6 +74,26 @@ check(~isempty(app.Runner) && height(T) == 2 && all(T.Run) && isequal(sort(T.Nam
     && all(T.LFP == "✓") && all(T.Behavior == "✓"), 'the project root was scanned: both datasets, ticked, with LFP and behavior');
 check(app.Config.Source.Mode == "project" && app.Config.Source.Root == F.proj && ~startsWith(app.Fig.Name, "*"), ...
     'a new config for the project, clean');
+check(all(ismember(["Subject" "Date" "Idx"], string(T.Properties.VariableNames))) && all(T.Subject ~= "") ...
+    && all(~cellfun(@isempty, regexp(cellstr(T.Date), '^\d{4}-\d{2}-\d{2}$', 'once'))) && isequal(T.Idx, (1:2).') ...
+    && app.DatasetsTable.ColumnSortable(1), 'the datasets table has Subject and Date, a hidden Idx, and sorts on a header click');
+app.DatasetsSort = struct('column', "Name", 'direction', "descend");   % as a click on Name leaves it
+app.refreshDatasetsTable();
+T2 = app.DatasetsTable.Data;
+check(isequal(T2.Name, sort(F.names(:), 'descend')) && isequal(T2.Idx, arrayfun(@(n) find(app.Runner.Names == n), T2.Name)), ...
+    'a remembered sort orders the rows and each row keeps its dataset''s place in the Runner (Idx)');
+app.onDatasetCellSelection(struct('Indices', [1 2]));
+check(app.Runner.Names(app.ActiveIdx) == T2.Name(1), 'a click goes to the row''s dataset, whatever the sort');
+T2.Run(1) = false;
+app.DatasetsTable.Data = T2;
+app.onDatasetsTableEdited([]);
+check(isequal(app.Ticked, ~(app.Runner.Names == T2.Name(1))), 'a Run tick goes to the row''s dataset, whatever the sort');
+T2.Run(1) = true;
+app.DatasetsTable.Data = T2;
+app.onDatasetsTableEdited([]);
+app.clearDatasetsSort();
+check(~TableSort.isSorted(app.DatasetsSort) && isequal(app.DatasetsTable.Data.Idx, (1:2).') && all(app.Ticked), ...
+    'Clear sort puts the rows back in the scan order');
 k = find(app.Runner.Names == F.names(1));
 app.selectDataset(k);
 check(app.ActiveIdx == k && any(app.LinesTable.Data.Line == "Stim") && any(app.ParamsTable.Data.Parameter == "Depth") ...
@@ -331,6 +351,47 @@ check(isequal([app.Config.Plots.id], ["psth_1" "evoked_1"]) && app.SelectedPlot 
 app.onPlotGroupToggled(tree.Children(1), false);
 app.onPlotSelected(2);
 check(isempty(app.PlotGroupsCollapsed) && app.SelectedPlot == 2, 'expanding it forgets that');
+% the check boxes: a plot's is ticked while it is enabled
+dblclick = @(k) struct('InteractionInformation', struct('Node', plotNode(tree, k)));
+check(all(arrayfun(@(k) string(plotNode(tree, k).UserData) == "on" && ~isempty(plotNode(tree, k).Icon), 1:2)) ...
+    && string(tree.Children(1).UserData) == "on", 'every plot starts enabled, its box (and its group''s) ticked');
+app.onPlotTreeDoubleClicked(dblclick(1));
+check(~app.Config.Plots(1).enabled && app.Config.Plots(2).enabled && string(plotNode(tree, 1).UserData) == "off" ...
+    && string(tree.Children(1).UserData) == "off" && endsWith(string(plotNode(tree, 1).Text), "(off)") && app.SelectedPlot == 2, ...
+    'a double-click unticks a plot: disabled in the config, the box and "(off)" follow, the plot in the editor stays');
+app.onPlotTreeDoubleClicked(dblclick(2));
+check(~app.Config.Plots(2).enabled && ~E.enabled.Value, 'unticking the plot in the editor clears its Enabled box');
+E.enabled.Value = true;
+app.onConfigChanged("plot");
+check(app.Config.Plots(2).enabled && string(plotNode(tree, 2).UserData) == "on", 'ticking Enabled in the editor ticks the tree box');
+app.onPlotTreeDoubleClicked(struct('InteractionInformation', struct('Node', tree.Children(1))));
+check(~app.Config.Plots(1).enabled, 'a double-click on a group header changes no plot');
+app.onPlotCheck("all");
+allOn = all([app.Config.Plots.enabled]);
+app.onPlotCheck("none");
+noneOn = ~any([app.Config.Plots.enabled]);
+app.onPlotCheck("invert");
+check(allOn && noneOn && all([app.Config.Plots.enabled]) && string(tree.Children(1).UserData) == "on", ...
+    'All, None and Invert tick, untick and flip every plot');
+fkeys = string(app.PlotFilterDropDown.ItemsData);
+check(fkeys(1) == "selected" && all(ismember(["kind:PSTH" "kind:Evoked potential" "source:units" "source:LFP"], fkeys)), ...
+    'the drop-down above the tree names the selected plots and each plot type and source in use');
+app.PlotFilterDropDown.Value = 'kind:PSTH';
+app.onPlotCheck("only");
+check(isequal([app.Config.Plots.enabled], [true false]), 'Only ticks the plots of the type named and unticks the rest');
+app.PlotFilterDropDown.Value = 'source:LFP';
+app.onPlotCheck("check");
+check(all([app.Config.Plots.enabled]), 'Check ticks the plots of the source named');
+app.PlotFilterDropDown.Value = 'selected';
+app.onPlotCheck("uncheck");
+check(isequal([app.Config.Plots.enabled], [true false]), 'Uncheck unticks the plots selected (the second)');
+app.PlotGroupDropDown.Value = 'status';
+app.onPlotGroupChanged();
+check(isequal(string({tree.Children.Text}), ["Enabled  (1)" "Off  (1)"]), 'grouped by Enabled / off, the plots sit under their state');
+app.onPlotCheck("all");
+check(isequal(string({tree.Children.Text}), "Enabled  (2)"), 'ticking them all moves them under Enabled');
+app.PlotGroupDropDown.Value = 'kind';
+app.onPlotGroupChanged();
 app.PlotEditor.source.Value = 'LFP';
 app.onConfigChanged("plot");
 app.refreshPreview(Force=true);
@@ -453,12 +514,14 @@ collapsed = ~shown(E.annText) && shown(sec([sec.Name] == "note").Toggle);
 app.onPlotSectionToggled("note");
 check(collapsed && shown(E.annText), 'the Text note section collapses to its header and expands again');
 heads = app.PlotSections([app.PlotSections.Name] ~= "general");
-barColor = [0.88 0.91 0.95];
-titleColors = cell2mat(arrayfun(@(s) s.Toggle.FontColor, heads, 'UniformOutput', false).');
-ratios = arrayfun(@(i) wcagRatio(titleColors(i, :), barColor), 1:numel(heads));
-check(numel(heads) == 10 && size(unique(round(titleColors, 3), 'rows'), 1) == 10 && all(ratios >= 4.5) ...
+barColors = cell2mat(arrayfun(@(s) s.Toggle.BackgroundColor, heads, 'UniformOutput', false).');
+fontColors = cell2mat(arrayfun(@(s) s.Toggle.FontColor, heads, 'UniformOutput', false).');
+ratios = arrayfun(@(i) wcagRatio(fontColors(i, :), barColors(i, :)), 1:numel(heads));
+satur = max(barColors, [], 2) - min(barColors, [], 2);
+check(numel(heads) == 10 && size(unique(round(barColors, 3), 'rows'), 1) == 10 && all(ratios >= 4.5) ...
+    && all(fontColors(:) == 0) && all(satur > 0.01 & satur < 0.4) ...
     && isequal([heads.Key], [string(1:9) "0"]) && all(arrayfun(@(s) endsWith(s.Toggle.Text, modifier + s.Key + ")"), heads)), ...
-    'each of the ten section headers has a title colour of its own, readable on the bar, and names its key (Ctrl+1 to Ctrl+9, Ctrl+0)');
+    'each of the ten section headers has a desaturated bar color of its own with black text, and names its key (Ctrl+1 to Ctrl+9, Ctrl+0)');
 pressed = @(k, mods) struct('Key', k, 'Modifier', {mods}, 'Character', '');
 app.onKeyPress(pressed('5', {'control', 'shift'}));
 app.onKeyPress(pressed('5', {'alt'}));

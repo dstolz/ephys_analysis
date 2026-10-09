@@ -675,6 +675,52 @@ clickTool(app, "plan");
 P = app.RunResultsTable.Data;
 check(istable(P) && any(P.Step == "spikes" & P.Status == "ready"), 'the toolbar''s Plan fills the results table as Run > Plan does');
 
+fprintf('\n== 3a-1. tables: Subject and Date columns, sorting ==\n');
+v = string(P.Properties.VariableNames);
+isRec = P.Dataset == "recA_260101_120000";
+check(any(isRec) && find(v == "Subject") == find(v == "Dataset") + 1 && find(v == "Date") == find(v == "Subject") + 1 ...
+    && all(P.Subject(isRec) == "recA") && all(~cellfun(@isempty, regexp(cellstr(P.Date(isRec)), '^\d{4}-\d{2}-\d{2}$', 'once'))), ...
+    'the plan in the results table carries each dataset''s Subject and Date after Dataset');
+check(all(app.RunResultsTable.ColumnSortable) && all(app.RunIssuesTable.ColumnSortable) && all(app.ConvTargetsTable.ColumnSortable) ...
+    && all(app.ExpTargetsTable.ColumnSortable) && all(app.AnaTargetsTable.ColumnSortable) && all(app.SpkPreviewTable.ColumnSortable) ...
+    && all(app.CopyTable.ColumnSortable), 'the plan, result, issue, preview and copy tables sort on a header click');
+app.TableSorts.RunResults = struct('column', "Step", 'direction', "descend");   % as a click on Step leaves it
+app.onPlan();
+P2 = app.RunResultsTable.Data;
+check(isequal(string(P2.Step), sort(string(P2.Step), 'descend')) ...
+    && isequal(sort(P2.Order), (1:height(P2)).'), 'a remembered sort orders the plan, and Order keeps the pipeline''s own order');
+app.clearTableSort("RunResults");
+P3 = app.RunResultsTable.Data;
+check(~TableSort.isSorted(app.tableSort("RunResults")) && issorted(P3.Order) && isequal(P3.Step, P.Step), ...
+    'Clear sort puts the plan back in the pipeline''s order');
+app.refreshStepPlan("signals");
+Pc = app.ConvTargetsTable.Data;
+check(istable(Pc) && all(ismember(["Dataset" "Subject" "Date"], string(Pc.Properties.VariableNames))) ...
+    && numel(app.ConvTargetsTable.ColumnName) == width(Pc) && string(app.ConvTargetsTable.ColumnName{4}) == "Output file", ...
+    'a step''s plan table carries Subject and Date too, under the headers it had');
+
+CS = table(["s2"; "s1"; "s3"], ["x\r2"; "x\r1"; "x\r3"], datetime(2026, 1, [2; 1; 3], 10, 0, 0), strings(3, 1), NaT(3, 1), ...
+    seconds(NaN(3, 1)), ["paired"; "paired"; "recording_only"], strings(3, 1), strings(3, 1), seconds(NaN(3, 1)), ...
+    ["intan"; "intan"; "intan"], NaN(3, 1), cell(3, 1), 'VariableNames', {'Subject', 'RecordingDir', 'RecordingTime', ...
+    'EpsychFile', 'EpsychTime', 'DeltaT', 'Status', 'DestDir', 'Note', 'RecordingDuration', 'Reader', 'EpsychTrials', 'StitchFiles'});
+app.CopySessions = CS;
+app.CopyTicked = [true; false; true];
+app.CopyStatus = strings(3, 1);
+app.CopyMessage = ["m2"; "m1"; "m3"];
+app.TableSorts.Copy = struct('column', "Subject", 'direction', "descend");
+app.refreshCopyTable();
+check(isequal(app.CopySessions.Subject, ["s3"; "s2"; "s1"]) && isequal(app.CopyTicked, [true; true; false]) ...
+    && isequal(app.CopyMessage, ["m3"; "m2"; "m1"]) && isequal(string(app.CopyTable.Data.Subject), ["s3"; "s2"; "s1"]) ...
+    && isequal(string(app.CopyTable.Data.Date), ["2026-01-03"; "2026-01-02"; "2026-01-01"]), ...
+    'the Copy table has Subject and Date, and a sort puts the sessions themselves in order, ticks and messages with them');
+app.clearTableSort("Copy");
+check(isequal(app.CopySessions.Subject, ["s1"; "s2"; "s3"]) && isequal(app.CopyTicked, [false; true; true]) ...
+    && isequal(app.CopyMessage, ["m1"; "m2"; "m3"]), 'Clear sort puts the sessions back in time order');
+app.CopySessions = [];
+app.CopyTicked = false(0, 1); app.CopyStatus = strings(0, 1); app.CopyMessage = strings(0, 1);
+app.TableSorts = rmfield(app.TableSorts, "Copy");
+app.refreshCopyTable();
+
 fprintf('\n== 3a0. Artifacts tab: the artifact viewer ==\n');
 art0 = app.Config.Artifacts;
 ax = app.ArtViewAxes;

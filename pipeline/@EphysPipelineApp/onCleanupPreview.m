@@ -33,7 +33,7 @@ catch ME
     obj.setStatus("Clean up: preview failed.", "");
     return
 end
-% Subject (for the Subject ID filter) and Include (every Remove file ticked)
+% Subject (for the Subject ID filter), Date (the day recorded) and Include (every Remove file ticked)
 T.Subject = repmat("(none)", height(T), 1);
 ds = obj.Project.Datasets(idx);
 for d = ds(:).'

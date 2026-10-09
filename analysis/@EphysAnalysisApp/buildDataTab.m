@@ -74,7 +74,7 @@ obj.MemoryLabel = uilabel(rg, "Text", "No dataset selected.", "WordWrap", "on");
 obj.InventoryTable = uitable(rg, "RowName", {}, "ColumnName", {'Kind', 'Exists', 'Source', 'File'}, ...
     "ColumnWidth", {70, 50, 80, 'auto'});
 obj.LinesTable = uitable(rg, "RowName", {}, ...
-    "ColumnName", {'Line', 'Count', 'Mean length (s)', 'First (s)', 'Last (s)', 'Inverted'}, "ColumnWidth", 'auto');
+    "ColumnName", {'Line', 'Count', 'Mean length (s)', 'First (s)', 'Last (s)', 'Inverted'}, "ColumnWidth", 'auto', "ColumnSortable", true);
 obj.BehaviorLabel = uilabel(rg, "Text", "", "WordWrap", "on");
 obj.ParamsTable = uitable(rg, "RowName", {}, "ColumnName", {'Parameter', 'Values'}, "ColumnWidth", {120, 'auto'});
 obj.UnitsTable = uitable(rg, "RowName", {}, "ColumnName", {'Class', 'Shank', 'Units', 'Spikes'}, "ColumnWidth", 'auto');

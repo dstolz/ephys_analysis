@@ -2,7 +2,14 @@ function refreshDatasetsTable(obj)
 %refreshDatasetsTable  One row per dataset: Run tick and what it holds.
 %   Signals, units, detections and behavior come from which files exist;
 %   trials, pairing and duration once the dataset's source has been loaded
-%   (making it active loads it).
+%   (making it active loads it). Subject and Date (the day recorded) come
+%   from the name pattern and, in a project, the recording's own start.
+%
+%   The rows are in the order of the last header click (DatasetsSort), put
+%   there each time the table is filled, so the sort survives a tick or a
+%   new active dataset. The last column, Idx (hidden), is the dataset's
+%   place in the Runner: ticks, clicks and the active row go through it,
+%   never through the row, so any order is safe.
 r = obj.Runner;
 if isempty(r) || isempty(r.Keys)
     obj.DatasetsTable.Data = table();

@@ -26,11 +26,11 @@ g.Padding = [8 8 8 8];
 changed = @(~,~) obj.onConfigChanged("plot");
 
 % --- the plots: a tree under groups ------------------------------------------------------
-lg = uigridlayout(g, [7 2]);
-lg.RowHeight = {22, 28, '1x', 30, 30, 30, 30};
+lg = uigridlayout(g, [10 2]);
+lg.RowHeight = {22, 28, 30, 28, 30, '1x', 30, 30, 30, 30};
 lg.ColumnWidth = {'1x', '1x'};
 lg.Padding = [0 0 0 0];
-l = uilabel(lg, "Text", "Plots", "FontWeight", "bold");
+l = uilabel(lg, "Text", "Plots  (ticked = enabled)", "FontWeight", "bold");
 l.Layout.Row = 1; l.Layout.Column = [1 2];
 l = uilabel(lg, "Text", "Group by:");
 l.Layout.Row = 2; l.Layout.Column = 1;
@@ -41,27 +41,54 @@ obj.PlotGroupDropDown = uidropdown(lg, "Items", ["Plot type" "Source" "Layout" "
     "LFP, ...), the layout they draw, enabled or off, or a flat list. Within a group the plots keep the run order; " + ...
     "Up / Down move a plot within its group.");
 obj.PlotGroupDropDown.Layout.Row = 2; obj.PlotGroupDropDown.Layout.Column = 2;
+% which plots run: All / None / Invert over every plot; the drop-down names a set of them (the plots selected, or those of a
+% plot type, source or layout) for Check / Uncheck / Only
+cg = uigridlayout(lg, [1 3]);
+cg.Layout.Row = 3; cg.Layout.Column = [1 2];
+cg.Padding = [0 0 0 0]; cg.ColumnSpacing = 4;
+uibutton(cg, "Text", "All", "ButtonPushedFcn", @(~,~) obj.onPlotCheck("all"), ...
+    "Tooltip", "Enable every plot (tick them all).");
+uibutton(cg, "Text", "None", "ButtonPushedFcn", @(~,~) obj.onPlotCheck("none"), ...
+    "Tooltip", "Disable every plot (untick them all). They stay in the config.");
+uibutton(cg, "Text", "Invert", "ButtonPushedFcn", @(~,~) obj.onPlotCheck("invert"), ...
+    "Tooltip", "Enable the disabled plots and disable the enabled ones.");
+obj.PlotFilterDropDown = uidropdown(lg, "Items", "Selected plots", "ItemsData", "selected", ...
+    "Tooltip", "The plots the buttons below act on: the plots selected in the tree, or all those of a plot type, a " + ...
+    "source (units, detected, LFP, ...) or a layout. The number is how many plots there are.");
+obj.PlotFilterDropDown.Layout.Row = 4; obj.PlotFilterDropDown.Layout.Column = [1 2];
+fg = uigridlayout(lg, [1 3]);
+fg.Layout.Row = 5; fg.Layout.Column = [1 2];
+fg.Padding = [0 0 0 0]; fg.ColumnSpacing = 4;
+uibutton(fg, "Text", "Check", "ButtonPushedFcn", @(~,~) obj.onPlotCheck("check"), ...
+    "Tooltip", "Enable the plots named above; the others keep their state.");
+uibutton(fg, "Text", "Uncheck", "ButtonPushedFcn", @(~,~) obj.onPlotCheck("uncheck"), ...
+    "Tooltip", "Disable the plots named above; the others keep their state.");
+uibutton(fg, "Text", "Only", "ButtonPushedFcn", @(~,~) obj.onPlotCheck("only"), ...
+    "Tooltip", "Enable the plots named above and disable all the others.");
 obj.PlotsTree = uitree(lg, "Multiselect", "on", "SelectionChangedFcn", @(~, evt) obj.onPlotTreeSelected(evt.SelectedNodes), ...
     "NodeExpandedFcn", @(~, evt) obj.onPlotGroupToggled(evt.Node, false), ...
     "NodeCollapsedFcn", @(~, evt) obj.onPlotGroupToggled(evt.Node, true), ...
+    "DoubleClickedFcn", @(~, evt) obj.onPlotTreeDoubleClicked(evt), ...
     "Tooltip", "Click a plot to edit it. Ctrl- or Shift-click to select several: the editor then changes them " + ...
-    "all at once (the options they all have), and the preview draws the first one picked.");
-obj.PlotsTree.Layout.Row = 3; obj.PlotsTree.Layout.Column = [1 2];
+    "all at once (the options they all have), and the preview draws the first one picked. The box on a plot is " + ...
+    "ticked while it is enabled: double-click the plot to tick or untick it, or use the buttons above. A group's " + ...
+    "box is ticked when all its plots are, half-filled when some are.");
+obj.PlotsTree.Layout.Row = 6; obj.PlotsTree.Layout.Column = [1 2];
 K = EphysAnalysisConfig.plotKinds();
 obj.AddKindDropDown = uidropdown(lg, "Items", K.Label, "ItemsData", K.Kind);
-obj.AddKindDropDown.Layout.Row = 4; obj.AddKindDropDown.Layout.Column = [1 2];
+obj.AddKindDropDown.Layout.Row = 7; obj.AddKindDropDown.Layout.Column = [1 2];
 obj.AddPlotButton = uibutton(lg, "Text", "Add", "ButtonPushedFcn", @(~,~) obj.onAddPlot(obj.AddKindDropDown.Value));
-obj.AddPlotButton.Layout.Row = 5; obj.AddPlotButton.Layout.Column = [1 2];
+obj.AddPlotButton.Layout.Row = 8; obj.AddPlotButton.Layout.Column = [1 2];
 obj.RemovePlotButton = uibutton(lg, "Text", "Remove", "ButtonPushedFcn", @(~,~) obj.onRemovePlot(), ...
     "Tooltip", "Remove the selected plots from the config.");
-obj.RemovePlotButton.Layout.Row = 6; obj.RemovePlotButton.Layout.Column = 1;
+obj.RemovePlotButton.Layout.Row = 9; obj.RemovePlotButton.Layout.Column = 1;
 obj.DuplicatePlotButton = uibutton(lg, "Text", "Duplicate", "ButtonPushedFcn", @(~,~) obj.onDuplicatePlot(), ...
     "Tooltip", "Copy each selected plot under a new id, right after it; the copies are selected.");
-obj.DuplicatePlotButton.Layout.Row = 6; obj.DuplicatePlotButton.Layout.Column = 2;
+obj.DuplicatePlotButton.Layout.Row = 9; obj.DuplicatePlotButton.Layout.Column = 2;
 obj.UpPlotButton = uibutton(lg, "Text", "Up", "ButtonPushedFcn", @(~,~) obj.onMovePlot(-1));
-obj.UpPlotButton.Layout.Row = 7; obj.UpPlotButton.Layout.Column = 1;
+obj.UpPlotButton.Layout.Row = 10; obj.UpPlotButton.Layout.Column = 1;
 obj.DownPlotButton = uibutton(lg, "Text", "Down", "ButtonPushedFcn", @(~,~) obj.onMovePlot(1));
-obj.DownPlotButton.Layout.Row = 7; obj.DownPlotButton.Layout.Column = 2;
+obj.DownPlotButton.Layout.Row = 10; obj.DownPlotButton.Layout.Column = 2;
 
 % --- the editor ----------------------------------------------------------------------
 ep = uipanel(g, "Title", "Plot");

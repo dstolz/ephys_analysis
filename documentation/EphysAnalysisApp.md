@@ -117,7 +117,13 @@ copies them.
 | **Trials**, **Pairing**, **Duration (s)** | once the dataset has been loaded (making it active loads it): the number of trials, the pairing (its recorded status, `paired`, or `not paired`) and the recording's length |
 
 Click a row to make it the **active dataset**: the Alignment and Plots tabs
-preview it. After a scan the first ticked dataset is active.
+preview it. After a scan the first ticked dataset is active. Click a header to
+sort the rows (by Subject or Date, say); the sort is kept as the table is filled
+again, for a tick or a new active dataset, until the app closes, and right-click
+→ **Clear sort** returns to the scan order. Ticks and clicks go to the row's own
+dataset in any order. Every other table in the app (the active dataset's
+inventory, lines, parameters and units, the alignment's trials, the issues and
+the results) sorts on a header click too.
 
 **Active dataset**, on the right:
 
@@ -230,7 +236,11 @@ preview.
 **The plot tree.** The plots sit in a tree under groups, by plot type
 unless **Group by** says otherwise. A plot reads `<id> (<source>)` under
 plot-type groups and `<id> (<kind>)` under the others; disabled plots are
-marked *(off)*. Within a group the plots keep the run and report order. A
+marked *(off)*. Every node has a check box: a plot's is ticked while the plot
+is **Enabled** (`enabled`; double-click the plot to tick or untick it), a
+group's is ticked when all its plots are and half-filled when some are. (The
+boxes are icons: MATLAB's check-box tree selects one node at a time, and
+Ctrl- / Shift-click needs the ordinary tree.) Within a group the plots keep the run and report order. A
 group collapses under its header (which are collapsed is remembered); picking
 a header leaves the plots selected as they were. **Ctrl**- or
 **Shift**-click selects several plots, to edit them together
@@ -239,6 +249,8 @@ a header leaves the plots selected as they were. **Ctrl**- or
 | Control | Effect |
 | --- | --- |
 | **Group by** | *Plot type* (default), *Source* (units, detected, LFP, ...), *Layout* (the layout drawn), *Enabled / off*, or *None* (a flat list); remembered |
+| **All**, **None**, **Invert** | tick every plot, untick every plot, or flip each plot's box; the plots stay in the config |
+| plots drop-down, **Check**, **Uncheck**, **Only** | the drop-down names a set of plots: the plots selected in the tree, or all those of a plot type, a source or a layout (with how many there are). **Check** ticks them, **Uncheck** unticks them, **Only** ticks them and unticks all the others; the other plots keep their state under Check and Uncheck |
 | kind drop-down (its own row), **Add** | adds a plot of that kind ([Plot kinds](#plot-kinds)) with the next free id (`psth_1`, `psth_2`, ...) and selects it |
 | **Remove**, **Duplicate** | removes the selected plots; copies each with a new id, right after it, and selects the copies |
 | **Up**, **Down** | swaps it with its neighbor in its group (the whole list when ungrouped), which changes the run order of those two; off while several plots are selected |
@@ -485,7 +497,7 @@ drawn, so you can see why. Examples: a fixed window with *pre* after
 | Button | Effect |
 | --- | --- |
 | **Validate** | lists the config's issues (Section, Field, Severity, Message) in the table; errors stop a run |
-| **Plan** | one row per ticked dataset and plot (Dataset, Plot, Kind, Source, Enabled, Reason): whether it will run, and why not ([skip reasons](#why-is-my-plot-skipped)). Cheap: no signals or spikes are loaded |
+| **Plan** | one row per ticked dataset and plot (Dataset, Subject, Date, Plot, Kind, Source, Enabled, Reason): whether it will run, and why not ([skip reasons](#why-is-my-plot-skipped)). Cheap: no signals or spikes are loaded |
 | **Run** | validates, then runs every enabled plot on every ticked dataset with a cancelable progress dialog: compute, export, report. A failing plot is an error row and the rest still run |
 | **Cancel** | stops before the next plot; the plots left are *canceled* |
 | **Open report**, **Open figure folder** | after a run: the report files written, and the first dataset's figure folder |
@@ -682,10 +694,10 @@ matrix per group.
   averaged). No toolbox is needed.
 - Baseline `subtract` takes each epoch's own baseline rate off its
   response. Fixed and between windows both work.
-- The colour scale is `[-1 1]` in `blueWhiteRed` (negative blue, zero
-  white, positive red) unless **Heat colours** or `style.CLim` say
-  otherwise. Each tile's title gives the group, the epochs used and the
-  mean pairwise r.
+- The color scale is `[-1 1]` in `blueWhiteRed` (negative blue, zero
+  white, positive red) unless **Heat colors** or **Color limits**
+  (`style.CLim`) say otherwise. Each tile's title gives the group, the
+  epochs used and the mean pairwise r.
 - A unit whose responses do not vary has NaN correlations, and so does
   every pair in a group with fewer than 3 epochs.
 
@@ -912,7 +924,7 @@ first picked in the editor and the preview, the banner, title and bar
 saying so, only the rows they share, an edit, an event edit, *Use default*,
 a sort event and a remembered look reaching each plot as changed and no further,
 Duplicate and Remove taking them all); collapsing a
-section; the section headers' colours (distinct, readable on the bar) and
+section; the section headers' bar colors (distinct, desaturated, black text) and
 keys, Ctrl+1 to Ctrl+9 and Ctrl+0 opening a collapsed section and saying so for one the
 plot does not show; the gather / apply
 round trip, keeping the fields without a control (the stop event's offset,

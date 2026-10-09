@@ -1871,7 +1871,8 @@ reads these files.
   exclusions.
 - The targets table on the right, *This step for the selected datasets*, is
   `plan(Steps="signals")` for the datasets ticked on the Project tab (all
-  when none is ticked), one row per file: **Dataset**, **Output file**,
+  when none is ticked), one row per file: **Dataset**, **Subject** and **Date**
+  (the dataset's subject ID and the day it was recorded), **Output file**,
   **Status** (`ready`, `exists: skip`, `exists: overwrite`,
   `no recording files`, `error: ...` for a setting that cannot apply to the
   dataset, which blocks the run) and **Note**. It is planned again on every edit while the
@@ -3403,9 +3404,18 @@ in that order, and saves it as the `TableSorts` preference at once: the sort
 holds for every dataset and the next session. Right-click a table for
 **Clear sort**, which names the sort it clears and returns the rows to the
 app's own order (the project's datasets, trial order, cluster id, Remove rows
-first and largest first, the chosen method's statistic). A column the rows
-do not have (a trial parameter another session lacks) leaves them in that
-order, and the sort applies again where the column is.
+first and largest first, the chosen method's statistic, the pipeline's own
+order of the plan, sessions in time order). A column the rows do not have (a
+trial parameter another session lacks) leaves them in that order, and the sort
+applies again where the column is. The other tables sort the display only, and
+show the app's order again when they are filled again.
+
+The Copy table is sorted by sorting the sessions themselves (`CopySessions` and
+its ticks, results and messages move together), so the selection, the ticks and
+Stitch go by the rows shown. While a background copy runs the sessions keep their
+order, a click shows its sort only, and the table takes the remembered sort again
+when the copy ends. The Run results table has a hidden last column, `Order`, the
+pipeline's own order of the rows, which **Clear sort** returns to.
 
 The rows are sorted by that column alone, ties in the app's order. Numbers,
 dates and categories sort by value and text ignoring case; empty cells, NaN

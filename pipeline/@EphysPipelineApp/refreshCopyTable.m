@@ -5,6 +5,11 @@ function refreshCopyTable(obj)
 %   result is red, a copied / already present one green. The row a background
 %   copy is inside says how far through it is (showCopyProgress), so a long
 %   batch can be read from the table as well as from the progress panel.
+%
+%   The table sorts. A header click is remembered (tableSort "Copy") and
+%   the sessions are put in its order, so the table, CopySessions and the
+%   ticks, results and messages stay one list in any order. Subject and
+%   Date (the recording's day, else the ePsych file's) are columns of their own.
 
 tbl = obj.CopyTable;
 if isempty(tbl) || ~isvalid(tbl); return; end
@@ -23,11 +28,27 @@ for k = find(T.Status == "stitched").'
     epsych(k) = strjoin(leafName(T.StitchFiles{k}), " + ");
 end
 result = liveResults(obj, n);
-D = table(obj.CopyTicked(:), T.Status, leafName(T.RecordingDir), readerText(T.Reader), timeText(T.RecordingTime), ...
+day = T.RecordingTime;
+day(isnat(day)) = T.EpsychTime(isnat(day));
+D = table(obj.CopyTicked(:), T.Status, T.Subject, dayText(day), leafName(T.RecordingDir), readerText(T.Reader), timeText(T.RecordingTime), ...
     durationText(T.RecordingDuration), epsych, timeText(T.EpsychTime), trialsText(T.EpsychTrials), deltaText(T.DeltaT), ...
     T.DestDir, result, obj.CopyMessage(:), T.Note, ...
-    'VariableNames', {'Copy', 'Status', 'Recording folder', 'Format', 'Recording time', 'Duration', 'ePsych file', ...
+    'VariableNames', {'Copy', 'Status', 'Subject', 'Date', 'Recording folder', 'Format', 'Recording time', 'Duration', 'ePsych file', ...
     'ePsych time', 'Trials', 'ePsych - recording', 'Destination', 'Result', 'Message', 'Note'});
+
+% A header click's sort is kept by putting the sessions themselves in that order, so the
+% rows of the table, CopySessions and its ticks, results and messages stay one list (the
+% selection, ticks and a copy's results all go by row). While a background copy runs its
+% rows are told apart by position (CopyRows), so the list is left as it is.
+[Ds, ord] = TableSort.apply(D, obj.tableSort("Copy"));
+if ~isequal(ord, (1:n).') && isempty(obj.CopyJob)
+    obj.CopySessions = T(ord, :);
+    obj.CopyTicked = obj.CopyTicked(ord);
+    obj.CopyStatus = obj.CopyStatus(ord);
+    obj.CopyMessage = obj.CopyMessage(ord);
+    T = obj.CopySessions;
+    D = Ds;
+end
 resultCol = find(D.Properties.VariableNames == "Result");
 tbl.Data = D;
 tbl.ColumnEditable = [true, false(1, width(D) - 1)];

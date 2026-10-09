@@ -10,6 +10,22 @@ says how to cut a release.
 
 ### Added
 
+- Check boxes on the analysis app's plot tree: a plot's box is ticked while the plot is enabled
+  (double-click the plot to flip it), a group's is ticked when all its plots are and half-filled when some
+  are. Above the tree, **All**, **None** and **Invert** act on every plot, and a drop-down naming the plots
+  selected, or the plots of a plot type, source or layout, with **Check**, **Uncheck** and **Only** (tick
+  those and untick the rest). The boxes are icons on the multi-select tree, since MATLAB's check-box tree
+  cannot select several nodes for the editor's edit-together.
+
+- Every table that lists things sorts on a header click, and the tables that list datasets show their
+  **Subject** and **Date** (the day recorded). The pipeline app's Run results, the Signals, Export and
+  Analysis plan tables, the Copy sessions table and the analysis app's Data tab datasets table keep the click
+  as the rows are filled again (the Copy sessions are reordered themselves, the datasets table sorts through a
+  hidden `Idx` so ticks and clicks reach their own dataset), with right-click → **Clear sort**; the Clean up
+  preview gets a Date column beside Subject, and the analysis app's plan and results tables get both.
+  `subjectAndDate` gives the two columns from the name pattern and the recording's start. The tables that are
+  settings to edit (probe rules, the synthetic design, the probe designer, the channel mapper) do not sort.
+
 - Overlay graphics on analysis plots: lines and semitransparent patches drawn
   on a plot's axes in data units. A plot's `overlays` is a list of any length;
   each overlay is a vertical or horizontal line (`xline` / `yline`) or a patch

@@ -33,7 +33,9 @@ classdef EphysAnalysisApp < handle
     %                act on them all;
     %                an editor in collapsible sections (units & channels,
     %                event reference, epoch window, trial selection, bins &
-    %                baseline, the kind's options, appearance) showing only the
+    %                baseline, the kind's options, appearance, unit waveform,
+    %                text note, overlays: any number of lines and
+    %                semitransparent patches on the plot's axes) showing only the
     %                options the plot uses -- its event / window / selection
     %                the Alignment tab's while "Use default" is ticked, its own
     %                once edited -- and a preview on the active dataset
@@ -64,7 +66,7 @@ classdef EphysAnalysisApp < handle
     %   Preview; Validate, Plan, Run, Cancel; Open report, Open figure
     %   folder; Open pipeline app; Help for this tab.
     %
-    %   Keys (onKeyPress), on the Plots tab: Ctrl+1 to Ctrl+9 (Cmd on a Mac)
+    %   Keys (onKeyPress), on the Plots tab: Ctrl+1 to Ctrl+9 and Ctrl+0 (Cmd on a Mac)
     %   go to the plot editor's sections (gotoPlotSection); each header
     %   names its key and has a colour of its own.
     %
@@ -326,6 +328,10 @@ classdef EphysAnalysisApp < handle
         onPlotSectionToggled(obj, name)
         gotoPlotSection(obj, name)
         onKeyPress(obj, evt)
+        onOverlayPicked(obj)
+        onAddOverlay(obj, shape)
+        onDuplicateOverlay(obj)
+        onRemoveOverlay(obj)
         onPlotAlignEdited(obj, part)
         onPlotDefaultToggled(obj)
         refreshPreview(obj, opts)

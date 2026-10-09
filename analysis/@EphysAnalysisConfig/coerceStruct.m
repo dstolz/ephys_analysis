@@ -24,7 +24,7 @@ for f = string(fieldnames(in)).'
     if f == "stop" || f == "rasterSortEvent"
         [out.(f), u] = coerceStop(v, path + "." + f);
         unknown = [unknown, u]; %#ok<AGROW>
-    elseif f == "sequence" || f == "sequences"
+    elseif f == "sequence" || f == "sequences" || f == "overlays"
         [out.(f), u] = coerceList(f, v, path + "." + f);
         unknown = [unknown, u]; %#ok<AGROW>
     elseif isstruct(d)
@@ -54,12 +54,15 @@ end
 
 
 function [out, unknown] = coerceList(field, v, path)
-%coerceList  A list of structs: an EventRef's sequence (SequenceStep each) or
-%   the raster marks' sequences (EventRef each). V is a struct array, a cell
-%   (jsondecode of elements whose fields differ), one struct or [] (none).
+%coerceList  A list of structs: an EventRef's sequence (SequenceStep each), the
+%   raster marks' sequences (EventRef each) or a plot's overlays (Overlay
+%   each). V is a struct array, a cell (jsondecode of elements whose fields
+%   differ), one struct or [] (none).
 unknown = string.empty(1, 0);
 if field == "sequence"
     def = EphysAnalysisConfig.defaults("SequenceStep");
+elseif field == "overlays"
+    def = EphysAnalysisConfig.defaults("Overlay");
 else
     def = EphysAnalysisConfig.defaults("EventRef");
 end

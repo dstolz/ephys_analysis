@@ -383,6 +383,7 @@ use.
 | `correlation` | `"pearson"` | corrmap: `"pearson"` or `"spearman"` |
 | `waveform` | [Waveform](#unit-waveforms), `mode "off"` | raster, psth and tuning grids of spikes: each unit's waveform in its tile; a `waveforms` plot: its settings (mode `"both"` for a plot added by `addPlot` or the app) |
 | `note` | [Note](#plot-notes), no text | descriptive text on the plot: its words, where it goes and how it looks (every kind) |
+| `overlays` | none | [lines and semitransparent patches](#plot-overlays) drawn on the plot's axes in data units, over or under its data: a list, any number, each with its own place and look (every kind) |
 | `style` | [Style](#style) | |
 | `aesthetics` | none | remembered looks of the plot's components: a list of rules `{role, group, property, value}` (`group` `""` = every group; `value` a number, an `[r g b]` colour or text), applied after drawing, over the user's own rules for the kind. The preview's right-click editor writes them ([Plot aesthetics](EphysAnalysis.md#plot-aesthetics)); a rule with a property the editor does not know is refused (`EphysAnalysisConfig:BadValue`) |
 
@@ -662,6 +663,50 @@ own `aesthetics` rules win over them. Text over the plot sits on top of
 what is drawn there, the title included at the top. The text is sized as
 drawn, after the design's rules, so a larger font makes a wider band.
 
+### Plot overlays
+
+Any plot can carry graphics drawn on its axes in data units: a line across
+an axis, say at the event or a threshold, or a semitransparent patch
+between two values, say a response window. The plot's `overlays` is a list
+of any length (`EphysAnalysisConfig.defaults("Overlay")` is one entry; the
+list is empty by default), each overlay with its own place and look, drawn
+in list order.
+
+| Field | Default | Meaning |
+| --- | --- | --- |
+| `name` | `""` | what the app's list and the aesthetics editor call it (`""` = `"Overlay <n>"`, *n* its place in the list). Keep the names of a plot's overlays different: a look remembered for a name reaches every overlay that has it |
+| `enabled` | `true` | `false`: kept in the config, not drawn |
+| `shape` | `"line"` | `"line"` (across the axis) or `"region"` (a patch between `from` and `to`) |
+| `axis` | `"x"` | `"x"`: a vertical line, or a patch between two x values (the full height of the axis); `"y"`: a horizontal line, or a patch between two y values (the full width) |
+| `value` | `0` | line: where it crosses the axis |
+| `from`, `to` | `0`, `0.1` | region: its two edges, in either order; they must differ |
+| `panel` | `"all"` | the axes it goes on, in every tile: `"all"`, `"data"` (a PSTH's rate panel, an evoked trace, a heat map, a tuning curve, ...) or `"raster"` (a PSTH's raster above its rate panel; a raster plot's own axes are raster panels) |
+| `layer` | `"over"` | `"over"` the plot's data (drawn after its lines, points, bars and bands), or `"under"` it (behind them, so they hide it where they are opaque) |
+| `color`, `alpha` | `"#d62728"`, `1` | line: its colour (a name or `#rrggbb`) and opacity (0-1) |
+| `lineStyle`, `lineWidth` | `"--"`, `1.5` | line, and a patch's outline: `"-"`, `"--"`, `":"` or `"-."`; width in points |
+| `faceColor`, `faceAlpha` | `"#808080"`, `0.25` | region: its fill colour and opacity (0-1) |
+| `edgeColor` | `"none"` | region: its outline colour, `"none"` for no outline (drawn in `lineStyle` and `lineWidth`) |
+
+The values are the axis' own units: seconds from the event on a time axis, a
+PSTH's rate on its y axis, an epoch number on a raster's rows, the x value of
+a tuning curve, a distance in um on a probe map. An overlay does not widen
+the axis, so one outside its limits is not seen; lines and patches follow the
+axis when it is zoomed. A y overlay on a stacked PSTH goes on its left axis.
+A partial overlay (say only `value`) is filled from the defaults.
+
+`renderPlot` draws the overlays after the plot (`drawOverlays`) as
+`xline` / `yline` objects of role `overlayLine` and `xregion` / `yregion`
+objects of role `overlayRegion`, each with its name as its group, so the
+[aesthetics](EphysAnalysis.md#plot-aesthetics) editor lists every overlay on
+its own, in every tile it is drawn in. The overlay's own looks win over the
+design's and the user's rules; the plot's own `aesthetics` rules win over
+them. A patch does not take clicks, so a right-click on the plot reaches the
+data under it (the editor still lists the patch). A [design](EphysAnalysis.md#plot-designs)
+saved from a plot leaves its overlays out. A colour that is not one, an
+opacity outside 0-1, or a style or width that is not valid is drawn with the
+default's (Validate reports it); an overlay without a finite position, or a
+patch with equal edges, is not drawn.
+
 ## Export
 
 | Field | Default | Meaning |
@@ -736,8 +781,8 @@ with 20 units and 16 tiles per page is written as
 | Source | a "list" selection with no datasets; an OutputRoot that does not exist | warning |
 | Defaults, Plots | the event reference, window and selection are valid: known values, `n` a whole number >= 1, `0 <= minDurationSec <= maxDurationSec`, `timeRange` ordered, a finite `offsetSec`, `offsetParamUnit` ms or s, each sequence step's relation, line, edge, `n`, positive `maxGapSec` and lengths, an `alignStep` of 0, `Inf` or a followedBy step (the stop's and each raster-mark sequence's too), finite `pre` and `post`, `pre <= post` in a fixed window, a stop event in a `"between"` window, known response words and pairing flags, at most 2 distinct `groupBy` parameters, `maxGroups` and `trials` whole numbers >= 1 | error |
 | Defaults, Plots | a filter that does not parse | warning (it is checked against each dataset's trials when it runs) |
-| Plots | at least one enabled; ids that stay distinct once `{Plot}` has sanitized them (case-blind); the kind exists; the source, layout, window mode and baseline mode fit the kind; `measure` rate / count / probability; tuning names its parameter; behavior names `param` and `yParam` (`"stop"` with a stop event), its `xScale` is category / linear and the violin layout has `violinplot`; a psth / raster `rasterSortOrder` ascending / descending, a `rasterSortEvent` (a valid event reference) with `rasterSort "event"`, and `rasterEvents` edge, scope, marker and a positive size; `BinSec > 0`, `SmoothSec >= 0` where bins are used; a baseline window `[b0 b1]` with `b0 < b1`; probemap value, psth `histStyle` bar / line, `normalize` none / unitPeak / groupPeak, `fillAlpha` 0-1 or NaN, `stackSpacing > 0`; heatmap order (`"modulation"` only with the auROC baseline); the auROC settings (method, windows, whole-bin window and step, call window, cutoff, threshold, test, `nResamples`, correction, alpha, `modulatedOnly` with a cutoff) and the toolbox they need; corrmap metric and correlation; `maxUnits >= 1`; an enabled response test of spikes: its test, `param` for tuning / either / both, `baseline` and `window` ordered, direction, correction, alpha in (0, 1], the auROC settings of a test `"auroc"` (with a cutoff) and the Statistics and Machine Learning Toolbox; a `waveform` mode off / mean / subsample / both and, when not off, its location, `scale` in (0, 3] and a whole `maxSpikes >= 1`; for a note with text, its `placement`, `align`, `valign`, `interpreter`, a numeric `rotation`, a positive or `NaN` `fontSize`, and `x` and `y` for `"custom"`; `MaxTiles >= 1`, `TileSpacing` loose / compact / tight / none, `FontSize`, `LineWidth`, `SiteSize` positive | error |
-| Plots | a `HeatColormap` that is not a colormap function; a `Colormap` that is neither a colormap function nor a colour (the default is used); a `rasterEvents.color` that is not a colour (each mark gets its own); a `waveform` mode on a plot that draws no unit tiles (an overlay, a plot of signals, a kind other than raster / psth / tuning / waveforms); a note's `color` or `background` that is not a colour (left to the design) | warning |
+| Plots | at least one enabled; ids that stay distinct once `{Plot}` has sanitized them (case-blind); the kind exists; the source, layout, window mode and baseline mode fit the kind; `measure` rate / count / probability; tuning names its parameter; behavior names `param` and `yParam` (`"stop"` with a stop event), its `xScale` is category / linear and the violin layout has `violinplot`; a psth / raster `rasterSortOrder` ascending / descending, a `rasterSortEvent` (a valid event reference) with `rasterSort "event"`, and `rasterEvents` edge, scope, marker and a positive size; `BinSec > 0`, `SmoothSec >= 0` where bins are used; a baseline window `[b0 b1]` with `b0 < b1`; probemap value, psth `histStyle` bar / line, `normalize` none / unitPeak / groupPeak, `fillAlpha` 0-1 or NaN, `stackSpacing > 0`; heatmap order (`"modulation"` only with the auROC baseline); the auROC settings (method, windows, whole-bin window and step, call window, cutoff, threshold, test, `nResamples`, correction, alpha, `modulatedOnly` with a cutoff) and the toolbox they need; corrmap metric and correlation; `maxUnits >= 1`; an enabled response test of spikes: its test, `param` for tuning / either / both, `baseline` and `window` ordered, direction, correction, alpha in (0, 1], the auROC settings of a test `"auroc"` (with a cutoff) and the Statistics and Machine Learning Toolbox; a `waveform` mode off / mean / subsample / both and, when not off, its location, `scale` in (0, 3] and a whole `maxSpikes >= 1`; for a note with text, its `placement`, `align`, `valign`, `interpreter`, a numeric `rotation`, a positive or `NaN` `fontSize`, and `x` and `y` for `"custom"`; for each overlay, its `shape` line / region, `axis` x / y, a finite `value` (line) or two finite, different `from` and `to` (region), `panel` all / data / raster, `layer` over / under, a `lineStyle` among `-` `--` `:` `-.`, a positive `lineWidth` and `alpha` and `faceAlpha` within 0-1; `MaxTiles >= 1`, `TileSpacing` loose / compact / tight / none, `FontSize`, `LineWidth`, `SiteSize` positive | error |
+| Plots | a `HeatColormap` that is not a colormap function; a `Colormap` that is neither a colormap function nor a colour (the default is used); a `rasterEvents.color` that is not a colour (each mark gets its own); a `waveform` mode on a plot that draws no unit tiles (an overlay, a plot of signals, a kind other than raster / psth / tuning / waveforms); a note's `color` or `background` that is not a colour (left to the design); an overlay's `color`, `faceColor` or `edgeColor` that is not a colour (its default is drawn); an overlay's raster or data `panel` on a plot that draws no such panel (nothing is drawn); two overlays of a plot with one `name` | warning |
 | Export | formats are png / eps / svg / pdf (and at least one when enabled); `Dpi` positive; `FigureSizeCm` two positive numbers; the folder and file-name patterns use known tokens, and the file-name pattern is not empty | error |
 | Export | a file-name pattern without `{Plot}` while several plots are enabled (`{Kind}` is enough when the enabled plots all differ in kind); neither the folder nor the file-name pattern names the dataset (`{OutputFolder}` or `{Name}`), unless the source is a single folder: files that would overwrite each other | warning |
 | Report | Format html / pdf / both, EmbedFormat png / svg, `Dpi` positive, a plain `FileName`, the folder pattern | error |

@@ -10,12 +10,16 @@ function buildPlotsTab(obj)
 %   diagram, onShowEpochs), Trial selection (the Alignment tab's values
 %   while "Use default" is ticked; editing one gives the plot its own),
 %   Bins & baseline, the kind's own options, Appearance and Unit waveform
-%   (each unit's mean and / or spikes in its tile) and Text note (a block of
-%   descriptive text beside or over the plot), each collapsing under
+%   (each unit's mean and / or spikes in its tile), Text note (a block of
+%   descriptive text beside or over the plot) and Overlays (any number of
+%   lines and semitransparent patches drawn on the plot's axes, over or
+%   under its data: a list with Add line / Add patch / Duplicate / Remove,
+%   and the rows of the one picked), each collapsing under
 %   its header (onPlotSectionToggled). Each header has its own colour, a
 %   step along the turbo map in the sections' order, and its key: Ctrl+1 to
-%   Ctrl+9 go to the section (gotoPlotSection; onKeyPress). syncPlotEditor
-%   shows the rows the selected plot uses; layoutPlotEditor packs them.
+%   Ctrl+9 and Ctrl+0 go to the section (gotoPlotSection; onKeyPress).
+%   syncPlotEditor shows the rows the selected plot uses; layoutPlotEditor
+%   packs them.
 g = uigridlayout(obj.TabPlots, [1 3]);
 g.ColumnWidth = {285, 470, '1x'};
 g.Padding = [8 8 8 8];
@@ -62,16 +66,16 @@ obj.DownPlotButton.Layout.Row = 7; obj.DownPlotButton.Layout.Column = 2;
 % --- the editor ----------------------------------------------------------------------
 ep = uipanel(g, "Title", "Plot");
 obj.PlotEditorPanel = ep;
-eg = uigridlayout(ep, [11 1]);
-eg.RowHeight = [repmat({0}, 1, 10) {'1x'}];
+eg = uigridlayout(ep, [12 1]);
+eg.RowHeight = [repmat({0}, 1, 11) {'1x'}];
 eg.RowSpacing = 6;
 eg.Padding = [4 4 4 4];
 eg.Scrollable = "on";
 obj.PlotEditorGrid = eg;
 E = struct();
 
-% the sections with a header, in order: each takes a title colour (a step along the turbo map) and a key (1-9)
-order = ["units" "ref" "window" "selection" "bins" "kind" "style" "waveform" "note"];
+% the sections with a header, in order: each takes a title colour (a step along the turbo map) and a key (1-9, then 0)
+order = ["units" "ref" "window" "selection" "bins" "kind" "style" "waveform" "note" "overlays"];
 hue = turbo(256);
 hue = hue(round(linspace(24, 232, numel(order))), :);
 tint = @(name) hue(order == name, :);
@@ -518,10 +522,89 @@ E.annInterp = uidropdown(S.Body, "Items", ["As typed" "TeX"], "ItemsData", ["non
 place(E.annInterp, r, 2);
 sec(end+1) = S;
 
+% lines and patches on the plot's axes: a list, and the rows of the one picked
+S = formSection(eg, 11, "overlays", "Overlays", Color=tint("overlays"));
+[S, r] = formRow(S, ["ovList" "ovAddLine"], "Overlays:", 112);
+olg = subgrid(S.Body, r, {'1x', 96});
+E.ovList = uilistbox(olg, "Items", {}, "ValueChangedFcn", @(~,~) obj.onOverlayPicked(), ...
+    "Tooltip", "The graphics drawn on this plot's axes in data units: a vertical or horizontal line, or a " + ...
+    "semitransparent patch between two x or two y values. Add as many as you like; each has its own place and " + ...
+    "look. Pick one to edit it below.");
+E.ovList.Layout.Column = 1;
+E.ovList.UserData = struct('items', repmat(EphysAnalysisConfig.defaults("Overlay"), 1, 0), 'shown', 0);
+obg = uigridlayout(olg, [4 1], "RowHeight", {24, 24, 24, 24}, "Padding", [0 0 0 0], "RowSpacing", 4);
+obg.Layout.Column = 2;
+E.ovAddLine = uibutton(obg, "Text", "Add line", "ButtonPushedFcn", @(~,~) obj.onAddOverlay("line"), ...
+    "Tooltip", "Add a line across the axis: vertical at an x value, or horizontal at a y value.");
+E.ovAddRegion = uibutton(obg, "Text", "Add patch", "ButtonPushedFcn", @(~,~) obj.onAddOverlay("region"), ...
+    "Tooltip", "Add a semitransparent patch between two x values (the full height of the axis) or two y values (the full width).");
+E.ovDuplicate = uibutton(obg, "Text", "Duplicate", "ButtonPushedFcn", @(~,~) obj.onDuplicateOverlay(), ...
+    "Tooltip", "Copy the overlay picked, with its look, right after it.");
+E.ovRemove = uibutton(obg, "Text", "Remove", "ButtonPushedFcn", @(~,~) obj.onRemoveOverlay(), ...
+    "Tooltip", "Remove the overlay picked from the plot.");
+[S, r] = formRow(S, ["ovName" "ovEnabled"], "Name:");
+ong = subgrid(S.Body, r, {'1x', 'fit'});
+E.ovName = uieditfield(ong, "text", "Placeholder", "Overlay", "ValueChangedFcn", changed, ...
+    "Tooltip", "What the list and the aesthetics editor (right-click the plot) call this overlay. Keep it different from the " + ...
+    "plot's other overlays: a look remembered for the name reaches every overlay that has it.");
+E.ovEnabled = uicheckbox(ong, "Text", "Enabled", "Value", true, "ValueChangedFcn", changed, ...
+    "Tooltip", "Unticked, the overlay stays in the config but is not drawn.");
+[S, r] = formRow(S, "ovKind", "Draw:");
+E.ovKind = uidropdown(S.Body, "Items", ["Vertical line, at an x value" "Horizontal line, at a y value" ...
+    "Patch between two x values" "Patch between two y values"], "ItemsData", ["line|x" "line|y" "region|x" "region|y"], ...
+    "Value", "line|x", "ValueChangedFcn", changed, "Tooltip", "Values are in the axis' own units: seconds from the event " + ...
+    "on a time axis, a PSTH's rate on its y axis, an epoch number on a raster's rows. An overlay does not widen the " + ...
+    "axis: one outside its limits is not seen.");
+place(E.ovKind, r, 2);
+[S, r] = formRow(S, "ovValue", "At:");
+E.ovValue = uieditfield(S.Body, "text", "Value", "0", "ValueChangedFcn", changed, ...
+    "Tooltip", "Where the line crosses its axis (a number).");
+place(E.ovValue, r, 2);
+[S, r] = formRow(S, ["ovFrom" "ovTo"], "From / to:");
+ofg = subgrid(S.Body, r, {'1x', 'fit', '1x'});
+E.ovFrom = uieditfield(ofg, "text", "Value", "0", "ValueChangedFcn", changed, "Tooltip", "One edge of the patch (a number).");
+uilabel(ofg, "Text", "to");
+E.ovTo = uieditfield(ofg, "text", "Value", "0.1", "ValueChangedFcn", changed, "Tooltip", "The other edge (a number; either order).");
+[S, r] = formRow(S, ["ovPanel" "ovLayer"], "Show on:");
+opg = subgrid(S.Body, r, {'1x', '1x'});
+E.ovPanel = uidropdown(opg, "Items", ["All panels" "Data panels" "Raster panels"], "ItemsData", EphysAnalysisConfig.OverlayPanels, ...
+    "Value", "all", "ValueChangedFcn", changed, "Tooltip", "Which axes of the plot get the overlay. A PSTH has a data panel " + ...
+    "(the rate) and, with its raster, a raster panel above it; a raster plot's axes are raster panels. Anything else is a data panel.");
+E.ovLayer = uidropdown(opg, "Items", ["Over the data" "Under the data"], "ItemsData", EphysAnalysisConfig.OverlayLayers, ...
+    "Value", "over", "ValueChangedFcn", changed, "Tooltip", "Over: drawn after the plot's lines, points, bars and bands. " + ...
+    "Under: behind them, so they hide it where they are opaque.");
+[S, r] = formRow(S, ["ovColor" "ovAlpha"], "Colour:");
+ocg = subgrid(S.Body, r, {'1x', 'fit', 60});
+E.ovColor = uidropdown(ocg, "Editable", "on", "Items", ["#d62728" "red" "black" "white" "blue" "green" "magenta" "cyan" "orange"], ...
+    "Value", "#d62728", "ValueChangedFcn", changed, "Tooltip", "The line's colour: a name or #RRGGBB.");
+uilabel(ocg, "Text", "opacity");
+E.ovAlpha = uieditfield(ocg, "numeric", "Limits", [0 1], "Value", 1, "ValueChangedFcn", changed, ...
+    "Tooltip", "0 (invisible) to 1 (solid).");
+[S, r] = formRow(S, ["ovFill" "ovFillAlpha"], "Fill:");
+ofc = subgrid(S.Body, r, {'1x', 'fit', 60});
+E.ovFill = uidropdown(ofc, "Editable", "on", "Items", ["#808080" "gray" "black" "white" "red" "blue" "green" "yellow" "cyan"], ...
+    "Value", "#808080", "ValueChangedFcn", changed, "Tooltip", "The patch's colour: a name or #RRGGBB.");
+uilabel(ofc, "Text", "opacity");
+E.ovFillAlpha = uieditfield(ofc, "numeric", "Limits", [0 1], "Value", 0.25, "ValueChangedFcn", changed, ...
+    "Tooltip", "0 (invisible) to 1 (solid); a semitransparent patch lets the data show through.");
+[S, r] = formRow(S, "ovEdge", "Outline:");
+E.ovEdge = uidropdown(S.Body, "Editable", "on", "Items", ["none" "black" "white" "red" "blue" "gray"], "Value", "none", ...
+    "ValueChangedFcn", changed, "Tooltip", "none: the patch has no outline; or a colour (a name or #RRGGBB), drawn in the style " + ...
+    "and width below.");
+place(E.ovEdge, r, 2);
+[S, r] = formRow(S, ["ovStyle" "ovWidth"], "Line:");
+olnG = subgrid(S.Body, r, {'1x', 'fit', 60});
+E.ovStyle = uidropdown(olnG, "Items", ["solid" "dashed" "dotted" "dash-dot"], "ItemsData", EphysAnalysisConfig.OverlayLineStyles, ...
+    "Value", "--", "ValueChangedFcn", changed, "Tooltip", "The line's style (a patch's outline).");
+uilabel(olnG, "Text", "width");
+E.ovWidth = uispinner(olnG, "Limits", [0.25 12], "Step", 0.25, "Value", 1.5, "ValueChangedFcn", changed, ...
+    "Tooltip", "Points (a patch's outline).");
+sec(end+1) = S;
+
 for i = 2:numel(sec)
     name = sec(i).Name;
     sec(i).Toggle.ButtonPushedFcn = @(~,~) obj.onPlotSectionToggled(name);
-    sec(i).Key = string(find(order == name));   % Ctrl+1 ... Ctrl+9 (onKeyPress)
+    sec(i).Key = string(mod(find(order == name), 10));   % Ctrl+1 ... Ctrl+9, then Ctrl+0 for the tenth (onKeyPress)
 end
 obj.PlotEditor = E;
 obj.PlotSections = sec;

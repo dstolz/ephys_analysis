@@ -259,15 +259,16 @@ their headers (**▼** / **►**; which are collapsed is remembered):
 | Appearance (`style`) | tiles per page (`MaxTiles`), grid spacing (*loose*, *compact*, *tight*, *none*; `TileSpacing`), font size, line width, site size (probe map), y limits (blank = automatic, or two numbers such as `0 40`), group colours (*lines*: the trial selection's colours; a colormap; or one colour such as *black* or `#1f77b4`, typed in; `Colormap`), heat colours (*auto*: parula, or blueWhiteRed for unit correlations; `HeatColormap`), **Sort by** depth and / or shank (`SortDepth`, `SortShank`: units and channels top of the probe first, by shank first), **Label with** depth and / or shank (`LabelDepth`, `LabelShank`), and **Show** SEM, stop marks, legend, grid |
 | Unit waveform | rasters, and PSTH and tuning grids, of spikes: **Show** (*Off*, *Mean*, *Subsample*, *Mean + subsample*) each unit's waveform on its peak channel in its tile, and how many spikes the subsample draws (a sorted unit's mean is over them); **Location** (*North-east* by default; north is the top edge), **Axis box** (an outline on a pale ground; unticked, the waveform alone) and its size (1x = a third of the tile). Sorted units' spikes are cut from the sorted `.bin` (their templates when it is not there); detections need the Spikes step's *Waveforms* option (`waveform`; [Unit waveforms](EphysAnalysisConfig.md#unit-waveforms)) |
 | Text note | any plot: **Text** (a block of descriptive text; each new line is a line; blank draws nothing), **Place** (*Below*, *Above*, *Right of* or *Left of* the plot, which gives up a band for it; *Over the plot* at a corner, an edge or the center; or *At x, y*, the anchor's place across and up the plot, 0-1), **Align** (left, center, right; top, middle, bottom: how the lines line up and where the text sits in its band), **Rotation**, **Font** (*auto* = the design's, or any installed font) and size (blank = the plot's font size), **Bold**, **Italic**, **Outline**, **Colours** (text and ground; *auto* and *none* leave them to the design) and **Interpreter** (*As typed* or *TeX*). Its settings wait for some text (`note`; [Plot notes](EphysAnalysisConfig.md#plot-notes)); right-click the note in the preview to restyle it like any other part of the plot |
+| Overlays (*Overlays (n)* once there are some) | any plot: a list of the plot's overlays -- lines and semitransparent patches drawn on its axes -- with **Add line**, **Add patch**, **Duplicate** (the picked one, look and all, named *name copy*) and **Remove**; add as many as you like. The rows below the list edit the one picked: **Name** and **Enabled**; **Draw** (a vertical line at an x value, a horizontal line at a y value, a patch between two x values, or between two y values); **At** (a line's value) or **From / to** (a patch's edges, either order); **Show on** (*All panels*, *Data panels* or *Raster panels*) and the layer (*Over the data* or *Under the data*); a line's **Colour** and opacity, or a patch's **Fill** colour and opacity and **Outline** colour (*none* for no outline); and the **Line** style and width (a line's, or an outlined patch's). The Add buttons give each overlay a name of its own (*Line 1*, *Patch 1*, ...). With several plots selected the section shows while they all hold the same overlays (none, to add one to every plot) and an edit gives each the first's list (`overlays`; [Plot overlays](EphysAnalysisConfig.md#plot-overlays)); right-click an overlay in the preview to restyle it like any other part of the plot |
 
-Each of the nine headed sections has a title colour of its own and a key. The
-colours are nine steps along MATLAB's `turbo` map, in the order of the table
-above (blue for Units & channels, red for Text note), each darkened, keeping
+Each of the ten headed sections has a title colour of its own and a key. The
+colours are ten steps along MATLAB's `turbo` map, in the order of the table
+above (blue for Units & channels, red for Overlays), each darkened, keeping
 its hue, only as far as it needs to read on the header bar (a contrast ratio
-of 4.5). **Ctrl+1** to **Ctrl+9** (**Cmd** on a Mac; the number pad too) go
+of 4.5). **Ctrl+1** to **Ctrl+9** and **Ctrl+0** (**Cmd** on a Mac; the number pad too) go
 to the section of that number: Units & channels is 1, Event
 reference 2, Epoch window 3, Trial selection 4, Bins & baseline 5, the kind's
-options 6, Appearance 7, Unit waveform 8 and Text note 9. The key opens the
+options 6, Appearance 7, Unit waveform 8, Text note 9 and Overlays 0. The key opens the
 section if it is collapsed (it stays open, and is remembered like any
 other collapse), scrolls the editor to it and puts the keyboard focus on its
 header, so **Tab** walks into its rows. The header names its key. Keys work
@@ -288,7 +289,7 @@ evoked potentials and tuning curves; group colours, legend (with its place
 orientation and its box, on while the legend is) and SEM only
 where groups are drawn as lines or bars; heat colours only for heatmaps,
 probe maps and unit correlations; the unit waveform for rasters and PSTH
-and tuning grids of spikes; the text note for every kind. A behavior plot reads only the trials: it
+and tuning grids of spikes; the text note and the overlays for every kind. A behavior plot reads only the trials: it
 shows its y value, parameter, series and x axis, the event, window and
 selection, the font, line width, y limits, series colours, SEM, legend
 and grid, and no unit, channel, bin, baseline or tile rows. The window modes offered are the kind's
@@ -907,7 +908,7 @@ saying so, only the rows they share, an edit, an event edit, *Use default*,
 a sort event and a remembered look reaching each plot as changed and no further,
 Duplicate and Remove taking them all); collapsing a
 section; the section headers' colours (distinct, readable on the bar) and
-keys, Ctrl+1 to Ctrl+9 opening a collapsed section and saying so for one the
+keys, Ctrl+1 to Ctrl+9 and Ctrl+0 opening a collapsed section and saying so for one the
 plot does not show; the gather / apply
 round trip, keeping the fields without a control (the stop event's offset,
 length and time range, trial rows) and the stop's *n*; Save As, New, reopen;

@@ -10,6 +10,24 @@ says how to cut a release.
 
 ### Added
 
+- Overlay graphics on analysis plots: lines and semitransparent patches drawn
+  on a plot's axes in data units. A plot's `overlays` is a list of any length;
+  each overlay is a vertical or horizontal line (`xline` / `yline`) or a patch
+  between two x or two y values (`xregion` / `yregion`), with its own panels
+  (all, the data panels, or the rasters above a PSTH's rate panels), layer (over
+  or under the plot's data), name, colour, opacity, line style and width, and
+  a patch's fill, fill opacity and outline. The analysis app's Plot editor gets
+  a collapsible **Overlays** section: a list with Add line, Add patch,
+  Duplicate and Remove, and the rows of the one picked. A line crosses every
+  raster row or the full height of a PSTH; the layer puts an overlay in front
+  of or behind the data (`drawOverlays`, called by `renderPlot`). Each is a
+  component (roles `overlayLine`, `overlayRegion`, grouped by its name) the
+  right-click aesthetics editor lists; its own look wins over a design, and a
+  design saved from a plot leaves overlays out. `EphysAnalysisConfig.validate`
+  checks them. See [Plot overlays](documentation/EphysAnalysisConfig.md#plot-overlays).
+  The Overlays section is the editor's tenth: it takes the next step of the section
+  title colours and **Ctrl+0** (**Cmd+0** on a Mac) goes to it.
+
 - Raster rows sorted by the latency of another event, e.g. the time from
   each epoch's event to the animal leaving the platform (Platform offset):
   plot option `rasterSort "event"` with `rasterSortEvent`, an event

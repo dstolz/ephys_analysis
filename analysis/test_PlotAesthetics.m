@@ -124,6 +124,11 @@ yb(1:5:end) = NaN;
 Rb = behaviorValues(yb, mod((1:nE).', 3), Series=mod((1:nE).', 2), Param="Depth", SeriesParam="TrialType", YName="RespLatency");
 
 fprintf('\n== 2. every renderer names what it draws ==\n');
+ovs = repmat(EphysAnalysisConfig.defaults("Overlay"), 1, 4);   % a line at x, one at y under the data, a patch in x, one in y under the data
+ovs(1).name = "Stim";
+ovs(2).name = "Level"; ovs(2).axis = "y"; ovs(2).value = 1; ovs(2).layer = "under";
+ovs(3).name = "Window"; ovs(3).shape = "region"; ovs(3).from = 0.05; ovs(3).to = 0.15;
+ovs(4).name = "Band"; ovs(4).shape = "region"; ovs(4).axis = "y"; ovs(4).from = 0; ovs(4).to = 1; ovs(4).layer = "under";
 cases = {
     "psth grid + raster", "psth",    struct('kind', "psth")
     "psth line, no fill", "psth",    struct('kind', "psth", 'histStyle', "line", 'fill', false)
@@ -152,7 +157,18 @@ cases = {
     "behavior points",    "behavior", struct('kind', "behavior")
     "behavior line",      "behavior", struct('kind', "behavior", 'layout', "line")
     "behavior box",       "behavior", struct('kind', "behavior", 'layout', "box")
-    "behavior swarm",     "behavior", struct('kind', "behavior", 'layout', "swarm")};
+    "behavior swarm",     "behavior", struct('kind', "behavior", 'layout', "swarm")
+    "psth + overlays",    "psth",    struct('kind', "psth", 'overlays', ovs)
+    "psth stack + overlays", "psth", struct('kind', "psth", 'stack', true, 'overlays', ovs)
+    "raster + overlays",  "psthM",   struct('kind', "raster", 'overlays', ovs)
+    "rate bar + overlays", "rate",   struct('kind', "rate", 'layout', "bar", 'overlays', ovs)
+    "tuning + overlays",  "tuning",  struct('kind', "tuning", 'overlays', ovs)
+    "heatmap + overlays", "psth",    struct('kind', "heatmap", 'overlays', ovs)
+    "corrmap + overlays", "corrmap", struct('kind', "corrmap", 'overlays', ovs)
+    "probemap + overlays", "probemap", struct('kind', "probemap", 'overlays', ovs)
+    "evoked grid + overlays", "evoked", struct('kind', "evoked", 'layout', "grid", 'source', "LFP", 'overlays', ovs)
+    "behavior + overlays", "behavior", struct('kind', "behavior", 'overlays', ovs)
+    "waveforms probe + overlays", "waveforms", struct('kind', "waveforms", 'layout', "probe", 'waveform', struct('mode', "both"), 'overlays', ovs)};
 if exist('violinplot', 'file')   % MATLAB R2024b or later
     cases(end+1, :) = {"behavior violin", "behavior", struct('kind', "behavior", 'layout', "violin")};
 end
@@ -228,6 +244,116 @@ check(isequal(h.layout.OuterPosition, [0 0 1 1]) && isempty(h.note) && isempty(f
     && isempty(findall(fig, 'Tag', 'note')), 'drawing the layout again without a note takes the old note and its band away');
 h = renderPlot(Rp, struct('kind', "psth", 'note', struct('text', "   ")), fig);
 check(isempty(h.note) && isempty(findall(fig, 'Tag', 'noteHost')), 'a note of blanks draws nothing');
+
+fprintf('\n== 2b. overlays: lines and patches on the axes ==\n');
+ovL = EphysAnalysisConfig.defaults("Overlay"); ovL.name = "Stim"; ovL.value = 0.1;
+h = renderPlot(Rp, struct('kind', "psth", 'overlays', ovL), fig);
+g = h.overlays;
+perAxes = arrayfun(@(a) numel(findall(a, 'Tag', 'overlayLine')), [h.axes h.rasterAxes]);
+check(numel(h.axes) == 4 && numel(h.rasterAxes) == 4 && numel(g) == 8 && all(perAxes == 1) ...
+    && all(arrayfun(@(x) isa(x, 'matlab.graphics.chart.decoration.ConstantLine'), g)) && all([g.Value] == 0.1) ...
+    && all(arrayfun(@(x) string(getappdata(x, 'PlotGroup')) == "Stim", g)), ...
+    'an overlay line is drawn once in every rate and raster panel of a PSTH grid, at its value, named by its group');
+check(max(abs(g(1).Color - validatecolor("#d62728"))) < 1e-6 && string(g(1).LineStyle) == "--" && g(1).LineWidth == 1.5 && g(1).Alpha == 1, ...
+    'a default overlay is a dashed red line, 1.5 points wide, opaque');
+for pn = ["data" "raster"]
+    o2 = ovL; o2.panel = pn;
+    h = renderPlot(Rp, struct('kind', "psth", 'overlays', o2), fig);
+    want = ifText(pn == "data", "axes") + ifText(pn == "raster", "rasterAxes");
+    okp = numel(h.overlays) == 4 && all(arrayfun(@(x) string(x.Parent.Tag) == want, h.overlays));
+    if ~okp; break; end
+end
+check(okp, 'the panel picks the axes: the data panels, or the rasters above them');
+o2 = ovL; o2.panel = "data";
+h = renderPlot(Rpm, struct('kind', "raster", 'overlays', o2), fig);
+o3 = ovL; o3.panel = "raster";
+h3 = renderPlot(Rpm, struct('kind', "raster", 'overlays', o3), fig);
+check(isempty(h.overlays) && numel(h3.overlays) == numel(h3.axes) && numel(h3.axes) > 0, ...
+    'a raster plot''s axes are raster panels: a data-panel overlay draws nothing on it, a raster-panel one on every tile');
+oy = ovL; oy.name = "Level"; oy.axis = "y"; oy.value = 5; oy.panel = "data";
+orx = ovL; orx.name = "Window"; orx.shape = "region"; orx.from = 0.3; orx.to = 0.1; orx.panel = "data";
+ory = orx; ory.name = "Band"; ory.axis = "y"; ory.from = 2; ory.to = 4;
+h = renderPlot(Rp, struct('kind', "psth", 'overlays', [oy orx ory]), fig);
+ln = findall(h.axes(1), 'Tag', 'overlayLine');
+rgx = findall(h.axes(1), 'Tag', 'overlayRegion');
+isX = arrayfun(@(x) string(getappdata(x, 'PlotGroup')) == "Window", rgx);
+check(isscalar(ln) && ln.Value == 5 && (~isprop(ln, 'InterceptAxis') || string(ln.InterceptAxis) == "y") && numel(rgx) == 2 ...
+    && all(arrayfun(@(x) isa(x, 'matlab.graphics.chart.decoration.ConstantRegion'), rgx)) ...
+    && isequal(rgx(isX).Value, [0.1 0.3]) && isequal(rgx(~isX).Value, [2 4]), ...
+    'a horizontal line is at a y value; a patch lies between its two edges, in either order, in x or in y');
+check(max(abs(rgx(1).FaceColor - validatecolor("#808080"))) < 1e-6 && rgx(1).FaceAlpha == 0.25 && string(rgx(1).EdgeColor) == "none" ...
+    && all(arrayfun(@(x) string(x.PickableParts) == "none", rgx)) && string(ln.PickableParts) ~= "none", ...
+    'a default patch is a grey fill at 25 % opacity without an outline, and does not take clicks (a line does)');
+o2 = ovL; o2.color = "#336699"; o2.alpha = 0.4; o2.lineStyle = ":"; o2.lineWidth = 3;
+p2 = orx; p2.faceColor = "green"; p2.faceAlpha = 0.6; p2.edgeColor = "black"; p2.lineStyle = "-."; p2.lineWidth = 2;
+h = renderPlot(Rp, struct('kind', "psth", 'overlays', [o2 p2]), fig);
+ln = findall(h.axes(1), 'Tag', 'overlayLine'); rg = findall(h.axes(1), 'Tag', 'overlayRegion');
+check(max(abs(ln.Color - [0.2 0.4 0.6])) < 1e-9 && ln.Alpha == 0.4 && string(ln.LineStyle) == ":" && ln.LineWidth == 3 ...
+    && max(abs(rg.FaceColor - validatecolor("green"))) < 1e-9 && rg.FaceAlpha == 0.6 && isequal(rg.EdgeColor, [0 0 0]) ...
+    && string(rg.LineStyle) == "-." && rg.LineWidth == 2, ...
+    'each overlay has its own colour, opacity, line style and width; a patch its fill, fill opacity and outline');
+under = ovL; under.name = "Back"; under.layer = "under"; under.panel = "data";
+over = ovL; over.name = "Front"; over.value = 0.2; over.panel = "data";
+h = renderPlot(Rp, struct('kind', "psth", 'overlays', [under over]), fig);
+ax = h.axes(1);
+gs = findall(ax, 'Tag', 'overlayLine');
+names = arrayfun(@(x) string(getappdata(x, 'PlotGroup')), gs);
+kids = allKids(ax);
+check(find(kids == gs(names == "Front")) == 1 && find(kids == gs(names == "Back")) == numel(kids) && numel(kids) > 2 ...
+    && string(ax.SortMethod) == "childorder", ...
+    'an overlay over the data is first in the axes'' draw order, one under it last (the axes draw in child order)');
+two = [over over]; two(2).name = "Later"; two(2).value = 0.3;
+h = renderPlot(Rp, struct('kind', "psth", 'overlays', two), fig);
+ax = h.axes(1); gs = findall(ax, 'Tag', 'overlayLine'); names = arrayfun(@(x) string(getappdata(x, 'PlotGroup')), gs);
+kids = allKids(ax);
+check(find(kids == gs(names == "Later")) < find(kids == gs(names == "Front")), 'of two overlays over the data, the later one is on top');
+h = renderPlot(Rp, struct('kind', "psth"), fig);
+check(string(h.axes(1).SortMethod) == "depth" && isempty(h.overlays), 'a plot without overlays keeps its axes'' draw order as it was');
+red = [1 0 0];
+orr = ovL; orr.color = "red";
+D = PlotDesign.none(); D.rules = struct('role', "overlayLine", 'group', "", 'property', "Color", 'value', [0 1 0]);
+h = renderPlot(Rp, struct('kind', "psth", 'overlays', orr), fig, Design=D);
+c0 = h.overlays(1).Color;
+PlotAesthetics.setUserRules("psth", struct('role', "overlayLine", 'group', "", 'property', "Color", 'value', [0 0 1]));
+h = renderPlot(Rp, struct('kind', "psth", 'overlays', orr), fig);
+c1 = h.overlays(1).Color;
+PlotAesthetics.setUserRules("psth", []);
+check(isequal(c0, red) && isequal(c1, red), 'an overlay''s own colour wins over its design''s and the user''s rules');
+h = renderPlot(Rp, struct('kind', "psth", 'overlays', orr, 'aesthetics', ...
+    struct('role', "overlayLine", 'group', "Stim", 'property', "Color", 'value', [0 0 1])), fig);
+h2 = renderPlot(Rp, struct('kind', "psth", 'overlays', orr, 'aesthetics', ...
+    struct('role', "overlayLine", 'group', "Other", 'property', "Color", 'value', [0 0 1])), fig);
+check(isequal(h.overlays(1).Color, [0 0 1]) && isequal(h2.overlays(1).Color, red), ...
+    'the plot''s own aesthetics rule for an overlay''s name wins over the overlay''s colour; another name''s does not reach it');
+off = ovL; off.enabled = false;
+nan = ovL; nan.value = NaN;
+same = ovL; same.shape = "region"; same.from = 0.2; same.to = 0.2;
+h = renderPlot(Rp, struct('kind', "psth", 'overlays', [off nan same]), fig);
+check(isempty(h.overlays) && isempty(findall(fig, 'Tag', 'overlayLine')) && isempty(findall(fig, 'Tag', 'overlayRegion')), ...
+    'a disabled overlay, one without a finite position and a patch with equal edges draw nothing');
+h = renderPlot(Rp, struct('kind', "psth", 'overlays', struct('value', 0.3)), fig);
+check(numel(h.overlays) == 8 && all([h.overlays.Value] == 0.3), 'an overlay given only its position is completed from the defaults');
+h = renderPlot(Rp, struct('kind', "psth", 'overlays', ovL), fig);
+h = renderPlot(Rp, struct('kind', "psth"), h.layout);
+check(isempty(findall(fig, 'Tag', 'overlayLine')), 'drawing the plot again without the overlay takes it away');
+h = renderPlot(Rp, struct('kind', "psth", 'stack', true, 'overlays', oy), fig);
+ax = h.axes(1);
+check(numel(h.overlays) == 4 && numel(ax.YAxis) == 2 && string(ax.YAxisLocation) == "left", ...
+    'a y overlay on a stacked PSTH is drawn without leaving the axes on its right-hand side');
+h = renderPlot(Rp, struct('kind', "psth", 'overlays', [ovL orx]), fig, Editable=true);
+C = PlotAesthetics.components(h.layout);
+lbl = C.Label(C.Role == "overlayLine");
+check(sum(C.Role == "overlayLine") == 8 && sum(C.Role == "overlayRegion") == 4 && all(ismember(C.Role, PlotAesthetics.roles().Role)) ...
+    && ~any(C.Role == "") && all(lbl == "Overlay line · Stim") && any(C.Label == "Overlay region · Window") ...
+    && ~isempty(h.overlays(1).ContextMenu), ...
+    'the aesthetics editor lists each overlay by its role and name, per tile, with its right-click menu');
+P = PlotAesthetics.editableProperties(h.overlays(1));
+Q = PlotAesthetics.editableProperties(findall(h.axes(1), 'Tag', 'overlayRegion'));
+check(isequal([P.Name], ["Visible" "Color" "Alpha" "LineStyle" "LineWidth"]) ...
+    && isequal([Q.Name], ["Visible" "FaceColor" "FaceAlpha" "EdgeColor" "LineStyle" "LineWidth"]), ...
+    'the editor offers a line''s colour, opacity, style and width, and a patch''s fill, opacity, outline, style and width');
+Dc = PlotDesign.capture(fig);
+check(~any(ismember([Dc.rules.role], ["overlayLine" "overlayRegion"])), 'a design saved from a plot leaves its overlays out');
 h = renderPlot(Rp, struct('kind', "psth"), fig);
 C = PlotAesthetics.components(h.layout);
 check(numel(unique(C.Key)) == height(C) && any(C.Role == "plotTitle") && sum(C.Role == "rasterAxes") == 4 ...
@@ -414,6 +540,15 @@ fprintf('\n%d passed, %d failed\n', nPass, nFail);
 if nFail > 0
     error('test_PlotAesthetics:Failed', '%d check(s) failed.', nFail);
 end
+end
+
+
+function kids = allKids(ax)
+%allKids  The children of AX in draw order (first on top), those with no handle visibility too.
+shown = get(groot, 'ShowHiddenHandles');
+set(groot, 'ShowHiddenHandles', 'on');
+kids = ax.Children;
+set(groot, 'ShowHiddenHandles', shown);
 end
 
 

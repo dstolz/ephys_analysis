@@ -5,7 +5,7 @@ function [S, h] = formLayout(S)
 %   out of sight, so hidden rows leave no gaps; sets the header's arrow and
 %   title; and returns the section's height H in pixels: 0 when it is hidden
 %   (S.Visible false, or a form with no row shown), the header's alone when
-%   it is collapsed. A section with a key (S.Key, "1" to "9") names it in
+%   it is collapsed. A section with a key (S.Key, "1" to "9" or "0") names it in
 %   its header: "(Ctrl+1)", "(Cmd+1)" on a Mac.
 %
 %   The first call finds each row's controls (the body's children in that

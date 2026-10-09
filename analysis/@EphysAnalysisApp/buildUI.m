@@ -33,7 +33,7 @@ obj.buildExportTab();
 obj.buildLogTab();
 styleButtons(obj);
 obj.Tabs.SelectedTab = obj.TabData;
-obj.Fig.WindowKeyPressFcn = @(~, evt) obj.onKeyPress(evt);   % Ctrl+1 ... Ctrl+9: the plot editor's sections
+obj.Fig.WindowKeyPressFcn = @(~, evt) obj.onKeyPress(evt);   % Ctrl+1 ... Ctrl+9, Ctrl+0: the plot editor's sections
 obj.refreshDesigns();
 PlotDesign.listen(obj.Fig, @() obj.refreshDesigns());   % a design chosen anywhere (a plot's right-click menu too)
 end

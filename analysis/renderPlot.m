@@ -16,13 +16,16 @@ function h = renderPlot(R, spec, target, opts)
 %   "<Kind>: <line> <edge> (<n> epochs)" -- with the dataset and page as a
 %   subtitle. SPEC.note, when it has text, adds descriptive text beside or
 %   over the plot (drawNote, placeNote; H.note is the text object).
+%   SPEC.overlays adds lines and semitransparent patches in data units on
+%   the plot's axes, over or under its data (drawOverlays; H.overlays are
+%   the objects drawn).
 %
 %   Aesthetics: every component drawn is named by its role and group
 %   (tagPart). The plot is drawn in a design (PlotDesign: its ground, group
 %   colours and colormaps), and after drawing the rules are applied: the
 %   design's, the user's for SPEC.kind (PlotAesthetics.userRules), the
-%   note's own font and colours (SPEC.note), then the plot's own
-%   (SPEC.aesthetics), so the later win. In a visible figure
+%   note's own font and colours (SPEC.note), each overlay's own look
+%   (SPEC.overlays), then the plot's own (SPEC.aesthetics), so the later win. In a visible figure
 %   a right-click on any component opens PlotAestheticsDialog, which edits
 %   the plot live, or picks another design (every plot on screen that
 %   follows the chosen design is redrawn in it) or saves the plot's look as
@@ -118,12 +121,14 @@ h.title = txt;
 h.page = page;
 N = drawNote(h, spec.note, style);
 h.note = N.text;
+OV = drawOverlays(h, spec.overlays);
+h.overlays = OV.handles;
 
 root = h.layout;
 if isempty(root) && ~isempty(h.axes); root = h.axes(1); end
 if isempty(root); return; end
 plotRules = PlotAesthetics.normalizeRules(spec.aesthetics);
-rules = [N.rules plotRules];
+rules = [N.rules OV.rules plotRules];
 if opts.UserAesthetics
     rules = [PlotAesthetics.userRules(spec.kind) rules];
 end

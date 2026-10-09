@@ -221,7 +221,7 @@ classdef PlotDesign
             D.source = "mine";
 
             T = PlotAesthetics.components(ctx.root);
-            T = T(T.Role ~= "", :);
+            T = T(T.Role ~= "" & ~ismember(T.Role, ["overlayLine" "overlayRegion"]), :);   % a plot's overlays are its own, not the design's
             captured = captureRules(T);
             kind = string(ctx.kind);
             if ismember(kind, ["heatmap" "corrmap" "probemap"])

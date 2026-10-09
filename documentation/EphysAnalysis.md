@@ -679,9 +679,11 @@ at a round step.
 
 `renderPlot(R, spec, target, Page=)` dispatches on `spec.kind`, applies
 `spec.layout`, `spec.style` ([Style](EphysAnalysisConfig.md#style)),
-`spec.waveform`, the raster's sort and marks and `spec.note` (descriptive text
-beside or over the plot; [Plot notes](EphysAnalysisConfig.md#plot-notes)),
-and titles the figure
+`spec.waveform`, the raster's sort and marks, `spec.note` (descriptive text
+beside or over the plot; [Plot notes](EphysAnalysisConfig.md#plot-notes)) and
+`spec.overlays` (lines and semitransparent patches on the plot's axes, over or
+under its data; [Plot overlays](EphysAnalysisConfig.md#plot-overlays); the
+objects drawn are `H.overlays`), and titles the figure
 `"<Kind>: <line> <edge> (<n> epochs)"` (a behavior plot: `"Behavior:
 <y> by <param> (<n> epochs)"`), or `spec.title`, with the dataset and
 page as a subtitle. A
@@ -781,7 +783,9 @@ sets of rules after drawing, in this order, so the later win:
    which are preferences (AppPrefs group `PlotAesthetics`) and follow the
    user, not the config;
 2. the plot's note's own font, size, colour and ground (`spec.note`), for
-   the component `note`;
+   the component `note`, and each overlay's own colour, opacity, style and
+   width (`spec.overlays`), for the components `overlayLine` and
+   `overlayRegion` named by the overlay;
 3. the plot's rules, `spec.aesthetics`
    ([Plots](EphysAnalysisConfig.md#plots)), saved in the config, so runs,
    reports and generated scripts draw the plot the same way.

@@ -23,7 +23,7 @@ classdef EphysAnalysisConfig
     %               normalize, stack, stackSpacing, maskAfterStop, param,
     %               seriesParam, yParam, jitter, xScale, value, order,
     %               metric, correlation, measure, auroc, waveform, note,
-    %               aesthetics, style
+    %               overlays, aesthetics, style
     %     Export    figure files: Formats (png / eps / svg / pdf), Folder and
     %               FilenamePattern with tokens, Dpi, FigureSizeCm
     %     Report    one HTML and / or multi-page PDF report per run (or per
@@ -77,6 +77,10 @@ classdef EphysAnalysisConfig
         % Where a plot's note sits (a plot's note.placement): outside the plot, over it, or at a point.
         NotePlacements = ["below" "above" "right" "left" "northwest" "north" "northeast" "west" "center" "east" ...
             "southwest" "south" "southeast" "custom"]
+        % What a plot's overlays (defaults("Overlay")) choose from: the axes they go on, the layer, a line's style.
+        OverlayPanels     = ["all" "data" "raster"]
+        OverlayLayers     = ["over" "under"]
+        OverlayLineStyles = ["-" "--" ":" "-."]
         % String fields that are lists even when their default has one element.
         ListFields = ["response" "pairingFlags" "groupBy" "classes" "groups" "Formats" "Datasets" "Folders"]
     end

@@ -21,7 +21,7 @@ for f = string(fieldnames(in)).'
     end
     d = def.(f);
     v = in.(f);
-    if f == "stop"
+    if f == "stop" || f == "rasterSortEvent"
         [out.(f), u] = coerceStop(v, path + "." + f);
         unknown = [unknown, u]; %#ok<AGROW>
     elseif f == "sequence" || f == "sequences" || f == "overlays"
@@ -38,7 +38,7 @@ end
 
 
 function [v, unknown] = coerceStop(v, path)
-%coerceStop  An epoch window's stop: [] (none) or an EventRef.
+%coerceStop  An epoch window's stop, or a plot's rasterSortEvent: [] (none) or an EventRef.
 unknown = string.empty(1, 0);
 if isempty(v) || ((isstring(v) || ischar(v)) && any(lower(strtrim(string(v))) == ["" "none"]))
     v = [];

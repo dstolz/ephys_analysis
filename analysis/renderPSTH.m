@@ -13,8 +13,9 @@ function h = renderPSTH(R, target, opts)
 %                 overlay of one unit), flush on the same time axis: the
 %                 two are a 2 x 1 tiled layout in the unit's tile
 %     SortBy      the raster's epoch order within a group: "" (default)
-%                 time order, "stop" stop event latency, or a column of
-%                 R.epochs (see renderRaster)
+%                 time order, "stop" stop event latency, "event" the
+%                 latency to R.rasterSortEvent, or a column of R.epochs
+%                 (see renderRaster)
 %     SortOrder   "ascending" (default) | "descending": SortBy's direction
 %     ByGroup     true (default): the raster's rows by group first; false:
 %                 every epoch sorted as one block (see renderRaster)

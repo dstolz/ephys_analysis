@@ -15,8 +15,11 @@ function buildPlotsTab(obj)
 %   lines and semitransparent patches drawn on the plot's axes, over or
 %   under its data: a list with Add line / Add patch / Duplicate / Remove,
 %   and the rows of the one picked), each collapsing under
-%   its header (onPlotSectionToggled). syncPlotEditor shows the rows
-%   the selected plot uses; layoutPlotEditor packs them.
+%   its header (onPlotSectionToggled). Each header has its own colour, a
+%   step along the turbo map in the sections' order, and its key: Ctrl+1 to
+%   Ctrl+9 and Ctrl+0 go to the section (gotoPlotSection; onKeyPress).
+%   syncPlotEditor shows the rows the selected plot uses; layoutPlotEditor
+%   packs them.
 g = uigridlayout(obj.TabPlots, [1 3]);
 g.ColumnWidth = {285, 470, '1x'};
 g.Padding = [8 8 8 8];
@@ -71,6 +74,12 @@ eg.Scrollable = "on";
 obj.PlotEditorGrid = eg;
 E = struct();
 
+% the sections with a header, in order: each takes a title colour (a step along the turbo map) and a key (1-9, then 0)
+order = ["units" "ref" "window" "selection" "bins" "kind" "style" "waveform" "note" "overlays"];
+hue = turbo(256);
+hue = hue(round(linspace(24, 232, numel(order))), :);
+tint = @(name) hue(order == name, :);
+
 % the plot: always open
 S = formSection(eg, 1, "general", "");
 [S, r] = formRow(S, ["kind" "enabled"], "Kind:");
@@ -97,7 +106,7 @@ place(E.layout, r, 2);
 sec = S;
 
 % units and channels
-S = formSection(eg, 2, "units", "Units & channels");
+S = formSection(eg, 2, "units", "Units & channels", Color=tint("units"));
 [S, r] = formRow(S, "classes", "Unit classes:");
 cg = subgrid(S.Body, r, repmat({'fit'}, 1, 4));
 cg.ColumnSpacing = 12;
@@ -159,9 +168,9 @@ place(E.channels, r, 2);
 sec(end+1) = S;
 
 % event reference, window and selection: the Alignment tab's controls
-Sr = formSection(eg, 3, "ref", "Event reference", "panel");
-Sw = formSection(eg, 4, "window", "Epoch window", "panel");
-Ss = formSection(eg, 5, "selection", "Trial selection", "panel");
+Sr = formSection(eg, 3, "ref", "Event reference", "panel", Color=tint("ref"));
+Sw = formSection(eg, 4, "window", "Epoch window", "panel", Color=tint("window"));
+Ss = formSection(eg, 5, "selection", "Trial selection", "panel", Color=tint("selection"));
 E.defaultRef = defaultBox(obj, Sr, "event reference");
 E.defaultWindow = defaultBox(obj, Sw, "epoch window");
 E.defaultSelection = defaultBox(obj, Ss, "trial selection");
@@ -179,7 +188,7 @@ obj.PlotAlignControls = C;
 sec = [sec Sr Sw Ss];
 
 % bins and baseline
-S = formSection(eg, 6, "bins", "Bins & baseline");
+S = formSection(eg, 6, "bins", "Bins & baseline", Color=tint("bins"));
 [S, r] = formRow(S, "binMs", "Bin (ms):");
 E.binMs = uieditfield(S.Body, "numeric", "Value", 10, "Limits", [0.001 Inf], "ValueChangedFcn", changed);
 place(E.binMs, r, 2);
@@ -210,17 +219,34 @@ E.baseTo = uieditfield(bg, "numeric", "Value", 0, "ValueChangedFcn", changed, "T
 sec(end+1) = S;
 
 % the kind's own options
-S = formSection(eg, 7, "kind", "Options");
+S = formSection(eg, 7, "kind", "Options", Color=tint("kind"));
 [S, r] = formRow(S, "withRaster", "");
 E.withRaster = uicheckbox(S.Body, "Text", "Raster above each PSTH", "Value", true, "ValueChangedFcn", changed);
 place(E.withRaster, r, [1 2]);
 [S, r] = formRow(S, ["rasterSort" "rasterSortOrder"], "Sort raster by:");
 rsg = subgrid(S.Body, r, {'1x', 110});
-E.rasterSort = uidropdown(rsg, "Editable", "on", "Items", ["" "stop"], "Value", "", "ValueChangedFcn", changed, ...
+E.rasterSort = uidropdown(rsg, "Editable", "on", "Items", ["" "stop" "event"], "Value", "", "ValueChangedFcn", changed, ...
     "Tooltip", "The order of the raster's epochs: blank = trial (time) order; stop = the stop " + ...
-    "event's latency; or a trial parameter. Missing values go last; ties keep the trial order.");
+    "event's latency; event = the latency of the sort event below (e.g. Platform offset); or a trial " + ...
+    "parameter. Missing values go last; ties keep the trial order.");
 E.rasterSortOrder = uidropdown(rsg, "Items", ["ascending" "descending"], "Value", "ascending", "ValueChangedFcn", changed, ...
     "Tooltip", "The sort's direction (descending with a blank sort: the last trial on top). Missing values stay last.");
+[S, r] = formRow(S, ["sortLine" "sortEdge"], "Sort event:");
+seg = subgrid(S.Body, r, {'1x', 80});
+E.sortLine = uidropdown(seg, "Editable", "on", "Items", "", "Value", "", "ValueChangedFcn", changed, ...
+    "Tooltip", "Sort raster by ""event"": the line whose event orders the rows by its latency from each epoch's " + ...
+    "event, e.g. Platform (offset: when the animal left the platform). It is the first such event at or after " + ...
+    "the epoch's event, in the epoch's own trial when it has one, as a stop event is found. Epochs without one go last.");
+E.sortEdge = uidropdown(seg, "Items", ["onset" "offset"], "Value", "onset", "ValueChangedFcn", changed, ...
+    "Tooltip", "The sort event's edge: its line's onset or offset.");
+[S, r] = formRow(S, ["sortSeqText" "sortSeqEdit"], "Sort sequence:");
+ssg = subgrid(S.Body, r, {'1x', 70});
+E.sortSeqText = uilabel(ssg, "Text", "none");
+setSequenceHolder(E.sortSeqText, struct('sequence', repmat(EphysAnalysisConfig.defaults("SequenceStep"), 1, 0), 'alignStep', Inf));
+E.sortSeqEdit = uibutton(ssg, "Text", "Edit...", "Tooltip", "Events that must follow the sort event's line, " + ...
+    "e.g. Stim onset then Trough onset: the rows go by the latency of the first Trough onset after a Stim onset.");
+E.sortSeqEdit.ButtonPushedFcn = @(~,~) obj.editSequence(E.sortSeqText, "event", E.sortLine, E.sortEdge, ...
+    @() obj.onConfigChanged("plot"));
 [S, r] = formRow(S, "rasterByGroup", "");
 E.rasterByGroup = uicheckbox(S.Body, "Text", "Raster rows by group first (one band per group)", "Value", true, ...
     "ValueChangedFcn", changed, "Tooltip", "Ticked: each group's epochs together on a band of its colour, sorted " + ...
@@ -316,7 +342,7 @@ place(E.correlation, r, 2);
 sec(end+1) = S;
 
 % appearance
-S = formSection(eg, 8, "style", "Appearance");
+S = formSection(eg, 8, "style", "Appearance", Color=tint("style"));
 [S, r] = formRow(S, "maxTiles", "Tiles per page:");
 E.maxTiles = uispinner(S.Body, "Limits", [1 64], "Value", 16, "RoundFractionalValues", "on", "ValueChangedFcn", changed);
 place(E.maxTiles, r, 2);
@@ -385,7 +411,7 @@ E.legendBox = uicheckbox(lgg, "Text", "Box", "ValueChangedFcn", changed, ...
 sec(end+1) = S;
 
 % each unit's waveform in its tile
-S = formSection(eg, 9, "waveform", "Unit waveform");
+S = formSection(eg, 9, "waveform", "Unit waveform", Color=tint("waveform"));
 [S, r] = formRow(S, ["waveMode" "waveSpikes"], "Show:");
 wg = subgrid(S.Body, r, {'1x', 'fit', 70});
 E.waveMode = uidropdown(wg, "Items", ["Off" "Mean" "Subsample" "Mean + subsample"], ...
@@ -434,7 +460,7 @@ E.waveNames = uicheckbox(wp, "Text", "Unit names", "Value", false, "ValueChanged
 sec(end+1) = S;
 
 % descriptive text on the plot
-S = formSection(eg, 10, "note", "Text note");
+S = formSection(eg, 10, "note", "Text note", Color=tint("note"));
 [S, r] = formRow(S, "annText", "Text:", 78);
 E.annText = uitextarea(S.Body, "Value", "", "ValueChangedFcn", changed, ...
     "Tooltip", "Words to put on the plot -- a caption, a condition, a remark. Each new line is a line of text; blank " + ...
@@ -497,7 +523,7 @@ place(E.annInterp, r, 2);
 sec(end+1) = S;
 
 % lines and patches on the plot's axes: a list, and the rows of the one picked
-S = formSection(eg, 11, "overlays", "Overlays");
+S = formSection(eg, 11, "overlays", "Overlays", Color=tint("overlays"));
 [S, r] = formRow(S, ["ovList" "ovAddLine"], "Overlays:", 112);
 olg = subgrid(S.Body, r, {'1x', 96});
 E.ovList = uilistbox(olg, "Items", {}, "ValueChangedFcn", @(~,~) obj.onOverlayPicked(), ...
@@ -578,6 +604,7 @@ sec(end+1) = S;
 for i = 2:numel(sec)
     name = sec(i).Name;
     sec(i).Toggle.ButtonPushedFcn = @(~,~) obj.onPlotSectionToggled(name);
+    sec(i).Key = string(mod(find(order == name), 10));   % Ctrl+1 ... Ctrl+9, then Ctrl+0 for the tenth (onKeyPress)
 end
 obj.PlotEditor = E;
 obj.PlotSections = sec;

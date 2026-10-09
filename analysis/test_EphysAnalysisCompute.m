@@ -16,7 +16,9 @@ function test_EphysAnalysisCompute()
 %   the bin that starts there, on a 30 kHz sample grid too), and the unit waveform
 %   boxes (where each location puts them, on a reversed raster too; the
 %   modes, box and scale; the limits kept; none on an overlay; templates),
-%   the raster's sort direction, its rows sorted across groups and its
+%   the raster's sort direction, its sort by another event's latency
+%   (R.rasterSortEvent: the order, the y label, the caption's count of
+%   epochs without the event), its rows sorted across groups and its
 %   event marks (epochEvents' result: where they sit, their look, the
 %   aesthetics rules reaching them), and behaviorValues / renderBehavior
 %   (means, series, missing values, every layout, the jitter, a linear x
@@ -621,6 +623,21 @@ check(isequal(rasterRows(h.axes(1)), [3 1 2 6 5 4]) && contains(plotCaption(stru
     "sorted by level"), 'renderPlot sorts by the spec''s rasterSort; the caption says so');
 check(strcmp(errorId(@() renderRaster(Rs, fig9, SortBy="nope")), 'renderRaster:NoSortColumn'), ...
     'SortBy a column the epochs lack: renderRaster:NoSortColumn');
+% each epoch's latency to another event (eventLatency); epoch 2 has none
+Re = Rs;
+Re.rasterSortEvent = struct('label', "Platform offset", 't', [0.25 NaN 0.05 0.3 0.1 0.2].');
+h = renderRaster(Re, fig9, SortBy="event");
+check(isequal(rasterRows(h.axes(1)), [2 3 1 6 4 5]) && string(h.layout.YLabel.String) == "Epoch (by Platform offset latency)", ...
+    'raster SortBy "event": by each epoch''s latency to R.rasterSortEvent within each group, an epoch without one last; the y label names the event');
+check(isequal(rowsOf(renderRaster(Re, fig9, SortBy="event", SortOrder="descending")), [1 3 2 4 6 5]), ...
+    'SortBy "event" descending: the longest latency first, an epoch without the event still last');
+h = renderPlot(Re, struct('kind', "raster", 'rasterSort', "event"), fig9);
+cap = plotCaption(struct('kind', "raster", 'rasterSort', "event"), Re);
+check(isequal(rasterRows(h.axes(1)), [2 3 1 6 4 5]) && contains(cap, "sorted by Platform offset latency within each group") ...
+    && contains(cap, "1 epoch(s) with no Platform offset after their event sorted last"), ...
+    "renderPlot sorts by the event's latency; the caption names it and counts the epoch without one: " + cap);
+check(strcmp(errorId(@() renderRaster(Rs, fig9, SortBy="event")), 'renderRaster:NoSortEvent'), ...
+    'SortBy "event" without R.rasterSortEvent: renderRaster:NoSortEvent');
 check(isequal(rowsOf(renderRaster(Rs, fig9, SortBy="level", SortOrder="descending")), [1 3 2 6 4 5]), ...
     'SortOrder "descending": the largest first within each group, a missing value still last');
 check(isequal(rowsOf(renderRaster(Rs, fig9, SortOrder="descending")), [3 2 1 6 5 4]), ...

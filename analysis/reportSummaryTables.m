@@ -31,7 +31,9 @@ add("Recording rate (Hz)", num(src.fs));
 add("Duration (s)", num(src.durationSec));
 if src.subject ~= ""; add("Subject", src.subject); end
 if ~isnat(src.startTime); add("Session start", string(src.startTime, 'yyyy-MM-dd HH:mm:ss')); end
-if src.probeFile ~= ""
+if isfield(src, 'probeSource') && src.probeSource == "sorting"
+    add("Probe", "the sort's channel map, positions and shanks");
+elseif src.probeFile ~= ""
     [~, pn, pe] = fileparts(src.probeFile);
     add("Probe", pn + pe);
 end

@@ -22,9 +22,11 @@ function issues = validate(obj, opts)
 %               fillAlpha (0-1 or NaN) and stackSpacing (> 0); probemap value;
 %               heatmap order ("modulation" with an auROC baseline);
 %               corrmap metric and correlation; a psth / raster's raster
-%               sort direction and event marks (edge, scope, marker, size,
-%               each mark sequence as an event reference; a colour that is
-%               not one is a warning); a behavior plot's
+%               sort direction, its sort event (rasterSort "event": one
+%               given, as an event reference) and event marks (edge,
+%               scope, marker, size, each mark sequence as an event
+%               reference; a colour that is not one is a warning); a
+%               behavior plot's
 %               param and yParam ("stop" needs a stop event), xScale, and
 %               violinplot for the violin layout; a baseline Mode "auroc"
 %               (psth and heatmap of spikes) and its auroc settings
@@ -179,6 +181,14 @@ for k = 1:numel(obj.Plots)
     if ismember(p.kind, ["psth" "raster"])
         if ~ismember(p.rasterSortOrder, ["ascending" "descending"])
             add("Plots", f0 + ".rasterSortOrder", "error", "The raster sort order is ascending or descending.");
+        end
+        if p.rasterSort == "event"
+            if isempty(p.rasterSortEvent)
+                add("Plots", f0 + ".rasterSortEvent", "error", "rasterSort ""event"" sorts the raster by an event's " + ...
+                    "latency from each epoch's event: give rasterSortEvent, e.g. Platform offset.");
+            else
+                checkRef(p.rasterSortEvent, "Plots", f0 + ".rasterSortEvent");
+            end
         end
         mk = p.rasterEvents;
         if ~ismember(mk.edge, ["onset" "offset" "both"])

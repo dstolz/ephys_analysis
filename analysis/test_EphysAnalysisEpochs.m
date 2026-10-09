@@ -12,7 +12,8 @@ function test_EphysAnalysisEpochs()
 %   ("between") epochs, event sequences (Trial offset then the first poke
 %   after it: gaps, n, lengths, notFollowedBy, alignStep, which after the
 %   sequence, stop events and raster marks of sequences, the counts and
-%   errors), selectUnits for sorted units (from the spikes file
+%   errors), eventLatency (a stop event's latency, Platform offset after
+%   each Stim onset, its label and errors), selectUnits for sorted units (from the spikes file
 %   and, cached, from the sorting folder) and detections, a spike in the
 %   event's own sample at 0, the error identifiers and the fallback to
 %   recording scope without behavior.
@@ -74,8 +75,24 @@ check(src.hasBehavior && src.hasTrials && src.nTrials == 12 && src.trialLine == 
     'paired trials, the trial line, RespCode and every trial parameter (RespCode too, no pairing times), alphabetical');
 check(src.signals.LFP && src.signals.MUA && src.signals.AUX && ~src.signals.SPIKE && src.signalFs.LFP == 1000 ...
     && src.signalFs.MUA == 2000 && numel(src.labels) == numel(T1.channelNames), 'signals, their rates and the channel labels');
-check(src.hasUnits && src.hasDetected && isstruct(src.probe) && numel(src.probe.xc) == numel(T1.channelNames), ...
-    'units from the sorting folder, detections from the spikes file and the probe map');
+check(src.hasUnits && src.hasDetected && isstruct(src.probe) && numel(src.probe.xc) == numel(T1.channelNames) ...
+    && src.probeSource == "manifest", 'units from the sorting folder, detections from the spikes file and the probe map');
+pf = src.probeFile;                               % a dataset sorted with the default probe: no probe file
+movefile(pf, pf + ".off");
+try
+    sNo = loadAnalysisSource(F.outputs(1), Key=F.keys(1));
+catch ME
+    movefile(pf + ".off", pf);
+    rethrow(ME);
+end
+movefile(pf + ".off", pf);
+[~, mdP] = selectUnits(src, struct('source', "detected"));
+[~, mdS] = selectUnits(sNo, struct('source', "detected"));
+[~, muP] = selectUnits(src, struct('source', "units"));
+[~, muS] = selectUnits(sNo, struct('source', "units"));
+check(sNo.probeFile == "" && sNo.probeSource == "sorting" && isstruct(sNo.probe) && all(isfinite(mdS.y)) ...
+    && isequal(mdS(:, ["shank" "x" "y"]), mdP(:, ["shank" "x" "y"])) && isequaln(muS, muP), ...
+    'without a probe file the probe map is the sort''s: detections get the same sites, sorted units are unchanged');
 bare = fullfile(root, 'X-1');                     % an extract alone: no manifest, no behavior
 mkdir(bare);
 Y = struct('LFP', zeros(250, 2, 'single'));
@@ -238,6 +255,27 @@ hasR = resp(Ew.trial);
 check(height(Ew) == 12 && isequal(isfinite(Ew.t1), hasR) ...
     && max(abs(Ew.t1(hasR) - Ew.t0(hasR) - (0.6 + lat(Ew.trial(hasR)) / 1000))) < 1.5 / src.fs, ...
     'a stop event shifted by RespLatency is each response, after the Stim onset; a trial without one has no stop');
+
+fprintf('\n== 5a2. eventLatency: each epoch''s latency to an event, found as a stop event ==\n');
+[lt, lbl] = eventLatency(src, Ew, eventRef(line="RespWindow", offsetParam="RespLatency"));
+check(isequaln(lt, Ew.t1 - Ew.t0) && lbl == "RespWindow onset + RespLatency (ms)", ...
+    'eventLatency of the stop event is the stop latency, NaN where the trial has no response; the label names the shift');
+Es = epochTable(src, eventRef(line="Stim", scope="trial"), Window=epochWindow(pre=-0.2, post=1));
+[lt, lbl] = eventLatency(src, Es, eventRef(line="Platform", edge="offset"));
+want = NaN(height(Es), 1);
+for e = 1:height(Es)
+    iv = double(src.trials.TrialEvents(Es.trial(e)).Platform);   % the intervals overlapping the epoch's trial
+    if isempty(iv); continue; end
+    x = sort(iv(:, 2));
+    x = x(x >= Es.t0(e));
+    if ~isempty(x); want(e) = x(1) - Es.t0(e); end
+end
+check(any(isfinite(want)) && isequaln(lt, want) && all(isnan(Es.t1)) && lbl == "Platform offset", ...
+    'eventLatency Platform offset: the first offset at or after each Stim onset among the Platform intervals overlapping its trial (past the trial''s end too); the epochs'' own stop untouched');
+[~, lbl] = eventLatency(src, Es, eventRef(line="Platform", edge="offset", which="last", offsetSec=0.05));
+check(lbl == "last Platform offset +0.05 s" && isequaln(eventLatency(src, Es, "Stim"), eventLatency(src, Es, eventRef(line="Stim"))) ...
+    && strcmp(errorId(@() eventLatency(src, Es, "Nope")), 'resolveEvents:NoLine'), ...
+    'its label names which and an offset; a line name is short for its onset; a line the recording lacks: resolveEvents:NoLine');
 
 fprintf('\n== 5b. epochEvents: every event of a line in each epoch (raster marks) ==\n');
 iv = [on(2) + [0.1; 0.3; 0.5], on(2) + [0.15; 0.35; 0.55]     % three crossings in trial 2

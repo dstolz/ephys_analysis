@@ -5,7 +5,8 @@ function [S, h] = formLayout(S)
 %   out of sight, so hidden rows leave no gaps; sets the header's arrow and
 %   title; and returns the section's height H in pixels: 0 when it is hidden
 %   (S.Visible false, or a form with no row shown), the header's alone when
-%   it is collapsed.
+%   it is collapsed. A section with a key (S.Key, "1" to "9" or "0") names it in
+%   its header: "(Ctrl+1)", "(Cmd+1)" on a Mac.
 %
 %   The first call finds each row's controls (the body's children in that
 %   row); rows are addressed by that first order from then on.
@@ -42,6 +43,12 @@ if header > 0
     arrow = "▼";
     if ~S.Expanded; arrow = "►"; end
     S.Toggle.Text = arrow + "  " + S.Title;
+    S.Toggle.Tooltip = "Show or hide this section.";
+    if S.Key ~= ""
+        if ismac; chord = "Cmd+" + S.Key; else; chord = "Ctrl+" + S.Key; end
+        S.Toggle.Text = S.Toggle.Text + "   (" + chord + ")";
+        S.Toggle.Tooltip = S.Toggle.Tooltip + " " + chord + " goes to it, opening it if collapsed.";
+    end
 end
 S.Body.Visible = matlab.lang.OnOffSwitchState(open);
 S.Grid.Visible = matlab.lang.OnOffSwitchState(visible);

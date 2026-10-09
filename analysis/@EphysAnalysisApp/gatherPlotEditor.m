@@ -44,6 +44,20 @@ p.auroc = aurocFrom(E, "a", p.auroc);
 p.units.response.auroc = aurocFrom(E, "ra", p.units.response.auroc);
 p.withRaster = E.withRaster.Value;
 p.rasterSort = strtrim(string(E.rasterSort.Value));
+if p.rasterSort == "event"   % else the plot keeps the event it has
+    ln = strtrim(string(E.sortLine.Value));
+    if ln == ""
+        p.rasterSortEvent = [];
+    else
+        se = p.rasterSortEvent;   % its which, scope and shifts (no controls) are kept
+        if isempty(se); se = EphysAnalysisConfig.defaults("EventRef"); end
+        se.line = ln;
+        se.edge = string(E.sortEdge.Value);
+        se.sequence = E.sortSeqText.UserData.sequence;
+        se.alignStep = E.sortSeqText.UserData.alignStep;
+        p.rasterSortEvent = se;
+    end
+end
 p.rasterSortOrder = string(E.rasterSortOrder.Value);
 p.rasterByGroup = logical(E.rasterByGroup.Value);
 lines = split(replace(strtrim(string(E.markLines.Value)), ",", " "));

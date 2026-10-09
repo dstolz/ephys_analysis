@@ -13,12 +13,14 @@ function test_EphysAnalysisApp()
 %   reference or window, ticking it again going back); the editor showing
 %   only the rows and sections a plot uses (y limits, heat colours, the
 %   alignment sections), greying out the ones its options switch off, and
-%   collapsing a section; the epoch diagram (opened from the plot editor
+%   collapsing a section; the section headers' colours and keys (Ctrl+1 to
+%   Ctrl+9 and Ctrl+0 going to a section); the epoch diagram (opened from the plot editor
 %   with the plot's own epochs, redrawn on an edit of pre, epochs dropped
 %   outside the recording, a refused window reported, paging, opened from
 %   the Alignment tab for the defaults, closing with the app); a raster's
-%   sort, direction, grouping and event
-%   marks, an event shifted by a trial parameter, an event sequence and a
+%   sort (by a trial parameter, or by a sort event's latency: its rows
+%   enabled, its line and edge reaching the plot and the preview),
+%   direction, grouping and event marks, an event shifted by a trial parameter, an event sequence and a
 %   mark sequence from the Event sequence window (a bad step refused), and
 %   a behavior plot reaching the config and the preview; several plots
 %   selected at once (Ctrl-click: the first picked in the editor and the
@@ -450,6 +452,37 @@ app.onPlotSectionToggled("note");
 collapsed = ~shown(E.annText) && shown(sec([sec.Name] == "note").Toggle);
 app.onPlotSectionToggled("note");
 check(collapsed && shown(E.annText), 'the Text note section collapses to its header and expands again');
+heads = app.PlotSections([app.PlotSections.Name] ~= "general");
+barColor = [0.88 0.91 0.95];
+titleColors = cell2mat(arrayfun(@(s) s.Toggle.FontColor, heads, 'UniformOutput', false).');
+ratios = arrayfun(@(i) wcagRatio(titleColors(i, :), barColor), 1:numel(heads));
+check(numel(heads) == 10 && size(unique(round(titleColors, 3), 'rows'), 1) == 10 && all(ratios >= 4.5) ...
+    && isequal([heads.Key], [string(1:9) "0"]) && all(arrayfun(@(s) endsWith(s.Toggle.Text, modifier + s.Key + ")"), heads)), ...
+    'each of the ten section headers has a title colour of its own, readable on the bar, and names its key (Ctrl+1 to Ctrl+9, Ctrl+0)');
+pressed = @(k, mods) struct('Key', k, 'Modifier', {mods}, 'Character', '');
+app.onKeyPress(pressed('5', {'control', 'shift'}));
+app.onKeyPress(pressed('5', {'alt'}));
+app.onKeyPress(pressed('5', {}));
+app.onKeyPress(pressed('6', {'control'}));
+untouched = ~shown(E.binMs);
+app.onKeyPress(pressed('5', {'control'}));
+opened = shown(E.binMs);
+app.onPlotSectionToggled("bins");
+app.onKeyPress(pressed('numpad5', {'command'}));
+openedPad = shown(E.binMs);
+app.onPlotSectionToggled("bins");
+check(untouched && opened && openedPad, ...
+    'Ctrl+5 (or Cmd, or the number pad) opens the collapsed Bins & baseline section; other chords and keys leave it');
+app.onPlotSectionToggled("overlays");
+app.onKeyPress(pressed('0', {'control'}));
+openedOverlays = shown(E.ovList);
+check(openedOverlays, 'Ctrl+0 opens the collapsed Overlays section, the tenth');
+kLfp = find([app.Config.Plots.source] == "LFP", 1);
+if ~isempty(kLfp); app.onPlotSelected(kLfp); end
+app.onKeyPress(pressed('8', {'control'}));
+check(~isempty(kLfp) && ~shown(E.waveMode) && contains(app.StatusBar.Text, "Unit waveform section is not shown"), ...
+    'the key of a section the plot does not show says so in the status bar and moves nothing');
+app.onPlotSelected(1);
 E.annText.Value = {''}; E.annSize.Value = []; app.onConfigChanged("plot");
 app.refreshPreview(Force=true);
 check(app.Config.Plots(1).note.text == "" && isnan(app.Config.Plots(1).note.fontSize) && E.annPlace.Enable == "off" ...
@@ -621,6 +654,28 @@ check(p.rasterSort == "Depth" && p.rasterSortOrder == "descending" && ~p.rasterB
 app.refreshPreview(Force=true);
 check(~isempty(app.PreviewResult) && numel(app.PreviewResult.rasterEvents) == 4 && ~isempty(findall(app.PreviewPanel, 'Tag', 'rasterEvent')), ...
     'the preview marks the Trough and RespWindow onsets and offsets');
+check(shown(E.sortLine) && shown(E.sortSeqText) && E.sortLine.Enable == "off" && E.sortSeqEdit.Enable == "off", ...
+    'a raster shows its sort event rows, off while it sorts by a trial parameter');
+E.rasterSort.Value = 'event';
+app.onConfigChanged("plot");
+check(E.sortLine.Enable == "on" && E.sortEdge.Enable == "on" && E.sortSeqEdit.Enable == "on" ...
+    && isempty(app.Config.Plots(kR).rasterSortEvent) && any(string(E.sortLine.Items) == "RespWindow"), ...
+    'sorting by "event" turns the sort event rows on, listing the lines; no line picked yet, the plot has no event');
+E.sortLine.Value = 'RespWindow'; E.sortEdge.Value = 'offset';
+app.onConfigChanged("plot");
+p = app.Config.Plots(kR);
+check(p.rasterSort == "event" && isstruct(p.rasterSortEvent) && p.rasterSortEvent.line == "RespWindow" ...
+    && p.rasterSortEvent.edge == "offset" && isempty(p.rasterSortEvent.sequence), 'the sort event''s line and edge reach the plot');
+app.refreshPreview(Force=true);
+R = app.PreviewResult;
+check(~isempty(R) && isfield(R, 'rasterSortEvent') && R.rasterSortEvent.label == "RespWindow offset" ...
+    && numel(R.rasterSortEvent.t) == height(R.epochs) && any(isfinite(R.rasterSortEvent.t)), ...
+    'the preview sorts the raster by each epoch''s latency to the RespWindow offset');
+E.rasterSort.Value = 'Depth';
+app.onConfigChanged("plot");
+p = app.Config.Plots(kR);
+check(E.sortLine.Enable == "off" && p.rasterSort == "Depth" && p.rasterSortEvent.line == "RespWindow", ...
+    'another sort turns the rows off; the plot keeps its sort event for later');
 A.Line.Value = 'RespWindow';
 A.ShiftParam.Value = 'RespLatency';
 app.onPlotAlignEdited("ref");
@@ -760,6 +815,12 @@ E.fontSize.Value = 12;
 app.onConfigChanged("plot");
 check(all(arrayfun(@(k) app.Config.Plots(k).style.FontSize == 12, [k2 k3 kR])) && app.Config.Plots(1).style.FontSize ~= 12, ...
     'a font size set there reaches all three, not the plots left unselected');
+E.rasterSort.Value = 'event'; E.sortLine.Value = 'RespWindow'; E.sortEdge.Value = 'offset';
+app.onConfigChanged("plot");
+sortsBy = @(k) app.Config.Plots(k).rasterSort == "event" && isstruct(app.Config.Plots(k).rasterSortEvent) ...
+    && app.Config.Plots(k).rasterSortEvent.line == "RespWindow" && app.Config.Plots(k).rasterSortEvent.edge == "offset";
+check(all(arrayfun(sortsBy, [k2 k3 kR])) && isempty(app.Config.Plots(1).rasterSortEvent), ...
+    'sorting the rasters by an event there gives all three that sort event, though none had one');
 n0 = numel(app.Config.Plots);
 app.onDuplicatePlot();
 ks = app.selectedPlots();
@@ -863,6 +924,21 @@ function n = plotNode(tree, k)
 %plotNode  The plot tree's node of plot K.
 n = findall(tree, 'Type', 'uitreenode');
 n = n(arrayfun(@(x) isequal(x.NodeData, k), n));
+end
+
+
+function r = wcagRatio(a, b)
+%wcagRatio  The WCAG contrast ratio of two RGB colours.
+la = relLuminance(a);
+lb = relLuminance(b);
+r = (max(la, lb) + 0.05) / (min(la, lb) + 0.05);
+end
+
+
+function l = relLuminance(c)
+%relLuminance  The relative luminance of the sRGB colour C.
+lin = (c <= 0.04045) .* (c / 12.92) + (c > 0.04045) .* (((c + 0.055) / 1.055) .^ 2.4);
+l = lin(:).' * [0.2126; 0.7152; 0.0722];
 end
 
 

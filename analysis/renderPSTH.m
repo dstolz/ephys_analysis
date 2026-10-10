@@ -7,8 +7,9 @@ function h = renderPSTH(R, target, opts)
 %
 %   Options
 %     Layout      "grid" (default): one tile per unit;
-%                 "overlay": one panel with the mean over units (+/- SEM
-%                 across units); a single unit is shown as itself
+%                 "overlay": one panel with the mean over units (its error
+%                 band across the units, Style.ErrorType); a single unit
+%                 is shown as itself
 %     WithRaster  a raster above each rate panel (default true; grid, or
 %                 overlay of one unit), flush on the same time axis: the
 %                 two are a 2 x 1 tiled layout in the unit's tile
@@ -21,7 +22,9 @@ function h = renderPSTH(R, target, opts)
 %                 every epoch sorted as one block (see renderRaster)
 %     EventMarks  how the raster marks R.rasterEvents (see renderRaster)
 %     HistStyle   "bar" (default): one bar per bin; "line": a trace through
-%                 the bin centers. SEM is a band behind either
+%                 the bin centers. The error band (R.err: mean +/- SEM or
+%                 SD, or a bootstrap 95% CI, over the epochs) is behind
+%                 either, as patches in Style's Error* look (errorPatch)
 %     Fill        true (default): the bars, or the area under the line,
 %                 filled; false: the bars' outline, or the line alone
 %     FillAlpha   fill opacity 0-1; NaN (default) = 0.5 where groups are
@@ -48,8 +51,27 @@ function h = renderPSTH(R, target, opts)
 %                 a subsample of its spikes, or both -- at a compass point
 %                 (location), with or without the box's outline (box), sized
 %                 by scale (default mode "off": none)
+%     Aux         EphysAnalysisConfig.defaults("Aux") fields: with a mode
+%                 other than "off" (default "off": none), the mean aux
+%                 signal R.aux (auxMean) in every unit's tile, by its
+%                 placement: "below" or "above" -- a panel of its own,
+%                 half a rate panel high, under the rate panel or over the
+%                 raster, flush on the same time axis -- or "over" the
+%                 rate panel, on its right y axis. A stack's right axis is
+%                 its rows' peaks, so "over" goes below a stack; an axes
+%                 TARGET has room for "over" only. Each trace is drawn as
+%                 auxLooks says (the groups' colors; a channel's own color
+%                 or line style), its error band (R.aux.err) with ShowSEM;
+%                 several channels get legend entries (in the aux panel's
+%                 own legend under a stack). yLim fixes the signal's y
+%                 limits; overPosition ([bottom top], fractions of the
+%                 rate panel's height) is where it sits over the panel
+%                 (auxInto)
 %     Style       EphysAnalysisConfig.defaults("Style") fields (LineWidth,
-%                 ShowSEM, ShowStop, ShowZeroLine, Colormap, FontSize, XLim,
+%                 ShowSEM, ErrorType (the overlay's band across units),
+%                 ErrorResamples, the bands' look (ErrorFaceColor,
+%                 ErrorFaceAlpha, ErrorEdgeColor, ErrorEdgeStyle,
+%                 ErrorEdgeWidth), ShowStop, ShowZeroLine, Colormap, FontSize, XLim,
 %                 YLim, Grid, Legend, LegendLocation, LegendOrientation,
 %                 LegendBox, MaxTiles, SortShank, SortDepth,
 %                 LabelShank, LabelDepth: the grid's units go by shank, then
@@ -71,10 +93,13 @@ function h = renderPSTH(R, target, opts)
 %   its legend goes east of the grid unless Style.LegendLocation says
 %   otherwise. A stack's right axis is labeled on the right column.
 %
-%   H: layout (tiled layout or []), axes (rate panels), rasterAxes, step
-%   (each rate panel's row step in its y units; NaN when not stacked). A
-%   raster and its rate panel get the same x limits; the axes are not
-%   linked (a caller that wants linked zoom can link them).
+%   H: layout (tiled layout or []), axes (rate panels), rasterAxes,
+%   auxAxes (the aux panels, tagged "auxAxes"), step (each rate panel's row
+%   step in its y units; NaN when not stacked). A raster, its rate panel
+%   and its aux panel get the same x limits; the axes are not linked (a
+%   caller that wants linked zoom can link them). A grid's y label names
+%   the panels of a tile from the bottom up ("|AUX| (V)  ·  spikes/s  ·
+%   Epoch"); the aux on the right axis is named there on the right column.
 %
 %   See also spikePSTH, renderRaster, renderPlot.
 
@@ -95,11 +120,13 @@ arguments
     opts.Spacing (1,1) double {mustBePositive, mustBeFinite} = 1.1
     opts.Page (1,1) double {mustBePositive, mustBeInteger} = 1
     opts.Waveform = struct()
+    opts.Aux = struct()
     opts.Style = struct()
 end
 
 style = renderStyle(opts.Style);
 wave = EphysAnalysisConfig.normalizeSection("Waveform", opts.Waveform);
+auxOpt = EphysAnalysisConfig.normalizeSection("Aux", opts.Aux);
 waves = [];
 if isfield(R, 'waveforms') && opts.Layout == "grid"; waves = R.waveforms; end
 colors = groupPalette(R.groups, style);
@@ -108,7 +135,7 @@ nG = size(R.rate, 3);
 auroc = isAuroc(R);
 norm = opts.Normalize;
 if auroc; norm = "none"; end   % an auROC is on its own 0-1 scale
-[rate, sem, yUnits] = normalizeRates(R, norm);
+[rate, ~, yUnits, errLo, errHi] = normalizeRates(R, norm);
 look = struct('hist', opts.HistStyle, 'fill', opts.Fill, 'alpha', opts.FillAlpha, ...
     'stack', opts.Stack && nG > 1, 'spacing', opts.Spacing);
 if ~isfinite(look.alpha)
@@ -116,22 +143,57 @@ if ~isfinite(look.alpha)
     if nG > 1 && ~look.stack; look.alpha = 0.5; end
 end
 look.alpha = min(1, max(0, look.alpha));
-h = struct('layout', [], 'axes', gobjects(0), 'rasterAxes', gobjects(0), 'step', zeros(1, 0));
+h = struct('layout', [], 'axes', gobjects(0), 'rasterAxes', gobjects(0), 'auxAxes', gobjects(0), 'step', zeros(1, 0));
+place = "";   % where the mean aux signal goes: "" (none), "above", "below" (panels of their own) or "over"
+X = [];
+W = R.edges([1 end]);
+if auxOpt.mode ~= "off" && isfield(R, 'aux') && isstruct(R.aux) && ~isempty(R.aux)
+    place = auxOpt.placement;
+    if place == "over" && look.stack; place = "below"; end   % a stack's right axis is its rows' peaks
+    X = auxLooks(R.aux, colors, style);
+end
+paneled = ismember(place, ["above" "below"]);
 
 if opts.Layout == "overlay" && nU > 1
     [tl, ax] = renderLayout(target, 1, 1);
-    if isempty(ax); ax = nexttile(tl); end
+    xa = gobjects(0);
+    if isempty(ax)
+        [~, ax, xa] = tilePanels(tl, 1, false, place);
+    elseif paneled
+        place = "";   % one axes: no room for a panel
+    end
     P.m = reshape(mean(rate, 2, 'omitnan'), [], nG);
-    P.s = reshape(semOf(rate, 2), [], nG);
+    P.lo = NaN(size(P.m)); P.hi = P.lo;
+    if style.ShowSEM   % the band across the units, of the style's error type
+        [olo, ohi] = errorBounds(rate, 2, style.ErrorType, style.ErrorResamples);
+        P.lo = reshape(olo, [], nG); P.hi = reshape(ohi, [], nG);
+    end
     P.peak = max(P.m, [], 1).';
     P.peakLabel = "Peak (" + R.units + ")";
     if norm ~= "none"; P.peakLabel = "Peak (normalized)"; end
     P.yUnits = yUnits;
-    h.step = drawPanel(ax, P, R, colors, style, look, struct('legend', true, 'left', true, 'right', true, 'layout', tl, 'auto', 'best'));
-    title(ax, sprintf('Mean of %d units', nU), 'FontWeight', 'normal');
-    if auroc; callMarks(ax, R, 0, colors, style); end
-    xlabel(ax, 'Time (s)');
-    h.layout = tl; h.axes = ax;
+    h.step = drawPanel(ax, P, R, colors, style, look, struct('legend', true, 'left', true, 'right', true, 'layout', tl, ...
+        'auto', 'best', 'aux', legendAux(X, place, look)));
+    top = ax;
+    bottom = ax;
+    if ~isempty(xa)
+        auxInto(xa, R.aux, X, W, style, false, true, auxOpt);
+        tagPart(xa, "auxAxes", "", "Mean");
+        stackAuxLegend(xa, X, style, look);
+        if place == "above"
+            top = xa;
+        else
+            bottom = xa;
+        end
+    elseif place == "over"
+        auxInto(ax, R.aux, X, W, style, true, true, auxOpt);
+    end
+    if ~isempty(xa); top.XTickLabel = []; end   % the upper of the two
+    title(top, sprintf('Mean of %d units', nU), 'FontWeight', 'normal');
+    if auroc; callMarks(top, R, 0, colors, style); end
+    xlabel(bottom, 'Time (s)');
+    auxEdgeTicks(xa, edgeOf(place));
+    h.layout = tl; h.axes = ax; h.auxAxes = xa;
     return
 end
 
@@ -145,9 +207,11 @@ withRaster = opts.WithRaster && isfield(R, 'raster') && ~isempty(R.raster);
 if ~isempty(ax0)
     idx = idx(1:min(1, end));
     withRaster = false;
+    if paneled; place = ""; end   % one axes: no room for a panel
 end
 axs = gobjects(1, numel(idx));
 rax = gobjects(1, 0);
+xax = gobjects(1, 0);
 step = NaN(1, numel(idx));
 names = siteLabels(shortUnitLabels(R.labels), R.meta, style);
 order = probeOrder(R.meta, nU, style);
@@ -155,53 +219,132 @@ rows = "";
 for j = 1:numel(idx)
     u = order(idx(j));
     r = ceil(j / nc); c = j - (r - 1) * nc;
+    ra = gobjects(0);
+    xa = gobjects(0);
     if ~isempty(ax0)
         ax = ax0;
-    elseif withRaster
-        % The raster and its rate panel share a tile, flush on one time axis;
-        % the grid's spacing falls between the units.
-        pair = tiledlayout(tl, 2, 1, 'TileSpacing', 'none', 'Padding', 'tight');
-        pair.Layout.Tile = j;
-        ra = nexttile(pair, 1);
+    else
+        [ra, ax, xa] = tilePanels(tl, j, withRaster, place);
+    end
+    top = ax;
+    if ~isempty(ra)
         rows = rasterInto(ra, R, u, style, colors, opts.SortBy, ...
             struct('order', opts.SortOrder, 'byGroup', opts.ByGroup, 'marks', opts.EventMarks));
         tagPart(ra, "rasterAxes", "", names(u));
         if look.stack; set(ra, 'YDir', 'normal'); end
         ra.XTickLabel = [];
-        title(ra, names(u), 'FontWeight', 'normal', 'Interpreter', 'none');
         rax(end+1) = ra; %#ok<AGROW>
-        ax = nexttile(pair, 2);
-    else
-        ax = nexttile(tl, j);
+        top = ra;
     end
     tagPart(ax, "axes", "", names(u));
     P.m = reshape(rate(:, u, :), [], nG);
-    P.s = reshape(sem(:, u, :), [], nG);
+    P.lo = reshape(errLo(:, u, :), [], nG);
+    P.hi = reshape(errHi(:, u, :), [], nG);
     P.peak = reshape(max(R.rate(:, u, :), [], 1), [], 1);
     P.peakLabel = "Peak (" + R.units + ")";
     P.yUnits = yUnits;
+    right = c == nc || j == numel(idx);
     step(j) = drawPanel(ax, P, R, colors, style, look, ...
-        struct('legend', j == 1, 'left', false, 'right', c == nc || j == numel(idx), 'layout', tl, 'auto', "east"));
+        struct('legend', j == 1, 'left', false, 'right', right, 'layout', tl, 'auto', "east", 'aux', legendAux(X, place, look)));
     waveformInset(ax, waves, u, wave, style);
-    if ~withRaster
-        title(ax, names(u), 'FontWeight', 'normal', 'Interpreter', 'none');
+    if ~isempty(xa)
+        auxInto(xa, R.aux, X, W, style, false, false, auxOpt);
+        tagPart(xa, "auxAxes", "", names(u));
+        if j == 1; stackAuxLegend(xa, X, style, look); end
+        if place == "above"
+            xa.XTickLabel = [];
+            top = xa;
+        else
+            ax.XTickLabel = [];
+        end
+        xax(end+1) = xa; %#ok<AGROW>
+    elseif place == "over"
+        auxInto(ax, R.aux, X, W, style, true, right || ~isempty(ax0), auxOpt);
     end
+    title(top, names(u), 'FontWeight', 'normal', 'Interpreter', 'none');
     if auroc
-        top = ax;
-        if withRaster; top = rax(end); end
         callMarks(top, R, u, colors, style);
     end
     axs(j) = ax;
 end
 % One y label for the grid: the rates' (a stack's: its rows' parameters),
-% then, reading up, the rasters' above them.
+% then, reading up, the rasters' above them; an aux panel's below or above.
 yName = yUnits;
 if look.stack; [~, yName] = rowLabels(R); end
 if rows ~= ""; yName = yName + "  ·  " + rows; end
-gridLabels(tl, [axs rax], "Time (s)", yName, style);
-if nr * nc > 1; tileTicks([rax axs], style); end
+if ~isempty(xax)
+    if place == "below"
+        yName = X.label + "  ·  " + yName;
+    else
+        yName = yName + "  ·  " + X.label;
+    end
+end
+gridLabels(tl, [axs rax xax], "Time (s)", yName, style);
+if nr * nc > 1; tileTicks([rax axs xax], style); end
 clearRasterEdge(rax);
-h.layout = tl; h.axes = axs; h.rasterAxes = rax; h.step = step;
+auxEdgeTicks(xax, edgeOf(place));
+h.layout = tl; h.axes = axs; h.rasterAxes = rax; h.auxAxes = xax; h.step = step;
+end
+
+
+function [ra, ax, xa] = tilePanels(tl, j, withRaster, place)
+%tilePanels  The axes of tile J of the grid TL, top to bottom, flush on one time axis.
+%   RA: the raster (when WITHRASTER, else empty); AX: the rate panel; XA:
+%   the aux panel (PLACE "above": at the top; "below": at the bottom; else
+%   empty). Alone, the rate panel is the tile's axes; with a raster the two
+%   share it as a 2 x 1 tiled layout; with an aux panel the raster and the
+%   rate panel span two rows each and the aux panel one. The grid's spacing
+%   falls between the units.
+ra = gobjects(0);
+xa = gobjects(0);
+paneled = ismember(place, ["above" "below"]);
+if ~withRaster && ~paneled
+    ax = nexttile(tl, j);
+    return
+end
+if ~paneled
+    pair = tiledlayout(tl, 2, 1, 'TileSpacing', 'none', 'Padding', 'tight');
+    pair.Layout.Tile = j;
+    ra = nexttile(pair, 1);
+    ax = nexttile(pair, 2);
+    return
+end
+pair = tiledlayout(tl, 2 * (1 + withRaster) + 1, 1, 'TileSpacing', 'none', 'Padding', 'tight');
+pair.Layout.Tile = j;
+at = 1;
+if place == "above"
+    xa = nexttile(pair, at);
+    at = at + 1;
+end
+if withRaster
+    ra = nexttile(pair, at, [2 1]);
+    at = at + 2;
+end
+ax = nexttile(pair, at, [2 1]);
+if place == "below"; xa = nexttile(pair, at + 2); end
+end
+
+
+function x = legendAux(X, place, look)
+%legendAux  The aux looks whose entries join the rate panel's legend ([]: none, or a stack's: no legend there).
+x = [];
+if place ~= "" && ~look.stack; x = X; end
+end
+
+
+function stackAuxLegend(xa, X, style, look)
+%stackAuxLegend  A stack has no legend: its aux channels' entries go in the aux panel's own, inside it.
+if ~look.stack || ~style.Legend || isempty(X.legend); return; end
+[sh, sl] = auxStandIns(xa, X, style);
+lgd = legend(xa, sh, cellstr(sl), 'Interpreter', 'none', 'FontSize', max(6, style.FontSize - 1), 'Location', 'best');
+lgd.Box = matlab.lang.OnOffSwitchState(style.LegendBox);
+end
+
+
+function s = edgeOf(place)
+%edgeOf  The edge an aux panel shares with the panel next to it (auxEdgeTicks).
+s = "top";
+if place == "above"; s = "bottom"; end
 end
 
 
@@ -222,12 +365,14 @@ end
 end
 
 
-function [rate, sem, label] = normalizeRates(R, mode)
-%normalizeRates  R.rate / R.sem divided per unit ("unitPeak") or per PSTH ("groupPeak").
+function [rate, sem, label, lo, hi] = normalizeRates(R, mode)
+%normalizeRates  R.rate / R.sem and the error band's edges divided per unit ("unitPeak") or per PSTH ("groupPeak").
 %   The divisor is the largest absolute value (the peak, for rates); a unit
 %   or PSTH with none is NaN. LABEL is the y axis label of what comes back.
+%   LO / HI: the band R.err holds (resultBounds), divided the same way.
 rate = R.rate;
 sem = R.sem;
+[lo, hi] = resultBounds(R, 'rate');
 label = R.units;
 switch mode
     case "unitPeak"
@@ -242,6 +387,8 @@ end
 p(~(p > 0)) = NaN;
 rate = rate ./ p;
 sem = sem ./ p;
+lo = lo ./ p;
+hi = hi ./ p;
 end
 
 
@@ -282,7 +429,8 @@ end
 
 function step = drawPanel(ax, P, R, colors, style, look, show)
 %drawPanel  One rate panel: the groups overlaid, or stacked in rows.
-%   P: m / s [nBins x nGroups] (what is drawn), peak [nGroups x 1] and
+%   P: m / lo / hi [nBins x nGroups] (what is drawn: the means and their
+%   error bands' edges), peak [nGroups x 1] and
 %   peakLabel (the right axis of a stack), yUnits (the y label when
 %   overlaid). SHOW: legend (overlaid), left / right (the axis labels),
 %   layout (the grid's tiled layout, [] for one axes) and auto (the
@@ -301,7 +449,7 @@ if ref ~= 0
 end
 if style.ShowSEM
     for g = 1:nG
-        semBand(ax, R.t, P.m(:, g), P.s(:, g), colors(g, :), R.groups.label(g), style);
+        errorPatch(ax, R.t, P.lo(:, g), P.hi(:, g), colors(g, :), R.groups.label(g), style);
     end
 end
 lh = gobjects(1, nG);
@@ -326,8 +474,17 @@ xlim(ax, R.edges([1 end]));
 styleAxes(ax, style);
 if ref ~= 0 && isempty(style.YLim); ylim(ax, [0 1]); end
 if show.left; ylabel(ax, P.yUnits); end
-if show.legend && style.Legend && nG > 1
-    placeLegend(ax, lh, R.groups.label, style, show.layout, show.auto);
+if show.legend && style.Legend
+    labels = reshape(string(R.groups.label), 1, []);
+    if nG < 2; lh = gobjects(1, 0); labels = strings(1, 0); end
+    if isfield(show, 'aux') && ~isempty(show.aux)   % the aux channels' entries (auxStandIns)
+        [sh, sl] = auxStandIns(ax, show.aux, style);
+        lh = [lh sh];
+        labels = [labels sl];
+    end
+    if ~isempty(lh)
+        placeLegend(ax, lh, labels, style, show.layout, show.auto);
+    end
 end
 end
 
@@ -354,19 +511,19 @@ for g = nG:-1:1
     b = base(g);
     tagPart(line(ax, W, [b b], 'Color', [0.72 0.72 0.72], 'LineWidth', 0.5, 'HandleVisibility', 'off'), "stackBase", R.groups.label(g));
     m = P.m(:, g);
-    s = zeros(size(m));
+    elo = m; ehi = m;   % how far the row reaches: its band, where it has one
     if style.ShowSEM
-        semBand(ax, R.t, m + b, P.s(:, g), colors(g, :), R.groups.label(g), style);
-        s = P.s(:, g);
-        s(~isfinite(s)) = 0;
+        errorPatch(ax, R.t, P.lo(:, g) + b, P.hi(:, g) + b, colors(g, :), R.groups.label(g), style);
+        f = isfinite(P.lo(:, g)); elo(f) = P.lo(f, g);
+        f = isfinite(P.hi(:, g)); ehi(f) = P.hi(f, g);
     end
     histTrace(ax, R.t, R.edges, m, b, colors(g, :), look, style.LineWidth, R.groups.label(g));
     if style.ShowStop && isfield(R, 'stopMean') && isfinite(R.stopMean(g))
         tagPart(line(ax, R.stopMean([g g]), b + [0 0.9 * min(step, tallest)], 'LineStyle', '--', 'Color', colors(g, :), ...
             'HandleVisibility', 'off'), "stopLine", R.groups.label(g));
     end
-    lo = min([lo; b + m - s]);
-    hi = max([hi; b + m + s]);
+    lo = min([lo; b + elo]);
+    hi = max([hi; b + ehi]);
 end
 if style.ShowZeroLine
     tagPart(xline(ax, 0, ':', 'Color', [0.3 0.3 0.3], 'HandleVisibility', 'off'), "zeroLine");

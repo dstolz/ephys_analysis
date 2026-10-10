@@ -34,6 +34,12 @@ function [R, E, G] = computePlot(obj, src, spec, opts) %#ok<INUSD>
 %   its sort key: a struct of t and label from [t, label] =
 %   eventLatency(src, E, spec.rasterSortEvent), each epoch's latency to the
 %   event (s) and the event's name.
+%   A psth or raster of spikes with spec.aux.mode other than "off" also
+%   gets R.aux, the mean aux (accelerometer) signal over the same epochs:
+%       [Ya, fsa, metaA] = selectChannels(src, "AUX", Channels=spec.aux.channels)
+%       R.aux = auxMean(Ya, fsa, E, Window=[pre post], Mode=spec.aux.mode,
+%           Baseline=spec.aux.baselineWindow (aux baseline "subtract", else []),
+%           ByGroup=spec.aux.byGroup, Groups=G, Meta=metaA)
 %     waveforms [~, meta] = selectUnits(src, spec.units, Ref=, Selection=); R holds
 %               meta, labels, one group, and the probe map; the waveforms below
 %   A waveforms plot, a raster, or a PSTH or tuning grid, of spikes with
@@ -42,6 +48,13 @@ function [R, E, G] = computePlot(obj, src, spec, opts) %#ok<INUSD>
 %   kept, in its order.
 %   R also gets epochs (E), dataset (the name) and spec. EphysAnalysisScript
 %   writes these same calls out.
+%   The error a plot draws as bands or bars (Style.ShowSEM, Style.ErrorType:
+%   mean +/- SEM, mean +/- SD or a bootstrap 95% CI) is made by the compute
+%   function over the epochs: spikePSTH, evokedPotential, firingRate (rate
+%   plots), tuningCurve, behaviorValues and auxMean get ErrorType= and
+%   ErrorResamples= from plotErrorType(spec) (plotErrorType(spec, "aux")
+%   for the aux signal), "sem" where the plot draws none, and R.err holds
+%   it.
 %   While PollFcn is set (the app's preview) the compute can be stopped: a
 %   checkpoint runs between its steps, and the per-unit and per-epoch loops
 %   of spikePSTH, aurocCurves, evokedPotential and unitWaveforms get it as
@@ -71,6 +84,7 @@ E = [];
 chk = [];   % the checkpoint the long steps call, while the app's preview polls (PollFcn)
 if ~isempty(obj.PollFcn); chk = @() obj.checkpoint(); end
 obj.checkpoint();
+[et, nb] = plotErrorType(spec);   % the error the plot draws ("sem" where it draws none)
 switch spec.kind
     case {"psth" "raster" "heatmap"}
         [E, G] = epochTable(src, spec.ref, Window=w, Selection=spec.selection, Baseline=b, Columns=sortColumns(spec));
@@ -86,7 +100,7 @@ switch spec.kind
             R = spikePSTH(st, E, Window=[w.pre w.post], BinSec=spec.bins.BinSec, SmoothSec=spec.bins.SmoothSec, ...
                 Measure=spec.measure, Baseline=b, BaselineMode=spec.baseline.Mode, MaskAfterStop=spec.maskAfterStop, ...
                 Raster=spec.kind == "raster" || (spec.kind == "psth" && spec.withRaster), Groups=G, Meta=meta, ...
-                Auroc=spec.auroc, Check=chk);
+                Auroc=spec.auroc, Check=chk, ErrorType=et, ErrorResamples=nb);
             m = spec.rasterEvents;
             obj.checkpoint();
             if isfield(R, 'raster') && ~isempty(R.raster) && (~isempty(m.lines) || ~isempty(m.sequences))
@@ -94,6 +108,10 @@ switch spec.kind
             end
             if isfield(R, 'raster') && ~isempty(R.raster) && spec.rasterSort == "event"
                 R.rasterSortEvent = sortEvent(src, E, spec.rasterSortEvent);
+            end
+            if drawsAux(spec)
+                obj.checkpoint();
+                R.aux = auxOf(src, E, G, spec, chk);
             end
         end
     case "evoked"
@@ -103,11 +121,13 @@ switch spec.kind
             [k, pg] = pageRows(meta, spec, opts.Page);
             if ~isempty(pg); Y = Y(:, k); meta = meta(k, :); end
         end
-        R = evokedPotential(Y, fs, E, Window=[w.pre w.post], Baseline=b, Groups=G, Meta=meta, Units=meta.units(1), Check=chk);
+        R = evokedPotential(Y, fs, E, Window=[w.pre w.post], Baseline=b, Groups=G, Meta=meta, Units=meta.units(1), Check=chk, ...
+            ErrorType=et, ErrorResamples=nb);
     case "rate"
         [E, G] = epochTable(src, spec.ref, Window=w, Selection=spec.selection, Baseline=b);
         [st, meta] = selectUnits(src, spec.units, Ref=spec.ref, Selection=spec.selection);
-        R = firingRate(st, E, Measure=spec.measure, Baseline=b, Normalize=spec.baseline.Mode, Groups=G, Meta=meta);
+        R = firingRate(st, E, Measure=spec.measure, Baseline=b, Normalize=spec.baseline.Mode, Groups=G, Meta=meta, ...
+            ErrorType=et, ErrorResamples=nb);
     case "tuning"
         cols = [spec.param spec.seriesParam];
         [E, G] = epochTable(src, spec.ref, Window=w, Selection=spec.selection, Baseline=b, Columns=cols(cols ~= ""));
@@ -119,7 +139,7 @@ switch spec.kind
         series = [];
         if spec.seriesParam ~= ""; series = E.(spec.seriesParam); end
         R = tuningCurve(F.rate, E.(spec.param), Series=series, Param=spec.param, SeriesParam=spec.seriesParam, ...
-            Meta=meta, Units=F.units);
+            Meta=meta, Units=F.units, ErrorType=et, ErrorResamples=nb);
     case "corrmap"
         [E, G] = epochTable(src, spec.ref, Window=w, Selection=spec.selection, Baseline=b);
         [st, meta] = selectUnits(src, spec.units, Ref=spec.ref, Selection=spec.selection);
@@ -154,7 +174,7 @@ switch spec.kind
             yUnits = "";
         end
         R = behaviorValues(y, E.(spec.param), Series=series, Param=spec.param, SeriesParam=spec.seriesParam, ...
-            YName=yName, YUnits=yUnits);
+            YName=yName, YUnits=yUnits, ErrorType=et, ErrorResamples=nb);
     otherwise
         error('EphysAnalysisRunner:BadKind', 'Unknown plot kind "%s".', spec.kind);
 end
@@ -201,6 +221,25 @@ if isempty(ref)
 end
 [t, label] = eventLatency(src, E, ref);
 S = struct('label', label, 't', t);
+end
+
+
+function tf = drawsAux(spec)
+%drawsAux  The plot draws the mean aux signal with its units: a psth or raster of spikes, aux.mode on.
+tf = ismember(spec.kind, ["psth" "raster"]) && ismember(spec.source, EphysAnalysisConfig.SpikeSources) ...
+    && spec.aux.mode ~= "off";
+end
+
+
+function A = auxOf(src, E, G, spec, chk)
+%auxOf  The mean aux signal over the plot's epochs (auxMean), as spec.aux says.
+x = spec.aux;
+b = [];
+if x.baseline == "subtract"; b = x.baselineWindow; end
+[Y, fs, meta] = selectChannels(src, "AUX", Channels=x.channels);
+[et, nb] = plotErrorType(spec, "aux");
+A = auxMean(Y, fs, E, Window=[spec.window.pre spec.window.post], Mode=x.mode, Baseline=b, ByGroup=x.byGroup, ...
+    Groups=G, Meta=meta, Check=chk, ErrorType=et, ErrorResamples=nb);
 end
 
 

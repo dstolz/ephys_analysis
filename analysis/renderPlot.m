@@ -8,7 +8,8 @@ function h = renderPlot(R, spec, target, opts)
 %   SPEC.waveform (psth, raster and tuning: each unit's waveform from
 %   R.waveforms in its tile; waveforms: the plot's own settings),
 %   the raster's sort and event marks (rasterSort, rasterSortOrder,
-%   rasterByGroup, rasterEvents), and page P of a grid (plotPageCount
+%   rasterByGroup, rasterEvents), SPEC.aux (psth and raster: the mean aux
+%   signal R.aux with each unit's tile), and page P of a grid (plotPageCount
 %   pages). TARGET is an axes,
 %   uiaxes, figure, uifigure, panel, tab, grid layout or tiled layout: the
 %   app draws its previews into a panel, the runner into an invisible
@@ -74,10 +75,10 @@ switch spec.kind
         h = renderPSTH(R, target, Layout=spec.layout, WithRaster=spec.withRaster, SortBy=spec.rasterSort, ...
             SortOrder=spec.rasterSortOrder, ByGroup=spec.rasterByGroup, EventMarks=spec.rasterEvents, HistStyle=spec.histStyle, ...
             Fill=spec.fill, FillAlpha=spec.fillAlpha, Normalize=spec.normalize, Stack=spec.stack, ...
-            Spacing=spec.stackSpacing, Page=drawPage, Waveform=spec.waveform, Style=style);
+            Spacing=spec.stackSpacing, Page=drawPage, Waveform=spec.waveform, Aux=spec.aux, Style=style);
     case "raster"
         h = renderRaster(R, target, Page=drawPage, SortBy=spec.rasterSort, SortOrder=spec.rasterSortOrder, ...
-            ByGroup=spec.rasterByGroup, EventMarks=spec.rasterEvents, Waveform=spec.waveform, Style=style);
+            ByGroup=spec.rasterByGroup, EventMarks=spec.rasterEvents, Waveform=spec.waveform, Aux=spec.aux, Style=style);
     case "evoked"
         h = renderEvoked(R, target, Layout=spec.layout, Page=drawPage, Style=style);
     case "rate"

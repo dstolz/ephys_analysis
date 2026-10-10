@@ -355,7 +355,8 @@ read again, a progress callback, a best-effort clean-up) stay quiet.
   *Responsive only* unit selection; `tiedrank`, `tinv` and `ranksum` in its
   auROC, `aurocCurves` and `aurocCall`: the auROC baseline of PSTH and
   heatmap plots, the auROC response test and `populationAnalysis`' calls
-  pooled over every dataset).
+  pooled over every dataset; `bootci` for the analysis plots' bootstrap 95%
+  CI error bands and bars, `Style.ErrorType "ci95"`, `errorBounds`).
 - Parallel Computing Toolbox (optional; `Parallel.Enabled` in a pipeline
   config, or `UseParallel=true` on `detectSpikes`, `artifactIntervals` and
   `analyzeArtifacts`). The Visualize tab's envelope builds
@@ -497,8 +498,8 @@ suite's temporary preferences, so close it before the run ends.
 | `test_PlotAesthetics` (analysis/) | the right-click aesthetics editor: rules, every renderer naming what it draws, the user's rules then the plot's, the menu, the editor (Apply to, Reset, Cancel, OK, Remember, Forget), the config and the script literal |
 | `test_PlotDesign` (analysis/) | plot designs: the built-in ones (every kind and layout draws in each), ground, palette, sequential and heat colors, the layering (design, the user's rules, the plot's), choosing one redrawing every plot on screen, capturing a plot's look, saving, importing and deleting designs, refused files |
 | `test_EphysAnalysisEpochs` (analysis/) | sources, event references, epochs (intervals and their trials, between windows, artifact periods, events shifted by a trial parameter), raster event marks (`epochEvents`), trial selection and grouping, units and detections, `selectUnits`' response and auROC tests, against the synthetic truth |
-| `test_EphysAnalysisConfig` (analysis/) | the analysis config: JSON round trips, `plotFor`, validation (behavior plots, raster options and parameter shifts included) |
-| `test_EphysAnalysisRunner` (analysis/) | plan, run, exports, HTML / PDF reports (each page drawn once), cancel, rendering real results (behavior plots, a raster aligned and sorted by the response with its event marks), a failing export closing its page, unit waveforms, compact vs standalone script equivalence |
+| `test_EphysAnalysisConfig` (analysis/) | the analysis config: JSON round trips, `plotFor`, validation (behavior plots, raster options, the aux signal and parameter shifts included) |
+| `test_EphysAnalysisRunner` (analysis/) | plan, run, exports, HTML / PDF reports (each page drawn once), cancel, rendering real results (behavior plots, a raster aligned and sorted by the response with its event marks, a PSTH with the mean aux magnitude), a failing export closing its page, unit waveforms, compact vs standalone script equivalence |
 | `test_EphysAnalysisApp` (analysis/) | the analysis GUI, headless |
 | `test_PipelineAnalysisStep` (analysis/) | the pipeline's Analysis step running a saved analysis config over a synthetic project: validation, plan, dry run, figures and report, progress, cancel, a `list` selection with one report per dataset, both scripts |
 | `test_ResponseStats` (analysis/) | `pAdjust` against statsmodels; `responseStats` on known counts against `signrank` / `kruskalwallis` called directly (toolbox tests skipped without it) |

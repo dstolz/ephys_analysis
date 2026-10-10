@@ -3,13 +3,16 @@ function h = renderPopulation(P, S, kind, target, opts)
 %   H = renderPopulation(P, S, KIND, TARGET) draws populationAnalysis' P and
 %   populationSummary's S into TARGET (an axes, a figure, a panel or a
 %   tiled layout):
-%     "psth"       each group's mean PSTH +/- SEM across its units
+%     "psth"       each group's mean PSTH with its error band across its
+%                  units (S.psth.lo / hi: +/- SEM or SD, or a bootstrap 95%
+%                  CI, populationSummary's ErrorType)
 %     "fractions"  per group, the share of the units tested that are
 %                  excited and suppressed (responsive, by direction) and
 %                  tuned, and of the units the auROC called, those called
 %                  up and down (the cutoff, pooled over the family's unit x
 %                  group curves, in the subtitle)
-%     "tuning"     each group's mean tuning curve +/- SEM across its units
+%     "tuning"     each group's mean tuning curve with its error band across
+%                  its units (S.tuning.lo / hi)
 %                  (S.tuning.normalize); a text parameter is spaced evenly
 %     "depth"      every unit at its probe y against its response
 %                  (responseRate - baselineRate, spikes/s), colored by
@@ -18,7 +21,11 @@ function h = renderPopulation(P, S, kind, target, opts)
 %   with their unit counts. H: layout ([] when TARGET is an axes), axes.
 %
 %   Options: Style (an EphysAnalysisConfig Style: FontSize, Grid,
-%   LineWidth, ShowSEM, Legend, LegendLocation, LegendOrientation, LegendBox).
+%   LineWidth, ShowSEM, the bands' look (ErrorFaceColor, ErrorFaceAlpha,
+%   ErrorEdgeColor, ErrorEdgeStyle, ErrorEdgeWidth: errorPatch), Legend,
+%   LegendLocation, LegendOrientation, LegendBox). The error type is S's
+%   (what populationSummary computed); a summary without lo / hi has its
+%   mean +/- SEM.
 %
 %   See also populationAnalysis, populationSummary, writePopulation.
 
@@ -41,9 +48,10 @@ hold(ax, 'on');
 switch kind
     case "psth"
         t = S.psth.t;
+        [blo, bhi, et] = popBounds(S.psth);
         if style.ShowSEM
             for g = 1:nG
-                semBand(ax, t, S.psth.mean(:, g), S.psth.sem(:, g), C(g, :));
+                errorPatch(ax, t, blo(:, g), bhi(:, g), C(g, :), "", style);
             end
         end
         hl = gobjects(1, nG);
@@ -53,7 +61,7 @@ switch kind
         xline(ax, 0, ':', 'Color', [0.4 0.4 0.4], 'HandleVisibility', 'off');
         xlabel(ax, 'Time from the event (s)');
         ylabel(ax, S.psth.units);
-        title(ax, 'Population PSTH (mean \pm SEM across units)', 'FontWeight', 'normal');
+        title(ax, "Population PSTH (mean " + errWords(et) + " across units)", 'FontWeight', 'normal');
         if style.Legend && nG > 1; placeLegend(ax, hl, names, style, tl, 'best'); end
     case "fractions"
         if ~any(G.nTested > 0)
@@ -98,9 +106,10 @@ switch kind
             else
                 x = (1:numel(lev)).';
             end
+            [blo, bhi, et] = popBounds(S.tuning);
             if style.ShowSEM
                 for g = 1:nG
-                    semBand(ax, x, S.tuning.mean(:, g), S.tuning.sem(:, g), C(g, :));
+                    errorPatch(ax, x, blo(:, g), bhi(:, g), C(g, :), "", style);
                 end
             end
             hl = gobjects(1, nG);
@@ -118,7 +127,7 @@ switch kind
             else
                 ylabel(ax, 'spikes/s');
             end
-            title(ax, 'Tuning (mean \pm SEM across units)', 'FontWeight', 'normal');
+            title(ax, "Tuning (mean " + errWords(et) + " across units)", 'FontWeight', 'normal');
             if style.Legend && nG > 1; placeLegend(ax, hl, names, style, tl, 'best'); end
         end
     case "depth"
@@ -175,4 +184,27 @@ end
 function note(ax, msg)
 text(ax, 0.5, 0.5, msg, 'Units', 'normalized', 'HorizontalAlignment', 'center', 'Color', [0.35 0.35 0.35]);
 axis(ax, 'off');
+end
+
+
+function [lo, hi, type] = popBounds(X)
+%popBounds  A population curve's error band: its lo / hi (populationSummary's ErrorType), or mean +/- SEM.
+if isfield(X, 'lo') && isfield(X, 'hi')
+    lo = X.lo; hi = X.hi;
+    type = "sem";
+    if isfield(X, 'errorType'); type = string(X.errorType); end
+else
+    lo = X.mean - X.sem; hi = X.mean + X.sem;
+    type = "sem";
+end
+end
+
+
+function s = errWords(type)
+%errWords  How a title names the error band (TeX).
+switch type
+    case "std",  s = "\pm SD";
+    case "ci95", s = "and its bootstrap 95% CI";
+    otherwise,   s = "\pm SEM";
+end
 end

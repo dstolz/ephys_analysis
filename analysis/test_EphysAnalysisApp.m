@@ -14,7 +14,11 @@ function test_EphysAnalysisApp()
 %   only the rows and sections a plot uses (y limits, heat colors, the
 %   alignment sections), graying out the ones its options switch off, and
 %   collapsing a section; the section headers' colors and keys (Ctrl+1 to
-%   Ctrl+9 and Ctrl+0 going to a section); the epoch diagram (opened from the plot editor
+%   Ctrl+9 and Ctrl+0 going to a section; Aux signals has none); the Aux
+%   signals rows of a PSTH (shown for spikes only, grayed out while Off, an
+%   edit reaching the plot and the preview); the error rows (type, band
+%   fill and edge reaching the style and the preview's bands, enabled with
+%   the Error box); the epoch diagram (opened from the plot editor
 %   with the plot's own epochs, redrawn on an edit of pre, epochs dropped
 %   outside the recording, a refused window reported, paging, opened from
 %   the Alignment tab for the defaults, closing with the app); a raster's
@@ -428,6 +432,64 @@ check(~isempty(app.PreviewResult) && app.PreviewResult.kind == "waveforms" && ~i
 app.onRemovePlot();
 app.onPlotSelected(1);
 check(any(string(E.waveMode.ItemsData) == "off"), 'another kind''s plot offers Off again');
+kAux = find([app.Config.Plots.kind] == "psth" & [app.Config.Plots.source] == "units", 1);
+app.onPlotSelected(kAux);
+auxRows = shown(E.auxMode) && shown(E.auxChannels) && shown(E.auxBaseline) && shown(E.auxByGroup) ...
+    && string(E.auxMode.Value) == "off" && E.auxPlacement.Enable == "off" && E.auxBaseFrom.Enable == "off";
+E.auxMode.Value = 'magnitude'; E.auxPlacement.Value = 'above'; E.auxChannels.Value = '1 2 3';
+E.auxBaseline.Value = true; E.auxBaseFrom.Value = -0.1; E.auxByGroup.Value = false;
+app.onConfigChanged("plot");
+xa = app.Config.Plots(kAux).aux;
+check(~isempty(kAux) && auxRows && xa.mode == "magnitude" && xa.placement == "above" && isequal(xa.channels, [1 2 3]) ...
+    && xa.baseline == "subtract" && isequal(xa.baselineWindow, [-0.1 0]) && ~xa.byGroup ...
+    && E.auxPlacement.Enable == "on" && E.auxBaseFrom.Enable == "on", ...
+    'a PSTH of units shows the Aux signals rows (grayed out while Off); an edit reaches the plot''s aux');
+app.refreshPreview(Force=true);
+check(~isempty(app.PreviewResult) && isfield(app.PreviewResult, 'aux') && ~isempty(findall(app.PreviewPanel, 'Tag', 'auxAxes')) ...
+    && ~isempty(findall(app.PreviewPanel, 'Tag', 'auxTrace')), 'the preview computes the mean aux signal and draws its panels');
+kSig = find(ismember([app.Config.Plots.source], EphysAnalysisConfig.SignalSources), 1);
+if ~isempty(kSig)
+    app.onPlotSelected(kSig);
+    auxHidden = ~shown(E.auxMode) && ~shown(app.PlotSections([app.PlotSections.Name] == "aux").Toggle);
+else
+    auxHidden = false;
+end
+app.onPlotSelected(kAux);
+check(auxHidden && string(E.auxMode.Value) == "magnitude" && string(E.auxPlacement.Value) == "above" ...
+    && string(E.auxChannels.Value) == "1 2 3" && E.auxBaseline.Value && E.auxBaseFrom.Value == -0.1 && ~E.auxByGroup.Value, ...
+    'a plot of signals hides the Aux signals section; selecting the PSTH again shows its aux settings');
+spanOff = E.auxOverFrom.Enable == "off";   % placement "above"
+E.auxPlacement.Value = 'over'; E.auxOverFrom.Value = 0; E.auxOverTo.Value = 0.3; E.auxYLim.Value = '-0.1 0.1';
+app.onConfigChanged("plot");
+xa = app.Config.Plots(kAux).aux;
+check(spanOff && E.auxOverFrom.Enable == "on" && isequal(xa.overPosition, [0 0.3]) && isequal(xa.yLim, [-0.1 0.1]) ...
+    && xa.placement == "over", 'over the plot: its span (0 to 0.3) and y limits reach the plot; the span waits for placement Over');
+E.auxYLim.Value = '0.1 -0.1'; app.onConfigChanged("plot");
+check(isempty(app.Config.Plots(kAux).aux.yLim), 'y limits that are not two ascending values are automatic');
+E.auxMode.Value = 'off'; app.onConfigChanged("plot");
+check(app.Config.Plots(kAux).aux.mode == "off" && E.auxChannels.Enable == "off", 'Off takes the aux signal off the plot');
+E.auxPlacement.Value = 'below'; E.auxChannels.Value = ''; E.auxBaseline.Value = false; E.auxBaseFrom.Value = -0.2;
+E.auxByGroup.Value = true; E.auxYLim.Value = ''; E.auxOverFrom.Value = 0; E.auxOverTo.Value = 1;
+app.onConfigChanged("plot");   % the defaults again, for what follows
+errRows = shown(E.errType) && shown(E.errFace) && shown(E.errEdge) && E.errResamples.Enable == "off" ...
+    && E.errEdgeStyle.Enable == "off" && string(E.showSEM.Text) == "Error";
+E.errType.Value = 'std'; E.errAlpha.Value = 0.3; E.errEdge.Value = 'auto'; E.errEdgeWidth.Value = 1;
+app.onConfigChanged("plot");
+st = app.Config.Plots(kAux).style;
+check(errRows && st.ErrorType == "std" && st.ErrorFaceAlpha == 0.3 && st.ErrorEdgeColor == "auto" && st.ErrorEdgeWidth == 1 ...
+    && st.ErrorFaceColor == "" && E.errEdgeStyle.Enable == "on" && E.errResamples.Enable == "off", ...
+    'a PSTH shows the Error, Band fill and Band edge rows; edits reach its style (auto fill = "", the edge''s style once it has one)');
+app.refreshPreview(Force=true);
+sb = findall(app.PreviewPanel, 'Tag', 'sem');
+check(~isempty(app.PreviewResult) && app.PreviewResult.err.type == "std" && ~isempty(sb) && all([sb.FaceAlpha] == 0.3), ...
+    'the preview computes mean +/- SD and draws the bands in the look set');
+E.errType.Value = 'ci95'; app.syncPlotEditor();
+ciOn = E.errResamples.Enable == "on";
+E.showSEM.Value = false; app.syncPlotEditor();
+check(ciOn && E.errType.Enable == "off" && E.errFace.Enable == "off", 'resamples for the bootstrap CI; the rows wait for the Error box');
+E.showSEM.Value = true; E.errType.Value = 'sem'; E.errAlpha.Value = []; E.errEdge.Value = 'none'; E.errEdgeWidth.Value = 0.5;
+app.onConfigChanged("plot");   % the defaults again
+app.onPlotSelected(1);
 app.onAddPlot("heatmap");
 hideA = ~shown(E.aMethod) && ~shown(E.aCutoff) && any(string(E.baselineMode.Items) == "auroc") && ~shown(E.raMethod);
 E.baselineMode.Value = 'auroc';
@@ -518,10 +580,14 @@ barColors = cell2mat(arrayfun(@(s) s.Toggle.BackgroundColor, heads, 'UniformOutp
 fontColors = cell2mat(arrayfun(@(s) s.Toggle.FontColor, heads, 'UniformOutput', false).');
 ratios = arrayfun(@(i) wcagRatio(fontColors(i, :), barColors(i, :)), 1:numel(heads));
 satur = max(barColors, [], 2) - min(barColors, [], 2);
-check(numel(heads) == 10 && size(unique(round(barColors, 3), 'rows'), 1) == 10 && all(ratios >= 4.5) ...
+check(numel(heads) == 11 && size(unique(round(barColors, 3), 'rows'), 1) == 11 && all(ratios >= 4.5) ...
     && all(fontColors(:) == 0) && all(satur > 0.01 & satur < 0.4) ...
-    && isequal([heads.Key], [string(1:9) "0"]) && all(arrayfun(@(s) endsWith(s.Toggle.Text, modifier + s.Key + ")"), heads)), ...
-    'each of the ten section headers has a desaturated bar color of its own with black text, and names its key (Ctrl+1 to Ctrl+9, Ctrl+0)');
+    && isequal([heads.Name], ["units" "ref" "window" "selection" "bins" "kind" "style" "waveform" "aux" "note" "overlays"]) ...
+    && isequal([heads.Key], [string(1:8) "" "9" "0"]) ...
+    && all(arrayfun(@(s) s.Key == "" || endsWith(s.Toggle.Text, modifier + s.Key + ")"), heads)) ...
+    && ~contains(heads([heads.Name] == "aux").Toggle.Text, modifier), ...
+    ['each of the eleven section headers has a desaturated bar color of its own with black text; all but Aux signals ' ...
+    'name their key (Ctrl+1 to Ctrl+9, Ctrl+0), the keys they had before it']);
 pressed = @(k, mods) struct('Key', k, 'Modifier', {mods}, 'Character', '');
 app.onKeyPress(pressed('5', {'control', 'shift'}));
 app.onKeyPress(pressed('5', {'alt'}));

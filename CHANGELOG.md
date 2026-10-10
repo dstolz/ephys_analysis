@@ -10,6 +10,43 @@ says how to cut a release.
 
 ### Added
 
+- The aux signal's place and scale: `aux.yLim` fixes its y limits (a panel's, or over a plot the part of
+  the right axis it spans), and `aux.overPosition` (`[bottom top]`, fractions of the plot's height) puts
+  it where it should sit over a PSTH or raster, e.g. `[0 0.3]` for the bottom three tenths; the right
+  axis is set so the signal's limits fall exactly there, with its ticks along that span only. The
+  analysis app's Aux signals section gets **Y limits** and **Over, span** rows; Validate checks both and
+  the caption names them.
+
+- Error bands and bars of a chosen kind on every analysis plot that draws them: `Style.ErrorType` is
+  `"sem"` (mean ± SEM, the default and the look so far), `"std"` (mean ± SD) or `"ci95"` (the 95%
+  confidence interval of the mean from `Style.ErrorResamples` bootstrap resamples, percentile, `bootci`;
+  a fixed stream, so a plot gives the same band each run). The compute functions make it over the
+  epochs (`spikePSTH`, `evokedPotential`, `firingRate`, `tuningCurve`, `behaviorValues`, `auxMean`,
+  `populationSummary` across units: `ErrorType=`, `ErrorResamples=`, result `R.err` with the band's
+  `lo` and `hi`); an overlay of several units draws it across the units. Bands are patches
+  (`errorPatch`) whose look is set per plot: `ErrorFaceColor`, `ErrorFaceAlpha` (NaN = opaque and paled,
+  as before), `ErrorEdgeColor`, `ErrorEdgeStyle`, `ErrorEdgeWidth`; error bars (rates, tuning, behavior)
+  draw the chosen error, asymmetric for a CI. Captions name the error and what it is across. The
+  analysis app's Appearance section gets **Error**, **Band fill** and **Band edge** rows (the Show box
+  is now **Error**). `EphysAnalysisConfig.validate` checks the fields and that `"ci95"` has the
+  Statistics and Machine Learning Toolbox. See
+  [Error bands](documentation/EphysAnalysisConfig.md#error-bands).
+
+- The mean aux (accelerometer) signal on PSTH and raster plots of spikes. A plot's `aux` (`mode`
+  `"channels"`: each channel's mean, or `"magnitude"`: the mean of each epoch's vector magnitude,
+  sqrt(x² + y² + z²) at every sample) is cut from the AUX extract over the plot's own epochs and drawn in
+  every unit's tile: in a panel `"below"` or `"above"` the unit's PSTH and raster, flush on the same time axis,
+  or `"over"` the PSTH (or raster) on a right y axis. `channels` picks the AUX columns, `baseline "subtract"`
+  removes each epoch's mean over `baselineWindow` from each channel first (before the magnitude), and
+  `byGroup` draws a trace per trial group in its color or one over every epoch. `auxMean` computes it
+  (`computePlot` keeps it as `R.aux`; standalone scripts write the calls); `evokedPotential` gets a
+  `Magnitude` option for it. Epochs that leave the AUX signal or hold missing samples are dropped from the
+  aux mean and the caption counts them; a dataset without an AUX extract skips the plot ("no AUX extract").
+  The analysis app's plot editor has an **Aux signals** section (no Ctrl+digit key: the other sections keep
+  theirs). Traces and bands are components of their own for the aesthetics editor (`auxTrace`, `auxSem`); an
+  overlay on all panels reaches the aux panels too. See
+  [Aux signals](documentation/EphysAnalysisConfig.md#aux-signals).
+
 - Check boxes on the analysis app's plot tree: a plot's box is ticked while the plot is enabled
   (double-click the plot to flip it), a group's is ticked when all its plots are and half-filled when some
   are. Above the tree, **All**, **None** and **Invert** act on every plot, and a drop-down naming the plots

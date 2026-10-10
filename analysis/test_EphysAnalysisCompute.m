@@ -20,9 +20,20 @@ function test_EphysAnalysisCompute()
 %   (R.rasterSortEvent: the order, the y label, the caption's count of
 %   epochs without the event), its rows sorted across groups and its
 %   event marks (epochEvents' result: where they sit, their look, the
-%   aesthetics rules reaching them), and behaviorValues / renderBehavior
+%   aesthetics rules reaching them), behaviorValues / renderBehavior
 %   (means, series, missing values, every layout, the jitter, a linear x
-%   axis).
+%   axis), and the mean aux signal: auxMean (each channel, the vector
+%   magnitude taken per epoch before the mean, the baseline before the
+%   magnitude, every epoch as one group, epochs leaving the signal) and its
+%   panels below and above, on the right axis of a PSTH or raster (below a
+%   stack), their colors, line styles, legend, y labels, caption, overlays,
+%   the aesthetics editor's list and the export page's height; the error
+%   bands and bars: errorBounds (SEM as semOf, SD, the bootstrap 95% CI as
+%   bootci's percentile one, repeatable, the global stream untouched), the
+%   error each compute function makes (R.err; a z-scored PSTH's scaled, an
+%   auROC's none), the bands' look from the style (and the default as
+%   before), the bands and bars drawn from R.err, an overlay's across the
+%   units, captions, and plotErrorType.
 %
 %   Usage:  test_EphysAnalysisCompute
 
@@ -844,10 +855,314 @@ check(cfgw.Plots(1).source == "units" && cfgw.Plots(1).layout == "" && ~any(iss.
     && height(bad) == 1 && endsWith(bad.Field, ".waveform.mode"), ...
     'a new waveforms plot is valid and shows both; mode "off" is an error for it');
 
+fprintf('\n== mean aux signal ==\n');
+% three aux channels at offsets (1, 2, 2) -- magnitude 3 -- on the raster-sort epochs (t0 10:10:60 s, groups 1 1 1 2 2 2);
+% in the epochs of group 2 channel 1 steps to 4 for 100 ms from the event's own sample
+fsA = 1000;
+Ya = repmat(single([1 2 2]), 70000, 1);
+rowA = round(Es.t0Continuous * fsA) + 1;
+for e = 4:6
+    Ya(rowA(e) + (0:99), 1) = 4;
+end
+metaA = table(["AUX1"; "AUX2"; "AUX3"], (1:3).', NaN(3, 1), zeros(3, 1), NaN(3, 1), NaN(3, 1), repmat("V", 3, 1), ...
+    'VariableNames', {'label', 'channel', 'recordingChannel', 'shank', 'x', 'y', 'units'});
+Ac = auxMean(Ya, fsA, Es, Window=[-0.2 0.5], Groups=Rs.groups, Meta=metaA);
+kA = find(abs(Ac.t) < 1e-12);
+check(Ac.kind == "aux" && Ac.mode == "channels" && Ac.byGroup && isequal(size(Ac.mean), [701 3 2]) ...
+    && isequal(Ac.labels, ["AUX1"; "AUX2"; "AUX3"]) && Ac.units == "V" && isequal(Ac.nEpochs, [3; 3]) ...
+    && all(abs(Ac.mean(:, 1, 1) - 1) < 1e-6) && abs(Ac.mean(kA, 1, 2) - 4) < 1e-6 && abs(Ac.mean(kA - 1, 1, 2) - 1) < 1e-6 ...
+    && all(abs(Ac.mean(:, 2, 2) - 2) < 1e-6), ...
+    'auxMean "channels": each channel''s mean per group, the step from the event''s own sample on');
+Am = auxMean(Ya, fsA, Es, Window=[-0.2 0.5], Mode="magnitude", Groups=Rs.groups, Meta=metaA);
+check(isequal(size(Am.mean), [701 1 2]) && Am.labels == "|AUX1, AUX2, AUX3|" && isequal(Am.channelLabels, metaA.label) ...
+    && isempty(Am.meta) && Am.magnitude && all(abs(Am.mean(:, 1, 1) - 3) < 1e-6) && abs(Am.mean(kA, 1, 2) - sqrt(24)) < 1e-6, ...
+    'auxMean "magnitude": sqrt(x^2 + y^2 + z^2) at every sample, one trace');
+Yd = zeros(70000, 1, 'single');
+Yd(rowA(1) + (0:99)) = 2;
+Yd(rowA(2) + (0:99)) = -2;
+Ad = auxMean(Yd, fsA, Es(1:2, :), Window=[-0.2 0.5], Mode="magnitude");
+Ad0 = auxMean(Yd, fsA, Es(1:2, :), Window=[-0.2 0.5]);
+check(abs(Ad.mean(kA) - 2) < 1e-6 && abs(Ad0.mean(kA)) < 1e-6, ...
+    'the magnitude is taken in each epoch before the mean: +2 and -2 average to 2, not to the magnitude of their mean, 0');
+Ab = auxMean(Ya, fsA, Es, Window=[-0.2 0.5], Mode="magnitude", Baseline=[-0.2 -0.01], Groups=Rs.groups);
+check(all(abs(Ab.mean(:, 1, 1)) < 1e-6) && abs(Ab.mean(kA, 1, 2) - 3) < 1e-6 && isequal(Ab.params.Baseline, [-0.2 -0.01]), ...
+    'a baseline is subtracted from each channel before the magnitude: the size of the change (offsets gone)');
+Ap = auxMean(Ya, fsA, Es, Window=[-0.2 0.5], ByGroup=false, Groups=Rs.groups, Meta=metaA);
+check(size(Ap.mean, 3) == 1 && height(Ap.groups) == 1 && Ap.groups.label == "all epochs" && Ap.nEpochs == 6 && ~Ap.byGroup ...
+    && abs(Ap.mean(kA, 1) - 2.5) < 1e-6, 'ByGroup false: one mean over every epoch');
+Ae = auxMean(Ya(1:60300, :), fsA, Es, Window=[-0.2 0.5], Groups=Rs.groups, Meta=metaA);
+check(Ae.droppedEdge == 1 && isequal(Ae.nEpochs, [3; 2]), 'an epoch leaving the aux signal is dropped and counted');
+
+figA = figure('Visible', 'off');
+closerA = onCleanup(@() delete(figA));
+auxSpec = @(varargin) struct('mode', "magnitude", varargin{:});
+RsA = Rs; RsA.aux = Am;
+h = renderPSTH(RsA, figA);
+check(isempty(h.auxAxes) && isempty(findall(figA, 'Tag', 'auxTrace')), 'Aux mode "off" (the default): R.aux is not drawn');
+h = renderPSTH(RsA, figA, Aux=auxSpec('placement', "below"));
+xa = h.auxAxes;
+tr = findall(xa, 'Tag', 'auxTrace');
+grp = arrayfun(@(l) string(getappdata(l, 'PlotGroup')), tr);
+tr2 = tr(grp == Rs.groups.label(2));
+check(isscalar(xa) && string(xa.Tag) == "auxAxes" && numel(tr) == 2 && isscalar(tr2) && isequal(tr2.Color, Rs.groups.color(2, :)) ...
+    && xa.Layout.Tile > h.axes(1).Layout.Tile && h.rasterAxes(1).Layout.Tile < h.axes(1).Layout.Tile ...
+    && isequal(xa.XLim, h.axes(1).XLim) && isempty(h.axes(1).XTickLabel) ...
+    && numel(findall(xa, 'Tag', 'auxSem')) >= 2 && startsWith(string(h.layout.YLabel.String), "|AUX| (V)  ·  "), ...
+    'below: a panel under the PSTH on its time axis, a trace and SEM band per group in its color; the grid''s y label names it first');
+h = renderPSTH(RsA, figA, Aux=auxSpec('placement', "above"));
+xa = h.auxAxes;
+check(isscalar(xa) && xa.Layout.Tile == 1 && h.rasterAxes(1).Layout.Tile == 2 && isempty(xa.XTickLabel) ...
+    && string(xa.Title.String) ~= "" && isempty(h.rasterAxes(1).Title.String) && endsWith(string(h.layout.YLabel.String), "  ·  |AUX| (V)"), ...
+    'above: a panel over the raster, carrying the unit''s title; the grid''s y label names it last');
+h = renderPSTH(RsA, figA, Aux=auxSpec('placement', "over"));
+ax = h.axes(1);
+check(isempty(h.auxAxes) && numel(ax.YAxis) == 2 && string(ax.YAxisLocation) == "left" && numel(bothSides(ax, 'auxTrace')) == 2 ...
+    && string(ax.YAxis(2).Label.String) == "|AUX| (V)", 'over: on the rate panel''s right y axis, named there; the left side is active again');
+T = PlotAesthetics.components(figA);
+check(nnz(T.Role == "auxTrace") == 2 && any(T.Role == "auxSem"), 'the aesthetics editor lists the traces on the right side of a yyaxis');
+h = renderPSTH(RsA, figA, Aux=auxSpec('placement', "over", 'overPosition', [0 0.3], 'yLim', [2.5 5.5]));
+ax = h.axes(1);
+yyaxis(ax, 'right'); yr = ax.YLim; tk = ax.YTick; yyaxis(ax, 'left');
+check(abs((2.5 - yr(1)) / diff(yr)) < 1e-9 && abs((5.5 - yr(1)) / diff(yr) - 0.3) < 1e-9 ...
+    && numel(tk) >= 2 && numel(tk) <= 3 && all(tk >= 2.5 & tk <= 5.5), ...
+    'over, span 0 to 0.3, y limits [2.5 5.5]: the limits sit at the panel''s bottom and three tenths up; the right ticks stay along that span');
+h = renderPSTH(RsA, figA, Aux=auxSpec('placement', "over", 'overPosition', [0.7 1]));
+ax = h.axes(1);
+yyaxis(ax, 'right'); yr = ax.YLim; yyaxis(ax, 'left');
+trs = bothSides(ax, 'auxTrace');
+yd = [trs.YData];
+check(min(yd - yr(1)) / diff(yr) >= 0.7 - 1e-9 && max(yd - yr(1)) / diff(yr) <= 1 + 1e-9, ...
+    'span 0.7 to 1 with automatic limits: the traces stay in the top three tenths');
+h = renderPSTH(RsA, figA, Aux=auxSpec('placement', "below", 'yLim', [0 10]));
+cap = plotCaption(struct('kind', "psth", 'aux', auxSpec('placement', "over", 'overPosition', [0 0.3], 'yLim', [2.5 5.5])), RsA);
+check(isequal(h.auxAxes.YLim, [0 10]) && contains(cap, "right axis (from 0 to 0.3 of its height)") && contains(cap, "y limits [2.5 5.5] V"), ...
+    "a panel takes the y limits given; the caption names the span and the limits: " + cap);
+h = renderPSTH(RsA, figA, Stack=true, Aux=auxSpec('placement', "over"));
+check(isscalar(h.auxAxes) && h.auxAxes.Layout.Tile > h.axes(1).Layout.Tile, 'over on a stack (its right axis is the peaks): drawn below');
+RsC = Rs; RsC.aux = Ac;
+h = renderPSTH(RsC, figA, Aux=struct('mode', "channels", 'placement', "below"));
+tr = findall(h.auxAxes, 'Tag', 'auxTrace');
+lsty = arrayfun(@(l) string(l.LineStyle), tr);
+lg = findall(figA, 'Type', 'legend');
+check(numel(tr) == 6 && numel(unique(lsty)) == 3 && isscalar(lg) && all(ismember(["AUX1" "AUX2" "AUX3"], string(lg.String))) ...
+    && all(ismember(string(Rs.groups.label).', string(lg.String))), ...
+    'channels of several groups: the groups'' colors, a line style per channel, each channel in the legend beside the groups');
+RsP = Rs; RsP.aux = auxMean(Ya, fsA, Es, Window=[-0.2 0.5], ByGroup=false, Groups=Rs.groups, Meta=metaA);
+h = renderRaster(RsP, figA, Aux=struct('mode', "channels", 'placement', "above"));
+tr = findall(h.auxAxes, 'Tag', 'auxTrace');
+cols = unique(vertcat(tr.Color), 'rows');
+check(isscalar(h.auxAxes) && h.auxAxes.Layout.Tile == 1 && h.axes(1).Layout.Tile == 2 && numel(tr) == 3 && size(cols, 1) == 3 ...
+    && all(arrayfun(@(l) string(l.LineStyle) == "-", tr)) && endsWith(string(h.layout.YLabel.String), "Epoch  ·  AUX (V)"), ...
+    'a raster with the channels of every epoch above it: a color per channel, solid');
+h = renderRaster(RsA, figA, Aux=auxSpec('placement', "over"));
+ax = h.axes(1);
+yyaxis(ax, 'right'); dirR = string(ax.YDir);
+yyaxis(ax, 'left'); dirL = string(ax.YDir);
+check(numel(ax.YAxis) == 2 && dirL == "reverse" && dirR == "normal" ...
+    && numel(bothSides(ax, 'auxTrace')) == 2 && isequal(rasterRows(ax), 1:6), ...
+    'over a raster: the rows still run down on the left, the aux signal up on the right');
+ax1 = axes(figA);
+renderPSTH(RsA, ax1, Aux=auxSpec('placement', "below"));
+check(isempty(findall(figA, 'Tag', 'auxAxes')) && numel(ax1.YAxis) == 1, 'one axes: no room for a panel below, no aux signal');
+spA = struct('kind', "psth", 'aux', auxSpec('placement', "below", 'baseline', "subtract"));
+RsAb = Rs; RsAb.aux = Ab;
+h = renderPlot(RsAb, spA, figA);
+cap = plotCaption(spA, RsAb);
+check(isscalar(h.auxAxes) && startsWith(string(h.layout.YLabel.String), "|AUX - baseline| (V)") ...
+    && contains(cap, "aux: mean vector magnitude") && contains(cap, "subtracted from each channel first") ...
+    && contains(cap, "in a panel below the PSTH") && contains(cap, "one trace per group (n = 3, 3 epochs)"), ...
+    "renderPlot draws spec.aux; the caption says what the aux trace is, where, over how many epochs: " + cap);
+RsE = Rs; RsE.aux = Ae;
+cap = plotCaption(struct('kind', "raster", 'aux', struct('mode', "channels", 'placement', "over")), RsE);
+check(contains(cap, "aux: mean of AUX1, AUX2, AUX3 (V), on the raster's right axis") ...
+    && contains(cap, "1 epoch(s) leaving the AUX signal or holding missing samples left out of the aux mean"), ...
+    "the caption counts the epochs left out of the aux mean: " + cap);
+ov = struct('shape', "line", 'axis', "x", 'value', 0.1, 'panel', "all");
+h = renderPlot(RsA, struct('kind', "psth", 'aux', auxSpec('placement', "below"), 'overlays', ov), figA);
+nAll = numel(findall(h.auxAxes, 'Tag', 'overlayLine'));
+h = renderPlot(RsA, struct('kind', "psth", 'aux', auxSpec('placement', "below"), 'overlays', setfield(ov, 'panel', "data")), figA); %#ok<SFLD>
+check(nAll == 1 && isempty(findall(h.auxAxes, 'Tag', 'overlayLine')) && isscalar(findall(h.axes, 'Tag', 'overlayLine')), ...
+    'an overlay on all panels reaches the aux panel; one on the data panels does not');
+spX = struct('kind', "psth", 'aux', auxSpec('placement', "below"));
+fx = newExportFigure(struct('FigureSizeCm', [18 1]), Rp, spX, Page=1);
+fx0 = newExportFigure(struct('FigureSizeCm', [18 1]), setfield(Rp, 'aux', Am), spX, Page=1); %#ok<SFLD>
+check(fx0.Position(4) - fx.Position(4) > 1.4, 'an exported grid page grows by 1.5 cm a row of tiles for the aux panels');
+delete([fx fx0]);
+clear closerA
+
+fprintf('\n== error bands: SEM, SD, bootstrap 95%% CI ==\n');
+haveBoot = license('test', 'Statistics_Toolbox') && exist('bootci', 'file') == 2;
+Xe = [1 2 2 5; 2 2 2 NaN; 3 2 NaN NaN; 4 2 NaN NaN];   % columns of 4, 4, 2 and 1 values
+[lo, hi] = errorBounds(Xe, 1, "sem");
+m = mean(Xe, 1, 'omitnan');
+check(isequaln(lo, m - semOf(Xe, 1)) && isequaln(hi, m + semOf(Xe, 1)) && lo(2) == 2 && hi(2) == 2 && isnan(lo(4)) && isnan(hi(4)), ...
+    'errorBounds "sem": the mean +/- semOf''s SEM; none from a single value');
+[lo, hi] = errorBounds(Xe, 1, "std");
+[lo2, hi2] = errorBounds(Xe.', 2, "std");
+check(abs(hi(1) - lo(1) - 2 * std([1 2 3 4])) < 1e-12 && abs(hi(3) - 2) < 1e-12 && isnan(hi(4)) ...
+    && isequaln(lo2, lo.') && isequaln(hi2, hi.'), '"std": the mean +/- the SD of the values, along either dimension');
+X3 = cat(3, [1 2; 3 4], [2 3; 4 6], [0 1; 1 1]);
+[lo3, hi3] = errorBounds(X3, 3, "sem");
+check(isequal(size(lo3), [2 2]) && abs(lo3(2, 2) - (mean([4 6 1]) - std([4 6 1]) / sqrt(3))) < 1e-12 ...
+    && abs(hi3(1, 1) - (1 + std([1 2 0]) / sqrt(3))) < 1e-12, 'a 3-D array, the observations along its third dimension');
+if haveBoot
+    g0 = RandStream.getGlobalStream;
+    state0 = g0.State;
+    [cl, ch] = errorBounds(Xe, 1, "ci95", 2000);
+    [cl2, ch2] = errorBounds(Xe, 1, "ci95", 2000);
+    g1 = RandStream.getGlobalStream;
+    prev = RandStream.setGlobalStream(RandStream('mt19937ar', 'Seed', 0));
+    ci = bootci(2000, {@(y) mean(y, 1, 'omitnan'), Xe(:, 1)}, 'Type', 'per');
+    RandStream.setGlobalStream(prev);
+    check(isequaln(cl, cl2) && isequaln(ch, ch2) && g1 == g0 && isequal(g0.State, state0) ...
+        && abs(cl(1) - ci(1)) < 1e-12 && abs(ch(1) - ci(2)) < 1e-12 && cl(1) < m(1) && ch(1) > m(1) ...
+        && cl(2) == 2 && ch(2) == 2 && isnan(cl(4)) && isnan(ch(4)), ...
+        ['"ci95": bootci''s percentile 95% CI of the mean, from a seed-0 stream of its own (the same every time, the ' ...
+        'global stream untouched); a constant column has a zero-width CI; none from a single value']);
+else
+    fprintf('  (no Statistics and Machine Learning Toolbox: the bootstrap checks are skipped)\n');
+end
+rng(21, 'twister');
+tE = (10:2:70).';
+gE = 1 + mod((1:numel(tE)).', 2);
+Ee = epochs(tE, gE);
+trains = {poissonTrain(15, 80), sort([poissonTrain(10, 80); driven(tE, 0, 0.2, 40)])};
+Rs0 = spikePSTH(trains, Ee, Window=[-0.2 0.5], BinSec=0.05);
+Rsd = spikePSTH(trains, Ee, Window=[-0.2 0.5], BinSec=0.05, ErrorType="std");
+Rs0.epochs = Ee; Rsd.epochs = Ee;
+nPer = reshape(Rs0.nEpochs, 1, 1, []);
+check(Rs0.err.type == "sem" && Rs0.err.over == "epochs" && isequaln(Rs0.err.lo, Rs0.rate - Rs0.sem) && isequaln(Rs0.err.hi, Rs0.rate + Rs0.sem) ...
+    && Rsd.err.type == "std" && isequaln(Rsd.rate, Rs0.rate) && max(abs(Rsd.err.hi - Rsd.rate - Rs0.sem .* sqrt(nPer)), [], 'all') < 1e-9, ...
+    'spikePSTH: R.err is the mean +/- SEM by default; "std" is the mean +/- SD over the group''s epochs (SEM x sqrt(n))');
+Rz = spikePSTH(trains, Ee, Window=[-0.2 0.5], BinSec=0.05, Baseline=[-0.2 0], BaselineMode="zscore", ErrorType="std");
+sdB = reshape(Rz.baselineSD, 1, size(Rz.baselineSD, 1), []);
+check(max(abs((Rz.err.hi - Rz.rate) .* sdB - (Rsd.err.hi - Rsd.rate)), [], 'all') < 1e-9, ...
+    'a z-scored PSTH''s band is scaled by the baseline''s SD, as its mean is');
+if haveBoot   % the auROC needs the toolbox too
+    Ra0 = spikePSTH(trains, Ee, Window=[-0.2 0.5], BinSec=0.05, Baseline=[-0.2 0], BaselineMode="auroc", ...
+        Auroc=struct('cutoff', "none"), ErrorType="std");
+    check(all(isnan(Ra0.err.lo), 'all') && all(isnan(Ra0.err.hi), 'all'), 'an auROC curve has no band');
+end
+Ye = single(randn(80000, 2));
+Ee2 = epochs(tE, gE, 1000);
+V0 = evokedPotential(Ye, 1000, Ee2, Window=[-0.1 0.2]);
+Vs = evokedPotential(Ye, 1000, Ee2, Window=[-0.1 0.2], ErrorType="std");
+nV = reshape(V0.nEpochs, 1, 1, []);
+check(isequaln(V0.err.lo, V0.mean - V0.sem) && max(abs(Vs.err.hi - Vs.mean - V0.sem .* sqrt(nV)), [], 'all') < 1e-9 ...
+    && isempty(Vs.data), 'evokedPotential: mean +/- SEM by default; "std" the mean +/- SD over the epochs; no epochs kept unless asked');
+if haveBoot
+    Vc = evokedPotential(Ye, 1000, Ee2, Window=[-0.1 0.2], ErrorType="ci95", ErrorResamples=500);
+    Vk = evokedPotential(Ye, 1000, Ee2, Window=[-0.1 0.2], KeepEpochs=true);
+    [l1, h1] = errorBounds(Vk.data(:, :, Ee2.groupIndex(Vk.keptEpochs) == 1), 3, "ci95", 500);
+    check(Vc.err.type == "ci95" && isequaln(Vc.err.lo(:, :, 1), l1) && isequaln(Vc.err.hi(:, :, 1), h1) && isempty(Vc.data) ...
+        && all(Vc.err.lo <= Vc.mean & Vc.err.hi >= Vc.mean, 'all'), ...
+        'evokedPotential "ci95": the bootstrap CI of each group''s epochs, the epochs not returned unless asked');
+end
+Fr = firingRate(trains, Ee, ErrorType="std");
+Tu = tuningCurve(Fr.rate, mod((1:numel(tE)).', 3), Param="P", ErrorType="std");
+Bv = behaviorValues(Fr.rate(:, 1), mod((1:numel(tE)).', 3), Param="P", ErrorType="std");
+sdOf = @(v) std(v, 0, 1, 'omitnan');
+check(abs(Fr.err.hi(1, 1) - Fr.meanRate(1, 1) - sdOf(Fr.rate(gE == 1, 1))) < 1e-9 ...
+    && abs(Tu.err.hi(1, 2, 1) - Tu.mean(1, 2, 1) - sdOf(Fr.rate(mod((1:numel(tE)).', 3) == 0, 2))) < 1e-9 ...
+    && abs(Bv.err.lo(2) - (Bv.mean(2) - sdOf(Fr.rate(mod((1:numel(tE)).', 3) == 1, 1)))) < 1e-9, ...
+    'firingRate, tuningCurve and behaviorValues make the error over each mean''s epochs');
+
+figE = figure('Visible', 'off');
+closerE = onCleanup(@() delete(figE));
+c1 = Rs0.groups.color(1, :);
+bandsOf = @(ax, g) ofGroup(findall(ax, 'Tag', 'sem'), g);
+h = renderPSTH(Rs0, figE, WithRaster=false);
+sb = bandsOf(h.axes(1), Rs0.groups.label(1));
+check(~isempty(sb) && all(arrayfun(@(p) max(abs(p.FaceColor - (c1 + ([1 1 1] - c1) * 0.75))) < 1e-12 && p.FaceAlpha == 1 ...
+    && isequal(p.EdgeColor, 'none'), sb)), 'by default a band is opaque, the group''s color paled, with no edge (as before)');
+h = renderPSTH(Rs0, figE, WithRaster=false, Style=struct('ErrorFaceAlpha', 0.3, 'ErrorEdgeColor', "auto", ...
+    'ErrorEdgeStyle', "--", 'ErrorEdgeWidth', 1.5));
+sb = bandsOf(h.axes(1), Rs0.groups.label(1));
+check(~isempty(sb) && all(arrayfun(@(p) isequal(p.FaceColor, c1) && p.FaceAlpha == 0.3 && isequal(p.EdgeColor, c1) ...
+    && strcmp(p.LineStyle, '--') && p.LineWidth == 1.5, sb)), ...
+    'the bands take the style''s look: an opacity (the color unpaled), the edge in the fill''s color, its style and width');
+h = renderPSTH(Rs0, figE, WithRaster=false, Style=struct('ErrorFaceColor', "black", 'ErrorEdgeColor', "#ff0000"));
+sb = bandsOf(h.axes(1), Rs0.groups.label(2));
+check(~isempty(sb) && all(arrayfun(@(p) isequal(p.FaceColor, [0 0 0]) && p.FaceAlpha == 1 && isequal(p.EdgeColor, [1 0 0]), sb)), ...
+    'a face color given is drawn as given, opaque; an edge color given is used');
+h = renderPSTH(Rsd, figE, WithRaster=false);
+sb = bandsOf(h.axes(1), Rsd.groups.label(1));
+yb = vertcat(sb.YData);
+check(abs(max(yb) - max(Rsd.err.hi(:, 1, 1))) < 1e-9 && abs(min(yb) - min(Rsd.err.lo(:, 1, 1))) < 1e-9, ...
+    'a PSTH''s band runs between R.err''s edges');
+h = renderPSTH(Rsd, figE, Layout="overlay", Style=struct('ErrorType', "std"));
+[olo, ohi] = errorBounds(Rsd.rate, 2, "std");
+sb = bandsOf(h.axes(1), Rsd.groups.label(1));
+yb = vertcat(sb.YData);
+check(abs(max(yb) - max(ohi(:, 1, 1))) < 1e-9 && abs(min(yb) - min(olo(:, 1, 1))) < 1e-9, ...
+    'an overlay of units draws the style''s error across the units');
+h = renderPSTH(Rsd, figE, WithRaster=false, Stack=true);
+check(isfinite(h.step(1)), 'a stack draws its rows'' bands from R.err');
+h = renderEvoked(Vs, figE, Layout="grid");
+sb = findall(h.layout, 'Tag', 'sem');
+check(~isempty(sb) && abs(max(vertcat(sb.YData)) - max(Vs.err.hi, [], 'all')) < 1e-9, 'an evoked grid draws R.err''s band');
+h = renderRates(Fr, figE);
+eb = findall(h.axes, 'Tag', 'errorBar');
+deltas = @(objs, f) sort(cell2mat(arrayfun(@(e) reshape(e.(f), [], 1), objs, 'UniformOutput', false)));
+dP = deltas(eb, 'YPositiveDelta'); dN = deltas(eb, 'YNegativeDelta');
+check(numel(eb) == 2 && max(abs(dP - sort(reshape(Fr.err.hi - Fr.meanRate, [], 1)))) < 1e-9 && max(abs(dP - dN)) < 1e-12, ...
+    'rate bars: error bars from R.err (the SD here, symmetric)');
+h = renderTuning(Tu, figE);
+cv = findall(h.layout, 'Tag', 'curve');
+dT = deltas(cv, 'YPositiveDelta');
+check(numel(cv) == size(Tu.mean, 2) && max(abs(dT - sort(reshape(Tu.err.hi - Tu.mean, [], 1)))) < 1e-9, ...
+    'a tuning curve''s error bars come from R.err');
+h = renderBehavior(Bv, figE, Layout="line");
+mb = findall(h.axes, 'Tag', 'behaviorMean');
+check(isscalar(mb) && max(abs(mb.YNegativeDelta(:) - (Bv.mean(:) - Bv.err.lo(:)))) < 1e-9, 'a behavior plot''s error bars come from R.err');
+cap = @(sp, R) plotCaption(EphysAnalysisConfig.normalizePlot(sp), R);
+check(contains(cap(struct('kind', "psth"), Rs0), "bands: mean +/- SEM across epochs") ...
+    && contains(cap(struct('kind', "psth", 'style', struct('ErrorType', "std")), Rsd), "bands: mean +/- SD across epochs") ...
+    && contains(cap(struct('kind', "psth", 'layout', "overlay", 'style', struct('ErrorType', "std")), Rsd), "bands: mean +/- SD across units") ...
+    && ~contains(cap(struct('kind', "psth", 'style', struct('ShowSEM', false)), Rs0), "bands:") ...
+    && contains(cap(struct('kind', "rate"), Fr), "error bars: mean +/- SD across epochs"), ...
+    'the caption names the error and what it is across');
+if haveBoot
+    Rci = spikePSTH(trains, Ee, Window=[-0.2 0.5], BinSec=0.05, ErrorType="ci95", ErrorResamples=300);
+    Rci.epochs = Ee;
+    check(contains(cap(struct('kind', "psth", 'style', struct('ErrorType', "ci95", 'ErrorResamples', 300)), Rci), ...
+        "bands: the bootstrap 95% CI of the mean (300 resamples, percentile) across epochs"), 'the caption names the bootstrap and its resamples');
+end
+pe = @(varargin) plotErrorType(EphysAnalysisConfig.normalizePlot(struct(varargin{:})));
+ciS = struct('ErrorType', "ci95");
+check(pe('kind', "psth", 'style', ciS) == "ci95" && pe('kind', "raster", 'style', ciS) == "sem" ...
+    && pe('kind', "evoked", 'source', "LFP", 'layout', "butterfly", 'style', ciS) == "sem" && pe('kind', "evoked", 'source', "LFP", 'style', ciS) == "ci95" ...
+    && pe('kind', "rate", 'layout', "box", 'style', ciS) == "sem" && pe('kind', "behavior", 'style', ciS) == "ci95" ...
+    && pe('kind', "psth", 'style', struct('ErrorType', "ci95", 'ShowSEM', false)) == "sem" ...
+    && plotErrorType(EphysAnalysisConfig.normalizePlot(struct('kind', "raster", 'aux', struct('mode', "channels"), 'style', ciS)), "aux") == "ci95", ...
+    'plotErrorType: the style''s error where the plot draws it, "sem" where it draws none (no bootstrap for nothing)');
+clear closerE
+
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0
     error('test_EphysAnalysisCompute:Failures', '%d checks failed.', nFail);
 end
+end
+
+
+function h = bothSides(ax, tag)
+%bothSides  The objects tagged TAG on both sides of a yyaxis AX (a side's Children may be its own only).
+side = ax.YAxisLocation;
+yyaxis(ax, 'left');
+h = findall(ax, 'Tag', tag);
+yyaxis(ax, 'right');
+r = findall(ax, 'Tag', tag);
+yyaxis(ax, side);
+for k = 1:numel(r)
+    if ~any(r(k) == h); h(end+1, 1) = r(k); end %#ok<AGROW>
+end
+end
+
+
+function h = ofGroup(h, g)
+%ofGroup  The objects of H whose PlotGroup is G.
+keep = arrayfun(@(p) isappdata(p, 'PlotGroup') && string(getappdata(p, 'PlotGroup')) == g, h);
+h = h(keep);
 end
 
 

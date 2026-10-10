@@ -10,8 +10,8 @@ function s = defaults(section)
 %                     Plots)
 %   Building blocks   EventRef, SequenceStep (one step of an EventRef's
 %                     sequence), EpochWindow, TrialSelection, UnitSelection,
-%                     Style, Auroc, Waveform, Note, Overlay (one entry of a
-%                     plot's overlays)
+%                     Style, Auroc, Waveform, Aux, Note, Overlay (one entry
+%                     of a plot's overlays)
 %
 %   See also EphysAnalysisConfig, EphysAnalysisConfig.normalizeSection.
 
@@ -96,7 +96,14 @@ switch section
     case "Style"
         s = struct( ...
             'LineWidth',    1.2, ...
-            'ShowSEM',      true, ...
+            'ShowSEM',      true, ...           % error bands (traces) and bars (means), of ErrorType
+            'ErrorType',    "sem", ...          % "sem" (mean +/- SEM) | "std" (mean +/- SD) | "ci95" (bootstrap 95% CI of the mean, percentile)
+            'ErrorResamples', 1000, ...         % ci95: bootstrap resamples
+            'ErrorFaceColor', "", ...           % bands: "" = the trace's color; or a color
+            'ErrorFaceAlpha', NaN, ...          % bands: NaN = opaque, the trace's color paled towards the ground; 0-1 = that opacity
+            'ErrorEdgeColor', "none", ...       % bands: "none" | "auto" (the face color) | a color
+            'ErrorEdgeStyle', "-", ...          % bands: the edge's line style ("-" | "--" | ":" | "-.")
+            'ErrorEdgeWidth', 0.5, ...          % bands: the edge's width, points
             'ShowStop',     true, ...
             'ShowZeroLine', true, ...
             'Colormap',     "lines", ...    % group colors: "lines" keeps selectTrials' colors; a colormap function; or one color ("black", "#1f77b4")
@@ -150,6 +157,19 @@ switch section
             'ampScale',  "unit", ...        % waveforms plot: "unit" (each waveform fills its own tile / glyph) | "common" (one amplitude scale for all units of the same kind of value)
             'showSites', true, ...          % waveforms plot, probe layout: the probe's sites behind the waveforms
             'showNames', false);            % waveforms plot, probe layout: each unit's name beside its waveform
+
+    case "Aux"
+        % a psth / raster plot of spikes: the mean aux (accelerometer) signal over the plot's epochs, drawn with each
+        % unit's raster and PSTH (auxMean; renderers' Aux)
+        s = struct( ...
+            'mode',           "off", ...       % "off" | "channels" (each channel's mean) | "magnitude" (the mean of each epoch's vector magnitude, sqrt of the sum of squares of the channels)
+            'channels',       [], ...          % columns of the AUX extract ([] = all)
+            'placement',      "below", ...     % "below" | "above" the unit's raster / PSTH (a panel of its own), or "over" it (its right y axis)
+            'baseline',       "none", ...      % "none" | "subtract": each epoch's mean over baselineWindow, per channel (before the magnitude)
+            'baselineWindow', [-0.2 0], ...    % s from the event
+            'byGroup',        true, ...        % one trace per trial group, in its color (false: one over every epoch)
+            'yLim',           [], ...          % the signal's y limits [lo hi] in its units (V); [] = from the traces (and their bands)
+            'overPosition',   [0 1]);          % placement "over": the part of the plot's height the signal spans, [bottom top] as fractions 0-1
 
     case "Note"
         % a plot's descriptive text (drawNote): one block of text, placed in or beside the plot
@@ -257,7 +277,8 @@ switch section
             'correlation',   "pearson", ...     % corrmap: "pearson" | "spearman"
             'fisherZ',       false, ...         % corrmap: Fisher's z (atanh r) drawn, and the mean r taken in z
             'waveform',      EphysAnalysisConfig.defaults("Waveform"), ...   % psth / raster / tuning grids: each unit's waveform in its tile; waveforms: the plot's own settings
-            'note',          EphysAnalysisConfig.defaults("Note"), ...       % descriptive text on the plot (renderPlot's drawNote)
+            'aux',           EphysAnalysisConfig.defaults("Aux"), ...        % psth / raster of spikes: the mean aux (accelerometer) signal with each unit's tile
+            'note',         EphysAnalysisConfig.defaults("Note"), ...       % descriptive text on the plot (renderPlot's drawNote)
             'overlays',      repmat(EphysAnalysisConfig.defaults("Overlay"), 1, 0), ...   % lines and patches drawn on the plot's axes (renderPlot's drawOverlays)
             'style',         EphysAnalysisConfig.defaults("Style"), ...
             'aesthetics',   PlotAesthetics.emptyRules());   % remembered looks of components: role, group, property, value (PlotAesthetics)

@@ -2,11 +2,12 @@ function O = drawOverlays(h, overlays)
 %drawOverlays  A plot's overlay graphics: lines and patches in data units (renderPlot).
 %   O = drawOverlays(H, OVERLAYS) draws the enabled entries of OVERLAYS (a
 %   plot's overlays, a struct array of defaults("Overlay")) on the axes a
-%   renderer drew: H.axes (a PSTH's rate panels, a trace, a heat map, ...)
-%   and H.rasterAxes (a PSTH's rasters). An overlay's panel picks the axes
-%   it goes on: "all", "data" (the axes tagged "axes") or "raster" (those
-%   tagged "rasterAxes"; a raster plot's own axes are rasters); it is
-%   drawn in each of them.
+%   renderer drew: H.axes (a PSTH's rate panels, a trace, a heat map, ...),
+%   H.rasterAxes (a PSTH's rasters) and H.auxAxes (the mean aux signal's
+%   panels of a PSTH or raster). An overlay's panel picks the axes it goes
+%   on: "all" (the aux panels too), "data" (the axes tagged "axes") or
+%   "raster" (those tagged "rasterAxes"; a raster plot's own axes are
+%   rasters); it is drawn in each of them.
 %
 %   A line (xline / yline) crosses the whole axis at its value, so over a
 %   raster it crosses every row, and over a PSTH panel its full height. A
@@ -47,12 +48,13 @@ function O = drawOverlays(h, overlays)
 O = struct('handles', gobjects(1, 0), 'rules', PlotAesthetics.emptyRules());
 if isempty(overlays); return; end
 axs = gobjects(1, 0);
-for f = ["axes" "rasterAxes"]
+for f = ["axes" "rasterAxes" "auxAxes"]
     if isfield(h, f); axs = [axs, reshape(h.(f), 1, [])]; end %#ok<AGROW>
 end
 axs = axs(isgraphics(axs));
 if isempty(axs); return; end
 raster = arrayfun(@(a) strcmp(a.Tag, 'rasterAxes'), axs);
+aux = arrayfun(@(a) strcmp(a.Tag, 'auxAxes'), axs);
 front = repmat({gobjects(1, 0)}, 1, numel(axs));
 back = front;
 def = EphysAnalysisConfig.defaults("Overlay");
@@ -66,7 +68,7 @@ for k = 1:numel(overlays)
     role = "overlayLine";
     if ov.shape == "region"; role = "overlayRegion"; end
     look = lookOf(ov);
-    for a = find(panelMask(string(ov.panel), raster))
+    for a = find(panelMask(string(ov.panel), raster, aux))
         g = drawOne(axs(a), ov, pos);
         tagPart(g, role, label);
         for p = string(fieldnames(look)).'
@@ -101,10 +103,10 @@ end
 end
 
 
-function use = panelMask(panel, raster)
-%panelMask  Which of the axes (RASTER: those that are rasters) an overlay's PANEL names.
+function use = panelMask(panel, raster, aux)
+%panelMask  Which of the axes (RASTER: those that are rasters; AUX: aux panels) an overlay's PANEL names.
 switch panel
-    case "data",   use = ~raster;
+    case "data",   use = ~raster & ~aux;
     case "raster", use = raster;
     otherwise,     use = true(size(raster));   % "all"
 end

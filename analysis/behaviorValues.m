@@ -14,6 +14,10 @@ function R = behaviorValues(y, x, opts)
 %     SeriesParam   name of Series (legend)
 %     YName         what Y is (axis label), e.g. "RespLatency"
 %     YUnits        its unit ("" = as recorded, none named), e.g. "ms"
+%     ErrorType     the error of each mean, over its epochs (errorBounds):
+%                   "sem" (default), "std" or "ci95" (a bootstrap 95% CI of
+%                   the mean, percentile, ErrorResamples resamples, default
+%                   1000)
 %
 %   Epochs whose Y is not finite (a miss has no RespLatency; an epoch
 %   without a stop event no stop latency) or whose X or Series is missing
@@ -24,7 +28,8 @@ function R = behaviorValues(y, x, opts)
 %   (labels), seriesValues, groups (one row per series: index, label,
 %   color, n), mean / sem / median / n [nX x nSeries], values (table, one
 %   row per epoch kept: epoch (its row of Y), xIndex, seriesIndex, y),
-%   nEpochs, nMissing, param, seriesParam, yName, units, params, created.
+%   nEpochs, nMissing, param, seriesParam, yName, units, err (type, lo / hi
+%   [nX x nSeries], over "epochs", nBoot), params, created.
 %
 %   See also epochTable, renderBehavior, tuningCurve.
 
@@ -36,6 +41,8 @@ arguments
     opts.SeriesParam (1,1) string = ""
     opts.YName (1,1) string = "y"
     opts.YUnits (1,1) string = ""
+    opts.ErrorType (1,1) string {mustBeMember(opts.ErrorType, ["sem" "std" "ci95"])} = "sem"
+    opts.ErrorResamples (1,1) double {mustBePositive, mustBeInteger} = 1000
 end
 
 if ~(isnumeric(y) || islogical(y))
@@ -72,6 +79,7 @@ xi = zeros(nE, 1); si = zeros(nE, 1);
 [~, xi(ok)] = ismember(x(ok), ux);
 [~, si(ok)] = ismember(s(ok), us);
 M = NaN(nX, nS); SE = NaN(nX, nS); MD = NaN(nX, nS); N = zeros(nX, nS);
+LO = NaN(nX, nS); HI = NaN(nX, nS);
 for i = 1:nX
     for j = 1:nS
         v = y(ok & xi == i & si == j);
@@ -79,6 +87,7 @@ for i = 1:nX
         if isempty(v); continue; end
         M(i, j) = mean(v);
         SE(i, j) = semOf(v, 1);
+        [LO(i, j), HI(i, j)] = errorBounds(v, 1, opts.ErrorType, opts.ErrorResamples);
         MD(i, j) = median(v);
     end
 end
@@ -102,6 +111,7 @@ R.seriesValues = us;
 R.groups = G;
 R.mean = M;
 R.sem = SE;
+R.err = struct('type', opts.ErrorType, 'lo', LO, 'hi', HI, 'over', "epochs", 'nBoot', opts.ErrorResamples);
 R.median = MD;
 R.n = N;
 R.values = table(rows, xi(rows), si(rows), y(rows), 'VariableNames', {'epoch', 'xIndex', 'seriesIndex', 'y'});

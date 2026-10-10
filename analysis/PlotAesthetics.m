@@ -209,7 +209,7 @@ classdef PlotAesthetics
                 if isempty(name) || name == ""; name = strjoin(string(ax.Title.String), " "); end
                 if name == ""; name = "Tile " + t; end
                 role = string(ax.Tag);
-                if ~ismember(role, ["axes" "rasterAxes"]); role = "axes"; end
+                if ~ismember(role, ["axes" "rasterAxes"]); role = "axes"; end   % an aux panel ("auxAxes") is styled as a data panel
                 C(end+1) = struct('h', ax, 'role', role, 'group', "", 'tile', t, 'name', name); %#ok<AGROW>
                 C = addText(C, ax.Title, "tileTitle", t, name);
                 C = addText(C, ax.Subtitle, "tileSubtitle", t, name);
@@ -227,6 +227,9 @@ classdef PlotAesthetics
                     C(end+1) = struct('h', ax.Colorbar, 'role', "colorbar", 'group', "", 'tile', t, 'name', name); %#ok<AGROW>
                 end
                 kids = flipud(allchild(ax));
+                if numel(ax.YAxis) > 1   % a yyaxis lists the active side's children: the other side's too (an aux signal "over" a plot)
+                    kids = [kids; otherSideChildren(ax, kids)]; %#ok<AGROW>
+                end
                 for c = reshape(kids, 1, [])
                     g = string(getappdata(c, 'PlotGroup'));
                     if isempty(g); g = ""; end
@@ -292,7 +295,7 @@ classdef PlotAesthetics
                 "colorbar"     "Color bar"
                 "rate"         "PSTH"
                 "rateFill"     "PSTH fill"
-                "sem"          "SEM band"
+                "sem"          "Error band"
                 "stopLine"     "Stop event (mean)"
                 "stackBase"    "Row baseline"
                 "overlayLine"  "Overlay line"
@@ -305,6 +308,8 @@ classdef PlotAesthetics
                 "rasterBand"   "Raster group band"
                 "rasterStop"   "Raster stop dots"
                 "rasterEvent"  "Raster event marks"
+                "auxTrace"     "Aux signal (mean)"
+                "auxSem"       "Aux signal error band"
                 "trace"        "Mean trace"
                 "channelTrace" "Channel trace"
                 "bar"          "Bar"
@@ -692,6 +697,26 @@ classdef PlotAesthetics
             O.Scatter = struct('LineWidth', "Marker edge width");
         end
     end
+end
+
+
+function kids = otherSideChildren(ax, have)
+%otherSideChildren  The children of the side of a yyaxis AX that is not active, but for those in HAVE.
+%   The active side is made active again after; nothing drawn changes.
+kids = gobjects(0, 1);
+side = ax.YAxisLocation;
+other = 'right';
+if strcmp(side, 'right'); other = 'left'; end
+try
+    yyaxis(ax, other);
+    k = flipud(allchild(ax));
+    yyaxis(ax, side);
+catch
+    return
+end
+for i = 1:numel(k)
+    if ~any(k(i) == have); kids(end+1, 1) = k(i); end %#ok<AGROW>
+end
 end
 
 

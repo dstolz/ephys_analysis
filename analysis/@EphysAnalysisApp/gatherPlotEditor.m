@@ -99,6 +99,17 @@ p.waveform.scale = E.waveScale.Value;
 p.waveform.ampScale = string(E.waveAmp.Value);
 p.waveform.showSites = logical(E.waveSites.Value);
 p.waveform.showNames = logical(E.waveNames.Value);
+p.aux.mode = string(E.auxMode.Value);
+p.aux.placement = string(E.auxPlacement.Value);
+p.aux.channels = parseList(E.auxChannels.Value);
+p.aux.baseline = "none";
+if E.auxBaseline.Value; p.aux.baseline = "subtract"; end
+p.aux.baselineWindow = [E.auxBaseFrom.Value E.auxBaseTo.Value];
+p.aux.byGroup = logical(E.auxByGroup.Value);
+yl = parseList(E.auxYLim.Value);
+if numel(yl) ~= 2 || yl(2) <= yl(1); yl = []; end   % two ascending values, else from the traces
+p.aux.yLim = yl;
+p.aux.overPosition = [E.auxOverFrom.Value E.auxOverTo.Value];
 p.note.text = strjoin(string(E.annText.Value(:)).', newline);
 p.note.placement = string(E.annPlace.Value);
 p.note.x = E.annX.Value;
@@ -127,6 +138,16 @@ p.style.SortShank = E.sortShank.Value;
 p.style.LabelDepth = E.labelDepth.Value;
 p.style.LabelShank = E.labelShank.Value;
 p.style.ShowSEM = E.showSEM.Value;
+p.style.ErrorType = string(E.errType.Value);
+p.style.ErrorResamples = E.errResamples.Value;
+p.style.ErrorFaceColor = strtrim(string(E.errFace.Value));
+if lower(p.style.ErrorFaceColor) == "auto"; p.style.ErrorFaceColor = ""; end
+p.style.ErrorFaceAlpha = E.errAlpha.Value;
+if isempty(p.style.ErrorFaceAlpha); p.style.ErrorFaceAlpha = NaN; end
+p.style.ErrorEdgeColor = strtrim(string(E.errEdge.Value));
+if p.style.ErrorEdgeColor == ""; p.style.ErrorEdgeColor = "none"; end
+p.style.ErrorEdgeStyle = string(E.errEdgeStyle.Value);
+p.style.ErrorEdgeWidth = E.errEdgeWidth.Value;
 p.style.ShowStop = E.showStop.Value;
 p.style.Legend = E.legend.Value;
 p.style.LegendLocation = string(E.legendLoc.Value);

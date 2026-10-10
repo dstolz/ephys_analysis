@@ -34,7 +34,9 @@ classdef EphysAnalysisApp < handle
     %                an editor in collapsible sections (units & channels,
     %                event reference, epoch window, trial selection, bins &
     %                baseline, the kind's options, appearance, unit waveform,
-    %                text note, overlays: any number of lines and
+    %                aux signals (a PSTH's or raster's mean accelerometer
+    %                signal below, above or over each unit's panels), text
+    %                note, overlays: any number of lines and
     %                semitransparent patches on the plot's axes) showing only the
     %                options the plot uses -- its event / window / selection
     %                the Alignment tab's while "Use default" is ticked, its own

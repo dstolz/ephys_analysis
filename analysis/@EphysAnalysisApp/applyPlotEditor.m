@@ -123,6 +123,21 @@ E.waveScale.Value = min(E.waveScale.Limits(2), max(E.waveScale.Limits(1), wv.sca
 E.waveAmp.Value = char(pickFrom(wv.ampScale, string(E.waveAmp.ItemsData), "unit"));
 E.waveSites.Value = wv.showSites;
 E.waveNames.Value = wv.showNames;
+xs = p.aux;
+E.auxMode.Value = char(pickFrom(xs.mode, string(E.auxMode.ItemsData), "off"));
+E.auxPlacement.Value = char(pickFrom(xs.placement, string(E.auxPlacement.ItemsData), "below"));
+E.auxChannels.Value = listText(xs.channels);
+E.auxBaseline.Value = xs.baseline == "subtract";
+bw = xs.baselineWindow;
+if ~(numel(bw) == 2 && all(isfinite(bw))); bw = EphysAnalysisConfig.defaults("Aux").baselineWindow; end
+E.auxBaseFrom.Value = bw(1);
+E.auxBaseTo.Value = bw(2);
+E.auxByGroup.Value = xs.byGroup;
+E.auxYLim.Value = listText(xs.yLim);
+op = xs.overPosition;
+if ~(numel(op) == 2 && all(isfinite(op))); op = [0 1]; end
+E.auxOverFrom.Value = min(1, max(0, op(1)));
+E.auxOverTo.Value = min(1, max(0, op(2)));
 nt = p.note;
 E.annText.Value = cellstr(splitlines(nt.text));
 E.annPlace.Value = char(pickFrom(nt.placement, string(E.annPlace.ItemsData), "below"));
@@ -154,6 +169,17 @@ E.sortShank.Value = s.SortShank;
 E.labelDepth.Value = s.LabelDepth;
 E.labelShank.Value = s.LabelShank;
 E.showSEM.Value = s.ShowSEM;
+E.errType.Value = char(pickFrom(s.ErrorType, string(E.errType.ItemsData), "sem"));
+E.errResamples.Value = min(E.errResamples.Limits(2), max(E.errResamples.Limits(1), round(s.ErrorResamples)));
+offerItems(E.errFace, string(E.errFace.Items), pick(s.ErrorFaceColor, "auto"));
+if isnan(s.ErrorFaceAlpha)
+    E.errAlpha.Value = [];
+else
+    E.errAlpha.Value = min(1, max(0, s.ErrorFaceAlpha));
+end
+offerItems(E.errEdge, string(E.errEdge.Items), pick(s.ErrorEdgeColor, "none"));
+E.errEdgeStyle.Value = char(pickFrom(s.ErrorEdgeStyle, string(E.errEdgeStyle.ItemsData), "-"));
+E.errEdgeWidth.Value = min(E.errEdgeWidth.Limits(2), max(E.errEdgeWidth.Limits(1), s.ErrorEdgeWidth));
 E.showStop.Value = s.ShowStop;
 E.legend.Value = s.Legend;
 E.legendLoc.Value = char(pickFrom(s.LegendLocation, string(E.legendLoc.ItemsData), "auto"));

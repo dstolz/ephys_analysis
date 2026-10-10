@@ -41,7 +41,13 @@ function S = populationSummary(P, opts)
 %                TuningNormalize "peak" (default) divides each unit's
 %                curve by its highest level first (a unit whose highest
 %                level is not above 0 is left out); "none" keeps spikes/s
-%     params     GroupBy, DepthBinUm, TuningNormalize
+%                psth and tuning also hold lo / hi, the error band of
+%                each group's mean across its units (errorBounds:
+%                ErrorType "sem" (default), "std" or "ci95", a bootstrap 95%
+%                CI with ErrorResamples resamples of the units, default
+%                1000), and errorType
+%     params     GroupBy, DepthBinUm, TuningNormalize, ErrorType,
+%                ErrorResamples
 %
 %   See also populationAnalysis, renderPopulation, writePopulation.
 
@@ -50,6 +56,8 @@ arguments
     opts.GroupBy (1,:) string = ["subject" "class"]
     opts.DepthBinUm (1,1) double {mustBePositive} = 100
     opts.TuningNormalize (1,1) string = "peak"
+    opts.ErrorType (1,1) string {mustBeMember(opts.ErrorType, ["sem" "std" "ci95"])} = "sem"
+    opts.ErrorResamples (1,1) double {mustBePositive, mustBeInteger} = 1000
 end
 
 keysAllowed = ["subject" "dataset" "class" "shank" "depth" "direction" "responsive" "tuned" "auroc"];
@@ -135,10 +143,11 @@ G = [G, array2table(M, 'VariableNames', cellstr([cols, "median_" + qual]))];
 
 % --- mean PSTH and tuning per group ---------------------------------------------------------------
 X = P.psth.rate;
-pm = NaN(size(X, 1), nG); ps = pm;
+pm = NaN(size(X, 1), nG); ps = pm; plo = pm; phi = pm;
 for g = 1:nG
     pm(:, g) = mean(X(:, gi == g), 2, 'omitnan');
     ps(:, g) = semOf(X(:, gi == g), 2);
+    [plo(:, g), phi(:, g)] = errorBounds(X(:, gi == g), 2, opts.ErrorType, opts.ErrorResamples);
 end
 Tn = P.tuning.rate;
 if opts.TuningNormalize == "peak" && ~isempty(Tn)
@@ -146,10 +155,13 @@ if opts.TuningNormalize == "peak" && ~isempty(Tn)
     Tn = Tn ./ top;
     Tn(:, ~(top > 0)) = NaN;
 end
-tm = NaN(size(Tn, 1), nG); ts = tm;
+tm = NaN(size(Tn, 1), nG); ts = tm; tlo = tm; thi = tm;
 for g = 1:nG
     tm(:, g) = mean(Tn(:, gi == g), 2, 'omitnan');
     ts(:, g) = semOf(Tn(:, gi == g), 2);
+    if ~isempty(Tn)
+        [tlo(:, g), thi(:, g)] = errorBounds(Tn(:, gi == g), 2, opts.ErrorType, opts.ErrorResamples);
+    end
 end
 
 S = struct();
@@ -159,10 +171,12 @@ if ~isempty(P.auroc)
     S.auroc = struct('cutoff', P.auroc.cutoff, 'groupBy', P.auroc.groupBy, 'families', P.auroc.families);
 end
 S.unitGroup = gi;
-S.psth = struct('t', P.psth.t, 'mean', pm, 'sem', ps, 'units', P.psth.units);
+S.psth = struct('t', P.psth.t, 'mean', pm, 'sem', ps, 'units', P.psth.units, 'lo', plo, 'hi', phi, ...
+    'errorType', opts.ErrorType);
 S.tuning = struct('param', P.tuning.param, 'levels', P.tuning.levels, 'mean', tm, 'sem', ts, ...
-    'normalize', opts.TuningNormalize);
-S.params = struct('GroupBy', by, 'DepthBinUm', opts.DepthBinUm, 'TuningNormalize', opts.TuningNormalize);
+    'normalize', opts.TuningNormalize, 'lo', tlo, 'hi', thi, 'errorType', opts.ErrorType);
+S.params = struct('GroupBy', by, 'DepthBinUm', opts.DepthBinUm, 'TuningNormalize', opts.TuningNormalize, ...
+    'ErrorType', opts.ErrorType, 'ErrorResamples', opts.ErrorResamples);
 end
 
 

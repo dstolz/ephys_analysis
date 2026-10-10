@@ -40,14 +40,24 @@ function issues = validate(obj, opts)
 %               and maxSpikes, and a warning when the plot draws no unit
 %               tiles (a raster, a PSTH or tuning grid of spikes, a
 %               waveforms plot); its amplitude scale; a waveforms plot's
-%               mode is never off; a note's placement, alignment, rotation,
+%               mode is never off; an aux mode other than off: its
+%               placement (a warning for "over" on a stacked PSTH, drawn
+%               below), y limits ([] or ascending), overPosition (0 <=
+%               bottom < top <= 1), channels (whole numbers >= 1), baseline and a
+%               baseline window [b0 b1] that overlaps the epoch window,
+%               and a warning when the plot is not a PSTH or raster of
+%               spikes; a note's placement, alignment, rotation,
 %               font size and interpreter (a color that is not one is a
 %               warning); each overlay's shape, axis, finite position (line)
 %               or edges (region, which must differ), panel, layer, line
 %               style and width, opacities (0-1), and colors (one that is
 %               not a color is a warning), a warning for a panel the plot
 %               does not draw and for two overlays with one name; style
-%               values
+%               values (the error: ErrorType sem / std / ci95, ci95 with
+%               the Statistics and Machine Learning Toolbox where the plot
+%               draws it, whole ErrorResamples >= 1, the bands' opacity
+%               (0-1 or NaN), edge style and width; a face or edge color
+%               that is not one is a warning)
 %     Export    formats are png / eps / svg / pdf; Dpi, FigureSizeCm; the
 %               folder and file-name patterns use known tokens; a warning
 %               when the files of two enabled plots, or of two datasets,
@@ -324,6 +334,47 @@ for k = 1:numel(obj.Plots)
                 "PSTH or tuning grid, of spikes; this plot draws none.");
         end
     end
+    aux = p.aux;
+    x0 = f0 + ".aux";
+    if ~ismember(aux.mode, EphysAnalysisConfig.AuxModes)
+        add("Plots", x0 + ".mode", "error", "The aux mode is one of " + strjoin(EphysAnalysisConfig.AuxModes, ", ") + ".");
+    elseif aux.mode ~= "off"
+        if ~(ismember(p.kind, ["psth" "raster"]) && ismember(p.source, EphysAnalysisConfig.SpikeSources))
+            add("Plots", x0 + ".mode", "warning", "The mean aux signal is drawn with the units of a PSTH or raster " + ...
+                "of spikes; this plot draws none.");
+        end
+        if ~ismember(aux.placement, EphysAnalysisConfig.AuxPlacements)
+            add("Plots", x0 + ".placement", "error", "The aux placement is one of " + ...
+                strjoin(EphysAnalysisConfig.AuxPlacements, ", ") + ".");
+        elseif aux.placement == "over" && p.kind == "psth" && p.stack
+            add("Plots", x0 + ".placement", "warning", "A stacked PSTH's right axis labels its rows' peaks: " + ...
+                "the aux signal goes below it instead of over it.");
+        end
+        yl = aux.yLim;
+        if ~(isempty(yl) || (numel(yl) == 2 && all(isfinite(yl)) && yl(2) > yl(1)))
+            add("Plots", x0 + ".yLim", "error", "The aux y limits are [] (from the traces) or [lo hi] with lo < hi, in the signal's units.");
+        end
+        op = aux.overPosition;
+        if ~(numel(op) == 2 && all(isfinite(op)) && op(1) >= 0 && op(2) <= 1 && op(2) > op(1))
+            add("Plots", x0 + ".overPosition", "error", "The aux overPosition is [bottom top], fractions of the plot's height with 0 <= bottom < top <= 1.");
+        end
+        if ~isempty(aux.channels) && ~all(aux.channels >= 1 & aux.channels == round(aux.channels))
+            add("Plots", x0 + ".channels", "error", "The aux channels are columns of the AUX extract: whole numbers, at least 1 ([] = all).");
+        end
+        if ~ismember(aux.baseline, ["none" "subtract"])
+            add("Plots", x0 + ".baseline", "error", "The aux baseline is none or subtract.");
+        elseif aux.baseline == "subtract"
+            bw = aux.baselineWindow;
+            w = p.window;
+            if isequal(w, "default"); w = D.Window; end
+            if ~(numel(bw) == 2 && all(isfinite(bw)) && bw(2) > bw(1))
+                add("Plots", x0 + ".baselineWindow", "error", "The aux baseline window must be [b0 b1] with b0 < b1 (s from the event).");
+            elseif isstruct(w) && (bw(2) < w.pre || bw(1) > w.post)
+                add("Plots", x0 + ".baselineWindow", "error", sprintf("The aux baseline window [%g %g] s must overlap " + ...
+                    "the epoch window [%g %g] s: it is taken from the samples cut for each epoch.", bw(1), bw(2), w.pre, w.post));
+            end
+        end
+    end
     nt = p.note;
     n0 = f0 + ".note";
     if strtrim(nt.text) ~= ""
@@ -412,6 +463,30 @@ for k = 1:numel(obj.Plots)
     end
     if ~ismember(st.LegendOrientation, ["auto" "vertical" "horizontal"])
         add("Plots", f0 + ".style.LegendOrientation", "error", "LegendOrientation is auto, vertical or horizontal.");
+    end
+    if ~ismember(st.ErrorType, EphysAnalysisConfig.ErrorTypes)
+        add("Plots", f0 + ".style.ErrorType", "error", "ErrorType is sem (mean +/- SEM), std (mean +/- SD) or ci95 (bootstrap 95% CI).");
+    elseif st.ShowSEM && st.ErrorType == "ci95" && (plotErrorType(p) == "ci95" || plotErrorType(p, "aux") == "ci95") ...
+            && ~(license('test', 'Statistics_Toolbox') && exist('bootci', 'file'))
+        add("Plots", f0 + ".style.ErrorType", "error", "The bootstrap 95% CI needs the Statistics and Machine Learning Toolbox (bootci).");
+    end
+    if ~(isfinite(st.ErrorResamples) && st.ErrorResamples >= 1 && st.ErrorResamples == round(st.ErrorResamples))
+        add("Plots", f0 + ".style.ErrorResamples", "error", "ErrorResamples is a whole number of bootstrap resamples, at least 1.");
+    end
+    if ~(isnan(st.ErrorFaceAlpha) || (st.ErrorFaceAlpha >= 0 && st.ErrorFaceAlpha <= 1))
+        add("Plots", f0 + ".style.ErrorFaceAlpha", "error", "ErrorFaceAlpha is an opacity from 0 to 1 (NaN = opaque, the trace's color paled).");
+    end
+    if st.ErrorFaceColor ~= "" && ~isColor(st.ErrorFaceColor)
+        add("Plots", f0 + ".style.ErrorFaceColor", "warning", "No color """ + st.ErrorFaceColor + """; the bands take their trace's color.");
+    end
+    if ~ismember(lower(strtrim(st.ErrorEdgeColor)), ["none" "auto"]) && ~isColor(st.ErrorEdgeColor)
+        add("Plots", f0 + ".style.ErrorEdgeColor", "warning", "No color """ + st.ErrorEdgeColor + """; the bands have no edge.");
+    end
+    if ~ismember(st.ErrorEdgeStyle, EphysAnalysisConfig.OverlayLineStyles)
+        add("Plots", f0 + ".style.ErrorEdgeStyle", "error", "ErrorEdgeStyle is one of " + strjoin(EphysAnalysisConfig.OverlayLineStyles, "  ") + ".");
+    end
+    if ~(isfinite(st.ErrorEdgeWidth) && st.ErrorEdgeWidth > 0)
+        add("Plots", f0 + ".style.ErrorEdgeWidth", "error", "ErrorEdgeWidth must be positive (points).");
     end
     if ~(st.FontSize > 0);  add("Plots", f0 + ".style.FontSize", "error", "FontSize must be positive."); end
     if ~(st.LineWidth > 0); add("Plots", f0 + ".style.LineWidth", "error", "LineWidth must be positive."); end

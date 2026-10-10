@@ -9,8 +9,10 @@ function reason = plotSkipReason(src, spec)
 %   of their sequences, a raster's event marks and mark sequences, or the
 %   event a drawn raster is sorted by and its sequence), "no trial
 %   parameter X" (grouping, shifting (the sort event's too), tuning,
-%   behavior and raster sort parameters). A plot that passes may
-%   still fail when it runs (e.g. no event survives the selection).
+%   behavior and raster sort parameters), "no AUX extract" (a psth or
+%   raster of spikes that draws the mean aux signal, aux.mode not "off").
+%   A plot that passes may still fail when it runs (e.g. no event survives
+%   the selection).
 %
 %   See also EphysAnalysisRunner.plan, EphysAnalysisRunner.runDataset.
 
@@ -65,6 +67,9 @@ if ismember(spec.kind, ["psth" "raster"]) && (spec.kind == "raster" || spec.with
     sortRef = spec.rasterSortEvent;
 end
 if ismember(spec.kind, ["psth" "raster"]) && ismember(spec.source, ["units" "detected"])
+    if spec.aux.mode ~= "off" && ~(isfield(src.signals, 'AUX') && src.signals.AUX)
+        reason = "no AUX extract"; return
+    end
     for ln = spec.rasterEvents.lines
         if ~(isfield(src.events, ln) || (ln == "Trial" && src.trialLine ~= ""))
             reason = "no line " + ln; return

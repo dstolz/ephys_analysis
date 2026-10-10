@@ -1,21 +1,14 @@
 function semBand(ax, t, m, s, color, group, style)
-%semBand  Shaded mean +/- SEM behind a trace (opaque, so vector exports stay vector).
-%   One patch per run of finite samples; the fill is COLOR blended 75% with
-%   the ground (white, or the plot design's background in STYLE: paleColor)
-%   instead of transparency. The patches are tagged "sem", with GROUP
-%   (default "") as their group (tagPart).
+%semBand  Shaded mean +/- S behind a trace: errorPatch between M - S and M + S.
+%   semBand(AX, T, M, S, COLOR, GROUP, STYLE) is errorPatch(AX, T, M - S,
+%   M + S, COLOR, GROUP, STYLE): one patch per run of finite samples,
+%   tagged "sem" with GROUP (default ""), in STYLE's band look (by default
+%   COLOR blended 75% with the ground, opaque, so vector exports stay
+%   vector).
+%
+%   See also errorPatch, errorBounds.
 if nargin < 6; group = ""; end
 if nargin < 7; style = struct(); end
-t = t(:); m = m(:); s = s(:);
-ok = isfinite(t) & isfinite(m) & isfinite(s);
-if ~any(ok); return; end
-fillColor = paleColor(color, 0.75, style);
-d = diff([false; ok; false]);
-starts = find(d == 1);
-stops = find(d == -1) - 1;
-for k = 1:numel(starts)
-    r = starts(k):stops(k);
-    tagPart(patch(ax, [t(r); flipud(t(r))], [m(r) - s(r); flipud(m(r) + s(r))], fillColor, ...
-        'EdgeColor', 'none', 'HandleVisibility', 'off'), "sem", group);
-end
+m = m(:); s = s(:);
+errorPatch(ax, t, m - s, m + s, color, group, style);
 end

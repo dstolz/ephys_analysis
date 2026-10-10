@@ -8,7 +8,10 @@ function h = renderEvoked(R, target, opts)
 %             probe first; neither = as listed), groups in their colors;
 %             "butterfly": one tile per group, every channel overlaid,
 %             colored by that order; "grid": one tile per channel in that
-%             order (MaxTiles per page), groups overlaid with SEM bands.
+%             order (MaxTiles per page), groups overlaid with error bands.
+%             The stack and grid draw each mean's error band (R.err:
+%             mean +/- SEM or SD, or a bootstrap 95% CI, over the epochs)
+%             with Style.ShowSEM, as patches in Style's Error* look
 %             Style.LabelShank / Style.LabelDepth append the shank / depth
 %             to the channel labels
 %     Page    page of channels in grid layout
@@ -41,6 +44,7 @@ colors = groupPalette(R.groups, style);
 order = probeOrder(R.meta, nC, style);
 labels = siteLabels(R.labels, R.meta, style);
 t = R.t;
+[eLo, eHi] = resultBounds(R, 'mean');
 h = struct('layout', [], 'axes', gobjects(0), 'spacing', NaN);
 yl = "Amplitude (" + unitText(R.units) + ")";
 
@@ -64,7 +68,7 @@ switch opts.Layout
             for g = 1:nG
                 m = R.mean(:, c, g) + off;
                 if style.ShowSEM
-                    semBand(ax, t, m, R.sem(:, c, g), colors(g, :), R.groups.label(g), style);
+                    errorPatch(ax, t, eLo(:, c, g) + off, eHi(:, c, g) + off, colors(g, :), R.groups.label(g), style);
                 end
                 lh(g) = tagPart(plot(ax, t, m, 'Color', colors(g, :), 'LineWidth', style.LineWidth), "trace", R.groups.label(g));
             end
@@ -134,7 +138,7 @@ switch opts.Layout
             hold(ax, 'on');
             lh = gobjects(1, nG);
             for g = 1:nG
-                if style.ShowSEM; semBand(ax, t, R.mean(:, c, g), R.sem(:, c, g), colors(g, :), R.groups.label(g), style); end
+                if style.ShowSEM; errorPatch(ax, t, eLo(:, c, g), eHi(:, c, g), colors(g, :), R.groups.label(g), style); end
                 lh(g) = tagPart(plot(ax, t, R.mean(:, c, g), 'Color', colors(g, :), 'LineWidth', style.LineWidth), ...
                     "trace", R.groups.label(g));
             end

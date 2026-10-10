@@ -24,8 +24,15 @@ function txt = plotCaption(spec, R)
 %   and the events its sequence did not follow are counted; a raster says how its
 %   rows are sorted (by an event's latency: how many epochs had no such
 %   event and went last) and which events it marks; a behavior plot what it
-%   plots against what, per series, and how many epochs had no value. The
-%   reports print it under each figure.
+%   plots against what, per series, and how many epochs had no value; a
+%   PSTH or raster with the mean aux signal (R.aux) which channels it
+%   shows and how (each channel, or their vector magnitude; the baseline
+%   subtracted), where, over how many epochs, and how many epochs left the
+%   AUX signal or held missing samples and were left out of it. With
+%   Style.ShowSEM, what the error bands or bars show: "bands: mean +/- SEM
+%   across epochs", "mean +/- SD", or "the bootstrap 95% CI of the mean
+%   (1000 resamples, percentile)" -- across the units for an overlay of
+%   several units (PSTH, tuning). The reports print it under each figure.
 %
 %   See also renderPlot, writeHtmlReport, writePdfReport.
 
@@ -141,7 +148,12 @@ if spec.kind == "behavior"
         case "points", parts(end+1) = "every epoch's value, with the mean +/- SEM";
         case "line",   parts(end+1) = "mean +/- SEM";
     end
-    if ~spec.style.ShowSEM && spec.layout ~= "box"; parts(end) = replace(parts(end), " +/- SEM", ""); end
+    if spec.layout ~= "box"
+        [~, ~, E] = resultBounds(R, 'mean');
+        pm = errPhrase(E.type, E.nBoot);
+        if ~spec.style.ShowSEM; pm = ""; end
+        parts(end) = replace(parts(end), " +/- SEM", pm);
+    end
 end
 if isfield(U, 'nDroppedNoValue') && U.nDroppedNoValue > 0
     parts(end+1) = sprintf("%d event(s) without a value of %s left out", U.nDroppedNoValue, U.ref.offsetParam);
@@ -161,6 +173,8 @@ if spec.kind == "psth"
         parts(end+1) = "groups stacked, first at the bottom";
     end
 end
+et = errorText(spec, R);
+if et ~= ""; parts(end+1) = et; end
 if ismember(spec.kind, ["psth" "raster"]) && isfield(R, 'raster') && ~isempty(R.raster)
     by = spec.rasterSort;
     if by == "stop"; by = "stop latency"; end
@@ -190,6 +204,9 @@ if ismember(spec.kind, ["psth" "raster"]) && isfield(R, 'raster') && ~isempty(R.
 end
 if isfield(R, 'waveforms') && spec.waveform.mode ~= "off"
     parts(end+1) = waveText(spec, R.waveforms);
+end
+if ismember(spec.kind, ["psth" "raster"]) && isfield(R, 'aux') && isstruct(R.aux) && ~isempty(R.aux) && spec.aux.mode ~= "off"
+    parts = [parts auxText(spec, R)];
 end
 parts(end+1) = sourceText(spec, R);
 txt = strjoin(parts, "; ") + ".";
@@ -225,6 +242,114 @@ nT = nnz(W.from == "template");
 nN = nnz(W.from == "none");
 if nT > 0; s = s + sprintf(", %d by their template (the sorted .bin is not there)", nT); end
 if nN > 0; s = s + sprintf(", none for %d", nN); end
+end
+
+
+function parts = auxText(spec, R)
+%auxText  The mean aux signal: what it is, where it is drawn, its epochs and those left out of it.
+A = R.aux;
+ch = strjoin(reshape(A.channelLabels, 1, []), ", ");
+if A.mode == "magnitude"
+    s = "aux: mean vector magnitude (square root of the sum of squares, in each epoch at every sample) of " + ch;
+else
+    s = "aux: mean of " + ch;
+end
+if isfield(A.params, 'Baseline') && numel(A.params.Baseline) == 2
+    s = s + sprintf(" with each epoch's mean over [%g %g] s subtracted from each channel", A.params.Baseline(1), A.params.Baseline(2));
+    if A.mode == "magnitude"; s = s + " first"; end
+end
+s = s + " (" + A.units + ")";
+place = spec.aux.placement;
+if place == "over" && spec.kind == "psth" && spec.stack && isfield(R, 'rate') && size(R.rate, 3) > 1
+    place = "below";   % a stack's right axis is its rows' peaks
+end
+what = "PSTH";
+if spec.kind == "raster" || (place == "above" && spec.withRaster && isfield(R, 'raster') && ~isempty(R.raster))
+    what = "raster";
+end
+switch place
+    case "below", s = s + ", in a panel below the " + what;
+    case "above", s = s + ", in a panel above the " + what;
+    otherwise
+        s = s + ", on the " + what + "'s right axis";
+        op = spec.aux.overPosition;
+        if numel(op) == 2 && ~isequal(op, [0 1])
+            s = s + sprintf(" (from %g to %g of its height)", op(1), op(2));
+        end
+end
+if numel(spec.aux.yLim) == 2
+    s = s + sprintf(", y limits [%g %g] %s", spec.aux.yLim(1), spec.aux.yLim(2), A.units);
+end
+if A.byGroup && height(A.groups) > 1
+    s = s + sprintf(", one trace per group (n = %s epochs)", strjoin(string(A.nEpochs(:).'), ", "));
+else
+    s = s + sprintf(" (n = %d epochs)", sum(A.nEpochs));
+end
+if spec.style.ShowSEM
+    [~, ~, E] = resultBounds(A, 'mean');
+    s = s + ", bands: " + errWords(E.type, E.nBoot) + " across epochs";
+end
+parts = s;
+nOut = A.droppedEdge + A.droppedNonFinite;
+if nOut > 0
+    parts(end+1) = sprintf("%d epoch(s) leaving the AUX signal or holding missing samples left out of the aux mean", nOut);
+end
+end
+
+
+function s = errorText(spec, R)
+%errorText  What a PSTH's, evoked plot's, rate plot's or tuning curve's error bands or bars show ("": none drawn).
+%   Over the epochs, the error R.err holds; over the units, for an overlay
+%   of several units, the style's (the renderer makes it).
+s = "";
+if ~spec.style.ShowSEM; return; end
+across = "epochs";
+switch spec.kind
+    case "psth"
+        if isAuroc(R); return; end
+        what = "bands"; field = 'rate';
+        if spec.layout == "overlay" && size(R.rate, 2) > 1; across = "units"; end
+    case "evoked"
+        if spec.layout == "butterfly"; return; end
+        what = "bands"; field = 'mean';
+    case "rate"
+        if spec.layout ~= "bar"; return; end
+        what = "error bars"; field = 'meanRate';
+    case "tuning"
+        what = "error bars"; field = 'mean';
+        if spec.layout == "overlay" && size(R.mean, 2) > 1; across = "units"; end
+    otherwise
+        return
+end
+if across == "units"
+    type = spec.style.ErrorType;
+    nBoot = spec.style.ErrorResamples;
+else
+    [~, ~, E] = resultBounds(R, field);
+    type = E.type;
+    nBoot = E.nBoot;
+end
+s = what + ": " + errWords(type, nBoot) + " across " + across;
+end
+
+
+function s = errWords(type, nBoot)
+%errWords  An error band's name: "mean +/- SEM", "mean +/- SD", or the bootstrap CI and how it was made.
+switch type
+    case "std",  s = "mean +/- SD";
+    case "ci95", s = sprintf("the bootstrap 95%% CI of the mean (%d resamples, percentile)", nBoot);
+    otherwise,   s = "mean +/- SEM";
+end
+end
+
+
+function s = errPhrase(type, nBoot)
+%errPhrase  " +/- SEM" in a behavior caption, or what stands for it.
+switch type
+    case "std",  s = " +/- SD";
+    case "ci95", s = sprintf(" and its bootstrap 95%% CI (%d resamples of the epochs, percentile)", nBoot);
+    otherwise,   s = " +/- SEM";
+end
 end
 
 

@@ -133,6 +133,11 @@ if ~(numel(bw) == 2 && all(isfinite(bw))); bw = EphysAnalysisConfig.defaults("Au
 E.auxBaseFrom.Value = bw(1);
 E.auxBaseTo.Value = bw(2);
 E.auxByGroup.Value = xs.byGroup;
+E.auxYLim.Value = listText(xs.yLim);
+op = xs.overPosition;
+if ~(numel(op) == 2 && all(isfinite(op))); op = [0 1]; end
+E.auxOverFrom.Value = min(1, max(0, op(1)));
+E.auxOverTo.Value = min(1, max(0, op(2)));
 nt = p.note;
 E.annText.Value = cellstr(splitlines(nt.text));
 E.annPlace.Value = char(pickFrom(nt.placement, string(E.annPlace.ItemsData), "below"));

@@ -920,6 +920,23 @@ check(isempty(h.auxAxes) && numel(ax.YAxis) == 2 && string(ax.YAxisLocation) == 
     && string(ax.YAxis(2).Label.String) == "|AUX| (V)", 'over: on the rate panel''s right y axis, named there; the left side is active again');
 T = PlotAesthetics.components(figA);
 check(nnz(T.Role == "auxTrace") == 2 && any(T.Role == "auxSem"), 'the aesthetics editor lists the traces on the right side of a yyaxis');
+h = renderPSTH(RsA, figA, Aux=auxSpec('placement', "over", 'overPosition', [0 0.3], 'yLim', [2.5 5.5]));
+ax = h.axes(1);
+yyaxis(ax, 'right'); yr = ax.YLim; tk = ax.YTick; yyaxis(ax, 'left');
+check(abs((2.5 - yr(1)) / diff(yr)) < 1e-9 && abs((5.5 - yr(1)) / diff(yr) - 0.3) < 1e-9 ...
+    && numel(tk) >= 2 && numel(tk) <= 3 && all(tk >= 2.5 & tk <= 5.5), ...
+    'over, span 0 to 0.3, y limits [2.5 5.5]: the limits sit at the panel''s bottom and three tenths up; the right ticks stay along that span');
+h = renderPSTH(RsA, figA, Aux=auxSpec('placement', "over", 'overPosition', [0.7 1]));
+ax = h.axes(1);
+yyaxis(ax, 'right'); yr = ax.YLim; yyaxis(ax, 'left');
+trs = bothSides(ax, 'auxTrace');
+yd = [trs.YData];
+check(min(yd - yr(1)) / diff(yr) >= 0.7 - 1e-9 && max(yd - yr(1)) / diff(yr) <= 1 + 1e-9, ...
+    'span 0.7 to 1 with automatic limits: the traces stay in the top three tenths');
+h = renderPSTH(RsA, figA, Aux=auxSpec('placement', "below", 'yLim', [0 10]));
+cap = plotCaption(struct('kind', "psth", 'aux', auxSpec('placement', "over", 'overPosition', [0 0.3], 'yLim', [2.5 5.5])), RsA);
+check(isequal(h.auxAxes.YLim, [0 10]) && contains(cap, "right axis (from 0 to 0.3 of its height)") && contains(cap, "y limits [2.5 5.5] V"), ...
+    "a panel takes the y limits given; the caption names the span and the limits: " + cap);
 h = renderPSTH(RsA, figA, Stack=true, Aux=auxSpec('placement', "over"));
 check(isscalar(h.auxAxes) && h.auxAxes.Layout.Tile > h.axes(1).Layout.Tile, 'over on a stack (its right axis is the peaks): drawn below');
 RsC = Rs; RsC.aux = Ac;

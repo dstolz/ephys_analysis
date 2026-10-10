@@ -270,7 +270,15 @@ end
 switch place
     case "below", s = s + ", in a panel below the " + what;
     case "above", s = s + ", in a panel above the " + what;
-    otherwise,    s = s + ", on the " + what + "'s right axis";
+    otherwise
+        s = s + ", on the " + what + "'s right axis";
+        op = spec.aux.overPosition;
+        if numel(op) == 2 && ~isequal(op, [0 1])
+            s = s + sprintf(" (from %g to %g of its height)", op(1), op(2));
+        end
+end
+if numel(spec.aux.yLim) == 2
+    s = s + sprintf(", y limits [%g %g] %s", spec.aux.yLim(1), spec.aux.yLim(2), A.units);
 end
 if A.byGroup && height(A.groups) > 1
     s = s + sprintf(", one trace per group (n = %s epochs)", strjoin(string(A.nEpochs(:).'), ", "));

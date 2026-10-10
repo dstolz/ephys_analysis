@@ -167,7 +167,9 @@ switch section
             'placement',      "below", ...     % "below" | "above" the unit's raster / PSTH (a panel of its own), or "over" it (its right y axis)
             'baseline',       "none", ...      % "none" | "subtract": each epoch's mean over baselineWindow, per channel (before the magnitude)
             'baselineWindow', [-0.2 0], ...    % s from the event
-            'byGroup',        true);           % one trace per trial group, in its color (false: one over every epoch)
+            'byGroup',        true, ...        % one trace per trial group, in its color (false: one over every epoch)
+            'yLim',           [], ...          % the signal's y limits [lo hi] in its units (V); [] = from the traces (and their bands)
+            'overPosition',   [0 1]);          % placement "over": the part of the plot's height the signal spans, [bottom top] as fractions 0-1
 
     case "Note"
         % a plot's descriptive text (drawNote): one block of text, placed in or beside the plot

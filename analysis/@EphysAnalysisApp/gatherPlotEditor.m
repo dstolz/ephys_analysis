@@ -106,6 +106,10 @@ p.aux.baseline = "none";
 if E.auxBaseline.Value; p.aux.baseline = "subtract"; end
 p.aux.baselineWindow = [E.auxBaseFrom.Value E.auxBaseTo.Value];
 p.aux.byGroup = logical(E.auxByGroup.Value);
+yl = parseList(E.auxYLim.Value);
+if numel(yl) ~= 2 || yl(2) <= yl(1); yl = []; end   % two ascending values, else from the traces
+p.aux.yLim = yl;
+p.aux.overPosition = [E.auxOverFrom.Value E.auxOverTo.Value];
 p.note.text = strjoin(string(E.annText.Value(:)).', newline);
 p.note.placement = string(E.annPlace.Value);
 p.note.x = E.annX.Value;

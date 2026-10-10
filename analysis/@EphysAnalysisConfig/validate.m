@@ -42,7 +42,8 @@ function issues = validate(obj, opts)
 %               waveforms plot); its amplitude scale; a waveforms plot's
 %               mode is never off; an aux mode other than off: its
 %               placement (a warning for "over" on a stacked PSTH, drawn
-%               below), channels (whole numbers >= 1), baseline and a
+%               below), y limits ([] or ascending), overPosition (0 <=
+%               bottom < top <= 1), channels (whole numbers >= 1), baseline and a
 %               baseline window [b0 b1] that overlaps the epoch window,
 %               and a warning when the plot is not a PSTH or raster of
 %               spikes; a note's placement, alignment, rotation,
@@ -348,6 +349,14 @@ for k = 1:numel(obj.Plots)
         elseif aux.placement == "over" && p.kind == "psth" && p.stack
             add("Plots", x0 + ".placement", "warning", "A stacked PSTH's right axis labels its rows' peaks: " + ...
                 "the aux signal goes below it instead of over it.");
+        end
+        yl = aux.yLim;
+        if ~(isempty(yl) || (numel(yl) == 2 && all(isfinite(yl)) && yl(2) > yl(1)))
+            add("Plots", x0 + ".yLim", "error", "The aux y limits are [] (from the traces) or [lo hi] with lo < hi, in the signal's units.");
+        end
+        op = aux.overPosition;
+        if ~(numel(op) == 2 && all(isfinite(op)) && op(1) >= 0 && op(2) <= 1 && op(2) > op(1))
+            add("Plots", x0 + ".overPosition", "error", "The aux overPosition is [bottom top], fractions of the plot's height with 0 <= bottom < top <= 1.");
         end
         if ~isempty(aux.channels) && ~all(aux.channels >= 1 & aux.channels == round(aux.channels))
             add("Plots", x0 + ".channels", "error", "The aux channels are columns of the AUX extract: whole numbers, at least 1 ([] = all).");

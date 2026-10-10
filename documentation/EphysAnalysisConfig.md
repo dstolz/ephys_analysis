@@ -656,6 +656,8 @@ plot's `aux` (`EphysAnalysisConfig.defaults("Aux")`):
 | `baseline` | `"none"` | `"subtract"`: each epoch's mean over `baselineWindow` is subtracted from each channel first, before the magnitude; `"none"`: as recorded |
 | `baselineWindow` | `[-0.2 0]` | s from the event; it must overlap the epoch window (the samples cut for each epoch) |
 | `byGroup` | `true` | one trace per trial group, in the group's color; `false`: one mean over every epoch |
+| `yLim` | `[]` | the signal's y limits `[lo hi]`, in its units (V): a panel's y axis, or (`"over"`) the part of the right axis the signal spans; the same scale on every plot. `[]` = from the traces (and their bands, when drawn) inside the time window, padded 5% each way |
+| `overPosition` | `[0 1]` | `"over"`: where the signal sits on the plot, `[bottom top]` as fractions of its height (0 = the bottom edge, 1 = the top): `[0 0.3]` puts it in the bottom three tenths, `[0.7 1]` along the top. The right axis' limits are set so that `yLim` (or the traces' range) falls exactly there, and its ticks (at most three, at round values) stay along that span. `[0 1]` with `yLim` `[]` leaves the right axis automatic |
 
 `auxMean` computes it ([Analysis page](EphysAnalysis.md#compute)) with
 `evokedPotential`, so the samples are cut as an evoked potential's are:
@@ -679,7 +681,10 @@ How it is drawn:
   overlay of units) it has its own. A plot drawn into a single axes has
   no room for a panel and draws no aux signal unless it is `"over"`.
 - `"over"` uses the panel's right y axis, named on the right column of a
-  grid; the error bands are semitransparent there (0.2, unless `ErrorFaceAlpha` sets an opacity) so the data under them
+  grid, placed and scaled by `overPosition` and `yLim`: a real axis, so
+  its ticks are the signal's values. A value beyond `yLim` is still drawn
+  at its place on the scale, past the span (clipped only at the axes'
+  edge). The error bands are semitransparent there (0.2, unless `ErrorFaceAlpha` sets an opacity) so the data under them
   shows. A stacked PSTH's right axis labels its rows' peaks, so `"over"`
   goes below a stack (Validate warns).
 - The traces are the groups' colors (a group per trace with `byGroup`, a

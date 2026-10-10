@@ -458,10 +458,19 @@ app.onPlotSelected(kAux);
 check(auxHidden && string(E.auxMode.Value) == "magnitude" && string(E.auxPlacement.Value) == "above" ...
     && string(E.auxChannels.Value) == "1 2 3" && E.auxBaseline.Value && E.auxBaseFrom.Value == -0.1 && ~E.auxByGroup.Value, ...
     'a plot of signals hides the Aux signals section; selecting the PSTH again shows its aux settings');
+spanOff = E.auxOverFrom.Enable == "off";   % placement "above"
+E.auxPlacement.Value = 'over'; E.auxOverFrom.Value = 0; E.auxOverTo.Value = 0.3; E.auxYLim.Value = '-0.1 0.1';
+app.onConfigChanged("plot");
+xa = app.Config.Plots(kAux).aux;
+check(spanOff && E.auxOverFrom.Enable == "on" && isequal(xa.overPosition, [0 0.3]) && isequal(xa.yLim, [-0.1 0.1]) ...
+    && xa.placement == "over", 'over the plot: its span (0 to 0.3) and y limits reach the plot; the span waits for placement Over');
+E.auxYLim.Value = '0.1 -0.1'; app.onConfigChanged("plot");
+check(isempty(app.Config.Plots(kAux).aux.yLim), 'y limits that are not two ascending values are automatic');
 E.auxMode.Value = 'off'; app.onConfigChanged("plot");
 check(app.Config.Plots(kAux).aux.mode == "off" && E.auxChannels.Enable == "off", 'Off takes the aux signal off the plot');
 E.auxPlacement.Value = 'below'; E.auxChannels.Value = ''; E.auxBaseline.Value = false; E.auxBaseFrom.Value = -0.2;
-E.auxByGroup.Value = true; app.onConfigChanged("plot");   % the defaults again, for what follows
+E.auxByGroup.Value = true; E.auxYLim.Value = ''; E.auxOverFrom.Value = 0; E.auxOverTo.Value = 1;
+app.onConfigChanged("plot");   % the defaults again, for what follows
 errRows = shown(E.errType) && shown(E.errFace) && shown(E.errEdge) && E.errResamples.Enable == "off" ...
     && E.errEdgeStyle.Enable == "off" && string(E.showSEM.Text) == "Error";
 E.errType.Value = 'std'; E.errAlpha.Value = 0.3; E.errEdge.Value = 'auto'; E.errEdgeWidth.Value = 1;

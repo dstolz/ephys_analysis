@@ -63,7 +63,10 @@ function h = renderPSTH(R, target, opts)
 %                 auxLooks says (the groups' colors; a channel's own color
 %                 or line style), its error band (R.aux.err) with ShowSEM;
 %                 several channels get legend entries (in the aux panel's
-%                 own legend under a stack)
+%                 own legend under a stack). yLim fixes the signal's y
+%                 limits; overPosition ([bottom top], fractions of the
+%                 rate panel's height) is where it sits over the panel
+%                 (auxInto)
 %     Style       EphysAnalysisConfig.defaults("Style") fields (LineWidth,
 %                 ShowSEM, ErrorType (the overlay's band across units),
 %                 ErrorResamples, the bands' look (ErrorFaceColor,
@@ -174,7 +177,7 @@ if opts.Layout == "overlay" && nU > 1
     top = ax;
     bottom = ax;
     if ~isempty(xa)
-        auxInto(xa, R.aux, X, W, style, false, true);
+        auxInto(xa, R.aux, X, W, style, false, true, auxOpt);
         tagPart(xa, "auxAxes", "", "Mean");
         stackAuxLegend(xa, X, style, look);
         if place == "above"
@@ -183,7 +186,7 @@ if opts.Layout == "overlay" && nU > 1
             bottom = xa;
         end
     elseif place == "over"
-        auxInto(ax, R.aux, X, W, style, true, true);
+        auxInto(ax, R.aux, X, W, style, true, true, auxOpt);
     end
     if ~isempty(xa); top.XTickLabel = []; end   % the upper of the two
     title(top, sprintf('Mean of %d units', nU), 'FontWeight', 'normal');
@@ -245,7 +248,7 @@ for j = 1:numel(idx)
         struct('legend', j == 1, 'left', false, 'right', right, 'layout', tl, 'auto', "east", 'aux', legendAux(X, place, look)));
     waveformInset(ax, waves, u, wave, style);
     if ~isempty(xa)
-        auxInto(xa, R.aux, X, W, style, false, false);
+        auxInto(xa, R.aux, X, W, style, false, false, auxOpt);
         tagPart(xa, "auxAxes", "", names(u));
         if j == 1; stackAuxLegend(xa, X, style, look); end
         if place == "above"
@@ -256,7 +259,7 @@ for j = 1:numel(idx)
         end
         xax(end+1) = xa; %#ok<AGROW>
     elseif place == "over"
-        auxInto(ax, R.aux, X, W, style, true, right || ~isempty(ax0));
+        auxInto(ax, R.aux, X, W, style, true, right || ~isempty(ax0), auxOpt);
     end
     title(top, names(u), 'FontWeight', 'normal', 'Interpreter', 'none');
     if auroc

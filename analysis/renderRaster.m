@@ -39,7 +39,10 @@ function h = renderRaster(R, target, opts)
 %           "above" the raster, a panel of its own half the raster's
 %           height, flush on the same time axis; or "over" it, on its right
 %           y axis. An axes TARGET has room for "over" only. The traces
-%           look as auxLooks says; several channels get legend entries
+%           look as auxLooks says; several channels get legend entries.
+%           yLim fixes the signal's y limits; overPosition ([bottom top],
+%           fractions of the raster's height) is where it sits over the
+%           raster (auxInto)
 %
 %   The grid's x and y labels are its tiled layout's (the y label says how
 %   the rows are sorted, and names an aux panel below or above them), and
@@ -118,7 +121,7 @@ for j = 1:numel(idx)
     waveformInset(ax, waves, u, wave, style);
     top = ax;
     if ~isempty(xa)
-        auxInto(xa, R.aux, X, W, style, false, false);
+        auxInto(xa, R.aux, X, W, style, false, false, auxOpt);
         tagPart(xa, "auxAxes", "", names(u));
         if place == "above"
             xa.XTickLabel = [];
@@ -128,7 +131,7 @@ for j = 1:numel(idx)
         end
         xax(end+1) = xa; %#ok<AGROW>
     elseif place == "over"
-        auxInto(ax, R.aux, X, W, style, true, c == nc || j == numel(idx) || ~isempty(ax0));
+        auxInto(ax, R.aux, X, W, style, true, c == nc || j == numel(idx) || ~isempty(ax0), auxOpt);
     end
     title(top, names(u), 'FontWeight', 'normal', 'Interpreter', 'none');
     axs(j) = ax;

@@ -10,6 +10,13 @@ says how to cut a release.
 
 ### Added
 
+- The aux signal's place and scale: `aux.yLim` fixes its y limits (a panel's, or over a plot the part of
+  the right axis it spans), and `aux.overPosition` (`[bottom top]`, fractions of the plot's height) puts
+  it where it should sit over a PSTH or raster, e.g. `[0 0.3]` for the bottom three tenths; the right
+  axis is set so the signal's limits fall exactly there, with its ticks along that span only. The
+  analysis app's Aux signals section gets **Y limits** and **Over, span** rows; Validate checks both and
+  the caption names them.
+
 - Error bands and bars of a chosen kind on every analysis plot that draws them: `Style.ErrorType` is
   `"sem"` (mean ± SEM, the default and the look so far), `"std"` (mean ± SD) or `"ci95"` (the 95%
   confidence interval of the mean from `Style.ErrorResamples` bootstrap resamples, percentile, `bootci`;

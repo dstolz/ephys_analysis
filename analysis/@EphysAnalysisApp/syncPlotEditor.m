@@ -57,9 +57,10 @@ function syncPlotEditor(obj)
 %                                 for waveforms, its size, sites and unit
 %                                 names for the "probe" layout)
 %     aux signals                 psth, raster of spikes (the placement,
-%                                 channels, baseline and per-group box
-%                                 enabled when it is not Off; the baseline
-%                                 window with Subtract ticked)
+%                                 channels, baseline, y limits and per-group
+%                                 box enabled when it is not Off; the
+%                                 baseline window with Subtract ticked; the
+%                                 span over the plot with placement Over)
 %     text note                   every kind (its place, alignment, rotation,
 %                                 font, colors and interpreter enabled when
 %                                 it has text; x and y at "At x, y")
@@ -231,7 +232,8 @@ en([E.errType E.errFace E.errAlpha E.errEdge], errOn);
 en(E.errResamples, errOn && string(E.errType.Value) == "ci95");
 en([E.errEdgeStyle E.errEdgeWidth], errOn && lower(strtrim(string(E.errEdge.Value))) ~= "none");
 auxOn = string(E.auxMode.Value) ~= "off";
-en([E.auxPlacement E.auxChannels E.auxBaseline E.auxByGroup], auxOn);
+en([E.auxPlacement E.auxChannels E.auxBaseline E.auxByGroup E.auxYLim], auxOn);
+en([E.auxOverFrom E.auxOverTo], auxOn && string(E.auxPlacement.Value) == "over");
 en([E.auxBaseFrom E.auxBaseTo], auxOn && E.auxBaseline.Value);
 noted = strtrim(strjoin(string(E.annText.Value(:)).', newline)) ~= "";
 en([E.annPlace E.annAlign E.annVAlign E.annRotation E.annFont E.annSize E.annBold E.annItalic E.annBox ...
@@ -305,6 +307,7 @@ v.waveAmp = wavePlot;
 v.waveSites = wavePlot && layout == "probe"; v.waveNames = v.waveSites;
 v.auxMode = ismember(kind, ["psth" "raster"]) && spikes;   % the mean aux signal with each unit's panels
 v.auxChannels = v.auxMode; v.auxBaseline = v.auxMode; v.auxByGroup = v.auxMode;
+v.auxYLim = v.auxMode; v.auxOverFrom = v.auxMode;
 for f = ["annText" "annPlace" "annX" "annAlign" "annRotation" "annFont" "annBold" "annColor" "annInterp"]
     v.(f) = true;   % the text note is every kind's
 end
